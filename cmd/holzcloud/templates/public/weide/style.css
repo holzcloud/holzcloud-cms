@@ -900,7 +900,15 @@ main:focus { outline: none; }
   grid-template-columns: [text-start] min(100%, var(--hc-measure, 74ch)) [text-end] minmax(0, 1fr) [breit-ende];
 }
 .page-content > * { grid-column: text-start / text-end; min-width: 0; }
-.page-content > :is(.hc-galerie, .hc-video, .hc-bild--voll) {
+/* Was die Breite füllen SOLL, bekommt sie auch. Eine Kartenreihe gehört
+   dazu — sie ist dieselbe Geste wie eine Galerie, und in der Textspalte
+   passten drei Karten nicht nebeneinander: bausteine.css gibt .hc-spalten-3
+   ein minmax(min(100%, 14rem), 1fr), drei Spuren brauchen mit den zwei Fugen
+   3 × 224 + 2 × 24 = 720 px, und die Textspalte war bei 1265 px Seitenbreite
+   nur 705 px. Es fehlten fünfzehn Pixel, und die Reihe brach auf 2+1 um. Wer
+   das im Inhalt löst, indem er die Spaltenzahl auf 4 zwingt, versteckt einen
+   Fehler der Vorlage in einem Manifest. */
+.page-content > :is(.hc-galerie, .hc-karten, .hc-video, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
 }
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
