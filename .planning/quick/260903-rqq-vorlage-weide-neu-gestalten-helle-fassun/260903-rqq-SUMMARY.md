@@ -59,18 +59,20 @@ decisions:
   - "Überschriften: die Grösse gilt überall im Inhalt (Nachfahrenselektor), der grosse Abstand nur auf der obersten Ebene (Kindselektor) — zwei Reichweiten mit Absicht"
   - "Eine Überschrift über einem bildtext KANN nur im Markdown des Bausteins stehen: render.go gibt blk.Title allein beim aufruf aus, block_list.html bietet ein Titelfeld auch nur dort an"
   - ".hc-karten gehört in die Breit-Regel — eine Kartenreihe ist dieselbe Geste wie eine Galerie"
+  - "Die Breit-Regel nennt jetzt die REGEL statt der Liste: breit ist, was von sich aus mehrspaltig ist oder ein Bild in natürlicher Grösse zeigt; schmal bleibt, was gelesen wird"
+  - ".hc-aufruf bleibt absichtlich schmal — ein Kasten mit einem Satz und einem Knopf, mittig gesetzt, wäre über die volle Breite ein Halbsatz in einer leeren Fläche"
 
 metrics:
-  duration: 71m
+  duration: 78m
   completed: 2026-09-03
   tasks: 3
-  commits: 7
+  commits: 8
   files: 18
 
 actuals:
-  tokens: 36400
+  tokens: 37200
   tasks: 3
-  commits: 7
+  commits: 8
 ---
 
 # Quick-Aufgabe 260903-rqq: Vorlage `weide` neu gestalten — Summary
@@ -433,22 +435,70 @@ schmalen Textspalte standen drei Karten auf 2 à 340 px.
 `bausteine.css` und war schon vorher so; es ist kein Befund dieser Arbeit und
 gehört, wenn überhaupt, in den Kern und nicht in eine Vorlage.
 
+### Fehler C — `.hc-bildtext` fehlte in derselben Aufzählung (Commit c7297cf)
+
+Dritter Befund derselben Familie, am laufenden Server bei 1280 px gemessen.
+Ein `bildtext` ist ein Bild NEBEN einem Text, also zwei Spalten — er stand
+aber in der 705 px schmalen Textspalte, dem Bild blieben 340 px und dem Text
+Zeilen von rund 30 Zeichen. Die Auszeichnung versprach zwei Spalten, das
+Raster gab ihr eine halbe.
+
+Nachgerechnet (Fuge 24 px aus `--hc-luft`, Mass 705 px — das Modell trifft die
+Messung des Orchestrators auf den Pixel):
+
+| Fenster | Raster | vorher | nachher |
+|---|---|---|---|
+| 1280 px | 1178 px | 2 × 340 px | 2 × 577 px |
+| 1000 px | 920 px | 2 × 340 px | 2 × 448 px |
+| 900 px | 828 px | 2 × 340 px | 2 × 402 px |
+| 760 px | 699 px | 2 × 338 px | 2 × 338 px |
+| 700 px | 644 px | gestapelt | gestapelt |
+
+**Zwei Berichtigungen zur Meldung.** Bei 900 px stapelt `bausteine.css` den
+Baustein NICHT: die Abfrage steht bei `45em`, und `em` misst in einer
+Medienabfrage immer gegen 16 px, also bei 720 px Fenster. Bei 900 px sind es
+weiterhin zwei Spalten, und die Korrektur hilft dort ebenso (340 → 402 px).
+Erst ab etwa 760 px fallen breit und schmal zusammen, weil das Mass dann
+breiter ist als das Raster; gestapelt wird unter 720 px.
+
+`.hc-bildtext--rechts` geht mit — es ist ein blosser Modifikator derselben
+Klasse am selben Element (`internal/block/render.go:140-142`).
+
+### Die Breit-Regel nennt jetzt die Regel statt der Liste
+
+Drei Nachbesserungen an einer Zeile waren zwei zu viel. Der Kommentar davor
+sagt deshalb nicht mehr, WAS drinsteht, sondern WARUM:
+
+> Breit ist, was von sich aus MEHRSPALTIG ist oder ein BILD in seiner
+> natürlichen Grösse zeigt. Schmal bleibt, was GELESEN wird.
+
+Mehrspaltig: `.hc-galerie`, `.hc-karten`, `.hc-bildtext`. Bild in natürlicher
+Grösse: `.hc-video`, `.hc-bild--voll`, dazu die Figur aus einem Bild allein im
+Absatz. Gelesen und darum schmal: `.hc-text`, `.hc-zitat`, `.hc-eigen`.
+
+**`.hc-aufruf` bleibt ausdrücklich schmal, und der Grund steht dabei.** Er ist
+ein Kasten mit einem Satz und einem Knopf, sein Inhalt ist mittig gesetzt;
+über 1178 px gezogen stünde ein Halbsatz in einer sehr breiten leeren Fläche.
+Er ist das einzige Element, das absichtlich in der Textspalte bleibt — ohne
+diesen Satz wird er beim nächsten Mal „der Vollständigkeit halber" nachgetragen
+und dabei kaputtgemacht.
+
 ### Zum Stand der Prüftore
 
-`template check` meldet für `weide` „no problems found", `go build ./...` und
-`go test ./internal/tmplmgr/...` sind grün.
+`template check` meldet für `weide` „no problems found"; `go build ./...`,
+`go test ./internal/template/... ./internal/tmplmgr/...` und `go test ./...`
+sind grün.
 
-`go test ./internal/template/...` ist zum Zeitpunkt dieser Arbeit ROT, aber
-**nicht wegen `weide`**: `TestShippedThemesRenderEveryView` meldet genau eine
-Zeile, `render_test.go:297: rudel has no print stylesheet`. An
-`cmd/holzcloud/templates/public/rudel/` arbeitet gerade ein anderer Agent im
-selben Arbeitsbaum (2321 gelöschte Zeilen, `@media print` derzeit nicht
-vorhanden). Der Test meldet je Vorlage einzeln über `t.Errorf`; dass `weide`
-in der Ausgabe nicht vorkommt, heisst, dass `weide` alle Zusicherungen dieses
-Tests erfüllt. Nicht angefasst, wie verlangt.
+Zwischenzeitlich war `go test ./internal/template/...` rot, aber **nicht wegen
+`weide`**: `TestShippedThemesRenderEveryView` meldete genau eine Zeile,
+`rudel has no print stylesheet`. An `cmd/holzcloud/templates/public/rudel/`
+arbeitete im selben Arbeitsbaum ein anderer Agent. Der Test meldet je Vorlage
+einzeln über `t.Errorf`, `weide` kam in der Ausgabe nie vor. Beim letzten Lauf
+war auch `rudel` wieder grün. `rudel/` habe ich nicht angefasst — auch nicht,
+um den Test grün zu machen.
 
 ## Self-Check: PASSED
 
 Alle drei neuen Dateien liegen auf der Platte (`favicon.svg`, beide woff2), alle
 fünfzehn geänderten ebenfalls, und alle drei Commits sind in `git log`
-auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967.
+auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967, c7297cf.
