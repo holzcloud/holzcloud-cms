@@ -1072,6 +1072,17 @@ main:focus { outline: none; }
  * mit <section>-Kindern ist im Fliesstext nichts anderes als eine Kartenreihe.
  * Ein Browser ohne :has() lässt die Regel fallen und zeigt die Abschnitte
  * untereinander — lesbar, nur ohne Raster. */
+/* Ein Bild in einer handgeschriebenen <section> kennt dieselbe Höhengrenze wie
+   das Bild im bildtext-Baustein, aus demselben Grund und mit derselben Zahl:
+   auch hier gibt es keine Bildmitte aus dem Kern, also wird nicht
+   zugeschnitten, sondern die Höhe begrenzt. Diese Regel fängt die
+   <section>-Blöcke, die NICHT in einer Gruppe stehen; die Kacheln einer Gruppe
+   werden weiter unten zugeschnitten und sind dadurch ohnehin niedrig. */
+.page-content section img {
+  inline-size: auto; max-inline-size: 100%;
+  block-size: auto; max-block-size: min(52vh, 500px);
+}
+
 .page-content > div:has(> section) {
   grid-column: text-start / breit-ende;
   display: grid; gap: var(--hc-space-5);
@@ -1630,8 +1641,43 @@ main:focus { outline: none; }
 
 /* Dasselbe wie beim Bild-Baustein, aus demselben Grund: das Bild im
    Bildtext steht neben einem Absatz auf demselben hellen Papier und
-   braucht eine Kante, um überhaupt als Bild anzufangen. */
-.hc-bildtext__bild img { border: 1px solid var(--hc-hairline); }
+   braucht eine Kante, um überhaupt als Bild anzufangen.
+ *
+ * Und dazu eine HÖHENGRENZE, die auf dieser Website die wichtigste Zeile des
+ * ganzen Abschnitts ist. Ein bildtext ist zwei Spalten; bausteine.css gibt dem
+ * Bild inline-size: 100 %, also folgt die Höhe dem Seitenverhältnis. An der
+ * Schwestervorlage gemessen, Spalte 533 px: ein Hochformat 900×1600 wurde
+ * 533×945 gezeigt — höher als das Fenster. Der Text daneben war 143 px hoch
+ * und stand wegen align-items: center 405 px unter der Bildoberkante; oben
+ * rechts klaffte eine halbe Bildschirmhöhe Leere. Die zwei Querformate
+ * derselben Seite sassen richtig.
+ *
+ * Auf der Milchschäferei ist das ein Bild unter vieren. Hier ist es der
+ * Regelfall: zwölf der zwanzig Seiten sind Tierporträts, und ein
+ * Hundeporträt ist überwiegend hochkant. Die Vorlage muss das tragen, nicht
+ * dulden.
+ *
+ * Die Grenze ist strenger als die 70vh beim Bild über die volle Breite, weil
+ * dieses Bild nur die halbe Breite hat: ein gleich hohes Bild wirkt in einer
+ * halb so breiten Spalte doppelt so schlank. 500 px sind bei einem Verhältnis
+ * von 0.56 rund 280 px Breite — Bild und Text bleiben als PAAR lesbar.
+ *
+ * Kein object-fit: cover. internal/block/render.go setzt das
+ * Zuschnitt-Kennzeichen nur für Galerie (Z. 165) und Karte (Z. 183); ein
+ * bildtext-Bild bekommt keine Bildmitte mitgeliefert, ein Zuschnitt schnitte
+ * also blind aus der geometrischen Mitte — und bei einem Hundeporträt ist die
+ * Mitte nicht der Kopf. Stattdessen Höhe begrenzen und die Breite folgen
+ * lassen.
+ *
+ * Der Preis, und er gehört hierher: ein hohes Bild füllt seine Spalte nicht
+ * mehr in der Breite und steht mittig darin. Ein Querformat ist unberührt —
+ * die Grenze greift erst ab einem Verhältnis von etwa 1.1. */
+.hc-bildtext__bild img {
+  border: 1px solid var(--hc-hairline);
+  inline-size: auto; max-inline-size: 100%;
+  block-size: auto; max-block-size: min(52vh, 500px);
+  margin-inline: auto; display: block;
+}
 
 /* Eigene Bausteinart — die Felder als ruhige Faktenzeilen. Eine eigene
    Bausteinart gehört der Website und nicht der Vorlage: der Kern schreibt nur
