@@ -1085,6 +1085,168 @@ main:focus { outline: none; }
   .site-search { display: none; }
 }
 
+/* ══ Der Aufmacher ════════════════════════════════════════════
+   Zwei Spalten: links, was die Seite sagt, rechts das Titelbild —
+   und wo keines gesetzt ist, die Hügelzeichnung. Auf einem schmalen
+   Fenster untereinander; zwei Spalten auf einem Telefon sind zwei zu
+   enge Spalten. */
+.site-hero { padding-block: clamp(48px, 9vh, 104px) clamp(40px, 7vh, 80px); }
+.site-hero-grid {
+  display: grid; align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+}
+.site-hero .hc-display { margin-block-start: var(--hc-space-4); }
+.site-hero .hc-claim   { margin-block-start: var(--hc-space-5); }
+.site-hero .hc-lede    { margin-block-start: var(--hc-space-5); }
+.site-actions {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-3);
+  margin-block-start: var(--hc-space-6);
+}
+/* Bleibt auf einer nackten Website nichts übrig, das irgendwohin
+   zeigt, soll auch kein Abstand übrig bleiben. */
+.site-actions:empty { display: none; }
+
+.site-art { justify-self: end; width: 100%; max-width: 620px; }
+.site-art svg { width: 100%; height: auto; display: block; }
+/* aspect-ratio mit object-fit: cover, damit ein Hochformat den
+   Aufmacher nicht in die Länge zieht. Ein Hofbild ist meistens quer,
+   aber „meistens" ist keine Zusage, die eine Vorlage machen darf. */
+.site-art__bild {
+  width: 100%; display: block;
+  aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: var(--hc-r-lg);
+  border: 1px solid var(--hc-hairline);
+  box-shadow: var(--hc-shadow-pane);
+}
+@media (max-width: 1000px) {
+  .site-hero-grid { grid-template-columns: minmax(0, 1fr); }
+  .site-art { justify-self: start; max-width: 560px; margin-block-start: var(--hc-space-5); }
+}
+
+/* ══ Die Bausteine ════════════════════════════════════════════
+   Die zehn Zeilen der Brücke weiter oben kleiden das meiste. Hier
+   steht nur, was daraus NICHT folgt — und der Grund dafür ist fast
+   immer derselbe: das helle Papier. Wer stattdessen .hc-block-Regeln
+   nachbaut, hat zwei Gestaltungen zu pflegen und behält die zweite
+   nicht. */
+
+/* Bild — eine Haarlinie, damit ein helles Bild auf hellem Papier als
+   Fenster liest und nicht ausfranst. Auf dunklem Grund braucht es
+   sie nicht, dort trennt der Helligkeitssprung von selbst. */
+.hc-bild img, .hc-galerie__bild img, .hc-eigen__bild img {
+  border: 1px solid var(--hc-hairline);
+}
+
+/* Bildunterschrift — gesperrte Versalien statt der Mono-Beschriftung
+   aus holzcloud. Die opacity aus bausteine.css wird auf 1
+   zurückgesetzt: die Farbe --hc-ink-3 trägt die Abstufung schon, und
+   beides übereinander fiele unter die Kontrastgrenze. */
+.hc-block figcaption, .hc-bildunterschrift {
+  font-size: var(--hc-text-xs); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink-3); opacity: 1;
+}
+
+/* Karte — ein deckender Kasten, kein Glas. Die Brücke gibt ihr über
+   --paper den Seitengrund als Füllung; eine Karte soll aber HELLER
+   liegen als das Blatt, damit sie als zweites Papier liest. Kein
+   backdrop-filter: der Kunstgriff aus holzcloud ergibt nur auf
+   dunklem Grund Sinn, auf Papier wirkt eine halbdurchsichtige Karte
+   schmutzig. */
+.hc-karte {
+  background: var(--hc-pane);
+  border-color: var(--hc-pane-edge);
+  box-shadow: var(--hc-shadow-pane);
+  gap: var(--hc-space-3);
+}
+.hc-karte__titel { font-weight: var(--hc-weight-medium); letter-spacing: var(--hc-track-snug); }
+.hc-karte__text  { color: var(--hc-ink-2); font-size: var(--hc-text-sm); }
+.hc-karte--link:hover, .hc-karte--link:focus-visible {
+  border-color: var(--hc-erde-soft);
+  box-shadow: var(--hc-shadow-lift);
+}
+
+/* Zitat — die Marke trägt der Balken, nicht die Schriftfarbe. Ein
+   ganzer Absatz in Erdbraun läse sich als Werbung. */
+.hc-zitat { border-inline-start-color: var(--hc-erde); }
+.hc-zitat blockquote {
+  font-size: var(--hc-text-xl); font-weight: var(--hc-weight-regular);
+  line-height: var(--hc-leading-snug); letter-spacing: var(--hc-track-snug);
+  color: var(--hc-ink);
+}
+.hc-zitat figcaption {
+  margin-block-start: var(--hc-space-3);
+  font-size: var(--hc-text-xs); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink-3); opacity: 1;
+}
+
+/* Aufruf — dieselbe deckende Fläche wie eine Karte, eine Stufe
+   grösser. */
+.hc-aufruf {
+  background: var(--hc-pane);
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-r-lg);
+  box-shadow: var(--hc-shadow-pane);
+}
+.hc-aufruf__titel { font-weight: var(--hc-weight-medium); letter-spacing: var(--hc-track-snug); }
+.hc-aufruf__text  { color: var(--hc-ink-2); }
+.hc-aufruf__knopf { margin-block-start: var(--hc-space-5); }
+
+/* Knopf — die Pillenform des Systems. */
+.hc-knopf {
+  /* Die Schriftfarbe steht hier noch einmal, obwohl bausteine.css sie
+     schon aus --paper baut. Weiter oben färbt `.page-content
+     :where(a)` jeden Verweis im Inhalt erdbraun, und diese Regel steht
+     SPÄTER in derselben Datei — ohne die Zeile hier stünde der Knopf
+     im Aufruf-Baustein als erdbraune Schrift auf erdbrauner Fläche
+     und wäre unsichtbar. Genau das hat holzcloud einmal gekostet. */
+  color: var(--hc-ground);
+  border-radius: var(--hc-r-pill);
+  padding: 13px var(--hc-space-5);
+  font-size: var(--hc-text-sm); font-weight: var(--hc-weight-semibold);
+  line-height: 1; letter-spacing: 0;
+  transition: opacity var(--hc-dur-fast) var(--hc-ease),
+              transform var(--hc-dur-fast) var(--hc-ease);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hc-knopf:hover { transform: translateY(-1px); }
+}
+
+/* Trennlinie — sie soll trennen und nicht auffallen. */
+.hc-trenner { margin-block: var(--hc-space-8); }
+
+/* Video — der Kern fragt hier --hc-radius und --hc-space direkt ab,
+   also die Reglernamen der Verwaltung, und fiele ohne sie auf 0
+   zurück. Die Regel zielt deshalb auf die Klasse und nicht auf :root:
+   am :root wäre es der Zyklus, den die Brücke vermeidet. */
+.hc-video { margin-block: var(--hc-space-6); }
+.hc-video video { border-radius: var(--hc-r); border: 1px solid var(--hc-hairline); }
+
+/* Absätze innerhalb eines Bausteins.
+ *
+ * weide.base setzt :where(p) auf margin 0, und den Rhythmus macht sonst
+ * `.page-content > * + *` — das trifft aber nur die Bausteine selbst. Ein
+ * Textbaustein aus drei Absätzen stünde ohne diese Zeile als eine Wand ohne
+ * Luft dazwischen. */
+.hc-text > * + *,
+.hc-eigen__text > * + *,
+.hc-bildtext__text > * + * { margin-block-start: var(--hc-space-5); }
+
+/* Dasselbe wie beim Bild-Baustein, aus demselben Grund: das Bild im
+   Bildtext steht neben einem Absatz auf demselben hellen Papier und
+   braucht eine Kante, um überhaupt als Bild anzufangen. */
+.hc-bildtext__bild img { border: 1px solid var(--hc-hairline); }
+
+/* Eigene Bausteinart — die Felder als ruhige Faktenzeilen. Eine eigene
+   Bausteinart gehört der Website und nicht der Vorlage: der Kern schreibt nur
+   `hc-eigen--<schluessel>`, und welche Schlüssel es gibt, weiss allein der
+   Betrieb. Hier steht deshalb nur, was ohne Kenntnis des Schlüssels richtig
+   ist. */
+.hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
+.hc-eigen__link a { color: var(--hc-erde); }
+
 /* ══ Der Ausdruck ═════════════════════════════════════════════
    Anders als bei der Vorlage holzcloud ist der Grund hier schon
    hell, also bleibt der Papierteil kurz: der Farbschleier wird

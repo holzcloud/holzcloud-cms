@@ -1,38 +1,87 @@
 {{define "content"}}
-<article class="page page--home">
-  <header class="hof-hero">
-    <div class="hof-hero__inner">
-      <!-- Beginnt der Text schon mit einer eigenen Überschrift, steht der
-           Titel hier nicht noch einmal — sonst begrüsst die Startseite ihre
-           Besucher zweimal. -->
-      {{if and .Page.Title (not .Page.HasOwnHeading)}}
-      <h1 class="hof-hero__title">{{.Page.Title}}</h1>
-      {{end}}
-      {{if .Site.Description}}<p class="hof-hero__lead">{{.Site.Description}}</p>{{end}}
+{{/* Der Aufmacher baut sich aus dem, was die Seite selbst hergibt: Name der
+     Website als Zeile darüber, Titel als Schlagzeile, Beschreibung der Website
+     als die eine Zeile in Erdbraun. Jedes Stück ist einzeln abgesichert — eine
+     Seite, die nichts als einen Titel hat, rendert trotzdem, und eine ganz
+     leere zeigt nur die Zeichnung.
+
+     .Page.Excerpt steht hier NICHT. Der Anriss wird in
+     internal/page/excerpt.go beim Speichern aus dem Markdown abgeleitet, ist
+     also der Anfang genau des Textes, der zwei Abschnitte weiter unten als
+     Inhalt noch einmal kommt. In der Vorlage holzcloud stand die Begrüssung
+     der frischen Startseite dadurch zweimal untereinander, und das war der
+     einzige Fehler, den die Sichtprüfung dort fand. loader.go sagt es beim
+     Feld selbst: der Anriss ist für Listen und als Rückfall für die
+     Meta-Beschreibung da. */}}
+<section class="site-hero">
+  <div class="hc-wide site-hero-grid">
+    <div>
+      {{with .Site.Name}}<p class="hc-eyebrow">{{.}}</p>{{end}}
+      {{if not .Page.HasOwnHeading}}{{with .Page.Title}}<h1 class="hc-display">{{.}}</h1>{{end}}{{end}}
+      {{with .Site.Description}}<p class="hc-claim">{{.}}</p>{{end}}
+
+      {{/* Die Knöpfe zeigen nur auf Orte, die es auf dieser Website wirklich
+           gibt. Der eigentliche Handlungsaufruf gehört in einen Baustein der
+           Art „aufruf" im Inhalt — dort schreibt ihn der Betrieb selbst, und
+           er ist schon gekleidet. */}}
+      <div class="site-actions">
+        {{if .Shop.Enabled}}<a class="hc-btn" href="{{.Shop.URL}}">Zum Hofladen</a>{{end}}
+        {{with .Page.ArchiveURL}}<a class="hc-btn hc-btn--ghost" href="{{.}}">Alle Beiträge</a>{{end}}
+        {{if .Site.HasSearch}}<a class="hc-btn hc-btn--ghost" href="/suche">Suchen</a>{{end}}
+      </div>
     </div>
-  </header>
 
-  <!-- Das erste Bild des Textes ist der Auftakt: liegt es allein in seinem
-       Absatz, zieht das Stylesheet es über die volle Breite. Die Hofbilder
-       sind Querformat, und ein Querformat in einer Textspalte ist eine
-       Briefmarke. -->
-  {{if .Page.ContentHTML}}
-  <div class="prose">
-    {{.Page.ContentHTML}}
-  </div>
-  {{else}}
-  <div class="prose">
-    <p>Willkommen auf dem Hof von {{.Site.Name}}. Hier entsteht gerade die Seite —
-       schauen Sie bald wieder vorbei.</p>
-  </div>
-  {{end}}
+    <div class="site-art">
+      {{/* Das Titelbild der Seite. Der Wert kommt aus withOGImage in
+           internal/public/pagedata.go und ist die absolute Adresse auf den
+           eigenen Ursprung — dieselbe, die weiter oben im Kopf schon als
+           og:image steht, also holt der Browser sie einmal.
 
-  {{if .Page.Terms}}
-  <div class="page-terms">
+           Leeres alt und aria-hidden: das Bild steht schmückend neben der
+           Schlagzeile und ist nicht der Inhalt. loading="eager", weil es das
+           Erste ist, was jemand sieht — ein verzögertes Aufmacherbild ist ein
+           Loch im ersten Eindruck. */}}
+      {{with .Meta.OGImage}}
+      <img class="site-art__bild" src="{{.}}" alt="" loading="eager" decoding="async">
+      {{else}}
+      {{/* Ohne Titelbild die schmückende Hügelzeichnung. Sie trägt kein fill
+           und kein stroke als Literalwert — alle Töne kommen aus den Klassen
+           der Schicht weide.motif, damit sie einer eingestellten Marke folgt
+           statt neben ihr zu stehen. */}}
+      <svg class="hc-huegel" viewBox="0 0 600 450" aria-hidden="true" role="presentation" focusable="false">
+        <circle class="hc-sonne" cx="452" cy="118" r="54"/>
+        <path class="hc-h-fern" d="M0 246 C 78 196, 158 190, 236 224 C 312 257, 372 250, 438 216 C 498 186, 552 190, 600 214 L 600 450 L 0 450 Z"/>
+        <path class="hc-h-mitte" d="M0 300 C 84 250, 174 246, 258 286 C 332 321, 402 316, 470 282 C 518 258, 562 258, 600 274 L 600 450 L 0 450 Z"/>
+        <path class="hc-h-linie" d="M0 322 C 96 288, 186 300, 268 334"/>
+        <path class="hc-h-nah" d="M0 364 C 96 312, 208 310, 300 356 C 380 396, 458 392, 528 358 C 556 344, 580 340, 600 344 L 600 450 L 0 450 Z"/>
+        <path class="hc-h-linie" d="M132 398 L 132 356 M 212 392 L 212 350 M 292 398 L 292 358 M 372 404 L 372 364"/>
+        <path class="hc-h-linie" d="M108 372 C 200 348, 300 352, 396 384"/>
+      </svg>
+      {{end}}
+    </div>
+  </div>
+</section>
+
+<section class="hc-wide page-wrap">
+  <article class="page page--home">
+    {{if .Page.ContentHTML}}
+    {{/* Hier landen die Bausteine des Betriebs. Ein Wechsel aus Text und Bild
+         ist ein „bildtext", die Reihe darunter eine Kartenreihe, die Linie
+         dazwischen ein Trenner — alle drei sind über die zehn Zeilen der
+         Brücke in style.css schon gekleidet. */}}
+    <div class="page-content">
+      {{.Page.ContentHTML}}
+    </div>
+    {{else}}
+    <p class="welcome hc-lede">Willkommen auf dem Hof von {{.Site.Name}}. Hier entsteht
+       gerade die Seite — schauen Sie bald wieder vorbei.</p>
+    {{end}}
+
+    {{if .Page.Terms}}
     <ul class="term-list" aria-label="Schlagwörter">
       {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
-  </div>
-  {{end}}
-</article>
+    {{end}}
+  </article>
+</section>
 {{end}}
