@@ -7,7 +7,16 @@
   {{if .Meta.Description}}<meta name="description" content="{{.Meta.Description}}">{{end}}
   {{if .Meta.NoIndex}}<meta name="robots" content="noindex, follow">{{end}}
   {{if .Meta.CanonicalURL}}<link rel="canonical" href="{{.Meta.CanonicalURL}}">{{end}}
-  {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">{{end}}
+  <!-- Diese Vorlage hat genau eine Stimmung, und sie ist hell. Ohne diese
+       Zeile zeichnet ein Browser im Dunkelmodus Formularfelder und
+       Bildlaufleisten dunkel in eine helle Seite. -->
+  <meta name="color-scheme" content="light">
+  {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">
+  {{else}}
+  <!-- Ohne diese Zeile fragt der Browser von sich aus /favicon.ico an und
+       bekommt auf jedem Seitenaufruf einen 404 — im Server-Log und in der
+       Konsole des Besuchers. -->
+  <link rel="icon" href="/t/favicon.svg" type="image/svg+xml">{{end}}
   <meta property="og:type" content="website">
   <meta property="og:title" content="{{.Page.Title}}">
   {{if .Meta.Description}}<meta property="og:description" content="{{.Meta.Description}}">{{end}}
@@ -30,9 +39,15 @@
   <link rel="alternate" hreflang="{{.Code}}" href="{{$.Site.URL}}{{.URL}}">
   {{end}}
   {{end}}
-  <!-- Die Grundgestaltung der Bausteine. Sie kommt vom Kern, weil er auch
-       deren Auszeichnung schreibt; sie steht vor dem Stylesheet dieser
-       Vorlage, damit die Vorlage sie überschreiben kann. -->
+  <!-- Drei Stufen, und die Reihenfolge ist die ganze Mechanik. Die
+       Grundgestaltung der Bausteine kommt vom Kern, weil er auch deren
+       Auszeichnung schreibt; dann das Stylesheet dieser Vorlage, das sie
+       überschreiben darf; dann die Werte der Website, die gegen beide
+       gewinnen.
+
+       Kein preconnect und kein Stylesheet zu einem Schrifthaus: Manrope liegt
+       als woff2 in fonts/ und kommt über /t/fonts/ vom eigenen Server. Es
+       verlässt nichts diesen Ursprung. -->
   <link rel="stylesheet" href="/assets/bausteine.css">
   <link rel="stylesheet" href="/t/style.css">
   {{if .Site.Design}}
@@ -43,43 +58,49 @@
   {{end}}
 </head>
 <body>
+  <!-- Erstes Kind und damit erstes Ziel der Tabulatortaste. Anders als bei der
+       Vorlage holzcloud steht hier keine Texturfläche davor: der Grund ist ein
+       Verlauf auf dem body selbst, es gibt kein Element, unter dem der
+       angesprungene Inhalt liegen könnte. -->
   <a href="#main" class="skip-link">Zum Inhalt springen</a>
 
-  <!-- Der Menüschalter ist eine Checkbox und kein Skript: diese Vorlage
-       liefert keines aus, und eine Checkbox ist das einzige Aufklappen, das
-       ohne eines funktioniert. Ab 54rem verschwinden Schalter und Knopf, und
-       die Navigation steht ohnehin als Zeile da. -->
-  <input type="checkbox" id="nav-open" class="nav-switch">
+  <header class="hc-bar">
+    <div class="hc-wide hc-bar__inner">
+      <a class="hc-mark site-mark" href="/">
+        {{if .Site.LogoURL}}<img class="site-logo" src="{{.Site.LogoURL}}" alt="">{{end}}<b>{{.Site.Name}}</b></a>
 
-  <header class="site-header">
-    <div class="site-header__bar shell">
-      <a href="/" class="site-brand">
-        {{if .Site.LogoURL}}<img class="site-brand__logo" src="{{.Site.LogoURL}}" alt="">{{end}}
-        <span class="site-brand__text">
-          <span class="site-brand__name">{{.Site.Name}}</span>
-          {{if .Site.Description}}<span class="site-brand__tagline">{{.Site.Description}}</span>{{end}}
-        </span>
-      </a>
+      <nav class="site-menu" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
 
-      <label for="nav-open" class="nav-button">
-        <span class="nav-button__bars" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span class="nav-button__text">Menü</span>
-      </label>
+      {{if .Site.Sprachen}}
+      <nav class="lang-nav" aria-label="Sprache">
+        <ul>
+          {{range .Site.Sprachen}}
+          <li>
+            {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Code}}</span>
+            {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}" title="{{.Name}}">{{.Code}}</a>{{end}}
+          </li>
+          {{end}}
+        </ul>
+      </nav>
+      {{end}}
+
+      <!-- Warenkorb und Suche standen in der bisherigen Fassung nicht in der
+           Leiste, obwohl die Vorlage shop.html und cart.html mitbringt: vom
+           Kopf der Seite kam damit niemand zum Korb. Beide Zweige müssen
+           MinimalData überstehen, wo Shop und Search leer sind — deshalb hängt
+           jeder an seiner eigenen Bedingung. -->
+      {{if .Shop.Enabled}}
+      <a class="site-cart" href="{{.Cart.URL}}">Warenkorb <span class="site-cart__count">{{.Cart.Count}}</span></a>
+      {{end}}
+
+      {{if .Site.HasSearch}}
+      <form class="site-search" method="GET" action="/suche" role="search">
+        <label class="sr-only" for="bar-q">Suchbegriff</label>
+        <input class="hc-input" type="search" id="bar-q" name="q" value="{{.Search.Query}}" placeholder="Suchen">
+        <button class="hc-btn hc-btn--ghost hc-btn--sm" type="submit">Suchen</button>
+      </form>
+      {{end}}
     </div>
-
-    <nav class="site-nav shell" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
-    {{if .Site.Sprachen}}
-    <nav class="lang-nav shell" aria-label="Sprache">
-      <ul>
-        {{range .Site.Sprachen}}
-        <li>
-          {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Name}}</span>
-          {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}">{{.Name}}</a>{{end}}
-        </li>
-        {{end}}
-      </ul>
-    </nav>
-    {{end}}
   </header>
 
   <main id="main" tabindex="-1">
@@ -87,12 +108,12 @@
   </main>
 
   <footer class="site-footer" role="contentinfo">
-    <div class="site-footer__inner shell">
+    <div class="site-footer__inner hc-wide">
       <div class="site-footer__brand">
         <!-- Der Scherenschnitt ist als Pfad eingebaut, nicht als Datei: er
-             lädt nichts nach, nimmt die Textfarbe an und bleibt im Dunkelmodus
-             und auf Papier richtig herum. -->
-        <svg class="site-footer__mark" viewBox="0 0 64 40" role="img" aria-label="Schaf" focusable="false">
+             lädt nichts nach, nimmt die Textfarbe an und bleibt auf Papier
+             richtig herum. -->
+        <svg class="site-footer__mark" viewBox="0 0 64 40" fill="currentColor" role="img" aria-label="Schaf" focusable="false">
           <rect x="16" y="24" width="3.4" height="12"></rect>
           <rect x="23.6" y="26" width="3.4" height="10"></rect>
           <rect x="34" y="26" width="3.4" height="10"></rect>
@@ -112,7 +133,7 @@
 
       <!-- Textbaustein "footer-kontakt": Adresse, Telefon, E-Mail. Er steht
            hier statt auf jeder Seite einzeln, und er bleibt als Einziges aus
-           dem Fuss auch auf dem Ausdruck stehen — wer eine Seite ausdruckt,
+           dem Fuss auch auf dem Ausdruck stehen — wer eine Hofseite ausdruckt,
            will meistens genau diese Zeilen. -->
       {{if .Site.Snippets}}{{with index .Site.Snippets "footer-kontakt"}}
       <div class="site-footer__contact">
@@ -121,7 +142,10 @@
       </div>
       {{end}}{{end}}
 
-      <nav class="footer-nav" aria-label="Rechtliches">{{menuFor .Menus "footer" .Page.Slug}}</nav>
+      <nav class="footer-nav" aria-label="Rechtliches">
+        <h2 class="site-footer__heading">Rechtliches</h2>
+        {{menuFor .Menus "footer" .Page.Slug}}
+      </nav>
 
       <!-- Die Schwesterseite ist ein Textbaustein und keine feste Adresse in
            der Vorlage: ob ein Betrieb überhaupt eine zweite Seite hat und
@@ -144,7 +168,7 @@
       {{end}}
     </div>
 
-    <p class="site-footer__legal">&copy; {{.Site.Name}}</p>
+    <p class="site-footer__legal">&copy; {{.Site.Name}}{{if .Shop.Enabled}}{{with .Shop.TaxNote}} · {{.}}{{end}}{{end}}</p>
   </footer>
 </body>
 </html>

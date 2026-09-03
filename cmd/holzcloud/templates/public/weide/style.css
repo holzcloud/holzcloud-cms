@@ -1,2332 +1,1116 @@
-/* Weide — die Vorlage für den kleinen Hof
- *
- * Ungebleichtes Papier, sattes Schwarz, ein gedämpftes Moosgrün und ein warmes
- * Lehmbraun. Feine Linien statt Schatten, gerade Kanten statt runder Ecken,
- * viel Weissraum: eine Hofseite darf leer atmen. Das Vorbild ist die
- * Bildmarke — ein schwarzer Scherenschnitt auf hellem Grund.
- *
- * Zwei Regeln bestimmen alles andere:
- *
- *   1. Kein JavaScript. Das Menü ist eine Checkbox, das Bildraster ist ein
- *      Raster, das Aufklappen gibt es nicht.
- *   2. Nichts wird nachgeladen. Keine Schriftdatei, kein Symbol, kein Bild von
- *      einem fremden Server. Die Schriften sind Systemstapel, das Schaf im
- *      Fuss ist ein eingebauter SVG-Pfad.
- *
- * Die --hc-* Werte kommen aus den Einstellungen der Website und gewinnen über
- * alles hier, weil sie nach dieser Datei gesetzt werden. Deshalb liest jeder
- * eigene Wert unten zuerst den --hc-Wert und fällt erst dann auf den eigenen
- * zurück — nie umgekehrt.
- *
- * Ein Teil der Bausteine kommt nicht aus dieser Vorlage, sondern aus dem Text
- * der Seite: die Bereinigung erlaubt im Inhalt kein class-Attribut. Angebots-
- * liste, Hinweiskasten, Bildraster und Kontaktzeile werden deshalb an ihrer
- * Form erkannt (:has), nicht an einem Klassennamen. Was ein Redaktor dafür
- * schreiben muss, steht jeweils über der Regel.
- */
+/* ══════════════════════════════════════════════════════════════
+   Weide — warmes Papier, Erdbraun, Manrope
 
-@layer reset, tokens, base, layout, components, utilities;
+   Dieselbe Architektur und dieselben Gesten wie die mitgelieferte
+   Vorlage `holzcloud`, aber ins Helle übersetzt: gebrochenes Weiss
+   statt Nachtbraun, Erdbraun statt Messing, kein Glas, sondern
+   Karton mit einer Haarlinie.
 
-@layer reset {
-  *,
-  *::before,
-  *::after {
-    box-sizing: border-box;
+   Die Datei hat drei Stufen, und die Reihenfolge ist die ganze
+   Mechanik:
+
+     1. vier @layer weide.*  — tokens, base, components, motif.
+        Alles, was das Aussehen entscheidet.
+     2. die CMS-Schicht      — ganz unten, bewusst OHNE @layer.
+        Sie kleidet den Datenvertrag von Holzcloud CMS und gewinnt
+        damit gegen alle vier oben, ohne Spezifitätsspiele.
+     3. .Site.Design         — im <style> nach diesem Stylesheet,
+        ebenfalls ausserhalb jeder Schicht, und gewinnt dadurch
+        gegen die CMS-Schicht.
+
+   Darum darf unten kein @layer stehen. Ein fünfter würde die
+   CMS-Schicht wieder unter die eigenen vier UND unter .Site.Design
+   stellen, und dann kleidete die Vorlage sich selbst statt der
+   Seite.
+
+   Kommentare im Rumpf einer Schicht bleiben eingerückt. Am
+   Zeilenanfang steht `@layer` genau viermal, und `/* ══ CMS` genau
+   einmal — daran zählt die Prüfung die Kaskade nach.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Schriften ────────────────────────────────────────────────
+   Manrope liegt als woff2 in fonts/ dieser Vorlage und kommt über
+   /t/fonts/ vom eigenen Server. Kein Byte wird von einem Dritten
+   geholt — siehe VENDOR.md, wo beide Dateien mit Grösse, Quelle,
+   SHA-256 und Lizenz verzeichnet sind.
+
+   Manrope ist variabel, also trägt eine Datei je Teilmenge jedes
+   Gewicht von 200 bis 800: font-weight bekommt eine SPANNE, nicht
+   einen Wert, und es gibt keinen @font-face je Schnitt. Die
+   unicode-range trennt latin von latin-ext, damit ein deutscher
+   Text die zweite Datei gar nicht erst anfragt — sie trägt nur,
+   was über Westeuropa hinausgeht.
+
+   Eine Mono-Familie gibt es hier nicht. Eine Schreibmaschine klingt
+   auf einem Bauernhof technisch; Beschriftungen sind stattdessen
+   gesperrte Versalien in Manrope, und Beträge richtet
+   font-variant-numeric: tabular-nums aus. */
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/t/fonts/manrope-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/t/fonts/manrope-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@layer weide.tokens {
+  /* Die einzige Stelle, an der ein Farbwert, ein Abstand oder ein
+     Schriftgrad ENTSCHIEDEN wird. Steht weiter unten irgendwo eine
+     Farbe als Literal, gehört sie hierher und nicht dorthin.
+
+     Fast alles ist eine Ableitung über color-mix(in srgb, …) aus
+     den vier Werten am Kopf. Das ist nicht Sparsamkeit: die
+     CMS-Schicht ganz unten lässt --hc-erde und --hc-ground aus den
+     Reglern der Verwaltung kommen, und weil var() erst am Ende
+     aufgelöst wird, zieht eine eingestellte Marke damit die halbe
+     Palette mit, ohne dass eine Ableitung wiederholt werden müsste. */
+  :root {
+    /* ── Die vier Entscheidungen ───────────────────────────────
+       Kein reines Schwarz auf reinem Weiss. Papier ist warm
+       gebrochen, die Tinte ist ein sehr dunkles Warmbraun, und der
+       Akzent ist Erde — nicht Messing wie in holzcloud. Der Name
+       --hc-erde steht bewusst da, wo dort --hc-brass stand: er
+       macht jede Regel darunter von selbst lesbar. */
+    --hc-ground:   #FAF6EF;
+    --hc-ink:      #231A11;
+    --hc-erde:     #6E4D32;
+    /* Schrift, die AUF einer Erdfläche steht. Nie --hc-ink dort:
+       Erdbraun gegen Papier misst 7.04:1 in beide Richtungen, also
+       trägt die Marke als Verweisfarbe UND als Knopffüllung mit
+       heller Schrift. */
+    --hc-on-erde:  var(--hc-ground);
+
+    /* ── Tinte ─────────────────────────────────────────────────
+       Drei Stufen, und die dritte ist der Boden. Sie trägt die
+       kleinste Schrift des Systems — Beschriftungen, Chips, den
+       Fuss.
+
+       Die 52 % aus holzcloud gelten NICHT hier. Dort ist es helle
+       Tinte auf dunklem Grund; auf diesem Papier gemessen ergäben
+       52 % nur 3.45:1 und fielen durch, 60 % ergäben 4.40:1 und
+       fielen knapp durch. 64 % ergibt 5.00:1 und ist der Wert, den
+       diese Datei festschreibt. Wer ihn senkt, senkt die kleinste
+       Schrift mit. --hc-ink-2 bei 80 % ergibt 8.59:1. */
+    --hc-ink-2:    color-mix(in srgb, var(--hc-ink) 80%, transparent);
+    --hc-ink-3:    color-mix(in srgb, var(--hc-ink) 64%, transparent);
+
+    /* ── Flächen ───────────────────────────────────────────────
+       Auf hellem Papier ist eine Karte ein deckender Kasten und
+       keine Glasfläche: eine halbdurchsichtige Fläche über Papier
+       wirkt schmutzig, nicht schwebend. Eine Karte liegt deshalb
+       HELLER als das Blatt — sie ist ein zweites, frischeres
+       Papier, kein Schleier darüber. */
+    --hc-pane:           color-mix(in srgb, var(--hc-ground) 82%, #FFFFFF 18%);
+    --hc-pane-edge:      color-mix(in srgb, var(--hc-ink) 12%, transparent);
+    --hc-hairline:       color-mix(in srgb, var(--hc-ink) 14%, transparent);
+    /* Ein Eingabefeld liegt UNTER der Fläche, auf der es steht,
+       also etwas dunkler statt heller. */
+    --hc-pane-sunken:    color-mix(in srgb, var(--hc-ground) 94%, var(--hc-ink) 6%);
+    /* Die klebende Kopfleiste ist halbdurchsichtiges Papier, kein
+       Glas: kein backdrop-filter, nur Deckung. Unter ihr läuft die
+       ganze Seite durch, deshalb deckt sie mehr als eine Karte. */
+    --hc-pane-bar:       color-mix(in srgb, var(--hc-ground) 82%, transparent);
+    --hc-pane-bar-solid: color-mix(in srgb, var(--hc-ground) 98%, transparent);
+
+    /* ── Marke ─────────────────────────────────────────────────
+       Ein Akzent. Ein zweiter machte den ersten bedeutungslos. */
+    --hc-erde-soft:  color-mix(in srgb, var(--hc-erde) 35%, transparent);
+    --hc-erde-wash:  color-mix(in srgb, var(--hc-erde) 8%, transparent);
+    --hc-pane-lift:  var(--hc-erde-soft);
+
+    /* ── Der Grund ─────────────────────────────────────────────
+       Er ist nicht flach. Drei sehr leise Farbschleier liegen über
+       einem hellen Verlauf: Braun aus der Marke, dazu ein Strohgelb
+       und ein Salbeigrün. Die zwei stehen als Literal richtig, weil
+       sie eine zweite und dritte Farbe SIND und nicht die Marke —
+       das Braun dagegen leitet ab, damit eine eingestellte Marke den
+       Grund mitzieht.
+
+       Beide Enden des Verlaufs leiten aus dem Papierwert ab. Stünde
+       eines fest, wäre ein anderes Papier nur an einem Ende zu
+       sehen. */
+    --hc-ground-2:     color-mix(in srgb, var(--hc-ground) 96%, #FFFFFF 4%);
+    --hc-wash-erde:    color-mix(in srgb, var(--hc-erde) 9%, transparent);
+    --hc-wash-stroh:   color-mix(in srgb, #D8B65A 8%, transparent);
+    --hc-wash-salbei:  color-mix(in srgb, #8FA37E 7%, transparent);
+    /* Der ganze Grund als ein Wert, damit eine Fläche nur
+       `background: var(--hc-ground-image)` zu sagen braucht. */
+    --hc-ground-image:
+      radial-gradient(62% 52% at 16% 10%, var(--hc-wash-stroh)  0%, transparent 100%),
+      radial-gradient(50% 44% at 88% 22%, var(--hc-wash-erde)   0%, transparent 100%),
+      radial-gradient(58% 50% at 58% 96%, var(--hc-wash-salbei) 0%, transparent 100%),
+      linear-gradient(168deg, var(--hc-ground-2) 0%, var(--hc-ground) 100%);
+
+    /* ── Zustände ──────────────────────────────────────────────
+       Jede Farbe steht über 4.5:1 gegen Papier UND gegen eine
+       Karte, taugt also als Schrift und nicht nur als Punkt. Nie
+       die Farbe allein: der Punkt bekommt immer ein Wort daneben. */
+    --hc-ok:          #3F6B33;
+    --hc-warn:        #8A5A12;
+    --hc-danger:      #A33327;
+    --hc-info:        #2E5C7A;
+    --hc-ok-wash:     color-mix(in srgb, var(--hc-ok) 10%, transparent);
+    --hc-warn-wash:   color-mix(in srgb, var(--hc-warn) 10%, transparent);
+    --hc-danger-wash: color-mix(in srgb, var(--hc-danger) 10%, transparent);
+    --hc-info-wash:   color-mix(in srgb, var(--hc-info) 10%, transparent);
+
+    /* ── Rundung ───────────────────────────────────────────────
+       Zwei echte Grössen und eine Pille. --hc-r ist die Fläche,
+       --hc-r-sm ist, was darin sitzt, damit die innere Ecke der
+       äusseren nicht widerspricht. */
+    --hc-r-sm:   8px;
+    --hc-r:      14px;
+    --hc-r-lg:   22px;
+    --hc-r-pill: 999px;
+
+    /* ── Abstand ───────────────────────────────────────────────
+       Ein 4px-Raster. Benannt nach Stufe und nicht nach Absicht:
+       derselbe Abstand bedeutet an zwei Stellen Verschiedenes. */
+    --hc-space-1: 4px;
+    --hc-space-2: 8px;
+    --hc-space-3: 12px;
+    --hc-space-4: 16px;
+    --hc-space-5: 24px;
+    --hc-space-6: 32px;
+    --hc-space-7: 48px;
+    --hc-space-8: 64px;
+    --hc-space-9: 96px;
+
+    /* ── Schrift ───────────────────────────────────────────────
+       Die vier grössten Grade sind fluid: sie sind die einzigen,
+       bei denen der Unterschied zwischen Telefon und Bildschirm
+       zählt. Alles darunter bleibt fest, weil ein Fliesstext, der
+       mit dem Fenster wächst, nur unruhig wird. */
+    --hc-font-sans:  Manrope, ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --hc-text-label: 11.5px;
+    --hc-text-xs:    12.5px;
+    --hc-text-sm:    14.5px;
+    --hc-text-base:  17.5px;
+    --hc-text-lg:    19.5px;
+    --hc-text-xl:    clamp(1.35rem, 2.1vw, 1.65rem);
+    --hc-text-2xl:   clamp(1.7rem,  3.0vw, 2.3rem);
+    --hc-display-sm: clamp(1.7rem,  3.4vw, 2.5rem);
+    --hc-display:    clamp(2.4rem,  5.5vw, 4.2rem);
+
+    --hc-weight-thin:     250;
+    --hc-weight-regular:  400;
+    --hc-weight-medium:   500;
+    --hc-weight-semibold: 650;
+
+    --hc-track-tight:  -.025em;
+    --hc-track-snug:   -.012em;
+    --hc-track-wide:   .1em;
+    --hc-track-widest: .18em;
+
+    /* Die Schlagzeile steht eng: bei dieser Grösse ist der
+       Zeilenabstand eines Fliesstextes ein Loch zwischen zwei
+       Zeilen desselben Satzes. */
+    --hc-leading-tight: 1.03;
+    --hc-leading-snug:  1.3;
+    --hc-leading-base:  1.7;
+
+    /* ── Erhebung ──────────────────────────────────────────────
+       Weich und aus der Tinte gemischt, nicht aus Schwarz: ein
+       grauer Schatten auf warmem Papier liest sich kalt. */
+    --hc-shadow-pane: 0 1px 2px color-mix(in srgb, var(--hc-ink) 6%, transparent),
+                      0 12px 28px color-mix(in srgb, var(--hc-ink) 8%, transparent);
+    --hc-shadow-lift: 0 2px 4px color-mix(in srgb, var(--hc-ink) 8%, transparent),
+                      0 20px 44px color-mix(in srgb, var(--hc-ink) 13%, transparent);
+
+    /* ── Bewegung ──────────────────────────────────────────────
+       Kurz genug, dass niemand darauf wartet. */
+    --hc-dur-fast: .16s;
+    --hc-dur-base: .24s;
+    --hc-ease:     cubic-bezier(.2, .7, .3, 1);
+
+    /* ── Fläche der Seite ──────────────────────────────────────
+       --hc-wide ist die Seite, --hc-measure ist, wie breit ein
+       Absatz darin werden darf. Zwei verschiedene Zahlen, weil eine
+       weite Seite und eine lesbare Zeile zwei verschiedene Probleme
+       sind. --hc-measure ist zugleich einer der sechs Regler der
+       Verwaltung und wirkt allein durch seinen Namen. */
+    --hc-wide:    1320px;
+    --hc-measure: 74ch;
+    --hc-gutter:  clamp(20px, 4vw, 56px);
+
+    /* ── Fokus ─────────────────────────────────────────────────
+       Ein Ring, überall, in der Marke, nie entfernt. */
+    --hc-focus:        var(--hc-erde);
+    --hc-focus-width:  2px;
+    --hc-focus-offset: 3px;
+
+    /* ── Motiv ─────────────────────────────────────────────────
+       Die Vorlage heisst Weide, also ist das Zeichen eine ruhige
+       Hügellinie. Alle Töne mischen aus der Marke und der Tinte,
+       damit die Zeichnung einer eingestellten Marke folgt statt
+       neben ihr zu stehen. */
+    --hc-h-fern:  color-mix(in srgb, var(--hc-erde) 13%, transparent);
+    --hc-h-mitte: color-mix(in srgb, var(--hc-erde) 22%, transparent);
+    --hc-h-nah:   color-mix(in srgb, var(--hc-erde) 34%, transparent);
+    --hc-h-linie: color-mix(in srgb, var(--hc-erde) 55%, transparent);
+    --hc-sonne:   color-mix(in srgb, var(--hc-erde) 26%, transparent);
   }
+}
+@layer weide.base {
+  /* Was eine Seite bekommt, bevor irgendein Bauteil dazukommt: der
+     Grund, die Schrift, der Fokusring. Braucht weide.tokens und
+     entscheidet selbst keinen Wert. */
 
-  * {
-    margin: 0;
-  }
+  *, *::before, *::after { box-sizing: border-box; }
 
   html {
+    scroll-behavior: smooth;
+    /* Was angesprungen wird, muss unter der klebenden Leiste
+       hervorkommen — sonst steht die Überschrift dahinter. */
+    scroll-padding-top: var(--hc-space-9);
     -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-    /* Ein Sprungziel darf nicht unter dem klebenden Kopf landen. */
-    scroll-padding-block-start: 5rem;
   }
 
-  img,
-  picture,
-  svg,
-  video {
-    display: block;
-    max-width: 100%;
-    height: auto;
-  }
-
-  input,
-  button,
-  textarea,
-  select {
-    font: inherit;
-    color: inherit;
-  }
-
-  /* Ein langer Tiername ohne Trennmöglichkeit darf die Seite nicht breiter
-     machen als den Bildschirm — sonst wackelt alles waagerecht. */
-  p,
-  h1,
-  h2,
-  h3,
-  h4,
-  li,
-  dd,
-  dt {
-    overflow-wrap: break-word;
-  }
-}
-
-@layer tokens {
-  :root {
-    color-scheme: light dark;
-
-    /* --- Farben ----------------------------------------------------------
-     *
-     * OKLCH, weil gleiche Helligkeitszahlen dort auch gleich hell aussehen:
-     * das Moosgrün und das Lehmbraun sind auf denselben L-Wert gesetzt und
-     * wirken deshalb nebeneinander gleich stark.
-     *
-     * Nur drei Grundfarben werden von der Website gesteuert. Alles Weitere —
-     * Linien, Flächen, gedämpfter Text — wird daraus gemischt, statt als
-     * zweiter fester Wert danebenzustehen: sonst passt es nicht mehr, sobald
-     * der Betrieb die Farbe ändert. */
-    --paper: var(--hc-paper, oklch(0.968 0.013 92));
-    --ink: var(--hc-ink, oklch(0.19 0.012 74));
-    --brand: var(--hc-brand, oklch(0.46 0.072 148));
-
-    /* Lehmbraun. Es bleibt der Vorlage überlassen: die Website stellt eine
-       Akzentfarbe ein, nicht zwei, und ein zweiter einstellbarer Ton wäre der
-       sichere Weg zu einer Seite, in der beide streiten. */
-    --clay: oklch(0.55 0.085 62);
-
-    --paper-sunken: color-mix(in oklch, var(--ink) 5%, var(--paper));
-    --paper-raised: color-mix(in oklch, var(--paper) 88%, white);
-    --ink-muted: color-mix(in oklch, var(--ink) 62%, var(--paper));
-    --brand-strong: color-mix(in oklch, var(--brand) 78%, var(--ink));
-    --brand-wash: color-mix(in oklch, var(--brand) 9%, var(--paper));
-    --clay-wash: color-mix(in oklch, var(--clay) 12%, var(--paper));
-
-    /* Die Linie ist das tragende Gestaltungsmittel dieser Vorlage. Sie ist
-       kein Grau, sondern verdünnte Schrift — dadurch bleibt sie auf jedem
-       eingestellten Papier im selben Verhältnis sichtbar. */
-    --line: color-mix(in oklch, var(--ink) 26%, var(--paper));
-    --line-strong: color-mix(in oklch, var(--ink) 62%, var(--paper));
-
-    /* --- Schrift ---------------------------------------------------------
-     *
-     * Nur Systemstapel. Eine Webschrift wäre eine Datei, die geladen werden
-     * muss; erlaubt wäre sie nur mitgeliefert, und dann bände sie jede
-     * Website, die diese Vorlage wählt, an eine fremde Handschrift.
-     *
-     * Überschriften kräftig und geradlinig wie ein Holzschnitt, Lesetext eine
-     * ruhige humanistische Grotesk. Stellt die Website eine Schrift ein, gilt
-     * sie für beides — das ist die Absicht der Einstellung. */
-    --font-display: var(--hc-font, "Helvetica Neue", Helvetica, Inter, "Segoe UI",
-      Roboto, Arial, system-ui, sans-serif);
-    --font-body: var(--hc-font, Seravek, "Gill Sans Nova", Ubuntu, Calibri,
-      "DejaVu Sans", source-sans-pro, -apple-system, BlinkMacSystemFont, "Segoe UI",
-      Roboto, sans-serif);
-
-    /* Fliessende Grössen: clamp() rechnet zwischen Handy und Schreibtisch
-       stufenlos durch, statt an drei Haltepunkten zu springen. */
-    --step--1: clamp(0.875rem, 0.85rem + 0.12vw, 0.95rem);
-    --step-0: clamp(1.0625rem, 1.02rem + 0.2vw, 1.1875rem);
-    --step-1: clamp(1.25rem, 1.16rem + 0.45vw, 1.5rem);
-    --step-2: clamp(1.5rem, 1.32rem + 0.9vw, 2.05rem);
-    --step-3: clamp(1.9rem, 1.55rem + 1.75vw, 2.9rem);
-    --step-4: clamp(2.4rem, 1.7rem + 3.5vw, 4.25rem);
-
-    /* --- Masse -----------------------------------------------------------
-     *
-     * Der Hof wirkt nicht durch Fülle, sondern durch Abstand. Das 8-Punkt-
-     * Raster gibt die Stufen vor; die grossen Sprünge wachsen mit dem Fenster
-     * mit, damit auf dem Schreibtisch wirklich Luft entsteht. */
-    --space-1: 0.5rem;
-    --space-2: 1rem;
-    --space-3: 1.5rem;
-    --space-4: 2rem;
-    --space-5: 3rem;
-    --space-6: clamp(3.5rem, 7vw, 6rem);
-    --space-7: clamp(5rem, 11vw, 9rem);
-
-    --measure: var(--hc-measure, 62ch);
-    /* Voreinstellung 0: klare Kanten sind der Kern dieser Vorlage. Wer runde
-       Ecken will, stellt sie in der Website ein — dann folgen alle Flächen. */
-    --radius: var(--hc-radius, 0px);
-    --gutter: clamp(1.25rem, 5vw, 3rem);
-
-    --shell-text: min(var(--measure), 100% - var(--gutter) * 2);
-    --shell-wide: min(calc(var(--measure) + 20rem), 100% - var(--gutter) * 2);
-
-    --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
-
-    /* Das Raster, das den Fliesstext trägt.
-     *
-     * Drei benannte Spuren: content für Text, wide für Bilder, die etwas
-     * ausbrechen dürfen, full für die ganze Breite — das Landschaftsbild als
-     * Auftakt. Ein Kind sagt nur, in welcher Spur es liegt; die Ränder rechnet
-     * das Raster aus. Ohne das bräuchte jedes ausbrechende Bild negative
-     * Aussenabstände, die bei jeder Breitenänderung neu falsch sind. */
-    --grid:
-      [full-start] minmax(var(--gutter), 1fr)
-      [wide-start] minmax(0, 10rem)
-      [content-start] min(var(--measure), 100% - var(--gutter) * 2) [content-end]
-      minmax(0, 10rem) [wide-end]
-      minmax(var(--gutter), 1fr) [full-end];
-  }
-
-  /* Dunkelmodus: dieselben Namen, andere Ausgangswerte. Der Umweg über die
-     --hc-Werte bleibt auch hier erhalten — stellt der Betrieb eine Farbe ein,
-     gilt sie in beiden Modi. Das ist gewollt: wer sein Papier selbst wählt,
-     hat sich für diese Farbe entschieden. */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --paper: var(--hc-paper, oklch(0.185 0.011 78));
-      --ink: var(--hc-ink, oklch(0.93 0.012 92));
-      --brand: var(--hc-brand, oklch(0.74 0.09 148));
-      --clay: oklch(0.74 0.075 66);
-
-      /* Auf dunklem Grund hebt eine aufgehellte Fläche etwas hervor, während
-         die Mischung mit Weiss es verwaschen würde. */
-      --paper-raised: color-mix(in oklch, var(--paper) 92%, var(--ink));
-      --brand-strong: color-mix(in oklch, var(--brand) 80%, white);
-    }
-  }
-}
-
-@layer base {
   body {
-    font-family: var(--font-body);
-    font-size: var(--step-0);
-    line-height: 1.68;
-    color: var(--ink);
-    background: var(--paper);
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
+    margin: 0;
+    min-height: 100svh;
+    /* Eine ausdrückliche Grundfarbe unter den Verläufen: das Bild
+       darüber malt keine eigene, und ohne diese Zeile gehören die
+       Pixel vor dem Auflösen dem Browser und nicht uns. */
+    background-color: var(--hc-ground);
+    background-image: var(--hc-ground-image);
+    background-attachment: fixed;
+    color: var(--hc-ink);
+    font-family: var(--hc-font-sans);
+    font-size: var(--hc-text-base);
+    line-height: var(--hc-leading-base);
+    -webkit-font-smoothing: antialiased;
   }
 
-  h1,
-  h2,
-  h3,
-  h4 {
-    font-family: var(--font-display);
-    font-weight: 700;
-    line-height: 1.08;
-    letter-spacing: -0.02em;
-    /* Verteilt die Wörter über die Zeilen, statt ein einzelnes hängen zu
-       lassen — der Unterschied, der eine Überschrift gesetzt aussehen lässt. */
+  /* Ein Ring, an allem, und nur für die Tastatur. Eine Umrandung zu
+     entfernen, ohne etwas anderes hinzustellen, ist der Weg, ein
+     Formular ohne Maus unbenutzbar zu machen. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: var(--hc-focus-width) solid var(--hc-focus);
+    outline-offset: var(--hc-focus-offset);
+    border-radius: var(--hc-r-sm);
+  }
+
+  :where(h1, h2, h3, h4) {
+    margin: 0;
+    font-weight: var(--hc-weight-medium);
+    letter-spacing: var(--hc-track-tight);
+    line-height: var(--hc-leading-tight);
     text-wrap: balance;
   }
+  :where(p) { margin: 0; max-width: var(--hc-measure); }
+  /* Ohne Mono-Familie bleibt Quelltext bei der Systemschrift des
+     Browsers für Feste Breite — das ist genau, was ui-monospace
+     meint, und es ist keine geladene Datei. */
+  :where(code, kbd, samp, pre) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; }
+  :where(img, svg, video) { max-width: 100%; height: auto; }
+  :where(a) { color: inherit; }
 
-  h1 {
-    font-size: var(--step-3);
-  }
-
-  h2 {
-    font-size: var(--step-2);
-  }
-
-  h3 {
-    font-size: var(--step-1);
-  }
-
-  h4 {
-    font-size: var(--step-0);
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-  }
-
-  p {
-    /* Verhindert die einzelne kurze Zeile am Absatzende. */
-    text-wrap: pretty;
-  }
-
-  a {
-    color: var(--brand-strong);
-    text-decoration-thickness: 1px;
-    text-underline-offset: 0.18em;
-    transition: color 0.15s var(--ease);
-  }
-
-  a:hover {
-    color: var(--clay);
-  }
-
-  /* Ein Fokusring, der auf Wollweiss wie auf dunklem Grund steht. Er ist
-     eckig wie alles hier, aber nie unsichtbar: eine Vorlage ohne sichtbaren
-     Fokus ist für die Tastatur unbedienbar. */
-  :focus-visible {
-    outline: 2px solid var(--ink);
-    outline-offset: 3px;
-  }
-
-  /* Der Sprunglink setzt den Fokus auf <main>. Ohne diese Ausnahme läge ein
-     Rahmen um die ganze Seite, sobald jemand ihn benutzt. */
-  main:focus,
-  main:focus-visible {
-    outline: none;
-  }
-
-  ::selection {
-    background: color-mix(in oklch, var(--brand) 25%, transparent);
-  }
-
-  /* Seitenwechsel als weicher Übergang, wo der Browser das kann. Rein
-     dekorativ und ohne ein Zeichen Skript; wo nicht, wechselt die Seite wie
-     immer. */
-  @view-transition {
-    navigation: auto;
-  }
-
+  /* Wer weniger Bewegung möchte, bekommt weniger. Der Grund bleibt,
+     denn er bewegt sich nicht — er ist ein stehender Verlauf. */
   @media (prefers-reduced-motion: reduce) {
-    @view-transition {
-      navigation: none;
-    }
-
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
       animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-}
-
-@layer layout {
-  main {
-    flex: 1;
-    padding-block-end: var(--space-7);
-  }
-
-  /* Die zentrierte Schale für Kopf, Fuss und Archiv. Sie steht auf derselben
-     Kante wie die Textspalte des Rasters, damit nichts um ein paar Pixel
-     versetzt beginnt. */
-  .shell {
-    width: var(--shell-wide);
-    margin-inline: auto;
-  }
-
-  /* Nur der Fliesstext ist ein Raster — dort und nur dort muss ein Bild aus
-     der Spalte ausbrechen können. Alles andere ist eine zentrierte Schale;
-     ein Raster im Raster hätte die Überschriften zweimal eingerückt. */
-  .prose {
-    display: grid;
-    grid-template-columns: var(--grid);
-    row-gap: var(--space-3);
-  }
-
-  .prose > * {
-    grid-column: content;
-  }
-
-  .page-header,
-  .hof-hero__inner,
-  .notice,
-  .search-panel,
-  .page-terms,
-  .page-fields,
-  .post-nav,
-  .preview-banner {
-    /* Raster ohne benannte Spuren: die Kinder stehen untereinander, und das
-       Raster liefert nur die Zeilenabstände. row-gap auf einem gewöhnlichen
-       Block wäre wirkungslos. */
-    display: grid;
-    width: var(--shell-text);
-    margin-inline: auto;
-  }
-
-  /* Im Archiv richtet sich die Überschrift nach den Einträgen, nicht nach
-     einer Textspalte, die dort nicht vorkommt. */
-  .archive > .page-header,
-  .archive-list,
-  .archive-pager {
-    width: var(--shell-wide);
-    margin-inline: auto;
-  }
-
-  /* Viel Luft über der Überschrift, wenig darunter: so gehört sie sichtbar
-     zu dem, was folgt, statt zwischen zwei Abschnitten zu schweben. Der Hof
-     wirkt durch Abstand, und das ist die Stelle, an der man es merkt. */
-  .prose > h2 {
-    margin-block-start: var(--space-6);
-    margin-block-end: var(--space-2);
-    padding-block-end: var(--space-1);
-    font-size: var(--step-2);
-    letter-spacing: -0.02em;
-    /* Die feine Linie unter jeder Zwischenüberschrift ist das Gliederungs-
-       mittel dieser Vorlage — sie ersetzt Kästen und Schatten. */
-    border-block-end: 1px solid var(--ink);
-  }
-
-  .prose > h2:first-child {
-    margin-block-start: 0;
-  }
-
-  .prose > h3 {
-    margin-block-start: var(--space-5);
-    margin-block-end: var(--space-1);
-    letter-spacing: -0.015em;
-  }
-
-  .prose > h3 {
-    margin-block-start: var(--space-3);
-  }
-
-  .prose > ul,
-  .prose > ol {
-    padding-inline-start: 1.35em;
-    display: grid;
-    row-gap: var(--space-1);
-  }
-
-  .prose > hr {
-    border: 0;
-    border-block-start: 1px solid var(--line);
-    margin-block: var(--space-4);
-  }
-
-  .prose > pre {
-    grid-column: wide;
-    overflow-x: auto;
-    padding: var(--space-2);
-    border: 1px solid var(--line);
-    background: var(--paper-sunken);
-    font-size: var(--step--1);
-  }
-
-  .prose > table {
-    grid-column: wide;
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--step--1);
-  }
-
-  .prose th,
-  .prose td {
-    text-align: start;
-    padding: var(--space-1) var(--space-2);
-    border-block-end: 1px solid var(--line);
-  }
-
-  .prose th {
-    font-family: var(--font-display);
-    font-weight: 700;
-  }
-
-  .prose code,
-  .gate-target code {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-      "Liberation Mono", monospace;
-    font-size: 0.88em;
-    padding: 0.1em 0.35em;
-    border: 1px solid var(--line);
-    background: var(--paper-sunken);
-  }
-
-  .prose pre code {
-    padding: 0;
-    border: 0;
-    background: none;
-  }
-
-  .prose figcaption {
-    margin-block-start: var(--space-1);
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-
-  /* max-width statt width: ein grosses Foto füllt die Spalte, ein kleines
-     bleibt so gross, wie es ist. Auf 100% gestellt wird die Bildmarke des
-     Hofs — 235 px breit — vierfach hochgerechnet und ist matschig, und aus
-     dem Seiteninhalt heraus lässt sich das für ein einzelnes Bild nicht
-     zurücknehmen: die Bereinigung entfernt jedes class- und style-Attribut. */
-  .prose img {
-    width: auto;
-    max-width: 100%;
-  }
-}
-
-@layer components {
-  /* --- Sprungmarke ------------------------------------------------------ */
-
-  .skip-link {
-    position: absolute;
-    inset-inline-start: var(--space-2);
-    inset-block-start: var(--space-2);
-    z-index: 100;
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--ink);
-    background: var(--paper);
-    color: var(--ink);
-    text-decoration: none;
-    transform: translateY(-160%);
-    transition: transform 0.18s var(--ease);
-  }
-
-  .skip-link:focus-visible,
-  .skip-link:focus {
-    transform: translateY(0);
-  }
-
-  /* --- Kopf ------------------------------------------------------------- */
-
-  .site-header {
-    position: sticky;
-    inset-block-start: 0;
-    z-index: 50;
-    background: var(--paper);
-    border-block-end: 1px solid var(--line);
-  }
-
-  .site-header__bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding-block: var(--space-2);
-  }
-
-  .site-brand {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: var(--space-2);
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .site-brand__logo {
-    max-height: 3rem;
-    width: auto;
-  }
-
-  .site-brand__text {
-    display: grid;
-  }
-
-  .site-brand__name {
-    font-family: var(--font-display);
-    font-size: var(--step-1);
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-  }
-
-  .site-brand__tagline {
-    font-size: var(--step--1);
-    line-height: 1.3;
-    color: var(--ink-muted);
-  }
-
-  /* Auf schmalen Schirmen umbricht der Untertitel und schiebt den Kopf auf
-     drei Zeilen. Er steht im Fuss noch einmal, also fehlt nichts. */
-  @media (max-width: 32rem) {
-    .site-brand__tagline {
-      display: none;
+      transition-duration: .001ms !important;
     }
   }
 
-  /* --- Navigation ------------------------------------------------------- */
-
-  .nav-switch {
-    /* Erreichbar für die Tastatur, unsichtbar für das Auge: display:none
-       nähme ihr den Fokus und damit die Bedienbarkeit ganz. */
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .nav-button {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6em;
-    padding: 0.45em 0.8em;
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--paper);
-    font-size: var(--step--1);
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .nav-button__bars {
-    display: grid;
-    gap: 3px;
-    width: 1.1em;
-  }
-
-  .nav-button__bars span {
-    display: block;
-    height: 1.5px;
-    background: currentColor;
-  }
-
-  /* Der Knopf ist ein <label>; den Fokus bekommt die Checkbox. Ohne diese
-     Regel sähe man beim Tabben nicht, wo man ist. */
-  .nav-switch:focus-visible + .site-header .nav-button {
-    outline: 2px solid var(--ink);
-    outline-offset: 3px;
-  }
-
-  .site-nav {
-    display: none;
-  }
-
-  .nav-switch:checked + .site-header .site-nav {
-    display: block;
-    padding-block-end: var(--space-2);
-  }
-
-  .site-nav ul {
-    list-style: none;
-    padding: 0;
-    display: grid;
-  }
-
-  .site-nav li {
-    border-block-start: 1px solid var(--line);
-  }
-
-  .site-nav a,
-  .site-nav span {
-    display: block;
-    padding: 0.5em 0;
-    color: inherit;
-    text-decoration: none;
-    font-family: var(--font-display);
-    font-size: var(--step--1);
-    letter-spacing: 0.02em;
-  }
-
-  .site-nav a:hover {
-    color: var(--brand-strong);
-  }
-
-  /* Untermenüs eingerückt statt aufklappend: ein Aufklappmenü ohne Skript ist
-     entweder mit der Tastatur unbedienbar oder eine Falle für den Finger. */
-  .site-nav li ul {
-    margin-inline-start: var(--space-2);
-  }
-
-  /* Der Eintrag der Seite, auf der man steht. aria-current trägt das zur
-     Vorlesesoftware, der Strich darunter zum Auge. */
-  .site-nav a[aria-current="page"],
-  .site-nav a.is-current,
-  .footer-nav a[aria-current="page"],
-  .footer-nav a.is-current {
-    font-weight: 700;
-    text-decoration: underline;
-    text-underline-offset: 0.3em;
-  }
-
-  @media (min-width: 54rem) {
-    .nav-button {
-      display: none;
-    }
-
-    .site-header {
-      display: flex;
-      align-items: center;
-      gap: var(--space-4);
-      /* Die Linie unter dem Kopf soll über die ganze Breite laufen, der
-         Inhalt aber zentriert stehen — deshalb wird der Rand als Innenabstand
-         gerechnet statt über eine Schale, die die Linie mitbeschneiden würde. */
-      padding-inline: calc((100% - var(--shell-wide)) / 2);
-    }
-
-    .site-header > .site-header__bar,
-    .site-header > .site-nav {
-      width: auto;
-      margin-inline: 0;
-    }
-
-    .site-header__bar {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .site-nav,
-    .nav-switch:checked + .site-header .site-nav {
-      display: block;
-      flex: none;
-      padding-block-end: 0;
-    }
-
-    .site-nav > ul {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-3);
-    }
-
-    .site-nav li {
-      border-block-start: 0;
-    }
-
-    /* Auf breiten Schirmen nur die erste Ebene; die zweite steht im Fussmenü
-       und auf der Seite selbst. */
-    .site-nav li ul {
-      display: none;
-    }
-  }
-
-  /* --- Auftakt der Startseite ------------------------------------------- */
-
-  .hof-hero {
-    padding-block: var(--space-6) var(--space-4);
-  }
-
-  .hof-hero__inner {
-    row-gap: var(--space-2);
-  }
-
-  /* 22ch statt 16: bei 16 bricht schon "Herzlich willkommen" um, und ein
-     zweiwortiger Titel auf zwei Zeilen sieht nach Unfall aus. balance sorgt
-     dafür, dass ein wirklich langer Titel wenigstens gleichmässig bricht. */
-  .hof-hero__title {
-    font-size: var(--step-4);
-    line-height: 1.02;
-    letter-spacing: -0.035em;
-    max-width: 22ch;
-    text-wrap: balance;
-  }
-
-  .hof-hero__lead {
-    font-size: var(--step-1);
-    line-height: 1.4;
-    color: var(--ink-muted);
-    max-width: 40ch;
-  }
-
-  /* Das Landschaftsbild.
-   *
-   * Ein Bild, das allein in seinem ersten Absatz steht, war als Auftakt
-   * gemeint. Es bekommt die volle Breite und einen festen Ausschnitt, weil die
-   * Hofbilder Querformat sind und ein Hochformat an dieser Stelle die halbe
-   * Seite wegnehmen würde. Die Höhe wächst mit dem Fenster, damit auf dem
-   * Handy nicht ein Streifen übrig bleibt. */
-  .page--home .prose > p:first-child:has(> img:only-child),
-  .page--home .prose > p:first-child:has(> a:only-child > img),
-  .page--home .prose > figure:first-child {
-    grid-column: full;
-    margin-block-end: var(--space-3);
-  }
-
-  /* 16:9 und nicht breiter. Ein Hoffoto kommt aus der Kamera im Verhältnis
-     4:3; bei 21:9 bliebe davon nur ein Streifen von 57 Prozent der Höhe
-     übrig, und genau der Hof, den das Bild zeigen soll — Gebäude, Hang,
-     Himmel —, liegt oben und unten. Bei 16:9 bleiben 75 Prozent stehen und
-     das Bild ist immer noch breit genug für einen Auftakt. */
-  .page--home .prose > p:first-child:has(> img:only-child) img,
-  .page--home .prose > p:first-child:has(> a:only-child > img) img,
-  .page--home .prose > figure:first-child img {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
-    /* Der Ausschnitt liegt tiefer als die Bildmitte. Wer ein Haus, ein Tier
-       oder eine Weide fotografiert, hat darüber Himmel — bei einem Hochformat
-       ist die Mitte des Bildes deshalb genau die Stelle, an der nichts ist,
-       und ein mittiger Ausschnitt zeigt Wolken und ein Stück Dach. Bei einem
-       Querformat fällt der Unterschied kaum auf, weil es ohnehin wenig zu
-       beschneiden gibt. */
-    object-position: center 65%;
-  }
-
-  @media (max-width: 40rem) {
-    .page--home .prose > p:first-child:has(> img:only-child) img,
-    .page--home .prose > p:first-child:has(> a:only-child > img) img,
-    .page--home .prose > figure:first-child img {
-      aspect-ratio: 3 / 2;
-    }
-  }
-
-  /* Jedes weitere Bild, das allein in seinem Absatz steht, war ein Bild und
-     kein Teil eines Satzes — also darf es aus der Textspalte heraustreten.
-     :has() macht diese Unterscheidung erst möglich. */
-  /* Ein Bild, das allein in seinem Absatz steht, darf in die breite Spur
-     ausbrechen. Ein grosses Foto füllt sie aus; eine Bildmarke von 235 Pixeln
-     tut das nicht und sässe sonst am linken Rand einer Breite, die sie gar
-     nicht braucht — weiter links als jede Textzeile, und damit sichtbar
-     neben der Ordnung der Seite. justify-items rückt sie in die Mitte; ein
-     Bild, das die Spur füllt, merkt davon nichts. */
-  .prose > p:has(> img:only-child),
-  .prose > p:has(> a:only-child > img),
-  .prose > figure {
-    grid-column: wide;
-    display: grid;
-    justify-items: center;
-  }
-
-  /* --- Bildraster für Galerien ------------------------------------------ */
-
-  /* Mehrere Bilder in einem Absatz sind eine Galerie. Ein Redaktor schreibt
-     dafür nichts Besonderes, sondern setzt die Bilder untereinander in einen
-     Absatz — meist als Verknüpfung auf die grosse Fassung:
-     [![Beschreibung](/media/1/klein.jpg)](/media/1/gross.jpg)
-     Die grosse Ansicht ist die verlinkte Datei selbst; ein Leuchtkasten wäre
-     ohne Skript nicht zu haben und ohne Tastatur nicht zu schliessen. */
-  .prose > p:has(> img + img),
-  .prose > p:has(> a + a) {
-    grid-column: wide;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
-    gap: var(--space-1);
-  }
-
-  .prose > p:has(> img + img) img,
-  .prose > p:has(> a + a) img {
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-    border: 1px solid var(--line);
-  }
-
-  .prose > p:has(> a + a) a {
-    display: block;
-  }
-
-  /* --- "Was es gibt" ----------------------------------------------------- */
-
-  /* Die Angebotsliste. Sie entsteht aus einer gewöhnlichen Aufzählung, deren
-     Punkte mit der fett gesetzten Bezeichnung beginnen:
-       - **Wolle** — gewaschen und gekämmt, ab Hof
-       - **Lammfleisch** — im Herbst, auf Anfrage
-     Daraus werden klar getrennte Zeilen. Preise und Warenkorb gibt es nicht;
-     der Hof verkauft auf Anfrage, und ein Preis auf der Seite wäre am Tag
-     nach dem Druck falsch. */
-  .prose > ul:has(> li > strong:first-child) {
-    list-style: none;
-    padding-inline-start: 0;
-    row-gap: 0;
-    border-block-start: 1px solid var(--line);
-    /* Die Abfrage unten misst diese Liste, nicht das Fenster: in einer
-       schmalen Spalte soll sie sich wie auf dem Handy verhalten. */
-    container-type: inline-size;
-  }
-
-  .prose > ul:has(> li > strong:first-child) > li {
-    display: grid;
-    gap: 0.15em;
-    padding-block: var(--space-2);
-    border-block-end: 1px solid var(--line);
-  }
-
-  .prose > ul:has(> li > strong:first-child) > li > strong:first-child {
-    font-family: var(--font-display);
-    font-size: var(--step-1);
-    font-weight: 700;
-    letter-spacing: -0.015em;
-    line-height: 1.15;
-  }
-
-  @container (min-width: 34rem) {
-    .prose > ul:has(> li > strong:first-child) > li {
-      grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
-      align-items: baseline;
-      column-gap: var(--space-3);
-    }
-  }
-
-  /* --- Hinweiskasten ----------------------------------------------------- */
-
-  /* "Zu verkaufen: …", "Anmeldung Schulklassen". Ein Redaktor schreibt dafür
-     ein Zitat (Zeilen mit "> " davor); das ist die einzige Auszeichnung, die
-     die Bereinigung des Inhalts als Block stehen lässt. Kein Schatten,
-     sondern eine Kante und ein Balken in Moosgrün. */
-  /* Kein Rahmen, sondern eine kräftige Kante links und eine ruhige Fläche.
-     Ein umlaufender Rahmen macht aus der Meldung einen Aushang; die Kante
-     macht sie zu einem Absatz, der lauter spricht als die anderen. */
-  .prose > blockquote {
-    grid-column: wide;
-    padding: var(--space-3) var(--space-4);
-    border: 0;
-    border-inline-start: 5px solid var(--brand);
-    border-radius: 0;
-    background: var(--brand-wash);
-    font-size: var(--step-0);
-  }
-
-  .prose > blockquote > * + * {
-    margin-block-start: var(--space-1);
-  }
-
-  .prose > blockquote strong {
-    font-family: var(--font-display);
-    letter-spacing: -0.01em;
-  }
-
-  /* --- Kontaktzeile ------------------------------------------------------ */
-
-  /* Adresse und Telefon stehen im Text als ein Absatz mit harten Zeilen-
-     umbrüchen (zwei Leerzeichen am Zeilenende). Er wird enger gesetzt als
-     Fliesstext und darf beim Drucken nicht auf zwei Seiten zerfallen — eine
-     halbe Adresse ist keine. */
-  .prose > p:has(br) {
-    line-height: 1.45;
-    break-inside: avoid;
-  }
-
-  /* --- Seitenkopf -------------------------------------------------------- */
-
-  .page-header {
-    padding-block: var(--space-6) var(--space-4);
-    row-gap: var(--space-2);
-  }
-
-  .page-header__kicker {
-    font-family: var(--font-display);
-    font-size: var(--step--1);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--ink-muted);
-  }
-
-  .page-header__kicker a {
-    color: inherit;
-  }
-
-  .page-header__title {
-    font-size: var(--step-3);
-    max-width: 20ch;
-  }
-
-  .page-header__meta {
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-
-  /* --- Schaltflächen ------------------------------------------------------ */
-
-  .button {
-    display: inline-block;
-    padding: 0.55em 1.3em;
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--ink);
-    color: var(--paper);
-    font-family: var(--font-display);
-    font-size: var(--step--1);
-    letter-spacing: 0.02em;
-    text-decoration: none;
-    cursor: pointer;
-    transition: background 0.15s var(--ease), color 0.15s var(--ease);
-  }
-
-  .button:hover {
-    background: var(--brand-strong);
-    border-color: var(--brand-strong);
-    color: var(--paper);
-  }
-
-  .button--quiet {
-    background: transparent;
-    color: var(--ink);
-  }
-
-  .button--quiet:hover {
-    background: transparent;
-    color: var(--brand-strong);
-    border-color: var(--brand-strong);
-  }
-
-  /* --- Archiv ------------------------------------------------------------ */
-
-  .archive-list {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    border-block-start: 1px solid var(--line);
-    /* Die Einträge sind Zeilen, keine Karten: Karten brauchen Schatten oder
-       Flächen, und beides widerspricht dieser Vorlage. */
-    container-type: inline-size;
-  }
-
-  .archive-entry {
-    border-block-end: 1px solid var(--line);
-  }
-
-  .archive-entry__card {
-    display: grid;
-    gap: var(--space-2);
-    padding-block: var(--space-4);
-  }
-
-  .archive-entry__image img {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-    border-radius: var(--radius);
-  }
-
-  .archive-entry__text {
-    display: grid;
-    gap: var(--space-1);
-    align-content: start;
-  }
-
-  .archive-entry__date {
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-
-  .archive-entry__title {
-    font-size: var(--step-2);
-  }
-
-  .archive-entry__title a {
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .archive-entry__title a:hover {
-    color: var(--brand-strong);
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
-  }
-
-  .archive-entry__excerpt {
-    max-width: 60ch;
-    color: var(--ink-muted);
-  }
-
-  /* Sobald die Liste breit genug ist, steht das Bild neben dem Text. Die
-     Abfrage misst die Liste und nicht das Fenster — in einer schmalen Spalte
-     bleibt der Eintrag gestapelt, auch auf einem breiten Schirm. */
-  @container (min-width: 38rem) {
-    .archive-entry__card:has(.archive-entry__image) {
-      grid-template-columns: 15rem minmax(0, 1fr);
-      column-gap: var(--space-4);
-      align-items: start;
-    }
-  }
-
-  .archive-pager {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    margin-block-start: var(--space-4);
-  }
-
-  .archive-pager__position {
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-
-  .archive-empty {
-    color: var(--ink-muted);
-  }
-
-  /* --- Blättern zwischen Beiträgen --------------------------------------- */
-
-  .post-nav {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    align-items: start;
-    gap: var(--space-3);
-    margin-block-start: var(--space-6);
-    padding-block-start: var(--space-3);
-    border-block-start: 1px solid var(--line);
-    font-size: var(--step--1);
-  }
-
-  @media (max-width: 40rem) {
-    .post-nav {
-      grid-auto-flow: row;
-    }
-  }
-
-  .post-nav__link {
-    display: grid;
-    gap: 0.2em;
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .post-nav__next {
-    text-align: end;
-  }
-
-  .post-nav__label {
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--ink-muted);
-    font-size: 0.85em;
-  }
-
-  .post-nav__title {
-    font-family: var(--font-display);
-    font-weight: 700;
-  }
-
-  .post-nav__link:hover .post-nav__title {
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
-  }
-
-  .post-nav__index {
-    justify-self: center;
-    align-self: center;
-    color: var(--ink-muted);
-  }
-
-  /* --- Schlagwörter ------------------------------------------------------- */
-
-  .page-terms {
-    margin-block-start: var(--space-4);
-  }
-
-  .term-list {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-  }
-
-  .term {
-    display: inline-block;
-    padding: 0.15em 0.7em;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    font-size: var(--step--1);
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .term:hover {
-    border-color: var(--brand-strong);
-    color: var(--brand-strong);
-  }
-
-  /* --- Suche -------------------------------------------------------------- */
-
-  .search-panel {
-    row-gap: var(--space-3);
-    padding-block-end: var(--space-5);
-  }
-
-  .search-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-  }
-
-  .search-form input[type="search"] {
-    flex: 1 1 16rem;
-    padding: 0.55em 0.8em;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    background: var(--paper-raised);
-  }
-
-  .search-count,
-  .search-empty {
-    color: var(--ink-muted);
-    font-size: var(--step--1);
-  }
-
-  .search-results {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    border-block-start: 1px solid var(--line);
-  }
-
-  .search-result {
-    display: grid;
-    gap: 0.2em;
-    padding-block: var(--space-2);
-    border-block-end: 1px solid var(--line);
-  }
-
-  .search-result__title {
-    font-family: var(--font-display);
-    font-size: var(--step-1);
-    font-weight: 700;
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .search-result__title:hover {
-    color: var(--brand-strong);
-    text-decoration: underline;
-  }
-
-  .search-result__snippet {
-    color: var(--ink-muted);
-    font-size: var(--step--1);
-  }
-
-  /* Ohne eigene Regel wäre der Treffer im Ausschnitt gelb hinterlegt und im
-     Dunkelmodus unlesbar. */
-  .search-result__snippet mark {
-    background: color-mix(in oklch, var(--clay) 30%, transparent);
-    color: inherit;
-    padding: 0 0.15em;
-  }
-
-  /* --- Hinweisseiten (404, Wartung, Passwort) ----------------------------- */
-
-  .notice {
-    row-gap: var(--space-2);
-    padding-block: var(--space-7) var(--space-6);
-  }
-
-  .notice__code {
-    font-family: var(--font-display);
-    font-size: var(--step-2);
-    letter-spacing: 0.14em;
-    color: var(--ink-muted);
-  }
-
-  .notice__title {
-    font-size: var(--step-3);
-  }
-
-  .notice__text {
-    max-width: 50ch;
-  }
-
-  .notice__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    margin-block-start: var(--space-2);
-  }
-
-  /* --- Passwortgeschützte Seite ------------------------------------------- */
-
-  .gate-hint {
-    color: var(--ink-muted);
-  }
-
-  .gate-error {
-    padding: 0.6em 0.9em;
-    border: 1px solid var(--clay);
-    border-inline-start: 4px solid var(--clay);
-    background: var(--clay-wash);
-  }
-
-  .gate-form {
-    display: grid;
-    gap: var(--space-2);
-    justify-items: start;
-    margin-block-start: var(--space-2);
-    max-width: 22rem;
-    width: 100%;
-  }
-
-  .gate-form__field {
-    display: grid;
-    gap: 0.3em;
-    width: 100%;
-  }
-
-  .gate-form__field label {
-    font-size: var(--step--1);
-    font-weight: 700;
-  }
-
-  .gate-form input {
-    width: 100%;
-    padding: 0.55em 0.8em;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    background: var(--paper-raised);
-  }
-
-  .gate-target {
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-
-  /* --- Kontaktformular ---------------------------------------------------- */
-
-  /* Das Markup kommt fertig aus internal/contactform; die Vorlage kennt es nur
-     über diese Klassennamen. Wer sie hier vergisst, bekommt ein Formular ohne
-     jede Form. */
-  .contact-form {
-    display: grid;
-    gap: var(--space-2);
-    max-width: 40rem;
-    margin-block: var(--space-4);
-    padding-block-start: var(--space-3);
-    border-block-start: 1px solid var(--line);
-  }
-
-  .contact-form__field {
-    display: grid;
-    gap: 0.3em;
-  }
-
-  .contact-form__field label {
-    font-size: var(--step--1);
-    font-weight: 700;
-  }
-
-  .contact-form input,
-  .contact-form textarea {
-    width: 100%;
-    padding: 0.55em 0.8em;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    background: var(--paper-raised);
-  }
-
-  .contact-form textarea {
-    resize: vertical;
-    min-height: 9rem;
-  }
-
-  .contact-form__submit {
-    justify-self: start;
-    padding: 0.55em 1.3em;
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--ink);
-    color: var(--paper);
-    font-family: var(--font-display);
-    letter-spacing: 0.02em;
-    cursor: pointer;
-  }
-
-  .contact-form__submit:hover {
-    background: var(--brand-strong);
-    border-color: var(--brand-strong);
-  }
-
-  .contact-form__notice {
-    padding: 0.6em 0.9em;
-    border: 1px solid var(--line-strong);
-    border-inline-start: 4px solid var(--brand);
-    background: var(--brand-wash);
-  }
-
-  .contact-form__notice--error {
-    border-inline-start-color: var(--clay);
-    background: var(--clay-wash);
-  }
-
-  .contact-form__alternative {
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-
-  /* Die Falle. Sie muss für ein Programm, das das Markup liest, erreichbar
-     sein und für jeden anderen unsichtbar — was display:none ausschliesst,
-     weil die sorgfältigeren Bots genau solche Felder überspringen. */
-  .contact-form__trap {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  /* --- Vorschau-Hinweis ---------------------------------------------------- */
-
-  .preview-banner {
-    margin-block-start: var(--space-3);
-    padding: 0.7em 1em;
-    border: 2px dashed var(--clay);
-    background: var(--clay-wash);
-    font-size: var(--step--1);
-  }
-
-  /* --- Fuss ---------------------------------------------------------------- */
-
-  .site-footer {
-    margin-block-start: var(--space-6);
-    padding-block: var(--space-5) var(--space-3);
-    border-block-start: 1px solid var(--line-strong);
-    background: var(--paper-sunken);
-  }
-
-  .site-footer__inner {
-    display: grid;
-    gap: var(--space-4);
-  }
-
-  @media (min-width: 54rem) {
-    .site-footer__inner {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      align-items: start;
-    }
-
-    .site-footer__terms {
-      grid-column: 1 / -1;
-    }
-  }
-
-  .site-footer__mark {
-    width: 4.5rem;
-    height: auto;
-    margin-block-end: var(--space-1);
-    fill: currentColor;
-  }
-
-  .site-footer__name {
-    font-family: var(--font-display);
-    font-size: var(--step-1);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-
-  .site-footer__tagline,
-  .site-footer__contact,
-  .site-footer__sister {
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-
-  .site-footer__contact p + p,
-  .site-footer__sister p + p {
-    margin-block-start: var(--space-1);
-  }
-
-  .site-footer__heading {
-    font-family: var(--font-display);
-    font-size: var(--step--1);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--ink);
-    margin-block-end: var(--space-1);
-  }
-
-  .footer-nav ul {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-3);
-    font-size: var(--step--1);
-  }
-
-  .footer-nav a,
-  .footer-nav span {
-    color: var(--ink-muted);
-    text-decoration: none;
-  }
-
-  .footer-nav a:hover {
-    color: var(--brand-strong);
-    text-decoration: underline;
-  }
-
-  .footer-nav li ul {
-    display: none;
-  }
-
-  .site-footer__legal {
-    width: var(--shell-wide);
-    margin-inline: auto;
-    margin-block-start: var(--space-4);
-    padding-block-start: var(--space-2);
-    border-block-start: 1px solid var(--line);
-    font-size: var(--step--1);
-    color: var(--ink-muted);
-  }
-}
-
-@layer utilities {
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  /* --- Druckausgabe --------------------------------------------------------
-   *
-   * Gedruckt werden die Kontaktangaben, ein Termin für die Schulklasse, eine
-   * Wegbeschreibung. Alles, was auf Papier nichts verloren hat, geht weg — nur
-   * die Kontaktzeile im Fuss bleibt stehen, weil sie meistens der Grund für den
-   * Ausdruck ist. Adressen hinter Links werden ausgeschrieben. */
-  @media print {
-    /* Erst die Werte, dann die Regeln: sonst druckt ein Gerät im Dunkelmodus
-       weisse Schrift auf weisses Papier, weil jede Komponente unten weiter
-       ihre Farbtoken liest. Diese Ebene steht nach "tokens" und gewinnt
-       deshalb — auch über eine Farbe, die der Betrieb eingestellt hat, denn
-       auf Papier gehört sie niemandem. */
+  /* Wer weniger Durchsichtigkeit möchte, bekommt deckendes Papier
+     und keinen Schleier: die Leiste wird undurchsichtig und der
+     Verlauf fällt weg. Eine deckende Leiste über einem laufenden
+     Verlauf wäre nur die halbe Antwort. */
+  @media (prefers-reduced-transparency: reduce) {
     :root {
-      --paper: #fff;
-      --paper-sunken: #fff;
-      --paper-raised: #fff;
-      --ink: #000;
-      --ink-muted: #333;
-      --brand: #000;
-      --brand-strong: #000;
-      --brand-wash: #fff;
-      --clay: #000;
-      --clay-wash: #fff;
-      --line: #999;
-      --line-strong: #333;
-    }
-
-    .skip-link,
-    .site-header,
-    .nav-button,
-    .site-nav,
-    .footer-nav,
-    .post-nav,
-    .archive-pager,
-    .search-form,
-    .contact-form,
-    .site-footer__mark,
-    .site-footer__terms,
-    .page-terms {
-      display: none !important;
-    }
-
-    body {
-      background: #fff;
-      color: #000;
-      font-size: 11pt;
-    }
-
-    .site-footer {
-      margin-block-start: 1.5rem;
-      padding-block: 0.5rem 0;
-      background: none;
-      border-block-start: 1pt solid #000;
-    }
-
-    .site-footer__inner {
-      gap: 0.5rem;
-    }
-
-    .site-footer__contact,
-    .site-footer__sister,
-    .site-footer__tagline,
-    .site-footer__legal {
-      color: #000;
-    }
-
-    .hof-hero,
-    .page-header {
-      padding-block: 0 0.5rem;
-    }
-
-    .prose a[href^="http"]::after,
-    .site-footer__sister a[href^="http"]::after {
-      content: " (" attr(href) ")";
-      font-size: 9pt;
-      word-break: break-all;
-    }
-
-    /* Ein Bild, das über die Seitenkante bricht, kostet eine halbe Seite. */
-    .prose img,
-    .prose > blockquote,
-    .prose > table {
-      break-inside: avoid;
-    }
-
-    .prose > p:first-child img {
-      aspect-ratio: auto;
-      max-height: 8cm;
-      object-fit: contain;
-    }
-
-    h1,
-    h2,
-    h3 {
-      break-after: avoid;
-    }
-
-    @page {
-      margin: 2cm;
+      --hc-pane-bar: var(--hc-pane-bar-solid);
+      --hc-ground-image: none;
     }
   }
-}
 
-/* Eigene Felder einer Website, als Beschriftung und Wert nebeneinander.
-   Bei schmalen Bildschirmen untereinander, sonst wird der Wert zur Spalte. */
-.page-fields {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.35rem 1.25rem;
-  margin-block: 2rem;
-  padding-block: 1rem;
-  border-block: 1px solid currentColor;
-  border-color: color-mix(in oklab, currentColor 15%, transparent);
-}
-
-.page-fields dt {
-  font-weight: 600;
-  opacity: 0.75;
-}
-
-.page-fields dd {
-  margin: 0;
-}
-
-.page-fields img {
-  max-width: min(100%, 22rem);
-  height: auto;
-  border-radius: 4px;
-}
-
-@media (max-width: 34rem) {
-  .page-fields {
-    grid-template-columns: 1fr;
-    gap: 0.15rem;
-  }
-
-  .page-fields dd {
-    margin-bottom: 0.6rem;
+  /* Vor dem Auge verborgen, nicht vor der Vorlesesoftware. Geklemmt
+     statt nach -9999px geschoben: ein Kasten ausserhalb der Seite hat
+     eine linke Kante, aus der manche Browser eine Bildlaufleiste
+     machen. */
+  .hc-sr-only {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
 }
-
-.page-fields__rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.page-fields__rows li {
-  padding-block: 0.15rem;
-}
-
-.page-fields__rowlabel {
-  opacity: 0.7;
-}
-
-/* --- Hofladen (Plugin „bestellung") ---------------------------------------
-
-   Das Markup kommt fertig aus dem Plugin; die Vorlage kennt es nur über diese
-   Klassennamen. Wer sie hier vergisst, bekommt ein Formular ohne jede Form —
-   und einen sichtbaren Honigtopf, in den ein Besucher hineinschreibt. */
-
-.bestellung {
-  margin-block: 2rem;
-}
-
-.bestellung__hinweis {
-  margin-bottom: 1.25rem;
-}
-
-.bestellung__ok,
-.bestellung__fehler {
-  padding: 0.8em 1em;
-  border-radius: 4px;
-  border: 1px solid currentColor;
-}
-
-.bestellung__tabelle {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 1.75rem;
-}
-
-.bestellung__tabelle th,
-.bestellung__tabelle td {
-  padding: 0.5em 0.75em 0.5em 0;
-  text-align: left;
-  vertical-align: baseline;
-  border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent);
-}
-
-.bestellung__tabelle thead th {
-  font-size: 0.85em;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.7;
-}
-
-.bestellung__tabelle input[type="number"] {
-  width: 5rem;
-  padding: 0.4em 0.5em;
-}
-
-.bestellung__einheit,
-.bestellung__aus {
-  opacity: 0.65;
-  font-size: 0.9em;
-}
-
-.bestellung__form {
-  display: grid;
-  gap: 1rem;
-  max-width: 40rem;
-}
-
-.bestellung__feld {
-  display: grid;
-  gap: 0.3em;
-  margin: 0;
-}
-
-.bestellung__feld label {
-  font-weight: 700;
-  font-size: 0.9em;
-}
-
-.bestellung__form input,
-.bestellung__form textarea {
-  width: 100%;
-  padding: 0.55em 0.8em;
-  border: 1px solid color-mix(in oklab, currentColor 35%, transparent);
-  border-radius: 4px;
-  background: inherit;
-  color: inherit;
-  font: inherit;
-}
-
-.bestellung__form textarea {
-  resize: vertical;
-  min-height: 5rem;
-}
-
-.bestellung__hilfe {
-  font-size: 0.85em;
-  opacity: 0.7;
-}
-
-.bestellung__abschicken {
-  margin: 0;
-}
-
-/* Umrandet und nicht gefüllt: dieselbe Regel liegt in sieben Vorlagen mit
-   unterschiedlichen Farbnamen, und ein gefüllter Knopf bräuchte in jeder eine
-   eigene Schriftfarbe — sonst steht Schwarz auf Schwarz. Wer ihn kräftiger
-   will, überschreibt ihn in seiner Vorlage. */
-.bestellung__abschicken button {
-  padding: 0.6em 1.4em;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.bestellung__abschicken button:hover {
-  background: color-mix(in oklab, currentColor 10%, transparent);
-}
-
-/* Der Honigtopf. Nicht display:none, damit ein Vorleseprogramm ihn überspringen
-   kann und ein Formularausfüller ihn nicht als „unsichtbar, also egal" behandelt. */
-.bestellung__falle {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* --- Shop ----------------------------------------------------------------
- *
- * Der Katalog, der Warenkorb und die Kasse. Nur die Bausteine, die es sonst
- * nirgends gibt — Kopfzeilen, Karten, Knöpfe und Schlagwörter kommen aus dem
- * Theme darüber, damit der Shop aussieht wie der Rest der Website und nicht
- * wie ein angeklebter zweiter Laden.
- *
- * Alles über die Tokens des Themes (--brand, --ink, --paper, --space-*),
- * deshalb trägt jedes Theme seine eigene Handschrift auch hier.
- */
-
-/* --- Preisanzeige umschalten ---------------------------------------------- */
-
-.price-switch {
-  display: flex;
-  margin-bottom: var(--space-4, 1.5rem);
-}
-
-.price-switch__option {
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.4em 0.9em;
-  border: 1px solid #e5e5e5;
-  background: transparent;
-  color: #666;
-  cursor: pointer;
-}
-
-.price-switch__option:first-child {
-  border-radius: var(--radius, 4px) 0 0 var(--radius, 4px);
-}
-
-.price-switch__option:last-child {
-  border-radius: 0 var(--radius, 4px) var(--radius, 4px) 0;
-}
-
-.price-switch__option + .price-switch__option {
-  border-left: 0;
-}
-
-.price-switch__option.is-active {
-  background: #fff;
-  border-color: var(--brand);
-  color: var(--brand);
-  font-weight: 600;
-}
-
-.shop-categories {
-  margin-bottom: var(--space-5, 2rem);
-}
-
-.shop-note {
-  margin-top: var(--space-5, 2rem);
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-/* Die Shop-Links erben die Textfarbe; Schlagwörter und Kartentitel regelt das
-   Theme selbst und wird hier nicht angefasst. */
-.cart-continue,
-.cart-line__title a {
-  color: inherit;
-}
-
-.cart-continue:hover {
-  color: var(--brand);
-}
-
-/* --- Katalog -------------------------------------------------------------- */
-
-.product-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-4, 1.5rem);
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-}
-
-/* Der Preis nach unten, damit die Preise einer Zeile auf einer Höhe stehen.
-   Sonst tanzen sie mit der Länge der Beschreibung, und ein Katalog, in dem man
-   die Preise suchen muss, ist ein schlechter Katalog. */
-.archive-entry__text .price {
-  margin-block-start: auto;
-  padding-block-start: var(--space-2, 0.5rem);
-}
-
-.product-card__subtitle {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-/* Ein ausverkauftes Stück bleibt sichtbar und lesbar — es wird nur ruhiger.
-   Ausblenden wäre schlechter: die Kundin sucht sonst weiter. */
-.product-card--sold-out .card__media img {
-  opacity: 0.5;
-}
-
-.product-card__sold-out {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #b3261e;
-}
-
-/* --- Preis ---------------------------------------------------------------- */
-
-.price {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.price__amount {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-
-.price--large .price__amount {
-  font-size: 1.55rem;
-}
-
-.price__note,
-.price__other {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-/* --- Ein Stück ------------------------------------------------------------ */
-
-.page--product {
-  container-type: inline-size;
-}
-
-.product {
-  display: grid;
-  gap: var(--space-4, 1.5rem);
-}
-
-.product__image {
-  display: block;
-  inline-size: 100%;
-  block-size: auto;
-  border-radius: var(--radius, 4px);
-}
-
-.product__gallery {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
-  gap: var(--space-2, 0.5rem);
-}
-
-.product__gallery img {
-  display: block;
-  inline-size: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: var(--radius, 4px);
-}
-
-.product__buy {
-  display: grid;
-  gap: var(--space-2, 0.5rem);
-  padding: var(--space-4, 1.5rem);
-  border: 1px solid #e5e5e5;
-  border-radius: var(--radius, 4px);
-  background: #fff;
-}
-
-.product__form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: var(--space-2, 0.5rem);
-  margin-top: var(--space-2, 0.5rem);
-}
-
-.product__form label {
-  flex-basis: 100%;
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-.product__form input {
-  font: inherit;
-  inline-size: 4.5rem;
-  padding: 0.5em;
-  border: 1px solid #e5e5e5;
-  border-radius: var(--radius, 4px);
-  background: var(--paper);
-  color: inherit;
-}
-
-.product__stock,
-.product__delivery,
-.product__shipping,
-.product__sku {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-.product__sold-out {
-  font-weight: 600;
-  color: #b3261e;
-}
-
-.product__description {
-  margin-top: var(--space-5, 2rem);
-}
-
-/* --- Warenkorb ------------------------------------------------------------ */
-
-.cart-lines {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-3, 1rem);
-}
-
-/* Die Reihenfolge im Quelltext ist Bild, Text, Menge, Preis, Entfernen — für
-   ein Vorlesegerät die richtige. Auf dem Bildschirm gehört der Preis auf die
-   Höhe des Titels und nicht unter die Mengenzeile, also werden die Felder
-   ausdrücklich gesetzt statt der Reihe nach eingefüllt. */
-.cart-line {
-  display: grid;
-  grid-template-columns: 4rem 1fr;
-  grid-template-areas:
-    "bild  text"
-    "bild  preis"
-    "menge menge"
-    "weg   weg";
-  gap: var(--space-2, 0.5rem) var(--space-3, 1rem);
-  align-items: start;
-  padding-bottom: var(--space-4, 1.5rem);
-  border-bottom: 1px solid #e5e5e5;
-}
-
-/* Ohne Bild keine Bildspalte — sonst stünde der Text um vier Zentimeter
-   eingerückt neben nichts. */
-.cart-line:not(:has(.cart-line__media)) {
-  grid-template-columns: 1fr;
-  grid-template-areas:
-    "text"
-    "preis"
-    "menge"
-    "weg";
-}
-
-.cart-line__media { grid-area: bild; }
-
-.cart-line__text { grid-area: text; }
-
-.cart-line__price { grid-area: preis; }
-
-.cart-line__quantity { grid-area: menge; align-self: end; }
-
-.cart-line__remove { grid-area: weg; align-self: end; }
-
-.cart-line__media img {
-  display: block;
-  inline-size: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: var(--radius, 4px);
-}
-
-.cart-line__title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.cart-line__title a {
-  text-decoration: none;
-}
-
-.cart-line__title a:hover {
-  text-decoration: underline;
-}
-
-.cart-line__subtitle,
-.cart-line__unit {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-.cart-line__gone {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #b3261e;
-}
-
-.cart-line__price {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  color: var(--ink);
-}
-
-.cart-line__quantity {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.cart-line__quantity input {
-  font: inherit;
-  inline-size: 4rem;
-  padding: 0.35em 0.5em;
-  border: 1px solid #e5e5e5;
-  border-radius: var(--radius, 4px);
-  background: var(--paper);
-  color: inherit;
-}
-
-.cart-line__drop {
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #666;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.cart-line__drop:hover {
-  color: var(--brand);
-}
-
-.cart-line--gone {
-  opacity: 0.65;
-}
-
-.cart-summary {
-  display: grid;
-  gap: var(--space-2, 0.5rem);
-  justify-items: start;
-  margin-top: var(--space-5, 2rem);
-}
-
-.cart-totals {
-  inline-size: 100%;
-  max-inline-size: 24rem;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.3rem var(--space-3, 1rem);
-  margin: 0;
-}
-
-.cart-totals dd {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.cart-totals__tax {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-.cart-totals__sum {
-  padding-top: 0.5rem;
-  border-top: 1px solid #e5e5e5;
-  font-weight: 700;
-  font-size: 1.1rem;
-}
-
-.cart-totals__note,
-.checkout__policy,
-.order__policy {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-.cart-checkout {
-  margin-top: var(--space-3, 1rem);
-}
-
-.cart-continue {
-  font-size: 0.875rem;
-}
-
-.cart-empty {
-  color: #666;
-}
-
-.cart-blocked {
-  margin-bottom: var(--space-4, 1.5rem);
-  padding: 0.7em 1em;
-  border-left: 3px solid #b3261e;
-  background: #fff;
-  font-size: 0.9375rem;
-}
-
-/* --- Kasse ---------------------------------------------------------------- */
-
-.checkout__grid {
-  display: grid;
-  gap: var(--space-4, 1.5rem);
-  align-items: start;
-}
-
-.checkout__form {
-  display: grid;
-  gap: var(--space-4, 1.5rem);
-}
-
-.checkout__group {
-  display: grid;
-  gap: var(--space-3, 1rem);
-  padding: var(--space-4, 1.5rem);
-  border: 1px solid #e5e5e5;
-  border-radius: var(--radius, 4px);
-  background: #fff;
-}
-
-.checkout__group legend {
-  padding-inline: 0.5rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--brand);
-}
-
-.field {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.field label {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-.field input,
-.field textarea,
-.field__select {
-  font: inherit;
-  inline-size: 100%;
-  padding: 0.55em 0.7em;
-  border: 1px solid #e5e5e5;
-  border-radius: var(--radius, 4px);
-  background: var(--paper);
-  color: inherit;
-}
-
-.field textarea {
-  resize: vertical;
-}
-
-.field__error {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #b3261e;
-}
-
-/* PLZ und Ort nebeneinander — aber nur, solange sie nebeneinander passen. Ein
-   Eingabefeld ist von sich aus rund 180px breit und schrumpft nicht von
-   allein; zwei davon in einer Zeile haben die Kasse auf dem Telefon über den
-   Rand geschoben, und zwar waagrecht scrollbar statt umgebrochen. Genau das
-   Gerät, auf dem hier mit TWINT bezahlt wird. */
-.field-row {
-  display: grid;
-  gap: var(--space-3, 1rem);
-  grid-template-columns: 7rem 1fr;
-}
-
-.field-row > .field {
-  min-inline-size: 0;
-}
-
-.field-row input {
-  inline-size: 100%;
-  min-inline-size: 0;
-}
-
-@media (max-width: 26rem) {
-.field-row {
-    grid-template-columns: 1fr;
+@layer weide.components {
+  /* Die Bauteile, aus denen die zwölf Ansichten gebaut sind. Die
+     Klassennamen sind dieselben wie in der Vorlage holzcloud — nicht
+     aus Bequemlichkeit, sondern damit dieselbe Geste denselben Namen
+     trägt und eine Ansicht sich zwischen den beiden Vorlagen lesen
+     lässt. Was sich unterscheidet, ist der Stoff: Karton statt Glas.
+
+     Jede Klasse trägt das Präfix hc-. Dieses Stylesheet wird neben
+     bausteine.css geladen, und ein blankes .btn stiesse dort an. */
+
+  /* ── Fläche der Seite ─────────────────────────────────────── */
+  .hc-wide {
+    width: 100%; max-width: var(--hc-wide);
+    margin-inline: auto; padding-inline: var(--hc-gutter);
+  }
+  .hc-stack > * + * { margin-block-start: var(--hc-space-4); }
+  .hc-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--hc-space-3);
+  }
+
+  /* ── Fläche ───────────────────────────────────────────────────
+     Die eine Fläche des Systems. Karten, Leisten und Kästen sind
+     alle dies, mit anderem Innenabstand.
+
+     Auf hellem Papier ist sie ein DECKENDER Kasten mit Haarlinie und
+     weichem Schatten. Der Glas-Kunstgriff aus holzcloud — halbe
+     Deckung plus backdrop-filter — ergibt nur auf dunklem Grund
+     Sinn; auf Papier wirkt eine halbdurchsichtige Fläche schmutzig
+     statt schwebend. Deshalb steht hier kein backdrop-filter, und es
+     braucht auch keinen @supports-Zweig für Browser ohne. */
+  .hc-pane {
+    background: var(--hc-pane);
+    border: 1px solid var(--hc-pane-edge);
+    border-radius: var(--hc-r);
+    box-shadow: var(--hc-shadow-pane);
+  }
+  .hc-pane--pad   { padding: clamp(var(--hc-space-5), 4vw, var(--hc-space-7)); }
+  .hc-pane--tight { padding: var(--hc-space-4); }
+  /* Nur für etwas, das der Zeiger aufnehmen kann. Eine Fläche, die
+     sich beim Überfahren hebt und beim Klicken nichts tut, lügt. */
+  a.hc-pane, button.hc-pane, .hc-pane--interactive {
+    text-decoration: none;
+    transition: border-color var(--hc-dur-fast) var(--hc-ease),
+                box-shadow  var(--hc-dur-fast) var(--hc-ease),
+                transform   var(--hc-dur-fast) var(--hc-ease);
+  }
+  a.hc-pane:hover, button.hc-pane:hover, .hc-pane--interactive:hover {
+    border-color: var(--hc-pane-lift);
+    box-shadow: var(--hc-shadow-lift);
+    transform: translateY(-2px);
+  }
+
+  /* ── Leiste ───────────────────────────────────────────────────
+     Das Kleben hängt am Element selbst. Eine klebende Verpackung,
+     die genau so hoch ist wie ihr Inhalt, wandert null Pixel und
+     scrollt stillschweigend weg — der Fehler, den diese Klasse
+     niemanden noch einmal finden lassen soll. */
+  .hc-bar {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--hc-pane-bar);
+    border-block-end: 1px solid var(--hc-hairline);
+  }
+  .hc-bar__inner {
+    display: flex; align-items: center; gap: var(--hc-space-4);
+    min-height: 68px;
+  }
+
+  /* ── Wortmarke ────────────────────────────────────────────── */
+  .hc-mark {
+    font-size: var(--hc-text-lg); letter-spacing: var(--hc-track-snug);
+    text-decoration: none; color: var(--hc-ink);
+  }
+  .hc-mark b { font-weight: var(--hc-weight-semibold); }
+
+  /* ── Knöpfe ───────────────────────────────────────────────────
+     Kein Verlauf, kein innerer Glanz, kein farbiges Leuchten. Diese
+     drei zusammen sind, was einen Knopf alt aussehen lässt. Auf
+     Papier trägt die Erdfläche mit heller Schrift: 7.04:1, und der
+     Knopf ist damit zugleich die einzige grosse Markenfläche der
+     Seite. */
+  .hc-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: var(--hc-space-2);
+    padding: 13px var(--hc-space-5);
+    border-radius: var(--hc-r-pill);
+    border: 1px solid transparent;
+    font: inherit;
+    font-size: var(--hc-text-sm); font-weight: var(--hc-weight-semibold);
+    line-height: 1; text-decoration: none; cursor: pointer;
+    background: var(--hc-erde); color: var(--hc-on-erde);
+    transition: opacity var(--hc-dur-fast) var(--hc-ease),
+                transform var(--hc-dur-fast) var(--hc-ease),
+                border-color var(--hc-dur-fast) var(--hc-ease);
+  }
+  .hc-btn:hover { opacity: .9; transform: translateY(-1px); }
+  .hc-btn:disabled, .hc-btn[aria-disabled="true"] {
+    opacity: .45; cursor: not-allowed; transform: none;
+  }
+  .hc-btn--ghost {
+    background: transparent; color: var(--hc-ink);
+    border-color: var(--hc-pane-edge); font-weight: var(--hc-weight-medium);
+  }
+  .hc-btn--ghost:hover { opacity: 1; border-color: var(--hc-erde-soft); background: var(--hc-erde-wash); }
+  /* Das Zerstörende ist umrandet, nicht gefüllt. Ein roter Block ist
+     das Leichteste auf einem Bildschirm, was man aus Versehen
+     trifft. */
+  .hc-btn--danger {
+    background: transparent; color: var(--hc-danger);
+    border-color: var(--hc-danger); font-weight: var(--hc-weight-semibold);
+  }
+  .hc-btn--danger:hover { opacity: 1; background: var(--hc-danger-wash); }
+  .hc-btn--sm { padding: 9px var(--hc-space-4); font-size: var(--hc-text-xs); }
+
+  /* ── Beschriftung ─────────────────────────────────────────────
+     Statt einer Mono-Familie: gesperrte Versalien in Manrope. Der
+     Buchstabenabstand ist das Signal — eine Beschriftung sieht damit
+     anders aus als ein Satz, ohne eine zweite Schriftdatei zu
+     kosten. */
+  .hc-lbl, .hc-eyebrow {
+    font-size: var(--hc-text-label); letter-spacing: var(--hc-track-widest);
+    text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+    color: var(--hc-ink-3);
+  }
+  .hc-eyebrow {
+    display: flex; align-items: baseline; gap: var(--hc-space-3);
+    color: var(--hc-erde);
+  }
+  .hc-eyebrow a { color: inherit; }
+  .hc-eyebrow b { color: var(--hc-erde); font-weight: var(--hc-weight-semibold); }
+
+  /* ── Chip ─────────────────────────────────────────────────────
+     Eine Tatsache über etwas, kein Bedienelement. */
+  .hc-chip {
+    display: inline-flex; align-items: center; gap: var(--hc-space-2);
+    font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+    text-transform: uppercase; font-weight: var(--hc-weight-medium);
+    padding: 6px var(--hc-space-3);
+    border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-pill);
+    color: var(--hc-ink-3);
+  }
+  a.hc-chip {
+    text-decoration: none; color: var(--hc-erde);
+    border-color: var(--hc-erde-soft);
+    transition: background-color var(--hc-dur-fast) var(--hc-ease);
+  }
+  a.hc-chip:hover { background: var(--hc-erde-wash); }
+
+  /* ── Zustand ──────────────────────────────────────────────────
+     Nie der Punkt allein. Die Farbe ist das zweite Signal; das Wort
+     daneben ist das erste. */
+  .hc-status {
+    display: inline-flex; align-items: center; gap: var(--hc-space-2);
+    font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+  }
+  .hc-status::before {
+    content: ""; flex: none;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--hc-ink-3);
+  }
+  .hc-status--ok::before     { background: var(--hc-ok); }
+  .hc-status--warn::before   { background: var(--hc-warn); }
+  .hc-status--danger::before { background: var(--hc-danger); }
+  .hc-status--info::before   { background: var(--hc-info); }
+
+  /* ── Meldung ──────────────────────────────────────────────── */
+  .hc-alert {
+    display: flex; gap: var(--hc-space-3);
+    padding: var(--hc-space-4);
+    border: 1px solid var(--hc-pane-edge);
+    border-inline-start: 3px solid var(--hc-ink-3);
+    border-radius: var(--hc-r-sm);
+    background: var(--hc-pane);
+    font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+    max-width: none;
+  }
+  .hc-alert strong { color: var(--hc-ink); font-weight: var(--hc-weight-semibold); }
+  .hc-alert--ok     { border-inline-start-color: var(--hc-ok);     background: var(--hc-ok-wash); }
+  .hc-alert--warn   { border-inline-start-color: var(--hc-warn);   background: var(--hc-warn-wash); }
+  .hc-alert--danger { border-inline-start-color: var(--hc-danger); background: var(--hc-danger-wash); }
+  .hc-alert--info   { border-inline-start-color: var(--hc-info);   background: var(--hc-info-wash); }
+
+  /* ── Formulare ────────────────────────────────────────────────
+     Beschriftung oben, Hinweis darunter, Fehler zuletzt und
+     angesagt. Die Reihenfolge ist die Lesereihenfolge, also hängt
+     nichts an einer Farbe oder an einer Position. */
+  .hc-field { display: flex; flex-direction: column; gap: var(--hc-space-2); }
+  .hc-label {
+    font-size: var(--hc-text-sm); font-weight: var(--hc-weight-medium);
+    color: var(--hc-ink);
+  }
+  .hc-input, .hc-select, .hc-textarea {
+    width: 100%;
+    padding: 11px var(--hc-space-4);
+    font: inherit; font-size: var(--hc-text-sm);
+    color: var(--hc-ink);
+    background: var(--hc-pane-sunken);
+    border: 1px solid var(--hc-pane-edge);
+    border-radius: var(--hc-r-sm);
+    transition: border-color var(--hc-dur-fast) var(--hc-ease);
+  }
+  .hc-input::placeholder, .hc-textarea::placeholder { color: var(--hc-ink-3); }
+  .hc-input:hover, .hc-select:hover, .hc-textarea:hover { border-color: var(--hc-erde-soft); }
+  .hc-textarea { min-height: 7lh; resize: vertical; }
+  .hc-input:disabled, .hc-select:disabled, .hc-textarea:disabled {
+    opacity: .5; cursor: not-allowed;
+  }
+  .hc-hint  { font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+  .hc-error { font-size: var(--hc-text-xs); color: var(--hc-danger); }
+  /* Getrieben von genau der Eigenschaft, die die Vorlesesoftware
+     liest — die rote Kante kann dem Angesagten damit nicht
+     widersprechen. */
+  .hc-input[aria-invalid="true"],
+  .hc-select[aria-invalid="true"],
+  .hc-textarea[aria-invalid="true"] { border-color: var(--hc-danger); }
+
+  /* ── Tabelle ──────────────────────────────────────────────────
+     Linien zwischen den Zeilen, keine darum. Ein Gitter aus Kästen
+     macht Zahlen schwerer lesbar, nicht leichter. */
+  .hc-table { width: 100%; border-collapse: collapse; font-size: var(--hc-text-sm); }
+  .hc-table th {
+    text-align: start; padding: var(--hc-space-3) var(--hc-space-4);
+    font-size: var(--hc-text-label); font-weight: var(--hc-weight-semibold);
+    letter-spacing: var(--hc-track-wide); text-transform: uppercase;
+    color: var(--hc-ink-3);
+    border-block-end: 1px solid var(--hc-pane-edge);
+  }
+  .hc-table td {
+    padding: var(--hc-space-3) var(--hc-space-4);
+    color: var(--hc-ink-2);
+    border-block-end: 1px solid var(--hc-hairline);
+  }
+  .hc-table tr:last-child td { border-block-end: 0; }
+  .hc-table td.hc-num { font-variant-numeric: tabular-nums; }
+  .hc-table-scroll { overflow-x: auto; }
+
+  /* ── Textrollen ───────────────────────────────────────────── */
+  .hc-display {
+    font-size: var(--hc-display); font-weight: var(--hc-weight-thin);
+    line-height: var(--hc-leading-tight); letter-spacing: var(--hc-track-tight);
+    max-width: 15ch;
+  }
+  .hc-display em { font-style: normal; font-weight: var(--hc-weight-medium); color: var(--hc-erde); }
+  .hc-title { font-size: var(--hc-display-sm); font-weight: var(--hc-weight-medium); }
+  .hc-claim {
+    font-size: var(--hc-text-xl); font-weight: var(--hc-weight-regular);
+    line-height: var(--hc-leading-snug); letter-spacing: var(--hc-track-snug);
+    color: var(--hc-erde); max-width: 32ch;
+  }
+  .hc-lede { font-size: var(--hc-text-lg); color: var(--hc-ink-2); max-width: 54ch; }
+  .hc-muted { color: var(--hc-ink-2); }
+  .hc-dim   { color: var(--hc-ink-3); }
+
+  /* ── Faktenzeilen ─────────────────────────────────────────────
+     Begriff links, Wert rechts, eine Linie dazwischen. Die Form, in
+     die jede Liste aus Angaben ohnehin läuft. */
+  .hc-defs { margin: 0; }
+  .hc-defs > div {
+    display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--hc-space-5);
+    padding-block: var(--hc-space-4);
+    border-block-start: 1px solid var(--hc-hairline);
+  }
+  .hc-defs > div:last-child { border-block-end: 1px solid var(--hc-hairline); }
+  .hc-defs dt {
+    font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+    text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+    color: var(--hc-ink-3); padding-block-start: 3px;
+  }
+  .hc-defs dd { margin: 0; color: var(--hc-ink-2); font-size: 15.5px; }
+  @media (max-width: 640px) {
+    .hc-defs > div { grid-template-columns: minmax(0, 1fr); gap: var(--hc-space-1); }
+    .hc-defs dt { padding-block-start: 0; }
   }
 }
+@layer weide.motif {
+  /* Das Zeichenvokabular der Vorlage: die ruhige Hügellinie, die im
+     Aufmacher steht, wenn eine Seite kein Titelbild hat.
 
-.choice {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.2rem 0.6rem;
-  align-items: baseline;
-  cursor: pointer;
+     Die Klassen stehen HIER und nicht in der Ansicht, weil die
+     Zeichnung zum Gestaltungssystem gehört. Das svg im Markup trägt
+     deshalb kein fill und kein stroke als Literalwert — sonst folgte
+     es einer eingestellten Marke nicht, und die eine Farbe der Seite
+     stünde neben einer Zeichnung in einer anderen. */
+
+  .hc-huegel { display: block; width: 100%; height: auto; }
+  .hc-huegel .hc-h-fern  { fill: var(--hc-h-fern);  stroke: none; }
+  .hc-huegel .hc-h-mitte { fill: var(--hc-h-mitte); stroke: none; }
+  .hc-huegel .hc-h-nah   { fill: var(--hc-h-nah);   stroke: none; }
+  .hc-huegel .hc-h-linie {
+    fill: none; stroke: var(--hc-h-linie);
+    stroke-width: 2; stroke-linecap: round;
+  }
+  .hc-huegel .hc-sonne { fill: var(--hc-sonne); stroke: none; }
+}
+/* ══ CMS-Schicht ══════════════════════════════════════════════
+   Was oben steht, kleidet ein Gestaltungssystem. Was hier steht,
+   kleidet den Datenvertrag von Holzcloud CMS: die Kopfleiste aus
+   .Menus, den Inhalt aus .Page, die Bausteine, die der Kern
+   schreibt, und die zwölf Ansichten.
+
+   Bewusst OHNE @layer. Die vier Schichten oben stehen in ihren
+   Schichten, alles hier steht ausserhalb und gewinnt damit ohne
+   Spezifitätsspiele. Genau darum darf hier kein @layer stehen — ein
+   fünfter würde diesen Bereich wieder unter die eigenen vier UND
+   unter .Site.Design stellen.
+
+   Hier steht kein Farbwert. Steht doch einmal einer hier, gehört er
+   nach oben in weide.tokens und nicht hierher.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Brücke zu den Reglern der Verwaltung ─────────────────────
+   internal/design/tokens.go gibt der Website genau sechs Namen. Sie
+   kommen im <style> NACH diesem Stylesheet an, ebenfalls ausserhalb
+   jeder Schicht — also gewinnen sie gegen alles hier.
+
+   Zwei davon heissen im Gestaltungssystem schon genauso und meinen
+   dasselbe: die Tinte und das Mass wirken allein durch ihren Namen
+   und brauchen keine Zeile. Die anderen vier brauchen die Brücke
+   unten, jeweils mit dem Entwurfswert aus weide.tokens als Rückfall,
+   damit die Vorlage ohne jede Einstellung genau so aussieht wie
+   entworfen.
+
+   Die Richtung geht immer vom Regler zum System, nie zurück. Ein
+   Regler, der aus dem System läse, und ein System, das aus dem
+   Regler liest, wären ein Zyklus im benutzerdefinierten Wert, und
+   beide Werte fielen aus.
+
+   Mehr braucht es nicht: alle Ableitungen in weide.tokens zeigen
+   über var() auf genau diese Namen, und var() wird erst am Ende
+   aufgelöst. Eine eingestellte Marke zieht damit die halbe Palette
+   mit — Schleier im Grund, Kante beim Überfahren, Zitatbalken,
+   Fokusring —, ohne dass hier eine einzige Ableitung wiederholt
+   werden müsste. */
+:root {
+  --hc-erde:      var(--hc-brand,  #6E4D32);
+  --hc-ground:    var(--hc-paper,  #FAF6EF);
+  --hc-font-sans: var(--hc-font,   Manrope, ui-sans-serif, system-ui, -apple-system, sans-serif);
+  --hc-r:         var(--hc-radius, 14px);
 }
 
-.choice input {
-  grid-row: 1;
-  accent-color: var(--brand);
+/* ── Brücke zu den Bausteinen ─────────────────────────────────
+   assets/bausteine.css leitet seine eigenen Werte aus generischen
+   Namen ab. Diese zehn Zeilen kleiden damit alle neun Bausteinarten
+   auf einmal. Wer stattdessen .hc-block-Regeln nachbaut, hat zwei
+   Gestaltungen zu pflegen und behält die zweite nicht.
+
+   --paper ist bewusst der Seitengrund und nicht die Kartenfläche:
+   .hc-knopf setzt ihn als SCHRIFTFARBE auf die Markenfläche, und
+   eine Kartenfläche als Schrift auf Erdbraun wäre kaum lesbar. Dass
+   .hc-karte und .hc-aufruf damit den Seitengrund als Füllung
+   bekämen, korrigieren die Regeln weiter unten. */
+:root {
+  --ink:     var(--hc-ink);
+  --paper:   var(--hc-ground);
+  --brand:   var(--hc-erde);
+  --line:    var(--hc-hairline);
+  --space-3: var(--hc-space-5);
+  --space-4: var(--hc-space-6);
+  --step--1: var(--hc-text-sm);
+  --step-1:  var(--hc-text-lg);
+  --step-2:  var(--hc-text-xl);
+  --radius:  var(--hc-r);
 }
 
-.choice__label {
-  font-weight: 600;
+html { scroll-padding-top: var(--hc-space-9); }
+
+/* ── Sprung zum Inhalt ────────────────────────────────────────
+   Der Name muss skip-link heissen: er ist die Verabredung, die alle
+   mitgelieferten Vorlagen teilen, und die Testreihe sucht ihn
+   wörtlich. Geklemmt statt nach -9999px geschoben — ein Kasten
+   ausserhalb der Seite erzeugt in manchen Browsern eine
+   Bildlaufleiste. */
+.skip-link {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.skip-link:focus {
+  position: fixed; inset-block-start: var(--hc-space-3); inset-inline-start: var(--hc-space-3);
+  z-index: 60; width: auto; height: auto; clip-path: none;
+  padding: 10px var(--hc-space-4); border-radius: var(--hc-r-sm);
+  background: var(--hc-erde); color: var(--hc-on-erde);
+  font-weight: var(--hc-weight-semibold); text-decoration: none;
 }
 
-.choice__note {
-  grid-column: 2;
-  font-size: 0.8125rem;
-  color: #666;
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 
-.choice--confirm {
-  padding: var(--space-3, 1rem);
-  border: 1px solid #e5e5e5;
-  border-radius: var(--radius, 4px);
-  background: #fff;
+/* ── Kopfleiste ───────────────────────────────────────────────
+   .hc-bar bringt Kleben, Papierdeckung und Kante mit; was hier
+   steht, ist der Inhalt darin. */
+.site-mark { display: inline-flex; align-items: center; flex: none; }
+.site-logo {
+  width: auto; height: 32px; flex: none;
+  margin-inline-end: var(--hc-space-3);
+  border-radius: var(--hc-r-sm);
 }
+.site-mark b { font-weight: var(--hc-weight-semibold); }
 
-.checkout__submit {
-  justify-self: start;
-  padding: 0.85em 1.8em;
+/* menuFor liefert nackte <ul><li><a> bis in die dritte Ebene, ohne
+   eine einzige Klasse. Alles hier hängt deshalb an der Abstammung. */
+.site-menu { margin-inline-start: auto; min-width: 0; }
+.site-menu ul {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: clamp(10px, 2vw, 28px);
 }
-
-.checkout__summary {
-  display: grid;
-  gap: var(--space-3, 1rem);
-  justify-items: start;
-  padding: var(--space-4, 1.5rem);
-  border: 1px solid var(--brand);
-  border-radius: var(--radius, 4px);
-  background: #fff;
-}
-
-.checkout__summary-title {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.checkout__lines {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  inline-size: 100%;
-  display: grid;
-  gap: 0.4rem;
-  font-size: 0.9375rem;
-}
-
-.checkout__lines li {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0.5rem;
-}
-
-.checkout__line-qty {
-  color: #666;
-  font-variant-numeric: tabular-nums;
-}
-
-.checkout__line-price {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* --- Bestätigung ---------------------------------------------------------- */
-
-.order__body {
-  display: grid;
-  gap: var(--space-4, 1.5rem);
-  justify-items: start;
-}
-
-.order__body .cart-totals,
-.order__body .checkout__lines {
-  inline-size: 100%;
-  max-inline-size: 26rem;
-}
-
-.order__facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.4rem var(--space-3, 1rem);
-  margin: 0;
-  font-size: 0.9375rem;
-}
-
-.order__facts dt {
-  font-size: 0.8125rem;
-  color: #666;
-}
-
-.order__payment-note {
+.site-menu li { position: relative; }
+.site-menu a {
   display: inline-block;
-  margin-top: 0.2rem;
-  font-size: 0.8125rem;
-  color: #666;
-  line-height: 1.45;
+  color: var(--hc-ink-2); text-decoration: none;
+  font-size: 15px; font-weight: var(--hc-weight-medium);
+  padding-block: var(--hc-space-2);
+  border-block-end: 1px solid transparent;
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              border-color var(--hc-dur-fast) var(--hc-ease);
+}
+.site-menu a:hover { color: var(--hc-ink); border-block-end-color: var(--hc-erde-soft); }
+.site-menu a[aria-current="page"] { color: var(--hc-erde); border-block-end-color: var(--hc-erde); }
+
+/* Untermenüs ohne eine Zeile Javascript: sie hängen an :hover und
+   an :focus-within, also erreicht die Tastatur sie genauso wie der
+   Zeiger. Geschaltet wird über Sichtbarkeit und Deckkraft und nicht
+   über display, damit der Übergang etwas zu animieren hat. */
+.site-menu li > ul {
+  position: absolute; inset-inline-start: 0; inset-block-start: 100%;
+  z-index: 40;
+  flex-direction: column; align-items: stretch;
+  gap: 0;
+  min-width: max-content;
+  margin-block-start: var(--hc-space-2);
+  padding: var(--hc-space-2);
+  background: var(--hc-pane-bar-solid);
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-r-sm);
+  box-shadow: var(--hc-shadow-pane);
+  visibility: hidden; opacity: 0;
+  transition: opacity var(--hc-dur-fast) var(--hc-ease),
+              visibility var(--hc-dur-fast) var(--hc-ease);
+}
+.site-menu li:hover > ul,
+.site-menu li:focus-within > ul { visibility: visible; opacity: 1; }
+.site-menu li > ul a {
+  display: block; width: 100%;
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-block-end: 0; border-radius: var(--hc-r-sm);
+}
+.site-menu li > ul a:hover { background: var(--hc-erde-wash); }
+
+/* Die Sprachwahl behält den Namen .lang-nav aus der bisherigen
+   Fassung: bausteine.css grundgestaltet sie unter diesem Namen
+   bereits, und ein neuer Name hiesse, das erst abzuräumen. Hier
+   kommt nur dazu, was die neue Sprache braucht. */
+.lang-nav { flex: none; padding-block: 0; }
+.lang-nav ul { gap: 2px; }
+.lang-nav a, .lang-nav span {
+  display: inline-block;
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink-3); text-decoration: none;
+  padding: 6px 8px; border-radius: 7px;
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              background-color var(--hc-dur-fast) var(--hc-ease);
+}
+.lang-nav a:hover { color: var(--hc-ink); background: var(--hc-erde-wash); text-decoration: none; }
+.lang-nav [aria-current] { color: var(--hc-erde); opacity: 1; }
+
+/* Die Suche in der Leiste ist ein GET-Formular und funktioniert ohne
+   alles. Sie erscheint nur, wenn die Website überhaupt sucht. */
+.site-search { display: flex; align-items: center; gap: var(--hc-space-2); flex: none; }
+.site-search .hc-input { width: clamp(9rem, 16vw, 15rem); padding-block: 8px; }
+
+.site-cart {
+  display: inline-flex; align-items: center; gap: var(--hc-space-2);
+  flex: none;
+  color: var(--hc-ink-2); text-decoration: none;
+  font-size: 14.5px; font-weight: var(--hc-weight-medium);
+  padding: 8px 15px; border-radius: var(--hc-r-pill);
+  border: 1px solid var(--hc-pane-edge);
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              border-color var(--hc-dur-fast) var(--hc-ease);
+}
+.site-cart:hover { color: var(--hc-ink); border-color: var(--hc-erde-soft); }
+.site-cart__count { color: var(--hc-erde); font-variant-numeric: tabular-nums; font-weight: var(--hc-weight-semibold); }
+
+/* ── Der Inhalt ───────────────────────────────────────────────
+   <main> trägt keine Breite: die Ansichten setzen .hc-wide selbst,
+   damit eine Startseite eine Fläche über die ganze Breite legen kann
+   und ein Artikel trotzdem in seinem Mass bleibt. */
+main { display: block; }
+main:focus { outline: none; }
+.page-wrap { padding-block: clamp(var(--hc-space-6), 6vh, var(--hc-space-9)); }
+
+/* Der Textkörper ist schmal, die Bilder sind es nicht.
+ *
+ * Zwei Rasterspalten statt max-width am Elternteil: die zweite ist unter dem
+ * Mass null breit, also stapelt sich das auf dem Telefon von selbst, ohne eine
+ * zweite Regel in einer Medienabfrage. Eine Galerie, ein Video und ein Bild
+ * über die volle Breite laufen bis an den rechten Rand von .hc-wide.
+ *
+ * Das Mass kommt aus --hc-measure, also aus dem Regler der Verwaltung, mit 74
+ * Zeichen als Rückfall. Die Hofseiten, für die diese Vorlage gedacht ist, sind
+ * reiner Fliesstext: Überschrift, Bild, Absatz, Link, immer wieder. Genau
+ * dieser Wechsel muss tragen. */
+.page-content {
+  display: grid;
+  grid-template-columns: [text-start] min(100%, var(--hc-measure, 74ch)) [text-end] minmax(0, 1fr) [breit-ende];
+}
+.page-content > * { grid-column: text-start / text-end; min-width: 0; }
+.page-content > :is(.hc-galerie, .hc-video, .hc-bild--voll) {
+  grid-column: text-start / breit-ende;
+}
+.page-content > * + * { margin-block-start: var(--hc-space-5); }
+
+/* Eine Überschrift beginnt einen Abschnitt, also gehört der grosse Abstand
+   VOR sie und nicht hinter den Absatz davor. Auf einer Seite aus neun
+   Abschnitten ist das der Unterschied zwischen einer Wand und einem Text. */
+.page-content > :where(h2) { margin-block-start: var(--hc-space-8); font-size: var(--hc-text-2xl); }
+.page-content > :where(h3) { margin-block-start: var(--hc-space-7); font-size: var(--hc-text-xl); }
+.page-content > :where(h2, h3):first-child { margin-block-start: 0; }
+.page-content :where(h2, h3) { max-width: var(--hc-measure, 74ch); }
+
+/* Ein Bild allein in seinem Absatz ist eine Figur und kein Wort im Satz.
+ * Markdown macht daraus ein <p><img></p>, also hängt die Regel an :has() —
+ * ohne sie klebte der Absatz danach am Bild, weil ein <p> mit Bild darin
+ * genauso viel Luft bekäme wie ein <p> mit Text. */
+.page-content > p:has(> img:only-child) {
+  margin-block: var(--hc-space-7);
+  max-width: none;
+}
+.page-content > p:has(> img:only-child) + * { margin-block-start: var(--hc-space-7); }
+.page-content :where(p) > img:only-child {
+  display: block; width: 100%;
+  border-radius: var(--hc-r);
+  border: 1px solid var(--hc-hairline);
+}
+
+.page-content :where(ul, ol) { padding-inline-start: var(--hc-space-5); }
+.page-content :where(li + li) { margin-block-start: var(--hc-space-2); }
+.page-content :where(a) { color: var(--hc-erde); text-underline-offset: 3px; }
+.page-content :where(a):hover { text-decoration-thickness: 2px; }
+.page-content :where(strong) { font-weight: var(--hc-weight-semibold); }
+.page-content :where(blockquote) {
+  margin-inline: 0; padding-inline-start: var(--hc-space-5);
+  border-inline-start: 3px solid var(--hc-erde-soft);
+  color: var(--hc-ink-2);
+}
+.page-content :where(table) { width: 100%; border-collapse: collapse; font-size: var(--hc-text-sm); }
+.page-content :where(th, td) {
+  text-align: start; padding: var(--hc-space-3) var(--hc-space-4);
+  border-block-end: 1px solid var(--hc-hairline);
+}
+.page-content :where(pre) {
+  padding: var(--hc-space-4); overflow-x: auto;
+  background: var(--hc-pane-sunken);
+  border: 1px solid var(--hc-hairline); border-radius: var(--hc-r-sm);
+}
+.page-content :where(mark), mark {
+  background: var(--hc-erde-wash); color: var(--hc-ink);
+  padding-inline: 2px; border-radius: 3px;
+}
+.page-content :where(hr) { border: 0; border-block-start: 1px solid var(--hc-hairline); }
+
+/* ── Fusszeile ────────────────────────────────────────────────
+   Mehrspaltig, weil hier fünf verschiedene Dinge stehen: die Marke
+   mit dem Schaf, die Fussnavigation, der Kontakt, die Schwesterseite
+   und die Schlagwörter. Untereinander wäre das eine zweite Seite. */
+.site-footer {
+  margin-block-start: var(--hc-space-9);
+  padding-block: var(--hc-space-7);
+  border-block-start: 1px solid var(--hc-hairline);
+  background: color-mix(in srgb, var(--hc-ground) 55%, transparent);
+}
+.site-footer__inner {
+  display: grid; align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--hc-space-6) var(--hc-space-7);
+}
+.site-footer__mark {
+  width: 64px; height: 40px; display: block;
+  color: var(--hc-erde);
+  margin-block-end: var(--hc-space-3);
+}
+.site-footer__name {
+  margin: 0; font-size: var(--hc-text-lg); font-weight: var(--hc-weight-semibold);
+  letter-spacing: var(--hc-track-snug);
+}
+.site-footer__tagline { margin: var(--hc-space-2) 0 0; font-size: var(--hc-text-sm); color: var(--hc-ink-3); }
+.site-footer__heading {
+  margin: 0 0 var(--hc-space-3);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-widest);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+.site-footer p, .site-footer li { font-size: var(--hc-text-sm); color: var(--hc-ink-2); }
+.site-footer a { color: var(--hc-ink-2); text-decoration: none; }
+.site-footer a:hover { color: var(--hc-erde); text-decoration: underline; }
+.site-footer__contact > * + *, .site-footer__sister > * + * { margin-block-start: var(--hc-space-2); }
+.footer-nav ul {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--hc-space-2);
+}
+/* Die zweite Ebene einer Fussnavigation ist kein Menü mehr, sondern
+   eine Liste in einer Liste. Sie bleibt weg. */
+.footer-nav ul ul { display: none; }
+.site-footer__terms .term-list { margin-block-start: 0; }
+.site-footer__legal {
+  margin: var(--hc-space-6) auto 0;
+  width: 100%; max-width: var(--hc-wide);
+  padding-inline: var(--hc-gutter);
+  font-size: var(--hc-text-xs); color: var(--hc-ink-3);
+}
+
+/* ══ Die Möblierung von page.html ═════════════════════════════ */
+.preview-banner {
+  display: flex; gap: var(--hc-space-3);
+  margin-block-end: var(--hc-space-6);
+  padding: var(--hc-space-4);
+  border: 1px solid var(--hc-pane-edge);
+  border-inline-start: 3px solid var(--hc-warn);
+  border-radius: var(--hc-r-sm);
+  background: var(--hc-warn-wash);
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+  max-width: none;
+}
+
+/* Der Kopf einer Textseite ist schlanker als der Aufmacher der
+   Startseite: hier hat der Leser schon entschieden, dass er liest. */
+.page-header { margin-block-end: var(--hc-space-6); max-width: var(--hc-measure, 74ch); }
+.page-header h1 { font-size: var(--hc-display-sm); font-weight: var(--hc-weight-medium); }
+.page-date {
+  display: block; margin-block-start: var(--hc-space-3);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+
+/* Eigene Felder — dieselbe Faktenzeile wie .hc-defs, nur an einer
+   <dl> ohne Zwischenelement: der Kern schreibt <dt>/<dd> direkt
+   nebeneinander, .hc-defs erwartet ein <div> je Paar. */
+.page-fields {
+  margin-block-start: var(--hc-space-8);
+  display: grid; grid-template-columns: 150px minmax(0, 1fr);
+  gap: 0 var(--hc-space-5);
+  max-width: min(100%, 62ch);
+}
+.page-fields dt {
+  padding-block: var(--hc-space-4) 0;
+  border-block-start: 1px solid var(--hc-hairline);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+.page-fields dd {
+  margin: 0; padding-block: var(--hc-space-4);
+  border-block-start: 1px solid var(--hc-hairline);
+  color: var(--hc-ink-2); font-size: 15.5px;
+}
+.page-fields dd:last-of-type { border-block-end: 1px solid var(--hc-hairline); }
+.page-fields dt:last-of-type { border-block-end: 1px solid var(--hc-hairline); }
+.page-fields a { color: var(--hc-erde); }
+.page-fields img { border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline); }
+.page-fields__rows { list-style: none; margin: 0; padding: 0; }
+.page-fields__rows li + li { margin-block-start: var(--hc-space-2); }
+.page-fields__rowlabel {
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+@media (max-width: 640px) {
+  .page-fields { grid-template-columns: minmax(0, 1fr); }
+  .page-fields dt { border-block-end: 0; padding-block-end: 0; }
+  .page-fields dd { border-block-start: 0; padding-block-start: var(--hc-space-1); }
+  .page-fields dt:last-of-type { border-block-end: 0; }
+}
+
+/* Schlagwörter — die Chips des Systems. */
+.term-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-2);
+  margin-block-start: var(--hc-space-6);
+}
+.term {
+  display: inline-flex; align-items: center; gap: var(--hc-space-2);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-medium);
+  padding: 6px var(--hc-space-3);
+  border: 1px solid var(--hc-erde-soft); border-radius: var(--hc-r-pill);
+  color: var(--hc-erde); text-decoration: none;
+  transition: background-color var(--hc-dur-fast) var(--hc-ease);
+}
+.term:hover { background: var(--hc-erde-wash); text-decoration: none; }
+
+/* Nachbarbeiträge — drei Ziele in einer Zeile, aussen die Richtung. */
+.post-nav {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-4);
+  align-items: baseline; justify-content: space-between;
+  margin-block-start: var(--hc-space-8);
+  padding-block-start: var(--hc-space-5);
+  border-block-start: 1px solid var(--hc-hairline);
+  font-size: var(--hc-text-sm);
+}
+.post-nav a { color: var(--hc-ink-2); text-decoration: none; }
+.post-nav a:hover { color: var(--hc-erde); }
+.post-nav__index {
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+}
+.post-nav__next { margin-inline-start: auto; text-align: end; }
+
+/* ── Schmalere Fenster ────────────────────────────────────────
+   Kein Javascript und kein Umschalter: die Leiste bricht um, und das
+   Menü nimmt die zweite Zeile. Die bisherige Fassung hatte dafür eine
+   Checkbox — die fällt weg, weil Umbrechen reicht und ein Schalter,
+   den niemand sieht, trotzdem im Tabulatorweg steht. */
+@media (max-width: 1000px) {
+  .hc-bar__inner { flex-wrap: wrap; gap: 10px 18px; padding-block: var(--hc-space-3); }
+  .site-menu { margin-inline-start: 0; order: 3; width: 100%; }
+  .lang-nav { margin-inline-start: auto; }
+  .site-search { order: 4; width: 100%; }
+  .site-search .hc-input { width: 100%; }
+  /* Umgebrochen ist kein Platz mehr für ein schwebendes Untermenü:
+     es steht eingerückt in der Liste, immer sichtbar. */
+  .site-menu li > ul {
+    position: static; visibility: visible; opacity: 1;
+    margin: 0 0 0 var(--hc-space-4); padding: 0;
+    background: none; border: 0; box-shadow: none;
+    flex-direction: row; flex-wrap: wrap; gap: var(--hc-space-4);
+  }
+  .site-menu li > ul a { display: inline-block; width: auto; padding: var(--hc-space-2) 0; }
+}
+/* Auf einem Telefon nimmt die Suche in der Leiste mehr Platz, als sie
+   wert ist — es gibt sie eine Zeile weiter unten im Menü. */
+@media (max-width: 600px) {
+  .site-search { display: none; }
+}
+
+/* ══ Der Ausdruck ═════════════════════════════════════════════
+   Anders als bei der Vorlage holzcloud ist der Grund hier schon
+   hell, also bleibt der Papierteil kurz: der Farbschleier wird
+   abgeschaltet, damit er nicht als graue Fläche mitdruckt, und alles
+   fällt weg, was auf Papier nirgendwohin führt.
+
+   Adressen von Verweisen werden hinter dem Linktext ausgeschrieben —
+   ein Link ist auf Papier sonst nur unterstrichen.
+
+   Der Textbaustein footer-kontakt bleibt stehen. Wer eine Hofseite
+   ausdruckt, will meistens genau diese Zeilen. */
+@media print {
+  :root {
+    --hc-ground-image: none;
+    --hc-shadow-pane: none;
+    --hc-shadow-lift: none;
+  }
+  body { background: #fff; }
+  .hc-bar, .site-menu, .lang-nav, .site-search, .site-cart, .skip-link,
+  .post-nav, .term-list, .archive-pager, .search-form, .price-switch,
+  .footer-nav, .site-footer__terms { display: none !important; }
+  .site-footer { border-block-start: 1px solid #ddd; margin-block-start: 0; background: none; }
+  main { padding: 0; }
+  .hc-pane, .hc-karte, .hc-aufruf { border: 1px solid #bbb; box-shadow: none; }
+  .page-content a::after { content: " (" attr(href) ")"; font-size: .85em; }
+  .page-content a[href^="#"]::after { content: ""; }
+  h1, h2, h3 { break-after: avoid; }
+  img, figure, .hc-karte, tr { break-inside: avoid; }
 }
