@@ -7,7 +7,16 @@
   {{if .Meta.Description}}<meta name="description" content="{{.Meta.Description}}">{{end}}
   {{if .Meta.NoIndex}}<meta name="robots" content="noindex, follow">{{end}}
   {{if .Meta.CanonicalURL}}<link rel="canonical" href="{{.Meta.CanonicalURL}}">{{end}}
-  {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">{{end}}
+  <!-- Diese Vorlage hat genau eine Stimmung, und sie ist hell. Ohne diese
+       Zeile zeichnet ein Browser im Dunkelmodus Formularfelder und
+       Bildlaufleisten dunkel in eine helle Seite. -->
+  <meta name="color-scheme" content="light">
+  {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">
+  {{else}}
+  <!-- Ohne diese Zeile fragt der Browser von sich aus /favicon.ico an und
+       bekommt auf jedem Seitenaufruf einen 404 — im Server-Log und in der
+       Konsole des Besuchers. -->
+  <link rel="icon" href="/t/favicon.svg" type="image/svg+xml">{{end}}
   <meta property="og:type" content="website">
   <meta property="og:title" content="{{.Page.Title}}">
   {{if .Meta.Description}}<meta property="og:description" content="{{.Meta.Description}}">{{end}}
@@ -16,8 +25,9 @@
   {{if .Meta.OGImage}}<meta property="og:image" content="{{.Meta.OGImage}}">
   <meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{end}}
   {{if .Meta.StructuredData}}
-  <!-- schema.org-Daten. Kein ausführbares Skript, sondern ein Datenblock — das
-       ist der einzige script-Baustein, den eine öffentliche Vorlage hier führt. -->
+  <!-- schema.org-Daten. Kein ausführbares Skript, sondern ein Datenblock: er
+       läuft nicht, und die Inhaltsrichtlinie hat nichts zu erlauben. Es ist das
+       einzige script-Element, das diese Vorlage kennt. -->
   <script type="application/ld+json">{{.Meta.StructuredData}}</script>
   {{end}}
   <link rel="alternate" type="application/atom+xml" title="{{.Site.Name}}" href="{{if .Site.FeedURL}}{{.Site.FeedURL}}{{else}}/feed.xml{{end}}">
@@ -29,54 +39,86 @@
   <link rel="alternate" hreflang="{{.Code}}" href="{{$.Site.URL}}{{.URL}}">
   {{end}}
   {{end}}
-  <!-- Die Grundgestaltung der Bausteine. Sie kommt vom Kern, weil er auch
-       deren Auszeichnung schreibt; sie steht vor dem Stylesheet dieser
-       Vorlage, damit die Vorlage sie überschreiben kann. -->
+  <!-- Drei Stufen, und die Reihenfolge ist die ganze Mechanik. Die
+       Grundgestaltung der Bausteine kommt vom Kern, weil er auch deren
+       Auszeichnung schreibt; dann das Stylesheet dieser Vorlage, das sie
+       überschreiben darf; dann die Werte der Website, die gegen beide
+       gewinnen.
+
+       Kein preconnect und kein Stylesheet zu einem Schrifthaus: Manrope liegt
+       als woff2 in fonts/ und kommt über /t/fonts/ vom eigenen Server. Es
+       verlässt nichts diesen Ursprung. -->
   <link rel="stylesheet" href="/assets/bausteine.css">
   <link rel="stylesheet" href="/t/style.css">
   {{if .Site.Design}}
-  <!-- Die Werte der Website, nach dem Stylesheet, damit sie gewinnen. Die
-       Vorlage liest sie nur über var(--hc-…) und setzt selbst keinen davon. -->
+  <!-- Die Werte der Website, nach dem Stylesheet, damit sie gewinnen. Jeder
+       einzelne ist vorher auf eine Form geprüft worden, die das CSS nur auf
+       eine Art lesen kann. Die Vorlage liest sie über var(--hc-…) und setzt
+       selbst keinen davon. -->
   <style>{{.Site.Design}}</style>
   {{end}}
 </head>
 <body>
+  <!-- Erstes Kind und damit erstes Ziel der Tabulatortaste. -->
   <a href="#main" class="skip-link">Zum Inhalt springen</a>
 
-  <!-- Der Umschalter ist eine Checkbox und kein Skript: diese Vorlage liefert
-       keins aus. Er steht vor dem Kopf, weil das Aufklappen über den
-       Geschwisterselektor .nav-switch:checked + .site-header läuft. -->
+  <!-- Der Menüschalter ist eine Checkbox und kein Skript: diese Vorlage liefert
+       keines aus, und eine Checkbox ist das einzige Aufklappen, das ohne eines
+       funktioniert. Sie steht als Geschwister VOR der Leiste, damit
+       .nav-switch:checked + .hc-bar .site-menu greift — eine Verpackung
+       dazwischen nähme dem Selektor den Weg.
+
+       Sie steht nach dem Sprunglink, nicht davor: das erste Ziel der
+       Tabulatortaste muss der Sprunglink bleiben.
+
+       Oberhalb von 1000 px stehen Checkbox UND Beschriftung auf display: none.
+       Ein Element mit display: none ist aus dem Tabulatorweg und aus dem Baum
+       der Hilfsmittel heraus — dort gibt es den Schalter also nicht, und das
+       Menü steht ohnehin offen in der Leiste. -->
   <input type="checkbox" id="nav-open" class="nav-switch">
 
-  <header class="site-header">
-    <div class="site-header__bar shell-wide">
-      <a href="/" class="site-brand">
-        {{if .Site.LogoURL}}<img class="site-brand__mark" src="{{.Site.LogoURL}}" alt="">{{end}}
-        <span class="site-brand__text">
-          <span class="site-brand__name">{{.Site.Name}}</span>
-          {{if .Site.Description}}<span class="site-brand__tagline">{{.Site.Description}}</span>{{end}}
-        </span>
-      </a>
+  <header class="hc-bar">
+    <div class="hc-wide hc-bar__inner">
+      <a class="hc-mark site-mark" href="/">
+        {{if .Site.LogoURL}}<img class="site-logo" src="{{.Site.LogoURL}}" alt="">{{end}}<b>{{.Site.Name}}</b></a>
 
       <label for="nav-open" class="nav-button">
         <span class="nav-button__bars" aria-hidden="true"><span></span><span></span><span></span></span>
         <span class="nav-button__text">Menü</span>
       </label>
-    </div>
 
-    <nav class="site-nav shell-wide" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
-    {{if .Site.Sprachen}}
-    <nav class="lang-nav shell-wide" aria-label="Sprache">
-      <ul>
-        {{range .Site.Sprachen}}
-        <li>
-          {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Name}}</span>
-          {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}">{{.Name}}</a>{{end}}
-        </li>
-        {{end}}
-      </ul>
-    </nav>
-    {{end}}
+      <nav class="site-menu" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
+
+      {{if .Site.Sprachen}}
+      <nav class="lang-nav" aria-label="Sprache">
+        <ul>
+          {{range .Site.Sprachen}}
+          <li>
+            {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Code}}</span>
+            {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}" title="{{.Name}}">{{.Code}}</a>{{end}}
+          </li>
+          {{end}}
+        </ul>
+      </nav>
+      {{end}}
+
+      <!-- Warenkorb und Suche standen in der bisherigen Fassung nicht in der
+           Leiste, obwohl die Vorlage shop.html und cart.html mitbringt: vom
+           Kopf der Seite kam damit niemand zum Korb. Beide Zweige müssen
+           MinimalData überstehen, wo Shop und Search leer sind — deshalb hängt
+           jeder an seiner eigenen Bedingung. -->
+      {{if .Shop.Enabled}}
+      <a class="site-cart" href="{{.Cart.URL}}">Warenkorb <span class="site-cart__count">{{.Cart.Count}}</span></a>
+      {{end}}
+
+      {{if .Site.HasSearch}}
+      <form class="site-search" method="GET" action="/suche" role="search">
+        <label class="sr-only" for="bar-q">Suchbegriff</label>
+        <input class="hc-input" type="search" id="bar-q" name="q" value="{{.Search.Query}}" placeholder="Suchen">
+        <button class="hc-btn hc-btn--ghost hc-btn--sm" type="submit">Suchen</button>
+      </form>
+      {{end}}
+    </div>
   </header>
 
   <main id="main" tabindex="-1">
@@ -84,35 +126,58 @@
   </main>
 
   <footer class="site-footer" role="contentinfo">
-    <div class="site-footer__inner shell-wide">
+    <div class="site-footer__inner hc-wide">
       <div class="site-footer__brand">
+        <!-- Die Pfote ist als Pfad eingebaut, nicht als Datei: sie lädt nichts
+             nach, nimmt die Textfarbe an und bleibt auf Papier richtig herum.
+             Dasselbe Zeichen wie im favicon.svg, damit der Reiter im Browser
+             und der Fuss der Seite dasselbe Haus meinen. -->
+        <svg class="site-footer__mark" viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="Pfote" focusable="false">
+          <path d="M32 54c-8.6 0-15-4.6-15-11.2 0-5.6 4.6-9.3 8.4-12.6 2.6-2.3 4.3-4.6 6.6-4.6s4 2.3 6.6 4.6c3.8 3.3 8.4 7 8.4 12.6C47 49.4 40.6 54 32 54z"></path>
+          <ellipse cx="15.5" cy="30" rx="6" ry="7.6" transform="rotate(-18 15.5 30)"></ellipse>
+          <ellipse cx="25.5" cy="19.5" rx="5.8" ry="7.8" transform="rotate(-8 25.5 19.5)"></ellipse>
+          <ellipse cx="38.5" cy="19.5" rx="5.8" ry="7.8" transform="rotate(8 38.5 19.5)"></ellipse>
+          <ellipse cx="48.5" cy="30" rx="6" ry="7.6" transform="rotate(18 48.5 30)"></ellipse>
+        </svg>
+
         <p class="site-footer__name">{{.Site.Name}}</p>
         {{if .Site.Description}}<p class="site-footer__tagline">{{.Site.Description}}</p>{{end}}
       </div>
 
-      <nav class="footer-nav" aria-label="Fussnavigation">{{menuFor .Menus "footer" .Page.Slug}}</nav>
-
-      {{if .Site.Snippets}}
-      <!-- Zwei Textbausteine, die in den Fuss gehören und nicht auf jede Seite
-           geschrieben werden sollen. Wer sie nicht anlegt, sieht nichts davon;
-           die Namen stehen im Kopf von style.css.
-           "schwesterseite" ist der Platz für einen zweiten Auftritt desselben
-           Betriebs: ein gewöhnlicher Link im Text, kein eingebettetes
-           Fremdmaterial. Derselbe Name wie in der Vorlage "Weide", damit ein
-           Wechsel zwischen den beiden nicht den Fuss leert. -->
-      <div class="site-footer__notes">
-        {{if index .Site.Snippets "footer-kontakt"}}
-        <div class="site-footer__note">{{index .Site.Snippets "footer-kontakt"}}</div>
-        {{end}}
-        {{if index .Site.Snippets "schwesterseite"}}
-        <div class="site-footer__note site-footer__note--sister">{{index .Site.Snippets "schwesterseite"}}</div>
-        {{end}}
+      <!-- Textbaustein "footer-kontakt": Adresse, Telefon, E-Mail. Er steht
+           hier statt auf jeder Seite einzeln, und er bleibt als Einziges aus
+           dem Fuss auch auf dem Ausdruck stehen — wer die Seite eines Zwingers
+           ausdruckt, will meistens genau diese Zeilen. -->
+      {{if .Site.Snippets}}{{with index .Site.Snippets "footer-kontakt"}}
+      <div class="site-footer__contact">
+        <h2 class="site-footer__heading">Kontakt</h2>
+        {{.}}
       </div>
-      {{end}}
+      {{end}}{{end}}
+
+      <nav class="footer-nav" aria-label="Rechtliches">
+        <h2 class="site-footer__heading">Rechtliches</h2>
+        {{menuFor .Menus "footer" .Page.Slug}}
+      </nav>
+
+      <!-- Die Schwesterseite ist ein Textbaustein und keine feste Adresse in
+           der Vorlage: ob ein Haus überhaupt einen zweiten Auftritt hat und
+           welchen, weiss nur es selbst. Ein ausgehender Link ist Inhalt, keine
+           nachgeladene Ressource. Derselbe Bausteinname wie in der Vorlage
+           `weide` — die beiden Websites zeigen aufeinander, und ein Wechsel
+           zwischen den Vorlagen leert damit den Fuss nicht. Der eigene
+           Klassenname sorgt dafür, dass der Verweis sich als Satz liest und
+           nicht als Kleingedrucktes verschwindet. -->
+      {{if .Site.Snippets}}{{with index .Site.Snippets "schwesterseite"}}
+      <div class="site-footer__sister">
+        <h2 class="site-footer__heading">Schwesterseite</h2>
+        {{.}}
+      </div>
+      {{end}}{{end}}
 
       {{if .Site.Terms}}
       <div class="site-footer__terms">
-        <h2 class="site-footer__heading">Themen</h2>
+        <h2 class="site-footer__heading">Schlagwörter</h2>
         <ul class="term-list">
           {{range .Site.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
         </ul>
@@ -120,7 +185,7 @@
       {{end}}
     </div>
 
-    <p class="site-footer__legal">&copy; {{.Site.Name}}</p>
+    <p class="site-footer__legal">&copy; {{.Site.Name}}{{if .Shop.Enabled}}{{with .Shop.TaxNote}} · {{.}}{{end}}{{end}}</p>
   </footer>
 </body>
 </html>
