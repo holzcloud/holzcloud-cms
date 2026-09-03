@@ -116,11 +116,20 @@
     /* Ein Eingabefeld liegt UNTER der Fläche, auf der es steht,
        also etwas dunkler statt heller. */
     --hc-pane-sunken:    color-mix(in srgb, var(--hc-ground) 94%, var(--hc-ink) 6%);
-    /* Die klebende Kopfleiste ist halbdurchsichtiges Papier, kein
-       Glas: kein backdrop-filter, nur Deckung. Unter ihr läuft die
-       ganze Seite durch, deshalb deckt sie mehr als eine Karte. */
-    --hc-pane-bar:       color-mix(in srgb, var(--hc-ground) 82%, transparent);
+    /* Die klebende Kopfleiste ist halbdurchsichtiges Papier. Unter
+       ihr läuft die ganze Seite durch, deshalb deckt sie mehr als
+       eine Karte — und deshalb ist sie die einzige Fläche der
+       Vorlage mit einem backdrop-filter (siehe .hc-bar). Bei 82 %
+       allein geisterte der Fliesstext von unten als graue Schrift
+       durch: 18 % einer Tinte, die 15.9:1 misst, sind auf Papier
+       noch gut zu sehen. Der Unschärfefilter macht daraus eine
+       Ahnung von Bewegung statt lesbarer Buchstaben.
+       --hc-pane-bar-solid ist derselbe Balken für Browser ohne
+       backdrop-filter und für alle, die weniger Durchsichtigkeit
+       eingestellt haben. */
+    --hc-pane-bar:       color-mix(in srgb, var(--hc-ground) 88%, transparent);
     --hc-pane-bar-solid: color-mix(in srgb, var(--hc-ground) 98%, transparent);
+    --hc-blur-bar:       blur(12px) saturate(140%);
 
     /* ── Marke ─────────────────────────────────────────────────
        Ein Akzent. Ein zweiter machte den ersten bedeutungslos. */
@@ -335,7 +344,18 @@
   @media (prefers-reduced-transparency: reduce) {
     :root {
       --hc-pane-bar: var(--hc-pane-bar-solid);
+      --hc-blur-bar: none;
       --hc-ground-image: none;
+    }
+  }
+
+  /* Kein backdrop-filter: dann deckt die Leiste, statt Text von unten
+     durchscheinen zu lassen. Ohne diesen Zweig ist die Unschärfe eine
+     Wette darauf, dass jeder Browser sie kann. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root {
+      --hc-pane-bar: var(--hc-pane-bar-solid);
+      --hc-blur-bar: none;
     }
   }
 
@@ -409,6 +429,8 @@
     position: sticky; top: 0; z-index: 30;
     background: var(--hc-pane-bar);
     border-block-end: 1px solid var(--hc-hairline);
+    backdrop-filter: var(--hc-blur-bar);
+    -webkit-backdrop-filter: var(--hc-blur-bar);
   }
   .hc-bar__inner {
     display: flex; align-items: center; gap: var(--hc-space-4);
@@ -739,7 +761,12 @@ html { scroll-padding-top: var(--hc-space-9); }
 /* ── Kopfleiste ───────────────────────────────────────────────
    .hc-bar bringt Kleben, Papierdeckung und Kante mit; was hier
    steht, ist der Inhalt darin. */
-.site-mark { display: inline-flex; align-items: center; flex: none; }
+/* flex: 0 1 auto statt none, dazu min-width: 0 — ein Betrieb mit einem langen
+   Namen („Milchschäferei Seehof") sprengte die Leiste sonst auf einem
+   Telefon nach rechts hinaus, weil ein flex: none-Element auf seiner
+   max-content-Breite besteht. */
+.site-mark { display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+.site-mark b { min-width: 0; overflow-wrap: break-word; }
 .site-logo {
   width: auto; height: 32px; flex: none;
   margin-inline-end: var(--hc-space-3);
@@ -1246,6 +1273,358 @@ main:focus { outline: none; }
    ist. */
 .hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
 .hc-eigen__link a { color: var(--hc-erde); }
+
+/* ══ Das Archiv ═══════════════════════════════════════════════ */
+.archive-count {
+  margin-block-start: var(--hc-space-3);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+.archive-list { list-style: none; margin: 0; padding: 0; }
+/* Eine Haarlinie zwischen den Beiträgen und keine Karten: eine Liste
+   von Kästen liest sich schlechter als eine Liste. */
+.archive-entry {
+  display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: clamp(18px, 3vw, 40px);
+  padding-block: var(--hc-space-6);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.archive-entry:last-child { border-block-end: 1px solid var(--hc-hairline); }
+/* Ohne Bild soll der Text nicht in der schmalen zweiten Spalte hängen
+   bleiben — dafür reicht :has(), kein zweiter Klassenname. */
+.archive-entry:not(:has(.archive-entry__image)) { grid-template-columns: minmax(0, 1fr); }
+.archive-entry__image { display: block; }
+.archive-entry__image img {
+  width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+.archive-entry__title {
+  font-size: var(--hc-text-2xl); font-weight: var(--hc-weight-medium);
+  letter-spacing: var(--hc-track-snug);
+}
+.archive-entry__title a { text-decoration: none; }
+.archive-entry__title a:hover { color: var(--hc-erde); }
+.archive-entry__date {
+  display: block; margin-block-start: var(--hc-space-3);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+.archive-entry__excerpt { margin-block-start: var(--hc-space-3); color: var(--hc-ink-2); }
+.archive-entry .term-list { margin-block-start: var(--hc-space-4); }
+.archive-pager {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--hc-space-4);
+  margin-block-start: var(--hc-space-7);
+}
+.archive-pager__position {
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+  order: 2;
+}
+.archive-pager [rel="next"] { order: 3; margin-inline-start: auto; }
+.archive-pager [rel="prev"] { order: 1; }
+.archive-empty { margin-block-start: var(--hc-space-6); }
+.archive-empty a { color: var(--hc-erde); }
+.archive-terms { margin-block-start: var(--hc-space-8); }
+
+/* ══ Die Suche ════════════════════════════════════════════════ */
+.search-form {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-3);
+  margin-block-end: var(--hc-space-7);
+  max-width: 44rem;
+}
+.search-form .hc-input { flex: 1 1 16rem; }
+.search-count { margin-block-end: var(--hc-space-4); }
+.search-results { list-style: none; margin: 0; padding: 0; }
+.search-result {
+  padding-block: var(--hc-space-5);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.search-result:last-child { border-block-end: 1px solid var(--hc-hairline); }
+.search-result__title {
+  font-size: var(--hc-text-lg); font-weight: var(--hc-weight-medium);
+  letter-spacing: var(--hc-track-snug); text-decoration: none;
+}
+.search-result__title:hover { color: var(--hc-erde); }
+.search-result__snippet { margin-block-start: var(--hc-space-2); color: var(--hc-ink-2); }
+
+/* ══ Die Schranke ═════════════════════════════════════════════
+   Eine Fläche in der Mitte statt einer Seite: hier gibt es genau
+   eine Sache zu tun. */
+.gate-card { max-width: 34rem; margin-inline: auto; }
+.gate-card h1 { margin-block-start: var(--hc-space-3); font-size: var(--hc-display-sm); }
+.gate-lead   { margin-block-start: var(--hc-space-4); }
+.gate-hint   { margin-block-start: var(--hc-space-3); }
+.gate-error  { margin-block-start: var(--hc-space-4); }
+.gate-form   { margin-block-start: var(--hc-space-6); }
+.gate-form__submit { margin-block-start: var(--hc-space-4); }
+.gate-target { margin-block-start: var(--hc-space-5); font-size: var(--hc-text-sm); }
+
+/* ══ Die zwei kurzen Seiten ═══════════════════════════════════ */
+.page--kurz .hc-title { margin-block-start: var(--hc-space-4); }
+.page--kurz .hc-lede  { margin-block-start: var(--hc-space-5); }
+
+/* ══ Der Hofladen ═════════════════════════════════════════════
+   Wo es geht, tragen die Bauteile des Systems: .hc-pane für jede
+   Fläche, .hc-input und .hc-field für jedes Formular, .hc-btn für
+   jeden Knopf, .hc-status für jeden Zustand. Was hier steht, ist
+   Anordnung — keine zweite Garnitur derselben Bauteile. */
+
+.price { margin-block-start: var(--hc-space-4); }
+/* Ohne Mono-Familie ist tabular-nums die Zeile, die Beträge
+   untereinander ausrichtet. Sie ist der Ersatz für die
+   Schreibmaschine aus holzcloud, und für Zahlen der bessere: die
+   Ziffern behalten die Form der Textschrift und bekommen nur
+   gleiche Breite. */
+.price__amount {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--hc-text-lg); font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink);
+}
+.price--large .price__amount { font-size: var(--hc-text-2xl); }
+.price__note, .price__other {
+  display: block; margin-block-start: var(--hc-space-1);
+  font-size: var(--hc-text-xs); color: var(--hc-ink-3);
+}
+
+/* Der Umschalter ist ein Formular mit zwei Knöpfen, kein Schalter:
+   ohne Javascript muss der Wechsel über den Server gehen. */
+.price-switch {
+  display: inline-flex; gap: 2px;
+  margin-block-end: var(--hc-space-6);
+  padding: 3px;
+  border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-pill);
+  background: var(--hc-pane-sunken);
+}
+.price-switch__option {
+  font: inherit;
+  font-size: var(--hc-text-xs); font-weight: var(--hc-weight-medium);
+  padding: 7px var(--hc-space-4);
+  border: 0; border-radius: var(--hc-r-pill);
+  background: transparent; color: var(--hc-ink-3); cursor: pointer;
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              background-color var(--hc-dur-fast) var(--hc-ease);
+}
+.price-switch__option:hover { color: var(--hc-ink); }
+.price-switch__option.is-active { background: var(--hc-erde-wash); color: var(--hc-erde); }
+
+.shop-categories { margin-block-end: var(--hc-space-6); }
+.shop-categories .term-list { margin-block-start: 0; }
+.shop-note { margin-block-start: var(--hc-space-7); font-size: var(--hc-text-sm); }
+
+.product-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: clamp(16px, 2vw, 28px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+}
+.product-card { display: flex; flex-direction: column; height: 100%; }
+.product-card__media { display: block; margin-block-end: var(--hc-space-4); }
+.product-card__media img {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+.product-card__title { font-size: var(--hc-text-lg); font-weight: var(--hc-weight-medium); }
+.product-card__title a { text-decoration: none; }
+.product-card__title a:hover { color: var(--hc-erde); }
+.product-card__subtitle { margin-block-start: var(--hc-space-1); font-size: var(--hc-text-sm); color: var(--hc-ink-3); }
+.product-card__excerpt { margin-block-start: var(--hc-space-3); font-size: var(--hc-text-sm); color: var(--hc-ink-2); }
+/* Der Preis fällt ans untere Ende, damit die Karten einer Reihe ihn
+   auf derselben Höhe zeigen, gleich wie lang die Titel sind. */
+.product-card .price { margin-block-start: auto; padding-block-start: var(--hc-space-4); }
+.product-card__gone { margin-block-start: var(--hc-space-3); }
+.product-card .term-list { margin-block-start: var(--hc-space-3); }
+.product-card--gone .product-card__media img { opacity: .55; }
+
+/* ── Ein Artikel ──────────────────────────────────────────── */
+.product {
+  display: grid; align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+  gap: clamp(24px, 4vw, 64px);
+  margin-block-start: var(--hc-space-6);
+}
+.product__subtitle { margin-block-start: var(--hc-space-3); }
+.product__image {
+  width: 100%; display: block;
+  border-radius: var(--hc-r); border: 1px solid var(--hc-hairline);
+}
+.product__gallery {
+  list-style: none; margin: var(--hc-space-3) 0 0; padding: 0;
+  display: grid; gap: var(--hc-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+}
+.product__gallery img {
+  width: 100%; aspect-ratio: 1; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+/* Klebt an der Höhe der Leiste, damit der Kaufkasten beim Lesen der
+   Beschreibung nicht darunter verschwindet. */
+.product__buy { position: sticky; top: calc(68px + var(--hc-space-4)); }
+.product__stock, .product__delivery, .product__shipping {
+  margin-block-start: var(--hc-space-3); font-size: var(--hc-text-sm);
+}
+.product__form { margin-block-start: var(--hc-space-5); }
+.product__menge { max-width: 7rem; margin-block-end: var(--hc-space-4); }
+.product__sold-out { margin-block-start: var(--hc-space-5); }
+.product__sku {
+  margin-block-start: var(--hc-space-5);
+  font-size: var(--hc-text-xs); color: var(--hc-ink-3);
+}
+.product__description { margin-block-start: var(--hc-space-8); }
+
+/* ── Der Warenkorb ────────────────────────────────────────── */
+.cart-blocked { margin-block-end: var(--hc-space-5); }
+.cart-lines { list-style: none; margin: 0; padding: 0; }
+.cart-line {
+  display: grid; align-items: start;
+  grid-template-columns: 96px minmax(0, 1fr) auto auto;
+  gap: var(--hc-space-3) clamp(16px, 2.5vw, 32px);
+  padding-block: var(--hc-space-5);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.cart-line:last-child { border-block-end: 1px solid var(--hc-hairline); }
+.cart-line:not(:has(.cart-line__media)) { grid-template-columns: minmax(0, 1fr) auto auto; }
+.cart-line__media img {
+  width: 96px; aspect-ratio: 1; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+.cart-line__title { font-size: var(--hc-text-lg); font-weight: var(--hc-weight-medium); }
+.cart-line__title a { text-decoration: none; }
+.cart-line__title a:hover { color: var(--hc-erde); }
+.cart-line__subtitle { margin-block-start: var(--hc-space-1); font-size: var(--hc-text-sm); color: var(--hc-ink-3); }
+.cart-line__unit { margin-block-start: var(--hc-space-2); font-size: var(--hc-text-sm); color: var(--hc-ink-2); }
+.cart-line__actions { display: flex; flex-direction: column; gap: var(--hc-space-3); align-items: flex-start; }
+.cart-line__quantity { display: flex; gap: var(--hc-space-2); align-items: center; }
+.cart-line__quantity .hc-input { width: 5rem; }
+.cart-line__price {
+  font-variant-numeric: tabular-nums;
+  text-align: end; white-space: nowrap;
+}
+/* Ein Artikel, der ausgegangen ist, bleibt lesbar — er wird nur ruhiger. */
+.cart-line--gone .cart-line__title, .cart-line--gone .cart-line__price { color: var(--hc-ink-3); }
+.cart-line--gone .cart-line__media img { opacity: .55; }
+
+.cart-summary { margin-block-start: var(--hc-space-7); max-width: 34rem; margin-inline-start: auto; }
+.cart-totals {
+  margin: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--hc-space-2) var(--hc-space-5);
+}
+.cart-totals dt { color: var(--hc-ink-2); font-size: var(--hc-text-sm); }
+.cart-totals dd {
+  margin: 0; text-align: end; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+}
+.cart-totals__tax { color: var(--hc-ink-3); font-size: var(--hc-text-xs); }
+.cart-totals__sum {
+  padding-block-start: var(--hc-space-3);
+  border-block-start: 1px solid var(--hc-hairline);
+  color: var(--hc-ink); font-size: var(--hc-text-lg);
+  font-weight: var(--hc-weight-semibold);
+}
+.cart-totals__note { margin-block-start: var(--hc-space-3); font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+.cart-actions { display: flex; flex-wrap: wrap; gap: var(--hc-space-3); margin-block-start: var(--hc-space-5); }
+.cart-empty { margin-block-start: var(--hc-space-6); }
+.cart-continue {
+  display: inline-block; margin-block-start: var(--hc-space-4);
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+}
+
+/* ── Die Kasse ────────────────────────────────────────────── */
+.checkout__grid {
+  display: grid; align-items: start;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, .6fr);
+  gap: clamp(24px, 4vw, 64px);
+  margin-block-start: var(--hc-space-6);
+}
+.checkout__group {
+  margin: 0 0 var(--hc-space-7);
+  padding: 0; border: 0;
+  display: flex; flex-direction: column; gap: var(--hc-space-4);
+}
+.checkout__group legend {
+  padding: 0; margin-block-end: var(--hc-space-4);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-widest);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+.field-row { display: flex; flex-wrap: wrap; gap: var(--hc-space-4); }
+.field-row .hc-field { flex: 1 1 12rem; }
+.field-row .field--narrow { flex: 0 1 7rem; }
+
+/* Zur Auswahl gehört die ganze Zeile, nicht nur das Kästchen: ein Ziel
+   von drei Zeichen trifft auf einem Telefon niemand. */
+.choice {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--hc-space-3); align-items: center;
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-sm);
+  cursor: pointer;
+  transition: border-color var(--hc-dur-fast) var(--hc-ease);
+}
+.choice:hover { border-color: var(--hc-erde-soft); }
+.choice:has(:checked) { border-color: var(--hc-erde-soft); background: var(--hc-erde-wash); }
+.choice input { accent-color: var(--hc-erde); grid-row: 1 / span 2; }
+.choice__label { font-size: var(--hc-text-sm); color: var(--hc-ink); }
+.choice__note { grid-column: 2; font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+.choice--confirm { margin-block-end: var(--hc-space-5); }
+.checkout__policy { margin-block-end: var(--hc-space-5); font-size: var(--hc-text-sm); }
+.checkout__submit { width: 100%; }
+
+.checkout__summary { position: sticky; top: calc(68px + var(--hc-space-4)); }
+.checkout__summary-title {
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-widest);
+  text-transform: uppercase; font-weight: var(--hc-weight-semibold);
+  color: var(--hc-ink-3);
+}
+.checkout__lines { list-style: none; margin: var(--hc-space-4) 0; padding: 0; }
+.checkout__lines li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--hc-space-3); align-items: baseline;
+  padding-block: var(--hc-space-3);
+  border-block-end: 1px solid var(--hc-hairline);
+  font-size: var(--hc-text-sm);
+}
+.checkout__line-qty { font-variant-numeric: tabular-nums; color: var(--hc-ink-3); }
+.checkout__line-title { color: var(--hc-ink-2); }
+.checkout__line-price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; text-align: end;
+}
+
+/* ── Die Bestätigung ──────────────────────────────────────── */
+.order__status { margin-block-start: var(--hc-space-4); }
+.order__body { display: flex; flex-direction: column; gap: var(--hc-space-7); max-width: 46rem; }
+.order__facts { margin: 0; }
+.order__payment-note { font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+.order__policy { font-size: var(--hc-text-sm); }
+
+/* Zwei Spalten auf einem schmalen Fenster sind zwei zu enge Spalten,
+   und was klebt, klebt dann an nichts mehr. */
+@media (max-width: 900px) {
+  .product, .checkout__grid { grid-template-columns: minmax(0, 1fr); }
+  .product__buy, .checkout__summary { position: static; }
+}
+@media (max-width: 700px) {
+  .archive-entry { grid-template-columns: minmax(0, 1fr); }
+  .archive-entry__image img { aspect-ratio: 16 / 9; }
+}
+@media (max-width: 640px) {
+  .cart-line {
+    grid-template-columns: 72px minmax(0, 1fr);
+    row-gap: var(--hc-space-4);
+  }
+  .cart-line:not(:has(.cart-line__media)) { grid-template-columns: minmax(0, 1fr); }
+  .cart-line__media img { width: 72px; }
+  .cart-line__actions, .cart-line__price { grid-column: 2; }
+  .cart-line:not(:has(.cart-line__media)) .cart-line__actions,
+  .cart-line:not(:has(.cart-line__media)) .cart-line__price { grid-column: 1; }
+  .cart-line__price { text-align: start; }
+  .cart-summary { max-width: none; }
+}
 
 /* ══ Der Ausdruck ═════════════════════════════════════════════
    Anders als bei der Vorlage holzcloud ist der Grund hier schon
