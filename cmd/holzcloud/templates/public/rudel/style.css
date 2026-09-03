@@ -866,6 +866,63 @@ html { scroll-padding-top: var(--hc-space-9); }
 }
 .site-menu li > ul a:hover { background: var(--hc-wald-wash); }
 
+/* Ein Untermenü darf die Seite nie breiter machen als das Fenster.
+ *
+ * Der Fehler, den diese zwei Regeln verhindern, ist unsichtbar, bis man ihn
+ * misst: ein Untermenü hängt an `inset-inline-start: 0` seines <li> und wächst
+ * nach RECHTS. Steht das <li> nahe am rechten Rand, ragt es hinaus. Dass es
+ * zugeklappt ist, hilft nicht — ein absolut positioniertes Element mit
+ * `visibility: hidden` zählt weiterhin zur Scrollbreite. Der Besucher bekommt
+ * also eine waagrechte Bildlaufleiste auf JEDER Seite, ohne das Menü je zu
+ * öffnen; und öffnet er es, ist der rechte Rand abgeschnitten.
+ *
+ * An der Schwestervorlage `weide` mit echtem Inhalt gemessen: Fensterbreite
+ * 1280, Inhaltsbreite 1265, scrollWidth 1271 — sechs Pixel, auf jeder Seite.
+ * Im Prüfstand nachgestellt: ein Untermenü mit einem langen Eintrag ergab bei
+ * 1265 px Inhaltsbreite eine scrollWidth von 1319, also 54 px Überlauf; mit
+ * diesen Regeln 1280 zu 1280.
+ *
+ * Für Delnahida schlägt es heute NICHT durch — nachgemessen, nicht vermutet:
+ * die Untermenüs hängen am zweiten und vierten von sechs Punkten und enden bei
+ * 1016 px (Fenster 1280) und 851 px (Fenster 1100). Die Regeln stehen
+ * trotzdem hier: welcher Punkt am rechten Rand steht, entscheidet der Inhalt
+ * des Menüs und nicht die Vorlage, und ein zusätzlicher Menüpunkt kippt das
+ * ohne jede Vorwarnung.
+ *
+ * Erste Regel — der Deckel: ein Untermenü kann nie breiter werden als der
+ * Inhaltsbereich der Seite. Das begrenzt den Schaden in jedem Fall, auch in
+ * dem, den die zweite Regel nicht trifft.
+ *
+ * Zweite Regel — die Ausrichtung: ein Untermenü an einem der beiden LETZTEN
+ * Punkte richtet sich nach rechts aus und wächst nach links. Die zwei
+ * letzten Punkte sind es, weil dort der rechte Rand ist: das Menü steht über
+ * `margin-inline-start: auto` immer am rechten Ende der Leiste.
+ *
+ * `:nth-child(n+3)` ist die Wache für das ANDERE Ende. Ohne sie träfe die
+ * Regel bei einem Menü aus zwei oder drei Punkten auch den ersten, und ein
+ * breites Untermehr am ersten Punkt liefe nach LINKS hinaus — derselbe Fehler,
+ * spiegelverkehrt. Beide Enden sind im Prüfstand gemessen worden, auch der
+ * Fall eines umgebrochenen Menüs, bei dem der letzte Punkt auf der zweiten
+ * Zeile weit links landet: dort blieben 123 px Luft zum linken Rand.
+ *
+ * Was diese Regeln NICHT abdecken: ein sehr breites Untermenü in der MITTE
+ * eines langen Menüs. Echte Kollisionserkennung könnte das, aber
+ * `position-try-fallbacks: flip-inline` wirkt nur an Elementen, die über
+ * `anchor-name` positioniert sind — im Prüfstand ausprobiert: die Eigenschaft
+ * wird unterstützt und bleibt hier wirkungslos. Ein Menü, dessen mittlerer
+ * Punkt bis an den rechten Rand reicht, ist ohnehin ein Menü, das umbricht.
+ *
+ * Kein `overflow: clip` an der Leiste oder am <body>. Das nähme die
+ * Bildlaufleiste, aber es schnitte auch das aufgeklappte Untermenü ab — es
+ * MUSS über die Leiste hinausragen dürfen. Eine Vertuschung, keine Lösung. */
+.site-menu > ul > li > ul {
+  max-inline-size: min(22rem, calc(100vw - 2 * var(--hc-gutter)));
+}
+.site-menu > ul > li:nth-child(n+3):nth-last-child(-n+2) > ul {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
 /* Die Sprachwahl behält den Namen .lang-nav aus der bisherigen
    Fassung: bausteine.css grundgestaltet sie unter diesem Namen
    bereits, und ein neuer Name hiesse, das erst abzuräumen. */
