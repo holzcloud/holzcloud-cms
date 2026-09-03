@@ -1421,6 +1421,40 @@ main:focus { outline: none; }
 .hc-aufruf__text  { color: var(--hc-ink-2); }
 .hc-aufruf__knopf { margin-block-start: var(--hc-space-5); }
 
+/* EIN ZURUF DARF MITTIG STEHEN, EINE MITTEILUNG NICHT.
+ *
+ * bausteine.css stellt .hc-aufruf auf text-align: center (Z. 196), und für
+ * das, was block.go beschreibt — „a boxed invitation with a button" —, ist
+ * das richtig: ein Satz und ein Knopf stehen mittig besser als linksbündig.
+ *
+ * Derselbe Baustein trägt in der Praxis aber auch Mitteilungen. Gemessen: ein
+ * aufruf mit VIER Absätzen, 705 px breit, alles mittig. Fliesstext mit
+ * beidseitigem Flatterrand ist schwer zu lesen — das Auge findet den Anfang
+ * der nächsten Zeile nicht, weil er jedesmal woanders liegt. Derselbe Text
+ * stand als handgeschriebenes <aside> vorher linksbündig; die Umstellung auf
+ * einen echten Baustein hat ihn also verschlechtert.
+ *
+ * Nicht grundsätzlich linksbündig, sondern am Inhalt entschieden: den kurzen
+ * Fall macht die Vorgabe des Kerns richtig, und ihn mitzunehmen hiesse, den
+ * guten Fall für den schlechten zu opfern. Zwei Merkmale verraten die
+ * Mitteilung, und beide sind mit :has() zu sehen:
+ *
+ *   mehr als ein Kind   ein zweiter Absatz, oder ein Absatz und eine Liste.
+ *                       Ein Zuruf ist genau ein Satz.
+ *   eine Liste          Aufzählungspunkte mittig sind in jeder Länge falsch;
+ *                       eine Liste hat eine linke Kante, das ist ihr Sinn.
+ *
+ * text-align: start und nicht left — dieselbe Regel trägt dann auch eine
+ * Sprache, die von rechts nach links läuft.
+ *
+ * Ohne :has() bleibt es beim heutigen Zustand, also mittig. Das ist der
+ * schlechtere der beiden Fälle und darum nennenswert; tragbar ist es, weil
+ * der Text lesbar bleibt und nur unruhig steht. */
+.hc-aufruf:has(.hc-aufruf__text > :nth-child(2)),
+.hc-aufruf:has(.hc-aufruf__text :is(ul, ol)) {
+  text-align: start;
+}
+
 /* Knopf — die Pillenform des Systems. */
 .hc-knopf {
   /* Die Schriftfarbe steht hier noch einmal, obwohl bausteine.css sie
