@@ -1,0 +1,48 @@
+{{define "actions"}}<a href="/admin/templates/upload" class="btn btn--primary">{{t "Vorlage hochladen"}}</a>{{end}}
+
+{{define "content"}}
+{{template "template_list-content" .}}
+{{end}}
+
+{{define "template_list-content"}}
+{{if .Templates}}
+<div class="template-grid">
+    {{range .Templates}}
+    <div class="template-card">
+        <div class="template-card__preview template-card__preview--{{.Slug}}">
+            <span class="template-card__preview-label">{{.Name}}</span>
+        </div>
+        <div class="template-card__body">
+            <div class="template-card__header">
+                <span class="template-card__name">{{.Name}}</span>
+                {{if .IsBuiltin}}<span class="badge badge--primary">{{t "mitgeliefert"}}</span>{{end}}
+            </div>
+            <span class="template-card__slug">{{.Slug}}</span>
+            {{if .ActiveWebsites}}
+            <div class="template-card__websites">
+                {{range .ActiveWebsites}}
+                {{if .IsActive}}
+                <span class="template-card__website-badge">{{.Website.Name}}</span>
+                {{end}}
+                {{end}}
+            </div>
+            {{end}}
+            {{if not .IsBuiltin}}
+            <div class="template-card__actions">
+                <form method="POST" action="/admin/templates/{{.ID}}/delete" hx-post="/admin/templates/{{.ID}}/delete" style="display:inline"
+                      hx-confirm="{{t "Diese Vorlage löschen?"}}">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                </form>
+            </div>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+</div>
+{{else}}
+<div class="card">
+    <p class="text-muted">{{t "Noch keine Vorlagen. Lade die erste hoch, um loszulegen."}}</p>
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,89 @@
+{{define "actions"}}<a href="/admin/websites/new" class="btn btn--primary">{{t "Neue Website"}}</a>{{end}}
+
+{{define "content"}}
+<details class="card" style="margin-bottom: var(--space-3);">
+    <summary>{{th "<strong>Website aus einer Sicherung einspielen</strong>"}}</summary>
+    <p class="text-muted">
+        {{th "Legt immer eine <em>neue</em> Website an, nie eine bestehende zusammen. Zusammenführen bräuchte für jeden Konflikt eine Antwort – gleiche Adresse, anderer Text –, und die ehrliche Antwort ist eine zweite Website, die man vergleichen und dann löschen kann."}}
+    </p>
+    <form method="POST" action="/admin/websites/import" enctype="multipart/form-data">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group">
+            <label class="form-label" for="bundle">{{t "Archiv (.holzcloud.zip)"}}</label>
+            <input type="file" id="bundle" name="bundle" class="form-input" accept=".zip" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="import_name">{{t "Name der neuen Website"}}</label>
+            <input type="text" id="import_name" name="name" class="form-input"
+                   placeholder="{{t "wie im Archiv"}}">
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Einspielen"}}</button>
+    </form>
+</details>
+
+<details class="card" style="margin-bottom: var(--space-3);">
+    <summary>{{th "<strong>Von WordPress umziehen</strong>"}}</summary>
+    <p class="text-muted">
+        {{th "In WordPress unter <em>Werkzeuge → Daten exportieren → Alle Inhalte</em>. Die entstehende <code>.xml</code> hier hochladen: Seiten und Beiträge kommen mit Titel, Adresse, Text, Zustand und Schlagwörtern herüber. Auch hier entsteht immer eine neue Website."}}
+    </p>
+    <p class="text-muted">
+        {{th "<strong>Bilder bleiben zurück.</strong> Sie liegen auf dem alten Server, und dieser hier holt von sich aus nichts von Dritten — das ist die Regel, die dieses CMS ohne Cookie-Banner auskommen lässt. Der Bericht zählt danach auf, welche Dateien fehlen; sie kommen unter <em>Medien</em> herüber."}}
+    </p>
+    <form method="POST" action="/admin/websites/import-wordpress" enctype="multipart/form-data">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group">
+            <label class="form-label" for="wxr">{{t "WordPress-Datei (.xml)"}}</label>
+            <input type="file" id="wxr" name="wxr" class="form-input" accept=".xml,text/xml,application/xml" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="wp_name">{{t "Name der neuen Website"}}</label>
+            <input type="text" id="wp_name" name="name" class="form-input"
+                   placeholder="{{t "wie in der Datei"}}">
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Einspielen"}}</button>
+    </form>
+</details>
+
+{{template "website_list-content" .}}
+{{end}}
+
+{{define "website_list-content"}}
+<div class="card">
+    {{if .Websites}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Name"}}</th>
+                <th scope="col">{{t "Vorlage"}}</th>
+                <th scope="col">{{t "Domains"}}</th>
+                <th scope="col">{{t "Status"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Websites}}
+            <tr>
+                <td><a href="/admin/websites/{{.ID}}">{{.Name}}</a></td>
+                <td>{{if .TemplateName}}<a href="/admin/websites/{{.ID}}/design" class="text-muted">{{.TemplateName}}</a>{{else}}<span class="text-muted">{{t "Standard"}}</span>{{end}}</td>
+                <td class="text-muted">{{if eq .DomainCount 1}}{{t "Eine Domain"}}{{else}}{{tf "%d Domains" .DomainCount}}{{end}}</td>
+                <td>
+                    {{if .Active}}<span class="badge badge--published">{{t "Aktiv"}}</span>{{else}}<span class="badge badge--draft">{{t "Inaktiv"}}</span>{{end}}
+                </td>
+                <td class="table-actions">
+                    <a href="/admin/websites/{{.ID}}" class="btn btn--sm">{{t "Bearbeiten"}}</a>
+                    <a href="/admin/websites/{{.ID}}/pages" class="btn btn--sm">{{t "Seiten"}}</a>
+                    <form method="POST" action="/admin/websites/{{.ID}}/delete" hx-post="/admin/websites/{{.ID}}/delete" style="display:inline"
+                          hx-confirm="{{t "Diese Website mit allen Seiten löschen?"}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Noch keine Website. Leg die erste an, um loszulegen."}}</p>
+    {{end}}
+</div>
+{{end}}

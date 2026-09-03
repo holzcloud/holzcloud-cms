@@ -1,0 +1,29 @@
+{{define "content"}}
+{{template "confirm-content" .}}
+{{end}}
+
+{{define "confirm-content"}}
+<div class="card" style="max-width:32rem">
+    <p>
+        {{t "Das, was du vorhast, lässt sich nicht zurücknehmen. Bitte gib dein Passwort noch einmal ein."}}
+    </p>
+    <p class="text-muted">
+        {{t "Danach bist du für 15 Minuten bestätigt und landest wieder da, wo du warst — der Knopf funktioniert dann."}}
+    </p>
+
+    <form method="POST" action="/admin/bestaetigen">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <input type="hidden" name="weiter" value="{{.Back}}">
+
+        <div class="form-group">
+            <label class="form-label" for="password">{{t "Passwort"}}</label>
+            <input type="password" id="password" name="password" class="form-input" required autofocus
+                   {{with .Errors.password}}aria-invalid="true" aria-describedby="password-error"{{end}}>
+            {{with .Errors.password}}<p class="form-error" id="password-error">{{t .}}</p>{{end}}
+        </div>
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Bestätigen"}}</button>
+        <a href="{{.Back}}" class="btn">{{t "Abbrechen"}}</a>
+    </form>
+</div>
+{{end}}

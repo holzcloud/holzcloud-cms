@@ -1,0 +1,91 @@
+{{/*
+  A single row of the page list. Rendered both inside page_list.html and
+  standalone as the htmx swap target for status toggle / inline title edit.
+
+  Expects a PageRowData: .WebsiteID, .Page, .CSRFToken, .Snippet.
+*/}}
+{{define "page_row"}}
+<tr id="page-row-{{.Page.ID}}">
+    <td class="select-cell">
+        <label class="sr-only" for="select-{{.Page.ID}}">{{tf "%s auswählen" .Page.Title}}</label>
+        <!-- form= binds the checkbox to the bulk form outside the table, so the
+             row can keep its own per-page forms. -->
+        <input type="checkbox" id="select-{{.Page.ID}}" name="page_ids" value="{{.Page.ID}}" form="bulk-form">
+    </td>
+    <td class="page-title-cell"
+        hx-get="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/edit-title"
+        hx-trigger="click"
+        hx-swap="innerHTML"
+        hx-target="this">
+        <span class="page-title">{{.Page.Title}}</span>
+        <span class="page-slug text-muted">/{{.Page.Slug}}</span>
+        {{if .Snippet}}<span class="page-snippet text-muted">{{.Snippet}}</span>{{end}}
+    </td>
+    {{/* Die wählbaren Spalten, in fester Reihenfolge. Welche dabei sind, sagt
+         .Columns — dieselbe Menge wie im Tabellenkopf, auch wenn htmx nur diese
+         eine Zeile nachlädt. */}}
+    {{if .Columns.Has "status"}}
+    <td>
+        {{if .Page.Scheduled}}<span class="badge badge--draft">{{tf "Geplant für %s UTC" (.Page.PublishAt.Format "02.01.2006 15:04")}}</span>
+        {{else if .Page.Expired}}<span class="badge badge--draft">{{t "Abgelaufen"}}</span>
+        {{else if eq .Page.Status "published"}}<span class="badge badge--published">{{t "Veröffentlicht"}}</span>
+        {{else}}<span class="badge badge--draft">{{t "Entwurf"}}</span>{{end}}
+        {{if eq .Page.ReviewState "pending"}}<span class="badge badge--primary">{{t "Zur Prüfung"}}</span>{{end}}
+    </td>
+    {{end}}
+    {{if .Columns.Has "art"}}
+    <td>{{if .Page.IsOwnKind}}<span class="badge">{{.KindName}}</span>
+        {{else if .Page.IsPost}}<span class="badge">{{t "Beitrag"}}</span>
+        {{else}}<span class="text-muted">{{t "Seite"}}</span>{{end}}</td>
+    {{end}}
+    {{if .Columns.Has "sprache"}}
+    <td>{{if .Language}}<span class="badge">{{t .Language}}</span>{{end}}</td>
+    {{end}}
+    {{if .Columns.Has "adresse"}}
+    <td class="text-muted"><code>/{{.Page.Slug}}</code></td>
+    {{end}}
+    {{if .Columns.Has "veroeffentlicht"}}
+    <td class="text-muted">
+        {{if .Page.PublishedAt}}{{.Page.PublishedAt.Format "02.01.2006"}}{{else}}–{{end}}
+    </td>
+    {{end}}
+    {{if .Columns.Has "geaendert"}}
+    <td class="text-muted">{{.Page.UpdatedAt.Format "02.01.2006"}}</td>
+    {{end}}
+    <td class="table-actions">
+        {{/* Eine sichtbare Aktion, der Rest hinter den drei Punkten. Fünf
+             gleich laute Knöpfe pro Zeile ergeben bei zehn Zeilen fünfzig, und
+             dann sieht man keinen mehr. */}}
+        <a href="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/edit" class="btn btn--sm">{{t "Bearbeiten"}}</a>
+        <details class="rowmenu">
+            <summary class="rowmenu-trigger">
+                {{template "icon-more"}}<span class="sr-only">{{tf "Weitere Aktionen für %s" .Page.Title}}</span>
+            </summary>
+            <div class="rowmenu-menu">
+                <a href="/admin/websites/{{.WebsiteID}}/preview/{{.Page.Slug}}" target="_blank" rel="noopener" class="rowmenu-item">{{t "Ansehen"}}</a>
+                {{if .MayPublish}}
+                <form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/status"
+                      hx-post="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/status"
+                      hx-target="#page-row-{{.Page.ID}}"
+                      hx-swap="outerHTML">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+                    <button type="submit" class="rowmenu-item" hx-disabled-elt="this">
+                        {{if eq .Page.Status "published"}}{{t "Zurückziehen"}}{{else}}{{t "Veröffentlichen"}}{{end}}
+                    </button>
+                </form>
+                {{end}}
+                <form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/duplicate">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+                    <button type="submit" class="rowmenu-item" hx-disabled-elt="this">{{t "Duplizieren"}}</button>
+                </form>
+                <form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/delete"
+                      hx-post="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/delete"
+                      hx-confirm="{{t "Diese Seite in den Papierkorb verschieben?"}}">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+                    <button type="submit" class="rowmenu-item rowmenu-item--danger" hx-disabled-elt="this">{{t "In den Papierkorb"}}</button>
+                </form>
+            </div>
+        </details>
+    </td>
+</tr>
+{{end}}

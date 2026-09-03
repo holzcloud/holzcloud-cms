@@ -1,0 +1,98 @@
+{{define "content"}}
+{{template "activity_log-content" .}}
+{{end}}
+
+{{define "activity_log-content"}}
+<div class="card">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Protokoll"}}</h2>
+    <p class="text-muted" style="margin-bottom:var(--space-3);font-size:var(--text-sm)">
+        {{tf "%d Einträge. Wer was wann geändert hat." .Total}}
+    </p>
+
+    {{/* GET, damit ein gefiltertes Protokoll eine Adresse hat, die man
+         weitergeben kann. htmx tauscht nur die Liste; ohne htmx lädt
+         dasselbe Formular die Seite neu und tut dasselbe. */}}
+    <form method="GET" action="/admin/protokoll" class="list-controls" role="search"
+          hx-get="/admin/protokoll"
+          hx-target="#activity-list" hx-select="#activity-list" hx-swap="outerHTML"
+          hx-push-url="true">
+        <label class="sr-only" for="website_id">{{t "Website"}}</label>
+        <select id="website_id" name="website_id" class="form-input form-select">
+            <option value="">{{t "Alle Websites"}}</option>
+            {{range .Websites}}
+            <option value="{{.ID}}"{{if eq (printf "%d" .ID) $.FilterWebsiteID}} selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+
+        <div class="list-controls__search">
+            <label class="sr-only" for="action">{{t "Aktion"}}</label>
+            <input type="search" id="action" name="action" class="form-input"
+                   value="{{.FilterAction}}" placeholder="{{t "seite.* oder seite.create"}}">
+        </div>
+
+        <label class="sr-only" for="user_id">{{t "Benutzernummer"}}</label>
+        <input type="number" id="user_id" name="user_id" class="form-input"
+               style="max-width:7em" value="{{.FilterUserID}}" placeholder="{{t "Nr."}}">
+
+        <label class="sr-only" for="from">{{t "Von"}}</label>
+        <input type="date" id="from" name="from" class="form-input" value="{{.FilterFrom}}">
+
+        <label class="sr-only" for="to">{{t "Bis"}}</label>
+        <input type="date" id="to" name="to" class="form-input" value="{{.FilterTo}}">
+
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Filtern"}}</button>
+        <a href="/admin/protokoll" class="btn btn--sm">{{t "Zurücksetzen"}}</a>
+    </form>
+
+    <div id="activity-list">
+        {{if .Rows}}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>{{t "Zeitpunkt"}}</th>
+                    <th>{{t "Wer"}}</th>
+                    <th>{{t "Aktion"}}</th>
+                    <th>{{t "Betrifft"}}</th>
+                    <th>{{t "Website"}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Rows}}
+                <tr>
+                    <td><time datetime="{{.WhenISO}}">{{.When}}</time></td>
+                    <td>{{if .ActorEmail}}{{.ActorEmail}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+                    <td><code>{{.Action}}</code></td>
+                    <td>
+                        {{if .EntityType}}{{.EntityType}} <span class="text-muted">#{{.EntityID}}</span>
+                        {{else}}<span class="text-muted">—</span>{{end}}
+                    </td>
+                    <td>{{if .WebsiteName}}{{.WebsiteName}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+
+        {{template "pager" .}}
+        {{else}}
+        <p class="text-muted">{{t "Hier steht noch nichts."}}</p>
+        {{end}}
+    </div>
+</div>
+
+{{/* Das Aufräumen ist die eine Handlung, die die Spur der übrigen entfernt.
+     Deshalb steht sie unten, in einer eigenen Karte, und die Route dahinter
+     verlangt vorher das Passwort. Ein Rückfragefenster wäre JavaScript und
+     kommt hier nicht in Frage. */}}
+<div class="card" style="margin-top:var(--space-3)">
+    <h3 style="margin-bottom:var(--space-2)">{{t "Alte Einträge löschen"}}</h3>
+    <p class="text-muted" style="margin-bottom:var(--space-2);font-size:var(--text-sm)">
+        {{t "Löscht alles vor dem gewählten Tag, unwiderruflich. Das Löschen selbst wird als nächster Eintrag festgehalten."}}
+    </p>
+    <form method="POST" action="/admin/protokoll/aufraeumen" class="list-controls">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <label class="form-label" for="before">{{t "Alles löschen vor dem"}}</label>
+        <input type="date" id="before" name="before" class="form-input" required>
+        <button type="submit" class="btn btn--danger" hx-disabled-elt="this">{{t "Löschen"}}</button>
+    </form>
+</div>
+{{end}}

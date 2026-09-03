@@ -1,0 +1,72 @@
+{{define "content"}}
+<section class="cart">
+  <header class="page-header">
+    <h1 class="page-header__title">Warenkorb</h1>
+    {{if .Cart.Count}}<p class="page-header__meta">{{.Cart.Count}} Artikel</p>{{end}}
+  </header>
+
+  {{if .Cart.Lines}}
+  {{if .Cart.Blocked}}
+  <p class="cart-blocked" role="alert">{{.Cart.Blocked}}</p>
+  {{end}}
+
+  <ol class="cart-lines">
+    {{range .Cart.Lines}}
+    <li class="cart-line{{if not .Available}} cart-line--gone{{end}}">
+      {{if .ImageURL}}
+      <a class="cart-line__media" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+        <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+      </a>
+      {{end}}
+
+      <div class="cart-line__text">
+        <h2 class="cart-line__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+        {{if .Subtitle}}<p class="cart-line__subtitle">{{.Subtitle}}</p>{{end}}
+        <p class="cart-line__unit">{{.UnitPrice}} je Stück</p>
+        {{if not .Available}}<p class="cart-line__gone">Nicht mehr verfügbar</p>{{end}}
+      </div>
+
+      <form class="cart-line__quantity" method="POST" action="{{$.Cart.UpdateURL}}">
+        <input type="hidden" name="artikel" value="{{.Slug}}">
+        <label for="menge-{{.Slug}}" class="sr-only">Menge für {{.Title}}</label>
+        <input type="number" id="menge-{{.Slug}}" name="menge" value="{{.Quantity}}"
+               min="0" max="99" inputmode="numeric">
+        <button type="submit" class="button button--quiet">Ändern</button>
+      </form>
+
+      <p class="cart-line__price">{{.LinePrice}}</p>
+
+      <form class="cart-line__remove" method="POST" action="{{$.Cart.RemoveURL}}">
+        <input type="hidden" name="artikel" value="{{.Slug}}">
+        <button type="submit" class="cart-line__drop">Entfernen<span class="sr-only"> — {{.Title}}</span></button>
+      </form>
+    </li>
+    {{end}}
+  </ol>
+
+  <div class="cart-summary">
+    <dl class="cart-totals">
+      <dt>Zwischensumme</dt><dd>{{.Cart.Totals.Items}}</dd>
+      <dt>Versand</dt>
+      <dd>{{if .Cart.Totals.ShippingFree}}kostenlos{{else}}{{.Cart.Totals.Shipping}}{{end}}</dd>
+      {{range .Cart.Totals.TaxLines}}
+      <dt class="cart-totals__tax">{{.Label}}</dt><dd class="cart-totals__tax">{{.Tax}}</dd>
+      {{end}}
+      <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
+    </dl>
+    {{if .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.Cart.Totals.TaxNote}}</p>{{end}}
+    {{if .Shop.ShippingNote}}<p class="cart-totals__note">{{.Shop.ShippingNote}}</p>{{end}}
+
+    {{if .Cart.CheckoutURL}}
+    <a class="button cart-checkout" href="{{.Cart.CheckoutURL}}">Zur Kasse</a>
+    {{end}}
+    {{if .Shop.URL}}<a class="cart-continue" href="{{.Shop.URL}}">Weiter einkaufen</a>{{end}}
+  </div>
+  {{else}}
+  <div class="prose">
+    <p class="cart-empty">Der Warenkorb ist leer.</p>
+    {{if .Shop.URL}}<p><a href="{{.Shop.URL}}">Zum Shop</a></p>{{end}}
+  </div>
+  {{end}}
+</section>
+{{end}}

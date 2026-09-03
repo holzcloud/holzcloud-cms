@@ -1,0 +1,87 @@
+{{define "content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Anmeldedaten"}}</h2>
+    <dl class="detail-list">
+        <dt>{{t "E-Mail"}}</dt>
+        <dd>{{.Email}}</dd>
+        <dt>{{t "Rolle"}}</dt>
+        <dd>{{if eq .Role "admin"}}{{t "Administrator"}}{{else}}{{t "Redakteur"}}{{end}}</dd>
+    </dl>
+    <a href="/admin/users/{{.UserID}}/password" class="btn">{{t "Passwort ändern"}}</a>
+</div>
+
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Sprache der Verwaltung"}}</h2>
+    <p class="text-muted">
+        {{t "Gilt nur für dich und nur für diese Verwaltung – die Sprachen deiner Websites stehen in deren Einstellungen."}}
+    </p>
+    <form method="POST" action="/admin/konto/sprache" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group" style="margin-bottom:0;min-width:200px">
+            <label class="form-label" for="sprache">{{t "Sprache"}}</label>
+            <select id="sprache" name="sprache" class="form-input form-select">
+                <option value="">{{t "Wie der Browser (automatisch)"}}</option>
+                {{range .Languages}}
+                <option value="{{.Code}}"{{if eq $.Chosen .Code}} selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>{{t "Bestätigung in zwei Schritten"}}</h2>
+
+    {{if .Enabled}}
+    <p>
+        <span class="badge badge--published">{{t "eingeschaltet"}}</span>
+        {{t "Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App verlangt."}}
+    </p>
+
+    <p{{if lt .RecoveryLeft 3}} class="callout callout--warning"{{end}}>
+        {{t "Wiederherstellungscodes übrig:"}} <strong>{{.RecoveryLeft}}</strong>.
+        {{if lt .RecoveryLeft 3}}
+        {{t "Das wird knapp – hole dir eine neue Liste, solange du noch hineinkommst."}}
+        {{end}}
+    </p>
+
+    <div class="form-actions">
+        <form method="POST" action="/admin/2fa/codes">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <button type="submit" class="btn" hx-disabled-elt="this">{{t "Neue Wiederherstellungscodes"}}</button>
+        </form>
+
+        <form method="POST" action="/admin/2fa/einrichten/neu">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <button type="submit" class="btn" hx-disabled-elt="this">{{t "Neues Gerät einrichten"}}</button>
+        </form>
+
+        {{if not .Required}}
+        <form method="POST" action="/admin/2fa/aus">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <button type="submit" class="btn btn-danger" hx-disabled-elt="this">{{t "Ausschalten"}}</button>
+        </form>
+        {{end}}
+    </div>
+
+    {{if .Required}}
+    <p class="text-muted">
+        {{t "Als Administrator kannst du sie nicht ausschalten. Ist das Gerät weg und kein Wiederherstellungscode mehr da, hilft auf dem Server:"}}
+        <code>holzcloud user 2fa disable -email {{.Email}}</code>
+    </p>
+    {{end}}
+
+    {{else}}
+    <p>
+        <span class="badge badge--draft">{{t "aus"}}</span>
+        {{if .Required}}
+        {{t "Für dein Konto ist sie Pflicht – ohne sie kommst du nicht in die Verwaltung."}}
+        {{else}}
+        {{t "Empfohlen: ein erratenes Passwort allein genügt dann nicht mehr."}}
+        {{end}}
+    </p>
+    <a href="/admin/2fa/einrichten" class="btn btn-primary">{{t "Jetzt einrichten"}}</a>
+    {{end}}
+</div>
+{{end}}

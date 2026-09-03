@@ -1,0 +1,162 @@
+{{define "actions"}}
+<a href="/admin/websites/{{.WebsiteID}}/pages/new" class="btn btn--primary">{{t "Neue Seite"}}</a>
+{{end}}
+
+{{define "content"}}
+{{template "page_list-content" .}}
+{{end}}
+
+{{define "page_list-content"}}
+<div class="card">
+    <form method="GET" action="/admin/websites/{{.WebsiteID}}/pages" class="list-controls" role="search"
+          hx-get="/admin/websites/{{.WebsiteID}}/pages"
+          hx-target="#page-list" hx-select="#page-list" hx-swap="outerHTML"
+          hx-trigger="input from:#q changed delay:300ms, change from:select"
+          hx-push-url="true">
+        <div class="list-controls__search">
+            <label class="sr-only" for="q">{{t "Seiten durchsuchen"}}</label>
+            <input type="search" id="q" name="q" class="form-input" value="{{.Query}}"
+                   placeholder="{{t "Titel und Inhalt durchsuchen"}}">
+        </div>
+
+        <label class="sr-only" for="status">{{t "Status"}}</label>
+        <select id="status" name="status" class="form-input form-select">
+            <option value="">{{t "Alle"}}</option>
+            <option value="published"{{if eq .Filter.Status "published"}} selected{{end}}>{{t "Veröffentlicht"}}</option>
+            <option value="draft"{{if eq .Filter.Status "draft"}} selected{{end}}>{{t "Entwürfe"}}</option>
+        </select>
+
+        <label class="sr-only" for="kind">{{t "Art"}}</label>
+        <select id="kind" name="kind" class="form-input form-select">
+            <option value="">{{t "Alle Arten"}}</option>
+            <option value="page"{{if eq .Filter.Kind "page"}} selected{{end}}>{{t "Nur Seiten"}}</option>
+            <option value="post"{{if eq .Filter.Kind "post"}} selected{{end}}>{{t "Nur Beiträge"}}</option>
+            {{range .Types}}
+            <option value="{{.Key}}"{{if eq $.Filter.TypeKey .Key}} selected{{end}}>{{.Plural}}</option>
+            {{end}}
+        </select>
+
+        {{if .Languages}}
+        <label class="sr-only" for="sprache">{{t "Sprache"}}</label>
+        <select id="sprache" name="sprache" class="form-input form-select">
+            <option value="*">{{t "Alle Sprachen"}}</option>
+            {{range .Languages}}
+            <option value="{{.Code}}"{{if .Selected}} selected{{end}}>{{t .Name}}{{if .Primary}} {{t "(Hauptsprache)"}}{{end}}</option>
+            {{end}}
+        </select>
+        {{end}}
+
+        <label class="sr-only" for="sort">{{t "Sortierung"}}</label>
+        <select id="sort" name="sort" class="form-input form-select">
+            <option value="updated_at">{{t "Zuletzt geändert"}}</option>
+            <option value="created_at"{{if eq .Filter.Sort "created_at"}} selected{{end}}>{{t "Zuletzt angelegt"}}</option>
+            <option value="title"{{if eq .Filter.Sort "title"}} selected{{end}}>{{t "Titel A–Z"}}</option>
+        </select>
+
+        <!-- Without htmx the controls still work: this is an ordinary GET form. -->
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Anwenden"}}</button>
+
+        {{if .PendingReview}}
+        <a href="/admin/websites/{{.WebsiteID}}/pages?review=pending" class="badge badge--draft">
+            {{tf "%d zur Prüfung" .PendingReview}}
+        </a>
+        {{end}}
+    </form>
+</div>
+
+{{/* Gemerkte Ansichten: der Filterteil der Adresse unter einem Namen. */}}
+<div class="views">
+    {{range .Views}}
+    <span class="view-chip{{if .Active}} is-active{{end}}">
+        <a href="{{.URL $.WebsiteID}}">{{.Name}}</a>
+        <form method="POST" action="/admin/websites/{{$.WebsiteID}}/ansichten/{{.ID}}/loeschen"
+              hx-confirm="{{tf "Ansicht „%s“ vergessen?" .Name}}">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+            <button type="submit" class="view-chip__x" hx-disabled-elt="this"
+                    aria-label="{{tf "Ansicht „%s“ entfernen" .Name}}">×</button>
+        </form>
+    </span>
+    {{end}}
+
+    {{if .Filterpart}}
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/ansichten" class="view-save">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <input type="hidden" name="filter" value="{{.Filterpart}}">
+        <label class="sr-only" for="ansichtsname">{{t "Name der Ansicht"}}</label>
+        <input type="text" id="ansichtsname" name="name" class="form-input form-input--sm"
+               placeholder="{{t "z. B. Meine Entwürfe"}}" maxlength="40" required>
+        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Diese Ansicht merken"}}</button>
+    </form>
+    {{end}}
+
+    <details class="columns-chooser">
+        <summary class="btn btn--sm">{{t "Spalten"}}</summary>
+        <form method="POST" action="/admin/websites/{{.WebsiteID}}/spalten" class="columns-form">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <input type="hidden" name="zurueck" value="{{.Filterpart}}">
+            {{range .Choices}}
+            <label class="form-check">
+                <input type="checkbox" name="spalten" value="{{.Key}}"{{if .On}} checked{{end}}>
+                <span class="form-check-label">{{t .Name}}</span>
+            </label>
+            {{end}}
+            <button type="submit" class="btn btn--sm btn--primary" hx-disabled-elt="this">{{t "Übernehmen"}}</button>
+            <p class="form-hint text-muted">{{t "Gilt nur für dich, auf jeder Website."}}</p>
+        </form>
+    </details>
+</div>
+
+<div class="card" style="margin-top: var(--space-3);">
+    {{if .Rows}}
+    <div id="page-list">
+        {{if .Query}}<p class="text-muted">{{tf "%d Treffer für „%s“" .ResultCount .Query}}</p>{{end}}
+
+        <!-- The bulk form deliberately does NOT wrap the table: each row already
+             contains its own forms for publish, duplicate and delete, and nesting
+             a form inside a form is invalid HTML that browsers resolve by dropping
+             the inner ones. The checkboxes join this form through the form
+             attribute instead, which is plain HTML and needs no script. -->
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col"><span class="sr-only">{{t "Zeile auswählen"}}</span></th>
+                    <th scope="col">{{t "Titel"}}</th>
+                    {{if .Columns.Has "status"}}<th scope="col">{{t "Status"}}</th>{{end}}
+                    {{if .Columns.Has "art"}}<th scope="col">{{t "Art"}}</th>{{end}}
+                    {{if .Columns.Has "sprache"}}<th scope="col">{{t "Sprache"}}</th>{{end}}
+                    {{if .Columns.Has "adresse"}}<th scope="col">{{t "Adresse"}}</th>{{end}}
+                    {{if .Columns.Has "veroeffentlicht"}}<th scope="col">{{t "Veröffentlicht"}}</th>{{end}}
+                    {{if .Columns.Has "geaendert"}}<th scope="col">{{t "Geändert"}}</th>{{end}}
+                    <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Rows}}
+                {{template "page_row" .}}
+                {{end}}
+            </tbody>
+        </table>
+
+        <form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/bulk"
+              id="bulk-form" class="bulk-bar">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <label class="sr-only" for="bulk-action">{{t "Aktion für die ausgewählten Seiten"}}</label>
+            <select id="bulk-action" name="action" class="form-input form-select">
+                {{if .MayPublish}}
+                <option value="publish">{{t "Veröffentlichen"}}</option>
+                <option value="unpublish">{{t "Zurückziehen"}}</option>
+                {{end}}
+                <option value="trash">{{t "In den Papierkorb"}}</option>
+            </select>
+            <button type="submit" class="btn" hx-disabled-elt="this">{{t "Auf Auswahl anwenden"}}</button>
+        </form>
+
+        {{template "pager" .}}
+    </div>
+    {{else if .Query}}
+    <p class="text-muted">{{tf "Keine Seite gefunden für „%s“." .Query}}</p>
+    {{else}}
+    <p class="text-muted">{{t "Noch keine Seiten. Lege die erste Seite an, um loszulegen."}}</p>
+    {{end}}
+</div>
+{{end}}

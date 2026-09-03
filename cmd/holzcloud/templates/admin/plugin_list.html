@@ -1,0 +1,124 @@
+{{define "content"}}
+<div class="content-header-row">
+    <h1>{{t "Plugins"}}</h1>
+</div>
+
+<p class="hint">
+    {{t "Ein Plugin erweitert das CMS, ohne dass etwas neu gebaut werden muss. Es läuft abgeschottet: es kann die Platte nicht lesen, keine Verbindung nach außen öffnen und die Datenbank nur über die Wege erreichen, die es im Manifest angemeldet hat. Hängt es sich auf, wird es nach zwei Sekunden abgebrochen und die Seite wird trotzdem ausgeliefert."}}
+</p>
+
+<details class="panel">
+    <summary class="panel__summary">{{t "Plugin einspielen"}}</summary>
+    <form method="POST" action="/admin/plugins/upload" enctype="multipart/form-data" class="stack">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="field">
+            <label for="plugin">{{t "Archiv (.zip)"}}</label>
+            <input type="file" id="plugin" name="plugin" accept=".zip,application/zip" required>
+            <p class="field__hint">
+                {{th "Enthält <code>plugin.json</code> und <code>plugin.wasm</code>. Ein eingespieltes Plugin ist zunächst ausgeschaltet."}}
+            </p>
+        </div>
+        <div>
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Einspielen"}}</button>
+        </div>
+    </form>
+</details>
+
+{{if not .Plugins}}
+<p class="empty">{{t "Noch kein Plugin eingespielt."}}</p>
+{{else}}
+
+<div class="plugin-list">
+    {{range $p := .Plugins}}
+    <article class="plugin-card{{if .Enabled}} plugin-card--on{{end}}">
+        <header class="plugin-card__head">
+            <div>
+                <h2 class="plugin-card__name">{{.Name}}</h2>
+                <p class="plugin-card__meta">
+                    <code>{{.ID}}</code> · {{tf "Fassung %s" .Version}}
+                    {{if .Manifest}}{{if .Manifest.Author}} · {{.Manifest.Author}}{{end}}{{end}}
+                </p>
+            </div>
+
+            <!-- Zwei Zustände, nicht einer: eingeschaltet heisst, der Betreiber
+                 will es; läuft heisst, es kam auch hoch. Genau die Lücke
+                 dazwischen muss sichtbar sein. -->
+            <p class="plugin-card__state">
+                {{if and .Enabled .Running}}<span class="badge badge--ok">{{t "läuft"}}</span>
+                {{else if .Enabled}}<span class="badge badge--error">{{t "eingeschaltet, läuft nicht"}}</span>
+                {{else}}<span class="badge">{{t "aus"}}</span>{{end}}
+            </p>
+        </header>
+
+        {{if .Manifest}}{{if .Manifest.Description}}
+        <p class="plugin-card__desc">{{.Manifest.Description}}</p>
+        {{end}}{{end}}
+
+        {{if .LastError}}
+        <p class="plugin-card__error" role="status"><strong>{{t "Zuletzt:"}}</strong> {{.LastError}}</p>
+        {{end}}
+
+        <!-- Was es darf, im Klartext. Wer etwas auf seinem Server laufen lässt,
+             soll sehen können, wonach es gefragt hat, ohne das Archiv zu öffnen. -->
+        <dl class="plugin-card__facts">
+            {{if .Hooks}}<dt>{{t "Greift ein bei"}}</dt><dd>{{range $i, $h := .Hooks}}{{if $i}}, {{end}}<code>{{$h}}</code>{{end}}</dd>{{end}}
+            {{if .Permissions}}<dt>{{t "Darf"}}</dt><dd>{{range $i, $p := .Permissions}}{{if $i}}, {{end}}<code>{{$p}}</code>{{end}}</dd>{{end}}
+            {{if .Manifest}}{{if .Manifest.Routes}}<dt>{{t "Beansprucht"}}</dt><dd>{{range $i, $r := .Manifest.Routes}}{{if $i}}, {{end}}<code>{{$r}}</code>{{end}}</dd>{{end}}{{end}}
+        </dl>
+
+        <form method="POST" action="/admin/plugins/{{.ID}}/websites" class="plugin-card__sites">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+            <fieldset>
+                <legend>{{t "Wirkt auf"}}</legend>
+                {{if $.Websites}}
+                {{range $.Websites}}
+                <label class="checkbox">
+                    <input type="checkbox" name="website" value="{{.ID}}"
+                           {{if index $p.OnWebsite .ID}}checked{{end}}>
+                    {{.Name}}
+                </label>
+                {{end}}
+                {{else}}
+                <p class="field__hint">{{t "Noch keine Website angelegt."}}</p>
+                {{end}}
+            </fieldset>
+            <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Zuordnung speichern"}}</button>
+        </form>
+
+        <footer class="plugin-card__actions">
+            <form method="POST" action="/admin/plugins/{{.ID}}/enable">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                <input type="hidden" name="an" value="{{if .Enabled}}0{{else}}1{{end}}">
+                <button type="submit" class="btn btn--sm" hx-disabled-elt="this">
+                    {{if .Enabled}}{{t "Ausschalten"}}{{else}}{{t "Einschalten"}}{{end}}
+                </button>
+            </form>
+
+            <!-- Ein Bildschirm je Website, wenn das Plugin je Website arbeitet:
+                 sein Speicher ist nach Website getrennt, und ein einzelner
+                 Link führte zwangsläufig in den falschen Raum. -->
+            {{if .Manifest}}{{if .Manifest.Admin}}{{if .Running}}
+              {{if .Manifest.Admin.PerWebsite}}
+                {{range $.Websites}}{{if index $p.OnWebsite .ID}}
+                <a class="btn btn--sm" href="/admin/websites/{{.ID}}/plugins/{{$p.ID}}">{{$p.Manifest.Admin.Label}}: {{.Name}}</a>
+                {{end}}{{end}}
+              {{else}}
+                <a class="btn btn--sm" href="/admin/plugins/{{.ID}}/bildschirm">{{.Manifest.Admin.Label}}</a>
+              {{end}}
+            {{end}}{{end}}{{end}}
+
+            <!-- Die Kennung eintippen ist die Bestätigung: ein Plugin nimmt
+                 seine Daten mit, und das holt der Zurück-Knopf nicht wieder. -->
+            <form method="POST" action="/admin/plugins/{{.ID}}/remove" class="plugin-card__remove">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                <label class="visually-hidden" for="rm-{{.ID}}">{{t "Kennung zum Bestätigen"}}</label>
+                <input type="text" id="rm-{{.ID}}" name="bestaetigung" placeholder="{{.ID}}"
+                       autocomplete="off" size="14">
+                <button type="submit" class="btn btn--sm btn--danger" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+            </form>
+        </footer>
+    </article>
+    {{end}}
+</div>
+{{end}}
+{{end}}

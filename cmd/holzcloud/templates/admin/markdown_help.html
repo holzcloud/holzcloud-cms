@@ -1,0 +1,26 @@
+{{define "markdown_help"}}
+<details class="markdown-help">
+    <summary>{{t "Markdown-Spickzettel"}}</summary>
+    <table class="markdown-help__table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Schreibweise"}}</th>
+                <th scope="col">{{t "Ergebnis"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>{{th "<code># Überschrift</code>"}}</td><td>{{t "Große Überschrift"}}</td></tr>
+            <tr><td>{{th "<code>## Unterüberschrift</code>"}}</td><td>{{t "Kleinere Überschrift"}}</td></tr>
+            <tr><td>{{th "<code>**fett**</code>"}}</td><td>{{th "<strong>fett</strong>"}}</td></tr>
+            <tr><td>{{th "<code>*kursiv*</code>"}}</td><td>{{th "<em>kursiv</em>"}}</td></tr>
+            <tr><td>{{th "<code>[Text](https://example.de)</code>"}}</td><td>{{t "Link"}}</td></tr>
+            <tr><td>{{th "<code>![Bild](/media/1/foto.jpg)</code>"}}</td><td>{{t "Bild aus der Mediathek"}}</td></tr>
+            <tr><td>{{th "<code>- Punkt</code>"}}</td><td>{{t "Aufzählung"}}</td></tr>
+            <tr><td>{{th "<code>1. Punkt</code>"}}</td><td>{{t "Nummerierte Liste"}}</td></tr>
+            <tr><td>{{th "<code>&gt; Zitat</code>"}}</td><td>{{t "Eingerücktes Zitat"}}</td></tr>
+            <tr><td>{{th "<code>---</code>"}}</td><td>{{t "Trennlinie"}}</td></tr>
+            <tr><td>{{t "Leerzeile"}}</td><td>{{t "Neuer Absatz"}}</td></tr>
+        </tbody>
+    </table>
+</details>
+{{end}}

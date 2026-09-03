@@ -1,0 +1,20 @@
+# Bewusst true: SECURITY.md und CODE_OF_CONDUCT.md verweisen Leute, die den
+# privaten Kanal nicht nutzen können, ausdrücklich auf einen leeren Issue ohne
+# Einzelheiten. Stünde hier false, wäre dieser Rückfallweg zugemauert, und zwei
+# Dokumente würden einen Weg versprechen, den es nicht mehr gibt.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Sicherheitslücke melden
+    url: https://github.com/holzcloud/holzcloud-cms/security/advisories/new
+    about: >
+      Eine Lücke gehört nicht in einen öffentlichen Issue. Dieser Kanal ist
+      privat; nur der Betreuer sieht die Meldung. Die Einzelheiten stehen in
+      SECURITY.md.
+
+  - name: Eine Vorlage bauen
+    url: https://github.com/holzcloud/holzcloud-cms/blob/main/internal/tmplspec/TEMPLATE-SPEC.md
+    about: >
+      Wer eine Vorlage bauen will, braucht keinen Beitrag zum Code. Der
+      vollständige Datenvertrag steht in TEMPLATE-SPEC.md, und
+      `holzcloud template check` prüft eine Vorlage, ohne etwas zu installieren.

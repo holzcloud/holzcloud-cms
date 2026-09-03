@@ -1,0 +1,302 @@
+/* Bausteine.
+ *
+ * Die Auszeichnung der Bausteine schreibt der Kern, also liefert er auch die
+ * Grundgestaltung dazu. Ein Theme, das nichts davon weiss — und dazu gehört
+ * jedes hochgeladene —, zeigt eine Galerie sonst als Liste untereinander und
+ * eine Kartenreihe als Textwüste.
+ *
+ * Ein Theme darf alles davon überschreiben: dieses Stylesheet steht vor dem des
+ * Themes, und alle Angaben sind eine Klasse tief, also leicht zu übertreffen.
+ *
+ * Farben und Abstände kommen aus dem Theme, wo es welche gibt. Die
+ * mitgelieferten benutzen zwei Namensfamilien — --paper/--ink/--brand und
+ * --bg/--text/--accent —, deshalb wird beides gefragt, mit einem letzten
+ * Rückfall auf currentColor. So sieht ein Baustein auch in einem Theme
+ * anständig aus, das keine der beiden kennt.
+ */
+
+.hc-block {
+    --hc-ton: var(--ink, var(--text, currentColor));
+    --hc-grund: var(--paper, var(--bg, transparent));
+    --hc-akzent: var(--brand, var(--accent, currentColor));
+    --hc-linie: var(--line, var(--border, color-mix(in oklch, currentColor 20%, transparent)));
+    --hc-luft: var(--space-3, 1.5rem);
+    --hc-rund: var(--radius, 4px);
+
+    margin-block: var(--space-4, 2rem);
+}
+
+/* Der erste und der letzte Baustein brauchen aussen keinen zusätzlichen
+ * Abstand — den setzt das Theme um den Inhalt herum schon. */
+.hc-block:first-child { margin-block-start: 0; }
+.hc-block:last-child { margin-block-end: 0; }
+
+.hc-block img {
+    max-inline-size: 100%;
+    block-size: auto;
+}
+
+.hc-block figcaption,
+.hc-bildunterschrift {
+    margin-block-start: 0.5rem;
+    font-size: 0.875em;
+    opacity: 0.75;
+}
+
+/* --- Bild ---------------------------------------------------------------- */
+
+.hc-bild { margin-inline: 0; }
+
+.hc-bild img {
+    inline-size: 100%;
+    border-radius: var(--hc-rund);
+}
+
+/* Breiter und ganz breit gehen über den Textblock hinaus, aber nie über den
+ * Bildschirm: 100vw wäre auf einer Seite mit sichtbarer Bildlaufleiste einen
+ * Balken zu breit. */
+.hc-bild--breit,
+.hc-bild--voll {
+    inline-size: min(100%, 100vw);
+}
+
+@media (min-width: 60em) {
+    .hc-bild--breit {
+        inline-size: min(115%, 100vw);
+        margin-inline: -7.5%;
+    }
+    .hc-bild--voll {
+        inline-size: 100vw;
+        margin-inline: calc(50% - 50vw);
+        border-radius: 0;
+    }
+    .hc-bild--voll img { border-radius: 0; }
+}
+
+/* --- Bild und Text ------------------------------------------------------- */
+
+/* Auf schmalen Bildschirmen steht das Bild über dem Text. Nicht daneben und
+ * schmaler: zwei Spalten auf einem Telefon sind zwei zu enge Spalten. */
+.hc-bildtext {
+    display: grid;
+    gap: var(--hc-luft);
+}
+
+@media (min-width: 45em) {
+    .hc-bildtext {
+        grid-template-columns: 1fr 1fr;
+        align-items: center;
+    }
+    /* Die Reihenfolge im Quelltext bleibt Bild, dann Text — auch wenn das Bild
+     * rechts steht. Das ist die Reihenfolge, in der ein Vorleseprogramm liest,
+     * und die soll nicht von einer Layout-Einstellung abhängen. */
+    .hc-bildtext--rechts .hc-bildtext__bild { order: 2; }
+}
+
+.hc-bildtext__bild img {
+    inline-size: 100%;
+    border-radius: var(--hc-rund);
+}
+
+.hc-bildtext__text > :first-child { margin-block-start: 0; }
+.hc-bildtext__text > :last-child { margin-block-end: 0; }
+
+/* --- Galerie und Karten -------------------------------------------------- */
+
+.hc-galerie,
+.hc-karten {
+    display: grid;
+    gap: var(--hc-luft);
+}
+
+/* auto-fit statt einer festen Spaltenzahl: die gewünschte Zahl ist eine
+ * Obergrenze, und darunter bricht das Raster von selbst um, ohne dass für jede
+ * Breite eine eigene Regel nötig wäre. */
+.hc-spalten-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
+.hc-spalten-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
+.hc-spalten-4 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+
+.hc-galerie__bild { margin: 0; }
+
+.hc-galerie__bild img {
+    inline-size: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--hc-rund);
+}
+
+.hc-karte {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: var(--hc-luft);
+    border: 1px solid var(--hc-linie);
+    border-radius: var(--hc-rund);
+    background: var(--hc-grund);
+}
+
+.hc-karte img {
+    inline-size: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+    border-radius: calc(var(--hc-rund) / 2);
+}
+
+.hc-karte__titel {
+    margin: 0;
+    font-size: var(--step-1, 1.25rem);
+}
+
+.hc-karte__text > :first-child { margin-block-start: 0; }
+.hc-karte__text > :last-child { margin-block-end: 0; }
+
+/* Die ganze Karte ist der Link, nicht ein Wort darin: ein Ziel von drei Zeichen
+ * trifft auf einem Telefon niemand. */
+.hc-karte--link {
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.hc-karte--link:hover,
+.hc-karte--link:focus-visible {
+    border-color: var(--hc-akzent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .hc-karte--link:hover { transform: translateY(-2px); }
+}
+
+.hc-karte--link .hc-karte__titel { color: var(--hc-akzent); }
+
+/* --- Zitat --------------------------------------------------------------- */
+
+.hc-zitat {
+    margin-inline: 0;
+    padding-inline-start: var(--hc-luft);
+    border-inline-start: 3px solid var(--hc-akzent);
+}
+
+.hc-zitat blockquote {
+    margin: 0;
+    font-size: var(--step-1, 1.25rem);
+    line-height: 1.4;
+}
+
+.hc-zitat blockquote p { margin: 0; }
+
+.hc-zitat figcaption::before { content: "— "; }
+
+/* --- Aufruf -------------------------------------------------------------- */
+
+.hc-aufruf {
+    padding: var(--space-4, 2rem);
+    border-radius: var(--hc-rund);
+    background: color-mix(in oklch, var(--hc-akzent) 8%, var(--hc-grund));
+    text-align: center;
+}
+
+.hc-aufruf__titel {
+    margin-block-start: 0;
+    font-size: var(--step-2, 1.5rem);
+}
+
+.hc-aufruf__text > :last-child { margin-block-end: 0; }
+
+.hc-aufruf__knopf { margin-block-end: 0; }
+
+.hc-knopf {
+    display: inline-block;
+    padding: 0.65em 1.4em;
+    border-radius: var(--hc-rund);
+    background: var(--hc-akzent);
+    color: var(--hc-grund);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.hc-knopf:hover,
+.hc-knopf:focus-visible {
+    background: color-mix(in oklch, var(--hc-akzent) 85%, var(--hc-ton));
+}
+
+/* --- Trennlinie ---------------------------------------------------------- */
+
+.hc-trenner {
+    border: 0;
+    border-block-start: 1px solid var(--hc-linie);
+}
+
+/* --- Sprachwahl ---------------------------------------------------------- */
+
+/* Die Auszeichnung dafür schreibt der Kern (jede mitgelieferte Vorlage bekommt
+   dieselbe), also gehört auch die Grundgestaltung hierher. Bewusst schlicht:
+   eine Vorlage soll sie überschreiben können, ohne erst etwas abzuräumen. */
+
+.lang-nav {
+    padding-block: 0.4rem;
+}
+
+.lang-nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--step--1, 0.875rem);
+}
+
+.lang-nav a { text-decoration: none; }
+
+.lang-nav a:hover,
+.lang-nav a:focus-visible { text-decoration: underline; }
+
+/* Die aktuelle Sprache steht da, ist aber kein Link – sonst führt die
+   Sprachwahl auf die Seite, auf der man ohnehin schon ist. */
+.lang-nav [aria-current] {
+    font-weight: 600;
+    opacity: 0.75;
+}
+
+/* Ein Video aus der eigenen Mediathek. Kein eingebetteter Rahmen von einem
+   fremden Server — deshalb braucht diese Seite auch kein Cookie-Banner. */
+.hc-video { margin: var(--hc-space, 1.5rem) 0; }
+.hc-video video { width: 100%; height: auto; display: block; border-radius: var(--hc-radius, 0); background: #000; }
+.hc-video figcaption { margin-top: .4rem; font-size: .9em; opacity: .75; }
+
+/* Eine Bausteinart, die diese Website selbst angelegt hat.
+ *
+ * Der Kern kann nicht wissen, wie ein „Rezeptschritt" aussehen soll — das ist
+ * genau die Entscheidung, die dem Theme gehört. Was er liefern kann, ist, dass
+ * so ein Baustein von Anfang an nicht wie ein Unfall aussieht: die Felder
+ * stehen untereinander, ein Bild sprengt nichts, und ein angekreuztes Ja/Nein
+ * setzt eine Klasse, an der das Theme etwas festmachen kann.
+ *
+ * Alles hier ist eine Klasse tief. Ein Theme, das
+ * .hc-eigen--rezeptschritt {…} schreibt, gewinnt jedes Mal. */
+.hc-eigen {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.hc-eigen__zeile,
+.hc-eigen__datum,
+.hc-eigen__link {
+    margin: 0;
+}
+
+.hc-eigen__text > :first-child { margin-block-start: 0; }
+.hc-eigen__text > :last-child { margin-block-end: 0; }
+
+.hc-eigen__bild {
+    margin: 0;
+}
+
+.hc-eigen__bild img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    border-radius: var(--hc-rund);
+}

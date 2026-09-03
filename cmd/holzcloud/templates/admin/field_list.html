@@ -1,0 +1,197 @@
+{{define "content"}}
+{{template "field_list-content" .}}
+{{end}}
+
+{{define "field_list-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    {{if .BlockType}}
+    <p><a href="/admin/websites/{{.WebsiteID}}/bausteinarten">{{t "&#8592; Alle Bausteinarten"}}</a></p>
+    <p class="text-muted">
+        {{tf "Woraus ein Baustein „%s“ besteht. Die Felder erscheinen im Bausteineditor in dieser Reihenfolge, und im Theme trägt jedes seine eigene Klasse." .BlockType.Name}}
+    </p>
+    <p class="text-muted">
+        {{th "Ein <strong>langer Text</strong> wird als Markdown ausgegeben — das ist der Weg zu einer Überschrift oder einer Aufzählung im Baustein. Ein <strong>Ja/Nein</strong> gibt nichts aus, sondern setzt eine Klasse am Baustein, mit der das Theme ihn anders aussehen lassen kann."}}
+    </p>
+    {{else if .Group}}
+    <p><a href="/admin/websites/{{.WebsiteID}}/felder">{{t "&#8592; Alle Felder"}}</a></p>
+    <p class="text-muted">
+        {{tf "Die Felder der Gruppe „%s“ (%s). Sie werden im Editor je Zeile abgefragt — eine Zeile je Öffnungstag, je Teammitglied, je Variante. Im Theme:" .Group.Label .Group.Key}}
+        <code>&#123;&#123;range .Page.Felder.{{.Group.Key}}&#125;&#125;</code>.
+    </p>
+    {{else}}
+    <p class="text-muted">
+        {{th "Eine Seite hat Titel, Adresse und Text. Was darüber hinaus zu einer Seite dieser Website gehört, legst du hier fest: ein Preis, eine Verfügbarkeit, ein Wurfdatum. Die Felder erscheinen im Editor unter dem Inhalt und stehen im Theme als <code>&#123;&#123; .Page.Felder.kennung &#125;&#125;</code> bereit."}}
+    </p>
+    <p class="text-muted">
+        {{th "Eine <strong>Gruppe</strong> ist ein Feld, das mehrfach ausgefüllt wird: Öffnungszeiten, Teammitglieder, Preisstaffeln. Lege sie an und bestimme danach, woraus eine Zeile besteht."}}
+    </p>
+    {{end}}
+</div>
+
+<div class="card">
+    <h2>{{if .BlockType}}{{t "Felder dieses Bausteins"}}{{else if .Group}}{{t "Felder der Gruppe"}}{{else}}{{t "Felder dieser Website"}}{{end}}</h2>
+    {{if .Fields}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>{{t "Beschriftung"}}</th><th>{{t "Kennung"}}</th><th>{{t "Art"}}</th>{{if .Simple}}<th>{{t "Gilt für"}}</th>{{end}}{{if not .BlockType}}<th>{{t "Pflicht"}}</th>{{end}}<th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{$d := .}}
+            {{range .Fields}}
+            <tr>
+                <td>
+                    {{if .IsSection}}<strong>{{.Label}}</strong>{{else}}{{.Label}}{{end}}
+                    {{if .Hint}}<span class="page-slug text-muted">{{.Hint}}</span>{{end}}
+                    {{if .Condition}}<span class="page-slug text-muted">{{tf "nur wenn %s ausgefüllt ist" .Condition}}</span>{{end}}
+                </td>
+                <td><code>{{.Key}}</code></td>
+                <td>{{t .KindLabel}}{{if .IsGroup}} <span class="text-muted">({{len .Sub}})</span>{{end}}</td>
+                {{if $d.Simple}}
+                <td>
+                    {{if eq .AppliesTo "seite"}}{{t "nur Seiten"}}
+                    {{else if eq .AppliesTo "beitrag"}}{{t "nur Beiträge"}}
+                    {{else if ne .AppliesTo "beides"}}{{tf "nur %s" ($d.TypeName .AppliesTo)}}
+                    {{else}}<span class="text-muted">{{t "alles"}}</span>{{end}}
+                </td>
+                {{end}}
+                {{if not $d.BlockType}}
+                <td>{{if .Required}}<span class="badge badge--primary">{{t "Pflicht"}}</span>{{else}}<span class="text-muted">–</span>{{end}}</td>
+                {{end}}
+                <td class="table-actions">
+                    <form method="POST" action="/admin/websites/{{$d.WebsiteID}}/felder/{{.ID}}/verschieben?richtung=hoch">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$d.CSRFToken}}">
+                        <button type="submit" class="reorder-btn" hx-disabled-elt="this"><span aria-hidden="true">&#8593;</span><span class="sr-only">{{tf "%s nach oben" .Label}}</span></button>
+                    </form>
+                    <form method="POST" action="/admin/websites/{{$d.WebsiteID}}/felder/{{.ID}}/verschieben?richtung=runter">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$d.CSRFToken}}">
+                        <button type="submit" class="reorder-btn" hx-disabled-elt="this"><span aria-hidden="true">&#8595;</span><span class="sr-only">{{tf "%s nach unten" .Label}}</span></button>
+                    </form>
+                    {{if .IsGroup}}<a class="btn btn--sm" href="/admin/websites/{{$d.WebsiteID}}/felder?gruppe={{.ID}}">{{t "Felder der Gruppe"}}</a>{{end}}
+                    <a class="btn btn--sm" href="/admin/websites/{{$d.WebsiteID}}/felder?aendern={{.ID}}{{if $d.Group}}&amp;gruppe={{$d.Group.ID}}{{end}}{{if $d.BlockType}}&amp;baustein={{$d.BlockType.ID}}{{end}}">{{t "Ändern"}}</a>
+                    <details class="rowmenu">
+                        <summary class="rowmenu-trigger">
+                            {{template "icon-more"}}<span class="sr-only">{{tf "Weitere Aktionen für %s" .Label}}</span>
+                        </summary>
+                        <div class="rowmenu-menu">
+                            <form method="POST" action="/admin/websites/{{$d.WebsiteID}}/felder/{{.ID}}/loeschen"
+                                  hx-confirm="{{tf "Feld „%s“ entfernen? Das Ausgefüllte bleibt an den Seiten stehen." .Label}}">
+                                <input type="hidden" name="gorilla.csrf.Token" value="{{$d.CSRFToken}}">
+                                <button type="submit" class="rowmenu-item rowmenu-item--danger" hx-disabled-elt="this">{{t "Feld entfernen"}}</button>
+                            </form>
+                        </div>
+                    </details>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">
+        {{if .BlockType}}{{t "Dieser Baustein hat noch keine Felder. Ohne Felder gibt er auf der Seite nichts aus."}}
+        {{else if .Group}}{{t "Diese Gruppe hat noch keine Felder. Ohne Felder gibt es nichts auszufüllen."}}
+        {{else}}{{t "Noch keine eigenen Felder. Ohne sie hat eine Seite genau das, was jede Seite hat — was für Texte reicht und für einen Produktkatalog nicht."}}{{end}}
+    </p>
+    {{end}}
+</div>
+
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{if .Edit}}{{tf "Feld „%s“ ändern" .Edit.Label}}{{else if .BlockType}}{{t "Neues Feld in diesem Baustein"}}{{else if .Group}}{{t "Neues Feld in dieser Gruppe"}}{{else}}{{t "Neues Feld"}}{{end}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/felder">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{if .Edit}}<input type="hidden" name="id" value="{{.Edit.ID}}">{{end}}
+        {{if .Group}}<input type="hidden" name="gruppe" value="{{.Group.ID}}">{{end}}
+        {{if .BlockType}}<input type="hidden" name="baustein" value="{{.BlockType.ID}}">{{end}}
+
+        <div class="form-group">
+            <label class="form-label" for="feld-beschriftung">{{t "Beschriftung"}}</label>
+            <input type="text" id="feld-beschriftung" name="beschriftung" class="form-input" required
+                   maxlength="60" value="{{if .Edit}}{{.Edit.Label}}{{end}}"
+                   placeholder="{{t "z. B. Preis pro Kilo"}}">
+            <p class="form-hint text-muted">
+                {{if .Edit}}
+                {{t "Die Kennung"}} <code>{{.Edit.Key}}</code> {{t "bleibt, auch wenn du die Beschriftung änderst: sonst stünde das Theme plötzlich vor einem Feld, das es nicht mehr gibt."}}
+                {{else}}
+                {{t "Daraus wird die Kennung fürs Theme gebildet. Sie steht danach fest."}}
+                {{end}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="feld-art">{{t "Art"}}</label>
+            <select id="feld-art" name="art" class="form-input">
+                {{$edit := .Edit}}
+                {{range .Kinds}}
+                <option value="{{.Kind}}"{{if and $edit (eq $edit.Kind .Kind)}} selected{{end}}>{{t .Name}} — {{t .Hint}}</option>
+                {{end}}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="feld-auswahl">{{t "Möglichkeiten"}}</label>
+            <textarea id="feld-auswahl" name="auswahl" class="form-input" rows="4"
+                      placeholder="verfügbar&#10;vorbestellbar&#10;vergriffen">{{.EditChoices}}</textarea>
+            <p class="form-hint text-muted">
+                {{t "Nur für die Art „Auswahl“: eine Möglichkeit je Zeile. Sonst bleibt das Feld leer."}}
+            </p>
+        </div>
+
+        {{if .Simple}}
+        <div class="form-group">
+            <label class="form-label" for="feld-gilt">{{t "Gilt für"}}</label>
+            <select id="feld-gilt" name="gilt_fuer" class="form-input">
+                <option value="beides"{{if and .Edit (eq .Edit.AppliesTo "beides")}} selected{{end}}>{{t "Seiten und Beiträge"}}</option>
+                <option value="seite"{{if and .Edit (eq .Edit.AppliesTo "seite")}} selected{{end}}>{{t "Nur Seiten"}}</option>
+                <option value="beitrag"{{if and .Edit (eq .Edit.AppliesTo "beitrag")}} selected{{end}}>{{t "Nur Beiträge"}}</option>
+                {{range .Types}}
+                <option value="{{.Key}}"{{if and $.Edit (eq $.Edit.AppliesTo .Key)}} selected{{end}}>{{tf "Nur %s" .Plural}}</option>
+                {{end}}
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Ein Preis gehört an ein Produkt, ein Autor an einen Beitrag. Beides überall anzuzeigen macht das Formular länger, ohne dass es mehr kann."}}
+            </p>
+        </div>
+        {{end}}
+
+        {{if and .Simple .Controls}}
+        <div class="form-group">
+            <label class="form-label" for="feld-bedingung">{{t "Nur zeigen, wenn"}}</label>
+            <select id="feld-bedingung" name="bedingung" class="form-input form-select">
+                <option value="">{{t "– immer zeigen –"}}</option>
+                {{range .Controls}}
+                <option value="{{.Key}}"{{if and $.Edit (eq $.Edit.Condition .Key)}} selected{{end}}
+                        {{if and $.Edit (eq $.Edit.ID .ID)}}disabled{{end}}>{{tf "%s ist ausgefüllt" .Label}}</option>
+                {{end}}
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Das Feld erscheint im Editor erst, wenn das gewählte Feld ausgefüllt ist — „Sonderpreis“ erst, wenn „Im Angebot“ angekreuzt ist. Solange es nicht erscheint, wird es auch nicht verlangt und im Theme nicht ausgegeben; der einmal eingetragene Wert bleibt aber stehen."}}
+            </p>
+        </div>
+        {{end}}
+
+        <div class="form-group">
+            <label class="form-label" for="feld-hinweis">{{t "Hinweis im Editor"}}</label>
+            <input type="text" id="feld-hinweis" name="hinweis" class="form-input" maxlength="200"
+                   value="{{if .Edit}}{{.Edit.Hint}}{{end}}"
+                   placeholder="{{t "z. B. in Franken, ohne Währungszeichen"}}">
+        </div>
+
+        {{if not .BlockType}}
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" name="pflicht" value="1"{{if and .Edit .Edit.Required}} checked{{end}}>
+                {{t "Muss ausgefüllt werden"}}
+            </label>
+        </div>
+        {{end}}
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+            {{if .Edit}}{{t "Feld speichern"}}{{else}}{{t "Feld anlegen"}}{{end}}
+        </button>
+        {{if .Edit}}
+        <a class="btn" href="/admin/websites/{{.WebsiteID}}/felder{{if .Group}}?gruppe={{.Group.ID}}{{end}}{{if .BlockType}}?baustein={{.BlockType.ID}}{{end}}">{{t "Abbrechen"}}</a>
+        {{end}}
+    </form>
+</div>
+{{end}}

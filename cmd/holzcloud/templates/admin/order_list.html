@@ -1,0 +1,39 @@
+{{define "content"}}
+{{template "order_list-content" .}}
+{{end}}
+
+{{define "order_list-content"}}
+{{if .Orders}}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr><th>Nummer</th><th>Datum</th><th>Kundin/Kunde</th><th>Summe</th><th>Status</th><th>Zahlung</th></tr>
+        </thead>
+        <tbody>
+            {{range .Orders}}
+            <tr>
+                <td><a href="/admin/websites/{{$.CurrentWebsite.ID}}/bestellungen/{{.Number}}">{{.Number}}</a></td>
+                <td style="white-space:nowrap">{{.CreatedAt.Format "02.01.2006"}}</td>
+                <td>
+                    {{.Customer.Name}}
+                    {{if .Customer.Company}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.Customer.Company}}</span>{{end}}
+                </td>
+                <td style="white-space:nowrap">{{$.Currency.Format .Totals.TotalGross}}</td>
+                <td>
+                    {{if eq .Status "new"}}<span class="badge">Neu</span>
+                    {{else if eq .Status "paid"}}<span class="badge badge--primary">Bezahlt</span>
+                    {{else if eq .Status "shipped"}}<span class="badge badge--primary">Versandt</span>
+                    {{else}}<span class="badge">Storniert</span>{{end}}
+                </td>
+                <td class="text-muted" style="font-size:var(--text-sm)">
+                    {{if eq .PaymentStatus "paid"}}bezahlt{{else if eq .PaymentStatus "failed"}}fehlgeschlagen{{else}}offen{{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{else}}
+<div class="card"><p class="text-muted">Noch keine Bestellungen.</p></div>
+{{end}}
+{{end}}

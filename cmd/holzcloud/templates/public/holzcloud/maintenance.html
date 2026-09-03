@@ -1,0 +1,8 @@
+{{define "content"}}
+<section class="hc-wide page-wrap page--kurz">
+  <p class="hc-eyebrow"><span class="hc-status hc-status--warn">Wartung</span></p>
+  <h1 class="hc-title">{{.Page.Title}}</h1>
+  {{with .Meta.Message}}<p class="hc-lede">{{.}}</p>
+  {{else}}<p class="hc-lede">Diese Website wird gerade überarbeitet und ist in Kürze wieder erreichbar.</p>{{end}}
+</section>
+{{end}}

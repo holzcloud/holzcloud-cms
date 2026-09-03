@@ -1,0 +1,63 @@
+{{define "actions"}}
+<a href="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/revisions" class="btn">{{t "Zurück zum Verlauf"}}</a>
+{{end}}
+
+{{define "content"}}
+{{template "page_revision_compare-content" .}}
+{{end}}
+
+{{define "diff-table"}}
+{{/* Eine Tabelle und kein Nebeneinander: zwei Spalten, die unabhängig
+     scrollen, verlieren beim Lesen den Bezug, und auf einem schmalen
+     Bildschirm gibt es sie ohnehin nicht. */}}
+<table class="diff">
+    <tbody>
+        {{range .}}
+        {{if eq (printf "%s" .Kind) "skip"}}
+        <tr class="diff-row diff-row--skip">
+            <td class="diff-no" colspan="2">…</td>
+            <td class="diff-text">{{tf "%d unveränderte Zeilen" .Count}}</td>
+        </tr>
+        {{else}}
+        <tr class="diff-row diff-row--{{.Kind}}">
+            <td class="diff-no">{{if .OldNo}}{{.OldNo}}{{end}}</td>
+            <td class="diff-no">{{if .NewNo}}{{.NewNo}}{{end}}</td>
+            <td class="diff-text"><span class="diff-mark" aria-hidden="true">{{if eq (printf "%s" .Kind) "add"}}+{{else if eq (printf "%s" .Kind) "del"}}−{{else}} {{end}}</span>{{.Text}}</td>
+        </tr>
+        {{end}}
+        {{end}}
+    </tbody>
+</table>
+{{end}}
+
+{{define "page_revision_compare-content"}}
+<div class="card">
+    <p class="text-muted" style="margin-bottom:var(--space-3)">
+        <strong>{{.Page.Title}}</strong> —
+        {{t "verglichen wird"}}
+        <strong>{{if .From.Label}}{{.From.Label}}{{else}}{{.From.When}}{{end}}</strong>
+        {{t "mit"}}
+        <strong>{{if .To.Current}}{{t "der aktuellen Fassung"}}{{else if .To.Label}}{{.To.Label}}{{else}}{{.To.When}}{{end}}</strong>.
+        {{if .From.Who}}<br>{{tf "Ältere Fassung von %s." .From.Who}}{{end}}
+    </p>
+
+    {{if .Unchanged}}
+    <p class="text-muted">{{t "Die beiden Fassungen unterscheiden sich nicht im Text und nicht in den Bausteinen."}}</p>
+    {{else}}
+
+    {{if .TextDiff}}
+    <h3 style="margin-bottom:var(--space-2)">{{t "Text"}}</h3>
+    {{template "diff-table" .TextDiff}}
+    {{end}}
+
+    {{if .BlockDiff}}
+    <h3 style="margin-top:var(--space-4);margin-bottom:var(--space-2)">{{t "Bausteine"}}</h3>
+    <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--space-2)">
+        {{t "Die Bausteine als lesbare Liste, nicht als gespeicherte Form — sonst stünde hier eine einzige lange Zeile."}}
+    </p>
+    {{template "diff-table" .BlockDiff}}
+    {{end}}
+
+    {{end}}
+</div>
+{{end}}

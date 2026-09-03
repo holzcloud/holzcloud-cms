@@ -1,0 +1,117 @@
+{{define "content"}}
+{{template "ai_keys-content" .}}
+{{end}}
+
+{{define "ai_keys-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">
+        {{t "Hier schließt du deinen eigenen KI-Assistenten an dieses CMS an. Er läuft, wo du ihn laufen lässt – auf deinem Rechner, in deinem Konto – und meldet sich mit einem Schlüssel von außen hier an. Dieser Server ruft von sich aus keine KI auf, und es liegt hier auch kein Zugang zu einem Anbieter. Was Besucher im Browser laden, kommt weiterhin ausschließlich von hier."}}
+    </p>
+</div>
+
+{{if .NewKey}}
+<div class="card" style="margin-bottom: var(--space-3); border-color: var(--color-success, currentColor);">
+    <h2>{{tf "Der Schlüssel für „%s“" .NewKeyName}}</h2>
+    <p><code class="secret-value">{{.NewKey}}</code></p>
+    <p class="text-muted">
+        {{t "Das ist die einzige Anzeige. Gespeichert ist nur ein Abdruck davon, also kann ihn auch dieser Server nicht noch einmal hervorholen – wer ihn verliert, zieht ihn zurück und stellt einen neuen aus."}}
+    </p>
+</div>
+{{end}}
+
+<div class="card">
+    <h2>{{t "Verbinden"}}</h2>
+    <p class="text-muted">
+        {{t "Der Assistent spricht MCP – dasselbe Protokoll, das Claude, ChatGPT und die Editoren sprechen. Zwei Angaben braucht er:"}}
+    </p>
+    <dl class="facts">
+        <dt>{{t "Adresse"}}</dt><dd><code>{{.Endpoint}}</code></dd>
+        <dt>{{t "Anmeldung"}}</dt><dd><code>Authorization: Bearer &lt;Schlüssel&gt;</code></dd>
+    </dl>
+    <p class="text-muted">
+        {{t "Neue Seiten entstehen immer als Entwurf. Veröffentlicht wird nur, wenn du ausdrücklich darum bittest – und alles, was der Assistent schreibt, geht durch dieselbe Prüfung wie ein Text aus der Verwaltung: gleiche Adressregeln, gleiche Fassungen, hinterher von Hand zu ändern und zurückzuholen."}}
+    </p>
+</div>
+
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Neuer Schlüssel"}}</h2>
+    <form method="POST" action="/admin/ai/keys">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+        <div class="form-group">
+            <label class="form-label" for="ai-name">{{t "Name"}}</label>
+            <input type="text" id="ai-name" name="name" class="form-input" required maxlength="80"
+                   placeholder="{{t "z. B. Claude auf dem Laptop"}}">
+            <p class="form-hint text-muted">
+                {{t "Nur für dich: woran du später erkennst, welcher Schlüssel wohin gehört."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="ai-website">{{t "Website"}}</label>
+            <select id="ai-website" name="website" class="form-input">
+                <option value="0">{{t "alle Websites"}}</option>
+                {{range .Websites}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Wer nur eine Website betreuen lässt, sollte auch nur an diese herankommen."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="ai-rechte">{{t "Rechte"}}</label>
+            <select id="ai-rechte" name="rechte" class="form-input">
+                <option value="lesen">{{t "nur lesen"}}</option>
+                <option value="schreiben">{{t "lesen und schreiben"}}</option>
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Fang mit „nur lesen“ an. Ein Schlüssel, der nichts ändern kann, bekommt die Werkzeuge zum Ändern gar nicht erst zu sehen."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="ai-tage">{{t "Gültig für"}}</label>
+            <input type="number" id="ai-tage" name="tage" class="form-input" min="0" max="3650" value="0">
+            <p class="form-hint text-muted">
+                {{t "Tage; 0 heißt unbegrenzt. Ein Schlüssel, der an einem Dienstagmorgen aufhört zu funktionieren, ist einer, dessen Ausfall hinterher niemand erklären kann."}}
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Schlüssel ausstellen"}}</button>
+    </form>
+</div>
+
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Ausgestellte Schlüssel"}}</h2>
+    {{if .Keys}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>{{t "Name"}}</th><th>{{t "Website"}}</th><th>{{t "Rechte"}}</th>
+                <th>{{t "Zuletzt benutzt"}}</th><th>{{t "Läuft ab"}}</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{$data := .}}
+            {{range .Keys}}
+            <tr>
+                <td>{{.Name}}</td>
+                <td>{{if .WebsiteID}}{{$data.WebsiteName .WebsiteID}}{{else}}<span class="text-muted">{{t "alle"}}</span>{{end}}</td>
+                <td>{{if .CanWrite}}<span class="badge badge--primary">{{t "lesen und schreiben"}}</span>{{else}}<span class="badge badge--draft">{{t "nur lesen"}}</span>{{end}}</td>
+                <td>{{if .LastUsedAt}}{{.LastUsedAt.Format "02.01.2006 15:04"}}{{else}}<span class="text-muted">{{t "noch nie"}}</span>{{end}}</td>
+                <td>{{if .ExpiresAt}}{{.ExpiresAt.Format "02.01.2006"}}{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td class="table-actions">
+                    <form method="POST" action="/admin/ai/keys/{{.ID}}/revoke">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$data.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Zurückziehen"}}</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Noch kein Schlüssel ausgestellt. Ohne Schlüssel kommt niemand hier hinein."}}</p>
+    {{end}}
+</div>
+{{end}}

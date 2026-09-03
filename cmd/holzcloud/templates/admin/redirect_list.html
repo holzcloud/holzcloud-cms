@@ -1,0 +1,114 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Zurück zu den Seiten"}}</a>{{end}}
+
+{{define "content"}}
+{{template "redirect_list-content" .}}
+{{end}}
+
+{{define "redirect_list-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">
+        {{t "Weiterleitungen halten alte Adressen am Leben. Wenn du eine Seite umbenennst, wird automatisch eine angelegt. Zusätzlich kannst du hier die Adressen einer alten Website eintragen, damit deren Links weiter funktionieren."}}
+    </p>
+</div>
+
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Weiterleitung hinzufügen"}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/redirects">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="from_path">{{t "Alte Adresse"}}</label>
+                <input type="text" id="from_path" name="from_path" class="form-input" required
+                       value="{{.From}}" placeholder="{{t "/alte-seite.html"}}"
+                       {{with .Errors.from_path}}aria-invalid="true" aria-describedby="from-error"{{end}}>
+                {{with .Errors.from_path}}<p class="form-error" id="from-error">{{t .}}</p>{{end}}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="to_path">{{t "Neues Ziel"}}</label>
+                <input type="text" id="to_path" name="to_path" class="form-input" required
+                       value="{{.To}}" placeholder="{{t "/kontakt"}}"
+                       {{with .Errors.to_path}}aria-invalid="true" aria-describedby="to-error"{{end}}>
+                {{with .Errors.to_path}}<p class="form-error" id="to-error">{{t .}}</p>{{end}}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="code">{{t "Art"}}</label>
+                <select id="code" name="code" class="form-input form-select">
+                    <option value="301">{{t "Dauerhaft (301)"}}</option>
+                    <option value="302">{{t "Vorübergehend (302)"}}</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Hinzufügen"}}</button>
+    </form>
+</div>
+
+<div class="card">
+    {{if .Redirects}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Alte Adresse"}}</th>
+                <th scope="col">{{t "Ziel"}}</th>
+                <th scope="col">{{t "Art"}}</th>
+                <th scope="col">{{t "Aufrufe"}}</th>
+                <th scope="col">{{t "Angelegt"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Redirects}}
+            <tr>
+                <td><code>{{.FromPath}}</code></td>
+                <td><code>{{.ToPath}}</code></td>
+                <td class="text-muted">{{.Code}}{{if eq .Source "auto"}} {{t "· automatisch"}}{{end}}</td>
+                <td>{{.Hits}}</td>
+                <td class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</td>
+                <td class="table-actions">
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/redirects/{{.ID}}/delete"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/redirects/{{.ID}}/delete"
+                          hx-confirm="{{t "Diese Weiterleitung löschen?"}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Noch keine Weiterleitungen."}}</p>
+    {{end}}
+</div>
+
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Interne Links, die ins Leere führen"}}</h2>
+    <p class="text-muted">
+        {{t "Geprüft wird jeder Link im Text der eigenen Seiten. Ein Link auf eine gelöschte oder umbenannte Seite fällt sonst niemandem auf, bis ein Besucher darauf klickt."}}
+    </p>
+    {{if .Broken}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Auf Seite"}}</th>
+                <th scope="col">{{t "Link zeigt auf"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Broken}}
+            <tr>
+                <td>{{.OnPage}} <span class="text-muted">/{{.OnPageSlug}}</span></td>
+                <td><code>{{.Target}}</code></td>
+                <td class="table-actions">
+                    <a href="/admin/websites/{{$.WebsiteID}}/pages/{{.OnPageID}}/edit" class="btn btn--sm">{{t "Seite bearbeiten"}}</a>
+                    <a href="/admin/websites/{{$.WebsiteID}}/redirects?from={{.Target}}#from_path" class="btn btn--sm">{{t "Weiterleiten"}}</a>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Alle internen Links führen irgendwohin."}}</p>
+    {{end}}
+</div>
+{{end}}

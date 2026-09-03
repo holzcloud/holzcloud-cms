@@ -1,0 +1,2255 @@
+/* Holzcloud — Standardvorlage
+ *
+ * Warm, handwerklich, ruhig. Grosse Serifen-Überschriften über einer sachlichen
+ * Grotesk, viel Weissraum, Fotos, die aus der Textspalte ausbrechen dürfen.
+ *
+ * Zwei Regeln bestimmen alles andere:
+ *
+ *   1. Kein JavaScript. Nichts hier braucht welches — das Menü ist eine
+ *      Checkbox, die Bewegung kommt aus scroll-getriebenen Animationen.
+ *   2. Nichts wird nachgeladen. Keine Schriftdatei, kein Bild, kein Symbol von
+ *      einem fremden Server; die Schriften sind Systemstapel, die Flächen sind
+ *      Farbverläufe.
+ *
+ * Die --hc-* Werte kommen aus den Einstellungen der jeweiligen Website und
+ * gewinnen über alles hier, weil sie nach dieser Datei gesetzt werden.
+ */
+
+@layer reset, tokens, base, layout, components, utilities;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Ein Sprungziel darf nicht unter dem klebenden Kopf landen. */
+    scroll-padding-block-start: 6rem;
+  }
+
+  img,
+  picture,
+  svg,
+  video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Ein langes Wort ohne Trennmöglichkeit darf die Seite nicht breiter machen
+     als den Bildschirm — sonst wackelt alles waagerecht. */
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  li,
+  dd,
+  dt {
+    overflow-wrap: break-word;
+  }
+}
+
+@layer tokens {
+  :root {
+    /* light-dark() braucht diese Angabe; ohne sie liefert es immer den hellen
+       Wert, auch wenn das Gerät auf dunkel steht. */
+    color-scheme: light dark;
+
+    /* --- Farben ---------------------------------------------------------
+     *
+     * OKLCH, weil gleiche Helligkeitszahlen dort auch gleich hell aussehen:
+     * ein Braun und ein Blau mit L=0.5 wirken in HSL unterschiedlich hell, in
+     * OKLCH nicht. Erst das macht ein Paar aus hellem und dunklem Satz
+     * beherrschbar.
+     *
+     * Jeder Wert liest zuerst den Website-Wert und fällt dann auf den eigenen
+     * zurück. Ein Betrieb, der nichts einstellt, bekommt genau diese Töne. */
+    --paper: var(--hc-paper, light-dark(oklch(0.985 0.008 85), oklch(0.185 0.012 65)));
+    --paper-sunken: light-dark(oklch(0.955 0.014 82), oklch(0.225 0.014 65));
+    --paper-raised: light-dark(oklch(1 0 0), oklch(0.245 0.015 65));
+
+    --ink: var(--hc-ink, light-dark(oklch(0.26 0.022 60), oklch(0.93 0.012 82)));
+    --ink-muted: light-dark(oklch(0.5 0.02 62), oklch(0.7 0.018 78));
+
+    --brand: var(--hc-brand, light-dark(oklch(0.52 0.135 45), oklch(0.75 0.115 55)));
+    --brand-strong: light-dark(oklch(0.42 0.145 43), oklch(0.83 0.1 58));
+    /* Ein Ton der Marke, der als Fläche taugt: dieselbe Farbe, sehr hell
+       gemischt. color-mix spart einen zweiten Wert, der nie mitgepflegt wird. */
+    --brand-wash: color-mix(in oklch, var(--brand) 12%, var(--paper));
+
+    --line: light-dark(oklch(0.87 0.016 80), oklch(0.32 0.016 65));
+    --line-soft: color-mix(in oklch, var(--line) 55%, transparent);
+
+    /* --- Schrift --------------------------------------------------------
+     *
+     * Nur Systemstapel. Eine Webschrift wäre eine Datei, die geladen werden
+     * muss — beim Kompilieren erlaubt, aber sie würde diese Vorlage an eine
+     * bestimmte Schrift binden, statt die Wahl der Website zu lassen. */
+    --font-display: var(--hc-font, "Iowan Old Style", "Palatino Linotype", Palatino,
+      "Book Antiqua", Georgia, "Times New Roman", serif);
+    --font-body: var(--hc-font, Seravek, "Gill Sans Nova", Ubuntu, Calibri,
+      "DejaVu Sans", source-sans-pro, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+
+    /* Fliessende Grössen: clamp() rechnet zwischen Handy und Schreibtisch
+       stufenlos durch, statt an drei Haltepunkten zu springen. */
+    --step--1: clamp(0.875rem, 0.85rem + 0.13vw, 0.95rem);
+    --step-0: clamp(1.05rem, 1.01rem + 0.2vw, 1.175rem);
+    --step-1: clamp(1.25rem, 1.16rem + 0.45vw, 1.55rem);
+    --step-2: clamp(1.5rem, 1.31rem + 0.95vw, 2.1rem);
+    --step-3: clamp(1.9rem, 1.52rem + 1.9vw, 3rem);
+    --step-4: clamp(2.4rem, 1.62rem + 3.9vw, 4.6rem);
+
+    /* --- Maße ------------------------------------------------------------ */
+    --measure: var(--hc-measure, 66ch);
+    --radius: var(--hc-radius, 14px);
+    --radius-sm: calc(var(--radius) * 0.5);
+    --gutter: clamp(1.15rem, 4vw, 2.5rem);
+
+    --space-1: 0.5rem;
+    --space-2: 0.75rem;
+    --space-3: 1.25rem;
+    --space-4: 2rem;
+    --space-5: 3rem;
+    --space-6: clamp(3.5rem, 8vw, 7rem);
+
+    --shadow-soft: 0 1px 2px -1px oklch(0.3 0.03 60 / 0.14),
+      0 8px 24px -12px oklch(0.3 0.03 60 / 0.22);
+    --shadow-lift: 0 2px 4px -2px oklch(0.3 0.03 60 / 0.18),
+      0 18px 40px -18px oklch(0.3 0.03 60 / 0.3);
+
+    --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+    /* Das Raster, das die ganze Vorlage trägt.
+     *
+     * Drei benannte Spuren: content für Text, wide für Bilder, die etwas
+     * ausbrechen dürfen, full für die ganze Breite. Ein Kind sagt nur, in
+     * welcher Spur es liegt — die Ränder rechnet das Raster aus. Ohne das
+     * bräuchte jedes ausbrechende Bild negative Aussenabstände, die bei jeder
+     * Breitenänderung neu falsch sind. */
+    /* Zwei zentrierte Breiten für alles, was kein Ausbrechen braucht: die
+       Textbreite und die etwas grosszügigere Schalenbreite. Sie stimmen mit
+       den Spuren des Rasters unten überein, damit Kopf, Fuss und Textspalte
+       auf derselben Kante stehen. */
+    --shell-text: min(var(--measure), 100% - var(--gutter) * 2);
+    --shell-wide: min(calc(var(--measure) + 18rem), 100% - var(--gutter) * 2);
+    /* Eine dritte, deutlich breitere Bahn für das, was in Spalten steht statt
+       in Zeilen. Das Archiv in Textbreite zu setzen hiess, drei Karten
+       untereinander zu stapeln und rechts daneben eine leere Hälfte zu
+       lassen. */
+    --shell-broad: min(78rem, 100% - var(--gutter) * 2);
+
+    --grid:
+      [full-start] minmax(var(--gutter), 1fr)
+      [wide-start] minmax(0, 9rem)
+      [content-start] min(var(--measure), 100% - var(--gutter) * 2) [content-end]
+      minmax(0, 9rem) [wide-end]
+      minmax(var(--gutter), 1fr) [full-end];
+  }
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    line-height: 1.65;
+    color: var(--ink);
+    background: var(--paper);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    /* Verteilt die Wörter über die Zeilen, statt ein einzelnes hängen zu
+       lassen — der Unterschied, der eine Überschrift gesetzt aussehen lässt. */
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: var(--step-3);
+  }
+
+  h2 {
+    font-size: var(--step-2);
+  }
+
+  h3 {
+    font-size: var(--step-1);
+  }
+
+  p {
+    /* Verhindert die einzelne kurze Zeile am Absatzende. */
+    text-wrap: pretty;
+  }
+
+  a {
+    color: var(--brand);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+    transition: color 0.15s var(--ease);
+  }
+
+  a:hover {
+    color: var(--brand-strong);
+  }
+
+  /* Ein Fokusring, der auf hellem und dunklem Grund sichtbar bleibt. */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--brand) 28%, transparent);
+  }
+
+  /* Seitenwechsel als weicher Übergang, wo der Browser das kann. Rein
+     dekorativ; wo nicht, wechselt die Seite wie immer. */
+  @view-transition {
+    navigation: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    @view-transition {
+      navigation: none;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer layout {
+  /* Die zentrierten Schalen. Kopf, Fuss und die Beitragsnavigation legen
+     mehrere Dinge nebeneinander — im Raster lägen sie alle in derselben Zelle
+     und würden sich gegenseitig verdecken. Genau das machte den Menüknopf auf
+     dem Handy unklickbar. */
+  .shell-text {
+    width: var(--shell-text);
+    margin-inline: auto;
+  }
+
+  .shell-wide {
+    width: var(--shell-wide);
+    margin-inline: auto;
+  }
+
+  /* Nur der Fliesstext ist ein Raster — dort und nur dort muss ein Bild aus
+     der Spalte ausbrechen können. Alles andere ist eine zentrierte Schale.
+     Ein Raster in einem Raster hat die Überschriften zweimal eingerückt: die
+     Archiv-Überschrift stand nicht mehr auf der Kante ihrer Karten. */
+  .prose {
+    display: grid;
+    grid-template-columns: var(--grid);
+    row-gap: var(--space-3);
+  }
+
+  .prose > * {
+    grid-column: content;
+  }
+
+  /* Raster, aber ohne benannte Spuren: die Kinder stehen untereinander, und
+     das Raster liefert nur die Zeilenabstände. row-gap auf einem gewöhnlichen
+     Block ist wirkungslos — das hatte die Abstände auf allen Kopfzeilen und
+     Hinweisseiten verschluckt. */
+  .page-header,
+  .hero__inner,
+  .notice,
+  .search-panel,
+  .page-terms,
+  .page-fields,
+  .post-nav {
+    display: grid;
+    width: var(--shell-text);
+    margin-inline: auto;
+  }
+
+  .preview-banner {
+    width: var(--shell-text);
+    margin-inline: auto;
+  }
+
+  /* Im Archiv richtet sich die Überschrift nach den Karten, nicht nach einer
+     Textspalte, die dort gar nicht vorkommt. */
+  /* Jeder Abschnitt, dessen Inhalt in der breiten Bahn steht, zieht seine
+     Überschrift mit. Die Liste ist beim Hinzufügen eines Abschnitts zu
+     erweitern — dreimal stand eine Überschrift sonst weiter innen als das,
+     was sie überschreibt. */
+  :is(.archive, .shop, .cart, .checkout, .order) > .page-header,
+  .archive-list,
+  .archive-pager {
+    width: var(--shell-broad);
+    margin-inline: auto;
+  }
+
+  main {
+    flex: 1;
+    /* Reichlich, aber nicht mehr so viel, dass unter jeder Seite ein leeres
+       Feld steht. Vorher kamen hier space-6 und am Fuss noch einmal dasselbe
+       zusammen — gut zweihundert Pixel Nichts zwischen Inhalt und Fuss. */
+    padding-block-end: var(--space-5);
+  }
+
+  .prose {
+    row-gap: var(--space-3);
+  }
+
+  /* Ein kurzer Strich in der Farbe der Marke über jedem Abschnitt. Bisher
+     trennte die Abschnitte nur ihre Schriftgrösse, und ein langer Text las
+     sich als eine einzige Fläche. Nicht vor der ersten Überschrift — dort
+     stünde er unter dem Seitenkopf und träfe auf nichts. */
+  .prose > h2 {
+    margin-block-start: var(--space-5);
+  }
+
+  .prose > h2:not(:first-child)::before {
+    content: "";
+    display: block;
+    inline-size: 2.5rem;
+    block-size: 2px;
+    margin-block-end: var(--space-3);
+    border-radius: 2px;
+    background: var(--brand);
+  }
+
+  .prose > h3 {
+    margin-block-start: var(--space-3);
+  }
+
+  .prose > ul,
+  .prose > ol {
+    padding-inline-start: 1.4em;
+    display: grid;
+    row-gap: var(--space-1);
+  }
+
+  .prose > blockquote {
+    border-inline-start: 3px solid var(--brand);
+    padding-inline-start: var(--space-3);
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-style: italic;
+    color: var(--ink-muted);
+  }
+
+  .prose > hr {
+    border: 0;
+    border-block-start: 1px solid var(--line);
+    margin-block: var(--space-4);
+  }
+
+  .prose > pre {
+    grid-column: wide;
+    overflow-x: auto;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--paper-sunken);
+    border: 1px solid var(--line-soft);
+    font-size: var(--step--1);
+  }
+
+  /* Ein Bild, das allein in seinem Absatz steht, war als Bild gemeint und
+     nicht als Teil eines Satzes — also darf es aus der Textspalte
+     heraustreten. :has() macht diese Unterscheidung erst möglich. */
+  .prose > p:has(> img:only-child),
+  .prose > figure,
+  .prose > table {
+    grid-column: wide;
+  }
+
+  .prose img {
+    width: 100%;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Ein einzelnes Bild darf breit sein, aber nicht den ganzen Bildschirm
+     füllen: ein hochformatiges Foto schob den Text sonst so weit nach unten,
+     dass zwischen zwei Absätzen einmal komplett gescrollt werden musste. */
+  .prose > p:has(> img:only-child) > img,
+  .prose > figure > img {
+    max-height: 68svh;
+    object-fit: cover;
+  }
+
+  .prose > table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+  }
+
+  .prose th,
+  .prose td {
+    text-align: start;
+    padding: var(--space-2);
+    border-block-end: 1px solid var(--line-soft);
+  }
+
+  .prose figcaption {
+    margin-block-start: var(--space-1);
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+}
+
+@layer components {
+  /* --- Sprungmarke ------------------------------------------------------ */
+
+  .skip-link {
+    position: absolute;
+    inset-inline-start: var(--space-3);
+    inset-block-start: var(--space-3);
+    z-index: 100;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--brand);
+    color: var(--paper);
+    text-decoration: none;
+    transform: translateY(-160%);
+    transition: transform 0.18s var(--ease);
+  }
+
+  .skip-link:focus-visible {
+    transform: translateY(0);
+    color: var(--paper);
+  }
+
+  /* --- Kopf ------------------------------------------------------------- */
+
+  .site-header {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 50;
+    background: color-mix(in oklch, var(--paper) 82%, transparent);
+    border-block-end: 1px solid transparent;
+    /* Der Weichzeichner lässt den klebenden Kopf über Text nicht wie einen
+       Balken aussehen. Wo er fehlt, trägt die Mischung darüber. */
+    backdrop-filter: blur(14px) saturate(1.4);
+  }
+
+  .site-header__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block: var(--space-3);
+  }
+
+  /* Der Kopf bekommt seine Linie erst, wenn gescrollt wurde — ohne ein
+     einziges Zeichen JavaScript. Wo scroll() fehlt, bleibt er randlos, was
+     auch in Ordnung aussieht. */
+  @supports (animation-timeline: scroll()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .site-header {
+        animation: header-settle linear both;
+        animation-timeline: scroll();
+        animation-range: 0 5rem;
+      }
+
+      @keyframes header-settle {
+        to {
+          border-block-end-color: var(--line);
+          box-shadow: 0 6px 20px -18px oklch(0.3 0.03 60 / 0.5);
+        }
+      }
+    }
+  }
+
+  .site-brand {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-2);
+    color: inherit;
+    text-decoration: none;
+    /* Der Name bleibt beim Seitenwechsel stehen, statt mitzublenden. */
+    view-transition-name: site-brand;
+  }
+
+  .site-brand__logo {
+    max-height: 2.75rem;
+    width: auto;
+  }
+
+  .site-brand__text {
+    display: grid;
+  }
+
+  .site-brand__name {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  .site-brand__tagline {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    line-height: 1.3;
+  }
+
+  /* Auf schmalen Schirmen umbricht der Untertitel und schiebt den Kopf auf
+     drei Zeilen. Er steht im Fuss noch einmal, also fehlt hier nichts. */
+  @media (max-width: 32rem) {
+    .site-brand__tagline {
+      display: none;
+    }
+  }
+
+  /* --- Navigation ------------------------------------------------------- */
+
+  .nav-switch {
+    /* Erreichbar für die Tastatur, unsichtbar für das Auge: display:none nähme
+       ihr den Fokus und damit die Bedienbarkeit ganz. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .nav-button {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.5em 0.9em;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper-raised);
+    font-size: var(--step--1);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .nav-button__bars {
+    display: grid;
+    gap: 4px;
+    width: 1em;
+  }
+
+  .nav-button__bars span {
+    display: block;
+    height: 1.5px;
+    background: currentColor;
+    border-radius: 2px;
+    transition: transform 0.2s var(--ease);
+  }
+
+  .nav-switch:focus-visible + .site-header .nav-button {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+  }
+
+  .nav-switch:checked + .site-header .nav-button__bars span:first-child {
+    transform: translateY(2.75px) rotate(45deg);
+  }
+
+  .nav-switch:checked + .site-header .nav-button__bars span:last-child {
+    transform: translateY(-2.75px) rotate(-45deg);
+  }
+
+  .site-nav {
+    display: none;
+  }
+
+  .nav-switch:checked + .site-header .site-nav {
+    display: block;
+    padding-block-end: var(--space-3);
+  }
+
+  .site-nav ul {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .site-nav a,
+  .site-nav span {
+    display: block;
+    padding: 0.45em 0.7em;
+    border-radius: var(--radius-sm);
+    color: inherit;
+    text-decoration: none;
+    font-size: var(--step--1);
+  }
+
+  .site-nav a:hover {
+    background: var(--brand-wash);
+    color: var(--brand-strong);
+  }
+
+  .site-nav a[aria-current="page"] {
+    background: var(--brand-wash);
+    color: var(--brand-strong);
+    font-weight: 600;
+  }
+
+  /* Untermenüs eingerückt statt aufklappend: ein Aufklappmenü ohne
+     JavaScript ist entweder mit der Tastatur unbedienbar oder eine Falle für
+     den Finger. */
+  .site-nav li ul {
+    margin-inline-start: var(--space-3);
+    padding-inline-start: var(--space-1);
+    border-inline-start: 1px solid var(--line-soft);
+  }
+
+  @media (min-width: 52rem) {
+    .nav-button {
+      display: none;
+    }
+
+    /* Ab hier stehen Name und Navigation in einer Zeile. Der Hintergrund des
+       Kopfes soll dabei über die volle Breite laufen, der Inhalt aber zentriert
+       stehen — deshalb wird der Rand als Innenabstand gerechnet statt über eine
+       zentrierte Schale, die den Hintergrund mit beschneiden würde. */
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding-inline: calc((100% - var(--shell-wide)) / 2);
+    }
+
+    .site-header > .site-header__bar,
+    .site-header > .site-nav {
+      width: auto;
+      margin-inline: 0;
+    }
+
+    .site-header__bar {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .site-nav,
+    .nav-switch:checked + .site-header .site-nav {
+      display: block;
+      flex: none;
+      padding-block-end: 0;
+    }
+
+    .site-nav > ul {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    /* Auf breiten Schirmen nur die erste Ebene; die zweite steht im
+       Fussmenü und auf der Seite selbst. */
+    .site-nav li ul {
+      display: none;
+    }
+  }
+
+  /* --- Aufmacher -------------------------------------------------------- */
+
+  .hero {
+    padding-block: var(--space-6) var(--space-5);
+    /* Ein sehr weicher Farbschimmer statt eines Fotos: kostet kein Byte, lädt
+       nichts nach und trägt die Überschrift trotzdem. */
+    background:
+      radial-gradient(80ch 40ch at 15% -10%, var(--brand-wash), transparent 70%),
+      radial-gradient(60ch 30ch at 95% 0%, color-mix(in oklch, var(--brand) 7%, transparent), transparent 65%);
+  }
+
+  .hero__inner {
+    row-gap: var(--space-3);
+  }
+
+  .hero__title {
+    font-size: var(--step-4);
+    letter-spacing: -0.03em;
+    max-width: 18ch;
+  }
+
+  /* Auf der Startseite trägt der erste Absatz den Vorspann. Ein eigenes
+     Vorspannfeld gibt es nicht: der Auszug wird automatisch aus dem Text
+     abgeleitet, und beides zu zeigen hiesse, denselben Satz zweimal zu
+     drucken. */
+  .page--home .prose > p:first-of-type {
+    font-size: var(--step-1);
+    line-height: 1.5;
+    color: var(--ink-muted);
+  }
+
+  /* --- Seitenkopf ------------------------------------------------------- */
+
+  .page-header {
+    padding-block: var(--space-5) var(--space-4);
+    row-gap: var(--space-2);
+  }
+
+  .page-header__kicker {
+    font-size: var(--step--1);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+  }
+
+  .page-header__kicker a {
+    color: inherit;
+  }
+
+  .page-header__title {
+    font-size: var(--step-3);
+    max-width: 22ch;
+  }
+
+  .page-header__meta {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* --- Schaltflächen ---------------------------------------------------- */
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 0.7em 1.4em;
+    border: 1px solid var(--brand);
+    border-radius: 999px;
+    background: var(--brand);
+    color: var(--paper);
+    font-size: var(--step--1);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      transform 0.15s var(--ease),
+      background 0.15s var(--ease),
+      box-shadow 0.15s var(--ease);
+  }
+
+  .button:hover {
+    background: var(--brand-strong);
+    border-color: var(--brand-strong);
+    color: var(--paper);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .button:active {
+    transform: translateY(0);
+  }
+
+  .button--quiet {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+
+  .button--quiet:hover {
+    background: var(--brand-wash);
+    color: var(--brand-strong);
+    border-color: var(--brand);
+  }
+
+  /* --- Archiv ----------------------------------------------------------- */
+
+  /* Ein Raster, das sich selbst einteilt: so viele Spalten, wie bei 21rem
+     Mindestbreite hineinpassen. min(100%, …) ist das Entscheidende — ohne es
+     wird die Spur auf einem schmalen Gerät breiter als der Bildschirm und die
+     ganze Seite lässt sich seitwärts schieben. */
+  .archive-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+    gap: var(--space-4);
+  }
+
+  /* Der neueste Beitrag über die ganze Breite. Ein Archiv, in dem alles gleich
+     gross ist, überlässt dem Leser die Frage, wo er anfangen soll. */
+  .archive-entry--lead {
+    grid-column: 1 / -1;
+  }
+
+  /* Nebeneinander, sobald die Karte selbst breit genug ist — nicht, sobald das
+     Fenster es ist. Die Karte weiss, wie breit sie geworden ist; das Fenster
+     weiss es nicht. */
+  @container (min-width: 42rem) {
+    .archive-entry--lead .card {
+      grid-template-columns: 1.15fr 1fr;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-4);
+    }
+
+    /* Flacher als die kleinen Karten, nicht höher: bei 4/3 wurde der Aufmacher
+       über fünfhundert Pixel hoch und der Text stand als schmale Insel in der
+       Mitte daneben. */
+    .archive-entry--lead .card__media img {
+      aspect-ratio: 16 / 10;
+    }
+
+    .archive-entry--lead .card__title {
+      font-size: var(--step-2);
+    }
+  }
+
+  .archive-entry {
+    /* Jede Karte fragt nach ihrer eigenen Breite, nicht nach der des
+       Fensters. Dieselbe Karte in einer schmalen Spalte verhält sich damit
+       wie auf einem Handy — was sie soll. */
+    container-type: inline-size;
+  }
+
+  .card {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+    /* Karten in einem Raster sind unterschiedlich hoch. Ohne das steht der
+       Schlagwort-Streifen jeder Karte auf einer anderen Höhe. */
+    align-content: start;
+    height: 100%;
+    transition:
+      transform 0.2s var(--ease),
+      box-shadow 0.2s var(--ease),
+      border-color 0.2s var(--ease);
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lift);
+    border-color: color-mix(in oklch, var(--brand) 35%, var(--line));
+  }
+
+  .card__media img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+  }
+
+  .card__body {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+  }
+
+  .card__date {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .card__title {
+    font-size: var(--step-1);
+  }
+
+  .card__title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .card__title a:hover {
+    color: var(--brand);
+  }
+
+  .card__excerpt {
+    color: var(--ink-muted);
+  }
+
+  .archive-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-block-start: var(--space-5);
+  }
+
+  .archive-pager__position {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .archive-empty {
+    color: var(--ink-muted);
+  }
+
+  /* --- Schlagwörter ----------------------------------------------------- */
+
+  .term-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .term {
+    display: inline-block;
+    padding: 0.2em 0.75em;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper);
+    color: var(--ink-muted);
+    font-size: var(--step--1);
+    text-decoration: none;
+    transition:
+      border-color 0.15s var(--ease),
+      color 0.15s var(--ease);
+  }
+
+  .term:hover {
+    border-color: var(--brand);
+    color: var(--brand-strong);
+  }
+
+  .page-terms {
+    margin-block-start: var(--space-4);
+  }
+
+  /* --- Blättern zwischen Beiträgen -------------------------------------- */
+
+  .post-nav {
+    display: grid;
+    gap: var(--space-2);
+    margin-block-start: var(--space-6);
+    padding-block-start: var(--space-4);
+    border-block-start: 1px solid var(--line);
+  }
+
+  /* Ein Feld statt einer nackten Zeile: der Nachbarbeitrag ist am Ende eines
+     Textes das einzige Angebot weiterzulesen, und als hängender Link rechts
+     aussen sah er aus wie eine Fussnote. */
+  .post-nav__link {
+    display: grid;
+    gap: 0.2em;
+    padding: var(--space-3);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 0.2s var(--ease),
+      background 0.2s var(--ease);
+  }
+
+  .post-nav__link:hover {
+    border-color: color-mix(in oklch, var(--brand) 35%, var(--line));
+    background: var(--paper-raised);
+  }
+
+  .post-nav__label {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .post-nav__title {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    line-height: 1.2;
+  }
+
+  .post-nav__link:hover .post-nav__title {
+    color: var(--brand);
+  }
+
+  .post-nav__index {
+    justify-self: center;
+    font-size: var(--step--1);
+  }
+
+  @media (min-width: 46rem) {
+    .post-nav {
+      /* Zwei gleiche Felder, das Register darunter über beide. Vorher lagen
+         hier drei Spalten nebeneinander — fehlte einer der beiden Nachbarn,
+         stand der andere allein an einer Aussenkante und die Zeile kippte. */
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-3);
+    }
+
+    .post-nav__prev {
+      grid-column: 1;
+    }
+
+    .post-nav__next {
+      grid-column: 2;
+      text-align: end;
+    }
+
+    .post-nav__index {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      margin-block-start: var(--space-1);
+    }
+
+    /* Der erste und der letzte Beitrag haben nur einen Nachbarn. Dann nimmt er
+       die ganze Zeile, statt dass daneben eine leere Spalte steht. */
+    .post-nav:not(:has(.post-nav__prev)) .post-nav__next,
+    .post-nav:not(:has(.post-nav__next)) .post-nav__prev {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* --- Suche ------------------------------------------------------------ */
+
+  .search-panel {
+    row-gap: var(--space-4);
+  }
+
+  .search-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .search-form input[type="search"] {
+    flex: 1 1 16rem;
+    padding: 0.7em 1em;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper-raised);
+  }
+
+  .search-count {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .search-results {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .search-result__title {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .search-result__title:hover {
+    color: var(--brand);
+  }
+
+  .search-result__snippet {
+    color: var(--ink-muted);
+  }
+
+  .search-result__snippet mark {
+    padding: 0 0.15em;
+    border-radius: 3px;
+    background: color-mix(in oklch, var(--brand) 22%, transparent);
+    color: inherit;
+  }
+
+  .search-empty {
+    color: var(--ink-muted);
+  }
+
+  /* --- Hinweisseiten (404, Wartung, Passwort) --------------------------- */
+
+  .notice {
+    padding-block: var(--space-6);
+    row-gap: var(--space-3);
+    justify-items: start;
+  }
+
+  .notice__code {
+    font-family: var(--font-display);
+    font-size: var(--step-4);
+    line-height: 1;
+    color: var(--brand);
+    opacity: 0.35;
+  }
+
+  .notice__title {
+    font-size: var(--step-3);
+  }
+
+  .notice__text {
+    color: var(--ink-muted);
+    max-width: 44ch;
+  }
+
+  .notice__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+  }
+
+  /* --- Passwortgeschützte Seite ----------------------------------------- */
+
+  .gate-hint {
+    color: var(--ink-muted);
+  }
+
+  .gate-error {
+    padding: 0.7em 1em;
+    border-inline-start: 3px solid oklch(0.58 0.19 27);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklch, oklch(0.58 0.19 27) 10%, transparent);
+  }
+
+  .gate-form {
+    display: grid;
+    gap: var(--space-3);
+    width: min(100%, 26rem);
+    margin-block-start: var(--space-2);
+  }
+
+  .gate-form__field {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .gate-form__field label {
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+
+  .gate-form input {
+    width: 100%;
+    padding: 0.7em 1em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper-raised);
+  }
+
+  .gate-form__submit {
+    justify-self: start;
+  }
+
+  /* --- Kontaktformular --------------------------------------------------
+   *
+   * Das Markup kommt aus internal/contactform und ist fest; hier wird es nur
+   * gekleidet. Die Klassennamen sind darum Vertrag, nicht Geschmack. */
+
+  .contact-form {
+    display: grid;
+    gap: var(--space-3);
+    max-width: 38rem;
+    margin-block: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .contact-form__field {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .contact-form__field label {
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+
+  .contact-form input,
+  .contact-form textarea {
+    width: 100%;
+    padding: 0.7em 1em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .contact-form input:focus,
+  .contact-form textarea:focus {
+    border-color: var(--brand);
+  }
+
+  .contact-form textarea {
+    resize: vertical;
+    min-height: 9rem;
+    /* Wächst mit dem Text, wo der Browser das kann — spart das Ziehen an der
+       Ecke, das auf dem Handy ohnehin niemand trifft. */
+    field-sizing: content;
+  }
+
+  .contact-form__submit {
+    justify-self: start;
+    padding: 0.7em 1.4em;
+    border: 1px solid var(--brand);
+    border-radius: 999px;
+    background: var(--brand);
+    color: var(--paper);
+    font-size: var(--step--1);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .contact-form__submit:hover {
+    background: var(--brand-strong);
+    border-color: var(--brand-strong);
+  }
+
+  .contact-form__notice {
+    padding: 0.8em 1em;
+    border-inline-start: 3px solid var(--brand);
+    border-radius: var(--radius-sm);
+    background: var(--brand-wash);
+  }
+
+  .contact-form__notice--error {
+    border-inline-start-color: oklch(0.58 0.19 27);
+    background: color-mix(in oklch, oklch(0.58 0.19 27) 10%, transparent);
+  }
+
+  .contact-form__alternative {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* Die Falle. Sie muss für ein Programm, das das Markup liest, erreichbar
+     sein und für jeden anderen unsichtbar — was display:none ausschliesst,
+     weil die sorgfältigeren Bots genau solche Felder überspringen. */
+  .contact-form__trap {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* --- Vorschau-Hinweis -------------------------------------------------- */
+
+  /* Absichtlich laut. Wer Vorschau und Live-Seite nicht unterscheiden kann,
+     meldet die Seite als veröffentlicht, und niemand glaubt ihm, bis sie es
+     ist. */
+  .preview-banner {
+    margin-block: var(--space-3) 0;
+    padding: 0.8em 1.1em;
+    border: 2px dashed var(--brand);
+    border-radius: var(--radius-sm);
+    background: var(--brand-wash);
+    font-size: var(--step--1);
+  }
+
+
+  /* --- Shop ------------------------------------------------------------- */
+
+  /* Dasselbe selbsteinteilende Raster wie im Archiv. Produkte sind das, wofür
+     ein Raster gemacht ist: gleichartige Dinge, die nebeneinander verglichen
+     werden. */
+  .product-grid {
+    list-style: none;
+    padding: 0;
+    width: var(--shell-broad);
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+    gap: var(--space-4);
+  }
+
+  .product-card__subtitle {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* Ausverkauftes bleibt sichtbar, aber tritt zurück. Es zu verstecken hiesse,
+     dem Besucher die Antwort auf "gibt es das noch?" vorzuenthalten. */
+  .product-card--sold-out .card__media img {
+    filter: grayscale(1);
+    opacity: 0.65;
+  }
+
+  .product-card__sold-out {
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--ink-muted);
+  }
+
+  /* --- Preis ------------------------------------------------------------ */
+
+  /* Der Preis kommt als fertige Zeichenkette an, mit geschütztem Leerzeichen.
+     Hier wird nur gesetzt, nie gerechnet. */
+  .price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15em 0.6em;
+    margin-block-start: var(--space-1);
+  }
+
+  .price__amount {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .price--large .price__amount {
+    font-size: var(--step-2);
+  }
+
+  .price__note,
+  .price__other {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* --- Preisumschaltung -------------------------------------------------- */
+
+  /* Zwei Schaltflächen in einem Formular, kein Skript: die Wahl geht an den
+     Server und kommt als Cookie zurück. */
+  .price-switch {
+    width: var(--shell-broad);
+    margin-inline: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-block-end: var(--space-4);
+  }
+
+  .price-switch__label {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .price-switch__options {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper-sunken);
+  }
+
+  .price-switch__option {
+    padding: 0.35em 0.9em;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-muted);
+    font: inherit;
+    font-size: var(--step--1);
+    cursor: pointer;
+  }
+
+  .price-switch__option.is-active {
+    background: var(--paper-raised);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shop-categories {
+    width: var(--shell-broad);
+    margin-inline: auto;
+    margin-block-end: var(--space-4);
+  }
+
+  .term.is-active {
+    border-color: var(--brand);
+    color: var(--brand);
+  }
+
+  .shop-note {
+    width: var(--shell-broad);
+    margin-inline: auto;
+    margin-block-start: var(--space-4);
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* --- Produktseite ------------------------------------------------------ */
+
+  .product {
+    display: grid;
+    gap: var(--space-4);
+    width: var(--shell-broad);
+    margin-inline: auto;
+    container-type: inline-size;
+  }
+
+  /* Bild und Kaufteil nebeneinander, sobald die Spalte es hergibt. Gefragt
+     wird die Breite des Blocks, nicht die des Fensters. */
+  @container (min-width: 44rem) {
+    .product {
+      grid-template-columns: 1.2fr 1fr;
+      align-items: start;
+      gap: var(--space-5);
+    }
+  }
+
+  .product__image {
+    width: 100%;
+    max-height: 62svh;
+    object-fit: cover;
+    border-radius: var(--radius);
+  }
+
+  .product__gallery {
+    list-style: none;
+    padding: 0;
+    margin-block-start: var(--space-2);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+    gap: var(--space-2);
+  }
+
+  .product__gallery img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+  }
+
+  .product__buy {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    padding: var(--space-4);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+    /* Der Kaufteil bleibt beim Blättern durch eine lange Beschreibung stehen. */
+    position: sticky;
+    top: calc(var(--space-6) + 1rem);
+  }
+
+  @media (max-width: 44rem) {
+    .product__buy {
+      position: static;
+    }
+  }
+
+  .product__stock,
+  .product__delivery,
+  .product__shipping,
+  .product__sku {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .product__sold-out {
+    font-weight: 600;
+    color: var(--ink-muted);
+  }
+
+  .product__form {
+    display: grid;
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+  }
+
+  .product__quantity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .product__quantity input {
+    /* Ein Feld, das sich nach seinem Inhalt richtet — zwei Ziffern brauchen
+       keine acht Zeichen Breite. */
+    field-sizing: content;
+    min-width: 3.5rem;
+    padding: 0.45em 0.6em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    color: inherit;
+    font: inherit;
+  }
+
+  .product__submit {
+    justify-self: start;
+  }
+
+  .product__description {
+    margin-block-start: var(--space-5);
+  }
+
+
+  /* --- Warenkorb -------------------------------------------------------- */
+
+  .cart-lines {
+    list-style: none;
+    padding: 0;
+    width: var(--shell-broad);
+    margin-inline: auto;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  /* Auf dem Handy stapelt sich alles; ab 44rem stehen Bild, Text, Menge und
+     Preis in einer Zeile. Ein benanntes Raster, damit die Spalten unter allen
+     Zeilen dieselben sind — sonst tanzt jede Zeile für sich. */
+  .cart-line {
+    display: grid;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
+    padding: var(--space-3);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+
+  @media (min-width: 44rem) {
+    .cart-line {
+      grid-template-columns: 1fr auto auto auto;
+    }
+
+    /* Die Bildspalte nur, wo ein Bild steht. Ohne :has() rutschte der Titel
+       in die 6rem breite Spalte und brach nach jedem Wort um. */
+    .cart-line:has(.cart-line__media) {
+      grid-template-columns: 6rem 1fr auto auto auto;
+    }
+  }
+
+  .cart-line--gone {
+    border-color: color-mix(in oklch, var(--brand) 45%, var(--line));
+  }
+
+  .cart-line--gone .cart-line__media img {
+    filter: grayscale(1);
+    opacity: 0.6;
+  }
+
+  .cart-line__media img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+  }
+
+  .cart-line__title {
+    font-size: var(--step-0);
+    font-family: var(--font-display);
+  }
+
+  .cart-line__title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .cart-line__title a:hover {
+    color: var(--brand);
+  }
+
+  .cart-line__subtitle,
+  .cart-line__unit {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .cart-line__gone {
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--brand-strong);
+  }
+
+  .cart-line__quantity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .cart-line__quantity input {
+    field-sizing: content;
+    min-width: 3.5rem;
+    padding: 0.4em 0.5em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+  }
+
+  .cart-line__price {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Entfernen ist ein Formular-Knopf, sieht aber aus wie ein Link: er hat
+     keine Wichtigkeit, die eine Schaltfläche behaupten würde. */
+  .cart-line__drop {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-muted);
+    font-size: var(--step--1);
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    cursor: pointer;
+  }
+
+  .cart-line__drop:hover {
+    color: var(--brand);
+  }
+
+  .cart-blocked {
+    width: var(--shell-broad);
+    margin-inline: auto;
+    margin-block-end: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--brand);
+    border-radius: var(--radius);
+    background: var(--brand-wash);
+  }
+
+  .cart-summary {
+    width: var(--shell-broad);
+    margin-inline: auto;
+    margin-block-start: var(--space-4);
+    display: grid;
+    gap: var(--space-2);
+    justify-items: end;
+  }
+
+  .cart-totals {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 0.35em var(--space-4);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cart-totals dt {
+    color: var(--ink-muted);
+  }
+
+  .cart-totals dd {
+    margin: 0;
+    text-align: end;
+  }
+
+  .cart-totals__tax {
+    font-size: var(--step--1);
+  }
+
+  .cart-totals__sum {
+    padding-block-start: var(--space-2);
+    border-block-start: 1px solid var(--line);
+    font-size: var(--step-1);
+    font-weight: 600;
+    font-family: var(--font-display);
+  }
+
+  .cart-totals__note {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .cart-checkout {
+    margin-block-start: var(--space-2);
+  }
+
+  .cart-continue {
+    font-size: var(--step--1);
+  }
+
+  .cart-empty {
+    color: var(--ink-muted);
+  }
+
+  /* Der Warenkorb im Kopf: eine Zahl, die nur erscheint, wenn etwas drin ist. */
+  .cart-badge {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+    padding: 0.35em 0.8em;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: inherit;
+    text-decoration: none;
+    font-size: var(--step--1);
+  }
+
+  .cart-badge:hover {
+    border-color: var(--brand);
+    color: var(--brand);
+  }
+
+  .cart-badge__count {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+
+  /* --- Kasse ------------------------------------------------------------ */
+
+  .checkout__grid {
+    width: var(--shell-broad);
+    margin-inline: auto;
+    display: grid;
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  /* Die Zusammenfassung bleibt beim Ausfüllen des Formulars im Blick. */
+  @media (min-width: 52rem) {
+    .checkout__grid {
+      grid-template-columns: 1.5fr 1fr;
+    }
+
+    .checkout__summary {
+      position: sticky;
+      top: calc(var(--space-6) + 1rem);
+    }
+  }
+
+  .checkout__form {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .checkout__group {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+
+  .checkout__group legend {
+    padding-inline: var(--space-2);
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+
+  .field {
+    display: grid;
+    gap: 0.3em;
+  }
+
+  .field label {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .field input,
+  .field textarea,
+  .field__select {
+    padding: 0.6em 0.7em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    color: inherit;
+    font: inherit;
+  }
+
+  .field input:user-invalid {
+    border-color: var(--brand);
+  }
+
+  .field__error {
+    font-size: var(--step--1);
+    color: var(--brand-strong);
+  }
+
+  /* PLZ und Ort nebeneinander — aber nur, solange sie nebeneinander passen.
+     Ein Eingabefeld ist von sich aus rund 180px breit und schrumpft nicht von
+     allein: zwei davon in einer Zeile haben die ganze Kasse auf dem Telefon
+     über den Rand geschoben, und zwar waagrecht scrollbar statt umgebrochen.
+     Genau das Gerät, auf dem hier mit TWINT bezahlt wird. */
+  .field-row {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: 7rem 1fr;
+  }
+
+  .field-row > .field {
+    min-inline-size: 0;
+  }
+
+  .field-row input {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  @media (max-width: 26rem) {
+    .field-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .choice {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.2em var(--space-2);
+    align-items: baseline;
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .choice:hover {
+    background: var(--paper-sunken);
+  }
+
+  .choice__note {
+    grid-column: 2;
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .choice--confirm {
+    border: 1px solid var(--line);
+    background: var(--brand-wash);
+  }
+
+  .checkout__policy {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .checkout__submit {
+    justify-self: start;
+  }
+
+  .checkout__summary {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: var(--paper-sunken);
+  }
+
+  .checkout__summary-title {
+    font-size: var(--step-1);
+  }
+
+  .checkout__lines {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .checkout__lines li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: var(--space-2);
+    font-size: var(--step--1);
+  }
+
+  .checkout__line-qty {
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .checkout__line-price {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* --- Bestellbestätigung ------------------------------------------------ */
+
+  .order__body {
+    width: var(--shell-text);
+    margin-inline: auto;
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .order__facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    padding-block-start: var(--space-3);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .order__facts dt {
+    color: var(--ink-muted);
+    font-size: var(--step--1);
+  }
+
+  .order__facts dd {
+    margin: 0;
+  }
+
+  .order__policy {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* The sentence that tells the customer whether they still owe something.
+     Quieter than the method above it, but not so quiet it goes unread. */
+  .order__payment-note {
+    display: inline-block;
+    margin-block-start: 0.25rem;
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+
+  /* --- Fuss ------------------------------------------------------------- */
+
+  /* Kein Aussenabstand mehr: die Tönung und die Linie trennen den Fuss
+     deutlich genug, und der Abstand darüber war leerer Papierrand. */
+  .site-footer {
+    padding-block: var(--space-5) var(--space-4);
+    border-block-start: 1px solid var(--line);
+    background: var(--paper-sunken);
+  }
+
+  .site-footer__inner {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  /* Drei Spalten nebeneinander statt Marke links, Menü rechts und die Themen
+     quer darunter — so stand die rechte Hälfte des Fusses leer. */
+  @media (min-width: 52rem) {
+    .site-footer__inner {
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: var(--space-5);
+      align-items: start;
+    }
+  }
+
+  .site-footer__name {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+  }
+
+  .site-footer__tagline {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .site-footer__heading {
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink-muted);
+    margin-block-end: var(--space-2);
+  }
+
+  /* Untereinander, sobald der Fuss in Spalten steht: eine Spalte, in der die
+     Einträge nebeneinander umbrechen, sieht neben zwei ordentlichen Spalten
+     aus wie ein Versehen. */
+  .footer-nav ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  @media (min-width: 52rem) {
+    .footer-nav ul {
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+  }
+
+  .footer-nav a,
+  .footer-nav span {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    text-decoration: none;
+  }
+
+  .footer-nav a:hover {
+    color: var(--brand);
+    text-decoration: underline;
+  }
+
+  .footer-nav li ul {
+    display: none;
+  }
+
+  .site-footer__legal {
+    margin-block-start: var(--space-4);
+    padding-inline: var(--gutter);
+    text-align: center;
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+}
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Karten und Bilder blenden beim Hereinscrollen auf. Rein über die
+     Bildlaufleiste gesteuert, ohne Beobachter und ohne Zeitgeber — wo der
+     Browser das nicht kann, steht einfach alles sofort da. */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .archive-entry,
+      .prose > p:has(> img:only-child),
+      .prose > figure {
+        animation: rise-in linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 40%;
+      }
+
+      @keyframes rise-in {
+        from {
+          opacity: 0;
+          transform: translateY(1.5rem);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+    }
+  }
+
+  /* Gedruckt werden Preisliste und Impressum. Was auf Papier nichts verloren
+     hat, geht weg; Adressen hinter Links werden ausgeschrieben. */
+  @media print {
+    .site-header,
+    .site-nav,
+    .nav-button,
+    .post-nav,
+    .archive-pager,
+    .skip-link,
+    .contact-form,
+    .search-form {
+      display: none !important;
+    }
+
+    body {
+      background: #fff;
+      color: #000;
+      font-size: 11pt;
+    }
+
+    .prose a[href^="http"]::after {
+      content: " (" attr(href) ")";
+      font-size: 9pt;
+      word-break: break-all;
+    }
+
+    .hero,
+    .page-header {
+      padding-block: 0 1rem;
+      background: none;
+    }
+  }
+}
+
+/* Eigene Felder einer Website, als Beschriftung und Wert nebeneinander.
+   Bei schmalen Bildschirmen untereinander, sonst wird der Wert zur Spalte. */
+.page-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  margin-block: 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid currentColor;
+  border-color: color-mix(in oklab, currentColor 15%, transparent);
+}
+
+.page-fields dt {
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.page-fields dd {
+  margin: 0;
+}
+
+.page-fields img {
+  max-width: min(100%, 22rem);
+  height: auto;
+  border-radius: 4px;
+}
+
+@media (max-width: 34rem) {
+  .page-fields {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .page-fields dd {
+    margin-bottom: 0.6rem;
+  }
+}
+
+.page-fields__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-fields__rows li {
+  padding-block: 0.15rem;
+}
+
+.page-fields__rowlabel {
+  opacity: 0.7;
+}
+
+/* --- Hofladen (Plugin „bestellung") ---------------------------------------
+
+   Das Markup kommt fertig aus dem Plugin; die Vorlage kennt es nur über diese
+   Klassennamen. Wer sie hier vergisst, bekommt ein Formular ohne jede Form —
+   und einen sichtbaren Honigtopf, in den ein Besucher hineinschreibt. */
+
+.bestellung {
+  margin-block: 2rem;
+}
+
+.bestellung__hinweis {
+  margin-bottom: 1.25rem;
+}
+
+.bestellung__ok,
+.bestellung__fehler {
+  padding: 0.8em 1em;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+
+.bestellung__tabelle {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.75rem;
+}
+
+.bestellung__tabelle th,
+.bestellung__tabelle td {
+  padding: 0.5em 0.75em 0.5em 0;
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent);
+}
+
+.bestellung__tabelle thead th {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.bestellung__tabelle input[type="number"] {
+  width: 5rem;
+  padding: 0.4em 0.5em;
+}
+
+.bestellung__einheit,
+.bestellung__aus {
+  opacity: 0.65;
+  font-size: 0.9em;
+}
+
+.bestellung__form {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.bestellung__feld {
+  display: grid;
+  gap: 0.3em;
+  margin: 0;
+}
+
+.bestellung__feld label {
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.bestellung__form input,
+.bestellung__form textarea {
+  width: 100%;
+  padding: 0.55em 0.8em;
+  border: 1px solid color-mix(in oklab, currentColor 35%, transparent);
+  border-radius: 4px;
+  background: inherit;
+  color: inherit;
+  font: inherit;
+}
+
+.bestellung__form textarea {
+  resize: vertical;
+  min-height: 5rem;
+}
+
+.bestellung__hilfe {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.bestellung__abschicken {
+  margin: 0;
+}
+
+/* Umrandet und nicht gefüllt: dieselbe Regel liegt in sieben Vorlagen mit
+   unterschiedlichen Farbnamen, und ein gefüllter Knopf bräuchte in jeder eine
+   eigene Schriftfarbe — sonst steht Schwarz auf Schwarz. Wer ihn kräftiger
+   will, überschreibt ihn in seiner Vorlage. */
+.bestellung__abschicken button {
+  padding: 0.6em 1.4em;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bestellung__abschicken button:hover {
+  background: color-mix(in oklab, currentColor 10%, transparent);
+}
+
+/* Der Honigtopf. Nicht display:none, damit ein Vorleseprogramm ihn überspringen
+   kann und ein Formularausfüller ihn nicht als „unsichtbar, also egal" behandelt. */
+.bestellung__falle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

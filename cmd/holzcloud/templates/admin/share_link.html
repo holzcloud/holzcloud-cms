@@ -1,0 +1,26 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/edit" class="btn">{{t "Zurück zur Seite"}}</a>{{end}}
+
+{{define "content"}}
+<div class="card">
+    <h1>{{tf "Vorschaulink für „%s“" .Title}}</h1>
+
+    <p>
+        {{t "Mit diesem Link kann jemand ohne Zugang die Seite ansehen – auch wenn sie noch ein Entwurf ist. Damit muss ein Entwurf nicht „kurz“ veröffentlicht werden, damit ein Kunde draufschauen kann."}}
+    </p>
+
+    <div class="form-group">
+        <label class="form-label" for="share-url">{{t "Link"}}</label>
+        <!-- No onfocus="this.select()": the admin runs without inline scripts,
+             and an attribute the policy blocks is worse than none. -->
+        <input class="media-url" type="text" id="share-url" readonly value="{{.URL}}">
+    </div>
+
+    <p class="text-muted">
+        {{tf "Gültig bis %s UTC. Danach zeigt der Link einen Hinweis statt der Seite. Wer ihn hat, kommt hinein – er ist so vertraulich wie die E-Mail, in der er steht." (.Expires.Format "02.01.2006 15:04")}}
+    </p>
+
+    <p class="text-muted">
+        {{t "Die Seite wird über diesen Link nie indexiert und trägt oben einen Hinweis, dass es sich um eine Vorschau handelt."}}
+    </p>
+</div>
+{{end}}

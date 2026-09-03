@@ -1,0 +1,49 @@
+# Holzcloud CMS — Caddy reverse proxy configuration
+#
+# Caddy automatically obtains and renews TLS certificates via Let's Encrypt.
+# Just replace the domain names below with your actual domains.
+#
+# Install Caddy:
+#   sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+#   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+#   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+#   sudo apt update && sudo apt install caddy
+#
+# Usage:
+#   sudo cp Caddyfile.example /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+
+# Shared settings for every site served by Holzcloud.
+#
+# The application sets its own Content-Security-Policy on /admin and on media
+# responses; these are the transport-level headers that belong at the edge.
+(holzcloud) {
+	reverse_proxy localhost:8080
+
+	header {
+		# HSTS — only meaningful once the domain is reliably served over HTTPS.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		# Do not advertise the proxy.
+		-Server
+	}
+}
+
+# Primary domain — admin + public site
+example.com {
+	import holzcloud
+}
+
+# Additional domain — Holzcloud resolves the website by Host header.
+# Uncomment and change the domain to add more sites.
+#
+# another-site.com {
+# 	import holzcloud
+# }
+
+# Caddy sets X-Forwarded-For automatically. Holzcloud only believes that header
+# when the request came from loopback — which is exactly this proxy — so the
+# login throttle keys on the real visitor instead of lumping the whole internet
+# into one bucket. Do not remove the header, and do not proxy from another host
+# without adjusting internal/admin/login.go:isTrustedProxy.

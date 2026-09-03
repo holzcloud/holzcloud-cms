@@ -1,0 +1,28 @@
+{{define "content"}}
+<article class="page page--search">
+  <h1>Suche</h1>
+
+  <form method="GET" action="/suche" class="search-form" role="search">
+    <label class="sr-only" for="q">Suchbegriff</label>
+    <input type="search" id="q" name="q" value="{{.Search.Query}}"
+           placeholder="Wonach suchst du?" autofocus>
+    <button type="submit">Suchen</button>
+  </form>
+
+  {{if .Search.Results}}
+  <p class="search-count">{{len .Search.Results}} Treffer</p>
+  <ol class="search-results">
+    {{range .Search.Results}}
+    <li class="search-result">
+      <a href="{{.URL}}" class="search-result__title">{{.Title}}</a>
+      <p class="search-result__snippet">{{.Snippet}}</p>
+    </li>
+    {{end}}
+  </ol>
+  {{else if .Search.Submitted}}
+  <p>Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.</p>
+  {{else}}
+  <p>Gib oben einen Suchbegriff ein.</p>
+  {{end}}
+</article>
+{{end}}

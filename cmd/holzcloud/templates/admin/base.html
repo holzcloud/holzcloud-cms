@@ -1,0 +1,217 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} — {{.Brand.Name}}</title>
+    <meta name="color-scheme" content="light dark">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/admin.css">
+    <script src="/assets/htmx.min.js" defer></script>
+</head>
+<body{{if .Fullscreen}} class="is-fullscreen"{{end}} hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>
+    <a href="#main-content" class="skip-link">{{t "Zum Inhalt springen"}}</a>
+    <div class="global-progress" aria-hidden="true"></div>
+
+    <!-- The checkbox drives the mobile sidebar in pure CSS. It is focusable,
+         so it must not be aria-hidden: a keyboard user would land on an
+         element the screen reader refuses to announce. -->
+    <input type="checkbox" id="sidebar-toggle" class="sidebar-toggle">
+
+    <div class="admin-layout">
+        <header class="topbar">
+            <label for="sidebar-toggle" class="topbar-hamburger">
+                {{template "icon-menu"}}<span class="sr-only">{{t "Menü ein- oder ausblenden"}}</span>
+            </label>
+
+            <a href="/admin/" class="topbar-brand">
+                {{if .Brand.LogoURL}}
+                <img class="topbar-logo" src="{{.Brand.LogoURL}}" alt="">
+                {{else}}
+                <span class="topbar-mark" aria-hidden="true">{{.Brand.Mark}}</span>
+                {{end}}
+                <span class="topbar-name">{{.Brand.Name}}</span>
+            </a>
+
+            {{if .NavWebsite}}
+            <span class="topbar-sep" aria-hidden="true">/</span>
+            <!-- Der Wechsler. <details> statt eines Skripts: aufklappen,
+                 zuklappen und die Tastatur kann der Browser von sich aus, und
+                 htmx ist hier nicht das richtige Werkzeug. -->
+            <details class="switcher">
+                <summary class="switcher-current">
+                    <span>{{.NavWebsite.Name}}</span>
+                    {{template "icon-updown"}}
+                </summary>
+                <div class="switcher-menu">
+                    <p class="switcher-label">{{t "Website wechseln"}}</p>
+                    {{range .NavWebsites}}
+                    <a href="/admin/websites/{{.ID}}/pages"
+                       class="switcher-item{{if eq .ID $.NavWebsite.ID}} is-current{{end}}">
+                        <span>{{.Name}}</span>
+                        {{if not .Active}}<span class="badge badge--draft">{{t "aus"}}</span>{{end}}
+                    </a>
+                    {{end}}
+                    <a href="/admin/websites" class="switcher-item switcher-item--all">{{t "Alle Websites …"}}</a>
+                </div>
+            </details>
+            {{end}}
+
+            <div class="topbar-right">
+                <details class="switcher switcher--right">
+                    <summary class="topbar-user">
+                        <span class="topbar-avatar" aria-hidden="true">{{.UserInitial}}</span>
+                        <span class="topbar-email">{{.UserEmail}}</span>
+                    </summary>
+                    <div class="switcher-menu">
+                        <p class="switcher-label">{{.UserEmail}}</p>
+                        <a href="/admin/konto" class="switcher-item">{{t "Mein Konto"}}</a>
+                        <form method="POST" action="/admin/logout" class="switcher-form">
+                            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+                            <button type="submit" class="switcher-item switcher-item--danger">{{t "Abmelden"}}</button>
+                        </form>
+                    </div>
+                </details>
+            </div>
+        </header>
+
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="/admin/" class="nav-item{{if eq .ActiveNav "dashboard"}} is-active{{end}}"{{if eq .ActiveNav "dashboard"}} aria-current="page"{{end}}>
+                    {{template "icon-home"}}<span>{{t "Übersicht"}}</span>
+                </a>
+
+                {{if .NavWebsite}}
+                <p class="nav-group">{{t "Inhalt"}}</p>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/pages" class="nav-item{{if eq .ActiveNav "pages"}} is-active{{end}}"{{if eq .ActiveNav "pages"}} aria-current="page"{{end}}>
+                    {{template "icon-pages"}}<span>{{t "Seiten"}}</span>
+                </a>
+                {{/* Nur bei mehr als einer Sprache: sonst ist es eine
+                     Spalte und beantwortet nichts. Locales sind die
+                     zusätzlichen Sprachen — eine davon genügt. */}}
+                {{if .NavWebsite.Locales}}
+                <a href="/admin/websites/{{.NavWebsite.ID}}/uebersetzungen" class="nav-item{{if eq .ActiveNav "translations"}} is-active{{end}}"{{if eq .ActiveNav "translations"}} aria-current="page"{{end}}>
+                    {{template "icon-translations"}}<span>{{t "Übersetzungen"}}</span>
+                </a>
+                {{end}}
+                <a href="/admin/websites/{{.NavWebsite.ID}}/media" class="nav-item{{if eq .ActiveNav "media"}} is-active{{end}}"{{if eq .ActiveNav "media"}} aria-current="page"{{end}}>
+                    {{template "icon-media"}}<span>{{t "Medien"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/menus" class="nav-item{{if eq .ActiveNav "menus"}} is-active{{end}}"{{if eq .ActiveNav "menus"}} aria-current="page"{{end}}>
+                    {{template "icon-menus"}}<span>{{t "Menüs"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/tags" class="nav-item{{if eq .ActiveNav "terms"}} is-active{{end}}"{{if eq .ActiveNav "terms"}} aria-current="page"{{end}}>
+                    {{template "icon-tag"}}<span>{{t "Schlagwörter"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/snippets" class="nav-item{{if eq .ActiveNav "snippets"}} is-active{{end}}"{{if eq .ActiveNav "snippets"}} aria-current="page"{{end}}>
+                    {{template "icon-snippet"}}<span>{{t "Textbausteine"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/produkte" class="nav-item{{if eq .ActiveNav "products"}} is-active{{end}}"{{if eq .ActiveNav "products"}} aria-current="page"{{end}}>
+                    {{template "icon-product"}}<span>{{t "Produkte"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/bestellungen" class="nav-item{{if eq .ActiveNav "orders"}} is-active{{end}}"{{if eq .ActiveNav "orders"}} aria-current="page"{{end}}>
+                    {{template "icon-orders"}}<span>{{t "Bestellungen"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/trash" class="nav-item{{if eq .ActiveNav "trash"}} is-active{{end}}"{{if eq .ActiveNav "trash"}} aria-current="page"{{end}}>
+                    {{template "icon-trash"}}<span>{{t "Papierkorb"}}</span>
+                </a>
+                {{/* Was ein Plugin mitbringt, steht hier zwischen dem Übrigen und
+                     nicht in einer eigenen Schublade: wer Anfragen liest, sucht
+                     sie beim Inhalt und nicht unter „Plugins“. */}}
+                {{range .PluginScreens}}{{if or (not .AdminOnly) $.IsAdmin}}
+                <a href="{{.URL}}" class="nav-item{{if eq $.ActiveNav (print "plugin:" .URL)}} is-active{{end}}">
+                    {{template "icon-plugin"}}<span>{{.Label}}</span>
+                </a>
+                {{end}}{{end}}
+
+                <p class="nav-group">{{t "Website"}}</p>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/design" class="nav-item{{if eq .ActiveNav "website-design"}} is-active{{end}}"{{if eq .ActiveNav "website-design"}} aria-current="page"{{end}}>
+                    {{template "icon-design"}}<span>{{t "Design"}}</span>
+                </a>
+                {{if .IsAdmin}}
+                <a href="/admin/websites/{{.NavWebsite.ID}}/inhaltsarten" class="nav-item{{if eq .ActiveNav "kinds"}} is-active{{end}}"{{if eq .ActiveNav "kinds"}} aria-current="page"{{end}}>
+                    {{template "icon-pages"}}<span>{{t "Inhaltsarten"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/felder" class="nav-item{{if eq .ActiveNav "fields"}} is-active{{end}}"{{if eq .ActiveNav "fields"}} aria-current="page"{{end}}>
+                    {{template "icon-fields"}}<span>{{t "Felder"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/bausteinarten" class="nav-item{{if eq .ActiveNav "blocktypes"}} is-active{{end}}"{{if eq .ActiveNav "blocktypes"}} aria-current="page"{{end}}>
+                    {{template "icon-blocks"}}<span>{{t "Bausteinarten"}}</span>
+                </a>
+                {{end}}
+                <a href="/admin/websites/{{.NavWebsite.ID}}/redirects" class="nav-item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>
+                    {{template "icon-redirect"}}<span>{{t "Weiterleitungen"}}</span>
+                </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}" class="nav-item{{if eq .ActiveNav "website-settings"}} is-active{{end}}"{{if eq .ActiveNav "website-settings"}} aria-current="page"{{end}}>
+                    {{template "icon-settings"}}<span>{{t "Einstellungen"}}</span>
+                </a>
+                {{end}}
+
+                <p class="nav-group">{{t "System"}}</p>
+                <a href="/admin/websites" class="nav-item{{if eq .ActiveNav "websites"}} is-active{{end}}"{{if eq .ActiveNav "websites"}} aria-current="page"{{end}}>
+                    {{template "icon-websites"}}<span>{{t "Websites"}}</span>
+                </a>
+                <a href="/admin/templates" class="nav-item{{if eq .ActiveNav "templates"}} is-active{{end}}"{{if eq .ActiveNav "templates"}} aria-current="page"{{end}}>
+                    {{template "icon-template"}}<span>{{t "Vorlagen"}}</span>
+                </a>
+                {{if .IsAdmin}}
+                <a href="/admin/plugins" class="nav-item{{if eq .ActiveNav "plugins"}} is-active{{end}}"{{if eq .ActiveNav "plugins"}} aria-current="page"{{end}}>
+                    {{template "icon-plugin"}}<span>{{t "Plugins"}}</span>
+                </a>
+                <a href="/admin/mail" class="nav-item{{if eq .ActiveNav "mail"}} is-active{{end}}"{{if eq .ActiveNav "mail"}} aria-current="page"{{end}}>
+                    {{template "icon-mail"}}<span>{{t "E-Mail"}}</span>
+                </a>
+                <a href="/admin/ai" class="nav-item{{if eq .ActiveNav "ai"}} is-active{{end}}"{{if eq .ActiveNav "ai"}} aria-current="page"{{end}}>
+                    {{template "icon-ai"}}<span>{{t "KI-Zugang"}}</span>
+                </a>
+                <a href="/admin/sprachen" class="nav-item{{if eq .ActiveNav "languages"}} is-active{{end}}"{{if eq .ActiveNav "languages"}} aria-current="page"{{end}}>
+                    {{template "icon-language"}}<span>{{t "Sprachen"}}</span>
+                </a>
+                <a href="/admin/marke" class="nav-item{{if eq .ActiveNav "branding"}} is-active{{end}}"{{if eq .ActiveNav "branding"}} aria-current="page"{{end}}>
+                    {{template "icon-design"}}<span>{{t "Marke"}}</span>
+                </a>
+                <a href="/admin/protokoll" class="nav-item{{if eq .ActiveNav "activity"}} is-active{{end}}"{{if eq .ActiveNav "activity"}} aria-current="page"{{end}}>
+                    {{template "icon-activity"}}<span>{{t "Protokoll"}}</span>
+                </a>
+                <a href="/admin/users" class="nav-item{{if eq .ActiveNav "users"}} is-active{{end}}"{{if eq .ActiveNav "users"}} aria-current="page"{{end}}>
+                    {{template "icon-users"}}<span>{{t "Benutzer"}}</span>
+                </a>
+                {{end}}
+            </nav>
+
+            <!-- Programm, Fassung, Lizenz und Quelle. Abschnitt 13 der AGPL
+                 verlangt, dass wer eine veränderte Fassung als Netzdienst
+                 betreibt, den Benutzenden den Quelltext anbietet; ein Verweis,
+                 der ohnehin dasteht, erledigt das von selbst. „Holzcloud CMS“
+                 steht hier wörtlich und nicht als .Brand.Name: die Marke ist,
+                 wie die Installation sich nennt, die Lizenz meint das
+                 Programm. -->
+            <p class="sidebar-build">
+                Holzcloud CMS {{.Version}}<br>
+                {{t "Freie Software unter der AGPL-3.0."}}
+                <a href="{{.SourceURL}}" target="_blank" rel="noopener">{{t "Quelltext"}}</a>
+            </p>
+        </aside>
+
+        <main class="main-content" id="main-content" tabindex="-1">
+            <header class="content-header">
+                <h1>{{.Title}}</h1>
+                <div class="content-header-actions">{{block "actions" .}}{{end}}</div>
+            </header>
+            <!-- Flashes are announced rather than only shown: after an htmx swap
+                 nothing else tells a screen-reader user the save succeeded. -->
+            <div id="flash-area" role="status" aria-live="polite">
+                {{if .Flash.Error}}<div class="flash flash--error">{{.Flash.Error}}</div>{{end}}
+                {{if .Flash.Success}}<div class="flash flash--success">{{.Flash.Success}}</div>{{end}}
+                {{if .Flash.Warning}}<div class="flash flash--warning">{{.Flash.Warning}}</div>{{end}}
+            </div>
+            <div class="content-body">
+                {{block "content" .}}{{end}}
+            </div>
+        </main>
+    </div>
+</body>
+</html>{{end}}
+
+{{define "actions"}}{{end}}
+{{define "content"}}{{end}}

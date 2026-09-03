@@ -1,0 +1,27 @@
+{{define "content"}}
+<section class="page page--notice">
+  <div class="notice gate">
+    <h1 class="notice__title">{{.Page.Title}}</h1>
+    <p class="notice__text">Diese Seite ist mit einem Passwort geschützt.</p>
+
+    <!-- Der Hinweis des Betriebs ist das, woran jemand merkt, dass er beim
+         richtigen Formular steht — "das Passwort steht in unserem Brief". -->
+    {{if .Gate.Hint}}<p class="gate-hint">{{.Gate.Hint}}</p>{{end}}
+    {{if .Gate.Wrong}}<p class="gate-error" role="alert">Das Passwort stimmt nicht.</p>{{end}}
+
+    <!-- Ziel, Feldnamen und das versteckte Feld mit dem Slug sind vorgegeben.
+         Wer hier etwas umbenennt, macht die geschützte Seite unerreichbar. -->
+    <form class="gate-form" method="POST" action="/freischalten">
+      <input type="hidden" name="seite" value="{{.Page.Slug}}">
+      <div class="gate-form__field">
+        <label for="gate-password">Passwort</label>
+        <input type="password" id="gate-password" name="passwort" required autofocus
+               autocomplete="current-password">
+      </div>
+      <button type="submit" class="button gate-form__submit">Weiter</button>
+    </form>
+
+    {{if .Gate.Path}}<p class="gate-target">Danach geht es weiter zu <code>{{.Gate.Path}}</code>.</p>{{end}}
+  </div>
+</section>
+{{end}}

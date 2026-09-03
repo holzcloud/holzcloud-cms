@@ -1,0 +1,111 @@
+{{define "content"}}
+{{template "language_list-content" .}}
+{{end}}
+
+{{define "language_list-content"}}
+<div class="card" style="margin-bottom:var(--space-3)">
+    <p class="text-muted">
+        {{th "Die Verwaltung spricht Deutsch, und jede weitere Sprache ist eine Datei. Was mitgeliefert wird, steckt im Programm; was im Ordner unten liegt, gilt darüber. Eine Datei hineinkopieren und <em>Neu einlesen</em> drücken genügt — ein Neustart ist nicht nötig."}}
+    </p>
+    <p class="text-muted">
+        {{th "Eine Regionalfassung wie <code>de-CH</code> trägt nur, was sie anders sagt; alles Übrige kommt aus ihrer Grundsprache. Für die Landessprachen Deutsch, Französisch und Italienisch ist die Schweizer Fassung mitgeliefert: kein Eszett, dafür spitze Anführungszeichen und die hier üblichen Wörter."}}
+    </p>
+    <p class="text-muted">
+        {{tf "Ordner auf dem Server: %s" .Dir}}
+    </p>
+</div>
+
+<div class="card" style="margin-bottom:var(--space-3)">
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Sprache"}}</th>
+                <th scope="col">{{t "Kürzel"}}</th>
+                <th scope="col">{{t "Vollständigkeit"}}</th>
+                <th scope="col">{{t "Herkunft"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Stats}}
+            <tr>
+                <td style="font-weight:500">{{t .Name}}</td>
+                <td><code>{{.Code}}</code></td>
+                <td>
+                    {{if .Source}}<span class="text-muted">{{t "Ursprache"}}</span>
+                    {{else}}
+                    <span class="lang-bar" aria-hidden="true"><span style="width:{{.Percent}}%"></span></span>
+                    {{if .BaseMissing}}
+                    <span class="text-muted">{{tf "%d Abweichungen — %s ist nicht eingespielt, alles Übrige erscheint auf Deutsch" .Own .BaseName}}</span>
+                    {{else if .BaseName}}
+                    <span class="text-muted">{{tf "%d Abweichungen von %s" .Own .BaseName}}</span>
+                    {{else}}
+                    <span class="text-muted">{{tf "%d von %d" .Translated .Total}}</span>
+                    {{end}}
+                    {{end}}
+                </td>
+                <td class="text-muted">{{if .OnDisk}}{{t "eigene Datei"}}{{else}}{{t "mitgeliefert"}}{{end}}</td>
+                <td class="table-actions">
+                    {{if not .Source}}
+                    <a class="btn btn--sm" href="/admin/sprachen/{{.Code}}/datei">{{t "Herunterladen"}}</a>
+                    {{end}}
+                    {{if .OnDisk}}
+                    <form method="POST" action="/admin/sprachen/{{.Code}}/loeschen" style="display:inline"
+                          hx-confirm="{{t "Diese Sprachdatei entfernen? Wer sie eingestellt hat, sieht danach wieder die Sprache seines Browsers."}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+                    </form>
+                    {{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <form method="POST" action="/admin/sprachen/neu-lesen" style="margin-top:var(--space-2)">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Neu einlesen"}}</button>
+        <span class="form-hint text-muted">{{t "Liest den Ordner noch einmal und baut die Bildschirme neu auf."}}</span>
+    </form>
+</div>
+
+<div class="card" style="margin-bottom:var(--space-3)">
+    <h2>{{t "Eine Sprache hinzufügen"}}</h2>
+    <ol class="lang-steps">
+        <li>
+            {{t "Vorlage herunterladen — eine JSON-Datei mit allen deutschen Sätzen als Schlüssel und leeren Werten."}}
+            <a class="btn btn--sm" href="/admin/sprachen/vorlage">{{tf "Vorlage (%d Sätze)" .Strings}}</a>
+        </li>
+        <li>{{th "Werte ausfüllen. Was leer bleibt, erscheint auf Deutsch — eine halbe Übersetzung ist brauchbar."}}</li>
+        <li>{{th "Datei nach dem Sprachkürzel benennen: <code>nl.json</code>, <code>fr-CH.json</code>."}}</li>
+        <li>{{th "Für eine Regionalfassung genügen die Sätze, die anders lauten: <code>de-CH.json</code> holt sich alles Fehlende aus <code>de</code>. Die Grundsprache muss dafür vorhanden sein — die mitgelieferten fünf sind es immer; sonst lädst du beide Dateien hoch, in beliebiger Reihenfolge."}}</li>
+        <li>{{t "Hier hochladen oder in den Ordner kopieren und neu einlesen."}}</li>
+    </ol>
+
+    <form method="POST" action="/admin/sprachen" enctype="multipart/form-data">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="datei">{{t "Sprachdatei (.json)"}}</label>
+                <input type="file" id="datei" name="datei" class="form-input" accept=".json,application/json" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="kuerzel">{{t "Kürzel"}}</label>
+                <input type="text" id="kuerzel" name="kuerzel" class="form-input" placeholder="nl">
+                <p class="form-hint text-muted">{{t "Leer lassen, dann gilt der Dateiname."}}</p>
+            </div>
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Hochladen"}}</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>{{t "Was geprüft wird"}}</h2>
+    <ul>
+        <li>{{th "Die Datei muss aus Text-Paaren bestehen — deutscher Satz zu Übersetzung. Alles andere wird abgelehnt, bevor es im Ordner landet."}}</li>
+        <li>{{th "Die Platzhalter müssen zum deutschen Satz passen. Ein fehlendes <code>%s</code> verschluckt sonst still einen Namen; solche Zeilen werden übergangen."}}</li>
+        <li>{{th "Auszeichnung in einer Übersetzung wird gefiltert: erlaubt sind <code>&lt;code&gt;</code>, <code>&lt;strong&gt;</code> und ein paar weitere für den Text selbst. Alles andere wird entfernt."}}</li>
+        <li>{{t "Ein Satz ohne Übersetzung erscheint auf Deutsch. Eine Sprachdatei kann die Verwaltung also nicht unlesbar machen."}}</li>
+    </ul>
+</div>
+{{end}}

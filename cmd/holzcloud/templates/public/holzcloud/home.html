@@ -1,0 +1,89 @@
+{{define "content"}}
+{{/* Der Aufmacher baut sich aus dem, was die Seite selbst hergibt: Name der
+     Website als Zeile darüber, Titel als Schlagzeile, Beschreibung der
+     Website als die eine Zeile in Messing. Jedes Stück ist einzeln
+     abgesichert — eine Seite, die nichts als einen Titel hat, rendert
+     trotzdem, und eine ganz leere zeigt nur die Zeichnung.
+
+     Hier stand einmal .Page.Excerpt als Vorspann. Das war falsch und sah
+     nur auf der Musterseite richtig aus: der Anriss wird in
+     internal/page/excerpt.go beim Speichern aus dem Markdown abgeleitet,
+     ist also der Anfang genau des Textes, der zwei Abschnitte weiter unten
+     als Inhalt noch einmal kommt. Im laufenden Programm stand die
+     Begrüssung der frischen Startseite deshalb zweimal untereinander.
+     loader.go sagt es beim Feld selbst: der Anriss ist für Listen und als
+     Rückfall für die Meta-Beschreibung da. Kein anderes eingebautes Theme
+     druckt ihn im Aufmacher. */}}
+<section class="site-hero">
+  <div class="hc-wide site-hero-grid">
+    <div>
+      {{with .Site.Name}}<p class="hc-eyebrow">{{.}}</p>{{end}}
+      {{if not .Page.HasOwnHeading}}{{with .Page.Title}}<h1 class="hc-display">{{.}}</h1>{{end}}{{end}}
+      {{with .Site.Description}}<p class="hc-claim">{{.}}</p>{{end}}
+
+      {{/* Die Knöpfe zeigen nur auf Orte, die es auf dieser Website wirklich
+           gibt. Der eigentliche Handlungsaufruf gehört in einen Baustein der
+           Art „aufruf" im Inhalt — dort schreibt ihn der Betrieb selbst, und
+           er ist schon gekleidet. */}}
+      <div class="site-actions">
+        {{if .Shop.Enabled}}<a class="hc-btn" href="{{.Shop.URL}}">Zum Laden</a>{{end}}
+        {{with .Page.ArchiveURL}}<a class="hc-btn hc-btn--ghost" href="{{.}}">Alle Beiträge</a>{{end}}
+        {{if .Site.HasSearch}}<a class="hc-btn hc-btn--ghost" href="/suche">Suchen</a>{{end}}
+      </div>
+    </div>
+
+    {{/* Der Würfel der Marke, aus dem Vokabular von motif.css. Rein
+         schmückend, deshalb aria-hidden und ohne eigene Farbwerte. */}}
+    <div class="site-art" aria-hidden="true">
+      <svg viewBox="20 80 520 360" fill="none" role="presentation" focusable="false">
+        <g class="hc-iso-faint">
+          <path d="M60 300 L280 414 L500 300" />
+          <path d="M60 220 L280 334 L500 220" />
+        </g>
+        <g class="hc-iso">
+          <path class="hc-f-top"   d="M280 120 L342 151 L280 182 L218 151 Z" />
+          <path class="hc-f-left"  d="M218 151 L280 182 L280 234 L218 203 Z" />
+          <path class="hc-f-right" d="M342 151 L280 182 L280 234 L342 203 Z" />
+        </g>
+        <g class="hc-iso">
+          <path class="hc-f-top"   d="M218 151 L280 182 L218 213 L156 182 Z" />
+          <path class="hc-f-left"  d="M156 182 L218 213 L218 265 L156 234 Z" />
+          <path class="hc-f-right" d="M280 182 L218 213 L218 265 L280 234 Z" />
+        </g>
+        <g class="hc-iso">
+          <path class="hc-f-top"   d="M342 151 L404 182 L342 213 L280 182 Z" />
+          <path class="hc-f-left"  d="M280 182 L342 213 L342 265 L280 234 Z" />
+          <path class="hc-f-right" d="M404 182 L342 213 L342 265 L404 234 Z" />
+        </g>
+        <g class="hc-iso hc-iso--lit">
+          <path class="hc-f-top"   d="M280 182 L342 213 L280 244 L218 213 Z" />
+          <path class="hc-f-left"  d="M218 213 L280 244 L280 296 L218 265 Z" />
+          <path class="hc-f-right" d="M342 213 L280 244 L280 296 L342 265 Z" />
+        </g>
+        <circle class="hc-dot" cx="280" cy="213" r="4" />
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="hc-wide page-wrap">
+  <article class="page page--home">
+    {{if .Page.ContentHTML}}
+    {{/* Hier landen die Bausteine des Betriebs. Ein Wechsel aus Text und Bild
+         ist ein „bildtext", die Reihe darunter eine Kartenreihe, die Linie
+         dazwischen ein Trenner — alle drei sind schon gekleidet. */}}
+    <div class="page-content">
+      {{.Page.ContentHTML}}
+    </div>
+    {{else}}
+    <p class="welcome hc-lede">Willkommen bei {{.Site.Name}}.</p>
+    {{end}}
+
+    {{if .Page.Terms}}
+    <ul class="term-list" aria-label="Schlagwörter">
+      {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+    </ul>
+    {{end}}
+  </article>
+</section>
+{{end}}

@@ -1,0 +1,12 @@
+{
+  "id": "suche",
+  "abi": 1,
+  "name": "Suche",
+  "version": "1.0.0",
+  "description": "Die Volltextsuche über die veröffentlichten Seiten, unter /suche. Ergebnisse erscheinen in der Ansicht des Themes, mit hervorgehobenen Fundstellen.",
+  "author": "Holzcloud",
+  "license": "MIT",
+  "hooks": ["route"],
+  "routes": ["/suche"],
+  "permissions": ["pages:read", "render"]
+}

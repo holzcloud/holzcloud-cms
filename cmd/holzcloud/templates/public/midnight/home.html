@@ -1,0 +1,12 @@
+{{define "content"}}
+<article class="page page--home">
+  {{if and .Page.Title (not .Page.HasOwnHeading)}}<h1>{{.Page.Title}}</h1>{{end}}
+  {{if .Page.ContentHTML}}
+  <div class="page-content">
+    {{.Page.ContentHTML}}
+  </div>
+  {{else}}
+  <p class="welcome">{{.Site.Name}}</p>
+  {{end}}
+</article>
+{{end}}

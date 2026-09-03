@@ -1,0 +1,108 @@
+{
+  "site": {
+    "name": "Velowerkstatt Beispiel",
+    "description": "Eine kleine Velowerkstatt in Musterhausen. Reparatur, Service und Beratung für Velos, die jeden Tag gefahren werden.",
+    "locale": "de",
+    "timezone": "Europe/Zurich",
+    "meta_description": "Velowerkstatt Beispiel in Musterhausen. Reparaturen, kleiner und grosser Service, Beratung für Alltagsvelos.",
+    "contact_email": "kontakt@example.com",
+    "org_type": "LocalBusiness",
+    "street": "Musterweg 1",
+    "postal_code": "0000",
+    "city": "Musterhausen",
+    "country": "CH",
+    "opening_hours": "Di-Fr 09:00-12:00 und 13:30-18:00, Sa 09:00-13:00",
+    "design": {
+      "brand": "#2f6f5e",
+      "measure": 68,
+      "radius": 6
+    }
+  },
+  "pages": [
+    {
+      "title": "Willkommen",
+      "slug": "home",
+      "status": "published",
+      "kind": "page",
+      "excerpt": "Eine kleine Werkstatt für Alltagsvelos, mitten in Musterhausen.",
+      "meta_description": "Die Velowerkstatt Beispiel richtet Alltagsvelos. Zwei Plätze, keine Verkaufsfläche, kein Termin nötig.",
+      "featured_image": "werkstatt-01.jpg",
+      "markdown": "Wir richten Velos. Alltagsvelos vor allem, die jeden Tag gefahren werden und deshalb auch jeden Tag etwas abbekommen.\n\n![Die Werkbank der Werkstatt mit zwei Regalbrettern darüber.](/media/0/werkstatt-01.jpg)\n\nDie Werkstatt ist klein, und das bleibt sie. Zwei Plätze, ein Ständer, keine Verkaufsfläche. Wer ein neues Velo sucht, ist hier falsch. Wer sein altes noch ein paar Jahre fahren will, ist richtig.\n\nBringen Sie das Velo einfach vorbei. Was es braucht, sieht man am Velo und nicht am Telefon.\n"
+    },
+    {
+      "title": "Die Werkstatt",
+      "slug": "werkstatt",
+      "status": "published",
+      "kind": "page",
+      "terms": ["Laufräder", "Unterhalt"],
+      "markdown": "## Was hier gemacht wird\n\nBremsen, Schaltung, Laufräder, Lager. Also das, was sich abnutzt, und nicht das, was sich gut verkaufen lässt.\n\n![Ein Velo mit rotem Rahmen, von der Seite.](/media/0/velo-01.jpg)\n\nEin Laufrad wird eingespeicht, solange die Felge noch etwas taugt. Eine Nabe wird zerlegt und gefettet, bevor sie ersetzt wird. Das dauert länger als ein Austausch und kostet meistens weniger.\n\n## Was hier nicht gemacht wird\n\nKeine Rahmen aus Karbon, keine Motoren, die verschlossen sind. Beides braucht Werkzeug und Freigaben, die eine Werkstatt dieser Grösse nicht hat. Wir sagen das lieber vorher als nachher.\n"
+    },
+    {
+      "title": "Service und Preise",
+      "slug": "service",
+      "status": "published",
+      "kind": "page",
+      "excerpt": "Was ein Service kostet, und was darin enthalten ist.",
+      "terms": ["Unterhalt"],
+      "markdown": "## Kleiner Service\n\nBremsen und Schaltung einstellen, Kette prüfen, Reifen und Licht kontrollieren, alles nachziehen. Eine Stunde, wenn nichts dazwischenkommt.\n\n**80 Franken**\n\n## Grosser Service\n\nDazu die Laufräder zentrieren, die Lager prüfen, den Antrieb reinigen. Ein halber Tag, das Velo bleibt hier.\n\n**180 Franken**\n\n## Einzelnes\n\nWird nach Aufwand verrechnet, 90 Franken die Stunde, dazu das Material. Was mehr als eine Stunde wird, sagen wir vorher.\n\nDie Preise stehen hier, damit niemand danach fragen muss. Erfunden sind sie trotzdem, so wie diese ganze Website.\n"
+    },
+    {
+      "title": "Kontakt",
+      "slug": "kontakt",
+      "status": "published",
+      "kind": "page",
+      "markdown": "Velowerkstatt Beispiel  \nMusterweg 1  \n0000 Musterhausen\n\nkontakt@example.com\n\n[[snippet:oeffnungszeiten]]\n\nAm besten kommen Sie vorbei. In der Werkstatt hört man das Telefon oft nicht, und eine Nachricht wartet geduldiger als ein Klingeln.\n\nDiese Adresse gibt es nicht, und diese Werkstatt auch nicht. Beides ist ein Platzhalter, damit man an einer vollständigen Website sieht, wie ein Bundle aussieht.\n"
+    }
+  ],
+  "menus": [
+    {
+      "name": "Hauptmenü",
+      "location_key": "main",
+      "items": [
+        { "title": "Startseite", "type": "url", "url": "/" },
+        {
+          "title": "Werkstatt",
+          "type": "page",
+          "page_slug": "werkstatt",
+          "children": [
+            { "title": "Service und Preise", "type": "page", "page_slug": "service" }
+          ]
+        },
+        { "title": "Kontakt", "type": "page", "page_slug": "kontakt" }
+      ]
+    }
+  ],
+  "snippets": [
+    {
+      "key": "oeffnungszeiten",
+      "name": "Öffnungszeiten",
+      "markdown": "**Öffnungszeiten**\n\nDienstag bis Freitag, 09:00 bis 12:00 und 13:30 bis 18:00 Uhr  \nSamstag, 09:00 bis 13:00 Uhr  \nMontag geschlossen\n"
+    }
+  ],
+  "terms": [
+    {
+      "slug": "laufraeder",
+      "name": "Laufräder"
+    },
+    {
+      "slug": "unterhalt",
+      "name": "Unterhalt"
+    }
+  ],
+  "media": [
+    {
+      "filename": "werkstatt-01.jpg",
+      "original_name": "werkstatt-01.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Die Werkbank der Werkstatt mit zwei Regalbrettern darüber.",
+      "caption": "Die Werkbank, an der die meiste Zeit vergeht."
+    },
+    {
+      "filename": "velo-01.jpg",
+      "original_name": "velo-01.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Ein Velo mit rotem Rahmen, von der Seite.",
+      "caption": "Ein Alltagsvelo, nach dem grossen Service."
+    }
+  ]
+}

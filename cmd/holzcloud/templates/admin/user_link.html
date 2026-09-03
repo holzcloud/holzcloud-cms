@@ -1,0 +1,42 @@
+{{define "actions"}}<a href="/admin/users" class="btn">{{t "Zurück zu den Benutzern"}}</a>{{end}}
+
+{{define "content"}}
+{{template "user_link-content" .}}
+{{end}}
+
+{{define "user_link-content"}}
+<div class="card">
+    <h2>{{if eq .Purpose "invite"}}{{t "Einladungslink"}}{{else}}{{t "Link zum Zurücksetzen"}}{{end}} {{tf "für %s" .User.Email}}</h2>
+
+    <div class="alert alert--warning" role="alert">
+        <p>
+            {{th "<strong>Dieser Link wird genau einmal angezeigt.</strong> Er ist nirgends gespeichert – sichtbar ist nur seine Prüfsumme. Kopiere ihn jetzt; wenn er verloren geht, erzeuge einfach einen neuen."}}
+        </p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="link">{{t "Link"}}</label>
+        <input type="text" id="link" class="form-input" readonly value="{{.URL}}">
+    </div>
+
+    <p class="text-muted">
+        {{tf "Gültig bis %s UTC, danach funktioniert er nicht mehr. Er lässt sich nur einmal benutzen." (.Expires.Format "02.01.2006 15:04")}}
+        {{if eq .Purpose "reset"}}{{t "Alle offenen Sitzungen dieses Benutzers wurden bereits beendet."}}{{end}}
+    </p>
+
+    {{if .Sent}}
+    <p class="text-muted">
+        {{t "Der Link ist außerdem an"}} <strong>{{.User.Email}}</strong> {{t "unterwegs. Er steht hier trotzdem: E-Mail kann verzögert werden oder im Spam landen, und dann ist dies der Weg, der sicher funktioniert."}}
+    </p>
+    {{else if .SendError}}
+    <div class="alert alert--warning" role="alert">
+        <p>{{tf "Die E-Mail konnte nicht eingereiht werden: %s" .SendError}}</p>
+        <p>{{t "Gib den Link von Hand weiter."}}</p>
+    </div>
+    {{else}}
+    <p class="text-muted">
+        {{t "Es ist kein Mailserver eingerichtet, also wird nichts verschickt. Gib den Link über den Weg weiter, den ihr ohnehin benutzt. Anders als ein durchgesagtes Passwort läuft er ab und funktioniert nur ein einziges Mal."}}
+    </p>
+    {{end}}
+</div>
+{{end}}

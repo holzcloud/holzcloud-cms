@@ -1,0 +1,32 @@
+{{/*
+  Domain list for a website. Rendered both inside website_form.html and
+  standalone as the htmx swap target after adding/removing a domain.
+
+  Expects a DomainListData: .WebsiteID, .Domains.
+*/}}
+{{define "domain_list"}}
+{{range .Domains}}
+<div class="domain-item" id="domain-{{.ID}}">
+    <span class="domain-name">{{.Display}}</span>
+    {{if .IsPrimary}}
+    <span class="badge badge--primary">{{t "Hauptdomain"}}</span>
+    {{else}}
+    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/primary"
+          hx-post="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/primary"
+          hx-target="#domain-list" hx-swap="innerHTML" style="display:inline">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Zur Hauptdomain machen"}}</button>
+    </form>
+    {{end}}
+    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/delete"
+          hx-post="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/delete"
+          hx-target="#domain-list" hx-swap="innerHTML"
+          hx-confirm="{{t "Diese Domain entfernen?"}}" style="display:inline">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+    </form>
+</div>
+{{else}}
+<p class="text-muted">{{t "Noch keine Domain zugeordnet."}}</p>
+{{end}}
+{{end}}

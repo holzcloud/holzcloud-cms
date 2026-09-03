@@ -1,0 +1,47 @@
+{{define "content"}}
+<section class="order">
+  <header class="page-header">
+    <p class="page-header__kicker">Vielen Dank</p>
+    <h1 class="page-header__title">Bestellung {{.Order.Number}}</h1>
+    <p class="page-header__meta">Wir haben Ihre Bestellung erhalten.</p>
+  </header>
+
+  <div class="order__body">
+    <ul class="checkout__lines">
+      {{range .Order.Lines}}
+      <li>
+        <span class="checkout__line-qty">{{.Quantity}} ×</span>
+        <span class="checkout__line-title">{{.Title}}</span>
+        <span class="checkout__line-price">{{.LinePrice}}</span>
+      </li>
+      {{end}}
+    </ul>
+
+    <dl class="cart-totals">
+      <dt>Zwischensumme</dt><dd>{{.Order.Totals.Items}}</dd>
+      <dt>Versand</dt>
+      <dd>{{if .Order.Totals.ShippingFree}}kostenlos{{else}}{{.Order.Totals.Shipping}}{{end}}</dd>
+      {{range .Order.Totals.TaxLines}}
+      <dt class="cart-totals__tax">{{.Label}}</dt><dd class="cart-totals__tax">{{.Tax}}</dd>
+      {{end}}
+      <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Order.Totals.Total}}</dd>
+    </dl>
+    {{if .Order.Totals.TaxNote}}<p class="cart-totals__note">{{.Order.Totals.TaxNote}}</p>{{end}}
+
+    <dl class="order__facts">
+      <dt>Lieferung an</dt>
+      <dd>{{if .Order.Company}}{{.Order.Company}}, {{end}}{{.Order.Name}}<br>{{.Order.Address}}</dd>
+      <dt>Bestätigung an</dt><dd>{{.Order.Email}}</dd>
+      <dt>Zahlung</dt>
+      <dd>{{.Order.PaymentLabel}}{{if .Order.PaymentNote}}<br><small class="order__payment-note">{{.Order.PaymentNote}}</small>{{end}}</dd>
+      {{if .Order.Note}}<dt>Ihre Bemerkung</dt><dd>{{.Order.Note}}</dd>{{end}}
+    </dl>
+
+    {{if .Order.ReturnPolicy}}
+    <p class="order__policy">{{.Order.ReturnPolicy}}</p>
+    {{end}}
+
+    {{if .Shop.URL}}<a class="cart-continue" href="{{.Shop.URL}}">Weiter einkaufen</a>{{end}}
+  </div>
+</section>
+{{end}}

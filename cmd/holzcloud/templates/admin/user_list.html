@@ -1,0 +1,59 @@
+{{define "actions"}}<a href="/admin/users/new" class="btn btn--primary">{{t "Neuer Benutzer"}}</a>{{end}}
+
+{{define "content"}}
+{{template "user_list-content" .}}
+{{end}}
+
+{{define "user_list-content"}}
+<div class="card">
+    {{if .Users}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Name"}}</th>
+                <th scope="col">{{t "E-Mail"}}</th>
+                <th scope="col">{{t "Rolle"}}</th>
+                <th scope="col">{{t "Rechte"}}</th>
+                <th scope="col">{{t "Zuletzt angemeldet"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Users}}
+            <tr{{if eq .ID $.SessionUserID}} class="table-row--current"{{end}}>
+                <td><a href="/admin/users/{{.ID}}/edit">{{if .Name}}{{.Name}}{{else}}—{{end}}</a></td>
+                <td class="text-muted">{{.Email}}</td>
+                <td><span class="badge{{if eq .Role "admin"}} badge--primary{{else}} badge--draft{{end}}">{{if eq .Role "admin"}}{{t "Administrator"}}{{else}}{{t "Redakteur"}}{{end}}</span></td>
+                <td class="text-muted">
+                    {{if eq .Role "admin"}}—
+                    {{else}}
+                    {{if .SiteCount}}{{tf "%d von %d Websites" .SiteCount .SiteTotal}}{{else}}{{t "alle Websites"}}{{end}}
+                    {{if not .MayPublish}} · {{t "ohne Veröffentlichen"}}{{end}}
+                    {{end}}
+                </td>
+                <td class="text-muted">{{if .LastLogin}}{{.LastLogin}}{{else}}{{t "noch nie"}}{{end}}</td>
+                <td class="table-actions">
+                    <a href="/admin/users/{{.ID}}/edit" class="btn btn--sm">{{t "Bearbeiten"}}</a>
+                    <a href="/admin/users/{{.ID}}/password" class="btn btn--sm">{{t "Passwort"}}</a>
+                    <form method="POST" action="/admin/users/{{.ID}}/link" style="display:inline">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <input type="hidden" name="purpose" value="reset">
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Reset-Link"}}</button>
+                    </form>
+                    {{if ne .ID $.SessionUserID}}
+                    <form method="POST" action="/admin/users/{{.ID}}/delete" hx-post="/admin/users/{{.ID}}/delete" style="display:inline"
+                          hx-confirm="{{t "Diesen Benutzer löschen?"}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                    </form>
+                    {{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Keine Benutzer gefunden."}}</p>
+    {{end}}
+</div>
+{{end}}

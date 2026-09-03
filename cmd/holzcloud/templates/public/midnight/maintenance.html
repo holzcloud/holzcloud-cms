@@ -1,0 +1,6 @@
+{{define "content"}}
+<article class="page page--maintenance">
+  <h1>{{.Page.Title}}</h1>
+  {{if .Meta.Message}}<p>{{.Meta.Message}}</p>{{else}}<p>Diese Website wird gerade überarbeitet und ist in Kürze wieder erreichbar.</p>{{end}}
+</article>
+{{end}}

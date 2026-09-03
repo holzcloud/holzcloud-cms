@@ -1,0 +1,32 @@
+name: Funktion vorschlagen
+description: Etwas fehlt.
+labels: ["vorschlag"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Bevor Sie schreiben: vier Regeln in `CONTRIBUTING.md` sind nicht
+        verhandelbar, und ein Vorschlag, der eine davon verletzt, wird
+        abgelehnt, egal wie gut er sonst ist. Kein JavaScript ausser htmx; zur
+        Laufzeit wird nichts von fremden Servern nachgeladen; ein Programm ohne
+        Beilagen; kein CGO. Es ist schade um Ihren Abend, wenn das erst
+        hinterher auffällt.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem löst das
+      description: >
+        Was geht heute nicht oder nur umständlich? Bitte das Problem
+        beschreiben, nicht die Lösung — für ein gut beschriebenes Problem gibt
+        es manchmal einen kürzeren Weg als den vorgeschlagenen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: vorstellung
+    attributes:
+      label: Wie es aussehen könnte
+      description: Falls Sie schon eine Vorstellung haben. Freiwillig.
+    validations:
+      required: false

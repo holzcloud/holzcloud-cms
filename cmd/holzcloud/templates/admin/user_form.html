@@ -1,0 +1,75 @@
+{{define "content"}}
+{{template "user_form-content" .}}
+{{end}}
+
+{{define "user_form-content"}}
+<div class="card">
+    <form method="POST" action="{{if .IsEdit}}/admin/users/{{.User.ID}}/edit{{else}}/admin/users/new{{end}}">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+        <div class="form-group">
+            <label class="form-label" for="name">{{t "Name"}}</label>
+            <input type="text" id="name" name="name" class="form-input"
+                   value="{{if .User}}{{.User.Name}}{{end}}"
+                   placeholder="{{t "Vor- und Nachname"}}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="email">{{t "E-Mail"}}</label>
+            <input type="email" id="email" name="email" class="form-input" required
+                   value="{{if .User}}{{.User.Email}}{{end}}"
+                   placeholder="{{t "user@example.com"}}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="role">{{t "Rolle"}}</label>
+            <select id="role" name="role" class="form-input" required>
+                <option value="admin"{{if and .User (eq .User.Role "admin")}} selected{{end}}>{{t "Admin"}}</option>
+                <option value="editor"{{if and .User (eq .User.Role "editor")}} selected{{end}}>{{t "Redakteur"}}</option>
+            </select>
+        </div>
+
+        {{/* Die Rechte innerhalb der Rolle. Für einen Administrator gibt es sie
+             nicht: die Rolle ist das Recht, die Anlage zu führen. */}}
+        <fieldset class="form-group rights">
+            <legend class="form-label">{{t "Rechte"}}</legend>
+            <p class="form-hint text-muted">
+                {{t "Gilt für Redakteure. Ein Administrator führt die ganze Anlage und ist von beidem nicht betroffen."}}
+            </p>
+
+            <label class="form-check">
+                <input type="checkbox" name="darf_veroeffentlichen" value="1"{{if or .MayPublish (not .IsEdit)}} checked{{end}}>
+                <span class="form-check-label">{{t "Darf veröffentlichen"}}</span>
+            </label>
+            <p class="form-hint text-muted">
+                {{t "Ohne dieses Recht wird geschrieben und zur Prüfung eingereicht; online stellt jemand anders."}}
+            </p>
+
+            {{if .Sites}}
+            <p class="form-label" style="margin-top:var(--space-2)">{{t "Websites"}}</p>
+            {{range .Sites}}
+            <label class="form-check">
+                <input type="checkbox" name="websites" value="{{.ID}}"{{if .Ticks}} checked{{end}}>
+                <span class="form-check-label">{{.Name}}</span>
+            </label>
+            {{end}}
+            <p class="form-hint text-muted">
+                {{t "Nichts angekreuzt heißt: alle Websites. Wer hier eine Auswahl bekommt, sieht ab da nur diese — überall, auch über eine mitgeschriebene Adresse."}}
+            </p>
+            {{end}}
+        </fieldset>
+
+        {{if not .IsEdit}}
+        <div class="form-group">
+            <label class="form-label" for="password">{{t "Passwort"}}</label>
+            <input type="password" id="password" name="password" class="form-input" required
+                   placeholder="{{t "Erstes Passwort"}}" minlength="8">
+        </div>
+        {{end}}
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+            {{if .IsEdit}}{{t "Änderungen speichern"}}{{else}}{{t "Benutzer anlegen"}}{{end}}
+        </button>
+    </form>
+</div>
+{{end}}

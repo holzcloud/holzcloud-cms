@@ -1,0 +1,294 @@
+{{define "order_print"}}<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <!-- Ohne diese Zeile fragt der Browser von sich aus /favicon.ico an
+         und bekommt auf jedem Seitenaufruf einen 404. -->
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <meta name="robots" content="noindex, nofollow">
+    <style>
+      /* Eigene Regeln statt admin.css: dieses Blatt geht auf Papier, und die
+         Navigation, die Farbflächen und die Schaltflächen des Admin-Bereichs
+         haben dort nichts verloren. */
+      :root {
+        --ink: #111;
+        --muted: #555;
+        --line: #ccc;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                     "Helvetica Neue", Arial, sans-serif;
+        font-size: 11pt;
+        line-height: 1.45;
+        color: var(--ink);
+        background: #f5f5f5;
+        padding: 2rem 1rem;
+      }
+
+      .sheet {
+        /* A4 mit dem Rand, den ein Fensterbriefumschlag verlangt. */
+        max-width: 21cm;
+        min-height: 29.7cm;
+        margin: 0 auto;
+        padding: 2cm 2cm 1.5cm;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+      }
+
+      .toolbar {
+        max-width: 21cm;
+        margin: 0 auto 1rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .toolbar__hint,
+      .toolbar .hint {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .toolbar a {
+        font: inherit;
+        font-size: 0.9rem;
+        padding: 0.45em 1em;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: #fff;
+        color: inherit;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .head {
+        display: flex;
+        justify-content: space-between;
+        gap: 2rem;
+        margin-bottom: 2.5cm;
+      }
+
+      .seller { font-size: 9.5pt; color: var(--muted); }
+      .seller strong { display: block; font-size: 12pt; color: var(--ink); }
+
+      .buyer { margin-bottom: 1.5cm; }
+      .buyer__label {
+        font-size: 8pt;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 0.3em;
+      }
+
+      h1 { font-size: 16pt; margin-bottom: 0.2em; }
+
+      .meta {
+        font-size: 9.5pt;
+        color: var(--muted);
+        margin-bottom: 1.2cm;
+      }
+
+      table { width: 100%; border-collapse: collapse; }
+
+      th {
+        text-align: left;
+        font-size: 8.5pt;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        border-bottom: 1px solid var(--ink);
+        padding-bottom: 0.4em;
+      }
+
+      td {
+        padding: 0.55em 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+
+      .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .sub { font-size: 9pt; color: var(--muted); }
+
+      .totals {
+        margin-top: 1em;
+        margin-left: auto;
+        width: 9cm;
+      }
+
+      .totals td { border: 0; padding: 0.25em 0; }
+      .totals .sum td {
+        border-top: 1.5px solid var(--ink);
+        padding-top: 0.5em;
+        font-weight: 700;
+        font-size: 12pt;
+      }
+
+      .taxes {
+        margin-top: 1.2em;
+        margin-left: auto;
+        width: 9cm;
+        font-size: 9.5pt;
+        color: var(--muted);
+      }
+
+      .taxes td { border: 0; padding: 0.15em 0; }
+
+      .note {
+        margin-top: 1.5cm;
+        font-size: 9.5pt;
+      }
+
+      .note + .note { margin-top: 0.6em; }
+
+      .payment-details {
+        margin-top: 0.4em;
+        padding: 0.7em 0.9em;
+        border: 1px solid var(--line);
+        white-space: pre-line;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .foot {
+        margin-top: 2cm;
+        padding-top: 0.6em;
+        border-top: 1px solid var(--line);
+        font-size: 8.5pt;
+        color: var(--muted);
+      }
+
+      @media print {
+        body { background: #fff; padding: 0; font-size: 10.5pt; }
+        .sheet { box-shadow: none; margin: 0; padding: 1.5cm; min-height: auto; max-width: none; }
+        .toolbar { display: none; }
+        /* Eine Zeile darf nicht über den Seitenwechsel zerrissen werden. */
+        tr { break-inside: avoid; }
+        .totals, .taxes, .payment-details { break-inside: avoid; }
+      }
+
+      @page { size: A4; margin: 1.5cm; }
+    </style>
+</head>
+<body>
+    <!-- Kein Druckknopf. Er bräuchte window.print() in einem onclick, und die
+         Richtlinie des Admin-Bereichs lässt kein Skript im Dokument zu — was
+         Absicht ist: ohne Skripte kann ein Feld, das der Maskierung entkommt,
+         nichts ausführen. Strg+P beziehungsweise ⌘+P tut dasselbe. -->
+    <div class="toolbar">
+        <a href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen/{{.Order.Number}}">Zurück zur Bestellung</a>
+        <span class="hint">Zum Drucken oder als PDF sichern: Strg&nbsp;+&nbsp;P (Mac: ⌘&nbsp;+&nbsp;P)</span>
+    </div>
+
+    <div class="sheet">
+        <div class="head">
+            <div class="seller">
+                <strong>{{.Seller.Name}}</strong>
+                {{range .Seller.Address}}{{.}}<br>{{end}}
+                {{if .Seller.Phone}}{{.Seller.Phone}}<br>{{end}}
+                {{if .Seller.Email}}{{.Seller.Email}}{{end}}
+            </div>
+        </div>
+
+        <div class="buyer">
+            <p class="buyer__label">{{if .Invoice}}Rechnung an{{else}}Lieferung an{{end}}</p>
+            {{range .Buyer}}{{.}}<br>{{end}}
+        </div>
+
+        <h1>{{if .Invoice}}Rechnung{{else}}Lieferschein{{end}} {{.Order.Number}}</h1>
+        <p class="meta">
+            Datum {{.Date}}
+            {{if .Invoice}}{{if .Seller.VAT}} · {{.Seller.VAT}}{{end}}{{end}}
+        </p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Artikel</th>
+                    <th class="num">Menge</th>
+                    {{if .Invoice}}
+                    <th class="num">Einzelpreis</th>
+                    <th class="num">Betrag</th>
+                    {{end}}
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Lines}}
+                <tr>
+                    <td>
+                        {{.Title}}
+                        {{if .Subtitle}}<br><span class="sub">{{.Subtitle}}</span>{{end}}
+                        {{if .SKU}}<br><span class="sub">Art.-Nr. {{.SKU}}</span>{{end}}
+                    </td>
+                    <td class="num">{{.Quantity}}</td>
+                    {{if $.Invoice}}
+                    <td class="num">{{.Unit}}</td>
+                    <td class="num">{{.Line}}</td>
+                    {{end}}
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+
+        {{if .Invoice}}
+        <table class="totals">
+            <tr>
+                <td>Zwischensumme</td>
+                <td class="num">{{.ItemsGross}}</td>
+            </tr>
+            <tr>
+                <td>Versand</td>
+                <td class="num">{{.Shipping}}</td>
+            </tr>
+            <tr class="sum">
+                <td>Gesamtbetrag</td>
+                <td class="num">{{.Total}}</td>
+            </tr>
+        </table>
+
+        {{if .Taxes}}
+        <table class="taxes">
+            {{range .Taxes}}
+            <tr>
+                <td>MWST {{.Rate}} auf {{.Net}}</td>
+                <td class="num">{{.Tax}}</td>
+            </tr>
+            {{end}}
+        </table>
+        {{end}}
+
+        {{if .TaxNote}}
+        <p class="note">{{.TaxNote}}</p>
+        {{end}}
+
+        {{if .PaymentNote}}
+        <p class="note">{{.PaymentNote}}</p>
+        {{end}}
+
+        {{if .PaymentDetails}}
+        <div class="note">
+            Zahlbar auf:
+            <div class="payment-details">{{.PaymentDetails}}</div>
+        </div>
+        {{end}}
+        {{end}}
+
+        {{if .Order.Customer.Note}}
+        <p class="note"><strong>Bemerkung der Kundschaft:</strong> {{.Order.Customer.Note}}</p>
+        {{end}}
+
+        {{if and .Invoice .ReturnPolicy}}
+        <p class="note">{{.ReturnPolicy}}</p>
+        {{end}}
+
+        <p class="foot">
+            {{.Seller.Name}}{{range .Seller.Address}} · {{.}}{{end}}
+            {{if .Seller.VAT}} · {{.Seller.VAT}}{{end}}
+        </p>
+    </div>
+</body>
+</html>
+{{end}}

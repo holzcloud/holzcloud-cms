@@ -1,0 +1,6 @@
+<!-- Das Zeichen des CMS. Ein SVG und keine .ico-Datei: eine Datei, jede Grösse,
+     und in beiden Modi lesbar, weil der Grund mitkommt. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Holzcloud">
+  <rect width="32" height="32" rx="8" fill="#4f3ed1"/>
+  <path d="M10 8v16M22 8v16M10 16h12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+</svg>

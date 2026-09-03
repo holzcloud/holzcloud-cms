@@ -1,0 +1,65 @@
+{{define "content"}}
+<section class="archive">
+  <header class="page-header">
+    <!-- Beitragsarchiv und Schlagwortarchiv laufen beide durch diese Datei.
+         .Archive.Term ist der einzige Unterschied: ohne diese Weiche stünde
+         über /tag/wolle die Überschrift des Gesamtarchivs. -->
+    {{if .Archive.Term}}
+    <p class="page-header__kicker">Schlagwort</p>
+    <h1 class="page-header__title">{{.Archive.Term}}</h1>
+    {{else}}
+    <h1 class="page-header__title">{{.Page.Title}}</h1>
+    {{end}}
+    {{if .Archive.Total}}
+    <p class="page-header__meta">{{.Archive.Total}} Beiträge</p>
+    {{end}}
+  </header>
+
+  {{if .Archive.Entries}}
+  <ol class="archive-list">
+    {{range .Archive.Entries}}
+    <li class="archive-entry">
+      <article class="archive-entry__card">
+        <!-- Das Vorschaubild ist eine zweite Verknüpfung auf dasselbe Ziel.
+             Für die Tastatur und für Vorlesesoftware wäre das ein doppelter
+             Weg zum selben Ort, deshalb ist es dort ausgeblendet. -->
+        {{if .ImageURL}}
+        <a class="archive-entry__image" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+          <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+        </a>
+        {{end}}
+        <div class="archive-entry__text">
+          {{if .PublishedAt}}
+          <time class="archive-entry__date" datetime="{{formatDateISO .PublishedAt}}">{{formatDate .PublishedAt}}</time>
+          {{end}}
+          <h2 class="archive-entry__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+          {{if .Excerpt}}<p class="archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
+          {{if .Terms}}
+          <ul class="term-list" aria-label="Schlagwörter">
+            {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+          </ul>
+          {{end}}
+        </div>
+      </article>
+    </li>
+    {{end}}
+  </ol>
+
+  <!-- Die Adressen des Blätterns stehen fertig in PrevURL und NextURL. Selbst
+       zusammengesetzte Links verlieren im Schlagwortarchiv das Schlagwort. -->
+  {{if gt .Archive.TotalPages 1}}
+  <nav class="archive-pager" aria-label="Seiten des Archivs">
+    {{if .Archive.PrevURL}}<a class="button button--quiet archive-pager__prev" href="{{.Archive.PrevURL}}" rel="prev">Neuere Beiträge</a>{{end}}
+    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
+    {{if .Archive.NextURL}}<a class="button button--quiet archive-pager__next" href="{{.Archive.NextURL}}" rel="next">Ältere Beiträge</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <div class="prose">
+    <p class="archive-empty">Hier steht noch nichts.
+      {{if .Page.ArchiveURL}}<a href="{{.Page.ArchiveURL}}">Zurück zum Archiv</a>{{end}}
+    </p>
+  </div>
+  {{end}}
+</section>
+{{end}}

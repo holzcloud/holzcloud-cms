@@ -1,0 +1,19 @@
+{{define "content"}}
+<section class="page page--notice">
+  <div class="notice">
+    <p class="notice__code" aria-hidden="true">404</p>
+    <h1 class="notice__title">{{.Page.Title}}</h1>
+    <!-- Dieselbe Ansicht trägt auch den abgelaufenen Vorschaulink. Wer die
+         Meldung hier fest schreibt, lässt den Empfänger eines solchen Links mit
+         "Seite nicht gefunden" stehen, statt ihm zu sagen, dass er einen neuen
+         Link braucht. -->
+    <p class="notice__text">
+      {{if .Meta.Message}}{{.Meta.Message}}{{else}}Diese Seite gibt es nicht (mehr).{{end}}
+    </p>
+    <p class="notice__actions">
+      <a class="button" href="/">Zur Startseite</a>
+      {{if .Site.HasSearch}}<a class="button button--quiet" href="/suche">Suchen</a>{{end}}
+    </p>
+  </div>
+</section>
+{{end}}

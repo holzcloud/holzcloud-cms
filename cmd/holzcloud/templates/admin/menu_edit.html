@@ -1,0 +1,107 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/menus" class="btn btn--sm">{{t "Zurück zu den Menüs"}}</a>{{end}}
+
+{{define "content"}}
+{{template "menu_edit-content" .}}
+{{end}}
+
+{{define "menu_edit-content"}}
+<div class="card" style="margin-bottom:var(--space-3)">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Menü-Einstellungen"}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}/update" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
+            <label class="form-label" for="menu-name">{{t "Name"}}</label>
+            <input type="text" id="menu-name" name="name" class="form-input" value="{{.Menu.Name}}" required>
+        </div>
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:120px">
+            <label class="form-label" for="menu-loc">{{t "Kennung"}}</label>
+            <input type="text" id="menu-loc" name="location_key" class="form-input" value="{{.Menu.LocationKey}}" required>
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+    </form>
+</div>
+
+<div class="card" style="margin-bottom:var(--space-3)">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Menüeinträge"}}</h2>
+    {{if .Items}}
+    <div class="menu-tree">
+        {{range .Items}}
+        <div class="menu-item-row" style="padding-left:calc({{.Depth}} * var(--space-4))">
+            <div class="menu-item-info">
+                <span class="menu-item-title">{{.Title}}</span>
+                <span class="item-type-badge item-type-badge--{{.ItemType}}">{{.ItemType}}</span>
+                {{if eq .ItemType "url"}}
+                <span class="text-muted" style="font-size:var(--text-xs)">{{.URL}}</span>
+                {{else if eq .ItemType "page"}}
+                <span class="text-muted" style="font-size:var(--text-xs)">/{{.PageSlug}}</span>
+                {{end}}
+            </div>
+            <div class="menu-item-actions">
+                <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=up" style="display:inline">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <button type="submit" class="reorder-btn" hx-post="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=up" hx-disabled-elt="this"><span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Nach oben schieben"}}</span></button>
+                </form>
+                <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=down" style="display:inline">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <button type="submit" class="reorder-btn" hx-post="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=down" hx-disabled-elt="this"><span aria-hidden="true">&#8595;</span><span class="sr-only">{{t "Nach unten schieben"}}</span></button>
+                </form>
+                <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/delete" hx-post="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/delete" style="display:inline"
+                      hx-confirm="{{t "Diesen Eintrag löschen?"}}">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                </form>
+            </div>
+        </div>
+        {{end}}
+    </div>
+    {{else}}
+    <p class="text-muted" style="margin-bottom:var(--space-2)">{{t "Noch keine Einträge. Füge unten den ersten hinzu."}}</p>
+    {{end}}
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Eintrag hinzufügen"}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}/items">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-2)">
+            <div class="form-group">
+                <label class="form-label" for="item-title">{{t "Titel"}}</label>
+                <input type="text" id="item-title" name="title" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-type">{{t "Art"}}</label>
+                <select id="item-type" name="item_type" class="form-input form-select">
+                    <option value="page">{{t "Link auf eine Seite"}}</option>
+                    <option value="url">{{t "Externe Adresse"}}</option>
+                    <option value="custom">{{t "Nur Text (kein Link)"}}</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-url">{{t "Adresse"}} <span class="text-muted">{{t "(bei „Externe Adresse“)"}}</span></label>
+                <input type="text" id="item-url" name="url" class="form-input" placeholder="{{t "https://..."}}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-page">{{t "Seite"}} <span class="text-muted">{{t "(bei „Link auf eine Seite“)"}}</span></label>
+                <select id="item-page" name="page_id" class="form-input form-select">
+                    <option value="">{{t "– Seite auswählen –"}}</option>
+                    {{range .Pages}}
+                    <option value="{{.ID}}">{{.Title}} (/{{.Slug}})</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-parent">{{t "Übergeordnet"}}</label>
+                <select id="item-parent" name="parent_id" class="form-input form-select">
+                    <option value="">{{t "– Oberste Ebene –"}}</option>
+                    {{range .Items}}
+                    {{if eq .Depth 0}}
+                    <option value="{{.ID}}">{{.Title}}</option>
+                    {{end}}
+                    {{end}}
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this" style="margin-top:var(--space-1)">{{t "Eintrag hinzufügen"}}</button>
+    </form>
+</div>
+{{end}}

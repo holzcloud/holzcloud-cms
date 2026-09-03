@@ -1,0 +1,14 @@
+{{/*
+  Inline title editor, swapped into the title cell of a page row.
+  Expects a PageRowData: .WebsiteID, .Page.
+*/}}
+{{define "page_inline_edit"}}
+<input type="text" name="title" value="{{.Page.Title}}"
+       class="form-input form-input--inline" autofocus
+       hx-put="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/title"
+       hx-trigger="blur, keyup[key=='Enter']"
+       hx-swap="outerHTML"
+       hx-target="closest tr"
+       hx-include="next input">
+<input type="hidden" name="slug" value="{{.Page.Slug}}">
+{{end}}

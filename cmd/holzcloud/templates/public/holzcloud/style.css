@@ -1,0 +1,1712 @@
+/* ══════════════════════════════════════════════════════════════
+   Holzcloud — die Gestaltung von holzcloud.ch als Vorlage
+
+   Zusammengesetzt am 2026-09-03 aus holzcloud-design v1.0.0.
+
+   Fünf Dateien lagen im Original. Vier davon sind das gemeinsame
+   Gestaltungssystem und stehen unten unverändert:
+
+     tokens.css      @layer hc.tokens      — Werte
+     base.css        @layer hc.base        — Grund, Schrift, Fokusring
+     components.css  @layer hc.components  — Fläche, Leiste, Knopf, Feld
+     motif.css       @layer hc.motif       — Würfeltextur und Zeichnungen
+
+   Die fünfte, site.css, war die Schicht der einen Seite holzcloud.ch.
+   Sie ist ERSETZT durch die CMS-Schicht ganz unten, die statt einer
+   handgeschriebenen Seite den Datenvertrag der Vorlagen kleidet.
+
+   Zwischen den beiden Marken darunter steht keine Zeile, die hier
+   getippt worden wäre — die vier Dateien sind byteweise
+   hineinkopiert, und ein Test vergleicht den Bereich byteweise mit
+   seiner Quelle. Der Grund steht in tokens.css bei
+   --hc-cubes-mask: ein Semikolon in dieser data-URI hat schon drei
+   Kopien des Tokens zerlegt. Wer hier etwas umbricht, einrückt oder
+   „aufräumt", zerlegt die vierte.
+
+   Die Reihenfolge zählt: tokens vor base vor components, motif
+   zuletzt. Die CMS-Schicht steht bewusst AUSSERHALB jeder @layer und
+   gewinnt damit gegen alle vier, ohne Spezifitätsspiele. Die eigenen
+   Werte der Website (.Site.Design) stehen im <style> nach diesem
+   Stylesheet, ebenfalls ausserhalb jeder Schicht, und gewinnen
+   dadurch gegen die CMS-Schicht. Drei Stufen, in dieser Ordnung.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Schriften ────────────────────────────────────────────────
+   Beide Familien liegen als woff2 in fonts/ dieser Vorlage und
+   kommen über /t/fonts/ vom eigenen Server. Kein Byte wird von
+   einem Dritten geholt — siehe VENDOR.md.
+
+   Beide sind variabel, also trägt eine Datei je Teilmenge jedes
+   Gewicht: font-weight bekommt eine SPANNE, nicht einen Wert, und
+   es gibt keinen @font-face je Schnitt. Die unicode-range trennt
+   latin von latin-ext, damit ein deutscher Text die zweite Datei
+   gar nicht erst anfragt. */
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/t/fonts/manrope-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/t/fonts/manrope-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("/t/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("/t/fonts/jetbrains-mono-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ==== holzcloud-design v1.0.0 — verbatim begin ==== */
+/* ══════════════════════════════════════════════════════════════
+   holzcloud design tokens
+
+   The single place a value is decided. Everything else in this
+   repository — and everything in holzcloud-web, holzkube,
+   holzcloud-cms, the Authentik login and the Homepage dashboard —
+   reads from here and defines nothing of its own.
+
+   If you are about to write a colour, a radius or a font size as a
+   literal anywhere else, that is the bug this file exists to prevent.
+
+   One theme, and it is dark. Every holzcloud surface is dark; a light
+   theme would be a second brand nobody has asked for. Should one ever
+   be needed, it is one extra block redefining these same names — which
+   is exactly why nothing below is called "dark".
+   ══════════════════════════════════════════════════════════════ */
+@layer hc.tokens {
+  :root {
+    /* ── Ground ───────────────────────────────────────────────
+       The page sits on a near-black base with three coloured washes
+       over it. The violet at the bottom is not decoration: without it
+       the browns read as sepia. */
+    --hc-ground:       #0A0705;
+    --hc-ground-2:     #140D08;
+    --hc-wash-warm:    rgb(138 83 38 / .55);
+    --hc-wash-brass:   rgb(240 174 95 / .28);
+    --hc-wash-violet:  rgb(107 63 122 / .26);
+
+    /* The whole background as one value, so a surface only has to say
+       `background: var(--hc-ground-image)` to be part of the family. */
+    --hc-ground-image:
+      radial-gradient(60% 50% at 20% 16%, var(--hc-wash-warm)   0%, transparent 100%),
+      radial-gradient(46% 40% at 84% 26%, var(--hc-wash-brass)  0%, transparent 100%),
+      radial-gradient(55% 48% at 60% 95%, var(--hc-wash-violet) 0%, transparent 100%),
+      linear-gradient(160deg, var(--hc-ground-2) 0%, var(--hc-ground) 100%);
+
+    /* ── Brand ────────────────────────────────────────────────
+       One accent. A second would make the first mean nothing. */
+    --hc-brass:        #F0AE5F;
+    --hc-brass-soft:   rgb(240 174 95 / .40);
+    --hc-brass-wash:   rgb(240 174 95 / .10);
+    /* Start and end of the pulse ring. The end is the same colour at
+       zero alpha rather than `transparent`, so the animation fades out
+       instead of travelling through grey on its way there. */
+    --hc-brass-pulse:     rgb(240 174 95 / .5);
+    --hc-brass-pulse-out: rgb(240 174 95 / 0);
+    /* Ink for text sitting *on* a brass fill. Never --hc-ink there. */
+    --hc-on-brass:     #150E08;
+
+    /* ── Ink ──────────────────────────────────────────────────
+       Three steps, and the third is the floor. --hc-ink-3 carries the
+       smallest type in the system — labels, chips, footers — and at
+       .52 it lands between 4.5:1 and 4.9:1 against the range this
+       ground actually produces. It was .42 once and failed AA.
+       Lower it and small text goes with it. */
+    --hc-ink:          #F6EFE6;
+    --hc-ink-2:        rgb(246 239 230 / .70);
+    --hc-ink-3:        rgb(246 239 230 / .52);
+
+    /* ── Surfaces ─────────────────────────────────────────────
+       Glass. --hc-pane-solid is the same surface for browsers without
+       backdrop-filter and for anyone who asked for less transparency;
+       it is a real colour, not an alpha, on purpose. */
+    --hc-pane:         rgb(255 248 240 / .055);
+    --hc-pane-solid:   #20150D;
+    --hc-pane-edge:    rgb(255 226 190 / .14);
+    --hc-pane-lift:    rgb(240 174 95 / .40);
+    --hc-hairline:     rgb(255 226 190 / .10);
+    --hc-blur:         blur(24px) saturate(150%);
+    --hc-blur-bar:     blur(18px) saturate(140%);
+    /* The sticky bar is darker than a pane: it has the whole page
+       moving underneath it, not just the ground. */
+    --hc-pane-bar:       rgb(14 9 5 / .55);
+    --hc-pane-bar-solid: rgb(14 9 5 / .97);
+    /* Inputs sit *below* the surface they are on, so they are darker
+       than the pane rather than lighter. */
+    --hc-pane-sunken:    rgb(0 0 0 / .22);
+
+    /* ── Status ───────────────────────────────────────────────
+       Each one clears 4.5:1 against both ends of the ground, so they
+       are safe as text and not only as dots.
+
+       --hc-warn is a near neighbour of --hc-brass, and that is not an
+       accident to be fixed: the brand accent *is* amber. Never let
+       colour alone carry the difference between "attention" and
+       "warning" — give the warning a word or an icon too. */
+    --hc-ok:           #8CC271;
+    --hc-warn:         #E8C15C;
+    --hc-danger:       #EC8272;
+    --hc-info:         #8FB8D8;
+    --hc-ok-wash:      rgb(140 194 113 / .12);
+    --hc-warn-wash:    rgb(232 193 92 / .12);
+    --hc-danger-wash:  rgb(236 130 114 / .12);
+    --hc-info-wash:    rgb(143 184 216 / .12);
+
+    /* ── Radius ───────────────────────────────────────────────
+       Two real sizes and a pill. --hc-r is the pane; --hc-r-sm is what
+       sits inside one, so the inner corner never fights the outer. */
+    --hc-r-sm:         8px;
+    --hc-r:            16px;
+    --hc-r-lg:         24px;
+    --hc-r-pill:       999px;
+
+    /* ── Space ────────────────────────────────────────────────
+       A 4px grid. Named by step, not by intent, because the same
+       distance means different things in different places. */
+    --hc-space-1:      4px;
+    --hc-space-2:      8px;
+    --hc-space-3:      12px;
+    --hc-space-4:      16px;
+    --hc-space-5:      24px;
+    --hc-space-6:      32px;
+    --hc-space-7:      48px;
+    --hc-space-8:      64px;
+    --hc-space-9:      96px;
+
+    /* ── Type ─────────────────────────────────────────────────
+       Manrope for text, JetBrains Mono for anything a machine wrote:
+       identifiers, versions, labels, log lines. The distinction is the
+       point — if it is mono, it is literal. */
+    --hc-font-sans:    Manrope, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --hc-font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --hc-text-label:   11px;    /* mono, uppercase, tracked out */
+    --hc-text-xs:      12px;
+    --hc-text-sm:      14px;
+    --hc-text-base:    17px;
+    --hc-text-lg:      19px;
+    --hc-text-xl:      25px;
+    --hc-text-2xl:     34px;
+
+    /* Display sizes are fluid: they are the only type large enough for
+       the difference between a phone and a monitor to matter. */
+    --hc-display-sm:   clamp(23px, 2.6vw, 30px);
+    --hc-display:      clamp(30px, 3.4vw, 50px);
+    --hc-display-lg:   clamp(40px, 5.4vw, 80px);
+
+    --hc-weight-thin:      200;
+    --hc-weight-regular:   400;
+    --hc-weight-medium:    500;
+    --hc-weight-semibold:  600;
+
+    --hc-track-tight:  -.03em;
+    --hc-track-snug:   -.015em;
+    --hc-track-wide:   .1em;
+    --hc-track-widest: .2em;
+
+    --hc-leading-tight: 1.07;
+    --hc-leading-snug:  1.3;
+    --hc-leading-base:  1.65;
+
+    /* ── Elevation ────────────────────────────────────────────
+       The inset highlight is half of what makes a pane look like glass
+       rather than a grey box. Do not drop it to "simplify". */
+    --hc-shadow-pane:  inset 0 1px 0 rgb(255 240 220 / .14), 0 16px 40px rgb(0 0 0 / .45);
+    --hc-shadow-lift:  inset 0 1px 0 rgb(255 240 220 / .18), 0 22px 56px rgb(0 0 0 / .55);
+
+    /* ── Motion ───────────────────────────────────────────────
+       Short enough that nobody waits for it. */
+    --hc-dur-fast:     .16s;
+    --hc-dur-base:     .24s;
+    --hc-ease:         cubic-bezier(.2, .7, .3, 1);
+
+    /* ── Layout ───────────────────────────────────────────────
+       --hc-wide is the page; --hc-measure is how wide a paragraph is
+       allowed to get inside it. They are different numbers because a
+       wide page and a readable line are different problems. */
+    --hc-wide:         1600px;
+    --hc-measure:      66ch;
+    --hc-gutter:       clamp(20px, 4vw, 64px);
+
+    /* ── Motiv ────────────────────────────────────────────────
+       Der isometrische Würfel ist das Zeichen der Marke: er steckt im
+       Namen holzkube, im Logo und in der Textur hinter jeder Seite.
+
+       Die Textur ist eine Maske, kein farbiges Bild. Eine Farbe in
+       einer data-URI wäre die eine Stelle, an der ein Wert dem Token
+       nicht folgen kann — als Maske über --hc-brass folgt sie.
+
+       Die Würfel stehen in echter 2:1-Isometrie, also Deckfläche
+       doppelt so breit wie hoch. Das war nicht immer so: bis v1.0.0
+       war die Deckfläche 100×56, ein Verhältnis von 1.79:1, während
+       das Logo mit 52×26 auf 2.00:1 stand und die Zeichnungen auf
+       holzcloud.ch mit 124×62 ebenso. Die Textur war älter als die
+       Logo-Entscheidung und wurde nie nachgezogen — nebeneinander
+       gesehen wirkten die Hintergrundwürfel gestreckt und die
+       gezeichneten gestaucht. Jetzt teilen alle drei eine Projektion.
+
+       Der Wert trägt bewusst kein ";utf8". Das ist ein Hinweis, den
+       Browser ignorieren, und das Semikolon darin hat drei Kopien
+       dieses Tokens zerlegt: tools/tokens.py, die Authentik-Blueprint
+       und die Homepage-ConfigMap schnitten alle daran ab, weil sie
+       Deklarationen an ";" trennen, ohne Anführungszeichen zu sehen.
+       Ohne Semikolon kann der Wert nicht mehr zerfallen.
+
+       Die Kachel kachelt nahtlos, und das war sie nicht: zwei der drei
+       Würfel ragen über den Rand — einer rechts bis 284 bei einer
+       Kachelbreite von 280, einer links bis −6. Was draussen liegt,
+       wird beschnitten und nicht umgebrochen, also standen an jeder
+       Kachelfuge zwei halbe Würfel ohne Gegenstück. Jeder der beiden
+       hat jetzt eine Kopie um genau eine Kachelbreite verschoben, bei
+       −36 und bei 314; damit setzt sich über die Fuge hinweg fort, was
+       am Rand abgeschnitten wird. */
+    --hc-cubes-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='320' viewBox='0 0 280 320'><g fill='none' stroke='white' stroke-width='1.1'><path d='M64 44 L114 69 L114 111.1 L64 86.1 Z'/><path d='M164 44 L114 69 L114 111.1 L164 86.1 Z'/><path d='M64 44 L114 19 L164 44 L114 69 Z'/><path d='M204 188 L244 208 L244 241.7 L204 221.7 Z'/><path d='M284 188 L244 208 L244 241.7 L284 221.7 Z'/><path d='M204 188 L244 168 L284 188 L244 208 Z'/><path d='M-76 188 L-36 208 L-36 241.7 L-76 221.7 Z'/><path d='M4 188 L-36 208 L-36 241.7 L4 221.7 Z'/><path d='M-76 188 L-36 168 L4 188 L-36 208 Z'/><path d='M-6 208 L34 228 L34 261.7 L-6 241.7 Z'/><path d='M74 208 L34 228 L34 261.7 L74 241.7 Z'/><path d='M-6 208 L34 188 L74 208 L34 228 Z'/><path d='M274 208 L314 228 L314 261.7 L274 241.7 Z'/><path d='M354 208 L314 228 L314 261.7 L354 241.7 Z'/><path d='M274 208 L314 188 L354 208 L314 228 Z'/></g></svg>");
+    --hc-cubes-size:    280px 320px;
+    --hc-cubes-opacity: .085;
+
+    /* Drei Flächen, drei Helligkeiten — mehr braucht ein Würfel nicht,
+       um räumlich zu wirken. */
+    --hc-iso-top:        rgb(240 174 95 / .13);
+    --hc-iso-side:       rgb(255 240 220 / .035);
+    --hc-iso-shade:      rgb(0 0 0 / .16);
+    --hc-iso-line:       rgb(240 174 95 / .40);
+    --hc-iso-line-dim:   rgb(240 174 95 / .26);
+    /* Der eine Würfel, den das Auge zuerst finden soll. */
+    --hc-iso-lit-top:    rgb(240 174 95 / .28);
+    --hc-iso-lit-side:   rgb(240 174 95 / .08);
+    --hc-iso-lit-shade:  rgb(0 0 0 / .22);
+    --hc-iso-lit-line:   var(--hc-brass);
+    --hc-iso-lit-dim:    rgb(240 174 95 / .60);
+    /* Etwas, das es noch nicht gibt. */
+    --hc-iso-ghost:      rgb(246 239 230 / .30);
+    --hc-iso-faint:      rgb(240 174 95 / .13);
+
+    --hc-flow-line:      rgb(246 239 230 / .28);
+    --hc-flow-head:      rgb(246 239 230 / .45);
+    --hc-rail-line:      rgb(240 174 95 / .26);
+    --hc-rail-drop:      rgb(246 239 230 / .14);
+    /* Textzeilen in einer Zeichnung. Drei Stufen, damit ein Absatz
+       nicht als gleichmässiges Streifenmuster liest. */
+    --hc-iso-bar-1:      rgb(246 239 230 / .26);
+    --hc-iso-bar-2:      rgb(246 239 230 / .18);
+    --hc-iso-bar-3:      rgb(246 239 230 / .12);
+
+    /* ── Focus ────────────────────────────────────────────────
+       One ring everywhere. Brass, offset, never removed. */
+    --hc-focus:        var(--hc-brass);
+    --hc-focus-width:  2px;
+    --hc-focus-offset: 3px;
+  }
+}
+/* ══════════════════════════════════════════════════════════════
+   holzcloud base
+
+   What a page gets before any component: the ground, the type, the
+   focus ring, and the two settings that decide whether the glass in
+   components.css is readable or merely pretty.
+
+   Needs tokens.css. Sets no colours of its own.
+   ══════════════════════════════════════════════════════════════ */
+@layer hc.base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    /* Anything anchored has to clear a sticky bar. */
+    scroll-padding-top: var(--hc-space-9);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100svh;
+    /* An explicit base colour under the gradients: the image below
+       paints no colour of its own, so without this the pixels before
+       it resolves belong to the host, not to us. */
+    background-color: var(--hc-ground);
+    background-image: var(--hc-ground-image);
+    background-attachment: fixed;
+    color: var(--hc-ink);
+    font-family: var(--hc-font-sans);
+    font-size: var(--hc-text-base);
+    line-height: var(--hc-leading-base);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One ring, on everything, and only for keyboards. Removing an
+     outline without putting something else there is how a form becomes
+     unusable without a mouse. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: var(--hc-focus-width) solid var(--hc-focus);
+    outline-offset: var(--hc-focus-offset);
+    border-radius: var(--hc-r-sm);
+  }
+
+  :where(h1, h2, h3, h4) {
+    margin: 0;
+    font-weight: var(--hc-weight-medium);
+    letter-spacing: var(--hc-track-tight);
+    line-height: var(--hc-leading-tight);
+    text-wrap: balance;
+  }
+  :where(p) { margin: 0; max-width: var(--hc-measure); }
+  :where(code, kbd, samp, pre) { font-family: var(--hc-font-mono); font-size: .88em; }
+  :where(img, svg, video) { max-width: 100%; height: auto; }
+  :where(a) { color: inherit; }
+
+  /* ── The two settings that keep glass honest ──────────────── */
+
+  /* No backdrop-filter: paint the surface solid rather than leaving
+     text on a translucent rectangle over a moving gradient. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root {
+      --hc-pane: var(--hc-pane-solid);
+      --hc-pane-bar: var(--hc-pane-bar-solid);
+      --hc-blur: none;
+      --hc-blur-bar: none;
+    }
+  }
+
+  /* Asked for less transparency: the panes go opaque *and* the ground
+     loses its gradient. Opaque panes alone would leave the gradient as
+     the only thing still moving behind text, which is the thing the
+     setting is about. */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --hc-pane: var(--hc-pane-solid);
+      --hc-pane-bar: var(--hc-pane-bar-solid);
+      --hc-blur: none;
+      --hc-blur-bar: none;
+      --hc-ground-image: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+  }
+
+  /* Hidden from sight, not from a screen reader. Clipped rather than
+     parked off-canvas: a box at -9999px still has a left edge outside
+     the page, which some browsers turn into a horizontal scrollbar. */
+  .hc-sr-only {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+}
+/* ══════════════════════════════════════════════════════════════
+   holzcloud components
+
+   Every class is prefixed `hc-`. That is not tidiness: this file gets
+   loaded next to Tailwind in holzkube and next to hand-written CSS in
+   holzcloud-cms, and a bare `.btn` would collide with both.
+
+   Everything lives in @layer hc.components, so a consuming project
+   overrides any of it from its own unlayered CSS without needing a
+   more specific selector or !important.
+
+   Needs tokens.css and base.css.
+   ══════════════════════════════════════════════════════════════ */
+@layer hc.components {
+
+  /* ── Layout ───────────────────────────────────────────────── */
+  .hc-wide {
+    width: 100%; max-width: var(--hc-wide);
+    margin-inline: auto; padding-inline: var(--hc-gutter);
+  }
+  .hc-stack > * + * { margin-block-start: var(--hc-space-4); }
+  .hc-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--hc-space-3);
+  }
+
+  /* ── Pane ─────────────────────────────────────────────────────
+     The one surface in the system. Cards, dialogs, bars and panels are
+     all this, with different padding. */
+  .hc-pane {
+    background: var(--hc-pane);
+    border: 1px solid var(--hc-pane-edge);
+    border-radius: var(--hc-r);
+    box-shadow: var(--hc-shadow-pane);
+    backdrop-filter: var(--hc-blur);
+    -webkit-backdrop-filter: var(--hc-blur);
+  }
+  .hc-pane--pad   { padding: clamp(var(--hc-space-5), 4vw, var(--hc-space-7)); }
+  .hc-pane--tight { padding: var(--hc-space-4); }
+  /* Only for something the pointer can pick up. A pane that lifts on
+     hover but does nothing when clicked is a lie. */
+  a.hc-pane, button.hc-pane, .hc-pane--interactive {
+    text-decoration: none;
+    transition: border-color var(--hc-dur-fast) var(--hc-ease),
+                box-shadow  var(--hc-dur-fast) var(--hc-ease),
+                transform   var(--hc-dur-fast) var(--hc-ease);
+  }
+  a.hc-pane:hover, button.hc-pane:hover, .hc-pane--interactive:hover {
+    border-color: var(--hc-pane-lift);
+    box-shadow: var(--hc-shadow-lift);
+    transform: translateY(-2px);
+  }
+
+  /* ── Bar ──────────────────────────────────────────────────────
+     Sticky on the element itself. A sticky wrapper that is exactly as
+     tall as its contents travels zero pixels and silently scrolls away
+     — the bug this class exists to stop anyone rediscovering. */
+  .hc-bar {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--hc-pane-bar);
+    border-block-end: 1px solid var(--hc-hairline);
+    backdrop-filter: var(--hc-blur-bar);
+    -webkit-backdrop-filter: var(--hc-blur-bar);
+  }
+  .hc-bar__inner {
+    display: flex; align-items: center; gap: var(--hc-space-4);
+    min-height: 68px;
+  }
+
+  /* ── Wordmark ─────────────────────────────────────────────── */
+  .hc-mark {
+    font-size: var(--hc-text-lg); letter-spacing: var(--hc-track-snug);
+    text-decoration: none; color: var(--hc-ink);
+  }
+  .hc-mark b    { font-weight: var(--hc-weight-medium); }
+  .hc-mark span { font-weight: var(--hc-weight-thin); color: var(--hc-brass); }
+
+  /* ── Buttons ──────────────────────────────────────────────────
+     No gradient, no inner highlight, no coloured glow. Those three
+     together are what dates a button. Contrast carries it instead,
+     which is why the primary is near-white and not brass. */
+  .hc-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: var(--hc-space-2);
+    padding: 13px var(--hc-space-5);
+    border-radius: var(--hc-r-pill);
+    border: 1px solid transparent;
+    font: inherit;
+    font-size: var(--hc-text-sm); font-weight: var(--hc-weight-semibold);
+    line-height: 1; text-decoration: none; cursor: pointer;
+    background: var(--hc-ink); color: var(--hc-on-brass);
+    transition: opacity var(--hc-dur-fast) var(--hc-ease),
+                transform var(--hc-dur-fast) var(--hc-ease),
+                border-color var(--hc-dur-fast) var(--hc-ease);
+  }
+  .hc-btn:hover { opacity: .88; transform: translateY(-1px); }
+  .hc-btn:disabled, .hc-btn[aria-disabled="true"] {
+    opacity: .45; cursor: not-allowed; transform: none;
+  }
+  .hc-btn--ghost {
+    background: transparent; color: var(--hc-ink);
+    border-color: var(--hc-pane-edge); font-weight: var(--hc-weight-medium);
+  }
+  .hc-btn--ghost:hover { opacity: 1; border-color: var(--hc-pane-lift); }
+  /* Destructive is outlined, not filled. A red block is the easiest
+     thing on a screen to hit by accident. */
+  .hc-btn--danger {
+    background: transparent; color: var(--hc-danger);
+    border-color: var(--hc-danger); font-weight: var(--hc-weight-semibold);
+  }
+  .hc-btn--danger:hover { opacity: 1; background: var(--hc-danger-wash); }
+  .hc-btn--sm { padding: 9px var(--hc-space-4); font-size: var(--hc-text-xs); }
+
+  /* ── Chip ─────────────────────────────────────────────────────
+     A fact about something, not a control. Mono, because what it holds
+     is usually a literal: a version, a state, a technology. */
+  .hc-chip {
+    display: inline-flex; align-items: center; gap: var(--hc-space-2);
+    font-family: var(--hc-font-mono);
+    font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+    text-transform: uppercase;
+    padding: 6px var(--hc-space-3);
+    border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-pill);
+    color: var(--hc-ink-3);
+  }
+  a.hc-chip {
+    text-decoration: none; color: var(--hc-brass);
+    border-color: var(--hc-pane-lift);
+    transition: background-color var(--hc-dur-fast) var(--hc-ease);
+  }
+  a.hc-chip:hover { background: var(--hc-brass-wash); }
+  /* Points somewhere that is not there yet. Dashed, so the border says
+     the same thing the label does. */
+  .hc-chip--pending { border-style: dashed; }
+
+  /* ── Status ───────────────────────────────────────────────────
+     Never the dot alone. Colour is the second signal; the word next to
+     it is the first. */
+  .hc-status {
+    display: inline-flex; align-items: center; gap: var(--hc-space-2);
+    font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+  }
+  .hc-status::before {
+    content: ""; flex: none;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--hc-ink-3);
+  }
+  .hc-status--ok::before     { background: var(--hc-ok); }
+  .hc-status--warn::before   { background: var(--hc-warn); }
+  .hc-status--danger::before { background: var(--hc-danger); }
+  .hc-status--info::before   { background: var(--hc-info); }
+  .hc-status--live::before {
+    background: var(--hc-brass);
+    box-shadow: 0 0 0 0 var(--hc-brass-pulse);
+    animation: hc-pulse 2.6s var(--hc-ease) infinite;
+  }
+  @keyframes hc-pulse {
+    70%  { box-shadow: 0 0 0 9px var(--hc-brass-pulse-out); }
+    100% { box-shadow: 0 0 0 0  var(--hc-brass-pulse-out); }
+  }
+
+  /* ── Alert ────────────────────────────────────────────────── */
+  .hc-alert {
+    display: flex; gap: var(--hc-space-3);
+    padding: var(--hc-space-4);
+    border: 1px solid var(--hc-pane-edge);
+    border-inline-start: 3px solid var(--hc-ink-3);
+    border-radius: var(--hc-r-sm);
+    background: var(--hc-pane);
+    font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+  }
+  .hc-alert strong { color: var(--hc-ink); font-weight: var(--hc-weight-semibold); }
+  .hc-alert--ok     { border-inline-start-color: var(--hc-ok);     background: var(--hc-ok-wash); }
+  .hc-alert--warn   { border-inline-start-color: var(--hc-warn);   background: var(--hc-warn-wash); }
+  .hc-alert--danger { border-inline-start-color: var(--hc-danger); background: var(--hc-danger-wash); }
+  .hc-alert--info   { border-inline-start-color: var(--hc-info);   background: var(--hc-info-wash); }
+
+  /* ── Forms ────────────────────────────────────────────────────
+     Label above, hint below, error last and announced. The order is
+     the reading order, so nothing depends on colour or position. */
+  .hc-field { display: flex; flex-direction: column; gap: var(--hc-space-2); }
+  .hc-label {
+    font-size: var(--hc-text-sm); font-weight: var(--hc-weight-medium);
+    color: var(--hc-ink);
+  }
+  .hc-input, .hc-select, .hc-textarea {
+    width: 100%;
+    padding: 11px var(--hc-space-4);
+    font: inherit; font-size: var(--hc-text-sm);
+    color: var(--hc-ink);
+    background: var(--hc-pane-sunken);
+    border: 1px solid var(--hc-pane-edge);
+    border-radius: var(--hc-r-sm);
+    transition: border-color var(--hc-dur-fast) var(--hc-ease);
+  }
+  .hc-input::placeholder, .hc-textarea::placeholder { color: var(--hc-ink-3); }
+  .hc-input:hover, .hc-select:hover, .hc-textarea:hover { border-color: var(--hc-pane-lift); }
+  .hc-textarea { min-height: 7lh; resize: vertical; }
+  .hc-input:disabled, .hc-select:disabled, .hc-textarea:disabled {
+    opacity: .5; cursor: not-allowed;
+  }
+  .hc-hint { font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+  .hc-error { font-size: var(--hc-text-xs); color: var(--hc-danger); }
+  /* Driven by the same attribute assistive technology reads, so the
+     red border cannot disagree with what gets announced. */
+  .hc-input[aria-invalid="true"],
+  .hc-select[aria-invalid="true"],
+  .hc-textarea[aria-invalid="true"] { border-color: var(--hc-danger); }
+
+  /* ── Table ────────────────────────────────────────────────────
+     Rules between rows, none around them. A grid of boxes makes the
+     numbers harder to read, not easier. */
+  .hc-table { width: 100%; border-collapse: collapse; font-size: var(--hc-text-sm); }
+  .hc-table th {
+    text-align: start; padding: var(--hc-space-3) var(--hc-space-4);
+    font-family: var(--hc-font-mono);
+    font-size: var(--hc-text-label); font-weight: var(--hc-weight-medium);
+    letter-spacing: var(--hc-track-wide); text-transform: uppercase;
+    color: var(--hc-ink-3);
+    border-block-end: 1px solid var(--hc-pane-edge);
+  }
+  .hc-table td {
+    padding: var(--hc-space-3) var(--hc-space-4);
+    color: var(--hc-ink-2);
+    border-block-end: 1px solid var(--hc-hairline);
+  }
+  .hc-table tr:last-child td { border-block-end: 0; }
+  .hc-table td.hc-num { font-family: var(--hc-font-mono); font-variant-numeric: tabular-nums; }
+  /* A wide table scrolls inside its own box. The page never does. */
+  .hc-table-scroll { overflow-x: auto; }
+
+  /* ── Text roles ───────────────────────────────────────────── */
+  .hc-eyebrow {
+    display: flex; align-items: baseline; gap: var(--hc-space-3);
+    font-family: var(--hc-font-mono);
+    font-size: 11.5px; letter-spacing: var(--hc-track-widest);
+    text-transform: uppercase; color: var(--hc-ink-3);
+  }
+  .hc-eyebrow b { color: var(--hc-brass); font-weight: var(--hc-weight-medium); }
+  .hc-display {
+    font-size: var(--hc-display-lg); font-weight: var(--hc-weight-thin);
+    line-height: var(--hc-leading-tight); letter-spacing: var(--hc-track-tight);
+    max-width: 16ch;
+  }
+  .hc-display em { font-style: normal; font-weight: var(--hc-weight-medium); color: var(--hc-brass); }
+  .hc-title { font-size: var(--hc-display); font-weight: var(--hc-weight-medium); }
+  .hc-claim {
+    font-size: var(--hc-text-xl); font-weight: var(--hc-weight-thin);
+    line-height: var(--hc-leading-snug); letter-spacing: var(--hc-track-snug);
+    color: var(--hc-brass); max-width: 30ch;
+  }
+  .hc-lede { font-size: var(--hc-text-lg); color: var(--hc-ink-2); max-width: 52ch; }
+  .hc-muted { color: var(--hc-ink-2); }
+  .hc-dim   { color: var(--hc-ink-3); }
+  .hc-mono  { font-family: var(--hc-font-mono); }
+
+  /* ── Definition rows ──────────────────────────────────────────
+     Term left, value right, a rule between. Used for facts, metadata
+     and settings — the shape every one of these turns into anyway. */
+  .hc-defs { margin: 0; }
+  .hc-defs > div {
+    display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--hc-space-5);
+    padding-block: var(--hc-space-4);
+    border-block-start: 1px solid var(--hc-hairline);
+  }
+  .hc-defs > div:last-child { border-block-end: 1px solid var(--hc-hairline); }
+  .hc-defs dt {
+    font-family: var(--hc-font-mono);
+    font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+    text-transform: uppercase; color: var(--hc-ink-3); padding-block-start: 3px;
+  }
+  .hc-defs dd { margin: 0; color: var(--hc-ink-2); font-size: 15.5px; }
+  @media (max-width: 640px) {
+    .hc-defs > div { grid-template-columns: minmax(0, 1fr); gap: var(--hc-space-1); }
+    .hc-defs dt { padding-block-start: 0; }
+  }
+
+  /* ── Skip link ────────────────────────────────────────────── */
+  .hc-skip {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .hc-skip:focus {
+    position: fixed; inset-block-start: var(--hc-space-3); inset-inline-start: var(--hc-space-3);
+    z-index: 60; width: auto; height: auto; clip-path: none;
+    padding: 10px var(--hc-space-4); border-radius: var(--hc-r-sm);
+    background: var(--hc-ink); color: var(--hc-on-brass);
+    font-weight: var(--hc-weight-semibold); text-decoration: none;
+  }
+}
+/* ══════════════════════════════════════════════════════════════
+   holzcloud motif — der isometrische Würfel
+
+   Er steckt im Namen holzkube, im Logo und in der Textur hinter jeder
+   Seite. Zwei Dinge liegen hier: die Textur selbst, und das Vokabular,
+   mit dem die Zeichnungen gebaut werden.
+
+   Diese Datei ist bewusst NICHT in holzcloud.css. Eine Verwaltung wie
+   die von holzcloud-cms braucht kein Würfelmotiv, und sie soll dafür
+   auch nichts laden.
+
+   Sie ist aber auch nicht optional, wenn .hc-pane über dem Verlauf
+   sitzt: ein backdrop-filter braucht Kanten zum Brechen. Über einem
+   glatten Verlauf liest sich eine gefrostete Fläche als brauner Lack,
+   nicht als Glas. Wer die Textur weglässt, nimmt dem Glas das Glas.
+
+   Braucht tokens.css.
+   ══════════════════════════════════════════════════════════════ */
+@layer hc.motif {
+
+  /* ── Textur ───────────────────────────────────────────────────
+     Als Maske über einer Farbfläche, nicht als farbiges Bild: so folgt
+     sie --hc-brass wie alles andere. Ein Hex in einer data-URI wäre
+     der eine Wert im System, der das nicht kann. */
+  .hc-cubes {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-color: var(--hc-brass);
+    opacity: var(--hc-cubes-opacity);
+    -webkit-mask-image: var(--hc-cubes-mask);
+            mask-image: var(--hc-cubes-mask);
+    -webkit-mask-size: var(--hc-cubes-size);
+            mask-size: var(--hc-cubes-size);
+    -webkit-mask-repeat: repeat;
+            mask-repeat: repeat;
+  }
+  /* Die Textur liegt auf z-index 0, also muss der Inhalt darüber. Als
+     Geschwisterregel statt als Klasse auf jedem Element: .hc-cubes
+     gehört als erstes Kind in den <body>, und alles danach hebt sich
+     von selbst. Vergisst man das, ist die Seite unsichtbar hinter
+     einem Muster — ein Fehler, den man einmal macht. */
+  .hc-cubes ~ * { position: relative; z-index: 1; }
+  /* Die Leiste positioniert sich selbst, und hc.motif liegt nach
+     hc.components — ohne diese Zeile nimmt die Regel darüber ihr das
+     sticky, und sie scrollt weg. Genau der Fehler, vor dem .hc-bar
+     selbst warnt; er kommt hier durch die Hintertür wieder herein. */
+  .hc-cubes ~ .hc-bar { position: sticky; z-index: 30; }
+
+  /* Wer keine Masken kann, bekommt keine Textur — und nicht eine
+     bernsteinfarbene Fläche über der ganzen Seite. */
+  @supports not ((mask-image: url("#x")) or (-webkit-mask-image: url("#x"))) {
+    .hc-cubes { display: none; }
+  }
+  /* Wer weniger Transparenz wollte, hat auch den Verlauf verloren.
+     Dann gibt es nichts mehr zu brechen, und die Textur wäre nur noch
+     Muster hinter Text. */
+  @media (prefers-reduced-transparency: reduce) {
+    .hc-cubes { display: none; }
+  }
+
+  /* ── Zeichnungen ──────────────────────────────────────────────
+     Ein Vokabular für Inline-SVG. Die Farben stehen hier und nicht in
+     fill- und stroke-Attributen, damit eine Zeichnung der Palette
+     folgt statt eine eigene Kopie davon zu tragen.
+
+     Geometrie eines Würfels mit Deckmittelpunkt (x,y), Halbbreite w
+     und Höhe h — dieselbe 2:1-Isometrie wie die Textur:
+
+       Deck:   M x,y      L x+w,y+w/2  L x,y+w      L x-w,y+w/2  Z
+       Links:  M x-w,y+w/2 L x,y+w     L x,y+w+h    L x-w,y+w/2+h Z
+       Rechts: M x+w,y+w/2 L x,y+w     L x,y+w+h    L x+w,y+w/2+h Z */
+  .hc-iso path { stroke-width: 1.2; stroke-linejoin: round; }
+  .hc-iso .hc-f-top   { fill: var(--hc-iso-top);   stroke: var(--hc-iso-line); }
+  .hc-iso .hc-f-left  { fill: var(--hc-iso-side);  stroke: var(--hc-iso-line-dim); }
+  .hc-iso .hc-f-right { fill: var(--hc-iso-shade); stroke: var(--hc-iso-line-dim); }
+
+  .hc-iso--lit .hc-f-top   { fill: var(--hc-iso-lit-top);   stroke: var(--hc-iso-lit-line); }
+  .hc-iso--lit .hc-f-left  { fill: var(--hc-iso-lit-side);  stroke: var(--hc-iso-lit-dim); }
+  .hc-iso--lit .hc-f-right { fill: var(--hc-iso-lit-shade); stroke: var(--hc-iso-lit-dim); }
+
+  /* Gestrichelt heisst: gibt es noch nicht. */
+  .hc-iso--ghost path { fill: none; stroke: var(--hc-iso-ghost); stroke-dasharray: 5 5; }
+
+  .hc-iso-faint path { fill: none; stroke: var(--hc-iso-faint); stroke-width: 1; }
+
+  .hc-dot      { fill: var(--hc-brass); }
+  .hc-dot--new { fill: var(--hc-ink); }
+
+  /* Gestrichelt und mit Kopf: etwas bewegt sich von hier nach dort. */
+  .hc-flow      { fill: none; stroke: var(--hc-flow-line); stroke-width: 1.2; stroke-dasharray: 4 5; }
+  .hc-flow-head { fill: var(--hc-flow-head); stroke: none; }
+
+  /* Durchgezogen und mit Punkten: eine Abfolge von Stationen. */
+  .hc-rail      { fill: none; stroke: var(--hc-rail-line); stroke-width: 1.2; }
+  .hc-rail-drop { fill: none; stroke: var(--hc-rail-drop); stroke-width: 1; stroke-dasharray: 2 6; }
+  .hc-tick      { fill: var(--hc-iso-line); }
+  .hc-tick--lit { fill: var(--hc-brass); }
+
+  .hc-lbl {
+    font-family: var(--hc-font-sans);
+    font-size: 13px; fill: var(--hc-ink-3);
+  }
+  .hc-lbl--mono { font-family: var(--hc-font-mono); font-size: 12px; }
+  .hc-lbl--dim  { fill: var(--hc-ink-3); opacity: .72; }
+
+  /* Flächen für Karten und Seiten in einer Zeichnung. */
+  .hc-draw-card rect, .hc-draw-page rect {
+    fill: var(--hc-pane); stroke: var(--hc-pane-edge); stroke-width: 1;
+  }
+  .hc-draw-rule { stroke: var(--hc-pane-edge); stroke-width: 1; }
+  .hc-draw-bar  { stroke-linecap: round; stroke-width: 4; fill: none; }
+  .hc-draw-bar--long  { stroke: var(--hc-iso-bar-1); }
+  .hc-draw-bar--mid   { stroke: var(--hc-iso-bar-2); }
+  .hc-draw-bar--short { stroke: var(--hc-iso-bar-3); }
+}
+/* ==== holzcloud-design v1.0.0 — verbatim end ==== */
+
+/* ══════════════════════════════════════════════════════════════
+   CMS-Schicht
+
+   Was oben steht, kleidet ein Gestaltungssystem. Was hier steht,
+   kleidet den Datenvertrag von Holzcloud CMS: die Kopfleiste aus
+   .Menus, den Inhalt aus .Page, die Bausteine, die der Kern
+   schreibt, und die zwölf Ansichten.
+
+   Bewusst OHNE @layer. Die vier Schichten oben stehen in ihren
+   Schichten, alles hier steht ausserhalb und gewinnt damit ohne
+   Spezifitätsspiele. Genau darum darf hier kein @layer stehen — ein
+   fünfter würde diese Schicht wieder unter .Site.Design UND unter
+   die eigenen vier stellen.
+
+   Hier steht kein Farbwert. Steht doch einmal einer hier, gehört er
+   nach oben in die Tokens und nicht hierher.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Brücke zu den Reglern der Verwaltung ─────────────────────
+   internal/design/tokens.go gibt der Website genau sechs Namen:
+   --hc-ink --hc-paper --hc-brand --hc-font --hc-measure --hc-radius.
+   Sie kommen im <style> NACH diesem Stylesheet an, ebenfalls
+   ausserhalb jeder Schicht — also gewinnen sie gegen alles hier.
+
+   Zwei davon heissen im Gestaltungssystem schon genauso und meinen
+   dasselbe: --hc-ink und --hc-measure wirken allein durch ihren
+   Namen. Die anderen vier brauchen die Brücke unten, jeweils mit
+   dem Wert aus tokens.css als Rückfall, damit die Vorlage ohne
+   jede Einstellung genau so aussieht wie entworfen.
+
+   Kein var(--hc-radius) auf --hc-r und gleichzeitig umgekehrt: das
+   wäre ein Zyklus, und beide Werte fielen aus. Die Richtung geht
+   immer vom Regler zum System, nie zurück. */
+:root {
+  --hc-brass:     var(--hc-brand,  #F0AE5F);
+  --hc-ground:    var(--hc-paper,  #0A0705);
+  --hc-font-sans: var(--hc-font,   Manrope, ui-sans-serif, system-ui, -apple-system, sans-serif);
+  --hc-r:         var(--hc-radius, 16px);
+
+  /* Was in tokens.css als fester Wert steht, aber eine Ableitung
+     IST, wird hier zur Ableitung — sonst bleibt die halbe Palette
+     auf dem Messing von holzcloud stehen, sobald jemand eine eigene
+     Marke einstellt. Jede Zeile ergibt mit den Vorgabewerten oben
+     wieder genau den Wert aus tokens.css.
+
+     --hc-ink-2/-3 sind Alphastufen derselben Tinte, keine eigenen
+     Farben. Die .52 ist die AA-Grenze für die kleinste Schrift und
+     wird nicht gesenkt; tokens.css hält fest, dass sie einmal auf
+     .42 stand und durchfiel. */
+  --hc-ink-2:     color-mix(in srgb, var(--hc-ink) 70%, transparent);
+  --hc-ink-3:     color-mix(in srgb, var(--hc-ink) 52%, transparent);
+
+  --hc-brass-soft:  color-mix(in srgb, var(--hc-brass) 40%, transparent);
+  --hc-brass-wash:  color-mix(in srgb, var(--hc-brass) 10%, transparent);
+  --hc-pane-lift:   color-mix(in srgb, var(--hc-brass) 40%, transparent);
+  --hc-focus:       var(--hc-brass);
+
+  /* --hc-brass-pulse-out bleibt, wie tokens.css es setzt: ein
+     Messing mit Alpha 0 statt transparent, damit die Animation
+     nicht durch Grau läuft. Ein color-mix mit 0 % gäbe genau das
+     transparent zurück, das dort vermieden wird. */
+
+  /* Der Grund und alles, was darauf steht, folgt --hc-paper.
+     --hc-ground-2 ist der helle Anfang des Verlaufs; ohne diese
+     Zeile liefe er von einem festen Dunkelbraun in den eingestellten
+     Grund und die Einstellung wäre nur am einen Ende zu sehen. */
+  --hc-ground-2:        color-mix(in srgb, var(--hc-ground) 96%, var(--hc-brass) 4%);
+  --hc-pane-solid:      color-mix(in srgb, var(--hc-ground) 90%, var(--hc-brass) 10%);
+  --hc-pane-bar:        color-mix(in srgb, var(--hc-ground) 55%, transparent);
+  --hc-pane-bar-solid:  color-mix(in srgb, var(--hc-ground) 97%, transparent);
+}
+
+/* ── Brücke zu den Bausteinen ─────────────────────────────────
+   assets/bausteine.css leitet seine eigenen Werte aus generischen
+   Namen ab (--ink/--text, --paper/--bg, --brand/--accent,
+   --line/--border, --space-*, --step-*, --radius). Diese zehn
+   Zeilen kleiden damit alle neun Bausteinarten auf einmal. Wer
+   stattdessen .hc-block-Regeln nachbaut, hat zwei Gestaltungen zu
+   pflegen und behält die zweite nicht.
+
+   --paper ist bewusst der Seitengrund und nicht die Glasfläche:
+   .hc-knopf setzt ihn als SCHRIFTFARBE auf die Messingfläche, und
+   eine halbtransparente Tinte auf Messing ist nicht lesbar. Dass
+   .hc-karte und .hc-aufruf damit deckend würden, korrigieren die
+   Regeln weiter unten. */
+:root {
+  --ink:     var(--hc-ink);
+  --paper:   var(--hc-ground);
+  --brand:   var(--hc-brass);
+  --line:    var(--hc-hairline);
+  --space-3: var(--hc-space-5);
+  --space-4: var(--hc-space-6);
+  --step--1: var(--hc-text-sm);
+  --step-1:  var(--hc-text-lg);
+  --step-2:  var(--hc-text-xl);
+  --radius:  var(--hc-r);
+}
+
+html { scroll-padding-top: var(--hc-space-9); }
+
+/* ── Sprung zum Inhalt ────────────────────────────────────────
+   Dieselbe Gestalt wie .hc-skip aus dem System. Der Name muss
+   trotzdem skip-link heissen: er ist die Verabredung, die alle
+   mitgelieferten Vorlagen teilen, und die Testreihe sucht ihn
+   wörtlich. Geklemmt statt nach -9999px geschoben — ein Kasten
+   ausserhalb der Seite erzeugt in manchen Browsern eine
+   Bildlaufleiste. */
+.skip-link {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.skip-link:focus {
+  position: fixed; inset-block-start: var(--hc-space-3); inset-inline-start: var(--hc-space-3);
+  z-index: 60; width: auto; height: auto; clip-path: none;
+  padding: 10px var(--hc-space-4); border-radius: var(--hc-r-sm);
+  background: var(--hc-ink); color: var(--hc-on-brass);
+  font-weight: var(--hc-weight-semibold); text-decoration: none;
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+/* ── Kopfleiste ───────────────────────────────────────────────
+   .hc-bar bringt Kleben, Glas und Kante mit; was hier steht, ist
+   der Inhalt darin. Die Leiste ist im Markup ein direktes
+   Geschwister von .hc-cubes — motif.css gibt ihr das sticky über
+   .hc-cubes ~ .hc-bar zurück, und eine Verpackung dazwischen nähme
+   ihr das wieder weg. */
+.site-mark { display: inline-flex; align-items: center; flex: none; }
+.site-mark-glyph {
+  width: 26px; height: 26px; flex: none;
+  color: var(--hc-brass);
+  overflow: visible;
+  /* Der Abstand hängt an der Glyphe, nicht als gap am Behälter:
+     .hc-mark hat mehrere Kinder, und ein gap stünde auch zwischen
+     zwei Teilen des Namens. */
+  margin-inline-end: var(--hc-space-2);
+}
+.site-logo {
+  width: auto; height: 30px; flex: none;
+  margin-inline-end: var(--hc-space-3);
+  border-radius: var(--hc-r-sm);
+}
+.site-mark b { font-weight: var(--hc-weight-medium); }
+
+/* menuFor liefert nackte <ul><li><a> bis in die dritte Ebene, ohne
+   eine einzige Klasse. Alles hier hängt deshalb an der Abstammung. */
+.site-menu { margin-inline-start: auto; min-width: 0; }
+.site-menu ul {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: clamp(10px, 2vw, 28px);
+}
+.site-menu li { position: relative; }
+.site-menu a {
+  display: inline-block;
+  color: var(--hc-ink-2); text-decoration: none;
+  font-size: 14.5px; font-weight: var(--hc-weight-medium);
+  padding-block: var(--hc-space-2);
+  border-block-end: 1px solid transparent;
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              border-color var(--hc-dur-fast) var(--hc-ease);
+}
+.site-menu a:hover { color: var(--hc-ink); border-block-end-color: var(--hc-pane-lift); }
+.site-menu a[aria-current="page"] { color: var(--hc-brass); border-block-end-color: var(--hc-brass-soft); }
+
+/* Untermenüs ohne eine Zeile Javascript: sie hängen an :hover und
+   an :focus-within, also erreicht die Tastatur sie genauso wie der
+   Zeiger. Sichtbar geschaltet wird über Sichtbarkeit und Deckkraft
+   und nicht über display, damit der Übergang etwas zu animieren
+   hat. */
+.site-menu li > ul {
+  position: absolute; inset-inline-start: 0; inset-block-start: 100%;
+  z-index: 40;
+  flex-direction: column; align-items: stretch;
+  gap: 0;
+  min-width: max-content;
+  margin-block-start: var(--hc-space-2);
+  padding: var(--hc-space-2);
+  background: var(--hc-pane-bar-solid);
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-r-sm);
+  box-shadow: var(--hc-shadow-pane);
+  visibility: hidden; opacity: 0;
+  transition: opacity var(--hc-dur-fast) var(--hc-ease),
+              visibility var(--hc-dur-fast) var(--hc-ease);
+}
+.site-menu li:hover > ul,
+.site-menu li:focus-within > ul { visibility: visible; opacity: 1; }
+.site-menu li > ul a {
+  display: block; width: 100%;
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-block-end: 0; border-radius: var(--hc-r-sm);
+}
+.site-menu li > ul a:hover { background: var(--hc-brass-wash); }
+
+.site-langs ul {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; align-items: center; gap: 2px;
+}
+.site-langs a, .site-langs span {
+  display: inline-block;
+  font-family: var(--hc-font-mono);
+  font-size: 11.5px; letter-spacing: .08em;
+  color: var(--hc-ink-3); text-decoration: none;
+  padding: 6px 7px; border-radius: 7px;
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              background-color var(--hc-dur-fast) var(--hc-ease);
+}
+.site-langs a:hover { color: var(--hc-ink); background: var(--hc-pane); }
+.site-langs [aria-current] { color: var(--hc-brass); }
+
+/* Die Suche in der Leiste ist ein GET-Formular und funktioniert
+   ohne alles. Sie erscheint nur, wenn die Website überhaupt sucht. */
+.site-search { display: flex; align-items: center; gap: var(--hc-space-2); flex: none; }
+.site-search .hc-input { width: clamp(9rem, 16vw, 15rem); padding-block: 8px; }
+
+.site-cart {
+  display: inline-flex; align-items: center; gap: var(--hc-space-2);
+  flex: none;
+  color: var(--hc-ink-2); text-decoration: none;
+  font-size: 14px; font-weight: var(--hc-weight-medium);
+  padding: 8px 15px; border-radius: var(--hc-r-pill);
+  border: 1px solid var(--hc-pane-edge);
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              border-color var(--hc-dur-fast) var(--hc-ease);
+}
+.site-cart:hover { color: var(--hc-ink); border-color: var(--hc-pane-lift); }
+.site-cart__count { font-family: var(--hc-font-mono); color: var(--hc-brass); }
+
+/* ── Der Inhalt ───────────────────────────────────────────────
+   <main> trägt keine Breite: die Ansichten setzen .hc-wide selbst,
+   damit eine Startseite eine Fläche über die ganze Breite legen
+   kann und ein Artikel trotzdem in seinem Mass bleibt. */
+main { display: block; }
+main:focus { outline: none; }
+.page-wrap { padding-block: clamp(var(--hc-space-6), 6vh, var(--hc-space-9)); }
+.page-content { max-width: min(100%, 78ch); }
+.page-content > * + * { margin-block-start: var(--hc-space-5); }
+.page-content :where(h2) { margin-block-start: var(--hc-space-8); font-size: var(--hc-text-2xl); }
+.page-content :where(h3) { margin-block-start: var(--hc-space-7); font-size: var(--hc-text-xl); }
+.page-content :where(ul, ol) { padding-inline-start: var(--hc-space-5); }
+.page-content :where(li + li) { margin-block-start: var(--hc-space-2); }
+.page-content :where(a) { color: var(--hc-brass); text-underline-offset: 3px; }
+.page-content :where(a):hover { text-decoration-thickness: 2px; }
+.page-content :where(strong) { font-weight: var(--hc-weight-semibold); }
+.page-content :where(table) { width: 100%; border-collapse: collapse; font-size: var(--hc-text-sm); }
+.page-content :where(th, td) {
+  text-align: start; padding: var(--hc-space-3) var(--hc-space-4);
+  border-block-end: 1px solid var(--hc-hairline);
+}
+.page-content :where(pre) {
+  padding: var(--hc-space-4); overflow-x: auto;
+  background: var(--hc-pane-sunken);
+  border: 1px solid var(--hc-hairline); border-radius: var(--hc-r-sm);
+}
+.page-content :where(mark), mark {
+  background: var(--hc-brass-wash); color: var(--hc-ink);
+  padding-inline: 2px; border-radius: 3px;
+}
+
+/* ── Fusszeile ────────────────────────────────────────────── */
+.site-footer {
+  padding-block: var(--hc-space-6) var(--hc-space-7);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.site-frow {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-3) var(--hc-space-6);
+  align-items: center; justify-content: space-between;
+  font-family: var(--hc-font-mono); font-size: var(--hc-text-xs);
+  color: var(--hc-ink-3);
+}
+.site-frow p { margin: 0; }
+.site-frow a { color: var(--hc-ink-3); text-decoration: none; }
+.site-frow a:hover { color: var(--hc-ink-2); }
+.site-fnav ul {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-3) var(--hc-space-5);
+}
+.site-fnav ul ul { display: none; }
+.site-snippet { margin-block-start: var(--hc-space-4); color: var(--hc-ink-3); }
+.site-snippet p { margin: 0; font-size: var(--hc-text-xs); }
+
+/* ══ Die Bausteine ════════════════════════════════════════════
+   Die zehn Zeilen der Brücke oben kleiden das meiste. Hier steht
+   nur, was daraus nicht folgt: der dunkle Grund ist eine Fläche
+   mit Textur, also darf ein Baustein nicht als deckender Kasten
+   darauf liegen, wo das System eine Glasfläche vorsieht. */
+
+/* Bild — eine Kante trennt ein helles Bild sichtbar vom Grund,
+   damit es als Fenster liest und nicht als Loch. */
+.hc-bild img, .hc-galerie__bild img, .hc-eigen__bild img {
+  border: 1px solid var(--hc-hairline);
+}
+
+/* Bild und Text — die Bildunterschrift in Mono, wie jede Beschriftung. */
+.hc-block figcaption, .hc-bildunterschrift {
+  font-family: var(--hc-font-mono); font-size: var(--hc-text-xs);
+  letter-spacing: .04em; color: var(--hc-ink-3); opacity: 1;
+}
+
+/* Karte — Glas statt Kasten. */
+.hc-karte {
+  background: var(--hc-pane);
+  border-color: var(--hc-pane-edge);
+  box-shadow: var(--hc-shadow-pane);
+  backdrop-filter: var(--hc-blur);
+  -webkit-backdrop-filter: var(--hc-blur);
+  gap: var(--hc-space-3);
+}
+.hc-karte__titel { font-weight: var(--hc-weight-medium); letter-spacing: var(--hc-track-snug); }
+.hc-karte__text { color: var(--hc-ink-2); font-size: var(--hc-text-sm); }
+.hc-karte--link:hover, .hc-karte--link:focus-visible {
+  border-color: var(--hc-pane-lift);
+  box-shadow: var(--hc-shadow-lift);
+}
+
+/* Zitat — die Marke trägt der Balken, nicht die Schriftfarbe. */
+.hc-zitat blockquote {
+  font-size: var(--hc-text-xl); font-weight: var(--hc-weight-thin);
+  line-height: var(--hc-leading-snug); letter-spacing: var(--hc-track-snug);
+  color: var(--hc-ink);
+}
+.hc-zitat figcaption {
+  margin-block-start: var(--hc-space-3);
+  font-family: var(--hc-font-mono); font-size: var(--hc-text-xs);
+  color: var(--hc-ink-3);
+}
+
+/* Aufruf — dieselbe Glasfläche wie eine Karte, eine Stufe grösser. */
+.hc-aufruf {
+  background: var(--hc-pane);
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-r-lg);
+  box-shadow: var(--hc-shadow-pane);
+  backdrop-filter: var(--hc-blur);
+  -webkit-backdrop-filter: var(--hc-blur);
+}
+.hc-aufruf__titel { font-weight: var(--hc-weight-thin); letter-spacing: var(--hc-track-snug); }
+.hc-aufruf__text { color: var(--hc-ink-2); }
+.hc-aufruf__knopf { margin-block-start: var(--hc-space-5); }
+
+/* Knopf — die Pillenform des Systems. Messingfläche mit dunkler
+   Schrift: das ist bereits, was bausteine.css aus --brand und
+   --paper baut, es fehlt nur die Form. */
+.hc-knopf {
+  border-radius: var(--hc-r-pill);
+  padding: 13px var(--hc-space-5);
+  font-size: var(--hc-text-sm); font-weight: var(--hc-weight-semibold);
+  line-height: 1; letter-spacing: 0;
+  transition: opacity var(--hc-dur-fast) var(--hc-ease),
+              transform var(--hc-dur-fast) var(--hc-ease);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hc-knopf:hover { transform: translateY(-1px); }
+}
+
+/* Trennlinie — sie soll trennen und nicht auffallen. */
+.hc-trenner { margin-block: var(--hc-space-8); }
+
+/* Video — der Kern fragt hier --hc-radius direkt ab, also den
+   Regler der Verwaltung, und fiele ohne ihn auf 0 zurück. */
+.hc-video { margin-block: var(--hc-space-6); }
+.hc-video video { border-radius: var(--hc-r); border: 1px solid var(--hc-hairline); }
+
+/* Eigene Bausteinart — die Felder als Faktenzeilen, wie .hc-defs. */
+.hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
+
+/* ══ Die Möblierung von page.html ═════════════════════════════ */
+.preview-banner {
+  display: flex; gap: var(--hc-space-3);
+  margin-block-end: var(--hc-space-6);
+  padding: var(--hc-space-4);
+  border: 1px solid var(--hc-pane-edge);
+  border-inline-start: 3px solid var(--hc-warn);
+  border-radius: var(--hc-r-sm);
+  background: var(--hc-warn-wash);
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+  max-width: none;
+}
+
+.page-header { margin-block-end: var(--hc-space-6); }
+.page-header h1 { font-size: var(--hc-display); font-weight: var(--hc-weight-medium); }
+.page-date {
+  display: block; margin-block-start: var(--hc-space-3);
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+}
+
+/* Eigene Felder — dieselbe Faktenzeile wie .hc-defs, nur an einer
+   <dl> ohne Zwischenelement: der Kern schreibt <dt>/<dd> direkt
+   nebeneinander, .hc-defs erwartet ein <div> je Paar. */
+.page-fields {
+  margin-block-start: var(--hc-space-8);
+  display: grid; grid-template-columns: 150px minmax(0, 1fr);
+  gap: 0 var(--hc-space-5);
+  max-width: min(100%, 62ch);
+}
+.page-fields dt {
+  padding-block: var(--hc-space-4) 0;
+  border-block-start: 1px solid var(--hc-hairline);
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+}
+.page-fields dd {
+  margin: 0; padding-block: var(--hc-space-4) var(--hc-space-4);
+  border-block-start: 1px solid var(--hc-hairline);
+  color: var(--hc-ink-2); font-size: 15.5px;
+}
+.page-fields dd:last-of-type { border-block-end: 1px solid var(--hc-hairline); }
+.page-fields dt:last-of-type { border-block-end: 1px solid var(--hc-hairline); }
+.page-fields a { color: var(--hc-brass); }
+.page-fields img { border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline); }
+.page-fields__rows { list-style: none; margin: 0; padding: 0; }
+.page-fields__rows li + li { margin-block-start: var(--hc-space-2); }
+.page-fields__rowlabel {
+  font-family: var(--hc-font-mono); font-size: var(--hc-text-label);
+  letter-spacing: var(--hc-track-wide); text-transform: uppercase;
+  color: var(--hc-ink-3);
+}
+@media (max-width: 640px) {
+  .page-fields { grid-template-columns: minmax(0, 1fr); }
+  .page-fields dt { border-block-end: 0; padding-block-end: 0; }
+  .page-fields dd { border-block-start: 0; padding-block-start: var(--hc-space-1); }
+  .page-fields dt:last-of-type { border-block-end: 0; }
+}
+
+/* Schlagwörter — die Chips des Systems. */
+.term-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-2);
+  margin-block-start: var(--hc-space-6);
+}
+.term {
+  display: inline-flex; align-items: center; gap: var(--hc-space-2);
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase;
+  padding: 6px var(--hc-space-3);
+  border: 1px solid var(--hc-pane-lift); border-radius: var(--hc-r-pill);
+  color: var(--hc-brass); text-decoration: none;
+  transition: background-color var(--hc-dur-fast) var(--hc-ease);
+}
+.term:hover { background: var(--hc-brass-wash); }
+
+/* Nachbarbeiträge — drei Ziele in einer Zeile, aussen die Richtung. */
+.post-nav {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-4);
+  align-items: baseline; justify-content: space-between;
+  margin-block-start: var(--hc-space-8);
+  padding-block-start: var(--hc-space-5);
+  border-block-start: 1px solid var(--hc-hairline);
+  font-size: var(--hc-text-sm);
+}
+.post-nav a { color: var(--hc-ink-2); text-decoration: none; }
+.post-nav a:hover { color: var(--hc-brass); }
+.post-nav__index {
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase;
+}
+.post-nav__next { margin-inline-start: auto; text-align: end; }
+
+/* ── Schmalere Fenster ────────────────────────────────────────
+   Kein Javascript und kein Umschalter: die Leiste bricht um, und
+   das Menü nimmt die zweite Zeile. Ein Klappmenü wäre hier ein
+   <details>, kein Skript — aber es wird nicht gebraucht, solange
+   Umbrechen reicht. */
+@media (max-width: 1000px) {
+  .hc-bar__inner { flex-wrap: wrap; gap: 10px 18px; padding-block: var(--hc-space-3); }
+  .site-menu { margin-inline-start: 0; order: 3; width: 100%; }
+  .site-langs { margin-inline-start: auto; }
+  .site-search { order: 4; width: 100%; }
+  .site-search .hc-input { width: 100%; }
+  /* Umgebrochen ist kein Platz mehr für ein schwebendes Untermenü:
+     es steht eingerückt in der Liste, immer sichtbar. */
+  .site-menu li > ul {
+    position: static; visibility: visible; opacity: 1;
+    margin: 0 0 0 var(--hc-space-4); padding: 0;
+    background: none; border: 0; box-shadow: none;
+    flex-direction: row; flex-wrap: wrap; gap: var(--hc-space-4);
+  }
+  .site-menu li > ul a { display: inline-block; width: auto; padding: var(--hc-space-2) 0; }
+}
+@media (max-width: 600px) {
+  .site-search { display: none; }
+}
+
+/* ══ Der Aufmacher ════════════════════════════════════════════
+   Zwei Spalten: links, was die Seite sagt, rechts der Würfel. Auf
+   einem schmalen Fenster untereinander — zwei Spalten auf einem
+   Telefon sind zwei zu enge Spalten. */
+.site-hero { padding-block: clamp(56px, 11vh, 132px) clamp(48px, 9vh, 108px); }
+.site-hero-grid {
+  display: grid; align-items: center;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr);
+  gap: clamp(28px, 5vw, 88px);
+}
+.site-hero .hc-display { margin-block-start: var(--hc-space-4); }
+.site-hero .hc-claim   { margin-block-start: var(--hc-space-4); }
+.site-hero .hc-lede    { margin-block-start: var(--hc-space-5); }
+.site-actions {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-3);
+  margin-block-start: var(--hc-space-6);
+}
+/* Bleibt auf einer nackten Website nichts übrig, das irgendwohin
+   zeigt, soll auch kein Abstand übrig bleiben. */
+.site-actions:empty { display: none; }
+.site-art { justify-self: end; width: 100%; max-width: 620px; }
+.site-art svg { width: 100%; height: auto; display: block; }
+
+/* ══ Das Archiv ═══════════════════════════════════════════════ */
+.archive-count {
+  margin-block-start: var(--hc-space-3);
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+}
+.archive-list { list-style: none; margin: 0; padding: 0; }
+/* Eine Haarlinie zwischen den Beiträgen und keine Karten: eine Liste
+   von Kästen liest sich schlechter als eine Liste. */
+.archive-entry {
+  display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: clamp(18px, 3vw, 40px);
+  padding-block: var(--hc-space-6);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.archive-entry:last-child { border-block-end: 1px solid var(--hc-hairline); }
+/* Ohne Bild soll der Text nicht in der schmalen zweiten Spalte
+   hängen bleiben — dafür reicht :has(), kein zweiter Klassenname. */
+.archive-entry:not(:has(.archive-entry__image)) { grid-template-columns: minmax(0, 1fr); }
+.archive-entry__image { display: block; }
+.archive-entry__image img {
+  width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+.archive-entry__title {
+  font-size: var(--hc-text-2xl); font-weight: var(--hc-weight-medium);
+  letter-spacing: var(--hc-track-snug);
+}
+.archive-entry__title a { text-decoration: none; }
+.archive-entry__title a:hover { color: var(--hc-brass); }
+.archive-entry__date {
+  display: block; margin-block-start: var(--hc-space-3);
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+}
+.archive-entry__excerpt { margin-block-start: var(--hc-space-3); color: var(--hc-ink-2); }
+.archive-entry .term-list { margin-block-start: var(--hc-space-4); }
+.archive-pager {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--hc-space-4);
+  margin-block-start: var(--hc-space-7);
+}
+.archive-pager__position {
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+  order: 2;
+}
+.archive-pager [rel="next"] { order: 3; margin-inline-start: auto; }
+.archive-pager [rel="prev"] { order: 1; }
+.archive-empty { margin-block-start: var(--hc-space-6); }
+.archive-terms { margin-block-start: var(--hc-space-8); }
+
+/* ══ Die Suche ════════════════════════════════════════════════ */
+.search-form {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-3);
+  margin-block-end: var(--hc-space-7);
+  max-width: 44rem;
+}
+.search-form .hc-input { flex: 1 1 16rem; }
+.search-count { margin-block-end: var(--hc-space-4); }
+.search-results { list-style: none; margin: 0; padding: 0; }
+.search-result {
+  padding-block: var(--hc-space-5);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.search-result:last-child { border-block-end: 1px solid var(--hc-hairline); }
+.search-result__title {
+  font-size: var(--hc-text-lg); font-weight: var(--hc-weight-medium);
+  letter-spacing: var(--hc-track-snug); text-decoration: none;
+}
+.search-result__title:hover { color: var(--hc-brass); }
+.search-result__snippet { margin-block-start: var(--hc-space-2); color: var(--hc-ink-2); }
+
+/* ══ Die Schranke ═════════════════════════════════════════════
+   Eine Karte in der Mitte statt einer Seite: hier gibt es genau
+   eine Sache zu tun. */
+.gate-card { max-width: 34rem; margin-inline: auto; }
+.gate-card h1 { margin-block-start: var(--hc-space-3); font-size: var(--hc-display-sm); }
+.gate-lead { margin-block-start: var(--hc-space-4); }
+.gate-hint { margin-block-start: var(--hc-space-3); }
+.gate-error { margin-block-start: var(--hc-space-4); }
+.gate-form { margin-block-start: var(--hc-space-6); }
+.gate-form__submit { margin-block-start: var(--hc-space-4); }
+
+/* ══ Die zwei kurzen Seiten ═══════════════════════════════════ */
+.page--kurz .hc-title { margin-block-start: var(--hc-space-4); }
+.page--kurz .hc-lede  { margin-block-start: var(--hc-space-5); }
+.page--kurz .hc-eyebrow { color: var(--hc-ink-3); }
+
+@media (max-width: 1080px) {
+  .site-hero-grid { grid-template-columns: minmax(0, 1fr); }
+  .site-art { justify-self: start; max-width: 520px; margin-block-start: var(--hc-space-5); }
+}
+@media (max-width: 700px) {
+  .archive-entry { grid-template-columns: minmax(0, 1fr); }
+  .archive-entry__image img { aspect-ratio: 16 / 9; }
+}
+
+/* ══ Der Laden ════════════════════════════════════════════════
+   Wo es geht, tragen die Bauteile des Systems: .hc-pane für jede
+   Fläche, .hc-input und .hc-field für jedes Formular, .hc-btn für
+   jeden Knopf, .hc-status für jeden Zustand. Was hier steht, ist
+   Anordnung — keine zweite Garnitur derselben Bauteile. */
+
+.price { margin-block-start: var(--hc-space-4); }
+.price__amount {
+  font-family: var(--hc-font-mono); font-variant-numeric: tabular-nums;
+  font-size: var(--hc-text-lg); color: var(--hc-ink);
+}
+.price--large .price__amount { font-size: var(--hc-text-2xl); }
+.price__note, .price__other {
+  display: block; margin-block-start: var(--hc-space-1);
+  font-size: var(--hc-text-xs); color: var(--hc-ink-3);
+}
+
+/* Der Umschalter ist ein Formular mit zwei Knöpfen, kein Schalter:
+   ohne Javascript muss der Wechsel über den Server gehen. */
+.price-switch {
+  display: inline-flex; gap: 2px;
+  margin-block-end: var(--hc-space-6);
+  padding: 3px;
+  border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-pill);
+  background: var(--hc-pane-sunken);
+}
+.price-switch__option {
+  font: inherit;
+  font-size: var(--hc-text-xs); font-weight: var(--hc-weight-medium);
+  padding: 7px var(--hc-space-4);
+  border: 0; border-radius: var(--hc-r-pill);
+  background: transparent; color: var(--hc-ink-3); cursor: pointer;
+  transition: color var(--hc-dur-fast) var(--hc-ease),
+              background-color var(--hc-dur-fast) var(--hc-ease);
+}
+.price-switch__option:hover { color: var(--hc-ink); }
+.price-switch__option.is-active { background: var(--hc-brass-wash); color: var(--hc-brass); }
+
+.shop-categories { margin-block-end: var(--hc-space-6); }
+.shop-categories .term-list { margin-block-start: 0; }
+.shop-note { margin-block-start: var(--hc-space-7); font-size: var(--hc-text-sm); }
+
+.product-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: clamp(16px, 2vw, 28px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+}
+.product-card { display: flex; flex-direction: column; height: 100%; }
+.product-card__media { display: block; margin-block-end: var(--hc-space-4); }
+.product-card__media img {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+.product-card__title { font-size: var(--hc-text-lg); font-weight: var(--hc-weight-medium); }
+.product-card__title a { text-decoration: none; }
+.product-card__title a:hover { color: var(--hc-brass); }
+.product-card__subtitle { margin-block-start: var(--hc-space-1); font-size: var(--hc-text-sm); color: var(--hc-ink-3); }
+.product-card__excerpt { margin-block-start: var(--hc-space-3); font-size: var(--hc-text-sm); color: var(--hc-ink-2); }
+/* Der Preis fällt ans untere Ende, damit die Karten einer Reihe ihn
+   auf derselben Höhe zeigen, gleich wie lang die Titel sind. */
+.product-card .price { margin-block-start: auto; padding-block-start: var(--hc-space-4); }
+.product-card__gone { margin-block-start: var(--hc-space-3); }
+.product-card .term-list { margin-block-start: var(--hc-space-3); }
+.product-card--gone .product-card__media img { opacity: .55; }
+
+/* ── Ein Artikel ──────────────────────────────────────────── */
+.product {
+  display: grid; align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+  gap: clamp(24px, 4vw, 64px);
+  margin-block-start: var(--hc-space-6);
+}
+.product__subtitle { margin-block-start: var(--hc-space-3); }
+.product__image {
+  width: 100%; display: block;
+  border-radius: var(--hc-r); border: 1px solid var(--hc-hairline);
+}
+.product__gallery {
+  list-style: none; margin: var(--hc-space-3) 0 0; padding: 0;
+  display: grid; gap: var(--hc-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+}
+.product__gallery img {
+  width: 100%; aspect-ratio: 1; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+.product__buy { position: sticky; top: calc(68px + var(--hc-space-4)); }
+.product__stock, .product__delivery, .product__shipping {
+  margin-block-start: var(--hc-space-3); font-size: var(--hc-text-sm);
+}
+.product__form { margin-block-start: var(--hc-space-5); }
+.product__menge { max-width: 7rem; margin-block-end: var(--hc-space-4); }
+.product__sold-out { margin-block-start: var(--hc-space-5); }
+.product__sku {
+  margin-block-start: var(--hc-space-5);
+  font-size: var(--hc-text-xs); color: var(--hc-ink-3);
+}
+.product__description { margin-block-start: var(--hc-space-8); }
+
+/* ── Der Warenkorb ────────────────────────────────────────── */
+.cart-blocked { margin-block-end: var(--hc-space-5); }
+.cart-lines { list-style: none; margin: 0; padding: 0; }
+.cart-line {
+  display: grid; align-items: start;
+  grid-template-columns: 96px minmax(0, 1fr) auto auto;
+  gap: var(--hc-space-3) clamp(16px, 2.5vw, 32px);
+  padding-block: var(--hc-space-5);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.cart-line:last-child { border-block-end: 1px solid var(--hc-hairline); }
+.cart-line:not(:has(.cart-line__media)) { grid-template-columns: minmax(0, 1fr) auto auto; }
+.cart-line__media img {
+  width: 96px; aspect-ratio: 1; object-fit: cover; display: block;
+  border-radius: var(--hc-r-sm); border: 1px solid var(--hc-hairline);
+}
+.cart-line__title { font-size: var(--hc-text-lg); font-weight: var(--hc-weight-medium); }
+.cart-line__title a { text-decoration: none; }
+.cart-line__title a:hover { color: var(--hc-brass); }
+.cart-line__subtitle { margin-block-start: var(--hc-space-1); font-size: var(--hc-text-sm); color: var(--hc-ink-3); }
+.cart-line__unit { margin-block-start: var(--hc-space-2); font-size: var(--hc-text-sm); color: var(--hc-ink-2); }
+.cart-line__actions { display: flex; flex-direction: column; gap: var(--hc-space-3); align-items: flex-start; }
+.cart-line__quantity { display: flex; gap: var(--hc-space-2); align-items: center; }
+.cart-line__quantity .hc-input { width: 5rem; }
+.cart-line__price {
+  font-family: var(--hc-font-mono); font-variant-numeric: tabular-nums;
+  text-align: end; white-space: nowrap;
+}
+/* Ein Artikel, der ausgegangen ist, bleibt lesbar — er wird nur ruhiger. */
+.cart-line--gone .cart-line__title, .cart-line--gone .cart-line__price { color: var(--hc-ink-3); }
+.cart-line--gone .cart-line__media img { opacity: .55; }
+
+.cart-summary { margin-block-start: var(--hc-space-7); max-width: 34rem; margin-inline-start: auto; }
+.cart-totals {
+  margin: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--hc-space-2) var(--hc-space-5);
+}
+.cart-totals dt { color: var(--hc-ink-2); font-size: var(--hc-text-sm); }
+.cart-totals dd {
+  margin: 0; text-align: end; white-space: nowrap;
+  font-family: var(--hc-font-mono); font-variant-numeric: tabular-nums;
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+}
+.cart-totals__tax { color: var(--hc-ink-3); font-size: var(--hc-text-xs); }
+.cart-totals__sum {
+  padding-block-start: var(--hc-space-3);
+  border-block-start: 1px solid var(--hc-hairline);
+  color: var(--hc-ink); font-size: var(--hc-text-lg);
+  font-weight: var(--hc-weight-semibold);
+}
+.cart-totals__note { margin-block-start: var(--hc-space-3); font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+.cart-actions { display: flex; flex-wrap: wrap; gap: var(--hc-space-3); margin-block-start: var(--hc-space-5); }
+.cart-empty { margin-block-start: var(--hc-space-6); }
+.cart-continue {
+  display: inline-block; margin-block-start: var(--hc-space-4);
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+}
+
+/* ── Die Kasse ────────────────────────────────────────────── */
+.checkout__grid {
+  display: grid; align-items: start;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, .6fr);
+  gap: clamp(24px, 4vw, 64px);
+  margin-block-start: var(--hc-space-6);
+}
+.checkout__group {
+  margin: 0 0 var(--hc-space-7);
+  padding: 0; border: 0;
+  display: flex; flex-direction: column; gap: var(--hc-space-4);
+}
+.checkout__group legend {
+  padding: 0; margin-block-end: var(--hc-space-4);
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+}
+.field-row { display: flex; flex-wrap: wrap; gap: var(--hc-space-4); }
+.field-row .hc-field { flex: 1 1 12rem; }
+.field-row .field--narrow { flex: 0 1 7rem; }
+
+/* Zur Auswahl gehört die ganze Zeile, nicht nur das Kästchen: ein Ziel
+   von drei Zeichen trifft auf einem Telefon niemand. */
+.choice {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--hc-space-3); align-items: center;
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-sm);
+  cursor: pointer;
+  transition: border-color var(--hc-dur-fast) var(--hc-ease);
+}
+.choice:hover { border-color: var(--hc-pane-lift); }
+.choice:has(:checked) { border-color: var(--hc-brass-soft); background: var(--hc-brass-wash); }
+.choice input { accent-color: var(--hc-brass); grid-row: 1 / span 2; }
+.choice__label { font-size: var(--hc-text-sm); color: var(--hc-ink); }
+.choice__note { grid-column: 2; font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+.choice--confirm { margin-block-end: var(--hc-space-5); }
+.checkout__policy { margin-block-end: var(--hc-space-5); font-size: var(--hc-text-sm); }
+.checkout__submit { width: 100%; }
+
+.checkout__summary { position: sticky; top: calc(68px + var(--hc-space-4)); }
+.checkout__summary-title {
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+}
+.checkout__lines { list-style: none; margin: var(--hc-space-4) 0; padding: 0; }
+.checkout__lines li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--hc-space-3); align-items: baseline;
+  padding-block: var(--hc-space-3);
+  border-block-end: 1px solid var(--hc-hairline);
+  font-size: var(--hc-text-sm);
+}
+.checkout__line-qty { font-family: var(--hc-font-mono); color: var(--hc-ink-3); }
+.checkout__line-title { color: var(--hc-ink-2); }
+.checkout__line-price {
+  font-family: var(--hc-font-mono); font-variant-numeric: tabular-nums;
+  white-space: nowrap; text-align: end;
+}
+
+/* ── Die Bestätigung ──────────────────────────────────────── */
+.order__status { margin-block-start: var(--hc-space-4); }
+.order__body { display: flex; flex-direction: column; gap: var(--hc-space-7); max-width: 46rem; }
+.order__facts { margin: 0; }
+.order__payment-note { font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+.order__policy { font-size: var(--hc-text-sm); }
+
+@media (max-width: 900px) {
+  .product, .checkout__grid { grid-template-columns: minmax(0, 1fr); }
+  .product__buy, .checkout__summary { position: static; }
+}
+@media (max-width: 640px) {
+  .cart-line {
+    grid-template-columns: 72px minmax(0, 1fr);
+    row-gap: var(--hc-space-4);
+  }
+  .cart-line:not(:has(.cart-line__media)) { grid-template-columns: minmax(0, 1fr); }
+  .cart-line__media img { width: 72px; }
+  .cart-line__actions, .cart-line__price { grid-column: 2; }
+  .cart-line:not(:has(.cart-line__media)) .cart-line__actions,
+  .cart-line:not(:has(.cart-line__media)) .cart-line__price { grid-column: 1; }
+  .cart-line__price { text-align: start; }
+  .cart-summary { max-width: none; }
+}
+
+/* ── Papier ───────────────────────────────────────────────────
+   Ein dunkler Grund druckt als geschlossene Tonerfläche, und die
+   Textur druckt gleich mit. Auf Papier gilt darum das Gegenteil
+   von allem oben: heller Grund, dunkle Schrift, keine Flächen,
+   keine Leiste, keine Navigation. Adressen von Verweisen werden
+   ausgeschrieben — auf Papier ist ein Link sonst nur unterstrichen
+   und führt nirgendwohin. */
+@media print {
+  :root {
+    --hc-ink: #111; --hc-ink-2: #333; --hc-ink-3: #555;
+    --hc-ground: #fff; --hc-ground-2: #fff; --hc-ground-image: none;
+    --hc-brass: #000;
+    --hc-pane: transparent; --hc-pane-edge: #bbb; --hc-hairline: #ddd;
+    --hc-blur: none; --hc-blur-bar: none;
+    --hc-shadow-pane: none; --hc-shadow-lift: none;
+  }
+  body { background: #fff; color: #111; }
+  .hc-cubes, .hc-bar, .site-footer, .site-menu, .site-langs,
+  .site-search, .site-cart, .skip-link, .post-nav, .term-list,
+  .archive-pager, .search-form, .price-switch { display: none !important; }
+  main { padding: 0; }
+  .hc-pane, .hc-karte, .hc-aufruf { border: 1px solid #bbb; box-shadow: none; }
+  .page-content a::after { content: " (" attr(href) ")"; font-size: .85em; color: #555; }
+  .page-content a[href^="#"]::after { content: ""; }
+  h1, h2, h3 { break-after: avoid; }
+  img, figure, .hc-karte, tr { break-inside: avoid; }
+}

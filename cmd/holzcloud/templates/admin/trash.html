@@ -1,0 +1,52 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Zurück zu den Seiten"}}</a>{{end}}
+
+{{define "content"}}
+{{template "trash-content" .}}
+{{end}}
+
+{{define "trash-content"}}
+<div class="card">
+    <p class="text-muted">
+        {{tf "Gelöschte Seiten bleiben %d Tage im Papierkorb und werden danach automatisch endgültig entfernt. Sie sind währenddessen nicht öffentlich erreichbar." .RetentionDays}}
+    </p>
+
+    {{if .Pages}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Titel"}}</th>
+                <th scope="col">{{t "Adresse"}}</th>
+                <th scope="col">{{t "Gelöscht am"}}</th>
+                <th scope="col"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Pages}}
+            <tr>
+                <td>{{.Title}}</td>
+                <td class="text-muted">/{{.Slug}}</td>
+                <td>{{if .DeletedAt}}{{.DeletedAt.Format "02.01.2006 15:04"}}{{end}}</td>
+                <td class="table-actions">
+                    <form method="POST"
+                          action="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/restore"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/restore">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Wiederherstellen"}}</button>
+                    </form>
+                    <form method="POST"
+                          action="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/purge"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/purge"
+                          hx-confirm="{{t "Diese Seite endgültig löschen? Das lässt sich nicht rückgängig machen."}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--sm btn--danger" hx-disabled-elt="this">{{t "Endgültig löschen"}}</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Der Papierkorb ist leer."}}</p>
+    {{end}}
+</div>
+{{end}}

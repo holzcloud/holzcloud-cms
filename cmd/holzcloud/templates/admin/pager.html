@@ -1,0 +1,28 @@
+{{/*
+  Shared pager for paginated admin lists.
+
+  Expects a data value embedding Pagination plus a .PagerTarget describing where
+  the links point and what htmx should swap:
+    .PagerTarget.URL      base path, without the page query parameter
+    .PagerTarget.Selector element id to swap, e.g. "#page-list"
+    .PagerTarget.Query    filters that must survive the page change, or empty
+*/}}
+{{define "pager"}}
+{{if or .HasPrev .HasNext}}
+<nav class="pagination" aria-label="{{t "Seitennavigation"}}">
+    {{if .HasPrev}}
+    <a class="btn btn--sm"
+       href="{{.PagerTarget.Link .PrevPage}}"
+       hx-get="{{.PagerTarget.Link .PrevPage}}"
+       hx-target="{{.PagerTarget.Selector}}" hx-swap="innerHTML">{{t "Zurück"}}</a>
+    {{end}}
+    <span class="text-muted">{{tf "Seite %d von %d (%d Einträge)" .Page .TotalPages .Total}}</span>
+    {{if .HasNext}}
+    <a class="btn btn--sm"
+       href="{{.PagerTarget.Link .NextPage}}"
+       hx-get="{{.PagerTarget.Link .NextPage}}"
+       hx-target="{{.PagerTarget.Selector}}" hx-swap="innerHTML">{{t "Weiter"}}</a>
+    {{end}}
+</nav>
+{{end}}
+{{end}}

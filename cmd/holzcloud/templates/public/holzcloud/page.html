@@ -1,0 +1,74 @@
+{{define "content"}}
+<section class="hc-wide page-wrap">
+  {{if .Preview.Active}}
+  <p class="preview-banner" role="status">
+    <strong>Vorschau{{if ne .Preview.Status "published"}} eines Entwurfs{{end}}.</strong>
+    Diese Seite ist über einen Link sichtbar, aber nicht veröffentlicht.
+  </p>
+  {{end}}
+
+  <article class="page">
+    <header class="page-header">
+      {{/* .Page.HasOwnHeading ist wahr, wenn der Text schon mit einer
+           Überschrift beginnt. Dann darf hier keine zweite stehen — doppelte
+           Titel sind der sichtbarste Fehler einer neuen Vorlage. */}}
+      {{if not .Page.HasOwnHeading}}<h1>{{.Page.Title}}</h1>{{end}}
+      {{with .Page.PublishedAt}}<time class="page-date" datetime="{{formatDateISO .}}">{{formatDate .}}</time>{{end}}
+    </header>
+
+    <div class="page-content">
+      {{.Page.ContentHTML}}
+    </div>
+
+    {{/* Was die Website an eigenen Feldern kennt. Das Theme kennt die Namen
+         nicht — es druckt Beschriftung und Wert, in der Reihenfolge, die in der
+         Verwaltung festgelegt wurde. */}}
+    {{if .Page.Feldliste}}
+    <dl class="page-fields">
+      {{range .Page.Feldliste}}
+      <dt>{{.Label}}</dt>
+      <dd>
+        {{if eq .Kind "gruppe"}}
+          <ul class="page-fields__rows">
+            {{range .Rows}}
+            <li>{{range $i, $e := .}}{{if $i}} · {{end}}<span class="page-fields__rowlabel">{{$e.Label}}:</span>
+              {{if eq $e.Kind "datum"}}{{formatDate $e.Value}}{{else if eq $e.Kind "janein"}}ja{{else if eq $e.Kind "verweis"}}{{with $e.Ref}}<a href="{{.URL}}">{{.Title}}</a>{{end}}{{else}}{{$e.Text}}{{end}}{{end}}</li>
+            {{end}}
+          </ul>
+        {{else if eq .Kind "bild"}}
+          {{with .Image}}<img src="{{.URL}}" alt="{{.Alt}}"{{if .Width}} width="{{.Width}}" height="{{.Height}}"{{end}} loading="lazy" decoding="async">{{end}}
+        {{else if eq .Kind "datum"}}
+          <time datetime="{{formatDateISO .Value}}">{{formatDate .Value}}</time>
+        {{else if eq .Kind "janein"}}
+          ja
+        {{else if eq .Kind "verweis"}}
+          {{with .Ref}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
+        {{else if eq .Kind "link"}}
+          <a href="{{.Text}}">{{.Text}}</a>
+        {{else}}
+          {{.Text}}
+        {{end}}
+      </dd>
+      {{end}}
+    </dl>
+    {{end}}
+
+    {{if .Page.Terms}}
+    <ul class="term-list" aria-label="Schlagwörter">
+      {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+    </ul>
+    {{end}}
+
+    {{if .Page.IsPost}}
+    {{/* Prev und Next sind auf dem ältesten und auf dem neuesten Beitrag nil.
+         {{with}} bindet den Wert und überspringt den Block, wenn er fehlt —
+         {{if .Page.Next}}…{{.Page.Next.URL}} griffe durch nichts hindurch. */}}
+    <nav class="post-nav" aria-label="Weitere Beiträge">
+      {{with .Page.Prev}}<a class="post-nav__prev" href="{{.URL}}" rel="prev">&larr; {{.Title}}</a>{{end}}
+      {{with .Page.ArchiveURL}}<a class="post-nav__index" href="{{.}}">Alle Beiträge</a>{{end}}
+      {{with .Page.Next}}<a class="post-nav__next" href="{{.URL}}" rel="next">{{.Title}} &rarr;</a>{{end}}
+    </nav>
+    {{end}}
+  </article>
+</section>
+{{end}}

@@ -1,0 +1,113 @@
+{{define "actions"}}<span></span>{{end}}
+
+{{define "content"}}
+{{template "media_list-content" .}}
+{{end}}
+
+{{define "media_list-content"}}
+<div class="card">
+    <h3>{{t "Datei hochladen"}}</h3>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/media/upload" enctype="multipart/form-data" class="form-row">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <label class="sr-only" for="media">{{t "Datei"}}</label>
+        <input type="file" id="media" name="media" accept="image/*,application/pdf,video/mp4" required class="form-input">
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Hochladen"}}</button>
+    </form>
+    <p class="text-muted" style="margin-top: var(--space-2)">
+        {{t "Erlaubt: JPEG, PNG, GIF, WebP, SVG, PDF (höchstens 5 MB) und MP4 (höchstens 64 MB). Aus Fotos und Videos werden beim Hochladen Kamera-Angaben entfernt – eine Handyaufnahme enthält sonst die GPS-Koordinaten des Aufnahmeorts."}}
+    </p>
+</div>
+
+<div class="card" style="margin-top: var(--space-3)">
+    <form method="GET" action="/admin/websites/{{.WebsiteID}}/media" class="list-controls" role="search">
+        <div class="list-controls__search">
+            <label class="sr-only" for="q">{{t "Medien durchsuchen"}}</label>
+            <input type="search" id="q" name="q" class="form-input" value="{{.Filter.Query}}"
+                   placeholder="{{t "Dateiname oder Beschreibung"}}">
+        </div>
+        <label class="sr-only" for="kind">{{t "Art"}}</label>
+        <select id="kind" name="kind" class="form-input form-select">
+            <option value="">{{t "Alle Arten"}}</option>
+            <option value="image"{{if eq .Filter.MimePrefix "image/"}} selected{{end}}>{{t "Bilder"}}</option>
+            <option value="document"{{if eq .Filter.MimePrefix "application/"}} selected{{end}}>{{t "Dokumente"}}</option>
+        </select>
+        <label class="form-check">
+            <input type="checkbox" name="unused" value="1" {{if .Filter.Unused}}checked{{end}}>
+            <span class="form-check-label">{{t "Nur unbenutzte"}}</span>
+        </label>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Filtern"}}</button>
+    </form>
+
+    {{if .MissingAltText}}
+    <p class="alert alert--warning" style="margin-top: var(--space-2)">
+        {{if eq .MissingAltText 1}}{{t "Ein Bild ohne Beschreibung. Ohne Beschreibung ist das Bild für blinde Besucher und für Suchmaschinen unsichtbar."}}{{else}}{{tf "%d Bilder ohne Beschreibung. Ohne Beschreibung ist ein Bild für blinde Besucher und für Suchmaschinen unsichtbar." .MissingAltText}}{{end}}
+    </p>
+    {{end}}
+</div>
+
+<div class="card" style="margin-top: var(--space-3)">
+    <div id="media-list">
+    {{if .Media}}
+    <div class="media-grid">
+        {{range .Media}}
+        <div class="media-card">
+            {{if .IsImage}}
+            <img src="{{.ThumbURL}}" alt="{{if .AltText}}{{.AltText}}{{else}}{{.OriginalName}}{{end}}" loading="lazy">
+            {{else}}
+            <div class="media-card__icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+            </div>
+            {{end}}
+            <div class="media-card__meta">
+                <span class="media-card__name" title="{{.OriginalName}}">{{.OriginalName}}</span>
+                <span class="text-muted">{{.MimeType}}</span>
+                <span class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</span>
+                {{if .NeedsAltText}}<span class="badge badge--draft">{{t "ohne Beschreibung"}}</span>{{end}}
+            </div>
+
+            <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/meta" class="media-card__meta-form">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                <label class="sr-only" for="alt-{{.ID}}">{{tf "Bildbeschreibung für %s" .OriginalName}}</label>
+                <input type="text" id="alt-{{.ID}}" name="alt_text" class="form-input" value="{{.AltText}}"
+                       placeholder="{{t "Was ist zu sehen?"}}" maxlength="300">
+                <label class="sr-only" for="caption-{{.ID}}">{{tf "Bildunterschrift für %s" .OriginalName}}</label>
+                <input type="text" id="caption-{{.ID}}" name="caption" class="form-input" value="{{.Caption}}"
+                       placeholder="{{t "Bildunterschrift (optional)"}}" maxlength="300">
+                <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Beschreibung speichern"}}</button>
+            </form>
+
+            <div class="media-card__actions">
+                {{if .IsImage}}
+                <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/zuschnitt">
+                    {{t "Ausschnitt"}}{{if .IsCropped}} ✓{{end}}
+                </a>
+                {{end}}
+                <label class="sr-only" for="url-{{.ID}}">{{tf "Öffentliche Adresse von %s" .OriginalName}}</label>
+                <input class="media-url" type="text" id="url-{{.ID}}" readonly value="{{.MarkdownRef}}">
+                <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete" hx-post="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete"
+                      style="display:inline" hx-confirm="{{t "Diese Datei löschen?"}}">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                </form>
+                <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete?force=1"
+                      style="display:inline"
+                      hx-confirm="{{t "Trotz Verwendung löschen? Auf den betroffenen Seiten erscheint dann ein kaputtes Bild."}}">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <input type="hidden" name="force" value="1">
+                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Trotzdem löschen"}}</button>
+                </form>
+            </div>
+        </div>
+        {{end}}
+    </div>
+
+    {{template "pager" .}}
+    {{else}}
+    <p class="text-muted">{{t "Keine Dateien gefunden."}}</p>
+    {{end}}
+    </div>
+</div>
+{{end}}

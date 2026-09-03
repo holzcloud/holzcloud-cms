@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Go module dependencies. GitHub-native; no third-party tooling involved.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Keep the CI actions themselves current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
