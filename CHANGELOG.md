@@ -11,7 +11,7 @@ verfasst. Wer den nächsten Eintrag schreibt, macht bitte mit.
 
 Die Nummern sind dieselben wie die Tags im Repository.
 
-## Unveröffentlicht
+## 1.5 — 2026-09-03
 
 ### Behoben
 
