@@ -916,16 +916,59 @@ main:focus { outline: none; }
 /* Ein Bild allein in seinem Absatz ist eine Figur und kein Wort im Satz.
  * Markdown macht daraus ein <p><img></p>, also hängt die Regel an :has() —
  * ohne sie klebte der Absatz danach am Bild, weil ein <p> mit Bild darin
- * genauso viel Luft bekäme wie ein <p> mit Text. */
-.page-content > p:has(> img:only-child) {
+ * genauso viel Luft bekäme wie ein <p> mit Text.
+ *
+ * Und die Figur ist BREIT: sie spannt bis breit-ende, wie .hc-bild--voll.
+ * Das ist die Zeile, die eine Seite aus reinem Markdown trägt. Auf einer
+ * Seite mit Karten, Galerien und einem Aufmacher hat die zweite Rasterspalte
+ * etwas zu tun; auf neun Seiten, die nur aus Überschrift, Bild, Absatz und
+ * Link bestehen, stand sie leer — bei 1265 px Seitenbreite waren das über
+ * 700 px Nichts neben einem 440 px schmalen Streifen, also 62 % der Breite.
+ * Genau der Eindruck, gegen den diese Vorlage angetreten ist.
+ *
+ * Nur wenn das Bild ALLEIN im Absatz steht. Ein Bild mitten im Satz bleibt,
+ * wo es ist — dafür sorgt :only-child.
+ *
+ * Ein Browser ohne :has() lässt beide Regeln fallen und zeigt das Bild in der
+ * Textspalte, also den Zustand von vorher. Ein tragbarer Rückfall: die Seite
+ * bleibt lesbar, sie ist nur schmaler. */
+.page-content > :is(p:has(> :is(img, picture):only-child), figure:not(.hc-block):has(> img)) {
+  grid-column: text-start / breit-ende;
   margin-block: var(--hc-space-7);
   max-width: none;
 }
-.page-content > p:has(> img:only-child) + * { margin-block-start: var(--hc-space-7); }
-.page-content :where(p) > img:only-child {
-  display: block; width: 100%;
+.page-content > :is(p:has(> :is(img, picture):only-child), figure:not(.hc-block):has(> img)) + * {
+  margin-block-start: var(--hc-space-7);
+}
+/* inline-size: auto statt 100 %, dazu eine Höchsthöhe.
+ *
+ * Ein Querformat füllt damit die breite Spalte, ein Hochformat schrumpft auf
+ * 70vh und steht mittig — statt den halben Bildschirm zu füllen. Kein
+ * object-fit: cover, weil ein Zuschnitt auf einer Hofseite Köpfe abschneidet,
+ * und kein contain, weil dessen leere Streifen INNERHALB der Kante lägen und
+ * die Figur als schlecht sitzendes Bild lesen würden. So umschliesst die
+ * Haarlinie immer genau das Bild.
+ *
+ * Der Preis: ein Bild, das schmaler ist als die Spalte, wird nicht
+ * hochgerechnet — es steht mittig in seiner natürlichen Grösse. Das ist die
+ * richtige Seite des Handels: ein hochskaliertes Foto ist sichtbar weich. */
+.page-content > p:has(> :is(img, picture):only-child) > :is(img, picture),
+.page-content > figure:not(.hc-block) > img {
+  display: block;
+  inline-size: auto; max-inline-size: 100%;
+  block-size: auto; max-block-size: 70vh;
+  margin-inline: auto;
   border-radius: var(--hc-r);
   border: 1px solid var(--hc-hairline);
+}
+/* Die Bildunterschrift geht mit in die breite Spalte und steht unter dem
+   Bild, nicht unter der Textspalte. */
+.page-content > figure:not(.hc-block) > figcaption {
+  margin-block-start: var(--hc-space-3);
+  text-align: center;
+  font-size: var(--hc-text-xs); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink-3);
 }
 
 .page-content :where(ul, ol) { padding-inline-start: var(--hc-space-5); }
