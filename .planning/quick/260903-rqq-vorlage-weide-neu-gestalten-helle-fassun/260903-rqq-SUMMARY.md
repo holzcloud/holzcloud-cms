@@ -63,18 +63,20 @@ decisions:
   - ".hc-aufruf bleibt absichtlich schmal — ein Kasten mit einem Satz und einem Knopf, mittig gesetzt, wäre über die volle Breite ein Halbsatz in einer leeren Fläche"
   - "Ein Bild wird in seiner eigenen Grösse gezeigt: kein Hochrechnen (inline-size: auto) und eine Höhengrenze, für die drei Bildarten, die nicht zugeschnitten werden"
   - "Kein object-fit: cover ausserhalb von Karte und Galerie — nur dort liefert render.go ein object-position aus dem Bildmittelpunkt; sonst schnitte es blind aus der Mitte"
+  - "Ein Aufruf bleibt mittig, solange er ein Zuruf ist; ab dem zweiten Absatz oder einer Liste wird er linksbündig"
+  - "Für ein Bild hat breit drei Stufen: Textspalte, --breit (Rasterspalte), --voll (Fensterbreite); ein Bild allein im Markdown entspricht --breit"
 
 metrics:
-  duration: 92m
+  duration: 104m
   completed: 2026-09-03
   tasks: 3
-  commits: 9
+  commits: 11
   files: 18
 
 actuals:
-  tokens: 39000
+  tokens: 40800
   tasks: 3
-  commits: 9
+  commits: 11
 ---
 
 # Quick-Aufgabe 260903-rqq: Vorlage `weide` neu gestalten — Summary
@@ -553,6 +555,76 @@ eine andere Reichweite. Ihr Kommentarkopf hält ausdrücklich fest, dass ein
 Theme alles davon überschreiben darf und die Angaben dafür nur eine Klasse
 tief liegen — genau diese Freiheit ist hier benutzt.
 
+### Befund E — Fliesstext im Aufruf stand zentriert (Commit f56f48b)
+
+`bausteine.css` stellt `.hc-aufruf` auf `text-align: center` (Z. 196), und
+`weide` überschrieb es nicht. An einer Schwestervorlage mit echtem Inhalt
+gemessen: ein `aufruf` mit **vier Absätzen**, 705 px breit, alles mittig.
+Fliesstext mit beidseitigem Flatterrand ist schwer zu lesen — das Auge findet
+den Anfang der nächsten Zeile nicht, weil er jedesmal woanders liegt. Derselbe
+Text stand als handgeschriebenes `<aside>` vorher linksbündig; die Umstellung
+auf einen echten Baustein hat ihn also verschlechtert.
+
+**Nicht grundsätzlich linksbündig gesetzt.** Der Kern hat für seinen Fall
+recht: `block.go:54` beschreibt den Aufruf als „a boxed invitation with a
+button", und ein Satz plus Knopf steht mittig besser. Den guten Fall für den
+schlechten zu opfern wäre der falsche Handel. Stattdessen am Inhalt
+entschieden, über zwei Merkmale, die beide mit `:has()` sichtbar sind:
+
+- **mehr als ein Kind** im `.hc-aufruf__text` — ein zweiter Absatz, oder ein
+  Absatz und eine Liste. Ein Zuruf ist genau ein Satz.
+- **überhaupt eine Liste** — Aufzählungspunkte mittig sind in jeder Länge
+  falsch; eine Liste hat eine linke Kante, das ist ihr Sinn.
+
+`text-align: start` statt `left`, damit die Regel auch eine Sprache trägt, die
+von rechts nach links läuft. Ohne `:has()` bleibt es mittig, also beim
+heutigen Zustand — hier ausnahmsweise der schlechtere der beiden Fälle, und
+darum im Kommentar ausdrücklich als solcher genannt.
+
+### Befund F — `.hc-bild--breit` war schmaler als ein Bild ohne Auszeichnung (Commit a1d3447)
+
+`bausteine.css` zieht `--breit` ab 60em auf `inline-size: min(115%, 100vw)`
+mit `margin-inline: -7.5%` (Z. 58-70). Das ist der Kunstgriff einer Vorlage
+OHNE Raster: ein Bild läuft prozentual aus der Textspalte heraus. Gegen unser
+Zweispaltenraster ergab das 705 × 1.15 = **810 px**, während ein allein
+stehendes Bild im Markdown **1163 px** bekam — der ausdrücklich als „breit"
+ausgezeichnete Weg war der schmalere.
+
+Jetzt eine Leiter, und so auch benannt:
+
+| Stufe | Rahmen | bedeutet |
+|---|---|---|
+| ohne Zusatz | Textspalte | Lesebreite — die bewusste Wahl der Redaktion, die einzige Stufe, die man ansagen muss |
+| `--breit` | Rasterspalte | `text-start / breit-ende`, dasselbe Mass wie `.hc-karten` und `.hc-bildtext` |
+| `--voll` | Fensterbreite | unverändert aus `bausteine.css` |
+
+Nachgemessen bei 1280 × 900 (Raster 1178 px, Textspalte 705 px):
+
+| Weg | vorher | nachher |
+|---|---|---|
+| ohne Zusatz | 705 × 397 | unverändert |
+| `--breit` | 810 × 456 | **1120 × 630** |
+| `--voll` | 1280 × 720 | unverändert |
+| Bild allein im Markdown | 1178 × 662 | **1120 × 630** |
+
+Ein allein stehendes Bild im Markdown entspricht damit **genau** `--breit`.
+Das ist richtig, weil Markdown keine Möglichkeit hat, „schmal" zu sagen, und
+breit die sinnvollere Vorgabe ist. Die zwei Wege dürfen sich unterscheiden:
+der eine wird ausgezeichnet, der andere geerbt.
+
+**Dabei ein eigener Fehler aus Commit ac0aeb5 berichtigt.** Die dort
+eingeführte Höhengrenze von `70vh` traf auch `--voll` und hätte ein
+16:9-Bild auf einem 900er Fenster von 1280 auf 1120 px zusammengeschrumpft —
+also gerade dem Modifikator die Breite genommen, die er ansagt.
+`.hc-bild--voll img` steht jetzt auf `max-block-size: none`. Das
+Nicht-Hochrechnen gilt dort weiter, und das ist kein Widerspruch: eine
+hochgerechnete Aufnahme ist BESCHÄDIGT, eine hohe ist nur hoch. Das eine will
+niemand, das andere kann man wollen.
+
+**`bausteine.css` bleibt bei beiden Befunden unangetastet**, obwohl beide
+dorthin gehörten: die Datei kleidet acht Vorlagen plus jede hochgeladene, und
+diese Reichweite ist eine andere Entscheidung als eine Zeile in einer Vorlage.
+
 ### Zum Stand der Prüftore
 
 `template check` meldet für `weide` „no problems found"; `go build ./...`,
@@ -571,4 +643,4 @@ um den Test grün zu machen.
 
 Alle drei neuen Dateien liegen auf der Platte (`favicon.svg`, beide woff2), alle
 fünfzehn geänderten ebenfalls, und alle drei Commits sind in `git log`
-auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967, c7297cf, ac0aeb5.
+auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967, c7297cf, ac0aeb5, f56f48b, a1d3447.
