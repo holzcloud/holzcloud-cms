@@ -65,18 +65,19 @@ decisions:
   - "Kein object-fit: cover ausserhalb von Karte und Galerie — nur dort liefert render.go ein object-position aus dem Bildmittelpunkt; sonst schnitte es blind aus der Mitte"
   - "Ein Aufruf bleibt mittig, solange er ein Zuruf ist; ab dem zweiten Absatz oder einer Liste wird er linksbündig"
   - "Für ein Bild hat breit drei Stufen: Textspalte, --breit (Rasterspalte), --voll (Fensterbreite); ein Bild allein im Markdown entspricht --breit"
+  - "Die Untermenüs der letzten drei Hauptpunkte hängen nach links; ein absolut gesetztes Element zählt auch mit visibility: hidden zur Scrollbreite"
 
 metrics:
-  duration: 104m
+  duration: 121m
   completed: 2026-09-03
   tasks: 3
-  commits: 11
+  commits: 12
   files: 18
 
 actuals:
-  tokens: 40800
+  tokens: 42500
   tasks: 3
-  commits: 11
+  commits: 12
 ---
 
 # Quick-Aufgabe 260903-rqq: Vorlage `weide` neu gestalten — Summary
@@ -625,6 +626,75 @@ niemand, das andere kann man wollen.
 dorthin gehörten: die Datei kleidet acht Vorlagen plus jede hochgeladene, und
 diese Reichweite ist eine andere Entscheidung als eine Zeile in einer Vorlage.
 
+### Befund G — Das Untermenü am rechten Rand liess jede Seite waagrecht scrollen (Commit 9777ad5)
+
+Der schwerste Befund dieser Reihe, weil er **jede Seite** traf und **ohne
+Zutun des Besuchers** sichtbar war. Ein absolut gesetztes Element zählt zur
+Scrollbreite des Dokuments, auch mit `visibility: hidden` — der geschlossene
+Zustand kostete also genauso viel wie der offene. Waagrechte Bildlaufleiste
+auf jeder Seite, und beim Öffnen ein abgeschnittener rechter Rand.
+
+**Gemessen, nicht angenommen.** Ich habe dafür einen Messstand in headless
+Chrome gebaut, der die echten Dateien lädt — `bausteine.css`,
+`weide/style.css` und Manrope über `/t/fonts/` —, damit die Schriftbreiten und
+damit die Punktpositionen stimmen. Er reproduzierte die Messung des
+Orchestrators auf den Pixel (1265 / 1271, Untermenü links 1069, Breite 203),
+was mir Zutrauen in die übrigen Zahlen gibt.
+
+| Fenster | vorher (client / scroll) | nachher |
+|---|---|---|
+| 1280 px | 1265 / 1271 → **6 px** | 1280 / 1280 → **0** |
+| 1100 px | 1085 / 1102 → **17 px** | 1100 / 1100 → **0** |
+| 1024 px | 1009 / 1031 → **22 px** | 1024 / 1024 → **0** |
+
+Dass `clientWidth` nachher grösser ist, ist der eigentliche Beweis: die 15 px
+Bildlaufleiste sind weg.
+
+**Die Regel, ohne Kenntnis des Menüs.** Sie stützt sich auf zwei Tatsachen:
+
+- Die überlaufende Menge ist immer ein **Schlussstück** der Liste. Überlauf
+  heisst linke Kante + Breite > rechter Rand; je weiter rechts ein Punkt
+  steht, desto eher trifft das zu. Es kann nie ein Punkt in der Mitte
+  überlaufen, während der letzte es nicht tut.
+- Die Leiste ist **rechtsbündig** (`.site-menu` auf `margin-inline-start:
+  auto`). Der letzte Punkt endet genau am rechten Rand, und die letzten drei
+  liegen immer in der rechten Hälfte — dort hat ein nach rechts
+  ausgerichtetes Untermenü links Platz im Überfluss.
+
+Drei und nicht zwei, weil in die rechtesten 300 px bei üblichen Titelbreiten
+bis zu drei Punkte passen.
+
+**Beide Enden nachgemessen**, wie verlangt — mit zwei zusätzlichen Menüs, die
+es auf keiner der beiden Websites gibt:
+
+| Prüfmenü | 1600 px | 1280 px | 1024 px |
+|---|---|---|---|
+| lang: 8 Punkte, Untermenüs an 1., 2., 7., 8. Stelle | 0 | 0 | 0 |
+| kurz: 3 Punkte, Untermenüs von 417 px Breite | 0 | 0 | 0 |
+
+Im langen Menü bleibt der erste Punkt linksbündig (bei 1024 px linke Kante
+308) — genau wie beabsichtigt.
+
+**Ein eigener Denkfehler, den erst der Stresstest zeigte.** Mein erster
+Entwurf trug ein `:not(:first-child)` gegen die symmetrische Falle. Der
+Stresstest wies bei 1024 px 1 px Überlauf nach, verursacht vom ERSTEN Punkt:
+die Ausnahme nahm ihn von genau der Regel aus, die ihm geholfen hätte.
+`:nth-last-child` schliesst die Falle nämlich von selbst — ein erster Punkt
+kann nur dann unter die Regel fallen, wenn das Menü höchstens drei Punkte hat,
+und dann steht er selbst weit rechts. In einem langen Menü, wo er weit links
+steht, ist er nie unter den letzten dreien. Die Ausnahme war verkehrt herum
+und ist weg; das steht so im Kommentar, damit sie niemand „zur Sicherheit"
+wieder einbaut.
+
+**Kein `overflow: clip`** an der Leiste oder am `body`. Das wäre keine Lösung,
+sondern eine Vertuschung: das Untermenü muss über die Leiste hinausragen
+dürfen, sonst ist es unbrauchbar. Die drei `overflow: hidden` in der Datei
+gehören zu `.skip-link`, `.sr-only` und `.hc-sr-only` und klemmen dort
+Text für Vorlesesoftware — nichts davon berührt das Menü.
+
+Der Messstand lag im Kritzelverzeichnis, nicht im Repository, und ist
+abgeräumt.
+
 ### Zum Stand der Prüftore
 
 `template check` meldet für `weide` „no problems found"; `go build ./...`,
@@ -643,4 +713,4 @@ um den Test grün zu machen.
 
 Alle drei neuen Dateien liegen auf der Platte (`favicon.svg`, beide woff2), alle
 fünfzehn geänderten ebenfalls, und alle drei Commits sind in `git log`
-auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967, c7297cf, ac0aeb5, f56f48b, a1d3447.
+auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967, c7297cf, ac0aeb5, f56f48b, a1d3447, 9777ad5.

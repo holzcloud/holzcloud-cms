@@ -156,12 +156,13 @@ Ziel, Feldnamen und verstecktes Feld aller Formulare sind unverändert.
 
 ## Deviations from Plan
 
-### Sechs Befunde des Orchestrators, mitten in der Arbeit gemeldet
+### Sieben Befunde des Orchestrators, mitten in der Arbeit gemeldet
 
 Die ersten vier betreffen Stellen, an denen die Referenz `weide` danebenliegt;
-sie sind hier **nicht** mitkopiert worden. Die letzten zwei betreffen
+sie sind hier **nicht** mitkopiert worden. Befund 5 und 6 betreffen
 `bausteine.css`, also den Kern — sie sind in der Vorlage abgefangen, die Datei
-des Kerns ist unangetastet geblieben. `weide` wird getrennt nachgebessert.
+des Kerns ist unangetastet geblieben. Befund 7 ist ein Fehler der Vorlage
+selbst. `weide` wird getrennt nachgebessert.
 
 **1. Überschriften in Bausteinen blieben klein**
 - **Gefunden bei:** Aufgabe 1, gemeldet vom Orchestrator
@@ -275,6 +276,41 @@ des Kerns ist unangetastet geblieben. `weide` wird getrennt nachgebessert.
   −236 px und endete bei 1044 — weder randlos noch mittig.
 - **Commit:** e730173
 
+**7. Ein Untermenü ragte über den rechten Rand der Seite hinaus**
+- **Gefunden bei:** Sichtprüfung an der Schwestervorlage, Fenster 1280 px
+- **Problem:** Ein Untermenü hängt an `inset-inline-start: 0` seines `<li>`
+  und wächst nach rechts. Steht das `<li>` nahe am rechten Rand, ragt es
+  hinaus — und `visibility: hidden` hilft nicht, denn ein absolut
+  positioniertes Element zählt weiterhin zur Scrollbreite. An der
+  Milchschäferei gemessen: `clientWidth` 1265, `scrollWidth` 1271, also eine
+  waagrechte Bildlaufleiste auf **jeder** Seite, ohne das Menü je zu öffnen;
+  geöffnet wäre der rechte Rand abgeschnitten.
+- **Für Delnahida nachgemessen, nicht angenommen:** es schlägt hier **nicht**
+  durch. Die Untermenüs hängen am zweiten und vierten von sechs Punkten und
+  enden bei 1016 px (Fenster 1280) und 851 px (Fenster 1100) — rund 250 px
+  Luft. Die Regel steht trotzdem, denn welcher Punkt am rechten Rand steht,
+  entscheidet der Inhalt des Menüs und nicht die Vorlage.
+- **Fix:** Zwei Regeln. Ein **Breitendeckel**
+  (`max-inline-size: min(22rem, calc(100vw - 2 * var(--hc-gutter)))`) begrenzt
+  den Schaden in jedem Fall; die **Ausrichtung** dreht das Untermenü an den
+  zwei letzten Punkten auf `inset-inline-start: auto; inset-inline-end: 0`, wo
+  der rechte Rand ist — das Menü steht über `margin-inline-start: auto` immer
+  am rechten Ende der Leiste. `:nth-child(n+3)` ist die Wache für das andere
+  Ende: ohne sie träfe die Regel bei einem Menü aus zwei oder drei Punkten
+  auch den ersten, und ein breites Untermenü liefe spiegelverkehrt nach links
+  hinaus.
+- **Verworfen:** `position-try-fallbacks: flip-inline` wäre echte
+  Kollisionserkennung, und `CSS.supports` meldet sie als unterstützt — im
+  Prüfstand ist sie hier aber **wirkungslos**, weil sie nur an Elementen
+  greift, die über `anchor-name` positioniert sind. Ebenfalls verworfen:
+  `overflow: clip` an der Leiste oder am `<body>`. Das nähme die
+  Bildlaufleiste, schnitte aber das aufgeklappte Untermenü ab — eine
+  Vertuschung.
+- **Grenze, offen benannt:** ein sehr breites Untermenü in der MITTE eines
+  langen Menüs ist nicht abgedeckt. Ein Menü, dessen mittlerer Punkt bis an
+  den rechten Rand reicht, bricht ohnehin um.
+- **Commit:** 5ea46bc
+
 ### Eigene Abweichungen vom Plan
 
 **`.hc-eigen__bild` ist in den vierten Befund aufgenommen worden**, obwohl der
@@ -365,6 +401,8 @@ achtzehn berührten Dateien.
 | Klammern in style.css | 431 offen, 431 zu |
 | `bausteine.css` | unangetastet — `git status` zeigt sie nicht |
 | Aufruf-Markup | gegen den Kern-Renderer geprüft: 1 Absatz mittig, 4 Absätze und Liste linksbündig |
+| waagrechter Überlauf | `scrollWidth` == `clientWidth` in sieben Menüformen × 1280/1100/900/600/390 px, Menü zu und offen, mit und ohne Sprachwahl |
+| keine Vertuschung | `overflow: hidden` steht nur in den drei sr-only-Mustern, nicht an Leiste oder `body` |
 | dreizehn HTML-Dateien | zwölf Ansichten plus `layout.html` |
 | Go-Code | `git status` zeigt nichts unter `internal/` oder `cmd/holzcloud/*.go` |
 
@@ -387,4 +425,4 @@ und bei `weide` je einen Fehler, den keine der obigen Prüfungen sah.
 
 Alle drei neuen Dateien liegen auf der Platte (`favicon.svg`, beide woff2),
 alle fünfzehn geänderten ebenfalls, und alle vier Commits sind in `git log`
-auffindbar: 7de5994, 377b27d, 154d5de, f748711, d9e2b4c, e730173.
+auffindbar: 7de5994, 377b27d, 154d5de, f748711, d9e2b4c, e730173, 5ea46bc.
