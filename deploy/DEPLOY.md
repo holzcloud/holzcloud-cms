@@ -31,6 +31,31 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" ./cmd/
 
 This produces a single `holzcloud` binary (typically 15-25 MB) for linux/amd64.
 
+## The container image
+
+If you run Kubernetes or Docker rather than systemd, there is an image:
+
+```
+ghcr.io/holzcloud/holzcloud-cms:<tag>
+```
+
+It is the same binary in a two-stage build on `distroless/static`, so the image
+holds the program, the root certificates and nothing else. What it needs from
+you:
+
+- **A writable `/data`.** That is where the SQLite file, the media and the
+  uploaded templates live. The container runs as uid **65532** (`nonroot`), so
+  the mounted volume has to belong to it — in Kubernetes through `fsGroup`.
+- **One replica, and `Recreate` rather than `RollingUpdate`.** SQLite tolerates
+  many readers and one writer; two pods on one volume are two writers.
+- **`HOLZCLOUD_SECURE=true`** behind TLS, so the session cookie carries the
+  Secure flag.
+- **`/healthz`** for both probes. It answers 200 as soon as the database is
+  open.
+
+The image is built for linux/amd64 only. `docker run --rm -v holzcloud:/data -p
+8080:8080 ghcr.io/holzcloud/holzcloud-cms:<tag>` is enough to try it.
+
 ## Transfer to the server
 
 ```bash
