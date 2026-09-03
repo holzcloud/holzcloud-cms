@@ -1061,7 +1061,25 @@ html { scroll-padding-top: var(--hc-space-9); }
 main { display: block; }
 main:focus { outline: none; }
 .page-wrap { padding-block: clamp(var(--hc-space-6), 6vh, var(--hc-space-9)); }
-.page-content { max-width: min(100%, 78ch); }
+/* Der Textkörper ist schmal, die Bilder sind es nicht.
+ *
+ * Der Fliesstext bleibt bei 78 Zeichen, weil länger niemand gern liest.
+ * Eine Galerie, ein Video und ein Bild über die volle Breite laufen dagegen
+ * bis an den rechten Rand von .hc-wide — dieselbe Geste, die die
+ * handgeschriebene Seite hatte, wo die Bildfläche eine Rinne breiter war als
+ * ihre Spalte und zum Bildschirmrand hin auslief.
+ *
+ * Zwei Spalten in einem Raster statt max-width am Elternteil: die zweite ist
+ * unter 78 Zeichen Breite null breit, also stapelt sich auf dem Telefon alles
+ * von selbst, ohne eine zweite Regel in einer Medienabfrage. */
+.page-content {
+  display: grid;
+  grid-template-columns: [text-start] min(100%, 78ch) [text-end] minmax(0, 1fr) [breit-ende];
+}
+.page-content > * { grid-column: text-start / text-end; min-width: 0; }
+.page-content > :is(.hc-galerie, .hc-video, .hc-bild--voll) {
+  grid-column: text-start / breit-ende;
+}
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
 .page-content :where(h2) { margin-block-start: var(--hc-space-8); font-size: var(--hc-text-2xl); }
 .page-content :where(h3) { margin-block-start: var(--hc-space-7); font-size: var(--hc-text-xl); }
