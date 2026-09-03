@@ -1,0 +1,27 @@
+<!-- Ein Rückfall-Favicon, damit ein Betrieb, der noch keines hochgeladen hat,
+     nicht bei jedem Seitenaufruf einen 404 auf /favicon.ico erzeugt: den
+     fordert der Browser von sich aus an, sobald die Seite keines nennt.
+
+     Dasselbe Zeichen wie die schmückende Zeichnung im Aufmacher — die ruhige
+     Hügellinie, gegen dieselbe 64er viewBox gezeichnet.
+
+     currentColor gibt es hier nicht: ein Favicon wird ausserhalb des
+     Dokuments gezeichnet und erbt nichts. Die beiden Werte stehen deshalb als
+     einzige Stelle dieser Vorlage fest — es sind --hc-ground und --hc-erde
+     aus der Schicht weide.tokens. Wer sie dort ändert, ändert sie auch hier.
+
+     Kein prefers-color-scheme: diese Vorlage hat genau eine Stimmung, und sie
+     bringt ihr eigenes helles Papier mit. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="">
+  <rect width="64" height="64" rx="12" fill="#FAF6EF"/>
+  <defs>
+    <clipPath id="feld"><rect x="6" y="6" width="52" height="52" rx="8"/></clipPath>
+  </defs>
+  <g clip-path="url(#feld)">
+    <circle cx="45" cy="22" r="7" fill="#6E4D32" fill-opacity=".35"/>
+    <path d="M6 42 C 16 30, 26 30, 36 40 C 43 47, 50 44, 58 37 L 58 58 L 6 58 Z"
+          fill="#6E4D32" fill-opacity=".38"/>
+    <path d="M6 50 C 15 41, 27 41, 37 49 C 45 55, 52 53, 58 48 L 58 58 L 6 58 Z"
+          fill="#6E4D32"/>
+  </g>
+</svg>
