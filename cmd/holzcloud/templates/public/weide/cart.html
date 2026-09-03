@@ -1,14 +1,15 @@
 {{define "content"}}
-<section class="cart">
+<section class="hc-wide page-wrap cart">
   <header class="page-header">
-    <h1 class="page-header__title">Warenkorb</h1>
-    {{if .Cart.Count}}<p class="page-header__meta">{{.Cart.Count}} Artikel</p>{{end}}
+    <h1>Warenkorb</h1>
+    {{if .Cart.Count}}<p class="archive-count">{{.Cart.Count}} Artikel</p>{{end}}
   </header>
 
   {{if .Cart.Lines}}
-  {{if .Cart.Blocked}}
-  <p class="cart-blocked" role="alert">{{.Cart.Blocked}}</p>
-  {{end}}
+  {{/* Ein Artikel, der ausgegangen ist, während der Korb stand, bleibt in der
+       Liste stehen. Ihn still zu entfernen und den Rest zu verrechnen wäre
+       schlimmer, als es zu sagen. */}}
+  {{with .Cart.Blocked}}<p class="hc-alert hc-alert--danger cart-blocked" role="alert"><span>{{.}}</span></p>{{end}}
 
   <ol class="cart-lines">
     {{range .Cart.Lines}}
@@ -21,30 +22,34 @@
 
       <div class="cart-line__text">
         <h2 class="cart-line__title"><a href="{{.URL}}">{{.Title}}</a></h2>
-        {{if .Subtitle}}<p class="cart-line__subtitle">{{.Subtitle}}</p>{{end}}
+        {{with .Subtitle}}<p class="cart-line__subtitle">{{.}}</p>{{end}}
         <p class="cart-line__unit">{{.UnitPrice}} je Stück</p>
-        {{if not .Available}}<p class="cart-line__gone">Nicht mehr verfügbar</p>{{end}}
+        {{if not .Available}}<p class="hc-status hc-status--danger">Nicht mehr verfügbar</p>{{end}}
       </div>
 
-      <form class="cart-line__quantity" method="POST" action="{{$.Cart.UpdateURL}}">
-        <input type="hidden" name="artikel" value="{{.Slug}}">
-        <label for="menge-{{.Slug}}" class="sr-only">Menge für {{.Title}}</label>
-        <input type="number" id="menge-{{.Slug}}" name="menge" value="{{.Quantity}}"
-               min="0" max="99" inputmode="numeric">
-        <button type="submit" class="button button--quiet">Ändern</button>
-      </form>
+      <div class="cart-line__actions">
+        {{/* Menge 0 entfernt die Zeile. Der Artikel wird über seinen Slug
+             benannt, nie über eine Nummer. */}}
+        <form class="cart-line__quantity" method="POST" action="{{$.Cart.UpdateURL}}">
+          <input type="hidden" name="artikel" value="{{.Slug}}">
+          <label for="menge-{{.Slug}}" class="sr-only">Menge für {{.Title}}</label>
+          <input class="hc-input" type="number" id="menge-{{.Slug}}" name="menge" value="{{.Quantity}}"
+                 min="0" max="99" inputmode="numeric">
+          <button type="submit" class="hc-btn hc-btn--ghost hc-btn--sm">Ändern</button>
+        </form>
+
+        <form class="cart-line__remove" method="POST" action="{{$.Cart.RemoveURL}}">
+          <input type="hidden" name="artikel" value="{{.Slug}}">
+          <button type="submit" class="hc-btn hc-btn--danger hc-btn--sm">Entfernen<span class="sr-only"> — {{.Title}}</span></button>
+        </form>
+      </div>
 
       <p class="cart-line__price">{{.LinePrice}}</p>
-
-      <form class="cart-line__remove" method="POST" action="{{$.Cart.RemoveURL}}">
-        <input type="hidden" name="artikel" value="{{.Slug}}">
-        <button type="submit" class="cart-line__drop">Entfernen<span class="sr-only"> — {{.Title}}</span></button>
-      </form>
     </li>
     {{end}}
   </ol>
 
-  <div class="cart-summary">
+  <div class="hc-pane hc-pane--pad cart-summary">
     <dl class="cart-totals">
       <dt>Zwischensumme</dt><dd>{{.Cart.Totals.Items}}</dd>
       <dt>Versand</dt>
@@ -54,19 +59,17 @@
       {{end}}
       <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
     </dl>
-    {{if .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.Cart.Totals.TaxNote}}</p>{{end}}
-    {{if .Shop.ShippingNote}}<p class="cart-totals__note">{{.Shop.ShippingNote}}</p>{{end}}
+    {{with .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.}}</p>{{end}}
+    {{with .Shop.ShippingNote}}<p class="cart-totals__note">{{.}}</p>{{end}}
 
-    {{if .Cart.CheckoutURL}}
-    <a class="button cart-checkout" href="{{.Cart.CheckoutURL}}">Zur Kasse</a>
-    {{end}}
-    {{if .Shop.URL}}<a class="cart-continue" href="{{.Shop.URL}}">Weiter einkaufen</a>{{end}}
+    <div class="cart-actions">
+      {{with .Cart.CheckoutURL}}<a class="hc-btn" href="{{.}}">Zur Kasse</a>{{end}}
+      {{with .Shop.URL}}<a class="hc-btn hc-btn--ghost" href="{{.}}">Weiter einkaufen</a>{{end}}
+    </div>
   </div>
   {{else}}
-  <div class="prose">
-    <p class="cart-empty">Der Warenkorb ist leer.</p>
-    {{if .Shop.URL}}<p><a href="{{.Shop.URL}}">Zum Shop</a></p>{{end}}
-  </div>
+  <p class="cart-empty hc-lede">Der Warenkorb ist leer.</p>
+  {{with .Shop.URL}}<div class="site-actions"><a class="hc-btn" href="{{.}}">Zum Hofladen</a></div>{{end}}
   {{end}}
 </section>
 {{end}}

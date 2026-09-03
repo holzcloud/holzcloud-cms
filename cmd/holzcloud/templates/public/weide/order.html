@@ -1,47 +1,69 @@
 {{define "content"}}
-<section class="order">
+<section class="hc-wide page-wrap order">
   <header class="page-header">
-    <p class="page-header__kicker">Vielen Dank</p>
-    <h1 class="page-header__title">Bestellung {{.Order.Number}}</h1>
-    <p class="page-header__meta">Wir haben Ihre Bestellung erhalten.</p>
+    <p class="hc-eyebrow">Vielen Dank</p>
+    <h1>Bestellung <code>{{.Order.Number}}</code></h1>
+    {{/* Ohne den Zustand steht auf dieser Seite nur, dass bestellt wurde — nicht,
+         ob der Betrieb schon etwas getan hat. */}}
+    <p class="order__status">
+      {{if eq .Order.Status "paid"}}<span class="hc-status hc-status--ok">Bezahlt</span>
+      {{else if eq .Order.Status "shipped"}}<span class="hc-status hc-status--ok">Versandt</span>
+      {{else if eq .Order.Status "cancelled"}}<span class="hc-status hc-status--danger">Storniert</span>
+      {{else}}<span class="hc-status hc-status--info">Eingegangen</span>{{end}}
+    </p>
   </header>
 
   <div class="order__body">
-    <ul class="checkout__lines">
-      {{range .Order.Lines}}
-      <li>
-        <span class="checkout__line-qty">{{.Quantity}} ×</span>
-        <span class="checkout__line-title">{{.Title}}</span>
-        <span class="checkout__line-price">{{.LinePrice}}</span>
-      </li>
+    <div class="hc-pane hc-pane--pad">
+      <ul class="checkout__lines">
+        {{range .Order.Lines}}
+        <li>
+          <span class="checkout__line-qty">{{.Quantity}} ×</span>
+          <span class="checkout__line-title">{{.Title}}</span>
+          <span class="checkout__line-price">{{.LinePrice}}</span>
+        </li>
+        {{end}}
+      </ul>
+
+      <dl class="cart-totals">
+        <dt>Zwischensumme</dt><dd>{{.Order.Totals.Items}}</dd>
+        <dt>Versand</dt>
+        <dd>{{if .Order.Totals.ShippingFree}}kostenlos{{else}}{{.Order.Totals.Shipping}}{{end}}</dd>
+        {{range .Order.Totals.TaxLines}}
+        <dt class="cart-totals__tax">{{.Label}}</dt><dd class="cart-totals__tax">{{.Tax}}</dd>
+        {{end}}
+        <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Order.Totals.Total}}</dd>
+      </dl>
+      {{with .Order.Totals.TaxNote}}<p class="cart-totals__note">{{.}}</p>{{end}}
+    </div>
+
+    {{/* .Order.PaymentNote ist das Einzige auf dieser Seite, das sagt, ob noch
+         etwas offen ist, und es ist auf die gewählte Zahlungsart gemünzt. Es
+         steht deshalb dort, wo die Zahlung genannt wird. */}}
+    <dl class="hc-defs order__facts">
+      <div>
+        <dt>Lieferung an</dt>
+        <dd>{{with .Order.Company}}{{.}}, {{end}}{{.Order.Name}}<br>{{.Order.Address}}</dd>
+      </div>
+      <div>
+        <dt>Bestätigung an</dt>
+        <dd>{{.Order.Email}}</dd>
+      </div>
+      <div>
+        <dt>Zahlung</dt>
+        <dd>{{.Order.PaymentLabel}}{{with .Order.PaymentNote}}<br><span class="order__payment-note">{{.}}</span>{{end}}</dd>
+      </div>
+      {{with .Order.Note}}
+      <div>
+        <dt>Ihre Bemerkung</dt>
+        <dd>{{.}}</dd>
+      </div>
       {{end}}
-    </ul>
-
-    <dl class="cart-totals">
-      <dt>Zwischensumme</dt><dd>{{.Order.Totals.Items}}</dd>
-      <dt>Versand</dt>
-      <dd>{{if .Order.Totals.ShippingFree}}kostenlos{{else}}{{.Order.Totals.Shipping}}{{end}}</dd>
-      {{range .Order.Totals.TaxLines}}
-      <dt class="cart-totals__tax">{{.Label}}</dt><dd class="cart-totals__tax">{{.Tax}}</dd>
-      {{end}}
-      <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Order.Totals.Total}}</dd>
-    </dl>
-    {{if .Order.Totals.TaxNote}}<p class="cart-totals__note">{{.Order.Totals.TaxNote}}</p>{{end}}
-
-    <dl class="order__facts">
-      <dt>Lieferung an</dt>
-      <dd>{{if .Order.Company}}{{.Order.Company}}, {{end}}{{.Order.Name}}<br>{{.Order.Address}}</dd>
-      <dt>Bestätigung an</dt><dd>{{.Order.Email}}</dd>
-      <dt>Zahlung</dt>
-      <dd>{{.Order.PaymentLabel}}{{if .Order.PaymentNote}}<br><small class="order__payment-note">{{.Order.PaymentNote}}</small>{{end}}</dd>
-      {{if .Order.Note}}<dt>Ihre Bemerkung</dt><dd>{{.Order.Note}}</dd>{{end}}
     </dl>
 
-    {{if .Order.ReturnPolicy}}
-    <p class="order__policy">{{.Order.ReturnPolicy}}</p>
-    {{end}}
+    {{with .Order.ReturnPolicy}}<p class="order__policy hc-dim">{{.}}</p>{{end}}
 
-    {{if .Shop.URL}}<a class="cart-continue" href="{{.Shop.URL}}">Weiter einkaufen</a>{{end}}
+    {{with .Shop.URL}}<div class="site-actions"><a class="hc-btn hc-btn--ghost" href="{{.}}">Weiter einkaufen</a></div>{{end}}
   </div>
 </section>
 {{end}}

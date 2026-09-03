@@ -1,14 +1,12 @@
 {{define "content"}}
-<section class="page page--notice">
-  <div class="notice">
-    <h1 class="notice__title">{{.Page.Title}}</h1>
-    <!-- Der Betrieb hinterlegt hier oft nichts. Ein eigener Satz ist dann
-         besser als eine leere Seite, auf der nur "Wartungsarbeiten" steht. -->
-    <p class="notice__text">
-      {{if .Meta.Message}}{{.Meta.Message}}
-      {{else}}Wir sind gerade draussen bei den Tieren. Die Seite von {{.Site.Name}}
-      ist gleich wieder da.{{end}}
-    </p>
-  </div>
+<section class="hc-wide page-wrap page--kurz">
+  <p class="hc-eyebrow"><span class="hc-status hc-status--warn">Wartung</span></p>
+  <h1 class="hc-title">{{.Page.Title}}</h1>
+  {{/* Der Betrieb hinterlegt hier oft nichts. Ein eigener Satz mit dem Namen
+       ist dann besser als eine leere Seite, auf der nur „Wartungsarbeiten"
+       steht — er sagt wenigstens, wessen Seite gerade nicht da ist. */}}
+  {{with .Meta.Message}}<p class="hc-lede">{{.}}</p>
+  {{else}}<p class="hc-lede">Wir sind gerade draussen bei den Tieren. Die Seite
+     von {{.Site.Name}} ist gleich wieder da.</p>{{end}}
 </section>
 {{end}}

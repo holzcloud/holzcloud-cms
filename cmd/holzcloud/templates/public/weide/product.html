@@ -1,57 +1,66 @@
 {{define "content"}}
-<article class="page page--product">
-  <header class="page-header">
-    {{if .Shop.URL}}<p class="page-header__kicker"><a href="{{.Shop.URL}}">Shop</a></p>{{end}}
-    <h1 class="page-header__title">{{.Product.Title}}</h1>
-    {{if .Product.Subtitle}}<p class="page-header__meta">{{.Product.Subtitle}}</p>{{end}}
-  </header>
+<section class="hc-wide page-wrap">
+  <article class="page page--product">
+    <header class="page-header">
+      {{with .Shop.URL}}<p class="hc-eyebrow"><a href="{{.}}">Hofladen</a></p>{{end}}
+      <h1>{{.Product.Title}}</h1>
+      {{with .Product.Subtitle}}<p class="hc-claim product__subtitle">{{.}}</p>{{end}}
+    </header>
 
-  <div class="product">
-    {{if .Product.ImageURL}}
-    <img class="product__image" src="{{.Product.ImageURL}}" alt="{{.Product.Title}}" decoding="async">
-    {{end}}
-    {{if .Product.Gallery}}
-    <ul class="product__gallery">
-      {{range .Product.Gallery}}<li><img src="{{.}}" alt="" loading="lazy" decoding="async"></li>{{end}}
-    </ul>
-    {{end}}
+    <div class="product">
+      <div class="product__media">
+        {{with .Product.ImageURL}}
+        <img class="product__image" src="{{.}}" alt="{{$.Product.Title}}" decoding="async">
+        {{end}}
+        {{if .Product.Gallery}}
+        <ul class="product__gallery">
+          {{range .Product.Gallery}}<li><img src="{{.}}" alt="" loading="lazy" decoding="async"></li>{{end}}
+        </ul>
+        {{end}}
+      </div>
 
-    <div class="product__buy">
-      <p class="price price--large">
-        <span class="price__amount">{{.Product.Price}}</span>
-        {{if .Product.PriceNote}}<span class="price__note">{{.Product.PriceNote}}</span>{{end}}
-      </p>
-      {{if .Product.PriceOther}}<p class="price__other">{{.Product.PriceOther}}</p>{{end}}
-      {{if .Product.StockNote}}<p class="product__stock">{{.Product.StockNote}}</p>{{end}}
-      {{if .Product.DeliveryNote}}<p class="product__delivery">{{.Product.DeliveryNote}}</p>{{end}}
+      <div class="hc-pane hc-pane--pad product__buy">
+        {{/* Preise sind fertige Zeichenketten. Drucken, nicht rechnen. */}}
+        <p class="price price--large">
+          <span class="price__amount">{{.Product.Price}}</span>
+          {{with .Product.PriceNote}}<span class="price__note">{{.}}</span>{{end}}
+        </p>
+        {{with .Product.PriceOther}}<p class="price__other hc-dim">{{.}}</p>{{end}}
+        {{with .Product.StockNote}}<p class="hc-status product__stock">{{.}}</p>{{end}}
+        {{with .Product.DeliveryNote}}<p class="product__delivery hc-dim">{{.}}</p>{{end}}
 
-      {{if .Product.Available}}
-      <form class="product__form" method="POST" action="{{.Product.AddURL}}">
-        <input type="hidden" name="artikel" value="{{.Product.Slug}}">
-        <label for="menge">Menge</label>
-        <input type="number" id="menge" name="menge" value="1" min="1" max="99" inputmode="numeric">
-        <button type="submit" class="button">In den Warenkorb</button>
-      </form>
-      {{else}}
-      <p class="product__sold-out" role="status">Zurzeit nicht verfügbar.</p>
-      {{end}}
+        {{if .Product.Available}}
+        {{/* Der Artikel wird über seinen Slug benannt, nie über eine Nummer:
+             eine geratene Zahl aus einem Formular käme sonst in den Katalog
+             einer anderen Website. */}}
+        <form class="product__form" method="POST" action="{{.Product.AddURL}}">
+          <input type="hidden" name="artikel" value="{{.Product.Slug}}">
+          <div class="hc-field product__menge">
+            <label class="hc-label" for="menge">Menge</label>
+            <input class="hc-input" type="number" id="menge" name="menge" value="1" min="1" max="99" inputmode="numeric">
+          </div>
+          <button type="submit" class="hc-btn">In den Warenkorb</button>
+        </form>
+        {{else}}
+        <p class="hc-alert hc-alert--warn product__sold-out" role="status">
+          <span>Zurzeit nicht verfügbar.</span>
+        </p>
+        {{end}}
 
-      {{if .Shop.ShippingNote}}<p class="product__shipping">{{.Shop.ShippingNote}}</p>{{end}}
-      {{if .Product.SKU}}<p class="product__sku">Artikelnummer {{.Product.SKU}}</p>{{end}}
+        {{with .Shop.ShippingNote}}<p class="product__shipping hc-dim">{{.}}</p>{{end}}
+        {{with .Product.SKU}}<p class="product__sku">Artikelnummer <code>{{.}}</code></p>{{end}}
+      </div>
     </div>
-  </div>
 
-  {{if .Product.DescriptionHTML}}
-  <div class="prose product__description">{{.Product.DescriptionHTML}}</div>
-  {{end}}
+    {{if .Product.DescriptionHTML}}
+    <div class="page-content product__description">{{.Product.DescriptionHTML}}</div>
+    {{end}}
 
-  {{if .Product.Terms}}
-  <div class="page-terms">
-    <h2 class="page-terms__heading">Kategorien</h2>
+    {{if .Product.Terms}}
     <ul class="term-list" aria-label="Kategorien">
       {{range .Product.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
-  </div>
-  {{end}}
-</article>
+    {{end}}
+  </article>
+</section>
 {{end}}
