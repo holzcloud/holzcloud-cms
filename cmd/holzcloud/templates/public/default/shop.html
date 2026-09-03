@@ -1,0 +1,94 @@
+{{define "content"}}
+<section class="shop">
+  <header class="page-header">
+    {{if .Catalogue.Term}}
+    <p class="page-header__kicker">Kategorie</p>
+    <h1 class="page-header__title">{{.Catalogue.Term}}</h1>
+    {{else}}
+    <h1 class="page-header__title">{{.Page.Title}}</h1>
+    {{end}}
+    {{if .Catalogue.Total}}
+    <p class="page-header__meta">{{.Catalogue.Total}} Artikel</p>
+    {{end}}
+  </header>
+
+  {{/* Die Preisumschaltung nur dort, wo der Betrieb beide Ansichten anbietet.
+       Ein Endkundenshop darf sie nicht zeigen: der einem Konsumenten genannte
+       Preis ist der gesetzlich geregelte. */}}
+  {{if .Shop.CanSwitchAudience}}
+  <form class="price-switch shell-broad" method="POST" action="/preise" aria-label="Preisanzeige">
+    <input type="hidden" name="zurueck" value="{{.Shop.URL}}">
+    <p class="price-switch__label">Preise anzeigen</p>
+    <div class="price-switch__options">
+      <button type="submit" name="ansicht" value="private"
+              class="price-switch__option{{if eq .Shop.Audience "private"}} is-active{{end}}"
+              {{if eq .Shop.Audience "private"}}aria-current="true"{{end}}>inkl. MWST</button>
+      <button type="submit" name="ansicht" value="business"
+              class="price-switch__option{{if eq .Shop.Audience "business"}} is-active{{end}}"
+              {{if eq .Shop.Audience "business"}}aria-current="true"{{end}}>exkl. MWST</button>
+    </div>
+  </form>
+  {{end}}
+
+  {{if .Shop.Categories}}
+  <nav class="shop-categories shell-broad" aria-label="Kategorien">
+    <ul class="term-list">
+      <li><a class="term{{if not .Catalogue.Term}} is-active{{end}}" href="{{.Shop.URL}}">Alle</a></li>
+      {{range .Shop.Categories}}
+      <li><a class="term" href="{{.URL}}">{{.Name}}</a></li>
+      {{end}}
+    </ul>
+  </nav>
+  {{end}}
+
+  {{if .Catalogue.Products}}
+  <ol class="product-grid">
+    {{range .Catalogue.Products}}
+    <li class="product-card{{if not .Available}} product-card--sold-out{{end}}">
+      <article class="card">
+        {{if .ImageURL}}
+        <a class="card__media" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+          <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+        </a>
+        {{end}}
+        <div class="card__body">
+          <h2 class="card__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+          {{if .Subtitle}}<p class="product-card__subtitle">{{.Subtitle}}</p>{{end}}
+          {{if .Excerpt}}<p class="card__excerpt">{{.Excerpt}}</p>{{end}}
+
+          <p class="price">
+            <span class="price__amount">{{.Price}}</span>
+            {{if .PriceNote}}<span class="price__note">{{.PriceNote}}</span>{{end}}
+          </p>
+
+          {{if not .Available}}
+          <p class="product-card__sold-out">{{.SoldOutLabel}}</p>
+          {{end}}
+
+          {{if .Terms}}
+          <ul class="term-list" aria-label="Kategorien">
+            {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+          </ul>
+          {{end}}
+        </div>
+      </article>
+    </li>
+    {{end}}
+  </ol>
+
+  {{if gt .Catalogue.TotalPages 1}}
+  <nav class="archive-pager" aria-label="Seiten des Katalogs">
+    {{if .Catalogue.PrevURL}}<a class="button button--quiet" href="{{.Catalogue.PrevURL}}" rel="prev">Zurück</a>{{end}}
+    <span class="archive-pager__position">Seite {{.Catalogue.Page}} von {{.Catalogue.TotalPages}}</span>
+    {{if .Catalogue.NextURL}}<a class="button button--quiet" href="{{.Catalogue.NextURL}}" rel="next">Weiter</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <div class="prose"><p class="archive-empty">Hier steht noch nichts zum Verkauf.</p></div>
+  {{end}}
+
+  {{if .Shop.ShippingNote}}
+  <p class="shop-note shell-broad">{{.Shop.ShippingNote}}</p>
+  {{end}}
+</section>
+{{end}}

@@ -1,0 +1,41 @@
+name: Fehler melden
+description: Etwas verhält sich anders, als es sollte.
+labels: ["fehler"]
+body:
+  - type: input
+    id: fassung
+    attributes:
+      label: Fassung
+      description: "`holzcloud version` gibt sie aus."
+      placeholder: holzcloud v1.4 (a1b2c3d)
+    validations:
+      required: true
+
+  - type: textarea
+    id: passiert
+    attributes:
+      label: Was ist passiert
+      description: Was Sie getan haben und was daraufhin geschah.
+    validations:
+      required: true
+
+  - type: textarea
+    id: erwartet
+    attributes:
+      label: Was Sie erwartet haben
+      description: >
+        Manchmal liegt der Fehler nicht dort, wo er auffällt, sondern in der
+        Erwartung — deshalb ist diese Angabe getrennt.
+    validations:
+      required: true
+
+  - type: textarea
+    id: umgebung
+    attributes:
+      label: Umgebung
+      description: >
+        Betriebssystem und Architektur, und ob ein Proxy oder ein Reverse-Proxy
+        davorsteht. Freiwillig, hilft aber oft weiter.
+      placeholder: Raspberry Pi OS, arm64, Caddy davor
+    validations:
+      required: false

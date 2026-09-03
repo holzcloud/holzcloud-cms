@@ -1,0 +1,89 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Zurück zu den Seiten"}}</a>{{end}}
+
+{{define "content"}}
+{{template "snippet_list-content" .}}
+{{end}}
+
+{{define "snippet_list-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">
+        {{th "Textbausteine sind Inhalte, die auf mehreren Seiten stehen – Adresse, Öffnungszeiten, Kontaktblock. Schreibe <code>[[snippet:kennung]]</code> in eine Seite; beim Anzeigen wird der Baustein dort eingesetzt. Ändern musst du ihn dann nur einmal."}}
+    </p>
+</div>
+
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{if .IsEdit}}{{t "Textbaustein bearbeiten"}}{{else}}{{t "Neuer Textbaustein"}}{{end}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/snippets">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{if .IsEdit}}<input type="hidden" name="id" value="{{.Values.ID}}">{{end}}
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="name">{{t "Name"}}</label>
+                <input type="text" id="name" name="name" class="form-input" required
+                       value="{{.Values.Name}}" placeholder="{{t "Öffnungszeiten"}}"
+                       {{with .Errors.name}}aria-invalid="true" aria-describedby="name-error"{{end}}>
+                {{with .Errors.name}}<p class="form-error" id="name-error">{{t .}}</p>{{end}}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="key">{{t "Kennung"}}</label>
+                <input type="text" id="key" name="key" class="form-input" required
+                       value="{{.Values.Key}}" placeholder="{{t "oeffnungszeiten"}}"
+                       pattern="[a-z0-9][a-z0-9_\-]*"
+                       aria-describedby="key-hint{{with .Errors.key}} key-error{{end}}"
+                       {{with .Errors.key}}aria-invalid="true"{{end}}>
+                {{with .Errors.key}}<p class="form-error" id="key-error">{{t .}}</p>{{end}}
+                <p class="form-hint text-muted" id="key-hint">{{th "So rufst du den Baustein auf: <code>[[snippet:kennung]]</code>"}}</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="content_markdown">{{t "Inhalt (Markdown)"}}</label>
+            <textarea id="content_markdown" name="content_markdown"
+                      class="form-input form-textarea" rows="8">{{.Values.Markdown}}</textarea>
+            {{template "markdown_help" .}}
+        </div>
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+        {{if .IsEdit}}<a href="/admin/websites/{{.WebsiteID}}/snippets" class="btn">{{t "Abbrechen"}}</a>{{end}}
+    </form>
+</div>
+
+<div class="card">
+    {{if .Snippets}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Name"}}</th>
+                <th scope="col">{{t "Kennung"}}</th>
+                <th scope="col">{{t "Verwendet"}}</th>
+                <th scope="col">{{t "Geändert"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Snippets}}
+            <tr>
+                <td>{{.Name}}</td>
+                <td><code>[[snippet:{{.Key}}]]</code></td>
+                <td class="text-muted">{{if .UsedOn}}{{if eq .UsedOn 1}}{{t "auf einer Seite"}}{{else}}{{tf "auf %d Seiten" .UsedOn}}{{end}}{{else}}{{t "nirgends"}}{{end}}</td>
+                <td class="text-muted">{{.UpdatedAt.Format "02.01.2006 15:04"}}</td>
+                <td class="table-actions">
+                    <a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{.ID}}" class="btn btn--sm">{{t "Bearbeiten"}}</a>
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/snippets/{{.ID}}/delete"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/snippets/{{.ID}}/delete"
+                          hx-confirm="{{t "Diesen Textbaustein löschen? Auf Seiten, die ihn verwenden, erscheint dann nichts mehr."}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Noch keine Textbausteine."}}</p>
+    {{end}}
+</div>
+{{end}}

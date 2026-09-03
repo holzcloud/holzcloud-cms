@@ -1,0 +1,60 @@
+{{/*
+  Ein Feld des Formulars mit allem, was daran hängt.
+
+  Ruft sich selbst auf: an einem Feld können abhängige Felder hängen, und an
+  denen wieder. Die Verschachtelung im HTML ist kein Schmuck — sie ist der
+  Grund, warum das Ein- und Ausblenden ohne eine Zeile JavaScript funktioniert:
+  ein Stylesheet kommt von einem angekreuzten Kästchen zu einem Block *daneben*,
+  nicht zu einem irgendwo anders auf der Seite. Siehe .feld-schalter in
+  admin.css.
+
+  Erwartet eine FieldView.
+*/}}
+{{define "field_top"}}
+{{if .Switch}}<div class="feld-schalter feld-schalter--{{.Switch}}">{{end}}
+
+{{if .Is "gruppe"}}
+{{/* Eine wiederholbare Gruppe. Die Knöpfe sind gewöhnliche Absenden-Knöpfe mit
+     einem Wert; der Server baut das Formular neu auf. Kein Skript, wie beim
+     Bausteineditor. formnovalidate, damit ein leeres Pflichtfeld weiter unten
+     das Hinzufügen einer Zeile nicht blockiert. */}}
+<fieldset class="group-field">
+    <legend>{{.Def.Label}}</legend>
+    {{if .Def.Hint}}<p class="form-hint text-muted">{{.Def.Hint}}</p>{{end}}
+    {{if .Error}}<p class="form-error">{{t .Error}}</p>{{end}}
+
+    {{$g := .}}
+    {{range .Rows}}
+    <div class="group-row">
+        <div class="group-row__head">
+            <span class="group-row__no">{{tf "Zeile %d" .Number}}</span>
+            <span class="group-row__tools">
+                <button type="submit" class="reorder-btn" name="gruppenaktion"
+                        value="hoch:{{$g.Name}}:{{.Index}}" formnovalidate
+                        {{if .First}}disabled{{end}}><span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Zeile nach oben"}}</span></button>
+                <button type="submit" class="reorder-btn" name="gruppenaktion"
+                        value="runter:{{$g.Name}}:{{.Index}}" formnovalidate
+                        {{if .Last}}disabled{{end}}><span aria-hidden="true">&#8595;</span><span class="sr-only">{{t "Zeile nach unten"}}</span></button>
+                <button type="submit" class="btn btn--danger btn--sm" name="gruppenaktion"
+                        value="weg:{{$g.Name}}:{{.Index}}" formnovalidate>{{t "Entfernen"}}</button>
+            </span>
+        </div>
+        {{range .Fields}}{{template "field_input" .}}{{end}}
+    </div>
+    {{end}}
+
+    {{if not .Rows}}<p class="text-muted">{{t "Noch keine Zeile."}}</p>{{end}}
+    <button type="submit" class="btn btn--sm" name="gruppenaktion"
+            value="neu:{{.Name}}" formnovalidate>{{t "Zeile hinzufügen"}}</button>
+</fieldset>
+{{else}}
+{{template "field_input" .}}
+{{end}}
+
+{{if .Dependent}}
+<div class="feld-abhaengig">
+    {{range .Dependent}}{{template "field_top" .}}{{end}}
+</div>
+{{end}}
+{{if .Switch}}</div>{{end}}
+{{end}}

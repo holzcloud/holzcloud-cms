@@ -1,0 +1,58 @@
+{{define "content"}}
+<section class="archive">
+  <header class="page-header">
+    {{if .Archive.Term}}
+    <p class="page-header__kicker">Schlagwort</p>
+    <h1 class="page-header__title">{{.Archive.Term}}</h1>
+    {{else}}
+    <h1 class="page-header__title">{{.Page.Title}}</h1>
+    {{end}}
+    {{if .Archive.Total}}
+    <p class="page-header__meta">{{.Archive.Total}} Beiträge</p>
+    {{end}}
+  </header>
+
+  {{if .Archive.Entries}}
+  <ol class="archive-list">
+    {{range $index, $entry := .Archive.Entries}}
+    {{with $entry}}
+    {{/* Der erste Beitrag wird hervorgehoben — aber nur, wenn er ein Bild hat
+         und nur auf der ersten Seite. Ohne Bild gibt es nichts hervorzuheben,
+         und eine breitere Textkarte steht dann nur auf keiner Kante mehr. */}}
+    <li class="archive-entry{{if and (eq $index 0) (eq $.Archive.Page 1) .ImageURL}} archive-entry--lead{{end}}">
+      <article class="card">
+        {{if .ImageURL}}
+        <a class="card__media archive-entry__image" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+          <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+        </a>
+        {{end}}
+        <div class="card__body archive-entry__text">
+          {{if .PublishedAt}}
+          <time class="card__date archive-entry__date" datetime="{{formatDateISO .PublishedAt}}">{{formatDate .PublishedAt}}</time>
+          {{end}}
+          <h2 class="card__title archive-entry__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+          {{if .Excerpt}}<p class="card__excerpt archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
+          {{if .Terms}}
+          <ul class="term-list" aria-label="Schlagwörter">
+            {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+          </ul>
+          {{end}}
+        </div>
+      </article>
+    </li>
+    {{end}}
+    {{end}}
+  </ol>
+
+  {{if gt .Archive.TotalPages 1}}
+  <nav class="archive-pager" aria-label="Seiten des Archivs">
+    {{if .Archive.PrevURL}}<a class="archive-pager__prev button button--quiet" href="{{.Archive.PrevURL}}" rel="prev">Neuere Beiträge</a>{{end}}
+    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
+    {{if .Archive.NextURL}}<a class="archive-pager__next button button--quiet" href="{{.Archive.NextURL}}" rel="next">Ältere Beiträge</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <div class="prose"><p class="archive-empty">Hier steht noch nichts.</p></div>
+  {{end}}
+</section>
+{{end}}

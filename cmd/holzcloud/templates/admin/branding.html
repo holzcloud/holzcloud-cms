@@ -1,0 +1,56 @@
+{{define "content"}}
+{{template "branding-content" .}}
+{{end}}
+
+{{define "branding-content"}}
+<div class="card" style="margin-bottom:var(--space-3)">
+    <p class="text-muted">
+        {{t "Wie sich diese Verwaltung nennt. Steht oben in der Ecke, im Fenstertitel und auf dem Anmeldebildschirm — überall dort, wo sonst „Holzcloud“ steht."}}
+    </p>
+    <p class="text-muted">
+        {{t "Betrifft nur die Verwaltung. Wie die Websites selbst aussehen, steht unter Design."}}
+    </p>
+</div>
+
+<div class="card">
+    <form method="POST" action="/admin/marke" enctype="multipart/form-data">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="name">{{t "Name"}}</label>
+                <input type="text" id="name" name="name" class="form-input" maxlength="40"
+                       value="{{.Brand.Name}}" placeholder="Holzcloud">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="zeichen">{{t "Zeichen"}}</label>
+                <input type="text" id="zeichen" name="zeichen" class="form-input" maxlength="2"
+                       value="{{.Brand.Mark}}" placeholder="H" style="max-width:6rem">
+                <p class="form-hint text-muted">{{t "Ein oder zwei Buchstaben für das Quadrat in der Ecke. Ohne Logo ist das, was man sieht."}}</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="logo">{{t "Logo"}}</label>
+            {{if .Brand.LogoURL}}
+            <p><img src="{{.Brand.LogoURL}}" alt="{{.Brand.Name}}" style="max-height:3rem"></p>
+            {{end}}
+            <input type="file" id="logo" name="logo" class="form-input" accept=".png,.webp,.svg,image/png,image/webp,image/svg+xml">
+            <p class="form-hint text-muted">
+                {{t "PNG, WebP oder SVG, höchstens 512 KB. Ersetzt das Quadrat mit dem Buchstaben. Ein SVG wird geprüft: Skript darin wird abgelehnt, nicht entschärft."}}
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+    </form>
+
+    {{if .HasLogo}}
+    <form method="POST" action="/admin/marke" enctype="multipart/form-data" style="margin-top:var(--space-2)">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <input type="hidden" name="logo_entfernen" value="1">
+        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Logo entfernen"}}</button>
+    </form>
+    {{end}}
+</div>
+{{end}}

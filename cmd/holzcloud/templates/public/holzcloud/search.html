@@ -1,0 +1,35 @@
+{{define "content"}}
+<section class="hc-wide page-wrap page--search">
+  <header class="page-header">
+    <h1>Suche</h1>
+  </header>
+
+  {{/* Ein GET auf /suche mit dem Feld q — die Verabredung steht in
+       TEMPLATE-SPEC §6 fest. Ein umbenanntes Feld rendert tadellos und
+       schickt nichts, womit der Server etwas anfangen kann. */}}
+  <form method="GET" action="/suche" class="search-form" role="search">
+    <label class="sr-only" for="q">Suchbegriff</label>
+    <input class="hc-input" type="search" id="q" name="q" value="{{.Search.Query}}"
+           placeholder="Wonach suchst du?" autofocus>
+    <button class="hc-btn" type="submit">Suchen</button>
+  </form>
+
+  {{if .Search.Results}}
+  <p class="search-count hc-dim">{{len .Search.Results}} Treffer</p>
+  <ol class="search-results">
+    {{range .Search.Results}}
+    <li class="search-result">
+      <a href="{{.URL}}" class="search-result__title">{{.Title}}</a>
+      {{/* Der Ausschnitt ist bereits bereinigt und bringt sein eigenes
+           <mark> mit, das die Vorlage kleidet. Nichts umwickeln. */}}
+      <p class="search-result__snippet">{{.Snippet}}</p>
+    </li>
+    {{end}}
+  </ol>
+  {{else if .Search.Submitted}}
+  <p class="hc-lede">Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.</p>
+  {{else}}
+  <p class="hc-lede">Gib oben einen Suchbegriff ein.</p>
+  {{end}}
+</section>
+{{end}}

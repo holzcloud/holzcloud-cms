@@ -1,0 +1,123 @@
+{{define "content"}}
+{{template "product_form-content" .}}
+{{end}}
+
+{{define "product_form-content"}}
+<form method="POST" class="card" style="max-width:720px">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+    <div class="form-group">
+        <label class="form-label" for="title">Titel</label>
+        <input type="text" id="title" name="title" class="form-input" required
+               value="{{.Values.Title}}" placeholder="Esstisch Adlisberg">
+        {{with .Errors.title}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="subtitle">Untertitel</label>
+        <input type="text" id="subtitle" name="subtitle" class="form-input"
+               value="{{.Values.Subtitle}}" placeholder="Eiche massiv, geölt">
+        <p class="form-hint">Eine Zeile zur Einordnung, direkt unter dem Titel.</p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="slug">Adresse</label>
+        <input type="text" id="slug" name="slug" class="form-input"
+               value="{{.Values.Slug}}" placeholder="esstisch-adlisberg">
+        <p class="form-hint">
+            Leer lassen, dann wird sie aus dem Titel gebildet.
+            {{if .Website.ShopBase}}Erreichbar unter <code>/{{.Website.ShopBase}}/…</code>{{end}}
+        </p>
+        {{with .Errors.slug}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="price">Preis (brutto, inkl. MWST)</label>
+        <input type="text" id="price" name="price" class="form-input" required
+               value="{{.Values.Price}}" inputmode="decimal" placeholder="4900.00">
+        <p class="form-hint">
+            Der Preis, den ein Endkunde zahlt — so verlangt es die
+            Preisbekanntgabeverordnung. Der Nettopreis für Gewerbekunden wird
+            daraus berechnet. Schreibweise frei: 4900, 4'900.00 oder 4900,–
+        </p>
+        {{with .Errors.price}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="tax_bp">Steuersatz</label>
+        <select id="tax_bp" name="tax_bp" class="form-input form-select">
+            {{range .Rates}}
+            <option value="{{.Value}}" {{if eq .Value $.Values.TaxBP}}selected{{end}}>{{.Label}}</option>
+            {{end}}
+        </select>
+        {{with .Errors.tax}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="stock">Lagerbestand</label>
+        <input type="text" id="stock" name="stock" class="form-input"
+               value="{{.Values.StockText}}" inputmode="numeric" placeholder="leer = keine Verwaltung">
+        <p class="form-hint">
+            Leer lassen, wenn auf Bestellung gefertigt wird — dann ist der Artikel
+            immer bestellbar. Eine <strong>0</strong> heisst ausverkauft.
+        </p>
+        {{with .Errors.stock}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="delivery_note">Lieferzeit</label>
+        <input type="text" id="delivery_note" name="delivery_note" class="form-input"
+               value="{{.Values.DeliveryNote}}" placeholder="Lieferzeit 3–4 Wochen">
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="sku">Artikelnummer</label>
+        <input type="text" id="sku" name="sku" class="form-input" value="{{.Values.SKU}}">
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="weight_grams">Gewicht in Gramm</label>
+        <input type="number" id="weight_grams" name="weight_grams" class="form-input"
+               value="{{.Values.WeightGrams}}" min="0" step="1">
+        <p class="form-hint">Für den Versand. 0, wenn es keine Rolle spielt.</p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="featured_media_id">Bild</label>
+        <select id="featured_media_id" name="featured_media_id" class="form-input form-select">
+            <option value="0">Kein Bild</option>
+            {{range .Media}}
+            <option value="{{.ID}}" {{if eq .ID $.Values.FeaturedID}}selected{{end}}>{{.OriginalName}}</option>
+            {{end}}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="terms">Kategorien</label>
+        <input type="text" id="terms" name="terms" class="form-input"
+               value="{{.Values.Terms}}" placeholder="Tische, Eiche">
+        <p class="form-hint">
+            Durch Komma getrennt. Es sind dieselben Schlagwörter wie bei Seiten und
+            Beiträgen — ein Vokabular für die ganze Website.
+        </p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="description_markdown">Beschreibung</label>
+        <textarea id="description_markdown" name="description_markdown" class="form-input"
+                  rows="10">{{.Values.Markdown}}</textarea>
+        <p class="form-hint">Markdown, wie bei Seiten.</p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="status">Status</label>
+        <select id="status" name="status" class="form-input form-select">
+            <option value="draft" {{if eq .Values.Status "draft"}}selected{{end}}>Entwurf</option>
+            <option value="published" {{if eq .Values.Status "published"}}selected{{end}}>Veröffentlicht</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn--primary" hx-disabled-elt="this">Speichern</button>
+    <a href="/admin/websites/{{.CurrentWebsite.ID}}/produkte" class="btn" style="margin-left:var(--space-1)">Abbrechen</a>
+</form>
+{{end}}

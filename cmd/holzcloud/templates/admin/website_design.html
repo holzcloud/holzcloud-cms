@@ -1,0 +1,124 @@
+{{define "content"}}
+{{template "website_design-content" .}}
+{{end}}
+
+{{define "website_design-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Eigene Farben und Schrift"}}</h2>
+    <p class="text-muted">
+        {{t "Zwischen „eine von vier Vorlagen aussuchen“ und „eine eigene Vorlage pflegen“ liegt genau das hier: ein paar Werte, die jede Vorlage übernimmt. Nichts davon muss gesetzt werden – leer heißt, die Vorlage entscheidet."}}
+    </p>
+
+    <form method="POST" action="/admin/websites/{{.Website.ID}}/design/tokens">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+        <div class="form-group">
+            <label class="form-check">
+                <input type="checkbox" name="use_colours" {{if .Website.TokenInk}}checked{{end}}>
+                <span class="form-check-label">{{t "Eigene Farben benutzen"}}</span>
+            </label>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="token_ink">{{t "Textfarbe"}}</label>
+                <input type="color" id="token_ink" name="token_ink" class="form-input form-input--color"
+                       value="{{if .Website.TokenInk}}{{.Website.TokenInk}}{{else}}{{.TokenDefaults.Ink}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="token_paper">{{t "Hintergrund"}}</label>
+                <input type="color" id="token_paper" name="token_paper" class="form-input form-input--color"
+                       value="{{if .Website.TokenPaper}}{{.Website.TokenPaper}}{{else}}{{.TokenDefaults.Paper}}{{end}}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="token_brand">{{t "Links und Akzente"}}</label>
+                <input type="color" id="token_brand" name="token_brand" class="form-input form-input--color"
+                       value="{{if .Website.TokenBrand}}{{.Website.TokenBrand}}{{else}}{{.TokenDefaults.Brand}}{{end}}">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="token_font">{{t "Schrift"}}</label>
+                <select id="token_font" name="token_font" class="form-input form-select">
+                    {{range $.Fonts}}
+                    <option value="{{.Value}}"{{if eq $.Website.TokenFont .Value}} selected{{end}}>{{.Label}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint text-muted">
+                    {{t "Nur mitgelieferte Schriften – eine selbst eingetragene wäre entweder nicht installiert oder müsste von einem fremden Server geladen werden."}}
+                </p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="token_measure">{{t "Textbreite"}}</label>
+                <input type="number" id="token_measure" name="token_measure" class="form-input"
+                       min="40" max="110" placeholder="{{t "wie die Vorlage"}}"
+                       value="{{if .Website.TokenMeasure}}{{.Website.TokenMeasure}}{{end}}">
+                <p class="form-hint text-muted">{{t "In Zeichen. Unter 40 wird jede Zeile zur Spalte, über 110 verliert das Auge den Zeilenanfang."}}</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="token_radius">{{t "Ecken"}}</label>
+                <input type="number" id="token_radius" name="token_radius" class="form-input"
+                       min="0" max="32" placeholder="{{t "wie die Vorlage"}}"
+                       value="{{if ge .Website.TokenRadius 0}}{{.Website.TokenRadius}}{{end}}">
+                <p class="form-hint text-muted">{{t "In Pixeln. 0 heißt bewusst eckig."}}</p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Design speichern"}}</button>
+            <button type="submit" name="reset" value="1" class="btn" formnovalidate
+                    hx-disabled-elt="this">{{t "Auf die Vorlage zurücksetzen"}}</button>
+            <a href="/admin/websites/{{.Website.ID}}/preview" target="_blank" rel="noopener" class="btn">{{t "Ansehen"}}</a>
+        </div>
+    </form>
+</div>
+
+{{if .ActiveTemplate}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <div class="design-current">
+        <div class="design-current__info">
+            <span class="design-current__label">{{t "Aktive Vorlage"}}</span>
+            <span class="design-current__name">{{.ActiveTemplate.Name}}</span>
+            {{if .ActiveTemplate.IsBuiltin}}<span class="badge badge--primary">{{t "mitgeliefert"}}</span>{{end}}
+        </div>
+        <a href="/admin/websites/{{.Website.ID}}/preview" target="_blank" rel="noopener" class="btn btn--sm">{{t "Website ansehen"}}</a>
+    </div>
+</div>
+{{else}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">{{t "Keine Vorlage aktiv – es wird die mitgelieferte Standardvorlage benutzt. Wähle unten eine aus."}}</p>
+</div>
+{{end}}
+
+<h2 style="margin-bottom: var(--space-2);">{{t "Verfügbare Vorlagen"}}</h2>
+<div class="template-grid">
+    {{range .Templates}}
+    <div class="template-card{{if and $.ActiveTemplate (eq $.ActiveTemplate.ID .ID)}} is-active{{end}}">
+        <div class="template-card__preview template-card__preview--{{.Slug}}">
+            <span class="template-card__preview-label">{{.Name}}</span>
+        </div>
+        <div class="template-card__body">
+            <div class="template-card__header">
+                <span class="template-card__name">{{.Name}}</span>
+                {{if .IsBuiltin}}<span class="badge badge--primary">{{t "mitgeliefert"}}</span>{{end}}
+            </div>
+            <span class="template-card__slug">{{.Slug}}</span>
+            <div class="template-card__actions">
+                {{if and $.ActiveTemplate (eq $.ActiveTemplate.ID .ID)}}
+                <span class="template-card__active-label">{{t "Aktiv"}}</span>
+                {{else}}
+                <form method="POST" action="/admin/websites/{{$.Website.ID}}/design/activate">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <input type="hidden" name="template_id" value="{{.ID}}">
+                    <button type="submit" class="btn btn--primary btn--sm" hx-disabled-elt="this">{{t "Aktivieren"}}</button>
+                </form>
+                {{end}}
+            </div>
+        </div>
+    </div>
+    {{end}}
+</div>
+{{end}}

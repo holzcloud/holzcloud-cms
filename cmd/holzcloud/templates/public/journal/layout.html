@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="{{.Site.Locale}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Page.Title}}{{if .Site.Name}} — {{.Site.Name}}{{end}}</title>
+  {{if .Meta.Description}}<meta name="description" content="{{.Meta.Description}}">{{end}}
+  {{if .Meta.NoIndex}}<meta name="robots" content="noindex, follow">{{end}}
+  {{if .Meta.CanonicalURL}}<link rel="canonical" href="{{.Meta.CanonicalURL}}">{{end}}
+  {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">
+  {{else}}
+  <!-- Ohne diese Zeile fragt der Browser von sich aus /favicon.ico an und
+       bekommt auf jedem Seitenaufruf einen 404 — im Server-Log und in der
+       Konsole des Besuchers. -->
+  <link rel="icon" href="/t/favicon.svg" type="image/svg+xml">{{end}}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{.Page.Title}}">
+  {{if .Meta.Description}}<meta property="og:description" content="{{.Meta.Description}}">{{end}}
+  {{if .Site.Name}}<meta property="og:site_name" content="{{.Site.Name}}">{{end}}
+  {{if .Meta.CanonicalURL}}<meta property="og:url" content="{{.Meta.CanonicalURL}}">{{end}}
+  {{if .Meta.OGImage}}<meta property="og:image" content="{{.Meta.OGImage}}">
+  <meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{end}}
+  {{if .Meta.StructuredData}}
+  <!-- schema.org data. Not executable: a script element of this type is a data
+       block, so it runs nothing and the content policy has nothing to allow. -->
+  <script type="application/ld+json">{{.Meta.StructuredData}}</script>
+  {{end}}
+  <link rel="alternate" type="application/atom+xml" title="{{.Site.Name}}" href="{{if .Site.FeedURL}}{{.Site.FeedURL}}{{else}}/feed.xml{{end}}">
+  {{if .Page.Uebersetzungen}}
+  <!-- Welche Sprachfassungen es von dieser Seite gibt. Nur die, die es
+       wirklich gibt: ein hreflang auf eine Seite, die es nicht gibt, ist für
+       eine Suchmaschine schlimmer als gar keine Angabe. -->
+  {{range .Page.Uebersetzungen}}
+  <link rel="alternate" hreflang="{{.Code}}" href="{{$.Site.URL}}{{.URL}}">
+  {{end}}
+  {{end}}
+  <!-- Die Grundgestaltung der Bausteine. Sie kommt vom Kern, weil er auch
+       deren Auszeichnung schreibt; sie steht vor dem Stylesheet dieser
+       Vorlage, damit die Vorlage sie überschreiben kann. -->
+  <link rel="stylesheet" href="/assets/bausteine.css">
+  <link rel="stylesheet" href="/t/style.css">
+  {{if .Site.Design}}
+  <!-- The website's own tokens, after the stylesheet so they win. Every value
+       has been validated to a shape the CSS can read only one way. -->
+  <style>{{.Site.Design}}</style>
+  {{end}}
+</head>
+<body>
+  <a href="#main" class="skip-link">Zum Inhalt springen</a>
+
+  <div class="page-wrapper">
+    <header class="site-header">
+      {{if .Site.LogoURL}}<a href="/" class="site-logo"><img src="{{.Site.LogoURL}}" alt="{{.Site.Name}}"></a>{{end}}
+      <a href="/" class="site-name">{{.Site.Name}}</a>
+      {{if .Site.Description}}<p class="site-description">{{.Site.Description}}</p>{{end}}
+      <nav class="site-nav" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
+      {{if .Site.Sprachen}}
+      <nav class="lang-nav" aria-label="Sprache">
+        <ul>
+          {{range .Site.Sprachen}}
+          <li>
+            {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Name}}</span>
+            {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}">{{.Name}}</a>{{end}}
+          </li>
+          {{end}}
+        </ul>
+      </nav>
+      {{end}}
+    </header>
+
+    <main id="main" tabindex="-1">
+      {{template "content" .}}
+    </main>
+  </div>
+
+  <footer class="site-footer" role="contentinfo">
+    <nav class="footer-nav" aria-label="Rechtliches">{{menuFor .Menus "footer" .Page.Slug}}</nav>
+    <p>{{.Site.Name}}</p>
+  </footer>
+</body>
+</html>

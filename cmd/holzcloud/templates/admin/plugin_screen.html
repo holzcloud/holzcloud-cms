@@ -1,0 +1,19 @@
+{{define "content"}}
+<div class="content-header-row">
+    <h1>{{.Title}}</h1>
+    <a class="btn btn--sm" href="/admin/plugins">{{t "Zu den Plugins"}}</a>
+</div>
+
+<!-- Was hier steht, kommt aus dem Plugin und ist vorher durch dieselbe
+     Bereinigung gegangen wie der Text eines Besuchers. Ein Plugin läuft auf
+     dem Server des Betreibers und ist damit schon viel anvertraut — nur nicht
+     dessen Anmeldung: ein Skript an dieser Stelle liefe in der Herkunft, die
+     das Sitzungsplätzchen hält. -->
+<div class="plugin-screen">
+    {{.Screen}}
+</div>
+
+<p class="hint">
+    {{t "Diese Ansicht stammt aus dem Plugin"}} <code>{{.PluginID}}</code>{{t ". Formulare darin senden an diese Adresse zurück; die Prüfung des Sitzungsschlüssels macht das CMS, nicht das Plugin."}}
+</p>
+{{end}}

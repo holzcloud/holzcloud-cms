@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly Holzcloud CMS backup
+Documentation=file:///opt/holzcloud/deploy/DEPLOY.md
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+# Run after a missed window, e.g. because the Pi was off.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

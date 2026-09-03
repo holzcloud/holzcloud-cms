@@ -1,0 +1,68 @@
+[Unit]
+Description=Holzcloud CMS
+Documentation=https://github.com/holz/holzcloud
+After=network.target
+# Refuse to start on an unmounted data disk rather than creating an empty one.
+RequiresMountsFor=/opt/holzcloud/data
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=holzcloud
+Group=holzcloud
+WorkingDirectory=/opt/holzcloud
+ExecStart=/opt/holzcloud/holzcloud
+Restart=on-failure
+RestartSec=5
+
+# Environment — names must match internal/config.Load()
+Environment=HOLZCLOUD_DATA_DIR=/opt/holzcloud/data
+Environment=HOLZCLOUD_PORT=8080
+Environment=HOLZCLOUD_LOG_LEVEL=INFO
+# Set to true when the site is reached over HTTPS (Caddy terminates TLS).
+# Controls the Secure flag on the session cookie and the CSRF cookie.
+Environment=HOLZCLOUD_SECURE=true
+# CIDRs whose X-Forwarded-For may be believed. Caddy on this host is covered by
+# the default; without it every visitor would look like 127.0.0.1 and share one
+# login-throttle bucket.
+Environment=HOLZCLOUD_TRUSTED_PROXIES=127.0.0.1/32,::1/128
+
+# Online payment. Both or neither — the service refuses to start with one.
+# The key goes here and nowhere else: it must not end up in the database,
+# because the database is what gets copied into every backup.
+#
+# Keep it out of this file if the file is in version control. Put it in
+# /etc/holzcloud.env with mode 0600 and owner holzcloud, and uncomment:
+#   EnvironmentFile=/etc/holzcloud.env
+#Environment=HOLZCLOUD_PAYREXX_INSTANCE=meinladen
+#Environment=HOLZCLOUD_PAYREXX_SECRET=
+
+# Mailversand für die Bestellbestätigungen. Host und Absender zusammen, sonst
+# startet der Dienst nicht. Das Passwort gehört wie der Zahlungsschlüssel in
+# eine EnvironmentFile mit Rechten 0600, nicht in diese Datei.
+#Environment=HOLZCLOUD_SMTP_HOST=mail.example.ch
+#Environment=HOLZCLOUD_SMTP_PORT=587
+#Environment=HOLZCLOUD_SMTP_USER=shop@example.ch
+#Environment=HOLZCLOUD_SMTP_PASSWORD=
+#Environment=HOLZCLOUD_SMTP_FROM=shop@example.ch
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/holzcloud/data
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+MemoryDenyWriteExecute=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateDevices=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,31 @@
+{{define "actions"}}<a href="/admin/websites" class="btn">{{t "Zu den Websites"}}</a>{{end}}
+
+{{define "content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h1>{{t "Import abgeschlossen"}}</h1>
+    <ul class="import-summary">
+        <li>{{tf "%d Seiten und Beiträge" .Report.Pages}}</li>
+        <li>{{tf "%d Dateien" .Report.Media}}</li>
+        <li>{{tf "%d Menüs" .Report.Menus}}</li>
+        <li>{{tf "%d Textbausteine" .Report.Snippets}}</li>
+    </ul>
+
+    <p class="callout callout--warning">
+        {{t "Die neue Website hat noch keine Domain – Domains werden bewusst nicht mitexportiert, sonst würde ein Import einen Namen beanspruchen, der dem neuen Rechner nicht gehört. Trage unter „Einstellungen“ eine ein, damit die Website erreichbar wird."}}
+    </p>
+
+    <a href="/admin/websites/{{.Report.WebsiteID}}" class="btn btn--primary">{{t "Einstellungen öffnen"}}</a>
+</div>
+
+{{if .Report.Warnings}}
+<div class="card">
+    <h2>{{t "Was nicht mitgekommen ist"}}</h2>
+    <p class="text-muted">
+        {{t "Nichts davon hat den Import abgebrochen. Aufgelistet, damit niemand zweihundert Seiten von Hand durchsehen muss, um es zu finden."}}
+    </p>
+    <ul class="import-warnings">
+        {{range .Report.Warnings}}<li>{{.}}</li>{{end}}
+    </ul>
+</div>
+{{end}}
+{{end}}

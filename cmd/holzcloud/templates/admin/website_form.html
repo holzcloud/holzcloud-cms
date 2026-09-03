@@ -1,0 +1,280 @@
+{{define "content"}}
+{{template "website_form-content" .}}
+{{end}}
+
+{{define "website_form-content"}}
+{{if .Checks}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Bereit für den Start?"}}</h2>
+    <p class="text-muted">{{t "Jeder Punkt hier fällt sonst erst auf, wenn ein Besucher darüber stolpert."}}</p>
+    <ul class="check-list">
+        {{range .Checks}}
+        <li class="check-item{{if .OK}} is-ok{{else}} is-open{{end}}">
+            <span class="check-item__mark" aria-hidden="true">{{if .OK}}✓{{else}}!{{end}}</span>
+            <span class="check-item__body">
+                <span class="check-item__label">{{t .Label}}<span class="sr-only"> – {{if .OK}}{{t "erledigt"}}{{else}}{{t "offen"}}{{end}}</span></span>
+                {{if not .OK}}<span class="check-item__hint text-muted">{{t .Hint}} <a href="{{.Link}}">{{t "Erledigen"}}</a></span>{{end}}
+            </span>
+        </li>
+        {{end}}
+    </ul>
+</div>
+{{end}}
+
+<div class="card">
+    <form method="POST" action="{{if .IsEdit}}/admin/websites/{{.Website.ID}}{{else}}/admin/websites/new{{end}}">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+        <div class="form-group">
+            <label class="form-label" for="name">{{t "Name"}}</label>
+            <input type="text" id="name" name="name" class="form-input" required
+                   value="{{if .Website}}{{.Website.Name}}{{end}}"
+                   placeholder="{{t "Meine Website"}}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="description">{{t "Beschreibung"}}</label>
+            <textarea id="description" name="description" class="form-input form-textarea" rows="3"
+                      placeholder="{{t "Beschreibung (optional)"}}">{{if .Website}}{{.Website.Description}}{{end}}</textarea>
+        </div>
+
+        {{if .IsEdit}}
+        <div class="form-group">
+            <label class="form-label" for="meta_description">{{t "Beschreibung für Suchmaschinen"}}</label>
+            <textarea id="meta_description" name="meta_description" class="form-input form-textarea" rows="2"
+                      maxlength="300"
+                      placeholder="{{t "Ein bis zwei Sätze, die in der Trefferliste erscheinen"}}">{{.Website.MetaDescription}}</textarea>
+            <p class="form-hint text-muted">{{t "Wird benutzt, wenn eine Seite keine eigene Beschreibung hat."}}</p>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="locale">{{t "Sprache"}}</label>
+                <select id="locale" name="locale" class="form-input form-select">
+                    {{range $.Locales}}
+                    <option value="{{.Code}}"{{if eq $.Website.Locale .Code}} selected{{end}}>{{t .Name}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint text-muted">{{th "Bestimmt das <code>lang</code>-Attribut und das Datumsformat."}}</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="timezone">{{t "Zeitzone"}}</label>
+                <select id="timezone" name="timezone" class="form-input form-select">
+                    {{range $.TimeZones}}
+                    <option value="{{.}}"{{if eq $.Website.TimeZone .}} selected{{end}}>{{.}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint text-muted">{{t "Veröffentlichungsdaten werden in dieser Zone angezeigt."}}</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="extra_locales">{{t "Weitere Sprachen"}}</label>
+            <input type="text" id="extra_locales" name="extra_locales" class="form-input"
+                   value="{{.Website.ExtraLocales}}"
+                   placeholder="{{t "fr, it"}}">
+            <p class="form-hint text-muted">
+                {{th "Sprachkürzel, durch Komma getrennt – zum Beispiel <code>fr, it</code> oder <code>fr-CH</code>. Die Hauptsprache oben behält ihre Adressen (<code>/kontakt</code>), jede weitere Sprache bekommt ein Präfix (<code>/fr/contact</code>). Höchstens acht."}}
+            </p>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="favicon_media_id">{{t "Favicon"}}</label>
+                <select id="favicon_media_id" name="favicon_media_id" class="form-input form-select">
+                    <option value="">{{t "– keins –"}}</option>
+                    {{range $.Media}}
+                    <option value="{{.ID}}"{{if and $.Website.FaviconMediaID (eq .ID $.Website.FaviconMediaID)}} selected{{end}}>{{.OriginalName}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint text-muted">{{th "Ohne Favicon fragt jeder Browser <code>/favicon.ico</code> an und bekommt eine 404."}}</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="logo_media_id">{{t "Logo"}}</label>
+                <select id="logo_media_id" name="logo_media_id" class="form-input form-select">
+                    <option value="">{{t "– keins –"}}</option>
+                    {{range $.Media}}
+                    <option value="{{.ID}}"{{if and $.Website.LogoMediaID (eq .ID $.Website.LogoMediaID)}} selected{{end}}>{{.OriginalName}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint text-muted">{{t "Wird von der Vorlage im Kopfbereich angezeigt, sofern sie das unterstützt."}}</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-check">
+                <input type="checkbox" name="canonical_redirect" {{if .Website.CanonicalRedirect}}checked{{end}}>
+                <span class="form-check-label">{{t "Auf die Hauptdomain umleiten"}}</span>
+            </label>
+            <p class="form-hint text-muted">
+                {{t "Andere Domains dieser Website leiten dann dauerhaft (301) auf die Hauptdomain um. Erst einschalten, wenn eine Hauptdomain festgelegt ist."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-check">
+                <input type="checkbox" name="active" {{if .Website.Active}}checked{{end}}>
+                <span class="form-check-label">{{t "Aktiv"}}</span>
+            </label>
+            <p class="form-hint text-muted">{{t "Ist die Website nicht aktiv, entscheidet die folgende Einstellung, was Besucher sehen."}}</p>
+        </div>
+
+        <div class="form-group">
+            <span class="form-label">{{t "Sicherung"}}</span>
+            <p class="form-hint text-muted">
+                {{t "Lädt diese Website als Archiv herunter: Seiten, Beiträge, Menüs, Textbausteine, Schlagwörter und alle Dateien. Passwörter und Domains wandern nie mit."}}
+            </p>
+            <a href="/admin/websites/{{.Website.ID}}/export" class="btn">{{t "Website herunterladen"}}</a>
+        </div>
+
+        <fieldset class="form-fieldset">
+            <legend>{{t "Angaben zum Betrieb"}}</legend>
+            <p class="form-hint text-muted">
+                {{t "Diese Angaben werden als strukturierte Daten mitgeliefert. Sie sind der Unterschied zwischen einem Suchtreffer mit Adresse, Öffnungszeiten und Telefonnummer und einem blauen Link. Es sind dieselben Angaben, die ohnehin ins Impressum gehören."}}
+            </p>
+
+            <div class="form-group">
+                <label class="form-label" for="org_type">{{t "Art des Betriebs"}}</label>
+                <select id="org_type" name="org_type" class="form-input form-select">
+                    {{range .OrgTypes}}
+                    <option value="{{.Value}}"{{if eq $.Website.OrgType .Value}} selected{{end}}>{{t .Label}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint text-muted">
+                    {{t "Ohne Angabe wird gar kein Betriebs-Datensatz mitgeliefert – ein privates Tagebuch soll sich nicht als Laden ausgeben."}}
+                </p>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="street">{{t "Straße und Hausnummer"}}</label>
+                    <input type="text" id="street" name="street" class="form-input"
+                           value="{{.Website.Street}}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="postal_code">{{t "PLZ"}}</label>
+                    <input type="text" id="postal_code" name="postal_code" class="form-input"
+                           value="{{.Website.PostalCode}}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="city">{{t "Ort"}}</label>
+                    <input type="text" id="city" name="city" class="form-input"
+                           value="{{.Website.City}}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="country">{{t "Land"}}</label>
+                    <input type="text" id="country" name="country" class="form-input"
+                           maxlength="2" value="{{if .Website.Country}}{{.Website.Country}}{{else}}DE{{end}}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="phone">{{t "Telefon"}}</label>
+                <input type="tel" id="phone" name="phone" class="form-input"
+                       value="{{.Website.Phone}}" placeholder="+49 7231 123456">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="opening_hours">{{t "Öffnungszeiten"}}</label>
+                <textarea id="opening_hours" name="opening_hours" class="form-input form-textarea"
+                          rows="3" placeholder="Mo-Fr 08:00-17:00&#10;Sa 09:00-12:00">{{.Website.OpeningHours}}</textarea>
+                <p class="form-hint text-muted">
+                    {{th "Eine Regel pro Zeile, in der Kurzform <code>Mo-Fr 08:00-17:00</code>."}}
+                </p>
+            </div>
+        </fieldset>
+
+        <div class="form-group">
+            <label class="form-label" for="contact_email">{{t "E-Mail für Anfragen"}}</label>
+            <input type="email" id="contact_email" name="contact_email" class="form-input"
+                   value="{{.Website.ContactEmail}}" placeholder="{{t "info@beispiel.de"}}">
+            <p class="form-hint text-muted">
+                {{t "Steht öffentlich neben dem Kontaktformular als direkte Alternative."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="notify_email">{{t "Benachrichtigungen an"}}</label>
+            <input type="email" id="notify_email" name="notify_email" class="form-input"
+                   value="{{.Website.NotifyEmail}}" placeholder="{{t "eva@beispiel.de"}}">
+            <p class="form-hint text-muted">
+                {{t "Hierhin geht eine Nachricht, wenn eine neue Anfrage eingeht. Bleibt das Feld leer, wird nichts verschickt und die Anfragen stehen wie bisher nur in der Verwaltung. Diese Adresse steht nirgends auf der Website – im Gegensatz zur Adresse darüber, die deshalb auch Spam bekommt."}}
+                {{if not .MailConfigured}}<br><strong>{{t "Zurzeit ist kein Mailserver eingerichtet"}}</strong>{{t ", also wird ohnehin nichts verschickt."}}{{end}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="blog_base">{{t "Adresse des Archivs"}}</label>
+            <input type="text" id="blog_base" name="blog_base" class="form-input"
+                   value="{{.Website.BlogBase}}" placeholder="{{t "aktuelles"}}">
+            <p class="form-hint text-muted">
+                {{th "Unter dieser Adresse stehen alle Beiträge, nach Datum sortiert – etwa <code>/aktuelles</code>. Leer lassen, wenn die Website kein Archiv braucht."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="posts_per_page">{{t "Beiträge pro Archivseite"}}</label>
+            <input type="number" id="posts_per_page" name="posts_per_page" class="form-input"
+                   min="1" max="100" value="{{if .Website.PostsPerPage}}{{.Website.PostsPerPage}}{{else}}10{{end}}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="offline_mode">{{t "Wenn die Website nicht aktiv ist"}}</label>
+            <select id="offline_mode" name="offline_mode" class="form-input form-select">
+                <option value="notfound"{{if eq .Website.OfflineMode "notfound"}} selected{{end}}>{{t "Seite nicht gefunden (404)"}}</option>
+                <option value="maintenance"{{if eq .Website.OfflineMode "maintenance"}} selected{{end}}>{{t "Wartungshinweis (503)"}}</option>
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Ein 404 sagt Suchmaschinen, die Seiten seien dauerhaft weg – nach einer Woche Umbau sind die Einträge verschwunden. Der Wartungshinweis behält sie."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="offline_message">{{t "Text auf der Wartungsseite"}}</label>
+            <textarea id="offline_message" name="offline_message" class="form-input form-textarea" rows="2"
+                      placeholder="{{t "Wir sind ab Montag wieder da."}}">{{.Website.OfflineMessage}}</textarea>
+        </div>
+        {{end}}
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+            {{if .IsEdit}}{{t "Änderungen speichern"}}{{else}}{{t "Website anlegen"}}{{end}}
+        </button>
+    </form>
+</div>
+
+{{if not .IsEdit}}
+<div class="card" style="margin-top: var(--space-3);">
+    <p class="text-muted">
+        {{t "Die neue Website bekommt eine veröffentlichte Startseite sowie Impressum und Datenschutzerklärung als Entwurf, dazu ein Haupt- und ein Fußzeilenmenü. Ohne Startseite antwortet die eigene Domain sonst mit „Seite nicht gefunden“."}}
+    </p>
+</div>
+{{end}}
+
+{{if .IsEdit}}
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Domains"}}</h2>
+    <p class="text-muted" style="margin-bottom: var(--space-2);">{{t "Domains, die auf diese Website zeigen."}}</p>
+
+    <div id="domain-list">
+        {{template "domain_list" .DomainList}}
+    </div>
+
+    <form method="POST" action="/admin/websites/{{.Website.ID}}/domains" class="domain-add-form" hx-post="/admin/websites/{{.Website.ID}}/domains"
+          hx-target="#domain-list" hx-swap="innerHTML"
+          style="margin-top: var(--space-2);">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="domain-add-row">
+            <label class="sr-only" for="domain">{{t "Domain"}}</label>
+            <input type="text" id="domain" name="domain" class="form-input" placeholder="{{t "example.com"}}" required>
+            <label class="form-check" style="white-space: nowrap;">
+                <input type="checkbox" name="is_primary">
+                <span class="form-check-label">{{t "Hauptdomain"}}</span>
+            </label>
+            <button type="submit" class="btn btn--primary btn--sm" hx-disabled-elt="this">{{t "Domain hinzufügen"}}</button>
+        </div>
+    </form>
+</div>
+{{end}}
+{{end}}

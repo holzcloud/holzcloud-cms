@@ -1,0 +1,66 @@
+{{define "content"}}
+<section class="hc-wide page-wrap">
+  <article class="page page--product">
+    <header class="page-header">
+      {{with .Shop.URL}}<p class="hc-eyebrow"><a href="{{.}}">Laden</a></p>{{end}}
+      <h1>{{.Product.Title}}</h1>
+      {{with .Product.Subtitle}}<p class="hc-claim product__subtitle">{{.}}</p>{{end}}
+    </header>
+
+    <div class="product">
+      <div class="product__media">
+        {{with .Product.ImageURL}}
+        <img class="product__image" src="{{.}}" alt="{{$.Product.Title}}" decoding="async">
+        {{end}}
+        {{if .Product.Gallery}}
+        <ul class="product__gallery">
+          {{range .Product.Gallery}}<li><img src="{{.}}" alt="" loading="lazy" decoding="async"></li>{{end}}
+        </ul>
+        {{end}}
+      </div>
+
+      <div class="hc-pane hc-pane--pad product__buy">
+        {{/* Preise sind fertige Zeichenketten. Drucken, nicht rechnen. */}}
+        <p class="price price--large">
+          <span class="price__amount">{{.Product.Price}}</span>
+          {{with .Product.PriceNote}}<span class="price__note">{{.}}</span>{{end}}
+        </p>
+        {{with .Product.PriceOther}}<p class="price__other hc-dim">{{.}}</p>{{end}}
+        {{with .Product.StockNote}}<p class="hc-status product__stock">{{.}}</p>{{end}}
+        {{with .Product.DeliveryNote}}<p class="product__delivery hc-dim">{{.}}</p>{{end}}
+
+        {{if .Product.Available}}
+        {{/* Der Artikel wird über seinen Slug benannt, nie über eine Nummer:
+             eine geratene Zahl aus einem Formular käme sonst in den Katalog
+             einer anderen Website. */}}
+        <form class="product__form" method="POST" action="{{.Product.AddURL}}">
+          <input type="hidden" name="artikel" value="{{.Product.Slug}}">
+          <div class="hc-field product__menge">
+            <label class="hc-label" for="menge">Menge</label>
+            <input class="hc-input" type="number" id="menge" name="menge" value="1" min="1" max="99" inputmode="numeric">
+          </div>
+          <button type="submit" class="hc-btn">In den Warenkorb</button>
+        </form>
+        {{else}}
+        <p class="hc-alert hc-alert--warn product__sold-out" role="status">
+          <span>Zurzeit nicht verfügbar.</span>
+        </p>
+        {{end}}
+
+        {{with .Shop.ShippingNote}}<p class="product__shipping hc-dim">{{.}}</p>{{end}}
+        {{with .Product.SKU}}<p class="product__sku">Artikelnummer <span class="hc-mono">{{.}}</span></p>{{end}}
+      </div>
+    </div>
+
+    {{if .Product.DescriptionHTML}}
+    <div class="page-content product__description">{{.Product.DescriptionHTML}}</div>
+    {{end}}
+
+    {{if .Product.Terms}}
+    <ul class="term-list" aria-label="Kategorien">
+      {{range .Product.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+    </ul>
+    {{end}}
+  </article>
+</section>
+{{end}}

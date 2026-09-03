@@ -1,0 +1,72 @@
+{{define "actions"}}
+<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Zu den Seiten"}}</a>
+{{end}}
+
+{{define "content"}}
+{{template "translation_matrix-content" .}}
+{{end}}
+
+{{define "translation_matrix-content"}}
+<div class="card">
+    {{if le (len .Columns) 1}}
+    <p class="text-muted">
+        {{t "Diese Website hat nur eine Sprache. Weitere Sprachen werden in den Einstellungen der Website eingetragen; danach steht hier, was schon übersetzt ist und was nicht."}}
+    </p>
+    <p><a class="btn" href="/admin/websites/{{.WebsiteID}}">{{t "Zu den Einstellungen"}}</a></p>
+
+    {{else if not .Rows}}
+    <p class="text-muted">{{t "Diese Website hat noch keine Seiten."}}</p>
+
+    {{else}}
+    <p class="text-muted" style="margin-bottom:var(--space-3)">
+        {{if .Complete}}
+        {{t "Jede Seite gibt es in jeder Sprache."}}
+        {{else}}
+        {{t "Eine leere Stelle ist eine Seite, die es in dieser Sprache noch nicht gibt. Der Knopf legt sie an — mit Titel und Adresse des Originals als Anfang."}}
+        {{end}}
+    </p>
+
+    {{/* Das Raster rollt in seinem eigenen Kasten. Sechs Sprachen passen auf
+         keinen Telefonbildschirm, und eine Seite, die als Ganzes seitwärts
+         rollt, verliert dabei die Navigation. */}}
+    <div class="matrix-scroll">
+        <table class="table matrix">
+            <thead>
+                <tr>
+                    <th scope="col">{{t "Seite"}}</th>
+                    {{range .Columns}}
+                    <th scope="col" lang="{{.Tag}}">
+                        {{.Name}}
+                        {{if .Primary}}<span class="text-muted">{{t "(Hauptsprache)"}}</span>{{end}}
+                        {{if .Missing}}<br><span class="badge badge--draft">{{tf "%d fehlen" .Missing}}</span>{{end}}
+                    </th>
+                    {{end}}
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Rows}}
+                <tr>
+                    <th scope="row">
+                        {{.Title}}<br>
+                        <span class="text-muted">/{{.Slug}}</span>
+                    </th>
+                    {{range .Cells}}
+                    {{if .Exists}}
+                    <td class="matrix-cell matrix-cell--there">
+                        <a href="{{.EditURL}}">{{.Title}}</a>
+                        {{if ne .Status "published"}}<br><span class="badge badge--draft">{{t "Entwurf"}}</span>{{end}}
+                    </td>
+                    {{else}}
+                    <td class="matrix-cell matrix-cell--missing">
+                        <a class="btn btn--sm" href="{{.NewURL}}">{{t "Anlegen"}}</a>
+                    </td>
+                    {{end}}
+                    {{end}}
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{end}}
+</div>
+{{end}}

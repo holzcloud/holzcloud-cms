@@ -1,0 +1,127 @@
+{{define "content"}}
+{{template "order_detail-content" .}}
+{{end}}
+
+{{define "order_detail-content"}}
+<div class="card" style="max-width:760px">
+    <h2>Bestellung {{.Order.Number}}</h2>
+    <p class="text-muted" style="font-size:var(--text-sm)">
+        {{.Order.CreatedAt.Format "02.01.2006, 15:04"}} Uhr ·
+        {{if eq .Order.Audience "business"}}Gewerbekunde (Nettopreise){{else}}Privatkunde (Bruttopreise){{end}}
+    </p>
+
+    <table class="table" style="margin-block:var(--space-3)">
+        <thead><tr><th>Artikel</th><th>Menge</th><th>Einzelpreis</th><th>Zeile</th></tr></thead>
+        <tbody>
+            {{range .Order.Items}}
+            <tr>
+                <td>{{.Title}}{{if .SKU}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.SKU}}</span>{{end}}</td>
+                <td>{{.Quantity}}</td>
+                <td style="white-space:nowrap">{{$.Currency.Format .UnitGross}}</td>
+                <td style="white-space:nowrap">{{$.Currency.Format .LineGross}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <dl class="detail-list">
+        <dt>Zwischensumme</dt><dd>{{.Currency.Format .Order.Totals.ItemsGross}}</dd>
+        <dt>Versand</dt><dd>{{.Currency.Format .Order.Totals.ShippingGross}}</dd>
+        {{if .Order.VATExempt}}
+        <dt>MWST</dt><dd>keine (Kleinunternehmen)</dd>
+        {{else}}
+        <dt>davon MWST</dt><dd>{{.Currency.Format .Order.Totals.TotalTax}}</dd>
+        {{end}}
+        <dt><strong>Gesamt</strong></dt><dd><strong>{{.Currency.Format .Order.Totals.TotalGross}}</strong></dd>
+    </dl>
+
+    <h3 style="margin-block-start:var(--space-4)">Kundin/Kunde</h3>
+    <dl class="detail-list">
+        <dt>Name</dt><dd>{{.Order.Customer.Name}}</dd>
+        {{if .Order.Customer.Company}}<dt>Firma</dt><dd>{{.Order.Customer.Company}}</dd>{{end}}
+        {{if .Order.Customer.VATNumber}}<dt>UID</dt><dd>{{.Order.Customer.VATNumber}}</dd>{{end}}
+        <dt>E-Mail</dt><dd><a href="mailto:{{.Order.Customer.Email}}">{{.Order.Customer.Email}}</a></dd>
+        {{if .Order.Customer.Phone}}<dt>Telefon</dt><dd>{{.Order.Customer.Phone}}</dd>{{end}}
+        <dt>Adresse</dt>
+        <dd>{{.Order.Customer.Street}}<br>{{.Order.Customer.PostalCode}} {{.Order.Customer.City}}<br>{{.Order.Customer.Country}}</dd>
+        <dt>Zahlungsart</dt>
+        <dd>{{.PaymentMethod}} — {{.PaymentState}}
+            {{if .Order.PaymentReference}}<br><span class="text-muted" style="font-size:var(--text-sm)">Referenz {{.Order.PaymentReference}}</span>{{end}}
+        </dd>
+        {{if .Order.Customer.Note}}<dt>Bemerkung</dt><dd>{{.Order.Customer.Note}}</dd>{{end}}
+        {{if .Order.ReturnPolicy}}<dt>Zugesagte Rückgabe</dt><dd>{{.Order.ReturnPolicy}}</dd>{{end}}
+    </dl>
+
+    <h3 style="margin-block-start:var(--space-4)">Papiere</h3>
+    <p>
+        <a class="btn" href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen/{{.Order.Number}}/rechnung">Rechnung</a>
+        <a class="btn" style="margin-left:var(--space-1)"
+           href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen/{{.Order.Number}}/lieferschein">Lieferschein</a>
+    </p>
+    <p class="text-muted" style="font-size:var(--text-sm);margin-block-start:var(--space-1)">
+        Beides öffnet ein Blatt zum Ausdrucken oder zum Sichern als PDF. Der
+        Lieferschein ist dasselbe Blatt ohne Preise — der zum Beilegen.
+    </p>
+
+    <h3 style="margin-block-start:var(--space-4)">Benachrichtigungen</h3>
+    {{if .Mails}}
+    <table class="table">
+        <thead><tr><th>Nachricht</th><th>An</th><th>Stand</th><th></th></tr></thead>
+        <tbody>
+            {{range .Mails}}
+            <tr>
+                <td>{{.What}}</td>
+                <td>{{.Recipient}}</td>
+                <td>
+                    {{.State}}{{if .When}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.When}}</span>{{end}}
+                    {{if .Detail}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.Detail}}</span>{{end}}
+                </td>
+                <td>
+                    {{if .CanRetry}}
+                    <form method="POST">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <input type="hidden" name="aktion" value="mail-erneut">
+                        <input type="hidden" name="mail_id" value="{{.ID}}">
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">Nochmals versuchen</button>
+                    </form>
+                    {{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted" style="font-size:var(--text-sm)">
+        Zu dieser Bestellung wurde nichts verschickt. Das ist der Fall, wenn für
+        diese Installation kein Mailversand eingerichtet ist — die Bestellung
+        steht dann nur hier.
+    </p>
+    {{end}}
+
+    {{if .CanRecheck}}
+    <form method="POST" style="margin-block-start:var(--space-4)">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <input type="hidden" name="aktion" value="zahlung-pruefen">
+        <p class="text-muted" style="font-size:var(--text-sm)">
+            Die Zahlung ist noch offen. Falls die Kundin das Fenster zu früh geschlossen hat,
+            fragen Sie hier beim Anbieter nach.
+        </p>
+        <button type="submit" class="btn" hx-disabled-elt="this">Zahlung beim Anbieter prüfen</button>
+    </form>
+    {{end}}
+
+    <form method="POST" style="margin-block-start:var(--space-4)">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group">
+            <label class="form-label" for="status">Status</label>
+            <select id="status" name="status" class="form-input form-select">
+                {{range .Statuses}}
+                <option value="{{.Value}}" {{if eq .Value $.Order.Status}}selected{{end}}>{{.Label}}</option>
+                {{end}}
+            </select>
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">Speichern</button>
+        <a href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen" class="btn" style="margin-left:var(--space-1)">Zurück</a>
+    </form>
+</div>
+{{end}}

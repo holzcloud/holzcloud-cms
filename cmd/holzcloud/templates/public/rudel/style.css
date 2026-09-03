@@ -1,0 +1,2343 @@
+/* Holzcloud — Rudel
+ *
+ * Eine Vorlage für eine Hundezucht. Warm, erdig, taktil, ruhig: Lehm und Ocker
+ * auf Papierweiss, ein tiefes Waldgrün als einziger Akzent, Haarlinien statt
+ * Schlagschatten. Nichts glänzt, nichts läuft über die ganze Fläche verlaufend
+ * aus. Es soll aussehen wie von jemandem, der draussen arbeitet.
+ *
+ * Zwei Regeln bestimmen alles andere:
+ *
+ *   1. Kein JavaScript. Das Menü ist eine Checkbox, die Untermenüs sind
+ *      :hover und :focus-within, die Galerie ist ein umbrechender Kasten.
+ *   2. Nichts wird nachgeladen. Keine Schriftdatei, kein Symbol, kein Bild von
+ *      einem fremden Server — die Schriften sind Systemstapel.
+ *
+ * Die --hc-* Werte kommen aus den Einstellungen der Website (Design → Eigene
+ * Farben und Schrift) und werden nach dieser Datei gesetzt. Darum liest hier
+ * jeder eigene Wert zuerst den --hc-Wert und fällt erst dann auf den eigenen
+ * zurück; gesetzt wird ein --hc-* an keiner Stelle, sonst wäre die Einstellung
+ * des Betriebs wirkungslos.
+ *
+ * --- Bausteine im Inhalt ---------------------------------------------------
+ *
+ * Ein class-Attribut überlebt die Bereinigung nicht: bluemonday entfernt es aus
+ * allem, was in der Seite geschrieben wird. Die Bedeutung trägt darum das
+ * Element selbst. Wer eine Seite schreibt, hat dieses Vokabular:
+ *
+ *   <aside>…</aside>            Hinweiskasten ("Wurf geplant für Frühling 2027")
+ *   <dl><dt>…<dd>…</dl>         Steckbrief: Wurftag, HD-Wert, Grösse, Formwert
+ *   <section> mit einem <dl>    Steckbrief mit Porträt daneben
+ *   <section> ohne <dl>         Karte: Bild, Name, ein Satz, Link
+ *   <div> um mehrere <section>  Kartenraster
+ *   <figure> + <figcaption>     Bild mit Legende
+ *   Absatz mit einem Bild       grosses Bild, tritt aus der Textspalte heraus
+ *   Absatz mit mehreren
+ *     verlinkten Bildern        Galerie, zeilenweise, ohne Beschnitt
+ *   erstes Bild der Startseite  Titelbild über die volle Breite
+ *
+ * Zwei Textbausteine holt die Vorlage selbst in den Fuss, wenn es sie gibt:
+ * "footer-kontakt" und "schwesterseite" — letzterer für einen zweiten Auftritt
+ * desselben Betriebs, als gewöhnlicher Link im Text.
+ */
+
+@layer reset, tokens, base, layout, components, utilities;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-block-start: var(--space-4);
+  }
+
+  img,
+  picture,
+  svg,
+  video {
+    display: block;
+    max-inline-size: 100%;
+    block-size: auto;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Ein Hundename ohne Trennmöglichkeit ("Melkart-Columnas-…") darf die Seite
+     nicht breiter machen als den Bildschirm — sonst wackelt alles waagerecht. */
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  li,
+  dt,
+  dd {
+    overflow-wrap: break-word;
+  }
+}
+
+@layer tokens {
+  :root {
+    color-scheme: light;
+
+    /* --- Farben ---------------------------------------------------------
+     *
+     * OKLCH, weil gleiche Helligkeitszahlen dort auch gleich hell aussehen.
+     * Erst dadurch lässt sich ein Ocker gegen ein Grün abstimmen, ohne dass
+     * eines von beiden im Dunkelmodus ausbrennt.
+     *
+     * Nur drei Werte sind frei einstellbar. Alles Weitere wird aus ihnen
+     * gemischt — ein zweiter fester Ton würde nicht mehr passen, sobald der
+     * Betrieb seine Farbe ändert. */
+    --paper: var(--hc-paper, oklch(0.982 0.009 82));
+    --ink: var(--hc-ink, oklch(0.28 0.028 52));
+    --brand: var(--hc-brand, oklch(0.42 0.068 148));
+
+    /* Lehm und Ocker. Sie hängen nicht an der Markenfarbe, weil sie die Erde
+       dieser Vorlage sind und nicht ihr Akzent; gemischt werden sie trotzdem
+       mit dem Papier, damit sie auf hellem wie dunklem Grund sitzen. */
+    --clay: oklch(0.64 0.085 62);
+    --bark: oklch(0.44 0.055 48);
+
+    --paper-sunken: color-mix(in oklch, var(--clay) 9%, var(--paper));
+    --paper-raised: color-mix(in oklch, var(--paper), #fff 65%);
+
+    --ink-muted: color-mix(in oklch, var(--ink) 68%, var(--paper));
+    --brand-strong: color-mix(in oklch, var(--brand), #000 20%);
+    --brand-wash: color-mix(in oklch, var(--brand) 9%, var(--paper));
+    --clay-wash: color-mix(in oklch, var(--clay) 15%, var(--paper));
+
+    --line: color-mix(in oklch, var(--ink) 17%, var(--paper));
+    --line-soft: color-mix(in oklch, var(--ink) 9%, var(--paper));
+
+    /* --- Schrift --------------------------------------------------------
+     *
+     * Nur Systemstapel. Eine Webschrift wäre eine Datei, die geladen werden
+     * muss — beim Kompilieren erlaubt, aber sie würde die Vorlage an eine
+     * bestimmte Schrift binden, statt der Website die Wahl zu lassen.
+     *
+     * Beide Stapel lesen --hc-font: wer im Admin eine Schrift wählt, wählt sie
+     * für die ganze Seite und nicht nur für den Fliesstext. */
+    --font-display: var(--hc-font, "Iowan Old Style", "Palatino Linotype", Palatino,
+      "Book Antiqua", Georgia, "Times New Roman", serif);
+    --font-body: var(--hc-font, Seravek, "Gill Sans Nova", Ubuntu, Calibri,
+      "DejaVu Sans", source-sans-pro, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+
+    /* Fliessende Grössen: clamp() rechnet zwischen Handy und Schreibtisch
+       stufenlos durch, statt an drei Haltepunkten zu springen. */
+    --step--1: clamp(0.875rem, 0.85rem + 0.12vw, 0.95rem);
+    --step-0: clamp(1.05rem, 1.02rem + 0.18vw, 1.15rem);
+    --step-1: clamp(1.2rem, 1.13rem + 0.36vw, 1.45rem);
+    --step-2: clamp(1.45rem, 1.29rem + 0.8vw, 1.95rem);
+    --step-3: clamp(1.8rem, 1.5rem + 1.5vw, 2.7rem);
+    --step-4: clamp(2.2rem, 1.62rem + 2.9vw, 3.8rem);
+
+    /* --- Masse -----------------------------------------------------------
+     *
+     * Der Abstandsraster ist 8px. Krumme Zwischenwerte sind der Anfang davon,
+     * dass nichts mehr auf einer Kante steht. */
+    --space-1: 0.5rem;
+    --space-2: 1rem;
+    --space-3: 1.5rem;
+    --space-4: 2rem;
+    --space-5: 3rem;
+    --space-6: clamp(3rem, 7vw, 6rem);
+
+    --measure: var(--hc-measure, 64ch);
+    /* Wenig Rundung: der Kasten soll wie ein Brett wirken und nicht wie eine
+       Schaltfläche. 0 bleibt möglich, wenn der Betrieb es eckig will. */
+    --radius: var(--hc-radius, 10px);
+    --radius-sm: calc(var(--radius) * 0.5);
+    --gutter: clamp(1.15rem, 4vw, 2.5rem);
+
+    --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+    /* Zwei zentrierte Breiten für alles, was nicht ausbrechen muss, und das
+       Raster für den Fliesstext. Beide stimmen in der Kante überein, damit
+       Kopf, Fuss und Textspalte übereinanderliegen. */
+    --shell-text: min(var(--measure), 100% - var(--gutter) * 2);
+    --shell-wide: min(calc(var(--measure) + 16rem), 100% - var(--gutter) * 2);
+
+    --grid:
+      [full-start] minmax(var(--gutter), 1fr)
+      [wide-start] minmax(0, 8rem)
+      [content-start] min(var(--measure), 100% - var(--gutter) * 2) [content-end]
+      minmax(0, 8rem) [wide-end]
+      minmax(var(--gutter), 1fr) [full-end];
+  }
+
+  /* Dunkelmodus über dieselben Namen. Die var(--hc-…)-Lesung bleibt auch hier
+     stehen: wer im Admin eine Farbe gesetzt hat, hat sie für beide Modi
+     gesetzt — die Vorlage darf ihm die nicht wegnehmen, nur weil das Gerät
+     dunkel steht. Alle abgeleiteten Töne rechnen sich neu, weil sie aus
+     --paper und --ink gemischt sind. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+
+      --paper: var(--hc-paper, oklch(0.19 0.014 62));
+      --ink: var(--hc-ink, oklch(0.92 0.014 82));
+      --brand: var(--hc-brand, oklch(0.72 0.075 148));
+
+      --clay: oklch(0.72 0.075 62);
+      --bark: oklch(0.78 0.05 55);
+
+      --paper-raised: color-mix(in oklch, var(--paper), #fff 6%);
+      --brand-strong: color-mix(in oklch, var(--brand), #fff 20%);
+      --line: color-mix(in oklch, var(--ink) 22%, var(--paper));
+      --line-soft: color-mix(in oklch, var(--ink) 12%, var(--paper));
+    }
+  }
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    /* Grosszügige Zeilenhöhe: der Text darf ruhig atmen, gelesen wird hier
+       ohnehin abends und in Ruhe. */
+    line-height: 1.75;
+    color: var(--ink);
+    background: var(--paper);
+    min-block-size: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    /* Gewicht statt Sperrung: Grossbuchstaben mit Zwischenraum sehen nach
+       Prospekt aus, und darum geht es hier gerade nicht. */
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.005em;
+    text-transform: none;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: var(--step-3);
+  }
+
+  h2 {
+    font-size: var(--step-2);
+  }
+
+  h3 {
+    font-size: var(--step-1);
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  a {
+    color: var(--brand);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+    transition: color 0.15s var(--ease);
+  }
+
+  a:hover {
+    color: var(--brand-strong);
+  }
+
+  /* Der Fokusring bleibt auf Papier wie auf Lehm und in beiden Modi sichtbar.
+     Er wird nirgends abgeschaltet — ohne ihn weiss ein Mensch an der Tastatur
+     nicht, wo er steht. */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--clay) 32%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer layout {
+  .shell-text {
+    inline-size: var(--shell-text);
+    margin-inline: auto;
+  }
+
+  .shell-wide {
+    inline-size: var(--shell-wide);
+    margin-inline: auto;
+  }
+
+  main {
+    flex: 1;
+    padding-block-end: var(--space-6);
+  }
+
+  /* Nur der Fliesstext ist ein Raster mit benannten Spuren. Dort und nur dort
+     muss ein Bild aus der Textspalte heraustreten können; überall sonst
+     genügt eine zentrierte Schale, und ein Raster im Raster würde die
+     Überschriften zweimal einrücken.
+     Gleichzeitig ist er der Abfragebehälter für die Bausteine weiter unten:
+     ein <section> im Inhalt kann sich nicht selbst abfragen, also fragt es
+     die Textfläche, in der es liegt. */
+  .prose {
+    display: grid;
+    grid-template-columns: var(--grid);
+    row-gap: var(--space-3);
+    container: inhalt / inline-size;
+  }
+
+  .prose > * {
+    grid-column: content;
+  }
+
+  .page-header,
+  .hero,
+  .notice,
+  .search-panel,
+  .page-terms,
+  .page-fields,
+  .post-nav,
+  .preview-banner,
+  .archive-back {
+    inline-size: var(--shell-text);
+    margin-inline: auto;
+  }
+
+  /* Im Archiv richtet sich die Überschrift nach den Karten, nicht nach einer
+     Textspalte, die dort gar nicht vorkommt. */
+  .archive > .page-header,
+  .archive-list,
+  .archive-pager {
+    inline-size: var(--shell-wide);
+    margin-inline: auto;
+  }
+}
+
+@layer components {
+  /* --- Sprungmarke ------------------------------------------------------ */
+
+  .skip-link {
+    position: absolute;
+    inset-inline-start: var(--space-2);
+    inset-block-start: var(--space-2);
+    z-index: 100;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--brand);
+    color: var(--paper);
+    text-decoration: none;
+    transform: translateY(-200%);
+    transition: transform 0.18s var(--ease);
+  }
+
+  .skip-link:focus-visible {
+    transform: translateY(0);
+    color: var(--paper);
+  }
+
+  /* --- Kopf ------------------------------------------------------------- */
+
+  /* Nicht klebend und ohne Schatten: ein Balken, der immer mitfährt, nimmt auf
+     dem Handy ein Fünftel des Bildes weg — und die Seiten hier sind kurz genug,
+     dass niemand ihn vermisst. Die Haarlinie unten reicht als Kante. */
+  .site-header {
+    background: var(--paper-sunken);
+    border-block-end: 1px solid var(--line);
+  }
+
+  .site-header__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+
+  .site-brand {
+    display: flex;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--space-2);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .site-brand__mark {
+    max-block-size: 3rem;
+    inline-size: auto;
+    border-radius: var(--radius-sm);
+  }
+
+  .site-brand__text {
+    display: grid;
+  }
+
+  .site-brand__name {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .site-brand__tagline {
+    font-size: var(--step--1);
+    line-height: 1.35;
+    color: var(--ink-muted);
+  }
+
+  /* Auf schmalen Schirmen schiebt der Untertitel den Kopf auf drei Zeilen. Er
+     steht im Fuss noch einmal, es geht also nichts verloren. */
+  @media (max-width: 32rem) {
+    .site-brand__tagline {
+      display: none;
+    }
+  }
+
+  /* --- Navigation ------------------------------------------------------- */
+
+  .nav-switch {
+    /* Für die Tastatur erreichbar, für das Auge unsichtbar: display:none
+       nähme ihr den Fokus und damit die Bedienbarkeit ganz. */
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .nav-button {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.45em 0.9em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper-raised);
+    font-size: var(--step--1);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .nav-button__bars {
+    display: grid;
+    gap: 3px;
+    inline-size: 1em;
+  }
+
+  .nav-button__bars span {
+    display: block;
+    block-size: 1.5px;
+    background: currentColor;
+  }
+
+  .nav-switch:focus-visible + .site-header .nav-button {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+  }
+
+  .site-nav {
+    display: none;
+    padding-block-end: var(--space-2);
+  }
+
+  .nav-switch:checked + .site-header .site-nav {
+    display: block;
+  }
+
+  .site-nav ul {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .site-nav a {
+    display: block;
+    padding: 0.45em 0.6em;
+    border-radius: var(--radius-sm);
+    color: inherit;
+    text-decoration: none;
+    font-size: var(--step--1);
+    letter-spacing: 0.01em;
+  }
+
+  .site-nav a:hover {
+    background: var(--clay-wash);
+    color: var(--ink);
+  }
+
+  /* Der Eintrag der angezeigten Seite. Die Klasse und aria-current setzt der
+     Menü-Renderer, nicht die Vorlage — hier wird nur gefärbt. */
+  .site-nav a.is-current,
+  .site-nav a[aria-current="page"] {
+    background: var(--brand-wash);
+    color: var(--brand-strong);
+    font-weight: 600;
+  }
+
+  /* Untermenüs im Schubfach: eingerückt und angeschrieben, damit man sieht,
+     wozu sie gehören. */
+  .site-nav li ul {
+    margin-inline-start: var(--space-2);
+    padding-inline-start: var(--space-1);
+    border-inline-start: 1px solid var(--line);
+  }
+
+  /* Ab hier ist Platz für eine Zeile. Der Knopf und die Checkbox verschwinden,
+     die Navigation steht immer offen. */
+  @media (min-width: 52rem) {
+    .nav-button {
+      display: none;
+    }
+
+    .site-nav,
+    .nav-switch:checked + .site-header .site-nav {
+      display: block;
+      padding-block: 0 var(--space-1);
+    }
+
+    .site-nav > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+      /* Der erste Eintrag steht auf derselben Kante wie der Name darüber. */
+      margin-inline-start: -0.6em;
+    }
+
+    .site-nav li {
+      position: relative;
+    }
+
+    /* Aufklappen ohne Skript: :hover für die Maus, :focus-within für die
+       Tastatur. Ohne das zweite wäre ein Untermenü nur mit Maus erreichbar. */
+    .site-nav li ul {
+      position: absolute;
+      inset-block-start: 100%;
+      inset-inline-start: 0;
+      z-index: 40;
+      display: none;
+      min-inline-size: 12rem;
+      margin: 0;
+      padding: var(--space-1);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--paper-raised);
+    }
+
+    .site-nav li:hover > ul,
+    .site-nav li:focus-within > ul {
+      display: grid;
+    }
+  }
+
+  /* --- Startseite ------------------------------------------------------- */
+
+  /* Der Auftakt sitzt eng über seinem Bild. Vorher standen Titel, Zeile und
+     Foto in gleichen Abständen untereinander und wirkten wie drei Sachen,
+     die zufällig übereinanderliegen; jetzt gehören sie zusammen und der
+     Abstand nach unten trennt sie vom Text. */
+  .hero {
+    padding-block: var(--space-6) var(--space-3);
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .hero__title {
+    font-size: var(--step-4);
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  .hero__tagline {
+    font-size: var(--step-1);
+    color: var(--ink-muted);
+    font-family: var(--font-display);
+    font-style: italic;
+    text-wrap: balance;
+  }
+
+  /* --- Seitenkopf ------------------------------------------------------- */
+
+  .page-header {
+    padding-block: var(--space-5) var(--space-3);
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .page-header__kicker {
+    font-size: var(--step--1);
+    color: var(--bark);
+    font-weight: 600;
+  }
+
+  .page-header__kicker a {
+    color: inherit;
+  }
+
+  .page-header__meta {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .preview-banner {
+    margin-block-start: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px dashed var(--clay);
+    border-radius: var(--radius-sm);
+    background: var(--clay-wash);
+    font-size: var(--step--1);
+  }
+
+  /* --- Fliesstext ------------------------------------------------------- */
+
+  /* Grosszügig statt eng: eine Zwischenüberschrift ist der einzige Hinweis
+     darauf, dass ein neuer Gedanke anfängt, und dafür braucht sie mehr Luft
+     über sich als unter sich. */
+  .prose > h2 {
+    margin-block-start: var(--space-6);
+    margin-block-end: var(--space-2);
+    font-size: var(--step-2);
+    letter-spacing: -0.02em;
+  }
+
+  .prose > h2:first-child {
+    margin-block-start: 0;
+  }
+
+  .prose > h3 {
+    margin-block-start: var(--space-5);
+    margin-block-end: var(--space-1);
+    letter-spacing: -0.015em;
+  }
+
+  .prose > ul,
+  .prose > ol {
+    padding-inline-start: 1.3em;
+    display: grid;
+    row-gap: var(--space-1);
+  }
+
+  .prose > blockquote {
+    padding-inline-start: var(--space-3);
+    border-inline-start: 3px solid var(--clay);
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    line-height: 1.5;
+    color: var(--ink-muted);
+  }
+
+  .prose > hr {
+    border: 0;
+    border-block-start: 1px solid var(--line);
+    margin-block: var(--space-3);
+  }
+
+  .prose > pre {
+    grid-column: wide;
+    overflow-x: auto;
+    padding: var(--space-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-sm);
+    background: var(--paper-sunken);
+    font-size: var(--step--1);
+  }
+
+  /* max-inline-size statt inline-size: ein grosses Foto füllt die Spalte, ein
+     kleines bleibt so gross, wie es ist. Auf 100% gestellt würde eine
+     Bildmarke von 235 px auf Spaltenbreite hochgerechnet und wäre matschig —
+     und aus dem Seiteninhalt heraus gibt es keine Möglichkeit, das für ein
+     einzelnes Bild zurückzunehmen, weil die Bereinigung jedes class- und
+     style-Attribut entfernt. */
+  .prose img {
+    inline-size: auto;
+    max-inline-size: 100%;
+    border-radius: var(--radius-sm);
+  }
+
+  .prose figcaption {
+    margin-block-start: var(--space-1);
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .prose > table {
+    grid-column: wide;
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+  }
+
+  .prose th,
+  .prose td {
+    text-align: start;
+    padding: var(--space-1) var(--space-2);
+    border-block-end: 1px solid var(--line-soft);
+  }
+
+  /* --- Baustein: Bild, das aus der Spalte tritt ------------------------- */
+
+  /* Ein Bild, das allein in seinem Absatz steht, war als Bild gemeint und
+     nicht als Teil eines Satzes — also darf es breiter werden. :has() macht
+     diese Unterscheidung erst möglich. */
+  /* Ein Bild, das allein in seinem Absatz steht, darf in die breite Spur
+     ausbrechen. Ein grosses Foto füllt sie aus; ein kleines tut das nicht und
+     sässe sonst am linken Rand einer Breite, die es gar nicht braucht —
+     weiter links als jede Textzeile, und damit sichtbar neben der Ordnung der
+     Seite. justify-items rückt es in die Mitte; ein Bild, das die Spur füllt,
+     merkt davon nichts. */
+  .prose > p:has(> img:only-child),
+  .prose > p:has(> a:only-child > img:only-child),
+  .prose > figure {
+    grid-column: wide;
+    display: grid;
+    justify-items: center;
+  }
+
+  /* --- Baustein: Titelbild der Startseite -------------------------------- */
+
+  /* Das erste Bild der Startseite geht über die ganze Breite. Der Text steht
+     darüber im Kopf und darunter im Fliesstext, nie darauf: was ein Foto an
+     einer Stelle hergibt, weiss die Vorlage nicht.
+     :first-of-type und nicht :first-child, weil der Inhalt oft mit einer
+     eigenen Überschrift beginnt — das Bild ist dann der erste Absatz, aber
+     nicht das erste Kind. Steht oben ein Satz statt eines Bildes, greift die
+     Regel gar nicht, und das ist die richtige Antwort.
+     Ein Seitenverhältnis statt einer festen Höhe, damit auf dem Handy kein
+     Streifen und auf dem Schreibtisch keine Wand daraus wird. */
+  .page--home .prose > p:first-of-type:has(> img:only-child) {
+    grid-column: full;
+    margin-block-end: var(--space-2);
+  }
+
+  .page--home .prose > p:first-of-type:has(> img:only-child) img {
+    inline-size: 100%;
+    aspect-ratio: 21 / 9;
+    object-fit: cover;
+    border-radius: 0;
+  }
+
+  @media (max-width: 40rem) {
+    .page--home .prose > p:first-child:has(> img:only-child) img {
+      aspect-ratio: 4 / 3;
+    }
+  }
+
+  /* --- Baustein: Galerie ------------------------------------------------ */
+
+  /* Vorschaubilder, die auf das grosse Bild verlinken — ganz ohne Skript, ohne
+     Beschnitt auf Quadrate. Alle Bilder einer Zeile stehen auf gleicher Höhe
+     und behalten ihr Seitenverhältnis, die Zeile bricht um, wenn sie voll ist.
+     Erkannt wird eine Galerie an mindestens zwei verlinkten Bildern in einem
+     Absatz; ein einzelnes verlinktes Bild bleibt ein grosses Bild. */
+  .prose p:has(> a:nth-of-type(2) > img) {
+    grid-column: wide;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .prose p:has(> a:nth-of-type(2) > img) > a {
+    display: block;
+    line-height: 0;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .prose p:has(> a:nth-of-type(2) > img) img {
+    block-size: clamp(8rem, 18vw, 13rem);
+    inline-size: auto;
+    max-inline-size: 100%;
+    border-radius: 0;
+    transition: transform 0.2s var(--ease);
+  }
+
+  .prose p:has(> a:nth-of-type(2) > img) a:hover img {
+    transform: scale(1.03);
+  }
+
+  /* --- Baustein: Hinweiskasten ------------------------------------------ */
+
+  /* Für die eine aktuelle Meldung ("Wurf geplant für Frühling 2027"). Lehm
+     statt Signalfarbe: es ist eine Nachricht, keine Warnung. */
+  .prose aside {
+    grid-column: wide;
+    padding: var(--space-4);
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--clay-wash);
+    /* Ein aufgesetzter Streifen statt eines Rahmens: er macht den Kasten von
+       weitem als Meldung kenntlich, ohne ihn einzuzäunen. */
+    box-shadow: inset 0 3px 0 0 var(--clay);
+  }
+
+  .prose aside > * + * {
+    margin-block-start: var(--space-2);
+  }
+
+  .prose aside > :is(h2, h3, h4) {
+    font-size: var(--step-1);
+    color: var(--bark);
+  }
+
+  /* --- Baustein: Steckbrief --------------------------------------------- */
+
+  /* Der wichtigste Kasten der Vorlage: jeder Hund hat einen. Zwei Spalten,
+     Merkmal und Wert, mit einer Haarlinie je Zeile — kompakt genug, dass
+     Wurftag, HD-Wert, Grösse und Formwert auf einen Blick nebeneinander
+     stehen. */
+  .prose dl {
+    display: grid;
+    grid-template-columns: minmax(7rem, auto) 1fr;
+    column-gap: var(--space-2);
+    font-size: var(--step--1);
+    line-height: 1.6;
+  }
+
+  .prose dt {
+    font-weight: 600;
+    color: var(--bark);
+  }
+
+  .prose dt,
+  .prose dd {
+    margin: 0;
+    padding-block: 0.45rem;
+    border-block-end: 1px solid var(--line-soft);
+  }
+
+  .prose dl > dt:last-of-type,
+  .prose dl > dd:last-of-type {
+    border-block-end: 0;
+  }
+
+  /* Unter etwa dreissig Zeichen Spaltenbreite wird die Wertespalte zur Rinne.
+     Dann stehen Merkmal und Wert lieber untereinander. */
+  @container inhalt (max-width: 30rem) {
+    .prose dl {
+      grid-template-columns: 1fr;
+    }
+
+    .prose dt {
+      border-block-end: 0;
+      padding-block-end: 0;
+    }
+  }
+
+  /* --- Baustein: Karte und Steckbrief mit Porträt ------------------------ */
+
+  /* Eine <section> im Inhalt ist eine Karte: Bild, Name, ein Satz, Link.
+     Flusslayout und keine Rasterzellen, weil das Porträt im Steckbrief weiter
+     unten umflossen werden muss — und umflossen wird nur in einem Fluss. */
+  .prose section {
+    padding: var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+
+  .prose section > * + * {
+    margin-block-start: var(--space-2);
+  }
+
+  .prose section > :is(h2, h3, h4) {
+    margin-block-start: 0;
+    font-size: var(--step-1);
+  }
+
+  .prose section img {
+    border-radius: var(--radius-sm);
+  }
+
+  /* Im Kartenraster bekommen alle Bilder dasselbe Format. Ohne das richtet
+     sich die Höhe nach dem Seitenverhältnis der Aufnahme, und weil ein Hund
+     mal quer und mal hoch fotografiert ist, beginnen die Namen daneben auf
+     vier verschiedenen Höhen — das Raster sieht dann verrutscht aus, obwohl
+     die Karten sauber nebeneinander stehen. Beschnitten statt verzerrt. */
+  .prose > div:has(> section) section > p:first-of-type:has(> img:only-child) img,
+  .prose > div:has(> section) section > p:first-of-type:has(> a:only-child > img:only-child) img {
+    inline-size: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    /* Oben bündig mit der Karte, unten gerade abgeschnitten. */
+    border-radius: 0;
+  }
+
+  /* Mehrere Karten in einem <div> werden zum Raster. auto-fit statt fester
+     Spaltenzahl: vier Hunde sollen auf dem Schreibtisch nebeneinander und auf
+     dem Handy untereinander stehen, ohne dass jemand eine Zahl pflegt. */
+  .prose > div:has(> section) {
+    grid-column: wide;
+    display: grid;
+    gap: var(--space-3);
+    /* 14rem ist knapp gerechnet: bei der Breite dieser Vorlage passen damit
+       genau vier Karten in eine Zeile. Bei 15rem fallen es drei, und der
+       vierte Hund steht allein in einer zweiten Reihe — vier Hunde sind aber
+       der Regelfall einer Zucht, nicht die Ausnahme. */
+    grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+    /* stretch statt start: gleich hohe Karten stehen auf einer Linie, auch
+       wenn der eine Hund drei Sätze hat und der andere einen. */
+    align-items: stretch;
+  }
+
+  /* Im Raster ist das Bild die Karte, nicht ein Bild darin. Es läuft bis an
+     die Kante — der Innenabstand wird auf seiner Höhe zurückgenommen —, und
+     der Text beginnt darunter. Ein Foto mit umlaufendem Rand sieht aus wie
+     eingeklebt; bündig sieht es aus wie gemeint. */
+  .prose > div:has(> section) > section {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    transition: transform 180ms var(--ease), box-shadow 180ms var(--ease);
+  }
+
+  .prose > div:has(> section) > section > * {
+    margin-inline: var(--space-3);
+  }
+
+  .prose > div:has(> section) > section > *:first-child {
+    margin-block-start: 0;
+  }
+
+  .prose > div:has(> section) > section > *:last-child {
+    margin-block-end: var(--space-3);
+  }
+
+  /* Nur ein Verweis wird an den Fuss der Karte geschoben, damit die Verweise
+     aller Karten auf einer Linie stehen. Endet eine Karte mit gewöhnlichem
+     Text — etwa weil die Seite dazu noch ein Entwurf ist —, bliebe sonst
+     mitten im Text eine Lücke, die aussieht, als fehle dort etwas. */
+  .prose > div:has(> section) > section > p:last-child:has(> a) {
+    margin-block-start: auto;
+    padding-block-start: var(--space-2);
+  }
+
+  .prose > div:has(> section) > section > p:first-of-type:has(> img:only-child),
+  .prose > div:has(> section) > section > p:first-of-type:has(> a:only-child > img:only-child) {
+    margin-inline: 0;
+    margin-block-end: var(--space-3);
+  }
+
+  .prose > div:has(> section) > section > :is(h2, h3, h4) {
+    font-size: var(--step-1);
+    letter-spacing: -0.015em;
+  }
+
+  /* Nur wo gezeigt werden kann, dass ein Zeiger da ist. Auf dem Handy hebt
+     sich nichts, weil dort nichts schwebt. */
+  @media (hover: hover) {
+    .prose > div:has(> section) > section:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px -8px color-mix(in oklch, var(--bark) 45%, transparent);
+    }
+  }
+
+  /* Enthält die Karte einen Steckbrief, ist sie ein Hundeporträt: das Bild
+     stellt sich neben die Merkmalsliste, sobald die Textfläche breit genug
+     ist, und der Text darunter fliesst um seine Unterkante herum. */
+  @container inhalt (min-width: 44rem) {
+    .prose > section:has(dl) > p:first-of-type:has(> img:only-child) {
+      float: inline-start;
+      inline-size: 14rem;
+      margin-inline-end: var(--space-3);
+      margin-block-end: var(--space-2);
+    }
+
+    /* Der Kasten muss über seinem eigenen Umfluss zugehen, sonst hängt das
+       Porträt unten heraus, wenn der Text kürzer ist als das Bild. */
+    .prose > section:has(dl)::after {
+      content: "";
+      display: block;
+      clear: both;
+    }
+  }
+
+  /* --- Karten im Archiv ------------------------------------------------- */
+
+  .archive-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-3);
+    /* Behälter für die Karten darin: eine Karte weiss selbst nicht, wie breit
+       die Liste ist, in der sie steht. */
+    container: liste / inline-size;
+  }
+
+  .card {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+
+  .card__media img {
+    inline-size: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+  }
+
+  .card__body {
+    display: grid;
+    gap: var(--space-1);
+    align-content: start;
+    padding: 0 var(--space-1) var(--space-1);
+  }
+
+  .card__date {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .card__title {
+    font-size: var(--step-1);
+  }
+
+  .card__title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .card__title a:hover {
+    color: var(--brand-strong);
+    text-decoration: underline;
+  }
+
+  .card__excerpt {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* Ab einer Listenbreite, die zwei Dinge nebeneinander trägt, legt sich das
+     Bild neben den Text. Darunter bleibt die Karte gestapelt. */
+  @container liste (min-width: 34rem) {
+    .card:has(.card__media) {
+      grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .card__body {
+      padding-block: var(--space-1);
+    }
+  }
+
+  .archive-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-block-start: var(--space-4);
+    padding-block-start: var(--space-2);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .archive-pager__position {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .archive-empty,
+  .archive-back {
+    margin-block-start: var(--space-3);
+    color: var(--ink-muted);
+  }
+
+  /* --- Beitragsnavigation ------------------------------------------------ */
+
+  .post-nav {
+    display: grid;
+    gap: var(--space-2);
+    margin-block-start: var(--space-5);
+    padding-block-start: var(--space-3);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .post-nav__link {
+    display: grid;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .post-nav__label {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .post-nav__title {
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  .post-nav__link:hover .post-nav__title {
+    color: var(--brand-strong);
+    text-decoration: underline;
+  }
+
+  .post-nav__index {
+    font-size: var(--step--1);
+  }
+
+  @media (min-width: 46rem) {
+    .post-nav {
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+    }
+
+    .post-nav__next {
+      text-align: end;
+      grid-column: 3;
+    }
+  }
+
+  /* --- Schlagwörter ------------------------------------------------------ */
+
+  .page-terms {
+    margin-block-start: var(--space-4);
+  }
+
+  .term-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .term {
+    display: inline-block;
+    padding: 0.2em 0.7em;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper-sunken);
+    color: var(--ink-muted);
+    font-size: var(--step--1);
+    text-decoration: none;
+  }
+
+  .term:hover {
+    border-color: var(--clay);
+    background: var(--clay-wash);
+    color: var(--ink);
+  }
+
+  /* --- Suche ------------------------------------------------------------- */
+
+  .search-panel {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .search-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .search-form input {
+    flex: 1 1 12rem;
+    padding: 0.6em 0.9em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper-raised);
+  }
+
+  .search-form input:focus {
+    border-color: var(--brand);
+  }
+
+  .search-count,
+  .search-empty {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .search-results {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .search-result__title {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .search-result__snippet {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* Ohne eigene Farbe ist der Treffer im Ausschnitt nicht zu finden — genau
+     dafür steht das <mark> darin. */
+  .search-result__snippet mark {
+    padding: 0 0.15em;
+    border-radius: 2px;
+    background: color-mix(in oklch, var(--clay) 35%, transparent);
+    color: inherit;
+  }
+
+  /* --- Hinweisseiten: 404, Wartung, Passwort ----------------------------- */
+
+  .notice {
+    display: grid;
+    gap: var(--space-2);
+    padding-block: var(--space-6) var(--space-5);
+  }
+
+  .notice__code {
+    font-family: var(--font-display);
+    font-size: var(--step-4);
+    line-height: 1;
+    color: color-mix(in oklch, var(--clay) 55%, var(--paper));
+  }
+
+  .notice__title {
+    font-size: var(--step-3);
+  }
+
+  .notice__text--quiet {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .notice__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-block-start: var(--space-2);
+  }
+
+  .gate-hint {
+    padding: var(--space-2) var(--space-3);
+    border-inline-start: 4px solid var(--clay);
+    border-radius: var(--radius-sm);
+    background: var(--clay-wash);
+    font-size: var(--step--1);
+  }
+
+  .gate-error {
+    color: oklch(0.52 0.17 27);
+    font-weight: 600;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .gate-error {
+      color: oklch(0.75 0.14 27);
+    }
+  }
+
+  .gate-form {
+    display: grid;
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+    max-inline-size: 22rem;
+  }
+
+  .gate-form__field {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .gate-form__field label {
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+
+  .gate-form input {
+    inline-size: 100%;
+    padding: 0.6em 0.9em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper-raised);
+  }
+
+  .gate-form input:focus {
+    border-color: var(--brand);
+  }
+
+  /* --- Schaltflächen ----------------------------------------------------- */
+
+  .button {
+    display: inline-block;
+    padding: 0.55em 1.1em;
+    border: 1px solid var(--brand);
+    border-radius: var(--radius-sm);
+    background: var(--brand);
+    color: var(--paper);
+    font-size: var(--step--1);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .button:hover {
+    background: var(--brand-strong);
+    border-color: var(--brand-strong);
+    color: var(--paper);
+  }
+
+  .button--quiet {
+    background: transparent;
+    border-color: var(--line);
+    color: var(--ink);
+  }
+
+  .button--quiet:hover {
+    background: var(--clay-wash);
+    border-color: var(--clay);
+    color: var(--ink);
+  }
+
+  /* --- Kontaktformular ---------------------------------------------------
+   *
+   * Das Markup kommt fertig aus dem Server (internal/contactform), die Vorlage
+   * darf es nur einfärben. Die Klassennamen sind darum fest. */
+
+  .contact-form {
+    display: grid;
+    gap: var(--space-2);
+    max-inline-size: 36rem;
+    margin-block: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+
+  .contact-form__field {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .contact-form__field label {
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+
+  .contact-form input,
+  .contact-form textarea {
+    inline-size: 100%;
+    padding: 0.6em 0.9em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .contact-form input:focus,
+  .contact-form textarea:focus {
+    border-color: var(--brand);
+  }
+
+  .contact-form textarea {
+    resize: vertical;
+    min-block-size: 9rem;
+    field-sizing: content;
+  }
+
+  .contact-form__submit {
+    justify-self: start;
+    padding: 0.55em 1.2em;
+    border: 1px solid var(--brand);
+    border-radius: var(--radius-sm);
+    background: var(--brand);
+    color: var(--paper);
+    font-size: var(--step--1);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .contact-form__submit:hover {
+    background: var(--brand-strong);
+    border-color: var(--brand-strong);
+  }
+
+  .contact-form__notice {
+    padding: 0.7em 1em;
+    border-inline-start: 4px solid var(--brand);
+    border-radius: var(--radius-sm);
+    background: var(--brand-wash);
+  }
+
+  .contact-form__notice--error {
+    border-inline-start-color: oklch(0.58 0.19 27);
+    background: color-mix(in oklch, oklch(0.58 0.19 27) 10%, transparent);
+  }
+
+  .contact-form__alternative {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  /* Die Falle. Sie muss für ein Programm, das das Markup liest, erreichbar
+     sein und für jeden anderen unsichtbar — was display:none ausschliesst,
+     weil die sorgfältigeren Bots genau solche Felder überspringen. */
+  .contact-form__trap {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* --- Fuss --------------------------------------------------------------- */
+
+  .site-footer {
+    margin-block-start: auto;
+    padding-block: var(--space-5) var(--space-3);
+    border-block-start: 1px solid var(--line);
+    background: var(--paper-sunken);
+  }
+
+  .site-footer__inner {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 46rem) {
+    .site-footer__inner {
+      grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+      gap: var(--space-4);
+    }
+  }
+
+  .site-footer__name {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 700;
+  }
+
+  .site-footer__tagline,
+  .site-footer__note {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+
+  .site-footer__notes {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  /* Die Schwesterseite ist ein gewöhnlicher Link im Text — kein eingebettetes
+     Fremdmaterial, kein fremdes Logo, nichts, was beim Aufruf von woanders
+     geladen würde. */
+  .site-footer__note--sister {
+    padding-inline-start: var(--space-2);
+    border-inline-start: 3px solid var(--clay);
+  }
+
+  .site-footer__heading {
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--ink-muted);
+    margin-block-end: var(--space-1);
+  }
+
+  .footer-nav ul {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .footer-nav a {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    text-decoration: none;
+  }
+
+  .footer-nav a:hover,
+  .footer-nav a.is-current,
+  .footer-nav a[aria-current="page"] {
+    color: var(--ink);
+    text-decoration: underline;
+  }
+
+  /* Der Fuss trägt eine Ebene. Ein zweistufiges Menü würde hier zur Wand. */
+  .footer-nav li ul {
+    display: none;
+  }
+
+  .site-footer__legal {
+    margin-block-start: var(--space-4);
+    padding-inline: var(--gutter);
+    text-align: center;
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+  }
+}
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Gedruckt werden der Steckbrief und der Kaufvertrag. Was auf Papier nichts
+     verloren hat, geht weg; Adressen hinter Links werden ausgeschrieben, weil
+     ein Link auf Papier sonst eine Sackgasse ist. */
+  @media print {
+    .site-header,
+    .site-nav,
+    .nav-button,
+    .post-nav,
+    .archive-pager,
+    .skip-link,
+    .contact-form,
+    .search-form,
+    .site-footer__notes,
+    .site-footer__terms {
+      display: none !important;
+    }
+
+    body {
+      background: #fff;
+      color: #000;
+      font-size: 11pt;
+    }
+
+    .prose a[href^="http"]::after {
+      content: " (" attr(href) ")";
+      font-size: 9pt;
+      word-break: break-all;
+    }
+
+    .prose section,
+    .prose aside,
+    .card {
+      border: 1px solid #999;
+      background: none;
+      break-inside: avoid;
+    }
+
+    .hero,
+    .page-header,
+    .notice {
+      padding-block: 0 1rem;
+    }
+  }
+}
+
+/* Eigene Felder einer Website, als Beschriftung und Wert nebeneinander.
+   Bei schmalen Bildschirmen untereinander, sonst wird der Wert zur Spalte. */
+.page-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  margin-block: 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid currentColor;
+  border-color: color-mix(in oklab, currentColor 15%, transparent);
+}
+
+.page-fields dt {
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.page-fields dd {
+  margin: 0;
+}
+
+.page-fields img {
+  max-width: min(100%, 22rem);
+  height: auto;
+  border-radius: 4px;
+}
+
+@media (max-width: 34rem) {
+  .page-fields {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .page-fields dd {
+    margin-bottom: 0.6rem;
+  }
+}
+
+.page-fields__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-fields__rows li {
+  padding-block: 0.15rem;
+}
+
+.page-fields__rowlabel {
+  opacity: 0.7;
+}
+
+/* --- Hofladen (Plugin „bestellung") ---------------------------------------
+
+   Das Markup kommt fertig aus dem Plugin; die Vorlage kennt es nur über diese
+   Klassennamen. Wer sie hier vergisst, bekommt ein Formular ohne jede Form —
+   und einen sichtbaren Honigtopf, in den ein Besucher hineinschreibt. */
+
+.bestellung {
+  margin-block: 2rem;
+}
+
+.bestellung__hinweis {
+  margin-bottom: 1.25rem;
+}
+
+.bestellung__ok,
+.bestellung__fehler {
+  padding: 0.8em 1em;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+
+.bestellung__tabelle {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.75rem;
+}
+
+.bestellung__tabelle th,
+.bestellung__tabelle td {
+  padding: 0.5em 0.75em 0.5em 0;
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent);
+}
+
+.bestellung__tabelle thead th {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.bestellung__tabelle input[type="number"] {
+  width: 5rem;
+  padding: 0.4em 0.5em;
+}
+
+.bestellung__einheit,
+.bestellung__aus {
+  opacity: 0.65;
+  font-size: 0.9em;
+}
+
+.bestellung__form {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.bestellung__feld {
+  display: grid;
+  gap: 0.3em;
+  margin: 0;
+}
+
+.bestellung__feld label {
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.bestellung__form input,
+.bestellung__form textarea {
+  width: 100%;
+  padding: 0.55em 0.8em;
+  border: 1px solid color-mix(in oklab, currentColor 35%, transparent);
+  border-radius: 4px;
+  background: inherit;
+  color: inherit;
+  font: inherit;
+}
+
+.bestellung__form textarea {
+  resize: vertical;
+  min-height: 5rem;
+}
+
+.bestellung__hilfe {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.bestellung__abschicken {
+  margin: 0;
+}
+
+/* Umrandet und nicht gefüllt: dieselbe Regel liegt in sieben Vorlagen mit
+   unterschiedlichen Farbnamen, und ein gefüllter Knopf bräuchte in jeder eine
+   eigene Schriftfarbe — sonst steht Schwarz auf Schwarz. Wer ihn kräftiger
+   will, überschreibt ihn in seiner Vorlage. */
+.bestellung__abschicken button {
+  padding: 0.6em 1.4em;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bestellung__abschicken button:hover {
+  background: color-mix(in oklab, currentColor 10%, transparent);
+}
+
+/* Der Honigtopf. Nicht display:none, damit ein Vorleseprogramm ihn überspringen
+   kann und ein Formularausfüller ihn nicht als „unsichtbar, also egal" behandelt. */
+.bestellung__falle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Shop ----------------------------------------------------------------
+ *
+ * Der Katalog, der Warenkorb und die Kasse. Nur die Bausteine, die es sonst
+ * nirgends gibt — Kopfzeilen, Karten, Knöpfe und Schlagwörter kommen aus dem
+ * Theme darüber, damit der Shop aussieht wie der Rest der Website und nicht
+ * wie ein angeklebter zweiter Laden.
+ *
+ * Alles über die Tokens des Themes (--brand, --ink, --paper, --space-*),
+ * deshalb trägt jedes Theme seine eigene Handschrift auch hier.
+ */
+
+/* --- Preisanzeige umschalten ---------------------------------------------- */
+
+.price-switch {
+  display: flex;
+  margin-bottom: var(--space-4, 1.5rem);
+}
+
+.price-switch__option {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.4em 0.9em;
+  border: 1px solid #e5e5e5;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+}
+
+.price-switch__option:first-child {
+  border-radius: var(--radius, 4px) 0 0 var(--radius, 4px);
+}
+
+.price-switch__option:last-child {
+  border-radius: 0 var(--radius, 4px) var(--radius, 4px) 0;
+}
+
+.price-switch__option + .price-switch__option {
+  border-left: 0;
+}
+
+.price-switch__option.is-active {
+  background: #fff;
+  border-color: var(--brand);
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.shop-categories {
+  margin-bottom: var(--space-5, 2rem);
+}
+
+.shop-note {
+  margin-top: var(--space-5, 2rem);
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+/* Die Shop-Links erben die Textfarbe; Schlagwörter und Kartentitel regelt das
+   Theme selbst und wird hier nicht angefasst. */
+.cart-continue,
+.cart-line__title a {
+  color: inherit;
+}
+
+.cart-continue:hover {
+  color: var(--brand);
+}
+
+/* --- Katalog -------------------------------------------------------------- */
+
+.product-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+/* Der Preis nach unten, damit die Preise einer Zeile auf einer Höhe stehen.
+   Sonst tanzen sie mit der Länge der Beschreibung, und ein Katalog, in dem man
+   die Preise suchen muss, ist ein schlechter Katalog. */
+.card__body .price {
+  margin-block-start: auto;
+  padding-block-start: var(--space-2, 0.5rem);
+}
+
+.product-card__subtitle {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+/* Ein ausverkauftes Stück bleibt sichtbar und lesbar — es wird nur ruhiger.
+   Ausblenden wäre schlechter: die Kundin sucht sonst weiter. */
+.product-card--sold-out .card__media img {
+  opacity: 0.5;
+}
+
+.product-card__sold-out {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #b3261e;
+}
+
+/* --- Preis ---------------------------------------------------------------- */
+
+.price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.price__amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.price--large .price__amount {
+  font-size: 1.55rem;
+}
+
+.price__note,
+.price__other {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+/* --- Ein Stück ------------------------------------------------------------ */
+
+.page--product {
+  container-type: inline-size;
+}
+
+.product {
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+}
+
+.product__image {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--radius, 4px);
+}
+
+.product__gallery {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: var(--space-2, 0.5rem);
+}
+
+.product__gallery img {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius, 4px);
+}
+
+.product__buy {
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+  padding: var(--space-4, 1.5rem);
+  border: 1px solid #e5e5e5;
+  border-radius: var(--radius, 4px);
+  background: #fff;
+}
+
+.product__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2, 0.5rem);
+  margin-top: var(--space-2, 0.5rem);
+}
+
+.product__form label {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.product__form input {
+  font: inherit;
+  inline-size: 4.5rem;
+  padding: 0.5em;
+  border: 1px solid #e5e5e5;
+  border-radius: var(--radius, 4px);
+  background: var(--paper);
+  color: inherit;
+}
+
+.product__stock,
+.product__delivery,
+.product__shipping,
+.product__sku {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.product__sold-out {
+  font-weight: 600;
+  color: #b3261e;
+}
+
+.product__description {
+  margin-top: var(--space-5, 2rem);
+}
+
+/* --- Warenkorb ------------------------------------------------------------ */
+
+.cart-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3, 1rem);
+}
+
+/* Die Reihenfolge im Quelltext ist Bild, Text, Menge, Preis, Entfernen — für
+   ein Vorlesegerät die richtige. Auf dem Bildschirm gehört der Preis auf die
+   Höhe des Titels und nicht unter die Mengenzeile, also werden die Felder
+   ausdrücklich gesetzt statt der Reihe nach eingefüllt. */
+.cart-line {
+  display: grid;
+  grid-template-columns: 4rem 1fr;
+  grid-template-areas:
+    "bild  text"
+    "bild  preis"
+    "menge menge"
+    "weg   weg";
+  gap: var(--space-2, 0.5rem) var(--space-3, 1rem);
+  align-items: start;
+  padding-bottom: var(--space-4, 1.5rem);
+  border-bottom: 1px solid #e5e5e5;
+}
+
+/* Ohne Bild keine Bildspalte — sonst stünde der Text um vier Zentimeter
+   eingerückt neben nichts. */
+.cart-line:not(:has(.cart-line__media)) {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "text"
+    "preis"
+    "menge"
+    "weg";
+}
+
+.cart-line__media { grid-area: bild; }
+
+.cart-line__text { grid-area: text; }
+
+.cart-line__price { grid-area: preis; }
+
+.cart-line__quantity { grid-area: menge; align-self: end; }
+
+.cart-line__remove { grid-area: weg; align-self: end; }
+
+.cart-line__media img {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius, 4px);
+}
+
+.cart-line__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.cart-line__title a {
+  text-decoration: none;
+}
+
+.cart-line__title a:hover {
+  text-decoration: underline;
+}
+
+.cart-line__subtitle,
+.cart-line__unit {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.cart-line__gone {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #b3261e;
+}
+
+.cart-line__price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.cart-line__quantity {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cart-line__quantity input {
+  font: inherit;
+  inline-size: 4rem;
+  padding: 0.35em 0.5em;
+  border: 1px solid #e5e5e5;
+  border-radius: var(--radius, 4px);
+  background: var(--paper);
+  color: inherit;
+}
+
+.cart-line__drop {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #666;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cart-line__drop:hover {
+  color: var(--brand);
+}
+
+.cart-line--gone {
+  opacity: 0.65;
+}
+
+.cart-summary {
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+  justify-items: start;
+  margin-top: var(--space-5, 2rem);
+}
+
+.cart-totals {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem var(--space-3, 1rem);
+  margin: 0;
+}
+
+.cart-totals dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cart-totals__tax {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.cart-totals__sum {
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e5e5;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.cart-totals__note,
+.checkout__policy,
+.order__policy {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.cart-checkout {
+  margin-top: var(--space-3, 1rem);
+}
+
+.cart-continue {
+  font-size: 0.875rem;
+}
+
+.cart-empty {
+  color: #666;
+}
+
+.cart-blocked {
+  margin-bottom: var(--space-4, 1.5rem);
+  padding: 0.7em 1em;
+  border-left: 3px solid #b3261e;
+  background: #fff;
+  font-size: 0.9375rem;
+}
+
+/* --- Kasse ---------------------------------------------------------------- */
+
+.checkout__grid {
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+  align-items: start;
+}
+
+.checkout__form {
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+}
+
+.checkout__group {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  padding: var(--space-4, 1.5rem);
+  border: 1px solid #e5e5e5;
+  border-radius: var(--radius, 4px);
+  background: #fff;
+}
+
+.checkout__group legend {
+  padding-inline: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--brand);
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.field label {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.field input,
+.field textarea,
+.field__select {
+  font: inherit;
+  inline-size: 100%;
+  padding: 0.55em 0.7em;
+  border: 1px solid #e5e5e5;
+  border-radius: var(--radius, 4px);
+  background: var(--paper);
+  color: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field__error {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #b3261e;
+}
+
+/* PLZ und Ort nebeneinander — aber nur, solange sie nebeneinander passen. Ein
+   Eingabefeld ist von sich aus rund 180px breit und schrumpft nicht von
+   allein; zwei davon in einer Zeile haben die Kasse auf dem Telefon über den
+   Rand geschoben, und zwar waagrecht scrollbar statt umgebrochen. Genau das
+   Gerät, auf dem hier mit TWINT bezahlt wird. */
+.field-row {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  grid-template-columns: 7rem 1fr;
+}
+
+.field-row > .field {
+  min-inline-size: 0;
+}
+
+.field-row input {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+@media (max-width: 26rem) {
+.field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.6rem;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.choice input {
+  grid-row: 1;
+  accent-color: var(--brand);
+}
+
+.choice__label {
+  font-weight: 600;
+}
+
+.choice__note {
+  grid-column: 2;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.choice--confirm {
+  padding: var(--space-3, 1rem);
+  border: 1px solid #e5e5e5;
+  border-radius: var(--radius, 4px);
+  background: #fff;
+}
+
+.checkout__submit {
+  justify-self: start;
+  padding: 0.85em 1.8em;
+}
+
+.checkout__summary {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  justify-items: start;
+  padding: var(--space-4, 1.5rem);
+  border: 1px solid var(--brand);
+  border-radius: var(--radius, 4px);
+  background: #fff;
+}
+
+.checkout__summary-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.checkout__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  inline-size: 100%;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9375rem;
+}
+
+.checkout__lines li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+}
+
+.checkout__line-qty {
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.checkout__line-price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- Bestätigung ---------------------------------------------------------- */
+
+.order__body {
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+  justify-items: start;
+}
+
+.order__body .cart-totals,
+.order__body .checkout__lines {
+  inline-size: 100%;
+  max-inline-size: 26rem;
+}
+
+.order__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem var(--space-3, 1rem);
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.order__facts dt {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.order__payment-note {
+  display: inline-block;
+  margin-top: 0.2rem;
+  font-size: 0.8125rem;
+  color: #666;
+  line-height: 1.45;
+}

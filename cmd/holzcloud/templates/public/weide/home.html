@@ -1,0 +1,38 @@
+{{define "content"}}
+<article class="page page--home">
+  <header class="hof-hero">
+    <div class="hof-hero__inner">
+      <!-- Beginnt der Text schon mit einer eigenen Überschrift, steht der
+           Titel hier nicht noch einmal — sonst begrüsst die Startseite ihre
+           Besucher zweimal. -->
+      {{if and .Page.Title (not .Page.HasOwnHeading)}}
+      <h1 class="hof-hero__title">{{.Page.Title}}</h1>
+      {{end}}
+      {{if .Site.Description}}<p class="hof-hero__lead">{{.Site.Description}}</p>{{end}}
+    </div>
+  </header>
+
+  <!-- Das erste Bild des Textes ist der Auftakt: liegt es allein in seinem
+       Absatz, zieht das Stylesheet es über die volle Breite. Die Hofbilder
+       sind Querformat, und ein Querformat in einer Textspalte ist eine
+       Briefmarke. -->
+  {{if .Page.ContentHTML}}
+  <div class="prose">
+    {{.Page.ContentHTML}}
+  </div>
+  {{else}}
+  <div class="prose">
+    <p>Willkommen auf dem Hof von {{.Site.Name}}. Hier entsteht gerade die Seite —
+       schauen Sie bald wieder vorbei.</p>
+  </div>
+  {{end}}
+
+  {{if .Page.Terms}}
+  <div class="page-terms">
+    <ul class="term-list" aria-label="Schlagwörter">
+      {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+    </ul>
+  </div>
+  {{end}}
+</article>
+{{end}}

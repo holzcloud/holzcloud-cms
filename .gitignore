@@ -1,0 +1,63 @@
+/vendor/
+/node_modules/
+/.env
+/.env.*.local
+/.phpunit.result.cache
+/.vite/
+
+# Laravel specific
+/storage/*.key
+/storage/debugbar/
+/storage/framework/views/
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/testing/
+/storage/logs/
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build files
+/build/
+/dist/
+
+# Database
+*.sqlite
+
+# Holzcloud CMS minimal runtime data
+/data/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+# Gebaute Website-Bundles (aus sites/<name>/ mit tools/mkbundle erzeugt)
+/sites/*.zip
+
+# Ein natives Programm, das beim Bauen eines Plugins entsteht, wenn man GOOS
+# vergisst. Es ist kein Plugin — das Modul heisst plugin.wasm — und gehört
+# nicht ins Repository.
+plugins/*/bestellung
+plugins/*/kontaktformular
+plugins/*/jahreszahl
+plugins/*/suche
+plugins/*/nicht-gefunden
+
+# Das gepackte Kontaktformular, 1,3 MB Bauergebnis neben seinem eigenen
+# Quelltext. Vorerst nur dieses eine Archiv: bestellung.zip, jahreszahl.zip,
+# nicht-gefunden.zip und suche.zip bleiben weiterhin im Repository. Die
+# Ungleichheit ist Absicht und kein Versehen — ob die gebauten Archive
+# überhaupt mitgeliefert werden sollen, ist eine noch offene Frage.
+plugins/kontaktformular/kontaktformular.zip
+
+# Artefakte der Browser-Prüfung
+.playwright-mcp/
+
+# Laufzeitzustand der GSD-Werkzeuge, gehoert niemandem sonst
+.gsd/
+.planning/state.json

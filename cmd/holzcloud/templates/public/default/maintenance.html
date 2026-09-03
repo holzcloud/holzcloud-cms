@@ -1,0 +1,11 @@
+{{define "content"}}
+<section class="page page--notice">
+  <div class="notice">
+    <p class="notice__code" aria-hidden="true">⏳</p>
+    <h1 class="notice__title">{{.Page.Title}}</h1>
+    <p class="notice__text">
+      {{if .Meta.Message}}{{.Meta.Message}}{{else}}Wir sind gleich wieder da.{{end}}
+    </p>
+  </div>
+</section>
+{{end}}

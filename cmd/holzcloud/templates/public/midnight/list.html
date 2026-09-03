@@ -1,0 +1,34 @@
+{{define "content"}}
+<section class="archive">
+  {{if .Archive.Term}}<h1>Schlagwort: {{.Archive.Term}}</h1>{{else}}<h1>{{.Page.Title}}</h1>{{end}}
+
+  {{if .Archive.Entries}}
+  <ol class="archive-list">
+    {{range .Archive.Entries}}
+    <li class="archive-entry">
+      <h2 class="archive-entry__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+      {{if .PublishedAt}}
+      <time class="archive-entry__date" datetime="{{formatDateISO .PublishedAt}}">{{formatDate .PublishedAt}}</time>
+      {{end}}
+      {{if .Excerpt}}<p class="archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
+      {{if .Terms}}
+      <ul class="term-list" aria-label="Schlagwörter">
+        {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+      </ul>
+      {{end}}
+    </li>
+    {{end}}
+  </ol>
+
+  {{if gt .Archive.TotalPages 1}}
+  <nav class="archive-pager" aria-label="Seiten des Archivs">
+    {{if .Archive.PrevURL}}<a href="{{.Archive.PrevURL}}" rel="prev">Neuere</a>{{end}}
+    <span class="archive-pager__position">{{.Archive.Page}} / {{.Archive.TotalPages}}</span>
+    {{if .Archive.NextURL}}<a href="{{.Archive.NextURL}}" rel="next">Ältere</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <p class="archive-empty">Hier steht noch nichts.</p>
+  {{end}}
+</section>
+{{end}}

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="{{.Site.Locale}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Page.Title}}{{if .Site.Name}} — {{.Site.Name}}{{end}}</title>
+  {{if .Meta.Description}}<meta name="description" content="{{.Meta.Description}}">{{end}}
+  {{if .Meta.NoIndex}}<meta name="robots" content="noindex, follow">{{end}}
+  {{if .Meta.CanonicalURL}}<link rel="canonical" href="{{.Meta.CanonicalURL}}">{{end}}
+  {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">
+  {{else}}
+  <!-- Ohne diese Zeile fragt der Browser von sich aus /favicon.ico an und
+       bekommt auf jedem Seitenaufruf einen 404 — im Server-Log und in der
+       Konsole des Besuchers. -->
+  <link rel="icon" href="/t/favicon.svg" type="image/svg+xml">{{end}}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{.Page.Title}}">
+  {{if .Meta.Description}}<meta property="og:description" content="{{.Meta.Description}}">{{end}}
+  {{if .Site.Name}}<meta property="og:site_name" content="{{.Site.Name}}">{{end}}
+  {{if .Meta.CanonicalURL}}<meta property="og:url" content="{{.Meta.CanonicalURL}}">{{end}}
+  {{if .Meta.OGImage}}<meta property="og:image" content="{{.Meta.OGImage}}">
+  <meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{end}}
+  {{if .Meta.StructuredData}}
+  <!-- schema.org data. Not executable: a script element of this type is a data
+       block, so it runs nothing and the content policy has nothing to allow. -->
+  <script type="application/ld+json">{{.Meta.StructuredData}}</script>
+  {{end}}
+  <link rel="alternate" type="application/atom+xml" title="{{.Site.Name}}" href="{{if .Site.FeedURL}}{{.Site.FeedURL}}{{else}}/feed.xml{{end}}">
+  {{if .Page.Uebersetzungen}}
+  <!-- Welche Sprachfassungen es von dieser Seite gibt. Nur die, die es
+       wirklich gibt: ein hreflang auf eine Seite, die es nicht gibt, ist für
+       eine Suchmaschine schlimmer als gar keine Angabe. -->
+  {{range .Page.Uebersetzungen}}
+  <link rel="alternate" hreflang="{{.Code}}" href="{{$.Site.URL}}{{.URL}}">
+  {{end}}
+  {{end}}
+  <!-- Die Grundgestaltung der Bausteine. Sie kommt vom Kern, weil er auch
+       deren Auszeichnung schreibt; sie steht vor dem Stylesheet dieser
+       Vorlage, damit die Vorlage sie überschreiben kann. -->
+  <link rel="stylesheet" href="/assets/bausteine.css">
+  <link rel="stylesheet" href="/t/style.css">
+  {{if .Site.Design}}
+  <!-- The website's own tokens, after the stylesheet so they win. Every value
+       has been validated to a shape the CSS can read only one way. -->
+  <style>{{.Site.Design}}</style>
+  {{end}}
+</head>
+<body>
+  <a href="#main" class="skip-link">Zum Inhalt springen</a>
+
+  <!-- The menu toggle is a checkbox, not a script: this template ships none,
+       and a checkbox is the only disclosure that works without one. Above 52rem
+       the checkbox and its button are hidden and the navigation is just a row. -->
+  <input type="checkbox" id="nav-open" class="nav-switch">
+
+  <header class="site-header">
+    <div class="site-header__bar shell-wide">
+      <a href="/" class="site-brand">
+        {{if .Site.LogoURL}}<img class="site-brand__logo" src="{{.Site.LogoURL}}" alt="">{{end}}
+        <span class="site-brand__text">
+          <span class="site-brand__name">{{.Site.Name}}</span>
+          {{if .Site.Description}}<span class="site-brand__tagline">{{.Site.Description}}</span>{{end}}
+        </span>
+      </a>
+
+      {{if .Shop.Enabled}}
+      <a class="cart-badge" href="{{.Cart.URL}}">
+        Warenkorb
+        {{if .Cart.Count}}<span class="cart-badge__count">{{.Cart.Count}}</span>{{end}}
+      </a>
+      {{end}}
+
+      <label for="nav-open" class="nav-button">
+        <span class="nav-button__bars" aria-hidden="true"><span></span><span></span></span>
+        <span class="nav-button__text">Menü</span>
+      </label>
+    </div>
+
+    <nav class="site-nav shell-wide" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
+    {{if .Site.Sprachen}}
+    <nav class="lang-nav shell-wide" aria-label="Sprache">
+      <ul>
+        {{range .Site.Sprachen}}
+        <li>
+          {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Name}}</span>
+          {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}">{{.Name}}</a>{{end}}
+        </li>
+        {{end}}
+      </ul>
+    </nav>
+    {{end}}
+  </header>
+
+  <main id="main" tabindex="-1">
+    {{template "content" .}}
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="site-footer__inner shell-wide">
+      <div class="site-footer__brand">
+        <p class="site-footer__name">{{.Site.Name}}</p>
+        {{if .Site.Description}}<p class="site-footer__tagline">{{.Site.Description}}</p>{{end}}
+      </div>
+
+      <div class="site-footer__links">
+        <h2 class="site-footer__heading">Seiten</h2>
+        <nav class="footer-nav" aria-label="Rechtliches">{{menuFor .Menus "footer" .Page.Slug}}</nav>
+      </div>
+
+      {{if .Site.Terms}}
+      <div class="site-footer__terms">
+        <h2 class="site-footer__heading">Themen</h2>
+        <ul class="term-list">
+          {{range .Site.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+        </ul>
+      </div>
+      {{end}}
+    </div>
+
+    <p class="site-footer__legal">&copy; {{.Site.Name}}</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,131 @@
+{{define "content"}}
+{{template "shop_settings-content" .}}
+{{end}}
+
+{{define "shop_settings-content"}}
+<form method="POST" class="card" style="max-width:720px">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+    <div class="form-group">
+        <label class="form-label" for="shop_base">Adresse des Shops</label>
+        <input type="text" id="shop_base" name="shop_base" class="form-input"
+               value="{{.Values.ShopBase}}" placeholder="shop">
+        <p class="form-hint">
+            Ein Pfadabschnitt ohne Schrägstrich. <code>shop</code> macht den Katalog
+            unter <code>/shop</code> erreichbar, Produkte unter <code>/shop/artikel</code>.
+            <strong>Leer schaltet den Shop aus.</strong>
+        </p>
+        {{with .Errors.shop_base}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="currency">Währung</label>
+        <select id="currency" name="currency" class="form-input form-select">
+            <option value="CHF" {{if eq .Values.Currency "CHF"}}selected{{end}}>Schweizer Franken (CHF 1’234.55)</option>
+            <option value="EUR" {{if eq .Values.Currency "EUR"}}selected{{end}}>Euro (1.234,55 €)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="price_display">Preisanzeige</label>
+        <select id="price_display" name="price_display" class="form-input form-select">
+            <option value="private" {{if eq .Values.PriceDisplay "private"}}selected{{end}}>Endkunden — Bruttopreise inkl. MWST</option>
+            <option value="business" {{if eq .Values.PriceDisplay "business"}}selected{{end}}>Gewerbe — Nettopreise zzgl. MWST</option>
+            <option value="both" {{if eq .Values.PriceDisplay "both"}}selected{{end}}>Beides — der Besucher schaltet um</option>
+        </select>
+        <p class="form-hint">
+            Bei „Endkunden“ wird kein Umschalter gezeigt: Der einem Konsumenten
+            genannte Preis ist der von der Preisbekanntgabeverordnung geregelte
+            und muss der tatsächlich zu zahlende Betrag sein.
+        </p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="shipping_gross">Versandkosten (brutto)</label>
+        <input type="text" id="shipping_gross" name="shipping_gross" class="form-input"
+               value="{{.Values.ShippingGross}}" inputmode="decimal">
+        {{with .Errors.shipping}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="shipping_free_from">Versandkostenfrei ab</label>
+        <input type="text" id="shipping_free_from" name="shipping_free_from" class="form-input"
+               value="{{.Values.ShippingFreeAt}}" inputmode="decimal" placeholder="leer = nie">
+        <p class="form-hint">
+            Leer lassen, wenn es keine Grenze gibt. Eine <strong>0</strong> hiesse
+            „immer versandkostenfrei“.
+        </p>
+        {{with .Errors.free_from}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="shipping_tax_bp">Steuersatz auf den Versand</label>
+        <select id="shipping_tax_bp" name="shipping_tax_bp" class="form-input form-select">
+            {{range .Rates}}
+            <option value="{{.Value}}" {{if eq .Value $.Values.ShippingTaxBP}}selected{{end}}>{{.Label}}</option>
+            {{end}}
+        </select>
+        {{with .Errors.shipping_tax}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">
+            <input type="checkbox" name="vat_exempt" value="1" {{if .Values.VATExempt}}checked{{end}}>
+            Nicht mehrwertsteuerpflichtig
+        </label>
+        <p class="form-hint">
+            Unter CHF 100'000 Jahresumsatz besteht keine MWST-Pflicht. Dann wird
+            nirgends ein Steuersatz gezeigt und auf der Rechnung steht der Grund.
+            Die Sätze an den Produkten bleiben erhalten — beim Überschreiten der
+            Schwelle genügt es, diesen Haken zu entfernen.
+        </p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="vat_number">UID / MWST-Nummer</label>
+        <input type="text" id="vat_number" name="vat_number" class="form-input"
+               value="{{.Values.VATNumber}}" placeholder="CHE-123.456.789 MWST">
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="return_policy">Rückgaberecht</label>
+        <textarea id="return_policy" name="return_policy" class="form-input" rows="3"
+                  placeholder="Zum Beispiel: Rückgabe innert 14 Tagen, ungebraucht und in der Originalverpackung.">{{.Values.ReturnPolicy}}</textarea>
+        <p class="form-hint">
+            In der Schweiz gibt es <strong>kein gesetzliches Widerrufsrecht</strong>
+            für Online-Bestellungen — OR Art. 40a gilt für Haustür- und
+            Telefongeschäfte. Was hier steht, ist eine freiwillige Zusage und
+            erscheint in der Bestellbestätigung. Leer heisst: keine Zusage.
+        </p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="order_email">Bestellungen melden an</label>
+        <input type="email" id="order_email" name="order_email" class="form-input"
+               value="{{.Values.OrderEmail}}" placeholder="bestellungen@ihre-domain.ch">
+        {{with .Errors.order_email}}<p class="form-error">{{.}}</p>{{end}}
+        <p class="form-hint">
+            Hierhin geht eine Meldung, sobald eine Bestellung eingeht — und
+            hierhin antwortet die Kundin, wenn sie auf die Bestätigung antwortet.
+            Leer heisst: es geht keine Meldung raus, Bestellungen sehen Sie dann
+            nur hier im Admin. Der Versand selbst wird in der Umgebung
+            eingerichtet (HOLZCLOUD_SMTP_…); ohne den geht auch mit Adresse
+            nichts raus.
+        </p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="payment_details">Zahlungsangaben für Vorauskasse</label>
+        <textarea id="payment_details" name="payment_details" class="form-input" rows="4"
+                  placeholder="Holzbau Schmidt AG&#10;CH93 0076 2011 6238 5295 7&#10;Zürcher Kantonalbank">{{.Values.PaymentDetails}}</textarea>
+        <p class="form-hint">
+            Kontoinhaber und IBAN, wie sie in der Bestellbestätigung stehen
+            sollen. Bei Vorauskasse ist diese E-Mail der einzige Ort, an dem die
+            Kundin je erfährt, wohin sie überweisen soll — bleibt das Feld leer,
+            schreibt die Bestätigung stattdessen, dass Sie sich melden werden.
+        </p>
+    </div>
+
+    <button type="submit" class="btn btn--primary" hx-disabled-elt="this">Speichern</button>
+</form>
+{{end}}

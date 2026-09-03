@@ -1,0 +1,22 @@
+[Unit]
+Description=Holzcloud CMS backup
+Documentation=file:///opt/holzcloud/deploy/DEPLOY.md
+After=holzcloud.service
+
+[Service]
+Type=oneshot
+User=holzcloud
+Group=holzcloud
+ExecStart=/opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups
+Environment=DATA_DIR=/opt/holzcloud/data
+Environment=HOLZCLOUD_BIN=/opt/holzcloud/holzcloud
+Environment=RETENTION_DAYS=30
+# Uncomment to copy off the box — a backup on the same disk does not survive
+# the disk failure it exists for.
+# Environment=REMOTE_TARGET=user@nas:/backups/holzcloud
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/holzcloud/data /opt/holzcloud/backups
+PrivateTmp=true

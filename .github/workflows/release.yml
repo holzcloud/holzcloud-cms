@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+# Least privilege by default: the write scope is granted on the one job that
+# publishes, not to the whole file.
+permissions:
+  contents: read
+
+env:
+  # Pure-Go SQLite driver: the binary must build without a C toolchain.
+  CGO_ENABLED: "0"
+
+jobs:
+  release:
+    name: Build and publish the release binary
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # git describe needs history. Leave this out and the version baked into
+        # the binary silently degrades to a bare commit hash again, which is the
+        # exact defect the v1.4 tag was created to fix.
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    # A tag on broken code must not become a published release.
+    - name: Test
+      run: go test ./...
+
+    - name: Build linux/amd64
+      env:
+        GOOS: linux
+        GOARCH: amd64
+      run: |
+        go build -trimpath \
+          -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" \
+          -o holzcloud-linux-amd64 ./cmd/holzcloud
+        sha256sum holzcloud-linux-amd64 > holzcloud-linux-amd64.sha256
+        cat holzcloud-linux-amd64.sha256
+
+    # The runner's preinstalled gh CLI, not a third-party release action: one
+    # less unpinned stranger in the publishing path.
+    - name: Publish the release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "${GITHUB_REF_NAME}" \
+          --title "${GITHUB_REF_NAME}" \
+          --generate-notes \
+          holzcloud-linux-amd64 \
+          holzcloud-linux-amd64.sha256

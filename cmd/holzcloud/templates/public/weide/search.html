@@ -1,0 +1,38 @@
+{{define "content"}}
+<section class="page page--search">
+  <header class="page-header">
+    <h1 class="page-header__title">{{.Page.Title}}</h1>
+  </header>
+
+  <div class="search-panel">
+    <!-- GET auf /suche mit dem Feld q, und kein CSRF-Feld: der öffentliche
+         Teil hat keine solche Prüfung, und ein Suchergebnis muss eine Adresse
+         haben, die man weitergeben kann. -->
+    <form method="GET" action="/suche" class="search-form" role="search">
+      <label class="sr-only" for="q">Suchbegriff</label>
+      <input type="search" id="q" name="q" value="{{.Search.Query}}"
+             placeholder="Wonach suchen Sie?" autofocus>
+      <button type="submit" class="button">Suchen</button>
+    </form>
+
+    <!-- Drei Fälle, und der dritte ist der wichtige: "nichts gefunden" und
+         "noch nichts eingegeben" sehen gleich leer aus, sagen aber Verschiedenes. -->
+    {{if .Search.Results}}
+    <p class="search-count">{{len .Search.Results}} Treffer für «{{.Search.Query}}»</p>
+    <ol class="search-results">
+      {{range .Search.Results}}
+      <li class="search-result">
+        <a href="{{.URL}}" class="search-result__title">{{.Title}}</a>
+        <p class="search-result__snippet">{{.Snippet}}</p>
+      </li>
+      {{end}}
+    </ol>
+    {{else if .Search.Submitted}}
+    <p class="search-empty">Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.
+       Versuchen Sie es mit einem einzelnen Wort.</p>
+    {{else}}
+    <p class="search-empty">Geben Sie oben ein, wonach Sie suchen.</p>
+    {{end}}
+  </div>
+</section>
+{{end}}

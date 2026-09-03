@@ -1,0 +1,26 @@
+{{define "content"}}
+<div class="card">
+    {{if .Fresh}}
+    <h1>{{t "Bestätigung in zwei Schritten ist an"}}</h1>
+    {{else}}
+    <h1>{{t "Neue Wiederherstellungscodes"}}</h1>
+    <p class="callout callout--warning">{{t "Die alten Codes gelten ab jetzt nicht mehr."}}</p>
+    {{end}}
+
+    <p class="callout callout--warning">
+        {{th "Diese Codes werden <strong>nur dieses eine Mal</strong> angezeigt. Danach stehen sie nirgends mehr – auch nicht in der Datenbank, dort liegen nur ihre Prüfsummen. Drucke sie aus oder schreibe sie ab, bevor du weitergehst."}}
+    </p>
+
+    <ul class="recovery-codes">
+        {{range .Codes}}<li><code>{{.}}</code></li>{{end}}
+    </ul>
+
+    <p class="text-muted">
+        {{th "Jeder Code funktioniert genau einmal. Wenn keiner mehr übrig ist und das Gerät verloren geht, hilft nur noch <code>holzcloud user 2fa disable -email …</code> auf dem Server."}}
+    </p>
+
+    <div class="form-actions">
+        <a href="/admin/konto" class="btn btn-primary">{{t "Ich habe sie notiert"}}</a>
+    </div>
+</div>
+{{end}}

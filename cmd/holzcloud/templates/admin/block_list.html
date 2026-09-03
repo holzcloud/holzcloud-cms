@@ -1,0 +1,280 @@
+{{/*
+  Der Baustein-Editor. Erwartet eine PageFormData.
+
+  Jede Änderung an der Gliederung — hinzufügen, verschieben, löschen — ist ein
+  gewöhnlicher Absende-Knopf mit einer Aktion. Mit htmx wird nur diese Liste
+  ersetzt, ohne htmx lädt der Browser das ganze Formular neu und landet an
+  derselben Stelle. Einen dritten Weg, auf dem der Editor heimlich ein Skript
+  braucht, gibt es nicht.
+
+  Feldnamen und Kennungen kommen fertig aus Go. Im Template zusammengesetzt
+  wären sie Zeichenkettenarithmetik, die erst im Browser auffällt, wenn jemand
+  ein Feld umbenennt.
+*/}}
+{{define "block_list"}}
+<div id="bausteine" class="blocks">
+    <!-- Die Marke sagt: diese Seite besteht aus Bausteinen. Ohne sie fiele eine
+         Seite, deren letzter Baustein gerade gelöscht wurde, stillschweigend in
+         den Markdown-Editor zurück. -->
+    <input type="hidden" name="bausteine" value="1">
+
+    {{if not .BlockViews}}
+    <p class="empty">
+        {{th "Noch kein Baustein. Wähle unten einen aus – <strong>Text</strong> ist der gewohnte Markdown-Abschnitt."}}
+    </p>
+    {{end}}
+
+    {{range .BlockViews}}
+    <fieldset class="block-edit block-edit--{{.Block.Type}}">
+        <legend class="block-edit__legend">{{.Number}}. {{t .Kind.Name}}</legend>
+        <input type="hidden" name="{{.Prefix}}.typ" value="{{.Block.Type}}">
+
+        {{if .IsType "text"}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-markdown">{{t "Text (Markdown)"}}</label>
+            <textarea id="{{.ID}}-markdown" name="{{.Prefix}}.markdown" rows="10"
+                      class="form-input form-textarea">{{.Block.Markdown}}</textarea>
+        </div>
+
+        {{else if .IsType "bild"}}
+        {{template "block_bild" .Image}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-variante">{{t "Breite"}}</label>
+            <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
+                <option value=""{{if eq .Block.Variant ""}} selected{{end}}>{{t "Wie der Text"}}</option>
+                <option value="breit"{{if eq .Block.Variant "breit"}} selected{{end}}>{{t "Breiter als der Text"}}</option>
+                <option value="voll"{{if eq .Block.Variant "voll"}} selected{{end}}>{{t "Über die volle Breite"}}</option>
+            </select>
+        </div>
+
+        {{else if .IsType "video"}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-medium">{{t "Video"}}</label>
+            <select id="{{.ID}}-medium" name="{{.Prefix}}.medium" class="form-input form-select">
+                <option value="0">{{t "– kein Video –"}}</option>
+                {{$film := .Block.MediaID}}
+                {{range .Videos}}<option value="{{.ID}}"{{if eq .ID $film}} selected{{end}}>{{.OriginalName}}</option>{{end}}
+            </select>
+            {{if not .Videos}}
+            <p class="form-hint text-muted">{{t "In dieser Mediathek liegt noch kein Video. MP4 hochladen, dann steht es hier."}}</p>
+            {{end}}
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-vorschaubild">{{t "Vorschaubild"}}</label>
+            <select id="{{.ID}}-vorschaubild" name="{{.Prefix}}.vorschaubild" class="form-input form-select">
+                <option value="0">{{t "– keines –"}}</option>
+                {{$poster := .Block.PosterID}}
+                {{range .Image.Media}}<option value="{{.ID}}"{{if eq .ID $poster}} selected{{end}}>{{.OriginalName}}</option>{{end}}
+            </select>
+            <p class="form-hint text-muted">{{t "Steht still da, bis jemand auf Abspielen drückt. Ohne Vorschaubild zeigen die meisten Browser ein schwarzes Rechteck."}}</p>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-bildunterschrift">{{t "Bildunterschrift"}}</label>
+            <input type="text" id="{{.ID}}-bildunterschrift" name="{{.Prefix}}.bildunterschrift"
+                   class="form-input" value="{{.Block.Caption}}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-variante">{{t "Breite"}}</label>
+            <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
+                <option value=""{{if eq .Block.Variant ""}} selected{{end}}>{{t "Wie der Text"}}</option>
+                <option value="breit"{{if eq .Block.Variant "breit"}} selected{{end}}>{{t "Breiter als der Text"}}</option>
+                <option value="voll"{{if eq .Block.Variant "voll"}} selected{{end}}>{{t "Über die volle Breite"}}</option>
+            </select>
+        </div>
+
+        {{else if .IsType "bildtext"}}
+        {{template "block_bild" .Image}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-markdown">{{t "Text daneben (Markdown)"}}</label>
+            <textarea id="{{.ID}}-markdown" name="{{.Prefix}}.markdown" rows="6"
+                      class="form-input form-textarea">{{.Block.Markdown}}</textarea>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-variante">{{t "Bild steht"}}</label>
+            <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
+                <option value=""{{if ne .Block.Variant "rechts"}} selected{{end}}>{{t "links"}}</option>
+                <option value="rechts"{{if eq .Block.Variant "rechts"}} selected{{end}}>{{t "rechts"}}</option>
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Auf einem schmalen Bildschirm steht das Bild immer über dem Text."}}
+            </p>
+        </div>
+
+        {{else if .IsType "zitat"}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-text">{{t "Zitat"}}</label>
+            <textarea id="{{.ID}}-text" name="{{.Prefix}}.text" rows="3"
+                      class="form-input form-textarea">{{.Block.Text}}</textarea>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-quelle">{{t "Wer hat das gesagt"}}</label>
+            <input type="text" id="{{.ID}}-quelle" name="{{.Prefix}}.quelle" class="form-input"
+                   value="{{.Block.Source}}" placeholder="{{t "Eine Kundin aus Solothurn"}}">
+        </div>
+
+        {{else if .IsType "aufruf"}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-titel">{{t "Überschrift"}}</label>
+            <input type="text" id="{{.ID}}-titel" name="{{.Prefix}}.titel" class="form-input"
+                   value="{{.Block.Title}}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-markdown">{{t "Text"}}</label>
+            <textarea id="{{.ID}}-markdown" name="{{.Prefix}}.markdown" rows="4"
+                      class="form-input form-textarea">{{.Block.Markdown}}</textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="{{.ID}}-linktext">{{t "Aufschrift des Knopfs"}}</label>
+                <input type="text" id="{{.ID}}-linktext" name="{{.Prefix}}.linktext" class="form-input"
+                       value="{{.Block.LinkText}}" placeholder="{{t "Wolle anfragen"}}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{.ID}}-linkziel">{{t "Ziel"}}</label>
+                <input type="text" id="{{.ID}}-linkziel" name="{{.Prefix}}.linkziel" class="form-input"
+                       value="{{.Block.LinkURL}}" placeholder="{{t "/kontakt"}}">
+                <p class="form-hint text-muted">
+                    {{th "Eine Adresse dieser Website wie <code>/kontakt</code>, eine vollständige Adresse mit <code>https://</code> oder <code>mailto:</code>."}}
+                </p>
+            </div>
+        </div>
+
+        {{else if .IsType "trenner"}}
+        <p class="text-muted">{{t "Ein Strich zwischen zwei Abschnitten. Sonst nichts einzustellen."}}</p>
+        {{end}}
+
+        {{/* Eine Bausteinart dieser Website. Ihre Felder sind dieselben
+             Eingaben wie die der Seite — dieselbe Vorlage, dieselbe
+             Bildauswahl, dieselben Prüfungen. Genau deswegen wohnen sie im
+             Feldsystem und nicht in einem eigenen. */}}
+        {{if .Fields}}
+        {{if .Kind.Hint}}<p class="form-hint text-muted">{{.Kind.Hint}}</p>{{end}}
+        {{range .Fields}}{{template "field_input" .}}{{end}}
+        {{end}}
+
+        {{if .HasItems}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-variante">{{t "Spalten"}}</label>
+            <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
+                <option value="2"{{if eq .Block.Variant "2"}} selected{{end}}>2</option>
+                <option value=""{{if or (eq .Block.Variant "") (eq .Block.Variant "3")}} selected{{end}}>3</option>
+                <option value="4"{{if eq .Block.Variant "4"}} selected{{end}}>4</option>
+            </select>
+            <p class="form-hint text-muted">{{t "Auf schmalen Bildschirmen stehen sie untereinander."}}</p>
+        </div>
+
+        <div class="block-items">
+            {{$blockType := .Block.Type}}
+            {{$action := $.BlockAction}}
+            {{range .Items}}
+            <fieldset class="block-item">
+                <legend class="block-item__legend">{{.Number}}.</legend>
+
+                {{if eq $blockType "karten"}}
+                <div class="form-group">
+                    <label class="form-label" for="{{.ID}}-titel">{{t "Titel"}}</label>
+                    <input type="text" id="{{.ID}}-titel" name="{{.Prefix}}.titel"
+                           class="form-input" value="{{.Item.Title}}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="{{.ID}}-markdown">{{t "Text"}}</label>
+                    <textarea id="{{.ID}}-markdown" name="{{.Prefix}}.markdown" rows="3"
+                              class="form-input form-textarea">{{.Item.Markdown}}</textarea>
+                </div>
+                {{end}}
+
+                {{template "block_bild" .Image}}
+
+                {{if eq $blockType "karten"}}
+                <div class="form-group">
+                    <label class="form-label" for="{{.ID}}-linkziel">{{t "Verlinkt auf"}}</label>
+                    <input type="text" id="{{.ID}}-linkziel" name="{{.Prefix}}.linkziel"
+                           class="form-input" value="{{.Item.LinkURL}}" placeholder="{{t "/wolle"}}">
+                    <p class="form-hint text-muted">{{t "Leer lassen für eine Karte ohne Link."}}</p>
+                </div>
+                {{end}}
+
+                <button type="submit" class="btn btn--sm btn--danger"
+                        name="bausteinaktion" value="{{.Remove}}"
+                        hx-post="{{$action}}" hx-target="#bausteine" hx-swap="outerHTML"
+                        hx-disabled-elt="this">{{t "Eintrag entfernen"}}</button>
+            </fieldset>
+            {{end}}
+        </div>
+
+        <button type="submit" class="btn btn--sm" name="bausteinaktion" value="{{.AddItem}}"
+                hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
+                hx-disabled-elt="this">{{t "Eintrag hinzufügen"}}</button>
+        {{end}}
+
+        <footer class="block-edit__actions">
+            <button type="submit" class="btn btn--sm" name="bausteinaktion" value="{{.Up}}"
+                    hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
+                    hx-disabled-elt="this" {{if .First}}disabled{{end}}>
+                <span aria-hidden="true">↑</span> {{t "nach oben"}}
+            </button>
+            <button type="submit" class="btn btn--sm" name="bausteinaktion" value="{{.Down}}"
+                    hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
+                    hx-disabled-elt="this" {{if .Last}}disabled{{end}}>
+                <span aria-hidden="true">↓</span> {{t "nach unten"}}
+            </button>
+            <button type="submit" class="btn btn--sm btn--danger" name="bausteinaktion" value="{{.Remove}}"
+                    hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
+                    hx-confirm="{{t "Diesen Baustein entfernen?"}}" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+        </footer>
+    </fieldset>
+    {{end}}
+
+    <div class="block-add">
+        <span class="block-add__label">{{t "Baustein hinzufügen:"}}</span>
+        {{range .Values.BlockKinds}}
+        <button type="submit" class="btn btn--sm" name="bausteinaktion" value="neu:{{.Type}}"
+                title="{{t .Hint}}"
+                hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
+                hx-disabled-elt="this">{{t .Name}}</button>
+        {{end}}
+    </div>
+
+    {{if .Values.CanReturnToMarkdown}}
+    <p class="block-switch">
+        <!-- Ohne htmx: der Wechsel tauscht das ganze Formular aus, nicht nur
+             diese Liste. Ein Teiltausch würde Titel und Adresse mitreissen. -->
+        <button type="submit" class="btn btn--sm" name="editorwechsel" value="zu-markdown">
+            {{t "Zurück zum einfachen Editor"}}
+        </button>
+    </p>
+    {{end}}
+</div>
+{{end}}
+
+{{/* Die Bildauswahl, für Bausteine und für Einträge darin. Erwartet eine
+     ImageFieldView. */}}
+{{define "block_bild"}}
+<div class="form-row block-bild">
+    <div class="form-group">
+        <label class="form-label" for="{{.ID}}-medium">{{t "Bild"}}</label>
+        <select id="{{.ID}}-medium" name="{{.Prefix}}.medium" class="form-input form-select">
+            <option value="">{{t "– keins –"}}</option>
+            {{$chosen := .MediaID}}
+            {{range .Media}}
+            <option value="{{.ID}}"{{if eq .ID $chosen}} selected{{end}}>{{.OriginalName}}</option>
+            {{end}}
+        </select>
+        <p class="form-hint text-muted">
+            {{t "Aus der"}} <a href="/admin/websites/{{.WebsiteID}}/media">{{t "Mediathek"}}</a>.
+        </p>
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{.ID}}-alt">{{t "Bildbeschreibung"}}</label>
+        <input type="text" id="{{.ID}}-alt" name="{{.Prefix}}.alt" class="form-input"
+               value="{{.Alt}}" placeholder="{{t "Wird sonst aus der Mediathek genommen"}}">
+        <p class="form-hint text-muted">{{t "Für alle, die das Bild nicht sehen können."}}</p>
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{.ID}}-bildunterschrift">{{t "Bildunterschrift"}}</label>
+        <input type="text" id="{{.ID}}-bildunterschrift" name="{{.Prefix}}.bildunterschrift"
+               class="form-input" value="{{.Caption}}">
+        <p class="form-hint text-muted">{{t "Steht sichtbar unter dem Bild. Darf leer bleiben."}}</p>
+    </div>
+</div>
+{{end}}

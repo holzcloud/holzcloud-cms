@@ -1,0 +1,65 @@
+{{define "content"}}
+<section class="archive">
+  <header class="page-header">
+    <!-- Dieselbe Datei trägt zwei Archive. Steht ein Schlagwort an, ist es der
+         Grund, warum genau diese Einträge hier stehen — dann muss es auch
+         dastehen, sonst rät der Besucher. -->
+    {{if .Archive.Term}}
+    <p class="page-header__kicker">Schlagwort</p>
+    <h1 class="page-header__title">{{.Archive.Term}}</h1>
+    {{else}}
+    <h1 class="page-header__title">{{.Page.Title}}</h1>
+    {{end}}
+    {{if .Archive.Total}}
+    <p class="page-header__meta">{{.Archive.Total}} Beiträge</p>
+    {{end}}
+  </header>
+
+  {{if .Archive.Entries}}
+  <ol class="archive-list card-grid">
+    {{range .Archive.Entries}}
+    <li class="archive-entry">
+      <article class="card">
+        {{if .ImageURL}}
+        <!-- Das Bild führt an dieselbe Stelle wie die Überschrift. Für die
+             Tastatur und den Screenreader wäre das ein zweiter, gleich
+             lautender Halt — darum hier ohne Namen und ohne Fokus. -->
+        <a class="card__media" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+          <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+        </a>
+        {{end}}
+        <div class="card__body">
+          {{if .PublishedAt}}
+          <time class="card__date" datetime="{{formatDateISO .PublishedAt}}">{{formatDate .PublishedAt}}</time>
+          {{end}}
+          <h2 class="card__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+          {{if .Excerpt}}<p class="card__excerpt">{{.Excerpt}}</p>{{end}}
+          {{if .Terms}}
+          <ul class="term-list" aria-label="Schlagwörter">
+            {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+          </ul>
+          {{end}}
+        </div>
+      </article>
+    </li>
+    {{end}}
+  </ol>
+
+  <!-- Die Adressen stehen fertig in den Daten. Selbst gebaute Links verlieren
+       das Schlagwort und führen im Schlagwortarchiv ins Leere. -->
+  {{if gt .Archive.TotalPages 1}}
+  <nav class="archive-pager" aria-label="Seiten des Archivs">
+    {{if .Archive.PrevURL}}<a class="button button--quiet" href="{{.Archive.PrevURL}}" rel="prev">Neuere Beiträge</a>{{end}}
+    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
+    {{if .Archive.NextURL}}<a class="button button--quiet" href="{{.Archive.NextURL}}" rel="next">Ältere Beiträge</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <div class="prose"><p class="archive-empty">Hier steht noch nichts.</p></div>
+  {{end}}
+
+  {{if and .Archive.Term .Page.ArchiveURL}}
+  <p class="archive-back"><a href="{{.Page.ArchiveURL}}">Alle Beiträge ansehen</a></p>
+  {{end}}
+</section>
+{{end}}

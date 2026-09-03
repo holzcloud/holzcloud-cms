@@ -1,0 +1,27 @@
+{
+  "id": "kontaktformular",
+  "abi": 1,
+  "name": "Kontaktformular",
+  "version": "1.3.0",
+  "description": "Setzt dort ein Formular in die Seite, wo [[formular]] steht, nimmt die Nachrichten entgegen und sammelt sie in der Verwaltung. Eigene Formulare mit eigenen Feldern lassen sich zusammenstellen und mit [[formular:kennung]] platzieren. Ist eine Benachrichtigungsadresse hinterlegt, geht zu jeder Anfrage eine E-Mail hinaus. Gegen Spam: Honigtopf, signierte Zeitmarke und eine Stundengrenze. Die eingegangenen Nachrichten lassen sich als Tabelle herunterladen.",
+  "author": "Holzcloud",
+  "license": "MIT",
+  "hooks": [
+    "content",
+    "route",
+    "admin"
+  ],
+  "routes": [
+    "/formular"
+  ],
+  "permissions": [
+    "store",
+    "settings",
+    "notify",
+    "log"
+  ],
+  "admin": {
+    "label": "Formulare & Nachrichten",
+    "per_website": true
+  }
+}

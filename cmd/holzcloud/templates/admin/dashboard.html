@@ -1,0 +1,72 @@
+{{define "content"}}
+{{template "dashboard-content" .}}
+{{end}}
+
+{{define "dashboard-content"}}
+<div class="dashboard-stats">
+    <div class="stat-card">
+        <div class="stat-card__value">{{.WebsiteCount}}</div>
+        <div class="stat-card__label">{{t "Websites"}}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card__value">{{.PageCount}}</div>
+        <div class="stat-card__label">{{t "Seiten"}}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card__value">{{.MediaCount}}</div>
+        <div class="stat-card__label">{{t "Mediendateien"}}</div>
+    </div>
+</div>
+
+{{if .Websites}}
+<div class="dashboard-section">
+    <h2>{{t "Deine Websites"}}</h2>
+    <div class="dashboard-websites">
+        {{range .Websites}}
+        <div class="website-card">
+            <a href="/admin/websites/{{.ID}}/pages" class="website-card__name">{{.Name}}</a>
+            <div class="website-card__stats">{{tf "%d Seiten, %d Medien" .PageCount .MediaCount}}{{if .TemplateName}} · {{.TemplateName}}{{end}}</div>
+            {{if .OpenChecks}}
+            <p class="website-card__todo">
+                <a href="/admin/websites/{{.ID}}">{{if eq .OpenChecks 1}}{{t "Ein Punkt vor dem Start offen"}}{{else}}{{tf "%d Punkte vor dem Start offen" .OpenChecks}}{{end}}</a>
+            </p>
+            {{end}}
+            <div class="website-card__links">
+                <a href="/admin/websites/{{.ID}}/pages" class="btn btn--sm">{{t "Seiten"}}</a>
+                <a href="/admin/websites/{{.ID}}/menus" class="btn btn--sm">{{t "Menüs"}}</a>
+                <a href="/admin/websites/{{.ID}}/media" class="btn btn--sm">{{t "Medien"}}</a>
+                <a href="/admin/websites/{{.ID}}/design" class="btn btn--sm">{{t "Design"}}</a>
+                <a href="/admin/websites/{{.ID}}" class="btn btn--sm">{{t "Einstellungen"}}</a>
+            </div>
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}
+
+{{if .RecentPages}}
+<div class="dashboard-section">
+    <h2>{{t "Zuletzt bearbeitet"}}</h2>
+    <div class="card">
+        <div class="activity-list">
+            {{range .RecentPages}}
+            <div class="activity-item">
+                <div>
+                    <a href="/admin/websites/{{.WebsiteID}}/pages/{{.ID}}/edit" class="activity-item__title">{{.Title}}</a>
+                    <span class="activity-item__meta"> in {{.WebsiteName}}</span>
+                </div>
+                <span class="activity-item__meta">{{.UpdatedAt.Format "02.01.2006 15:04"}}</span>
+            </div>
+            {{end}}
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{if not .Websites}}
+<div class="card">
+    <h2>{{t "Willkommen bei Holzcloud"}}</h2>
+    <p class="text-muted">{{t "Leg zum Start"}} <a href="/admin/websites/new">{{t "deine erste Website"}}</a> {{t "an."}}</p>
+</div>
+{{end}}
+{{end}}

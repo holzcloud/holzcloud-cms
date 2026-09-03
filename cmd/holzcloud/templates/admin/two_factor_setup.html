@@ -1,0 +1,41 @@
+{{define "content"}}
+<div class="card">
+    <h1>{{t "Bestätigung in zwei Schritten einrichten"}}</h1>
+
+    {{if .Required}}
+    <p class="callout callout--warning">
+        {{t "Für Administratoren ist dieser Schritt Pflicht. Ohne ihn genügt ein erratenes Passwort, um die ganze Installation zu übernehmen."}}
+    </p>
+    {{end}}
+
+    {{if .Error}}<p class="form-error">{{t .Error}}</p>{{end}}
+
+    <ol class="setup-steps">
+        <li>
+            <p>{{t "Öffne eine Authenticator-App und scanne diesen Code."}}</p>
+            <div class="qr-code">{{.QR}}</div>
+        </li>
+        <li>
+            <p>{{t "Geht die Kamera nicht? Trage stattdessen diesen Schlüssel von Hand ein:"}}</p>
+            <p><code class="totp-secret">{{.SecretGrouped}}</code></p>
+        </li>
+        <li>
+            <p>{{t "Gib zum Schluss den Code ein, den die App jetzt anzeigt."}}</p>
+            <form method="POST" action="/admin/2fa/einrichten">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+                <div class="form-group">
+                    <label class="form-label" for="code">{{t "Code aus der App"}}</label>
+                    <input type="text" id="code" name="code" class="form-input" required autofocus
+                           inputmode="numeric" pattern="[0-9 ]*" maxlength="8"
+                           autocomplete="one-time-code" spellcheck="false">
+                </div>
+                <button type="submit" class="btn btn-primary" hx-disabled-elt="this">{{t "Einschalten"}}</button>
+            </form>
+        </li>
+    </ol>
+
+    <p class="text-muted">
+        {{t "Danach bekommst du Wiederherstellungscodes. Drucke sie aus – ohne sie ist ein verlorenes Handy nur noch über die Kommandozeile des Servers zu lösen."}}
+    </p>
+</div>
+{{end}}

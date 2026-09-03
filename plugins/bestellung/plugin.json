@@ -1,0 +1,28 @@
+{
+  "id": "bestellung",
+  "abi": 1,
+  "name": "Hofladen",
+  "version": "1.0.0",
+  "description": "Ein Bestellformular über die eigenen Produkte. Jede Seite, die ein Preisfeld ausgefüllt hat, ist ein Produkt; [[bestellung]] setzt die Liste mit Mengenfeldern in eine Seite, /bestellung nimmt die Bestellung entgegen, und in der Verwaltung liegen die Bestellungen. Bezahlt wird nicht hier: der Betreiber schreibt eine Rechnung oder die Ware wird abgeholt.",
+  "author": "Holzcloud",
+  "license": "MIT",
+  "hooks": [
+    "content",
+    "route",
+    "admin"
+  ],
+  "routes": [
+    "/bestellung"
+  ],
+  "permissions": [
+    "store",
+    "settings",
+    "pages:read",
+    "notify",
+    "log"
+  ],
+  "admin": {
+    "label": "Bestellungen",
+    "per_website": true
+  }
+}

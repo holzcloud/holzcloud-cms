@@ -1,0 +1,44 @@
+{{/*
+  Media picker fragment, swapped into the <details> panel on the page form.
+  Expects a MediaPickerData.
+*/}}
+{{define "media_picker"}}
+<form method="GET" action="/admin/websites/{{.WebsiteID}}/media/picker" class="list-controls" role="search"
+      hx-get="/admin/websites/{{.WebsiteID}}/media/picker"
+      hx-target="#media-picker-body" hx-swap="innerHTML"
+      hx-trigger="input from:#picker-q changed delay:300ms, submit">
+    <input type="hidden" name="page_id" value="{{.PageID}}">
+    <div class="list-controls__search">
+        <label class="sr-only" for="picker-q">{{t "Medien durchsuchen"}}</label>
+        <input type="search" id="picker-q" name="q" class="form-input" value="{{.Filter.Query}}"
+               placeholder="{{t "Dateiname oder Beschreibung"}}">
+    </div>
+    <button type="submit" class="btn" hx-disabled-elt="this">{{t "Suchen"}}</button>
+</form>
+
+{{if .Media}}
+<div class="media-grid media-grid--picker">
+    {{range .Media}}
+    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/pages/{{$.PageID}}/insert-media" class="media-card">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+        <input type="hidden" name="media_id" value="{{.ID}}">
+        {{if .IsImage}}
+        <img src="{{.ThumbURL}}" alt="{{if .AltText}}{{.AltText}}{{else}}{{.OriginalName}}{{end}}" loading="lazy">
+        {{end}}
+        <span class="media-card__name" title="{{.OriginalName}}">{{.OriginalName}}</span>
+        {{if .NeedsAltText}}<span class="badge badge--draft">{{t "ohne Beschreibung"}}</span>{{end}}
+        <button type="submit" class="btn btn--sm btn--primary" hx-disabled-elt="this">{{t "Ans Ende einfügen"}}</button>
+    </form>
+    {{end}}
+</div>
+{{if .More}}
+<p class="form-hint text-muted">
+    {{t "Es gibt weitere Dateien."}} <a href="/admin/websites/{{.WebsiteID}}/media">{{t "Zur Mediathek"}}</a>
+</p>
+{{end}}
+{{else}}
+<p class="text-muted">
+    {{t "Keine Dateien gefunden."}} <a href="/admin/websites/{{.WebsiteID}}/media">{{t "Zur Mediathek"}}</a>{{t ", um etwas hochzuladen."}}
+</p>
+{{end}}
+{{end}}

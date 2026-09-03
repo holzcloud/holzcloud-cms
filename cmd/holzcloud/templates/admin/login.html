@@ -1,0 +1,52 @@
+{{define "login"}}<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} — {{.Brand.Name}}</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/admin.css">
+    <script src="/assets/htmx.min.js" defer></script>
+</head>
+<body class="login-page" hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>
+    <div class="login-card">
+        <p class="login-mark" aria-hidden="true">H</p>
+        <h1 class="login-title">{{.Brand.Name}}</h1>
+        <p class="login-subtitle">{{t "Bitte anmelden"}}</p>
+        {{if .Flash.Error}}<div class="flash flash--error">{{.Flash.Error}}</div>{{end}}
+        <form method="POST" action="/admin/login">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <div class="form-group">
+                <label for="email" class="form-label">{{t "E-Mail"}}</label>
+                <input type="email" id="email" name="email" class="form-input" required autofocus autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label for="password" class="form-label">{{t "Passwort"}}</label>
+                <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn btn--primary btn--full" hx-disabled-elt="this">{{t "Anmelden"}}</button>
+        </form>
+    </div>
+</body>
+</html>{{end}}
+
+{{define "login-content"}}
+<div class="login-card">
+    <p class="login-mark" aria-hidden="true">H</p>
+    <h1 class="login-title">{{.Brand.Name}}</h1>
+    <p class="login-subtitle">{{t "Bitte anmelden"}}</p>
+    {{if .Flash.Error}}<div class="flash flash--error">{{.Flash.Error}}</div>{{end}}
+    <form method="POST" action="/admin/login">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group">
+            <label for="email" class="form-label">{{t "E-Mail"}}</label>
+            <input type="email" id="email" name="email" class="form-input" required autofocus autocomplete="email">
+        </div>
+        <div class="form-group">
+            <label for="password" class="form-label">{{t "Passwort"}}</label>
+            <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn--primary btn--full" hx-disabled-elt="this">{{t "Anmelden"}}</button>
+    </form>
+</div>
+{{end}}

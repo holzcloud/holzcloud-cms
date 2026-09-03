@@ -1,0 +1,12 @@
+{
+  "id": "nicht-gefunden",
+  "abi": 1,
+  "name": "Nicht gefunden",
+  "version": "1.0.0",
+  "description": "Sammelt die Adressen, die Besucher anfragen und nicht bekommen — und woher sie kamen. Zeigt, welche alte Adresse eine Weiterleitung braucht.",
+  "author": "Holzcloud",
+  "license": "MIT",
+  "hooks": ["event", "admin"],
+  "permissions": ["store", "log"],
+  "admin": {"label": "Nicht gefunden", "per_website": true}
+}

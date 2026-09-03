@@ -1,0 +1,50 @@
+{{define "two_factor_verify"}}<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} — {{.Brand.Name}}</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/admin.css">
+    <script src="/assets/htmx.min.js" defer></script>
+</head>
+<body class="login-page" hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>
+    <div class="login-card">
+        <p class="login-mark" aria-hidden="true">H</p>
+        <h1 class="login-title">{{.Brand.Name}}</h1>
+        <p class="login-subtitle">
+            {{if .Recovery}}{{t "Wiederherstellungscode eingeben"}}{{else}}{{t "Bestätigung in zwei Schritten"}}{{end}}
+        </p>
+        {{if .Flash.Error}}<div class="flash flash--error">{{.Flash.Error}}</div>{{end}}
+
+        <p class="text-muted">
+            {{if .Recovery}}
+            {{t "Jeder Wiederherstellungscode funktioniert genau einmal."}}
+            {{else}}
+            {{t "Gib den sechsstelligen Code aus deiner Authenticator-App ein."}}
+            {{end}}
+        </p>
+
+        <form method="POST" action="/admin/2fa{{if .Recovery}}?wiederherstellung=1{{end}}">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <div class="form-group">
+                <label for="code" class="form-label">{{if .Recovery}}{{t "Wiederherstellungscode"}}{{else}}{{t "Code"}}{{end}}</label>
+                <input type="text" id="code" name="code" class="form-input" required autofocus
+                       autocomplete="one-time-code" spellcheck="false"
+                       {{if not .Recovery}}inputmode="numeric" pattern="[0-9 ]*" maxlength="10"{{end}}>
+            </div>
+            <button type="submit" class="btn btn--primary btn--full" hx-disabled-elt="this">{{t "Weiter"}}</button>
+        </form>
+
+        <p class="text-muted" style="margin-top: var(--space-3);">
+            {{if .Recovery}}
+            <a href="/admin/2fa">{{t "Doch die App benutzen"}}</a>
+            {{else}}
+            {{t "Kein Zugriff auf das Gerät?"}}
+            <a href="/admin/2fa?wiederherstellung=1">{{t "Wiederherstellungscode benutzen"}}</a>
+            {{end}}
+            · <a href="/admin/logout">{{t "Abbrechen"}}</a>
+        </p>
+    </div>
+</body>
+</html>{{end}}

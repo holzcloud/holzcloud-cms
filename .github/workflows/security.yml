@@ -1,0 +1,66 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Run every Sunday at midnight
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  audit:
+    name: Module and race audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    # Confirms every dependency still matches the recorded checksums.
+    - name: Verify module checksums
+      run: go mod verify
+
+    - name: Report available dependency updates
+      run: go list -m -u all
+
+    # The race detector needs cgo, so this job is the one place it is enabled.
+    # The explicit timeout is deliberate, not paranoia: on 2026-08-23 this step
+    # was killed by Go's 10-minute default at
+    # "FAIL github.com/holzcloud/cms/internal/plugin 600.060s". Measured on
+    # 2026-09-03, `go test -race ./internal/plugin/` alone takes 297 s on a
+    # developer machine, and a hosted runner is slower than that. The wazero
+    # plugin host really is that expensive under -race. Lowering this back below
+    # ten minutes restores a value that is already proven to fail.
+    - name: Test with race detector
+      env:
+        CGO_ENABLED: "1"
+      run: go test -race -timeout 30m ./...
+
+    - name: Vet
+      run: go vet ./...
+
+    # This step may fail the job, and that is the point. On 2026-09-03
+    # govulncheck found eight standard library vulnerabilities on paths this
+    # code actually calls — TLS on the listener, html/template, the XML
+    # importer, the outbound payment client — and nothing in this repository
+    # had noticed any of them; they were found by hand. A scan whose failure is
+    # swallowed reports to nobody, so there is deliberately no
+    # continue-on-error here. It runs last so that an upstream advisory cannot
+    # mask a genuine test regression: one run still gives the whole picture. If
+    # it goes red for a dependency rather than the standard library, that is
+    # the step working, and it earns a fix rather than a suppression. The
+    # scanner is a CI tool installed outside the module, so @latest never
+    # touches go.mod or go.sum and nothing about it reaches the shipped binary.
+    - name: Scan for known vulnerabilities
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...

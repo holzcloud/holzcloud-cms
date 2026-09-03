@@ -1,0 +1,24 @@
+<!-- Ein Rückfall-Favicon, damit ein Betrieb, der noch keines hochgeladen hat,
+     nicht bei jedem Seitenaufruf einen 404 auf /favicon.ico erzeugt: den
+     fordert der Browser von sich aus an, sobald die Seite keines nennt.
+
+     Dasselbe Zeichen wie in den übrigen Vorlagen — Jahrringe im Anschnitt —
+     in den Farben dieser hier. currentColor gibt es nicht: ein Favicon wird
+     ausserhalb des Dokuments gezeichnet, es erbt nichts.
+     Kaum abgerundet, wie alles in dieser Vorlage. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="">
+  <style>
+    .paper { fill: #ffffff; }
+    .ink   { fill: none; stroke: #d02b1a; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #141414; }
+      .ink   { stroke: #f0563f; }
+    }
+  </style>
+  <rect class="paper" width="32" height="32" rx="2"/>
+  <g class="ink" stroke-linecap="round">
+    <circle cx="16" cy="16" r="9.5" stroke-width="2.2"/>
+    <circle cx="16" cy="16" r="4.5" stroke-width="2.2"/>
+    <circle cx="16" cy="16" r="1" stroke-width="2"/>
+  </g>
+</svg>

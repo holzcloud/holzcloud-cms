@@ -1,0 +1,70 @@
+{{define "actions"}}
+<a href="/admin/websites/{{.CurrentWebsite.ID}}/produkte/neu" class="btn btn--primary">Neues Produkt</a>
+{{end}}
+
+{{define "content"}}
+{{template "product_list-content" .}}
+{{end}}
+
+{{define "product_list-content"}}
+{{if not .ShopBase}}
+<div class="card">
+    <p class="text-muted">
+        Der Shop ist für diese Website noch nicht eingeschaltet. Trage unter
+        <a href="/admin/websites/{{.CurrentWebsite.ID}}/shop">Shop-Einstellungen</a>
+        eine Adresse ein — zum Beispiel <code>shop</code> —, dann ist der Katalog
+        unter <code>/shop</code> erreichbar.
+    </p>
+</div>
+{{end}}
+
+{{if .Products}}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Titel</th>
+                <th>Preis</th>
+                <th>Lager</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Products}}
+            <tr>
+                <td>
+                    <a href="/admin/websites/{{$.CurrentWebsite.ID}}/produkte/{{.ID}}">{{.Title}}</a>
+                    {{if .Subtitle}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.Subtitle}}</span>{{end}}
+                </td>
+                <td style="white-space:nowrap">{{$.Currency.Format .PriceGross}}</td>
+                <td>
+                    {{/* Ein Zeiger: nil heisst "keine Mengenverwaltung", eine 0
+                         heisst ausverkauft. Der Strich unterscheidet die beiden. */}}
+                    {{if .Stock}}{{.Stock}}{{else}}<span class="text-muted" title="keine Mengenverwaltung">—</span>{{end}}
+                </td>
+                <td>
+                    {{if eq .Status "published"}}<span class="badge badge--primary">veröffentlicht</span>
+                    {{else}}<span class="badge">Entwurf</span>{{end}}
+                </td>
+                <td style="text-align:right;white-space:nowrap">
+                    {{if and (eq .Status "published") $.ShopBase}}
+                    <a href="/{{$.ShopBase}}/{{.Slug}}" class="btn btn--sm">Ansehen</a>
+                    {{end}}
+                    <form method="POST" action="/admin/websites/{{$.CurrentWebsite.ID}}/produkte/{{.ID}}/delete"
+                          style="display:inline" hx-confirm="Dieses Produkt löschen?">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">Löschen</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{else}}
+<div class="card">
+    <p class="text-muted">Noch keine Produkte. Lege das erste an.</p>
+</div>
+{{end}}
+{{end}}

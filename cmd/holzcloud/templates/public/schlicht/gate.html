@@ -1,0 +1,19 @@
+{{define "content"}}
+<section class="gate">
+  <h1>{{.Page.Title}}</h1>
+
+  <p class="gate-lead">Diese Seite ist mit einem Passwort geschützt.</p>
+  {{if .Gate.Hint}}<p class="gate-hint">{{.Gate.Hint}}</p>{{end}}
+  {{if .Gate.Wrong}}<p class="gate-error" role="alert">Das Passwort stimmt nicht.</p>{{end}}
+
+  <form class="gate-form" method="POST" action="/freischalten">
+    <input type="hidden" name="seite" value="{{.Page.Slug}}">
+    <div class="gate-form__field">
+      <label for="gate-password">Passwort</label>
+      <input type="password" id="gate-password" name="passwort" required autofocus
+             autocomplete="current-password">
+    </div>
+    <button type="submit" class="gate-form__submit">Weiter</button>
+  </form>
+</section>
+{{end}}

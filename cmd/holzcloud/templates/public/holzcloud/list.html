@@ -1,0 +1,59 @@
+{{define "content"}}
+<section class="hc-wide page-wrap archive">
+  <header class="page-header">
+    {{/* Ein gefiltertes Archiv, das nicht sagt, wonach es filtert, lässt den
+         Leser raten, warum diese Beiträge und keine anderen. */}}
+    {{if .Archive.Term}}
+    <p class="hc-eyebrow">Schlagwort</p>
+    <h1>{{.Archive.Term}}</h1>
+    {{else}}
+    <h1>{{.Page.Title}}</h1>
+    {{end}}
+    {{if .Archive.Total}}<p class="archive-count">{{.Archive.Total}} Beiträge</p>{{end}}
+  </header>
+
+  {{if .Archive.Entries}}
+  <ol class="archive-list">
+    {{range .Archive.Entries}}
+    <li class="archive-entry">
+      {{if .ImageURL}}
+      <a class="archive-entry__image" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+        <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+      </a>
+      {{end}}
+      <div class="archive-entry__text">
+        <h2 class="archive-entry__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+        {{with .PublishedAt}}
+        <time class="archive-entry__date" datetime="{{formatDateISO .}}">{{formatDate .}}</time>
+        {{end}}
+        {{if .Excerpt}}<p class="archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
+        {{if .Terms}}
+        <ul class="term-list" aria-label="Schlagwörter">
+          {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+        </ul>
+        {{end}}
+      </div>
+    </li>
+    {{end}}
+  </ol>
+
+  {{/* Bei einer einzigen Seite gibt es nichts zu blättern. PrevURL und
+       NextURL sind an den Enden leer, deshalb {{with}} und nicht {{if}}. */}}
+  {{if gt .Archive.TotalPages 1}}
+  <nav class="archive-pager" aria-label="Seiten des Archivs">
+    {{with .Archive.PrevURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="prev">Neuere Beiträge</a>{{end}}
+    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
+    {{with .Archive.NextURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="next">Ältere Beiträge</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <p class="archive-empty hc-lede">Hier steht noch nichts.</p>
+  {{end}}
+
+  {{if .Archive.Terms}}
+  <ul class="term-list archive-terms" aria-label="Alle Schlagwörter">
+    {{range .Archive.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}{{if .Count}} <span class="hc-dim">{{.Count}}</span>{{end}}</a></li>{{end}}
+  </ul>
+  {{end}}
+</section>
+{{end}}

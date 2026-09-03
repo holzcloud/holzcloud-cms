@@ -1,0 +1,109 @@
+{{define "content"}}
+{{template "blocktype_list-content" .}}
+{{end}}
+
+{{define "blocktype_list-content"}}
+<div class="card" style="margin-bottom:var(--space-3)">
+    <p class="text-muted">
+        {{th "Der Bausteineditor bringt neun Arten mit — Text, Bild, Galerie, Karten und so fort. Was diese Website darüber hinaus braucht, legst du hier an: einen <strong>Rezeptschritt</strong>, einen <strong>Öffnungszeiten-Kasten</strong>, eine <strong>Preiszeile</strong>. Woraus so ein Baustein besteht, bestimmst du danach mit denselben Feldern wie bei einer Seite."}}
+    </p>
+    <p class="text-muted">
+        {{th "Im Theme trägt jeder Baustein die Klasse <code>hc-eigen--kennung</code>, jedes ausgefüllte Feld darin eine eigene. Das Aussehen macht das Stylesheet des Themes — hier entsteht die Struktur, nicht das Bild."}}
+    </p>
+    <p class="text-muted">
+        {{t "Eingebaut und immer da:"}}
+        {{range $i, $k := .Builtin}}{{if $i}}, {{end}}{{t $k.Name}}{{end}}.
+    </p>
+</div>
+
+{{if .Rows}}
+<div class="card" style="margin-bottom:var(--space-3)">
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Name"}}</th>
+                <th scope="col">{{t "Kennung"}}</th>
+                <th scope="col">{{t "Felder"}}</th>
+                <th scope="col">{{t "Benutzt auf"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Rows}}
+            <tr>
+                <td style="font-weight:500">
+                    {{.Name}}
+                    {{if .Hint}}<span class="page-slug text-muted">{{.Hint}}</span>{{end}}
+                </td>
+                <td><code>{{.Key}}</code></td>
+                <td>
+                    <a href="/admin/websites/{{$.WebsiteID}}/felder?baustein={{.ID}}">
+                        {{if .Fields}}{{if eq (len .Fields) 1}}{{t "ein Feld"}}{{else}}{{tf "%d Felder" (len .Fields)}}{{end}}{{else}}{{t "noch keine"}}{{end}}
+                    </a>
+                </td>
+                <td class="text-muted">{{if eq .Used 1}}{{t "einer Seite"}}{{else}}{{tf "%d Seiten" .Used}}{{end}}</td>
+                <td class="table-actions">
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/verschieben" style="display:inline">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <input type="hidden" name="richtung" value="hoch">
+                        <button type="submit" class="reorder-btn" {{if .First}}disabled{{end}}
+                                aria-label="{{t "Nach oben"}}" hx-disabled-elt="this">↑</button>
+                    </form>
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/verschieben" style="display:inline">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <input type="hidden" name="richtung" value="runter">
+                        <button type="submit" class="reorder-btn" {{if .Last}}disabled{{end}}
+                                aria-label="{{t "Nach unten"}}" hx-disabled-elt="this">↓</button>
+                    </form>
+                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/felder?baustein={{.ID}}">{{t "Felder"}}</a>
+                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/bausteinarten?aendern={{.ID}}">{{t "Ändern"}}</a>
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/loeschen" style="display:inline"
+                          hx-confirm="{{tf "Bausteinart „%s“ entfernen? Bausteine dieser Art verschwinden von den Seiten, sobald diese das nächste Mal gespeichert werden." .Name}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
+
+<div class="card">
+    <h2>{{if .Edit}}{{t "Bausteinart ändern"}}{{else}}{{t "Neue Bausteinart"}}{{end}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/bausteinarten">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{if .Edit}}<input type="hidden" name="id" value="{{.Edit.ID}}">{{end}}
+
+        <div class="form-group">
+            <label class="form-label" for="art-name">{{t "Name"}}</label>
+            <input type="text" id="art-name" name="name" class="form-input" required maxlength="40"
+                   value="{{if .Edit}}{{.Edit.Name}}{{end}}" placeholder="{{t "Rezeptschritt"}}">
+            <p class="form-hint text-muted">{{t "So heisst der Knopf im Editor."}}</p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="art-hinweis">{{t "Hinweis im Editor"}}</label>
+            <input type="text" id="art-hinweis" name="hinweis" class="form-input" maxlength="200"
+                   value="{{if .Edit}}{{.Edit.Hint}}{{end}}"
+                   placeholder="{{t "z. B. Ein Schritt der Anleitung, mit Bild."}}">
+        </div>
+
+        {{if .Edit}}
+        <p class="form-hint text-muted">
+            {{tf "Die Kennung „%s“ steht fest: sie steckt in jedem Baustein dieser Art und in der CSS-Klasse, die das Theme anspricht." .Edit.Key}}
+        </p>
+        {{else}}
+        <p class="form-hint text-muted">
+            {{t "Die Kennung wird aus dem Namen gebildet und steht danach fest — sie steckt in jedem Baustein dieser Art und in der CSS-Klasse des Themes."}}
+        </p>
+        {{end}}
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+            {{if .Edit}}{{t "Änderungen speichern"}}{{else}}{{t "Bausteinart anlegen"}}{{end}}
+        </button>
+        {{if .Edit}}<a href="/admin/websites/{{.WebsiteID}}/bausteinarten" class="btn">{{t "Abbrechen"}}</a>{{end}}
+    </form>
+</div>
+{{end}}

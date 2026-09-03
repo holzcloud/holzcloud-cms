@@ -1,0 +1,94 @@
+{{define "content"}}
+<article class="page">
+  {{if .Preview.Active}}
+  <!-- Wer einen Vorschaulink weitergibt, muss am Rand sehen, dass er eine
+       Vorschau anschaut — sonst meldet der Empfänger die Seite als
+       veröffentlicht und niemand findet sie. -->
+  <p class="preview-banner" role="status">
+    Vorschau{{if ne .Preview.Status "published"}} eines Entwurfs{{end}} — diese Seite ist
+    über einen Link sichtbar, aber nicht veröffentlicht.
+  </p>
+  {{end}}
+
+  <header class="page-header">
+    {{if .Page.IsPost}}
+    <p class="page-header__kicker">
+      {{if .Page.ArchiveURL}}<a href="{{.Page.ArchiveURL}}">Aktuelles</a>{{else}}Beitrag{{end}}
+    </p>
+    {{end}}
+    {{if not .Page.HasOwnHeading}}<h1 class="page-header__title">{{.Page.Title}}</h1>{{end}}
+    {{if and .Page.IsPost .Page.PublishedAt}}
+    <!-- Der sichtbare Text spricht die Sprache der Website, das datetime-Attribut
+         bleibt maschinenlesbar. Beides kommt aus denselben Daten. -->
+    <p class="page-header__meta">
+      <time datetime="{{formatDateISO .Page.PublishedAt}}">{{formatDate .Page.PublishedAt}}</time>
+    </p>
+    {{end}}
+  </header>
+
+  <div class="prose">
+    {{.Page.ContentHTML}}
+  </div>
+
+  {{/* Was die Website an eigenen Feldern kennt. Das Theme kennt die Namen
+       nicht — es druckt Beschriftung und Wert, in der Reihenfolge, die in der
+       Verwaltung festgelegt wurde. */}}
+  {{if .Page.Feldliste}}
+  <dl class="page-fields">
+    {{range .Page.Feldliste}}
+    <dt>{{.Label}}</dt>
+    <dd>
+      {{if eq .Kind "gruppe"}}
+        <ul class="page-fields__rows">
+          {{range .Rows}}
+          <li>{{range $i, $e := .}}{{if $i}} · {{end}}<span class="page-fields__rowlabel">{{$e.Label}}:</span>
+            {{if eq $e.Kind "datum"}}{{formatDate $e.Value}}{{else if eq $e.Kind "janein"}}ja{{else if eq $e.Kind "verweis"}}{{with $e.Ref}}<a href="{{.URL}}">{{.Title}}</a>{{end}}{{else}}{{$e.Text}}{{end}}{{end}}</li>
+          {{end}}
+        </ul>
+      {{else if eq .Kind "bild"}}
+        {{with .Image}}<img src="{{.URL}}" alt="{{.Alt}}"{{if .Width}} width="{{.Width}}" height="{{.Height}}"{{end}} loading="lazy">{{end}}
+      {{else if eq .Kind "datum"}}
+        <time datetime="{{formatDateISO .Value}}">{{formatDate .Value}}</time>
+      {{else if eq .Kind "janein"}}
+        ja
+      {{else if eq .Kind "verweis"}}
+        {{with .Ref}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
+      {{else if eq .Kind "link"}}
+        <a href="{{.Text}}">{{.Text}}</a>
+      {{else}}
+        {{.Text}}
+      {{end}}
+    </dd>
+    {{end}}
+  </dl>
+  {{end}}
+
+  {{if .Page.Terms}}
+  <div class="page-terms">
+    <ul class="term-list" aria-label="Schlagwörter">
+      {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+    </ul>
+  </div>
+  {{end}}
+
+  {{if .Page.IsPost}}
+  <!-- Prev und Next sind Zeiger und am Rand des Archivs leer. Ohne die Wachen
+       bricht die älteste und die neuste Seite mit einem nil-Fehler ab. -->
+  <nav class="post-nav" aria-label="Weitere Beiträge">
+    {{if .Page.Prev}}
+    <a class="post-nav__link post-nav__prev" href="{{.Page.Prev.URL}}" rel="prev">
+      <span class="post-nav__label">Älterer Beitrag</span>
+      <span class="post-nav__title">{{.Page.Prev.Title}}</span>
+    </a>
+    {{end}}
+    {{if .Page.ArchiveURL}}<a class="post-nav__index" href="{{.Page.ArchiveURL}}">Alle Beiträge</a>{{end}}
+    {{if .Page.Next}}
+    <a class="post-nav__link post-nav__next" href="{{.Page.Next.URL}}" rel="next">
+      <span class="post-nav__label">Neuerer Beitrag</span>
+      <span class="post-nav__title">{{.Page.Next.Title}}</span>
+    </a>
+    {{end}}
+  </nav>
+  {{end}}
+</article>
+{{end}}

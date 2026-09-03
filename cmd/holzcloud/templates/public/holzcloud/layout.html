@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="{{.Site.Locale}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Page.Title}}{{if .Site.Name}} — {{.Site.Name}}{{end}}</title>
+  {{if .Meta.Description}}<meta name="description" content="{{.Meta.Description}}">{{end}}
+  {{if .Meta.NoIndex}}<meta name="robots" content="noindex, follow">{{end}}
+  {{if .Meta.CanonicalURL}}<link rel="canonical" href="{{.Meta.CanonicalURL}}">{{end}}
+  <!-- Diese Vorlage hat genau eine Stimmung, und sie ist dunkel. Ohne diese
+       Zeile zeichnet der Browser Formularfelder und Bildlaufleisten hell in
+       eine dunkle Seite. -->
+  <meta name="color-scheme" content="dark">
+  {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">
+  {{else}}
+  <!-- Ohne diese Zeile fragt der Browser von sich aus /favicon.ico an und
+       bekommt auf jedem Seitenaufruf einen 404 — im Server-Log und in der
+       Konsole des Besuchers. -->
+  <link rel="icon" href="/t/favicon.svg" type="image/svg+xml">{{end}}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{.Page.Title}}">
+  {{if .Meta.Description}}<meta property="og:description" content="{{.Meta.Description}}">{{end}}
+  {{if .Site.Name}}<meta property="og:site_name" content="{{.Site.Name}}">{{end}}
+  {{if .Meta.CanonicalURL}}<meta property="og:url" content="{{.Meta.CanonicalURL}}">{{end}}
+  {{if .Meta.OGImage}}<meta property="og:image" content="{{.Meta.OGImage}}">
+  <meta name="twitter:card" content="summary_large_image">{{else}}<meta name="twitter:card" content="summary">{{end}}
+  {{if .Meta.StructuredData}}
+  <!-- schema.org data. Not executable: a script element of this type is a data
+       block, so it runs nothing and the content policy has nothing to allow. -->
+  <script type="application/ld+json">{{.Meta.StructuredData}}</script>
+  {{end}}
+  <link rel="alternate" type="application/atom+xml" title="{{.Site.Name}}" href="{{if .Site.FeedURL}}{{.Site.FeedURL}}{{else}}/feed.xml{{end}}">
+  {{if .Page.Uebersetzungen}}
+  <!-- Welche Sprachfassungen es von dieser Seite gibt. Nur die, die es
+       wirklich gibt: ein hreflang auf eine Seite, die es nicht gibt, ist für
+       eine Suchmaschine schlimmer als gar keine Angabe. -->
+  {{range .Page.Uebersetzungen}}
+  <link rel="alternate" hreflang="{{.Code}}" href="{{$.Site.URL}}{{.URL}}">
+  {{end}}
+  {{end}}
+  <!-- Die Grundgestaltung der Bausteine. Sie kommt vom Kern, weil er auch
+       deren Auszeichnung schreibt; sie steht vor dem Stylesheet dieser
+       Vorlage, damit die Vorlage sie überschreiben kann.
+
+       Kein preconnect und kein Stylesheet zu einem Schrifthaus: Manrope und
+       JetBrains Mono liegen als woff2 in fonts/ und kommen über /t/fonts/
+       vom eigenen Server. Es verlässt nichts diesen Ursprung. -->
+  <link rel="stylesheet" href="/assets/bausteine.css">
+  <link rel="stylesheet" href="/t/style.css">
+  {{if .Site.Design}}
+  <!-- The website's own tokens, after the stylesheet so they win. Every value
+       has been validated to a shape the CSS can read only one way. -->
+  <style>{{.Site.Design}}</style>
+  {{end}}
+</head>
+<body>
+  <!-- Die Würfeltextur gehört als erstes Kind hierher: motif.css hebt mit
+       .hc-cubes ~ * alles danach über sie und gibt der Leiste mit
+       .hc-cubes ~ .hc-bar ihr sticky zurück. Beides sind Geschwisterregeln,
+       also zählt die Reihenfolge und keine Verpackung darf dazwischen.
+
+       Der Sprunglink steht deshalb an zweiter Stelle statt an erster. Was er
+       schützen soll, ist, dass er das erste Ziel der Tabulatortaste ist — und
+       das ist er: die Textur ist ein aria-hidden gehaltenes <div> ohne
+       Tabulatorhalt. Stünde er davor, läge er beim Anspringen unter der
+       Textur. -->
+  <div class="hc-cubes" aria-hidden="true"></div>
+
+  <a href="#main" class="skip-link">Zum Inhalt springen</a>
+
+  <header class="hc-bar">
+    <div class="hc-wide hc-bar__inner">
+      <a class="hc-mark site-mark" href="/">
+        {{if .Site.LogoURL}}<img class="site-logo" src="{{.Site.LogoURL}}" alt="">
+        {{else}}
+        <!-- Der Würfel der Marke, inline und nicht als <img>: so zeichnet er in
+             currentColor und folgt der Farbe der Leiste. Ein <img> könnte das
+             nicht — deshalb trägt allein favicon.svg eine feste Farbe. -->
+        <svg class="site-mark-glyph" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false"><defs><clipPath id="hkm-top"><path d="M32 8 L58 21 L32 34 L6 21 Z"/></clipPath></defs><g stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M32 8 L58 21 L32 34 L6 21 Z"/><path d="M6 21 L32 34 L32 56 L6 43 Z"/><path d="M58 21 L32 34 L32 56 L58 43 Z"/></g><g clip-path="url(#hkm-top)" stroke="currentColor" stroke-width="1.6" opacity=".75"><ellipse cx="25" cy="18" rx="6" ry="3"/><ellipse cx="25" cy="18" rx="12" ry="6"/><ellipse cx="25" cy="18" rx="19" ry="9.5"/><ellipse cx="25" cy="18" rx="27" ry="13.5"/></g></svg>{{end}}<b>{{.Site.Name}}</b></a>
+
+      <nav class="site-menu" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
+
+      {{if .Site.Sprachen}}
+      <nav class="site-langs" aria-label="Sprache">
+        <ul>
+          {{range .Site.Sprachen}}
+          <li>
+            {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Code}}</span>
+            {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}" title="{{.Name}}">{{.Code}}</a>{{end}}
+          </li>
+          {{end}}
+        </ul>
+      </nav>
+      {{end}}
+
+      {{if .Shop.Enabled}}
+      <a class="site-cart" href="{{.Cart.URL}}">Warenkorb <span class="site-cart__count">{{.Cart.Count}}</span></a>
+      {{end}}
+
+      {{if .Site.HasSearch}}
+      <form class="site-search" method="GET" action="/suche" role="search">
+        <label class="sr-only" for="bar-q">Suchbegriff</label>
+        <input class="hc-input" type="search" id="bar-q" name="q" value="{{.Search.Query}}" placeholder="Suchen">
+        <button class="hc-btn hc-btn--ghost hc-btn--sm" type="submit">Suchen</button>
+      </form>
+      {{end}}
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    {{template "content" .}}
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="hc-wide">
+      <div class="site-frow">
+        <nav class="site-fnav" aria-label="Rechtliches">{{menuFor .Menus "footer" .Page.Slug}}</nav>
+        {{if .Shop.Enabled}}{{if .Shop.TaxNote}}<p>{{.Shop.TaxNote}}</p>{{end}}{{end}}
+        <p>&copy; {{.Site.Name}}</p>
+      </div>
+      {{with index .Site.Snippets "footer-kontakt"}}<div class="site-snippet">{{.}}</div>{{end}}
+    </div>
+  </footer>
+</body>
+</html>

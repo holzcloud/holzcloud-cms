@@ -1,0 +1,28 @@
+{{define "content"}}
+{{template "template_upload-content" .}}
+{{end}}
+
+{{define "template_upload-content"}}
+<div class="card" style="max-width:480px">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Vorlage hochladen"}}</h2>
+    <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--space-3)">
+        {{th "Lade ein .zip-Archiv hoch, das mindestens <code>layout.html</code> und <code>page.html</code> enthält. Alles, was die Vorlage braucht — CSS, Bilder, Schriften — muss im Archiv liegen: Vorlagen, die Stylesheets, Skripte oder Schriften von einem anderen Server laden, werden abgelehnt."}}
+    </p>
+    <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--space-3)">
+        {{th "Du musst keine Vorlage von Hand schreiben. Gib die <a href=\"/admin/templates/spec\">Anleitung für KI-Agenten</a> einem Sprachmodell und beschreibe, wie die Website aussehen soll — darin steht alles, was für eine funktionierende Vorlage nötig ist."}}
+    </p>
+    <form method="POST" action="/admin/templates/upload" enctype="multipart/form-data">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group">
+            <label class="form-label" for="name">{{t "Name der Vorlage"}}</label>
+            <input type="text" id="name" name="name" class="form-input" required placeholder="{{t "Meine Vorlage"}}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="template_file">{{t "Archiv (.zip)"}}</label>
+            <input type="file" id="template_file" name="template_file" class="form-input" accept=".zip" required>
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Hochladen"}}</button>
+        <a href="/admin/templates" class="btn" style="margin-left:var(--space-1)">{{t "Abbrechen"}}</a>
+    </form>
+</div>
+{{end}}

@@ -1,0 +1,147 @@
+{{define "content"}}
+<section class="checkout">
+  <header class="page-header">
+    <h1 class="page-header__title">Kasse</h1>
+  </header>
+
+  {{if .Checkout.Notice}}
+  <p class="cart-blocked" role="alert">{{.Checkout.Notice}}</p>
+  {{end}}
+
+  <div class="checkout__grid">
+    <form class="checkout__form" method="POST" action="{{.Checkout.Action}}">
+      <fieldset class="checkout__group">
+        <legend>Kontakt</legend>
+
+        <div class="field">
+          <label for="email">E-Mail</label>
+          <input type="email" id="email" name="email" required autocomplete="email"
+                 value="{{index .Checkout.Values "email"}}">
+          {{with index .Checkout.Errors "email"}}<p class="field__error">{{.}}</p>{{end}}
+        </div>
+
+        <div class="field">
+          <label for="telefon">Telefon (freiwillig)</label>
+          <input type="tel" id="telefon" name="telefon" autocomplete="tel"
+                 value="{{index .Checkout.Values "telefon"}}">
+        </div>
+      </fieldset>
+
+      <fieldset class="checkout__group">
+        <legend>Lieferadresse</legend>
+
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" required autocomplete="name"
+                 value="{{index .Checkout.Values "name"}}">
+          {{with index .Checkout.Errors "name"}}<p class="field__error">{{.}}</p>{{end}}
+        </div>
+
+        <div class="field">
+          <label for="firma">Firma{{if not .Checkout.Business}} (freiwillig){{end}}</label>
+          <input type="text" id="firma" name="firma" autocomplete="organization"
+                 {{if .Checkout.Business}}required{{end}}
+                 value="{{index .Checkout.Values "firma"}}">
+          {{with index .Checkout.Errors "firma"}}<p class="field__error">{{.}}</p>{{end}}
+        </div>
+
+        {{if .Checkout.Business}}
+        <div class="field">
+          <label for="uid">UID / MWST-Nummer (freiwillig)</label>
+          <input type="text" id="uid" name="uid" placeholder="CHE-123.456.789 MWST"
+                 value="{{index .Checkout.Values "uid"}}">
+        </div>
+        {{end}}
+
+        <div class="field">
+          <label for="strasse">Strasse und Nummer</label>
+          <input type="text" id="strasse" name="strasse" required autocomplete="street-address"
+                 value="{{index .Checkout.Values "strasse"}}">
+          {{with index .Checkout.Errors "strasse"}}<p class="field__error">{{.}}</p>{{end}}
+        </div>
+
+        <div class="field-row">
+          <div class="field field--narrow">
+            <label for="plz">PLZ</label>
+            <input type="text" id="plz" name="plz" required inputmode="numeric"
+                   autocomplete="postal-code" value="{{index .Checkout.Values "plz"}}">
+            {{with index .Checkout.Errors "plz"}}<p class="field__error">{{.}}</p>{{end}}
+          </div>
+
+          <div class="field">
+            <label for="ort">Ort</label>
+            <input type="text" id="ort" name="ort" required autocomplete="address-level2"
+                   value="{{index .Checkout.Values "ort"}}">
+            {{with index .Checkout.Errors "ort"}}<p class="field__error">{{.}}</p>{{end}}
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="land">Land</label>
+          <select id="land" name="land" class="field__select" autocomplete="country">
+            <option value="CH" {{if eq (index .Checkout.Values "land") "CH"}}selected{{end}}>Schweiz</option>
+            <option value="LI" {{if eq (index .Checkout.Values "land") "LI"}}selected{{end}}>Liechtenstein</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <fieldset class="checkout__group">
+        <legend>Zahlung</legend>
+        {{range .Checkout.Methods}}
+        <label class="choice">
+          <input type="radio" name="zahlungsart" value="{{.Value}}"
+                 {{if eq (index $.Checkout.Values "zahlungsart") .Value}}checked{{end}}>
+          <span class="choice__label">{{.Label}}</span>
+          <span class="choice__note">{{.Note}}</span>
+        </label>
+        {{end}}
+        {{with index .Checkout.Errors "zahlungsart"}}<p class="field__error">{{.}}</p>{{end}}
+      </fieldset>
+
+      <fieldset class="checkout__group">
+        <legend>Bemerkung</legend>
+        <div class="field">
+          <label for="bemerkung" class="sr-only">Bemerkung zur Bestellung</label>
+          <textarea id="bemerkung" name="bemerkung" rows="3">{{index .Checkout.Values "bemerkung"}}</textarea>
+        </div>
+      </fieldset>
+
+      {{if .Checkout.ReturnPolicy}}
+      <p class="checkout__policy">{{.Checkout.ReturnPolicy}}</p>
+      {{end}}
+
+      <label class="choice choice--confirm">
+        <input type="checkbox" name="bestaetigt" value="1" {{if .Checkout.Accepted}}checked{{end}}>
+        <span class="choice__label">Ich bestelle kostenpflichtig.</span>
+      </label>
+      {{with index .Checkout.Errors "bestaetigt"}}<p class="field__error">{{.}}</p>{{end}}
+
+      <button type="submit" class="button checkout__submit">Zahlungspflichtig bestellen</button>
+    </form>
+
+    <aside class="checkout__summary" aria-label="Ihre Bestellung">
+      <h2 class="checkout__summary-title">Ihre Bestellung</h2>
+      <ul class="checkout__lines">
+        {{range .Cart.Lines}}
+        <li>
+          <span class="checkout__line-qty">{{.Quantity}} ×</span>
+          <span class="checkout__line-title">{{.Title}}</span>
+          <span class="checkout__line-price">{{.LinePrice}}</span>
+        </li>
+        {{end}}
+      </ul>
+      <dl class="cart-totals">
+        <dt>Zwischensumme</dt><dd>{{.Cart.Totals.Items}}</dd>
+        <dt>Versand</dt>
+        <dd>{{if .Cart.Totals.ShippingFree}}kostenlos{{else}}{{.Cart.Totals.Shipping}}{{end}}</dd>
+        {{range .Cart.Totals.TaxLines}}
+        <dt class="cart-totals__tax">{{.Label}}</dt><dd class="cart-totals__tax">{{.Tax}}</dd>
+        {{end}}
+        <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
+      </dl>
+      {{if .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.Cart.Totals.TaxNote}}</p>{{end}}
+      <a class="cart-continue" href="{{.Cart.URL}}">Warenkorb ändern</a>
+    </aside>
+  </div>
+</section>
+{{end}}

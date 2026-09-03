@@ -1,0 +1,12 @@
+{
+  "id": "jahreszahl",
+  "abi": 1,
+  "name": "Jahreszahl",
+  "version": "1.0.0",
+  "description": "Ersetzt [[jahr]] im Seitentext durch das laufende Jahr — für eine Fusszeile, die nicht jedes Silvester von Hand nachgezogen werden muss.",
+  "author": "Holzcloud",
+  "license": "MIT",
+  "hooks": ["content", "admin"],
+  "permissions": ["store"],
+  "admin": {"label": "Jahreszahl", "per_website": true}
+}

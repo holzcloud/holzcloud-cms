@@ -1,0 +1,70 @@
+{{/*
+  Ein einzelnes Eingabefeld der Website. Eigene Datei, weil es sowohl in der
+  Liste der Felder als auch in jeder Zeile einer Gruppe vorkommt — und weil
+  {{define}} in Go-Vorlagen nur auf oberster Ebene einer Datei stehen darf.
+
+  Erwartet eine FieldView.
+*/}}
+{{define "field_input"}}
+<div class="form-group">
+    {{if .Is "janein"}}
+    <label class="form-check">
+        <input type="checkbox" name="{{.Name}}" value="1"{{if .Checked}} checked{{end}}>
+        <span class="form-check-label">{{.Def.Label}}</span>
+    </label>
+    {{else}}
+    <label class="form-label" for="{{.Name}}">
+        {{.Def.Label}}{{if .Def.Required}} <span class="req" aria-label="{{t "Pflichtfeld"}}">*</span>{{end}}
+    </label>
+
+    {{/* Ein Feld, an dem andere hängen, trägt immer einen Platzhalter: die
+         Regel, die die abhängigen Felder ausblendet, ist :placeholder-shown,
+         und ohne Platzhalter greift sie nie. Ein Leerzeichen genügt und ist
+         nicht zu sehen. */}}
+    {{if .Is "langtext"}}
+    <textarea id="{{.Name}}" name="{{.Name}}" class="form-input form-textarea" rows="4"
+              {{if eq .Switch "text"}}placeholder=" "{{end}}>{{.Value}}</textarea>
+
+    {{else if .Is "zahl"}}
+    <input type="text" inputmode="decimal" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}"
+           {{if eq .Switch "text"}}placeholder=" "{{end}}>
+
+    {{else if .Is "datum"}}
+    <input type="date" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}">
+
+    {{else if .Is "auswahl"}}
+    <select id="{{.Name}}" name="{{.Name}}" class="form-input form-select">
+        <option value="">{{if .Def.Required}}{{t "bitte wählen"}}{{else}}{{t "– keine Angabe –"}}{{end}}</option>
+        {{$v := .Value}}
+        {{range .Def.Choices}}<option value="{{.}}"{{if eq . $v}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+
+    {{else if .Is "bild"}}
+    <select id="{{.Name}}" name="{{.Name}}" class="form-input form-select">
+        <option value="">{{t "– kein Bild –"}}</option>
+        {{$id := .MediaID}}
+        {{range .Media}}<option value="{{.ID}}"{{if eq .ID $id}} selected{{end}}>{{.OriginalName}}</option>{{end}}
+    </select>
+
+    {{else if .Is "verweis"}}
+    <select id="{{.Name}}" name="{{.Name}}" class="form-input form-select">
+        <option value="">{{t "– keine Seite –"}}</option>
+        {{$id := .PageID}}
+        {{range .Pages}}<option value="{{.ID}}"{{if eq .ID $id}} selected{{end}}>{{.Title}} — /{{.Slug}}{{if .Draft}} ({{t "Entwurf"}}){{end}}</option>{{end}}
+    </select>
+
+    {{else if .Is "link"}}
+    <input type="text" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}"
+           placeholder="{{t "/eigene-seite oder https://example.ch"}}">
+
+    {{else}}
+    <input type="text" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}"
+           {{if eq .Switch "text"}}placeholder=" "{{end}}>
+    {{end}}
+    {{end}}
+
+    {{if .RefDraft}}<p class="form-hint text-muted">{{t "Diese Seite ist nicht veröffentlicht. Der Verweis steht hier, auf der Website bleibt er unsichtbar, bis sie es ist."}}</p>{{end}}
+    {{if .Def.Hint}}<p class="form-hint text-muted">{{.Def.Hint}}</p>{{end}}
+    {{if .Error}}<p class="form-error">{{t .Error}}</p>{{end}}
+</div>
+{{end}}

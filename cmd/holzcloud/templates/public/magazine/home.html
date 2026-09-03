@@ -1,0 +1,12 @@
+{{define "content"}}
+<section class="hero">
+  {{if and .Page.Title (not .Page.HasOwnHeading)}}<h1>{{.Page.Title}}</h1>{{end}}
+  {{if .Page.ContentHTML}}
+  <div class="hero-content">
+    {{.Page.ContentHTML}}
+  </div>
+  {{else}}
+  <p class="hero-tagline">Willkommen bei {{.Site.Name}}</p>
+  {{end}}
+</section>
+{{end}}

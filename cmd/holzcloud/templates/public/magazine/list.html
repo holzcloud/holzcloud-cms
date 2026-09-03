@@ -1,0 +1,43 @@
+{{define "content"}}
+<section class="archive">
+  <div class="page-hero">
+    {{if .Archive.Term}}<h1>Schlagwort: {{.Archive.Term}}</h1>{{else}}<h1>{{.Page.Title}}</h1>{{end}}
+  </div>
+
+  {{if .Archive.Entries}}
+  <ol class="archive-grid">
+    {{range .Archive.Entries}}
+    <li class="archive-card">
+      {{if .ImageURL}}
+      <a class="archive-card__image" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+        <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+      </a>
+      {{end}}
+      <div class="archive-card__body">
+        <h2 class="archive-card__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+        {{if .PublishedAt}}
+        <time class="archive-card__date" datetime="{{formatDateISO .PublishedAt}}">{{formatDate .PublishedAt}}</time>
+        {{end}}
+        {{if .Excerpt}}<p class="archive-card__excerpt">{{.Excerpt}}</p>{{end}}
+        {{if .Terms}}
+        <ul class="term-list" aria-label="Schlagwörter">
+          {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+        </ul>
+        {{end}}
+      </div>
+    </li>
+    {{end}}
+  </ol>
+
+  {{if gt .Archive.TotalPages 1}}
+  <nav class="archive-pager container-narrow" aria-label="Seiten des Archivs">
+    {{if .Archive.PrevURL}}<a href="{{.Archive.PrevURL}}" rel="prev">Neuere Beiträge</a>{{end}}
+    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
+    {{if .Archive.NextURL}}<a href="{{.Archive.NextURL}}" rel="next">Ältere Beiträge</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <p class="archive-empty container-narrow">Hier steht noch nichts.</p>
+  {{end}}
+</section>
+{{end}}

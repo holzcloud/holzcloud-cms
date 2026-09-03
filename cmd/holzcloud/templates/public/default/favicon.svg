@@ -1,0 +1,23 @@
+<!-- Ein Rückfall-Favicon, damit ein Betrieb, der noch keines hochgeladen hat,
+     nicht bei jedem Seitenaufruf einen 404 auf /favicon.ico erzeugt: den
+     fordert der Browser von sich aus an, sobald die Seite keines nennt.
+
+     Zwei Ringe wie im Anschnitt eines Stamms, in den Farben der Vorlage, und
+     ein zweiter Satz für dunkle Oberflächen. currentColor gibt es hier nicht —
+     ein Favicon wird ausserhalb des Dokuments gezeichnet. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="">
+  <style>
+    .paper { fill: #fdfaf4; }
+    .ink   { fill: none; stroke: #8a4b2a; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #241d17; }
+      .ink   { stroke: #d0925f; }
+    }
+  </style>
+  <rect class="paper" width="32" height="32" rx="7"/>
+  <g class="ink" stroke-linecap="round">
+    <circle cx="16" cy="16" r="9.5" stroke-width="2.2"/>
+    <circle cx="16" cy="16" r="4.5" stroke-width="2.2"/>
+    <circle cx="16" cy="16" r="1" stroke-width="2"/>
+  </g>
+</svg>

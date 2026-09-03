@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Without a manual trigger the only way to get a check is a fresh push, which
+  # is a bad corner to be in when a workflow has just been re-enabled.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Pure-Go SQLite driver: the binary must build without a C toolchain.
+  CGO_ENABLED: "0"
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+    # Actions are pinned to a commit, not a tag: a tag can be moved to point at
+    # different code, a commit cannot. The version in the comment is what keeps
+    # the pin readable, and Dependabot bumps it together with the hash monthly.
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # git describe needs history; the default shallow clone has none.
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Verify formatting
+      run: |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "These files are not gofmt-formatted:"
+          echo "$unformatted"
+          exit 1
+        fi
+
+    - name: Verify go.mod is tidy
+      run: |
+        go mod tidy
+        git diff --exit-code -- go.mod go.sum
+
+    - name: Vet
+      run: go vet ./...
+
+    # The runner is linux/amd64 and so is the deployment target, so this is the
+    # shippable binary, not a test build. Everything (templates, assets,
+    # migrations) is embedded, so the single file is the whole application.
+    - name: Build
+      run: |
+        go build -trimpath \
+          -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" \
+          -o holzcloud-linux-amd64 ./cmd/holzcloud
+        sha256sum holzcloud-linux-amd64 > holzcloud-linux-amd64.sha256
+        cat holzcloud-linux-amd64.sha256
+
+    - name: Test
+      run: go test ./...
+
+    # Without this the job built the binary and threw it away, so there was
+    # nothing to roll back to when an upgrade went wrong.
+    - name: Upload the binary
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: holzcloud-linux-amd64
+        path: |
+          holzcloud-linux-amd64
+          holzcloud-linux-amd64.sha256
+        retention-days: 30

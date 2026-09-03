@@ -1,0 +1,34 @@
+{{define "content"}}
+<article class="page page--home">
+  <!-- Der Kopf steht über dem Titelbild, nicht darauf: Text auf einem Foto ist
+       nur so lesbar, wie das Foto es zulässt, und welches Foto oben steht,
+       entscheidet die Redaktion und nicht die Vorlage. Das erste allein
+       stehende Bild im Inhalt wird von style.css zum breiten Titelbild. -->
+  {{if or (and .Page.Title (not .Page.HasOwnHeading)) .Site.Description}}
+  <header class="hero">
+    {{if and .Page.Title (not .Page.HasOwnHeading)}}
+    <h1 class="hero__title">{{.Page.Title}}</h1>
+    {{end}}
+    {{if .Site.Description}}<p class="hero__tagline">{{.Site.Description}}</p>{{end}}
+  </header>
+  {{end}}
+
+  {{if .Page.ContentHTML}}
+  <div class="prose">
+    {{.Page.ContentHTML}}
+  </div>
+  {{else}}
+  <!-- Eine frisch angelegte Startseite hat noch keinen Text. Ein leeres <main>
+       sieht nach Fehler aus, obwohl nur noch nichts geschrieben wurde. -->
+  <div class="prose"><p>Willkommen bei {{.Site.Name}}.</p></div>
+  {{end}}
+
+  {{if .Page.Terms}}
+  <div class="page-terms">
+    <ul class="term-list" aria-label="Schlagwörter">
+      {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+    </ul>
+  </div>
+  {{end}}
+</article>
+{{end}}

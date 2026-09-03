@@ -1,0 +1,1756 @@
+/* Journal — warm, readable, personal blog feel */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Per-website tokens override the theme's own values.
+ *
+ * The site's <style> block sets --hc-* after this stylesheet; because a custom
+ * property is substituted after the cascade has settled, the value below picks
+ * up whatever --hc-ink ends up being — and falls back to the theme's own
+ * colour when the operator has changed nothing. */
+:root {
+  --bg: var(--hc-paper, oklch(0.97 0.01 80));
+  --bg-paper: oklch(0.99 0.005 80);
+  --text: var(--hc-ink, oklch(0.25 0.02 50));
+  --text-muted: oklch(0.5 0.02 60);
+  --accent: var(--hc-brand, oklch(0.5 0.14 25));
+  --accent-hover: oklch(0.4 0.16 25);
+  --border: oklch(0.88 0.02 80);
+  --font-serif: var(--hc-font, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-wrapper {
+  max-width: var(--hc-measure, 38rem);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  width: 100%;
+  flex: 1;
+}
+
+/* Header */
+.site-header {
+  padding: 3rem 0 2rem;
+  margin-bottom: 2rem;
+}
+
+.site-name {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  font-style: italic;
+}
+
+.site-name:hover {
+  color: var(--accent);
+}
+
+.site-description {
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* Navigation */
+.site-header nav {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.site-header nav ul {
+  display: flex;
+  gap: 1.25rem;
+  list-style: none;
+}
+
+.site-header nav ul li a {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.site-header nav ul li a:hover {
+  color: var(--accent);
+}
+
+/* Post */
+.post-header {
+  margin-bottom: 2rem;
+}
+
+.post-header h1 {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.post-header time {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Post body */
+.post-body {
+  line-height: 1.85;
+}
+
+.post-body h2 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.post-body h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  font-style: italic;
+}
+
+.post-body p {
+  margin-bottom: 1.35rem;
+}
+
+.post-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: oklch(0.5 0.14 25 / 0.4);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.2s;
+}
+
+.post-body a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.post-body ul,
+.post-body ol {
+  margin-bottom: 1.35rem;
+  padding-left: 1.25rem;
+}
+
+.post-body li {
+  margin-bottom: 0.3rem;
+}
+
+.post-body blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1.25rem;
+  margin: 1.75rem 0;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.post-body pre {
+  font-family: "SF Mono", "Fira Code", Menlo, monospace;
+  background: var(--bg-paper);
+  border: 1px solid var(--border);
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 1.35rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.post-body code {
+  font-family: "SF Mono", "Fira Code", Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--bg-paper);
+  border: 1px solid var(--border);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+.post-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.post-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 1rem 0;
+}
+
+.post-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.35rem;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+}
+
+.post-body th,
+.post-body td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.post-body th {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.post-body hr {
+  border: none;
+  text-align: center;
+  margin: 2.5rem 0;
+}
+
+.post-body hr::after {
+  content: "* * *";
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  letter-spacing: 0.5em;
+}
+
+/* Home */
+.post--home {
+  padding-top: 2rem;
+}
+
+.post--home h1 {
+  font-size: 2.25rem;
+  font-style: italic;
+}
+
+.greeting {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* 404 */
+.post--404 {
+  padding: 4rem 0;
+}
+
+.post--404 h1 {
+  font-size: 1.5rem;
+  font-style: italic;
+  margin-bottom: 0.75rem;
+}
+
+.post--404 p {
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.post--404 a {
+  color: var(--accent);
+}
+
+/* Footer */
+.site-footer {
+  margin-top: 4rem;
+  padding: 1.5rem 0;
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+.site-footer p {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ── Navigation ── */
+/* internal/menu/render.go emits nested <ul><li>. Without these rules the main
+   navigation shows up as a bullet list, which is what every site did. */
+.site-nav ul,
+.footer-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.site-nav > ul {
+  margin-top: 1rem;
+}
+
+/* A submenu stacks under its parent instead of joining the row. */
+.site-nav li ul,
+.footer-nav li ul {
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  padding-left: 1rem;
+  font-size: 0.9em;
+}
+
+.site-nav a,
+.footer-nav a {
+  text-decoration: none;
+  color: #333;
+}
+
+.site-nav a:hover,
+.footer-nav a:hover {
+  color: #8a5a2b;
+  text-decoration: underline;
+}
+
+/* An entry whose page is unpublished renders as <span>, not <a>. */
+.site-nav span,
+.footer-nav span {
+  color: #767676;
+}
+
+.footer-nav ul {
+  justify-content: flex-start;
+  font-size: 0.9rem;
+}
+
+/* ── Suche ── */
+.search-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 2rem;
+}
+
+.search-form input[type="search"] {
+  flex: 1 1 16rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+}
+
+.search-form button {
+  padding: 0.5rem 1rem;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+}
+
+.search-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.search-result__title {
+  font-weight: 600;
+}
+
+.search-result__snippet {
+  margin-top: 0.25rem;
+}
+
+/* The highlight has to survive both light and dark themes, so it uses a
+   translucent overlay rather than a fixed yellow. */
+.search-result__snippet mark {
+  background: color-mix(in oklch, currentColor 20%, transparent);
+  color: inherit;
+  padding: 0 0.1em;
+  border-radius: 2px;
+}
+
+/* ── Zugänglichkeit ── */
+/* :focus-visible rather than :focus, so a mouse click leaves no ring behind
+   while a Tab press shows exactly where the keyboard is. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* The skip link targets <main tabindex="-1">; focusing it must not draw a ring
+   around the whole page. */
+main:focus,
+main:focus-visible {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  color: #111;
+  border-radius: 4px;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.site-logo img {
+  max-height: 3rem;
+  width: auto;
+}
+
+/* The entry for the page you are on. aria-current carries this to a screen
+   reader; the class is what a sighted visitor sees. */
+.site-nav .is-current,
+.footer-nav .is-current {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Druckausgabe ── */
+/* People print an imprint, a price list or a set of directions. Without this,
+   a dark theme prints a black page and every link target is lost. */
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .skip-link,
+  .site-nav,
+  .footer-nav,
+  .site-footer {
+    display: none !important;
+  }
+
+  a {
+    color: #000 !important;
+    text-decoration: underline;
+  }
+
+  /* An external link is useless on paper unless its target comes with it. */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    word-break: break-all;
+  }
+
+  img, table, pre, blockquote {
+    break-inside: avoid;
+  }
+
+  h1, h2, h3 {
+    break-after: avoid;
+  }
+
+  @page {
+    margin: 2cm;
+  }
+}
+
+/* --- Archiv ------------------------------------------------------------- */
+
+.archive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-5, 2rem);
+  /* The container query below asks about this element. Without the
+     container-type it has nothing to measure and would never match, which
+     looks exactly like a layout that was simply never written. */
+  container-type: inline-size;
+}
+
+.archive-entry {
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+}
+
+.archive-entry__title {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.archive-entry__title a {
+  text-decoration: none;
+}
+
+.archive-entry__title a:hover,
+.archive-entry__title a:focus-visible {
+  text-decoration: underline;
+}
+
+.archive-entry__date {
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+.archive-entry__excerpt {
+  margin: 0;
+}
+
+/* An entry with a preview image keeps the picture beside the text once there
+   is room for both — a container query, so a narrow sidebar behaves like a
+   phone rather than like the page it happens to sit in. */
+.archive-entry__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius, 4px);
+}
+
+@container (min-width: 34rem) {
+  .archive-entry:has(.archive-entry__image) {
+    grid-template-columns: 12rem 1fr;
+    align-items: start;
+    gap: var(--space-4, 1.5rem);
+  }
+}
+
+.archive-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 1rem);
+  margin-top: var(--space-6, 3rem);
+}
+
+.archive-pager__position {
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+.archive-empty {
+  opacity: 0.7;
+}
+
+/* --- Blättern zwischen Beiträgen ---------------------------------------- */
+
+.post-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3, 1rem);
+  margin-top: var(--space-6, 3rem);
+  padding-top: var(--space-4, 1.5rem);
+  border-top: 1px solid currentColor;
+  border-color: color-mix(in oklch, currentColor 20%, transparent);
+  font-size: 0.9375rem;
+}
+
+.post-nav a {
+  max-width: 18rem;
+}
+
+/* --- Schlagwörter -------------------------------------------------------- */
+
+.term-list {
+  list-style: none;
+  margin: var(--space-3, 1rem) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 0.5rem);
+}
+
+.term {
+  display: inline-block;
+  padding: 0.15em 0.6em;
+  border: 1px solid currentColor;
+  border-color: color-mix(in oklch, currentColor 30%, transparent);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+
+.term:hover,
+.term:focus-visible {
+  border-color: currentColor;
+}
+
+/* --- Kontaktformular ----------------------------------------------------- */
+
+.contact-form {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  max-width: 40rem;
+  margin: var(--space-5, 2rem) 0;
+}
+
+.contact-form__field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.contact-form__field label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.contact-form input,
+.contact-form textarea {
+  font: inherit;
+  color: inherit;
+  padding: 0.55em 0.7em;
+  border: 1px solid currentColor;
+  border-color: color-mix(in oklch, currentColor 35%, transparent);
+  border-radius: var(--radius, 4px);
+  background: transparent;
+  width: 100%;
+}
+
+.contact-form textarea {
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.contact-form__submit {
+  font: inherit;
+  justify-self: start;
+  padding: 0.6em 1.4em;
+  border: 1px solid currentColor;
+  border-radius: var(--radius, 4px);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.contact-form__notice {
+  margin: 0;
+  padding: 0.7em 1em;
+  border-left: 3px solid currentColor;
+  background: color-mix(in oklch, currentColor 8%, transparent);
+}
+
+.contact-form__notice--error {
+  border-left-color: oklch(0.55 0.19 27);
+}
+
+.contact-form__alternative {
+  margin: 0;
+  font-size: 0.9375rem;
+  opacity: 0.8;
+}
+
+/* The trap. It has to be reachable for a program that reads the markup and
+   invisible to anyone who does not — which rules out display:none, because the
+   more careful bots skip those fields precisely because they know the trick. */
+.contact-form__trap {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Passwortgeschützte Seite -------------------------------------------- */
+
+.gate {
+  max-width: 32rem;
+}
+
+.gate-lead {
+  margin-bottom: var(--space-2, 0.5rem);
+}
+
+.gate-hint {
+  opacity: 0.8;
+}
+
+.gate-error {
+  padding: 0.7em 1em;
+  border-left: 3px solid oklch(0.55 0.19 27);
+  background: color-mix(in oklch, currentColor 8%, transparent);
+}
+
+.gate-form {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  margin-top: var(--space-4, 1.5rem);
+}
+
+.gate-form__field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.gate-form input {
+  font: inherit;
+  color: inherit;
+  padding: 0.55em 0.7em;
+  border: 1px solid currentColor;
+  border-color: color-mix(in oklch, currentColor 35%, transparent);
+  border-radius: var(--radius, 4px);
+  background: transparent;
+  width: 100%;
+}
+
+.gate-form__submit {
+  font: inherit;
+  justify-self: start;
+  padding: 0.6em 1.4em;
+  border: 1px solid currentColor;
+  border-radius: var(--radius, 4px);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* --- Vorschau-Hinweis ----------------------------------------------------- */
+
+/* Deliberately loud. A customer who cannot tell a preview from the live site
+   will report the page as published, and nobody will believe them until it is. */
+.preview-banner {
+  margin: 0 0 var(--space-4, 1.5rem);
+  padding: 0.7em 1em;
+  border: 2px dashed currentColor;
+  border-radius: var(--radius, 4px);
+  font-size: 0.9375rem;
+}
+
+/* Eigene Felder einer Website, als Beschriftung und Wert nebeneinander.
+   Bei schmalen Bildschirmen untereinander, sonst wird der Wert zur Spalte. */
+.page-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  margin-block: 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid currentColor;
+  border-color: color-mix(in oklab, currentColor 15%, transparent);
+}
+
+.page-fields dt {
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.page-fields dd {
+  margin: 0;
+}
+
+.page-fields img {
+  max-width: min(100%, 22rem);
+  height: auto;
+  border-radius: 4px;
+}
+
+@media (max-width: 34rem) {
+  .page-fields {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .page-fields dd {
+    margin-bottom: 0.6rem;
+  }
+}
+
+.page-fields__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-fields__rows li {
+  padding-block: 0.15rem;
+}
+
+.page-fields__rowlabel {
+  opacity: 0.7;
+}
+
+/* --- Hofladen (Plugin „bestellung") ---------------------------------------
+
+   Das Markup kommt fertig aus dem Plugin; die Vorlage kennt es nur über diese
+   Klassennamen. Wer sie hier vergisst, bekommt ein Formular ohne jede Form —
+   und einen sichtbaren Honigtopf, in den ein Besucher hineinschreibt. */
+
+.bestellung {
+  margin-block: 2rem;
+}
+
+.bestellung__hinweis {
+  margin-bottom: 1.25rem;
+}
+
+.bestellung__ok,
+.bestellung__fehler {
+  padding: 0.8em 1em;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+
+.bestellung__tabelle {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.75rem;
+}
+
+.bestellung__tabelle th,
+.bestellung__tabelle td {
+  padding: 0.5em 0.75em 0.5em 0;
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent);
+}
+
+.bestellung__tabelle thead th {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.bestellung__tabelle input[type="number"] {
+  width: 5rem;
+  padding: 0.4em 0.5em;
+}
+
+.bestellung__einheit,
+.bestellung__aus {
+  opacity: 0.65;
+  font-size: 0.9em;
+}
+
+.bestellung__form {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.bestellung__feld {
+  display: grid;
+  gap: 0.3em;
+  margin: 0;
+}
+
+.bestellung__feld label {
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.bestellung__form input,
+.bestellung__form textarea {
+  width: 100%;
+  padding: 0.55em 0.8em;
+  border: 1px solid color-mix(in oklab, currentColor 35%, transparent);
+  border-radius: 4px;
+  background: inherit;
+  color: inherit;
+  font: inherit;
+}
+
+.bestellung__form textarea {
+  resize: vertical;
+  min-height: 5rem;
+}
+
+.bestellung__hilfe {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.bestellung__abschicken {
+  margin: 0;
+}
+
+/* Umrandet und nicht gefüllt: dieselbe Regel liegt in sieben Vorlagen mit
+   unterschiedlichen Farbnamen, und ein gefüllter Knopf bräuchte in jeder eine
+   eigene Schriftfarbe — sonst steht Schwarz auf Schwarz. Wer ihn kräftiger
+   will, überschreibt ihn in seiner Vorlage. */
+.bestellung__abschicken button {
+  padding: 0.6em 1.4em;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bestellung__abschicken button:hover {
+  background: color-mix(in oklab, currentColor 10%, transparent);
+}
+
+/* Der Honigtopf. Nicht display:none, damit ein Vorleseprogramm ihn überspringen
+   kann und ein Formularausfüller ihn nicht als „unsichtbar, also egal" behandelt. */
+.bestellung__falle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* --- Shop ----------------------------------------------------------------
+ *
+ * Journal ist eine schmale Lesespalte, und der Shop bleibt darin. Ein
+ * Katalog in zwei Spalten statt in vier ist keine Einschränkung, sondern die
+ * Handschrift dieser Vorlage: eine Werkstatt mit zwölf Stücken liest sich so
+ * besser als in einem Raster, das für hundert gedacht ist.
+ *
+ * Eine Abweichung vom sonst zurückhaltenden Ton: die Knöpfe „In den
+ * Warenkorb“ und „Zahlungspflichtig bestellen“ sind gefüllt. Wer etwas kauft,
+ * muss ohne Suchen sehen, womit er es tut.
+ */
+
+.page-header {
+  margin-bottom: var(--space-5, 2rem);
+}
+
+.page-header__kicker {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.page-header__kicker a {
+  color: inherit;
+}
+
+.page-header__title {
+  font-size: 2rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.page-header__meta {
+  margin-top: 0.35rem;
+  font-size: 0.9375rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.prose > * + * {
+  margin-top: var(--space-3, 1rem);
+}
+
+.prose a {
+  color: var(--accent);
+}
+
+/* --- Knöpfe --------------------------------------------------------------- */
+
+.button {
+  display: inline-block;
+  font: inherit;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 0.7em 1.4em;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 4px);
+  background: var(--accent);
+  color: var(--bg-paper);
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+.button:hover,
+.button:focus-visible {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.button--quiet {
+  background: transparent;
+  color: inherit;
+  border-color: color-mix(in oklch, currentColor 35%, transparent);
+  font-weight: 400;
+  padding: 0.4em 0.8em;
+  font-size: 0.875rem;
+}
+
+.button--quiet:hover,
+.button--quiet:focus-visible {
+  background: transparent;
+  border-color: currentColor;
+}
+
+/* --- Preisanzeige umschalten ---------------------------------------------- */
+
+.price-switch {
+  display: flex;
+  gap: 0;
+  margin-bottom: var(--space-4, 1.5rem);
+  font-family: var(--font-sans);
+}
+
+.price-switch__option {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.4em 0.9em;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.price-switch__option:first-child {
+  border-radius: var(--radius, 4px) 0 0 var(--radius, 4px);
+}
+
+.price-switch__option:last-child {
+  border-radius: 0 var(--radius, 4px) var(--radius, 4px) 0;
+  border-left: 0;
+}
+
+.price-switch__option.is-active {
+  background: var(--bg-paper);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.shop-categories {
+  margin-bottom: var(--space-5, 2rem);
+}
+
+.shop-note {
+  margin-top: var(--space-5, 2rem);
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Ausserhalb von .post-body setzt diese Vorlage keine Linkfarbe, sodass die
+   Schlagwörter und die Shop-Links im Browser-Blau standen — mitten in einer
+   Seite, die sonst durchgehend warm ist. */
+.term,
+.cart-continue,
+.cart-line__title a,
+.card__title a,
+.page-header__kicker a {
+  color: inherit;
+}
+
+.term:hover,
+.cart-continue:hover,
+.page-header__kicker a:hover {
+  color: var(--accent);
+}
+
+/* --- Katalog -------------------------------------------------------------- */
+
+.product-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-5, 2rem);
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+}
+
+/* Die Karte füllt die Zeilenhöhe des Rasters, der Textteil den Rest davon.
+   Beides zusammen ist die Voraussetzung dafür, dass der Preis unten stehen
+   bleiben kann — mit align-content: start fallen die Zeilen nach oben zusammen
+   und das automatische Aussenmass darunter greift ins Leere. */
+.card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-2, 0.5rem);
+  block-size: 100%;
+}
+
+.card:not(:has(.card__media)) {
+  grid-template-rows: 1fr;
+}
+
+.card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 0.5rem);
+}
+
+/* Der Preis nach unten, damit die Preise einer Zeile auf einer Höhe stehen.
+   Sonst tanzen sie mit der Länge der Beschreibung, und ein Katalog, in dem
+   man die Preise suchen muss, ist ein schlechter Katalog. */
+.card__body .price {
+  margin-block-start: auto;
+  padding-block-start: var(--space-2, 0.5rem);
+}
+
+.card__media img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius, 4px);
+}
+
+.card__title {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.card__title a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.card__title a:hover,
+.card__title a:focus-visible {
+  text-decoration: underline;
+}
+
+.product-card__subtitle {
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Auf drei Zeilen gekürzt. Ein Katalog vergleicht Stücke; wer den ganzen Text
+   will, klickt hinein. Ohne die Kürzung bestimmt der längste Beschreibungstext
+   die Höhe jeder Zeile des Rasters. */
+.card__excerpt {
+  font-size: 0.9375rem;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/* Ein ausverkauftes Stück bleibt sichtbar und lesbar — es wird nur ruhiger.
+   Verschwinden lassen wäre schlechter: die Kundin sucht sonst weiter. */
+.product-card--sold-out .card__media img {
+  opacity: 0.55;
+}
+
+.product-card__sold-out {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* --- Preis ---------------------------------------------------------------- */
+
+.price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.price__amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.price--large .price__amount {
+  font-size: 1.6rem;
+}
+
+.price__note,
+.price__other {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* --- Ein Stück ------------------------------------------------------------ */
+
+.product {
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+}
+
+.product__image {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--radius, 4px);
+}
+
+.product__gallery {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--space-2, 0.5rem);
+}
+
+.product__gallery img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius, 4px);
+}
+
+.product__buy {
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+  padding: var(--space-4, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+  background: var(--bg-paper);
+}
+
+.product__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2, 0.5rem);
+  margin-top: var(--space-2, 0.5rem);
+}
+
+.product__form label {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  flex-basis: 100%;
+}
+
+.product__form input {
+  font: inherit;
+  inline-size: 4.5rem;
+  padding: 0.55em 0.6em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+  background: var(--bg);
+  color: inherit;
+}
+
+.product__stock,
+.product__delivery,
+.product__shipping,
+.product__sku {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.product__sold-out {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.product__description {
+  margin-top: var(--space-5, 2rem);
+}
+
+.page-terms {
+  margin-top: var(--space-5, 2rem);
+}
+
+.page-terms__heading {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+/* Bild und Kaufkasten nebeneinander, sobald Platz ist. Als Container-Abfrage,
+   damit die Frage der Spalte gilt und nicht dem Fenster — die Container-Angabe
+   gehört dazu, sonst hat die Abfrage nichts zu messen und trifft nie zu, was
+   genau aussieht wie eine nie geschriebene Regel. */
+.page--product {
+  container-type: inline-size;
+}
+
+@container (min-width: 34rem) {
+  .product:has(.product__image) {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+/* --- Warenkorb ------------------------------------------------------------ */
+
+.cart-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+}
+
+/* Die Reihenfolge im Quelltext ist Bild, Text, Menge, Preis, Entfernen — für
+   ein Vorlesegerät die richtige. Auf dem Bildschirm gehört der Preis aber auf
+   die Höhe des Titels und nicht unter die Mengenzeile, also werden die Felder
+   ausdrücklich gesetzt statt der Reihe nach eingefüllt. */
+.cart-line {
+  display: grid;
+  grid-template-columns: 4rem 1fr;
+  grid-template-areas:
+    "bild  text"
+    "bild  preis"
+    "menge menge"
+    "weg   weg";
+  gap: var(--space-2, 0.5rem) var(--space-3, 1rem);
+  align-items: start;
+  padding-bottom: var(--space-4, 1.5rem);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Ohne Bild keine Bildspalte — sonst stünde der Text um vier Zentimeter
+   eingerückt neben nichts. */
+.cart-line:not(:has(.cart-line__media)) {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "text"
+    "preis"
+    "menge"
+    "weg";
+}
+
+/* Nebeneinander erst, wenn die Zeile es trägt. Darunter gestapelt: auf 390px
+   passten Bild, Text, Menge, Preis und "Entfernen" nicht in eine Reihe, und
+   der Preis stand am Bildschirmrand statt im Rahmen. */
+@media (min-width: 34rem) {
+  .cart-line,
+  .cart-line:not(:has(.cart-line__media)) {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "text  preis"
+      "menge weg";
+  }
+
+  /* Ohne Bild darf keine Bildspalte reserviert werden — sonst steht der Text
+     um sechs Zentimeter eingerückt neben nichts. */
+  .cart-line:has(.cart-line__media) {
+    grid-template-columns: 5rem 1fr auto;
+    grid-template-areas:
+      "bild text  preis"
+      "bild menge weg";
+  }
+
+  .cart-line__price { text-align: right; }
+  .cart-line__remove { justify-self: end; }
+}
+
+.cart-line__media { grid-area: bild; }
+.cart-line__text { grid-area: text; }
+.cart-line__price { grid-area: preis; }
+.cart-line__quantity { grid-area: menge; }
+.cart-line__remove { grid-area: weg; }
+
+.cart-line__media img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius, 4px);
+}
+
+.cart-line__title {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+
+.cart-line__title a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.cart-line__title a:hover {
+  text-decoration: underline;
+}
+
+.cart-line__subtitle,
+.cart-line__unit {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.cart-line__gone {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: oklch(0.55 0.19 27);
+}
+
+.cart-line__price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cart-line__quantity {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: end;
+}
+
+.cart-line__quantity input {
+  font: inherit;
+  inline-size: 4rem;
+  padding: 0.35em 0.5em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+  background: var(--bg);
+  color: inherit;
+}
+
+.cart-line__remove {
+  justify-self: end;
+  align-self: end;
+}
+
+.cart-line__drop {
+  font: inherit;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cart-line__drop:hover {
+  color: var(--accent);
+}
+
+.cart-line--gone {
+  opacity: 0.7;
+}
+
+.cart-summary {
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+  justify-items: start;
+  margin-top: var(--space-5, 2rem);
+}
+
+.cart-totals {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem var(--space-3, 1rem);
+  margin: 0;
+}
+
+.cart-totals dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cart-totals__tax {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.cart-totals__sum {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.cart-totals__note,
+.checkout__policy,
+.order__policy {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.cart-checkout {
+  margin-top: var(--space-3, 1rem);
+}
+
+.cart-continue {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.cart-empty {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.cart-blocked {
+  margin-bottom: var(--space-4, 1.5rem);
+  padding: 0.7em 1em;
+  border-left: 3px solid oklch(0.55 0.19 27);
+  background: color-mix(in oklch, oklch(0.55 0.19 27) 8%, transparent);
+  font-size: 0.9375rem;
+}
+
+/* --- Kasse ---------------------------------------------------------------- */
+
+.checkout__grid {
+  display: grid;
+  gap: var(--space-5, 2rem);
+  align-items: start;
+}
+
+.checkout__form {
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+}
+
+.checkout__group {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  padding: var(--space-4, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+  background: var(--bg-paper);
+}
+
+.checkout__group legend {
+  padding-inline: 0.5rem;
+  font-weight: 700;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.field label {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.field input,
+.field textarea,
+.field__select {
+  font: inherit;
+  inline-size: 100%;
+  padding: 0.55em 0.7em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+  background: var(--bg);
+  color: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field__error {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: oklch(0.5 0.19 27);
+}
+
+/* PLZ und Ort nebeneinander — aber nur, solange sie nebeneinander passen.
+   Ein Eingabefeld ist von sich aus rund 180px breit und schrumpft nicht von
+   allein; zwei davon in einer Zeile schieben die Kasse auf dem Telefon über
+   den Rand. */
+.field-row {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  grid-template-columns: 7rem 1fr;
+}
+
+.field-row > .field {
+  min-inline-size: 0;
+}
+
+.field-row input {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+@media (max-width: 26rem) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.6rem;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.choice input {
+  grid-row: 1;
+}
+
+.choice__label {
+  font-weight: 600;
+}
+
+.choice__note {
+  grid-column: 2;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.choice--confirm {
+  padding: var(--space-3, 1rem);
+  border-radius: var(--radius, 4px);
+  background: var(--bg-paper);
+}
+
+.checkout__submit {
+  justify-self: start;
+  font-size: 1rem;
+  padding: 0.85em 1.8em;
+}
+
+.checkout__summary {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  justify-items: start;
+  padding: var(--space-4, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+  background: var(--bg-paper);
+}
+
+.checkout__summary-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.checkout__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  inline-size: 100%;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9375rem;
+}
+
+.checkout__lines li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+}
+
+.checkout__line-qty {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkout__line-price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- Bestätigung ---------------------------------------------------------- */
+
+.order__body {
+  display: grid;
+  gap: var(--space-4, 1.5rem);
+  justify-items: start;
+}
+
+.order__body .cart-totals,
+.order__body .checkout__lines {
+  inline-size: 100%;
+  max-inline-size: 26rem;
+}
+
+.order__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem var(--space-3, 1rem);
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.order__facts dt {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.order__payment-note {
+  display: inline-block;
+  margin-top: 0.2rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}

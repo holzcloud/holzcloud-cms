@@ -1,0 +1,67 @@
+{{define "content"}}
+{{template "mail_status-content" .}}
+{{end}}
+
+{{define "mail_status-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">
+        {{t "Holzcloud verschickt E-Mails nur, wenn ein Mailserver eingerichtet ist. Das ist die einzige Stelle, an der dieser Server von sich aus nach außen wählt – zu genau dem Server, den du eingetragen hast, und zu keinem anderen. Was Besucher im Browser laden, kommt weiterhin ausschließlich von hier."}}
+    </p>
+</div>
+
+<div class="card">
+    <h2>{{t "Mailserver"}}</h2>
+    {{if .Status.Configured}}
+    <dl class="facts">
+        <dt>{{t "Zustand"}}</dt><dd><span class="badge badge--ok">{{t "eingerichtet"}}</span></dd>
+        <dt>{{t "Server"}}</dt><dd><code>{{.Status.Host}}</code></dd>
+        <dt>{{t "Absender"}}</dt><dd><code>{{.Status.From}}</code></dd>
+    </dl>
+
+    <form method="POST" action="/admin/mail/test">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+            {{tf "Testnachricht an %s senden" .OwnEmail}}
+        </button>
+        <p class="form-hint text-muted">
+            {{t "Geht an deine eigene Adresse. Ein Feld zum Eintragen gibt es bewusst nicht: ein Formular, das an beliebige Adressen sendet, wird irgendwann zum Spamversand."}}
+        </p>
+    </form>
+    {{else}}
+    <p><span class="badge">{{t "aus"}}</span></p>
+    <p class="text-muted">
+        {{th "Setze <code>HOLZCLOUD_SMTP_HOST</code> und <code>HOLZCLOUD_SMTP_FROM</code> und starte den Dienst neu. Optional: <code>HOLZCLOUD_SMTP_PORT</code> (Vorgabe 587), <code>HOLZCLOUD_SMTP_USER</code>, <code>HOLZCLOUD_SMTP_PASSWORD</code>, <code>HOLZCLOUD_SMTP_FROM_NAME</code> und <code>HOLZCLOUD_SMTP_TLS</code> (<code>starttls</code>, <code>tls</code> oder <code>none</code>)."}}
+    </p>
+    <p class="text-muted">
+        {{t "Bis dahin funktioniert alles wie bisher: ein Einladungslink wird einmal angezeigt und von Hand weitergegeben, und Anfragen aus dem Kontaktformular stehen nur in der Verwaltung."}}
+    </p>
+    {{end}}
+</div>
+
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Postausgang"}}</h2>
+    <dl class="facts">
+        <dt>{{t "Wartet"}}</dt><dd>{{.Status.Pending}}</dd>
+        <dt>{{t "Aufgegeben"}}</dt><dd>{{.Status.Failed}}</dd>
+        {{if .Status.LastSent}}<dt>{{t "Zuletzt zugestellt"}}</dt><dd>{{tf "%s UTC" (.Status.LastSent.Format "02.01.2006 15:04")}}</dd>{{end}}
+    </dl>
+
+    {{if .Status.LastError}}
+    <div class="alert alert--warning" role="alert">
+        <p><strong>{{t "Zuletzt gescheitert:"}}</strong> {{.Status.LastError}}</p>
+    </div>
+    {{end}}
+
+    {{if or .Status.Pending .Status.Failed}}
+    <form method="POST" action="/admin/mail/retry">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Jetzt erneut versuchen"}}</button>
+        <p class="form-hint text-muted">
+            {{t "Für den Fall, dass gerade ein falsches Passwort oder ein blockierter Port korrigiert wurde: dann soll das, was liegen geblieben ist, sofort raus statt gar nicht."}}
+        </p>
+    </form>
+    {{else}}
+    <p class="text-muted">{{t "Es liegt nichts an."}}</p>
+    {{end}}
+</div>
+{{end}}

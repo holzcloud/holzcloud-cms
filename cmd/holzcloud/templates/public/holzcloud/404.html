@@ -1,0 +1,11 @@
+{{define "content"}}
+<section class="hc-wide page-wrap page--kurz">
+  <p class="hc-eyebrow">404</p>
+  <h1 class="hc-title">Seite nicht gefunden</h1>
+  <p class="hc-lede">Die gewünschte Seite gibt es nicht (mehr).</p>
+  <div class="site-actions">
+    <a class="hc-btn" href="/">Zur Startseite</a>
+    {{if .Site.HasSearch}}<a class="hc-btn hc-btn--ghost" href="/suche">Suchen</a>{{end}}
+  </div>
+</section>
+{{end}}

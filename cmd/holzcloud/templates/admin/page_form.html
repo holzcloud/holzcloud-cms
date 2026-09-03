@@ -1,0 +1,375 @@
+{{define "content"}}
+{{template "page_form-content" .}}
+{{end}}
+
+{{define "page_form-content"}}
+<div class="card">
+    {{if .Conflict}}
+    <div class="alert alert--warning" role="alert">
+        <p>{{.Conflict}}</p>
+        <p>
+            <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/edit" target="_blank" rel="noopener">{{t "Aktuelle Fassung ansehen"}}</a>
+            {{if .RevisionCount}}
+            &middot; <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" target="_blank" rel="noopener">{{t "Versionsverlauf"}}</a>
+            {{end}}
+        </p>
+    </div>
+    {{end}}
+
+    {{/* Vollbild ist eine Adresse, keine Einstellung: es gilt, solange man auf
+         diesem Bildschirm ist. Ein Link, kein Schalter — und kein JavaScript. */}}
+    <p class="fullscreen-toggle">
+        {{if .Fullscreen}}
+        <a href="{{.BlockAction}}" class="btn btn--sm">{{t "Vollbild verlassen"}}</a>
+        {{else}}
+        <a href="{{.BlockAction}}?vollbild=1" class="btn btn--sm">{{t "Vollbild"}}</a>
+        {{end}}
+    </p>
+
+    <form method="POST"
+          action="{{.BlockAction}}{{if .Fullscreen}}?vollbild=1{{end}}">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{if .IsEdit}}<input type="hidden" name="version" value="{{.Values.Version}}">{{end}}
+
+        <div class="form-group">
+            <label class="form-label" for="title">{{t "Titel"}}</label>
+            <input type="text" id="title" name="title" class="form-input" required
+                   value="{{.Values.Title}}"
+                   placeholder="{{t "Titel der Seite"}}"
+                   {{with .Errors.title}}aria-invalid="true" aria-describedby="title-error"{{end}}>
+            {{with .Errors.title}}<p class="form-error" id="title-error">{{t .}}</p>{{end}}
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="slug">{{t "Adresse"}}</label>
+            <input type="text" id="slug" name="slug" class="form-input"
+                   value="{{.Values.Slug}}"
+                   placeholder="{{t "wird-aus-dem-titel-erzeugt"}}"
+                   aria-describedby="slug-hint{{with .Errors.slug}} slug-error{{end}}"
+                   {{with .Errors.slug}}aria-invalid="true"{{end}}>
+            {{with .Errors.slug}}<p class="form-error" id="slug-error">{{t .}}</p>{{end}}
+            <p class="form-hint text-muted" id="slug-hint">
+                {{t "Leer lassen, um die Adresse aus dem Titel zu erzeugen."}}
+                {{if .IsEdit}}{{t "Beim Ändern wird automatisch eine Weiterleitung von der alten Adresse angelegt."}}{{end}}
+            </p>
+        </div>
+
+        {{if .Values.UsesBlocks}}
+        <!-- Der Baustein-Editor. Die Liste wird von htmx an Ort und Stelle
+             ersetzt; ohne htmx lädt der Browser das ganze Formular neu. -->
+        <div class="form-group">
+            <span class="form-label">{{t "Inhalt"}}</span>
+            {{template "block_list" .}}
+        </div>
+        {{else}}
+        <div class="form-group">
+            <label class="form-label" for="content_markdown">{{t "Inhalt (Markdown)"}}</label>
+            <div class="editor-split">
+                <textarea id="content_markdown" name="content_markdown"
+                          class="form-input form-textarea form-textarea--tall"
+                          rows="20" placeholder="{{t "Inhalt in Markdown schreiben …"}}"
+                          hx-post="/admin/websites/{{.WebsiteID}}/pages/preview"
+                          hx-trigger="input changed delay:600ms"
+                          hx-target="#preview-pane"
+                          hx-swap="innerHTML">{{.Values.Markdown}}</textarea>
+                <!-- Without htmx this section simply stays on its initial content;
+                     the editor keeps working, the pane just does not follow along. -->
+                <section class="editor-preview" aria-label="{{t "Vorschau"}}">
+                    <h2 class="editor-preview__title">{{t "Vorschau"}}</h2>
+                    <div id="preview-pane" class="editor-preview__body prose" aria-live="polite">
+                        {{template "preview_pane" .PreviewHTML}}
+                    </div>
+                </section>
+            </div>
+            {{template "markdown_help" .}}
+            {{if .Snippets}}
+            <details class="snippet-help">
+                <summary>{{t "Textbausteine einfügen"}}</summary>
+                <ul class="snippet-help__list">
+                    {{range .Snippets}}
+                    <li><code>[[snippet:{{.Key}}]]</code> — {{.Name}}</li>
+                    {{end}}
+                </ul>
+                <p class="form-hint text-muted">
+                    <a href="/admin/websites/{{.WebsiteID}}/snippets">{{t "Textbausteine verwalten"}}</a>
+                </p>
+            </details>
+            {{end}}
+            <p class="block-switch">
+                <!-- Bewusst ohne htmx: hier wird das ganze Formular neu
+                     gezeichnet, nicht ein Ausschnitt davon. -->
+                <button type="submit" class="btn btn--sm" name="editorwechsel" value="zu-bausteinen">
+                    {{t "Mit Bausteinen gestalten"}}
+                </button>
+                <span class="form-hint text-muted">
+                    {{t "Bild neben Text, Galerien, Karten. Der bisherige Text wird der erste Baustein, und solange nur Text darin steht, geht es jederzeit zurück."}}
+                </span>
+            </p>
+        </div>
+        {{end}}
+
+        {{if .Languages}}
+        <input type="hidden" name="uebersetzung_von" value="{{.Values.TranslationOf}}">
+        <div class="form-group">
+            <label class="form-label" for="sprache">{{t "Sprache"}}</label>
+            <select id="sprache" name="sprache" class="form-input form-select">
+                {{range .Languages}}
+                <option value="{{.Code}}"{{if .Selected}} selected{{end}}>{{t .Name}}{{if .Primary}} {{t "(Hauptsprache)"}}{{end}}</option>
+                {{end}}
+            </select>
+            <p class="form-hint text-muted">
+                {{th "Die Hauptsprache behält ihre Adresse, jede weitere Sprache liegt unter ihrem Kürzel – <code>/fr/…</code>."}}
+            </p>
+        </div>
+        {{end}}
+
+        {{if .Translations}}
+        <div class="form-group">
+            <span class="form-label">{{t "Fassungen in anderen Sprachen"}}</span>
+            <ul class="translations">
+                {{range .Translations}}
+                <li class="translations-row">
+                    <span class="translations-lang">{{t .Name}}</span>
+                    {{if .Missing}}
+                    <span class="text-muted">{{t "– noch nicht übersetzt –"}}</span>
+                    <button type="submit" class="btn btn-sm" hx-disabled-elt="this"
+                            formmethod="POST"
+                            formaction="/admin/websites/{{$.WebsiteID}}/pages/{{$.PageID}}/uebersetzen?sprache={{.Code}}"
+                            formnovalidate>{{t "Fassung anlegen"}}</button>
+                    {{else if .Self}}
+                    <span>{{.Title}}</span>
+                    <span class="badge">{{t "diese Seite"}}</span>
+                    {{else}}
+                    <a href="/admin/websites/{{$.WebsiteID}}/pages/{{.PageID}}/edit">{{.Title}}</a>
+                    {{if .Draft}}<span class="badge badge-draft">{{t "Entwurf"}}</span>{{end}}
+                    {{end}}
+                </li>
+                {{end}}
+            </ul>
+            <p class="form-hint text-muted">
+                {{t "„Fassung anlegen“ kopiert diese Seite als Entwurf in die andere Sprache – Text und Adresse werden dort übersetzt."}}
+            </p>
+        </div>
+        {{end}}
+
+        <div class="form-group">
+            <label class="form-label" for="kind">{{t "Art"}}</label>
+            <select id="kind" name="kind" class="form-input form-select">
+                {{range .KindChoices}}
+                <option value="{{.Key}}"{{if .Selected}} selected{{end}}>{{t .Name}}</option>
+                {{end}}
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Ein Beitrag erscheint zusätzlich im Archiv, nach Datum sortiert. Eine Seite steht für sich und gehört meist ins Menü. Eigene Arten legst du unter „Inhaltsarten“ an."}}
+            </p>
+        </div>
+
+        {{if .IsEdit}}
+        <div class="form-group">
+            <span class="form-label">{{t "Vorschaulink"}}</span>
+            <p class="form-hint text-muted">
+                {{t "Zeigt die Seite jemandem ohne Zugang – auch als Entwurf. So muss nichts „kurz“ veröffentlicht werden, damit ein Kunde draufschaut."}}
+            </p>
+            <button type="submit" class="btn" hx-disabled-elt="this"
+                    formmethod="POST" formaction="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/share"
+                    formnovalidate>{{t "Vorschaulink erzeugen"}}</button>
+        </div>
+        {{end}}
+
+        {{if .FieldViews}}
+        {{/* Die eigenen Felder dieser Website. Sie stehen offen da und nicht in
+             einem Aufklapper: sie gehören zum Inhalt, nicht zu den Einstellungen.
+             Eine Überschrift teilt sie in Abschnitte; der erste hat keine, weil
+             die Felder von vor der Einteilung irgendwo stehen müssen. */}}
+        <fieldset class="own-fields">
+            <legend>{{t "Angaben zu dieser Seite"}}</legend>
+            {{range .FieldViews}}
+            {{if .Title}}
+            <h3 class="own-fields__abschnitt">{{.Title}}</h3>
+            {{if .Hint}}<p class="form-hint text-muted">{{.Hint}}</p>{{end}}
+            {{end}}
+            {{range .Fields}}{{template "field_top" .}}{{end}}
+            {{end}}
+        </fieldset>
+        {{end}}
+
+        <details class="access-fields"{{if .Values.Protected}} open{{end}}>
+            <summary>{{t "Zugriffsschutz"}}</summary>
+            <p class="form-hint text-muted">
+                {{t "Eine geschützte Seite verlangt ein Passwort und taucht weder in der Suche noch im Menü, im Archiv, in der Sitemap oder im Feed auf. Sie ersetzt keine Benutzerkonten: wer das Passwort weitergibt, gibt den Zugang weiter, und nachvollziehen lässt sich das nicht."}}
+            </p>
+
+            <div class="form-group">
+                <label class="form-check">
+                    <input type="checkbox" name="protected" {{if .Values.Protected}}checked{{end}}>
+                    <span class="form-check-label">{{t "Seite mit Passwort schützen"}}</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="page_password">{{t "Passwort"}}</label>
+                <input type="password" id="page_password" name="page_password" class="form-input"
+                       autocomplete="new-password"
+                       placeholder="{{if .Values.HasPassword}}{{t "unverändert lassen"}}{{else}}{{t "mindestens 6 Zeichen"}}{{end}}">
+                {{if .Values.HasPassword}}
+                <input type="hidden" name="has_password" value="1">
+                <p class="form-hint text-muted">
+                    {{t "Leer lassen, um das bestehende Passwort zu behalten. Es wird hier nie angezeigt – gespeichert ist nur seine Prüfsumme."}}
+                </p>
+                {{end}}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="access_hint">{{t "Hinweis über dem Feld"}}</label>
+                <input type="text" id="access_hint" name="access_hint" class="form-input"
+                       value="{{.Values.AccessHint}}"
+                       placeholder="{{t "Das Passwort steht in unserem Anschreiben."}}">
+            </div>
+        </details>
+
+        <div class="form-group">
+            <label class="form-label" for="tags">{{t "Schlagwörter"}}</label>
+            <input type="text" id="tags" name="tags" class="form-input"
+                   value="{{.Values.Tags}}" placeholder="{{t "Möbel, Eiche, Werkstatt"}}">
+            <p class="form-hint text-muted">
+                {{th "Mit Komma getrennt. Jedes Schlagwort bekommt eine eigene Übersichtsseite unter <code>/tag/…</code>. Höchstens zwölf pro Eintrag."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="status">{{t "Status"}}</label>
+            {{if .MayPublish}}
+            <select id="status" name="status" class="form-input form-select">
+                <option value="draft" {{if eq .Values.Status "draft"}}selected{{end}}>{{t "Entwurf"}}</option>
+                <option value="published" {{if eq .Values.Status "published"}}selected{{end}}>{{t "Veröffentlicht"}}</option>
+            </select>
+            {{else}}
+            <p>
+                <span class="badge">{{if eq .Values.Status "published"}}{{t "Veröffentlicht"}}{{else}}{{t "Entwurf"}}{{end}}</span>
+            </p>
+            <p class="form-hint text-muted">
+                {{t "Veröffentlichen gehört nicht zu deinem Zugang. Speichere und reiche die Seite zur Prüfung ein — jemand mit dem Recht stellt sie online."}}
+            </p>
+            {{end}}
+        </div>
+
+        {{if .PublishedAt}}
+        <div class="form-group">
+            <span class="form-label">{{t "Veröffentlicht am"}}</span>
+            <span class="text-muted">{{.PublishedAt.Format "02.01.2006 15:04"}}</span>
+        </div>
+        {{end}}
+
+        <details class="schedule-fields"{{if or .Values.PublishAt .Values.UnpublishAt}} open{{end}}>
+            <summary>{{t "Zeitsteuerung"}}</summary>
+            <p class="form-hint text-muted">
+                {{t "Alle Zeiten in UTC. Eine Seite mit Startzeitpunkt bleibt bis dahin unsichtbar, auch wenn sie auf „Veröffentlicht“ steht – dafür muss nichts im Hintergrund laufen und kein Zeitpunkt kann verpasst werden."}}
+            </p>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="publish_at">{{t "Sichtbar ab"}}</label>
+                    <input type="datetime-local" id="publish_at" name="publish_at" class="form-input"
+                           value="{{.Values.PublishAt}}"
+                           {{with .Errors.publish_at}}aria-invalid="true" aria-describedby="publish-at-error"{{end}}>
+                    {{with .Errors.publish_at}}<p class="form-error" id="publish-at-error">{{t .}}</p>{{end}}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="unpublish_at">{{t "Sichtbar bis"}}</label>
+                    <input type="datetime-local" id="unpublish_at" name="unpublish_at" class="form-input"
+                           value="{{.Values.UnpublishAt}}"
+                           {{with .Errors.unpublish_at}}aria-invalid="true" aria-describedby="unpublish-at-error"{{end}}>
+                    {{with .Errors.unpublish_at}}<p class="form-error" id="unpublish-at-error">{{t .}}</p>{{end}}
+                </div>
+            </div>
+        </details>
+
+        <details class="seo-fields"{{if .Values.MetaDescription}} open{{end}}>
+            <summary>{{t "Suchmaschinen und Vorschau"}}</summary>
+
+            <div class="form-group">
+                <label class="form-label" for="excerpt">{{t "Kurzfassung"}}</label>
+                <textarea id="excerpt" name="excerpt" class="form-input form-textarea" rows="2"
+                          maxlength="300"
+                          placeholder="{{t "Wird sonst aus den ersten Sätzen des Inhalts erzeugt"}}">{{.Values.Excerpt}}</textarea>
+                <p class="form-hint text-muted">{{t "Leer lassen, um sie automatisch aus dem Text zu erzeugen."}}</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="meta_description">{{t "Beschreibung für Suchmaschinen"}}</label>
+                <textarea id="meta_description" name="meta_description" class="form-input form-textarea" rows="2"
+                          maxlength="300"
+                          placeholder="{{t "Überschreibt die Kurzfassung in der Trefferliste"}}">{{.Values.MetaDescription}}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="featured_media_id">{{t "Vorschaubild"}}</label>
+                <select id="featured_media_id" name="featured_media_id" class="form-input form-select">
+                    <option value="">{{t "– keins –"}}</option>
+                    {{range .Media}}
+                    <option value="{{.ID}}"{{if eq (printf "%d" .ID) $.Values.FeaturedMediaID}} selected{{end}}>{{.OriginalName}}</option>
+                    {{end}}
+                </select>
+                <p class="form-hint text-muted">{{t "Wird angezeigt, wenn jemand den Link in einem Messenger oder sozialen Netzwerk teilt."}}</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-check">
+                    <input type="checkbox" name="noindex" value="1" {{if .Values.NoIndex}}checked{{end}}>
+                    <span class="form-check-label">{{t "Nicht in Suchmaschinen aufnehmen"}}</span>
+                </label>
+                <p class="form-hint text-muted">{{t "Die Seite bleibt öffentlich erreichbar, taucht aber nicht in der Suche auf."}}</p>
+            </div>
+        </details>
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+            {{if .IsEdit}}{{t "Änderungen speichern"}}{{else}}{{t "Seite anlegen"}}{{end}}
+        </button>
+        <a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Abbrechen"}}</a>
+        {{if .IsEdit}}
+        <a href="/admin/websites/{{.WebsiteID}}/preview/{{.Values.Slug}}" target="_blank" rel="noopener" class="btn">{{t "Vorschau"}}</a>
+        {{if .RevisionCount}}
+        <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" class="btn">{{tf "Verlauf (%d)" .RevisionCount}}</a>
+        {{end}}
+        {{end}}
+    </form>
+</div>
+
+{{if .IsEdit}}
+<!-- A <details>, not a <dialog>: opening a dialog needs showModal(), which from
+     a template means an inline handler, which means loosening script-src away
+     from 'self'. <details> opens with no script at all, and htmx loads the
+     content on the toggle event.
+
+     It sits outside the save form because each tile is its own form post. -->
+<details class="card media-picker" style="margin-top: var(--space-3);"
+         hx-get="/admin/websites/{{.WebsiteID}}/media/picker?page_id={{.PageID}}"
+         hx-target="#media-picker-body" hx-swap="innerHTML"
+         hx-trigger="toggle once">
+    <summary>{{t "Bild aus der Mediathek einfügen"}}</summary>
+    <p class="form-hint text-muted">
+        {{t "Das Bild wird am Ende des Textes eingefügt und lässt sich von dort verschieben. Ungespeicherte Änderungen im Editor gehen dabei verloren — vorher speichern."}}
+    </p>
+    <div id="media-picker-body">
+        <!-- Without htmx the picker cannot load itself; the library is one click away. -->
+        <p><a href="/admin/websites/{{.WebsiteID}}/media">{{t "Zur Mediathek"}}</a></p>
+    </div>
+</details>
+
+<!-- Its own form, outside the save form: a review request must not carry the
+     unsaved editor content with it, and a form inside a form is invalid HTML. -->
+<div class="card" style="margin-top: var(--space-3);">
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/review" class="review-form">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{if .ReviewPending}}<input type="hidden" name="clear" value="1">{{end}}
+        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">
+            {{if .ReviewPending}}{{t "Prüfungsvermerk entfernen"}}{{else}}{{t "Zur Prüfung einreichen"}}{{end}}
+        </button>
+        <span class="form-hint text-muted">
+            {{if .ReviewPending}}{{t "Diese Seite ist als „zur Prüfung“ markiert."}}{{else}}{{t "Markiert die Seite in der Seitenliste als zu prüfen."}}{{end}}
+        </span>
+    </form>
+</div>
+{{end}}
+{{end}}
