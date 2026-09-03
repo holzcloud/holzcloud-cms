@@ -61,18 +61,20 @@ decisions:
   - ".hc-karten gehört in die Breit-Regel — eine Kartenreihe ist dieselbe Geste wie eine Galerie"
   - "Die Breit-Regel nennt jetzt die REGEL statt der Liste: breit ist, was von sich aus mehrspaltig ist oder ein Bild in natürlicher Grösse zeigt; schmal bleibt, was gelesen wird"
   - ".hc-aufruf bleibt absichtlich schmal — ein Kasten mit einem Satz und einem Knopf, mittig gesetzt, wäre über die volle Breite ein Halbsatz in einer leeren Fläche"
+  - "Ein Bild wird in seiner eigenen Grösse gezeigt: kein Hochrechnen (inline-size: auto) und eine Höhengrenze, für die drei Bildarten, die nicht zugeschnitten werden"
+  - "Kein object-fit: cover ausserhalb von Karte und Galerie — nur dort liefert render.go ein object-position aus dem Bildmittelpunkt; sonst schnitte es blind aus der Mitte"
 
 metrics:
-  duration: 78m
+  duration: 92m
   completed: 2026-09-03
   tasks: 3
-  commits: 8
+  commits: 9
   files: 18
 
 actuals:
-  tokens: 37200
+  tokens: 39000
   tasks: 3
-  commits: 8
+  commits: 9
 ---
 
 # Quick-Aufgabe 260903-rqq: Vorlage `weide` neu gestalten — Summary
@@ -483,6 +485,74 @@ Er ist das einzige Element, das absichtlich in der Textspalte bleibt — ohne
 diesen Satz wird er beim nächsten Mal „der Vollständigkeit halber" nachgetragen
 und dabei kaputtgemacht.
 
+### Fehler D — Ein Bild richtete sich nach dem Rahmen statt umgekehrt (Commit ac0aeb5)
+
+Zwei Meldungen derselben Absicht, in einem Commit und unter einem gemeinsamen
+Kommentar: **der Rahmen richtet sich nach dem Bild, nicht das Bild nach dem
+Rahmen.** Getrennt geschrieben laden die beiden Regeln dazu ein, später eine
+davon zu entfernen — deshalb stehen sie als ein Block mit einer Begründung.
+
+**Erste Hälfte, nicht hochrechnen.** `bausteine.css` sagt eine Ebene höher
+schon das Richtige (`.hc-block img` auf `max-inline-size: 100%`, Z. 34), aber
+`.hc-bild img` (Z. 50) und `.hc-bildtext__bild img` (Z. 96) überschreiben es
+mit `inline-size: 100%` und zwingen damit auch ein kleines Bild auf
+Spaltenbreite. Gemessen: die Bildmarke eines Hofes, 235 px breit, wurde in
+einer 569 px breiten Bildtext-Spalte 2,4-fach hochgerechnet und franste
+sichtbar aus. Jetzt `inline-size: auto` plus `max-inline-size: 100%`; ein
+kleines Bild steht mittig in seiner Spalte, statt sie zu füllen. Eine
+unscharfe Marke ist schlimmer als eine kleine.
+
+**Zweite Hälfte, eine Höhengrenze.** Ein Hochformat 900 × 1600 stand im
+Bildtext auf 533 × 945, der Text daneben war 143 px hoch, und weil
+`bausteine.css` die zwei Spalten auf `align-items: center` stellt, begann er
+405 px unter der Bildoberkante. Ein `bildtext` verspricht ein Bild NEBEN einem
+Text; ist das Bild dreimal so hoch, ist es kein Paar mehr, sondern ein Bild mit
+einer Fussnote. Vorher fiel das nicht auf, weil in der schmalen Textspalte
+jedes Bild auf 340 px gedrückt wurde — die Verbreiterung (Fehler C) ist
+richtig, sie legt den Fall nur offen.
+
+**Warum die Grenze an der Höhe hängt und nicht an einem `cover`:**
+`internal/block/render.go` ruft `imgTag` nur für Galerie (Z. 165) und Karte
+(Z. 182) mit gesetztem Zuschnitt-Kennzeichen; nur dort entsteht aus dem
+Bildmittelpunkt ein `object-position` (Z. 369). Ein `bildtext`-Bild bekommt
+keines mitgeliefert (Z. 146, `cropped = false`), ein `object-fit: cover`
+schnitte also blind aus der geometrischen Mitte — bei einem Tierbild der Kopf.
+
+Zwei Zahlen für zwei verschiedene Fragen:
+- `70vh` für `.hc-bild` und `.hc-eigen__bild`: sie stehen allein in der Spalte
+  und sind nicht die Hälfte eines Paares — dieselbe Zahl wie die Figur im
+  Fliesstext, aus demselben Grund.
+- `min(100cqw, 70vh)` für `.hc-bildtext__bild`: nie höher, als die eigene
+  Spalte breit ist. Das ist die Paar-Regel selbst, in eine Länge übersetzt —
+  die Grenze folgt dem Layout und nicht dem Fenster. Dafür ist die Bildspalte
+  ein Grössen-Container (`container-type: inline-size`).
+
+Nachgerechnet, Bildtext-Spalte 569 px, Fenster 900 px hoch:
+
+| Bild | natürlich | vorher | nachher |
+|---|---|---|---|
+| Bildmarke | 235 × 235 | 569 × 569 | 235 × 235 |
+| hoch | 900 × 1600 | 569 × 1012 | 320 × 569 |
+| quer | 1600 × 1200 | 569 × 427 | 569 × 427 |
+| quer | 1600 × 900 | 569 × 320 | 569 × 320 |
+
+Nur das Hochformat und das zu kleine Bild bewegen sich; die Querformate
+bleiben, wo sie waren.
+
+**Über die Meldung hinaus mitgenommen:** `.hc-eigen__bild` trägt dieselbe
+Zeile aus `bausteine.css` (Z. 296) und wird ebenfalls nicht zugeschnitten — es
+ist derselbe Fehler, und ohne Kenntnis des Schlüssels einer eigenen
+Bausteinart ist Nicht-Hochrechnen das, was sicher richtig ist. Karte und
+Galerie sind ausgenommen und behalten ihr `inline-size: 100%`: dort wird in
+einen festen Rahmen zugeschnitten, und ein Bild MUSS ihn füllen, sonst klafft
+er.
+
+**`bausteine.css` ist nicht angefasst.** Die Datei gehört dem Kern und kleidet
+alle mitgelieferten Vorlagen plus jede hochgeladene; eine Änderung dort hätte
+eine andere Reichweite. Ihr Kommentarkopf hält ausdrücklich fest, dass ein
+Theme alles davon überschreiben darf und die Angaben dafür nur eine Klasse
+tief liegen — genau diese Freiheit ist hier benutzt.
+
 ### Zum Stand der Prüftore
 
 `template check` meldet für `weide` „no problems found"; `go build ./...`,
@@ -501,4 +571,4 @@ um den Test grün zu machen.
 
 Alle drei neuen Dateien liegen auf der Platte (`favicon.svg`, beide woff2), alle
 fünfzehn geänderten ebenfalls, und alle drei Commits sind in `git log`
-auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967, c7297cf.
+auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967, c7297cf, ac0aeb5.
