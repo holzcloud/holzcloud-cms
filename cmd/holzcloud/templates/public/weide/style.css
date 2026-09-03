@@ -927,7 +927,7 @@ main:focus { outline: none; }
  *                 derselben Klasse von selbst mit.
  * Bild in natürlicher Grösse, also breit:
  *   .hc-video      ein Film läuft nicht in Spaltenbreite.
- *   .hc-bild--voll der Name sagt es.
+ *   .hc-bild--breit und .hc-bild--voll: siehe die drei Stufen gleich unten.
  *
  * Wird gelesen, bleibt also schmal: .hc-text, .hc-zitat, .hc-eigen — und
  * ausdrücklich AUCH .hc-aufruf. Das ist kein Versehen und keine vergessene
@@ -938,8 +938,42 @@ main:focus { outline: none; }
  *
  * Unterhalb des Masses ändert das nichts: die zweite Rasterspalte ist dort
  * null breit, breit und schmal sind dasselbe. */
-.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video, .hc-bild--voll) {
+.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video,
+                    .hc-bild--breit, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
+}
+
+/* FÜR EIN BILD HAT „BREIT" DREI STUFEN.
+ *
+ * Das ist die Ergänzung, die der Regel oben noch fehlte: sie sagt, WAS breit
+ * ist, aber für ein Bild ist breit nicht ein Zustand, sondern eine Leiter.
+ *
+ *   ohne Zusatz   Textspalte. Ein Bild auf Lesebreite — die bewusste Wahl der
+ *                 Redaktion, und deshalb die einzige Stufe, die man ansagen
+ *                 muss.
+ *   --breit       die breite Rasterspalte, text-start / breit-ende, dasselbe
+ *                 Mass wie .hc-karten und .hc-bildtext.
+ *   --voll        über die ganze Fensterbreite. Das macht bausteine.css mit
+ *                 margin-inline: calc(50% - 50vw) schon richtig, und es bleibt
+ *                 dort.
+ *
+ * Warum --breit hier eine eigene Zeile braucht: bausteine.css zieht es ab
+ * 60em auf inline-size: min(115%, 100vw) mit margin-inline: -7.5% (Z. 58-70).
+ * Das ist der Kunstgriff einer Vorlage OHNE Raster — ein Bild läuft prozentual
+ * aus der Textspalte heraus. Gegen unser Zweispaltenraster ergab das
+ * 705 × 1.15 = 810 px, während ein allein stehendes Bild im Markdown 1163 px
+ * bekam: zwei Wege zum selben Ziel mit verschiedenem Ergebnis, und der
+ * ausdrücklich als „breit" ausgezeichnete war der schmalere. Prozentüberzug
+ * und Rasterspalte kämpfen gegeneinander, also wird der Überzug hier
+ * zurückgenommen und die Spalte entscheidet allein.
+ *
+ * Ein allein stehendes Bild im Markdown entspricht damit genau --breit, und
+ * das ist richtig: Markdown hat keine Möglichkeit, „schmal" zu sagen, und
+ * breit ist die sinnvollere Vorgabe. Die beiden Wege dürfen sich also
+ * unterscheiden — der eine wird ausgezeichnet, der andere geerbt. */
+.page-content > .hc-bild--breit {
+  inline-size: auto;
+  margin-inline: 0;
 }
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
 
@@ -1586,6 +1620,19 @@ main:focus { outline: none; }
    muss die Spalte ein Grössen-Container sein. */
 .hc-bildtext__bild { container-type: inline-size; }
 .hc-bildtext__bild img { max-block-size: min(100cqw, 70vh); }
+
+/* --voll ist die eine Stelle, an der die Höhengrenze WEG muss.
+ *
+ * Der Modifikator ist die Ansage: „über die ganze Fensterbreite". Eine
+ * Höhengrenze nähme dem Bild genau dafür die Breite wieder — ein 16:9-Bild
+ * über 1400 px ist 787 px hoch und wäre bei 70vh auf einem 900er Fenster auf
+ * 1120 px zusammengeschrumpft, also nicht mehr voll. Wer --voll setzt, hat
+ * entschieden.
+ *
+ * Das Nicht-Hochrechnen gilt hier trotzdem weiter, und das ist kein
+ * Widerspruch: eine hochgerechnete Aufnahme ist BESCHÄDIGT, eine hohe ist nur
+ * hoch. Das eine will niemand, das andere kann man wollen. */
+.hc-bild--voll img { max-block-size: none; }
 
 /* Eigene Bausteinart — die Felder als ruhige Faktenzeilen. Eine eigene
    Bausteinart gehört der Website und nicht der Vorlage: der Kern schreibt nur
