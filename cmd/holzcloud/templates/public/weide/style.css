@@ -905,11 +905,39 @@ main:focus { outline: none; }
 }
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
 
-/* Eine Überschrift beginnt einen Abschnitt, also gehört der grosse Abstand
-   VOR sie und nicht hinter den Absatz davor. Auf einer Seite aus neun
-   Abschnitten ist das der Unterschied zwischen einer Wand und einem Text. */
-.page-content > :where(h2) { margin-block-start: var(--hc-space-8); font-size: var(--hc-text-2xl); }
-.page-content > :where(h3) { margin-block-start: var(--hc-space-7); font-size: var(--hc-text-xl); }
+/* Überschriften: die GRÖSSE gilt überall im Inhalt, der grosse ABSTAND nur
+ * auf der obersten Ebene. Zwei Regeln, zwei verschiedene Reichweiten, und das
+ * ist Absicht — wer sie zusammenführt, macht einen der beiden Fehler wieder.
+ *
+ * Warum die Grösse ein Nachfahrenselektor sein MUSS: eine Überschrift über
+ * einem Bild-neben-Text kann gar nicht anders, als im Markdown des Bausteins
+ * zu stehen. internal/block/render.go gibt blk.Title nur beim `aufruf` aus,
+ * und templates/admin/block_list.html bietet ein Titelfeld auch nur dort an
+ * (plus je Karte einer Kartenreihe). Für `bildtext` und `galerie` gibt es
+ * keines. Ein `## …` im Baustein landet damit in .hc-bildtext__text oder
+ * .hc-text — kein direktes Kind von .page-content. Mit einem Kindselektor
+ * blieb es auf 26 px stehen, während dieselbe Überschrift auf einer
+ * Fliesstext-Seite 37 px hatte; auf einer Website, auf der Baustein- und
+ * Fliesstextseiten nebeneinander stehen, ist das ein Bruch von Seite zu Seite.
+ *
+ * Warum der Abstand ein KINDselektor bleibt: dort eröffnet eine Überschrift
+ * einen Abschnitt DER SEITE, und der Absatz davor gehört noch zum vorigen —
+ * auf neun Abschnitten ist das der Unterschied zwischen einer Wand und einem
+ * Text. Innerhalb eines Bausteins, der über .hc-block schon margin-block um
+ * sich hat, wäre derselbe Abstand doppelt gesetzte Luft; dort trägt der
+ * Rhythmus des Bausteins (.hc-text > * + *).
+ *
+ * Ausgenommen sind die zwei Überschriften, die der Kern SELBST baut:
+ * .hc-karte__titel und .hc-aufruf__titel. Sie sind Bauteile und keine
+ * Gliederung des Textes, ihre Grösse kommt aus bausteine.css über --step-1
+ * und --step-2. Ohne das :not() gewänne der Nachfahrenselektor gegen die
+ * Klasse und blähte jeden Kartentitel auf die Grösse einer Kapitelüberschrift. */
+.page-content :where(h2):not(.hc-karte__titel, .hc-aufruf__titel) { font-size: var(--hc-text-2xl); }
+.page-content :where(h3):not(.hc-karte__titel, .hc-aufruf__titel) { font-size: var(--hc-text-xl); }
+.page-content > :where(h2) { margin-block-start: var(--hc-space-8); }
+.page-content > :where(h3) { margin-block-start: var(--hc-space-7); }
+/* Steht die Überschrift ganz oben, gibt es nichts, wovon sie sich absetzen
+   müsste — sonst reisst der erste Abschnitt ein Loch unter den Seitenkopf. */
 .page-content > :where(h2, h3):first-child { margin-block-start: 0; }
 .page-content :where(h2, h3) { max-width: var(--hc-measure, 74ch); }
 
