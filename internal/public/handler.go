@@ -246,6 +246,22 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 		return h.serve404(w, r, website)
 	}
 
+	// Die Startseite hat eine Adresse und nicht zwei.
+	//
+	// Sie liegt als Seite mit der Adresse "home" in der Datenbank, und die
+	// Wurzel der Sprache zeigt genau sie (GetHomePageIn sucht diese Adresse
+	// zuerst). Ohne diese Umleitung war dieselbe Seite unter / und unter /home
+	// zu haben, beide mit sich selbst als kanonischer Adresse und beide im
+	// Sitemap — für eine Suchmaschine zwei Seiten mit demselben Text, und bei
+	// fünf Sprachen zehn Adressen für fünf Seiten.
+	//
+	// 301 und nicht 302: die Adresse /home ist nie die richtige gewesen, und
+	// wer doch darauf verlinkt hat, soll den Verweis umschreiben können.
+	if slug == page.HomeSlug {
+		http.Redirect(w, r, h.localePath(r, website, "/"), http.StatusMovedPermanently)
+		return nil
+	}
+
 	// A protected page delivers nothing until the password has been entered —
 	// checked before the content is even loaded into the template data.
 	if pg.Protected() && !h.hasAccess(r, pg) {

@@ -280,12 +280,16 @@ func TestSitemapListsOnlyPublishedPages(t *testing.T) {
 	}
 	for _, want := range []string{
 		"<loc>http://demo.test/</loc>",
-		"<loc>http://demo.test/home</loc>",
 		"<loc>http://demo.test/ueber-uns</loc>",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("sitemap missing %s:\n%s", want, body)
 		}
+	}
+	// Die Startseite steht als "/" schon oben. Ihre zweite Adresse gehört
+	// nicht dazu — siehe TestTheStartPageHasOneAddress.
+	if strings.Contains(body, "/home</loc>") {
+		t.Errorf("die Startseite steht zweimal im Sitemap:\n%s", body)
 	}
 	if strings.Contains(body, "entwurf") {
 		t.Errorf("draft page listed in the sitemap:\n%s", body)
@@ -391,5 +395,62 @@ func TestRenderedMenuIsEscaped(t *testing.T) {
 	}
 	if strings.Contains(body, `href="javascript:`) {
 		t.Errorf("javascript: URL was rendered as a link:\n%s", body)
+	}
+}
+
+// TestTheStartPageHasOneAddress covers the redirect and the sitemap entry that
+// go with it: the start page lives at the root of its language, and /home is
+// the address it used to be reachable under a second time — with its own
+// canonical link and its own line in the sitemap, which is how one page turns
+// into two for a search engine.
+func TestTheStartPageHasOneAddress(t *testing.T) {
+	h, database := newTestHandler(t)
+	ws := seedWebsite(t, database, "Test Site")
+	if err := domain.NewStore(database).UpdateSettings(context.Background(), ws.ID, domain.Settings{
+		Locale: "de", ExtraLocales: "fr", TimeZone: "Europe/Zurich", OfflineMode: "notfound",
+	}); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	ws, err := domain.NewStore(database).GetWebsite(context.Background(), ws.ID)
+	if err != nil {
+		t.Fatalf("GetWebsite: %v", err)
+	}
+	seedPage(t, database, ws.ID, "Startseite", page.HomeSlug, "# Willkommen", "published")
+	if _, err := page.NewStore(database).CreatePage(context.Background(), page.PageCreate{
+		WebsiteID: ws.ID, Title: "Accueil", Slug: page.HomeSlug, Status: "published",
+		Markdown: "Bienvenue.", Locale: "fr",
+	}); err != nil {
+		t.Fatalf("die französische Startseite: %v", err)
+	}
+
+	for _, c := range []struct{ locale, want string }{{"", "/"}, {"fr", "/fr"}} {
+		req := httptest.NewRequest("GET", "/home", nil)
+		req.Host = "demo.test"
+		ctx := domain.WebsiteToContext(req.Context(), ws)
+		if c.locale != "" {
+			ctx = context.WithValue(ctx, localeKey{}, c.locale)
+		}
+		req = req.WithContext(ctx)
+		req.SetPathValue("slug", page.HomeSlug)
+
+		rec := httptest.NewRecorder()
+		if err := h.HandlePage(rec, req); err != nil {
+			t.Fatalf("HandlePage %q: %v", c.locale, err)
+		}
+		if rec.Code != http.StatusMovedPermanently {
+			t.Errorf("/home in der Sprache %q antwortet mit %d statt 301", c.locale, rec.Code)
+			continue
+		}
+		if got := rec.Header().Get("Location"); got != c.want {
+			t.Errorf("/home in der Sprache %q leitet nach %q statt nach %q", c.locale, got, c.want)
+		}
+	}
+
+	rec, err := request(h.HandleSitemap, ws, "GET", "/sitemap.xml")
+	if err != nil {
+		t.Fatalf("HandleSitemap: %v", err)
+	}
+	if strings.Contains(rec.Body.String(), "/home") {
+		t.Errorf("die Startseite steht ein zweites Mal im Sitemap:\n%s", rec.Body.String())
 	}
 }

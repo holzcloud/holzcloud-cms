@@ -1204,6 +1204,11 @@ func (s *Store) ListRecentPublishedIn(ctx context.Context, websiteID int64, loc 
 	return pages, rows.Err()
 }
 
+// HomeSlug is the address the start page has as a row, and the reason the
+// public side redirects it to the root: the same page under two addresses is
+// two pages to a search engine.
+const HomeSlug = "home"
+
 // GetHomePage returns the published homepage for a website.
 // Looks for a page with slug "home" first, then falls back to the first published page.
 func (s *Store) GetHomePage(ctx context.Context, websiteID int64) (*Page, error) {
@@ -1214,8 +1219,8 @@ func (s *Store) GetHomePage(ctx context.Context, websiteID int64) (*Page, error)
 func (s *Store) GetHomePageIn(ctx context.Context, websiteID int64, loc string) (*Page, error) {
 	// Try slug "home" first
 	row := s.DB.Read.QueryRowContext(ctx,
-		`SELECT `+pageColumns+` FROM pages WHERE website_id = $1 AND locale = $2 AND slug = 'home'`+PublicPredicate,
-		websiteID, loc)
+		`SELECT `+pageColumns+` FROM pages WHERE website_id = $1 AND locale = $2 AND slug = $3`+PublicPredicate,
+		websiteID, loc, HomeSlug)
 	p, err := scanPage(row)
 	if err == nil {
 		return p, nil
