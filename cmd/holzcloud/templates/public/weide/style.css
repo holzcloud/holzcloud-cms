@@ -900,15 +900,45 @@ main:focus { outline: none; }
   grid-template-columns: [text-start] min(100%, var(--hc-measure, 74ch)) [text-end] minmax(0, 1fr) [breit-ende];
 }
 .page-content > * { grid-column: text-start / text-end; min-width: 0; }
-/* Was die Breite füllen SOLL, bekommt sie auch. Eine Kartenreihe gehört
-   dazu — sie ist dieselbe Geste wie eine Galerie, und in der Textspalte
-   passten drei Karten nicht nebeneinander: bausteine.css gibt .hc-spalten-3
-   ein minmax(min(100%, 14rem), 1fr), drei Spuren brauchen mit den zwei Fugen
-   3 × 224 + 2 × 24 = 720 px, und die Textspalte war bei 1265 px Seitenbreite
-   nur 705 px. Es fehlten fünfzehn Pixel, und die Reihe brach auf 2+1 um. Wer
-   das im Inhalt löst, indem er die Spaltenzahl auf 4 zwingt, versteckt einen
-   Fehler der Vorlage in einem Manifest. */
-.page-content > :is(.hc-galerie, .hc-karten, .hc-video, .hc-bild--voll) {
+/* WELCHER BAUSTEIN BREIT WIRD — die Regel, nicht die Liste.
+ *
+ * Breit ist, was von sich aus MEHRSPALTIG ist oder ein BILD in seiner
+ * natürlichen Grösse zeigt. Schmal bleibt, was GELESEN wird.
+ *
+ * Diese Zeile ist dreimal nachgebessert worden, jedesmal um einen Namen, und
+ * jedesmal war der Grund derselbe. Deshalb steht hier die Regel: beim nächsten
+ * Bausteintyp muss niemand raten, und niemand nimmt „der Vollständigkeit
+ * halber" etwas auf, das dort nicht hingehört.
+ *
+ * Mehrspaltig, also breit:
+ *   .hc-galerie   ein Raster aus Bildern.
+ *   .hc-karten    ein Raster aus Karten. In der Textspalte (705 px bei
+ *                 1280 px Fenster) passten drei nicht nebeneinander:
+ *                 bausteine.css gibt .hc-spalten-3 ein
+ *                 minmax(min(100%, 14rem), 1fr), drei Spuren brauchen mit den
+ *                 zwei Fugen 3 × 224 + 2 × 24 = 720 px. Es fehlten fünfzehn
+ *                 Pixel, und die Reihe brach auf 2+1 um.
+ *   .hc-bildtext  ein Bild NEBEN einem Text, also zwei Spalten. In 705 px
+ *                 blieben dem Bild 340 px und dem Text Zeilen von rund
+ *                 30 Zeichen — es sah aus, als sei ein Vorschaubild neben
+ *                 einen Absatz gerutscht. Bei voller Breite sind es
+ *                 (1178 − 24) / 2 = 577 px je Seite, und der Baustein tut,
+ *                 wofür es ihn gibt. --rechts geht als blosser Modifikator
+ *                 derselben Klasse von selbst mit.
+ * Bild in natürlicher Grösse, also breit:
+ *   .hc-video      ein Film läuft nicht in Spaltenbreite.
+ *   .hc-bild--voll der Name sagt es.
+ *
+ * Wird gelesen, bleibt also schmal: .hc-text, .hc-zitat, .hc-eigen — und
+ * ausdrücklich AUCH .hc-aufruf. Das ist kein Versehen und keine vergessene
+ * Zeile: ein Aufruf ist ein Kasten mit einem Satz und einem Knopf, sein Inhalt
+ * ist mittig gesetzt, und über 1178 px gezogen stünde ein Halbsatz in einer
+ * sehr breiten leeren Fläche. Er ist das einzige Element, das absichtlich in
+ * der Textspalte bleibt. Wer ihn hier einträgt, macht ihn kaputt.
+ *
+ * Unterhalb des Masses ändert das nichts: die zweite Rasterspalte ist dort
+ * null breit, breit und schmal sind dasselbe. */
+.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
 }
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
