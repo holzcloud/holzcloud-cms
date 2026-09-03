@@ -1,0 +1,15 @@
+# Was nicht ins Bauverzeichnis gehört. Der Bau braucht den Quelltext und
+# sonst nichts; alles hier drin würde nur den Kontext aufblähen oder — im
+# Fall von data/ — Betriebsdaten in ein Abbild tragen.
+.git
+.github
+.planning
+.gsd
+.claude
+.playwright-mcp
+data
+sites
+docs
+deploy
+*.md
+!README.md
