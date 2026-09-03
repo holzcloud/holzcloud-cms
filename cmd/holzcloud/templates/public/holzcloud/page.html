@@ -13,7 +13,11 @@
            Überschrift beginnt. Dann darf hier keine zweite stehen — doppelte
            Titel sind der sichtbarste Fehler einer neuen Vorlage. */}}
       {{if not .Page.HasOwnHeading}}<h1>{{.Page.Title}}</h1>{{end}}
-      {{with .Page.PublishedAt}}<time class="page-date" datetime="{{formatDateISO .}}">{{formatDate .}}</time>{{end}}
+      {{/* Nur an einem Beitrag. Eine Seite wie „Kontakt" oder ein
+           Projekt traegt kein Datum — sie wurde nicht an einem Tag
+           veroeffentlicht, sie steht einfach. Das eingebaute Theme
+           `default` haelt es genauso. */}}
+      {{if .Page.IsPost}}{{with .Page.PublishedAt}}<time class="page-date" datetime="{{formatDateISO .}}">{{formatDate .}}</time>{{end}}{{end}}
     </header>
 
     <div class="page-content">
