@@ -61,3 +61,5 @@ plugins/kontaktformular/kontaktformular.zip
 # Laufzeitzustand der GSD-Werkzeuge, gehoert niemandem sonst
 .gsd/
 .planning/state.json
+# Websuch-Zwischenspeicher der Rechercheure: Inhalte mit TTL, kein Artefakt
+.planning/research/.cache/
