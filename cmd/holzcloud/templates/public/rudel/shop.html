@@ -1,15 +1,19 @@
 {{define "content"}}
-<section class="shop">
+<section class="hc-wide page-wrap shop">
   <header class="page-header">
+    {{/* Ein gefilterter Katalog nennt die Kategorie, nach der er filtert. */}}
     {{if .Catalogue.Term}}
-    <p class="page-header__kicker">Kategorie</p>
-    <h1 class="page-header__title">{{.Catalogue.Term}}</h1>
+    <p class="hc-eyebrow">Kategorie</p>
+    <h1>{{.Catalogue.Term}}</h1>
     {{else}}
-    <h1 class="page-header__title">{{.Page.Title}}</h1>
+    <h1>{{.Page.Title}}</h1>
     {{end}}
-    {{if .Catalogue.Total}}<p class="page-header__meta">{{.Catalogue.Total}} Artikel</p>{{end}}
+    {{if .Catalogue.Total}}<p class="archive-count">{{.Catalogue.Total}} Artikel</p>{{end}}
   </header>
 
+  {{/* Der Umschalter erscheint nur, wo der Betrieb wirklich beides bedient.
+       Ein Laden für Private darf keine Nettopreise anbieten — die
+       Preisbekanntgabeverordnung verlangt den Betrag, der zu zahlen ist. */}}
   {{if .Shop.CanSwitchAudience}}
   <form class="price-switch" method="POST" action="/preise" aria-label="Preisanzeige">
     <input type="hidden" name="zurueck" value="{{.Shop.URL}}">
@@ -23,7 +27,7 @@
   {{if .Shop.Categories}}
   <nav class="shop-categories" aria-label="Kategorien">
     <ul class="term-list">
-      <li><a class="term" href="{{.Shop.URL}}">Alle</a></li>
+      {{with .Shop.URL}}<li><a class="term" href="{{.}}">Alle</a></li>{{end}}
       {{range .Shop.Categories}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
   </nav>
@@ -32,23 +36,28 @@
   {{if .Catalogue.Products}}
   <ol class="product-grid">
     {{range .Catalogue.Products}}
-    <li class="product-card">
-      <article class="card">
+    <li>
+      <article class="hc-pane hc-pane--tight product-card{{if not .Available}} product-card--gone{{end}}">
         {{if .ImageURL}}
-        <a class="card__media" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+        <a class="product-card__media" href="{{.URL}}" tabindex="-1" aria-hidden="true">
           <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
         </a>
         {{end}}
-        <div class="card__body">
-          <h2 class="card__title"><a href="{{.URL}}">{{.Title}}</a></h2>
-          {{if .Subtitle}}<p class="product-card__subtitle">{{.Subtitle}}</p>{{end}}
-          {{if .Excerpt}}<p class="card__excerpt">{{.Excerpt}}</p>{{end}}
-          <p class="price">
-            <span class="price__amount">{{.Price}}</span>
-            {{if .PriceNote}}<span class="price__note">{{.PriceNote}}</span>{{end}}
-          </p>
-          {{if not .Available}}<p class="product-card__sold-out">{{.SoldOutLabel}}</p>{{end}}
-        </div>
+        <h2 class="product-card__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+        {{if .Subtitle}}<p class="product-card__subtitle">{{.Subtitle}}</p>{{end}}
+        {{if .Excerpt}}<p class="product-card__excerpt">{{.Excerpt}}</p>{{end}}
+        {{/* Der Preis ist eine fertige Zeichenkette mit geschütztem
+             Leerzeichen. Drucken, nie formatieren, nie rechnen. */}}
+        <p class="price">
+          <span class="price__amount">{{.Price}}</span>
+          {{if .PriceNote}}<span class="price__note">{{.PriceNote}}</span>{{end}}
+        </p>
+        {{if not .Available}}<p class="hc-status hc-status--warn product-card__gone">{{.SoldOutLabel}}</p>{{end}}
+        {{if .Terms}}
+        <ul class="term-list" aria-label="Kategorien">
+          {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+        </ul>
+        {{end}}
       </article>
     </li>
     {{end}}
@@ -56,15 +65,15 @@
 
   {{if gt .Catalogue.TotalPages 1}}
   <nav class="archive-pager" aria-label="Seiten des Katalogs">
-    {{if .Catalogue.PrevURL}}<a class="button button--quiet" href="{{.Catalogue.PrevURL}}" rel="prev">Zurück</a>{{end}}
+    {{with .Catalogue.PrevURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="prev">Zurück</a>{{end}}
     <span class="archive-pager__position">Seite {{.Catalogue.Page}} von {{.Catalogue.TotalPages}}</span>
-    {{if .Catalogue.NextURL}}<a class="button button--quiet" href="{{.Catalogue.NextURL}}" rel="next">Weiter</a>{{end}}
+    {{with .Catalogue.NextURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="next">Weiter</a>{{end}}
   </nav>
   {{end}}
   {{else}}
-  <p class="archive-empty">Hier steht noch nichts zum Verkauf.</p>
+  <p class="archive-empty hc-lede">Hier steht noch nichts zum Verkauf.</p>
   {{end}}
 
-  {{if .Shop.ShippingNote}}<p class="shop-note">{{.Shop.ShippingNote}}</p>{{end}}
+  {{with .Shop.ShippingNote}}<p class="shop-note hc-dim">{{.}}</p>{{end}}
 </section>
 {{end}}

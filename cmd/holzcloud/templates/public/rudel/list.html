@@ -1,65 +1,68 @@
 {{define "content"}}
-<section class="archive">
+<section class="hc-wide page-wrap archive">
   <header class="page-header">
-    <!-- Dieselbe Datei trägt zwei Archive. Steht ein Schlagwort an, ist es der
-         Grund, warum genau diese Einträge hier stehen — dann muss es auch
-         dastehen, sonst rät der Besucher. -->
+    {{/* Beitragsarchiv und Schlagwortarchiv laufen beide durch diese Datei.
+         .Archive.Term ist der einzige Unterschied: ohne diese Weiche stünde
+         über /tag/loewchen die Überschrift des Gesamtarchivs. */}}
     {{if .Archive.Term}}
-    <p class="page-header__kicker">Schlagwort</p>
-    <h1 class="page-header__title">{{.Archive.Term}}</h1>
+    <p class="hc-eyebrow">Schlagwort</p>
+    <h1>{{.Archive.Term}}</h1>
     {{else}}
-    <h1 class="page-header__title">{{.Page.Title}}</h1>
+    <h1>{{.Page.Title}}</h1>
     {{end}}
-    {{if .Archive.Total}}
-    <p class="page-header__meta">{{.Archive.Total}} Beiträge</p>
-    {{end}}
+    {{if .Archive.Total}}<p class="archive-count">{{.Archive.Total}} Beiträge</p>{{end}}
   </header>
 
   {{if .Archive.Entries}}
-  <ol class="archive-list card-grid">
+  <ol class="archive-list">
     {{range .Archive.Entries}}
     <li class="archive-entry">
-      <article class="card">
-        {{if .ImageURL}}
-        <!-- Das Bild führt an dieselbe Stelle wie die Überschrift. Für die
-             Tastatur und den Screenreader wäre das ein zweiter, gleich
-             lautender Halt — darum hier ohne Namen und ohne Fokus. -->
-        <a class="card__media" href="{{.URL}}" tabindex="-1" aria-hidden="true">
-          <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
-        </a>
+      {{/* Das Vorschaubild ist eine zweite Verknüpfung auf dasselbe Ziel. Für
+           die Tastatur und für Vorlesesoftware wäre das ein doppelter Weg zum
+           selben Ort, deshalb ist es dort ausgeblendet. */}}
+      {{if .ImageURL}}
+      <a class="archive-entry__image" href="{{.URL}}" tabindex="-1" aria-hidden="true">
+        <img src="{{.ImageURL}}" alt="" loading="lazy" decoding="async">
+      </a>
+      {{end}}
+      <div class="archive-entry__text">
+        <h2 class="archive-entry__title"><a href="{{.URL}}">{{.Title}}</a></h2>
+        {{with .PublishedAt}}
+        <time class="archive-entry__date" datetime="{{formatDateISO .}}">{{formatDate .}}</time>
         {{end}}
-        <div class="card__body">
-          {{if .PublishedAt}}
-          <time class="card__date" datetime="{{formatDateISO .PublishedAt}}">{{formatDate .PublishedAt}}</time>
-          {{end}}
-          <h2 class="card__title"><a href="{{.URL}}">{{.Title}}</a></h2>
-          {{if .Excerpt}}<p class="card__excerpt">{{.Excerpt}}</p>{{end}}
-          {{if .Terms}}
-          <ul class="term-list" aria-label="Schlagwörter">
-            {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
-          </ul>
-          {{end}}
-        </div>
-      </article>
+        {{if .Excerpt}}<p class="archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
+        {{if .Terms}}
+        <ul class="term-list" aria-label="Schlagwörter">
+          {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
+        </ul>
+        {{end}}
+      </div>
     </li>
     {{end}}
   </ol>
 
-  <!-- Die Adressen stehen fertig in den Daten. Selbst gebaute Links verlieren
-       das Schlagwort und führen im Schlagwortarchiv ins Leere. -->
+  {{/* Die Adressen des Blätterns stehen fertig in PrevURL und NextURL. Selbst
+       zusammengesetzte Links verlieren im Schlagwortarchiv das Schlagwort. An
+       den Enden sind sie leer, deshalb {{with}} und nicht {{if}}. */}}
   {{if gt .Archive.TotalPages 1}}
   <nav class="archive-pager" aria-label="Seiten des Archivs">
-    {{if .Archive.PrevURL}}<a class="button button--quiet" href="{{.Archive.PrevURL}}" rel="prev">Neuere Beiträge</a>{{end}}
+    {{with .Archive.PrevURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="prev">Neuere Beiträge</a>{{end}}
     <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
-    {{if .Archive.NextURL}}<a class="button button--quiet" href="{{.Archive.NextURL}}" rel="next">Ältere Beiträge</a>{{end}}
+    {{with .Archive.NextURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="next">Ältere Beiträge</a>{{end}}
   </nav>
   {{end}}
   {{else}}
-  <div class="prose"><p class="archive-empty">Hier steht noch nichts.</p></div>
+  {{/* Ein leeres Schlagwortarchiv ist eine Sackgasse. Der Weg zurück ins
+       Gesamtarchiv ist das Einzige, was hier noch hilft. */}}
+  <p class="archive-empty hc-lede">Hier steht noch nichts.
+    {{with .Page.ArchiveURL}}<a href="{{.}}">Zurück zum Archiv</a>{{end}}
+  </p>
   {{end}}
 
-  {{if and .Archive.Term .Page.ArchiveURL}}
-  <p class="archive-back"><a href="{{.Page.ArchiveURL}}">Alle Beiträge ansehen</a></p>
+  {{if .Archive.Terms}}
+  <ul class="term-list archive-terms" aria-label="Alle Schlagwörter">
+    {{range .Archive.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}{{if .Count}} <span class="hc-dim">{{.Count}}</span>{{end}}</a></li>{{end}}
+  </ul>
   {{end}}
 </section>
 {{end}}

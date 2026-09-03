@@ -1,28 +1,33 @@
 {{define "content"}}
-<section class="checkout">
+<section class="hc-wide page-wrap checkout">
   <header class="page-header">
-    <h1 class="page-header__title">Kasse</h1>
+    <h1>Kasse</h1>
   </header>
 
-  {{if .Checkout.Notice}}
-  <p class="cart-blocked" role="alert">{{.Checkout.Notice}}</p>
-  {{end}}
+  {{/* Ein Einwand gegen die Bestellung als Ganzes steht über dem Formular und
+       nicht neben einem Feld. */}}
+  {{with .Checkout.Notice}}<p class="hc-alert hc-alert--danger" role="alert"><span>{{.}}</span></p>{{end}}
 
   <div class="checkout__grid">
+    {{/* Ein abgewiesenes Formular kommt ausgefüllt zurück: eine Adresse noch
+         einmal zu tippen, weil ein Feld falsch war, ist, wie ein Laden eine
+         Bestellung verliert. aria-invalid trägt dieselbe Tatsache wie die
+         Meldung darunter — die rote Kante kann ihr damit nicht widersprechen. */}}
     <form class="checkout__form" method="POST" action="{{.Checkout.Action}}">
       <fieldset class="checkout__group">
         <legend>Kontakt</legend>
 
-        <div class="field">
-          <label for="email">E-Mail</label>
-          <input type="email" id="email" name="email" required autocomplete="email"
+        <div class="hc-field">
+          <label class="hc-label" for="email">E-Mail</label>
+          <input class="hc-input" type="email" id="email" name="email" required autocomplete="email"
+                 {{if index .Checkout.Errors "email"}}aria-invalid="true"{{end}}
                  value="{{index .Checkout.Values "email"}}">
-          {{with index .Checkout.Errors "email"}}<p class="field__error">{{.}}</p>{{end}}
+          {{with index .Checkout.Errors "email"}}<p class="hc-error">{{.}}</p>{{end}}
         </div>
 
-        <div class="field">
-          <label for="telefon">Telefon (freiwillig)</label>
-          <input type="tel" id="telefon" name="telefon" autocomplete="tel"
+        <div class="hc-field">
+          <label class="hc-label" for="telefon">Telefon (freiwillig)</label>
+          <input class="hc-input" type="tel" id="telefon" name="telefon" autocomplete="tel"
                  value="{{index .Checkout.Values "telefon"}}">
         </div>
       </fieldset>
@@ -30,55 +35,61 @@
       <fieldset class="checkout__group">
         <legend>Lieferadresse</legend>
 
-        <div class="field">
-          <label for="name">Name</label>
-          <input type="text" id="name" name="name" required autocomplete="name"
+        <div class="hc-field">
+          <label class="hc-label" for="name">Name</label>
+          <input class="hc-input" type="text" id="name" name="name" required autocomplete="name"
+                 {{if index .Checkout.Errors "name"}}aria-invalid="true"{{end}}
                  value="{{index .Checkout.Values "name"}}">
-          {{with index .Checkout.Errors "name"}}<p class="field__error">{{.}}</p>{{end}}
+          {{with index .Checkout.Errors "name"}}<p class="hc-error">{{.}}</p>{{end}}
         </div>
 
-        <div class="field">
-          <label for="firma">Firma{{if not .Checkout.Business}} (freiwillig){{end}}</label>
-          <input type="text" id="firma" name="firma" autocomplete="organization"
+        <div class="hc-field">
+          <label class="hc-label" for="firma">Firma{{if not .Checkout.Business}} (freiwillig){{end}}</label>
+          <input class="hc-input" type="text" id="firma" name="firma" autocomplete="organization"
                  {{if .Checkout.Business}}required{{end}}
+                 {{if index .Checkout.Errors "firma"}}aria-invalid="true"{{end}}
                  value="{{index .Checkout.Values "firma"}}">
-          {{with index .Checkout.Errors "firma"}}<p class="field__error">{{.}}</p>{{end}}
+          {{with index .Checkout.Errors "firma"}}<p class="hc-error">{{.}}</p>{{end}}
         </div>
 
         {{if .Checkout.Business}}
-        <div class="field">
-          <label for="uid">UID / MWST-Nummer (freiwillig)</label>
-          <input type="text" id="uid" name="uid" placeholder="CHE-123.456.789 MWST"
+        <div class="hc-field">
+          <label class="hc-label" for="uid">UID / MWST-Nummer (freiwillig)</label>
+          <input class="hc-input" type="text" id="uid" name="uid" placeholder="CHE-123.456.789 MWST"
                  value="{{index .Checkout.Values "uid"}}">
         </div>
         {{end}}
 
-        <div class="field">
-          <label for="strasse">Strasse und Nummer</label>
-          <input type="text" id="strasse" name="strasse" required autocomplete="street-address"
+        <div class="hc-field">
+          <label class="hc-label" for="strasse">Strasse und Nummer</label>
+          <input class="hc-input" type="text" id="strasse" name="strasse" required autocomplete="street-address"
+                 {{if index .Checkout.Errors "strasse"}}aria-invalid="true"{{end}}
                  value="{{index .Checkout.Values "strasse"}}">
-          {{with index .Checkout.Errors "strasse"}}<p class="field__error">{{.}}</p>{{end}}
+          {{with index .Checkout.Errors "strasse"}}<p class="hc-error">{{.}}</p>{{end}}
         </div>
 
         <div class="field-row">
-          <div class="field field--narrow">
-            <label for="plz">PLZ</label>
-            <input type="text" id="plz" name="plz" required inputmode="numeric"
-                   autocomplete="postal-code" value="{{index .Checkout.Values "plz"}}">
-            {{with index .Checkout.Errors "plz"}}<p class="field__error">{{.}}</p>{{end}}
+          <div class="hc-field field--narrow">
+            <label class="hc-label" for="plz">PLZ</label>
+            <input class="hc-input" type="text" id="plz" name="plz" required inputmode="numeric"
+                   autocomplete="postal-code"
+                   {{if index .Checkout.Errors "plz"}}aria-invalid="true"{{end}}
+                   value="{{index .Checkout.Values "plz"}}">
+            {{with index .Checkout.Errors "plz"}}<p class="hc-error">{{.}}</p>{{end}}
           </div>
 
-          <div class="field">
-            <label for="ort">Ort</label>
-            <input type="text" id="ort" name="ort" required autocomplete="address-level2"
+          <div class="hc-field">
+            <label class="hc-label" for="ort">Ort</label>
+            <input class="hc-input" type="text" id="ort" name="ort" required autocomplete="address-level2"
+                   {{if index .Checkout.Errors "ort"}}aria-invalid="true"{{end}}
                    value="{{index .Checkout.Values "ort"}}">
-            {{with index .Checkout.Errors "ort"}}<p class="field__error">{{.}}</p>{{end}}
+            {{with index .Checkout.Errors "ort"}}<p class="hc-error">{{.}}</p>{{end}}
           </div>
         </div>
 
-        <div class="field">
-          <label for="land">Land</label>
-          <select id="land" name="land" class="field__select" autocomplete="country">
+        <div class="hc-field">
+          <label class="hc-label" for="land">Land</label>
+          <select class="hc-select" id="land" name="land" autocomplete="country">
             <option value="CH" {{if eq (index .Checkout.Values "land") "CH"}}selected{{end}}>Schweiz</option>
             <option value="LI" {{if eq (index .Checkout.Values "land") "LI"}}selected{{end}}>Liechtenstein</option>
           </select>
@@ -92,34 +103,36 @@
           <input type="radio" name="zahlungsart" value="{{.Value}}"
                  {{if eq (index $.Checkout.Values "zahlungsart") .Value}}checked{{end}}>
           <span class="choice__label">{{.Label}}</span>
-          <span class="choice__note">{{.Note}}</span>
+          {{with .Note}}<span class="choice__note">{{.}}</span>{{end}}
         </label>
         {{end}}
-        {{with index .Checkout.Errors "zahlungsart"}}<p class="field__error">{{.}}</p>{{end}}
+        {{with index .Checkout.Errors "zahlungsart"}}<p class="hc-error">{{.}}</p>{{end}}
       </fieldset>
 
       <fieldset class="checkout__group">
         <legend>Bemerkung</legend>
-        <div class="field">
+        <div class="hc-field">
           <label for="bemerkung" class="sr-only">Bemerkung zur Bestellung</label>
-          <textarea id="bemerkung" name="bemerkung" rows="3">{{index .Checkout.Values "bemerkung"}}</textarea>
+          <textarea class="hc-textarea" id="bemerkung" name="bemerkung" rows="3">{{index .Checkout.Values "bemerkung"}}</textarea>
         </div>
       </fieldset>
 
-      {{if .Checkout.ReturnPolicy}}
-      <p class="checkout__policy">{{.Checkout.ReturnPolicy}}</p>
-      {{end}}
+      {{/* Ein Rückgaberecht ist in der Schweiz eine freiwillige Zusage: OR
+           Art. 40a deckt Haustür und Telefon, nicht einen Webshop. Ist das Feld
+           leer, steht hier nichts — eine erfundene Frist wäre ein Versprechen,
+           das der Betrieb nie gegeben hat. */}}
+      {{with .Checkout.ReturnPolicy}}<p class="checkout__policy hc-dim">{{.}}</p>{{end}}
 
       <label class="choice choice--confirm">
         <input type="checkbox" name="bestaetigt" value="1" {{if .Checkout.Accepted}}checked{{end}}>
         <span class="choice__label">Ich bestelle kostenpflichtig.</span>
       </label>
-      {{with index .Checkout.Errors "bestaetigt"}}<p class="field__error">{{.}}</p>{{end}}
+      {{with index .Checkout.Errors "bestaetigt"}}<p class="hc-error">{{.}}</p>{{end}}
 
-      <button type="submit" class="button checkout__submit">Zahlungspflichtig bestellen</button>
+      <button type="submit" class="hc-btn checkout__submit">Zahlungspflichtig bestellen</button>
     </form>
 
-    <aside class="checkout__summary" aria-label="Ihre Bestellung">
+    <aside class="hc-pane hc-pane--pad checkout__summary" aria-label="Ihre Bestellung">
       <h2 class="checkout__summary-title">Ihre Bestellung</h2>
       <ul class="checkout__lines">
         {{range .Cart.Lines}}
@@ -139,8 +152,8 @@
         {{end}}
         <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
       </dl>
-      {{if .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.Cart.Totals.TaxNote}}</p>{{end}}
-      <a class="cart-continue" href="{{.Cart.URL}}">Warenkorb ändern</a>
+      {{with .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.}}</p>{{end}}
+      {{with .Cart.URL}}<a class="cart-continue" href="{{.}}">Warenkorb ändern</a>{{end}}
     </aside>
   </div>
 </section>

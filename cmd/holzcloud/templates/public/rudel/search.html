@@ -1,37 +1,43 @@
 {{define "content"}}
-<section class="page page--search">
+<section class="hc-wide page-wrap page--search">
   <header class="page-header">
-    <h1 class="page-header__title">{{.Page.Title}}</h1>
+    {{/* Der Titel kommt aus .Page.Title und nicht aus einem festen Wort: die
+         Suchseite trägt in jeder Sprachfassung den Namen, den die Verwaltung
+         ihr gegeben hat. */}}
+    <h1>{{.Page.Title}}</h1>
   </header>
 
-  <div class="search-panel">
-    <!-- GET, damit ein Suchergebnis eine Adresse hat, die man weitergeben kann.
-         Kein CSRF-Feld: der öffentliche Teil hat keine solche Prüfung, das Feld
-         wäre eine Attrappe. -->
-    <form method="GET" action="/suche" class="search-form" role="search">
-      <label class="sr-only" for="q">Suchbegriff</label>
-      <input type="search" id="q" name="q" value="{{.Search.Query}}"
-             placeholder="Wonach suchen Sie?" autofocus>
-      <button type="submit" class="button">Suchen</button>
-    </form>
+  {{/* Ein GET auf /suche mit dem Feld q — die Verabredung steht in
+       TEMPLATE-SPEC §6 fest. Ein umbenanntes Feld rendert tadellos und schickt
+       nichts, womit der Server etwas anfangen kann. Kein CSRF-Feld: der
+       öffentliche Teil hat keine solche Prüfung, und ein Suchergebnis muss eine
+       Adresse haben, die man weitergeben kann. */}}
+  <form method="GET" action="/suche" class="search-form" role="search">
+    <label class="sr-only" for="q">Suchbegriff</label>
+    <input class="hc-input" type="search" id="q" name="q" value="{{.Search.Query}}"
+           placeholder="Wonach suchen Sie?" autofocus>
+    <button class="hc-btn" type="submit">Suchen</button>
+  </form>
 
-    {{if .Search.Results}}
-    <p class="search-count">{{len .Search.Results}} Treffer für „{{.Search.Query}}“</p>
-    <ol class="search-results">
-      {{range .Search.Results}}
-      <li class="search-result">
-        <a href="{{.URL}}" class="search-result__title">{{.Title}}</a>
-        <p class="search-result__snippet">{{.Snippet}}</p>
-      </li>
-      {{end}}
-    </ol>
-    {{else if .Search.Submitted}}
-    <!-- "Nichts gefunden" und "noch nichts gesucht" sehen im Markup gleich aus
-         und meinen für den Besucher etwas ganz anderes. -->
-    <p class="search-empty">Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.</p>
-    {{else}}
-    <p class="search-empty">Geben Sie oben einen Suchbegriff ein.</p>
+  {{/* Drei Fälle, und der dritte ist der wichtige: „nichts gefunden" und „noch
+       nichts eingegeben" sehen gleich leer aus, sagen aber Verschiedenes. */}}
+  {{if .Search.Results}}
+  <p class="search-count hc-lbl">{{len .Search.Results}} Treffer für «{{.Search.Query}}»</p>
+  <ol class="search-results">
+    {{range .Search.Results}}
+    <li class="search-result">
+      <a href="{{.URL}}" class="search-result__title">{{.Title}}</a>
+      {{/* Der Ausschnitt ist bereits bereinigt und bringt sein eigenes <mark>
+           mit, das die Vorlage kleidet. Nichts umwickeln. */}}
+      <p class="search-result__snippet">{{.Snippet}}</p>
+    </li>
     {{end}}
-  </div>
+  </ol>
+  {{else if .Search.Submitted}}
+  <p class="hc-lede">Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.
+     Versuchen Sie es mit einem einzelnen Wort.</p>
+  {{else}}
+  <p class="hc-lede">Geben Sie oben ein, wonach Sie suchen.</p>
+  {{end}}
 </section>
 {{end}}

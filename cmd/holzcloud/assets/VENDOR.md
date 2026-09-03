@@ -67,17 +67,18 @@ Beide Familien sind variabel: eine Datei je Teilmenge trägt jedes Gewicht der
 Achse. Deshalb steht in `style.css` ein `font-weight`-BEREICH und nicht ein
 `@font-face` je Schnitt. Nur `latin` und `latin-ext` sind übernommen.
 
-**Manrope liegt an ZWEI Orten**, byteweise identisch und mit denselben SHA-256
-aus der Tabelle unten: in `cmd/holzcloud/templates/public/holzcloud/fonts/` und
-in `cmd/holzcloud/templates/public/weide/fonts/`. Das ist Absicht und keine
+**Manrope liegt an DREI Orten**, byteweise identisch und mit denselben SHA-256
+aus der Tabelle unten: in `cmd/holzcloud/templates/public/holzcloud/fonts/`, in
+`cmd/holzcloud/templates/public/weide/fonts/` und in
+`cmd/holzcloud/templates/public/rudel/fonts/`. Das ist Absicht und keine
 vergessene Kopie. Eine Vorlage muss als Archiv für sich stehen: wer sie
 herunterlädt und auf einer anderen Installation hochlädt, bekommt sonst eine
 Vorlage, die ihre eigene Schrift nicht mitbringt — und `/t/fonts/…` zeigt immer
 in die Vorlage, die gerade ausgeliefert wird, nie in eine andere. Ein Symlink
 oder ein Verweis über Verzeichnisgrenzen hinweg wäre im Archiv genauso kaputt.
-Wer die Dateien austauscht, muss BEIDE Orte anfassen; der Prüfbefehl dafür
-steht unter *Updating*. JetBrains Mono bleibt bei `holzcloud` allein — die
-Vorlage `weide` benutzt keine Schrift fester Breite.
+Wer die Dateien austauscht, muss ALLE DREI Orte anfassen; der Prüfbefehl dafür
+steht unter *Updating*. JetBrains Mono bleibt bei `holzcloud` allein — weder
+`weide` noch `rudel` benutzt eine Schrift fester Breite.
 
 ### Manrope
 
@@ -113,6 +114,7 @@ Dateien wären dreimal so gross.
 UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 T=cmd/holzcloud/templates/public/holzcloud/fonts
 W=cmd/holzcloud/templates/public/weide/fonts   # zweiter Ort, nur Manrope
+R=cmd/holzcloud/templates/public/rudel/fonts   # dritter Ort, nur Manrope
 
 # 1. Das Stylesheet holen. Es enthält einen @font-face je Teilmenge; gebraucht
 #    werden genau die beiden Kommentare /* latin */ und /* latin-ext */.
@@ -126,16 +128,21 @@ grep -A6 '/\* latin-ext \*/' manrope.css | grep -o 'https://[^)]*\.woff2'   # ->
 grep -A6 '/\* latin \*/'     jbmono.css  | grep -o 'https://[^)]*\.woff2'   # -> $T/jetbrains-mono-latin.woff2
 grep -A6 '/\* latin-ext \*/' jbmono.css  | grep -o 'https://[^)]*\.woff2'   # -> $T/jetbrains-mono-latin-ext.woff2
 
-# 3. Manrope an den zweiten Ort kopieren. Wer das vergisst, lässt die
-#    Vorlage `weide` auf der alten Fassung stehen — sie rendert weiter und
-#    fällt nirgends auf, bis jemand die beiden Seiten nebeneinander sieht.
+# 3. Manrope an den zweiten und dritten Ort kopieren. Wer das vergisst, lässt
+#    die Vorlage `weide` oder `rudel` auf der alten Fassung stehen — sie
+#    rendert weiter und fällt nirgends auf, bis jemand zwei der Seiten
+#    nebeneinander sieht.
 cp "$T"/manrope-latin.woff2 "$T"/manrope-latin-ext.woff2 "$W"/
+cp "$T"/manrope-latin.woff2 "$T"/manrope-latin-ext.woff2 "$R"/
 cmp "$T"/manrope-latin.woff2     "$W"/manrope-latin.woff2
 cmp "$T"/manrope-latin-ext.woff2 "$W"/manrope-latin-ext.woff2
+cmp "$T"/manrope-latin.woff2     "$R"/manrope-latin.woff2
+cmp "$T"/manrope-latin-ext.woff2 "$R"/manrope-latin-ext.woff2
 
 # 4. Grösse und Prüfsumme in dieses Verzeichnis übertragen, und die
 #    unicode-range aus dem Stylesheet in die @font-face-Blöcke von
-#    templates/public/holzcloud/style.css UND templates/public/weide/style.css.
+#    templates/public/holzcloud/style.css, templates/public/weide/style.css UND
+#    templates/public/rudel/style.css.
 ( cd "$T" && wc -c *.woff2 && shasum -a 256 *.woff2 )
 ```
 
