@@ -959,7 +959,8 @@ main:focus { outline: none; }
  * Für diese Website sind beide der wichtigere Teil: die Startseite besteht in
  * weiten Teilen aus Kartenreihen, und die zwölf Tierporträts sind alle
  * Bild-neben-Text. */
-.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video, .hc-bild--voll) {
+.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video,
+                    .hc-bild--breit, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
 }
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
@@ -1543,6 +1544,49 @@ main:focus { outline: none; }
   block-size: auto; max-block-size: 70vh;
 }
 
+/* Die drei Stufen des Bild-Bausteins, und sie sind hier eine Stufenleiter und
+ * kein Zufall:
+ *
+ *   ohne Zusatz  — die Textspalte. Ein Bild auf Lesebreite; die bewusste Wahl
+ *                  der Redaktion, wenn ein Bild zum Satz gehört und nicht zur
+ *                  Seite.
+ *   --breit      — die breite Spalte des Rasters, text-start / breit-ende,
+ *                  genau wie .hc-karten und .hc-bildtext.
+ *   --voll       — über die ganze Breite des Fensters.
+ *
+ * Damit --breit das tut, muss der Kunstgriff des Kerns hier NEUTRALISIERT
+ * werden. bausteine.css:62-70 lässt ein Bild aus der Textspalte herauslaufen,
+ * indem es sie prozentual überzieht: inline-size: min(115%, 100vw) mit
+ * margin-inline: -7.5%. Das ist richtig für eine Vorlage OHNE Raster — dort
+ * gibt es keine zweite Spalte, in die man ein Bild stellen könnte, also muss
+ * es über den Rand hinauswachsen.
+ *
+ * Gegen ein Zweispaltenraster ergibt derselbe Kunstgriff aber 705 × 1.15 =
+ * 810 px, während dieselbe Seite einem allein stehenden Bild im Markdown
+ * 1163 px gibt. Zwei Wege zum selben Ziel mit zwei Ergebnissen, und der
+ * ausdrücklich als „breit" ausgezeichnete war der schmalere. Prozentüberzug
+ * und Rasterspalte kämpfen gegeneinander; die Rasterspalte gewinnt, sobald
+ * der Überzug weg ist.
+ *
+ * --voll bleibt in der breiten Spalte und behält den Kunstgriff des Kerns.
+ * Das ist kein Widerspruch, sondern seine Bedingung: margin-inline:
+ * calc(50% - 50vw) bezieht die 50 % auf den enthaltenden Block, und nur wenn
+ * der mittig im Fenster sitzt, landet das Bild genau von Rand zu Rand.
+ * Nachgerechnet bei 1280 px Fenster: aus der breiten Spalte heraus beginnt es
+ * bei 0 und endet bei 1280 — randlos. Aus der Textspalte heraus begänne es bei
+ * -236 px und endete bei 1044 und wäre weder randlos noch mittig.
+ *
+ * Ein allein stehendes Bild im Markdown entspricht damit genau --breit. Das
+ * ist richtig und kein Versehen: Markdown hat keine Möglichkeit zu sagen
+ * „schmal", und von den drei Stufen ist breit die sinnvollere Vorgabe — ein
+ * Bild, das jemand allein in einen Absatz stellt, ist als Bild gemeint und
+ * nicht als Wort im Satz. Wer die Textspalte will, hat den Bild-Baustein ohne
+ * Zusatz. */
+.page-content > .hc-bild--breit {
+  inline-size: auto;
+  margin-inline: 0;
+}
+
 /* Bildunterschrift — gesperrte Versalien. Die opacity aus
    bausteine.css wird auf 1 zurückgesetzt: die Farbe --hc-ink-3 trägt
    die Abstufung schon, und beides übereinander fiele unter die
@@ -1628,6 +1672,40 @@ main:focus { outline: none; }
 .hc-aufruf__titel { font-weight: var(--hc-weight-medium); letter-spacing: var(--hc-track-snug); }
 .hc-aufruf__text  { color: var(--hc-ink-2); }
 .hc-aufruf__knopf { margin-block-start: var(--hc-space-5); }
+/* Die Einladung steht mittig, und dann soll sie auch wirklich mittig stehen:
+   die Grundschicht begrenzt jeden Absatz auf das Lesemass, und ein so
+   begrenzter Absatz sitzt ohne diese Zeile am linken Rand seines Kastens —
+   der Text wäre in 705 px zentriert, der Kasten aber 641 px breit, und das
+   Ganze sässe um gut 30 px daneben. */
+.hc-aufruf__text p { margin-inline: auto; }
+
+/* Ein Aufruf mit MEHR ALS EINEM Absatz ist keine Einladung mehr, sondern eine
+ * Mitteilung — und Fliesstext mit beidseitigem Flatterrand ist schwer zu
+ * lesen.
+ *
+ * bausteine.css:196 setzt .hc-aufruf auf text-align: center, und der Kern hat
+ * damit nicht unrecht: block.go beschreibt den Aufruf als „a boxed invitation
+ * with a button", und für einen Satz plus Knopf ist mittig genau richtig.
+ * Derselbe Baustein trägt auf dieser Website aber den Kasten „Aktuell" mit
+ * vier Absätzen. Als handgeschriebenes <aside> stand dieser Text vorher
+ * linksbündig; der Umzug in einen echten Baustein hätte ihn ohne diese Regel
+ * verschlechtert, und das darf ein Umzug in die richtige Form nie.
+ *
+ * Unterschieden wird an der Auszeichnung und nicht an einer Zeichenzahl: mehr
+ * als ein Kind im __text, oder eine Liste, ein Zitat, eine Tabelle. Alles
+ * davon ist Fliesstext und keine Einladung. Der ganze Kasten kippt mit —
+ * Titel, Text und Knopf —, denn ein zentrierter Titel über linksbündigem Text
+ * sähe nach Versehen aus.
+ *
+ * Ohne :has() fällt die Regel weg und es bleibt beim heutigen Zustand, also
+ * mittig. Nennenswert, aber tragbar: die Mitteilung ist dann schlechter
+ * gesetzt, nicht unlesbar. */
+.hc-aufruf:has(.hc-aufruf__text > :is(:nth-child(2), ul, ol, blockquote, table)) {
+  text-align: start;
+}
+.hc-aufruf:has(.hc-aufruf__text > :is(:nth-child(2), ul, ol, blockquote, table)) .hc-aufruf__text p {
+  margin-inline: 0;
+}
 
 /* Knopf — die Pillenform des Systems. */
 .hc-knopf {
