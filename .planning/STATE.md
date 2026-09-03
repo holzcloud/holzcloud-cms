@@ -1,15 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Inhaltsmodell
+milestone: v1.6
+milestone_name: Inhaltsmodell und Zugang
 status: planning
-stopped_at: Roadmap for v1.5 created (Phases 6-8)
-last_updated: "2026-09-03T22:20:00.000Z"
+last_updated: "2026-09-03T20:19:50.109Z"
 last_activity: 2026-09-03
-last_activity_desc: "Quick-Aufgabe 260903-t0s — Vorlage `rudel` als gruene Schwester, fuenf Commits"
-state_head: 774b3eabc923cc486ce2a351ca344b58e7327c0d
 progress:
-  total_phases: 3
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,28 +18,21 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 6 — Field Kinds (v1.5 Inhaltsmodell)
+- Current focus: Phase 6 — Aufräumen (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
 
 ### Current Position
 
-Milestone: v1.5 — Inhaltsmodell (Phases 6–8)
-Phase: 6 of 8 (Field Kinds) — 1 of 3 in this milestone
-Plan: — (phase not yet planned)
-Status: Ready to plan
-Last activity: 2026-09-03 — v1.5 roadmap created, 14/14 requirements mapped
-
-Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-09-03 — Milestone v1.6 started
 
 ### Milestone Map
 
-| Phase | Name | Requirements | Status |
-|-------|------|--------------|--------|
-| 6 | Field Kinds | FIELD-01…06 | Not started |
-| 7 | Snippets Carry Fields | SNIP-01…03 | Not started |
-| 8 | CSV Import | IMP-01…03, QUAL-01, QUAL-02 | Not started |
+(filled in when the roadmap is created)
 
 ### Performance / Quality Notes
 
@@ -51,7 +41,7 @@ Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
 - Target: linux/amd64 single binary (retargeted from arm64/Pi on 2026-09-03)
 - Go patterns: 1.22+ stdlib ServeMux, slog structured logging, embed.FS for all assets/templates/migrations
 - SQLite: dual-pool (write pool MaxOpenConns=1, read pool higher), WAL + busy_timeout=5000 + foreign_keys=ON on every connection
-- Migrations stand at 00044; v1.5's first new migration is 00045
+- Migrations stand at 00045 (`00045_pages_locale_unique.sql`); v1.6's first new migration is 00046
 
 ### Accumulated Context
 
@@ -64,18 +54,18 @@ Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
 - goldmark + bluemonday pipeline for Markdown: goldmark renders to raw HTML, bluemonday sanitizes before template.HTML cast (never skip sanitization)
 - goose for migrations: SQL files embedded via embed.FS, run automatically at startup
 - v1.0: 5-phase coarse roadmap, Foundation → Auth+Shell → Multi-Site+Pages+Public → Templates+Menus+Media → Polish+Users+Deploy
-- v1.5: 3-phase coarse roadmap, Field Kinds → Snippets Carry Fields → CSV Import. Order follows the milestone goal as PROJECT.md states it: every field kind, in every carrier, then content as a table
-- v1.5: QUAL-01 (five languages) and QUAL-02 (browser pass) are standing gates, not deliverables. Counted once in Phase 8 for traceability; repeated verbatim as the final success criterion of Phases 6 and 7 so no phase can close without them
-- v1.5: snippet fields reuse `page_field_defs` with a `snippet_id` column — explicitly not a third field table
+- v1.6: 5-phase coarse roadmap, Aufräumen → Field Kinds → Snippets Carry Fields → CSV Import → Authentik Forward-Auth. The middle three follow the milestone goal as PROJECT.md states it: every field kind, in every carrier, then content as a table
+- v1.6: QUAL-01 (five languages) and QUAL-02 (browser pass) are standing gates, not deliverables. Counted once in the last phase for traceability; repeated verbatim as the final success criterion of every other phase so no phase can close without them
+- v1.6: snippet fields reuse `page_field_defs` with a `snippet_id` column — explicitly not a third field table
 - README's `## License` said MIT while LICENSE carries the full GNU AGPL-3.0; corrected to AGPL-3.0 with a link to LICENSE. A documentation-defect fix, not a relicensing — revert commit d089e3d if MIT was ever the intent
 - CHANGELOG.md follows the Keep a Changelog skeleton but writes entries as full sentences, matching the register of SECURITY.md and CONTRIBUTING.md; the choice is stated at the top of the file so the next entry does not revert to bullets
 - The public record begins at v1.4 and no pre-1.4 releases are invented. README, CONTRIBUTING and CHANGELOG all say development happened in a private repository first; none of them names that repository or its visibility
 
 #### Known Risks
 
-- FIELD-02 (multiple choice) is the first field value that is not a single string. The encoding chosen in Phase 6 is load-bearing for Phase 8's importer — decide it before either phase writes code
+- FIELD-02 (multiple choice) is the first field value that is not a single string. The encoding chosen in Phase 7 is load-bearing for Phase 9's importer — decide it before either phase writes code
 - A CHECK constraint at the table head cannot be loosened in SQLite without a full table rebuild, and `pages` has foreign-key children. Read `internal/db/migrations/00029` and `00031` before altering an existing table. (`page_field_defs.art` carries no CHECK, so new field kinds need no migration at all)
-- Phase 7's `snippet_id` column collides with the partial unique index `idx_page_field_defs_kennung_oben` on `(website_id, kennung) WHERE parent_id IS NULL` — an index swap, not a rebuild
+- Phase 8's `snippet_id` column collides with the partial unique index `idx_page_field_defs_kennung_oben` on `(website_id, kennung) WHERE parent_id IS NULL` — an index swap, not a rebuild
 - No JavaScript beyond htmx: the button row, the multiple choice and the slider must all work as plain form controls with a full-page fallback
 - Every new user-visible string must land in de/en/es/fr/it; `go run ./tools/i18n` must say `0 offen, 0 verwaist`
 - Draft page leakage: always include AND status='published' in every public page query — applies to a Term or Ref field resolving on the public site too
@@ -84,7 +74,7 @@ Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
 
 #### Todos
 
-- (none open — Phase 6 awaits `/gsd-plan-phase 6`)
+- (none open — v1.6 requirements and roadmap are being written)
 
 #### Blockers
 
@@ -113,8 +103,9 @@ Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
 ### Performance Metrics
 
 **Velocity:**
+
 - v1.0: 13 plans across 5 phases, all complete 2026-04-14
-- v1.5: 0 plans complete
+- v1.6: 0 plans complete
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -125,13 +116,13 @@ Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
 
 ### Session Continuity
 
-To resume: read `.planning/ROADMAP.md` for the v1.5 phase structure (Phases 6–8)
+To resume: read `.planning/ROADMAP.md` for the v1.6 phase structure (Phases 6–10)
 and its *Standing Gates* section. Requirement IDs are in
-`.planning/REQUIREMENTS.md`; the working list they came from, with the size and
-location of each item, is `docs/offene-punkte.md`.
+`.planning/REQUIREMENTS.md`; the working list most of them came from, with the
+size and location of each item, is `docs/offene-punkte.md`.
 
-Next command: `/gsd-plan-phase 6`
+Next command: `/gsd-discuss-phase 6`
 
 **Last session:** 2026-09-03
-**Stopped at:** Quick-Aufgabe 260903-t0s abgeschlossen (Vorlage `rudel`); beide Kundenvorlagen neu, Seehof-Inhalt in Bausteinen
+**Stopped at:** Meilenstein v1.6 begonnen — PROJECT.md und STATE.md umgestellt, Anforderungen und Roadmap folgen
 **Resume file:** None

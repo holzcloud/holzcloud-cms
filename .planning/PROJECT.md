@@ -1,33 +1,44 @@
 # Holzcloud CMS — Project Context
 
 **Created:** 2026-04-13 (autonomous initialization after technical pivot)
-**Status:** v1.0 shipped 2026-04-14; grown well past it since
-**Last milestone:** v1.5 — Inhaltsmodell (started 2026-09-02)
+**Status:** v1.0 shipped 2026-04-14; grown well past it since. Releases v1.4 and v1.5 are tagged and public.
+**Current milestone:** v1.6 — Inhaltsmodell und Zugang (started 2026-09-03)
 **Stack (HARD MANDATE):** Go + htmx + CSS + SQLite
 
 ## Vision
 
-A minimal, self-hosted CMS optimized to run on a Raspberry Pi 5 as a single Go binary. Manages **multiple websites**, each with **multiple domains**, serving server-rendered HTML to the public and exposing a simple admin UI (htmx-driven) for authoring templates, menus, and pages.
+A minimal, self-hosted CMS that runs as a single Go binary on a small linux/amd64 server. Manages **multiple websites**, each with **multiple domains**, serving server-rendered HTML to the public and exposing a simple admin UI (htmx-driven) for authoring templates, menus, and pages.
 
 ## Core Value
 
-One small binary on a Pi runs several websites without dependency soup. Authors work through a clean, responsive admin UI; readers get fast server-rendered pages.
+One small binary runs several websites without dependency soup. Authors work through a clean, responsive admin UI; readers get fast server-rendered pages.
 
-## Current Milestone: v1.5 Inhaltsmodell
+## Current Milestone: v1.6 Inhaltsmodell und Zugang
 
 **Goal:** A website describes its content model completely — every field kind an author
-needs, in every carrier that holds fields, and content can also arrive as a table.
+needs, in every carrier that holds fields, and content can also arrive as a table — and
+whoever enters the admin may arrive through the sign-in the operator already runs.
 
 **Target features:**
+- The housekeeping that blocks the rest: the i18n writer's file format, a test suite that
+  skips itself in silence, and planning notes that have gone stale
 - Choice as a button row, and a genuine multiple choice (the first field value that is not a single string)
 - Terms as a field kind, so a field can pick from the tags a page already carries
+- The three small field kinds still missing: `zeit`, `bereich`, `code`
 - Text snippets that carry every field kind, not only Markdown
 - CSV import beside the WordPress (WXR) and bundle importers
-- The three small field kinds still missing: `zeit`, `bereich`, `code`
+- Single sign-on against a self-hosted Authentik, taken as a forward-auth header from the
+  reverse proxy — explicitly not an OIDC client inside the binary
 
-The working list these come from is `docs/offene-punkte.md`, which states for each one
-what is missing, where it belongs, and how big it is. That file stays the source of truth;
-this milestone is the subset that was scoped in.
+Most of these come from `docs/offene-punkte.md`, which states for each one what is missing,
+where it belongs, and how big it is. That file stays the source of truth; this milestone is
+the subset that was scoped in, plus the Authentik work, which is new.
+
+**Why 1.6 and not 1.5.** The tags `v1.4` and `v1.5` are released and pushed, and
+CHANGELOG.md carries `## 1.5 — 2026-09-03`. The planned milestone that used to be called
+v1.5 never left 0 %, so it was renumbered rather than shipped under a number that already
+means something else. No v1.5 milestone shell remains — its three phases moved into this
+one as Phases 7, 8 and 9.
 
 ## Requirements
 
@@ -65,20 +76,25 @@ April and September 2026 outside the planning artefacts, which is why this secti
 
 ### Active
 
-The v1.5 target features above.
+The v1.6 target features above.
 
 ### Out of Scope
 
-Beyond the v1 exclusions further down, the following were considered for v1.5 and left out:
+Beyond the v1 exclusions further down, the following were considered for v1.6 and left out:
 
 - **Static export** — a second mode of operation beside the one that works: it can serve
   neither forms, nor search, nor protected pages. If it is ever built, it must be an
   explicitly reduced output, not a second front door. Stays on `docs/offene-punkte.md`.
+- **Authentik as an OIDC/OAuth client inside the binary** — `docs/offene-punkte.md` lists
+  OAuth under what is deliberately not built, for the reason that holds here too: it is a
+  second mode of operation beside the one that works, and it needs a dependency and an
+  outbound call at runtime. The forward-auth header from the reverse proxy delivers the
+  same single sign-on with neither.
 
 ## Mandatory Stack (unchangeable)
 
-- **Backend:** Go (1.22+). Standard library first. Third-party libs only when clearly justified (SQLite driver, htmx-less validation helpers, password hashing via `golang.org/x/crypto`, etc.).
-- **Persistence:** SQLite (via `modernc.org/sqlite` preferred for pure-Go / Pi friendliness; falls back to `mattn/go-sqlite3` if cgo is acceptable).
+- **Backend:** Go (go.mod is at 1.26.6). Standard library first. Third-party libs only when clearly justified (SQLite driver, htmx-less validation helpers, password hashing via `golang.org/x/crypto`, etc.).
+- **Persistence:** SQLite via `modernc.org/sqlite` — pure Go, `CGO_ENABLED=0`. Settled, not a preference: the cgo driver is not a fallback.
 - **Frontend interactivity:** htmx only. No other JavaScript, no frameworks, no npm.
 - **Styling:** plain CSS (custom properties + `@layer` allowed). No Tailwind, Sass, PostCSS, or bundlers.
 - **Templating:** Go `html/template` for all server-rendered HTML.
@@ -88,7 +104,8 @@ Anything outside this stack requires explicit user approval.
 
 ## Deployment Target
 
-- Single binary on Raspberry Pi 5 (ARM64, Linux).
+- Single binary on a small linux/amd64 server. (Retargeted from arm64/Pi on 2026-09-03;
+  CI builds linux/amd64 and the release workflow publishes it on a `v*` tag.)
 - Reverse proxy (Caddy or similar) in front for TLS + HTTP/2; binary listens on localhost:PORT.
 - SQLite file + asset directory on local disk; no external services required.
 
@@ -104,7 +121,7 @@ Anything outside this stack requires explicit user approval.
 
 ## Project Constraints
 
-- Runs on Pi 5 — keep memory + CPU footprint small; prefer synchronous request handling; avoid heavy dependencies.
+- Runs on a small server — keep memory + CPU footprint small; prefer synchronous request handling; avoid heavy dependencies.
 - Server-rendered first; htmx adds interactivity, never SPA state management.
 - Security baseline: hashed passwords, CSRF on all state-changing requests, secure session cookies, role gates for admin endpoints.
 - Single binary deployment + simple `data/` directory for SQLite + uploads.
@@ -156,4 +173,4 @@ whole time.
 *Stack is mandated by the user. Every phase, research note, and plan must respect it. If a requirement seems to need something outside the stack, flag and propose a stack-compatible alternative.*
 
 ---
-*Last updated: 2026-09-03 at the start of milestone v1.5*
+*Last updated: 2026-09-03 at the start of milestone v1.6*
