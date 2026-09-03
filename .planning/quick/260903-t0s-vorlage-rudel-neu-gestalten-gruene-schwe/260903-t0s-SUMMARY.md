@@ -156,11 +156,12 @@ Ziel, Feldnamen und verstecktes Feld aller Formulare sind unverändert.
 
 ## Deviations from Plan
 
-### Vier Befunde des Orchestrators, mitten in der Arbeit gemeldet
+### Sechs Befunde des Orchestrators, mitten in der Arbeit gemeldet
 
-Alle vier betreffen Stellen, an denen die Referenz `weide` danebenliegt. Sie
-sind hier **nicht** mitkopiert worden. `weide` ist getrennt nachgebessert
-worden.
+Die ersten vier betreffen Stellen, an denen die Referenz `weide` danebenliegt;
+sie sind hier **nicht** mitkopiert worden. Die letzten zwei betreffen
+`bausteine.css`, also den Kern — sie sind in der Vorlage abgefangen, die Datei
+des Kerns ist unangetastet geblieben. `weide` wird getrennt nachgebessert.
 
 **1. Überschriften in Bausteinen blieben klein**
 - **Gefunden bei:** Aufgabe 1, gemeldet vom Orchestrator
@@ -227,6 +228,52 @@ worden.
   getrennte Begründungen an derselben Stelle laden dazu ein, später eine davon
   zu entfernen.
 - **Commit:** d9e2b4c
+
+**5. Fliesstext im Aufruf stand zentriert**
+- **Gefunden bei:** Sichtprüfung an der fertigen Website
+- **Problem:** `bausteine.css:196` setzt `.hc-aufruf { text-align: center }`.
+  Für eine Einladung aus einem Satz mit Knopf ist das richtig — `block.go`
+  beschreibt den Baustein als „a boxed invitation with a button". Der Kasten
+  „Aktuell" dieser Website trägt aber vier Absätze bei 705 px Breite, und als
+  handgeschriebenes `<aside>` stand derselbe Text vorher linksbündig. Der Umzug
+  in die richtige Form hätte ihn verschlechtert.
+- **Fix:**
+  `.hc-aufruf:has(.hc-aufruf__text > :is(:nth-child(2), ul, ol, blockquote, table))`
+  kippt den ganzen Kasten auf `text-align: start` — Titel, Text und Knopf
+  gemeinsam, denn ein zentrierter Titel über linksbündigem Text sähe nach
+  Versehen aus. Unterschieden wird an der **Auszeichnung** und nicht an einer
+  Zeichenzahl. Die drei Fälle sind gegen den Kern-Renderer geprüft worden, nicht
+  angenommen: ein Absatz bleibt mittig, vier Absätze kippen, und eine
+  alleinstehende Liste kippt ebenfalls — letzteres ist der Grund, warum der
+  Selektor über `p + p` hinausgeht. Nebenbei behoben: die Einladung sitzt jetzt
+  wirklich mittig, denn ein auf das Lesemass begrenzter Absatz sass ohne
+  `margin-inline: auto` rund 30 px links von der Kastenmitte.
+- **Rückfall:** ohne `:has()` bleibt es beim heutigen Zustand, also mittig —
+  schlechter gesetzt, aber lesbar.
+- **Commit:** e730173
+
+**6. `.hc-bild--breit` war schmaler als ein Bild ganz ohne Zusatz**
+- **Gefunden bei:** Sichtprüfung an der fertigen Website
+- **Problem:** `bausteine.css:62-70` lässt `--breit` aus der Textspalte
+  herauslaufen, indem es sie prozentual überzieht:
+  `inline-size: min(115%, 100vw)` mit `margin-inline: -7.5%`. Das ist der
+  Kunstgriff einer Vorlage **ohne** Raster. Gegen unser Zweispaltenraster ergab
+  das 705 × 1.15 = 810 px, während ein allein stehendes Bild im Markdown
+  1163 px bekam — der ausdrücklich als „breit" ausgezeichnete Weg war der
+  schmalere.
+- **Fix:** Eine saubere Dreistufigkeit, als solche kommentiert: **ohne Zusatz**
+  die Textspalte, **`--breit`** die breite Rasterspalte
+  (`text-start / breit-ende`, wie `.hc-karten` und `.hc-bildtext`),
+  **`--voll`** das ganze Fenster. Für `--breit` wird der Überzug des Kerns
+  neutralisiert (`inline-size: auto`, `margin-inline: 0`), sonst kämpfen
+  Prozentüberzug und Rasterspalte gegeneinander.
+- **Warum `--voll` in der breiten Spalte BLEIBT:** das ist keine Ausnahme,
+  sondern die Bedingung seines Kunstgriffs. `margin-inline: calc(50% - 50vw)`
+  bezieht die 50 % auf den enthaltenden Block; nur wenn der mittig im Fenster
+  sitzt, wird das Bild randlos. Nachgerechnet bei 1280 px: aus der breiten
+  Spalte beginnt es bei 0 und endet bei 1280. Aus der Textspalte begänne es bei
+  −236 px und endete bei 1044 — weder randlos noch mittig.
+- **Commit:** e730173
 
 ### Eigene Abweichungen vom Plan
 
@@ -317,6 +364,7 @@ achtzehn berührten Dateien.
 | Schriften | beide woff2 byteweise identisch mit den Kopien in `weide` |
 | Klammern in style.css | 431 offen, 431 zu |
 | `bausteine.css` | unangetastet — `git status` zeigt sie nicht |
+| Aufruf-Markup | gegen den Kern-Renderer geprüft: 1 Absatz mittig, 4 Absätze und Liste linksbündig |
 | dreizehn HTML-Dateien | zwölf Ansichten plus `layout.html` |
 | Go-Code | `git status` zeigt nichts unter `internal/` oder `cmd/holzcloud/*.go` |
 
@@ -339,4 +387,4 @@ und bei `weide` je einen Fehler, den keine der obigen Prüfungen sah.
 
 Alle drei neuen Dateien liegen auf der Platte (`favicon.svg`, beide woff2),
 alle fünfzehn geänderten ebenfalls, und alle vier Commits sind in `git log`
-auffindbar: 7de5994, 377b27d, 154d5de, f748711, d9e2b4c.
+auffindbar: 7de5994, 377b27d, 154d5de, f748711, d9e2b4c, e730173.
