@@ -939,13 +939,27 @@ main:focus { outline: none; }
 .page-content > * { grid-column: text-start / text-end; min-width: 0; }
 /* Was die Breite füllen SOLL, füllt sie.
  *
- * .hc-karten steht hier mit — anders als in der Schwestervorlage `weide`, wo
- * es fehlt. Eine Kartenreihe ist gerade das Element, das die zweite Spalte
- * braucht: drei oder vier Karten in der Textspalte brechen auf 2+1 um, und wer
- * das bemerkt, zwingt die Spaltenzahl in der Verwaltung hoch — eine Notlösung
- * gegen ein Vorlagenproblem. Die Startseite von Delnahida besteht in weiten
- * Teilen aus Kartenreihen. */
-.page-content > :is(.hc-galerie, .hc-karten, .hc-video, .hc-bild--voll) {
+ * Die Regel dahinter, damit ein neuer Bausteintyp nicht wieder geraten werden
+ * muss: BREIT ist, was von sich aus mehrspaltig ist oder ein Bild in seiner
+ * natürlichen Grösse zeigt. SCHMAL bleibt, was gelesen wird.
+ *
+ * Danach ist .hc-aufruf schmal, obwohl er eine Fläche ist: mittig gesetzter
+ * Kurztext mit einem Knopf, über die volle Breite gezogen stünde er verloren.
+ * Und .hc-bildtext ist breit, obwohl er Text enthält: er IST zwei Spalten.
+ *
+ * .hc-karten und .hc-bildtext stehen hier mit — anders als in der
+ * Schwestervorlage `weide`, wo beide fehlen. Am laufenden Server bei 1280 px
+ * gemessen: Raster 1178 px, Textspalte 705 px. Drei oder vier Karten brechen
+ * darin auf 2+1 um, und wer das bemerkt, zwingt die Spaltenzahl in der
+ * Verwaltung hoch — eine Notlösung gegen ein Vorlagenproblem. Einem bildtext
+ * bleiben in der Textspalte 340 px fürs Bild und rund 30 Zeichen je Zeile
+ * daneben: die Auszeichnung verspricht zwei Spalten, das Raster gäbe ihr eine
+ * halbe.
+ *
+ * Für diese Website sind beide der wichtigere Teil: die Startseite besteht in
+ * weiten Teilen aus Kartenreihen, und die zwölf Tierporträts sind alle
+ * Bild-neben-Text. */
+.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
 }
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
@@ -1049,8 +1063,10 @@ main:focus { outline: none; }
  * Diese Regeln gelten einer ÜBERGANGSFORM. Der Inhalt wird später in echte
  * Bausteine umgezogen, und dann greifen die hc-*-Regeln; bis dahin sähe die
  * Startseite nach der Neugestaltung sonst schlechter aus als vorher. Deshalb
- * bekommen die Gruppen hier dieselbe Breite und dieselbe Form wie eine
- * .hc-karten-Reihe — wer den Inhalt umgliedert, soll keinen Sprung sehen.
+ * bekommt jede Übergangsform dieselbe Breite und dieselbe Form wie der
+ * Baustein, der später aus ihr wird: die <section>-Gruppe wird eine
+ * Kartenreihe und ist darum breit, das <aside> wird ein aufruf und bleibt
+ * darum schmal. Wer den Inhalt umgliedert, soll keinen Sprung sehen.
  *
  * Erkennbar ist die Gruppe an ihren Kindern, nicht an einer Klasse: ein <div>
  * mit <section>-Kindern ist im Fliesstext nichts anderes als eine Kartenreihe.
@@ -1090,12 +1106,14 @@ main:focus { outline: none; }
 }
 
 /* Ein <aside> im Fliesstext ist ein hervorgehobener Kasten — auf dieser
-   Website der Aktuell-Kasten der Startseite. Er spannt breit wie eine
-   Kartenreihe, damit die Startseite eine Kante hat; seine Absätze begrenzt die
-   Grundschicht ohnehin auf das Mass, also wird der Satz darin nicht zu lang. */
+   Website der Aktuell-Kasten der Startseite.
+ *
+ * Er bleibt SCHMAL, in der Textspalte. Nach der Regel weiter oben ist er
+ * nichts anderes als ein .hc-aufruf: kurzer Text, der gelesen wird, weder
+ * mehrspaltig noch ein Bild. Über die volle Breite gezogen stünde er verloren
+ * — und genau ein .hc-aufruf wird er, wenn der Inhalt später umgegliedert
+ * wird. Die Breite darf beim Umzug nicht springen. */
 .page-content > aside {
-  grid-column: text-start / breit-ende;
-  max-width: none;
   padding: clamp(var(--hc-space-5), 3vw, var(--hc-space-6));
   background: var(--hc-pane);
   border: 1px solid var(--hc-pane-edge);
@@ -1406,6 +1424,222 @@ main:focus { outline: none; }
   .site-search { display: none; }
   .nav-switch:checked + .hc-bar .site-search { display: flex; }
 }
+
+/* ══ Der Aufmacher ════════════════════════════════════════════
+   Zwei Spalten: links, was die Seite sagt, rechts das Titelbild —
+   und wo keines gesetzt ist, die Waldsaum-Zeichnung. Auf einem
+   schmalen Fenster untereinander; zwei Spalten auf einem Telefon
+   sind zwei zu enge Spalten. */
+.site-hero { padding-block: clamp(48px, 9vh, 104px) clamp(40px, 7vh, 80px); }
+.site-hero-grid {
+  display: grid; align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+}
+.site-hero .hc-display { margin-block-start: var(--hc-space-4); }
+.site-hero .hc-claim   { margin-block-start: var(--hc-space-5); }
+.site-hero .hc-lede    { margin-block-start: var(--hc-space-5); }
+.site-actions {
+  display: flex; flex-wrap: wrap; gap: var(--hc-space-3);
+  margin-block-start: var(--hc-space-6);
+}
+/* Bleibt auf einer nackten Website nichts übrig, das irgendwohin
+   zeigt, soll auch kein Abstand übrig bleiben. */
+.site-actions:empty { display: none; }
+
+.site-art { justify-self: end; width: 100%; max-width: 620px; }
+.site-art svg { width: 100%; height: auto; display: block; }
+/* Hier weicht `rudel` bewusst von der Schwestervorlage `weide` ab: das
+   Aufmacherbild wird NICHT zugeschnitten.
+ *
+ * `weide` zwingt es über aspect-ratio: 4/3 und object-fit: cover ins
+ * Querformat. Das Titelbild ist aber ein blosser URL ohne jede Angabe zur
+ * Bildmitte — anders als ein Galerie- oder Kartenbild, dem der Kern einen
+ * Mittelpunkt mitgibt. Ein Zuschnitt auf Querformat trifft bei einem
+ * hochformatigen Hundeporträt mit hoher Wahrscheinlichkeit den Kopf, und
+ * genau davon lebt diese Website.
+ *
+ * Beide Hälften des Handels: ohne Zuschnitt ist die Spaltenhöhe nicht mehr
+ * konstant, dafür geht kein Gesicht verloren. Ein Querformat füllt die Spalte,
+ * ein Hochformat steht ganz und ruhig daneben und ist über min(70vh, 620px)
+ * daran gehindert, den Aufmacher in die Länge zu ziehen. */
+.site-art__bild {
+  display: block; margin-inline: auto;
+  inline-size: auto; max-inline-size: 100%;
+  block-size: auto; max-block-size: min(70vh, 620px);
+  border-radius: var(--hc-r-lg);
+  border: 1px solid var(--hc-hairline);
+  box-shadow: var(--hc-shadow-pane);
+}
+@media (max-width: 1000px) {
+  .site-hero-grid { grid-template-columns: minmax(0, 1fr); }
+  .site-art { justify-self: start; max-width: 560px; margin-block-start: var(--hc-space-5); }
+}
+
+/* ══ Die Bausteine ════════════════════════════════════════════
+   Die zehn Zeilen der Brücke weiter oben kleiden das meiste. Hier
+   steht nur, was daraus NICHT folgt — und der Grund ist fast immer
+   einer von zweien: das helle Papier, oder das Hochformat. Wer
+   stattdessen .hc-block-Regeln nachbaut, hat zwei Gestaltungen zu
+   pflegen und behält die zweite nicht. */
+
+/* Bild — eine Haarlinie, damit ein helles Bild auf hellem Papier als
+   Fenster liest und nicht ausfranst. Auf dunklem Grund braucht es
+   sie nicht, dort trennt der Helligkeitssprung von selbst. */
+.hc-bild img, .hc-galerie__bild img, .hc-eigen__bild img {
+  border: 1px solid var(--hc-hairline);
+}
+
+/* Der einfache Bild-Baustein wird NICHT zugeschnitten, und deshalb hilft hier
+   nur die Höhengrenze. internal/block/render.go:96 ruft imgTag für ihn ohne
+   Zuschnitt-Kennzeichen auf, es gibt also keine Bildmitte, die man steuern
+   könnte — ein Zuschnitt wäre geraten. Dieselbe Grenze und dieselbe natürliche
+   Breite wie beim Bild allein im Absatz, aus demselben Grund: 85 Bilder, viele
+   davon Hochformat. */
+.hc-bild--voll img, .hc-bild--breit img {
+  display: block; margin-inline: auto;
+  inline-size: auto; max-inline-size: 100%;
+  block-size: auto; max-block-size: 70vh;
+}
+
+/* Bildunterschrift — gesperrte Versalien. Die opacity aus
+   bausteine.css wird auf 1 zurückgesetzt: die Farbe --hc-ink-3 trägt
+   die Abstufung schon, und beides übereinander fiele unter die
+   Kontrastgrenze. */
+.hc-block figcaption, .hc-bildunterschrift {
+  font-size: var(--hc-text-xs); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink-3); opacity: 1;
+}
+
+/* Das Kachelraster trägt Hochformat.
+ *
+ * bausteine.css schneidet das Galeriebild auf 4/3 und das Kartenbild auf 3/2
+ * (Zeilen 121..145) — beides Querformat. Diese Website hat zwölf
+ * Tierporträts und 85 Bilder, viele davon hochkant; ein Querformat-Zuschnitt
+ * nimmt davon jedes Mal Kopf oder Rute.
+ *
+ * Das Quadrat ist die ehrliche Mitte: es kostet ein Hochformat und ein
+ * Querformat denselben Anteil, während ein hochkantes Verhältnis die
+ * Querformate härter bestrafen würde, als das Quadrat beide bestraft. Das
+ * Kartenbild bleibt eine Spur breiter, weil darunter noch Titel und Text
+ * stehen und eine quadratische Kachel die Karte sonst sehr hoch macht.
+ *
+ * Der Zuschnitt selbst BLEIBT. internal/block/render.go gibt für genau diese
+ * zwei Bausteinarten je Bild einen Mittelpunkt als style-Attribut mit
+ * (Zeile 367..371), und der wirkt nur, solange das Bild in eine feste Form
+ * gezwungen wird. Wer den Zuschnitt abschaltet, macht die Angabe des Kerns zu
+ * toter Auszeichnung.
+ *
+ * Und die Kehrseite derselben Münze: dieser Abschnitt setzt die Eigenschaft,
+ * die diesen Mittelpunkt trägt, an keiner Stelle selbst. Eine Regel im
+ * Stylesheet könnte ein style-Attribut nur mit !important schlagen, und genau
+ * das wäre der Verlust der Angabe. Ein Prüftor liest diesen Abschnitt
+ * kommentarbereinigt und verlangt null Treffer. */
+.hc-galerie__bild img { aspect-ratio: 1 / 1; }
+.hc-karte img { aspect-ratio: 4 / 3; }
+
+/* Karte — ein deckender Kasten, kein Glas. Die Brücke gibt ihr über
+   --paper den Seitengrund als Füllung; eine Karte soll aber HELLER
+   liegen als das Blatt, damit sie als zweites Papier liest. */
+.hc-karte {
+  background: var(--hc-pane);
+  border-color: var(--hc-pane-edge);
+  box-shadow: var(--hc-shadow-pane);
+  gap: var(--hc-space-3);
+}
+.hc-karte__titel { font-weight: var(--hc-weight-medium); letter-spacing: var(--hc-track-snug); }
+.hc-karte__text  { color: var(--hc-ink-2); font-size: var(--hc-text-sm); }
+.hc-karte--link:hover, .hc-karte--link:focus-visible {
+  border-color: var(--hc-wald-soft);
+  box-shadow: var(--hc-shadow-lift);
+}
+/* Das Anheben hängt an der Voreinstellung des Besuchers: wer weniger Bewegung
+   möchte, bekommt die Kante und den Schatten, aber keinen Sprung. */
+@media (prefers-reduced-motion: no-preference) {
+  .hc-karte--link { transition: transform var(--hc-dur-fast) var(--hc-ease); }
+  .hc-karte--link:hover { transform: translateY(-2px); }
+}
+
+/* Zitat — die Marke trägt der Balken, nicht die Schriftfarbe. Ein
+   ganzer Absatz in Waldgrün läse sich als Werbung. */
+.hc-zitat { border-inline-start-color: var(--hc-wald); }
+.hc-zitat blockquote {
+  font-size: var(--hc-text-xl); font-weight: var(--hc-weight-regular);
+  line-height: var(--hc-leading-snug); letter-spacing: var(--hc-track-snug);
+  color: var(--hc-ink);
+}
+.hc-zitat figcaption {
+  margin-block-start: var(--hc-space-3);
+  font-size: var(--hc-text-xs); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink-3); opacity: 1;
+}
+
+/* Aufruf — dieselbe deckende Fläche wie eine Karte, eine Stufe
+   grösser. */
+.hc-aufruf {
+  background: var(--hc-pane);
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-r-lg);
+  box-shadow: var(--hc-shadow-pane);
+}
+.hc-aufruf__titel { font-weight: var(--hc-weight-medium); letter-spacing: var(--hc-track-snug); }
+.hc-aufruf__text  { color: var(--hc-ink-2); }
+.hc-aufruf__knopf { margin-block-start: var(--hc-space-5); }
+
+/* Knopf — die Pillenform des Systems. */
+.hc-knopf {
+  /* Die Schriftfarbe steht hier noch einmal, obwohl bausteine.css sie
+     schon aus --paper baut. Weiter oben färbt `.page-content
+     :where(a)` jeden Verweis im Inhalt waldgrün, und diese Regel steht
+     SPÄTER in derselben Datei — ohne die Zeile hier stünde der Knopf
+     im Aufruf-Baustein als grüne Schrift auf grüner Fläche und wäre
+     unsichtbar. Genau das hat holzcloud einmal gekostet. */
+  color: var(--hc-ground);
+  border-radius: var(--hc-r-pill);
+  padding: 13px var(--hc-space-5);
+  font-size: var(--hc-text-sm); font-weight: var(--hc-weight-semibold);
+  line-height: 1; letter-spacing: 0;
+  transition: opacity var(--hc-dur-fast) var(--hc-ease),
+              transform var(--hc-dur-fast) var(--hc-ease);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hc-knopf:hover { transform: translateY(-1px); }
+}
+
+/* Trennlinie — sie soll trennen und nicht auffallen. */
+.hc-trenner { margin-block: var(--hc-space-8); }
+
+/* Video — der Kern fragt hier die Reglernamen der Verwaltung direkt
+   ab und fiele ohne sie auf 0 zurück. Die Regel zielt deshalb auf die
+   Klasse und nicht auf :root: am :root wäre es der Zyklus, den die
+   Brücke vermeidet. */
+.hc-video { margin-block: var(--hc-space-6); }
+.hc-video video { border-radius: var(--hc-r); border: 1px solid var(--hc-hairline); }
+
+/* Absätze innerhalb eines Bausteins.
+ *
+ * rudel.base setzt :where(p) auf margin 0, und den Rhythmus macht sonst
+ * `.page-content > * + *` — das trifft aber nur die Bausteine selbst. Ein
+ * Textbaustein aus drei Absätzen stünde ohne diese Zeile als eine Wand ohne
+ * Luft dazwischen. */
+.hc-text > * + *,
+.hc-eigen__text > * + *,
+.hc-bildtext__text > * + * { margin-block-start: var(--hc-space-5); }
+
+/* Dasselbe wie beim Bild-Baustein, aus demselben Grund: das Bild im
+   Bildtext steht neben einem Absatz auf demselben hellen Papier und
+   braucht eine Kante, um überhaupt als Bild anzufangen. */
+.hc-bildtext__bild img { border: 1px solid var(--hc-hairline); }
+
+/* Eigene Bausteinart — die Felder als ruhige Faktenzeilen. Eine eigene
+   Bausteinart gehört der Website und nicht der Vorlage: der Kern schreibt nur
+   `hc-eigen--<schluessel>`, und welche Schlüssel es gibt, weiss allein der
+   Betrieb. Hier steht deshalb nur, was ohne Kenntnis des Schlüssels richtig
+   ist. */
+.hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
+.hc-eigen__link a { color: var(--hc-wald); }
 
 /* ══ Der Ausdruck ═════════════════════════════════════════════
    Der Grund ist hier schon hell, also bleibt der Papierteil kurz:
