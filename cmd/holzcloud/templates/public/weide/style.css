@@ -1356,12 +1356,14 @@ main:focus { outline: none; }
    nachbaut, hat zwei Gestaltungen zu pflegen und behält die zweite
    nicht. */
 
-/* Bild — eine Haarlinie, damit ein helles Bild auf hellem Papier als
-   Fenster liest und nicht ausfranst. Auf dunklem Grund braucht es
-   sie nicht, dort trennt der Helligkeitssprung von selbst. */
-.hc-bild img, .hc-galerie__bild img, .hc-eigen__bild img {
-  border: 1px solid var(--hc-hairline);
-}
+/* Eine Haarlinie, damit ein helles Bild auf hellem Papier als Fenster
+   liest und nicht ausfranst. Auf dunklem Grund braucht es sie nicht,
+   dort trennt der Helligkeitssprung von selbst.
+
+   Das Galeriebild wird zugeschnitten und füllt seinen Rahmen; die drei
+   Bildarten, die NICHT zugeschnitten werden, stehen zusammen weiter
+   unten unter „Ein Bild wird in seiner eigenen Grösse gezeigt". */
+.hc-galerie__bild img { border: 1px solid var(--hc-hairline); }
 
 /* Bildunterschrift — gesperrte Versalien statt der Mono-Beschriftung
    aus holzcloud. Die opacity aus bausteine.css wird auf 1
@@ -1459,10 +1461,97 @@ main:focus { outline: none; }
 .hc-eigen__text > * + *,
 .hc-bildtext__text > * + * { margin-block-start: var(--hc-space-5); }
 
-/* Dasselbe wie beim Bild-Baustein, aus demselben Grund: das Bild im
-   Bildtext steht neben einem Absatz auf demselben hellen Papier und
-   braucht eine Kante, um überhaupt als Bild anzufangen. */
-.hc-bildtext__bild img { border: 1px solid var(--hc-hairline); }
+/* EIN BILD WIRD IN SEINER EIGENEN GRÖSSE GEZEIGT, UND DER RAHMEN RICHTET
+ * SICH DANACH — NICHT UMGEKEHRT.
+ *
+ * Das ist die Absicht. Was darunter steht, sind ihre zwei Hälften: nicht
+ * hochrechnen, und nicht ins Unermessliche wachsen lassen. Sie stehen
+ * zusammen, weil sie dasselbe sagen; wer eine davon entfernt, hat den Satz
+ * darüber halbiert.
+ *
+ * Sie gelten für die drei Bildarten, die NICHT zugeschnitten werden:
+ * .hc-bild, .hc-bildtext__bild und .hc-eigen__bild. Karte und Galerie sind
+ * ausgenommen und behalten ihr inline-size: 100 % aus bausteine.css — dort
+ * wird in einen festen Rahmen (aspect-ratio + cover) zugeschnitten, und ein
+ * Bild MUSS diesen Rahmen füllen, sonst klafft er.
+ *
+ * ── Erste Hälfte: nicht hochrechnen ──────────────────────────────────
+ *
+ * bausteine.css sagt eine Ebene höher schon das Richtige — .hc-block img
+ * steht auf max-inline-size: 100 % (Z. 34). Zwei Zeilen darunter
+ * überschreiben es .hc-bild img (Z. 50) und .hc-bildtext__bild img (Z. 96)
+ * mit inline-size: 100 %, und das ist für einen ungeschnittenen Baustein zu
+ * viel: es zwingt jedes Bild auf die Spaltenbreite, auch ein kleines.
+ *
+ * Gemessen: die Bildmarke eines Hofes, ein Scherenschnitt mit Schriftzug,
+ * 235 px breit, wurde in einer 569 px breiten Bildtext-Spalte 2,4-fach
+ * hochgerechnet — der Schriftzug franste sichtbar aus. Ein kleines Bild
+ * steht jetzt mittig in seiner Spalte, statt sie zu füllen. Das ist die
+ * richtige Seite des Handels: eine unscharfe Marke ist schlimmer als eine
+ * kleine.
+ *
+ * bausteine.css bleibt dabei unangetastet. Die Datei gehört dem Kern und
+ * kleidet alle mitgelieferten Vorlagen plus jede hochgeladene; ihr
+ * Kommentarkopf hält ausdrücklich fest, dass ein Theme alles davon
+ * überschreiben darf und die Angaben dafür nur eine Klasse tief liegen.
+ * Genau diese Freiheit wird hier benutzt.
+ *
+ * ── Zweite Hälfte: eine Höhengrenze ──────────────────────────────────
+ *
+ * Ein Hochformat sprengt sonst den Baustein. Gemessen auf einer Seite mit
+ * vier bildtext-Bausteinen, Spalte je 533 px: ein Bild 900 × 1600 stand auf
+ * 533 × 945, der Text daneben war 143 px hoch, und weil bausteine.css die
+ * zwei Spalten auf align-items: center stellt, begann er 405 px unter der
+ * Bildoberkante — eine Leerstelle von der Höhe eines halben Bildschirms.
+ * Die drei Querformate im selben Wechsel sassen richtig. Ein bildtext
+ * verspricht ein Bild NEBEN einem Text; ist das Bild dreimal so hoch wie
+ * der Text, ist es kein Paar mehr, sondern ein Bild mit einer Fussnote.
+ *
+ * Vorher fiel das nicht auf, weil in der schmalen Textspalte jedes Bild auf
+ * 340 px gedrückt wurde. Die Verbreiterung des Bausteins ist richtig; sie
+ * legt den Fall nur offen.
+ *
+ * ZUSCHNITT IST HIER NICHT ERLAUBT, und das ist der Grund, warum die Grenze
+ * an der Höhe hängt und nicht an einem cover. internal/block/render.go ruft
+ * imgTag nur für Galerie (Z. 165) und Karte (Z. 182) mit gesetztem
+ * Zuschnitt-Kennzeichen; nur dort entsteht aus dem Bildmittelpunkt ein
+ * object-position (Z. 369). Ein bildtext-Bild bekommt keinen mitgeliefert
+ * (Z. 146, cropped = false), ein object-fit: cover schnitte also blind aus
+ * der geometrischen Mitte — bei einem Tierbild ist das der Kopf.
+ *
+ * Zwei Zahlen, zwei verschiedene Fragen:
+ *
+ *   100cqw  Im Bildtext: ein Bild wird nie höher, als seine eigene Spalte
+ *           breit ist. Das ist die Paar-Regel selbst, in eine Länge
+ *           übersetzt — die Grenze folgt dem Layout und nicht dem Fenster.
+ *   70vh    Überall: nie höher, als das Fenster trägt. Für .hc-bild und
+ *           .hc-eigen__bild ist das die ganze Grenze, denn die stehen
+ *           allein in der Spalte und sind nicht die Hälfte eines Paares —
+ *           dieselbe Zahl wie bei der Figur im Fliesstext, und aus
+ *           demselben Grund.
+ *
+ * Für eine Vorlage, deren Website überwiegend aus Tierporträts besteht, ist
+ * das nicht ein Sonderfall unter vieren, sondern der Regelfall — die Regel
+ * heisst dort genauso, nur trägt sie mehr Gewicht.
+ *
+ * Ohne Unterstützung für Container-Abfragen fällt allein die
+ * min()-Deklaration weg; das Nicht-Hochrechnen und die 70vh der beiden
+ * anderen Bildarten bleiben. Tragbarer Rückfall, dieselbe Überlegung wie
+ * bei :has(). */
+.hc-bild img, .hc-bildtext__bild img, .hc-eigen__bild img {
+  /* inline-size: auto hebt das 100 % aus bausteine.css auf. Ohne diese
+     Zeile ist die Breite gesetzt, und eine Höhengrenze staucht das Bild,
+     statt es zu verkleinern. */
+  display: block;
+  inline-size: auto; max-inline-size: 100%;
+  block-size: auto; max-block-size: 70vh;
+  margin-inline: auto;
+  border: 1px solid var(--hc-hairline);
+}
+/* Nur im Bildtext kommt die Spaltenbreite als zweite Grenze dazu; dafür
+   muss die Spalte ein Grössen-Container sein. */
+.hc-bildtext__bild { container-type: inline-size; }
+.hc-bildtext__bild img { max-block-size: min(100cqw, 70vh); }
 
 /* Eigene Bausteinart — die Felder als ruhige Faktenzeilen. Eine eigene
    Bausteinart gehört der Website und nicht der Vorlage: der Kern schreibt nur
