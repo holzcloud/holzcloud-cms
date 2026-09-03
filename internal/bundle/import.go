@@ -555,7 +555,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 					html = block.Render(blocks, set, look, page.RenderMarkdown)
 				}
 			}
-			for _, name := range missingMedia(p.Blocks, mediaByName) {
+			for _, name := range missingMedia(p.Blocks, set, mediaByName) {
 				report.Warnings = append(report.Warnings,
 					fmt.Sprintf("Seite %q: die Datei %q fehlt, der Baustein bleibt ohne Bild", p.Title, name))
 			}

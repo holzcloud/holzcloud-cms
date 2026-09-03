@@ -104,7 +104,7 @@ func importBlocks(blocks []Block, set block.Set, mediaByName map[string]int64) [
 
 // missingMedia names the files a page's blocks point at that the archive did
 // not bring, so the report can say so instead of leaving grey boxes.
-func missingMedia(blocks []Block, mediaByName map[string]int64) []string {
+func missingMedia(blocks []Block, set block.Set, mediaByName map[string]int64) []string {
 	var out []string
 	seen := map[string]bool{}
 	add := func(name string) {
@@ -123,30 +123,22 @@ func missingMedia(blocks []Block, mediaByName map[string]int64) []string {
 		for _, it := range b.Items {
 			add(it.Media)
 		}
-		for _, v := range b.Fields {
-			// A field value is only a file name when its field is a picture;
-			// checking every value would report "3.50" as a missing file. The
-			// media list is the filter: a price is not in it, but neither is a
-			// missing picture, so only names that look like files are reported.
-			if looksLikeFile(v) {
-				add(v)
+		// A field value is only a file name when its field is a picture. The
+		// shape of the value is not enough to tell: "Next.js" and "AGPL-3.0"
+		// both look like file names and are the values of a text field, and
+		// reporting them as missing pictures put four lines of nonsense in
+		// every import report of holzcloud.ch. So the kind decides.
+		own, ok := set.OwnOf(b.Type)
+		if !ok {
+			continue
+		}
+		for _, d := range own.Fields {
+			if d.Kind == field.KindImage {
+				add(b.Fields[d.Key])
 			}
 		}
 	}
 	return out
-}
-
-// looksLikeFile is the cheap test that keeps a price out of the missing-files
-// report: every media file name in a bundle carries an extension.
-func looksLikeFile(v string) bool {
-	dot := -1
-	for i := len(v) - 1; i >= 0; i-- {
-		if v[i] == '.' {
-			dot = i
-			break
-		}
-	}
-	return dot > 0 && dot < len(v)-1 && len(v)-dot <= 6
 }
 
 // parseID and formatID keep the spelling of a number out of the two conversion
