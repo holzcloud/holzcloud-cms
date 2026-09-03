@@ -1170,6 +1170,13 @@ main:focus { outline: none; }
    Schrift: das ist bereits, was bausteine.css aus --brand und
    --paper baut, es fehlt nur die Form. */
 .hc-knopf {
+  /* Die Farbe steht hier noch einmal, obwohl bausteine.css sie schon
+     aus --paper baut. Weiter oben faerbt `.page-content :where(a)`
+     jeden Verweis im Inhalt messingfarben, und diese Regel steht
+     spaeter in derselben Datei — ohne die Zeile hier stand der Knopf
+     im Aufruf-Baustein als messingfarbene Schrift auf messingfarbener
+     Flaeche und war unsichtbar. */
+  color: var(--hc-ground);
   border-radius: var(--hc-r-pill);
   padding: 13px var(--hc-space-5);
   font-size: var(--hc-text-sm); font-weight: var(--hc-weight-semibold);
@@ -1188,6 +1195,16 @@ main:focus { outline: none; }
    Regler der Verwaltung, und fiele ohne ihn auf 0 zurück. */
 .hc-video { margin-block: var(--hc-space-6); }
 .hc-video video { border-radius: var(--hc-r); border: 1px solid var(--hc-hairline); }
+
+/* Absaetze innerhalb eines Bausteins.
+ *
+ * base.css setzt :where(p) auf margin 0, und den Rhythmus macht sonst
+ * `.page-content > * + *` — das trifft aber nur die Bausteine selbst.
+ * Ein Textbaustein aus drei Absaetzen stand deshalb als ein Block ohne
+ * Luft dazwischen. */
+.hc-text > * + *,
+.hc-eigen__text > * + *,
+.hc-bildtext__text > * + * { margin-block-start: var(--hc-space-5); }
 
 /* Eigene Bausteinart — die Felder als Faktenzeilen, wie .hc-defs. */
 .hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
