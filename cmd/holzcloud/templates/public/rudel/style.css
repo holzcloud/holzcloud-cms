@@ -1501,13 +1501,43 @@ main:focus { outline: none; }
   border: 1px solid var(--hc-hairline);
 }
 
-/* Der einfache Bild-Baustein wird NICHT zugeschnitten, und deshalb hilft hier
-   nur die Höhengrenze. internal/block/render.go:96 ruft imgTag für ihn ohne
-   Zuschnitt-Kennzeichen auf, es gibt also keine Bildmitte, die man steuern
-   könnte — ein Zuschnitt wäre geraten. Dieselbe Grenze und dieselbe natürliche
-   Breite wie beim Bild allein im Absatz, aus demselben Grund: 85 Bilder, viele
-   davon Hochformat. */
-.hc-bild--voll img, .hc-bild--breit img {
+/* Ein Bild wird in SEINER Grösse gezeigt; der Rahmen richtet sich danach,
+ * nicht umgekehrt.
+ *
+ * Das ist ein Satz und zwei Zeilen, und sie gehören zusammen — wer eine davon
+ * später entfernt, hat den halben Gedanken stehen lassen:
+ *
+ *   max-inline-size statt inline-size — kein Hochrechnen.
+ *   max-block-size                    — kein Übertürmen.
+ *
+ * Es gilt für die drei Bausteinarten, die NICHT zugeschnitten werden:
+ * .hc-bild, .hc-bildtext__bild und .hc-eigen__bild. internal/block/render.go
+ * setzt das Zuschnitt-Kennzeichen nur für Galerie (Z. 165) und Karte (Z. 183);
+ * nur dort entsteht aus der Bildmitte ein style-Attribut, und nur dort ist ein
+ * fester Rahmen mit inline-size: 100 % richtig, weil er gefüllt sein muss.
+ * Diesen dreien gibt der Kern keine Bildmitte mit — ein object-fit: cover
+ * schnitte blind aus der geometrischen Mitte, und bei einem Hundeporträt ist
+ * die Mitte nicht der Kopf.
+ *
+ * Beide Richtungen sind an echtem Inhalt aufgefallen:
+ *   – zu gross: ein Hochformat 900×1600 wurde in einer 533-px-Spalte 533×945
+ *     gezeigt, höher als das Fenster.
+ *   – zu klein: eine 235 px breite Bildmarke wurde in einer 569-px-Spalte
+ *     2,4-fach hochgerechnet und franste sichtbar aus.
+ * Diese Website führt 85 Bilder, darunter Bildmarken und ältere Aufnahmen in
+ * kleineren Massen; beides ist hier kein Randfall.
+ *
+ * bausteine.css setzt für diese drei inline-size: 100 % (Zeilen 50, 96 und
+ * 299) und überschreibt damit sein eigenes, richtiges max-inline-size: 100 %
+ * aus Zeile 34. Korrigiert wird das hier und nicht dort: die Datei gehört dem
+ * Kern und kleidet alle acht mitgelieferten Vorlagen. Ihr Kommentarkopf hält
+ * ausdrücklich fest, dass ein Theme alles davon überschreiben darf — genau
+ * dafür gibt es diese Ebene.
+ *
+ * Der Preis, und er ist die richtige Seite des Handels: ein Bild schmaler als
+ * seine Spalte steht mittig in seiner natürlichen Grösse, statt weichgerechnet
+ * die Breite zu füllen. */
+.hc-bild img, .hc-eigen__bild img {
   display: block; margin-inline: auto;
   inline-size: auto; max-inline-size: 100%;
   block-size: auto; max-block-size: 70vh;
@@ -1639,44 +1669,28 @@ main:focus { outline: none; }
 .hc-eigen__text > * + *,
 .hc-bildtext__text > * + * { margin-block-start: var(--hc-space-5); }
 
-/* Dasselbe wie beim Bild-Baustein, aus demselben Grund: das Bild im
-   Bildtext steht neben einem Absatz auf demselben hellen Papier und
-   braucht eine Kante, um überhaupt als Bild anzufangen.
+/* Das Bild im Bildtext folgt demselben Satz wie oben — es wird in seiner
+ * Grösse gezeigt, und der Rahmen richtet sich danach. Dazu die Kante, aus
+ * demselben Grund wie beim Bild-Baustein: es steht neben einem Absatz auf
+ * demselben hellen Papier und braucht sie, um als Bild anzufangen.
  *
- * Und dazu eine HÖHENGRENZE, die auf dieser Website die wichtigste Zeile des
- * ganzen Abschnitts ist. Ein bildtext ist zwei Spalten; bausteine.css gibt dem
- * Bild inline-size: 100 %, also folgt die Höhe dem Seitenverhältnis. An der
- * Schwestervorlage gemessen, Spalte 533 px: ein Hochformat 900×1600 wurde
- * 533×945 gezeigt — höher als das Fenster. Der Text daneben war 143 px hoch
- * und stand wegen align-items: center 405 px unter der Bildoberkante; oben
- * rechts klaffte eine halbe Bildschirmhöhe Leere. Die zwei Querformate
- * derselben Seite sassen richtig.
+ * Nur die Höhengrenze ist eine andere und STRENGER als die 70vh oben: dieses
+ * Bild hat nur die halbe Breite, und ein gleich hohes Bild wirkt in einer halb
+ * so breiten Spalte doppelt so schlank. Ein bildtext ist ausserdem ein PAAR —
+ * gemessen stand der Text neben einem 945 px hohen Hochformat wegen
+ * align-items: center 405 px unter der Bildoberkante, und oben rechts klaffte
+ * eine halbe Bildschirmhöhe Leere. Ein Bild, das ein Vielfaches seines Textes
+ * misst, ist keine Hälfte eines Paares mehr.
  *
- * Auf der Milchschäferei ist das ein Bild unter vieren. Hier ist es der
- * Regelfall: zwölf der zwanzig Seiten sind Tierporträts, und ein
- * Hundeporträt ist überwiegend hochkant. Die Vorlage muss das tragen, nicht
- * dulden.
- *
- * Die Grenze ist strenger als die 70vh beim Bild über die volle Breite, weil
- * dieses Bild nur die halbe Breite hat: ein gleich hohes Bild wirkt in einer
- * halb so breiten Spalte doppelt so schlank. 500 px sind bei einem Verhältnis
- * von 0.56 rund 280 px Breite — Bild und Text bleiben als PAAR lesbar.
- *
- * Kein object-fit: cover. internal/block/render.go setzt das
- * Zuschnitt-Kennzeichen nur für Galerie (Z. 165) und Karte (Z. 183); ein
- * bildtext-Bild bekommt keine Bildmitte mitgeliefert, ein Zuschnitt schnitte
- * also blind aus der geometrischen Mitte — und bei einem Hundeporträt ist die
- * Mitte nicht der Kopf. Stattdessen Höhe begrenzen und die Breite folgen
- * lassen.
- *
- * Der Preis, und er gehört hierher: ein hohes Bild füllt seine Spalte nicht
- * mehr in der Breite und steht mittig darin. Ein Querformat ist unberührt —
- * die Grenze greift erst ab einem Verhältnis von etwa 1.1. */
+ * 500 px sind bei einem Verhältnis von 0.56 rund 280 px Breite. Nachgerechnet
+ * bei 570 px Spalte: 900×1600 wird von 570×1013 auf 281×500 begrenzt,
+ * 1600×1200 und 1600×900 bleiben unberührt — die Grenze greift erst ab einem
+ * Verhältnis von etwa 1.1 und lässt jedes Querformat in Ruhe. */
 .hc-bildtext__bild img {
   border: 1px solid var(--hc-hairline);
+  display: block; margin-inline: auto;
   inline-size: auto; max-inline-size: 100%;
   block-size: auto; max-block-size: min(52vh, 500px);
-  margin-inline: auto; display: block;
 }
 
 /* Eigene Bausteinart — die Felder als ruhige Faktenzeilen. Eine eigene
