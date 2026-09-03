@@ -1,0 +1,1 @@
+{"content":"Directus import takes CSV or JSON; column headers must equal field keys or the column is skipped; there is no mapping screen. Errors accumulate to MAX_IMPORT_ERRORS and then the whole import is cancelled.","source":"web","provider":"websearch","confidence":"MEDIUM","fetched_at":"2026-09-03T20:28:24.234Z","ttl":86400000,"kind":"web"}
