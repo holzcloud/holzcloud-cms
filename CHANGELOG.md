@@ -11,6 +11,46 @@ verfasst. Wer den nächsten Eintrag schreibt, macht bitte mit.
 
 Die Nummern sind dieselben wie die Tags im Repository.
 
+## Unveröffentlicht
+
+### Behoben
+
+**Eine Adresse gibt es jetzt je Sprache.** Bisher galt eine Adresse einmal pro
+Website, quer über alle Sprachen. Die französische Fassung von
+`/holzcloud-cms` bekam beim Anlegen still ein „-2" angehängt, und weil die
+Übersetzungsverweise über die Adresse aufgelöst werden, zeigten sie danach
+alle auf die Sprache, die zuletzt eingespielt wurde. Eine fünfsprachige
+Website hatte fünf Startseiten, von denen vier falsch verknüpft waren, kein
+einziges `hreflang` im Kopf und eine Sprachwahl, die auf die Startseite
+zurückfiel. Wer eine mehrsprachige Website betreibt und Produktnamen als
+Adresse benutzt, war davon sicher betroffen; die Migration 00045 räumt es auf,
+ohne dass etwas von Hand nachzuziehen wäre. Bereits umbenannte Adressen bleiben
+allerdings, wie sie sind — ein „-2" wird nicht zurückgenommen, weil daraus
+inzwischen ein verlinkter Ort geworden sein kann.
+
+**Der Knopf im Aufruf-Baustein war in der Vorlage Holzcloud unsichtbar.**
+Messingfarbene Schrift auf messingfarbener Fläche, weil die Regel für Verweise
+im Fliesstext später steht als die für den Knopf.
+
+**Mehrere Absätze in einem Textbaustein standen ohne Abstand untereinander**,
+ebenfalls in der Vorlage Holzcloud.
+
+**Der Importbericht meldete Textfelder als fehlende Bilder.** „die Datei
+‚Next.js' fehlt" — geprüft wurde die Schreibweise des Wertes statt der Art des
+Feldes.
+
+### Hinzugefügt
+
+**Die Vorlage Holzcloud kleidet vier eigene Bausteinarten**, wenn eine Website
+sie anlegt: `vorspann`, `merkmal`, `stand` und `technik`. Damit lassen sich ein
+Aufmacher-Satz, eine Faktenliste, eine Statuszeile und eine Reihe Stichworte
+setzen, für die es im Editor sonst keine Auszeichnung gibt.
+
+### Geändert
+
+**Das Veröffentlichungsdatum steht in der Vorlage Holzcloud nur noch an einem
+Beitrag**, nicht mehr an jeder Seite.
+
 ## 1.4 — 2026-09-03
 
 Dies ist die erste öffentliche Freigabe und darum der erste Eintrag in dieser
