@@ -9,6 +9,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
 // urlset and sitemapURL model the sitemaps.org 0.9 schema.
@@ -61,6 +62,13 @@ func (h *Handler) HandleSitemap(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	for _, e := range entries {
+		// Die Startseite steht schon oben, unter der Wurzel ihrer Sprache. Sie
+		// hier ein zweites Mal unter /home aufzuführen hiesse, einer
+		// Suchmaschine zwei Adressen für denselben Text zu nennen — und die
+		// Adresse /home antwortet seit dem Umleiten ohnehin mit 301.
+		if e.Slug == page.HomeSlug {
+			continue
+		}
 		doc.URLs = append(doc.URLs, sitemapURL{
 			Loc:     base + locale.Path(e.Locale, website.Locale, "/"+url.PathEscape(e.Slug)),
 			LastMod: e.UpdatedAt.UTC().Format("2006-01-02"),

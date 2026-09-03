@@ -28,6 +28,11 @@ ohne dass etwas von Hand nachzuziehen wäre. Bereits umbenannte Adressen bleiben
 allerdings, wie sie sind — ein „-2" wird nicht zurückgenommen, weil daraus
 inzwischen ein verlinkter Ort geworden sein kann.
 
+**Die Startseite hatte zwei Adressen.** Sie war unter `/` und unter `/home` zu
+haben, beide mit sich selbst als kanonischer Adresse und beide im Sitemap — bei
+fünf Sprachen zehn Adressen für fünf Seiten. `/home` leitet jetzt dauerhaft
+(301) auf die Wurzel seiner Sprache um und steht nicht mehr im Sitemap.
+
 **Der Knopf im Aufruf-Baustein war in der Vorlage Holzcloud unsichtbar.**
 Messingfarbene Schrift auf messingfarbener Fläche, weil die Regel für Verweise
 im Fliesstext später steht als die für den Knopf.
