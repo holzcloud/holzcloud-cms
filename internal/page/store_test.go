@@ -333,3 +333,54 @@ func TestUpdatePageReportsATakenAddress(t *testing.T) {
 		t.Fatalf("got %v, want ErrSlugTaken", err)
 	}
 }
+
+// TestAnAddressIsUniquePerLanguage holds the shape open that a multilingual
+// website needs: /kontakt in German and /kontakt in French are two pages, not
+// one taken address. A product name is not translated, so this is the normal
+// case and not the exception.
+//
+// Until 00045 the constraint was UNIQUE(website_id, slug) and the second page
+// quietly became "kontakt-2" — quietly, because CreatePage uniquifies rather
+// than failing, which is right when two pages of one language collide and
+// wrong across languages.
+func TestAnAddressIsUniquePerLanguage(t *testing.T) {
+	s, ws := newTestStore(t)
+	ctx := context.Background()
+
+	de, err := s.CreatePage(ctx, PageCreate{
+		WebsiteID: ws, Title: "Kontakt", Slug: "kontakt", Status: "published",
+	})
+	if err != nil {
+		t.Fatalf("die deutsche Seite: %v", err)
+	}
+	fr, err := s.CreatePage(ctx, PageCreate{
+		WebsiteID: ws, Title: "Contact", Slug: "kontakt", Status: "published",
+		Locale: "fr", TranslationOf: de.ID,
+	})
+	if err != nil {
+		t.Fatalf("die französische Seite: %v", err)
+	}
+	if fr.Slug != "kontakt" {
+		t.Errorf("die französische Seite bekam die Adresse %q statt kontakt", fr.Slug)
+	}
+
+	// Innerhalb einer Sprache gilt der Zwang weiter.
+	zweite, err := s.CreatePage(ctx, PageCreate{
+		WebsiteID: ws, Title: "Kontakt", Slug: "kontakt", Status: "published",
+	})
+	if err != nil {
+		t.Fatalf("die zweite deutsche Seite: %v", err)
+	}
+	if zweite.Slug != "kontakt-2" {
+		t.Errorf("zwei deutsche Seiten unter %q — die zweite müsste kontakt-2 heissen", zweite.Slug)
+	}
+
+	// Und jede der beiden Sprachen findet ihre eigene.
+	got, err := s.GetPageBySlugIn(ctx, ws, "fr", "kontakt")
+	if err != nil || got == nil {
+		t.Fatalf("die französische Seite ist unter ihrer Adresse nicht zu finden: %v", err)
+	}
+	if got.ID != fr.ID {
+		t.Errorf("unter /fr/kontakt liegt Seite %d statt %d", got.ID, fr.ID)
+	}
+}
