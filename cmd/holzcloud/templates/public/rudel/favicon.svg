@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pfote">
+  <!-- Ein Favicon erbt nichts: es wird ohne das Stylesheet der Seite geladen und
+       kennt weder eine eingestellte Marke noch den Papierton. Die zwei Farben
+       stehen deshalb als Literal da — es ist die einzige Datei der Vorlage, in
+       der das richtig ist. Waldgrün auf dem Papierton der Vorlage.
+
+       Keine externe Referenz, kein script, kein Verlauf: ein Zeichen, das bei
+       16 px noch als Pfote lesbar sein muss, verträgt keine Feinheiten. -->
+  <rect width="64" height="64" rx="14" fill="#F7F6F0"/>
+  <g fill="#325737">
+    <!-- Der Ballen. Breiter als hoch, sonst liest die Form als Herz. -->
+    <path d="M32 54c-8.6 0-15-4.6-15-11.2 0-5.6 4.6-9.3 8.4-12.6 2.6-2.3 4.3-4.6 6.6-4.6s4 2.3 6.6 4.6c3.8 3.3 8.4 7 8.4 12.6C47 49.4 40.6 54 32 54z"/>
+    <!-- Vier Zehen, nach aussen gekippt: eine Pfote steht nie symmetrisch. -->
+    <ellipse cx="15.5" cy="30" rx="6" ry="7.6" transform="rotate(-18 15.5 30)"/>
+    <ellipse cx="25.5" cy="19.5" rx="5.8" ry="7.8" transform="rotate(-8 25.5 19.5)"/>
+    <ellipse cx="38.5" cy="19.5" rx="5.8" ry="7.8" transform="rotate(8 38.5 19.5)"/>
+    <ellipse cx="48.5" cy="30" rx="6" ry="7.6" transform="rotate(18 48.5 30)"/>
+  </g>
+</svg>
