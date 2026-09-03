@@ -373,16 +373,52 @@ func importBlockTypes(ctx context.Context, s Stores, websiteID int64, m *Manifes
 // importFieldValues turns a bundle's values back into what is stored: a
 // picture's file name becomes the id it has on this machine, and a reference's
 // address the id of the page that now carries it.
-func importFieldValues(kinds map[string]string, p Page, mediaByName, idBySlug map[string]int64) string {
+// addressLookup finds a page of this bundle by its address, in one language.
+type addressLookup func(slug string) (int64, bool)
+
+// pageIndex remembers which id each address got, language by language.
+//
+// An address is unique within a language and not across the website: a product
+// name is not translated, so /holzcloud-cms exists five times over and is five
+// pages. A single map keyed by the address alone would keep only the language
+// imported last, and every link resolved through it would point into that one.
+type pageIndex map[string]int64
+
+func addressKey(loc, slug string) string { return loc + "\x00" + slug }
+
+func (x pageIndex) add(loc, slug string, id int64) { x[addressKey(loc, slug)] = id }
+
+// at finds the page with this address in exactly this language.
+func (x pageIndex) at(loc, slug string) (int64, bool) {
+	id, ok := x[addressKey(loc, slug)]
+	return id, ok
+}
+
+// in is the lookup for one language. What it does not find there it looks for
+// in the main language: a translated page may well point at something that
+// exists only once, an imprint for instance, and that link should land.
+func (x pageIndex) in(loc string) addressLookup {
+	return func(slug string) (int64, bool) {
+		if id, ok := x.at(loc, slug); ok {
+			return id, true
+		}
+		if loc == "" {
+			return 0, false
+		}
+		return x.at("", slug)
+	}
+}
+
+func importFieldValues(kinds map[string]string, p Page, mediaByName map[string]int64, byAddress addressLookup) string {
 	data := field.Data{
-		Values: translateIn(kinds, p.Fields, mediaByName, idBySlug),
+		Values: translateIn(kinds, p.Fields, mediaByName, byAddress),
 		Rows:   map[string][]field.Values{},
 	}
 	for key, rows := range p.FieldGroups {
 		sub := subKinds(kinds, key)
 		out := make([]field.Values, 0, len(rows))
 		for _, row := range rows {
-			if translated := translateIn(sub, row, mediaByName, idBySlug); len(translated) > 0 {
+			if translated := translateIn(sub, row, mediaByName, byAddress); len(translated) > 0 {
 				out = append(out, translated)
 			}
 		}
@@ -399,7 +435,7 @@ func importFieldValues(kinds map[string]string, p Page, mediaByName, idBySlug ma
 
 // translateIn turns a bundle's values back into what is stored: a picture's
 // file name becomes the id it has on this machine.
-func translateIn(kinds map[string]string, values map[string]string, mediaByName, idBySlug map[string]int64) field.Values {
+func translateIn(kinds map[string]string, values map[string]string, mediaByName map[string]int64, byAddress addressLookup) field.Values {
 	if len(values) == 0 {
 		return nil
 	}
@@ -409,7 +445,7 @@ func translateIn(kinds map[string]string, values map[string]string, mediaByName,
 			// A page that has not been created yet is not an error here: the
 			// caller runs this a second time when every page exists. What is
 			// still missing then was never in the bundle.
-			id, ok := idBySlug[page.Slugify(val)]
+			id, ok := byAddress(page.Slugify(val))
 			if !ok {
 				continue
 			}
@@ -445,7 +481,12 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	}
 	// The translation links are addresses; they can only be resolved once every
 	// page of the bundle exists, so they are collected and applied at the end.
-	idBySlug := map[string]int64{}
+	//
+	// The key carries the language, because an address is only unique within
+	// one: /holzcloud-cms exists in German and in French, and they are two
+	// pages. Keyed by the address alone, the last language imported would win
+	// and every translation link would point into it.
+	pages := pageIndex{}
 	type link struct {
 		id     int64
 		loc    string
@@ -456,6 +497,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	type refPage struct {
 		id   int64
 		page Page
+		loc  string
 	}
 	var refs []refPage
 
@@ -468,6 +510,20 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			report.Warnings = append(report.Warnings,
 				fmt.Sprintf("Seite %q: Adresse %q ist nicht zulässig", p.Title, p.Slug))
 			continue
+		}
+
+		// The language is settled before the page is written, not after: the
+		// address is unique per language, so a page created in the main
+		// language and moved afterwards would already have collided with its
+		// own original and been renamed to "-2".
+		loc := ""
+		if p.Locale != "" {
+			loc = locale.Pick(p.Locale, extras)
+			if loc == "" {
+				report.Warnings = append(report.Warnings, fmt.Sprintf(
+					"Seite %q ist in der Sprache %q verfasst, die diese Website nicht hat – "+
+						"sie liegt jetzt in der Hauptsprache.", p.Title, p.Locale))
+			}
 		}
 
 		markdown := rewriteMediaPaths(p.Markdown, websiteID, m.Media)
@@ -515,9 +571,9 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		}
 
 		created, err := s.Pages.CreatePage(ctx, page.PageCreate{
-			WebsiteID: websiteID, Title: p.Title, Slug: slug,
+			WebsiteID: websiteID, Title: p.Title, Slug: slug, Locale: loc,
 			Markdown: markdown, HTML: html, Blocks: encodedBlocks, Status: p.Status,
-			Fields: importFieldValues(fieldKinds, p, mediaByName, idBySlug),
+			Fields: importFieldValues(fieldKinds, p, mediaByName, pages.in(loc)),
 			Meta:   meta, Kind: p.Kind, TypeKey: p.TypeKey,
 			Schedule: page.PageSchedule{PublishAt: p.PublishAt, UnpublishAt: p.UnpublishAt},
 		})
@@ -527,20 +583,13 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			continue
 		}
 		report.Pages++
-		idBySlug[slug] = created.ID
+		pages.add(loc, created.Slug, created.ID)
 		if hasRef(fieldKinds, p) {
-			refs = append(refs, refPage{id: created.ID, page: p})
+			refs = append(refs, refPage{id: created.ID, page: p, loc: loc})
 		}
 
-		if p.Locale != "" {
-			loc := locale.Pick(p.Locale, extras)
-			if loc == "" {
-				report.Warnings = append(report.Warnings, fmt.Sprintf(
-					"Seite %q ist in der Sprache %q verfasst, die diese Website nicht hat – "+
-						"sie liegt jetzt in der Hauptsprache.", p.Title, p.Locale))
-			} else {
-				links = append(links, link{id: created.ID, loc: loc, ofSlug: page.Slugify(p.TranslationOf)})
-			}
+		if loc != "" {
+			links = append(links, link{id: created.ID, loc: loc, ofSlug: page.Slugify(p.TranslationOf)})
 		}
 
 		if len(p.Terms) > 0 && s.Terms != nil {
@@ -561,7 +610,10 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	for _, l := range links {
 		// A missing counterpart is not an error: the page is still in its
 		// language, it just stands on its own.
-		if err := s.Pages.SetTranslation(ctx, l.id, l.loc, idBySlug[l.ofSlug]); err != nil {
+		// translation_of always names a page in the main language, so it is
+		// looked up there and nowhere else.
+		of, _ := pages.at("", l.ofSlug)
+		if err := s.Pages.SetTranslation(ctx, l.id, l.loc, of); err != nil {
 			report.Warnings = append(report.Warnings, fmt.Sprintf("Sprache konnte nicht gesetzt werden: %v", err))
 		}
 	}
@@ -571,7 +623,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	// every address in the bundle has an id. Only the pages that actually carry
 	// a reference are written again.
 	for _, rp := range refs {
-		raw := importFieldValues(fieldKinds, rp.page, mediaByName, idBySlug)
+		raw := importFieldValues(fieldKinds, rp.page, mediaByName, pages.in(rp.loc))
 		if err := s.Pages.SetFields(ctx, rp.id, raw); err != nil {
 			report.Warnings = append(report.Warnings,
 				fmt.Sprintf("Verweise von %q konnten nicht gesetzt werden: %v", rp.page.Title, err))
@@ -668,24 +720,36 @@ func importMenus(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 	for _, mn := range m.Menus {
 		// Same rule as for a page: a menu in a language the site does not have
 		// would never be rendered anywhere.
-		created, err := s.Menus.CreateMenu(ctx, websiteID, mn.Name, mn.LocationKey, locale.Pick(mn.Locale, extras))
+		loc := locale.Pick(mn.Locale, extras)
+		created, err := s.Menus.CreateMenu(ctx, websiteID, mn.Name, mn.LocationKey, loc)
 		if err != nil {
 			report.Warnings = append(report.Warnings,
 				fmt.Sprintf("Menü %q konnte nicht angelegt werden: %v", mn.Name, err))
 			continue
 		}
-		importItems(ctx, s, websiteID, created.ID, nil, mn.Items, report)
+		importItems(ctx, s, websiteID, created.ID, nil, mn.Items, loc, report)
 		report.Menus++
 	}
 }
 
+// importItems writes one level of a menu. loc is the menu's language, and it
+// decides which page an entry points at: the French menu links the French
+// pages. Without it every language's menu pointed at the same set — whichever
+// the address lookup happened to return — and four of five menus led to pages
+// in a language nobody had asked for.
 func importItems(ctx context.Context, s Stores, websiteID, menuID int64,
-	parent *int64, items []MenuItem, report *Report) {
+	parent *int64, items []MenuItem, loc string, report *Report) {
 
 	for i, item := range items {
 		var pageID *int64
 		if item.PageSlug != "" {
-			if pg, err := s.Pages.GetPageBySlug(ctx, websiteID, item.PageSlug); err == nil && pg != nil {
+			pg, err := s.Pages.GetPageBySlugIn(ctx, websiteID, loc, item.PageSlug)
+			// A menu entry pointing at a page that this language does not have
+			// falls back to the main language rather than losing its target.
+			if (err != nil || pg == nil) && loc != "" {
+				pg, err = s.Pages.GetPageBySlugIn(ctx, websiteID, "", item.PageSlug)
+			}
+			if err == nil && pg != nil {
 				pageID = &pg.ID
 			} else {
 				report.Warnings = append(report.Warnings, fmt.Sprintf(
@@ -700,7 +764,7 @@ func importItems(ctx context.Context, s Stores, websiteID, menuID int64,
 		}
 		if len(item.Children) > 0 {
 			id := created.ID
-			importItems(ctx, s, websiteID, menuID, &id, item.Children, report)
+			importItems(ctx, s, websiteID, menuID, &id, item.Children, loc, report)
 		}
 	}
 }

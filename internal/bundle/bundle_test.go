@@ -827,3 +827,97 @@ func TestRoundTripKeepsTheLanguages(t *testing.T) {
 		t.Errorf("%d Menüs statt 3 — %v", len(menus), report.Warnings)
 	}
 }
+
+// TestSameAddressInEveryLanguage is the case holzcloud.ch is made of: a product
+// name is not translated, so the same address exists in five languages and is
+// five pages.
+//
+// Before the address became unique per language, the import renamed four of
+// them to "-2", "-3" and so on, and the translation links — which are resolved
+// by address — all landed on whichever language happened to be imported last.
+// The site then served five pages that each claimed to be the German one.
+func TestSameAddressInEveryLanguage(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+	ws := seedSite(t, s)
+
+	if err := s.Domains.UpdateSettings(ctx, ws, domain.Settings{
+		Locale: "de", ExtraLocales: "fr, it", TimeZone: "Europe/Zurich",
+		OfflineMode: "notfound",
+	}); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	m := &Manifest{
+		Version: Version,
+		Site:    Site{Name: "holzcloud", Locale: "de", ExtraLocales: "fr, it"},
+		Pages: []Page{
+			{Title: "holzcloud-cms", Slug: "produkt", Status: "published", Markdown: "Deutsch."},
+			{Title: "holzcloud-cms", Slug: "produkt", Status: "published", Markdown: "Français.",
+				Locale: "fr", TranslationOf: "produkt"},
+			{Title: "holzcloud-cms", Slug: "produkt", Status: "published", Markdown: "Italiano.",
+				Locale: "it", TranslationOf: "produkt"},
+		},
+		Menus: []Menu{
+			{Name: "Hauptmenü", LocationKey: "haupt", Items: []MenuItem{
+				{Title: "Produkt", Type: "page", PageSlug: "produkt"}}},
+			{Locale: "fr", Name: "Menu", LocationKey: "haupt", Items: []MenuItem{
+				{Title: "Produit", Type: "page", PageSlug: "produkt"}}},
+		},
+	}
+
+	report := &Report{}
+	importPages(ctx, s, ws, m, map[string]int64{}, map[string]string{}, block.Set{}, report)
+	importMenus(ctx, s, ws, m, report)
+
+	// Drei Seiten, alle drei unter derselben Adresse.
+	for _, loc := range []string{"", "fr", "it"} {
+		pg, err := s.Pages.GetPageBySlugIn(ctx, ws, loc, "produkt")
+		if err != nil || pg == nil {
+			t.Fatalf("die Seite in der Sprache %q fehlt: %v — %v", loc, err, report.Warnings)
+		}
+		if pg.Slug != "produkt" {
+			t.Errorf("die Sprache %q bekam die Adresse %q statt produkt", loc, pg.Slug)
+		}
+	}
+
+	de, _ := s.Pages.GetPageBySlugIn(ctx, ws, "", "produkt")
+	for _, loc := range []string{"fr", "it"} {
+		pg, _ := s.Pages.GetPageBySlugIn(ctx, ws, loc, "produkt")
+		if pg.TranslationOf == 0 {
+			t.Fatalf("die Sprache %q hängt an keinem Original", loc)
+		}
+		if pg.TranslationOf != de.ID {
+			t.Errorf("die Sprache %q übersetzt Seite %d statt %d", loc, pg.TranslationOf, de.ID)
+		}
+	}
+
+	// Und das französische Menü zeigt auf die französische Seite.
+	menus, err := s.Menus.ListMenus(ctx, ws)
+	if err != nil {
+		t.Fatalf("ListMenus: %v", err)
+	}
+	fr, _ := s.Pages.GetPageBySlugIn(ctx, ws, "fr", "produkt")
+	var checked bool
+	for _, mn := range menus {
+		if mn.Locale != "fr" {
+			continue
+		}
+		items, err := s.Menus.ListItems(ctx, mn.ID)
+		if err != nil {
+			t.Fatalf("ListItems: %v", err)
+		}
+		for _, it := range items {
+			if it.PageID == nil {
+				t.Fatal("der französische Menüpunkt zeigt auf gar nichts")
+			}
+			if *it.PageID != fr.ID {
+				t.Errorf("der französische Menüpunkt zeigt auf Seite %d statt %d", *it.PageID, fr.ID)
+			}
+			checked = true
+		}
+	}
+	if !checked {
+		t.Fatal("kein französisches Menü gefunden")
+	}
+}

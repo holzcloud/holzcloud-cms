@@ -1101,6 +1101,28 @@ func (s *Store) TranslationMatrix(ctx context.Context, websiteID int64) ([]Trans
 	return out, nil
 }
 
+// GetPageBySlugIn returns a page by website ID, language and slug, regardless
+// of status.
+//
+// Since an address is only unique within a language, this is the lookup that
+// can answer without guessing: /holzcloud-cms exists in five languages and is
+// five pages. GetPageBySlug below answers for whichever of them the database
+// hands back first, which is right for "does this address exist at all" and
+// wrong for "which page is this".
+func (s *Store) GetPageBySlugIn(ctx context.Context, websiteID int64, loc, slug string) (*Page, error) {
+	row := s.DB.Read.QueryRowContext(ctx,
+		`SELECT `+pageColumns+` FROM pages WHERE website_id = $1 AND locale = $2 AND slug = $3`+LivePredicate,
+		websiteID, loc, slug)
+	p, err := scanPage(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get page by slug in locale: %w", err)
+	}
+	return p, nil
+}
+
 // GetPageBySlug returns a page by website ID and slug regardless of status.
 // Used for admin preview (drafts visible).
 func (s *Store) GetPageBySlug(ctx context.Context, websiteID int64, slug string) (*Page, error) {
