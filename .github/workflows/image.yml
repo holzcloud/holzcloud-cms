@@ -64,6 +64,14 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
+            # Die Freigaben dieses Projekts heissen v1.4 und v1.5, also zwei
+            # Stellen. Das ist kein gültiges Semver, und die semver-Regel
+            # erzeugt daraus gar nichts: der erste Lauf am Tag v1.5 brach mit
+            # "tag is needed when pushing to registry" ab, weil die Liste der
+            # Tags leer blieb. type=ref nimmt den Namen des Tags, wie er ist.
+            # Die semver-Regel bleibt daneben stehen, damit ein dreistelliger
+            # Tag zusätzlich die Fassung ohne v ergibt.
+            type=ref,event=tag
             type=semver,pattern={{version}}
             type=sha,format=long,prefix=main-,enable={{is_default_branch}}
 
