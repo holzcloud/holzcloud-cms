@@ -1209,6 +1209,105 @@ main:focus { outline: none; }
 /* Eigene Bausteinart — die Felder als Faktenzeilen, wie .hc-defs. */
 .hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
 
+/* Vier Schluessel, die diese Vorlage kennt.
+ *
+ * Eine eigene Bausteinart gehoert der Website, nicht der Vorlage — der
+ * Kern schreibt nur `hc-eigen--<schluessel>` und ueberlaesst das
+ * Aussehen dem Stylesheet. Wer diese vier anlegt, bekommt hier das
+ * Bild, das holzcloud.ch von Hand hatte; wer sie nicht anlegt, verliert
+ * nichts, weil ohne Baustein keine dieser Regeln etwas trifft.
+ *
+ *   vorspann  Der eine Satz, mit dem eine Seite anfaengt.
+ *   merkmal   Begriff und Beschreibung. Eine Zeile der Faktenliste.
+ *   stand     Wo etwas steht, mit dem Punkt des Systems davor.
+ *   technik   Die Stichworte als Chips, dazu der Quelltext.
+ */
+
+/* Vorspann — dieselbe Gestalt wie .hc-claim. */
+.hc-eigen--vorspann .hc-eigen__text {
+  font-size: var(--hc-text-xl); font-weight: var(--hc-weight-thin);
+  line-height: var(--hc-leading-snug); letter-spacing: var(--hc-track-snug);
+  color: var(--hc-brass); max-width: 34ch;
+}
+.hc-eigen--vorspann .hc-eigen__text > :where(p) { margin: 0; }
+
+/* Merkmal — zwei Spalten wie .hc-defs.
+ *
+ * Die Linie gehoert zur Zeile und nicht zur Liste: sechs Merkmale sind
+ * sechs eigenstaendige Bausteine, es gibt kein Elternteil, das sie
+ * umfasst. Also traegt jede Zeile ihre Linie oben, und die letzte einer
+ * Reihe zusaetzlich eine unten — daher :has(), das den Nachbarn
+ * derselben Art prueft. */
+.hc-eigen--merkmal {
+  display: grid; grid-template-columns: 150px minmax(0, 1fr);
+  gap: var(--hc-space-5);
+  margin-block: 0; padding-block: var(--hc-space-4);
+  border-block-start: 1px solid var(--hc-hairline);
+}
+.hc-eigen--merkmal:not(:has(+ .hc-eigen--merkmal)) {
+  border-block-end: 1px solid var(--hc-hairline);
+  margin-block-end: var(--hc-space-6);
+}
+.hc-eigen--merkmal .hc-eigen__zeile--begriff {
+  margin: 0; padding-block-start: 3px;
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; color: var(--hc-ink-3);
+}
+.hc-eigen--merkmal .hc-eigen__text--beschreibung { color: var(--hc-ink-2); font-size: 15.5px; }
+.hc-eigen--merkmal .hc-eigen__text--beschreibung > :where(p) { margin: 0; }
+@media (max-width: 640px) {
+  .hc-eigen--merkmal { grid-template-columns: minmax(0, 1fr); gap: var(--hc-space-1); }
+}
+
+/* Stand — der Punkt des Systems, nur an einem Baustein statt an einer
+   Zeile. Die Farbe ist das zweite Signal; das erste ist der Satz
+   daneben, und den schreibt der Betrieb. */
+.hc-eigen--stand {
+  /* flex-direction ausdruecklich: bausteine.css stellt .hc-eigen auf
+     column, und ohne diese Zeile stuende der Punkt ueber dem Satz. */
+  display: flex; flex-direction: row; align-items: flex-start; gap: var(--hc-space-2);
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+}
+.hc-eigen--stand::before {
+  content: ""; flex: none;
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-block-start: .5em;
+  background: var(--hc-ink-3);
+}
+.hc-eigen--stand.hc-ja--live::before {
+  background: var(--hc-brass);
+  box-shadow: 0 0 0 0 var(--hc-brass-pulse);
+  animation: hc-pulse 2.6s var(--hc-ease) infinite;
+}
+.hc-eigen--stand.hc-ja--test::before { background: var(--hc-info); }
+.hc-eigen--stand .hc-eigen__text { flex: 1 1 auto; min-width: 0; }
+.hc-eigen--stand .hc-eigen__text > :where(p) { margin: 0; }
+
+/* Technik — die Chips des Systems, aus je einem Feld eine. Der
+   Quelltext ist der einzige, der irgendwohin fuehrt. */
+.hc-eigen--technik {
+  /* Ebenfalls quer, aus demselben Grund wie oben. */
+  display: flex; flex-direction: row; flex-wrap: wrap;
+  gap: var(--hc-space-2); align-items: center;
+}
+.hc-eigen--technik .hc-eigen__zeile,
+.hc-eigen--technik .hc-eigen__link a {
+  display: inline-flex; align-items: center; margin: 0;
+  font-family: var(--hc-font-mono);
+  font-size: var(--hc-text-label); letter-spacing: var(--hc-track-wide);
+  text-transform: uppercase; text-decoration: none;
+  padding: 6px var(--hc-space-3);
+  border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-pill);
+  color: var(--hc-ink-3);
+}
+.hc-eigen--technik .hc-eigen__link { margin: 0; }
+.hc-eigen--technik .hc-eigen__link a {
+  color: var(--hc-brass); border-color: var(--hc-pane-lift);
+  transition: background-color var(--hc-dur-fast) var(--hc-ease);
+}
+.hc-eigen--technik .hc-eigen__link a:hover { background: var(--hc-brass-wash); }
+
 /* ══ Die Möblierung von page.html ═════════════════════════════ */
 .preview-banner {
   display: flex; gap: var(--hc-space-3);
