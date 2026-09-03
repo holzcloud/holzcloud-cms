@@ -4,9 +4,9 @@ milestone: v1.5
 milestone_name: Inhaltsmodell
 status: planning
 stopped_at: Roadmap for v1.5 created (Phases 6-8)
-last_updated: "2026-09-03T09:45:00.000Z"
+last_updated: "2026-09-03T21:10:00.000Z"
 last_activity: 2026-09-03
-last_activity_desc: "v1.5 roadmap created — 3 phases (6, 7, 8), 14/14 requirements mapped"
+last_activity_desc: "Quick-Aufgabe 260903-rqq — Vorlage `weide` neu gestaltet, 18 Dateien, fünf Commits, Sichtprüfung eingearbeitet"
 state_head: 774b3eabc923cc486ce2a351ca344b58e7327c0d
 progress:
   total_phases: 3
@@ -107,6 +107,7 @@ Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
 | 2026-09-03 | historienbereinigung | `git filter-repo` hat die zwei Kundenwebsites unter sites/ aus allen Commits getilgt; ein Commit, der nur Fotos enthielt, fiel als leer weg (336→335). Repository 261 MB → 20 MB, E-Mail in 0 Blobs, Tests grün. force-Push auf main, v1.1 und v1.4 mitgeschrieben, die zwei claude/*-Zweige gelöscht. **Offen: GitHub liefert die alten Objekte weiter aus, bis es aufräumt** |
 | 2026-09-03 | dokumente-fuer-den-umzug | README-Abschnitt „Versionen" und CONTRIBUTING-Abschnitt zur KI-Autorschaft auf das frische Repository umgeschrieben, CHANGELOG.md mit 1.4 als erster öffentlicher Fassung angelegt. Nebenbei berichtigt: README nannte unter „License" MIT, während LICENSE, CONTRIBUTING und VENDOR.md AGPL-3.0 sagen |
 | 2026-09-03 | dokumente-fuer-den-umzug-ins-frische-rep | README „Versionen" erklärt jetzt den einen Commit statt des toten Zweigs archive/gsd-v1.1-dead und der Tags v1.0–v1.3; CONTRIBUTING trägt die KI-Aussage ohne den Zählbefehl, der in einem Ein-Commit-Repository eine Zeile ausgibt; neues CHANGELOG.md (deutsch, Keep-a-Changelog-Gerüst, Sätze statt Stichworte) mit 1.4 als erstem und einzigem Eintrag. Dabei korrigiert: README nannte MIT, während LICENSE die AGPL-3.0 trägt |
+| 2026-09-03 | vorlage-weide-neu-gestalten | Die Vorlage `weide` ins Helle übersetzt: warmes Papier #FAF6EF, Erdbraun #6E4D32, Manrope aus dem Repository statt Systemschrift. style.css von 2332 auf 1657 Zeilen neu (vier @layer, dann die schichtlose CMS-Schicht, dann .Site.Design), alle zwölf Ansichten in der Bauteil-Sprache .hc-*, die neun Bausteinarten über die zehn Zeilen der Brücke. Kontraststufe auf hellem Papier neu gemessen: 64 % statt der 52 % aus holzcloud. Drei Fehler nebenbei behoben — fehlendes Druck-Stylesheet, durchgeisternde Kopfleiste, ein langer Betriebsname sprengte die Leiste auf dem Telefon. Nach der Sichtprüfung zwei Befunde nachgezogen: die Navigation unter 1000 px war ein Treppenmuster (oberste Liste blieb eine Flex-ZEILE, ein <li> mit Untermenü riss sie auf) — jetzt beide Ebenen als Spalte, dazu der Checkbox-Umschalter zurück, oberhalb der Schwelle auf display: none; und ein Bild allein im Absatz spannt bis breit-ende, weil eine Seite aus reinem Markdown sonst 62 % der Breite leer lässt |
 
 ### Performance Metrics
 
@@ -118,6 +119,7 @@ Progress (v1.5): [░░░░░░░░░░] 0% — 0 of 3 phases complete
 |------|----------|-------|-------|
 | Phase quick-260903-ato P01 | 35m | 3 tasks | 35 files |
 | Phase quick-260903-hkh P01 | 7m | 3 tasks | 3 files |
+| Phase quick-260903-rqq P01 | 58m | 3 tasks | 18 files |
 
 ### Session Continuity
 
@@ -129,5 +131,5 @@ location of each item, is `docs/offene-punkte.md`.
 Next command: `/gsd-plan-phase 6`
 
 **Last session:** 2026-09-03
-**Stopped at:** Quick-Aufgabe 260903-hkh abgeschlossen (README, CONTRIBUTING, CHANGELOG)
+**Stopped at:** Quick-Aufgabe 260903-rqq abgeschlossen (Vorlage `weide` in heller Fassung, Sichtprüfung eingearbeitet)
 **Resume file:** None
