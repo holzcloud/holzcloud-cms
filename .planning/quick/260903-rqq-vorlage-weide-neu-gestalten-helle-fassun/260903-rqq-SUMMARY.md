@@ -56,18 +56,21 @@ decisions:
   - "Unter 1000 px MUSS die oberste Menüliste eine Spalte sein; als Zeile mit flex-wrap erzeugt ein <li> mit Untermenü ein Treppenmuster"
   - "Der Checkbox-Umschalter kommt zurück: oberhalb der Schwelle auf display: none, damit er dort weder im Tabulatorweg noch im Baum der Hilfsmittel steht"
   - "Ein Bild allein in seinem Absatz spannt bis breit-ende — ohne diese Zeile lässt eine Seite aus reinem Markdown 62 % der Breite leer"
+  - "Überschriften: die Grösse gilt überall im Inhalt (Nachfahrenselektor), der grosse Abstand nur auf der obersten Ebene (Kindselektor) — zwei Reichweiten mit Absicht"
+  - "Eine Überschrift über einem bildtext KANN nur im Markdown des Bausteins stehen: render.go gibt blk.Title allein beim aufruf aus, block_list.html bietet ein Titelfeld auch nur dort an"
+  - ".hc-karten gehört in die Breit-Regel — eine Kartenreihe ist dieselbe Geste wie eine Galerie"
 
 metrics:
-  duration: 58m
+  duration: 71m
   completed: 2026-09-03
   tasks: 3
-  commits: 5
+  commits: 7
   files: 18
 
 actuals:
-  tokens: 35100
+  tokens: 36400
   tasks: 3
-  commits: 5
+  commits: 7
 ---
 
 # Quick-Aufgabe 260903-rqq: Vorlage `weide` neu gestalten — Summary
@@ -353,8 +356,99 @@ Die Grenzen:
 grün · Kaskade weiterhin genau vier `@layer` vor der CMS-Markierung · die
 Vorlage setzt keinen der vier gebrückten Reglernamen.
 
+## Nach dem Umstellen des Inhalts auf Bausteine
+
+Der Orchestrator hat den Inhalt der Milchschäferei auf Bausteine umgestellt
+(sechs von neun Seiten, 34 Bausteine) und dabei zwei Fehler gefunden, die die
+Vorlage nur auf der obersten Ebene richtig machte. Beide bestätigt, beide in
+diesen Quick-Task geflossen.
+
+### Fehler A — Überschriften in Bausteinen blieben klein (Commit 0aef9ee)
+
+`.page-content > :where(h2)` ist ein KINDselektor und traf damit nur direkte
+Kinder. Eine Überschrift in `.hc-text` oder `.hc-bildtext__text` bekam weder
+Grösse noch Abstand: gemessen 26,25 px im Baustein gegen 36,8 px auf einer
+Fliesstext-Seite. Weil auf derselben Website Baustein- und Fliesstextseiten
+nebeneinander stehen, war das ein sichtbarer Bruch von Seite zu Seite.
+
+**Der Satz, ohne den die neue Regel später wie unnötige Grosszügigkeit aussieht
+und „aufgeräumt" wird:** eine Überschrift über einem Bild-neben-Text KANN gar
+nicht anders, als im Markdown des Bausteins zu stehen.
+`internal/block/render.go` gibt `blk.Title` nur beim `aufruf` aus (dort als
+`.hc-aufruf__titel`), und `templates/admin/block_list.html` bietet ein
+Titelfeld auch nur dort an — plus je Karte einer Kartenreihe. Für `bildtext`
+und `galerie` gibt es keines. Ein `## …` im Baustein landet deshalb
+zwangsläufig in `.hc-bildtext__text`, also als Nachfahre und nicht als Kind.
+Auf den sechs umgestellten Seiten betraf das jede einzelne Überschrift.
+
+Grösse und Abstand sind jetzt getrennt, mit zwei verschiedenen Reichweiten:
+- **Grösse:** Nachfahrenselektor, gilt überall im Inhalt.
+- **Abstand davor:** bleibt Kindselektor. Dort eröffnet eine Überschrift einen
+  Abschnitt DER SEITE, und der Absatz davor gehört noch zum vorigen. Innerhalb
+  eines Bausteins, der über `.hc-block` schon `margin-block` um sich hat, wäre
+  derselbe Abstand doppelt gesetzte Luft; dort trägt der Rhythmus des Bausteins
+  (`.hc-text > * + *`, 24 px). Beide Begründungen stehen im Kommentar
+  nebeneinander, damit die nächste Lesart sie nicht wieder zusammenführt.
+
+Zwei Dinge dabei geprüft:
+- `:first-child` greift weiter, und es addieren sich keine zwei Abstände: den
+  Abstand setzt nach wie vor allein der Kindselektor.
+- **Ein Fehler, den die Umstellung selbst erst erzeugt hätte:** ein
+  Nachfahrenselektor `.page-content h2` misst (0,1,1) und gewinnt gegen
+  `.hc-karte__titel` und `.hc-aufruf__titel` (je (0,1,0) aus `bausteine.css`).
+  Ohne Gegenmassnahme wäre jeder Kartentitel auf Kapitelgrösse aufgebläht
+  worden — in einer 17rem schmalen Karte. Die zwei Überschriften, die der Kern
+  SELBST baut, sind deshalb über `:not(.hc-karte__titel, .hc-aufruf__titel)`
+  ausgenommen: sie sind Bauteile und keine Gliederung des Textes, ihre Grösse
+  kommt aus `--step-1` und `--step-2`.
+
+### Fehler B — `.hc-karten` fehlte in der Breit-Regel (Commit 1307967)
+
+Eine Kartenreihe blieb in der Textspalte. Die Rechnung, warum daraus 2+1
+wurde: `bausteine.css` gibt `.hc-spalten-3` ein
+`minmax(min(100%, 14rem), 1fr)`, die Fuge ist 24 px (`--hc-luft` über die
+Brücke aus `--hc-space-5`), drei Spuren brauchen also
+3 × 224 + 2 × 24 = **720 px** — und die Textspalte war bei 1265 px
+Seitenbreite **705 px**. Es fehlten fünfzehn Pixel.
+
+Dass im Inhalt daraufhin die Spaltenzahl auf 4 gezwungen wurde, ist eine
+Notlösung gegen ein Problem der Vorlage, und sie steht danach in einem
+Manifest, wo niemand sie mehr als solche erkennt. Eine Kartenreihe ist gerade
+das Element, das die Breite füllen soll — dieselbe Geste wie eine Galerie.
+`.hc-karten` steht jetzt in der Aufzählung.
+
+Nachgerechnet mit der vollen Breite (`.hc-wide` 1320 px, Rinne
+`clamp(20px, 4vw, 56px)`, Fuge 24 px):
+
+| Fenster | Raster | 3 Karten (`spalten-3`) | 4 Karten (`spalten-4`) |
+|---|---|---|---|
+| 1280 px | 1178 px | 3 à 377 px | 4 à 276 px |
+| 900 px | 828 px | 3 à 260 px | 4 à 189 px |
+
+Keine der vier Reihen bricht um. Zum Vergleich der alte Zustand: in der 705 px
+schmalen Textspalte standen drei Karten auf 2 à 340 px.
+
+**Eine Beobachtung ohne Änderung:** vier Karten mit `hc-spalten-3` ergeben bei
+900 px drei Spalten, also eine Reihe 3+1. Das ist das `auto-fit`-Verhalten von
+`bausteine.css` und war schon vorher so; es ist kein Befund dieser Arbeit und
+gehört, wenn überhaupt, in den Kern und nicht in eine Vorlage.
+
+### Zum Stand der Prüftore
+
+`template check` meldet für `weide` „no problems found", `go build ./...` und
+`go test ./internal/tmplmgr/...` sind grün.
+
+`go test ./internal/template/...` ist zum Zeitpunkt dieser Arbeit ROT, aber
+**nicht wegen `weide`**: `TestShippedThemesRenderEveryView` meldet genau eine
+Zeile, `render_test.go:297: rudel has no print stylesheet`. An
+`cmd/holzcloud/templates/public/rudel/` arbeitet gerade ein anderer Agent im
+selben Arbeitsbaum (2321 gelöschte Zeilen, `@media print` derzeit nicht
+vorhanden). Der Test meldet je Vorlage einzeln über `t.Errorf`; dass `weide`
+in der Ausgabe nicht vorkommt, heisst, dass `weide` alle Zusicherungen dieses
+Tests erfüllt. Nicht angefasst, wie verlangt.
+
 ## Self-Check: PASSED
 
 Alle drei neuen Dateien liegen auf der Platte (`favicon.svg`, beide woff2), alle
 fünfzehn geänderten ebenfalls, und alle drei Commits sind in `git log`
-auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1.
+auffindbar: 62d022c, 84f42dd, fef2554, 5df88df, a69c3c1, 0aef9ee, 1307967.
