@@ -64,10 +64,30 @@
        angesprungene Inhalt liegen könnte. -->
   <a href="#main" class="skip-link">Zum Inhalt springen</a>
 
+  <!-- Der Menüschalter ist eine Checkbox und kein Skript: diese Vorlage liefert
+       keines aus, und eine Checkbox ist das einzige Aufklappen, das ohne eines
+       funktioniert. Sie steht als Geschwister VOR der Leiste, damit
+       .nav-switch:checked + .hc-bar .site-menu greift — eine Verpackung
+       dazwischen nähme dem Selektor den Weg.
+
+       Sie steht nach dem Sprunglink, nicht davor: das erste Ziel der
+       Tabulatortaste muss der Sprunglink bleiben.
+
+       Oberhalb von 1000 px stehen Checkbox UND Beschriftung auf display: none.
+       Ein Element mit display: none ist aus dem Tabulatorweg und aus dem Baum
+       der Hilfsmittel heraus — dort gibt es den Schalter also nicht, und das
+       Menü steht ohnehin offen in der Leiste. -->
+  <input type="checkbox" id="nav-open" class="nav-switch">
+
   <header class="hc-bar">
     <div class="hc-wide hc-bar__inner">
       <a class="hc-mark site-mark" href="/">
         {{if .Site.LogoURL}}<img class="site-logo" src="{{.Site.LogoURL}}" alt="">{{end}}<b>{{.Site.Name}}</b></a>
+
+      <label for="nav-open" class="nav-button">
+        <span class="nav-button__bars" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="nav-button__text">Menü</span>
+      </label>
 
       <nav class="site-menu" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
 

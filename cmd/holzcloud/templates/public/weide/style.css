@@ -860,6 +860,22 @@ html { scroll-padding-top: var(--hc-space-9); }
 .site-cart:hover { color: var(--hc-ink); border-color: var(--hc-erde-soft); }
 .site-cart__count { color: var(--hc-erde); font-variant-numeric: tabular-nums; font-weight: var(--hc-weight-semibold); }
 
+/* ── Der Menüschalter ─────────────────────────────────────────
+   Oberhalb von 1000 px gibt es ihn nicht. display: none — nicht
+   „optisch versteckt": ein Element mit display: none ist aus dem
+   Tabulatorweg UND aus dem Baum der Hilfsmittel heraus, und genau
+   das ist der Einwand gegen einen Schalter, den niemand sieht.
+   Unterhalb der Schwelle holt die Medienabfrage weiter unten beides
+   zurück. */
+.nav-switch, .nav-button { display: none; }
+
+/* Hat die Website gar kein Hauptmenü, gibt menuFor eine leere
+   Zeichenkette zurück (internal/menu/render.go:20) — dann steht in
+   .site-menu kein <ul>, und ein Knopf, der ein leeres Fach öffnet,
+   wäre schlimmer als keiner. */
+.hc-bar__inner:not(:has(.site-menu ul)) .nav-button { display: none !important; }
+
+
 /* ── Der Inhalt ───────────────────────────────────────────────
    <main> trägt keine Breite: die Ansichten setzen .hc-wide selbst,
    damit eine Startseite eine Fläche über die ganze Breite legen kann
@@ -1086,30 +1102,103 @@ main:focus { outline: none; }
 .post-nav__next { margin-inline-start: auto; text-align: end; }
 
 /* ── Schmalere Fenster ────────────────────────────────────────
-   Kein Javascript und kein Umschalter: die Leiste bricht um, und das
-   Menü nimmt die zweite Zeile. Die bisherige Fassung hatte dafür eine
-   Checkbox — die fällt weg, weil Umbrechen reicht und ein Schalter,
-   den niemand sieht, trotzdem im Tabulatorweg steht. */
+   Hier klappt die Navigation zu, und der Schalter dafür ist eine
+   Checkbox — kein Skript, diese Vorlage liefert keines aus.
+
+   DIE OBERSTE LISTE MUSS HIER EINE SPALTE SEIN. Das ist die Zeile,
+   an der es schon einmal gebrochen ist: `.site-menu ul` steht oben
+   auf `display: flex; flex-wrap: wrap` in ZEILENrichtung. Ein <li>
+   mit Untermenü wird darin zu einem breiten Flex-Element, dessen
+   Kinder — der <a> und das jetzt statische <ul> — nebeneinander
+   laufen; die Zeile bricht um dieses breite Element herum, und
+   heraus kommt ein Treppenmuster aus drei verschiedenen Einzügen, in
+   dem die Reihenfolge der Menüpunkte nicht mehr zu lesen ist. Ein
+   `flex-direction: row` auf `li > ul` verstärkt es. Beide Ebenen
+   stehen deshalb hier ausdrücklich auf column.
+
+   Ausserdem: sieben Menüzeilen sind rund 320 px Leiste, bevor auf
+   einem Telefon der erste Inhalt kommt — auf jeder Seite. Deshalb
+   zugeklappt statt umgebrochen. */
 @media (max-width: 1000px) {
   .hc-bar__inner { flex-wrap: wrap; gap: 10px 18px; padding-block: var(--hc-space-3); }
-  .site-menu { margin-inline-start: 0; order: 3; width: 100%; }
-  .lang-nav { margin-inline-start: auto; }
-  .site-search { order: 4; width: 100%; }
-  .site-search .hc-input { width: 100%; }
-  /* Umgebrochen ist kein Platz mehr für ein schwebendes Untermenü:
-     es steht eingerückt in der Liste, immer sichtbar. */
+
+  /* Für die Tastatur erreichbar, für das Auge unsichtbar. Hier NICHT
+     display: none — das nähme der Checkbox den Fokus und damit die
+     Bedienbarkeit ohne Maus. Oben, wo es den Schalter nicht geben
+     soll, ist display: none genau richtig; hier wäre es der Fehler. */
+  .nav-switch {
+    display: block;
+    position: absolute; inline-size: 1px; block-size: 1px;
+    opacity: 0; pointer-events: none;
+  }
+  .nav-button {
+    display: inline-flex; align-items: center; gap: .6em;
+    flex: none; order: 1; margin-inline-start: auto;
+    padding: 8px var(--hc-space-4);
+    border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-pill);
+    background: var(--hc-pane);
+    font-size: var(--hc-text-sm); font-weight: var(--hc-weight-medium);
+    color: var(--hc-ink-2); cursor: pointer; user-select: none;
+  }
+  .nav-button__bars { display: grid; gap: 3px; inline-size: 1em; }
+  .nav-button__bars span { display: block; block-size: 1.5px; background: currentColor; }
+  /* Der Fokus liegt auf der unsichtbaren Checkbox; sichtbar wird er
+     an der Beschriftung, die an ihrer Stelle steht. */
+  .nav-switch:focus-visible + .hc-bar .nav-button {
+    outline: var(--hc-focus-width) solid var(--hc-focus);
+    outline-offset: var(--hc-focus-offset);
+  }
+
+  /* Zugeklappt heisst display: none. Damit sind auch die Punkte der
+     Untermenüs aus dem Tabulatorweg — sichtbar-aber-nicht-erreichbar
+     gibt es hier nicht. */
+  .site-menu { display: none; margin-inline-start: 0; order: 3; width: 100%; }
+  .nav-switch:checked + .hc-bar .site-menu {
+    display: block;
+    padding-block-end: var(--hc-space-2);
+  }
+
+  /* Beide Ebenen als Spalte, jedes <li> über die volle Breite. */
+  .site-menu ul {
+    flex-direction: column; align-items: stretch;
+    flex-wrap: nowrap; gap: 0;
+  }
+  .site-menu li { width: 100%; }
+  .site-menu a {
+    display: block; width: 100%;
+    padding-block: 10px; border-block-end: 0;
+  }
+  .site-menu > ul > li + li { border-block-start: 1px solid var(--hc-hairline); }
+
+  /* Umgeklappt ist kein Platz mehr für ein schwebendes Untermenü: es
+     steht eingerückt unter seinem Punkt, immer sichtbar, mit einer
+     Linie als Einzug — sie sagt die Verschachtelung, die die
+     Einrückung allein auf einem Telefon nicht deutlich macht. */
   .site-menu li > ul {
     position: static; visibility: visible; opacity: 1;
-    margin: 0 0 0 var(--hc-space-4); padding: 0;
+    margin: 0 0 var(--hc-space-2) var(--hc-space-3); padding: 0;
+    padding-inline-start: var(--hc-space-3);
     background: none; border: 0; box-shadow: none;
-    flex-direction: row; flex-wrap: wrap; gap: var(--hc-space-4);
+    border-inline-start: 1px solid var(--hc-hairline);
   }
-  .site-menu li > ul a { display: inline-block; width: auto; padding: var(--hc-space-2) 0; }
+  .site-menu li > ul a {
+    display: block; width: auto;
+    padding: var(--hc-space-2) 0;
+    font-size: var(--hc-text-sm); color: var(--hc-ink-3);
+  }
+  .site-menu li > ul a:hover { background: none; color: var(--hc-ink); }
+
+  .lang-nav { margin-inline-start: 0; order: 2; }
+  .site-search { order: 4; width: 100%; }
+  .site-search .hc-input { width: 100%; }
 }
 /* Auf einem Telefon nimmt die Suche in der Leiste mehr Platz, als sie
-   wert ist — es gibt sie eine Zeile weiter unten im Menü. */
+   wert ist. Sie verschwindet aber nicht: sie klappt mit dem Menü auf,
+   an derselben Checkbox. Ganz wegzunehmen hiesse, dass ein Telefon
+   die Suche der Website nur noch über die 404-Seite findet. */
 @media (max-width: 600px) {
   .site-search { display: none; }
+  .nav-switch:checked + .hc-bar .site-search { display: flex; }
 }
 
 /* ══ Der Aufmacher ════════════════════════════════════════════
@@ -1644,8 +1733,9 @@ main:focus { outline: none; }
     --hc-shadow-lift: none;
   }
   body { background: #fff; }
-  .hc-bar, .site-menu, .lang-nav, .site-search, .site-cart, .skip-link,
-  .post-nav, .term-list, .archive-pager, .search-form, .price-switch,
+  .hc-bar, .site-menu, .nav-switch, .nav-button, .lang-nav, .site-search,
+  .site-cart, .skip-link, .post-nav, .term-list, .archive-pager,
+  .search-form, .price-switch,
   .footer-nav, .site-footer__terms { display: none !important; }
   .site-footer { border-block-start: 1px solid #ddd; margin-block-start: 0; background: none; }
   main { padding: 0; }
