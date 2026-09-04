@@ -101,7 +101,13 @@ The gate's verbatim wording, identical in Phases 6 through 9:
   4. The five tests that today skip themselves when a `plugin.wasm` is absent fail loudly in CI and stay forgiving on a contributor's machine, with a message naming the command that builds the missing file — and they were promoted **after** the rebuild landed, not before.
   5. The stale notes read true against the working tree: `docs/offene-punkte.md` names migration `00045` and no longer lists the finished Dependabot item as work, all three `deferred-items.md` entries read as closed, and the six drifted facts in `.planning/codebase/ARCHITECTURE.md` match what the code actually does.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
-**Plans**: TBD
+**Plans**: 6 plans, in 4 waves (wave 1: 06-01 ∥ 06-02 ∥ 06-03; then 06-04, 06-05, 06-06 in sequence)
+- [ ] 06-01-PLAN.md — Ground truth first (D-01), then the tracer: `tools/wasm -print-hashes` and the one-CI-run cross-host falsification gate that settles D-05
+- [ ] 06-02-PLAN.md — `tools/i18n` writes through `encoding/json`, a round-trip test over all seven catalogues locks the format, and the tool states which regional files it never writes
+- [ ] 06-03-PLAN.md — The stale notes that predate this phase: seven codebase maps corrected surgically, the finished Dependabot item retired, three `deferred-items.md` stamped closed
+- [ ] 06-04-PLAN.md — `tools/wasm` complete: write, `-check`, `-out`, deterministic archive packing, and `-buildvcs=false` in all four documented build invocations
+- [ ] 06-05-PLAN.md — The one-time rebuild of all ten build artifacts in an artifact-only commit, then the two permanent CI steps
+- [ ] 06-06-PLAN.md — The five self-skipping tests promoted behind `HOLZCLOUD_TEST_REQUIRE_WASM`, the documents this phase itself changed brought true, and the standing gate
 **Research flag**: none — housekeeping; both live questions were settled by the research and are recorded below.
 **Planning notes**:
 - **Both original premises were wrong and MAINT-01/MAINT-03 are already re-aimed. Do not re-discover this.**
