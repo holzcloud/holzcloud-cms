@@ -12,16 +12,14 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
 // Das Beispiel-Plugin aus plugins/jahreszahl, mit dem SDK gebaut, gegen die
 // echte Laufzeit. Es prüft die Kette als Ganzes: SDK, Aufrufkonvention, Host,
 // Berechtigungen und eigener Speicher.
 func TestBeispielPluginLaeuftDurch(t *testing.T) {
-	modul, err := os.ReadFile("../../plugins/jahreszahl/plugin.wasm")
-	if err != nil {
-		t.Skipf("plugins/jahreszahl/plugin.wasm fehlt: %v", err)
-	}
+	modul := wasmtest.Modul(t, "../../plugins/jahreszahl/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/jahreszahl/plugin.json")
 	if err != nil {
 		t.Fatal(err)
