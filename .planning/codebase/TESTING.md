@@ -22,10 +22,12 @@ go test -run TestUpdatePage ./...  # One test
 go test -race ./...                # Race detector (needs CGO_ENABLED=1)
 go test -cover ./...               # Coverage (not enforced anywhere)
 go test ./internal/i18n/           # Translation catalogue guard
+go run ./tools/wasm                # Build the six guest modules the plugin tests read
+go run ./tools/wasm -check         # Compare the ten committed build artifacts against a fresh build
 ```
 
-CI (`.github/workflows/ci.yml`) runs `gofmt -l`, `go mod tidy` diff, `go vet ./...`, build, then `go test ./...` with `CGO_ENABLED=0`.
-`.github/workflows/security.yml` runs weekly: `go mod verify`, `go list -m -u all`, and `go test -race ./...` with `CGO_ENABLED=1` — the one place the race detector runs.
+CI (`.github/workflows/ci.yml`) runs, in this order: `gofmt -l`, `go mod tidy` diff, `go vet ./...`, `go run ./tools/wasm -check` (a fresh build of all ten committed plugin artifacts, compared against the tree), `go run ./tools/i18n -write` then `-schweiz` followed by `git diff --exit-code -- internal/i18n/locales/`, build, then `go test ./...`. The two comparison steps sit ahead of the tests on purpose: a green test run against a stale module means nothing. Workflow-level `env:` sets `CGO_ENABLED=0` and `HOLZCLOUD_TEST_REQUIRE_WASM=1`, and the second is what turns a missing guest module from a silent skip into a failure.
+`.github/workflows/security.yml` runs weekly: `go mod verify`, `go list -m -u all`, and `go test -race ./...` with `CGO_ENABLED=1` — the one place the race detector runs. It sets `HOLZCLOUD_TEST_REQUIRE_WASM=1` as well, because anything on a runner is CI; so does `release.yml`. `image.yml` runs no tests and sets nothing.
 
 ## Test File Organization
 
