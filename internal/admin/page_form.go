@@ -96,13 +96,21 @@ func (v PageValues) CanReturnToMarkdown() bool {
 }
 
 // pageValuesFromRequest reads the submitted fields verbatim.
-func pageValuesFromRequest(r *http.Request) PageValues {
+//
+// The set is a parameter and not something the caller may attach afterwards,
+// the way pageValuesFromPage takes it. It was optional once, and one of the two
+// callers forgot it: saving an existing page then ran Clean against the nine
+// built-in kinds alone, and every block of a kind the website had defined for
+// itself was dropped without a word. Six feature cards came back as prose, and
+// the editor no longer offered the kind that would have restored them.
+func pageValuesFromRequest(r *http.Request, set block.Set) PageValues {
 	version, _ := strconv.ParseInt(r.FormValue("version"), 10, 64)
 	status := r.FormValue("status")
 	if status != "published" {
 		status = "draft"
 	}
 	return PageValues{
+		BlockSet:        set,
 		Kind:            page.NormalizeKind(r.FormValue("kind")),
 		TypeKey:         strings.TrimSpace(r.FormValue("kind")),
 		Tags:            strings.TrimSpace(r.FormValue("tags")),
