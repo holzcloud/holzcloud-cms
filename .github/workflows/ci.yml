@@ -53,13 +53,13 @@ jobs:
     - name: Vet
       run: go vet ./...
 
-    # Temporary, and it deliberately checks nothing. It only prints the six
-    # hashes as they come out on the runner, so they can be held against the six
-    # produced on a developer machine. Until both sides are known to agree, a
-    # blocking byte comparison would go red without saying anything about the
-    # code. Plan 06-06 deletes this step and puts `-check` in its place.
-    - name: Cross-host hash falsification (temporary — remove in plan 06-06)
-      run: go run ./tools/wasm -print-hashes
+    # Ein festgeschriebenes .wasm im Baum ist nur dann eine Zusage, wenn jemand
+    # nachrechnet. Ohne diesen Schritt prüft eine SDK-Änderung gegen ein Modul,
+    # das vor ihr gebaut wurde — ein Grün, das nichts bedeutet. Der Schritt steht
+    # deshalb vor `go test ./...` und nicht danach: sonst wäre der Testlauf schon
+    # grün gemeldet, bevor irgendjemand die Module nachgerechnet hat.
+    - name: Verify the committed plugin modules are current
+      run: go run ./tools/wasm -check
 
     # The runner is linux/amd64 and so is the deployment target, so this is the
     # shippable binary, not a test build. Everything (templates, assets,
