@@ -44,9 +44,20 @@ braucht: das Formular, die Bestellungen und den Bildschirm, auf dem sie liegen.
 
 ```sh
 cd plugins/jahreszahl
-GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -ldflags="-s -w" -o plugin.wasm .
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" -o plugin.wasm .
 zip -j jahreszahl.zip plugin.json plugin.wasm
 ```
+
+`-buildvcs=false` ist keine Feinheit, sondern Bedingung. Ohne die Angabe
+schreibt `go build` den Git-Stand des Augenblicks ins Modul; ein zweiter Bau an
+einem späteren Commit ergibt dann andere Bytes, obwohl sich keine Zeile
+Quelltext geändert hat, und der Abgleich in der Prüfstrecke kann nie mehr
+aufgehen.
+
+Wer den Schalter nicht im Kopf behalten will: `go run ./tools/wasm` baut alle
+sechs mitgelieferten Module mit der festgelegten Go-Fassung und packt die vier
+Archive gleich mit; `go run ./tools/wasm -check` sagt, ob das, was im Repository
+liegt, noch zum Quelltext daneben passt.
 
 Das Zip wird im Admin unter *Plugins* hochgeladen. Es enthält:
 

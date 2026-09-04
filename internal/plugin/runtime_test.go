@@ -10,11 +10,15 @@ import (
 	"time"
 )
 
-//go:generate sh -c "cd testdata/echo && GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -ldflags=\"-s -w\" -o ../echo.wasm ."
+// Ein »go generate ./...« aus dem Wurzelverzeichnis erreicht die fünf Plugins
+// nicht — sie sind eigene Module. Diese Zeile ist deshalb nur die örtliche
+// Abkürzung für das eine Modul, das im Wurzelmodul liegt; alle sechs baut
+// »go run ./tools/wasm«. -buildvcs=false gehört dazu: ohne die Angabe trägt das
+// Modul den Git-Stand des Augenblicks und ein zweiter Bau ergibt andere Bytes.
+//go:generate sh -c "cd testdata/echo && GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags=\"-s -w\" -o ../echo.wasm ."
 
-// echoModul ist in testdata/echo/ gebaut, siehe testdata/README.md:
-//
-//	cd testdata/echo && GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o ../echo.wasm .
+// echoModul ist in testdata/echo/ gebaut, siehe testdata/README.md und die
+// Erzeugungszeile darüber.
 //
 // Es liegt gebaut im Repository, damit die Tests ohne zweite Werkzeugkette
 // laufen — ein Test, der einen Compiler-Lauf braucht, wird irgendwann
