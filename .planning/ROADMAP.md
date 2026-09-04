@@ -19,6 +19,7 @@ into this milestone as Phases 7, 8 and 9, and Phases 6 and 10 are new.
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (6, 7, 8, 9, 10): planned milestone work
 - Decimal phases (6.1, 6.2): urgent insertions, executed between their integers
 
@@ -91,26 +92,45 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 ## Phase Details
 
 ### Phase 6: Aufräumen
+
 **Goal**: The milestone's own ground truth is repaired before it adds a single string — the translation gate becomes meaningful, CI validates plugins against a binary it just built rather than one somebody committed, and no planning note that Phases 7–10 are planned against is still stale.
 **Depends on**: Nothing (first phase of v1.6; Phase 5 shipped)
 **Requirements**: MAINT-01, MAINT-02, MAINT-03, MAINT-04, MAINT-05
 **Success Criteria** (what must be TRUE):
+
   1. `tools/i18n` writes its catalogues through the standard library, and running `-write` followed by `-schweiz` leaves an **empty `git diff`** — the committed catalogue files are proven unchanged byte for byte, not assumed. A round-trip test fails if a later hand-translation pass reintroduces drift.
   2. What happens to `fr-CH.json` and `it-CH.json` is written where a person would look for it: either the tool writes them, or it says plainly that they are maintained by hand — and `tools/i18n`'s own doc comment no longer claims its output is indented.
   3. CI rebuilds every `plugins/*/plugin.wasm` and compares the result against the committed file. An SDK change that would previously have validated green against a stale binary now turns CI red.
   4. The five tests that today skip themselves when a `plugin.wasm` is absent fail loudly in CI and stay forgiving on a contributor's machine, with a message naming the command that builds the missing file — and they were promoted **after** the rebuild landed, not before.
   5. The stale notes read true against the working tree: `docs/offene-punkte.md` names migration `00045` and no longer lists the finished Dependabot item as work, all three `deferred-items.md` entries read as closed, and the six drifted facts in `.planning/codebase/ARCHITECTURE.md` match what the code actually does.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
+
 **Plans**: 7 plans, in 5 waves. `06-01` is a strict predecessor of all six others, so D-01's "before any code is touched" is carried by the wave graph, not only by prose. Wave 2 runs `06-02` ∥ `06-03` ∥ `06-04`.
+**Wave 1**
+
 - [ ] 06-01-PLAN.md — Ground truth first (D-01): amend REQUIREMENTS.md and ROADMAP.md in one docs-only commit, before any code
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 06-02-PLAN.md — The tracer: `tools/wasm -print-hashes` end to end, plus the one-CI-run cross-host falsification gate that settles D-05
 - [ ] 06-03-PLAN.md — `tools/i18n` writes through `encoding/json`, a round-trip test over all seven catalogues locks the format, and the tool states which regional files it never writes
 - [ ] 06-04-PLAN.md — The stale notes that predate this phase: seven codebase maps corrected surgically, the finished Dependabot item retired, three `deferred-items.md` stamped closed
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 06-05-PLAN.md — `tools/wasm` complete: write, `-check`, `-out`, deterministic archive packing, and `-buildvcs=false` in all four documented build invocations
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 06-06-PLAN.md — The one-time rebuild of all ten build artifacts in an artifact-only commit, then the two permanent CI steps
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 06-07-PLAN.md — The five self-skipping tests promoted behind `HOLZCLOUD_TEST_REQUIRE_WASM`, every document this phase changed or invalidated brought true, and the standing gate
+
 **Research flag**: none — housekeeping; both live questions were settled by the research and are recorded below.
 **Planning notes**:
+
 - **Both original premises were wrong and MAINT-01/MAINT-03 are already re-aimed. Do not re-discover this.**
   - *i18n:* the catalogues **already match** the tool's output. Verified twice, independently — a byte-level round-trip of all seven catalogues (7/7 `identical=true`) and an actual `-write` / `-schweiz` run producing an empty `git diff`. Settled by quick task `260903-bsk` on 2026-09-03 and recorded in `.planning/WINDOWS.md`. What remains is (a) the doc comment at `tools/i18n/main.go:287` still claiming indented output and (b) the fact that the tool never writes `fr-CH.json` / `it-CH.json` at all — `main.go:104–114` `continue`s past any filename containing `-` before reaching the write block at `:148–152`, and `-schweiz` only rebuilds `de-CH.json`. That behaviour is deliberate and documented at `:99–103`, but nowhere a planner would find it.
   - *wasm:* all five `plugin.wasm` files **are committed** and all five tests currently **pass**. The defect is that `.github/workflows/ci.yml` never rebuilds them, so an SDK change validates against a stale binary — a false pass, strictly worse than a skip.
@@ -121,20 +141,24 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 - This phase adds no user-visible strings, so the standing gate's translation half is expected to be trivially green. Run it anyway; it is what makes the number mean something in Phases 7–10.
 
 ### Phase 7: Field Kinds
+
 **Goal**: A website's content model reaches every field kind this milestone names — the choice control an author actually wants, a value that holds more than one string, tags as a field, and the three small kinds still missing — and each one survives save, reload, public render and the bundle round trip.
 **Depends on**: Phase 6 (the translation gate must be meaningful and the notes correct before the first new string lands)
 **Requirements**: FIELD-01, FIELD-02, FIELD-03, FIELD-04, FIELD-05, FIELD-06, FIELD-07, FIELD-08
 **Success Criteria** (what must be TRUE):
+
   1. A multi-valued field's encoding is **one** exported mechanism: the page form, the renderer and the bundle round trip all read and write it through the same pair of functions, so none can invent a second spelling — and Phase 9's importer inherits it rather than inventing a third. A checkbox group's three values arrive as three values, and clearing a group is distinguishable from a form that never carried it.
   2. A Choice field configured as a button row renders as a row of buttons in the page editor instead of a dropdown; an optional one offers an explicit "no answer" choice, so a click can be undone without JavaScript. A field whose visibility hangs on that Choice keeps appearing and disappearing correctly — the condition rule matches a button row, not only an `<option>`.
   3. A Multiple-Choice field accepts several values in one save, shows the same values after reload, and a theme can loop over them and print each one; a single-value read of it prints a readable joined string rather than a raw blob.
   4. A Term field offers the tags the website already carries as a chooser rather than a free-text box, stores the term's **slug**, and prints the term's **name** on the public page — renaming the term afterwards changes what the page shows without touching the page. The kind is absent from a block kind's field chooser, for the same reason `KindRef` is.
   5. `zeit` accepts a time of day that carries no timezone and where empty is distinguishable from midnight; `bereich` accepts a number between its configured bounds and the chosen number is readable **before** saving, without JavaScript; `code` is plain fixed-width text that never passes through Markdown — HTML typed into it appears verbatim on the public page and does not execute, including when the field sits inside a block.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
+
 **Plans**: TBD
 **UI hint**: yes
 **Research flag**: `bereich` only — "the value must be visible without JS" has three candidate answers and the choice is a UI-design question, not a technical one. Worth a **UI-SPEC**. Everything else in this phase follows standard patterns: the neighbours agree, the encoding is decided, native controls do the work, Go's escaping is already correct by default, and `KindRef` is a complete end-to-end template (chooser at `page_fields.go:98–255`, resolution at `render.go:36–60` + `pagedata.go:84–114`).
 **Planning notes**:
+
 - **Build order — the dependencies are real:**
   1. **Multi-value encoding first.** `SplitValues`/`JoinValues` beside `SplitChoices`/`JoinChoices`; `page_form.go:150` and `:163` become `field.JoinValues(values)`; `Entry` gains `Values []string`; `Resolve`, `List` and `Filled` gain a `case []string`. **Everything in this phase and all of Phase 9 depend on it — settle it before anything else is written.**
   2. `zeit`, `bereich`, `code` — an hour each, and `bereich` carries the `MayControl()` fix.
@@ -152,20 +176,24 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 - No JavaScript beyond htmx: the button row is radio inputs, the multiple choice is checkboxes or a `<select multiple>`, the slider is `<input type=range>`. All submit as a plain form; htmx is enhancement only. A live JS readout beside the slider is explicitly out of scope — `internal/tmplmgr/script.go` rejects exactly that pattern in an uploaded template.
 
 ### Phase 8: Snippets Carry Fields
+
 **Goal**: A text snippet stops being one Markdown box and becomes a small content model of its own — any field kind, defined in the field table that already exists, rendered through the pipeline and the sanitisation that already exist, with nothing that already works changing.
 **Depends on**: Phase 7 (the snippet form is built once against a complete kind palette rather than revisited)
 **Requirements**: SNIP-01, SNIP-02, SNIP-03, SNIP-04, SNIP-05
 **Success Criteria** (what must be TRUE):
+
   1. An admin can give a text snippet any field kind — including every kind Phase 7 added — fill the fields on the snippet screen, and see the same values after reload.
   2. The schema shows **one** field-definition table, not a third: a snippet's fields live in the existing field-definition table with a `snippet_id` beside `website_id`, and the same field key exists once on a page and once on a snippet of the same website without colliding.
   3. A snippet's fields never appear on a page's edit form, in a block kind's field list, or in a theme's page field list — every query that selects a carrier's fields excludes the other three namespaces explicitly, and the page case is confirmed in a browser and not only in a test.
   4. A snippet's field values render on the public site through the same pipeline and the same sanitisation as page fields — one goldmark → bluemonday chain, not a second. A `<script>` put into a snippet's long-text field is sanitised away exactly as it is on a page.
   5. Snippets that already exist keep working untouched: their Markdown body still renders wherever a theme calls them, no snippet key changes, the admin performs no migration step, and the published `.Site.Snippets` contract keeps its type — field values arrive **beside** it, not through it.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
+
 **Plans**: TBD
 **UI hint**: yes
 **Research flag**: none — migration `00038` is a line-for-line template and its own comment explains the operation.
 **Planning notes**:
+
 - **The migration is `00047`.** Phase 7 takes `00046` for `darstellung` / `max_werte` / the `bereich` bounds. Migrations currently stand at `00045`.
 - **Correct the stale note before writing it.** The index to swap, `idx_page_field_defs_kennung_oben`, was **already replaced by `00038:52–56`** — it is *not* still as `00029` wrote it, and the v1.5 planning note was one migration behind. Read **`00029` and `00038`** before writing `00047`. `00038:44–46` explains the operation in the file itself: *"ein Austausch von zwei Indizes und kein Tabellenneubau."* This is the third instance of a pattern already walked twice (`00037`, `00038`).
 - Migration contents: `ALTER TABLE page_field_defs ADD COLUMN snippet_id` — **must default to NULL**; SQLite refuses `ADD COLUMN` carrying `REFERENCES` together with any other default — plus the index swap, plus `ALTER TABLE snippets ADD COLUMN fields`.
@@ -178,20 +206,24 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 - `internal/admin` sits at 14.7 % coverage and is where authorisation lives. Reuse `internal/admin/page_handler_test.go` as the harness; do not invent a second.
 
 ### Phase 9: CSV Import
+
 **Goal**: Content can arrive as a table — an admin uploads a CSV beside the existing WXR and bundle importers, points each column at a target, sees what would happen before anything is written, and gets pages created through the ordinary path plus an honest per-row account of what happened.
 **Depends on**: **Phase 7 only** — for the multi-value encoding and for the term field. Needs **nothing** from Phase 8, so 8 and 9 may run in parallel once Phase 7's step ① has landed.
 **Requirements**: IMP-01, IMP-02, IMP-03, IMP-04, IMP-05, IMP-06, IMP-07, IMP-08, IMP-09, IMP-10
 **Success Criteria** (what must be TRUE):
+
   1. Uploading a `.csv` leads through four screens — file, mapping, dry run, report. On the first screen the admin chooses between an **existing** website and a **new** one, and both paths reach the same mapping screen.
   2. The mapping screen lists the file's columns against targets — title, body, any custom field of that website, or explicitly nothing. Columns whose names correspond are matched automatically, ignoring case and accents, and every automatic match can be overridden. One real row of the file is shown and can be stepped to the next, and each field can carry a default for cells that are empty or unmapped. An example CSV generated from that website's own field definitions, with the right column headings already in it, is downloadable.
   3. The admin can run the whole file through validation **without writing anything** and see per row what would be created, updated or skipped — with the row number and the reason — before committing to it.
   4. Confirming the import creates pages indistinguishable from hand-made ones — slug generated and unique per website, Markdown rendered and sanitised, draft unless a status column says otherwise — because the importer calls the same creation path as any other creation. A file mixing good and bad rows imports the good ones, skips the rest with a named reason, reports every slug that was renamed on collision, and leaves nothing half-written.
   5. A hostile file is refused rather than believed: bytes, rows and single cells are all capped; a byte-order mark from Excel does not break the first column; a stray quote does not swallow the rest of the file; a short row is reported by its row number; a NUL byte is refused. And the write is **one transaction per row, never one for the whole file**.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
+
 **Plans**: TBD
 **UI hint**: yes — **the largest UI surface in the milestone.** The mapping screen and the dry-run report are the two screens users will judge the feature by.
 **Research flag**: the **dry-run report screen**. 312 rows with 40 problems is a real information-design problem, not a layout question. Worth a UI-SPEC or a `/gsd-discuss-phase` pass on that screen alone.
 **Planning notes**:
+
 - **Depends on Phase 7's step ①, and on nothing in Phase 8.** A column mapped to a Multiple-Choice field must write what `internal/field` reads. **7 before 9, always** — if 9 shipped first it would invent an encoding that 7 then inherits. A `Sorte` column is one of the two motivating examples in `docs/offene-punkte.md`, which is the second reason 7 comes first: without the term field, Phase 9 either omits it or builds a throwaway path.
 - **Posture: strict at the gate, best-effort at the till.** Validate every row *before* writing anything, then offer a "trotzdem importieren" escape hatch, then write **one transaction per row, never one per file**. The write pool is `SetMaxOpenConns(1)`; a file-long transaction blocks every request on the box, admin and public alike. An all-or-nothing single-transaction write is an explicit anti-feature here.
 - **Carrying the file between steps: do not put the parsed table in the session.** SCS stores sessions in SQLite; a 2 MB CSV in a session row is a bad day. **Re-submit the file with the mapping** — simpler, and needs no cleanup job.
@@ -205,19 +237,23 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 - `internal/admin` is at 14.7 % coverage and is where authorisation lives. Reuse `internal/admin/page_handler_test.go` as the harness.
 
 ### Phase 10: Authentik Forward-Auth
+
 **Goal**: Whoever the operator's Authentik has already signed in reaches the admin without a second sign-in — and every route by which that trust could be forged is closed before the first header is read, with the password path untouched behind it.
 **Depends on**: Nothing in this milestone. Its file set is **disjoint** from every other phase's — it touches only `auth/`, `web/`, `config/` and `main.go` — so it can move earlier if a second worker is available. Scheduled last because it carries the milestone's close-out gate.
 **Requirements**: SSO-01, SSO-02, SSO-03, SSO-04, SSO-05, SSO-06, SSO-07, SSO-08, SSO-09, SSO-10, SSO-11, QUAL-01, QUAL-02
 **Success Criteria** (what must be TRUE):
+
   1. A person who has authenticated at Authentik reaches the admin without a second sign-in. Their group membership decides role and website access, re-applied at **every** sign-in so a demotion at the identity provider takes effect here, and every change of rights is written to the activity log.
   2. **The acceptance test, one command:** from a second machine, over IPv4 **and** IPv6, `curl -H 'X-authentik-email: …' http://<server>:8080/admin/` returns a **login form, not a dashboard**. The server binds to loopback by default; the peer is checked before any header is read; every inbound identity header including its underscore spelling is stripped at the top of the chain; and the proxy proves it is the proxy with a shared secret compared in constant time and kept in the environment rather than the database. An untrusted peer carrying no identity header still falls through to the ordinary password form — not to a refusal, because the way back in must not die with the proxy.
   3. An identity with no account is refused unless the operator has switched account creation on; with it on, the service **refuses to start** until it is told which website a new account belongs to. Silence does not mean "every website". The shipped Caddy example strips the client's own identity headers explicitly, and `DEPLOY.md` names the minimum Caddy version.
   4. An Authentik session satisfies the second-factor requirement — and because that makes this installation's second factor depend on the operator's Authentik enforcing one, the dependency is stated in `DEPLOY.md` **and shown in the admin**, not left in a source comment. Signing out signs the person out at Authentik too, so the next click does not silently sign them back in.
   5. With single sign-on switched off, nothing about signing in changes: the password path, the second factor, the recovery codes and the command-line way back in all behave exactly as they do today — proven by a browser pass run with forward-auth **disabled**.
   6. **Milestone close-out** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist` across everything v1.6 added, and every field kind from Phase 7, the snippet fields from Phase 8, **both** import paths from Phase 9 and the sign-on path here have each been driven once through the running application in a browser.
+
 **Plans**: TBD
 **Research flag**: **the whole phase wants `/gsd-discuss-phase`** — not for lack of research (the authentik contract is verified from its own source at two release tags) but because every remaining question here is a **policy decision**, not a lookup: what an SSO user with no matching website group gets, what `X-authentik-uid` looks like in the operator's own instance, and which Caddy the operator actually runs.
 **Planning notes**:
+
 - **The four-layer trust boundary, in this order.** They are not alternatives; each covers a different failure of the one before.
   1. **Validate the peer address first, before reading any header.** Reuse `web.ClientIPResolver.IsTrustedPeer(req)` (`internal/web/clientip.go:49–52`) — it reads `req.RemoteAddr`, which `net/http` sets from the accepted connection and a client cannot spoof; it is fed by `cfg.TrustedProxies` (default `127.0.0.1/32,::1/128`) and is already tested. **Reuse it — do not write a second trusted-peer check.** An **untrusted peer carrying no identity header must fall through to ordinary password login, never a 403**, or break-glass dies with it. So: untrusted peer → strip every identity header and continue as anonymous.
   2. **Strip inbound copies of every identity header unconditionally at the top of the chain — in the app, not only in Caddy** — including the underscore alias (`X_authentik_email`), because Go canonicalises `-` but not `_` and they are two distinct map keys. Three lines that cannot fail. This makes a wrong Caddyfile on someone else's server a misconfiguration rather than a bypass.
