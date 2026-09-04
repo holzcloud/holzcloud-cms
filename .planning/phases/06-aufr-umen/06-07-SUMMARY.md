@@ -19,7 +19,7 @@ provides:
   - "The four documentation anchors this phase created or invalidated, each checked against the tree at the moment it was written"
   - "The Phase 6 i18n planning note retired — both sub-clauses stamped closed, every line pointer into `tools/i18n/main.go` removed"
   - "The standing gate recorded with its evidence, including the half that did not happen"
-  - "A pre-existing upgrade-path defect found while setting the gate up: an installation that applied a pre-edit migration `00008` cannot pass `00036` and the server refuses to start"
+  - "A migration finding raised while setting the gate up and then REFUTED by measurement: all three released tags carry the `00008` column, the earliest is 2026-09-03, and the one affected database applied `00008` on 2026-04-25 from a pre-release tree — no released installation can reach the failing state"
 affects: [phase-07, ci, plugins, testing]
 
 actuals:
@@ -58,7 +58,7 @@ key-decisions:
   - "`echoModul` became a one-line wrapper exactly as the plan and 06-RESEARCH specify, which means it no longer calls `t.Helper()` itself. Consequence named rather than hidden: for that one indirect call site the message is attributed to the wrapper line instead of the calling test. The four direct sites are unaffected and the `--- SKIP:` / `--- FAIL:` line names the test either way."
   - "STRUCTURE.md received a second one-line edit beyond the `tools/` inventory line — the committed-artifact line under Special Directories now names `go run ./tools/wasm`. Without it the plan's own `<verify>` command `grep -c 'tools/wasm' STRUCTURE.md` cannot pass, because the tree line names the helper without its path."
   - "The four visibly-rendering guests were NOT driven through a browser, and no database rows were written by hand to manufacture a pass. Writing plugin rows directly would have faked exactly the code path the gate exists to observe."
-  - "The migration defect found during gate setup is recorded and deliberately NOT fixed here: it falls outside MAINT-01…05 and needs its own plan with a test that exercises upgrade-from-old-snapshot rather than fresh-install."
+  - "The migration finding raised during gate setup was escalated as an upgrade-path defect and then refuted: `git show <tag>:…/00008…` shows all three released tags carry the column, and the earliest tag (2026-09-03) postdates by four months the date the one affected database applied that migration (2026-04-25). It is a local development artifact, needs no plan, and the escalation is left visible in the body rather than deleted, so the reasoning error stays legible."
 
 patterns-established:
   - "Prove the RED of a promotion by reproducing the false pass, not by asserting that one existed"
@@ -290,10 +290,10 @@ have not been seen on a public page.**
 This carries forward as an open item for whoever picks up Phase 7, which has real UI
 surface and will need a working browser path regardless.
 
-## Finding for a separate task: an upgrade-path defect in migration 00036
+## A finding that was escalated and then refuted: migration 00036
 
-Found while setting the gate up. **Outside MAINT-01…05, not fixed here, and it needs
-its own plan.**
+Found while setting the gate up, escalated as an upgrade-path defect, and then
+**disproved by measurement.** Outside MAINT-01…05 either way.
 
 `holzcloud user create` was run once **without** `HOLZCLOUD_DATA_DIR` set. It opened
 the repository's own gitignored development database at `data/holzcloud.sqlite`,
@@ -317,16 +317,44 @@ The failure itself is **pre-existing and worth more than the accident**:
 | the development database | does **not** have the column, although `goose_db_version` records version 8 as applied on 2026-04-25 |
 | grep for `CREATE TABLE pages_new`, `ALTER TABLE pages RENAME`, `CREATE TABLE new_pages` | nothing — no migration rebuilds the `pages` table |
 
-**Likely cause, to be confirmed rather than assumed:** migration `00008` was edited
-after it had already been applied somewhere. goose never re-runs a recorded version,
-so an installation that applied the pre-edit `00008` permanently lacks the column and
-cannot upgrade past 36 — and the server refuses to start. For a self-hosted CMS with
-real deployments that is an upgrade-path defect, and **the fresh-install path being
-green is exactly what hides it.**
+**Hypothesis at the time of writing:** migration `00008` was edited after it had
+already been applied somewhere, so an installation that applied the pre-edit version
+permanently lacks the column and cannot upgrade past 36 — a live upgrade-path defect
+for a self-hosted CMS with real deployments.
 
-The separate plan needs a test that exercises upgrade-from-old-snapshot, not only
-fresh-install. A green migration suite that only ever migrates from zero cannot see
-this class of defect at all.
+### That hypothesis was tested afterwards and is REFUTED. No released version is affected.
+
+Checked against the tree and the tags, not reasoned about:
+
+| Evidence | Observation |
+|---|---|
+| `git tag` | `v1.4`, `v1.5`, `v1.6` — there are no others |
+| `git show <tag>:internal/db/migrations/00008_revisions_locking_trash.sql` | **all three tags carry the `ADD COLUMN deleted_at` line** |
+| earliest tag date (`git log -1 --format=%ci v1.4`) | **2026-09-03** |
+| when the development database applied migration 8 | **2026-04-25** — four months earlier |
+| repository history | squashed into `0e6d7af`; the `archiv` remote that held the pre-squash lineage returns 404, so git cannot show when the line was added |
+
+So the development database applied migration `00008` as it stood in April, from a
+tree still under development, months before any release existed. Editing a migration
+in place before it has ever shipped is ordinary practice, not a defect. **Every
+released version has always carried the column**, so no installation created from a
+release can reach the state that fails.
+
+**Scope of the real problem: exactly one database — this repository's own gitignored
+`data/holzcloud.sqlite`**, which grew alongside development. It is a local artifact,
+not an upgrade-path defect, and it needs no separate plan.
+
+The escalation above was written before that check. It is left standing rather than
+deleted because a summary that silently swaps a wrong claim for a right one teaches
+nobody where the reasoning went wrong: the fresh-install path being green was
+correctly identified as a blind spot, but the conclusion drawn from one anomalous
+database ran ahead of the evidence. The cheap check — *do the released tags carry the
+line?* — was available the whole time and settles it in one command.
+
+**What survives as worth doing:** a test that exercises upgrade-from-an-old-snapshot
+rather than only fresh-install would still be worth having. Nothing observed here
+demonstrates a defect it would catch, so it is a hardening idea, not a fix — and it
+belongs in the backlog, not in a remediation plan.
 
 ## Task Commits
 
