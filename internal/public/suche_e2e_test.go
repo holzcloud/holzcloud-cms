@@ -13,6 +13,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
 // Die Suche als Plugin, durch die ganze Kette: echtes Modul, echte Laufzeit,
@@ -23,10 +24,7 @@ import (
 // von aussen ununterscheidbar bleibt: dieselbe Adresse, dieselbe Ansicht des
 // Themes, dieselben Kopfzeilen.
 func TestSuchePluginBeantwortetSuche(t *testing.T) {
-	modul, err := os.ReadFile("../../plugins/suche/plugin.wasm")
-	if err != nil {
-		t.Skipf("plugins/suche/plugin.wasm fehlt: %v", err)
-	}
+	modul := wasmtest.Modul(t, "../../plugins/suche/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/suche/plugin.json")
 	if err != nil {
 		t.Fatal(err)

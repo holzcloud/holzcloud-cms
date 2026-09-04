@@ -12,6 +12,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
 // Der Hofladen aus plugins/bestellung, gegen die echte Laufzeit.
@@ -20,10 +21,7 @@ import (
 // damit der Beweis, dass die Kette hält: Feld in der Verwaltung, Wert an der
 // Seite, Wert im Plugin, Formular auf der Website, Bestellung im Speicher.
 func TestHofladenLaeuftDurch(t *testing.T) {
-	modul, err := os.ReadFile("../../plugins/bestellung/plugin.wasm")
-	if err != nil {
-		t.Skipf("plugins/bestellung/plugin.wasm fehlt: %v", err)
-	}
+	modul := wasmtest.Modul(t, "../../plugins/bestellung/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/bestellung/plugin.json")
 	if err != nil {
 		t.Fatal(err)

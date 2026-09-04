@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
-	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
 // Ein »go generate ./...« aus dem Wurzelverzeichnis erreicht die fünf Plugins
@@ -24,12 +25,7 @@ import (
 // laufen — ein Test, der einen Compiler-Lauf braucht, wird irgendwann
 // übersprungen und dann nie wieder ausgeführt.
 func echoModul(t *testing.T) []byte {
-	t.Helper()
-	b, err := os.ReadFile("testdata/echo.wasm")
-	if err != nil {
-		t.Skipf("testdata/echo.wasm fehlt: %v", err)
-	}
-	return b
+	return wasmtest.Modul(t, "testdata/echo.wasm")
 }
 
 func neueLaufzeit(t *testing.T, erlaubt ...string) (*Runtime, *Store, *bytes.Buffer) {

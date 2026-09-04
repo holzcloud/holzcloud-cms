@@ -19,6 +19,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -155,10 +156,7 @@ func TestNachrichtWirdInDerVerwaltungMaskiert(t *testing.T) {
 
 func formularAufbau(t *testing.T) (*Handler, *db.DB, *domain.Website, *plugin.Manager) {
 	t.Helper()
-	modul, err := os.ReadFile("../../plugins/kontaktformular/plugin.wasm")
-	if err != nil {
-		t.Skipf("plugins/kontaktformular/plugin.wasm fehlt: %v", err)
-	}
+	modul := wasmtest.Modul(t, "../../plugins/kontaktformular/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/kontaktformular/plugin.json")
 	if err != nil {
 		t.Fatal(err)
