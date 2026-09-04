@@ -1,5 +1,7 @@
 # Zurückgestellt
 
+> **Erledigt am 2026-09-03 — Schnellaufgabe `260903-zwei-abgelegte-fehler`:** `tools/mkbundle` prüft die Schlagwörter jetzt gegen ihre Namen statt gegen ihre Kennungen (`tools/mkbundle/main.go:184`).
+
 ## mkbundle prüft `page.terms` gegen die Slugs statt gegen die Namen
 
 Gefunden beim Lesen von `checkReferences`, während für das Beispiel entschieden
