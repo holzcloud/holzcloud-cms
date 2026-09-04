@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
 status: executing
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-09-04T10:44:26.514Z"
+stopped_at: Completed 06-04-PLAN.md
+last_updated: "2026-09-04T10:57:51.061Z"
 last_activity: 2026-09-04
-state_head: 5deee1304455e1fbc7b7a0188935aec3a0d3595b
+state_head: f895b6387469949403f11760e20ecccab4b2a25d
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 6 — Aufräumen (in progress, 2 / 7 plans complete)
-Plan: 06-03 complete — i18n format locked by a round-trip test; 06-02 and 06-04 still open in wave 2
+Phase: 6 — Aufräumen (in progress, 3 / 7 plans complete)
+Plan: 06-04 complete — MAINT-05 done: sieben Karten, die Arbeitsliste und drei zurückgestellte Funde stimmen wieder; 06-02 noch offen in Welle 2
 Status: Executing Phase 6
 Last activity: 2026-09-04
 
@@ -160,6 +160,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase quick-260903-t0s P01 | 26m | 3 tasks | 18 files |
 | Phase 6 P01 | 6 min | 1 tasks | 2 files |
 | Phase 06 P03 | 8 min | 3 tasks | 2 files |
+| Phase 06 P04 | 27 min | 3 tasks | 11 files |
 
 ### Session Continuity
 
@@ -170,8 +171,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-discuss-phase 6`
 
-**Last session:** 2026-09-04T10:44:26.494Z
-**Stopped at:** Completed 06-03-PLAN.md
+**Last session:** 2026-09-04T10:57:30.117Z
+**Stopped at:** Completed 06-04-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -183,3 +184,6 @@ Next command: `/gsd-discuss-phase 6`
 - [Phase 6]: Phase 6: MAINT-03 and success criterion 3 cover all six committed .wasm modules including internal/plugin/testdata/echo.wasm, and the four .zip archives are repacked by the same tool (D-07, D-23)
 - [Phase 6]: Phase 6: MAINT-05 and success criterion 5 cover all seven codebase maps and point at 06-RESEARCH.md MAINT-05 Correction Inventory instead of naming a count that can itself go stale (D-18, D-19)
 - [Phase 6]: Phase 6: the wasm build is tools/wasm, a Go command run as 'go run ./tools/wasm' (D-06); GOTOOLCHAIN is pinned inside the tool with a floor at the root go.mod go directive (D-03, D-03a); -buildvcs=false is mandatory in all four documented invocations (D-02a)
+- [Phase 06]: Corrections to the codebase maps are derived by re-running each proof command against current HEAD, never copied from a research document measured at an older commit
+- [Phase 06]: CONCERNS.md keeps every judgement; only its numbers moved. The Go-version-mismatch finding stays open because CLAUDE.md:7 still says "Go 1.22+" while go.mod says 1.26.6
+- [Phase 06]: A resolved deferred finding is closed by a dated stamp above its text, not by deletion — the reasoning is what a later phase needs
