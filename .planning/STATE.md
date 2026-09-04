@@ -2,9 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
+current_phase: 6
+current_phase_name: Aufräumen
 status: planning
-last_updated: "2026-09-04T00:00:00.000Z"
+stopped_at: Phase 6 context gathered
+last_updated: "2026-09-04T05:04:38.225Z"
 last_activity: 2026-09-04
+last_activity_desc: v1.6 roadmap created (Phases 6–10, 41/41 requirements mapped)
+state_head: 7b6ff91281dc1c805148e9ee0ee41ab44ebb8be6
 progress:
   total_phases: 5
   completed_phases: 0
@@ -164,6 +169,6 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-discuss-phase 6`
 
-**Last session:** 2026-09-04
-**Stopped at:** v1.6-Roadmap geschrieben — Phasen 6–10, 41 von 41 Anforderungen zugeordnet, Standing Gates auf fünf Phasen aktualisiert
-**Resume file:** None
+**Last session:** 2026-09-04T05:04:38.210Z
+**Stopped at:** Phase 6 context gathered
+**Resume file:** .planning/phases/06-aufr-umen/06-CONTEXT.md
