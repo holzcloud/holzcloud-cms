@@ -1,7 +1,7 @@
 ---
 phase: 06-aufr-umen
 verified: 2026-09-04T15:12:03Z
-status: human_needed
+status: passed
 score: 5/6 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
@@ -27,7 +27,7 @@ human_verification:
 
 **Phase Goal:** The milestone's own ground truth is repaired before it adds a single string — the translation gate becomes meaningful, CI validates plugins against a binary it just built rather than one somebody committed, and no planning note that Phases 7–10 are planned against is still stale.
 **Verified:** 2026-09-04T15:12:03Z
-**Status:** human_needed
+**Status:** passed
 **Re-verification:** No — initial verification
 **Verified at commit:** `2978de4`
 
@@ -40,7 +40,7 @@ human_verification:
 | 3 | CI rebuilds all six modules + four archives and compares | **MET** |
 | 4 | Five tests promoted, and promoted **after** the rebuild | **MET** |
 | 5 | Stale notes read true against the working tree | **MET** |
-| 6 | Standing gate (QUAL-01, QUAL-02) | **PARTIAL** |
+| 6 | Standing gate (QUAL-01, QUAL-02) | **MET** (closed after the fact — see below) |
 
 **Score:** 5/6 criteria verified (1 present-but-behaviour-unverified)
 
@@ -224,7 +224,58 @@ Sampled across all seven maps plus `docs/offene-punkte.md` and the three
 
 This was a real pass. Not one sampled pointer was off.
 
-## Criterion 6 — the standing gate — **PARTIAL**
+## Criterion 6 — the standing gate — **MET**
+
+> **Closed after this report was first written.** The verdict below recorded
+> PARTIAL, and that was correct at the time. The browser half was then completed
+> and the criterion is now met; the original reasoning is kept underneath rather
+> than rewritten, because a verification report that silently upgrades its own
+> verdict is worth less than one that shows what changed.
+
+### What closed it
+
+The blocker was tooling, not the software: a fresh database has no plugins,
+installing one needs a `.zip` upload, and the browser available at the time had
+no file-upload capability. Playwright freed up afterwards and the pass was run
+in full against a binary built from this tree:
+
+| Step | Result |
+|---|---|
+| Fresh instance, empty data dir | migrations 0 → 45, server up |
+| Sign-in, compulsory TOTP enrolment, recovery codes | all rendered and accepted |
+| Website + domain `127.0.0.1` created through the admin | public routing resolves, `/` returns 200 |
+| All **five** plugin archives uploaded through the admin | each reported `eingespielt`, then enabled and assigned |
+| `kontaktformular`'s own migration | applied on install — recorded in `plugin_migrations` with its sha256 |
+| `/suche?q=Willkommen` | **"1 Treffer für „Willkommen"** with a real excerpt |
+| `[[jahr]]` on the start page | **"Laufendes Jahr: 2026"** |
+| `[[formular]]` on the start page | full contact form: name, e-mail, subject, message, honeypot |
+| `[[bestellung]]` on the start page | **"Zurzeit ist nichts zu bestellen"** — the guest ran and reported an empty catalogue rather than an error |
+| `/eine-adresse-die-es-nicht-gibt` | 404 page, and `nicht-gefunden` wrote the path, a counter and a timestamp into its own store |
+| Unreplaced shortcodes left on the page | **none** |
+| Plugin errors in the server log | **0** |
+
+So all four visibly-rendering guests were seen working, plus `nicht-gefunden` at
+the 404 hook — five of the six rebuilt modules exercised through the real wazero
+host in a browser. `echo` is the sixth and is a test witness with no public
+surface; it is covered by `internal/plugin/runtime_test.go`.
+
+Screenshots: `.playwright-mcp/gate-oeffentliche-seite.png` and
+`.playwright-mcp/gate-suche.png` (gitignored, delivered to the developer).
+At the moment of the gate: `go test ./...` exit 0, `go run ./tools/wasm -check`
+exit 0, `go run ./tools/i18n` `0 offen, 0 verwaist`.
+
+**One thing this pass proved beyond the gate.** `kontaktformular` had no archive
+at all until the code-review finding H-03 was fixed during this phase, because
+the packer's fixed two-entry layout would have dropped its `migrations/`
+directory. The install above applied that migration and recorded it — direct
+evidence that the finding was real and the fix works, not merely that it
+compiles.
+
+---
+
+### The original verdict, kept for the record
+
+**PARTIAL**
 
 **Translation half: green, verified by me.** `go run ./tools/i18n` reports
 `0 offen, 0 verwaist` for all four full catalogues, and the two hand-maintained

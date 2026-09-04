@@ -18,7 +18,7 @@ provides:
   - "`HOLZCLOUD_TEST_REQUIRE_WASM: \"1\"` at workflow level in `ci.yml`, `security.yml` and `release.yml`; absent from `image.yml`, which runs no tests"
   - "The four documentation anchors this phase created or invalidated, each checked against the tree at the moment it was written"
   - "The Phase 6 i18n planning note retired — both sub-clauses stamped closed, every line pointer into `tools/i18n/main.go` removed"
-  - "The standing gate recorded with its evidence, including the half that did not happen"
+  - "The standing gate closed on both halves: the translation count green, and all four visibly-rendering guests plus nicht-gefunden seen working on public pages in a browser (completed after the first write-up, once file-upload tooling became available)"
   - "A migration finding raised while setting the gate up and then REFUTED by measurement: all three released tags carry the `00008` column, the earliest is 2026-09-03, and the one affected database applied `00008` on 2026-04-25 from a pre-release tree — no released installation can reach the failing state"
 affects: [phase-07, ci, plugins, testing]
 
@@ -57,7 +57,7 @@ key-decisions:
   - "Exit codes were measured without a pipe. The plan's own `<verify>` writes `echo \"exit=$?\"` after `| tail`, which reports the exit status of `tail`, not of `go test` — the same class of defect as the `go run` collapse 06-05 recorded. Real values: unset 0, `=1` 1, `=true` 1, `=yes` 1."
   - "`echoModul` became a one-line wrapper exactly as the plan and 06-RESEARCH specify, which means it no longer calls `t.Helper()` itself. Consequence named rather than hidden: for that one indirect call site the message is attributed to the wrapper line instead of the calling test. The four direct sites are unaffected and the `--- SKIP:` / `--- FAIL:` line names the test either way."
   - "STRUCTURE.md received a second one-line edit beyond the `tools/` inventory line — the committed-artifact line under Special Directories now names `go run ./tools/wasm`. Without it the plan's own `<verify>` command `grep -c 'tools/wasm' STRUCTURE.md` cannot pass, because the tree line names the helper without its path."
-  - "The four visibly-rendering guests were NOT driven through a browser, and no database rows were written by hand to manufacture a pass. Writing plugin rows directly would have faked exactly the code path the gate exists to observe."
+  - "No database rows were ever written by hand to manufacture a browser pass; that would have faked exactly the code path the gate exists to observe. The pass waited for real file-upload tooling instead, and was then run in full through the admin: five archives uploaded, enabled, assigned, and every guest seen rendering."
   - "The migration finding raised during gate setup was escalated as an upgrade-path defect and then refuted: `git show <tag>:…/00008…` shows all three released tags carry the column, and the earliest tag (2026-09-03) postdates by four months the date the one affected database applied that migration (2026-04-25). It is a local development artifact, needs no plan, and the escalation is left visible in the body rather than deleted, so the reasoning error stays legible."
 
 patterns-established:
@@ -248,7 +248,18 @@ this phase corrected in four codebase maps.
 So the application built from this phase's tree starts, serves, authenticates,
 enforces its second factor and renders admin screens.
 
-### The half of the gate that did not happen
+### The half of the gate that did not happen — LATER COMPLETED
+
+> **Closed afterwards.** What follows was true when written. Playwright freed up
+> later, the pass was run in full, and all four visibly-rendering guests were
+> seen working on public pages — plus `nicht-gefunden` at the 404 hook. Details
+> and evidence are in `06-VERIFICATION.md` under criterion 6. Notably,
+> `kontaktformular` could be installed at all only because the code-review
+> finding H-03 was fixed in this phase: its `migrations/` directory would have
+> been dropped by the old packer, and the install applied that migration and
+> recorded it with its sha256.
+
+#### The original record, kept because it says why it was blocked
 
 **The four visibly-rendering guests — `suche`, `kontaktformular`, `jahreszahl` and
 `bestellung` — were not exercised in a browser.** Stated plainly, because a gate
