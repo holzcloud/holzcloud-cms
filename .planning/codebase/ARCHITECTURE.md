@@ -1,7 +1,9 @@
-<!-- refreshed: 2026-08-22 -->
+<!-- refreshed: 2026-09-04 -->
 # Architecture
 
-**Analysis Date:** 2026-08-22
+**Analysis Date:** 2026-09-04
+
+*Corrected surgically against the working tree in Phase 6 (plan `06-04`) — not regenerated.*
 
 ## System Overview
 
@@ -34,6 +36,8 @@
 │  Domain packages (store + model + logic, one per concept)    │
 │  page menu media term snippet field kind block domain user   │
 │  tmplmgr plugin mail sharelink i18n branding locale bundle   │
+│  activity design money outbox payrexx shop structured totp   │
+│  textdiff wxr tmplspec                                       │
 ├─────────────────────────────────────────────────────────────┤
 │  Rendering: `internal/template/loader.go` (disk→embed),      │
 │  `internal/web/` (admin templates, layout data, headers)     │
@@ -54,13 +58,13 @@
 | Component | Responsibility | File |
 |-----------|----------------|------|
 | Entry point | Config load, migrations, DI wiring, jobs, graceful shutdown | `cmd/holzcloud/main.go` |
-| Router builder | Whole route table + middleware composition (testable apart from `main`) | `cmd/holzcloud/main.go` (`newRouter`, line ~572) |
+| Router builder | Whole route table + middleware composition (testable apart from `main`) | `cmd/holzcloud/main.go` (`newRouter`, line 630) |
 | CLI | Recovery subcommands: `serve user backup migrate compact rerender thumbnails check` | `cmd/holzcloud/cli.go` |
 | Config | Env-based config + validation + logger | `internal/config/config.go` |
 | Database | Dual-pool open, goose migrations, backup/snapshot, integrity, maintenance | `internal/db/db.go`, `internal/db/maintain.go` |
 | Auth | Argon2id, SCS sessions in SQLite, CSRF key, role/website/2FA middleware, login throttle | `internal/auth/` |
 | Domain resolver | Host → Website lookup, context injection, canonical base, offline page | `internal/domain/resolver.go` |
-| Admin handlers | All `/admin/*` CRUD screens (47 files) | `internal/admin/` |
+| Admin handlers | All `/admin/*` CRUD screens (49 non-test files) | `internal/admin/` |
 | Public handlers | Page, home, archive, tag, feed, sitemap, robots, share links, gates | `internal/public/handler.go` |
 | Template loader | Per-website public template resolution, parse + `sync.Map` cache, asset serving | `internal/template/loader.go` |
 | Admin templates | Parsed once at startup from `embed.FS` | `internal/web/` (`ParseAdminTemplates`), `cmd/holzcloud/templates/admin/` |
@@ -109,27 +113,27 @@
 
 **Persistence:**
 - Purpose: SQLite dual pool, migrations, backup, integrity
-- Location: `internal/db/`, `internal/db/migrations/` (38 goose `.sql` files)
+- Location: `internal/db/`, `internal/db/migrations/` (45 goose `.sql` files, through `00045_pages_locale_unique.sql`)
 
 ## Data Flow
 
 ### Public page request
 
-1. `RequestID` → `AccessLog` → `Recoverer` → `SecureHeaders` → `sm.LoadAndSave` (`cmd/holzcloud/main.go:941-945`)
+1. `RequestID` → `AccessLog` → `Recoverer` → `SecureHeaders` → `sm.LoadAndSave` (`cmd/holzcloud/main.go:1066-1069`)
 2. `domainResolver.Middleware` resolves host → `*domain.Website` into context, or serves the maintenance page (`internal/domain/resolver.go:48`)
 3. `public.LocaleMiddleware` strips a `/fr/`-style prefix and records the locale (`internal/public/locale.go`)
 4. `publicHandler.PluginMiddleware` gives plugins first refusal on the path (`internal/public/plugins.go`)
-5. `publicMux` matches `GET /{slug}` → `HandlePage` (`internal/public/handler.go:193`)
+5. `publicMux` matches `GET /{slug}` → `HandlePage` (`internal/public/handler.go:209`)
 6. Archive / custom-kind archive checked before pages; then `pageStore.GetPublishedPageIn` (drafts and other locales cannot be reached)
 7. Password-protected pages divert to `serveGate` before content is loaded
 8. Site data, snippets, menus, translations and meta assembled into `tmpl.PageData`
-9. `loader.RenderPage(ctx, websiteID, "page.html", data)` — disk template if the website has one, else embedded default (`internal/template/loader.go:483`)
-10. `serveCached` writes with ETag/Last-Modified (`internal/public/handler.go:351`)
+9. `loader.RenderPage(ctx, websiteID, "page.html", data)` — disk template if the website has one, else embedded default (`internal/template/loader.go:702`)
+10. `serveCached` writes with ETag/Last-Modified (`internal/public/handler.go:387`)
 
 ### Admin request
 
-1. Same outer chain, then `web.AdminHeaders` → `csrfMiddleware` → `setupGuard` → `RequireAuth` → `RequireSecondFactor` → `i18n.Middleware` → `RequireWebsiteAccess` → nav middleware → `adminProtectedMux` (`cmd/holzcloud/main.go:882`)
-2. Handler is wrapped by `adminHandler.ErrHandler`, which logs and returns 500 on a returned error (`internal/admin/handler.go:187`)
+1. Same outer chain, then `web.AdminHeaders` → `csrfMiddleware` → `setupGuard` → `RequireAuth` → `RequireSecondFactor` → `i18n.Middleware` → `RequireWebsiteAccess` → nav middleware → `adminProtectedMux` (`cmd/holzcloud/main.go:722`)
+2. Handler is wrapped by `adminHandler.ErrHandler`, which logs and returns 500 on a returned error (`internal/admin/handler.go:201`)
 3. Handler branches on `HX-Request` to render a partial or a full page from the startup-parsed admin template set
 
 ### Plugin hook
@@ -151,31 +155,31 @@
 
 **Handler + ErrHandler:**
 - Purpose: handlers return `error`; a wrapper converts it to a response
-- Examples: `internal/admin/handler.go:187`, `internal/public/handler.go:102`
+- Examples: `internal/admin/handler.go:201`, `internal/public/handler.go:118`
 
 **Loader:**
 - Purpose: resolve a website's public template set, disk-first with embed fallback, cached by `{websiteID, view, locale, timezone}`
-- Examples: `internal/template/loader.go:394` (`cacheKey`), `:543` (`InvalidateTemplateCache`)
+- Examples: `internal/template/loader.go:613` (`cacheKey`), `:770` (`InvalidateTemplateCache`)
 
 **Signer:**
 - Purpose: HMAC tokens for preview links and unlock cookies, with distinct key labels
-- Examples: `internal/sharelink/sharelink.go`, wired at `cmd/holzcloud/main.go:202`
+- Examples: `internal/sharelink/sharelink.go`, wired at `cmd/holzcloud/main.go:223`
 
 **Job:**
 - Purpose: named periodic task honouring the shutdown context
-- Examples: `internal/jobs/runner.go`; nine jobs registered in `cmd/holzcloud/main.go`
+- Examples: `internal/jobs/runner.go`; ten jobs registered in `cmd/holzcloud/main.go`
 
 ## Entry Points
 
-**`main()` — `cmd/holzcloud/main.go:59`:**
+**`main()` — `cmd/holzcloud/main.go:64`:**
 - Triggers: process start
 - Responsibilities: CLI dispatch, config, data dir, DB open, pre-upgrade snapshot, migrations, integrity check, template parse, DI, router, jobs, HTTP server, graceful shutdown (WAL fold on exit)
 
-**`runCLI()` — `cmd/holzcloud/cli.go:56`:**
+**`runCLI()` — `cmd/holzcloud/cli.go:53`:**
 - Triggers: any argv other than `serve`
 - Responsibilities: recovery paths that need no HTTP server (user create/passwd/2fa, backup, migrate, compact, rerender, thumbnails, check)
 
-**`newRouter()` — `cmd/holzcloud/main.go:572`:**
+**`newRouter()` — `cmd/holzcloud/main.go:630`:**
 - Triggers: called by `main` and by the route-table test
 - Responsibilities: the complete route table and middleware composition
 
@@ -198,19 +202,19 @@
 
 **What happens:** goldmark output is cast directly instead of passing through bluemonday.
 **Why it's wrong:** user-generated content becomes stored XSS on the public site.
-**Do this instead:** goldmark → bluemonday → `template.HTML`, as in `internal/page/markdown.go:23-47`.
+**Do this instead:** goldmark → bluemonday → `template.HTML`, as in `internal/page/markdown.go:76-78`.
 
 ### Querying pages without the published/locale filter
 
 **What happens:** a public code path calls a generic page getter and filters status in the template or not at all.
 **Why it's wrong:** drafts and trashed content leak to visitors.
-**Do this instead:** use `pageStore.GetPublishedPageIn` and the other published-scoped queries (`internal/public/handler.go:220`, `internal/page/access.go`).
+**Do this instead:** use `pageStore.GetPublishedPageIn` and the other published-scoped queries (`internal/public/handler.go:241`, `internal/page/access.go`).
 
 ### Doing per-request COUNT(*) or config lookups
 
 **What happens:** a middleware re-queries state that can only change once.
-**Why it's wrong:** every request pays for it on a Raspberry Pi.
-**Do this instead:** latch it — see the `usersExist atomic.Bool` setup guard (`cmd/holzcloud/main.go:297`) and `branding.Load` at startup (`internal/branding/branding.go:83`).
+**Why it's wrong:** every request pays for it on a small single linux/amd64 server.
+**Do this instead:** latch it — see the `usersExist atomic.Bool` setup guard (`cmd/holzcloud/main.go:333`) and `branding.Load` at startup (`internal/branding/branding.go:83`).
 
 ### Registering a route inside a feature package
 
@@ -222,7 +226,7 @@
 
 **What happens:** the runtime reaches into `internal/domain` or `internal/public` for host data.
 **Why it's wrong:** creates an import cycle and makes both sides untestable in isolation.
-**Do this instead:** pass a closure from `main` — `WithSettings`, `WithPages`, `WithRender`, `WithNotify` (`cmd/holzcloud/main.go:266`, `:904`).
+**Do this instead:** pass a closure from `main` — `WithSettings`, `WithPages`, `WithRender`, `WithNotify` (`cmd/holzcloud/main.go:309`, `:991-993`).
 
 ### Branching on `HX-Request` without `Vary`
 
@@ -251,4 +255,4 @@
 
 ---
 
-*Architecture analysis: 2026-08-22*
+*Architecture analysis: 2026-09-04*

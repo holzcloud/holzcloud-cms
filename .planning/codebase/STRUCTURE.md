@@ -1,6 +1,8 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-08-22
+**Analysis Date:** 2026-09-04
+
+*Corrected surgically against the working tree in Phase 6 (plan `06-04`) — not regenerated.*
 
 ## Directory Layout
 
@@ -12,15 +14,15 @@ Holzcloud_CMS/
 │   ├── main_test.go          # Route-table test
 │   ├── assets/               # admin.css, bausteine.css, htmx.min.js, favicon.svg (embed)
 │   └── templates/            # admin/ + public/<theme>/ Go templates (embed)
-├── internal/                 # All application packages (33 dirs)
-│   └── db/migrations/        # 38 goose .sql files (embed)
+├── internal/                 # All application packages (38 dirs)
+│   └── db/migrations/        # 45 goose .sql files, to 00045_pages_locale_unique (embed)
 │   └── i18n/locales/         # de-CH, en, es, fr, fr-CH, it, it-CH JSON catalogs (embed)
 ├── sdk/                      # Public Go SDK for writing WASM plugins (own go.mod)
-├── plugins/                  # First-party plugins, each its own module + .wasm + .zip
+├── plugins/                  # First-party plugins, each its own module + .wasm
 ├── sites/                    # Example site bundles (holzcloud.json + media/)
 ├── tools/                    # Build-time helpers (i18n extraction, mkbundle)
 ├── deploy/                   # systemd units, backup/restore scripts, Caddyfile example
-├── k8s/                      # Namespace, app, Caddy, RBAC manifests
+├── build/                    # Dev seed program and prebuilt example bundles
 ├── docs/                     # Working notes
 ├── data/                     # Runtime state — gitignored (DB, WAL, csrf.key, media, logs)
 ├── Dockerfile
@@ -36,10 +38,11 @@ Holzcloud_CMS/
 - Key files: `cmd/holzcloud/main.go`, `cmd/holzcloud/cli.go`
 
 **`internal/` — one package per concept:**
-- Infrastructure: `config/`, `db/`, `web/`, `jobs/`, `mail/`, `auth/`, `totp/`, `sharelink/`
+- Infrastructure: `config/`, `db/`, `web/`, `jobs/`, `mail/`, `outbox/`, `auth/`, `totp/`, `sharelink/`, `activity/`, `textdiff/`
 - Content model: `page/`, `menu/`, `media/`, `snippet/`, `term/`, `field/`, `kind/`, `block/`, `structured/`
-- Tenancy & presentation: `domain/`, `template/`, `tmplmgr/`, `design/`, `branding/`, `i18n/`, `locale/`
-- Interfaces: `admin/` (47 files, largest), `public/`, `ai/` (MCP), `plugin/` (wazero)
+- Commerce: `shop/`, `money/`, `payrexx/`
+- Tenancy & presentation: `domain/`, `template/`, `tmplmgr/`, `tmplspec/`, `design/`, `branding/`, `i18n/`, `locale/`
+- Interfaces: `admin/` (49 non-test files, largest), `public/`, `ai/` (MCP), `plugin/` (wazero)
 - Data movement: `bundle/` (export/import), `wxr/` (WordPress import)
 - Users: `user/`
 
@@ -49,7 +52,7 @@ Holzcloud_CMS/
 
 **`plugins/`:**
 - Purpose: reference/first-party plugins (`bestellung`, `jahreszahl`, `kontaktformular`, `nicht-gefunden`, `suche`)
-- Each contains: `go.mod`, `main.go`, `plugin.json`, built `plugin.wasm`, distributable `.zip`, optional `migrations/`
+- Each contains: `go.mod`, `main.go`, `plugin.json`, built `plugin.wasm`; four of the five also ship a distributable `.zip`, while `kontaktformular` ships a `migrations/` directory instead
 
 **`data/`:**
 - Purpose: all runtime state — `holzcloud.sqlite` (+ `-wal`/`-shm`), `csrf.key`, logs, media, user-uploaded templates, i18n and branding overrides
@@ -64,7 +67,7 @@ Holzcloud_CMS/
 
 **Configuration:**
 - `internal/config/config.go`: env vars (`HOLZCLOUD_*`), validation, logger
-- `Dockerfile`, `k8s/20-app.yaml`, `deploy/holzcloud.service`: deployment config
+- `Dockerfile`, `deploy/holzcloud.service`: deployment config
 
 **Core Logic:**
 - `internal/db/db.go`: dual-pool SQLite, migrations, DSN pragmas
@@ -77,7 +80,7 @@ Holzcloud_CMS/
 
 **Templates & Assets:**
 - `cmd/holzcloud/templates/admin/*.html`: admin screens (`base.html` is the shell)
-- `cmd/holzcloud/templates/public/<theme>/`: `default`, `journal`, `magazine`, `midnight`, `rudel`, `schlicht`, `weide`
+- `cmd/holzcloud/templates/public/<theme>/`: `default`, `holzcloud`, `journal`, `magazine`, `midnight`, `rudel`, `schlicht`, `weide`
 - `cmd/holzcloud/assets/`: `admin.css`, `bausteine.css`, `htmx.min.js`, `favicon.svg`
 
 **Testing:**
@@ -86,7 +89,7 @@ Holzcloud_CMS/
 - Fixtures: `internal/plugin/testdata/echo/`
 
 **CI/CD:**
-- `.github/workflows/ci.yml`, `deploy.yml`, `security.yml`
+- `.github/workflows/ci.yml`, `image.yml`, `release.yml`, `security.yml`
 
 ## Naming Conventions
 
@@ -153,4 +156,4 @@ Holzcloud_CMS/
 
 ---
 
-*Structure analysis: 2026-08-22*
+*Structure analysis: 2026-09-04*

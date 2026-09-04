@@ -1,6 +1,8 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-08-22
+**Analysis Date:** 2026-09-04
+
+*Corrected surgically against the working tree in Phase 6 (plan `06-04`) — not regenerated.*
 
 ## Naming Patterns
 
@@ -19,7 +21,7 @@
 - Exported: `PascalCase` with a doc comment starting with the identifier name
 - Handlers: `Handle` + entity + action — `HandlePageList`, `HandlePageCreate`, `HandlePageStatusToggle` (`internal/admin/page.go`)
 - Constructors: `NewX` returning `*X` — `NewStore`, `NewHandler`, `NewResolver`, `NewLoader`
-- Setters for post-construction wiring: `SetPlugins`, `SetMail`, `SetAITokens` (`internal/admin/handler.go:196-211`)
+- Setters for post-construction wiring: `SetPlugins`, `SetMail`, `SetAITokens` (`internal/admin/handler.go:210-225`)
 - Unexported helpers are lowercase and terse: `scanPage`, `parseOptionalTime`, `seed`, `serve`
 
 **Variables:**
@@ -84,7 +86,7 @@ func (h *Handler) ErrHandler(fn func(http.ResponseWriter, *http.Request) error) 
 	}
 }
 ```
-`internal/admin/handler.go:187`. Routes wire it at registration: `adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages", adminHandler.ErrHandler(adminHandler.HandlePageList))` (`cmd/holzcloud/main.go:686`).
+`internal/admin/handler.go:201`. Routes wire it at registration: `adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages", adminHandler.ErrHandler(adminHandler.HandlePageList))` (`cmd/holzcloud/main.go:747`).
 
 **Patterns:**
 - Guard clauses and early returns; the happy path stays at the left margin
@@ -107,7 +109,7 @@ func (h *Handler) ErrHandler(fn func(http.ResponseWriter, *http.Request) error) 
 
 **When to Comment:**
 - Doc comments on every exported identifier, starting with the identifier name (`// Store handles SQL operations for pages.`)
-- Comments explain *why*, and are written as full prose paragraphs. Long rationale comments are normal and expected — see `internal/admin/handler.go:196-204` (why `SetPlugins` exists instead of a constructor argument) and `internal/web/flash.go:11-15` (why flashes are translated on write).
+- Comments explain *why*, and are written as full prose paragraphs. Long rationale comments are normal and expected — see `internal/admin/handler.go:210-218` (why `SetPlugins` exists instead of a constructor argument) and `internal/web/flash.go:11-15` (why flashes are translated on write).
 - Test functions carry a comment stating the real-world scenario being defended (`internal/page/store_test.go:51`)
 - Security-sensitive code documents its safety argument inline — `internal/web/render.go:84-88` explains why the `th` template func may return `template.HTML`
 
@@ -138,4 +140,4 @@ func (h *Handler) ErrHandler(fn func(http.ResponseWriter, *http.Request) error) 
 
 ---
 
-*Convention analysis: 2026-08-22*
+*Convention analysis: 2026-09-04*
