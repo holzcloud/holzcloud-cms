@@ -10,6 +10,15 @@
 // German sentences, not invented identifiers, so the catalogue is a plain
 // German-to-other-language dictionary anybody can read.
 //
+// The three regional catalogues are deviation lists rather than translations,
+// and the tool treats them in two different ways. de-CH.json is rebuilt from
+// the German source by -schweiz, because a mechanical rule exists for it: the
+// sharp s becomes a double s and the German quotation marks become guillemets.
+// That rule is swissSpelling, below. fr-CH.json and it-CH.json are maintained
+// by hand and are only ever read — their entries are vocabulary choices (natel
+// for portable, and so on) that no string replacer derives, and inventing a
+// rule for one of the two would put back the asymmetry it was meant to remove.
+//
 // A key that disappears from the source is reported but never deleted: a
 // sentence often comes back one commit later, and a translation thrown away is
 // a translation somebody has to do again.
@@ -110,7 +119,14 @@ func main() {
 					fmt.Printf("  %s: kein Satz im Quelltext: %q\n", e.Name(), k)
 				}
 			}
-			fmt.Printf("%-12s %d Abweichungen, %d ohne Gegenstück\n", e.Name(), len(catalog), wrong)
+			// Which of the three the tool writes is invisible from the outside,
+			// and the difference matters to anybody about to edit one. So the
+			// line that crosses the screen on every run says it.
+			pflege := "nur gelesen, von Hand gepflegt"
+			if e.Name() == "de-CH.json" {
+				pflege = "wird von -schweiz erzeugt"
+			}
+			fmt.Printf("%-12s %d Abweichungen, %d ohne Gegenstück — %s\n", e.Name(), len(catalog), wrong, pflege)
 			continue
 		}
 
