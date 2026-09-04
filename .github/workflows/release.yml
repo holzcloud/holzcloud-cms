@@ -12,6 +12,11 @@ permissions:
 env:
   # Pure-Go SQLite driver: the binary must build without a C toolchain.
   CGO_ENABLED: "0"
+  # Ein Test, der sich selbst überspringt, meldet grün und prüft nichts. Auf
+  # einem Läufer ist ein fehlendes Plugin-Modul deshalb ein Fehler; auf einem
+  # Entwicklungsrechner bleibt es einer von mehreren guten Gründen, nur einen
+  # Teil des Baums ausgecheckt zu haben.
+  HOLZCLOUD_TEST_REQUIRE_WASM: "1"
 
 jobs:
   release:
