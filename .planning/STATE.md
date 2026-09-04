@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
 status: executing
-stopped_at: Completed 06-04-PLAN.md
-last_updated: "2026-09-04T10:57:51.061Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-09-04T11:15:35.000Z"
 last_activity: 2026-09-04
-state_head: f895b6387469949403f11760e20ecccab4b2a25d
+state_head: 6a5bc2f1d378e928784b4fa26100c5662ad9a4fb
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 6 — Aufräumen (in progress, 3 / 7 plans complete)
-Plan: 06-04 complete — MAINT-05 done: sieben Karten, die Arbeitsliste und drei zurückgestellte Funde stimmen wieder; 06-02 noch offen in Welle 2
+Phase: 6 — Aufräumen (in progress, 4 / 7 plans complete)
+Plan: 06-02 complete — Welle 2 ist fertig: `tools/wasm -print-hashes` baut die sechs Wasm-Module reproduzierbar, und D-05 ist gemessen statt zitiert (PASS, Lauf 33866318077). Welle 3 (06-05) ist frei
 Status: Executing Phase 6
 Last activity: 2026-09-04
 
@@ -43,7 +43,7 @@ phases were renumbered into this one as 7, 8 and 9.
 
 | Phase | Name | Requirements | Count | Status |
 |-------|------|--------------|-------|--------|
-| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (1/7 plans) |
+| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (4/7 plans) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Not started |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
@@ -161,6 +161,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 6 P01 | 6 min | 1 tasks | 2 files |
 | Phase 06 P03 | 8 min | 3 tasks | 2 files |
 | Phase 06 P04 | 27 min | 3 tasks | 11 files |
+| Phase 06 P02 | 13 min | 2 tasks | 2 files |
 
 ### Session Continuity
 
@@ -171,8 +172,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-discuss-phase 6`
 
-**Last session:** 2026-09-04T10:57:30.117Z
-**Stopped at:** Completed 06-04-PLAN.md
+**Last session:** 2026-09-04T11:15:35.000Z
+**Stopped at:** Completed 06-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -187,3 +188,5 @@ Next command: `/gsd-discuss-phase 6`
 - [Phase 06]: Corrections to the codebase maps are derived by re-running each proof command against current HEAD, never copied from a research document measured at an older commit
 - [Phase 06]: CONCERNS.md keeps every judgement; only its numbers moved. The Go-version-mismatch finding stays open because CLAUDE.md:7 still says "Go 1.22+" while go.mod says 1.26.6
 - [Phase 06]: A resolved deferred finding is closed by a dated stamp above its text, not by deletion — the reasoning is what a later phase needs
+- [Phase 06]: 06-02: D-05 is PASS — the six wasip1 guests hash identically on darwin/arm64 and ubuntu-latest (run 33866318077, 2026-09-04). The byte comparison can be made blocking; the D-05 fallback (-out plus HOLZCLOUD_WASM_DIR) is not needed and must not be planned for
+- [Phase 06]: 06-02: tools/wasm forces GOTOOLCHAIN on every build subprocess, proven against ambient local/go1.26.7/go1.27.0 — the guest bytes depend on the goToolchain constant alone, not on setup-go or go.mod. The real trap is D-03a floor: bumping go.mod go directive above the pin breaks the echo build loudly, and only echo
