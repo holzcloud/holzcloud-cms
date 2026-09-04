@@ -90,16 +90,18 @@ type ziel struct {
 	archiv string // committed archive beside it, empty when the plugin has none
 }
 
-// kontaktformular deliberately has no archive, and echo is not a plugin at all.
-// The contact form carries a migrations/ directory, which the flat two-entry
-// layout of the other four would silently drop; packing it here would produce
-// an archive that installs and then behaves differently from the source beside
-// it. Its archive is in .gitignore for the same reason. This is an exception,
-// not an oversight.
+// echo is not a plugin and therefore has no archive; every plugin has one.
+//
+// kontaktformular used to be excluded here because it carries a migrations/
+// directory that the packer's fixed two-entry layout would have dropped. That
+// was a hazard documented as an exception rather than guarded: the next plugin
+// to grow an assets/ or migrations/ directory would have been silently
+// mispacked, with nothing to notice it. packen now reads the plugin's own
+// directory, so the exception has no reason left.
 var ziele = []ziel{
 	{"bestellung", "plugins/bestellung", "plugins/bestellung/plugin.wasm", "plugins/bestellung/bestellung.zip"},
 	{"jahreszahl", "plugins/jahreszahl", "plugins/jahreszahl/plugin.wasm", "plugins/jahreszahl/jahreszahl.zip"},
-	{"kontaktformular", "plugins/kontaktformular", "plugins/kontaktformular/plugin.wasm", ""},
+	{"kontaktformular", "plugins/kontaktformular", "plugins/kontaktformular/plugin.wasm", "plugins/kontaktformular/kontaktformular.zip"},
 	{"nicht-gefunden", "plugins/nicht-gefunden", "plugins/nicht-gefunden/plugin.wasm", "plugins/nicht-gefunden/nicht-gefunden.zip"},
 	{"suche", "plugins/suche", "plugins/suche/plugin.wasm", "plugins/suche/suche.zip"},
 	{"echo", "internal/plugin/testdata/echo", "internal/plugin/testdata/echo.wasm", ""},
@@ -111,7 +113,58 @@ var ziele = []ziel{
 const (
 	manifestName = "plugin.json"
 	modulName    = "plugin.wasm"
+	assetDir     = "assets/"
+	migrationDir = "migrations/"
 )
+
+// sammeln reads one of the two directories the package format admits and
+// returns its files as archive entries, sorted by name so two runs over the
+// same directory produce the same bytes — filepath.WalkDir already walks in
+// lexical order, and the sort says so rather than relying on it.
+//
+// A missing directory is the normal case, not an error: four of the five
+// plugins carry neither.
+func sammeln(quelle, verzeichnis string) ([]struct {
+	name   string
+	inhalt []byte
+}, error) {
+	wurzel := filepath.Join(quelle, filepath.FromSlash(verzeichnis))
+	if _, err := os.Stat(wurzel); errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	var gefunden []struct {
+		name   string
+		inhalt []byte
+	}
+	err := filepath.WalkDir(wurzel, func(pfad string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(wurzel, pfad)
+		if err != nil {
+			return err
+		}
+		inhalt, err := os.ReadFile(pfad)
+		if err != nil {
+			return err
+		}
+		gefunden = append(gefunden, struct {
+			name   string
+			inhalt []byte
+		}{verzeichnis + filepath.ToSlash(rel), inhalt})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.SortFunc(gefunden, func(a, b struct {
+		name   string
+		inhalt []byte
+	}) int {
+		return strings.Compare(a.name, b.name)
+	})
+	return gefunden, nil
+}
 
 // The timestamp every archive entry carries. archive/zip stamps the current
 // time when Modified is left unset, so two runs from identical input would
@@ -321,7 +374,7 @@ func erzeugen(root string, z ziel, bauplatz string) ([]artefakt, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", z.name, err)
 	}
-	archiv, err := packen(manifest, inhalt)
+	archiv, err := packen(filepath.Join(root, z.dir), manifest, inhalt)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", z.name, err)
 	}
@@ -349,7 +402,7 @@ func erzeugen(root string, z ziel, bauplatz string) ([]artefakt, error) {
 // Go has not changed that output in years, and if a release ever does, the fix
 // is the same as for a compiler bump: repack in the commit that raises the
 // version.
-func packen(manifest, modul []byte) ([]byte, error) {
+func packen(quelle string, manifest, modul []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	eintraege := []struct {
@@ -358,6 +411,20 @@ func packen(manifest, modul []byte) ([]byte, error) {
 	}{
 		{manifestName, manifest},
 		{modulName, modul},
+	}
+	// Everything else the format admits, read from the plugin's own directory.
+	// Writing a fixed two-entry archive was the earlier shape, and it was wrong
+	// in the quiet way: a plugin that grew an assets/ or migrations/ directory
+	// got an archive missing it, -check called that archive current, and from
+	// the next commit the blocking gate enforced the loss. An operator would
+	// have installed a plugin whose stylesheet 404s or whose table was never
+	// created, with correct-looking source lying beside it.
+	for _, verzeichnis := range []string{assetDir, migrationDir} {
+		gefunden, err := sammeln(quelle, verzeichnis)
+		if err != nil {
+			return nil, err
+		}
+		eintraege = append(eintraege, gefunden...)
 	}
 	for _, e := range eintraege {
 		kopf := &zip.FileHeader{Name: e.name, Method: zip.Deflate, Modified: archivZeit}
