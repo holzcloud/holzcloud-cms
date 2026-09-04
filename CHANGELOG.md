@@ -11,6 +11,28 @@ verfasst. Wer den nächsten Eintrag schreibt, macht bitte mit.
 
 Die Nummern sind dieselben wie die Tags im Repository.
 
+## 1.6 — 2026-09-04
+
+### Behoben
+
+**Das Bearbeiten einer Seite verwarf ihre Bausteine eigener Arten.** Wer eine
+bestehende Seite im Editor speicherte, verlor jeden Baustein, dessen Art die
+Website sich selbst angelegt hatte — still, ohne Meldung, und mit einem
+augenscheinlich erfolgreichen Speichern. Die eingebauten neun Arten blieben,
+alles andere wurde beim Aufräumen verworfen, weil dem Speicherpfad die Liste
+der eigenen Arten fehlte. Aus derselben Ursache legte der Knopf für eine eigene
+Art keinen Baustein an und die Arten verschwanden nach jeder Änderung aus dem
+Menü, sodass sich der Verlust im Editor nicht einmal rückgängig machen liess.
+
+Der Text ging dabei nicht verloren: die Felder eines verworfenen Bausteins
+stehen weiterhin im Fliesstext der Seite. Verloren ging die Gestaltung. Wer
+eigene Bausteinarten benutzt, sieht bitte die Seiten durch, die seit dem
+Einspielen einmal im Editor gespeichert wurden; das Archiv einer Website
+(`holzcloud.json`) enthält die ursprünglichen Bausteine mit allen Feldwerten
+und ist die verlässliche Quelle für den Wiederaufbau.
+
+Angelegte Seiten waren nie betroffen — nur das Bearbeiten.
+
 ## 1.5 — 2026-09-03
 
 ### Behoben
