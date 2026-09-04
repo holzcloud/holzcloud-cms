@@ -1,7 +1,9 @@
-<!-- refreshed: 2026-08-22 -->
+<!-- refreshed: 2026-09-04 -->
 # Codebase Concerns
 
-**Analysis Date:** 2026-08-22
+**Analysis Date:** 2026-09-04
+
+*Corrected surgically against the working tree in Phase 6 (plan `06-04`) — not regenerated; the judgements are unchanged.*
 
 This audit reconciles with the two hand-written documents already in the repo:
 
@@ -119,8 +121,8 @@ are the residual edges.
   (`internal/auth/ratelimit.go:68`). A restart clears every counter, so a
   crash-loop or a frequent redeploy resets an attacker's budget.
 - Files: `internal/auth/ratelimit.go`
-- Current mitigation: acceptable at the intended scale, and `replicas: 1` in
-  `k8s/20-app.yaml:49` means there is no second process to disagree with.
+- Current mitigation: acceptable at the intended scale, and the deployment runs
+  a single process, so there is no second process to disagree with.
 - Recommendations: none required at current scale; record the constraint so
   nobody scales the deployment out without noticing (see *Scaling Limits*).
 
@@ -181,7 +183,7 @@ expensive work. The two things worth watching:
   exists but does not cover the CLI replay path at all.
 
 **Migrations touching existing tables:**
-- Files: `internal/db/migrations/` (38 files, through `00038_block_types.sql`);
+- Files: `internal/db/migrations/` (45 files, through `00045_pages_locale_unique.sql`);
   the precedents are `00029` and `00031`
 - Why fragile: already documented in `docs/offene-punkte.md` — a table-level
   CHECK in SQLite can only be loosened by a full table rebuild, and `pages` has
@@ -205,21 +207,20 @@ expensive work. The two things worth watching:
 
 **Single writer, single replica:**
 - Current capacity: one process, SQLite WAL, write pool at
-  `SetMaxOpenConns(1)`; `k8s/20-app.yaml:49-51` pins `replicas: 1` with
-  `strategy: Recreate` on a `ReadWriteOnce` PVC.
+  `SetMaxOpenConns(1)`; the deployment runs exactly one instance against one
+  data directory (`deploy/holzcloud.service`).
 - Limit: horizontal scaling is not available and would corrupt state if
   attempted — a second replica means a second writer against one SQLite file,
   plus a second in-memory login throttle and a second plugin runtime.
-- Scaling path: vertical only. The comment at `k8s/20-app.yaml:4` already says
-  this; it is repeated here because the login throttle and the plugin instance
-  cache are two more things that silently assume it.
+- Scaling path: vertical only. It is recorded here because the login throttle
+  and the plugin instance cache are two more things that silently assume it.
 
 **Media on the same volume as the database:**
 - Current capacity: `data/media/<websiteID>/` alongside `data/holzcloud.sqlite`
   (`internal/media/crop.go:332`, `internal/media/variant_store.go:255`).
 - Limit: the backup script guards against a half-written backup on a full disk
   (`deploy/backup.sh:35`), which is the right instinct — but media growth and
-  database growth compete for one PVC (`k8s/20-app.yaml:14-18`).
+  database growth compete for one volume (`HOLZCLOUD_DATA_DIR`).
 - Scaling path: watch PVC headroom; media is the term that grows without bound.
 
 ---
@@ -229,8 +230,9 @@ expensive work. The two things worth watching:
 **Eight open Dependabot PRs — the list in `docs/offene-punkte.md` is stale:**
 - Risk: that document names `#3`–`#8` (six PRs). The current set is
   **#3, #4, #5, #6, #8, #10, #11, #12** — three new ones have landed since it
-  was written and `#7` and `#9` have gone. `docs/offene-punkte.md` §7 should be
-  corrected to say eight.
+  was written and `#7` and `#9` have gone. The numbered Dependabot item was
+  retired from `docs/offene-punkte.md` in Phase 6 (plan `06-04`); only its
+  upgrade procedure survives, under `## Beim Weiterarbeiten`.
 - Impact: `golang.org/x/crypto 0.54.0 → 0.55.0` (#12) is the one with security
   weight; `modernc.org/sqlite 1.48.2 → 1.56.0` (#10) is now an eight-minor jump
   and is the one the open-items document rightly flags as needing a run against
@@ -241,7 +243,7 @@ expensive work. The two things worth watching:
   `holzcloud rerender -dry-run` and read the diff rather than applying it, since
   the command is currently unsafe to apply.
 
-**Go 1.26.2 in `go.mod` vs. Go 1.22+ in `CLAUDE.md`:**
+**Go 1.26.6 in `go.mod` vs. Go 1.22+ in `CLAUDE.md`:**
 - Risk: cosmetic drift — `go.mod` requires a far newer toolchain than the
   documented floor.
 - Files: `go.mod:3`, `CLAUDE.md`
@@ -305,4 +307,4 @@ All tests pass; the gaps are about where the tests are not.
 
 ---
 
-*Concerns audit: 2026-08-22*
+*Concerns audit: 2026-09-04*

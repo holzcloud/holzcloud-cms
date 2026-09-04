@@ -1,15 +1,17 @@
 # Technology Stack
 
-**Analysis Date:** 2026-08-22
+**Analysis Date:** 2026-09-04
+
+*Corrected surgically against the working tree in Phase 6 (plan `06-04`) — not regenerated.*
 
 ## Languages
 
 **Primary:**
-- Go 1.26.2 (`go.mod`) - Entire backend, CLI, plugin host. Stdlib-first; no web framework.
-- SQL (SQLite dialect) - 38 goose migrations in `internal/db/migrations/` (`00001_*.sql` … `00038_block_types.sql`)
+- Go 1.26.6 (`go.mod`) - Entire backend, CLI, plugin host. Stdlib-first; no web framework.
+- SQL (SQLite dialect) - 45 goose migrations in `internal/db/migrations/` (`00001_*.sql` … `00045_pages_locale_unique.sql`)
 
 **Secondary:**
-- Go `html/template` - Admin UI (`cmd/holzcloud/templates/admin/`) and public site templates (`cmd/holzcloud/templates/public/{default,journal,magazine,midnight,rudel,schlicht,weide}/`)
+- Go `html/template` - Admin UI (`cmd/holzcloud/templates/admin/`) and public site templates (`cmd/holzcloud/templates/public/{default,holzcloud,journal,magazine,midnight,rudel,schlicht,weide}/`)
 - Plain CSS - `cmd/holzcloud/assets/admin.css`, `cmd/holzcloud/assets/bausteine.css`, per-template `style.css`. No Sass/PostCSS/Tailwind, no build step.
 - JavaScript - htmx 2.0.x only, self-hosted at `cmd/holzcloud/assets/htmx.min.js`. No other JS permitted.
 - WebAssembly (Go-compiled) - Plugins in `plugins/*/main.go` compiled to `plugin.wasm`
@@ -17,7 +19,7 @@
 ## Runtime
 
 **Environment:**
-- Go binary, `CGO_ENABLED=0`, statically linked. Primary target `linux/arm64` (Raspberry Pi 5); also built for `linux/amd64` in the container image.
+- Go binary, `CGO_ENABLED=0`, statically linked. Primary target `linux/amd64` (retargeted from 64-bit ARM on 2026-09-03); the container image is built for the same target.
 - Container base: `gcr.io/distroless/static-debian12:nonroot`, uid 65532 (`Dockerfile`)
 - WASM guest runtime: wazero (pure Go, no CGO) with WASI preview1 (`internal/plugin/runtime.go`)
 
@@ -41,7 +43,7 @@
 
 **Build/Dev:**
 - `go build -trimpath -ldflags="-s -w -X main.Version=… -X main.Commit=…"` - Single self-contained binary
-- Docker BuildKit multi-stage cross-compile (`Dockerfile`, `golang:1.26-bookworm` builder pinned to `$BUILDPLATFORM`)
+- Docker multi-stage build (`Dockerfile`, `golang:1.26` builder, `linux/amd64`)
 - `tools/mkbundle/main.go` - Bundle packaging helper
 - `tools/i18n/main.go` - Translation catalog tooling
 - `gofmt` and `go vet` enforced in CI
@@ -49,16 +51,16 @@
 ## Key Dependencies
 
 **Critical:**
-- `modernc.org/sqlite` v1.48.2 - Pure-Go SQLite driver; the reason the whole build is CGO-free and ARM64 cross-compilable
-- `github.com/pressly/goose/v3` v3.27.0 - Embedded versioned SQL migrations from `embed.FS`
-- `golang.org/x/crypto` v0.54.0 - Argon2id password hashing (`internal/auth/`)
+- `modernc.org/sqlite` v1.57.0 - Pure-Go SQLite driver; the reason the whole build is CGO-free and cross-compilable without a C toolchain
+- `github.com/pressly/goose/v3` v3.27.3 - Embedded versioned SQL migrations from `embed.FS`
+- `golang.org/x/crypto` v0.55.0 - Argon2id password hashing (`internal/auth/`)
 - `github.com/tetratelabs/wazero` v1.12.0 - WASM plugin sandbox (`internal/plugin/runtime.go`); 2s call timeout, 256 memory pages (16 MB), 8 MB max payload
-- `github.com/yuin/goldmark` v1.8.2 - Markdown → HTML
+- `github.com/yuin/goldmark` v1.8.5 - Markdown → HTML
 - `github.com/microcosm-cc/bluemonday` v1.0.27 - HTML sanitization; goldmark output is never cast to `template.HTML` unsanitized
 
 **Infrastructure:**
-- `golang.org/x/image` v0.44.0 - Image decoding/resizing for media thumbnails and crops (`internal/media/`)
-- `golang.org/x/net` v0.57.0 - HTTP/net helpers
+- `golang.org/x/image` v0.45.0 - Image decoding/resizing for media thumbnails and crops (`internal/media/`)
+- `golang.org/x/net` v0.58.0 - HTTP/net helpers
 - `rsc.io/qr` v0.2.0 - Inline SVG QR codes for TOTP enrolment (`internal/totp/qr.go`)
 - `github.com/gorilla/securecookie`, `github.com/gorilla/css`, `github.com/aymerick/douceur` - Indirect, via csrf/bluemonday
 
@@ -70,13 +72,13 @@
 - Limits: `HOLZCLOUD_MAX_TEMPLATE_SIZE` (10 MB), `HOLZCLOUD_MAX_MEDIA_SIZE` (5 MB), `HOLZCLOUD_MAX_VIDEO_SIZE` (64 MB), `HOLZCLOUD_MAX_MEGAPIXELS` (24, min 1)
 - Password hashing: `HOLZCLOUD_ARGON2_MEMORY` (65536 KB), `HOLZCLOUD_ARGON2_ITERATIONS` (1), `HOLZCLOUD_ARGON2_PARALLELISM` (2)
 - Mail: `HOLZCLOUD_SMTP_{HOST,PORT,USER,PASSWORD,FROM,FROM_NAME,TLS}`
-- No `.env` file in the repository; secrets are supplied by the systemd unit (`deploy/holzcloud.service`) or a Kubernetes Secret (`k8s/10-secret.example.yaml`, template only)
+- No `.env` file in the repository; secrets are supplied by the systemd unit (`deploy/holzcloud.service`)
 
 **Build:**
 - `go.mod` / `go.sum`
 - `Dockerfile` (build args `VERSION`, `COMMIT`, `TARGETOS`, `TARGETARCH`)
 - `.dockerignore`
-- `.github/workflows/{ci,deploy,security}.yml`
+- `.github/workflows/{ci,image,release,security}.yml`
 
 ## Platform Requirements
 
@@ -85,10 +87,10 @@
 - No C toolchain needed except to run `go test -race`
 
 **Production:**
-- Raspberry Pi 5 (`linux/arm64`) via systemd (`deploy/holzcloud.service`) behind Caddy (`deploy/Caddyfile.example`), or
-- Kubernetes: single replica, `strategy: Recreate`, 10Gi RWO PVC on `csi-cinder-sc-retain` (`k8s/20-app.yaml`) — SQLite tolerates exactly one writer
+- A small `linux/amd64` server via systemd (`deploy/holzcloud.service`) behind Caddy (`deploy/Caddyfile.example`), or
+- The container image from `.github/workflows/image.yml` (GHCR) — single instance only, because SQLite tolerates exactly one writer
 - Persistent writable volume at `HOLZCLOUD_DATA_DIR`; container filesystem otherwise read-only
 
 ---
 
-*Stack analysis: 2026-08-22*
+*Stack analysis: 2026-09-04*

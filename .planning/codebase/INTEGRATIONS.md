@@ -1,6 +1,8 @@
 # External Integrations
 
-**Analysis Date:** 2026-08-22
+**Analysis Date:** 2026-09-04
+
+*Corrected surgically against the working tree in Phase 6 (plan `06-04`) — not regenerated.*
 
 ## Governing Constraint
 
@@ -50,13 +52,13 @@ Grep for outbound HTTP clients across `internal/` and `cmd/` returns nothing: th
 
 **Auth Provider:**
 - Custom, self-contained (`internal/auth/`). No OAuth, no external IdP.
-  - Passwords: Argon2id via `golang.org/x/crypto/argon2`, parameters tunable for the Pi
+  - Passwords: Argon2id via `golang.org/x/crypto/argon2`, parameters tunable for the target server
   - Sessions: `alexedwards/scs/v2` stored server-side in SQLite; rotated on login
   - CSRF: `gorilla/csrf` on all state-changing requests, token relayed through `hx-headers` for htmx
   - Two-factor: TOTP (`internal/totp/`), enrolment QR rendered inline as SVG with `rsc.io/qr`; recovery via `holzcloud user 2fa disable`
   - Share links: signed, page-scoped, expiring tokens (`internal/sharelink/`) using an installation secret
   - AI access: separate bearer tokens (`internal/ai/token.go`)
-- Session key, CSRF key, and password hashes live inside the SQLite database in the volume — a redeploy neither rotates nor leaks them (`k8s/10-secret.example.yaml`)
+- Session key, CSRF key, and password hashes live inside the SQLite database in the data directory — a redeploy neither rotates nor leaks them
 
 ## Monitoring & Observability
 
@@ -64,24 +66,25 @@ Grep for outbound HTTP clients across `internal/` and `cmd/` returns nothing: th
 - None. No Sentry or equivalent.
 
 **Logs:**
-- `log/slog` to stdout; level from `HOLZCLOUD_LOG_LEVEL`. Collected by journald (systemd) or the cluster log pipeline (Kubernetes).
+- `log/slog` to stdout; level from `HOLZCLOUD_LOG_LEVEL`. Collected by journald (systemd) or by whatever collects container stdout.
 
 **Health:**
-- `GET /healthz` - liveness (`cmd/holzcloud/main.go:610`)
-- `GET /readyz` - readiness including free-disk floor (`cmd/holzcloud/main.go:616`)
+- `GET /healthz` - liveness (`cmd/holzcloud/main.go:671`)
+- `GET /readyz` - readiness including free-disk floor (`cmd/holzcloud/main.go:677`)
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Raspberry Pi 5 via systemd behind Caddy (`deploy/holzcloud.service`, `deploy/Caddyfile.example`, `deploy/DEPLOY.md`)
-- Kubernetes single-replica Deployment with shared Caddy (`k8s/20-app.yaml`, `k8s/30-caddy-shared.yaml`, `k8s/40-deployer-rbac.yaml`)
+- A small `linux/amd64` server via systemd behind Caddy (`deploy/holzcloud.service`, `deploy/Caddyfile.example`, `deploy/DEPLOY.md`)
+- Or the published container image, run as a single instance against one data volume. No deployment manifests live in this repository.
 
 **Container Registry:**
-- GitHub Container Registry (`ghcr.io/${{ github.repository }}`) — `.github/workflows/deploy.yml`
+- GitHub Container Registry (`ghcr.io/${{ github.repository }}`) — `.github/workflows/image.yml`
 
 **CI Pipeline (GitHub Actions):**
-- `.github/workflows/ci.yml` - gofmt check, `go mod tidy` diff check, `go vet`, build with version/commit ldflags, `go test ./...`, plus a `linux/arm64` cross-compile job
-- `.github/workflows/deploy.yml` - triggered by a *successful* CI `workflow_run` on `main` (or manual dispatch); builds and pushes the image, then `kubectl rollout status`. Concurrency group `deploy-holzcloud`, `cancel-in-progress: false`.
+- `.github/workflows/ci.yml` - gofmt check, `go mod tidy` diff check, `go vet`, build with version/commit ldflags, `go test ./...`. One job (`test`), on the `linux/amd64` runner, which is also the deployment target — the built binary is the shippable one.
+- `.github/workflows/image.yml` - on a push to `main`, a `v*` tag, a pull request or manual dispatch; builds the image and pushes it to GHCR. It never touches a cluster: a deploy is a commit in the infrastructure repository that pins the tag and digest.
+- `.github/workflows/release.yml` - on a `v*` tag only; builds the `linux/amd64` release binary and publishes it with the runner's `gh` CLI. Deliberately separate from `image.yml` so the release binary does not depend on an image build succeeding.
 - `.github/workflows/security.yml` - weekly (Sun 00:00) `go mod verify`, `go list -m -u all`, `go test -race` (the one place `CGO_ENABLED=1`), `go vet`
 
 **Backups:**
@@ -98,8 +101,7 @@ Grep for outbound HTTP clients across `internal/` and `cmd/` returns nothing: th
 **Optional (mail):** `HOLZCLOUD_SMTP_HOST`, `HOLZCLOUD_SMTP_PORT`, `HOLZCLOUD_SMTP_USER`, `HOLZCLOUD_SMTP_PASSWORD`, `HOLZCLOUD_SMTP_FROM`, `HOLZCLOUD_SMTP_FROM_NAME`, `HOLZCLOUD_SMTP_TLS`
 
 **Secrets location:**
-- Kubernetes `Secret` named `holzcloud-secrets` in namespace `holzcloud`, created from the command line (see `k8s/README.md`); `k8s/10-secret.example.yaml` is a template with placeholder values and is not applied.
-- On the Pi: environment lines in `deploy/holzcloud.service`.
+- Environment lines in `deploy/holzcloud.service` for a systemd installation; container orchestration secrets live in the infrastructure repository, not here.
 - No `.env` file exists in the repository.
 
 ## Webhooks & Callbacks
@@ -130,4 +132,4 @@ Embedded JSON catalogs in `internal/i18n/locales/`: `de-CH`, `en`, `es`, `fr`, `
 
 ---
 
-*Integration audit: 2026-08-22*
+*Integration audit: 2026-09-04*

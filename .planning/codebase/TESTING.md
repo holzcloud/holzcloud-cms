@@ -1,11 +1,13 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-08-22
+**Analysis Date:** 2026-09-04
+
+*Corrected surgically against the working tree in Phase 6 (plan `06-04`) — not regenerated.*
 
 ## Test Framework
 
 **Runner:**
-- Go stdlib `testing` (Go 1.26.2, `go.mod`)
+- Go stdlib `testing` (Go 1.26.6, `go.mod`)
 - No config file — no testify, no gomock, no ginkgo. Zero test dependencies.
 
 **Assertion Library:**
@@ -218,4 +220,4 @@ Always `errors.Is` against the package sentinel; never a message-string match.
 
 ---
 
-*Testing analysis: 2026-08-22*
+*Testing analysis: 2026-09-04*
