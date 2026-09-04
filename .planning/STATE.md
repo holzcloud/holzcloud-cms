@@ -4,17 +4,16 @@ milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
-status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-09-04T10:29:08.387Z"
+status: executing
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-09-04T10:36:14.295Z"
 last_activity: 2026-09-04
-last_activity_desc: v1.6 roadmap created (Phases 6–10, 41/41 requirements mapped)
-state_head: ef82dfe64ed262a4772c845b50a5923f787f76f1
+state_head: 9090c6b1df12b0b8b6c06497e351bb435cbd285f
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -30,10 +29,10 @@ progress:
 
 ### Current Position
 
-Phase: 6 — Aufräumen (not started)
-Plan: —
-Status: Roadmap written; Phase 6 not yet discussed or planned
-Last activity: 2026-09-04 — v1.6 roadmap created (Phases 6–10, 41/41 requirements mapped)
+Phase: 6 — Aufräumen (in progress, 1 / 7 plans complete)
+Plan: 06-01 complete — ground truth amended; Wave 2 (06-02 ∥ 06-03 ∥ 06-04) unblocked
+Status: Executing Phase 6
+Last activity: 2026-09-04
 
 ### Milestone Map
 
@@ -44,7 +43,7 @@ phases were renumbered into this one as 7, 8 and 9.
 
 | Phase | Name | Requirements | Count | Status |
 |-------|------|--------------|-------|--------|
-| 6 | Aufräumen | MAINT-01…05 | 5 | Not started |
+| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (1/7 plans) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Not started |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
@@ -159,6 +158,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase quick-260903-hkh P01 | 7m | 3 tasks | 3 files |
 | Phase quick-260903-rqq P01 | 121m | 3 tasks | 18 files |
 | Phase quick-260903-t0s P01 | 26m | 3 tasks | 18 files |
+| Phase 6 P01 | 6 min | 1 tasks | 2 files |
 
 ### Session Continuity
 
@@ -169,6 +169,13 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-discuss-phase 6`
 
-**Last session:** 2026-09-04T05:04:38.210Z
-**Stopped at:** Phase 6 context gathered
-**Resume file:** .planning/phases/06-aufr-umen/06-CONTEXT.md
+**Last session:** 2026-09-04T10:36:13.585Z
+**Stopped at:** Completed 06-01-PLAN.md
+**Resume file:** None
+
+## Decisions
+
+- [Phase 6]: Phase 6: the i18n pointer tools/i18n/main.go:287 stands as written — D-17a is WITHDRAWN and a fresh grep confirms 287; what the note now says is that the claim lives in the writeCatalog doc comment, not the package doc comment at :1-15
+- [Phase 6]: Phase 6: MAINT-03 and success criterion 3 cover all six committed .wasm modules including internal/plugin/testdata/echo.wasm, and the four .zip archives are repacked by the same tool (D-07, D-23)
+- [Phase 6]: Phase 6: MAINT-05 and success criterion 5 cover all seven codebase maps and point at 06-RESEARCH.md MAINT-05 Correction Inventory instead of naming a count that can itself go stale (D-18, D-19)
+- [Phase 6]: Phase 6: the wasm build is tools/wasm, a Go command run as 'go run ./tools/wasm' (D-06); GOTOOLCHAIN is pinned inside the tool with a floor at the root go.mod go directive (D-03, D-03a); -buildvcs=false is mandatory in all four documented invocations (D-02a)
