@@ -397,9 +397,8 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 		return err
 	}
 
-	values := pageValuesFromRequest(r)
+	values := pageValuesFromRequest(r, h.blockSet(r.Context(), websiteID))
 	values.setKind(h.kindsOf(r, websiteID))
-	values.BlockSet = h.blockSet(r.Context(), websiteID)
 	if !h.mayPublish(r) {
 		// Neu und ohne Veröffentlichungsrecht: ein Entwurf, den jemand ansieht.
 		values.Status = "draft"
@@ -551,7 +550,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 		return err
 	}
 
-	values := pageValuesFromRequest(r)
+	values := pageValuesFromRequest(r, h.blockSet(r.Context(), existing.WebsiteID))
 	values.setKind(h.kindsOf(r, existing.WebsiteID))
 	// Wer nicht veröffentlichen darf, ändert den Zustand nicht — weder hinauf
 	// noch hinunter. Ein stilles Zurückstufen wäre schlimmer als ein

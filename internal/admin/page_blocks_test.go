@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/block"
+	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
@@ -230,5 +231,108 @@ func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
 	// verloren gingen.
 	if strings.Contains(body, "zu-markdown") {
 		t.Error("der Weg zurück wird angeboten, obwohl die Karten verloren gingen")
+	}
+}
+
+// Eine eigene Bausteinart überlebt das Speichern einer bestehenden Seite.
+//
+// Sie tat es lange nicht: handlePageCreatePost setzte values.BlockSet,
+// handlePageEditPost nicht — und ein leeres Set kennt nur die neun eingebauten
+// Arten. Clean verwarf daraufhin beim Speichern jeden Baustein einer eigenen
+// Art, ohne Meldung, und Apply legte keinen neuen an. Eine Seite mit sechs
+// Merkmalen kam als Fliesstext zurück, und der Editor bot die Art nicht mehr
+// an, mit der man sie hätte wiederherstellen können.
+func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	fields := field.NewStore(database)
+	art, err := block.NewStore(database, fields).Create(ctx, ws.ID, "Merkmal", "")
+	if err != nil {
+		t.Fatalf("Bausteinart anlegen: %v", err)
+	}
+	if _, err := fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "begriff", Label: "Begriff",
+		Kind: field.KindText, BlockTypeID: art.ID,
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+
+	// Anlegen — dieser Weg war immer richtig.
+	req := postForm("/admin/websites/1/pages/new", blockForm(ws.ID, url.Values{
+		"b0.typ":       {"text"},
+		"b0.markdown":  {"Ein Absatz."},
+		"b1.typ":       {art.Key},
+		"b1.f.begriff": {"Eine Installation"},
+	}), map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
+	serve(t, h, sm, h.HandlePageCreate, req)
+
+	pages := page.NewStore(database)
+	p, err := pages.GetPageBySlug(ctx, ws.ID, "start")
+	if err != nil || p == nil {
+		t.Fatalf("die Seite wurde nicht angelegt: %v", err)
+	}
+
+	// Bearbeiten, ohne irgendetwas zu ändern.
+	req = postForm("/admin/websites/1/pages/1/edit", blockForm(ws.ID, url.Values{
+		"b0.typ":       {"text"},
+		"b0.markdown":  {"Ein Absatz."},
+		"b1.typ":       {art.Key},
+		"b1.f.begriff": {"Eine Installation"},
+		"version":      {strconv.FormatInt(p.Version, 10)},
+	}), map[string]string{
+		"id": strconv.FormatInt(ws.ID, 10), "pageID": strconv.FormatInt(p.ID, 10),
+	})
+	serve(t, h, sm, h.HandlePageEdit, req)
+
+	p, err = pages.GetPageBySlug(ctx, ws.ID, "start")
+	if err != nil || p == nil {
+		t.Fatalf("die Seite ist nach dem Bearbeiten weg: %v", err)
+	}
+	set := block.Set{Own: []block.Own{{ID: art.ID, Key: art.Key, Name: art.Name,
+		Fields: []field.Def{{Key: "begriff"}}}}}
+	blocks, err := block.Decode(p.Blocks, set)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(blocks) != 2 {
+		t.Fatalf("nach dem Bearbeiten %d Bausteine, wollte 2: %+v", len(blocks), blocks)
+	}
+	if blocks[1].Type != art.Key {
+		t.Errorf("Baustein 1 ist %q, wollte %q", blocks[1].Type, art.Key)
+	}
+	if got := blocks[1].Fields["begriff"]; got != "Eine Installation" {
+		t.Errorf("Feldwert %q, wollte %q", got, "Eine Installation")
+	}
+}
+
+// Und die Art lässt sich beim Bearbeiten auch hinzufügen.
+func TestEigeneBausteinartLaesstSichBeimBearbeitenAnlegen(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	fields := field.NewStore(database)
+	art, err := block.NewStore(database, fields).Create(ctx, ws.ID, "Merkmal", "")
+	if err != nil {
+		t.Fatalf("Bausteinart anlegen: %v", err)
+	}
+	p := seedPage(t, database, ws.ID, "Titel", "titel", "Ein Absatz.", "draft")
+
+	req := postForm("/admin/websites/1/pages/1/edit", blockForm(ws.ID, url.Values{
+		"title":           {"Titel"},
+		"slug":            {"titel"},
+		"b0.typ":          {"text"},
+		"b0.markdown":     {"Ein Absatz."},
+		"version":         {strconv.FormatInt(p.Version, 10)},
+		block.ActionField: {block.ActionAdd + ":" + art.Key},
+	}), map[string]string{
+		"id": strconv.FormatInt(ws.ID, 10), "pageID": strconv.FormatInt(p.ID, 10),
+	})
+	req.Header.Set("HX-Request", "true")
+	rec := serve(t, h, sm, h.HandlePageEdit, req)
+
+	// Zwei Bausteine im zurückgegebenen Teil, nicht einer.
+	if got := strings.Count(rec.Body.String(), `name="b1.typ"`); got != 1 {
+		t.Errorf("der neue Baustein fehlt im Formular (b1.typ %dmal):\n%s", got, rec.Body.String())
 	}
 }
