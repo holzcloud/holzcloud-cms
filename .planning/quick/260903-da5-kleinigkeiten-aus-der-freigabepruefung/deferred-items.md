@@ -1,5 +1,7 @@
 # Zurückgestellt — gefunden am 2026-09-03 während 260903-da5
 
+> **Erledigt am 2026-09-03 — Schnellaufgabe `260903-zwei-abgelegte-fehler`:** die Zusicherung in `internal/public/formular_e2e_test.go` prüft jetzt die Form des Formulars statt zwei Zeichen im Rauschen, vierhundert Läufe grün.
+
 ## Flatternder Test: TestMarkeMitUnbekanntemArgumentBleibtDerBetreff
 
 **Datei:** `internal/public/formular_e2e_test.go:414`

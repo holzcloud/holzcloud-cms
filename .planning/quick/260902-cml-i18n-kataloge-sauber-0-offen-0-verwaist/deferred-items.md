@@ -1,5 +1,7 @@
 # Deferred items — 260902-cml
 
+> **Erledigt am 2026-09-03 — Schnellaufgabe `260903-bsk`:** der erste der beiden hier vorgeschlagenen Wege wurde genommen; die vier grossen Kataloge liegen jetzt bündig links wie alle sieben, das Format von `writeCatalog` gilt, festgehalten als abgenommener Eintrag 1 in `.planning/WINDOWS.md`.
+
 ## tools/i18n schreibt die Kataloge anders, als sie im Repository liegen
 
 `writeCatalog` in `tools/i18n/main.go` schreibt jede Zeile ohne Einrückung.
