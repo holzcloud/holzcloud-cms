@@ -61,6 +61,20 @@ jobs:
     - name: Verify the committed plugin modules are current
       run: go run ./tools/wasm -check
 
+    # Zwilling zu "Verify go.mod is tidy" weiter oben: das Erzeugte muss mit der
+    # Quelle Schritt halten, sonst beschreibt der Katalog eine Oberfläche, die es
+    # nicht mehr gibt. Der Schritt beweist NICHT, dass jede Zeichenkette übersetzt
+    # ist — -write legt einen fehlenden Schlüssel mit leerem Wert an, danach ist
+    # der Diff sauber und die Übersetzung fehlt weiterhin. Das Zählen der offenen
+    # Übersetzungen bleibt Sache des stehenden Tors, das ein Mensch mit
+    # `go run ./tools/i18n` prüft: als blockierende Prüfung würde eine
+    # Übersetzung, die berechtigterweise gerade läuft, den Bau rot färben.
+    - name: Verify the message catalogues are in step
+      run: |
+        go run ./tools/i18n -write
+        go run ./tools/i18n -schweiz
+        git diff --exit-code -- internal/i18n/locales/
+
     # The runner is linux/amd64 and so is the deployment target, so this is the
     # shippable binary, not a test build. Everything (templates, assets,
     # migrations) is embedded, so the single file is the whole application.
