@@ -52,13 +52,35 @@ Phases 7–10.
   the comparison is red on day one and red again on every Dependabot bump —
   ~21 MB of forced rebuild commits per bump, for no signal about the code.
   — **Reversibility:** reversible — the fallback (D-05) is a CI-file change.
-- **D-03:** The pin lives **inside the build tool**, as `GOTOOLCHAIN=go1.26.x`
-  with an exact patch level — not in CI's `setup-go` and not as a `toolchain`
-  line in `go.mod`. A contributor running the tool locally must produce the same
-  bytes as the runner, otherwise the fragility has only moved from `go.mod` to
-  CI. It also solves `echo.wasm`, which lives in the root module and therefore
-  cannot carry its own `toolchain` line. The guest compiler and the host
-  binary's compiler are deliberately decoupled — they share no reason to match.
+
+  > **D-02a — CORRECTION FROM RESEARCH, and the precondition for all of D-02.**
+  > `-buildvcs=false` **must** be part of every build invocation. All six
+  > committed modules carry `vcs.revision`, `vcs.time` and `vcs.modified=true`,
+  > stamped by the default `-buildvcs=auto`. The revision is the git SHA at
+  > build time, so a CI rebuild happens at a different commit *by construction*
+  > and can never match the committed bytes. Measured in `06-RESEARCH.md`: the
+  > same source at two commits gave two hashes; with `-buildvcs=false` it gave
+  > one. **No toolchain pin rescues this.** Every place the build command is
+  > written down carries the flag: `tools/wasm`, `plugins/README.md`,
+  > `internal/plugin/testdata/README.md`, and the `//go:generate` line at
+  > `internal/plugin/runtime_test.go:13`.
+
+- **D-03:** The pin lives **inside the build tool**, as `GOTOOLCHAIN` with an
+  exact patch level — not in CI's `setup-go` and not as a `toolchain` line in
+  `go.mod`. A contributor running the tool locally must produce the same bytes
+  as the runner, otherwise the fragility has only moved from `go.mod` to CI. It
+  also solves `echo.wasm`, which lives in the root module and therefore cannot
+  carry its own `toolchain` line. The guest compiler and the host binary's
+  compiler are deliberately decoupled — they share no reason to match.
+
+  > **D-03a — CONSTRAINT FROM RESEARCH.** `GOTOOLCHAIN` cannot be set *lower*
+  > than the root `go.mod`'s `go` directive (currently `go 1.26.6`), because
+  > `echo` lives in the root module. The pin therefore has a floor, and the
+  > discussion's premise that the committed set is uniformly `go1.24.7` is
+  > wrong: four files are, `echo.wasm` is `go1.26.2`, and
+  > `plugins/kontaktformular/plugin.wasm` is `go1.26.4`. Five of six also still
+  > stamp the pre-rename import path `github.com/holzcloud/cms/sdk`. D-04's
+  > one-time rebuild resolves all of this in a single stroke.
 - **D-04:** Pin to the **current** Go patch level and rebuild all six modules
   once, rather than freezing `go1.24.7`. The phase starts from a deliberately
   set zero point instead of a preserved old state. That rebuild is **its own
@@ -106,6 +128,27 @@ Phases 7–10.
   as the command that builds the missing file.
 - **D-12:** Ordering is non-negotiable and inherited from the roadmap: the
   rebuild-and-compare lands **first**, the skip promotion **second**.
+- **D-23:** The four committed `.zip` archives beside the plugins (3.7 MB, each
+  holding a byte-identical copy of the `plugin.wasm` next to it) are **packed by
+  `tools/wasm` too**, deterministically via `archive/zip` with fixed timestamps
+  so the archive is byte-comparable like the module. Raised by research: D-04's
+  rebuild would desynchronise them, recreating MAINT-03's own defect one layer
+  up — self-inflicted, which is why it is in scope rather than deferred. No Go
+  code reads them, so nothing else changes.
+
+### D-05 resolved by research: RELIABLE WITH CONDITIONS
+
+`06-RESEARCH.md` settles the cross-platform question. Location, build-cache
+contents and git state were measured to have no effect **once `-buildvcs=false`
+is set** (D-02a). The host axis itself (darwin/arm64 vs. linux/amd64) is cited
+to go.dev/blog/rebuild — `CGO_ENABLED=0 go build -trimpath` is host-independent
+since Go 1.21 — but was **not** empirically falsified; the research container
+never got past its registry pull, and the researcher reported no observation
+rather than asserting an absence. The plan must therefore carry the one-CI-run
+falsification gate the research prescribes (`-print-hashes` on `ubuntu-latest`)
+before the comparison is treated as load-bearing, with the D-05 fallback ("build
+fresh in CI and run the plugin tests against the fresh build") as the documented
+answer if it fails.
 
 ### i18n format lock and self-description (MAINT-01, MAINT-02)
 
@@ -141,15 +184,25 @@ Phases 7–10.
   the other two; their entries are pure vocabulary choice (*natel* for
   *portable*, *formulario*, *laptop*) and no `strings.NewReplacer` derives them.
 - **D-17:** MAINT-02's plain statement goes in two places a person actually
-  looks: the doc comment at the head of `tools/i18n/main.go` — which at the same
-  time stops claiming indented output, MAINT-02's second half — and the
+  looks: the doc comment at the head of `tools/i18n/main.go` and the
   per-regional-file report line at `main.go:113`, which crosses the screen on
   every run.
+
+  > **D-17a — CORRECTION FROM RESEARCH.** The indentation claim MAINT-02 asks to
+  > remove is at **`tools/i18n/main.go:288`** (the `writeCatalog` doc comment,
+  > "writes the file sorted and indented"), not in the package doc at `:1–15`,
+  > which makes no such claim. The roadmap's own pointer at `main.go:287` lands
+  > inside `quote()`. D-01 corrects that pointer along with the rest.
 
 ### Stale notes (MAINT-05)
 
 - **D-18:** All **seven** codebase maps are corrected surgically, not just
-  `ARCHITECTURE.md`. MAINT-05 understates the problem: every map carries
+  `ARCHITECTURE.md`. Research widened this further still: `ARCHITECTURE.md` has
+  six countable-fact drifts **plus sixteen drifted line references**, and
+  `INTEGRATIONS.md` still documents a `k8s/` directory, a `deploy.yml` workflow
+  and an arm64 cross-compile job that no longer exist. `06-RESEARCH.md` carries
+  the complete line-referenced correction list; a plan task executes it
+  mechanically. MAINT-05 understates the problem: every map carries
   `Analysis Date: 2026-08-22`, and the same wrong numbers are copied across
   several of them — "38 goose migrations / through `00038_block_types.sql`"
   (actual: 45, through `00045_pages_locale_unique.sql`) in `ARCHITECTURE.md:112`,
