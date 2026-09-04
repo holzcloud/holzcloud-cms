@@ -45,9 +45,17 @@
 // -out builds into a directory of your choosing and touches nothing in the
 // tree — the answer if a future Go release ever breaks the byte equality
 // between a contributor's machine and the runner.
+//
+// Four of the plugins also carry a .zip beside them, holding a byte-identical
+// copy of the module. Rebuilding the modules without repacking those would
+// recreate one layer up exactly the staleness this tool exists to prevent, so
+// the archives are packed here too, from the module of the same run, and every
+// mode covers all ten artifacts at once.
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -60,6 +68,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // The compiler every guest is built with. It has a floor: the go command
@@ -75,19 +84,43 @@ const goToolchain = "go1.26.6"
 // ziel is one committed guest module: where it is built and where the built
 // file belongs in the repository.
 type ziel struct {
-	name string // what a positional argument selects it by
-	dir  string // module directory, relative to the repository root
-	out  string // committed artifact, relative to the repository root
+	name   string // what a positional argument selects it by
+	dir    string // module directory, relative to the repository root
+	out    string // committed artifact, relative to the repository root
+	archiv string // committed archive beside it, empty when the plugin has none
 }
 
+// kontaktformular deliberately has no archive, and echo is not a plugin at all.
+// The contact form carries a migrations/ directory, which the flat two-entry
+// layout of the other four would silently drop; packing it here would produce
+// an archive that installs and then behaves differently from the source beside
+// it. Its archive is in .gitignore for the same reason. This is an exception,
+// not an oversight.
 var ziele = []ziel{
-	{"bestellung", "plugins/bestellung", "plugins/bestellung/plugin.wasm"},
-	{"jahreszahl", "plugins/jahreszahl", "plugins/jahreszahl/plugin.wasm"},
-	{"kontaktformular", "plugins/kontaktformular", "plugins/kontaktformular/plugin.wasm"},
-	{"nicht-gefunden", "plugins/nicht-gefunden", "plugins/nicht-gefunden/plugin.wasm"},
-	{"suche", "plugins/suche", "plugins/suche/plugin.wasm"},
-	{"echo", "internal/plugin/testdata/echo", "internal/plugin/testdata/echo.wasm"},
+	{"bestellung", "plugins/bestellung", "plugins/bestellung/plugin.wasm", "plugins/bestellung/bestellung.zip"},
+	{"jahreszahl", "plugins/jahreszahl", "plugins/jahreszahl/plugin.wasm", "plugins/jahreszahl/jahreszahl.zip"},
+	{"kontaktformular", "plugins/kontaktformular", "plugins/kontaktformular/plugin.wasm", ""},
+	{"nicht-gefunden", "plugins/nicht-gefunden", "plugins/nicht-gefunden/plugin.wasm", "plugins/nicht-gefunden/nicht-gefunden.zip"},
+	{"suche", "plugins/suche", "plugins/suche/plugin.wasm", "plugins/suche/suche.zip"},
+	{"echo", "internal/plugin/testdata/echo", "internal/plugin/testdata/echo.wasm", ""},
 }
+
+// What an archive holds: the manifest, then the module, flat and in that order.
+// This is what the four committed archives contain today and what the zip -j
+// line in plugins/README.md produces.
+const (
+	manifestName = "plugin.json"
+	modulName    = "plugin.wasm"
+)
+
+// The timestamp every archive entry carries. archive/zip stamps the current
+// time when Modified is left unset, so two runs from identical input would
+// produce different bytes and the comparison could never hold. The value itself
+// is arbitrary and only has to be constant; this is the earliest instant the
+// zip format can represent, which reads as "deliberately none" rather than as a
+// date somebody might mistake for provenance — the commit carrying the archive
+// is its provenance, exactly as with -buildvcs=false.
+var archivZeit = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 // artefakt is one produced file, held in memory. Every mode works from these
 // bytes and none of them builds its own: what -check compares is byte for byte
@@ -96,6 +129,7 @@ type artefakt struct {
 	label  string // short name for the report column
 	ziel   string // committed path, relative to the repository root
 	datei  string // file name used by -out
+	quelle string // the target it came from, so a report can name the command that rebuilds it
 	inhalt []byte
 }
 
@@ -271,7 +305,68 @@ func erzeugen(root string, z ziel, bauplatz string) ([]artefakt, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", z.name, err)
 	}
-	return []artefakt{{label: z.name, ziel: z.out, datei: datei, inhalt: inhalt}}, nil
+	artefakte := []artefakt{{label: z.name, ziel: z.out, datei: datei, quelle: z.name, inhalt: inhalt}}
+	if z.archiv == "" {
+		return artefakte, nil
+	}
+
+	manifest, err := os.ReadFile(filepath.Join(root, z.dir, manifestName))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", z.name, err)
+	}
+	archiv, err := packen(manifest, inhalt)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", z.name, err)
+	}
+	return append(artefakte, artefakt{
+		label:  z.name + ".zip",
+		ziel:   z.archiv,
+		datei:  filepath.Base(z.archiv),
+		quelle: z.name,
+		inhalt: archiv,
+	}), nil
+}
+
+// packen builds one plugin archive in memory. The module it packs is the one
+// this run just built, never the file lying in the tree — that is what keeps
+// the archive from ever describing a module other than the one beside it.
+//
+// Built in memory and handed back as one slice, the shape tools/mkbundle's
+// packer uses and for the reason its comment gives: an archive interrupted
+// half-way still looks like a file.
+//
+// Deflate, not Store: a wasm guest compresses to under 30 %, and 21 MB of
+// uncompressed copies in git would cost more than the compression buys. The
+// price is that the archive bytes depend on compress/flate — that is, on the
+// toolchain running *this* tool, not on the pinned one that builds the guests.
+// Go has not changed that output in years, and if a release ever does, the fix
+// is the same as for a compiler bump: repack in the commit that raises the
+// version.
+func packen(manifest, modul []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	eintraege := []struct {
+		name   string
+		inhalt []byte
+	}{
+		{manifestName, manifest},
+		{modulName, modul},
+	}
+	for _, e := range eintraege {
+		kopf := &zip.FileHeader{Name: e.name, Method: zip.Deflate, Modified: archivZeit}
+		kopf.SetMode(0o644)
+		w, err := zw.CreateHeader(kopf)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := w.Write(e.inhalt); err != nil {
+			return nil, err
+		}
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // inDenBaum replaces the committed files with what was just built.
@@ -328,7 +423,7 @@ func vergleichen(root string, auswahl []ziel) (int, error) {
 			fmt.Printf("%s fehlt\n", a.ziel)
 			fmt.Printf("  im Repository: %s\n", "keine Datei")
 			fmt.Printf("  neu gebaut:    %s %9d Bytes  gebaut mit %s\n", neuSumme, neuGroesse, neuVersion)
-			fmt.Printf("  Neu bauen mit: go run ./tools/wasm %s\n\n", a.label)
+			fmt.Printf("  Neu bauen mit: go run ./tools/wasm %s\n\n", a.quelle)
 			return nil
 		}
 		if err != nil {
@@ -343,7 +438,7 @@ func vergleichen(root string, auswahl []ziel) (int, error) {
 		fmt.Printf("%s ist nicht aktuell\n", a.ziel)
 		fmt.Printf("  im Repository: %s %9d Bytes  gebaut mit %s\n", altSumme, altGroesse, altVersion)
 		fmt.Printf("  neu gebaut:    %s %9d Bytes  gebaut mit %s\n", neuSumme, neuGroesse, neuVersion)
-		fmt.Printf("  Neu bauen mit: go run ./tools/wasm %s\n\n", a.label)
+		fmt.Printf("  Neu bauen mit: go run ./tools/wasm %s\n\n", a.quelle)
 		return nil
 	})
 	return abweichungen, err
