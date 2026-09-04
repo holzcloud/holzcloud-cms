@@ -16,6 +16,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -267,45 +268,37 @@ func readCatalog(path string) (map[string]string, error) {
 	return catalog, nil
 }
 
-// quote is json.Marshal for a string without the HTML escaping.
+// writeCatalog writes the file sorted and flush left, one key per line, so a
+// change to one string is one line in a diff rather than a reshuffled file.
 //
-// The standard encoder turns < > & into < > &, which is right
-// for JSON embedded in a page and wrong here: these files are dictionaries a
-// translator reads, half the sentences contain a <code> or an &amp;, and
-// "<code>" is not something anybody should have to decipher. The
-// escaping is not needed either — nothing serves these files to a browser.
-func quote(s string) string {
-	var b strings.Builder
-	enc := json.NewEncoder(&b)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(s); err != nil {
-		return `""`
-	}
-	return strings.TrimRight(b.String(), "\n")
-}
-
-// writeCatalog writes the file sorted and indented, so a change to one string
-// is one line in a diff rather than a reshuffled file.
+// The encoder is asked not to escape HTML. The standard setting turns < > &
+// into their \u escapes, which is right for JSON embedded in a page and wrong
+// here: these files are dictionaries a translator reads, half the sentences
+// contain a <code> or an &amp;, and an escaped <code> is not something anybody
+// should have to decipher. The escaping is not needed either — nothing serves
+// these files to a browser.
+//
+// Indenting with an empty prefix and an empty indent string is what produces
+// the flush-left, one-entry-per-line shape the committed catalogues carry. Two
+// near-misses read like simplifications and are neither: Encoder.SetIndent("",
+// "") is a no-op that puts the whole catalogue on one line, and
+// json.MarshalIndent escapes HTML with no switch to turn it off.
+//
+// The keys need no sorting here. encoding/json sorts map keys byte-wise, which
+// is the order sort.Strings gives.
 func writeCatalog(path string, catalog map[string]string) error {
-	keys := make([]string, 0, len(catalog))
-	for k := range catalog {
-		keys = append(keys, k)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(catalog); err != nil {
+		return err
 	}
-	sort.Strings(keys)
 
-	var b strings.Builder
-	b.WriteString("{\n")
-	for i, k := range keys {
-		b.WriteString(quote(k))
-		b.WriteString(": ")
-		b.WriteString(quote(catalog[k]))
-		if i < len(keys)-1 {
-			b.WriteString(",")
-		}
-		b.WriteString("\n")
+	var out bytes.Buffer
+	if err := json.Indent(&out, buf.Bytes(), "", ""); err != nil {
+		return err
 	}
-	b.WriteString("}\n")
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(path, out.Bytes(), 0o644)
 }
 
 func fail(err error) {
