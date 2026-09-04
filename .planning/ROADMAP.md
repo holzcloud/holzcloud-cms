@@ -45,7 +45,7 @@ field kind an author needs, in every carrier that holds fields, and content can
 also arrive as a table — and whoever enters the admin may arrive through the
 sign-in the operator already runs.
 
-- [ ] **Phase 6: Aufräumen** — The housekeeping that makes the rest measurable: the i18n writer's format locked by a test, CI rebuilding the plugin binaries it validates against, and the stale notes the later phases are planned against corrected
+- [x] **Phase 6: Aufräumen** — The housekeeping that makes the rest measurable: the i18n writer's format locked by a test, CI rebuilding the plugin binaries it validates against, and the stale notes the later phases are planned against corrected
 - [ ] **Phase 7: Field Kinds** — The palette an author reaches for: choice as a button row, a genuine multiple choice, terms as a field, plus `zeit`, `bereich` and `code` — and the multi-value encoding everything else depends on
 - [ ] **Phase 8: Snippets Carry Fields** — A text snippet stops being one Markdown box and holds any field kind, reusing the field table that already exists
 - [ ] **Phase 9: CSV Import** — Content arrives as a table: upload, map column to field, dry-run it, create pages the ordinary way, report every row
