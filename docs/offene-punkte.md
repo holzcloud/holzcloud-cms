@@ -84,31 +84,6 @@ Klein, jeder für sich eine Stunde, alle in `internal/field`:
 - `bereich` — eine Zahl zwischen zwei Grenzen, als Schieber.
 - `code` — ein Textfeld ohne Markdown, mit fester Schrift.
 
-## 7. Dependabot: erledigt, und wie es das nächste Mal geht
-
-`#3`–`#8` sind am 30. August eingegangen, `#13` (`modernc.org/sqlite`
-1.56 → 1.57) und `#14` (`golang.org/x/net` 0.57 → 0.58) am 2. September.
-Zurzeit steht keiner offen.
-
-**Vorgehen beim nächsten Mal:** einer nach dem anderen, `go build ./...`,
-`go vet ./...` und `go test ./...` dazwischen. Der Konflikt in `go.mod` ist
-der Normalfall, sobald zwei PRs von derselben Fassung ausgehen — beide
-Anhebungen behalten, `go mod tidy`, fertig.
-
-Bei `modernc.org/sqlite` zusätzlich ein Lauf gegen eine echte Datenbankdatei;
-das ist der eine Baustein, bei dem ein stiller Unterschied teuer wäre. Binär
-bauen, gegen ein leeres Datenverzeichnis starten und nachsehen, ob alle
-Wanderungen durchlaufen und die Pragmas stehen:
-
-```
-HOLZCLOUD_DATA_DIR=/tmp/dbtest HOLZCLOUD_PORT=18099 ./holzcloud
-```
-
-Erwartet: `journal_mode=wal`, `busy_timeout=5000`, `foreign_keys=1`,
-`synchronous=1`, dazu `PRAGMA foreign_key_check` ohne Zeile und
-`PRAGMA integrity_check` gleich `ok`. Bei 1.57.0 geprüft: 44 Wanderungen,
-48 Tabellen, alles sauber.
-
 ---
 
 ## Was bewusst nicht gebaut wird
@@ -137,7 +112,7 @@ Damit es nicht wiederkommt:
 
 ## Beim Weiterarbeiten
 
-- **Migrationen** laufen bis `00044`. Eine neue Wanderung, die eine bestehende
+- **Migrationen** laufen bis `00045`. Eine neue Wanderung, die eine bestehende
   Tabelle ändert, zuerst gegen `internal/db/migrations/00029` und `00031` lesen:
   eine CHECK-Bedingung am Tabellenkopf lässt sich in SQLite nur mit einem
   vollständigen Neubau lockern, und `pages` hat Fremdschlüsselkinder. Ein
@@ -146,6 +121,23 @@ Damit es nicht wiederkommt:
 - **Nach jeder Änderung an Texten:** `go run ./tools/i18n` zeigt, was in den
   fünf Sprachen fehlt, `-write` legt die Schlüssel an, `-schweiz` baut
   `de-CH.json` neu. Der Lauf muss „0 offen, 0 verwaist" sagen.
+- **Dependabot-Anhebungen:** einer nach dem anderen, `go build ./...`,
+  `go vet ./...` und `go test ./...` dazwischen. Der Konflikt in `go.mod` ist
+  der Normalfall, sobald zwei PRs von derselben Fassung ausgehen — beide
+  Anhebungen behalten, `go mod tidy`, fertig.
+
+  Bei `modernc.org/sqlite` zusätzlich ein Lauf gegen eine echte Datenbankdatei;
+  das ist der eine Baustein, bei dem ein stiller Unterschied teuer wäre. Binär
+  bauen, gegen ein leeres Datenverzeichnis starten und nachsehen, ob alle
+  Wanderungen durchlaufen und die Pragmas stehen:
+
+  ```
+  HOLZCLOUD_DATA_DIR=/tmp/dbtest HOLZCLOUD_PORT=18099 ./holzcloud
+  ```
+
+  Erwartet: `journal_mode=wal`, `busy_timeout=5000`, `foreign_keys=1`,
+  `synchronous=1`, dazu `PRAGMA foreign_key_check` ohne Zeile und
+  `PRAGMA integrity_check` gleich `ok`. Bei 1.57.0 geprüft: 44 Wanderungen, 48 Tabellen, alles sauber.
 - **Geprüft wird im Browser.** Die Fehler dieser Woche — ein Beitrag, der beim
   Bildeinfügen zur Seite wurde; Bausteine, die im Bündel fehlten; Menüs, die
   beim Import zusammenstiessen — hat keiner der Tests gefunden, sondern ein
