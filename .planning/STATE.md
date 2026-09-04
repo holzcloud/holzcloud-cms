@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
 status: planning
-last_updated: "2026-09-03T20:19:50.109Z"
-last_activity: 2026-09-03
+last_updated: "2026-09-04T00:00:00.000Z"
+last_activity: 2026-09-04
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,14 +25,48 @@ progress:
 
 ### Current Position
 
-Phase: Not started (defining requirements)
+Phase: 6 — Aufräumen (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-09-03 — Milestone v1.6 started
+Status: Roadmap written; Phase 6 not yet discussed or planned
+Last activity: 2026-09-04 — v1.6 roadmap created (Phases 6–10, 41/41 requirements mapped)
 
 ### Milestone Map
 
-(filled in when the roadmap is created)
+**v1.6 — Inhaltsmodell und Zugang.** Phases 6–10. Numbering continues from v1.0
+and never restarts; the five v1.0 phase directories are archived under
+`.planning/milestones/v1.0-phases/`. There is no v1.5 milestone shell — its three
+phases were renumbered into this one as 7, 8 and 9.
+
+| Phase | Name | Requirements | Count | Status |
+|-------|------|--------------|-------|--------|
+| 6 | Aufräumen | MAINT-01…05 | 5 | Not started |
+| 7 | Field Kinds | FIELD-01…08 | 8 | Not started |
+| 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
+| 9 | CSV Import | IMP-01…10 | 10 | Not started |
+| 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started |
+
+**Execution order: 6 → 7 → (8 ∥ 9) → 10.** The one real dependency inside the
+milestone is that Phase 9 needs Phase 7's multi-value encoding (Phase 7's build
+step ①). Once that lands, Phases 8 and 9 are independent of each other and may
+run in parallel. Phase 10's file set is disjoint from every other phase's and
+can move anywhere; it is scheduled last because it carries the milestone's
+close-out gate.
+
+**UI phases:** 7, 8 and 9 all involve admin screen work. Phase 9's mapping and
+dry-run screens are the largest UI surface in the milestone. Phases 6 and 10 are
+not UI phases.
+
+**Research flags:** Phase 7 wants a UI-SPEC for `bereich` alone (the
+invisible-slider problem has three candidate answers and the choice is a design
+question). Phase 9's dry-run report screen is a real information-design problem.
+Phase 10 wants `/gsd-discuss-phase` for the whole phase — not for lack of
+research but because every remaining question there is a policy decision.
+Phases 6 and 8 follow standard patterns.
+
+**Migration numbers claimed:** Phase 7 takes `00046`, Phase 8 takes `00047`.
+Phases 6, 9 and 10 need none.
+
+Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 
 ### Performance / Quality Notes
 
@@ -41,7 +75,7 @@ Last activity: 2026-09-03 — Milestone v1.6 started
 - Target: linux/amd64 single binary (retargeted from arm64/Pi on 2026-09-03)
 - Go patterns: 1.22+ stdlib ServeMux, slog structured logging, embed.FS for all assets/templates/migrations
 - SQLite: dual-pool (write pool MaxOpenConns=1, read pool higher), WAL + busy_timeout=5000 + foreign_keys=ON on every connection
-- Migrations stand at 00045 (`00045_pages_locale_unique.sql`); v1.6's first new migration is 00046
+- Migrations stand at 00045 (`00045_pages_locale_unique.sql`); Phase 7 takes 00046 (`darstellung`, `max_werte`, `bereich` bounds), Phase 8 takes 00047 (`snippet_id` + index swap + `snippets.fields`). Phases 6, 9 and 10 need none
 
 ### Accumulated Context
 
@@ -57,6 +91,10 @@ Last activity: 2026-09-03 — Milestone v1.6 started
 - v1.6: 5-phase coarse roadmap, Aufräumen → Field Kinds → Snippets Carry Fields → CSV Import → Authentik Forward-Auth. The middle three follow the milestone goal as PROJECT.md states it: every field kind, in every carrier, then content as a table
 - v1.6: QUAL-01 (five languages) and QUAL-02 (browser pass) are standing gates, not deliverables. Counted once in the last phase for traceability; repeated verbatim as the final success criterion of every other phase so no phase can close without them
 - v1.6: snippet fields reuse `page_field_defs` with a `snippet_id` column — explicitly not a third field table
+- v1.6: `darstellung`, `max_werte` and the `bereich` bounds get their own columns rather than riding in `auswahl` — a line that is not an option is exactly the ambiguity the one-value-per-line encoding was careful to avoid. Phase 7 therefore ships a migration
+- v1.6: a multi-valued field is stored one value per line in the existing string slot, and crosses a CSV cell as a pipe. The delimiter is already illegal inside a value because `SplitChoices` reads options one per line — correct for closed vocabularies, which is all v1.6 has
+- v1.6: an Authentik session satisfies the second factor unconditionally (operator's decision, 2026-09-03). One home: `auth.MustHaveSecondFactor` at `internal/auth/twofactor.go:44`. The dependency must be stated in DEPLOY.md and shown in the admin
+- v1.6: the CSV import offers both an existing website and a new one, chosen on screen 1 (operator's decision, 2026-09-03) — a deliberate departure from `wordpress.go`'s always-a-new-website rule, answered by the update-or-skip choice plus the dry run
 - README's `## License` said MIT while LICENSE carries the full GNU AGPL-3.0; corrected to AGPL-3.0 with a link to LICENSE. A documentation-defect fix, not a relicensing — revert commit d089e3d if MIT was ever the intent
 - CHANGELOG.md follows the Keep a Changelog skeleton but writes entries as full sentences, matching the register of SECURITY.md and CONTRIBUTING.md; the choice is stated at the top of the file so the next entry does not revert to bullets
 - The public record begins at v1.4 and no pre-1.4 releases are invented. README, CONTRIBUTING and CHANGELOG all say development happened in a private repository first; none of them names that repository or its visibility
@@ -64,8 +102,8 @@ Last activity: 2026-09-03 — Milestone v1.6 started
 #### Known Risks
 
 - FIELD-02 (multiple choice) is the first field value that is not a single string. The encoding chosen in Phase 7 is load-bearing for Phase 9's importer — decide it before either phase writes code
-- A CHECK constraint at the table head cannot be loosened in SQLite without a full table rebuild, and `pages` has foreign-key children. Read `internal/db/migrations/00029` and `00031` before altering an existing table. (`page_field_defs.art` carries no CHECK, so new field kinds need no migration at all)
-- Phase 8's `snippet_id` column collides with the partial unique index `idx_page_field_defs_kennung_oben` on `(website_id, kennung) WHERE parent_id IS NULL` — an index swap, not a rebuild
+- A CHECK constraint at the table head cannot be loosened in SQLite without a full table rebuild, and `pages` has foreign-key children. `page_field_defs.art` carries no CHECK, so a new field *kind* needs no migration — but Phase 7 ships 00046 anyway, because `darstellung`, `max_werte` and the `bereich` bounds were given their own columns rather than being squeezed into `auswahl`. `users.role` DOES carry a table-level CHECK at `00001:7`: Phase 10 must not invent a third role
+- Phase 8's `snippet_id` column collides with the partial unique index `idx_page_field_defs_kennung_oben` — an index swap, not a rebuild. **That index was already replaced by `00038:52–56`, not left as `00029` wrote it.** Read 00029 AND 00038 before writing 00047; 00038 is a line-for-line template and its own comment explains the operation
 - No JavaScript beyond htmx: the button row, the multiple choice and the slider must all work as plain form controls with a full-page fallback
 - Every new user-visible string must land in de/en/es/fr/it; `go run ./tools/i18n` must say `0 offen, 0 verwaist`
 - Draft page leakage: always include AND status='published' in every public page query — applies to a Term or Ref field resolving on the public site too
@@ -74,7 +112,10 @@ Last activity: 2026-09-03 — Milestone v1.6 started
 
 #### Todos
 
-- (none open — v1.6 requirements and roadmap are being written)
+- Phase 6 re-aiming is already done and must not be re-discovered: the i18n catalogues already match the tool's output (verified twice, quick task `260903-bsk`, `.planning/WINDOWS.md`), and all five `plugin.wasm` files are committed with all five tests passing. The defects are the doc comment at `tools/i18n/main.go:287`, the undocumented fact that `fr-CH.json`/`it-CH.json` are never written, and CI never rebuilding the wasm files
+- Phase 6 ordering: rebuild-and-hash-compare in CI first, promote the test skips second. Any catalogue reformat is its own commit, proven with a `jq -S` semantic diff
+- Phase 8 must edit `internal/field/store.go:53` first — the missing `AND snippet_id IS NULL` puts every snippet field on every page's edit form, silently
+- Phase 10 must gate on the existing `web.ClientIPResolver.IsTrustedPeer` (`internal/web/clientip.go:49–52`), not a second peer check; the middleware goes in at `cmd/holzcloud/main.go:968` between `setupGuard` and `requireAuth`
 
 #### Blockers
 
@@ -123,6 +164,6 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-discuss-phase 6`
 
-**Last session:** 2026-09-03
-**Stopped at:** Meilenstein v1.6 begonnen — PROJECT.md und STATE.md umgestellt, Anforderungen und Roadmap folgen
+**Last session:** 2026-09-04
+**Stopped at:** v1.6-Roadmap geschrieben — Phasen 6–10, 41 von 41 Anforderungen zugeordnet, Standing Gates auf fünf Phasen aktualisiert
 **Resume file:** None
