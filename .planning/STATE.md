@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-09-04T11:15:35.000Z"
+stopped_at: Completed 06-05-PLAN.md
+last_updated: "2026-09-04T11:35:00.000Z"
 last_activity: 2026-09-04
-state_head: 6a5bc2f1d378e928784b4fa26100c5662ad9a4fb
+state_head: 6964c8a
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 6 — Aufräumen (in progress, 4 / 7 plans complete)
-Plan: 06-02 complete — Welle 2 ist fertig: `tools/wasm -print-hashes` baut die sechs Wasm-Module reproduzierbar, und D-05 ist gemessen statt zitiert (PASS, Lauf 33866318077). Welle 3 (06-05) ist frei
+Phase: 6 — Aufräumen (in progress, 5 / 7 plans complete)
+Plan: 06-05 complete — `tools/wasm` ist fertig: vier Modi (schreiben, `-check`, `-print-hashes`, `-out`), bestimmt gepackte Archive und zehn abgedeckte Artefakte. `-check` meldet alle zehn als veraltet, was der richtige Stand vor dem Neubau ist. 06-06 (Neubau + CI) ist frei
 Status: Executing Phase 6
 Last activity: 2026-09-04
 
@@ -43,7 +43,7 @@ phases were renumbered into this one as 7, 8 and 9.
 
 | Phase | Name | Requirements | Count | Status |
 |-------|------|--------------|-------|--------|
-| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (4/7 plans) |
+| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (5/7 plans) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Not started |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
@@ -162,6 +162,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 06 P03 | 8 min | 3 tasks | 2 files |
 | Phase 06 P04 | 27 min | 3 tasks | 11 files |
 | Phase 06 P02 | 13 min | 2 tasks | 2 files |
+| Phase 06 P05 | 21 min | 3 tasks | 4 files |
 
 ### Session Continuity
 
@@ -172,8 +173,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-discuss-phase 6`
 
-**Last session:** 2026-09-04T11:15:35.000Z
-**Stopped at:** Completed 06-02-PLAN.md
+**Last session:** 2026-09-04T11:35:00.000Z
+**Stopped at:** Completed 06-05-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -183,6 +184,10 @@ Next command: `/gsd-discuss-phase 6`
 - [Phase 6]: 06-03: the round-trip test locks the FORMAT, not the key set — a cleanly deleted key still round-trips. The guard for a deleted key is the -write + git diff pair that 06-06 installs as CI (D-15)
 - [Phase 6]: 06-03: a lock test on already-canonical behaviour cannot fail before the implementation exists, so the RED gate was proven by corrupting a real catalogue (reindent, stripped newline) instead of by absence
 - [Phase 6]: Phase 6: MAINT-03 and success criterion 3 cover all six committed .wasm modules including internal/plugin/testdata/echo.wasm, and the four .zip archives are repacked by the same tool (D-07, D-23)
+- [Phase 6]: 06-05: all four tools/wasm modes work from one in-memory artifact set, so -check compares byte for byte what the write mode would install — the modes cannot drift apart
+- [Phase 6]: 06-05: the archives are Deflate with a fixed 1980-01-01 Modified stamp; two runs are byte-identical, and the residual dependency is compress/flate in the toolchain running the tool, not the pinned guest compiler
+- [Phase 6]: 06-05: the go.mod floor that 06-02 flagged is now a startup guard (bodenPruefen) — goToolchain below go.mod's go directive refuses with one sentence naming both, instead of letting echo alone fail deep inside a build
+- [Phase 6]: 06-05: `go run` collapses any non-zero exit to 1, so the tool's exit 2 for a usage error is only visible to a compiled binary. CI must treat non-zero as the signal, not the specific code
 - [Phase 6]: Phase 6: MAINT-05 and success criterion 5 cover all seven codebase maps and point at 06-RESEARCH.md MAINT-05 Correction Inventory instead of naming a count that can itself go stale (D-18, D-19)
 - [Phase 6]: Phase 6: the wasm build is tools/wasm, a Go command run as 'go run ./tools/wasm' (D-06); GOTOOLCHAIN is pinned inside the tool with a floor at the root go.mod go directive (D-03, D-03a); -buildvcs=false is mandatory in all four documented invocations (D-02a)
 - [Phase 06]: Corrections to the codebase maps are derived by re-running each proof command against current HEAD, never copied from a research document measured at an older commit
