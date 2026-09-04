@@ -139,7 +139,14 @@ type artefakt struct {
 // exec package rather than of the child, and a Go program reading its own
 // environment keeps the *first* mention of a key. Filtering removes the
 // dependence on which of the two rules happens to apply.
-var gesteuert = []string{"GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN", "GOFLAGS", "GOEXPERIMENT"}
+// GOWASM and GOFIPS140 are on the list because they change the produced bytes
+// with identical source and an identical pinned compiler. GOWASM is the acute
+// one — every target here is a wasm build, so it is the knob most likely to be
+// set for an unrelated reason and least likely to be suspected afterwards.
+var gesteuert = []string{
+	"GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN", "GOENV",
+	"GOFLAGS", "GOEXPERIMENT", "GOWASM", "GOFIPS140",
+}
 
 func main() {
 	root := flag.String("root", ".", "repository root")
@@ -495,11 +502,20 @@ func bauen(root string, z ziel, nach string) error {
 		"GOARCH=wasm",
 		"CGO_ENABLED=0",
 		"GOTOOLCHAIN="+goToolchain,
+		// GOENV=off first, because everything below it depends on it. Setting a
+		// variable to the empty string does NOT neutralise it: cmd/go falls back
+		// to the go/env file whenever the process value is empty, so a
+		// `go env -w GOFLAGS=-tags=zzz` run once, months ago, would still reach
+		// this build and change its bytes. Only switching the env file off makes
+		// the emptying below mean what it says.
+		"GOENV=off",
 		// Emptied rather than inherited: a GOFLAGS or GOEXPERIMENT in a
 		// contributor's shell changes the produced bytes, and a comparison that
 		// depends on somebody's dotfiles compares nothing.
 		"GOFLAGS=",
 		"GOEXPERIMENT=",
+		"GOWASM=",
+		"GOFIPS140=",
 	)
 	// A compile error is the most useful thing this tool ever prints. Pass it
 	// straight through instead of swallowing it into an error string.
