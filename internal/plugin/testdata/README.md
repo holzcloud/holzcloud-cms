@@ -4,8 +4,14 @@
 
 ```sh
 cd internal/plugin/testdata/echo
-GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -ldflags="-s -w" -o ../echo.wasm .
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" -o ../echo.wasm .
 ```
+
+`go run ./tools/wasm echo` baut dasselbe Modul mit der festgelegten Go-Fassung
+und legt es an dieselbe Stelle — der Weg, der ohne Nachdenken die Bytes ergibt,
+die die Prüfstrecke erwartet. `-buildvcs=false` ist dabei Bedingung und nicht
+Geschmack: ohne die Angabe trägt das Modul den Git-Stand des Augenblicks, und
+ein Bau an einem anderen Commit ergibt andere Bytes.
 
 Es liegt gebaut hier, obwohl es drei Megabyte sind, weil ein Test, der erst
 einen Compiler-Lauf braucht, irgendwann übersprungen wird — und ein
