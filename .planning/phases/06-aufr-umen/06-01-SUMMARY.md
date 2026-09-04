@@ -21,7 +21,7 @@ affects: [06-02, 06-03, 06-04, 06-05, 06-06, 06-07, phase-07, phase-08, phase-09
 actuals:
   tokens: 2000
   tasks: 1
-  commits: 1
+  commits: 3
 
 tech-stack:
   added: []
@@ -149,7 +149,8 @@ The one judgement call above (avoiding the literal `plugins/build.sh` in the rep
 
 ## Issues Encountered
 
-None.
+- **`state.advance-plan` and `state.update-progress` could not run against this project's `STATE.md`.** They returned `Cannot parse Current Plan or Total Plans in Phase from STATE.md` and `Progress field not found in STATE.md` respectively: this `STATE.md` writes its position as a prose `### Current Position` block and keeps its counters in the YAML frontmatter, not in the `Current Plan` / `Total Plans` / `Progress` fields those two handlers look for. Pre-existing shape, not introduced here. Worked around by editing the `### Current Position` block and the Milestone Map row for Phase 6 directly; `state.record-metric`, `state.record-session`, `state.add-decision` and `roadmap.update-plan-progress` all ran normally, and the frontmatter's `completed_plans` advanced to 1 on its own.
+- **No requirement was marked complete, by design.** `requirements.ready-ids` reported `0/2` — MAINT-03 is also declared by `06-02`, `06-05` and `06-06`, and MAINT-05 by `06-04` and `06-07`, none of which have run. This plan amended the text of both requirements; it did not deliver either. They flip to Complete when the last declaring plan finishes.
 
 ## Threat Flags
 
