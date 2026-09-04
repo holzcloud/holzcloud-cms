@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
 status: executing
-stopped_at: Completed 06-05-PLAN.md
-last_updated: "2026-09-04T11:35:00.000Z"
+stopped_at: Completed 06-06-PLAN.md
+last_updated: "2026-09-04T11:37:00.000Z"
 last_activity: 2026-09-04
-state_head: 6964c8a
+state_head: 412f354
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 6 — Aufräumen (in progress, 5 / 7 plans complete)
-Plan: 06-05 complete — `tools/wasm` ist fertig: vier Modi (schreiben, `-check`, `-print-hashes`, `-out`), bestimmt gepackte Archive und zehn abgedeckte Artefakte. `-check` meldet alle zehn als veraltet, was der richtige Stand vor dem Neubau ist. 06-06 (Neubau + CI) ist frei
+Phase: 6 — Aufräumen (in progress, 6 / 7 plans complete)
+Plan: 06-06 complete — der Nullpunkt steht: alle zehn Artefakte einmalig mit `go1.26.6` neu gebaut, ohne VCS-Stempel, in einem Commit, der nichts als die zehn Dateien enthält. `go run ./tools/wasm -check` ist grün und läuft ab jetzt in CI nach `Vet` und vor `Build`, also vor jedem Test; daneben der Katalogschritt (`-write`, `-schweiz`, leerer Diff). Der vorübergehende Hash-Schritt aus 06-02 ist weg. 06-07 (Skips befördern, Dokumente nachziehen) ist frei
 Status: Executing Phase 6
 Last activity: 2026-09-04
 
@@ -43,7 +43,7 @@ phases were renumbered into this one as 7, 8 and 9.
 
 | Phase | Name | Requirements | Count | Status |
 |-------|------|--------------|-------|--------|
-| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (5/7 plans) |
+| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (6/7 plans) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Not started |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
