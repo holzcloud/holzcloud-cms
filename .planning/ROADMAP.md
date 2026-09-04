@@ -105,7 +105,7 @@ The gate's verbatim wording, identical in Phases 6 through 9:
   5. The stale notes read true against the working tree: `docs/offene-punkte.md` names migration `00045` and no longer lists the finished Dependabot item as work, all three `deferred-items.md` entries read as closed, and the drifted facts and file references across all seven codebase maps in `.planning/codebase/` match what the code actually does — the complete line-referenced list is `06-RESEARCH.md` §"MAINT-05 Correction Inventory".
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
 
-**Plans**: 1/7 plans executed, in 5 waves. `06-01` is a strict predecessor of all six others, so D-01's "before any code is touched" is carried by the wave graph, not only by prose. Wave 2 runs `06-02` ∥ `06-03` ∥ `06-04`.
+**Plans**: 2/7 plans executed, in 5 waves. `06-01` is a strict predecessor of all six others, so D-01's "before any code is touched" is carried by the wave graph, not only by prose. Wave 2 runs `06-02` ∥ `06-03` ∥ `06-04`.
 **Wave 1**
 
 - [x] 06-01-PLAN.md — Ground truth first (D-01): amend REQUIREMENTS.md and ROADMAP.md in one docs-only commit, before any code
@@ -113,7 +113,7 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [ ] 06-02-PLAN.md — The tracer: `tools/wasm -print-hashes` end to end, plus the one-CI-run cross-host falsification gate that settles D-05
-- [ ] 06-03-PLAN.md — `tools/i18n` writes through `encoding/json`, a round-trip test over all seven catalogues locks the format, and the tool states which regional files it never writes
+- [x] 06-03-PLAN.md — `tools/i18n` writes through `encoding/json`, a round-trip test over all seven catalogues locks the format, and the tool states which regional files it never writes
 - [ ] 06-04-PLAN.md — The stale notes that predate this phase: seven codebase maps corrected surgically, the finished Dependabot item retired, three `deferred-items.md` stamped closed
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -294,7 +294,7 @@ file set is disjoint from every other phase's and can move anywhere.
 | 3. Multi-Site + Pages + Public Rendering | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 4. Templates + Menus + Media | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 5. Admin Polish + Users + Deployment | v1.0 | 3/3 | Complete | 2026-04-14 |
-| 6. Aufräumen | v1.6 | 1/7 | In Progress|  |
+| 6. Aufräumen | v1.6 | 2/7 | In Progress|  |
 | 7. Field Kinds | v1.6 | 0/TBD | Not started | - |
 | 8. Snippets Carry Fields | v1.6 | 0/TBD | Not started | - |
 | 9. CSV Import | v1.6 | 0/TBD | Not started | - |
