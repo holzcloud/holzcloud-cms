@@ -188,11 +188,20 @@ answer if it fails.
   per-regional-file report line at `main.go:113`, which crosses the screen on
   every run.
 
-  > **D-17a — CORRECTION FROM RESEARCH.** The indentation claim MAINT-02 asks to
-  > remove is at **`tools/i18n/main.go:288`** (the `writeCatalog` doc comment,
-  > "writes the file sorted and indented"), not in the package doc at `:1–15`,
-  > which makes no such claim. The roadmap's own pointer at `main.go:287` lands
-  > inside `quote()`. D-01 corrects that pointer along with the rest.
+  > **D-17a — WITHDRAWN. The correction was itself wrong; the original is right.**
+  > Research reported that the indentation claim sits at `:288` and that the
+  > roadmap's `main.go:287` pointer "lands inside `quote()`". Both halves are
+  > false against this tree, and the planner caught it. Verified directly:
+  > `grep -n 'sorted and indented' tools/i18n/main.go` → **287**;
+  > `func quote` → 277; `func writeCatalog` → 289. So `quote()` spans 277–285
+  > and the claim is on 287, exactly where the roadmap already points.
+  >
+  > **What stands:** the claim MAINT-02 asks to remove is the `writeCatalog`
+  > doc comment ("writes the file sorted and indented"), *not* the package doc
+  > at `:1–15`, which makes no indentation claim at all. That half of the
+  > research finding is correct and useful. The line number needs no change —
+  > D-01 must not "correct" it. `06-01` Task 1 has the executor grep and write
+  > what the grep reports, so a future drift is caught rather than assumed.
 
 ### Stale notes (MAINT-05)
 
