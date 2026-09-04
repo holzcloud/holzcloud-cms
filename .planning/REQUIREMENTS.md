@@ -113,8 +113,8 @@ they are written here as they actually stand.
 - [x] **MAINT-01**: `tools/i18n` writes its catalogues through the standard library, and a round-trip test locks the format so a hand-translation pass cannot reintroduce drift. The committed catalogue files do not change — verified byte for byte, not assumed.
 - [x] **MAINT-02**: `fr-CH.json` and `it-CH.json` are never written by the tool, only read. That is deliberate, but it is documented nowhere a person would look. Either the tool writes them or the tool says plainly that they are maintained by hand — and whichever it is, `tools/i18n`'s own doc comment stops claiming its output is indented.
 - [x] **MAINT-03**: CI rebuilds all six committed WebAssembly modules — the five `plugin.wasm` files under `plugins/` plus `internal/plugin/testdata/echo.wasm` — and compares each result against the committed file, so a change to the SDK, or to the host calling convention `echo.wasm` exists to witness, can no longer be validated against a stale binary. The rule is the memorable one: no committed `.wasm` in this repository may go stale unchecked.
-- [ ] **MAINT-04**: The five tests that today skip themselves when a `plugin.wasm` is absent fail loudly in CI and stay forgiving on a contributor's machine, with a message that says how to build the missing file. In that order — the rebuild first, the promotion second.
-- [ ] **MAINT-05**: The planning and repository notes that have gone stale are corrected: `docs/offene-punkte.md` says migrations run to `00044` (they run to `00045`) and still lists the finished Dependabot item as work; all three `deferred-items.md` read as open although all three are closed; all **seven** codebase maps in `.planning/codebase/` carry an `Analysis Date` of 2026-08-22 and have drifted with the tree — countable facts and file references alike, with the same wrong numbers copied across several maps, and `INTEGRATIONS.md` still documenting a Kubernetes directory, a deployment workflow and an arm64 cross-compile job that no longer exist. The complete line-referenced checklist is `06-RESEARCH.md` §"MAINT-05 Correction Inventory"; the corrections are surgical and in place, and no map is ever regenerated.
+- [x] **MAINT-04**: The five tests that today skip themselves when a `plugin.wasm` is absent fail loudly in CI and stay forgiving on a contributor's machine, with a message that says how to build the missing file. In that order — the rebuild first, the promotion second.
+- [x] **MAINT-05**: The planning and repository notes that have gone stale are corrected: `docs/offene-punkte.md` says migrations run to `00044` (they run to `00045`) and still lists the finished Dependabot item as work; all three `deferred-items.md` read as open although all three are closed; all **seven** codebase maps in `.planning/codebase/` carry an `Analysis Date` of 2026-08-22 and have drifted with the tree — countable facts and file references alike, with the same wrong numbers copied across several maps, and `INTEGRATIONS.md` still documenting a Kubernetes directory, a deployment workflow and an arm64 cross-compile job that no longer exist. The complete line-referenced checklist is `06-RESEARCH.md` §"MAINT-05 Correction Inventory"; the corrections are surgical and in place, and no map is ever regenerated.
 
 ### Field kinds
 
@@ -220,8 +220,8 @@ v1.6 phases continue the numbering at 6.
 | MAINT-01 | Phase 6 | Complete |
 | MAINT-02 | Phase 6 | Complete |
 | MAINT-03 | Phase 6 | Complete |
-| MAINT-04 | Phase 6 | Pending |
-| MAINT-05 | Phase 6 | Pending |
+| MAINT-04 | Phase 6 | Complete |
+| MAINT-05 | Phase 6 | Complete |
 | FIELD-01 | Phase 7 | Pending |
 | FIELD-02 | Phase 7 | Pending |
 | FIELD-03 | Phase 7 | Pending |
