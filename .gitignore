@@ -48,13 +48,6 @@ plugins/*/jahreszahl
 plugins/*/suche
 plugins/*/nicht-gefunden
 
-# Das gepackte Kontaktformular, 1,3 MB Bauergebnis neben seinem eigenen
-# Quelltext. Vorerst nur dieses eine Archiv: bestellung.zip, jahreszahl.zip,
-# nicht-gefunden.zip und suche.zip bleiben weiterhin im Repository. Die
-# Ungleichheit ist Absicht und kein Versehen — ob die gebauten Archive
-# überhaupt mitgeliefert werden sollen, ist eine noch offene Frage.
-plugins/kontaktformular/kontaktformular.zip
-
 # Artefakte der Browser-Prüfung
 .playwright-mcp/
 
