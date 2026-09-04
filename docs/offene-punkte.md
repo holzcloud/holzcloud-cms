@@ -138,6 +138,21 @@ Damit es nicht wiederkommt:
   Erwartet: `journal_mode=wal`, `busy_timeout=5000`, `foreign_keys=1`,
   `synchronous=1`, dazu `PRAGMA foreign_key_check` ohne Zeile und
   `PRAGMA integrity_check` gleich `ok`. Bei 1.57.0 geprüft: 44 Wanderungen, 48 Tabellen, alles sauber.
+- **Beim Anheben der Go-Fassung:** die sechs Gastmodule baut
+  `go run ./tools/wasm`, und das Werkzeug schreibt die Werkzeugkette selbst fest
+  — `goToolchain` als Konstante in `tools/wasm/main.go`, die beim Bau als
+  `GOTOOLCHAIN` gesetzt wird, damit ein Lauf hier dieselben Bytes ergibt wie
+  einer auf dem Läufer. Diese Festschreibung hat
+  einen Boden: sie darf nie unter der `go`-Vorgabe im Wurzel-`go.mod` liegen.
+  Das Testgast `internal/plugin/testdata/echo` liegt im Wurzelmodul und kann
+  keine eigene `toolchain`-Zeile tragen, und das go-Kommando weigert sich, ein
+  Modul zu laden, das eine neuere Fassung verlangt als die laufende Kette.
+  Eine Anhebung von `go 1.26.6` heisst deshalb: Festschreibung mit anheben,
+  alle sechs Gäste neu bauen — und der Neubau gehört in einen eigenen Commit,
+  der nichts als die Bauartefakte enthält, sonst begräbt er die eigentliche
+  Änderung und `git log -S` findet sie nicht mehr. Ohne diesen Absatz merkt es
+  erst, wer die nächste Anhebung zusammenführt und alle sechs Ziele auf einmal
+  rot werden sieht.
 - **Geprüft wird im Browser.** Die Fehler dieser Woche — ein Beitrag, der beim
   Bildeinfügen zur Seite wurde; Bausteine, die im Bündel fehlten; Menüs, die
   beim Import zusammenstiessen — hat keiner der Tests gefunden, sondern ein

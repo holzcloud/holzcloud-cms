@@ -20,7 +20,7 @@ Holzcloud_CMS/
 ├── sdk/                      # Public Go SDK for writing WASM plugins (own go.mod)
 ├── plugins/                  # First-party plugins, each its own module + .wasm
 ├── sites/                    # Example site bundles (holzcloud.json + media/)
-├── tools/                    # Build-time helpers (i18n extraction, mkbundle)
+├── tools/                    # Build-time helpers (i18n extraction, mkbundle, wasm guest builds)
 ├── deploy/                   # systemd units, backup/restore scripts, Caddyfile example
 ├── build/                    # Dev seed program and prebuilt example bundles
 ├── docs/                     # Working notes
@@ -150,7 +150,7 @@ Holzcloud_CMS/
 **`data/`:** runtime state, generated, not committed (mode 0700).
 **`cmd/holzcloud/assets/` and `cmd/holzcloud/templates/`:** committed, embedded via `//go:embed assets templates` in `cmd/holzcloud/main.go`; vendored third-party files documented in `cmd/holzcloud/assets/VENDOR.md`.
 **`internal/db/migrations/`:** committed, embedded, append-only — never edit an applied migration.
-**`plugins/*/plugin.wasm` and `*.zip`:** committed build artifacts.
+**`plugins/*/plugin.wasm` and `*.zip`:** committed build artifacts, built and verified by `go run ./tools/wasm` (`-check` in CI).
 **`sdk/`, `plugins/*/`:** separate Go modules, excluded from the root module build.
 **`.playwright-mcp/`:** browser-tooling scratch output, not part of the build.
 
