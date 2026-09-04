@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
 status: executing
-stopped_at: Completed 06-06-PLAN.md
-last_updated: "2026-09-04T11:37:00.000Z"
+stopped_at: Completed 06-07-PLAN.md — Phase 6 plans all executed; the browser half of the standing gate is open
+last_updated: "2026-09-04T14:49:18.000Z"
 last_activity: 2026-09-04
-state_head: 412f354
+state_head: d5da6281cbf6141db66862115c8bb4280a38c7b3
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -29,9 +29,10 @@ progress:
 
 ### Current Position
 
-Phase: 6 — Aufräumen (in progress, 6 / 7 plans complete)
-Plan: 06-06 complete — der Nullpunkt steht: alle zehn Artefakte einmalig mit `go1.26.6` neu gebaut, ohne VCS-Stempel, in einem Commit, der nichts als die zehn Dateien enthält. `go run ./tools/wasm -check` ist grün und läuft ab jetzt in CI nach `Vet` und vor `Build`, also vor jedem Test; daneben der Katalogschritt (`-write`, `-schweiz`, leerer Diff). Der vorübergehende Hash-Schritt aus 06-02 ist weg. 06-07 (Skips befördern, Dokumente nachziehen) ist frei
-Status: Executing Phase 6
+Phase: 6 — Aufräumen (7 / 7 Pläne ausgeführt; das stehende Tor ist zur Hälfte offen)
+Plan: 06-07 complete — die fünf Tests, die sich selbst übersprangen, entscheiden das nicht mehr selbst: `internal/plugin/wasmtest` entscheidet es einmal für drei Go-Pakete, und `HOLZCLOUD_TEST_REQUIRE_WASM: "1"` steht auf Ablaufebene in `ci.yml`, `security.yml` und `release.yml` (`image.yml` führt keine Tests aus und bleibt bewusst leer). Die Meldung nennt in beiden Zweigen `go run ./tools/wasm`; der falsche Erfolg wurde vor der Änderung reproduziert (exit 0) und danach gemessen (exit 1, auch bei `true` und `yes`). Vier Dokumentanker nachgezogen, die i18n-Notiz in der ROADMAP stillgelegt statt neu gezeigt
+Status: Phase 6 — Pläne fertig, Abnahme offen
+Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
 Last activity: 2026-09-04
 
 ### Milestone Map
@@ -43,7 +44,7 @@ phases were renumbered into this one as 7, 8 and 9.
 
 | Phase | Name | Requirements | Count | Status |
 |-------|------|--------------|-------|--------|
-| 6 | Aufräumen | MAINT-01…05 | 5 | In Progress (6/7 plans) |
+| 6 | Aufräumen | MAINT-01…05 | 5 | Plans 7/7 — Abnahme offen (Browserhälfte des Tors) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Not started |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
@@ -112,11 +113,12 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 - Every new user-visible string must land in de/en/es/fr/it; `go run ./tools/i18n` must say `0 offen, 0 verwaist`
 - Draft page leakage: always include AND status='published' in every public page query — applies to a Term or Ref field resolving on the public site too
 - Vary: HX-Request header required on any handler returning different content based on HX-Request
+- **The upgrade path from an old installation is broken and no test can see it (found 2026-09-04, own task pending).** Migration `00036_content_types.sql:60-62` builds a partial index on `pages.deleted_at`; the column is added by `00008_revisions_locking_trash.sql:15`. A fresh database migrates 0 → 45 cleanly, but an installation whose recorded version 8 predates an edit to `00008` lacks the column, dies at 36 with `no such column: deleted_at`, and the server refuses to start. goose never re-runs a recorded version and no migration rebuilds `pages`. The fix needs a test that migrates from an old snapshot — a suite that only ever migrates from zero is structurally blind to this. Evidence in `.planning/phases/06-aufr-umen/06-07-SUMMARY.md`
 - The defects this project actually shipped were found in the browser, not by the suite — the QUAL-02 pass is not optional
 
 #### Todos
 
-- Phase 6 re-aiming is already done and must not be re-discovered: the i18n catalogues already match the tool's output (verified twice, quick task `260903-bsk`, `.planning/WINDOWS.md`), and all five `plugin.wasm` files are committed with all five tests passing. The defects are the doc comment at `tools/i18n/main.go:287`, the undocumented fact that `fr-CH.json`/`it-CH.json` are never written, and CI never rebuilding the wasm files
+- Phase 6 is done and none of it must be re-discovered. The i18n catalogues already matched the tool's output (quick task `260903-bsk`, `.planning/WINDOWS.md`); all three former defects are closed — `06-03` deleted the indentation claim from the `writeCatalog` doc comment (do **not** go looking for `tools/i18n/main.go:287`; the line and the claim are both gone, and `06-07` retired the ROADMAP note that pointed at them) and made the tool state which regional catalogues it only reads, and `06-06` made CI rebuild and compare all ten artifacts before any test runs
 - Phase 6 ordering: rebuild-and-hash-compare in CI first, promote the test skips second. Any catalogue reformat is its own commit, proven with a `jq -S` semantic diff
 - Phase 8 must edit `internal/field/store.go:53` first — the missing `AND snippet_id IS NULL` puts every snippet field on every page's edit form, silently
 - Phase 10 must gate on the existing `web.ClientIPResolver.IsTrustedPeer` (`internal/web/clientip.go:49–52`), not a second peer check; the middleware goes in at `cmd/holzcloud/main.go:968` between `setupGuard` and `requireAuth`
@@ -163,6 +165,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 06 P04 | 27 min | 3 tasks | 11 files |
 | Phase 06 P02 | 13 min | 2 tasks | 2 files |
 | Phase 06 P05 | 21 min | 3 tasks | 4 files |
+| Phase 06 P07 | 18 min | 4 tasks | 13 files |
 
 ### Session Continuity
 
@@ -171,10 +174,10 @@ and its *Standing Gates* section. Requirement IDs are in
 `.planning/REQUIREMENTS.md`; the working list most of them came from, with the
 size and location of each item, is `docs/offene-punkte.md`.
 
-Next command: `/gsd-discuss-phase 6`
+Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-04T11:35:00.000Z
-**Stopped at:** Completed 06-05-PLAN.md
+**Last session:** 2026-09-04T11:58:00.000Z
+**Stopped at:** Completed 06-07-PLAN.md — alle sieben Pläne der Phase 6 ausgeführt
 **Resume file:** None
 
 ## Decisions
