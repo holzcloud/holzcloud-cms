@@ -4,17 +4,17 @@ milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
-status: executing
-stopped_at: Completed 06-07-PLAN.md — Phase 6 plans all executed; the browser half of the standing gate is open
-last_updated: "2026-09-04T14:49:18.000Z"
+status: complete
+stopped_at: Phase 6 complete — both halves of the standing gate closed
+last_updated: "2026-09-04T17:11:36.787Z"
 last_activity: 2026-09-04
-state_head: d5da6281cbf6141db66862115c8bb4280a38c7b3
+state_head: 14e07e2d00978374157d48fce389099bb223e67f
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
   completed_plans: 7
-  percent: 0
+  percent: 20
 ---
 
 ## State: Holzcloud CMS
@@ -176,9 +176,9 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-04T11:58:00.000Z
-**Stopped at:** Completed 06-07-PLAN.md — alle sieben Pläne der Phase 6 ausgeführt
-**Resume file:** None
+**Last session:** 2026-09-04T17:11:36.714Z
+**Stopped at:** Phase 6 complete — both halves of the standing gate closed
+**Resume file:** .planning/phases/06-aufr-umen/06-VERIFICATION.md
 
 ## Decisions
 
