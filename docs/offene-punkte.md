@@ -1,6 +1,7 @@
 # Was noch fehlt
 
-Stand: August 2026, nach den eigenen Bausteinarten. Eine Arbeitsliste, keine
+Stand: August 2026, nach den eigenen Bausteinarten; fortgeschrieben im
+September 2026, nach den Feldarten. Eine Arbeitsliste, keine
 Wunschliste: jeder Punkt sagt, **was fehlt**, **wo es hingehört** und **wie
 gross es ist**. Was bewusst nicht gebaut wird, steht ganz unten — damit
 niemand es zweimal vorschlägt.
@@ -13,9 +14,17 @@ Einzelarbeit, keine Bauart.
 
 ---
 
-## 1. Auswahl auch als Knopfreihe und als Mehrfachauswahl
+## 1. Auswahl auch als Knopfreihe und als Mehrfachauswahl — gebaut
 
-**Fehlt:** Die Feldart *Auswahl* (`field.KindChoice`) ist immer eine
+**Gebaut:** September 2026, Phase 7. Beide Hälften stehen. `mehrfachauswahl`
+ist eine eigene Art neben `auswahl` — ein Wert je Zeile im selben String, über
+`field.SplitValues`/`JoinValues`, und die Mehrwertigkeit steht im Formularnamen
+(`feld_<kennung>[]`). Die Knopfreihe ist keine Art, sondern die Darstellung
+`darstellung` auf `auswahl` selbst, samt einem ausdrücklichen Leerknopf und
+einer eigenen Regel `.feld-schalter--knopfreihe`, ohne die jedes abhängige Feld
+darunter still aufgehört hätte zu erscheinen.
+
+**Fehlte:** Die Feldart *Auswahl* (`field.KindChoice`) ist immer eine
 Klappliste. Für drei Möglichkeiten nebeneinander ist das die falsche Form, und
 „mehrere davon" gibt es gar nicht.
 
@@ -33,9 +42,16 @@ sie ist der erste Feldwert, der kein einzelner String ist, also braucht
 festlegt. Vorschlag: eine Zeile je Wert im selben String, wie `SplitChoices`
 die Möglichkeiten schon liest.
 
-## 2. Schlagwörter als Feldart
+## 2. Schlagwörter als Feldart — gebaut
 
-**Fehlt:** Schlagwörter gibt es an jeder Seite (`internal/term`), aber man kann
+**Gebaut:** September 2026, Phase 7. Die Art heisst `schlagwort`, der Wähler
+ist der von `KindRef` abgeschriebene, und aufgelöst wird über einen
+`TermLookup` neben `Links.Page`. Gespeichert wird das Kürzel, gedruckt der
+Name, wie er gerade lautet — eine Umbenennung ändert damit jede Seite, ohne
+dass eine angefasst wird. In einem Baustein ist die Art ausgeschlossen, aus
+genau demselben Grund wie der Verweis.
+
+**Fehlte:** Schlagwörter gibt es an jeder Seite (`internal/term`), aber man kann
 kein Feld „Sorte" anlegen, das aus ihnen wählt.
 
 **Wo:** neue Art `KindTerm` in `internal/field`, ein Chooser wie der von
@@ -80,9 +96,14 @@ Handler gegen einen Ordner laufen lässt.
 Formulare, Suche und geschützte Seiten kann sie nicht. Wenn, dann als
 ausdrücklich abgespeckte Ausgabe.
 
-## 6. Feldtypen, die einzeln fehlen
+## 6. Feldtypen, die einzeln fehlen — gebaut
 
-Klein, jeder für sich eine Stunde, alle in `internal/field`:
+**Gebaut:** September 2026, Phase 7. Alle drei, dazu die Spalten, die sie
+brauchen (Wanderung `00046`). Die Stunde je Art stimmte für das Bauen; die
+zweite Stunde je Art ging an die Verträge — `TEMPLATE-SPEC.md`, `SampleData`,
+`MinimalData` und die Kataloge —, und die war eingeplant.
+
+**Fehlten**, klein, jeder für sich eine Stunde, alle in `internal/field`:
 
 - `zeit` — eine Uhrzeit. Gibt es nur in der Zeitsteuerung.
 - `bereich` — eine Zahl zwischen zwei Grenzen, als begrenztes Zahlenfeld
@@ -120,7 +141,7 @@ Damit es nicht wiederkommt:
 
 ## Beim Weiterarbeiten
 
-- **Migrationen** laufen bis `00045`. Eine neue Wanderung, die eine bestehende
+- **Migrationen** laufen bis `00046`. Eine neue Wanderung, die eine bestehende
   Tabelle ändert, zuerst gegen `internal/db/migrations/00029` und `00031` lesen:
   eine CHECK-Bedingung am Tabellenkopf lässt sich in SQLite nur mit einem
   vollständigen Neubau lockern, und `pages` hat Fremdschlüsselkinder. Ein
