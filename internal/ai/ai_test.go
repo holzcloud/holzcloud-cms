@@ -14,6 +14,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
@@ -401,5 +402,189 @@ func TestJedesWerkzeugHatEinSchema(t *testing.T) {
 				t.Errorf("%s verlangt %q, beschreibt es aber nicht", w.Name, pflicht)
 			}
 		}
+	}
+}
+
+// --- Was ein Assistent über die neuen Feldeigenschaften erfährt -----------
+
+// aufbauMitFeldern ist aufbau, nur mit den eigenen Feldern der Website dabei.
+// Ein Server ohne Fields meldet gar keine Felder — richtig für einen Bau ohne
+// sie, unbrauchbar für diese Prüfungen.
+func aufbauMitFeldern(t *testing.T) (*httptest.Server, *field.Store, int64, string) {
+	t.Helper()
+	database := newTestDB(t)
+
+	domains := domain.NewStore(database)
+	ws, err := domains.CreateWebsite(context.Background(), "Testhof", "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+	tokens := NewStore(database)
+	schreiben, _, err := tokens.Issue(context.Background(), "schreibend", 0, true, 0)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+	fields := field.NewStore(database)
+	srv := NewServer(tokens, "Test", slog.New(slog.DiscardHandler), Tools(Deps{
+		Domains: domains,
+		Pages:   page.NewStore(database),
+		Media:   media.NewStore(database),
+		Fields:  fields,
+	}))
+	ts := httptest.NewServer(srv)
+	t.Cleanup(ts.Close)
+	return ts, fields, ws.ID, schreiben
+}
+
+// feldNamens sucht ein Feld in der Antwort von felder_auflisten.
+func feldNamens(t *testing.T, liste []any, kennung string) map[string]any {
+	t.Helper()
+	for _, roh := range liste {
+		e, _ := roh.(map[string]any)
+		if e["kennung"] == kennung {
+			return e
+		}
+	}
+	t.Fatalf("kein Feld %q in %v", kennung, liste)
+	return nil
+}
+
+// Ein Assistent schreibt in die Felder, die diese Liste beschreibt. Steht die
+// Höchstzahl nicht da, schreibt es drei Werte in ein Feld, das zwei nimmt;
+// steht die Schreibweise nicht da, schreibt es „Mo, Di" in eines, das eine
+// Zeile je Wert erwartet. Beides wird abgelehnt, und der Assistent erfährt
+// den Grund erst danach — die Liste ist die Stelle, an der es vorher steht.
+func TestFelderAuflistenBeschreibtDieNeuenEigenschaften(t *testing.T) {
+	ts, fields, wsID, key := aufbauMitFeldern(t)
+	ctx := context.Background()
+
+	anlegen := func(d field.Def) field.Def {
+		t.Helper()
+		d.WebsiteID = wsID
+		got, err := fields.Create(ctx, d)
+		if err != nil {
+			t.Fatalf("Feld %q anlegen: %v", d.Key, err)
+		}
+		return *got
+	}
+
+	anlegen(field.Def{Key: "sorten", Label: "Sorten", Kind: field.KindMulti,
+		Choices: []string{"Eiche", "Buche", "Esche"}, MaxValues: 2})
+	anlegen(field.Def{Key: "menge", Label: "Menge", Kind: field.KindRange,
+		RangeMin: "1", RangeMax: "10"})
+	anlegen(field.Def{Key: "stil", Label: "Stil", Kind: field.KindChoice,
+		Choices: []string{"hell", "dunkel"}, Display: field.DisplayButtons})
+	anlegen(field.Def{Key: "form", Label: "Form", Kind: field.KindChoice,
+		Choices: []string{"rund", "eckig"}})
+	anlegen(field.Def{Key: "herkunft", Label: "Herkunft", Kind: field.KindText})
+	gruppe := anlegen(field.Def{Key: "zeiten", Label: "Zeiten", Kind: field.KindGroup})
+	anlegen(field.Def{ParentID: gruppe.ID, Key: "tage", Label: "Tage", Kind: field.KindMulti,
+		Choices: []string{"Mo", "Di", "Mi"}, MaxValues: 2})
+	anlegen(field.Def{ParentID: gruppe.ID, Key: "von", Label: "Von", Kind: field.KindRange,
+		RangeMin: "0", RangeMax: "24"})
+
+	res, fehler := werkzeug(t, ts, key, "felder_auflisten", map[string]any{"website": wsID})
+	if fehler {
+		t.Fatalf("felder_auflisten: %v", res["text"])
+	}
+	liste, _ := res["felder"].([]any)
+	if len(liste) == 0 {
+		t.Fatalf("keine Felder gemeldet: %v", res)
+	}
+
+	// Die Höchstzahl steht da, und zwar als Zahl.
+	sorten := feldNamens(t, liste, "sorten")
+	if got, will := sorten["max_werte"], float64(2); got != will {
+		t.Errorf("max_werte = %v (%T), wollte %v", got, got, will)
+	}
+	// Und die eine Zeile, die sagt, wie mehrere Werte geschrieben werden.
+	hinweis, _ := sorten["mehrere_werte"].(string)
+	if hinweis == "" {
+		t.Errorf("das mehrwertige Feld sagt nicht, wie sein Wert geschrieben wird: %v", sorten)
+	}
+
+	// Beide Grenzen, jede für sich.
+	menge := feldNamens(t, liste, "menge")
+	if menge["min_wert"] != "1" || menge["max_wert"] != "10" {
+		t.Errorf("die Grenzen fehlen oder stimmen nicht: %v", menge)
+	}
+
+	// Die Darstellung nur dort, wo sie von der Ausklappliste abweicht, die
+	// jedes bestehende Feld ist.
+	if got := feldNamens(t, liste, "stil")["darstellung"]; got != field.DisplayButtons {
+		t.Errorf("darstellung = %v, wollte %q", got, field.DisplayButtons)
+	}
+	if _, da := feldNamens(t, liste, "form")["darstellung"]; da {
+		t.Error("die Ausklappliste meldet eine Darstellung, obwohl sie die gewöhnliche ist")
+	}
+
+	// Ein gewöhnliches Textfeld trägt nichts davon: eine gemeldete Null läse
+	// sich als „keiner erlaubt", und eine gemeldete leere Grenze als „die
+	// Grenze ist leer".
+	herkunft := feldNamens(t, liste, "herkunft")
+	for _, schluessel := range []string{"darstellung", "max_werte", "min_wert", "max_wert", "mehrere_werte"} {
+		if _, da := herkunft[schluessel]; da {
+			t.Errorf("das Textfeld meldet %q: %v", schluessel, herkunft)
+		}
+	}
+
+	// Und dasselbe eine Ebene tiefer: ein Assistent, der über ein Unterfeld
+	// weniger erfährt, schreibt in genau dieses falsch hinein.
+	unter, _ := feldNamens(t, liste, "zeiten")["unterfelder"].([]any)
+	if len(unter) == 0 {
+		t.Fatalf("die Gruppe meldet keine Unterfelder: %v", feldNamens(t, liste, "zeiten"))
+	}
+	tage := feldNamens(t, unter, "tage")
+	if got, will := tage["max_werte"], float64(2); got != will {
+		t.Errorf("das Unterfeld meldet max_werte = %v, wollte %v", got, will)
+	}
+	if h, _ := tage["mehrere_werte"].(string); h == "" {
+		t.Errorf("das mehrwertige Unterfeld sagt nicht, wie sein Wert geschrieben wird: %v", tage)
+	}
+	von := feldNamens(t, unter, "von")
+	if von["min_wert"] != "0" || von["max_wert"] != "24" {
+		t.Errorf("das Unterfeld meldet die Grenzen nicht: %v", von)
+	}
+}
+
+// Die Rundreise: geschrieben, wie die Notiz es beschreibt, und unverändert
+// zurückgelesen. Das ist die einzige Zusicherung hier, die eine Notiz auffliegen
+// liesse, die eine Schreibweise beschreibt, welche der Schreibweg nicht nimmt.
+func TestMehrwertigesFeldGehtDurchDieWerkzeugeUndZurueck(t *testing.T) {
+	ts, fields, wsID, key := aufbauMitFeldern(t)
+	if _, err := fields.Create(context.Background(), field.Def{
+		WebsiteID: wsID, Key: "sorten", Label: "Sorten", Kind: field.KindMulti,
+		Choices: []string{"Eiche", "Buche", "Esche"}, MaxValues: 2,
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+
+	angelegt, fehler := werkzeug(t, ts, key, "seite_anlegen", map[string]any{
+		"website": wsID, "titel": "Bretter", "markdown": "Text.",
+		"felder": map[string]any{"sorten": "Eiche\nBuche"},
+	})
+	if fehler {
+		t.Fatalf("seite_anlegen: %v", angelegt["text"])
+	}
+	id := int64(angelegt["id"].(float64))
+
+	gelesen, fehler := werkzeug(t, ts, key, "seite_lesen", map[string]any{"id": id})
+	if fehler {
+		t.Fatalf("seite_lesen: %v", gelesen["text"])
+	}
+	felder, _ := gelesen["felder"].(map[string]any)
+	if got, will := felder["sorten"], "Eiche\nBuche"; got != will {
+		t.Errorf("zurückgelesen %q, wollte %q", got, will)
+	}
+
+	// Und die Höchstzahl gilt auch hier: der Schreibweg läuft durch dasselbe
+	// CheckAll wie das Formular, ein Assistent kommt also nicht an einer
+	// Regel vorbei, an die sich eine Person halten muss.
+	zuViel, fehler := werkzeug(t, ts, key, "seite_anlegen", map[string]any{
+		"website": wsID, "titel": "Zu viel", "markdown": "Text.",
+		"felder": map[string]any{"sorten": "Eiche\nBuche\nEsche"},
+	})
+	if !fehler {
+		t.Errorf("drei Werte wurden angenommen, obwohl höchstens zwei erlaubt sind: %v", zuViel)
 	}
 }
