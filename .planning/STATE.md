@@ -6,15 +6,15 @@ current_phase: 6
 current_phase_name: Field Kinds
 status: complete
 stopped_at: Phase 7 context gathered
-last_updated: "2026-09-05T13:33:20.913Z"
+last_updated: "2026-09-05T13:38:12.414Z"
 last_activity: 2026-09-05
-state_head: bfb398faa6c38912f70b9289065d2e227ec54144
+state_head: d03ccb8f2c2c36336aa4153958526b7f93b7399c
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 1
   total_plans: 14
   completed_plans: 7
-  percent: 20
+  percent: 17
 ---
 
 ## State: Holzcloud CMS
@@ -198,3 +198,9 @@ Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist
 - [Phase 06]: A resolved deferred finding is closed by a dated stamp above its text, not by deletion — the reasoning is what a later phase needs
 - [Phase 06]: 06-02: D-05 is PASS — the six wasip1 guests hash identically on darwin/arm64 and ubuntu-latest (run 33866318077, 2026-09-04). The byte comparison can be made blocking; the D-05 fallback (-out plus HOLZCLOUD_WASM_DIR) is not needed and must not be planned for
 - [Phase 06]: 06-02: tools/wasm forces GOTOOLCHAIN on every build subprocess, proven against ambient local/go1.26.7/go1.27.0 — the guest bytes depend on the goToolchain constant alone, not on setup-go or go.mod. The real trap is D-03a floor: bumping go.mod go directive above the pin breaks the echo build loudly, and only echo
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 11 added: Galerie — Vergroessern/Lightbox (:target, kein JS), Album als wiederverwendbares Ding, Diashow via CSS scroll-snap. Haengt an Phase 7 (Mehrwert-Kodierung FIELD-07), nicht an Phase 10. Passt nicht ins v1.6-Meilensteinziel; per Entwicklerentscheid trotzdem hier.
