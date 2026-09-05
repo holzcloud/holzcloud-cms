@@ -1448,7 +1448,17 @@ main:focus { outline: none; }
    Das Galeriebild wird zugeschnitten und füllt seinen Rahmen; die drei
    Bildarten, die NICHT zugeschnitten werden, stehen zusammen weiter
    unten unter „Ein Bild wird in seiner eigenen Grösse gezeigt". */
-.hc-galerie__bild img { border: 1px solid var(--hc-hairline); }
+.hc-galerie__bild img {
+  /* Der Zuschnitt steht jetzt hier, wo der Kommentar darüber ihn ohnehin
+     beschreibt. Er kam bis Fassung 1.7 aus bausteine.css; seit die Galerie
+     dort das Bild in seiner eigenen Form zeigt, muss eine Vorlage, die eine
+     gleichmässige Kachel will, das selbst sagen. Für diese Website ist die
+     Kachel richtig: ihre Galerien mischen Hoch- und Querformat, und ohne sie
+     stünde ein hochkantes Bächlein neben einem breiten Wollschwein. */
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--hc-hairline);
+}
 
 /* Bildunterschrift — gesperrte Versalien statt der Mono-Beschriftung
    aus holzcloud. Die opacity aus bausteine.css wird auf 1
