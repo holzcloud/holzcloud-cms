@@ -444,7 +444,11 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	if data.Errors.Any() {
 		return web.RenderFormError(w, h.templates, r, "page_form", data)
 	}
-	storedFields, err := field.Encode(field.Clean(defs, values.Fields))
+	// Dieselbe Auswahl wie in checkFields eine Zeile darüber. Lief Clean über
+	// die ungefilterten Definitionen, während CheckAll nur die dieser Seitenart
+	// sah, blieb ein Wert, den niemand geprüft hatte, ungeprüft liegen — ein
+	// von Hand gebautes Formular konnte ihn hineinlegen.
+	storedFields, err := field.Encode(field.Clean(field.For(defs, values.KindValue()), values.Fields))
 	if err != nil {
 		return err
 	}
@@ -607,7 +611,11 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	if data.Errors.Any() {
 		return rerender(data)
 	}
-	storedFields, err := field.Encode(field.Clean(defs, values.Fields))
+	// Dieselbe Auswahl wie in checkFields eine Zeile darüber. Lief Clean über
+	// die ungefilterten Definitionen, während CheckAll nur die dieser Seitenart
+	// sah, blieb ein Wert, den niemand geprüft hatte, ungeprüft liegen — ein
+	// von Hand gebautes Formular konnte ihn hineinlegen.
+	storedFields, err := field.Encode(field.Clean(field.For(defs, values.KindValue()), values.Fields))
 	if err != nil {
 		return err
 	}

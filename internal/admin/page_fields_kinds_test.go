@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -295,4 +296,43 @@ func imTag(t *testing.T, body, name string) string {
 		t.Fatalf("das Element um %q ist nicht geschlossen", name)
 	}
 	return body[von : at+bis+1]
+}
+
+// checkFields prüft field.For(defs, Seitenart) — die Felder, die auf dieser
+// Seite überhaupt stehen. field.Clean lief daneben über die ungefilterte
+// Liste. Zwischen den beiden lag ein Loch: ein von Hand gebautes Formular
+// konnte den Wert eines Feldes mitschicken, das nur für Beiträge gilt, und der
+// wurde abgelegt, ohne dass ihn je etwas geprüft hätte. Seit trimTo nichts
+// mehr kürzt (D-13), ohne jede Längengrenze.
+func TestEinFremderFeldwertWirdNichtMitgespeichert(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	fields := field.NewStore(database)
+	if _, err := fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "vorspann", Label: "Vorspann", Kind: field.KindLong,
+		AppliesTo: field.ForPost,
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+
+	// Eine Seite, kein Beitrag — und trotzdem der Wert des Beitragsfeldes,
+	// deutlich über der Bytegrenze.
+	zuLang := strings.Repeat("a", field.MaxValueBytes+50)
+	req := postForm("/admin/websites/1/pages/new", url.Values{
+		"title":         {"Startseite"},
+		"slug":          {"start"},
+		"status":        {"published"},
+		"kind":          {"page"},
+		"feld_vorspann": {zuLang},
+	}, map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
+	serve(t, h, sm, h.HandlePageCreate, req)
+
+	p, err := page.NewStore(database).GetPageBySlug(ctx, ws.ID, "start")
+	if err != nil || p == nil {
+		t.Fatalf("die Seite wurde nicht angelegt: %v", err)
+	}
+	if got := field.Decode(p.Fields).Values["vorspann"]; got != "" {
+		t.Errorf("%d Byte eines fremden Feldes wurden abgelegt", len(got))
+	}
 }
