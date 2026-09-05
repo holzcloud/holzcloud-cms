@@ -327,6 +327,7 @@ func felderAuflisten(d Deps) Tool {
 				if len(def.Choices) > 0 {
 					e["auswahl"] = def.Choices
 				}
+				feldeigenschaften(e, def)
 				if def.IsGroup() {
 					sub := make([]map[string]any, 0, len(def.Sub))
 					for _, s := range def.Sub {
@@ -337,6 +338,11 @@ func felderAuflisten(d Deps) Tool {
 						if len(s.Choices) > 0 {
 							se["auswahl"] = s.Choices
 						}
+						// Dieselben Angaben eine Ebene tiefer, aus derselben
+						// Stelle: ein Assistent, der über ein Unterfeld
+						// weniger erfährt, schreibt in genau dieses falsch
+						// hinein.
+						feldeigenschaften(se, s)
 						sub = append(sub, se)
 					}
 					e["unterfelder"] = sub
@@ -345,6 +351,46 @@ func felderAuflisten(d Deps) Tool {
 			}
 			return map[string]any{"felder": out}, nil
 		},
+	}
+}
+
+// feldeigenschaften trägt in die Beschreibung eines Feldes ein, was ein
+// Assistent braucht, um einen Wert zu schreiben, der auch angenommen wird: die
+// Darstellung, die Höchstzahl der Werte, die beiden Grenzen einer Zahl — und,
+// bei einem mehrwertigen Feld, wie mehrere Werte in die eine Zeichenkette
+// geschrieben werden, die die Schreibwerkzeuge nehmen. Die Art selbst steht
+// schon unter "art"; was hier dazukommt, ist die Gestalt eines annehmbaren
+// Wertes.
+//
+// Eine Stelle für das Feld auf der Seite und für das Unterfeld in einer
+// Gruppe, damit die beiden nicht auseinanderlaufen können.
+//
+// Jeder Eintrag fehlt, wo es ihn nicht gibt, und das ist keine Sparsamkeit:
+// eine gemeldete Null läse sich als "keiner erlaubt", wo sie "ohne Grenze"
+// heisst, und eine gemeldete leere Grenze als "die Grenze ist leer". "Keine
+// Grenze" und "die Grenze ist null" sind zwei verschiedene Tatsachen —
+// derselbe Grund, aus dem die beiden Spalten in 07-02 einen Texttyp bekommen
+// haben.
+//
+// Diese Angaben werden von einer Maschine gelesen, die danach handelt: eine
+// mehrdeutige Formulierung hier ist eine falsch geschriebene Seite dort.
+func feldeigenschaften(e map[string]any, d field.Def) {
+	if d.Display != "" {
+		e["darstellung"] = d.Display
+	}
+	if d.MaxValues > 0 {
+		e["max_werte"] = d.MaxValues
+	}
+	if d.RangeMin != "" {
+		e["min_wert"] = d.RangeMin
+	}
+	if d.RangeMax != "" {
+		e["max_wert"] = d.RangeMax
+	}
+	if d.IsMultiValued() {
+		e["mehrere_werte"] = "Mehrere Werte stehen in derselben Zeichenkette, " +
+			"einer je Zeile, getrennt durch einen Zeilenumbruch; erlaubt sind nur " +
+			"die unter auswahl genannten Optionen."
 	}
 }
 
