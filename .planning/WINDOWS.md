@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 0
+open_count: 1
 waived_count: 1
 fixed_count: 1
-total_count: 2
-last_updated: 2026-09-05T14:51:59.731Z
+total_count: 3
+last_updated: 2026-09-05T16:13:58.341Z
 ---
 
 # Broken Windows Ledger
@@ -17,6 +17,7 @@ last_updated: 2026-09-05T14:51:59.731Z
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
 | 1 | quick-260903-bsk | deviation | internal/i18n/locales/en.json |  | tools/i18n writeCatalog emits flush-left JSON while the four full catalogues carried a two-space indent; -write reformatted ~2250 lines each. Tool format kept as canonical. | waived | Accepted during execution, not an open defect: the tool's flush-left format is canonical (de-CH, fr-CH and it-CH were already flush-left); the two-space indent in the four full catalogues was drift from a hand-translation pass. | 2026-09-03T06:49:26.839Z | 2026-09-03T06:49:41.839Z |
 | 2 | 07 | deviation | internal/field/field.go |  | trimTo schneidet einen Wert bei MaxValueBytes still ab; bei einem mehrwertigen Feld halbiert das einen Wert. Vorbestehend, D-13, gehoert Plan 07-04 (melden statt abschneiden) | fixed |  | 2026-09-05T13:53:52.821Z | 2026-09-05T14:51:59.731Z |
+| 3 | 07 | deviation | internal/field/field.go | 674 | Die Ablehnungsgruende in field.go (rangeReason 674-682, die Laengen- und Mehrwert-Meldungen in Check 710 und 778-781) werden durch blosse Zeichenkettenverkettung gebaut, ohne i18n.N. Sie werden deshalb nie extrahiert und nie uebersetzt: bei englischer UI erschien 'Ausstattung: hoechstens 3 Werte, ausgewaehlt sind 4.' auf Deutsch, waehrend die Artnamen daneben uebersetzt waren. Vorbestehend, kein Regress aus Phase 7 (gegen 60ff5b2 geprueft: field.go gab dort schon rohes Deutsch zurueck); Phase 7 ist der Konvention gefolgt und hat die Flaeche verbreitert. Relevant, weil go run ./tools/i18n '0 offen, 0 verwaist' meldet, ohne diese Zeichenketten je zu sehen — der QUAL-01-Zaehler misst sie nicht. Zurueckgestellt: jede Validierungsrueckgabe in field.go umzuschreiben ist eigene Arbeit. | open |  | 2026-09-05T16:13:58.341Z |  |
 
 ````json
 [
@@ -43,6 +44,18 @@ last_updated: 2026-09-05T14:51:59.731Z
     "reason": "",
     "recorded_at": "2026-09-05T13:53:52.821Z",
     "resolved_at": "2026-09-05T14:51:59.731Z"
+  },
+  {
+    "id": 3,
+    "kind": "deviation",
+    "phase": "07",
+    "file": "internal/field/field.go",
+    "line": 674,
+    "description": "Die Ablehnungsgruende in field.go (rangeReason 674-682, die Laengen- und Mehrwert-Meldungen in Check 710 und 778-781) werden durch blosse Zeichenkettenverkettung gebaut, ohne i18n.N. Sie werden deshalb nie extrahiert und nie uebersetzt: bei englischer UI erschien 'Ausstattung: hoechstens 3 Werte, ausgewaehlt sind 4.' auf Deutsch, waehrend die Artnamen daneben uebersetzt waren. Vorbestehend, kein Regress aus Phase 7 (gegen 60ff5b2 geprueft: field.go gab dort schon rohes Deutsch zurueck); Phase 7 ist der Konvention gefolgt und hat die Flaeche verbreitert. Relevant, weil go run ./tools/i18n '0 offen, 0 verwaist' meldet, ohne diese Zeichenketten je zu sehen — der QUAL-01-Zaehler misst sie nicht. Zurueckgestellt: jede Validierungsrueckgabe in field.go umzuschreiben ist eigene Arbeit.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T16:13:58.341Z",
+    "resolved_at": null
   }
 ]
 ````
