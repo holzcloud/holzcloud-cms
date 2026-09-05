@@ -19,9 +19,13 @@ Einzelarbeit, keine Bauart.
 Klappliste. Für drei Möglichkeiten nebeneinander ist das die falsche Form, und
 „mehrere davon" gibt es gar nicht.
 
-**Wo:** `internal/field/field.go` (zwei neue Arten neben `KindChoice`),
-`internal/field/render.go` (eine Mehrfachauswahl ist eine Liste, kein String —
-das ist die eigentliche Entscheidung), `cmd/holzcloud/templates/admin/field_input.html`.
+**Wo:** `internal/field/field.go` (**eine** neue Art `mehrfachauswahl` neben
+`KindChoice`, dazu eine Darstellungsweise `darstellung` auf `KindChoice` selbst —
+die Knopfreihe ist keine eigene Art, sondern dieselbe Auswahl in anderer Form:
+gleiche Möglichkeiten, gleicher gespeicherter Wert, gleicher Vertrag zur
+Vorlage), `internal/field/render.go` (eine Mehrfachauswahl ist eine Liste, kein
+String — das ist die eigentliche Entscheidung),
+`cmd/holzcloud/templates/admin/field_input.html`.
 
 **Grösse:** Die Knopfreihe ist ein Nachmittag. Die Mehrfachauswahl ist mehr:
 sie ist der erste Feldwert, der kein einzelner String ist, also braucht
@@ -81,7 +85,11 @@ ausdrücklich abgespeckte Ausgabe.
 Klein, jeder für sich eine Stunde, alle in `internal/field`:
 
 - `zeit` — eine Uhrzeit. Gibt es nur in der Zeitsteuerung.
-- `bereich` — eine Zahl zwischen zwei Grenzen, als Schieber.
+- `bereich` — eine Zahl zwischen zwei Grenzen, als begrenztes Zahlenfeld
+  (`<input type="number" min max step>`). Kein Schieberegler: dessen gewählte
+  Zahl steht nirgends als Text, und die Anzeige, die sie lesbar machen würde,
+  braucht JavaScript — genau dieses Muster weist `internal/tmplmgr/script.go`
+  ab.
 - `code` — ein Textfeld ohne Markdown, mit fester Schrift.
 
 ---
