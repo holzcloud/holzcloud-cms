@@ -11,6 +11,18 @@ verfasst. Wer den nächsten Eintrag schreibt, macht bitte mit.
 
 Die Nummern sind dieselben wie die Tags im Repository.
 
+## 1.8 — 2026-09-05
+
+### Behoben
+
+**Die Vorlage Weide sagt ihren Galerie-Zuschnitt jetzt selbst.** Ihr Kommentar
+beschrieb ihn seit jeher — „Das Galeriebild wird zugeschnitten und füllt seinen
+Rahmen" —, die Regel dazu kam aber aus `bausteine.css` und ist mit 1.7 dort
+weggefallen. Zwischen 1.7 und dieser Fassung standen die Bilder einer
+Weide-Galerie in ihrer eigenen Form nebeneinander, was bei gemischtem Hoch- und
+Querformat eine schiefe Zeile ergibt. Wer 1.7 mit dieser Vorlage betreibt, spielt
+diese Fassung bitte nach.
+
 ## 1.7 — 2026-09-05
 
 ### Behoben
