@@ -1105,6 +1105,17 @@
         display: none;
     }
 
+    /* Dieselbe Form wie die Auswahl darüber — sichtbar, solange die Antwort
+       aussteht — nur greift sie an einem angekreuzten Radioknopf statt an
+       einer gewählten Möglichkeit. Eine Knopfreihe hat kein <option>, die
+       Regel darüber könnte hier also nie greifen, und jedes Feld, das an
+       einer solchen Auswahl hängt, bliebe stumm für immer sichtbar. Deshalb
+       trägt eine Knopfreihe immer einen leeren Radioknopf: er ist es, den
+       diese Regel liest. */
+    .feld-schalter--knopfreihe:has(> .form-group input[type="radio"][value=""]:checked) > .feld-abhaengig {
+        display: none;
+    }
+
     .feld-schalter--text:has(> .form-group input:placeholder-shown) > .feld-abhaengig,
     .feld-schalter--text:has(> .form-group textarea:placeholder-shown) > .feld-abhaengig {
         display: none;
