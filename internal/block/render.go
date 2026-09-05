@@ -317,6 +317,17 @@ func renderOwn(b *strings.Builder, blk Block, own Own, s Set, look Lookup, md Ma
 				`<p class="hc-eigen__datum hc-eigen__datum--%s"><time datetime="%s">%s</time></p>`,
 				key, html.EscapeString(value), html.EscapeString(shown))
 
+		case field.KindCode:
+			// Hier und nicht im Theme. Ein Baustein wird beim Speichern der
+			// Seite zu HTML eingefroren, und diese Bytes bekommt der Besucher
+			// — im Theme zu maskieren wäre zu spät, dann steht das rohe Tag
+			// längst in der Datenbank. html.EscapeString ist dieselbe
+			// Hausregel wie im default-Zweig; prose() steht bewusst nicht
+			// hier, denn das ist der Markdown-Weg, und ein Codefeld
+			// verspricht gerade, nicht gedeutet zu werden.
+			fmt.Fprintf(&inner, `<pre class="hc-eigen__code hc-eigen__code--%s"><code>%s</code></pre>`,
+				key, html.EscapeString(value))
+
 		default:
 			fmt.Fprintf(&inner, `<p class="hc-eigen__zeile hc-eigen__zeile--%s">%s</p>`,
 				key, html.EscapeString(value))
@@ -416,10 +427,25 @@ func PlainText(blocks []Block, s Set) string {
 			// Only the fields that hold words. A picture's id and a date are
 			// not something anybody searches for, and "12" in the excerpt of a
 			// recipe is worse than nothing.
+			//
+			// Ein Codefeld hält Worte — eine Adresse, eine Zeile Einstellung,
+			// ein Schnipsel — und steht deshalb dabei: eine Seite aus
+			// Bausteinen wäre für ihre eigene Suche sonst gerade dort
+			// unsichtbar, wo der Verfasser sich am meisten Mühe gab. Eine
+			// Uhrzeit und ein Bereich stehen aus demselben Grund draussen wie
+			// eine Bildnummer und ein Datum: das sucht niemand.
 			for _, d := range own.Fields {
 				switch d.Kind {
-				case field.KindText, field.KindLong, field.KindChoice:
+				case field.KindText, field.KindLong, field.KindChoice, field.KindCode:
 					add(b.Fields[d.Key])
+				case field.KindMulti:
+					// Mit Leerzeichen verbunden statt mit den gespeicherten
+					// Zeilenumbrüchen: ein Anriss soll sich wie ein Satz
+					// lesen und nicht wie eine Spalte. Das Trennzeichen wird
+					// nicht ein zweites Mal ausgeschrieben — SplitValues ist
+					// die eine Stelle, die weiss, wie ein mehrwertiger Wert
+					// gespeichert ist.
+					add(strings.Join(field.SplitValues(b.Fields[d.Key]), " "))
 				}
 			}
 			continue

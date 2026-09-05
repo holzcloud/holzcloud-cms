@@ -585,8 +585,12 @@ func TestCodeImBausteinWirdMaskiert(t *testing.T) {
 	// um alles ein <p>, ein <p> hier wäre also der Beweis, dass der Wert den
 	// Markdown-Weg genommen hat. Der Baustein trägt nur dieses eine Feld, ein
 	// <p> kann also von nirgendwo sonst kommen.
-	if strings.Contains(html, "<p") {
-		t.Errorf("der Code lief durch den Markdown-Renderer:\n%s", html)
+	// „<p" allein wäre zu grob — das trifft auch das <pre>, das hier stehen
+	// soll.
+	for _, absatz := range []string{"<p>", "<p "} {
+		if strings.Contains(html, absatz) {
+			t.Errorf("der Code lief durch den Markdown-Renderer:\n%s", html)
+		}
 	}
 }
 
