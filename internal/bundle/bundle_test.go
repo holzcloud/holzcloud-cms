@@ -1120,3 +1120,183 @@ func TestManifestSchweigtUeberUngenutzteEigenschaften(t *testing.T) {
 		}
 	}
 }
+
+// Die Rundreise eines Schlagwortfeldes — und der eine Fall, der sie heute
+// zerbricht.
+//
+// Rename behält absichtlich das Kürzel: bestehende Links sollen nicht
+// zerbrechen. Eine Seite trägt danach das *alte* Kürzel, während das
+// Schlagwort einen *neuen* Namen zeigt. Reist der Wert als Kürzel, leitet die
+// andere Maschine aus dem Namen ein anderes Kürzel ab, und der Wert zeigt auf
+// nichts — lautlos. Deshalb wird hier vor dem Export umbenannt: ein
+// Schlagwort, dessen Name noch zu seinem Kürzel passt, reist auch ohne die
+// Übersetzung heil und bewiese gar nichts.
+//
+// Das Schlagwort hängt ausserdem an keiner Seite. Ein Schlagwort, das kein
+// Seiten-Schlagwortfeld trägt, wurde beim Import bisher gezählt und nicht
+// angelegt — die zweite Hälfte desselben Fehlers, in derselben Seite.
+func TestSchlagwortfeldRundreise(t *testing.T) {
+	t.Run("umbenannt und an keiner Seite", func(t *testing.T) {
+		s := newStores(t)
+		ctx := context.Background()
+
+		ws, err := s.Domains.CreateWebsite(ctx, "Werkstatt", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Fields.Create(ctx, field.Def{
+			WebsiteID: ws.ID, Key: "thema", Label: "Thema", Kind: field.KindTerm,
+		}); err != nil {
+			t.Fatalf("Feld anlegen: %v", err)
+		}
+		seite, err := s.Pages.CreatePage(ctx, page.PageCreate{
+			WebsiteID: ws.ID, Title: "Wollpaket", Slug: "wollpaket",
+			Markdown: "x", HTML: "<p>x</p>", Status: "published",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Anlegen, umbenennen, wieder abhängen: übrig bleibt ein Schlagwort
+		// mit dem Kürzel "moebel" und dem Namen "Möbelbau", das keine Seite
+		// trägt.
+		if err := s.Terms.SetForPage(ctx, ws.ID, seite.ID, []string{"Möbel"}); err != nil {
+			t.Fatal(err)
+		}
+		alle, err := s.Terms.ListAll(ctx, ws.ID)
+		if err != nil || len(alle) != 1 {
+			t.Fatalf("ListAll = %v, %v", alle, err)
+		}
+		if alle[0].Slug != "moebel" {
+			t.Fatalf("Kürzel = %q, wollte moebel", alle[0].Slug)
+		}
+		if err := s.Terms.Rename(ctx, ws.ID, alle[0].ID, "Möbelbau"); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Terms.SetForPage(ctx, ws.ID, seite.ID, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		// Der gespeicherte Wert ist das *alte* Kürzel — genau das, was Rename
+		// hinterlässt.
+		raw, err := field.Encode(field.Data{Values: field.Values{"thema": "moebel"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Pages.SetFields(ctx, seite.ID, raw); err != nil {
+			t.Fatal(err)
+		}
+
+		archive := exportTo(t, s, ws.ID)
+		geschrieben := manifestOf(t, archive)
+		// Das Archiv trägt den Namen, so wie eine Schlagwortliste einer Seite
+		// ihn immer schon getragen hat — nicht das Kürzel.
+		if !strings.Contains(geschrieben, `"thema": "Möbelbau"`) {
+			t.Errorf("das Archiv trägt den Namen des Schlagworts nicht:\n%s", geschrieben)
+		}
+		if strings.Contains(geschrieben, `"thema": "moebel"`) {
+			t.Errorf("das Archiv trägt das Kürzel statt des Namens:\n%s", geschrieben)
+		}
+
+		report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Werkstatt (Kopie)")
+		if err != nil {
+			t.Fatalf("Import: %v", err)
+		}
+		if len(report.Warnings) != 0 {
+			t.Errorf("Warnungen: %v", report.Warnings)
+		}
+
+		// Das Schlagwort ist auf der neuen Website angelegt, obwohl keine
+		// Seite es trägt.
+		neue, err := s.Terms.ListAll(ctx, report.WebsiteID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(neue) != 1 || neue[0].Name != "Möbelbau" {
+			t.Fatalf("Schlagwörter der Kopie = %+v, wollte genau „Möbelbau“", neue)
+		}
+		if report.Terms != 1 {
+			t.Errorf("report.Terms = %d, wollte 1 angelegtes Schlagwort", report.Terms)
+		}
+
+		// Und der Wert der Seite zeigt auf *dieses* Schlagwort. Die Adresse
+		// ist eine andere als auf der Quellwebsite — dort "moebel", hier
+		// "moebelbau" — und das ist kein Fehler: das Format leitet die
+		// Adresse eines Schlagworts aus seinem Namen ab (format.go:274-284),
+		// also darf sie sich über eine Rundreise bewegen. Was sich nicht
+		// bewegen darf, ist, auf welches Schlagwort das Feld zeigt.
+		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(kopien) != 1 {
+			t.Fatalf("Seiten der Kopie = %+v", kopien)
+		}
+		got := field.Decode(kopien[0].Fields).Values["thema"]
+		if got != neue[0].Slug {
+			t.Errorf("das Feld zeigt auf %q, das Schlagwort dieser Website hat %q", got, neue[0].Slug)
+		}
+		if got == "" {
+			t.Error("der Wert ist unterwegs verlorengegangen")
+		}
+	})
+
+	t.Run("auch an einer Seite: nur einmal angelegt", func(t *testing.T) {
+		s := newStores(t)
+		ctx := context.Background()
+
+		ws, err := s.Domains.CreateWebsite(ctx, "Werkstatt", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Fields.Create(ctx, field.Def{
+			WebsiteID: ws.ID, Key: "thema", Label: "Thema", Kind: field.KindTerm,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		seite, err := s.Pages.CreatePage(ctx, page.PageCreate{
+			WebsiteID: ws.ID, Title: "Wollpaket", Slug: "wollpaket",
+			Markdown: "x", HTML: "<p>x</p>", Status: "published",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Terms.SetForPage(ctx, ws.ID, seite.ID, []string{"Eiche"}); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := field.Encode(field.Data{Values: field.Values{"thema": "eiche"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Pages.SetFields(ctx, seite.ID, raw); err != nil {
+			t.Fatal(err)
+		}
+
+		archive := exportTo(t, s, ws.ID)
+		report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Werkstatt (Kopie)")
+		if err != nil {
+			t.Fatalf("Import: %v", err)
+		}
+		neue, err := s.Terms.ListAll(ctx, report.WebsiteID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Einmal von importTerms, einmal von der Schlagwortliste der Seite —
+		// dieselbe Kürzelableitung, also dieselbe Zeile.
+		if len(neue) != 1 {
+			t.Errorf("Schlagwörter der Kopie = %+v, wollte genau eines", neue)
+		}
+		// Und die Seite trägt es weiterhin als eigenes Schlagwort.
+		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
+		if err != nil || len(kopien) != 1 {
+			t.Fatalf("Seiten der Kopie = %+v, %v", kopien, err)
+		}
+		haengt, err := s.Terms.ForPage(ctx, kopien[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(haengt) != 1 || haengt[0].Name != "Eiche" {
+			t.Errorf("die Seite trägt %+v, wollte „Eiche“", haengt)
+		}
+	})
+}
