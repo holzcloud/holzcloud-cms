@@ -291,8 +291,8 @@ func importTypes(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 // Until now a label was only created as a side effect of a page carrying it, so
 // one reachable solely through a label field arrived nowhere — counted on the
 // way in and not created, exactly as format.go:274-284 says. Every name goes
-// through term.Parse first, the same normalisation every other label gets, so
-// whitespace and an over-long name are spelled identically whichever path
+// through term.Normalize first, the same normalisation every other label gets,
+// so whitespace and an over-long name are spelled identically whichever path
 // creates the label.
 //
 // A store error is a warning naming the labels and never a failed import: an
@@ -306,11 +306,20 @@ func importTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 			fmt.Sprintf("%d Schlagwörter konnten nicht angelegt werden.", len(m.Terms)))
 		return
 	}
+	// term.Normalize und nicht term.Parse: Parse ist der Leser des Feldes,
+	// das ein Redaktor tippt. Es trennt an Kommas und hört bei
+	// term.MaxPerPage auf — beides gilt für einen Eintrag und für nichts
+	// sonst. Die ganze Liste einer Website durch diesen Leser zu schicken
+	// liess ab dem dreizehnten Schlagwort alles fallen, still, und riss
+	// einen Namen mit einem Komma darin entzwei. Jeder Name für sich, mit
+	// derselben Normalisierung, die jedes andere Schlagwort auch bekommt.
 	names := make([]string, 0, len(m.Terms))
 	for _, t := range m.Terms {
-		names = append(names, t.Name)
+		if name := term.Normalize(t.Name); name != "" {
+			names = append(names, name)
+		}
 	}
-	n, err := s.Terms.EnsureNames(ctx, websiteID, term.Parse(strings.Join(names, ", ")))
+	n, err := s.Terms.EnsureNames(ctx, websiteID, names)
 	if err != nil {
 		report.Warnings = append(report.Warnings, fmt.Sprintf("Schlagwörter: %v", err))
 		return

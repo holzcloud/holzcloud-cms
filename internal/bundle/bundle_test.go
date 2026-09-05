@@ -1299,6 +1299,113 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Errorf("die Seite trägt %+v, wollte „Eiche“", haengt)
 		}
 	})
+
+	// term.MaxPerPage ist eine redaktionelle Grenze für einen Eintrag, nicht
+	// für ein Archiv. Ging die ganze Liste des Manifests durch term.Parse,
+	// hörte der Import beim zwölften Schlagwort auf — und gerade die, die
+	// keine Seite trägt, sind der Grund, warum importTerms überhaupt
+	// existiert. Der Bericht nannte die gekürzte Zahl ohne ein Wort dazu.
+	t.Run("fünfzehn Schlagwörter, keines geht verloren", func(t *testing.T) {
+		s := newStores(t)
+		ctx := context.Background()
+
+		ws, err := s.Domains.CreateWebsite(ctx, "Werkstatt", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Fields.Create(ctx, field.Def{
+			WebsiteID: ws.ID, Key: "thema", Label: "Thema", Kind: field.KindTerm,
+		}); err != nil {
+			t.Fatalf("Feld anlegen: %v", err)
+		}
+		seite, err := s.Pages.CreatePage(ctx, page.PageCreate{
+			WebsiteID: ws.ID, Title: "Wollpaket", Slug: "wollpaket",
+			Markdown: "x", HTML: "<p>x</p>", Status: "published",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Fünfzehn Schlagwörter, an keiner Seite. Das letzte trägt ein Komma
+		// im Namen — ein Manifest ist eine Datei von Hand, und der Leser für
+		// ein Formularfeld zerrisse ihn in zwei.
+		namen := []string{
+			"Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta",
+			"Theta", "Iota", "Kappa", "Lambda", "My", "Ny", "Xi",
+			"Möbel, Bau",
+		}
+		if _, err := s.Terms.EnsureNames(ctx, ws.ID, namen); err != nil {
+			t.Fatalf("EnsureNames: %v", err)
+		}
+		alle, err := s.Terms.ListAll(ctx, ws.ID)
+		if err != nil || len(alle) != len(namen) {
+			t.Fatalf("ListAll = %d Schlagwörter, %v", len(alle), err)
+		}
+
+		// Das Feld zeigt auf das letzte — das, das ohne den Fehler nie
+		// angelegt würde.
+		letztes := alle[len(alle)-1]
+		for _, tt := range alle {
+			if tt.Name == "Möbel, Bau" {
+				letztes = tt
+			}
+		}
+		raw, err := field.Encode(field.Data{Values: field.Values{"thema": letztes.Slug}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Pages.SetFields(ctx, seite.ID, raw); err != nil {
+			t.Fatal(err)
+		}
+
+		archive := exportTo(t, s, ws.ID)
+		report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Werkstatt (Kopie)")
+		if err != nil {
+			t.Fatalf("Import: %v", err)
+		}
+		if len(report.Warnings) != 0 {
+			t.Errorf("Warnungen: %v", report.Warnings)
+		}
+
+		neue, err := s.Terms.ListAll(ctx, report.WebsiteID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(neue) != len(namen) {
+			t.Fatalf("die Kopie hat %d Schlagwörter, wollte %d", len(neue), len(namen))
+		}
+		bekannt := map[string]bool{}
+		for _, tt := range neue {
+			bekannt[tt.Name] = true
+		}
+		for _, n := range namen {
+			if !bekannt[n] {
+				t.Errorf("„%s“ fehlt auf der Kopie", n)
+			}
+		}
+		if report.Terms != len(namen) {
+			t.Errorf("report.Terms = %d, wollte %d", report.Terms, len(namen))
+		}
+
+		// Und das Feld findet sein Schlagwort auf der Kopie wieder.
+		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
+		if err != nil || len(kopien) != 1 {
+			t.Fatalf("Seiten der Kopie = %+v, %v", kopien, err)
+		}
+		got := field.Decode(kopien[0].Fields).Values["thema"]
+		if got == "" {
+			t.Fatal("der Wert des Schlagwortfeldes ging verloren")
+		}
+		gefunden := false
+		for _, tt := range neue {
+			if tt.Slug == got && tt.Name == "Möbel, Bau" {
+				gefunden = true
+			}
+		}
+		if !gefunden {
+			t.Errorf("das Feld zeigt auf %q, das auf der Kopie kein „Möbel, Bau“ ist: %+v", got, neue)
+		}
+	})
 }
 
 // Ein Archiv ist eine Datei, die jeder bearbeiten kann — genauso unvertraut
