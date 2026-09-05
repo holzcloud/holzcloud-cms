@@ -142,7 +142,7 @@ func (h *Handler) HandlePreviewAsset(w http.ResponseWriter, r *http.Request) err
 	}
 
 	w.Header().Set("Cache-Control", "no-cache")
-	web.WriteAsset(w, assetPath, content)
+	web.WriteAsset(w, r, assetPath, content)
 	return nil
 }
 

@@ -452,6 +452,31 @@ func main() {
 			Fn:    func(ctx context.Context) error { return sessionStore.DeleteExpired(ctx) },
 		},
 		jobs.Job{
+			// Bilder, die ohne Masse in der Datenbank stehen, bekommen sie
+			// nachgetragen — samt der verkleinerten Fassungen.
+			//
+			// Der Weg über das Hochladen misst jedes Bild; der Weg über ein
+			// eingespieltes Archiv tat es nie. Auf einer so entstandenen
+			// Website hat kein Bild Breite und Höhe im HTML, das Layout springt
+			// beim Nachladen, und es gibt kein srcset — ein Handy lädt jedes
+			// Original in voller Grösse.
+			//
+			// Beim Start und danach stündlich: der Start bringt eine
+			// bestehende Installation in Ordnung, der Takt fängt ein, was ein
+			// späterer Import hinterlässt. Sobald nichts mehr fehlt, ist der
+			// Lauf eine Abfrage ohne Treffer.
+			Name:       "media-backfill",
+			Every:      time.Hour,
+			RunAtStart: true,
+			Fn: func(ctx context.Context) error {
+				done, failed, err := media.Backfill(ctx, mediaStore, cfg.DataDir, cfg.MaxMegapixels, 100)
+				if done > 0 || failed > 0 {
+					slog.Info("media backfill", "ergaenzt", done, "fehlgeschlagen", failed)
+				}
+				return err
+			},
+		},
+		jobs.Job{
 			Name:  "database-maintenance",
 			Every: 24 * time.Hour,
 			Fn:    func(ctx context.Context) error { return db.Maintain(ctx, database) },

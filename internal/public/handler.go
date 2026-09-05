@@ -292,7 +292,18 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 }
 
 // HandleTemplateAsset serves static files from the template directory (CSS, images).
-// Per D-23: Cache-Control: public, max-age=31536000, immutable.
+//
+// D-23 asked for `max-age=31536000, immutable`, and that was served on a fixed
+// address. `immutable` is a promise that the address changes when the content
+// does; here it never did. A theme change therefore reached nobody who had once
+// opened the site — for up to a year, and a reload did not help, because
+// `immutable` tells the browser not even to ask. That was found the day a
+// corrected stylesheet did not arrive.
+//
+// The long cache is kept for a caller that keeps the promise by putting a
+// version in the address. Everything else gets an hour and a strong ETag: the
+// second request is a conditional one and comes back 304 with no body, which
+// costs a few hundred bytes and is always right.
 func (h *Handler) HandleTemplateAsset(w http.ResponseWriter, r *http.Request) error {
 	assetPath, ok := tmpl.SafeAssetPath(r.PathValue("path"))
 	if !ok {
@@ -312,8 +323,7 @@ func (h *Handler) HandleTemplateAsset(w http.ResponseWriter, r *http.Request) er
 			http.NotFound(w, r)
 			return nil
 		}
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		serveAssetContent(w, assetPath, content)
+		serveAssetContent(w, r, assetPath, content)
 		return nil
 	}
 
@@ -323,14 +333,27 @@ func (h *Handler) HandleTemplateAsset(w http.ResponseWriter, r *http.Request) er
 		return nil
 	}
 
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-	serveAssetContent(w, assetPath, content)
+	serveAssetContent(w, r, assetPath, content)
 	return nil
 }
 
-// serveAssetContent writes asset bytes with the correct Content-Type header.
-func serveAssetContent(w http.ResponseWriter, assetPath string, content []byte) {
-	web.WriteAsset(w, assetPath, content)
+// serveAssetContent writes asset bytes with the correct Content-Type, the
+// caching rule and an ETag.
+func serveAssetContent(w http.ResponseWriter, r *http.Request, assetPath string, content []byte) {
+	w.Header().Set("Cache-Control", assetCacheControl(r))
+	web.WriteAsset(w, r, assetPath, content)
+}
+
+// assetCacheControl decides how long the answer may be kept.
+//
+// A version in the query is the caller saying the address changes with the
+// content, which is exactly what `immutable` requires. Without one the file
+// stays cheap to check rather than impossible to update.
+func assetCacheControl(r *http.Request) string {
+	if v := r.URL.Query().Get("v"); v != "" {
+		return "public, max-age=31536000, immutable"
+	}
+	return "public, max-age=3600, must-revalidate"
 }
 
 // serve404 renders the styled 404 page using the site's template.

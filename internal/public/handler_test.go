@@ -262,6 +262,59 @@ func TestHandleTemplateAssetServesAndRejectsTraversal(t *testing.T) {
 	}
 }
 
+// Eine geänderte Vorlage muss ankommen.
+//
+// Bis Fassung 1.8 ging jedes Vorlagen-Asset mit `max-age=31536000, immutable`
+// hinaus, auf einer Adresse, die sich nie ändert. `immutable` heisst: frag nicht
+// nach, auch nicht beim Neuladen. Ein korrigiertes Stylesheet erreichte damit
+// niemanden, der die Seite schon einmal geöffnet hatte — ein Jahr lang. Der Test
+// hält beide Hälften fest: die kurze Frist ohne Version und das lange
+// Versprechen nur dort, wo die Adresse es einlöst.
+func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
+	h, database := newTestHandler(t)
+	ws := seedWebsite(t, database, "Test Site")
+
+	hole := func(url string, inm string) *httptest.ResponseRecorder {
+		t.Helper()
+		rec, err := request(func(w http.ResponseWriter, r *http.Request) error {
+			r.SetPathValue("path", "style.css")
+			if inm != "" {
+				r.Header.Set("If-None-Match", inm)
+			}
+			return h.HandleTemplateAsset(w, r)
+		}, ws, "GET", url)
+		if err != nil {
+			t.Fatalf("HandleTemplateAsset(%s): %v", url, err)
+		}
+		return rec
+	}
+
+	// Ohne Version: kurz und nachfragbar.
+	rec := hole("/t/style.css", "")
+	if cc := rec.Header().Get("Cache-Control"); strings.Contains(cc, "immutable") {
+		t.Errorf("Cache-Control = %q; auf einer festen Adresse darf nichts immutable sein", cc)
+	}
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("ohne ETag ist die Rückfrage so teuer wie ein neuer Abruf")
+	}
+
+	// Die Rückfrage kostet dann nichts mehr.
+	rec = hole("/t/style.css", etag)
+	if rec.Code != http.StatusNotModified {
+		t.Errorf("status = %d; want 304", rec.Code)
+	}
+	if rec.Body.Len() != 0 {
+		t.Errorf("304 mit Körper: %q", rec.Body.String())
+	}
+
+	// Mit Version im Verweis hält der Aufrufer das Versprechen, also gilt es.
+	rec = hole("/t/style.css?v=1.8", "")
+	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
+		t.Errorf("Cache-Control = %q; eine versionierte Adresse darf lange liegen", cc)
+	}
+}
+
 func TestSitemapListsOnlyPublishedPages(t *testing.T) {
 	h, database := newTestHandler(t)
 	ws := seedWebsite(t, database, "Test Site")
