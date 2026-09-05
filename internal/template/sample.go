@@ -30,6 +30,21 @@ func SampleData() PageData {
 	published := time.Date(2026, 3, 14, 9, 0, 0, 0, time.UTC)
 	updated := time.Date(2026, 4, 2, 16, 30, 0, 0, time.UTC)
 
+	// The own-field values, declared once because Felder and Feldliste are two
+	// views of the same data and a fixture where they disagree would document a
+	// contract the renderer never produces.
+	//
+	// A time of day carries no date and no zone — this is exactly what
+	// field.ParseTimeOfDay hands back for "16:30", down to the year.
+	abholzeit := time.Date(0, time.January, 1, 16, 30, 0, 0, time.UTC)
+	ausstattung := []string{"Schublade", "Kabelauslass", "Verlängerung"}
+	material := field.Term{Name: "Eiche", Slug: "eiche", URL: "/tag/eiche"}
+	sitzplaetze := field.Number{Value: 8, Raw: "8"}
+	// A code field holds what somebody typed, tags and all. It is a plain
+	// string on purpose: html/template escapes it, and that escaping is the
+	// whole promise of the kind.
+	abbund := `<balken laenge="240">Eiche</balken>`
+
 	return PageData{
 		Site: SiteData{
 			Name:            "Holzbau Schmidt",
@@ -72,12 +87,35 @@ func SampleData() PageData {
 			Next:          &PageLink{Title: "Nächster Beitrag", URL: "/naechst"},
 			Art:           "produkt",
 			Felder: map[string]any{
-				"holzart":    "Eiche",
-				"lieferzeit": "4 Wochen",
+				"holzart":     "Eiche",
+				"lieferzeit":  "4 Wochen",
+				"ausstattung": ausstattung,
+				"abholzeit":   &abholzeit,
+				"sitzplaetze": sitzplaetze,
+				"abbundzeile": abbund,
+				"material":    &material,
 			},
 			Feldliste: []field.Entry{
-				{Key: "holzart", Label: "Holzart", Kind: "text", Value: "Eiche", Text: "Eiche"},
-				{Key: "lieferzeit", Label: "Lieferzeit", Kind: "text", Value: "4 Wochen", Text: "4 Wochen"},
+				{Key: "holzart", Label: "Holzart", Kind: field.KindText, Value: "Eiche", Text: "Eiche"},
+				{Key: "lieferzeit", Label: "Lieferzeit", Kind: field.KindText, Value: "4 Wochen", Text: "4 Wochen"},
+				// One entry per kind this version can put in the list beyond a
+				// plain string, so a template's handling of each is rendered at
+				// least once before an upload is accepted. Values, Term and Text
+				// are filled the way field.List fills them — Values is the same
+				// slice as Value, Term the same pointer, and Text the readable
+				// form of both.
+				{
+					Key: "ausstattung", Label: "Ausstattung", Kind: field.KindMulti,
+					Value: ausstattung, Values: ausstattung,
+					Text: "Schublade, Kabelauslass, Verlängerung",
+				},
+				{Key: "abholzeit", Label: "Abholzeit", Kind: field.KindTime, Value: &abholzeit, Text: "16:30"},
+				{Key: "sitzplaetze", Label: "Sitzplätze", Kind: field.KindRange, Value: sitzplaetze, Text: "8"},
+				{Key: "abbundzeile", Label: "Abbundzeile", Kind: field.KindCode, Value: abbund, Text: abbund},
+				{
+					Key: "material", Label: "Material", Kind: field.KindTerm,
+					Value: &material, Term: &material, Text: material.Name,
+				},
 			},
 			Uebersetzungen: []LanguageLink{
 				{Code: "de", Name: "Deutsch", URL: "/ueber-uns", Active: true},
@@ -260,6 +298,28 @@ func MinimalData() PageData {
 			Title:       "Über uns",
 			ContentHTML: "<p>Inhalt</p>",
 			Slug:        "ueber-uns",
+			// The website has defined its fields; nobody has filled any of them
+			// in on this page. That is where the empty case of an own field
+			// lives: Resolve puts every defined field in the map, filled or
+			// not, so {{.Page.Felder.abholzeit}} is a nil time rather than a
+			// missing key — and a theme that reaches through it unguarded fails
+			// here, which is the point of this fixture.
+			//
+			// Feldliste stays empty on purpose, and it is not the same
+			// omission: field.List drops an entry whose value is empty — every
+			// arm of its switch does — so a list carrying an empty entry is a
+			// state the program cannot produce. A fixture that invented one
+			// would reject a template for handling the list the way the
+			// specification tells it to.
+			Felder: map[string]any{
+				"holzart":     "",
+				"lieferzeit":  "",
+				"ausstattung": []string{},
+				"abholzeit":   (*time.Time)(nil),
+				"sitzplaetze": field.Number{},
+				"abbundzeile": "",
+				"material":    (*field.Term)(nil),
+			},
 		},
 		// An empty archive still renders list.html: a label nobody has used yet,
 		// or a blog before the first post.

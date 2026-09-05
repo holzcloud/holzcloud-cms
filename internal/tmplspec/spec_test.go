@@ -6,6 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/holzcloud/holzcloud-cms/internal/field"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 )
 
@@ -145,4 +146,56 @@ func codeBlockContaining(t *testing.T, doc, marker string) string {
 	}
 	t.Fatalf("no code block in the specification contains %q", marker)
 	return ""
+}
+
+// FieldEntry is the one type of the contract the reflection walk above cannot
+// reach: it belongs to internal/field, and ownType deliberately stops there so
+// that a foreign struct's internals are not reported as missing paths.
+//
+// The consequence is that the walk says nothing about the members a template
+// author actually types — .Values, .Term, .Yes. Adding one of them to the type
+// and forgetting the document is exactly the invisible mistake the walk exists
+// to catch, so it is caught here instead.
+func TestSpecDocumentsEveryFieldEntryMember(t *testing.T) {
+	spec := Markdown()
+
+	entry := reflect.TypeOf(field.Entry{})
+	for i := 0; i < entry.NumField(); i++ {
+		f := entry.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		if !strings.Contains(spec, "`."+f.Name+"`") {
+			t.Errorf("the specification never names `.%s` — a template author "+
+				"reading it has no way to learn the member exists", f.Name)
+		}
+	}
+}
+
+// The per-kind tax, made mechanical. Every kind an operator can pick has to
+// have a row in the specification's kind table, or a template author is left
+// to guess what .Value holds for it and what to print.
+//
+// The row and not merely the word: "text" and "code" occur all over a document
+// about writing templates, so a plain substring search would report a kind as
+// documented that nobody ever wrote a line about.
+func TestSpecDocumentsEveryFieldKind(t *testing.T) {
+	rows := map[string]bool{}
+	for _, line := range strings.Split(Markdown(), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		name, _, ok := strings.Cut(strings.TrimPrefix(line, "| `"), "`")
+		if ok {
+			rows[name] = true
+		}
+	}
+
+	for _, k := range field.Kinds {
+		if !rows[k.Kind] {
+			t.Errorf("the specification's kind table has no row for %q — a "+
+				"template author cannot learn what .Value holds for it", k.Kind)
+		}
+	}
 }

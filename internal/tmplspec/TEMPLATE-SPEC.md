@@ -519,8 +519,8 @@ translation that answers with a 404.
 
 ### `FieldEntry`
 
-`.Key` `.Label` `.Kind` `.Value` `.Text` `.Image` `.Ref` `.Rows` — one entry of
-`.Page.Feldliste`.
+`.Key` `.Label` `.Kind` `.Value` `.Text` `.Image` `.Ref` `.Term` `.Values`
+`.Yes` `.Rows` — one entry of `.Page.Feldliste`.
 
 The website's own fields are defined by the operator, so a template cannot know
 their names. Print `.Label` and the value and let the order decide the layout:
@@ -534,6 +534,10 @@ their names. Print `.Label` and the value and let the order decide the layout:
     {{if eq .Kind "bild"}}{{with .Image}}<img src="{{.URL}}" alt="{{.Alt}}" loading="lazy">{{end}}
     {{else if eq .Kind "datum"}}<time datetime="{{formatDateISO .Value}}">{{formatDate .Value}}</time>
     {{else if eq .Kind "verweis"}}{{with .Ref}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
+    {{else if eq .Kind "schlagwort"}}{{with .Term}}<a href="{{.URL}}">{{.Name}}</a>{{end}}
+    {{else if eq .Kind "mehrfachauswahl"}}<ul>{{range .Values}}<li>{{.}}</li>{{end}}</ul>
+    {{else if eq .Kind "code"}}<pre>{{.Text}}</pre>
+    {{else if eq .Kind "janein"}}{{.Label}}: ja
     {{else}}{{.Text}}{{end}}
   </dd>
   {{end}}
@@ -541,8 +545,77 @@ their names. Print `.Label` and the value and let the order decide the layout:
 {{end}}
 ```
 
-`.Page.Felder` is the same data as a map, keyed by field name. It is for a
-theme written for one particular site, which knows the names it wants.
+**Only filled fields are in the list.** A field nobody entered anything into is
+left out, and so is a picture, a reference or a label whose target has since
+been deleted. That is what makes the branches above safe: on an entry of kind
+`bild` the `.Image` is there, on `verweis` the `.Ref`, on `schlagwort` the
+`.Term`. The `{{with}}` costs nothing and is kept as a habit.
+
+`.Page.Felder` is the same data as a map, keyed by field name. It is the other
+half of the contract and it behaves differently: **every defined field is in the
+map, filled or not**, so `{{.Page.Felder.abfahrt}}` on a page where nobody
+entered a time is a nil time rather than a missing key. Reach through it the way
+you reach through `.Page.Next` — with `{{with}}` or `{{if}}` — and see §9. The
+map is for a theme written for one particular site, which knows the names it
+wants; the list is for a theme that ships with the program and knows none.
+
+#### The kinds a field can be
+
+`.Kind` is one of these, and it is what a theme branches on:
+
+| `.Kind` | `.Value` | What to print |
+|---|---|---|
+| `text` | string | `.Text` |
+| `langtext` | string | `.Text` — several lines of plain text; keep the breaks with CSS `white-space: pre-line` |
+| `code` | string | `.Text` inside `<pre>`, and nothing else — see below |
+| `zahl` | number | `.Text` — the number exactly as it was typed |
+| `bereich` | number | `.Text` — see below |
+| `datum` | date or **nil** | `{{formatDate .Value}}`; `.Text` is empty for a date |
+| `zeit` | time or **nil** | `.Text` — see below |
+| `janein` | bool | `.Yes` — see below |
+| `auswahl` | string | `.Text` — the one chosen option |
+| `mehrfachauswahl` | list of strings | `{{range .Values}}` — see below |
+| `bild` | picture or **nil** | `{{with .Image}}` |
+| `link` | string | `.Text` is the address |
+| `verweis` | reference or **nil** | `{{with .Ref}}` |
+| `schlagwort` | label or **nil** | `{{with .Term}}` — see below |
+| `gruppe` | list of rows | `{{range .Rows}}`; every row is itself a list of `FieldEntry` |
+| `abschnitt` | — | never appears: a heading in the operator's form, not a value |
+
+`.Values` is the list a `mehrfachauswahl` field carries, in the order the
+operator wrote the options. Loop over it — `{{range .Values}}<li>{{.}}</li>{{end}}`
+— when the values deserve their own elements. `.Text` on the same entry is those
+same values already joined into one readable string, which is what a theme that
+just prints label and value should use.
+
+`.Term` is set for a `schlagwort` field whose label still exists. `.Text` is the
+label's **name as it is right now**: renaming the label changes what every page
+carrying it shows, without any page being touched. That is the whole point of
+the kind. A label that was deleted leaves the entry out of the list altogether
+rather than printing a name that no longer exists.
+
+`.Yes` is the state of a `janein` field. The entry is in the list only when it
+is true, so `.Yes` is a convenience rather than a question — `.Text` is empty
+for this kind, and printing it would print nothing.
+
+`zeit` is a time of day with no date and no timezone: a departure, a closing
+time. `.Text` is it as `HH:MM` and `.Value` is a time you may format yourself.
+A field nobody filled in leaves the entry out, which is why "empty" and
+"midnight" are different things here and a bare string could not tell them
+apart.
+
+`bereich` is a number the operator bounded from below and above when they
+defined the field. `.Text` is the number exactly as it was typed. The bounds
+belong to the definition and not to the value — they are enforced before
+anything is stored, so a theme never has to check them and never sees a number
+outside them.
+
+`code` is text that appears exactly as it was typed: a snippet, an address
+line, a configuration line. `.Text` is that text and **it is not HTML**. Print
+it inside `<pre>` and never pass it through a raw-HTML helper. An operator who
+types `<script>` into a `code` field must see `<script>` on the page; the
+escaping `html/template` does for you is the entire promise of the kind, and a
+raw-HTML helper is the one way to break it.
 
 ---
 
