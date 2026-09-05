@@ -921,3 +921,72 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 		t.Fatal("kein französisches Menü gefunden")
 	}
 }
+
+// Ein mehrwertiger Wert reist als das, was er ist: eine Zeichenkette mit einer
+// Zeile je Wert. Übersetzt werden nur Bildnummern und Seitennummern, alles
+// andere trägt das Archiv unverändert — und genau das muss nachweisbar bleiben,
+// sonst zerlegt eine spätere Übersetzung still die Kodierung, auf der Phase 9
+// aufbaut.
+func TestMehrfachauswahlUeberlebtDieArchivreise(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	ws, err := s.Domains.CreateWebsite(ctx, "Sägerei", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "sorten", Label: "Sorten", Kind: field.KindMulti,
+		Choices: []string{"Eiche", "Buche", "Esche"},
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+
+	p, err := s.Pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws.ID, Title: "Bretter", Slug: "bretter",
+		Markdown: "x", HTML: "<p>x</p>", Status: "published",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Doppelte und Reihenfolge sind Teil des Wertes: beide müssen die Reise
+	// unverändert überstehen.
+	wert := field.JoinValues([]string{"Esche", "Eiche", "Esche"})
+	raw, err := field.Encode(field.Data{Values: field.Values{"sorten": wert}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Pages.SetFields(ctx, p.ID, raw); err != nil {
+		t.Fatal(err)
+	}
+
+	archive := exportTo(t, s, ws.ID)
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Sägerei (Kopie)")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("Warnungen: %v", report.Warnings)
+	}
+
+	kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kopie *page.Page
+	for i := range kopien {
+		if kopien[i].Slug == "bretter" {
+			kopie = &kopien[i]
+		}
+	}
+	if kopie == nil {
+		t.Fatalf("die Seite fehlt in der Kopie: %+v", kopien)
+	}
+	got := field.Decode(kopie.Fields).Values["sorten"]
+	if got != wert {
+		t.Errorf("nach der Reise %q, wollte %q — Zeichen für Zeichen dasselbe", got, wert)
+	}
+	if werte := field.SplitValues(got); len(werte) != 3 {
+		t.Errorf("nach der Reise %d Werte, wollte 3: %#v", len(werte), werte)
+	}
+}
