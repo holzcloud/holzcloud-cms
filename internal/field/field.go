@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"sort"
 	"strconv"
 	"strings"
@@ -84,6 +85,18 @@ const (
 	// ganze Zweck. Was hineingeschrieben wird, wird maskiert und angezeigt,
 	// nicht gedeutet. Für Fliesstext mit Auszeichnung gibt es KindLong.
 	KindCode = "code"
+	// KindTerm ist eines der Schlagwörter dieser Website — ausgewählt aus dem,
+	// was die Website schon trägt, nicht getippt.
+	//
+	// Der Unterschied zu einem Textfeld ist derselbe wie der zwischen
+	// KindLink und KindRef: ein getippter Name geht in dem Moment schief, in
+	// dem jemand das Schlagwort umbenennt, und eine Seite trüge dann eine
+	// Beschriftung, die es nicht mehr gibt, ohne dass irgendetwas es meldet.
+	// Gespeichert wird deshalb das Kürzel — die Adresse, die eine Umbenennung
+	// absichtlich behält — und gedruckt wird der Name, wie er gerade jetzt
+	// lautet. Eine Umbenennung ändert damit, was jede Seite zeigt, ohne dass
+	// eine einzige Seite angefasst wird.
+	KindTerm = "schlagwort"
 )
 
 // Where a field applies.
@@ -119,6 +132,7 @@ var Kinds = []Kind{
 	{KindImage, i18n.N("Bild"), i18n.N("Ein Bild aus der Mediathek dieser Website.")},
 	{KindLink, i18n.N("Link"), i18n.N("Eine eigene Seite oder eine fremde Adresse.")},
 	{KindRef, i18n.N("Verweis"), i18n.N("Eine Seite dieser Website, ausgewählt statt eingetippt. Für mehrere: eine Gruppe mit einem Verweis darin.")},
+	{KindTerm, i18n.N("Schlagwort"), i18n.N("Ein Schlagwort dieser Website, ausgewählt statt eingetippt. Die Seite zeigt immer den aktuellen Namen.")},
 	{KindGroup, i18n.N("Gruppe"), i18n.N("Mehrere Felder, mehrfach ausgefüllt — z. B. Öffnungszeiten.")},
 	{KindSection, i18n.N("Abschnitt"), i18n.N("Keine Eingabe, sondern eine Überschrift über den folgenden Feldern.")},
 }
@@ -138,17 +152,23 @@ func SubKinds() []Kind {
 
 // BlockKinds are the kinds a field of a block kind may have.
 //
-// Everything a group may have, minus the reference. A reference exists to
-// survive a rename — it stores the page, not its address, and follows it. A
-// block is rendered to HTML when the page is saved and that HTML is what
-// visitors get, so a reference inside one would freeze the address it had that
-// day and quietly break on the next rename. A promise that cannot be kept here
-// is better not offered: the link field does the same job and says what it is.
+// Everything a group may have, minus the reference and the label. Both exist
+// to survive a rename: a reference stores the page rather than its address and
+// follows it, and a label field stores the label's address rather than its name
+// and prints whatever the label is called right now. A block is rendered to
+// HTML when the page is saved and that HTML is what visitors get, so either one
+// inside a block would freeze what it had that day and quietly go stale on the
+// next rename, with nothing anywhere reporting it. A promise that cannot be
+// kept here is better not offered: the link field does the reference's job and
+// says what it is, and a text field does the label's.
+//
+// The count in the capacity hint tracks the exclusions below. It is the one
+// thing here that goes quietly wrong when a fifth is added.
 func BlockKinds() []Kind {
-	out := make([]Kind, 0, len(Kinds)-3)
+	out := make([]Kind, 0, len(Kinds)-4)
 	for _, k := range Kinds {
 		switch k.Kind {
-		case KindGroup, KindSection, KindRef:
+		case KindGroup, KindSection, KindRef, KindTerm:
 			continue
 		}
 		out = append(out, k)
@@ -772,6 +792,20 @@ func Check(d Def, value string) string {
 		// somebody typing into the form by hand.
 		if id, err := strconv.ParseInt(value, 10, 64); err != nil || id <= 0 {
 			return d.Label + ": das ist keine Seite dieser Website."
+		}
+	case KindTerm:
+		// Dass es das Schlagwort gibt und dass es dieser Website gehört, wird
+		// dort entschieden, wo die Schlagwörter bekannt sind — das Formular
+		// bietet nur die eigenen an, und das Theme löst über eine
+		// Nachschlagefunktion auf, die prüft. Hier ist es ein Kürzel oder es
+		// ist jemand, der von Hand ins Formular tippt.
+		//
+		// Geprüft wird gegen page.Slugify und nicht gegen eine zweite
+		// Schreibweise dessen, was ein Kürzel ist: ein Kürzel ist genau die
+		// Zeichenkette, die aus sich selbst wieder sich selbst ergibt. Zwei
+		// Regeln nebeneinander wären zwei Regeln, die auseinanderlaufen.
+		if page.Slugify(value) != value {
+			return d.Label + ": das ist kein Schlagwort dieser Website."
 		}
 	case KindLink:
 		if reason := checkLink(value); reason != "" {
