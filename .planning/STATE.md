@@ -4,16 +4,16 @@ milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Field Kinds
-status: complete
-stopped_at: Phase 7 context gathered
-last_updated: "2026-09-05T13:38:12.414Z"
+status: executing
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-09-05T13:56:24.170Z"
 last_activity: 2026-09-05
-state_head: d03ccb8f2c2c36336aa4153958526b7f93b7399c
+state_head: 21514c65e83e78ba6c8d57d48e92a6abad9310a4
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 14
-  completed_plans: 7
+  completed_plans: 8
   percent: 17
 ---
 
@@ -31,7 +31,7 @@ progress:
 
 Phase: 6 — Aufräumen (7 / 7 Pläne ausgeführt; das stehende Tor ist zur Hälfte offen)
 Plan: 06-07 complete — die fünf Tests, die sich selbst übersprangen, entscheiden das nicht mehr selbst: `internal/plugin/wasmtest` entscheidet es einmal für drei Go-Pakete, und `HOLZCLOUD_TEST_REQUIRE_WASM: "1"` steht auf Ablaufebene in `ci.yml`, `security.yml` und `release.yml` (`image.yml` führt keine Tests aus und bleibt bewusst leer). Die Meldung nennt in beiden Zweigen `go run ./tools/wasm`; der falsche Erfolg wurde vor der Änderung reproduziert (exit 0) und danach gemessen (exit 1, auch bei `true` und `yes`). Vier Dokumentanker nachgezogen, die i18n-Notiz in der ROADMAP stillgelegt statt neu gezeigt
-Status: Phase 6 — Pläne fertig, Abnahme offen
+Status: Executing Phase 07
 Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
 Last activity: 2026-09-05
 
@@ -166,6 +166,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 06 P02 | 13 min | 2 tasks | 2 files |
 | Phase 06 P05 | 21 min | 3 tasks | 4 files |
 | Phase 06 P07 | 18 min | 4 tasks | 13 files |
+| Phase 07 P01 | 22 min | 3 tasks | 10 files |
 
 ### Session Continuity
 
@@ -176,9 +177,9 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-05T10:09:31.003Z
-**Stopped at:** Phase 7 context gathered
-**Resume file:** .planning/phases/07-field-kinds/07-CONTEXT.md
+**Last session:** 2026-09-05T13:56:02.385Z
+**Stopped at:** Completed 07-01-PLAN.md
+**Resume file:** None
 
 ## Decisions
 
@@ -198,6 +199,9 @@ Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist
 - [Phase 06]: A resolved deferred finding is closed by a dated stamp above its text, not by deletion — the reasoning is what a later phase needs
 - [Phase 06]: 06-02: D-05 is PASS — the six wasip1 guests hash identically on darwin/arm64 and ubuntu-latest (run 33866318077, 2026-09-04). The byte comparison can be made blocking; the D-05 fallback (-out plus HOLZCLOUD_WASM_DIR) is not needed and must not be planned for
 - [Phase 06]: 06-02: tools/wasm forces GOTOOLCHAIN on every build subprocess, proven against ambient local/go1.26.7/go1.27.0 — the guest bytes depend on the goToolchain constant alone, not on setup-go or go.mod. The real trap is D-03a floor: bumping go.mod go directive above the pin breaks the echo build loudly, and only echo
+- [Phase 07]: 07-01: D-05 als own-kind bestaetigt — mehrfachauswahl ist eine eigene Art neben auswahl, nicht auswahl mit max_werte>1. Gemessen: render.go Resolve hat keinen case KindChoice, eine Auswahl erreicht ein Theme also als String — Auswahl mehrwertig zu machen wuerde still umtypisieren, was jedes bestehende Theme auf jeder bestehenden Website liest — ohne Fehler an irgendeiner Stelle. Die Entscheidung wurde AUTOMATISCH gewaehlt (workflow.auto_advance: true) und ist einwegig; sie deckt sich mit 07-CONTEXT D-05, sollte aber einmal bestaetigt werden
+- [Phase 07]: 07-01: SplitValues/JoinValues sind das eine Paar fuer mehrwertige Werte; SplitChoices/JoinChoices bleiben getrennt und keines ruft das andere auf — Zwei Namen fuer zwei Bedeutungen: eine spaetere Aenderung daran, wie eine Moeglichkeitenliste gelesen wird, darf nicht still aendern, wie ein Wert gespeichert wird. Phase 9 erbt die beiden ausgefuehrten Funktionen
+- [Phase 07]: 07-01: Mehrwertigkeit steht im Namen des Formularfeldes (feld_<key>[]), gepraegt allein in Def.FieldName(); der versteckte Waechter haelt geleert von abwesend unterscheidbar — fieldsFromRequest liest bewusst per Praefix, bevor die Definitionen geladen sind — diese Eigenschaft musste erhalten bleiben. Eine Kennung ist slug-artig und kann keine Klammer enthalten, die Markierung kann also nicht kollidieren
 
 ## Accumulated Context
 
