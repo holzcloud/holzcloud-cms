@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 7
 current_phase_name: Field Kinds
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-09-05T14:40:30.291Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-09-05T14:56:03.711Z"
 last_activity: 2026-09-05
-state_head: f4c5377bff3d8f4539cd72ea5c2fd021e20accba
+state_head: da59688cdc6e231b0cd331fbc4ba9f16640fade4
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 14
-  completed_plans: 10
+  completed_plans: 11
   percent: 17
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 7 — Field Kinds (3 / 7 Pläne ausgeführt)
-Plan: 07-03 complete — `zeit`, `bereich` und `code` gibt es, durchgehend. Eine Uhrzeit unterscheidet leer von Mitternacht (Zeiger), traegt keine Zeitzone und wird ueber die Zeichenlaenge gelesen, nicht ueber time.Parse, dessen Stundenfeld auch "9:30" annehmen wuerde. Ein Bereich ist ein `<input type="number" step="any">` mit min und max nur dort, wo es sie gibt (durch Mutation als scharf nachgewiesen) — ausdruecklich kein Schieber (D-07) —, seine Grenzen gelten einschliesslich, und er traegt den Platzhalter, ohne den `.feld-schalter--text` nie greifen koennte. Ein Codefeld wird im Bausteinweg maskiert, wo das HTML einfriert (D-06, FIELD-06), nie durch Markdown, und loest als `string` auf und nicht als `template.HTML`. `validate` hat jetzt alle drei Leerregeln; `MayControl` schliesst `zeit` aus. **Ausdruecklich entschieden und sonst nirgends festgehalten:** die Suchindex-Liste in `PlainText` nimmt `code` und `mehrfachauswahl` auf (letztere mit Leerzeichen verbunden), `zeit` und `bereich` nicht. **Kein Kontrollpunkt in diesem Plan, nichts automatisch gewaehlt.** Ausstehend, planmaessig: 20 offene Uebersetzungen, die Dokumentensteuer je Art und die Browserhaelfte — alle drei 07-07, das auch D-08 entscheidet
+Phase: 7 — Field Kinds (4 / 7 Pläne ausgeführt)
+Plan: 07-04 complete — die Mehrfachauswahl ist geschlossen. `max_werte` wird in `Check` gegen `SplitValues` gezaehlt, auf dem Server, weil eine Haekchengruppe ohne JavaScript in der Auszeichnung nicht begrenzt werden kann (D-05); null heisst weiterhin ohne Grenze, kein bestehendes Feld aendert sich. **D-13 ist erledigt:** `trimTo` kuerzte einen Wert bei `MaxValueBytes` still ab — jetzt steht ein Bytewaechter vor dem Verteiler in `Check`, `MaxValueBytes` ist der Platz fuer den ganzen verbundenen Wert eines Feldes einschliesslich der Umbrueche, genau die Grenze geht noch, ein Byte mehr wird abgelehnt, und gemessen wird in Byte (ein Umlaut braucht zwei, die Begruendung sagt das). Auf dem Speicherweg kuerzt nichts mehr. `.planning/WINDOWS.md` Eintrag 2 ist `fixed`, offen sind null. Die Markierung traegt jetzt auch die Gruppenzeile: `groupView` haengt `sub.NameSuffix()` an, `parseRowName` meldet sie als vierten Rueckgabewert und schneidet sie erst nach jeder bestehenden Wache ab (Vorsatz, drei Teile, `MaxRows`) — dazu neu eine Wache gegen einen leeren Unterfeldnamen. `felder_auflisten` sagt `darstellung`, `max_werte`, `min_wert` und `max_wert`, jedes fehlend wo unbesetzt, und ein mehrwertiges Feld allein traegt einen Satz dazu, wie mehrere Werte in die eine Zeichenkette gehoeren; ein Test schreibt so ein Feld durch `seite_anlegen` und liest es durch `seite_lesen` unveraendert zurueck. Kein Schema wurde erweitert, kein Werkzeug kam dazu. **Kein Kontrollpunkt in diesem Plan, nichts automatisch gewaehlt.** Gemeldet und nicht behoben: `internal/bundle/import.go` schreibt Feldwerte ohne `CheckAll` — vorbestehend, von diesem Plan unveraendert, gehoert in 07-05. Ausstehend, planmaessig: 20 offene Uebersetzungen, die Dokumentensteuer je Art und die Browserhaelfte — alle drei 07-07, das auch D-08 entscheidet
 Status: Executing Phase 07
 Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
 Last activity: 2026-09-05
@@ -169,6 +169,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 07 P01 | 22 min | 3 tasks | 10 files |
 | Phase 07 P02 | 21 min | 3 tasks | 11 files |
 | Phase 07 P03 | 17 min | 3 tasks | 12 files |
+| Phase 07 P04 | 22 min | 3 tasks | 7 files |
 
 ### Session Continuity
 
@@ -179,8 +180,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-05T14:40:21.741Z
-**Stopped at:** Completed 07-03-PLAN.md
+**Last session:** 2026-09-05T14:56:03.626Z
+**Stopped at:** Completed 07-04-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -212,9 +213,16 @@ Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist
 - [Phase 07]: 07-03: field.ParseNumber und field.ParseTimeOfDay sind die je eine Lesart. Check misst den eingegebenen Wert UND beide Grenzen damit, und validate in store.go wurde auf ParseNumber umgestellt: vorher las validate mit blankem strconv.ParseFloat, waehrend Check das Komma vorher ersetzt — "0,5"/"0,2" war damit ein verdrehtes Paar, das validate nicht sehen konnte und Check dann rueckwaerts durchgesetzt haette. Eine Uhrzeit wird ueber die Zeichenlaenge gelesen und nicht ueber time.Parse, dessen Stundenfeld auch einstellig annimmt: "9:30" kaeme sonst still als halb zehn durch
 - [Phase 07]: 07-03: D-08 wurde hier bewusst NICHT entschieden — MayControl bleibt true fuer bereich, und der Platzhalterzweig im Zahlenfeld haelt die Praemisse ueberhaupt pruefbar. Der Browserdurchgang in 07-07 entscheidet, ob :placeholder-shown an einem Zahlenfeld greift, und traegt den geschriebenen Rueckweg. zeit dagegen ist raus, aus demselben Grund wie datum; MayControl wurde dafuer in zwei switch-Faelle geteilt, damit die gemeinsame Begruendung neben dem Paar steht, das sie erklaert
 - [Phase 07]: 07-03: die dritte Leerregel in validate (beide Grenzen fuer jede Art ausser bereich) hat drei bestehende Testreihen zerbrochen — store_test, admin/field_defs_test und bundle_test hingen die Grenzen mangels Konstante an Auswahl, Mehrfachauswahl und Textfeld. Die Grenzen zogen in allen dreien an ein Bereichsfeld um; der Lesetest gewann dabei Deckung, weil jede Spalte jetzt an der Art sitzt, der sie gehoert. Am schlimmsten war die T-07-05-Pruefung auf gebundene Parameter: an einem Textfeld waere der boshafte Wert geleert worden und die Pruefung haette weiter gruen gemeldet, ohne noch irgendetwas zu beweisen
+- [Phase 07]: 07-04: MaxValueBytes wird gemeldet und nicht mehr angewendet (D-13 erledigt). trimTo kuerzt nicht mehr, ein Bytewaechter steht vor dem Verteiler in Check und gilt damit jeder Art; gemessen wird der ganze verbundene Wert eines Feldes einschliesslich der Umbrueche, in Byte und nicht in Runen — Ein gekuerzter Wert sieht aus wie einer, den jemand so getippt hat. Seit das Budget allen Werten eines Feldes zusammen gehoert, haette das Kuerzen einen Wert halbiert und das Bruchstueck als echten Wert abgelegt. Die Datenbank zaehlt Byte, also zaehlt die Grenze Byte; die Begruendung sagt dazu, dass Umlaute doppelt zaehlen, statt 4000 Zeichen zu versprechen, die sie nicht halten kann. Eintrag 2 in .planning/WINDOWS.md ist fixed, offen sind null
+- [Phase 07]: 07-04: max_werte gilt serverseitig in Check, gezaehlt ueber SplitValues; null heisst ohne Grenze — Eine Haekchengruppe laesst sich in HTML ohne JavaScript nicht begrenzen, und dieses Programm traegt keines ausser htmx (D-05). Null ist das, was jedes vor dieser Phase angelegte Feld traegt — eine erzwungene Null waere eine Verhaltensaenderung an jedem bestehenden Feld
+- [Phase 07]: 07-04: parseRowName bekam eine vierte Wache — ein Unterfeldname, der nach dem Abschneiden der Markierung leer waere, wird abgelehnt — Der Plan nannte drei zu erhaltende Wachen; keine davon lehnt gruppe.<kennung>.<nummer>. oder gruppe.<kennung>.<nummer>.[] ab. Beide legten bisher einen Zeileneintrag unter dem leeren Schluessel an; cleanRow warf ihn spaeter weg, gespeichert wurde also nie etwas. Der Weg oben auf der Seite uebergeht feld_[] seit 07-01 — die beiden Namenswege stimmen jetzt ueberein, und die Ablehnungstabelle weist es nach
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 11 added: Galerie — Vergroessern/Lightbox (:target, kein JS), Album als wiederverwendbares Ding, Diashow via CSS scroll-snap. Haengt an Phase 7 (Mehrwert-Kodierung FIELD-07), nicht an Phase 10. Passt nicht ins v1.6-Meilensteinziel; per Entwicklerentscheid trotzdem hier.
+
+### Blockers
+
+- 07-04 gemeldet, nicht behoben: internal/bundle/import.go importFieldValues schreibt Feldwerte mit field.Encode direkt, ohne CheckAll und ohne Clean. Vorbestehend und von diesem Plan unveraendert (der Weg lief nie durch trimTo); alle anderen Schreibwege sind gedeckt. Gehoert in 07-05, das den Archivweg ohnehin anfasst
