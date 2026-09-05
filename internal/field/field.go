@@ -56,6 +56,34 @@ const (
 	// no runtime error, just a theme printing a list where it printed a word.
 	// A new kind is purely additive, and KindChoice keeps its contract.
 	KindMulti = "mehrfachauswahl"
+	// KindTime ist eine Uhrzeit ohne Datum und ohne Zeitzone: eine Abfahrt,
+	// ein Ladenschluss, der Beginn einer Führung.
+	//
+	// Getrennt von KindDate und nicht als dessen zweite Hälfte, weil das, was
+	// eine Uhrzeit braucht, gerade das ist, was ein Datum nicht hat: „nichts
+	// eingetragen“ und „Mitternacht“ sind zwei verschiedene Tatsachen, und
+	// eine Zeichenkette könnte sie nicht auseinanderhalten. Deshalb löst das
+	// Feld zu einem Zeiger auf. Eine Zeitzone trägt es nicht — ein Laden
+	// öffnet um acht, und das bleibt acht, egal von wo aus jemand hinsieht.
+	KindTime = "zeit"
+	// KindRange ist eine Zahl zwischen zwei Grenzen — und ein
+	// <input type="number"> mit min, max und step, ausdrücklich kein Schieber.
+	//
+	// Die Bedingung, an der drei Schiebervarianten scheitern: die gewählte
+	// Zahl muss vor dem Speichern lesbar sein, und dieses Programm trägt
+	// ausser htmx kein JavaScript. Ein Schieber allein zeigt seine Zahl nie;
+	// mit einem <output> daneben zeigt er sie nur, wenn ein Skript sie
+	// hinschreibt — genau das Muster, das internal/tmplmgr/script.go in einer
+	// hochgeladenen Vorlage zurückweist. Bei einem Zahlenfeld *ist* die
+	// gewählte Zahl der sichtbare Inhalt.
+	KindRange = "bereich"
+	// KindCode ist die eine Art, deren Inhalt genau so erscheint, wie er
+	// getippt wurde: ein Schnipsel, eine Adresszeile, eine Konfigurationszeile.
+	//
+	// Nie durch den Markdown-Renderer — das ist keine Auslassung, sondern der
+	// ganze Zweck. Was hineingeschrieben wird, wird maskiert und angezeigt,
+	// nicht gedeutet. Für Fliesstext mit Auszeichnung gibt es KindLong.
+	KindCode = "code"
 )
 
 // Where a field applies.
@@ -80,8 +108,11 @@ type Kind struct {
 var Kinds = []Kind{
 	{KindText, i18n.N("Kurzer Text"), i18n.N("Eine Zeile: ein Name, eine Menge, eine Sorte.")},
 	{KindLong, i18n.N("Langer Text"), i18n.N("Mehrere Zeilen ohne Formatierung.")},
+	{KindCode, i18n.N("Code"), i18n.N("Mehrere Zeilen, genau so angezeigt, wie sie getippt wurden.")},
 	{KindNumber, i18n.N("Zahl"), i18n.N("Ein Preis, ein Gewicht, ein Jahrgang.")},
+	{KindRange, i18n.N("Bereich"), i18n.N("Eine Zahl zwischen zwei Grenzen — die Grenzen selbst gelten mit.")},
 	{KindDate, i18n.N("Datum"), i18n.N("Ein Tag, ohne Uhrzeit.")},
+	{KindTime, i18n.N("Uhrzeit"), i18n.N("Eine Uhrzeit, ohne Tag.")},
 	{KindBool, i18n.N("Ja/Nein"), i18n.N("Ein Ankreuzfeld: verfügbar, vergriffen.")},
 	{KindChoice, i18n.N("Auswahl"), i18n.N("Eine Liste von Möglichkeiten, eine davon.")},
 	{KindMulti, i18n.N("Mehrfachauswahl"), i18n.N("Dieselbe Liste, aber beliebig viele davon — als Kästchen zum Ankreuzen.")},
@@ -254,7 +285,15 @@ func (d Def) HoldsValue() bool { return d.Kind != KindSection }
 // know the rule to avoid breaking it.
 func (d Def) MayControl() bool {
 	switch d.Kind {
-	case KindGroup, KindSection, KindDate:
+	case KindGroup, KindSection:
+		return false
+	case KindDate, KindTime:
+		// Beide aus demselben Grund: ein Datums- und ein Uhrzeitfeld zeigen
+		// nie einen Platzhalter. Die Regel, die die abhängigen Felder
+		// ausblendet, ist :placeholder-shown — sie könnte hier also nie
+		// greifen, und jedes Feld, das an einem solchen hinge, bliebe für
+		// immer sichtbar. Ein Bereichsfeld steht bewusst nicht hier: es ist
+		// ein Zahlenfeld und trägt sehr wohl einen Platzhalter.
 		return false
 	}
 	return d.ParentID == 0
@@ -561,6 +600,66 @@ func trimTo(val string) string {
 	return val
 }
 
+// ParseNumber liest eine Zahl so, wie sie auf einer Tastatur hier getippt
+// wird: das Komma ist ein Dezimaltrennzeichen.
+//
+// Eine Stelle für beide Seiten derselben Frage — der eingegebene Wert und die
+// beiden Grenzen, gegen die er gehalten wird. Zwei Lesarten für dieselben
+// Ziffern wären genau die Art Unterschied, die nur an einem Zahlenpaar
+// auffällt, das niemand von Hand nachrechnet.
+func ParseNumber(value string) (float64, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	n, err := strconv.ParseFloat(strings.ReplaceAll(value, ",", "."), 64)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// ParseTimeOfDay liest eine Uhrzeit ohne Datum und ohne Zeitzone.
+//
+// Die Länge entscheidet über das Muster, statt time.Parse raten zu lassen:
+// dessen Stundenfeld nimmt auch eine einstellige Zahl an, „9:30“ käme also
+// stillschweigend als halb zehn durch. Ein <input type="time"> sendet immer
+// zweistellig; wer von Hand einträgt, soll es merken. Die Sekunden sind
+// zugelassen, weil manche Browser sie mitschicken.
+//
+// Das Ergebnis trägt keinen Zeitzonenversatz und kein brauchbares Datum: es
+// ist eine Uhrzeit und sonst nichts.
+func ParseTimeOfDay(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	layout := ""
+	switch len(value) {
+	case len("15:04"):
+		layout = "15:04"
+	case len("15:04:05"):
+		layout = "15:04:05"
+	default:
+		return time.Time{}, false
+	}
+	t, err := time.Parse(layout, value)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+// rangeReason schreibt die Begründung für die Person am Formular und nennt die
+// Grenze, an der der Wert scheitert — beide, wo es beide gibt.
+func rangeReason(unten, oben string, hatUnten, hatOben bool) string {
+	switch {
+	case hatUnten && hatOben:
+		return "muss zwischen " + unten + " und " + oben + " liegen."
+	case hatUnten:
+		return "muss mindestens " + unten + " sein."
+	default:
+		return "darf höchstens " + oben + " sein."
+	}
+}
+
 // Check validates one value against its definition and returns a reason, or
 // the empty string when it is fine.
 //
@@ -580,8 +679,26 @@ func Check(d Def, value string) string {
 		// A group is checked row by row, not as one value.
 		return ""
 	case KindNumber:
-		if _, err := strconv.ParseFloat(strings.ReplaceAll(value, ",", "."), 64); err != nil {
+		if _, ok := ParseNumber(value); !ok {
 			return d.Label + " muss eine Zahl sein."
+		}
+	case KindRange:
+		n, ok := ParseNumber(value)
+		if !ok {
+			return d.Label + " muss eine Zahl sein."
+		}
+		// Beide Vergleiche schliessen die Grenze ein: die Grenze selbst ist
+		// ein erlaubter Wert. Eine Grenze, die keine Zahl ist, ist keine
+		// Grenze — dieselbe Lesart, die validate in store.go anwendet, wenn es
+		// ein verdrehtes Paar sucht.
+		unten, hatUnten := ParseNumber(d.RangeMin)
+		oben, hatOben := ParseNumber(d.RangeMax)
+		if (hatUnten && n < unten) || (hatOben && n > oben) {
+			return d.Label + " " + rangeReason(d.RangeMin, d.RangeMax, hatUnten, hatOben)
+		}
+	case KindTime:
+		if _, ok := ParseTimeOfDay(value); !ok {
+			return d.Label + " muss eine Uhrzeit sein, z. B. 09:30."
 		}
 	case KindDate:
 		if _, err := time.Parse("2006-01-02", value); err != nil {

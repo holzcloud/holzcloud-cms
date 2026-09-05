@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
@@ -457,26 +456,34 @@ func validate(d *Def) error {
 	d.RangeMin = strings.TrimSpace(d.RangeMin)
 	d.RangeMax = strings.TrimSpace(d.RangeMax)
 	if d.RangeMin != "" && d.RangeMax != "" {
-		unten, untenErr := strconv.ParseFloat(d.RangeMin, 64)
-		oben, obenErr := strconv.ParseFloat(d.RangeMax, 64)
-		if untenErr == nil && obenErr == nil && unten > oben {
+		// Dieselbe Lesart wie Check: ParseNumber nimmt das Komma als
+		// Dezimaltrennzeichen. Zwei Stellen, die dieselben Ziffern
+		// verschieden läsen, wären ein Paar, das hier durchgeht und dort
+		// nichts mehr durchlässt.
+		unten, hatUnten := ParseNumber(d.RangeMin)
+		oben, hatOben := ParseNumber(d.RangeMax)
+		if hatUnten && hatOben && unten > oben {
 			return ErrRangeInverted
 		}
 	}
 	// Die Darstellung gehört einer Auswahl, die Höchstzahl einer
-	// Mehrfachauswahl. Was zur gewählten Art nicht passt, wird geleert und
-	// nicht abgelehnt — dieselbe Abmachung, die die Überschrift weiter unten
-	// schon macht: wer ein bestehendes Feld umstellt, soll nicht erst von Hand
-	// Kästchen ausräumen müssen.
+	// Mehrfachauswahl, die beiden Grenzen einem Bereichsfeld. Was zur
+	// gewählten Art nicht passt, wird geleert und nicht abgelehnt — dieselbe
+	// Abmachung, die die Überschrift weiter unten schon macht: wer ein
+	// bestehendes Feld umstellt, soll nicht erst von Hand Kästchen ausräumen
+	// müssen.
 	//
-	// Für die beiden Grenzen steht hier absichtlich keine solche Regel: die
-	// Art, zu der sie gehören, gibt es in diesem Baum noch nicht. Sie kommt
-	// mit ihrer Konstanten zusammen zur Welt.
+	// Geleert wird immer beides oder keines: ein Bereichsfeld, das nur die
+	// untere oder nur die obere Grenze setzt, behält sie. Nach oben oder nach
+	// unten offen ist eine gewollte Angabe und kein halb ausgefülltes Paar.
 	if d.Kind != KindChoice {
 		d.Display = ""
 	}
 	if d.Kind != KindMulti {
 		d.MaxValues = 0
+	}
+	if d.Kind != KindRange {
+		d.RangeMin, d.RangeMax = "", ""
 	}
 	if d.ParentID > 0 && d.Kind == KindGroup {
 		return ErrNested

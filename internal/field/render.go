@@ -103,12 +103,27 @@ func Resolve(defs []Def, data Data, links Links) map[string]any {
 		case KindBool:
 			out[d.Key] = raw != "" && raw != "0"
 
-		case KindNumber:
+		case KindNumber, KindRange:
+			// Ein Bereichsfeld ist eine Zahl mit Grenzen, und die Grenzen sind
+			// eine Frage der Prüfung, nicht der Auflösung. Raw bleibt die
+			// getippte Zeichenkette, damit 0.1 als 0.1 gedruckt wird und nicht
+			// als das, was ein float64 daraus zurückformatiert.
 			n := Number{Raw: raw}
 			if raw != "" {
-				n.Value, _ = strconv.ParseFloat(strings.ReplaceAll(raw, ",", "."), 64)
+				n.Value, _ = ParseNumber(raw)
 			}
 			out[d.Key] = n
+
+		case KindTime:
+			// Ein Zeiger, aus demselben Grund wie beim Datum: „nichts
+			// eingetragen“ und „Mitternacht“ sind zwei verschiedene Tatsachen,
+			// und ein time.Time könnte sie nicht auseinanderhalten.
+			t, ok := ParseTimeOfDay(raw)
+			if !ok {
+				out[d.Key] = (*time.Time)(nil)
+				continue
+			}
+			out[d.Key] = &t
 
 		case KindDate:
 			// A pointer, because that is what the themes' formatDate takes —
@@ -252,6 +267,13 @@ func List(defs []Def, data Data, links Links) []Entry {
 		case *time.Time:
 			if v == nil {
 				continue
+			}
+			// Ein Datum überlässt der Text dem formatDate des Themes. Eine
+			// Uhrzeit hat keinen solchen Helfer, also steht sie hier — sonst
+			// druckt eine Liste aus Beschriftung und Wert neben „Abfahrt“
+			// nichts.
+			if d.Kind == KindTime {
+				e.Text = strings.TrimSpace(data.Values[d.Key])
 			}
 		case *Image:
 			if v == nil {

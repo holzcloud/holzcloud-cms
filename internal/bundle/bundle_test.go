@@ -1007,22 +1007,28 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Ein Seitenfeld als Auswahl: trägt die Darstellung und beide Grenzen.
+	// Ein Seitenfeld als Auswahl: trägt die Darstellung.
 	if _, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "farbe", Label: "Farbe", Kind: field.KindChoice,
 		Choices: []string{"hell", "dunkel"},
-		Display: field.DisplayButtons, RangeMin: "1", RangeMax: "9",
+		Display: field.DisplayButtons,
 	}); err != nil {
 		t.Fatalf("Auswahlfeld anlegen: %v", err)
 	}
-	// Ein Seitenfeld als Mehrfachauswahl: trägt die Höchstzahl und beide
-	// Grenzen. Zwei Felder, weil validate leert, was zur Art nicht passt.
+	// Ein Seitenfeld als Mehrfachauswahl: trägt die Höchstzahl. Und eines als
+	// Bereich: trägt die beiden Grenzen. Drei Felder, weil validate leert, was
+	// zur Art nicht passt — kein einziges Feld kann alle vier tragen.
 	if _, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "hoelzer", Label: "Hölzer", Kind: field.KindMulti,
 		Choices: []string{"Eiche", "Buche"}, MaxValues: 2,
-		RangeMin: "2", RangeMax: "8",
 	}); err != nil {
 		t.Fatalf("Mehrfachauswahlfeld anlegen: %v", err)
+	}
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "menge", Label: "Menge", Kind: field.KindRange,
+		RangeMin: "1", RangeMax: "9",
+	}); err != nil {
+		t.Fatalf("Bereichsfeld anlegen: %v", err)
 	}
 	// Dasselbe noch einmal in einer Gruppe.
 	gruppe, err := s.Fields.Create(ctx, field.Def{
@@ -1034,9 +1040,15 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 	if _, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "gfarbe", Label: "Farbe",
 		Kind: field.KindChoice, Choices: []string{"hell", "dunkel"},
-		Display: field.DisplayButtons, RangeMin: "3", RangeMax: "7",
+		Display: field.DisplayButtons,
 	}); err != nil {
 		t.Fatalf("Feld in der Gruppe anlegen: %v", err)
+	}
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "gmenge", Label: "Menge",
+		Kind: field.KindRange, RangeMin: "3", RangeMax: "7",
+	}); err != nil {
+		t.Fatalf("Bereichsfeld in der Gruppe anlegen: %v", err)
 	}
 
 	archive := exportTo(t, s, ws.ID)
@@ -1070,16 +1082,15 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 	if !farbe.IsButtonRow() {
 		t.Error("die Auswahl ist nach der Reise keine Knopfreihe mehr")
 	}
-	if farbe.RangeMin != "1" || farbe.RangeMax != "9" {
-		t.Errorf("Grenzen nach der Reise = %q/%q, wollte \"1\"/\"9\"", farbe.RangeMin, farbe.RangeMax)
+
+	menge := nimm(kopien, "menge")
+	if menge.RangeMin != "1" || menge.RangeMax != "9" {
+		t.Errorf("Grenzen nach der Reise = %q/%q, wollte \"1\"/\"9\"", menge.RangeMin, menge.RangeMax)
 	}
 
 	hoelzer := nimm(kopien, "hoelzer")
 	if hoelzer.MaxValues != 2 {
 		t.Errorf("Höchstzahl nach der Reise = %d, wollte 2", hoelzer.MaxValues)
-	}
-	if hoelzer.RangeMin != "2" || hoelzer.RangeMax != "8" {
-		t.Errorf("Grenzen nach der Reise = %q/%q, wollte \"2\"/\"8\"", hoelzer.RangeMin, hoelzer.RangeMax)
 	}
 
 	inGruppe := nimm(nimm(kopien, "zeiten").Sub, "gfarbe")
@@ -1087,9 +1098,10 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 		t.Errorf("Darstellung in der Gruppe nach der Reise = %q, wollte %q",
 			inGruppe.Display, field.DisplayButtons)
 	}
-	if inGruppe.RangeMin != "3" || inGruppe.RangeMax != "7" {
+	inGruppeMenge := nimm(nimm(kopien, "zeiten").Sub, "gmenge")
+	if inGruppeMenge.RangeMin != "3" || inGruppeMenge.RangeMax != "7" {
 		t.Errorf("Grenzen in der Gruppe nach der Reise = %q/%q, wollte \"3\"/\"7\"",
-			inGruppe.RangeMin, inGruppe.RangeMax)
+			inGruppeMenge.RangeMin, inGruppeMenge.RangeMax)
 	}
 }
 
