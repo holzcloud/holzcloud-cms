@@ -302,6 +302,8 @@ func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, r
 		def := field.Def{
 			WebsiteID: websiteID, Key: f.Key, Label: f.Label, Kind: f.Kind,
 			Required: f.Required, Hint: f.Hint, Choices: f.Choices, AppliesTo: f.AppliesTo,
+			Display: f.Display, MaxValues: f.MaxValues,
+			RangeMin: f.Min, RangeMax: f.Max,
 		}
 		created, err := s.Fields.Create(ctx, def)
 		if err == nil && f.Condition != "" {
@@ -318,6 +320,8 @@ func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, r
 			if _, err := s.Fields.Create(ctx, field.Def{
 				WebsiteID: websiteID, ParentID: created.ID, Key: sub.Key, Label: sub.Label,
 				Kind: sub.Kind, Required: sub.Required, Hint: sub.Hint, Choices: sub.Choices,
+				Display: sub.Display, MaxValues: sub.MaxValues,
+				RangeMin: sub.Min, RangeMax: sub.Max,
 			}); err != nil {
 				report.Warnings = append(report.Warnings,
 					fmt.Sprintf("Feld %q in der Gruppe %q konnte nicht angelegt werden: %v", sub.Label, f.Label, err))
@@ -361,6 +365,8 @@ func importBlockTypes(ctx context.Context, s Stores, websiteID int64, m *Manifes
 				WebsiteID: websiteID, BlockTypeID: created.ID,
 				Key: f.Key, Label: f.Label, Kind: f.Kind,
 				Hint: f.Hint, Choices: f.Choices,
+				Display: f.Display, MaxValues: f.MaxValues,
+				RangeMin: f.Min, RangeMax: f.Max,
 			}); err != nil {
 				report.Warnings = append(report.Warnings,
 					fmt.Sprintf("Feld %q der Bausteinart %q konnte nicht angelegt werden: %v",

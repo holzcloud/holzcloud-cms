@@ -65,6 +65,17 @@ type Field struct {
 	// Condition is the key of the field this one hangs on: it is asked for only
 	// once that one is filled in. Empty for a field that is always shown.
 	Condition string `json:"condition,omitempty"`
+	// Display ist der Anzeigemodus einer Auswahl, MaxValues die Höchstzahl der
+	// Werte einer Mehrfachauswahl, Min und Max die beiden Grenzen eines
+	// Bereichs.
+	//
+	// Alle vier mit omitempty: eine Website, die keine davon benutzt, schreibt
+	// ein Manifest, das Byte für Byte so aussieht wie eines von vor dieser
+	// Phase. Ein Archiv ist dazu da, von Hand gelesen und geflickt zu werden.
+	Display   string `json:"display,omitempty"`
+	MaxValues int    `json:"max_values,omitempty"`
+	Min       string `json:"min,omitempty"`
+	Max       string `json:"max,omitempty"`
 	// Sub are a group's own fields. Empty for everything else.
 	Sub []Field `json:"sub,omitempty"`
 }
