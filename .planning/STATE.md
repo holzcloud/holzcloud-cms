@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 7
 current_phase_name: Field Kinds
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-09-05T14:18:18.651Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-09-05T14:40:30.291Z"
 last_activity: 2026-09-05
-state_head: 6ceabad663f0ffdce8547ff12c2f1d476ef5aec4
+state_head: f4c5377bff3d8f4539cd72ea5c2fd021e20accba
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 14
-  completed_plans: 9
+  completed_plans: 10
   percent: 17
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 7 — Field Kinds (2 / 7 Pläne ausgeführt)
-Plan: 07-02 complete — Wanderung 00046 gibt darstellung, max_werte, min_wert und max_wert eigene Spalten auf page_field_defs (keine Prüfregel am Spaltenkopf, ein Down das alle vier zurücknimmt, auf und ab gegen eine echte Datei geprüft). Alle sieben SQL-Stellen in internal/field/store.go tragen sie; die fünf SELECT-Listen bleiben zeichengleiche Abschriften. Das Tor darauf ist ein Lesetest über Get, List, Sub, OfBlockType, OfBlockTypes und Update — keine Zählung, denn ein SELECT kann eine Spalte nennen und sie trotzdem nie in den Def schreiben. Def bekommt Display, MaxValues, RangeMin, RangeMax plus DisplayButtons und IsButtonRow für 07-06. Definitionsbildschirm und Archiv (drei Ausfuhr-, drei Einfuhrstellen, alle vier Schlüssel mit omitempty) tragen sie ebenfalls; der Reisetest wurde durch eine Mutation als scharf nachgewiesen. **Einwegig und automatisch gewählt: D-14.** Ausstehend, planmässig: 15 offene Übersetzungen (07-07) und die Browserhälfte (07-07)
+Phase: 7 — Field Kinds (3 / 7 Pläne ausgeführt)
+Plan: 07-03 complete — `zeit`, `bereich` und `code` gibt es, durchgehend. Eine Uhrzeit unterscheidet leer von Mitternacht (Zeiger), traegt keine Zeitzone und wird ueber die Zeichenlaenge gelesen, nicht ueber time.Parse, dessen Stundenfeld auch "9:30" annehmen wuerde. Ein Bereich ist ein `<input type="number" step="any">` mit min und max nur dort, wo es sie gibt (durch Mutation als scharf nachgewiesen) — ausdruecklich kein Schieber (D-07) —, seine Grenzen gelten einschliesslich, und er traegt den Platzhalter, ohne den `.feld-schalter--text` nie greifen koennte. Ein Codefeld wird im Bausteinweg maskiert, wo das HTML einfriert (D-06, FIELD-06), nie durch Markdown, und loest als `string` auf und nicht als `template.HTML`. `validate` hat jetzt alle drei Leerregeln; `MayControl` schliesst `zeit` aus. **Ausdruecklich entschieden und sonst nirgends festgehalten:** die Suchindex-Liste in `PlainText` nimmt `code` und `mehrfachauswahl` auf (letztere mit Leerzeichen verbunden), `zeit` und `bereich` nicht. **Kein Kontrollpunkt in diesem Plan, nichts automatisch gewaehlt.** Ausstehend, planmaessig: 20 offene Uebersetzungen, die Dokumentensteuer je Art und die Browserhaelfte — alle drei 07-07, das auch D-08 entscheidet
 Status: Executing Phase 07
 Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
 Last activity: 2026-09-05
@@ -168,6 +168,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 06 P07 | 18 min | 4 tasks | 13 files |
 | Phase 07 P01 | 22 min | 3 tasks | 10 files |
 | Phase 07 P02 | 21 min | 3 tasks | 11 files |
+| Phase 07 P03 | 17 min | 3 tasks | 12 files |
 
 ### Session Continuity
 
@@ -178,8 +179,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-05T14:17:56.065Z
-**Stopped at:** Completed 07-02-PLAN.md
+**Last session:** 2026-09-05T14:40:21.741Z
+**Stopped at:** Completed 07-03-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -207,6 +208,10 @@ Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist
 - [Phase 07]: 07-02: die beiden Bereichsgrenzen sind Text und keine Zahlen — 'keine Grenze' und 'die Grenze ist null' sind zwei verschiedene Tatsachen, und eine Zahlenspalte mit Vorgabewert koennte sie nicht auseinanderhalten
 - [Phase 07]: 07-02: die fuenf SELECT-Spaltenlisten in internal/field/store.go bleiben zeichengleiche Abschriften voneinander und werden als eine Ersetzung geaendert; die vier neuen Spalten stehen zwischen bedingung und COALESCE(block_type_id, 0). Das Tor darauf ist ein Lesetest ueber jeden Leseweg, nicht eine Zaehlung der Vorkommen — ein SELECT kann eine Spalte nennen und sie trotzdem nie in den Def schreiben
 - [Phase 07]: 07-02: der Plan widersprach sich selbst — keine Art behaelt Display UND MaxValues, weil validate leert, was zur Art nicht passt. Die Leerregel gewinnt (sie entschaerft T-07-06); der Lesetest nimmt je Ebene ein Auswahl- und ein Mehrfachauswahl-Feld, zusammen decken die beiden alle vier Spalten auf jedem Leseweg
+- [Phase 07]: 07-03: die Suchindex-Liste in internal/block/render.go PlainText nimmt KindCode und KindMulti auf und sonst nichts. Ausdruecklich festgehalten, weil weder Fahrplan noch Kontext diese Entscheidung getroffen hatten: ein Codefeld haelt Worte (Adresse, Einstellungszeile) und eine Seite aus Bausteinen waere sonst fuer ihre eigene Suche gerade dort unsichtbar, wo der Verfasser sich am meisten Muehe gab. Eine Mehrfachauswahl kommt mit Leerzeichen verbunden ueber field.SplitValues hinein, nicht als gespeicherte Zeilenspalte. zeit und bereich bleiben draussen, aus demselben Grund wie Bildnummer und Datum; schlagwort kann hier nie auftauchen
+- [Phase 07]: 07-03: field.ParseNumber und field.ParseTimeOfDay sind die je eine Lesart. Check misst den eingegebenen Wert UND beide Grenzen damit, und validate in store.go wurde auf ParseNumber umgestellt: vorher las validate mit blankem strconv.ParseFloat, waehrend Check das Komma vorher ersetzt — "0,5"/"0,2" war damit ein verdrehtes Paar, das validate nicht sehen konnte und Check dann rueckwaerts durchgesetzt haette. Eine Uhrzeit wird ueber die Zeichenlaenge gelesen und nicht ueber time.Parse, dessen Stundenfeld auch einstellig annimmt: "9:30" kaeme sonst still als halb zehn durch
+- [Phase 07]: 07-03: D-08 wurde hier bewusst NICHT entschieden — MayControl bleibt true fuer bereich, und der Platzhalterzweig im Zahlenfeld haelt die Praemisse ueberhaupt pruefbar. Der Browserdurchgang in 07-07 entscheidet, ob :placeholder-shown an einem Zahlenfeld greift, und traegt den geschriebenen Rueckweg. zeit dagegen ist raus, aus demselben Grund wie datum; MayControl wurde dafuer in zwei switch-Faelle geteilt, damit die gemeinsame Begruendung neben dem Paar steht, das sie erklaert
+- [Phase 07]: 07-03: die dritte Leerregel in validate (beide Grenzen fuer jede Art ausser bereich) hat drei bestehende Testreihen zerbrochen — store_test, admin/field_defs_test und bundle_test hingen die Grenzen mangels Konstante an Auswahl, Mehrfachauswahl und Textfeld. Die Grenzen zogen in allen dreien an ein Bereichsfeld um; der Lesetest gewann dabei Deckung, weil jede Spalte jetzt an der Art sitzt, der sie gehoert. Am schlimmsten war die T-07-05-Pruefung auf gebundene Parameter: an einem Textfeld waere der boshafte Wert geleert worden und die Pruefung haette weiter gruen gemeldet, ohne noch irgendetwas zu beweisen
 
 ## Accumulated Context
 
