@@ -13,7 +13,14 @@
         <span class="form-check-label">{{.Def.Label}}</span>
     </label>
     {{else}}
-    <label class="form-label" for="{{.Name}}">
+    {{/* Das for= ist bedingt und darf nicht wieder vereinfacht werden: eine
+         Häkchengruppe ist kein einzelnes Bedienelement, sie hat also keine
+         Kennung, auf die gezeigt werden könnte. Eine Beschriftung, deren for=
+         auf ein Element zeigt, das es nicht gibt, ist mit gar nichts
+         verknüpft. Stattdessen trägt die Beschriftung selbst eine Kennung,
+         und die Gruppe nennt sie über aria-labelledby. Für jede andere Art
+         ist .Grouped falsch und alles bleibt, wie es war. */}}
+    <label class="form-label" id="{{.Name}}-label"{{if not .Grouped}} for="{{.Name}}"{{end}}>
         {{.Def.Label}}{{if .Def.Required}} <span class="req" aria-label="{{t "Pflichtfeld"}}">*</span>{{end}}
     </label>
 
@@ -38,6 +45,30 @@
         {{$v := .Value}}
         {{range .Def.Choices}}<option value="{{.}}"{{if eq . $v}} selected{{end}}>{{.}}</option>{{end}}
     </select>
+
+    {{else if .Is "mehrfachauswahl"}}
+    {{/* Der versteckte Wächter trägt denselben Namen wie die Kästchen und
+         bleibt stehen. Eine Gruppe, in der nichts angekreuzt ist, sendet
+         sonst gar nichts, und der Server kann „geleert" nicht von „dieses
+         Formular trug das Feld nie" unterscheiden. JoinValues lässt leere
+         Einträge weg, eine teilweise angekreuzte Gruppe merkt also nichts
+         davon. Nicht löschen — das sieht wie toter Aufschlag aus und ist
+         die einzige Stelle, an der der Unterschied entsteht. */}}
+    <input type="hidden" name="{{.Name}}" value="">
+    <div role="group" aria-labelledby="{{.Name}}-label">
+        {{$sel := .Selected}}
+        {{$name := .Name}}
+        {{range $wahl := .Def.Choices}}
+        <label class="form-check">
+            {{/* Go-Vorlagen kennen kein „enthält", also wird die Liste
+                 durchlaufen — und beim ersten Treffer abgebrochen, sonst
+                 stünde checked zweimal am selben Kästchen, wenn ein Wert
+                 doppelt gespeichert ist. */}}
+            <input type="checkbox" name="{{$name}}" value="{{$wahl}}"{{range $s := $sel}}{{if eq $s $wahl}} checked{{break}}{{end}}{{end}}>
+            <span class="form-check-label">{{$wahl}}</span>
+        </label>
+        {{end}}
+    </div>
 
     {{else if .Is "bild"}}
     <select id="{{.Name}}" name="{{.Name}}" class="form-input form-select">

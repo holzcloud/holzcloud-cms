@@ -120,6 +120,10 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 		t.Errorf("der versteckte Wächter fehlt:\n%s", ausschnitt(body, "feld_sorten"))
 	}
 
+	if strings.Contains(body, "checked checked") {
+		t.Error("checked steht zweimal am selben Kästchen")
+	}
+
 	pruefeBeschriftung(t, body)
 
 	// Nur der Wächter, kein Häkchen: der Wert ist geleert.

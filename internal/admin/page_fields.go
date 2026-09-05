@@ -48,6 +48,9 @@ type FieldView struct {
 	Pages []PageChoice
 	// PageID is the referenced page, or 0.
 	PageID int64
+	// Selected are the ticked values of a multi-valued field, nil for every
+	// other kind.
+	Selected []string
 	// RefDraft says the referenced page is not published, so the reference
 	// exists here and is invisible on the website. Better said in the editor
 	// than discovered on the finished page.
@@ -93,6 +96,16 @@ type FieldRow struct {
 
 // Is reports whether this field is of a given kind, for the template.
 func (v FieldView) Is(kind string) bool { return v.Def.Kind == kind }
+
+// Grouped says this field is a group of controls rather than one control.
+//
+// The shared label at the top of field_input.html aims its for= at a control
+// id. A group of checkboxes has no single control to aim at, so the attribute
+// would name an element that is not in the document — a label associated with
+// nothing, which is worse for a screen reader than no label markup at all.
+// The rule lives here and nowhere else: a later kind that is also a group
+// widens this one predicate instead of a branch in the template.
+func (v FieldView) Grouped() bool { return v.Def.Kind == field.KindMulti }
 
 // PageChoice is one page a reference field may point at.
 type PageChoice struct {
@@ -213,6 +226,8 @@ func oneView(d field.Def, name, value string, p pool, reason string) FieldView {
 	switch d.Kind {
 	case field.KindBool:
 		v.Checked = value != "" && value != "0"
+	case field.KindMulti:
+		v.Selected = field.SplitValues(value)
 	case field.KindImage:
 		v.Media = p.media
 		v.MediaID, _ = strconv.ParseInt(value, 10, 64)
