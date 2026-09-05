@@ -50,6 +50,33 @@ const MaxPerPage = 12
 // MaxNameLength bounds a single label.
 const MaxNameLength = 60
 
+// Normalize folds one label name into the spelling that is stored, and returns
+// "" for one that cannot become a label at all.
+//
+// The half of Parse that is about a single name: runs of whitespace become one
+// space, an over-long name is cut to MaxNameLength, and a name that slugifies
+// to nothing is dropped — the last is the guard Parse has always carried and
+// does not fire today, because page.Slugify falls back to a placeholder rather
+// than returning "". What it deliberately does not do is split on commas
+// or count towards MaxPerPage. Both of those belong to the field an editor
+// types into — a list of labels for one entry — and to nothing else. A name
+// that already stands on its own, out of an archive's manifest or a column of
+// an imported file, has to reach this and not Parse: Parse would tear a name
+// with a comma in it in two and would stop at the twelfth.
+func Normalize(raw string) string {
+	name := strings.Join(strings.Fields(raw), " ")
+	if name == "" {
+		return ""
+	}
+	if len([]rune(name)) > MaxNameLength {
+		name = string([]rune(name)[:MaxNameLength])
+	}
+	if page.Slugify(name) == "" {
+		return ""
+	}
+	return name
+}
+
 // Parse reads the comma-separated field an editor types.
 //
 // Duplicates that differ only in case or spacing are folded together — "Möbel"
@@ -59,15 +86,12 @@ func Parse(raw string) []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, part := range strings.Split(raw, ",") {
-		name := strings.Join(strings.Fields(part), " ")
+		name := Normalize(part)
 		if name == "" {
 			continue
 		}
-		if len([]rune(name)) > MaxNameLength {
-			name = string([]rune(name)[:MaxNameLength])
-		}
 		slug := page.Slugify(name)
-		if slug == "" || seen[slug] {
+		if seen[slug] {
 			continue
 		}
 		seen[slug] = true

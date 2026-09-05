@@ -4,6 +4,8 @@ import (
 	"context"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
@@ -256,5 +258,30 @@ func TestForPagesLoadsAWholeListingAtOnce(t *testing.T) {
 	}
 	if _, ok := byPage[c.ID]; ok {
 		t.Error("a page with no labels got an entry, which a template would render as an empty list")
+	}
+}
+
+// Normalize ist die eine Hälfte von Parse, die von einem einzelnen Namen
+// handelt. Was sie nicht tut, ist der Grund, warum sie für sich steht: ein
+// Archiv ist keine Seite, es kennt weder Kommas als Trenner noch MaxPerPage.
+func TestNormalizeKeepsAWholeNameAndDoesNotCount(t *testing.T) {
+	if got, want := Normalize("  Möbel,   Bau  "), "Möbel, Bau"; got != want {
+		t.Errorf("Normalize = %q, want %q", got, want)
+	}
+	if got := Normalize("   "); got != "" {
+		t.Errorf("Normalize(whitespace) = %q, want empty", got)
+	}
+	long := strings.Repeat("a", MaxNameLength+10)
+	if got := Normalize(long); len([]rune(got)) != MaxNameLength {
+		t.Errorf("Normalize of an over-long name kept %d runes, want %d", len([]rune(got)), MaxNameLength)
+	}
+
+	// Parse keeps its own bound: it reads one entry's field, not an archive.
+	many := make([]string, 0, MaxPerPage+3)
+	for i := 0; i < MaxPerPage+3; i++ {
+		many = append(many, "wort"+strconv.Itoa(i))
+	}
+	if got := Parse(strings.Join(many, ", ")); len(got) != MaxPerPage {
+		t.Errorf("Parse gave %d labels, want %d", len(got), MaxPerPage)
 	}
 }
