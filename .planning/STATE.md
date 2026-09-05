@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
-current_phase: 6
+current_phase: 7
 current_phase_name: Field Kinds
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-09-05T13:56:24.170Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-09-05T14:18:18.651Z"
 last_activity: 2026-09-05
-state_head: 21514c65e83e78ba6c8d57d48e92a6abad9310a4
+state_head: 6ceabad663f0ffdce8547ff12c2f1d476ef5aec4
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 14
-  completed_plans: 8
+  completed_plans: 9
   percent: 17
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 6 — Aufräumen (7 / 7 Pläne ausgeführt; das stehende Tor ist zur Hälfte offen)
-Plan: 06-07 complete — die fünf Tests, die sich selbst übersprangen, entscheiden das nicht mehr selbst: `internal/plugin/wasmtest` entscheidet es einmal für drei Go-Pakete, und `HOLZCLOUD_TEST_REQUIRE_WASM: "1"` steht auf Ablaufebene in `ci.yml`, `security.yml` und `release.yml` (`image.yml` führt keine Tests aus und bleibt bewusst leer). Die Meldung nennt in beiden Zweigen `go run ./tools/wasm`; der falsche Erfolg wurde vor der Änderung reproduziert (exit 0) und danach gemessen (exit 1, auch bei `true` und `yes`). Vier Dokumentanker nachgezogen, die i18n-Notiz in der ROADMAP stillgelegt statt neu gezeigt
+Phase: 7 — Field Kinds (2 / 7 Pläne ausgeführt)
+Plan: 07-02 complete — Wanderung 00046 gibt darstellung, max_werte, min_wert und max_wert eigene Spalten auf page_field_defs (keine Prüfregel am Spaltenkopf, ein Down das alle vier zurücknimmt, auf und ab gegen eine echte Datei geprüft). Alle sieben SQL-Stellen in internal/field/store.go tragen sie; die fünf SELECT-Listen bleiben zeichengleiche Abschriften. Das Tor darauf ist ein Lesetest über Get, List, Sub, OfBlockType, OfBlockTypes und Update — keine Zählung, denn ein SELECT kann eine Spalte nennen und sie trotzdem nie in den Def schreiben. Def bekommt Display, MaxValues, RangeMin, RangeMax plus DisplayButtons und IsButtonRow für 07-06. Definitionsbildschirm und Archiv (drei Ausfuhr-, drei Einfuhrstellen, alle vier Schlüssel mit omitempty) tragen sie ebenfalls; der Reisetest wurde durch eine Mutation als scharf nachgewiesen. **Einwegig und automatisch gewählt: D-14.** Ausstehend, planmässig: 15 offene Übersetzungen (07-07) und die Browserhälfte (07-07)
 Status: Executing Phase 07
 Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
 Last activity: 2026-09-05
@@ -167,6 +167,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 06 P05 | 21 min | 3 tasks | 4 files |
 | Phase 06 P07 | 18 min | 4 tasks | 13 files |
 | Phase 07 P01 | 22 min | 3 tasks | 10 files |
+| Phase 07 P02 | 21 min | 3 tasks | 11 files |
 
 ### Session Continuity
 
@@ -177,8 +178,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-05T13:56:02.385Z
-**Stopped at:** Completed 07-01-PLAN.md
+**Last session:** 2026-09-05T14:17:56.065Z
+**Stopped at:** Completed 07-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -202,6 +203,10 @@ Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist
 - [Phase 07]: 07-01: D-05 als own-kind bestaetigt — mehrfachauswahl ist eine eigene Art neben auswahl, nicht auswahl mit max_werte>1. Gemessen: render.go Resolve hat keinen case KindChoice, eine Auswahl erreicht ein Theme also als String — Auswahl mehrwertig zu machen wuerde still umtypisieren, was jedes bestehende Theme auf jeder bestehenden Website liest — ohne Fehler an irgendeiner Stelle. Die Entscheidung wurde AUTOMATISCH gewaehlt (workflow.auto_advance: true) und ist einwegig; sie deckt sich mit 07-CONTEXT D-05, sollte aber einmal bestaetigt werden
 - [Phase 07]: 07-01: SplitValues/JoinValues sind das eine Paar fuer mehrwertige Werte; SplitChoices/JoinChoices bleiben getrennt und keines ruft das andere auf — Zwei Namen fuer zwei Bedeutungen: eine spaetere Aenderung daran, wie eine Moeglichkeitenliste gelesen wird, darf nicht still aendern, wie ein Wert gespeichert wird. Phase 9 erbt die beiden ausgefuehrten Funktionen
 - [Phase 07]: 07-01: Mehrwertigkeit steht im Namen des Formularfeldes (feld_<key>[]), gepraegt allein in Def.FieldName(); der versteckte Waechter haelt geleert von abwesend unterscheidbar — fieldsFromRequest liest bewusst per Praefix, bevor die Definitionen geladen sind — diese Eigenschaft musste erhalten bleiben. Eine Kennung ist slug-artig und kann keine Klammer enthalten, die Markierung kann also nicht kollidieren
+- [Phase 07]: 07-02: D-14 als four-columns bestaetigt — darstellung, max_werte, min_wert und max_wert bekommen eigene Spalten auf page_field_defs, keine Pruefregel am Spaltenkopf, ein Down das alle vier zuruecknimmt. AUTOMATISCH gewaehlt (workflow.auto_advance: true) und einwegig: eine freigegebene Wanderung wird nie bearbeitet, eine Korrektur waere 00047. Deckt sich mit 07-CONTEXT D-14 und REQUIREMENTS.md:317, sollte aber einmal bestaetigt werden
+- [Phase 07]: 07-02: die beiden Bereichsgrenzen sind Text und keine Zahlen — 'keine Grenze' und 'die Grenze ist null' sind zwei verschiedene Tatsachen, und eine Zahlenspalte mit Vorgabewert koennte sie nicht auseinanderhalten
+- [Phase 07]: 07-02: die fuenf SELECT-Spaltenlisten in internal/field/store.go bleiben zeichengleiche Abschriften voneinander und werden als eine Ersetzung geaendert; die vier neuen Spalten stehen zwischen bedingung und COALESCE(block_type_id, 0). Das Tor darauf ist ein Lesetest ueber jeden Leseweg, nicht eine Zaehlung der Vorkommen — ein SELECT kann eine Spalte nennen und sie trotzdem nie in den Def schreiben
+- [Phase 07]: 07-02: der Plan widersprach sich selbst — keine Art behaelt Display UND MaxValues, weil validate leert, was zur Art nicht passt. Die Leerregel gewinnt (sie entschaerft T-07-06); der Lesetest nimmt je Ebene ein Auswahl- und ein Mehrfachauswahl-Feld, zusammen decken die beiden alle vier Spalten auf jedem Leseweg
 
 ## Accumulated Context
 
