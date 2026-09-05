@@ -682,10 +682,19 @@ func TestBereichPruefung(t *testing.T) {
 					t.Errorf("%q durchgelassen", schlecht)
 					continue
 				}
-				// Die Begründung ist für die Person am Formular: sie muss die
-				// Grenze nennen, an der der Wert scheitert.
-				if f.unten != "" && !strings.Contains(r, f.unten) &&
-					f.obn != "" && !strings.Contains(r, f.obn) {
+				if _, istZahl := ParseNumber(schlecht); !istZahl {
+					// Keine Zahl ist keine Grenzverletzung, sondern etwas
+					// anderes — die Begründung sagt das auch so.
+					if !strings.Contains(r, "Zahl") {
+						t.Errorf("die Begründung zu %q nennt die Zahl nicht: %q", schlecht, r)
+					}
+					continue
+				}
+				// Die Begründung ist für die Person am Formular: sie nennt die
+				// Grenzen, zwischen denen der Wert liegen müsste.
+				genannt := (f.unten != "" && strings.Contains(r, f.unten)) ||
+					(f.obn != "" && strings.Contains(r, f.obn))
+				if !genannt {
 					t.Errorf("die Begründung zu %q nennt keine Grenze: %q", schlecht, r)
 				}
 			}

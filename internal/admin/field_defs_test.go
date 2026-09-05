@@ -22,7 +22,9 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 	ctx := context.Background()
 	fields := field.NewStore(database)
 
-	// Eine Auswahl als Knopfreihe, mit beiden Grenzen.
+	// Eine Auswahl als Knopfreihe. Die beiden Grenzen stehen an einem
+	// Bereichsfeld weiter unten und nicht hier: validate leert eine
+	// Eigenschaft, die zur gewählten Art nicht passt.
 	serve(t, h, sm, h.HandleFieldSave, postForm(
 		"/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
 		url.Values{
@@ -30,8 +32,6 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 			"art":          {field.KindChoice},
 			"auswahl":      {"hell\ndunkel"},
 			"darstellung":  {"knopfreihe"},
-			"min_wert":     {"1"},
-			"max_wert":     {"9"},
 			"gilt_fuer":    {"beides"},
 		},
 		map[string]string{"id": strconv.FormatInt(ws.ID, 10)}))
@@ -46,8 +46,31 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 	if !defs[0].IsButtonRow() {
 		t.Errorf("die Auswahl ist keine Knopfreihe: Darstellung = %q", defs[0].Display)
 	}
-	if defs[0].RangeMin != "1" || defs[0].RangeMax != "9" {
-		t.Errorf("Grenzen = %q/%q, wollte \"1\"/\"9\"", defs[0].RangeMin, defs[0].RangeMax)
+
+	// Ein Bereichsfeld mit beiden Grenzen.
+	serve(t, h, sm, h.HandleFieldSave, postForm(
+		"/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
+		url.Values{
+			"beschriftung": {"Menge"},
+			"art":          {field.KindRange},
+			"min_wert":     {"1"},
+			"max_wert":     {"9"},
+			"gilt_fuer":    {"beides"},
+		},
+		map[string]string{"id": strconv.FormatInt(ws.ID, 10)}))
+
+	defs, err = fields.List(ctx, ws.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bereich field.Def
+	for _, d := range defs {
+		if d.Kind == field.KindRange {
+			bereich = d
+		}
+	}
+	if bereich.RangeMin != "1" || bereich.RangeMax != "9" {
+		t.Errorf("Grenzen = %q/%q, wollte \"1\"/\"9\"", bereich.RangeMin, bereich.RangeMax)
 	}
 
 	// Und eine Mehrfachauswahl mit einer Höchstzahl.
@@ -82,7 +105,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
 	req.Method = "GET"
 	q := req.URL.Query()
-	q.Set("aendern", strconv.FormatInt(defs[0].ID, 10))
+	q.Set("aendern", strconv.FormatInt(bereich.ID, 10))
 	req.URL.RawQuery = q.Encode()
 	rec := serve(t, h, sm, h.HandleFieldList, req)
 	html := rec.Body.String()
@@ -91,9 +114,6 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		if !strings.Contains(html, `name="`+name+`"`) {
 			t.Errorf("das Formular hat kein Kästchen %q", name)
 		}
-	}
-	if !strings.Contains(html, `value="knopfreihe" selected`) {
-		t.Error("die gespeicherte Darstellung ist beim Neuzeichnen nicht gewählt")
 	}
 	// Die beiden Grenzen stehen wieder in ihren Kästchen. Gemessen wird der
 	// Ausschnitt um das jeweilige Kästchen herum, nicht die ganze Seite: ein
@@ -110,6 +130,18 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		if !strings.Contains(html[at:ende], `value="`+will.wert+`"`) {
 			t.Errorf("%s steht beim Neuzeichnen nicht wieder auf %q", will.name, will.wert)
 		}
+	}
+
+	// Und dasselbe für die Darstellung, an dem Feld, dem sie gehört.
+	reqAuswahl := postForm("/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
+		url.Values{}, map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
+	reqAuswahl.Method = "GET"
+	qa := reqAuswahl.URL.Query()
+	qa.Set("aendern", strconv.FormatInt(defs[0].ID, 10))
+	reqAuswahl.URL.RawQuery = qa.Encode()
+	if html := serve(t, h, sm, h.HandleFieldList, reqAuswahl).Body.String(); !strings.Contains(
+		html, `value="knopfreihe" selected`) {
+		t.Error("die gespeicherte Darstellung ist beim Neuzeichnen nicht gewählt")
 	}
 }
 
