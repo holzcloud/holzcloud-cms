@@ -762,6 +762,17 @@ func TestCodeIstRoherText(t *testing.T) {
 	if got["schnipsel"] != roh {
 		t.Errorf("schnipsel = %#v, wollte den rohen Text unverändert", got["schnipsel"])
 	}
+	// Und ausdrücklich als string und nicht als template.HTML: ein Theme
+	// bekommt einen Wert, den html/template beim Drucken maskiert. Eine
+	// Umtypung irgendwo auf diesem Weg wäre genau die Lücke, die FIELD-06
+	// schliesst — sie fiele sonst nirgends auf, weil sich beide gleich
+	// ausdrucken.
+	if _, istString := got["schnipsel"].(string); !istString {
+		t.Errorf("schnipsel ist %T und kein string — wird es noch maskiert?", got["schnipsel"])
+	}
+	if e := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})[0]; e.Kind != KindCode {
+		t.Errorf("der Eintrag nennt seine Art als %q", e.Kind)
+	}
 	// Check nimmt jeden Text an: es gibt keine falsche Zeile Code.
 	if r := Check(d, roh); r != "" {
 		t.Errorf("Code abgelehnt: %q", r)
