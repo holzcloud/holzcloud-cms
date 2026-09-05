@@ -51,12 +51,35 @@ type Ref struct {
 // through the reference.
 type RefLookup func(id int64) (Ref, bool)
 
+// Term is one of the website's labels, as a theme uses it.
+type Term struct {
+	// Name is the label's name as it is right now, not as it was when
+	// somebody chose it. That sentence is the whole point of the kind: a page
+	// stores the label's address and prints its current name, so renaming the
+	// label changes every page that carries it without any page being touched.
+	Name string
+	// Slug is the label's address, which is what the page actually stores.
+	Slug string
+	// URL is the label's archive address, with the language prefix already on
+	// it.
+	URL string
+}
+
+// TermLookup resolves a label's slug for the website being rendered.
+//
+// It is where the website rule lives, and it is the only place it can live: a
+// label belongs to exactly one website, a stored slug says nothing about which,
+// and a slug from another website must not resolve. The lookup knows the
+// website; the stored value never will.
+type TermLookup func(slug string) (Term, bool)
+
 // Links are the lookups Resolve needs to turn stored ids into things a theme
 // can use. A nil one means that kind resolves to nothing, which is what a
 // caller without a media library or a page store wants.
 type Links struct {
 	Image Lookup
 	Page  RefLookup
+	Term  TermLookup
 }
 
 // Number is a number as a theme uses it. It carries the raw value too, so a
@@ -168,6 +191,28 @@ func Resolve(defs []Def, data Data, links Links) map[string]any {
 			}
 			out[d.Key] = &ref
 
+		case KindTerm:
+			// Kein ParseInt: der gespeicherte Wert *ist* die Identität, also
+			// geht das Kürzel unverändert in die Nachschlagefunktion. Der
+			// Vergleich dort ist genaue Zeichengleichheit — ein Kürzel ist
+			// bereits die kleingeschriebene Schreibweise eines Namens, und
+			// hier noch einmal zu falten liesse zwei verschiedene
+			// Schlagwörter zusammenfallen.
+			if raw == "" || links.Term == nil {
+				out[d.Key] = (*Term)(nil)
+				continue
+			}
+			t, ok := links.Term(raw)
+			if !ok {
+				// Gelöscht, oder von einer anderen Website. Nil statt eines
+				// alten Namens: ein {{ with }} im Theme lässt den Block dann
+				// aus, statt eine Beschriftung zu drucken, die es nicht mehr
+				// gibt.
+				out[d.Key] = (*Term)(nil)
+				continue
+			}
+			out[d.Key] = &t
+
 		case KindMulti:
 			// A slice, always — a theme loops over it with {{range}}, and an
 			// empty one simply loops zero times. SplitValues returns nil for
@@ -205,6 +250,8 @@ type Entry struct {
 	Image *Image
 	// Ref is set for a reference field whose target is still there.
 	Ref *Ref
+	// Term is set for a label field whose label is still there.
+	Term *Term
 	// Values are the picked values of a multi-valued field, nil for every
 	// other kind. Text carries the same values joined for reading, so a theme
 	// that prints label-and-value pairs without knowing the kinds still gets a
@@ -286,6 +333,15 @@ func List(defs []Def, data Data, links Links) []Entry {
 			}
 			e.Ref = v
 			e.Text = v.Title
+		case *Term:
+			if v == nil {
+				continue
+			}
+			e.Term = v
+			// Der Name und nicht das Kürzel: FIELD-03 verlangt genau das,
+			// und eine Liste aus Beschriftung und Wert soll „Möbelbau“
+			// zeigen und nicht „moebel“.
+			e.Text = v.Name
 		}
 		out = append(out, e)
 	}
@@ -324,6 +380,10 @@ func Filled(resolved map[string]any) bool {
 				return true
 			}
 		case *Ref:
+			if t != nil {
+				return true
+			}
+		case *Term:
 			if t != nil {
 				return true
 			}
