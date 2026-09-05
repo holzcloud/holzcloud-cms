@@ -32,12 +32,36 @@
     <textarea id="{{.Name}}" name="{{.Name}}" class="form-input form-textarea" rows="4"
               {{if eq .Switch "text"}}placeholder=" "{{end}}>{{.Value}}</textarea>
 
+    {{else if .Is "code"}}
+    {{/* spellcheck="false", weil eine rote Schlangenlinie unter jedem
+         Bezeichner Rauschen ist in einem Feld, dessen ganzer Zweck es ist,
+         kein Fliesstext zu sein. */}}
+    <textarea id="{{.Name}}" name="{{.Name}}" class="form-input form-code" rows="8" spellcheck="false"
+              {{if eq .Switch "text"}}placeholder=" "{{end}}>{{.Value}}</textarea>
+
     {{else if .Is "zahl"}}
     <input type="text" inputmode="decimal" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}"
            {{if eq .Switch "text"}}placeholder=" "{{end}}>
 
+    {{else if .Is "bereich"}}
+    {{/* Ein Zahlenfeld und kein Schieber: die gewählte Zahl muss vor dem
+         Speichern lesbar sein, und bei einem Zahlenfeld *ist* sie der
+         sichtbare Inhalt. step="any", damit auch eine Kommazahl durchgeht.
+         min und max nur, wo es sie gibt — ein leeres min="" wäre eine Grenze,
+         die keine ist. Der Platzhalter steht hier aus demselben Grund wie
+         oben und ist nicht wegzulassen: ohne ihn greift die Regel nie, die
+         die abhängigen Felder ausblendet. */}}
+    <input type="number" step="any" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}"
+           {{with .Def.RangeMin}}min="{{.}}"{{end}} {{with .Def.RangeMax}}max="{{.}}"{{end}}
+           {{if eq .Switch "text"}}placeholder=" "{{end}}>
+
     {{else if .Is "datum"}}
     <input type="date" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}">
+
+    {{else if .Is "zeit"}}
+    {{/* Kein Platzhalterzweig: ein <input type="time"> zeigt nie einen, und
+         genau deshalb schliesst MayControl die Art aus. */}}
+    <input type="time" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}">
 
     {{else if .Is "auswahl"}}
     <select id="{{.Name}}" name="{{.Name}}" class="form-input form-select">

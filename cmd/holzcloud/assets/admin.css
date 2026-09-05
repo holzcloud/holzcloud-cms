@@ -1256,6 +1256,20 @@
         line-height: 1.6;
     }
 
+    /* Ein Codefeld: fixe Zeichenbreite, damit eine Einrückung eine Einrückung
+       bleibt, und keine Zeilenumbrüche, wo der Verfasser keine gesetzt hat.
+       Die Schriftfamilie ist der Systemstapel aus --font-mono — nichts wird
+       zur Laufzeit von irgendwoher geladen. */
+    .form-code {
+        font-family: var(--font-mono);
+        font-size: var(--text-sm);
+        line-height: 1.6;
+        tab-size: 4;
+        white-space: pre;
+        overflow-x: auto;
+        resize: vertical;
+    }
+
     .form-select {
         appearance: auto;
     }
