@@ -19,6 +19,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -117,6 +118,10 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	set.Date = func(t time.Time) string {
 		return tmpl.DateText(manifest.Site.Locale, manifest.Site.TimeZone, t)
 	}
+	// Die Schlagwörter vor den Seiten: eines, das nur ein Schlagwortfeld
+	// nennt, gibt es sonst nirgends — SetForPage legt nur an, was in der
+	// Schlagwortliste einer Seite steht.
+	importTerms(ctx, s, websiteID, manifest, report)
 	importPages(ctx, s, websiteID, manifest, mediaByName, fieldKinds, set, report)
 	importSnippets(ctx, s, websiteID, manifest, report)
 	importMenus(ctx, s, websiteID, manifest, report)
@@ -281,6 +286,40 @@ func importTypes(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 	}
 }
 
+// importTerms creates every label the manifest declares.
+//
+// Until now a label was only created as a side effect of a page carrying it, so
+// one reachable solely through a label field arrived nowhere — counted on the
+// way in and not created, exactly as format.go:274-284 says. Every name goes
+// through term.Parse first, the same normalisation every other label gets, so
+// whitespace and an over-long name are spelled identically whichever path
+// creates the label.
+//
+// A store error is a warning naming the labels and never a failed import: an
+// import that stops halfway is worse than one that says what is missing.
+func importTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
+	if len(m.Terms) == 0 {
+		return
+	}
+	if s.Terms == nil {
+		report.Warnings = append(report.Warnings,
+			fmt.Sprintf("%d Schlagwörter konnten nicht angelegt werden.", len(m.Terms)))
+		return
+	}
+	names := make([]string, 0, len(m.Terms))
+	for _, t := range m.Terms {
+		names = append(names, t.Name)
+	}
+	n, err := s.Terms.EnsureNames(ctx, websiteID, term.Parse(strings.Join(names, ", ")))
+	if err != nil {
+		report.Warnings = append(report.Warnings, fmt.Sprintf("Schlagwörter: %v", err))
+		return
+	}
+	// Was angelegt wurde, nicht was das Archiv behauptet: eine Zahl, die ein
+	// Bericht nennt, soll geglaubt werden können.
+	report.Terms = n
+}
+
 // importFields recreates the website's own field definitions and returns which
 // of them are pictures, so the values can be translated back to ids.
 func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) map[string]string {
@@ -415,7 +454,24 @@ func (x pageIndex) in(loc string) addressLookup {
 	}
 }
 
-func importFieldValues(kinds map[string]string, p Page, mediaByName map[string]int64, byAddress addressLookup) string {
+// importFieldValues turns a bundle's field values into what is stored, and
+// returns the keys it had to drop on the way.
+//
+// The two guards are the reason defs is passed beside kinds. A manifest is a
+// file somebody uploaded: nothing about it was typed into this program's
+// forms, so nothing about it has been through the checks every other write
+// path applies. field.Clean drops values for fields this website does not have
+// and bounds a group's rows; field.CheckAll is where the byte budget and every
+// per-kind rule live since 07-04 stopped trimTo from silently truncating. Both
+// are what internal/admin/page.go and internal/ai/tools.go already do before
+// they write, and this path was the one hole left (STATE.md blocker, 07-04).
+//
+// A rejected value is dropped and named, never a failed import: an archive
+// with one over-long value in it is still worth having, and the operator has
+// to be told which value did not arrive rather than left to find the gap.
+func importFieldValues(defs []field.Def, kinds map[string]string, p Page,
+	mediaByName map[string]int64, byAddress addressLookup) (string, []string) {
+
 	data := field.Data{
 		Values: translateIn(kinds, p.Fields, mediaByName, byAddress),
 		Rows:   map[string][]field.Values{},
@@ -432,11 +488,52 @@ func importFieldValues(kinds map[string]string, p Page, mediaByName map[string]i
 			data.Rows[key] = out
 		}
 	}
+
+	var dropped []string
+	if len(defs) > 0 {
+		data = field.Clean(defs, data)
+		for key := range field.CheckAll(defs, data) {
+			// Ein Pflichtfeld ohne Wert wird hier auch gemeldet, und dort ist
+			// nichts wegzunehmen — die Seite kommt eben ohne an, so wie sie
+			// abgereist ist. Weggenommen wird nur, was tatsächlich dasteht.
+			if _, ok := data.Values[key]; ok {
+				delete(data.Values, key)
+				dropped = append(dropped, key)
+				continue
+			}
+			if group, i, sub, ok := splitRowKey(key); ok {
+				if rows := data.Rows[group]; i < len(rows) {
+					if _, ok := rows[i][sub]; ok {
+						delete(rows[i], sub)
+						dropped = append(dropped, key)
+					}
+				}
+			}
+		}
+		sort.Strings(dropped)
+	}
+
 	raw, err := field.Encode(data)
 	if err != nil {
-		return ""
+		return "", dropped
 	}
-	return raw
+	return raw, dropped
+}
+
+// splitRowKey reads back what field.RowKey wrote: "gruppe.3.kennung".
+//
+// The number is in the middle and a key may not contain a dot, so the split is
+// unambiguous — cutting at the first and last dot would not be.
+func splitRowKey(key string) (group string, index int, sub string, ok bool) {
+	parts := strings.Split(key, ".")
+	if len(parts) != 3 {
+		return "", 0, "", false
+	}
+	i, err := strconv.Atoi(parts[1])
+	if err != nil || i < 0 {
+		return "", 0, "", false
+	}
+	return parts[0], i, parts[2], true
 }
 
 // translateIn turns a bundle's values back into what is stored: a picture's
@@ -458,6 +555,19 @@ func translateIn(kinds map[string]string, values map[string]string, mediaByName 
 			out[key] = strconv.FormatInt(id, 10)
 			continue
 		}
+		if kinds[key] == field.KindTerm {
+			// Der Wert im Archiv ist ein Name, gespeichert wird ein Kürzel.
+			// page.Slugify ist die eine Regel, die auch der Schlagwortspeicher
+			// anwendet — die beiden stimmen dadurch von Bauart wegen überein
+			// und nicht durch Zufall.
+			//
+			// Nicht nachgeschlagen und nicht fallengelassen: importTerms ist
+			// schon gelaufen, und ein Wert, dessen Schlagwort das Archiv nie
+			// genannt hat, löst sich beim Rendern zu nichts auf — genau das
+			// leere Verhalten, das die Art zusagt.
+			out[key] = page.Slugify(val)
+			continue
+		}
 		if kinds[key] == field.KindImage {
 			id, ok := mediaByName[val]
 			if !ok {
@@ -477,6 +587,14 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	// One lookup for the whole import, so a picture used on twenty pages is
 	// read once.
 	look := blockImages(ctx, s, websiteID)
+
+	// Die Felddefinitionen, wie sie tatsächlich angelegt wurden — gelesen und
+	// nicht aus dem Archiv nachgebaut, damit die Prüfung gegen das läuft, was
+	// diese Website hat, samt allem, was validate beim Anlegen geleert hat.
+	var defs []field.Def
+	if s.Fields != nil {
+		defs, _ = s.Fields.List(ctx, websiteID)
+	}
 
 	// The languages the target website has. A page filed under a language the
 	// site does not serve would be unreachable, so it arrives in the main
@@ -576,10 +694,17 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			}
 		}
 
+		felder, verworfen := importFieldValues(defs, fieldKinds, p, mediaByName, pages.in(loc))
+		if len(verworfen) > 0 {
+			report.Warnings = append(report.Warnings, fmt.Sprintf(
+				"Seite %q: die Werte von %s wurden nicht übernommen, sie halten die Regeln ihrer Felder nicht ein.",
+				p.Title, strings.Join(verworfen, ", ")))
+		}
+
 		created, err := s.Pages.CreatePage(ctx, page.PageCreate{
 			WebsiteID: websiteID, Title: p.Title, Slug: slug, Locale: loc,
 			Markdown: markdown, HTML: html, Blocks: encodedBlocks, Status: p.Status,
-			Fields: importFieldValues(fieldKinds, p, mediaByName, pages.in(loc)),
+			Fields: felder,
 			Meta:   meta, Kind: p.Kind, TypeKey: p.TypeKey,
 			Schedule: page.PageSchedule{PublishAt: p.PublishAt, UnpublishAt: p.UnpublishAt},
 		})
@@ -629,16 +754,15 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	// every address in the bundle has an id. Only the pages that actually carry
 	// a reference are written again.
 	for _, rp := range refs {
-		raw := importFieldValues(fieldKinds, rp.page, mediaByName, pages.in(rp.loc))
+		// Was hier verworfen wird, wurde im ersten Durchgang schon gemeldet —
+		// dieselbe Seite, dieselben Werte, dieselben Regeln.
+		raw, _ := importFieldValues(defs, fieldKinds, rp.page, mediaByName, pages.in(rp.loc))
 		if err := s.Pages.SetFields(ctx, rp.id, raw); err != nil {
 			report.Warnings = append(report.Warnings,
 				fmt.Sprintf("Verweise von %q konnten nicht gesetzt werden: %v", rp.page.Title, err))
 		}
 	}
 
-	if s.Terms != nil {
-		report.Terms = len(m.Terms)
-	}
 }
 
 func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {

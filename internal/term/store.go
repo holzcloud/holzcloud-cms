@@ -286,6 +286,48 @@ func (s *Store) Rename(ctx context.Context, websiteID, id int64, name string) er
 	return nil
 }
 
+// EnsureNames creates the labels a set of names describes, without attaching
+// them to anything. It returns how many names produced a usable slug.
+//
+// The label-creating half of SetForPage and nothing else. A near-copy rather
+// than a shared helper, for the same reason SetForProduct is one: the two
+// differ in what they do afterwards, and hiding that behind a parameter would
+// turn two readable statements into one that has to be trusted.
+//
+// The one thing that must not drift: the slug is derived with page.Slugify,
+// the same call SetForPage makes. A label created by one function and looked
+// for by the other has to be the same row — if the two derivations ever
+// disagreed, an import would create a second label beside the one it meant to
+// reuse, and both would look right in every listing.
+//
+// An existing label keeps the name it already has, which is what the ON
+// CONFLICT does: an import must not rename an archive that is already there.
+func (s *Store) EnsureNames(ctx context.Context, websiteID int64, names []string) (int, error) {
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin ensure terms: %w", err)
+	}
+	defer tx.Rollback()
+
+	n := 0
+	for _, name := range names {
+		slug := page.Slugify(name)
+		if slug == "" {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO terms (website_id, slug, name) VALUES ($1, $2, $3)
+			 ON CONFLICT (website_id, slug) DO NOTHING`, websiteID, slug, name); err != nil {
+			return 0, fmt.Errorf("create term %q: %w", name, err)
+		}
+		n++
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // SetForProduct replaces a product's categories, creating labels that do not
 // exist yet.
 //
