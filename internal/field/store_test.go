@@ -363,6 +363,37 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 		}
 	})
 
+	// Eine Mehrfachauswahl ohne Möglichkeiten zeichnet eine Gruppe, in der
+	// nichts steht als der versteckte Wächter — sie kann nie einen Wert
+	// tragen. Ist sie zusätzlich Pflicht, meldet Check bei jedem Speichern
+	// jeder Seite „muss ausgefüllt werden“, und das Formular bietet nichts an,
+	// womit sich das erfüllen liesse: die Seite ist unspeicherbar, bis jemand
+	// die Definition ändert.
+	t.Run("Mehrfachauswahl ohne Möglichkeiten wird abgelehnt", func(t *testing.T) {
+		_, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "leerauswahl", Label: "Leerauswahl", Kind: KindMulti})
+		if err == nil {
+			t.Fatal("eine Mehrfachauswahl ohne eine einzige Möglichkeit wurde angenommen")
+		}
+		if !strings.Contains(err.Error(), "Möglichkeit") {
+			t.Errorf("die Begründung nennt die Möglichkeiten nicht: %v", err)
+		}
+
+		// Die einwertige Auswahl war schon immer gebunden — dieselbe Regel,
+		// jetzt an beiden Arten.
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "leereauswahl", Label: "Leere Auswahl", Kind: KindChoice}); err == nil {
+			t.Error("eine Auswahl ohne eine einzige Möglichkeit wurde angenommen")
+		}
+
+		// Mit einer Möglichkeit geht beides.
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "hoelzer", Label: "Hölzer", Kind: KindMulti,
+			Choices: []string{"Eiche"}}); err != nil {
+			t.Errorf("eine Mehrfachauswahl mit einer Möglichkeit wurde abgelehnt: %v", err)
+		}
+	})
+
 	t.Run("artfremde Eigenschaften werden geleert statt abgelehnt", func(t *testing.T) {
 		// Wer ein bestehendes Feld auf eine andere Art umstellt, soll nicht
 		// erst von Hand Kästchen ausräumen müssen — dieselbe Abmachung, die
