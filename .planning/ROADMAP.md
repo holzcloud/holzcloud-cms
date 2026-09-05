@@ -156,7 +156,35 @@ The gate's verbatim wording, identical in Phases 6 through 9:
   5. `zeit` accepts a time of day that carries no timezone and where empty is distinguishable from midnight; `bereich` accepts a number between its configured bounds and the chosen number is readable **before** saving, without JavaScript; `code` is plain fixed-width text that never passes through Markdown — HTML typed into it appears verbatim on the public page and does not execute, including when the field sits inside a block.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
 
-**Plans**: TBD
+**Plans**: 7 plans, in 7 waves. The chain is real rather than conservative: `internal/field/field.go`, `internal/field/render.go` and `field_input.html` are each touched by five of the seven plans, so two plans in one wave would be two agents editing one kind list. `07-05` (`KindTerm`) is independent in substance and could run anywhere; it is sequenced only by that file overlap.
+
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Ground truth (D-01) in its own docs commit, then the tracer: one `mehrfachauswahl` field wired end to end through `SplitValues`/`JoinValues`, the `feld_<key>[]` marker, `Entry.Values`, the checkbox group and the bundle round trip
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 07-02-PLAN.md — Migration `00046` (D-14) and its four columns through all seven `page_field_defs` SQL sites, the definition screen and the bundle
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 07-03-PLAN.md — `zeit`, `bereich` (a bounded number input, not a slider — D-07) and `code`, plus the block-render escaping that makes D-06 true inside a block
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 07-04-PLAN.md — The multiple-choice guards: `max_werte` enforced server-side (D-05) and `MaxValueBytes` shared across all values and **reported** rather than truncated (D-13); the marker carried into a group's rows
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 07-05-PLAN.md — `KindTerm` (D-09): the chooser, the slug stored, the name printed, and the one `BlockKinds()` exclusion
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 07-06-PLAN.md — The button row (D-04, D-11, D-12) and the trap it sets: `switchOf` widened to take the `Def`, a switch name per controlling kind, and `.feld-schalter--knopfreihe` — the conditional rules touched exactly once (D-10, FIELD-08)
+
+**Wave 7** *(blocked on Wave 6)*
+
+- [ ] 07-07-PLAN.md — The per-kind tax (`TEMPLATE-SPEC.md`, `SampleData`, `MinimalData`), the translation gate on its own commit, and the browser pass that settles D-08 by observation
 **UI hint**: yes
 **Research flag**: `bereich` only — "the value must be visible without JS" has three candidate answers and the choice is a UI-design question, not a technical one. Worth a **UI-SPEC**. Everything else in this phase follows standard patterns: the neighbours agree, the encoding is decided, native controls do the work, Go's escaping is already correct by default, and `KindRef` is a complete end-to-end template (chooser at `page_fields.go:98–255`, resolution at `render.go:36–60` + `pagedata.go:84–114`).
 **Planning notes**:
