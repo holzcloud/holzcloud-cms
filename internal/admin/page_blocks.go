@@ -239,8 +239,14 @@ func blockViews(set block.Set, blocks []block.Block, items, films []media.Media,
 		// picture chooser, the dropdown and the date input already exist.
 		if own, ok := set.OwnOf(b.Type); ok {
 			for _, d := range own.Fields {
+				// NameSuffix, nicht "[]" von Hand: die Markierung für ein
+				// mehrwertiges Feld wird an einer Stelle geprägt, so wie
+				// FieldName es für die Seite selbst und groupView es für eine
+				// Gruppenzeile tut. Der dritte Ort, an dem Namen entstehen,
+				// war der einzige, der sie nicht kannte — und ohne sie behält
+				// block.FromForm den Wächter statt der Häkchen.
 				v.Fields = append(v.Fields,
-					oneView(d, prefix+".f."+d.Key, b.Fields[d.Key], pool{media: items}, ""))
+					oneView(d, prefix+".f."+d.Key+d.NameSuffix(), b.Fields[d.Key], pool{media: items}, ""))
 			}
 		}
 		for j, it := range b.Items {

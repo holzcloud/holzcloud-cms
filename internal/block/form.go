@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/holzcloud/holzcloud-cms/internal/field"
 )
 
 // The block editor is a plain HTML form.
@@ -83,7 +85,11 @@ func FromForm(form url.Values) []Block {
 			setItemField(it, itemRest, value)
 			continue
 		}
-		setBlockField(&s.block, rest, value)
+		// Die ganze Liste, nicht nur der erste Wert: ein Feld einer eigenen
+		// Bausteinart kann mehrwertig sein, und welcher Name mehrere Werte
+		// trägt, steht im Namen selbst. Ein verschachtelter Eintrag hat keine
+		// eigenen Felder und bleibt deshalb bei values[0].
+		setBlockField(&s.block, rest, values)
 	}
 
 	order := make([]int, 0, len(slots))
@@ -126,11 +132,29 @@ func cutIndex(s string) (int, string, bool) {
 	return n, s[dot+1:], true
 }
 
-func setBlockField(b *Block, field, value string) {
+func setBlockField(b *Block, name string, values []string) {
+	value := values[0]
+
 	// A field of an own kind: b3.f.preis. Under its own prefix so a kind may
 	// call a field "typ" or "text" without colliding with the built-in names —
 	// the operator picks those words, not us.
-	if key, ok := strings.CutPrefix(field, "f."); ok {
+	if key, ok := strings.CutPrefix(name, "f."); ok {
+		// Dieselbe Verzweigung wie in fieldsFromRequest, an der dritten und
+		// letzten Stelle, an der Feldnamen gelesen werden. Die Markierung wird
+		// in field.Def.NameSuffix geprägt und nirgends sonst ausgeschrieben;
+		// hier wird sie nur wieder abgeschnitten. Ohne diesen Zweig bliebe von
+		// einer Häkchengruppe values[0] übrig, und das ist der Wächter: der
+		// leere String.
+		if trimmed, multi := strings.CutSuffix(key, "[]"); multi {
+			if trimmed == "" {
+				return
+			}
+			if b.Fields == nil {
+				b.Fields = map[string]string{}
+			}
+			b.Fields[trimmed] = field.JoinValues(values)
+			return
+		}
 		if key == "" {
 			return
 		}
@@ -140,7 +164,7 @@ func setBlockField(b *Block, field, value string) {
 		b.Fields[key] = value
 		return
 	}
-	switch field {
+	switch name {
 	case "typ":
 		b.Type = value
 	case "markdown":
