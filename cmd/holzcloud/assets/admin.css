@@ -1302,6 +1302,18 @@
         font-size: var(--text-sm);
     }
 
+    /* Die Knopfreihe: eine Auswahl, deren Möglichkeiten nebeneinander stehen
+       statt in einer Klappliste. Sie bricht um, damit acht Möglichkeiten auf
+       einem schmalen Bildschirm nicht aus dem Formular laufen. Nur Abstände:
+       Beschriftung und Knopf selbst kommen von .form-check, und eine Farbe,
+       die kein Token ist, kommt hier nicht dazu. */
+    .form-knopfreihe {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-1) var(--space-2);
+    }
+
     /* Menu tree */
     .menu-tree {
         display: flex;

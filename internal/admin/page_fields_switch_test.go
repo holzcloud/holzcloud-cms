@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
 // Der Schaltermechanismus, an dem Markup gemessen, das er braucht.
@@ -329,4 +330,127 @@ func zeichneAlleArten(t *testing.T) string {
 		t.Fatalf("das Formular gab %d zurück", rec.Code)
 	}
 	return rec.Body.String()
+}
+
+// Die Knopfreihe selbst: welche Knöpfe sie sendet, in welcher Reihenfolge und
+// welcher davon angekreuzt ist.
+//
+// Der leere Knopf ganz vorn ist die Zusage aus D-11. Eine Reihe von
+// Radioknöpfen lässt sich in reinem HTML nicht wieder abwählen, ohne ihn wäre
+// ein Klick also unwiderruflich — und die Regel .feld-schalter--knopfreihe
+// liest genau ihn.
+func TestKnopfreihe(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	fields := field.NewStore(database)
+
+	for _, d := range []field.Def{
+		{Key: "farbe", Label: "Farbe", Kind: field.KindChoice,
+			Display: field.DisplayButtons, Choices: []string{"hell", "mittel", "dunkel"}},
+		// Zwei gleiche Zeilen in der Liste. Die Liste wird wortwörtlich
+		// gespeichert und wortwörtlich gelesen; hier eine davon zu
+		// unterschlagen hiesse, den Definitionsbildschirm und den Editor
+		// verschiedene Dinge sagen zu lassen.
+		{Key: "sorte", Label: "Sorte", Kind: field.KindChoice,
+			Display: field.DisplayButtons, Choices: []string{"Eiche", "Buche", "Eiche"}},
+		// Die Gegenprobe: eine gewöhnliche Auswahl bleibt eine Klappliste.
+		{Key: "glanz", Label: "Glanz", Kind: field.KindChoice,
+			Choices: []string{"matt", "seidig"}},
+	} {
+		d.WebsiteID = ws.ID
+		if _, err := fields.Create(ctx, d); err != nil {
+			t.Fatalf("Feld %q anlegen: %v", d.Key, err)
+		}
+	}
+
+	p := seedPage(t, database, ws.ID, "Tisch", "tisch", "text", "draft")
+	zeichnen := func() string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
+		req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+		req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
+		rec := serve(t, h, sm, h.HandlePageEdit, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("das Formular gab %d zurück", rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	body := zeichnen()
+
+	// --- die Reihe, wie sie ohne gespeicherten Wert aussieht ----------------
+	for _, f := range []struct {
+		key  string
+		will []string
+	}{
+		{"farbe", []string{"", "hell", "mittel", "dunkel"}},
+		{"sorte", []string{"", "Eiche", "Buche", "Eiche"}},
+	} {
+		reihe := knopfreihe(t, body, "feld_"+f.key)
+		if got := knopfwerte(reihe, "feld_"+f.key); !gleich(got, f.will) {
+			t.Errorf("%s trägt die Knöpfe %q, wollte %q", f.key, got, f.will)
+		}
+		if !strings.Contains(reihe, `value="" checked`) {
+			t.Errorf("bei %s ist ohne gespeicherten Wert nicht der leere Knopf angekreuzt:\n%s", f.key, reihe)
+		}
+	}
+
+	// --- eine Klappliste bleibt eine Klappliste -----------------------------
+	//
+	// Gemessen am Element selbst und an den Knöpfen, die seinen Namen tragen,
+	// und nicht an einem Fenster darum herum: die Knopfreihe des Nachbarfeldes
+	// stünde sonst mit darin und wäre kein Befund.
+	glanz := imTag(t, body, "feld_glanz")
+	if !strings.Contains(glanz, "<select") {
+		t.Errorf("die gewöhnliche Auswahl ist keine Klappliste mehr:\n%s", glanz)
+	}
+	if got := knopfwerte(body, "feld_glanz"); len(got) > 0 {
+		t.Errorf("die gewöhnliche Auswahl trägt Radioknöpfe: %q", got)
+	}
+
+	// --- mit gespeichertem Wert --------------------------------------------
+	roh, err := field.Encode(field.Data{Values: field.Values{"farbe": "mittel"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := page.NewStore(database).SetFields(ctx, p.ID, roh); err != nil {
+		t.Fatalf("Wert setzen: %v", err)
+	}
+	reihe := knopfreihe(t, zeichnen(), "feld_farbe")
+	if !strings.Contains(reihe, `value="mittel" checked`) {
+		t.Errorf("der gespeicherte Wert ist nicht angekreuzt:\n%s", reihe)
+	}
+	if strings.Contains(reihe, `value="" checked`) {
+		t.Errorf("der leere Knopf ist angekreuzt, obwohl ein Wert gespeichert ist:\n%s", reihe)
+	}
+}
+
+// knopfreihe schneidet die Knopfreihe eines Feldes aus.
+func knopfreihe(t *testing.T, body, feldname string) string {
+	t.Helper()
+	return zwischen(t, body, `aria-labelledby="`+feldname+`-label"`, "</div>")
+}
+
+// knopfwerte liest die Werte der Radioknöpfe in der Reihenfolge, in der sie
+// im Dokument stehen — die Reihenfolge, in der die Möglichkeiten getippt
+// wurden.
+func knopfwerte(reihe, feldname string) []string {
+	re := regexp.MustCompile(`<input type="radio" name="` + regexp.QuoteMeta(feldname) + `" value="([^"]*)"`)
+	var out []string
+	for _, m := range re.FindAllStringSubmatch(reihe, -1) {
+		out = append(out, m[1])
+	}
+	return out
+}
+
+func gleich(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
