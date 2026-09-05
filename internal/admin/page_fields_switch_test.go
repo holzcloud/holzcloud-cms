@@ -29,10 +29,18 @@ import (
 // lässt einen falschen Namen durch. Das Paar ist der Punkt.
 //
 // Was dieser Test NICHT beweist: dass :has() und :placeholder-shown sich im
-// Browser an einem echten Zahlenfeld so verhalten, wie hier angenommen. Das
-// ist die offene Frage D-08, und der Browserdurchgang in Plan 07-07 ist das
-// Einzige, was sie beantwortet. Ein grüner Lauf hier ist kein bestätigtes
-// Browserverhalten.
+// Browser an einem echten Zahlenfeld so verhalten, wie hier angenommen. Ein
+// grüner Lauf hier misst das Markup und nicht den Browser; das war und bleibt
+// die Grenze dieses Tests.
+//
+// Nachgesehen wurde es trotzdem, einmal und ausserhalb der Suite: im
+// Browserdurchgang zu Plan 07-07 (5. September 2026, Playwright gegen einen
+// frisch gebauten Binary mit eigener Wegwerf-Datenbank). Ein abhängiges Feld
+// an einem Bereichsfeld hatte display: none, solange das Zahlenfeld leer war,
+// und display: block, sobald eine 6 darinstand. Damit ist D-08 beantwortet:
+// KindRange bleibt steuernd, und die Notiz im Fahrplan, es auszuschliessen,
+// ruhte auf der Schieber-Annahme, die D-07 verworfen hat. MayControl() wurde
+// deshalb nicht angefasst.
 
 // schalterKasten schneidet den Schalterkasten eines Feldes aus: vom
 // <div class="feld-schalter feld-schalter--…"> bis dorthin, wo die abhängigen
