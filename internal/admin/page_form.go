@@ -155,6 +155,22 @@ func fieldsFromRequest(r *http.Request) field.Data {
 			continue
 		}
 		if key, ok := strings.CutPrefix(name, "feld_"); ok && key != "" {
+			// A multi-valued field says so in its own name, minted once in
+			// field.Def.FieldName. Reading the marker off the name is what
+			// lets this loop keep its property of running before the
+			// definitions are loaded.
+			if trimmed, multi := strings.CutSuffix(key, "[]"); multi {
+				if trimmed == "" {
+					continue
+				}
+				// The key is present even when every box is unticked: the
+				// hidden sentinel submits one empty value, JoinValues drops
+				// it, and an empty string here means "cleared". A form that
+				// never carried the field has no key at all — that is the
+				// difference this branch exists to keep.
+				out.Values[trimmed] = field.JoinValues(values)
+				continue
+			}
 			out.Values[key] = values[0]
 			continue
 		}

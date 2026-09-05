@@ -153,6 +153,17 @@ func Resolve(defs []Def, data Data, links Links) map[string]any {
 			}
 			out[d.Key] = &ref
 
+		case KindMulti:
+			// A slice, always — a theme loops over it with {{range}}, and an
+			// empty one simply loops zero times. SplitValues returns nil for
+			// an empty string, which ranges the same way but would make a
+			// theme's {{if}} read differently, so it is normalised here.
+			values := SplitValues(raw)
+			if values == nil {
+				values = []string{}
+			}
+			out[d.Key] = values
+
 		default:
 			out[d.Key] = raw
 		}
@@ -179,6 +190,11 @@ type Entry struct {
 	Image *Image
 	// Ref is set for a reference field whose target is still there.
 	Ref *Ref
+	// Values are the picked values of a multi-valued field, nil for every
+	// other kind. Text carries the same values joined for reading, so a theme
+	// that prints label-and-value pairs without knowing the kinds still gets a
+	// sentence rather than a blob.
+	Values []string
 	// Yes is the state of a yes/no field.
 	Yes bool
 	// Rows are a group's filled rows, each already turned into entries with
@@ -217,6 +233,12 @@ func List(defs []Def, data Data, links Links) []Entry {
 				continue
 			}
 			e.Text = v
+		case []string:
+			if len(v) == 0 {
+				continue
+			}
+			e.Values = v
+			e.Text = strings.Join(v, ", ")
 		case Number:
 			if v.Raw == "" {
 				continue
@@ -255,6 +277,12 @@ func Filled(resolved map[string]any) bool {
 		switch t := v.(type) {
 		case string:
 			if t != "" {
+				return true
+			}
+		case []string:
+			// Without this a theme's whole field panel disappears on a page
+			// that carries nothing but multi-valued fields.
+			if len(t) > 0 {
 				return true
 			}
 		case bool:

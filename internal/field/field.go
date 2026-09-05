@@ -46,6 +46,16 @@ const (
 	// no validation, nothing in the theme. Twenty fields in a row are a wall;
 	// "Preis und Verfügbarkeit" over four of them is a form somebody fills in.
 	KindSection = "abschnitt"
+	// KindMulti holds several of its options at once, one value per line in the
+	// same string slot every other kind uses.
+	//
+	// A kind of its own, and deliberately not KindChoice with a cap on how many
+	// may be picked: Resolve has no case for KindChoice, so a choice reaches a
+	// theme as a plain string. Widening KindChoice would silently retype what
+	// every theme on every existing website already reads — no compile error,
+	// no runtime error, just a theme printing a list where it printed a word.
+	// A new kind is purely additive, and KindChoice keeps its contract.
+	KindMulti = "mehrfachauswahl"
 )
 
 // Where a field applies.
@@ -74,6 +84,7 @@ var Kinds = []Kind{
 	{KindDate, i18n.N("Datum"), i18n.N("Ein Tag, ohne Uhrzeit.")},
 	{KindBool, i18n.N("Ja/Nein"), i18n.N("Ein Ankreuzfeld: verfügbar, vergriffen.")},
 	{KindChoice, i18n.N("Auswahl"), i18n.N("Eine Liste von Möglichkeiten, eine davon.")},
+	{KindMulti, i18n.N("Mehrfachauswahl"), i18n.N("Dieselbe Liste, aber beliebig viele davon — als Kästchen zum Ankreuzen.")},
 	{KindImage, i18n.N("Bild"), i18n.N("Ein Bild aus der Mediathek dieser Website.")},
 	{KindLink, i18n.N("Link"), i18n.N("Eine eigene Seite oder eine fremde Adresse.")},
 	{KindRef, i18n.N("Verweis"), i18n.N("Eine Seite dieser Website, ausgewählt statt eingetippt. Für mehrere: eine Gruppe mit einem Verweis darin.")},
@@ -339,11 +350,30 @@ func ControlsOf(defs []Def) map[string][]Def {
 	return out
 }
 
+// IsMultiValued reports whether this field holds several values at once.
+func (d Def) IsMultiValued() bool { return d.Kind == KindMulti }
+
+// NameSuffix is what the form field name carries after the key so the handler
+// can tell a multi-valued field from a single one without loading the
+// definitions — see FieldName and fieldsFromRequest.
+func (d Def) NameSuffix() string {
+	if d.IsMultiValued() {
+		return "[]"
+	}
+	return ""
+}
+
 // FieldName is the name this field carries in the edit form.
 //
 // Prefixed so a field called "title" cannot collide with the page's own title,
 // which would silently overwrite it.
-func (d Def) FieldName() string { return "feld_" + d.Key }
+//
+// The suffix is the one place multi-valuedness is spelled. The form handler
+// reads by prefix, before the definitions are loaded — that is deliberate and
+// load-bearing — so the name itself has to say that several values may arrive
+// under it. A key is slug-like and cannot contain a bracket, so the marker
+// cannot collide with one.
+func (d Def) FieldName() string { return "feld_" + d.Key + d.NameSuffix() }
 
 // For returns the fields that belong on a page of the given kind.
 func For(defs []Def, pageKind string) []Def {
@@ -532,6 +562,24 @@ func Check(d Def, value string) string {
 			}
 		}
 		return d.Label + ": „" + value + "“ steht nicht zur Auswahl."
+	case KindMulti:
+		// Every picked value has to be on the list. The options are a closed
+		// vocabulary, so an arbitrary string must not get in through a
+		// checkbox group somebody rewrote before submitting. The first one
+		// that is not on the list is named — a reason that says "something is
+		// wrong" is a reason nobody can act on.
+		for _, picked := range SplitValues(value) {
+			known := false
+			for _, c := range d.Choices {
+				if c == picked {
+					known = true
+					break
+				}
+			}
+			if !known {
+				return d.Label + ": „" + picked + "“ steht nicht zur Auswahl."
+			}
+		}
 	case KindImage:
 		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
 			return d.Label + ": das ist kein Bild aus der Mediathek."
@@ -623,6 +671,43 @@ func SplitChoices(raw string) []string {
 
 // JoinChoices writes them back for the textarea.
 func JoinChoices(choices []string) string { return strings.Join(choices, "\n") }
+
+// SplitValues reads a multi-valued field's stored value: one value per line.
+//
+// This and JoinValues are the ONE pair that encodes a multi-valued value. The
+// page form, the theme's resolution and the bundle round trip all go through
+// them, and they are exported so a later importer inherits them instead of
+// inventing a third spelling. A newline cannot occur inside a value because
+// the options a value is drawn from are themselves read one per line.
+//
+// Deliberately not the option-list pair above under another name, and neither
+// pair calls the other: two names for two meanings, so a later change to how
+// an option list is read cannot silently change how a value is stored.
+func SplitValues(raw string) []string {
+	var out []string
+	for _, line := range strings.Split(raw, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// JoinValues writes the picked values back into the one string slot.
+//
+// Empty entries fall away — a checkbox group's hidden sentinel submits one,
+// and a partly ticked group must not notice it. Duplicates and order are kept
+// exactly as the caller passed them: no sorting, no removing, so saving the
+// same form twice produces the same string byte for byte.
+func JoinValues(values []string) string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return strings.Join(out, "\n")
+}
 
 // CheckAll validates a page's answers against the fields that apply to it and
 // returns the reasons, keyed by the form field they belong to.
