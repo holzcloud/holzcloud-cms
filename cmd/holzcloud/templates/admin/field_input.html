@@ -64,11 +64,46 @@
     <input type="time" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}">
 
     {{else if .Is "auswahl"}}
+    {{if .Buttons}}
+    {{/* Dieselbe Auswahl, andere Darstellung: dieselben Möglichkeiten,
+         derselbe gespeicherte Wert, dasselbe Versprechen an das Theme. Nur
+         das Bedienelement ist ein anderes.
+
+         Der leere Radioknopf ganz vorn ist kein Schmuck und nicht
+         wegzulassen. Erstens lässt sich eine Reihe von Radioknöpfen in
+         reinem HTML nicht wieder abwählen — ohne ihn wäre ein Klick
+         unwiderruflich, und dieses Programm trägt ausser htmx kein
+         JavaScript. Zweitens ist genau er es, den
+         .feld-schalter--knopfreihe liest: ohne ihn hörte jedes Feld, das an
+         dieser Auswahl hängt, stillschweigend auf, sich zu zeigen und zu
+         verbergen.
+
+         Die Reihenfolge ist die, in der die Möglichkeiten getippt wurden.
+         Nicht sortiert und nicht entdoppelt: zwei gleiche Zeilen ergeben
+         zwei Knöpfe mit demselben Wert, was der Browser als eine Gruppe
+         liest und field.Check annimmt — und was die Liste auf dem
+         Definitionsbildschirm sagt, muss hier auch stehen. */}}
+    <div class="form-knopfreihe" role="group" aria-labelledby="{{.Name}}-label">
+        {{$v := .Value}}
+        {{$name := .Name}}
+        <label class="form-check">
+            <input type="radio" name="{{$name}}" value=""{{if not $v}} checked{{end}}>
+            <span class="form-check-label">{{if .Def.Required}}{{t "bitte wählen"}}{{else}}{{t "– keine Angabe –"}}{{end}}</span>
+        </label>
+        {{range $wahl := .Def.Choices}}
+        <label class="form-check">
+            <input type="radio" name="{{$name}}" value="{{$wahl}}"{{if eq $wahl $v}} checked{{end}}>
+            <span class="form-check-label">{{$wahl}}</span>
+        </label>
+        {{end}}
+    </div>
+    {{else}}
     <select id="{{.Name}}" name="{{.Name}}" class="form-input form-select">
         <option value="">{{if .Def.Required}}{{t "bitte wählen"}}{{else}}{{t "– keine Angabe –"}}{{end}}</option>
         {{$v := .Value}}
         {{range .Def.Choices}}<option value="{{.}}"{{if eq . $v}} selected{{end}}>{{.}}</option>{{end}}
     </select>
+    {{end}}
 
     {{else if .Is "mehrfachauswahl"}}
     {{/* Der versteckte Wächter trägt denselben Namen wie die Kästchen und
