@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 7
 current_phase_name: Field Kinds
 status: executing
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-09-05T15:19:30.769Z"
+stopped_at: Completed 07-06-PLAN.md
+last_updated: "2026-09-05T15:36:45.198Z"
 last_activity: 2026-09-05
-state_head: 6ca9017a7322211f81f0c93f3dcd31bdc4df9e36
+state_head: 54bfbb87d4215befaa9ab36e50e34c2402e49774
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 17
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 7 — Field Kinds (5 / 7 Pläne ausgeführt)
-Plan: 07-05 complete — die Schlagwortart ist geschlossen. `KindTerm = "schlagwort"` speichert das **Kuerzel** und druckt den **Namen**, jedes Mal frisch aufgeloest: eine Umbenennung aendert damit, was jede Seite zeigt, ohne dass eine Seite geschrieben wird (D-09, FIELD-03). `BlockKinds()` laesst jetzt Verweis **und** Schlagwort aus und sein Kapazitaetshinweis zaehlt vier statt drei (D-06); `code` bleibt in einem Baustein erlaubt, ein Test haelt beide Haelften fest. `Check` misst mit `page.Slugify(value) != value` und ausdruecklich **nicht** mit `page.ValidateSlug` — dessen `reservedSlugs` reserviert Router-Pfade, und ein Schlagwort namens „admin“ ist unter `/tag/admin` erreichbar. Dafuer importiert `internal/field` erstmals `internal/page`; zyklenfrei geprueft. Die Websiteregel steht in der Nachschlagefunktion und nicht in `Check`: `fieldTerms` fuellt seine Karte einmal je Seite aus einem `ListAll` genau der gerenderten Website, `siteTerms` ebenso fuer den Waehler — je ein Test, dass ein fremdes Schlagwort weder im Formular noch auf der Seite auftaucht (T-07-19, T-07-20). **Die Archivreise war der eigentliche Fund:** `Rename` behaelt das Kuerzel, eine Seite trug danach das alte, und ein als Kuerzel reisender Wert waere auf der anderen Maschine still ins Leere gezeigt. Der Wert reist deshalb als **Name** — genau wie die Schlagwortliste einer Seite es immer schon tat — und `translateIn` leitet das Kuerzel mit `page.Slugify` ab; `internal/bundle/format.go` wurde **nicht** angefasst, kein Schluessel kam dazu, ein vor dieser Phase geschriebenes Archiv bedeutet weiter, was es bedeutet hat. Neu `term.EnsureNames` und `importTerms`: ein nur von einem Schlagwortfeld getragenes Schlagwort wurde bisher gezaehlt und nicht angelegt; `report.Terms` zaehlt jetzt Angelegtes statt Behauptetes. Der beweisende Test benennt vor dem Export um — der Untertest ohne Umbenennung bestand schon gegen den unreparierten Baum und haette nichts bewiesen. **Der offene Blocker aus 07-04 ist erledigt** (siehe Blockers). **Kein Kontrollpunkt in diesem Plan, nichts automatisch genehmigt und nichts automatisch gewaehlt.** FIELD-03 bleibt bewusst offen: 07-07 nennt dieselbe Kennung, das Tor haelt sie bis dahin. Ausstehend, planmaessig: die 20 offenen Uebersetzungen samt der drei neuen Zeichenketten dieses Plans, die Dokumentensteuer je Art (TEMPLATE-SPEC.md, SampleData/MinimalData kennen `Entry.Term` so wenig wie `zeit`, `bereich`, `code`, `mehrfachauswahl`) und die Browserhaelfte — alle drei 07-07, das auch D-08 entscheidet
+Phase: 7 — Field Kinds (6 / 7 Pläne ausgeführt)
+Plan: 07-06 complete — die Knopfreihe steht, und die Falle D-10 ist zu. `switchOf` nimmt jetzt die ganze `field.Def` statt einer blossen Art: „eine Auswahl als Knopfreihe“ ist mit einer Zeichenkette nicht auszudruecken, weil die **Darstellung Teil der Antwort** ist — eine einzige Aufrufstelle, `viewOf`, hatte die Definition ohnehin in der Hand. Eine Knopfreihe meldet den neuen Schalter `knopfreihe`, und dazu kam **genau eine** Regel in `admin.css`, in der Form der `auswahl` (Vorgabe sichtbar, verbergen bei Treffer) und mit dem Selektor auf den angekreuzten leeren Radioknopf statt auf ein `<option>`, das eine Radioreihe nicht hat. Die vier bestehenden `.feld-schalter--*`-Regeln blieben unangetastet — der Mechanismus ist in dieser Phase genau einmal angefasst worden, wofuer dieser Plan zuletzt eingeplant war. **Der rote Testlauf hat zwei stille Fehlfunktionen gemessen, bevor eine Zeile Produktionscode geaendert war:** eine **Mehrfachauswahl** und ein **Schlagwortfeld** meldeten beide `"text"` — dessen Regel sucht `:placeholder-shown`, den eine Kaestchengruppe nicht traegt, und das Schlagwortfeld ist ein `<select>` mit leerer erster Moeglichkeit, also genau das, was die `auswahl`-Regel liest. Beide fielen in `switchOf`s `default`-Zweig, seit 07-01 und 07-05; jedes Feld daran blieb stumm sichtbar. Schritt 1 hat sie auf `"kreuz"` und `"auswahl"` gestellt. Die Reihe selbst: Radioknoepfe in getippter Reihenfolge, ohne Sortieren und ohne Entdoppeln, mit einem **ausdruecklichen Leerknopf** davor (D-11) — eine Radiogruppe laesst sich in reinem HTML sonst nicht wieder abwaehlen, und genau diesen Knopf liest die neue Regel. `role="group"` und `aria-labelledby` in derselben Schreibweise wie die Kaestchengruppe; `FieldView.Grouped()` wurde dafuer **erweitert und nicht kopiert**. Keine Zeile JavaScript, keine neue Uebersetzungszeichenkette (der Leerknopf traegt dieselben zwei Saetze wie die erste Moeglichkeit der Klappliste), die Klappliste selbst byteweise unveraendert. `MayControl()` blieb, wie 07-03 es hinterlassen hat: `KindTime` ausgeschlossen, `KindRange` drin — **D-08 wurde hier bewusst nicht entschieden**. `internal/admin/page_fields_switch_test.go` ist neu: je ein Fall pro steuernder Art, der Klasse **und** Element zusammen behauptet, dazu zwei allgemeine Waechter (eine Regel samt Selektor fuer jeden Schalternamen; kein `for=`, das auf eine fehlende Kennung zeigt) — beide Zaehne durch Mutation nachgewiesen. **Kein Kontrollpunkt in diesem Plan, nichts automatisch genehmigt und nichts automatisch gewaehlt.** Weiter offen und planmaessig fuer 07-07: die Dokumentensteuer je Art (TEMPLATE-SPEC.md, `SampleData`/`MinimalData`), die Browserhaelfte des stehenden Tors und die Entscheidung ueber D-08
 Status: Executing Phase 07
 Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
 Last activity: 2026-09-05
@@ -171,6 +171,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 07 P03 | 17 min | 3 tasks | 12 files |
 | Phase 07 P04 | 22 min | 3 tasks | 7 files |
 | Phase 07 P05 | 19 min | 4 tasks | 13 files |
+| Phase 07 P06 | 9 min | 3 tasks | 4 files |
 
 ### Session Continuity
 
@@ -179,10 +180,10 @@ and its *Standing Gates* section. Requirement IDs are in
 `.planning/REQUIREMENTS.md`; the working list most of them came from, with the
 size and location of each item, is `docs/offene-punkte.md`.
 
-Next command: `/gsd-execute-phase 7` — 07-06 (die Knopfreihe, D-10/D-11) ist der nächste Plan; danach 07-07, das die drei gebündelten Restposten trägt (Übersetzungen, Dokumentensteuer je Art, Browserhälfte) und D-08 entscheidet. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors gehört in die Abnahme, nicht in einen neuen Plan
+Next command: `/gsd-execute-phase 7` — 07-07 ist der letzte Plan der Phase: er traegt die drei gebündelten Restposten (Übersetzungen, Dokumentensteuer je Art, Browserhälfte) und entscheidet D-08 im Browser — ob ein `bereich`-Feld seine abhängigen Felder wirklich ein- und ausblendet, oder ob `KindRange` neben `KindDate` in die `MayControl()`-Ausnahme gehört. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-05T15:17:32.714Z
-**Stopped at:** Completed 07-05-PLAN.md
+**Last session:** 2026-09-05T15:35:52.218Z
+**Stopped at:** Completed 07-06-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -223,6 +224,10 @@ Next command: `/gsd-execute-phase 7` — 07-06 (die Knopfreihe, D-10/D-11) ist d
 - [Phase 07]: 07-05: Der offene Blocker aus 07-04 ist ENTSCHIEDEN und behoben statt vertagt — importFieldValues laeuft jetzt durch field.Clean und field.CheckAll (Rule 2, fehlende Eingabepruefung an einer Vertrauensgrenze). Ein Archiv ist genauso unvertraut wie ein Formularfeld, alle anderen Schreibwege waren gedeckt, und seit 07-04 kuerzt trimTo nichts mehr — CheckAll ist damit die einzige verbliebene Stelle, an der das Bytebudget gilt. Die Definitionen werden ueber s.Fields.List GELESEN und nicht aus dem Manifest nachgebaut, damit gegen das geprueft wird, was diese Website hat. Ein beanstandeter Wert wird benannt und entfernt, nie die ganze Seite verworfen; gemeldet nur im ersten Durchgang, nicht noch einmal im Verweisdurchgang
 - [Phase 07]: 07-05: Der beweisende Rundreisetest benennt das Schlagwort VOR dem Export um, und das ist nicht optional — im RED-Lauf bestand der Untertest ohne Umbenennung gegen den unreparierten Baum, waehrend der mit Umbenennung in drei Behauptungen fiel. Ein Schlagwort, dessen Name noch zu seinem Kuerzel passt, reist auch ohne die Uebersetzung heil und bewiese gar nichts
 - [Phase 07]: 07-05: KEIN Kontrollpunkt in diesem Plan — alle vier Tasks type=auto, kein tracer, kein precondition. Es wurde nichts automatisch genehmigt und nichts automatisch gewaehlt; anders als 07-01 und 07-02 gibt es hier keine einwegige Auswahl nachzubestaetigen
+- [Phase 07]: v1.6 Phase 7: switchOf nimmt die ganze field.Def statt einer blossen Art — „eine Auswahl als Knopfreihe" ist mit einer Zeichenkette nicht auszudruecken, weil die Darstellung Teil der Antwort ist. Eine einzige Aufrufstelle, viewOf — Ein zweiter Parameter oder eine blosse Darstellungszeichenkette waeren dieselbe Entscheidung an zwei Stellen geschrieben
+- [Phase 07]: v1.6 Phase 7: .feld-schalter--knopfreihe kopiert die Form der auswahl-Regel (Vorgabe sichtbar, verbergen bei Treffer) und nicht die des kreuz — eine beantwortete Auswahl zeigt ihre Abhaengigen, eine offene verbirgt sie. Selektor: input[type="radio"][value=""]:checked
+- [Phase 07]: v1.6 Phase 7: eine Mehrfachauswahl und ein Schlagwortfeld meldeten vor 07-06 den Schalter „text", dessen Regel einen Platzhalter sucht, den beide nicht tragen — jedes Feld daran blieb stumm sichtbar. Beide fielen in switchOfs default-Zweig; 07-06 hat sie auf „kreuz" und „auswahl" gestellt
+- [Phase 07]: v1.6 Phase 7: MayControl() blieb in 07-06 unangetastet — KindTime ausgeschlossen, KindRange drin. D-08 gehoert dem Browserdurchgang in 07-07 und darf nicht aus dem Markup entschieden werden
 
 ## Accumulated Context
 
