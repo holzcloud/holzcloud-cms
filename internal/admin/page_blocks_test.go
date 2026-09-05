@@ -336,3 +336,84 @@ func TestEigeneBausteinartLaesstSichBeimBearbeitenAnlegen(t *testing.T) {
 		t.Errorf("der neue Baustein fehlt im Formular (b1.typ %dmal):\n%s", got, rec.Body.String())
 	}
 }
+
+// Der dritte Ort, an dem Feldnamen entstehen. Auf der Seite selbst prägt
+// Def.FieldName die Markierung, in einer Gruppenzeile hängt groupView
+// NameSuffix an — und im Bausteineditor muss dieselbe Quelle gelten. Ohne sie
+// zeichnet das Formular eine Häkchengruppe ohne "[]", der Parser behält
+// values[0], und weil der Wächter vor der Gruppe steht, ist das der leere
+// String: jedes Häkchen ginge bei jedem Speichern verloren, ohne Meldung.
+func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	fields := field.NewStore(database)
+	art, err := block.NewStore(database, fields).Create(ctx, ws.ID, "Merkmal", "")
+	if err != nil {
+		t.Fatalf("Bausteinart anlegen: %v", err)
+	}
+	if _, err := fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "hoelzer", Label: "Hölzer", Kind: field.KindMulti,
+		Choices: []string{"Eiche", "Buche", "Esche"}, BlockTypeID: art.ID,
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+
+	p := seedPage(t, database, ws.ID, "Titel", "titel", "Ein Absatz.", "draft")
+
+	// Erst das Formular: der Editor muss die Markierung selbst zeichnen,
+	// sonst schickt kein Browser sie je mit.
+	req := postForm("/admin/websites/1/pages/1/edit", blockForm(ws.ID, url.Values{
+		"title":           {"Titel"},
+		"slug":            {"titel"},
+		"b0.typ":          {"text"},
+		"b0.markdown":     {"Ein Absatz."},
+		"version":         {strconv.FormatInt(p.Version, 10)},
+		block.ActionField: {block.ActionAdd + ":" + art.Key},
+	}), map[string]string{
+		"id": strconv.FormatInt(ws.ID, 10), "pageID": strconv.FormatInt(p.ID, 10),
+	})
+	req.Header.Set("HX-Request", "true")
+	rec := serve(t, h, sm, h.HandlePageEdit, req)
+	body := rec.Body.String()
+	if !strings.Contains(body, `name="b1.f.hoelzer[]"`) {
+		t.Errorf("die Häkchengruppe trägt die Markierung nicht:\n%s", body)
+	}
+	if strings.Contains(body, `name="b1.f.hoelzer"`) {
+		t.Errorf("die Gruppe steht ohne Markierung im Formular:\n%s", body)
+	}
+	if !strings.Contains(body, `<input type="hidden" name="b1.f.hoelzer[]" value="">`) {
+		t.Errorf("der Wächter fehlt vor der Gruppe:\n%s", body)
+	}
+
+	// Und dann, was dieses Formular absendet: der Wächter voran, zwei Haken.
+	req = postForm("/admin/websites/1/pages/1/edit", blockForm(ws.ID, url.Values{
+		"title":          {"Titel"},
+		"slug":           {"titel"},
+		"b0.typ":         {"text"},
+		"b0.markdown":    {"Ein Absatz."},
+		"b1.typ":         {art.Key},
+		"b1.f.hoelzer[]": {"", "Eiche", "Buche"},
+		"version":        {strconv.FormatInt(p.Version, 10)},
+	}), map[string]string{
+		"id": strconv.FormatInt(ws.ID, 10), "pageID": strconv.FormatInt(p.ID, 10),
+	})
+	serve(t, h, sm, h.HandlePageEdit, req)
+
+	saved, err := page.NewStore(database).GetPageBySlug(ctx, ws.ID, "titel")
+	if err != nil || saved == nil {
+		t.Fatalf("die Seite ist nach dem Speichern weg: %v", err)
+	}
+	set := block.Set{Own: []block.Own{{ID: art.ID, Key: art.Key, Name: art.Name,
+		Fields: []field.Def{{Key: "hoelzer", Kind: field.KindMulti}}}}}
+	blocks, err := block.Decode(saved.Blocks, set)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(blocks) != 2 {
+		t.Fatalf("%d Bausteine, wollte 2: %+v", len(blocks), blocks)
+	}
+	if got, will := blocks[1].Fields["hoelzer"], "Eiche\nBuche"; got != will {
+		t.Errorf("gespeichert wurde %q, wollte %q", got, will)
+	}
+}

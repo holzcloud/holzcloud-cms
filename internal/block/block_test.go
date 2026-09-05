@@ -639,3 +639,58 @@ func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
 		t.Errorf("die Mehrfachauswahl steht als Spalte im Suchtext:\n%s", text)
 	}
 }
+
+// Ein mehrwertiges Feld einer eigenen Bausteinart trägt dieselbe Markierung
+// wie eines auf der Seite selbst, und der Parser muss sie hier genauso lesen.
+// Ohne diesen Zweig bliebe von drei Häkchen der erste Wert übrig — und weil
+// der Wächter vor der Gruppe steht, wäre das der leere String: jedes Häkchen
+// verschwände beim Speichern, ohne dass irgendwo etwas gemeldet würde.
+func TestMehrfachauswahlImBausteinBehaeltAlleHaken(t *testing.T) {
+	blocks := FromForm(url.Values{
+		"b0.typ":         {"merkmal"},
+		"b0.f.hoelzer[]": {"", "Eiche", "Buche"},
+		"b0.f.bemerkung": {"einwertig"},
+	})
+	if len(blocks) != 1 {
+		t.Fatalf("%d Bausteine, want 1: %+v", len(blocks), blocks)
+	}
+	if got, will := blocks[0].Fields["hoelzer"], "Eiche\nBuche"; got != will {
+		t.Errorf("die Häkchen ergaben %q, wollte %q", got, will)
+	}
+	if _, da := blocks[0].Fields["hoelzer[]"]; da {
+		t.Error("die Markierung steht noch in der Kennung")
+	}
+	if got := blocks[0].Fields["bemerkung"]; got != "einwertig" {
+		t.Errorf("das einwertige Feld ergab %q, wollte %q", got, "einwertig")
+	}
+}
+
+// Und derselbe Unterschied wie oben auf der Seite: mit dem Wächter allein ist
+// die Kennung da und leer, ganz ohne das Feld ist sie gar nicht da.
+func TestBausteinfeldGeleertOderAbwesend(t *testing.T) {
+	geleert := FromForm(url.Values{
+		"b0.typ":         {"merkmal"},
+		"b0.f.hoelzer[]": {""},
+	})
+	if len(geleert) != 1 {
+		t.Fatalf("%d Bausteine, want 1", len(geleert))
+	}
+	val, da := geleert[0].Fields["hoelzer"]
+	if !da {
+		t.Error("nach dem Wächter allein fehlt die Kennung ganz")
+	}
+	if val != "" {
+		t.Errorf("nach dem Wächter allein steht %q da, wollte leer", val)
+	}
+
+	ohne := FromForm(url.Values{"b0.typ": {"merkmal"}, "b0.f.notiz": {"x"}})
+	if _, da := ohne[0].Fields["hoelzer"]; da {
+		t.Error("die Kennung steht im Baustein, obwohl das Formular sie nie trug")
+	}
+
+	// Eine Markierung ohne Kennung ist kein Feld.
+	leer := FromForm(url.Values{"b0.typ": {"merkmal"}, "b0.f.[]": {"Eiche"}})
+	if len(leer[0].Fields) != 0 {
+		t.Errorf("b0.f.[] ergab %+v, wollte nichts", leer[0].Fields)
+	}
+}
