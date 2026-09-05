@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
@@ -48,7 +49,8 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung, COALESCE(block_type_id, 0)
+		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
+		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
 		 FROM page_field_defs
 		 WHERE website_id = $1 AND block_type_id IS NULL ORDER BY position, id`, websiteID)
 	if err != nil {
@@ -84,7 +86,8 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 func (s *Store) Sub(ctx context.Context, websiteID, groupID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung, COALESCE(block_type_id, 0)
+		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
+		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
 		 FROM page_field_defs WHERE website_id = $1 AND parent_id = $2 ORDER BY position, id`,
 		websiteID, groupID)
 	if err != nil {
@@ -107,7 +110,8 @@ func (s *Store) Sub(ctx context.Context, websiteID, groupID int64) ([]Def, error
 func (s *Store) OfBlockType(ctx context.Context, websiteID, blockTypeID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung, COALESCE(block_type_id, 0)
+		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
+		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
 		 FROM page_field_defs WHERE website_id = $1 AND block_type_id = $2 ORDER BY position, id`,
 		websiteID, blockTypeID)
 	if err != nil {
@@ -133,7 +137,8 @@ func (s *Store) OfBlockType(ctx context.Context, websiteID, blockTypeID int64) (
 func (s *Store) OfBlockTypes(ctx context.Context, websiteID int64) (map[int64][]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung, COALESCE(block_type_id, 0)
+		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
+		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
 		 FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NOT NULL
 		 ORDER BY block_type_id, position, id`, websiteID)
 	if err != nil {
@@ -158,8 +163,13 @@ func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 		pflicht int
 		auswahl string
 	)
+	// Die Reihenfolge hier ist die der fünf SELECT-Spaltenlisten, Zeichen für
+	// Zeichen. Die fünf sind Abschriften voneinander und müssen es bleiben:
+	// eine Liste, die von den anderen abweicht, lädt ein Feld still mit einem
+	// Nullwert, und nichts schlägt fehl.
 	if err := row.Scan(&d.ID, &d.WebsiteID, &d.ParentID, &d.Key, &d.Label, &d.Kind,
-		&pflicht, &d.Hint, &auswahl, &d.AppliesTo, &d.Position, &d.Condition, &d.BlockTypeID); err != nil {
+		&pflicht, &d.Hint, &auswahl, &d.AppliesTo, &d.Position, &d.Condition,
+		&d.Display, &d.MaxValues, &d.RangeMin, &d.RangeMax, &d.BlockTypeID); err != nil {
 		return Def{}, fmt.Errorf("feld lesen: %w", err)
 	}
 	d.Required = pflicht == 1
@@ -175,7 +185,8 @@ func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Def, error) {
 	row := s.DB.Read.QueryRowContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung, COALESCE(block_type_id, 0)
+		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
+		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
 		 FROM page_field_defs WHERE id = $1 AND website_id = $2`, id, websiteID)
 	d, err := scanDef(row)
 	if err != nil {
@@ -232,14 +243,17 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 	// fields, or one block kind's fields. Three worlds in one table, and a
 	// field must never be able to move out of its own.
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO page_field_defs (website_id, parent_id, block_type_id, kennung, beschriftung, art, pflicht, hinweis, auswahl, gilt_fuer, bedingung, position)
+		`INSERT INTO page_field_defs (website_id, parent_id, block_type_id, kennung, beschriftung, art, pflicht, hinweis, auswahl, gilt_fuer, bedingung,
+		                             darstellung, max_werte, min_wert, max_wert, position)
 		 VALUES ($1, $2, $11, $3, $4, $5, $6, $7, $8, $9, $10,
+		         $12, $13, $14, $15,
 		         COALESCE((SELECT MAX(position) + 1 FROM page_field_defs
 		                   WHERE website_id = $1
 		                     AND COALESCE(parent_id, 0) = COALESCE($2, 0)
 		                     AND COALESCE(block_type_id, 0) = COALESCE($11, 0)), 0))`,
 		d.WebsiteID, parent, d.Key, d.Label, d.Kind, boolToInt(d.Required), d.Hint,
-		JoinChoices(d.Choices), d.AppliesTo, d.Condition, blockType)
+		JoinChoices(d.Choices), d.AppliesTo, d.Condition, blockType,
+		d.Display, d.MaxValues, d.RangeMin, d.RangeMax)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return nil, ErrDuplicateKey
@@ -279,10 +293,12 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, d Def) error {
 	_, err = s.DB.Write.ExecContext(ctx,
 		`UPDATE page_field_defs
 		 SET beschriftung = $1, art = $2, pflicht = $3, hinweis = $4, auswahl = $5,
-		     gilt_fuer = $6, bedingung = $7
+		     gilt_fuer = $6, bedingung = $7,
+		     darstellung = $10, max_werte = $11, min_wert = $12, max_wert = $13
 		 WHERE id = $8 AND website_id = $9`,
 		d.Label, d.Kind, boolToInt(d.Required), d.Hint, JoinChoices(d.Choices), d.AppliesTo,
-		d.Condition, id, websiteID)
+		d.Condition, id, websiteID,
+		d.Display, d.MaxValues, d.RangeMin, d.RangeMax)
 	if err != nil {
 		return fmt.Errorf("feld ändern: %w", err)
 	}
@@ -421,6 +437,41 @@ func validate(d *Def) error {
 	}
 	if d.Kind == KindChoice && len(d.Choices) == 0 {
 		return errors.New("eine Auswahl braucht mindestens eine Möglichkeit")
+	}
+	// Eine negative Höchstzahl kann kein ehrliches Formular erzeugen — das Feld
+	// trägt min="0" — und stillschweigend auf null zu ziehen hiesse, eine
+	// gebastelte Eingabe als Absicht zu lesen. Abgelehnt statt zurechtgebogen,
+	// und die Ablehnung steht vor dem Leeren weiter unten, damit sie nicht von
+	// der Art abhängt, die zufällig gewählt war.
+	if d.MaxValues < 0 {
+		return errors.New("eine Höchstzahl unter null gibt es nicht — null heisst keine Obergrenze")
+	}
+	// Verdrehte Grenzen: nur wenn beide als Zahl zu lesen sind, ist die Frage
+	// überhaupt gestellt. Zwei Wörter sind kein verdrehtes Zahlenpaar, sondern
+	// zwei Wörter, und die gehen diese Prüfung nichts an.
+	d.RangeMin = strings.TrimSpace(d.RangeMin)
+	d.RangeMax = strings.TrimSpace(d.RangeMax)
+	if d.RangeMin != "" && d.RangeMax != "" {
+		unten, untenErr := strconv.ParseFloat(d.RangeMin, 64)
+		oben, obenErr := strconv.ParseFloat(d.RangeMax, 64)
+		if untenErr == nil && obenErr == nil && unten > oben {
+			return errors.New("die untere Grenze liegt über der oberen — bitte die beiden Zahlen tauschen")
+		}
+	}
+	// Die Darstellung gehört einer Auswahl, die Höchstzahl einer
+	// Mehrfachauswahl. Was zur gewählten Art nicht passt, wird geleert und
+	// nicht abgelehnt — dieselbe Abmachung, die die Überschrift weiter unten
+	// schon macht: wer ein bestehendes Feld umstellt, soll nicht erst von Hand
+	// Kästchen ausräumen müssen.
+	//
+	// Für die beiden Grenzen steht hier absichtlich keine solche Regel: die
+	// Art, zu der sie gehören, gibt es in diesem Baum noch nicht. Sie kommt
+	// mit ihrer Konstanten zusammen zur Welt.
+	if d.Kind != KindChoice {
+		d.Display = ""
+	}
+	if d.Kind != KindMulti {
+		d.MaxValues = 0
 	}
 	if d.ParentID > 0 && d.Kind == KindGroup {
 		return ErrNested

@@ -197,6 +197,38 @@ type Def struct {
 	// Condition is the key of the field this one hangs on: it is asked for only
 	// once that field is filled in. Empty for a field that is always shown.
 	Condition string
+	// Display ist der Anzeigemodus einer Auswahl: leer die Klappliste,
+	// DisplayButtons die Knopfreihe. Für jede andere Art bedeutungslos und
+	// beim Speichern geleert.
+	Display string
+	// MaxValues ist die Höchstzahl der Werte, die an einer Mehrfachauswahl
+	// gleichzeitig gewählt sein dürfen. Null heisst keine Obergrenze. Eine
+	// Anzahl — nicht zu verwechseln mit RangeMax, das eine Grenze ist.
+	MaxValues int
+	// RangeMin und RangeMax sind die untere und die obere Grenze eines
+	// Bereichsfeldes. Text und keine Zahlen, damit „keine Grenze" von „die
+	// Grenze ist null" unterscheidbar bleibt: die leere Zeichenkette heisst
+	// keine Grenze in dieser Richtung.
+	RangeMin string
+	RangeMax string
+}
+
+// DisplayButtons ist der eine Anzeigemodus neben der Klappliste: eine Auswahl
+// als Reihe von Knöpfen.
+//
+// Ein leeres Display ist die Klappliste, die es heute schon gibt — deshalb
+// behält jedes Feld in einer bestehenden Datenbank sein Aussehen, ohne dass
+// irgendwelche Daten wandern müssten.
+const DisplayButtons = "knopfreihe"
+
+// IsButtonRow reports whether this field is a choice drawn as a row of
+// buttons rather than as a drop-down.
+//
+// Das Prädikat lebt hier und nicht in der Vorlage, damit weder das Formular
+// noch switchOf den Vergleich ein zweites Mal ausschreibt — zwei Stellen, die
+// dieselbe Regel buchstabieren, laufen früher oder später auseinander.
+func (d Def) IsButtonRow() bool {
+	return d.Kind == KindChoice && d.Display == DisplayButtons
 }
 
 // IsGroup reports whether this field holds rows rather than one value.
