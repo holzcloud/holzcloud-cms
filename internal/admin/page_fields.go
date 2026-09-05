@@ -214,7 +214,11 @@ func groupView(d field.Def, rows []field.Values, p pool, errs map[string]string)
 		r := FieldRow{Index: i, Number: i + 1, First: i == 0, Last: i == len(rows)-1}
 		for _, sub := range d.Sub {
 			key := field.RowKey(d.Key, i, sub.Key)
-			r.Fields = append(r.Fields, oneView(sub, "gruppe."+key, row[sub.Key], p, errs[key]))
+			// Die Markierung steht auch hier nicht ausgeschrieben: NameSuffix
+			// ist die eine Stelle, die sie kennt, so wie FieldName es für ein
+			// Feld auf der Seite selbst ist. Der Schlüssel für die Begründung
+			// trägt sie nicht — CheckAll benennt seine Meldungen ohne sie.
+			r.Fields = append(r.Fields, oneView(sub, "gruppe."+key+sub.NameSuffix(), row[sub.Key], p, errs[key]))
 		}
 		v.Rows = append(v.Rows, r)
 	}
