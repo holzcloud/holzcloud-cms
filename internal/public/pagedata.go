@@ -69,7 +69,11 @@ func (h *Handler) ownFields(r *http.Request, websiteID int64, pg *page.Page) (ma
 	}
 	mine := field.For(defs, pg.KindValue())
 	daten := field.Decode(pg.Fields)
-	links := field.Links{Image: h.fieldImages(r, websiteID), Page: h.fieldRefs(r, websiteID)}
+	links := field.Links{
+		Image: h.fieldImages(r, websiteID),
+		Page:  h.fieldRefs(r, websiteID),
+		Term:  h.fieldTerms(r, websiteID),
+	}
 	return field.Resolve(mine, daten, links), field.List(mine, daten, links)
 }
 
@@ -131,6 +135,47 @@ func (h *Handler) fieldImages(r *http.Request, websiteID int64) field.Lookup {
 		img := field.Image{URL: m.URL(), Alt: m.AltText, Width: m.Width, Height: m.Height, Focus: m.FocusCSS()}
 		cache[id] = img
 		return img, true
+	}
+}
+
+// fieldTerms resolves a label field for the website being rendered.
+//
+// The whole map is filled from one query the first time a label is asked for,
+// rather than one query per label: a page carrying ten label fields is a page
+// with ten values, not ten round trips — the same shape fieldRefs and
+// fieldImages already have.
+//
+// That single ListAll is also the website rule, and the only place it can be.
+// A stored slug says nothing about which website it belongs to, so a slug from
+// another one is simply not in this map and Resolve yields its typed nil.
+//
+// The comparison is exact string equality. No case folding and no
+// normalisation: a slug is already the normalised spelling of a name, and
+// folding a second time here would let two different labels collide.
+func (h *Handler) fieldTerms(r *http.Request, websiteID int64) field.TermLookup {
+	var bySlug map[string]field.Term
+	prefix := localePrefixOf(r)
+	return func(slug string) (field.Term, bool) {
+		if slug == "" || h.termStore == nil {
+			return field.Term{}, false
+		}
+		if bySlug == nil {
+			bySlug = map[string]field.Term{}
+			list, err := h.termStore.ListAll(r.Context(), websiteID)
+			if err != nil {
+				slog.Error("load website terms", "err", err, "website", websiteID)
+			}
+			for _, t := range list {
+				// Dieselbe Adresse mit demselben Sprachpräfix, das die
+				// Schlagwortlinks auf dem Rest der Seite bekommen. Die
+				// Adresse selbst kommt von Term.URL und steht hier deshalb
+				// nicht ein zweites Mal ausgeschrieben — zwei Schreibweisen
+				// derselben Adresse laufen irgendwann auseinander.
+				bySlug[t.Slug] = field.Term{Name: t.Name, Slug: t.Slug, URL: prefix + t.URL()}
+			}
+		}
+		t, ok := bySlug[slug]
+		return t, ok
 	}
 }
 

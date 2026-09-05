@@ -11,11 +11,13 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
+	"github.com/holzcloud/holzcloud-cms/internal/term"
 )
 
 // testFS is a minimal public template with the structure every shipped theme
@@ -506,4 +508,184 @@ func TestTheStartPageHasOneAddress(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "/home") {
 		t.Errorf("die Startseite steht ein zweites Mal im Sitemap:\n%s", rec.Body.String())
 	}
+}
+
+// Das Versprechen des Schlagwortfeldes, und die einzige Behauptung, die es
+// beweist: die Seite druckt den Namen, wie er *gerade jetzt* lautet.
+//
+// Gespeichert ist das Kürzel, gedruckt wird der Name. Wird das Schlagwort
+// umbenannt, ändert sich, was die Seite zeigt — ohne dass die Seite
+// geschrieben würde. Deshalb steht zwischen den beiden Abrufen kein
+// SetFields, sondern nur ein Rename.
+func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
+	h, database := newFieldTestHandler(t)
+	ctx := context.Background()
+	ws := seedWebsite(t, database, "Holzbau")
+
+	fields := field.NewStore(database)
+	if _, err := fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "thema", Label: "Thema", Kind: field.KindTerm,
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+
+	pages := page.NewStore(database)
+	html, err := page.RenderMarkdown("text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pg, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws.ID, Title: "Eichentisch", Slug: "eichentisch",
+		Markdown: "text", HTML: html, Status: "published",
+	})
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+
+	terms := term.NewStore(database)
+	// Das Schlagwort hängt bewusst an einer anderen Seite: das Feld ist der
+	// einzige Weg, auf dem es auf diese hier kommt.
+	traeger, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws.ID, Title: "Träger", Slug: "traeger",
+		Markdown: "text", HTML: html, Status: "published",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := terms.SetForPage(ctx, ws.ID, traeger.ID, []string{"Möbel"}); err != nil {
+		t.Fatalf("Schlagwort anlegen: %v", err)
+	}
+	raw, err := field.Encode(field.Data{Values: field.Values{"thema": "moebel"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pages.SetFields(ctx, pg.ID, raw); err != nil {
+		t.Fatalf("Wert setzen: %v", err)
+	}
+
+	hole := func() string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/eichentisch", nil)
+		req.Host = "demo.test"
+		req.SetPathValue("slug", "eichentisch")
+		req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+		rec := httptest.NewRecorder()
+		if err := h.HandlePage(rec, req); err != nil {
+			t.Fatalf("HandlePage: %v", err)
+		}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("die Seite gab %d zurück", rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	vorher := hole()
+	if !strings.Contains(vorher, `<span class="thema">Möbel</span>`) {
+		t.Fatalf("die Seite druckt den Namen des Schlagworts nicht:\n%s", vorher)
+	}
+	// Und die Adresse trägt das Kürzel, nicht den Namen.
+	if !strings.Contains(vorher, "/tag/moebel") {
+		t.Errorf("die Adresse des Schlagworts fehlt:\n%s", vorher)
+	}
+
+	// --- Umbenennen, ohne die Seite anzufassen ------------------------------
+	alle, err := terms.ListAll(ctx, ws.ID)
+	if err != nil || len(alle) != 1 {
+		t.Fatalf("ListAll = %v, %v", alle, err)
+	}
+	if err := terms.Rename(ctx, ws.ID, alle[0].ID, "Möbelbau"); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+
+	nachher := hole()
+	if !strings.Contains(nachher, `<span class="thema">Möbelbau</span>`) {
+		t.Errorf("nach dem Umbenennen fehlt der neue Name:\n%s", nachher)
+	}
+	if strings.Contains(nachher, ">Möbel<") {
+		t.Errorf("nach dem Umbenennen steht noch der alte Name da:\n%s", nachher)
+	}
+	// Das Kürzel bleibt, absichtlich: eine Umbenennung soll bestehende Links
+	// nicht zerbrechen.
+	if !strings.Contains(nachher, "/tag/moebel") {
+		t.Errorf("die Adresse hat sich beim Umbenennen bewegt:\n%s", nachher)
+	}
+}
+
+// Gelöscht heisst nichts gedruckt, nicht eine kaputte Seite: das {{with}} im
+// Theme lässt den Block aus.
+func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
+	h, database := newFieldTestHandler(t)
+	ctx := context.Background()
+	ws := seedWebsite(t, database, "Holzbau")
+
+	if _, err := field.NewStore(database).Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "thema", Label: "Thema", Kind: field.KindTerm,
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+	pages := page.NewStore(database)
+	html, _ := page.RenderMarkdown("text")
+	pg, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws.ID, Title: "Eichentisch", Slug: "eichentisch",
+		Markdown: "text", HTML: html, Status: "published",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Ein Kürzel, das es nie gab — dasselbe, was ein gelöschtes Schlagwort
+	// hinterlässt.
+	raw, _ := field.Encode(field.Data{Values: field.Values{"thema": "verschwunden"}})
+	if err := pages.SetFields(ctx, pg.ID, raw); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/eichentisch", nil)
+	req.Host = "demo.test"
+	req.SetPathValue("slug", "eichentisch")
+	req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+	rec := httptest.NewRecorder()
+	if err := h.HandlePage(rec, req); err != nil {
+		t.Fatalf("HandlePage: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("die Seite gab %d zurück", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Eichentisch") {
+		t.Errorf("die Seite selbst fehlt:\n%s", body)
+	}
+	if strings.Contains(body, `class="thema"`) {
+		t.Errorf("für das leere Feld wurde etwas gedruckt:\n%s", body)
+	}
+}
+
+// newFieldTestHandler ist newTestHandler mit einer Vorlage, die ein
+// Schlagwortfeld druckt, und mit den beiden Ablagen, die dafür hängen müssen.
+func newFieldTestHandler(t *testing.T) (*Handler, *db.DB) {
+	t.Helper()
+
+	dir := t.TempDir()
+	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(database.Close)
+	if err := db.RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+
+	fsys := testFS()
+	// Das {{with}} ist der Punkt: bei einem nicht auflösbaren Schlagwort
+	// bekommt das Theme nil und lässt den Block aus.
+	fsys["page.html"] = &fstest.MapFile{Data: []byte(
+		`{{define "content"}}<article>{{.Page.Title}}` +
+			`{{with .Page.Felder.thema}}<span class="thema">{{.Name}}</span>` +
+			`<a href="{{.URL}}">{{.Slug}}</a>{{end}}</article>{{end}}`)}
+
+	loader := tmpl.NewLoader(dir, fsys, nil, nil)
+	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database),
+		snippet.NewStore(database), loader, nil, dir, fsys, false)
+	h.SetFieldStore(field.NewStore(database))
+	h.SetTermStore(term.NewStore(database))
+	return h, database
 }
