@@ -537,3 +537,101 @@ func TestMenuStelltEingebauteVoran(t *testing.T) {
 		t.Errorf("hinten steht %q", menu[len(menu)-1].Type)
 	}
 }
+
+// artMitCode ist eine eigene Bausteinart mit einem Codefeld und einer
+// Mehrfachauswahl — die beiden Arten, um die es in dieser Datei geht.
+func artMitCode() Set {
+	return Set{Own: []Own{{
+		ID: 2, Key: "hinweis", Name: "Hinweis",
+		Fields: []field.Def{
+			{Key: "schnipsel", Label: "Schnipsel", Kind: field.KindCode},
+			{Key: "sorten", Label: "Sorten", Kind: field.KindMulti,
+				Choices: []string{"Eiche", "Buche"}},
+		},
+	}}}
+}
+
+// Der schärfste Satz dieser Phase: was in ein Codefeld getippt wird, erscheint
+// wörtlich und wird nicht ausgeführt — auch in einem Baustein.
+//
+// „Auch in einem Baustein" ist die ganze Schwierigkeit. Ein Baustein wird beim
+// Speichern der Seite zu HTML eingefroren, und dieses HTML bekommt der
+// Besucher. Im Theme zu maskieren wäre zu spät: dann stehen die Bytes längst
+// in der Datenbank.
+func TestCodeImBausteinWirdMaskiert(t *testing.T) {
+	roh := `<script>alert("x" & 1)</script>`
+	html := Render([]Block{{
+		Type:   "hinweis",
+		Fields: map[string]string{"schnipsel": roh},
+	}}, artMitCode(), bilder(nil), markdown)
+
+	if strings.Contains(html, "<script") {
+		t.Errorf("das Skript kam durch:\n%s", html)
+	}
+	for _, will := range []string{"&lt;script&gt;", "&amp;", "&#34;"} {
+		if !strings.Contains(html, will) {
+			t.Errorf("%q fehlt — es wurde nicht maskiert:\n%s", will, html)
+		}
+	}
+	// Ein eigenes Element und nicht die Zeile, die jede unbekannte Art
+	// bekommt: ein Codefeld ist vorformatiert, und das Theme muss es
+	// ansprechen können.
+	for _, will := range []string{"<pre", "<code", "hc-eigen__code--schnipsel"} {
+		if !strings.Contains(html, will) {
+			t.Errorf("%q fehlt in der Ausgabe:\n%s", will, html)
+		}
+	}
+	// Und niemals durch den Markdown-Renderer: der Prüfdoppelgänger oben legt
+	// um alles ein <p>, ein <p> hier wäre also der Beweis, dass der Wert den
+	// Markdown-Weg genommen hat. Der Baustein trägt nur dieses eine Feld, ein
+	// <p> kann also von nirgendwo sonst kommen.
+	if strings.Contains(html, "<p") {
+		t.Errorf("der Code lief durch den Markdown-Renderer:\n%s", html)
+	}
+}
+
+// Ein leeres Codefeld hinterlässt keinen leeren Kasten auf der Seite.
+func TestCodeImBausteinLeerErgibtNichts(t *testing.T) {
+	html := Render([]Block{{
+		Type:   "hinweis",
+		Fields: map[string]string{"schnipsel": "   "},
+	}}, artMitCode(), bilder(nil), markdown)
+	if html != "" {
+		t.Errorf("ein leeres Codefeld ergab Auszeichnung:\n%s", html)
+	}
+	// Auch neben einem gefüllten Feld: kein Element für das leere.
+	html = Render([]Block{{
+		Type:   "hinweis",
+		Fields: map[string]string{"schnipsel": "", "sorten": "Eiche"},
+	}}, artMitCode(), bilder(nil), markdown)
+	if strings.Contains(html, "hc-eigen__code") {
+		t.Errorf("das leere Codefeld bekam trotzdem ein Element:\n%s", html)
+	}
+}
+
+// Was die Suche der Website sieht. Die Liste ist eine Entscheidung und keine
+// Aufzählung: ein Codefeld hält Worte — eine Adresse, eine Zeile Einstellung —
+// und eine Seite aus Bausteinen wäre für ihre eigene Suche sonst gerade dort
+// unsichtbar, wo der Verfasser sich am meisten Mühe gab.
+func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
+	text := PlainText([]Block{{
+		Type: "hinweis",
+		Fields: map[string]string{
+			"schnipsel": "Musterweg 3, 3000 Bern",
+			"sorten":    "Eiche\nBuche",
+		},
+	}}, artMitCode())
+
+	if !strings.Contains(text, "Musterweg 3, 3000 Bern") {
+		t.Errorf("der Code fehlt im Suchtext:\n%s", text)
+	}
+	// Mit einem Leerzeichen verbunden und nicht mit den gespeicherten
+	// Zeilenumbrüchen: ein Anriss soll sich wie ein Satz lesen und nicht wie
+	// eine Spalte.
+	if !strings.Contains(text, "Eiche Buche") {
+		t.Errorf("die Mehrfachauswahl steht nicht als Worte im Suchtext:\n%s", text)
+	}
+	if strings.Contains(text, "Eiche\nBuche") {
+		t.Errorf("die Mehrfachauswahl steht als Spalte im Suchtext:\n%s", text)
+	}
+}
