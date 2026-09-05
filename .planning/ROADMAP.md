@@ -159,11 +159,11 @@ The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
   5. `zeit` accepts a time of day that carries no timezone and where empty is distinguishable from midnight; `bereich` accepts a number between its configured bounds and the chosen number is readable **before** saving, without JavaScript; `code` is plain fixed-width text that never passes through Markdown — HTML typed into it appears verbatim on the public page and does not execute, including when the field sits inside a block.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
 
-**Plans**: 7 plans, in 7 waves. The chain is real rather than conservative: `internal/field/field.go`, `internal/field/render.go` and `field_input.html` are each touched by five of the seven plans, so two plans in one wave would be two agents editing one kind list. `07-05` (`KindTerm`) is independent in substance and could run anywhere; it is sequenced only by that file overlap.
+**Plans**: 1/7 plans executed, in 7 waves. The chain is real rather than conservative: `internal/field/field.go`, `internal/field/render.go` and `field_input.html` are each touched by five of the seven plans, so two plans in one wave would be two agents editing one kind list. `07-05` (`KindTerm`) is independent in substance and could run anywhere; it is sequenced only by that file overlap.
 
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Ground truth (D-01) in its own docs commit, then the tracer: one `mehrfachauswahl` field wired end to end through `SplitValues`/`JoinValues`, the `feld_<key>[]` marker, `Entry.Values`, the checkbox group and the bundle round trip
+- [x] 07-01-PLAN.md — Ground truth (D-01) in its own docs commit, then the tracer: one `mehrfachauswahl` field wired end to end through `SplitValues`/`JoinValues`, the `feld_<key>[]` marker, `Entry.Values`, the checkbox group and the bundle round trip
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -355,7 +355,7 @@ anywhere.
 | 4. Templates + Menus + Media | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 5. Admin Polish + Users + Deployment | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 6. Aufräumen | v1.6 | 7/7 | In Progress|  |
-| 7. Field Kinds | v1.6 | 0/TBD | Not started | - |
+| 7. Field Kinds | v1.6 | 1/7 | In Progress|  |
 | 8. Snippets Carry Fields | v1.6 | 0/TBD | Not started | - |
 | 9. CSV Import | v1.6 | 0/TBD | Not started | - |
 | 10. Authentik Forward-Auth | v1.6 | 0/TBD | Not started | - |
