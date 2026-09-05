@@ -101,15 +101,27 @@ type FieldRow struct {
 // Is reports whether this field is of a given kind, for the template.
 func (v FieldView) Is(kind string) bool { return v.Def.Kind == kind }
 
+// Buttons reports whether this choice is drawn as a row of buttons rather
+// than as a drop-down, for the template.
+//
+// It asks a question instead of comparing two strings, and it goes through
+// field.Def.IsButtonRow so a button row is never spelled out as a kind of its
+// own — it is a way of presenting a choice, nothing more.
+func (v FieldView) Buttons() bool { return v.Def.IsButtonRow() }
+
 // Grouped says this field is a group of controls rather than one control.
 //
 // The shared label at the top of field_input.html aims its for= at a control
 // id. A group of checkboxes has no single control to aim at, so the attribute
 // would name an element that is not in the document — a label associated with
 // nothing, which is worse for a screen reader than no label markup at all.
-// The rule lives here and nowhere else: a later kind that is also a group
-// widens this one predicate instead of a branch in the template.
-func (v FieldView) Grouped() bool { return v.Def.Kind == field.KindMulti }
+// A row of radio buttons is the second such group and is why this predicate
+// is widened rather than copied: the rule lives here and nowhere else, and a
+// later kind that is also a group adds one condition instead of a branch in
+// the template.
+func (v FieldView) Grouped() bool {
+	return v.Def.Kind == field.KindMulti || v.Buttons()
+}
 
 // PageChoice is one page a reference field may point at.
 type PageChoice struct {
@@ -205,20 +217,40 @@ func viewOf(d field.Def, under map[string][]field.Def, seen map[string]bool,
 		v.Dependent = append(v.Dependent, viewOf(sub, under, seen, data, p, errs))
 	}
 	if len(v.Dependent) > 0 {
-		v.Switch = switchOf(d.Kind)
+		v.Switch = switchOf(d)
 	}
 	return v
 }
 
 // switchOf names the rule that shows this field's dependants, by what the
-// browser can see: a tick box is checked or not, a dropdown has the empty
-// option chosen or not, and everything typed still shows its placeholder or
-// does not.
-func switchOf(kind string) string {
-	switch kind {
-	case field.KindBool:
+// browser can see. Every name it returns must have a matching
+// .feld-schalter-- rule in admin.css, and that rule must select an element
+// this field's control actually emits — nothing at runtime checks either, and
+// a name without a rule leaves a field that should be hidden visible for ever.
+//
+// It takes the whole definition and not a bare kind, because the presentation
+// is part of the answer: a choice drawn as a row of buttons has the same kind
+// as one drawn as a drop-down and needs a different rule.
+//
+//   - "knopfreihe" — a choice as a row of buttons. Its rule matches the
+//     checked radio carrying the empty value; the drop-down's rule looks for
+//     an <option>, and a row of radios has none.
+//   - "auswahl" — a drop-down with an empty first option: a choice, a picture,
+//     a reference, a label. The rule reads which option is chosen.
+//   - "kreuz" — something ticked: a yes/no box, and a multiple choice, whose
+//     control is a group of check boxes. The hidden sentinel before that group
+//     is never checked and cannot make the rule fire.
+//   - "text" — everything typed, which still shows its placeholder or no
+//     longer does. A range field and a code field are here, and both carry
+//     placeholder=" " for exactly that reason.
+func switchOf(d field.Def) string {
+	if d.IsButtonRow() {
+		return "knopfreihe"
+	}
+	switch d.Kind {
+	case field.KindBool, field.KindMulti:
 		return "kreuz"
-	case field.KindChoice, field.KindImage, field.KindRef:
+	case field.KindChoice, field.KindImage, field.KindRef, field.KindTerm:
 		return "auswahl"
 	default:
 		return "text"
