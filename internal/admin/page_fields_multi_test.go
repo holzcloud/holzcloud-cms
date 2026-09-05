@@ -410,6 +410,10 @@ func TestZeilennameMitMarkierung(t *testing.T) {
 		"feld_tage[]",
 		"gruppe.zeiten.0",
 		"gruppe.zeiten.0.tage.extra[]",
+		// Nach dem Abschneiden der Markierung bliebe kein Unterfeldname
+		// übrig — dieselbe Wache, die das Feld auf der Seite selbst hat.
+		"gruppe.zeiten.0.[]",
+		"gruppe.zeiten.0.",
 		"gruppe.zeiten.x.tage[]",
 		"gruppe.zeiten.-1.tage[]",
 		"gruppe.zeiten." + strconv.Itoa(field.MaxRows) + ".tage[]",
