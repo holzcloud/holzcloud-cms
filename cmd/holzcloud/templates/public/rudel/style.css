@@ -1678,7 +1678,11 @@ main:focus { outline: none; }
  * Stylesheet könnte ein style-Attribut nur mit !important schlagen, und genau
  * das wäre der Verlust der Angabe. Ein Prüftor liest diesen Abschnitt
  * kommentarbereinigt und verlangt null Treffer. */
-.hc-galerie__bild img { aspect-ratio: 1 / 1; }
+/* Die Quadrate der Galerie stehen hier vollständig: `object-fit` gehört
+   dazu und wurde früher aus bausteine.css geerbt. Seit die Galerie dort
+   das Bild in seiner eigenen Form zeigt, wäre eine Kachel ohne Zuschnitt
+   ein gestauchter Hund. Die Karte erbt ihren Zuschnitt weiterhin. */
+.hc-galerie__bild img { aspect-ratio: 1 / 1; object-fit: cover; }
 .hc-karte img { aspect-ratio: 4 / 3; }
 
 /* Karte — ein deckender Kasten, kein Glas. Die Brücke gibt ihr über

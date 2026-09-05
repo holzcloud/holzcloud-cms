@@ -11,6 +11,30 @@ verfasst. Wer den nächsten Eintrag schreibt, macht bitte mit.
 
 Die Nummern sind dieselben wie die Tags im Repository.
 
+## 1.7 — 2026-09-05
+
+### Behoben
+
+**Die Galerie schnitt jedes Bild auf 4:3 zurecht.** Ein Bildschirmfoto im
+Verhältnis 1,94:1 verlor damit knapp ein Drittel seiner Breite — links und
+rechts, also genau dort, wo bei einer Anwendung die Ränder, die Werkzeugleisten
+und die Navigation liegen. Sichtbar blieb ein Ausschnitt aus der Mitte, der
+aussieht wie ein Fehler beim Hochladen.
+
+Die Galerie zeigt ein Bild jetzt in seiner eigenen Form, so wie es die drei
+anderen Bildstellen — Bild, Bild und Text, und die Bilder eigener Bausteinarten
+— immer gehalten haben. Ein Raster bleibt gleichmässig, solange die Bilder einer
+Galerie dieselbe Form haben; sind sie verschieden hoch, richten sie sich oben
+aus. Die Karte behält ihre Kachel: dort ist das Bild ein Anreisser und nicht der
+Inhalt.
+
+Eine Vorlage, die eine feste Kachel will, setzt sie weiterhin selbst. Rudel tut
+das mit `aspect-ratio: 1` für seine Hundebilder — und nennt seitdem auch den
+Zuschnitt dazu, den es vorher von hier geerbt hat. **Wer eine eigene Vorlage
+betreibt, die in der Galerie ein Seitenverhältnis setzt, prüft bitte, ob dort
+`object-fit: cover` danebensteht**; ohne diese Zeile wird das Bild jetzt
+gestaucht statt beschnitten.
+
 ## 1.6 — 2026-09-04
 
 ### Behoben

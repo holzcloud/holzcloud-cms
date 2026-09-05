@@ -118,12 +118,30 @@
 
 .hc-galerie__bild { margin: 0; }
 
+/* Das Bild behält seine eigene Form.
+ *
+ * Hier stand `aspect-ratio: 4 / 3` mit `object-fit: cover`, und das schnitt
+ * von jedem Bild weg, was nicht in diese Form passte — bei einem 1,94:1 breiten
+ * Bildschirmfoto knapp ein Drittel, links und rechts, also genau dort, wo bei
+ * einer Anwendung die Ränder und die Werkzeugleisten liegen. Der Baustein heisst
+ * Galerie; sein Zweck ist das Bild, nicht die Kachel.
+ *
+ * Die drei anderen Bildstellen — hc-bild, hc-bildtext, hc-eigen — haben es immer
+ * so gehalten. Ein gleichmässiges Raster bleibt trotzdem gleichmässig, solange
+ * die Bilder einer Galerie dieselbe Form haben, was bei einer Reihe
+ * Bildschirmfotos der Normalfall ist. Sind sie verschieden hoch, richten sie
+ * sich oben aus, damit der Rest der Zeile nicht auseinanderfällt.
+ *
+ * Eine Vorlage, die eine feste Kachel will, setzt sie selbst — Rudel tut das
+ * mit `aspect-ratio: 1` für seine Hundebilder. */
 .hc-galerie__bild img {
+    display: block;
     inline-size: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
+    block-size: auto;
     border-radius: var(--hc-rund);
 }
+
+.hc-galerie { align-items: start; }
 
 .hc-karte {
     display: flex;
