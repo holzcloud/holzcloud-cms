@@ -142,16 +142,23 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 	if err != nil {
 		return nil, err
 	}
-	if err := exportPages(ctx, s, ws.ID, m, mediaByID); err != nil {
+	// Die Schlagwörter vor den Seiten, weil eine Seite sie braucht: der Wert
+	// eines Schlagwortfeldes reist als Name, und die Namen stehen in dieser
+	// Karte. Die Reihenfolge der Aufrufe ändert die Bytes des Archivs nicht —
+	// die JSON-Schlüssel kommen aus der Reihenfolge der Felder von Manifest,
+	// nicht aus der, in der sie gefüllt werden. Wer diesen Aufruf wieder nach
+	// unten schiebt, nimmt exportPages die Karte weg.
+	nameBySlug, err := exportTerms(ctx, s, ws.ID, m)
+	if err != nil {
+		return nil, err
+	}
+	if err := exportPages(ctx, s, ws.ID, m, mediaByID, nameBySlug); err != nil {
 		return nil, err
 	}
 	if err := exportMenus(ctx, s, ws.ID, m); err != nil {
 		return nil, err
 	}
 	if err := exportSnippets(ctx, s, ws.ID, m); err != nil {
-		return nil, err
-	}
-	if err := exportTerms(ctx, s, ws.ID, m); err != nil {
 		return nil, err
 	}
 	if err := exportFields(ctx, s, ws.ID, m); err != nil {
@@ -183,7 +190,8 @@ func exportMedia(ctx context.Context, s Stores, websiteID int64, m *Manifest) (m
 	return byID, nil
 }
 
-func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest, mediaByID map[int64]string) error {
+func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
+	mediaByID map[int64]string, nameBySlug map[string]string) error {
 	// "*" is every language: without it an export of a multilingual site would
 	// quietly carry only the main language and the import would look like it
 	// had worked.
@@ -251,7 +259,7 @@ func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest, me
 		if blocks, err := block.Decode(p.Blocks, set); err == nil && len(blocks) > 0 {
 			out.Blocks = exportBlocks(blocks, set, mediaByID)
 		}
-		out.Fields, out.FieldGroups = exportFieldValues(fieldKinds, p.Fields, mediaByID, slugByID)
+		out.Fields, out.FieldGroups = exportFieldValues(fieldKinds, p.Fields, mediaByID, slugByID, nameBySlug)
 		for _, t := range labels[p.ID] {
 			out.Terms = append(out.Terms, t.Name)
 		}
@@ -309,18 +317,28 @@ func exportSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest)
 	return nil
 }
 
-func exportTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest) error {
+// exportTerms writes the website's labels and returns their names by slug.
+//
+// The map is what a label field's value needs: it stores a slug, and a slug is
+// not portable — Rename keeps a label's address when its name changes, so the
+// importing machine would derive a different one from the name it is given.
+// The value therefore travels as the name, which is how a page's own Terms
+// list has always spelled a label (format.go:152-159). Same shape as
+// exportMedia: the step that writes the list also hands back the lookup.
+func exportTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest) (map[string]string, error) {
+	nameBySlug := map[string]string{}
 	if s.Terms == nil {
-		return nil
+		return nameBySlug, nil
 	}
 	terms, err := s.Terms.ListAll(ctx, websiteID)
 	if err != nil {
-		return fmt.Errorf("list terms: %w", err)
+		return nil, fmt.Errorf("list terms: %w", err)
 	}
 	for _, t := range terms {
+		nameBySlug[t.Slug] = t.Name
 		m.Terms = append(m.Terms, Term{Slug: t.Slug, Name: t.Name})
 	}
-	return nil
+	return nameBySlug, nil
 }
 
 // exportTypes writes the website's own content kinds.
@@ -407,12 +425,13 @@ func hashBytes(data []byte) string {
 // that mean something only in this database. They travel as the file name and
 // as the address, the same way the featured image and the translation links
 // do, and come back as ids on the other side.
-func exportFieldValues(kinds map[string]string, raw string, mediaByID, slugByID map[int64]string) (map[string]string, map[string][]map[string]string) {
+func exportFieldValues(kinds map[string]string, raw string, mediaByID, slugByID map[int64]string,
+	nameBySlug map[string]string) (map[string]string, map[string][]map[string]string) {
 	data := field.Decode(raw)
 	if data.Empty() {
 		return nil, nil
 	}
-	values := translateOut(kinds, data.Values, mediaByID, slugByID)
+	values := translateOut(kinds, data.Values, mediaByID, slugByID, nameBySlug)
 
 	var groups map[string][]map[string]string
 	for key, rows := range data.Rows {
@@ -420,7 +439,7 @@ func exportFieldValues(kinds map[string]string, raw string, mediaByID, slugByID 
 		for _, row := range rows {
 			// The sub-fields are keyed by "group.sub" in the kind map, so a
 			// picture inside a group is recognised the same way.
-			out = append(out, translateOut(subKinds(kinds, key), row, mediaByID, slugByID))
+			out = append(out, translateOut(subKinds(kinds, key), row, mediaByID, slugByID, nameBySlug))
 		}
 		if len(out) > 0 {
 			if groups == nil {
@@ -434,7 +453,8 @@ func exportFieldValues(kinds map[string]string, raw string, mediaByID, slugByID 
 
 // translateOut turns stored values into what a bundle carries: a picture's id
 // becomes its file name.
-func translateOut(kinds map[string]string, values field.Values, mediaByID, slugByID map[int64]string) map[string]string {
+func translateOut(kinds map[string]string, values field.Values, mediaByID, slugByID map[int64]string,
+	nameBySlug map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil
 	}
@@ -456,6 +476,25 @@ func translateOut(kinds map[string]string, values field.Values, mediaByID, slugB
 				continue
 			}
 			out[key] = slug
+			continue
+		}
+		if kinds[key] == field.KindTerm {
+			// Ein Schlagwortfeld hält das Kürzel eines Schlagworts, und ein
+			// Kürzel ist nicht übertragbar: Rename behält es, während der
+			// Name sich ändert, also leitet die andere Maschine aus dem Namen
+			// ein anderes ab. Es reist als Name — dieselbe Schreibweise, in
+			// der die Schlagwortliste einer Seite eine Beschriftung immer
+			// schon trägt.
+			name := nameBySlug[val]
+			if name == "" {
+				// Ein Kürzel, das kein Schlagwort dieser Website benennt.
+				// Fallengelassen, aus demselben Grund wie ein Verweis auf eine
+				// nicht mit ausgeführte Seite: der Wert landete sonst auf dem
+				// Schlagwort, das die andere Seite zufällig daraus ableitet,
+				// und das ist schlimmer, als auf nichts zu landen.
+				continue
+			}
+			out[key] = name
 			continue
 		}
 		if kinds[key] == field.KindImage {

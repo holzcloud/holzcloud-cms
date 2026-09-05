@@ -1300,3 +1300,66 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		}
 	})
 }
+
+// Ein Archiv ist eine Datei, die jeder bearbeiten kann — genauso unvertraut
+// wie ein Formularfeld, und deshalb durch dieselben Prüfungen.
+//
+// Bis hierher war der Importweg der eine, der ohne sie schrieb: field.Encode
+// legte ab, was im Manifest stand, ohne field.Clean und ohne field.CheckAll.
+// Alle anderen Schreibwege sind gedeckt (internal/admin/page.go, die Werkzeuge
+// in internal/ai). Seit 07-04 kürzt trimTo nichts mehr, also ist CheckAll auch
+// die einzige Stelle, an der das Bytebudget überhaupt noch gilt.
+func TestArchivwerteGehenDurchDieselbePruefung(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	zuLang := strings.Repeat("x", field.MaxValueBytes+1)
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Bösartig"},
+		Fields: []Field{
+			{Key: "notiz", Label: "Notiz", Kind: field.KindText},
+			{Key: "art", Label: "Art", Kind: field.KindChoice, Choices: []string{"Eiche", "Buche"}},
+			{Key: "gut", Label: "Gut", Kind: field.KindText},
+		},
+		Pages: []Page{{
+			Title: "Seite", Slug: "seite", Status: "published", Markdown: "x",
+			Fields: map[string]string{
+				"notiz":     zuLang,
+				"art":       "Zement",
+				"gut":       "das hier bleibt",
+				"gibtesnie": "und dieses Feld gibt es gar nicht",
+			},
+		}},
+	})
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	seiten, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
+	if err != nil || len(seiten) != 1 {
+		t.Fatalf("Seiten = %+v, %v", seiten, err)
+	}
+	werte := field.Decode(seiten[0].Fields).Values
+
+	if _, da := werte["notiz"]; da {
+		t.Errorf("ein Wert über dem Bytebudget wurde abgelegt (%d Byte)", len(werte["notiz"]))
+	}
+	if _, da := werte["art"]; da {
+		t.Errorf("„Zement“ steht nicht zur Auswahl und wurde trotzdem abgelegt: %q", werte["art"])
+	}
+	// field.Clean nimmt weg, was zu keinem Feld dieser Website gehört.
+	if _, da := werte["gibtesnie"]; da {
+		t.Error("ein Wert ohne Felddefinition wurde abgelegt")
+	}
+	// Und der gültige Wert kommt an: die Wache wirft nicht die ganze Seite weg.
+	if werte["gut"] != "das hier bleibt" {
+		t.Errorf("der gültige Wert = %q, wollte „das hier bleibt“", werte["gut"])
+	}
+	// Der Bericht sagt, was fehlt — sonst müsste der Betreiber die Lücke
+	// selbst finden.
+	if !warned(report, "notiz") || !warned(report, "art") {
+		t.Errorf("der Bericht nennt die verworfenen Werte nicht: %v", report.Warnings)
+	}
+}
