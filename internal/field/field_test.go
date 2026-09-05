@@ -530,8 +530,9 @@ func TestAbschnittHatKeinenWert(t *testing.T) {
 func TestWoranEineBedingungHaengenDarf(t *testing.T) {
 	// KindRange bleibt bewusst dabei: die Notiz im Fahrplan, es auszuschliessen,
 	// ruhte auf der Annahme eines Schiebers. Ein Zahlenfeld zeigt sehr wohl
-	// einen Platzhalter. Der Browserdurchgang in Plan 07-07 entscheidet das
-	// endgültig; aus dem Lesen allein wird es nicht entschieden.
+	// einen Platzhalter — beobachtet im Browserdurchgang zu Plan 07-07 und
+	// nicht bloss erschlossen: das abhängige Feld war verborgen, solange das
+	// Zahlenfeld leer war, und sichtbar, sobald eine Zahl darinstand.
 	darf := []string{KindText, KindLong, KindNumber, KindBool, KindChoice,
 		KindImage, KindLink, KindRef, KindRange, KindCode}
 	for _, k := range darf {

@@ -313,7 +313,9 @@ func (d Def) MayControl() bool {
 		// ausblendet, ist :placeholder-shown — sie könnte hier also nie
 		// greifen, und jedes Feld, das an einem solchen hinge, bliebe für
 		// immer sichtbar. Ein Bereichsfeld steht bewusst nicht hier: es ist
-		// ein Zahlenfeld und trägt sehr wohl einen Platzhalter.
+		// ein Zahlenfeld und trägt sehr wohl einen Platzhalter — im
+		// Browserdurchgang zu Plan 07-07 im Browser nachgesehen und bestätigt,
+		// nicht aus dem Lesen geschlossen (D-08).
 		return false
 	}
 	return d.ParentID == 0
