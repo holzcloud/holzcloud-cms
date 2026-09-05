@@ -659,6 +659,70 @@ func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
 	}
 }
 
+// Das Schlagwort einer fremden Website löst sich zu nichts auf (T-07-19).
+//
+// Ein gespeichertes Kürzel sagt nichts darüber, welcher Website es gehört —
+// deshalb ist die Nachschlagefunktion und nicht Check die Stelle, an der die
+// Regel steht: fieldTerms füllt seine Karte aus einem ListAll genau der
+// Website, die gerade gerendert wird, und ein fremdes Kürzel steht darin
+// schlicht nicht.
+func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
+	h, database := newFieldTestHandler(t)
+	ctx := context.Background()
+	ws := seedWebsite(t, database, "Holzbau")
+	fremd := seedWebsite(t, database, "Zementbau")
+
+	if _, err := field.NewStore(database).Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "thema", Label: "Thema", Kind: field.KindTerm,
+	}); err != nil {
+		t.Fatalf("Feld anlegen: %v", err)
+	}
+
+	pages := page.NewStore(database)
+	html, _ := page.RenderMarkdown("text")
+	// Das Schlagwort gehört der fremden Website.
+	fremdeSeite, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: fremd.ID, Title: "Anderswo", Slug: "anderswo",
+		Markdown: "text", HTML: html, Status: "published",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := term.NewStore(database).SetForPage(ctx, fremd.ID, fremdeSeite.ID, []string{"Geheim"}); err != nil {
+		t.Fatal(err)
+	}
+
+	pg, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws.ID, Title: "Eichentisch", Slug: "eichentisch",
+		Markdown: "text", HTML: html, Status: "published",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Und die eigene Seite trägt sein Kürzel — von Hand eingetragen, so wie
+	// es nur an der Auswahl vorbei entstehen kann.
+	raw, _ := field.Encode(field.Data{Values: field.Values{"thema": "geheim"}})
+	if err := pages.SetFields(ctx, pg.ID, raw); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/eichentisch", nil)
+	req.Host = "demo.test"
+	req.SetPathValue("slug", "eichentisch")
+	req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+	rec := httptest.NewRecorder()
+	if err := h.HandlePage(rec, req); err != nil {
+		t.Fatalf("HandlePage: %v", err)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "Geheim") || strings.Contains(body, "geheim") {
+		t.Errorf("das Schlagwort einer fremden Website steht auf der Seite:\n%s", body)
+	}
+	if strings.Contains(body, `class="thema"`) {
+		t.Errorf("für das fremde Schlagwort wurde etwas gedruckt:\n%s", body)
+	}
+}
+
 // newFieldTestHandler ist newTestHandler mit einer Vorlage, die ein
 // Schlagwortfeld druckt, und mit den beiden Ablagen, die dafür hängen müssen.
 func newFieldTestHandler(t *testing.T) (*Handler, *db.DB) {
