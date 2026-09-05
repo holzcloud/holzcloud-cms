@@ -11,6 +11,40 @@ verfasst. Wer den nächsten Eintrag schreibt, macht bitte mit.
 
 Die Nummern sind dieselben wie die Tags im Repository.
 
+## 1.9 — 2026-09-05
+
+### Behoben
+
+**Eine geänderte Vorlage kam bei niemandem an, der die Website schon kannte.**
+Jedes Vorlagen-Asset ging mit `Cache-Control: public, max-age=31536000,
+immutable` hinaus — auf einer Adresse, die sich nie ändert. `immutable` heisst
+für den Browser: frag nicht nach, auch nicht beim Neuladen. Ein korrigiertes
+Stylesheet erreichte damit ein Jahr lang nur, wer die Seite noch nie geöffnet
+hatte.
+
+Ohne Version in der Adresse gilt jetzt eine Stunde mit starkem ETag: die zweite
+Anfrage ist eine Rückfrage und kommt als 304 ohne Körper zurück. Wer die Adresse
+versioniert (`/t/style.css?v=…`), bekommt das lange Versprechen weiterhin — dann
+löst die Adresse es auch ein.
+
+**Bilder aus einem eingespielten Archiv hatten keine Masse.** Der Weg über das
+Hochladen misst jedes Bild und legt die verkleinerten Fassungen an; der Weg über
+ein Archiv legte nur die Zeile an. Auf einer so entstandenen Website stand
+deshalb bei keinem Bild `width`/`height` im HTML — das Layout springt beim
+Nachladen — und es gab **kein `srcset`**, ein Handy lud also jedes Original in
+voller Grösse. Bei einer Website mit fünfundachtzig Bildern ist das der
+Unterschied zwischen ein paar hundert Kilobyte und einigen Megabyte.
+
+Eine Hintergrundarbeit trägt das nach: beim Start und danach stündlich, hundert
+Bilder je Durchgang. Sie ist selbstbegrenzend — ein Bild, das seine Masse hat,
+wird nie wieder angesehen — und braucht kein Zutun. Der Unterbefehl `thumbnails`
+tut dasselbe von Hand und bleibt für den Fall, dass man nicht warten will.
+
+Nachgetragen und nicht im Import selbst: eine Website mit hundert Bildern würde
+sonst hundert Bilder innerhalb einer HTTP-Anfrage entschlüsseln, und ein Import,
+der in eine Zeitüberschreitung läuft, ist schlimmer als Bilder, die ein paar
+Minuten später scharf sind.
+
 ## 1.8 — 2026-09-05
 
 ### Behoben
