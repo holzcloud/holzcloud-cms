@@ -79,6 +79,8 @@ type PageFormData struct {
 	// RefPages is the choice a reference field offers: the pages of this
 	// website.
 	RefPages []PageChoice
+	// RefTerms is the choice a label field offers: the labels of this website.
+	RefTerms []TermChoice
 	// Videos is the film pool of the video block.
 	Videos []media.Media
 	// KindChoices is the "Art" dropdown: the two built-in kinds and the
@@ -337,6 +339,7 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 		}
 	}
 	data.RefPages = h.refPages(r.Context(), websiteID)
+	data.RefTerms = h.siteTerms(r.Context(), websiteID)
 	data.MayPublish = h.mayPublish(r)
 	data.KindChoices = kindChoices(h.kindsOf(r, websiteID), values.KindValue())
 	// The language dropdown belongs to every rendering of the form, including

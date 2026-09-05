@@ -108,6 +108,17 @@
         {{range .Pages}}<option value="{{.ID}}"{{if eq .ID $id}} selected{{end}}>{{.Title}} — /{{.Slug}}{{if .Draft}} ({{t "Entwurf"}}){{end}}</option>{{end}}
     </select>
 
+    {{else if .Is "schlagwort"}}
+    {{/* Der gespeicherte Wert ist das Kürzel selbst, es wird also direkt
+         verglichen — anders als beim Verweis, der aus seinem Wert erst eine
+         Nummer machen muss. Gezeigt wird der Name, gespeichert das Kürzel:
+         genau darum ändert eine Umbenennung, was die Seite zeigt. */}}
+    <select id="{{.Name}}" name="{{.Name}}" class="form-input form-select">
+        <option value="">{{t "– kein Schlagwort –"}}</option>
+        {{$slug := .Value}}
+        {{range .Terms}}<option value="{{.Slug}}"{{if eq .Slug $slug}} selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+
     {{else if .Is "link"}}
     <input type="text" id="{{.Name}}" name="{{.Name}}" class="form-input" value="{{.Value}}"
            placeholder="{{t "/eigene-seite oder https://example.ch"}}">

@@ -51,6 +51,10 @@ type FieldView struct {
 	// Selected are the ticked values of a multi-valued field, nil for every
 	// other kind.
 	Selected []string
+	// Terms is the choice a label field offers: this website's labels, empty
+	// for every other kind. The stored slug is already in Value, so nothing
+	// else is needed to mark the chosen one.
+	Terms []TermChoice
 	// RefDraft says the referenced page is not published, so the reference
 	// exists here and is invisible on the website. Better said in the editor
 	// than discovered on the finished page.
@@ -117,18 +121,32 @@ type PageChoice struct {
 	Draft bool
 }
 
-// pool is what the choosers of the extra fields need: the pictures and the
-// pages of this website.
+// TermChoice is one label a label field may point at.
 //
-// One value rather than two parameters because every call site passes both, and
-// a third kind of chooser should not mean touching all of them again.
+// The slug is the identity and the name is what is shown — the two halves of
+// what the kind promises. No draft equivalent exists for a label, so it carries
+// nothing more than a page choice needs.
+type TermChoice struct {
+	Slug string
+	Name string
+}
+
+// pool is what the choosers of the extra fields need: the pictures, the pages
+// and the labels of this website.
+//
+// One value rather than three parameters because every call site passes all of
+// them, and a fourth kind of chooser should not mean touching all of them
+// again.
 type pool struct {
 	media []media.Media
 	pages []PageChoice
+	terms []TermChoice
 }
 
 // pool gathers the choices this form already loaded.
-func (d PageFormData) pool() pool { return pool{media: d.Media, pages: d.RefPages} }
+func (d PageFormData) pool() pool {
+	return pool{media: d.Media, pages: d.RefPages, terms: d.RefTerms}
+}
 
 // fieldViews builds the editor model for one page: the fields divided into
 // blocks by their headings, each dependent field inside the one it hangs on.
@@ -243,6 +261,11 @@ func oneView(d field.Def, name, value string, p pool, reason string) FieldView {
 				v.RefDraft = c.Draft
 			}
 		}
+	case field.KindTerm:
+		// Kein ParseInt: das Kürzel steht schon in v.Value, und die Vorlage
+		// vergleicht direkt damit. Das ist der eine Unterschied zum Verweis,
+		// der aus seinem Wert erst eine Nummer machen muss.
+		v.Terms = p.terms
 	}
 	return v
 }
@@ -269,6 +292,29 @@ func (h *Handler) refPages(ctx context.Context, websiteID int64) []PageChoice {
 		out = append(out, PageChoice{
 			ID: p.ID, Title: p.Title, Slug: p.Slug, Draft: !p.PubliclyVisible(),
 		})
+	}
+	return out
+}
+
+// siteTerms is the choice a label field offers: this website's labels, in the
+// order the label screen shows them.
+//
+// Only this website's — that is the whole reason the chooser exists rather than
+// a slug somebody types in, and ListAll is already scoped to one website, which
+// is where that rule lives. Unbounded on purpose: a website's list of labels is
+// not a list of pages, and a label that fell off the end would be a value the
+// editor could no longer see it had.
+func (h *Handler) siteTerms(ctx context.Context, websiteID int64) []TermChoice {
+	if h.terms == nil {
+		return nil
+	}
+	list, err := h.terms.ListAll(ctx, websiteID)
+	if err != nil {
+		return nil
+	}
+	out := make([]TermChoice, 0, len(list))
+	for _, t := range list {
+		out = append(out, TermChoice{Slug: t.Slug, Name: t.Name})
 	}
 	return out
 }
