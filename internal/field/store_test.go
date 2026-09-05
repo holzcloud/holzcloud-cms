@@ -2,6 +2,7 @@ package field
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -271,6 +272,12 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 			RangeMin: "10", RangeMax: "2"})
 		if err == nil {
 			t.Fatal("eine untere Grenze über der oberen wurde angenommen")
+		}
+		// errors.Is und nicht nur der Text: der Bildschirm hängt seine
+		// ausführliche Begründung an genau dieses Wächterzeichen, und dass
+		// Create es unverpackt durchreicht, ist die Bedingung dafür.
+		if !errors.Is(err, ErrRangeInverted) {
+			t.Errorf("die Ablehnung trägt nicht ErrRangeInverted: %v", err)
 		}
 		if !strings.Contains(err.Error(), "Grenze") {
 			t.Errorf("die Begründung nennt die Grenze nicht: %v", err)

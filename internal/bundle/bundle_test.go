@@ -990,3 +990,121 @@ func TestMehrfachauswahlUeberlebtDieArchivreise(t *testing.T) {
 		t.Errorf("nach der Reise %d Werte, wollte 3: %#v", len(werte), werte)
 	}
 }
+
+// Die vier Eigenschaften aus Wanderung 00046 müssen die Archivreise überstehen:
+// Ein Bundle ist die Übergabe einer Website, und eine Auswahl, die drüben
+// wieder als Klappliste erscheint, ist nicht dieselbe Website.
+//
+// Drei Stellen bauen ein Manifest-Feld und drei bauen daraus wieder eine
+// Definition — das Seitenfeld, das Feld in einer Gruppe und das Feld einer
+// Bausteinart. Alle drei Paare werden hier gelesen.
+func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	ws, err := s.Domains.CreateWebsite(ctx, "Schreinerei", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Ein Seitenfeld als Auswahl: trägt die Darstellung und beide Grenzen.
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "farbe", Label: "Farbe", Kind: field.KindChoice,
+		Choices: []string{"hell", "dunkel"},
+		Display: field.DisplayButtons, RangeMin: "1", RangeMax: "9",
+	}); err != nil {
+		t.Fatalf("Auswahlfeld anlegen: %v", err)
+	}
+	// Ein Seitenfeld als Mehrfachauswahl: trägt die Höchstzahl und beide
+	// Grenzen. Zwei Felder, weil validate leert, was zur Art nicht passt.
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "hoelzer", Label: "Hölzer", Kind: field.KindMulti,
+		Choices: []string{"Eiche", "Buche"}, MaxValues: 2,
+		RangeMin: "2", RangeMax: "8",
+	}); err != nil {
+		t.Fatalf("Mehrfachauswahlfeld anlegen: %v", err)
+	}
+	// Dasselbe noch einmal in einer Gruppe.
+	gruppe, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "zeiten", Label: "Zeiten", Kind: field.KindGroup,
+	})
+	if err != nil {
+		t.Fatalf("Gruppe anlegen: %v", err)
+	}
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "gfarbe", Label: "Farbe",
+		Kind: field.KindChoice, Choices: []string{"hell", "dunkel"},
+		Display: field.DisplayButtons, RangeMin: "3", RangeMax: "7",
+	}); err != nil {
+		t.Fatalf("Feld in der Gruppe anlegen: %v", err)
+	}
+
+	archive := exportTo(t, s, ws.ID)
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Schreinerei (Kopie)")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("Warnungen: %v", report.Warnings)
+	}
+
+	kopien, err := s.Fields.List(ctx, report.WebsiteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nimm := func(defs []field.Def, key string) field.Def {
+		t.Helper()
+		for _, d := range defs {
+			if d.Key == key {
+				return d
+			}
+		}
+		t.Fatalf("Feld %q fehlt in der Kopie", key)
+		return field.Def{}
+	}
+
+	farbe := nimm(kopien, "farbe")
+	if farbe.Display != field.DisplayButtons {
+		t.Errorf("Darstellung nach der Reise = %q, wollte %q", farbe.Display, field.DisplayButtons)
+	}
+	if !farbe.IsButtonRow() {
+		t.Error("die Auswahl ist nach der Reise keine Knopfreihe mehr")
+	}
+	if farbe.RangeMin != "1" || farbe.RangeMax != "9" {
+		t.Errorf("Grenzen nach der Reise = %q/%q, wollte \"1\"/\"9\"", farbe.RangeMin, farbe.RangeMax)
+	}
+
+	hoelzer := nimm(kopien, "hoelzer")
+	if hoelzer.MaxValues != 2 {
+		t.Errorf("Höchstzahl nach der Reise = %d, wollte 2", hoelzer.MaxValues)
+	}
+	if hoelzer.RangeMin != "2" || hoelzer.RangeMax != "8" {
+		t.Errorf("Grenzen nach der Reise = %q/%q, wollte \"2\"/\"8\"", hoelzer.RangeMin, hoelzer.RangeMax)
+	}
+
+	inGruppe := nimm(nimm(kopien, "zeiten").Sub, "gfarbe")
+	if inGruppe.Display != field.DisplayButtons {
+		t.Errorf("Darstellung in der Gruppe nach der Reise = %q, wollte %q",
+			inGruppe.Display, field.DisplayButtons)
+	}
+	if inGruppe.RangeMin != "3" || inGruppe.RangeMax != "7" {
+		t.Errorf("Grenzen in der Gruppe nach der Reise = %q/%q, wollte \"3\"/\"7\"",
+			inGruppe.RangeMin, inGruppe.RangeMax)
+	}
+}
+
+// Ein Manifest einer Website, die keine der vier neuen Eigenschaften benutzt,
+// darf keine der vier Schlüssel tragen — omitempty ist das Versprechen, dass
+// ein Archiv von vor dieser Phase Byte für Byte gleich aussieht. Ein Archiv
+// ist dazu da, von Hand gelesen und geflickt zu werden.
+func TestManifestSchweigtUeberUngenutzteEigenschaften(t *testing.T) {
+	roh, err := json.Marshal(Field{Key: "preis", Label: "Preis", Kind: field.KindNumber})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, schluessel := range []string{"display", "max_values", `"min"`, `"max"`} {
+		if strings.Contains(string(roh), schluessel) {
+			t.Errorf("das Manifest nennt %s, obwohl nichts gesetzt war: %s", schluessel, roh)
+		}
+	}
+}

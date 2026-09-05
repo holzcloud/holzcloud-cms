@@ -137,6 +137,49 @@
             </p>
         </div>
 
+        <div class="form-group">
+            <label class="form-label" for="feld-darstellung">{{t "Darstellung"}}</label>
+            <select id="feld-darstellung" name="darstellung" class="form-input form-select">
+                <option value=""{{if and .Edit (eq .Edit.Display "")}} selected{{end}}>{{t "Klappliste"}}</option>
+                <option value="knopfreihe"{{if and .Edit (eq .Edit.Display "knopfreihe")}} selected{{end}}>{{t "Knopfreihe"}}</option>
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Nur für die Art „Auswahl“: dieselben Möglichkeiten, derselbe gespeicherte Wert — nur die Bedienung ändert sich. Bei jeder anderen Art bleibt die Angabe wirkungslos."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="feld-max-werte">{{t "Höchstens so viele Werte"}}</label>
+            <input type="number" id="feld-max-werte" name="max_werte" class="form-input"
+                   min="0" step="1" value="{{if .Edit}}{{.Edit.MaxValues}}{{end}}">
+            <p class="form-hint text-muted">
+                {{t "Nur für die Art „Mehrfachauswahl“: null heisst keine Obergrenze. Bei jeder anderen Art bleibt die Angabe wirkungslos."}}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <!-- Zwei Kästchen unter einer Beschriftung: die Beschriftung trägt
+                 deshalb kein for=, sondern benennt die Gruppe. Jedes Kästchen
+                 sagt über sein eigenes aria-label, welche der beiden Grenzen
+                 es ist. Dieselbe Regel wie beim Kästchengruppen-Feld. -->
+            <span class="form-label" id="feld-grenzen-label">{{t "Grenzen"}}</span>
+            <div class="form-row" role="group" aria-labelledby="feld-grenzen-label">
+                <input type="text" id="feld-min-wert" name="min_wert" class="form-input"
+                       inputmode="decimal" maxlength="30"
+                       value="{{if .Edit}}{{.Edit.RangeMin}}{{end}}"
+                       placeholder="{{t "untere Grenze"}}"
+                       aria-label="{{t "Untere Grenze"}}">
+                <input type="text" id="feld-max-wert" name="max_wert" class="form-input"
+                       inputmode="decimal" maxlength="30"
+                       value="{{if .Edit}}{{.Edit.RangeMax}}{{end}}"
+                       placeholder="{{t "obere Grenze"}}"
+                       aria-label="{{t "Obere Grenze"}}">
+            </div>
+            <p class="form-hint text-muted">
+                {{t "Nur für die Art „Bereich“: ein leeres Kästchen heisst keine Grenze in dieser Richtung. Bei jeder anderen Art bleibt die Angabe wirkungslos."}}
+            </p>
+        </div>
+
         {{if .Simple}}
         <div class="form-group">
             <label class="form-label" for="feld-gilt">{{t "Gilt für"}}</label>

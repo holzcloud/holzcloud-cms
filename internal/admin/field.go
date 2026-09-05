@@ -126,7 +126,15 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 		Choices:     field.SplitChoices(r.FormValue("auswahl")),
 		AppliesTo:   r.FormValue("gilt_fuer"),
 		Condition:   r.FormValue("bedingung"),
+		Display:     r.FormValue("darstellung"),
+		RangeMin:    r.FormValue("min_wert"),
+		RangeMax:    r.FormValue("max_wert"),
 	}
+	// Ein leeres Kästchen heisst keine Obergrenze, und das ist genau die Null,
+	// die Atoi bei einem Fehler ohnehin zurückgibt — deshalb bleibt der Fehler
+	// hier liegen. Eine ausgeschriebene Zahl unter null lehnt validate ab; sie
+	// wird hier nicht stillschweigend zurechtgebogen.
+	def.MaxValues, _ = strconv.Atoi(r.FormValue("max_werte"))
 
 	id, _ := strconv.ParseInt(r.FormValue("id"), 10, 64)
 	if id > 0 {
@@ -153,6 +161,9 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	case errors.Is(err, field.ErrConditionLoop):
 		web.SetFlashError(h.sm, r.Context(),
 			"Die Bedingungen drehen sich im Kreis: keines der beteiligten Felder wäre je zu sehen.")
+	case errors.Is(err, field.ErrRangeInverted):
+		web.SetFlashError(h.sm, r.Context(),
+			"Die untere Grenze liegt über der oberen — so gäbe es keine Zahl, die dazwischenpasst. Vertausche die beiden Werte.")
 	case errors.Is(err, field.ErrTooMany):
 		web.SetFlashError(h.sm, r.Context(),
 			"Mehr Felder werden nicht angelegt — ein Formular, das so lang ist, füllt niemand richtig aus.")

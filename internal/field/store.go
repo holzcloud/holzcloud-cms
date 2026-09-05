@@ -32,6 +32,11 @@ var ErrNotInBlock = errors.New("diese Art von Feld gibt es in einem Baustein nic
 // field can hang on.
 var ErrNoCondition = errors.New("an dieses Feld lässt sich keine Bedingung hängen")
 
+// ErrRangeInverted is returned when a range's lower bound is above its upper
+// one. A sentinel and not a bare error so the screen can answer it with a
+// sentence written for the person filling the form in.
+var ErrRangeInverted = errors.New("die untere Grenze liegt über der oberen")
+
 // ErrConditionLoop is returned when a condition would close a circle.
 var ErrConditionLoop = errors.New("die Bedingungen drehen sich im Kreis: dann wäre keines der Felder je zu sehen")
 
@@ -455,7 +460,7 @@ func validate(d *Def) error {
 		unten, untenErr := strconv.ParseFloat(d.RangeMin, 64)
 		oben, obenErr := strconv.ParseFloat(d.RangeMax, 64)
 		if untenErr == nil && obenErr == nil && unten > oben {
-			return errors.New("die untere Grenze liegt über der oberen — bitte die beiden Zahlen tauschen")
+			return ErrRangeInverted
 		}
 	}
 	// Die Darstellung gehört einer Auswahl, die Höchstzahl einer

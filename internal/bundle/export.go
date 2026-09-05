@@ -357,6 +357,8 @@ func exportBlockTypes(ctx context.Context, s Stores, websiteID int64, m *Manifes
 			out.Fields = append(out.Fields, Field{
 				Key: d.Key, Label: d.Label, Kind: d.Kind,
 				Hint: d.Hint, Choices: d.Choices,
+				Display: d.Display, MaxValues: d.MaxValues,
+				Min: d.RangeMin, Max: d.RangeMax,
 			})
 		}
 		m.BlockTypes = append(m.BlockTypes, out)
@@ -377,11 +379,15 @@ func exportFields(ctx context.Context, s Stores, websiteID int64, m *Manifest) e
 			Key: d.Key, Label: d.Label, Kind: d.Kind, Required: d.Required,
 			Hint: d.Hint, Choices: d.Choices, AppliesTo: d.AppliesTo,
 			Condition: d.Condition,
+			Display:   d.Display, MaxValues: d.MaxValues,
+			Min: d.RangeMin, Max: d.RangeMax,
 		}
 		for _, sub := range d.Sub {
 			f.Sub = append(f.Sub, Field{
 				Key: sub.Key, Label: sub.Label, Kind: sub.Kind, Required: sub.Required,
 				Hint: sub.Hint, Choices: sub.Choices,
+				Display: sub.Display, MaxValues: sub.MaxValues,
+				Min: sub.RangeMin, Max: sub.RangeMax,
 			})
 		}
 		m.Fields = append(m.Fields, f)
