@@ -174,7 +174,7 @@ func fieldsFromRequest(r *http.Request) field.Data {
 			out.Values[key] = values[0]
 			continue
 		}
-		group, index, sub, ok := parseRowName(name)
+		group, index, sub, multi, ok := parseRowName(name)
 		if !ok {
 			continue
 		}
@@ -183,6 +183,14 @@ func fieldsFromRequest(r *http.Request) field.Data {
 		}
 		if rows[group][index] == nil {
 			rows[group][index] = field.Values{}
+		}
+		// Dieselbe Verzweigung wie oben, an der zweiten Stelle, an der Namen
+		// gelesen werden. Ohne sie bliebe von drei Häkchen einer Zeile das
+		// erste übrig, und ein einzelner Wert sieht aus wie einer, den jemand
+		// so gesetzt hat.
+		if multi {
+			rows[group][index][sub] = field.JoinValues(values)
+			continue
 		}
 		rows[group][index][sub] = values[0]
 	}
@@ -200,21 +208,30 @@ func fieldsFromRequest(r *http.Request) field.Data {
 	return out
 }
 
-// parseRowName splits gruppe.<kennung>.<nummer>.<unterfeld>.
-func parseRowName(name string) (group string, index int, sub string, ok bool) {
+// parseRowName splits gruppe.<kennung>.<nummer>.<unterfeld>, and reports
+// whether the sub-field carried the multi-value marker.
+//
+// The marker is stripped after every guard, never before: a hand-built name
+// must still fail on the prefix, on the number of parts and on the row bound
+// before anything of it is believed.
+func parseRowName(name string) (group string, index int, sub string, multi, ok bool) {
 	rest, found := strings.CutPrefix(name, "gruppe.")
 	if !found {
-		return "", 0, "", false
+		return "", 0, "", false, false
 	}
 	parts := strings.Split(rest, ".")
 	if len(parts) != 3 {
-		return "", 0, "", false
+		return "", 0, "", false, false
 	}
 	i, err := strconv.Atoi(parts[1])
 	if err != nil || i < 0 || i >= field.MaxRows {
-		return "", 0, "", false
+		return "", 0, "", false, false
 	}
-	return parts[0], i, parts[2], true
+	trimmed, marked := strings.CutSuffix(parts[2], "[]")
+	if trimmed == "" {
+		return "", 0, "", false, false
+	}
+	return parts[0], i, trimmed, marked, true
 }
 
 // blocksFromRequest reads the block list, or nil when this page is Markdown.
