@@ -994,3 +994,170 @@ func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 		t.Errorf("das sichtbare Feld wurde nicht geprüft: %v", an)
 	}
 }
+
+// --- Das Schlagwortfeld -------------------------------------------------
+//
+// Es speichert die Adresse des Schlagworts und druckt dessen Namen. Wird das
+// Schlagwort umbenannt, ändert sich, was jede Seite zeigt, ohne dass eine
+// einzige Seite angefasst wird. Genau dieses Versprechen ist auch der Grund,
+// warum die Art in keiner Bausteinart stehen darf: ein Baustein friert beim
+// Speichern zu HTML ein und könnte es nicht halten.
+
+func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
+	enthaelt := func(kinds []Kind, art string) bool {
+		for _, k := range kinds {
+			if k.Kind == art {
+				return true
+			}
+		}
+		return false
+	}
+	if !KnownKind(KindTerm) {
+		t.Errorf("%s steht nicht in Kinds", KindTerm)
+	}
+	if KindName(KindTerm) == KindTerm {
+		t.Errorf("%s hat keine Beschriftung", KindTerm)
+	}
+	// In einer Gruppe ist es erlaubt: eine Gruppe friert nichts ein.
+	if !enthaelt(SubKinds(), KindTerm) {
+		t.Errorf("%s fehlt in SubKinds", KindTerm)
+	}
+	if enthaelt(BlockKinds(), KindTerm) {
+		t.Errorf("%s steht in BlockKinds, sollte aber nicht", KindTerm)
+	}
+
+	// Genau zwei Arten fehlen dort neben Gruppe und Abschnitt — der Verweis
+	// und das Schlagwort. Der Filter ist abziehend: eine Art, die hier
+	// versehentlich dazukäme, verschwände lautlos aus jedem Bausteinformular.
+	fehlend := map[string]bool{}
+	for _, k := range Kinds {
+		fehlend[k.Kind] = true
+	}
+	for _, k := range BlockKinds() {
+		delete(fehlend, k.Kind)
+	}
+	wollte := map[string]bool{KindGroup: true, KindSection: true, KindRef: true, KindTerm: true}
+	if len(fehlend) != len(wollte) {
+		t.Errorf("BlockKinds lässt %v aus, wollte %v", fehlend, wollte)
+	}
+	for art := range wollte {
+		if !fehlend[art] {
+			t.Errorf("BlockKinds enthält %s, sollte es aber auslassen", art)
+		}
+	}
+	// Ein Codefeld darf in einem Baustein stehen (D-06); es ist die Art, die
+	// beim Ausschluss am ehesten mitgerissen würde.
+	if !enthaelt(BlockKinds(), KindCode) {
+		t.Errorf("%s fehlt in BlockKinds", KindCode)
+	}
+}
+
+func TestSchlagwortWirdAufgeloest(t *testing.T) {
+	defs := []Def{{Key: "thema", Kind: KindTerm}}
+	got := Resolve(defs, Data{Values: Values{"thema": "moebel"}}, Links{
+		Term: func(slug string) (Term, bool) {
+			if slug != "moebel" {
+				return Term{}, false
+			}
+			return Term{Name: "Möbelbau", Slug: "moebel", URL: "/tag/moebel"}, true
+		},
+	})
+	term, ok := got["thema"].(*Term)
+	if !ok || term == nil {
+		t.Fatalf("thema = %#v, want a *Term", got["thema"])
+	}
+	// Der Name von jetzt, nicht der von damals: gespeichert ist „moebel“,
+	// gedruckt wird „Möbelbau“.
+	if term.Name != "Möbelbau" || term.Slug != "moebel" || term.URL != "/tag/moebel" {
+		t.Errorf("term = %#v", term)
+	}
+}
+
+// Die vier Wege ins Nichts. Jeder ergibt denselben getippten nil, damit ein
+// {{with}} im Theme den Block auslässt statt einen alten Namen zu drucken.
+func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
+	defs := []Def{{Key: "thema", Kind: KindTerm}}
+	treffer := func(slug string) (Term, bool) {
+		if slug == "moebel" {
+			return Term{Name: "Möbelbau", Slug: "moebel", URL: "/tag/moebel"}, true
+		}
+		return Term{}, false
+	}
+	faelle := []struct {
+		name  string
+		wert  string
+		links Links
+	}{
+		{"kein Wert", "", Links{Term: treffer}},
+		{"ohne Nachschlagefunktion", "moebel", Links{}},
+		{"gelöschtes Schlagwort", "verschwunden", Links{Term: treffer}},
+		// Ein Kürzel ist die kleingeschriebene Fassung eines Namens. Wird
+		// hier gefaltet, fielen zwei verschiedene Schlagwörter zusammen.
+		{"andere Schreibung", "Moebel", Links{Term: treffer}},
+	}
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			got := Resolve(defs, Data{Values: Values{"thema": f.wert}}, f.links)
+			term, ok := got["thema"].(*Term)
+			if !ok {
+				t.Fatalf("thema = %#v, want a typed nil *Term", got["thema"])
+			}
+			if term != nil {
+				t.Errorf("thema = %#v, want nil", term)
+			}
+		})
+	}
+}
+
+func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
+	defs := []Def{
+		{Key: "thema", Label: "Thema", Kind: KindTerm},
+		{Key: "weg", Label: "Weg", Kind: KindTerm},
+	}
+	daten := Data{Values: Values{"thema": "moebel", "weg": "verschwunden"}}
+	links := Links{Term: func(slug string) (Term, bool) {
+		if slug != "moebel" {
+			return Term{}, false
+		}
+		return Term{Name: "Möbelbau", Slug: "moebel", URL: "/tag/moebel"}, true
+	}}
+
+	liste := List(defs, daten, links)
+	if len(liste) != 1 {
+		t.Fatalf("liste = %#v, wollte genau einen Eintrag", liste)
+	}
+	e := liste[0]
+	if e.Term == nil || e.Term.Name != "Möbelbau" {
+		t.Errorf("Term = %#v", e.Term)
+	}
+	// Der Name, nicht das Kürzel: eine Liste aus Beschriftung und Wert soll
+	// „Möbelbau“ zeigen und nicht „moebel“.
+	if e.Text != "Möbelbau" {
+		t.Errorf("Text = %q, wollte den Namen", e.Text)
+	}
+
+	if !Filled(Resolve(defs, daten, links)) {
+		t.Error("Filled meldet nichts, obwohl ein Schlagwort aufgelöst ist")
+	}
+	// Und ohne Treffer ist die Seite leer — sonst verschwände nur der Text
+	// und die Tafel bliebe stehen.
+	if Filled(Resolve(defs, Data{Values: Values{"weg": "verschwunden"}}, links)) {
+		t.Error("Filled meldet etwas, obwohl kein Schlagwort aufgelöst ist")
+	}
+}
+
+// Was aus dem Formular kommt, ist ein Kürzel oder es ist jemand, der von Hand
+// ins Formular tippt.
+func TestSchlagwortPruefung(t *testing.T) {
+	d := Def{Label: "Thema", Kind: KindTerm}
+	for _, gut := range []string{"moebel", "moebel-nach-mass", "holz2024"} {
+		if reason := Check(d, gut); reason != "" {
+			t.Errorf("Check(%q) = %q, want nichts", gut, reason)
+		}
+	}
+	for _, bad := range []string{"Moebel", "moebel nach mass", "möbel", "/tag/moebel", "-moebel"} {
+		if Check(d, bad) == "" {
+			t.Errorf("Check(%q) hat nichts zu beanstanden, sollte aber", bad)
+		}
+	}
+}
