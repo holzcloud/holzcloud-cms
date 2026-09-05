@@ -189,9 +189,30 @@ func TestSchalter(t *testing.T) {
 			t.Fatalf("das Stylesheet lesen: %v", err)
 		}
 		css := string(roh)
+
+		// Und nicht nur, dass es die Regel gibt, sondern woran sie greift.
+		// Eine Regel, die den Namen trägt und das falsche Element sucht, ist
+		// keine Regel — sie ist genau die stumme Fehlfunktion, um deretwillen
+		// dieser Test geschrieben ist.
+		woran := map[string]string{
+			"kreuz":      `input[type="checkbox"]:checked`,
+			"auswahl":    `option[value=""]:checked`,
+			"text":       ":placeholder-shown",
+			"knopfreihe": `input[type="radio"][value=""]:checked`,
+		}
 		for name := range gesehen {
 			if !strings.Contains(css, ".feld-schalter--"+name) {
 				t.Errorf("der Server kann den Schalter %q senden, das Stylesheet kennt keine Regel dazu — jedes Feld daran bliebe für immer sichtbar", name)
+				continue
+			}
+			will, bekannt := woran[name]
+			if !bekannt {
+				t.Errorf("der Schalter %q ist neu und dieser Test weiss nicht, woran seine Regel greifen soll — bitte hier eintragen", name)
+				continue
+			}
+			regel := zwischen(t, css, ".feld-schalter--"+name+":has(", "{")
+			if !strings.Contains(regel, will) {
+				t.Errorf("die Regel zu %q greift nicht an %s:\n%s", name, will, regel)
 			}
 		}
 	})
