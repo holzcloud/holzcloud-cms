@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 7
 current_phase_name: Field Kinds
 status: executing
-stopped_at: Completed 07-04-PLAN.md
-last_updated: "2026-09-05T14:56:03.711Z"
+stopped_at: Completed 07-05-PLAN.md
+last_updated: "2026-09-05T15:19:30.769Z"
 last_activity: 2026-09-05
-state_head: da59688cdc6e231b0cd331fbc4ba9f16640fade4
+state_head: 6ca9017a7322211f81f0c93f3dcd31bdc4df9e36
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 17
 ---
 
@@ -29,8 +29,8 @@ progress:
 
 ### Current Position
 
-Phase: 7 — Field Kinds (4 / 7 Pläne ausgeführt)
-Plan: 07-04 complete — die Mehrfachauswahl ist geschlossen. `max_werte` wird in `Check` gegen `SplitValues` gezaehlt, auf dem Server, weil eine Haekchengruppe ohne JavaScript in der Auszeichnung nicht begrenzt werden kann (D-05); null heisst weiterhin ohne Grenze, kein bestehendes Feld aendert sich. **D-13 ist erledigt:** `trimTo` kuerzte einen Wert bei `MaxValueBytes` still ab — jetzt steht ein Bytewaechter vor dem Verteiler in `Check`, `MaxValueBytes` ist der Platz fuer den ganzen verbundenen Wert eines Feldes einschliesslich der Umbrueche, genau die Grenze geht noch, ein Byte mehr wird abgelehnt, und gemessen wird in Byte (ein Umlaut braucht zwei, die Begruendung sagt das). Auf dem Speicherweg kuerzt nichts mehr. `.planning/WINDOWS.md` Eintrag 2 ist `fixed`, offen sind null. Die Markierung traegt jetzt auch die Gruppenzeile: `groupView` haengt `sub.NameSuffix()` an, `parseRowName` meldet sie als vierten Rueckgabewert und schneidet sie erst nach jeder bestehenden Wache ab (Vorsatz, drei Teile, `MaxRows`) — dazu neu eine Wache gegen einen leeren Unterfeldnamen. `felder_auflisten` sagt `darstellung`, `max_werte`, `min_wert` und `max_wert`, jedes fehlend wo unbesetzt, und ein mehrwertiges Feld allein traegt einen Satz dazu, wie mehrere Werte in die eine Zeichenkette gehoeren; ein Test schreibt so ein Feld durch `seite_anlegen` und liest es durch `seite_lesen` unveraendert zurueck. Kein Schema wurde erweitert, kein Werkzeug kam dazu. **Kein Kontrollpunkt in diesem Plan, nichts automatisch gewaehlt.** Gemeldet und nicht behoben: `internal/bundle/import.go` schreibt Feldwerte ohne `CheckAll` — vorbestehend, von diesem Plan unveraendert, gehoert in 07-05. Ausstehend, planmaessig: 20 offene Uebersetzungen, die Dokumentensteuer je Art und die Browserhaelfte — alle drei 07-07, das auch D-08 entscheidet
+Phase: 7 — Field Kinds (5 / 7 Pläne ausgeführt)
+Plan: 07-05 complete — die Schlagwortart ist geschlossen. `KindTerm = "schlagwort"` speichert das **Kuerzel** und druckt den **Namen**, jedes Mal frisch aufgeloest: eine Umbenennung aendert damit, was jede Seite zeigt, ohne dass eine Seite geschrieben wird (D-09, FIELD-03). `BlockKinds()` laesst jetzt Verweis **und** Schlagwort aus und sein Kapazitaetshinweis zaehlt vier statt drei (D-06); `code` bleibt in einem Baustein erlaubt, ein Test haelt beide Haelften fest. `Check` misst mit `page.Slugify(value) != value` und ausdruecklich **nicht** mit `page.ValidateSlug` — dessen `reservedSlugs` reserviert Router-Pfade, und ein Schlagwort namens „admin“ ist unter `/tag/admin` erreichbar. Dafuer importiert `internal/field` erstmals `internal/page`; zyklenfrei geprueft. Die Websiteregel steht in der Nachschlagefunktion und nicht in `Check`: `fieldTerms` fuellt seine Karte einmal je Seite aus einem `ListAll` genau der gerenderten Website, `siteTerms` ebenso fuer den Waehler — je ein Test, dass ein fremdes Schlagwort weder im Formular noch auf der Seite auftaucht (T-07-19, T-07-20). **Die Archivreise war der eigentliche Fund:** `Rename` behaelt das Kuerzel, eine Seite trug danach das alte, und ein als Kuerzel reisender Wert waere auf der anderen Maschine still ins Leere gezeigt. Der Wert reist deshalb als **Name** — genau wie die Schlagwortliste einer Seite es immer schon tat — und `translateIn` leitet das Kuerzel mit `page.Slugify` ab; `internal/bundle/format.go` wurde **nicht** angefasst, kein Schluessel kam dazu, ein vor dieser Phase geschriebenes Archiv bedeutet weiter, was es bedeutet hat. Neu `term.EnsureNames` und `importTerms`: ein nur von einem Schlagwortfeld getragenes Schlagwort wurde bisher gezaehlt und nicht angelegt; `report.Terms` zaehlt jetzt Angelegtes statt Behauptetes. Der beweisende Test benennt vor dem Export um — der Untertest ohne Umbenennung bestand schon gegen den unreparierten Baum und haette nichts bewiesen. **Der offene Blocker aus 07-04 ist erledigt** (siehe Blockers). **Kein Kontrollpunkt in diesem Plan, nichts automatisch genehmigt und nichts automatisch gewaehlt.** FIELD-03 bleibt bewusst offen: 07-07 nennt dieselbe Kennung, das Tor haelt sie bis dahin. Ausstehend, planmaessig: die 20 offenen Uebersetzungen samt der drei neuen Zeichenketten dieses Plans, die Dokumentensteuer je Art (TEMPLATE-SPEC.md, SampleData/MinimalData kennen `Entry.Term` so wenig wie `zeit`, `bereich`, `code`, `mehrfachauswahl`) und die Browserhaelfte — alle drei 07-07, das auch D-08 entscheidet
 Status: Executing Phase 07
 Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
 Last activity: 2026-09-05
@@ -170,6 +170,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 07 P02 | 21 min | 3 tasks | 11 files |
 | Phase 07 P03 | 17 min | 3 tasks | 12 files |
 | Phase 07 P04 | 22 min | 3 tasks | 7 files |
+| Phase 07 P05 | 19 min | 4 tasks | 13 files |
 
 ### Session Continuity
 
@@ -178,10 +179,10 @@ and its *Standing Gates* section. Requirement IDs are in
 `.planning/REQUIREMENTS.md`; the working list most of them came from, with the
 size and location of each item, is `docs/offene-punkte.md`.
 
-Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
+Next command: `/gsd-execute-phase 7` — 07-06 (die Knopfreihe, D-10/D-11) ist der nächste Plan; danach 07-07, das die drei gebündelten Restposten trägt (Übersetzungen, Dokumentensteuer je Art, Browserhälfte) und D-08 entscheidet. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-05T14:56:03.626Z
-**Stopped at:** Completed 07-04-PLAN.md
+**Last session:** 2026-09-05T15:17:32.714Z
+**Stopped at:** Completed 07-05-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -216,6 +217,12 @@ Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist
 - [Phase 07]: 07-04: MaxValueBytes wird gemeldet und nicht mehr angewendet (D-13 erledigt). trimTo kuerzt nicht mehr, ein Bytewaechter steht vor dem Verteiler in Check und gilt damit jeder Art; gemessen wird der ganze verbundene Wert eines Feldes einschliesslich der Umbrueche, in Byte und nicht in Runen — Ein gekuerzter Wert sieht aus wie einer, den jemand so getippt hat. Seit das Budget allen Werten eines Feldes zusammen gehoert, haette das Kuerzen einen Wert halbiert und das Bruchstueck als echten Wert abgelegt. Die Datenbank zaehlt Byte, also zaehlt die Grenze Byte; die Begruendung sagt dazu, dass Umlaute doppelt zaehlen, statt 4000 Zeichen zu versprechen, die sie nicht halten kann. Eintrag 2 in .planning/WINDOWS.md ist fixed, offen sind null
 - [Phase 07]: 07-04: max_werte gilt serverseitig in Check, gezaehlt ueber SplitValues; null heisst ohne Grenze — Eine Haekchengruppe laesst sich in HTML ohne JavaScript nicht begrenzen, und dieses Programm traegt keines ausser htmx (D-05). Null ist das, was jedes vor dieser Phase angelegte Feld traegt — eine erzwungene Null waere eine Verhaltensaenderung an jedem bestehenden Feld
 - [Phase 07]: 07-04: parseRowName bekam eine vierte Wache — ein Unterfeldname, der nach dem Abschneiden der Markierung leer waere, wird abgelehnt — Der Plan nannte drei zu erhaltende Wachen; keine davon lehnt gruppe.<kennung>.<nummer>. oder gruppe.<kennung>.<nummer>.[] ab. Beide legten bisher einen Zeileneintrag unter dem leeren Schluessel an; cleanRow warf ihn spaeter weg, gespeichert wurde also nie etwas. Der Weg oben auf der Seite uebergeht feld_[] seit 07-01 — die beiden Namenswege stimmen jetzt ueberein, und die Ablehnungstabelle weist es nach
+- [Phase 07]: 07-05: Check prueft ein Schlagwortkuerzel mit page.Slugify(value) != value und NICHT mit page.ValidateSlug — ValidateSlug traegt reservedSlugs, eine Reservierung der Router-Pfade; ein Schlagwort namens "admin" ist unter /tag/admin voellig erreichbar und waere abgelehnt worden. Slugify(v)==v ist genau die hier gestellte Frage: ist das schon die normalisierte Schreibweise. Dafuer importiert internal/field erstmals internal/page — zyklenfrei geprueft, weil internal/page nur auth und db zieht und keines von beiden field kennt
+- [Phase 07]: 07-05: Der Wert eines Schlagwortfeldes reist im Archiv als NAME und nicht als Kuerzel, internal/bundle/format.go blieb unangetastet. Rename behaelt das Kuerzel absichtlich, damit Links nicht brechen — ein als Kuerzel reisender Wert haette auf der Zielmaschine still ins Leere gezeigt. format.go:152-159 und :274-284 sind als Entscheidung gelesen worden und nicht als Beschreibung: an der Schreibweise zu drehen wuerde die Bedeutung jedes bereits ausgehaendigten Archivs aendern. Folge und kein Fehler: die Adresse einer Beschriftung darf sich ueber eine Rundreise bewegen (moebel kommt als moebelbau an), das gemeinte Schlagwort nicht — der Test sagt das im Kommentar, damit es spaeter niemand als Fehler meldet
+- [Phase 07]: 07-05: term.EnsureNames und importTerms legen jedes Schlagwort an, das ein Manifest nennt; report.Terms zaehlt Angelegtes statt Behauptetes, an genau einer Stelle gesetzt. Bisher entstand ein Schlagwort nur als Nebenwirkung einer Seite, die es traegt — eines, das nur ein Schlagwortfeld nennt, kam nirgends an. EnsureNames leitet das Kuerzel mit derselben page.Slugify ab wie SetForPage; liefen die beiden auseinander, waere ein Schlagwort zwei Zeilen
+- [Phase 07]: 07-05: Der offene Blocker aus 07-04 ist ENTSCHIEDEN und behoben statt vertagt — importFieldValues laeuft jetzt durch field.Clean und field.CheckAll (Rule 2, fehlende Eingabepruefung an einer Vertrauensgrenze). Ein Archiv ist genauso unvertraut wie ein Formularfeld, alle anderen Schreibwege waren gedeckt, und seit 07-04 kuerzt trimTo nichts mehr — CheckAll ist damit die einzige verbliebene Stelle, an der das Bytebudget gilt. Die Definitionen werden ueber s.Fields.List GELESEN und nicht aus dem Manifest nachgebaut, damit gegen das geprueft wird, was diese Website hat. Ein beanstandeter Wert wird benannt und entfernt, nie die ganze Seite verworfen; gemeldet nur im ersten Durchgang, nicht noch einmal im Verweisdurchgang
+- [Phase 07]: 07-05: Der beweisende Rundreisetest benennt das Schlagwort VOR dem Export um, und das ist nicht optional — im RED-Lauf bestand der Untertest ohne Umbenennung gegen den unreparierten Baum, waehrend der mit Umbenennung in drei Behauptungen fiel. Ein Schlagwort, dessen Name noch zu seinem Kuerzel passt, reist auch ohne die Uebersetzung heil und bewiese gar nichts
+- [Phase 07]: 07-05: KEIN Kontrollpunkt in diesem Plan — alle vier Tasks type=auto, kein tracer, kein precondition. Es wurde nichts automatisch genehmigt und nichts automatisch gewaehlt; anders als 07-01 und 07-02 gibt es hier keine einwegige Auswahl nachzubestaetigen
 
 ## Accumulated Context
 
@@ -225,4 +232,4 @@ Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist
 
 ### Blockers
 
-- 07-04 gemeldet, nicht behoben: internal/bundle/import.go importFieldValues schreibt Feldwerte mit field.Encode direkt, ohne CheckAll und ohne Clean. Vorbestehend und von diesem Plan unveraendert (der Weg lief nie durch trimTo); alle anderen Schreibwege sind gedeckt. Gehoert in 07-05, das den Archivweg ohnehin anfasst
+- ~~07-04 gemeldet, nicht behoben: internal/bundle/import.go importFieldValues schreibt Feldwerte mit field.Encode direkt, ohne CheckAll und ohne Clean.~~ **ERLEDIGT in 07-05 (7cb09f4).** Entschieden wurde gedeckt und nicht vertagt: ein Archiv ist eine Datei, die jeder bearbeiten kann, alle anderen Schreibwege sind gedeckt, und seit 07-04 kuerzt trimTo nichts mehr — CheckAll ist damit die einzige Stelle, an der das Bytebudget ueberhaupt noch gilt. importPages liest die tatsaechlich angelegten Definitionen ueber s.Fields.List und reicht sie in importFieldValues; dort laufen field.Clean und field.CheckAll, ein beanstandeter Wert wird entfernt und namentlich in den Bericht geschrieben, nie die ganze Seite verworfen. TestArchivwerteGehenDurchDieselbePruefung beweist es, Gegenprobe mit deaktivierter Wache gefuehrt (vier Behauptungen fallen). Offene Blocker: keine
