@@ -37,16 +37,17 @@ func neuerFeldSpeicher(t *testing.T) (*Store, int64) {
 	return NewStore(database), id
 }
 
-// Zwei Prüffelder und nicht eines, weil validate eine Eigenschaft leert, die
+// Drei Prüffelder und nicht eines, weil validate jede Eigenschaft leert, die
 // zur gewählten Art nicht passt: die Darstellung lebt an einer Auswahl, die
-// Höchstzahl an einer Mehrfachauswahl. Kein einziges Feld kann also beide
-// tragen. Zusammen belegen die beiden alle vier neuen Spalten, und darum geht
-// es hier: jede der vier muss auf jedem Leseweg ankommen.
+// Höchstzahl an einer Mehrfachauswahl, die beiden Grenzen an einem
+// Bereichsfeld. Kein einziges Feld kann alle drei tragen. Zusammen belegen die
+// drei alle vier neuen Spalten, und darum geht es hier: jede der vier muss auf
+// jedem Leseweg ankommen.
 func auswahlFeld(websiteID int64, key string) Def {
 	return Def{
 		WebsiteID: websiteID, Key: key, Label: "Farbe", Kind: KindChoice,
 		Choices: []string{"rot", "blau"},
-		Display: DisplayButtons, RangeMin: "1", RangeMax: "9",
+		Display: DisplayButtons,
 	}
 }
 
@@ -54,7 +55,14 @@ func mehrfachFeld(websiteID int64, key string) Def {
 	return Def{
 		WebsiteID: websiteID, Key: key, Label: "Zutaten", Kind: KindMulti,
 		Choices:   []string{"salz", "pfeffer"},
-		MaxValues: 3, RangeMin: "2", RangeMax: "8",
+		MaxValues: 3,
+	}
+}
+
+func bereichFeld(websiteID int64, key string) Def {
+	return Def{
+		WebsiteID: websiteID, Key: key, Label: "Menge", Kind: KindRange,
+		RangeMin: "1", RangeMax: "9",
 	}
 }
 
@@ -63,9 +71,6 @@ func pruefeAuswahl(t *testing.T, wo string, d Def) {
 	if d.Display != DisplayButtons {
 		t.Errorf("%s: Darstellung = %q, erwartet %q", wo, d.Display, DisplayButtons)
 	}
-	if d.RangeMin != "1" || d.RangeMax != "9" {
-		t.Errorf("%s: Grenzen = %q/%q, erwartet \"1\"/\"9\"", wo, d.RangeMin, d.RangeMax)
-	}
 }
 
 func pruefeMehrfach(t *testing.T, wo string, d Def) {
@@ -73,8 +78,12 @@ func pruefeMehrfach(t *testing.T, wo string, d Def) {
 	if d.MaxValues != 3 {
 		t.Errorf("%s: Höchstzahl = %d, erwartet 3", wo, d.MaxValues)
 	}
-	if d.RangeMin != "2" || d.RangeMax != "8" {
-		t.Errorf("%s: Grenzen = %q/%q, erwartet \"2\"/\"8\"", wo, d.RangeMin, d.RangeMax)
+}
+
+func pruefeBereich(t *testing.T, wo string, d Def) {
+	t.Helper()
+	if d.RangeMin != "1" || d.RangeMax != "9" {
+		t.Errorf("%s: Grenzen = %q/%q, erwartet \"1\"/\"9\"", wo, d.RangeMin, d.RangeMax)
 	}
 }
 
@@ -110,8 +119,13 @@ func TestNeueSpalten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Mehrfachauswahl anlegen: %v", err)
 	}
+	oben3, err := store.Create(ctx, bereichFeld(site, "menge"))
+	if err != nil {
+		t.Fatalf("Bereich anlegen: %v", err)
+	}
 	pruefeAuswahl(t, "Get (Seitenfeld)", *oben1)
 	pruefeMehrfach(t, "Get (Seitenfeld)", *oben2)
+	pruefeBereich(t, "Get (Seitenfeld)", *oben3)
 
 	// --- List ---------------------------------------------------------------
 	top, err := store.List(ctx, site)
@@ -120,6 +134,7 @@ func TestNeueSpalten(t *testing.T) {
 	}
 	pruefeAuswahl(t, "List", finde(t, "List", top, "farbe"))
 	pruefeMehrfach(t, "List", finde(t, "List", top, "zutaten"))
+	pruefeBereich(t, "List", finde(t, "List", top, "menge"))
 
 	// --- Sub, für ein Feld in einer Gruppe ----------------------------------
 	gruppe, err := store.Create(ctx, Def{
@@ -137,12 +152,18 @@ func TestNeueSpalten(t *testing.T) {
 	if _, err := store.Create(ctx, inGruppe2); err != nil {
 		t.Fatalf("Mehrfachauswahl in Gruppe: %v", err)
 	}
+	inGruppe3 := bereichFeld(site, "gmenge")
+	inGruppe3.ParentID = gruppe.ID
+	if _, err := store.Create(ctx, inGruppe3); err != nil {
+		t.Fatalf("Bereich in Gruppe: %v", err)
+	}
 	sub, err := store.Sub(ctx, site, gruppe.ID)
 	if err != nil {
 		t.Fatalf("Sub: %v", err)
 	}
 	pruefeAuswahl(t, "Sub", finde(t, "Sub", sub, "gfarbe"))
 	pruefeMehrfach(t, "Sub", finde(t, "Sub", sub, "gzutaten"))
+	pruefeBereich(t, "Sub", finde(t, "Sub", sub, "gmenge"))
 
 	// Und derselbe Weg noch einmal über List, die den Baum im Speicher baut.
 	top, err = store.List(ctx, site)
@@ -150,6 +171,7 @@ func TestNeueSpalten(t *testing.T) {
 		t.Fatalf("List (zweites Mal): %v", err)
 	}
 	pruefeAuswahl(t, "List/Sub", finde(t, "List/Sub", finde(t, "List", top, "zeiten").Sub, "gfarbe"))
+	pruefeBereich(t, "List/Sub", finde(t, "List/Sub", finde(t, "List", top, "zeiten").Sub, "gmenge"))
 
 	// --- OfBlockType und OfBlockTypes ---------------------------------------
 	res, err := store.DB.Write.ExecContext(ctx,
@@ -171,12 +193,18 @@ func TestNeueSpalten(t *testing.T) {
 	if _, err := store.Create(ctx, imBaustein2); err != nil {
 		t.Fatalf("Mehrfachauswahl im Baustein: %v", err)
 	}
+	imBaustein3 := bereichFeld(site, "bmenge")
+	imBaustein3.BlockTypeID = bausteinart
+	if _, err := store.Create(ctx, imBaustein3); err != nil {
+		t.Fatalf("Bereich im Baustein: %v", err)
+	}
 	derBaustein, err := store.OfBlockType(ctx, site, bausteinart)
 	if err != nil {
 		t.Fatalf("OfBlockType: %v", err)
 	}
 	pruefeAuswahl(t, "OfBlockType", finde(t, "OfBlockType", derBaustein, "bfarbe"))
 	pruefeMehrfach(t, "OfBlockType", finde(t, "OfBlockType", derBaustein, "bzutaten"))
+	pruefeBereich(t, "OfBlockType", finde(t, "OfBlockType", derBaustein, "bmenge"))
 
 	alleBausteine, err := store.OfBlockTypes(ctx, site)
 	if err != nil {
@@ -184,12 +212,11 @@ func TestNeueSpalten(t *testing.T) {
 	}
 	pruefeAuswahl(t, "OfBlockTypes", finde(t, "OfBlockTypes", alleBausteine[bausteinart], "bfarbe"))
 	pruefeMehrfach(t, "OfBlockTypes", finde(t, "OfBlockTypes", alleBausteine[bausteinart], "bzutaten"))
+	pruefeBereich(t, "OfBlockTypes", finde(t, "OfBlockTypes", alleBausteine[bausteinart], "bmenge"))
 
 	// --- Update -------------------------------------------------------------
 	geaendert := *oben1
 	geaendert.Display = ""
-	geaendert.RangeMin = "10"
-	geaendert.RangeMax = "20"
 	if err := store.Update(ctx, site, oben1.ID, geaendert); err != nil {
 		t.Fatalf("Update (Auswahl): %v", err)
 	}
@@ -200,14 +227,9 @@ func TestNeueSpalten(t *testing.T) {
 	if nach.Display != "" {
 		t.Errorf("Update: Darstellung = %q, erwartet leer", nach.Display)
 	}
-	if nach.RangeMin != "10" || nach.RangeMax != "20" {
-		t.Errorf("Update: Grenzen = %q/%q, erwartet \"10\"/\"20\"", nach.RangeMin, nach.RangeMax)
-	}
 
 	geaendert2 := *oben2
 	geaendert2.MaxValues = 7
-	geaendert2.RangeMin = "30"
-	geaendert2.RangeMax = "40"
 	if err := store.Update(ctx, site, oben2.ID, geaendert2); err != nil {
 		t.Fatalf("Update (Mehrfachauswahl): %v", err)
 	}
@@ -218,8 +240,19 @@ func TestNeueSpalten(t *testing.T) {
 	if nach2.MaxValues != 7 {
 		t.Errorf("Update: Höchstzahl = %d, erwartet 7", nach2.MaxValues)
 	}
-	if nach2.RangeMin != "30" || nach2.RangeMax != "40" {
-		t.Errorf("Update: Grenzen = %q/%q, erwartet \"30\"/\"40\"", nach2.RangeMin, nach2.RangeMax)
+
+	geaendert3 := *oben3
+	geaendert3.RangeMin = "10"
+	geaendert3.RangeMax = "20"
+	if err := store.Update(ctx, site, oben3.ID, geaendert3); err != nil {
+		t.Fatalf("Update (Bereich): %v", err)
+	}
+	nach3, err := store.Get(ctx, site, oben3.ID)
+	if err != nil {
+		t.Fatalf("Get nach Update: %v", err)
+	}
+	if nach3.RangeMin != "10" || nach3.RangeMax != "20" {
+		t.Errorf("Update: Grenzen = %q/%q, erwartet \"10\"/\"20\"", nach3.RangeMin, nach3.RangeMax)
 	}
 
 	// --- Ein Feld, das keine der vier setzt ---------------------------------
@@ -235,6 +268,32 @@ func TestNeueSpalten(t *testing.T) {
 		t.Errorf("schlichtes Feld trägt eine Eigenschaft, die niemand setzte: %q/%d/%q/%q",
 			schlicht.Display, schlicht.MaxValues, schlicht.RangeMin, schlicht.RangeMax)
 	}
+
+	// --- Die dritte Leerregel: die Grenzen gehören dem Bereichsfeld ---------
+	// Der Rückfall, gegen den diese Klausel steht: wer ein Bereichsfeld auf
+	// eine andere Art umstellt, behielte sonst zwei Grenzen, die niemand mehr
+	// liest — und die beim nächsten Umstellen zurück plötzlich wieder gälten.
+	fremd, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "umgestellt", Label: "Umgestellt", Kind: KindText,
+		RangeMin: "1", RangeMax: "9"})
+	if err != nil {
+		t.Fatalf("umgestelltes Feld: %v", err)
+	}
+	if fremd.RangeMin != "" || fremd.RangeMax != "" {
+		t.Errorf("ein Textfeld behielt die Grenzen %q/%q", fremd.RangeMin, fremd.RangeMax)
+	}
+	// Und der Fehler, den eine zu eifrige Leerregel macht: ein Bereichsfeld,
+	// das nur eine der beiden Grenzen setzt, behält sie.
+	halb, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "nachoben", Label: "Nach oben offen", Kind: KindRange,
+		RangeMin: "1"})
+	if err != nil {
+		t.Fatalf("halb begrenztes Feld: %v", err)
+	}
+	if halb.RangeMin != "1" || halb.RangeMax != "" {
+		t.Errorf("halb begrenztes Bereichsfeld = %q/%q, erwartet \"1\"/\"\"",
+			halb.RangeMin, halb.RangeMax)
+	}
 }
 
 // TestNeueSpaltenSindGebundeneParameter ist die Prüfung zu T-07-05: die vier
@@ -246,8 +305,11 @@ func TestNeueSpaltenSindGebundeneParameter(t *testing.T) {
 	ctx := context.Background()
 
 	boshaft := `O'Brien"; DROP TABLE page_field_defs; --`
+	// Ein Bereichsfeld, weil validate die Grenzen an jeder anderen Art leert —
+	// und ein geleerter Wert könnte keine Anweisung zerlegen, die Prüfung
+	// hätte also keine Zähne mehr.
 	d, err := store.Create(ctx, Def{
-		WebsiteID: site, Key: "grenze", Label: "Grenze", Kind: KindText,
+		WebsiteID: site, Key: "grenze", Label: "Grenze", Kind: KindRange,
 		RangeMin: boshaft, RangeMax: boshaft})
 	if err != nil {
 		t.Fatalf("anlegen: %v", err)

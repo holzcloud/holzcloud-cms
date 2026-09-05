@@ -527,13 +527,21 @@ func TestAbschnittHatKeinenWert(t *testing.T) {
 // Woran eine Bedingung hängen darf, entscheidet der Browser: was er nicht als
 // "ausgefüllt" erkennen kann, wird gar nicht erst angeboten.
 func TestWoranEineBedingungHaengenDarf(t *testing.T) {
-	darf := []string{KindText, KindLong, KindNumber, KindBool, KindChoice, KindImage, KindLink, KindRef}
+	// KindRange bleibt bewusst dabei: die Notiz im Fahrplan, es auszuschliessen,
+	// ruhte auf der Annahme eines Schiebers. Ein Zahlenfeld zeigt sehr wohl
+	// einen Platzhalter. Der Browserdurchgang in Plan 07-07 entscheidet das
+	// endgültig; aus dem Lesen allein wird es nicht entschieden.
+	darf := []string{KindText, KindLong, KindNumber, KindBool, KindChoice,
+		KindImage, KindLink, KindRef, KindRange, KindCode}
 	for _, k := range darf {
 		if !(Def{Kind: k}).MayControl() {
 			t.Errorf("%s sollte eine Bedingung tragen dürfen", k)
 		}
 	}
-	for _, k := range []string{KindDate, KindGroup, KindSection} {
+	// KindTime steht aus demselben Grund draussen wie KindDate: ein
+	// <input type="time"> trifft :placeholder-shown nie, die Regel, die die
+	// abhängigen Felder ausblendet, könnte also nie greifen.
+	for _, k := range []string{KindDate, KindTime, KindGroup, KindSection} {
 		if (Def{Kind: k}).MayControl() {
 			t.Errorf("%s sollte keine Bedingung tragen dürfen", k)
 		}
@@ -542,5 +550,247 @@ func TestWoranEineBedingungHaengenDarf(t *testing.T) {
 	// ausgefüllt.
 	if (Def{Kind: KindBool, ParentID: 3}).MayControl() {
 		t.Error("ein Feld in einer Gruppe sollte keine Bedingung tragen dürfen")
+	}
+}
+
+// --- Die drei kleinen Arten: zeit, bereich, code -------------------------
+//
+// Was hier steht, ist der ganze Vertrag der drei Arten. Die Grenzfälle sind
+// die eigentliche Arbeit: die Grenze selbst gehört noch dazu, ein Schritt
+// daneben nicht mehr, und leer ist nie null.
+
+// Eine Uhrzeit ist eine Uhrzeit und keine Zeichenkette, die zufällig einen
+// Doppelpunkt enthält. Der Browser schickt je nach Gerät mit oder ohne
+// Sekunden — beides muss durch.
+func TestZeitPruefung(t *testing.T) {
+	zeit := Def{Label: "Abfahrt", Kind: KindTime}
+	for _, gut := range []string{"09:30", "00:00", "23:59", "09:30:00"} {
+		if r := Check(zeit, gut); r != "" {
+			t.Errorf("%q abgelehnt: %q", gut, r)
+		}
+	}
+	// 25:00 gibt es nicht; 9:30 ohne führende Null ist nicht, was ein
+	// <input type="time"> sendet, und wer es von Hand einträgt, soll es
+	// merken statt eine still zurechtgebogene Zeit zu bekommen.
+	for _, schlecht := range []string{"25:00", "9:30", "halb zehn", "09:30+02:00", "2026-04-01"} {
+		if r := Check(zeit, schlecht); r == "" {
+			t.Errorf("%q durchgelassen", schlecht)
+		}
+	}
+	// Leer ist erlaubt, solange das Feld kein Pflichtfeld ist.
+	if r := Check(zeit, ""); r != "" {
+		t.Errorf("leeres Kannfeld abgelehnt: %q", r)
+	}
+	if r := Check(Def{Label: "Abfahrt", Kind: KindTime, Required: true}, ""); r == "" {
+		t.Error("leeres Pflichtfeld angenommen")
+	}
+}
+
+// Mitternacht und „nichts eingetragen“ sind zwei verschiedene Tatsachen. Ein
+// Zeiger kann sie auseinanderhalten, ein time.Time nicht.
+func TestZeitAufgeloest(t *testing.T) {
+	defs := []Def{{Key: "abfahrt", Kind: KindTime}, {Key: "ankunft", Kind: KindTime}}
+	got := Resolve(defs, Data{Values: Values{"abfahrt": "00:00"}}, Links{})
+
+	ab, ok := got["abfahrt"].(*time.Time)
+	if !ok || ab == nil {
+		t.Fatalf("abfahrt = %#v, wollte einen Zeiger auf Mitternacht", got["abfahrt"])
+	}
+	if ab.Hour() != 0 || ab.Minute() != 0 {
+		t.Errorf("abfahrt = %v, wollte 00:00", ab)
+	}
+	an, ok := got["ankunft"].(*time.Time)
+	if !ok || an != nil {
+		t.Errorf("ankunft = %#v, wollte nil — leer ist nicht Mitternacht", got["ankunft"])
+	}
+
+	// Keine Zeitzone: die Uhrzeit wird ohne Datum gelesen, sie trägt also
+	// keinen Versatz und kein Datum, das jemand für einen Tag halten könnte.
+	mittag := Resolve([]Def{{Key: "t", Kind: KindTime}}, Data{Values: Values{"t": "12:15"}}, Links{})
+	tz := mittag["t"].(*time.Time)
+	if _, versatz := tz.Zone(); versatz != 0 {
+		t.Errorf("die Uhrzeit trägt einen Versatz von %d Sekunden", versatz)
+	}
+	if tz.Location() != time.UTC {
+		t.Errorf("die Uhrzeit steht in %v statt in UTC", tz.Location())
+	}
+	// Mit Sekunden ebenfalls, denn Check nimmt beides an.
+	mitS := Resolve([]Def{{Key: "t", Kind: KindTime}}, Data{Values: Values{"t": "12:15:30"}}, Links{})
+	if s := mitS["t"].(*time.Time); s == nil || s.Second() != 30 {
+		t.Errorf("mit Sekunden = %#v", mitS["t"])
+	}
+}
+
+// Ein Datum überlässt das Theme seinem formatDate, eine Uhrzeit hat keinen
+// solchen Helfer — also steht sie als Text da, sonst druckt eine Liste von
+// Beschriftungen neben der Uhrzeit nichts.
+func TestZeitStehtAlsTextInDerListe(t *testing.T) {
+	defs := []Def{{Key: "abfahrt", Label: "Abfahrt", Kind: KindTime},
+		{Key: "wurf", Label: "Wurf", Kind: KindDate}}
+	list := List(defs, Data{Values: Values{"abfahrt": "09:30", "wurf": "2026-04-01"}}, Links{})
+	if len(list) != 2 {
+		t.Fatalf("%d Einträge, wollte 2: %+v", len(list), list)
+	}
+	if list[0].Text != "09:30" {
+		t.Errorf("Text der Uhrzeit = %q, wollte \"09:30\"", list[0].Text)
+	}
+	if _, ok := list[0].Value.(*time.Time); !ok {
+		t.Errorf("Value der Uhrzeit = %#v, wollte *time.Time", list[0].Value)
+	}
+	// Das Datum bleibt, wie es war: leerer Text, das Theme formatiert selbst.
+	if list[1].Text != "" {
+		t.Errorf("das Datum trägt jetzt Text %q — das war nicht die Absicht", list[1].Text)
+	}
+}
+
+// Die Grenzen eines Bereichsfeldes, an jeder Kante einzeln nachgemessen. Die
+// Grenze selbst ist ein gültiger Wert; ein Schritt daneben ist es nicht.
+func TestBereichPruefung(t *testing.T) {
+	faelle := []struct {
+		name       string
+		unten, obn string
+		gut        []string
+		schlecht   []string
+	}{
+		{"beide Grenzen", "1", "10",
+			[]string{"1", "10", "5.5", "5,5"},
+			[]string{"0", "11", "0.999", "10.001", "viel"}},
+		{"gleiche Grenzen", "5", "5",
+			[]string{"5", "5.0"},
+			[]string{"4", "6"}},
+		{"nur unten", "1", "",
+			[]string{"1", "1000000"},
+			[]string{"0", "-3"}},
+		{"nur oben", "", "10",
+			[]string{"10", "-1000"},
+			[]string{"11"}},
+		{"gar keine", "", "",
+			[]string{"0", "-7", "12345.6"},
+			[]string{"viel"}},
+	}
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			d := Def{Label: "Menge", Kind: KindRange, RangeMin: f.unten, RangeMax: f.obn}
+			for _, gut := range f.gut {
+				if r := Check(d, gut); r != "" {
+					t.Errorf("%q abgelehnt: %q", gut, r)
+				}
+			}
+			for _, schlecht := range f.schlecht {
+				r := Check(d, schlecht)
+				if r == "" {
+					t.Errorf("%q durchgelassen", schlecht)
+					continue
+				}
+				// Die Begründung ist für die Person am Formular: sie muss die
+				// Grenze nennen, an der der Wert scheitert.
+				if f.unten != "" && !strings.Contains(r, f.unten) &&
+					f.obn != "" && !strings.Contains(r, f.obn) {
+					t.Errorf("die Begründung zu %q nennt keine Grenze: %q", schlecht, r)
+				}
+			}
+		})
+	}
+}
+
+// Leer ist nicht null und nicht die untere Grenze: ein Bereichsfeld, das
+// niemand ausgefüllt hat, ist nicht ausgefüllt.
+func TestLeererBereichIstNichtNull(t *testing.T) {
+	kann := Def{Key: "menge", Label: "Menge", Kind: KindRange, RangeMin: "1", RangeMax: "10"}
+	if r := Check(kann, ""); r != "" {
+		t.Errorf("leeres Kannfeld abgelehnt: %q", r)
+	}
+	pflicht := kann
+	pflicht.Required = true
+	if r := Check(pflicht, ""); r == "" {
+		t.Error("leeres Pflichtfeld angenommen")
+	} else if !strings.Contains(r, "ausgefüllt") {
+		t.Errorf("die Begründung ist nicht die übliche Pflichtmeldung: %q", r)
+	}
+
+	got := Resolve([]Def{kann}, Data{}, Links{})
+	n, ok := got["menge"].(Number)
+	if !ok {
+		t.Fatalf("menge = %#v, wollte Number", got["menge"])
+	}
+	if n.Raw != "" || n.Value != 0 {
+		t.Errorf("leerer Bereich = %#v, wollte den Nullwert mit leerem Raw", n)
+	}
+	if len(List([]Def{kann}, Data{}, Links{})) != 0 {
+		t.Error("ein leerer Bereich steht in der Liste")
+	}
+	if Filled(got) {
+		t.Error("Filled meldet Inhalt, wo keiner ist")
+	}
+}
+
+// Gedruckt wird, was getippt wurde. 0.1 ist 0.1 und nicht 0.10000000000000001.
+func TestBereichDrucktDasGetippte(t *testing.T) {
+	d := Def{Key: "menge", Label: "Menge", Kind: KindRange, RangeMin: "0", RangeMax: "1"}
+	got := Resolve([]Def{d}, Data{Values: Values{"menge": "0.1"}}, Links{})
+	n, ok := got["menge"].(Number)
+	if !ok {
+		t.Fatalf("menge = %#v, wollte Number", got["menge"])
+	}
+	if n.Raw != "0.1" || n.String() != "0.1" {
+		t.Errorf("Raw = %q, gedruckt %q — wollte beide \"0.1\"", n.Raw, n.String())
+	}
+	if n.Value != 0.1 {
+		t.Errorf("Value = %v, wollte 0.1", n.Value)
+	}
+	list := List([]Def{d}, Data{Values: Values{"menge": "0.1"}}, Links{})
+	if len(list) != 1 || list[0].Text != "0.1" {
+		t.Errorf("Liste = %+v, wollte einen Eintrag mit Text \"0.1\"", list)
+	}
+}
+
+// Ein Codefeld ist Text, wie er getippt wurde — kein Markdown, keine
+// Umdeutung. Und ein leeres bleibt aus der Liste heraus.
+func TestCodeIstRoherText(t *testing.T) {
+	d := Def{Key: "schnipsel", Label: "Schnipsel", Kind: KindCode}
+	roh := "<b>fett</b> & \"Anführung\"\n  eingerückt"
+	got := Resolve([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})
+	if got["schnipsel"] != roh {
+		t.Errorf("schnipsel = %#v, wollte den rohen Text unverändert", got["schnipsel"])
+	}
+	// Check nimmt jeden Text an: es gibt keine falsche Zeile Code.
+	if r := Check(d, roh); r != "" {
+		t.Errorf("Code abgelehnt: %q", r)
+	}
+	list := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})
+	if len(list) != 1 || list[0].Text != roh {
+		t.Errorf("Liste = %+v, wollte einen Eintrag mit dem rohen Text", list)
+	}
+	if len(List([]Def{d}, Data{}, Links{})) != 0 {
+		t.Error("ein leeres Codefeld steht in der Liste")
+	}
+}
+
+// Die beiden Listen sind abziehend: eine neue Art ist drin, solange sie nicht
+// ausdrücklich ausgeschlossen wird. Für alle drei ist das richtig — und für
+// code ist es die Bedingung, unter der Erfolgskriterium 5 überhaupt gestellt
+// werden kann.
+func TestNeueArtenStehenInBeidenListen(t *testing.T) {
+	enthaelt := func(kinds []Kind, art string) bool {
+		for _, k := range kinds {
+			if k.Kind == art {
+				return true
+			}
+		}
+		return false
+	}
+	for _, art := range []string{KindTime, KindRange, KindCode} {
+		if !KnownKind(art) {
+			t.Errorf("%s steht nicht in Kinds", art)
+		}
+		if !enthaelt(SubKinds(), art) {
+			t.Errorf("%s fehlt in SubKinds", art)
+		}
+		if !enthaelt(BlockKinds(), art) {
+			t.Errorf("%s fehlt in BlockKinds", art)
+		}
+		if KindName(art) == art {
+			t.Errorf("%s hat keine Beschriftung", art)
+		}
 	}
 }
