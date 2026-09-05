@@ -1,6 +1,7 @@
 package field
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -812,5 +813,184 @@ func TestNeueArtenStehenInBeidenListen(t *testing.T) {
 		if KindName(art) == art {
 			t.Errorf("%s hat keine Beschriftung", art)
 		}
+	}
+}
+
+// --- Die zwei Wächter eines mehrwertigen Feldes -------------------------
+//
+// Ein Häkchenfeld kann in der Auszeichnung nicht begrenzt werden — dafür
+// bräuchte es JavaScript, und davon trägt dieses Programm nichts ausser htmx.
+// Die Höchstzahl gilt also hier, auf dem Server, oder nirgends.
+
+func TestMehrfachauswahlHoechstzahl(t *testing.T) {
+	auswahl := []string{"Eiche", "Buche", "Esche", "Erle"}
+	faelle := []struct {
+		name     string
+		max      int
+		gut      []string
+		schlecht []string
+	}{
+		{"höchstens zwei", 2,
+			[]string{"", "Eiche", "Eiche\nBuche"},
+			[]string{"Eiche\nBuche\nEsche", "Eiche\nBuche\nEsche\nErle"}},
+		{"höchstens eine", 1,
+			[]string{"Eiche"},
+			[]string{"Eiche\nBuche"}},
+		{"null heisst ohne Grenze", 0,
+			[]string{"Eiche", "Eiche\nBuche\nEsche\nErle"},
+			nil},
+	}
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: auswahl, MaxValues: f.max}
+			for _, gut := range f.gut {
+				if r := Check(d, gut); r != "" {
+					t.Errorf("%q abgelehnt: %q", gut, r)
+				}
+			}
+			for _, schlecht := range f.schlecht {
+				r := Check(d, schlecht)
+				if r == "" {
+					t.Errorf("%q durchgelassen", schlecht)
+					continue
+				}
+				// Die Begründung ist für die Person am Formular: sie nennt das
+				// Feld und die Zahl, auf die es ankommt.
+				if !strings.Contains(r, "Sorten") {
+					t.Errorf("die Begründung zu %q nennt das Feld nicht: %q", schlecht, r)
+				}
+				if f.max > 1 && !strings.Contains(r, strconv.Itoa(f.max)) {
+					t.Errorf("die Begründung zu %q nennt die Höchstzahl nicht: %q", schlecht, r)
+				}
+			}
+		})
+	}
+}
+
+// Genau die Höchstzahl geht noch, eine mehr nicht. Der Rand ist die ganze
+// Frage — eine Grenze, bei der man raten muss, ob sie noch dazugehört, ist
+// keine.
+func TestMehrfachauswahlGenauAmRand(t *testing.T) {
+	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti,
+		Choices: []string{"a", "b", "c"}, MaxValues: 3}
+	if r := Check(d, "a\nb\nc"); r != "" {
+		t.Errorf("genau drei abgelehnt: %q", r)
+	}
+	// Doppelte zählen einzeln: JoinValues bewahrt sie, also sind es vier
+	// Werte, auch wenn nur drei verschiedene darunter sind.
+	if r := Check(d, "a\nb\nc\na"); r == "" {
+		t.Error("vier Werte durchgelassen, obwohl höchstens drei erlaubt sind")
+	}
+}
+
+// MaxValueBytes ist der Platz für alle Werte eines Feldes zusammen, beim
+// mehrwertigen einschliesslich der Zeilenumbrüche dazwischen. Genau so lang
+// geht noch, ein Byte mehr nicht — und nichts wird dabei gekürzt.
+func TestGemeinsamesBytebudget(t *testing.T) {
+	text := Def{Key: "notiz", Label: "Notiz", Kind: KindLong}
+
+	genau := strings.Repeat("a", MaxValueBytes)
+	if r := Check(text, genau); r != "" {
+		t.Errorf("genau %d Byte abgelehnt: %q", MaxValueBytes, r)
+	}
+	r := Check(text, genau+"a")
+	if r == "" {
+		t.Fatalf("%d Byte durchgelassen", MaxValueBytes+1)
+	}
+	if !strings.Contains(r, "Notiz") {
+		t.Errorf("die Begründung nennt das Feld nicht: %q", r)
+	}
+	if !strings.Contains(r, strconv.Itoa(MaxValueBytes)) {
+		t.Errorf("die Begründung nennt die Grenze nicht: %q", r)
+	}
+
+	// Gezählt werden Byte, nicht Zeichen: ein Umlaut braucht zwei davon, also
+	// ist die Grenze bei halb so vielen Zeichen erreicht. Ein Runen- oder
+	// Graphemzähler wäre eine andere Zahl und würde die Datenbank überziehen.
+	umlaute := strings.Repeat("ä", MaxValueBytes/2)
+	if len([]rune(umlaute)) >= MaxValueBytes {
+		t.Fatalf("der Prüffall taugt nicht: %d Runen", len([]rune(umlaute)))
+	}
+	if r := Check(text, umlaute); r != "" {
+		t.Errorf("genau %d Byte aus Umlauten abgelehnt: %q", len(umlaute), r)
+	}
+	if r := Check(text, umlaute+"ä"); r == "" {
+		t.Errorf("%d Byte aus Umlauten durchgelassen", len(umlaute)+2)
+	}
+}
+
+// Beim mehrwertigen Feld wird die verbundene Zeichenkette gemessen, nicht der
+// längste einzelne Wert: drei Werte zu je zwei Dritteln des Platzes passen
+// nicht nebeneinander, auch wenn jeder für sich passt.
+func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
+	kurz := strings.Repeat("a", MaxValueBytes/2)
+	lang := kurz + "a"
+	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: []string{kurz, lang}}
+
+	if r := Check(d, kurz); r != "" {
+		t.Errorf("ein Wert von %d Byte abgelehnt: %q", len(kurz), r)
+	}
+	// Zwei Werte zu je MaxValueBytes/2 plus der Umbruch dazwischen: ein Byte
+	// über der Grenze. Der Umbruch zählt mit, sonst ginge in die Datenbank
+	// mehr, als sie zugesagt bekommt.
+	zusammen := JoinValues([]string{kurz, kurz})
+	if len(zusammen) != MaxValueBytes+1 {
+		t.Fatalf("der Prüffall taugt nicht: %d Byte", len(zusammen))
+	}
+	if r := Check(d, zusammen); r == "" {
+		t.Errorf("%d Byte verbunden durchgelassen — gemessen wurde offenbar der längste einzelne Wert", len(zusammen))
+	}
+}
+
+// Nichts auf dem Speicherweg kürzt noch. Ein zu langer Wert wird gemeldet,
+// nicht halbiert: ein halbierter Wert sieht aus wie einer, den jemand so
+// getippt hat, und beim mehrwertigen Feld wäre die Hälfte eines Wertes ein
+// Wert, den es nie gab (D-13).
+func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
+	zuLang := strings.Repeat("a", MaxValueBytes+50)
+
+	d := Def{Key: "notiz", Label: "Notiz", Kind: KindLong}
+	sauber := Clean([]Def{d}, Data{Values: Values{"notiz": "  " + zuLang + "  "}})
+	if got := sauber.Values["notiz"]; got != zuLang {
+		t.Errorf("Clean legte %d Byte ab, wollte %d — es wird noch gekürzt", len(got), len(zuLang))
+	}
+
+	// In einer Gruppenzeile ebenso.
+	g := Def{Key: "staffel", Label: "Staffel", Kind: KindGroup, Sub: []Def{d}}
+	zeilen := Clean([]Def{g}, Data{Rows: map[string][]Values{"staffel": {{"notiz": zuLang}}}})
+	if got := zeilen.Rows["staffel"][0]["notiz"]; got != zuLang {
+		t.Errorf("in der Zeile wurden %d Byte abgelegt, wollte %d", len(got), len(zuLang))
+	}
+
+	// Und CheckAll meldet ihn, unter der Kennung des Feldes, damit das
+	// Formular die Begründung unter dem richtigen Feld zeigt.
+	errs := CheckAll([]Def{d}, Data{Values: Values{"notiz": zuLang}})
+	if errs["notiz"] == "" {
+		t.Errorf("CheckAll meldet den zu langen Wert nicht: %v", errs)
+	}
+}
+
+// Ein Feld, dessen Bedingung nicht erfüllt ist, wird gar nicht geprüft —
+// beim mehrwertigen genauso wie bei jedem anderen. Etwas zu verlangen, das
+// die Person nicht sehen kann, ist der eine Weg, auf dem sich ein Formular
+// nicht abschicken lässt, ohne zu sagen warum.
+func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
+	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
+	sorten := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Required: true,
+		Choices: []string{"Eiche", "Buche"}, MaxValues: 1, Condition: "spezial"}
+	defs := []Def{schalter, sorten}
+
+	// Über beiden Grenzen zugleich: zu viele Werte, zu viele Byte, und einer
+	// steht nicht einmal auf der Liste.
+	uebervoll := JoinValues([]string{"Eiche", "Buche", strings.Repeat("x", MaxValueBytes)})
+
+	aus := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": uebervoll}})
+	if len(aus) != 0 {
+		t.Errorf("ein verstecktes Feld wurde geprüft: %v", aus)
+	}
+
+	an := CheckAll(defs, Data{Values: Values{"spezial": "1", "sorten": uebervoll}})
+	if an["sorten"] == "" {
+		t.Errorf("das sichtbare Feld wurde nicht geprüft: %v", an)
 	}
 }
