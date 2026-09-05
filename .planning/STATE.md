@@ -5,10 +5,10 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
 current_phase_name: Aufräumen
 status: complete
-stopped_at: Phase 6 complete — both halves of the standing gate closed
-last_updated: "2026-09-04T17:11:36.787Z"
+stopped_at: Phase 7 context gathered
+last_updated: "2026-09-05T10:09:31.101Z"
 last_activity: 2026-09-04
-state_head: 14e07e2d00978374157d48fce389099bb223e67f
+state_head: c3addadb17b3e9233b9cb601ef23d9d4053b1b0d
 progress:
   total_phases: 5
   completed_phases: 1
@@ -176,9 +176,9 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors ist offen und gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-04T17:11:36.714Z
-**Stopped at:** Phase 6 complete — both halves of the standing gate closed
-**Resume file:** .planning/phases/06-aufr-umen/06-VERIFICATION.md
+**Last session:** 2026-09-05T10:09:31.003Z
+**Stopped at:** Phase 7 context gathered
+**Resume file:** .planning/phases/07-field-kinds/07-CONTEXT.md
 
 ## Decisions
 
