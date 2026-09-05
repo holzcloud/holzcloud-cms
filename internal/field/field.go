@@ -592,12 +592,14 @@ func cleanRow(sub []Def, row Values) Values {
 	return out
 }
 
+// trimTo strips the whitespace around a value, which every caller relies on.
+//
+// It does not shorten any more: an over-long value is reported by Check before
+// it can reach here, so shortening would only ever hide that report — and for
+// a multi-valued field it would cut one value in half and store the fragment
+// as if somebody had typed it (D-13).
 func trimTo(val string) string {
-	val = strings.TrimSpace(val)
-	if len(val) > MaxValueBytes {
-		val = val[:MaxValueBytes]
-	}
-	return val
+	return strings.TrimSpace(val)
 }
 
 // ParseNumber liest eine Zahl so, wie sie auf einer Tastatur hier getippt
@@ -674,6 +676,21 @@ func Check(d Def, value string) string {
 		return ""
 	}
 
+	// Der Platz ist für alle Werte eines Feldes zusammen da: beim mehrwertigen
+	// Feld einschliesslich der Zeilenumbrüche zwischen ihnen, denn genau diese
+	// Zeichenkette geht in die Datenbank. Gemessen wird mit len, also in Byte
+	// und nicht in Runen — die Grenze bewacht, was gespeichert wird, und
+	// gespeichert werden Byte. Ein Umlaut braucht zwei davon.
+	//
+	// Gemeldet und nicht gekürzt (D-13): ein gekürzter Wert sieht aus wie
+	// einer, den jemand so getippt hat, und bei einem mehrwertigen Feld wäre
+	// die Hälfte eines Wertes ein Wert, den es nie gegeben hat. Vor dem
+	// Verteiler, damit die Regel für jede Art gilt.
+	if len(value) > MaxValueBytes {
+		return d.Label + " ist zu lang: höchstens " + strconv.Itoa(MaxValueBytes) +
+			" Zeichen, wobei Umlaute doppelt zählen."
+	}
+
 	switch d.Kind {
 	case KindGroup:
 		// A group is checked row by row, not as one value.
@@ -727,6 +744,21 @@ func Check(d Def, value string) string {
 			}
 			if !known {
 				return d.Label + ": „" + picked + "“ steht nicht zur Auswahl."
+			}
+		}
+		// Die Höchstzahl gilt hier oder nirgends: eine Häkchengruppe lässt
+		// sich in der Auszeichnung nicht begrenzen, dafür bräuchte es
+		// JavaScript, und davon trägt dieses Programm nichts ausser htmx
+		// (D-05). Null heisst ohne Grenze — das ist, was jedes vor dieser
+		// Phase angelegte Feld trägt, und an keinem davon darf sich etwas
+		// ändern.
+		if d.MaxValues > 0 {
+			if n := len(SplitValues(value)); n > d.MaxValues {
+				if d.MaxValues == 1 {
+					return d.Label + ": höchstens ein Wert, ausgewählt sind " + strconv.Itoa(n) + "."
+				}
+				return d.Label + ": höchstens " + strconv.Itoa(d.MaxValues) +
+					" Werte, ausgewählt sind " + strconv.Itoa(n) + "."
 			}
 		}
 	case KindImage:
