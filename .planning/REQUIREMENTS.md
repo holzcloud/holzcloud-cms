@@ -166,6 +166,21 @@ runtime, and is listed under what this project deliberately does not build.
 - [ ] **SSO-10**: The server binds to the loopback address by default. It listens on every interface today, which is harmless while a password is required and a total bypass the moment a header is believed.
 - [ ] **SSO-11**: The shipped Caddy example strips the client's own identity headers explicitly, and `DEPLOY.md` names the minimum Caddy version — the `forward_auth` directive emits no such strip on its own, which is CVE-2026-30851.
 
+### Gallery
+
+Everything that happens *after* the picture grid. The grid itself exists: a gallery
+block renders `<figure>` elements with `srcset`, captions and focus-point cropping,
+and since version 1.8 each picture keeps its own aspect ratio. What is missing is
+enlarging a picture, assembling a set of them once, and paging through them.
+
+- [ ] **GAL-01**: A visitor can enlarge a gallery picture to a large view carrying its caption, and get back with the browser's back button — because the enlargement is a `:target` state, not a scripted overlay. No JavaScript: `internal/tmplmgr/script.go` rejects the scripted version in an uploaded template, and the admin must not contradict its own rule.
+- [ ] **GAL-02**: From the large view, next and previous move through the gallery without returning to the grid first, and each is an ordinary link to a sibling picture.
+- [ ] **GAL-03**: An editor assembles a named album once for a website and places it on several pages. Changing the album changes every page that carries it, without touching those pages — the way menus and terms already work.
+- [ ] **GAL-04**: An album survives the bundle round trip, including when it was renamed before export. The manifest carries a reusable thing by its name and re-derives the address on import; an album must be translated on the way out and back the way `KindRef` and `KindImage` already are, or its pictures resolve to nothing after import.
+- [ ] **GAL-05**: An album belongs to exactly one website and is invisible from every other, like every other resource in this CMS.
+- [ ] **GAL-06**: A gallery can be shown as a slideshow instead of a grid: pictures side by side, snapping to their edges, reachable by keyboard and by touch. CSS `scroll-snap` does the whole job.
+- [ ] **GAL-07**: The gallery block and the album read and write their picture list through one mechanism, inherited from FIELD-07's exported pair — not a second spelling of the same thing.
+
 ### Throughout
 
 - [ ] **QUAL-01**: Every string this milestone adds ships in all five languages — `go run ./tools/i18n` reports `0 offen, 0 verwaist` before a phase is done.
@@ -256,19 +271,27 @@ v1.6 phases continue the numbering at 6.
 | SSO-09 | Phase 10 | Pending |
 | SSO-10 | Phase 10 | Pending |
 | SSO-11 | Phase 10 | Pending |
-| QUAL-01 | Phase 10 (gate on 6, 7, 8, 9, 10) | Pending |
-| QUAL-02 | Phase 10 (gate on 6, 7, 8, 9, 10) | Pending |
+| GAL-01 | Phase 11 | Pending |
+| GAL-02 | Phase 11 | Pending |
+| GAL-03 | Phase 11 | Pending |
+| GAL-04 | Phase 11 | Pending |
+| GAL-05 | Phase 11 | Pending |
+| GAL-06 | Phase 11 | Pending |
+| GAL-07 | Phase 11 | Pending |
+| QUAL-01 | Phase 10 (gate on 6, 7, 8, 9, 10, 11) | Pending |
+| QUAL-02 | Phase 10 (gate on 6, 7, 8, 9, 10, 11) | Pending |
 
 QUAL-01 and QUAL-02 are recurring gates, not deliverables. They are counted once — in
-Phase 10, the last phase, where they close milestone-wide — and are additionally written
-verbatim as the final success criterion of Phases 6 through 9. Assigning them to the last
-phase rather than the first is deliberate: a gate mapped to Phase 6 would tell every later
-phase it was already satisfied. See the *Standing Gates* section of `.planning/ROADMAP.md`.
+Phase 10, the last phase to run, where they close milestone-wide — and are additionally
+written verbatim as the final success criterion of Phases 6 through 9 and of Phase 11.
+Assigning them to the last phase rather than the first is deliberate: a gate mapped to
+Phase 6 would tell every later phase it was already satisfied. Phase 11 carries a higher
+number than Phase 10 but runs before it, so the close-out still covers it. See the *Standing Gates* section of `.planning/ROADMAP.md`.
 
 **Coverage:**
 
-- v1.6 requirements: 41 total
-- Mapped to phases: 41
+- v1.6 requirements: 48 total
+- Mapped to phases: 48
 - Unmapped: 0
 - Orphans: 0 · Duplicates: 0
 
@@ -281,6 +304,7 @@ phase it was already satisfied. See the *Standing Gates* section of `.planning/R
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 |
 | 9 | CSV Import | IMP-01…10 | 10 |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 |
+| 11 | Galerie | GAL-01…07 | 7 |
 
 ## Decisions taken while defining these
 

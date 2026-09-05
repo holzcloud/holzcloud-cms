@@ -50,13 +50,14 @@ sign-in the operator already runs.
 - [ ] **Phase 8: Snippets Carry Fields** — A text snippet stops being one Markdown box and holds any field kind, reusing the field table that already exists
 - [ ] **Phase 9: CSV Import** — Content arrives as a table: upload, map column to field, dry-run it, create pages the ordinary way, report every row
 - [ ] **Phase 10: Authentik Forward-Auth** — Single sign-on taken as a header from the reverse proxy, with the trust boundary closed before the first header is read and the password path untouched behind it
+- [ ] **Phase 11: Galerie** — What the picture grid has been missing since it was built: enlarging an image, assembling an album once and using it on several pages, and paging through pictures instead of scrolling past them — all of it without a line of JavaScript
 
 ---
 
 ## Standing Gates (QUAL-01, QUAL-02)
 
-Two of this milestone's forty-one requirements are not deliverables. They are
-gates that apply to **every** phase — which is all five.
+Two of this milestone's forty-eight requirements are not deliverables. They are
+gates that apply to **every** phase — which is all six.
 
 - **QUAL-01** — every new string in all five languages; `go run ./tools/i18n`
   reports `0 offen, 0 verwaist`.
@@ -66,21 +67,23 @@ gates that apply to **every** phase — which is all five.
   by a browser pass, never by the suite.
 
 **Decision on how they are mapped.** Mapping a recurring gate to the first phase
-would tell Phases 7, 8, 9 and 10 that the gate is already satisfied — the exact
+would tell Phases 7, 8, 9, 10 and 11 that the gate is already satisfied — the exact
 failure mode to avoid. So they are handled two ways at once:
 
-1. Each of Phases 6, 7, 8 and 9 carries the gate **verbatim as its own final
+1. Each of Phases 6, 7, 8, 9 and 11 carries the gate **verbatim as its own final
    success criterion**, so no phase can be called done while its strings are
    untranslated or its screens unclicked.
 2. For traceability's exactly-one-phase rule, QUAL-01 and QUAL-02 are formally
-   assigned to **Phase 10**, the last phase — where they close milestone-wide
-   and can no longer be deferred. Assigning them to the last rather than the
-   first phase means they are never prematurely marked satisfied.
+   assigned to **Phase 10**, the last phase to run — where they close
+   milestone-wide and can no longer be deferred. Assigning them to the last
+   rather than the first phase means they are never prematurely marked
+   satisfied. Phase 11 carries a higher number but runs before Phase 10 (see
+   *Execution Order*), so the close-out still covers it.
 
 The Traceability table in REQUIREMENTS.md records this as
-`Phase 10 (gate on 6, 7, 8, 9, 10)`.
+`Phase 10 (gate on 6, 7, 8, 9, 10, 11)`.
 
-The gate's verbatim wording, identical in Phases 6 through 9:
+The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
 
 > **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports
 > `0 offen, 0 verwaist`, and everything this phase added that a person can see —
@@ -185,6 +188,7 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 **Wave 7** *(blocked on Wave 6)*
 
 - [ ] 07-07-PLAN.md — The per-kind tax (`TEMPLATE-SPEC.md`, `SampleData`, `MinimalData`), the translation gate on its own commit, and the browser pass that settles D-08 by observation
+
 **UI hint**: yes
 **Research flag**: `bereich` only — "the value must be visible without JS" has three candidate answers and the choice is a UI-design question, not a technical one. Worth a **UI-SPEC**. Everything else in this phase follows standard patterns: the neighbours agree, the encoding is decided, native controls do the work, Go's escaping is already correct by default, and `KindRef` is a complete end-to-end template (chooser at `page_fields.go:98–255`, resolution at `render.go:36–60` + `pagedata.go:84–114`).
 **Planning notes**:
@@ -304,16 +308,44 @@ The gate's verbatim wording, identical in Phases 6 through 9:
 - **Other pitfalls that must land in the plan:** logout that does not log out (the browser still holds the authentik cookie and is signed straight back in — redirect to the outpost's `sign_out`, build the target from the **request's own host, never from a header**, reusing `auth.backTo` / `auth.SafeReturn`; and use `HX-Redirect` + `Vary: HX-Request`, because logout is an htmx POST). **CSRF stays on every route** — forward auth makes CSRF *more* relevant, not less, because it adds a second ambient credential the browser attaches automatically. Group → role mapping must split on `|` and compare **whole elements** (a naive `strings.Contains` matches `not-holzcloud-admins`), must run on every request so demotion works, must log every role change, and the admin-group variable must have **no default**. E-mail is not a stable identity: SQLite's `COLLATE NOCASE` folds ASCII only, so `Müller@` and `müller@` are two rows and two admins. And the password path must survive, because `auth.RequireFreshPassword` (`elevate.go:57`) guards website deletion, user deletion, AI key creation and plugin removal by asking for a password an SSO account does not have.
 - **Verify in the operator's own instance before pinning:** `X-authentik-uid`'s format depends on the provider's Subject mode (default: a hashed identifier) — MEDIUM confidence. Pin to username instead if unsure, and document that subject mode must not change after users are mapped.
 
+### Phase 11: Galerie
+
+**Goal**: A picture stops being a dead end. A visitor can enlarge one and page through the rest; an editor assembles an album once and uses it on several pages; and a gallery can be paged through instead of scrolled past — with no JavaScript anywhere, on a public page the template rules already forbid it on.
+**Depends on**: **Phase 7**, not Phase 10 — an album is a list of images, and it must read and write that list through Phase 7's `SplitValues`/`JoinValues` (FIELD-07) rather than inventing a second spelling. Phase 7 also supplies the lesson this phase would otherwise learn the hard way: a reusable thing crossing the bundle needs its own translation, which is exactly where Phase 7's Term field first failed. Independent of Phases 8, 9 and 10.
+**Requirements**: GAL-01, GAL-02, GAL-03, GAL-04, GAL-05, GAL-06, GAL-07
+**Success Criteria** (what must be TRUE):
+
+  1. A visitor can tap a picture in a gallery and see it large, with its caption, and get back — **and the browser's back button is what gets them back**, because the enlargement is a `:target` state and not a scripted overlay. From the large view, next and previous move through the gallery without returning to the grid first. Nothing about this needs JavaScript, and `internal/tmplmgr/script.go` would reject the scripted version in an uploaded template anyway.
+  2. An editor assembles a **named album** once for a website and places it on several pages — the way menus and terms already work. Changing the album changes every page that carries it, without touching those pages. An album belongs to exactly **one** website and is invisible from every other, like every other resource in this CMS.
+  3. **An album survives the bundle round trip, including after a rename.** This is the criterion that is easy to declare and easy to get wrong: the manifest carries a term by its *name* and re-derives the slug on import (`internal/bundle/format.go:152–159`, a deliberate and compatibility-bearing choice), and a reusable album must be translated on the way out and back the way `translateOut`/`translateIn` already translate `KindRef` and `KindImage`. The proving test **renames the album before exporting** — an un-renamed album round-trips even when the translation is missing, so a test without the rename proves nothing.
+  4. A gallery can be shown as a **slideshow** instead of a grid: pictures side by side, snapping to their edges, reachable by keyboard and by touch. CSS `scroll-snap` does the whole job; the choice between grid and slideshow is a display mode on the block, the same shape Phase 7 gives `auswahl` with `darstellung`.
+  5. The gallery block and the album read and write their image list through **one** mechanism, inherited from Phase 7 — not a second one. The existing `hc-galerie` markup, its `srcset`/`sizes`, its focus-point cropping and its own-aspect-ratio rendering from version 1.8 all keep working unchanged; an album is a new source for that list, not a new renderer.
+  6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — the large view, the album screens, the slideshow — has been driven once through the running application in a browser, not only through the test suite.
+
+**Plans**: TBD
+**UI hint**: yes
+**Research flag**: **the lightbox markup only.** The `:target` pattern is well known but its accessible shape is not obvious — focus handling without script, what a screen reader announces when the overlay appears, and whether next/previous should be `<a>` elements pointing at sibling ids (they should). Worth a **UI-SPEC**. The album is a straight copy of an existing pattern (menus and terms are both "a named thing a website owns, assembled once, used in many places") and the slideshow is one CSS block.
+**Scope note**: this phase does **not** fit the v1.6 milestone goal sentence, which is about the content model and about access. It was added to v1.6 by explicit developer decision on 2026-09-05, scheduled last, depending on nothing that Phases 8–10 produce and blocking nothing they need. Either extend the milestone goal or move this phase to v1.7 — but do not leave a later reader to discover the mismatch on their own.
+**Planning notes**:
+
+- **What already exists, measured rather than assumed.** `internal/block/block.go:46` defines `TypeGallery = "galerie"` ("Mehrere Bilder als Raster", `HasItems: true`); `internal/block/render.go:157–175` renders it as `<div class="hc-block hc-galerie hc-spalten-N">` of `<figure class="hc-galerie__bild">` with `srcset`/`sizes`, an optional `<figcaption>` and focus-point cropping; `cmd/holzcloud/assets/bausteine.css:106–144` carries the grid (`auto-fit`/`minmax`, 2/3/4 columns). Since version 1.8 each picture keeps its own aspect ratio. **Everything this phase adds happens *after* the grid** — none of the above is being rebuilt.
+- **The media package is already strong and is not the work here:** `internal/media/` has `crop.go`, `responsive.go` (variants), `strip.go` (EXIF), `usage.go` (where a file is used), `variant_store.go` and `mp4.go`. The large view should serve an existing large variant, not mint a new size.
+- **Deliberately excluded: richer layouts.** Masonry columns and justified rows were offered and declined on 2026-09-05. The grid stays as it is.
+- **The lightbox must be `:target`, not `<dialog>`.** `dialog.showModal()` is JavaScript, and CLAUDE.md permits htmx only, as enhancement. `:target` costs one anchor per picture and one CSS rule, works with the back button for free, and is the only one of the two that can also live in an uploaded template — `internal/tmplmgr/script.go` rejects the scripted version by design.
+- **A second gallery already exists and must not be forgotten:** the shop's product gallery (`internal/shop/product.go`, `.Product.Gallery`) is rendered by all seven themes as `.product__gallery`. Decide explicitly whether it inherits the large view — and record the decision either way, because "we only meant the block" is exactly the kind of silence that becomes a bug report.
+- **An album pays the same tax terms and menus pay:** a table, a migration, an admin area, website scoping, the bundle round trip, `TEMPLATE-SPEC.md` + `SampleData` + `MinimalData` if a theme can reach it, and `tools/i18n -write` followed by `-schweiz`. Budget it once. Migrations will stand at `00047` after Phase 8; this phase should claim its number when it is planned, not before.
+
 ---
 
 ## Progress
 
-**Execution Order:** 6 → 7 → (8 ∥ 9) → 10
+**Execution Order:** 6 → 7 → (8 ∥ 9 ∥ 11) → 10
 
-The one real dependency inside the milestone is that **Phase 9 needs Phase 7's
-multi-value encoding** — Phase 7's build-order step ①. Once that has landed,
-Phases 8 and 9 are independent of each other and may run in parallel. Phase 10's
-file set is disjoint from every other phase's and can move anywhere.
+Two phases need Phase 7's multi-value encoding — Phase 7's build-order step ①:
+**Phase 9** for the importer and **Phase 11** for an album's image list. Once that
+has landed, Phases 8, 9 and 11 are independent of each other and may run in
+parallel. Phase 10's file set is disjoint from every other phase's and can move
+anywhere.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -327,12 +359,13 @@ file set is disjoint from every other phase's and can move anywhere.
 | 8. Snippets Carry Fields | v1.6 | 0/TBD | Not started | - |
 | 9. CSV Import | v1.6 | 0/TBD | Not started | - |
 | 10. Authentik Forward-Auth | v1.6 | 0/TBD | Not started | - |
+| 11. Galerie | v1.6 | 0/TBD | Not started | - |
 
 ---
 
 ## Coverage
 
-All 41 v1.6 requirements are mapped to exactly one phase.
+All 48 v1.6 requirements are mapped to exactly one phase.
 
 | Phase | Requirements | Count |
 |-------|--------------|-------|
@@ -341,11 +374,12 @@ All 41 v1.6 requirements are mapped to exactly one phase.
 | 8. Snippets Carry Fields | SNIP-01, SNIP-02, SNIP-03, SNIP-04, SNIP-05 | 5 |
 | 9. CSV Import | IMP-01, IMP-02, IMP-03, IMP-04, IMP-05, IMP-06, IMP-07, IMP-08, IMP-09, IMP-10 | 10 |
 | 10. Authentik Forward-Auth | SSO-01, SSO-02, SSO-03, SSO-04, SSO-05, SSO-06, SSO-07, SSO-08, SSO-09, SSO-10, SSO-11, QUAL-01, QUAL-02 | 13 |
+| 11. Galerie | GAL-01, GAL-02, GAL-03, GAL-04, GAL-05, GAL-06, GAL-07 | 7 |
 
-**Mapped: 41 / 41. Orphans: 0. Duplicates: 0.**
+**Mapped: 48 / 48. Orphans: 0. Duplicates: 0.**
 
 QUAL-01 and QUAL-02 are counted once, in Phase 10, and additionally enforced
-verbatim as the final success criterion of Phases 6, 7, 8 and 9 — see
+verbatim as the final success criterion of Phases 6, 7, 8, 9 and 11 — see
 *Standing Gates* above.
 
 **Migration numbers claimed by this milestone.** Migrations stand at `00045`.
