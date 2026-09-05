@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 7
 current_phase_name: Field Kinds
 status: executing
-stopped_at: Completed 07-06-PLAN.md
-last_updated: "2026-09-05T15:36:45.198Z"
+stopped_at: Completed 07-07-PLAN.md
+last_updated: "2026-09-05T16:19:22.928Z"
 last_activity: 2026-09-05
-state_head: 54bfbb87d4215befaa9ab36e50e34c2402e49774
+state_head: 352753a4a7c21842449b44f42a76a1368817ebfc
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
   percent: 17
 ---
 
@@ -22,17 +22,18 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 6 — Aufräumen (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 7 — Field Kinds abgeschlossen; als Nächstes Phase 8 — Snippets Carry Fields (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
 
 ### Current Position
 
-Phase: 7 — Field Kinds (6 / 7 Pläne ausgeführt)
-Plan: 07-06 complete — die Knopfreihe steht, und die Falle D-10 ist zu. `switchOf` nimmt jetzt die ganze `field.Def` statt einer blossen Art: „eine Auswahl als Knopfreihe“ ist mit einer Zeichenkette nicht auszudruecken, weil die **Darstellung Teil der Antwort** ist — eine einzige Aufrufstelle, `viewOf`, hatte die Definition ohnehin in der Hand. Eine Knopfreihe meldet den neuen Schalter `knopfreihe`, und dazu kam **genau eine** Regel in `admin.css`, in der Form der `auswahl` (Vorgabe sichtbar, verbergen bei Treffer) und mit dem Selektor auf den angekreuzten leeren Radioknopf statt auf ein `<option>`, das eine Radioreihe nicht hat. Die vier bestehenden `.feld-schalter--*`-Regeln blieben unangetastet — der Mechanismus ist in dieser Phase genau einmal angefasst worden, wofuer dieser Plan zuletzt eingeplant war. **Der rote Testlauf hat zwei stille Fehlfunktionen gemessen, bevor eine Zeile Produktionscode geaendert war:** eine **Mehrfachauswahl** und ein **Schlagwortfeld** meldeten beide `"text"` — dessen Regel sucht `:placeholder-shown`, den eine Kaestchengruppe nicht traegt, und das Schlagwortfeld ist ein `<select>` mit leerer erster Moeglichkeit, also genau das, was die `auswahl`-Regel liest. Beide fielen in `switchOf`s `default`-Zweig, seit 07-01 und 07-05; jedes Feld daran blieb stumm sichtbar. Schritt 1 hat sie auf `"kreuz"` und `"auswahl"` gestellt. Die Reihe selbst: Radioknoepfe in getippter Reihenfolge, ohne Sortieren und ohne Entdoppeln, mit einem **ausdruecklichen Leerknopf** davor (D-11) — eine Radiogruppe laesst sich in reinem HTML sonst nicht wieder abwaehlen, und genau diesen Knopf liest die neue Regel. `role="group"` und `aria-labelledby` in derselben Schreibweise wie die Kaestchengruppe; `FieldView.Grouped()` wurde dafuer **erweitert und nicht kopiert**. Keine Zeile JavaScript, keine neue Uebersetzungszeichenkette (der Leerknopf traegt dieselben zwei Saetze wie die erste Moeglichkeit der Klappliste), die Klappliste selbst byteweise unveraendert. `MayControl()` blieb, wie 07-03 es hinterlassen hat: `KindTime` ausgeschlossen, `KindRange` drin — **D-08 wurde hier bewusst nicht entschieden**. `internal/admin/page_fields_switch_test.go` ist neu: je ein Fall pro steuernder Art, der Klasse **und** Element zusammen behauptet, dazu zwei allgemeine Waechter (eine Regel samt Selektor fuer jeden Schalternamen; kein `for=`, das auf eine fehlende Kennung zeigt) — beide Zaehne durch Mutation nachgewiesen. **Kein Kontrollpunkt in diesem Plan, nichts automatisch genehmigt und nichts automatisch gewaehlt.** Weiter offen und planmaessig fuer 07-07: die Dokumentensteuer je Art (TEMPLATE-SPEC.md, `SampleData`/`MinimalData`), die Browserhaelfte des stehenden Tors und die Entscheidung ueber D-08
-Status: Executing Phase 07
-Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
+Phase: 7 — Field Kinds (7 / 7 Pläne ausgeführt, abgeschlossen)
+Plan: 07-07 complete — der per-Art-Zoll ist bezahlt, das stehende Tor ist gefahren, und **D-08 ist durch Beobachtung geschlossen**. `TEMPLATE-SPEC.md` dokumentiert alle fünf neuen Arten samt `.Values`, `.Term` und dem bislang undokumentierten `.Yes`; `SampleData` trägt je eine gefüllte Zeile, `MinimalData` den leeren Zwilling jeder davon — die Grundlage, gegen die die Upload-Prüfung rendert (T-07-28). Vier neue Reflexionswächter halten den Vertrag jetzt selbst zusammen: ein neues Mitglied an `field.Entry` oder eine neue Art in `field.Kinds`, die im Dokument fehlt, fällt im Test auf. 23 neue deutsche Quellsätze in en/es/fr/it, in einem Commit für sich; `fr-CH.json` und `it-CH.json` unberührt. **Die Browserhälfte wurde vom Orchestrator mit dem Playwright-MCP-Server gefahren**, nicht vom Executor: Schritt 3 trägt eine `<precondition>`, die ein Browserwerkzeug verlangt, das dem Executor fehlt — Halten war richtig, die Arbeit wurde geteilt statt in eine Checkliste zurückverwandelt. Gefahren gegen eine Wegwerf-Instanz mit eigener Datenbank, **auf Englisch**, was die schärfere Probe auf die Übersetzungen war. Gesehen: alle vier neuen Definitionsbedienelemente übersetzt und die Grenzenablehnung wirksam; `bereich` als Zahlenfeld mit vor dem Speichern lesbarer Zahl; `zeit` unterscheidet leer von `00:00`; `code` festbreit an der errechneten `font-family`; Mehrfachauswahl mit Wachposten, drei Werte über Speichern und Neuladen, geleert unterscheidbar von nicht-da, Überschreitung als HTTP 422; Schlagwortwähler ohne die Schlagwörter der zweiten Website; Knopfreihe als Radioreihe. Null verwaiste `for=`, beide Gruppen mit auflösendem `aria-labelledby`. **Alle sechs steuernden Arten** blendeten ihr abhängiges Feld korrekt ein und aus — einschliesslich `bereich`: **`MayControl()` bleibt unverändert, `KindRange` bleibt steuernd**, und die Fahrplan-Notiz ruhte auf der Schieber-Annahme, die D-07 verworfen hat. Öffentlich: getipptes `<script>alert(1)</script>` erscheint maskiert und führt nichts aus, Mehrfachwerte als lesbare verbundene Zeichenkette, und eine Schlagwort-Umbenennung änderte, was eine nie neu gespeicherte Seite druckt. Konsole und Serverprotokoll: keine CSP-Verletzung, keine Barrierefreiheitswarnung, drei absichtliche 422. Drei Kommentare, die auf diesen Durchgang vorauswiesen, sagen jetzt, was gesehen wurde — kein Vorwärtsverweis mehr im Baum
+Status: Phase 07 abgeschlossen — FIELD-01…08 erfüllt, Abnahme offen
+Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die **Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
+Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code` innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen
 Last activity: 2026-09-05
 
 ### Milestone Map
@@ -45,7 +46,7 @@ phases were renumbered into this one as 7, 8 and 9.
 | Phase | Name | Requirements | Count | Status |
 |-------|------|--------------|-------|--------|
 | 6 | Aufräumen | MAINT-01…05 | 5 | Plans 7/7 — Abnahme offen (Browserhälfte des Tors) |
-| 7 | Field Kinds | FIELD-01…08 | 8 | Not started |
+| 7 | Field Kinds | FIELD-01…08 | 8 | Plans 7/7 — Abnahme offen (eine Browserzeile, Fenster Nr. 3) |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started |
@@ -115,11 +116,13 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 - Vary: HX-Request header required on any handler returning different content based on HX-Request
 - **The upgrade path from an old installation is broken and no test can see it (found 2026-09-04, own task pending).** Migration `00036_content_types.sql:60-62` builds a partial index on `pages.deleted_at`; the column is added by `00008_revisions_locking_trash.sql:15`. A fresh database migrates 0 → 45 cleanly, but an installation whose recorded version 8 predates an edit to `00008` lacks the column, dies at 36 with `no such column: deleted_at`, and the server refuses to start. goose never re-runs a recorded version and no migration rebuilds `pages`. The fix needs a test that migrates from an old snapshot — a suite that only ever migrates from zero is structurally blind to this. Evidence in `.planning/phases/06-aufr-umen/06-07-SUMMARY.md`
 - The defects this project actually shipped were found in the browser, not by the suite — the QUAL-02 pass is not optional
+- **Die Ablehnungsgründe in `internal/field/field.go` sind nie übersetzt und der QUAL-01-Zähler sieht sie nicht** (beobachtet 2026-09-05, Fenster Nr. 3). `rangeReason` (674–682) und die Längen- und Mehrwertmeldungen (710, 778–781) werden durch blosse Zeichenkettenverkettung ohne `i18n.N` gebaut; bei englischer Oberfläche erschien `Ausstattung: höchstens 3 Werte, ausgewählt sind 4.` auf Deutsch. Vorbestehend, gegen `60ff5b2` geprüft — Phase 7 ist der Konvention gefolgt und hat die Fläche verbreitert. `go run ./tools/i18n` kann deshalb `0 offen, 0 verwaist` melden, während eine Person deutsche Ablehnungen liest. Jede Validierungsrückgabe in `field.go` umzuschreiben ist eigene Arbeit
 
 #### Todos
 
 - Phase 6 is done and none of it must be re-discovered. The i18n catalogues already matched the tool's output (quick task `260903-bsk`, `.planning/WINDOWS.md`); all three former defects are closed — `06-03` deleted the indentation claim from the `writeCatalog` doc comment (do **not** go looking for `tools/i18n/main.go:287`; the line and the claim are both gone, and `06-07` retired the ROADMAP note that pointed at them) and made the tool state which regional catalogues it only reads, and `06-06` made CI rebuild and compare all ten artifacts before any test runs
 - Phase 6 ordering: rebuild-and-hash-compare in CI first, promote the test skips second. Any catalogue reformat is its own commit, proven with a `jq -S` semantic diff
+- Vor dem Ausliefern zu entscheiden: die eine ungefahrene Browserzeile aus Phase 7 (`code` innerhalb eines Blocks auf der öffentlichen Seite — im Test gedeckt, im Browser nicht gesehen) und Fenster Nr. 3 (unübersetzte Ablehnungsgründe). Beide stehen als offen, nicht als bestanden
 - Phase 8 must edit `internal/field/store.go:53` first — the missing `AND snippet_id IS NULL` puts every snippet field on every page's edit form, silently
 - Phase 10 must gate on the existing `web.ClientIPResolver.IsTrustedPeer` (`internal/web/clientip.go:49–52`), not a second peer check; the middleware goes in at `cmd/holzcloud/main.go:968` between `setupGuard` and `requireAuth`
 
@@ -172,6 +175,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 07 P04 | 22 min | 3 tasks | 7 files |
 | Phase 07 P05 | 19 min | 4 tasks | 13 files |
 | Phase 07 P06 | 9 min | 3 tasks | 4 files |
+| Phase 07 P07 | 37 min | 3 tasks | 13 files |
 
 ### Session Continuity
 
@@ -182,8 +186,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-execute-phase 7` — 07-07 ist der letzte Plan der Phase: er traegt die drei gebündelten Restposten (Übersetzungen, Dokumentensteuer je Art, Browserhälfte) und entscheidet D-08 im Browser — ob ein `bereich`-Feld seine abhängigen Felder wirklich ein- und ausblendet, oder ob `KindRange` neben `KindDate` in die `MayControl()`-Ausnahme gehört. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors gehört in die Abnahme, nicht in einen neuen Plan
 
-**Last session:** 2026-09-05T15:35:52.218Z
-**Stopped at:** Completed 07-06-PLAN.md
+**Last session:** 2026-09-05T16:18:01.777Z
+**Stopped at:** Completed 07-07-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -228,6 +232,9 @@ Next command: `/gsd-execute-phase 7` — 07-07 ist der letzte Plan der Phase: er
 - [Phase 07]: v1.6 Phase 7: .feld-schalter--knopfreihe kopiert die Form der auswahl-Regel (Vorgabe sichtbar, verbergen bei Treffer) und nicht die des kreuz — eine beantwortete Auswahl zeigt ihre Abhaengigen, eine offene verbirgt sie. Selektor: input[type="radio"][value=""]:checked
 - [Phase 07]: v1.6 Phase 7: eine Mehrfachauswahl und ein Schlagwortfeld meldeten vor 07-06 den Schalter „text", dessen Regel einen Platzhalter sucht, den beide nicht tragen — jedes Feld daran blieb stumm sichtbar. Beide fielen in switchOfs default-Zweig; 07-06 hat sie auf „kreuz" und „auswahl" gestellt
 - [Phase 07]: v1.6 Phase 7: MayControl() blieb in 07-06 unangetastet — KindTime ausgeschlossen, KindRange drin. D-08 gehoert dem Browserdurchgang in 07-07 und darf nicht aus dem Markup entschieden werden
+- [Phase 07]: v1.6: D-08 ist durch Beobachtung geschlossen und die Umkehr NICHT angewendet — `MayControl()` bleibt unverändert, `KindRange` bleibt steuernd. Ein `<input type="number">` trifft `:placeholder-shown`, `.feld-schalter--text` greift daran, das abhängige Feld erschien und verschwand (Playwright, 2026-09-05) — Die Fahrplan-Notiz, `KindRange` neben `KindDate` auszuschliessen, ruhte auf der Schieber-Annahme, die D-07 verworfen hat. Auch der zweite Zweig des Auftrags ist beantwortet: `placeholder=" "` steht im gezeichneten Markup, es fehlte also nicht. Drei Kommentare, die auf den Durchgang vorauswiesen, sagen jetzt, was gesehen wurde.
+- [Phase 07]: v1.6: eine `<precondition>`, die dem Executor fehlt, wird gehalten und die Arbeit geteilt — nicht in eine Checkliste zurückverwandelt. Schritt 3 von 07-07 verlangte ein Browserwerkzeug; der Executor hielt, der Orchestrator fuhr den Durchgang mit dem Playwright-MCP-Server — Eine Checkliste zurückzugeben ist genau das, was der Auftrag verbietet, und was die Browserhälfte in Phase 6 halb hat liegen lassen. Das Muster gilt für Phase 8, 9, 10 und 11 weiter.
+- [Phase 07]: v1.6: der leere Fall einer neuen Feldart liegt in `MinimalData`s `Felder`-Karte, nicht in `Feldliste` — `field.List` lässt jeden leeren Eintrag aus, eine Liste mit leerem Eintrag gibt es also gar nicht — Ihn in `Feldliste` zu verlangen hiesse, eine Form zu fordern, die der Code nie erzeugt. Gilt für jede Art, die Phase 8 und 9 hinzufügen.
 
 ## Accumulated Context
 

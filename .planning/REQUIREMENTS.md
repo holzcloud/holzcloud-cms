@@ -118,14 +118,14 @@ they are written here as they actually stand.
 
 ### Field kinds
 
-- [ ] **FIELD-01**: Author can configure a Choice field to render as a row of buttons instead of a dropdown. An optional one offers an explicit "no answer" choice, because a radio group cannot be un-set without JavaScript.
-- [ ] **FIELD-02**: Author can define a Multiple-Choice field and pick several values at once; the value survives save and reload, and a theme can loop over it and print each one.
-- [ ] **FIELD-03**: Author can define a Term field that picks from the tags a website already carries. The public page prints the term's **name**; renaming the term changes what the page shows without touching the page.
-- [ ] **FIELD-04**: Author can define a Time field (`zeit`) and enter a time of day. It carries no timezone, and "empty" is distinguishable from midnight.
-- [ ] **FIELD-05**: Author can define a Range field (`bereich`) bounded below and above. The chosen number is readable before saving, without JavaScript.
-- [ ] **FIELD-06**: Author can define a Code field (`code`) — plain text, no Markdown, fixed-width type. HTML typed into it appears verbatim on the public page and does not execute, including when the field sits inside a block.
-- [ ] **FIELD-07**: A multi-valued field's encoding is one mechanism, exported and shared: the page form, the renderer, the bundle round-trip and the CSV importer all read and write it through the same pair of functions, so none of them can invent a second spelling.
-- [ ] **FIELD-08**: A field whose visibility depends on a Choice keeps working when that Choice is rendered as a button row. Field conditions are pure CSS and the existing rule matches an `<option>`, which a button row does not have.
+- [x] **FIELD-01**: Author can configure a Choice field to render as a row of buttons instead of a dropdown. An optional one offers an explicit "no answer" choice, because a radio group cannot be un-set without JavaScript.
+- [x] **FIELD-02**: Author can define a Multiple-Choice field and pick several values at once; the value survives save and reload, and a theme can loop over it and print each one.
+- [x] **FIELD-03**: Author can define a Term field that picks from the tags a website already carries. The public page prints the term's **name**; renaming the term changes what the page shows without touching the page.
+- [x] **FIELD-04**: Author can define a Time field (`zeit`) and enter a time of day. It carries no timezone, and "empty" is distinguishable from midnight.
+- [x] **FIELD-05**: Author can define a Range field (`bereich`) bounded below and above. The chosen number is readable before saving, without JavaScript.
+- [x] **FIELD-06**: Author can define a Code field (`code`) — plain text, no Markdown, fixed-width type. HTML typed into it appears verbatim on the public page and does not execute, including when the field sits inside a block.
+- [x] **FIELD-07**: A multi-valued field's encoding is one mechanism, exported and shared: the page form, the renderer, the bundle round-trip and the CSV importer all read and write it through the same pair of functions, so none of them can invent a second spelling.
+- [x] **FIELD-08**: A field whose visibility depends on a Choice keeps working when that Choice is rendered as a button row. Field conditions are pure CSS and the existing rule matches an `<option>`, which a button row does not have.
 
 ### Text snippets
 
@@ -237,14 +237,14 @@ v1.6 phases continue the numbering at 6.
 | MAINT-03 | Phase 6 | Complete |
 | MAINT-04 | Phase 6 | Complete |
 | MAINT-05 | Phase 6 | Complete |
-| FIELD-01 | Phase 7 | Pending |
-| FIELD-02 | Phase 7 | Pending |
-| FIELD-03 | Phase 7 | Pending |
-| FIELD-04 | Phase 7 | Pending |
-| FIELD-05 | Phase 7 | Pending |
-| FIELD-06 | Phase 7 | Pending |
-| FIELD-07 | Phase 7 | Pending |
-| FIELD-08 | Phase 7 | Pending |
+| FIELD-01 | Phase 7 | Complete |
+| FIELD-02 | Phase 7 | Complete |
+| FIELD-03 | Phase 7 | Complete |
+| FIELD-04 | Phase 7 | Complete |
+| FIELD-05 | Phase 7 | Complete |
+| FIELD-06 | Phase 7 | Complete |
+| FIELD-07 | Phase 7 | Complete |
+| FIELD-08 | Phase 7 | Complete |
 | SNIP-01 | Phase 8 | Pending |
 | SNIP-02 | Phase 8 | Pending |
 | SNIP-03 | Phase 8 | Pending |

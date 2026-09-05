@@ -159,7 +159,7 @@ The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
   5. `zeit` accepts a time of day that carries no timezone and where empty is distinguishable from midnight; `bereich` accepts a number between its configured bounds and the chosen number is readable **before** saving, without JavaScript; `code` is plain fixed-width text that never passes through Markdown — HTML typed into it appears verbatim on the public page and does not execute, including when the field sits inside a block.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
 
-**Plans**: 6/7 plans executed, in 7 waves. The chain is real rather than conservative: `internal/field/field.go`, `internal/field/render.go` and `field_input.html` are each touched by five of the seven plans, so two plans in one wave would be two agents editing one kind list. `07-05` (`KindTerm`) is independent in substance and could run anywhere; it is sequenced only by that file overlap.
+**Plans**: 7/7 plans executed, in 7 waves. The chain is real rather than conservative: `internal/field/field.go`, `internal/field/render.go` and `field_input.html` are each touched by five of the seven plans, so two plans in one wave would be two agents editing one kind list. `07-05` (`KindTerm`) is independent in substance and could run anywhere; it is sequenced only by that file overlap.
 
 **Wave 1**
 
@@ -187,7 +187,7 @@ The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
 
 **Wave 7** *(blocked on Wave 6)*
 
-- [ ] 07-07-PLAN.md — The per-kind tax (`TEMPLATE-SPEC.md`, `SampleData`, `MinimalData`), the translation gate on its own commit, and the browser pass that settles D-08 by observation
+- [x] 07-07-PLAN.md — The per-kind tax (`TEMPLATE-SPEC.md`, `SampleData`, `MinimalData`), the translation gate on its own commit, and the browser pass that settles D-08 by observation
 
 **UI hint**: yes
 **Research flag**: `bereich` only — "the value must be visible without JS" has three candidate answers and the choice is a UI-design question, not a technical one. Worth a **UI-SPEC**. Everything else in this phase follows standard patterns: the neighbours agree, the encoding is decided, native controls do the work, Go's escaping is already correct by default, and `KindRef` is a complete end-to-end template (chooser at `page_fields.go:98–255`, resolution at `render.go:36–60` + `pagedata.go:84–114`).
@@ -355,7 +355,7 @@ anywhere.
 | 4. Templates + Menus + Media | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 5. Admin Polish + Users + Deployment | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 6. Aufräumen | v1.6 | 7/7 | In Progress|  |
-| 7. Field Kinds | v1.6 | 6/7 | In Progress|  |
+| 7. Field Kinds | v1.6 | 7/7 | In Progress|  |
 | 8. Snippets Carry Fields | v1.6 | 0/TBD | Not started | - |
 | 9. CSV Import | v1.6 | 0/TBD | Not started | - |
 | 10. Authentik Forward-Auth | v1.6 | 0/TBD | Not started | - |
