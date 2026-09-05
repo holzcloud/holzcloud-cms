@@ -250,3 +250,202 @@ func ausschnitt(body, um string) string {
 	}
 	return body[von:bis]
 }
+
+// Dasselbe Feld, eine Ebene tiefer. Eine Gruppenzeile trägt ihre eigenen
+// Namen, und ohne die Markierung an dieser zweiten Stelle bliebe von drei
+// Häkchen genau das erste übrig — still, denn ein einzelner Wert sieht aus
+// wie einer, den jemand so gesetzt hat.
+func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	fields := field.NewStore(database)
+	gruppe, err := fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "zeiten", Label: "Öffnungszeiten", Kind: field.KindGroup,
+	})
+	if err != nil {
+		t.Fatalf("Gruppe anlegen: %v", err)
+	}
+	if _, err := fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "tage", Label: "Tage",
+		Kind: field.KindMulti, Choices: []string{"Mo", "Di", "Mi"},
+	}); err != nil {
+		t.Fatalf("Unterfeld anlegen: %v", err)
+	}
+	// Ein einwertiges Unterfeld daneben: die Gegenprobe, dass sich in der
+	// Zeile nicht alles auf mehrwertig umgestellt hat.
+	if _, err := fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "notiz", Label: "Notiz",
+		Kind: field.KindText,
+	}); err != nil {
+		t.Fatalf("Unterfeld anlegen: %v", err)
+	}
+
+	p := seedPage(t, database, ws.ID, "Laden", "laden", "text", "draft")
+	pages := page.NewStore(database)
+	wsID := strconv.FormatInt(ws.ID, 10)
+
+	speichern := func(t *testing.T, extra url.Values) {
+		t.Helper()
+		aktuell, err := pages.GetPage(ctx, p.ID)
+		if err != nil || aktuell == nil {
+			t.Fatalf("Seite lesen: %v", err)
+		}
+		values := url.Values{
+			"title":            {"Laden"},
+			"slug":             {"laden"},
+			"content_markdown": {"text"},
+			"status":           {"draft"},
+			"version":          {strconv.FormatInt(aktuell.Version, 10)},
+		}
+		for k, v := range extra {
+			values[k] = v
+		}
+		req := postForm("/admin/websites/1/pages/1/edit", values, map[string]string{
+			"id": wsID, "pageID": strconv.FormatInt(p.ID, 10),
+		})
+		if rec := serve(t, h, sm, h.HandlePageEdit, req); rec.Code != http.StatusSeeOther {
+			t.Fatalf("Speichern gab %d zurück, wollte 303:\n%s", rec.Code, rec.Body.String())
+		}
+	}
+
+	zeilen := func(t *testing.T) []field.Values {
+		t.Helper()
+		stored, err := pages.GetPage(ctx, p.ID)
+		if err != nil || stored == nil {
+			t.Fatalf("Seite lesen: %v", err)
+		}
+		return field.Decode(stored.Fields).Rows["zeiten"]
+	}
+
+	// Zwei Zeilen mit verschiedenen Häkchen. Der Wächter steht in jeder Zeile
+	// vor den Kästchen, genau wie oben auf der Seite.
+	speichern(t, url.Values{
+		"gruppe.zeiten.0.tage[]": {"", "Mo", "Di", "Mi"},
+		"gruppe.zeiten.0.notiz":  {"Vormittag"},
+		"gruppe.zeiten.1.tage[]": {"", "Di"},
+		"gruppe.zeiten.1.notiz":  {"Nachmittag"},
+	})
+
+	got := zeilen(t)
+	if len(got) != 2 {
+		t.Fatalf("%d Zeilen gespeichert, wollte 2: %+v", len(got), got)
+	}
+	if will := "Mo\nDi\nMi"; got[0]["tage"] != will {
+		t.Errorf("Zeile 1 speicherte %q, wollte %q", got[0]["tage"], will)
+	}
+	if got[1]["tage"] != "Di" {
+		t.Errorf("Zeile 2 speicherte %q, wollte %q", got[1]["tage"], "Di")
+	}
+	// Das einwertige Unterfeld ist unberührt.
+	if got[0]["notiz"] != "Vormittag" || got[1]["notiz"] != "Nachmittag" {
+		t.Errorf("die einwertigen Unterfelder stimmen nicht: %q / %q", got[0]["notiz"], got[1]["notiz"])
+	}
+
+	// Neuzeichnen: dieselben Häkchen stehen wieder da, je Zeile unter dem
+	// Namen dieser Zeile.
+	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
+	req.SetPathValue("id", wsID)
+	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
+	rec := serve(t, h, sm, h.HandlePageEdit, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("das Formular gab %d zurück", rec.Code)
+	}
+	body := rec.Body.String()
+
+	for zeile, will := range map[string]int{"0": 3, "1": 1} {
+		muster := regexp.MustCompile(`<input type="checkbox" name="gruppe\.zeiten\.` + zeile +
+			`\.tage\[\]" value="[^"]*" checked>`)
+		if n := len(muster.FindAllString(body, -1)); n != will {
+			t.Errorf("Zeile %s zeigt %d angekreuzte Kästchen, wollte %d:\n%s",
+				zeile, n, will, ausschnitt(body, "gruppe.zeiten."+zeile+".tage"))
+		}
+		if !strings.Contains(body, `<input type="hidden" name="gruppe.zeiten.`+zeile+`.tage[]" value="">`) {
+			t.Errorf("in Zeile %s fehlt der versteckte Wächter", zeile)
+		}
+	}
+	// Das einwertige Unterfeld trägt die Markierung nicht.
+	if strings.Contains(body, "gruppe.zeiten.0.notiz[]") {
+		t.Error("das einwertige Unterfeld trägt die Markierung")
+	}
+
+	// Nur der Wächter in der ersten Zeile: deren Auswahl ist geleert, die
+	// zweite bleibt, wie sie war.
+	speichern(t, url.Values{
+		"gruppe.zeiten.0.tage[]": {""},
+		"gruppe.zeiten.0.notiz":  {"Vormittag"},
+		"gruppe.zeiten.1.tage[]": {"", "Di"},
+		"gruppe.zeiten.1.notiz":  {"Nachmittag"},
+	})
+	got = zeilen(t)
+	if len(got) != 2 {
+		t.Fatalf("nach dem Leerräumen %d Zeilen, wollte 2: %+v", len(got), got)
+	}
+	if got[0]["tage"] != "" {
+		t.Errorf("die geleerte Zeile trägt noch %q", got[0]["tage"])
+	}
+	if got[1]["tage"] != "Di" {
+		t.Errorf("die andere Zeile wurde mitgeleert: %q", got[1]["tage"])
+	}
+}
+
+// Der Name einer Gruppenzeile wird an einer Stelle gelesen, und diese Stelle
+// muss die Markierung erkennen, ohne eine ihrer Wachen aufzugeben: der
+// Vorsatz, die drei Teile und vor allem die Schranke auf die Zeilennummer.
+// Ein von Hand gebauter Name darf keine Zeile ausserhalb der Schranke und
+// keinen vierten Namensraum erreichen.
+func TestZeilennameMitMarkierung(t *testing.T) {
+	group, index, sub, multi, ok := parseRowName("gruppe.zeiten.0.tage[]")
+	if !ok || group != "zeiten" || index != 0 || sub != "tage" || !multi {
+		t.Errorf("gruppe.zeiten.0.tage[] ergab (%q, %d, %q, %v, %v)", group, index, sub, multi, ok)
+	}
+
+	group, index, sub, multi, ok = parseRowName("gruppe.zeiten.3.tage")
+	if !ok || group != "zeiten" || index != 3 || sub != "tage" || multi {
+		t.Errorf("gruppe.zeiten.3.tage ergab (%q, %d, %q, %v, %v)", group, index, sub, multi, ok)
+	}
+
+	// Jede bestehende Wache steht noch.
+	abgelehnt := []string{
+		"feld_tage[]",
+		"gruppe.zeiten.0",
+		"gruppe.zeiten.0.tage.extra[]",
+		"gruppe.zeiten.x.tage[]",
+		"gruppe.zeiten.-1.tage[]",
+		"gruppe.zeiten." + strconv.Itoa(field.MaxRows) + ".tage[]",
+		"gruppe.zeiten.999999.tage[]",
+	}
+	for _, name := range abgelehnt {
+		if _, _, _, _, ok := parseRowName(name); ok {
+			t.Errorf("%q wurde angenommen", name)
+		}
+	}
+}
+
+// Und in der Zeile gilt derselbe Unterschied wie oben auf der Seite: mit dem
+// Wächter ist die Kennung da und leer, ohne ihn ist sie gar nicht da.
+func TestGruppenzeileGeleertOderAbwesend(t *testing.T) {
+	drei := fieldsFromRequest(anfrageMit(url.Values{
+		"gruppe.zeiten.0.tage[]": {"", "Mo", "Di", "Mi"},
+	}))
+	if got, will := drei.Rows["zeiten"][0]["tage"], "Mo\nDi\nMi"; got != will {
+		t.Errorf("drei Häkchen in der Zeile ergaben %q, wollte %q", got, will)
+	}
+
+	geleert := fieldsFromRequest(anfrageMit(url.Values{"gruppe.zeiten.0.tage[]": {""}}))
+	val, da := geleert.Rows["zeiten"][0]["tage"]
+	if !da {
+		t.Error("nach dem Wächter allein fehlt die Kennung der Zeile ganz")
+	}
+	if val != "" {
+		t.Errorf("nach dem Wächter allein steht %q da, wollte leer", val)
+	}
+
+	ohne := fieldsFromRequest(anfrageMit(url.Values{"gruppe.zeiten.0.notiz": {"Vormittag"}}))
+	if _, da := ohne.Rows["zeiten"][0]["tage"]; da {
+		t.Error("die Kennung steht in der Zeile, obwohl das Formular sie nie trug")
+	}
+	if got := ohne.Rows["zeiten"][0]["notiz"]; got != "Vormittag" {
+		t.Errorf("das einwertige Unterfeld ergab %q, wollte %q", got, "Vormittag")
+	}
+}
