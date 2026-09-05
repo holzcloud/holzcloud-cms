@@ -439,7 +439,13 @@ func validate(d *Def) error {
 	if !KnownKind(d.Kind) {
 		return errors.New("diese Art von Feld gibt es nicht")
 	}
-	if d.Kind == KindChoice && len(d.Choices) == 0 {
+	// Beide Auswahlarten: eine Mehrfachauswahl ohne Möglichkeiten zeichnet
+	// eine Gruppe, in der nichts steht als der versteckte Wächter, kann also
+	// nie einen Wert tragen. Ist sie zusätzlich Pflicht, meldet Check bei jedem
+	// Speichern jeder Seite, dass sie ausgefüllt werden müsse, und das Formular
+	// bietet nichts an, womit das ginge — die Seite wäre unspeicherbar, bis
+	// jemand die Definition ändert.
+	if (d.Kind == KindChoice || d.Kind == KindMulti) && len(d.Choices) == 0 {
 		return errors.New("eine Auswahl braucht mindestens eine Möglichkeit")
 	}
 	// Eine negative Höchstzahl kann kein ehrliches Formular erzeugen — das Feld
