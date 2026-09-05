@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
 current_phase: 6
-current_phase_name: Aufräumen
+current_phase_name: Field Kinds
 status: complete
 stopped_at: Phase 7 context gathered
-last_updated: "2026-09-05T10:09:31.101Z"
-last_activity: 2026-09-04
-state_head: c3addadb17b3e9233b9cb601ef23d9d4053b1b0d
+last_updated: "2026-09-05T13:33:20.913Z"
+last_activity: 2026-09-05
+state_head: bfb398faa6c38912f70b9289065d2e227ec54144
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 7
+  total_plans: 14
   completed_plans: 7
   percent: 20
 ---
@@ -33,7 +33,7 @@ Phase: 6 — Aufräumen (7 / 7 Pläne ausgeführt; das stehende Tor ist zur Häl
 Plan: 06-07 complete — die fünf Tests, die sich selbst übersprangen, entscheiden das nicht mehr selbst: `internal/plugin/wasmtest` entscheidet es einmal für drei Go-Pakete, und `HOLZCLOUD_TEST_REQUIRE_WASM: "1"` steht auf Ablaufebene in `ci.yml`, `security.yml` und `release.yml` (`image.yml` führt keine Tests aus und bleibt bewusst leer). Die Meldung nennt in beiden Zweigen `go run ./tools/wasm`; der falsche Erfolg wurde vor der Änderung reproduziert (exit 0) und danach gemessen (exit 1, auch bei `true` und `yes`). Vier Dokumentanker nachgezogen, die i18n-Notiz in der ROADMAP stillgelegt statt neu gezeigt
 Status: Phase 6 — Pläne fertig, Abnahme offen
 Offen aus dem stehenden Tor: die Übersetzungshälfte ist grün (`0 offen, 0 verwaist` in en/es/fr/it), die **Browserhälfte nur zur Hälfte gelaufen**. Die Anwendung startet, meldet an, erzwingt den zweiten Faktor und zeigt die Verwaltung; die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen. Die Testreihe beweist, dass die Gäste laufen; gesehen wurden sie nicht
-Last activity: 2026-09-04
+Last activity: 2026-09-05
 
 ### Milestone Map
 
