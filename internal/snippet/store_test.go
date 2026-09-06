@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 )
@@ -143,4 +144,69 @@ func TestCountUsageCountsLivePagesOnly(t *testing.T) {
 	if n != 1 {
 		t.Errorf("usage count = %d, want 1 — a trashed page is not a use", n)
 	}
+}
+
+// SetFields muss updated_at mitziehen, sonst geht der Wert eines Feldes am
+// Zwischenspeicher der ganzen Website vorbei.
+//
+// Rendered.LatestUpdate ist der Prüfwert, den contentModTime für *jede* Seite
+// der Website heranzieht — der Kommentar dort sagt, warum: „sonst antwortet
+// eine bedingte Anfrage mit 304 und den alten Öffnungszeiten". Seit Phase 8
+// gehören die Feldwerte eines Textbausteins zu dem, was eine Seite darstellt,
+// und SetFields ist der einzige Schreiber davon.
+//
+// Dass es heute trotzdem geht, liegt allein daran, dass handleSnippetSave
+// vorher Update aufruft und Update den Stempel setzt — eine Reihenfolge
+// zwischen zwei Funktionen in zwei Paketen, die nichts festhält. Der Archivweg
+// kommt über Create davon. Der Test wartet keine Sekunde ab, sondern setzt den
+// Stempel zurück: an einer Uhr mit Sekundenauflösung wäre sonst nicht die
+// Wache geprüft, sondern die Laufzeit des Tests.
+func TestSetFieldsZiehtDenPruefwertMit(t *testing.T) {
+	s, ws := newTestStore(t)
+	ctx := context.Background()
+	sn, err := s.Create(ctx, ws, "kontakt", "Kontakt", "Adresse", "<p>Adresse</p>")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	const alt = "2020-01-01T00:00:00Z"
+	if _, err := s.DB.Write.ExecContext(ctx,
+		`UPDATE snippets SET updated_at = $1 WHERE id = $2`, alt, sn.ID); err != nil {
+		t.Fatalf("Stempel zurücksetzen: %v", err)
+	}
+
+	if err := s.SetFields(ctx, sn.ID, `{"values":{"telefon":"07721 123456"}}`); err != nil {
+		t.Fatalf("SetFields: %v", err)
+	}
+
+	nachher, err := s.Get(ctx, sn.ID)
+	if err != nil || nachher == nil {
+		t.Fatalf("Get: %v (%v)", nachher, err)
+	}
+	if nachher.Fields == "" {
+		t.Fatal("SetFields hat nichts geschrieben")
+	}
+	if !nachher.UpdatedAt.After(mustParse(t, alt)) {
+		t.Errorf("updated_at = %v, unverändert seit %s — ohne den Stempel antwortet "+
+			"jede Seite der Website 304 mit den alten Feldwerten",
+			nachher.UpdatedAt.Format(timeLayout), alt)
+	}
+
+	rendered, err := s.LoadRendered(ctx, ws)
+	if err != nil {
+		t.Fatalf("LoadRendered: %v", err)
+	}
+	if !rendered.LatestUpdate.Equal(nachher.UpdatedAt) {
+		t.Errorf("LatestUpdate = %v, erwartet %v — der Prüfwert der Website ist "+
+			"genau dieser Stempel", rendered.LatestUpdate, nachher.UpdatedAt)
+	}
+}
+
+func mustParse(t *testing.T, s string) time.Time {
+	t.Helper()
+	v, err := time.Parse(timeLayout, s)
+	if err != nil {
+		t.Fatalf("Zeit %q: %v", s, err)
+	}
+	return v
 }
