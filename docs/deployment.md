@@ -114,5 +114,5 @@ What a running binary thinks of itself, ask it directly:
 ./holzcloud version        # also -version and --version
 ```
 
-The milestones under `.planning/` share the same numbering: the tag `v1.4` is
-followed by the milestone `v1.5`.
+The milestones under `.planning/` share the same numbering, so a milestone and
+the release that closes it carry the same number.
