@@ -131,9 +131,9 @@ they are written here as they actually stand.
 
 - [x] **SNIP-01**: Admin can give a text snippet any field kind, not only Markdown, and fill the fields on the snippet screen.
 - [x] **SNIP-02**: A snippet's fields live in the field-definition table that already exists, with a `snippet_id` beside `website_id` — not in a third field table. The same field key can exist once on a page and once on a snippet of the same website without colliding.
-- [ ] **SNIP-03**: A snippet's field values render on the public site through the same pipeline and the same sanitisation as page fields — one goldmark → bluemonday chain, not a second.
+- [x] **SNIP-03**: A snippet's field values render on the public site through the same pipeline and the same sanitisation as page fields — one goldmark → bluemonday chain, not a second.
 - [x] **SNIP-04**: A snippet's fields never appear on a page's edit form, in a block kind's fields, or in a theme's page field list. The queries that select a carrier's fields exclude the other three namespaces explicitly.
-- [ ] **SNIP-05**: Snippets that already exist keep working untouched — their Markdown body still renders wherever a theme calls them, no snippet key changes, and the admin performs no migration step. The published `.Site.Snippets` contract keeps its type; field values arrive beside it, not through it.
+- [x] **SNIP-05**: Snippets that already exist keep working untouched — their Markdown body still renders wherever a theme calls them, no snippet key changes, and the admin performs no migration step. The published `.Site.Snippets` contract keeps its type; field values arrive beside it, not through it.
 
 ### Import
 
@@ -247,9 +247,9 @@ v1.6 phases continue the numbering at 6.
 | FIELD-08 | Phase 7 | Complete |
 | SNIP-01 | Phase 8 | Complete |
 | SNIP-02 | Phase 8 | Complete |
-| SNIP-03 | Phase 8 | Pending |
+| SNIP-03 | Phase 8 | Complete |
 | SNIP-04 | Phase 8 | Complete |
-| SNIP-05 | Phase 8 | Pending |
+| SNIP-05 | Phase 8 | Complete |
 | IMP-01 | Phase 9 | Pending |
 | IMP-02 | Phase 9 | Pending |
 | IMP-03 | Phase 9 | Pending |
