@@ -941,15 +941,39 @@ func SplitValues(raw string) []string {
 // and a partly ticked group must not notice it. Duplicates and order are kept
 // exactly as the caller passed them: no sorting, no removing, so saving the
 // same form twice produces the same string byte for byte.
+//
+// Ein Eintrag, der das Trennzeichen selbst trägt, wird gefaltet: jede
+// Zeilenschaltung darin wird zu einem Leerzeichen, damit die Zahl der von
+// SplitValues zurückgelesenen Werte die Zahl der nicht-leeren Einträge nie
+// übersteigt. Aus einem Eintrag kann so nie ein zweiter Wert werden.
+//
+// Gefaltet und nicht maskiert: eine Maskierung wäre eine zweite Schreibweise
+// desselben Wertes, und ein späterer Einleser erbte beide (D-02). Auch kein
+// Fehlerweg, denn der eine Aufrufer, der das Formular liest, hat keinen —
+// fieldsFromRequest läuft ausdrücklich, bevor die Definitionen geladen sind
+// (D-03). Die Faltung ist dieselbe Klasse Normalisierung, die diese Funktion
+// mit dem Trimmen und dem Wegfallen leerer Einträge ohnehin schon macht: sie
+// setzt durch, was der Doc-Kommentar von SplitValues bisher nur behauptet hat.
+// Für ein Feld mit geschlossener Möglichkeitenliste ändert sie nichts — ein
+// gefalteter Wert steht dort so wenig zur Auswahl wie der ungefaltete. Für
+// einen späteren Aufrufer, dessen Werte aus einer CSV-Spalte stammen, ist sie
+// die Grenze, hinter der er keinen zusätzlichen Wert prägen kann.
 func JoinValues(values []string) string {
 	out := make([]string, 0, len(values))
 	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
+		// Nur das Trennzeichen, nicht jeder Weissraum: zwei Leerzeichen
+		// innerhalb eines gültigen Wertes sind Teil des Wertes.
+		if v = strings.TrimSpace(faltZeilen.Replace(v)); v != "" {
 			out = append(out, v)
 		}
 	}
 	return strings.Join(out, "\n")
 }
+
+// faltZeilen ersetzt jede Schreibweise der Zeilenschaltung durch ein einzelnes
+// Leerzeichen. Die Wagenrücklaufform steht zuerst, damit sie ein Leerzeichen
+// ergibt und nicht zwei.
+var faltZeilen = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 
 // CheckAll validates a page's answers against the fields that apply to it and
 // returns the reasons, keyed by the form field they belong to.
