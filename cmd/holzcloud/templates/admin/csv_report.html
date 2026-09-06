@@ -57,10 +57,7 @@
                 <tr class="csv-row--{{.Outcome}}">
                     <td>{{template "csv-outcome" .}}</td>
                     <td>{{template "csv-reason" .}}</td>
-                    <td class="csv-rows">
-                        {{tf "%d Zeilen" .Total}}:
-                        {{range $i, $n := .Rows}}{{if $i}}, {{end}}{{$n}}{{end}}{{if .More}}, {{tf "und %d weitere" .More}}{{end}}
-                    </td>
+                    {{template "csv-rows" .}}
                 </tr>
                 {{end}}
             </tbody>

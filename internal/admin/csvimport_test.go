@@ -466,6 +466,64 @@ func TestCSVSampleLineCountsBothNumbersTheSameWay(t *testing.T) {
 	}
 }
 
+// A reason group of one row says "Eine Zeile" and not "1 Zeilen", on both
+// screens.
+//
+// Found in the browser, in all five languages at once: every reason group of a
+// single row read "1 Zeilen: 4". The singular is a string of its own rather
+// than a rule in the code, which is the shape this administration already uses
+// at blocktype_list.html:41 and :44, dashboard.html:31, media_list.html:43,
+// snippet_list.html:94 and website_list.html:152 — six places, and this was
+// the seventh doing it differently.
+//
+// Both screens are asserted because the cell used to stand twice, wortgleich,
+// and the two copies are exactly what csv_reason.html exists to prevent.
+//
+// Scoped to the GROUP cell, which is one count beside its noun — the shape all
+// six existing sites have. The file-header sentences carry two counts at once
+// ("%d Spalten, %d Zeilen"), and a singular for those needs four spellings of
+// one sentence; that is a plural mechanism, which this project has deliberately
+// not built. Noted in deferred-items.md rather than half-done here.
+func TestCSVOneRowIsSingularOnBothScreens(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	// One row with a status the vocabulary does not hold: one group, one row.
+	token := stage(t, h, admin, 0, "Titel,Zustand\neins,vielleicht\n")
+
+	dry, _ := serveAs(t, h, sm, admin, h.HandleCSVDryRun, csvPost(token, "probe", csvTargets("title", "status")))
+	if dry.Code != http.StatusOK {
+		t.Fatalf("dry run status = %d; want 200", dry.Code)
+	}
+	if body := groupCell(t, dry.Body.String()); strings.Contains(body, "1 Zeilen") {
+		t.Errorf(`the dry run's group cell says "1 Zeilen" for one row: %q`, body)
+	} else if !strings.Contains(body, "Eine Zeile") {
+		t.Errorf(`the dry run's group cell does not say "Eine Zeile": %q`, body)
+	}
+
+	rep, _ := serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(token, "start", csvTargets("title", "status")))
+	if rep.Code != http.StatusOK {
+		t.Fatalf("report status = %d; want 200", rep.Code)
+	}
+	if body := groupCell(t, rep.Body.String()); strings.Contains(body, "1 Zeilen") {
+		t.Errorf(`the report's group cell says "1 Zeilen" for one row: %q`, body)
+	} else if !strings.Contains(body, "Eine Zeile") {
+		t.Errorf(`the report's group cell does not say "Eine Zeile": %q`, body)
+	}
+}
+
+// groupCell is the row-numbers cell of the first reason group, which is what
+// the singular rule is about. Scoping the assertion to it keeps the test off
+// the file-header sentence, which counts something else.
+func groupCell(t *testing.T, body string) string {
+	t.Helper()
+	m := regexp.MustCompile(`(?s)<td class="csv-rows">(.*?)</td>`).FindStringSubmatch(body)
+	if m == nil {
+		t.Fatal("no reason group on the screen at all")
+	}
+	return strings.Join(strings.Fields(m[1]), " ")
+}
+
 func TestCSVHeaderOnlySaysSoInsteadOfAnEmptyTable(t *testing.T) {
 	h, sm, database, _ := newTestAdmin(t)
 	admin := seedAdmin(t, database, "eins@test")
