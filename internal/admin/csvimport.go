@@ -356,13 +356,23 @@ func (h *Handler) staged(w http.ResponseWriter, r *http.Request) (*csvimport.Upl
 		http.NotFound(w, r)
 		return nil, false, nil
 	case errors.Is(err, csvimport.ErrExpired):
-		data := CSVExpiredData{LayoutData: web.NewLayoutData(r, h.sm, "Der Upload ist abgelaufen")}
-		data.ActiveNav = "websites"
-		return nil, false, web.RenderAdmin(w, h.templates, r, "csv_expired", data)
+		return nil, false, h.csvExpired(w, r)
 	case err != nil:
 		return nil, false, err
 	}
 	return upload, true, nil
+}
+
+// csvExpired is the screen for a token that answers to no staged row.
+//
+// Two callers and one answer. The sweep took the upload after a day, or another
+// request claimed it a moment ago and is importing it right now. Neither is
+// something the operator did wrong, so neither is a 404, and both mean the same
+// thing to them: this file is not here to be read in, start again.
+func (h *Handler) csvExpired(w http.ResponseWriter, r *http.Request) error {
+	data := CSVExpiredData{LayoutData: web.NewLayoutData(r, h.sm, "Der Upload ist abgelaufen")}
+	data.ActiveNav = "websites"
+	return web.RenderAdmin(w, h.templates, r, "csv_expired", data)
 }
 
 // csvTarget re-reads the website this import points at and its field
@@ -841,6 +851,21 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	// BEFORE anything is written, and before the website is created: the row
+	// is claimed, and only the request that gets it imports. Two overlapping
+	// commits on one token both passed staged(), both reached the loop and on
+	// the "new website" path both called CreateWebsite — two websites, each
+	// carrying the whole file, from one double-click. The loser lands on the
+	// expiry screen, which is the honest answer: somebody else is already
+	// reading this file in. Store.Claim carries the trade this makes.
+	mine, err := h.csvImports.Claim(r.Context(), upload.ID)
+	if err != nil {
+		return err
+	}
+	if !mine {
+		return h.csvExpired(w, r)
+	}
+
 	websiteID, websiteName := upload.WebsiteID, upload.WebsiteName
 	if ws != nil {
 		websiteName = ws.Name
@@ -869,16 +894,10 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	// AFTER the loop and BEFORE the render, and both halves of that are
-	// deliberate. After the render is too late: a browser refresh re-sends the
-	// POST, finds the token still good and imports the whole file a second time
-	// (D-33). Before the loop is too early: a process that dies mid-write would
-	// take the staged bytes with it, where leaving the row standing lets the
-	// operator retry with the dry run telling them what already exists.
-	if err := h.csvImports.Delete(r.Context(), upload.ID); err != nil {
-		return err
-	}
-
+	// Nothing to clear up here: the row was taken above, before the first
+	// write. A refresh of this POST therefore finds no token and lands on the
+	// expiry screen (D-33), the same as it did when the delete stood here —
+	// and now a second request that arrives DURING the loop lands there too.
 	report := csvimport.Summarize(verdicts)
 	report.Truncated = truncated
 

@@ -167,14 +167,44 @@ func (s *Store) Get(ctx context.Context, token string, userID int64) (*Upload, e
 	return &u, nil
 }
 
-// Delete removes one staged upload.
+// Claim takes the staged row and says whether THIS caller got it.
 //
-// The write screen calls this once the rows have been written and before the
-// report is rendered, so a refresh on the report finds no token and lands on
-// the expiry screen instead of importing the same file a second time. Deleting
-// afterwards rather than beforehand is deliberate: a process that dies
-// mid-write leaves the row intact and the operator can retry, with the dry run
-// telling them what already exists.
+// The write screen calls this BEFORE it writes anything, and only the caller
+// that gets a true goes on to import. The write pool admits a single connection
+// (db.go:28, _txlock=immediate), so of two overlapping commits on one token
+// exactly one DELETE affects a row; the loser sees false and is answered with
+// the expiry screen, which is the honest answer — somebody else is already
+// reading this file in.
+//
+// Claiming before the loop rather than deleting after it is a trade, and this
+// is the side it is made on. Deleting afterwards closed a REFRESH — the row is
+// gone by the time the report renders — and nothing else: two requests that
+// overlap both pass the staged() lookup, both reach the loop, and on the "new
+// website" path both call CreateWebsite. Two websites, each carrying the whole
+// file, reachable by a double-click on a form that htmx never processes, so
+// hx-disabled-elt does not fire. What is given up is "a process that dies
+// mid-write leaves the row intact and the operator can retry": worth giving up,
+// because a crash mid-write leaves half the pages written either way and
+// re-uploading the file costs one file picker.
+//
+// upload.Data is already in memory when this is called, so the run needs
+// nothing from the row after the claim.
+func (s *Store) Claim(ctx context.Context, id int64) (bool, error) {
+	res, err := s.DB.Write.ExecContext(ctx,
+		`DELETE FROM csv_imports WHERE id = $1`, id)
+	if err != nil {
+		return false, fmt.Errorf("claim staged csv upload: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
+// Delete removes one staged upload without asking who got it.
+//
+// For the paths that are not the write: the wizard ending because its target
+// website was deleted under it. The write screen calls Claim instead, because
+// there the answer to "did I get it" is what decides whether anything is
+// written at all.
 func (s *Store) Delete(ctx context.Context, id int64) error {
 	if _, err := s.DB.Write.ExecContext(ctx,
 		`DELETE FROM csv_imports WHERE id = $1`, id); err != nil {
