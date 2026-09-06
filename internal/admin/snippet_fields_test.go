@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 )
 
@@ -220,5 +222,315 @@ func TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm(t *testing.T) {
 	}
 	if strings.Contains(body, "Telefonnummer") {
 		t.Error("ein Textbausteinfeld steht auf dem Seitenbildschirm — der gefährliche Schnitt dieser Phase")
+	}
+}
+
+// Die Wertehälfte: was die Redaktion in die Felder eines Textbausteins tippt.
+//
+// Die vier Fälle hier fahren über die echten Vorlagen von der Platte und über
+// den echten Speicherweg, weil beide Enden zusammen die Zusage tragen: ein
+// Formular, das seine Namen selbst prägt, und ein Parser, der andere erwartet,
+// sind einzeln grün und zusammen still kaputt. Deshalb baut jeder Fall seine
+// Formularschlüssel mit field.Def.FieldName — derselben Funktion, aus der die
+// Vorlage sie bezieht — und nie von Hand.
+//
+// Wie ein übersehener Ort aussähe, wenn nur die zählenden Tore liefen: jedes
+// grep -c der Pläne 08-01 bis 08-04 meldet grün, das Textbausteinfeld
+// erscheint zusätzlich im Seiteneditor unter einem Namen, den niemand gewählt
+// hat, jemand füllt es aus, und der Wert landet in der fields-Spalte der Seite,
+// wo kein Theme ihn liest. Nichts protokolliert, nichts schlägt fehl, und die
+// erste Meldung ist ein Bildschirmfoto. Der vierte Fall unten ist genau dagegen
+// geschrieben.
+
+// textbausteinSpeichern schickt das Wertformular eines Textbausteins ab.
+func textbausteinSpeichern(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, values url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	return serve(t, h, sm, h.HandleSnippetList, postForm(
+		"/admin/websites/"+strconv.FormatInt(websiteID, 10)+"/snippets",
+		values, map[string]string{"id": strconv.FormatInt(websiteID, 10)}))
+}
+
+// textbausteinBildschirm ruft GET …/snippets mit der übergebenen Abfrage auf.
+func textbausteinBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	target := "/admin/websites/" + strconv.FormatInt(websiteID, 10) + "/snippets"
+	if query != "" {
+		target += "?" + query
+	}
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req.SetPathValue("id", strconv.FormatInt(websiteID, 10))
+	return serve(t, h, sm, h.HandleSnippetList, req)
+}
+
+// textbausteinFeld legt eine Felddefinition an einem Textbaustein an und gibt
+// sie zurück, damit der Aufrufer seinen Formularschlüssel aus FieldName holen
+// kann statt ihn zu tippen.
+func textbausteinFeld(t *testing.T, database *db.DB, websiteID, snippetID int64, def field.Def) field.Def {
+	t.Helper()
+	def.WebsiteID = websiteID
+	def.SnippetID = snippetID
+	angelegt, err := field.NewStore(database).Create(context.Background(), def)
+	if err != nil {
+		t.Fatalf("Textbausteinfeld %q anlegen: %v", def.Key, err)
+	}
+	return *angelegt
+}
+
+// bausteinMitFeldern legt einen Textbaustein an und gibt ihn zurück.
+func bausteinMitFeldern(t *testing.T, database *db.DB, websiteID int64, key, name string) *snippet.Snippet {
+	t.Helper()
+	sn, err := snippet.NewStore(database).Create(context.Background(), websiteID, key, name,
+		"Wir sind **da**.", "<p>Wir sind <strong>da</strong>.</p>")
+	if err != nil {
+		t.Fatalf("snippet.Create: %v", err)
+	}
+	return sn
+}
+
+// gespeicherteFelder liest die fields-Spalte eines Textbausteins zurück.
+func gespeicherteFelder(t *testing.T, database *db.DB, id int64) field.Data {
+	t.Helper()
+	sn, err := snippet.NewStore(database).Get(context.Background(), id)
+	if err != nil || sn == nil {
+		t.Fatalf("den Textbaustein zurücklesen: %v", err)
+	}
+	return field.Decode(sn.Fields)
+}
+
+// Der Rundlauf: getippt, gespeichert, wieder geöffnet, und dieselben Werte
+// stehen da — im Formular und in der Spalte.
+func TestSnippetFeldRundlauf(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+
+	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
+	kurz := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+		Key: "telefon", Label: "Telefon", Kind: field.KindText})
+	lang := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+		Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
+
+	rec := textbausteinSpeichern(t, h, sm, ws.ID, url.Values{
+		"id":               {strconv.FormatInt(sn.ID, 10)},
+		"key":              {"kontakt"},
+		"name":             {"Kontaktblock"},
+		"content_markdown": {"Wir sind **da**."},
+		kurz.FieldName():   {"07721 123456"},
+		lang.FieldName():   {"Nur vormittags erreichbar."},
+	})
+	if rec.Code != http.StatusSeeOther && rec.Code != http.StatusFound {
+		t.Fatalf("Status %d, wollte eine Umleitung nach dem Speichern", rec.Code)
+	}
+
+	daten := gespeicherteFelder(t, database, sn.ID)
+	if got := daten.Values["telefon"]; got != "07721 123456" {
+		t.Errorf("telefon = %q, wollte %q", got, "07721 123456")
+	}
+	if got := daten.Values["hinweis"]; got != "Nur vormittags erreichbar." {
+		t.Errorf("hinweis = %q, wollte %q", got, "Nur vormittags erreichbar.")
+	}
+
+	// Und dasselbe im Formular, unter denselben Namen.
+	body := textbausteinBildschirm(t, h, sm, ws.ID, "edit="+strconv.FormatInt(sn.ID, 10)).Body.String()
+	for _, wollte := range []string{
+		`name="` + kurz.FieldName() + `"`,
+		`name="` + lang.FieldName() + `"`,
+		"07721 123456",
+		"Nur vormittags erreichbar.",
+	} {
+		if !strings.Contains(body, wollte) {
+			t.Errorf("das wiedergeöffnete Formular trägt %q nicht", wollte)
+		}
+	}
+
+	// Der Rumpf und die Kennung haben den Durchgang überstanden.
+	sn2, err := snippet.NewStore(database).Get(context.Background(), sn.ID)
+	if err != nil || sn2 == nil {
+		t.Fatalf("zurücklesen: %v", err)
+	}
+	if sn2.Key != "kontakt" || sn2.ContentMarkdown != "Wir sind **da**." {
+		t.Errorf("Kennung oder Rumpf haben sich geändert: %q / %q", sn2.Key, sn2.ContentMarkdown)
+	}
+}
+
+// Ein abgewiesenes Speichern schreibt nichts — auch nicht halb.
+//
+// Der Nachweis steht im Speicher und nicht nur im Rumpf der Antwort: ein
+// Handler, der erst schreibt und dann ablehnt, käme sonst durch.
+func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+
+	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
+	pflicht := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+		Key: "telefon", Label: "Telefon", Kind: field.KindText, Required: true})
+	frei := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+		Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
+
+	gemeinsam := func(telefon, hinweis string) url.Values {
+		return url.Values{
+			"id":                {strconv.FormatInt(sn.ID, 10)},
+			"key":               {"kontakt"},
+			"name":              {"Kontaktblock"},
+			"content_markdown":  {"Wir sind **da**."},
+			pflicht.FieldName(): {telefon},
+			frei.FieldName():    {hinweis},
+		}
+	}
+
+	textbausteinSpeichern(t, h, sm, ws.ID, gemeinsam("07721 123456", "Erster Hinweis"))
+	if got := gespeicherteFelder(t, database, sn.ID).Values["telefon"]; got != "07721 123456" {
+		t.Fatalf("der erste Durchgang hat nichts abgelegt: telefon = %q", got)
+	}
+
+	rec := textbausteinSpeichern(t, h, sm, ws.ID, gemeinsam("", "Zweiter Hinweis"))
+	if rec.Code == http.StatusSeeOther || rec.Code == http.StatusFound {
+		t.Fatalf("Status %d — das leere Pflichtfeld wurde angenommen", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Zweiter Hinweis") {
+		t.Error("das abgewiesene Formular hat den getippten Wert des anderen Feldes verloren")
+	}
+	if !strings.Contains(body, "muss ausgefüllt werden") {
+		t.Error("neben dem Feld steht kein Grund")
+	}
+
+	daten := gespeicherteFelder(t, database, sn.ID)
+	if got := daten.Values["telefon"]; got != "07721 123456" {
+		t.Errorf("telefon = %q — die Ablehnung hat den vorherigen Wert angetastet", got)
+	}
+	if got := daten.Values["hinweis"]; got != "Erster Hinweis" {
+		t.Errorf("hinweis = %q — die Ablehnung hat halb geschrieben", got)
+	}
+}
+
+// TestSnippetFeldSanierung: derselbe Schutz auf beiden Trägern, und der Beweis
+// ist, dass die beiden übereinstimmen.
+//
+// Was einen langtext-Feldwert schützt, ist **nicht** goldmark und nicht
+// bluemonday. field.Resolve hat für KindLong keinen eigenen Arm; der Wert fällt
+// in den default:-Arm und kommt als schlichte Go-Zeichenkette heraus, und
+// html/template maskiert sie kontextabhängig dort, wo das Theme sie druckt.
+// Genau dasselbe geschieht mit demselben Wert auf einer Seite — deshalb ist
+// „die beiden stimmen überein" eine Aussage über einen geteilten Mechanismus
+// und kein Zufall.
+//
+// Die Kette goldmark → bluemonday gehört dem **Rumpf** des Textbausteins. Das
+// ist ein anderer Wert auf einem anderen Weg, und er wird hier nur genannt, um
+// die Linie zu ziehen.
+//
+// Was dieser Fall nicht ist: er prüft nicht den Maskierer von html/template
+// nach, der eigene Prüfungen hat, und er prüft goldmark nicht nach. Er weist
+// nach, dass der Feldweg des Textbausteins dieselbe Maskierung erreicht wie der
+// Feldweg der Seite — „eine Kette, keine zweite" ist eine Eigenschaft des
+// Aufrufgraphen, und so wird sie von aussen behauptet.
+func TestSnippetFeldSanierung(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	const boshaft = `<script>alert(1)</script>`
+
+	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
+	amBaustein := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+		Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
+
+	// Dieselbe Kennung, dieselbe Feldart, der andere Träger.
+	anDerSeite, err := field.NewStore(database).Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
+	if err != nil {
+		t.Fatalf("Seitenfeld anlegen: %v", err)
+	}
+
+	textbausteinSpeichern(t, h, sm, ws.ID, url.Values{
+		"id":                   {strconv.FormatInt(sn.ID, 10)},
+		"key":                  {"kontakt"},
+		"name":                 {"Kontaktblock"},
+		"content_markdown":     {"Wir sind **da**."},
+		amBaustein.FieldName(): {boshaft},
+	})
+	serve(t, h, sm, h.HandlePageCreate, postForm("/admin/websites/1/pages/new", url.Values{
+		"title":                {"Startseite"},
+		"slug":                 {"start"},
+		"status":               {"published"},
+		"kind":                 {"page"},
+		anDerSeite.FieldName(): {boshaft},
+	}, map[string]string{"id": strconv.FormatInt(ws.ID, 10)}))
+
+	p, err := page.NewStore(database).GetPageBySlug(ctx, ws.ID, "start")
+	if err != nil || p == nil {
+		t.Fatalf("die Seite wurde nicht angelegt: %v", err)
+	}
+
+	// Beide Träger durch denselben Auflöser, mit ihren eigenen Definitionen.
+	amBausteinAufgeloest := field.Resolve([]field.Def{amBaustein},
+		gespeicherteFelder(t, database, sn.ID), field.Links{})
+	anDerSeiteAufgeloest := field.Resolve([]field.Def{*anDerSeite},
+		field.Decode(p.Fields), field.Links{})
+
+	if amBausteinAufgeloest["hinweis"] != anDerSeiteAufgeloest["hinweis"] {
+		t.Fatalf("Textbaustein und Seite lösen denselben Wert verschieden auf:\n  Baustein: %#v\n  Seite:    %#v",
+			amBausteinAufgeloest["hinweis"], anDerSeiteAufgeloest["hinweis"])
+	}
+
+	// Und so, wie ein Theme sie druckt: dieselbe Vorlage über beide.
+	wieEinTheme := template.Must(template.New("theme").Parse(`<p class="hinweis">{{.}}</p>`))
+	druck := func(wert any) string {
+		var aus strings.Builder
+		if err := wieEinTheme.Execute(&aus, wert); err != nil {
+			t.Fatalf("drucken: %v", err)
+		}
+		return aus.String()
+	}
+	ausBaustein := druck(amBausteinAufgeloest["hinweis"])
+	ausSeite := druck(anDerSeiteAufgeloest["hinweis"])
+
+	for name, aus := range map[string]string{"Textbaustein": ausBaustein, "Seite": ausSeite} {
+		if strings.Contains(aus, "<script") {
+			t.Errorf("%s: eine lebende Marke hat überlebt: %s", name, aus)
+		}
+	}
+	if ausBaustein != ausSeite {
+		t.Errorf("die beiden Träger drucken denselben Wert verschieden:\n  Baustein: %s\n  Seite:    %s",
+			ausBaustein, ausSeite)
+	}
+
+	// Der Rumpf behält seine eigene, andere Kette — unberührt von dieser Phase.
+	sn2, err := snippet.NewStore(database).Get(ctx, sn.ID)
+	if err != nil || sn2 == nil {
+		t.Fatalf("zurücklesen: %v", err)
+	}
+	if !strings.Contains(sn2.ContentHTML, "<strong>da</strong>") {
+		t.Errorf("der Markdown-Rumpf ist nicht mehr das, was die Kette aus ihm gemacht hat: %q", sn2.ContentHTML)
+	}
+}
+
+// Das Seitenformular bleibt sauber, im Browser gesehen.
+//
+// Die Speicherhälfte dieser Zusage hält 08-01s TestBausteinNamensraum. Hier
+// steht die andere: was eine Redaktorin *sieht*, ist eine gezeichnete Vorlage
+// und kein Abfrageergebnis, und darum wird sie gezeichnet.
+func TestSnippetFeldStehtNichtImSeitenformular(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+
+	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
+	amBaustein := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+		Key: "telefonnummer", Label: "Telefonnummer", Kind: field.KindText})
+
+	textbausteinSpeichern(t, h, sm, ws.ID, url.Values{
+		"id":                   {strconv.FormatInt(sn.ID, 10)},
+		"key":                  {"kontakt"},
+		"name":                 {"Kontaktblock"},
+		"content_markdown":     {"Wir sind **da**."},
+		amBaustein.FieldName(): {"07721 123456"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/pages/new", nil)
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	body := serve(t, h, sm, h.HandlePageCreate, req).Body.String()
+
+	if strings.Contains(body, "Telefonnummer") {
+		t.Error("die Beschriftung eines Textbausteinfeldes steht im Seiteneditor")
+	}
+	// Der einzige von Hand geschriebene Feldpräfix dieser Datei, und er steht
+	// in einer Behauptung über eine Abwesenheit.
+	if strings.Contains(body, `name="feld_telefonnummer"`) {
+		t.Error("der Formularname eines Textbausteinfeldes steht im Seiteneditor")
 	}
 }
