@@ -17,6 +17,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
@@ -42,8 +43,15 @@ func bausteinFS() fstest.MapFS {
 				`</article>{{end}}`)},
 		"home.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<main>{{.Page.Title}}</main>{{end}}`)},
+		// Die 404- und die Wartungsansicht drucken dieselbe eine Zeile: es sind
+		// die Seiten, auf denen ein Besucher am ehesten den Kontakt sucht, und
+		// gerade dort war die Fläche leer.
 		"404.html": &fstest.MapFile{Data: []byte(
-			`{{define "content"}}<p class="notfound">nichts gefunden</p>{{end}}`)},
+			`{{define "content"}}<p class="notfound">nichts gefunden</p>` +
+				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>{{end}}`)},
+		"maintenance.html": &fstest.MapFile{Data: []byte(
+			`{{define "content"}}<p class="wartung">gleich zurück</p>` +
+				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>{{end}}`)},
 		// Drei Ansichten von drei verschiedenen Zuschnitten, alle mit derselben
 		// einen Zeile: das Schlagwortarchiv und das Beitragsarchiv teilen sich
 		// list.html, die Suche und der Katalog haben je eine eigene.
@@ -321,4 +329,75 @@ func TestBausteinfelderAufMehrerenRouten(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Die Gegenprobe zum Zählgatter: eine Route, die fillSnippets gar nicht ruft.
+//
+// Das grep-Gatter des Plans weist nach, dass ausserhalb von fillSnippets keine
+// Zuweisung überlebt hat. Es kann die entgegengesetzte Lücke nicht sehen — eine
+// Route, die weder das eine noch das andere tut, kommt hindurch, ohne dass
+// irgendwo etwas fehlt. Drei taten es: renderNotFound, serveShareError und
+// HandleMaintenance. Alle drei zeichnen die echte Vorlage des Themes, und alle
+// drei sind Seiten, auf denen ein Besucher den Kontakt sucht — die eine
+// gefundene Adresse ist falsch, die Website ist gerade weg, der Vorschaulink
+// ist abgelaufen. Der Fussteil war dort leer, ohne Fehler und ohne Eintrag im
+// Protokoll.
+//
+// Die .Site.Snippets-Hälfte war schon vorher offen; die beiden neuen Mitglieder
+// erbten die Lücke am Tag ihrer Einführung.
+func TestBausteinfelderAufDenRoutenOhneSeite(t *testing.T) {
+	h, database, ws := bausteinVorrichtung(t)
+	_ = database
+
+	t.Run("404", func(t *testing.T) {
+		rec, err := request(func(w http.ResponseWriter, r *http.Request) error {
+			return h.renderNotFound(w, r, ws)
+		}, ws, "GET", "/gibtesnicht")
+		if err != nil {
+			t.Fatalf("renderNotFound: %v", err)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "nichts gefunden") {
+			t.Fatalf("die 404-Ansicht des Themes wurde nicht gezeichnet:\n%s", body)
+		}
+		if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
+			t.Errorf("die 404-Seite trägt die Textbausteinfläche nicht:\n%s", body)
+		}
+	})
+
+	t.Run("abgelaufener Vorschaulink", func(t *testing.T) {
+		rec, err := request(func(w http.ResponseWriter, r *http.Request) error {
+			return h.serveShareError(w, r, ws, sharelink.ErrExpired)
+		}, ws, "GET", "/s/abgelaufen")
+		if err != nil {
+			t.Fatalf("serveShareError: %v", err)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "nichts gefunden") {
+			t.Fatalf("die 404-Ansicht des Themes wurde nicht gezeichnet:\n%s", body)
+		}
+		if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
+			t.Errorf("die Seite zum abgelaufenen Vorschaulink trägt die "+
+				"Textbausteinfläche nicht:\n%s", body)
+		}
+	})
+
+	t.Run("Wartung", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Host = "demo.test"
+		req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+		rec := httptest.NewRecorder()
+		h.HandleMaintenance(rec, req)
+
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("Status = %d, erwartet 503", rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "gleich zurück") {
+			t.Fatalf("die Wartungsansicht des Themes wurde nicht gezeichnet:\n%s", body)
+		}
+		if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
+			t.Errorf("die Wartungsseite trägt die Textbausteinfläche nicht:\n%s", body)
+		}
+	})
 }
