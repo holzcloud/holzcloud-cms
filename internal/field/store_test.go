@@ -1265,3 +1265,66 @@ func TestBausteinGruppenNamensraum(t *testing.T) {
 			"erwartet ErrDuplicateKey", err)
 	}
 }
+
+// Create nimmt seinen Träger nicht mehr auf Treu und Glauben.
+//
+// REFERENCES snippets(id) beweist, dass es den Textbaustein gibt; nichts
+// bewies, dass er zu d.WebsiteID gehört, und
+// idx_page_field_defs_kennung_textbaustein ist auf snippet_id allein gezogen.
+// Die Datenbank hätte eine Definition über die Websitegrenze hinweg
+// klaglos abgelegt. Heute wacht der Verwaltungsbildschirm mit snippetOf davor,
+// und der Archivweg reicht eine eben angelegte Nummer herein — beide richtig,
+// beide ausserhalb des Speichers. Der Kommentar über importSnippetFields
+// versprach dagegen eine „zweite Schicht" im Speicher, und die gab es nicht.
+// Wer dem Kommentar glaubt, schreibt das Loch.
+//
+// Dieselbe Lücke trägt block_type_id seit 00038; beide werden hier geschlossen,
+// weil es dieselbe Zeile ist.
+func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+
+	res, err := store.DB.Write.Exec(
+		`INSERT INTO websites (name, description) VALUES ('Fremde Site', '')`)
+	if err != nil {
+		t.Fatalf("zweite Website: %v", err)
+	}
+	fremd, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("Website-Nummer: %v", err)
+	}
+
+	fremderBaustein := neuerTextbaustein(t, store, fremd, "kontakt", "Kontakt")
+	fremdeArt := neueBausteinart(t, store, fremd, "zitat", "Zitat")
+
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: fremderBaustein}); err == nil {
+		t.Error("ein Feld an einem Textbaustein einer fremden Website wurde angelegt")
+	} else if !errors.Is(err, ErrNoSnippet) {
+		t.Errorf("Fehler = %v, erwartet ErrNoSnippet", err)
+	}
+
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "quelle", Label: "Quelle", Kind: KindText,
+		BlockTypeID: fremdeArt}); err == nil {
+		t.Error("ein Feld an einer Bausteinart einer fremden Website wurde angelegt")
+	} else if !errors.Is(err, ErrNoBlockType) {
+		t.Errorf("Fehler = %v, erwartet ErrNoBlockType", err)
+	}
+
+	// Und die eigenen bleiben unangetastet: die Wache darf nicht zur Sperre
+	// werden.
+	eigenerBaustein := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+	eigeneArt := neueBausteinart(t, store, site, "zitat", "Zitat")
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: eigenerBaustein}); err != nil {
+		t.Errorf("eigener Textbaustein: %v", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "quelle", Label: "Quelle", Kind: KindText,
+		BlockTypeID: eigeneArt}); err != nil {
+		t.Errorf("eigene Bausteinart: %v", err)
+	}
+}
