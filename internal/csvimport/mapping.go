@@ -188,6 +188,32 @@ func (t Target) String() string {
 	return t.Kind
 }
 
+// TakesDefault says whether a target may carry a default (IMP-08).
+//
+// **This is the one rule, and the mapping screen draws its boxes from exactly
+// this list.** The two used to be written separately: cellFor fell back to a
+// default for every target while csv_mapping.html drew a box for the status and
+// for the fields only. So a body default worked, was proved by a test
+// (row_test.go's TestBlankCellSaysNothingOnTheUpdateArm, a third of the phase's
+// most important regression test) and could be reached by nobody — a capability
+// with no control is a door only a test can open, and the test then reports on a
+// screen that does not exist. Written once, they cannot drift; written twice,
+// they did.
+//
+// Every target but TargetNone, and the title and the address are deliberately
+// in. A default title fills a row whose title cell is empty, which is what
+// TestRowWithoutATitleIsSkipped asserts and IMP-08 asks for. It is also a
+// loaded foot: RowSlug derives the address from the title, so every row that
+// falls back to the same default wants the same address — the first creates and
+// the rest update or are skipped. That is stated on the screen beside the two
+// boxes rather than prevented here, because the dry run now predicts it
+// correctly and an operator who is shown the consequence before committing is
+// being told the truth, while a box the phase's own test says should work and
+// the screen refuses to draw is not.
+func TakesDefault(t Target) bool {
+	return t.Kind != TargetNone && t.Kind != ""
+}
+
 // Column is one column of the uploaded file.
 //
 // It is addressed by its position and never by its heading, and that is the

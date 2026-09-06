@@ -131,10 +131,35 @@
         <p class="text-muted">
             {{t "Was eingetragen wird, wenn die Datei für dieses Ziel keine Spalte hat oder die Zelle leer bleibt. Leer lassen heißt: nichts eintragen."}}
         </p>
+        {{/* Ein Feld je Ziel, das eine Vorgabe tragen kann — csvimport.TakesDefault
+             führt dieselbe Liste, und TestCSVMappingShowsEveryDefaultItAccepts
+             hält die beiden zusammen. Vorher stand hier nur Zustand samt
+             Feldern, während cellFor jede Vorgabe angenommen hat. */}}
+        <div class="form-group">
+            <label class="form-label" for="default_title">{{t "Titel"}}</label>
+            <input type="text" id="default_title" name="default_title" class="form-input"
+                   value="{{index .Defaults "title"}}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="default_slug">{{t "Adresse"}}</label>
+            <input type="text" id="default_slug" name="default_slug" class="form-input"
+                   value="{{index .Defaults "slug"}}">
+            <span class="form-hint">{{t "Eine Vorgabe für Titel oder Adresse gibt jeder Zeile ohne eigene Angabe dieselbe Adresse: die erste legt an, die weiteren aktualisieren oder werden übergangen."}}</span>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="default_body">{{t "Text"}}</label>
+            <input type="text" id="default_body" name="default_body" class="form-input"
+                   value="{{index .Defaults "body"}}">
+        </div>
         <div class="form-group">
             <label class="form-label" for="default_status">{{t "Zustand"}}</label>
             <input type="text" id="default_status" name="default_status" class="form-input"
                    value="{{index .Defaults "status"}}" placeholder="{{t "entwurf"}}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="default_terms">{{t "Schlagwörter"}}</label>
+            <input type="text" id="default_terms" name="default_terms" class="form-input"
+                   value="{{index .Defaults "terms"}}" placeholder="rot|blau">
         </div>
         {{range $f := .Fields}}
         <div class="form-group">
