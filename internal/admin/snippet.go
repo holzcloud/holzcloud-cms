@@ -1,12 +1,15 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -22,6 +25,27 @@ type SnippetListData struct {
 	// a save is rejected.
 	Values SnippetValues
 	IsEdit bool
+
+	// FieldViews sind die eigenen Felder dieses Textbausteins, als Modell des
+	// Formulars. Gebaut wie die der Seite, von derselben Funktion, aus
+	// demselben Grund: welche Eingabe eine Feldart braucht, ist eine
+	// Entscheidung mit acht Zweigen, und acht Zweige in einer Vorlage sind der
+	// Ort, an dem ein fehlendes name-Attribut sich versteckt.
+	FieldViews []FieldBlock
+	// Media ist der Bildvorrat eines Bildfeldes.
+	Media []media.Media
+	// RefPages ist die Auswahl eines Verweisfeldes: die Seiten dieser Website.
+	RefPages []PageChoice
+	// RefTerms ist die Auswahl eines Bezeichnungsfeldes: die Bezeichnungen
+	// dieser Website.
+	RefTerms []TermChoice
+}
+
+// pool gathers the choices this form already loaded, exactly as the page form
+// does — one value rather than three parameters, so a fourth kind of chooser
+// does not mean touching every call site again.
+func (d SnippetListData) pool() pool {
+	return pool{media: d.Media, pages: d.RefPages, terms: d.RefTerms}
 }
 
 // SnippetRow pairs a snippet with how often it is used.
@@ -38,6 +62,12 @@ type SnippetValues struct {
 	Key      string
 	Name     string
 	Markdown string
+
+	// Fields sind die Antworten auf die eigenen Felder dieses Textbausteins,
+	// so getippt wie abgeschickt — dieselbe Rolle, die PageValues.Fields auf
+	// einer Seite spielt, damit ein abgewiesenes Formular zurückgibt, was
+	// dastand.
+	Fields field.Data
 }
 
 func snippetValuesFromRequest(r *http.Request) SnippetValues {
@@ -47,6 +77,18 @@ func snippetValuesFromRequest(r *http.Request) SnippetValues {
 		Key:      strings.TrimSpace(strings.ToLower(r.FormValue("key"))),
 		Name:     strings.TrimSpace(r.FormValue("name")),
 		Markdown: r.FormValue("content_markdown"),
+		// Der Parser des Seiteneditors, gerufen und nicht abgeschrieben. Sein
+		// Doc-Kommentar erklärt, warum ein leerer Wert und ein fehlender
+		// Schlüssel dasselbe JSON ergeben; genau diese Eigenschaft macht
+		// snippets.fields DEFAULT '' unbedenklich.
+		//
+		// Der Vorbehalt, den derselbe Kommentar erhebt, trifft diesen Handler
+		// nicht: sein Speicherweg ist ein vollständiges Ersetzen, ein UPDATE
+		// über die ganze Spalte durch SetFields. Ein Aufrufer, der je nur
+		// einen Teil der Felder fortschreibt, müsste die Anwesenheit auf
+		// seiner eigenen Ebene tragen — der nächste weiss das vielleicht
+		// nicht.
+		Fields: fieldsFromRequest(r),
 	}
 }
 
@@ -96,13 +138,12 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 		return h.handleSnippetSave(w, r, websiteID, ws.Name)
 	}
 
-	data, err := h.snippetListData(r, websiteID, ws.Name, SnippetValues{})
-	if err != nil {
-		return err
-	}
-
 	// Opening one for editing prefills the same form rather than showing a
-	// second screen.
+	// second screen. Gelesen wird vor snippetListData und nicht danach, weil
+	// die Feldeingaben aus genau diesen Werten gebaut werden: ein Formular, das
+	// die Werte erst hinterher bekommt, zeigt leere Kästchen.
+	values := SnippetValues{}
+	isEdit := false
 	if raw := r.URL.Query().Get("edit"); raw != "" {
 		id, _ := strconv.ParseInt(raw, 10, 64)
 		sn, err := h.snippets.Get(r.Context(), id)
@@ -110,13 +151,41 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 			return err
 		}
 		if sn != nil && sn.WebsiteID == websiteID {
-			data.Values = SnippetValues{ID: sn.ID, Key: sn.Key, Name: sn.Name, Markdown: sn.ContentMarkdown}
-			data.IsEdit = true
+			values = SnippetValues{
+				ID: sn.ID, Key: sn.Key, Name: sn.Name, Markdown: sn.ContentMarkdown,
+				Fields: field.Decode(sn.Fields),
+			}
+			isEdit = true
 		}
 	}
 
+	data, err := h.snippetListData(r, websiteID, ws.Name, values)
+	if err != nil {
+		return err
+	}
+	data.IsEdit = isEdit
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "snippet_list", data)
+}
+
+// snippetFieldDefs loads the own fields of one snippet, or none.
+//
+// Ein Textbaustein, den es noch nicht gibt, hat keine Felder und keine Nummer,
+// nach der sich fragen liesse — der Bildschirm für einen neuen trägt darum kein
+// Feld, und das ist keine Einschränkung, sondern die Reihenfolge der Sache.
+//
+// Wie bei fieldDefs ist ein Fehler hier keinen gescheiterten Aufruf wert: ohne
+// die Definitionen werden die Felder schlicht nicht angeboten, und alles andere
+// am Bildschirm bleibt bedienbar.
+func (h *Handler) snippetFieldDefs(ctx context.Context, websiteID, snippetID int64) []field.Def {
+	if h.fields == nil || snippetID == 0 {
+		return nil
+	}
+	defs, err := h.fields.OfSnippet(ctx, websiteID, snippetID)
+	if err != nil {
+		return nil
+	}
+	return defs
 }
 
 func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName string, values SnippetValues) (SnippetListData, error) {
@@ -139,6 +208,25 @@ func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName 
 		}
 		data.Snippets = append(data.Snippets, SnippetRow{Snippet: sn, UsedOn: used})
 	}
+
+	// Dieselben drei Vorräte, die der Seiteneditor lädt, mit denselben
+	// Wächtern: ein Bildfeld, ein Verweisfeld und ein Bezeichnungsfeld
+	// brauchen eine Auswahl, und die Auswahl gehört dieser Website.
+	if h.mediaStore != nil {
+		if all, _, err := h.mediaStore.List(r.Context(), websiteID, media.Filter{MimePrefix: "image/"}, 1, 200); err == nil {
+			data.Media = all
+		}
+	}
+	data.RefPages = h.refPages(r.Context(), websiteID)
+	data.RefTerms = h.siteTerms(r.Context(), websiteID)
+
+	// Die Definitionen gehen unverengt hinein. Kein `field.For`: jener Filter
+	// verengt nach „gilt für", was auf einer Seite etwas bedeutet und an einem
+	// Textbaustein von validate ohnehin auf „beides" gestellt wird (Plan
+	// 08-02). Gefiltert würde hier also nichts gewonnen und im Zweifel ein Feld
+	// verloren.
+	defs := h.snippetFieldDefs(r.Context(), websiteID, values.ID)
+	data.FieldViews = fieldViews(defs, values.Fields, data.pool(), nil)
 	return data, nil
 }
 
@@ -148,6 +236,22 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 	}
 
 	values := snippetValuesFromRequest(r)
+
+	// Eine Zeile einer Gruppe hinzuzufügen oder wegzunehmen ist kein Speichern:
+	// der Knopf ist ein gewöhnliches Absenden, der Server baut das Formular neu
+	// auf, und der ganze Bildschirm kommt ohne eine Zeile JavaScript aus.
+	if groupAction(r, &values.Fields) {
+		data, err := h.snippetListData(r, websiteID, websiteName, values)
+		if err != nil {
+			return err
+		}
+		data.IsEdit = values.ID != 0
+		if ws, err := h.domains.GetWebsite(r.Context(), websiteID); err == nil {
+			data.CurrentWebsite = ws
+		}
+		return web.RenderFormError(w, h.templates, r, "snippet_list", data)
+	}
+
 	data, err := h.snippetListData(r, websiteID, websiteName, values)
 	if err != nil {
 		return err
@@ -160,8 +264,34 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 	data.CurrentWebsite = ws
 
 	values.validate(data.Errors)
+
+	// Geprüft wird gegen die Definitionen, die der **Server** geladen hat, nie
+	// gegen das, was das Formular behauptet: ein Wert, der keine Definition
+	// benennt, wird von field.Clean verworfen und nie gespeichert. Nicht
+	// checkFields, denn das legt `field.For` mit einer Seitenart darum, und
+	// ein Textbaustein hat keine.
+	defs := h.snippetFieldDefs(r.Context(), websiteID, values.ID)
+	fieldErrs := field.CheckAll(defs, values.Fields)
+	if len(fieldErrs) > 0 {
+		data.FieldViews = fieldViews(defs, values.Fields, data.pool(), fieldErrs)
+		for _, reason := range fieldErrs {
+			data.Errors.Add("felder", reason)
+		}
+	}
+	// Kein Flash: ein Flash überlebt eine Umleitung und nicht den Inhalt des
+	// Formulars. Das Wertformular eines Textbausteins ist lang, und ein
+	// abgewiesenes Speichern muss zurückgeben, was dastand — mit dem Grund
+	// neben dem Feld, das ihn ausgelöst hat.
 	if data.Errors.Any() {
 		return web.RenderFormError(w, h.templates, r, "snippet_list", data)
+	}
+
+	// Dieselbe Auswahl wie in CheckAll eine Zeile darüber: geprüft und
+	// gesäubert wird gegen dieselben Definitionen, sonst bliebe ein Wert, den
+	// niemand geprüft hat, ungeprüft liegen.
+	storedFields, err := field.Encode(field.Clean(defs, values.Fields))
+	if err != nil {
+		return err
 	}
 
 	// The same pipeline page content goes through, so the stored HTML carries
@@ -171,8 +301,13 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 		return err
 	}
 
+	id := values.ID
 	if values.ID == 0 {
-		_, err = h.snippets.Create(r.Context(), websiteID, values.Key, values.Name, values.Markdown, html)
+		var created *snippet.Snippet
+		created, err = h.snippets.Create(r.Context(), websiteID, values.Key, values.Name, values.Markdown, html)
+		if created != nil {
+			id = created.ID
+		}
 	} else {
 		existing, getErr := h.snippets.Get(r.Context(), values.ID)
 		if getErr != nil {
@@ -189,6 +324,13 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 		return web.RenderFormError(w, h.templates, r, "snippet_list", data)
 	}
 	if err != nil {
+		return err
+	}
+
+	// Erst jetzt, denn ein neuer Textbaustein hat seine Nummer bis hierher
+	// nicht. Die Spalte wird ganz geschrieben und nicht verschmolzen — das ist
+	// die Zusage, auf der der Parser oben ruht.
+	if err := h.snippets.SetFields(r.Context(), id, storedFields); err != nil {
 		return err
 	}
 
