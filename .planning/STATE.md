@@ -135,6 +135,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Datum | Aufgabe | Ergebnis |
 |---|---|---|
 | 2026-08-30 | uebergabe-kundenwebsite-abschliessen | Eine Kundenwebsite in zwei Bundles aufgeteilt, Übergabe und Zeiger in CLAUDE.md entfernt |
+| 2026-09-06 | phase-7-abschluss-vier-befunde | Feldschlüssel wird auf seine Form geprüft (T-07-02), die Bytegrenze erreicht auch ein verstecktes Feld (W-1), `JoinValues` verteidigt sein Trennzeichen (W-3); Kriterium 1 sichtbar gesenkt statt die Datenstruktur umgebaut |
 | 2026-09-02 | i18n-kataloge-sauber | en/es/fr/it auf 0 offen, 0 verwaist; 24 Sätze aus Laden und Bestellungen übersetzt, zwei unsichtbare Quelltext-Literale wieder extrahierbar, de-CH nachgezogen |
 | 2026-09-02 | dependabot-13-14 | modernc.org/sqlite 1.56.0→1.57.0 und golang.org/x/net 0.57.0→0.58.0 gemergt; go.mod-Konflikt aufgelöst, 44 Wanderungen gegen echte DB-Datei geprüft (wal/5000/1/1, integrity ok), Punkt 7 der Arbeitsliste abgeschrieben |
 | 2026-09-03 | theme-holzcloud | Achte eingebaute Vorlage „Holzcloud": das Design von holzcloud.ch als Theme, 15 Dateien plus vier woff2 (Manrope, JetBrains Mono, SIL OFL), Design-System byte-gleich übernommen, `template check` ohne Befund |
