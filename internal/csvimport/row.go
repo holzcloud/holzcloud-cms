@@ -137,6 +137,13 @@ func termNames(cell string) []string {
 //
 // The cap is term.MaxPerPage, which is an editorial limit and not a database
 // one, and it is reported rather than silently applied.
+//
+// **This is the only place the cap is applied, and TermNames applies it by
+// calling this function.** The two once carried the cap separately — this one
+// cut at term.MaxPerPage, the pre-pass did not cut at all — and the gap between
+// them was labels no row could point at, created inside one transaction on the
+// single write connection. Written twice they drift again; written once they
+// cannot.
 func RowTerms(row csv.Row, m Mapping) ([]string, bool) {
 	names := termNames(cellFor(row, m, Target{Kind: TargetTerms}))
 	if len(names) > term.MaxPerPage {
@@ -145,8 +152,8 @@ func RowTerms(row csv.Row, m Mapping) ([]string, bool) {
 	return names, false
 }
 
-// TermNames is every term name the whole file mentions, once, in the order the
-// file first mentions each.
+// TermNames is every term name the rows of a file can actually store, once, in
+// the order the file first mentions each.
 //
 // The caller runs term.EnsureNames with this ONCE, before the row loop, which
 // is internal/bundle/import.go:289-329's order and not an optimisation: a term
@@ -157,8 +164,35 @@ func RowTerms(row csv.Row, m Mapping) ([]string, bool) {
 // Both sources are read: the page's own terms column, whose cell holds several
 // names separated by pipes, and every column pointed at a field of the
 // schlagwort kind, whose cell holds one name standing on its own.
+//
+// **The cap here and the cap in RowTerms must agree, and they agree by calling
+// the same function rather than by both naming term.MaxPerPage.** This is
+// exactly where they drifted: RowTerms cut a row at term.MaxPerPage while this
+// function read the whole cell, so a file could mint labels no row was able to
+// point at — 1.17 million of them from one 10 MB upload, measured, every one of
+// them an orphan and every one of them inside the single transaction
+// term.EnsureNames opens. A second cap written out as a number would drift
+// again the day the first one moves; a call to RowTerms cannot.
+//
+// A target is harvested ONCE even when two columns are pointed at it, for the
+// same reason: cellFor reads the first column a target has (mapping.go:328), so
+// the second one contributes nothing to the row and must contribute nothing
+// here either.
 func TermNames(defs []field.Def, m Mapping, rows []csv.Row) []string {
 	byKey := definitionsByKey(defs)
+
+	// The targets a term can come from, in column order, each of them once.
+	var sources []Target
+	taken := map[string]bool{}
+	for _, t := range m.Targets {
+		carries := t.Kind == TargetTerms ||
+			(t.Kind == TargetField && byKey[t.Key].Kind == field.KindTerm)
+		if !carries || taken[t.String()] {
+			continue
+		}
+		taken[t.String()] = true
+		sources = append(sources, t)
+	}
 
 	var out []string
 	seen := map[string]bool{}
@@ -175,28 +209,22 @@ func TermNames(defs []field.Def, m Mapping, rows []csv.Row) []string {
 
 	for _, row := range rows {
 		// Left to right, so the order of the file is the order of the list.
-		for i, t := range m.Targets {
-			cell := ""
-			if i < len(row.Cells) {
-				cell = strings.TrimSpace(row.Cells[i])
-			}
-			if cell == "" {
-				cell = strings.TrimSpace(m.Defaults[t.String()])
-			}
-			if cell == "" {
+		for _, t := range sources {
+			if t.Kind == TargetTerms {
+				// The page's own terms, through the very function that decides
+				// what the page keeps. Whether the cap cut them is the row's
+				// business to report (ReasonTermsTruncated) and not this
+				// function's; what matters here is that the cut names are the
+				// ones created.
+				names, _ := RowTerms(row, m)
+				add(names)
 				continue
 			}
-			switch {
-			case t.Kind == TargetTerms:
-				// Several names, separated by pipes.
-				add(termNames(cell))
-			case t.Kind == TargetField && byKey[t.Key].Kind == field.KindTerm:
-				// One name standing on its own. Only the first is taken,
-				// because the slot holds exactly one slug and inventing terms
-				// a row cannot store would create labels nothing points at.
-				if names := termNames(cell); len(names) > 0 {
-					add(names[:1])
-				}
+			// One name standing on its own. Only the first is taken, because
+			// the slot holds exactly one slug and inventing terms a row cannot
+			// store would create labels nothing points at.
+			if names := termNames(cellFor(row, m, t)); len(names) > 0 {
+				add(names[:1])
 			}
 		}
 	}

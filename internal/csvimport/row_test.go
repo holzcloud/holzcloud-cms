@@ -237,6 +237,55 @@ func TestTermNamesOncePerFile(t *testing.T) {
 	}
 }
 
+// TestTermNamesCapsWhatRowTermsCaps (T-09-14, T-09-30, IMP-10): the pre-pass
+// may create no label a row is unable to store.
+//
+// RowTerms cuts a row's own terms at term.MaxPerPage; TermNames used to harvest
+// the whole cell. The two caps have to agree, and this test asserts that
+// agreement against RowTerms itself rather than against the number 12, because
+// the defect was the two drifting apart and a test naming the number would have
+// drifted with them.
+//
+// The second half is the second column pointed at the same target: cellFor
+// reads the FIRST column a target has (mapping.go:328), so a row stores nothing
+// from the second one and the pre-pass must create nothing from it either.
+func TestTermNamesCapsWhatRowTermsCaps(t *testing.T) {
+	defs := []field.Def{fieldDef(1, 1, "kategorie", "Kategorie", field.KindTerm)}
+
+	many := make([]string, 0, term.MaxPerPage+8)
+	for i := 0; i < term.MaxPerPage+8; i++ {
+		many = append(many, "wort-"+strconv.Itoa(i))
+	}
+	head, rows := reader(t, "Titel,Schlagworte,Noch Schlagworte,Kategorie\n"+
+		"Apfel,\""+strings.Join(many, "|")+"\",spaet|zweitspalte,Obst|Gemuese\n")
+	m := csvimport.AutoMap(head, defs)
+	// By hand: AutoMap fills a target once, and the case under test is the
+	// operator pointing a second column at a target that is already taken.
+	m.Targets[2] = csvimport.Target{Kind: csvimport.TargetTerms}
+
+	stored, cut := csvimport.RowTerms(rows[0], m)
+	if !cut || len(stored) != term.MaxPerPage {
+		t.Fatalf("the fixture no longer exceeds the cap: RowTerms kept %d of %d, cut = %v",
+			len(stored), len(many), cut)
+	}
+
+	// What the row can hold: its own terms as RowTerms cut them, plus the one
+	// name the term field's slot takes — the slot holds a single slug, so
+	// "Gemuese" standing behind the pipe is not one of them.
+	want := append(append([]string{}, stored...), "Obst")
+
+	got := csvimport.TermNames(defs, m, rows)
+	if len(got) != len(want) {
+		t.Fatalf("TermNames returned %d names %v, want the %d the row can store %v",
+			len(got), got, len(want), want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("name %d is %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 // TestRenamedSlugIsReported (D-23, IMP-02 idempotency): CreatePage renames on
 // collision and returns the page it made; created.Slug != wanted is the whole
 // test.

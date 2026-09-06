@@ -1129,6 +1129,48 @@ func TestCSVProbeAndStartAgreeOnEveryVerdict(t *testing.T) {
 	}
 }
 
+// TestCSVTermPrePassIsChunked (T-09-14, T-09-30, IMP-10): no single
+// term.EnsureNames transaction may cover an unbounded number of names.
+//
+// EnsureNames opens ONE transaction around every name it is handed
+// (internal/term/store.go:330) on a pool that admits one connection
+// (internal/db/db.go:42), so the size of one call is the length of the stall it
+// imposes on every other request on the machine. The batch is what bounds it,
+// and the batch is asserted here rather than argued: the harvest is capped
+// elsewhere, but a cap of 5000 x term.MaxPerPage is still 60 000 names in one
+// transaction.
+func TestCSVTermPrePassIsChunked(t *testing.T) {
+	names := make([]string, 0, csvTermChunk*2+41)
+	for i := range cap(names) {
+		names = append(names, "wort-"+strconv.Itoa(i))
+	}
+
+	var batches [][]string
+	err := csvEnsureTerms(context.Background(), names, func(_ context.Context, batch []string) error {
+		batches = append(batches, append([]string{}, batch...))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("csvEnsureTerms: %v", err)
+	}
+
+	var seen []string
+	for i, batch := range batches {
+		if len(batch) > csvTermChunk {
+			t.Errorf("batch %d carries %d names; no transaction may cover more than %d",
+				i, len(batch), csvTermChunk)
+		}
+		if len(batch) == 0 {
+			t.Errorf("batch %d is empty; an empty transaction is a stall for nothing", i)
+		}
+		seen = append(seen, batch...)
+	}
+	if !reflect.DeepEqual(seen, names) {
+		t.Fatalf("the batches together carry %d names, want the %d handed in, in order",
+			len(seen), len(names))
+	}
+}
+
 // TestCSVStartCreatesInFileOrder (IMP-04 ordering).
 func TestCSVStartCreatesInFileOrder(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
