@@ -510,3 +510,173 @@ func TestCSVTemplatesCarryNoScript(t *testing.T) {
 		}
 	}
 }
+
+// exampleRequest builds the GET the small second form in the panel sends.
+func exampleRequest(websiteID string) *http.Request {
+	return httptest.NewRequest(http.MethodGet, "/admin/csv-vorlage?website="+websiteID, nil)
+}
+
+func TestCSVExampleHasHeaderAndBOM(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	if _, err := h.fields.Create(context.Background(), field.Def{
+		WebsiteID: ws.ID, Key: "sorte", Label: "Sorte",
+		Kind: field.KindMulti, Choices: []string{"rot", "blau"},
+		AppliesTo: field.ForBoth,
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, err := h.fields.Create(context.Background(), field.Def{
+		WebsiteID: ws.ID, Key: "vorraetig", Label: "Vorrätig",
+		Kind: field.KindBool, AppliesTo: field.ForBoth, Position: 1,
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(fmt.Sprintf("%d", ws.ID)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "text/csv; charset=utf-8" {
+		t.Errorf("Content-Type = %q", got)
+	}
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q; a CSV served without it is one a browser may try to render", got)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q; the example is a snapshot and a cached copy is a snapshot of another moment", got)
+	}
+
+	body := rec.Body.Bytes()
+	if !bytes.HasPrefix(body, []byte{0xEF, 0xBB, 0xBF}) {
+		t.Fatal("the body does not begin with the byte-order mark Excel needs")
+	}
+	text := string(body)
+	for _, want := range []string{"Titel", "Adresse", "Text", "Zustand", "Schlagwörter", "Sorte", "Vorrätig"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the header row has no %q column", want)
+		}
+	}
+	// D-21's pipe and D-19's vocabulary, in the file where an operator meets
+	// them.
+	if !strings.Contains(text, "rot|blau") {
+		t.Error("the mehrfachauswahl sample does not show the pipe")
+	}
+	if !strings.Contains(text, "ja") {
+		t.Error("the janein sample does not show a value of the closed vocabulary")
+	}
+}
+
+// D-18: four kinds a cell can never fill get no column at all, because a
+// heading the dry run then refuses is a promise broken one screen later.
+func TestCSVExampleSkipsUnmappableKinds(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	for i, d := range []field.Def{
+		{Key: "bild", Label: "Titelbild", Kind: field.KindImage},
+		{Key: "verweis", Label: "Verwandte Seite", Kind: field.KindRef},
+		{Key: "zeiten", Label: "Öffnungszeiten", Kind: field.KindGroup},
+		{Key: "trenner", Label: "Zwischenüberschrift", Kind: field.KindSection},
+		{Key: "preis", Label: "Preis", Kind: field.KindNumber},
+	} {
+		d.WebsiteID, d.AppliesTo, d.Position = ws.ID, field.ForBoth, i
+		if _, err := h.fields.Create(context.Background(), d); err != nil {
+			t.Fatalf("Create %s: %v", d.Label, err)
+		}
+	}
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(fmt.Sprintf("%d", ws.ID)))
+	text := rec.Body.String()
+	for _, unwanted := range []string{"Titelbild", "Verwandte Seite", "Öffnungszeiten", "Zwischenüberschrift"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("the example offers a column for %q, which no cell can fill", unwanted)
+		}
+	}
+	if !strings.Contains(text, "Preis") {
+		t.Error("the example is missing the one mappable definition")
+	}
+}
+
+// D-16: a label beginning with = is a formula the moment the file opens.
+func TestCSVExampleDefusesFormulas(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	if _, err := h.fields.Create(context.Background(), field.Def{
+		WebsiteID: ws.ID, Key: "preis", Label: "=Preis",
+		Kind: field.KindText, AppliesTo: field.ForBoth,
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(fmt.Sprintf("%d", ws.ID)))
+	text := rec.Body.String()
+	if !strings.Contains(text, "'=Preis") {
+		t.Errorf("the label =Preis is not defused; body was %q", text)
+	}
+}
+
+func TestCSVExampleFilenameComesFromTheWebsite(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	ws, err := h.domains.CreateWebsite(context.Background(), "Velowerkstatt Bärn", "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(fmt.Sprintf("%d", ws.ID)))
+	got := rec.Header().Get("Content-Disposition")
+	if !strings.HasPrefix(got, "attachment; ") {
+		t.Errorf("Content-Disposition = %q; want an attachment, not inline", got)
+	}
+	if !strings.Contains(got, "-vorlage.csv") || !strings.Contains(got, "velowerkstatt") {
+		t.Errorf("Content-Disposition = %q; the name does not come from the website", got)
+	}
+}
+
+// Not a token: this route is not token-bearing (D-37). The refusal is the
+// ordinary website one.
+func TestCSVExampleUnknownWebsiteIsNotFound(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	for _, id := range []string{"9999", "", "nichts"} {
+		rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(id))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("website=%q: status = %d; want 404", id, rec.Code)
+		}
+	}
+}
+
+// IMP-07 concurrency: the example is a snapshot and is never authoritative. A
+// field added after it was downloaded simply arrives unmapped, and the mapping
+// screen is what shows that.
+func TestCSVExampleIsASnapshotAndALaterFieldArrivesUnmapped(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(fmt.Sprintf("%d", ws.ID)))
+	downloaded := rec.Body.String()
+	if strings.Contains(downloaded, "Sorte") {
+		t.Fatal("the example already knows a field that does not exist yet")
+	}
+
+	if _, err := h.fields.Create(context.Background(), field.Def{
+		WebsiteID: ws.ID, Key: "sorte", Label: "Sorte",
+		Kind: field.KindText, AppliesTo: field.ForBoth,
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	token := stage(t, h, admin, ws.ID, "Titel,Adresse,Text,Zustand,Schlagwörter\nErste,erste,Ein Satz,entwurf,Apfel\n")
+	screen, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
+	body := screen.Body.String()
+	if !strings.Contains(body, `value="field:sorte"`) {
+		t.Error("the field added after the download is not offered on the mapping screen")
+	}
+	if !strings.Contains(body, "Sorte") {
+		t.Error("the mapping screen does not name the new field")
+	}
+}

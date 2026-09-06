@@ -43,6 +43,13 @@
         {{th "Mehrere Werte in einer Zelle werden mit einem senkrechten Strich getrennt: <code>rot|blau</code>."}}
         {{th "Eine Ja/Nein-Spalte versteht <code>ja/nein</code>, <code>yes/no</code>, <code>true/false</code>, <code>wahr/falsch</code>, <code>1/0</code> und <code>x</code> gegen leer – sonst nichts."}}
     </p>
+
+    {{if .Website}}
+    <p class="text-muted">
+        <a href="/admin/csv-vorlage?website={{.Website.ID}}" download>{{t "Beispieldatei dieser Website herunterladen"}}</a>
+        {{t "Sie ist eine Momentaufnahme der Felder von jetzt. Ein Feld, das danach angelegt wird, fehlt darin und käme beim nächsten Einlesen einfach unzugeordnet an – was diese Liste hier dann zeigt."}}
+    </p>
+    {{end}}
 </div>
 
 <form method="POST" action="/admin/csv-import/{{.Token}}/probe">

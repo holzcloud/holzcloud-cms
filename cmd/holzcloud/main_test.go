@@ -172,6 +172,7 @@ func TestRouteAuthorization(t *testing.T) {
 		{"POST", "/admin/users/1/delete"},
 		{"POST", "/admin/websites/import-csv"},
 		{"GET", "/admin/csv-import/abc"},
+		{"GET", "/admin/csv-vorlage"},
 	}
 	for _, rt := range adminOnly {
 		if got := do(handler, rt.method, rt.path, editor).Code; got != http.StatusForbidden {

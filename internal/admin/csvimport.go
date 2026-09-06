@@ -14,6 +14,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -443,4 +444,152 @@ func (h *Handler) HandleCSVMapping(w http.ResponseWriter, r *http.Request) error
 	}
 
 	return web.RenderAdmin(w, h.templates, r, "csv_mapping", data)
+}
+
+// HandleCSVExample hands out an example file built from one website's own field
+// definitions — IMP-07.
+//
+// **A GET**, because all five downloads this tree already has are GETs
+// (media.go:377, bundle.go:48, template.go:361, language.go:74 and :88,
+// plugin.go:374) and a POST that returns a file would be the only one of its
+// kind here (D-34).
+//
+// **Not behind the staging token** (D-37). IMP-07 exists to help the operator
+// *write* the file; hung off the token it could be fetched only once the file it
+// was meant to produce already existed. So this handler never calls staged: the
+// website comes from a form value, which is ai.go:96's idiom and
+// template.go:193's, and is reached from a second small GET form in the same
+// panel — the shape page_list.html:11, media_list.html:22 and
+// activity_log.html:15 already use.
+//
+// **It is a snapshot**, taken at the moment it is downloaded, and nothing
+// downstream treats it as authoritative: a field added afterwards simply arrives
+// unmapped, which the mapping screen shows and says.
+func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error {
+	id, _ := strconv.ParseInt(r.FormValue("website"), 10, 64)
+	ws, err := h.domains.GetWebsite(r.Context(), id)
+	if err != nil {
+		return err
+	}
+	if ws == nil {
+		// The ordinary website-ownership answer, exactly as a page of a website
+		// that is not there would answer.
+		http.NotFound(w, r)
+		return nil
+	}
+
+	defs, err := h.fields.List(r.Context(), ws.ID)
+	if err != nil {
+		return err
+	}
+	header, sample := csvExampleColumns(defs)
+	body, err := csv.Example(header, [][]string{sample})
+	if err != nil {
+		return err
+	}
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	// Ohne nosniff könnte ein Browser den Inhalt anders deuten als die
+	// Kopfzeile sagt, und die Angabe oben wäre eine Empfehlung statt einer
+	// Schranke.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+csvExampleFilename(ws.Name)+`"`)
+	// The file is a snapshot of the definitions as they are right now
+	// (IMP-07 concurrency); a cached copy would be a snapshot of a different
+	// moment and would quietly disagree with the mapping screen.
+	w.Header().Set("Cache-Control", "no-store")
+	_, err = w.Write(body)
+	return err
+}
+
+// csvExampleFilename names the download after the website it came from.
+//
+// page.Slugify and not plugin.go:387's safeDownloadName, and the difference is
+// provenance rather than taste: safeDownloadName filters a name a PLUGIN
+// supplied, where filtering is the only option. This name comes from a website
+// in this installation — bundle.go:71-77's case — and Slugify yields [a-z0-9-]
+// only, so the result is safe by construction instead of by stripping
+// characters afterwards. There is no staged row on this path and so no pending
+// website name to fall back on; a website that does not exist yet is simply not
+// a value this route accepts.
+func csvExampleFilename(name string) string {
+	slug := page.Slugify(name)
+	if slug == "" {
+		slug = "website"
+	}
+	return slug + "-vorlage.csv"
+}
+
+// csvExampleColumns builds the example's header row and its one sample row.
+//
+// Built here, in internal/admin, and deliberately not in internal/csv:
+// csv.Example takes plain strings precisely so the pure package never learns
+// about field.Def, which is what keeps its checklist against a hostile file
+// provable without db.Open.
+//
+// The headings are the ones AutoMap matches on, so an operator who fills this
+// file in gets an automatic match on every column — which is the whole of
+// IMP-07. The definitions are walked in field.List's own order (ORDER BY
+// position, id), the order they stand in on the field screen, and a definition
+// csvimport.Mappable refuses gets no column at all: offering a heading no cell
+// could ever fill would be a promise the dry run then breaks.
+func csvExampleColumns(defs []field.Def) (header, sample []string) {
+	header = []string{"Titel", "Adresse", "Text", "Zustand", "Schlagwörter"}
+	sample = []string{"Beispielseite", "beispielseite", "Ein Satz über die Seite.", "entwurf", "Beispiel|Muster"}
+	for _, d := range defs {
+		if !csvimport.Mappable(d.Kind) {
+			continue
+		}
+		header = append(header, d.Label)
+		sample = append(sample, csvExampleCell(d))
+	}
+	return header, sample
+}
+
+// csvExampleCell is one plausible value for a field of this kind.
+//
+// This is the second place D-21's pipe and D-19's vocabulary become
+// user-visible, and the file is where an operator actually meets them: a
+// mehrfachauswahl cell shows the pipe, a janein cell shows "ja". Nothing here is
+// translated — it is the content of a file, written once and then edited by the
+// person who downloaded it, not a sentence on a screen.
+func csvExampleCell(d field.Def) string {
+	switch d.Kind {
+	case field.KindLong:
+		return "Ein längerer Text über mehrere Zeilen."
+	case field.KindCode:
+		return "beispiel"
+	case field.KindNumber:
+		return "12"
+	case field.KindRange:
+		if d.RangeMin != "" {
+			return d.RangeMin
+		}
+		return "5"
+	case field.KindDate:
+		return "2026-09-06"
+	case field.KindTime:
+		return "09:30"
+	case field.KindBool:
+		return "ja"
+	case field.KindChoice:
+		if len(d.Choices) > 0 {
+			return d.Choices[0]
+		}
+		return "rot"
+	case field.KindMulti:
+		if len(d.Choices) > 1 {
+			return d.Choices[0] + "|" + d.Choices[1]
+		}
+		if len(d.Choices) == 1 {
+			return d.Choices[0]
+		}
+		return "rot|blau"
+	case field.KindLink:
+		return "/eine-seite"
+	case field.KindTerm:
+		return "Beispiel"
+	default:
+		return "Beispiel"
+	}
 }

@@ -96,6 +96,23 @@
 
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Weiter zur Zuordnung"}}</button>
     </form>
+
+    <hr>
+    <p class="text-muted">
+        {{th "<strong>Du weisst nicht, wie die Spalten heissen müssen?</strong> Lade eine Beispieldatei herunter: sie hat die Überschriften dieser Website schon drin, samt ihren eigenen Feldern, und eine Musterzeile. Sie ist eine Momentaufnahme – ein Feld, das du danach anlegst, fehlt darin und kommt beim Einlesen einfach unzugeordnet an."}}
+    </p>
+    <p class="text-muted">
+        {{t "Für eine Website, die es noch nicht gibt, gibt es keine Felder zu lesen: dort sind es nur die fünf festen Spalten Titel, Adresse, Text, Zustand und Schlagwörter."}}
+    </p>
+    <form method="GET" action="/admin/csv-vorlage">
+        <div class="form-group">
+            <label class="form-label" for="vorlage_website">{{t "Beispiel für diese Website"}}</label>
+            <select id="vorlage_website" name="website" class="form-input form-select">
+                {{range .Websites}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+        </div>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Beispieldatei herunterladen"}}</button>
+    </form>
 </details>
 
 {{template "website_list-content" .}}
