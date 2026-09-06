@@ -1470,3 +1470,52 @@ func TestArchivwerteGehenDurchDieselbePruefung(t *testing.T) {
 		t.Errorf("der Bericht nennt die verworfenen Werte nicht: %v", report.Warnings)
 	}
 }
+
+// Der Archivweg ist der einzige, auf dem ein Feldschlüssel mitgebracht statt
+// abgeleitet wird: importFields übergibt Key: f.Key wörtlich aus dem Manifest
+// (internal/bundle/import.go:351), und ein Manifest ist eine Datei, die jeder
+// von Hand schreiben kann.
+//
+// Ein Schlüssel wie farbe[] wäre das Formularpräfix der Mehrwertigkeit als
+// Felddefinition getarnt (D-03: die Mehrwertigkeit steht im Namen des
+// Formularfeldes). Er wird abgelehnt — aber als Warnung im Bericht und nicht
+// als Abbruch des Imports, dieselbe Härte wie bei jedem anderen verworfenen
+// Wert: das echte Feld daneben kommt trotzdem an.
+func TestArchivSchluesselMitKlammernWirdAbgelehnt(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Von Hand gebaut"},
+		Fields: []Field{
+			{Key: "farbe[]", Label: "Farbe", Kind: field.KindChoice, Choices: []string{"rot", "blau"}},
+			{Key: "farbe", Label: "Farbe echt", Kind: field.KindChoice, Choices: []string{"rot", "blau"}},
+		},
+	})
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	defs, err := s.Fields.List(ctx, report.WebsiteID)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(defs) != 1 {
+		keys := make([]string, 0, len(defs))
+		for _, d := range defs {
+			keys = append(keys, d.Key)
+		}
+		t.Fatalf("angelegte Felder = %v, wollte nur farbe", keys)
+	}
+	if defs[0].Key != "farbe" {
+		t.Errorf("angelegtes Feld = %q, wollte farbe", defs[0].Key)
+	}
+	// Der Bericht sagt, was fehlt — sonst müsste der Betreiber die Lücke
+	// selbst finden.
+	if !warned(report, "Farbe") {
+		t.Errorf("der Bericht nennt das verworfene Feld nicht: %v", report.Warnings)
+	}
+}

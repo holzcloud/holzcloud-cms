@@ -434,3 +434,86 @@ func TestIsButtonRow(t *testing.T) {
 		}
 	}
 }
+
+// Der Feldschlüssel ist der Name, unter dem jeder gespeicherte Wert steht und
+// unter dem das Theme das Feld anspricht. validate leitete ihn bisher nur aus
+// der Beschriftung ab, wenn keiner mitkam — mitgebrachte Schlüssel gingen
+// ungeprüft durch. Der einzige Weg, auf dem ein mitgebrachter Schlüssel herein
+// kommt, ist der Archivweg (internal/bundle/import.go:351), also eine Datei
+// von einem fremden Rechner.
+//
+// Die zweite Hälfte ist die Gegenprobe zur vereinheitlichten Obergrenze:
+// SlugifyKey schneidet bei maxKeyBytes ab, validKey liest dieselbe Zahl. Liefen
+// die beiden auseinander, lehnte validate ab, was SlugifyKey selbst erzeugt hat.
+func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+
+	t.Run("Klammern im Schlüssel werden abgelehnt", func(t *testing.T) {
+		// Wörtlich die Gestalt, die internal/bundle/import.go:351 übergibt.
+		_, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "farbe[]", Label: "Farbe", Kind: KindChoice,
+			Choices: []string{"rot", "blau"}})
+		if err == nil {
+			t.Fatal("ein Schlüssel mit Klammern wurde angenommen")
+		}
+		if !strings.Contains(err.Error(), "Kennung") {
+			t.Errorf("die Begründung nennt die Kennung nicht: %v", err)
+		}
+
+		// Und nichts wurde angelegt.
+		defs, err := store.List(ctx, site)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		for _, d := range defs {
+			if d.Key == "farbe[]" {
+				t.Error("der abgelehnte Schlüssel steht trotzdem in der Datenbank")
+			}
+		}
+	})
+
+	t.Run("Grossbuchstaben und Punkte werden abgelehnt", func(t *testing.T) {
+		for _, key := range []string{"Farbe", "farbe.ton", "farbe-ton", "farbe ton", "fär be"} {
+			if _, err := store.Create(ctx, Def{
+				WebsiteID: site, Key: key, Label: "Farbe", Kind: KindText}); err == nil {
+				t.Errorf("der Schlüssel %q wurde angenommen", key)
+			}
+		}
+	})
+
+	t.Run("eine 39 Zeichen lange Kennung bleibt speicherbar", func(t *testing.T) {
+		// Dieselbe Beschriftung wie in TestKennungAusBeschriftung: SlugifyKey
+		// macht daraus 39 Zeichen. Vor der Vereinheitlichung lehnte validKey
+		// alles über 30 ab — die Ableitung hätte etwas erzeugt, das die
+		// Prüfung derselben Funktion nicht mehr passiert.
+		lang := "Sehr langer Name der weit über vierzig Zeichen hinausgeht"
+		d, err := store.Create(ctx, Def{
+			WebsiteID: site, Label: lang, Kind: KindText})
+		if err != nil {
+			t.Fatalf("eine 39 Zeichen lange Kennung wurde abgelehnt: %v", err)
+		}
+		if d.Key != "sehr_langer_name_der_weit_ueber_vierzig" {
+			t.Errorf("Kennung = %q, wollte die vollen 39 Zeichen", d.Key)
+		}
+		if len(d.Key) != 39 {
+			t.Errorf("Kennung ist %d Zeichen lang, wollte 39", len(d.Key))
+		}
+	})
+
+	t.Run("eine Bedingung auf ein langes Feld fällt nicht mehr still weg", func(t *testing.T) {
+		// validKey(d.Condition) löschte wortlos eine Bedingung, die auf ein
+		// Feld mit 31 bis 40 Zeichen langer Kennung zeigte — derselbe
+		// Zahlenunterschied, eine Ebene weiter.
+		schalter := "sehr_langer_name_der_weit_ueber_vierzig"
+		d, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "abhaengig", Label: "Abhängig", Kind: KindText,
+			Condition: schalter})
+		if err != nil {
+			t.Fatalf("anlegen: %v", err)
+		}
+		if d.Condition != schalter {
+			t.Errorf("Bedingung = %q, wollte %q", d.Condition, schalter)
+		}
+	})
+}
