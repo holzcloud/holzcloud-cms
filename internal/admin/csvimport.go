@@ -767,10 +767,19 @@ func csvMappingFromForm(r *http.Request, columns int) csvimport.Mapping {
 	// form name is "default_" plus the target's own spelling and the two ends
 	// of the round trip are one rule. Screen 3 re-emits exactly these names as
 	// hidden inputs, so the commit posts the mapping the dry run described.
+	//
+	// A default for a target that cannot carry one is dropped here as well as
+	// ignored in cellFor. A mapping arriving from a form is not the screen's
+	// mapping, and the door the screen does not draw is not one a hand-made
+	// POST may open either — csvTargetFromForm answers the same way for the
+	// same reason.
 	if err := r.ParseForm(); err == nil {
 		for name, values := range r.Form {
 			key, isDefault := strings.CutPrefix(name, csvDefaultPrefix)
 			if !isDefault || key == "" || len(values) == 0 {
+				continue
+			}
+			if !csvimport.TakesDefault(csvTargetFromForm(key)) {
 				continue
 			}
 			if value := strings.TrimSpace(values[0]); value != "" {

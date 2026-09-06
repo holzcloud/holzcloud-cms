@@ -241,16 +241,24 @@ func definitionsByKey(defs []field.Def) map[string]field.Def {
 }
 
 // cellFor reads the cell a target is pointed at, falling back to the target's
-// default.
+// default where the target may carry one.
 //
 // The default belongs to the target and not to the column (IMP-08), which is
 // why it is looked up by Target.String() and why two columns pointed at one
 // field cannot carry two defaults for one slot.
+//
+// TakesDefault is asked rather than assumed, so that this reader and the
+// mapping screen answer the same question from the same rule. It also keeps
+// TargetNone out: a column pointed at nothing has no slot to fill, and
+// m.Defaults["none"] would be a key nothing could ever read back.
 func cellFor(row csv.Row, m Mapping, t Target) string {
 	if i := m.ColumnFor(t.Kind, t.Key); i >= 0 && i < len(row.Cells) {
 		if cell := strings.TrimSpace(row.Cells[i]); cell != "" {
 			return cell
 		}
+	}
+	if !TakesDefault(t) {
+		return ""
 	}
 	return strings.TrimSpace(m.Defaults[t.String()])
 }

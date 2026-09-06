@@ -628,6 +628,82 @@ func TestCSVMappingWarnsAboutARequiredGroup(t *testing.T) {
 	}
 }
 
+// TestCSVMappingShowsEveryDefaultItAccepts (IMP-08, verification warning 2):
+// every target that can carry a default has a control on the screen, and no
+// target has a control it cannot use.
+//
+// Written as a class and not as three cases, because the defect was an
+// instance of a class: csvimport.TakesDefault said body, status, terms and
+// every field may carry a default, and the screen rendered status and the
+// fields only. TestBlankCellSaysNothingOnTheUpdateArm proved a BODY default
+// applies — a third of the phase's most important regression test exercising a
+// door the operator could not open. A test naming the four targets by hand
+// would let the fifth one drift the same way.
+func TestCSVMappingShowsEveryDefaultItAccepts(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	if _, err := h.fields.Create(context.Background(), field.Def{
+		WebsiteID: ws.ID, Key: "farbe", Label: "Farbe",
+		Kind: field.KindText, AppliesTo: field.ForBoth,
+	}); err != nil {
+		t.Fatalf("Create field: %v", err)
+	}
+
+	token := stage(t, h, admin, ws.ID, "Titel\nErste\n")
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", rec.Code)
+	}
+	body := rec.Body.String()
+
+	// Every target the screen offers as a column target, plus the one field.
+	for _, target := range []csvimport.Target{
+		{Kind: csvimport.TargetNone},
+		{Kind: csvimport.TargetTitle},
+		{Kind: csvimport.TargetSlug},
+		{Kind: csvimport.TargetBody},
+		{Kind: csvimport.TargetStatus},
+		{Kind: csvimport.TargetTerms},
+		{Kind: csvimport.TargetField, Key: "farbe"},
+	} {
+		control := `name="` + csvDefaultPrefix + target.String() + `"`
+		shown := strings.Contains(body, control)
+		switch {
+		case csvimport.TakesDefault(target) && !shown:
+			t.Errorf("%s accepts a default and has no control on the screen (%s missing) — "+
+				"a capability the operator cannot reach", target, control)
+		case !csvimport.TakesDefault(target) && shown:
+			t.Errorf("%s has a control on the screen and cannot use a default (%s present) — "+
+				"a box that does nothing", target, control)
+		}
+	}
+}
+
+// TestADefaultForNothingIsNotKept (IMP-08): a column pointed at nothing has no
+// slot to fill, so "default_none" is dropped rather than carried around as a
+// key nothing can read back. The other half of TakesDefault, asserted at the
+// form because that is where a value nobody typed can arrive.
+func TestADefaultForNothingIsNotKept(t *testing.T) {
+	r := csvPost("t", "probe", url.Values{
+		"target_0":      {"title"},
+		"default_title": {"Ersatztitel"},
+		"default_none":  {"irgendwas"},
+		"default_":      {"auch irgendwas"},
+	})
+	m := csvMappingFromForm(r, 1)
+
+	if got := m.Defaults["title"]; got != "Ersatztitel" {
+		t.Errorf("the title default reads %q, want it kept — TestRowWithoutATitleIsSkipped "+
+			"asserts it applies, so the form has to carry it", got)
+	}
+	for _, key := range []string{"none", ""} {
+		if got, ok := m.Defaults[key]; ok {
+			t.Errorf("the mapping kept a %q default of %q; nothing reads it back", key, got)
+		}
+	}
+}
+
 // The form leads to the dry run, which is plan 09-05's route. Asserted on the
 // rendered action rather than by a round trip, because that route does not
 // exist yet.
@@ -1694,14 +1770,25 @@ func TestCSVMappingCutsAnOversizedSample(t *testing.T) {
 
 	huge := strings.Repeat("a", csvSampleBytes*50)
 	token := stage(t, h, admin, ws.ID, "Titel,Text\nAlpha,"+huge+"\n")
+	small := stage(t, h, admin, ws.ID, "Titel,Text\nAlpha,kurz\n")
 
 	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
 	body := rec.Body.String()
 	if strings.Contains(body, huge) {
 		t.Error("the whole oversized cell was written into the response")
 	}
-	if len(body) > len(huge) {
-		t.Errorf("the response is %d bytes for a %d-byte cell — the sample is not bounded", len(body), len(huge))
+
+	// The property is that the response does not GROW with the cell, and it is
+	// measured as the difference between two renders of the same screen. It
+	// used to be measured as "the response is smaller than the cell", which is
+	// the same statement only for as long as the page itself stays smaller than
+	// 10 kB — and the page grew when the Vorgaben card got the boxes IMP-08
+	// always implied. A test whose subject is the sample must not fail because
+	// a card above it gained a field.
+	base, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(small, ""))
+	if grew := len(body) - len(base.Body.String()); grew > csvSampleBytes+len("…") {
+		t.Errorf("a %d-byte cell made the response %d bytes longer than the same screen "+
+			"with a short one — the sample is not bounded", len(huge), grew)
 	}
 
 	// And the cut lands on a rune boundary: a cell of multi-byte characters
