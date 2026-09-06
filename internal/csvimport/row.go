@@ -61,6 +61,11 @@ var statusVocabulary = map[string]string{
 }
 
 // parseStatus reads a status cell. An empty cell is a draft.
+//
+// That default is the CREATE arm's, and only the create arm's. The update arm
+// asks whether the cell said anything at all before it writes a status, so this
+// substitution never reaches a page that already exists — see update(), which
+// carries the argument.
 func parseStatus(cell string) (string, bool) {
 	folded := foldCell(cell)
 	if folded == "" {
@@ -493,7 +498,7 @@ func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 	names, _ := RowTerms(row, m)
 
 	if v.Outcome == OutcomeUpdate {
-		if err := w.Pages.UpdatePage(ctx, existing.ID, w.update(existing, create, data, defs, m, userID)); err != nil {
+		if err := w.Pages.UpdatePage(ctx, existing.ID, w.update(existing, create, data, defs, row, m, userID)); err != nil {
 			return Verdict{Row: v.Row, Outcome: OutcomeSkip, Reason: ReasonNotWritten, Args: []string{create.Title, err.Error()}}
 		}
 		if err := w.setTerms(ctx, websiteID, existing.ID, m, names); err != nil {
@@ -535,11 +540,37 @@ func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 // as "leave the kind alone", so importing into a website of posts does not
 // silently turn every one of them into a page.
 //
+// What counts as "points at" is the whole of this function, and it is the CELL
+// and not the COLUMN. A mapped column whose cell is empty, and whose target
+// carries no default, says NOTHING about that slot, and the slot is left
+// exactly as it stands — for the body, for the status and for every field
+// alike. A default set on the mapping screen does apply, because a default is
+// the operator stating a value rather than the file failing to.
+//
+// The consequence, said plainly rather than left to be discovered: CLEARING A
+// VALUE IS NOT EXPRESSIBLE FROM A CSV UPDATE. A file cannot ask for a page's
+// body to become empty, and it cannot ask for a field to be emptied. Emptying
+// is done on the page form, one page at a time, where the person doing it can
+// see what they are emptying.
+//
+// This reverses a decision, and the record should show that rather than hide
+// it. The rule here used to be that a mapped column whose cell is empty CLEARS
+// its slot, "which is the difference between 'the file says this is empty now'
+// and 'the file says nothing about this'". That distinction cannot be drawn
+// from a CSV file: a blank cell is exactly as much "empty now" as it is "not
+// filled in", the data does not carry the difference, and code that claims to
+// read it is reading something that is not there. What the old rule actually
+// bought was three ways to destroy content nobody asked to destroy — forty
+// blank Zustand cells demoting forty live pages to drafts with no line in the
+// report and no revision recorded, a blank Text cell wiping a page's Markdown,
+// a blank field cell emptying a field — for a capability a CSV cannot express
+// in the first place.
+//
 // Matching on an arbitrary key column, merging rather than replacing a value,
 // and a per-column "only fill if this is empty" are all deferred ideas and none
 // of them is built here; they are named so they are not smuggled in.
 func (w Writer) update(existing *page.Page, create page.PageCreate, data field.Data,
-	defs []field.Def, m Mapping, userID *int64) page.PageUpdate {
+	defs []field.Def, row csv.Row, m Mapping, userID *int64) page.PageUpdate {
 
 	u := page.PageUpdate{
 		Title:    create.Title, // always mapped: CheckRow refuses a row without one
@@ -560,19 +591,23 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 		UserID:          userID,
 	}
 
-	mapped := func(t Target) bool {
-		return m.ColumnFor(t.Kind, t.Key) >= 0 || strings.TrimSpace(m.Defaults[t.String()]) != ""
-	}
-	if mapped(Target{Kind: TargetBody}) {
+	// stated is the one predicate this function decides on, and it asks the
+	// question the file can actually answer: did this row put anything in this
+	// slot? cellFor already falls the cell back to the target's default, so a
+	// default the operator typed on the mapping screen counts as stated and an
+	// empty cell without one does not.
+	stated := func(t Target) bool { return cellFor(row, m, t) != "" }
+
+	if stated(Target{Kind: TargetBody}) {
 		u.Markdown, u.HTML = create.Markdown, create.HTML
 	}
-	if mapped(Target{Kind: TargetStatus}) {
+	if stated(Target{Kind: TargetStatus}) {
 		u.Status = create.Status
 	}
 
-	// The field slots the mapping points at, and only those. A mapped column
-	// whose cell is empty clears its slot, which is the difference between "the
-	// file says this is empty now" and "the file says nothing about this".
+	// The field slots this row stated something for, and only those. A stated
+	// cell may still store the empty string — parseBool turns "nein" into it —
+	// and that is a value the file gave, not a slot it was silent about.
 	byKey := definitionsByKey(defs)
 	merged := field.Decode(existing.Fields)
 	for _, t := range m.Targets {
@@ -582,11 +617,10 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 		if _, exists := byKey[t.Key]; !exists {
 			continue
 		}
-		if value, set := data.Values[t.Key]; set {
-			merged.Values[t.Key] = value
+		if !stated(t) {
 			continue
 		}
-		delete(merged.Values, t.Key)
+		merged.Values[t.Key] = data.Values[t.Key]
 	}
 	if encoded, err := field.Encode(field.Clean(defs, merged)); err == nil {
 		u.Fields = encoded
