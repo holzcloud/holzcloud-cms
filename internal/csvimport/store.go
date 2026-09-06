@@ -22,6 +22,16 @@
 // not as habit: internal/shop puts its store and its pure price calculation in
 // one package and is none the worse for it. The purity is bought here on
 // purpose, and this package is where the database goes instead.
+//
+// One thing to expect while reading the SQL below: the column names are German
+// and the Go names beside them are not. 00049 is a released migration that has
+// already run on a database, so it is not edited; the columns turn in the
+// phase that renames every column in this tree at once, behind a version jump.
+// Until then, modus is Mode, kollision is Collision, dateiname is Filename,
+// daten is Data and erstellt_am is CreatedAt. The values 'neu', 'bestehend',
+// 'uebergehen' and 'aktualisieren' are pinned by that migration's CHECK
+// constraints and are data, not identifiers — translating one of them here
+// would write a row SQLite refuses.
 package csvimport
 
 import (
@@ -39,12 +49,12 @@ import (
 
 const timeLayout = "2006-01-02T15:04:05Z"
 
-// ErrAbgelaufen means no staged upload answers to this token: it was never
-// there, or the sweep has already taken it. The screen that answers this one
-// says "this upload has expired, please start again" — the operator did nothing
+// ErrExpired means no staged upload answers to this token: it was never there,
+// or the sweep has already taken it. The screen that answers this one says
+// "this upload has expired, please start again" — the operator did nothing
 // wrong, and a 404 would say they did.
 //
-// ErrFremd means the upload exists and belongs to somebody else. The screen
+// ErrForeign means the upload exists and belongs to somebody else. The screen
 // that answers this one refuses.
 //
 // The two are deliberately distinguishable, and that is where this departs from
@@ -59,26 +69,26 @@ const timeLayout = "2006-01-02T15:04:05Z"
 // bits from crypto/rand and reaching the oracle means already holding the
 // answer.
 var (
-	ErrAbgelaufen = errors.New("csvimport: no staged upload for this token")
-	ErrFremd      = errors.New("csvimport: staged upload belongs to another user")
+	ErrExpired = errors.New("csvimport: no staged upload for this token")
+	ErrForeign = errors.New("csvimport: staged upload belongs to another user")
 )
 
-// Ablage is one staged upload.
-type Ablage struct {
+// Upload is one staged upload.
+type Upload struct {
 	ID     int64
 	UserID int64
 	// WebsiteID is 0 for an import that will create the website itself, which
 	// is the one case where there is no website yet.
 	WebsiteID   int64
 	WebsiteName string
-	// Modus is "neu" or "bestehend", Kollision "uebergehen" or
-	// "aktualisieren". Both are checked by the column, not only here.
-	Modus     string
-	Kollision string
-	Dateiname string
-	Daten     []byte
+	// Mode is "neu" or "bestehend", Collision "uebergehen" or "aktualisieren".
+	// Both are checked by the column, not only here.
+	Mode      string
+	Collision string
+	Filename  string
+	Data      []byte
 
-	ErstelltAm time.Time
+	CreatedAt time.Time
 }
 
 // Store reads and writes staged uploads.
@@ -101,31 +111,31 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // superseded invitation has to stop working. Copied to this table it would mean
 // an admin with two browser tabs loses the first import the moment they start
 // the second, silently and with the file already gone.
-func (s *Store) Stage(ctx context.Context, a Ablage) (string, error) {
+func (s *Store) Stage(ctx context.Context, u Upload) (string, error) {
 	raw := make([]byte, 16)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("generate staging token: %w", err)
 	}
 	token := hex.EncodeToString(raw)
 
-	website := sql.NullInt64{Int64: a.WebsiteID, Valid: a.WebsiteID != 0}
-	kollision := a.Kollision
-	if kollision == "" {
-		kollision = "uebergehen"
+	website := sql.NullInt64{Int64: u.WebsiteID, Valid: u.WebsiteID != 0}
+	collision := u.Collision
+	if collision == "" {
+		collision = "uebergehen"
 	}
 
 	if _, err := s.DB.Write.ExecContext(ctx,
 		`INSERT INTO csv_imports
 		     (token_hash, user_id, website_id, website_name, modus, kollision, dateiname, daten, erstellt_am)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		hashMarke(token), a.UserID, website, a.WebsiteName, a.Modus, kollision,
-		a.Dateiname, a.Daten, time.Now().UTC().Format(timeLayout)); err != nil {
+		hashToken(token), u.UserID, website, u.WebsiteName, u.Mode, collision,
+		u.Filename, u.Data, time.Now().UTC().Format(timeLayout)); err != nil {
 		return "", fmt.Errorf("stage csv upload: %w", err)
 	}
 	return token, nil
 }
 
-// Holen fetches a staged upload for the user who staged it.
+// Get fetches a staged upload for the user who staged it.
 //
 // The row is found by the hash of the token, so the token itself is never
 // compared against anything in the database. Ownership is checked after the row
@@ -133,31 +143,31 @@ func (s *Store) Stage(ctx context.Context, a Ablage) (string, error) {
 // distinguishable: a token nobody has is expired, a token somebody else has is
 // refused. The check lives here rather than in each of the four handlers, so a
 // fifth screen added later cannot forget it.
-func (s *Store) Holen(ctx context.Context, token string, userID int64) (*Ablage, error) {
-	var a Ablage
-	var erstellt string
+func (s *Store) Get(ctx context.Context, token string, userID int64) (*Upload, error) {
+	var u Upload
+	var created string
 	err := s.DB.Read.QueryRowContext(ctx,
 		`SELECT id, user_id, COALESCE(website_id, 0), website_name, modus, kollision,
 		        dateiname, daten, erstellt_am
-		   FROM csv_imports WHERE token_hash = $1`, hashMarke(token)).
-		Scan(&a.ID, &a.UserID, &a.WebsiteID, &a.WebsiteName, &a.Modus, &a.Kollision,
-			&a.Dateiname, &a.Daten, &erstellt)
+		   FROM csv_imports WHERE token_hash = $1`, hashToken(token)).
+		Scan(&u.ID, &u.UserID, &u.WebsiteID, &u.WebsiteName, &u.Mode, &u.Collision,
+			&u.Filename, &u.Data, &created)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrAbgelaufen
+		return nil, ErrExpired
 	}
 	if err != nil {
 		return nil, fmt.Errorf("look up staged csv upload: %w", err)
 	}
-	if a.UserID != userID {
-		return nil, ErrFremd
+	if u.UserID != userID {
+		return nil, ErrForeign
 	}
-	if t, err := time.Parse(timeLayout, erstellt); err == nil {
-		a.ErstelltAm = t
+	if t, err := time.Parse(timeLayout, created); err == nil {
+		u.CreatedAt = t
 	}
-	return &a, nil
+	return &u, nil
 }
 
-// Loeschen removes one staged upload.
+// Delete removes one staged upload.
 //
 // The write screen calls this once the rows have been written and before the
 // report is rendered, so a refresh on the report finds no token and lands on
@@ -165,7 +175,7 @@ func (s *Store) Holen(ctx context.Context, token string, userID int64) (*Ablage,
 // afterwards rather than beforehand is deliberate: a process that dies
 // mid-write leaves the row intact and the operator can retry, with the dry run
 // telling them what already exists.
-func (s *Store) Loeschen(ctx context.Context, id int64) error {
+func (s *Store) Delete(ctx context.Context, id int64) error {
 	if _, err := s.DB.Write.ExecContext(ctx,
 		`DELETE FROM csv_imports WHERE id = $1`, id); err != nil {
 		return fmt.Errorf("delete staged csv upload: %w", err)
@@ -176,7 +186,7 @@ func (s *Store) Loeschen(ctx context.Context, id int64) error {
 // Prune drops staged uploads older than the given age and returns how many went.
 //
 // Finished and abandoned alike: a finished import's row has already been taken
-// by Loeschen, so what this finds is what somebody walked away from.
+// by Delete, so what this finds is what somebody walked away from.
 func (s *Store) Prune(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().UTC().Add(-olderThan).Format(timeLayout)
 	res, err := s.DB.Write.ExecContext(ctx,
@@ -188,10 +198,10 @@ func (s *Store) Prune(ctx context.Context, olderThan time.Duration) (int64, erro
 	return n, nil
 }
 
-// hashMarke is what gets stored. Comparison happens on the hash, so the token
+// hashToken is what gets stored. Comparison happens on the hash, so the token
 // never sits in the database — user/token.go:152-155 derives its own the same
 // way, and 00012's head comment states the discipline for both.
-func hashMarke(token string) string {
+func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }

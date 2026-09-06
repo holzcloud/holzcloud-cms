@@ -524,28 +524,27 @@ func main() {
 			Name:  "csv-import-prune",
 			Every: 6 * time.Hour,
 			Fn: func(ctx context.Context) error {
-				// Hochgeladene Tabellen, die zwischen den vier Bildschirmen
-				// des CSV-Imports liegen. Fertige und liegengelassene
-				// gleichermassen: die Zeile eines fertigen Imports ist schon
-				// weggeraeumt, was dieser Lauf findet, hat jemand stehen
-				// lassen.
+				// Uploaded tables lying between the four screens of the
+				// CSV import. Finished and abandoned alike: the row of a
+				// finished import has already been cleared away, so what
+				// this run finds is what somebody left standing.
 				//
-				// Ein Tag ist die Aufbewahrung. Wer ueber Mittag den Tab offen
-				// laesst, findet seinen Import noch vor; wer ueber ein
-				// Wochenende weggeht, nicht mehr — und eine Datei noch einmal
-				// hochzuladen kostet nichts, waehrend zehn Megabyte pro
-				// abgebrochenem Versuch auf Dauer etwas kosten.
+				// One day is the retention. Whoever leaves the tab open
+				// over lunch still finds their import; whoever goes away
+				// for a weekend does not — and uploading a file a second
+				// time costs nothing, while ten megabytes per abandoned
+				// attempt cost something in the long run.
 				//
-				// Kein RunAtStart, anders als bei media-backfill. Ein
-				// Aufraeumlauf beim Start wuerde genau den Import erwischen,
-				// der waehrend eines Deploys gerade laeuft.
+				// No RunAtStart, unlike media-backfill. A sweep at startup
+				// would catch precisely the import that is running during
+				// a deploy.
 				//
-				// Und hier steht die Antwort auf die Planungsnotiz, die gegen
-				// das Zwischenlagern sprach: „braucht keinen Aufraeumlauf".
-				// Der Aufraeumlauf ist dieser hier — acht Zeilen und keine
-				// neue Maschinerie. Dafuer laesst sich die Datei ueber vier
-				// Bildschirme tragen, was ohne sie gar nicht ginge, weil ein
-				// Server kein Dateifeld ausfuellen kann.
+				// And here stands the answer to the planning note that
+				// argued against staging: "needs no sweep". The sweep is
+				// this one here — eight lines and no new machinery. In
+				// return the file can be carried across four screens,
+				// which without it would not work at all, because a server
+				// cannot fill in a file field.
 				_, err := csvimport.NewStore(database).Prune(ctx, 24*time.Hour)
 				return err
 			},

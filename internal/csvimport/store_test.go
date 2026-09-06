@@ -1,16 +1,16 @@
-// Was diese Datei bewacht, sind zwei Sätze, die keine Sitte bleiben dürfen.
+// What this file guards are two sentences that must not stay a habit.
 //
-// Der erste: eine angefangene Ablage gehört genau einer Person. Zwei Admins,
-// die gleichzeitig importieren, halten zwei Marken und zwei Dateien, und keiner
-// von beiden kann die des anderen sehen oder fortsetzen. Das steht in der
-// Datenbank — user_id mit ON DELETE CASCADE von users — und wird hier gegen
-// einen zweiten Benutzer geprüft und nicht bloss geglaubt.
+// The first: a started staging belongs to exactly one person. Two admins
+// importing at the same time hold two tokens and two files, and neither of them
+// can see or resume the other's. That stands in the database — user_id with
+// ON DELETE CASCADE from users — and is checked here against a second user
+// rather than merely believed.
 //
-// Der zweite: zwei Tabs zerstören einander nicht. user/token.go:59-62 löscht
-// die vorige Marke desselben Benutzers, und dort ist das richtig. Hier wurde
-// diese Zeile bewusst nicht abgeschrieben, und eine nicht abgeschriebene Zeile
-// ist unsichtbar — deshalb behauptet TestZweiTabsUeberlebenEinander ihre
-// Abwesenheit, statt sie dem Kommentar zu überlassen.
+// The second: two tabs do not destroy each other. user/token.go:59-62 deletes
+// the previous token of the same user, and there that is right. Here that line
+// was deliberately not copied, and a line that was not copied is invisible —
+// which is why TestTwoTabsSurviveEachOther asserts its absence instead of
+// leaving it to the comment.
 package csvimport_test
 
 import (
@@ -25,10 +25,10 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 )
 
-// aufbau öffnet eine gewanderte Datenbank im Testverzeichnis und legt einen
-// Benutzer und eine Website an. Die Ablage ist die eine Hälfte dieser Phase,
-// die eine Datenbank haben darf — internal/csv ist die andere und hat keine.
-func aufbau(t *testing.T) (*csvimport.Store, *db.DB, int64, int64) {
+// setup opens a migrated database in the test directory and creates a user and
+// a website. Staging is the one half of this phase that is allowed a database —
+// internal/csv is the other and has none.
+func setup(t *testing.T) (*csvimport.Store, *db.DB, int64, int64) {
 	t.Helper()
 	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
 	if err != nil {
@@ -38,16 +38,16 @@ func aufbau(t *testing.T) (*csvimport.Store, *db.DB, int64, int64) {
 	if err := db.RunMigrations(database.Write); err != nil {
 		t.Fatalf("RunMigrations: %v", err)
 	}
-	return csvimport.NewStore(database), database, benutzer(t, database, "admin@example.com"), website(t, database, "Prüfsite")
+	return csvimport.NewStore(database), database, user(t, database, "admin@example.com"), website(t, database, "Test Site")
 }
 
-func benutzer(t *testing.T, database *db.DB, email string) int64 {
+func user(t *testing.T, database *db.DB, email string) int64 {
 	t.Helper()
 	res, err := database.Write.Exec(
 		`INSERT INTO users (email, password, role, created_at) VALUES ($1, 'hash', 'admin', '2026-01-01T00:00:00Z')`,
 		email)
 	if err != nil {
-		t.Fatalf("Benutzer %s anlegen: %v", email, err)
+		t.Fatalf("create user %s: %v", email, err)
 	}
 	id, _ := res.LastInsertId()
 	return id
@@ -58,252 +58,251 @@ func website(t *testing.T, database *db.DB, name string) int64 {
 	res, err := database.Write.Exec(
 		`INSERT INTO websites (name, description) VALUES ($1, '')`, name)
 	if err != nil {
-		t.Fatalf("Website %s anlegen: %v", name, err)
+		t.Fatalf("create website %s: %v", name, err)
 	}
 	id, _ := res.LastInsertId()
 	return id
 }
 
-func musterAblage(userID, websiteID int64, daten []byte) csvimport.Ablage {
-	return csvimport.Ablage{
+func sampleUpload(userID, websiteID int64, data []byte) csvimport.Upload {
+	return csvimport.Upload{
 		UserID:    userID,
 		WebsiteID: websiteID,
-		Modus:     "bestehend",
-		Kollision: "uebergehen",
-		Dateiname: "produkte.csv",
-		Daten:     daten,
+		Mode:      "bestehend",
+		Collision: "uebergehen",
+		Filename:  "products.csv",
+		Data:      data,
 	}
 }
 
-// TestAblageKommtByteFuerByteZurueck: was hochgeladen wurde, kommt so zurück.
+// TestUploadComesBackByteForByte: what was uploaded comes back the way it went
+// in.
 //
-// Mit der BOM vorne, die Excel schreibt, und mit einem Schwanz aus hohen Bytes.
-// Eine Spalte, die den Upload als TEXT führte, würde beides still verändern —
-// darum steht in 00049 ein BLOB.
-func TestAblageKommtByteFuerByteZurueck(t *testing.T) {
+// With the BOM in front that Excel writes, and with a tail of high bytes. A
+// column that carried the upload as TEXT would silently change both — which is
+// why 00049 holds a BLOB.
+func TestUploadComesBackByteForByte(t *testing.T) {
 	ctx := context.Background()
-	store, _, userID, websiteID := aufbau(t)
+	store, _, userID, websiteID := setup(t)
 
-	daten := []byte("\xef\xbb\xbfTitel,Text\nStuhl,\"eiche, geölt\"\n")
+	data := []byte("\xef\xbb\xbfTitle,Text\nChair,\"oak, oiled\"\n")
 	for b := 0x80; b <= 0xff; b++ {
-		daten = append(daten, byte(b))
+		data = append(data, byte(b))
 	}
 
-	marke, err := store.Stage(ctx, musterAblage(userID, websiteID, daten))
+	token, err := store.Stage(ctx, sampleUpload(userID, websiteID, data))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
-	if len(marke) != 32 {
-		t.Errorf("Marke ist %d Zeichen lang, erwartet 32 — 128 Bit als Hex", len(marke))
+	if len(token) != 32 {
+		t.Errorf("token is %d characters long, expected 32 — 128 bits as hex", len(token))
 	}
 
-	zurueck, err := store.Holen(ctx, marke, userID)
+	back, err := store.Get(ctx, token, userID)
 	if err != nil {
-		t.Fatalf("Holen: %v", err)
+		t.Fatalf("Get: %v", err)
 	}
-	if !bytes.Equal(zurueck.Daten, daten) {
-		t.Errorf("Daten kommen verändert zurück:\n  hin  = %q\n  zurück = %q", daten, zurueck.Daten)
+	if !bytes.Equal(back.Data, data) {
+		t.Errorf("data comes back changed:\n  in   = %q\n  back = %q", data, back.Data)
 	}
-	if !bytes.HasPrefix(zurueck.Daten, []byte("\xef\xbb\xbf")) {
-		t.Error("die BOM ist unterwegs verlorengegangen — sie gehört zur Datei und wird erst vom Leser gestreift")
+	if !bytes.HasPrefix(back.Data, []byte("\xef\xbb\xbf")) {
+		t.Error("the BOM was lost on the way — it belongs to the file and is stripped by the reader, not before")
 	}
-	if zurueck.WebsiteID != websiteID {
-		t.Errorf("WebsiteID = %d, erwartet %d", zurueck.WebsiteID, websiteID)
+	if back.WebsiteID != websiteID {
+		t.Errorf("WebsiteID = %d, expected %d", back.WebsiteID, websiteID)
 	}
-	if zurueck.Modus != "bestehend" || zurueck.Kollision != "uebergehen" {
-		t.Errorf("Modus/Kollision = %q/%q, erwartet \"bestehend\"/\"uebergehen\"", zurueck.Modus, zurueck.Kollision)
+	if back.Mode != "bestehend" || back.Collision != "uebergehen" {
+		t.Errorf("Mode/Collision = %q/%q, expected \"bestehend\"/\"uebergehen\"", back.Mode, back.Collision)
 	}
-	if zurueck.Dateiname != "produkte.csv" {
-		t.Errorf("Dateiname = %q", zurueck.Dateiname)
+	if back.Filename != "products.csv" {
+		t.Errorf("Filename = %q", back.Filename)
 	}
-	if zurueck.ErstelltAm.IsZero() {
-		t.Error("ErstelltAm ist leer — der Aufräumlauf hängt an dieser Spalte")
+	if back.CreatedAt.IsZero() {
+		t.Error("CreatedAt is empty — the sweep hangs on that column")
 	}
 }
 
-// TestFremdeMarkeWirdAbgelehnt: der zweite Admin bekommt die Datei des ersten
-// nicht, auch wenn er die Marke kennt. (T-09-06)
-func TestFremdeMarkeWirdAbgelehnt(t *testing.T) {
+// TestForeignTokenIsRefused: the second admin does not get the first one's
+// file, even knowing the token. (T-09-06)
+func TestForeignTokenIsRefused(t *testing.T) {
 	ctx := context.Background()
-	store, database, userID, websiteID := aufbau(t)
-	fremder := benutzer(t, database, "zweiter@example.com")
+	store, database, userID, websiteID := setup(t)
+	stranger := user(t, database, "second@example.com")
 
-	marke, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\nStuhl\n")))
+	token, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\nChair\n")))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 
-	if _, err := store.Holen(ctx, marke, fremder); !errors.Is(err, csvimport.ErrFremd) {
-		t.Fatalf("Holen mit fremder Marke = %v, erwartet ErrFremd", err)
+	if _, err := store.Get(ctx, token, stranger); !errors.Is(err, csvimport.ErrForeign) {
+		t.Fatalf("Get with a foreign token = %v, expected ErrForeign", err)
 	}
-	// Und der Eigentümer kommt weiterhin heran — die Ablehnung des einen darf
-	// den anderen nicht mitnehmen.
-	if _, err := store.Holen(ctx, marke, userID); err != nil {
-		t.Errorf("Holen durch den Eigentümer: %v", err)
+	// And the owner still gets at it — the refusal of the one must not take the
+	// other with it.
+	if _, err := store.Get(ctx, token, userID); err != nil {
+		t.Errorf("Get by the owner: %v", err)
 	}
 }
 
-// TestUnbekannteMarkeIstAbgelaufen: eine Marke, die es nie gab oder die der
-// Aufräumlauf geholt hat, ist abgelaufen und nicht verboten. Die beiden Fälle
-// sind unterscheidbar, weil sie zwei verschiedene Leute beschreiben. (D-33)
-func TestUnbekannteMarkeIstAbgelaufen(t *testing.T) {
+// TestUnknownTokenIsExpired: a token that never existed, or that the sweep has
+// taken, is expired and not forbidden. The two cases are distinguishable
+// because they describe two different people. (D-33)
+func TestUnknownTokenIsExpired(t *testing.T) {
 	ctx := context.Background()
-	store, _, userID, _ := aufbau(t)
+	store, _, userID, _ := setup(t)
 
-	_, err := store.Holen(ctx, "00000000000000000000000000000000", userID)
-	if !errors.Is(err, csvimport.ErrAbgelaufen) {
-		t.Fatalf("Holen mit unbekannter Marke = %v, erwartet ErrAbgelaufen", err)
+	_, err := store.Get(ctx, "00000000000000000000000000000000", userID)
+	if !errors.Is(err, csvimport.ErrExpired) {
+		t.Fatalf("Get with an unknown token = %v, expected ErrExpired", err)
 	}
-	if errors.Is(err, csvimport.ErrFremd) {
-		t.Error("ErrAbgelaufen und ErrFremd sind nicht auseinanderzuhalten — der Bildschirm kann dann nicht sagen, welcher der beiden Fälle vorliegt")
+	if errors.Is(err, csvimport.ErrForeign) {
+		t.Error("ErrExpired and ErrForeign cannot be told apart — the screen then cannot say which of the two cases applies")
 	}
 }
 
-// TestZweiTabsUeberlebenEinander behauptet die Abwesenheit von
-// user/token.go:59-62.
+// TestTwoTabsSurviveEachOther asserts the absence of user/token.go:59-62.
 //
-// Ein Admin mit zwei Tabs lädt zweimal hoch. Nach dem zweiten Mal stehen zwei
-// Zeilen da und die erste Marke holt weiterhin die erste Datei. Wäre die Zeile
-// aus token.go abgeschrieben, wäre die erste Datei jetzt weg — und niemand
-// hätte es gemerkt, weil eine gelöschte Ablage wie eine abgelaufene aussieht.
-// (D-33)
-func TestZweiTabsUeberlebenEinander(t *testing.T) {
+// An admin with two tabs uploads twice. After the second time two rows stand
+// there and the first token still fetches the first file. Had the line from
+// token.go been copied, the first file would now be gone — and nobody would
+// have noticed, because a deleted staging looks like an expired one. (D-33)
+func TestTwoTabsSurviveEachOther(t *testing.T) {
 	ctx := context.Background()
-	store, database, userID, websiteID := aufbau(t)
+	store, database, userID, websiteID := setup(t)
 
-	ersteDaten := []byte("Titel\nErster Tab\n")
-	zweiteDaten := []byte("Titel\nZweiter Tab\n")
+	firstData := []byte("Title\nFirst tab\n")
+	secondData := []byte("Title\nSecond tab\n")
 
-	ersteMarke, err := store.Stage(ctx, musterAblage(userID, websiteID, ersteDaten))
+	firstToken, err := store.Stage(ctx, sampleUpload(userID, websiteID, firstData))
 	if err != nil {
-		t.Fatalf("erstes Stage: %v", err)
+		t.Fatalf("first Stage: %v", err)
 	}
-	zweiteMarke, err := store.Stage(ctx, musterAblage(userID, websiteID, zweiteDaten))
+	secondToken, err := store.Stage(ctx, sampleUpload(userID, websiteID, secondData))
 	if err != nil {
-		t.Fatalf("zweites Stage: %v", err)
+		t.Fatalf("second Stage: %v", err)
 	}
-	if ersteMarke == zweiteMarke {
-		t.Fatal("beide Marken sind gleich")
+	if firstToken == secondToken {
+		t.Fatal("both tokens are the same")
 	}
 
-	var zeilen int
+	var rows int
 	if err := database.Read.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM csv_imports WHERE user_id = $1`, userID).Scan(&zeilen); err != nil {
-		t.Fatalf("Zeilen zählen: %v", err)
+		`SELECT COUNT(*) FROM csv_imports WHERE user_id = $1`, userID).Scan(&rows); err != nil {
+		t.Fatalf("count rows: %v", err)
 	}
-	if zeilen != 2 {
-		t.Fatalf("nach zwei Uploads stehen %d Zeilen da, erwartet 2 — die vorige Ablage wurde gelöscht", zeilen)
+	if rows != 2 {
+		t.Fatalf("after two uploads %d rows stand there, expected 2 — the previous staging was deleted", rows)
 	}
 
-	erste, err := store.Holen(ctx, ersteMarke, userID)
+	first, err := store.Get(ctx, firstToken, userID)
 	if err != nil {
-		t.Fatalf("die erste Marke holt nichts mehr: %v", err)
+		t.Fatalf("the first token fetches nothing any more: %v", err)
 	}
-	if !bytes.Equal(erste.Daten, ersteDaten) {
-		t.Errorf("die erste Marke holt %q, erwartet %q", erste.Daten, ersteDaten)
+	if !bytes.Equal(first.Data, firstData) {
+		t.Errorf("the first token fetches %q, expected %q", first.Data, firstData)
 	}
-	zweite, err := store.Holen(ctx, zweiteMarke, userID)
+	second, err := store.Get(ctx, secondToken, userID)
 	if err != nil {
-		t.Fatalf("Holen der zweiten Marke: %v", err)
+		t.Fatalf("Get of the second token: %v", err)
 	}
-	if !bytes.Equal(zweite.Daten, zweiteDaten) {
-		t.Errorf("die zweite Marke holt %q, erwartet %q", zweite.Daten, zweiteDaten)
+	if !bytes.Equal(second.Data, secondData) {
+		t.Errorf("the second token fetches %q, expected %q", second.Data, secondData)
 	}
 }
 
-// TestMarkeStehtNichtInDerDatenbank: die Marke selbst steht in keiner Spalte,
-// nur ihr SHA-256. Eine Sicherungskopie gibt damit keinen fortsetzbaren Import
-// her. (T-09-09, dieselbe Zucht wie 00012)
-func TestMarkeStehtNichtInDerDatenbank(t *testing.T) {
+// TestTokenIsNotInTheDatabase: the token itself stands in no column, only its
+// SHA-256. A backup copy therefore yields no resumable import. (T-09-09, the
+// same discipline as 00012)
+func TestTokenIsNotInTheDatabase(t *testing.T) {
 	ctx := context.Background()
-	store, database, userID, websiteID := aufbau(t)
+	store, database, userID, websiteID := setup(t)
 
-	marke, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\nStuhl\n")))
+	token, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\nChair\n")))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 
-	var hash, name, dateiname, modus, kollision string
-	var daten []byte
+	var hash, name, filename, mode, collision string
+	var data []byte
 	if err := database.Read.QueryRowContext(ctx,
 		`SELECT token_hash, website_name, dateiname, modus, kollision, daten FROM csv_imports`).
-		Scan(&hash, &name, &dateiname, &modus, &kollision, &daten); err != nil {
-		t.Fatalf("Zeile lesen: %v", err)
+		Scan(&hash, &name, &filename, &mode, &collision, &data); err != nil {
+		t.Fatalf("read row: %v", err)
 	}
-	for spalte, wert := range map[string]string{
+	for column, value := range map[string]string{
 		"token_hash":   hash,
 		"website_name": name,
-		"dateiname":    dateiname,
-		"modus":        modus,
-		"kollision":    kollision,
-		"daten":        string(daten),
+		"dateiname":    filename,
+		"modus":        mode,
+		"kollision":    collision,
+		"daten":        string(data),
 	} {
-		if bytes.Contains([]byte(wert), []byte(marke)) {
-			t.Errorf("die Marke steht in Spalte %s — gespeichert wird nur ihr Hash", spalte)
+		if bytes.Contains([]byte(value), []byte(token)) {
+			t.Errorf("the token stands in column %s — only its hash is stored", column)
 		}
 	}
 	if len(hash) != 64 {
-		t.Errorf("token_hash ist %d Zeichen lang, erwartet 64 — SHA-256 als Hex", len(hash))
+		t.Errorf("token_hash is %d characters long, expected 64 — SHA-256 as hex", len(hash))
 	}
 }
 
-// TestLoeschenNimmtGenauEine: nach dem Schreiblauf verschwindet die Ablage, und
-// ein Neuladen des Berichts findet keine Marke mehr — statt die Datei ein
-// zweites Mal zu importieren. Die Ablage daneben bleibt stehen.
-func TestLoeschenNimmtGenauEine(t *testing.T) {
+// TestDeleteTakesExactlyOne: after the write run the staging disappears, and a
+// reload of the report finds no token any more — instead of importing the file
+// a second time. The staging beside it stays where it is.
+func TestDeleteTakesExactlyOne(t *testing.T) {
 	ctx := context.Background()
-	store, _, userID, websiteID := aufbau(t)
+	store, _, userID, websiteID := setup(t)
 
-	eine, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\neins\n")))
+	one, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\none\n")))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
-	andere, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\nzwei\n")))
+	other, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\ntwo\n")))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 
-	a, err := store.Holen(ctx, eine, userID)
+	u, err := store.Get(ctx, one, userID)
 	if err != nil {
-		t.Fatalf("Holen: %v", err)
+		t.Fatalf("Get: %v", err)
 	}
-	if err := store.Loeschen(ctx, a.ID); err != nil {
-		t.Fatalf("Loeschen: %v", err)
+	if err := store.Delete(ctx, u.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
 	}
-	if _, err := store.Holen(ctx, eine, userID); !errors.Is(err, csvimport.ErrAbgelaufen) {
-		t.Errorf("nach dem Löschen = %v, erwartet ErrAbgelaufen", err)
+	if _, err := store.Get(ctx, one, userID); !errors.Is(err, csvimport.ErrExpired) {
+		t.Errorf("after the delete = %v, expected ErrExpired", err)
 	}
-	if _, err := store.Holen(ctx, andere, userID); err != nil {
-		t.Errorf("die andere Ablage ist mitgegangen: %v", err)
+	if _, err := store.Get(ctx, other, userID); err != nil {
+		t.Errorf("the other staging went with it: %v", err)
 	}
 }
 
-// TestPruneRaeumtNurAltes: was zwei Tage alt ist, geht; was eine Stunde alt
-// ist, bleibt. Der Rückgabewert ist die Zahl der geräumten Zeilen, damit der
-// Auftrag in main.go dieselbe Form hat wie PurgeExpiredTokens.
-func TestPruneRaeumtNurAltes(t *testing.T) {
+// TestPruneSweepsOnlyTheOld: what is two days old goes; what is an hour old
+// stays. The return value is the number of swept rows, so the job in main.go
+// has the same shape as PurgeExpiredTokens.
+func TestPruneSweepsOnlyTheOld(t *testing.T) {
 	ctx := context.Background()
-	store, database, userID, websiteID := aufbau(t)
+	store, database, userID, websiteID := setup(t)
 
-	alt, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\nalt\n")))
+	old, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\nold\n")))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
-	frisch, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\nfrisch\n")))
+	fresh, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\nfresh\n")))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 
-	// Zurückdatieren geht nur hier im Test von aussen: die Ablage selbst
-	// schreibt ihre Zeile einmal und ändert sie nie.
-	vorZweiTagen := time.Now().UTC().Add(-48 * time.Hour).Format("2006-01-02T15:04:05Z")
-	altAblage, err := store.Holen(ctx, alt, userID)
+	// Backdating is possible only here in the test, from outside: staging
+	// itself writes its row once and never changes it.
+	twoDaysAgo := time.Now().UTC().Add(-48 * time.Hour).Format("2006-01-02T15:04:05Z")
+	oldUpload, err := store.Get(ctx, old, userID)
 	if err != nil {
-		t.Fatalf("Holen: %v", err)
+		t.Fatalf("Get: %v", err)
 	}
 	if _, err := database.Write.ExecContext(ctx,
-		`UPDATE csv_imports SET erstellt_am = $1 WHERE id = $2`, vorZweiTagen, altAblage.ID); err != nil {
-		t.Fatalf("zurückdatieren: %v", err)
+		`UPDATE csv_imports SET erstellt_am = $1 WHERE id = $2`, twoDaysAgo, oldUpload.ID); err != nil {
+		t.Fatalf("backdate: %v", err)
 	}
 
 	n, err := store.Prune(ctx, 24*time.Hour)
@@ -311,90 +310,91 @@ func TestPruneRaeumtNurAltes(t *testing.T) {
 		t.Fatalf("Prune: %v", err)
 	}
 	if n != 1 {
-		t.Errorf("Prune meldet %d geräumte Zeilen, erwartet 1", n)
+		t.Errorf("Prune reports %d swept rows, expected 1", n)
 	}
-	if _, err := store.Holen(ctx, alt, userID); !errors.Is(err, csvimport.ErrAbgelaufen) {
-		t.Errorf("die alte Ablage steht noch: %v", err)
+	if _, err := store.Get(ctx, old, userID); !errors.Is(err, csvimport.ErrExpired) {
+		t.Errorf("the old staging is still there: %v", err)
 	}
-	if _, err := store.Holen(ctx, frisch, userID); err != nil {
-		t.Errorf("die frische Ablage wurde mitgeräumt: %v", err)
+	if _, err := store.Get(ctx, fresh, userID); err != nil {
+		t.Errorf("the fresh staging was swept along: %v", err)
 	}
 }
 
-// TestBenutzerLoeschenRaeumtAblageMit: ein gelöschtes Konto lässt keine
-// verwaisten zehn Megabyte zurück. Das ist eine Tatsache der Datenbank —
-// ON DELETE CASCADE von users — und keine Sitte eines Handlers. (T-09-12)
-func TestBenutzerLoeschenRaeumtAblageMit(t *testing.T) {
+// TestDeletingAUserTakesTheUploadWithIt: a deleted account leaves no orphaned
+// ten megabytes behind. That is a fact of the database — ON DELETE CASCADE from
+// users — and not the habit of a handler. (T-09-12)
+func TestDeletingAUserTakesTheUploadWithIt(t *testing.T) {
 	ctx := context.Background()
-	store, database, userID, websiteID := aufbau(t)
+	store, database, userID, websiteID := setup(t)
 
-	if _, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\nStuhl\n"))); err != nil {
+	if _, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\nChair\n"))); err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 	if _, err := database.Write.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, userID); err != nil {
-		t.Fatalf("Benutzer löschen: %v", err)
+		t.Fatalf("delete user: %v", err)
 	}
 
-	var zeilen int
-	if err := database.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM csv_imports`).Scan(&zeilen); err != nil {
-		t.Fatalf("Zeilen zählen: %v", err)
+	var rows int
+	if err := database.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM csv_imports`).Scan(&rows); err != nil {
+		t.Fatalf("count rows: %v", err)
 	}
-	if zeilen != 0 {
-		t.Errorf("nach dem Löschen des Kontos stehen %d Ablagen da, erwartet 0", zeilen)
+	if rows != 0 {
+		t.Errorf("after deleting the account %d stagings stand there, expected 0", rows)
 	}
 }
 
-// TestWebsiteLoeschenLaesstAblageStehen ist die Gegenprobe zur vorigen: die
-// Zielwebsite verschwindet, die Datei der Bedienerin nicht. website_id fällt
-// auf NULL zurück und kommt als 0 an — genau der Zustand, den ein Import hat,
-// der die Website erst noch anlegt. Der Ablauf endet dann mit einer Meldung
-// und nicht damit, dass der Upload unter den Händen verschwindet. (D-29)
-func TestWebsiteLoeschenLaesstAblageStehen(t *testing.T) {
+// TestDeletingAWebsiteLeavesTheUploadStanding is the counter-check to the
+// previous one: the target website disappears, the operator's file does not.
+// website_id falls back to NULL and arrives as 0 — exactly the state of an
+// import that has yet to create its website. The run then ends with a message
+// and not with the upload vanishing under the operator's hands. (D-29)
+func TestDeletingAWebsiteLeavesTheUploadStanding(t *testing.T) {
 	ctx := context.Background()
-	store, database, userID, websiteID := aufbau(t)
+	store, database, userID, websiteID := setup(t)
 
-	marke, err := store.Stage(ctx, musterAblage(userID, websiteID, []byte("Titel\nStuhl\n")))
+	token, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\nChair\n")))
 	if err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 	if _, err := database.Write.ExecContext(ctx, `DELETE FROM websites WHERE id = $1`, websiteID); err != nil {
-		t.Fatalf("Website löschen: %v", err)
+		t.Fatalf("delete website: %v", err)
 	}
 
-	zurueck, err := store.Holen(ctx, marke, userID)
+	back, err := store.Get(ctx, token, userID)
 	if err != nil {
-		t.Fatalf("die Ablage ist mit der Website verschwunden: %v", err)
+		t.Fatalf("the staging disappeared with the website: %v", err)
 	}
-	if zurueck.WebsiteID != 0 {
-		t.Errorf("WebsiteID = %d, erwartet 0 — die gelöschte Website hinterlässt NULL", zurueck.WebsiteID)
+	if back.WebsiteID != 0 {
+		t.Errorf("WebsiteID = %d, expected 0 — the deleted website leaves NULL behind", back.WebsiteID)
 	}
-	if !bytes.Equal(zurueck.Daten, []byte("Titel\nStuhl\n")) {
-		t.Errorf("Daten = %q", zurueck.Daten)
+	if !bytes.Equal(back.Data, []byte("Title\nChair\n")) {
+		t.Errorf("Data = %q", back.Data)
 	}
 }
 
-// TestAblageOhneWebsiteIstErlaubt: der Import, der die Website erst anlegt, hat
-// noch keine — website_id ist mit Absicht leer erlaubt.
-func TestAblageOhneWebsiteIstErlaubt(t *testing.T) {
+// TestUploadWithoutAWebsiteIsAllowed: the import that creates the website in
+// the first place has none yet — website_id is deliberately allowed to be
+// empty.
+func TestUploadWithoutAWebsiteIsAllowed(t *testing.T) {
 	ctx := context.Background()
-	store, _, userID, _ := aufbau(t)
+	store, _, userID, _ := setup(t)
 
-	a := musterAblage(userID, 0, []byte("Titel\nStuhl\n"))
-	a.Modus = "neu"
-	a.WebsiteName = "Neue Site"
+	u := sampleUpload(userID, 0, []byte("Title\nChair\n"))
+	u.Mode = "neu"
+	u.WebsiteName = "New Site"
 
-	marke, err := store.Stage(ctx, a)
+	token, err := store.Stage(ctx, u)
 	if err != nil {
-		t.Fatalf("Stage ohne Website: %v", err)
+		t.Fatalf("Stage without a website: %v", err)
 	}
-	zurueck, err := store.Holen(ctx, marke, userID)
+	back, err := store.Get(ctx, token, userID)
 	if err != nil {
-		t.Fatalf("Holen: %v", err)
+		t.Fatalf("Get: %v", err)
 	}
-	if zurueck.WebsiteID != 0 {
-		t.Errorf("WebsiteID = %d, erwartet 0", zurueck.WebsiteID)
+	if back.WebsiteID != 0 {
+		t.Errorf("WebsiteID = %d, expected 0", back.WebsiteID)
 	}
-	if zurueck.WebsiteName != "Neue Site" || zurueck.Modus != "neu" {
-		t.Errorf("WebsiteName/Modus = %q/%q", zurueck.WebsiteName, zurueck.Modus)
+	if back.WebsiteName != "New Site" || back.Mode != "neu" {
+		t.Errorf("WebsiteName/Mode = %q/%q", back.WebsiteName, back.Mode)
 	}
 }

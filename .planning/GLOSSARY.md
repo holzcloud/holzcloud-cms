@@ -100,6 +100,15 @@ Katalogschlüsseln.
 | Ausfertigung (einer Regel) | `copy` | Die zweite Niederschrift derselben Regel |
 | Angriffsfläche | `attack surface` | |
 | Bediener / Bedienerin | `operator` | Wer den Import bedient |
+| Modus | `Mode` | SQL-Spalte `modus` bleibt bis Phase 12 stehen |
+| Kollision | `Collision` | SQL-Spalte `kollision` bleibt bis Phase 12 stehen |
+| Dateiname | `Filename` | SQL-Spalte `dateiname` bleibt bis Phase 12 stehen |
+| Daten | `Data` | SQL-Spalte `daten` bleibt bis Phase 12 stehen |
+| erstellt am | `CreatedAt` | SQL-Spalte `erstellt_am` bleibt bis Phase 12 stehen |
+| fremd | `foreign` | `ErrFremd` → `ErrForeign`. Die Person dazu ist ein `stranger` |
+| abgelaufen | `expired` | `ErrAbgelaufen` → `ErrExpired` |
+| Benutzer | `user` | |
+| Konto | `account` | |
 
 ## Vorgänge und Werkzeuge
 
@@ -114,6 +123,11 @@ Katalogschlüsseln.
 | Fenster (kaputtes) | `broken window` | `.planning/WINDOWS.md` |
 | Katalog | `catalogue` | Die Übersetzungsdateien |
 | Stehendes Tor | `standing gate` | |
+| Rückwärtshälfte | `down half` | Der `-- +goose Down`-Teil einer Wanderung |
+| Rücknahme | `rollback` | Das Fahren dieser Hälfte |
+| Rückfahrt | `trip back up` | Das erneute Anwenden danach |
+| Aufbewahrung | `retention` | Wie lange ein Aufräumlauf etwas stehen lässt |
+| Gegenstand (im Schema) | `object` | Tabelle oder Index in `sqlite_master` |
 
 ## Wörter, die eine Falle sind
 
