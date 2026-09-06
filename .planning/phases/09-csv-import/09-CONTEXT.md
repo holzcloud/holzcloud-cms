@@ -302,6 +302,63 @@ individually testable defence, and the plan should treat them as a checklist:
   link to the page list, not 272 lines. **This is the screen the feature is
   judged by** and the plan should give it its own task.
 
+### What the edge probe found that the decisions above had missed
+
+The eight-category edge probe was run over IMP-01 … IMP-10 before planning.
+**34 edges applicable, 34 closed** — 27 `resolved`/`explicit`, 7 `dismissed`
+with a reason, **0 unresolved**. The full input, resolutions and coverage are
+committed beside this file as `09-EDGES-requirements.json`,
+`09-EDGES-resolutions.json` and `09-EDGES-coverage.json`, and the planner should
+lift each `resolved`/`explicit` resolution into a check.
+
+Five of them are things D-01 … D-25 did not say, and four are defects waiting to
+happen:
+
+- **D-26: the row number is the spreadsheet's row number — header is row 1, the
+  first data row is row 2.** (IMP-03 / boundary.) Not `csv.Reader`'s record
+  index, not the line number. Every requirement in this phase that says "row
+  number" — IMP-03, IMP-09, criterion 3, criterion 5 — is wrong by one if this
+  is not fixed in one place. **One helper mints the number, and the dry run, the
+  sample-row stepper and the report all call it**, so the "Zeile 2" on the
+  mapping screen is the same row as the "Zeile 2" in the report.
+- **D-27: two columns with the same header do not collide, because a column is
+  addressed by its index.** (IMP-01 / adjacency.) A file with two `Titel`
+  columns shows two entries in the mapping list, distinguished by position, each
+  pointable at a different target. For the *automatic* match the first wins and
+  the second is left unmapped **with a sentence saying so** (IMP-06 /
+  adjacency) — an unexplained blank looks like an oversight.
+- **D-28: the header fold strips combining marks before `field.SlugifyKey`.**
+  (IMP-06 / encoding.) `SlugifyKey` (`field.go:876`) matches the *single rune*
+  `'ü'` (U+00FC). A header written on macOS, or exported by a tool that
+  normalises to NFD, arrives as `u` + U+0308 — and `Grösse` would silently fail
+  to match its own field, which is exactly the class of bug IMP-06 exists to
+  prevent. The fix is `unicode.Mn` stripping before the fold: three lines,
+  `unicode` only, **D-17 stands and no dependency is added.** The documented
+  rule becomes: *strip combining marks, then `field.SlugifyKey`.*
+- **D-29: the target and the mapping are re-checked at the dry run and again at
+  the write.** (IMP-04 / concurrency.) The website, and every field definition
+  the mapping names, can be deleted or changed between screen 1 and screen 4 —
+  the wizard spans four requests and an unknown amount of wall time. A mapping
+  naming a field that no longer exists is reported and its column falls back to
+  unmapped; a target website that is gone ends the wizard with a message rather
+  than a nil dereference.
+- **D-30 (an argument for D-01 that D-01 did not make):** because the dry run and
+  the write read **the same staged bytes**, the report cannot describe a
+  different file than the one that gets written. (IMP-05 / concurrency.) Under
+  the overridden "re-submit the file" design the operator could have picked a
+  *different file* at the commit step and the dry run would have been describing
+  the wrong one, silently. Staging is not only what makes IMP-08 buildable; it
+  is what makes IMP-05 true.
+
+Two resolutions are mechanical gates the plan should state as such:
+
+- **IMP-09 / boundary** — every cap is tested at the boundary *and one step
+  either side*: 10 MB / 10 MB + 1, `MaxRows` / `MaxRows` + 1, a 100 000-byte
+  cell / 100 001. Six cases, not three.
+- **IMP-10 / concurrency** — `grep -c 'BeginTx' internal/csv internal/admin/<the
+  importer>` must measure **0**, and no call the row function makes may hold a
+  transaction across two rows.
+
 ### What must not change
 
 - `internal/wxr` and `internal/admin/wordpress.go` — copied from, not touched.
