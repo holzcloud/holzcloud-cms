@@ -237,12 +237,12 @@ The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
   5. Snippets that already exist keep working untouched: their Markdown body still renders wherever a theme calls them, no snippet key changes, the admin performs no migration step, and the published `.Site.Snippets` contract keeps its type — field values arrive **beside** it, not through it.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
 
-**Plans**: 5 plans
+**Plans**: 1/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — migration `00047`, the fourth namespace in `internal/field/store.go`, and one snippet field traced from the table to a theme
+- [x] 08-01-PLAN.md — migration `00047`, the fourth namespace in `internal/field/store.go`, and one snippet field traced from the table to a theme
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -392,7 +392,7 @@ anywhere.
 | 5. Admin Polish + Users + Deployment | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 6. Aufräumen | v1.6 | 7/7 | In Progress|  |
 | 7. Field Kinds | v1.6 | 7/7 | In Progress|  |
-| 8. Snippets Carry Fields | v1.6 | 0/TBD | Not started | - |
+| 8. Snippets Carry Fields | v1.6 | 1/5 | In Progress|  |
 | 9. CSV Import | v1.6 | 0/TBD | Not started | - |
 | 10. Authentik Forward-Auth | v1.6 | 0/TBD | Not started | - |
 | 11. Galerie | v1.6 | 0/TBD | Not started | - |
