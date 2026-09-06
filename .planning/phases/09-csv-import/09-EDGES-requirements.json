@@ -1,0 +1,12 @@
+[
+ {"id":"IMP-01","text":"Admin can upload a CSV file and map each column to a target - title, body, a custom field, or explicitly nothing."},
+ {"id":"IMP-02","text":"A CSV import creates pages through the same path as any other creation, so slugging, validation and sanitisation apply unchanged."},
+ {"id":"IMP-03","text":"A CSV import reports per row what was created, updated or skipped, naming the row number and the reason. A file mixing good and bad rows imports the good ones and leaves nothing half-written."},
+ {"id":"IMP-04","text":"The import can target an existing website or create a new one, chosen on the first screen. Targeting an existing one needs an update-or-skip answer for every collision."},
+ {"id":"IMP-05","text":"Admin can run the whole file through validation without writing anything, and see what would happen, before committing to it."},
+ {"id":"IMP-06","text":"Columns are matched to fields automatically where the names correspond, ignoring case and accents; the admin can override every one of them."},
+ {"id":"IMP-07","text":"Admin can download an example CSV generated from that website's own field definitions, with the right column headings already in it."},
+ {"id":"IMP-08","text":"The mapping screen shows one real row from the file, navigable to the next, and each field can carry a default for cells that are empty or unmapped."},
+ {"id":"IMP-09","text":"An uploaded CSV is treated as hostile: bytes, rows and single cells are all capped; a byte-order mark from Excel does not break the first column; a stray quote does not swallow the rest of the file; a short row is reported by its row number; a NUL byte is refused."},
+ {"id":"IMP-10","text":"No transaction ever spans more than one row - the write pool admits a single connection, and a file-long transaction would block every other request on the machine."}
+]
