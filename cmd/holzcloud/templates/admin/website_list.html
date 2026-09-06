@@ -104,14 +104,27 @@
     <p class="text-muted">
         {{t "Für eine Website, die es noch nicht gibt, gibt es keine Felder zu lesen: dort sind es nur die fünf festen Spalten Titel, Adresse, Text, Zustand und Schlagwörter."}}
     </p>
+    {{if .Websites}}
     <form method="GET" action="/admin/csv-vorlage">
         <div class="form-group">
-            <label class="form-label" for="vorlage_website">{{t "Beispiel für diese Website"}}</label>
-            <select id="vorlage_website" name="website" class="form-input form-select">
+            <label class="form-label" for="example_website">{{t "Beispiel für diese Website"}}</label>
+            <select id="example_website" name="website" class="form-input form-select">
                 {{range .Websites}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
             </select>
         </div>
         <button type="submit" class="btn" hx-disabled-elt="this">{{t "Beispieldatei herunterladen"}}</button>
+    </form>
+    {{end}}
+    {{/* Ein eigenes Formular und keine zweite Schaltfläche im ersten: beide
+         hiessen „website“, und eine Auswahlliste, die im Formular vorher
+         steht, käme in der Abfragezeichenfolge zuerst — der Server läse ihren
+         Wert und nicht die Null. Dieses Formular trägt gar kein Feld, also
+         kommt keine Website an, und genau das ist der Fall der noch nicht
+         vorhandenen Website. Es steht auch dann da, wenn es noch keine
+         einzige Website gibt: das ist der wahrscheinlichste Augenblick für
+         den allerersten Import. */}}
+    <form method="GET" action="/admin/csv-vorlage">
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Beispieldatei für eine neue Website"}}</button>
     </form>
 </details>
 
