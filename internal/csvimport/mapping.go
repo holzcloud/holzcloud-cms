@@ -210,23 +210,6 @@ func Mappable(kind string) bool {
 	return field.KnownKind(kind)
 }
 
-// Reason is the code a screen turns into a sentence.
-//
-// Declared here because the mapping is the first thing that produces one; the
-// whole vocabulary, and the discipline that an empty Reason means it worked,
-// live beside the row verdict in verdict.go.
-type Reason string
-
-// The two reasons the automatic match produces.
-const (
-	// ReasonColumnTaken: another column already took this heading's target.
-	// Argument: the winning column's position.
-	ReasonColumnTaken Reason = "column_taken"
-	// ReasonEmptyHeader: the heading folds to nothing, so there is nothing to
-	// match it by. No arguments.
-	ReasonEmptyHeader Reason = "empty_header"
-)
-
 // Note says why a column was left unmapped by the automatic match.
 //
 // A code plus its arguments and never a finished sentence, for the same
