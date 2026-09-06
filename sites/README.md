@@ -1,125 +1,121 @@
-# Websites als Quelltext
+# Websites as source
 
-Hier liegt eine fertige Website in der Form, in der man sie lesen und ändern
-kann: das Manifest als JSON, die Bilder als gewöhnliche Dateien.
-`tools/mkbundle` packt daraus das Zip-Archiv, das der Import im Admin erwartet.
+Here lies a finished website in the form you can read and change: the manifest as
+JSON, the images as ordinary files. `tools/mkbundle` packs them into the zip
+archive the admin's import expects.
 
-Ein Bundle wird nicht als Zip eingecheckt, obwohl das die Form ist, in der es
-am Ende gebraucht wird. Ein Zip lässt sich nicht im Diff lesen, und eine
-korrigierte Zeile Text schreibt dreissig Megabyte Binärdaten neu. Unverpackt
-ist ein Tippfehler eine Zeile im Diff.
+A bundle is not checked in as a zip, although that is the form it is finally
+needed in. A zip cannot be read in a diff, and one corrected line of text
+rewrites thirty megabytes of binary. Unpacked, a typo is one line in the diff.
 
-## Was hier liegt
+## What is here
 
-`beispiel/` — die Velowerkstatt Beispiel in Musterhausen. Es gibt sie nicht.
-Adresse, Preise, Öffnungszeiten und beide Bilder sind erfunden, und
-`example.com` ist eine Domain, die nach RFC 2606 nie jemandem gehört.
+`beispiel/` — the Velowerkstatt Beispiel in Musterhausen. It does not exist. The
+address, the prices, the opening hours and both images are invented, and
+`example.com` is a domain that by RFC 2606 never belongs to anybody.
 
-Sie steht hier, damit man das Format an etwas Vollständigem sieht statt an
-einer Aufzählung von Feldern. Jedes Stück kommt genau einmal vor: vier
-veröffentlichte Seiten, ein Menü mit einem Unterpunkt, ein Textbaustein, zwei
-Bilder mit Beschreibung, ein Titelbild und zwei Pfade der Form `/media/0/`.
-Wer eine eigene Website anlegt, kopiert das Verzeichnis und schreibt es um.
+It is here so that you can see the format in something complete rather than in a
+list of fields. Every piece occurs exactly once: four published pages, a menu with
+one sub-item, a snippet, two images with descriptions, a preview image and two
+paths of the form `/media/0/`. To make a website of your own, copy the directory
+and rewrite it.
 
-Welche Felder es überhaupt gibt, steht nicht hier, sondern in
-`internal/bundle/format.go`. Die JSON-Namen an den Strukturen sind die einzige
-Wahrheit darüber, und `mkbundle` weist jeden Namen zurück, der dort nicht
-vorkommt. Eine Aufzählung an dieser Stelle wäre eine zweite Wahrheit, die
-veraltet, sobald jemand ein Feld hinzufügt.
+Which fields exist at all is not documented here but in
+`internal/bundle/format.go`. The JSON names on the structs are the only truth
+about it, and `mkbundle` rejects every name that does not appear there. A list in
+this place would be a second truth, and it would go stale the moment somebody
+adds a field.
 
-## Bauen und einspielen
+## Building and importing
 
 ```sh
 go run ./tools/mkbundle sites/beispiel
 ```
 
-Das schreibt `sites/beispiel.zip`. Das Archiv gehört nicht ins Repository und
-steht in `.gitignore`. Danach im Admin unter **Websites → Website importieren**
-hochladen. Der Import legt jedes Mal eine **neue** Website an; er führt nichts
-zusammen. Wer eine Fassung ersetzen will, importiert neu, vergleicht und löscht
-die alte.
+That writes `sites/beispiel.zip`. The archive does not belong in the repository
+and is in `.gitignore`. Then upload it in the admin under **Websites → Import
+website**. The import creates a **new** website every time; it merges nothing. To
+replace a version, import again, compare, and delete the old one.
 
-Nach dem Import fehlt noch die Domain: eine importierte Website hat keine, und
-ohne Domain ist sie nicht erreichbar. Unter **Domains** eintragen. Die Domains
-stehen bewusst nicht im Manifest — ein Bundle soll anderswo landen können, ohne
-einen Hostnamen zu beanspruchen, der dieser Maschine nicht gehört.
+After the import the domain is still missing: an imported website has none, and
+without a domain it cannot be reached. Enter one under **Domains**. The domains
+are deliberately not in the manifest — a bundle should be able to land elsewhere
+without claiming a host name that does not belong to that machine.
 
-Ebenfalls von Hand zu setzen ist das Theme. Es steht nicht im Manifest, weil
-ein Bundle auf einer Maschine landen kann, die dieses Theme gar nicht hat.
+The template has to be set by hand too. It is not in the manifest, because a
+bundle can land on a machine that does not have that template at all.
 
-## Was `mkbundle` prüft
+## What `mkbundle` checks
 
-Es weigert sich, ein Archiv zu bauen, das beim Import stillschweigend Inhalt
-verlöre:
+It refuses to build an archive that would silently lose content on import:
 
-- **Unbekannte Felder.** Der Import ist absichtlich nachsichtig — er nimmt, was
-  er kennt, damit ein altes Bundle noch landet. Hier gilt das Gegenteil:
-  `meta_desc` statt `meta_description` würde jede Beschreibung der Website
-  kosten, ohne eine einzige Fehlermeldung.
-- **Bilder in beide Richtungen.** Jede Datei in `media/` steht im Manifest, und
-  jeder Eintrag im Manifest liegt in `media/`. Ein nicht eingetragenes Bild
-  reist nicht mit; die Seite, die es zeigt, bleibt auf der Zielmaschine leer.
-- **Fehlende Alt-Texte.** Eine Bildbeschreibung lässt sich später nachtragen,
-  aber niemand tut es. Beim Bauen ist der Moment, in dem es noch jemanden gibt,
-  der das Bild vor Augen hat.
-- **Zeichen, die eine Bildbeschreibung ganz verlieren.** Ein Doppelpunkt, ein
-  Fragezeichen, ein Gedankenstrich, ein kaufmännisches Und — bei jedem davon
-  entfernt die Bereinigung nicht das Zeichen, sondern das ganze Attribut. Das
-  Bild erscheint weiterhin, die Seite sieht fertig aus, und für einen
-  Screenreader ist sie stumm. Komma und Punkt sind erlaubt und reichen.
-- **Verweise ins Leere.** Menüpunkte auf Seiten, die es nicht gibt.
-  Titelbilder, die in keiner Medienliste stehen. `/media/…`-Pfade im Text, zu
-  denen keine Datei gehört.
+- **Unknown fields.** The import is deliberately forgiving — it takes what it
+  knows, so an old bundle still lands. Here the opposite applies: `meta_desc`
+  instead of `meta_description` would cost the website every description, without
+  a single error message.
+- **Images in both directions.** Every file in `media/` is in the manifest, and
+  every entry in the manifest lies in `media/`. An image that is not listed does
+  not travel; the page that shows it stays empty on the target machine.
+- **Missing alt texts.** An image description can be added later, but nobody does
+  it. Build time is the moment when there is still somebody who has the image in
+  front of them.
+- **Characters that lose an image description entirely.** A colon, a question
+  mark, an em dash, an ampersand — with each of those the sanitiser removes not
+  the character but the whole attribute. The image still appears, the page looks
+  finished, and to a screen reader it is mute. Comma and full stop are allowed and
+  are enough.
+- **References into nothing.** Menu items pointing at pages that do not exist.
+  Preview images that are in no media list. `/media/…` paths in the text with no
+  file behind them.
 
-Die Prüfsummen schreibt es beim Packen selbst. Eine eingecheckte Prüfsumme wäre
-eine zweite Kopie der Wahrheit, die veraltet, sobald jemand ein Foto neu
-zuschneidet — und dann scheitert der Import mit einer Meldung über eine
-Beschädigung, die es gar nicht gibt. Dasselbe gilt für `version`,
-`exported_at` und `generated_by`: von Hand geschrieben werden sie nicht.
+It writes the checksums itself while packing. A checked-in checksum would be a
+second copy of the truth, going stale the moment somebody re-crops a photograph —
+and then the import fails with a message about a corruption that does not exist.
+The same goes for `version`, `exported_at` and `generated_by`: they are not
+written by hand.
 
-## Bilder im Text
+## Images in the text
 
-Bilder werden als `/media/0/dateiname.jpg` geschrieben. Die Null ist ein
-Platzhalter: welche Nummer die Website bekommt, entscheidet sich erst beim
-Import, und der schreibt die Pfade dann auf die richtige um. Das gilt für jede
-Zahl an dieser Stelle, auch für die einer echten Website — genau das ist es,
-was einen Export von einem Server auf einem anderen wieder funktionieren lässt.
+Images are written as `/media/0/filename.jpg`. The zero is a placeholder: which
+number the website gets is decided only at import, and the import rewrites the
+paths to the right one. That applies to any number in that position, including
+that of a real website — which is exactly what makes an export from one server
+work again on another.
 
-Umgeschrieben werden nur Dateien, die im Bundle stecken. Ein Verweis auf etwas
-anderes bleibt stehen.
+Only files that are inside the bundle are rewritten. A reference to anything else
+is left alone.
 
-## Die zwei Bilder im Beispiel
+## The two images in the example
 
-Sie zeigen nichts. Es sind zwei flächige JPEGs, 1200 mal 800, mit ein paar
-Rechtecken darauf, damit man sie auseinanderhalten kann. Erzeugt hat sie ein
-Wegwerfprogramm aus `image`, `image/color`, `image/draw` und `image/jpeg` —
-nur Standardbibliothek, weshalb sie JFIF ohne EXIF-Block sind und nichts über
-die Maschine verraten, auf der sie entstanden.
+They show nothing. They are two flat JPEGs, 1200 by 800, with a few rectangles on
+them so you can tell them apart. A throwaway program made them out of `image`,
+`image/color`, `image/draw` and `image/jpeg` — standard library only, which is
+why they are JFIF without an EXIF block and give nothing away about the machine
+they came from.
 
-Das Programm ist nicht eingecheckt. Es hätte genau eine Aufgabe, die sich nie
-wiederholt, und ein zweiter Lauf würde die Bytes und damit jede Prüfsumme still
-neu schreiben. Ein Bild ist Inhalt, kein Bauergebnis — ein Foto erzeugt auch
-niemand neu. Wer die zwei doch einmal ersetzen muss, schreibt das Programm in
-zehn Minuten wieder.
+The program is not checked in. It would have exactly one task that never repeats,
+and a second run would silently rewrite the bytes and with them every checksum.
+An image is content, not a build output — nobody regenerates a photograph either.
+Anyone who does have to replace the two writes the program again in ten minutes.
 
-## Ändern
+## Changing things
 
-Text und Struktur stehen in `holzcloud.json`. Wer dort etwas ändert, baut neu
-und importiert erneut — es gibt bewusst keinen Weg, eine laufende Website aus
-dieser Datei nachzuziehen. Das wäre eine zweite Quelle der Wahrheit neben dem
-Admin, und die redaktionellen Änderungen der letzten Wochen wären still
-überschrieben.
+Text and structure are in `holzcloud.json`. Change something there and you build
+again and import again — there is deliberately no way to pull a running website
+back into line with this file. That would be a second source of truth beside the
+admin, and the editorial changes of the last few weeks would be silently
+overwritten.
 
-Nach dem ersten Import ist der Admin die Quelle. Diese Dateien sind der
-Startpunkt und das Archiv, aus dem man wieder anfangen kann.
+After the first import the admin is the source. These files are the starting
+point, and the archive you can start again from.
 
-## Wo die echten Websites liegen
+## Where the real websites are
 
-Hier standen bis zur Freigabe des Quelltextes zwei Websites von Kunden, mit
-ihren Fotos, ihren Texten, einer Mailadresse und einer Postadresse. Das ist
-nicht das Material dieses Projekts, und dieses Repository steht unter der
-AGPL-3.0 — mit veröffentlicht wird also alles, was darin liegt.
+Until the source was released, two customer websites stood here, with their
+photographs, their texts, an e-mail address and a postal address. That is not
+this project's material, and this repository is under the AGPL-3.0 — so
+everything in it is published along with it.
 
-Beide sind deshalb ins private Repository `holzcloud/holzcloud-sites`
-umgezogen. Dort gehören sie hin, und dort werden sie weiter gepflegt. Was hier
-bleibt, ist das Format und ein Beispiel dafür.
+Both have therefore moved to the private repository
+`holzcloud/holzcloud-sites`. That is where they belong and where they go on being
+maintained. What stays here is the format, and one example of it.
