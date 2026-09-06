@@ -425,6 +425,47 @@ func TestCSVSampleRowSteppingIsClamped(t *testing.T) {
 	}
 }
 
+// The two numbers of the sample line are both the spreadsheet's, and the test
+// is here because a browser found the sentence reading "Zeile 13 von 12".
+//
+// SampleNumber is minted by csv.RowNumber, so it counts the header: the first
+// data row is 2. The second number used to be TotalRows, which counts data rows
+// only and never the header. On the last row of a file the two met and the
+// screen said "row 13 of 12" — a sentence that is simply false about the file
+// in front of the operator, and one the whole suite passed over because no test
+// read the two numbers of that sentence together. D-26 puts every row number a
+// person reads on the spreadsheet's own counting; this is the second number
+// joining the first.
+func TestCSVSampleLineCountsBothNumbersTheSameWay(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	// A header and four data rows: the spreadsheet's last row is row 5.
+	token := stage(t, h, admin, 0, "Titel\neins\nzwei\ndrei\nvier\n")
+
+	for _, c := range []struct {
+		query string
+		want  string
+	}{
+		{"row=1", "Beispiel: Zeile 2 von 5"},
+		{"row=3", "Beispiel: Zeile 4 von 5"},
+		{"row=4", "Beispiel: Zeile 5 von 5"},
+	} {
+		rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, c.query))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d; want 200", c.query, rec.Code)
+		}
+		if body := rec.Body.String(); !strings.Contains(body, c.want) {
+			t.Errorf("%s: the sample line does not read %q — the row number and the total are counted differently", c.query, c.want)
+		}
+	}
+	// And the sentence that started this: a row number above its own total.
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, "row=4"))
+	if strings.Contains(rec.Body.String(), "Zeile 5 von 4") {
+		t.Error(`the last row still reads "Zeile 5 von 4" — the total counts data rows while the row number counts the header`)
+	}
+}
+
 func TestCSVHeaderOnlySaysSoInsteadOfAnEmptyTable(t *testing.T) {
 	h, sm, database, _ := newTestAdmin(t)
 	admin := seedAdmin(t, database, "eins@test")
