@@ -186,3 +186,106 @@ func TestMigration00048RunterUndRauf(t *testing.T) {
 		t.Errorf("nach der Rückfahrt: Index = %q, erwartet die engere Form mit parent_id", got)
 	}
 }
+
+// TestMigration00049RunterUndRauf fährt die Rückwärtshälfte von 00049.
+//
+// Aus dem Grund, den die beiden Tests darüber schon nennen: nichts sonst im
+// Baum fährt sie, also ist sie die Hälfte, die kaputt ausgeliefert wird.
+//
+// 00049 ist keine Berichtigung wie 00048 und kein Indexaustausch wie 00047 —
+// sie legt an. Ihre Rücknahme kann deshalb nicht die falsche Form
+// wiederherstellen, wohl aber zu wenig wegnehmen: ein DROP TABLE ohne das
+// DROP INDEX davor, oder umgekehrt. Der Test sieht darum in sqlite_master nach
+// beidem nach und nicht bloss nach der Tabelle.
+func TestMigration00049RunterUndRauf(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+
+	// Zählt, was von 00049 gerade in sqlite_master steht: die Tabelle und ihr
+	// Index. Zwei heisst da, eins heisst halb weg, null heisst weg.
+	bestand := func(wo string) int {
+		t.Helper()
+		var n int
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM sqlite_master
+			  WHERE (type='table' AND name='csv_imports')
+			     OR (type='index' AND name='idx_csv_imports_alter')`).Scan(&n); err != nil {
+			t.Fatalf("%s: sqlite_master lesen: %v", wo, err)
+		}
+		return n
+	}
+
+	if got := bestand("nach oben"); got != 2 {
+		t.Fatalf("nach oben: %d von 2 Gegenständen aus 00049 stehen da (Tabelle und Index)", got)
+	}
+
+	res, err := database.Write.ExecContext(ctx,
+		`INSERT INTO users (email, password, role, created_at)
+		 VALUES ('ablage@example.com', 'hash', 'admin', '2026-01-01T00:00:00Z')`)
+	if err != nil {
+		t.Fatalf("Benutzer anlegen: %v", err)
+	}
+	userID, _ := res.LastInsertId()
+
+	res, err = database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description) VALUES ('Prüfsite', '')`)
+	if err != nil {
+		t.Fatalf("Website anlegen: %v", err)
+	}
+	websiteID, _ := res.LastInsertId()
+
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO csv_imports (token_hash, user_id, website_id, modus, daten, erstellt_am)
+		 VALUES ('abc', $1, $2, 'bestehend', $3, '2026-01-01T00:00:00Z')`,
+		userID, websiteID, []byte("Titel\nStuhl\n")); err != nil {
+		t.Fatalf("Ablage anlegen: %v", err)
+	}
+
+	var zeilen int
+	if err := database.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM csv_imports`).Scan(&zeilen); err != nil {
+		t.Fatalf("Ablagen zählen: %v", err)
+	}
+	if zeilen != 1 {
+		t.Fatalf("vor der Rücknahme stehen %d Ablagen da, erwartet 1", zeilen)
+	}
+
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	// --- runter -------------------------------------------------------------
+	if _, err := provider.ApplyVersion(ctx, 49, false); err != nil {
+		t.Fatalf("00049 zurücknehmen: %v", err)
+	}
+	if got := bestand("nach der Rücknahme"); got != 0 {
+		t.Errorf("nach der Rücknahme stehen noch %d Gegenstände aus 00049 da, erwartet 0 — "+
+			"die Rücknahme muss Index und Tabelle nehmen, nicht nur eines von beiden", got)
+	}
+
+	// --- und wieder rauf ----------------------------------------------------
+	if _, err := provider.ApplyVersion(ctx, 49, true); err != nil {
+		t.Fatalf("00049 erneut anwenden: %v", err)
+	}
+	if got := bestand("nach der Rückfahrt"); got != 2 {
+		t.Errorf("nach der Rückfahrt: %d von 2 Gegenständen aus 00049 stehen da", got)
+	}
+	if err := database.Read.QueryRowContext(ctx, `SELECT COUNT(*) FROM csv_imports`).Scan(&zeilen); err != nil {
+		t.Fatalf("Ablagen nach der Rückfahrt zählen: %v", err)
+	}
+	if zeilen != 0 {
+		t.Errorf("nach der Rückfahrt stehen %d Ablagen da, erwartet 0 — die Tabelle ist neu", zeilen)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations nach der Rückfahrt: %v", err)
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
+	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
@@ -50,6 +51,9 @@ type Handler struct {
 	terms        *term.Store
 	// fields are the website's own page fields.
 	fields *field.Store
+	// csvImports holds an uploaded table between the four screens of the CSV
+	// import. Never nil: every one of those screens needs it.
+	csvImports *csvimport.Store
 	// kinds are the website's own content kinds, beside page and post.
 	kinds *kind.Store
 	// blockTypes are the website's own block kinds, beside the built-in nine.
@@ -99,6 +103,7 @@ func NewHandler(database *db.DB, sm *scs.SessionManager, templates *web.PageTemp
 		snippets:     snippets,
 		terms:        terms,
 		fields:       fields,
+		csvImports:   csvimport.NewStore(database),
 		kinds:        kind.NewStore(database),
 		blockTypes:   block.NewStore(database, fields),
 		share:        share,
