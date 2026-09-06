@@ -509,7 +509,15 @@ func TestCSVMappingFormLeadsToTheDryRun(t *testing.T) {
 // same shapes are what internal/tmplmgr/script.go refuses in an uploaded theme.
 func TestCSVTemplatesCarryNoScript(t *testing.T) {
 	forbidden := regexp.MustCompile(`(?i)<script|javascript:|\son[a-z]+\s*=`)
-	for _, name := range []string{"csv_mapping.html", "csv_expired.html"} {
+	// All five files of the wizard, and the list grows with the wizard: a guard
+	// naming two templates while the feature ships four is a guard over the two
+	// screens that were easy. The two POST screens carry the CSRF token because
+	// the middleware is a pass-through in main_test.go — no test would catch
+	// its absence, so this grep stands in for one.
+	needsToken := map[string]bool{"csv_mapping.html": true, "csv_dryrun.html": true}
+	for _, name := range []string{
+		"csv_mapping.html", "csv_expired.html", "csv_dryrun.html", "csv_report.html", "csv_reason.html",
+	} {
 		raw, err := os.ReadFile("../../cmd/holzcloud/templates/admin/" + name)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
@@ -517,8 +525,75 @@ func TestCSVTemplatesCarryNoScript(t *testing.T) {
 		if m := forbidden.FindString(string(raw)); m != "" {
 			t.Errorf("%s carries %q", name, m)
 		}
-		if !bytes.Contains(raw, []byte("gorilla.csrf.Token")) && name == "csv_mapping.html" {
+		if needsToken[name] && !bytes.Contains(raw, []byte("gorilla.csrf.Token")) {
 			t.Errorf("%s has a state-changing form without the CSRF token", name)
+		}
+	}
+}
+
+// TestCSVEveryReasonHasASentence (D-32, T-09-38): every Reason declared in Go
+// has exactly one arm in the shared block.
+//
+// Counted as OCCURRENCES and not as lines: two {{else if}} arms sharing one
+// line would make a line count agree while a reason fell through to the
+// {{else}} — and the {{else}} is a neutral sentence, so the screen would look
+// answered rather than broken.
+func TestCSVEveryReasonHasASentence(t *testing.T) {
+	block, err := os.ReadFile("../../cmd/holzcloud/templates/admin/csv_reason.html")
+	if err != nil {
+		t.Fatalf("read csv_reason.html: %v", err)
+	}
+	verdicts, err := os.ReadFile("../csvimport/verdict.go")
+	if err != nil {
+		t.Fatalf("read verdict.go: %v", err)
+	}
+
+	arms := regexp.MustCompile(`eq \.Reason "([a-z_]+)"`).FindAllStringSubmatch(string(block), -1)
+	codes := regexp.MustCompile(`Reason = "([a-z_]+)"`).FindAllStringSubmatch(string(verdicts), -1)
+
+	have := map[string]int{}
+	for _, m := range arms {
+		have[m[1]]++
+	}
+	for _, m := range codes {
+		switch have[m[1]] {
+		case 1:
+		case 0:
+			t.Errorf("the reason %q has no arm: it would render as an empty cell, which reads as „no reason“", m[1])
+		default:
+			t.Errorf("the reason %q has %d arms; the second is unreachable", m[1], have[m[1]])
+		}
+		delete(have, m[1])
+	}
+	for code := range have {
+		t.Errorf("the block has an arm for %q, which nothing in Go produces", code)
+	}
+	if len(codes) == 0 {
+		t.Fatal("no reason codes were found at all — the pattern no longer matches verdict.go")
+	}
+}
+
+// TestCSVScreensUseOnlyClassesThatExist: the failure .import-summary and
+// .import-warnings are standing examples of — a hook in a template with no rule
+// anywhere behind it, which looks like styling and is not.
+func TestCSVScreensUseOnlyClassesThatExist(t *testing.T) {
+	css, err := os.ReadFile("../../cmd/holzcloud/assets/admin.css")
+	if err != nil {
+		t.Fatalf("read admin.css: %v", err)
+	}
+	literal := regexp.MustCompile(`class="([^"{}]*)"`)
+
+	for _, name := range []string{"csv_dryrun.html", "csv_report.html", "csv_reason.html"} {
+		raw, err := os.ReadFile("../../cmd/holzcloud/templates/admin/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for _, m := range literal.FindAllStringSubmatch(string(raw), -1) {
+			for _, class := range strings.Fields(m[1]) {
+				if !regexp.MustCompile(`\.` + regexp.QuoteMeta(class) + `[^a-zA-Z0-9_-]`).Match(css) {
+					t.Errorf("%s uses .%s, which has no rule in admin.css", name, class)
+				}
+			}
 		}
 	}
 }

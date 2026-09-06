@@ -2730,3 +2730,54 @@ body.is-fullscreen .content-body {
     object-fit: contain;
     display: block;
 }
+
+/* ── Einlesebericht ──
+   Der Probelauf und der Bericht, und beide sind derselbe Bildschirm: eine
+   Zeile je Ursache, mit den Zeilennummern der Tabelle daneben. Ohne diese
+   Regeln ist die Nummernliste genauso schwer wie der Satz — und dann sucht das
+   Auge den Grund, statt ihn zu finden. Die Tinte je Zeile ist die zweite
+   Hälfte: was übergangen wurde, muss ohne Lesen vom Angelegten zu
+   unterscheiden sein.
+
+   Der Schmalfall ist NICHT noch einmal gelöst: eine Tabelle in einer .card
+   rollt bereits (siehe :432). csv-scroll ist die Hülle dafür an dieser
+   Stelle, nach dem Vorbild von matrix-scroll. */
+@layer components {
+    .csv-scroll {
+        /* Der Kasten rollt, nicht die Seite: sonst wandert die Navigation mit
+           nach links aus dem Bild. */
+        overflow-x: auto;
+        max-width: 100%;
+    }
+
+    .csv-groups td {
+        vertical-align: top;
+    }
+
+    /* Die Zeilennummern. Gedämpft und etwas kleiner, damit der Satz daneben
+       das bleibt, worauf das Auge zuerst fällt; Ziffern in fester Breite,
+       damit eine Liste von vierzig Nummern eine Liste bleibt und kein
+       Flimmern. */
+    .csv-rows {
+        color: var(--color-text-muted);
+        font-size: var(--text-sm);
+        font-variant-numeric: tabular-nums;
+        white-space: normal;
+    }
+
+    /* Der Ausgang als Untergrund der ganzen Zeile — die Gestalt, die
+       .data-table tr.is-unread td schon vorgibt: ein Zustand der Zeile wird am
+       tr geschrieben und an den Zellen gezeichnet. Sehr zurückhaltend: das
+       Abzeichen sagt es bereits, die Fläche sortiert nur. */
+    .csv-groups tr.csv-row--skip td {
+        background: var(--color-warning-subtle);
+    }
+
+    .csv-groups tr.csv-row--create td {
+        background: var(--color-success-subtle);
+    }
+
+    .csv-groups tr.csv-row--update td {
+        background: var(--color-sunken);
+    }
+}

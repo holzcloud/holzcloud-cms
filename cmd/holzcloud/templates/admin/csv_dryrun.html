@@ -47,7 +47,7 @@
             </thead>
             <tbody>
                 {{range .Report.Groups}}
-                <tr>
+                <tr class="csv-row--{{.Outcome}}">
                     <td>{{template "csv-outcome" .}}</td>
                     <td>{{template "csv-reason" .}}</td>
                     <td class="csv-rows">
