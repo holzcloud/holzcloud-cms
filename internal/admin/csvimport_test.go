@@ -728,16 +728,84 @@ func TestCSVExampleFilenameComesFromTheWebsite(t *testing.T) {
 }
 
 // Not a token: this route is not token-bearing (D-37). The refusal is the
-// ordinary website one.
+// ordinary website one — for a website that was NAMED and is not there. A
+// website not named at all is a different question and is answered by
+// TestCSVExampleWithoutAWebsiteIsTheFixedColumns below.
 func TestCSVExampleUnknownWebsiteIsNotFound(t *testing.T) {
 	h, sm, database, _ := newTestAdmin(t)
 	admin := seedAdmin(t, database, "eins@test")
 
-	for _, id := range []string{"9999", "", "nichts"} {
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest("9999"))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("website=9999: status = %d; want 404", rec.Code)
+	}
+}
+
+// TestCSVExampleWithoutAWebsiteIsTheFixedColumns (WR-08): the file the panel
+// promises in words for a website that does not exist yet.
+//
+// D-37 states the requirement and the answer, and the panel prints it: "Für
+// eine Website, die es noch nicht gibt, gibt es keine Felder zu lesen: dort
+// sind es nur die festen Spalten." There was no control that produced it and
+// the handler accepted no request without an existing website — ParseInt("")
+// yields 0, GetWebsite(0) yields nil, and the answer was http.NotFound. On a
+// fresh installation, which is the single most likely moment for a first CSV
+// import, the select was empty, the button submitted website= and the operator
+// got a bare 404 from the download they had just been told to use.
+func TestCSVExampleWithoutAWebsiteIsTheFixedColumns(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	// A field on the existing website, so a file that reached the definitions
+	// would show it and this test would notice.
+	if _, err := h.fields.Create(context.Background(), field.Def{
+		WebsiteID: ws.ID, Key: "sorte", Label: "Sorte", Kind: field.KindText,
+	}); err != nil {
+		t.Fatalf("create field: %v", err)
+	}
+
+	// Absent, empty and an explicit zero all mean the same thing: no website
+	// was named. The panel's second form sends the first of the three.
+	for _, id := range []string{"", "0", "nichts"} {
 		rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(id))
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("website=%q: status = %d; want 404", id, rec.Code)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("website=%q: status = %d; want 200 — this is the new-website case, not a refusal", id, rec.Code)
 		}
+		body := rec.Body.String()
+		for _, column := range []string{"Titel", "Adresse", "Text", "Zustand"} {
+			if !strings.Contains(body, column) {
+				t.Errorf("website=%q: the fixed column %q is missing:\n%s", id, column, body)
+			}
+		}
+		if strings.Contains(body, "Sorte") {
+			t.Errorf("website=%q: the file carries a field of an existing website", id)
+		}
+		if got := rec.Header().Get("Content-Disposition"); !strings.Contains(got, `filename="website-vorlage.csv"`) {
+			t.Errorf("website=%q: Content-Disposition = %q, want website-vorlage.csv", id, got)
+		}
+	}
+}
+
+// TestWebsiteListOffersTheNewWebsiteExample (WR-08): the control exists, and it
+// exists on an installation with no websites at all.
+func TestWebsiteListOffersTheNewWebsiteExample(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleWebsiteList,
+		httptest.NewRequest(http.MethodGet, "/admin/websites", nil))
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", rec.Code)
+	}
+	if !strings.Contains(body, "Beispieldatei für eine neue Website") {
+		t.Errorf("the panel offers no way to get the fixed-column file:\n%s", body)
+	}
+	// Its own form, carrying no website field: a second button named "website"
+	// inside the first form would lose to the select, which is serialised
+	// earlier and therefore read first.
+	if n := strings.Count(body, `action="/admin/csv-vorlage"`); n != 2 {
+		t.Errorf("%d forms point at the example route, want 2", n)
 	}
 }
 

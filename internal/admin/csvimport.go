@@ -1024,22 +1024,45 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 // downstream treats it as authoritative: a field added afterwards simply arrives
 // unmapped, which the mapping screen shows and says.
 func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error {
-	id, _ := strconv.ParseInt(r.FormValue("website"), 10, 64)
-	ws, err := h.domains.GetWebsite(r.Context(), id)
-	if err != nil {
-		return err
+	// The website id comes from a form VALUE and not from the path, so
+	// auth.RequireWebsiteAccess (internal/auth/middleware.go:102) does not see
+	// it: that middleware reads the id out of the URL path, and a route taking
+	// a website from a form escapes it. Harmless today, and only today —
+	// this route is behind requireAdmin, and NewWebsiteAccessLookup
+	// (handler.go:167-169) returns true unconditionally for the role admin,
+	// because user_websites restricts editors only. The day a route of this
+	// shape is opened to editors, that is no longer true and this handler
+	// needs its own check. Four other routes share the shape; that is a
+	// separate change and not this one.
+	name := ""
+	var defs []field.Def
+	if id, _ := strconv.ParseInt(r.FormValue("website"), 10, 64); id != 0 {
+		ws, err := h.domains.GetWebsite(r.Context(), id)
+		if err != nil {
+			return err
+		}
+		if ws == nil {
+			// The ordinary website-ownership answer, exactly as a page of a
+			// website that is not there would answer. A website NAMED and not
+			// there is still a 404; a website not named at all is the case
+			// below, and the two are different questions.
+			http.NotFound(w, r)
+			return nil
+		}
+		if defs, err = h.fields.List(r.Context(), ws.ID); err != nil {
+			return err
+		}
+		name = ws.Name
 	}
-	if ws == nil {
-		// The ordinary website-ownership answer, exactly as a page of a website
-		// that is not there would answer.
-		http.NotFound(w, r)
-		return nil
-	}
-
-	defs, err := h.fields.List(r.Context(), ws.ID)
-	if err != nil {
-		return err
-	}
+	// No website named: the fixed columns and nothing else, which is what the
+	// panel promises in words and what D-37 states for the "new website" path.
+	// (D-37 counts four of them and the file carries five — Schlagwörter is
+	// the fifth; the count is the decision's, the columns are
+	// csvExampleColumns'.) It is also the single
+	// most likely moment for a first import: a fresh installation has no
+	// website yet, so there is nothing to read field definitions from, and
+	// answering 404 there hands the operator a bare error page from the very
+	// download they were just told to use.
 	header, sample := csvExampleColumns(defs)
 	body, err := csv.Example(header, [][]string{sample})
 	if err != nil {
@@ -1051,7 +1074,7 @@ func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error
 	// Kopfzeile sagt, und die Angabe oben wäre eine Empfehlung statt einer
 	// Schranke.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+csvExampleFilename(ws.Name)+`"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+csvExampleFilename(name)+`"`)
 	// The file is a snapshot of the definitions as they are right now
 	// (IMP-07 concurrency); a cached copy would be a snapshot of a different
 	// moment and would quietly disagree with the mapping screen.
@@ -1067,15 +1090,19 @@ func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error
 // supplied, where filtering is the only option. This name comes from a website
 // in this installation — bundle.go:71-77's case — and Slugify yields [a-z0-9-]
 // only, so the result is safe by construction instead of by stripping
-// characters afterwards. There is no staged row on this path and so no pending
-// website name to fall back on; a website that does not exist yet is simply not
-// a value this route accepts.
+// characters afterwards.
+//
+// The empty name is the new-website case and it is answered FIRST, before
+// Slugify: page.Slugify returns "untitled" for a string it can make nothing of
+// (page/slug.go:118-120), so the old `if slug == ""` guard below it could never
+// fire and a download with no website named would have arrived as
+// "untitled-vorlage.csv" — a name that reads like a fault. "website-vorlage.csv"
+// says what the file is.
 func csvExampleFilename(name string) string {
-	slug := page.Slugify(name)
-	if slug == "" {
-		slug = "website"
+	if strings.TrimSpace(name) == "" {
+		return "website-vorlage.csv"
 	}
-	return slug + "-vorlage.csv"
+	return page.Slugify(name) + "-vorlage.csv"
 }
 
 // csvExampleColumns builds the example's header row and its one sample row.
