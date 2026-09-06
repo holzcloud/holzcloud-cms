@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -48,6 +49,56 @@ type MenuEditData struct {
 type menuItemNode struct {
 	menu.MenuItem
 	Depth int
+}
+
+// menuOfWebsite returns the menu named by menuID, but only when it really
+// belongs to websiteID. A disagreement yields nil, which every caller turns
+// into a 404.
+//
+// The two ids reach a handler from two different parts of one address and
+// nothing so far has made them agree. auth.RequireWebsiteAccess reads the
+// leading /admin/websites/<number> and stops there — deliberately, as its own
+// comment explains — so it admits anyone who may enter the website in the
+// address, whatever menu the rest of the path then names. Without this check a
+// person confined to one website reaches every other website's menus by
+// keeping their own number in front.
+//
+// It is a function rather than four copies of an if for the reason the
+// middleware states: a rule enforced in several places is a rule that is
+// missing from one of them. That is precisely how the item handlers came to
+// lack it while the menu handlers above had it.
+func (h *Handler) menuOfWebsite(ctx context.Context, websiteID, menuID int64) (*menu.Menu, error) {
+	m, err := h.menuStore.GetMenu(ctx, menuID)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil || m.WebsiteID != websiteID {
+		return nil, nil
+	}
+	return m, nil
+}
+
+// itemOfWebsite returns the item named by itemID, but only when it hangs in the
+// named menu and that menu belongs to the named website. Nil means one of the
+// three disagreed.
+//
+// The item handlers used to check item.MenuID != menuID on its own. That is a
+// true statement about the item and an empty one about the website: it says the
+// entry hangs in the menu that was asked for, never that the menu was the
+// caller's to ask about.
+func (h *Handler) itemOfWebsite(ctx context.Context, websiteID, menuID, itemID int64) (*menu.MenuItem, error) {
+	m, err := h.menuOfWebsite(ctx, websiteID, menuID)
+	if err != nil || m == nil {
+		return nil, err
+	}
+	item, err := h.menuStore.GetItem(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil || item.MenuID != menuID {
+		return nil, nil
+	}
+	return item, nil
 }
 
 // HandleMenuList lists menus for a website.
@@ -159,11 +210,11 @@ func (h *Handler) HandleMenuEdit(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 
-	m, err := h.menuStore.GetMenu(r.Context(), menuID)
+	m, err := h.menuOfWebsite(r.Context(), websiteID, menuID)
 	if err != nil {
 		return err
 	}
-	if m == nil || m.WebsiteID != websiteID {
+	if m == nil {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -210,11 +261,11 @@ func (h *Handler) HandleMenuUpdate(w http.ResponseWriter, r *http.Request) error
 		return nil
 	}
 
-	m, err := h.menuStore.GetMenu(r.Context(), menuID)
+	m, err := h.menuOfWebsite(r.Context(), websiteID, menuID)
 	if err != nil {
 		return err
 	}
-	if m == nil || m.WebsiteID != websiteID {
+	if m == nil {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -258,11 +309,11 @@ func (h *Handler) HandleMenuDelete(w http.ResponseWriter, r *http.Request) error
 		return nil
 	}
 
-	m, err := h.menuStore.GetMenu(r.Context(), menuID)
+	m, err := h.menuOfWebsite(r.Context(), websiteID, menuID)
 	if err != nil {
 		return err
 	}
-	if m == nil || m.WebsiteID != websiteID {
+	if m == nil {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -290,6 +341,18 @@ func (h *Handler) HandleMenuItemCreate(w http.ResponseWriter, r *http.Request) e
 	}
 	menuID, err := strconv.ParseInt(r.PathValue("menuID"), 10, 64)
 	if err != nil {
+		http.NotFound(w, r)
+		return nil
+	}
+
+	// Nothing below reads the website again — it only builds the redirect from
+	// it — so without this the entry would be hung in whatever menu the address
+	// named, on whatever website that menu turned out to belong to.
+	m, err := h.menuOfWebsite(r.Context(), websiteID, menuID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -378,11 +441,11 @@ func (h *Handler) HandleMenuItemUpdate(w http.ResponseWriter, r *http.Request) e
 		return nil
 	}
 
-	item, err := h.menuStore.GetItem(r.Context(), itemID)
+	item, err := h.itemOfWebsite(r.Context(), websiteID, menuID, itemID)
 	if err != nil {
 		return err
 	}
-	if item == nil || item.MenuID != menuID {
+	if item == nil {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -440,11 +503,11 @@ func (h *Handler) HandleMenuItemDelete(w http.ResponseWriter, r *http.Request) e
 		return nil
 	}
 
-	item, err := h.menuStore.GetItem(r.Context(), itemID)
+	item, err := h.itemOfWebsite(r.Context(), websiteID, menuID, itemID)
 	if err != nil {
 		return err
 	}
-	if item == nil || item.MenuID != menuID {
+	if item == nil {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -489,11 +552,11 @@ func (h *Handler) HandleMenuItemReorder(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get the item to find its parent and sort order
-	item, err := h.menuStore.GetItem(r.Context(), itemID)
+	item, err := h.itemOfWebsite(r.Context(), websiteID, menuID, itemID)
 	if err != nil {
 		return err
 	}
-	if item == nil || item.MenuID != menuID {
+	if item == nil {
 		http.NotFound(w, r)
 		return nil
 	}
