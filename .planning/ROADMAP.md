@@ -310,7 +310,43 @@ Plans:
 > `PurgePage` `:864` — dieselben zwei Schritte, die eine Betreiberin von Hand
 > geht). Hergeleitet in `.planning/phases/09-csv-import/09-CONTEXT.md`, D-02.
 
-**Plans**: TBD
+**Plans**: 6 plans, in 6 waves. The chain is the build order fixed in `09-CONTEXT.md` and it is genuinely sequential: `internal/csv` must be right before anything reads a file, the staging table must exist before a screen can carry a token, and `internal/admin/csvimport.go` is touched by plans 04, 05 and 06, so two of them in one wave would be two agents editing one file. Step 5 of that build order is split into two plans — the report screen and the standing gate are different kinds of work, and the browser pass must run **after** the code-review fix round, which no plan that also writes code can promise.
+
+Plans:
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — `internal/csv`, pure and standard-library only: the hostile-file checklist D-08…D-16, the row-number helper, the example-CSV writer
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 09-02-PLAN.md — migration `00049_csv_imports.sql`, the staging store in `internal/csvimport`, and the `csv-import-prune` job
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 09-03-PLAN.md — the mapping resolution and the row function: everything between a parsed row and a `page.PageCreate`, with no screens
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 09-04-PLAN.md — the third `<details>` panel, screen 1, the mapping screen, the expiry screen and the example CSV download
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 09-05-PLAN.md — the dry run, the write, and the report grouped by reason
+
+**Wave 6** *(blocked on Wave 5, and on the code-review fix round)*
+
+- [ ] 09-06-PLAN.md — the five catalogues and the browser pass
+
+> **Note added at planning, 2026-09-06 — D-06's route table cannot be
+> registered.** `GET /admin/websites/import-csv/{token}` conflicts with
+> `GET /admin/websites/{id}/pages` under Go 1.22's `ServeMux` — both match
+> `/admin/websites/import-csv/pages` and neither is more specific — so
+> `newRouter` **panics at startup**. Verified by registering this tree's 145
+> existing admin patterns beside D-06's five. Screen 1 stays at
+> `POST /admin/websites/import-csv` beside its two siblings; the four
+> token-bearing screens are registered under `/admin/csv-import/{token}`, which
+> registers cleanly. Recorded in `09-04-PLAN.md`.
+
 **UI hint**: yes — **the largest UI surface in the milestone.** The mapping screen and the dry-run report are the two screens users will judge the feature by.
 **Research flag**: the **dry-run report screen**. 312 rows with 40 problems is a real information-design problem, not a layout question. Worth a UI-SPEC or a `/gsd-discuss-phase` pass on that screen alone.
 **Planning notes**:
