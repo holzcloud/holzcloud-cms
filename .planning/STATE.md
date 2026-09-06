@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 8
 current_phase_name: Snippets Carry Fields
 status: executing
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-09-06T09:36:30.510Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-09-06T09:56:08.625Z"
 last_activity: 2026-09-06
-state_head: 93f119461e8808aeacec8408385f6b8b65d0fd16
+state_head: 92dc3ebf1dd1cc4491f1b14042105be8a2c0370f
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 15
+  completed_plans: 16
   percent: 17
 ---
 
@@ -22,16 +22,16 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 7 — Field Kinds abgeschlossen; als Nächstes Phase 8 — Snippets Carry Fields (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 8 — Snippets Carry Fields, 2 von 5 Plänen ausgeführt (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
 
 ### Current Position
 
-Phase: 8 — Snippets Carry Fields (1 / 5 Pläne ausgeführt)
-Plan: 08-01 complete — **der vierte Namensraum steht, von der Wanderung bis ins Theme, und ist an einer echten öffentlichen Adresse bewiesen**. `00047` legt `page_field_defs.snippet_id` an — **mit** `REFERENCES snippets(id) ON DELETE CASCADE`, denn SQLite verweigert nur das Paar aus `REFERENCES` und einem Vorgabewert ungleich NULL, was `00038:36-39` in eigenen Worten sagt —, tauscht `idx_page_field_defs_kennung_oben` gegen die Fassung mit `snippet_id IS NULL`, legt `idx_page_field_defs_kennung_textbaustein` an und gibt `snippets` die Spalte `fields`. Die **Rückwärtshälfte stellt 00038s Indexform wieder her, nicht 00029s** — die Falle dieser Phase —, und `TestMigration00047RunterUndRauf` fährt sie wirklich, was sonst nichts im Baum tut. Der gefährliche Schnitt bei `store.go:59` ist geschnitten: `List`, `OfBlockType` und `OfBlockTypes` nennen `AND snippet_id IS NULL`; **`Sub` bleibt bewusst ohne**, weil eine Gruppe an einem Textbaustein stehen darf und ihre Unterfelder dann beides tragen; `Update` behält seine trägerlose `WHERE` und pinnt stattdessen `d.SnippetID`. `OfSnippet` nimmt Spaltenliste und Fehlerhülle von `OfBlockType` und den Baumbau von `List`. Das Tor ist eine **Lesung, keine Zählung** (D-04, Phase 7s Lehre): `TestBausteinNamensraum` legt ein Seitenfeld und ein Textbausteinfeld mit **derselben Kennung** an und liest über jeden der sechs Wege zurück; `bausteinfelder_test.go` druckt den Wert durch `HandlePage` und prüft im selben Atemzug, dass `.Page.Feldliste` **leer** bleibt — die im Browser sichtbare Hälfte von D-03. `.Site.Bausteinfelder` und `.Site.Bausteinliste` stehen **neben** `.Site.Snippets`, das seinen Typ behält, womit SNIP-05 durch Bauart gilt. `fillSnippets` ist die einzige Prägestelle; **zwei** der vierzehn Zuweisungsstellen gehen hindurch, die übrigen zwölf bleiben unverändert für 08-02. Zwei Zählgatter messen **7 und 6 statt 6 und 5** — kein Fehlgriff, sondern eine Rechnung im Plan gegen fünf Leser, während dieselbe Aufgabe `OfSnippet` als sechsten verlangt; die Gegenprobe in derselben Datei misst für `block_type_id` ebenfalls 7, das Vorbild und der neue Namensraum sind also Zeichen für Zeichen symmetrisch. Vorgezogen aus 08-05, weil die vier Reflexionswächter aus Phase 7 sonst sofort brechen: `SampleData` und zwei `.Site`-Zeilen der `TEMPLATE-SPEC.md`; `MinimalData`s leerer Zwilling und die §7-Prosa bleiben dort
-Status: Phase 08 läuft — 08-01 von 5 Plänen ausgeführt; SNIP-02…05 durch diesen Plan erfüllt, SNIP-01 wartet auf die Bildschirme (08-03, 08-04)
+Phase: 8 — Snippets Carry Fields (2 / 5 Pläne ausgeführt)
+Plan: 08-02 complete — **der Speicherteil des vierten Namensraums ist vollständig, und die zweite stille Fehlstelle der Phase ist durch Bauart geschlossen**. `OfSnippets` liest die Felder aller Textbausteine einer Website in **einer** Abfrage (`WHERE website_id = $1 AND snippet_id IS NOT NULL ORDER BY snippet_id, position, id`), baut je Textbaustein denselben Baum wie `OfSnippet` und wird von einem Test Element für Element und `Sub` für `Sub` mit ihm gleichgesetzt — auch dort, wo zwei Felder dieselbe Position tragen und allein die Nummer den Gleichstand bricht. `Move` hat seinen vierten Arm, und sein `default:` nennt jetzt die Seite statt „was übrig bleibt" (D-09). `validate` bekommt den einen Arm, der **absichtlich nicht** sein Vorbild ist: `gilt_fuer` wird auf `beides` gestellt und die Bedingung geleert, aber **`Required` wird nicht gezwungen und die Feldarten werden nicht verengt** — ein Textbaustein hat ein eigenes Formular, und seine Werte erstarren nicht zu HTML, weshalb `verweis` und `schlagwort` dort erlaubt sind, während die Bausteinart sie weiterhin mit `ErrNotInBlock` abweist. **D-05 ist gesetzt:** der Feldvorrat wird auf den Träger gezählt, ein vierarmiger Schalter, keiner zählt `WHERE website_id = $1` allein — und die Prüfung, die die ganze Entscheidung trägt, ist die, dass bei einem Textbaustein an seiner Grenze das erste Feld eines **zweiten**, ein Seitenfeld und ein Bausteinartfeld weiterhin angenommen werden. Die **zwölf verbliebenen Zuweisungen** in neun Dateien gehen durch `fillSnippets`; ausserhalb dieser Funktion überlebt in ganz `internal/public/` **keine**, `feed.go` ist unberührt (dort steht eine Ladestelle, keine Zuweisungsstelle). `fillSnippets` liest jetzt über `OfSnippets` — sonst hätte der Massenleser keinen Aufrufer und T-08-11 keine Deckung — und zahlt auf einer Website ohne Textbaustein gar keine Abfrage. Das Gatter ist **nicht nur ein grep**: `TestBausteinfelderAufMehrerenRouten` fährt Schlagwortarchiv, Suche und Katalog durch den echten Handler, und eine Mutationsprobe (`tag.go` einmal zurückgedreht) hat gezeigt, dass genau ihr Untertest fällt. **Zwei Zählgatter des Plans messen andere Zahlen** — `OfSnippets` misst 1 statt ≥2 (das Vorbild `OfBlockTypes` misst mit demselben Befehl ebenfalls 1: ein Massenleser trägt seinen Namen einmal), und die Dateizählung misst 12 statt 11, weil `*.go` das Prüffile mitfasst, das 08-01 geschrieben hat; ohne Prüffiles sind es genau die elf des Plans. Beide gemeldet und hergeleitet, keines passend gemacht
+Status: Phase 08 läuft — 2 von 5 Plänen ausgeführt; SNIP-02…05 sind durch den Speicher erfüllt, SNIP-01 wartet auf die Bildschirme (08-03, 08-04). SNIP-03 und SNIP-04 bleiben in REQUIREMENTS.md offen, weil Geschwisterpläne dieselben Kennungen führen und das Tor für geteilte Kennungen erst zumacht, wenn der letzte davon fertig ist
 Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die **Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
 Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code` innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen
 Last activity: 2026-09-06
@@ -47,7 +47,7 @@ phases were renumbered into this one as 7, 8 and 9.
 |-------|------|--------------|-------|--------|
 | 6 | Aufräumen | MAINT-01…05 | 5 | Plans 7/7 — Abnahme offen (Browserhälfte des Tors) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Plans 7/7 — Abnahme offen (eine Browserzeile, Fenster Nr. 3) |
-| 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Plans 1/5 — 08-01 (der vierte Namensraum) ausgeführt |
+| 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Plans 2/5 — 08-01 (der vierte Namensraum) und 08-02 (der Rest des Speichers, eine Prägestelle) ausgeführt |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started |
 
@@ -178,6 +178,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 07 P06 | 9 min | 3 tasks | 4 files |
 | Phase 07 P07 | 37 min | 3 tasks | 13 files |
 | Phase 08 P01 | 10 min | 3 tasks | 12 files |
+| Phase 08 P02 | 12 min | 2 tasks | 14 files |
 
 ### Session Continuity
 
@@ -188,8 +189,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-execute-phase 8` — 08-01 hat den vierten Namensraum gelegt und von Ende zu Ende bewiesen; 08-02 zieht nach: `OfSnippets` als Massenleser, `fillSnippets` an den **uebrigen zwoelf** Zuweisungsstellen samt dem Gatter, das ihre Uebereinstimmung nachweist, `Move`s vierter Arm, der Textbaustein-Arm in `validate` (wobei `Required` an einem Textbaustein bedeutungsvoll bleibt — die Verengung der Bausteinart bei `store.go:530-536` ist hier ein Gegenbeispiel, kein Vorbild) und die traegerweise `MaxFields`-Zaehlung nach D-05. Weiterhin offen und unabhaengig davon: `/gsd-verify-work 6` — die Browserhaelfte des stehenden Tors gehoert in die Abnahme, nicht in einen neuen Plan; und `/gsd-verify-work 7` fuer die eine ungefahrene Zeile (`code` im Block, oeffentlich)
 
-**Last session:** 2026-09-06T09:35:17.895Z
-**Stopped at:** Completed 08-01-PLAN.md
+**Last session:** 2026-09-06T09:55:30.899Z
+**Stopped at:** Completed 08-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -241,6 +242,8 @@ Next command: `/gsd-execute-phase 8` — 08-01 hat den vierten Namensraum gelegt
 - [Phase 08]: 08-01: .Site.Bausteinfelder (map[string]map[string]any) und .Site.Bausteinliste (map[string][]field.Entry) stehen NEBEN .Site.Snippets, das seinen Typ map[string]template.HTML behaelt — loader.go:355-357 verbietet Umbenennen und Entfernen, und SNIP-05 gilt damit durch Bauart statt durch eine Pruefung
 - [Phase 08]: 08-01: field.Store.Sub bleibt bewusst OHNE snippet_id-Klausel — eine Gruppe darf an einem Textbaustein stehen, ihre Unterfelder tragen dann parent_id UND snippet_id, und ein AND snippet_id IS NULL liesse jede solche Gruppe leer zurueckkommen; ihr Namensraum ist die Gruppennummer
 - [Phase 08]: 08-01: die Zaehlgatter des Plans (6 gesamt / 5 Spaltenlisten) sind gegen fuenf Leser gerechnet, waehrend dieselbe Aufgabe OfSnippet als sechsten verlangt — gemessen 7/6, und die Gegenprobe fuer block_type_id misst in derselben Datei ebenfalls 7; das Tor auf den Namensraum ist ohnehin TestBausteinNamensraum, das zurueckliest statt zu zaehlen
+- [Phase 08]: Der Feldvorrat (MaxFields = 60) wird auf den Träger gezählt statt auf die Website (D-05): vier Arme, jeder nennt seinen Namensraum ausdrücklich — Ein Formular zeichnet immer nur die Felder eines Trägers; ein geteilter Vorrat liesse einen Träger den anderen still verwehren, und ErrTooMany nennte einen Grund, der nicht wahr ist
+- [Phase 08]: fillSnippets ist die einzige Zuweisungsstelle der drei Textbaustein-Mitglieder einer SiteData und liest über den Massenleser OfSnippets — Ein Mitglied, das an dreizehn von vierzehn Stellen gefüllt wird, ist auf der vierzehnten unsichtbar; ein grep beweist nur, dass keine Zuweisung überlebt — drei Routen im Test beweisen, dass die Funktion auch gerufen wird
 
 ## Accumulated Context
 
