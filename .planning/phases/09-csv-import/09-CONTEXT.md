@@ -370,6 +370,37 @@ Two resolutions are mechanical gates the plan should state as such:
   (D-02).
 - `internal/db/migrations/00046`, `00047`, `00048` — released; never edited.
 
+### Baseline counts, measured against the pre-change tree
+
+Phase 8 taught this the hard way: three of its five waves wrote counting gates
+against a tree they had not measured, and each came out wrong by exactly what
+the plan itself added. Wave 3 was the only wave with zero divergence, and it was
+the only one whose plan tabulated line numbers first.
+
+**Measured 2026-09-06 on `096a86c`, before any Phase 9 code exists.** Every
+counting gate in a Phase 9 plan states its number as *this baseline **+** what
+the plan itself adds*, never as an estimate:
+
+| What | Command | Now |
+|---|---|---|
+| strings in source | `go run ./tools/i18n` | **1158** (`0 offen, 0 verwaist` in en/es/fr/it) |
+| migrations | `ls internal/db/migrations/*.sql \| wc -l` | **48**, highest `00048_snippet_group_namespace.sql` |
+| admin routes | `grep -c 'adminProtectedMux.Handle' cmd/holzcloud/main.go` | **145** |
+| `adminOnly` rows | the table at `main_test.go:158` | **14** |
+| `<details>` panels | `grep -c '<details' …/website_list.html` | **2** |
+| `jobs.Job{` entries | `grep -c 'jobs.Job{' cmd/holzcloud/main.go` | **11** |
+| admin templates | `ls …/templates/admin/*.html \| wc -l` | **61** |
+| packages under `internal/` | `ls -d internal/*/ \| wc -l` | **38** |
+| files using `BeginTx` | `grep -rln BeginTx internal/ --include='*.go' \| grep -v _test` | **14** |
+| admin CSS files | `ls cmd/holzcloud/assets/*.css` | **2** |
+| `encoding/csv` importers | `grep -rl 'encoding/csv' --include='*.go' .` | **1** (`plugins/kontaktformular/csv.go`) |
+
+Baseline health at the same commit: `go build` clean, `go vet` clean,
+`gofmt -l .` silent, `go test ./...` **0 failures**.
+
+Note the last row against **IMP-10 / concurrency**: the importer must not add a
+15th `BeginTx` file. That is the gate, and it is mechanical.
+
 ### Build order
 
 1. **`internal/csv`, pure, with its own tests.** The hostile-file checklist
