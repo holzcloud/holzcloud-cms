@@ -802,6 +802,17 @@ func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 				fmt.Sprintf("Textbaustein %q konnte nicht angelegt werden: %v", sn.Key, err))
 			continue
 		}
+		// Create endet auf Get, und Get gibt (nil, nil) heraus, wenn die Zeile
+		// nicht dasteht — durch den Lesepool, einen anderen als den, der eben
+		// geschrieben hat. Vor 08-05 wurde der Rückgabewert weggeworfen; seit
+		// die Felder nachgezogen werden, wäre nil ein Absturz, der die ganze
+		// Anfrage mitnimmt. internal/admin/snippet.go wacht über denselben
+		// Wert, und die zwei Aufrufstellen sagen jetzt dasselbe über ihn.
+		if created == nil {
+			report.Warnings = append(report.Warnings, fmt.Sprintf(
+				"Textbaustein %q konnte nach dem Anlegen nicht zurückgelesen werden.", sn.Key))
+			continue
+		}
 		report.Snippets++
 		importSnippetFields(ctx, s, websiteID, created.ID, sn, report)
 	}

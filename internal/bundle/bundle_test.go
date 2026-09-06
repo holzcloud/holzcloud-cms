@@ -1861,3 +1861,55 @@ func TestWerteOhneDefinitionWerdenAufBeidenTraegernVerworfen(t *testing.T) {
 			"geschriebenes Manifest darf nicht ungeprüft in die Spalte laufen", n)
 	}
 }
+
+// snippet.Store.Create endet auf s.Get(ctx, id), und Get gibt (nil, nil)
+// heraus, wenn die Zeile nicht dasteht (internal/snippet/store.go:92-94). Get
+// liest dabei durch s.DB.Read — einen anderen Pool als den, der geschrieben
+// hat.
+//
+// Vor 08-05 wurde der Rückgabewert weggeworfen („if _, err := …"). Seit der
+// Import die Felder des Textbausteins nachzieht, wird created.ID gelesen, und
+// (nil, nil) ist damit kein leeres Ergebnis mehr, sondern ein Absturz, der die
+// ganze Anfrage mitnimmt. internal/admin/snippet.go:307-310 wacht über
+// denselben Wert — die zwei Aufrufstellen waren sich uneins darüber, ob er
+// nil sein kann.
+//
+// Nachgestellt wird die Lage über den Lesepool und nicht über eine Attrappe:
+// der Schreibpool zeigt auf die echte Datenbank, der Lesepool auf eine zweite,
+// leere. Genau das, was Get sieht, wenn seine Zeile nicht dasteht.
+func TestTextbausteinDerSichNichtZurueckLesenLaesstStuerztNicht(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	leer, err := db.Open(filepath.Join(t.TempDir(), "leer.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open (leer): %v", err)
+	}
+	t.Cleanup(leer.Close)
+	if err := db.RunMigrations(leer.Write); err != nil {
+		t.Fatalf("RunMigrations (leer): %v", err)
+	}
+	s.Snippets = &snippet.Store{DB: &db.DB{Write: s.Snippets.DB.Write, Read: leer.Read}}
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Blindes Lesen"},
+		Snippets: []Snippet{{
+			Key: "footer-kontakt", Name: "Kontakt", Markdown: "x",
+			Fields: []Field{{Key: "telefon", Label: "Telefon", Kind: field.KindText}},
+			Values: map[string]string{"telefon": "07721 123456"},
+		}},
+	})
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Snippets != 0 {
+		t.Errorf("report.Snippets = %d, erwartet 0 — gezählt wird, was zurückgelesen "+
+			"werden konnte", report.Snippets)
+	}
+	if !warned(report, "footer-kontakt") {
+		t.Errorf("der Bericht schweigt über den Textbaustein, der nicht ankam: %v", report.Warnings)
+	}
+}
