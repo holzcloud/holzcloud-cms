@@ -44,6 +44,10 @@ func SampleData() PageData {
 	// string on purpose: html/template escapes it, and that escaping is the
 	// whole promise of the kind.
 	abbund := `<balken laenge="240">Eiche</balken>`
+	// A snippet's own values are declared here for the reason the page's are:
+	// its two views have to hold the same value, not two that look alike.
+	// A time of day again carries no date and no zone.
+	oeffnet := time.Date(0, time.January, 1, 7, 30, 0, 0, time.UTC)
 
 	return PageData{
 		Site: SiteData{
@@ -63,16 +67,22 @@ func SampleData() PageData {
 			// page is content plus fields. Bausteinfelder and Bausteinliste are
 			// two views of the same data and are filled so they agree, for the
 			// reason the page's two are.
+			// One value that is not a string, spelled the way Page.Felder
+			// spells it: a snippet carries every kind a page carries, and a
+			// fixture of nothing but strings would let an upload through whose
+			// handling of a typed value has never once run.
 			Bausteinfelder: map[string]map[string]any{
 				"footer-kontakt": {
 					"telefon": "07721 123456",
 					"strasse": "Hauptstraße 4",
+					"oeffnet": &oeffnet,
 				},
 			},
 			Bausteinliste: map[string][]field.Entry{
 				"footer-kontakt": {
 					{Key: "telefon", Label: "Telefon", Kind: field.KindText, Value: "07721 123456", Text: "07721 123456"},
 					{Key: "strasse", Label: "Straße", Kind: field.KindText, Value: "Hauptstraße 4", Text: "Hauptstraße 4"},
+					{Key: "oeffnet", Label: "Öffnet", Kind: field.KindTime, Value: &oeffnet, Text: "07:30"},
 				},
 			},
 			Terms: []TermLink{
@@ -304,12 +314,35 @@ func SampleData() PageData {
 // *template.PageLink.Title" the first time a visitor opens the oldest post —
 // and a check that only ever renders the full fixture would have called that
 // template good. Everything that can legitimately be absent is absent here:
-// no dates, no neighbours, no image, no menus, no labels, no snippets.
+// no dates, no neighbours, no image, no menus, no labels, no snippet bodies —
+// and one snippet whose fields are defined and empty, which is the state a
+// theme that indexes into .Site.Bausteinfelder actually breaks on.
 func MinimalData() PageData {
 	return PageData{
 		Site: SiteData{
 			Name:   "Holzbau Schmidt",
 			Locale: "de",
+			// The same for a snippet: its fields are defined and nobody has
+			// filled any of them in. Resolve puts every defined field in the
+			// map here too, so {{index .Site.Bausteinfelder "footer-kontakt"
+			// "oeffnet"}} is a nil time rather than a missing key.
+			//
+			// There is deliberately no Bausteinliste, and it is the same
+			// omission Feldliste is below and not a second one: field.List
+			// drops an entry whose value is empty, so a snippet nobody has
+			// filled in is missing from that map entirely. A fixture that
+			// invented an entry there would reject a template for ranging the
+			// list the way the specification tells it to.
+			//
+			// The body is absent as well: a snippet is a body plus optional
+			// fields, and a theme has to survive either half being away.
+			Bausteinfelder: map[string]map[string]any{
+				"footer-kontakt": {
+					"telefon": "",
+					"strasse": "",
+					"oeffnet": (*time.Time)(nil),
+				},
+			},
 		},
 		Page: PageContent{
 			Title:       "Über uns",
