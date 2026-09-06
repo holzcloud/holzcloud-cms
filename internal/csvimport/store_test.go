@@ -398,3 +398,47 @@ func TestUploadWithoutAWebsiteIsAllowed(t *testing.T) {
 		t.Errorf("WebsiteName/Mode = %q/%q", back.WebsiteName, back.Mode)
 	}
 }
+
+// TestClaimSucceedsExactlyOnce (WR-05): of two callers on one row, one gets it.
+//
+// This is the whole of what the write screen rests on. The staging row used to
+// be deleted AFTER the loop, which closed a refresh — the row is gone by the
+// time the report renders — and nothing else. Two requests that overlap both
+// passed the staged() lookup, both reached the loop, and on the "new website"
+// path both called CreateWebsite: two websites, each carrying the whole file,
+// from one double-click on a form htmx never processes.
+func TestClaimSucceedsExactlyOnce(t *testing.T) {
+	ctx := context.Background()
+	store, _, userID, websiteID := setup(t)
+
+	token, err := store.Stage(ctx, sampleUpload(userID, websiteID, []byte("Title\nChair\n")))
+	if err != nil {
+		t.Fatalf("Stage: %v", err)
+	}
+	up, err := store.Get(ctx, token, userID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	mine, err := store.Claim(ctx, up.ID)
+	if err != nil {
+		t.Fatalf("Claim: %v", err)
+	}
+	if !mine {
+		t.Fatal("the first caller did not get the row")
+	}
+
+	again, err := store.Claim(ctx, up.ID)
+	if err != nil {
+		t.Fatalf("second Claim: %v", err)
+	}
+	if again {
+		t.Error("the second caller got the row as well — both would import the whole file")
+	}
+
+	// And the token is gone, so a refresh answers the expiry screen rather
+	// than importing a second time.
+	if _, err := store.Get(ctx, token, userID); !errors.Is(err, csvimport.ErrExpired) {
+		t.Errorf("Get after a claim = %v, want ErrExpired", err)
+	}
+}

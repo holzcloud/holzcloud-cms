@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
@@ -1272,5 +1273,75 @@ func TestCSVStoreErrorReachesTheReport(t *testing.T) {
 			t.Errorf("the %q arm no longer prints what the store said: %s\n"+
 				"if that is deliberate, verdict.go's comment has to stop saying the report prints it", reason, arm)
 		}
+	}
+}
+
+// TestCSVTwoOverlappingCommitsImportOnce (WR-05): a double-click does not
+// create two websites carrying the same file.
+//
+// Reachable by an ordinary double-click. hx-disabled-elt="this" on the commit
+// button does not help: base.html carries hx-headers only, there is no
+// hx-boost, and the form has no hx-post, so htmx never processes the submit and
+// never disables the button. The staging row was deleted after the loop, so
+// both requests passed staged(), both reached the loop and both reached
+// CreateWebsite.
+//
+// The write pool admits one connection, so the two claims serialise there and
+// exactly one DELETE affects a row.
+func TestCSVTwoOverlappingCommitsImportOnce(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	ctx := context.Background()
+
+	before, err := h.domains.ListWebsites(ctx)
+	if err != nil {
+		t.Fatalf("ListWebsites: %v", err)
+	}
+
+	token := stage(t, h, admin, 0, "Titel\nAlpha\nBeta\n")
+
+	// Both requests are built before either is served and released together,
+	// so the window they used to share is the window under test. serveAs is
+	// not used: it calls t.Fatalf, which may only be called from the test's own
+	// goroutine, so the handler errors are collected and reported below.
+	var start, done sync.WaitGroup
+	var mu sync.Mutex
+	var failures []error
+	start.Add(1)
+	for i := 0; i < 2; i++ {
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			req := csvPost(token, "start", csvTargets("title"))
+			start.Wait()
+			sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sm.Put(r.Context(), auth.SessionKeyUserID, admin)
+				if err := h.HandleCSVStart(w, r); err != nil {
+					mu.Lock()
+					failures = append(failures, err)
+					mu.Unlock()
+				}
+			})).ServeHTTP(httptest.NewRecorder(), req)
+		}()
+	}
+	start.Done()
+	done.Wait()
+	for _, err := range failures {
+		t.Fatalf("handler: %v", err)
+	}
+
+	after, err := h.domains.ListWebsites(ctx)
+	if err != nil {
+		t.Fatalf("ListWebsites: %v", err)
+	}
+	if len(after) != len(before)+1 {
+		t.Errorf("websites = %d, want %d — one commit, one website, however many requests arrived",
+			len(after), len(before)+1)
+	}
+	if n := pageCount(t, database); n != 2 {
+		t.Errorf("%d pages, want 2 — the file was imported more than once", n)
+	}
+	if n := stagedCount(t, database); n != 0 {
+		t.Errorf("staged rows = %d after the commit, want 0", n)
 	}
 }
