@@ -70,8 +70,21 @@
         {{else}}
         <p class="text-muted">
             {{tf "Beispiel: Zeile %d von %d" .SampleNumber .TotalRows}}
-            {{if .PrevRow}}<a href="?row={{.PrevRow}}">{{t "vorherige Zeile"}}</a>{{end}}
-            {{if .NextRow}}<a href="?row={{.NextRow}}">{{t "nächste Zeile"}}</a>{{end}}
+            {{/* Submit-Schaltflächen und keine Verweise. Ein Verweis wäre ein
+                 frisches GET: die Zuordnung, die der Bediener gerade getroffen
+                 hat, käme nicht mit, und der Bildschirm käme mit der
+                 automatischen Zuordnung zurück — bei einer Datei mit dreissig
+                 Spalten ist das die ganze Arbeit. Über diese Schaltfläche
+                 gehen die Felder DIESES Formulars als Abfragezeichenfolge an
+                 Bildschirm 2, also wandert die Zuordnung mit. Genau die Form,
+                 die page_form.html:136 und :174 schon verwenden: ein Formular,
+                 zwei Ziele. Reines HTML, funktioniert auch ohne htmx. */}}
+            {{if .PrevRow}}<button type="submit" class="btn btn--sm" formmethod="GET"
+                    formaction="/admin/csv-import/{{.Token}}" name="row" value="{{.PrevRow}}"
+                    formnovalidate hx-disabled-elt="this">{{t "vorherige Zeile"}}</button>{{end}}
+            {{if .NextRow}}<button type="submit" class="btn btn--sm" formmethod="GET"
+                    formaction="/admin/csv-import/{{.Token}}" name="row" value="{{.NextRow}}"
+                    formnovalidate hx-disabled-elt="this">{{t "nächste Zeile"}}</button>{{end}}
         </p>
         {{end}}
 
@@ -87,7 +100,7 @@
                 {{range $c := .Columns}}
                 <tr>
                     <th scope="row">
-                        <label for="ziel_{{$c.Index}}">{{if $c.HasHeading}}{{$c.Heading}}{{else}}{{tf "Spalte %d" $c.Number}}{{end}}</label>
+                        <label for="target_{{$c.Index}}">{{if $c.HasHeading}}{{$c.Heading}}{{else}}{{tf "Spalte %d" $c.Number}}{{end}}</label>
                         {{if eq $c.Note.Reason "empty_header"}}
                         <span class="form-hint">{{t "Diese Spalte hat keine Überschrift und wurde deshalb nicht von selbst zugeordnet."}}</span>
                         {{else if eq $c.Note.Reason "column_taken"}}
@@ -96,7 +109,7 @@
                     </th>
                     <td class="text-muted">{{$c.Sample}}</td>
                     <td>
-                        <select id="ziel_{{$c.Index}}" name="ziel_{{$c.Index}}" class="form-input form-select">
+                        <select id="target_{{$c.Index}}" name="target_{{$c.Index}}" class="form-input form-select">
                             <option value="none"{{if eq $c.Selected "none"}} selected{{end}}>{{t "– nichts –"}}</option>
                             <option value="title"{{if eq $c.Selected "title"}} selected{{end}}>{{t "Titel"}}</option>
                             <option value="slug"{{if eq $c.Selected "slug"}} selected{{end}}>{{t "Adresse"}}</option>

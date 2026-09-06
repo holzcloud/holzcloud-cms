@@ -76,6 +76,20 @@ const (
 	csvModeExisting = "bestehend"
 )
 
+// The two form-field prefixes the mapping travels under, named once because
+// four places have to agree on them: the template that emits them, the parser
+// that reads them back, the dry run that re-emits them as hidden inputs, and
+// the stepper that has to recognise a request carrying a mapping from one that
+// does not.
+//
+// A column's target is per COLUMN and addressed by its index; a default is per
+// TARGET and addressed by Target.String() (IMP-08), which is why the second is
+// not "the same thing for defaults" but a different key space.
+const (
+	csvTargetPrefix  = "target_"
+	csvDefaultPrefix = "default_"
+)
+
 // csvMaxUpload is what the upload screen admits, as bytes of the whole request
 // body.
 const csvMaxUpload = 10 << 20
@@ -612,11 +626,52 @@ func (h *Handler) HandleCSVMapping(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	data, err := h.csvMappingData(r, upload, ws, defs, nil)
+	// The sample-row stepper is a submit button of the mapping form carrying
+	// formmethod="GET", so stepping arrives here as a query string holding the
+	// operator's own choices. They win over the automatic match, exactly as
+	// they do when the dry run hands the mapping back at 422. Plain anchors
+	// here used to throw the mapping away on every step, silently, and on a
+	// file with thirty columns that is the whole of the operator's work.
+	chosen, err := h.csvSubmittedMapping(r, upload)
+	if err != nil {
+		return h.csvUnreadable(w, r)
+	}
+
+	data, err := h.csvMappingData(r, upload, ws, defs, chosen)
 	if err != nil {
 		return h.csvUnreadable(w, r)
 	}
 	return web.RenderAdmin(w, h.templates, r, "csv_mapping", data)
+}
+
+// csvSubmittedMapping is the mapping THIS request carries in its own fields, or
+// nil when it carries none.
+//
+// Nil and not an empty mapping, and the difference is the first visit: a
+// mapping with every column pointed at nothing would override the automatic
+// match with nothing, so a screen reached from screen 1 would come back blank.
+// So the question asked is whether any mapping control is present at all.
+func (h *Handler) csvSubmittedMapping(r *http.Request, upload *csvimport.Upload) (*csvimport.Mapping, error) {
+	if err := r.ParseForm(); err != nil {
+		return nil, nil
+	}
+	carries := false
+	for name := range r.Form {
+		if strings.HasPrefix(name, csvTargetPrefix) || strings.HasPrefix(name, csvDefaultPrefix) {
+			carries = true
+			break
+		}
+	}
+	if !carries {
+		return nil, nil
+	}
+
+	header, err := csvHeader(upload)
+	if err != nil {
+		return nil, err
+	}
+	m := csvMappingFromForm(r, len(header))
+	return &m, nil
 }
 
 // csvMappingFromForm reads the mapping the operator submitted.
@@ -639,7 +694,7 @@ func csvMappingFromForm(r *http.Request, columns int) csvimport.Mapping {
 	}
 
 	for i := range m.Targets {
-		m.Targets[i] = csvTargetFromForm(r.FormValue("ziel_" + strconv.Itoa(i)))
+		m.Targets[i] = csvTargetFromForm(r.FormValue(csvTargetPrefix + strconv.Itoa(i)))
 	}
 
 	// The default belongs to the TARGET and not to the column (IMP-08), so the
@@ -648,7 +703,7 @@ func csvMappingFromForm(r *http.Request, columns int) csvimport.Mapping {
 	// hidden inputs, so the commit posts the mapping the dry run described.
 	if err := r.ParseForm(); err == nil {
 		for name, values := range r.Form {
-			key, isDefault := strings.CutPrefix(name, "default_")
+			key, isDefault := strings.CutPrefix(name, csvDefaultPrefix)
 			if !isDefault || key == "" || len(values) == 0 {
 				continue
 			}
@@ -686,7 +741,7 @@ func csvTargetFromForm(value string) csvimport.Target {
 func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
 	out := make([]CSVHiddenInput, 0, len(m.Targets)+len(m.Defaults))
 	for i, t := range m.Targets {
-		out = append(out, CSVHiddenInput{Name: "ziel_" + strconv.Itoa(i), Value: t.String()})
+		out = append(out, CSVHiddenInput{Name: csvTargetPrefix + strconv.Itoa(i), Value: t.String()})
 	}
 
 	keys := make([]string, 0, len(m.Defaults))
@@ -695,7 +750,7 @@ func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		out = append(out, CSVHiddenInput{Name: "default_" + key, Value: m.Defaults[key]})
+		out = append(out, CSVHiddenInput{Name: csvDefaultPrefix + key, Value: m.Defaults[key]})
 	}
 	return out
 }
