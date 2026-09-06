@@ -168,6 +168,18 @@ func fieldsFromRequest(r *http.Request) field.Data {
 				// it, and an empty string here means "cleared". A form that
 				// never carried the field has no key at all — that is the
 				// difference this branch exists to keep.
+				//
+				// Und hier endet sie, zwei Aufrufe später: field.Clean
+				// (field.go:575-581) schreibt nur fort, was nach dem Trimmen
+				// nicht leer ist, also erzeugen der vorhandene leere Schlüssel
+				// und der fehlende Schlüssel dasselbe JSON aus field.Encode.
+				// Diesen Handler kostet das nichts, weil sein Speicherweg ein
+				// vollständiges Ersetzen ist: die ganze fields-Spalte wird in
+				// einem UPDATE geschrieben (internal/page/store.go:185). Ein
+				// Aufrufer, der je nur einen Teil der Felder einer Seite
+				// fortschreibt, muss die Anwesenheit auf seiner eigenen Ebene
+				// tragen und darf nicht versuchen, sie aus dem Speicher
+				// zurückzulesen.
 				out.Values[trimmed] = field.JoinValues(values)
 				continue
 			}

@@ -152,12 +152,26 @@ The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
 **Requirements**: FIELD-01, FIELD-02, FIELD-03, FIELD-04, FIELD-05, FIELD-06, FIELD-07, FIELD-08
 **Success Criteria** (what must be TRUE):
 
-  1. A multi-valued field's encoding is **one** exported mechanism: the page form, the renderer and the bundle round trip all read and write it through the same pair of functions, so none can invent a second spelling — and Phase 9's importer inherits it rather than inventing a third. A checkbox group's three values arrive as three values, and clearing a group is distinguishable from a form that never carried it.
+  1. A multi-valued field's encoding is **one** exported mechanism: the page form, the renderer and the bundle round trip all read and write it through the same pair of functions, so none can invent a second spelling — and Phase 9's importer inherits it rather than inventing a third. A checkbox group's three values arrive as three values. Clearing a group is distinguishable from a form that never carried it **where the form is read** — `fieldsFromRequest` sees the key present and empty for the one and absent for the other — and the storage layer does not carry that difference further, because its save path is a full replacement of the whole `fields` column.
   2. A Choice field configured as a button row renders as a row of buttons in the page editor instead of a dropdown; an optional one offers an explicit "no answer" choice, so a click can be undone without JavaScript. A field whose visibility hangs on that Choice keeps appearing and disappearing correctly — the condition rule matches a button row, not only an `<option>`.
   3. A Multiple-Choice field accepts several values in one save, shows the same values after reload, and a theme can loop over them and print each one; a single-value read of it prints a readable joined string rather than a raw blob.
   4. A Term field offers the tags the website already carries as a chooser rather than a free-text box, stores the term's **slug**, and prints the term's **name** on the public page — renaming the term afterwards changes what the page shows without touching the page. The kind is absent from a block kind's field chooser, for the same reason `KindRef` is.
   5. `zeit` accepts a time of day that carries no timezone and where empty is distinguishable from midnight; `bereich` accepts a number between its configured bounds and the chosen number is readable **before** saving, without JavaScript; `code` is plain fixed-width text that never passes through Markdown — HTML typed into it appears verbatim on the public page and does not execute, including when the field sits inside a block.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
+
+> **Amended 2026-09-06 — Kriterium 1.** Der Satz lautete bis hierher
+> „…and clearing a group is distinguishable from a form that never carried it",
+> ohne zu sagen, wo. Gemessen wurde: `internal/field/field.go:575-581` — `Clean`
+> schreibt nur fort, was nach dem Trimmen nicht leer ist, also erzeugen der
+> vorhandene leere Schlüssel und der fehlende Schlüssel aus `field.Encode`
+> byteweise dasselbe JSON. Nachgemessen in `07-VERIFICATION.md` (Lücke 1).
+> Gesenkt statt die Datenstruktur umgebaut, weil Phase 9 die Unterscheidung
+> dort nicht braucht: **IMP-08** (`REQUIREMENTS.md:147`) löst dasselbe Problem
+> auf der richtigen Ebene — „each field can carry a default for cells that are
+> empty or unmapped", von der Betreiberin auf dem Zuordnungsbildschirm
+> ausdrücklich und je Feld gewählt, bevor irgendetwas geschrieben wird. Aus
+> einer Formularkodierungskonvention Bedeutung abzuleiten wäre der schlechtere
+> Mechanismus. Behoben im selben Zug: quick task `260906-ds0`.
 
 **Plans**: 7/7 plans executed, in 7 waves. The chain is real rather than conservative: `internal/field/field.go`, `internal/field/render.go` and `field_input.html` are each touched by five of the seven plans, so two plans in one wave would be two agents editing one kind list. `07-05` (`KindTerm`) is independent in substance and could run anywhere; it is sequenced only by that file overlap.
 
