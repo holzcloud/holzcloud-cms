@@ -126,11 +126,26 @@ const (
 	// at all, because a page that was already there when the import started is
 	// not this import's to delete. An ugly truth either way, because a lie
 	// about the row would be worse.
+	//
+	// The second argument is raw Go error text and THE REPORT PRINTS IT, the
+	// same as ReasonNotWritten below. See there for why.
 	ReasonNotRolledBack Reason = "not_rolled_back"
 	// ReasonNotWritten: the store refused the row, or the row was taken back
 	// cleanly after a later step failed. Arguments: the page's title, what the
-	// store said. The second argument is a Go error meant for the log; the
-	// screen shows the title and the code's own sentence.
+	// store said.
+	//
+	// The second argument is raw Go error text and the report PRINTS it —
+	// csv_reason.html substitutes it, and this comment used to claim the
+	// opposite, which is worse than either answer because the next reason
+	// added here would have been written against a guarantee nothing keeps.
+	//
+	// Printed on purpose. An operator who cannot see what the store said
+	// cannot tell a duplicate address from a disk that is full, and those two
+	// call for opposite next steps. The screen is behind an admin session, the
+	// error can carry the failing statement's own text, and that is an
+	// acceptable thing to show the one person who could read it out of the log
+	// anyway. It is also the only untranslated argument this phase mints; like
+	// field.Check's German rejection reasons it is carried, not written, here.
 	ReasonNotWritten Reason = "not_written"
 	// ReasonBodyUnreadable: the Markdown of the body could not be rendered.
 	// Argument: what the renderer said.
