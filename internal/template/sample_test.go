@@ -1,6 +1,7 @@
 package template
 
 import (
+	"html/template"
 	"reflect"
 	"strings"
 	"testing"
@@ -253,6 +254,92 @@ func TestMinimalDataCarriesTheEmptyValueOfEveryOwnField(t *testing.T) {
 		if _, ok := sample.Page.Felder[key]; !ok {
 			t.Errorf("MinimalData has %s and SampleData does not — the filled case "+
 				"of that field is then never rendered", key)
+		}
+	}
+}
+
+// The snippet half of the same asymmetry, and it is the half that has no
+// guard anywhere else.
+//
+// Bausteinfelder and Bausteinliste are two views of one set of values, exactly
+// as Felder and Feldliste are — but they are not two views of the same
+// emptiness. Resolve puts every defined field in Bausteinfelder, filled or not;
+// List leaves an empty field out, so a snippet nobody has filled in is missing
+// from Bausteinliste entirely. A fixture that got that backwards would reject a
+// template for ranging the list the way the specification tells it to, and
+// nothing would say so until a theme author saw it on one particular site.
+func TestMinimalDataCarriesTheEmptyValueOfEverySnippetField(t *testing.T) {
+	sample := SampleData()
+	minimal := MinimalData()
+
+	if len(minimal.Site.Bausteinliste) != 0 {
+		t.Error("MinimalData carries a snippet field list; field.List never " +
+			"produces an empty entry, so the fixture would describe a site " +
+			"that cannot exist")
+	}
+
+	kinds := map[string]string{}
+	for key, entries := range sample.Site.Bausteinliste {
+		for _, e := range entries {
+			kinds[key+"."+e.Key] = e.Kind
+		}
+	}
+
+	for key, fields := range sample.Site.Bausteinfelder {
+		got, ok := minimal.Site.Bausteinfelder[key]
+		if !ok {
+			t.Errorf("MinimalData has no snippet %s; a site where nobody filled "+
+				"its fields in is then never rendered", key)
+			continue
+		}
+		for name := range fields {
+			value, ok := got[name]
+			if !ok {
+				t.Errorf("MinimalData's %s has no %s; the unfilled case of that "+
+					"field is then never rendered, and the upload check cannot "+
+					"catch a theme that assumes it is filled", key, name)
+				continue
+			}
+			want := emptyValueOf(kinds[key+"."+name])
+			if !reflect.DeepEqual(value, want) {
+				t.Errorf("MinimalData's %s.%s is %#v; an unfilled %s resolves to %#v",
+					key, name, value, kinds[key+"."+name], want)
+			}
+		}
+		for name := range got {
+			if _, ok := fields[name]; !ok {
+				t.Errorf("MinimalData's %s has %s and SampleData does not — the "+
+					"filled case of that field is then never rendered", key, name)
+			}
+		}
+	}
+	for key := range minimal.Site.Bausteinfelder {
+		if _, ok := sample.Site.Bausteinfelder[key]; !ok {
+			t.Errorf("MinimalData has snippet %s and SampleData does not", key)
+		}
+	}
+
+	// The two forms the specification tells a template author to write, run
+	// against the fixture that is meant to survive them. This is the assertion
+	// the document would otherwise be making on its own authority.
+	for name, src := range map[string]string{
+		"indexing a value":  `{{index .Site.Bausteinfelder "footer-kontakt" "telefon"}}`,
+		"ranging the list":  `{{range index .Site.Bausteinliste "footer-kontakt"}}{{.Label}}{{end}}`,
+		"an absent snippet": `{{index .Site.Bausteinfelder "gibtesnicht" "telefon"}}`,
+	} {
+		tpl, err := template.New("t").Parse(src)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		var buf strings.Builder
+		if err := tpl.Execute(&buf, minimal); err != nil {
+			t.Errorf("%s fails against MinimalData: %v — the specification tells "+
+				"a template author to write exactly this", name, err)
+			continue
+		}
+		if buf.String() != "" {
+			t.Errorf("%s prints %q against MinimalData; nothing is filled in, so "+
+				"nothing may be printed", name, buf.String())
 		}
 	}
 }

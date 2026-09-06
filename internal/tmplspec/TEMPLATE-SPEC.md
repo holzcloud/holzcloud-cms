@@ -522,7 +522,8 @@ translation that answers with a 404.
 ### `FieldEntry`
 
 `.Key` `.Label` `.Kind` `.Value` `.Text` `.Image` `.Ref` `.Term` `.Values`
-`.Yes` `.Rows` — one entry of `.Page.Feldliste`.
+`.Yes` `.Rows` — one entry of `.Page.Feldliste`, or of `.Site.Bausteinliste`,
+which carries a snippet's own fields in the same shape (§7).
 
 The website's own fields are defined by the operator, so a template cannot know
 their names. Print `.Label` and the value and let the order decide the layout:
@@ -727,6 +728,43 @@ key. Useful for putting an address in the footer without hard-coding it:
 ```html
 {{with index .Site.Snippets "footer-kontakt"}}<div>{{.}}</div>{{end}}
 ```
+
+**A snippet is a body plus optional fields**, exactly as a page is content plus
+optional fields. `.Site.Snippets` still carries the body and has not changed;
+the fields sit beside it in two further maps, keyed by the same snippet key —
+the same pair `.Page.Felder` and `.Page.Feldliste` are for a page.
+
+**`.Site.Bausteinfelder`** is indexed twice: first by the snippet's key, then by
+the field's. Use it when your template knows what this particular site calls
+something:
+
+```html
+{{index .Site.Bausteinfelder "footer-kontakt" "telefon"}}
+```
+
+**`.Site.Bausteinliste`** carries the same values in their defined order with
+their labels, for a template that prints whatever the operator defined without
+knowing the names. Range the one snippet you want:
+
+```html
+{{range index .Site.Bausteinliste "footer-kontakt"}}
+  <p>{{.Label}}: {{.Text}}</p>
+{{end}}
+```
+
+An entry is a `FieldEntry`, the same type `.Page.Feldliste` carries — §5
+describes it, and everything said there about `.Text`, `.Value`, dates and
+groups holds here unchanged.
+
+**A snippet with no filled-in field has an entry in `.Site.Bausteinfelder` and
+none in `.Site.Bausteinliste`.** The two maps are not mirror images and that is
+deliberate: `Bausteinfelder` holds every field the operator defined, filled or
+not, so indexing into it gives you an empty value rather than a missing key;
+`Bausteinliste` leaves an empty field out entirely, because a label with nothing
+beside it tells a reader less than no line at all. Both forms above are
+therefore safe on a site where nothing has been typed in — the first prints
+nothing, the second loops zero times. Reaching *through* a value is where it
+breaks, which is §9's subject.
 
 ---
 
