@@ -38,12 +38,27 @@ revisions on snippets are deferred (`V2-17`) — neither is reopened here.
 - **D-01:** Phase 8 ships migration **`00047`** — verified: the tree now runs to
   `00046_field_kinds.sql`, which Phase 7 added. Contents, in one file so a
   rollback is one file:
-  1. `ALTER TABLE page_field_defs ADD COLUMN snippet_id` — **must default to
-     NULL and must carry no `REFERENCES` clause**. SQLite refuses `ADD COLUMN`
-     that carries a foreign-key reference together with any other default; the
-     column is a plain `INTEGER` and the relationship is enforced in Go, the way
-     `block_type_id` already is.
-  2. The index swap.
+  1. `ALTER TABLE page_field_defs ADD COLUMN snippet_id INTEGER REFERENCES
+     snippets(id) ON DELETE CASCADE` — **with the reference, and with no default
+     other than NULL.**
+
+     > **Corrected 2026-09-06, before planning.** An earlier draft of this
+     > decision said the column must carry *no* `REFERENCES` clause. That was
+     > wrong, and the tree disproves it: `00038:42` adds `block_type_id INTEGER
+     > REFERENCES block_types(id) ON DELETE CASCADE`, and its own comment at
+     > `:36-39` states the real rule — *„Die Spalte darf keinen anderen
+     > Vorgabewert als NULL haben — SQLite lässt ALTER TABLE ADD COLUMN mit
+     > REFERENCES sonst nicht zu."* What SQLite refuses is `REFERENCES`
+     > **together with a non-NULL default**, not `REFERENCES` as such. Since
+     > `snippet_id` takes no default either, the block-kind form is available
+     > and is what this phase copies — one fewer invariant left to Go.
+
+  2. The index swap. **The `Down` half is the easy thing to get wrong:**
+     `00038`'s own `Down` recreates `idx_page_field_defs_kennung_oben` as
+     `ON page_field_defs(website_id, kennung) WHERE parent_id IS NULL` — that is
+     `00029`'s form, without `block_type_id IS NULL`. Copying it verbatim would
+     roll back further than this migration went. `00047`'s `Down` must restore
+     **`00038`'s** form, `WHERE parent_id IS NULL AND block_type_id IS NULL`.
   3. `ALTER TABLE snippets ADD COLUMN fields TEXT NOT NULL DEFAULT ''` — the
      same shape `pages.fields` uses, so `field.Encode`/`Decode` work unchanged.
   — **Reversibility:** one-way — a released migration is never edited; a
@@ -291,7 +306,7 @@ have been put to them, and how each was settled:
 |---|---|
 | `MaxFields`: shared budget or per namespace? — the roadmap's explicit open question | **D-05** — the limit exists so one *form* stays usable, and a form renders one carrier; a shared budget makes one carrier deny another with a reason that reads false |
 | How do field values reach a theme without changing `.Site.Snippets`? | **D-06/D-07** — a parallel pair mirroring `.Page.Felder` / `.Page.Feldliste`, so a theme author who knows the page contract already knows this one |
-| Does `snippet_id` get a foreign key? | **D-01** — no; SQLite refuses `ADD COLUMN` with `REFERENCES` plus a default, and `block_type_id` already lives this way |
+| Does `snippet_id` get a foreign key? | **D-01** — **yes**, with `ON DELETE CASCADE`. The first draft said no, on a misreading of SQLite's restriction; `00038:42` and its own comment disprove it. Corrected before planning, and the correction left in place rather than overwritten |
 | Which index does `00047` extend? | **D-02** — `00038`'s, not `00029`'s; the older planning note was one migration behind, verified in the tree |
 
 ---
