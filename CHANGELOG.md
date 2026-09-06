@@ -1,199 +1,189 @@
 # Changelog
 
-Diese Datei hält fest, was sich zwischen zwei Fassungen für jemanden geändert
-hat, der diese Software betreibt. Sie folgt dem Aufbau von
-[Keep a Changelog](https://keepachangelog.com/de/1.1.0/) — neuste Freigabe
-zuoberst, eine Überschrift je Fassung mit Nummer und Datum, darunter Gruppen —
-schreibt die Einträge aber in ganzen Sätzen statt in Stichworten. Das ist
-Absicht: jedes andere Dokument in diesem Projekt erklärt auch das Warum, und
-eine Liste abgehackter Halbsätze läse sich, als hätte sie jemand anderes
-verfasst. Wer den nächsten Eintrag schreibt, macht bitte mit.
+This file records what changed between two versions for somebody who runs this
+software. It follows the shape of
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) — newest release at the
+top, one heading per version with a number and a date, groups below it — but
+writes the entries in whole sentences rather than in bullet fragments. That is
+deliberate: every other document in this project explains the why as well, and a
+list of clipped half-sentences would read as though somebody else had written it.
+Whoever writes the next entry, please join in.
 
-Die Nummern sind dieselben wie die Tags im Repository.
+The numbers are the same as the tags in the repository.
 
 ## 1.9 — 2026-09-05
 
-### Behoben
+### Fixed
 
-**Eine geänderte Vorlage kam bei niemandem an, der die Website schon kannte.**
-Jedes Vorlagen-Asset ging mit `Cache-Control: public, max-age=31536000,
-immutable` hinaus — auf einer Adresse, die sich nie ändert. `immutable` heisst
-für den Browser: frag nicht nach, auch nicht beim Neuladen. Ein korrigiertes
-Stylesheet erreichte damit ein Jahr lang nur, wer die Seite noch nie geöffnet
-hatte.
+**A changed template reached nobody who already knew the website.** Every
+template asset went out with `Cache-Control: public, max-age=31536000, immutable`
+— on an address that never changes. To a browser, `immutable` means: do not ask,
+not even on a reload. A corrected stylesheet therefore reached only those who had
+never opened the page, for a year.
 
-Ohne Version in der Adresse gilt jetzt eine Stunde mit starkem ETag: die zweite
-Anfrage ist eine Rückfrage und kommt als 304 ohne Körper zurück. Wer die Adresse
-versioniert (`/t/style.css?v=…`), bekommt das lange Versprechen weiterhin — dann
-löst die Adresse es auch ein.
+Without a version in the address the rule is now one hour with a strong ETag: the
+second request is a revalidation and comes back as a 304 with no body. Anyone who
+versions the address (`/t/style.css?v=…`) still gets the long promise — and then
+the address keeps it.
 
-**Bilder aus einem eingespielten Archiv hatten keine Masse.** Der Weg über das
-Hochladen misst jedes Bild und legt die verkleinerten Fassungen an; der Weg über
-ein Archiv legte nur die Zeile an. Auf einer so entstandenen Website stand
-deshalb bei keinem Bild `width`/`height` im HTML — das Layout springt beim
-Nachladen — und es gab **kein `srcset`**, ein Handy lud also jedes Original in
-voller Grösse. Bei einer Website mit fünfundachtzig Bildern ist das der
-Unterschied zwischen ein paar hundert Kilobyte und einigen Megabyte.
+**Images from an imported archive had no dimensions.** The upload path measures
+every image and creates the scaled-down versions; the archive path only created
+the row. On a website built that way, no image had `width`/`height` in the HTML —
+the layout jumps as things load — and there was **no `srcset`**, so a phone
+downloaded every original at full size. On a website with eighty-five images that
+is the difference between a few hundred kilobytes and several megabytes.
 
-Eine Hintergrundarbeit trägt das nach: beim Start und danach stündlich, hundert
-Bilder je Durchgang. Sie ist selbstbegrenzend — ein Bild, das seine Masse hat,
-wird nie wieder angesehen — und braucht kein Zutun. Der Unterbefehl `thumbnails`
-tut dasselbe von Hand und bleibt für den Fall, dass man nicht warten will.
+A background job now fills that in: at startup and hourly thereafter, a hundred
+images per pass. It is self-limiting — an image that has its dimensions is never
+looked at again — and needs no attention. The `thumbnails` subcommand does the
+same by hand and remains for when you do not want to wait.
 
-Nachgetragen und nicht im Import selbst: eine Website mit hundert Bildern würde
-sonst hundert Bilder innerhalb einer HTTP-Anfrage entschlüsseln, und ein Import,
-der in eine Zeitüberschreitung läuft, ist schlimmer als Bilder, die ein paar
-Minuten später scharf sind.
+Filled in afterwards and not inside the import itself: a website with a hundred
+images would otherwise decode a hundred images inside one HTTP request, and an
+import that runs into a timeout is worse than images that come into focus a few
+minutes later.
 
 ## 1.8 — 2026-09-05
 
-### Behoben
+### Fixed
 
-**Die Vorlage Weide sagt ihren Galerie-Zuschnitt jetzt selbst.** Ihr Kommentar
-beschrieb ihn seit jeher — „Das Galeriebild wird zugeschnitten und füllt seinen
-Rahmen" —, die Regel dazu kam aber aus `bausteine.css` und ist mit 1.7 dort
-weggefallen. Zwischen 1.7 und dieser Fassung standen die Bilder einer
-Weide-Galerie in ihrer eigenen Form nebeneinander, was bei gemischtem Hoch- und
-Querformat eine schiefe Zeile ergibt. Wer 1.7 mit dieser Vorlage betreibt, spielt
-diese Fassung bitte nach.
+**The Weide template now states its own gallery crop.** Its comment had always
+described it — "the gallery image is cropped and fills its frame" — but the rule
+for it came from `bausteine.css` and was dropped there in 1.7. Between 1.7 and
+this version the images in a Weide gallery stood side by side in their own
+shapes, which with a mix of portrait and landscape gives a crooked row. If you run
+1.7 with this template, please apply this version.
 
 ## 1.7 — 2026-09-05
 
-### Behoben
+### Fixed
 
-**Die Galerie schnitt jedes Bild auf 4:3 zurecht.** Ein Bildschirmfoto im
-Verhältnis 1,94:1 verlor damit knapp ein Drittel seiner Breite — links und
-rechts, also genau dort, wo bei einer Anwendung die Ränder, die Werkzeugleisten
-und die Navigation liegen. Sichtbar blieb ein Ausschnitt aus der Mitte, der
-aussieht wie ein Fehler beim Hochladen.
+**The gallery cropped every image to 4:3.** A screenshot at 1.94:1 lost nearly a
+third of its width that way — on the left and the right, which is exactly where an
+application keeps its margins, its toolbars and its navigation. What remained
+visible was a detail from the middle that looks like a mistake at upload.
 
-Die Galerie zeigt ein Bild jetzt in seiner eigenen Form, so wie es die drei
-anderen Bildstellen — Bild, Bild und Text, und die Bilder eigener Bausteinarten
-— immer gehalten haben. Ein Raster bleibt gleichmässig, solange die Bilder einer
-Galerie dieselbe Form haben; sind sie verschieden hoch, richten sie sich oben
-aus. Die Karte behält ihre Kachel: dort ist das Bild ein Anreisser und nicht der
-Inhalt.
+The gallery now shows an image in its own shape, the way the three other image
+places — image, image and text, and the images of a website's own block kinds —
+always have. A grid stays even as long as the images in a gallery share a shape;
+where they differ in height they align at the top. The card keeps its tile: there
+the image is a teaser and not the content.
 
-Eine Vorlage, die eine feste Kachel will, setzt sie weiterhin selbst. Rudel tut
-das mit `aspect-ratio: 1` für seine Hundebilder — und nennt seitdem auch den
-Zuschnitt dazu, den es vorher von hier geerbt hat. **Wer eine eigene Vorlage
-betreibt, die in der Galerie ein Seitenverhältnis setzt, prüft bitte, ob dort
-`object-fit: cover` danebensteht**; ohne diese Zeile wird das Bild jetzt
-gestaucht statt beschnitten.
+A template that wants a fixed tile still sets one itself. Rudel does that with
+`aspect-ratio: 1` for its dog pictures — and since then also states the crop that
+goes with it, which it previously inherited from here. **If you run a template of
+your own that sets an aspect ratio in the gallery, please check that
+`object-fit: cover` stands beside it**; without that line the image is now
+squashed instead of cropped.
 
 ## 1.6 — 2026-09-04
 
-### Behoben
+### Fixed
 
-**Das Bearbeiten einer Seite verwarf ihre Bausteine eigener Arten.** Wer eine
-bestehende Seite im Editor speicherte, verlor jeden Baustein, dessen Art die
-Website sich selbst angelegt hatte — still, ohne Meldung, und mit einem
-augenscheinlich erfolgreichen Speichern. Die eingebauten neun Arten blieben,
-alles andere wurde beim Aufräumen verworfen, weil dem Speicherpfad die Liste
-der eigenen Arten fehlte. Aus derselben Ursache legte der Knopf für eine eigene
-Art keinen Baustein an und die Arten verschwanden nach jeder Änderung aus dem
-Menü, sodass sich der Verlust im Editor nicht einmal rückgängig machen liess.
+**Editing a page discarded its blocks of the website's own kinds.** Saving an
+existing page in the editor lost every block whose kind the website had created
+for itself — silently, without a message, and with an apparently successful save.
+The nine built-in kinds survived, everything else was discarded during cleanup,
+because the save path lacked the list of the website's own kinds. From the same
+cause, the button for one of your own kinds created no block, and the kinds
+disappeared from the menu after every change, so the loss could not even be undone
+in the editor.
 
-Der Text ging dabei nicht verloren: die Felder eines verworfenen Bausteins
-stehen weiterhin im Fliesstext der Seite. Verloren ging die Gestaltung. Wer
-eigene Bausteinarten benutzt, sieht bitte die Seiten durch, die seit dem
-Einspielen einmal im Editor gespeichert wurden; das Archiv einer Website
-(`holzcloud.json`) enthält die ursprünglichen Bausteine mit allen Feldwerten
-und ist die verlässliche Quelle für den Wiederaufbau.
+The text was not lost in the process: the fields of a discarded block are still in
+the page's body text. What was lost was the arrangement. If you use your own block
+kinds, please look through the pages that have been saved in the editor since you
+installed; a website's archive (`holzcloud.json`) contains the original blocks
+with all their field values and is the reliable source for rebuilding.
 
-Angelegte Seiten waren nie betroffen — nur das Bearbeiten.
+Newly created pages were never affected — only editing.
 
 ## 1.5 — 2026-09-03
 
-### Behoben
+### Fixed
 
-**Eine Adresse gibt es jetzt je Sprache.** Bisher galt eine Adresse einmal pro
-Website, quer über alle Sprachen. Die französische Fassung von
-`/holzcloud-cms` bekam beim Anlegen still ein „-2" angehängt, und weil die
-Übersetzungsverweise über die Adresse aufgelöst werden, zeigten sie danach
-alle auf die Sprache, die zuletzt eingespielt wurde. Eine fünfsprachige
-Website hatte fünf Startseiten, von denen vier falsch verknüpft waren, kein
-einziges `hreflang` im Kopf und eine Sprachwahl, die auf die Startseite
-zurückfiel. Wer eine mehrsprachige Website betreibt und Produktnamen als
-Adresse benutzt, war davon sicher betroffen; die Migration 00045 räumt es auf,
-ohne dass etwas von Hand nachzuziehen wäre. Bereits umbenannte Adressen bleiben
-allerdings, wie sie sind — ein „-2" wird nicht zurückgenommen, weil daraus
-inzwischen ein verlinkter Ort geworden sein kann.
+**An address now exists per language.** Until now an address was unique once per
+website, across all languages. The French version of `/holzcloud-cms` silently got
+a "-2" appended when it was created, and because translation links are resolved by
+address, they all then pointed at whichever language was imported last. A
+five-language website had five home pages, four of them wrongly linked, not a
+single `hreflang` in the head, and a language picker that fell back to the home
+page. Anyone running a multilingual website who uses product names as addresses
+was certainly affected; migration 00045 tidies it up with nothing to do by hand.
+Addresses already renamed do stay as they are, however — a "-2" is not taken back,
+because by now it may have become a linked location.
 
-**Die Startseite hatte zwei Adressen.** Sie war unter `/` und unter `/home` zu
-haben, beide mit sich selbst als kanonischer Adresse und beide im Sitemap — bei
-fünf Sprachen zehn Adressen für fünf Seiten. `/home` leitet jetzt dauerhaft
-(301) auf die Wurzel seiner Sprache um und steht nicht mehr im Sitemap.
+**The home page had two addresses.** It was available at `/` and at `/home`, both
+with themselves as the canonical address and both in the sitemap — with five
+languages, ten addresses for five pages. `/home` now redirects permanently (301)
+to the root of its language and is no longer in the sitemap.
 
-**Der Knopf im Aufruf-Baustein war in der Vorlage Holzcloud unsichtbar.**
-Messingfarbene Schrift auf messingfarbener Fläche, weil die Regel für Verweise
-im Fliesstext später steht als die für den Knopf.
+**The button in the call-to-action block was invisible in the Holzcloud
+template.** Brass lettering on a brass surface, because the rule for links in body
+text comes later than the one for the button.
 
-**Mehrere Absätze in einem Textbaustein standen ohne Abstand untereinander**,
-ebenfalls in der Vorlage Holzcloud.
+**Several paragraphs in one text block stood without spacing between them**, also
+in the Holzcloud template.
 
-**Der Importbericht meldete Textfelder als fehlende Bilder.** „die Datei
-‚Next.js' fehlt" — geprüft wurde die Schreibweise des Wertes statt der Art des
-Feldes.
+**The import report announced text fields as missing images.** "the file 'Next.js'
+is missing" — what was checked was the spelling of the value rather than the kind
+of the field.
 
-### Hinzugefügt
+### Added
 
-**Die Vorlage Holzcloud kleidet vier eigene Bausteinarten**, wenn eine Website
-sie anlegt: `vorspann`, `merkmal`, `stand` und `technik`. Damit lassen sich ein
-Aufmacher-Satz, eine Faktenliste, eine Statuszeile und eine Reihe Stichworte
-setzen, für die es im Editor sonst keine Auszeichnung gibt.
+**The Holzcloud template dresses four of a website's own block kinds**, when a
+website creates them: `vorspann`, `merkmal`, `stand` and `technik`. With those you
+can set an opening sentence, a list of facts, a status line and a row of keywords,
+for which the editor otherwise has no markup.
 
-### Geändert
+### Changed
 
-**Das Veröffentlichungsdatum steht in der Vorlage Holzcloud nur noch an einem
-Beitrag**, nicht mehr an jeder Seite.
+**The publication date appears in the Holzcloud template only on a post**, no
+longer on every page.
 
 ## 1.4 — 2026-09-03
 
-Dies ist die erste öffentliche Freigabe und darum der erste Eintrag in dieser
-Datei. Entwickelt wurde das Projekt vorher in einem privaten Repository. Für
-diese Zeit stehen hier keine Einträge, weil es in ihr keine öffentlichen
-Freigaben gab; welche zu erfinden, wäre weniger wert als nichts. Der Abschnitt
-„Versionen" in der README sagt dasselbe noch einmal aus der anderen Richtung.
+This is the first public release and therefore the first entry in this file. The
+project was developed in a private repository before that. There are no entries
+here for that time, because there were no public releases in it; inventing some
+would be worth less than nothing. The "Versioning" section in the README says the
+same thing from the other direction.
 
-### Was 1.4 ist
+### What 1.4 is
 
-Ein selbst gehostetes CMS als einzelnes Go-Binär, ohne CGO, mit SQLite als
-Ablage. Eine Installation trägt mehrere Websites mit je mehreren Domains, streng
-voneinander getrennt. Seiten entstehen in Markdown oder aus Bausteinen; welche
-Felder, Bausteinarten und Inhaltsarten eine Website kennt, bestimmt sie selbst,
-ohne dass dafür eine neue Programmfassung nötig wäre. Dazu Vorlagen zum
-Hochladen, eine mehrsprachige öffentliche Website und eine mehrsprachige
-Verwaltung, Medien, Menüs, SEO, ein zwingender zweiter Faktor für
-Verwaltungskonten sowie Ausfuhr und Einfuhr einer ganzen Website als lesbares
-Archiv. Die vollständige Aufzählung steht unter „Features" in der README; sie
-hier zu wiederholen hiesse, sie an zwei Orten zu pflegen.
+A self-hosted CMS as a single Go binary, without CGO, with SQLite as its store.
+One installation carries several websites with several domains each, strictly
+separated from one another. Pages are made in Markdown or out of blocks; which
+fields, block kinds and content kinds a website knows it decides for itself,
+without a new version of the program being needed for it. Along with that:
+uploadable templates, a multilingual public website and a multilingual admin,
+media, menus, SEO, a compulsory second factor for administrator accounts, and the
+export and import of a whole website as a readable archive. The complete list is
+under "Features" in the README; repeating it here would mean maintaining it in two
+places.
 
-### Hinzugefügt
+### Added
 
-Die achte eingebaute Vorlage heisst „Holzcloud" und bringt das Design von
-holzcloud.ch als Theme mit, samt der Schriften, die dazugehören. Die Schriften
-liegen in der Vorlage selbst und werden mit ihr ausgeliefert; auch dieses Theme
-lädt im Betrieb nichts von einem fremden Server nach.
+The eighth built-in template is called "Holzcloud" and brings the design of
+holzcloud.ch along as a theme, together with the fonts that belong to it. The
+fonts are in the template itself and are shipped with it; this theme too loads
+nothing from a foreign server while it runs.
 
-### Geändert
+### Changed
 
-**Gebaut wird nur noch für linux/amd64.** arm64 und der Raspberry Pi sind aus
-dem Bauplan und aus der Beschreibung entfernt. Wer bisher eine arm-Fassung
-erwartet hat, bekommt keine mehr und muss selbst bauen. Dafür veröffentlicht ein
-Freigabe-Ablauf auf jedem `v*`-Tag ein fertiges Binär samt Prüfsumme, statt dass
-jede Installation es von Hand übersetzt.
+**Builds are for linux/amd64 only.** arm64 and the Raspberry Pi are out of the
+build plan and out of the description. Anyone who expected an arm build gets none
+any more and has to build it themselves. In exchange, a release workflow publishes
+a finished binary with a checksum on every `v*` tag, instead of every installation
+compiling it by hand.
 
-Die Verwaltung zeigt jetzt den nach AGPL §13 vorgeschriebenen Hinweis: die
-laufende Fassung und den Verweis auf den Quelltext, in allen fünf
-Oberflächensprachen. Wer diese Software für andere betreibt, erfüllt damit eine
-Pflicht, die vorher offen war.
+The admin now shows the notice required by AGPL §13: the running version and the
+reference to the source, in all five interface languages. Anyone running this
+software for others thereby fulfils an obligation that was previously open.
 
-### Sicherheit
+### Security
 
-Go ist auf 1.26.6 angehoben. Das schliesst acht Lücken in der
-Standardbibliothek, die dieses Programm tatsächlich erreicht hat; `govulncheck`
-meldet danach keine mehr. Der Aufruf läuft ab jetzt als eigener Schritt im
-Sicherheits-Ablauf mit, damit die nächste Lücke nicht erst bei einer
-Freigabeprüfung auffällt. Das ist der Grund, eine ältere Fassung nicht
-weiterzubetreiben.
+Go is raised to 1.26.6. That closes eight vulnerabilities in the standard library
+that this program actually reached; `govulncheck` reports none afterwards. The
+call now runs as its own step in the security workflow, so that the next
+vulnerability is not first noticed during a release check. That is the reason not
+to keep running an older version.
