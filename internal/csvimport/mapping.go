@@ -52,36 +52,66 @@ var precomposed = map[rune]rune{
 // proposed, and measured against SlugifyKey it does not close the hole: the
 // two spellings above still fold to "grosse" and to "groesse", two keys for one
 // word, and they still do not meet. The mark has to be put back onto its base
-// letter for the three vowels SlugifyKey knows, and only what is left over is
-// dropped.
+// letter for the three vowels SlugifyKey knows.
 //
-// What is deliberately left alone. A mark on any other base letter is dropped,
-// which is the same answer SlugifyKey gives for a letter it has no case for,
-// and the better one of the two: 'e' + U+0301 becomes "e" instead of falling
-// away entirely. It does not agree with SlugifyKey's own treatment of the
-// precomposed U+00E9, which drops the whole letter — that disagreement lives in
-// SlugifyKey, is older than this phase and is not this phase's to change.
+// Every OTHER mark takes its base letter with it. That is not prettier and it
+// is not meant to be: SlugifyKey has cases for ä, ö, ü and ß and DROPS every
+// other non-ASCII letter whole, so the precomposed U+00E9 in "Café" folds to
+// "caf". Keeping the base for the decomposed spelling would fold the very same
+// word to "cafe" — two keys for one word, which is verbatim the failure this
+// function exists to prevent, moved from ö to é. A field whose label is "Café"
+// carries the key "caf", so it is the spelling that agrees with SlugifyKey that
+// finds its own field; the VALUE of the key does not matter, only that one word
+// yields one key. The same holds for ñ, ç, å, š and the rest.
+//
+// Header-scoped, and that scope is the point. settleHeaderMarks drops the base
+// because its output is handed to SlugifyKey. foldCell (row.go:37) hands its
+// output to page.Transliterate instead, which writes é out as "e", so there the
+// two spellings already agree and dropping the base would BREAK that agreement:
+// the decomposed "Café" would fold to "caf" while the composed one folds to
+// "cafe". Two folds because there are two consumers with two answers, and each
+// is written against the one it feeds.
 //
 // And no dependency. golang.org/x/text is an indirect entry in go.mod and stays
 // one: internal/template/dates.go:24 records this project deliberately
 // declining it once before, for a job of the same size. unicode is in the
 // standard library and the whole of this is one loop.
 func foldHeader(header string) string {
-	return field.SlugifyKey(settleMarks(header))
+	return field.SlugifyKey(settleHeaderMarks(header))
 }
 
-// settleMarks writes a decomposed spelling out as a composed one.
+// The two answers settle gives a combining mark it cannot compose away.
+//
+// A bool at a call site says nothing; these two names say which consumer the
+// fold is written for and why the answers differ. See foldHeader.
+const (
+	keepMarkedBase = false
+	dropMarkedBase = true
+)
+
+// settleMarks writes a decomposed spelling out as a composed one, for a CELL.
 //
 // A combining diaeresis standing behind a, o or u is put back onto its base
 // letter, because those three are the ones field.SlugifyKey and
 // page.Transliterate know as single runes. Every other combining mark is
-// dropped and its base kept.
+// dropped and its base kept, because the caller hands the result to
+// page.Transliterate, which writes the precomposed é out as "e": keeping the
+// base is what makes the two spellings of one cell agree here.
 //
 // Separate from foldHeader because a heading is not the only thing an operator
 // types that has to be recognised however their editor normalised it: the
 // status vocabulary and the janein vocabulary in row.go fold the same way and
 // must not spell the rule a second time.
-func settleMarks(s string) string {
+func settleMarks(s string) string { return settle(s, keepMarkedBase) }
+
+// settleHeaderMarks is the same fold for a HEADING, which is handed to
+// field.SlugifyKey rather than to page.Transliterate. The one difference is
+// what happens to a mark that is not a diaeresis on a, o or u: the base letter
+// goes with it. foldHeader carries the argument.
+func settleHeaderMarks(s string) string { return settle(s, dropMarkedBase) }
+
+// settle is the one loop both folds are.
+func settle(s string, dropMarked bool) string {
 	runes := []rune(s)
 
 	var b strings.Builder
@@ -94,9 +124,17 @@ func settleMarks(s string) string {
 			// no letter of its own and SlugifyKey would drop it anyway.
 			continue
 		}
-		if i+1 < len(runes) && runes[i+1] == combiningDiaeresis {
-			if composed, ok := precomposed[r]; ok {
-				b.WriteRune(composed)
+		if i+1 < len(runes) && unicode.Is(unicode.Mn, runes[i+1]) {
+			if runes[i+1] == combiningDiaeresis {
+				if composed, ok := precomposed[r]; ok {
+					b.WriteRune(composed)
+					i++
+					continue
+				}
+			}
+			if dropMarked {
+				// The base goes with the mark, because the precomposed
+				// spelling of this letter is dropped whole by SlugifyKey.
 				i++
 				continue
 			}
