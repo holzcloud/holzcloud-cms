@@ -5,12 +5,12 @@
      docs/brand/. Ein Reiter ist 16 Pixel breit; der dritte Ring wäre dort
      kein Ring mehr, sondern Grau. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Holzcloud">
-  <rect width="64" height="64" rx="14" fill="#4F3ED1"/>
+  <rect width="64" height="64" rx="14" fill="#1F4F42"/>
   <defs><clipPath id="hc-cloud"><path d="M15 44a11 11 0 0 1 1.4-21.9A16 16 0 0 1 46 20.5 11.5 11.5 0 0 1 49 44z"/></clipPath></defs>
   <g transform="translate(32 32) scale(.88) translate(-32 -32)">
     <g clip-path="url(#hc-cloud)">
-      <rect width="64" height="64" fill="#F6F4FF"/>
-      <g fill="none" stroke="#4F3ED1" stroke-width="4.6">
+      <rect width="64" height="64" fill="#F7F4EE"/>
+      <g fill="none" stroke="#1F4F42" stroke-width="4.6">
         <circle cx="31" cy="34" r="6.4"/><circle cx="31" cy="34" r="16.4"/>
       </g>
     </g>
