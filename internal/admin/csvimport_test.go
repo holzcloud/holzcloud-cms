@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
@@ -1343,5 +1344,52 @@ func TestCSVTwoOverlappingCommitsImportOnce(t *testing.T) {
 	}
 	if n := stagedCount(t, database); n != 0 {
 		t.Errorf("staged rows = %d after the commit, want 0", n)
+	}
+}
+
+// TestCSVMappingCutsAnOversizedSample (WR-06): the mapping screen does not
+// redraw a cell the reader has already refused, at full size.
+//
+// csv.MaxCellBytes is reported and never applied — the reader leaves the cell
+// whole so the report can name its column and its size instead of showing the
+// value. Screen 2 did the opposite: it copied the cell into the view with no
+// bound and the template printed it. A first row carrying a 9 MB cell, legal
+// inside the 10 MB upload cap, made a 9 MB HTML response, and the stepper drew
+// it again on every visit. The cut belongs at the view boundary, which is the
+// consumer that has to draw the thing.
+func TestCSVMappingCutsAnOversizedSample(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	huge := strings.Repeat("a", csvSampleBytes*50)
+	token := stage(t, h, admin, ws.ID, "Titel,Text\nAlpha,"+huge+"\n")
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
+	body := rec.Body.String()
+	if strings.Contains(body, huge) {
+		t.Error("the whole oversized cell was written into the response")
+	}
+	if len(body) > len(huge) {
+		t.Errorf("the response is %d bytes for a %d-byte cell — the sample is not bounded", len(body), len(huge))
+	}
+
+	// And the cut lands on a rune boundary: a cell of multi-byte characters
+	// must not put a replacement glyph on the screen where the operator is
+	// trying to recognise their own data.
+	multi := strings.Repeat("ä", csvSampleBytes)
+	cut := csvSample(multi)
+	if !utf8.ValidString(cut) {
+		t.Errorf("csvSample cut through a character: %q", cut)
+	}
+	if len(cut) > csvSampleBytes+len("…") {
+		t.Errorf("csvSample returned %d bytes, want at most %d", len(cut), csvSampleBytes+len("…"))
+	}
+	if !strings.HasSuffix(cut, "…") {
+		t.Error("a cut cell does not say it was cut, so it reads as a short cell")
+	}
+
+	// A cell that fits is handed through untouched, ellipsis and all.
+	if got := csvSample("Alpha"); got != "Alpha" {
+		t.Errorf("csvSample(%q) = %q, want it unchanged", "Alpha", got)
 	}
 }

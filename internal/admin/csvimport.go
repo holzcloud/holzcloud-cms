@@ -80,6 +80,23 @@ const (
 // body.
 const csvMaxUpload = 10 << 20
 
+// csvSampleBytes bounds one cell of the sample row as SCREEN 2 DRAWS IT, and
+// nowhere else.
+//
+// csv.MaxCellBytes is 100 kB and is reported rather than applied: the reader
+// leaves an oversized cell whole so the report can name its column and its
+// size instead of showing the value. That is right for the report, which draws
+// no cell at all. A screen is the other kind of consumer named in
+// csv.MaxCellBytes's own reasoning — it has to DRAW the thing — and a first row
+// carrying a 9 MB cell, perfectly legal inside the 10 MB upload cap, made a
+// 9 MB HTML response of the mapping screen, again on every step of the sample
+// row.
+//
+// Two hundred bytes is a sample: enough to recognise what is in the column,
+// which is the whole job of that table cell. The cut happens HERE and nowhere
+// else, so the value the dry run decides on is still the whole cell.
+const csvSampleBytes = 200
+
 // CSVColumnView is one row of the mapping table.
 //
 // The column itself, plus the three things only the server can work out: which
@@ -549,11 +566,31 @@ func (h *Handler) csvMappingData(r *http.Request, upload *csvimport.Upload,
 	for i, c := range columns {
 		view := CSVColumnView{Column: c, Selected: mapping.Targets[i].String(), Note: mapping.Notes[i]}
 		if !data.NoRows && i < len(sample.Cells) {
-			view.Sample = sample.Cells[i]
+			view.Sample = csvSample(sample.Cells[i])
 		}
 		data.Columns[i] = view
 	}
 	return data, nil
+}
+
+// csvSample cuts one cell down to what a table cell on screen 2 can show.
+//
+// On a RUNE boundary, because the cut is measured in bytes: cutting through a
+// multi-byte character would put a replacement glyph on the screen where the
+// operator is trying to recognise their own data. The ellipsis says the value
+// goes on, so a cell that was cut does not read as a cell that is short.
+func csvSample(cell string) string {
+	if len(cell) <= csvSampleBytes {
+		return cell
+	}
+	cut := 0
+	for i := range cell {
+		if i > csvSampleBytes {
+			break
+		}
+		cut = i
+	}
+	return cell[:cut] + "…"
 }
 
 // HandleCSVMapping shows the columns of the staged file and where they go —
