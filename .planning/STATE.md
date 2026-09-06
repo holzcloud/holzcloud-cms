@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 8
 current_phase_name: Snippets Carry Fields
 status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-09-06T09:56:08.625Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-09-06T10:10:15.916Z"
 last_activity: 2026-09-06
-state_head: 92dc3ebf1dd1cc4491f1b14042105be8a2c0370f
+state_head: 23b01afaba23a3c453d3dea4198efefb7ece7420
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 16
+  completed_plans: 17
   percent: 17
 ---
 
@@ -29,9 +29,9 @@ progress:
 
 ### Current Position
 
-Phase: 8 — Snippets Carry Fields (2 / 5 Pläne ausgeführt)
-Plan: 08-02 complete — **der Speicherteil des vierten Namensraums ist vollständig, und die zweite stille Fehlstelle der Phase ist durch Bauart geschlossen**. `OfSnippets` liest die Felder aller Textbausteine einer Website in **einer** Abfrage (`WHERE website_id = $1 AND snippet_id IS NOT NULL ORDER BY snippet_id, position, id`), baut je Textbaustein denselben Baum wie `OfSnippet` und wird von einem Test Element für Element und `Sub` für `Sub` mit ihm gleichgesetzt — auch dort, wo zwei Felder dieselbe Position tragen und allein die Nummer den Gleichstand bricht. `Move` hat seinen vierten Arm, und sein `default:` nennt jetzt die Seite statt „was übrig bleibt" (D-09). `validate` bekommt den einen Arm, der **absichtlich nicht** sein Vorbild ist: `gilt_fuer` wird auf `beides` gestellt und die Bedingung geleert, aber **`Required` wird nicht gezwungen und die Feldarten werden nicht verengt** — ein Textbaustein hat ein eigenes Formular, und seine Werte erstarren nicht zu HTML, weshalb `verweis` und `schlagwort` dort erlaubt sind, während die Bausteinart sie weiterhin mit `ErrNotInBlock` abweist. **D-05 ist gesetzt:** der Feldvorrat wird auf den Träger gezählt, ein vierarmiger Schalter, keiner zählt `WHERE website_id = $1` allein — und die Prüfung, die die ganze Entscheidung trägt, ist die, dass bei einem Textbaustein an seiner Grenze das erste Feld eines **zweiten**, ein Seitenfeld und ein Bausteinartfeld weiterhin angenommen werden. Die **zwölf verbliebenen Zuweisungen** in neun Dateien gehen durch `fillSnippets`; ausserhalb dieser Funktion überlebt in ganz `internal/public/` **keine**, `feed.go` ist unberührt (dort steht eine Ladestelle, keine Zuweisungsstelle). `fillSnippets` liest jetzt über `OfSnippets` — sonst hätte der Massenleser keinen Aufrufer und T-08-11 keine Deckung — und zahlt auf einer Website ohne Textbaustein gar keine Abfrage. Das Gatter ist **nicht nur ein grep**: `TestBausteinfelderAufMehrerenRouten` fährt Schlagwortarchiv, Suche und Katalog durch den echten Handler, und eine Mutationsprobe (`tag.go` einmal zurückgedreht) hat gezeigt, dass genau ihr Untertest fällt. **Zwei Zählgatter des Plans messen andere Zahlen** — `OfSnippets` misst 1 statt ≥2 (das Vorbild `OfBlockTypes` misst mit demselben Befehl ebenfalls 1: ein Massenleser trägt seinen Namen einmal), und die Dateizählung misst 12 statt 11, weil `*.go` das Prüffile mitfasst, das 08-01 geschrieben hat; ohne Prüffiles sind es genau die elf des Plans. Beide gemeldet und hergeleitet, keines passend gemacht
-Status: Phase 08 läuft — 2 von 5 Plänen ausgeführt; SNIP-02…05 sind durch den Speicher erfüllt, SNIP-01 wartet auf die Bildschirme (08-03, 08-04). SNIP-03 und SNIP-04 bleiben in REQUIREMENTS.md offen, weil Geschwisterpläne dieselben Kennungen führen und das Tor für geteilte Kennungen erst zumacht, wenn der letzte davon fertig ist
+Phase: 8 — Snippets Carry Fields (3 / 5 Pläne ausgeführt)
+Plan: 08-03 complete — **die Definitionshälfte des Bildschirms steht, und sie ist ein vierter *Modus* und keine vierte Route**. `?textbaustein=<id>` auf `GET /admin/websites/{id}/felder` macht den einen Feldbildschirm zu seinem vierten Modus, nach der obersten Ebene, einer Gruppe und einer Bausteinart: `FieldListData.Snippet`, ein vierter `case` in `fieldListData`, der über `OfSnippet` liest und **`field.Kinds` in voller Breite** anbietet (die vier Ausschlüsse von `BlockKinds()` gelten hier nicht, weil ein Textbaustein nicht zu HTML erstarrt), `Simple()` auf drei Träger erweitert und `fieldPath` mit einem vierten Arm, den alle vier Aufrufstellen füttern. Der **eine Punkt, der keine Abschrift ist**, ist die Eigentumsprüfung: `blockTypes.Get` nimmt die Websitenummer, `snippets.Get` nimmt sie nicht — deshalb steht `snippetOf` als **eine** Funktion da, die der GET **und** der POST aufrufen, und `h.snippets.Get` kommt in `internal/admin/field.go` genau **einmal** vor. In `field_list.html` bekamen **sieben** positive `{{if .BlockType}}`-Arme ein `{{else if .Snippet}}`-Geschwister, und die **drei** `{{if not .BlockType}}`-Verneinungen blieben unangetastet: sie sind die drei Orte der „Pflicht"-Spalte, und eine davon zu verbreitern hätte dem Bediener die einzige Möglichkeit genommen, ein Textbausteinfeld als Pflicht zu markieren. **Beide Zähltore trafen diesmal genau ein** (7 und 3) — anders als in den Wellen 1 und 2, weil der Plan die zehn Vorkommen vorher Zeile für Zeile ausgezählt hatte. Vier Prüfungen über `newTestAdmin` und die echten Vorlagen halten die Berechtigung, und eine **Mutationsprobe** belegt sie: ohne `sn.WebsiteID != websiteID` meldet der GET-Fall den fremden Namen auf dem Bildschirm und der POST-Fall antwortet **303 statt 404**. Sechs neue sichtbare Sätze, in en/es/fr/it übersetzt, `0 offen, 0 verwaist`. Keine Abweichung vom Plan
+Status: Phase 08 läuft — 3 von 5 Plänen ausgeführt; SNIP-02 und SNIP-04 sind jetzt in REQUIREMENTS.md abgehakt, weil dieser Plan der letzte war, der sie führt. SNIP-01 bleibt offen: 08-04 baut die **Werte**hälfte des Bildschirms, und erst dann ist „jede Feldart, ausgefüllt am Textbaustein" ganz da. SNIP-03 und SNIP-05 sind durch den Speicher erfüllt
 Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die **Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
 Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code` innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen
 Last activity: 2026-09-06
@@ -179,6 +179,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 07 P07 | 37 min | 3 tasks | 13 files |
 | Phase 08 P01 | 10 min | 3 tasks | 12 files |
 | Phase 08 P02 | 12 min | 2 tasks | 14 files |
+| Phase 08 P03 | 9 min | 2 tasks | 9 files |
 
 ### Session Continuity
 
@@ -187,10 +188,10 @@ and its *Standing Gates* section. Requirement IDs are in
 `.planning/REQUIREMENTS.md`; the working list most of them came from, with the
 size and location of each item, is `docs/offene-punkte.md`.
 
-Next command: `/gsd-execute-phase 8` — 08-01 hat den vierten Namensraum gelegt und von Ende zu Ende bewiesen; 08-02 zieht nach: `OfSnippets` als Massenleser, `fillSnippets` an den **uebrigen zwoelf** Zuweisungsstellen samt dem Gatter, das ihre Uebereinstimmung nachweist, `Move`s vierter Arm, der Textbaustein-Arm in `validate` (wobei `Required` an einem Textbaustein bedeutungsvoll bleibt — die Verengung der Bausteinart bei `store.go:530-536` ist hier ein Gegenbeispiel, kein Vorbild) und die traegerweise `MaxFields`-Zaehlung nach D-05. Weiterhin offen und unabhaengig davon: `/gsd-verify-work 6` — die Browserhaelfte des stehenden Tors gehoert in die Abnahme, nicht in einen neuen Plan; und `/gsd-verify-work 7` fuer die eine ungefahrene Zeile (`code` im Block, oeffentlich)
+Next command: `/gsd-execute-phase 8` — 08-03 hat die Definitionshaelfte des Bildschirms gelegt (vierter Modus, keine neue Route, `snippetOf` als die eine Eigentumspruefung); 08-04 zieht die **Werte**haelfte nach: das Formular am Textbaustein selbst, dessen Vorbild `internal/admin/page_fields.go` ist, samt `snippet.Store.SetFields`. Danach 08-05 fuer Theme-Vertrag, Vorrichtungen, Spezifikation, Uebersetzung und den Browserdurchgang — dorthin gehoeren auch `MinimalData`s leerer Zwilling fuer `Bausteinfelder`/`Bausteinliste` und die §7-Prosa der `TEMPLATE-SPEC.md`. Weiterhin offen und unabhaengig davon: `/gsd-verify-work 6` fuer die Browserhaelfte des stehenden Tors und `/gsd-verify-work 7` fuer die eine ungefahrene Zeile (`code` im Block, oeffentlich)
 
-**Last session:** 2026-09-06T09:55:30.899Z
-**Stopped at:** Completed 08-02-PLAN.md
+**Last session:** 2026-09-06T10:10:15.825Z
+**Stopped at:** Completed 08-03-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -244,6 +245,9 @@ Next command: `/gsd-execute-phase 8` — 08-01 hat den vierten Namensraum gelegt
 - [Phase 08]: 08-01: die Zaehlgatter des Plans (6 gesamt / 5 Spaltenlisten) sind gegen fuenf Leser gerechnet, waehrend dieselbe Aufgabe OfSnippet als sechsten verlangt — gemessen 7/6, und die Gegenprobe fuer block_type_id misst in derselben Datei ebenfalls 7; das Tor auf den Namensraum ist ohnehin TestBausteinNamensraum, das zurueckliest statt zu zaehlen
 - [Phase 08]: Der Feldvorrat (MaxFields = 60) wird auf den Träger gezählt statt auf die Website (D-05): vier Arme, jeder nennt seinen Namensraum ausdrücklich — Ein Formular zeichnet immer nur die Felder eines Trägers; ein geteilter Vorrat liesse einen Träger den anderen still verwehren, und ErrTooMany nennte einen Grund, der nicht wahr ist
 - [Phase 08]: fillSnippets ist die einzige Zuweisungsstelle der drei Textbaustein-Mitglieder einer SiteData und liest über den Massenleser OfSnippets — Ein Mitglied, das an dreizehn von vierzehn Stellen gefüllt wird, ist auf der vierzehnten unsichtbar; ein grep beweist nur, dass keine Zuweisung überlebt — drei Routen im Test beweisen, dass die Funktion auch gerufen wird
+- [Phase 08]: 08-03: der Feldbildschirm bekommt einen vierten Modus (?textbaustein=<id>) statt einer vierten Route — FieldListData.Snippet, ein vierter case in fieldListData mit field.Kinds in voller Breite, Simple() auf drei Traeger, fieldPath mit viertem Arm an allen vier Aufrufstellen — Es gibt keinen Handler und keine Vorlage je Bausteinart; ?baustein= ist bereits der dritte Modus desselben Bildschirms. Eine vierte Route waere eine zweite Wahrheit ueber denselben Bildschirm gewesen
+- [Phase 08]: 08-03: snippetOf ist die eine Eigentumspruefung, aufgerufen vom GET und vom POST; h.snippets.Get steht in internal/admin/field.go genau einmal — blockTypes.Get nimmt die Websitenummer und findet eine Bausteinart einer anderen Seite nicht; snippets.Get nimmt nur eine Nummer. Zwei eingelassene Vergleiche koennten auseinanderlaufen — eine Funktion kann es nicht
+- [Phase 08]: 08-03: die drei {{if not .BlockType}}-Verneinungen in field_list.html bleiben unverbreitert — sieben, nicht zehn, ist die Zahl der neuen Arme — Die drei Verneinungen sind die drei Orte der Pflicht-Spalte. Eine davon auf .Snippet auszuweiten haette dem Bediener die einzige Moeglichkeit genommen, ein Textbausteinfeld als Pflicht zu markieren — und waere der bequeme falsche Weg gewesen, eine Armzahl passend zu machen
 
 ## Accumulated Context
 
