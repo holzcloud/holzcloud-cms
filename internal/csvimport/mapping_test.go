@@ -49,6 +49,61 @@ func TestFoldHeaderComposesCombiningUmlauts(t *testing.T) {
 	}
 }
 
+// TestFoldHeaderAgreesOnEveryOtherAccent (WR-01): the hole D-28 exists to
+// close, at the accents that are not ä, ö or ü.
+//
+// One word must yield one key, and which key it is does not matter — only that
+// the two spellings Unicode allows meet. They did not: settleMarks composed the
+// diaeresis back for a, o and u and dropped every other mark while KEEPING its
+// base, so "Café" written NFC folded to "caf" (SlugifyKey drops the precomposed
+// é whole) and the same word written NFD folded to "cafe". A field whose label
+// is "Café" carries the key "caf", so a spreadsheet exported by anything that
+// normalises to NFD produced a heading that did not match its own field and
+// landed unmapped with no note against it.
+func TestFoldHeaderAgreesOnEveryOtherAccent(t *testing.T) {
+	// Escapes and not literals: which normalisation a literal would carry is
+	// the very question under test.
+	for _, c := range []struct{ name, nfc, nfd, want string }{
+		{"e acute", "Caf\u00E9", "Cafe\u0301", "caf"},
+		{"n tilde", "A\u00F1o", "An\u0303o", "ao"},
+		{"c cedilla", "Fa\u00E7ade", "Fac\u0327ade", "faade"},
+		{"a ring", "M\u00E5l", "Ma\u030Al", "ml"},
+		{"s caron", "\u0160kola", "S\u030Ckola", "kola"},
+	} {
+		if c.nfc == c.nfd {
+			t.Fatalf("%s: the two spellings are the same string, so this case proves nothing", c.name)
+		}
+		gotNFC, gotNFD := foldHeader(c.nfc), foldHeader(c.nfd)
+		if gotNFC != gotNFD {
+			t.Errorf("%s: foldHeader(NFC) = %q, foldHeader(NFD) = %q — two keys for one word", c.name, gotNFC, gotNFD)
+		}
+		// The key SlugifyKey itself derives from the label, because that is
+		// the key the field of that name actually carries.
+		if gotNFC != c.want {
+			t.Errorf("%s: foldHeader(%q) = %q, want %q — the key field.SlugifyKey derives from the label", c.name, c.nfc, gotNFC, c.want)
+		}
+	}
+}
+
+// TestFoldCellKeepsTheBaseLetter (WR-01, the other consumer): a CELL is folded
+// through page.Transliterate, which writes é out as "e", so there the base
+// letter has to be KEPT — dropping it would break the agreement the header fold
+// needs it dropped to reach.
+//
+// Asserted because the two folds are one loop with one flag, and a later change
+// to the flag would silently move a whole status column outside its own closed
+// vocabulary.
+func TestFoldCellKeepsTheBaseLetter(t *testing.T) {
+	const nfc = "Caf\u00E9"  // LATIN SMALL LETTER E WITH ACUTE, one rune
+	const nfd = "Cafe\u0301" // 'e' followed by COMBINING ACUTE ACCENT, two runes
+	if got, want := foldCell(nfd), foldCell(nfc); got != want {
+		t.Errorf("foldCell(NFD) = %q, foldCell(NFC) = %q — one cell, two spellings", got, want)
+	}
+	if got := foldCell(nfc); got != "cafe" {
+		t.Errorf("foldCell(%q) = %q, want %q — a cell keeps its letters", nfc, got, "cafe")
+	}
+}
+
 // TestFoldHeaderIgnoresSpellingAndCase: case, surrounding space and the three
 // separators an operator types all fall away. (IMP-06, D-17.)
 func TestFoldHeaderIgnoresSpellingAndCase(t *testing.T) {
