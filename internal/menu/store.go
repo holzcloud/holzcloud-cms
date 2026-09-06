@@ -12,6 +12,26 @@ import (
 const timeLayout = "2006-01-02T15:04:05Z"
 
 // Store handles SQL operations for menus and menu items.
+//
+// **This store does not enforce website scoping, and a caller must.** GetMenu,
+// UpdateMenu, DeleteMenu, GetItem, UpdateItem, DeleteItem and SwapSortOrder all
+// take a bare primary key and will happily read or write a row belonging to any
+// website. Nothing in a signature makes the caller supply the website, so
+// nothing reminds them.
+//
+// Whoever adds a handler under /admin/websites/{id}/menus must therefore check
+// that the menu belongs to the website in the address, via the admin package's
+// menuOfWebsite / itemOfWebsite helpers. Skipping that is not a tidiness
+// problem: it lets a person confined to one website edit another's navigation,
+// which is what happened to the four menu item handlers and is covered now by
+// internal/admin/menu_scope_test.go.
+//
+// The term store solves the same problem the safer way — internal/term/store.go
+// puts website_id in every WHERE and errors on RowsAffected() == 0 — and that
+// remains the better shape. It is not copied here yet because menu_items has no
+// website_id column of its own (it reaches the website through menus), so every
+// item statement would need a JOIN or a subquery. Doing that is worthwhile; it
+// was left out of the security fix so the fix stayed small enough to read.
 type Store struct {
 	DB *db.DB
 }
