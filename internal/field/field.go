@@ -692,6 +692,34 @@ func rangeReason(unten, oben string, hatUnten, hatOben bool) string {
 	}
 }
 
+// tooLong reports whether a value exceeds the space one stored value has, and
+// with what reason.
+//
+// Der Platz ist für alle Werte eines Feldes zusammen da: beim mehrwertigen
+// Feld einschliesslich der Zeilenumbrüche zwischen ihnen, denn genau diese
+// Zeichenkette geht in die Datenbank. Gemessen wird mit len, also in Byte
+// und nicht in Runen — die Grenze bewacht, was gespeichert wird, und
+// gespeichert werden Byte. Ein Umlaut braucht zwei davon.
+//
+// Gemeldet und nicht gekürzt (D-13): ein gekürzter Wert sieht aus wie
+// einer, den jemand so getippt hat, und bei einem mehrwertigen Feld wäre
+// die Hälfte eines Wertes ein Wert, den es nie gegeben hat. Check ruft sie
+// vor dem Verteiler auf, damit die Regel für jede Art gilt.
+//
+// Eine eigene Funktion, weil sie auch dort gilt, wo nach dem Wert niemand
+// gefragt hat: eine Artregel ist eine Frage an die Person vor dem Formular,
+// und wer das Feld nicht sieht, kann sie nicht beantworten. Die Bytegrenze ist
+// keine Frage an irgendwen — sie sagt, wieviel Platz ein Wert in der Zeile hat,
+// die geschrieben wird. Darum überspringt CheckAll für ein verstecktes Feld
+// alles ausser dieser einen Prüfung.
+func tooLong(d Def, value string) string {
+	if len(value) > MaxValueBytes {
+		return d.Label + " ist zu lang: höchstens " + strconv.Itoa(MaxValueBytes) +
+			" Zeichen, wobei Umlaute doppelt zählen."
+	}
+	return ""
+}
+
 // Check validates one value against its definition and returns a reason, or
 // the empty string when it is fine.
 //
@@ -706,19 +734,8 @@ func Check(d Def, value string) string {
 		return ""
 	}
 
-	// Der Platz ist für alle Werte eines Feldes zusammen da: beim mehrwertigen
-	// Feld einschliesslich der Zeilenumbrüche zwischen ihnen, denn genau diese
-	// Zeichenkette geht in die Datenbank. Gemessen wird mit len, also in Byte
-	// und nicht in Runen — die Grenze bewacht, was gespeichert wird, und
-	// gespeichert werden Byte. Ein Umlaut braucht zwei davon.
-	//
-	// Gemeldet und nicht gekürzt (D-13): ein gekürzter Wert sieht aus wie
-	// einer, den jemand so getippt hat, und bei einem mehrwertigen Feld wäre
-	// die Hälfte eines Wertes ein Wert, den es nie gegeben hat. Vor dem
-	// Verteiler, damit die Regel für jede Art gilt.
-	if len(value) > MaxValueBytes {
-		return d.Label + " ist zu lang: höchstens " + strconv.Itoa(MaxValueBytes) +
-			" Zeichen, wobei Umlaute doppelt zählen."
+	if reason := tooLong(d, value); reason != "" {
+		return reason
 	}
 
 	switch d.Kind {
@@ -944,11 +961,34 @@ func CheckAll(defs []Def, d Data) map[string]string {
 	errs := map[string]string{}
 	hidden := Hidden(defs, d.Values)
 	for _, def := range defs {
-		// A heading has nothing to check, and a field whose condition is not met
-		// is not being asked for: demanding it would be demanding something the
-		// person cannot even see — the one way a form can refuse to be sent
-		// without saying why.
-		if !def.HoldsValue() || hidden[def.Key] {
+		// A heading has nothing to check.
+		if !def.HoldsValue() {
+			continue
+		}
+		// Ein Feld, dessen Bedingung nicht erfüllt ist, wird nicht danach
+		// gefragt: eine Artregel dafür einzufordern hiesse, etwas zu
+		// verlangen, das die Person nicht einmal sehen kann — der eine Weg,
+		// auf dem sich ein Formular nicht abschicken lässt, ohne zu sagen
+		// warum. Übersprungen werden also die Pflicht, der Artverteiler und
+		// die Ablehnung „braucht mindestens eine Zeile“.
+		//
+		// Die Bytegrenze bleibt: Clean behält den Wert eines versteckten
+		// Feldes ausdrücklich, und seit D-13 kürzt trimTo nichts mehr — hier
+		// gilt das Bytebudget sonst nirgends mehr.
+		if hidden[def.Key] {
+			if !def.IsGroup() {
+				if reason := tooLong(def, strings.TrimSpace(d.Values[def.Key])); reason != "" {
+					errs[def.Key] = reason
+				}
+				continue
+			}
+			for i, row := range d.Rows[def.Key] {
+				for _, sub := range def.Sub {
+					if reason := tooLong(sub, strings.TrimSpace(row[sub.Key])); reason != "" {
+						errs[RowKey(def.Key, i, sub.Key)] = fmt.Sprintf("%s, Zeile %d: %s", def.Label, i+1, reason)
+					}
+				}
+			}
 			continue
 		}
 		if !def.IsGroup() {
