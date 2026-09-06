@@ -232,6 +232,69 @@ func (s *Store) OfSnippet(ctx context.Context, websiteID, snippetID int64) ([]De
 	return top, nil
 }
 
+// OfSnippets returns every text snippet's fields of one website, keyed by
+// snippet.
+//
+// Eine Abfrage statt einer je Textbaustein, und der Grund ist derselbe, den
+// OfBlockTypes nennt: das hier läuft auf jedem öffentlichen Aufbau einer Seite,
+// und eine Website mit fünf Textbausteinen zahlte sonst fünf Umläufe, um eine
+// Seite zu zeichnen.
+//
+// Der Baumbau kommt von OfSnippet und aus demselben Grund: ein Textbaustein
+// kann eine Gruppe tragen. Die Scheibe eines Textbausteins kommt hier Element
+// für Element und Sub für Sub so heraus, wie OfSnippet sie für denselben
+// Textbaustein herausgibt — sonst wären der öffentliche Aufbau und der
+// Verwaltungsbildschirm über eine Website uneins, an der niemand etwas
+// geändert hat.
+//
+// Das ORDER BY trägt mehr als Ordentlichkeit: snippet_id gruppiert die Zeilen,
+// sodass ein Durchgang die Karte baut, und position, id ist derselbe
+// Gleichstandsbrecher, den List und OfSnippet benutzen — die Massenlesung und
+// die Einzellesung können sich über die Reihenfolge damit nicht uneins werden,
+// auch nicht bei zwei Feldern auf derselben Position.
+func (s *Store) OfSnippets(ctx context.Context, websiteID int64) (map[int64][]Def, error) {
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
+		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
+		        darstellung, max_werte, min_wert, max_wert,
+		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
+		 FROM page_field_defs
+		 WHERE website_id = $1 AND snippet_id IS NOT NULL
+		 ORDER BY snippet_id, position, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("textbausteinfelder lesen: %w", err)
+	}
+	defer rows.Close()
+
+	// Vor der Abfrage angelegt und nie nil: ein Aufrufer soll auf einer
+	// Website ohne ein einziges Textbausteinfeld dieselbe Karte in der Hand
+	// halten wie auf einer mit vielen.
+	out := map[int64][]Def{}
+	children := map[int64][]Def{}
+	for rows.Next() {
+		d, err := scanDef(rows)
+		if err != nil {
+			return nil, err
+		}
+		if d.ParentID == 0 {
+			out[d.SnippetID] = append(out[d.SnippetID], d)
+			continue
+		}
+		children[d.ParentID] = append(children[d.ParentID], d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, top := range out {
+		for i := range top {
+			if top[i].IsGroup() {
+				top[i].Sub = children[top[i].ID]
+			}
+		}
+	}
+	return out, nil
+}
+
 func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 	var (
 		d       Def
@@ -300,9 +363,48 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		return nil, err
 	}
 
+	// Gezählt wird der Träger, in den geschrieben wird, und nicht die Website
+	// (D-05). Vier Arme in derselben Hausform wie der Schalter in Move, jeder
+	// nennt seinen Namensraum mit einer ausdrücklichen SQL-Bedingung, und
+	// keiner heisst „was übrig bleibt" (D-09).
+	//
+	// Warum überhaupt: der Vorrat ist da, damit ein Formular benutzbar bleibt,
+	// und ein Formular zeichnet immer nur die Felder eines Trägers. Ein
+	// geteilter Vorrat lässt einen Träger den anderen still verwehren — wer das
+	// zweite Feld an einen Textbaustein hängt, bekäme „mehr Felder gehen nicht"
+	// zu lesen, weil die Bausteinarten den Vorrat aufgebraucht haben, und der
+	// Satz wäre schlicht nicht wahr.
+	var (
+		zaehlung string
+		werte    []any
+	)
+	switch {
+	case d.SnippetID > 0:
+		// Steht über dem Gruppenarm, und das ist kein Zufall: eine Gruppe darf
+		// an einem Textbaustein stehen, und ihre Unterfelder tragen dann beides.
+		// snippet_id = $2 fängt sie mit ein, und das ist richtig — sie sind
+		// Zeilen desselben Formulars.
+		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND snippet_id = $2`
+		werte = []any{d.WebsiteID, d.SnippetID}
+	case d.BlockTypeID > 0:
+		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id = $2 AND snippet_id IS NULL`
+		werte = []any{d.WebsiteID, d.BlockTypeID}
+	case d.ParentID > 0:
+		// Ein Unterfeld einer Gruppe an einer Seite zählt gegen den Vorrat der
+		// Seite, genau wie bisher: die Gruppe wird auf dem Seitenformular
+		// gezeichnet, ihre Zeilen gehören dorthin. Ausgeschrieben statt in den
+		// default-Arm gefaltet, damit der Namensraum dasteht und nicht
+		// erschlossen werden muss.
+		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL`
+		werte = []any{d.WebsiteID}
+	default:
+		// Die eigenen Felder der Seite — der Träger dieses Arms und nicht der
+		// Rest.
+		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL`
+		werte = []any{d.WebsiteID}
+	}
 	var count int
-	if err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1`, d.WebsiteID).Scan(&count); err != nil {
+	if err := s.DB.Read.QueryRowContext(ctx, zaehlung, werte...).Scan(&count); err != nil {
 		return nil, fmt.Errorf("felder zählen: %w", err)
 	}
 	if count >= MaxFields {
@@ -457,14 +559,24 @@ func (s *Store) Move(ctx context.Context, websiteID, id int64, up bool) error {
 	if err != nil {
 		return err
 	}
-	// Moved within its own level: a field inside a group, or inside a block
-	// kind, has nothing to swap places with outside it.
+	// Moved within its own level: a field inside a group, inside a block kind
+	// or inside a text snippet has nothing to swap places with outside it.
+	//
+	// Jeder Arm nennt seinen Träger, und der default-Arm ist die Seite selbst
+	// und nicht „was übrig bleibt" (D-09): ein Feld ohne Gruppe, ohne
+	// Bausteinart und ohne Textbaustein ist ein Seitenfeld. Kommt ein fünfter
+	// Träger, bekommt er einen eigenen Arm, statt still hier zu landen — und
+	// bis dahin bleibt es das erste Feld eines Textbausteins, das nach oben
+	// nichts zu tauschen hat, auch wenn Seitenfelder derselben Website tiefere
+	// Positionen belegen.
 	var defs []Def
 	switch {
 	case current.ParentID > 0:
 		defs, err = s.Sub(ctx, websiteID, current.ParentID)
 	case current.BlockTypeID > 0:
 		defs, err = s.OfBlockType(ctx, websiteID, current.BlockTypeID)
+	case current.SnippetID > 0:
+		defs, err = s.OfSnippet(ctx, websiteID, current.SnippetID)
 	default:
 		defs, err = s.List(ctx, websiteID)
 	}
@@ -604,8 +716,42 @@ func validate(d *Def) error {
 	// Inside a group every row is filled in as a whole; a field that came and
 	// went within a row would be a rule the person filling it in cannot see.
 	// Inside a block kind the same, one level over.
-	if d.ParentID > 0 || d.BlockTypeID > 0 {
+	//
+	// An einem Textbaustein aus demselben Grund — sein Formular wird als Ganzes
+	// ausgefüllt — und zusätzlich aus einem eigenen: checkCondition läuft über
+	// die Feldliste der Seite (List), und die CSS-Regel, die ein abhängiges
+	// Feld verbirgt, ist für das Seitenformular geschrieben. Eine Bedingung an
+	// einem Textbausteinfeld wäre also gespeichert und würde nie beachtet, und
+	// das ist schlechter, als sie gar nicht anzubieten.
+	if d.ParentID > 0 || d.BlockTypeID > 0 || d.SnippetID > 0 {
 		d.Condition = ""
+	}
+	// Absichtlich ein eigener Arm und nicht der Bausteinart-Arm darunter. Dies
+	// ist die eine Stelle dieser Phase, an der das Abschreiben des Vorbilds
+	// falsch wäre — und still, denn nichts schlüge fehl.
+	//
+	// Pflicht wird hier nicht auf falsch gezwungen: die Bausteinart tut das,
+	// weil das Speichern einer Seite nicht an einem halb geschriebenen
+	// Baustein scheitern darf — und der Arm darunter bleibt der einzige Ort im
+	// Baum, an dem ein Träger das erzwingt, was ein Zählgatter dieses Plans
+	// nachweist. Ein Textbaustein hat ein eigenes Formular, auf dem sich ein
+	// Pflichtfeld mit einer Begründung zurückweisen lässt — Pflicht bleibt
+	// hier also bedeutungsvoll.
+	//
+	// Und keine Verengung der Feldarten: BlockKinds() lässt Verweis und
+	// Schlagwort weg, weil ein Baustein beim Speichern der Seite zu HTML
+	// erstarrt und beide beim nächsten Umbenennen still veralten würden. Die
+	// Werte eines Textbausteins werden auf dem Weg nach draussen durch
+	// field.Resolve aufgelöst, genau wie die einer Seite — dieser Grund reicht
+	// also nicht hierher, und ein Textbaustein bietet field.Kinds vollständig
+	// an, Gruppen eingeschlossen.
+	//
+	// Verengt wird zweierlei, und keines davon ist eine Feldart: die Bedingung
+	// oben, aus dem dort genannten Grund, und gilt_fuer hier — „gilt für Seiten
+	// / für Beiträge" hat an einem Textbaustein keinen Sinn, denn ein
+	// Textbaustein ist keine Seite und gehört zu keiner Inhaltsart.
+	if d.SnippetID > 0 {
+		d.AppliesTo = ForBoth
 	}
 	if d.BlockTypeID > 0 {
 		if !blockKind(d.Kind) {

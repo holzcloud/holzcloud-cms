@@ -3,6 +3,7 @@ package field
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -708,4 +709,458 @@ func TestBausteinNamensraum(t *testing.T) {
 	if len(obenDanach) != 2 {
 		t.Errorf("List gibt danach %d Felder heraus, erwartet 2 (Seitenfeld und Gruppe)", len(obenDanach))
 	}
+}
+
+// neuerTextbaustein legt einen Textbaustein an und gibt seine Nummer zurück.
+func neuerTextbaustein(t *testing.T, store *Store, websiteID int64, key, name string) int64 {
+	t.Helper()
+	res, err := store.DB.Write.Exec(
+		`INSERT INTO snippets (website_id, key, name) VALUES ($1, $2, $3)`, websiteID, key, name)
+	if err != nil {
+		t.Fatalf("Textbaustein %q anlegen: %v", key, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("Textbaustein-Nummer: %v", err)
+	}
+	return id
+}
+
+// neueBausteinart legt eine Bausteinart an und gibt ihre Nummer zurück.
+func neueBausteinart(t *testing.T, store *Store, websiteID int64, key, name string) int64 {
+	t.Helper()
+	res, err := store.DB.Write.Exec(
+		`INSERT INTO block_types (website_id, kennung, name) VALUES ($1, $2, $3)`, websiteID, key, name)
+	if err != nil {
+		t.Fatalf("Bausteinart %q anlegen: %v", key, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("Bausteinart-Nummer: %v", err)
+	}
+	return id
+}
+
+// gleicheScheiben vergleicht Element für Element und Sub für Sub.
+//
+// Nicht len und fertig: die Massenlesung und die Einzellesung dürfen sich weder
+// über die Reihenfolge noch über den Baum uneins sein, sonst zeigt der
+// öffentliche Aufbau eine andere Website als der Verwaltungsbildschirm.
+func gleicheScheiben(t *testing.T, wo string, massen, einzeln []Def) {
+	t.Helper()
+	if len(massen) != len(einzeln) {
+		t.Fatalf("%s: OfSnippets gibt %d Felder heraus, OfSnippet %d",
+			wo, len(massen), len(einzeln))
+	}
+	for i := range massen {
+		if massen[i].ID != einzeln[i].ID {
+			t.Errorf("%s: Feld %d: OfSnippets = %d, OfSnippet = %d — die Reihenfolge "+
+				"läuft auseinander", wo, i, massen[i].ID, einzeln[i].ID)
+			continue
+		}
+		if massen[i].Position != einzeln[i].Position {
+			t.Errorf("%s: Feld %d: Position %d gegen %d", wo, i,
+				massen[i].Position, einzeln[i].Position)
+		}
+		if len(massen[i].Sub) != len(einzeln[i].Sub) {
+			t.Errorf("%s: Feld %d (%q): Sub hat %d gegen %d Einträge", wo, i,
+				massen[i].Key, len(massen[i].Sub), len(einzeln[i].Sub))
+			continue
+		}
+		for j := range massen[i].Sub {
+			if massen[i].Sub[j].ID != einzeln[i].Sub[j].ID {
+				t.Errorf("%s: Feld %d, Unterfeld %d: %d gegen %d", wo, i, j,
+					massen[i].Sub[j].ID, einzeln[i].Sub[j].ID)
+			}
+		}
+	}
+}
+
+// TestBausteinNamensraumMassenleser stellt OfSnippets neben OfSnippet.
+//
+// Der Massenleser läuft auf jedem öffentlichen Aufbau einer Seite, der
+// Einzelleser auf dem Verwaltungsbildschirm. Gäben sie für dieselbe Website
+// Verschiedenes heraus, wäre der Unterschied nirgends zu sehen ausser im
+// Browser — und auch dort nur, wenn jemand beide Bildschirme nebeneinander
+// hält.
+func TestBausteinNamensraumMassenleser(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+
+	t.Run("ohne Textbausteinfelder eine leere Karte und keine nil-Karte", func(t *testing.T) {
+		leerStore, leerSite := neuerFeldSpeicher(t)
+		if _, err := leerStore.Create(ctx, Def{
+			WebsiteID: leerSite, Key: "titel", Label: "Titel", Kind: KindText}); err != nil {
+			t.Fatalf("Seitenfeld anlegen: %v", err)
+		}
+		alle, err := leerStore.OfSnippets(ctx, leerSite)
+		if err != nil {
+			t.Fatalf("OfSnippets: %v", err)
+		}
+		if alle == nil {
+			t.Fatal("OfSnippets gibt nil heraus, erwartet eine leere Karte")
+		}
+		if len(alle) != 0 {
+			t.Errorf("OfSnippets gibt %d Einträge heraus, erwartet keinen", len(alle))
+		}
+	})
+
+	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+	impressum := neuerTextbaustein(t, store, site, "impressum", "Impressum")
+	karte := neueBausteinart(t, store, site, "karte", "Karte")
+
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "titel", Label: "Titel", Kind: KindText}); err != nil {
+		t.Fatalf("Seitenfeld anlegen: %v", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "beschriftung", Label: "Beschriftung", Kind: KindText,
+		BlockTypeID: karte}); err != nil {
+		t.Fatalf("Bausteinartfeld anlegen: %v", err)
+	}
+	ersts, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: kontakt})
+	if err != nil {
+		t.Fatalf("erstes Textbausteinfeld: %v", err)
+	}
+	zweits, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "fax", Label: "Fax", Kind: KindText,
+		SnippetID: kontakt})
+	if err != nil {
+		t.Fatalf("zweites Textbausteinfeld: %v", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "firma", Label: "Firma", Kind: KindText,
+		SnippetID: impressum}); err != nil {
+		t.Fatalf("Feld am zweiten Textbaustein: %v", err)
+	}
+
+	alle, err := store.OfSnippets(ctx, site)
+	if err != nil {
+		t.Fatalf("OfSnippets: %v", err)
+	}
+	if len(alle) != 2 {
+		t.Fatalf("OfSnippets gibt %d Textbausteine heraus, erwartet 2", len(alle))
+	}
+	for _, id := range []int64{kontakt, impressum} {
+		einzeln, err := store.OfSnippet(ctx, site, id)
+		if err != nil {
+			t.Fatalf("OfSnippet(%d): %v", id, err)
+		}
+		gleicheScheiben(t, "Textbaustein", alle[id], einzeln)
+	}
+	// Nichts, was einer Seite oder einer Bausteinart gehört.
+	for id, defs := range alle {
+		for _, d := range defs {
+			if d.SnippetID != id {
+				t.Errorf("OfSnippets: Feld %q liegt unter %d, trägt aber SnippetID %d",
+					d.Key, id, d.SnippetID)
+			}
+			if d.BlockTypeID != 0 {
+				t.Errorf("OfSnippets: Feld %q trägt BlockTypeID %d", d.Key, d.BlockTypeID)
+			}
+		}
+	}
+
+	// --- Zwei Felder auf derselben Position ----------------------------------
+	//
+	// Der Gleichstandsbrecher ist die Nummer, in beiden Lesewegen. Ohne ihn
+	// entschiede SQLite frei, und die zwei Wege kämen an manchen Tagen in
+	// verschiedener Reihenfolge heraus.
+	if _, err := store.DB.Write.ExecContext(ctx,
+		`UPDATE page_field_defs SET position = 0 WHERE id IN ($1, $2)`,
+		ersts.ID, zweits.ID); err != nil {
+		t.Fatalf("Positionen gleichstellen: %v", err)
+	}
+	alle, err = store.OfSnippets(ctx, site)
+	if err != nil {
+		t.Fatalf("OfSnippets (nach Gleichstand): %v", err)
+	}
+	einzeln, err := store.OfSnippet(ctx, site, kontakt)
+	if err != nil {
+		t.Fatalf("OfSnippet (nach Gleichstand): %v", err)
+	}
+	gleicheScheiben(t, "gleiche Position", alle[kontakt], einzeln)
+	if len(einzeln) != 2 || einzeln[0].ID != ersts.ID {
+		t.Errorf("bei gleicher Position bricht die Nummer den Gleichstand: erstes Feld = %d, erwartet %d",
+			einzeln[0].ID, ersts.ID)
+	}
+}
+
+// TestBausteinNamensraumGruppe prüft die Gruppe an einem Textbaustein.
+//
+// Eine Bausteinart kann keine tragen, ein Textbaustein schon — und ihre
+// Unterfelder tragen beides, parent_id und snippet_id. Der Massenleser muss sie
+// deshalb zum Baum fügen und darf kein Unterfeld auf der obersten Ebene
+// herausgeben.
+func TestBausteinNamensraumGruppe(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+
+	gruppe, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup,
+		SnippetID: kontakt})
+	if err != nil {
+		t.Fatalf("Gruppe am Textbaustein: %v", err)
+	}
+	for _, key := range []string{"tag", "von"} {
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: key, Label: key, Kind: KindText,
+			ParentID: gruppe.ID, SnippetID: kontakt}); err != nil {
+			t.Fatalf("Unterfeld %q: %v", key, err)
+		}
+	}
+
+	sub, err := store.Sub(ctx, site, gruppe.ID)
+	if err != nil {
+		t.Fatalf("Sub: %v", err)
+	}
+	if len(sub) != 2 {
+		t.Fatalf("Sub gibt %d Unterfelder heraus, erwartet 2 — ein AND snippet_id IS NULL "+
+			"in Sub liesse jede Gruppe an einem Textbaustein leer zurückkommen", len(sub))
+	}
+	for _, d := range sub {
+		if d.ParentID != gruppe.ID || d.SnippetID != kontakt {
+			t.Errorf("Unterfeld %q: ParentID = %d, SnippetID = %d, erwartet %d / %d",
+				d.Key, d.ParentID, d.SnippetID, gruppe.ID, kontakt)
+		}
+	}
+
+	alle, err := store.OfSnippets(ctx, site)
+	if err != nil {
+		t.Fatalf("OfSnippets: %v", err)
+	}
+	oben := alle[kontakt]
+	if len(oben) != 1 {
+		t.Fatalf("OfSnippets gibt %d Felder auf der obersten Ebene heraus, erwartet 1 "+
+			"(die Gruppe) — ein Unterfeld gehört nicht dorthin", len(oben))
+	}
+	if len(oben[0].Sub) != 2 {
+		t.Errorf("die Gruppe trägt %d Unterfelder, erwartet 2", len(oben[0].Sub))
+	}
+	einzeln, err := store.OfSnippet(ctx, site, kontakt)
+	if err != nil {
+		t.Fatalf("OfSnippet: %v", err)
+	}
+	gleicheScheiben(t, "Gruppe", oben, einzeln)
+}
+
+// TestBausteinNamensraumValidate hält die zwei Arme auseinander.
+//
+// Der Bausteinart-Arm erzwingt „keine Pflicht" und verengt die Feldarten; der
+// Textbaustein-Arm tut beides ausdrücklich nicht. Wären die beiden je
+// ineinandergeraten, fiele nichts aus — ein Pflichtfeld hörte still auf, eines
+// zu sein.
+func TestBausteinNamensraumValidate(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+	karte := neueBausteinart(t, store, site, "karte", "Karte")
+
+	// --- Pflicht bleibt Pflicht, gilt_fuer wird gestellt, Bedingung geleert ---
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "anrede", Label: "Anrede", Kind: KindChoice,
+		Choices: []string{"ja", "nein"}}); err != nil {
+		t.Fatalf("Steuerfeld anlegen: %v", err)
+	}
+	amBaustein, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: kontakt, Required: true, AppliesTo: ForPage, Condition: "anrede"})
+	if err != nil {
+		t.Fatalf("Textbausteinfeld anlegen: %v", err)
+	}
+	if !amBaustein.Required {
+		t.Error("Pflicht = false, erwartet true — ein Textbaustein hat ein eigenes " +
+			"Formular, auf dem sich ein Pflichtfeld mit einer Begründung zurückweisen lässt")
+	}
+	if amBaustein.AppliesTo != ForBoth {
+		t.Errorf("gilt_fuer = %q, erwartet %q — ein Textbaustein gehört zu keiner Inhaltsart",
+			amBaustein.AppliesTo, ForBoth)
+	}
+	if amBaustein.Condition != "" {
+		t.Errorf("Bedingung = %q, erwartet leer — checkCondition läuft über die "+
+			"Feldliste der Seite, eine Bedingung hier würde nie beachtet", amBaustein.Condition)
+	}
+
+	// --- Der Bausteinart-Arm ist unverändert ---------------------------------
+	imBaustein, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "beschriftung", Label: "Beschriftung", Kind: KindText,
+		BlockTypeID: karte, Required: true})
+	if err != nil {
+		t.Fatalf("Bausteinartfeld anlegen: %v", err)
+	}
+	if imBaustein.Required {
+		t.Error("Bausteinartfeld: Pflicht = true, erwartet false — eine Seite darf " +
+			"nicht an einem halb geschriebenen Baustein scheitern")
+	}
+
+	// --- Verweis und Schlagwort: am Textbaustein ja, in der Bausteinart nein --
+	for _, art := range []string{KindRef, KindTerm} {
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "b_" + art, Label: art, Kind: art,
+			SnippetID: kontakt}); err != nil {
+			t.Errorf("%q am Textbaustein: %v — die Werte eines Textbausteins werden "+
+				"auf dem Weg nach draussen aufgelöst und erstarren nicht zu HTML", art, err)
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "k_" + art, Label: art, Kind: art,
+			BlockTypeID: karte}); !errors.Is(err, ErrNotInBlock) {
+			t.Errorf("%q in der Bausteinart: Fehler = %v, erwartet ErrNotInBlock — "+
+				"der bestehende Arm bleibt unangetastet", art, err)
+		}
+	}
+}
+
+// TestBausteinNamensraumMove hält ein Feld in seinem eigenen Textbaustein.
+func TestBausteinNamensraumMove(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+
+	seiteEins, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "titel", Label: "Titel", Kind: KindText})
+	if err != nil {
+		t.Fatalf("erstes Seitenfeld: %v", err)
+	}
+	seiteZwei, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "untertitel", Label: "Untertitel", Kind: KindText})
+	if err != nil {
+		t.Fatalf("zweites Seitenfeld: %v", err)
+	}
+	bausteinEins, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: kontakt})
+	if err != nil {
+		t.Fatalf("erstes Textbausteinfeld: %v", err)
+	}
+	bausteinZwei, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "fax", Label: "Fax", Kind: KindText,
+		SnippetID: kontakt})
+	if err != nil {
+		t.Fatalf("zweites Textbausteinfeld: %v", err)
+	}
+
+	// Das zweite Textbausteinfeld eine Stelle nach oben.
+	if err := store.Move(ctx, site, bausteinZwei.ID, true); err != nil {
+		t.Fatalf("Move (Textbausteinfeld nach oben): %v", err)
+	}
+	nach, err := store.OfSnippet(ctx, site, kontakt)
+	if err != nil {
+		t.Fatalf("OfSnippet nach Move: %v", err)
+	}
+	if len(nach) != 2 || nach[0].ID != bausteinZwei.ID || nach[1].ID != bausteinEins.ID {
+		t.Fatalf("nach dem Move: %v, erwartet %d vor %d",
+			nach, bausteinZwei.ID, bausteinEins.ID)
+	}
+	// Die Seitenfelder haben sich nicht bewegt: ohne den vierten Arm hätte Move
+	// die Liste der Seite gelesen und deren Positionen neu geschrieben.
+	seitlich, err := store.List(ctx, site)
+	if err != nil {
+		t.Fatalf("List nach Move: %v", err)
+	}
+	if len(seitlich) != 2 || seitlich[0].ID != seiteEins.ID || seitlich[1].ID != seiteZwei.ID {
+		t.Errorf("die Seitenfelder stehen nach dem Move anders: %v", seitlich)
+	}
+	if seitlich[0].Position != 0 || seitlich[1].Position != 1 {
+		t.Errorf("die Positionen der Seitenfelder sind %d/%d, erwartet 0/1",
+			seitlich[0].Position, seitlich[1].Position)
+	}
+
+	// Das nun erste Textbausteinfeld nach oben: nichts geschieht, obwohl
+	// Seitenfelder derselben Website tiefere Positionen belegen.
+	if err := store.Move(ctx, site, bausteinZwei.ID, true); err != nil {
+		t.Fatalf("Move (erstes Feld nach oben): %v", err)
+	}
+	danach, err := store.OfSnippet(ctx, site, kontakt)
+	if err != nil {
+		t.Fatalf("OfSnippet nach dem zweiten Move: %v", err)
+	}
+	if len(danach) != 2 || danach[0].ID != bausteinZwei.ID || danach[1].ID != bausteinEins.ID {
+		t.Errorf("das erste Feld eines Textbausteins hat nach oben nichts zu tauschen: %v", danach)
+	}
+}
+
+// TestBausteinNamensraumFeldvorrat ist D-05, und die vorletzte Zusicherung ist die
+// ganze Entscheidung.
+//
+// Dass das einundsechzigste Feld eines Textbausteins abgelehnt wird, wäre auch
+// bei einem geteilten Vorrat so. Erst dass im selben Atemzug das erste Feld
+// eines zweiten Textbausteins, ein Seitenfeld und ein Bausteinartfeld
+// angenommen werden, unterscheidet die Änderung vom blossen Heraufsetzen der
+// Zahl — und macht den Satz „mehr Felder gehen nicht" wahr.
+func TestBausteinNamensraumFeldvorrat(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("der Vorrat eines Textbausteins verwehrt keinem anderen Träger", func(t *testing.T) {
+		store, site := neuerFeldSpeicher(t)
+		kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+		impressum := neuerTextbaustein(t, store, site, "impressum", "Impressum")
+		karte := neueBausteinart(t, store, site, "karte", "Karte")
+
+		for i := 0; i < MaxFields; i++ {
+			if _, err := store.Create(ctx, Def{
+				WebsiteID: site, Key: fmt.Sprintf("f%02d", i), Label: fmt.Sprintf("Feld %d", i),
+				Kind: KindText, SnippetID: kontakt}); err != nil {
+				t.Fatalf("Feld %d am Textbaustein: %v", i, err)
+			}
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "zuviel", Label: "Zu viel", Kind: KindText,
+			SnippetID: kontakt}); !errors.Is(err, ErrTooMany) {
+			t.Errorf("das einundsechzigste Feld desselben Textbausteins: Fehler = %v, erwartet ErrTooMany", err)
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "erstes", Label: "Erstes", Kind: KindText,
+			SnippetID: impressum}); err != nil {
+			t.Errorf("erstes Feld des zweiten Textbausteins: %v — das ist D-05 im Ganzen: "+
+				"ohne diese Zusicherung wäre die Änderung von einem Heraufsetzen der Zahl "+
+				"nicht zu unterscheiden", err)
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "seitenfeld", Label: "Seitenfeld", Kind: KindText}); err != nil {
+			t.Errorf("Seitenfeld, während ein Textbaustein an seiner Grenze steht: %v", err)
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "bausteinfeld", Label: "Bausteinfeld", Kind: KindText,
+			BlockTypeID: karte}); err != nil {
+			t.Errorf("Bausteinartfeld, während ein Textbaustein an seiner Grenze steht: %v", err)
+		}
+	})
+
+	t.Run("der Vorrat der Seite ist unverändert, Gruppen eingerechnet", func(t *testing.T) {
+		store, site := neuerFeldSpeicher(t)
+		neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+
+		// Eine Gruppe und ihre Unterfelder zählen gegen den Vorrat der Seite,
+		// genau wie bisher: 1 Gruppe + 58 Unterfelder + 1 Seitenfeld = 60.
+		gruppe, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
+		if err != nil {
+			t.Fatalf("Gruppe: %v", err)
+		}
+		for i := 0; i < MaxFields-2; i++ {
+			if _, err := store.Create(ctx, Def{
+				WebsiteID: site, Key: fmt.Sprintf("u%02d", i), Label: fmt.Sprintf("Unterfeld %d", i),
+				Kind: KindText, ParentID: gruppe.ID}); err != nil {
+				t.Fatalf("Unterfeld %d: %v", i, err)
+			}
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "letztes", Label: "Letztes", Kind: KindText}); err != nil {
+			t.Fatalf("sechzigstes Seitenfeld: %v", err)
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "zuviel", Label: "Zu viel", Kind: KindText}); !errors.Is(err, ErrTooMany) {
+			t.Errorf("das einundsechzigste Seitenfeld: Fehler = %v, erwartet ErrTooMany — "+
+				"der Vorrat der Seite bewegt sich nicht unter einer bestehenden Website weg", err)
+		}
+		if _, err := store.Create(ctx, Def{
+			WebsiteID: site, Key: "nochein", Label: "Noch eins", Kind: KindText,
+			ParentID: gruppe.ID}); !errors.Is(err, ErrTooMany) {
+			t.Errorf("ein weiteres Unterfeld derselben Gruppe: Fehler = %v, erwartet ErrTooMany — "+
+				"Unterfelder zählen gegen den Vorrat der Seite", err)
+		}
+	})
 }
