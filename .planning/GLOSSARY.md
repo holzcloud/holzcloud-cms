@@ -162,3 +162,55 @@ zusammen, und drei davon sind vorbestehende Übersetzungsfehler.
 | `Reset link` | `Link zum Zurücksetzen`, `Reset-Link` |
 | `Time` | `Uhrzeit`, `Zeitpunkt` |
 | `– none –` | `– keines –`, `– keins –` |
+
+---
+
+## Die eine Regel, die ein Laufzeitfehler gelehrt hat
+
+**Ein deutsches Wort, das in der Datenbank *steht*, ist kein Bezeichner. Es ist
+ein Wert.** Die Tabellen oben gelten fuer Bezeichner und Prosa. Sie gelten
+**nicht** fuer eine Zeichenkette, die eine Zeile in der Datenbank ist oder in
+einem Archiv reist.
+
+Der Anlass, gefunden am 2026-09-06 beim Drehen von `internal/csvimport`: die
+Wanderung `00049` nagelt zwei Wortschaetze fest --
+
+```sql
+modus     TEXT NOT NULL CHECK (modus     IN ('neu', 'bestehend')),
+kollision TEXT NOT NULL CHECK (kollision IN ('uebergehen', 'aktualisieren')),
+```
+
+Das Glossar listet `uebergehen` -> `skip` und `aktualisieren` -> `update`. Wer
+das als Anweisung liest, uebersetzt sie im Go-Code, **es baut sauber**, und dann
+weist SQLite die Zeile zur Laufzeit zurueck -- auf einem Weg, den keine Pruefung
+dieser Phase befaehrt. Das war die einzige Stelle, an der eine plausible Lesart
+dieser Datei einen Produktionsfehler statt eines Compilerfehlers ergeben haette.
+
+**Diese Werte bleiben deutsch, bis eine Wanderung sie aendert. Ihre Uebersetzung
+ist eine Datenwanderung, keine Umbenennung.**
+
+### Was sonst noch festgenagelt ist -- gemessen 2026-09-06
+
+Ueber alle 49 Wanderungen tragen **nur zwei** CHECK-Klauseln deutsche Werte, und
+beide stammen aus `00049`. Alles andere ist laengst englisch (`page`, `post`,
+`draft`, `published`, `admin`, `editor`, `open`, `paid`, ...).
+
+**Aber rund 25 deutsche Zeichenketten im Go-Code sind gespeicherte Werte**,
+keine Bezeichner:
+
+| Wortschatz | Werte | Wo sie liegen |
+|---|---|---|
+| Feldart (`page_field_defs.art`) | `text` `langtext` `code` `zahl` `bereich` `datum` `zeit` `janein` `auswahl` `mehrfachauswahl` `bild` `link` `verweis` `schlagwort` `gruppe` `abschnitt` | jede Felddefinition jeder Website |
+| Geltung (`gilt_fuer`) | `beides` `seite` `beitrag` | dieselbe Tabelle |
+| Darstellung | `knopfreihe` | dieselbe Tabelle |
+| Bausteinart | `galerie` `karten` `zitat` `aufruf` `bildtext` `trenner` `video` | jede Seite mit Bausteinen |
+
+Der Sprengradius der Bausteinarten reicht **ueber die Datenbank hinaus**: sie
+erscheinen als CSS-Klassen in allen acht Themes -- `hc-aufruf` 20x, `hc-zitat`
+13x, `hc-video` 13x, `hc-bildtext` 11x, `hc-karten` 7x, `hc-galerie` 6x,
+`hc-trenner` 4x.
+
+Diese Wortschaetze zu drehen ist deshalb **kein Teil des Umbenennens**, sondern
+ein eigenes Vorhaben mit Datenwanderung, Archiv-Vertraeglichkeit und
+Theme-Bruch. Phase 12 entscheidet es ausdruecklich -- sie darf es nicht nebenbei
+tun und sie darf es nicht stillschweigend lassen.

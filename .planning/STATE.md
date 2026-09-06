@@ -103,7 +103,7 @@ phases were renumbered into this one as 7, 8 and 9.
 | 9 | CSV Import | IMP-01…10 | 10 | **In Ausführung** — 6 Pläne in 6 Wellen, Planprüfung 6 Blocker behoben, Welle 1 läuft |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started — **geplant, aber nicht ausgeführt** vorlegen |
 | 11 | Galerie | GAL-01…07 | 7 | Not started |
-| 12 | The Codebase Speaks English | LANG-01…07 | 7 | Not started — **die Freigabe damit ist 2.0** (brechender Vorlagen-Vertrag) |
+| 12 | The Codebase Speaks English | LANG-01…08 | 8 | Not started — **die Freigabe damit ist 2.0** (brechender Vorlagen-Vertrag) |
 
 **Execution order: 6 → 7 → (8 ∥ 9 ∥ 11) → 10 → 12.** The one real dependency inside the
 milestone is that Phase 9 needs Phase 7's multi-value encoding (Phase 7's build
@@ -128,7 +128,7 @@ Phases 6 and 8 follow standard patterns.
 staging table for the uploaded file (D-01). Phases 6 and 10 need none; Phase 11
 needs one for albums.
 
-Coverage: 55 / 55 requirements mapped. Orphans 0, duplicates 0.
+Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 
 ### Performance / Quality Notes
 

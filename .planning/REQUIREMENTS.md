@@ -237,6 +237,7 @@ catalogue keys. The one word list is `.planning/GLOSSARY.md`.
 - [ ] **LANG-04**: The template data contract is English — `.Page.Fields`, `.Site.SnippetFields`, `.Page.Translations`, `.Page.Kind`. All eight shipped themes come with it, `TEMPLATE-SPEC.md` names only the English fields, and `CHANGELOG.md` records it as a **breaking change** under `## 2.0`. A theme written against 1.x stops working, deliberately and in one release.
 - [ ] **LANG-05**: The German SQL column names are English, through **new** migrations. No released migration is edited. Every hand-written SQL statement follows, including the carrier discriminator in `internal/field/store.go`.
 - [ ] **LANG-06**: The catalogue's source language is English: 1158 German keys become English keys, a new `de.json` carries German as a translation, `de-CH.json` derives from it, and `es/fr/it.json` are re-keyed through the old German→English mapping. The nine colliding keys are resolved one by one, and the three that collide because the existing translation is **wrong** are fixed rather than merged.
+- [ ] **LANG-08**: The stored German vocabularies are decided explicitly. About 25 German strings in Go are **data**, not identifiers — the field kinds, `gilt_fuer`'s three values, `knopfreihe`, and the seven block kinds, which also appear as CSS classes in all eight themes. They sit in every existing database and travel in every exported bundle. Turning them is a data migration plus a bundle-compatibility question plus a second theme break. **Leaving them German is a defensible answer; leaving them undiscussed is not.**
 - [ ] **LANG-07**: German cannot return unnoticed. A mechanical gate fails the build if German enters Go source outside the catalogue files — a gate, not a review convention.
 
 ## Traceability
@@ -283,6 +284,7 @@ v1.6 phases continue the numbering at 6.
 | LANG-05 | Phase 12 | Pending |
 | LANG-06 | Phase 12 | Pending |
 | LANG-07 | Phase 12 | Pending |
+| LANG-08 | Phase 12 | Pending |
 | SSO-01 | Phase 10 | Pending |
 | SSO-02 | Phase 10 | Pending |
 | SSO-03 | Phase 10 | Pending |
@@ -328,7 +330,7 @@ number than Phase 10 but runs before it, so the close-out still covers it. See t
 | 9 | CSV Import | IMP-01…10 | 10 |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 |
 | 11 | Galerie | GAL-01…07 | 7 |
-| 12 | The Codebase Speaks English | LANG-01…07 | 7 |
+| 12 | The Codebase Speaks English | LANG-01…08 | 8 |
 
 ## Decisions taken while defining these
 
