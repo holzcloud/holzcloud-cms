@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
-current_phase: 8
-current_phase_name: Snippets Carry Fields
-status: executing
-stopped_at: Completed 08-05-PLAN.md
-last_updated: "2026-09-06T10:58:48.748Z"
+current_phase: 9
+current_phase_name: CSV Import
+status: planning
+stopped_at: 09-CONTEXT.md written, edge probe closed 34/34, pattern-mapper running
+last_updated: "2026-09-06T12:00:00.000Z"
 last_activity: 2026-09-06
 state_head: 3ad28bab760521de6690e8524094df6526b1807e
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 3
   total_plans: 19
   completed_plans: 19
-  percent: 17
+  percent: 50
 ---
 
 ## State: Holzcloud CMS
@@ -22,19 +22,56 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 8 — Snippets Carry Fields, **alle 5 Pläne ausgeführt** (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 9 — CSV Import, **in Planung** (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
 
 ### Current Position
 
-Phase: 8 — Snippets Carry Fields (**5 / 5 Pläne ausgeführt**)
-Plan: 08-05 complete — **die Vorrichtungen, das Archiv und der Browser**. `MinimalData` trägt jetzt `Site.Bausteinfelder` mit denselben Kennungen wie `SampleData`, jede am leeren Wert ihrer Feldart, und ausdrücklich **keine** `Bausteinliste`: `field.List` gibt nie einen leeren Eintrag heraus, also wäre eine erfundene Liste ein Zustand, den das Programm nicht erzeugen kann. `SampleData` hat dazu einen Wert bekommen, der keine Zeichenkette ist (`oeffnet`, `*time.Time`), und der Satz „no snippets" ist auf das korrigiert, was wahr ist. Weil **keine** bestehende Prüfung die `Site`-Hälfte ansieht, kam `TestMinimalDataCarriesTheEmptyValueOfEverySnippetField` dazu — mutationsgeprüft in **beide** Richtungen. `TEMPLATE-SPEC.md` §7 erklärt die zweistufige Indizierung, das Durchlaufen der Liste und ausdrücklich die Asymmetrie der zwei Karten. Das Archiv trägt `Snippet.Fields`, `.Values` und `.ValueGroups` (alle `omitempty`); der Import legt **jede** Definition über `field.Store.Create` an — `grep -c 'INSERT INTO page_field_defs'` misst **0** — und schickt die Werte durch `field.Clean` **und** `field.CheckAll`, denn nur `Clean` hätte auf dem Textbaustein wieder aufgemacht, was 07-04 auf der Seite geschlossen hat. Drei Bündelprüfungen, zwei davon mutationsgeprüft. **Der Browserdurchgang hat den einen Fehler gefunden, den vier grüne Prüffolgen nicht gefunden haben:** eine Gruppe an einem Textbaustein bekam ihre Unterfelder mit `snippet_id` NULL, weil der Gruppenbildschirm eine Ebene tiefer von keinem Textbaustein weiss — `OfSnippet` gab sie danach ohne eine einzige Zeile heraus („Gruppe (0)"). Geflickt, indem das Unterfeld seinen Träger aus der **gespeicherten** Gruppe erbt, mit Regressionsprüfung und danach im Browser gegengefahren. Zwei Zahlen weichen vom Plan ab und beide sind gemeldet statt passend gemacht: das Spezifikationstor misst 5 statt ≥2, und es gab **keinen** Katalog-Commit, weil dieser Plan keine sichtbare deutsche Zeichenkette hinzufügt — 08-03 und 08-04 hatten ihre schon übersetzt
-Status: **Phase 08 ist ausgeführt.** SNIP-01 … SNIP-05 sind abgehakt; SNIP-03 und SNIP-05 hat das Tor auf geteilte Kennungen jetzt freigegeben, weil 08-05 der letzte Plan war, der sie führt. Das stehende Tor dieser Phase ist **erfüllt**: `0 offen, 0 verwaist` auf vier Zeilen, und alle sieben Browserschritte sind durch die laufende Anwendung gefahren, mit je einem Schirmbild — einschliesslich des Seiteneditor-Formulars, das kein Textbausteinfeld trägt, des `<script>`, das als Text erschien, und des Formulars mit abgeschaltetem JavaScript. Nächster Schritt: `/gsd-verify-work 8`, dann Phase 9
-Offen aus Phase 8: der `&#8592;`-Befund in `field_list.html` (dreimal; die Zeichenkette **ist** der Katalogschlüssel, ein Flick verwaist drei Schlüssel in vier Katalogen) — in `deferred-items.md` mit Schrittfolge und als Eintrag 5 im Fensterbuch. Dazu die Grenze, dass Kennungen in einem Textbausteinwert beim Archivweg **nicht** übersetzt reisen (Bild, Verweis, Schlagwort) — im Doc-Kommentar von `bundle.Snippet` festgehalten
-Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die **Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
-Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code` innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen
+Phase: 9 — CSV Import (**Planung läuft**)
+Plan: keiner. `09-CONTEXT.md` steht — 30 Entscheide, jeder mit seinem Beleg
+gegen den Baum. **Zwei Notizen der Roadmap sind dabei widerlegt und sichtbar
+gestempelt statt still übergangen:** „die Datei mit der Zuordnung erneut
+absenden" ist nicht baubar (ein Server kann kein Dateifeld füllen, und IMP-08s
+„navigable to the next" verlangte damit je Klick eine neue Dateiauswahl — die
+Datei wird stattdessen serverseitig abgelegt, **rohe Bytes**, nie die geparste
+Tabelle, womit die eigentliche Sorge der Notiz gewahrt bleibt), und „eine
+Transaktion je Zeile" ist durch die gewöhnlichen Speicher nicht zu haben — eine
+Zeile umfasst heute schon zwei bis drei, und sie zusammenzuziehen hiesse einen
+zweiten Anlegepfad, den IMP-02 wörtlich verbietet. Kriterium 5 und IMP-10 sind
+auf das gesenkt, was gilt: **keine Transaktion über mehr als eine Zeile**, und
+die Zeile wird notfalls über den gewöhnlichen Löschweg zurückgenommen. Danach
+lief der Kantentest über IMP-01…IMP-10: **34 anwendbare Kanten, 34
+geschlossen** (27 ausdrücklich, 7 mit Begründung verworfen, 0 offen), und er
+hat vier Fehler vor der ersten Zeile Code gefunden — die Zeilennummer ist die
+des Tabellenprogramms (Kopfzeile ist Zeile 1, sonst ist jede Meldung dieser
+Phase um eins daneben), zwei Spalten mit demselben Kopf stossen nicht zusammen,
+weil eine Spalte über ihren Index angesprochen wird, ein zerlegter Umlaut aus
+einem macOS-Export fände sein Feld nie (`SlugifyKey` trifft das einzelne
+Zeichen `ü`, nicht `u` + Kombinationszeichen), und Ziel wie Zuordnung müssen vor
+dem Probelauf **und noch einmal** vor dem Schreiben nachgeprüft werden
+Status: **Phase 08 ist abgeschlossen** — ausgeführt, geprüft, verifiziert
+(`6/6 criteria verified — one with a named limitation`), Sicherheitsprüfung
+abgelegt, stehendes Tor auf beiden Hälften erfüllt. Nächster Schritt: der
+Musterabgleich läuft, danach `gsd-planner` und `gsd-plan-checker`
+Offen aus Phase 8: der `&#8592;`-Befund in `field_list.html` (dreimal; die
+Zeichenkette **ist** der Katalogschlüssel, ein Flick verwaist drei Schlüssel in
+vier Katalogen) — in `deferred-items.md` mit Schrittfolge und als Eintrag 5 im
+Fensterbuch. Dazu `V2-18`: Kennungen in einem Textbausteinwert reisen beim
+Archivweg **nicht** übersetzt (Bild, Verweis, Schlagwort)
+Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die
+**Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste
+(`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf
+einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin,
+und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
+Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code`
+innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test
+gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht
+gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die
+Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer
+Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in
+`.planning/WINDOWS.md` eingetragen
 Last activity: 2026-09-06
 
 ### Milestone Map
@@ -48,11 +85,12 @@ phases were renumbered into this one as 7, 8 and 9.
 |-------|------|--------------|-------|--------|
 | 6 | Aufräumen | MAINT-01…05 | 5 | Plans 7/7 — Abnahme offen (Browserhälfte des Tors) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Plans 7/7 — Abnahme offen (eine Browserzeile, Fenster Nr. 3) |
-| 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Plans 2/5 — 08-01 (der vierte Namensraum) und 08-02 (der Rest des Speichers, eine Prägestelle) ausgeführt |
-| 9 | CSV Import | IMP-01…10 | 10 | Not started |
-| 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started |
+| 8 | Snippets Carry Fields | SNIP-01…05 | 5 | **Abgeschlossen** — 5/5 Pläne, verifiziert, Sicherheitsprüfung abgelegt |
+| 9 | CSV Import | IMP-01…10 | 10 | **In Planung** — Kontext steht, Kantentest 34/34 geschlossen |
+| 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started — **geplant, aber nicht ausgeführt** vorlegen |
+| 11 | Galerie | GAL-01…07 | 7 | Not started |
 
-**Execution order: 6 → 7 → (8 ∥ 9) → 10.** The one real dependency inside the
+**Execution order: 6 → 7 → (8 ∥ 9 ∥ 11) → 10.** The one real dependency inside the
 milestone is that Phase 9 needs Phase 7's multi-value encoding (Phase 7's build
 step ①). Once that lands, Phases 8 and 9 are independent of each other and may
 run in parallel. Phase 10's file set is disjoint from every other phase's and
@@ -70,10 +108,12 @@ Phase 10 wants `/gsd-discuss-phase` for the whole phase — not for lack of
 research but because every remaining question there is a policy decision.
 Phases 6 and 8 follow standard patterns.
 
-**Migration numbers claimed:** Phase 7 takes `00046`, Phase 8 takes `00047`.
-Phases 6, 9 and 10 need none.
+**Migration numbers claimed:** Phase 7 took `00046`, Phase 8 took `00047` and
+`00048` (the latter from the review-fix round). **Phase 9 takes `00049`** — the
+staging table for the uploaded file (D-01). Phases 6 and 10 need none; Phase 11
+needs one for albums.
 
-Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
+Coverage: 48 / 48 requirements mapped. Orphans 0, duplicates 0.
 
 ### Performance / Quality Notes
 
@@ -82,7 +122,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 - Target: linux/amd64 single binary (retargeted from arm64/Pi on 2026-09-03)
 - Go patterns: 1.22+ stdlib ServeMux, slog structured logging, embed.FS for all assets/templates/migrations
 - SQLite: dual-pool (write pool MaxOpenConns=1, read pool higher), WAL + busy_timeout=5000 + foreign_keys=ON on every connection
-- Migrations stand at 00045 (`00045_pages_locale_unique.sql`); Phase 7 takes 00046 (`darstellung`, `max_werte`, `bereich` bounds), Phase 8 takes 00047 (`snippet_id` + index swap + `snippets.fields`). Phases 6, 9 and 10 need none
+- Migrations stand at 00048 (`00048_snippet_group_namespace.sql`); 00046 was Phase 7 (`darstellung`, `max_werte`, `bereich` bounds), 00047 and 00048 were Phase 8 (`snippet_id` + index swap + `snippets.fields`, then the group namespace). **Phase 9 takes 00049** (the staging table for an uploaded CSV). Phases 6 and 10 need none
 
 ### Accumulated Context
 
@@ -157,7 +197,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 **Velocity:**
 
 - v1.0: 13 plans across 5 phases, all complete 2026-04-14
-- v1.6: 0 plans complete
+- v1.6: 19 plans complete across Phases 6, 7 and 8
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -191,10 +231,28 @@ and its *Standing Gates* section. Requirement IDs are in
 `.planning/REQUIREMENTS.md`; the working list most of them came from, with the
 size and location of each item, is `docs/offene-punkte.md`.
 
-Next command: `/gsd-execute-phase 8` — 08-03 hat die Definitionshaelfte des Bildschirms gelegt (vierter Modus, keine neue Route, `snippetOf` als die eine Eigentumspruefung); 08-04 zieht die **Werte**haelfte nach: das Formular am Textbaustein selbst, dessen Vorbild `internal/admin/page_fields.go` ist, samt `snippet.Store.SetFields`. Danach 08-05 fuer Theme-Vertrag, Vorrichtungen, Spezifikation, Uebersetzung und den Browserdurchgang — dorthin gehoeren auch `MinimalData`s leerer Zwilling fuer `Bausteinfelder`/`Bausteinliste` und die §7-Prosa der `TEMPLATE-SPEC.md`. Weiterhin offen und unabhaengig davon: `/gsd-verify-work 6` fuer die Browserhaelfte des stehenden Tors und `/gsd-verify-work 7` fuer die eine ungefahrene Zeile (`code` im Block, oeffentlich)
+Next command: `/gsd-plan-phase 9 --skip-research` — `09-CONTEXT.md` steht mit
+30 Entscheiden, der Kantentest ist mit 34 von 34 geschlossen abgelegt
+(`09-EDGES-*.json`), und der Musterabgleich läuft. Danach `gsd-planner`,
+`gsd-plan-checker` mit der Überarbeitungsschleife, Ausführung in Wellen,
+Code-Review, Behebungsrunde, **dann** der Browserdurchgang (in Phase 7 und 8
+hat er sonst beide Male Änderungen verpasst, die nach dem Durchgang landeten),
+dann Verifikation und Sicherheitsprüfung.
+
+**Zwei Lehren aus Phase 8, die für Phase 9 gelten:** Zähl-Tore zeilenweise
+gegen den **nach**-Zustand abzählen statt schätzen — Welle 3 war die einzige
+ohne Abweichung, und zwar genau deshalb, weil ihr Plan die Zeilennummern
+tabelliert hatte. Und der Browserlauf gehört **hinter** die Behebungsrunde.
+
+Danach: Phase 11 (Galerie) kann parallel laufen. Phase 10 (Authentik) wird
+geplant und **vorgelegt, nicht ausgeführt** — jede verbleibende Frage dort ist
+eine Richtlinienentscheidung über die eigene Authentik-/Caddy-Anlage des
+Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für die
+Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
+ungefahrene Zeile (`code` im Block, öffentlich)
 
 **Last session:** 2026-09-06T10:58:48.652Z
-**Stopped at:** Completed 08-05-PLAN.md
+**Stopped at:** 09-CONTEXT.md geschrieben, Kantentest 34/34 geschlossen, Musterabgleich läuft
 **Resume file:** None
 
 ## Decisions
