@@ -50,13 +50,20 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // One query for everything and the tree built in memory: a query per group
 // would be a query per group on every page render, and a website with five
 // groups would pay five round trips to draw one page.
+//
+// Die WHERE-Bedingung nennt jeden fremden Namensraum ausdrücklich und lässt
+// keinen als „was übrig bleibt" durchgehen. Ohne AND snippet_id IS NULL stünde
+// jedes Feld eines Textbausteins auf dem Bearbeitungsformular jeder Seite und
+// in der .Page.Feldliste jedes Themes — still, und nur im Browser zu sehen.
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
 		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
+		        darstellung, max_werte, min_wert, max_wert,
+		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs
-		 WHERE website_id = $1 AND block_type_id IS NULL ORDER BY position, id`, websiteID)
+		 WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL
+		 ORDER BY position, id`, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("felder lesen: %w", err)
 	}
@@ -87,11 +94,20 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 }
 
 // Sub returns the fields of one group.
+//
+// Hier steht absichtlich kein snippet_id-Zusatz, und das ist die eine Stelle,
+// an der das Muster nicht abgeschrieben wird: eine Gruppe kann an einer Seite
+// stehen und ebenso an einem Textbaustein, und ihre Unterfelder tragen dann
+// beides — parent_id und snippet_id. Ein AND snippet_id IS NULL liesse jede
+// Gruppe an einem Textbaustein leer zurückkommen. Der Namensraum ist hier die
+// Gruppe, und eine Gruppennummer ist innerhalb der Website eindeutig; die
+// Bedingung ist damit im Sinne von D-09 bereits ausdrücklich genannt.
 func (s *Store) Sub(ctx context.Context, websiteID, groupID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
 		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
+		        darstellung, max_werte, min_wert, max_wert,
+		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs WHERE website_id = $1 AND parent_id = $2 ORDER BY position, id`,
 		websiteID, groupID)
 	if err != nil {
@@ -115,8 +131,11 @@ func (s *Store) OfBlockType(ctx context.Context, websiteID, blockTypeID int64) (
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
 		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
-		 FROM page_field_defs WHERE website_id = $1 AND block_type_id = $2 ORDER BY position, id`,
+		        darstellung, max_werte, min_wert, max_wert,
+		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
+		 FROM page_field_defs
+		 WHERE website_id = $1 AND block_type_id = $2 AND snippet_id IS NULL
+		 ORDER BY position, id`,
 		websiteID, blockTypeID)
 	if err != nil {
 		return nil, fmt.Errorf("bausteinfelder lesen: %w", err)
@@ -142,8 +161,10 @@ func (s *Store) OfBlockTypes(ctx context.Context, websiteID int64) (map[int64][]
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
 		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
-		 FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NOT NULL
+		        darstellung, max_werte, min_wert, max_wert,
+		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
+		 FROM page_field_defs
+		 WHERE website_id = $1 AND block_type_id IS NOT NULL AND snippet_id IS NULL
 		 ORDER BY block_type_id, position, id`, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("bausteinfelder lesen: %w", err)
@@ -161,6 +182,56 @@ func (s *Store) OfBlockTypes(ctx context.Context, websiteID int64) (map[int64][]
 	return out, rows.Err()
 }
 
+// OfSnippet returns the fields of one text snippet, in order, each group
+// carrying its own.
+//
+// Zwei Vorbilder, und beide absichtlich: die Spaltenliste, die Fehlerhülle und
+// der Zuschnitt auf einen Träger kommen von OfBlockType; der Baumbau kommt von
+// List. Eine Bausteinart kann keine Gruppe tragen — BlockKinds() lässt sie
+// nicht zu —, deshalb braucht OfBlockType davon nichts. Ein Textbaustein hat
+// ein eigenes Formular und trägt darum alles, was das Formular einer Seite
+// trägt, Gruppen eingeschlossen.
+//
+// Die Websitenummer ist Teil der Abfrage und keine Prüfung danach — aus dem
+// Grund, der bei Get steht und hier unverändert gilt.
+func (s *Store) OfSnippet(ctx context.Context, websiteID, snippetID int64) ([]Def, error) {
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
+		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
+		        darstellung, max_werte, min_wert, max_wert,
+		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
+		 FROM page_field_defs
+		 WHERE website_id = $1 AND snippet_id = $2
+		 ORDER BY position, id`, websiteID, snippetID)
+	if err != nil {
+		return nil, fmt.Errorf("textbausteinfelder lesen: %w", err)
+	}
+	defer rows.Close()
+
+	var top []Def
+	children := map[int64][]Def{}
+	for rows.Next() {
+		d, err := scanDef(rows)
+		if err != nil {
+			return nil, err
+		}
+		if d.ParentID == 0 {
+			top = append(top, d)
+			continue
+		}
+		children[d.ParentID] = append(children[d.ParentID], d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range top {
+		if top[i].IsGroup() {
+			top[i].Sub = children[top[i].ID]
+		}
+	}
+	return top, nil
+}
+
 func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 	var (
 		d       Def
@@ -173,7 +244,8 @@ func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 	// Nullwert, und nichts schlägt fehl.
 	if err := row.Scan(&d.ID, &d.WebsiteID, &d.ParentID, &d.Key, &d.Label, &d.Kind,
 		&pflicht, &d.Hint, &auswahl, &d.AppliesTo, &d.Position, &d.Condition,
-		&d.Display, &d.MaxValues, &d.RangeMin, &d.RangeMax, &d.BlockTypeID); err != nil {
+		&d.Display, &d.MaxValues, &d.RangeMin, &d.RangeMax, &d.BlockTypeID,
+		&d.SnippetID); err != nil {
 		return Def{}, fmt.Errorf("feld lesen: %w", err)
 	}
 	d.Required = pflicht == 1
@@ -190,7 +262,8 @@ func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Def, error) {
 	row := s.DB.Read.QueryRowContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
 		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert, COALESCE(block_type_id, 0)
+		        darstellung, max_werte, min_wert, max_wert,
+		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs WHERE id = $1 AND website_id = $2`, id, websiteID)
 	d, err := scanDef(row)
 	if err != nil {
@@ -236,28 +309,33 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		return nil, ErrTooMany
 	}
 
-	var parent, blockType any
+	var parent, blockType, snippet any
 	if d.ParentID > 0 {
 		parent = d.ParentID
 	}
 	if d.BlockTypeID > 0 {
 		blockType = d.BlockTypeID
 	}
+	if d.SnippetID > 0 {
+		snippet = d.SnippetID
+	}
 	// The position counts within the level: the page's own fields, one group's
-	// fields, or one block kind's fields. Three worlds in one table, and a
-	// field must never be able to move out of its own.
+	// fields, one block kind's fields, or one text snippet's fields. Four
+	// worlds in one table, and a field must never be able to move out of its
+	// own.
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO page_field_defs (website_id, parent_id, block_type_id, kennung, beschriftung, art, pflicht, hinweis, auswahl, gilt_fuer, bedingung,
+		`INSERT INTO page_field_defs (website_id, parent_id, block_type_id, snippet_id, kennung, beschriftung, art, pflicht, hinweis, auswahl, gilt_fuer, bedingung,
 		                             darstellung, max_werte, min_wert, max_wert, position)
-		 VALUES ($1, $2, $11, $3, $4, $5, $6, $7, $8, $9, $10,
+		 VALUES ($1, $2, $11, $16, $3, $4, $5, $6, $7, $8, $9, $10,
 		         $12, $13, $14, $15,
 		         COALESCE((SELECT MAX(position) + 1 FROM page_field_defs
 		                   WHERE website_id = $1
 		                     AND COALESCE(parent_id, 0) = COALESCE($2, 0)
-		                     AND COALESCE(block_type_id, 0) = COALESCE($11, 0)), 0))`,
+		                     AND COALESCE(block_type_id, 0) = COALESCE($11, 0)
+		                     AND COALESCE(snippet_id, 0) = COALESCE($16, 0)), 0))`,
 		d.WebsiteID, parent, d.Key, d.Label, d.Kind, boolToInt(d.Required), d.Hint,
 		JoinChoices(d.Choices), d.AppliesTo, d.Condition, blockType,
-		d.Display, d.MaxValues, d.RangeMin, d.RangeMax)
+		d.Display, d.MaxValues, d.RangeMin, d.RangeMax, snippet)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return nil, ErrDuplicateKey
@@ -282,6 +360,10 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, d Def) error {
 	d.Key = existing.Key
 	d.ParentID = existing.ParentID
 	d.BlockTypeID = existing.BlockTypeID
+	// Der Träger wird aus dem Gespeicherten übernommen und nie aus dem, was
+	// hereinkommt: sonst könnte ein Bearbeitungsformular ein Feld aus seinem
+	// Namensraum in einen anderen schieben.
+	d.SnippetID = existing.SnippetID
 	// The kind of a group cannot change: its rows would have nowhere to go,
 	// and a plain field turned into a group would start out with none.
 	if existing.IsGroup() != (d.Kind == KindGroup) {

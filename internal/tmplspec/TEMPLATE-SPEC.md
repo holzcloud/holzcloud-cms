@@ -210,6 +210,8 @@ today keeps working.
 | `.Site.LogoURL` | string | `/media/…` or empty |
 | `.Site.URL` | string | Canonical base, e.g. `https://example.de` |
 | `.Site.Snippets` | map | Reusable HTML blocks by key (§7) |
+| `.Site.Bausteinfelder` | map of maps | A snippet's own fields by snippet key, then by field key: `{{index .Site.Bausteinfelder "footer-kontakt" "telefon"}}` (§7) |
+| `.Site.Bausteinliste` | map of `field.Entry` lists | The same fields in their defined order with their labels, by snippet key. A snippet with nothing filled in is missing from this map (§7) |
 | `.Site.Terms` | list of `TermLink` | Labels in use, most used first |
 | `.Site.Design` | CSS | The operator's colour and font settings (§7) |
 | `.Site.HasSearch` | bool | Whether this site answers `/suche` at all — hide the search form when false |

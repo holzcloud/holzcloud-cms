@@ -36,8 +36,12 @@ type Snippet struct {
 	Name            string
 	ContentMarkdown string
 	ContentHTML     string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// Fields holds what field.Encode writes for this snippet's own fields. The
+	// empty string means nothing has been filled in — the same thing it means
+	// on a page, and what every snippet carried before migration 00047.
+	Fields    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Store handles SQL operations for snippets.
@@ -48,13 +52,13 @@ type Store struct {
 // NewStore creates a snippet store.
 func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 
-const columns = `id, website_id, key, name, content_markdown, content_html, created_at, updated_at`
+const columns = `id, website_id, key, name, content_markdown, content_html, created_at, updated_at, fields`
 
 func scan(row interface{ Scan(...any) error }) (*Snippet, error) {
 	var s Snippet
 	var createdAt, updatedAt string
 	if err := row.Scan(&s.ID, &s.WebsiteID, &s.Key, &s.Name,
-		&s.ContentMarkdown, &s.ContentHTML, &createdAt, &updatedAt); err != nil {
+		&s.ContentMarkdown, &s.ContentHTML, &createdAt, &updatedAt, &s.Fields); err != nil {
 		return nil, err
 	}
 	s.CreatedAt, _ = time.Parse(timeLayout, createdAt)
@@ -127,6 +131,20 @@ func (s *Store) Update(ctx context.Context, id int64, key, name, markdown, html 
 	return nil
 }
 
+// SetFields replaces a snippet's own-field values.
+//
+// Separate from Update rather than a fifth positional parameter, for the same
+// reasons page.Store.SetFields is: it makes no revision, needs no version
+// token, and the value is written whole rather than merged. Update already
+// takes four strings in a row; a fifth would be a trap the compiler cannot see.
+func (s *Store) SetFields(ctx context.Context, id int64, raw string) error {
+	_, err := s.DB.Write.ExecContext(ctx, `UPDATE snippets SET fields = $1 WHERE id = $2`, raw, id)
+	if err != nil {
+		return fmt.Errorf("set snippet fields: %w", err)
+	}
+	return nil
+}
+
 // Delete removes a snippet. Pages referring to it keep their marker, which then
 // renders as nothing — deliberately, so the reference stays visible in the
 // source rather than silently becoming stale text.
@@ -144,6 +162,13 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 // Rendered is the expansion map for one website: key to sanitised HTML.
 type Rendered struct {
 	HTML map[string]template.HTML
+	// Fields is the raw stored field JSON per snippet key — what field.Decode
+	// reads. Raw and not resolved: resolving needs the definitions and the
+	// lookups, and both live one layer out, in internal/public.
+	Fields map[string]string
+	// IDs is the snippet id per key, so a caller can ask the field store for
+	// that snippet's definitions without a second lookup by key.
+	IDs map[string]int64
 	// LatestUpdate is the newest change across all snippets. A page's
 	// Last-Modified has to account for it, or a conditional request answers 304
 	// with the old opening hours baked in.
@@ -152,24 +177,35 @@ type Rendered struct {
 
 // LoadRendered returns everything needed to expand markers and to fill
 // Site.Snippets for a theme, in one query.
+//
+// Still one query for the whole website after the two new columns: this runs on
+// every public render, and one round trip per snippet would be a round trip per
+// snippet on every page a visitor asks for.
 func (s *Store) LoadRendered(ctx context.Context, websiteID int64) (Rendered, error) {
-	out := Rendered{HTML: map[string]template.HTML{}}
+	out := Rendered{
+		HTML:   map[string]template.HTML{},
+		Fields: map[string]string{},
+		IDs:    map[string]int64{},
+	}
 
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT key, content_html, updated_at FROM snippets WHERE website_id = $1`, websiteID)
+		`SELECT id, key, content_html, updated_at, fields FROM snippets WHERE website_id = $1`, websiteID)
 	if err != nil {
 		return out, fmt.Errorf("load snippets: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var key, html, updatedAt string
-		if err := rows.Scan(&key, &html, &updatedAt); err != nil {
+		var id int64
+		var key, html, updatedAt, fields string
+		if err := rows.Scan(&id, &key, &html, &updatedAt, &fields); err != nil {
 			return out, fmt.Errorf("scan snippet: %w", err)
 		}
 		// The cast is safe for exactly the reason page content is: content_html
 		// went through goldmark and then bluemonday before it was stored.
 		out.HTML[key] = template.HTML(html)
+		out.Fields[key] = fields
+		out.IDs[key] = id
 		if t, err := time.Parse(timeLayout, updatedAt); err == nil && t.After(out.LatestUpdate) {
 			out.LatestUpdate = t
 		}

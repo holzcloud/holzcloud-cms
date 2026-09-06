@@ -184,7 +184,7 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 	inhalt := h.pageContent(r, website.ID, pg, snippets)
 	inhalt.Uebersetzungen = h.translationLinks(r, website, pg)
 	site.Sprachen = h.switcher(inhalt.Uebersetzungen, site.Sprachen)
@@ -270,7 +270,7 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 	inhalt := h.withArchiveNav(r, website, h.pageContent(r, website.ID, pg, snippets), pg)
 	inhalt.Uebersetzungen = h.translationLinks(r, website, pg)
 	site.Sprachen = h.switcher(inhalt.Uebersetzungen, site.Sprachen)

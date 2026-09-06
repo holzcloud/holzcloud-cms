@@ -58,6 +58,23 @@ func SampleData() PageData {
 			Snippets: map[string]template.HTML{
 				"footer-kontakt": "<p>Telefon 07721 123456</p>",
 			},
+			// A snippet's own fields, under the same key its body has: the
+			// body and the fields are two halves of one snippet, exactly as a
+			// page is content plus fields. Bausteinfelder and Bausteinliste are
+			// two views of the same data and are filled so they agree, for the
+			// reason the page's two are.
+			Bausteinfelder: map[string]map[string]any{
+				"footer-kontakt": {
+					"telefon": "07721 123456",
+					"strasse": "Hauptstraße 4",
+				},
+			},
+			Bausteinliste: map[string][]field.Entry{
+				"footer-kontakt": {
+					{Key: "telefon", Label: "Telefon", Kind: field.KindText, Value: "07721 123456", Text: "07721 123456"},
+					{Key: "strasse", Label: "Straße", Kind: field.KindText, Value: "Hauptstraße 4", Text: "Hauptstraße 4"},
+				},
+			},
 			Terms: []TermLink{
 				{Name: "Eiche", URL: "/tag/eiche", Count: 7},
 				{Name: "Möbel", URL: "/tag/moebel", Count: 3},

@@ -77,6 +77,52 @@ func (h *Handler) ownFields(r *http.Request, websiteID int64, pg *page.Page) (ma
 	return field.Resolve(mine, daten, links), field.List(mine, daten, links)
 }
 
+// fillSnippets writes all three snippet members of SiteData.
+//
+// Der einzige Ort im Baum, an dem Snippets, Bausteinfelder und Bausteinliste
+// gesetzt werden — und das ist Absicht: die Zuweisung steht heute an vierzehn
+// Stellen, und ein Mitglied, das an dreizehn davon gefüllt wird, ist auf der
+// vierzehnten unsichtbar, ohne dass irgendetwas fehlschlägt. Eine Funktion,
+// vierzehn Aufrufe.
+//
+// Resolved on the way out rather than stored resolved: a picture chosen last
+// month has to pick up this month's crop, and a field whose definition changed
+// has to be read the new way without every snippet being saved again.
+func (h *Handler) fillSnippets(r *http.Request, site *tmpl.SiteData, websiteID int64, rendered snippet.Rendered) {
+	site.Snippets = rendered.HTML
+	site.Bausteinfelder = map[string]map[string]any{}
+	site.Bausteinliste = map[string][]field.Entry{}
+	if h.fieldStore == nil {
+		return
+	}
+	links := field.Links{
+		Image: h.fieldImages(r, websiteID),
+		Page:  h.fieldRefs(r, websiteID),
+		Term:  h.fieldTerms(r, websiteID),
+	}
+	for key, snippetID := range rendered.IDs {
+		defs, err := h.fieldStore.OfSnippet(r.Context(), websiteID, snippetID)
+		if err != nil {
+			slog.Error("load snippet fields", "err", err, "website", websiteID, "snippet", key)
+			continue
+		}
+		daten := field.Decode(rendered.Fields[key])
+		// Auch ein Textbaustein ohne eine einzige Definition bekommt seinen
+		// Eintrag — eine leere Karte und keinen fehlenden Schlüssel: ein Theme,
+		// das {{ index .Site.Bausteinfelder "kontakt" "telefon" }} schreibt,
+		// soll auf einer Website, auf der noch niemand ein Feld angelegt hat,
+		// nichts drucken statt zu scheitern.
+		site.Bausteinfelder[key] = field.Resolve(defs, daten, links)
+		// Nur eingetragen, wenn wirklich etwas gefüllt ist: field.List gibt
+		// keinen leeren Eintrag heraus, und ein Schlüssel, hinter dem eine
+		// leere Liste steht, wäre für ein Theme nicht von einem gefüllten zu
+		// unterscheiden.
+		if liste := field.List(defs, daten, links); len(liste) > 0 {
+			site.Bausteinliste[key] = liste
+		}
+	}
+}
+
 // fieldRefs resolves a reference field for the website being rendered.
 //
 // Three conditions, and the middle one is the one that matters: the page has to
@@ -230,16 +276,28 @@ func (h *Handler) responsive(r *http.Request, websiteID int64, body string) stri
 }
 
 // loadSnippets fetches the expansion map for a website.
+//
+// Die drei Karten sind auch in den beiden Ausweichfällen angelegt und nie nil:
+// ein Aufrufer soll nicht wissen müssen, ob er den geglückten oder den
+// missglückten Weg in der Hand hält.
 func (h *Handler) loadSnippets(r *http.Request, websiteID int64) snippet.Rendered {
 	if h.snippetStore == nil {
-		return snippet.Rendered{HTML: map[string]template.HTML{}}
+		return leereBausteine()
 	}
 	rendered, err := h.snippetStore.LoadRendered(r.Context(), websiteID)
 	if err != nil {
 		slog.Error("load snippets", "err", err, "website", websiteID)
-		return snippet.Rendered{HTML: map[string]template.HTML{}}
+		return leereBausteine()
 	}
 	return rendered
+}
+
+func leereBausteine() snippet.Rendered {
+	return snippet.Rendered{
+		HTML:   map[string]template.HTML{},
+		Fields: map[string]string{},
+		IDs:    map[string]int64{},
+	}
 }
 
 // expandForFeed expands snippet markers in feed content, so a subscriber sees
