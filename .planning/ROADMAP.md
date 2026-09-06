@@ -325,12 +325,31 @@ Plans:
 > `INSERT … ON CONFLICT DO NOTHING`. Das ist nicht die dateilange Transaktion,
 > die dieses Kriterium verbietet.
 >
-> **Angenommen, nicht behoben**, und der Grund gehoert hierher statt in einen
-> Kopf: `internal/bundle/import.go:322` macht es seit jeher genauso, aus
-> demselben Grund — die Schlagwoerter muessen stehen, bevor die erste Seite
-> darauf zeigt. Sie in die Schleife zu ziehen ergaebe *mehr* Transaktionen, nicht
-> weniger. Was das Kriterium schuetzt — dass der Kasten nicht fuer die Dauer
-> eines Imports blockiert — bleibt gewahrt.
+> **Diese Annahme war falsch und ist Stunden spaeter von der Sicherheitspruefung
+> widerlegt worden — mit einer Messung.** Sie steht hier stehen gelassen statt
+> ueberschrieben, weil der Denkfehler lehrreicher ist als das Ergebnis: ich habe
+> von „entdoppelt nach Kuerzel" auf „begrenzt" geschlossen, **ohne zu fragen, ob
+> der Wortschatz selbst begrenzt ist.** Er ist es nicht. `RowTerms`
+> (`internal/csvimport/row.go:142`) deckelt bei `term.MaxPerPage = 12`;
+> **`TermNames` (`:191`) deckelt gar nicht.** Der Vorlauf legt damit Schlagwoerter
+> an, auf die keine Zeile je zeigen kann — eine Zeile speichert hoechstens zwoelf.
+>
+> Gemessen auf derselben Maschine, unter derselben 10-MB-Grenze:
+>
+> | | Dauer | laengste Wartezeit eines anderen Schreibvorgangs |
+> |---|---|---|
+> | Schlagwort-Vorlauf, 10,0-MB-Datei, 1 166 000 Namen in einer Transaktion | 10,75 s | **10 746 ms** |
+> | die eigentliche Schreibschleife, 5000 Zeilen | 1,10 s | **3,2 ms** |
+>
+> Und die Sitzungen liegen auf demselben Schreib-Pool (`main.go:175`), also steht
+> in diesen zehn Sekunden auch die oeffentliche Seite. **Das ist genau die
+> Blockade, die dieses Kriterium verbietet, nur an einer Stelle, an der das
+> Zaehl-Tor nicht hinsieht.** Der `BeginTx`-Grep misst 0, weil die Transaktion in
+> `internal/term/` liegt: ein Tor, das einen Stellvertreter beweist und nicht die
+> Zusage.
+>
+> **Behoben statt angenommen** — siehe `09-VERIFICATION.md` und die
+> Luecken-Runde.
 
 **Plans**: 6 plans, in 6 waves. The chain is the build order fixed in `09-CONTEXT.md` and it is genuinely sequential: `internal/csv` must be right before anything reads a file, the staging table must exist before a screen can carry a token, and `internal/admin/csvimport.go` is touched by plans 04, 05 and 06, so two of them in one wave would be two agents editing one file. Step 5 of that build order is split into two plans — the report screen and the standing gate are different kinds of work, and the browser pass must run **after** the code-review fix round, which no plan that also writes code can promise.
 
