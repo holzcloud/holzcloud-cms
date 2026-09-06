@@ -67,6 +67,78 @@ func zweiteWebsite(t *testing.T, database *db.DB, name, key, snippetName string)
 
 // Der Modus öffnet sich für einen eigenen Textbaustein, trägt seinen Namen und
 // legt ein Feld an, das über OfSnippet zurückkommt.
+// Eine Gruppe an einem Textbaustein zeichnet ihre Zeilen — der Fehler, den
+// erst der Browserdurchgang gezeigt hat.
+//
+// Der Gruppenbildschirm ist eine Ebene tiefer und trägt „?gruppe=<id>" ohne
+// „textbaustein". Wer sein Formular abschickt, legte darum ein Unterfeld mit
+// snippet_id NULL an — während seine Gruppe snippet_id trägt. OfSnippet fragt
+// „WHERE snippet_id = $2" und gab die Gruppe danach ohne ein einziges
+// Unterfeld heraus: eine Gruppe, die auf dem Formular des Textbausteins keine
+// Zeile zeichnen kann und im Archiv anders aussieht als auf dem Bildschirm,
+// weil der Importweg beides setzt.
+//
+// Das Unterfeld erbt seinen Träger deshalb aus der gespeicherten Gruppe.
+func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	sn, err := snippet.NewStore(database).Create(ctx, ws.ID, "kontakt", "Kontaktblock",
+		"Adresse", "<p>Adresse</p>")
+	if err != nil {
+		t.Fatalf("snippet.Create: %v", err)
+	}
+
+	if rec := feldAnlegen(t, h, sm, ws.ID, url.Values{
+		"beschriftung": {"Öffnungszeiten"},
+		"art":          {field.KindGroup},
+		"textbaustein": {strconv.FormatInt(sn.ID, 10)},
+	}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Gruppe anlegen: Status %d, wollte 303", rec.Code)
+	}
+
+	defs, err := h.fields.OfSnippet(ctx, ws.ID, sn.ID)
+	if err != nil || len(defs) != 1 {
+		t.Fatalf("OfSnippet: %v (%d)", err, len(defs))
+	}
+	gruppe := defs[0]
+
+	// Und jetzt das Unterfeld, so wie der Bildschirm es abschickt: mit
+	// „gruppe" und ohne „textbaustein", weil eine Ebene tiefer niemand mehr
+	// weiss, an wem die Gruppe hängt.
+	if rec := feldAnlegen(t, h, sm, ws.ID, url.Values{
+		"beschriftung": {"Tag"},
+		"art":          {field.KindText},
+		"gruppe":       {strconv.FormatInt(gruppe.ID, 10)},
+	}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Unterfeld anlegen: Status %d, wollte 303", rec.Code)
+	}
+
+	defs, err = h.fields.OfSnippet(ctx, ws.ID, sn.ID)
+	if err != nil || len(defs) != 1 {
+		t.Fatalf("OfSnippet nach dem Unterfeld: %v (%d)", err, len(defs))
+	}
+	if len(defs[0].Sub) != 1 || defs[0].Sub[0].Key != "tag" {
+		t.Fatalf("die Gruppe kommt ohne ihr Unterfeld zurück: %+v", defs[0].Sub)
+	}
+	if defs[0].Sub[0].SnippetID != sn.ID {
+		t.Errorf("das Unterfeld trägt snippet_id %d, wollte %d — es erbt seinen "+
+			"Träger aus der gespeicherten Gruppe", defs[0].Sub[0].SnippetID, sn.ID)
+	}
+
+	// Die Gegenprobe des gefährlichen Schnitts: das Unterfeld darf dadurch
+	// nicht auf dem Seitenbildschirm auftauchen.
+	seiten, err := h.fields.List(ctx, ws.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range seiten {
+		if d.Key == "tag" || d.Key == "oeffnungszeiten" {
+			t.Errorf("ein Feld des Textbausteins steht in der Seitenliste: %+v", d)
+		}
+	}
+}
+
 func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()

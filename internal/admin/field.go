@@ -182,6 +182,25 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	// wird hier nicht stillschweigend zurechtgebogen.
 	def.MaxValues, _ = strconv.Atoi(r.FormValue("max_werte"))
 
+	// Ein Unterfeld erbt seinen Träger von der Gruppe, in der es steht, und
+	// nicht aus dem Formular. Der Gruppenbildschirm ist eine Ebene tiefer und
+	// weiss von keinem Textbaustein — ohne diese Zeilen bekäme das Unterfeld
+	// einer Gruppe an einem Textbaustein snippet_id NULL, und OfSnippet, das
+	// „WHERE snippet_id = $2" fragt, gäbe die Gruppe ohne ihre Unterfelder
+	// heraus: eine Gruppe, die auf dem Formular des Textbausteins keine einzige
+	// Zeile zeichnet. Aus dem Gespeicherten gepinnt und nicht aus dem Körper
+	// gelesen, aus demselben Grund, aus dem Update seinen Träger pinnt — was
+	// nicht aus dem Formular kommt, kann auch nicht gefälscht werden.
+	if def.ParentID > 0 {
+		parent, gerr := h.fields.Get(r.Context(), websiteID, def.ParentID)
+		if gerr != nil || parent == nil || !parent.IsGroup() {
+			http.NotFound(w, r)
+			return nil
+		}
+		def.SnippetID = parent.SnippetID
+		def.BlockTypeID = parent.BlockTypeID
+	}
+
 	// The hidden input is a courtesy; the body is not. A snippet id that names
 	// another website's snippet must never reach the store, so it is refused
 	// here — before anything is written.
