@@ -286,6 +286,92 @@ func TestTermNamesCapsWhatRowTermsCaps(t *testing.T) {
 	}
 }
 
+// TestTermNamesHarvestsADefaultWithNoColumn (T-09-14, IMP-08): a target whose
+// value comes from the mapping screen rather than from a column is stored by
+// the row, so the pre-pass has to create it.
+//
+// Found in the browser and not by reading: a file with no Schlagwörter column
+// and "importiert|hofladen" typed into the Vorgaben card had the dry run
+// promise two labels while four were created. TermNames walked the columns and
+// a default-only target has none, while RowTerms goes through cellFor, which
+// falls back to the default whether a column exists or not. The same two
+// functions disagreeing again, one step further along.
+func TestTermNamesHarvestsADefaultWithNoColumn(t *testing.T) {
+	defs := []field.Def{fieldDef(1, 1, "kategorie", "Kategorie", field.KindTerm)}
+	head, rows := reader(t, "Titel\nApfel\n")
+	m := csvimport.AutoMap(head, defs)
+	m.Defaults[csvimport.Target{Kind: csvimport.TargetTerms}.String()] = "rot|blau"
+	m.Defaults[csvimport.Target{Kind: csvimport.TargetField, Key: "kategorie"}.String()] = "Obst"
+
+	// The row really does store them, which is what makes the pre-pass owe
+	// them: this is the same assertion against RowTerms the cap test makes,
+	// from the other side.
+	stored, _ := csvimport.RowTerms(rows[0], m)
+	if len(stored) != 2 || stored[0] != "rot" || stored[1] != "blau" {
+		t.Fatalf("RowTerms gave %v, want the default the operator typed", stored)
+	}
+
+	got := csvimport.TermNames(defs, m, rows)
+	want := []string{"rot", "blau", "Obst"}
+	if len(got) != len(want) {
+		t.Fatalf("TermNames returned %v, want %v — a label the row stores and the "+
+			"pre-pass does not create is one the dry run never counted", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("name %d is %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestATermsDefaultAppliesWithoutAColumn (IMP-08): a default is the operator
+// stating a value on the mapping screen, so it applies to the page's terms the
+// same way it applies to the status, the body and every field.
+//
+// setTerms asked only whether a COLUMN was mapped, which is the right question
+// for a blank cell — a file that says nothing about terms must not clear them —
+// and the wrong one for a value typed into the Vorgaben card. The box exists on
+// the screen as of this round, and a box whose value is silently discarded is
+// the same defect as a value with no box, read the other way round.
+func TestATermsDefaultAppliesWithoutAColumn(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	terms := term.NewStore(database)
+	ctx := context.Background()
+
+	head, rows := reader(t, "Titel\nApfel\n")
+	m := csvimport.AutoMap(head, nil)
+	if m.ColumnFor(csvimport.TargetTerms, "") >= 0 {
+		t.Fatal("the fixture has a terms column; the case under test is the one without")
+	}
+	m.Defaults[csvimport.Target{Kind: csvimport.TargetTerms}.String()] = "importiert|hofladen"
+
+	// The labels the pre-pass would have made, made the same way the handler
+	// makes them, so this test proves the attachment and not the creation.
+	names := csvimport.TermNames(nil, m, rows)
+	if _, err := terms.EnsureNames(ctx, websiteID, names); err != nil {
+		t.Fatalf("EnsureNames: %v", err)
+	}
+
+	v := w.WriteRow(ctx, websiteID, nil, rows[0], m, nil, csvimport.CollisionSkip, &userID)
+	if v.Outcome != csvimport.OutcomeCreate {
+		t.Fatalf("the row gave %s / %q, want a create", v.Outcome, v.Reason)
+	}
+
+	p, err := page.NewStore(database).GetPageBySlug(ctx, websiteID, "apfel")
+	if err != nil || p == nil {
+		t.Fatalf("GetPageBySlug: %v, %v", p, err)
+	}
+	got, err := terms.ForPage(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("ForPage: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("the page carries %d labels %v, want the two the operator typed — "+
+			"a label the pre-pass creates and no page points at is an orphan", len(got), got)
+	}
+}
+
 // TestRenamedSlugIsReported (D-23, IMP-02 idempotency): CreatePage renames on
 // collision and returns the page it made; created.Slug != wanted is the whole
 // test.

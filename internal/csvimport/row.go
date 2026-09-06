@@ -178,20 +178,45 @@ func RowTerms(row csv.Row, m Mapping) ([]string, bool) {
 // same reason: cellFor reads the first column a target has (mapping.go:328), so
 // the second one contributes nothing to the row and must contribute nothing
 // here either.
+//
+// And a target with NO column is harvested too, when the operator typed a
+// default for it. That is the same rule read from the other end — cellFor falls
+// back to the default whether a column exists or not, so the row stores the
+// name and the pre-pass owes it. Walking the columns alone had a file with no
+// Schlagwörter column and two names typed into the Vorgaben card create four
+// labels while the dry run promised two.
 func TermNames(defs []field.Def, m Mapping, rows []csv.Row) []string {
 	byKey := definitionsByKey(defs)
 
 	// The targets a term can come from, in column order, each of them once.
 	var sources []Target
 	taken := map[string]bool{}
-	for _, t := range m.Targets {
-		carries := t.Kind == TargetTerms ||
-			(t.Kind == TargetField && byKey[t.Key].Kind == field.KindTerm)
-		if !carries || taken[t.String()] {
-			continue
+	remember := func(t Target) {
+		if taken[t.String()] {
+			return
 		}
 		taken[t.String()] = true
 		sources = append(sources, t)
+	}
+	for _, t := range m.Targets {
+		carries := t.Kind == TargetTerms ||
+			(t.Kind == TargetField && byKey[t.Key].Kind == field.KindTerm)
+		if carries {
+			remember(t)
+		}
+	}
+	// Then the ones the mapping screen alone supplies, after the columns so the
+	// file's own order still leads.
+	if terms := (Target{Kind: TargetTerms}); m.Defaults[terms.String()] != "" {
+		remember(terms)
+	}
+	for _, d := range defs {
+		if d.Kind != field.KindTerm {
+			continue
+		}
+		if t := (Target{Kind: TargetField, Key: d.Key}); m.Defaults[t.String()] != "" {
+			remember(t)
+		}
 	}
 
 	var out []string
@@ -691,14 +716,25 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 	return u, nil
 }
 
-// setTerms writes the page's own terms, and does nothing at all when no column
-// is pointed at them.
+// setTerms writes the page's own terms, and does nothing at all when neither a
+// column nor a default is pointed at them.
 //
 // The distinction is the whole of it: an empty list from a mapped column means
-// "this page has no terms" and clears them, and no mapped column at all means
-// the file says nothing about terms and the page keeps what it has.
+// "this page has no terms" and clears them, and a file with no terms column and
+// no default says nothing about terms, so the page keeps what it has.
+//
+// A DEFAULT counts as the file speaking, and that is the same rule the status,
+// the body and every field already follow (row_test.go's
+// TestBlankCellSaysNothingOnTheUpdateArm states it in as many words: a default
+// is the operator stating a value on the mapping screen, so a default does
+// apply). Asking about the column alone silently discarded what the operator
+// typed into the Vorgaben card — and, once TermNames learned to harvest it, it
+// discarded it AFTER the label had been created, which is an orphan made on
+// purpose.
 func (w Writer) setTerms(ctx context.Context, websiteID, pageID int64, m Mapping, names []string) error {
-	if w.Terms == nil || m.ColumnFor(TargetTerms, "") < 0 {
+	stated := m.ColumnFor(TargetTerms, "") >= 0 ||
+		m.Defaults[Target{Kind: TargetTerms}.String()] != ""
+	if w.Terms == nil || !stated {
 		return nil
 	}
 	return w.Terms.SetForPage(ctx, websiteID, pageID, names)
