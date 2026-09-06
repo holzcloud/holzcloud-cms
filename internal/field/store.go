@@ -436,6 +436,16 @@ func validate(d *Def) error {
 	if d.Key == "" {
 		return errors.New("aus dieser Beschriftung lässt sich keine Kennung bilden — bitte Buchstaben verwenden")
 	}
+	// Erst hier, nach der Ableitung: der leere Fall darüber behält seine
+	// eigene, hilfreichere Begründung.
+	//
+	// Ein abgeleiteter Schlüssel trägt ohnehin nur [a-z0-9_], vom Bildschirm
+	// kommt also nichts, was hier hängen bliebe. Der eine Weg, auf dem ein
+	// Schlüssel mitgebracht statt abgeleitet wird, ist der Archivweg
+	// (internal/bundle/import.go:351) — eine Datei von einem fremden Rechner.
+	if !validKey(d.Key) {
+		return errors.New("eine Kennung trägt nur Kleinbuchstaben, Ziffern und Unterstriche")
+	}
 	if !KnownKind(d.Kind) {
 		return errors.New("diese Art von Feld gibt es nicht")
 	}
@@ -562,8 +572,12 @@ func boolToInt(b bool) int {
 
 // validKey is the shape both a field key and a content kind's key have: lower
 // case letters, digits and underscores.
+//
+// Die Obergrenze ist maxKeyBytes und damit dieselbe Zahl, bei der SlugifyKey
+// abschneidet: eine Kennung, die die Ableitung erzeugt hat, muss diese Prüfung
+// bestehen.
 func validKey(s string) bool {
-	if s == "" || len(s) > 30 {
+	if s == "" || len(s) > maxKeyBytes {
 		return false
 	}
 	for _, r := range s {

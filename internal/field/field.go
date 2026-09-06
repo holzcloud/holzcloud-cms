@@ -220,6 +220,14 @@ const MaxRows = 40
 // MaxValueBytes bounds one stored value.
 const MaxValueBytes = 4000
 
+// maxKeyBytes bounds a field key.
+//
+// Eine Zahl und nicht zwei: SlugifyKey schneidet die abgeleitete Kennung hier
+// ab, validKey (store.go) prüft dagegen. Liefen die beiden auseinander, lehnte
+// validate ab, was SlugifyKey selbst erzeugt hat — und löschte nebenbei
+// wortlos jede Bedingung, die auf ein Feld mit einer Kennung dazwischen zeigt.
+const maxKeyBytes = 40
+
 // Def is one field an operator has defined.
 type Def struct {
 	ID        int64
@@ -869,8 +877,8 @@ func SlugifyKey(label string) string {
 	if key != "" && key[0] >= '0' && key[0] <= '9' {
 		key = "f" + key
 	}
-	if len(key) > 40 {
-		key = strings.Trim(key[:40], "_")
+	if len(key) > maxKeyBytes {
+		key = strings.Trim(key[:maxKeyBytes], "_")
 	}
 	return key
 }
