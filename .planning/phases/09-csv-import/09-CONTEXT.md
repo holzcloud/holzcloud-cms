@@ -422,9 +422,31 @@ happen:
   `'ü'` (U+00FC). A header written on macOS, or exported by a tool that
   normalises to NFD, arrives as `u` + U+0308 — and `Grösse` would silently fail
   to match its own field, which is exactly the class of bug IMP-06 exists to
-  prevent. The fix is `unicode.Mn` stripping before the fold: three lines,
-  `unicode` only, **D-17 stands and no dependency is added.** The documented
-  rule becomes: *strip combining marks, then `field.SlugifyKey`.*
+  prevent.
+
+  > **Corrected 2026-09-06 by wave 3, and the correction matters more than the
+  > decision did.** This bullet originally read: *„The fix is `unicode.Mn`
+  > stripping before the fold: three lines, `unicode` only."* **That is wrong,
+  > and it would have produced the very bug D-28 exists to prevent.** Measured
+  > against `field.SlugifyKey` directly:
+  >
+  > | input | result |
+  > |---|---|
+  > | `Grösse` composed (`ö` = U+00F6) | `groesse` |
+  > | `Grösse` decomposed, marks *stripped*, then folded | `grosse` |
+  >
+  > Two keys for one word — because `SlugifyKey` maps `ö` to **`oe`**, and
+  > stripping the mark first leaves a bare `o` that maps to `o`. The heading
+  > still fails to match its own field; the failure has merely moved one step
+  > along, where it is harder to see.
+  >
+  > **The mark must be composed back onto its base, not dropped.**
+  > `settleMarks` (`internal/csvimport/mapping.go:84`) puts a combining diaeresis
+  > back onto `a`, `o` or `u` — the three that `SlugifyKey` and
+  > `page.Transliterate` know as single runes — and drops only what is left over.
+  > Still `unicode` only, still no dependency, so **D-17 stands.** The documented
+  > rule is: *compose the marks that matter, drop the rest, then
+  > `field.SlugifyKey`.*
 - **D-29: the target and the mapping are re-checked at the dry run and again at
   the write.** (IMP-04 / concurrency.) The website, and every field definition
   the mapping names, can be deleted or changed between screen 1 and screen 4 —
@@ -578,7 +600,15 @@ Note the last row against **IMP-10 / concurrency**: the importer must not add a
 > 2. **A condition needing two numbers from a command that prints one.**
 >    `@layer components` was gated on „did not increase by exactly 1", which no
 >    single run can decide. It could not fail. Baseline 15, expected 16.
-> 3. **A command measuring something adjacent to its name.** Found by wave 1 and
+> 3. **A command measuring something adjacent to its name.** Three instances so
+>    far, one per wave, which is why it has its own numbered entry rather than a
+>    footnote. Wave 3's: `grep -rn 'SlugifyKey'` counts the *word*, so a
+>    `t.Errorf` message and two lines of comment prose read as three call sites;
+>    `grep -rn 'field\.SlugifyKey('` counts the calls and reads 0. **The pattern
+>    to copy: put the parenthesis in.** A gate that names a function must match
+>    the call, not the noun.
+>
+>    The two earlier instances: Found by wave 1 and
 >    re-measured here: `go list -deps ./internal/csv/ | grep -c holzcloud-cms`
 >    returns **1**, not 0, because `go list -deps` includes the listed package
 >    itself — `internal/wxr`, equally pure, returns 1 too. And
