@@ -109,6 +109,16 @@ Katalogschlüsseln.
 | abgelaufen | `expired` | `ErrAbgelaufen` → `ErrExpired` |
 | Benutzer | `user` | |
 | Konto | `account` | |
+| Ziel | `Target` | Wohin eine Spalte zeigt. `nichts` ist eines davon und nicht dessen Fehlen |
+| automatisch zuordnen | `AutoMap` | Der Vorschlag, den der Bildschirm überschreibt |
+| Ausgang | `Outcome` | Was mit einer Zeile geschieht: `create`, `update`, `skip`. Nur im Speicher — die Werte in `kollision` bleiben deutsch |
+| Anmerkung | `Note` | Warum eine Spalte unzugeordnet blieb. Code plus Argumente, wie ein Urteil |
+| Gruppierungsschlüssel | `GroupKey` | Was zwei Zeilen mit derselben Aussage zu einer Zeile des Berichts macht |
+| Schreiber | `Writer` | Der, der eine Zeile schreibt. **Nicht** `Store`: `csvimport.Store` ist schon die Ablage |
+| vorhanden (Seite) | `existing` | Die Seite, die diese Adresse schon trägt |
+| Wortschatz (geschlossen) | `closed vocabulary` | Eine Liste, ausserhalb derer gemeldet und nie geraten wird |
+| kombinierendes Zeichen | `combining mark` | `unicode.Mn`. Das Setzen davor heisst `settleMarks` |
+| Zustand (einer Seite) | `status` | Die gespeicherten Werte sind `draft` und `published`. Als Spaltenüberschrift erkennt der Einleser auch `Zustand` und `state` |
 
 ## Vorgänge und Werkzeuge
 
