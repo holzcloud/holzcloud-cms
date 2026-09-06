@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	stdhtml "html"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -604,5 +605,62 @@ func TestSnippetFeldStehtNichtImSeitenformular(t *testing.T) {
 	// in einer Behauptung über eine Abwesenheit.
 	if strings.Contains(body, `name="feld_telefonnummer"`) {
 		t.Error("der Formularname eines Textbausteinfeldes steht im Seiteneditor")
+	}
+}
+
+// codeAusdruck holt den ersten <code>…</code> aus einer gerenderten Seite und
+// macht die Entitäten wieder zu Zeichen.
+//
+// Der Bildschirm schreibt die geschweiften Klammern als &#123;, sonst würde die
+// Verwaltungsvorlage den Rat selbst auszuführen versuchen. Für die Prüfung muss
+// er wieder das sein, was der Betreiber abschreibt.
+func codeAusdruck(t *testing.T, koerper string) string {
+	t.Helper()
+	auf := strings.Index(koerper, "<code>")
+	if auf < 0 {
+		t.Fatal("kein <code> auf dem Bildschirm")
+	}
+	rest := koerper[auf+len("<code>"):]
+	zu := strings.Index(rest, "</code>")
+	if zu < 0 {
+		t.Fatal("<code> ohne Ende")
+	}
+	return stdhtml.UnescapeString(rest[:zu])
+}
+
+// Der Rat auf dem Bildschirm muss ein Ausdruck sein, der sich übersetzen lässt.
+//
+// validKey erlaubt den Bindestrich ausdrücklich (internal/admin/snippet.go),
+// und der Musterschlüssel dieses Projekts heisst „footer-kontakt"
+// (internal/template/sample.go). Die Feldsuffixform
+// {{.Site.Bausteinfelder.footer-kontakt.telefon}} ist für Go kein Ausdruck,
+// sondern ein Übersetzungsfehler — „bad character U+002D". Wer den Rat
+// abschreibt, bekommt sein Theme von template.Check abgewiesen, mit einer
+// Meldung, die ein Zeichen nennt und keine Ursache.
+//
+// Geprüft wird deshalb nicht der Wortlaut, sondern die Eigenschaft: was da
+// steht, geht durch den Übersetzer. TEMPLATE-SPEC.md benutzt durchweg index;
+// der Bildschirm war die eine Stelle, die der Spezifikation widersprach.
+func TestRatDesFeldbildschirmsLaesstSichUebersetzen(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+
+	sn, err := snippet.NewStore(database).Create(ctx, ws.ID, "footer-kontakt", "Kontaktblock",
+		"Adresse", "<p>Adresse</p>")
+	if err != nil {
+		t.Fatalf("snippet.Create: %v", err)
+	}
+
+	rec := feldBildschirm(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Status %d, wollte 200", rec.Code)
+	}
+	rat := codeAusdruck(t, rec.Body.String())
+	if !strings.Contains(rat, "footer-kontakt") {
+		t.Fatalf("der Rat nennt den Schlüssel nicht: %q", rat)
+	}
+	if _, err := template.New("rat").Parse(rat); err != nil {
+		t.Errorf("der Rat auf dem Bildschirm ist kein übersetzbarer Ausdruck:\n  %s\n  %v",
+			rat, err)
 	}
 }
