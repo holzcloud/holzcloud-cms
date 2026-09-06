@@ -6,7 +6,6 @@
 
 {{define "csv_mapping-content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
-    <h1>{{t "Spalten zuordnen"}}</h1>
     <p class="text-muted">
         {{tf "Datei „%s“, %d Spalten, %d Zeilen." .Filename (len .Columns) .TotalRows}}
         {{if .Website}}{{tf "Die Zeilen kommen in die bestehende Website „%s“." .WebsiteName}}{{else}}{{tf "Es entsteht eine neue Website „%s“ – erst beim Einlesen, nicht jetzt." .WebsiteName}}{{end}}
@@ -88,7 +87,7 @@
         </p>
         {{end}}
 
-        <table class="table">
+        <table class="table csv-columns">
             <thead>
                 <tr>
                     <th scope="col">{{t "Spalte"}}</th>
