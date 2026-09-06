@@ -58,7 +58,13 @@ const (
 	// refused it. Argument: the reader's own short reason.
 	ReasonRowUnreadable Reason = "row_unreadable"
 	// ReasonCellTooLong: a cell is over csv.MaxCellBytes.
-	// Arguments: the column's heading, the cell's size in bytes.
+	// Arguments: the column's position, the cell's size in bytes.
+	//
+	// The position and not the heading: the row function is given a row and a
+	// mapping and not the header, and passing the header in only so a message
+	// could name it would widen the one decision of this phase for the sake of
+	// one sentence. The screen has the header and can print it beside the
+	// number.
 	ReasonCellTooLong Reason = "cell_too_long"
 	// ReasonNoTitle: no column is pointed at the title, or the title cell is
 	// empty and no default was given. No arguments. A page with no title is a
@@ -95,10 +101,24 @@ const (
 	// ReasonExistingSkipped: a page with this address exists and the operator
 	// chose to leave it alone. Argument: the address.
 	ReasonExistingSkipped Reason = "existing_skipped"
-	// ReasonNotRolledBack: the row failed after its page had been created and
-	// undoing it failed as well. Arguments: the page's title, what is missing.
-	// An ugly truth, because a lie about the row would be worse.
+	// ReasonNotRolledBack: the row is half written and was not taken back.
+	// Arguments: the page's title, what went wrong.
+	//
+	// Two cases reach it. On the create path the page was made, a later step
+	// failed and undoing it failed as well. On the update path the page was
+	// rewritten and its terms were not — and there undoing is not on the table
+	// at all, because a page that was already there when the import started is
+	// not this import's to delete. An ugly truth either way, because a lie
+	// about the row would be worse.
 	ReasonNotRolledBack Reason = "not_rolled_back"
+	// ReasonNotWritten: the store refused the row, or the row was taken back
+	// cleanly after a later step failed. Arguments: the page's title, what the
+	// store said. The second argument is a Go error meant for the log; the
+	// screen shows the title and the code's own sentence.
+	ReasonNotWritten Reason = "not_written"
+	// ReasonBodyUnreadable: the Markdown of the body could not be rendered.
+	// Argument: what the renderer said.
+	ReasonBodyUnreadable Reason = "body_unreadable"
 	// ReasonColumnTaken: another column already took this heading's target.
 	// Argument: the winning column's position.
 	ReasonColumnTaken Reason = "column_taken"

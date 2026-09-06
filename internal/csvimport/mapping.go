@@ -67,10 +67,25 @@ var precomposed = map[rune]rune{
 // declining it once before, for a job of the same size. unicode is in the
 // standard library and the whole of this is one loop.
 func foldHeader(header string) string {
-	runes := []rune(header)
+	return field.SlugifyKey(settleMarks(header))
+}
+
+// settleMarks writes a decomposed spelling out as a composed one.
+//
+// A combining diaeresis standing behind a, o or u is put back onto its base
+// letter, because those three are the ones field.SlugifyKey and
+// page.Transliterate know as single runes. Every other combining mark is
+// dropped and its base kept.
+//
+// Separate from foldHeader because a heading is not the only thing an operator
+// types that has to be recognised however their editor normalised it: the
+// status vocabulary and the janein vocabulary in row.go fold the same way and
+// must not spell the rule a second time.
+func settleMarks(s string) string {
+	runes := []rune(s)
 
 	var b strings.Builder
-	b.Grow(len(header))
+	b.Grow(len(s))
 	for i := 0; i < len(runes); i++ {
 		r := runes[i]
 		if unicode.Is(unicode.Mn, r) {
@@ -88,7 +103,7 @@ func foldHeader(header string) string {
 		}
 		b.WriteRune(r)
 	}
-	return field.SlugifyKey(b.String())
+	return b.String()
 }
 
 // The targets a column may be pointed at.
