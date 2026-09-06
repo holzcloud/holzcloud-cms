@@ -5,8 +5,8 @@ status: audited
 # threats_open = count of OPEN threats at or above workflow.security_block_on (= high)
 threats_open: 0
 threats_total: 36
-threats_closed: 34
-threats_open_below_threshold: 2
+threats_closed: 35
+threats_open_below_threshold: 1
 asvs_level: 1
 block_on: high
 created: "2026-09-06"
@@ -44,12 +44,13 @@ wertlos gemacht.
 36 eigenständige Bedrohungen über sieben Pläne (42 Zeilen; `T-07-SC` wiederholt
 sich je Plan). **Alle 16 mit Schweregrad `high` sind geschlossen, jede mit
 belegter Fundstelle.** Die vollständige Belegtabelle steht im Prüfbericht dieser
-Sitzung; hier die Zusammenfassung und die beiden offenen Punkte im Wortlaut.
+Sitzung; hier die Zusammenfassung, der eine offene Punkt im Wortlaut und der
+in Phase 8 geschlossene daneben.
 
 | Schweregrad | Gesamt | Geschlossen | Offen |
 |---|---|---|---|
 | high | 16 | 16 | 0 |
-| medium | 13 | 11 | 2 |
+| medium | 13 | 12 | 1 |
 | low | 13 | 13 | 0 |
 
 ### Offen — unterhalb der Blockschwelle, nicht blockierend
@@ -79,26 +80,50 @@ sondern die **Falsifikation der tragenden Prämisse einer erklärten Massnahme**
 **Behebung:** ein Aufruf `validKey(d.Key)` in `validate`. `SlugifyKey` erzeugt
 ohnehin nur `[a-z0-9_]`, kein vom Admin angelegtes Feld ist betroffen.
 
-#### T-07-26 (Plan 06) · Information Disclosure · medium · Der genannte Mechanismus existiert nicht
+---
 
-**Behauptete Massnahme:** „`field.Hidden` verwirft ihre Werte serverseitig beim
-Speichern, ein verstecktes Feld kann also keinen Wert einschmuggeln."
+### Geschlossen nach der Prüfung — die Massnahme auf das zurückgeschrieben, was wirklich schützt
 
-**Befund:** `Hidden` wird an genau zwei Stellen aufgerufen —
-`internal/field/field.go:409` innerhalb `Effective` und `:937` innerhalb
-`CheckAll` — **keine davon ist ein Speicherweg**. `Effective` wird nur aus
-`internal/field/render.go:106` und `:273` gerufen. `Clean`, das *der*
+#### T-07-26 (Plan 06) · Information Disclosure · medium · **geschlossen** in Phase 8
+
+**Verworfene Massnahme:** „`field.Hidden` verwirft ihre Werte serverseitig beim
+Speichern, ein verstecktes Feld kann also keinen Wert einschmuggeln." Der Satz
+war falsch, und der Befund steht unverändert: `Hidden` wird an genau zwei
+Stellen gerufen — `internal/field/field.go:409` innerhalb `Effective` und `:937`
+innerhalb `CheckAll` — **keine davon ist ein Speicherweg**. `Effective` wird nur
+aus `internal/field/render.go:106` und `:273` gerufen. `Clean`, das *der*
 Speicherweg ist, behält versteckte Werte ausdrücklich
 (`internal/field/field.go:568-573`: „Ein Feld, dessen Bedingung nicht erfüllt
 ist, behält seinen Wert.").
 
-**Die andere Hälfte der Massnahme ist wahr** und ist die eigentliche Antwort auf
-die Kategorie: die Felder gehören zu demselben Formular, das die Redaktorin
-ohnehin sehen darf. Es wird also nichts offengelegt, was sie nicht schon sieht.
+**Massnahme, wie sie tatsächlich gilt:** serverseitige Prüfung gegen die
+geladenen Definitionen. `field.CheckAll` läuft über die Definitionen, die der
+**Server** geholt hat, nie über die, die das Formular behauptet; ein Wert, der
+kein Feld benennt, wird von `field.Clean` verworfen und gar nicht erst
+geschrieben, und ein Wert, der die Regel seiner Feldart verletzt, wird
+abgewiesen. Dazu die zweite, schon vorher wahre Hälfte: die Felder gehören zu
+demselben Formular, das die Redaktorin ohnehin sehen darf — es wird also nichts
+offengelegt, was sie nicht schon sieht.
 
-**Behebung:** die Massnahme auf das zurückschreiben, was tatsächlich schützt,
-statt einen Mechanismus zu nennen, den es nicht gibt. Siehe die Warnung unten —
-dort liegt die Substanz.
+**Entschieden: nichts bauen.** Das Verwerfen versteckter Werte beim Speichern
+wurde geprüft und verworfen, aus drei Gründen:
+
+1. Es würde getippten Text in dem Moment stillschweigend wegwerfen, in dem eine
+   Bedingung umkippt — genau der Datenverlust, den dieses Projekt überall sonst
+   vermeidet, und das Gegenteil des Verhaltens, das `Clean`s Kommentar
+   ausdrücklich als gewollt festhält.
+2. Der Wert eines versteckten Feldes ist keine schützenswerte Angabe. Er ist der
+   eigene Text der Betreiberin auf einer Seite oder einem Textbaustein einer
+   Website, die sie ohnehin verwaltet; es gibt keine Vertraulichkeitsgrenze, die
+   er überschreiten könnte.
+3. Was schützt, ist die Prüfung oben, und die läuft bereits — auf allen
+   Schreibwegen, ohne Ausnahme für einen versteckten Wert ausser der
+   Bytegrenze, die W-1 beschreibt.
+
+`field.Hidden`, `field.Clean` und `field.CheckAll` bleiben unverändert; diese
+Entscheidung ändert eine Behauptung und kein Verhalten. Getroffen in Plan 08-04,
+dem ersten seit Phase 7, der die Aufrufer von `Clean` anfasst — die Fortsetzung
+ist T-08-21 im Bedrohungsmodell jenes Plans, dort als `accept` geführt.
 
 ---
 
@@ -199,8 +224,9 @@ Implementierungsdatei verändert. `go test` für `field`, `block`, `admin`,
 **Nächste Schritte, in dieser Reihenfolge:**
 
 1. `validKey(d.Key)` in `validate` ergänzen (T-07-02, eine Zeile plus Test).
-2. T-07-26 (Plan 06) entscheiden: den Mechanismus bauen oder die Behauptung auf
-   das zurückschreiben, was wirklich schützt.
-3. W-3 (`JoinValues`) und Verifikations-Gap 1 zusammen entscheiden — **vor**
+2. W-3 (`JoinValues`) und Verifikations-Gap 1 zusammen entscheiden — **vor**
    Phase 9.
-4. Danach `/gsd-secure-phase 7` erneut fahren.
+3. Danach `/gsd-secure-phase 7` erneut fahren.
+
+Erledigt: der zweite Punkt dieser Liste — entschieden in Plan 08-04, ohne eine
+Zeile Verhalten zu ändern; der Eintrag oben trägt die Begründung.
