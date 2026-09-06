@@ -315,7 +315,7 @@ func TestCSVEmptyHeadingIsColumnN(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "Spalte 3") {
 		t.Error("the column without a heading is not offered as „Spalte 3“")
 	}
-	if !strings.Contains(rec.Body.String(), `name="ziel_2"`) {
+	if !strings.Contains(rec.Body.String(), `name="target_2"`) {
 		t.Error("the column without a heading carries no select and cannot be pointed anywhere")
 	}
 }
@@ -374,9 +374,9 @@ func TestCSVMappingIsInColumnOrder(t *testing.T) {
 	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
 	body := rec.Body.String()
 
-	preis := strings.Index(body, `name="ziel_0"`)
-	titel := strings.Index(body, `name="ziel_1"`)
-	sorte := strings.Index(body, `name="ziel_2"`)
+	preis := strings.Index(body, `name="target_0"`)
+	titel := strings.Index(body, `name="target_1"`)
+	sorte := strings.Index(body, `name="target_2"`)
 	if preis < 0 || titel < 0 || sorte < 0 {
 		t.Fatalf("not every column is on the screen: %d %d %d", preis, titel, sorte)
 	}
@@ -412,9 +412,11 @@ func TestCSVSampleRowSteppingIsClamped(t *testing.T) {
 		if !strings.Contains(body, c.cell) {
 			t.Errorf("%s: the sample row is not %q", c.query, c.cell)
 		}
-		// Absent and not disabled: a disabled link is still something a
-		// keyboard user lands on.
-		if got := strings.Contains(body, `href="?row=`) && strings.Contains(body, "vorherige"); got != c.wantPrev {
+		// Absent and not disabled: a disabled control is still something a
+		// keyboard user lands on. The control is a submit button of the
+		// mapping form and no longer an anchor (WR-07), so what is looked for
+		// is the control's own wording and not an href.
+		if got := strings.Contains(body, "vorherige"); got != c.wantPrev {
 			t.Errorf("%s: previous control present = %v; want %v", c.query, got, c.wantPrev)
 		}
 		if got := strings.Contains(body, "nächste"); got != c.wantNext {
@@ -439,7 +441,7 @@ func TestCSVHeaderOnlySaysSoInsteadOfAnEmptyTable(t *testing.T) {
 	if strings.Contains(body, "vorherige") || strings.Contains(body, "nächste") {
 		t.Error("a file with no data rows still offers a row stepper")
 	}
-	if !strings.Contains(body, `name="ziel_0"`) {
+	if !strings.Contains(body, `name="target_0"`) {
 		t.Error("the mapping is not settable on a header-only file")
 	}
 }
@@ -800,7 +802,7 @@ func csvPost(token, screen string, values url.Values) *http.Request {
 func csvTargets(targets ...string) url.Values {
 	v := url.Values{}
 	for i, target := range targets {
-		v.Set("ziel_"+strconv.Itoa(i), target)
+		v.Set("target_"+strconv.Itoa(i), target)
 	}
 	return v
 }
@@ -1391,5 +1393,56 @@ func TestCSVMappingCutsAnOversizedSample(t *testing.T) {
 	// A cell that fits is handed through untouched, ellipsis and all.
 	if got := csvSample("Alpha"); got != "Alpha" {
 		t.Errorf("csvSample(%q) = %q, want it unchanged", "Alpha", got)
+	}
+}
+
+// TestCSVSteppingKeepsTheMapping (WR-07): stepping the sample row carries the
+// operator's mapping with it.
+//
+// The stepper was two plain anchors, inside the form but not part of it.
+// Following one was a fresh GET, HandleCSVMapping passed chosen = nil, and the
+// screen came back with the automatic match: every select the operator had
+// changed and every default they had typed was gone, with nothing on screen
+// saying so. On a file with any real number of columns the navigation cost them
+// their work — and IMP-08's promise is a sample row navigable to the next.
+//
+// 09-02-PLAN's recorded decision settles the shape: one form, and the stepper
+// is a submit button inside it with formmethod="GET", so the button sends the
+// same form's fields to screen 2 as a query string.
+func TestCSVSteppingKeepsTheMapping(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	token := stage(t, h, admin, ws.ID, "Titel,Sorte\nAlpha,Boskoop\nBeta,Gravensteiner\n")
+
+	// The screen as it arrives from screen 1: the stepper is a submit of the
+	// mapping form, not a link, or nothing could carry the mapping at all.
+	first, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
+	body := first.Body.String()
+	if strings.Contains(body, `href="?row=`) {
+		t.Error("the stepper is still a plain anchor: following one is a fresh GET and the mapping is lost")
+	}
+	if !strings.Contains(body, `formmethod="GET"`) || !strings.Contains(body, `name="row" value="2"`) {
+		t.Errorf("no stepping submit for row 2 on the screen:\n%s", body)
+	}
+
+	// The operator points column 2 at the title instead and types a default,
+	// then steps. The button submits the whole form, so both arrive as query
+	// values — which is what the stepping request below is.
+	stepped, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping,
+		mappingRequest(token, "row=2&target_0=none&target_1=title&default_status=entwurf"))
+	body = stepped.Body.String()
+
+	if !strings.Contains(body, `<option value="title" selected>`) {
+		t.Error("the operator's own choice did not survive the step")
+	}
+	if !regexp.MustCompile(`id="target_0"[^>]*>\s*<option value="none" selected`).MatchString(body) {
+		t.Error("column 1 came back with the automatic match instead of the operator's „nothing“")
+	}
+	if !strings.Contains(body, `value="entwurf"`) {
+		t.Error("the default the operator typed was thrown away by the step")
+	}
+	// And the step really did step: the sample row on screen is the second.
+	if !strings.Contains(body, "Gravensteiner") {
+		t.Error("the sample row did not advance")
 	}
 }
