@@ -237,7 +237,15 @@ The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
   5. Snippets that already exist keep working untouched: their Markdown body still renders wherever a theme calls them, no snippet key changes, the admin performs no migration step, and the published `.Site.Snippets` contract keeps its type — field values arrive **beside** it, not through it.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — migration `00047`, the fourth namespace in `internal/field/store.go`, and one snippet field traced from the table to a theme
+- [ ] 08-02-PLAN.md — `OfSnippets`, `Move`, `validate`, the per-carrier `MaxFields`, and one minting point for every public entry point
+- [ ] 08-03-PLAN.md — the field screen's fourth mode (`?textbaustein=`), the way into it, and the authorisation tests
+- [ ] 08-04-PLAN.md — the snippet value form, its sanitisation proof, and T-07-26 closed
+- [ ] 08-05-PLAN.md — fixtures, `TEMPLATE-SPEC.md`, the bundle round trip, the catalogues and the browser pass
+
 **UI hint**: yes
 **Research flag**: none — migration `00038` is a line-for-line template and its own comment explains the operation.
 **Planning notes**:
