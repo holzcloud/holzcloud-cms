@@ -1,8 +1,12 @@
 ---
 phase: 08-snippets-carry-fields
 verified: 2026-09-06
-status: human_needed
-score: 5/6 criteria verified
+status: gaps_found
+score: 6/6 criteria verified — one with a named limitation
+score_note: >-
+  5/6 beim Abschluss des Verifizierers. Beide human_needed-Punkte wurden am
+  6. September durch einen Nachdurchgang geschlossen (siehe Nachtrag am Ende);
+  bei Kriterium 4 bleibt eine benannte Beobachtungsgrenze, kein Zweifel am Code.
 behavior_unverified: 1
 requirements: [SNIP-01, SNIP-02, SNIP-03, SNIP-04, SNIP-05]
 human_verification:
@@ -147,3 +151,99 @@ One open, recorded, visible defect: `cmd/holzcloud/templates/admin/field_list.ht
 Five of six criteria hold against the tree, on evidence I ran rather than read. The schema is one table with four namespaces and the collision question settled in both directions; the page form is clean at the query, at the template and in the browser; the sanitisation criterion holds by a mechanism its own wording misnames, and the code says so out loud; nothing that already worked changed type or needed a migration step.
 
 What stops a `passed`: criterion 1 names five field kinds that nothing exercises on a snippet, and criterion 6's browser half was not re-run over the four visible things the review fixes changed. Both are short, concrete browser tasks — neither suggests the phase goal was missed.
+
+---
+
+## Nachtrag: der Nachdurchgang vom 6. September 2026
+
+Der Verifizierer hat zwei Punkte als `human_needed` offen gelassen. Beide wurden
+nachgefahren — Playwright gegen eine Wegwerf-Instanz (eigenes Datenverzeichnis,
+Port 8139, danach restlos entfernt; der Projektbaum blieb unberührt). Migration
+`00047` **und** `00048` waren beim Start angewandt.
+
+### 1. Kriterium 1 — die fünf Feldarten aus Phase 7 auf einem Schnipsel
+
+Der Einwand war richtig formuliert: *„ein geteilter Mechanismus ist ein starkes
+Argument, kein Beleg."* Also der Beleg.
+
+Fünf Felder auf dem Schnipsel `footer-kontakt` angelegt, je eine Art. In der
+Datenbank tragen alle fünf `snippet_id = 1`, `parent_id` und `block_type_id`
+leer — der vierte Namensraum sauber getrennt. Im Formular:
+
+| Art | Steuerelement |
+|---|---|
+| `zeit` | `<input type="time">` |
+| `bereich` | `<input type="number" min="2" max="12">` — beide Grenzen im Markup |
+| `code` | `<textarea class="form-input form-code">` |
+| `mehrfachauswahl` | verdeckter Wächter, dann drei Kästchen unter `feld_ausstattung[]` |
+| `schlagwort` | `<select>`, leer — diese Website trägt keine Schlagwörter, richtiges Verhalten |
+
+**Der Rundlauf:** `07:30`, `6`, das rohe `<balken …><script>alert(1)</script>`
+und **Schublade ✓ / Griff ✗ / Schloss ✓** eingetragen, gespeichert, neu geladen —
+alles kam unverändert zurück. Dass ausgerechnet das mittlere Kästchen
+übersprungen ist, unterscheidet echte Werterhaltung von „die ersten N".
+
+Der `schlagwort`-Rundlauf bleibt ungefahren, weil die Testwebsite keine
+Schlagwörter trug. Die Auswahl rendert; die Auflösung Slug→Name ist in Phase 7
+belegt und teilt sich den Code.
+
+### 2. Kriterium 6 — die vier Änderungen nach dem Welle-5-Durchgang
+
+**Die korrigierte Theme-Anleitung.** Der Bildschirm zeigt jetzt
+`{{index .Site.Bausteinfelder "footer-kontakt" "kennung"}}` — gültige
+Go-Syntax. Das Bildschirmfoto `01b` aus Welle 5 zeigte noch die Punktnotation,
+die der Go-Parser mit `bad character U+002D` ablehnt. WR-05 gesehen, nicht nur
+gelesen.
+
+**Migration `00048`, der Zwei-Gruppen-Pfad — in beide Richtungen.** Zwei Gruppen
+auf demselben Schnipsel, beide mit einem Unterfeld `Tag`: **beide angenommen**
+(IDs 8 und 9, beide `snippet_id = 1`, Eltern 6 und 7). Vor `00048` war das
+`ErrDuplicateKey`. Die Gegenrichtung hält weiterhin: ein zweites Feld der
+obersten Ebene mit vorhandenem Schlüssel wird mit *„A field with that key
+already exists"* abgewiesen. Der Index liest sich in der laufenden Datenbank als
+`WHERE snippet_id IS NOT NULL AND parent_id IS NULL`.
+
+Nebenbei bestätigt: die Unterfelder erbten `snippet_id` vom gespeicherten
+Elternteil — der Welle-5-Fix, dessen Folge CR-01 überhaupt erst war.
+
+**Die seitenlosen Routen aus WR-04.** Nach Wechsel auf die Vorlage `rudel` (die
+`Site.Snippets "footer-kontakt"` aufruft) erscheint der Schnipsel-Rumpf auf der
+Startseite — **und auf der 404-Seite**. Genau die Route, die vor der Behebung
+ohne Schnipsel-Oberfläche ausgegangen wäre.
+
+**Kriterium 5 fällt damit ebenfalls beobachtet aus:** der Rumpf rendert
+unverändert, obwohl der Schnipsel inzwischen fünf Felder und zwei Gruppen trägt.
+
+### Die benannte Grenze bei Kriterium 4
+
+**Kein mitgeliefertes Theme gibt `Bausteinfelder` aus.** `holzcloud`, `rudel` und
+`weide` rufen `Site.Snippets` — den Rumpf — und die übrigen fünf nichts
+dergleichen. Der Feldwert eines Schnipsels lässt sich öffentlich also mit keiner
+mitgelieferten Vorlage beobachten; das ist eine Folge davon, dass der Kontrakt in
+dieser Phase neu entstanden ist, kein Mangel am Code.
+
+Was den Wert schützt, ruht damit auf `TestSnippetFeldSanierung` — das beide
+Träger durch dieselbe Theme-Vorlage druckt und byteweise Gleichheit prüft — und
+auf `TestBausteinfelderErreichenDasTheme` für den Routenweg. **Das ist
+Testbeleg, keine Beobachtung, und wird hier so genannt statt als gefahren
+ausgegeben.** Ein Theme, das ein Schnipselfeld ausgibt, schliesst die Lücke,
+sobald es eines gibt.
+
+### Konsole und Protokoll
+
+Browser-Konsole: **0 Fehler, 0 Warnungen.** Serverprotokoll: **0 ERROR-Zeilen,
+0 CSP-Einträge.**
+
+### Auch im Browser gesehen: der aufgeschobene Punkt
+
+`&#8592; All snippets` steht wörtlich auf dem Rücklink. Der bekannte, bewusst
+aufgeschobene Fehler aus `.planning/WINDOWS.md` Eintrag 5 — jetzt gesehen statt
+nur gelesen. Über-Maskierung, die sichere Richtung.
+
+### Stand danach
+
+Beide `human_needed`-Punkte sind geschlossen. Die verbleibende Einschränkung bei
+Kriterium 4 ist eine Beobachtungsgrenze mit benanntem Grund, kein Zweifel am
+Verhalten. `status` bleibt `gaps_found` statt `passed`, weil WR-03 — Bild-,
+Verweis- und Schlagwortwerte gehen auf der Archivreise verloren — als Vorhaben
+offen ist und in die ROADMAP gehört, nicht nur in `deferred-items.md`.

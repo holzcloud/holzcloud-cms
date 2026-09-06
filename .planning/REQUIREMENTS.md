@@ -204,6 +204,7 @@ between April and September and moved to Validated in PROJECT.md.
 - **V2-15**: Per-locale snippet values — both Statamic and Craft localise their globals; here it meets the star-shaped locale model in ways not visible from outside, so it wants its own research
 - **V2-16**: An arbitrary custom field as the CSV match key — a JSON scan per row
 - **V2-17**: Revisions on snippets
+- **V2-18**: Bild-, Verweis- und Schlagwortwerte eines **Schnipselfeldes** überstehen die Archivreise. Heute übersetzt `translateOut`/`translateIn` nur den Seitenträger, also reist eine Medien-, Seiten- oder Begriffskennung eines Schnipselfeldes als rohe Zahl mit und löst auf dem Zielrechner ins Leere auf. Der Betreiber wird von `ortsgebundeneWerte` darauf hingewiesen, verliert den Wert aber. Die Behebung ist, die beiden Übersetzer aus dem Seitenpfad herauszuheben, damit jeder Träger sie benutzt — eine Umbauarbeit, kein Flicken. Gefunden im Code-Review zu Phase 8 (WR-03), dort als korrekt abgegrenzte Vertagung eingestuft: alle drei Auflöser sind websitegebunden und weisen eine fremde Kennung ab, es ist also ein Datenverlust und kein Leck.
 
 ## Out of Scope
 
