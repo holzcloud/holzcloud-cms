@@ -98,6 +98,7 @@
 "Alte Einträge löschen": "Supprimer les anciennes entrées",
 "An dieses Feld lässt sich keine Bedingung hängen. Möglich sind die Felder, bei denen der Browser sehen kann, ob sie ausgefüllt sind — ein Datum und eine Gruppe gehören nicht dazu.": "Aucune condition ne peut être accrochée à ce champ. Sont possibles les champs dont le navigateur peut voir s'ils sont remplis — une date et un groupe n'en font pas partie.",
 "Andere Domains dieser Website leiten dann dauerhaft (301) auf die Hauptdomain um. Erst einschalten, wenn eine Hauptdomain festgelegt ist.": "Les autres domaines de ce site redirigent alors définitivement (301) vers le domaine principal. N'activez ceci qu'une fois un domaine principal défini.",
+"Angaben zu diesem Textbaustein": "Informations sur ce bloc de texte",
 "Angaben zu dieser Seite": "Informations sur cette page",
 "Angaben zum Betrieb": "Informations sur l'entreprise",
 "Angelegt": "Créé",
