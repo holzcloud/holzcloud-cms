@@ -2,10 +2,12 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -39,7 +41,7 @@ import (
 // state here is keyed on a random token instead, one row per upload.
 //
 // **The token is a path segment, screen 2 is a GET, screens 3 and 4 are POSTs.**
-// A GET so the mapping screen is bookmarkable and so ?zeile=N can step the
+// A GET so the mapping screen is bookmarkable and so ?row=N can step the
 // sample row without a POST; POSTs for the dry run and the write because those
 // are actions, and because screen 4 must not be repeatable by a refresh.
 //
@@ -151,11 +153,63 @@ type CSVMappingData struct {
 	// control a keyboard user lands on.
 	PrevRow int
 	NextRow int
+	// Defaults are the per-target defaults, keyed by Target.String(), so a
+	// rejected submit comes back with what the operator typed still in the
+	// boxes.
+	Defaults map[string]string
+	// NoTitleTarget is why this screen is being shown again at 422. A bool and
+	// not a sentence: the sentence is a {{t}} literal in the template, where
+	// tools/i18n can see it (D-32).
+	NoTitleTarget bool
 }
 
 // CSVExpiredData is the expiry screen.
 type CSVExpiredData struct {
 	web.LayoutData
+}
+
+// CSVHiddenInput is one name/value pair the dry run re-emits.
+//
+// The mapping is form state and lives nowhere else, so screen 3 has to carry it
+// forward for screen 4 — and carrying it as the same names screen 2 posted is
+// what makes the commit run the mapping the dry run described.
+type CSVHiddenInput struct {
+	Name  string
+	Value string
+}
+
+// CSVDryRunData is screen 3: what would happen, with nothing written.
+type CSVDryRunData struct {
+	web.LayoutData
+	// Token is what the commit button posts to.
+	Token string
+	// Filename and WebsiteName name the file and the target, so the screen says
+	// what it is talking about.
+	Filename    string
+	WebsiteName string
+	// NewWebsite is true when the website does not exist yet — it is made by
+	// screen 4 and by nothing before it.
+	NewWebsite bool
+	// Collision is "uebergehen" or "aktualisieren", so the screen can restate
+	// the answer screen 1 took.
+	Collision string
+	// Report is the same shape screen 4 renders, built by the same function
+	// from verdicts the same CheckRow produced.
+	Report csvimport.Report
+	// Inputs are the mapping as hidden inputs.
+	Inputs []CSVHiddenInput
+}
+
+// CSVReportData is screen 4: what happened.
+type CSVReportData struct {
+	web.LayoutData
+	// WebsiteID is what the link beside the success count points at. "272
+	// Seiten angelegt" is only useful next to the way to go and look at them
+	// (D-25).
+	WebsiteID   int64
+	WebsiteName string
+	Filename    string
+	Report      csvimport.Report
 }
 
 // HandleCSVImport takes the file, checks it and stages it — screen 1.
@@ -311,54 +365,93 @@ func (h *Handler) staged(w http.ResponseWriter, r *http.Request) (*csvimport.Upl
 	return upload, true, nil
 }
 
-// HandleCSVMapping shows the columns of the staged file and where they go —
-// screen 2.
+// csvTarget re-reads the website this import points at and its field
+// definitions.
 //
-// GET /admin/csv-import/{token}. A GET so the screen has an address that can be
-// bookmarked and so ?zeile=N steps the sample row without a POST.
+// Called by screen 2, screen 3 and screen 4, and never once at the start. The
+// wizard spans four requests and an unknown amount of wall time, so between any
+// two of them the target website can be deleted and a field definition can be
+// added, renamed or removed (D-29, IMP-04 concurrency). A definition that went
+// is reported per row by CheckRow and its column falls back to unmapped; a
+// website that went ends the wizard here.
 //
-// Everything is re-read here and nothing is trusted from screen 1 (D-29): the
-// target website may have been deleted in between, and a field definition may
-// have been added, renamed or removed. The definitions are read again at the dry
-// run and again at the write for the same reason.
-func (h *Handler) HandleCSVMapping(w http.ResponseWriter, r *http.Request) error {
-	upload, ok, err := h.staged(w, r)
-	if err != nil || !ok {
-		return err
+// The second return value is false when the response has already been written,
+// which is staged's convention and not a second one.
+func (h *Handler) csvTarget(w http.ResponseWriter, r *http.Request, upload *csvimport.Upload) (*domain.Website, []field.Def, bool, error) {
+	if upload.Mode != csvModeExisting {
+		// There is no website yet. Screen 4 makes it, and until then there is
+		// nothing to re-read and no definition to name.
+		return nil, nil, true, nil
 	}
+
+	ws, err := h.domains.GetWebsite(r.Context(), upload.WebsiteID)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if ws == nil {
+		// 00049 sets website_id to NULL rather than cascading, precisely so the
+		// wizard can end with a message instead of the file vanishing under the
+		// operator's hands. This is that message — and then the row is cleared
+		// up, because ten megabytes should not wait a day for the sweep on
+		// behalf of a wizard that can no longer be finished.
+		if err := h.csvImports.Delete(r.Context(), upload.ID); err != nil {
+			return nil, nil, false, err
+		}
+		web.SetFlashError(h.sm, r.Context(),
+			"Die Website dieses Imports gibt es nicht mehr. Der Import wurde abgebrochen; geschrieben wurde nichts.")
+		return nil, nil, false, h.redirect(w, r, "/admin/websites")
+	}
+
+	defs, err := h.fields.List(r.Context(), ws.ID)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	return ws, defs, true, nil
+}
+
+// csvHeader reads the header row back out of the staged bytes.
+//
+// Unreachable as an error for a file screen 1 staged, which parsed these exact
+// bytes before writing them, and the row is never updated. Answered rather than
+// asserted all the same, because a 500 on a screen the operator reached from a
+// bookmark explains nothing.
+func csvHeader(upload *csvimport.Upload) ([]string, error) {
+	reader, err := csv.New(bytes.NewReader(upload.Data))
+	if err != nil {
+		return nil, err
+	}
+	return reader.Header(), nil
+}
+
+// csvUnreadable is the one answer to a staged file that no longer parses.
+func (h *Handler) csvUnreadable(w http.ResponseWriter, r *http.Request) error {
+	web.SetFlashError(h.sm, r.Context(),
+		"Die abgelegte Datei lässt sich nicht mehr als Tabelle lesen. Bitte noch einmal hochladen.")
+	return h.redirect(w, r, "/admin/websites")
+}
+
+// csvMappingData builds screen 2, with a mapping already decided.
+//
+// Two callers and two mappings. The GET passes nil and gets the automatic
+// match. The dry run passes back what the operator submitted when the mapping
+// cannot be run — a mapping with no title column — so the screen comes back
+// with their choices intact rather than thrown away, which is what separates a
+// form error from a flash and a redirect (twofactor.go:184-201).
+func (h *Handler) csvMappingData(r *http.Request, upload *csvimport.Upload,
+	ws *domain.Website, defs []field.Def, chosen *csvimport.Mapping) (CSVMappingData, error) {
 
 	data := CSVMappingData{
 		LayoutData:  web.NewLayoutData(r, h.sm, "Spalten zuordnen"),
 		FormState:   web.NewFormState(),
 		Token:       r.PathValue("token"),
+		Website:     ws,
 		WebsiteName: upload.WebsiteName,
 		Filename:    upload.Filename,
 		Collision:   upload.Collision,
 	}
 	data.ActiveNav = "websites"
-
-	var defs []field.Def
-	if upload.Mode == csvModeExisting {
-		ws, err := h.domains.GetWebsite(r.Context(), upload.WebsiteID)
-		if err != nil {
-			return err
-		}
-		if ws == nil {
-			// 00049 sets website_id to NULL rather than cascading, precisely so
-			// the wizard can end with a message instead of the file vanishing
-			// under the operator's hands. This is that message.
-			if err := h.csvImports.Delete(r.Context(), upload.ID); err != nil {
-				return err
-			}
-			web.SetFlashError(h.sm, r.Context(),
-				"Die Website dieses Imports gibt es nicht mehr. Der Import wurde abgebrochen; geschrieben wurde nichts.")
-			return h.redirect(w, r, "/admin/websites")
-		}
-		data.Website = ws
+	if ws != nil {
 		data.WebsiteName = ws.Name
-		if defs, err = h.fields.List(r.Context(), ws.ID); err != nil {
-			return err
-		}
 	}
 
 	for _, d := range defs {
@@ -375,22 +468,30 @@ func (h *Handler) HandleCSVMapping(w http.ResponseWriter, r *http.Request) error
 
 	reader, err := csv.New(bytes.NewReader(upload.Data))
 	if err != nil {
-		// Unreachable for a file screen 1 staged, which parsed these exact bytes
-		// before writing them, and the row is never updated. Answered rather
-		// than asserted, because a 500 on a screen the operator reached by a
-		// bookmark explains nothing.
-		web.SetFlashError(h.sm, r.Context(), "Die abgelegte Datei lässt sich nicht mehr als Tabelle lesen. Bitte noch einmal hochladen.")
-		return h.redirect(w, r, "/admin/websites")
+		return data, err
 	}
 
 	columns := csvimport.Columns(reader.Header())
 	mapping := csvimport.AutoMap(reader.Header(), defs)
+	if chosen != nil {
+		// The operator's own choices win. The automatic match's NOTES stay,
+		// because they explain the columns nobody has pointed anywhere yet, and
+		// a column that is unmapped because its heading was taken twice is
+		// still unmapped for that reason after a rejected submit.
+		for i := range mapping.Targets {
+			if i < len(chosen.Targets) {
+				mapping.Targets[i] = chosen.Targets[i]
+			}
+		}
+		mapping.Defaults = chosen.Defaults
+	}
+	data.Defaults = mapping.Defaults
 
-	// ?zeile= is a 1-based DATA-row index and it is clamped rather than refused:
+	// ?row= is a 1-based DATA-row index and it is clamped rather than refused:
 	// it is a number somebody typed into the address bar, not an attack
 	// (IMP-08 adjacency). Clamping also means no arithmetic below can reach a
 	// slice out of range.
-	want, _ := strconv.Atoi(r.URL.Query().Get("zeile"))
+	want, _ := strconv.Atoi(r.URL.Query().Get("row"))
 
 	var first, last, at csv.Row
 	found := false
@@ -442,8 +543,354 @@ func (h *Handler) HandleCSVMapping(w http.ResponseWriter, r *http.Request) error
 		}
 		data.Columns[i] = view
 	}
+	return data, nil
+}
 
+// HandleCSVMapping shows the columns of the staged file and where they go —
+// screen 2.
+//
+// GET /admin/csv-import/{token}. A GET so the screen has an address that can be
+// bookmarked and so ?row=N steps the sample row without a POST.
+//
+// Everything is re-read here and nothing is trusted from screen 1 (D-29). The
+// definitions are read again at the dry run and again at the write for the same
+// reason.
+func (h *Handler) HandleCSVMapping(w http.ResponseWriter, r *http.Request) error {
+	upload, ok, err := h.staged(w, r)
+	if err != nil || !ok {
+		return err
+	}
+	ws, defs, ok, err := h.csvTarget(w, r, upload)
+	if err != nil || !ok {
+		return err
+	}
+
+	data, err := h.csvMappingData(r, upload, ws, defs, nil)
+	if err != nil {
+		return h.csvUnreadable(w, r)
+	}
 	return web.RenderAdmin(w, h.templates, r, "csv_mapping", data)
+}
+
+// csvMappingFromForm reads the mapping the operator submitted.
+//
+// It is form state and not a column on the staging row, which is what keeps
+// that row write-once — and the write-once row is what makes the dry run
+// trustworthy, because the dry run and the write then read bytes nothing has
+// touched in between (D-30).
+//
+// A field target whose key names no definition is KEPT rather than dropped.
+// That is deliberate: CheckRow reports it per row as ReasonFieldMissing and
+// falls the column back to unmapped, which is a reported row instead of a
+// silently ignored column (D-29). Dropping it here would make a definition
+// deleted mid-wizard invisible.
+func csvMappingFromForm(r *http.Request, columns int) csvimport.Mapping {
+	m := csvimport.Mapping{
+		Targets:  make([]csvimport.Target, columns),
+		Notes:    make([]csvimport.Note, columns),
+		Defaults: map[string]string{},
+	}
+
+	for i := range m.Targets {
+		m.Targets[i] = csvTargetFromForm(r.FormValue("ziel_" + strconv.Itoa(i)))
+	}
+
+	// The default belongs to the TARGET and not to the column (IMP-08), so the
+	// form name is "default_" plus the target's own spelling and the two ends
+	// of the round trip are one rule. Screen 3 re-emits exactly these names as
+	// hidden inputs, so the commit posts the mapping the dry run described.
+	if err := r.ParseForm(); err == nil {
+		for name, values := range r.Form {
+			key, isDefault := strings.CutPrefix(name, "default_")
+			if !isDefault || key == "" || len(values) == 0 {
+				continue
+			}
+			if value := strings.TrimSpace(values[0]); value != "" {
+				m.Defaults[key] = value
+			}
+		}
+	}
+	return m
+}
+
+// csvTargetFromForm reads one <select>'s value back into a target.
+//
+// A value outside the closed set becomes TargetNone: a mapping arriving from a
+// form is not the screen's mapping, and the safe direction is the one that
+// writes less.
+func csvTargetFromForm(value string) csvimport.Target {
+	if key, isField := strings.CutPrefix(value, csvimport.TargetField+":"); isField && key != "" {
+		return csvimport.Target{Kind: csvimport.TargetField, Key: key}
+	}
+	switch value {
+	case csvimport.TargetTitle, csvimport.TargetSlug, csvimport.TargetBody,
+		csvimport.TargetStatus, csvimport.TargetTerms:
+		return csvimport.Target{Kind: value}
+	}
+	return csvimport.Target{Kind: csvimport.TargetNone}
+}
+
+// csvMappingInputs is the mapping as hidden inputs, so screen 3's commit button
+// posts exactly the mapping screen 3 described.
+//
+// Built from the parsed mapping rather than copied out of the request, so what
+// goes forward is what the dry run actually ran — and sorted, so two runs over
+// one file produce the same markup.
+func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
+	out := make([]CSVHiddenInput, 0, len(m.Targets)+len(m.Defaults))
+	for i, t := range m.Targets {
+		out = append(out, CSVHiddenInput{Name: "ziel_" + strconv.Itoa(i), Value: t.String()})
+	}
+
+	keys := make([]string, 0, len(m.Defaults))
+	for key := range m.Defaults {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		out = append(out, CSVHiddenInput{Name: "default_" + key, Value: m.Defaults[key]})
+	}
+	return out
+}
+
+// csvRun walks the staged bytes once and produces one verdict per row.
+//
+// **`write` is the only difference between the dry run and the write**, and the
+// write is suppressed by not being reached rather than by a second code path.
+// Two functions deciding the same thing drift, and the drifted one is always
+// the one the operator did not see (D-22).
+//
+// **Both callers build their reader from upload.Data — the same staged bytes.**
+// That is what makes IMP-05 true, and it is the property "re-submit the file
+// with the mapping" could not have had: under that design the operator could
+// have picked a DIFFERENT file at the commit step and the dry run would have
+// been describing the wrong one, silently (D-30).
+//
+// **No transaction is opened here and none spans two rows** (IMP-10). Every
+// write the loop performs is a store call that opens and closes its own inside
+// one row — CreatePage a single autocommitted INSERT, SetForPage its own at
+// term/store.go:120. The write pool admits one connection (db.go:28,
+// _txlock=immediate), so other requests, admin and public, interleave BETWEEN
+// rows. A transaction held across a file would block every request on the
+// machine, which is the anti-feature IMP-10 exists to forbid.
+//
+// The returned bool is Truncated: the file held more rows than csv.MaxRows, and
+// a cap is reported rather than silently applied.
+func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimport.Mapping,
+	defs []field.Def, websiteID int64, write bool, userID *int64) ([]csvimport.Verdict, bool, error) {
+
+	reader, err := csv.New(bytes.NewReader(upload.Data))
+	if err != nil {
+		return nil, false, err
+	}
+
+	if write {
+		// Every term name the whole file mentions, ensured ONCE, before the
+		// first page is created. That is internal/bundle/import.go:289-329's
+		// order and not an optimisation: a term field's stored value is a slug,
+		// so the term it names has to exist before the value referring to it is
+		// written, or the page would carry an address resolving to nothing.
+		// term.EnsureNames opens its own transaction and runs here, never
+		// inside the loop.
+		var rows []csv.Row
+		for {
+			row, more := reader.Next()
+			if !more {
+				break
+			}
+			rows = append(rows, row)
+		}
+		if names := csvimport.TermNames(defs, m, rows); len(names) > 0 {
+			if _, err := h.terms.EnsureNames(ctx, websiteID, names); err != nil {
+				return nil, false, err
+			}
+		}
+		// Two passes over bytes that are already in memory. The reader is
+		// re-opened rather than the rows re-used, so the write pass reads the
+		// file exactly the way the dry run did.
+		if reader, err = csv.New(bytes.NewReader(upload.Data)); err != nil {
+			return nil, false, err
+		}
+	}
+
+	writer := csvimport.Writer{Pages: h.pages, Terms: h.terms}
+	var verdicts []csvimport.Verdict
+	for {
+		// In FILE ORDER (IMP-04 ordering), so a file whose row 40 duplicates
+		// row 4 gets the rename or the update in that order and the report
+		// reads the way the file does. One pass, appended to once and by
+		// nothing else (IMP-03 concurrency).
+		row, more := reader.Next()
+		if !more {
+			break
+		}
+
+		// Per row, and NOT from a map built before the loop. A map goes stale
+		// during a five-thousand-row write — row 40 creating the address row 4
+		// already took would not be in it — and IMP-02's concurrency resolution
+		// says the database is the arbiter rather than a pre-check in the
+		// importer. The read pool is separate from the write pool, so these
+		// lookups do not contend with the writes.
+		var existing *page.Page
+		if slug := csvimport.RowSlug(row, m); slug != "" && websiteID != 0 {
+			found, err := h.pages.GetPageBySlug(ctx, websiteID, slug)
+			if err != nil {
+				return nil, false, err
+			}
+			existing = found
+		}
+
+		if write {
+			verdicts = append(verdicts,
+				writer.WriteRow(ctx, websiteID, defs, row, m, existing, upload.Collision, userID))
+			continue
+		}
+		v, _, _ := csvimport.CheckRow(defs, row, m, existing, upload.Collision)
+		verdicts = append(verdicts, v)
+	}
+	return verdicts, reader.Truncated(), nil
+}
+
+// csvPrepare is the preamble both POST screens share: the staged file, the
+// re-read target, the header and the submitted mapping.
+//
+// The false return means the response has already been written — the expiry
+// screen, a 404, a flash and a redirect, or the mapping screen re-rendered at
+// 422 because the mapping cannot be run.
+func (h *Handler) csvPrepare(w http.ResponseWriter, r *http.Request) (*csvimport.Upload,
+	*domain.Website, []field.Def, csvimport.Mapping, bool, error) {
+
+	var none csvimport.Mapping
+
+	upload, ok, err := h.staged(w, r)
+	if err != nil || !ok {
+		return nil, nil, nil, none, false, err
+	}
+	ws, defs, ok, err := h.csvTarget(w, r, upload)
+	if err != nil || !ok {
+		return nil, nil, nil, none, false, err
+	}
+
+	header, err := csvHeader(upload)
+	if err != nil {
+		return nil, nil, nil, none, false, h.csvUnreadable(w, r)
+	}
+	m := csvMappingFromForm(r, len(header))
+
+	if m.ColumnFor(csvimport.TargetTitle, "") < 0 {
+		// A mapping with no title column refuses every single row, so it is a
+		// mapping error and not a file error. Re-rendered as a FORM error at
+		// 422 with the operator's choices intact — a flash and a redirect here
+		// would throw the whole mapping away, which is why twofactor.go:184-201
+		// re-renders instead of redirecting and why page_handler_test.go:118-128
+		// exists.
+		data, err := h.csvMappingData(r, upload, ws, defs, &m)
+		if err != nil {
+			return nil, nil, nil, none, false, h.csvUnreadable(w, r)
+		}
+		data.NoTitleTarget = true
+		return nil, nil, nil, none, false,
+			web.RenderFormError(w, h.templates, r, "csv_mapping", data)
+	}
+	return upload, ws, defs, m, true, nil
+}
+
+// HandleCSVDryRun runs the whole file through the decision and writes nothing —
+// screen 3.
+//
+// POST /admin/csv-import/{token}/probe. Every row is decided by the very
+// function the write calls, so what the operator reads here is what the write
+// will do (D-22), and SELECT COUNT(*) FROM pages is unchanged afterwards
+// (IMP-05).
+func (h *Handler) HandleCSVDryRun(w http.ResponseWriter, r *http.Request) error {
+	upload, ws, defs, m, ok, err := h.csvPrepare(w, r)
+	if err != nil || !ok {
+		return err
+	}
+
+	verdicts, truncated, err := h.csvRun(r.Context(), upload, m, defs, upload.WebsiteID, false, nil)
+	if err != nil {
+		return err
+	}
+	report := csvimport.Summarize(verdicts)
+	report.Truncated = truncated
+
+	data := CSVDryRunData{
+		LayoutData:  web.NewLayoutData(r, h.sm, "Probelauf"),
+		Token:       r.PathValue("token"),
+		Filename:    upload.Filename,
+		WebsiteName: upload.WebsiteName,
+		NewWebsite:  upload.Mode == csvModeNew,
+		Collision:   upload.Collision,
+		Report:      report,
+		Inputs:      csvMappingInputs(m),
+	}
+	data.ActiveNav = "websites"
+	if ws != nil {
+		data.WebsiteName = ws.Name
+	}
+	return web.RenderAdmin(w, h.templates, r, "csv_dryrun", data)
+}
+
+// HandleCSVStart writes the rows and reports what happened — screen 4.
+//
+// POST /admin/csv-import/{token}/start.
+func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
+	upload, ws, defs, m, ok, err := h.csvPrepare(w, r)
+	if err != nil || !ok {
+		return err
+	}
+
+	websiteID, websiteName := upload.WebsiteID, upload.WebsiteName
+	if ws != nil {
+		websiteName = ws.Name
+	}
+	if upload.Mode == csvModeNew {
+		// HERE, and not on screen 1: an operator who looks at the mapping or at
+		// the dry run and walks away leaves no empty website behind for
+		// somebody else to find and wonder about. wordpress.go:48 creates one
+		// before it has read a single item; this is the departure from it.
+		created, err := h.domains.CreateWebsite(r.Context(), upload.WebsiteName, "")
+		if err != nil {
+			return err
+		}
+		// A new website changes what the resolver would answer for a host, so
+		// the cache goes, exactly as wordpress.go:91 does it.
+		h.resolver.InvalidateCache()
+		websiteID, websiteName = created.ID, created.Name
+		if defs, err = h.fields.List(r.Context(), websiteID); err != nil {
+			return err
+		}
+	}
+
+	userID := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
+	verdicts, truncated, err := h.csvRun(r.Context(), upload, m, defs, websiteID, true, &userID)
+	if err != nil {
+		return err
+	}
+
+	// AFTER the loop and BEFORE the render, and both halves of that are
+	// deliberate. After the render is too late: a browser refresh re-sends the
+	// POST, finds the token still good and imports the whole file a second time
+	// (D-33). Before the loop is too early: a process that dies mid-write would
+	// take the staged bytes with it, where leaving the row standing lets the
+	// operator retry with the dry run telling them what already exists.
+	if err := h.csvImports.Delete(r.Context(), upload.ID); err != nil {
+		return err
+	}
+
+	report := csvimport.Summarize(verdicts)
+	report.Truncated = truncated
+
+	data := CSVReportData{
+		LayoutData:  web.NewLayoutData(r, h.sm, "Einlesen abgeschlossen"),
+		WebsiteID:   websiteID,
+		WebsiteName: websiteName,
+		Filename:    upload.Filename,
+		Report:      report,
+	}
+	data.ActiveNav = "websites"
+	return web.RenderAdmin(w, h.templates, r, "csv_report", data)
 }
 
 // HandleCSVExample hands out an example file built from one website's own field

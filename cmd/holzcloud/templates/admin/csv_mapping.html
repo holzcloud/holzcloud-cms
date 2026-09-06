@@ -13,6 +13,12 @@
         {{if eq .Collision "aktualisieren"}}{{t "Eine Zeile, deren Adresse es schon gibt, aktualisiert die vorhandene Seite."}}{{else}}{{t "Eine Zeile, deren Adresse es schon gibt, wird übergangen."}}{{end}}
     </p>
 
+    {{if .NoTitleTarget}}
+    <p class="alert alert--warning">
+        {{t "Keine Spalte zeigt auf den Titel. Ohne Titel wird jede Zeile abgewiesen – wähle bei einer Spalte „Titel“ und starte den Probelauf noch einmal."}}
+    </p>
+    {{end}}
+
     {{if .Truncated}}
     <p class="alert alert--warning">
         {{t "Die Datei hat mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde nicht gelesen und wird auch nicht geschrieben."}}
@@ -64,8 +70,8 @@
         {{else}}
         <p class="text-muted">
             {{tf "Beispiel: Zeile %d von %d" .SampleNumber .TotalRows}}
-            {{if .PrevRow}}<a href="?zeile={{.PrevRow}}">{{t "vorherige Zeile"}}</a>{{end}}
-            {{if .NextRow}}<a href="?zeile={{.NextRow}}">{{t "nächste Zeile"}}</a>{{end}}
+            {{if .PrevRow}}<a href="?row={{.PrevRow}}">{{t "vorherige Zeile"}}</a>{{end}}
+            {{if .NextRow}}<a href="?row={{.NextRow}}">{{t "nächste Zeile"}}</a>{{end}}
         </p>
         {{end}}
 
@@ -116,12 +122,13 @@
         <div class="form-group">
             <label class="form-label" for="default_status">{{t "Zustand"}}</label>
             <input type="text" id="default_status" name="default_status" class="form-input"
-                   placeholder="{{t "entwurf"}}">
+                   value="{{index .Defaults "status"}}" placeholder="{{t "entwurf"}}">
         </div>
         {{range $f := .Fields}}
         <div class="form-group">
             <label class="form-label" for="default_field_{{$f.Key}}">{{$f.Label}}</label>
-            <input type="text" id="default_field_{{$f.Key}}" name="default_field:{{$f.Key}}" class="form-input">
+            <input type="text" id="default_field_{{$f.Key}}" name="default_field:{{$f.Key}}" class="form-input"
+                   value="{{index $.Defaults (printf "field:%s" $f.Key)}}">
         </div>
         {{end}}
     </div>
