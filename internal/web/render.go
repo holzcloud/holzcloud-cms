@@ -43,7 +43,7 @@ var partialFiles = []string{
 var standalonePages = []string{"login", "setup", "set_password", "two_factor_verify", "order_print"}
 
 // layoutPageNames are the pages that supply a "content" block to base.html.
-var layoutPageNames = []string{"dashboard", "website_list", "website_form", "website_design", "page_list", "page_form", "page_revisions", "page_revision_compare", "trash", "snippet_list", "term_list", "redirect_list", "user_link", "template_list", "template_upload", "plugin_list", "plugin_screen", "mail_status", "ai_keys", "field_list", "blocktype_list", "menu_list", "menu_edit", "media_list", "media_crop", "user_list", "user_form", "user_password", "two_factor_setup", "two_factor_codes", "account", "share_link", "import_report", "language_list", "translation_matrix", "confirm", "branding", "kind_list", "activity_log", "product_list", "product_form", "shop_settings", "order_list", "order_detail"}
+var layoutPageNames = []string{"dashboard", "website_list", "website_form", "website_design", "page_list", "page_form", "page_revisions", "page_revision_compare", "trash", "snippet_list", "term_list", "redirect_list", "user_link", "template_list", "template_upload", "plugin_list", "plugin_screen", "mail_status", "ai_keys", "field_list", "blocktype_list", "menu_list", "menu_edit", "media_list", "media_crop", "user_list", "user_form", "user_password", "two_factor_setup", "two_factor_codes", "account", "share_link", "import_report", "language_list", "translation_matrix", "confirm", "branding", "kind_list", "activity_log", "product_list", "product_form", "shop_settings", "order_list", "order_detail", "csv_mapping", "csv_expired"}
 
 // PageTemplates holds per-page template sets, each with its own "content"
 // block — one complete set per language.

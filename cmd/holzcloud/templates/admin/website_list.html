@@ -44,6 +44,60 @@
     </form>
 </details>
 
+<details class="card" style="margin-bottom: var(--space-3);">
+    <summary>{{th "<strong>Seiten aus einer Tabelle einlesen (.csv)</strong>"}}</summary>
+    <p class="text-muted">
+        {{th "Eine Tabelle aus Excel, LibreOffice oder Numbers, als <code>.csv</code> gespeichert. Die erste Zeile sind die Spaltenüberschriften; jede weitere Zeile wird eine Seite. Auf dem nächsten Bildschirm sagst du, welche Spalte wohin gehört – vorgeschlagen wird es dir."}}
+    </p>
+    <p class="text-muted">
+        {{th "Anders als die beiden Wege darüber führt dieser nicht sofort zu einem Bericht, sondern zu einem <em>Probelauf</em>: du siehst Zeile für Zeile, was passieren würde, bevor irgendetwas geschrieben wird."}}
+    </p>
+    <form method="POST" action="/admin/websites/import-csv" enctype="multipart/form-data">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group">
+            <label class="form-label" for="csv">{{t "Tabelle (.csv)"}}</label>
+            <input type="file" id="csv" name="csv" class="form-input" accept=".csv,text/csv" required>
+        </div>
+
+        <fieldset class="form-group">
+            <legend class="form-label">{{t "Wohin?"}}</legend>
+            <div class="form-check">
+                <input type="radio" id="csv_target_neu" name="target" value="neu" checked>
+                <label class="form-check-label" for="csv_target_neu">{{t "In eine neue Website"}}</label>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="csv_name">{{t "Name der neuen Website"}}</label>
+                <input type="text" id="csv_name" name="name" class="form-input"
+                       placeholder="{{t "wie die Datei"}}">
+            </div>
+            <div class="form-check">
+                <input type="radio" id="csv_target_bestehend" name="target" value="bestehend">
+                <label class="form-check-label" for="csv_target_bestehend">{{t "In eine bestehende Website"}}</label>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="csv_website">{{t "Website"}}</label>
+                <select id="csv_website" name="website" class="form-input form-select">
+                    {{range .Websites}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-group">
+            <legend class="form-label">{{t "Wenn es eine Seite mit dieser Adresse schon gibt"}}</legend>
+            <div class="form-check">
+                <input type="radio" id="csv_collision_uebergehen" name="collision" value="uebergehen" checked>
+                <label class="form-check-label" for="csv_collision_uebergehen">{{t "Übergehen – die vorhandene Seite bleibt, wie sie ist. Die Zeile steht im Bericht."}}</label>
+            </div>
+            <div class="form-check">
+                <input type="radio" id="csv_collision_aktualisieren" name="collision" value="aktualisieren">
+                <label class="form-check-label" for="csv_collision_aktualisieren">{{t "Aktualisieren – die vorhandene Seite wird mit dieser Zeile überschrieben. Das schreibt."}}</label>
+            </div>
+        </fieldset>
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Weiter zur Zuordnung"}}</button>
+    </form>
+</details>
+
 {{template "website_list-content" .}}
 {{end}}
 
