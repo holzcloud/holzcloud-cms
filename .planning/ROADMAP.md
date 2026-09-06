@@ -309,6 +309,28 @@ Plans:
 > gewöhnlichen Löschweg zurückgenommen (`TrashPage` `store.go:801`, dann
 > `PurgePage` `:864` — dieselben zwei Schritte, die eine Betreiberin von Hand
 > geht). Hergeleitet in `.planning/phases/09-csv-import/09-CONTEXT.md`, D-02.
+>
+> **Nachtrag 2026-09-06, von der Verifikation gefunden: dieser Stempel zaehlte
+> die Transaktionen auf und hat eine uebersehen.** Neben den drei genannten
+> oeffnet `term.EnsureNames` (`internal/term/store.go:330`) eine **vierte**, und
+> das Zaehl-Tor dieser Phase konnte sie nicht sehen, weil es „kein Aufruf, den
+> die *Zeilenfunktion* macht" prueft — und `EnsureNames` wird nicht von ihr
+> gerufen, sondern einmal davor (`internal/admin/csvimport.go:819`).
+>
+> **Gemessen statt geschaetzt, und die Messung entscheidet es:**
+> `csvimport.TermNames` (`internal/csvimport/row.go:160-174`) entdoppelt nach
+> `page.Slugify`, bevor die Liste hinausgeht. Die Transaktion umfasst also den
+> **eigenen Wortschatz der Datei** — bei fuenftausend Zeilen mit einer
+> Sortenspalte sind das die Sorten, nicht die Zeilen — und je Name eine
+> `INSERT … ON CONFLICT DO NOTHING`. Das ist nicht die dateilange Transaktion,
+> die dieses Kriterium verbietet.
+>
+> **Angenommen, nicht behoben**, und der Grund gehoert hierher statt in einen
+> Kopf: `internal/bundle/import.go:322` macht es seit jeher genauso, aus
+> demselben Grund — die Schlagwoerter muessen stehen, bevor die erste Seite
+> darauf zeigt. Sie in die Schleife zu ziehen ergaebe *mehr* Transaktionen, nicht
+> weniger. Was das Kriterium schuetzt — dass der Kasten nicht fuer die Dauer
+> eines Imports blockiert — bleibt gewahrt.
 
 **Plans**: 6 plans, in 6 waves. The chain is the build order fixed in `09-CONTEXT.md` and it is genuinely sequential: `internal/csv` must be right before anything reads a file, the staging table must exist before a screen can carry a token, and `internal/admin/csvimport.go` is touched by plans 04, 05 and 06, so two of them in one wave would be two agents editing one file. Step 5 of that build order is split into two plans — the report screen and the standing gate are different kinds of work, and the browser pass must run **after** the code-review fix round, which no plan that also writes code can promise.
 
