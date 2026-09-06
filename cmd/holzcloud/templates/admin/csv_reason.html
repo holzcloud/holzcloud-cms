@@ -17,6 +17,7 @@
 
 {{define "csv-reason"}}
 {{- if eq .Reason "row_unreadable"}}{{tf "Diese Zeile liess sich nicht lesen: %s" (index .Args 0)}}
+{{- else if eq .Reason "row_too_wide"}}{{tf "Diese Zeile hat %s Zellen, die Kopfzeile hat %s Spalten. Ein Trennzeichen zu viel verschiebt die Werte, deshalb wurde die Zeile nicht übernommen." (index .Args 0) (index .Args 1)}}
 {{- else if eq .Reason "cell_too_long"}}{{tf "Spalte %s hat eine Zelle mit %s Bytes – mehr, als eine Zelle tragen darf." (index .Args 0) (index .Args 1)}}
 {{- else if eq .Reason "no_title"}}{{t "Diese Zeile hat keinen Titel. Ohne Titel findet die Seite später niemand wieder."}}
 {{- else if eq .Reason "slug_invalid"}}{{tf "„%s“ ist keine gültige Adresse." (index .Args 0)}}
