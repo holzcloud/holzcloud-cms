@@ -72,6 +72,19 @@ func TestValuesRundreise(t *testing.T) {
 		if !reflect.DeepEqual(zurück, v) {
 			t.Errorf("SplitValues(JoinValues(%#v)) = %#v", v, zurück)
 		}
+		// Die Zählinvariante, über jeden Fall mitgemessen: aus einem Eintrag
+		// kann nie mehr als ein Wert werden. Ein späterer Aufrufer, dessen
+		// Werte nicht aus einer geschlossenen Liste stammen — Phase 9s
+		// CSV-Spalte —, kann damit keinen zusätzlichen Wert prägen.
+		nichtLeer := 0
+		for _, e := range v {
+			if strings.TrimSpace(e) != "" {
+				nichtLeer++
+			}
+		}
+		if len(zurück) > nichtLeer {
+			t.Errorf("aus %d nicht-leeren Einträgen wurden %d Werte: %#v", nichtLeer, len(zurück), zurück)
+		}
 		// Zweimal speichern muss dieselbe Zeichenkette ergeben.
 		einmal := JoinValues(v)
 		if zweimal := JoinValues(SplitValues(einmal)); zweimal != einmal {
@@ -192,5 +205,56 @@ func TestMehrfachauswahlAufgeloest(t *testing.T) {
 	}
 	if Filled(Resolve(defs, Data{Values: Values{}}, Links{})) {
 		t.Error("Filled = true auf einer leeren Seite")
+	}
+}
+
+// JoinValues verteidigt sein eigenes Trennzeichen.
+//
+// Der Doc-Kommentar von SplitValues sagte, ein Wert könne selbst keine
+// Zeilenschaltung enthalten, weil die Möglichkeiten, aus denen er stammt,
+// zeilenweise gelesen werden. Das war eine Aussage über die Aufrufer und nicht
+// über die Funktion: gab ihr jemand einen Eintrag mit Zeilenschaltung, kamen
+// zwei Werte zurück, wo einer übergeben wurde.
+//
+// Heute fängt die geschlossene Möglichkeitenliste im KindMulti-Zweig von Check
+// das ab. Die fällt weg, sobald der Aufrufer eine CSV-Spalte ist — und
+// JoinValues ist ausdrücklich zum Erben gebaut (D-02). Also wird die Prämisse
+// dort durchgesetzt, wo der exportierte Vertrag steht.
+func TestJoinValuesVerteidigtSeinTrennzeichen(t *testing.T) {
+	zurück := SplitValues(JoinValues([]string{"a\nb", "c"}))
+	if len(zurück) != 2 {
+		t.Fatalf("aus zwei Einträgen wurden %d Werte: %#v", len(zurück), zurück)
+	}
+	if zurück[0] != "a b" {
+		t.Errorf("der erste Wert = %q, wollte \"a b\"", zurück[0])
+	}
+
+	// Jede Schreibweise der Zeilenschaltung, und die Wagenrücklaufform ergibt
+	// ein Leerzeichen und nicht zwei.
+	for _, f := range []struct {
+		roh  string
+		will string
+	}{
+		{"a\nb", "a b"},
+		{"a\r\nb", "a b"},
+		{"a\rb", "a b"},
+		{"a\n\nb", "a  b"},
+	} {
+		if got := JoinValues([]string{f.roh}); got != f.will {
+			t.Errorf("JoinValues([%q]) = %q, wollte %q", f.roh, got, f.will)
+		}
+	}
+
+	// Nur das Trennzeichen wird gefaltet: zwei Leerzeichen innerhalb eines
+	// gültigen Wertes bleiben zwei Leerzeichen. Wer hier mit einer Funktion
+	// arbeitet, die jeden Weissraum zusammenfasst, verschluckt sie.
+	if got := JoinValues([]string{"eiche  rot"}); got != "eiche  rot" {
+		t.Errorf("JoinValues([\"eiche  rot\"]) = %q — der Weissraum im Wert wurde angetastet", got)
+	}
+
+	// Und die Faltung bleibt idempotent über ihre eigene Ausgabe.
+	einmal := JoinValues([]string{"a\nb", "c"})
+	if zweimal := JoinValues(SplitValues(einmal)); zweimal != einmal {
+		t.Errorf("nicht idempotent: %q dann %q", einmal, zweimal)
 	}
 }
