@@ -71,7 +71,8 @@ func (h *Handler) HandleCart(w http.ResponseWriter, r *http.Request) error {
 		Shop:  h.shopData(r, website),
 		Cart:  h.cartView(r.Context(), website, set, audience, cart, totals),
 	}
-	data.Site.Snippets = h.loadSnippets(r, website.ID).HTML
+	snippets := h.loadSnippets(r, website.ID)
+	h.fillSnippets(r, &data.Site, website.ID, snippets)
 	data.Meta = metaData(data.Site, nil, cartPath)
 	// A basket is different for every visitor and worth nothing to a search
 	// engine, so it says so rather than relying on the crawler to work it out.

@@ -80,10 +80,13 @@ func (h *Handler) ownFields(r *http.Request, websiteID int64, pg *page.Page) (ma
 // fillSnippets writes all three snippet members of SiteData.
 //
 // Der einzige Ort im Baum, an dem Snippets, Bausteinfelder und Bausteinliste
-// gesetzt werden — und das ist Absicht: die Zuweisung steht heute an vierzehn
-// Stellen, und ein Mitglied, das an dreizehn davon gefüllt wird, ist auf der
-// vierzehnten unsichtbar, ohne dass irgendetwas fehlschlägt. Eine Funktion,
-// vierzehn Aufrufe.
+// an eine SiteData geschrieben werden, und das ist keine Ordnungsliebe: die
+// Zuweisung stand an vierzehn Stellen in zehn Dateien, und ein Mitglied, das
+// an dreizehn davon gefüllt wird, ist auf der vierzehnten unsichtbar — die
+// Seite erscheint, das Theme druckt an einer Stelle nichts, nichts wird
+// protokolliert, und niemand erfährt davon ausser einem Besucher. Deshalb eine
+// Funktion und vierzehn Aufrufe, und deshalb ein Gatter im Plan, das
+// nachweist, dass ausserhalb dieser Funktion keine Zuweisung überlebt hat.
 //
 // Resolved on the way out rather than stored resolved: a picture chosen last
 // month has to pick up this month's crop, and a field whose definition changed
@@ -95,17 +98,27 @@ func (h *Handler) fillSnippets(r *http.Request, site *tmpl.SiteData, websiteID i
 	if h.fieldStore == nil {
 		return
 	}
+	// Eine Website ohne einen einzigen Textbaustein zahlt keine Abfrage: sie
+	// baut ihre Seiten auf wie vor dieser Phase, nur eben mit drei leeren
+	// Karten statt mit dreien, die es nicht gibt.
+	if len(rendered.IDs) == 0 {
+		return
+	}
+	// Eine Abfrage für alle Textbausteine dieser Website und keine je
+	// Textbaustein: das hier läuft auf jedem öffentlichen Aufbau einer Seite,
+	// und eine Website mit fünf Textbausteinen zahlte sonst fünf Umläufe.
+	alle, err := h.fieldStore.OfSnippets(r.Context(), websiteID)
+	if err != nil {
+		slog.Error("load snippet fields", "err", err, "website", websiteID)
+		return
+	}
 	links := field.Links{
 		Image: h.fieldImages(r, websiteID),
 		Page:  h.fieldRefs(r, websiteID),
 		Term:  h.fieldTerms(r, websiteID),
 	}
 	for key, snippetID := range rendered.IDs {
-		defs, err := h.fieldStore.OfSnippet(r.Context(), websiteID, snippetID)
-		if err != nil {
-			slog.Error("load snippet fields", "err", err, "website", websiteID, "snippet", key)
-			continue
-		}
+		defs := alle[snippetID]
 		daten := field.Decode(rendered.Fields[key])
 		// Auch ein Textbaustein ohne eine einzige Definition bekommt seinen
 		// Eintrag — eine leere Karte und keinen fehlenden Schlüssel: ein Theme,

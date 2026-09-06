@@ -177,7 +177,8 @@ func (h *Handler) RenderForPlugin(ctx context.Context, websiteID int64, a plugin
 	}
 
 	site := h.siteData(r, website)
-	site.Snippets = h.loadSnippets(r, websiteID).HTML
+	snippets := h.loadSnippets(r, websiteID)
+	h.fillSnippets(r, &site, websiteID, snippets)
 
 	data := tmpl.PageData{
 		Site: site,

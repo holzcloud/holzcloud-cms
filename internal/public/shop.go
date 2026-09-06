@@ -156,7 +156,8 @@ func (h *Handler) HandleShop(w http.ResponseWriter, r *http.Request, website *do
 	}
 
 	site := h.siteData(r, website)
-	site.Snippets = h.loadSnippets(r, website.ID).HTML
+	snippets := h.loadSnippets(r, website.ID)
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	data := tmpl.PageData{
 		Site:  site,
@@ -215,7 +216,8 @@ func (h *Handler) HandleProduct(w http.ResponseWriter, r *http.Request, website 
 	}
 
 	site := h.siteData(r, website)
-	site.Snippets = h.loadSnippets(r, website.ID).HTML
+	snippets := h.loadSnippets(r, website.ID)
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	productURL := website.ShopURL() + "/" + p.Slug
 	meta := metaData(site, nil, productURL)
