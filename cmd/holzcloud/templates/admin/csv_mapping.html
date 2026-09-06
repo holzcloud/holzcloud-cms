@@ -1,0 +1,127 @@
+{{define "actions"}}<a href="/admin/websites" class="btn">{{t "Abbrechen"}}</a>{{end}}
+
+{{define "content"}}
+{{template "csv_mapping-content" .}}
+{{end}}
+
+{{define "csv_mapping-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h1>{{t "Spalten zuordnen"}}</h1>
+    <p class="text-muted">
+        {{tf "Datei „%s“, %d Spalten, %d Zeilen." .Filename (len .Columns) .TotalRows}}
+        {{if .Website}}{{tf "Die Zeilen kommen in die bestehende Website „%s“." .WebsiteName}}{{else}}{{tf "Es entsteht eine neue Website „%s“ – erst beim Einlesen, nicht jetzt." .WebsiteName}}{{end}}
+        {{if eq .Collision "aktualisieren"}}{{t "Eine Zeile, deren Adresse es schon gibt, aktualisiert die vorhandene Seite."}}{{else}}{{t "Eine Zeile, deren Adresse es schon gibt, wird übergangen."}}{{end}}
+    </p>
+
+    {{if .Truncated}}
+    <p class="alert alert--warning">
+        {{t "Die Datei hat mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde nicht gelesen und wird auch nicht geschrieben."}}
+    </p>
+    {{end}}
+
+    {{if .RequiredGroups}}
+    <p class="alert alert--warning">
+        {{range .RequiredGroups}}{{tf "Das Pflichtfeld „%s“ ist eine Gruppe." .}} {{end}}
+        {{t "Eine Gruppe besteht aus Zeilen, eine Tabellenzeile ist flach – aus einer Tabelle lässt sie sich deshalb nicht füllen. Solange das Feld Pflicht ist, wird jede einzelne Zeile dieser Datei abgewiesen. Nimm die Pflicht bei diesem Feld heraus, bevor du einliest."}}
+    </p>
+    {{end}}
+
+    {{if .NoOwnFields}}
+    <p class="text-muted">
+        {{t "Diese Website hat keine eigenen Felder. Es stehen die Ziele zur Verfügung, die jede Seite hat: Titel, Adresse, Text, Zustand und Schlagwörter."}}
+    </p>
+    {{end}}
+
+    {{if .UnmappableFields}}
+    <p class="text-muted">
+        {{t "Diese Felder stehen nicht zur Auswahl, weil eine Tabellenzelle sie nicht füllen kann:"}}
+        {{range .UnmappableFields}}<span class="badge">{{.Label}}</span> {{end}}
+    </p>
+    {{end}}
+
+    <p class="text-muted">
+        {{th "Mehrere Werte in einer Zelle werden mit einem senkrechten Strich getrennt: <code>rot|blau</code>."}}
+        {{th "Eine Ja/Nein-Spalte versteht <code>ja/nein</code>, <code>yes/no</code>, <code>true/false</code>, <code>wahr/falsch</code>, <code>1/0</code> und <code>x</code> gegen leer – sonst nichts."}}
+    </p>
+</div>
+
+<form method="POST" action="/admin/csv-import/{{.Token}}/probe">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+    <div class="card" style="margin-bottom: var(--space-3);">
+        <h2>{{t "Die Spalten der Datei"}}</h2>
+        {{if .NoRows}}
+        <p class="text-muted">
+            {{t "Die Datei hat eine Kopfzeile und keine einzige Datenzeile. Es gibt deshalb keine Beispielzeile zu zeigen. Die Zuordnung und die Vorgaben lassen sich trotzdem setzen."}}
+        </p>
+        {{else}}
+        <p class="text-muted">
+            {{tf "Beispiel: Zeile %d von %d" .SampleNumber .TotalRows}}
+            {{if .PrevRow}}<a href="?zeile={{.PrevRow}}">{{t "vorherige Zeile"}}</a>{{end}}
+            {{if .NextRow}}<a href="?zeile={{.NextRow}}">{{t "nächste Zeile"}}</a>{{end}}
+        </p>
+        {{end}}
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">{{t "Spalte"}}</th>
+                    <th scope="col">{{t "Beispiel"}}</th>
+                    <th scope="col">{{t "Ziel"}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range $c := .Columns}}
+                <tr>
+                    <th scope="row">
+                        <label for="ziel_{{$c.Index}}">{{if $c.HasHeading}}{{$c.Heading}}{{else}}{{tf "Spalte %d" $c.Number}}{{end}}</label>
+                        {{if eq $c.Note.Reason "empty_header"}}
+                        <span class="form-hint">{{t "Diese Spalte hat keine Überschrift und wurde deshalb nicht von selbst zugeordnet."}}</span>
+                        {{else if eq $c.Note.Reason "column_taken"}}
+                        <span class="form-hint">{{tf "Dieselbe Überschrift steht schon über Spalte %s. Diese hier bleibt ohne Ziel, bis du eines wählst." (index $c.Note.Args 0)}}</span>
+                        {{end}}
+                    </th>
+                    <td class="text-muted">{{$c.Sample}}</td>
+                    <td>
+                        <select id="ziel_{{$c.Index}}" name="ziel_{{$c.Index}}" class="form-input form-select">
+                            <option value="none"{{if eq $c.Selected "none"}} selected{{end}}>{{t "– nichts –"}}</option>
+                            <option value="title"{{if eq $c.Selected "title"}} selected{{end}}>{{t "Titel"}}</option>
+                            <option value="slug"{{if eq $c.Selected "slug"}} selected{{end}}>{{t "Adresse"}}</option>
+                            <option value="body"{{if eq $c.Selected "body"}} selected{{end}}>{{t "Text"}}</option>
+                            <option value="status"{{if eq $c.Selected "status"}} selected{{end}}>{{t "Zustand"}}</option>
+                            <option value="terms"{{if eq $c.Selected "terms"}} selected{{end}}>{{t "Schlagwörter"}}</option>
+                            {{range $f := $.Fields}}
+                            <option value="field:{{$f.Key}}"{{if eq $c.Selected (printf "field:%s" $f.Key)}} selected{{end}}>{{$f.Label}}</option>
+                            {{end}}
+                        </select>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-bottom: var(--space-3);">
+        <h2>{{t "Vorgaben"}}</h2>
+        <p class="text-muted">
+            {{t "Was eingetragen wird, wenn die Datei für dieses Ziel keine Spalte hat oder die Zelle leer bleibt. Leer lassen heißt: nichts eintragen."}}
+        </p>
+        <div class="form-group">
+            <label class="form-label" for="default_status">{{t "Zustand"}}</label>
+            <input type="text" id="default_status" name="default_status" class="form-input"
+                   placeholder="{{t "entwurf"}}">
+        </div>
+        {{range $f := .Fields}}
+        <div class="form-group">
+            <label class="form-label" for="default_field_{{$f.Key}}">{{$f.Label}}</label>
+            <input type="text" id="default_field_{{$f.Key}}" name="default_field:{{$f.Key}}" class="form-input">
+        </div>
+        {{end}}
+    </div>
+
+    <div class="card">
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Probelauf starten"}}</button>
+        <p class="form-hint">{{t "Der Probelauf schreibt nichts. Er zeigt Zeile für Zeile, was passieren würde."}}</p>
+    </div>
+</form>
+{{end}}

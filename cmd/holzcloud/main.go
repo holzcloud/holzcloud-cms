@@ -881,6 +881,13 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.Handle("GET /admin/websites/{id}/export", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteExport))))
 	adminProtectedMux.Handle("POST /admin/websites/import", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteImport))))
 	adminProtectedMux.Handle("POST /admin/websites/import-wordpress", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWordPressImport))))
+	// Der CSV-Import. Bildschirm 1 steht hier neben seinen beiden Geschwistern;
+	// jeder Bildschirm mit einer Marke liegt unter /admin/csv-import/{token},
+	// weil /admin/websites/import-csv/{token} mit
+	// GET /admin/websites/{id}/pages kollidiert und newRouter beim Start
+	// abstuerzen liesse (D-36).
+	adminProtectedMux.Handle("POST /admin/websites/import-csv", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVImport))))
+	adminProtectedMux.Handle("GET /admin/csv-import/{token}", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVMapping))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/design/tokens", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteTokens))))
 	// Eigene Felder. Wer sie ändert, ändert, woraus die Seiten dieser Website
 	// bestehen — das ist Verwaltersache, nicht Redaktion.
