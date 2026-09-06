@@ -224,6 +224,21 @@ between April and September and moved to Validated in PROJECT.md.
 | Real-time collaboration | Out of scope at this scale |
 | Docker as primary deployment | Optional later; not the primary path |
 
+### Language
+
+The project is open source, so the code speaks English. Decided by the developer
+on 2026-09-06 at full scope: comments, identifiers, test names, the template data
+contract (a hard break with a version bump) and the SQL columns together with the
+catalogue keys. The one word list is `.planning/GLOSSARY.md`.
+
+- [ ] **LANG-01**: Every comment in Go source is English, and a comment that carried a *reason* still carries it at the same length. The reasoning in this repository's comments is its most valuable content; a sweep that shortens it has done damage, not work.
+- [ ] **LANG-02**: Every identifier is English, and each German term maps to exactly one English word, fixed in `.planning/GLOSSARY.md`. A term translated without an entry gets one in the same commit.
+- [ ] **LANG-03**: Every test function name is English and still says what it asserts. The German names are unusually good at this; the English ones must be no worse.
+- [ ] **LANG-04**: The template data contract is English — `.Page.Fields`, `.Site.SnippetFields`, `.Page.Translations`, `.Page.Kind`. All eight shipped themes come with it, `TEMPLATE-SPEC.md` names only the English fields, and `CHANGELOG.md` records it as a **breaking change** under `## 2.0`. A theme written against 1.x stops working, deliberately and in one release.
+- [ ] **LANG-05**: The German SQL column names are English, through **new** migrations. No released migration is edited. Every hand-written SQL statement follows, including the carrier discriminator in `internal/field/store.go`.
+- [ ] **LANG-06**: The catalogue's source language is English: 1158 German keys become English keys, a new `de.json` carries German as a translation, `de-CH.json` derives from it, and `es/fr/it.json` are re-keyed through the old German→English mapping. The nine colliding keys are resolved one by one, and the three that collide because the existing translation is **wrong** are fixed rather than merged.
+- [ ] **LANG-07**: German cannot return unnoticed. A mechanical gate fails the build if German enters Go source outside the catalogue files — a gate, not a review convention.
+
 ## Traceability
 
 v1.0 requirements were mapped to phases 1–5, all complete; that mapping is archived with
@@ -261,6 +276,13 @@ v1.6 phases continue the numbering at 6.
 | IMP-08 | Phase 9 | Pending |
 | IMP-09 | Phase 9 | Pending |
 | IMP-10 | Phase 9 | Pending |
+| LANG-01 | Phase 12 | Pending |
+| LANG-02 | Phase 12 | Pending |
+| LANG-03 | Phase 12 | Pending |
+| LANG-04 | Phase 12 | Pending |
+| LANG-05 | Phase 12 | Pending |
+| LANG-06 | Phase 12 | Pending |
+| LANG-07 | Phase 12 | Pending |
 | SSO-01 | Phase 10 | Pending |
 | SSO-02 | Phase 10 | Pending |
 | SSO-03 | Phase 10 | Pending |
@@ -306,6 +328,7 @@ number than Phase 10 but runs before it, so the close-out still covers it. See t
 | 9 | CSV Import | IMP-01…10 | 10 |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 |
 | 11 | Galerie | GAL-01…07 | 7 |
+| 12 | The Codebase Speaks English | LANG-01…07 | 7 |
 
 ## Decisions taken while defining these
 
