@@ -1,133 +1,135 @@
-# Mitarbeiten
+# Contributing
 
-Holzcloud CMS ist ein CMS für einen kleinen Server im Regal oder im Cluster.
-Was hier gebaut wird, soll auf dem billigsten Knoten flüssig laufen und ohne
-Betreuung jahrelang durchhalten. Das ist keine Einschränkung, die man nebenbei
-erwähnt — es ist die Entscheidung, aus der die meisten anderen folgen.
+Holzcloud CMS is a CMS for a small server on a shelf or in a cluster. What is
+built here should run smoothly on the cheapest node and keep going for years
+without attention. That is not a limitation mentioned in passing — it is the
+decision most of the others follow from.
 
-## Was Sie brauchen
+## What you need
 
-Go 1.22 oder neuer. Sonst nichts.
+Go 1.26 or newer. Nothing else.
 
 ```bash
 go build ./cmd/holzcloud
 go test ./...
 ./holzcloud
-# http://localhost:8080/admin öffnen — dort wird das erste Konto angelegt
+# open http://localhost:8080/admin — the first account is created there
 ```
 
-Kein npm, kein Bundler, keine Datenbank zum Aufsetzen: SQLite entsteht beim
-ersten Start, die Migrationen laufen von selbst.
+No npm, no bundler, no database to set up: SQLite comes into being on the first
+start, and the migrations run by themselves.
 
-## Die harten Grenzen
+## The hard limits
 
-Diese vier Regeln sind nicht verhandelbar. Ein Vorschlag, der eine davon
-verletzt, wird abgelehnt, egal wie gut er sonst ist.
+These four rules are not negotiable. A proposal that breaks one of them is
+refused however good it is otherwise.
 
-**Kein JavaScript ausser htmx.** htmx 2.0 liegt im Repository und wird vom
-eigenen Server ausgeliefert. Sonst nichts. Jede Seite muss ohne JavaScript
-vollständig bedienbar sein — htmx macht sie angenehmer, nicht benutzbar.
+**No JavaScript except htmx.** htmx 2.0 is in the repository and served from our
+own server. Nothing else. Every page must be fully operable without JavaScript —
+htmx makes it pleasanter, not usable.
 
-**Zur Laufzeit wird nichts nachgeladen.** Kein Skript, kein Stylesheet, keine
-Schrift, kein Bild von einem fremden Server. Alles, was der Browser anfordert,
-kommt vom eigenen Ursprung. Beim Übersetzen dürfen zwei Dinge geholt werden:
-Go-Module und Schriften — und eine Schrift wird ins Repository gelegt und über
-`embed.FS` mitgeliefert, nie über eine Adresse eingebunden.
+**Nothing is loaded at runtime.** No script, no stylesheet, no font, no image
+from a foreign server. Everything the browser asks for comes from our own origin.
+At build time two things may be fetched: Go modules and fonts — and a font is put
+into the repository and shipped through `embed.FS`, never referenced by address.
 
-Durchgesetzt an drei Stellen, die alle funktionieren müssen:
-`internal/web/headers.go` (die Inhaltsrichtlinie), `internal/tmplmgr/external.go`
-(fremde Quellen in hochgeladenen Vorlagen) und `internal/tmplmgr/script.go`
-(Skripte darin).
+Enforced in three places, all of which have to work: `internal/web/headers.go`
+(the content security policy), `internal/tmplmgr/external.go` (foreign sources in
+uploaded templates) and `internal/tmplmgr/script.go` (scripts inside them).
 
-**Ein Programm, keine Beilagen.** Vorlagen, Anlagen und Migrationen stecken
-über `embed.FS` im Programm. Eine Datei, die zur Laufzeit danebenliegen muss,
-ist eine Datei, die beim Aktualisieren vergessen wird.
+**One program, no side dishes.** Templates, assets and migrations sit inside the
+program through `embed.FS`. A file that has to lie beside it at runtime is a file
+that gets forgotten on the next update.
 
-**Kein CGO.** SQLite kommt über `modernc.org/sqlite`, damit sich ohne
-C-Werkzeugkette ein statisches Programm übersetzen lässt.
+**No CGO.** SQLite comes through `modernc.org/sqlite`, so a static program can be
+built without a C toolchain.
 
-## Wie hier Code aussieht
+## What code looks like here
 
-**Kommentare sagen warum, nicht was.** Der Code sagt schon, was er tut. Was er
-nicht sagen kann, ist, welcher Fehler diese Zeile nötig gemacht hat. Solche
-Kommentare stehen überall im Projekt, und sie sind der Grund, warum man nach
-einem halben Jahr noch versteht, warum etwas so und nicht anders ist.
+**Comments say why, not what.** The code already says what it does. What it
+cannot say is which bug made this line necessary. Comments like that are all over
+the project, and they are the reason you still understand half a year later why
+something is the way it is and not otherwise.
 
-**Tests, die beissen.** Ein Test, der auch dann grün bleibt, wenn man die
-geprüfte Zeile kaputt macht, prüft nichts. Machen Sie sie kaputt und sehen Sie
-nach. Mehrere Tests in diesem Projekt sind erst dadurch entstanden, dass der
-erste Entwurf einen absichtlich eingebauten Fehler nicht bemerkt hat.
+**Tests that bite.** A test that stays green when you break the line it checks
+checks nothing. Break it and look. Several tests in this project only came about
+because the first draft failed to notice a deliberately introduced fault.
 
-**Migrationen werden nie geändert, sobald sie angewendet wurden.** Neue Spalte,
-neue Datei. Eine geänderte Migration läuft auf einer bestehenden Installation
-nicht noch einmal — dort fehlt die Spalte dann einfach.
+**Migrations are never changed once they have been applied.** New column, new
+file. A changed migration does not run again on an existing installation — the
+column is simply missing there.
 
-**Fehler werden angezeigt, nicht verschluckt.** Eine leere Auswahl, eine
-stillschweigend übersprungene Vorlage, ein verschluckter Rückgabewert: das sind
-die Fehler, die es bis in den Betrieb schaffen. Lieber ein Start, der abbricht.
+**Errors are shown, not swallowed.** An empty selection, a silently skipped
+template, a discarded return value: those are the faults that make it into
+production. Better a start that aborts.
 
-## Wer diesen Code geschrieben hat
+## Who wrote this code
 
-Ein grosser Teil dieses Projekts ist von einem KI-Agenten geschrieben worden,
-unter Anleitung und Durchsicht einer einzelnen Person. Sie sollen es hier lesen
-und nicht selbst herausfinden müssen.
+A large part of this project was written by an AI agent, under the direction and
+review of a single person. You should read that here rather than have to work it
+out.
 
-Nachzählen lässt es sich hier nicht. Die Commits, die den Agenten als Autor
-tragen, liegen im privaten Repository, aus dem dieses hier veröffentlicht wurde;
-öffentlich beginnt die Aufzeichnung bei `v1.4` — der Abschnitt „Versionen" in
-der README sagt, warum. Es steht hier also die Aussage und kein Beleg dazu. Das
-ist genau der Grund, warum sie überhaupt dasteht.
+It cannot be counted here. The commits carrying the agent as author are in the
+private repository this one was published from; in public the record begins at
+`v1.4` — the "Versioning" section in the README says why. So what stands here is
+the statement and no evidence for it. That is exactly why it stands here at all.
 
-Am Massstab ändert das nichts. Es gilt, was zwei Abschnitte weiter oben steht:
-Kommentare sagen warum, und ein Test, der einen absichtlich eingebauten Fehler
-nicht bemerkt, prüft nichts. Ein Modell hält sich daran nicht von allein — das
-ist der Teil, den die Durchsicht leistet.
+It changes nothing about the standard. What is written two sections above holds:
+comments say why, and a test that does not notice a deliberately introduced fault
+checks nothing. A model does not keep to that by itself — that is the part the
+review does.
 
-Ihre Beiträge dürfen ebenso mit einem Modell entstehen. Wer einen Pull Request
-öffnet, steht dafür ein, dass er tut, was er behauptet, und dass die Rechte
-daran wie im Abschnitt „Lizenz" beschrieben übertragen werden können. Ein
-Beitrag, den vor dem Abschicken niemand gelesen hat, fällt auf.
+Your contributions may equally be made with a model. Whoever opens a pull request
+vouches that it does what it claims, and that the rights to it can be transferred
+as described under "Licence". A contribution nobody read before sending shows.
 
-## Vorlagen
+## Templates
 
-Wer eine Vorlage bauen will, braucht keinen Beitrag zum Code. Die vollständige
-Beschreibung des Datenvertrags steht in `internal/tmplspec/TEMPLATE-SPEC.md`,
-und das Programm gibt sie selbst aus:
+Building a template needs no contribution to the code. The complete description
+of the data contract is in `internal/tmplspec/TEMPLATE-SPEC.md`, and the program
+prints it itself:
 
 ```bash
-./holzcloud template spec           # die Beschreibung
-./holzcloud template check ./meine-vorlage   # prüfen, ohne etwas zu installieren
+./holzcloud template spec                    # the description
+./holzcloud template check ./my-template     # check, without installing anything
 ```
 
-Die Beschreibung ist ausdrücklich auch für KI-Agenten gedacht: sie ist so
-geschrieben, dass ein Modell sie wörtlich befolgen kann. Tests binden sie an den
-Code — ein Feld, das im Vertrag steht, aber nicht in der Beschreibung, lässt die
-Testsuite fehlschlagen.
+The description is explicitly meant for AI agents too: it is written so a model
+can follow it to the letter. Tests bind it to the code — a field that is in the
+contract but not in the description makes the test suite fail.
 
-## Bevor Sie einen Pull Request öffnen
+## Before you open a pull request
 
 ```bash
-gofmt -l internal/ cmd/     # muss leer sein
+gofmt -l internal/ cmd/     # must be empty
 go vet ./...
 go test ./...
-for t in default journal magazine midnight schlicht; do
+for t in default holzcloud journal magazine midnight rudel schlicht weide; do
     go run ./cmd/holzcloud template check cmd/holzcloud/templates/public/$t
 done
 ```
 
-Für eine grössere Änderung: bitte vorher einen Issue aufmachen. Es ist für alle
-angenehmer, sich über die Richtung zu einigen, bevor jemand einen Abend
-investiert hat.
+For a larger change: please open an issue first. It is more pleasant for
+everybody to agree on the direction before somebody has spent an evening on it.
 
-## Sprache
+## Language
 
-Alles, was Nutzerinnen und Nutzer zu sehen bekommen, ist auf Deutsch —
-Beschriftungen, Fehlermeldungen, E-Mails. Die Vorlagen-Beschreibung ist auf
-Englisch, weil sie sich an ein internationales Publikum und an Sprachmodelle
-richtet. Kommentare im Code: beides kommt vor, schreiben Sie in der Sprache, in
-der Sie sich genauer ausdrücken können.
+**German is the source language of everything a user sees.** The admin is
+translated from it into English, French, Italian and Spanish, plus Swiss variants
+of the three national languages — see
+[`docs/multilingual.md`](docs/multilingual.md). The German sentence is the
+translation key, so a new string is written in German and picked up by
+`go run ./tools/i18n`. The bundled public templates carry their own fixed wording,
+and that is German.
 
-## Lizenz
+**English is the language of everything a developer sees**: this file, the README,
+the documents under `docs/`, and the template specification — the last because it
+addresses an international audience and language models.
 
-Mit einem Beitrag stellen Sie ihn unter die
-[GNU AGPL-3.0](LICENSE), unter der auch das übrige Projekt steht.
+Comments in the code: both occur. Write in whichever language lets you be more
+precise.
+
+## Licence
+
+By contributing you place your contribution under the
+[GNU AGPL-3.0](LICENSE), the licence the rest of the project is under.

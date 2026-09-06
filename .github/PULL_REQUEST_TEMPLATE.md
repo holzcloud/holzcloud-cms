@@ -1,17 +1,16 @@
-## Was diese Änderung tut
+## What this change does
 
-<!-- Ein bis drei Sätze. Warum, nicht was — was, sagt der Diff. -->
+<!-- One to three sentences. Why, not what — the what is in the diff. -->
 
-## Vor dem Abschicken
+## Before sending
 
-- [ ] Die Liste unter „Bevor Sie einen Pull Request öffnen" in CONTRIBUTING.md
-      ist durchgelaufen.
-- [ ] Die vier harten Grenzen aus CONTRIBUTING.md sind eingehalten: kein
-      JavaScript ausser htmx, zur Laufzeit wird nichts nachgeladen, ein Programm
-      ohne Beilagen, kein CGO.
+- [ ] The list under "Before you open a pull request" in CONTRIBUTING.md has been
+      worked through.
+- [ ] The four hard limits from CONTRIBUTING.md hold: no JavaScript except htmx,
+      nothing is loaded at runtime, one program with no side dishes, no CGO.
 
 <!--
-Für eine grössere Änderung: bitte vorher einen Issue aufmachen, falls noch
-nicht geschehen. Es ist für alle angenehmer, sich über die Richtung zu einigen,
-bevor jemand einen Abend investiert hat.
+For a larger change: please open an issue first, if you have not already. It is
+more pleasant for everybody to agree on the direction before somebody has spent
+an evening on it.
 -->

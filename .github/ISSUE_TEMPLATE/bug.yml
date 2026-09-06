@@ -1,0 +1,41 @@
+name: Report a bug
+description: Something behaves differently from how it should.
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`holzcloud version` prints it."
+      placeholder: holzcloud v1.9 (a1b2c3d)
+    validations:
+      required: true
+
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you did, and what followed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: >
+        Sometimes the fault is not where it shows but in the expectation — which
+        is why this is asked separately.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: >
+        Operating system and architecture, and whether a proxy or reverse proxy
+        sits in front. Optional, but it often helps.
+      placeholder: Raspberry Pi OS, arm64, Caddy in front
+    validations:
+      required: false

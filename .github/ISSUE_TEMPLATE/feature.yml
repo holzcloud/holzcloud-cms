@@ -1,0 +1,31 @@
+name: Suggest a feature
+description: Something is missing.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Before you write: four rules in `CONTRIBUTING.md` are not negotiable, and
+        a suggestion that breaks one of them is refused however good it is
+        otherwise. No JavaScript except htmx; nothing is loaded from foreign
+        servers at runtime; one program with no side dishes; no CGO. It would be
+        a shame to spend an evening on it and only find out afterwards.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does it solve
+      description: >
+        What does not work today, or only awkwardly? Please describe the problem
+        rather than the solution — for a well-described problem there is
+        sometimes a shorter way than the one suggested.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it might look
+      description: If you already have something in mind. Optional.
+    validations:
+      required: false
