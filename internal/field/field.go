@@ -207,11 +207,17 @@ func KnownKind(kind string) bool {
 	return false
 }
 
-// MaxFields bounds how many fields one website may define, groups and their
-// contents counted together.
+// MaxFields bounds how many fields one carrier may define: the page's own
+// fields with their groups, or one block kind, or one text snippet. Groups and
+// their contents count together with the carrier they stand on.
 //
 // Not a technical limit but an editorial one: a form with sixty extra fields
 // is a form nobody fills in correctly.
+//
+// Und genau dieser Grund ist es, der die Zählung auf den Träger stellt statt
+// auf die Website (D-05): ein Formular zeichnet immer nur die Felder eines
+// Trägers. Ein geteilter Vorrat liesse einen Träger den anderen verwehren, und
+// ErrTooMany nennte dann einen Grund, der nicht wahr ist.
 const MaxFields = 60
 
 // MaxRows bounds how many times one group may be filled in on one page.
