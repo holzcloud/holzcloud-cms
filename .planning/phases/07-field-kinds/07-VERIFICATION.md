@@ -2,7 +2,11 @@
 phase: 07-field-kinds
 verified: 2026-09-06
 status: gaps_found
-score: 4/6 roadmap success criteria verified
+score: 5/6 roadmap success criteria verified
+score_note: >-
+  4/6 beim Abschluss des Verifizierers. Kriterium 6 wurde danach durch den
+  Nachdurchgang vom 6. September geschlossen (siehe Nachtrag am Ende). Das
+  offene Kriterium ist Nummer 1, zweiter Satz.
 method: goal-backward — every verdict below rests on a file I read, a command I ran, or a named test I executed in this session
 gaps:
   - truth: "Kriterium 1, zweiter Satz: geleert ist von „dieses Formular trug das Feld nie“ unterscheidbar"
@@ -23,7 +27,8 @@ gaps:
       - "Entweder field.Values um Präsenz erweitern (Clean unterscheidet leer-vorhanden von abwesend), oder den Kommentar und die Phase-9-Erblast auf das zurückschreiben, was der Wächter wirklich garantiert: der Schlüssel ist immer da, und der Speicherpfad ist ein vollständiges Ersetzen"
       - "JoinValues verteidigt sein Trennzeichen nicht (selbst gemessen: [\"a\\nb\",\"c\"] kommt als drei Werte zurück) — für den CSV-Importer aus Phase 9 ist das dieselbe Baustelle"
   - truth: "Kriterium 6, Browserhälfte: alles Sichtbare wurde einmal durch die laufende Anwendung gefahren"
-    status: partial
+    status: closed
+    closed_by: "Nachdurchgang vom 6. September 2026, Playwright gegen eine Wegwerf-Instanz — alle vier benannten Zeilen gefahren. Belege im Nachtrag am Ende dieses Berichts."
     reason: >-
       Die Übersetzungshälfte ist grün (selbst gefahren). Die Browserhälfte hat
       vier ungefahrene Zeilen: die eine, die 07-07 selbst als offen notiert, und
@@ -64,8 +69,14 @@ warnings:
 
 **Ziel (ROADMAP):** Das Inhaltsmodell einer Website erreicht jede Feldart dieses Meilensteins, und jede übersteht Speichern, Neuladen, öffentliche Darstellung und die Archivreise.
 **Geprüft:** 2026-09-06
-**Status:** gaps_found — 4 von 6 Kriterien erfüllt, 2 teilweise
+**Status:** gaps_found — 5 von 6 Kriterien erfüllt, 1 teilweise
 **Vorherige Verifikation:** keine (Erstlauf)
+
+> **Zum Lesen dieses Berichts:** die Verdikte unten sind die des Verifizierers
+> zum Zeitpunkt seines Laufs — damals 4 von 6. Kriterium 6 wurde danach durch
+> den Nachdurchgang vom 6. September geschlossen; die Belege stehen im Nachtrag
+> am Ende. Die Befunde des Verifizierers sind bewusst unverändert stehen
+> geblieben, statt sie rückwirkend umzuschreiben.
 
 ## Die sechs Kriterien
 
@@ -182,3 +193,95 @@ Beide Wegwerftests liefen über `go test -overlay` gegen eine Datei ausserhalb d
 
 _Verifiziert: 2026-09-06_
 _Verifizierer: Claude (gsd-verifier)_
+
+---
+
+## Nachtrag: der Nachdurchgang vom 6. September 2026
+
+Der Verifizierer hat für Kriterium 6 vier ungefahrene Zeilen benannt. Alle vier
+wurden am 6. September nachgefahren — Playwright gegen eine Wegwerf-Instanz
+(eigenes Datenverzeichnis, Port 8138, danach restlos entfernt; der Projektbaum
+blieb unberührt). Die Oberfläche stand wieder auf Englisch, was für die
+Übersetzungspunkte die schärfere Prüfung ist.
+
+Der Verifizierer hat den Fund selbst gemacht, indem er Commit-Zeiten verglichen
+hat: der Durchgang war um 18:20 protokolliert, die Review-Fixes landeten
+zwischen 18:40 und 18:49. Die Reparaturrunde hat also einen Teil des Durchgangs
+entwertet, und das war beim Schreiben von `07-07-SUMMARY.md` noch nicht absehbar.
+
+### 1. `code` innerhalb eines Bausteins, öffentlich — **gefahren**
+
+Eigene Bausteinart `Ausstattungskasten` mit einem `code`-Feld angelegt, ein
+echtes `<script>alert(1)</script>` samt Attribut und `&` hineingetippt, Seite
+veröffentlicht. Ausgeliefert wurde:
+
+```html
+<pre class="hc-eigen__code hc-eigen__code--abbundzeile"><code>&lt;balken laenge=&#34;240&#34;&gt;Eiche &amp; Co&lt;/balken&gt;&lt;script&gt;alert(1)&lt;/script&gt;</code></pre>
+```
+
+`grep -c '<script>alert'` auf den ausgelieferten Bytes: **0**. Die maskierte
+Form ist da. Damit ist Kriterium 5s letzter Halbsatz — „auch wenn das Feld in
+einem Baustein sitzt" — nicht mehr nur testgedeckt, sondern gesehen. Das ist
+die Zeile, die `07-07-SUMMARY.md:290` ehrlich als offen führte.
+
+### 2. Der geänderte Hinweistext — **gefahren**
+
+Auf dem Feldbildschirm steht wörtlich:
+
+> For “Choice” and “Multiple choice” only: one option per line. Otherwise leave the field empty.
+
+Beide Artnamen, die typografischen Anführungszeichen im Register der
+Geschwisterzeile, und übersetzt — `en.json` war eine der vier Sprachen, die für
+diesen Satz offen standen.
+
+### 3. Die neue Ablehnung — **gefahren**
+
+Eine `mehrfachauswahl` ohne Möglichkeiten anzulegen wird abgelehnt
+(`eine Auswahl braucht mindestens eine Möglichkeit`), und das Feld erscheint
+danach **nicht** in der Liste — es wurde also nicht gespeichert.
+
+Nebenbefund, kein neuer: die Meldung kommt deutsch, während die Oberfläche
+englisch ist. Das ist das bereits als offenes Fenster Nr. 3 protokollierte
+Muster der unübersetzten Prüftexte, hier ein weiteres Mal bestätigt.
+
+### 4. Die Namensprägung im Bausteineditor — **gefahren**
+
+Das ist der Punkt, an dem CR-01 hing. Im Bausteineditor lauten die Steuerelemente
+jetzt:
+
+```
+b1.f.hoelzer[]  [hidden]    value=""
+b1.f.hoelzer[]  [checkbox]  value="Eiche"
+b1.f.hoelzer[]  [checkbox]  value="Buche"
+b1.f.hoelzer[]  [checkbox]  value="Ahorn"
+```
+
+Mit Markierung, und mit dem verdeckten Wächter voran — dieselbe Form wie auf der
+Seitenebene. Eiche und Ahorn angehakt, gespeichert, neu geladen: **beide kommen
+angehakt zurück**, Buche nicht. Im Speicher steht
+`{"typ":"ausstattungskasten","felder":{"hoelzer":"Eiche\nAhorn"}}` — die
+Zeilen-Kodierung aus D-02. Vor `bf4abdd` wären alle drei leer gewesen.
+
+Ebenfalls im Browser bestätigt: die Feldauswahl einer Bausteinart bietet
+`mehrfachauswahl` an und lässt `verweis`, `schlagwort`, `gruppe` und `abschnitt`
+weg — genau die vier `BlockKinds()`-Ausschlüsse. Das ist Kriterium 4s zweiter
+Satz, gesehen statt gelesen.
+
+### Konsole und Protokoll
+
+Über den ganzen Nachdurchgang: Browser-Konsole ohne Fehler und ohne Warnung,
+Serverprotokoll mit **0** ERROR-Zeilen und **0** CSP-Einträgen.
+
+### Was der Nachdurchgang bestätigt hat, ohne es zu sollen
+
+WR-08 ist real und im Browser sichtbar: die Mehrfachauswahl erscheint öffentlich
+als `Eiche\nAhorn` im Fliesstext, nicht als Liste — `renderOwn` hat den
+`KindMulti`-Zweig nicht, den `PlainText` bekommen hat. Bleibt Warnung, nicht
+Gap, weil Kriterium 3 vom Theme spricht und nicht vom Baustein.
+
+### Stand danach
+
+Kriterium 6 ist geschlossen. **Offen bleibt Kriterium 1, zweiter Satz** — die
+Unterscheidung zwischen „geleert" und „nie getragen" überlebt `field.Clean`
+nicht, und Phase 9 ist angewiesen, sie zu erben. Das ist eine Entwurfsfrage und
+kein Fix; sie gehört entschieden, bevor Phase 9 geplant wird.
