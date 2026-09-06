@@ -71,6 +71,7 @@
                 <td class="text-muted">{{.UpdatedAt.Format "02.01.2006 15:04"}}</td>
                 <td class="table-actions">
                     <a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{.ID}}" class="btn btn--sm">{{t "Bearbeiten"}}</a>
+                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/felder?textbaustein={{.ID}}">{{t "Felder"}}</a>
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/snippets/{{.ID}}/delete"
                           hx-post="/admin/websites/{{$.WebsiteID}}/snippets/{{.ID}}/delete"
                           hx-confirm="{{t "Diesen Textbaustein löschen? Auf Seiten, die ihn verwenden, erscheint dann nichts mehr."}}">
