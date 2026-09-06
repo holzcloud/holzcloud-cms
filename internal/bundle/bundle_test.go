@@ -1785,3 +1785,79 @@ func TestArchivSchluesselMitKlammernWirdAbgelehnt(t *testing.T) {
 		t.Errorf("der Bericht nennt das verworfene Feld nicht: %v", report.Warnings)
 	}
 }
+
+// Ein Manifest, das Werte mitbringt und keine Definitionen, ist die eine Form,
+// die vollständig von Hand geschrieben ist.
+//
+// Beide Wächter — field.Clean und field.CheckAll — hingen an „if len(defs) > 0".
+// Ein Archiv ohne fields kam damit an keinem von beiden vorbei und ging
+// unverändert in die Spalte: der eine Manifestzuschnitt, für den es keinen
+// Bildschirm und kein Formular gibt, war zugleich der einzige, der ohne Prüfung
+// gespeichert wurde. Der Doppelkommentar über cleanSnippetValues sagt dabei das
+// Gegenteil — er nennt das Loch, das 07-04 auf der Seite geschlossen hat, und
+// genau dieses stand hier offen.
+//
+// Ohne Definition ist ein Wert von nichts darstellbar; er gehört weggeworfen,
+// und beide Träger — die Seite und der Textbaustein — müssen sich darin gleich
+// verhalten, weil es dieselbe Entscheidung ist.
+func TestWerteOhneDefinitionWerdenAufBeidenTraegernVerworfen(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	zuLang := strings.Repeat("x", field.MaxValueBytes+1)
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Ohne Definitionen"},
+		// Kein Fields am Manifest und keines am Textbaustein — nur Werte.
+		Pages: []Page{{
+			Title: "Seite", Slug: "seite", Status: "published", Markdown: "x",
+			Fields:      map[string]string{"erfunden": zuLang},
+			FieldGroups: map[string][]map[string]string{"gibtesnie": {{"tag": "Montag"}}},
+		}},
+		Snippets: []Snippet{{
+			Key: "footer-kontakt", Name: "Kontakt", Markdown: "x",
+			Values:      map[string]string{"erfunden": zuLang},
+			ValueGroups: map[string][]map[string]string{"gibtesnie": {{"tag": "Montag"}}},
+		}},
+	})
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	seiten, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
+	if err != nil || len(seiten) != 1 {
+		t.Fatalf("Seiten = %+v, %v", seiten, err)
+	}
+	seitenwerte := field.Decode(seiten[0].Fields)
+	if _, ok := seitenwerte.Values["erfunden"]; ok {
+		t.Errorf("Seite: ein Wert unter keiner Definition wurde abgelegt (%d Byte)",
+			len(seitenwerte.Values["erfunden"]))
+	}
+	if len(seitenwerte.Rows) != 0 {
+		t.Errorf("Seite: Gruppenzeilen unter keiner Definition wurden abgelegt: %+v", seitenwerte.Rows)
+	}
+
+	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
+	if err != nil || len(kopien) != 1 {
+		t.Fatalf("List snippets: %v (%d)", err, len(kopien))
+	}
+	bausteinwerte := field.Decode(kopien[0].Fields)
+	if _, ok := bausteinwerte.Values["erfunden"]; ok {
+		t.Errorf("Textbaustein: ein Wert unter keiner Definition wurde abgelegt (%d Byte)",
+			len(bausteinwerte.Values["erfunden"]))
+	}
+	if len(bausteinwerte.Rows) != 0 {
+		t.Errorf("Textbaustein: Gruppenzeilen unter keiner Definition wurden abgelegt: %+v",
+			bausteinwerte.Rows)
+	}
+
+	// Und die Spalte bleibt klein. Gemessen wird das Rohe und nicht nur die
+	// Karte: ein Wert kann durch Decode fallen und trotzdem in der Datenbank
+	// stehen.
+	if n := len(kopien[0].Fields); n > 64 {
+		t.Errorf("die fields-Spalte des Textbausteins hält %d Byte — ein von Hand "+
+			"geschriebenes Manifest darf nicht ungeprüft in die Spalte laufen", n)
+	}
+}
