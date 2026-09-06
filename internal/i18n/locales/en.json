@@ -98,6 +98,7 @@
 "Alte Einträge löschen": "Delete old entries",
 "An dieses Feld lässt sich keine Bedingung hängen. Möglich sind die Felder, bei denen der Browser sehen kann, ob sie ausgefüllt sind — ein Datum und eine Gruppe gehören nicht dazu.": "No condition can be hung on this field. Possible are the fields where the browser can see whether they are filled in — a date and a group are not among them.",
 "Andere Domains dieser Website leiten dann dauerhaft (301) auf die Hauptdomain um. Erst einschalten, wenn eine Hauptdomain festgelegt ist.": "Other domains of this website then redirect permanently (301) to the primary domain. Only switch this on once a primary domain has been set.",
+"Angaben zu diesem Textbaustein": "Details about this snippet",
 "Angaben zu dieser Seite": "Details about this page",
 "Angaben zum Betrieb": "Details about the business",
 "Angelegt": "Created",
