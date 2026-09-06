@@ -76,7 +76,7 @@ Katalogschlüsseln.
 | Urteil | `verdict` | Was mit einer Zeile geschieht |
 | Grund | `reason` | Warum. Als **Code** plus Argumente, nie als fertiger Satz (D-32) |
 | Probelauf | `dry run` | |
-| Ablage | `staging` | Die zwischengelagerte Datei |
+| Ablage | `staging` | Der Vorgang und die zwischengelagerte Datei. Der **Typ**, der eine einzelne davon ist, heisst `Upload` — `csvimport.Ablage` → `csvimport.Upload` |
 | Marke | `token` | |
 | Beispieldatei | `example` | |
 | entschärfen | `defuse` | Gegen Formelauswertung im Tabellenprogramm |
@@ -85,6 +85,21 @@ Katalogschlüsseln.
 | übergehen | `skip` | |
 | anlegen | `create` | |
 | aktualisieren | `update` | |
+| Zelle | `cell` | |
+| Nullbyte | `NUL byte` | Das Byte heisst NUL, nicht null |
+| Grenze | `limit` | `MaxSpalten` → `MaxColumns`, `Zellengrenze` → cell limit |
+| Fehler | `error` | Auch als Feld: `Zeile.Fehler` → `Row.Error` |
+| Abwehr | `defence` | Britische Schreibung, wie der Paketkommentar sie schon führt |
+| Wache | `guard` | Was ein Test über eine Datei von aussen hält |
+| Musterzeile | `sample row` | Die Zeilen in der Beispieldatei |
+| Überschrift | `heading` | Die einzelne Spaltenüberschrift; die ganze Zeile ist `header` |
+| Trennzeichen | `separator` | |
+| Anführungszeichen | `quote` / `quoting` | |
+| Zeilenumbruch | `line break` | |
+| Tabellenprogramm | `spreadsheet program` | Excel und LibreOffice |
+| Ausfertigung (einer Regel) | `copy` | Die zweite Niederschrift derselben Regel |
+| Angriffsfläche | `attack surface` | |
+| Bediener / Bedienerin | `operator` | Wer den Import bedient |
 
 ## Vorgänge und Werkzeuge
 
