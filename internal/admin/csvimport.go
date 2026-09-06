@@ -94,6 +94,52 @@ const (
 // body.
 const csvMaxUpload = 10 << 20
 
+// csvTermChunk bounds how many labels one term.EnsureNames transaction covers.
+//
+// **The number is measured and not chosen for looking round.** term.EnsureNames
+// opens one transaction around every name it is handed (term/store.go:330), and
+// the write pool admits one connection (db.go:42), so the length of one call is
+// the length of the stall it imposes on every other request on the machine —
+// admin pages, the public site, and session writes, which sit on the same pool
+// (main.go:175). One 10 MB file measured 796 000 names in a single transaction:
+// 12.2 s of import during which a competing write waited 8.1 s.
+//
+// The bound is set against what the row loop already proved acceptable. Five
+// thousand pages written one row at a time took 1.10 s while a competing writer
+// never waited more than 3.2 ms, so a transaction of roughly one row's duration
+// is a grain of interleaving this machine is known to tolerate. An INSERT of a
+// name costs about 10 microseconds here, which puts 500 names at about 5 ms —
+// the same order as one row's writes, and two orders below anything a person
+// notices. Smaller batches would buy nothing measurable and pay one transaction
+// each.
+const csvTermChunk = 500
+
+// csvEnsureTerms creates the labels the file mentions, in batches no larger
+// than csvTermChunk.
+//
+// The ensure function is passed in rather than the store, because what is under
+// test is the size of the batches and not what a batch does: a fake counting
+// them is the only way to assert the bound, and the bound is the whole point
+// (TestCSVTermPrePassIsChunked).
+//
+// **Batching is not atomicity lost.** The INSERT is ON CONFLICT DO NOTHING and
+// a label carries nothing of its own, so a run that fails after the third batch
+// has created labels that are correct, reusable and — if no row then points at
+// them — orphans of the same kind the pre-pass has always been able to leave.
+// The alternative is the transaction this fix exists to remove.
+func csvEnsureTerms(ctx context.Context, names []string,
+	ensure func(context.Context, []string) error) error {
+
+	for len(names) > 0 {
+		n := min(len(names), csvTermChunk)
+		if err := ensure(ctx, names[:n]); err != nil {
+			return err
+		}
+		names = names[n:]
+	}
+	return nil
+}
+
 // csvSampleBytes bounds one cell of the sample row as SCREEN 2 DRAWS IT, and
 // nowhere else.
 //
@@ -789,6 +835,15 @@ func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
 // rows. A transaction held across a file would block every request on the
 // machine, which is the anti-feature IMP-10 exists to forbid.
 //
+// **The term pre-pass below stands outside the loop, and it is the one place
+// that sentence was ever false.** term.EnsureNames opens a transaction of its
+// own, and it used to be handed every name the whole file mentioned — one
+// transaction on the single write connection whose duration grew with the file
+// (measured: 12.2 s, a competing write waiting 8.1 s). It is bounded twice now:
+// TermNames harvests only what a row can store, and csvEnsureTerms hands the
+// result over in batches of csvTermChunk. Neither bound alone would be enough
+// to write this sentence down; both together are.
+//
 // The returned bool is Truncated: the file held more rows than csv.MaxRows, and
 // a cap is reported rather than silently applied.
 func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimport.Mapping,
@@ -816,7 +871,15 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 			rows = append(rows, row)
 		}
 		if names := csvimport.TermNames(defs, m, rows); len(names) > 0 {
-			if _, err := h.terms.EnsureNames(ctx, websiteID, names); err != nil {
+			// In batches: EnsureNames opens ONE transaction around whatever it
+			// is handed, and the write pool admits one connection, so a single
+			// call covering a whole file holds the machine's only write
+			// connection for the length of that file. csvTermChunk carries the
+			// measurement behind the number.
+			if err := csvEnsureTerms(ctx, names, func(ctx context.Context, batch []string) error {
+				_, err := h.terms.EnsureNames(ctx, websiteID, batch)
+				return err
+			}); err != nil {
 				return nil, false, err
 			}
 		}
