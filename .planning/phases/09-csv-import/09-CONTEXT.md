@@ -562,13 +562,32 @@ the plan itself adds*, never as an estimate:
 | packages under `internal/` | `ls -d internal/*/ \| wc -l` | **38** |
 | files using `BeginTx` | `grep -rln BeginTx internal/ --include='*.go' \| grep -v _test` | **14** |
 | admin CSS files | `ls cmd/holzcloud/assets/*.css` | **2** |
-| `encoding/csv` importers | `grep -rl 'encoding/csv' --include='*.go' .` | **1** (`plugins/kontaktformular/csv.go`) |
+| `encoding/csv` importers | `grep -rl '"encoding/csv"' --include='*.go' .` | **1** (`plugins/kontaktformular/csv.go`) — **quoted**, see the note below |
 
 Baseline health at the same commit: `go build` clean, `go vet` clean,
 `gofmt -l .` silent, `go test ./...` **0 failures**.
 
 Note the last row against **IMP-10 / concurrency**: the importer must not add a
 15th `BeginTx` file. That is the gate, and it is mechanical.
+
+> **A counting gate must measure the thing its name claims.** Three ways that has
+> already failed in this phase, all three caught before any of them could mislead:
+>
+> 1. **A guessed number.** `badge--` was asserted as 8; it is 6. The prose beside
+>    it said „re-measure before trusting this number" — prose does not run.
+> 2. **A condition needing two numbers from a command that prints one.**
+>    `@layer components` was gated on „did not increase by exactly 1", which no
+>    single run can decide. It could not fail. Baseline 15, expected 16.
+> 3. **A command measuring something adjacent to its name.** Found by wave 1 and
+>    re-measured here: `go list -deps ./internal/csv/ | grep -c holzcloud-cms`
+>    returns **1**, not 0, because `go list -deps` includes the listed package
+>    itself — `internal/wxr`, equally pure, returns 1 too. And
+>    `grep -rl 'encoding/csv'` returns **5**, not 3, because it matches the string
+>    in a comment as readily as in an import. The fixes are
+>    `| grep -v 'internal/csv$' | wc -l` and **quoting the path**,
+>    `grep -rl '"encoding/csv"'`. Both now measure exactly what they promise, and
+>    both were fixed by correcting the gate rather than by rewording the comments
+>    that tripped it.
 
 ### Build order
 
