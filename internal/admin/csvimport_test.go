@@ -1245,3 +1245,32 @@ func TestCSVReportIsGroupedNotListed(t *testing.T) {
 		t.Errorf("the row list is not capped at 25 with the rest counted:\n%s", body)
 	}
 }
+
+// TestCSVStoreErrorReachesTheReport (WR-03): the two reasons that carry raw Go
+// error text really do print it, which is what their comments now say.
+//
+// The defect this pins was a comment claiming a guarantee the code does not
+// keep: "the second argument is a Go error meant for the log; the screen shows
+// the title and the code's own sentence." The screen shows the error. Either
+// answer is defensible — this one is chosen, because an operator who cannot see
+// what the store said cannot tell a duplicate address from a full disk — but
+// the two have to agree, and the next person adding a reason will believe the
+// comment. So the arms are asserted, and a later change that drops the argument
+// has to change the comment in the same commit.
+func TestCSVStoreErrorReachesTheReport(t *testing.T) {
+	block, err := os.ReadFile("../../cmd/holzcloud/templates/admin/csv_reason.html")
+	if err != nil {
+		t.Fatalf("read csv_reason.html: %v", err)
+	}
+	for _, reason := range []string{"not_written", "not_rolled_back"} {
+		arm := regexp.MustCompile(`eq \.Reason "` + reason + `"}}[^\n]*`).FindString(string(block))
+		if arm == "" {
+			t.Errorf("no arm for %q at all", reason)
+			continue
+		}
+		if !strings.Contains(arm, "index .Args 1") {
+			t.Errorf("the %q arm no longer prints what the store said: %s\n"+
+				"if that is deliberate, verdict.go's comment has to stop saying the report prints it", reason, arm)
+		}
+	}
+}
