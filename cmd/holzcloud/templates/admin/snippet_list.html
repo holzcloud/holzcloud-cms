@@ -45,6 +45,30 @@
             {{template "markdown_help" .}}
         </div>
 
+        {{if .FieldViews}}
+        {{/* Die eigenen Felder dieses Textbausteins. Dieselbe Anordnung wie im
+             Seiteneditor und dieselben Klassen, damit das bestehende
+             Stylesheet greift und keine Regel dazukommt.
+
+             Kein einziges name-Attribut steht hier: jeder Name kommt aus
+             FieldView.Name, den field.Def.FieldName geprägt hat. Eine zweite
+             Prägestelle wäre für jedes zählende Tor unsichtbar und fände
+             sich erst als Eintrag wieder, der still nie gespeichert wurde.
+
+             Die Knöpfe einer Gruppe sind gewöhnliche Absenden-Knöpfe; der
+             Server baut das Formular neu auf. Kein Skript. */}}
+        <fieldset class="own-fields">
+            <legend>{{t "Angaben zu diesem Textbaustein"}}</legend>
+            {{range .FieldViews}}
+            {{if .Title}}
+            <h3 class="own-fields__abschnitt">{{.Title}}</h3>
+            {{if .Hint}}<p class="form-hint text-muted">{{.Hint}}</p>{{end}}
+            {{end}}
+            {{range .Fields}}{{template "field_top" .}}{{end}}
+            {{end}}
+        </fieldset>
+        {{end}}
+
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
         {{if .IsEdit}}<a href="/admin/websites/{{.WebsiteID}}/snippets" class="btn">{{t "Abbrechen"}}</a>{{end}}
     </form>
