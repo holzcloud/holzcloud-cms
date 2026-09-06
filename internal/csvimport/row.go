@@ -222,6 +222,26 @@ func cellFor(row csv.Row, m Mapping, t Target) string {
 	return strings.TrimSpace(m.Defaults[t.String()])
 }
 
+// RowSlug is the address one row wants, before the database has had a say.
+//
+// Exported because of an ordering the caller cannot get around: CheckRow is
+// told whether a page with this address already exists, so the caller has to
+// look that page up FIRST — and it has to look it up under the very address
+// CheckRow is about to derive. A second derivation written in the handler would
+// be a second answer to "which page does this row mean", and the two would
+// drift on the first title carrying an umlaut. So there is one derivation, and
+// the caller asks it rather than copying it.
+//
+// The address as the file gave it, or derived from the title. Deliberately NOT
+// de-duplicated here: page.CreatePage appends -2, -3 and hands back the page it
+// made, and reporting that rename is what criterion 4 asks for by name (D-23).
+func RowSlug(row csv.Row, m Mapping) string {
+	if slug := cellFor(row, m, Target{Kind: TargetSlug}); slug != "" {
+		return slug
+	}
+	return page.Slugify(cellFor(row, m, Target{Kind: TargetTitle}))
+}
+
 // CheckRow decides what happens to one row, and touches no store at all.
 //
 // It is the one decision. The dry run calls it and shows the operator what it
@@ -273,15 +293,10 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 		return skip(ReasonNoTitle)
 	}
 
-	// The address as given, or derived from the title. Deliberately NOT
-	// de-duplicated here: page.CreatePage appends -2, -3 and so on up to
-	// maxSlugAttempts and returns the page it made, and reporting that rename
-	// is what criterion 4 asks for by name. Carrying wordpress.go:113-126's
-	// `seen` map into this importer would hide exactly what is to be told.
-	slug := cellFor(row, m, Target{Kind: TargetSlug})
-	if slug == "" {
-		slug = page.Slugify(title)
-	}
+	// The same derivation the caller used to find `existing`, and the one place
+	// it is written. Carrying wordpress.go:113-126's `seen` map into this
+	// importer would hide exactly what criterion 4 asks to be told.
+	slug := RowSlug(row, m)
 	if err := page.ValidateSlug(slug); err != nil {
 		return skip(ReasonSlugInvalid, slug)
 	}
@@ -454,9 +469,17 @@ type Writer struct {
 // bent. If the compensation itself fails, the verdict says so and names the
 // page — a lie about the row would be worse than an ugly truth.
 //
-// The compensation runs on the create path only. A page that was already there
-// when the import started is not this import's to delete, so an update whose
-// terms fail is reported and left standing.
+// The compensation runs on the create path ONLY. A page that was already there
+// when the import started is not this import's to delete: TrashPage then
+// PurgePage applied to the update arm would destroy a page the operator already
+// had, carrying content this file never supplied. That is not compensation,
+// that is data loss caused by the recovery path. So an update whose terms fail
+// is reported and left standing — the page keeps whatever the update wrote, the
+// row is named in the report, and the operator decides.
+//
+// A branch that must not run leaves no trace of not running, so it is asserted
+// rather than argued: row_test.go's TestUpdateArmIsNotRolledBack fails the
+// terms step of an update and looks for the page afterwards.
 func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 	row csv.Row, m Mapping, existing *page.Page, collision string, userID *int64) Verdict {
 

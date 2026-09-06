@@ -1,0 +1,83 @@
+{{define "actions"}}<a href="/admin/csv-import/{{.Token}}" class="btn">{{t "Zuordnung ändern"}}</a>{{end}}
+
+{{define "content"}}
+{{template "csv_dryrun-content" .}}
+{{end}}
+
+{{define "csv_dryrun-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h1>{{t "Probelauf"}}</h1>
+
+    <p class="alert alert--warning">
+        {{t "Es wurde nichts geschrieben. Was hier steht, würde beim Einlesen geschehen – noch ist keine einzige Seite entstanden und keine verändert worden."}}
+    </p>
+
+    <p class="text-muted">
+        {{tf "Datei „%s“, %d Zeilen geprüft." .Filename .Report.Total}}
+        {{if .NewWebsite}}{{tf "Es entsteht eine neue Website „%s“ – erst beim Einlesen." .WebsiteName}}{{else}}{{tf "Die Zeilen kommen in die bestehende Website „%s“." .WebsiteName}}{{end}}
+    </p>
+
+    <p>
+        <span class="badge badge--published">{{tf "%d anlegen" .Report.Created}}</span>
+        <span class="badge badge--primary">{{tf "%d aktualisieren" .Report.Updated}}</span>
+        <span class="badge badge--draft">{{tf "%d übergehen" .Report.Skipped}}</span>
+    </p>
+
+    {{if .Report.Truncated}}
+    <p class="alert alert--warning">
+        {{t "Die Datei hat mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde weder geprüft noch wird er geschrieben."}}
+    </p>
+    {{end}}
+</div>
+
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "Was zu sehen ist"}}</h2>
+    {{if .Report.Groups}}
+    <p class="text-muted">
+        {{t "Gleiche Ursachen stehen in einer Zeile zusammen, mit den Zeilennummern deiner Tabelle daneben. Öffne die Datei, ändere die genannten Zeilen, und lade sie noch einmal hoch – oder lies jetzt ein und nimm die übergangenen Zeilen in Kauf."}}
+    </p>
+    <div class="csv-scroll">
+        <table class="table csv-groups">
+            <thead>
+                <tr>
+                    <th scope="col">{{t "Ausgang"}}</th>
+                    <th scope="col">{{t "Grund"}}</th>
+                    <th scope="col">{{t "Zeilen"}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Report.Groups}}
+                <tr>
+                    <td>{{template "csv-outcome" .}}</td>
+                    <td>{{template "csv-reason" .}}</td>
+                    <td class="csv-rows">
+                        {{tf "%d Zeilen" .Total}}:
+                        {{range $i, $n := .Rows}}{{if $i}}, {{end}}{{$n}}{{end}}{{if .More}}, {{tf "und %d weitere" .More}}{{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{else}}
+    <p class="text-muted">{{t "Nichts zu melden: jede Zeile dieser Datei geht durch."}}</p>
+    {{end}}
+</div>
+
+<form method="POST" action="/admin/csv-import/{{.Token}}/start">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    {{/* Die Zuordnung geht als versteckte Felder mit, unter genau den Namen,
+         unter denen Bildschirm 2 sie geschickt hat. So liest der Knopf unten
+         die Datei mit der Zuordnung ein, die oben beschrieben wurde – und die
+         abgelegte Zeile bleibt einmal geschrieben. */}}
+    {{range .Inputs}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">
+    {{end}}
+    <div class="card">
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Jetzt einlesen"}}</button>
+        <p class="form-hint">
+            {{if eq .Collision "aktualisieren"}}{{t "Eine Zeile, deren Adresse es schon gibt, aktualisiert die vorhandene Seite."}}{{else}}{{t "Eine Zeile, deren Adresse es schon gibt, wird übergangen."}}{{end}}
+            {{t "Die übergangenen Zeilen bleiben liegen; alles andere wird geschrieben."}}
+        </p>
+    </div>
+</form>
+{{end}}

@@ -36,6 +36,11 @@ var partialFiles = []string{
 	"field_input.html",
 	// Ein Feld des Formulars samt allem, was daran hängt. Ruft sich selbst auf.
 	"field_top.html",
+	// Der Grund einer Zeile als Satz, und der Ausgang als Abzeichen. Ein
+	// Teilstück, weil der Probelauf und der Bericht zwei getrennt geparste
+	// Sätze sind: derselbe Grund muss auf beiden Bildschirmen gleich lauten,
+	// und zwei Ausfertigungen davon würden auseinanderlaufen.
+	"csv_reason.html",
 }
 
 // standalonePages are full HTML documents with no base layout: they are what a
@@ -43,7 +48,7 @@ var partialFiles = []string{
 var standalonePages = []string{"login", "setup", "set_password", "two_factor_verify", "order_print"}
 
 // layoutPageNames are the pages that supply a "content" block to base.html.
-var layoutPageNames = []string{"dashboard", "website_list", "website_form", "website_design", "page_list", "page_form", "page_revisions", "page_revision_compare", "trash", "snippet_list", "term_list", "redirect_list", "user_link", "template_list", "template_upload", "plugin_list", "plugin_screen", "mail_status", "ai_keys", "field_list", "blocktype_list", "menu_list", "menu_edit", "media_list", "media_crop", "user_list", "user_form", "user_password", "two_factor_setup", "two_factor_codes", "account", "share_link", "import_report", "language_list", "translation_matrix", "confirm", "branding", "kind_list", "activity_log", "product_list", "product_form", "shop_settings", "order_list", "order_detail", "csv_mapping", "csv_expired"}
+var layoutPageNames = []string{"dashboard", "website_list", "website_form", "website_design", "page_list", "page_form", "page_revisions", "page_revision_compare", "trash", "snippet_list", "term_list", "redirect_list", "user_link", "template_list", "template_upload", "plugin_list", "plugin_screen", "mail_status", "ai_keys", "field_list", "blocktype_list", "menu_list", "menu_edit", "media_list", "media_crop", "user_list", "user_form", "user_password", "two_factor_setup", "two_factor_codes", "account", "share_link", "import_report", "language_list", "translation_matrix", "confirm", "branding", "kind_list", "activity_log", "product_list", "product_form", "shop_settings", "order_list", "order_detail", "csv_mapping", "csv_expired", "csv_dryrun", "csv_report"}
 
 // PageTemplates holds per-page template sets, each with its own "content"
 // block — one complete set per language.

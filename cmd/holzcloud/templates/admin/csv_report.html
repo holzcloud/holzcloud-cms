@@ -1,0 +1,73 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn btn--primary">{{t "Zu den Seiten"}}</a>{{end}}
+
+{{define "content"}}
+{{template "csv_report-content" .}}
+{{end}}
+
+{{define "csv_report-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h1>{{t "Einlesen abgeschlossen"}}</h1>
+
+    <p class="text-muted">
+        {{tf "Datei „%s“, %d Zeilen gelesen, Website „%s“." .Filename .Report.Total .WebsiteName}}
+    </p>
+
+    <p>
+        <span class="badge badge--published">{{tf "%d angelegt" .Report.Created}}</span>
+        <span class="badge badge--primary">{{tf "%d aktualisiert" .Report.Updated}}</span>
+        <span class="badge badge--draft">{{tf "%d übergangen" .Report.Skipped}}</span>
+    </p>
+
+    {{/* Die Zahl allein nützt niemandem: sie steht neben dem Weg, dort
+         nachzusehen (D-25). */}}
+    <p>
+        <a href="/admin/websites/{{.WebsiteID}}/pages">{{t "Alle Seiten dieser Website ansehen"}}</a>
+    </p>
+
+    {{if .Report.Renamed}}
+    <p class="text-muted">
+        {{tf "%d Adressen waren schon vergeben und wurden umbenannt. Welche, steht unten." .Report.Renamed}}
+    </p>
+    {{end}}
+
+    {{if .Report.Truncated}}
+    <p class="alert alert--warning">
+        {{t "Die Datei hatte mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde nicht gelesen und nicht geschrieben."}}
+    </p>
+    {{end}}
+</div>
+
+<div class="card">
+    <h2>{{t "Was zu melden ist"}}</h2>
+    {{if .Report.Groups}}
+    <p class="text-muted">
+        {{t "Gleiche Ursachen stehen in einer Zeile zusammen, mit den Zeilennummern deiner Tabelle daneben. Was übergangen wurde, ist nicht geschrieben worden – ändere die genannten Zeilen und lade die Datei noch einmal hoch."}}
+    </p>
+    <div class="csv-scroll">
+        <table class="table csv-groups">
+            <thead>
+                <tr>
+                    <th scope="col">{{t "Ausgang"}}</th>
+                    <th scope="col">{{t "Grund"}}</th>
+                    <th scope="col">{{t "Zeilen"}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Report.Groups}}
+                <tr>
+                    <td>{{template "csv-outcome" .}}</td>
+                    <td>{{template "csv-reason" .}}</td>
+                    <td class="csv-rows">
+                        {{tf "%d Zeilen" .Total}}:
+                        {{range $i, $n := .Rows}}{{if $i}}, {{end}}{{$n}}{{end}}{{if .More}}, {{tf "und %d weitere" .More}}{{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{else}}
+    <p class="text-muted">{{t "Nichts zu melden: jede Zeile der Datei ist durchgegangen."}}</p>
+    {{end}}
+</div>
+{{end}}

@@ -1,0 +1,47 @@
+{{/* Die beiden Bausteine, die der Probelauf und der Bericht gemeinsam haben.
+
+     Warum sie hier stehen und nicht in csv_report.html: render.go setzt jede
+     Seite aus base.html, ihrer eigenen Datei und den Teilstücken zusammen. Ein
+     Block, der in csv_report.html definiert wäre, gäbe es im Satz von
+     csv_dryrun.html nicht — der Aufruf schlüge zur Laufzeit fehl. Als Teilstück
+     steht er beiden zur Verfügung, und es gibt ihn genau einmal: zwei
+     Ausfertigungen würden auseinanderlaufen, und die, die auseinandergelaufen
+     ist, ist immer die, die der Bediener zuerst gesehen hat.
+
+     Jeder Satz ist ein {{t}}- oder {{tf}}-Literal, ausgewählt über einen Code.
+     Das ist die ganze Regel: tools/i18n liest die Literale aus den Vorlagen und
+     das erste Zeichenkettenargument von acht benannten Go-Funktionen. Ein mit
+     fmt.Sprintf gebauter Satz wäre für beide unsichtbar, und die
+     Übersetzungsprüfung meldete „0 offen“ über einem Bildschirm, den es nur auf
+     Deutsch gibt (D-32). */}}
+
+{{define "csv-reason"}}
+{{- if eq .Reason "row_unreadable"}}{{tf "Diese Zeile liess sich nicht lesen: %s" (index .Args 0)}}
+{{- else if eq .Reason "cell_too_long"}}{{tf "Spalte %s hat eine Zelle mit %s Bytes – mehr, als eine Zelle tragen darf." (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "no_title"}}{{t "Diese Zeile hat keinen Titel. Ohne Titel findet die Seite später niemand wieder."}}
+{{- else if eq .Reason "slug_invalid"}}{{tf "„%s“ ist keine gültige Adresse." (index .Args 0)}}
+{{- else if eq .Reason "status_unknown"}}{{tf "„%s“ ist weder ein Entwurf noch veröffentlicht." (index .Args 0)}}
+{{- else if eq .Reason "bool_unreadable"}}{{tf "„%s“: „%s“ ist kein Ja und kein Nein." (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "field_rejected"}}{{tf "„%s“: %s" (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "field_missing"}}{{tf "Das Feld „%s“ gibt es nicht mehr. Diese Spalte blieb ohne Ziel." (index .Args 0)}}
+{{- else if eq .Reason "terms_truncated"}}{{tf "Es wurden nur die ersten %s Schlagwörter übernommen." (index .Args 0)}}
+{{- else if eq .Reason "renamed"}}{{tf "Die Adresse „%s“ war schon vergeben. Die Seite hat „%s“ bekommen." (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "existing_skipped"}}{{tf "Unter „%s“ gibt es die Seite schon. Sie wurde nicht angerührt." (index .Args 0)}}
+{{- else if eq .Reason "not_rolled_back"}}{{tf "„%s“ wurde nur halb geschrieben und steht so da: %s" (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "not_written"}}{{tf "„%s“ wurde nicht geschrieben: %s" (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "body_unreadable"}}{{tf "Der Text dieser Zeile liess sich nicht umwandeln: %s" (index .Args 0)}}
+{{- else if eq .Reason "column_taken"}}{{tf "Dieselbe Überschrift steht schon über Spalte %s. Diese hier bleibt ohne Ziel, bis du eines wählst." (index .Args 0)}}
+{{- else if eq .Reason "empty_header"}}{{t "Diese Spalte hat keine Überschrift und wurde deshalb nicht von selbst zugeordnet."}}
+{{- else}}{{t "Diese Zeile konnte nicht übernommen werden."}}
+{{- end}}
+{{- end}}
+
+{{/* Der Ausgang als Abzeichen. Dieselben drei Wörter auf beiden Bildschirmen:
+     im Probelauf gelesen als Absicht, im Bericht als Tatsache. Keine neue
+     badge--Abart — es gibt drei, und sie reichen. */}}
+{{define "csv-outcome"}}
+{{- if eq .Outcome "create"}}<span class="badge badge--published">{{t "anlegen"}}</span>
+{{- else if eq .Outcome "update"}}<span class="badge badge--primary">{{t "aktualisieren"}}</span>
+{{- else}}<span class="badge badge--draft">{{t "übergehen"}}</span>
+{{- end}}
+{{- end}}

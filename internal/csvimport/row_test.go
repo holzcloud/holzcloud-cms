@@ -393,6 +393,66 @@ func TestRowIsRolledBack(t *testing.T) {
 	}
 }
 
+// TestUpdateArmIsNotRolledBack (D-02, the branch the create path must NOT get):
+// an update whose terms fail is reported and NOTHING is undone.
+//
+// Why this test exists at all, in the words of the failure it prevents:
+// TrashPage then PurgePage undoes a row whose page was created here and whose
+// terms then failed, and that is right, because the page came into being in
+// this import. Applied to the update arm the same two calls would delete a page
+// the operator ALREADY HAD — a page that existed before the import started,
+// carrying content this file never supplied. That is not compensation, that is
+// data loss caused by the recovery path.
+//
+// A missing branch is invisible to a reviewer: the code that must not run
+// leaves no trace of not running. So it is asserted, and the assertion is that
+// the page is still there afterwards with the update it did get.
+func TestUpdateArmIsNotRolledBack(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	ctx := context.Background()
+	pages := page.NewStore(database)
+
+	existing, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: websiteID, Title: "Alt", Slug: "apfel",
+		Markdown: "Ein Satz", HTML: "<p>Ein Satz</p>", Status: "draft", Kind: page.KindPage,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+
+	w := writer(database)
+	head, rows := reader(t, "Titel,Schlagworte\nNeu,Obst\n")
+	m := csvimport.AutoMap(head, nil)
+
+	// A website id no row of websites carries. UpdatePage does not use it — the
+	// page is addressed by its own id — but SetForPage inserts into terms,
+	// whose website_id is a foreign key, so the terms step and only the terms
+	// step fails. That is the residual window on the update arm, exactly.
+	v := w.WriteRow(ctx, 4711, nil, rows[0], m, existing, csvimport.CollisionUpdate, &userID)
+
+	if v.Outcome != csvimport.OutcomeUpdate {
+		t.Errorf("the row gave %s, want an update: %v", v.Outcome, v.Args)
+	}
+	if v.Reason != csvimport.ReasonNotRolledBack {
+		t.Fatalf("the row carries %q, want %q — the half-written state must be reported",
+			v.Reason, csvimport.ReasonNotRolledBack)
+	}
+
+	after, err := pages.GetPage(ctx, existing.ID)
+	if err != nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if after == nil {
+		t.Fatal("the operator's own page was DELETED by the recovery path — that is the bug this test exists for")
+	}
+	if after.Title != "Neu" {
+		t.Errorf("title = %q, want Neu: the update that did go through must stand", after.Title)
+	}
+	if n := countPages(t, database); n != 1 {
+		t.Errorf("%d pages, want 1", n)
+	}
+}
+
 // TestFileReadTwice (IMP-02 idempotency): the create path renames the second
 // time, the update path rewrites the same values, and the verdict says which.
 func TestFileReadTwice(t *testing.T) {

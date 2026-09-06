@@ -7,8 +7,11 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // What this file is the gate on.
@@ -138,12 +142,20 @@ func stagedCount(t *testing.T, database *db.DB) int {
 // stage puts a file away directly, for the screens that begin with one.
 func stage(t *testing.T, h *Handler, userID, websiteID int64, content string) string {
 	t.Helper()
+	return stageWith(t, h, userID, websiteID, content, csvimport.CollisionSkip)
+}
+
+// stageWith is stage with the collision answer screen 1 would have taken. The
+// two arms are two different guarantees — skipping is idempotent by leaving the
+// page alone, updating by rewriting the same values — so both need a fixture.
+func stageWith(t *testing.T, h *Handler, userID, websiteID int64, content, collision string) string {
+	t.Helper()
 	upload := csvimport.Upload{
 		UserID:      userID,
 		WebsiteID:   websiteID,
 		WebsiteName: "Testseite",
 		Mode:        csvModeNew,
-		Collision:   csvimport.CollisionSkip,
+		Collision:   collision,
 		Filename:    "tabelle.csv",
 		Data:        []byte(content),
 	}
@@ -371,7 +383,7 @@ func TestCSVMappingIsInColumnOrder(t *testing.T) {
 	}
 }
 
-// ?zeile= is a hand-typed number and is clamped, never refused (IMP-08).
+// ?row= is a hand-typed number and is clamped, never refused (IMP-08).
 func TestCSVSampleRowSteppingIsClamped(t *testing.T) {
 	h, sm, database, _ := newTestAdmin(t)
 	admin := seedAdmin(t, database, "eins@test")
@@ -384,10 +396,10 @@ func TestCSVSampleRowSteppingIsClamped(t *testing.T) {
 		wantPrev bool
 		wantNext bool
 	}{
-		{"zeile=1", "eins", false, true},
-		{"zeile=4", "vier", true, false},
-		{"zeile=99", "vier", true, false},
-		{"zeile=-4", "eins", false, true},
+		{"row=1", "eins", false, true},
+		{"row=4", "vier", true, false},
+		{"row=99", "vier", true, false},
+		{"row=-4", "eins", false, true},
 	}
 	for _, c := range cases {
 		rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, c.query))
@@ -400,7 +412,7 @@ func TestCSVSampleRowSteppingIsClamped(t *testing.T) {
 		}
 		// Absent and not disabled: a disabled link is still something a
 		// keyboard user lands on.
-		if got := strings.Contains(body, `href="?zeile=`) && strings.Contains(body, "vorherige"); got != c.wantPrev {
+		if got := strings.Contains(body, `href="?row=`) && strings.Contains(body, "vorherige"); got != c.wantPrev {
 			t.Errorf("%s: previous control present = %v; want %v", c.query, got, c.wantPrev)
 		}
 		if got := strings.Contains(body, "nächste"); got != c.wantNext {
@@ -678,5 +690,483 @@ func TestCSVExampleIsASnapshotAndALaterFieldArrivesUnmapped(t *testing.T) {
 	}
 	if !strings.Contains(body, "Sorte") {
 		t.Error("the mapping screen does not name the new field")
+	}
+}
+
+// ── The dry run and the write ─────────────────────────────────────────────
+//
+// What the tests below guard, and why each one exists rather than being an
+// argument in a comment:
+//
+// The dry run writes nothing. Asserted by counting the pages table, not by
+// trusting the flag that says so.
+//
+// The dry run and the write reach the same verdict for every row of one file.
+// Two functions deciding the same thing drift, and the drifted one is always
+// the one the operator was not shown — this is the only test that would catch
+// it (D-22).
+//
+// The compensation in WriteRow runs on the CREATE path only. On the update arm
+// a later failure is reported and NOTHING is undone, because a page that was
+// already there when the import started is not this import's to delete. A
+// missing branch is invisible to a reviewer, so it gets a test of its own in
+// internal/csvimport/row_test.go.
+
+// csvPost builds one of the two POSTs of screens 3 and 4, with the path value
+// the mux would set.
+func csvPost(token, screen string, values url.Values) *http.Request {
+	return postForm("/admin/csv-import/"+token+"/"+screen, values, map[string]string{"token": token})
+}
+
+// csvTargets is the mapping a screen-2 form would post: one target per column,
+// left to right.
+func csvTargets(targets ...string) url.Values {
+	v := url.Values{}
+	for i, target := range targets {
+		v.Set("ziel_"+strconv.Itoa(i), target)
+	}
+	return v
+}
+
+// pageCount is the whole pages table, which is what IMP-05 is about: the dry
+// run may not add a row anywhere.
+func pageCount(t *testing.T, database *db.DB) int {
+	t.Helper()
+	var n int
+	if err := database.Read.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM pages`).Scan(&n); err != nil {
+		t.Fatalf("count pages: %v", err)
+	}
+	return n
+}
+
+// slugsInOrder is every live page of a website, oldest row first — which is the
+// order they were written in.
+func slugsInOrder(t *testing.T, database *db.DB, websiteID int64) []string {
+	t.Helper()
+	rows, err := database.Read.QueryContext(context.Background(),
+		`SELECT slug FROM pages WHERE website_id = $1 AND deleted_at IS NULL ORDER BY id`, websiteID)
+	if err != nil {
+		t.Fatalf("list slugs: %v", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			t.Fatalf("scan slug: %v", err)
+		}
+		out = append(out, slug)
+	}
+	return out
+}
+
+// TestCSVProbeWritesNothing (IMP-05): the whole file goes through validation and
+// the pages table is untouched afterwards.
+func TestCSVProbeWritesNothing(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	token := stage(t, h, admin, ws.ID, "Titel,Text\nErste,Ein Satz\nZweite,Noch einer\n,Ohne Titel\n")
+
+	before := pageCount(t, database)
+	rec, flash := serveAs(t, h, sm, admin, h.HandleCSVDryRun,
+		csvPost(token, "probe", csvTargets("title", "body")))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (flash %q); want 200", rec.Code, flash)
+	}
+	if after := pageCount(t, database); after != before {
+		t.Errorf("pages went from %d to %d; the dry run must write nothing", before, after)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Es wurde nichts geschrieben") {
+		t.Error("the dry run does not say that nothing has been written")
+	}
+	if !strings.Contains(body, "keinen Titel") {
+		t.Error("the row without a title is not reported by its reason")
+	}
+	// And the staging row survives: the operator has not committed yet.
+	if n := stagedCount(t, database); n != 1 {
+		t.Errorf("staged rows = %d after the dry run; want 1", n)
+	}
+}
+
+// TestCSVProbeAndStartAgreeOnEveryVerdict (D-22): the one test that would catch
+// the dry run and the write drifting apart. Both are run over one file and the
+// verdicts are compared row by row.
+func TestCSVProbeAndStartAgreeOnEveryVerdict(t *testing.T) {
+	h, _, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	ctx := context.Background()
+
+	file := "Titel,Text,Zustand\n" +
+		"Erste,Ein Satz,entwurf\n" +
+		",Ohne Titel,entwurf\n" +
+		"Dritte,Noch einer,violett\n" +
+		"Vierte,Und noch einer,veröffentlicht\n"
+	token := stage(t, h, admin, ws.ID, file)
+
+	upload, err := h.csvImports.Get(ctx, token, admin)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	defs, err := h.fields.List(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("List fields: %v", err)
+	}
+	m := csvMappingFromForm(csvPost(token, "probe", csvTargets("title", "body", "status")), 3)
+
+	dry, _, err := h.csvRun(ctx, upload, m, defs, ws.ID, false, nil)
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	if n := pageCount(t, database); n != 0 {
+		t.Fatalf("the dry run wrote %d pages", n)
+	}
+
+	written, _, err := h.csvRun(ctx, upload, m, defs, ws.ID, true, &admin)
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if len(dry) != len(written) {
+		t.Fatalf("the dry run decided %d rows and the write %d", len(dry), len(written))
+	}
+	for i := range dry {
+		if dry[i].Row != written[i].Row || dry[i].Outcome != written[i].Outcome || dry[i].Reason != written[i].Reason {
+			t.Errorf("row %d: dry run said %+v, the write said %+v", dry[i].Row, dry[i], written[i])
+		}
+	}
+	// And the file really did contain all three cases, so the comparison above
+	// is not four identical successes agreeing with each other.
+	if dry[1].Reason != csvimport.ReasonNoTitle || dry[2].Reason != csvimport.ReasonStatusUnknown {
+		t.Fatalf("the fixture no longer carries the refusals it is meant to: %+v", dry)
+	}
+}
+
+// TestCSVStartCreatesInFileOrder (IMP-04 ordering).
+func TestCSVStartCreatesInFileOrder(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	token := stage(t, h, admin, ws.ID, "Titel\nGamma\nAlpha\nBeta\n")
+
+	rec, flash := serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(token, "start", csvTargets("title")))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (flash %q); want 200", rec.Code, flash)
+	}
+
+	got := slugsInOrder(t, database, ws.ID)
+	want := []string{"gamma", "alpha", "beta"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("pages were written as %v; want the file's own order %v", got, want)
+	}
+	if !strings.Contains(rec.Body.String(), "Einlesen abgeschlossen") {
+		t.Error("the report screen did not render")
+	}
+}
+
+// TestCSVReportNamesEveryRename (D-23, criterion 4): a rename is a success the
+// operator still has to be told about, and the report names both addresses.
+//
+// Driven through the template rather than through the handler, and the reason
+// is a measurement rather than convenience: WriteRow renames only when it is
+// handed existing == nil while the address is in fact taken, and csvRun looks
+// that page up per row, so at the handler the second import of one file SKIPS
+// or UPDATES — it does not rename. The rename is the answer to a genuine race
+// between the lookup and the INSERT, which internal/csvimport/row_test.go's
+// TestRenamedSlugIsReported drives at the writer. What is left to guard here is
+// that the report has a sentence for it, and that is this.
+func TestCSVReportNamesEveryRename(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	report := csvimport.Summarize([]csvimport.Verdict{
+		{Row: 2, Outcome: csvimport.OutcomeCreate},
+		{Row: 3, Outcome: csvimport.OutcomeCreate, Reason: csvimport.ReasonRenamed,
+			Args: []string{"alpha", "alpha-2"}},
+	})
+
+	rec, _ := serveAs(t, h, sm, admin, func(w http.ResponseWriter, r *http.Request) error {
+		return web.RenderAdmin(w, h.templates, r, "csv_report", CSVReportData{
+			LayoutData:  web.NewLayoutData(r, h.sm, "Einlesen abgeschlossen"),
+			WebsiteID:   ws.ID,
+			WebsiteName: ws.Name,
+			Filename:    "tabelle.csv",
+			Report:      report,
+		})
+	}, httptest.NewRequest(http.MethodGet, "/admin/csv-import/abc/start", nil))
+
+	body := rec.Body.String()
+	for _, want := range []string{"alpha", "alpha-2", "war schon vergeben", "1 Adressen"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the report does not carry %q:\n%s", want, body)
+		}
+	}
+}
+
+// TestCSVSecondImportWithUpdateIsIdempotent (IMP-02 idempotency): the same file
+// twice with "aktualisieren" rewrites the same values and creates nothing.
+func TestCSVSecondImportWithUpdateIsIdempotent(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	file := "Titel,Text\nAlpha,Ein Satz\nBeta,Noch einer\n"
+
+	first := stageWith(t, h, admin, ws.ID, file, csvimport.CollisionUpdate)
+	serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(first, "start", csvTargets("title", "body")))
+	if n := pageCount(t, database); n != 2 {
+		t.Fatalf("first run created %d pages; want 2", n)
+	}
+
+	second := stageWith(t, h, admin, ws.ID, file, csvimport.CollisionUpdate)
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(second, "start", csvTargets("title", "body")))
+
+	if n := pageCount(t, database); n != 2 {
+		t.Errorf("second run left %d pages; want 2 — an update is idempotent", n)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "2 aktualisiert") {
+		t.Errorf("the second run's report does not say both rows were updated:\n%s", body)
+	}
+}
+
+// TestCSVSecondImportWithSkipLeavesThePageAlone (IMP-02 idempotency, the other
+// arm): the second run reports every row as skipped and touches nothing.
+func TestCSVSecondImportWithSkipLeavesThePageAlone(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	file := "Titel,Text\nAlpha,Ein Satz\n"
+
+	first := stage(t, h, admin, ws.ID, file)
+	serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(first, "start", csvTargets("title", "body")))
+
+	second := stage(t, h, admin, ws.ID, file)
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(second, "start", csvTargets("title", "body")))
+
+	if n := pageCount(t, database); n != 1 {
+		t.Errorf("pages = %d; want 1", n)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "gibt es die Seite schon") {
+		t.Errorf("the skipped row is not reported by its reason:\n%s", body)
+	}
+}
+
+// TestCSVDeletedTargetWebsiteEndsTheWizard (IMP-04 concurrency): a website
+// deleted between two screens ends the wizard with a message, not a panic.
+func TestCSVDeletedTargetWebsiteEndsTheWizard(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	token := stage(t, h, admin, ws.ID, "Titel\nAlpha\n")
+
+	if err := h.domains.DeleteWebsite(context.Background(), ws.ID); err != nil {
+		t.Fatalf("DeleteWebsite: %v", err)
+	}
+
+	rec, flash := serveAs(t, h, sm, admin, h.HandleCSVDryRun,
+		csvPost(token, "probe", csvTargets("title")))
+	if rec.Code != http.StatusSeeOther {
+		t.Errorf("status = %d; want 303", rec.Code)
+	}
+	if !strings.Contains(flash, "gibt es nicht mehr") {
+		t.Errorf("flash = %q; the operator is not told what happened", flash)
+	}
+	if n := stagedCount(t, database); n != 0 {
+		t.Errorf("staged rows = %d; the abandoned upload was not cleared up", n)
+	}
+}
+
+// TestCSVDeletedFieldDefinitionIsReported (IMP-04 concurrency, D-29): the column
+// falls back to unmapped, the row says so, and the rest of the row still
+// imports.
+func TestCSVDeletedFieldDefinitionIsReported(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	def, err := h.fields.Create(context.Background(), field.Def{
+		WebsiteID: ws.ID, Key: "sorte", Label: "Sorte",
+		Kind: field.KindText, AppliesTo: field.ForBoth,
+	})
+	if err != nil {
+		t.Fatalf("Create field: %v", err)
+	}
+	token := stage(t, h, admin, ws.ID, "Titel,Sorte\nAlpha,Boskoop\n")
+
+	if err := h.fields.Delete(context.Background(), ws.ID, def.ID); err != nil {
+		t.Fatalf("Delete field: %v", err)
+	}
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVStart,
+		csvPost(token, "start", csvTargets("title", "field:sorte")))
+
+	if body := rec.Body.String(); !strings.Contains(body, "gibt es nicht mehr") {
+		t.Errorf("the deleted definition is not reported:\n%s", body)
+	}
+	if got := slugsInOrder(t, database, ws.ID); !reflect.DeepEqual(got, []string{"alpha"}) {
+		t.Errorf("pages = %v; the rest of the row must still import", got)
+	}
+}
+
+// TestCSVReloadDoesNotImportTwice (D-33): the staging row goes after the loop
+// and before the render, so a refreshed POST lands on the expiry screen.
+func TestCSVReloadDoesNotImportTwice(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	token := stage(t, h, admin, ws.ID, "Titel\nAlpha\nBeta\n")
+
+	serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(token, "start", csvTargets("title")))
+	if n := pageCount(t, database); n != 2 {
+		t.Fatalf("first run created %d pages; want 2", n)
+	}
+	if n := stagedCount(t, database); n != 0 {
+		t.Fatalf("staged rows = %d after the write; want 0", n)
+	}
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(token, "start", csvTargets("title")))
+	if n := pageCount(t, database); n != 2 {
+		t.Errorf("the refresh imported the file again: %d pages", n)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "abgelaufen") {
+		t.Errorf("the refresh did not land on the expiry screen:\n%s", body)
+	}
+}
+
+// TestCSVNewWebsiteAppearsOnlyAtStart: an abandoned wizard leaves no empty
+// website behind, and the dry run is still part of the abandoning.
+func TestCSVNewWebsiteAppearsOnlyAtStart(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	ctx := context.Background()
+
+	token := stage(t, h, admin, 0, "Titel\nAlpha\n")
+
+	before, err := h.domains.ListWebsites(ctx)
+	if err != nil {
+		t.Fatalf("ListWebsites: %v", err)
+	}
+	serveAs(t, h, sm, admin, h.HandleCSVDryRun, csvPost(token, "probe", csvTargets("title")))
+	during, err := h.domains.ListWebsites(ctx)
+	if err != nil {
+		t.Fatalf("ListWebsites: %v", err)
+	}
+	if len(during) != len(before) {
+		t.Errorf("the dry run created a website: %d, was %d", len(during), len(before))
+	}
+
+	serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(token, "start", csvTargets("title")))
+	after, err := h.domains.ListWebsites(ctx)
+	if err != nil {
+		t.Fatalf("ListWebsites: %v", err)
+	}
+	if len(after) != len(before)+1 {
+		t.Fatalf("websites = %d; want %d — the write creates it", len(after), len(before)+1)
+	}
+}
+
+// TestCSVTermsEnsuredOnceBeforeTheLoop (D-20): a file of 300 rows carrying four
+// distinct labels leaves four labels, not twelve hundred and not four per row.
+func TestCSVTermsEnsuredOnceBeforeTheLoop(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	var file strings.Builder
+	file.WriteString("Titel,Schlagwörter\n")
+	names := []string{"Apfel", "Birne", "Kirsche", "Zwetschge"}
+	for i := 0; i < 300; i++ {
+		fmt.Fprintf(&file, "Seite %d,%s|%s\n", i, names[i%4], names[(i+1)%4])
+	}
+	token := stage(t, h, admin, ws.ID, file.String())
+
+	rec, flash := serveAs(t, h, sm, admin, h.HandleCSVStart,
+		csvPost(token, "start", csvTargets("title", "terms")))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (flash %q); want 200", rec.Code, flash)
+	}
+
+	var labels int
+	if err := database.Read.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM terms WHERE website_id = $1`, ws.ID).Scan(&labels); err != nil {
+		t.Fatalf("count terms: %v", err)
+	}
+	if labels != 4 {
+		t.Errorf("terms = %d; want 4 — the names are ensured once for the whole file", labels)
+	}
+	if n := pageCount(t, database); n != 300 {
+		t.Errorf("pages = %d; want 300", n)
+	}
+}
+
+// TestCSVMixedFileImportsTheGoodRows (criterion 4): the good rows go in, the
+// rest are skipped with a named reason, and nothing is half written.
+func TestCSVMixedFileImportsTheGoodRows(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	token := stage(t, h, admin, ws.ID,
+		"Titel,Zustand\nAlpha,entwurf\n,entwurf\nGamma,violett\nDelta,veröffentlicht\n")
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVStart,
+		csvPost(token, "start", csvTargets("title", "status")))
+
+	if got := slugsInOrder(t, database, ws.ID); !reflect.DeepEqual(got, []string{"alpha", "delta"}) {
+		t.Errorf("pages = %v; want alpha and delta", got)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "2 angelegt") || !strings.Contains(body, "2 übergangen") {
+		t.Errorf("the counters do not say 2 and 2:\n%s", body)
+	}
+	if !strings.Contains(body, "keinen Titel") || !strings.Contains(body, "weder ein Entwurf") {
+		t.Error("the two refusals are not both named on the report")
+	}
+}
+
+// TestCSVMappingWithoutATitleIsAFormError: a mapping the operator got wrong
+// comes back as the mapping screen at 422 with their choices intact, never as a
+// flash and a redirect that throws the whole mapping away.
+func TestCSVMappingWithoutATitleIsAFormError(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	token := stage(t, h, admin, ws.ID, "Titel,Text\nAlpha,Ein Satz\n")
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVDryRun,
+		csvPost(token, "probe", csvTargets("none", "body")))
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d; want 422", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Keine Spalte zeigt auf den Titel") {
+		t.Error("the screen does not say what is wrong with the mapping")
+	}
+	// Their choices are still there: the second column is still on the body.
+	if !strings.Contains(body, `<option value="body" selected>`) {
+		t.Errorf("the mapping was thrown away:\n%s", body)
+	}
+	if n := pageCount(t, database); n != 0 {
+		t.Errorf("a refused mapping wrote %d pages", n)
+	}
+}
+
+// TestCSVReportIsGroupedNotListed (D-25): forty rows failing for one reason are
+// one line with forty row numbers on it, not forty lines.
+func TestCSVReportIsGroupedNotListed(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	var file strings.Builder
+	file.WriteString("Titel,Zustand\n")
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&file, "Seite %d,violett\n", i)
+	}
+	token := stage(t, h, admin, ws.ID, file.String())
+
+	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVDryRun,
+		csvPost(token, "probe", csvTargets("title", "status")))
+
+	body := rec.Body.String()
+	if n := strings.Count(body, "weder ein Entwurf"); n != 1 {
+		t.Errorf("the reason is printed %d times; want once — that is the whole of D-25", n)
+	}
+	if !strings.Contains(body, "40 Zeilen") {
+		t.Error("the group does not carry its own count")
+	}
+	if !strings.Contains(body, "und 15 weitere") {
+		t.Errorf("the row list is not capped at 25 with the rest counted:\n%s", body)
 	}
 }

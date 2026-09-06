@@ -172,6 +172,8 @@ func TestRouteAuthorization(t *testing.T) {
 		{"POST", "/admin/users/1/delete"},
 		{"POST", "/admin/websites/import-csv"},
 		{"GET", "/admin/csv-import/abc"},
+		{"POST", "/admin/csv-import/abc/probe"},
+		{"POST", "/admin/csv-import/abc/start"},
 		{"GET", "/admin/csv-vorlage"},
 	}
 	for _, rt := range adminOnly {

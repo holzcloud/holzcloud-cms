@@ -888,6 +888,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// abstuerzen liesse (D-36).
 	adminProtectedMux.Handle("POST /admin/websites/import-csv", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVImport))))
 	adminProtectedMux.Handle("GET /admin/csv-import/{token}", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVMapping))))
+	adminProtectedMux.Handle("POST /admin/csv-import/{token}/probe", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVDryRun))))
+	adminProtectedMux.Handle("POST /admin/csv-import/{token}/start", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVStart))))
 	// Die Beispieldatei haengt NICHT an der Marke (D-37): sie hilft beim
 	// Schreiben der Datei und muss deshalb erreichbar sein, bevor etwas
 	// hochgeladen ist. Ein GET wie alle fuenf bestehenden Downloads (D-34).
