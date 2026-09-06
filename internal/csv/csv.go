@@ -21,7 +21,13 @@
 // Nothing here formats a sentence for a person either. Every message this
 // package produces is a short technical reason for a developer or an error
 // value; the sentences an operator reads are minted from reason codes in a
-// template.
+// template. Where a refusal has to reach the operator's report, what travels
+// is the NUMBERS — Row.HeaderWidth beside len(Row.Cells) — and never a
+// fmt.Sprintf'd fragment, because a fragment built here would be substituted
+// into a translated sentence that tools/i18n cannot see into (D-32). The one
+// message that does reach a screen through here is encoding/csv's own
+// ParseError text, carried as ReasonRowUnreadable's argument, and Row.Error
+// says why that exemption is a decision.
 package csv
 
 import (
@@ -130,9 +136,34 @@ type Row struct {
 	// Cells holds one entry per header column, padded out so a short row's
 	// missing cells are empty in position rather than shifted.
 	Cells []string
+	// HeaderWidth is how many columns the header had.
+	//
+	// Carried on the row so a consumer that never sees the header can still
+	// tell a row that brought MORE cells than the header from one that did
+	// not: fill pads a short row out to this width, so len(Cells) is equal to
+	// it for every ordinary row and greater for a row with cells to spare.
+	// Zero on a row nothing read from a file built, and a consumer treats that
+	// as "not known" rather than as "no columns".
+	//
+	// It is here rather than as a finished sentence in Error because the
+	// numbers are ARGUMENTS: the sentence an operator reads about them is a
+	// {{tf}} literal in the template, where tools/i18n can see it (D-32). An
+	// English fragment built here with fmt.Sprintf would be substituted into a
+	// German sentence on the report screen and the translation gate would
+	// never know.
+	HeaderWidth int
 	// Error empty means the row read cleanly. A row that carries an Error
 	// still carries whatever cells were read, so a screen can show the
 	// operator what the reader managed to see.
+	//
+	// What may stand in it: encoding/csv's own ParseError text, and the
+	// reader's own technical sentence about an oversized cell. Both are
+	// developer-facing. The first is stdlib prose and is deliberately not
+	// this phase's to translate — it is carried through as the single
+	// argument of ReasonRowUnreadable and that exemption is a decision, not an
+	// oversight. The second never reaches a screen: csvimport.CheckRow
+	// measures every cell itself and answers ReasonCellTooLong, with the
+	// column and the size as arguments, before it looks at Error at all.
 	Error string
 }
 
@@ -229,16 +260,17 @@ func (r *Reader) Next() (Row, bool) {
 	}
 	r.read++
 
-	row := Row{Number: RowNumber(r.read - 1), Cells: r.fill(rec)}
+	row := Row{Number: RowNumber(r.read - 1), Cells: r.fill(rec), HeaderWidth: len(r.header)}
 	if err != nil {
 		// A row encoding/csv could not make sense of is one bad row and not a
 		// bad file; it can read on past this one.
 		row.Error = err.Error()
 		return row, true
 	}
-	if len(rec) > len(r.header) {
-		row.Error = fmt.Sprintf("row has %d cells, the header has %d", len(rec), len(r.header))
-	}
+	// A row with more cells than the header is NOT reported here. The two
+	// numbers travel on the row itself, and the sentence about them is a
+	// {{tf}} literal the translation gate can see; a fmt.Sprintf here put an
+	// English fragment inside a German sentence on the report screen.
 	for i, cell := range row.Cells {
 		// len() on the string: MaxCellBytes counts bytes, so one emoji costs
 		// four. The row is reported with its number and the reader carries on,

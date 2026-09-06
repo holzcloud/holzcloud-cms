@@ -21,6 +21,7 @@ package csvimport_test
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -746,5 +747,42 @@ func TestBlankCellSaysNothingOnTheUpdateArm(t *testing.T) {
 	}
 	if created.Status != "draft" {
 		t.Errorf("the create arm gave a blank Zustand cell the status %q, want draft", created.Status)
+	}
+}
+
+// TestWideRowIsRefusedWithItsNumbers (WR-02): the row is refused under its own
+// code, and both arguments are numbers a template can substitute.
+//
+// The old shape was ReasonRowUnreadable carrying one argument: the English
+// sentence internal/csv built with fmt.Sprintf. csv_reason.html then wrote it
+// into a German frame, so the report read "Diese Zeile liess sich nicht lesen:
+// row has 5 cells, the header has 3" and the translation gate reported nothing
+// missing — the D-32 hole, narrowed from a whole sentence to its argument.
+func TestWideRowIsRefusedWithItsNumbers(t *testing.T) {
+	head, rows := reader(t, "Titel,Text,Zustand\nApfel,Ein Baum,entwurf,zuviel,nochmal\n")
+	m := csvimport.AutoMap(head, nil)
+
+	v, _, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip)
+	if v.Outcome != csvimport.OutcomeSkip {
+		t.Fatalf("the wide row gave %s / %q, want a skip", v.Outcome, v.Reason)
+	}
+	if v.Reason != csvimport.ReasonRowTooWide {
+		t.Fatalf("the wide row carries %q, want %q", v.Reason, csvimport.ReasonRowTooWide)
+	}
+	if len(v.Args) != 2 || v.Args[0] != "5" || v.Args[1] != "3" {
+		t.Fatalf("the arguments are %v, want [5 3] — the numbers, and nothing a translator has to read", v.Args)
+	}
+	for _, arg := range v.Args {
+		if _, err := strconv.Atoi(arg); err != nil {
+			t.Errorf("argument %q is not a number: a sentence built in Go is invisible to tools/i18n", arg)
+		}
+	}
+
+	// A row the reader never touched carries HeaderWidth 0, which means "not
+	// known" and must not be read as "no columns" — every row of every file
+	// would be wider than nothing.
+	bare := csv.Row{Number: 2, Cells: []string{"Apfel"}}
+	if v, _, _ := csvimport.CheckRow(nil, bare, m, nil, csvimport.CollisionSkip); v.Reason == csvimport.ReasonRowTooWide {
+		t.Error("a row with no known header width was refused as too wide")
 	}
 }

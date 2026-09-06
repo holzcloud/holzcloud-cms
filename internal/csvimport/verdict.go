@@ -54,9 +54,25 @@ type Reason string
 // {{tf}} that renders it has to take exactly that many and nothing else
 // enforces the count.
 const (
-	// ReasonRowUnreadable: encoding/csv could not read the row, or the reader
-	// refused it. Argument: the reader's own short reason.
+	// ReasonRowUnreadable: encoding/csv could not read the row.
+	// Argument: the stdlib's own ParseError text.
+	//
+	// That argument is English prose inside a German sentence, and it is the
+	// one place in this phase where that is a DECISION rather than the D-32
+	// hole. It is encoding/csv's wording, not this phase's, and rewriting the
+	// standard library's parse errors as codes would mean tracking the set of
+	// them across Go releases. Every reason this phase mints itself carries
+	// numbers and names as arguments instead — ReasonRowTooWide below is the
+	// case that used to be a sentence here and is now one of them.
 	ReasonRowUnreadable Reason = "row_unreadable"
+	// ReasonRowTooWide: the row brought more cells than the header has
+	// columns. Arguments: the row's cell count, the header's.
+	//
+	// No cell is dropped for it — Reader.fill keeps them all — but a row the
+	// header cannot account for is a row whose values may have shifted, so it
+	// is refused and both numbers are named, which is what lets the operator
+	// find the stray separator.
+	ReasonRowTooWide Reason = "row_too_wide"
 	// ReasonCellTooLong: a cell is over csv.MaxCellBytes.
 	// Arguments: the column's position, the cell's size in bytes.
 	//

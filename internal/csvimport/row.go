@@ -277,6 +277,15 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 			return skip(ReasonCellTooLong, strconv.Itoa(i+1), strconv.Itoa(len(cell)))
 		}
 	}
+	// More cells than the header has columns, as two numbers rather than as a
+	// sentence built in Go: the reader carries the header's width on the row
+	// so this can be asked without the header, and the sentence the operator
+	// reads is a {{tf}} literal in csv_reason.html (D-32). HeaderWidth is zero
+	// on a row no reader produced, and zero means "not known" rather than
+	// "no columns".
+	if row.HeaderWidth > 0 && len(row.Cells) > row.HeaderWidth {
+		return skip(ReasonRowTooWide, strconv.Itoa(len(row.Cells)), strconv.Itoa(row.HeaderWidth))
+	}
 	if row.Error != "" {
 		return skip(ReasonRowUnreadable, row.Error)
 	}

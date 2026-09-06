@@ -283,3 +283,34 @@ func TestNoHeaderIsAnError(t *testing.T) {
 		t.Errorf("New over an empty source = %v, expected ErrNoHeader", err)
 	}
 }
+
+// TestWideRowCarriesNumbersAndNotASentence (WR-02, D-32): a row with more cells
+// than the header hands its consumer two numbers, not an English sentence.
+//
+// It used to hand over one: fmt.Sprintf("row has %d cells, the header has %d"),
+// set on Row.Error, carried forward as ReasonRowUnreadable's only argument and
+// substituted into a German sentence on the report screen — "Diese Zeile liess
+// sich nicht lesen: row has 5 cells, the header has 3". The frame was a literal
+// tools/i18n could see; the half a person actually needs was not. Reachable by
+// any row with a stray separator in it.
+func TestWideRowCarriesNumbersAndNotASentence(t *testing.T) {
+	_, rows := read(t, "a,b,c\n1,2,3,4,5\n")
+	row := rows[0]
+
+	if row.Error != "" {
+		t.Errorf("the wide row carries the message %q — the numbers travel, the sentence is the template's", row.Error)
+	}
+	if row.HeaderWidth != 3 {
+		t.Errorf("HeaderWidth = %d, want 3 — a consumer that never sees the header cannot tell a wide row without it", row.HeaderWidth)
+	}
+	if len(row.Cells) != 5 {
+		t.Errorf("%d cells, want 5: no cell is dropped, the row is refused with both numbers named", len(row.Cells))
+	}
+
+	// An ordinary row is not wide, and a SHORT one is not either: fill pads it
+	// out to the header's width in place.
+	_, short := read(t, "a,b,c\n1,2\n")
+	if len(short[0].Cells) != short[0].HeaderWidth {
+		t.Errorf("a short row reports %d cells against a header of %d", len(short[0].Cells), short[0].HeaderWidth)
+	}
+}
