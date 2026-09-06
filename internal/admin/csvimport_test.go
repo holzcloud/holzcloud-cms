@@ -524,6 +524,45 @@ func groupCell(t *testing.T, body string) string {
 	return strings.Join(strings.Fields(m[1]), " ")
 }
 
+// Each of the four new screens carries exactly one <h1>, which is the layout's.
+//
+// base.html:198 renders <h1>{{.Title}}</h1> in the content header for every
+// page. All four of these templates rendered a second one below it saying the
+// same thing, so the operator read "Einlesen abgeschlossen" twice, stacked, and
+// the document had two first-level headings. Fifty-four of the sixty-six admin
+// templates rely on the header alone; these four did not.
+//
+// Found by looking at a screenshot. Nothing in the markup reads wrong — the
+// h1s are simply both there — and no assertion in the suite counted them.
+func TestCSVScreensCarryOneHeadingEach(t *testing.T) {
+	h, sm, database, _ := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	count := func(body string) int {
+		return strings.Count(body, "<h1")
+	}
+
+	token := stage(t, h, admin, 0, "Titel,Zustand\neins,vielleicht\n")
+
+	mapping, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
+	if n := count(mapping.Body.String()); n != 1 {
+		t.Errorf("the mapping screen has %d <h1>; want 1 — the layout already renders the title", n)
+	}
+	dry, _ := serveAs(t, h, sm, admin, h.HandleCSVDryRun, csvPost(token, "probe", csvTargets("title", "status")))
+	if n := count(dry.Body.String()); n != 1 {
+		t.Errorf("the dry run has %d <h1>; want 1", n)
+	}
+	rep, _ := serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(token, "start", csvTargets("title", "status")))
+	if n := count(rep.Body.String()); n != 1 {
+		t.Errorf("the report has %d <h1>; want 1", n)
+	}
+	// The expiry screen: the token has just been spent by the write above.
+	exp, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
+	if n := count(exp.Body.String()); n != 1 {
+		t.Errorf("the expiry screen has %d <h1>; want 1", n)
+	}
+}
+
 func TestCSVHeaderOnlySaysSoInsteadOfAnEmptyTable(t *testing.T) {
 	h, sm, database, _ := newTestAdmin(t)
 	admin := seedAdmin(t, database, "eins@test")

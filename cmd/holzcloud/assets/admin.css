@@ -2780,4 +2780,23 @@ body.is-fullscreen .content-body {
     .csv-groups tr.csv-row--update td {
         background: var(--color-sunken);
     }
+
+    /* Der Hinweis unter einer Spaltenüberschrift.
+       Er steht in einem <th scope="row">, und .table th schreibt jede
+       Kopfzelle in Grossbuchstaben mit gesperrter Laufweite (:972). Für das
+       Wort „Titel" ist das richtig; für den Satz darunter — „Dieselbe
+       Überschrift steht schon über Spalte 1…" — ist es das nicht: er kam
+       gebrüllt und in derselben Zeile wie der Spaltenname heraus, als wäre
+       beides eine Überschrift. Ein Browser-Durchgang hat es gezeigt; im
+       Auszeichnungstext ist davon nichts zu sehen.
+       Nur hier zurückgenommen und nicht an .form-hint oder .table th, die
+       die ganze Verwaltung benutzt. */
+    .csv-columns th .form-hint {
+        display: block;
+        margin-top: var(--space-1);
+        text-transform: none;
+        letter-spacing: normal;
+        font-weight: 400;
+        text-wrap: pretty;
+    }
 }

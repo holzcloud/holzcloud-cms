@@ -6,8 +6,6 @@
 
 {{define "csv_report-content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
-    <h1>{{t "Einlesen abgeschlossen"}}</h1>
-
     <p class="text-muted">
         {{tf "Datei „%s“, %d Zeilen gelesen, Website „%s“." .Filename .Report.Total .WebsiteName}}
     </p>

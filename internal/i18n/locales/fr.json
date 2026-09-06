@@ -420,7 +420,6 @@
 "Diesen Textbaustein löschen? Auf Seiten, die ihn verwenden, erscheint dann nichts mehr.": "Supprimer ce bloc de texte ? Les pages qui l'utilisent n'afficheront plus rien à cet endroit.",
 "Dieser Baustein hat noch keine Felder. Ohne Felder gibt er auf der Seite nichts aus.": "Ce bloc n'a pas encore de champs. Sans champs, il n'affiche rien sur la page.",
 "Dieser Textbaustein hat noch keine Felder. Ohne sie bleibt er der eine Kasten Markdown, der er heute ist — was oft genügt und für eine Adresse mit Telefon und Öffnungszeiten nicht.": "Ce bloc de texte n'a pas encore de champs. Sans eux, il reste l'unique boîte de Markdown qu'il est aujourd'hui — ce qui suffit souvent, et ne suffit pas pour une adresse avec téléphone et heures d'ouverture.",
-"Dieser Upload ist abgelaufen": "Ce téléversement a expiré",
 "Dieses Format lässt sich nicht zuschneiden.": "Ce format ne peut pas être recadré.",
 "Dieses Menü mit allen Einträgen löschen?": "Supprimer ce menu avec toutes ses entrées ?",
 "Doch die App benutzen": "Utiliser quand même l'application",
