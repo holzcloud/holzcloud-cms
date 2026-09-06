@@ -6,281 +6,280 @@ import (
 	"testing"
 )
 
-// Die Wache über eine Datei, die von aussen kam.
+// The guard over a file that came from outside.
 //
-// `encoding/csv` kennt keine Grenze: nicht für Zeilen, nicht für Spalten, nicht
-// für Zellen, und ein Nullbyte ist ihm einerlei. Neun voneinander unabhängige
-// Abwehren stehen deshalb in `csv.go`, und jede hat hier ihren eigenen Test,
-// benannt nach der Abwehr und nicht nach der Eingabe — eine fehlgeschlagene
-// Zeile soll sagen, welche Regel gebrochen ist, nicht welcher Text übrig war.
-// Dazu kommt der Fehler um eins, der sonst jede Meldung dieser Phase falsch
-// machen würde: die Kopfzeile ist Zeile 1, die erste Datenzeile ist Zeile 2.
+// `encoding/csv` knows no limit: none for rows, none for columns, none for
+// cells, and a NUL byte is all the same to it. Nine defences independent of one
+// another therefore stand in `csv.go`, and each of them has its own test here,
+// named after the defence and not after the input — a failing line should say
+// which rule was broken, not which text was left over. On top of that comes the
+// off-by-one that would otherwise make every message of this phase wrong: the
+// header is row 1, the first data row is row 2.
 //
-// Kein Test hier öffnet eine Datenbank, baut eine Anfrage oder legt ein
-// Verzeichnis an. Bräuchte einer davon eines, hätte das Paket eine
-// Abhängigkeit bekommen, die es nicht haben darf.
+// No test here opens a database, builds a query or creates a directory. Were
+// one of them to need one, the package would have taken on a dependency it is
+// not allowed to have.
 
-// lesen liest eine ganze Datei ein und gibt den Leser dazu zurück, damit ein
-// Test auch Kopf() und Abgeschnitten() prüfen kann.
-func lesen(t *testing.T, quelle string) (*Leser, []Zeile) {
+// read reads a whole file in and hands back the reader along with it, so a test
+// can check Header() and Truncated() too.
+func read(t *testing.T, source string) (*Reader, []Row) {
 	t.Helper()
-	l, err := Neu(strings.NewReader(quelle))
+	r, err := New(strings.NewReader(source))
 	if err != nil {
-		t.Fatalf("Neu: %v", err)
+		t.Fatalf("New: %v", err)
 	}
-	var zeilen []Zeile
+	var rows []Row
 	for {
-		z, ok := l.Naechste()
+		row, ok := r.Next()
 		if !ok {
 			break
 		}
-		zeilen = append(zeilen, z)
+		rows = append(rows, row)
 	}
-	return l, zeilen
+	return r, rows
 }
 
-// D-11: Die Byte-Order-Mark wird einmal gestreift, am Leser, vor der
-// Kopfzeile. Das ist der Fehler Nummer eins beim CSV-Import: Excel schreibt
-// sie, die erste Überschrift heisst dann "\ufeffTitel", passt auf keine
-// Zuordnung, und die Titelspalte geht still verloren.
-func TestBOMWirdEinmalGestreift(t *testing.T) {
-	l, zeilen := lesen(t, "\ufeffTitel,Text\nA,B\n")
-	if got := l.Kopf()[0]; got != "Titel" {
-		t.Errorf("erste Überschrift = %q, erwartet %q", got, "Titel")
+// D-11: The byte-order mark is stripped once, at the reader, before the header
+// row. This is CSV import bug number one: Excel writes it, the first heading
+// then reads "\ufeffTitle", matches no mapping, and the title column is
+// silently lost.
+func TestBOMIsStrippedOnce(t *testing.T) {
+	r, rows := read(t, "\ufeffTitle,Text\nA,B\n")
+	if got := r.Header()[0]; got != "Title" {
+		t.Errorf("first heading = %q, expected %q", got, "Title")
 	}
-	if len(zeilen) != 1 {
-		t.Fatalf("%d Zeilen, erwartet 1", len(zeilen))
-	}
-
-	// Eine zweite BOM mitten in der Datei ist Inhalt und bleibt stehen.
-	_, mitten := lesen(t, "\ufeffTitel,Text\n\ufeffA,B\n")
-	if got := mitten[0].Zellen[0]; got != "\ufeffA" {
-		t.Errorf("Zelle = %q, eine BOM im Inhalt darf nicht gestreift werden", got)
-	}
-}
-
-// D-26, IMP-03 (boundary): Die Zeilennummer ist die der Tabelle. Die Kopfzeile
-// ist Zeile 1, die erste Datenzeile Zeile 2 — nicht der Satzindex des Lesers
-// und nicht die Zeilennummer der Datei.
-func TestZeilennummerIstDieDerTabelle(t *testing.T) {
-	if got := Zeilennummer(0); got != 2 {
-		t.Errorf("Zeilennummer(0) = %d, erwartet 2", got)
-	}
-	if got := Zeilennummer(1); got != 3 {
-		t.Errorf("Zeilennummer(1) = %d, erwartet 3", got)
+	if len(rows) != 1 {
+		t.Fatalf("%d rows, expected 1", len(rows))
 	}
 
-	_, zeilen := lesen(t, "Titel\nA\nB\n")
-	if zeilen[0].Nummer != 2 || zeilen[1].Nummer != 3 {
-		t.Errorf("Nummern = %d, %d, erwartet 2, 3", zeilen[0].Nummer, zeilen[1].Nummer)
+	// A second BOM in the middle of the file is content and stays where it is.
+	_, middle := read(t, "\ufeffTitle,Text\n\ufeffA,B\n")
+	if got := middle[0].Cells[0]; got != "\ufeffA" {
+		t.Errorf("cell = %q, a BOM in the content must not be stripped", got)
 	}
 }
 
-// D-09, IMP-09 (boundary): die Zeilengrenze, an der Grenze und einen Schritt
-// zu beiden Seiten. Gemeldet, nie still angewandt.
-func TestZeilengrenze(t *testing.T) {
-	bauen := func(n int) string {
+// D-26, IMP-03 (boundary): The row number is the spreadsheet's own. The header
+// is row 1, the first data row is row 2 — not the reader's record index and not
+// the line number of the file.
+func TestRowNumberIsTheSpreadsheetsOwn(t *testing.T) {
+	if got := RowNumber(0); got != 2 {
+		t.Errorf("RowNumber(0) = %d, expected 2", got)
+	}
+	if got := RowNumber(1); got != 3 {
+		t.Errorf("RowNumber(1) = %d, expected 3", got)
+	}
+
+	_, rows := read(t, "Title\nA\nB\n")
+	if rows[0].Number != 2 || rows[1].Number != 3 {
+		t.Errorf("numbers = %d, %d, expected 2, 3", rows[0].Number, rows[1].Number)
+	}
+}
+
+// D-09, IMP-09 (boundary): the row limit, at the limit and one step to either
+// side of it. Reported, never silently applied.
+func TestRowLimit(t *testing.T) {
+	build := func(n int) string {
 		var b strings.Builder
-		b.WriteString("Titel\n")
+		b.WriteString("Title\n")
 		for i := 0; i < n; i++ {
 			b.WriteString("A\n")
 		}
 		return b.String()
 	}
 
-	l, zeilen := lesen(t, bauen(MaxRows))
-	if len(zeilen) != MaxRows {
-		t.Errorf("%d Zeilen bei genau MaxRows, erwartet %d", len(zeilen), MaxRows)
+	r, rows := read(t, build(MaxRows))
+	if len(rows) != MaxRows {
+		t.Errorf("%d rows at exactly MaxRows, expected %d", len(rows), MaxRows)
 	}
-	if l.Abgeschnitten() {
-		t.Error("genau MaxRows Zeilen gelten als abgeschnitten")
+	if r.Truncated() {
+		t.Error("exactly MaxRows rows count as truncated")
 	}
 
-	l, zeilen = lesen(t, bauen(MaxRows+1))
-	if len(zeilen) != MaxRows {
-		t.Errorf("%d Zeilen bei MaxRows+1, erwartet %d", len(zeilen), MaxRows)
+	r, rows = read(t, build(MaxRows+1))
+	if len(rows) != MaxRows {
+		t.Errorf("%d rows at MaxRows+1, expected %d", len(rows), MaxRows)
 	}
-	if !l.Abgeschnitten() {
-		t.Error("MaxRows+1 Zeilen werden still abgeschnitten statt gemeldet")
+	if !r.Truncated() {
+		t.Error("MaxRows+1 rows are silently truncated instead of reported")
 	}
 }
 
-// D-38: die Spaltengrenze, an der Grenze und einen Schritt zu beiden Seiten.
-// Eine Datei mit 5000 Spalten ist erlaubt, besteht jede andere Grenze und
-// erzeugt einen Zuordnungsbildschirm mit 5000 Zeilen.
-func TestSpaltengrenze(t *testing.T) {
-	kopf := func(n int) string {
-		spalten := make([]string, n)
-		for i := range spalten {
-			spalten[i] = "s"
+// D-38: the column limit, at the limit and one step to either side of it. A
+// file with 5000 columns is allowed, passes every other limit, and produces a
+// mapping screen with 5000 rows.
+func TestColumnLimit(t *testing.T) {
+	header := func(n int) string {
+		columns := make([]string, n)
+		for i := range columns {
+			columns[i] = "c"
 		}
-		return strings.Join(spalten, ",") + "\n"
+		return strings.Join(columns, ",") + "\n"
 	}
 
-	l, err := Neu(strings.NewReader(kopf(MaxSpalten)))
+	r, err := New(strings.NewReader(header(MaxColumns)))
 	if err != nil {
-		t.Fatalf("genau MaxSpalten abgelehnt: %v", err)
+		t.Fatalf("exactly MaxColumns refused: %v", err)
 	}
-	if len(l.Kopf()) != MaxSpalten {
-		t.Errorf("%d Spalten, erwartet %d", len(l.Kopf()), MaxSpalten)
+	if len(r.Header()) != MaxColumns {
+		t.Errorf("%d columns, expected %d", len(r.Header()), MaxColumns)
 	}
 
-	if _, err := Neu(strings.NewReader(kopf(MaxSpalten + 1))); !errors.Is(err, ErrZuVieleSpalten) {
-		t.Errorf("MaxSpalten+1 ergibt %v, erwartet ErrZuVieleSpalten", err)
+	if _, err := New(strings.NewReader(header(MaxColumns + 1))); !errors.Is(err, ErrTooManyColumns) {
+		t.Errorf("MaxColumns+1 gives %v, expected ErrTooManyColumns", err)
 	}
 }
 
-// D-10, IMP-09 (boundary + precision): die Zellengrenze zählt BYTES. Ein
-// Emoji kostet vier. Eine Grenze in Runen wäre eine zweite Definition von
-// Grösse neben der in Bytes.
-func TestZellengrenzeInBytes(t *testing.T) {
-	datei := func(zelle string) string {
-		return "a,b\n1,2\n" + zelle + ",x\n3,4\n"
+// D-10, IMP-09 (boundary + precision): the cell limit counts BYTES. One emoji
+// costs four. A limit in runes would be a second definition of size standing
+// beside the one in bytes.
+func TestCellLimitInBytes(t *testing.T) {
+	file := func(cell string) string {
+		return "a,b\n1,2\n" + cell + ",x\n3,4\n"
 	}
 
-	_, zeilen := lesen(t, datei(strings.Repeat("z", MaxCellBytes)))
-	if zeilen[1].Fehler != "" {
-		t.Errorf("genau MaxCellBytes abgelehnt: %s", zeilen[1].Fehler)
+	_, rows := read(t, file(strings.Repeat("z", MaxCellBytes)))
+	if rows[1].Error != "" {
+		t.Errorf("exactly MaxCellBytes refused: %s", rows[1].Error)
 	}
 
-	_, zeilen = lesen(t, datei(strings.Repeat("z", MaxCellBytes+1)))
-	if zeilen[1].Fehler == "" {
-		t.Error("MaxCellBytes+1 Bytes durchgelassen")
+	_, rows = read(t, file(strings.Repeat("z", MaxCellBytes+1)))
+	if rows[1].Error == "" {
+		t.Error("MaxCellBytes+1 bytes let through")
 	}
-	if zeilen[1].Nummer != 3 {
-		t.Errorf("die zu grosse Zelle meldet Zeile %d, erwartet 3", zeilen[1].Nummer)
+	if rows[1].Number != 3 {
+		t.Errorf("the oversized cell reports row %d, expected 3", rows[1].Number)
 	}
-	// Eine Zeile kostet eine Zeile, nicht die Datei.
-	if len(zeilen) != 3 || zeilen[2].Fehler != "" || zeilen[2].Nummer != 4 {
-		t.Errorf("die Zeile nach der zu grossen wurde nicht sauber gelesen: %+v", zeilen)
-	}
-
-	// MaxCellBytes Bytes aus Vier-Byte-Runen: erlaubt.
-	vier := strings.Repeat("😀", MaxCellBytes/4)
-	if len(vier) != MaxCellBytes {
-		t.Fatalf("Testaufbau: %d Bytes, erwartet %d", len(vier), MaxCellBytes)
-	}
-	_, zeilen = lesen(t, datei(vier))
-	if zeilen[1].Fehler != "" {
-		t.Errorf("MaxCellBytes Bytes aus Vier-Byte-Runen abgelehnt: %s", zeilen[1].Fehler)
+	// One row costs one row, not the file.
+	if len(rows) != 3 || rows[2].Error != "" || rows[2].Number != 4 {
+		t.Errorf("the row after the oversized one was not read cleanly: %+v", rows)
 	}
 
-	// MaxCellBytes RUNEN aus Vier-Byte-Runen: abgelehnt, denn das sind
-	// viermal so viele Bytes.
-	_, zeilen = lesen(t, datei(strings.Repeat("😀", MaxCellBytes)))
-	if zeilen[1].Fehler == "" {
-		t.Error("MaxCellBytes Runen à 4 Bytes durchgelassen — die Grenze zählt Runen statt Bytes")
+	// MaxCellBytes bytes made of four-byte runes: allowed.
+	four := strings.Repeat("😀", MaxCellBytes/4)
+	if len(four) != MaxCellBytes {
+		t.Fatalf("test setup: %d bytes, expected %d", len(four), MaxCellBytes)
+	}
+	_, rows = read(t, file(four))
+	if rows[1].Error != "" {
+		t.Errorf("MaxCellBytes bytes made of four-byte runes refused: %s", rows[1].Error)
+	}
+
+	// MaxCellBytes RUNES made of four-byte runes: refused, because that is four
+	// times as many bytes.
+	_, rows = read(t, file(strings.Repeat("😀", MaxCellBytes)))
+	if rows[1].Error == "" {
+		t.Error("MaxCellBytes runes of 4 bytes each let through — the limit counts runes instead of bytes")
 	}
 }
 
-// D-13, IMP-09 (ordering): eine kurze Zeile verschiebt nicht. Die fehlenden
-// Zellen sind AN IHRER STELLE leer, Zelle 5 einer Zeile mit drei Zellen ist
-// leer und nicht der Wert von Zelle 3.
-func TestKurzeZeileVerschiebtNicht(t *testing.T) {
-	_, zeilen := lesen(t, "a,b,c,d,e\n1,2,3\n")
-	z := zeilen[0]
-	if len(z.Zellen) != 5 {
-		t.Fatalf("%d Zellen, erwartet 5: %q", len(z.Zellen), z.Zellen)
+// D-13, IMP-09 (ordering): a short row does not shift. The missing cells are
+// empty IN PLACE; cell 5 of a row with three cells is empty and not the value
+// of cell 3.
+func TestShortRowDoesNotShift(t *testing.T) {
+	_, rows := read(t, "a,b,c,d,e\n1,2,3\n")
+	row := rows[0]
+	if len(row.Cells) != 5 {
+		t.Fatalf("%d cells, expected 5: %q", len(row.Cells), row.Cells)
 	}
-	if z.Zellen[2] != "3" {
-		t.Errorf("Zelle 3 = %q, erwartet %q", z.Zellen[2], "3")
+	if row.Cells[2] != "3" {
+		t.Errorf("cell 3 = %q, expected %q", row.Cells[2], "3")
 	}
-	if z.Zellen[3] != "" || z.Zellen[4] != "" {
-		t.Errorf("Zellen 4 und 5 = %q, %q, erwartet leer", z.Zellen[3], z.Zellen[4])
-	}
-}
-
-// D-12: ein verirrtes Anführungszeichen frisst den Rest der Datei nicht.
-// LazyQuotes = true macht daraus eine schlechte Zeile statt eines Fehlers für
-// die ganze Datei.
-func TestStrayQuoteFrisstDenRestNicht(t *testing.T) {
-	_, zeilen := lesen(t, "a,b,c\n1,zwei\"komisch,3\n4,5,6\n")
-	if len(zeilen) != 2 {
-		t.Fatalf("%d Zeilen, erwartet 2: %+v", len(zeilen), zeilen)
-	}
-	if zeilen[1].Nummer != 3 || zeilen[1].Zellen[0] != "4" {
-		t.Errorf("die Zeile nach der schlechten = %+v, erwartet Zeile 3 mit 4,5,6", zeilen[1])
+	if row.Cells[3] != "" || row.Cells[4] != "" {
+		t.Errorf("cells 4 and 5 = %q, %q, expected empty", row.Cells[3], row.Cells[4])
 	}
 }
 
-// D-14, IMP-09 (adjacency): ein Zitat mit Trennzeichen bleibt eine Zelle, und
-// ein Zitat über zwei Zeilen erhöht die Zeilennummer nicht. Darum wird in
-// unserer eigenen Schleife gezählt und nie an der Dateizeile.
-func TestZitatMitTrennzeichenUndZeilenumbruch(t *testing.T) {
-	_, zeilen := lesen(t, "a,b,c\n1,\"zwei,drei\",4\n")
-	if len(zeilen[0].Zellen) != 3 {
-		t.Fatalf("%d Zellen, erwartet 3: %q", len(zeilen[0].Zellen), zeilen[0].Zellen)
+// D-12: a stray quote does not eat the rest of the file. LazyQuotes = true
+// turns it into one bad row instead of an error for the whole file.
+func TestStrayQuoteDoesNotEatTheRest(t *testing.T) {
+	_, rows := read(t, "a,b,c\n1,two\"odd,3\n4,5,6\n")
+	if len(rows) != 2 {
+		t.Fatalf("%d rows, expected 2: %+v", len(rows), rows)
 	}
-	if zeilen[0].Zellen[1] != "zwei,drei" {
-		t.Errorf("mittlere Zelle = %q, erwartet %q", zeilen[0].Zellen[1], "zwei,drei")
-	}
-
-	_, zeilen = lesen(t, "a,b\n\"x\ny\",2\n3,4\n")
-	if zeilen[0].Zellen[0] != "x\ny" {
-		t.Errorf("Zelle über zwei Zeilen = %q", zeilen[0].Zellen[0])
-	}
-	// Der Punkt: die folgende Zeile steht auf Dateizeile 4 und ist Zeile 3.
-	if zeilen[1].Nummer != 3 {
-		t.Errorf("Zeile nach dem mehrzeiligen Zitat = Nummer %d, erwartet 3", zeilen[1].Nummer)
+	if rows[1].Number != 3 || rows[1].Cells[0] != "4" {
+		t.Errorf("the row after the bad one = %+v, expected row 3 with 4,5,6", rows[1])
 	}
 }
 
-// D-14: eine Leerzeile wird übersprungen und verbraucht keine Zeilennummer.
-func TestLeerzeileZaehltNicht(t *testing.T) {
-	_, zeilen := lesen(t, "a,b\n1,2\n\n3,4\n")
-	if len(zeilen) != 2 {
-		t.Fatalf("%d Zeilen, erwartet 2", len(zeilen))
+// D-14, IMP-09 (adjacency): a quoted cell holding a separator stays one cell,
+// and a quote spanning two lines does not raise the row number. That is why the
+// counting happens in our own loop and never on the line of the file.
+func TestQuotedCellWithSeparatorAndLineBreak(t *testing.T) {
+	_, rows := read(t, "a,b,c\n1,\"two,three\",4\n")
+	if len(rows[0].Cells) != 3 {
+		t.Fatalf("%d cells, expected 3: %q", len(rows[0].Cells), rows[0].Cells)
 	}
-	if zeilen[1].Nummer != 3 {
-		t.Errorf("Zeile nach der Leerzeile = Nummer %d, erwartet 3", zeilen[1].Nummer)
+	if rows[0].Cells[1] != "two,three" {
+		t.Errorf("middle cell = %q, expected %q", rows[0].Cells[1], "two,three")
+	}
+
+	_, rows = read(t, "a,b\n\"x\ny\",2\n3,4\n")
+	if rows[0].Cells[0] != "x\ny" {
+		t.Errorf("cell spanning two lines = %q", rows[0].Cells[0])
+	}
+	// The point: the following row sits on file line 4 and is row 3.
+	if rows[1].Number != 3 {
+		t.Errorf("row after the multi-line quote = number %d, expected 3", rows[1].Number)
 	}
 }
 
-// D-15, IMP-09 (empty): drei Ablehnungen vor dem Parsen, jede mit eigenem
-// Grund, damit der Bildschirm sagen kann, welcher zutrifft.
-func TestPruefeBytesLehntAb(t *testing.T) {
-	faelle := []struct {
-		name     string
-		bytes    []byte
-		erwartet error
+// D-14: a blank line is skipped and does not consume a row number.
+func TestBlankLineDoesNotCount(t *testing.T) {
+	_, rows := read(t, "a,b\n1,2\n\n3,4\n")
+	if len(rows) != 2 {
+		t.Fatalf("%d rows, expected 2", len(rows))
+	}
+	if rows[1].Number != 3 {
+		t.Errorf("row after the blank line = number %d, expected 3", rows[1].Number)
+	}
+}
+
+// D-15, IMP-09 (empty): three refusals before parsing, each with its own
+// reason, so the screen can say which one applies.
+func TestCheckBytesRefuses(t *testing.T) {
+	cases := []struct {
+		name  string
+		bytes []byte
+		want  error
 	}{
-		{"leer", []byte{}, ErrLeer},
-		{"nichts", nil, ErrLeer},
-		{"nur BOM", []byte("\ufeff"), ErrNurBOM},
-		{"Nullbyte", []byte("a,b\n1,\x002\n"), ErrNullbyte},
-		{"Nullbyte hinter der BOM", []byte("\ufeffa\n\x00"), ErrNullbyte},
-		{"in Ordnung", []byte("a,b\n1,2\n"), nil},
-		{"BOM und Inhalt", []byte("\ufeffa,b\n"), nil},
+		{"empty", []byte{}, ErrEmpty},
+		{"nothing", nil, ErrEmpty},
+		{"BOM only", []byte("\ufeff"), ErrOnlyBOM},
+		{"NUL byte", []byte("a,b\n1,\x002\n"), ErrNULByte},
+		{"NUL byte behind the BOM", []byte("\ufeffa\n\x00"), ErrNULByte},
+		{"in order", []byte("a,b\n1,2\n"), nil},
+		{"BOM and content", []byte("\ufeffa,b\n"), nil},
 	}
-	for _, f := range faelle {
-		t.Run(f.name, func(t *testing.T) {
-			err := PruefeBytes(f.bytes)
-			if !errors.Is(err, f.erwartet) {
-				t.Errorf("PruefeBytes = %v, erwartet %v", err, f.erwartet)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := CheckBytes(c.bytes)
+			if !errors.Is(err, c.want) {
+				t.Errorf("CheckBytes = %v, expected %v", err, c.want)
 			}
 		})
 	}
 }
 
-// IMP-01 (empty): eine Datei mit Kopfzeile und ohne Datenzeilen ist eine
-// gültige Datei. Der Satz dazu gehört auf den Bildschirm, nicht hierher.
-func TestNurKopfzeileIstKeinFehler(t *testing.T) {
-	l, zeilen := lesen(t, "Titel,Text\n")
-	if len(zeilen) != 0 {
-		t.Errorf("%d Zeilen, erwartet 0", len(zeilen))
+// IMP-01 (empty): a file with a header row and no data rows is a valid file.
+// The sentence about it belongs on the screen, not here.
+func TestHeaderOnlyIsNotAnError(t *testing.T) {
+	r, rows := read(t, "Title,Text\n")
+	if len(rows) != 0 {
+		t.Errorf("%d rows, expected 0", len(rows))
 	}
-	if len(l.Kopf()) != 2 {
-		t.Errorf("Kopf = %q, erwartet zwei Spalten", l.Kopf())
+	if len(r.Header()) != 2 {
+		t.Errorf("header = %q, expected two columns", r.Header())
 	}
-	if l.Abgeschnitten() {
-		t.Error("eine leere Datei gilt als abgeschnitten")
+	if r.Truncated() {
+		t.Error("an empty file counts as truncated")
 	}
 }
 
-// Eine Datei ganz ohne Sätze hat keine Kopfzeile, und das ist ein Fehler, den
-// der Bildschirm benennen kann.
-func TestOhneKopfzeileIstFehler(t *testing.T) {
-	if _, err := Neu(strings.NewReader("")); !errors.Is(err, ErrKeineKopfzeile) {
-		t.Errorf("Neu über eine leere Quelle = %v, erwartet ErrKeineKopfzeile", err)
+// A file without any records at all has no header row, and that is an error the
+// screen can name.
+func TestNoHeaderIsAnError(t *testing.T) {
+	if _, err := New(strings.NewReader("")); !errors.Is(err, ErrNoHeader) {
+		t.Errorf("New over an empty source = %v, expected ErrNoHeader", err)
 	}
 }
