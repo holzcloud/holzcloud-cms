@@ -122,3 +122,67 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 		t.Errorf("snippets.fields = %q, erwartet leer", leer)
 	}
 }
+
+// TestMigration00048RunterUndRauf fährt die Rückwärtshälfte von 00048.
+//
+// Aus demselben Grund wie oben: nichts sonst im Baum fährt sie. Und aus einem
+// zweiten — 00048 ist eine Berichtigung, und eine Berichtigung stellt bei ihrer
+// Rücknahme den *falschen* Zustand wieder her. Wer beim Schreiben des Down die
+// neue Form abschreibt statt der alten, nimmt gar nichts zurück; das fällt
+// nirgends auf, weil beide Formen gültiges SQL sind und denselben Namen tragen.
+// Der Test liest deshalb den Indextext und nicht bloss seine Anwesenheit.
+func TestMigration00048RunterUndRauf(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+
+	indexText := func(wo string) string {
+		t.Helper()
+		var sql string
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_page_field_defs_kennung_textbaustein'`).
+			Scan(&sql); err != nil {
+			t.Fatalf("%s: Textbaustein-Index lesen: %v", wo, err)
+		}
+		return sql
+	}
+
+	if got := indexText("nach oben"); !strings.Contains(got, "parent_id") {
+		t.Fatalf("nach oben: Index = %q — ohne parent_id fallen die Unterfelder einer "+
+			"Gruppe in den Namensraum der obersten Ebene", got)
+	}
+
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	// --- runter -------------------------------------------------------------
+	if _, err := provider.ApplyVersion(ctx, 48, false); err != nil {
+		t.Fatalf("00048 zurücknehmen: %v", err)
+	}
+	zurueck := indexText("nach der Rücknahme")
+	if strings.Contains(zurueck, "parent_id") {
+		t.Errorf("nach der Rücknahme: Index = %q — die Rücknahme muss die Form aus "+
+			"00047 wiederherstellen und nicht die eigene", zurueck)
+	}
+	if !strings.Contains(zurueck, "snippet_id") {
+		t.Errorf("nach der Rücknahme: Index = %q — snippet_id gehört weiterhin hinein, "+
+			"00047 hat den Index eingeführt", zurueck)
+	}
+
+	// --- und wieder rauf ----------------------------------------------------
+	if _, err := provider.ApplyVersion(ctx, 48, true); err != nil {
+		t.Fatalf("00048 erneut anwenden: %v", err)
+	}
+	if got := indexText("nach der Rückfahrt"); !strings.Contains(got, "parent_id") {
+		t.Errorf("nach der Rückfahrt: Index = %q, erwartet die engere Form mit parent_id", got)
+	}
+}

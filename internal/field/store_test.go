@@ -1164,3 +1164,104 @@ func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 		}
 	})
 }
+
+// TestBausteinGruppenNamensraum stellt den Textbaustein neben die Seite.
+//
+// 00047 zog idx_page_field_defs_kennung_textbaustein als
+// ON page_field_defs(snippet_id, kennung) WHERE snippet_id IS NOT NULL — ohne
+// „AND parent_id IS NULL". Seit die Unterfelder einer Gruppe ihren Träger von
+// der Gruppe erben (08-05), tragen sie snippet_id, und der Teilindex fasste sie
+// mit ein: die Unterfelder fielen in denselben Namensraum wie die Felder der
+// obersten Ebene. Zwei Gruppen an einem Textbaustein konnten dann nicht beide
+// ein Unterfeld „tag" tragen, und ein Feld der obersten Ebene konnte seine
+// Kennung nicht mit einem Unterfeld teilen — auf einer Seite ist beides seit
+// 00029 erlaubt.
+//
+// Deshalb steht der Fall hier zweimal: einmal an der Seite, wo er seit jeher
+// durchgeht, und einmal am Textbaustein. Die beiden müssen dieselbe Antwort
+// geben, sonst sagt der Bildschirm dem Bedienenden etwas zu, was die Datenbank
+// nicht hält (field_list.html:20).
+func TestBausteinGruppenNamensraum(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+
+	// --- Die Seite: der Massstab ---------------------------------------------
+	seiteGruppe1, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: KindGroup})
+	if err != nil {
+		t.Fatalf("Seite, erste Gruppe: %v", err)
+	}
+	seiteGruppe2, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "ferien", Label: "Ferien", Kind: KindGroup})
+	if err != nil {
+		t.Fatalf("Seite, zweite Gruppe: %v", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
+		ParentID: seiteGruppe1.ID}); err != nil {
+		t.Fatalf("Seite, „tag“ in der ersten Gruppe: %v", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
+		ParentID: seiteGruppe2.ID}); err != nil {
+		t.Fatalf("Seite, „tag“ in der zweiten Gruppe: %v — zwei Gruppen einer "+
+			"Seite dürfen dieselbe Unterkennung tragen", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText}); err != nil {
+		t.Fatalf("Seite, „tag“ auf der obersten Ebene: %v — die oberste Ebene "+
+			"und eine Gruppe sind zwei Namensräume", err)
+	}
+
+	// --- Der Textbaustein: dieselben vier Schritte ----------------------------
+	baustein := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+
+	bausteinGruppe1, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: KindGroup,
+		SnippetID: baustein})
+	if err != nil {
+		t.Fatalf("Textbaustein, erste Gruppe: %v", err)
+	}
+	bausteinGruppe2, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "ferien", Label: "Ferien", Kind: KindGroup,
+		SnippetID: baustein})
+	if err != nil {
+		t.Fatalf("Textbaustein, zweite Gruppe: %v", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
+		ParentID: bausteinGruppe1.ID, SnippetID: baustein}); err != nil {
+		t.Fatalf("Textbaustein, „tag“ in der ersten Gruppe: %v", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
+		ParentID: bausteinGruppe2.ID, SnippetID: baustein}); err != nil {
+		t.Fatalf("Textbaustein, „tag“ in der zweiten Gruppe: %v — was die Seite "+
+			"trägt, muss der Textbaustein auch tragen", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
+		SnippetID: baustein}); err != nil {
+		t.Fatalf("Textbaustein, „tag“ auf der obersten Ebene: %v — die oberste "+
+			"Ebene des Textbausteins und seine Gruppen sind zwei Namensräume", err)
+	}
+
+	// --- Und der eigene Namensraum bleibt eng --------------------------------
+	//
+	// Der Index wird enger gezogen und nicht weggenommen: zwei Felder der
+	// obersten Ebene desselben Textbausteins dürfen weiterhin nicht dieselbe
+	// Kennung tragen, und zwei Unterfelder derselben Gruppe auch nicht — das
+	// zweite hält seit 00029 idx_page_field_defs_kennung_gruppe.
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Noch ein Tag", Kind: KindText,
+		SnippetID: baustein}); !errors.Is(err, ErrDuplicateKey) {
+		t.Errorf("zweites „tag“ auf der obersten Ebene des Textbausteins: Fehler = %v, "+
+			"erwartet ErrDuplicateKey", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "tag", Label: "Noch ein Tag", Kind: KindText,
+		ParentID: bausteinGruppe1.ID, SnippetID: baustein}); !errors.Is(err, ErrDuplicateKey) {
+		t.Errorf("zweites „tag“ in derselben Gruppe des Textbausteins: Fehler = %v, "+
+			"erwartet ErrDuplicateKey", err)
+	}
+}
