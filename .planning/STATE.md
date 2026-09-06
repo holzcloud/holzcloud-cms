@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
 current_phase: 7
-current_phase_name: Field Kinds
+current_phase_name: Snippets Carry Fields
 status: executing
 stopped_at: Completed 07-07-PLAN.md
-last_updated: "2026-09-05T16:19:22.928Z"
-last_activity: 2026-09-05
-state_head: 352753a4a7c21842449b44f42a76a1368817ebfc
+last_updated: "2026-09-06T09:19:53.421Z"
+last_activity: 2026-09-06
+state_head: 0376a46ffbfe99574cb2f7a721e771edfc6cafb0
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 14
+  total_plans: 19
   completed_plans: 14
   percent: 17
 ---
@@ -34,7 +34,7 @@ Plan: 07-07 complete — der per-Art-Zoll ist bezahlt, das stehende Tor ist gefa
 Status: Phase 07 abgeschlossen — FIELD-01…08 erfüllt, Abnahme offen
 Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die **Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
 Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code` innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen
-Last activity: 2026-09-05
+Last activity: 2026-09-06
 
 ### Milestone Map
 
