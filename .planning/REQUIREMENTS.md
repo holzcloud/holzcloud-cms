@@ -137,16 +137,16 @@ they are written here as they actually stand.
 
 ### Import
 
-- [ ] **IMP-01**: Admin can upload a CSV file and map each column to a target — title, body, a custom field, or explicitly nothing.
-- [ ] **IMP-02**: A CSV import creates pages through the same path as any other creation, so slugging, validation and sanitisation apply unchanged.
-- [ ] **IMP-03**: A CSV import reports per row what was created, updated or skipped, naming the row number and the reason. A file mixing good and bad rows imports the good ones and leaves nothing half-written.
-- [ ] **IMP-04**: The import can target an existing website or create a new one, chosen on the first screen. Targeting an existing one is a deliberate departure from the rule that an importer always creates a new website; the reason that rule gives — every collision needs an answer — is answered by the update-or-skip choice and the dry run.
-- [ ] **IMP-05**: Admin can run the whole file through validation without writing anything, and see what would happen, before committing to it.
-- [ ] **IMP-06**: Columns are matched to fields automatically where the names correspond, ignoring case and accents; the admin can override every one of them.
-- [ ] **IMP-07**: Admin can download an example CSV generated from that website's own field definitions, with the right column headings already in it.
-- [ ] **IMP-08**: The mapping screen shows one real row from the file, navigable to the next, and each field can carry a default for cells that are empty or unmapped.
-- [ ] **IMP-09**: An uploaded CSV is treated as hostile: bytes, rows and single cells are all capped; a byte-order mark from Excel does not break the first column; a stray quote does not swallow the rest of the file; a short row is reported by its row number; a NUL byte is refused.
-- [ ] **IMP-10**: **No transaction ever spans more than one row** — the write pool admits a single connection, and a file-long transaction would block every other request on the machine. *(Amended 2026-09-06, before planning: the wording was „one transaction per row, never one for the whole file". Per-row atomicity cannot be had through the ordinary stores without a second creation path, which IMP-02 forbids — a row already spans two or three transactions inside `page.Store` and `term.Store`. The half that matters is kept; „nothing half-written" is delivered by validating the row before the first write and by undoing it through the ordinary delete path if a later step fails. Reasoning: `.planning/phases/09-csv-import/09-CONTEXT.md`, D-02.)*
+- [x] **IMP-01**: Admin can upload a CSV file and map each column to a target — title, body, a custom field, or explicitly nothing.
+- [x] **IMP-02**: A CSV import creates pages through the same path as any other creation, so slugging, validation and sanitisation apply unchanged.
+- [x] **IMP-03**: A CSV import reports per row what was created, updated or skipped, naming the row number and the reason. A file mixing good and bad rows imports the good ones and leaves nothing half-written.
+- [x] **IMP-04**: The import can target an existing website or create a new one, chosen on the first screen. Targeting an existing one is a deliberate departure from the rule that an importer always creates a new website; the reason that rule gives — every collision needs an answer — is answered by the update-or-skip choice and the dry run.
+- [x] **IMP-05**: Admin can run the whole file through validation without writing anything, and see what would happen, before committing to it.
+- [x] **IMP-06**: Columns are matched to fields automatically where the names correspond, ignoring case and accents; the admin can override every one of them.
+- [x] **IMP-07**: Admin can download an example CSV generated from that website's own field definitions, with the right column headings already in it.
+- [x] **IMP-08**: The mapping screen shows one real row from the file, navigable to the next, and each field can carry a default for cells that are empty or unmapped.
+- [x] **IMP-09**: An uploaded CSV is treated as hostile: bytes, rows and single cells are all capped; a byte-order mark from Excel does not break the first column; a stray quote does not swallow the rest of the file; a short row is reported by its row number; a NUL byte is refused.
+- [x] **IMP-10**: **No transaction ever spans more than one row** — the write pool admits a single connection, and a file-long transaction would block every other request on the machine. *(Amended 2026-09-06, before planning: the wording was „one transaction per row, never one for the whole file". Per-row atomicity cannot be had through the ordinary stores without a second creation path, which IMP-02 forbids — a row already spans two or three transactions inside `page.Store` and `term.Store`. The half that matters is kept; „nothing half-written" is delivered by validating the row before the first write and by undoing it through the ordinary delete path if a later step fails. Reasoning: `.planning/phases/09-csv-import/09-CONTEXT.md`, D-02.)*
 
 ### Single sign-on
 
@@ -267,16 +267,16 @@ v1.6 phases continue the numbering at 6.
 | SNIP-03 | Phase 8 | Complete |
 | SNIP-04 | Phase 8 | Complete |
 | SNIP-05 | Phase 8 | Complete |
-| IMP-01 | Phase 9 | Pending |
-| IMP-02 | Phase 9 | Pending |
-| IMP-03 | Phase 9 | Pending |
-| IMP-04 | Phase 9 | Pending |
-| IMP-05 | Phase 9 | Pending |
-| IMP-06 | Phase 9 | Pending |
-| IMP-07 | Phase 9 | Pending |
-| IMP-08 | Phase 9 | Pending |
-| IMP-09 | Phase 9 | Pending |
-| IMP-10 | Phase 9 | Pending |
+| IMP-01 | Phase 9 | Complete |
+| IMP-02 | Phase 9 | Complete |
+| IMP-03 | Phase 9 | Complete |
+| IMP-04 | Phase 9 | Complete |
+| IMP-05 | Phase 9 | Complete |
+| IMP-06 | Phase 9 | Complete |
+| IMP-07 | Phase 9 | Complete |
+| IMP-08 | Phase 9 | Complete |
+| IMP-09 | Phase 9 | Complete |
+| IMP-10 | Phase 9 | Complete |
 | LANG-01 | Phase 12 | Pending |
 | LANG-02 | Phase 12 | Pending |
 | LANG-03 | Phase 12 | Pending |

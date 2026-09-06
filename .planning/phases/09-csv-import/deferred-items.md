@@ -98,3 +98,44 @@ an operator who compares them has no way to tell this apart from a bug. A
 sentence on the report — "a row whose address a row above it has just taken is
 counted here as it actually went" — would close it. Not added, because it is a
 new sentence in five languages on a screen whose wording was settled in 09-05.
+
+---
+
+## 5. Orphaned `terms` rows the cap does not prevent — added in the gap round, 2026-09-06
+
+**What.** The term pre-pass creates labels **before** any row is validated, and
+nothing ever removes one that no page ends up pointing at. `internal/term/store.go`
+has no sweep: the only `DELETE FROM terms` is a per-id delete at `:286`.
+
+**What the cap did close.** The unbounded case. `TermNames` used to harvest the
+whole cell while `RowTerms` cut a row at `term.MaxPerPage`, so a 10 MB file
+created **796 000** labels of which at most `rows x 12` could ever be pointed at
+— measured on this machine, and the remainder were orphans by construction.
+After the cap the same file creates **4 776** = `398 x MaxPerPage`, and every one
+of them is a label some row can hold.
+
+**What the cap does not close, and cannot.** Two shapes survive, both bounded and
+both legitimate:
+
+1. **A row that is refused after its names were harvested.** The pre-pass runs
+   before `CheckRow`, so a row with no title, an unknown status or an oversized
+   cell still contributes its labels. Driven in the browser: a file whose
+   `Gurke` row carried `gemuese` and was skipped for `violett` left `gemuese`
+   standing with nothing pointing at it. Bounded by `MaxRows x MaxPerPage`.
+2. **A label a later row takes away.** Two rows at one address with
+   `aktualisieren`: the second replaces the first's labels and the dropped one
+   stays. This is how `SetForPage` behaves everywhere in the CMS — an archive
+   keeps its labels when the last page leaves it — so it is not a defect of the
+   importer at all.
+
+Making case 1 impossible would mean running the whole decision pass before the
+pre-pass and harvesting only from rows that will be written. That is a third walk
+over the file and a real change to `csvRun`'s shape; it is not a gap-round change.
+
+**Existing installations.** Yes, they can already carry the unbounded kind. Any
+import run before this fix created every name the file mentioned, uncapped. A
+sweep — `DELETE FROM terms WHERE id NOT IN (SELECT term_id FROM page_terms UNION
+SELECT term_id FROM product_terms ...)` — is a migration, and a destructive one:
+a label an editor made by hand and has not used yet looks exactly like an orphan.
+**Deliberately not written in a gap round.** If it is taken up it belongs as an
+admin action a person confirms, not as a migration that runs at deploy.
