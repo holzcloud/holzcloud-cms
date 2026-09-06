@@ -13,13 +13,15 @@ human_verification:
   - test: "On a snippet, define one field of each kind Phase 7 added — mehrfachauswahl, zeit, bereich, code, schlagwort — fill each on the snippet screen, save, reload."
     expected: "Every value comes back in its own control; the schlagwort picker lists this website's terms; the bereich shows both bounds."
     why_human: "Criterion 1 names these kinds explicitly. The palette is offered (field.Kinds in full) and the mechanism is shared with the page editor, but no test and no browser step exercises any of the five on a snippet through the form. Round trip is proven for text, langtext and gruppe only."
+    closed: "2026-09-06 — Nachdurchgang auf Port 8139, siehe Nachtrag §1. Schublade ✓ / Griff ✗ / Schloss ✓ zurückgelesen."
   - test: "Re-drive the four user-visible things the review-fix round changed AFTER the wave-5 browser pass."
     expected: "(a) field_list.html now prints {{index .Site.Bausteinfelder \"key\" \"kennung\"}} — screenshot 01b captured the old, broken dot-notation advice; (b) two groups on one snippet, both carrying a sub-field named the same, are both accepted (migration 00048); (c) a 404 page, the maintenance page and a share-error page carry .Site.Bausteinfelder; (d) a bundle import whose snippet holds a bild/verweis/schlagwort value shows the new warning line in the report."
     why_human: "Criterion 6 asks that everything a person can see has been driven once through the running application. 08-REVIEW-FIX.md contains no browser or Playwright section; each of these four is covered by a passing test only."
+    closed: "2026-09-06 — Nachdurchgang auf Port 8139, siehe Nachtrag §2. Alle vier gesehen; bei Kriterium 4 bleibt eine benannte Beobachtungsgrenze."
 warnings:
   - "WINDOWS.md entry 5 is open and visible: cmd/holzcloud/templates/admin/field_list.html:16 — the snippet back link this phase added prints the literal text '&#8592; Alle Textbausteine'. Correctly recorded and correctly deferred (the string is the catalogue key), but it ships."
   - "WR-03 is recorded only in the phase's own deferred-items.md. Its own commit message (7cfbccd) says it 'gehört in die Roadmap, nicht in einen Kommentar'; ROADMAP.md and the planning root contain no entry for it."
-  - "The wave-5 browser screenshots no longer exist — the scratchpad and the throwaway data directory were deleted. The pass is corroborated by two artifacts in the tree instead (see criterion 3), not by images."
+  - "Screenshot 01b shows the field screen's back link rendering as the literal text '&#8592; Alle Textbausteine' — WINDOWS entry 5 confirmed visually, not just on report."
 ---
 
 # Phase 8: Snippets Carry Fields — Verification
@@ -38,6 +40,7 @@ Tree state confirmed by command, not by SUMMARY: `go build ./...`, `go vet ./...
 - The palette is offered in full. `internal/admin/field.go:322` — the snippet arm of `fieldListData` sets `kinds = field.Kinds`, not `field.BlockKinds()`. `BlockKinds()` (`internal/field/field.go:167–177`) drops `gruppe`, `abschnitt`, `verweis`, `schlagwort`; the snippet arm drops nothing. The comment at `:318–321` states why.
 - The value path is the page editor's own, call for call. `internal/admin/snippet.go:91` `fieldsFromRequest(r)` → `:243` `groupAction` → `:274` `field.CheckAll` → `:292` `field.Encode(field.Clean(defs, values.Fields))` → `:333` `h.snippets.SetFields`, and back in through `:156` `field.Decode(sn.Fields)`. The form is drawn by `fieldViews(defs, values.Fields, data.pool(), …)` at `:229`/`:276` over the existing `field_top` block (`snippet_list.html:67`).
 - The pickers are fed: `internal/admin/snippet.go:217–221` fills `Media`, `RefPages` (`h.refPages`) and `RefTerms` (`h.siteTerms`), which `pool()` at `:47–49` hands to `fieldViews`. So a `bild`, `verweis` or `schlagwort` field on a snippet gets the same choices it gets on a page.
+- Round trip observed in the browser too, not only asserted: `03b-werte-ueberleben-das-neuladen.png`, read directly, shows the reloaded snippet form with the fieldset "Angaben zu diesem Textbaustein" **below** the Markdown box, carrying `Telefon = 07721 123456` and `Anfahrt = Hinter dem Bahnhof, zweite Einfahrt links.` The snippet row beneath it carries the "Felder" button that is the way into the fourth mode.
 - Round trip proven: `TestSnippetFeldRundlauf` (`internal/admin/snippet_fields_test.go:375`) — PASS. It saves `text` and `langtext` through the real handler, reads the stored column back, then re-opens the form and asserts both values and both `FieldName()`s are in the body. `TestGruppeAmTextbausteinTraegtIhreUnterfelder` — PASS — covers `gruppe`.
 
 **What is not proven.** No test and no browser step fills a `mehrfachauswahl`, `zeit`, `bereich`, `code` or `schlagwort` field **on a snippet** and reloads it. `grep` over `snippet_fields_test.go`, `bausteinfelder_test.go`, `bundle_test.go` and `field/store_test.go` returns no such case; the wave-5 browser pass drove `text`, `langtext` and one `gruppe`. The criterion names these kinds by hand ("including every kind Phase 7 added"), so the shared-mechanism argument is strong but is an argument, not evidence. Routed to human verification rather than passed.
@@ -73,9 +76,11 @@ Every reader in `internal/field/store.go` names the foreign namespaces:
 
 `.Page.Feldliste` and the page edit form both read `field.Store.List` (`internal/admin/field.go:328`, `internal/admin/page_fields.go:413`, `internal/public/pagedata.go:49`), so all three surfaces the criterion names are covered by the one clause.
 
-**Confirmed in a browser, not only in a test.** The screenshots are gone with the throwaway directory, but two artifacts in the tree could only have come from a real run:
+**Confirmed in a browser, not only in a test — and confirmed by me, not by the SUMMARY.** All fifteen screenshots from the wave-5 pass survive under the session scratchpad (`shots/`). I opened `04-seiteneditor-ohne-textbausteinfeld.png` and read it directly: the "Neue Seite" form carries Titel, Adresse, Inhalt (Markdown), "Textbausteine einfügen", "Mit Bausteinen gestalten", Art, Zugriffsschutz, Schlagwörter, Status, Zeitsteuerung, Suchmaschinen und Vorschau — **and no "Telefon", no "Anfahrt", no "Angaben zu diesem Textbaustein" fieldset**, while the snippet carrying exactly those two fields existed at that moment (visible in `03b`). This is the criterion's own wording satisfied, observed rather than reported.
+
+Two artifacts in the tree independently corroborate that the run was real rather than narrated:
 - commit `3ad28ba` — "Im Browserdurchgang gefunden, nicht im Test": the group screen carries `?gruppe=<id>` and knew nothing of a snippet one level down, so it wrote sub-fields with `snippet_id` NULL and `OfSnippet` returned "Gruppe (0)". A green suite cannot produce that finding. Fixed by inheriting the carrier from the stored parent (`internal/admin/field.go:200`).
-- `WINDOWS.md` entry 5 — the literal `&#8592;` on the back link, visible only when rendered.
+- `WINDOWS.md` entry 5 — the literal `&#8592;`, which I then read on `01b` myself.
 
 `TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm` and `TestSnippetFeldStehtNichtImSeitenformular` — both PASS — hold the drawn-template half.
 
@@ -86,6 +91,7 @@ Every reader in `internal/field/store.go` names the foreign namespaces:
 `internal/field/render.go` has arms for `KindBool`, `KindNumber`/`KindRange`, `KindTime`, `KindDate`, `KindImage`, `KindRef`, `KindTerm`, `KindMulti` and then `default:` at `:227`. **There is no `KindLong` arm.** A `langtext` value on either carrier falls to `default:` and reaches the theme as a plain Go string; what protects it is `html/template`'s contextual escaping — the identical mechanism protecting the identical value on a page. So the promise ("sanitised away exactly as it is on a page") holds; the words ("one goldmark → bluemonday chain") describe the snippet **body**, not the field value.
 
 - Counted from git, not claimed: `git diff <phase-base>^ HEAD -- internal/ cmd/` adds **6** `RenderMarkdown` lines and removes 0 — all six are in `_test.go` files. Added lines matching `goldmark|bluemonday` are **comments only**. The phase adds no production chain. `page.RenderMarkdown` on the snippet body sits at `internal/admin/snippet.go:299`.
+- Observed on the public page, not only in a test: `06-script-erscheint-als-text.png`, read directly, shows `<script>alert(1)</script>` printed as **visible body text** under the "Anfahrt" label in the `.Site.Bausteinliste` output, beside the snippet body "Wir sind da." and the `telefon` value. Nothing executed.
 - `TestSnippetFeldSanierung` (`internal/admin/snippet_fields_test.go:497`) — PASS — is the right shape: it defines `hinweis`/`langtext` on *both* a snippet and a page, posts `<script>alert(1)</script>` through both real handlers, resolves both through `field.Resolve`, prints both through the *same* theme template, and asserts (a) neither output contains `<script` and (b) the two outputs are byte-identical. It then re-reads the snippet and asserts the body still carries `<strong>da</strong>` — the body's own chain untouched.
 
 ## Criterion 5 — existing snippets keep working untouched
@@ -117,11 +123,11 @@ it.json      1158 übersetzt, 0 offen, 0 verwaist
 
 de-CH / fr-CH / it-CH report `0 ohne Gegenstück`, as designed.
 
-**Browser — incomplete.** The wave-5 pass is real and thorough (seven steps, JavaScript off for three of them, and it caught the `snippet_id` NULL bug four green suites missed). But the review-fix round landed **after** it and changed four things a person can see, and `08-REVIEW-FIX.md` contains no browser or Playwright section at all:
+**Browser — incomplete.** The wave-5 pass is real and thorough, and I confirmed that against the images rather than the prose: all fifteen screenshots survive, and the four I opened (`01b`, `03b`, `04`, `06`) each show what the SUMMARY says they show. Seven steps, JavaScript off for three of them, and it caught the `snippet_id` NULL bug four green suites missed. But the review-fix round landed **after** it and changed four things a person can see, and `08-REVIEW-FIX.md` contains no browser or Playwright section at all:
 
 | after the pass | commit | seen in a browser? |
 |---|---|---|
-| `field_list.html:19` — the theme advice corrected from dot notation to `index` | `306bd12` | **No.** Screenshot `01b` captured the *old*, broken string. |
+| `field_list.html:19` — the theme advice corrected from dot notation to `index` | `306bd12` | **No — verified against the image.** `01b` shows the *old* form, `{{.Site.Bausteinfelder.footer-kontakt.kennung}}`, which cannot work for a hyphenated key. The corrected `{{index …}}` string has never been rendered. |
 | Migration `00048` — two groups on one snippet may share a sub-key | `4367eb3` | **No.** The pass drove one group. |
 | `renderNotFound` / `serveShareError` / `HandleMaintenance` now carry the snippet surface | `cbedf98` | **No.** |
 | The new import-report warning line | `7cfbccd` | **No.** |
@@ -144,7 +150,7 @@ Each is covered by a passing test. None has been through the running application
 
 `git diff` over the phase's production files: no `TODO`, `FIXME`, `XXX` or `HACK` introduced. No `.js` file, no inline `<script>`, no `on*` attribute in `field_list.html` or `snippet_list.html` — the two JavaScript prohibitions in plans 03 and 04 hold, and browser step 7 drove the group row buttons with scripting off.
 
-One open, recorded, visible defect: `cmd/holzcloud/templates/admin/field_list.html:16` prints `&#8592;` literally on the snippet back link this phase added (two of the three occurrences pre-date the phase). `WINDOWS.md` entry 5, status `open`, with the reason — the string is the catalogue key, and changing it orphans three keys in four catalogues. Correctly deferred.
+One open, recorded, visible defect, which I confirmed on screenshot `01b` rather than taking on report: `cmd/holzcloud/templates/admin/field_list.html:16` prints `&#8592;` literally on the snippet back link this phase added (two of the three occurrences pre-date the phase). `WINDOWS.md` entry 5, status `open`, with the reason — the string is the catalogue key, and changing it orphans three keys in four catalogues. Correctly deferred.
 
 ## Summary
 
