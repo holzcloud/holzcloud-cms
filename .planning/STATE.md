@@ -4,8 +4,8 @@ milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
 current_phase: 9
 current_phase_name: CSV Import
-status: planning
-stopped_at: 09-CONTEXT.md written, edge probe closed 34/34, pattern-mapper running
+status: executing
+stopped_at: Phase 9 geplant und geprueft; Welle 1 von 6 laeuft
 last_updated: "2026-09-06T12:00:00.000Z"
 last_activity: 2026-09-06
 state_head: 3ad28bab760521de6690e8524094df6526b1807e
@@ -22,15 +22,15 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 9 — CSV Import, **in Planung** (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 9 — CSV Import, **Welle 1 von 6 in Ausführung** (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
 
 ### Current Position
 
-Phase: 9 — CSV Import (**Planung läuft**)
-Plan: keiner. `09-CONTEXT.md` steht — 30 Entscheide, jeder mit seinem Beleg
+Phase: 9 — CSV Import (**Welle 1 von 6 läuft**)
+Plan: sechs, streng nacheinander — `internal/admin/csvimport.go` wird von 04, 05 und 06 angefasst, also lässt sich keine Welle teilen. `09-CONTEXT.md` steht — 30 Entscheide, jeder mit seinem Beleg
 gegen den Baum. **Zwei Notizen der Roadmap sind dabei widerlegt und sichtbar
 gestempelt statt still übergangen:** „die Datei mit der Zuordnung erneut
 absenden" ist nicht baubar (ein Server kann kein Dateifeld füllen, und IMP-08s
@@ -51,10 +51,24 @@ weil eine Spalte über ihren Index angesprochen wird, ein zerlegter Umlaut aus
 einem macOS-Export fände sein Feld nie (`SlugifyKey` trifft das einzelne
 Zeichen `ü`, nicht `u` + Kombinationszeichen), und Ziel wie Zuordnung müssen vor
 dem Probelauf **und noch einmal** vor dem Schreiben nachgeprüft werden
-Status: **Phase 08 ist abgeschlossen** — ausgeführt, geprüft, verifiziert
-(`6/6 criteria verified — one with a named limitation`), Sicherheitsprüfung
-abgelegt, stehendes Tor auf beiden Hälften erfüllt. Nächster Schritt: der
-Musterabgleich läuft, danach `gsd-planner` und `gsd-plan-checker`
+Status: **Phase 08 ist abgeschlossen.** Phase 9 ist geplant und geprüft: 38
+Entscheide, Kantentest 34/34 geschlossen, sechs Pläne, 134 Prüfbefehle, alle
+sechs strukturell gültig. Die Planprüfung fand **sechs Blocker**, alle behoben —
+vier davon Nachwehen von D-37 (die Beispieldatei wanderte vor den Upload), zwei
+geratene Zahlen in Zähl-Toren: `badge--` misst **6** und nicht 8, und das
+`@layer components`-Tor druckte eine Zahl, während seine Bedingung zwei brauchte,
+**es konnte also gar nicht rot werden**. Beide nachgemessen (6 und 15) und in die
+Grundzahlen aufgenommen. Der Checkpoint in 09-02 ist **beantwortet statt
+stehengelassen**: die Marke wird als Hash abgelegt (`user_tokens`, `00012:12` —
+„a stolen database must not yield working links"), und die Zuordnung reist als
+Formularzustand, damit die Zeile einmal geschrieben und nie geändert wird —
+worauf sich die Verwerfung der IMP-08-Kante und D-30 beide stützen. Die zwei
+Kosten dieser Wahl zahlt ein Konstrukt, das `page_form.html:136-137` schon
+zweimal benutzt (`formmethod`/`formaction`). **D-38 fiel dabei ab und keine
+Prüfung hatte danach gesucht:** die Spalten sind nirgends begrenzt — Bytes,
+Zeilen und Zellen schon —, also kommt eine Datei mit 5000 Spalten durch jede
+Grenze und ergibt einen Zuordnungsbildschirm mit 5000 Zeilen. Grenze bei 100,
+auf Bildschirm 1 abgewiesen und gemeldet statt still gekürzt
 Offen aus Phase 8: der `&#8592;`-Befund in `field_list.html` (dreimal; die
 Zeichenkette **ist** der Katalogschlüssel, ein Flick verwaist drei Schlüssel in
 vier Katalogen) — in `deferred-items.md` mit Schrittfolge und als Eintrag 5 im
@@ -86,7 +100,7 @@ phases were renumbered into this one as 7, 8 and 9.
 | 6 | Aufräumen | MAINT-01…05 | 5 | Plans 7/7 — Abnahme offen (Browserhälfte des Tors) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Plans 7/7 — Abnahme offen (eine Browserzeile, Fenster Nr. 3) |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | **Abgeschlossen** — 5/5 Pläne, verifiziert, Sicherheitsprüfung abgelegt |
-| 9 | CSV Import | IMP-01…10 | 10 | **In Planung** — Kontext steht, Kantentest 34/34 geschlossen |
+| 9 | CSV Import | IMP-01…10 | 10 | **In Ausführung** — 6 Pläne in 6 Wellen, Planprüfung 6 Blocker behoben, Welle 1 läuft |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started — **geplant, aber nicht ausgeführt** vorlegen |
 | 11 | Galerie | GAL-01…07 | 7 | Not started |
 
