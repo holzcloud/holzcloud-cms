@@ -387,8 +387,16 @@ func (h *Handler) serve404(w http.ResponseWriter, r *http.Request, website *doma
 }
 
 // renderNotFound writes the themed 404 response.
+//
+// Die Textbausteinfläche wird gefüllt wie auf jeder anderen Route: hier steht
+// die echte Vorlage des Themes, samt Fussteil, und das ist eine der Seiten, auf
+// denen ein Besucher den Kontakt sucht — die Adresse, die er gefunden hat, ist
+// falsch. Ohne diese Zeile bliebe die Stelle leer, ohne Fehler und ohne Eintrag
+// im Protokoll.
 func (h *Handler) renderNotFound(w http.ResponseWriter, r *http.Request, website *domain.Website) error {
-	content, err := h.loader.Render404(r.Context(), website.ID, h.siteData(r, website))
+	site := h.siteData(r, website)
+	h.fillSnippets(r, &site, website.ID, h.loadSnippets(r, website.ID))
+	content, err := h.loader.Render404(r.Context(), website.ID, site)
 	if err != nil {
 		slog.Error("render 404 template failed", "err", err, "website", website.ID)
 		http.NotFound(w, r)

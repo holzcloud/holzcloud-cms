@@ -88,6 +88,14 @@ func (h *Handler) ownFields(r *http.Request, websiteID int64, pg *page.Page) (ma
 // Funktion und vierzehn Aufrufe, und deshalb ein Gatter im Plan, das
 // nachweist, dass ausserhalb dieser Funktion keine Zuweisung überlebt hat.
 //
+// Was jenes Gatter nicht sehen kann, ist die entgegengesetzte Lücke: eine
+// Route, die weder das eine noch das andere tut. Drei taten es —
+// renderNotFound, serveShareError und HandleMaintenance —, und sie fielen
+// nirgends auf, weil index über eine nil-Karte die leere Zeichenkette gibt und
+// range über eine keine Runde dreht. Dagegen steht keine Zählung, sondern
+// TestBausteinfelderAufDenRoutenOhneSeite: es zeichnet die drei Ansichten und
+// liest den Wert aus dem Körper.
+//
 // Resolved on the way out rather than stored resolved: a picture chosen last
 // month has to pick up this month's crop, and a field whose definition changed
 // has to be read the new way without every snippet being saved again.
@@ -411,6 +419,13 @@ func (h *Handler) HandleMaintenance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	site := h.siteData(r, website)
+	// Auch hier, und das ist eine Entscheidung und keine Gleichmacherei: eine
+	// abgeschaltete Website führt eine Abfrage weniger gern aus, aber die
+	// Wartungsseite ist die einzige Seite, die ein Besucher in dieser Zeit
+	// überhaupt zu sehen bekommt — und die Zeile, die er dort sucht, ist die
+	// Telefonnummer. Eine Abfrage je Anfrage, auf einer Seite, die niemand
+	// oft abruft.
+	h.fillSnippets(r, &site, website.ID, h.loadSnippets(r, website.ID))
 	content, err := h.loader.RenderMaintenance(r.Context(), website.ID, site, website.OfflineMessage)
 	if err != nil {
 		// The themed page is a courtesy; the status code is the part that
