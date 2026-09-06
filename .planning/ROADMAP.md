@@ -315,23 +315,23 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 09-01-PLAN.md — `internal/csv`, pure and standard-library only: the hostile-file checklist D-08…D-16, the row-number helper, the example-CSV writer
+- [x] 09-01-PLAN.md — `internal/csv`, pure and standard-library only: the hostile-file checklist D-08…D-16, the row-number helper, the example-CSV writer
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 09-02-PLAN.md — migration `00049_csv_imports.sql`, the staging store in `internal/csvimport`, and the `csv-import-prune` job
+- [x] 09-02-PLAN.md — migration `00049_csv_imports.sql`, the staging store in `internal/csvimport`, and the `csv-import-prune` job
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 09-03-PLAN.md — the mapping resolution and the row function: everything between a parsed row and a `page.PageCreate`, with no screens
+- [x] 09-03-PLAN.md — the mapping resolution and the row function: everything between a parsed row and a `page.PageCreate`, with no screens
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 09-04-PLAN.md — the third `<details>` panel, screen 1, the mapping screen, the expiry screen and the example CSV download
+- [x] 09-04-PLAN.md — the third `<details>` panel, screen 1, the mapping screen, the expiry screen and the example CSV download
 
 **Wave 5** *(blocked on Wave 4)*
 
-- [ ] 09-05-PLAN.md — the dry run, the write, and the report grouped by reason
+- [x] 09-05-PLAN.md — the dry run, the write, and the report grouped by reason
 
 **Wave 6** *(blocked on Wave 5, and on the code-review fix round)*
 
