@@ -103,8 +103,9 @@ phases were renumbered into this one as 7, 8 and 9.
 | 9 | CSV Import | IMP-01…10 | 10 | **In Ausführung** — 6 Pläne in 6 Wellen, Planprüfung 6 Blocker behoben, Welle 1 läuft |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started — **geplant, aber nicht ausgeführt** vorlegen |
 | 11 | Galerie | GAL-01…07 | 7 | Not started |
+| 12 | The Codebase Speaks English | LANG-01…07 | 7 | Not started — **die Freigabe damit ist 2.0** (brechender Vorlagen-Vertrag) |
 
-**Execution order: 6 → 7 → (8 ∥ 9 ∥ 11) → 10.** The one real dependency inside the
+**Execution order: 6 → 7 → (8 ∥ 9 ∥ 11) → 10 → 12.** The one real dependency inside the
 milestone is that Phase 9 needs Phase 7's multi-value encoding (Phase 7's build
 step ①). Once that lands, Phases 8 and 9 are independent of each other and may
 run in parallel. Phase 10's file set is disjoint from every other phase's and
@@ -127,7 +128,7 @@ Phases 6 and 8 follow standard patterns.
 staging table for the uploaded file (D-01). Phases 6 and 10 need none; Phase 11
 needs one for albums.
 
-Coverage: 48 / 48 requirements mapped. Orphans 0, duplicates 0.
+Coverage: 55 / 55 requirements mapped. Orphans 0, duplicates 0.
 
 ### Performance / Quality Notes
 
@@ -155,6 +156,7 @@ Coverage: 48 / 48 requirements mapped. Orphans 0, duplicates 0.
 - v1.6: `darstellung`, `max_werte` and the `bereich` bounds get their own columns rather than riding in `auswahl` — a line that is not an option is exactly the ambiguity the one-value-per-line encoding was careful to avoid. Phase 7 therefore ships a migration
 - v1.6: a multi-valued field is stored one value per line in the existing string slot, and crosses a CSV cell as a pipe. The delimiter is already illegal inside a value because `SplitChoices` reads options one per line — correct for closed vocabularies, which is all v1.6 has
 - v1.6: an Authentik session satisfies the second factor unconditionally (operator's decision, 2026-09-03). One home: `auth.MustHaveSecondFactor` at `internal/auth/twofactor.go:44`. The dependency must be stated in DEPLOY.md and shown in the admin
+- **2026-09-06: the code speaks English.** The project is open source, so identifiers, comments, test names, the template data contract and the SQL columns together with the catalogue keys all become English — full scope, chosen by the developer. The template contract is a **hard break with a version bump**, so the release carrying Phase 12 is **2.0**. One word list, `.planning/GLOSSARY.md`, is the single place a German term's English word is fixed; a term translated without an entry gets one in the same commit. `.planning/` itself is **not** translated — it is the project's own record, and rewriting a record's language is how it stops being one
 - v1.6: the CSV import offers both an existing website and a new one, chosen on screen 1 (operator's decision, 2026-09-03) — a deliberate departure from `wordpress.go`'s always-a-new-website rule, answered by the update-or-skip choice plus the dry run
 - README's `## License` said MIT while LICENSE carries the full GNU AGPL-3.0; corrected to AGPL-3.0 with a link to LICENSE. A documentation-defect fix, not a relicensing — revert commit d089e3d if MIT was ever the intent
 - CHANGELOG.md follows the Keep a Changelog skeleton but writes entries as full sentences, matching the register of SECURITY.md and CONTRIBUTING.md; the choice is stated at the top of the file so the next entry does not revert to bullets

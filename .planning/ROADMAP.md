@@ -428,11 +428,40 @@ Plans:
 - **A second gallery already exists and must not be forgotten:** the shop's product gallery (`internal/shop/product.go`, `.Product.Gallery`) is rendered by all seven themes as `.product__gallery`. Decide explicitly whether it inherits the large view — and record the decision either way, because "we only meant the block" is exactly the kind of silence that becomes a bug report.
 - **An album pays the same tax terms and menus pay:** a table, a migration, an admin area, website scoping, the bundle round trip, `TEMPLATE-SPEC.md` + `SampleData` + `MinimalData` if a theme can reach it, and `tools/i18n -write` followed by `-schweiz`. Budget it once. Migrations will stand at `00047` after Phase 8; this phase should claim its number when it is planned, not before.
 
+### Phase 12: The Codebase Speaks English
+
+**Goal**: A stranger can read this repository. Every identifier, every comment, every test name, every SQL column and every catalogue key is English — and the template data contract is too, which is why the release carrying this phase is **2.0** and not 1.10.
+**Depends on**: **Phase 9 and Phase 11** — not for a mechanism, but because a sweep over 84 753 lines of Go must not run while two phases are still adding to them. Phase 10 is independent of this one and may go either side of it.
+**Requirements**: LANG-01, LANG-02, LANG-03, LANG-04, LANG-05, LANG-06, LANG-07
+**Success Criteria** (what must be TRUE):
+
+  1. `grep -rn '[äöüÄÖÜß]' --include='*.go' .` prints **nothing outside the catalogue files**. Every Go comment reads as English prose written for a reader, not as a machine translation of a German sentence — and every comment that carried a *reason* still carries it, at the same length. This repository's comments explain why a bound exists and what once went wrong; that is the most valuable thing in the files and an English reader needs it more, not less.
+  2. Every identifier is English, and each German term maps to **exactly one** English word, fixed in `.planning/GLOSSARY.md`. `Kennung` is `key` everywhere or the phase has failed at its own purpose. A term translated during this phase that the glossary does not name is added to it in the same commit.
+  3. **The template data contract is English and the break is announced.** `.Page.Felder` → `.Page.Fields`, `.Site.Bausteinfelder` → `.Site.SnippetFields`, `.Page.Uebersetzungen` → `.Page.Translations`, `.Page.Art` → `.Page.Kind`. All eight shipped themes are converted with it, `TEMPLATE-SPEC.md` documents only the English names, `CHANGELOG.md` names it as a breaking change under `## 2.0`, and the three places tied by tests — `internal/template/loader.go`, `SampleData`/`MinimalData` in `sample.go`, and the specification — agree. **A theme written against 1.x stops working, deliberately and in one release.**
+  4. The German SQL column names are English, through **new** migrations — `kennung` → `key`, `art` → `kind`, `auswahl` → `choices`, `pflicht` → `required`, `hinweis` → `hint`, `gilt_fuer` → `applies_to`, `beschriftung` → `label`, `bedingung` → `condition`, `darstellung` → `display`, `min_wert`/`max_wert` → `range_min`/`range_max`, `max_werte` → `max_values`. No released migration is edited. Every hand-written SQL statement follows, including the six-statement carrier discriminator in `internal/field/store.go` that Phases 7 and 8 both had to reason about — and the `Down` half of each new migration is written with the care `00048` documents.
+  5. **The catalogue's source language is English.** The 1158 German keys become English keys; a new `de.json` carries German as a translation; `de-CH.json` is derived from that instead of from source; `es/fr/it.json` are re-keyed through the old German→English mapping. The nine keys that collide are resolved individually, and **the three that collide because the existing translation is wrong are fixed, not merged** — `Beschriftung` and `Schlagwort` are not the same word, `Uhrzeit` and `Zeitpunkt` are not the same word, and `an.`/`fest.` translated to a bare `.` is a defect this phase inherits and repairs.
+  6. **German cannot come back unnoticed.** A mechanical gate fails the build if a German word enters Go source outside the catalogue files — the same shape as the existing i18n and CI gates, not a review convention. Without it the next phase writes German again and this one was a one-time cleanup instead of a change of language.
+  7. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist` on every catalogue **after the source flip**, and every screen a person can see has been driven once through the running application in a browser — because renaming a template contract field that a screen reads is exactly the change no test catches and every visitor does.
+
+**Plans**: TBD
+**UI hint**: no new UI. But **every existing screen is in the blast radius** of criterion 3, so the browser half of the standing gate is larger here than in any phase that adds screens.
+**Research flag**: none. Nothing here is unknown; it is large, and the risk is inconsistency rather than difficulty. The glossary exists to make it mechanical.
+**Scope note**: this phase does **not** fit the v1.6 milestone goal sentence any more than Phase 11 does. It was added on **2026-09-06** by explicit developer decision — the project is open source now, so the code speaks English. It carries a **breaking change to a public contract**, so whatever milestone holds it, the release is **2.0**. Either extend the milestone goal, or move this phase and Phase 11 into a v2.0 milestone — but do not leave a later reader to find the mismatch on their own.
+**Planning notes**:
+
+- **Measured 2026-09-06, before planning.** 325 Go files, 84 753 lines. **191 files carry umlauts**, 2797 lines of them; German identifiers without umlauts add more (`Seite` 423×, `Feld` 274×, `Zeile` 154×, `Kennung` 153×). 37 of 868 test functions are plainly German. 12 German SQL column names across the migrations, `kennung` 26×. All eight themes read the German template contract. 1158 catalogue keys are German sentences and **there is no `de.json`** — German is the source language, which is exactly why criterion 5 is a re-keying and not a translation.
+- **The catalogue flip is a bijection through `en.json`, and that is what makes it tractable.** Today `en.json` maps German→English; inverting it gives English→German, which *is* the new `de.json`. `es/fr/it.json` are re-keyed by looking each old German key up in `en.json`. Measured: of 1158 keys exactly **nine** English values are hit twice or more. Everything else is a clean 1:1. Do the transformation with a script, commit the script, and keep it — a second pass will want it.
+- **Order matters and is not obvious.** The catalogue flip (criterion 5) must come **after** every user-visible German string has stopped moving, or the mapping is built against a moving target. The SQL rename (criterion 4) must come **before** the comment sweep touches `internal/field/store.go`, or the same file is rewritten twice. The template contract (criterion 3) is independent of both and should land in its own commit with the themes, because it is the one thing a user notices.
+- **Do not translate `.planning/`.** It is the project's own record, written as it was written, and rewriting history's language is how a record stops being one. New planning artifacts from this phase onward are English; the old ones stay.
+- **The comment sweep is the part that can be done badly.** A translation that turns *„Die Spalte darf keinen anderen Vorgabewert als NULL haben — SQLite lässt ALTER TABLE ADD COLUMN nicht zu, wenn REFERENCES und ein Vorgabewert ungleich NULL zusammentreffen"* into *„Column has no default"* has destroyed the file. Budget for reading each comment and re-arguing it in English, not for find-and-replace.
+- **`internal/csv` and `internal/csvimport` were already turned**, on 2026-09-06, immediately after Phase 9's waves 1 and 2 shipped them — while nothing depended on their names. Phase 9's waves 3–6 are written in English from the start. So this phase inherits a tree that is already partly converted, and its first task is to **measure what remains** rather than to assume the numbers above still hold.
+- **`internal/db/migrations/00049_csv_imports.sql` carries German comments and was deliberately left alone**: it had already run on a database when the decision was taken, and a released migration is never edited. Its comments belong to criterion 4's new-migration work or to nothing.
+
 ---
 
 ## Progress
 
-**Execution Order:** 6 → 7 → (8 ∥ 9 ∥ 11) → 10
+**Execution Order:** 6 → 7 → (8 ∥ 9 ∥ 11) → 10 → 12
 
 Two phases need Phase 7's multi-value encoding — Phase 7's build-order step ①:
 **Phase 9** for the importer and **Phase 11** for an album's image list. Once that
@@ -469,7 +498,7 @@ All 48 v1.6 requirements are mapped to exactly one phase.
 | 10. Authentik Forward-Auth | SSO-01, SSO-02, SSO-03, SSO-04, SSO-05, SSO-06, SSO-07, SSO-08, SSO-09, SSO-10, SSO-11, QUAL-01, QUAL-02 | 13 |
 | 11. Galerie | GAL-01, GAL-02, GAL-03, GAL-04, GAL-05, GAL-06, GAL-07 | 7 |
 
-**Mapped: 48 / 48. Orphans: 0. Duplicates: 0.**
+**Mapped: 55 / 55. Orphans: 0. Duplicates: 0.**
 
 QUAL-01 and QUAL-02 are counted once, in Phase 10, and additionally enforced
 verbatim as the final success criterion of Phases 6, 7, 8, 9 and 11 — see
