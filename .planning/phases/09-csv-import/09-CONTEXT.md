@@ -156,15 +156,17 @@ creation path as any other creation."*
 ### The four screens
 
 Screen 1 is a POST from the panel; screens 2–4 are GET/POST pairs on the
-staging token. Routes, all under `/admin/websites/import-csv`:
+staging token. **Screen 1 stays under `/admin/websites/`; every token-bearing
+screen lives under `/admin/csv-import/` — see D-36, which is a defect this
+table originally had.**
 
 | # | Route | What it does |
 |---|---|---|
 | 1 | `POST /admin/websites/import-csv` | cap, sniff, parse the header, stage, redirect to 2 |
-| 2 | `GET /admin/websites/import-csv/{token}` | the mapping screen; `?zeile=N` steps the sample row (IMP-08) |
-| 2b | `GET /admin/websites/import-csv/{token}/beispiel` | the example CSV download (IMP-07) — a GET, see D-34 |
-| 3 | `POST /admin/websites/import-csv/{token}/probe` | the dry run — **writes nothing** (IMP-05) |
-| 4 | `POST /admin/websites/import-csv/{token}/start` | the write, then the report |
+| 2 | `GET /admin/csv-import/{token}` | the mapping screen; `?zeile=N` steps the sample row (IMP-08) |
+| 2b | `GET /admin/csv-vorlage?website={id}` | the example CSV download (IMP-07) — a GET, **not behind the token**, see D-34 and D-37 |
+| 3 | `POST /admin/csv-import/{token}/probe` | the dry run — **writes nothing** (IMP-05) |
+| 4 | `POST /admin/csv-import/{token}/start` | the write, then the report |
 
 - **D-06: every one of these is admin-only and every one goes into
   `TestRouteAuthorization`'s table at `cmd/holzcloud/main_test.go:158-172`.**
@@ -301,6 +303,68 @@ individually testable defence, and the plan should treat them as a checklist:
   lines saying the same thing is a wall. Rows that succeeded are a count plus a
   link to the page list, not 272 lines. **This is the screen the feature is
   judged by** and the plan should give it its own task.
+
+### Two corrections made at planning time
+
+#### D-36: D-06's route table would have panicked the server at startup
+
+This was a defect in the table above, not a preference. Under Go 1.22's
+`ServeMux`, `GET /admin/websites/import-csv/{token}` and the tree's existing
+`GET /admin/websites/{id}/pages` **both** match `/admin/websites/import-csv/pages`
+and neither is more specific, so `newRouter` panics at registration and the
+binary never serves a request.
+
+Verified twice: the planner registered this tree's 145 existing admin patterns
+beside D-06's five, and the orchestrator reproduced the panic in isolation. The
+exact message is
+
+> `GET /admin/websites/{id}/pages and GET /admin/websites/import-csv/{token}`
+> `both match some paths, like "/admin/websites/import-csv/pages".`
+> `But neither is more specific than the other.`
+
+**One point of precision on the record**, because a slightly over-broad version
+of this finding was reported first: the *five*-segment forms
+(`…/{token}/probe`, `…/{token}/start`) do **not** collide with
+`/admin/websites/{id}/preview/{slug}` as written, because the methods differ —
+`POST` against `GET`. Measured: same-method they panic, cross-method they
+register. That is a one-word safety margin, and it is exactly the kind that a
+later edit erases without a sound. Moving every token-bearing screen to
+`/admin/csv-import/{token}` removes the whole class rather than the one instance.
+
+Screen 1 stays at `POST /admin/websites/import-csv`, beside its two siblings.
+
+#### D-37: the example CSV is not behind the staging token
+
+D-06 put `/beispiel` on the token. **IMP-07 exists to help the operator *write*
+the file** — "with the right column headings already in it". Reachable only
+after uploading, it can be fetched only once the file it was meant to produce
+already exists. That inverts the requirement, and the sequence-is-honest-on-screen
+workaround (the panel saying "the example is on the next screen") dresses the
+inversion rather than removing it.
+
+**Built instead: `GET /admin/csv-vorlage?website={id}`**, as a small second GET
+form inside the same `<details>` panel, carrying the same website `<select>` — so
+it is reachable **before** anything is uploaded, in plain HTML, with no
+JavaScript and no second screen to visit.
+
+Both halves have precedent in this tree, which is why this is a placement fix
+and not an invention:
+- **A GET form with its own action** — `page_list.html:11`, `media_list.html:22`,
+  `activity_log.html:15`, `media_picker.html:6`.
+- **A website chosen by form value rather than by path segment** —
+  `internal/admin/ai.go:96` (`r.FormValue("website")`), and
+  `internal/admin/template.go:193` and `:241` (`r.FormValue("website_id")`).
+
+`GET /admin/csv-vorlage` carries no path parameter and so collides with nothing.
+D-34 still holds and is why this is a GET: all five existing downloads
+(`media.go:377`, `bundle.go:48`, `template.go:361`, `language.go:74` and `:88`,
+`plugin.go:374`) are GETs, and a POST that returns a file would be the only one
+in the tree.
+
+The "new website" path gets the four fixed columns and nothing else, because a
+website that does not exist has no field definitions to generate columns from.
+The panel says so in the same sentence rather than leaving an empty download to
+explain itself.
 
 ### What the edge probe found that the decisions above had missed
 
