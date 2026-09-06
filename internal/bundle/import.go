@@ -831,7 +831,10 @@ func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 // The SnippetID handed to Create is the id of the snippet this import has just
 // created on the website it is importing into. The manifest never supplies an
 // id, so a bundle cannot name another website's snippet, and Create's own
-// website scoping is the second layer under that.
+// website scoping is the second layer under that — es prüft seit dem Review zu
+// Phase 8, dass die Nummer zu d.WebsiteID gehört (ErrNoSnippet). Der Satz stand
+// vorher schon da und war da noch keiner: REFERENCES beweist nur, dass es die
+// Zeile gibt.
 //
 // The conditions are not carried and there is no second pass for them:
 // validate empties the condition of every snippet field (08-02), so there would

@@ -21,6 +21,13 @@ var ErrNested = errors.New("eine Gruppe in einer Gruppe gibt es nicht")
 // ErrNoGroup is returned when the named parent is not a group of this website.
 var ErrNoGroup = errors.New("diese Gruppe gibt es nicht")
 
+// ErrNoSnippet is returned when the named snippet is not one of this website.
+var ErrNoSnippet = errors.New("diesen Textbaustein gibt es nicht")
+
+// ErrNoBlockType is returned when the named block kind is not one of this
+// website.
+var ErrNoBlockType = errors.New("diese Bausteinart gibt es nicht")
+
 // ErrKindFixed is returned when a group would become a plain field or back.
 var ErrKindFixed = errors.New("aus einer Gruppe wird kein einfaches Feld und umgekehrt")
 
@@ -340,6 +347,24 @@ func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Def, error) {
 	return &d, nil
 }
 
+// gehoertZurWebsite prüft, dass eine Trägerzeile zu dieser Website gehört.
+//
+// Der Tabellenname kommt aus dem Rumpf dieser Datei und nie von aussen — zwei
+// feste Zeichenketten an zwei Aufrufstellen —, deshalb ist er hier eingesetzt
+// und nicht gebunden. Die beiden Nummern sind gebunden, wie überall sonst.
+func (s *Store) gehoertZurWebsite(ctx context.Context, tabelle string, id, websiteID int64) error {
+	var n int
+	if err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM `+tabelle+` WHERE id = $1 AND website_id = $2`,
+		id, websiteID).Scan(&n); err != nil {
+		return fmt.Errorf("träger prüfen: %w", err)
+	}
+	if n == 0 {
+		return errors.New("gehört zu einer anderen Website")
+	}
+	return nil
+}
+
 // Create adds a field.
 func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 	if err := validate(&d); err != nil {
@@ -356,6 +381,28 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		}
 		if d.IsGroup() {
 			return nil, ErrNested
+		}
+	}
+
+	// Der Träger gehört dieser Website, und das steht hier und nicht nur bei
+	// den Aufrufern.
+	//
+	// REFERENCES beweist, dass es die Zeile gibt; dass sie zu d.WebsiteID
+	// gehört, beweist es nicht, und die beiden Teilindizes sind auf snippet_id
+	// beziehungsweise block_type_id allein gezogen — die Datenbank legte eine
+	// Definition über die Websitegrenze hinweg klaglos ab. Der
+	// Verwaltungsbildschirm wacht davor (snippetOf), der Archivweg reicht eine
+	// eben angelegte Nummer herein; beide richtig, beide ausserhalb des
+	// Speichers. Eine Zeile je Definition ist billig, und sie deckt jeden
+	// künftigen Aufrufer mit, der das nicht weiss.
+	if d.SnippetID > 0 {
+		if err := s.gehoertZurWebsite(ctx, "snippets", d.SnippetID, d.WebsiteID); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrNoSnippet, err)
+		}
+	}
+	if d.BlockTypeID > 0 {
+		if err := s.gehoertZurWebsite(ctx, "block_types", d.BlockTypeID, d.WebsiteID); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrNoBlockType, err)
 		}
 	}
 
