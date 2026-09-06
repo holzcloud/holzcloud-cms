@@ -283,6 +283,13 @@ type CSVDryRunData struct {
 	// Report is the same shape screen 4 renders, built by the same function
 	// from verdicts the same CheckRow produced.
 	Report csvimport.Report
+	// Terms is how many labels the import can create, counted and not created.
+	// The dry run used not to look at them at all.
+	Terms int
+	// Repeated is how many rows want an address a row above them takes. Named
+	// on the screen when it is not zero, because "1 anlegen / 1 aktualisieren"
+	// on a website that does not exist yet is otherwise unexplainable.
+	Repeated int
 	// Inputs are the mapping as hidden inputs.
 	Inputs []CSVHiddenInput
 }
@@ -814,6 +821,30 @@ func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
 	return out
 }
 
+// csvRunResult is what one pass over the staged file produced.
+//
+// A struct and not four return values, because two of the four were added to
+// close a gap and a fifth is plausible: the dry run has to be able to say
+// everything the write will do, and every time it could not, the screen the
+// operator is asked to believe was quietly narrower than the run behind it.
+type csvRunResult struct {
+	// Verdicts is one per row, in file order.
+	Verdicts []csvimport.Verdict
+	// Truncated: the file held more rows than csv.MaxRows, and a cap is
+	// reported rather than silently applied.
+	Truncated bool
+	// Terms is how many distinct labels the rows of this file can store —
+	// capped per row by csvimport.TermNames, which is the number the write arm
+	// hands to term.EnsureNames. Labels that already exist are counted too:
+	// knowing which do would cost a query per name, and "up to this many" is
+	// the honest thing a run that reads nothing can say.
+	Terms int
+	// Repeated is how many rows of the DRY RUN wanted an address a row above
+	// them takes. Zero on the write arm, which needs no such count because its
+	// per-row lookup is live.
+	Repeated int
+}
+
 // csvRun walks the staged bytes once and produces one verdict per row.
 //
 // **`write` is the only difference between the dry run and the write**, and the
@@ -844,52 +875,76 @@ func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
 // result over in batches of csvTermChunk. Neither bound alone would be enough
 // to write this sentence down; both together are.
 //
-// The returned bool is Truncated: the file held more rows than csv.MaxRows, and
-// a cap is reported rather than silently applied.
+// The result carries what the file produced besides its verdicts, because the
+// dry run has to be able to say all of it.
 func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimport.Mapping,
-	defs []field.Def, websiteID int64, write bool, userID *int64) ([]csvimport.Verdict, bool, error) {
+	defs []field.Def, websiteID int64, write bool, userID *int64) (csvRunResult, error) {
+
+	var result csvRunResult
 
 	reader, err := csv.New(bytes.NewReader(upload.Data))
 	if err != nil {
-		return nil, false, err
+		return result, err
 	}
 
-	if write {
-		// Every term name the whole file mentions, ensured ONCE, before the
-		// first page is created. That is internal/bundle/import.go:289-329's
-		// order and not an optimisation: a term field's stored value is a slug,
-		// so the term it names has to exist before the value referring to it is
-		// written, or the page would carry an address resolving to nothing.
-		// term.EnsureNames opens its own transaction and runs here, never
-		// inside the loop.
-		var rows []csv.Row
-		for {
-			row, more := reader.Next()
-			if !more {
-				break
-			}
-			rows = append(rows, row)
+	// The term names, harvested on BOTH arms.
+	//
+	// The write arm needs them because they have to exist before the first page
+	// that points at one — that is internal/bundle/import.go:289-329's order and
+	// not an optimisation: a term field's stored value is a slug, so the term it
+	// names has to exist before the value referring to it is written, or the
+	// page would carry an address resolving to nothing.
+	//
+	// The DRY RUN needs them because it used not to have them at all (the
+	// harvest stood behind `if write`), so the screen whose whole purpose is to
+	// show what would happen said nothing whatever about the labels the import
+	// was about to create — and there can be thousands. It creates none of them,
+	// it counts them.
+	var rows []csv.Row
+	for {
+		row, more := reader.Next()
+		if !more {
+			break
 		}
-		if names := csvimport.TermNames(defs, m, rows); len(names) > 0 {
-			// In batches: EnsureNames opens ONE transaction around whatever it
-			// is handed, and the write pool admits one connection, so a single
-			// call covering a whole file holds the machine's only write
-			// connection for the length of that file. csvTermChunk carries the
-			// measurement behind the number.
-			if err := csvEnsureTerms(ctx, names, func(ctx context.Context, batch []string) error {
-				_, err := h.terms.EnsureNames(ctx, websiteID, batch)
-				return err
-			}); err != nil {
-				return nil, false, err
-			}
-		}
-		// Two passes over bytes that are already in memory. The reader is
-		// re-opened rather than the rows re-used, so the write pass reads the
-		// file exactly the way the dry run did.
-		if reader, err = csv.New(bytes.NewReader(upload.Data)); err != nil {
-			return nil, false, err
+		rows = append(rows, row)
+	}
+	names := csvimport.TermNames(defs, m, rows)
+	result.Terms = len(names)
+
+	if write && len(names) > 0 {
+		// In batches: EnsureNames opens ONE transaction around whatever it is
+		// handed, and the write pool admits one connection, so a single call
+		// covering a whole file holds the machine's only write connection for
+		// the length of that file. csvTermChunk carries the measurement behind
+		// the number.
+		if err := csvEnsureTerms(ctx, names, func(ctx context.Context, batch []string) error {
+			_, err := h.terms.EnsureNames(ctx, websiteID, batch)
+			return err
+		}); err != nil {
+			return result, err
 		}
 	}
+
+	// Two passes over bytes that are already in memory. The reader is re-opened
+	// rather than the rows re-used, so the deciding pass reads the file exactly
+	// the way a single-pass run would have.
+	if reader, err = csv.New(bytes.NewReader(upload.Data)); err != nil {
+		return result, err
+	}
+
+	// The addresses rows above the current one will take.
+	//
+	// The write arm needs no such list: its GetPageBySlug below is live and per
+	// row, so row 40 genuinely finds the page row 4 has just created. The dry
+	// run writes nothing, so the only way it can answer the same question is to
+	// remember what it has already decided to create — and without this it
+	// predicted create for BOTH rows of a file naming one address twice while
+	// the write created once and then updated. IMP-05 and D-22 exist so that
+	// the dry run cannot say something the write does not do, and a dry run
+	// that is wrong about a row is worse than no dry run, because it is
+	// believed. Measured as 5 anlegen / 2 aktualisieren against 4 angelegt /
+	// 3 aktualisiert before this existed.
+	planned := map[string]bool{}
 
 	writer := csvimport.Writer{Pages: h.pages, Terms: h.terms}
 	var verdicts []csvimport.Verdict
@@ -910,10 +965,11 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 		// importer. The read pool is separate from the write pool, so these
 		// lookups do not contend with the writes.
 		var existing *page.Page
-		if slug := csvimport.RowSlug(row, m); slug != "" && websiteID != 0 {
+		slug := csvimport.RowSlug(row, m)
+		if slug != "" && websiteID != 0 {
 			found, err := h.pages.GetPageBySlug(ctx, websiteID, slug)
 			if err != nil {
-				return nil, false, err
+				return result, err
 			}
 			existing = found
 		}
@@ -923,10 +979,31 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 				writer.WriteRow(ctx, websiteID, defs, row, m, existing, upload.Collision, userID))
 			continue
 		}
+
+		if existing == nil && planned[slug] {
+			// The page an earlier row of this same file will create. Only Slug
+			// is read from it — CheckRow names it in the skipped-address reason
+			// (row.go:441) and asks nothing else — and nothing else about a
+			// page that does not exist yet could be said honestly. The
+			// websiteID == 0 case is deliberately included: a file importing
+			// into a website that screen 4 has not created yet is exactly where
+			// this divergence was measured.
+			existing = &page.Page{Slug: slug}
+			result.Repeated++
+		}
+
 		v, _, _ := csvimport.CheckRow(defs, row, m, existing, upload.Collision)
+		if v.Outcome == csvimport.OutcomeCreate && slug != "" {
+			// Only a row that really creates takes an address. A row refused
+			// for its title or its status creates nothing, so the row below it
+			// is still free to have the address — which is why this is recorded
+			// from the VERDICT and not from the mapping.
+			planned[slug] = true
+		}
 		verdicts = append(verdicts, v)
 	}
-	return verdicts, reader.Truncated(), nil
+	result.Verdicts, result.Truncated = verdicts, reader.Truncated()
+	return result, nil
 }
 
 // csvPrepare is the preamble both POST screens share: the staged file, the
@@ -986,12 +1063,12 @@ func (h *Handler) HandleCSVDryRun(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	verdicts, truncated, err := h.csvRun(r.Context(), upload, m, defs, upload.WebsiteID, false, nil)
+	run, err := h.csvRun(r.Context(), upload, m, defs, upload.WebsiteID, false, nil)
 	if err != nil {
 		return err
 	}
-	report := csvimport.Summarize(verdicts)
-	report.Truncated = truncated
+	report := csvimport.Summarize(run.Verdicts)
+	report.Truncated = run.Truncated
 
 	data := CSVDryRunData{
 		LayoutData:  web.NewLayoutData(r, h.sm, "Probelauf"),
@@ -1001,6 +1078,8 @@ func (h *Handler) HandleCSVDryRun(w http.ResponseWriter, r *http.Request) error 
 		NewWebsite:  upload.Mode == csvModeNew,
 		Collision:   upload.Collision,
 		Report:      report,
+		Terms:       run.Terms,
+		Repeated:    run.Repeated,
 		Inputs:      csvMappingInputs(m),
 	}
 	data.ActiveNav = "websites"
@@ -1057,7 +1136,7 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	userID := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
-	verdicts, truncated, err := h.csvRun(r.Context(), upload, m, defs, websiteID, true, &userID)
+	run, err := h.csvRun(r.Context(), upload, m, defs, websiteID, true, &userID)
 	if err != nil {
 		return err
 	}
@@ -1066,8 +1145,8 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 	// write. A refresh of this POST therefore finds no token and lands on the
 	// expiry screen (D-33), the same as it did when the delete stood here —
 	// and now a second request that arrives DURING the loop lands there too.
-	report := csvimport.Summarize(verdicts)
-	report.Truncated = truncated
+	report := csvimport.Summarize(run.Verdicts)
+	report.Truncated = run.Truncated
 
 	data := CSVReportData{
 		LayoutData:  web.NewLayoutData(r, h.sm, "Einlesen abgeschlossen"),

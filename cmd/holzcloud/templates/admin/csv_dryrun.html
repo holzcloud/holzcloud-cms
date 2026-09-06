@@ -21,6 +21,19 @@
         <span class="badge badge--draft">{{tf "%d übergehen" .Report.Skipped}}</span>
     </p>
 
+    {{if .Terms}}
+    <p class="text-muted">
+        {{if eq .Terms 1}}{{t "Ein Schlagwort wird dabei angelegt, falls es das noch nicht gibt."}}{{else}}{{tf "%d Schlagwörter werden dabei angelegt, soweit es sie noch nicht gibt." .Terms}}{{end}}
+    </p>
+    {{end}}
+
+    {{if .Repeated}}
+    <p class="alert alert--warning">
+        {{if eq .Repeated 1}}{{t "Eine Zeile dieser Datei will eine Adresse, die eine Zeile über ihr schon nimmt."}}{{else}}{{tf "%d Zeilen dieser Datei wollen eine Adresse, die eine Zeile über ihnen schon nimmt." .Repeated}}{{end}}
+        {{t "Die erste legt an, die späteren aktualisieren oder werden übergangen – oben ist das schon so gezählt."}}
+    </p>
+    {{end}}
+
     {{if .Report.Truncated}}
     <p class="alert alert--warning">
         {{t "Die Datei hat mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde weder geprüft noch wird er geschrieben."}}

@@ -1076,56 +1076,137 @@ func TestCSVProbeWritesNothing(t *testing.T) {
 	}
 }
 
+// TestCSVDryRunNamesTheLabelsAndTheRepeatedAddress (IMP-05, criterion 3): the
+// screen that promises to show what would happen has to show the two things it
+// used to be silent about.
+//
+// The labels: the term pre-pass stood behind `if write`, so a dry run over a
+// file naming thousands of terms said nothing whatever about them and the
+// operator committed to a number nobody had shown them. They are counted here
+// and created nowhere — the assertion below on the terms table is the half of
+// this test that matters most.
+//
+// The repeated address: two rows at one new address are one create and one
+// update, and the counters now say so. The sentence is what makes that
+// readable, because "1 anlegen / 1 aktualisieren" on a website that does not
+// exist yet is otherwise unexplainable.
+func TestCSVDryRunNamesTheLabelsAndTheRepeatedAddress(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+
+	token := stageWith(t, h, admin, ws.ID, "Titel,Schlagworte\n"+
+		"Erste,rot|blau\n"+
+		"Erste,gruen\n", csvimport.CollisionUpdate)
+
+	rec, flash := serveAs(t, h, sm, admin, h.HandleCSVDryRun,
+		csvPost(token, "probe", csvTargets("title", "terms")))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (flash %q); want 200", rec.Code, flash)
+	}
+	body := rec.Body.String()
+
+	if !strings.Contains(body, "3 Schlagwörter werden dabei angelegt") {
+		t.Errorf("the dry run does not count the labels it is about to create: %q", body)
+	}
+	if !strings.Contains(body, "eine Adresse, die eine Zeile über ihr schon nimmt") {
+		t.Error("the dry run does not name the row that repeats an address above it")
+	}
+	if !strings.Contains(body, "1 anlegen") || !strings.Contains(body, "1 aktualisieren") {
+		t.Errorf("the counters do not read 1 anlegen / 1 aktualisieren: %q", body)
+	}
+
+	// And it created none of them. This is the half that would make the
+	// counting a bug rather than a fix.
+	var terms int
+	if err := database.Read.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM terms`).Scan(&terms); err != nil {
+		t.Fatalf("count terms: %v", err)
+	}
+	if terms != 0 {
+		t.Errorf("the dry run created %d terms; it must create none", terms)
+	}
+	if n := pageCount(t, database); n != 0 {
+		t.Errorf("the dry run wrote %d pages", n)
+	}
+}
+
 // TestCSVProbeAndStartAgreeOnEveryVerdict (D-22): the one test that would catch
 // the dry run and the write drifting apart. Both are run over one file and the
 // verdicts are compared row by row.
+//
+// **Row 6 repeats row 2's address**, and it is there because the fixture used
+// not to have it. That single shape is the one divergence this phase knew
+// about and the one this test could not see: the dry run predicted create for
+// both rows while the write created once and then updated (or skipped) — the
+// dry run lying on the screen whose entire purpose is to be believed before
+// anything is committed. Run on BOTH collision answers, because the two arms
+// answer a taken address differently and only one of them was ever measured.
 func TestCSVProbeAndStartAgreeOnEveryVerdict(t *testing.T) {
-	h, _, database, ws := newTestAdmin(t)
-	admin := seedAdmin(t, database, "eins@test")
-	ctx := context.Background()
-
 	file := "Titel,Text,Zustand\n" +
 		"Erste,Ein Satz,entwurf\n" +
 		",Ohne Titel,entwurf\n" +
 		"Dritte,Noch einer,violett\n" +
-		"Vierte,Und noch einer,veröffentlicht\n"
-	token := stage(t, h, admin, ws.ID, file)
+		"Vierte,Und noch einer,veröffentlicht\n" +
+		"Erste,Dieselbe Adresse noch einmal,entwurf\n"
 
-	upload, err := h.csvImports.Get(ctx, token, admin)
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	defs, err := h.fields.List(ctx, ws.ID)
-	if err != nil {
-		t.Fatalf("List fields: %v", err)
-	}
-	m := csvMappingFromForm(csvPost(token, "probe", csvTargets("title", "body", "status")), 3)
+	for _, tc := range []struct {
+		collision string
+		outcome   csvimport.Outcome
+		reason    csvimport.Reason
+	}{
+		{csvimport.CollisionUpdate, csvimport.OutcomeUpdate, ""},
+		{csvimport.CollisionSkip, csvimport.OutcomeSkip, csvimport.ReasonExistingSkipped},
+	} {
+		t.Run(tc.collision, func(t *testing.T) {
+			h, _, database, ws := newTestAdmin(t)
+			admin := seedAdmin(t, database, "eins@test")
+			ctx := context.Background()
 
-	dry, _, err := h.csvRun(ctx, upload, m, defs, ws.ID, false, nil)
-	if err != nil {
-		t.Fatalf("dry run: %v", err)
-	}
-	if n := pageCount(t, database); n != 0 {
-		t.Fatalf("the dry run wrote %d pages", n)
-	}
+			token := stageWith(t, h, admin, ws.ID, file, tc.collision)
+			upload, err := h.csvImports.Get(ctx, token, admin)
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+			defs, err := h.fields.List(ctx, ws.ID)
+			if err != nil {
+				t.Fatalf("List fields: %v", err)
+			}
+			m := csvMappingFromForm(csvPost(token, "probe", csvTargets("title", "body", "status")), 3)
 
-	written, _, err := h.csvRun(ctx, upload, m, defs, ws.ID, true, &admin)
-	if err != nil {
-		t.Fatalf("write: %v", err)
-	}
+			probe, err := h.csvRun(ctx, upload, m, defs, ws.ID, false, nil)
+			if err != nil {
+				t.Fatalf("dry run: %v", err)
+			}
+			if n := pageCount(t, database); n != 0 {
+				t.Fatalf("the dry run wrote %d pages", n)
+			}
 
-	if len(dry) != len(written) {
-		t.Fatalf("the dry run decided %d rows and the write %d", len(dry), len(written))
-	}
-	for i := range dry {
-		if dry[i].Row != written[i].Row || dry[i].Outcome != written[i].Outcome || dry[i].Reason != written[i].Reason {
-			t.Errorf("row %d: dry run said %+v, the write said %+v", dry[i].Row, dry[i], written[i])
-		}
-	}
-	// And the file really did contain all three cases, so the comparison above
-	// is not four identical successes agreeing with each other.
-	if dry[1].Reason != csvimport.ReasonNoTitle || dry[2].Reason != csvimport.ReasonStatusUnknown {
-		t.Fatalf("the fixture no longer carries the refusals it is meant to: %+v", dry)
+			run, err := h.csvRun(ctx, upload, m, defs, ws.ID, true, &admin)
+			if err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			dry, written := probe.Verdicts, run.Verdicts
+
+			if len(dry) != len(written) {
+				t.Fatalf("the dry run decided %d rows and the write %d", len(dry), len(written))
+			}
+			for i := range dry {
+				if dry[i].Row != written[i].Row || dry[i].Outcome != written[i].Outcome ||
+					dry[i].Reason != written[i].Reason {
+					t.Errorf("row %d: dry run said %+v, the write said %+v", dry[i].Row, dry[i], written[i])
+				}
+			}
+
+			// And the file really did contain all four cases, so the comparison
+			// above is not five identical successes agreeing with each other.
+			if dry[1].Reason != csvimport.ReasonNoTitle || dry[2].Reason != csvimport.ReasonStatusUnknown {
+				t.Fatalf("the fixture no longer carries the refusals it is meant to: %+v", dry)
+			}
+			if last := written[4]; last.Outcome != tc.outcome || last.Reason != tc.reason {
+				t.Fatalf("the write answered the repeated address with %+v; want %s / %q — "+
+					"if it now creates, the fixture has lost its duplicate", last, tc.outcome, tc.reason)
+			}
+		})
 	}
 }
 
