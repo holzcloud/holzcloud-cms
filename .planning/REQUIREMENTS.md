@@ -146,7 +146,7 @@ they are written here as they actually stand.
 - [ ] **IMP-07**: Admin can download an example CSV generated from that website's own field definitions, with the right column headings already in it.
 - [ ] **IMP-08**: The mapping screen shows one real row from the file, navigable to the next, and each field can carry a default for cells that are empty or unmapped.
 - [ ] **IMP-09**: An uploaded CSV is treated as hostile: bytes, rows and single cells are all capped; a byte-order mark from Excel does not break the first column; a stray quote does not swallow the rest of the file; a short row is reported by its row number; a NUL byte is refused.
-- [ ] **IMP-10**: The import writes one transaction per row, never one for the whole file — the write pool admits a single connection, and a file-long transaction would block every other request on the machine.
+- [ ] **IMP-10**: **No transaction ever spans more than one row** — the write pool admits a single connection, and a file-long transaction would block every other request on the machine. *(Amended 2026-09-06, before planning: the wording was „one transaction per row, never one for the whole file". Per-row atomicity cannot be had through the ordinary stores without a second creation path, which IMP-02 forbids — a row already spans two or three transactions inside `page.Store` and `term.Store`. The half that matters is kept; „nothing half-written" is delivered by validating the row before the first write and by undoing it through the ordinary delete path if a later step fails. Reasoning: `.planning/phases/09-csv-import/09-CONTEXT.md`, D-02.)*
 
 ### Single sign-on
 
