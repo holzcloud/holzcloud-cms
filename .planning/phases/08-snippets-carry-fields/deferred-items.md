@@ -23,6 +23,21 @@ Register prüfen und richtigstellen.
 
 ## Aus Plan 08-05
 
+> **Erledigt am 2026-09-06 im Schnellauftrag `260906-m9z`.** Der Stempel gilt
+> der Feststellung zu `field_list.html` unmittelbar darunter; der zweite Befund
+> dieses Abschnitts (die zwei verwaisten Unterfelder) bleibt davon unberührt.
+>
+> Der Text darunter bleibt stehen, weil er belegt, was damals geglaubt wurde.
+> **Die Begründung des Aufschubs ruhte jedoch auf einer falschen Annahme**
+> darüber, worin der Flick besteht: sie gilt allein für den unten
+> vorgeschlagenen Flick, die Entität durch das Zeichen `←` zu ersetzen. Der
+> tatsächlich gefahrene Flick wechselt an denselben drei Stellen nur die
+> aufrufende Funktion von `t` auf die HTML-durchlassende Fassung `th`. Die
+> Zeichenkette bleibt byte-für-byte dieselbe, kein Schlüssel verwaist, kein
+> Katalog wurde angefasst, und `go run ./tools/i18n` stand vorher wie nachher
+> auf `1158 Zeichenketten im Quelltext` mit `0 offen, 0 verwaist` für
+> en/es/fr/it.
+
 **`field_list.html` druckt `&#8592;` als Text statt als Pfeil — auf allen drei Rückwegen.**
 
 Im Browserdurchgang gesehen (Schritt 1): der Rückweg über dem Feldbildschirm
@@ -39,10 +54,17 @@ Das Tor „0 verwaist" fällt dann, bis die alten von Hand aus vier Katalogen
 entfernt sind. Das ist eine i18n-Aufräumarbeit mit eigenem Commit, keine
 Nebenwirkung eines Vorrichtungsplans.
 
-Was zu tun ist: in den drei Zeilen `&#8592;` durch das Zeichen `←` ersetzen,
+**Überholt — diese Schrittfolge nicht fahren** (Stempel vom 2026-09-06,
+Schnellauftrag `260906-m9z`). Genau sie hätte die Verwaisung, die zu vermeiden
+das Ziel war, überhaupt erst erzeugt: sie tastet den Schlüssel an und muss
+deshalb hinterher vier Kataloge aufräumen. Gefahren wurde stattdessen der
+Wechsel von `t` auf `th` an denselben drei Stellen, ohne ein Zeichen der
+Zeichenkette zu berühren. Der Absatz steht hier nur noch als Beleg:
+
+~~Was zu tun ist: in den drei Zeilen `&#8592;` durch das Zeichen `←` ersetzen,
 `go run ./tools/i18n -write` fahren, die drei neuen Schlüssel übersetzen, die
 drei alten aus `en.json`, `es.json`, `fr.json` und `it.json` streichen,
-`-schweiz` fahren und auf `0 offen, 0 verwaist` prüfen.
+`-schweiz` fahren und auf `0 offen, 0 verwaist` prüfen.~~
 
 **Zwei verwaiste Unterfelder im Wegwerf-Datenverzeichnis** — kein Produktcode.
 Vor dem Flick dieses Plans angelegt (`snippet_id NULL` unter einer Gruppe mit
