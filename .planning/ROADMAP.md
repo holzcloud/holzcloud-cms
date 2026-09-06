@@ -240,10 +240,24 @@ The gate's verbatim wording, identical in Phases 6 through 9 and in Phase 11:
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 08-01-PLAN.md — migration `00047`, the fourth namespace in `internal/field/store.go`, and one snippet field traced from the table to a theme
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 08-02-PLAN.md — `OfSnippets`, `Move`, `validate`, the per-carrier `MaxFields`, and one minting point for every public entry point
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 08-03-PLAN.md — the field screen's fourth mode (`?textbaustein=`), the way into it, and the authorisation tests
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 08-04-PLAN.md — the snippet value form, its sanitisation proof, and T-07-26 closed
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 08-05-PLAN.md — fixtures, `TEMPLATE-SPEC.md`, the bundle round trip, the catalogues and the browser pass
 
 **UI hint**: yes
