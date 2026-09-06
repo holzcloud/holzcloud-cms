@@ -507,7 +507,15 @@ func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 	names, _ := RowTerms(row, m)
 
 	if v.Outcome == OutcomeUpdate {
-		if err := w.Pages.UpdatePage(ctx, existing.ID, w.update(existing, create, data, defs, row, m, userID)); err != nil {
+		u, err := w.update(existing, create, data, defs, row, m, userID)
+		if err != nil {
+			// Reported and not written. The create arm answers the same
+			// failure the same way at field.Encode below, and an update that
+			// quietly kept the old values and reported success is the one
+			// answer the operator has no way to check.
+			return Verdict{Row: v.Row, Outcome: OutcomeSkip, Reason: ReasonNotWritten, Args: []string{create.Title, err.Error()}}
+		}
+		if err := w.Pages.UpdatePage(ctx, existing.ID, u); err != nil {
 			return Verdict{Row: v.Row, Outcome: OutcomeSkip, Reason: ReasonNotWritten, Args: []string{create.Title, err.Error()}}
 		}
 		if err := w.setTerms(ctx, websiteID, existing.ID, m, names); err != nil {
@@ -579,7 +587,7 @@ func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 // and a per-column "only fill if this is empty" are all deferred ideas and none
 // of them is built here; they are named so they are not smuggled in.
 func (w Writer) update(existing *page.Page, create page.PageCreate, data field.Data,
-	defs []field.Def, row csv.Row, m Mapping, userID *int64) page.PageUpdate {
+	defs []field.Def, row csv.Row, m Mapping, userID *int64) (page.PageUpdate, error) {
 
 	u := page.PageUpdate{
 		Title:    create.Title, // always mapped: CheckRow refuses a row without one
@@ -631,10 +639,20 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 		}
 		merged.Values[t.Key] = data.Values[t.Key]
 	}
-	if encoded, err := field.Encode(field.Clean(defs, merged)); err == nil {
-		u.Fields = encoded
+	// The error is handed out and never swallowed. Keeping the page's OLD
+	// fields here while UpdatePage went on to succeed would discard every
+	// mapped value of the row and report the row as a clean update — the
+	// operator would read that it went through with the values they mapped,
+	// and it did not. json.Marshal over a map of strings does not fail today,
+	// so this is close to unreachable; a swallowed error on the write path, on
+	// the one arm that touches pages the operator already had, is not
+	// something to leave standing for that reason.
+	encoded, err := field.Encode(field.Clean(defs, merged))
+	if err != nil {
+		return u, err
 	}
-	return u
+	u.Fields = encoded
+	return u, nil
 }
 
 // setTerms writes the page's own terms, and does nothing at all when no column
