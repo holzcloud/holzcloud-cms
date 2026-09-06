@@ -179,6 +179,16 @@ type CSVMappingData struct {
 	// minted by csv.RowNumber — the same helper the report uses, so "Zeile 2"
 	// means the same row on both screens.
 	SampleNumber int
+	// LastRowNumber is the spreadsheet's number for the LAST data row, and it is
+	// the second number of the sample line.
+	//
+	// TotalRows is a count of data rows and never counts the header, so putting
+	// it beside SampleNumber — which does count the header — made the last row
+	// of a twelve-row file read "Zeile 13 von 12". Two numbers in one sentence
+	// have to be counted the same way; D-26 says which way that is. Found in a
+	// browser and not by the suite, because no test read the two numbers of the
+	// sentence together.
+	LastRowNumber int
 	// PrevRow and NextRow are the stepper's two destinations, or 0 where the
 	// control is ABSENT. Absent and not disabled: a disabled link is still a
 	// control a keyboard user lands on.
@@ -568,6 +578,9 @@ func (h *Handler) csvMappingData(r *http.Request, upload *csvimport.Upload,
 		// csv.RowNumber — the same helper the report calls, so "Zeile 2" is the
 		// same row on both (D-26).
 		data.SampleNumber = csv.RowNumber(data.SampleIndex - 1)
+		// The same helper for the other end of the sentence, so both numbers on
+		// screen count the header or neither does.
+		data.LastRowNumber = csv.RowNumber(data.TotalRows - 1)
 		if data.SampleIndex > 1 {
 			data.PrevRow = data.SampleIndex - 1
 		}
