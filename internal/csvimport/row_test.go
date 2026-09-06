@@ -626,3 +626,125 @@ func TestRowsAreDecidedInFileOrder(t *testing.T) {
 		t.Error("the first occurrence did not keep the address")
 	}
 }
+
+// TestBlankCellSaysNothingOnTheUpdateArm (CR-01): a mapped column whose cell is
+// blank and whose target carries no default says NOTHING about that slot, and
+// the slot is left as it stands.
+//
+// The failure this exists for, in the shape it actually took: an operator
+// imports three hundred rows into a live website with "aktualisieren" chosen,
+// the file has a Zustand column, and forty rows left that cell blank. cellFor
+// handed back the empty string, parseStatus SUBSTITUTED "draft" for it, and the
+// update arm wrote that substituted value because the COLUMN was mapped — not
+// because the CELL had said anything. Forty published pages left the public
+// site. The report said "aktualisieren" with no reason against the row, and
+// page.UpdatePage records a revision only when title, slug, markdown or blocks
+// changed, so a status-only flip left no history entry either: the operator's
+// only evidence was the public site.
+//
+// The same shape reached the body and every field, where a blank cell wiped a
+// page's Markdown and emptied a field. All three are asserted here together,
+// because they are one rule and not three fixes — a CSV cannot express the
+// difference between "this is empty now" and "this file says nothing about
+// this", so the code must not claim to read it.
+//
+// And the other half of the rule: a DEFAULT is the operator stating a value on
+// the mapping screen, so a default does apply, to all three targets.
+func TestBlankCellSaysNothingOnTheUpdateArm(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	pages := page.NewStore(database)
+	ctx := context.Background()
+
+	defs := []field.Def{fieldDef(1, 1, "farbe", "Farbe", field.KindText)}
+	fields, err := field.Encode(field.Data{Values: field.Values{"farbe": "rot"}})
+	if err != nil {
+		t.Fatalf("field.Encode: %v", err)
+	}
+
+	// One published page carrying a body and a filled-in field, and a file
+	// whose every slot but the title is blank.
+	makePage := func(slug string) *page.Page {
+		t.Helper()
+		p, err := pages.CreatePage(ctx, page.PageCreate{
+			WebsiteID: websiteID, Title: "Apfel", Slug: slug,
+			Markdown: "Erster Text", HTML: "<p>Erster Text</p>",
+			Status: "published", Kind: page.KindPage, Fields: fields,
+		})
+		if err != nil {
+			t.Fatalf("CreatePage: %v", err)
+		}
+		return p
+	}
+
+	head, rows := reader(t, "Titel,Text,Zustand,Farbe\nApfelbaum,,,\n")
+	m := csvimport.AutoMap(head, defs)
+	// The columns really are mapped: the point of the test is that a mapped
+	// column with a blank cell writes nothing, not that nothing is mapped.
+	for _, t2 := range []csvimport.Target{
+		{Kind: csvimport.TargetBody},
+		{Kind: csvimport.TargetStatus},
+		{Kind: csvimport.TargetField, Key: "farbe"},
+	} {
+		if m.ColumnFor(t2.Kind, t2.Key) < 0 {
+			t.Fatalf("no column is pointed at %s — the test would prove nothing", t2)
+		}
+	}
+
+	silent := makePage("apfel")
+	if v := w.WriteRow(ctx, websiteID, defs, rows[0], m, silent, csvimport.CollisionUpdate, &userID); v.Outcome != csvimport.OutcomeUpdate {
+		t.Fatalf("the silent row gave %s / %q, want an update", v.Outcome, v.Reason)
+	}
+	after, err := pages.GetPage(ctx, silent.ID)
+	if err != nil || after == nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if after.Title != "Apfelbaum" {
+		t.Errorf("the title is %q, want the file's — a stated cell still writes", after.Title)
+	}
+	if after.Status != "published" {
+		t.Errorf("a blank Zustand cell demoted a live page to %q — that is the bug this test exists for", after.Status)
+	}
+	if after.ContentMarkdown != "Erster Text" {
+		t.Errorf("a blank Text cell wiped the page's markdown, leaving %q", after.ContentMarkdown)
+	}
+	if got := field.Decode(after.Fields).Values["farbe"]; got != "rot" {
+		t.Errorf("a blank field cell emptied the slot, leaving %q, want rot", got)
+	}
+
+	// The same file, with a default typed for each of the three targets. A
+	// default is the operator stating a value, so all three now write.
+	m.Defaults = map[string]string{"status": "entwurf", "body": "Aus der Vorgabe", "field:farbe": "blau"}
+	stated := makePage("apfel-vorgabe")
+	if v := w.WriteRow(ctx, websiteID, defs, rows[0], m, stated, csvimport.CollisionUpdate, &userID); v.Outcome != csvimport.OutcomeUpdate {
+		t.Fatalf("the default row gave %s / %q, want an update", v.Outcome, v.Reason)
+	}
+	after, err = pages.GetPage(ctx, stated.ID)
+	if err != nil || after == nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if after.Status != "draft" {
+		t.Errorf("the status default did not apply: %q, want draft", after.Status)
+	}
+	if after.ContentMarkdown != "Aus der Vorgabe" {
+		t.Errorf("the body default did not apply: %q", after.ContentMarkdown)
+	}
+	if got := field.Decode(after.Fields).Values["farbe"]; got != "blau" {
+		t.Errorf("the field default did not apply: %q, want blau", got)
+	}
+
+	// And the create arm is untouched: there parseStatus's empty-cell default
+	// of "draft" is correct and documented, because a file that says nothing
+	// about publication must not publish two hundred pages on a live website.
+	m.Defaults = map[string]string{}
+	if v := w.WriteRow(ctx, websiteID, defs, rows[0], m, nil, csvimport.CollisionSkip, &userID); v.Outcome != csvimport.OutcomeCreate {
+		t.Fatalf("the create arm gave %s / %q, want a create", v.Outcome, v.Reason)
+	}
+	created, err := pages.GetPageBySlug(ctx, websiteID, "apfelbaum")
+	if err != nil || created == nil {
+		t.Fatalf("the created page is not in the database: %v", err)
+	}
+	if created.Status != "draft" {
+		t.Errorf("the create arm gave a blank Zustand cell the status %q, want draft", created.Status)
+	}
+}
