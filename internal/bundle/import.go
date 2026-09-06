@@ -478,6 +478,14 @@ func (x pageIndex) in(loc string) addressLookup {
 // A rejected value is dropped and named, never a failed import: an archive
 // with one over-long value in it is still worth having, and the operator has
 // to be told which value did not arrive rather than left to find the gap.
+//
+// Beide laufen ohne Vorbedingung, und das ist eine Berichtigung: sie hingen an
+// „if len(defs) > 0". Ein Manifest, das Werte mitbringt und keine
+// Definitionen, kam damit an keinem der beiden vorbei — der eine Zuschnitt,
+// für den es kein Formular und keinen Bildschirm gibt, war zugleich der
+// einzige, der ungeprüft in die Spalte lief. Ohne Definition wirft Clean
+// richtigerweise alles weg: ein Wert, den keine Definition trägt, ist von
+// nichts darstellbar.
 func importFieldValues(defs []field.Def, kinds map[string]string, p Page,
 	mediaByName map[string]int64, byAddress addressLookup) (string, []string) {
 
@@ -499,28 +507,26 @@ func importFieldValues(defs []field.Def, kinds map[string]string, p Page,
 	}
 
 	var dropped []string
-	if len(defs) > 0 {
-		data = field.Clean(defs, data)
-		for key := range field.CheckAll(defs, data) {
-			// Ein Pflichtfeld ohne Wert wird hier auch gemeldet, und dort ist
-			// nichts wegzunehmen — die Seite kommt eben ohne an, so wie sie
-			// abgereist ist. Weggenommen wird nur, was tatsächlich dasteht.
-			if _, ok := data.Values[key]; ok {
-				delete(data.Values, key)
-				dropped = append(dropped, key)
-				continue
-			}
-			if group, i, sub, ok := splitRowKey(key); ok {
-				if rows := data.Rows[group]; i < len(rows) {
-					if _, ok := rows[i][sub]; ok {
-						delete(rows[i], sub)
-						dropped = append(dropped, key)
-					}
+	data = field.Clean(defs, data)
+	for key := range field.CheckAll(defs, data) {
+		// Ein Pflichtfeld ohne Wert wird hier auch gemeldet, und dort ist
+		// nichts wegzunehmen — die Seite kommt eben ohne an, so wie sie
+		// abgereist ist. Weggenommen wird nur, was tatsächlich dasteht.
+		if _, ok := data.Values[key]; ok {
+			delete(data.Values, key)
+			dropped = append(dropped, key)
+			continue
+		}
+		if group, i, sub, ok := splitRowKey(key); ok {
+			if rows := data.Rows[group]; i < len(rows) {
+				if _, ok := rows[i][sub]; ok {
+					delete(rows[i], sub)
+					dropped = append(dropped, key)
 				}
 			}
 		}
-		sort.Strings(dropped)
 	}
+	sort.Strings(dropped)
 
 	raw, err := field.Encode(data)
 	if err != nil {
@@ -899,6 +905,12 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 // path and the form path would drift apart. field.CheckAll is where the byte
 // budget and the per-kind rules live; leaving it out here would re-open on the
 // snippet exactly the hole 07-04 closed on the page.
+//
+// Ohne Vorbedingung, aus demselben Grund wie in importFieldValues und als
+// dieselbe Entscheidung: „if len(defs) > 0" liess genau das Manifest durch,
+// das Werte ohne Definitionen mitbringt — den Zuschnitt, der zur Gänze von Hand
+// geschrieben ist. Der Satz oben nannte damit ein Loch, das darunter offen
+// stand.
 func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) {
 	data := field.Data{Values: field.Values{}, Rows: map[string][]field.Values{}}
 	for key, val := range sn.Values {
@@ -922,28 +934,26 @@ func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) 
 	}
 
 	var dropped []string
-	if len(defs) > 0 {
-		data = field.Clean(defs, data)
-		for key := range field.CheckAll(defs, data) {
-			// A required field left empty is reported here too, and there is
-			// nothing to take away in that case — the snippet arrives as it
-			// left. Only what is actually there is dropped.
-			if _, ok := data.Values[key]; ok {
-				delete(data.Values, key)
-				dropped = append(dropped, key)
-				continue
-			}
-			if group, i, sub, ok := splitRowKey(key); ok {
-				if rows := data.Rows[group]; i < len(rows) {
-					if _, ok := rows[i][sub]; ok {
-						delete(rows[i], sub)
-						dropped = append(dropped, key)
-					}
+	data = field.Clean(defs, data)
+	for key := range field.CheckAll(defs, data) {
+		// A required field left empty is reported here too, and there is
+		// nothing to take away in that case — the snippet arrives as it
+		// left. Only what is actually there is dropped.
+		if _, ok := data.Values[key]; ok {
+			delete(data.Values, key)
+			dropped = append(dropped, key)
+			continue
+		}
+		if group, i, sub, ok := splitRowKey(key); ok {
+			if rows := data.Rows[group]; i < len(rows) {
+				if _, ok := rows[i][sub]; ok {
+					delete(rows[i], sub)
+					dropped = append(dropped, key)
 				}
 			}
 		}
-		sort.Strings(dropped)
 	}
+	sort.Strings(dropped)
 
 	raw, err := field.Encode(data)
 	if err != nil {
