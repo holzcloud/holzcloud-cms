@@ -1481,6 +1481,272 @@ func TestArchivwerteGehenDurchDieselbePruefung(t *testing.T) {
 // Formularfeldes). Er wird abgelehnt — aber als Warnung im Bericht und nicht
 // als Abbruch des Imports, dieselbe Härte wie bei jedem anderen verworfenen
 // Wert: das echte Feld daneben kommt trotzdem an.
+// Die Rundreise der Felder eines Textbausteins.
+//
+// Ein Archiv, das die Definitionen eines Textbausteins ausführt und die Werte
+// beim Import verliert, ist der lautlose Datenverlust, den dieses Projekt
+// überall sonst vermeidet: der Rumpf kommt an, die Website sieht heil aus, und
+// die Hälfte, die jemand eingetippt hat, ist weg. Deshalb wird hier die
+// schwierige Reise gefahren und nicht die leichte — ein Textfeld, ein Zahlfeld
+// und eine Gruppe mit zwei Zeilen, samt Reihenfolge und Feldarten auf der
+// anderen Seite.
+func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	ws, err := s.Domains.CreateWebsite(ctx, "Schreinerei", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sn, err := s.Snippets.Create(ctx, ws.ID, "footer-kontakt", "Kontakt",
+		"Telefon 07721 123456", "<p>Telefon 07721 123456</p>")
+	if err != nil {
+		t.Fatalf("Snippets.Create: %v", err)
+	}
+
+	// Ein Seitenfeld mit derselben Kennung steht danebem: es darf weder in den
+	// Definitionen des Textbausteins landen noch dessen Wert bekommen.
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, Key: "telefon", Label: "Seitentelefon", Kind: field.KindText,
+	}); err != nil {
+		t.Fatalf("Seitenfeld: %v", err)
+	}
+
+	gruppe, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws.ID, SnippetID: sn.ID, Key: "zeiten", Label: "Öffnungszeiten",
+		Kind: field.KindGroup,
+	})
+	if err != nil {
+		t.Fatalf("Gruppe: %v", err)
+	}
+	for _, d := range []field.Def{
+		{Key: "tag", Label: "Tag", Kind: field.KindText},
+		{Key: "von", Label: "Von", Kind: field.KindText},
+	} {
+		d.WebsiteID, d.SnippetID, d.ParentID = ws.ID, sn.ID, gruppe.ID
+		if _, err := s.Fields.Create(ctx, d); err != nil {
+			t.Fatalf("Unterfeld %s: %v", d.Key, err)
+		}
+	}
+	for _, d := range []field.Def{
+		{Key: "telefon", Label: "Telefon", Kind: field.KindText},
+		{Key: "sitzplaetze", Label: "Sitzplätze", Kind: field.KindNumber},
+	} {
+		d.WebsiteID, d.SnippetID = ws.ID, sn.ID
+		if _, err := s.Fields.Create(ctx, d); err != nil {
+			t.Fatalf("Feld %s: %v", d.Key, err)
+		}
+	}
+
+	raw, err := field.Encode(field.Data{
+		Values: field.Values{"telefon": "07721 123456", "sitzplaetze": "8"},
+		Rows: map[string][]field.Values{"zeiten": {
+			{"tag": "Montag", "von": "08:00"},
+			{"tag": "Dienstag", "von": "09:00"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Snippets.SetFields(ctx, sn.ID, raw); err != nil {
+		t.Fatal(err)
+	}
+
+	archive := exportTo(t, s, ws.ID)
+	if !strings.Contains(manifestOf(t, archive), `"values"`) {
+		t.Fatalf("das Manifest trägt keine Werte des Textbausteins:\n%s", manifestOf(t, archive))
+	}
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Schreinerei (Kopie)")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("Warnungen: %v", report.Warnings)
+	}
+
+	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
+	if err != nil || len(kopien) != 1 {
+		t.Fatalf("List snippets: %v (%d)", err, len(kopien))
+	}
+	kopie := kopien[0]
+	if kopie.ContentMarkdown != "Telefon 07721 123456" {
+		t.Errorf("der Rumpf kam anders an: %q", kopie.ContentMarkdown)
+	}
+
+	defs, err := s.Fields.OfSnippet(ctx, report.WebsiteID, kopie.ID)
+	if err != nil {
+		t.Fatalf("OfSnippet: %v", err)
+	}
+	// Reihenfolge und Feldart, beides: eine Definition, die als Text
+	// zurückkommt, obwohl sie eine Zahl war, ist ein anderes Formular.
+	wollte := []struct{ key, kind string }{
+		{"zeiten", field.KindGroup},
+		{"telefon", field.KindText},
+		{"sitzplaetze", field.KindNumber},
+	}
+	if len(defs) != len(wollte) {
+		t.Fatalf("nach der Reise %d Definitionen, wollte %d: %+v", len(defs), len(wollte), defs)
+	}
+	for i, w := range wollte {
+		if defs[i].Key != w.key || defs[i].Kind != w.kind {
+			t.Errorf("Definition %d ist %q/%q, wollte %q/%q", i, defs[i].Key, defs[i].Kind, w.key, w.kind)
+		}
+	}
+	if len(defs[0].Sub) != 2 || defs[0].Sub[0].Key != "tag" || defs[0].Sub[1].Key != "von" {
+		t.Errorf("die Unterfelder der Gruppe kamen anders an: %+v", defs[0].Sub)
+	}
+
+	daten := field.Decode(kopie.Fields)
+	if daten.Values["telefon"] != "07721 123456" {
+		t.Errorf("telefon nach der Reise %q", daten.Values["telefon"])
+	}
+	if daten.Values["sitzplaetze"] != "8" {
+		t.Errorf("sitzplaetze nach der Reise %q", daten.Values["sitzplaetze"])
+	}
+	zeilen := daten.Rows["zeiten"]
+	if len(zeilen) != 2 {
+		t.Fatalf("nach der Reise %d Zeilen, wollte 2: %+v", len(zeilen), zeilen)
+	}
+	if zeilen[0]["tag"] != "Montag" || zeilen[1]["von"] != "09:00" {
+		t.Errorf("die Zeilen kamen in anderer Gestalt an: %+v", zeilen)
+	}
+
+	// Der gefährliche Schnitt, auf dem Archivweg: das Seitenfeld hat dieselbe
+	// Kennung und darf den Wert des Textbausteins nicht bekommen.
+	seiten, err := s.Fields.List(ctx, report.WebsiteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range seiten {
+		if d.SnippetID != 0 {
+			t.Errorf("ein Textbausteinfeld steht in der Seitenliste: %+v", d)
+		}
+	}
+}
+
+// Ein Manifest von vor dieser Phase: der Textbaustein trägt weder Felder noch
+// Werte, und er kommt an, wie er immer angekommen ist.
+//
+// Das ist SNIP-05 für das Archiv. Beide Schlüssel tragen omitempty, also ist
+// „kein Schlüssel“ genau das, was ein älteres Bündel schreibt — und der
+// Importweg darf daraus keinen halben Textbaustein machen.
+func TestAeltererTextbausteinImportiertUnveraendert(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Alte Schreinerei"},
+		Snippets: []Snippet{{
+			Key: "footer-kontakt", Name: "Kontakt", Markdown: "Telefon 07721 123456",
+		}},
+	})
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("Warnungen: %v", report.Warnings)
+	}
+	if report.Snippets != 1 {
+		t.Fatalf("%d Textbausteine gezählt, wollte 1", report.Snippets)
+	}
+
+	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
+	if err != nil || len(kopien) != 1 {
+		t.Fatalf("List snippets: %v (%d)", err, len(kopien))
+	}
+	if kopien[0].ContentMarkdown != "Telefon 07721 123456" {
+		t.Errorf("der Rumpf kam anders an: %q", kopien[0].ContentMarkdown)
+	}
+	if kopien[0].ContentHTML == "" {
+		t.Error("der Rumpf wurde nicht gerendert")
+	}
+	if kopien[0].Fields != "" {
+		t.Errorf("der Textbaustein trägt Werte, obwohl das Manifest keine nennt: %q", kopien[0].Fields)
+	}
+	defs, err := s.Fields.OfSnippet(ctx, report.WebsiteID, kopien[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(defs) != 0 {
+		t.Errorf("der Textbaustein bekam Definitionen aus dem Nichts: %+v", defs)
+	}
+
+	// Und die Gegenprobe an der Schreibweise: ein Textbaustein ohne Felder
+	// schreibt ein Manifest, das die zwei neuen Schlüssel nicht nennt.
+	roh, err := json.Marshal(Snippet{Key: "k", Name: "n", Markdown: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, schluessel := range []string{`"fields"`, `"values"`, `"value_groups"`} {
+		if strings.Contains(string(roh), schluessel) {
+			t.Errorf("das Manifest nennt %s, obwohl nichts gesetzt war: %s", schluessel, roh)
+		}
+	}
+}
+
+// Ein Manifest ist eine Datei, die jemand geschrieben hat: eine Definition,
+// die validate ablehnt, kostet ihr Feld und nicht den Import, und ein Wert
+// unter einer Kennung, die es nicht gibt, wird von field.Clean weggenommen
+// statt gespeichert.
+func TestTextbausteinfelderAusDemArchivGehenDurchDieselbePruefung(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Bösartig"},
+		Snippets: []Snippet{{
+			Key: "footer-kontakt", Name: "Kontakt", Markdown: "x",
+			Fields: []Field{
+				{Key: "telefon", Label: "Telefon", Kind: field.KindText},
+				// Eine Feldart, die es nicht gibt: validate weist sie ab.
+				{Key: "kaputt", Label: "Kaputt", Kind: "gibtesnicht"},
+			},
+			Values: map[string]string{
+				"telefon":  "07721 123456",
+				"kaputt":   "steht unter keiner Definition",
+				"erfunden": "auch nicht",
+			},
+		}},
+	})
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Snippets != 1 {
+		t.Fatalf("%d Textbausteine gezählt, wollte 1", report.Snippets)
+	}
+	if len(report.Warnings) == 0 {
+		t.Error("die abgewiesene Definition wurde nicht gemeldet — der Betreiber " +
+			"muss erfahren, was nicht angekommen ist")
+	}
+
+	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
+	if err != nil || len(kopien) != 1 {
+		t.Fatalf("List snippets: %v (%d)", err, len(kopien))
+	}
+	defs, err := s.Fields.OfSnippet(ctx, report.WebsiteID, kopien[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(defs) != 1 || defs[0].Key != "telefon" {
+		t.Fatalf("die abgewiesene Definition wurde trotzdem angelegt: %+v", defs)
+	}
+
+	werte := field.Decode(kopien[0].Fields).Values
+	if werte["telefon"] != "07721 123456" {
+		t.Errorf("der gültige Wert kam nicht an: %q", werte["telefon"])
+	}
+	for _, kennung := range []string{"kaputt", "erfunden"} {
+		if _, ok := werte[kennung]; ok {
+			t.Errorf("%q wurde gespeichert, obwohl keine Definition ihn trägt: %+v", kennung, werte)
+		}
+	}
+}
+
 func TestArchivSchluesselMitKlammernWirdAbgelehnt(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
