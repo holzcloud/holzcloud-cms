@@ -11,6 +11,37 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## Unveröffentlicht
+
+### Behoben
+
+**Ein Redakteur konnte die Navigation einer fremden Website ändern.** Die
+Zugangsprüfung nimmt die Website-Nummer aus der Adresse und prüft, ob der
+Angemeldete auf *diese* Website darf. Die Menü-Handler prüften danach korrekt,
+dass das Menü zu dieser Website gehört — **die vier Handler für die einzelnen
+Menüeinträge taten es nicht.** Sie prüften nur, dass der Eintrag zum genannten
+Menü gehört, und nicht, dass das Menü zur genannten Website gehört.
+
+Wer also nur für Website A freigeschaltet war, konnte über
+`/admin/websites/A/menus/<B>/items/<B>` die Einträge von Website B anlegen,
+ändern, löschen und umsortieren. Der Beweis steht als Prüffolge im Repository:
+`internal/admin/menu_scope_test.go` schlägt gegen den Stand vor der Behebung
+fehl und zeigt, wie die Navigation einer fremden Website auf eine fremde Adresse
+umgebogen wird.
+
+Betroffen ist nur, wer Redakteure auf einzelne Websites einschränkt
+(`user_websites`, seit Fassung 1.3). Alle sieben Menü-Handler gehen jetzt durch
+zwei Prüffunktionen; `internal/menu/store.go` trägt einen Hinweis, dass er die
+Zuordnung selbst **nicht** erzwingt, damit die nächste Erweiterung nicht
+dieselbe Lücke aufmacht.
+
+Bei der Gelegenheit wurden 51 weitere Admin-Routen durchgesehen, die eine
+Website-Nummer und eine zweite Kennung entgegennehmen. Alle anderen prüfen
+korrekt — Seiten, Fassungen, Medien, Textbausteine, Schlagwörter,
+Weiterleitungen, gespeicherte Ansichten, Produkte, Bestellungen, Inhaltsarten,
+Bausteinarten und Felder. Das Menü war der einzige Ausreisser, und zwar weil es
+als einziges die Zuordnung im Aufrufer statt im Speicher prüft.
+
 ## 1.9 — 2026-09-05
 
 ### Fixed

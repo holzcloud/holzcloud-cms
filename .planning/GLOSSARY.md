@@ -119,6 +119,12 @@ Katalogschlüsseln.
 | Wortschatz (geschlossen) | `closed vocabulary` | Eine Liste, ausserhalb derer gemeldet und nie geraten wird |
 | kombinierendes Zeichen | `combining mark` | `unicode.Mn`. Das Setzen davor heisst `settleMarks` |
 | Zustand (einer Seite) | `status` | Die gespeicherten Werte sind `draft` und `published`. Als Spaltenüberschrift erkennt der Einleser auch `Zustand` und `state` |
+| zusammenfassen | `Summarize` | Aus Urteilen einen Bericht machen. **Nicht** `Aggregate` — der Vorgang fasst zusammen, er rechnet nicht |
+| Durchgang / Lauf | `run` | Ein Gang durch die Datei. `csvLauf` → `csvRun` |
+| Gesamt | `Total` | Wie viele Zeilen, in der Zusammenfassung wie in einer Gruppe |
+| weitere (der Rest einer Liste) | `More` | Was eine gekürzte Aufzählung nicht mehr nennt. `Weitere` → `More` |
+| Vorgabe | `default` | Was eingetragen wird, wenn die Zelle leer bleibt. Gehört dem **Ziel**, nicht der Spalte (IMP-08) |
+| versteckte Felder | `hidden inputs` | Wie der Probelauf die Zuordnung an das Einlesen weitergibt |
 
 ## Vorgänge und Werkzeuge
 
