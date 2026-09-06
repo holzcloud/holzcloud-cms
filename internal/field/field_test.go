@@ -975,15 +975,23 @@ func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
 // beim mehrwertigen genauso wie bei jedem anderen. Etwas zu verlangen, das
 // die Person nicht sehen kann, ist der eine Weg, auf dem sich ein Formular
 // nicht abschicken lässt, ohne zu sagen warum.
+//
+// Wo die Grenze liegt: jede Artregel wird für ein verstecktes Feld
+// übersprungen — die Pflicht, die Höchstzahl, die geschlossene Möglichkeitenliste.
+// Die Bytegrenze nicht: sie ist keine Frage an irgendwen, sondern sagt, wieviel
+// Platz ein Wert in der Zeile hat, die geschrieben wird. Die bewacht
+// TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden.
 func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
 	sorten := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Required: true,
 		Choices: []string{"Eiche", "Buche"}, MaxValues: 1, Condition: "spezial"}
 	defs := []Def{schalter, sorten}
 
-	// Über beiden Grenzen zugleich: zu viele Werte, zu viele Byte, und einer
-	// steht nicht einmal auf der Liste.
-	uebervoll := JoinValues([]string{"Eiche", "Buche", strings.Repeat("x", MaxValueBytes)})
+	// Über jeder Artgrenze zugleich: drei Werte bei MaxValues 1, „Ahorn“ steht
+	// nicht auf der Liste, und das Feld ist Pflicht. Deutlich unter der
+	// Bytegrenze, damit ein Fehler hier eindeutig heisst, dass eine Artregel
+	// gefeuert hat — und nicht die Länge.
+	uebervoll := JoinValues([]string{"Eiche", "Buche", "Ahorn"})
 
 	aus := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": uebervoll}})
 	if len(aus) != 0 {
@@ -1160,5 +1168,79 @@ func TestSchlagwortPruefung(t *testing.T) {
 		if Check(d, bad) == "" {
 			t.Errorf("Check(%q) hat nichts zu beanstanden, sollte aber", bad)
 		}
+	}
+}
+
+// Die Bytegrenze gilt auch dort, wo nach dem Wert niemand gefragt hat.
+//
+// Clean behält den Wert eines versteckten Feldes ausdrücklich (field.go:568-573),
+// und seit D-13 kürzt trimTo nichts mehr — CheckAll ist damit die einzige
+// Stelle, an der das Bytebudget überhaupt noch gilt. Ging es hier vorbei, gab
+// es die Grenze für diese Klasse nirgends: der Browser schickt den Wert eines
+// versteckten Feldes mit, und wer das Formular von Hand baut, sowieso.
+func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
+	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
+	sorten := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Required: true,
+		Choices: []string{"Eiche", "Buche"}, MaxValues: 1, Condition: "spezial"}
+	defs := []Def{schalter, sorten}
+
+	zuLang := strings.Repeat("x", MaxValueBytes+1)
+	aus := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": zuLang}})
+	if aus["sorten"] == "" {
+		t.Fatalf("der zu lange Wert eines versteckten Feldes wurde nicht gemeldet: %v", aus)
+	}
+	// Und zwar mit der Längenbegründung, nicht mit der Optionsbegründung: eine
+	// Artregel darf hier nicht zurückgeschmuggelt worden sein.
+	if !strings.Contains(aus["sorten"], "zu lang") {
+		t.Errorf("die Begründung ist nicht die der Länge: %q", aus["sorten"])
+	}
+
+	// Die eigentliche Zusage dieser Änderung: nur Artregeln verletzt, und das
+	// versteckte Feld bleibt still. Pflicht, Höchstzahl und geschlossene
+	// Liste gelten weiterhin nicht für ein Feld, das niemand sieht.
+	nurArt := JoinValues([]string{"Eiche", "Buche", "Ahorn"})
+	if still := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": nurArt}}); len(still) != 0 {
+		t.Errorf("eine Artregel feuerte für ein verstecktes Feld: %v", still)
+	}
+	// Auch der leere Pflichtwert bleibt still.
+	if still := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": ""}}); len(still) != 0 {
+		t.Errorf("die Pflicht feuerte für ein verstecktes Feld: %v", still)
+	}
+}
+
+// Dasselbe Loch eine Ebene tiefer, mit MaxRows Zeilen mal Unterfeldern als
+// Hebel: validate leert die Bedingung nur für ein Feld in einer Gruppe oder in
+// einer Bausteinart (store.go:521-523), eine Gruppe auf oberster Ebene darf
+// also eine tragen.
+func TestVersteckteGruppeBleibtAnDieBytegrenzeGebunden(t *testing.T) {
+	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
+	notiz := Def{Key: "notiz", Label: "Notiz", Kind: KindLong, Required: true}
+	gruppe := Def{Key: "staffel", Label: "Staffel", Kind: KindGroup, Required: true,
+		Condition: "spezial", Sub: []Def{notiz}}
+	defs := []Def{schalter, gruppe}
+
+	zuLang := strings.Repeat("x", MaxValueBytes+1)
+	aus := CheckAll(defs, Data{
+		Values: Values{"spezial": ""},
+		Rows:   map[string][]Values{"staffel": {{"notiz": zuLang}}},
+	})
+	schluessel := RowKey("staffel", 0, "notiz")
+	if aus[schluessel] == "" {
+		t.Fatalf("der zu lange Wert in der Zeile einer versteckten Gruppe wurde nicht gemeldet: %v", aus)
+	}
+	if !strings.Contains(aus[schluessel], "zu lang") {
+		t.Errorf("die Begründung ist nicht die der Länge: %q", aus[schluessel])
+	}
+
+	// Gegenprobe: eine versteckte Pflichtgruppe ohne Zeile bleibt still, und
+	// ein leeres Pflichtunterfeld in ihrer Zeile ebenso.
+	if still := CheckAll(defs, Data{Values: Values{"spezial": ""}}); len(still) != 0 {
+		t.Errorf("„braucht mindestens eine Zeile“ feuerte für eine versteckte Gruppe: %v", still)
+	}
+	if still := CheckAll(defs, Data{
+		Values: Values{"spezial": ""},
+		Rows:   map[string][]Values{"staffel": {{"notiz": ""}}},
+	}); len(still) != 0 {
+		t.Errorf("die Pflicht feuerte in der Zeile einer versteckten Gruppe: %v", still)
 	}
 }
