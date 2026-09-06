@@ -24,6 +24,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/branding"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
+	"github.com/holzcloud/holzcloud-cms/internal/csvimport"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
@@ -516,6 +517,36 @@ func main() {
 			Every: 6 * time.Hour,
 			Fn: func(ctx context.Context) error {
 				_, err := user.NewStore(database, argon2Params).PurgeExpiredTokens(ctx)
+				return err
+			},
+		},
+		jobs.Job{
+			Name:  "csv-import-prune",
+			Every: 6 * time.Hour,
+			Fn: func(ctx context.Context) error {
+				// Hochgeladene Tabellen, die zwischen den vier Bildschirmen
+				// des CSV-Imports liegen. Fertige und liegengelassene
+				// gleichermassen: die Zeile eines fertigen Imports ist schon
+				// weggeraeumt, was dieser Lauf findet, hat jemand stehen
+				// lassen.
+				//
+				// Ein Tag ist die Aufbewahrung. Wer ueber Mittag den Tab offen
+				// laesst, findet seinen Import noch vor; wer ueber ein
+				// Wochenende weggeht, nicht mehr — und eine Datei noch einmal
+				// hochzuladen kostet nichts, waehrend zehn Megabyte pro
+				// abgebrochenem Versuch auf Dauer etwas kosten.
+				//
+				// Kein RunAtStart, anders als bei media-backfill. Ein
+				// Aufraeumlauf beim Start wuerde genau den Import erwischen,
+				// der waehrend eines Deploys gerade laeuft.
+				//
+				// Und hier steht die Antwort auf die Planungsnotiz, die gegen
+				// das Zwischenlagern sprach: „braucht keinen Aufraeumlauf".
+				// Der Aufraeumlauf ist dieser hier — acht Zeilen und keine
+				// neue Maschinerie. Dafuer laesst sich die Datei ueber vier
+				// Bildschirme tragen, was ohne sie gar nicht ginge, weil ein
+				// Server kein Dateifeld ausfuellen kann.
+				_, err := csvimport.NewStore(database).Prune(ctx, 24*time.Hour)
 				return err
 			},
 		},
