@@ -1,188 +1,180 @@
-# Was noch fehlt
+# What is still missing
 
-Stand: August 2026, nach den eigenen Bausteinarten; fortgeschrieben im
-September 2026, nach den Feldarten. Eine Arbeitsliste, keine
-Wunschliste: jeder Punkt sagt, **was fehlt**, **wo es hingehört** und **wie
-gross es ist**. Was bewusst nicht gebaut wird, steht ganz unten — damit
-niemand es zweimal vorschlägt.
+As of August 2026, after the website's own block kinds; carried forward in
+September 2026, after the field kinds. A working list, not a wish list: every
+point says **what is missing**, **where it belongs** and **how big it is**. What
+is deliberately not being built is right at the bottom — so that nobody proposes
+it twice.
 
-Der Vergleich mit Statamic, aus dem die meisten Punkte stammen, steht in
-`vergleich-statamic.md`. Die eine strukturelle Lücke von damals ist zu: eine
-Website bestimmt ihr Inhaltsmodell inzwischen selbst — eigene Felder, Gruppen,
-Inhaltsarten, Abschnitte, Bedingungen und Bausteinarten. Was hier steht, ist
-Einzelarbeit, keine Bauart.
-
----
-
-## 1. Auswahl auch als Knopfreihe und als Mehrfachauswahl — gebaut
-
-**Gebaut:** September 2026, Phase 7. Beide Hälften stehen. `mehrfachauswahl`
-ist eine eigene Art neben `auswahl` — ein Wert je Zeile im selben String, über
-`field.SplitValues`/`JoinValues`, und die Mehrwertigkeit steht im Formularnamen
-(`feld_<kennung>[]`). Die Knopfreihe ist keine Art, sondern die Darstellung
-`darstellung` auf `auswahl` selbst, samt einem ausdrücklichen Leerknopf und
-einer eigenen Regel `.feld-schalter--knopfreihe`, ohne die jedes abhängige Feld
-darunter still aufgehört hätte zu erscheinen.
-
-**Fehlte:** Die Feldart *Auswahl* (`field.KindChoice`) ist immer eine
-Klappliste. Für drei Möglichkeiten nebeneinander ist das die falsche Form, und
-„mehrere davon" gibt es gar nicht.
-
-**Wo:** `internal/field/field.go` (**eine** neue Art `mehrfachauswahl` neben
-`KindChoice`, dazu eine Darstellungsweise `darstellung` auf `KindChoice` selbst —
-die Knopfreihe ist keine eigene Art, sondern dieselbe Auswahl in anderer Form:
-gleiche Möglichkeiten, gleicher gespeicherter Wert, gleicher Vertrag zur
-Vorlage), `internal/field/render.go` (eine Mehrfachauswahl ist eine Liste, kein
-String — das ist die eigentliche Entscheidung),
-`cmd/holzcloud/templates/admin/field_input.html`.
-
-**Grösse:** Die Knopfreihe ist ein Nachmittag. Die Mehrfachauswahl ist mehr:
-sie ist der erste Feldwert, der kein einzelner String ist, also braucht
-`field.Data` einen zweiten Speicherweg oder eine Kodierung, auf die man sich
-festlegt. Vorschlag: eine Zeile je Wert im selben String, wie `SplitChoices`
-die Möglichkeiten schon liest.
-
-## 2. Schlagwörter als Feldart — gebaut
-
-**Gebaut:** September 2026, Phase 7. Die Art heisst `schlagwort`, der Wähler
-ist der von `KindRef` abgeschriebene, und aufgelöst wird über einen
-`TermLookup` neben `Links.Page`. Gespeichert wird das Kürzel, gedruckt der
-Name, wie er gerade lautet — eine Umbenennung ändert damit jede Seite, ohne
-dass eine angefasst wird. In einem Baustein ist die Art ausgeschlossen, aus
-genau demselben Grund wie der Verweis.
-
-**Fehlte:** Schlagwörter gibt es an jeder Seite (`internal/term`), aber man kann
-kein Feld „Sorte" anlegen, das aus ihnen wählt.
-
-**Wo:** neue Art `KindTerm` in `internal/field`, ein Chooser wie der von
-`KindRef` (siehe `refPages` in `internal/admin/page_fields.go`), Auflösung in
-`internal/field/render.go` über einen `TermLookup` neben `Links.Page`.
-
-**Grösse:** Ein Tag. Das Muster steht komplett beim Verweis; abzuschreiben ist
-es einmal.
-
-## 3. Textbausteine können nur Text
-
-**Fehlt:** Ein Textbaustein (`internal/snippet`) ist ein Markdown-Feld. Eine
-globale Telefonnummer mit Prüfung, ein globales Bild, eine globale Zahl gibt es
-nicht — Statamics *Globals* tragen jeden Feldtyp.
-
-**Wo:** `internal/snippet`. Der ehrliche Weg ist derselbe wie bei den
-Bausteinarten: die Felder aus `page_field_defs` wiederverwenden, mit einer
-Spalte `snippet_id` daneben — nicht eine dritte Feldtabelle.
-
-**Grösse:** Zwei Tage, davon die Hälfte Bildschirm.
-
-## 4. CSV-Import
-
-**Fehlt:** Es gibt den eigenen Bündel-Import und WordPress (WXR). Eine Tabelle
-mit Titel, Text und ein paar eigenen Feldern kann man nicht einlesen.
-
-**Wo:** neben `internal/wxr` ein `internal/csv`, angehängt an denselben
-Bildschirm (`cmd/holzcloud/templates/admin/website_list.html`).
-
-**Grösse:** Ein Tag. Die Zuordnung Spalte → Feld ist die ganze Arbeit; alles
-danach ist `page.CreatePage`.
-
-## 5. Statischer Export
-
-**Fehlt:** Eine Website als reine HTML-Dateien.
-
-**Wo:** ein neuer Befehl neben den anderen in `runCLI`, der den öffentlichen
-Handler gegen einen Ordner laufen lässt.
-
-**Grösse:** Ein Tag für Seiten, Archiv, Feed, Sitemap und Medien. **Vorher
-überlegen:** es ist eine zweite Betriebsart neben der einen, die funktioniert —
-Formulare, Suche und geschützte Seiten kann sie nicht. Wenn, dann als
-ausdrücklich abgespeckte Ausgabe.
-
-## 6. Feldtypen, die einzeln fehlen — gebaut
-
-**Gebaut:** September 2026, Phase 7. Alle drei, dazu die Spalten, die sie
-brauchen (Wanderung `00046`). Die Stunde je Art stimmte für das Bauen; die
-zweite Stunde je Art ging an die Verträge — `TEMPLATE-SPEC.md`, `SampleData`,
-`MinimalData` und die Kataloge —, und die war eingeplant.
-
-**Fehlten**, klein, jeder für sich eine Stunde, alle in `internal/field`:
-
-- `zeit` — eine Uhrzeit. Gibt es nur in der Zeitsteuerung.
-- `bereich` — eine Zahl zwischen zwei Grenzen, als begrenztes Zahlenfeld
-  (`<input type="number" min max step>`). Kein Schieberegler: dessen gewählte
-  Zahl steht nirgends als Text, und die Anzeige, die sie lesbar machen würde,
-  braucht JavaScript — genau dieses Muster weist `internal/tmplmgr/script.go`
-  ab.
-- `code` — ein Textfeld ohne Markdown, mit fester Schrift.
+The comparison with Statamic, which most of these points come from, is in
+`vergleich-statamic.md`. The one structural gap from back then is closed: a
+website now decides its own content model — its own fields, groups, content
+kinds, sections, conditions and block kinds. What is here is individual work, not
+a change of construction.
 
 ---
 
-## Was bewusst nicht gebaut wird
+## 1. Choice as a button row and as multiple choice — built
 
-Damit es nicht wiederkommt:
+**Built:** September 2026, phase 7. Both halves are in place. `mehrfachauswahl`
+is a kind of its own beside `auswahl` — one value per line in the same string, via
+`field.SplitValues`/`JoinValues`, with the multiplicity in the form name
+(`feld_<key>[]`). The button row is not a kind but the display mode
+`darstellung` on `auswahl` itself, together with an explicit empty button and a
+rule of its own, `.feld-schalter--knopfreihe`, without which every dependent field
+below it would silently have stopped appearing.
 
-- **Befehlspalette (⌘K) und Passkeys** — beides braucht JavaScript. Der Gewinn
-  wiegt die Ausnahme nicht auf.
-- **YouTube- und Vimeo-Einbettung** — die Regel „nichts von Dritten zur
-  Laufzeit" ist der Grund, warum dieses CMS ohne Cookie-Banner auskommt. Ein
-  Einbettungscode kostet genau das. Ein eigenes MP4 gibt es als Baustein.
-- **GraphQL, OAuth, Git-Automatik** — jedes davon ist eine zweite Betriebsart
-  neben der einen, die funktioniert.
-- **Eine HTML-Vorlage je Bausteinart** — das wäre eine Vorlagensprache in einem
-  Textfeld, also ein Weg, ein `<script>` durch die Vordertür auf eine Seite zu
-  bringen. Das ganze Programm steht auf dem Versprechen, dass es so einen Weg
-  nicht gibt. Wo eine CSS-Klasse nicht reicht, ist das lange Textfeld der
-  Ausweg: es läuft durch den Markdown-Renderer und dieselbe Reinigung wie jeder
-  andere Text.
-- **Ein Verweis in einem Baustein** — ein Verweis überlebt eine Umbenennung;
-  ein Baustein wird beim Speichern der Seite ein für alle Mal in HTML
-  verwandelt und könnte das nicht halten. Der Link tut dieselbe Arbeit und sagt,
-  was er ist.
+**Was missing:** the field kind *Choice* (`field.KindChoice`) is always a dropdown.
+For three possibilities side by side that is the wrong form, and "several of them"
+did not exist at all.
+
+**Where:** `internal/field/field.go` (**one** new kind `mehrfachauswahl` beside
+`KindChoice`, plus a display mode `darstellung` on `KindChoice` itself — the button
+row is not a kind of its own but the same choice in another form: same
+possibilities, same stored value, same contract to the template),
+`internal/field/render.go` (a multiple choice is a list, not a string — that is the
+real decision), `cmd/holzcloud/templates/admin/field_input.html`.
+
+**Size:** the button row is an afternoon. The multiple choice is more: it is the
+first field value that is not a single string, so `field.Data` needs either a
+second storage path or an encoding you commit to. Proposal: one line per value in
+the same string, the way `SplitChoices` already reads the possibilities.
+
+## 2. Labels as a field kind — built
+
+**Built:** September 2026, phase 7. The kind is called `schlagwort`, the picker is
+the one copied from `KindRef`, and resolution goes through a `TermLookup` beside
+`Links.Page`. What is stored is the slug, what is printed is the name as it
+currently stands — so a rename changes every page without a single page being
+touched. Inside a block the kind is excluded, for exactly the same reason as the
+reference.
+
+**Was missing:** labels exist on every page (`internal/term`), but you could not
+create a field "Variety" that picks from them.
+
+**Where:** a new kind `KindTerm` in `internal/field`, a chooser like the one for
+`KindRef` (see `refPages` in `internal/admin/page_fields.go`), resolution in
+`internal/field/render.go` through a `TermLookup` beside `Links.Page`.
+
+**Size:** a day. The pattern is complete at the reference; it has to be copied
+once.
+
+## 3. Snippets can only do text
+
+**Missing:** a snippet (`internal/snippet`) is a Markdown field. A global
+telephone number with validation, a global image, a global number do not exist —
+Statamic's *Globals* carry every field type.
+
+**Where:** `internal/snippet`. The honest way is the same as with the block kinds:
+reuse the fields from `page_field_defs`, with a `snippet_id` column beside them —
+not a third field table.
+
+**Size:** two days, half of it screen.
+
+## 4. CSV import
+
+**Missing:** there is the project's own bundle import and WordPress (WXR). A table
+with a title, a text and a few of the website's own fields cannot be read in.
+
+**Where:** an `internal/csv` beside `internal/wxr`, attached to the same screen
+(`cmd/holzcloud/templates/admin/website_list.html`).
+
+**Size:** a day. Mapping column to field is the whole job; everything after that is
+`page.CreatePage`.
+
+## 5. Static export
+
+**Missing:** a website as plain HTML files.
+
+**Where:** a new command beside the others in `runCLI`, running the public handler
+against a directory.
+
+**Size:** a day for pages, archive, feed, sitemap and media. **Think first:** it is
+a second mode of operation beside the one that works — it cannot do forms, search
+or protected pages. If at all, then as an explicitly reduced output.
+
+## 6. Field types missing individually — built
+
+**Built:** September 2026, phase 7. All three, along with the columns they need
+(migration `00046`). The hour per kind was right for the building; the second hour
+per kind went to the contracts — `TEMPLATE-SPEC.md`, `SampleData`, `MinimalData`
+and the catalogues — and that was planned for.
+
+**Were missing**, small, an hour each, all in `internal/field`:
+
+- `zeit` — a time of day. Exists only in scheduling.
+- `bereich` — a number between two bounds, as a bounded number field
+  (`<input type="number" min max step>`). Not a slider: a slider's chosen number
+  appears nowhere as text, and the readout that would make it legible needs
+  JavaScript — exactly the pattern `internal/tmplmgr/script.go` refuses.
+- `code` — a text field without Markdown, in a fixed-width face.
 
 ---
 
-## Beim Weiterarbeiten
+## What is deliberately not being built
 
-- **Migrationen** laufen bis `00046`. Eine neue Wanderung, die eine bestehende
-  Tabelle ändert, zuerst gegen `internal/db/migrations/00029` und `00031` lesen:
-  eine CHECK-Bedingung am Tabellenkopf lässt sich in SQLite nur mit einem
-  vollständigen Neubau lockern, und `pages` hat Fremdschlüsselkinder. Ein
-  eigener Index dagegen — wie die Eindeutigkeit der Feldkennung — ist ein
-  Austausch von zwei Zeilen.
-- **Nach jeder Änderung an Texten:** `go run ./tools/i18n` zeigt, was in den
-  fünf Sprachen fehlt, `-write` legt die Schlüssel an, `-schweiz` baut
-  `de-CH.json` neu. Der Lauf muss „0 offen, 0 verwaist" sagen.
-- **Dependabot-Anhebungen:** einer nach dem anderen, `go build ./...`,
-  `go vet ./...` und `go test ./...` dazwischen. Der Konflikt in `go.mod` ist
-  der Normalfall, sobald zwei PRs von derselben Fassung ausgehen — beide
-  Anhebungen behalten, `go mod tidy`, fertig.
+So that it does not come round again:
 
-  Bei `modernc.org/sqlite` zusätzlich ein Lauf gegen eine echte Datenbankdatei;
-  das ist der eine Baustein, bei dem ein stiller Unterschied teuer wäre. Binär
-  bauen, gegen ein leeres Datenverzeichnis starten und nachsehen, ob alle
-  Wanderungen durchlaufen und die Pragmas stehen:
+- **A command palette (⌘K) and passkeys** — both need JavaScript. The gain does
+  not outweigh the exception.
+- **YouTube and Vimeo embedding** — the rule "nothing from third parties at
+  runtime" is the reason this CMS does without a cookie banner. An embed code
+  costs exactly that. An MP4 of your own is available as a block.
+- **GraphQL, OAuth, git automation** — each of them is a second mode of operation
+  beside the one that works.
+- **An HTML template per block kind** — that would be a templating language in a
+  text box, and therefore a way to bring a `<script>` onto a page through the
+  front door. The whole program rests on the promise that no such way exists.
+  Where a CSS class is not enough, the long text field is the way out: it goes
+  through the Markdown renderer and the same sanitising as any other text.
+- **A reference inside a block** — a reference survives a rename; a block is turned
+  into HTML once and for all when the page is saved and could not keep that
+  promise. The link does the same work and says what it is.
+
+---
+
+## When carrying on
+
+- **Migrations** run to `00048`. For a new migration that changes an existing
+  table, read `internal/db/migrations/00029` and `00031` first: a CHECK constraint
+  at the head of a table can only be relaxed in SQLite by rebuilding the table
+  completely, and `pages` has foreign-key children. An index of your own, on the
+  other hand — like the uniqueness of a field key — is a swap of two lines.
+- **After every change to text:** `go run ./tools/i18n` shows what is missing in
+  the five languages, `-write` creates the keys, `-schweiz` rebuilds `de-CH.json`.
+  The run has to say "0 open, 0 orphaned".
+- **Dependabot bumps:** one after another, with `go build ./...`, `go vet ./...`
+  and `go test ./...` in between. The conflict in `go.mod` is the normal case as
+  soon as two PRs start from the same version — keep both bumps, `go mod tidy`,
+  done.
+
+  For `modernc.org/sqlite` additionally a run against a real database file; that
+  is the one component where a silent difference would be expensive. Build the
+  binary, start it against an empty data directory and check that all migrations
+  run through and the pragmas are in place:
 
   ```
   HOLZCLOUD_DATA_DIR=/tmp/dbtest HOLZCLOUD_PORT=18099 ./holzcloud
   ```
 
-  Erwartet: `journal_mode=wal`, `busy_timeout=5000`, `foreign_keys=1`,
-  `synchronous=1`, dazu `PRAGMA foreign_key_check` ohne Zeile und
-  `PRAGMA integrity_check` gleich `ok`. Bei 1.57.0 geprüft: 44 Wanderungen, 48 Tabellen, alles sauber.
-- **Beim Anheben der Go-Fassung:** die sechs Gastmodule baut
-  `go run ./tools/wasm`, und das Werkzeug schreibt die Werkzeugkette selbst fest
-  — `goToolchain` als Konstante in `tools/wasm/main.go`, die beim Bau als
-  `GOTOOLCHAIN` gesetzt wird, damit ein Lauf hier dieselben Bytes ergibt wie
-  einer auf dem Läufer. Diese Festschreibung hat
-  einen Boden: sie darf nie unter der `go`-Vorgabe im Wurzel-`go.mod` liegen.
-  Das Testgast `internal/plugin/testdata/echo` liegt im Wurzelmodul und kann
-  keine eigene `toolchain`-Zeile tragen, und das go-Kommando weigert sich, ein
-  Modul zu laden, das eine neuere Fassung verlangt als die laufende Kette.
-  Eine Anhebung von `go 1.26.6` heisst deshalb: Festschreibung mit anheben,
-  alle sechs Gäste neu bauen — und der Neubau gehört in einen eigenen Commit,
-  der nichts als die Bauartefakte enthält, sonst begräbt er die eigentliche
-  Änderung und `git log -S` findet sie nicht mehr. Ohne diesen Absatz merkt es
-  erst, wer die nächste Anhebung zusammenführt und alle sechs Ziele auf einmal
-  rot werden sieht.
-- **Geprüft wird im Browser.** Die Fehler dieser Woche — ein Beitrag, der beim
-  Bildeinfügen zur Seite wurde; Bausteine, die im Bündel fehlten; Menüs, die
-  beim Import zusammenstiessen — hat keiner der Tests gefunden, sondern ein
-  Durchlauf durch die laufende Anwendung.
+  Expected: `journal_mode=wal`, `busy_timeout=5000`, `foreign_keys=1`,
+  `synchronous=1`, plus `PRAGMA foreign_key_check` with no rows and
+  `PRAGMA integrity_check` equal to `ok`. Checked at 1.57.0: 44 migrations, 48
+  tables, all clean.
+- **When raising the Go version:** `go run ./tools/wasm` builds the six guest
+  modules, and the tool pins the toolchain itself — `goToolchain` as a constant in
+  `tools/wasm/main.go`, set as `GOTOOLCHAIN` during the build so that a run here
+  produces the same bytes as one on the runner. That pin has a floor: it must never
+  be below the `go` directive in the root `go.mod`. The test guest
+  `internal/plugin/testdata/echo` lives in the root module and cannot carry a
+  `toolchain` line of its own, and the go command refuses to load a module
+  demanding a newer version than the running chain. Raising from `go 1.26.6`
+  therefore means: raise the pin as well, rebuild all six guests — and the rebuild
+  belongs in a commit of its own containing nothing but the build artefacts,
+  otherwise it buries the actual change and `git log -S` no longer finds it.
+  Without this paragraph, the person who notices is whoever merges the next bump
+  and watches all six targets go red at once.
+- **Checking happens in the browser.** This week's bugs — a post that became a page
+  when an image was inserted; blocks missing from the bundle; menus colliding on
+  import — were found by none of the tests but by a run through the running
+  application.
