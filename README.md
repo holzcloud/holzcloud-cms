@@ -169,10 +169,14 @@ it. The screenshots above show a fictional example site; its source is in
 
 ## Versioning
 
-This repository starts at **`v1.4`** — the point from which the project
-continues in public, not the point at which it began. The version is written
-into the binary at build time from `git describe`, so a tag has to be reachable
-from `HEAD`:
+The public record starts at **`v1.4`** — the point from which the project
+continues in the open, not the point at which it began; it was developed in a
+private repository before that. Releases have run on from there, and the
+milestones under `.planning/` share the numbering.
+
+The version is written into the binary at build time from `git describe`, so a
+tag has to be reachable from `HEAD` — without one, `--always` puts a bare commit
+hash there instead. Ask a running binary what it thinks it is:
 
 ```bash
 ./holzcloud version
