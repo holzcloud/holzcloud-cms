@@ -162,7 +162,7 @@ staging token. Routes, all under `/admin/websites/import-csv`:
 |---|---|---|
 | 1 | `POST /admin/websites/import-csv` | cap, sniff, parse the header, stage, redirect to 2 |
 | 2 | `GET /admin/websites/import-csv/{token}` | the mapping screen; `?zeile=N` steps the sample row (IMP-08) |
-| 2b | `POST /admin/websites/import-csv/{token}/beispiel` | the example CSV download (IMP-07) |
+| 2b | `GET /admin/websites/import-csv/{token}/beispiel` | the example CSV download (IMP-07) — a GET, see D-34 |
 | 3 | `POST /admin/websites/import-csv/{token}/probe` | the dry run — **writes nothing** (IMP-05) |
 | 4 | `POST /admin/websites/import-csv/{token}/start` | the write, then the report |
 
@@ -370,6 +370,82 @@ Two resolutions are mechanical gates the plan should state as such:
   (D-02).
 - `internal/db/migrations/00046`, `00047`, `00048` — released; never edited.
 
+### What the pattern map found, and the two traps that bite silently
+
+`09-PATTERNS.md` is beside this file. Two of its findings change decisions above
+rather than merely informing them, and both were re-verified here against the
+tree before being adopted.
+
+- **D-31: the four new templates must be added to `layoutPageNames`
+  (`internal/web/render.go:46`) — a hand-maintained slice of 44 names.** A
+  template that is missing from it renders as a bare fragment with no base
+  layout: no navigation, no flash area, no CSRF body attribute. **The test suite
+  cannot see this** — only a browser can. This is the project's recurring defect
+  signature exactly ("a mechanism correct at every known site and silently wrong
+  at one overlooked site"), and it is mechanically gated: **44 now, 48 after.**
+
+- **D-32: a row verdict carries a reason CODE plus its arguments — never a
+  formatted German sentence.** This **overrides half of D-03.** Copy
+  `importWordPressItem`'s *discipline* (empty means it worked); do **not** copy
+  its *type*.
+
+  > Measured: `tools/i18n/main.go:47` collects `{{t}}`/`{{th}}`/`{{tf}}`
+  > literals from templates, and `:53-65` collects the first string argument of
+  > exactly **eight** named Go functions (`SetFlashError`, `SetFlashSuccess`,
+  > `SetFlashWarning`, `Add`, `NewLayoutData`, `Titlef`, `T`, `N`). A string
+  > built with `fmt.Sprintf` and appended to a report is **invisible to the
+  > tool**. `wordpress.go:68-84` is the proof standing in the tree today: those
+  > warnings are hard-coded German, and `go run ./tools/i18n` reports
+  > `0 offen, 0 verwaist` anyway.
+
+  Phase 9's report is *entirely* such strings. Left as `fmt.Sprintf`, **QUAL-01
+  would report green while the whole report screen is German-only** — the same
+  class of hole as Fenster Nr. 3 (`internal/field/field.go`'s untranslated
+  rejection reasons). Twice is a pattern; a third time would be a decision. So a
+  verdict is `{Row int, Outcome …, Reason ReasonCode, Args …}`, and the template
+  renders it with `{{tf "…" .Args}}`.
+
+- **D-33: the wizard pattern is invented here, so its shape is fixed by decision
+  rather than by drift.** The pattern map searched every `Handle*` in
+  `internal/admin`, plus `internal/public/checkout.go` and `internal/shop`, and
+  found **no multi-screen wizard anywhere in this tree**. The two half-analogs
+  disagree and neither can simply be copied:
+  - `internal/admin/twofactor.go:138-207` is the **only** POST in the codebase
+    that renders a *different* screen — but it keys its half-finished state on
+    the **user id** (`EnsurePendingSecret`, `:154`), so one user can have only
+    one enrolment in flight. **That line must be consciously dropped:** keyed the
+    same way, a second CSV upload would silently destroy the first.
+  - `internal/admin/confirm.go:27-73` is the model for one handler serving both
+    GET and POST — but it carries a single URL, not a payload.
+
+  Shape, fixed: **the token is a path segment**; **screen 2 is a GET** (so it is
+  bookmarkable and `?zeile=N` steps the sample row without a POST); **screens 3
+  and 4 are POSTs** (they are actions, and screen 4 is not repeatable by a
+  refresh); and **a token the sweep has already removed renders a named "this
+  upload has expired, please start again" screen, not a 404** — the operator did
+  nothing wrong and a 404 says they did.
+
+- **D-34: the example CSV is served by a GET, not a POST.** All five existing
+  downloads in the tree are GETs (`media.go:377`, `bundle.go:48`,
+  `template.go:361`, `language.go:74` and `:88`, `plugin.go:374`); a
+  POST-that-downloads has no analog here. `language.go:88` is the closest model
+  — `attachment; filename=…` with the name built from known-safe input — and
+  `plugin.go:374`'s `safeDownloadName` is the escaping to copy if the filename
+  ever carries the website's name.
+
+- **D-35: the staging store lives in `internal/csvimport`, beside a pure
+  `internal/csv`.** Build-order step 1 makes `internal/csv`'s purity
+  load-bearing: the hostile-file checklist has to be testable without
+  `db.Open`. Counter-evidence, named so the planner can overrule this
+  knowingly: `internal/shop` puts `cart.go` and `pricing.go` in one package and
+  is none the worse for it. Purity wins here because D-03 spends it.
+
+- **A second, independent argument for D-24** (the report gets its own
+  template): `import_report.html` uses `.import-summary` and `.import-warnings`,
+  and **neither class has a single rule anywhere in `cmd/holzcloud/assets/`**.
+  Reusing that template would mean inheriting two dead hooks and styling them
+  for a screen they were not designed for.
+
 ### Baseline counts, measured against the pre-change tree
 
 Phase 8 taught this the hard way: three of its five waves wrote counting gates
@@ -390,6 +466,7 @@ the plan itself adds*, never as an estimate:
 | `<details>` panels | `grep -c '<details' …/website_list.html` | **2** |
 | `jobs.Job{` entries | `grep -c 'jobs.Job{' cmd/holzcloud/main.go` | **11** |
 | admin templates | `ls …/templates/admin/*.html \| wc -l` | **61** |
+| `layoutPageNames` entries | the slice at `internal/web/render.go:46` | **44** — see D-31 |
 | packages under `internal/` | `ls -d internal/*/ \| wc -l` | **38** |
 | files using `BeginTx` | `grep -rln BeginTx internal/ --include='*.go' \| grep -v _test` | **14** |
 | admin CSS files | `ls cmd/holzcloud/assets/*.css` | **2** |
