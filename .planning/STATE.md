@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 8
 current_phase_name: Snippets Carry Fields
 status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-09-06T10:10:15.916Z"
+stopped_at: Completed 08-04-PLAN.md
+last_updated: "2026-09-06T10:28:25.738Z"
 last_activity: 2026-09-06
-state_head: 23b01afaba23a3c453d3dea4198efefb7ece7420
+state_head: 3cd179c1d9f26de729c75ccd638762f1e2daf61b
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 17
+  completed_plans: 18
   percent: 17
 ---
 
@@ -22,16 +22,16 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 8 — Snippets Carry Fields, 2 von 5 Plänen ausgeführt (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 8 — Snippets Carry Fields, 4 von 5 Plänen ausgeführt (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
 
 ### Current Position
 
-Phase: 8 — Snippets Carry Fields (3 / 5 Pläne ausgeführt)
-Plan: 08-03 complete — **die Definitionshälfte des Bildschirms steht, und sie ist ein vierter *Modus* und keine vierte Route**. `?textbaustein=<id>` auf `GET /admin/websites/{id}/felder` macht den einen Feldbildschirm zu seinem vierten Modus, nach der obersten Ebene, einer Gruppe und einer Bausteinart: `FieldListData.Snippet`, ein vierter `case` in `fieldListData`, der über `OfSnippet` liest und **`field.Kinds` in voller Breite** anbietet (die vier Ausschlüsse von `BlockKinds()` gelten hier nicht, weil ein Textbaustein nicht zu HTML erstarrt), `Simple()` auf drei Träger erweitert und `fieldPath` mit einem vierten Arm, den alle vier Aufrufstellen füttern. Der **eine Punkt, der keine Abschrift ist**, ist die Eigentumsprüfung: `blockTypes.Get` nimmt die Websitenummer, `snippets.Get` nimmt sie nicht — deshalb steht `snippetOf` als **eine** Funktion da, die der GET **und** der POST aufrufen, und `h.snippets.Get` kommt in `internal/admin/field.go` genau **einmal** vor. In `field_list.html` bekamen **sieben** positive `{{if .BlockType}}`-Arme ein `{{else if .Snippet}}`-Geschwister, und die **drei** `{{if not .BlockType}}`-Verneinungen blieben unangetastet: sie sind die drei Orte der „Pflicht"-Spalte, und eine davon zu verbreitern hätte dem Bediener die einzige Möglichkeit genommen, ein Textbausteinfeld als Pflicht zu markieren. **Beide Zähltore trafen diesmal genau ein** (7 und 3) — anders als in den Wellen 1 und 2, weil der Plan die zehn Vorkommen vorher Zeile für Zeile ausgezählt hatte. Vier Prüfungen über `newTestAdmin` und die echten Vorlagen halten die Berechtigung, und eine **Mutationsprobe** belegt sie: ohne `sn.WebsiteID != websiteID` meldet der GET-Fall den fremden Namen auf dem Bildschirm und der POST-Fall antwortet **303 statt 404**. Sechs neue sichtbare Sätze, in en/es/fr/it übersetzt, `0 offen, 0 verwaist`. Keine Abweichung vom Plan
-Status: Phase 08 läuft — 3 von 5 Plänen ausgeführt; SNIP-02 und SNIP-04 sind jetzt in REQUIREMENTS.md abgehakt, weil dieser Plan der letzte war, der sie führt. SNIP-01 bleibt offen: 08-04 baut die **Werte**hälfte des Bildschirms, und erst dann ist „jede Feldart, ausgefüllt am Textbaustein" ganz da. SNIP-03 und SNIP-05 sind durch den Speicher erfüllt
+Phase: 8 — Snippets Carry Fields (4 / 5 Pläne ausgeführt)
+Plan: 08-04 complete — **die Wertehälfte steht, und sie ist fast reine Komposition**. `SnippetValues.Fields` wird von `fieldsFromRequest` gefüllt — dem Parser des Seiteneditors, gerufen und nicht abgeschrieben —, `SnippetListData` bekam `FieldViews`, die drei Vorräte und ein `pool()`, und `snippetListData` baut die Eingaben mit `fieldViews`, dem einen Bauplatz. Die Zähltore messen genau das: **1** `fieldsFromRequest`, **1** `fieldViews`, **0** `name="feld_` in `snippet_list.html` — keine zweite Prägestelle, die Form, in der Phase 7 zweimal einen Kritischen ausgeliefert hat. Der Speicherweg ist die Fünferfolge einer Seite in derselben Reihenfolge: `groupAction` → `field.CheckAll` → `field.Clean` → `field.Encode` → `snippets.SetFields`, geprüft über die Definitionen, die der **Server** über `OfSnippet` geladen hat, ohne `field.For` und ohne Flash. **SNIP-03 ist bewiesen, ohne den Maskierer nachzuprüfen**: `TestSnippetFeldSanierung` legt `<script>alert(1)</script>` in ein `langtext`-Feld eines Textbausteins **und** eines einer Seite und behauptet, dass beide Ausgaben Zeichen für Zeichen übereinstimmen und keine lebende Marke tragen — weil `KindLong` in `field.Resolve` **keinen eigenen Arm** hat, in den `default:`-Arm fällt und `html/template` beim Drucken maskiert. **Keine Markdown-Kette läuft auf einem Feldwert**; die Kette gehört dem Rumpf, und `RenderMarkdown(` steht in `internal/admin/snippet.go` unverändert genau **einmal**. Drei Mutationsproben gefahren: ohne `SetFields` fallen drei Fälle, ohne das Fieldset zwei, und mit einem Guss nach `template.HTML` im `KindLong`-Arm fällt die Sanierung auf **beiden** Trägern. Dazu **T-07-26 geschlossen** — nicht gebaut, sondern die Behauptung korrigiert: `field.Hidden` steht auf keinem Speicherweg, was schützt ist `field.CheckAll`, und `internal/field/field.go` steht in keinem Diff dieses Plans. Zwei Abweichungen (Regel 1 und Regel 3), beide begründet; **ein Zähltor misst 2 statt 1** und die Ursache ist eine vorbestehende Fremdnennung von T-07-26 in W-4 — gemeldet, nicht passend gemacht
+Status: Phase 08 läuft — 4 von 5 Plänen ausgeführt; **SNIP-01 ist jetzt abgehakt**, denn 08-04 war der letzte Plan, der es führt. SNIP-03 und SNIP-05 bleiben absichtlich offen: Plan 08-05 führt beide ebenfalls, und das Tor auf geteilte Kennungen hakt eine erst ab, wenn der **letzte** Plan, der sie nennt, seine Zusammenfassung hat. Offen bleibt allein Plan 08-05: die Browserhälfte, `MinimalData`s leerer Zwilling für `Bausteinfelder`/`Bausteinliste` samt der Umschreibung des Satzes „no menus, no labels, no snippets", und die §7-Prosa der `TEMPLATE-SPEC.md` — beide seit 08-01 offen und ausdrücklich jenem Plan zugewiesen
 Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die **Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
 Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code` innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen
 Last activity: 2026-09-06
@@ -180,6 +180,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 08 P01 | 10 min | 3 tasks | 12 files |
 | Phase 08 P02 | 12 min | 2 tasks | 14 files |
 | Phase 08 P03 | 9 min | 2 tasks | 9 files |
+| Phase 08 P04 | 10 min | 3 tasks | 8 files |
 
 ### Session Continuity
 
@@ -190,8 +191,8 @@ size and location of each item, is `docs/offene-punkte.md`.
 
 Next command: `/gsd-execute-phase 8` — 08-03 hat die Definitionshaelfte des Bildschirms gelegt (vierter Modus, keine neue Route, `snippetOf` als die eine Eigentumspruefung); 08-04 zieht die **Werte**haelfte nach: das Formular am Textbaustein selbst, dessen Vorbild `internal/admin/page_fields.go` ist, samt `snippet.Store.SetFields`. Danach 08-05 fuer Theme-Vertrag, Vorrichtungen, Spezifikation, Uebersetzung und den Browserdurchgang — dorthin gehoeren auch `MinimalData`s leerer Zwilling fuer `Bausteinfelder`/`Bausteinliste` und die §7-Prosa der `TEMPLATE-SPEC.md`. Weiterhin offen und unabhaengig davon: `/gsd-verify-work 6` fuer die Browserhaelfte des stehenden Tors und `/gsd-verify-work 7` fuer die eine ungefahrene Zeile (`code` im Block, oeffentlich)
 
-**Last session:** 2026-09-06T10:10:15.825Z
-**Stopped at:** Completed 08-03-PLAN.md
+**Last session:** 2026-09-06T10:28:25.631Z
+**Stopped at:** Completed 08-04-PLAN.md
 **Resume file:** None
 
 ## Decisions
