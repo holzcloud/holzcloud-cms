@@ -251,6 +251,12 @@ type Def struct {
 	// migration 00038 — so a page field and a block kind's field may carry the
 	// same key without meeting.
 	BlockTypeID int64
+	// SnippetID names the text snippet this field belongs to, or 0 for a field
+	// that belongs to no snippet. Der vierte Träger derselben Tabelle — siehe
+	// Wanderung 00047 —, eine eigene Welt neben der Seite, der Gruppe und der
+	// Bausteinart: ein Seitenfeld und ein Feld eines Textbausteins dürfen
+	// dieselbe Kennung tragen, ohne sich zu treffen.
+	SnippetID int64
 	// Sub are the fields of a group, in order. Empty for everything else.
 	Sub []Def
 	// Condition is the key of the field this one hangs on: it is asked for only

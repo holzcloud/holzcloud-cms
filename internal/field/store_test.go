@@ -517,3 +517,195 @@ func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
 		}
 	})
 }
+
+// TestBausteinNamensraum ist das Tor auf den vierten Namensraum.
+//
+// Was eine Zählung nicht fände, und darum steht hier eine Lesung: ein SELECT
+// kann die neue Spalte nennen und sie trotzdem nie in den Def schreiben — die
+// Liste stimmt, das Feld bleibt null, und nichts schlägt fehl. Und eine
+// WHERE-Bedingung kann an fünf Anweisungen stehen und an der sechsten fehlen —
+// die Zählung geht auf, und jedes Feld eines Textbausteins steht auf dem
+// Bearbeitungsformular jeder Seite. Beides fällt nur auf, wenn über jeden
+// Leseweg zurückgelesen wird.
+//
+// Die beiden Felder tragen absichtlich dieselbe Kennung: dass ein Seitenfeld
+// „telefon" und ein Textbausteinfeld „telefon" derselben Website nebeneinander
+// stehen dürfen, ist die Hälfte der Zusage, und dass keines von beiden auf dem
+// Weg des anderen erscheint, die andere.
+func TestBausteinNamensraum(t *testing.T) {
+	store, site := neuerFeldSpeicher(t)
+	ctx := context.Background()
+
+	res, err := store.DB.Write.ExecContext(ctx,
+		`INSERT INTO snippets (website_id, key, name) VALUES ($1, 'kontakt', 'Kontakt')`, site)
+	if err != nil {
+		t.Fatalf("Textbaustein anlegen: %v", err)
+	}
+	textbaustein, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("Textbaustein-Nummer: %v", err)
+	}
+	res, err = store.DB.Write.ExecContext(ctx,
+		`INSERT INTO snippets (website_id, key, name) VALUES ($1, 'impressum', 'Impressum')`, site)
+	if err != nil {
+		t.Fatalf("zweiten Textbaustein anlegen: %v", err)
+	}
+	zweiterBaustein, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("Textbaustein-Nummer: %v", err)
+	}
+	res, err = store.DB.Write.ExecContext(ctx,
+		`INSERT INTO block_types (website_id, kennung, name) VALUES ($1, 'karte', 'Karte')`, site)
+	if err != nil {
+		t.Fatalf("Bausteinart anlegen: %v", err)
+	}
+	bausteinart, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("Bausteinart-Nummer: %v", err)
+	}
+
+	seitenfeld, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText})
+	if err != nil {
+		t.Fatalf("Seitenfeld anlegen: %v", err)
+	}
+	bausteinfeld, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: textbaustein})
+	if err != nil {
+		t.Fatalf("Textbausteinfeld anlegen: %v", err)
+	}
+
+	// --- List sieht nur die Seitenfelder -------------------------------------
+	oben, err := store.List(ctx, site)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(oben) != 1 {
+		t.Fatalf("List gibt %d Felder heraus, erwartet 1", len(oben))
+	}
+	if oben[0].ID != seitenfeld.ID {
+		t.Errorf("List gibt Feld %d heraus, erwartet das Seitenfeld %d — "+
+			"ohne AND snippet_id IS NULL steht jedes Textbausteinfeld auf jedem Seitenformular",
+			oben[0].ID, seitenfeld.ID)
+	}
+	if oben[0].SnippetID != 0 {
+		t.Errorf("List: SnippetID = %d, erwartet 0", oben[0].SnippetID)
+	}
+
+	// --- OfSnippet sieht nur die Felder dieses Textbausteins ------------------
+	amBaustein, err := store.OfSnippet(ctx, site, textbaustein)
+	if err != nil {
+		t.Fatalf("OfSnippet: %v", err)
+	}
+	if len(amBaustein) != 1 {
+		t.Fatalf("OfSnippet gibt %d Felder heraus, erwartet 1", len(amBaustein))
+	}
+	if amBaustein[0].ID != bausteinfeld.ID {
+		t.Errorf("OfSnippet gibt Feld %d heraus, erwartet %d", amBaustein[0].ID, bausteinfeld.ID)
+	}
+	if amBaustein[0].SnippetID != textbaustein {
+		t.Errorf("OfSnippet: SnippetID = %d, erwartet %d", amBaustein[0].SnippetID, textbaustein)
+	}
+	// Ein Textbaustein einer fremden Nummer bekommt nichts, und der zweite
+	// Textbaustein dieser Website hat noch kein Feld.
+	leer, err := store.OfSnippet(ctx, site, zweiterBaustein)
+	if err != nil {
+		t.Fatalf("OfSnippet (zweiter Baustein): %v", err)
+	}
+	if len(leer) != 0 {
+		t.Errorf("OfSnippet des zweiten Bausteins gibt %d Felder heraus, erwartet keines", len(leer))
+	}
+
+	// --- Sub, OfBlockType und OfBlockTypes sehen keines von beiden ------------
+	gruppe, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
+	if err != nil {
+		t.Fatalf("Gruppe anlegen: %v", err)
+	}
+	sub, err := store.Sub(ctx, site, gruppe.ID)
+	if err != nil {
+		t.Fatalf("Sub: %v", err)
+	}
+	if len(sub) != 0 {
+		t.Errorf("Sub gibt %d Felder heraus, erwartet keines", len(sub))
+	}
+	imBaustein, err := store.OfBlockType(ctx, site, bausteinart)
+	if err != nil {
+		t.Fatalf("OfBlockType: %v", err)
+	}
+	if len(imBaustein) != 0 {
+		t.Errorf("OfBlockType gibt %d Felder heraus, erwartet keines", len(imBaustein))
+	}
+	alleBausteinarten, err := store.OfBlockTypes(ctx, site)
+	if err != nil {
+		t.Fatalf("OfBlockTypes: %v", err)
+	}
+	if len(alleBausteinarten) != 0 {
+		t.Errorf("OfBlockTypes gibt %d Bausteinarten heraus, erwartet keine", len(alleBausteinarten))
+	}
+
+	// --- Get schreibt die Spalte wirklich in den Def -------------------------
+	//
+	// Das ist die Probe, die eine Zählung nicht ersetzt: hier wird gelesen, was
+	// scanDef in den Def geschrieben hat, und nicht, was im SELECT steht.
+	geholt, err := store.Get(ctx, site, bausteinfeld.ID)
+	if err != nil {
+		t.Fatalf("Get (Textbausteinfeld): %v", err)
+	}
+	if geholt.SnippetID != textbaustein {
+		t.Errorf("Get: SnippetID = %d, erwartet %d — ein SELECT kann die Spalte "+
+			"nennen und sie trotzdem nie in den Def schreiben", geholt.SnippetID, textbaustein)
+	}
+	if geholt.BlockTypeID != 0 {
+		t.Errorf("Get: BlockTypeID = %d, erwartet 0", geholt.BlockTypeID)
+	}
+	geholtSeite, err := store.Get(ctx, site, seitenfeld.ID)
+	if err != nil {
+		t.Fatalf("Get (Seitenfeld): %v", err)
+	}
+	if geholtSeite.SnippetID != 0 || geholtSeite.BlockTypeID != 0 {
+		t.Errorf("Get (Seitenfeld): SnippetID = %d, BlockTypeID = %d, erwartet 0/0",
+			geholtSeite.SnippetID, geholtSeite.BlockTypeID)
+	}
+
+	// --- Die beiden Teilindizes ----------------------------------------------
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: textbaustein}); !errors.Is(err, ErrDuplicateKey) {
+		t.Errorf("zweites „telefon“ am selben Textbaustein: Fehler = %v, erwartet ErrDuplicateKey", err)
+	}
+	if _, err := store.Create(ctx, Def{
+		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
+		SnippetID: zweiterBaustein}); err != nil {
+		t.Errorf("„telefon“ am zweiten Textbaustein: %v — jeder Textbaustein ist ein eigener Namensraum", err)
+	}
+
+	// --- Update verschiebt kein Feld aus seinem Namensraum -------------------
+	geaendert := *bausteinfeld
+	geaendert.SnippetID = zweiterBaustein
+	geaendert.Label = "Telefon direkt"
+	if err := store.Update(ctx, site, bausteinfeld.ID, geaendert); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	nach, err := store.Get(ctx, site, bausteinfeld.ID)
+	if err != nil {
+		t.Fatalf("Get nach Update: %v", err)
+	}
+	if nach.SnippetID != textbaustein {
+		t.Errorf("Update: SnippetID = %d, erwartet unverändert %d — ein Formular "+
+			"darf ein Feld nicht in einen anderen Namensraum schieben", nach.SnippetID, textbaustein)
+	}
+	if nach.Label != "Telefon direkt" {
+		t.Errorf("Update: Beschriftung = %q, erwartet \"Telefon direkt\"", nach.Label)
+	}
+
+	// --- Und die Seitenfelder sind davon unberührt geblieben ------------------
+	obenDanach, err := store.List(ctx, site)
+	if err != nil {
+		t.Fatalf("List (danach): %v", err)
+	}
+	if len(obenDanach) != 2 {
+		t.Errorf("List gibt danach %d Felder heraus, erwartet 2 (Seitenfeld und Gruppe)", len(obenDanach))
+	}
+}

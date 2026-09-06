@@ -375,6 +375,29 @@ type SiteData struct {
 	// The values are already sanitised — they went through the same
 	// goldmark-then-bluemonday pipeline as page content.
 	Snippets map[string]template.HTML
+	// Bausteinfelder are the snippets' own fields, resolved to the types they
+	// mean, keyed by snippet key: {{ index .Site.Bausteinfelder "kontakt"
+	// "telefon" }} prints the contact snippet's phone number.
+	//
+	// Beside .Site.Snippets and not inside it: a snippet is a body plus
+	// optional fields exactly as a page is content plus optional fields, and
+	// .Site.Snippets keeps its type so no theme that indexes it today breaks.
+	//
+	// One level deeper than .Page.Felder, because there is one map per snippet:
+	// the first index picks the snippet, the second the field. German, unlike
+	// the rest of this struct, because it is a name a theme author types — and
+	// they type the field names in German too.
+	Bausteinfelder map[string]map[string]any
+	// Bausteinliste are the same fields in their defined order, with their
+	// labels, keyed by snippet key — .Page.Feldliste one level deeper.
+	//
+	// The list is what a shipped theme can use: it cannot know that this
+	// website calls a field "Telefon direkt", but it can print label and value.
+	// Bausteinfelder is for a theme written for one particular site.
+	//
+	// A snippet whose fields are all empty is missing from this map, the same
+	// asymmetry .Page.Feldliste has: field.List never emits an empty entry.
+	Bausteinliste map[string][]field.Entry
 	// Terms are the labels in use on this website, most used first, so a layout
 	// can offer them as a way into the content.
 	Terms []TermLink
