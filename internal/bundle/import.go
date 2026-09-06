@@ -903,10 +903,66 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 			"Textbaustein %q: die Werte von %s wurden nicht übernommen, sie halten die Regeln ihrer Felder nicht ein.",
 			sn.Key, strings.Join(verworfen, ", ")))
 	}
+	if maschinennummern := ortsgebundeneWerte(defs, raw); len(maschinennummern) > 0 {
+		report.Warnings = append(report.Warnings, fmt.Sprintf(
+			"Textbaustein %q: die Werte von %s zeigen auf Nummern der Anlage, aus der "+
+				"das Archiv stammt, und müssen hier neu gewählt werden.",
+			sn.Key, strings.Join(maschinennummern, ", ")))
+	}
 	if err := s.Snippets.SetFields(ctx, snippetID, raw); err != nil {
 		report.Warnings = append(report.Warnings, fmt.Sprintf(
 			"Die Werte des Textbausteins %q konnten nicht gespeichert werden: %v", sn.Key, err))
 	}
+}
+
+// ortsgebundeneWerte nennt die Felder, deren Wert eine Nummer der Anlage ist,
+// aus der das Archiv stammt.
+//
+// Der Wert eines Bild-, Verweis- oder Schlagwortfeldes ist keine Zeichenkette,
+// die überall dasselbe bedeutet, sondern eine Nummer. Auf dem Seitenweg werden
+// solche Nummern beim Ausfahren in einen Dateinamen und eine Adresse übersetzt
+// und beim Einfahren zurück (exportFieldValues/translateIn); die Werte eines
+// Textbausteins gehen roh hinaus und roh hinein. Drüben gehört die Nummer einer
+// anderen Website, fieldImages und fieldRefs weisen sie zurück, und das Feld
+// kommt an, während das Bild fehlt.
+//
+// Das bleibt vorerst so — die Übersetzung sitzt im Seitenweg, und sie von dort
+// zu lösen ist eine eigene Arbeit (deferred-items.md). Was hier steht, ist die
+// Lautstärke: der Verwaltungsbildschirm bietet diese Feldarten ausdrücklich an
+// und verspricht sie dem Betreiber, also darf das Versprechen nicht
+// stillschweigend brechen. Der Wert reist trotzdem mit, damit nichts verschwindet
+// und die Wahl drüben nur zu wiederholen ist.
+func ortsgebundeneWerte(defs []field.Def, raw string) []string {
+	data := field.Decode(raw)
+	ortsgebunden := func(kind string) bool {
+		switch kind {
+		case field.KindImage, field.KindRef, field.KindTerm:
+			return true
+		}
+		return false
+	}
+
+	var out []string
+	for _, d := range defs {
+		if d.IsGroup() {
+			for _, sub := range d.Sub {
+				if !ortsgebunden(sub.Kind) {
+					continue
+				}
+				for i, row := range data.Rows[d.Key] {
+					if row[sub.Key] != "" {
+						out = append(out, field.RowKey(d.Key, i, sub.Key))
+					}
+				}
+			}
+			continue
+		}
+		if ortsgebunden(d.Kind) && data.Values[d.Key] != "" {
+			out = append(out, d.Key)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // cleanSnippetValues turns a manifest's snippet values into what is stored, and
