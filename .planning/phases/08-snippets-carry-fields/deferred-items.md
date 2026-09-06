@@ -49,5 +49,42 @@ Vor dem Flick dieses Plans angelegt (`snippet_id NULL` unter einer Gruppe mit
 `snippet_id`); das Verzeichnis ist mit dem Browserdurchgang gelöscht worden. Auf
 einer echten Installation, die zwischen 08-03 und diesem Flick eine Gruppe an
 einem Textbaustein angelegt hat, bleiben solche Zeilen unsichtbar stehen. Sie
-schaden nichts — kein Leseweg gibt sie heraus —, sind aber auch nicht
-erreichbar; wer sie loswerden will, legt die Unterfelder neu an.
+schaden nichts — kein Leseweg **des Textbausteins** gibt sie heraus; der
+Gruppenbildschirm (`?gruppe=<id>`) zeigt sie weiterhin, weil `Store.Sub` allein
+nach `website_id` und `parent_id` sucht und keine Textbausteinklausel trägt.
+Unsichtbar sind sie also nur auf dem Formular des Textbausteins, und das ist
+genau, was `OfSnippet`/`OfSnippets` bewirken. Wer sie loswerden will, legt die
+Unterfelder neu an. *(Satz berichtigt im Code-Review zu Phase 8, IN-01: die
+Feststellung „kein Leseweg" war zu weit gefasst. Die Verfügung — keine
+Reparaturwanderung — steht unverändert, denn 08-03 und der Flick liegen in
+derselben Phase.)*
+
+## Aus dem Code-Review zu Phase 8
+
+**Bild-, Verweis- und Schlagwortwerte eines Textbausteins überleben die
+Archivreise nicht** (WR-03).
+
+Der Wert eines solchen Feldes ist eine Nummer *dieser* Anlage. Auf dem
+Seitenweg werden sie beim Ausfahren übersetzt — eine Mediennummer in einen
+Dateinamen, eine Seitennummer in eine Adresse (`exportFieldValues`) — und beim
+Einfahren zurück (`translateIn`). Die Werte eines Textbausteins gehen roh
+hinaus und roh hinein (`exportSnippets`), drüben gehört die Nummer einer
+anderen Website, und `fieldImages`/`fieldRefs` weisen sie zurück: das Feld kommt
+an, das Bild nicht.
+
+Das ist keine Randlage: `internal/admin/field.go` bietet diese Feldarten am
+Textbaustein ausdrücklich an (`kinds = field.Kinds`), und `field_list.html:20`
+verspricht sie dem Betreiber. Das Versprechen hält beim Anzeigen und bricht
+beim Ausfahren.
+
+**Was im Review geflickt wurde:** nur die Lautstärke. `ortsgebundeneWerte`
+meldet beim Import jeden solchen Wert im Bericht, damit die Wahl drüben zu
+wiederholen ist, statt dass sie stillschweigend fehlt. Der Wert reist weiterhin
+mit; nichts verschwindet.
+
+**Was offen bleibt:** die Übersetzung selbst. `translateOut`/`translateIn`
+sitzen im Seitenweg und leben von Nachschlagewerken, die dort gebaut werden; sie
+von dort zu lösen und am Textbaustein wiederzuverwenden ist eine Änderung am
+Seitenweg und damit eine eigene Arbeit. **Gehört in die Roadmap, nicht in einen
+Kommentar** — Phase 7 hat genau diese Sorte Verlust auf genau diesem Weg schon
+einmal ausgeliefert.

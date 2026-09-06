@@ -298,6 +298,15 @@ type MenuItem struct {
 // inside the page export and the page import, and reaching them from here is a
 // change to the page path. A text, a number, a date, a choice or a yes/no —
 // which is what a snippet's fields are in practice — travel whole.
+//
+// „Recorded" heisst seit dem Review zu Phase 8 wirklich aufgeschrieben, und
+// zwar zweimal ausserhalb dieses Kommentars: in deferred-items.md, und im
+// Bericht jedes Imports, der einen solchen Wert mitbringt
+// (ortsgebundeneWerte, import.go). Der Bildschirm bietet diese Feldarten am
+// Textbaustein ausdrücklich an; ein Versprechen, das beim Ausfahren
+// stillschweigend bricht, wäre der lautlose Verlust, den dieses Projekt sonst
+// überall vermeidet. Die Übersetzung selbst bleibt offen und gehört in die
+// Roadmap.
 type Snippet struct {
 	Key      string `json:"key"`
 	Name     string `json:"name"`

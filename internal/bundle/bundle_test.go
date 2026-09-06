@@ -1913,3 +1913,57 @@ func TestTextbausteinDerSichNichtZurueckLesenLaesstStuerztNicht(t *testing.T) {
 		t.Errorf("der Bericht schweigt über den Textbaustein, der nicht ankam: %v", report.Warnings)
 	}
 }
+
+// Ein Bildfeld an einem Textbaustein überlebt die Archivreise nicht, und der
+// Bericht sagt es jetzt.
+//
+// Der Wert eines Bild-, Verweis- oder Schlagwortfeldes ist eine Nummer *dieser*
+// Anlage. Auf dem Seitenweg werden solche Nummern beim Ausfahren in einen
+// Dateinamen und eine Adresse übersetzt und beim Einfahren zurück
+// (exportFieldValues/translateIn); die Werte eines Textbausteins gehen roh
+// hinaus und roh hinein. Drüben gehört die Nummer einer anderen Website, und
+// fieldImages/fieldRefs weisen sie zurück — das Feld kommt an, das Bild nicht.
+//
+// Das bleibt vorerst so: die Übersetzung sitzt im Seitenweg und sie von dort zu
+// lösen ist eine eigene Arbeit (deferred-items.md). Was sich hier ändert, ist
+// die Lautstärke. Der Verwaltungsbildschirm bietet diese Feldarten ausdrücklich
+// an und field_list.html verspricht sie dem Betreiber; ein Versprechen, das beim
+// Ausfahren stillschweigend gebrochen wird, ist der lautlose Datenverlust, den
+// dieses Projekt sonst überall vermeidet.
+func TestBildwertEinesTextbausteinsWirdBeimImportGemeldet(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Mit Bild"},
+		Snippets: []Snippet{{
+			Key: "footer-kontakt", Name: "Kontakt", Markdown: "x",
+			Fields: []Field{
+				{Key: "logo", Label: "Logo", Kind: field.KindImage},
+				{Key: "telefon", Label: "Telefon", Kind: field.KindText},
+			},
+			Values: map[string]string{"logo": "42", "telefon": "07721 123456"},
+		}},
+	})
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if !warned(report, "logo") {
+		t.Errorf("der Bericht schweigt über das Bildfeld, dessen Wert hier ins Leere "+
+			"zeigt: %v", report.Warnings)
+	}
+
+	// Und der Rest kommt heil an: die Meldung ersetzt keinen Wert und wirft
+	// keinen weg.
+	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
+	if err != nil || len(kopien) != 1 {
+		t.Fatalf("List snippets: %v (%d)", err, len(kopien))
+	}
+	werte := field.Decode(kopien[0].Fields).Values
+	if werte["telefon"] != "07721 123456" {
+		t.Errorf("der gültige Wert kam nicht an: %q", werte["telefon"])
+	}
+}
