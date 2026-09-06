@@ -63,7 +63,7 @@ func (h *Handler) HandleTag(w http.ResponseWriter, r *http.Request) error {
 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	archive := h.archiveData(r, website, items, pageNum, totalPages, total)
 	archive.Term = t.Name

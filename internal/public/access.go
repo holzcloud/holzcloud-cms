@@ -70,7 +70,7 @@ func (h *Handler) hasAccess(r *http.Request, pg *page.Page) bool {
 func (h *Handler) serveGate(w http.ResponseWriter, r *http.Request, website *domain.Website, pg *page.Page, wrong bool) error {
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	data := tmpl.PageData{
 		Site: site,
@@ -176,7 +176,7 @@ func (h *Handler) HandleShareLink(w http.ResponseWriter, r *http.Request) error 
 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	data := tmpl.PageData{
 		Site:  site,

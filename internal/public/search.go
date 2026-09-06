@@ -32,7 +32,7 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) error {
 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	list := tmpl.SearchData{Query: query, Submitted: query != ""}
 	for _, res := range results {

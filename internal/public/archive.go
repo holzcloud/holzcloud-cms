@@ -46,7 +46,7 @@ func (h *Handler) HandleArchive(w http.ResponseWriter, r *http.Request, website 
 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	title := "Aktuelles"
 	if website.Locale == "en" {

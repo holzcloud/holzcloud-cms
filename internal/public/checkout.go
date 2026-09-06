@@ -264,7 +264,8 @@ func (h *Handler) renderCheckout(w http.ResponseWriter, r *http.Request, website
 			Accepted: values.Accepted,
 		},
 	}
-	data.Site.Snippets = h.loadSnippets(r, website.ID).HTML
+	snippets := h.loadSnippets(r, website.ID)
+	h.fillSnippets(r, &data.Site, website.ID, snippets)
 	data.Meta = metaData(data.Site, nil, checkoutPath)
 	data.Meta.NoIndex = true
 
@@ -329,7 +330,8 @@ func (h *Handler) HandleOrderConfirmation(w http.ResponseWriter, r *http.Request
 		Shop:  h.shopData(r, website),
 		Order: orderView(set, order),
 	}
-	data.Site.Snippets = h.loadSnippets(r, website.ID).HTML
+	snippets := h.loadSnippets(r, website.ID)
+	h.fillSnippets(r, &data.Site, website.ID, snippets)
 	data.Meta = metaData(data.Site, nil, thanksPath+"/"+order.Number)
 	data.Meta.NoIndex = true
 

@@ -62,7 +62,7 @@ func (h *Handler) HandleTypeArchive(w http.ResponseWriter, r *http.Request,
 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
-	site.Snippets = snippets.HTML
+	h.fillSnippets(r, &site, website.ID, snippets)
 
 	base := h.localePath(r, website, "/"+t.Archive)
 	path := base
