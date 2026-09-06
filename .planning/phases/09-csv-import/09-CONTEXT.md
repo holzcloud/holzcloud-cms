@@ -187,6 +187,21 @@ individually testable defence, and the plan should treat them as a checklist:
 
 - **D-08: bytes — `http.MaxBytesReader(w, r.Body, 10<<20)`.** The same 10 MB as
   `wordpress.go:25`, for the same reason and with the same comment discipline.
+
+  > **Corrected 2026-09-06 by wave 4.** The criterion „a file of exactly 10 MB is
+  > accepted, 10 MB + 1 is refused" is **unbuildable as stated**, and the reason
+  > is worth writing down because it applies to the importer this one copies.
+  > `MaxBytesReader` bounds the **whole request body**, and a multipart upload
+  > carries boundaries, headers and the other form fields alongside the file. A
+  > *file* of exactly 10 MB therefore never fits — the envelope pushes it over.
+  > The same is true of `internal/admin/wordpress.go:25` today; the phase
+  > inherited the mistake by copying the line, not by inventing it.
+  >
+  > The cap is honoured literally — `10<<20`, first statement in the handler —
+  > and **the boundary is proved where the cap actually lives**: a request body
+  > of exactly `10<<20` is accepted and staged, `+1` is refused with a flash and
+  > nothing is staged. That is the same guarantee, measured at the place the code
+  > enforces it rather than at a place it cannot.
 - **D-09: rows — a `MaxRows` constant in `internal/csv`, in the shape of
   `wxr.MaxItems = 2000` (`wxr.go:30`), reported rather than silently applied**
   (`Export.Truncated` at `wxr.go:63` is the pattern). 5000 rows.
