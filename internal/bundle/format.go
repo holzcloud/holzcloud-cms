@@ -275,11 +275,46 @@ type MenuItem struct {
 	Children []MenuItem `json:"children,omitempty"`
 }
 
-// Snippet is one reusable block.
+// Snippet is one reusable block: a Markdown body, and since 00047 the
+// snippet's own fields beside it.
+//
+// The two halves are named apart on purpose. Fields are the definitions, the
+// way BlockType.Fields is; Values are the answers, the way Page.Fields is. A
+// snippet is the one carrier that has both, and one name for both would leave
+// the next reader a coin to flip.
+//
+// All three of the new members carry omitempty, for the reason spelled out at
+// Field: a website that has defined no snippet field writes a manifest byte for
+// byte like one from before this phase, and an archive written before it
+// imports unchanged — a snippet with neither key arrives with its body and no
+// fields, exactly as it always did.
+//
+// What does not travel: the ids inside a value. A picture field holds a media
+// id and a reference field a page id, and on the way out a page turns those
+// into a file name and an address (exportFieldValues). A snippet's values go
+// out as they are stored, so such a value lands on the other machine pointing
+// at nothing — the field arrives, the picture does not. That is a recorded
+// limitation and not an oversight: the lookups a translation needs are built
+// inside the page export and the page import, and reaching them from here is a
+// change to the page path. A text, a number, a date, a choice or a yes/no —
+// which is what a snippet's fields are in practice — travel whole.
 type Snippet struct {
 	Key      string `json:"key"`
 	Name     string `json:"name"`
 	Markdown string `json:"markdown"`
+	// Fields are the snippet's own field definitions — what may be filled in,
+	// not what is. Same struct and same meaning as BlockType.Fields, and they
+	// travel for the same reason a page's definitions do: the values below mean
+	// nothing without them, and Clean would drop every one of them.
+	Fields []Field `json:"fields,omitempty"`
+	// Values are the answers to those definitions, the same shape and the same
+	// meaning as Page.Fields.
+	Values map[string]string `json:"values,omitempty"`
+	// ValueGroups are the filled rows of each repeatable group, the same shape
+	// as Page.FieldGroups. A snippet has a form of its own and may therefore
+	// carry a group, so it carries the rows too — the page's decision copied,
+	// not a second one taken here.
+	ValueGroups map[string][]map[string]string `json:"value_groups,omitempty"`
 }
 
 // Term is one label.

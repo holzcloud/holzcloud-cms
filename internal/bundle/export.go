@@ -310,11 +310,63 @@ func exportSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest)
 		return fmt.Errorf("list snippets: %w", err)
 	}
 	for _, sn := range items {
-		m.Snippets = append(m.Snippets, Snippet{
-			Key: sn.Key, Name: sn.Name, Markdown: sn.ContentMarkdown,
-		})
+		out := Snippet{Key: sn.Key, Name: sn.Name, Markdown: sn.ContentMarkdown}
+		// The same guard exportFields carries: a build without the field store
+		// exports a snippet the way it did before this phase, body alone.
+		if s.Fields != nil {
+			defs, err := s.Fields.OfSnippet(ctx, websiteID, sn.ID)
+			if err != nil {
+				return fmt.Errorf("list fields of snippet %q: %w", sn.Key, err)
+			}
+			for _, d := range defs {
+				out.Fields = append(out.Fields, exportFieldDef(d))
+			}
+			// The values as they are stored. A group's rows travel too,
+			// because a page's do (exportFieldValues) and a snippet carries a
+			// group for the same reason a page does — it has its own form.
+			data := field.Decode(sn.Fields)
+			if len(data.Values) > 0 {
+				out.Values = map[string]string(data.Values)
+			}
+			for key, rows := range data.Rows {
+				if len(rows) == 0 {
+					continue
+				}
+				if out.ValueGroups == nil {
+					out.ValueGroups = map[string][]map[string]string{}
+				}
+				list := make([]map[string]string, 0, len(rows))
+				for _, row := range rows {
+					list = append(list, map[string]string(row))
+				}
+				out.ValueGroups[key] = list
+			}
+		}
+		m.Snippets = append(m.Snippets, out)
 	}
 	return nil
+}
+
+// exportFieldDef turns one definition into what a bundle carries, sub-fields
+// and all. Written once because exportFields and exportSnippets need the same
+// thing and a second copy would drift the day a kind gains a property.
+func exportFieldDef(d field.Def) Field {
+	f := Field{
+		Key: d.Key, Label: d.Label, Kind: d.Kind, Required: d.Required,
+		Hint: d.Hint, Choices: d.Choices, AppliesTo: d.AppliesTo,
+		Condition: d.Condition,
+		Display:   d.Display, MaxValues: d.MaxValues,
+		Min: d.RangeMin, Max: d.RangeMax,
+	}
+	for _, sub := range d.Sub {
+		f.Sub = append(f.Sub, Field{
+			Key: sub.Key, Label: sub.Label, Kind: sub.Kind, Required: sub.Required,
+			Hint: sub.Hint, Choices: sub.Choices,
+			Display: sub.Display, MaxValues: sub.MaxValues,
+			Min: sub.RangeMin, Max: sub.RangeMax,
+		})
+	}
+	return f
 }
 
 // exportTerms writes the website's labels and returns their names by slug.
@@ -393,22 +445,7 @@ func exportFields(ctx context.Context, s Stores, websiteID int64, m *Manifest) e
 		return fmt.Errorf("list fields: %w", err)
 	}
 	for _, d := range defs {
-		f := Field{
-			Key: d.Key, Label: d.Label, Kind: d.Kind, Required: d.Required,
-			Hint: d.Hint, Choices: d.Choices, AppliesTo: d.AppliesTo,
-			Condition: d.Condition,
-			Display:   d.Display, MaxValues: d.MaxValues,
-			Min: d.RangeMin, Max: d.RangeMax,
-		}
-		for _, sub := range d.Sub {
-			f.Sub = append(f.Sub, Field{
-				Key: sub.Key, Label: sub.Label, Kind: sub.Kind, Required: sub.Required,
-				Hint: sub.Hint, Choices: sub.Choices,
-				Display: sub.Display, MaxValues: sub.MaxValues,
-				Min: sub.RangeMin, Max: sub.RangeMax,
-			})
-		}
-		m.Fields = append(m.Fields, f)
+		m.Fields = append(m.Fields, exportFieldDef(d))
 	}
 	return nil
 }

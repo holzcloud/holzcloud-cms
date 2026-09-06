@@ -790,13 +790,166 @@ func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 				fmt.Sprintf("Textbaustein %q: %v", sn.Key, err))
 			continue
 		}
-		if _, err := s.Snippets.Create(ctx, websiteID, sn.Key, sn.Name, markdown, html); err != nil {
+		created, err := s.Snippets.Create(ctx, websiteID, sn.Key, sn.Name, markdown, html)
+		if err != nil {
 			report.Warnings = append(report.Warnings,
 				fmt.Sprintf("Textbaustein %q konnte nicht angelegt werden: %v", sn.Key, err))
 			continue
 		}
 		report.Snippets++
+		importSnippetFields(ctx, s, websiteID, created.ID, sn, report)
 	}
+}
+
+// importSnippetFields recreates one snippet's own definitions and its values.
+//
+// Every definition goes through field.Store.Create and never through an INSERT
+// of its own. That is the whole point of doing it here rather than in SQL: a
+// manifest is a file somebody handed the program, and Create is where validate
+// runs — the key, the kind, the bounds and the per-carrier MaxFields count.
+// A definition it refuses produces a line in the report and the loop goes on,
+// so a malformed archive costs one field and not the import, and never writes a
+// row nothing can render.
+//
+// The SnippetID handed to Create is the id of the snippet this import has just
+// created on the website it is importing into. The manifest never supplies an
+// id, so a bundle cannot name another website's snippet, and Create's own
+// website scoping is the second layer under that.
+//
+// The conditions are not carried and there is no second pass for them:
+// validate empties the condition of every snippet field (08-02), so there would
+// be nothing to hang on afterwards even if the manifest named one.
+func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int64,
+	sn Snippet, report *Report) {
+
+	if s.Fields == nil {
+		if len(sn.Fields) > 0 {
+			report.Warnings = append(report.Warnings, fmt.Sprintf(
+				"Die eigenen Felder des Textbausteins %q konnten nicht angelegt werden.", sn.Key))
+		}
+		return
+	}
+
+	for _, f := range sn.Fields {
+		created, err := s.Fields.Create(ctx, field.Def{
+			WebsiteID: websiteID, SnippetID: snippetID,
+			Key: f.Key, Label: f.Label, Kind: f.Kind, Required: f.Required,
+			Hint: f.Hint, Choices: f.Choices,
+			Display: f.Display, MaxValues: f.MaxValues,
+			RangeMin: f.Min, RangeMax: f.Max,
+		})
+		if err != nil {
+			report.Warnings = append(report.Warnings,
+				fmt.Sprintf("Feld %q konnte nicht angelegt werden: %v", f.Label, err))
+			continue
+		}
+		for _, sub := range f.Sub {
+			// A group's sub-fields carry the parent id AND the snippet id: the
+			// group is a row of this snippet's form, and field.Store.Sub reads
+			// them by the parent alone.
+			if _, err := s.Fields.Create(ctx, field.Def{
+				WebsiteID: websiteID, ParentID: created.ID, SnippetID: snippetID,
+				Key: sub.Key, Label: sub.Label, Kind: sub.Kind, Required: sub.Required,
+				Hint: sub.Hint, Choices: sub.Choices,
+				Display: sub.Display, MaxValues: sub.MaxValues,
+				RangeMin: sub.Min, RangeMax: sub.Max,
+			}); err != nil {
+				report.Warnings = append(report.Warnings, fmt.Sprintf(
+					"Feld %q in der Gruppe %q konnte nicht angelegt werden: %v", sub.Label, f.Label, err))
+			}
+		}
+	}
+
+	if len(sn.Values) == 0 && len(sn.ValueGroups) == 0 {
+		return
+	}
+	// Read the definitions back rather than collecting them above: what Create
+	// accepted is what the values are cleaned against, positions, groups and
+	// all, and OfSnippet is the same reader the snippet's own form uses.
+	defs, err := s.Fields.OfSnippet(ctx, websiteID, snippetID)
+	if err != nil {
+		report.Warnings = append(report.Warnings, fmt.Sprintf(
+			"Die Werte des Textbausteins %q konnten nicht übernommen werden: %v", sn.Key, err))
+		return
+	}
+	raw, verworfen, err := cleanSnippetValues(defs, sn)
+	if err != nil {
+		report.Warnings = append(report.Warnings, fmt.Sprintf(
+			"Die Werte des Textbausteins %q konnten nicht übernommen werden: %v", sn.Key, err))
+		return
+	}
+	if len(verworfen) > 0 {
+		report.Warnings = append(report.Warnings, fmt.Sprintf(
+			"Textbaustein %q: die Werte von %s wurden nicht übernommen, sie halten die Regeln ihrer Felder nicht ein.",
+			sn.Key, strings.Join(verworfen, ", ")))
+	}
+	if err := s.Snippets.SetFields(ctx, snippetID, raw); err != nil {
+		report.Warnings = append(report.Warnings, fmt.Sprintf(
+			"Die Werte des Textbausteins %q konnten nicht gespeichert werden: %v", sn.Key, err))
+	}
+}
+
+// cleanSnippetValues turns a manifest's snippet values into what is stored, and
+// returns the keys it had to drop on the way.
+//
+// The same two guards importFieldValues applies to a page, and for the same
+// reason: nothing in a manifest has been through the form that every other
+// write path goes through. field.Clean drops a value naming a key no definition
+// carries and bounds a group's rows — by hand rather than by Clean the archive
+// path and the form path would drift apart. field.CheckAll is where the byte
+// budget and the per-kind rules live; leaving it out here would re-open on the
+// snippet exactly the hole 07-04 closed on the page.
+func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) {
+	data := field.Data{Values: field.Values{}, Rows: map[string][]field.Values{}}
+	for key, val := range sn.Values {
+		data.Values[key] = val
+	}
+	for key, rows := range sn.ValueGroups {
+		out := make([]field.Values, 0, len(rows))
+		for _, row := range rows {
+			if len(row) == 0 {
+				continue
+			}
+			values := field.Values{}
+			for k, v := range row {
+				values[k] = v
+			}
+			out = append(out, values)
+		}
+		if len(out) > 0 {
+			data.Rows[key] = out
+		}
+	}
+
+	var dropped []string
+	if len(defs) > 0 {
+		data = field.Clean(defs, data)
+		for key := range field.CheckAll(defs, data) {
+			// A required field left empty is reported here too, and there is
+			// nothing to take away in that case — the snippet arrives as it
+			// left. Only what is actually there is dropped.
+			if _, ok := data.Values[key]; ok {
+				delete(data.Values, key)
+				dropped = append(dropped, key)
+				continue
+			}
+			if group, i, sub, ok := splitRowKey(key); ok {
+				if rows := data.Rows[group]; i < len(rows) {
+					if _, ok := rows[i][sub]; ok {
+						delete(rows[i], sub)
+						dropped = append(dropped, key)
+					}
+				}
+			}
+		}
+		sort.Strings(dropped)
+	}
+
+	raw, err := field.Encode(data)
+	if err != nil {
+		return "", dropped, err
+	}
+	return raw, dropped, nil
 }
 
 // mediaPathPattern matches the /media/<website id>/<file name> links that a
