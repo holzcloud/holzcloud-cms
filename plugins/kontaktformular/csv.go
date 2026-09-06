@@ -111,10 +111,10 @@ func feldSpalten(liste []nachricht) []string {
 // Das Anführungszeichen und das Trennzeichen erledigt encoding/csv. Von Hand
 // zusammengesetzt wird hier nichts.
 //
-// Diese Regel steht zweimal in diesem Verzeichnisbaum. Die zweite Ausfertigung
-// ist internal/csv/beispiel.go, für die Beispieldatei des CSV-Imports.
-// Importieren lässt sich diese hier nicht: sie ist `package main` in einem
-// wazero-Plugin. Eine Änderung an einer der beiden gehört in beide.
+// This rule stands twice in this directory tree. The second copy is
+// internal/csv/example.go, for the CSV import's example file. This one here
+// cannot be imported: it is `package main` in a wazero plugin. A change to
+// either one belongs in both.
 func entschaerfen(row []string) []string {
 	out := make([]string, len(row))
 	for i, cell := range row {
