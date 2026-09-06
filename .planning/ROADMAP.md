@@ -335,7 +335,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5, and on the code-review fix round)*
 
-- [ ] 09-06-PLAN.md — the five catalogues and the browser pass
+- [x] 09-06-PLAN.md — the five catalogues and the browser pass
 
 > **Note added at planning, 2026-09-06 — D-06's route table cannot be
 > registered.** `GET /admin/websites/import-csv/{token}` conflicts with
