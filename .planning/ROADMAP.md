@@ -286,8 +286,29 @@ Plans:
   2. The mapping screen lists the file's columns against targets — title, body, any custom field of that website, or explicitly nothing. Columns whose names correspond are matched automatically, ignoring case and accents, and every automatic match can be overridden. One real row of the file is shown and can be stepped to the next, and each field can carry a default for cells that are empty or unmapped. An example CSV generated from that website's own field definitions, with the right column headings already in it, is downloadable.
   3. The admin can run the whole file through validation **without writing anything** and see per row what would be created, updated or skipped — with the row number and the reason — before committing to it.
   4. Confirming the import creates pages indistinguishable from hand-made ones — slug generated and unique per website, Markdown rendered and sanitised, draft unless a status column says otherwise — because the importer calls the same creation path as any other creation. A file mixing good and bad rows imports the good ones, skips the rest with a named reason, reports every slug that was renamed on collision, and leaves nothing half-written.
-  5. A hostile file is refused rather than believed: bytes, rows and single cells are all capped; a byte-order mark from Excel does not break the first column; a stray quote does not swallow the rest of the file; a short row is reported by its row number; a NUL byte is refused. And the write is **one transaction per row, never one for the whole file**.
+  5. A hostile file is refused rather than believed: bytes, rows and single cells are all capped; a byte-order mark from Excel does not break the first column; a stray quote does not swallow the rest of the file; a short row is reported by its row number; a NUL byte is refused. And **no transaction ever spans more than one row** — a file-long transaction is the anti-feature this criterion exists to forbid. A row that fails after its page was created is undone through the ordinary delete path, so nothing is left half-written.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — every string, every control, every screen — has been driven once through the running application in a browser, not only through the test suite.
+
+> **Amended 2026-09-06 — Kriterium 5, vor der Planung.** Der Satz lautete bis
+> hierher „the write is **one transaction per row, never one for the whole
+> file**". Gemessen wurde: eine eingelesene Zeile umfasst heute schon **zwei
+> bis drei** Transaktionen, und keine davon gehört diesem Importeur —
+> `internal/page/store.go:461` `CreatePage` ist ein einzelnes, selbst
+> abschliessendes `INSERT`, `internal/term/store.go:119` `SetForPage` öffnet
+> bei `:120` sein eigenes `BeginTx`, `EnsureNames` bei `:330` ebenso. Sie zu
+> einer zusammenzuziehen hiesse, einen `*sql.Tx` durch `page.Store` und
+> `term.Store` zu fädeln — also **einen zweiten Anlegepfad neben dem
+> gewöhnlichen**, und genau den verbieten IMP-02 und Kriterium 4 wörtlich
+> („calls the same creation path as any other creation"). Die Hälfte, auf die
+> es ankommt, bleibt unverändert und absolut: **keine Transaktion über mehr als
+> eine Zeile** — das ist die Regel, die der Schreib-Pool mit
+> `SetMaxOpenConns(1)` (`internal/db/db.go:28`) tragend macht. „Nichts halb
+> geschrieben" wird stattdessen zweifach eingelöst: die ganze Zeile wird über
+> `field.CheckAll` geprüft, **bevor** irgendetwas geschrieben wird, und
+> scheitert ein späterer Schritt trotzdem, wird die Zeile über den
+> gewöhnlichen Löschweg zurückgenommen (`TrashPage` `store.go:801`, dann
+> `PurgePage` `:864` — dieselben zwei Schritte, die eine Betreiberin von Hand
+> geht). Hergeleitet in `.planning/phases/09-csv-import/09-CONTEXT.md`, D-02.
 
 **Plans**: TBD
 **UI hint**: yes — **the largest UI surface in the milestone.** The mapping screen and the dry-run report are the two screens users will judge the feature by.
@@ -296,7 +317,7 @@ Plans:
 
 - **Depends on Phase 7's step ①, and on nothing in Phase 8.** A column mapped to a Multiple-Choice field must write what `internal/field` reads. **7 before 9, always** — if 9 shipped first it would invent an encoding that 7 then inherits. A `Sorte` column is one of the two motivating examples in `docs/offene-punkte.md`, which is the second reason 7 comes first: without the term field, Phase 9 either omits it or builds a throwaway path.
 - **Posture: strict at the gate, best-effort at the till.** Validate every row *before* writing anything, then offer a "trotzdem importieren" escape hatch, then write **one transaction per row, never one per file**. The write pool is `SetMaxOpenConns(1)`; a file-long transaction blocks every request on the box, admin and public alike. An all-or-nothing single-transaction write is an explicit anti-feature here.
-- **Carrying the file between steps: do not put the parsed table in the session.** SCS stores sessions in SQLite; a 2 MB CSV in a session row is a bad day. **Re-submit the file with the mapping** — simpler, and needs no cleanup job.
+- **Carrying the file between steps: do not put the parsed table in the session.** SCS stores sessions in SQLite; a 2 MB CSV in a session row is a bad day. ~~**Re-submit the file with the mapping** — simpler, and needs no cleanup job.~~ **Overridden 2026-09-06, vor der Planung:** die zweite Hälfte lässt sich nicht bauen. Ein Server kann ein `<input type="file">` nicht füllen (die Auszeichnung sieht das aus Sicherheitsgründen nicht vor), und ein Formular-POST lädt ein **neues** Dokument — die Betreiberin müsste dieselbe Datei auf jedem Bildschirm erneut auswählen. Entscheidend ist **IMP-08**: „shows one real row from the file, navigable to the next" — jeder Schritt vorwärts ist eine Anfrage, also verlangte jeder Klick eine neue Dateiauswahl. Die Anforderung gewinnt gegen die Notiz. Gebaut wird stattdessen: die Datei wird nach Bildschirm 1 **serverseitig zwischengelagert** (eigene Tabelle, **rohe Bytes**, nie die geparste Tabelle — die eigentliche Sorge dieser Notiz bleibt damit gewahrt), die Bildschirme 2–4 tragen nur eine Marke und **kein Dateifeld**, und das Aufräumen ist ein `jobs.Job` neben den drei, die es schon gibt (`cmd/holzcloud/main.go:443-520`). Hergeleitet in `.planning/phases/09-csv-import/09-CONTEXT.md`, D-01.
 - **Copy the three-layer shape of `internal/wxr` + `internal/admin/wordpress.go`**: pure parse → a one-row create returning a reason string → a handler that caps, parses, loops and reports. Copy the shape; improve the mechanism — `csv.Reader.Read()` genuinely streams where `wxr.Parse` materialises the whole document. `internal/csv` sits beside `internal/wxr`; a third `<details>` panel on `website_list.html` copied from `:24–45` hangs it on the existing screen.
 - **New routes must be added to `TestRouteAuthorization`'s table at `main_test.go:158–173`.** Registering them in `newRouter` alone is not enough.
 - **The user decided the import offers BOTH an existing website and a new one, chosen on screen 1.** Two paths, and **both must be exercised in the browser pass**. Targeting an existing website is a deliberate departure from `internal/admin/wordpress.go`'s stated rule that an importer always creates a new one; the rule's own reason — every collision needs an answer — is answered here by screen 1's update-or-skip choice plus the dry run. **Write this into the plan as a decision**, or a future reader sees an inconsistency.
