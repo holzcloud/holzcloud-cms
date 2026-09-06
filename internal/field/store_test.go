@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -99,10 +101,11 @@ func finde(t *testing.T, wo string, defs []Def, key string) Def {
 	return Def{}
 }
 
-// TestNeueSpalten ist das eigentliche Tor auf die sieben SQL-Stellen.
+// TestNeueSpalten ist das eigentliche Tor auf die neun SQL-Stellen.
 //
-// Die Spaltenliste von page_field_defs steht sieben Mal in store.go: fünf
-// SELECTs, das INSERT und das UPDATE. Wird eine davon vergessen, lädt ein Feld
+// Die Spaltenliste von page_field_defs steht neun Mal in store.go: sieben
+// SELECTs (List, Sub, OfBlockType, OfBlockTypes, OfSnippet, OfSnippets, Get),
+// das INSERT und das UPDATE. Wird eine davon vergessen, lädt ein Feld
 // still mit einem Nullwert — eine Knopfreihe erscheint als Klappliste, eine
 // Grenze wird nicht durchgesetzt, und nirgends steht ein Fehler. Eine Zählung
 // der Vorkommen fände das nicht: ein SELECT kann die Spalte nennen und sie
@@ -1326,5 +1329,88 @@ func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
 		WebsiteID: site, Key: "quelle", Label: "Quelle", Kind: KindText,
 		BlockTypeID: eigeneArt}); err != nil {
 		t.Errorf("eigene Bausteinart: %v", err)
+	}
+}
+
+// spaltenlisten holt die SELECT-Spaltenlisten von page_field_defs aus store.go.
+//
+// Gelesen wird die Datei und nicht der Speicher: die Gefahr, um die es geht,
+// ist eine Liste, die von den anderen abweicht, und die ist zur Laufzeit nicht
+// zu sehen — ein SELECT kann eine Spalte nennen und sie nie in den Def
+// schreiben, und andersherum lädt ein vergessener Eintrag still einen Nullwert.
+func spaltenlisten(t *testing.T) []string {
+	t.Helper()
+	quelle, err := os.ReadFile("store.go")
+	if err != nil {
+		t.Fatalf("store.go lesen: %v", err)
+	}
+	var out []string
+	for _, roh := range regexp.MustCompile("`[^`]*`").FindAllString(string(quelle), -1) {
+		inhalt := strings.TrimSpace(strings.Trim(roh, "`"))
+		if !strings.HasPrefix(inhalt, "SELECT id, website_id") {
+			continue
+		}
+		bis := strings.Index(inhalt, "FROM")
+		if bis < 0 {
+			t.Fatalf("SELECT ohne FROM: %q", inhalt)
+		}
+		out = append(out, strings.Join(strings.Fields(inhalt[:bis]), " "))
+	}
+	return out
+}
+
+// spaltenzahl zählt die Spalten einer SELECT-Liste.
+//
+// Die Kommata innerhalb einer Klammer gehören zu einem Aufruf und nicht zur
+// Liste, deshalb wird die Klammertiefe mitgeführt.
+func spaltenzahl(liste string) int {
+	tiefe, n := 0, 1
+	for _, r := range liste {
+		switch r {
+		case '(':
+			tiefe++
+		case ')':
+			tiefe--
+		case ',':
+			if tiefe == 0 {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// Die Zahl im Kommentar über scanDef wird ausgezählt statt geglaubt.
+//
+// Sie stand vier Wanderungen lang auf „fünf", während es längst sieben waren —
+// und sie ist das Einzige in der Datei, das dem nächsten Autor sagt, wie viele
+// Stellen er anzufassen hat, auf der Gefahr, die diese Phase selbst als ihre
+// gefährlichste benannt hat. Eine Zahl, die nur in einem Satz steht, geht mit
+// der nächsten Änderung wieder schief; eine, die ein Test auszählt, nicht.
+//
+// Ein fünfter Träger macht diesen Test rot. Das ist die Absicht: der Autor soll
+// beim Ändern der Zahl an den Zeilen von scanDef vorbeikommen.
+func TestSpaltenlistenSindAbschriften(t *testing.T) {
+	listen := spaltenlisten(t)
+	if len(listen) != 7 {
+		t.Fatalf("%d SELECT-Spaltenlisten in store.go, der Kommentar über scanDef "+
+			"nennt sieben — stimmt die Zahl nicht mehr, sind beide zu berichtigen "+
+			"und scanDefs Scan-Reihenfolge nachzusehen", len(listen))
+	}
+	for i, l := range listen[1:] {
+		if l != listen[0] {
+			t.Errorf("Spaltenliste %d weicht ab:\n  %s\n  %s", i+2, listen[0], l)
+		}
+	}
+	// Und sie ist die Reihenfolge, die scanDef scannt: achtzehn Spalten,
+	// snippet_id zuletzt. Gezählt werden die Kommata der obersten Ebene — die
+	// in COALESCE(parent_id, 0) trennen keine Spalte, und wer sie mitzählt,
+	// bekommt einundzwanzig heraus. (Genau das ist beim ersten Schreiben
+	// dieses Tests passiert.)
+	if n := spaltenzahl(listen[0]); n != 18 {
+		t.Errorf("die Spaltenliste hält %d Spalten, scanDef scannt achtzehn", n)
+	}
+	if !strings.HasSuffix(listen[0], "COALESCE(snippet_id, 0)") {
+		t.Errorf("die Spaltenliste endet auf %q, scanDef scannt SnippetID zuletzt", listen[0])
 	}
 }

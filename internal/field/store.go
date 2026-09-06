@@ -308,10 +308,17 @@ func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 		pflicht int
 		auswahl string
 	)
-	// Die Reihenfolge hier ist die der fünf SELECT-Spaltenlisten, Zeichen für
-	// Zeichen. Die fünf sind Abschriften voneinander und müssen es bleiben:
+	// Die Reihenfolge hier ist die der sieben SELECT-Spaltenlisten — List, Sub,
+	// OfBlockType, OfBlockTypes, OfSnippet, OfSnippets und Get —, Zeichen für
+	// Zeichen. Die sieben sind Abschriften voneinander und müssen es bleiben:
 	// eine Liste, die von den anderen abweicht, lädt ein Feld still mit einem
 	// Nullwert, und nichts schlägt fehl.
+	//
+	// Die Zahl steht mit ihren Namen da, damit sie nachzuzählen ist und nicht
+	// geglaubt werden muss — sie stand vier Wanderungen lang auf fünf, während
+	// es längst sieben waren. TestSpaltenlistenSindAbschriften zählt sie aus
+	// der Datei und vergleicht sie Zeichen für Zeichen; ein fünfter Träger
+	// macht diesen Test rot, und das ist die Absicht.
 	if err := row.Scan(&d.ID, &d.WebsiteID, &d.ParentID, &d.Key, &d.Label, &d.Kind,
 		&pflicht, &d.Hint, &auswahl, &d.AppliesTo, &d.Position, &d.Condition,
 		&d.Display, &d.MaxValues, &d.RangeMin, &d.RangeMax, &d.BlockTypeID,
