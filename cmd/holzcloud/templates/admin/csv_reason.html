@@ -37,6 +37,25 @@
 {{- end}}
 {{- end}}
 
+{{/* Die Zeilennummern einer Gruppe, für beide Bildschirme.
+
+     Sie stand zweimal da, wortgleich, in csv_dryrun.html und csv_report.html —
+     genau die zwei Ausfertigungen, vor denen der Kopf dieser Datei warnt. Ein
+     Browser-Durchgang hat gezeigt, wozu das führt: „1 Zeilen: 4" stand auf
+     beiden Bildschirmen und in allen fünf Sprachen.
+
+     Die Einzahl ist eine eigene Zeichenkette und keine Regel im Code. Das ist
+     die Form, die dieses Verwaltungswerkzeug an sechs anderen Stellen schon
+     benutzt — blocktype_list.html:41 und :44, dashboard.html:31,
+     media_list.html:43, snippet_list.html:94, website_list.html:152 —, und
+     eine siebte Stelle, die es anders macht, wäre die, die auffällt. */}}
+{{define "csv-rows"}}
+<td class="csv-rows">
+    {{if eq .Total 1}}{{t "Eine Zeile"}}{{else}}{{tf "%d Zeilen" .Total}}{{end}}:
+    {{range $i, $n := .Rows}}{{if $i}}, {{end}}{{$n}}{{end}}{{if .More}}, {{tf "und %d weitere" .More}}{{end}}
+</td>
+{{end}}
+
 {{/* Der Ausgang als Abzeichen. Dieselben drei Wörter auf beiden Bildschirmen:
      im Probelauf gelesen als Absicht, im Bericht als Tatsache. Keine neue
      badge--Abart — es gibt drei, und sie reichen. */}}
