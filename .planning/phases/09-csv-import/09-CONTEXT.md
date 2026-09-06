@@ -597,7 +597,7 @@ the plan itself adds*, never as an estimate:
 | `badge--` in `admin.css` | `grep -c 'badge--' cmd/holzcloud/assets/admin.css` | **6** — measured 2026-09-06; an earlier plan guessed 8 |
 | `@layer components` in `admin.css` | `grep -c '@layer components' cmd/holzcloud/assets/admin.css` | **15** |
 | packages under `internal/` | `ls -d internal/*/ \| wc -l` | **38** |
-| files using `BeginTx` | `grep -rln BeginTx internal/ --include='*.go' \| grep -v _test` | **14** |
+| files using `BeginTx` **under `internal/`** | `grep -rln BeginTx internal/ --include='*.go' \| grep -v _test` | **14** — tree-wide it is 15; `cmd/holzcloud/cli.go` is the fifteenth. The gate is `internal/`-scoped on purpose and the row now says so, because the ambiguity cost a reader a second look |
 | admin CSS files | `ls cmd/holzcloud/assets/*.css` | **2** |
 | `encoding/csv` importers | `grep -rl '"encoding/csv"' --include='*.go' .` | **1** (`plugins/kontaktformular/csv.go`) — **quoted**, see the note below |
 
