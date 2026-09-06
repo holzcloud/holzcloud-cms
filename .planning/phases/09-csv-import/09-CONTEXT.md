@@ -366,6 +366,32 @@ website that does not exist has no field definitions to generate columns from.
 The panel says so in the same sentence rather than leaving an empty download to
 explain itself.
 
+#### D-38: the number of columns is capped at 100 — a gap D-08 … D-16 left open
+
+D-08 caps bytes, D-09 caps rows, D-10 caps cells. **Nothing caps columns**, and
+neither the edge probe nor the pattern map surfaced it: the probe's `collection`
+categories ask about adjacency, emptiness and ordering, not about cardinality.
+It came out of answering 09-02's checkpoint, and it is a genuine hole — a CSV
+with 5000 columns is legal, passes every cap above, and produces a mapping screen
+with 5000 rows.
+
+Two independent reasons, either of which alone would justify it:
+
+1. **The mapping screen lists one row per column.** Past a few dozen it is not a
+   screen a person can use, and IMP-01's whole promise is that the admin points
+   each column at a target.
+2. **The mapping now rides in a query string.** 09-02's decision keeps the
+   staging row write-once and carries the mapping as form state; the row stepper
+   is a `formmethod="GET"` submit, so every mapping control travels in the URL on
+   that path. 100 columns × roughly 30 bytes is about 3 kB — comfortable. 5000
+   would not be.
+
+**`MaxSpalten = 100`**, refused on screen 1 with its own message, in the same
+place and the same voice as the other refusals. Reported and never silently
+truncated — the same discipline `wxr.Export.Truncated` (`wxr.go:63`) applies to
+rows. Plan 09-01 owns the constant and its boundary tests (100 accepted, 101
+refused); plan 09-04 owns the refusal on screen 1.
+
 ### What the edge probe found that the decisions above had missed
 
 The eight-category edge probe was run over IMP-01 … IMP-10 before planning.
@@ -531,6 +557,8 @@ the plan itself adds*, never as an estimate:
 | `jobs.Job{` entries | `grep -c 'jobs.Job{' cmd/holzcloud/main.go` | **11** |
 | admin templates | `ls …/templates/admin/*.html \| wc -l` | **61** |
 | `layoutPageNames` entries | the slice at `internal/web/render.go:46` | **44** — see D-31 |
+| `badge--` in `admin.css` | `grep -c 'badge--' cmd/holzcloud/assets/admin.css` | **6** — measured 2026-09-06; an earlier plan guessed 8 |
+| `@layer components` in `admin.css` | `grep -c '@layer components' cmd/holzcloud/assets/admin.css` | **15** |
 | packages under `internal/` | `ls -d internal/*/ \| wc -l` | **38** |
 | files using `BeginTx` | `grep -rln BeginTx internal/ --include='*.go' \| grep -v _test` | **14** |
 | admin CSS files | `ls cmd/holzcloud/assets/*.css` | **2** |
