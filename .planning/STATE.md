@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
-current_phase: 7
+current_phase: 8
 current_phase_name: Snippets Carry Fields
 status: executing
-stopped_at: Completed 07-07-PLAN.md
-last_updated: "2026-09-06T09:19:53.421Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-09-06T09:36:30.510Z"
 last_activity: 2026-09-06
-state_head: 0376a46ffbfe99574cb2f7a721e771edfc6cafb0
+state_head: 93f119461e8808aeacec8408385f6b8b65d0fd16
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 14
+  completed_plans: 15
   percent: 17
 ---
 
@@ -29,9 +29,9 @@ progress:
 
 ### Current Position
 
-Phase: 7 — Field Kinds (7 / 7 Pläne ausgeführt, abgeschlossen)
-Plan: 07-07 complete — der per-Art-Zoll ist bezahlt, das stehende Tor ist gefahren, und **D-08 ist durch Beobachtung geschlossen**. `TEMPLATE-SPEC.md` dokumentiert alle fünf neuen Arten samt `.Values`, `.Term` und dem bislang undokumentierten `.Yes`; `SampleData` trägt je eine gefüllte Zeile, `MinimalData` den leeren Zwilling jeder davon — die Grundlage, gegen die die Upload-Prüfung rendert (T-07-28). Vier neue Reflexionswächter halten den Vertrag jetzt selbst zusammen: ein neues Mitglied an `field.Entry` oder eine neue Art in `field.Kinds`, die im Dokument fehlt, fällt im Test auf. 23 neue deutsche Quellsätze in en/es/fr/it, in einem Commit für sich; `fr-CH.json` und `it-CH.json` unberührt. **Die Browserhälfte wurde vom Orchestrator mit dem Playwright-MCP-Server gefahren**, nicht vom Executor: Schritt 3 trägt eine `<precondition>`, die ein Browserwerkzeug verlangt, das dem Executor fehlt — Halten war richtig, die Arbeit wurde geteilt statt in eine Checkliste zurückverwandelt. Gefahren gegen eine Wegwerf-Instanz mit eigener Datenbank, **auf Englisch**, was die schärfere Probe auf die Übersetzungen war. Gesehen: alle vier neuen Definitionsbedienelemente übersetzt und die Grenzenablehnung wirksam; `bereich` als Zahlenfeld mit vor dem Speichern lesbarer Zahl; `zeit` unterscheidet leer von `00:00`; `code` festbreit an der errechneten `font-family`; Mehrfachauswahl mit Wachposten, drei Werte über Speichern und Neuladen, geleert unterscheidbar von nicht-da, Überschreitung als HTTP 422; Schlagwortwähler ohne die Schlagwörter der zweiten Website; Knopfreihe als Radioreihe. Null verwaiste `for=`, beide Gruppen mit auflösendem `aria-labelledby`. **Alle sechs steuernden Arten** blendeten ihr abhängiges Feld korrekt ein und aus — einschliesslich `bereich`: **`MayControl()` bleibt unverändert, `KindRange` bleibt steuernd**, und die Fahrplan-Notiz ruhte auf der Schieber-Annahme, die D-07 verworfen hat. Öffentlich: getipptes `<script>alert(1)</script>` erscheint maskiert und führt nichts aus, Mehrfachwerte als lesbare verbundene Zeichenkette, und eine Schlagwort-Umbenennung änderte, was eine nie neu gespeicherte Seite druckt. Konsole und Serverprotokoll: keine CSP-Verletzung, keine Barrierefreiheitswarnung, drei absichtliche 422. Drei Kommentare, die auf diesen Durchgang vorauswiesen, sagen jetzt, was gesehen wurde — kein Vorwärtsverweis mehr im Baum
-Status: Phase 07 abgeschlossen — FIELD-01…08 erfüllt, Abnahme offen
+Phase: 8 — Snippets Carry Fields (1 / 5 Pläne ausgeführt)
+Plan: 08-01 complete — **der vierte Namensraum steht, von der Wanderung bis ins Theme, und ist an einer echten öffentlichen Adresse bewiesen**. `00047` legt `page_field_defs.snippet_id` an — **mit** `REFERENCES snippets(id) ON DELETE CASCADE`, denn SQLite verweigert nur das Paar aus `REFERENCES` und einem Vorgabewert ungleich NULL, was `00038:36-39` in eigenen Worten sagt —, tauscht `idx_page_field_defs_kennung_oben` gegen die Fassung mit `snippet_id IS NULL`, legt `idx_page_field_defs_kennung_textbaustein` an und gibt `snippets` die Spalte `fields`. Die **Rückwärtshälfte stellt 00038s Indexform wieder her, nicht 00029s** — die Falle dieser Phase —, und `TestMigration00047RunterUndRauf` fährt sie wirklich, was sonst nichts im Baum tut. Der gefährliche Schnitt bei `store.go:59` ist geschnitten: `List`, `OfBlockType` und `OfBlockTypes` nennen `AND snippet_id IS NULL`; **`Sub` bleibt bewusst ohne**, weil eine Gruppe an einem Textbaustein stehen darf und ihre Unterfelder dann beides tragen; `Update` behält seine trägerlose `WHERE` und pinnt stattdessen `d.SnippetID`. `OfSnippet` nimmt Spaltenliste und Fehlerhülle von `OfBlockType` und den Baumbau von `List`. Das Tor ist eine **Lesung, keine Zählung** (D-04, Phase 7s Lehre): `TestBausteinNamensraum` legt ein Seitenfeld und ein Textbausteinfeld mit **derselben Kennung** an und liest über jeden der sechs Wege zurück; `bausteinfelder_test.go` druckt den Wert durch `HandlePage` und prüft im selben Atemzug, dass `.Page.Feldliste` **leer** bleibt — die im Browser sichtbare Hälfte von D-03. `.Site.Bausteinfelder` und `.Site.Bausteinliste` stehen **neben** `.Site.Snippets`, das seinen Typ behält, womit SNIP-05 durch Bauart gilt. `fillSnippets` ist die einzige Prägestelle; **zwei** der vierzehn Zuweisungsstellen gehen hindurch, die übrigen zwölf bleiben unverändert für 08-02. Zwei Zählgatter messen **7 und 6 statt 6 und 5** — kein Fehlgriff, sondern eine Rechnung im Plan gegen fünf Leser, während dieselbe Aufgabe `OfSnippet` als sechsten verlangt; die Gegenprobe in derselben Datei misst für `block_type_id` ebenfalls 7, das Vorbild und der neue Namensraum sind also Zeichen für Zeichen symmetrisch. Vorgezogen aus 08-05, weil die vier Reflexionswächter aus Phase 7 sonst sofort brechen: `SampleData` und zwei `.Site`-Zeilen der `TEMPLATE-SPEC.md`; `MinimalData`s leerer Zwilling und die §7-Prosa bleiben dort
+Status: Phase 08 läuft — 08-01 von 5 Plänen ausgeführt; SNIP-02…05 durch diesen Plan erfüllt, SNIP-01 wartet auf die Bildschirme (08-03, 08-04)
 Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die **Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste (`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin, und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
 Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code` innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen
 Last activity: 2026-09-06
@@ -47,7 +47,7 @@ phases were renumbered into this one as 7, 8 and 9.
 |-------|------|--------------|-------|--------|
 | 6 | Aufräumen | MAINT-01…05 | 5 | Plans 7/7 — Abnahme offen (Browserhälfte des Tors) |
 | 7 | Field Kinds | FIELD-01…08 | 8 | Plans 7/7 — Abnahme offen (eine Browserzeile, Fenster Nr. 3) |
-| 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Not started |
+| 8 | Snippets Carry Fields | SNIP-01…05 | 5 | Plans 1/5 — 08-01 (der vierte Namensraum) ausgeführt |
 | 9 | CSV Import | IMP-01…10 | 10 | Not started |
 | 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started |
 
@@ -177,6 +177,7 @@ Coverage: 41 / 41 requirements mapped. Orphans 0, duplicates 0.
 | Phase 07 P05 | 19 min | 4 tasks | 13 files |
 | Phase 07 P06 | 9 min | 3 tasks | 4 files |
 | Phase 07 P07 | 37 min | 3 tasks | 13 files |
+| Phase 08 P01 | 10 min | 3 tasks | 12 files |
 
 ### Session Continuity
 
@@ -185,10 +186,10 @@ and its *Standing Gates* section. Requirement IDs are in
 `.planning/REQUIREMENTS.md`; the working list most of them came from, with the
 size and location of each item, is `docs/offene-punkte.md`.
 
-Next command: `/gsd-execute-phase 7` — 07-07 ist der letzte Plan der Phase: er traegt die drei gebündelten Restposten (Übersetzungen, Dokumentensteuer je Art, Browserhälfte) und entscheidet D-08 im Browser — ob ein `bereich`-Feld seine abhängigen Felder wirklich ein- und ausblendet, oder ob `KindRange` neben `KindDate` in die `MayControl()`-Ausnahme gehört. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` — die Browserhälfte des stehenden Tors gehört in die Abnahme, nicht in einen neuen Plan
+Next command: `/gsd-execute-phase 8` — 08-01 hat den vierten Namensraum gelegt und von Ende zu Ende bewiesen; 08-02 zieht nach: `OfSnippets` als Massenleser, `fillSnippets` an den **uebrigen zwoelf** Zuweisungsstellen samt dem Gatter, das ihre Uebereinstimmung nachweist, `Move`s vierter Arm, der Textbaustein-Arm in `validate` (wobei `Required` an einem Textbaustein bedeutungsvoll bleibt — die Verengung der Bausteinart bei `store.go:530-536` ist hier ein Gegenbeispiel, kein Vorbild) und die traegerweise `MaxFields`-Zaehlung nach D-05. Weiterhin offen und unabhaengig davon: `/gsd-verify-work 6` — die Browserhaelfte des stehenden Tors gehoert in die Abnahme, nicht in einen neuen Plan; und `/gsd-verify-work 7` fuer die eine ungefahrene Zeile (`code` im Block, oeffentlich)
 
-**Last session:** 2026-09-05T16:18:01.777Z
-**Stopped at:** Completed 07-07-PLAN.md
+**Last session:** 2026-09-06T09:35:17.895Z
+**Stopped at:** Completed 08-01-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -236,6 +237,10 @@ Next command: `/gsd-execute-phase 7` — 07-07 ist der letzte Plan der Phase: er
 - [Phase 07]: v1.6: D-08 ist durch Beobachtung geschlossen und die Umkehr NICHT angewendet — `MayControl()` bleibt unverändert, `KindRange` bleibt steuernd. Ein `<input type="number">` trifft `:placeholder-shown`, `.feld-schalter--text` greift daran, das abhängige Feld erschien und verschwand (Playwright, 2026-09-05) — Die Fahrplan-Notiz, `KindRange` neben `KindDate` auszuschliessen, ruhte auf der Schieber-Annahme, die D-07 verworfen hat. Auch der zweite Zweig des Auftrags ist beantwortet: `placeholder=" "` steht im gezeichneten Markup, es fehlte also nicht. Drei Kommentare, die auf den Durchgang vorauswiesen, sagen jetzt, was gesehen wurde.
 - [Phase 07]: v1.6: eine `<precondition>`, die dem Executor fehlt, wird gehalten und die Arbeit geteilt — nicht in eine Checkliste zurückverwandelt. Schritt 3 von 07-07 verlangte ein Browserwerkzeug; der Executor hielt, der Orchestrator fuhr den Durchgang mit dem Playwright-MCP-Server — Eine Checkliste zurückzugeben ist genau das, was der Auftrag verbietet, und was die Browserhälfte in Phase 6 halb hat liegen lassen. Das Muster gilt für Phase 8, 9, 10 und 11 weiter.
 - [Phase 07]: v1.6: der leere Fall einer neuen Feldart liegt in `MinimalData`s `Felder`-Karte, nicht in `Feldliste` — `field.List` lässt jeden leeren Eintrag aus, eine Liste mit leerem Eintrag gibt es also gar nicht — Ihn in `Feldliste` zu verlangen hiesse, eine Form zu fordern, die der Code nie erzeugt. Gilt für jede Art, die Phase 8 und 9 hinzufügen.
+- [Phase 08]: 08-01: Wanderung 00047 traegt REFERENCES snippets(id) ON DELETE CASCADE — SQLite verweigert nur REFERENCES ZUSAMMEN MIT einem Vorgabewert ungleich NULL, was 00038:42 samt eigenem Kommentar bei :36-39 beweist; snippet_id hat keinen Vorgabewert, also steht die Beziehung in der Datenbank statt in Go
+- [Phase 08]: 08-01: .Site.Bausteinfelder (map[string]map[string]any) und .Site.Bausteinliste (map[string][]field.Entry) stehen NEBEN .Site.Snippets, das seinen Typ map[string]template.HTML behaelt — loader.go:355-357 verbietet Umbenennen und Entfernen, und SNIP-05 gilt damit durch Bauart statt durch eine Pruefung
+- [Phase 08]: 08-01: field.Store.Sub bleibt bewusst OHNE snippet_id-Klausel — eine Gruppe darf an einem Textbaustein stehen, ihre Unterfelder tragen dann parent_id UND snippet_id, und ein AND snippet_id IS NULL liesse jede solche Gruppe leer zurueckkommen; ihr Namensraum ist die Gruppennummer
+- [Phase 08]: 08-01: die Zaehlgatter des Plans (6 gesamt / 5 Spaltenlisten) sind gegen fuenf Leser gerechnet, waehrend dieselbe Aufgabe OfSnippet als sechsten verlangt — gemessen 7/6, und die Gegenprobe fuer block_type_id misst in derselben Datei ebenfalls 7; das Tor auf den Namensraum ist ohnehin TestBausteinNamensraum, das zurueckliest statt zu zaehlen
 
 ## Accumulated Context
 
