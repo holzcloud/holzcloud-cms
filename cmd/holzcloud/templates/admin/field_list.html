@@ -12,6 +12,15 @@
     <p class="text-muted">
         {{th "Ein <strong>langer Text</strong> wird als Markdown ausgegeben — das ist der Weg zu einer Überschrift oder einer Aufzählung im Baustein. Ein <strong>Ja/Nein</strong> gibt nichts aus, sondern setzt eine Klasse am Baustein, mit der das Theme ihn anders aussehen lassen kann."}}
     </p>
+    {{else if .Snippet}}
+    <p><a href="/admin/websites/{{.WebsiteID}}/snippets">{{t "&#8592; Alle Textbausteine"}}</a></p>
+    <p class="text-muted">
+        {{tf "Woraus der Textbaustein „%s“ (%s) besteht. Mit Feldern ist er nicht mehr nur ein Kasten Markdown, sondern ein kleines Inhaltsmodell: die Felder erscheinen auf dem Formular des Bausteins, und der Markdown-Rumpf bleibt daneben stehen. Im Theme:" .Snippet.Name .Snippet.Key}}
+        <code>&#123;&#123;.Site.Bausteinfelder.{{.Snippet.Key}}.kennung&#125;&#125;</code>.
+    </p>
+    <p class="text-muted">
+        {{t "Ein Textbaustein bekommt jede Art von Feld, die auch eine Seite bekommt — Gruppen eingeschlossen. Seine Werte werden beim Anzeigen aufgelöst und nicht beim Speichern eingefroren, deshalb halten hier auch ein Verweis und ein Schlagwort ihr Versprechen."}}
+    </p>
     {{else if .Group}}
     <p><a href="/admin/websites/{{.WebsiteID}}/felder">{{t "&#8592; Alle Felder"}}</a></p>
     <p class="text-muted">
@@ -29,7 +38,7 @@
 </div>
 
 <div class="card">
-    <h2>{{if .BlockType}}{{t "Felder dieses Bausteins"}}{{else if .Group}}{{t "Felder der Gruppe"}}{{else}}{{t "Felder dieser Website"}}{{end}}</h2>
+    <h2>{{if .BlockType}}{{t "Felder dieses Bausteins"}}{{else if .Snippet}}{{t "Felder dieses Textbausteins"}}{{else if .Group}}{{t "Felder der Gruppe"}}{{else}}{{t "Felder dieser Website"}}{{end}}</h2>
     {{if .Fields}}
     <table class="table">
         <thead>
@@ -69,7 +78,7 @@
                         <button type="submit" class="reorder-btn" hx-disabled-elt="this"><span aria-hidden="true">&#8595;</span><span class="sr-only">{{tf "%s nach unten" .Label}}</span></button>
                     </form>
                     {{if .IsGroup}}<a class="btn btn--sm" href="/admin/websites/{{$d.WebsiteID}}/felder?gruppe={{.ID}}">{{t "Felder der Gruppe"}}</a>{{end}}
-                    <a class="btn btn--sm" href="/admin/websites/{{$d.WebsiteID}}/felder?aendern={{.ID}}{{if $d.Group}}&amp;gruppe={{$d.Group.ID}}{{end}}{{if $d.BlockType}}&amp;baustein={{$d.BlockType.ID}}{{end}}">{{t "Ändern"}}</a>
+                    <a class="btn btn--sm" href="/admin/websites/{{$d.WebsiteID}}/felder?aendern={{.ID}}{{if $d.Group}}&amp;gruppe={{$d.Group.ID}}{{end}}{{if $d.BlockType}}&amp;baustein={{$d.BlockType.ID}}{{end}}{{if $d.Snippet}}&amp;textbaustein={{$d.Snippet.ID}}{{end}}">{{t "Ändern"}}</a>
                     <details class="rowmenu">
                         <summary class="rowmenu-trigger">
                             {{template "icon-more"}}<span class="sr-only">{{tf "Weitere Aktionen für %s" .Label}}</span>
@@ -90,6 +99,7 @@
     {{else}}
     <p class="text-muted">
         {{if .BlockType}}{{t "Dieser Baustein hat noch keine Felder. Ohne Felder gibt er auf der Seite nichts aus."}}
+        {{else if .Snippet}}{{t "Dieser Textbaustein hat noch keine Felder. Ohne sie bleibt er der eine Kasten Markdown, der er heute ist — was oft genügt und für eine Adresse mit Telefon und Öffnungszeiten nicht."}}
         {{else if .Group}}{{t "Diese Gruppe hat noch keine Felder. Ohne Felder gibt es nichts auszufüllen."}}
         {{else}}{{t "Noch keine eigenen Felder. Ohne sie hat eine Seite genau das, was jede Seite hat — was für Texte reicht und für einen Produktkatalog nicht."}}{{end}}
     </p>
@@ -97,12 +107,13 @@
 </div>
 
 <div class="card" style="margin-top: var(--space-3);">
-    <h2>{{if .Edit}}{{tf "Feld „%s“ ändern" .Edit.Label}}{{else if .BlockType}}{{t "Neues Feld in diesem Baustein"}}{{else if .Group}}{{t "Neues Feld in dieser Gruppe"}}{{else}}{{t "Neues Feld"}}{{end}}</h2>
+    <h2>{{if .Edit}}{{tf "Feld „%s“ ändern" .Edit.Label}}{{else if .BlockType}}{{t "Neues Feld in diesem Baustein"}}{{else if .Snippet}}{{t "Neues Feld in diesem Textbaustein"}}{{else if .Group}}{{t "Neues Feld in dieser Gruppe"}}{{else}}{{t "Neues Feld"}}{{end}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/felder">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         {{if .Edit}}<input type="hidden" name="id" value="{{.Edit.ID}}">{{end}}
         {{if .Group}}<input type="hidden" name="gruppe" value="{{.Group.ID}}">{{end}}
         {{if .BlockType}}<input type="hidden" name="baustein" value="{{.BlockType.ID}}">{{end}}
+        {{if .Snippet}}<input type="hidden" name="textbaustein" value="{{.Snippet.ID}}">{{end}}
 
         <div class="form-group">
             <label class="form-label" for="feld-beschriftung">{{t "Beschriftung"}}</label>
@@ -233,7 +244,7 @@
             {{if .Edit}}{{t "Feld speichern"}}{{else}}{{t "Feld anlegen"}}{{end}}
         </button>
         {{if .Edit}}
-        <a class="btn" href="/admin/websites/{{.WebsiteID}}/felder{{if .Group}}?gruppe={{.Group.ID}}{{end}}{{if .BlockType}}?baustein={{.BlockType.ID}}{{end}}">{{t "Abbrechen"}}</a>
+        <a class="btn" href="/admin/websites/{{.WebsiteID}}/felder{{if .Group}}?gruppe={{.Group.ID}}{{end}}{{if .BlockType}}?baustein={{.BlockType.ID}}{{end}}{{if .Snippet}}?textbaustein={{.Snippet.ID}}{{end}}">{{t "Abbrechen"}}</a>
         {{end}}
     </form>
 </div>

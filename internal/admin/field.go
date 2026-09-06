@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
+	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -42,6 +44,11 @@ type FieldListData struct {
 	// page's own fields. The third mode of this screen, after the top level and
 	// a group.
 	BlockType *block.Own
+	// Snippet is the text snippet whose fields are being edited, or nil. The
+	// fourth mode of this screen, after the top level, a group and a block
+	// kind — a snippet stops being one Markdown box and becomes a small
+	// content model of its own.
+	Snippet *snippet.Snippet
 }
 
 // TypeName is the plural of one own content kind, for the "gilt für" column.
@@ -60,8 +67,34 @@ func (d FieldListData) TypeName(key string) string {
 
 // Simple reports whether this is the website's own top-level field list — the
 // one place where a field can say which pages it belongs to and hang on
-// another. Inside a group and inside a block kind neither question applies.
-func (d FieldListData) Simple() bool { return d.Group == nil && d.BlockType == nil }
+// another. Inside a group, inside a block kind and on a text snippet none of
+// those questions applies: „gilt für" names a kind of page, and a snippet is
+// not a page.
+func (d FieldListData) Simple() bool {
+	return d.Group == nil && d.BlockType == nil && d.Snippet == nil
+}
+
+// snippetOf returns the snippet with this id if it belongs to this website, and
+// nil otherwise.
+//
+// The website belongs to the lookup and is not merely checked afterwards — the
+// same reason field.Store.Get carries: the id comes out of an address, and
+// without the check an editor reaches another site's snippet by typing its
+// number.
+//
+// Why this exists here and not for block kinds: blockTypes.Get takes the
+// website id and simply does not find a block kind of another site, while
+// snippets.Get takes only an id. That asymmetry is the whole reason this is one
+// function rather than two inline comparisons that can drift apart — the GET
+// that opens the mode and the POST that creates a field must ask the same
+// question.
+func (h *Handler) snippetOf(ctx context.Context, websiteID, id int64) *snippet.Snippet {
+	sn, err := h.snippets.Get(ctx, id)
+	if err != nil || sn == nil || sn.WebsiteID != websiteID {
+		return nil
+	}
+	return sn
+}
 
 // HandleFieldList shows a website's fields.
 func (h *Handler) HandleFieldList(w http.ResponseWriter, r *http.Request) error {
@@ -86,8 +119,19 @@ func (h *Handler) HandleFieldList(w http.ResponseWriter, r *http.Request) error 
 			group = nil
 		}
 	}
+	// ?textbaustein=<id> narrows it to one text snippet's fields. The name is
+	// not „baustein": that one is taken by block kinds, and the two German
+	// words differ by one prefix — a reader who has to guess which is which
+	// will eventually guess wrong.
+	var snip *snippet.Snippet
+	if id, serr := strconv.ParseInt(r.URL.Query().Get("textbaustein"), 10, 64); serr == nil {
+		if sn := h.snippetOf(r.Context(), websiteID, id); sn != nil {
+			snip = sn
+			group = nil
+		}
+	}
 
-	data, err := h.fieldListData(r, websiteID, ws.Name, group, blockType)
+	data, err := h.fieldListData(r, websiteID, ws.Name, group, blockType, snip)
 	if err != nil {
 		return err
 	}
@@ -115,10 +159,12 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 
 	parentID, _ := strconv.ParseInt(r.FormValue("gruppe"), 10, 64)
 	blockTypeID, _ := strconv.ParseInt(r.FormValue("baustein"), 10, 64)
+	snippetID, _ := strconv.ParseInt(r.FormValue("textbaustein"), 10, 64)
 	def := field.Def{
 		WebsiteID:   websiteID,
 		ParentID:    parentID,
 		BlockTypeID: blockTypeID,
+		SnippetID:   snippetID,
 		Label:       r.FormValue("beschriftung"),
 		Kind:        r.FormValue("art"),
 		Required:    r.FormValue("pflicht") == "1",
@@ -135,6 +181,14 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	// hier liegen. Eine ausgeschriebene Zahl unter null lehnt validate ab; sie
 	// wird hier nicht stillschweigend zurechtgebogen.
 	def.MaxValues, _ = strconv.Atoi(r.FormValue("max_werte"))
+
+	// The hidden input is a courtesy; the body is not. A snippet id that names
+	// another website's snippet must never reach the store, so it is refused
+	// here — before anything is written.
+	if def.SnippetID > 0 && h.snippetOf(r.Context(), websiteID, def.SnippetID) == nil {
+		http.NotFound(w, r)
+		return nil
+	}
 
 	id, _ := strconv.ParseInt(r.FormValue("id"), 10, 64)
 	if id > 0 {
@@ -175,7 +229,7 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 		web.SetFlashSuccess(h.sm, r.Context(),
 			"Feld angelegt. Es steht ab sofort im Editor und im Theme.")
 	}
-	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID))
+	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID, snippetID))
 }
 
 // HandleFieldDelete removes a field definition.
@@ -189,9 +243,9 @@ func (h *Handler) HandleFieldDelete(w http.ResponseWriter, r *http.Request) erro
 		http.NotFound(w, r)
 		return nil
 	}
-	parentID, blockTypeID := int64(0), int64(0)
+	parentID, blockTypeID, snippetID := int64(0), int64(0), int64(0)
 	if def, gerr := h.fields.Get(r.Context(), websiteID, id); gerr == nil {
-		parentID, blockTypeID = def.ParentID, def.BlockTypeID
+		parentID, blockTypeID, snippetID = def.ParentID, def.BlockTypeID, def.SnippetID
 	}
 	if err := h.fields.Delete(r.Context(), websiteID, id); err != nil {
 		return err
@@ -201,7 +255,7 @@ func (h *Handler) HandleFieldDelete(w http.ResponseWriter, r *http.Request) erro
 	web.SetFlashSuccess(h.sm, r.Context(),
 		"Feld entfernt. Das Ausgefüllte bleibt an den Seiten stehen, bis sie das nächste Mal gespeichert werden — "+
 			"wer sich vertan hat, legt das Feld einfach wieder an.")
-	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID))
+	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID, snippetID))
 }
 
 // HandleFieldMove shifts a field one place.
@@ -215,18 +269,18 @@ func (h *Handler) HandleFieldMove(w http.ResponseWriter, r *http.Request) error 
 		http.NotFound(w, r)
 		return nil
 	}
-	parentID, blockTypeID := int64(0), int64(0)
+	parentID, blockTypeID, snippetID := int64(0), int64(0), int64(0)
 	if def, gerr := h.fields.Get(r.Context(), websiteID, id); gerr == nil {
-		parentID, blockTypeID = def.ParentID, def.BlockTypeID
+		parentID, blockTypeID, snippetID = def.ParentID, def.BlockTypeID, def.SnippetID
 	}
 	if err := h.fields.Move(r.Context(), websiteID, id, r.URL.Query().Get("richtung") == "hoch"); err != nil {
 		return err
 	}
-	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID))
+	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID, snippetID))
 }
 
 func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName string,
-	group *field.Def, blockType *block.Own) (FieldListData, error) {
+	group *field.Def, blockType *block.Own, snip *snippet.Snippet) (FieldListData, error) {
 
 	var (
 		defs  []field.Def
@@ -239,6 +293,14 @@ func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName st
 		defs, err = h.fields.OfBlockType(r.Context(), websiteID, blockType.ID)
 		title = "Baustein „" + blockType.Name + "“ – " + websiteName
 		kinds = field.BlockKinds()
+	case snip != nil:
+		defs, err = h.fields.OfSnippet(r.Context(), websiteID, snip.ID)
+		title = "Textbaustein „" + snip.Name + "“ – " + websiteName
+		// The full palette, not BlockKinds(): its four exclusions exist because
+		// a block freezes to HTML when the page is saved, while a snippet's
+		// values are resolved on the way out. A reference and a label field can
+		// keep their promise here, so they are offered.
+		kinds = field.Kinds
 	case group != nil:
 		defs, err = h.fields.Sub(r.Context(), websiteID, group.ID)
 		title = "Gruppe „" + group.Label + "“ – " + websiteName
@@ -257,9 +319,10 @@ func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName st
 		Kinds:      kinds,
 		Group:      group,
 		BlockType:  blockType,
+		Snippet:    snip,
 		Types:      h.kindsOf(r, websiteID),
 	}
-	if group == nil && blockType == nil {
+	if group == nil && blockType == nil && snip == nil {
 		for _, d := range defs {
 			if d.MayControl() {
 				data.Controls = append(data.Controls, d)
@@ -271,12 +334,17 @@ func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName st
 }
 
 // fieldPath is the screen a change returns to: the group's own list, the block
-// kind's own list, or the website's.
-func fieldPath(websiteID, parentID, blockTypeID int64) string {
+// kind's own list, the text snippet's own list, or the website's.
+//
+// A definition never carries two carriers at once, so the order between the
+// block kind and the snippet is a readability choice and not a behaviour.
+func fieldPath(websiteID, parentID, blockTypeID, snippetID int64) string {
 	path := "/admin/websites/" + strconv.FormatInt(websiteID, 10) + "/felder"
 	switch {
 	case blockTypeID > 0:
 		path += "?baustein=" + strconv.FormatInt(blockTypeID, 10)
+	case snippetID > 0:
+		path += "?textbaustein=" + strconv.FormatInt(snippetID, 10)
 	case parentID > 0:
 		path += "?gruppe=" + strconv.FormatInt(parentID, 10)
 	}
