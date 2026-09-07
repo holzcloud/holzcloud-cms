@@ -139,6 +139,49 @@ two limits *inside* the one — both under *Users → Edit*:
 | **Websites** | Nothing ticked: all of them. Otherwise exactly these — everywhere, including through a hand-typed address. |
 | **May publish** | Without this right, work is written and submitted for review; somebody else puts it online. |
 
+### How "including through a hand-typed address" is actually kept
+
+That clause is the whole promise, and it is worth saying plainly how it is held
+— and where it has failed, because it has.
+
+Every address under the administration begins `/admin/websites/<number>/`, and a
+middleware checks that number against the signed-in person's list before the
+request reaches any handler. That part has always worked. The failures were all
+the same shape and none of them was in that check:
+
+**A screen that takes a second number.** A menu item, a product, an order's
+outbound mail, a page's translation link, a snippet. The middleware reads the
+website out of the *address*; the handler then reads a menu item — or a product,
+or a message — out of the address or out of the submitted form, and nothing
+joins the two. Type a website you may enter and a resource you may not, and the
+guard is satisfied by the first half.
+
+It happened six times between the 6th and the 8th of September 2026: the menu
+items, the product form's save arm, an order's "send again" button, a page's
+translation group, and — as hardening rather than a live defect — the snippets
+and a product's picture list. Each is written up in the changelog with what an
+operator should check.
+
+**What changed as a result, and it is a rule rather than six patches.** The
+website now belongs *in the database query*, not in a comparison the handler
+remembers to make:
+
+```sql
+UPDATE products SET … WHERE id = ? AND website_id = ?
+```
+
+A query written that way cannot be got wrong by a later caller, because changing
+the function's signature makes the compiler name every place that calls it. Where
+a table genuinely cannot carry the website — `menu_items` and `page_terms` hang
+off their parent and have no column of their own — the check stays in the handler
+**and** carries a test of its own, because in that position nothing else holds it.
+
+**What this means for you.** If you have never restricted an editor to particular
+websites, none of it ever applied: an unrestricted account may enter every
+website by design. If you have (`user_websites`, since version 1.3), the
+changelog entry for each fix names what to look for — one of them left rows
+behind that no program change undoes, and it carries the query to find them.
+
 ## The password again, before the irreversible
 
 A session lasts a working day, because anything shorter leads to passwords on
