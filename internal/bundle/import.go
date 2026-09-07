@@ -28,6 +28,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/design"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -118,6 +119,10 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	set.Date = func(t time.Time) string {
 		return tmpl.DateText(manifest.Site.Locale, manifest.Site.TimeZone, t)
 	}
+	// The words the renderer writes itself follow the same locale as its dates:
+	// a re-rendered lightbox on an imported page speaks the language of the
+	// site in the manifest, not the language of whoever ran the import.
+	set.T = func(word string) string { return i18n.T(manifest.Site.Locale, word) }
 	// Die Schlagwörter vor den Seiten: eines, das nur ein Schlagwortfeld
 	// nennt, gibt es sonst nirgends — SetForPage legt nur an, was in der
 	// Schlagwortliste einer Seite steht.
