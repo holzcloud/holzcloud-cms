@@ -285,3 +285,84 @@ func TestNormalizeKeepsAWholeNameAndDoesNotCount(t *testing.T) {
 		t.Errorf("Parse gave %d labels, want %d", len(got), MaxPerPage)
 	}
 }
+
+// insertProduct writes a catalogue row directly. Raw SQL rather than the shop
+// store, so the term package's tests do not take a dependency on it just to
+// have a row with a website on it.
+func insertProduct(t *testing.T, s *Store, websiteID int64, slug string) int64 {
+	t.Helper()
+	res, err := s.DB.Write.Exec(
+		`INSERT INTO products (website_id, slug, title, price_gross, tax_bp,
+			status, created_at, updated_at)
+		 VALUES ($1, $2, $2, 4900, 810, 'published', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+		websiteID, slug)
+	if err != nil {
+		t.Fatalf("insert product: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	return id
+}
+
+func productTermCount(t *testing.T, s *Store, productID int64) int {
+	t.Helper()
+	var n int
+	if err := s.DB.Read.QueryRow(
+		`SELECT COUNT(*) FROM product_terms WHERE product_id = $1`, productID).Scan(&n); err != nil {
+		t.Fatalf("count product terms: %v", err)
+	}
+	return n
+}
+
+// SetForProduct is handed a website and a product that are supposed to belong
+// together. When they do not, it used to clear the foreign product's labels and
+// attach one of the caller's own — a row in product_terms spanning two
+// websites, which no later code fix can undo. Both halves must now refuse.
+func TestSetForProductLeavesAForeignProductAlone(t *testing.T) {
+	s, _, websiteA := newTestStore(t)
+	ctx := context.Background()
+
+	res, err := s.DB.Write.Exec(`INSERT INTO websites (name, description) VALUES ('Zweite', '')`)
+	if err != nil {
+		t.Fatalf("insert second website: %v", err)
+	}
+	websiteB, _ := res.LastInsertId()
+
+	foreign := insertProduct(t, s, websiteB, "fremder-tisch")
+	if err := s.SetForProduct(ctx, websiteB, foreign, []string{"Tische", "Massivholz"}); err != nil {
+		t.Fatalf("SetForProduct on the owning website: %v", err)
+	}
+	if got := productTermCount(t, s, foreign); got != 2 {
+		t.Fatalf("fixture: the foreign product should start with 2 labels, has %d", got)
+	}
+
+	// Website A's id with website B's product: the shape the product save
+	// handler used to produce.
+	if err := s.SetForProduct(ctx, websiteA, foreign, []string{"Schnäppchen"}); err != nil {
+		t.Fatalf("SetForProduct across websites: %v", err)
+	}
+
+	if got := productTermCount(t, s, foreign); got != 2 {
+		t.Errorf("the foreign product went from 2 labels to %d", got)
+	}
+}
+
+func TestSetForProductStillLabelsItsOwnProduct(t *testing.T) {
+	s, _, websiteID := newTestStore(t)
+	ctx := context.Background()
+
+	own := insertProduct(t, s, websiteID, "eigener-tisch")
+	if err := s.SetForProduct(ctx, websiteID, own, []string{"Tische", "Massivholz"}); err != nil {
+		t.Fatalf("SetForProduct: %v", err)
+	}
+	if got := productTermCount(t, s, own); got != 2 {
+		t.Errorf("the own product has %d labels, want 2", got)
+	}
+
+	// Replacing is still replacing, not appending.
+	if err := s.SetForProduct(ctx, websiteID, own, []string{"Tische"}); err != nil {
+		t.Fatalf("SetForProduct again: %v", err)
+	}
+	if got := productTermCount(t, s, own); got != 1 {
+		t.Errorf("after replacing, the own product has %d labels, want 1", got)
+	}
+}

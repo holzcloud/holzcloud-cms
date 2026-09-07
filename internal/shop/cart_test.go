@@ -112,12 +112,12 @@ func TestWithdrawnLinesGoAndSoldOutLinesStay(t *testing.T) {
 	}
 
 	gone.Status = StatusDraft
-	if err := products.Update(ctx, gone); err != nil {
+	if err := products.Update(ctx, ws, gone); err != nil {
 		t.Fatal(err)
 	}
 	zero := 0
 	empty.Stock = &zero
-	if err := products.Update(ctx, empty); err != nil {
+	if err := products.Update(ctx, ws, empty); err != nil {
 		t.Fatal(err)
 	}
 

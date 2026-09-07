@@ -361,6 +361,18 @@ func (s *Store) EnsureNames(ctx context.Context, websiteID int64, names []string
 // behaviour that matters is identical and deliberate: a label that already
 // exists keeps its spelling, so a shop category does not rename itself because
 // someone typed it in lower case once.
+//
+// Where the two no longer read alike is the scoping, and that is on purpose.
+// Both statements here require the product to belong to websiteID before they
+// touch it, because a caller that had the wrong product id did reach this
+// function: the product save handler passed the address's website together
+// with a foreign product, the unscoped DELETE cleared that product's labels
+// and the INSERT attached one of the caller's own — a row in product_terms
+// spanning two websites. The handler is fixed and the store now refuses as
+// well, so the same mistake cannot be made twice. SetForPage has the same
+// unscoped shape and its five callers all create the page they then label, so
+// it has not been touched; if that ever stops being true it needs this
+// treatment too.
 func (s *Store) SetForProduct(ctx context.Context, websiteID, productID int64, names []string) error {
 	tx, err := s.DB.Write.BeginTx(ctx, nil)
 	if err != nil {
@@ -369,7 +381,9 @@ func (s *Store) SetForProduct(ctx context.Context, websiteID, productID int64, n
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM product_terms WHERE product_id = $1`, productID); err != nil {
+		`DELETE FROM product_terms
+		 WHERE product_id IN (SELECT id FROM products WHERE id = $1 AND website_id = $2)`,
+		productID, websiteID); err != nil {
 		return fmt.Errorf("clear product terms: %w", err)
 	}
 
@@ -383,9 +397,13 @@ func (s *Store) SetForProduct(ctx context.Context, websiteID, productID int64, n
 			 ON CONFLICT (website_id, slug) DO NOTHING`, websiteID, slug, name); err != nil {
 			return fmt.Errorf("create term %q: %w", name, err)
 		}
+		// The join on the website is what keeps the two sides of this row on
+		// the same site: no product from elsewhere, no label from elsewhere.
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO product_terms (product_id, term_id)
-			 SELECT $1, id FROM terms WHERE website_id = $2 AND slug = $3`,
+			 SELECT p.id, t.id FROM products p
+			 JOIN terms t ON t.website_id = p.website_id
+			 WHERE p.id = $1 AND p.website_id = $2 AND t.slug = $3`,
 			productID, websiteID, slug); err != nil {
 			return fmt.Errorf("attach term %q: %w", name, err)
 		}
