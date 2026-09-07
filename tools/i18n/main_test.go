@@ -81,3 +81,48 @@ func TestCatalogsSurviveTheRoundTrip(t *testing.T) {
 		t.Errorf("expected 7 catalogues, found %d — a new language belongs in the same round trip", seen)
 	}
 }
+
+// The classification of a catalogue used to be "does its filename contain a
+// hyphen", which is right for the three that exist and silently wrong for the
+// next one somebody adds: pt-BR.json, zh-Hans.json and en-GB.json are full
+// translations with a hyphen in the name, and every one of them would have been
+// filed as a deviation list and never checked for "offen" again. The gate would
+// have gone on reading green over a catalogue nobody was filling in.
+//
+// It is a named list now. This test holds the two properties a named list can
+// lose that a rule cannot: an entry for a file that is not there, and a file
+// that looks regional and is not in the list.
+func TestTheRegionalListMatchesWhatIsOnDisk(t *testing.T) {
+	entries, err := os.ReadDir(locales())
+	if err != nil {
+		t.Fatalf("read locales: %v", err)
+	}
+
+	onDisk := map[string]bool{}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		onDisk[strings.TrimSuffix(e.Name(), ".json")] = true
+	}
+
+	for name := range regional {
+		if !onDisk[name] {
+			t.Errorf("regional names %q and there is no %s.json — a stale entry "+
+				"here classifies nothing, but it is a lie about the shape of this directory", name, name)
+		}
+	}
+
+	// The other direction is the one that matters, and it is deliberately a
+	// PROMPT and not a rule: a hyphenated file that is not in the list is a full
+	// catalogue and IS gate-checked, which is what pt-BR.json should be. The
+	// test exists so that adding one is a decision somebody made rather than a
+	// default they inherited.
+	for name := range onDisk {
+		if strings.Contains(name, "-") && !regional[name] {
+			t.Logf("%s.json has a hyphen and is not in `regional`, so it is treated "+
+				"as a full catalogue and checked for missing keys. That is correct for "+
+				"a translation and wrong for a deviation list — if it is one, add it.", name)
+		}
+	}
+}
