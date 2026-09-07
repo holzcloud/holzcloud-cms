@@ -17,6 +17,19 @@ type Config struct {
 	LogLevel string
 	DBPath   string
 
+	// Listen is the address the HTTP server binds. HOLZCLOUD_LISTEN, default
+	// 127.0.0.1.
+	//
+	// The server has listened on every interface since it was written, which
+	// is harmless while a password is required and a total bypass the moment a
+	// header is believed. So the default moves to loopback and the operator
+	// who wants the old behaviour says so.
+	//
+	// An address and not a boolean on purpose. deploy/DEPLOY.md publishes a
+	// port into a container, and a process that binds loopback inside its own
+	// network namespace answers nobody — those deployments set 0.0.0.0.
+	Listen string
+
 	// Templates
 	MaxTemplateSize int64 // HOLZCLOUD_MAX_TEMPLATE_SIZE — bytes, default 10MB
 
@@ -91,11 +104,94 @@ type Config struct {
 	SMTPFromName string // HOLZCLOUD_SMTP_FROM_NAME — the display name
 	// SMTPTLS is "starttls" (default), "tls", or "none".
 	SMTPTLS string // HOLZCLOUD_SMTP_TLS
+
+	// Single sign-on through a forward-auth proxy. Every field below is inert
+	// while SSOEnabled is false: with the master switch off, not one line of
+	// the new path executes and the password login is exactly what it was.
+	//
+	// SSOEnabled is the master switch, HOLZCLOUD_SSO_ENABLED, default false.
+	SSOEnabled bool
+
+	// SSOSecret is the shared secret the reverse proxy sends, and the only
+	// thing that distinguishes it from anyone else who can reach the port.
+	//
+	// Environment only, for the reason already written above PayrexxSecret:
+	// the database is what gets copied into a backup file. What differs here
+	// is that this secret is compared, in constant time, on every request.
+	SSOSecret string
+
+	// SSOAdminGroup is the identity provider group that grants administration.
+	//
+	// It has no default, deliberately, and an empty value is a legal
+	// configuration meaning no group grants administration. A default group
+	// name is a group name somebody at the identity provider can create.
+	SSOAdminGroup string
+
+	// SSOWebsiteGroups maps an identity provider group to a website id.
+	// A comma-separated list of group=websiteID pairs.
+	//
+	// An explicit map and not a name match: `websites` has no slug column,
+	// only a display name, and matching a group against a display name means a
+	// rename silently unassigns everybody.
+	SSOWebsiteGroups map[string]int64
+
+	// SSOProvision creates an account for an identity the provider vouches for
+	// but this installation has never seen. Off unless asked for.
+	SSOProvision bool
+
+	// SSODefaultWebsite is the website a provisioned account is assigned to,
+	// and it is required whenever SSOProvision is on.
+	//
+	// This is the one setting in the block whose silence would mean "every
+	// website". internal/admin/handler.go's NewWebsiteAccessLookup ends with
+	//
+	//	return assigned == 0 || mine > 0
+	//
+	// "No assignment means every website" is correct for an account an
+	// operator created by hand, and it inverts under provisioning: a freshly
+	// provisioned account has zero rows in user_websites by construction, so
+	// the first stranger who authenticates would get editor access to every
+	// website in the installation. That line is not changed — changing it
+	// would lock out every existing editor. The fix is at this end, which is
+	// why the value is required rather than optional, and why cmd/holzcloud
+	// checks it against the database at start-up rather than at the first
+	// sign-in.
+	SSODefaultWebsite int64
+
+	// SSOSignOutPath is where the sign-out button sends the browser.
+	//
+	// A path on this server, never a URL: an absolute address here would be an
+	// open redirect out of the administration, and a same-origin path is also
+	// what keeps adminCSP's `form-action 'self'` sufficient.
+	SSOSignOutPath string
 }
 
 // defaultTrustedProxies covers the documented deployment, where Caddy
 // terminates TLS on the same host and proxies to localhost.
 const defaultTrustedProxies = "127.0.0.1/32,::1/128"
+
+// defaultListen agrees with defaultTrustedProxies: the documented deployment
+// has a proxy on the same host, so the socket does not have to leave it.
+const defaultListen = "127.0.0.1"
+
+// defaultSignOutPath is the route the authentik outpost itself serves.
+const defaultSignOutPath = "/outpost.goauthentik.io/sign_out"
+
+// The names of the settings this block reads, written once each.
+//
+// Single-sourced so that the sentence an operator reads cannot drift from the
+// variable they have to go and change — every refusal below formats one of
+// these into its message rather than repeating the literal.
+const (
+	envListen            = "HOLZCLOUD_LISTEN"
+	envSSOEnabled        = "HOLZCLOUD_SSO_ENABLED"
+	envSSOSecret         = "HOLZCLOUD_SSO_SECRET"
+	envSSOAdminGroup     = "HOLZCLOUD_SSO_ADMIN_GROUP"
+	envSSOWebsiteGroups  = "HOLZCLOUD_SSO_WEBSITE_GROUPS"
+	envSSOProvision      = "HOLZCLOUD_SSO_PROVISION"
+	envSSODefaultWebsite = "HOLZCLOUD_SSO_DEFAULT_WEBSITE"
+	envSSOSignOutPath    = "HOLZCLOUD_SSO_SIGN_OUT_PATH"
+)
 
 // Load reads the configuration from the environment.
 //
@@ -187,7 +283,120 @@ func Load() (Config, error) {
 				"entweder beide setzen oder keines"))
 	}
 
+	cfg.Listen = strings.TrimSpace(getEnv(envListen, defaultListen))
+	if _, addrErr := netip.ParseAddr(cfg.Listen); addrErr != nil {
+		errs = append(errs, fmt.Errorf("%s: %q is not an IP address: %w", envListen, cfg.Listen, addrErr))
+	}
+
+	cfg.SSOEnabled = envBool(envSSOEnabled, false, &errs)
+	cfg.SSOSecret = strings.TrimSpace(getEnv(envSSOSecret, ""))
+	cfg.SSOAdminGroup = strings.TrimSpace(getEnv(envSSOAdminGroup, ""))
+	cfg.SSOProvision = envBool(envSSOProvision, false, &errs)
+	cfg.SSODefaultWebsite = envSize(envSSODefaultWebsite, 0, &errs)
+	cfg.SSOSignOutPath = strings.TrimSpace(getEnv(envSSOSignOutPath, defaultSignOutPath))
+	cfg.SSOWebsiteGroups, err = parseWebsiteGroups(getEnv(envSSOWebsiteGroups, ""))
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Half a configuration is worse than none — the sentence the Payrexx pair
+	// above already carries, applied to the layer that decides who somebody is.
+	//
+	// Every one of these appends rather than returning: an operator who set
+	// three things wrong is told three things.
+	if cfg.SSOEnabled && cfg.SSOSecret == "" {
+		errs = append(errs, fmt.Errorf(
+			"%s is on but %s is empty: the shared secret is the only thing that tells "+
+				"the reverse proxy apart from anyone else who can reach the port",
+			envSSOEnabled, envSSOSecret))
+	}
+	if cfg.SSOProvision && !cfg.SSOEnabled {
+		errs = append(errs, fmt.Errorf(
+			"%s is on but %s is off: creating accounts with no way to sign in is a setting nobody meant",
+			envSSOProvision, envSSOEnabled))
+	}
+	// The refusal the whole block exists for. A provisioned account has no rows
+	// in user_websites by construction, and NewWebsiteAccessLookup reads "no
+	// assignment" as "every website" — so the website a new account belongs to
+	// is named here or the process does not start.
+	if cfg.SSOProvision && cfg.SSODefaultWebsite <= 0 {
+		errs = append(errs, fmt.Errorf(
+			"%s is on but %s names no website: a provisioned account with no website "+
+				"assignment is an account with access to every website",
+			envSSOProvision, envSSODefaultWebsite))
+	}
+	if !isLocalPath(cfg.SSOSignOutPath) {
+		errs = append(errs, fmt.Errorf(
+			"%s: %q must be a path on this server, beginning with a single /",
+			envSSOSignOutPath, cfg.SSOSignOutPath))
+	}
+	// Deliberately not a refusal: SSO on with an empty SSOAdminGroup. An
+	// installation where no identity provider group grants administration is a
+	// legitimate one and must keep loading.
+
 	return cfg, errors.Join(errs...)
+}
+
+// isLocalPath reports whether p is a path on this server.
+//
+// One leading slash and no second character a browser would read as the start
+// of a host: "//evil.example" is protocol-relative, and "/\evil.example" is the
+// same trick with the separator browsers also accept. Both leave this origin,
+// and neither looks like a URL to somebody skimming an environment file.
+func isLocalPath(p string) bool {
+	if !strings.HasPrefix(p, "/") {
+		return false
+	}
+	return !strings.HasPrefix(p, "//") && !strings.HasPrefix(p, `/\`)
+}
+
+// parseWebsiteGroups parses a comma-separated list of group=websiteID pairs,
+// modelled on parsePrefixes. An empty list is valid and means no group grants a
+// website.
+//
+// Every malformed pair is its own error rather than the first one stopping the
+// walk, for the same reason Load collects: an operator with two typos should
+// learn about two typos.
+func parseWebsiteGroups(raw string) (map[string]int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	groups := make(map[string]int64)
+	var errs []error
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		name, id, found := strings.Cut(part, "=")
+		name = strings.TrimSpace(name)
+		id = strings.TrimSpace(id)
+		if !found || name == "" || id == "" {
+			errs = append(errs, fmt.Errorf(
+				"%s: %q is not a group=websiteID pair", envSSOWebsiteGroups, part))
+			continue
+		}
+		n, convErr := strconv.ParseInt(id, 10, 64)
+		if convErr != nil {
+			errs = append(errs, fmt.Errorf(
+				"%s: %q is not a website id: %w", envSSOWebsiteGroups, part, convErr))
+			continue
+		}
+		if n <= 0 {
+			errs = append(errs, fmt.Errorf(
+				"%s: %q must name a positive website id", envSSOWebsiteGroups, part))
+			continue
+		}
+		// Two answers to one question is a typo, not a preference.
+		if _, duplicate := groups[name]; duplicate {
+			errs = append(errs, fmt.Errorf(
+				"%s: group %q is listed twice", envSSOWebsiteGroups, name))
+			continue
+		}
+		groups[name] = n
+	}
+	return groups, errors.Join(errs...)
 }
 
 // LogValue renders the effective configuration for the startup log, so an
@@ -221,6 +430,18 @@ func (c Config) LogValue() slog.Value {
 		slog.String("payrexx_instance", c.PayrexxInstance),
 		slog.Bool("payrexx_configured", c.PayrexxInstance != "" && c.PayrexxSecret != ""),
 		slog.String("trusted_proxies", strings.Join(proxies, ",")),
+		slog.String("listen", c.Listen),
+		slog.Bool("sso_enabled", c.SSOEnabled),
+		// The shared secret is absent for the same reason the SMTP password is:
+		// the startup log is the first thing anyone pastes into a bug report.
+		// Not even truncated — a prefix of a compared secret is still a head
+		// start.
+		slog.Bool("sso_configured", c.SSOEnabled && c.SSOSecret != ""),
+		slog.Bool("sso_provision", c.SSOProvision),
+		slog.String("sso_admin_group", c.SSOAdminGroup),
+		slog.Int64("sso_default_website", c.SSODefaultWebsite),
+		slog.Int("sso_website_groups", len(c.SSOWebsiteGroups)),
+		slog.String("sso_sign_out_path", c.SSOSignOutPath),
 		// The password is deliberately absent: the startup log is the first
 		// thing anyone pastes into a bug report.
 		slog.String("smtp", smtpSummary(c)),
