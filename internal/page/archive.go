@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 )
 
 // ListArchive returns one page of published posts, newest first, and the total.
@@ -76,6 +77,64 @@ func (s *Store) listWhere(ctx context.Context, websiteID int64, loc, column, val
 		posts = append(posts, *p)
 	}
 	return posts, total, rows.Err()
+}
+
+// ListPublic is the listing a plugin gets: what a visitor may see in a list,
+// newest first.
+//
+// ListablePredicate and not PublicPredicate, and that is the whole point of the
+// method existing. PublicPredicate answers "may this page be served on its own
+// route" — where a password-protected page says yes, because the gate stands in
+// front of the body. A listing has no gate, so the title and the excerpt of a
+// protected page would be handed over with nothing in front of them, which is
+// exactly what the password was for.
+//
+// The plugin host used to build an admin ListFilter{Status: "published"} here.
+// That filter knows about the status column and about nothing else — not the
+// publication window, not the password — because the admin list is meant to
+// show a page that is scheduled or protected. A module written by somebody else
+// must not be handed the admin's view of the site.
+func (s *Store) ListPublic(ctx context.Context, websiteID int64, postsOnly bool, limit, offset int) ([]Page, int, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	where := ` WHERE website_id = $1` + ListablePredicate
+	args := []any{websiteID}
+	if postsOnly {
+		where += ` AND kind = $2`
+		args = append(args, KindPost)
+	}
+
+	var total int
+	if err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pages`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count public pages: %w", err)
+	}
+
+	n := len(args)
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT `+pageColumns+` FROM pages`+where+
+			` ORDER BY COALESCE(published_at, created_at) DESC, id DESC`+
+			` LIMIT $`+strconv.Itoa(n+1)+` OFFSET $`+strconv.Itoa(n+2),
+		append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list public pages: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Page
+	for rows.Next() {
+		pg, err := scanPage(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan public page: %w", err)
+		}
+		out = append(out, *pg)
+	}
+	return out, total, rows.Err()
 }
 
 // AdjacentPosts returns the entries published just before and just after one.

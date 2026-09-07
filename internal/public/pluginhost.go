@@ -71,7 +71,12 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 		if err != nil {
 			return plugin.PagesResult{}, err
 		}
-		if p == nil {
+		// A protected page gets the same answer as one that does not exist.
+		// GetPublishedPage is right for the page's own route, where the gate
+		// stands in front of the body and the unlock cookie decides — and this
+		// path has neither. Asking the plugin to check would be the promise the
+		// doc comment above says is not a guarantee.
+		if p == nil || p.Protected() {
 			return plugin.PagesResult{}, nil
 		}
 		info := pageInfo(*p)
@@ -97,14 +102,11 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 		return out, nil
 
 	case plugin.OpPagesList:
-		filter := page.ListFilter{
-			Status: "published", Sort: "created_at",
-			PerPage: q.Limit, Page: q.Offset/max(q.Limit, 1) + 1,
-		}
-		if q.PostsOnly {
-			filter.Kind = "post"
-		}
-		pages, total, err := h.pageStore.ListPages(ctx, websiteID, filter)
+		// ListPublic and not ListPages: the admin list filters on the status
+		// column and on nothing else, so a page whose publication date is still
+		// ahead of it, whose window has closed, or which sits behind a password
+		// came back as published. See page.ListPublic.
+		pages, total, err := h.pageStore.ListPublic(ctx, websiteID, q.PostsOnly, q.Limit, q.Offset)
 		if err != nil {
 			return plugin.PagesResult{}, err
 		}
