@@ -418,7 +418,46 @@ Plans:
   5. With single sign-on switched off, nothing about signing in changes: the password path, the second factor, the recovery codes and the command-line way back in all behave exactly as they do today — proven by a browser pass run with forward-auth **disabled**.
   6. **Milestone close-out** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist` across everything v1.6 added, and every field kind from Phase 7, the snippet fields from Phase 8, **both** import paths from Phase 9 and the sign-on path here have each been driven once through the running application in a browser.
 
-**Plans**: TBD
+**Plans**: 10 plans, in 9 waves. The wave structure **is** the eight-step build order below, which is why the waves are mostly sequential: each step is independently shippable and reversible, and step ② is explicitly the security core that must exist before anything can rest on it. Only wave 6 runs two plans together — the second factor and the sign-out share no file. GSD's tracer-first default is deliberately overruled for the same reason the build order gives: a tracer that signs somebody in end to end before the peer gate exists is not a thin slice of the finished system, it is the vulnerability with a test asserting it works.
+
+Plans:
+**Wave 1**
+
+- [ ] 10-01-PLAN.md — the settings and the two refusals to start: the SSO block, the loopback listen address, and provisioning that will not start without a named default website (SSO-04, SSO-05, SSO-10)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 10-02-PLAN.md — the trust boundary: peer before header, the unconditional strip of every spelling, the constant-time secret, and the signed assertion deliberately not built — wired outermost, above `RequestID` (SSO-02, SSO-03, SSO-04)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 10-03-PLAN.md — the fourth caller of `completeLogin`: `RenewToken`, the account match, the non-ASCII e-mail refusal, and a gate for each of the seven things that must not change (SSO-01, SSO-09)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 10-04-PLAN.md — provisioning, and the inversion asked about through `NewWebsiteAccessLookup` itself (SSO-05)
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 10-05-PLAN.md — group → role and website, re-applied every sign-in, with the whole-element match and the refusal that closes D-01's second road (SSO-06)
+
+**Wave 6** *(blocked on Wave 5; two plans, disjoint file sets)*
+
+- [ ] 10-06-PLAN.md — the second factor: one predicate, five call sites, and the dependency shown on two admin screens (SSO-07)
+- [ ] 10-07-PLAN.md — the sign-out, and the CSP pair this shape does not need (SSO-08)
+
+**Wave 7** *(blocked on Wave 6)*
+
+- [ ] 10-08-PLAN.md — the deployment documents: the Caddyfile with one explicit delete per copied header, the minimum Caddy version, and the operator's two verifications (SSO-07, SSO-11)
+
+**Wave 8** *(blocked on Wave 7)*
+
+- [ ] 10-09-PLAN.md — the catalogues, closed before the browser pass opens (QUAL-01)
+
+**Wave 9** *(blocked on Wave 8, and on the code-review fix round)*
+
+- [ ] 10-10-PLAN.md — three browser passes: forward auth on, forward auth off, and the v1.6 milestone close-out (SSO-01, SSO-02, SSO-08, SSO-09, QUAL-01, QUAL-02)
+
 **Research flag**: **the whole phase wants `/gsd-discuss-phase`** — not for lack of research (the authentik contract is verified from its own source at two release tags) but because every remaining question here is a **policy decision**, not a lookup: what an SSO user with no matching website group gets, what `X-authentik-uid` looks like in the operator's own instance, and which Caddy the operator actually runs.
 **Planning notes**:
 
