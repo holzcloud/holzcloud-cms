@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 2
+open_count: 3
 waived_count: 1
 fixed_count: 2
-total_count: 5
-last_updated: 2026-09-06T14:14:47.478Z
+total_count: 6
+last_updated: 2026-09-07T23:07:58.770Z
 ---
 
 # Broken Windows Ledger
@@ -20,6 +20,7 @@ last_updated: 2026-09-06T14:14:47.478Z
 | 3 | 07 | deviation | internal/field/field.go | 674 | Die Ablehnungsgruende in field.go (rangeReason 674-682, die Laengen- und Mehrwert-Meldungen in Check 710 und 778-781) werden durch blosse Zeichenkettenverkettung gebaut, ohne i18n.N. Sie werden deshalb nie extrahiert und nie uebersetzt: bei englischer UI erschien 'Ausstattung: hoechstens 3 Werte, ausgewaehlt sind 4.' auf Deutsch, waehrend die Artnamen daneben uebersetzt waren. Vorbestehend, kein Regress aus Phase 7 (gegen 60ff5b2 geprueft: field.go gab dort schon rohes Deutsch zurueck); Phase 7 ist der Konvention gefolgt und hat die Flaeche verbreitert. Relevant, weil go run ./tools/i18n '0 offen, 0 verwaist' meldet, ohne diese Zeichenketten je zu sehen — der QUAL-01-Zaehler misst sie nicht. Zurueckgestellt: jede Validierungsrueckgabe in field.go umzuschreiben ist eigene Arbeit. | open |  | 2026-09-05T16:13:58.341Z |  |
 | 4 | 08 | deviation | .planning/phases/07-field-kinds/07-SECURITY.md | 183 | W-4 nennt 'T-07-26 (Plan 05)', die Nummer gehoert aber Plan 06 (Information Disclosure ueber field.Hidden). Vorbestehende Verwechslung, beim Schliessen von T-07-26 in Plan 08-04 gefunden und bewusst nicht angefasst (der Plan verbietet Aenderungen an anderen Eintraegen; welche Nummer richtig waere, liesse sich nur raten). Folge: das Zaehltor grep -c 'T-07-26' misst 2 statt 1. | open |  | 2026-09-06T10:24:52.821Z |  |
 | 5 | 08 | deviation | cmd/holzcloud/templates/admin/field_list.html | 16 | field_list.html druckt &#8592; als Text statt als Pfeil (alle drei Rueckwege); Aenderung verwaist drei Katalogschluessel, darum zurueckgestellt — BERICHTIGT: diese Begruendung des Aufschubs ruhte auf einer falschen Annahme darueber, worin der Flick besteht. Sie gilt allein fuer den Flick, den deferred-items.md vorschlaegt (die Entitaet durch das Zeichen ersetzen). Der tatsaechlich gefahrene Flick wechselt an denselben drei Stellen nur die aufrufende Funktion von t auf die HTML-durchlassende Fassung th; die Zeichenkette bleibt byte-gleich, kein Schluessel verwaist, kein Katalog wurde angefasst, und der Zaehler stand vorher wie nachher auf 1158 Zeichenketten mit 0 offen, 0 verwaist fuer en/es/fr/it. Geschlossen im Schnellauftrag 260906-m9z am 2026-09-06. | fixed |  | 2026-09-06T10:55:06.562Z | 2026-09-06T14:14:47.478Z |
+| 6 | 11 | deviation | internal/bundle/import.go |  | Report.Warnings baut jeden Satz mit fmt.Sprintf und rohem Deutsch. CLAUDE.md haelt seit 7e0c834 ausdruecklich fest, dass ein mit fmt.Sprintf gebauter Satz fuer tools/i18n unsichtbar ist. Vorbestehend: rund 30 solche Warnungen standen schon vor Plan 11-06 in dieser Datei; 11-06 hat vier weitere in derselben Form ergaenzt (importAlbums, missingAlbum), weil die Alternative den Locale des Bedieners durch bundle.Import zu faedeln waere und der Bericht sonst in der Sprache der importierten Website erschiene statt in der des Bedieners. Der richtige Flick ist die Form, die .planning/GLOSSARY.md fuer csvimport schon vorschreibt: Code plus Argumente statt fertigem Satz (D-32). Folge: der Zaehler go run ./tools/i18n sieht keine dieser Zeilen. | open |  | 2026-09-07T23:07:58.770Z |  |
 
 ````json
 [
@@ -82,6 +83,18 @@ last_updated: 2026-09-06T14:14:47.478Z
     "reason": "",
     "recorded_at": "2026-09-06T10:55:06.562Z",
     "resolved_at": "2026-09-06T14:14:47.478Z"
+  },
+  {
+    "id": 6,
+    "kind": "deviation",
+    "phase": "11",
+    "file": "internal/bundle/import.go",
+    "line": null,
+    "description": "Report.Warnings baut jeden Satz mit fmt.Sprintf und rohem Deutsch. CLAUDE.md haelt seit 7e0c834 ausdruecklich fest, dass ein mit fmt.Sprintf gebauter Satz fuer tools/i18n unsichtbar ist. Vorbestehend: rund 30 solche Warnungen standen schon vor Plan 11-06 in dieser Datei; 11-06 hat vier weitere in derselben Form ergaenzt (importAlbums, missingAlbum), weil die Alternative den Locale des Bedieners durch bundle.Import zu faedeln waere und der Bericht sonst in der Sprache der importierten Website erschiene statt in der des Bedieners. Der richtige Flick ist die Form, die .planning/GLOSSARY.md fuer csvimport schon vorschreibt: Code plus Argumente statt fertigem Satz (D-32). Folge: der Zaehler go run ./tools/i18n sieht keine dieser Zeilen.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T23:07:58.770Z",
+    "resolved_at": null
   }
 ]
 ````
