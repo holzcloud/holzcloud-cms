@@ -47,7 +47,7 @@ func seedPageIn(t *testing.T, database *db.DB, websiteID int64, title, slug, bod
 		t.Fatalf("CreatePage: %v", err)
 	}
 	if loc != "" || of != 0 {
-		if err := store.SetTranslation(context.Background(), p.ID, loc, of); err != nil {
+		if err := store.SetTranslation(context.Background(), websiteID, p.ID, loc, of); err != nil {
 			t.Fatalf("SetTranslation: %v", err)
 		}
 	}

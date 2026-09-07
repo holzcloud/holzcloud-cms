@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -72,7 +73,7 @@ func (h *Handler) translationViews(r *http.Request, ws *domain.Website, pg *page
 	if ws == nil || pg == nil || !ws.Multilingual() {
 		return nil
 	}
-	group, err := h.pages.TranslationsForEditor(r.Context(), pg)
+	group, err := h.pages.TranslationsForEditor(r.Context(), ws.ID, pg)
 	if err != nil {
 		slog.Error("load translation group", "err", err, "page", pg.ID)
 		return nil
@@ -123,8 +124,20 @@ func (h *Handler) setLanguage(r *http.Request, ws *domain.Website, pageID int64,
 	if of == pageID {
 		of = 0
 	}
-	if err := h.pages.SetTranslation(r.Context(), pageID, loc, of); err != nil {
-		slog.Error("set page language", "err", err, "page", pageID)
+	if err := h.pages.SetTranslation(r.Context(), ws.ID, pageID, loc, of); err != nil {
+		if !errors.Is(err, page.ErrForeignTranslation) {
+			slog.Error("set page language", "err", err, "page", pageID)
+			return
+		}
+		// The form cannot offer a page of another website, so the only way to
+		// send one is by hand. The language is still filed — the save happened
+		// — but the page stands on its own, and the attempt is recorded rather
+		// than swallowed.
+		slog.Warn("refused a translation group across websites",
+			"page", pageID, "website", ws.ID, "target", of)
+		if err := h.pages.SetTranslation(r.Context(), ws.ID, pageID, loc, 0); err != nil {
+			slog.Error("set page language", "err", err, "page", pageID)
+		}
 	}
 }
 
@@ -202,7 +215,7 @@ func (h *Handler) HandlePageTranslate(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-	if err := h.pages.SetTranslation(r.Context(), created.ID, tag, mitte); err != nil {
+	if err := h.pages.SetTranslation(r.Context(), websiteID, created.ID, tag, mitte); err != nil {
 		return err
 	}
 
