@@ -764,7 +764,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		// translation_of always names a page in the main language, so it is
 		// looked up there and nowhere else.
 		of, _ := pages.at("", l.ofSlug)
-		if err := s.Pages.SetTranslation(ctx, l.id, l.loc, of); err != nil {
+		if err := s.Pages.SetTranslation(ctx, websiteID, l.id, l.loc, of); err != nil {
 			report.Warnings = append(report.Warnings, fmt.Sprintf("Sprache konnte nicht gesetzt werden: %v", err))
 		}
 	}

@@ -113,6 +113,42 @@ func TestTheTranslationPanelNeverShowsAForeignPage(t *testing.T) {
 		t.Fatalf("reread page: %v", err)
 	}
 
+	group, err := page.NewStore(database).TranslationsForEditor(context.Background(), siteA.ID, fresh)
+	if err != nil {
+		t.Fatalf("TranslationsForEditor: %v", err)
+	}
+	for _, g := range group {
+		if g.WebsiteID != siteA.ID {
+			t.Errorf("TranslationsForEditor returned page %d of website %d — the editor reads across websites",
+				g.ID, g.WebsiteID)
+		}
+	}
+
+	// The public reader needs its own fixture. PublicPredicate already hides a
+	// draft, so the group above would come back short for the honest reason and
+	// prove nothing about the website. A published foreign page is the case
+	// that reaches the language switcher on both domains.
+	sichtbare := seedPage(t, database, siteB.ID, "Fremde Seite B", "fremd", "text", "published")
+	zweite := seedPage(t, database, siteA.ID, "Impressum", "impressum", "text", "published")
+	if _, err := database.Write.ExecContext(context.Background(),
+		`UPDATE pages SET locale = 'fr', translation_of = $1 WHERE id = $2`, sichtbare.ID, zweite.ID); err != nil {
+		t.Fatalf("plant the published link: %v", err)
+	}
+	zweiteFrisch, err := page.NewStore(database).GetPage(context.Background(), zweite.ID)
+	if err != nil || zweiteFrisch == nil {
+		t.Fatalf("reread page: %v", err)
+	}
+	public, err := page.NewStore(database).Translations(context.Background(), siteA.ID, zweiteFrisch)
+	if err != nil {
+		t.Fatalf("Translations: %v", err)
+	}
+	for _, g := range public {
+		if g.WebsiteID != siteA.ID {
+			t.Errorf("Translations returned page %d of website %d — the language switcher crosses the websites",
+				g.ID, g.WebsiteID)
+		}
+	}
+
 	// And the screen itself, which is where an operator would actually read the
 	// foreign title.
 	req := httptest.NewRequest(http.MethodGet,

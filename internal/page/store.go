@@ -161,15 +161,39 @@ var ErrConflict = errors.New("page was modified by someone else")
 // ErrSlugTaken is returned when a rename collides with an existing page.
 var ErrSlugTaken = errors.New("another page already uses that address")
 
+// ErrForeignTranslation is returned when a page is to be filed under one that
+// belongs to a different website. Nothing writes in that case: a group that
+// crosses websites is readable from both of them.
+var ErrForeignTranslation = errors.New("that page belongs to a different website")
+
 // SetTranslation links a page to the one it translates, or unlinks it.
 //
 // Separate from UpdatePage: it is not an edit of the content, it does not make
 // a revision, and it must not need the version token — otherwise linking a
 // translation would fail whenever somebody else had just saved.
-func (s *Store) SetTranslation(ctx context.Context, id int64, loc string, of int64) error {
+func (s *Store) SetTranslation(ctx context.Context, websiteID, id int64, loc string, of int64) error {
+	// The page this one is filed under has to be on the same website. It
+	// arrives as a number in a hidden form field, so nothing before this point
+	// has seen it — and a link is not like the other writes across a website
+	// boundary: it is read back on both screens, so a wrong one leaks a title
+	// and a draft badge rather than only corrupting a row.
+	//
+	// Here and not in the caller, because there are four callers and the
+	// signature is what makes the compiler name them.
+	if of != 0 {
+		var ok bool
+		if err := s.DB.Read.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM pages WHERE id = $1 AND website_id = $2)`,
+			of, websiteID).Scan(&ok); err != nil {
+			return fmt.Errorf("set translation: %w", err)
+		}
+		if !ok {
+			return ErrForeignTranslation
+		}
+	}
 	_, err := s.DB.Write.ExecContext(ctx,
-		`UPDATE pages SET locale = $1, translation_of = $2 WHERE id = $3`,
-		loc, nullableID(nonZero(of)), id)
+		`UPDATE pages SET locale = $1, translation_of = $2 WHERE id = $3 AND website_id = $4`,
+		loc, nullableID(nonZero(of)), id, websiteID)
 	if err != nil {
 		return fmt.Errorf("set translation: %w", err)
 	}
@@ -341,7 +365,7 @@ func (s *Store) GetPublishedPageIn(ctx context.Context, websiteID int64, loc, sl
 //
 // Given any page of the group: the star's middle is either the page itself or
 // what it points at, and from there every arm is one query.
-func (s *Store) Translations(ctx context.Context, p *Page) ([]Page, error) {
+func (s *Store) Translations(ctx context.Context, websiteID int64, p *Page) ([]Page, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -351,8 +375,8 @@ func (s *Store) Translations(ctx context.Context, p *Page) ([]Page, error) {
 	}
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT `+pageColumns+` FROM pages
-		 WHERE (id = $1 OR translation_of = $1)`+PublicPredicate+`
-		 ORDER BY locale`, mitte)
+		 WHERE (id = $1 OR translation_of = $1) AND website_id = $2`+PublicPredicate+`
+		 ORDER BY locale`, mitte, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("translations: %w", err)
 	}
@@ -373,7 +397,7 @@ func (s *Store) Translations(ctx context.Context, p *Page) ([]Page, error) {
 //
 // A separate method and not a flag: the public one must never be able to leak a
 // draft, and the way to be sure of that is that it has no such switch.
-func (s *Store) TranslationsForEditor(ctx context.Context, p *Page) ([]Page, error) {
+func (s *Store) TranslationsForEditor(ctx context.Context, websiteID int64, p *Page) ([]Page, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -383,8 +407,8 @@ func (s *Store) TranslationsForEditor(ctx context.Context, p *Page) ([]Page, err
 	}
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT `+pageColumns+` FROM pages
-		 WHERE (id = $1 OR translation_of = $1) AND deleted_at IS NULL
-		 ORDER BY locale`, mitte)
+		 WHERE (id = $1 OR translation_of = $1) AND website_id = $2 AND deleted_at IS NULL
+		 ORDER BY locale`, mitte, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("translations: %w", err)
 	}

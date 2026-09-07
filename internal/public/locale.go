@@ -110,7 +110,7 @@ func (h *Handler) translationLinks(r *http.Request, website *domain.Website, pg 
 	if !website.Multilingual() || h.pageStore == nil || pg == nil {
 		return nil
 	}
-	übersetzungen, err := h.pageStore.Translations(r.Context(), pg)
+	übersetzungen, err := h.pageStore.Translations(r.Context(), website.ID, pg)
 	if err != nil {
 		slog.Error("load translations", "err", err, "page", pg.ID)
 		return nil

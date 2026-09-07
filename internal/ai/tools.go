@@ -730,7 +730,7 @@ func (d Deps) setzeSprache(c Call, websiteID, pageID int64, sprache string, geho
 	if tag == "" {
 		gehoertZu = 0
 	}
-	if err := d.Pages.SetTranslation(c.Ctx, pageID, tag, gehoertZu); err != nil {
+	if err := d.Pages.SetTranslation(c.Ctx, websiteID, pageID, tag, gehoertZu); err != nil {
 		return "Als Entwurf angelegt, die Sprache liess sich aber nicht setzen: " + err.Error()
 	}
 	return ""
