@@ -83,6 +83,8 @@ type PageFormData struct {
 	RefTerms []TermChoice
 	// Videos is the film pool of the video block.
 	Videos []media.Media
+	// Albums is the choice a gallery block's album select offers.
+	Albums []AlbumChoice
 	// KindChoices is the "Art" dropdown: the two built-in kinds and the
 	// website's own.
 	KindChoices []KindChoice
@@ -349,7 +351,8 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 	if ws, err := h.domains.GetWebsite(r.Context(), websiteID); err == nil && ws != nil {
 		data.Languages = languageChoices(ws, values.Locale)
 	}
-	data.BlockViews = blockViews(values.BlockSet, values.Blocks, data.Media, data.Videos, websiteID)
+	data.Albums = h.siteAlbums(r.Context(), websiteID)
+	data.BlockViews = blockViews(values.BlockSet, values.Blocks, data.Media, data.Videos, data.Albums, websiteID)
 	data.BlockAction = fmt.Sprintf("/admin/websites/%d/pages/new", websiteID)
 	defs := h.fieldDefs(r.Context(), websiteID)
 	data.FieldViews = fieldViews(field.For(defs, values.KindValue()), values.Fields, data.pool(), nil)
@@ -586,7 +589,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	// A structural change in the block editor is not a save.
 	if blockAction(r, &values) {
 		data.Values = values
-		data.BlockViews = blockViews(values.BlockSet, values.Blocks, data.Media, data.Videos, existing.WebsiteID)
+		data.BlockViews = blockViews(values.BlockSet, values.Blocks, data.Media, data.Videos, data.Albums, existing.WebsiteID)
 		data.CurrentWebsite = ws
 		return h.renderBlockList(w, r, data)
 	}

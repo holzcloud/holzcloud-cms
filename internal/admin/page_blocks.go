@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -134,6 +135,31 @@ func (h *Handler) blockImages(ctx context.Context, websiteID int64) block.Lookup
 	}
 }
 
+// siteAlbums is the choice a gallery block's album select offers.
+//
+// Scoped by the store's own signature, not by this function: album.Store.List
+// takes the website id and its WHERE clause carries it, so there is no way to
+// call it and reach another website's albums by forgetting something here.
+//
+// Nil when no album store is wired, which is what a build without the feature
+// looks like: the select is then not drawn at all and a gallery keeps its own
+// list, exactly as it did before albums existed.
+func (h *Handler) siteAlbums(ctx context.Context, websiteID int64) []AlbumChoice {
+	if h.albumStore == nil {
+		return nil
+	}
+	list, err := h.albumStore.List(ctx, websiteID)
+	if err != nil {
+		slog.Error("list albums for the block editor", "err", err, "website", websiteID)
+		return nil
+	}
+	out := make([]AlbumChoice, 0, len(list))
+	for _, a := range list {
+		out = append(out, AlbumChoice{Slug: a.Slug, Name: a.Name})
+	}
+	return out
+}
+
 // blockContent is what a block page stores in the two content columns.
 //
 // Both are derived, neither is typed: the HTML is what visitors get, and the
@@ -182,6 +208,11 @@ type BlockView struct {
 	// A separate list because the picture chooser must not offer a film and
 	// the film chooser must not offer a photo.
 	Videos []media.Media
+	// Albums is the choice a gallery block's album select offers, filled for a
+	// gallery and empty for every other type. A card row has items too and must
+	// not be able to name an album — block.Set.Clean drops one that somehow
+	// arrives, and this is the same guard one step earlier, at the control.
+	Albums []AlbumChoice
 	Items  []BlockItemView
 	// Fields are the inputs of a kind the website defined, empty for the
 	// built-in nine.
@@ -198,6 +229,16 @@ type BlockItemView struct {
 	ID     string
 	Image  ImageFieldView
 	Remove string
+}
+
+// AlbumChoice is one option of the gallery block's album select.
+//
+// The slug and not the id, because the slug is what block.Block.AlbumSlug
+// stores and what the marker carries: an id means nothing on the machine a
+// bundle lands on.
+type AlbumChoice struct {
+	Slug string
+	Name string
 }
 
 // ImageFieldView is the shared picture chooser.
@@ -218,7 +259,7 @@ func (v BlockView) IsType(t string) bool { return v.Block.Type == t }
 func (v BlockView) HasItems() bool { return v.Kind.HasItems }
 
 // blockViews builds the editor's view of a block list.
-func blockViews(set block.Set, blocks []block.Block, items, films []media.Media, websiteID int64) []BlockView {
+func blockViews(set block.Set, blocks []block.Block, items, films []media.Media, albums []AlbumChoice, websiteID int64) []BlockView {
 	out := make([]BlockView, 0, len(blocks))
 	for i, b := range blocks {
 		kind, _ := set.KindOf(b.Type)
@@ -242,6 +283,9 @@ func blockViews(set block.Set, blocks []block.Block, items, films []media.Media,
 		}
 		if b.Type == block.TypeVideo {
 			v.Videos = films
+		}
+		if b.Type == block.TypeGallery {
+			v.Albums = albums
 		}
 		// A kind the website defined: its fields are the ordinary field inputs,
 		// drawn by the same template as the page's own fields. That is the

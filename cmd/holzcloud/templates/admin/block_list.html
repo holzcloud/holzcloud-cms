@@ -176,6 +176,37 @@
             </select>
             <p class="form-hint text-muted">{{t "Eine Diashow legt die Bilder nebeneinander in eine Spur, die man seitwärts schiebt und die an jedem Bild einrastet."}}</p>
         </div>
+
+        {{/* Die Bildquelle. Nur an der Galerie, aus demselben Grund wie die
+             Darstellung darüber: eine Kartenreihe hat auch Einträge, aber ein
+             Album ist eine Bilderliste und keine Kartenliste, und
+             block.Set.Clean wirft ein Album an einer Kartenreihe ohnehin weg.
+             Die Liste ist leer, wenn diese Website noch kein Album hat — dann
+             steht hier nichts, statt einer Auswahl ohne Möglichkeiten. */}}
+        {{if .Albums}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-album">{{t "Bilder aus"}}</label>
+            <select id="{{.ID}}-album" name="{{.Prefix}}.album" class="form-input form-select">
+                <option value=""{{if eq .Block.AlbumSlug ""}} selected{{end}}>{{t "– der eigenen Liste unten –"}}</option>
+                {{$chosen := .Block.AlbumSlug}}
+                {{range .Albums}}
+                <option value="{{.Slug}}"{{if eq $chosen .Slug}} selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+            <p class="form-hint text-muted">{{t "Aus einem Album kommen die Bilder des Albums, und sie ändern sich mit ihm: wer das Album ergänzt, ergänzt jede Seite, die es zeigt. Die eigene Liste unten bleibt gespeichert und wird nicht gezeigt, solange ein Album gewählt ist."}}</p>
+        </div>
+        {{end}}
+        {{end}}
+
+        {{/* Die eigene Liste wird nicht gelöscht, wenn ein Album gewählt ist —
+             sie wird zugeklappt. Ein zugeklapptes <details> sendet seine Felder
+             weiterhin mit, also bleibt gespeichert, was hier steht, und wer das
+             Album wieder abwählt, bekommt seine Liste zurück. Das Formular zeigt
+             damit nie zwei Listen nebeneinander und wirft auch keine weg. Ohne
+             eine Zeile Skript, wie der Rest dieses Bildschirms. */}}
+        {{if .Block.AlbumSlug}}
+        <details class="block-own-list">
+            <summary class="form-hint text-muted">{{t "Eigene Bilderliste — bleibt gespeichert, wird aber nicht gezeigt, solange ein Album gewählt ist"}}</summary>
         {{end}}
 
         <div class="block-items">
@@ -220,6 +251,10 @@
         <button type="submit" class="btn btn--sm" name="bausteinaktion" value="{{.AddItem}}"
                 hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
                 hx-disabled-elt="this">{{t "Eintrag hinzufügen"}}</button>
+
+        {{if .Block.AlbumSlug}}
+        </details>
+        {{end}}
         {{end}}
 
         <footer class="block-edit__actions">
