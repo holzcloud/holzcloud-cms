@@ -122,6 +122,27 @@ type Set struct {
 	// in the theme around it must not be spelled two different ways on the
 	// same page.
 	Date func(time.Time) string
+
+	// T translates a word the renderer itself writes.
+	//
+	// A function rather than a language, for the reason Date gives one line
+	// above: the rule lives with the caller. Nil leaves the German source,
+	// which is what block.Builtin and every test want.
+	//
+	// Only the words the renderer mints go through it — the lightbox's three
+	// controls today. An editor's own text is never touched: translating what
+	// somebody typed into a form would be a different program.
+	T func(string) string
+}
+
+// text translates a word this package wrote itself, or returns it unchanged.
+//
+// The nil check lives here so no rendering arm has to carry one.
+func (s Set) text(word string) string {
+	if s.T == nil {
+		return word
+	}
+	return s.T(word)
 }
 
 // Builtin is the set of a website that has defined none of its own.

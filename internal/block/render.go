@@ -8,6 +8,10 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	// For i18n.N alone, which marks a literal so the collector can see it.
+	// i18n is a leaf with no database and no HTTP, so the purity this
+	// package's own doc comment claims is untouched.
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // Image is what the renderer needs to know about one picture.
@@ -63,19 +67,30 @@ type Markdown func(src string) (string, error)
 // A block that cannot be rendered is skipped rather than failing the page. A
 // picture that was deleted from the library should cost its own block, never
 // the article around it.
+//
+// The loop's index travels with the block because a gallery mints fragment ids
+// from it, and two galleries on one page must not mint the same one twice.
 func Render(blocks []Block, s Set, look Lookup, md Markdown) string {
 	var b strings.Builder
-	for _, blk := range blocks {
+	for i, blk := range blocks {
 		if own, ok := s.OwnOf(blk.Type); ok {
-			renderOwn(&b, blk, own, s, look, md)
+			renderOwn(&b, i, blk, own, s, look, md)
 			continue
 		}
-		renderOne(&b, blk, look, md)
+		renderOne(&b, i, blk, s, look, md)
 	}
 	return b.String()
 }
 
-func renderOne(b *strings.Builder, blk Block, look Lookup, md Markdown) {
+// renderOne writes one built-in block.
+//
+// at is the block's position in the page, counted from zero. Only the gallery
+// arm uses it, to mint fragment ids; it is passed to every arm rather than to
+// that one so the two rendering functions keep the same shape.
+//
+// s is here for the words this file writes itself — the lightbox's three
+// controls — which is the same reason renderOwn has always had it.
+func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Markdown) {
 	switch blk.Type {
 	case TypeText:
 		if h := prose(blk.Markdown, md); h != "" {
@@ -155,24 +170,12 @@ func renderOne(b *strings.Builder, blk Block, look Lookup, md Markdown) {
 		b.WriteString(`</div>`)
 
 	case TypeGallery:
-		var inner strings.Builder
-		for _, it := range blk.Items {
-			img, ok := look(it.MediaID)
-			if !ok {
-				continue
-			}
-			inner.WriteString(`<figure class="hc-galerie__bild">`)
-			inner.WriteString(imgTag(img, it.Alt, "(min-width: 50em) 30vw, 90vw", true))
-			if c := strings.TrimSpace(it.Caption); c != "" {
-				fmt.Fprintf(&inner, `<figcaption>%s</figcaption>`, html.EscapeString(c))
-			}
-			inner.WriteString(`</figure>`)
-		}
-		if inner.Len() == 0 {
+		inner := GalleryItems(at, blk.Items, look, s.text)
+		if inner == "" {
 			return
 		}
 		fmt.Fprintf(b, `<div class="hc-block hc-galerie hc-spalten-%d">%s</div>`,
-			blk.Columns(), inner.String())
+			blk.Columns(), inner)
 
 	case TypeCards:
 		var inner strings.Builder
@@ -261,7 +264,11 @@ func renderOne(b *strings.Builder, blk Block, look Lookup, md Markdown) {
 // The escape hatch for anything a class cannot do is the long-text field: it
 // goes through the Markdown renderer, so an editor writes "### Schritt 3" and
 // gets a heading, sanitised by the same pass as every other piece of prose.
-func renderOwn(b *strings.Builder, blk Block, own Own, s Set, look Lookup, md Markdown) {
+// at is the block's position, unused here and taken anyway: renderOne needs it
+// for the gallery's fragment ids, and a reviewer reading one arm and not the
+// other should not have to work out whether the asymmetry means something.
+func renderOwn(b *strings.Builder, at int, blk Block, own Own, s Set, look Lookup, md Markdown) {
+	_ = at
 	class := "hc-block hc-eigen hc-eigen--" + html.EscapeString(own.Key)
 	var inner strings.Builder
 
@@ -338,6 +345,152 @@ func renderOwn(b *strings.Builder, blk Block, own Own, s Set, look Lookup, md Ma
 		return
 	}
 	fmt.Fprintf(b, `<div class="%s">%s</div>`, class, inner.String())
+}
+
+// The three names the lightbox writes, and they are new words on purpose.
+//
+// Measured against internal/i18n/locales/en.json: "Weiter" is already in there
+// as "Continue" and "Zurück" as "Back", and both are the wrong sentence on a
+// picture. Reusing an existing key would ship the wrong word in four languages
+// with every gate green, so three fresh German literals are minted instead.
+//
+// i18n.N marks them so `go run ./tools/i18n` collects them; it translates
+// nothing. Marking is only half the job: this file carries no locale, so the
+// words are translated through the function on Set — see Set.T. A string that
+// is marked and never injected is collected, translated into four catalogues
+// and printed in German anyway.
+var (
+	textPrevious = i18n.N("Vorheriges Bild")
+	textNext     = i18n.N("Nächstes Bild")
+	textClose    = i18n.N("Grossansicht schliessen")
+)
+
+// closeTarget is the fragment the close control points at.
+//
+// It names no element on the page, so following it returns :target to no match
+// and the large view disappears again. Not href="#": that scrolls to the top of
+// the document and adds a history entry the back button then has to walk back
+// through. Under the hc- prefix like every id this file mints, so a heading in
+// a text block cannot collide with it.
+const closeTarget = "hc-zu"
+
+// GalleryItems renders one gallery: every tile first, then every large view.
+//
+// A lightbox without a script.
+//
+// Opening a picture is a fragment in the URL and nothing else. The tile is an
+// anchor, the large view is a <figure> carrying that id, and bausteine.css
+// keeps every large view out of the layout until :target names one. A scripted
+// overlay is not an option here — this project permits htmx and nothing else,
+// and internal/tmplmgr/script.go rejects one outright in an uploaded theme. The
+// fragment buys the browser's back button for free, because the state sits in
+// the URL where the browser already keeps it.
+//
+// The markup is shaped so that the unstyled case is a page and not a wreck. The
+// large view is a sibling of the tiles inside the same <div>, in the flow, with
+// its own caption: with the stylesheet blocked it renders as the same picture
+// again at natural size and the anchors still work. Nothing here is a wrapper
+// that only makes sense once it is positioned, and nothing here is chrome —
+// until today a theme written by following TEMPLATE-SPEC.md linked no
+// bausteine.css at all, so the unstyled case is a real case.
+//
+// Exported because there is one gallery renderer and not two: the gallery block
+// calls it with the items an editor picked, and an album calls it with the
+// items it loaded. Two renderers would be two places to get the fragment ids
+// and the step links wrong, and the album is the one nobody would notice.
+//
+// at is the block's position in the page, counted from zero. t translates the
+// three control names; nil leaves them in their German source.
+func GalleryItems(at int, items []Item, look Lookup, t func(string) string) string {
+	if t == nil {
+		t = func(s string) string { return s }
+	}
+
+	// A picture keeps the number of its own place in the list, so a media id
+	// that no longer resolves does not renumber the pictures after it. The
+	// resolved ones are collected first all the same, because a step link has
+	// to point at an id that exists: with the second picture gone, the third
+	// steps back to the first.
+	//
+	// These ids are minted at save and then stored. Block HTML is rendered once
+	// and written into pages.content_html (internal/admin/page_blocks.go says
+	// so in its own comment), so a fragment is frozen until that page is saved
+	// again — and reordering the blocks on a later save re-mints it, which can
+	// land an old bookmark on a different picture. That is acceptable for a
+	// bookmark into the middle of a photo grid, and it is written down here
+	// rather than left to be discovered.
+	type shown struct {
+		id  string
+		img Image
+		it  Item
+	}
+	var pictures []shown
+	for j, it := range items {
+		img, ok := look(it.MediaID)
+		if !ok {
+			continue
+		}
+		// The block's position and the item's index, so two galleries on one
+		// page mint two sets of ids. The hc- prefix is not decoration: a
+		// heading in a text block on the same page carries an id the Markdown
+		// renderer derived from its words, and a bare b1-p1 is a collision
+		// waiting for the one page with a heading spelled that way.
+		pictures = append(pictures, shown{
+			id:  fmt.Sprintf("hc-b%d-p%d", at+1, j+1),
+			img: img,
+			it:  it,
+		})
+	}
+	if len(pictures) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, p := range pictures {
+		b.WriteString(`<figure class="hc-galerie__bild">`)
+		// The anchor wraps the picture alone. Leaving the caption outside it
+		// keeps the link's name to the picture's own description instead of a
+		// paragraph.
+		fmt.Fprintf(&b, `<a class="hc-galerie__oeffnen" href="#%s">`, p.id)
+		b.WriteString(imgTag(p.img, p.it.Alt, "(min-width: 50em) 30vw, 90vw", true))
+		b.WriteString(`</a>`)
+		if c := strings.TrimSpace(p.it.Caption); c != "" {
+			fmt.Fprintf(&b, `<figcaption>%s</figcaption>`, html.EscapeString(c))
+		}
+		b.WriteString(`</figure>`)
+	}
+
+	for k, p := range pictures {
+		// tabindex="-1" so that a keyboard user who followed the tile anchor
+		// carries on from the picture they just opened rather than from where
+		// they were. There is no script here to move focus for them.
+		fmt.Fprintf(&b, `<figure class="hc-galerie__gross" id="%s" tabindex="-1">`, p.id)
+		// No variant is named and no path is built: imgTag writes the original
+		// address and the public pipeline adds the candidate list at request
+		// time, which is the rule stated at the top of this file. Uncropped,
+		// because nothing squeezes the large view into a fixed shape and the
+		// focus point would change nothing there.
+		b.WriteString(imgTag(p.img, p.it.Alt, "100vw", false))
+		if c := strings.TrimSpace(p.it.Caption); c != "" {
+			fmt.Fprintf(&b, `<figcaption>%s</figcaption>`, html.EscapeString(c))
+		}
+		b.WriteString(`<nav class="hc-galerie__steuerung">`)
+		// Absent at each end rather than disabled, and never a wrap-around: a
+		// list of four holiday photos that jumps back to the first is a
+		// surprise, and the browser's own back button is the way out.
+		if k > 0 {
+			fmt.Fprintf(&b, `<a class="hc-galerie__zurueck" href="#%s">%s</a>`,
+				pictures[k-1].id, html.EscapeString(t(textPrevious)))
+		}
+		if k < len(pictures)-1 {
+			fmt.Fprintf(&b, `<a class="hc-galerie__weiter" href="#%s">%s</a>`,
+				pictures[k+1].id, html.EscapeString(t(textNext)))
+		}
+		fmt.Fprintf(&b, `<a class="hc-galerie__schliessen" href="#%s">%s</a>`,
+			closeTarget, html.EscapeString(t(textClose)))
+		b.WriteString(`</nav></figure>`)
+	}
+	return b.String()
 }
 
 // prose runs an editor's Markdown through the host's renderer.

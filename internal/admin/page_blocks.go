@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/block"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
@@ -80,11 +81,19 @@ func (h *Handler) renderBlocks(ctx context.Context, websiteID int64, set block.S
 	return block.Render(blocks, set, h.blockImages(ctx, websiteID), page.RenderMarkdown)
 }
 
-// blockSet is the block kinds one website may use, dates included.
+// blockSet is the block kinds one website may use, dates and words included.
 //
 // The date formatter comes from the same place the theme's own formatDate does,
 // so a date inside a block and a date in the page around it are spelled the
-// same way.
+// same way. The translator is here for the same reason and from the same
+// locale: the few words the renderer writes itself — a lightbox's next,
+// previous and close — belong in the language of the website they appear on,
+// not in the language of whoever was logged in when the page was saved.
+//
+// Two consequences worth stating, and both follow from renderBlocks above.
+// Block HTML is rendered once, on save, so those words are frozen at save in
+// the website's main language. And a website that changes its language
+// re-renders its blocks on the next save of each page — not before.
 func (h *Handler) blockSet(ctx context.Context, websiteID int64) block.Set {
 	if h.blockTypes == nil {
 		return block.Builtin
@@ -93,6 +102,7 @@ func (h *Handler) blockSet(ctx context.Context, websiteID int64) block.Set {
 	if ws, err := h.domains.GetWebsite(ctx, websiteID); err == nil && ws != nil {
 		locale, zone := ws.Locale, ws.TimeZone
 		set.Date = func(t time.Time) string { return tmpl.DateText(locale, zone, t) }
+		set.T = func(word string) string { return i18n.T(locale, word) }
 	}
 	return set
 }
