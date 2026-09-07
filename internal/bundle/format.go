@@ -234,17 +234,26 @@ type Block struct {
 	LinkText string `json:"link_text,omitempty"`
 	LinkURL  string `json:"link_url,omitempty"`
 
-	// Album is the slug of the album a gallery block takes its pictures from,
-	// empty for a gallery carrying its own list below.
+	// Album is the NAME of the album a gallery block takes its pictures from,
+	// empty for a gallery carrying its own list below. It matches the name of
+	// an entry in the manifest's own album list, and the import derives the
+	// address from it.
 	//
-	// A plain pass-through in this version, and deliberately so rather than
-	// deferred: the manifest has no albums entry until plan 11-06, so there is
-	// no name to translate the slug into yet. Carrying it now means the value is
-	// never SILENTLY lost on the round trip, which is the rule every field in
-	// this struct is held to. Plan 11-06 adds the album to the manifest and
-	// replaces this with the name translation a term value already gets
-	// (format.go:163-170, import.go:573-583) — which is what makes the round
-	// trip survive a rename, and that is GAL-04.
+	// The name and not the slug, which is the same rule Page.Terms follows and
+	// for one more reason of this field's own: album.Store.Rename moves the
+	// name and never the slug, so a page keeps the old address while the album
+	// shows a new name. A reference that travelled as a slug would have the
+	// other machine derive a different one from the name and point at nothing
+	// — silently, with an empty gallery where the pictures were. That is
+	// GAL-04, and TestAlbumRoundTripAfterRename is the proof, which renames
+	// before it exports because a test that does not proves nothing.
+	//
+	// A name no album entry declares is dropped on both sides rather than
+	// carried through, for the reason export.go gives for an unresolvable
+	// term: the value would land on whatever the other machine happens to
+	// derive from it, and that is worse than landing on nothing. missingAlbum
+	// puts it on the import report so nobody is left with a silent empty
+	// gallery.
 	Album string `json:"album,omitempty"`
 
 	// Items are the pictures of a gallery or the panels of a card row.

@@ -206,8 +206,7 @@ func exportMedia(ctx context.Context, s Stores, websiteID int64, m *Manifest) (m
 }
 
 // albumNameBySlug is threaded through to the blocks: a gallery block stores an
-// album's slug and the archive carries the album's name (exportAlbums says
-// why).
+// album's slug and the archive carries the album's name (exportBlocks says why).
 func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	mediaByID map[int64]string, nameBySlug, albumNameBySlug map[string]string) error {
 	// "*" is every language: without it an export of a multilingual site would
@@ -275,7 +274,7 @@ func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			out.FeaturedImage = mediaByID[*p.FeaturedMediaID]
 		}
 		if blocks, err := block.Decode(p.Blocks, set); err == nil && len(blocks) > 0 {
-			out.Blocks = exportBlocks(blocks, set, mediaByID)
+			out.Blocks = exportBlocks(blocks, set, mediaByID, albumNameBySlug)
 		}
 		out.Fields, out.FieldGroups = exportFieldValues(fieldKinds, p.Fields, mediaByID, slugByID, nameBySlug)
 		for _, t := range labels[p.ID] {
