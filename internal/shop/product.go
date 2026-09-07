@@ -363,12 +363,34 @@ func (s *Store) TermIDs(ctx context.Context, productID int64) ([]int64, error) {
 }
 
 // SetGallery replaces a product's extra pictures.
-func (s *Store) SetGallery(ctx context.Context, productID int64, mediaIDs []int64) error {
+//
+// The website is a parameter although product_media has no website_id column,
+// and that is exactly why. This is the third table in the tree whose rows are
+// addressed by a second id alone — page_terms, menu_items and this one — and
+// the other two are where this codebase has already shipped the same defect:
+// an id out of a form, a DELETE with no website predicate, and rows whose two
+// halves end up on different websites.
+//
+// It has never fired here, for the one reason that is not a reason: nothing
+// calls SetGallery yet. The guard is written before the first caller rather
+// than after the first report, and the product is looked up through the
+// website so the caller cannot pass a foreign one.
+func (s *Store) SetGallery(ctx context.Context, websiteID, productID int64, mediaIDs []int64) error {
 	tx, err := s.DB.Write.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+
+	var owned bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND website_id = $2)`,
+		productID, websiteID).Scan(&owned); err != nil {
+		return err
+	}
+	if !owned {
+		return ErrNotFound
+	}
 
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM product_media WHERE product_id = $1`, productID); err != nil {
@@ -385,6 +407,12 @@ func (s *Store) SetGallery(ctx context.Context, productID int64, mediaIDs []int6
 }
 
 // GalleryIDs returns a product's extra pictures in order.
+//
+// No website here, and the asymmetry is deliberate rather than forgotten: the
+// caller has already resolved the product through its website to have its id
+// at all, and a read of a picture list leaks nothing a foreign product's own
+// screen would not. The write is the one that can put two websites into one
+// row, so the write is the one that carries the check.
 func (s *Store) GalleryIDs(ctx context.Context, productID int64) ([]int64, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT media_id FROM product_media WHERE product_id = $1 ORDER BY position`,
