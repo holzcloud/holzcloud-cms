@@ -233,19 +233,29 @@ func (s *Store) byID(ctx context.Context, id int64) (Mail, error) {
 	return scan(s.DB.Read.QueryRowContext(ctx, `SELECT `+columns+` FROM outbox WHERE id = $1`, id))
 }
 
-// Retry puts a given-up message back in the queue.
+// Retry puts a given-up message back in the queue, within one website.
 //
 // The operator's move after fixing whatever was wrong — a typo in the address,
 // a mail account that had expired. The attempt counter starts over, otherwise
 // the message would be given up on again immediately.
-func (s *Store) Retry(ctx context.Context, id int64) error {
+//
+// websiteID is not decoration. The id of the message arrives from a form on the
+// order screen, where nothing else establishes which website it belongs to, and
+// re-queueing somebody else's message sends their customer a second mail and
+// clears the error their operator was about to read. See
+// internal/admin/order_scope_test.go.
+func (s *Store) Retry(ctx context.Context, websiteID, id int64) error {
 	res, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE outbox SET status = 'pending', attempts = 0, last_error = '',
-		 next_attempt_at = $1 WHERE id = $2 AND status <> 'sent'`,
-		s.clock().Format(timeLayout), id)
+		 next_attempt_at = $1
+		 WHERE id = $2 AND website_id = $3 AND status <> 'sent'`,
+		s.clock().Format(timeLayout), id, websiteID)
 	if err != nil {
 		return err
 	}
+	// One answer for "already sent", "no such message" and "not your message".
+	// Telling them apart would let the order screen be used to find out that an
+	// id names a real message on some other website.
 	if n, _ := res.RowsAffected(); n == 0 {
 		return errors.New("diese Nachricht ist bereits verschickt")
 	}

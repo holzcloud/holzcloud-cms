@@ -189,7 +189,7 @@ func TestRetryPutsAGivenUpMailBack(t *testing.T) {
 		}
 	}
 
-	if err := s.Retry(ctx, id); err != nil {
+	if err := s.Retry(ctx, 1, id); err != nil {
 		t.Fatalf("Retry: %v", err)
 	}
 	m, _ := s.byID(ctx, id)
@@ -214,7 +214,7 @@ func TestRetryRefusesASentMail(t *testing.T) {
 	if err := s.MarkSent(ctx, id); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Retry(ctx, id); err == nil {
+	if err := s.Retry(ctx, 1, id); err == nil {
 		t.Error("eine verschickte Nachricht liess sich erneut einstellen")
 	}
 }
@@ -568,5 +568,48 @@ func TestOrderKeepsItsOwnCurrency(t *testing.T) {
 	body := ForOrder(s, o)[0].Body
 	if !strings.Contains(body, "CHF") {
 		t.Errorf("die Bestellung wurde in der neuen Währung gedruckt:\n%s", body)
+	}
+}
+
+// Retry is reached from the order screen with a message id taken straight from
+// a form, so the store is the only thing standing between a mistyped or guessed
+// number and somebody else's customer receiving a mail again.
+func TestRetryRefusesAMessageOfAnotherWebsite(t *testing.T) {
+	s := store(t)
+	ctx := context.Background()
+
+	if _, err := s.DB.Write.Exec(
+		`INSERT INTO websites (id, name, description) VALUES (2, 'Zweiter Laden', '')`); err != nil {
+		t.Fatalf("insert second website: %v", err)
+	}
+	foreign, err := s.Queue(ctx, Mail{
+		WebsiteID: 2, Kind: KindOrderCustomer, Recipient: "kundin-b@example.ch",
+		Subject: "Ihre Bestellung", Body: "Vielen Dank.",
+	})
+	if err != nil {
+		t.Fatalf("Queue: %v", err)
+	}
+	for i := 0; i < MaxAttempts; i++ {
+		if err := s.MarkFailed(ctx, foreign, errors.New("kein solcher Empfänger")); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := s.Retry(ctx, 1, foreign); err == nil {
+		t.Error("Retry across websites was accepted")
+	}
+
+	m, err := s.byID(ctx, foreign)
+	if err != nil {
+		t.Fatalf("byID: %v", err)
+	}
+	if m.Status != StatusFailed {
+		t.Errorf("the foreign message was re-queued: status %q", m.Status)
+	}
+	if m.Attempts != MaxAttempts {
+		t.Errorf("the foreign attempt counter was reset to %d", m.Attempts)
+	}
+	if m.LastError == "" {
+		t.Error("the foreign error text was cleared")
 	}
 }

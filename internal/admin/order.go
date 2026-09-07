@@ -204,7 +204,7 @@ func (h *Handler) HandleOrderDetail(w http.ResponseWriter, r *http.Request) erro
 			h.recheckPayment(r, order)
 
 		case aktion == "mail-erneut":
-			h.retryMail(r, r.FormValue("mail_id"))
+			h.retryMail(r, ws.ID, r.FormValue("mail_id"))
 
 		default:
 			status := r.FormValue("status")
@@ -341,7 +341,12 @@ func (h *Handler) announceShipment(r *http.Request, ws *domain.Website, order *s
 // Only worth offering after the operator has fixed something — a typo in the
 // address, a mail account that had expired. It does not send anything itself;
 // the background run does that, and this only says "try again".
-func (h *Handler) retryMail(r *http.Request, raw string) {
+// retryMail puts one message back in the queue.
+//
+// websiteID is the website the address named and the guard authorised. The
+// message id beside it comes from the form and is not evidence of anything, so
+// the two are handed to the store together and it decides.
+func (h *Handler) retryMail(r *http.Request, websiteID int64, raw string) {
 	if h.outbox == nil {
 		return
 	}
@@ -350,7 +355,7 @@ func (h *Handler) retryMail(r *http.Request, raw string) {
 		web.SetFlashError(h.sm, r.Context(), "Unbekannte Nachricht.")
 		return
 	}
-	if err := h.outbox.Retry(r.Context(), id); err != nil {
+	if err := h.outbox.Retry(r.Context(), websiteID, id); err != nil {
 		web.SetFlashError(h.sm, r.Context(), err.Error())
 		return
 	}
