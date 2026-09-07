@@ -921,3 +921,93 @@ func TestWideRowIsRefusedWithItsNumbers(t *testing.T) {
 		t.Error("a row with no known header width was refused as too wide")
 	}
 }
+
+// The rule TestBlankCellSaysNothingOnTheUpdateArm states — a blank cell says
+// nothing, because a CSV cannot express the difference between "empty now" and
+// "not filled in" — was applied to the body, the status and every field, and
+// setTerms was left standing on the rule it replaced.
+//
+// setTerms asks its question of the FILE ("is a terms column mapped at all")
+// while update asks it of the ROW ("did this row put anything in this slot").
+// So a row whose Schlagwörter cell is blank reaches term.Store.SetForPage with
+// an empty list, and SetForPage's first statement is an unconditional
+// DELETE FROM page_terms.
+//
+// This is the same test as the one above, with the fourth slot the rule was
+// never carried to.
+func TestABlankTermsCellDoesNotWipeAPagesTerms(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	pages := page.NewStore(database)
+	terms := term.NewStore(database)
+	ctx := context.Background()
+
+	p, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: websiteID, Title: "Apfel", Slug: "apfel",
+		Markdown: "Erster Text", HTML: "<p>Erster Text</p>",
+		Status: "published", Kind: page.KindPage,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+	if err := terms.SetForPage(ctx, websiteID, p.ID, []string{"Obst", "Baum"}); err != nil {
+		t.Fatalf("SetForPage: %v", err)
+	}
+
+	// A file that carries a Schlagwörter column — the column is mapped, which
+	// is the point — and a row that leaves it blank.
+	head, rows := reader(t, "Titel,Schlagwörter\nApfelbaum,\n")
+	m := csvimport.AutoMap(head, nil)
+	if m.ColumnFor(csvimport.TargetTerms, "") < 0 {
+		t.Fatal("no column is pointed at the terms — the test would prove nothing")
+	}
+
+	if v := w.WriteRow(ctx, websiteID, nil, rows[0], m, p, csvimport.CollisionUpdate, &userID); v.Outcome != csvimport.OutcomeUpdate {
+		t.Fatalf("the silent row gave %s / %q, want an update", v.Outcome, v.Reason)
+	}
+
+	after, err := terms.ForPage(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("ForPage: %v", err)
+	}
+	if len(after) != 2 {
+		t.Errorf("a blank Schlagwörter cell left the page with %d terms, want the 2 it had: %v",
+			len(after), after)
+	}
+}
+
+// The other half, and it has to be asserted or the fix above would be a way of
+// never writing terms at all: a cell that says something still writes.
+func TestAFilledTermsCellStillReplacesThem(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	pages := page.NewStore(database)
+	terms := term.NewStore(database)
+	ctx := context.Background()
+
+	p, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: websiteID, Title: "Apfel", Slug: "apfel",
+		Markdown: "Erster Text", HTML: "<p>Erster Text</p>",
+		Status: "published", Kind: page.KindPage,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+	if err := terms.SetForPage(ctx, websiteID, p.ID, []string{"Obst", "Baum"}); err != nil {
+		t.Fatalf("SetForPage: %v", err)
+	}
+
+	head, rows := reader(t, "Titel,Schlagwörter\nApfelbaum,Steinobst\n")
+	m := csvimport.AutoMap(head, nil)
+	if v := w.WriteRow(ctx, websiteID, nil, rows[0], m, p, csvimport.CollisionUpdate, &userID); v.Outcome != csvimport.OutcomeUpdate {
+		t.Fatalf("the row gave %s / %q, want an update", v.Outcome, v.Reason)
+	}
+
+	after, err := terms.ForPage(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("ForPage: %v", err)
+	}
+	if len(after) != 1 || after[0].Name != "Steinobst" {
+		t.Errorf("a stated Schlagwörter cell left %v, want exactly Steinobst", after)
+	}
+}
