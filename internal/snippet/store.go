@@ -86,9 +86,22 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Snippet, error) {
 	return out, rows.Err()
 }
 
-// Get returns one snippet by ID, or nil.
-func (s *Store) Get(ctx context.Context, id int64) (*Snippet, error) {
-	sn, err := scan(s.DB.Read.QueryRowContext(ctx, `SELECT `+columns+` FROM snippets WHERE id = $1`, id))
+// Get returns one snippet of one website by ID, or nil.
+//
+// The website belongs in the lookup and not in a comparison the caller makes
+// afterwards. It used to take the id alone, and every one of the four callers
+// remembered to check sn.WebsiteID for itself — internal/admin/field.go went as
+// far as centralising its own comparison into snippetOf and writing down why:
+// "snippets.Get takes only an id ... that asymmetry is the whole reason this is
+// one function rather than two inline comparisons that can drift apart."
+//
+// It was right, and this is the fix it was asking for. Four callers that each
+// remember are one forgetful fifth away from the shape this codebase has now
+// shipped four times: a second id out of an address that the access middleware
+// never sees.
+func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Snippet, error) {
+	sn, err := scan(s.DB.Read.QueryRowContext(ctx,
+		`SELECT `+columns+` FROM snippets WHERE id = $1 AND website_id = $2`, id, websiteID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -110,15 +123,15 @@ func (s *Store) Create(ctx context.Context, websiteID int64, key, name, markdown
 		return nil, fmt.Errorf("create snippet: %w", err)
 	}
 	id, _ := res.LastInsertId()
-	return s.Get(ctx, id)
+	return s.Get(ctx, websiteID, id)
 }
 
 // Update stores a changed snippet.
-func (s *Store) Update(ctx context.Context, id int64, key, name, markdown, html string) error {
+func (s *Store) Update(ctx context.Context, websiteID, id int64, key, name, markdown, html string) error {
 	res, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE snippets SET key = $1, name = $2, content_markdown = $3, content_html = $4,
-		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $5`,
-		key, name, markdown, html, id)
+		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $5 AND website_id = $6`,
+		key, name, markdown, html, id, websiteID)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ErrKeyTaken
@@ -148,12 +161,19 @@ func (s *Store) Update(ctx context.Context, id int64, key, name, markdown, html 
 // Ohne diese Zeile ginge es nur deshalb gut, weil handleSnippetSave vorher
 // Update aufruft — eine Reihenfolge zwischen zwei Funktionen in zwei Paketen,
 // die nichts festhält.
-func (s *Store) SetFields(ctx context.Context, id int64, raw string) error {
-	_, err := s.DB.Write.ExecContext(ctx,
+func (s *Store) SetFields(ctx context.Context, websiteID, id int64, raw string) error {
+	res, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE snippets SET fields = $1,
-		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $2`, raw, id)
+		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $2 AND website_id = $3`,
+		raw, id, websiteID)
 	if err != nil {
 		return fmt.Errorf("set snippet fields: %w", err)
+	}
+	// Reported and not swallowed, unlike before. A write that matched nothing
+	// is either a snippet that has been deleted or one of another website, and
+	// both are worth an error rather than a silent success.
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -161,8 +181,9 @@ func (s *Store) SetFields(ctx context.Context, id int64, raw string) error {
 // Delete removes a snippet. Pages referring to it keep their marker, which then
 // renders as nothing — deliberately, so the reference stays visible in the
 // source rather than silently becoming stale text.
-func (s *Store) Delete(ctx context.Context, id int64) error {
-	res, err := s.DB.Write.ExecContext(ctx, `DELETE FROM snippets WHERE id = $1`, id)
+func (s *Store) Delete(ctx context.Context, websiteID, id int64) error {
+	res, err := s.DB.Write.ExecContext(ctx,
+		`DELETE FROM snippets WHERE id = $1 AND website_id = $2`, id, websiteID)
 	if err != nil {
 		return fmt.Errorf("delete snippet: %w", err)
 	}

@@ -914,7 +914,7 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 				"das Archiv stammt, und müssen hier neu gewählt werden.",
 			sn.Key, strings.Join(maschinennummern, ", ")))
 	}
-	if err := s.Snippets.SetFields(ctx, snippetID, raw); err != nil {
+	if err := s.Snippets.SetFields(ctx, websiteID, snippetID, raw); err != nil {
 		report.Warnings = append(report.Warnings, fmt.Sprintf(
 			"Die Werte des Textbausteins %q konnten nicht gespeichert werden: %v", sn.Key, err))
 	}

@@ -89,8 +89,12 @@ func (d FieldListData) Simple() bool {
 // that opens the mode and the POST that creates a field must ask the same
 // question.
 func (h *Handler) snippetOf(ctx context.Context, websiteID, id int64) *snippet.Snippet {
-	sn, err := h.snippets.Get(ctx, id)
-	if err != nil || sn == nil || sn.WebsiteID != websiteID {
+	// The comparison this function was written to hold in one place has moved
+	// into the store, which is where the comment above always said it belonged.
+	// The function stays: it is the one shape the two callers want — nil for
+	// "not yours and not here", without either of them writing an err check.
+	sn, err := h.snippets.Get(ctx, websiteID, id)
+	if err != nil {
 		return nil
 	}
 	return sn

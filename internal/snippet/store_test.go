@@ -175,11 +175,11 @@ func TestSetFieldsZiehtDenPruefwertMit(t *testing.T) {
 		t.Fatalf("Stempel zurücksetzen: %v", err)
 	}
 
-	if err := s.SetFields(ctx, sn.ID, `{"values":{"telefon":"07721 123456"}}`); err != nil {
+	if err := s.SetFields(ctx, ws, sn.ID, `{"values":{"telefon":"07721 123456"}}`); err != nil {
 		t.Fatalf("SetFields: %v", err)
 	}
 
-	nachher, err := s.Get(ctx, sn.ID)
+	nachher, err := s.Get(ctx, ws, sn.ID)
 	if err != nil || nachher == nil {
 		t.Fatalf("Get: %v (%v)", nachher, err)
 	}
