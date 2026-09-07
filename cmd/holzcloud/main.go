@@ -634,11 +634,9 @@ type routerDeps struct {
 	userStore *user.Store
 	pageStore *page.Store
 	menuStore *menu.Store
-	// albumStore is carried here although newRouter has no use for it yet: the
-	// album routes reach the store through adminHandler. newRouter unpacks a
-	// dependency into a local only where something reads it, and Go rejects an
-	// unused one — a "_ = albumStore" discard would read as an oversight. The
-	// public expansion of an album (plan 11-05) is what will read it.
+	// albumStore is read twice: the album routes reach it through adminHandler,
+	// and the public handler expands a page's album markers with it at request
+	// time (plan 11-05).
 	albumStore      *album.Store
 	mediaStore      *media.Store
 	snippetStore    *snippet.Store
@@ -1099,6 +1097,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	domainResolver.Secure = cfg.Secure
 	domainResolver.Offline = http.HandlerFunc(publicHandler.HandleMaintenance)
 	publicHandler.SetTermStore(termStore)
+	// Without this the public side holds a nil album store, every album marker
+	// on every page expands to nothing, and the tests in internal/public still
+	// pass because they wire their own.
+	publicHandler.SetAlbumStore(d.albumStore)
 	publicHandler.SetFieldStore(field.NewStore(database))
 	publicHandler.SetKindStore(kind.NewStore(database))
 	publicHandler.SetProductStore(productStore)

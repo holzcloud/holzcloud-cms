@@ -8,8 +8,10 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
@@ -30,6 +32,23 @@ import (
 func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, snippets snippet.Rendered) tmpl.PageContent {
 	updated := pg.UpdatedAt
 	body := snippet.Expand(pg.ContentHTML, snippets.HTML)
+	// The albums, and both halves of where this call stands are decisions.
+	//
+	// AFTER the snippets, because a snippet could itself contain a gallery
+	// marker and the expansion should see it.
+	//
+	// BEFORE the plugins and therefore before the responsive rewrite at the end
+	// of this function, because the <img> tags this expansion produces must
+	// still be seen by media.MakeResponsive. An expansion placed after that
+	// call would serve album pictures with no srcset at all, and nothing
+	// anywhere would report it. The plugin filter's own comment below says it
+	// runs last so that it sees the page as a visitor would, which is the same
+	// argument from the other end.
+	if h.albumStore != nil {
+		if set, ok := h.albumSet(r, websiteID, body); ok {
+			body = album.Expand(body, set)
+		}
+	}
 	// Plugins last: they see the page as a visitor would, with the snippets
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.
@@ -48,6 +67,32 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 		Felder:        felder,
 		Feldliste:     liste,
 	}
+}
+
+// albumSet loads the albums this page's HTML names, in the website's language.
+//
+// The translator is built from the website's locale — the same one
+// internal/admin/page_blocks.go's blockSet uses for the save-time render — so a
+// page carrying an inline gallery and an album gallery does not end up with its
+// two sets of lightbox controls in two languages.
+//
+// A failing query is logged and reported as not-loaded, and the caller then
+// leaves the body unexpanded rather than replacing every marker with nothing. A
+// failing album must cost its own block and never the page, which is the rule
+// h.responsive below already follows and the one block.Render states for a
+// picture that was deleted.
+func (h *Handler) albumSet(r *http.Request, websiteID int64, body string) (album.Set, bool) {
+	var t func(string) string
+	if ws := domain.WebsiteFromContext(r.Context()); ws != nil {
+		locale := ws.Locale
+		t = func(word string) string { return i18n.T(locale, word) }
+	}
+	set, err := h.albumStore.LoadFor(r.Context(), websiteID, body, t)
+	if err != nil {
+		slog.Error("load albums for page", "err", err, "website", websiteID)
+		return album.Set{}, false
+	}
+	return set, true
 }
 
 // ownFields resolves the website's own fields for a theme.

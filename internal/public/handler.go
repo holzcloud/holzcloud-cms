@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
@@ -33,6 +34,10 @@ type Handler struct {
 	menuStore    *menu.Store
 	mediaStore   *media.Store
 	snippetStore *snippet.Store
+	// albumStore expands the album markers a page's stored HTML carries. Nil
+	// means no album expansion happens and a page's body passes through
+	// untouched, which is what a build without the feature looks like.
+	albumStore *album.Store
 	// termStore supplies the labels. It may be nil, in which case /tag/ 404s
 	// and no labels are rendered.
 	termStore *term.Store
@@ -102,6 +107,10 @@ func (h *Handler) SetNotify(domains *domain.Store, q *mail.Queue) {
 // SetTermStore attaches the label store. It is a setter rather than a
 // constructor argument because it is wired after the handler exists.
 func (h *Handler) SetTermStore(s *term.Store) { h.termStore = s }
+
+// SetAlbumStore attaches the album store, so a gallery block naming an album
+// resolves its pictures at request time.
+func (h *Handler) SetAlbumStore(s *album.Store) { h.albumStore = s }
 
 // SetFieldStore supplies the website's own page fields.
 func (h *Handler) SetFieldStore(s *field.Store) { h.fieldStore = s }
