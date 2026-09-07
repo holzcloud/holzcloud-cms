@@ -14,6 +14,7 @@ import (
 	"github.com/alexedwards/scs/v2/memstore"
 
 	"github.com/holzcloud/holzcloud-cms/internal/admin"
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
@@ -78,6 +79,10 @@ func testRouter(t *testing.T) (http.Handler, *scs.SessionManager, *db.DB) {
 		snippet.NewStore(database), term.NewStore(database),
 		sharelink.New([]byte("test")), loader, &cfg,
 		auth.NewLoginThrottle(10, 100, time.Minute), web.NewClientIPResolver(nil))
+	// Wired here so the album routes reach the handler rather than its
+	// nil-store guard: without this the authorization table below would pass
+	// on a 404 that has nothing to do with who may enter.
+	adminHandler.SetAlbumStore(album.NewStore(database))
 
 	passthrough := func(next http.Handler) http.Handler { return next }
 	handler, err := newRouter(routerDeps{
@@ -192,6 +197,10 @@ func TestRouteAuthorization(t *testing.T) {
 		{"GET", "/admin/websites/1/pages"},
 		{"GET", "/admin/websites/1/menus"},
 		{"GET", "/admin/websites/1/media"},
+		// An album is content. It belongs here and not in the table above:
+		// filing it there would lock every editor out of a feature built for
+		// editors, and that table is for destructive and site-level routes.
+		{"GET", "/admin/websites/1/albums"},
 	} {
 		if got := do(handler, rt.method, rt.path, editor).Code; got == http.StatusForbidden {
 			t.Errorf("%s %s: editor must keep access, got 403", rt.method, rt.path)
@@ -206,6 +215,7 @@ func TestAdminRoutesRequireASession(t *testing.T) {
 	for _, path := range []string{
 		"/admin/", "/admin/websites", "/admin/users", "/admin/templates",
 		"/admin/websites/1/pages", "/admin/websites/1/media",
+		"/admin/websites/1/albums",
 		// Rechnung und Lieferschein tragen Namen und Anschrift der Kundschaft
 		// und sind über eine ratbare Bestellnummer erreichbar.
 		"/admin/websites/1/bestellungen/2026-0001/rechnung",
