@@ -9,6 +9,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/ai"
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
@@ -68,6 +69,10 @@ type Handler struct {
 	// activityStore is the record of what was done here. Nil means nothing is
 	// recorded and the screen is not there — see LogActivity.
 	activityStore *activity.Store
+	// albumStore backs the reusable picture sets. Nil means the album screens
+	// are simply not wired and every album route answers 404 — see
+	// SetAlbumStore.
+	albumStore *album.Store
 	// products, orders and payments back the shop. Each may be nil, in which
 	// case the shop screens do not exist and no shop route answers.
 	products *shop.Store
@@ -228,6 +233,16 @@ func (h *Handler) SetMail(q *mail.Queue) { h.mail = q }
 
 // SetAITokens attaches the key store for the assistant connection.
 func (h *Handler) SetAITokens(s *ai.Store) { h.aiTokens = s }
+
+// SetAlbumStore attaches the album store, the fifth setter of this shape.
+//
+// A setter rather than a nineteenth argument to NewHandler: the constructor is
+// positional and already eighteen arguments long, and a new one would edit
+// every call site including the test router in cmd/holzcloud/main_test.go. Nil
+// means the album screens do not exist and every album route answers 404 —
+// the same tolerance SetProductStore, SetOrderStore, SetOutbox and
+// SetActivityStore already carry.
+func (h *Handler) SetAlbumStore(s *album.Store) { h.albumStore = s }
 
 // Plugins returns the manager, or nil.
 func (h *Handler) Plugins() *plugin.Manager { return h.plugins }
