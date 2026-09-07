@@ -326,3 +326,30 @@ func TestProductDeleteRefusesAForeignWebsitesProduct(t *testing.T) {
 		t.Errorf("website B's product changed under a delete: %q", p.Title)
 	}
 }
+
+// product_media is the third table in this tree whose rows are addressed by a
+// second id alone — page_terms and menu_items are the other two, and both are
+// where the defect has already shipped. The knowledge base names all three.
+//
+// SetGallery has no caller yet, so this has never fired. That is not a reason
+// to leave it: the guard is written before the first caller rather than after
+// the first report, and this test is what makes the first caller inherit it.
+func TestSetGalleryRefusesAForeignWebsitesProduct(t *testing.T) {
+	f := newProductScopeFixture(t)
+	ctx := context.Background()
+
+	if err := f.products.SetGallery(ctx, f.siteA.ID, f.productB.ID, []int64{1, 2}); err == nil {
+		t.Error("SetGallery wrote website B's product gallery under website A")
+	}
+	ids, err := f.products.GalleryIDs(ctx, f.productB.ID)
+	if err != nil {
+		t.Fatalf("GalleryIDs: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Errorf("website B's product gained %d gallery rows from website A's call", len(ids))
+	}
+	// The honest half: the own product still works.
+	if err := f.products.SetGallery(ctx, f.siteA.ID, f.productA.ID, nil); err != nil {
+		t.Errorf("SetGallery refused website A's own product: %v", err)
+	}
+}
