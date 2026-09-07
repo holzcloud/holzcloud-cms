@@ -943,7 +943,7 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 
 	// The addresses rows above the current one will take.
 	//
-	// The write arm needs no such list: its GetPageBySlug below is live and per
+	// The write arm needs no such list: its GetPageBySlugIn below is live and per
 	// row, so row 40 genuinely finds the page row 4 has just created. The dry
 	// run writes nothing, so the only way it can answer the same question is to
 	// remember what it has already decided to create — and without this it
@@ -976,7 +976,18 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 		var existing *page.Page
 		slug := csvimport.RowSlug(row, m)
 		if slug != "" && websiteID != 0 {
-			found, err := h.pages.GetPageBySlug(ctx, websiteID, slug)
+			// In the MAIN language, because that is the language the import
+			// writes in: CheckRow builds a PageCreate without a Locale, so
+			// every row of every file lands at (website, '', slug).
+			//
+			// GetPageBySlug would answer for whichever language the database
+			// handed back first — it says so itself — and since 00045 an
+			// address is unique per (website, language), with the admin
+			// deliberately proposing the same address for a translation. So a
+			// French /kontakt made the German row read as an update, and
+			// UpdatePage then wrote the German title and text into the French
+			// page, which kept its locale and got a revision for it.
+			found, err := h.pages.GetPageBySlugIn(ctx, websiteID, "", slug)
 			if err != nil {
 				return result, err
 			}
