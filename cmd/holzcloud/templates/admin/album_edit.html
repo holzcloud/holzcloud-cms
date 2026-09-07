@@ -1,0 +1,78 @@
+{{/* One album: the name, the pictures in their order, and the add form.
+
+     The picture row is {{template "block_bild"}} — the block editor's own
+     chooser, reached from here because block_list.html is registered as a
+     shared partial in internal/web/render.go. That reuse is GAL-07 in the
+     editor: one picture chooser, not two that agree until one of them is
+     changed. */}}
+
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/albums" class="btn btn--sm">{{t "Zurück zu den Alben"}}</a>{{end}}
+
+{{define "content"}}
+{{template "album_edit-content" .}}
+{{end}}
+
+{{define "album_edit-content"}}
+<div class="card" style="margin-bottom:var(--space-3)">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Name des Albums"}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums/{{.Album.ID}}/update"
+          style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+            <label class="form-label" for="album-name">{{t "Name"}}</label>
+            <input type="text" id="album-name" name="name" class="form-input"
+                   value="{{.Album.Name}}" required maxlength="60">
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+    </form>
+    <p class="form-hint text-muted" style="margin-top:var(--space-1)">
+        {{t "Die Adresse des Albums bleibt"}} <code>{{.Album.Slug}}</code>{{t ". Seiten, die es tragen, verlieren es beim Umbenennen nicht."}}
+    </p>
+</div>
+
+<div class="card" style="margin-bottom:var(--space-3)">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Bilder"}}</h2>
+    {{if .Pictures}}
+    {{range .Pictures}}
+    <fieldset class="album-picture">
+        <legend>{{t "Bild"}} {{.Number}}</legend>
+        <div class="album-picture__order">
+            <form method="POST" action="{{.Up}}" style="display:inline">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                <button type="submit" class="reorder-btn" hx-post="{{.Up}}" hx-disabled-elt="this"{{if .First}} disabled{{end}}>
+                    <span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Nach oben schieben"}}</span>
+                </button>
+            </form>
+            <form method="POST" action="{{.Down}}" style="display:inline">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                <button type="submit" class="reorder-btn" hx-post="{{.Down}}" hx-disabled-elt="this"{{if .Last}} disabled{{end}}>
+                    <span aria-hidden="true">&#8595;</span><span class="sr-only">{{t "Nach unten schieben"}}</span>
+                </button>
+            </form>
+            <form method="POST" action="{{.Remove}}" hx-post="{{.Remove}}" style="display:inline"
+                  hx-confirm="{{t "Dieses Bild aus dem Album nehmen? Die Datei bleibt in der Mediathek."}}">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+            </form>
+        </div>
+        <form method="POST" action="{{.Update}}">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+            {{template "block_bild" .Image}}
+            <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Bild speichern"}}</button>
+        </form>
+    </fieldset>
+    {{end}}
+    {{else}}
+    <p class="text-muted">{{t "Noch keine Bilder. Füge unten das erste hinzu."}}</p>
+    {{end}}
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Bild hinzufügen"}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums/{{.Album.ID}}/pictures">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{template "block_bild" .NewPicture}}
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this" style="margin-top:var(--space-1)">{{t "Bild hinzufügen"}}</button>
+    </form>
+</div>
+{{end}}

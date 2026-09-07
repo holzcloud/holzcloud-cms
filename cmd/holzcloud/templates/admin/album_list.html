@@ -1,0 +1,69 @@
+{{/* Two screens, not one.
+
+     The cheaper shape is snippet_list.html's: one list whose rows carry an
+     inline form and an "?edit={{.ID}}" query. It was passed over on purpose.
+     An album has children that are added, described and moved, and a list of
+     albums each with its own expanded picture list is a screen nobody can
+     read. So this is menu_list.html + menu_edit.html: a list that names and
+     counts, and a screen per album that holds the pictures. */}}
+
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/media" class="btn btn--sm">{{t "Mediathek"}}</a>{{end}}
+
+{{define "content"}}
+{{template "album_list-content" .}}
+{{end}}
+
+{{define "album_list-content"}}
+<div class="card" style="margin-bottom:var(--space-3)">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Album anlegen"}}</h2>
+    <p class="text-muted" style="margin-bottom:var(--space-2)">
+        {{t "Ein Album ist eine Bilderreihe, die mehrere Seiten tragen können. Änderst du sie hier, ändert sie sich überall."}}
+    </p>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+            <label class="form-label" for="album-name">{{t "Name"}}</label>
+            <input type="text" id="album-name" name="name" class="form-input" required
+                   maxlength="60" placeholder="{{t "Werkstatt 2026"}}">
+        </div>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Anlegen"}}</button>
+    </form>
+</div>
+
+<div class="card">
+    {{if .Albums}}
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Name"}}</th>
+                <th scope="col">{{t "Bilder"}}</th>
+                <th scope="col">{{t "Angelegt"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Albums}}
+            <tr>
+                <td style="font-weight:500">
+                    <a href="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}">{{.Name}}</a>
+                </td>
+                <td class="text-muted">{{.Pictures}}</td>
+                <td class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</td>
+                <td class="table-actions">
+                    <a href="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}" class="btn btn--sm">{{t "Bearbeiten"}}</a>
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}/delete"
+                          hx-post="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}/delete" style="display:inline"
+                          hx-confirm="{{t "Dieses Album mit allen Bildern löschen? Die Dateien bleiben in der Mediathek."}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="text-muted">{{t "Noch keine Alben. Leg oben das erste an."}}</p>
+    {{end}}
+</div>
+{{end}}
