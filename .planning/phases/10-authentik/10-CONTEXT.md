@@ -44,7 +44,7 @@ refuses to start until it is told which website a new account belongs to.**
 
 This is the phase's single most likely way to ship a real vulnerability, and it
 is dangerous precisely because every part looks correct alone.
-`internal/admin/handler.go:173` reads
+`NewWebsiteAccessLookup` (`internal/admin/handler.go`) reads
 
 ```go
 return assigned == 0 || mine > 0
@@ -56,7 +56,7 @@ account has zero `user_websites` rows *by construction*, so the first stranger
 who authenticates at the identity provider gets editor access to **every website
 in the installation**.
 
-`handler.go:178` must **not** change — that would lock out every existing editor.
+`NewWebsiteAccessLookup` must **not** change — that would lock out every existing editor.
 
 **And the inversion has a second road that neither this file nor the roadmap
 named** (found by the planner, 2026-09-07). D-01 above covers account
@@ -174,7 +174,7 @@ says so.
 
 | # | Question | Settled | Evidence |
 |---|---|---|---|
-| 1 | SSO user with no website group | **Provisioning off by default; with it on, refuse to start without a default website** (D-01) | `handler.go:173`'s „no assignment means every website" inverts under provisioning; the Payrexx pair is the precedent for refusing to start |
+| 1 | SSO user with no website group | **Provisioning off by default; with it on, refuse to start without a default website** (D-01) | `NewWebsiteAccessLookup`'s „no assignment means every website" inverts under provisioning; the Payrexx pair is the precedent for refusing to start |
 | 2 | Which header is the identity | **`X-authentik-username`** (D-02) | `-uid` is the OIDC `sub` and its shape depends on Subject mode; the roadmap itself says pin to username if unsure, and unsure is honest |
 | 3 | Which Caddy | **A documented floor of 2.11.2, plus explicit header deletes** (D-03) | CVE-2026-30851 is latent in 2.10.0–2.11.1; layer 2 makes a wrong Caddyfile elsewhere a misconfiguration and not a bypass |
 | 4 | Verify against the operator's instance | **A deployment step, not a planning blocker** | Criterion 2's one-command test says whether their setup is wrong, without this phase having to know it |
