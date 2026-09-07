@@ -367,3 +367,47 @@ func emptyValueOf(kind string) any {
 		return ""
 	}
 }
+
+// SampleData's own comment claims the fixture covers every kind:
+//
+//	"One entry per kind this version can put in the list beyond a plain
+//	 string, so a template's handling of each is rendered at least once
+//	 before an upload is accepted."
+//
+// template.Check renders exactly SampleData() and MinimalData() and nothing
+// else, so that sentence is the whole reach of the gate. What it does not
+// cover is not checked, and a theme's `{{if eq .Kind "bild"}}` branch has
+// never been executed by anything.
+//
+// sample_test.go's own switch has arms for KindImage, KindRef, KindGroup,
+// KindBool and KindDate that no fixture entry can reach — a per-kind check
+// that runs over the kinds somebody remembered. This test is the one that
+// cannot be satisfied by remembering: it walks field.Kinds.
+func TestEveryValueHoldingKindIsInTheSampleFixture(t *testing.T) {
+	data := SampleData()
+
+	inList := map[string]bool{}
+	for _, e := range data.Page.Feldliste {
+		inList[e.Kind] = true
+	}
+	inMap := map[string]bool{}
+	for _, e := range data.Page.Feldliste {
+		if _, ok := data.Page.Felder[e.Key]; ok {
+			inMap[e.Kind] = true
+		}
+	}
+
+	for _, k := range field.Kinds {
+		if !(field.Def{Kind: k.Kind}).HoldsValue() {
+			continue
+		}
+		if !inList[k.Kind] {
+			t.Errorf("no %q entry in SampleData().Page.Feldliste — template.Check renders "+
+				"the fixture and nothing else, so a theme's handling of this kind is never run", k.Kind)
+		}
+		if !inMap[k.Kind] {
+			t.Errorf("no %q value in SampleData().Page.Felder — the map view and the list view "+
+				"are two halves of one contract and a template may reach for either", k.Kind)
+		}
+	}
+}
