@@ -1042,3 +1042,79 @@ func TestLightboxControlsGoThroughTheInjectedTranslator(t *testing.T) {
 		}
 	}
 }
+
+// --- The slideshow -------------------------------------------------------
+
+// A gallery that made no choice must render byte for byte what it rendered
+// before this plan. The assertion is on the exact wrapper string rather than on
+// a substring, so a stray class is a failure and not a shrug.
+func TestGalleryWithoutDisplayRendersTodaysMarkup(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+
+	const want = `<div class="hc-block hc-galerie hc-spalten-3">`
+	if !strings.HasPrefix(html, want) {
+		t.Errorf("the grid wrapper changed:\nwant prefix %s\ngot         %.120s", want, html)
+	}
+	if strings.Contains(html, "diashow") {
+		t.Errorf("a gallery without a display carries the slideshow's mark:\n%s", html)
+	}
+	if strings.Contains(html, "tabindex=\"0\"") || strings.Contains(html, "aria-label") {
+		t.Errorf("the grid gained an attribute it does not need:\n%s", html)
+	}
+}
+
+// One markup, two stylesheets. The slideshow is a class and the two attributes
+// that let a keyboard into a scrolling region; the tiles, the large views, the
+// fragment ids and the controls are the same elements in the same order, which
+// is what keeps the lightbox working in both modes for nothing.
+func TestSlideshowAddsOnlyTheModifierAndTheAccessibleName(t *testing.T) {
+	show := threePictures()
+	show.Display = DisplaySlideshow
+
+	grid := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+	slide := Render([]Block{show}, Builtin, galleryLook(), markdown)
+
+	if grid == slide {
+		t.Fatal("the slideshow renders the same wrapper as the grid")
+	}
+
+	// Everything after the opening tag of the wrapper must be identical.
+	body := func(s string) string {
+		i := strings.Index(s, ">")
+		if i < 0 {
+			t.Fatalf("no wrapper in:\n%s", s)
+		}
+		return s[i+1:]
+	}
+	if body(grid) != body(slide) {
+		t.Errorf("the two modes differ inside the wrapper:\ngrid:  %s\nslide: %s",
+			body(grid), body(slide))
+	}
+	if !strings.HasPrefix(slide, `<div class="hc-block hc-galerie hc-spalten-3 hc-galerie--diashow"`) {
+		t.Errorf("the modifier is not on the wrapper:\n%.200s", slide)
+	}
+	if !strings.Contains(slide, `tabindex="0"`) {
+		t.Error("a scrolling region a keyboard cannot enter is a slideshow only a pointer can use")
+	}
+	if !strings.Contains(slide, `aria-label=`) {
+		t.Error("the focusable region has no accessible name")
+	}
+}
+
+// The accessible name reuses the catalogue key the block kind already carries,
+// so it costs no fifth string in four languages — and it goes through the
+// translator injected on the Set rather than standing in the markup in German.
+func TestSlideshowNameGoesThroughTheTranslator(t *testing.T) {
+	show := threePictures()
+	show.Display = DisplaySlideshow
+
+	loud := Set{T: strings.ToUpper}
+	html := Render([]Block{show}, loud, galleryLook(), markdown)
+
+	if !strings.Contains(html, `aria-label="GALERIE"`) {
+		t.Errorf("the name did not go through Set.T:\n%.300s", html)
+	}
+	if strings.Contains(html, `aria-label="Galerie"`) {
+		t.Errorf("the German source survived a translator that maps it away:\n%.300s", html)
+	}
+}
