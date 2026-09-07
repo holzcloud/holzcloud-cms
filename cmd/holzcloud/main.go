@@ -21,6 +21,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/admin"
 	"github.com/holzcloud/holzcloud-cms/internal/ai"
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/branding"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
@@ -208,6 +209,7 @@ func main() {
 	// Template, menu, and media stores
 	tmplStore := tmplmgr.NewStore(database, cfg.DataDir)
 	menuStore := menu.NewStore(database)
+	albumStore := album.NewStore(database)
 	mediaStore := media.NewStore(database)
 	snippetStore := snippet.NewStore(database)
 	termStore := term.NewStore(database)
@@ -259,6 +261,10 @@ func main() {
 
 	admin.SetVersion(Version)
 	adminHandler := admin.NewHandler(database, sm, adminTmpl, argon2Params, domainStore, domainResolver, pageStore, tmplStore, menuStore, mediaStore, snippetStore, termStore, shareSigner, templateLoader, &cfg, loginThrottle, clientIP)
+	// Not a nineteenth argument to NewHandler: the constructor is positional
+	// and already eighteen long, and a new one would edit every call site
+	// including cmd/holzcloud/main_test.go.
+	adminHandler.SetAlbumStore(albumStore)
 	adminHandler.SetProductStore(productStore)
 	adminHandler.SetOrderStore(orderStore)
 	adminHandler.SetOutbox(outboxStore)
@@ -398,6 +404,7 @@ func main() {
 		userStore:       userStore,
 		pageStore:       pageStore,
 		menuStore:       menuStore,
+		albumStore:      albumStore,
 		mediaStore:      mediaStore,
 		snippetStore:    snippetStore,
 		termStore:       termStore,
@@ -624,9 +631,15 @@ type routerDeps struct {
 	domainStore    *domain.Store
 	// userStore beantwortet, wer welche Website betreten darf. Nil hiesse: die
 	// Einschränkung greift nicht, also wird sie hier immer gesetzt.
-	userStore       *user.Store
-	pageStore       *page.Store
-	menuStore       *menu.Store
+	userStore *user.Store
+	pageStore *page.Store
+	menuStore *menu.Store
+	// albumStore is carried here although newRouter has no use for it yet: the
+	// album routes reach the store through adminHandler. newRouter unpacks a
+	// dependency into a local only where something reads it, and Go rejects an
+	// unused one — a "_ = albumStore" discard would read as an oversight. The
+	// public expansion of an album (plan 11-05) is what will read it.
+	albumStore      *album.Store
 	mediaStore      *media.Store
 	snippetStore    *snippet.Store
 	termStore       *term.Store
@@ -876,6 +889,26 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/update", adminHandler.ErrHandler(adminHandler.HandleMenuItemUpdate))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/delete", adminHandler.ErrHandler(adminHandler.HandleMenuItemDelete))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/reorder", adminHandler.ErrHandler(adminHandler.HandleMenuItemReorder))
+
+	// The album area. Nine routes, the same nine menus has and for the same
+	// reason: a named parent with an ordered child list needs list, create,
+	// edit, update and delete, and four more on the children.
+	//
+	// The segment is "albums", English, like pages, media, menus, tags and
+	// snippets — the five content areas an editor reaches from the same
+	// navigation group. The three German ones (produkte, bestellungen,
+	// uebersetzungen) came later and belong to the shop and the translation
+	// matrix. Nothing here is stored, so the GLOSSARY's stored-value rule has
+	// nothing to bite on and no bookmark exists to break.
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/albums", adminHandler.ErrHandler(adminHandler.HandleAlbumList))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/albums", adminHandler.ErrHandler(adminHandler.HandleAlbumCreate))
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/albums/{albumID}", adminHandler.ErrHandler(adminHandler.HandleAlbumEdit))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/albums/{albumID}/update", adminHandler.ErrHandler(adminHandler.HandleAlbumUpdate))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/albums/{albumID}/delete", adminHandler.ErrHandler(adminHandler.HandleAlbumDelete))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/albums/{albumID}/pictures", adminHandler.ErrHandler(adminHandler.HandleAlbumItemCreate))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/albums/{albumID}/pictures/{itemID}/update", adminHandler.ErrHandler(adminHandler.HandleAlbumItemUpdate))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/albums/{albumID}/pictures/{itemID}/delete", adminHandler.ErrHandler(adminHandler.HandleAlbumItemDelete))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/albums/{albumID}/pictures/{itemID}/reorder", adminHandler.ErrHandler(adminHandler.HandleAlbumItemReorder))
 
 	// Media routes
 	adminProtectedMux.Handle("GET /admin/websites/{id}/export", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteExport))))
