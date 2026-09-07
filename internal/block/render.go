@@ -3,6 +3,7 @@ package block
 import (
 	"fmt"
 	"html"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -170,7 +171,22 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 		b.WriteString(`</div>`)
 
 	case TypeGallery:
-		inner := GalleryItems(at, blk.Items, look, s.text)
+		// Two sources, one rule, and the rule is stated because a hand-edited
+		// archive can produce what the editor cannot: a block carrying an album
+		// AND its own items renders the album. The album is the more explicit
+		// choice, and concatenating the two would mint two runs of fragment ids
+		// from one block position — hc-b1-p1 twice on one page.
+		var inner string
+		if slug := strings.TrimSpace(blk.AlbumSlug); slug != "" {
+			// The wrapper is written now and only its contents are late. The
+			// columns and the display are properties of the block and known at
+			// save; only the pictures belong to the album. A marker that had to
+			// carry them would be a second encoding of what the class attribute
+			// below already says.
+			inner = AlbumMarker(slug, at)
+		} else {
+			inner = GalleryItems(at, blk.Items, look, s.text)
+		}
 		if inner == "" {
 			return
 		}
@@ -401,6 +417,106 @@ var (
 // through. Under the hc- prefix like every id this file mints, so a heading in
 // a text block cannot collide with it.
 const closeTarget = "hc-zu"
+
+// The album marker: what a gallery block naming an album renders to, and the
+// one place its spelling is written down.
+//
+// Block HTML is rendered once, on save, and stored —
+// internal/admin/page_blocks.go says so in its own comment. So an album
+// expanded here would freeze a copy of its pictures into every page carrying
+// it, GAL-03 ("changing the album changes every page that carries it, without
+// touching those pages") would be false, and NOTHING anywhere would report it:
+// no test fails, no line is logged, and the editor simply reloads the page and
+// sees the old pictures. The marker is what makes the expansion late.
+//
+// internal/snippet/store.go:229-264 is the same mechanism for the same reason,
+// and internal/public/pagedata.go states it in those words.
+//
+// # Why the spelling lives in this package and not in internal/album
+//
+// internal/album already imports this package for block.Item, so a marker
+// declared there and written here would be an import cycle. It went this way
+// round rather than the other, and internal/album/expand.go calls the four
+// functions below instead of writing the string a second time. Two spellings
+// of one marker in two packages drift invisibly: the page still renders, and
+// the marker simply stays visible on it.
+//
+// # What this marker must survive, and what it need not
+//
+// Half of the snippet marker's reasoning does not apply here. A snippet marker
+// is typed by an editor into Markdown and has to survive goldmark and
+// bluemonday, which is what its pattern is shaped for. This one is written by
+// this file into HTML this program controls and meets neither. What it must
+// survive is media.MakeResponsive, which parses the fragment with
+// golang.org/x/net/html and re-renders it: a text node passes through
+// unchanged. That is a property to state and to test rather than to assume —
+// TestTheAlbumMarkerIsPlainTextInsideAnElement here, and
+// TestExpandedAlbumPicturesGetTheirSrcSet in internal/public for the other end.
+const albumMarkerPrefix = "[[album:"
+
+// albumMarkerPattern matches the marker albumMarkerPrefix opens.
+//
+// The slug is page.Slugify's alphabet and nothing else. The number after it is
+// the block's position in the page, because the fragment ids of the large views
+// are minted from it (D-03) — a page carrying an inline gallery and an album
+// gallery must not mint hc-b1-p1 twice.
+var albumMarkerPattern = regexp.MustCompile(`\[\[album:([a-z0-9][a-z0-9-]*):(\d+)\]\]`)
+
+// AlbumMarker is what a gallery block naming an album renders to.
+//
+// Built from the prefix above rather than spelled out a second time, so the
+// writer and the reader cannot disagree.
+func AlbumMarker(slug string, at int) string {
+	return albumMarkerPrefix + slug + ":" + strconv.Itoa(at) + "]]"
+}
+
+// HasAlbumMarker reports whether a document contains any album marker at all.
+//
+// The cheap question, asked before the expensive one: a page that names no
+// album must cost nothing — no regular expression over its whole body and no
+// database query. snippet.Expand opens with the same test for the same reason.
+func HasAlbumMarker(html string) bool {
+	return strings.Contains(html, albumMarkerPrefix)
+}
+
+// AlbumMarkerSlugs returns the album slugs a document names, deduplicated and
+// in the order they first appear.
+//
+// This is what turns "load only what the page names" from an intention into a
+// query, the way media.LoadImageSets reads the file names out of the HTML
+// before looking anything up.
+func AlbumMarkerSlugs(html string) []string {
+	if !HasAlbumMarker(html) {
+		return nil
+	}
+	seen := map[string]bool{}
+	var slugs []string
+	for _, m := range albumMarkerPattern.FindAllStringSubmatch(html, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			slugs = append(slugs, m[1])
+		}
+	}
+	return slugs
+}
+
+// ReplaceAlbumMarkers replaces every marker with what expand returns for it.
+//
+// A document with no marker is returned unchanged and untouched, which is what
+// keeps this mechanism free for the pages that do not use it.
+func ReplaceAlbumMarkers(html string, expand func(slug string, at int) string) string {
+	if !HasAlbumMarker(html) {
+		return html
+	}
+	return albumMarkerPattern.ReplaceAllStringFunc(html, func(match string) string {
+		parts := albumMarkerPattern.FindStringSubmatch(match)
+		at, err := strconv.Atoi(parts[2])
+		if err != nil {
+			return ""
+		}
+		return expand(parts[1], at)
+	})
+}
 
 // GalleryItems renders one gallery: every tile first, then every large view.
 //

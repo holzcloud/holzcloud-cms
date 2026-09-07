@@ -243,6 +243,19 @@ type Block struct {
 	// Items are the pictures of a gallery or the panels of a card row.
 	Items []Item `json:"eintraege,omitempty"`
 
+	// AlbumSlug names an album of this website instead of listing pictures
+	// here. Empty is the block that carries its own list, which is every
+	// gallery saved before this field existed.
+	//
+	// The slug and not the id: an id means nothing on the machine a bundle
+	// lands on, which is the sentence internal/bundle/blocks.go:11-18 opens
+	// with, and the slug is what page.Slugify derives from the name on both
+	// sides. The pictures are NOT stored here — that is the whole point. A
+	// block naming an album renders to a marker (see AlbumMarker in render.go)
+	// and the pictures are looked up at request time, so that changing the
+	// album changes every page carrying it without those pages being touched.
+	AlbumSlug string `json:"album,omitempty"`
+
 	// Fields are the values of an own kind's fields, by field key. Empty for
 	// every built-in type, which has its named fields above.
 	Fields map[string]string `json:"felder,omitempty"`
@@ -278,6 +291,18 @@ func (b Block) Empty() bool {
 	case TypeCallout:
 		return strings.TrimSpace(b.Title) == "" && strings.TrimSpace(b.Markdown) == ""
 	case TypeGallery, TypeCards:
+		// A gallery that takes its pictures from an album carries no items of
+		// its own, and it is not empty.
+		//
+		// The bug this line prevents: without it Clean below drops the block —
+		// it drops every block Empty() reports — so the editor picks an album,
+		// saves, and the block is gone. Silently: no test failed, no line was
+		// logged, no message reached the screen. The next person to give a
+		// block a second source for its content will land here again, which is
+		// why the bug is named and not only the rule.
+		if b.Type == TypeGallery && strings.TrimSpace(b.AlbumSlug) != "" {
+			return false
+		}
 		for _, it := range b.Items {
 			if it.MediaID != 0 || strings.TrimSpace(it.Title) != "" ||
 				strings.TrimSpace(it.Markdown) != "" {
@@ -405,6 +430,12 @@ func (s Set) Clean(blocks []Block) []Block {
 			b.Items = items
 		} else {
 			b.Items = nil
+		}
+		// An album belongs to a gallery. A card row has items too and would
+		// otherwise be able to carry a slug through the archive that no
+		// renderer anywhere reads.
+		if b.Type != TypeGallery {
+			b.AlbumSlug = ""
 		}
 		out = append(out, b)
 		if len(out) >= MaxBlocks {
