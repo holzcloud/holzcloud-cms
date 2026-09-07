@@ -583,12 +583,13 @@ anywhere.
 | 3. Multi-Site + Pages + Public Rendering | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 4. Templates + Menus + Media | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 5. Admin Polish + Users + Deployment | v1.0 | 3/3 | Complete | 2026-04-14 |
-| 6. Aufräumen | v1.6 | 7/7 | In Progress|  |
-| 7. Field Kinds | v1.6 | 7/7 | In Progress|  |
-| 8. Snippets Carry Fields | v1.6 | 5/5 | In Progress|  |
-| 9. CSV Import | v1.6 | 0/TBD | Not started | - |
-| 10. Authentik Forward-Auth | v1.6 | 0/TBD | Not started | - |
-| 11. Galerie | v1.6 | 6/7 | In Progress|  |
+| 6. Aufräumen | v1.6 | 7/7 | Complete | 2026-09-04 |
+| 7. Field Kinds | v1.6 | 7/7 | Complete | 2026-09-06 |
+| 8. Snippets Carry Fields | v1.6 | 5/5 | Complete | 2026-09-06 |
+| 9. CSV Import | v1.6 | 6/6 | Complete | 2026-09-07 |
+| 10. Authentik Forward-Auth | v1.6 | 0/10 | Not started | - |
+| 11. Galerie | v1.6 | 6/7 | In Progress |  |
+| 12. The Codebase Speaks English | v1.6 | 0/TBD | Not planned | - |
 
 ---
 

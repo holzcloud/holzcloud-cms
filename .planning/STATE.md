@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
-current_phase: 9
-current_phase_name: CSV Import
-status: complete
-stopped_at: Completed 11-06-PLAN.md
+current_phase: 11
+current_phase_name: Galerie
+status: in_progress
+stopped_at: Phase 11 Welle 4 fertig (11-06). Welle 5 (11-07) offen, danach Phase 10
 last_updated: "2026-09-07T23:11:33.291Z"
 last_activity: 2026-09-06
 state_head: fb909bcd212518533d3b730dc1b99d63287caa09
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 4
   total_plans: 42
   completed_plans: 31
-  percent: 14
+  percent: 74
 ---
 
 ## State: Holzcloud CMS
@@ -22,7 +22,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 11 — Galerie, **Wellen 1-2 von 5 ausgefuehrt**; Phase 10 geplant und wartend (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 11 — Galerie, **Wellen 1-4 von 5 ausgefuehrt**; Phase 10 geplant und wartend (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
