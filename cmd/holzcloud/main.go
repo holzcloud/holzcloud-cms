@@ -1208,9 +1208,17 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// prüfen ist, was der Aufruf wirklich braucht.
 	mux.Handle("/", domainResolver.Middleware(public.LocaleMiddleware(publicHandler.PluginMiddleware(publicHandler.ShopRoutes(publicMux)))))
 
-	// Outermost first: an id for every request, then the access log (so even a
-	// panicking request produces a line), then recovery, then the security
-	// headers and the session middleware.
+	// Outermost first: the forward-auth strip, then an id for every request,
+	// then the access log (so even a panicking request produces a line), then
+	// recovery, then the security headers and the session middleware.
+	//
+	// ForwardAuth is above RequestID and not below it because an identity
+	// header a client wrote must not be visible even to the access log — and
+	// because it is wrapped around the whole mux rather than around "/admin/",
+	// stripping identity headers is a property of this binary and not of one
+	// route prefix. The half that signs somebody in cannot live here: it needs
+	// the session, which sm.LoadAndSave supplies further in. That is plan
+	// 10-03, and it goes into the admin chain.
 	// The payment provider is allowed as a form target only where it is set up.
 	// An installation without keys keeps the policy it always had.
 	var paymentOrigins []string
@@ -1221,6 +1229,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	handler = web.Recoverer(handler)
 	handler = web.AccessLog(d.clientIP)(handler)
 	handler = web.RequestID(d.clientIP)(handler)
+	handler = web.ForwardAuth(d.clientIP, web.ForwardAuthOptions{
+		Enabled: cfg.SSOEnabled,
+		Secret:  cfg.SSOSecret,
+	})(handler)
 	return handler, nil
 }
 

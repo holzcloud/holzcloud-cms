@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,6 +39,25 @@ import (
 // table can focus on authorization.
 func testRouter(t *testing.T) (http.Handler, *scs.SessionManager, *db.DB) {
 	t.Helper()
+	return testRouterWith(t, routerTweaks{})
+}
+
+// routerTweaks are the few dependencies a test may need to change. The zero
+// value is what the whole existing suite gets: no trusted-proxy resolver, and
+// single sign-on switched off, so nothing about those tests changes.
+type routerTweaks struct {
+	ssoEnabled bool
+	ssoSecret  string
+	clientIP   *web.ClientIPResolver
+	// setupGuard replaces the pass-through the table tests use. A test that
+	// needs to see a request the way an admin handler sees it installs a
+	// recorder here: setupGuard sits inside every middleware newRouter wraps
+	// around the mux, so what it observes is the far side of the chain.
+	setupGuard func(http.Handler) http.Handler
+}
+
+func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionManager, *db.DB) {
+	t.Helper()
 
 	dir := t.TempDir()
 	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
@@ -70,7 +90,10 @@ func testRouter(t *testing.T) (http.Handler, *scs.SessionManager, *db.DB) {
 	sm.Store = memstore.New()
 	sm.Lifetime = time.Hour
 
-	cfg := config.Config{DataDir: dir, MaxMediaSize: 1 << 20, MaxTemplateSize: 1 << 20}
+	cfg := config.Config{
+		DataDir: dir, MaxMediaSize: 1 << 20, MaxTemplateSize: 1 << 20,
+		SSOEnabled: tw.ssoEnabled, SSOSecret: tw.ssoSecret,
+	}
 	domainStore := domain.NewStore(database)
 	tmplStore := tmplmgr.NewStore(database, dir)
 	loader := tmpl.NewLoader(dir, publicDefaultFS, publicFS, tmplStore)
@@ -88,13 +111,18 @@ func testRouter(t *testing.T) (http.Handler, *scs.SessionManager, *db.DB) {
 	adminHandler.SetAlbumStore(album.NewStore(database))
 
 	passthrough := func(next http.Handler) http.Handler { return next }
+	guard := tw.setupGuard
+	if guard == nil {
+		guard = passthrough
+	}
 	handler, err := newRouter(routerDeps{
 		cfg:             cfg,
 		database:        database,
 		sm:              sm,
 		adminHandler:    adminHandler,
 		csrfMiddleware:  passthrough,
-		setupGuard:      passthrough,
+		setupGuard:      guard,
+		clientIP:        tw.clientIP,
 		domainStore:     domainStore,
 		domainResolver:  domain.NewResolver(domainStore),
 		pageStore:       page.NewStore(database),
@@ -655,4 +683,182 @@ func TestProvisioningRefusesToStartWithoutItsDefaultWebsite(t *testing.T) {
 			t.Errorf("with provisioning off there is nothing to check: %v", err)
 		}
 	})
+}
+
+// identityHeaderSpellings is every spelling of an identity header this binary
+// must remove. The first group goes through Header.Set, which canonicalises
+// exactly as net/http does when it reads a name off the wire; the second is
+// planted straight into the map so the strip cannot come to depend on
+// canonical form. Adding a spelling is one line.
+var identityHeaderSpellings = []string{
+	"X-authentik-username",
+	"X-authentik-email",
+	"X-authentik-name",
+	"X-authentik-uid",
+	"X-authentik-groups",
+	"X-authentik-entitlements",
+	"X-authentik-jwt",
+	"X-authentik-meta-provider",
+	"X_authentik_email",
+	"X_authentik_groups",
+	"x-authentik-email",
+	"X-AUTHENTIK-EMAIL",
+}
+
+var rawIdentityHeaderSpellings = []string{
+	"x-authentik-email",
+	"X-AUTHENTIK-EMAIL",
+	"x_authentik_username",
+}
+
+func requestWithIdentityHeaders(method, target, remoteAddr string) *http.Request {
+	req := httptest.NewRequest(method, target, nil)
+	req.Host = "admin.test"
+	req.RemoteAddr = remoteAddr
+	for _, name := range identityHeaderSpellings {
+		req.Header.Set(name, "stranger@example.com")
+	}
+	for _, name := range rawIdentityHeaderSpellings {
+		req.Header[name] = []string{"stranger@example.com"}
+	}
+	req.Header.Set(web.ProxySecretHeader, "a-shared-secret")
+	return req
+}
+
+// assertStripped walks a header map and fails on any key whose normalised name
+// carries the identity prefix or names this installation's own shared secret.
+func assertStripped(t *testing.T, where string, h http.Header) {
+	t.Helper()
+	for name := range h {
+		normalised := strings.ToLower(strings.ReplaceAll(name, "_", "-"))
+		if strings.HasPrefix(normalised, "x-authentik-") {
+			t.Errorf("%s: %q survived; stripping identity headers is a property of this binary", where, name)
+		}
+		if normalised == strings.ToLower(web.ProxySecretHeader) {
+			t.Errorf("%s: %q survived; a handler must not read the secret protecting it", where, name)
+		}
+	}
+}
+
+// TestIdentityHeadersAreStrippedEverywhere drives the real router, not the
+// middleware, because the claim is about the binary rather than about one
+// route prefix.
+//
+// Two observables are used, and they are not equally strong.
+//
+// For an admin route the assertion is made from the far side: setupGuard is a
+// test seam newRouter already takes, and it sits inside every middleware
+// wrapped around the mux, so the header map it records is the one an admin
+// handler is given.
+//
+// For /healthz and for a public route there is no such seam, and registering a
+// probe route would mean changing newRouter's shape for the benefit of a test.
+// The assertion there is made on the request object the router was handed:
+// stripIdentityHeaders deletes from r.Header in place, so a key still present
+// afterwards is a key no strip removed. That is the weaker of the two — it
+// cannot prove the deletion happened before the next handler ran, only that it
+// happened — and internal/web/forwardauth_test.go carries the far-side proof of
+// the ordering.
+func TestIdentityHeadersAreStrippedEverywhere(t *testing.T) {
+	t.Run("an admin route, seen from the far side of the chain", func(t *testing.T) {
+		var seen http.Header
+		handler, _, _ := testRouterWith(t, routerTweaks{
+			setupGuard: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					seen = r.Header.Clone()
+					next.ServeHTTP(w, r)
+				})
+			},
+		})
+		req := requestWithIdentityHeaders("GET", "/admin/", "203.0.113.7:54321")
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+		if seen == nil {
+			t.Fatal("the recorder never ran; the far-side probe is not in the chain")
+		}
+		assertStripped(t, "an admin handler", seen)
+	})
+
+	handler, _, _ := testRouter(t)
+	for _, tc := range []struct{ name, target string }{
+		{"the liveness probe", "/healthz"},
+		{"a public route", "/"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := requestWithIdentityHeaders("GET", tc.target, "203.0.113.7:54321")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code >= 500 {
+				t.Fatalf("GET %s answered %d; the strip must not break the route", tc.target, rec.Code)
+			}
+			assertStripped(t, "GET "+tc.target, req.Header)
+		})
+	}
+
+	t.Run("the liveness probe still answers", func(t *testing.T) {
+		req := requestWithIdentityHeaders("GET", "/healthz", "203.0.113.7:54321")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ok") {
+			t.Errorf("healthz with every identity header set: %d %q", rec.Code, rec.Body.String())
+		}
+	})
+}
+
+// TestUntrustedPeerWithIdentityHeaderGetsTheLoginForm is the in-process half of
+// criterion 2: an untrusted peer that claims an identity gets the ordinary
+// unauthenticated redirect — not a 403 and not a dashboard. The way back into
+// the admin must not die with the proxy.
+//
+// RemoteAddr is set explicitly. httptest.NewRequest hands out 192.0.2.1:1234
+// and a test that leaves it alone is testing whatever net/http/httptest happens
+// to do this year. Setting it is also what stands in for a second machine:
+// httptest.Server binds loopback, and loopback is trusted by default, so an
+// in-process test that started a real listener would prove the opposite of what
+// it claims. The live-network half of criterion 2 is run against the built
+// binary and recorded in 10-02-SUMMARY.md.
+func TestUntrustedPeerWithIdentityHeaderGetsTheLoginForm(t *testing.T) {
+	trusted := web.NewClientIPResolver([]netip.Prefix{
+		netip.MustParsePrefix("127.0.0.1/32"),
+		netip.MustParsePrefix("::1/128"),
+	})
+
+	for _, tc := range []struct {
+		name       string
+		remoteAddr string
+		secret     string
+	}{
+		{"an untrusted peer over IPv4", "203.0.113.7:54321", "a-shared-secret"},
+		{"an untrusted peer over IPv6", "[2001:db8::1]:54321", "a-shared-secret"},
+		{"an untrusted peer that even has the right secret", "203.0.113.7:54321", "the-real-secret"},
+		{"a trusted peer with no secret", "127.0.0.1:41234", ""},
+		// The control. Layers 1 and 3 are both satisfied here and the answer
+		// is still the login form, because this plan puts an identity into the
+		// request context and nothing reads it. Plan 10-03 is what changes
+		// this line, and it should have to.
+		{"a trusted peer with the right secret, because nothing signs anybody in yet", "127.0.0.1:41234", "the-real-secret"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler, _, _ := testRouterWith(t, routerTweaks{
+				ssoEnabled: true,
+				ssoSecret:  "the-real-secret",
+				clientIP:   trusted,
+			})
+			req := requestWithIdentityHeaders("GET", "/admin/", tc.remoteAddr)
+			req.Header.Del(web.ProxySecretHeader)
+			if tc.secret != "" {
+				req.Header.Set(web.ProxySecretHeader, tc.secret)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusSeeOther {
+				t.Errorf("answered %d; want 303 — an identity header must never buy a dashboard, "+
+					"and must never cost a refusal either", rec.Code)
+			}
+			if loc := rec.Header().Get("Location"); loc != "/admin/login" {
+				t.Errorf("redirected to %q; want /admin/login", loc)
+			}
+			assertStripped(t, "the request the router served", req.Header)
+		})
+	}
 }
