@@ -1039,7 +1039,6 @@ func TestManifestWithoutAlbumsImportsAsBefore(t *testing.T) {
 	}
 }
 
-
 // Die weiteren Sprachen einer Website reisten nicht mit. Die Folgen waren
 // still und teuer: jede übersetzte Seite kam unter der Hauptsprache an, und
 // zwei Menüs, die sich nur in der Sprache unterscheiden, stiessen beim Anlegen

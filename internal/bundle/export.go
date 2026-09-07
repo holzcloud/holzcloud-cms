@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
@@ -34,6 +35,9 @@ type Stores struct {
 	Snippets *snippet.Store
 	Terms    *term.Store
 	Media    *media.Store
+	// Albums are the website's named sets of pictures. Nil means a bundle
+	// carries none, which is right for a build without them.
+	Albums *album.Store
 	// Fields are the website's own page fields. Nil means a bundle carries
 	// none, which is right for a build without them.
 	Fields *field.Store
@@ -142,6 +146,17 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 	if err != nil {
 		return nil, err
 	}
+	// Die Alben nach den Bildern und vor den Seiten, aus denselben zwei
+	// Gründen wie die Schlagwörter unten: ein Bild eines Albums reist als
+	// Dateiname und steht in mediaByID, und der Verweis eines Galeriebausteins
+	// reist als Name und steht in dieser Karte. Wer diesen Aufruf wieder nach
+	// unten schiebt, nimmt der Seitenausfuhr die Karte weg. Die Reihenfolge
+	// der Aufrufe ändert die Bytes des Archivs nicht — die JSON-Schlüssel
+	// kommen aus der Reihenfolge der Felder von Manifest.
+	albumNameBySlug, err := exportAlbums(ctx, s, ws.ID, m, mediaByID)
+	if err != nil {
+		return nil, err
+	}
 	// Die Schlagwörter vor den Seiten, weil eine Seite sie braucht: der Wert
 	// eines Schlagwortfeldes reist als Name, und die Namen stehen in dieser
 	// Karte. Die Reihenfolge der Aufrufe ändert die Bytes des Archivs nicht —
@@ -152,7 +167,7 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 	if err != nil {
 		return nil, err
 	}
-	if err := exportPages(ctx, s, ws.ID, m, mediaByID, nameBySlug); err != nil {
+	if err := exportPages(ctx, s, ws.ID, m, mediaByID, nameBySlug, albumNameBySlug); err != nil {
 		return nil, err
 	}
 	if err := exportMenus(ctx, s, ws.ID, m); err != nil {
@@ -190,8 +205,11 @@ func exportMedia(ctx context.Context, s Stores, websiteID int64, m *Manifest) (m
 	return byID, nil
 }
 
+// albumNameBySlug is threaded through to the blocks: a gallery block stores an
+// album's slug and the archive carries the album's name (exportAlbums says
+// why).
 func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
-	mediaByID map[int64]string, nameBySlug map[string]string) error {
+	mediaByID map[int64]string, nameBySlug, albumNameBySlug map[string]string) error {
 	// "*" is every language: without it an export of a multilingual site would
 	// quietly carry only the main language and the import would look like it
 	// had worked.
@@ -389,6 +407,46 @@ func exportTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest) (m
 	for _, t := range terms {
 		nameBySlug[t.Slug] = t.Name
 		m.Terms = append(m.Terms, Term{Slug: t.Slug, Name: t.Name})
+	}
+	return nameBySlug, nil
+}
+
+// exportAlbums writes the website's albums and returns their slug -> name map.
+//
+// The map is what exportPages needs: a gallery block stores an album's slug,
+// and a slug is not transferable — Rename keeps it while the name changes, so
+// the other machine derives a different one from the name. The reference
+// therefore travels as the name, and this is where the names are. That is
+// exportTerms' shape exactly, for the same reason and with the same map.
+//
+// A picture goes out through mediaByID, so it travels as the file name that is
+// also in the archive's media list. A picture whose file is not in this export
+// becomes an empty name rather than a number, exactly as a block's picture
+// does: a name that is not there can be reported on import, a number would
+// silently point at somebody else's picture.
+func exportAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
+	mediaByID map[int64]string) (map[string]string, error) {
+	nameBySlug := map[string]string{}
+	if s.Albums == nil {
+		return nameBySlug, nil
+	}
+	albums, err := s.Albums.List(ctx, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("list albums: %w", err)
+	}
+	for _, a := range albums {
+		nameBySlug[a.Slug] = a.Name
+		items, err := s.Albums.Items(ctx, websiteID, a.ID)
+		if err != nil {
+			return nil, fmt.Errorf("load album %q: %w", a.Slug, err)
+		}
+		out := Album{Name: a.Name}
+		for _, it := range items {
+			out.Items = append(out.Items, AlbumItem{
+				Media: mediaByID[it.MediaID], Alt: it.Alt, Caption: it.Caption,
+			})
+		}
+		m.Albums = append(m.Albums, out)
 	}
 	return nameBySlug, nil
 }
