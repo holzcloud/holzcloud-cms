@@ -5,16 +5,16 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 9
 current_phase_name: CSV Import
 status: complete
-stopped_at: Phase 11 Wellen 1-2 ausgefuehrt, Phase 10 geplant (10 Plaene, 9 Wellen). Ein Pruef-Workflow ueber den ganzen Meilenstein laeuft und hat bereits eine zweite und dritte Website-Isolationsluecke gefunden
-last_updated: "2026-09-06T12:00:00.000Z"
+stopped_at: Completed 11-06-PLAN.md
+last_updated: "2026-09-07T23:11:33.291Z"
 last_activity: 2026-09-06
-state_head: 3ad28bab760521de6690e8524094df6526b1807e
+state_head: fb909bcd212518533d3b730dc1b99d63287caa09
 progress:
-  total_phases: 6
-  completed_phases: 3
-  total_plans: 19
-  completed_plans: 19
-  percent: 50
+  total_phases: 7
+  completed_phases: 1
+  total_plans: 42
+  completed_plans: 31
+  percent: 14
 ---
 
 ## State: Holzcloud CMS
@@ -166,7 +166,6 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 
 - **Die Website-Isolation ist die tragende Schwachstellenfamilie dieses Projekts, und sie ist dreimal aufgetreten.** Am 2026-09-06 vier Menüeintrags-Handler (`de4a1ce` beweist, `5e453a9` behebt), am 2026-09-07 das Produkt-Speichern (`071bead`/`2e43bc1`) und die Bestellungs-Anzeige (`fb9c76a`). Die Ursache ist jedes Mal dieselbe: `auth.RequireWebsiteAccess` liest die Website **aus dem Pfad**, der Handler nimmt eine zweite Kennung ebenfalls aus dem Pfad, und niemand verbindet die beiden. **Wo der Speicher die Zuordnung selbst erzwingt — `term`, `kind`, `block`, `field` — ist es nie passiert.** Wo sie im Aufrufer liegt, ist es passiert. Jede neue Ressource mit einer eigenen Kennung gehört deshalb nach `term/store.go:284-311` gebaut, nicht nach `menu/store.go`
 
-
 - FIELD-02 (multiple choice) is the first field value that is not a single string. The encoding chosen in Phase 7 is load-bearing for Phase 9's importer — decide it before either phase writes code
 - A CHECK constraint at the table head cannot be loosened in SQLite without a full table rebuild, and `pages` has foreign-key children. `page_field_defs.art` carries no CHECK, so a new field *kind* needs no migration — but Phase 7 ships 00046 anyway, because `darstellung`, `max_werte` and the `bereich` bounds were given their own columns rather than being squeezed into `auswahl`. `users.role` DOES carry a table-level CHECK at `00001:7`: Phase 10 must not invent a third role
 - Phase 8's `snippet_id` column collides with the partial unique index `idx_page_field_defs_kennung_oben` — an index swap, not a rebuild. **That index was already replaced by `00038:52–56`, not left as `00029` wrote it.** Read 00029 AND 00038 before writing 00047; 00038 is a line-for-line template and its own comment explains the operation
@@ -181,7 +180,6 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 #### Todos
 
 - **Offener Widerspruch, benannt am 2026-09-07 und bewusst nicht still entschieden: `featured_media_id` wird nirgends gegen die Website geprueft** — weder im Produktformular noch im Seitenformular. Das ist **kein** Fehler derselben Familie wie die drei Isolationsluecken, sondern ein Konflikt zwischen zwei Regeln dieses Projekts. `HandleMediaServe` haelt die websiteuebergreifende Wiederverwendung von Medien ausdruecklich fest („es wuerde die Vorschau in der Verwaltung zerbrechen"), und `/media/{websiteID}/…` ist fuer jede aktive Website ohnehin abrufbar. Die Projektregel dagegen lautet: jede Ressource gehoert zu genau einer Website, nichts wird geteilt. Eine Pruefung einzubauen waere also nicht die Behebung eines Fehlers, sondern die stille Umkehrung eines dokumentierten Entscheids — und sie beruehrt beide Formulare. **Zu entscheiden, nicht zu erben.** Belege in `.planning/quick/260907-product-scope/REPORT.md` §6
-
 
 - Phase 6 is done and none of it must be re-discovered. The i18n catalogues already matched the tool's output (quick task `260903-bsk`, `.planning/WINDOWS.md`); all three former defects are closed — `06-03` deleted the indentation claim from the `writeCatalog` doc comment (do **not** go looking for `tools/i18n/main.go:287`; the line and the claim are both gone, and `06-07` retired the ROADMAP note that pointed at them) and made the tool state which regional catalogues it only reads, and `06-06` made CI rebuild and compare all ten artifacts before any test runs
 - Phase 6 ordering: rebuild-and-hash-compare in CI first, promote the test skips second. Any catalogue reformat is its own commit, proven with a `jq -S` semantic diff
@@ -246,6 +244,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 08 P03 | 9 min | 2 tasks | 9 files |
 | Phase 08 P04 | 10 min | 3 tasks | 8 files |
 | Phase 08 P05 | 32 min | 3 tasks | 9 files |
+| Phase 11 P06 | 21 min | 3 tasks | 7 files |
 
 ### Session Continuity
 
@@ -274,8 +273,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-06T10:58:48.652Z
-**Stopped at:** 09-CONTEXT.md geschrieben, Kantentest 34/34 geschlossen, Musterabgleich läuft
+**Last session:** 2026-09-07T23:11:15.702Z
+**Stopped at:** Completed 11-06-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -332,6 +331,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 08]: 08-03: der Feldbildschirm bekommt einen vierten Modus (?textbaustein=<id>) statt einer vierten Route — FieldListData.Snippet, ein vierter case in fieldListData mit field.Kinds in voller Breite, Simple() auf drei Traeger, fieldPath mit viertem Arm an allen vier Aufrufstellen — Es gibt keinen Handler und keine Vorlage je Bausteinart; ?baustein= ist bereits der dritte Modus desselben Bildschirms. Eine vierte Route waere eine zweite Wahrheit ueber denselben Bildschirm gewesen
 - [Phase 08]: 08-03: snippetOf ist die eine Eigentumspruefung, aufgerufen vom GET und vom POST; h.snippets.Get steht in internal/admin/field.go genau einmal — blockTypes.Get nimmt die Websitenummer und findet eine Bausteinart einer anderen Seite nicht; snippets.Get nimmt nur eine Nummer. Zwei eingelassene Vergleiche koennten auseinanderlaufen — eine Funktion kann es nicht
 - [Phase 08]: 08-03: die drei {{if not .BlockType}}-Verneinungen in field_list.html bleiben unverbreitert — sieben, nicht zehn, ist die Zahl der neuen Arme — Die drei Verneinungen sind die drei Orte der Pflicht-Spalte. Eine davon auf .Snippet auszuweiten haette dem Bediener die einzige Moeglichkeit genommen, ein Textbausteinfeld als Pflicht zu markieren — und waere der bequeme falsche Weg gewesen, eine Armzahl passend zu machen
+- [Phase 11]: Ein Album reist im Archiv unter seinem Namen und ohne Kuerzel; die andere Maschine leitet die Adresse mit page.Slugify ab, dem einen Aufruf, den album.Store.Create schon macht
+- [Phase 11]: importAlbums steht nach den Bildern und vor den Seiten, ausdruecklich nicht zuletzt wie der Menue-Import; Manifest.Version wird nicht erhoeht, weil albums omitempty ist
 
 ## Accumulated Context
 
