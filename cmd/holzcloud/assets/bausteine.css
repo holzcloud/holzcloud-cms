@@ -143,6 +143,79 @@
 
 .hc-galerie { align-items: start; }
 
+/* --- The lightbox -------------------------------------------------------- */
+
+/* From here down the comments are English while the rest of this file is
+ * German. That is deliberate: this project's code became English on
+ * 2026-09-06, and an existing file is not translated to match. Do not "fix"
+ * one half of it.
+ *
+ * The whole mechanism is :target and one anchor per picture. No script is
+ * involved, so the browser's back button undoes an enlargement for free — the
+ * state is a fragment in the URL, where the browser already keeps it.
+ *
+ * The large view is removed from the layout with display: none, and that is
+ * the point of this section rather than a detail of it. An element that is
+ * taken out of the flow but left in the box tree still counts toward the
+ * scroll width: .planning/STATE.md:209 records what that cost in the weide
+ * theme, where a submenu nobody had opened made every page of the site scroll
+ * sideways, measured in headless Chrome at 1280, 1100 and 1024 pixels before
+ * it was believed. A gallery sits on more pages than a submenu.
+ *
+ * display: none is also the honest hiding. With this stylesheet absent the
+ * rule does not exist at all, the figure is simply visible, and the page reads
+ * as a list of pictures with working anchors instead of a wreck — which is the
+ * case for every theme written by following TEMPLATE-SPEC.md until today.
+ *
+ * So: no fixed and no absolute placement anywhere below, and no hiding that
+ * leaves the element where it was. Those are three spellings of one mistake
+ * and they all lead back to STATE.md:209. */
+.hc-galerie__gross {
+    display: none;
+    margin: 0;
+}
+
+/* The gallery is a grid, so the revealed picture takes every column of it. The
+ * browser scrolls to it on its own, because that is what a fragment does. */
+.hc-galerie__gross:target {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    grid-column: 1 / -1;
+}
+
+.hc-galerie__gross img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    max-block-size: 80vh;
+    object-fit: contain;
+    border-radius: var(--hc-rund);
+}
+
+/* The tile is a link now. Without this a browser underlines it and paints its
+ * own link colour into the gap under the picture. */
+.hc-galerie__oeffnen {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.hc-galerie__steuerung {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hc-luft);
+    align-items: baseline;
+}
+
+/* The close control goes to the end of the row wherever it lands, because
+ * previous and next are absent at the two ends of a gallery and a control that
+ * moved about would be a control nobody finds twice. */
+.hc-galerie__schliessen {
+    margin-inline-start: auto;
+}
+
+
 .hc-karte {
     display: flex;
     flex-direction: column;
