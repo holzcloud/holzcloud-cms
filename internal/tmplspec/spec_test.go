@@ -161,15 +161,34 @@ func codeBlockContaining(t *testing.T, doc, marker string) string {
 func TestSpecDocumentsEveryFieldEntryMember(t *testing.T) {
 	spec := Markdown()
 
-	entry := reflect.TypeOf(field.Entry{})
-	for i := 0; i < entry.NumField(); i++ {
-		f := entry.Field(i)
-		if !f.IsExported() {
-			continue
-		}
-		if !strings.Contains(spec, "`."+f.Name+"`") {
-			t.Errorf("the specification never names `.%s` — a template author "+
-				"reading it has no way to learn the member exists", f.Name)
+	// field.Entry itself, and then the types it points at.
+	//
+	// Only the first half was checked, and the gap that opened underneath is
+	// the reason the second exists: field.Image carries Width, Height and Focus,
+	// internal/public fills all three, all eight shipped themes read two of
+	// them — and the words "Width", "Height" and "Focus" appeared nowhere in
+	// the document. A theme written from the specification alone would have
+	// been the only one without them, and nothing would have said so.
+	//
+	// One level down and no further. These three types are leaves by design
+	// (field.Ref's own comment says a reference that carried the whole target
+	// page would make one page's rendering depend on another's), so a general
+	// walk would buy nothing and would start reporting time.Time's members.
+	for _, typ := range []reflect.Type{
+		reflect.TypeOf(field.Entry{}),
+		reflect.TypeOf(field.Image{}),
+		reflect.TypeOf(field.Ref{}),
+		reflect.TypeOf(field.Term{}),
+	} {
+		for i := 0; i < typ.NumField(); i++ {
+			f := typ.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			if !strings.Contains(spec, "`."+f.Name+"`") {
+				t.Errorf("the specification never names `.%s` of %s — a template author "+
+					"reading it has no way to learn the member exists", f.Name, typ.Name())
+			}
 		}
 	}
 }
