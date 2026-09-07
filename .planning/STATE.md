@@ -164,6 +164,9 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 
 #### Known Risks
 
+- **Die Website-Isolation ist die tragende Schwachstellenfamilie dieses Projekts, und sie ist dreimal aufgetreten.** Am 2026-09-06 vier Menüeintrags-Handler (`de4a1ce` beweist, `5e453a9` behebt), am 2026-09-07 das Produkt-Speichern (`071bead`/`2e43bc1`) und die Bestellungs-Anzeige (`fb9c76a`). Die Ursache ist jedes Mal dieselbe: `auth.RequireWebsiteAccess` liest die Website **aus dem Pfad**, der Handler nimmt eine zweite Kennung ebenfalls aus dem Pfad, und niemand verbindet die beiden. **Wo der Speicher die Zuordnung selbst erzwingt — `term`, `kind`, `block`, `field` — ist es nie passiert.** Wo sie im Aufrufer liegt, ist es passiert. Jede neue Ressource mit einer eigenen Kennung gehört deshalb nach `term/store.go:284-311` gebaut, nicht nach `menu/store.go`
+
+
 - FIELD-02 (multiple choice) is the first field value that is not a single string. The encoding chosen in Phase 7 is load-bearing for Phase 9's importer — decide it before either phase writes code
 - A CHECK constraint at the table head cannot be loosened in SQLite without a full table rebuild, and `pages` has foreign-key children. `page_field_defs.art` carries no CHECK, so a new field *kind* needs no migration — but Phase 7 ships 00046 anyway, because `darstellung`, `max_werte` and the `bereich` bounds were given their own columns rather than being squeezed into `auswahl`. `users.role` DOES carry a table-level CHECK at `00001:7`: Phase 10 must not invent a third role
 - Phase 8's `snippet_id` column collides with the partial unique index `idx_page_field_defs_kennung_oben` — an index swap, not a rebuild. **That index was already replaced by `00038:52–56`, not left as `00029` wrote it.** Read 00029 AND 00038 before writing 00047; 00038 is a line-for-line template and its own comment explains the operation
