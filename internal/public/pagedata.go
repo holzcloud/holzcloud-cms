@@ -20,7 +20,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 )
 
-// pageContent maps a stored page onto what a theme sees.
+// pageContent maps a stored page onto what a theme sees, and returns beside it
+// when the albums that page names last changed.
 //
 // Snippet markers are expanded here, at render time. Baking the expansion into
 // content_html on save would freeze a copy of the opening hours into every
@@ -29,8 +30,15 @@ import (
 // The responsive rewrite happens at the same moment and for the same reason:
 // regenerating an image's scaled copies, or adding the pipeline to a site that
 // already has content, must reach the pages that were written before it.
-func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, snippets snippet.Rendered) tmpl.PageContent {
+//
+// The second return value is a caching validator and not content, and it comes
+// back from here because here is where it is known: the albums are loaded while
+// the body is expanded, and asking a second time on the way to serveCached
+// would be a second query on every public request. A caller that does not cache
+// its answer — the share-link preview, which is no-store — discards it.
+func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, snippets snippet.Rendered) (tmpl.PageContent, time.Time) {
 	updated := pg.UpdatedAt
+	var albumsAt time.Time
 	body := snippet.Expand(pg.ContentHTML, snippets.HTML)
 	// The albums, and both halves of where this call stands are decisions.
 	//
@@ -46,6 +54,7 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// argument from the other end.
 	if h.albumStore != nil {
 		if set, ok := h.albumSet(r, websiteID, body); ok {
+			albumsAt = set.Latest()
 			body = album.Expand(body, set)
 		}
 	}
@@ -66,7 +75,7 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 		Terms:         termLinksAt(localePrefixOf(r), h.labelsForPage(r, pg.ID)),
 		Felder:        felder,
 		Feldliste:     liste,
-	}
+	}, albumsAt
 }
 
 // albumSet loads the albums this page's HTML names, in the website's language.
@@ -377,11 +386,32 @@ func expandForFeed(html string, snippets snippet.Rendered) string {
 // It has to account for the snippets, not just the page: editing the opening
 // hours changes what the page renders without touching pages.updated_at, and a
 // browser holding an If-Modified-Since would keep the old text indefinitely.
-func contentModTime(pg *page.Page, snippets snippet.Rendered) time.Time {
-	if snippets.LatestUpdate.After(pg.UpdatedAt) {
-		return snippets.LatestUpdate
+//
+// And, since Phase 11, for the albums, which are a second source of exactly the
+// same kind and were the same sentence come true. Adding a picture to an album
+// changes every page that names it and touches none of them — that is GAL-03 —
+// so pages.updated_at says "unchanged" about a page whose gallery is not. A
+// browser that had been on the site before was answered 304 and kept the old
+// gallery, and every later request repeated the answer.
+//
+// albums is album.Set.Latest, the newest updated_at among the albums this page
+// names, and the zero time for a page that names none.
+//
+// Where it is still short, said out loud rather than left to be found: an album
+// that is DELETED takes its row and its stamp with it, so this value can go
+// down. What holds that case is the strong ETag — serveCached now lets a
+// present-and-mismatching If-None-Match end the negotiation, per RFC 7232 §3.3,
+// which is what every browser sends. This is the validator for the caches that
+// send only a date.
+func contentModTime(pg *page.Page, snippets snippet.Rendered, albums time.Time) time.Time {
+	newest := pg.UpdatedAt
+	if snippets.LatestUpdate.After(newest) {
+		newest = snippets.LatestUpdate
 	}
-	return pg.UpdatedAt
+	if albums.After(newest) {
+		newest = albums
+	}
+	return newest
 }
 
 // startsWithHeading reports whether rendered content opens with an <h1>.

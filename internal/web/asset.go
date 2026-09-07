@@ -41,7 +41,7 @@ func WriteAsset(w http.ResponseWriter, r *http.Request, assetPath string, conten
 
 	etag := AssetETag(content)
 	w.Header().Set("ETag", etag)
-	if matchesETag(r.Header.Get("If-None-Match"), etag) {
+	if MatchesETag(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)
 		return false
 	}
@@ -60,9 +60,14 @@ func AssetETag(content []byte) string {
 	return `"` + base64.RawURLEncoding.EncodeToString(sum[:16]) + `"`
 }
 
-// matchesETag implements the If-None-Match comparison, which is a list and not
+// MatchesETag implements the If-None-Match comparison, which is a list and not
 // a single value — and "*" means "any representation I might already have".
-func matchesETag(header, etag string) bool {
+//
+// Exported because internal/public's serveCached needs the same comparison and
+// two spellings of one header would be two chances to get it wrong — and one of
+// them, the page route, is the one where getting it wrong strands a visitor on
+// a stale page with no request that recovers.
+func MatchesETag(header, etag string) bool {
 	if header == "" {
 		return false
 	}

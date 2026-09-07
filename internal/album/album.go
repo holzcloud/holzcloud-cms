@@ -20,6 +20,16 @@ type Album struct {
 	Slug      string
 	Name      string
 	CreatedAt time.Time
+	// UpdatedAt is when anything about this album last changed — its name, or
+	// the addition, edit, removal or reordering of any of its pictures.
+	//
+	// It is not decoration on a listing: it is the Last-Modified every public
+	// page that names this album is served with. A page carrying an album is
+	// not touched when the album changes — that is GAL-03 — so this column is
+	// the only thing that can tell a browser holding a conditional request that
+	// what it has is stale. internal/album/store.go's package comment says
+	// where it is written and why it can never be the caller's job.
+	UpdatedAt time.Time
 }
 
 // Picture is one row of album_items: what the database keeps about the row —
