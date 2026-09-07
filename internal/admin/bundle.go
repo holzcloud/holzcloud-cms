@@ -29,6 +29,7 @@ func (h *Handler) bundleStores() bundle.Stores {
 		Snippets:   h.snippets,
 		Terms:      h.terms,
 		Media:      h.mediaStore,
+		Albums:     h.albumStore,
 		Fields:     h.fields,
 		Kinds:      h.kinds,
 		BlockTypes: h.blockTypes,

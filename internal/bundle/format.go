@@ -39,6 +39,10 @@ type Manifest struct {
 	Snippets []Snippet `json:"snippets,omitempty"`
 	Terms    []Term    `json:"terms,omitempty"`
 	Media    []Media   `json:"media,omitempty"`
+	// Albums are the website's named sets of pictures. A gallery block names
+	// one instead of listing its own pictures, and the reference travels as
+	// this name — see Block.Album.
+	Albums []Album `json:"albums,omitempty"`
 	// Types are the website's own content kinds. Without them the entries would
 	// arrive carrying a kind nothing on the other side knows, and a hundred
 	// products would sit in the list as untitled kinds.
@@ -270,6 +274,40 @@ type ContentType struct {
 	Plural  string `json:"plural"`
 	Archive string `json:"archive,omitempty"`
 	Sort    string `json:"sort,omitempty"`
+}
+
+// Album is one named set of pictures, and it belongs to exactly one website.
+//
+// The name is the load-bearing half and the only half that travels. There is
+// deliberately no slug here: the importing machine derives it from the name
+// with page.Slugify, which is the same one call album.Store.Create makes, so
+// the two agree by construction rather than by coincidence. Carrying both
+// would be two sources for one key — the shape internal/term/store.go:318-328
+// warns about at length — and the derived one would win anyway.
+//
+// The name and not an id, for the reason Page.Terms already gives: a manifest
+// exists to be read and repaired by hand, and an id means nothing to a person
+// holding a text editor. It also survives a rename, which is the whole point:
+// album.Store.Rename moves the name and never the slug, so a page keeps the
+// old slug while the album shows a new name, and a reference that travelled as
+// a slug would land on nothing on the other machine — silently.
+type Album struct {
+	Name  string      `json:"name"`
+	Items []AlbumItem `json:"items,omitempty"`
+}
+
+// AlbumItem is one picture of an album, in the album's own order.
+//
+// Media is a file name from the media list and never a number, which is the
+// sentence blocks.go opens with: "a picture is stored as an id, and an id
+// means nothing on the machine the bundle lands on. So it travels as a file
+// name, the same way a page's preview image already did." A name that is not
+// in the media list can be reported on import; a number would silently point
+// at somebody else's picture.
+type AlbumItem struct {
+	Media   string `json:"media,omitempty"`
+	Alt     string `json:"alt,omitempty"`
+	Caption string `json:"caption,omitempty"`
 }
 
 // Menu is one navigation, with its items already in order.

@@ -47,6 +47,7 @@ type Report struct {
 	Menus     int
 	Snippets  int
 	Terms     int
+	Albums    int
 	// Warnings are the things that did not come through. Each one names what
 	// was lost and why; none of them stops the import.
 	Warnings []string
@@ -127,6 +128,13 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// nennt, gibt es sonst nirgends — SetForPage legt nur an, was in der
 	// Schlagwortliste einer Seite steht.
 	importTerms(ctx, s, websiteID, manifest, report)
+	// Die Alben vor den Seiten, weil ein Galeriebaustein eines nennt und der
+	// Bericht sagen können soll, welches Album ein Baustein nicht gefunden
+	// hat. Nach den Bildern, weil die Bilder eines Albums Dateinamen sind und
+	// mediaByName die Stelle ist, an der daraus Nummern werden. Ausdrücklich
+	// nicht zuletzt wie die Menüs, deren Einträge über Adressen auf Seiten
+	// zeigen und die Seiten deshalb brauchen (import.go:1087).
+	importAlbums(ctx, s, websiteID, manifest, mediaByName, report)
 	importPages(ctx, s, websiteID, manifest, mediaByName, fieldKinds, set, report)
 	importSnippets(ctx, s, websiteID, manifest, report)
 	importMenus(ctx, s, websiteID, manifest, report)
@@ -332,6 +340,62 @@ func importTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 	// Was angelegt wurde, nicht was das Archiv behauptet: eine Zahl, die ein
 	// Bericht nennt, soll geglaubt werden können.
 	report.Terms = n
+}
+
+// importAlbums recreates the website's albums, with their pictures in order.
+//
+// Every album is made through album.Store.Create and never through an INSERT
+// of this package's own. That is not tidiness: Create holds the one call to
+// page.Slugify that derives an album's address, and importBlocks derives the
+// same address from the same name. A second INSERT here would be a second
+// derivation of one key, which internal/term/store.go:318-328 is a long
+// warning about — and the two would agree until the day one of them changed.
+//
+// A name the store refuses is a warning that names the album and never a
+// failed import: an import that stops halfway is worse than one that says what
+// is missing. The album is named by its position as well as its text, because
+// the name that gets refused most often is the one that is blank.
+//
+// A picture whose file did not arrive is dropped and reported rather than
+// guessed at. mediaByName holds the media this import created for this
+// website, so a name that is not in it resolves to nothing — never to a
+// number, which is blocks.go's rule one level up.
+func importAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
+	mediaByName map[string]int64, report *Report) {
+	if len(m.Albums) == 0 {
+		return
+	}
+	if s.Albums == nil {
+		report.Warnings = append(report.Warnings,
+			fmt.Sprintf("%d Alben konnten nicht angelegt werden.", len(m.Albums)))
+		return
+	}
+	created := 0
+	for i, a := range m.Albums {
+		row, err := s.Albums.Create(ctx, websiteID, a.Name)
+		if err != nil {
+			report.Warnings = append(report.Warnings,
+				fmt.Sprintf("Album %d %q konnte nicht angelegt werden: %v", i+1, a.Name, err))
+			continue
+		}
+		created++
+		for _, it := range a.Items {
+			id, ok := mediaByName[it.Media]
+			if !ok {
+				report.Warnings = append(report.Warnings, fmt.Sprintf(
+					"Album %q: das Bild %q ist nicht im Archiv.", row.Name, it.Media))
+				continue
+			}
+			if _, err := s.Albums.AddItem(ctx, websiteID, row.ID, id, it.Alt, it.Caption); err != nil {
+				report.Warnings = append(report.Warnings, fmt.Sprintf(
+					"Album %q: das Bild %q kam nicht an: %v", row.Name, it.Media, err))
+			}
+		}
+	}
+	// Was angelegt wurde, nicht was das Archiv behauptet — dieselbe Regel wie
+	// bei den Schlagwörtern oben: eine Zahl, die ein Bericht nennt, soll
+	// geglaubt werden können.
+	report.Albums = created
 }
 
 // importFields recreates the website's own field definitions and returns which
