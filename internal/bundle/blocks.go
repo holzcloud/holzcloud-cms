@@ -6,6 +6,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
 // Blocks in a bundle.
@@ -22,14 +23,24 @@ import (
 // A picture whose file is not in this export becomes an empty name rather than
 // a number: a name that is not there can be reported on import, a number would
 // silently point at somebody else's picture.
-func exportBlocks(blocks []block.Block, set block.Set, mediaByID map[int64]string) []Block {
+//
+// A gallery's album is the same rule one level up, and albumNameBySlug is
+// where the names are. A slug is not transferable: album.Store.Rename keeps it
+// while the name changes, so the other machine derives a different slug from
+// the name and a reference that travelled as a slug would point at nothing.
+// A slug that names no album of this website is DROPPED rather than passed
+// through, for exactly the reason export.go gives for a term's slug: the value
+// would otherwise land on whatever the other machine happens to derive from
+// it, and that is worse than landing on nothing.
+func exportBlocks(blocks []block.Block, set block.Set, mediaByID map[int64]string,
+	albumNameBySlug map[string]string) []Block {
 	out := make([]Block, 0, len(blocks))
 	for _, b := range blocks {
 		e := Block{
 			Type: b.Type, Markdown: b.Markdown,
 			Media: mediaByID[b.MediaID], Poster: mediaByID[b.PosterID],
 			Alt: b.Alt, Caption: b.Caption, Variant: b.Variant,
-			Display: b.Display, Album: b.AlbumSlug,
+			Display: b.Display, Album: albumNameBySlug[b.AlbumSlug],
 			Title: b.Title, Text: b.Text, Source: b.Source,
 			LinkText: b.LinkText, LinkURL: b.LinkURL,
 		}
@@ -66,14 +77,23 @@ func exportBlocks(blocks []block.Block, set block.Set, mediaByID map[int64]strin
 // A name that is not in the media list resolves to zero — no picture — which is
 // what a block whose file did not survive the journey should look like: the
 // text around it stays, the image is gone, and the report says which file.
-func importBlocks(blocks []Block, set block.Set, mediaByName map[string]int64) []block.Block {
+//
+// A gallery's album is the same shape: the archive carries the album's name and
+// what is stored is an address, so the address is derived here with
+// page.Slugify — the one rule album.Store.Create applies too, which is why the
+// two agree by construction and not by coincidence. This is import.go's
+// KindTerm arm with an album in the term's place; the two belong together and
+// should be changed together. A name the manifest does not declare is dropped
+// rather than derived, and missingAlbum below is what says so on the report.
+func importBlocks(blocks []Block, set block.Set, mediaByName map[string]int64,
+	albumNames map[string]bool) []block.Block {
 	out := make([]block.Block, 0, len(blocks))
 	for _, b := range blocks {
 		n := block.Block{
 			Type: b.Type, Markdown: b.Markdown,
 			MediaID: mediaByName[b.Media], PosterID: mediaByName[b.Poster],
 			Alt: b.Alt, Caption: b.Caption, Variant: b.Variant,
-			Display: b.Display, AlbumSlug: b.Album,
+			Display: b.Display, AlbumSlug: importAlbumSlug(b.Album, albumNames),
 			Title: b.Title, Text: b.Text, Source: b.Source,
 			LinkText: b.LinkText, LinkURL: b.LinkURL,
 		}
@@ -100,6 +120,43 @@ func importBlocks(blocks []Block, set block.Set, mediaByName map[string]int64) [
 			}
 		}
 		out = append(out, n)
+	}
+	return out
+}
+
+// importAlbumSlug turns the album name a block carries into the address this
+// machine stores, or into nothing when the archive never declared that album.
+func importAlbumSlug(name string, albumNames map[string]bool) string {
+	if name == "" || !albumNames[name] {
+		return ""
+	}
+	return page.Slugify(name)
+}
+
+// declaredAlbums is the set of album names the manifest brought, which is what
+// decides whether a block's reference can be resolved at all.
+func declaredAlbums(m *Manifest) map[string]bool {
+	names := make(map[string]bool, len(m.Albums))
+	for _, a := range m.Albums {
+		names[a.Name] = true
+	}
+	return names
+}
+
+// missingAlbum names the albums a page's blocks point at that the archive did
+// not bring, the way missingMedia names a file that did not arrive.
+//
+// Without it the operator gets an empty gallery and nothing anywhere that says
+// why — which is the same silence missingMedia exists to end.
+func missingAlbum(blocks []Block, albumNames map[string]bool) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, b := range blocks {
+		if b.Album == "" || albumNames[b.Album] || seen[b.Album] {
+			continue
+		}
+		seen[b.Album] = true
+		out = append(out, b.Album)
 	}
 	return out
 }

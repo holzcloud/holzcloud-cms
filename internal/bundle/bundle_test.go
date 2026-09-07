@@ -689,6 +689,14 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		}
 	}
 
+	// Das Album, das der Galeriebaustein unten nennt. Seit 11-06 reist der
+	// Verweis als Name und wird auf der anderen Seite wieder abgeleitet, also
+	// muss es das Album wirklich geben — ein Kürzel, das kein Album dieser
+	// Website benennt, wird absichtlich fallengelassen.
+	if _, err := s.Albums.Create(ctx, ws, "Möbel"); err != nil {
+		t.Fatalf("Albums.Create: %v", err)
+	}
+
 	set := s.BlockTypes.Set(ctx, ws)
 	blocks := []block.Block{
 		{Type: block.TypeText, Markdown: "Zuerst der Teig."},
@@ -702,10 +710,12 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		// back into another on the way in, and a field added to only one of
 		// the two leaves in the archive and never comes back, with nothing
 		// anywhere to say so.
-		// The album slug rides beside the display for the same reason and it
-		// is a pass-through in this version: the manifest has no albums entry
-		// until plan 11-06, so there is no name to translate the slug into
-		// yet. Carrying it now means it is never silently lost.
+		// The album reference rides beside the display for the same reason.
+		// Since plan 11-06 it is no pass-through: the archive carries the
+		// album's NAME and the import derives the address again, so what this
+		// asserts is that the two derivations agree. The case where they must
+		// not be allowed to agree by accident — a rename between the two — is
+		// TestAlbumRoundTripAfterRename.
 		{Type: block.TypeGallery, Display: block.DisplaySlideshow, AlbumSlug: "moebel",
 			Items: []block.Item{{MediaID: bild.ID, Caption: "Der Teig"}}},
 	}
@@ -1219,14 +1229,16 @@ func TestBlockNamingAnAbsentAlbumIsReported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	if len(arrived) != 2 {
-		t.Fatalf("%d blocks instead of 2: %+v", len(arrived), arrived)
+	// One block, not two. The reference is dropped rather than derived, and a
+	// gallery with neither an album nor a list of its own is empty — so
+	// set.Clean removes it, which is plan 11-05's rule and the right outcome:
+	// what is left on the page is what can be drawn, and the report above is
+	// where the operator reads what went missing and why.
+	if len(arrived) != 1 {
+		t.Fatalf("%d blocks instead of 1: %+v", len(arrived), arrived)
 	}
 	if arrived[0].AlbumSlug != "referenzen" {
 		t.Errorf("the block naming an album that arrived points at %q", arrived[0].AlbumSlug)
-	}
-	if arrived[1].AlbumSlug != "" {
-		t.Errorf("the block naming an absent album kept its reference: %q", arrived[1].AlbumSlug)
 	}
 }
 

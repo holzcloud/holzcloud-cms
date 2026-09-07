@@ -672,6 +672,11 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	// read once.
 	look := blockImages(ctx, s, websiteID)
 
+	// Welche Alben das Archiv überhaupt mitgebracht hat. Ein Galeriebaustein
+	// nennt eines beim Namen; steht der Name hier nicht, wird der Verweis
+	// fallengelassen und gemeldet statt auf gut Glück abgeleitet.
+	albumNames := declaredAlbums(m)
+
 	// Die Felddefinitionen, wie sie tatsächlich angelegt wurden — gelesen und
 	// nicht aus dem Archiv nachgebaut, damit die Prüfung gegen das läuft, was
 	// diese Website hat, samt allem, was validate beim Anlegen geleert hat.
@@ -751,7 +756,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		// is what the search index and the excerpt read.
 		encodedBlocks := ""
 		if len(p.Blocks) > 0 {
-			blocks := set.Clean(importBlocks(p.Blocks, set, mediaByName))
+			blocks := set.Clean(importBlocks(p.Blocks, set, mediaByName, albumNames))
 			if len(blocks) > 0 {
 				encoded, eerr := block.Encode(blocks, set)
 				if eerr != nil {
@@ -766,6 +771,13 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			for _, name := range missingMedia(p.Blocks, set, mediaByName) {
 				report.Warnings = append(report.Warnings,
 					fmt.Sprintf("Seite %q: die Datei %q fehlt, der Baustein bleibt ohne Bild", p.Title, name))
+			}
+			// Dasselbe eine Ebene höher: ein Baustein, der ein Album nennt,
+			// das im Archiv nicht steht, bekommt eine Zeile im Bericht statt
+			// einer leeren Galerie ohne Erklärung.
+			for _, name := range missingAlbum(p.Blocks, albumNames) {
+				report.Warnings = append(report.Warnings, fmt.Sprintf(
+					"Seite %q: das Album %q ist nicht im Archiv, die Galerie bleibt leer", p.Title, name))
 			}
 		}
 
