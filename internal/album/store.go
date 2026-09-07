@@ -50,11 +50,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
@@ -486,4 +488,90 @@ func (s *Store) requireOwnMedia(ctx context.Context, websiteID, mediaID int64) e
 		return fmt.Errorf("check media ownership: %w", err)
 	}
 	return nil
+}
+
+// LoadFor builds the expansion set for one page, loading only the albums that
+// page's HTML actually names.
+//
+// # The loading rule, and where it comes from
+//
+// media.LoadImageSets (internal/media/variant_store.go:176) states it: "Only
+// the files actually named in the HTML are looked up: a site with a thousand
+// uploads should not pay for all of them to render one page." The same
+// sentence with albums instead of files. So the slugs come out of the document
+// first, and a document naming none returns here without touching the database
+// at all — which is what makes this mechanism cost nothing on the pages that do
+// not use it.
+//
+// What is deliberately NOT copied is internal/snippet's loadSnippets, which
+// builds a map for the whole website on every request. That shape would make a
+// website with fifty albums pay for fifty to render one page, and a page
+// usually names one.
+//
+// One query for all the named albums, not one per marker: a page carrying four
+// album galleries is still one trip.
+//
+// # The two website conditions, and why the second is not redundant
+//
+// a.website_id = $1 is GAL-05: an album of another website must not be
+// reachable through a marker, and the check belongs in the WHERE clause rather
+// than in the caller — which is the lesson internal/menu/store.go's doc comment
+// records at length and the reason every statement in this file carries it.
+//
+// m.website_id = a.website_id is the second, and it looks redundant only if one
+// assumes every album_items row was written through AddItem. It was not
+// necessarily: the foreign key on media_id proves the file exists and never
+// whose it is, and a row could have been written by a repair, by an older
+// build, or before requireOwnMedia existed. The join condition makes the
+// picture's website a fact of this query rather than a property of its history.
+func (s *Store) LoadFor(ctx context.Context, websiteID int64, html string, t func(string) string) (Set, error) {
+	set := Set{
+		items:  map[string][]block.Item{},
+		images: map[int64]block.Image{},
+		t:      t,
+	}
+
+	slugs := UsedSlugs(html)
+	if len(slugs) == 0 {
+		return set, nil
+	}
+
+	args := []any{websiteID}
+	placeholders := make([]string, len(slugs))
+	for i, slug := range slugs {
+		args = append(args, slug)
+		placeholders[i] = "$" + strconv.Itoa(i+2)
+	}
+
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT a.slug, i.media_id, i.alt, i.caption,
+		        m.website_id, m.filename, m.mime_type, m.alt_text,
+		        m.width, m.height, m.focus_x, m.focus_y, m.version
+		   FROM album_items i
+		   JOIN albums a ON a.id = i.album_id
+		   JOIN media  m ON m.id = i.media_id AND m.website_id = a.website_id
+		  WHERE a.website_id = $1 AND a.slug IN (`+strings.Join(placeholders, ", ")+`)
+		  ORDER BY i.album_id, i.sort_order, i.id`, args...)
+	if err != nil {
+		return Set{}, fmt.Errorf("load albums for page: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var slug string
+		var it block.Item
+		var m media.Media
+		if err := rows.Scan(&slug, &it.MediaID, &it.Alt, &it.Caption,
+			&m.WebsiteID, &m.Filename, &m.MimeType, &m.AltText,
+			&m.Width, &m.Height, &m.Crop.FocusX, &m.Crop.FocusY, &m.Version); err != nil {
+			return Set{}, fmt.Errorf("scan album picture for page: %w", err)
+		}
+		m.ID = it.MediaID
+		set.items[slug] = append(set.items[slug], it)
+		set.images[it.MediaID] = imageOf(m)
+	}
+	if err := rows.Err(); err != nil {
+		return Set{}, fmt.Errorf("read albums for page: %w", err)
+	}
+	return set, nil
 }
