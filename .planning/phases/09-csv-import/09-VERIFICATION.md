@@ -1,8 +1,11 @@
 ---
 phase: 09-csv-import
 verified: 2026-09-06T19:48:02Z
-status: gaps_found
-score: 4/6 criteria verified — two carry a named gap
+status: passed
+score: 6/6 criteria verified — die zwei benannten Lücken sind am 2026-09-08 geschlossen, siehe Nachtrag am Ende
+score_note: >-
+  4/6 beim Abschluss des Verifizierers. Beide Lücken sind seither behoben und
+  gegen HEAD grün geprüft; das ursprüngliche Urteil steht unverändert darüber.
 behavior_unverified: 0
 overrides_applied: 0
 requirements: [IMP-01, IMP-02, IMP-03, IMP-04, IMP-05, IMP-06, IMP-07, IMP-08, IMP-09, IMP-10]
@@ -383,3 +386,68 @@ Two things stop this being a clean pass, and neither is a coding mistake:
 
 _Verified: 2026-09-06T19:48:02Z_
 _Verifier: Claude (gsd-verifier) — goal-backward from ROADMAP.md Phase 9, stamps binding over original wording_
+
+---
+
+## Nachtrag, 2026-09-08: beide Lücken sind zu
+
+> Nachgetragen und nicht eingearbeitet, aus demselben Grund wie in Phase 6:
+> ein Bericht, der sein eigenes Urteil still hochstuft, ist weniger wert als
+> einer, der zeigt, was sich geändert hat. Das Urteil oben stand richtig da,
+> als es geschrieben wurde.
+
+**Lücke 1 — die dateiweite Transaktion — ist gebündelt, nicht gestempelt.**
+
+`internal/admin/csvimport.go:917` ruft nicht mehr `EnsureNames` für die ganze
+Datei, sondern `csvEnsureTerms`, das in Bündeln von `csvTermChunk = 500`
+arbeitet. Der Kommentar über der Konstanten trägt die Messung, die den Wert
+begründet, statt einer runden Zahl:
+
+> Eine 10-MB-Datei ergab 796 000 Namen in einer einzigen Transaktion: 12,2 s
+> Import, während ein konkurrierender Schreibzugriff 8,1 s wartete.
+
+Nach der Bündelung: 3,54 s Import, 3,64 ms längste Wartezeit — dieselbe Datei.
+Das Tor dazu ist `TestCSVTermPrePassIsChunked`, und es misst genau das, was der
+Bericht oben als fehlend benennt: die **Grösse** der Bündel, über eine
+eingereichte Zählfunktion, nicht was ein Bündel tut.
+
+Der Bericht schrieb: „Stempeln oder bündeln; lass es nicht unausgesprochen."
+Es wurde gebündelt.
+
+**Lücke 2 — der Probelauf, der sich irren kann — ist geschlossen.**
+
+`internal/admin/csvimport.go:956` führt eine `planned`-Karte: die Adressen, die
+Zeilen oberhalb der aktuellen belegen werden. Der Kommentar nennt die Messung,
+die den Fehler zeigte, und behält sie:
+
+> Gemessen als 5 anlegen / 2 aktualisieren gegen 4 angelegt / 3 aktualisiert,
+> bevor es das gab.
+
+Der Schreibarm braucht die Karte nicht — sein `GetPageBySlugIn` ist live und
+pro Zeile, also findet Zeile 40 die Seite, die Zeile 4 gerade angelegt hat. Der
+Probelauf schreibt nichts und kann dieselbe Frage nur beantworten, indem er
+sich merkt, was er selbst schon zu erzeugen beschlossen hat.
+
+Das Tor ist `TestCSVProbeAndStartAgreeOnEveryVerdict`, und seine Vorrichtung
+trägt jetzt die Zeile, die der Bericht als fehlend benennt — dieselbe Adresse
+zweimal in einer Datei, gefahren mit beiden Kollisionsregeln.
+
+Beide laufen grün gegen HEAD:
+
+```
+--- PASS: TestCSVProbeAndStartAgreeOnEveryVerdict (1.08s)
+    --- PASS: .../aktualisieren
+    --- PASS: .../uebergehen
+--- PASS: TestCSVTermPrePassIsChunked (0.00s)
+```
+
+**Was der Bericht nicht gesehen hat und was seither dazugekommen ist.** Am
+2026-09-07/08 sind an diesem Pfad vier weitere Befunde behoben worden, jeder mit
+rotem Beweis und Mutationsprobe: eine leere Schlagwortzelle löschte die
+Schlagwörter einer aktualisierten Seite; die Adresssuche ignorierte die Sprache
+und schrieb in eine Übersetzung; eine Vorgabe für ein Feld ohne Spalte wurde
+angenommen und nie geschrieben, obwohl der Bildschirm das Gegenteil verspricht;
+und der Importer prüfte gegen Felder, die `gilt_fuer` von den Seiten
+ausschliesst, die er anlegt — was auf einer Website mit einem
+Pflichtfeld für Beiträge **jede** Zeile jedes Imports abwies. Siehe
+`.planning/audits/v1.6-ADVERSARIAL-AUDIT.md`, Befunde 4, 5, 19 und 20.
