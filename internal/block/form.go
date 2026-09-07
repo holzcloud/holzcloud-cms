@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
 // The block editor is a plain HTML form.
@@ -187,6 +188,23 @@ func setBlockField(b *Block, name string, values []string) {
 		// the block keeps the display it had.
 		if value == "" || value == DisplaySlideshow {
 			b.Display = value
+		}
+	case "album":
+		// The value arrives from a form and is written into HTML every visitor
+		// is served, so a slug is the only shape the marker may contain: it is
+		// re-derived here rather than trusted, and page.Slugify's output is
+		// lower-case letters, digits and hyphens only — nothing that reaches
+		// the marker can carry a quote or an angle bracket.
+		//
+		// The same one call the album store makes, deliberately.
+		// internal/term/store.go:318-328 warns at length what two callers
+		// deriving one key two ways cost: an import creates a second row beside
+		// the one it meant to reuse, and both look right in every listing.
+		// Slugify never returns "", so the empty choice is handled before it.
+		if strings.TrimSpace(value) == "" {
+			b.AlbumSlug = ""
+		} else {
+			b.AlbumSlug = page.Slugify(value)
 		}
 	case "titel":
 		b.Title = value

@@ -29,8 +29,8 @@ func exportBlocks(blocks []block.Block, set block.Set, mediaByID map[int64]strin
 			Type: b.Type, Markdown: b.Markdown,
 			Media: mediaByID[b.MediaID], Poster: mediaByID[b.PosterID],
 			Alt: b.Alt, Caption: b.Caption, Variant: b.Variant,
-			Display: b.Display,
-			Title:   b.Title, Text: b.Text, Source: b.Source,
+			Display: b.Display, Album: b.AlbumSlug,
+			Title: b.Title, Text: b.Text, Source: b.Source,
 			LinkText: b.LinkText, LinkURL: b.LinkURL,
 		}
 		for _, it := range b.Items {
@@ -73,8 +73,8 @@ func importBlocks(blocks []Block, set block.Set, mediaByName map[string]int64) [
 			Type: b.Type, Markdown: b.Markdown,
 			MediaID: mediaByName[b.Media], PosterID: mediaByName[b.Poster],
 			Alt: b.Alt, Caption: b.Caption, Variant: b.Variant,
-			Display: b.Display,
-			Title:   b.Title, Text: b.Text, Source: b.Source,
+			Display: b.Display, AlbumSlug: b.Album,
+			Title: b.Title, Text: b.Text, Source: b.Source,
 			LinkText: b.LinkText, LinkURL: b.LinkURL,
 		}
 		for _, it := range b.Items {
