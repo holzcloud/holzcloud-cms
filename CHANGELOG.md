@@ -89,6 +89,25 @@ sauber, und zwar mit Absicht — er sucht den Artikel über die Adresse innerhal
 der Website und trägt seit jeher den Kommentar, dass eine Nummer aus dem
 Formular in einen fremden Katalog reichen würde.
 
+**Ein Redakteur konnte die E-Mail einer fremden Website erneut verschicken.**
+Beim Durchsehen der Bestellhandler gefunden, gleiche Bauart, andere Tabelle.
+Auf der Bestellseite treffen drei Kennungen aufeinander: die Website aus der
+Adresse (geprüft), die Bestellnummer aus der Adresse (innerhalb dieser Website
+gesucht) — und die Nachrichtennummer aus dem abgeschickten Formular, die
+ungeprüft an den Postausgang weitergereicht wurde.
+
+Das ist keine Verunstaltung, sondern eine Zustellung: Wer nur für Website A
+freigeschaltet war, konnte über die Schaltfläche „Nochmals senden" eine
+Nachricht von Website B wieder in die Warteschlange stellen. Deren Kundschaft
+bekommt die Mail ein zweites Mal, und der Fehlertext samt Versuchszähler, den
+der andere Betrieb gerade auswerten wollte, war gelöscht. Der Beweis liegt als
+eigene Fassung bei: `internal/admin/order_scope_test.go`.
+
+`outbox.Retry` nimmt jetzt die Website entgegen und trägt sie in der
+`WHERE`-Bedingung; „bereits verschickt", „gibt es nicht" und „gehört nicht
+Ihnen" sind absichtlich dieselbe Antwort, damit die Bestellseite nicht dazu
+benutzt werden kann, die Existenz fremder Nachrichten abzufragen.
+
 ## 1.9 — 2026-09-05
 
 ### Fixed
