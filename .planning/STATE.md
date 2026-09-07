@@ -5,16 +5,16 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Phase 11 Welle 4 fertig (11-06). Welle 5 (11-07) offen, danach Phase 10
-last_updated: "2026-09-07T23:11:33.291Z"
+stopped_at: Completed 10-01-PLAN.md (Phase 10 Welle 1). Phase 11 Welle 5 (11-07) weiterhin offen
+last_updated: "2026-09-07T23:32:39.978Z"
 last_activity: 2026-09-06
-state_head: fb909bcd212518533d3b730dc1b99d63287caa09
+state_head: fc5c5a05710464bfd7ef19e2862775bd62d81041
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 2
   total_plans: 42
-  completed_plans: 31
-  percent: 74
+  completed_plans: 32
+  percent: 29
 ---
 
 ## State: Holzcloud CMS
@@ -264,6 +264,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 08 P04 | 10 min | 3 tasks | 8 files |
 | Phase 08 P05 | 32 min | 3 tasks | 9 files |
 | Phase 11 P06 | 21 min | 3 tasks | 7 files |
+| Phase 10 P01 | 42 min | 3 tasks | 4 files |
 
 ### Session Continuity
 
@@ -292,8 +293,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-07T23:11:15.702Z
-**Stopped at:** Completed 11-06-PLAN.md
+**Last session:** 2026-09-07T23:31:34.992Z
+**Stopped at:** Completed 10-01-PLAN.md (Phase 10 Welle 1). Phase 11 Welle 5 (11-07) weiterhin offen
 **Resume file:** None
 
 ## Decisions
@@ -352,6 +353,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 08]: 08-03: die drei {{if not .BlockType}}-Verneinungen in field_list.html bleiben unverbreitert — sieben, nicht zehn, ist die Zahl der neuen Arme — Die drei Verneinungen sind die drei Orte der Pflicht-Spalte. Eine davon auf .Snippet auszuweiten haette dem Bediener die einzige Moeglichkeit genommen, ein Textbausteinfeld als Pflicht zu markieren — und waere der bequeme falsche Weg gewesen, eine Armzahl passend zu machen
 - [Phase 11]: Ein Album reist im Archiv unter seinem Namen und ohne Kuerzel; die andere Maschine leitet die Adresse mit page.Slugify ab, dem einen Aufruf, den album.Store.Create schon macht
 - [Phase 11]: importAlbums steht nach den Bildern und vor den Seiten, ausdruecklich nicht zuletzt wie der Menue-Import; Manifest.Version wird nicht erhoeht, weil albums omitempty ist
+- [Phase 10]: Env-Variablennamen als Konstanten (envListen, envSSO*) — die einzige Form, in der die Zaehl-Schranke des Plans (7 Zeilen) und seine Verhaltensliste (jede Absage nennt ihre Variable) beide gelten
+- [Phase 10]: Startabsagen bleiben schlichte Go-Literale in Englisch, nicht im Katalog — das ist, was die Payrexx- und SMTP-Absagen bereits tun; tools/i18n bleibt bei 1311/34 offen unveraendert
+- [Phase 10]: handler.go's 'return assigned == 0 || mine > 0' steht auf Zeile 183, nicht 173 (ROADMAP) und nicht 178 (Plan). Neue Kommentare nennen die Funktion NewWebsiteAccessLookup statt einer Zeilennummer
 
 ## Accumulated Context
 
@@ -362,3 +366,4 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ### Blockers
 
 - ~~07-04 gemeldet, nicht behoben: internal/bundle/import.go importFieldValues schreibt Feldwerte mit field.Encode direkt, ohne CheckAll und ohne Clean.~~ **ERLEDIGT in 07-05 (7cb09f4).** Entschieden wurde gedeckt und nicht vertagt: ein Archiv ist eine Datei, die jeder bearbeiten kann, alle anderen Schreibwege sind gedeckt, und seit 07-04 kuerzt trimTo nichts mehr — CheckAll ist damit die einzige Stelle, an der das Bytebudget ueberhaupt noch gilt. importPages liest die tatsaechlich angelegten Definitionen ueber s.Fields.List und reicht sie in importFieldValues; dort laufen field.Clean und field.CheckAll, ein beanstandeter Wert wird entfernt und namentlich in den Bericht geschrieben, nie die ganze Seite verworfen. TestArchivwerteGehenDurchDieselbePruefung beweist es, Gegenprobe mit deaktivierter Wache gefuehrt (vier Behauptungen fallen). Offene Blocker: keine
+- Plan 10-01: vier Zaehl-Schranken der Phase 10 sind gegen den Baum vom 2026-09-07 geeicht und seit Phase 11 veraltet (Migrationen 49 statt 50, Pakete 40 statt 41, Admin-Vorlagen 66 statt 68, Zeichenketten 1277 statt 1311). Die Plaene 10-02 bis 10-09 tragen dieselben Zahlen — gemessene Werte aus 10-01-SUMMARY uebernehmen

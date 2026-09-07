@@ -163,7 +163,7 @@ runtime, and is listed under what this project deliberately does not build.
 - [ ] **SSO-07**: An Authentik session satisfies the second-factor requirement. Because that makes the second factor of this installation depend on the operator's Authentik enforcing one, the dependency is stated in `DEPLOY.md` and shown in the admin — not left in a source comment.
 - [ ] **SSO-08**: Signing out signs the person out at Authentik too, so the next click does not silently sign them back in.
 - [ ] **SSO-09**: With single sign-on switched off, nothing about signing in changes. The password path, the second factor, the recovery codes and the command-line way back in all behave exactly as they do today.
-- [ ] **SSO-10**: The server binds to the loopback address by default. It listens on every interface today, which is harmless while a password is required and a total bypass the moment a header is believed.
+- [x] **SSO-10**: The server binds to the loopback address by default. It listens on every interface today, which is harmless while a password is required and a total bypass the moment a header is believed.
 - [ ] **SSO-11**: The shipped Caddy example strips the client's own identity headers explicitly, and `DEPLOY.md` names the minimum Caddy version — the `forward_auth` directive emits no such strip on its own, which is CVE-2026-30851.
 
 ### Gallery
@@ -294,7 +294,7 @@ v1.6 phases continue the numbering at 6.
 | SSO-07 | Phase 10 | Pending |
 | SSO-08 | Phase 10 | Pending |
 | SSO-09 | Phase 10 | Pending |
-| SSO-10 | Phase 10 | Pending |
+| SSO-10 | Phase 10 | Complete |
 | SSO-11 | Phase 10 | Pending |
 | GAL-01 | Phase 11 | Pending |
 | GAL-02 | Phase 11 | Pending |
