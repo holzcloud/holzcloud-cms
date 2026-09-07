@@ -505,11 +505,36 @@ tree before being adopted.
 
 - **D-31: the four new templates must be added to `layoutPageNames`
   (`internal/web/render.go:46`) — a hand-maintained slice of 44 names.** A
-  template that is missing from it renders as a bare fragment with no base
-  layout: no navigation, no flash area, no CSRF body attribute. **The test suite
-  cannot see this** — only a browser can. This is the project's recurring defect
-  signature exactly ("a mechanism correct at every known site and silently wrong
-  at one overlooked site"), and it is mechanically gated: **44 now, 48 after.**
+  template that is in the wrong list renders as a bare fragment with no base
+  layout: no navigation, no flash area, no CSRF body attribute. Mechanically
+  gated: **44 now, 48 after.**
+
+  > **Corrected 2026-09-07, and the correction is mine to own — I wrote this
+  > claim and then repeated it into Phase 11's briefs.** The sentence here said
+  > *„The test suite cannot see this — only a browser can."* **That is wrong in
+  > both halves**, and I verified each myself rather than taking the report:
+  >
+  > 1. **A template in *no* list makes the application refuse to start.**
+  >    `internal/web/render.go:218-232` collects every `.html` in the admin
+  >    directory that appears in neither the partial set nor the page set and
+  >    returns *„diese Admin-Vorlagen sind in keiner Liste in render.go
+  >    eingetragen und wären zur Laufzeit nicht auffindbar"*. That guard has been
+  >    there since `0e6d7af` (2026-09-03) — it predates this whole milestone. The
+  >    failure is loud, at start-up, not silent at render.
+  > 2. **A template in the *wrong* list is caught by an ordinary test.** Plan
+  >    11-03 wrote `TestAlbumScreensRenderInsideTheBaseLayout` and
+  >    mutation-proved it; I re-ran the mutation independently — removing the two
+  >    names fails the test, restoring them passes. `RenderAdmin` writes the whole
+  >    document, so the body either carries `<body hx-headers='{"X-CSRF-Token":…}'>`
+  >    and the navigation or it does not.
+  >
+  > What the guard genuinely misses is only the wrong-list case, and that is
+  > testable. **A control whose only instrument is a person opening a browser is
+  > an uncontrolled control** — and T-11-13 rates a missing entry a *security*
+  > finding, because without `hx-headers` every htmx POST fails CSRF. Recommended
+  > and recorded rather than done here: one table-driven test over all 50 layout
+  > pages, which closes the wrong-list case for every screen at once instead of
+  > for the two a phase happens to add.
 
 - **D-32: a row verdict carries a reason CODE plus its arguments — never a
   formatted German sentence.** This **overrides half of D-03.** Copy
