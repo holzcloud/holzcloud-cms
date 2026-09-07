@@ -5,7 +5,7 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 9
 current_phase_name: CSV Import
 status: complete
-stopped_at: Phase 9 abgeschlossen — 6 Wellen, Code-Pruefung, Behebungsrunde, Browserlauf, Verifikation, Sicherheitspruefung, Lueckenrunde. Naechstes: Phase 11
+stopped_at: Phase 11 Wellen 1-2 ausgefuehrt, Phase 10 geplant (10 Plaene, 9 Wellen). Ein Pruef-Workflow ueber den ganzen Meilenstein laeuft und hat bereits eine zweite und dritte Website-Isolationsluecke gefunden
 last_updated: "2026-09-06T12:00:00.000Z"
 last_activity: 2026-09-06
 state_head: 3ad28bab760521de6690e8524094df6526b1807e
@@ -22,7 +22,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 11 — Galerie, Kontext und Musterabgleich stehen (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 11 — Galerie, **Wellen 1-2 von 5 ausgefuehrt**; Phase 10 geplant und wartend (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
@@ -101,8 +101,8 @@ phases were renumbered into this one as 7, 8 and 9.
 | 7 | Field Kinds | FIELD-01…08 | 8 | Plans 7/7 — Abnahme offen (eine Browserzeile, Fenster Nr. 3) |
 | 8 | Snippets Carry Fields | SNIP-01…05 | 5 | **Abgeschlossen** — 5/5 Pläne, verifiziert, Sicherheitsprüfung abgelegt |
 | 9 | CSV Import | IMP-01…10 | 10 | **Abgeschlossen** — 6/6 Pläne, 1 kritischer + 8 Warnungen behoben, 4 Browserfunde, 3 Verifikationslücken + 1 Sicherheitsbefund geschlossen |
-| 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | Not started — **geplant, aber nicht ausgeführt** vorlegen |
-| 11 | Galerie | GAL-01…07 | 7 | **In Planung** — Kontext (11 Entscheide) und Musterabgleich stehen |
+| 10 | Authentik Forward-Auth | SSO-01…11, QUAL-01, QUAL-02 | 13 | **Geplant** - 10 Plaene in 9 Wellen; der Planer fand 13 Irrtuemer, darunter D-01s zweiten Weg: Rechte bei jeder Anmeldung neu zu setzen erreicht „null heisst jede Website“ durch **Subtraktion** |
+| 11 | Galerie | GAL-01…07 | 7 | **Wellen 1-2 von 5 ausgefuehrt** - Lichtkasten, Album-Speicher, Verwaltungsbereich, Anzeigemodus |
 | 12 | The Codebase Speaks English | LANG-01…08 | 8 | Not started — **die Freigabe damit ist 2.0** (brechender Vorlagen-Vertrag) |
 
 **Execution order: 6 → 7 → (8 ∥ 9 ∥ 11) → 10 → 12.** The one real dependency inside the
