@@ -194,7 +194,7 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
-	inhalt := h.pageContent(r, website.ID, pg, snippets)
+	inhalt, albumsAt := h.pageContent(r, website.ID, pg, snippets)
 	inhalt.Uebersetzungen = h.translationLinks(r, website, pg)
 	site.Sprachen = h.switcher(inhalt.Uebersetzungen, site.Sprachen)
 	data := tmpl.PageData{
@@ -210,7 +210,7 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("render home: %w", err)
 	}
 
-	h.serveCached(w, r, content, contentModTime(pg, snippets))
+	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
 	return nil
 }
 
@@ -280,7 +280,8 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
-	inhalt := h.withArchiveNav(r, website, h.pageContent(r, website.ID, pg, snippets), pg)
+	inhalt, albumsAt := h.pageContent(r, website.ID, pg, snippets)
+	inhalt = h.withArchiveNav(r, website, inhalt, pg)
 	inhalt.Uebersetzungen = h.translationLinks(r, website, pg)
 	site.Sprachen = h.switcher(inhalt.Uebersetzungen, site.Sprachen)
 	data := tmpl.PageData{
@@ -296,7 +297,7 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("render page: %w", err)
 	}
 
-	h.serveCached(w, r, content, contentModTime(pg, snippets))
+	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
 	return nil
 }
 
@@ -434,14 +435,29 @@ func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.Header().Set("Vary", "HX-Request")
 
-	// Check If-None-Match -> 304
-	if match := r.Header.Get("If-None-Match"); match == etag {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-
-	// Check If-Modified-Since -> 304
-	if since := r.Header.Get("If-Modified-Since"); since != "" {
+	// RFC 7232 §3.3: when If-None-Match is present it decides the conditional
+	// request BY ITSELF, and If-Modified-Since must be ignored. This code used
+	// to do the opposite — a mismatching ETag fell through to the date — and
+	// that fall-through is how a warm browser kept an old gallery for ever.
+	//
+	// The shape of the failure is worth keeping written down, because it is the
+	// shape of every source that changes a page without touching the page. The
+	// browser sends both headers. The album has changed, so the body has
+	// changed, so the ETag no longer matches: the strong validator says "this is
+	// not what you have". The date validator said "nothing has changed" because
+	// nothing about pages.updated_at had. The weaker of the two answers won, the
+	// visitor got 304, and every later request got the same 304 — there is no
+	// request the browser could have made that would have recovered.
+	//
+	// web.MatchesETag rather than an equality: If-None-Match is a LIST, and "*"
+	// in it means "whatever I already have". The same comparison the asset
+	// route has used since it was written.
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if web.MatchesETag(match, etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	} else if since := r.Header.Get("If-Modified-Since"); since != "" {
 		t, err := http.ParseTime(since)
 		if err == nil && !modTime.Truncate(time.Second).After(t) {
 			w.WriteHeader(http.StatusNotModified)

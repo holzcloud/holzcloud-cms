@@ -40,9 +40,30 @@
 // look right in every listing."
 //
 // This store makes exactly ONE call to page.Slugify, in Create, and everything
-// that needs an album's slug goes through it. The bundle importer of plan 11-06
-// calls Create; it does not derive its own. That is the whole mitigation, and
-// it only holds as long as the call stays single.
+// that needs an album's slug goes through it. The bundle importer calls Create
+// and asks it for the slug it made; it does not derive its own. That is the
+// whole mitigation, and it only holds as long as the call stays single.
+//
+// # The stamp, and why it lives here
+//
+// Every method that changes what an album shows also moves albums.updated_at,
+// and that is not bookkeeping: it is the validator every public page carrying
+// the album is served with (contentModTime, internal/public/pagedata.go).
+// snippet.Store.SetFields argues the same thing for the same reason and its
+// comment is worth reading — "without this line it only goes well because
+// handleSnippetSave calls Update first, an ordering between two functions in
+// two packages that nothing holds".
+//
+// Here the ordering does not even exist to lean on: an album is changed from
+// nine handlers and from the bundle importer, and the page it appears on is
+// never touched at all. So the stamp is moved by the statement that does the
+// change, inside the same transaction, and a caller cannot forget it because a
+// caller never writes it.
+//
+// It is the PARENT's stamp in every case, including the four item methods. A
+// removed picture leaves no row behind to carry a timestamp, so a MAX over
+// album_items can only go up — and taking the last picture out of an album is
+// precisely the change a warm cache must not answer the old way.
 package album
 
 import (
@@ -63,6 +84,15 @@ import (
 )
 
 const timeLayout = "2006-01-02T15:04:05Z"
+
+// nowStamp is the one spelling of "now" this package writes.
+//
+// The same expression 00050 gives created_at, written out because 00051 could
+// not give updated_at a default: SQLite refuses a parenthesised expression as
+// the DEFAULT of ADD COLUMN, so the column defaults to the empty string and
+// every INSERT and UPDATE in this file has to name it. One constant rather than
+// nine copies, so the two stamps of one row cannot be written in two formats.
+const nowStamp = `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
 
 // The errors this store reports, as values rather than as sentences.
 //
@@ -150,7 +180,8 @@ func (s *Store) Create(ctx context.Context, websiteID int64, name string) (*Albu
 	slug := page.Slugify(name)
 
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO albums (website_id, slug, name) VALUES ($1, $2, $3)`,
+		`INSERT INTO albums (website_id, slug, name, updated_at)
+		 VALUES ($1, $2, $3, `+nowStamp+`)`,
 		websiteID, slug, name)
 	if err != nil {
 		if isDuplicate(err) {
@@ -171,7 +202,8 @@ func (s *Store) Create(ctx context.Context, websiteID int64, name string) (*Albu
 // website is not found, which is the whole of GAL-05 on the read side.
 func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Album, error) {
 	return s.scanOne(ctx,
-		`SELECT id, website_id, slug, name, created_at FROM albums WHERE id = $1 AND website_id = $2`,
+		`SELECT id, website_id, slug, name, created_at, updated_at
+		   FROM albums WHERE id = $1 AND website_id = $2`,
 		id, websiteID)
 }
 
@@ -182,15 +214,16 @@ func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Album, error) {
 // called "Referenzen".
 func (s *Store) BySlug(ctx context.Context, websiteID int64, slug string) (*Album, error) {
 	return s.scanOne(ctx,
-		`SELECT id, website_id, slug, name, created_at FROM albums WHERE website_id = $1 AND slug = $2`,
+		`SELECT id, website_id, slug, name, created_at, updated_at
+		   FROM albums WHERE website_id = $1 AND slug = $2`,
 		websiteID, slug)
 }
 
 func (s *Store) scanOne(ctx context.Context, query string, args ...any) (*Album, error) {
 	var a Album
-	var createdAt string
+	var createdAt, updatedAt string
 	err := s.DB.Read.QueryRowContext(ctx, query, args...).
-		Scan(&a.ID, &a.WebsiteID, &a.Slug, &a.Name, &createdAt)
+		Scan(&a.ID, &a.WebsiteID, &a.Slug, &a.Name, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -198,13 +231,15 @@ func (s *Store) scanOne(ctx context.Context, query string, args ...any) (*Album,
 		return nil, fmt.Errorf("get album: %w", err)
 	}
 	a.CreatedAt, _ = time.Parse(timeLayout, createdAt)
+	a.UpdatedAt, _ = time.Parse(timeLayout, updatedAt)
 	return &a, nil
 }
 
 // List returns a website's albums by name.
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Album, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, slug, name, created_at FROM albums WHERE website_id = $1 ORDER BY name`,
+		`SELECT id, website_id, slug, name, created_at, updated_at
+		   FROM albums WHERE website_id = $1 ORDER BY name`,
 		websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("list albums: %w", err)
@@ -214,11 +249,12 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Album, error) {
 	var albums []Album
 	for rows.Next() {
 		var a Album
-		var createdAt string
-		if err := rows.Scan(&a.ID, &a.WebsiteID, &a.Slug, &a.Name, &createdAt); err != nil {
+		var createdAt, updatedAt string
+		if err := rows.Scan(&a.ID, &a.WebsiteID, &a.Slug, &a.Name, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("scan album: %w", err)
 		}
 		a.CreatedAt, _ = time.Parse(timeLayout, createdAt)
+		a.UpdatedAt, _ = time.Parse(timeLayout, updatedAt)
 		albums = append(albums, a)
 	}
 	return albums, rows.Err()
@@ -240,7 +276,8 @@ func (s *Store) Rename(ctx context.Context, websiteID, id int64, name string) er
 		return ErrNoName
 	}
 	res, err := s.DB.Write.ExecContext(ctx,
-		`UPDATE albums SET name = $1 WHERE id = $2 AND website_id = $3`,
+		`UPDATE albums SET name = $1, updated_at = `+nowStamp+`
+		  WHERE id = $2 AND website_id = $3`,
 		name, id, websiteID)
 	if err != nil {
 		return fmt.Errorf("rename album: %w", err)
@@ -345,9 +382,21 @@ func (s *Store) AddItem(ctx context.Context, websiteID, albumID, mediaID int64, 
 		return 0, fmt.Errorf("%w: album %d", ErrTooManyItems, albumID)
 	}
 
-	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO album_items (album_id, media_id, alt, caption, sort_order)
-		 SELECT $1, $2, $3, $4, $5
+	// The insert and the parent's stamp are one transaction, because they are
+	// one change: a picture that arrived without the album's updated_at moving
+	// is a picture no visitor with a warm cache is ever served. Both statements
+	// are against integers already in hand — nothing here waits on anything,
+	// which the write pool's single connection makes a requirement and not a
+	// preference (see SwapSortOrder).
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin add picture: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO album_items (album_id, media_id, alt, caption, sort_order, updated_at)
+		 SELECT $1, $2, $3, $4, $5, `+nowStamp+`
 		  WHERE EXISTS (SELECT 1 FROM albums WHERE id = $1 AND website_id = $6)`,
 		albumID, mediaID, alt, caption, lastOrder+1, websiteID)
 	if err != nil {
@@ -357,6 +406,12 @@ func (s *Store) AddItem(ctx context.Context, websiteID, albumID, mediaID int64, 
 		return 0, fmt.Errorf("%w: album %d", ErrNotFound, albumID)
 	}
 	id, _ := res.LastInsertId()
+	if err := touchAlbum(ctx, tx, websiteID, albumID); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit add picture: %w", err)
+	}
 	return id, nil
 }
 
@@ -370,8 +425,14 @@ func (s *Store) UpdateItem(ctx context.Context, websiteID, albumID, itemID, medi
 	if err := s.requireOwnMedia(ctx, websiteID, mediaID); err != nil {
 		return err
 	}
-	res, err := s.DB.Write.ExecContext(ctx,
-		`UPDATE album_items SET media_id = $1, alt = $2, caption = $3
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin update picture: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx,
+		`UPDATE album_items SET media_id = $1, alt = $2, caption = $3, updated_at = `+nowStamp+`
 		  WHERE id = $4
 		    AND album_id IN (SELECT id FROM albums WHERE id = $5 AND website_id = $6)`,
 		mediaID, alt, caption, itemID, albumID, websiteID)
@@ -381,12 +442,28 @@ func (s *Store) UpdateItem(ctx context.Context, websiteID, albumID, itemID, medi
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("%w: picture %d", ErrNotFound, itemID)
 	}
+	if err := touchAlbum(ctx, tx, websiteID, albumID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit update picture: %w", err)
+	}
 	return nil
 }
 
 // DeleteItem removes one picture from an album. The file stays in the library.
 func (s *Store) DeleteItem(ctx context.Context, websiteID, albumID, itemID int64) error {
-	res, err := s.DB.Write.ExecContext(ctx,
+	// The removal and the parent's stamp are one transaction, and this is the
+	// case that decides where the stamp lives at all: the removed row takes its
+	// own updated_at with it, so a MAX over album_items after a delete is older
+	// than it was before. Only the album can say "something went".
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete picture: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx,
 		`DELETE FROM album_items
 		  WHERE id = $1
 		    AND album_id IN (SELECT id FROM albums WHERE id = $2 AND website_id = $3)`,
@@ -396,6 +473,12 @@ func (s *Store) DeleteItem(ctx context.Context, websiteID, albumID, itemID int64
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("%w: picture %d", ErrNotFound, itemID)
+	}
+	if err := touchAlbum(ctx, tx, websiteID, albumID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete picture: %w", err)
 	}
 	return nil
 }
@@ -470,8 +553,40 @@ func (s *Store) SwapSortOrder(ctx context.Context, websiteID, albumID, itemA, it
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("%w: picture %d", ErrNotFound, itemB)
 	}
+	// Reordering changes what every page carrying this album shows, so it moves
+	// the stamp like every other change. The two crossed writes do not move it
+	// by themselves: they exchange two sort_order values and the newest
+	// album_items.updated_at afterwards is whatever it already was.
+	if err := touchAlbum(ctx, tx, websiteID, albumID); err != nil {
+		return err
+	}
 
 	return tx.Commit()
+}
+
+// execer is the two statements' worth of database that touchAlbum needs.
+//
+// *sql.Tx satisfies it and so would *sql.DB, but every caller here is inside a
+// transaction on purpose: a stamp written in a second round trip that could
+// fail on its own is a stamp that can disagree with the change it describes.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// touchAlbum moves an album's updated_at to now.
+//
+// Called by every method that changes what the album shows, from inside that
+// method's own transaction. RowsAffected is deliberately not checked: the
+// statement that came before it in the same transaction has already reported
+// whether this album is this website's, and a second refusal here would be a
+// second answer to one question.
+func touchAlbum(ctx context.Context, x execer, websiteID, albumID int64) error {
+	if _, err := x.ExecContext(ctx,
+		`UPDATE albums SET updated_at = `+nowStamp+` WHERE id = $1 AND website_id = $2`,
+		albumID, websiteID); err != nil {
+		return fmt.Errorf("stamp album %d: %w", albumID, err)
+	}
+	return nil
 }
 
 // requireOwnMedia refuses a media id that names a file in another website's
@@ -542,6 +657,22 @@ func (s *Store) LoadFor(ctx context.Context, websiteID int64, html string, t fun
 		args = append(args, slug)
 		placeholders[i] = "$" + strconv.Itoa(i+2)
 	}
+	in := strings.Join(placeholders, ", ")
+
+	// When these albums last changed, which is the Last-Modified the page they
+	// are on is served with. A second question and therefore a second query,
+	// and the reason it is not folded into the one below is that the one below
+	// answers per PICTURE: an album with no pictures left produces no row there
+	// at all, and an album whose last picture was just removed is the case this
+	// value exists for. Still one round trip per page and not one per marker,
+	// which is the rule this method is built on.
+	var newest string
+	if err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(updated_at), '') FROM albums
+		  WHERE website_id = $1 AND slug IN (`+in+`)`, args...).Scan(&newest); err != nil {
+		return Set{}, fmt.Errorf("read album timestamps for page: %w", err)
+	}
+	set.latest, _ = time.Parse(timeLayout, newest)
 
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT a.slug, i.media_id, i.alt, i.caption,
@@ -550,7 +681,7 @@ func (s *Store) LoadFor(ctx context.Context, websiteID int64, html string, t fun
 		   FROM album_items i
 		   JOIN albums a ON a.id = i.album_id
 		   JOIN media  m ON m.id = i.media_id AND m.website_id = a.website_id
-		  WHERE a.website_id = $1 AND a.slug IN (`+strings.Join(placeholders, ", ")+`)
+		  WHERE a.website_id = $1 AND a.slug IN (`+in+`)
 		  ORDER BY i.album_id, i.sort_order, i.id`, args...)
 	if err != nil {
 		return Set{}, fmt.Errorf("load albums for page: %w", err)

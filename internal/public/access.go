@@ -178,9 +178,13 @@ func (h *Handler) HandleShareLink(w http.ResponseWriter, r *http.Request) error 
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
 
+	// The validator is discarded here and only here: a share link answers
+	// no-store, so there is no conditional request for it to decide.
+	inhalt, _ := h.pageContent(r, website.ID, pg, snippets)
+
 	data := tmpl.PageData{
 		Site:  site,
-		Page:  h.withArchiveNav(r, website, h.pageContent(r, website.ID, pg, snippets), pg),
+		Page:  h.withArchiveNav(r, website, inhalt, pg),
 		Menus: h.loadMenus(r, website.ID),
 		Meta: tmpl.MetaData{
 			CanonicalURL: site.URL + "/" + pg.Slug,

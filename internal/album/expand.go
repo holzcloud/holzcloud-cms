@@ -1,6 +1,8 @@
 package album
 
 import (
+	"time"
+
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 )
@@ -67,7 +69,24 @@ type Set struct {
 	// an album gallery does not end up with its two sets of controls in two
 	// languages.
 	t func(string) string
+	// latest is the newest updated_at among the albums the page names, read by
+	// Latest below. Part of the Set because it is answered by the same load:
+	// the caller that needs it is the one that already asked for the pictures,
+	// and a second trip for a timestamp would be a second trip on every public
+	// request.
+	latest time.Time
 }
+
+// Latest is when the albums this page names last changed, and the zero time
+// when it names none.
+//
+// This is a caching validator and not information for a theme. A page carrying
+// an album is not touched when the album changes — that is GAL-03 — so
+// pages.updated_at alone says a page is unchanged when what it renders is not,
+// and a browser holding an If-Modified-Since would be told to keep what it has.
+// internal/public/pagedata.go's contentModTime folds this in beside the
+// snippets' LatestUpdate, which is there for exactly the same reason.
+func (s Set) Latest() time.Time { return s.latest }
 
 // Lookup is the picture resolver the gallery renderer takes.
 //
