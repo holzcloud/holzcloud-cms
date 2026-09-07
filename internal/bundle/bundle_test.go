@@ -1001,6 +1001,235 @@ func TestImportReportsAlbumsCreatedNotClaimed(t *testing.T) {
 	}
 }
 
+// The album round trip, and the one thing that makes it a proof.
+//
+// album.Store.Rename keeps the slug on purpose: a gallery block stores the
+// slug, so correcting a typo in an album's name must not take the album away
+// from every page that carries it. A page therefore holds the OLD slug while
+// the album shows a NEW name. If the block's reference travels as a slug, the
+// other machine derives a different one from the name and the reference points
+// at nothing — silently, with an empty gallery where the pictures were.
+//
+// Which is why this test renames before it exports. An album whose name still
+// matches its slug round-trips correctly EVEN WHEN THE TRANSLATION IS MISSING,
+// so a test without the rename proves nothing at all. The same argument, about
+// a term instead of an album, is written out at TestSchlagwortfeldRundreise
+// above; Phase 7 shipped that field declared and unproved for exactly this
+// reason.
+//
+// And both directions are asserted, because only the negative one fails when a
+// half of the translation is absent.
+func TestAlbumRoundTripAfterRename(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+	ws, albumID, mediaID := seedAlbumSite(t, s, "Werkstatt", "Werkstatt 2024")
+
+	// 1. The stored address is what page.Slugify makes of the original name.
+	//    Asserted rather than assumed, so a change to the derivation fails
+	//    here loudly instead of quietly testing something else.
+	const oldName = "Werkstatt 2024"
+	const newName = "Werkstatt 2025"
+	oldSlug := page.Slugify(oldName)
+	a, err := s.Albums.Get(ctx, ws, albumID)
+	if err != nil || a == nil {
+		t.Fatalf("Albums.Get: %v", err)
+	}
+	if a.Slug != oldSlug {
+		t.Fatalf("slug = %q, want %q", a.Slug, oldSlug)
+	}
+
+	// 2. Rename to a name that slugifies DIFFERENTLY — without that the test
+	//    would pass with the translation removed.
+	if err := s.Albums.Rename(ctx, ws, albumID, newName); err != nil {
+		t.Fatalf("Albums.Rename: %v", err)
+	}
+	newSlug := page.Slugify(newName)
+	if newSlug == oldSlug {
+		t.Fatalf("the two names slugify the same (%q); the test would prove nothing", newSlug)
+	}
+	after, err := s.Albums.Get(ctx, ws, albumID)
+	if err != nil || after == nil {
+		t.Fatalf("Albums.Get: %v", err)
+	}
+	if after.Slug != oldSlug {
+		t.Fatalf("Rename moved the slug to %q; the whole case rests on it staying", after.Slug)
+	}
+
+	// 3. A page whose gallery block carries the album's reference — which is
+	//    still the OLD slug, because that is what Rename leaves behind.
+	set := s.BlockTypes.Set(ctx, ws)
+	blocks := []block.Block{
+		{Type: block.TypeText, Markdown: "Unsere Arbeiten."},
+		{Type: block.TypeGallery, AlbumSlug: oldSlug},
+	}
+	encoded, err := block.Encode(blocks, set)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if _, err := s.Pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws, Title: "Arbeiten", Slug: "arbeiten",
+		Markdown: block.PlainText(blocks, set), Blocks: encoded, Status: "published",
+	}); err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+
+	// 4. Out.
+	archive := exportTo(t, s, ws)
+	written := manifestOf(t, archive)
+
+	// 5. Both directions. The manifest carries the NEW name and the old slug
+	//    appears nowhere in it. Only the second of these fails when the
+	//    translation is missing, and it is the one the requirement rests on.
+	if !strings.Contains(written, newName) {
+		t.Errorf("the manifest does not carry the album's new name %q:\n%s", newName, written)
+	}
+	if strings.Contains(written, oldSlug) {
+		t.Errorf("the manifest still carries the old slug %q; the reference travels as "+
+			"a slug and will point at nothing on the other machine:\n%s", oldSlug, written)
+	}
+
+	// 6. In, on a website that has never seen this album, and the block's
+	//    reference resolves to the album that is actually there.
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Werkstatt (Kopie)")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("a clean round trip warned: %v", report.Warnings)
+	}
+	pg, err := s.Pages.GetPageBySlug(ctx, report.WebsiteID, "arbeiten")
+	if err != nil || pg == nil {
+		t.Fatalf("GetPageBySlug: %v", err)
+	}
+	arrived, err := block.Decode(pg.Blocks, s.BlockTypes.Set(ctx, report.WebsiteID))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(arrived) != 2 {
+		t.Fatalf("%d blocks instead of 2: %+v", len(arrived), arrived)
+	}
+	if arrived[1].AlbumSlug != newSlug {
+		t.Fatalf("the gallery points at %q; the album on this website is %q",
+			arrived[1].AlbumSlug, newSlug)
+	}
+	copied, err := s.Albums.BySlug(ctx, report.WebsiteID, arrived[1].AlbumSlug)
+	if err != nil || copied == nil {
+		t.Fatalf("the gallery points at no album of the imported website: %v", err)
+	}
+	if copied.Name != newName {
+		t.Errorf("the arrived album is called %q, want %q", copied.Name, newName)
+	}
+	// And it is the album with the pictures in it, not an empty one that
+	// happens to have the right address.
+	items, err := s.Albums.Items(ctx, report.WebsiteID, copied.ID)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("Items = %v, %v", items, err)
+	}
+	if items[0].MediaID == mediaID {
+		t.Errorf("the copied album still points at the original website's picture %d", mediaID)
+	}
+	picture, err := s.Media.GetByID(ctx, items[0].MediaID)
+	if err != nil || picture == nil {
+		t.Fatalf("the copied album's picture does not exist: %v", err)
+	}
+	if picture.WebsiteID != report.WebsiteID {
+		t.Errorf("the copied album's picture belongs to website %d instead of %d",
+			picture.WebsiteID, report.WebsiteID)
+	}
+}
+
+// The decisive half of GAL-04 is the negative one, and it is machine-decided
+// here rather than read by hand.
+//
+// The album is renamed after its pictures were placed, so the page holds an
+// address that no longer matches the name. The manifest must not contain that
+// address anywhere — not in the album list, not on the block — and must carry
+// the album by its name instead.
+func TestManifestCarriesNoAlbumSlug(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+	ws, albumID, _ := seedAlbumSite(t, s, "Schreinerei", "Referenzen Aussen")
+
+	oldSlug := page.Slugify("Referenzen Aussen")
+	if err := s.Albums.Rename(ctx, ws, albumID, "Aussenanlagen"); err != nil {
+		t.Fatalf("Albums.Rename: %v", err)
+	}
+
+	set := s.BlockTypes.Set(ctx, ws)
+	blocks := []block.Block{{Type: block.TypeGallery, AlbumSlug: oldSlug}}
+	encoded, err := block.Encode(blocks, set)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if _, err := s.Pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws, Title: "Aussen", Slug: "aussen",
+		Markdown: block.PlainText(blocks, set), Blocks: encoded, Status: "published",
+	}); err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+
+	written := manifestOf(t, exportTo(t, s, ws))
+	if strings.Contains(written, oldSlug) {
+		t.Errorf("the manifest carries the album's old address %q; it must carry the "+
+			"name and let the other machine derive the address:\n%s", oldSlug, written)
+	}
+	if !strings.Contains(written, "Aussenanlagen") {
+		t.Errorf("the manifest does not carry the album's name:\n%s", written)
+	}
+}
+
+// A block naming an album the archive did not bring is reported, the way
+// missingMedia reports a file that did not arrive. Without it the operator
+// gets an empty gallery and nothing anywhere that says why.
+func TestBlockNamingAnAbsentAlbumIsReported(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Halb"},
+		Albums:  []Album{{Name: "Referenzen"}},
+		Pages: []Page{{
+			Title: "Arbeiten", Slug: "arbeiten", Status: "published",
+			Blocks: []Block{
+				{Type: block.TypeGallery, Album: "Referenzen"},
+				{Type: block.TypeGallery, Album: "Aussenanlagen"},
+			},
+		}},
+	})
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if !warned(report, "Aussenanlagen") {
+		t.Errorf("the report does not name the album that did not arrive: %v", report.Warnings)
+	}
+	if warned(report, "Referenzen") {
+		t.Errorf("the album that did arrive is reported as missing: %v", report.Warnings)
+	}
+
+	// And the reference is dropped rather than passed through: a value that
+	// travelled on would land on whatever this machine derives from it.
+	pg, err := s.Pages.GetPageBySlug(ctx, report.WebsiteID, "arbeiten")
+	if err != nil || pg == nil {
+		t.Fatalf("GetPageBySlug: %v", err)
+	}
+	arrived, err := block.Decode(pg.Blocks, s.BlockTypes.Set(ctx, report.WebsiteID))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(arrived) != 2 {
+		t.Fatalf("%d blocks instead of 2: %+v", len(arrived), arrived)
+	}
+	if arrived[0].AlbumSlug != "referenzen" {
+		t.Errorf("the block naming an album that arrived points at %q", arrived[0].AlbumSlug)
+	}
+	if arrived[1].AlbumSlug != "" {
+		t.Errorf("the block naming an absent album kept its reference: %q", arrived[1].AlbumSlug)
+	}
+}
+
 // albums is optional, so every archive already written imports unchanged and
 // an export from a website without albums is byte-for-byte what it was.
 func TestManifestWithoutAlbumsImportsAsBefore(t *testing.T) {
