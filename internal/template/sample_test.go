@@ -363,6 +363,10 @@ func emptyValueOf(kind string) any {
 		return (*field.Ref)(nil)
 	case field.KindBool:
 		return false
+	case field.KindGroup:
+		// make, not nil: Resolve builds the slice before it fills it, so a
+		// theme's {{range}} sees a list of nothing rather than a missing key.
+		return []map[string]any{}
 	default:
 		return ""
 	}
