@@ -219,6 +219,11 @@ type Block struct {
 
 	Variant string `json:"variant,omitempty"`
 
+	// Display is a gallery's layout mode. The key is English because every key
+	// in this struct is; the value is the German constant block.DisplaySlideshow,
+	// exactly as Type above already carries "galerie" under the key "type".
+	Display string `json:"display,omitempty"`
+
 	Title    string `json:"title,omitempty"`
 	Text     string `json:"text,omitempty"`
 	Source   string `json:"source,omitempty"`

@@ -216,6 +216,17 @@ type Block struct {
 	// picture sits on, "2"/"3"/"4" for how many columns a grid has.
 	Variant string `json:"variante,omitempty"`
 
+	// Display is how a gallery is laid out: a grid, or a slideshow that snaps.
+	// Empty is the grid that already exists, which is why every page saved
+	// before this field keeps rendering exactly as it did.
+	//
+	// A field of its own rather than another meaning of Variant, because
+	// Variant is already this block's column count (see Columns below) and one
+	// string that means either a number or a mode is a string nobody can read:
+	// a Variant of "diashow" would silently render a three-column grid. The
+	// shape is field.Def.Display's, constant and all.
+	Display string `json:"darstellung,omitempty"`
+
 	// Title heads a callout; Text and Source are the quote.
 	Title  string `json:"titel,omitempty"`
 	Text   string `json:"text,omitempty"`
@@ -282,6 +293,34 @@ func (b Block) Empty() bool {
 		}
 	}
 	return true
+}
+
+// DisplaySlideshow lays a gallery out as a horizontal track that snaps to each
+// picture. Everything it needs is CSS: the keyboard and the touch gesture are
+// the browser's own scrolling, and nothing here is scripted.
+//
+// The identifier is English and the value it holds is German, deliberately.
+// The string stands in the blocks column of every page that uses it and in
+// every archive ever exported, and .planning/GLOSSARY.md's closing rule —
+// written after a runtime failure of exactly this kind — says a German word
+// standing in the database is a value and not an identifier. knopfreihe in
+// internal/field is the same shape, one package over.
+const DisplaySlideshow = "diashow"
+
+// DisplayClass is the modifier class this block's display mode adds to its
+// wrapper, or the empty string for the layout that already exists.
+//
+// The class is minted here from the constant and never concatenated out of the
+// stored value, so a display an archive carries that this program does not know
+// adds no modifier at all rather than a fragment of an attribute. The mapping
+// lives beside the constant so the renderer carries no switch.
+//
+// Only a gallery has a display today, which is why the class names one.
+func (b Block) DisplayClass() string {
+	if b.Display == DisplaySlideshow {
+		return "hc-galerie--diashow"
+	}
+	return ""
 }
 
 // Columns is how many columns a grid block asks for, clamped to what a layout

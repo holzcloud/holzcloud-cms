@@ -179,6 +179,15 @@ func setBlockField(b *Block, name string, values []string) {
 		b.Caption = value
 	case "variante":
 		b.Variant = value
+	case "darstellung":
+		// A closed vocabulary, checked rather than trusted: the value arrives
+		// from a form and is written into a column every archive carries, and
+		// .planning/GLOSSARY.md's closing rule records what a stored value the
+		// code does not know costs at run time. Anything else is ignored, so
+		// the block keeps the display it had.
+		if value == "" || value == DisplaySlideshow {
+			b.Display = value
+		}
 	case "titel":
 		b.Title = value
 	case "text":
