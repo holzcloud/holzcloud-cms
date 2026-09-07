@@ -134,8 +134,8 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// mediaByName die Stelle ist, an der daraus Nummern werden. Ausdrücklich
 	// nicht zuletzt wie die Menüs, deren Einträge über Adressen auf Seiten
 	// zeigen und die Seiten deshalb brauchen (import.go:1087).
-	importAlbums(ctx, s, websiteID, manifest, mediaByName, report)
-	importPages(ctx, s, websiteID, manifest, mediaByName, fieldKinds, set, report)
+	albumSlugs := importAlbums(ctx, s, websiteID, manifest, mediaByName, report)
+	importPages(ctx, s, websiteID, manifest, mediaByName, albumSlugs, fieldKinds, set, report)
 	importSnippets(ctx, s, websiteID, manifest, report)
 	importMenus(ctx, s, websiteID, manifest, report)
 
@@ -361,15 +361,31 @@ func importTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 // website, so a name that is not in it resolves to nothing — never to a
 // number, which is blocks.go's rule one level up.
 func importAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
-	mediaByName map[string]int64, report *Report) {
+	mediaByName map[string]int64, report *Report) map[string]string {
 	if len(m.Albums) == 0 {
-		return
+		return nil
 	}
 	if s.Albums == nil {
 		report.Warnings = append(report.Warnings,
 			fmt.Sprintf("%d Alben konnten nicht angelegt werden.", len(m.Albums)))
-		return
+		return nil
 	}
+	// Welche Namen das Archiv doppelt nennt. Ein Baustein, der so einen Namen
+	// nennt, nennt zwei Alben, und im Archiv steht nichts, was sagen würde,
+	// welches — die Zuordnung ist dann nicht schwer zu treffen, sondern gar
+	// nicht vorhanden. Sie wird deshalb fallengelassen und gemeldet, nicht
+	// geraten: an das erste Album gebunden hiesse, eine Galerie zeigt die
+	// Bilder einer anderen, und niemand erführe es.
+	twice := map[string]bool{}
+	seen := map[string]bool{}
+	for _, a := range m.Albums {
+		if seen[a.Name] {
+			twice[a.Name] = true
+		}
+		seen[a.Name] = true
+	}
+
+	slugs := map[string]string{}
 	created := 0
 	for i, a := range m.Albums {
 		row, err := s.Albums.Create(ctx, websiteID, a.Name)
@@ -379,6 +395,14 @@ func importAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			continue
 		}
 		created++
+		// Die Adresse, die dieses Album auf DIESER Maschine bekommen hat, vom
+		// Store erfragt und nicht ein zweites Mal abgeleitet. blocks.go liest
+		// hier nach, statt page.Slugify selbst zu rufen: zwei Ableitungen
+		// desselben Schlüssels sind die Gefahr, vor der die Paketbeschreibung
+		// von internal/album ausdrücklich warnt.
+		if !twice[a.Name] {
+			slugs[a.Name] = row.Slug
+		}
 		for _, it := range a.Items {
 			id, ok := mediaByName[it.Media]
 			if !ok {
@@ -392,10 +416,17 @@ func importAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			}
 		}
 	}
+	for name := range twice {
+		report.Warnings = append(report.Warnings, fmt.Sprintf(
+			"Das Archiv nennt zwei Alben %q. Es kann nur eines davon geben, und "+
+				"keine Galerie wird daran gebunden — sonst zeigte sie die Bilder des "+
+				"falschen. Die betroffenen Seiten stehen unten einzeln.", name))
+	}
 	// Was angelegt wurde, nicht was das Archiv behauptet — dieselbe Regel wie
 	// bei den Schlagwörtern oben: eine Zahl, die ein Bericht nennt, soll
 	// geglaubt werden können.
 	report.Albums = created
+	return slugs
 }
 
 // importFields recreates the website's own field definitions and returns which
@@ -666,16 +697,12 @@ func translateIn(kinds map[string]string, values map[string]string, mediaByName 
 }
 
 func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
-	mediaByName map[string]int64, fieldKinds map[string]string, set block.Set, report *Report) {
+	mediaByName map[string]int64, albumSlugs map[string]string,
+	fieldKinds map[string]string, set block.Set, report *Report) {
 
 	// One lookup for the whole import, so a picture used on twenty pages is
 	// read once.
 	look := blockImages(ctx, s, websiteID)
-
-	// Welche Alben das Archiv überhaupt mitgebracht hat. Ein Galeriebaustein
-	// nennt eines beim Namen; steht der Name hier nicht, wird der Verweis
-	// fallengelassen und gemeldet statt auf gut Glück abgeleitet.
-	albumNames := declaredAlbums(m)
 
 	// Die Felddefinitionen, wie sie tatsächlich angelegt wurden — gelesen und
 	// nicht aus dem Archiv nachgebaut, damit die Prüfung gegen das läuft, was
@@ -756,7 +783,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		// is what the search index and the excerpt read.
 		encodedBlocks := ""
 		if len(p.Blocks) > 0 {
-			blocks := set.Clean(importBlocks(p.Blocks, set, mediaByName, albumNames))
+			blocks := set.Clean(importBlocks(p.Blocks, set, mediaByName, albumSlugs))
 			if len(blocks) > 0 {
 				encoded, eerr := block.Encode(blocks, set)
 				if eerr != nil {
@@ -775,7 +802,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			// Dasselbe eine Ebene höher: ein Baustein, der ein Album nennt,
 			// das im Archiv nicht steht, bekommt eine Zeile im Bericht statt
 			// einer leeren Galerie ohne Erklärung.
-			for _, name := range missingAlbum(p.Blocks, albumNames) {
+			for _, name := range missingAlbum(p.Blocks, albumSlugs) {
 				report.Warnings = append(report.Warnings, fmt.Sprintf(
 					"Seite %q: das Album %q ist nicht im Archiv, die Galerie bleibt leer", p.Title, name))
 			}

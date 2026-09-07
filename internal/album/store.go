@@ -267,15 +267,58 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Album, error) {
 // correcting "Werkstatt 2024" to "Werkstatt 2025" must not take the album away
 // from every page that carries it. No statement in this file updates slug.
 //
-// The rename cannot collide, because the constraint is on the slug and the slug
-// does not move. Two albums may therefore end up with the same visible name and
-// different addresses, which is a thing an operator can see and undo.
+// # Why the name is checked here even though the constraint is on the slug
+//
+// It used to not be, and this comment used to say so: "the rename cannot
+// collide, because the constraint is on the slug and the slug does not move.
+// Two albums may therefore end up with the same visible name and different
+// addresses, which is a thing an operator can see and undo."
+//
+// The second sentence was true and the conclusion was wrong, because the
+// operator is not the only reader of a name. A bundle carries an album BY ITS
+// NAME and by nothing else (internal/bundle/export.go's exportAlbums says why:
+// a slug is not transferable across machines). Two albums sharing one name
+// therefore write two indistinguishable manifest entries, and on the other side
+// one of them cannot be created, its pictures are lost, and every gallery that
+// pointed at it binds to the survivor — an album's worth of photographs
+// replaced by somebody else's, with a warning that names a number in a list and
+// never a page.
+//
+// So a name is refused here the way Create refuses one, and for the same
+// reason, which makes the two consistent as well as safe: Create refuses a
+// duplicate through the UNIQUE constraint on the slug, and this refuses the
+// case the slug cannot see. The importer no longer trusts a name either — it
+// resolves a block's reference against the albums it actually created — but
+// that is the second strap. This is the source.
+//
+// Read and write in one transaction on the write pool, not two statements on
+// two pools: the read pool is a different WAL snapshot, so a check made there
+// could be true at the moment it was asked and false by the moment it was
+// used. Nothing between them waits on anything, which SwapSortOrder's comment
+// explains is a requirement of a single-connection write pool and not a style.
 func (s *Store) Rename(ctx context.Context, websiteID, id int64, name string) error {
 	name = normalizeName(name)
 	if name == "" {
 		return ErrNoName
 	}
-	res, err := s.DB.Write.ExecContext(ctx,
+
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin rename: %w", err)
+	}
+	defer tx.Rollback()
+
+	var taken int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM albums WHERE website_id = $1 AND name = $2 AND id <> $3`,
+		websiteID, name, id).Scan(&taken); err != nil {
+		return fmt.Errorf("check album name: %w", err)
+	}
+	if taken > 0 {
+		return fmt.Errorf("%w: %q", ErrDuplicateName, name)
+	}
+
+	res, err := tx.ExecContext(ctx,
 		`UPDATE albums SET name = $1, updated_at = `+nowStamp+`
 		  WHERE id = $2 AND website_id = $3`,
 		name, id, websiteID)
@@ -284,6 +327,9 @@ func (s *Store) Rename(ctx context.Context, websiteID, id int64, name string) er
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("%w: album %d", ErrNotFound, id)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit rename: %w", err)
 	}
 	return nil
 }

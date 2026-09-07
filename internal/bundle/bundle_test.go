@@ -1382,7 +1382,7 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 	}
 
 	report := &Report{}
-	importPages(ctx, s, ws, m, map[string]int64{}, map[string]string{}, block.Set{}, report)
+	importPages(ctx, s, ws, m, map[string]int64{}, nil, map[string]string{}, block.Set{}, report)
 	importMenus(ctx, s, ws, m, report)
 
 	// Drei Seiten, alle drei unter derselben Adresse.
