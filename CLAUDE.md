@@ -121,6 +121,32 @@ data/                        — Runtime: SQLite DB + media + user templates
 - 8px spacing scale; system font stack
 - View transitions (`@view-transition`) for admin navigation
 
+### Translation
+
+Every word an operator reads goes through the catalogue. In a template that is
+`{{t}}`, `{{th}}` (for a sentence carrying its own inline markup) or `{{tf}}`
+(for one with a value in it); in Go it is `web.T`, `web.Titlef`, the
+`SetFlash*` family, `FormErrors.Add`, `web.NewLayoutData` or `i18n.N`. The
+German sentence **is** the key — there are no invented identifiers and no
+`de.json`.
+
+`go run ./tools/i18n` is the gate: `0 offen, 0 verwaist`.
+
+**A sentence built with `fmt.Sprintf` is invisible to it, wherever it stands.**
+So is a German literal handed to a `%s` of `tf`/`Titlef` — only the format
+string is collected. Assemble the sentence in the catalogue, not in Go.
+
+The collector reads `cmd/holzcloud/templates/admin` and `internal`, and
+nothing else. Anything operator-facing that lands outside those two — in
+`cmd/holzcloud/*.go`, in `plugins/`, in a public theme — is not merely
+untranslated, it is unreported: the gate says neither *offen* nor *verwaist*
+about it, because it does not know it exists. Put such a string under
+`internal/`, or add a root to `tools/i18n` deliberately.
+
+The shipped public themes are the standing exception and it is a known open
+decision, not an oversight: the public FuncMap has no `t` at all. See
+`.planning/audits/v1.6-I18N-REICHWEITE.md` before changing anything about it.
+
 ### Error Handling
 - Handlers return `error`; a wrapper writes the appropriate HTTP response
 - Early returns / guard clauses preferred
