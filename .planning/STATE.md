@@ -74,18 +74,37 @@ Zeichenkette **ist** der Katalogschlüssel, ein Flick verwaist drei Schlüssel i
 vier Katalogen) — in `deferred-items.md` mit Schrittfolge und als Eintrag 5 im
 Fensterbuch. Dazu `V2-18`: Kennungen in einem Textbausteinwert reisen beim
 Archivweg **nicht** übersetzt (Bild, Verweis, Schlagwort)
-Offen aus dem stehenden Tor (Phase 6): die Übersetzungshälfte ist grün, die
-**Browserhälfte nur zur Hälfte gelaufen**. Die vier sichtbar rendernden Gäste
-(`suche`, `kontaktformular`, `jahreszahl`, `bestellung`) wurden **nicht** auf
-einer öffentlichen Seite gesehen — eine frische Datenbank kennt kein Plugin,
-und das verfügbare Browserwerkzeug konnte den `.zip`-Upload nicht ausführen
-Offen aus dem stehenden Tor (Phase 7): **eine Zeile ungefahren** — `code`
-innerhalb eines Blocks auf der öffentlichen Seite. Der Blockpfad ist im Test
-gedeckt (`internal/block`, 07-03), aber nicht im Browser gesehen; als nicht
-gefahren geführt, nicht als bestanden. Dazu **Fenster Nr. 3**: die
-Ablehnungsgründe aus `internal/field/field.go` erschienen bei englischer
-Oberfläche auf Deutsch — vorbestehend, gegen `60ff5b2` geprüft, in
-`.planning/WINDOWS.md` eingetragen
+~~Offen aus dem stehenden Tor (Phase 6)~~ — **erledigt, und dieser Eintrag war
+seit dem 4. September falsch.** `06-VERIFICATION.md:212-260` trägt den
+vollständigen Nachdurchgang: alle fünf Archive über die Verwaltung
+hochgeladen, `kontaktformular`s eigene Migration beim Einspielen angewandt und
+mit ihrer sha256 vermerkt, `/suche?q=Willkommen` mit einem echten Treffer,
+`[[jahr]]`, `[[formular]]`, `[[bestellung]]` auf der Startseite und
+`nicht-gefunden` am 404-Haken. Kriterium 6 steht dort als **MET**, mit dem
+alten PARTIAL-Urteil darunter erhalten. Nur STATE.md hat das nie nachgezogen
+
+~~Offen aus dem stehenden Tor (Phase 7)~~ — **ebenfalls erledigt.**
+`07-VERIFICATION.md:212-219` zeigt `code` innerhalb eines Bausteins auf der
+öffentlichen Seite gefahren, mit dem gerenderten HTML im Bericht: eine eigene
+Bausteinart `Ausstattungskasten`, ein `<script>` im Wert, und die Ausgabe
+maskiert in `<pre><code>`. Auch hier hat nur STATE.md nicht nachgezogen
+
+**Wirklich offen aus Phase 7** ist etwas anderes, und es steht in der
+Kopfzeile des Berichts: Kriterium 1, zweiter Satz — „geleert" ist von „dieses
+Formular trug das Feld nie" **nicht** unterscheidbar, weil `field.Clean` jeden
+leer trimmenden Wert verwirft. Phase 9 war angewiesen, diese Unterscheidung zu
+erben. Sie hat es nicht getan, sondern sie **ausdrücklich abgelehnt**, und das
+ist die richtige Antwort: `internal/csvimport/row.go`s `update()` schreibt
+hin, dass eine CSV-Datei den Unterschied gar nicht tragen kann, und leitet
+daraus ab, dass Leeren aus einem CSV-Update nicht ausdrückbar ist. Die Lücke
+ist damit nicht geschlossen, sondern eingegrenzt: sie besteht im Formularpfad
+und nirgends sonst
+
+Dazu **Fenster Nr. 3**: die Ablehnungsgründe aus `internal/field/field.go`
+erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
+`60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
+Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
+`.planning/audits/v1.6-I18N-828.md`
 Last activity: 2026-09-06
 
 ### Milestone Map
