@@ -1,6 +1,7 @@
 package block
 
 import (
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -1116,5 +1117,204 @@ func TestSlideshowNameGoesThroughTheTranslator(t *testing.T) {
 	}
 	if strings.Contains(html, `aria-label="Galerie"`) {
 		t.Errorf("the German source survived a translator that maps it away:\n%.300s", html)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// An album-backed gallery block (plan 11-05).
+//
+// A gallery may take its pictures from an album of this website instead of
+// listing them itself. What is stored is the album's slug, and what is rendered
+// is a marker — never the pictures, because the pictures are looked up at
+// request time so that changing the album changes every page carrying it
+// (GAL-03).
+// ---------------------------------------------------------------------------
+
+// albumBlock is a gallery that names an album and carries no items of its own,
+// which is exactly the state the editor produces.
+func albumBlock() Block {
+	return Block{Type: TypeGallery, AlbumSlug: "moebel"}
+}
+
+// The regression test for the trap this plan exists to close.
+//
+// Empty() reports a gallery with no items as empty and Clean drops every empty
+// block before encoding. A gallery naming an album has no items, so before this
+// fix the block was deleted by the very save that created it — the editor picks
+// an album, saves, and the block is gone with no message anywhere. No test
+// failed, no line was logged.
+func TestAlbumBlockSurvivesClean(t *testing.T) {
+	raw, err := Encode([]Block{albumBlock()}, Builtin)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if raw == "" {
+		t.Fatal("the block was dropped by the save that created it")
+	}
+	got, err := Decode(raw, Builtin)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d blocks, want 1: %s", len(got), raw)
+	}
+	if got[0].AlbumSlug != "moebel" {
+		t.Errorf("the album slug did not survive the round trip: %+v", got[0])
+	}
+	if !strings.Contains(raw, `"album":"moebel"`) {
+		t.Errorf("the JSON key is not album:\n%s", raw)
+	}
+}
+
+// The other half, so the fix did not turn Empty() into a no-op: a gallery with
+// neither items nor an album is still what an editor added and left alone, and
+// it is still dropped.
+func TestGalleryWithNeitherItemsNorAlbumIsStillDropped(t *testing.T) {
+	raw, err := Encode([]Block{{Type: TypeGallery}, {Type: TypeGallery, Items: []Item{{}}}}, Builtin)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if raw != "" {
+		t.Errorf("an empty gallery survived Clean:\n%s", raw)
+	}
+}
+
+// An album belongs to a gallery. A card row has items too, and a slug on one
+// would travel through the archive with nothing anywhere to read it.
+func TestCleanDropsAnAlbumSlugFromABlockThatIsNotAGallery(t *testing.T) {
+	got := Builtin.Clean([]Block{
+		{Type: TypeCards, AlbumSlug: "moebel", Items: []Item{{MediaID: 1}}},
+	})
+	if len(got) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(got))
+	}
+	if got[0].AlbumSlug != "" {
+		t.Errorf("a card row kept an album slug: %+v", got[0])
+	}
+}
+
+// The wrapper is the block's and is written at save; only its contents are
+// late. So the columns class and the display modifier are there exactly as they
+// would be for an inline gallery, and the marker is the only thing inside.
+func TestAlbumBlockRendersTheMarkerInsideTheWrapper(t *testing.T) {
+	html := Render([]Block{albumBlock()}, Builtin, galleryLook(), markdown)
+
+	const want = `<div class="hc-block hc-galerie hc-spalten-3">[[album:moebel:0]]</div>`
+	if html != want {
+		t.Errorf("the album block did not render to the wrapper and the marker:\nwant %s\ngot  %s", want, html)
+	}
+
+	show := albumBlock()
+	show.Display = DisplaySlideshow
+	show.Variant = "4"
+	slide := Render([]Block{show}, Builtin, galleryLook(), markdown)
+	if !strings.HasPrefix(slide, `<div class="hc-block hc-galerie hc-spalten-4 hc-galerie--diashow"`) {
+		t.Errorf("an album gallery lost its columns or its display mode:\n%s", slide)
+	}
+	if !strings.Contains(slide, `[[album:moebel:0]]`) {
+		t.Errorf("the marker is missing from the slideshow wrapper:\n%s", slide)
+	}
+}
+
+// The block's position rides in the marker because the fragment ids of the
+// large views are minted from it: a page carrying an inline gallery and an
+// album gallery must not mint hc-b1-p1 twice.
+func TestAlbumBlockMarkerCarriesTheBlockPosition(t *testing.T) {
+	html := Render([]Block{
+		{Type: TypeText, Markdown: "Hallo."},
+		threePictures(),
+		albumBlock(),
+	}, Builtin, galleryLook(), markdown)
+
+	if !strings.Contains(html, "[[album:moebel:2]]") {
+		t.Errorf("the marker does not carry the block's position:\n%s", html)
+	}
+	if !strings.Contains(html, `id="hc-b2-p1"`) {
+		t.Errorf("the inline gallery lost its own ids:\n%s", html)
+	}
+}
+
+// A hand-crafted POST must not be able to put anything but a slug into the
+// marker, so the value is re-derived rather than trusted — with the same one
+// call the album store makes, because two derivations of one key create two
+// rows that both look right.
+func TestAlbumValueIsSlugifiedOnTheWayIn(t *testing.T) {
+	blocks := FromForm(url.Values{
+		"b0.typ":   {"galerie"},
+		"b0.album": {`Möbel "2025" <script>`},
+	})
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(blocks))
+	}
+	if blocks[0].AlbumSlug != "moebel-2025-script" {
+		t.Errorf("the album value was not slugified: %q", blocks[0].AlbumSlug)
+	}
+
+	empty := FromForm(url.Values{"b0.typ": {"galerie"}, "b0.album": {"   "}})
+	if len(empty) != 1 || empty[0].AlbumSlug != "" {
+		t.Errorf("an empty choice did not clear the album: %+v", empty)
+	}
+}
+
+// A state the editor cannot produce but a hand-edited archive can. One source
+// is chosen by a stated rule and the two are never concatenated: concatenating
+// them would mint two runs of fragment ids from one block position.
+func TestAlbumAndItemsTogetherRenderTheAlbum(t *testing.T) {
+	both := threePictures()
+	both.AlbumSlug = "moebel"
+
+	html := Render([]Block{both}, Builtin, galleryLook(), markdown)
+
+	if !strings.Contains(html, "[[album:moebel:0]]") {
+		t.Errorf("the album did not win:\n%s", html)
+	}
+	if strings.Contains(html, "hc-galerie__bild") {
+		t.Errorf("the block's own items were rendered beside the album:\n%s", html)
+	}
+}
+
+// The marker is written by the renderer into HTML this program controls, so it
+// never meets goldmark or bluemonday — but it does meet media.MakeResponsive,
+// which parses the fragment with golang.org/x/net/html and re-renders it. A
+// text node passes through unchanged, and that is a property to state rather
+// than to assume.
+func TestTheAlbumMarkerIsPlainTextInsideAnElement(t *testing.T) {
+	html := Render([]Block{albumBlock()}, Builtin, galleryLook(), markdown)
+	inner := strings.TrimSuffix(strings.SplitN(html, ">", 2)[1], "</div>")
+	if strings.ContainsAny(inner, "<>&\"") {
+		t.Errorf("the marker is not a bare text node: %q", inner)
+	}
+}
+
+// Round trip through the reader, so a marker written on one save is found again
+// by the expansion on every request.
+func TestAlbumMarkerReaderFindsWhatTheWriterWrote(t *testing.T) {
+	doc := "<p>" + AlbumMarker("moebel", 2) + "</p>" + AlbumMarker("sommer", 5) +
+		AlbumMarker("moebel", 9)
+
+	if !HasAlbumMarker(doc) {
+		t.Fatal("HasAlbumMarker did not see a marker the writer wrote")
+	}
+	if HasAlbumMarker("<p>nothing here</p>") {
+		t.Error("HasAlbumMarker saw a marker in a document with none")
+	}
+
+	got := AlbumMarkerSlugs(doc)
+	want := []string{"moebel", "sommer"}
+	if len(got) != len(want) {
+		t.Fatalf("UsedSlugs is not deduplicated: %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("slug %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	out := ReplaceAlbumMarkers(doc, func(slug string, at int) string {
+		return fmt.Sprintf("<%s@%d>", slug, at)
+	})
+	const wantOut = "<p><moebel@2></p><sommer@5><moebel@9>"
+	if out != wantOut {
+		t.Errorf("ReplaceAlbumMarkers:\nwant %s\ngot  %s", wantOut, out)
 	}
 }

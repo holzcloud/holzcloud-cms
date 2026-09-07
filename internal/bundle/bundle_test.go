@@ -700,7 +700,11 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		// back into another on the way in, and a field added to only one of
 		// the two leaves in the archive and never comes back, with nothing
 		// anywhere to say so.
-		{Type: block.TypeGallery, Display: block.DisplaySlideshow,
+		// The album slug rides beside the display for the same reason and it
+		// is a pass-through in this version: the manifest has no albums entry
+		// until plan 11-06, so there is no name to translate the slug into
+		// yet. Carrying it now means it is never silently lost.
+		{Type: block.TypeGallery, Display: block.DisplaySlideshow, AlbumSlug: "moebel",
 			Items: []block.Item{{MediaID: bild.ID, Caption: "Der Teig"}}},
 	}
 	encoded, err := block.Encode(blocks, set)
@@ -742,6 +746,10 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 	if angekommen[3].Display != block.DisplaySlideshow {
 		t.Errorf("the gallery's display did not survive the archive: %q",
 			angekommen[3].Display)
+	}
+	if angekommen[3].AlbumSlug != "moebel" {
+		t.Errorf("the gallery's album did not survive the archive: %q",
+			angekommen[3].AlbumSlug)
 	}
 	if angekommen[0].Markdown != "Zuerst der Teig." {
 		t.Errorf("der Textbaustein: %q", angekommen[0].Markdown)
