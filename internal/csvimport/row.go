@@ -579,7 +579,7 @@ func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 		if err := w.Pages.UpdatePage(ctx, existing.ID, u); err != nil {
 			return Verdict{Row: v.Row, Outcome: OutcomeSkip, Reason: ReasonNotWritten, Args: []string{create.Title, err.Error()}}
 		}
-		if err := w.setTerms(ctx, websiteID, existing.ID, m, names); err != nil {
+		if err := w.setTerms(ctx, websiteID, existing.ID, row, m, names); err != nil {
 			return Verdict{Row: v.Row, Outcome: OutcomeUpdate, Reason: ReasonNotRolledBack, Args: []string{create.Title, err.Error()}}
 		}
 		return v
@@ -597,7 +597,7 @@ func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 		v.Reason, v.Args = ReasonRenamed, []string{create.Slug, created.Slug}
 	}
 
-	if err := w.setTerms(ctx, websiteID, created.ID, m, names); err != nil {
+	if err := w.setTerms(ctx, websiteID, created.ID, row, m, names); err != nil {
 		if terr := w.Pages.TrashPage(ctx, created.ID); terr != nil {
 			return Verdict{Row: v.Row, Outcome: OutcomeSkip, Reason: ReasonNotRolledBack, Args: []string{create.Title, terr.Error()}}
 		}
@@ -716,12 +716,12 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 	return u, nil
 }
 
-// setTerms writes the page's own terms, and does nothing at all when neither a
-// column nor a default is pointed at them.
+// setTerms writes the page's own terms, and does nothing at all when this row
+// said nothing about them.
 //
-// The distinction is the whole of it: an empty list from a mapped column means
-// "this page has no terms" and clears them, and a file with no terms column and
-// no default says nothing about terms, so the page keeps what it has.
+// The distinction is the whole of it, and it is drawn per ROW: a cell that says
+// something replaces the page's labels, and a blank cell with no default says
+// nothing about them, so the page keeps what it has.
 //
 // A DEFAULT counts as the file speaking, and that is the same rule the status,
 // the body and every field already follow (row_test.go's
@@ -731,10 +731,22 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 // typed into the Vorgaben card — and, once TermNames learned to harvest it, it
 // discarded it AFTER the label had been created, which is an orphan made on
 // purpose.
-func (w Writer) setTerms(ctx context.Context, websiteID, pageID int64, m Mapping, names []string) error {
-	stated := m.ColumnFor(TargetTerms, "") >= 0 ||
-		m.Defaults[Target{Kind: TargetTerms}.String()] != ""
-	if w.Terms == nil || !stated {
+func (w Writer) setTerms(ctx context.Context, websiteID, pageID int64, row csv.Row, m Mapping, names []string) error {
+	// The CELL and not the COLUMN, which is the same predicate update() uses
+	// and for the same reason. This function used to ask whether the file had a
+	// terms column at all, and argue for it: "an empty list from a mapped
+	// column means this page has no terms and clears them". That is the rule
+	// update() reversed — a blank cell is exactly as much "empty now" as it is
+	// "not filled in", and a CSV cannot carry the difference — and the reversal
+	// reached the body, the status and every field while this slot was left
+	// behind on the old one.
+	//
+	// So a file of five hundred rows with a Schlagwörter column, three hundred
+	// of whose cells are blank, stripped the labels off three hundred existing
+	// pages with no line in the report. cellFor already falls back to the
+	// target's default, so a default typed on the mapping screen still counts
+	// as the operator stating a value.
+	if w.Terms == nil || cellFor(row, m, Target{Kind: TargetTerms}) == "" {
 		return nil
 	}
 	return w.Terms.SetForPage(ctx, websiteID, pageID, names)
