@@ -37,7 +37,15 @@ hypotheses at the start of new investigations.
 
 ## Pattern note — the recurring defect shape in this codebase
 
-Three occurrences in two days, all identical: **an admin route takes a website id
+**Six occurrences now**, over four days, all identical. Beside the three below:
+the page **translation group** (`page.Store.SetTranslation` plus both readers —
+and there the second id is a *link*, so the damage was a read: a foreign page's
+title and draft badge printed on the editor's own screen), the **snippets**
+(correct only because four separate callers each remembered; moved into the
+store), and **`product_media`** (latent — `SetGallery` has no caller yet, so the
+guard went in before the first one rather than after the first report).
+
+The shape: **an admin route takes a website id
 and a second resource id, the middleware authorises only the first, and the
 second is written without being scoped.** `auth.RequireWebsiteAccess` states in
 its own doc comment that it reads only the leading path segment, so it can never
@@ -55,3 +63,40 @@ signal that the check must live in the handler instead — and that it needs a
 chain, and assert the **effect** (the row is unchanged) as well as the status.
 Always include the negative controls — the same action on the own website, and
 the create path — or a fix that refuses everything passes.
+
+
+## Pattern note — the ledger drifts behind the code, and the gate reads the ledger
+
+**Four occurrences, found on 2026-09-08 by reading the verification documents
+against the tree.** In every case the code was correct and the record was not:
+
+- `.planning/STATE.md` carried Phase 6's plugin-guest browser pass as **not
+  run**. `06-VERIFICATION.md:212-260` records it run in full, with the archives
+  uploaded, a migration applied and its sha256 recorded, and criterion 6 marked
+  MET.
+- The same file carried Phase 7's `code`-inside-a-block as **never driven**.
+  `07-VERIFICATION.md:212-219` shows it driven, with the rendered HTML.
+- `09-VERIFICATION.md` carried two gaps as open. Both were closed —
+  `csvEnsureTerms` bundles the transaction the first one named, and the
+  `planned` map closes the second — and both guards are green.
+- The `ROADMAP.md` progress table listed Phases 6, 7 and 8 as *In Progress* with
+  every plan complete, and **Phase 9 as "0/TBD, Not started"** while six plans,
+  six waves, a security finding and four browser-found defects were done in it.
+
+**Why it matters more here than in most projects.** The milestone close-out gate
+is graded from these documents. `gsd-tools` derives `completed_phases` from the
+ROADMAP table, so the stale table also produced a wrong progress counter — and a
+phase recorded as "not started" is a phase a close-out gate will either block on
+or, worse, skip.
+
+**The rule that came out of it.** A verification document is amended, never
+rewritten: keep the original verdict, add what closed it underneath, and say why
+the amendment exists. Phase 6's report does this and it is the model — *"a
+verification report that silently upgrades its own verdict is worth less than
+one that shows what changed."* The stale entries were not wrong when written;
+they were never revisited.
+
+**How to detect it.** Count `*-SUMMARY.md` against `*-PLAN.md` per phase
+directory and compare with the ROADMAP table; then read each verification
+document's `gaps:` block and run the named guard. Four of four gaps in this
+sweep were already closed.
