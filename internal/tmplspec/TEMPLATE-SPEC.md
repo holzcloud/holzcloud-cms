@@ -575,6 +575,40 @@ been deleted. That is what makes the branches above safe: on an entry of kind
 `bild` the `.Image` is there, on `verweis` the `.Ref`, on `schlagwort` the
 `.Term`. The `{{with}}` costs nothing and is kept as a habit.
 
+##### What `.Image`, `.Ref` and `.Term` carry
+
+The three are small on purpose and none of them nests any further.
+
+`.Image`: `.URL` `.Alt` `.Width` `.Height` `.Focus`
+
+`.Width` and `.Height` are the picture's pixel dimensions, both zero when they
+are not known. Write them onto the `<img>` and the browser reserves the space
+before the file arrives, so the page does not jump while it loads. Every theme
+that ships with the program does exactly this:
+
+```html
+{{with .Image}}
+<img src="{{.URL}}" alt="{{.Alt}}"{{if .Width}} width="{{.Width}}" height="{{.Height}}"{{end}} loading="lazy">
+{{end}}
+```
+
+`.Focus` is the picture's focal point as a CSS `object-position` value — for
+example `50% 35%` — and it is empty when nobody set one. A theme that crops a
+picture to a fixed shape should pass it through, so the part that matters stays
+in the frame:
+
+```html
+{{with .Image}}<img src="{{.URL}}" alt="{{.Alt}}"{{with .Focus}} style="object-position: {{.}}"{{end}}>{{end}}
+```
+
+`.Ref`: `.Title` `.URL` `.Kind` — the target's title as it is *now*, its
+address with the language prefix already on it, and `page` or `post` for a
+theme that marks the two differently.
+
+`.Term`: `.Name` `.Slug` `.URL` — the label's current name, its address, and
+the link to its archive. Print `.Name`, never `.Slug`: renaming a label changes
+every page that carries it, and that is the whole point of the kind.
+
 `.Page.Felder` is the same data as a map, keyed by field name. It is the other
 half of the contract and it behaves differently: **every defined field is in the
 map, filled or not**, so `{{.Page.Felder.abfahrt}}` on a page where nobody
