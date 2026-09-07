@@ -44,6 +44,42 @@ func SampleData() PageData {
 	// string on purpose: html/template escapes it, and that escaping is the
 	// whole promise of the kind.
 	abbund := `<balken laenge="240">Eiche</balken>`
+	// The nine kinds the fixture did not carry until the gate was measured.
+	// template.Check renders this and nothing else, so a kind that is absent
+	// here is a kind whose branch in an uploaded theme has never once been
+	// executed — and the comment below the list claimed the opposite for as
+	// long as it was untrue. sample_test.go now walks field.Kinds, so the claim
+	// is checked rather than asserted.
+	//
+	// Every value is the shape field.Resolve produces, not a shape that merely
+	// looks like it: a fixture that got that wrong would document a contract
+	// the renderer never fulfils.
+	beschreibung := "Massive Eiche, von Hand geölt.\nZwei Zeilen, ohne Formatierung."
+	preis := field.Number{Value: 1290.5, Raw: "1290.50"}
+	// A date carries a day and no time of day, which is what time.Parse gives
+	// back for "2026-05-01" — down to the zone.
+	eroeffnet := time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
+	ansicht := field.Image{
+		URL: "/media/1/tisch.jpg", Alt: "Ein Eichentisch in der Werkstatt",
+		// Width, Height and Focus are filled because internal/public fills
+		// them, and every shipped theme reads two of the three. A fixture that
+		// left them at zero would let an upload through whose width attribute
+		// has never been rendered.
+		Width: 1600, Height: 1067, Focus: "50% 35%",
+	}
+	werkstatt := field.Ref{Title: "Die Werkstatt", URL: "/werkstatt", Kind: "page"}
+	// A group's rows are what Resolve makes of them: one map per row, each
+	// holding the sub-fields' resolved values. This is the shape the map side
+	// of the contract has never carried.
+	montagVon := time.Date(0, time.January, 1, 8, 0, 0, 0, time.UTC)
+	montagBis := time.Date(0, time.January, 1, 12, 0, 0, 0, time.UTC)
+	donnerstagVon := time.Date(0, time.January, 1, 13, 30, 0, 0, time.UTC)
+	donnerstagBis := time.Date(0, time.January, 1, 18, 0, 0, 0, time.UTC)
+	oeffnungszeiten := []map[string]any{
+		{"tag": "Montag", "von": &montagVon, "bis": &montagBis},
+		{"tag": "Donnerstag", "von": &donnerstagVon, "bis": &donnerstagBis},
+	}
+
 	// A snippet's own values are declared here for the reason the page's are:
 	// its two views have to hold the same value, not two that look alike.
 	// A time of day again carries no date and no zone.
@@ -121,6 +157,16 @@ func SampleData() PageData {
 				"sitzplaetze": sitzplaetze,
 				"abbundzeile": abbund,
 				"material":    &material,
+
+				"beschreibung":    beschreibung,
+				"preis":           preis,
+				"eroeffnet":       &eroeffnet,
+				"lieferbar":       true,
+				"oberflaeche":     "geölt",
+				"ansicht":         &ansicht,
+				"prospekt":        "https://example.de/prospekt.pdf",
+				"werkstatt":       &werkstatt,
+				"oeffnungszeiten": oeffnungszeiten,
 			},
 			Feldliste: []field.Entry{
 				{Key: "holzart", Label: "Holzart", Kind: field.KindText, Value: "Eiche", Text: "Eiche"},
@@ -142,6 +188,45 @@ func SampleData() PageData {
 				{
 					Key: "material", Label: "Material", Kind: field.KindTerm,
 					Value: &material, Term: &material, Text: material.Name,
+				},
+				{
+					Key: "beschreibung", Label: "Beschreibung", Kind: field.KindLong,
+					Value: beschreibung, Text: beschreibung,
+				},
+				{Key: "preis", Label: "Preis", Kind: field.KindNumber, Value: preis, Text: preis.Raw},
+				// A date leaves Text empty: the theme prints it with its own
+				// formatDate, and field.List says so where it decides not to
+				// fill it in.
+				{Key: "eroeffnet", Label: "Eröffnet", Kind: field.KindDate, Value: &eroeffnet},
+				{Key: "lieferbar", Label: "Lieferbar", Kind: field.KindBool, Value: true, Yes: true},
+				{
+					Key: "oberflaeche", Label: "Oberfläche", Kind: field.KindChoice,
+					Value: "geölt", Text: "geölt",
+				},
+				{Key: "ansicht", Label: "Ansicht", Kind: field.KindImage, Value: &ansicht, Image: &ansicht},
+				{
+					Key: "prospekt", Label: "Prospekt", Kind: field.KindLink,
+					Value: "https://example.de/prospekt.pdf", Text: "https://example.de/prospekt.pdf",
+				},
+				{
+					Key: "werkstatt", Label: "Werkstatt", Kind: field.KindRef,
+					Value: &werkstatt, Ref: &werkstatt, Text: werkstatt.Title,
+				},
+				{
+					Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: field.KindGroup,
+					Value: oeffnungszeiten,
+					Rows: [][]field.Entry{
+						{
+							{Key: "tag", Label: "Tag", Kind: field.KindText, Value: "Montag", Text: "Montag"},
+							{Key: "von", Label: "Von", Kind: field.KindTime, Value: &montagVon, Text: "08:00"},
+							{Key: "bis", Label: "Bis", Kind: field.KindTime, Value: &montagBis, Text: "12:00"},
+						},
+						{
+							{Key: "tag", Label: "Tag", Kind: field.KindText, Value: "Donnerstag", Text: "Donnerstag"},
+							{Key: "von", Label: "Von", Kind: field.KindTime, Value: &donnerstagVon, Text: "13:30"},
+							{Key: "bis", Label: "Bis", Kind: field.KindTime, Value: &donnerstagBis, Text: "18:00"},
+						},
+					},
 				},
 			},
 			Uebersetzungen: []LanguageLink{
@@ -369,6 +454,19 @@ func MinimalData() PageData {
 				"sitzplaetze": field.Number{},
 				"abbundzeile": "",
 				"material":    (*field.Term)(nil),
+
+				"beschreibung": "",
+				"preis":        field.Number{},
+				"eroeffnet":    (*time.Time)(nil),
+				"lieferbar":    false,
+				"oberflaeche":  "",
+				"ansicht":      (*field.Image)(nil),
+				"prospekt":     "",
+				"werkstatt":    (*field.Ref)(nil),
+				// A group with no rows resolves to an empty slice and not to
+				// nil: Resolve builds it with make, so a theme's {{range}} sees
+				// a list of nothing rather than a missing key.
+				"oeffnungszeiten": []map[string]any{},
 			},
 		},
 		// An empty archive still renders list.html: a label nobody has used yet,
