@@ -1568,7 +1568,7 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Snippets.SetFields(ctx, sn.ID, raw); err != nil {
+	if err := s.Snippets.SetFields(ctx, ws.ID, sn.ID, raw); err != nil {
 		t.Fatal(err)
 	}
 

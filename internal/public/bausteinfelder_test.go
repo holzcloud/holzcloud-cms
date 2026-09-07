@@ -119,7 +119,7 @@ func bausteinVorrichtung(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 	if err != nil {
 		t.Fatalf("field.Encode: %v", err)
 	}
-	if err := bausteine.SetFields(ctx, sn.ID, roh); err != nil {
+	if err := bausteine.SetFields(ctx, ws.ID, sn.ID, roh); err != nil {
 		t.Fatalf("SetFields: %v", err)
 	}
 	return h, database, ws

@@ -361,9 +361,9 @@ func bausteinMitFeldern(t *testing.T, database *db.DB, websiteID int64, key, nam
 }
 
 // gespeicherteFelder liest die fields-Spalte eines Textbausteins zurück.
-func gespeicherteFelder(t *testing.T, database *db.DB, id int64) field.Data {
+func gespeicherteFelder(t *testing.T, database *db.DB, websiteID, id int64) field.Data {
 	t.Helper()
-	sn, err := snippet.NewStore(database).Get(context.Background(), id)
+	sn, err := snippet.NewStore(database).Get(context.Background(), websiteID, id)
 	if err != nil || sn == nil {
 		t.Fatalf("den Textbaustein zurücklesen: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 		t.Fatalf("Status %d, wollte eine Umleitung nach dem Speichern", rec.Code)
 	}
 
-	daten := gespeicherteFelder(t, database, sn.ID)
+	daten := gespeicherteFelder(t, database, ws.ID, sn.ID)
 	if got := daten.Values["telefon"]; got != "07721 123456" {
 		t.Errorf("telefon = %q, wollte %q", got, "07721 123456")
 	}
@@ -415,7 +415,7 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 	}
 
 	// Der Rumpf und die Kennung haben den Durchgang überstanden.
-	sn2, err := snippet.NewStore(database).Get(context.Background(), sn.ID)
+	sn2, err := snippet.NewStore(database).Get(context.Background(), ws.ID, sn.ID)
 	if err != nil || sn2 == nil {
 		t.Fatalf("zurücklesen: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 	}
 
 	textbausteinSpeichern(t, h, sm, ws.ID, gemeinsam("07721 123456", "Erster Hinweis"))
-	if got := gespeicherteFelder(t, database, sn.ID).Values["telefon"]; got != "07721 123456" {
+	if got := gespeicherteFelder(t, database, ws.ID, sn.ID).Values["telefon"]; got != "07721 123456" {
 		t.Fatalf("der erste Durchgang hat nichts abgelegt: telefon = %q", got)
 	}
 
@@ -465,7 +465,7 @@ func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 		t.Error("neben dem Feld steht kein Grund")
 	}
 
-	daten := gespeicherteFelder(t, database, sn.ID)
+	daten := gespeicherteFelder(t, database, ws.ID, sn.ID)
 	if got := daten.Values["telefon"]; got != "07721 123456" {
 		t.Errorf("telefon = %q — die Ablehnung hat den vorherigen Wert angetastet", got)
 	}
@@ -532,7 +532,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 
 	// Beide Träger durch denselben Auflöser, mit ihren eigenen Definitionen.
 	amBausteinAufgeloest := field.Resolve([]field.Def{amBaustein},
-		gespeicherteFelder(t, database, sn.ID), field.Links{})
+		gespeicherteFelder(t, database, ws.ID, sn.ID), field.Links{})
 	anDerSeiteAufgeloest := field.Resolve([]field.Def{*anDerSeite},
 		field.Decode(p.Fields), field.Links{})
 
@@ -564,7 +564,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 	}
 
 	// Der Rumpf behält seine eigene, andere Kette — unberührt von dieser Phase.
-	sn2, err := snippet.NewStore(database).Get(ctx, sn.ID)
+	sn2, err := snippet.NewStore(database).Get(ctx, ws.ID, sn.ID)
 	if err != nil || sn2 == nil {
 		t.Fatalf("zurücklesen: %v", err)
 	}

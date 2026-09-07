@@ -146,11 +146,11 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 	isEdit := false
 	if raw := r.URL.Query().Get("edit"); raw != "" {
 		id, _ := strconv.ParseInt(raw, 10, 64)
-		sn, err := h.snippets.Get(r.Context(), id)
+		sn, err := h.snippets.Get(r.Context(), websiteID, id)
 		if err != nil {
 			return err
 		}
-		if sn != nil && sn.WebsiteID == websiteID {
+		if sn != nil {
 			values = SnippetValues{
 				ID: sn.ID, Key: sn.Key, Name: sn.Name, Markdown: sn.ContentMarkdown,
 				Fields: field.Decode(sn.Fields),
@@ -309,15 +309,15 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 			id = created.ID
 		}
 	} else {
-		existing, getErr := h.snippets.Get(r.Context(), values.ID)
+		existing, getErr := h.snippets.Get(r.Context(), websiteID, values.ID)
 		if getErr != nil {
 			return getErr
 		}
-		if existing == nil || existing.WebsiteID != websiteID {
+		if existing == nil {
 			http.NotFound(w, r)
 			return nil
 		}
-		err = h.snippets.Update(r.Context(), values.ID, values.Key, values.Name, values.Markdown, html)
+		err = h.snippets.Update(r.Context(), websiteID, values.ID, values.Key, values.Name, values.Markdown, html)
 	}
 	if errors.Is(err, snippet.ErrKeyTaken) {
 		data.Errors.Add("key", "Diese Kennung wird bereits von einem anderen Baustein benutzt.")
@@ -330,7 +330,7 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 	// Erst jetzt, denn ein neuer Textbaustein hat seine Nummer bis hierher
 	// nicht. Die Spalte wird ganz geschrieben und nicht verschmolzen — das ist
 	// die Zusage, auf der der Parser oben ruht.
-	if err := h.snippets.SetFields(r.Context(), id, storedFields); err != nil {
+	if err := h.snippets.SetFields(r.Context(), websiteID, id, storedFields); err != nil {
 		return err
 	}
 
@@ -351,16 +351,16 @@ func (h *Handler) HandleSnippetDelete(w http.ResponseWriter, r *http.Request) er
 		return nil
 	}
 
-	sn, err := h.snippets.Get(r.Context(), id)
+	sn, err := h.snippets.Get(r.Context(), websiteID, id)
 	if err != nil {
 		return err
 	}
-	if sn == nil || sn.WebsiteID != websiteID {
+	if sn == nil {
 		http.NotFound(w, r)
 		return nil
 	}
 
-	if err := h.snippets.Delete(r.Context(), id); err != nil {
+	if err := h.snippets.Delete(r.Context(), websiteID, id); err != nil {
 		return err
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), "Textbaustein gelöscht")
