@@ -1862,3 +1862,78 @@ func TestCSVSteppingKeepsTheMapping(t *testing.T) {
 		t.Error("the sample row did not advance")
 	}
 }
+
+// The address an import decides against is not the address it writes.
+//
+// Since migration 00045 the constraint is UNIQUE(website_id, locale, slug), and
+// the admin deliberately proposes the SAME address for a translation — that is
+// what the migration's own header says it is for. CheckRow never sets
+// PageCreate.Locale, so every imported page is created in the main language;
+// but csvRun decided create-vs-update with GetPageBySlug, whose own doc comment
+// says it "answers for whichever of them the database hands back first, which
+// is right for 'does this address exist at all' and wrong for 'which page is
+// this'". The importer asked it exactly the second question.
+//
+// The scope the importer enforced was the website. The scope the address lives
+// in is (website, language).
+func TestCSVDoesNotMistakeATranslationForTheAddressItIsImporting(t *testing.T) {
+	h, _, database, ws := newTestAdmin(t)
+	admin := seedAdmin(t, database, "eins@test")
+	ctx := context.Background()
+
+	// A French page at /kontakt. The German one has not been written yet, so
+	// (website, '', 'kontakt') is free and the row below has every right to it.
+	french := seedPage(t, database, ws.ID, "Contact", "kontakt", "Nous écrire.", "published")
+	if _, err := database.Write.ExecContext(ctx,
+		`UPDATE pages SET locale = 'fr' WHERE id = $1`, french.ID); err != nil {
+		t.Fatalf("set locale: %v", err)
+	}
+
+	token := stageWith(t, h, admin, ws.ID, "Titel,Text\nKontakt,So erreichen Sie uns.\n", csvimport.CollisionUpdate)
+	upload, err := h.csvImports.Get(ctx, token, admin)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	defs, err := h.fields.List(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("List fields: %v", err)
+	}
+	m := csvMappingFromForm(csvPost(token, "probe", csvTargets("title", "body")), 2)
+
+	run, err := h.csvRun(ctx, upload, m, defs, ws.ID, true, &admin)
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if len(run.Verdicts) != 1 {
+		t.Fatalf("the file has one row, the run decided %d", len(run.Verdicts))
+	}
+	if got := run.Verdicts[0].Outcome; got != csvimport.OutcomeCreate {
+		t.Errorf("the row was %s, want create — the German address was free", got)
+	}
+
+	// The French page must be exactly as it was. An update would have written
+	// the German title, body and status into it, kept locale='fr', recorded a
+	// revision, and reported "1 aktualisiert".
+	after, err := h.pages.GetPage(ctx, french.ID)
+	if err != nil || after == nil {
+		t.Fatalf("reread the French page: %v", err)
+	}
+	if after.Title != "Contact" {
+		t.Errorf("the French page was retitled to %q — the import wrote into a translation", after.Title)
+	}
+	if after.ContentMarkdown != "Nous écrire." {
+		t.Errorf("the French page's text was overwritten with %q", after.ContentMarkdown)
+	}
+
+	// And the page the row actually asked for exists, in the main language.
+	german, err := h.pages.GetPageBySlugIn(ctx, ws.ID, "", "kontakt")
+	if err != nil {
+		t.Fatalf("GetPageBySlugIn: %v", err)
+	}
+	if german == nil {
+		t.Fatal("the German page was never created, although its address was free")
+	}
+	if german.Title != "Kontakt" {
+		t.Errorf("the created page is titled %q, want Kontakt", german.Title)
+	}
+}
