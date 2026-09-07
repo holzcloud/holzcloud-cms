@@ -375,10 +375,43 @@ func leereBausteine() snippet.Rendered {
 	}
 }
 
-// expandForFeed expands snippet markers in feed content, so a subscriber sees
-// the same text as a visitor rather than the raw marker.
-func expandForFeed(html string, snippets snippet.Rendered) string {
-	return snippet.Expand(html, snippets.HTML)
+// albumsFor is the album expansion set for one document, and it never fails.
+//
+// The zero Set expands every marker to nothing, which is what both callers want
+// when the albums cannot be loaded: a marker a reader can see is worse than a
+// gallery that is not there. loadSnippets above has had exactly this shape
+// since it was written, and albumSet logs the reason before it gives up.
+//
+// Nil-safe on the store, because a build without albums wired must still serve
+// a page whose HTML was written when they were.
+func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album.Set {
+	if h.albumStore == nil {
+		return album.Set{}
+	}
+	set, _ := h.albumSet(r, websiteID, body)
+	return set
+}
+
+// expandForFeed expands the markers in feed content, so a subscriber sees the
+// same text as a visitor rather than the raw marker.
+//
+// Snippets AND albums. It used to be snippets alone, and the album marker
+// therefore shipped verbatim into every subscriber's reader —
+// [[album:moebel:0]], which is both unreadable and a leak of the album's
+// internal address. internal/album/expand.go states the rule from the other
+// side: "a visitor must not see the internal syntax on a live page", and a feed
+// is a live public route.
+//
+// The order is the page's order and for the page's reason: a snippet may itself
+// carry a gallery marker, so the albums are expanded into what the snippets
+// left behind.
+//
+// What the feed still does NOT do, said out loud: it does not run the plugin
+// filter or the responsive rewrite. Both predate this phase and neither leaves
+// anything unreadable in the output; a feed picture without a srcset is a
+// picture.
+func expandForFeed(html string, snippets snippet.Rendered, albums album.Set) string {
+	return album.Expand(snippet.Expand(html, snippets.HTML), albums)
 }
 
 // contentModTime is the validator for conditional requests.
