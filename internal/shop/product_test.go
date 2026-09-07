@@ -299,3 +299,105 @@ func slugs(ps []*Product) []string {
 	}
 	return out
 }
+
+// The store is where the website scope is enforced, so it is where the promise
+// has to be pinned. internal/admin/product_scope_test.go proves the same thing
+// through the HTTP handler; this proves it holds for any caller, including the
+// one nobody has written yet.
+func newSecondWebsite(t *testing.T, s *Store) int64 {
+	t.Helper()
+	res, err := s.DB.Write.Exec(
+		`INSERT INTO websites (name, description) VALUES ('Zweite', '')`)
+	if err != nil {
+		t.Fatalf("insert second website: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	return id
+}
+
+func TestUpdateRefusesAProductOfAnotherWebsite(t *testing.T) {
+	s, websiteA := newTestStore(t)
+	websiteB := newSecondWebsite(t, s)
+	ctx := context.Background()
+
+	p := seedProduct(t, s, websiteB, "fremder-hocker", StatusPublished, nil)
+	p.Title = "Übernommen"
+	p.PriceGross = 5
+
+	if err := s.Update(ctx, websiteA, p); err != ErrNotFound {
+		t.Fatalf("Update across websites: err = %v, want ErrNotFound", err)
+	}
+
+	after, err := s.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if after.Title != "fremder-hocker" || after.PriceGross != 4900 {
+		t.Errorf("the foreign product was rewritten: %q at %d", after.Title, after.PriceGross)
+	}
+}
+
+func TestDeleteRefusesAProductOfAnotherWebsite(t *testing.T) {
+	s, websiteA := newTestStore(t)
+	websiteB := newSecondWebsite(t, s)
+	ctx := context.Background()
+
+	p := seedProduct(t, s, websiteB, "fremder-tisch", StatusPublished, nil)
+
+	if err := s.Delete(ctx, websiteA, p.ID); err != ErrNotFound {
+		t.Fatalf("Delete across websites: err = %v, want ErrNotFound", err)
+	}
+
+	after, err := s.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if after == nil {
+		t.Error("the foreign product was deleted")
+	}
+}
+
+// The owning website must still be able to do both, or the guard above would
+// be indistinguishable from a store that refuses everything.
+func TestUpdateAndDeleteStillServeTheOwningWebsite(t *testing.T) {
+	s, websiteA := newTestStore(t)
+	ctx := context.Background()
+
+	p := seedProduct(t, s, websiteA, "eigener-hocker", StatusPublished, nil)
+	p.Title = "Hocker Brunni"
+	if err := s.Update(ctx, websiteA, p); err != nil {
+		t.Fatalf("Update on the owning website: %v", err)
+	}
+	after, err := s.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if after.Title != "Hocker Brunni" {
+		t.Errorf("Update did not take: title %q", after.Title)
+	}
+
+	if err := s.Delete(ctx, websiteA, p.ID); err != nil {
+		t.Fatalf("Delete on the owning website: %v", err)
+	}
+	gone, err := s.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if gone != nil {
+		t.Error("Delete did not take")
+	}
+}
+
+// An id that names nothing is the boundary neighbour of an id that names
+// another website's row. Both are the same answer, deliberately.
+func TestUpdateAndDeleteReportAnUnknownIdAsNotFound(t *testing.T) {
+	s, websiteA := newTestStore(t)
+	ctx := context.Background()
+
+	if err := s.Update(ctx, websiteA, &Product{ID: 999, Slug: "nichts", Title: "Nichts"}); err != ErrNotFound {
+		t.Errorf("Update of an unknown id: err = %v, want ErrNotFound", err)
+	}
+	if err := s.Delete(ctx, websiteA, 999); err != ErrNotFound {
+		t.Errorf("Delete of an unknown id: err = %v, want ErrNotFound", err)
+	}
+}

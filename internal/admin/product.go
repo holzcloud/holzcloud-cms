@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -276,11 +277,21 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 	if p.ID == 0 {
 		p.ID, saveErr = h.products.Create(r.Context(), p)
 	} else {
-		saveErr = h.products.Update(r.Context(), p)
+		// ws.ID rather than p.WebsiteID: the store has to be told which website
+		// was authorised, not which one this form claims to be about.
+		saveErr = h.products.Update(r.Context(), ws.ID, p)
 	}
 	if saveErr == shop.ErrSlugTaken {
 		state.Errors.Add("slug", "Diese Adresse ist schon vergeben.")
 		return h.renderProductForm(w, r, ws, values, values.ID != 0, state)
+	}
+	// The address named this website and the product id named another one. The
+	// same answer the edit screen already gives for the same disagreement, and
+	// it comes before setProductTerms, so the foreign product keeps its
+	// categories as well as its price.
+	if errors.Is(saveErr, shop.ErrNotFound) {
+		http.NotFound(w, r)
+		return nil
 	}
 	if saveErr != nil {
 		return saveErr
@@ -306,7 +317,9 @@ func (h *Handler) HandleProductDelete(w http.ResponseWriter, r *http.Request) er
 		return nil
 	}
 
-	// Scoped to the website, so a guessed id from another site deletes nothing.
+	// Scoped twice over: the check below answers 404 with the wording the rest
+	// of the admin uses, and the store refuses the same request on its own so
+	// that a caller who forgets deletes nothing rather than something.
 	p, err := h.products.Get(r.Context(), id)
 	if err != nil {
 		return err
@@ -315,7 +328,7 @@ func (h *Handler) HandleProductDelete(w http.ResponseWriter, r *http.Request) er
 		http.NotFound(w, r)
 		return nil
 	}
-	if err := h.products.Delete(r.Context(), id); err != nil {
+	if err := h.products.Delete(r.Context(), ws.ID, id); err != nil {
 		return err
 	}
 

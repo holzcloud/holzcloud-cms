@@ -25,6 +25,12 @@ const (
 // ErrSlugTaken is returned when a website already has a product at that path.
 var ErrSlugTaken = errors.New("es gibt bereits ein Produkt mit dieser Adresse")
 
+// ErrNotFound says the product does not exist, or exists but belongs to some
+// other website. The two are deliberately the same answer: telling a caller
+// apart from "wrong website" would confirm that the id names something real
+// somewhere else, which is the one fact a foreign caller must not learn.
+var ErrNotFound = errors.New("dieses Produkt gibt es auf dieser Website nicht")
+
 // Product is one item in the catalogue.
 type Product struct {
 	ID        int64
@@ -162,19 +168,32 @@ func (s *Store) Create(ctx context.Context, p *Product) (int64, error) {
 	return res.LastInsertId()
 }
 
-// Update writes a product back.
-func (s *Store) Update(ctx context.Context, p *Product) error {
-	_, err := s.DB.Write.ExecContext(ctx,
+// Update writes a product back, and only into the website that owns it.
+//
+// websiteID is a parameter rather than a field read off p because p arrives
+// from a form: an admin handler builds it from what was posted and sets
+// WebsiteID to whatever the address said. Trusting that field would make the
+// scope self-asserted by the very request being checked. The caller must hand
+// over the website it has already had authorised, and the WHERE clause holds
+// it against the row.
+//
+// The condition is in SQL rather than a Get-then-compare in Go for two
+// reasons. It is one statement, so nothing can move the row between the check
+// and the write; and it cannot be skipped by the next caller, which is exactly
+// how this became a cross-website write in the first place — see
+// internal/admin/product_scope_test.go.
+func (s *Store) Update(ctx context.Context, websiteID int64, p *Product) error {
+	res, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE products SET slug=$1, title=$2, subtitle=$3,
 			description_markdown=$4, description_html=$5, excerpt=$6, sku=$7,
 			price_gross=$8, tax_bp=$9, stock=$10, weight_grams=$11, delivery_note=$12,
 			status=$13, featured_media_id=$14, position=$15, updated_at=$16
-		 WHERE id=$17`,
+		 WHERE id=$17 AND website_id=$18`,
 		p.Slug, p.Title, p.Subtitle,
 		p.DescriptionMarkdown, p.DescriptionHTML, p.Excerpt, p.SKU,
 		int64(p.PriceGross), int(p.TaxRate), nullableInt(p.Stock), p.WeightGrams, p.DeliveryNote,
 		p.Status, nullableID(p.FeaturedMediaID), p.Position, s.clock().Format(timeLayout),
-		p.ID,
+		p.ID, websiteID,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -182,13 +201,29 @@ func (s *Store) Update(ctx context.Context, p *Product) error {
 		}
 		return fmt.Errorf("update product: %w", err)
 	}
+	// Silence would be the dangerous answer: the handler would flash "saved"
+	// and redirect over a write that never happened.
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
 	return nil
 }
 
-// Delete removes a product.
-func (s *Store) Delete(ctx context.Context, id int64) error {
-	_, err := s.DB.Write.ExecContext(ctx, `DELETE FROM products WHERE id = $1`, id)
-	return err
+// Delete removes a product from the website that owns it.
+//
+// Scoped for the same reason as Update, even though today's only caller checks
+// the ownership itself first. A delete is the one that cannot be undone, so it
+// is the last place to rely on every future caller remembering.
+func (s *Store) Delete(ctx context.Context, websiteID, id int64) error {
+	res, err := s.DB.Write.ExecContext(ctx,
+		`DELETE FROM products WHERE id = $1 AND website_id = $2`, id, websiteID)
+	if err != nil {
+		return fmt.Errorf("delete product: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // Get reads one product by id, regardless of status. For the admin.

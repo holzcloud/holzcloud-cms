@@ -42,6 +42,53 @@ Weiterleitungen, gespeicherte Ansichten, Produkte, Bestellungen, Inhaltsarten,
 Bausteinarten und Felder. Das Menü war der einzige Ausreisser, und zwar weil es
 als einziges die Zuordnung im Aufrufer statt im Speicher prüft.
 
+**Ein Redakteur konnte das Produkt einer fremden Website überschreiben.**
+Dieselbe Lücke wie oben, eine Ebene weiter: Das Formular zum Bearbeiten eines
+Produkts nimmt die Produktnummer aus der Adresse und speichert, ohne zu prüfen,
+zu welcher Website dieses Produkt gehört. Die Anzeige desselben Formulars und
+das Löschen prüfen es korrekt — **allein das Speichern tat es nicht**, und der
+Speicher konnte es nicht auffangen, weil `UPDATE products … WHERE id = ?` die
+Website gar nicht erwähnte.
+
+Wer nur für Website A freigeschaltet war, konnte über
+`/admin/websites/A/produkte/<B>` Titel, Untertitel, Beschreibung,
+Artikelnummer, **Preis**, Steuersatz, Lagerbestand, Gewicht, Lieferhinweis,
+Adresse und Veröffentlichungsstatus eines Produkts von Website B neu schreiben.
+Verschieben ging nicht — die Website-Spalte wird beim Speichern nicht angefasst
+—, überschreiben schon. Der Beweis steht als eigene Fassung im Repository:
+`internal/admin/product_scope_test.go` schlägt gegen den Stand davor fehl und
+zeigt, wie ein Tisch für 2490.00 auf 0.05 gesetzt und veröffentlicht wird.
+
+**Bitte im Bestand nachsehen.** Der Fehler hatte eine zweite Wirkung, die keine
+Programmänderung rückgängig macht: Beim Speichern werden auch die Schlagwörter
+neu gesetzt, und dabei wurden die des fremden Produkts gelöscht und ein
+Schlagwort der *eigenen* Website angehängt. In `product_terms` konnte so eine
+Zeile entstehen, deren beide Hälften zu verschiedenen Websites gehören. Wer
+Redakteure auf einzelne Websites einschränkt, sollte einmal nachzählen:
+
+    SELECT pt.product_id, pt.term_id FROM product_terms pt
+      JOIN products p ON p.id = pt.product_id
+      JOIN terms t ON t.id = pt.term_id
+     WHERE p.website_id <> t.website_id;
+
+Jede Zeile, die das ausgibt, ist von Hand zu löschen.
+
+Betroffen ist wie oben nur, wer Redakteure auf einzelne Websites einschränkt
+(`user_websites`, seit Fassung 1.3). Anders als beim Menü sitzt die Prüfung
+diesmal **im Speicher**: `products` hat eine Website-Spalte, also tragen
+`Update` und `Delete` sie in der `WHERE`-Bedingung und melden `ErrNotFound`,
+wenn keine Zeile passt. Die geänderte Signatur zwingt den Übersetzer, jeden
+Aufrufer zu nennen — ein Hinweis im Kommentar hätte das nicht getan.
+`term.SetForProduct` bindet Produkt und Schlagwort jetzt über dieselbe Website
+zusammen, damit die Zeile oben gar nicht mehr entstehen kann.
+
+Auch hier wurde die Nachbarschaft durchgesehen: sämtliche Handler und
+Speichermethoden für Produkte, Warenkörbe, Bestellungen und Zahlungen. Das
+Speichern des Produkts war der einzige Fund. Der öffentliche Warenkorb ist
+sauber, und zwar mit Absicht — er sucht den Artikel über die Adresse innerhalb
+der Website und trägt seit jeher den Kommentar, dass eine Nummer aus dem
+Formular in einen fremden Katalog reichen würde.
+
 ## 1.9 — 2026-09-05
 
 ### Fixed

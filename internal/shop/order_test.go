@@ -49,7 +49,7 @@ func TestOrderKeepsWhatWasSoldWhenTheProductChanges(t *testing.T) {
 	p := seedProduct(t, products, ws, "hocker", StatusPublished, nil) // 49.00
 	p.Title = "Hocker Brunni"
 	p.SKU = "HO-1"
-	if err := products.Update(ctx, p); err != nil {
+	if err := products.Update(ctx, ws, p); err != nil {
 		t.Fatal(err)
 	}
 
@@ -63,7 +63,7 @@ func TestOrderKeepsWhatWasSoldWhenTheProductChanges(t *testing.T) {
 	p.Title = "Ganz anderer Hocker"
 	p.PriceGross = 999900
 	p.SKU = "XX-9"
-	if err := products.Update(ctx, p); err != nil {
+	if err := products.Update(ctx, ws, p); err != nil {
 		t.Fatal(err)
 	}
 
@@ -98,7 +98,7 @@ func TestOrderSurvivesTheProductBeingDeleted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := products.Delete(ctx, p.ID); err != nil {
+	if err := products.Delete(ctx, ws, p.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -145,7 +145,7 @@ func TestOnlyOneOrderGetsTheLastPiece(t *testing.T) {
 	ctx := context.Background()
 	p := seedProduct(t, products, ws, "letztes", StatusPublished, intp(1))
 	p.Title = "Letztes Stück"
-	if err := products.Update(ctx, p); err != nil {
+	if err := products.Update(ctx, ws, p); err != nil {
 		t.Fatal(err)
 	}
 
