@@ -108,6 +108,127 @@ eigene Fassung bei: `internal/admin/order_scope_test.go`.
 Ihnen" sind absichtlich dieselbe Antwort, damit die Bestellseite nicht dazu
 benutzt werden kann, die Existenz fremder Nachrichten abzufragen.
 
+**Ein Redakteur konnte den Titel und den Entwurfsstand fremder Seiten lesen.**
+Dieselbe Bauart, aber die zweite Kennung ist diesmal keine Ressource, die
+jemand ändern will, sondern eine **Verknüpfung** — und eine Verknüpfung liest
+sich in beide Richtungen.
+
+Auf einer mehrsprachigen Website steht im Seitenformular ein verstecktes Feld
+mit der Nummer der Seite, deren Übersetzung diese ist. Diese Nummer wurde
+ungeprüft in die Spalte geschrieben, und die beiden Abfragen, die eine
+Übersetzungsgruppe wieder auslesen, nannten die Website ebenfalls nicht. Wer
+nur für Website A freigeschaltet war, konnte die Nummer von Hand auf eine Seite
+von Website B setzen, speichern — und bekam beim nächsten Öffnen desselben
+Bildschirms den Titel jener Seite angezeigt, mit dem Abzeichen „Entwurf", wenn
+sie unveröffentlicht war. Eine Seite pro Speichervorgang, durch Abzählen der
+Nummern.
+
+War die fremde Seite veröffentlicht, kam etwas dazu: die Sprachumschalter
+**beider** Websites zeigten fortan einen Eintrag, der auf die jeweils andere
+zeigte, auf deren eigener Adresse.
+
+`SetTranslation` nimmt jetzt die Website entgegen, verweigert eine fremde
+Zielseite und schreibt in diesem Fall gar nichts; die Sprache der Seite wird
+trotzdem gesetzt, denn das Speichern hat stattgefunden, und der abgewiesene
+Versuch steht im Protokoll. Beide Leser tragen die Website in der Bedingung —
+nicht nur der schreibende Weg, denn eine Verknüpfung, die schon in der Spalte
+steht, darf auch nicht mehr zurückgelesen werden.
+
+**Erweiterungen bekamen Seiten zu sehen, die noch nicht oder nicht mehr
+öffentlich sind.** Wer eine Erweiterung schreibt, ist jemand anderes — deshalb
+steht die Regel „nur veröffentlichte Seiten" im Wirt und nicht in der
+Erweiterung. Sie stand dort auch, aber sie fragte die falsche Bedingung ab: die
+Liste, die eine Erweiterung anfordert, wurde mit dem Filter des
+Verwaltungsbereichs gebaut, und der kennt nur die Spalte `status`.
+
+Also kam alles mit, was `status = 'published'` trägt und trotzdem nicht
+öffentlich ist: eine Seite, deren Veröffentlichungsdatum noch in der Zukunft
+liegt, eine, deren Ablaufdatum vorbei ist, und eine, die hinter einem Passwort
+steht. Auf einer Seite mit der Bestell-Erweiterung stand damit das Produkt der
+nächsten Saison samt Preis in der öffentlichen Liste. Die Einzelabfrage war
+schlimmer: sie gab den **vollständigen Text** einer passwortgeschützten Seite
+heraus, ohne dass das Passwort je eingegeben wurde und ohne eine Zeile im
+Protokoll.
+
+Beides ist zu. Für die Liste gibt es `page.ListPublic`, das dieselbe Bedingung
+benutzt wie die Übersicht, der Feed, die Suche und beide Archive — „darf in
+einer Liste stehen" ist eben etwas anderes als „darf unter der eigenen Adresse
+ausgeliefert werden", und auf der eigenen Adresse steht das Passwortfenster
+davor. Die Einzelabfrage antwortet auf eine geschützte Seite jetzt genau das,
+was sie auf eine nicht vorhandene antwortet.
+
+**Der Tabellenimport löschte die Schlagwörter der Seiten, die er aktualisierte.**
+Eine Datei mit einer Schlagwörter-Spalte, in der nicht jede Zeile etwas stehen
+hat, nahm jeder aktualisierten Seite mit leerer Zelle sämtliche Schlagwörter
+weg — ohne eine Zeile im Bericht. Bei fünfhundert Zeilen, von denen dreihundert
+in dieser Spalte leer sind, sind das dreihundert Seiten.
+
+Die Regel dafür war längst getroffen und an drei anderen Stellen umgesetzt: eine
+leere Zelle sagt **nichts** über ihr Fach, weil eine Tabelle den Unterschied
+zwischen „ist jetzt leer" und „steht nicht drin" gar nicht ausdrücken kann. Der
+Text, der Zustand und jedes eigene Feld folgten ihr bereits; die Schlagwörter
+waren als einzige auf der alten Regel stehen geblieben. Eine Vorgabe, die auf
+dem Zuordnungsbildschirm eingetragen wurde, zählt weiterhin als Aussage.
+
+**Der Tabellenimport schrieb in Übersetzungen.** Seit Fassung 1.6 ist eine
+Adresse je Sprache eindeutig, und die Verwaltung schlägt für eine Übersetzung
+absichtlich dieselbe Adresse vor. Der Import legt seine Seiten immer in der
+Hauptsprache an, suchte die Adresse aber **ohne** Sprache — und bekam
+zurück, was die Datenbank zuerst hergab. Gibt es `/kontakt` nur auf
+Französisch, so galt die deutsche Zeile als Aktualisierung: mit der Einstellung
+„aktualisieren" wurden Titel, Text und Zustand der französischen Seite
+überschrieben, eine Fassung angelegt und „1 aktualisiert" gemeldet; mit
+„übergehen" wurde die deutsche Seite nie angelegt, obwohl ihre Adresse frei war.
+
+**Ein Pflichtfeld für Beiträge machte jeden Tabellenimport unmöglich.** Der
+Importer prüfte die Zeilen gegen *alle* eigenen Felder der Website statt gegen
+die, die auf eine Seite gehören — er legt aber ausschliesslich Seiten an. Ein
+Feld mit „gilt für: Beiträge" und Häkchen bei „Pflicht" wies damit jede Zeile
+jeder Datei ab, mit einer Meldung, die ein Feld nennt, nach dem das
+Seitenformular nie fragt. In die andere Richtung: ein Wert für ein solches Feld
+wurde gespeichert, wo ihn nie jemand liest, und beim nächsten Speichern aus dem
+Formular wortlos verworfen. Beim Aktualisieren entscheidet jetzt die Art der
+**bestehenden** Seite — ein Beitrag wird gegen die Felder eines Beitrags
+geprüft, sonst verlöre er beim Import genau die Werte, die er trägt.
+
+**Ein gespeichertes „nein" wurde als „ja" gedruckt.** Die Prüfung der eigenen
+Felder hatte für jede Feldart einen Zweig ausser für „Ja/Nein". Dort kam alles
+durch, und gelesen wird beim Anzeigen alles als *ja*, was nicht „0" ist. Über
+das Formular war das nicht zu erreichen, über ein Archiv oder den Assistenten
+schon: ein Feld mit dem Wert „nein" erschien auf jedem ausgelieferten Theme als
+„ja". Es gibt jetzt genau eine Lesart eines Ja/Nein — `field.NormalizeBool` —,
+die Prüfung weist zurück, was sie nicht lesen kann, und beim Speichern wird die
+Schreibweise festgelegt, damit ein Wort nicht sein Gegenteil bedeutet.
+
+**Eine Uhrzeit erreichte das Theme als `09:30:00`.** Die Spezifikation
+verspricht `HH:MM`; manche Browser schicken die Sekunden mit, und der
+Tabellenimport reichte die Zelle roh durch. Beide Seiten sind behoben — beim
+Lesen und beim Schreiben —, damit auch das stimmt, was schon in der Spalte
+steht.
+
+**`NaN` lag in jedem Bereich.** Ein Bereichsfeld hat zwei Grenzen, und für
+`NaN` sind beide Vergleiche falsch, es liegt also zwischen allen. Eine
+Tabellenzelle mit `NaN` — was Excel bei einem Rechenfehler schreibt — kam
+durch die Prüfung und stand danach auf der Seite. Dieselbe Lesart machte auch
+eine als `NaN` eingetragene *Grenze* zu einer Grenze, die nichts durchsetzt.
+
+### Gehärtet
+
+**Textbausteine und Produktgalerien tragen die Website jetzt im Speicher.** Bei
+den Textbausteinen war nichts kaputt: alle vier Aufrufer verglichen die Website
+selbst, und einer hatte den Vergleich sogar schon in eine eigene Funktion
+gezogen — mit dem Kommentar, dass genau diese Ungleichheit der Grund dafür sei.
+Er hatte recht, und der Vergleich ist jetzt dort, wo er hingehört: in der
+`WHERE`-Bedingung, wo der Übersetzer jeden Aufrufer nennt. Richtig, weil sich
+vier Leute erinnert haben, ist nicht dasselbe wie richtig.
+
+`product_media` ist die dritte Tabelle dieses Projekts, deren Zeilen über eine
+zweite Kennung allein angesprochen werden — die beiden anderen sind die, in
+denen dieser Fehler schon zweimal ausgeliefert wurde. Sie hat noch keinen
+Aufrufer, und genau deshalb steht der Wächter jetzt darin: vor dem ersten
+Aufrufer statt nach dem ersten Bericht.
+
+
 ## 1.9 — 2026-09-05
 
 ### Fixed
