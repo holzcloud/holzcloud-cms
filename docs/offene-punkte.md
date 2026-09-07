@@ -59,28 +59,50 @@ create a field "Variety" that picks from them.
 **Size:** a day. The pattern is complete at the reference; it has to be copied
 once.
 
-## 3. Snippets can only do text
+## 3. Snippets can only do text — built
 
-**Missing:** a snippet (`internal/snippet`) is a Markdown field. A global
-telephone number with validation, a global image, a global number do not exist —
-Statamic's *Globals* carry every field type.
+**Built:** September 2026, phase 8. Exactly the way this entry proposed, which
+is worth saying because the entry was written before anybody knew: the fields
+come from `page_field_defs` with a `snippet_id` column beside them
+(`00047_snippet_fields.sql`), and there is no third field table. A snippet now
+carries every kind a page carries — a telephone number with validation, a
+picture, a number, a group.
 
-**Where:** `internal/snippet`. The honest way is the same as with the block kinds:
-reuse the fields from `page_field_defs`, with a `snippet_id` column beside them —
-not a third field table.
+**What the entry did not foresee.** `snippet_id` collided with the partial
+unique index that guards a top-level field's key, so 00047 had to swap the
+index rather than only add a column; and a snippet's own fields have to reach
+the theme through *two* views that must agree — `Bausteinfelder` (every defined
+field, filled or not) and `Bausteinliste` (only the filled ones), which is the
+same asymmetry a page has and the same one a fixture can get backwards.
 
-**Size:** two days, half of it screen.
+**Also settled here, and it is a real limit:** a picture, a reference or a label
+inside a snippet value travels through the archive **untranslated** — the value
+is a number, and a number means nothing on the machine the archive lands on.
+Recorded as `V2-18`, not fixed.
 
-## 4. CSV import
+## 4. CSV import — built
 
-**Missing:** there is the project's own bundle import and WordPress (WXR). A table
-with a title, a text and a few of the website's own fields cannot be read in.
+**Built:** September 2026, phase 9. It became two packages rather than one:
+`internal/csv` reads the bytes (delimiter, encoding, quoting, the caps) and
+`internal/csvimport` decides what each row means. The screen is a four-step
+wizard of its own under `/admin/csv-import/{token}`, not a button on the website
+list.
 
-**Where:** an `internal/csv` beside `internal/wxr`, attached to the same screen
-(`cmd/holzcloud/templates/admin/website_list.html`).
+**"A day. Mapping column to field is the whole job."** That was wrong, and the
+way it was wrong is the useful part. Mapping was the small half. The large half
+was everything that has to be true of a run over five thousand rows a person
+cannot check by hand: a dry run whose verdict per row is the same verdict the
+write will reach (they are one function, because two would drift); a cap on
+every dimension a file can grow in; a term pre-pass that does not hold the one
+write connection for the length of the file; and — the one that took longest to
+get right — the rule that **a blank cell says nothing**, because a table cannot
+express the difference between "this is empty now" and "this file says nothing
+about this". Reading that difference is how forty blank cells demote forty live
+pages to drafts with no line in the report.
 
-**Size:** a day. Mapping column to field is the whole job; everything after that is
-`page.CreatePage`.
+**Still not expressible from a CSV update:** clearing a value. That is done on
+the page form, one page at a time, where the person doing it can see what they
+are emptying.
 
 ## 5. Static export
 
