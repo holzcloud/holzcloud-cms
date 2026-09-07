@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -204,6 +205,15 @@ func main() {
 	// Domain and page stores
 	domainStore := domain.NewStore(database)
 	domainResolver := domain.NewResolver(domainStore)
+
+	// The second half of the provisioning refusal, against the database rather
+	// than the environment, and beside the other start-up checks rather than
+	// inside newRouter — newRouter returns an error and is under test, and a
+	// fatal exit does not belong in a function a test calls.
+	if err := checkDefaultWebsite(context.Background(), cfg, domainStore); err != nil {
+		slog.Error("invalid configuration", "err", err)
+		os.Exit(1)
+	}
 	pageStore := page.NewStore(database)
 
 	// Template, menu, and media stores
@@ -430,7 +440,12 @@ func main() {
 
 	// Outermost: baseline security headers, then the SCS session middleware.
 	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
+		// net.JoinHostPort and not ":" + Port: it brackets IPv6 correctly, so
+		// HOLZCLOUD_LISTEN=:: becomes [::]:8080 rather than a parse error.
+		// One place decides what this process binds, and cfg.LogValue reports
+		// it, so an operator who cannot reach the port has the answer in
+		// journalctl instead of a guess.
+		Addr:    net.JoinHostPort(cfg.Listen, cfg.Port),
 		Handler: handler,
 		// ReadTimeout covers the whole body in net/http, so a 5s value silently
 		// aborted large uploads on a home connection. Slowloris on headers is
@@ -615,6 +630,42 @@ func main() {
 		slog.Error("shutdown error", "err", err)
 	}
 	slog.Info("shutdown complete")
+}
+
+// websiteLookup is the one thing checkDefaultWebsite needs from the domain
+// store, named as an interface so the check can be tested without a router, a
+// session manager or a template set.
+type websiteLookup interface {
+	GetWebsite(ctx context.Context, id int64) (*domain.Website, error)
+}
+
+// checkDefaultWebsite refuses to start when account provisioning points at a
+// website that does not exist.
+//
+// config.Load already refuses to switch provisioning on without an id. This is
+// the half the environment cannot answer: an id nobody ever created satisfies
+// every check in config.go and fails only against the database. It is asked at
+// start-up and not at the first sign-in, because a provisioned account assigned
+// to a website that is not there has no rows in user_websites at all — and
+// internal/admin/handler.go's NewWebsiteAccessLookup ends with
+// `return assigned == 0 || mine > 0`, which reads "no assignment" as "every
+// website". That is the same inversion the configuration refusal prevents,
+// arriving by a second road.
+func checkDefaultWebsite(ctx context.Context, cfg config.Config, websites websiteLookup) error {
+	if !cfg.SSOProvision {
+		return nil
+	}
+	ws, err := websites.GetWebsite(ctx, cfg.SSODefaultWebsite)
+	if err != nil {
+		return fmt.Errorf("HOLZCLOUD_SSO_DEFAULT_WEBSITE=%d could not be checked against the database: %w",
+			cfg.SSODefaultWebsite, err)
+	}
+	if ws == nil {
+		return fmt.Errorf("HOLZCLOUD_SSO_DEFAULT_WEBSITE=%d names a website that does not exist: "+
+			"an account provisioned into nothing is an account with access to every website",
+			cfg.SSODefaultWebsite)
+	}
+	return nil
 }
 
 // routerDeps are everything newRouter needs. Bundling them keeps the signature

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -594,4 +595,64 @@ func TestTheClassificationMatchesTheBehaviour(t *testing.T) {
 			t.Errorf("%s: editor got 403 — it is declared open to editors", r.pattern)
 		}
 	}
+}
+
+// refusingLookup fails the test if the database is consulted at all.
+type refusingLookup struct{ t *testing.T }
+
+func (r refusingLookup) GetWebsite(context.Context, int64) (*domain.Website, error) {
+	r.t.Error("the database was queried although provisioning is off")
+	return nil, nil
+}
+
+// The start-up half of the provisioning refusal. config.Load can only see that
+// an id was given; only the database can say whether anybody ever created it,
+// and an account provisioned into a website that is not there has no rows in
+// user_websites — which NewWebsiteAccessLookup reads as "every website".
+func TestProvisioningRefusesToStartWithoutItsDefaultWebsite(t *testing.T) {
+	dir := t.TempDir()
+	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(database.Close)
+	if err := db.RunMigrations(database.Write); err != nil {
+		t.Fatalf("migrations: %v", err)
+	}
+	ctx := context.Background()
+	store := domain.NewStore(database)
+
+	created, err := store.CreateWebsite(ctx, "Redaktion A", "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+
+	t.Run("an id nobody ever created", func(t *testing.T) {
+		cfg := config.Config{SSOProvision: true, SSODefaultWebsite: created.ID + 4242}
+
+		err := checkDefaultWebsite(ctx, cfg, store)
+		if err == nil {
+			t.Fatal("a website that does not exist was accepted; want a refusal to start")
+		}
+		if !strings.Contains(err.Error(), "HOLZCLOUD_SSO_DEFAULT_WEBSITE") {
+			t.Errorf("the refusal must name the variable: %v", err)
+		}
+		if !strings.Contains(err.Error(), strconv.FormatInt(cfg.SSODefaultWebsite, 10)) {
+			t.Errorf("the refusal must name the id it looked for: %v", err)
+		}
+	})
+
+	t.Run("a website that exists", func(t *testing.T) {
+		cfg := config.Config{SSOProvision: true, SSODefaultWebsite: created.ID}
+		if err := checkDefaultWebsite(ctx, cfg, store); err != nil {
+			t.Errorf("a named website that exists must start: %v", err)
+		}
+	})
+
+	t.Run("provisioning off asks the database nothing", func(t *testing.T) {
+		cfg := config.Config{SSOProvision: false, SSODefaultWebsite: 0}
+		if err := checkDefaultWebsite(ctx, cfg, refusingLookup{t}); err != nil {
+			t.Errorf("with provisioning off there is nothing to check: %v", err)
+		}
+	})
 }
