@@ -249,7 +249,8 @@ func TestReinerTextSammeltAlleWorte(t *testing.T) {
 func TestKodierenUndLesenIstVerlustfrei(t *testing.T) {
 	blocks := []Block{
 		{Type: TypeImageText, MediaID: 3, Alt: "Der Hof", Markdown: "Text daneben.", Variant: "rechts"},
-		{Type: TypeGallery, Variant: "4", Items: []Item{{MediaID: 1}, {MediaID: 2, Caption: "Im Mai"}}},
+		{Type: TypeGallery, Variant: "4", Display: DisplaySlideshow,
+			Items: []Item{{MediaID: 1}, {MediaID: 2, Caption: "Im Mai"}}},
 	}
 	raw, err := Encode(blocks, Builtin)
 	if err != nil {
@@ -260,8 +261,87 @@ func TestKodierenUndLesenIstVerlustfrei(t *testing.T) {
 		t.Fatalf("Decode: %v", err)
 	}
 	if len(got) != 2 || got[0].Variant != "rechts" || got[1].Columns() != 4 ||
-		len(got[1].Items) != 2 || got[1].Items[1].Caption != "Im Mai" {
+		len(got[1].Items) != 2 || got[1].Items[1].Caption != "Im Mai" ||
+		got[1].Display != DisplaySlideshow {
 		t.Errorf("got %+v", got)
+	}
+}
+
+// A block that made no display choice must encode to JSON without the key at
+// all. The field is omitempty for exactly this: every page saved before this
+// field existed keeps the shape it has in the blocks column, and a diff of two
+// stored pages does not sprout a line nobody asked for.
+func TestAnEmptyDisplayIsNotWrittenToTheJSON(t *testing.T) {
+	raw, err := Encode([]Block{
+		{Type: TypeGallery, Items: []Item{{MediaID: 1}}},
+	}, Builtin)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if strings.Contains(raw, "darstellung") {
+		t.Errorf("the key is in the JSON of a block that made no choice:\n%s", raw)
+	}
+
+	raw, err = Encode([]Block{
+		{Type: TypeGallery, Display: DisplaySlideshow, Items: []Item{{MediaID: 1}}},
+	}, Builtin)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if !strings.Contains(raw, `"darstellung":"`+DisplaySlideshow+`"`) {
+		t.Errorf("the chosen display is not in the JSON:\n%s", raw)
+	}
+}
+
+// The value arrives from a form, and a form is a text field anybody can post.
+// A display outside the closed vocabulary is not stored at all — the block
+// keeps what it had. .planning/GLOSSARY.md's closing section records the run
+// time failure that follows when the stored vocabulary and the code disagree.
+func TestSetBlockFieldIgnoresADisplayOutsideTheVocabulary(t *testing.T) {
+	b := Block{Type: TypeGallery}
+	setBlockField(&b, "darstellung", []string{DisplaySlideshow})
+	if b.Display != DisplaySlideshow {
+		t.Fatalf("the constant was not stored: %q", b.Display)
+	}
+	setBlockField(&b, "darstellung", []string{"karussell"})
+	if b.Display != DisplaySlideshow {
+		t.Errorf("an unknown value was stored: %q", b.Display)
+	}
+	setBlockField(&b, "darstellung", []string{""})
+	if b.Display != "" {
+		t.Errorf("the grid is the empty value and must be storable: %q", b.Display)
+	}
+}
+
+// Variant is the gallery's column count and the display is a second axis. The
+// whole reason the display got a field of its own is that one string cannot
+// mean both, so the two are proved independent rather than assumed so.
+func TestTheDisplayDoesNotChangeTheColumnCount(t *testing.T) {
+	for _, variant := range []string{"2", "", "3", "4"} {
+		grid := Block{Type: TypeGallery, Variant: variant}
+		show := Block{Type: TypeGallery, Variant: variant, Display: DisplaySlideshow}
+		if grid.Columns() != show.Columns() {
+			t.Errorf("variant %q: %d columns as a grid, %d as a slideshow",
+				variant, grid.Columns(), show.Columns())
+		}
+	}
+	if got := (Block{Type: TypeGallery, Variant: DisplaySlideshow}).Columns(); got != 3 {
+		t.Errorf("the display value put in Variant must stay an unknown column count, got %d", got)
+	}
+}
+
+// The modifier class is minted from the constant and never concatenated from
+// the stored string, so nothing a hand-edited archive carries reaches the
+// class attribute of the wrapper (T-11-18).
+func TestDisplayClassIsMintedAndNotConcatenated(t *testing.T) {
+	if got := (Block{Type: TypeGallery}).DisplayClass(); got != "" {
+		t.Errorf("the grid must add no modifier, got %q", got)
+	}
+	if got := (Block{Type: TypeGallery, Display: DisplaySlideshow}).DisplayClass(); got == "" {
+		t.Error("the slideshow must add a modifier")
+	}
+	if got := (Block{Type: TypeGallery, Display: `x" onload="alert(1)`}).DisplayClass(); got != "" {
+		t.Errorf("a value outside the vocabulary must add no modifier, got %q", got)
 	}
 }
 

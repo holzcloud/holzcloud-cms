@@ -694,6 +694,14 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		{Type: "rezeptschritt", Fields: map[string]string{
 			"nummer": "Schritt 1", "bild": strconv.FormatInt(bild.ID, 10),
 		}},
+		// The gallery's display mode. It is here rather than in a test of its
+		// own because it is the field whose loss is silent: the value is
+		// written into one struct literal in blocks.go on the way out and read
+		// back into another on the way in, and a field added to only one of
+		// the two leaves in the archive and never comes back, with nothing
+		// anywhere to say so.
+		{Type: block.TypeGallery, Display: block.DisplaySlideshow,
+			Items: []block.Item{{MediaID: bild.ID, Caption: "Der Teig"}}},
 	}
 	encoded, err := block.Encode(blocks, set)
 	if err != nil {
@@ -728,8 +736,12 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	if len(angekommen) != 3 {
-		t.Fatalf("%d Bausteine statt 3: %+v", len(angekommen), angekommen)
+	if len(angekommen) != 4 {
+		t.Fatalf("%d Bausteine statt 4: %+v", len(angekommen), angekommen)
+	}
+	if angekommen[3].Display != block.DisplaySlideshow {
+		t.Errorf("the gallery's display did not survive the archive: %q",
+			angekommen[3].Display)
 	}
 	if angekommen[0].Markdown != "Zuerst der Teig." {
 		t.Errorf("der Textbaustein: %q", angekommen[0].Markdown)
