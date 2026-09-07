@@ -289,3 +289,125 @@ func TestMigration00049DownAndUp(t *testing.T) {
 		t.Fatalf("RunMigrations after the trip back up: %v", err)
 	}
 }
+
+// TestMigration00050DownAndUp runs the down half of 00050.
+//
+// For the reason the three tests above already name: nothing else in the tree
+// runs a down half, so it is the half that ships broken.
+//
+// 00050 creates and changes nothing, so — like 00049 and unlike the index swaps
+// 00047 and 00048 — its rollback cannot restore the wrong shape. What it can do
+// is take away too little, and it has three chances to: an index left standing,
+// a child table left standing, or a parent dropped before its child. The test
+// therefore counts all three objects in sqlite_master rather than looking for
+// the parent table alone.
+func TestMigration00050DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+
+	// Counts what of 00050 currently stands in sqlite_master: the two tables and
+	// the index. Three means all there, one or two means half gone, zero means
+	// gone.
+	present := func(where string) int {
+		t.Helper()
+		var n int
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM sqlite_master
+			  WHERE (type='table' AND name='albums')
+			     OR (type='table' AND name='album_items')
+			     OR (type='index' AND name='idx_album_items_album_sort')`).Scan(&n); err != nil {
+			t.Fatalf("%s: read sqlite_master: %v", where, err)
+		}
+		return n
+	}
+
+	if got := present("after the up"); got != 3 {
+		t.Fatalf("after the up: %d of 3 objects from 00050 stand there (two tables and one index)", got)
+	}
+
+	res, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description) VALUES ('Test Site', '')`)
+	if err != nil {
+		t.Fatalf("create website: %v", err)
+	}
+	websiteID, _ := res.LastInsertId()
+
+	res, err = database.Write.ExecContext(ctx,
+		`INSERT INTO media (website_id, filename, original_name, mime_type, size_bytes)
+		 VALUES ($1, 'bench.jpg', 'bench.jpg', 'image/jpeg', 1024)`, websiteID)
+	if err != nil {
+		t.Fatalf("create media row: %v", err)
+	}
+	mediaID, _ := res.LastInsertId()
+
+	res, err = database.Write.ExecContext(ctx,
+		`INSERT INTO albums (website_id, slug, name) VALUES ($1, 'workshop', 'Workshop')`, websiteID)
+	if err != nil {
+		t.Fatalf("create album: %v", err)
+	}
+	albumID, _ := res.LastInsertId()
+
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO album_items (album_id, media_id, alt, caption, sort_order)
+		 VALUES ($1, $2, 'A bench', 'Oak, 2024', 0)`, albumID, mediaID); err != nil {
+		t.Fatalf("create picture row: %v", err)
+	}
+
+	countIn := func(where, table string) int {
+		t.Helper()
+		var n int
+		if err := database.Read.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM `+table).Scan(&n); err != nil {
+			t.Fatalf("%s: count %s: %v", where, table, err)
+		}
+		return n
+	}
+
+	if n := countIn("before the rollback", "albums"); n != 1 {
+		t.Fatalf("before the rollback %d albums stand there, expected 1", n)
+	}
+	if n := countIn("before the rollback", "album_items"); n != 1 {
+		t.Fatalf("before the rollback %d picture rows stand there, expected 1", n)
+	}
+
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	// --- down ---------------------------------------------------------------
+	if _, err := provider.ApplyVersion(ctx, 50, false); err != nil {
+		t.Fatalf("roll 00050 back: %v", err)
+	}
+	if got := present("after the rollback"); got != 0 {
+		t.Errorf("after the rollback %d objects from 00050 still stand there, expected 0 — "+
+			"the rollback must take the index, the child table and the parent, not some of the three", got)
+	}
+
+	// --- and back up again ---------------------------------------------------
+	if _, err := provider.ApplyVersion(ctx, 50, true); err != nil {
+		t.Fatalf("apply 00050 again: %v", err)
+	}
+	if got := present("after the trip back up"); got != 3 {
+		t.Errorf("after the trip back up: %d of 3 objects from 00050 stand there", got)
+	}
+	if n := countIn("after the trip back up", "albums"); n != 0 {
+		t.Errorf("after the trip back up %d albums stand there, expected 0 — the table is new", n)
+	}
+	if n := countIn("after the trip back up", "album_items"); n != 0 {
+		t.Errorf("after the trip back up %d picture rows stand there, expected 0 — "+
+			"a picture row that outlived its album would be an orphan the cascade should have taken", n)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+}
