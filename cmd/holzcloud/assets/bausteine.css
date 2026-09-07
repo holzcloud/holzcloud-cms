@@ -391,3 +391,81 @@
     block-size: auto;
     border-radius: var(--hc-rund);
 }
+
+/* --- The slideshow ------------------------------------------------------- */
+
+/* English comments again, and for the reason the lightbox section gives above.
+ *
+ * A gallery whose block carries no display mode never matches anything here:
+ * the grid rules further up are untouched and this whole section hangs off one
+ * modifier class. So every page that exists today renders exactly as it did.
+ *
+ * The mechanism is scroll-snap and nothing else. The same grid becomes a single
+ * row of columns, the row scrolls along the inline axis, and it comes to rest
+ * on a picture's edge instead of between two. Stepping with the keyboard and
+ * flicking with a thumb are the browser's own scrolling — there is no script
+ * here, and internal/tmplmgr/script.go would refuse the scripted shape in an
+ * uploaded theme in any case.
+ *
+ * Both halves are needed and neither does anything alone: scroll-snap-type on
+ * the container says the scrolling snaps, scroll-snap-align on the children
+ * says to what.
+ *
+ * On .hc-galerie.hc-galerie--diashow rather than on the modifier alone so that
+ * it outweighs .hc-spalten-3 by specificity and not merely by standing later in
+ * the file, which is a thing a later edit can undo without noticing. */
+.hc-galerie.hc-galerie--diashow {
+    /* One row of columns instead of a wrapping grid. grid-template-columns is
+     * cleared explicitly because .hc-spalten-N set it and auto-flow alone would
+     * fill those columns before it started making new ones. */
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: min(80%, 22rem);
+
+    /* overflow-x rather than the logical overflow-inline, which is not yet
+     * something every browser this program is served to understands. The snap
+     * axis beside it is logical, so a right-to-left site snaps the right way
+     * round without a second rule. */
+    overflow-x: auto;
+    scroll-snap-type: inline mandatory;
+
+    /* Without this, reaching the end of the track hands the gesture to the page
+     * behind it — which on a phone is the difference between a slideshow and an
+     * accidental navigation backwards. */
+    overscroll-behavior-inline: contain;
+
+    /* The track scrolls, so it needs no wrapping and no stretching. */
+    align-items: start;
+    padding-block-end: 0.25rem;
+}
+
+/* Every direct child is a snap point: the tiles, and a large view once :target
+ * has returned it to the layout. */
+.hc-galerie.hc-galerie--diashow > * {
+    scroll-snap-align: start;
+}
+
+/* The revealed large view is a member of the track, not something laid over it.
+ *
+ * The lightbox section further up hides it with display: none and gives it
+ * grid-column: 1 / -1 when it is the target, which is right for a wrapping grid
+ * and wrong for a single row — there it would mean the whole row. Here it is
+ * simply the next column, so opening a picture in a slideshow scrolls the track
+ * to a wide panel and nothing leaves the flow.
+ *
+ * That constraint is not a matter of taste. .planning/STATE.md:209 records what
+ * an element outside the flow but inside the box tree cost the weide theme: a
+ * submenu nobody had opened made every page of the site scroll sideways. A
+ * horizontal scroll container is the easiest place in this phase to reproduce
+ * it, because it is a scroll container on purpose — so there is no fixed and no
+ * absolute placement in this section, and no hiding that leaves an element
+ * where it was.
+ *
+ * No unit test can see that. It is measured in the browser pass of plan 11-07,
+ * at three widths against the real files, the way the weide finding was
+ * measured before it was believed. */
+.hc-galerie.hc-galerie--diashow .hc-galerie__gross:target {
+    grid-column: auto;
+    grid-row: 1;
+    inline-size: min(90vw, 48rem);
+}

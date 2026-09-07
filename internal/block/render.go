@@ -174,6 +174,28 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 		if inner == "" {
 			return
 		}
+		// One markup, two stylesheets. The grid and the slideshow differ in the
+		// wrapper's attributes and in nothing else — the tiles, the large
+		// views, the fragment ids and the controls are GalleryItems' output and
+		// identical in both. That is what makes a display mode one block of CSS
+		// rather than a second renderer, and it is what keeps the lightbox
+		// working in both modes for nothing.
+		if mod := blk.DisplayClass(); mod != "" {
+			// The tab stop is not decoration. A region that scrolls
+			// horizontally and cannot be focused is a slideshow only a pointer
+			// can use, and browsers differ on whether they hand a scroll
+			// container a tab stop of its own — so it is stated rather than
+			// assumed. A focusable region needs a name to be worth entering,
+			// and role="region" is what exposes that name to a screen reader.
+			//
+			// mod comes from DisplayClass, which mints it from the constant, so
+			// nothing an editor or a hand-edited archive holds is concatenated
+			// into this attribute (T-11-18).
+			fmt.Fprintf(b,
+				`<div class="hc-block hc-galerie hc-spalten-%d %s" tabindex="0" role="region" aria-label="%s">%s</div>`,
+				blk.Columns(), mod, html.EscapeString(s.text(textGallery)), inner)
+			return
+		}
 		fmt.Fprintf(b, `<div class="hc-block hc-galerie hc-spalten-%d">%s</div>`,
 			blk.Columns(), inner)
 
@@ -363,6 +385,12 @@ var (
 	textPrevious = i18n.N("Vorheriges Bild")
 	textNext     = i18n.N("Nächstes Bild")
 	textClose    = i18n.N("Grossansicht schliessen")
+
+	// textGallery names the slideshow's scrolling region. Deliberately the
+	// literal the block kind at block.go:77 already carries, so this mints no
+	// fifth string: it is translated in en, es, fr and it today, and a new one
+	// would cost four translations for a word the catalogue already has.
+	textGallery = i18n.N("Galerie")
 )
 
 // closeTarget is the fragment the close control points at.
