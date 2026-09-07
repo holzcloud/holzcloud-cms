@@ -93,3 +93,10 @@ verification: |
   boundary_neighbours: "unknown id (999) answers ErrNotFound like a foreign id; the 'neu' create sentinel is unaffected; the admin role is covered separately because RequireWebsiteAccess cannot help there at all."
 
 files_changed: ["internal/admin/product_scope_test.go", "internal/shop/product.go", "internal/shop/product_test.go", "internal/admin/product.go", "internal/term/store.go", "internal/term/store_test.go", "internal/shop/order_test.go", "internal/shop/cart_test.go", "CHANGELOG.md"]
+
+## Second finding — outbox retry
+
+- timestamp: 2026-09-07T01:00:00Z
+  checked: "The audit of internal/admin/order.go, the order half of the brief's remit — HandleOrderDetail's POST arm at :198-223"
+  found: "Three ids meet on that screen. The website comes from the address and is authorised. The order comes from the address and is fetched with ByNumber(ctx, ws.ID, ...), which is scoped. The third — `mail_id` — comes from the posted form and is passed to retryMail (:344) and on to outbox.Store.Retry (internal/outbox/outbox.go:241), whose statement is `UPDATE outbox SET status='pending', attempts=0, last_error='', next_attempt_at=$1 WHERE id = $2 AND status <> 'sent'`. No website_id, although outbox.website_id is NOT NULL (migration 00042:15)."
+  implication: "Same family, same remit, different table. Proven by internal/admin/order_scope_test.go: as an editor assigned only to website A, posting aktion=mail-erneut with website B's message id re-queues it — status failed -> pending, attempts 5 -> 0, last_error cleared. Consequence is a delivery, not a defacement: B's customer receives the message again, and B's operator loses the error text they were about to act on. The control test (the same action on the own website) passes, so the handler is not simply broken."
