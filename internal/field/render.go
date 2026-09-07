@@ -320,7 +320,14 @@ func List(defs []Def, data Data, links Links) []Entry {
 			// druckt eine Liste aus Beschriftung und Wert neben „Abfahrt“
 			// nichts.
 			if d.Kind == KindTime {
-				e.Text = strings.TrimSpace(data.Values[d.Key])
+				// Aus dem gelesenen Zeitpunkt und nicht aus der gespeicherten
+				// Zeichenkette. ParseTimeOfDay nimmt „09:30:00" absichtlich an —
+				// manche Browser schicken die Sekunden mit —, und die
+				// Spezifikation verspricht dem Theme „.Text ist sie als HH:MM".
+				// Wer die Rohform durchreichte, brach dieses Versprechen für
+				// jeden Wert, den ein Formular oder eine Tabelle in der langen
+				// Form abgeliefert hat.
+				e.Text = v.Format("15:04")
 			}
 		case *Image:
 			if v == nil {

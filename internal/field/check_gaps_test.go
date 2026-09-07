@@ -77,3 +77,41 @@ func TestNaNIsNotANumberInsideEveryRange(t *testing.T) {
 		t.Error("ParseNumber still reads NaN as a number — the bounds inherit it")
 	}
 }
+
+// TEMPLATE-SPEC.md says of a `zeit` field, in as many words: ".Text is it as
+// HH:MM". field.List does not format anything for that kind — it copies the
+// stored string back out — and ParseTimeOfDay deliberately accepts the
+// eight-character form as well, "weil manche Browser sie mitschicken". So
+// "09:30:00" is valid, is stored verbatim, and reaches every theme as
+// .Text = "09:30:00".
+//
+// The fixture pins the well-behaved "16:30", which is why nothing in the suite
+// has ever seen the other form.
+func TestATimeReachesAThemeAsHHMM(t *testing.T) {
+	d := Def{Key: "abfahrt", Label: "Abfahrt", Kind: KindTime}
+
+	for _, tc := range []struct{ stored, want string }{
+		{"09:30", "09:30"},
+		{"09:30:00", "09:30"},
+		{"16:30:45", "16:30"},
+	} {
+		if r := Check(d, tc.stored); r != "" {
+			t.Fatalf("Check refused %q: %q — the parser accepts it, so the test is about what happens next", tc.stored, r)
+		}
+		list := List([]Def{d}, Data{Values: Values{d.Key: tc.stored}}, Links{})
+		if len(list) != 1 {
+			t.Fatalf("%q produced %d entries, want 1", tc.stored, len(list))
+		}
+		if list[0].Text != tc.want {
+			t.Errorf("a stored %q reaches the theme as .Text = %q, want %q — the specification promises HH:MM",
+				tc.stored, list[0].Text, tc.want)
+		}
+
+		// And the way in: Clean settles the spelling, so what is stored is what
+		// the contract describes rather than whatever the browser sent.
+		cleaned := Clean([]Def{d}, Data{Values: Values{d.Key: tc.stored}})
+		if got := cleaned.Values[d.Key]; got != tc.want {
+			t.Errorf("Clean stored %q as %q, want %q", tc.stored, got, tc.want)
+		}
+	}
+}
