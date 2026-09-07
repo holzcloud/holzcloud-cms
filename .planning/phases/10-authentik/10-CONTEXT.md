@@ -56,7 +56,17 @@ account has zero `user_websites` rows *by construction*, so the first stranger
 who authenticates at the identity provider gets editor access to **every website
 in the installation**.
 
-`handler.go:173` must **not** change — that would lock out every existing editor.
+`handler.go:178` must **not** change — that would lock out every existing editor.
+
+**And the inversion has a second road that neither this file nor the roadmap
+named** (found by the planner, 2026-09-07). D-01 above covers account
+*creation*. SSO-06 requires rights **re-applied at every sign-in** — so an
+existing editor whose groups no longer map to any configured website gets an
+**empty** `user_websites` write, and reaches „zero means every website" **by
+subtraction instead of by creation**. An operator who removes somebody's last
+website group, meaning to take access away, would **grant them everything**.
+The sign-in is refused instead of writing an empty list, and the refusal is
+proved against `NewWebsiteAccessLookup` with a control step.
 The fix is at the other end: provisioning off unless switched on, and when on, a
 required default website. The project already refuses to start on a
 half-configured Payrexx pair; copy that shape, and make the failure loud at
@@ -116,8 +126,17 @@ says so.
 
 - **D-04: the second factor.** The developer decided on 2026-09-03 that an
   Authentik session satisfies it unconditionally. It has **exactly one home** —
-  `auth.MustHaveSecondFactor` (`internal/auth/twofactor.go:44`, one function, one
-  caller at `:70`). Changed there or nowhere. Because that makes this
+  `auth.MustHaveSecondFactor` (`internal/auth/twofactor.go:44`). Changed there or
+  nowhere.
+
+  > **Corrected 2026-09-07 by the planner, measured.** This bullet and the
+  > roadmap note both said „one function, one caller at `:70`". There are
+  > **five** call sites: `auth/twofactor.go:70` and `internal/admin/twofactor.go:167,
+  > :197, :274, :402`. `:274` is not a screen flag — it is the guard that refuses
+  > to let an administrator switch their own second factor off. „Exactly one
+  > home" still holds; the change is five times the size the note describes, and
+  > the plan changes the arity so the **compiler** enumerates them rather than a
+  > reader. Because that makes this
   installation's second factor depend on the operator's Authentik enforcing one,
   the dependency is **stated in `DEPLOY.md` and shown in the admin** (SSO-07) —
   not left in a source comment where nobody reads it.
