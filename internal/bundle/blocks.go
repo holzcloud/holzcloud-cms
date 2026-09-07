@@ -6,7 +6,6 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
-	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
 // Blocks in a bundle.
@@ -79,21 +78,34 @@ func exportBlocks(blocks []block.Block, set block.Set, mediaByID map[int64]strin
 // text around it stays, the image is gone, and the report says which file.
 //
 // A gallery's album is the same shape: the archive carries the album's name and
-// what is stored is an address, so the address is derived here with
-// page.Slugify — the one rule album.Store.Create applies too, which is why the
-// two agree by construction and not by coincidence. This is import.go's
-// KindTerm arm with an album in the term's place; the two belong together and
-// should be changed together. A name the manifest does not declare is dropped
-// rather than derived, and missingAlbum below is what says so on the report.
+// what is stored is an address. The address is NOT derived here — it is looked
+// up in albumSlugs, which importAlbums filled with the slug each album actually
+// got when it was created on this machine. A name that is not in that map is
+// dropped, and missingAlbum below is what says so on the report.
+//
+// Looked up rather than derived, and both halves of that are a fix:
+//
+// A name the archive declared is not the same thing as an album that exists.
+// Create can fail — the archive can name two albums "Werkstatt 2025", and only
+// one of them can be — and a map built from the MANIFEST answers "yes, that
+// album is here" for the one that is not. Every gallery that pointed at the
+// lost album then bound to the survivor and showed a stranger's photographs.
+//
+// And page.Slugify(name) here was a SECOND derivation of a key the album store
+// makes exactly once, in Create — which internal/album's package comment
+// forbids in as many words and internal/term/store.go warns about at length.
+// The two disagreed for any name over album.MaxNameLength runes, because Create
+// slugifies the NORMALISED name and this slugified the raw one. A manifest is a
+// file anybody can edit (T-11-27), so that is reachable.
 func importBlocks(blocks []Block, set block.Set, mediaByName map[string]int64,
-	albumNames map[string]bool) []block.Block {
+	albumSlugs map[string]string) []block.Block {
 	out := make([]block.Block, 0, len(blocks))
 	for _, b := range blocks {
 		n := block.Block{
 			Type: b.Type, Markdown: b.Markdown,
 			MediaID: mediaByName[b.Media], PosterID: mediaByName[b.Poster],
 			Alt: b.Alt, Caption: b.Caption, Variant: b.Variant,
-			Display: b.Display, AlbumSlug: importAlbumSlug(b.Album, albumNames),
+			Display: b.Display, AlbumSlug: albumSlugs[b.Album],
 			Title: b.Title, Text: b.Text, Source: b.Source,
 			LinkText: b.LinkText, LinkURL: b.LinkURL,
 		}
@@ -124,35 +136,22 @@ func importBlocks(blocks []Block, set block.Set, mediaByName map[string]int64,
 	return out
 }
 
-// importAlbumSlug turns the album name a block carries into the address this
-// machine stores, or into nothing when the archive never declared that album.
-func importAlbumSlug(name string, albumNames map[string]bool) string {
-	if name == "" || !albumNames[name] {
-		return ""
-	}
-	return page.Slugify(name)
-}
-
-// declaredAlbums is the set of album names the manifest brought, which is what
-// decides whether a block's reference can be resolved at all.
-func declaredAlbums(m *Manifest) map[string]bool {
-	names := make(map[string]bool, len(m.Albums))
-	for _, a := range m.Albums {
-		names[a.Name] = true
-	}
-	return names
-}
-
-// missingAlbum names the albums a page's blocks point at that the archive did
-// not bring, the way missingMedia names a file that did not arrive.
+// missingAlbum names the albums a page's blocks point at that this import does
+// not have, the way missingMedia names a file that did not arrive.
 //
 // Without it the operator gets an empty gallery and nothing anywhere that says
 // why — which is the same silence missingMedia exists to end.
-func missingAlbum(blocks []Block, albumNames map[string]bool) []string {
+//
+// Measured against albumSlugs, which is what was CREATED, and not against the
+// manifest, which is what was CLAIMED. That distinction is the whole of the
+// report's usefulness here: an album the archive declared and that could not be
+// made is exactly the case an operator has to hear about, and a check against
+// the manifest is silent about precisely that one.
+func missingAlbum(blocks []Block, albumSlugs map[string]string) []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, b := range blocks {
-		if b.Album == "" || albumNames[b.Album] || seen[b.Album] {
+		if b.Album == "" || albumSlugs[b.Album] != "" || seen[b.Album] {
 			continue
 		}
 		seen[b.Album] = true
