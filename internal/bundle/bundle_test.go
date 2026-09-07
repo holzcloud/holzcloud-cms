@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
@@ -44,6 +45,7 @@ func newStores(t *testing.T) Stores {
 		Snippets:   snippet.NewStore(database),
 		Terms:      term.NewStore(database),
 		Media:      media.NewStore(database),
+		Albums:     album.NewStore(database),
 		Fields:     fields,
 		BlockTypes: block.NewStore(database, fields),
 		DataDir:    dir,
@@ -784,6 +786,259 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		t.Errorf("der reine Text für Suche und Anriss fehlt: %q", pg.ContentMarkdown)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// The albums in a bundle — GAL-04, plan 11-06.
+//
+// Everything in this section is English: the test names, the comments and the
+// messages. The file around it is German, and that is deliberate on both
+// counts rather than an oversight. The project's language rule
+// (.planning/GLOSSARY.md) is that what is written now is written in English;
+// the German above it predates that rule and is not being rewritten by this
+// plan. Do not translate one half to match the other — neither half was asked
+// for.
+// ---------------------------------------------------------------------------
+
+// seedAlbumSite builds a website with one picture on disk and one album that
+// holds it: the smallest thing an album round trip can be run over.
+func seedAlbumSite(t *testing.T, s Stores, siteName, albumName string) (websiteID, albumID, mediaID int64) {
+	t.Helper()
+	ctx := context.Background()
+
+	ws, err := s.Domains.CreateWebsite(ctx, siteName, "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+	dir := filepath.Join(s.DataDir, "media", strconv.FormatInt(ws.ID, 10))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The checksum has to match the bytes: an import throws away a file whose
+	// sum does not, and that would not be a fault of the album here.
+	photo := []byte("die bytes von " + siteName)
+	if err := os.WriteFile(filepath.Join(dir, "hobel.jpg"), photo, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.Media.Create(ctx, ws.ID, "hobel.jpg", "hobel.jpg", "image/jpeg",
+		int64(len(photo)), hashBytes(photo))
+	if err != nil {
+		t.Fatalf("Media.Create: %v", err)
+	}
+	a, err := s.Albums.Create(ctx, ws.ID, albumName)
+	if err != nil {
+		t.Fatalf("Albums.Create: %v", err)
+	}
+	if _, err := s.Albums.AddItem(ctx, ws.ID, a.ID, m.ID, "Ein Hobel", "In der Werkstatt"); err != nil {
+		t.Fatalf("Albums.AddItem: %v", err)
+	}
+	return ws.ID, a.ID, m.ID
+}
+
+// An album's pictures travel as file names, never as ids — the sentence
+// blocks.go:11-18 opens with, one level up. And the album itself travels under
+// its name and without a slug, because the importing machine derives the slug
+// from the name with the one call the album store makes.
+func TestExportWritesAlbumsWithFileNames(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+	ws, _, mediaID := seedAlbumSite(t, s, "Werkstatt", "Referenzen")
+
+	// A second album, so the export is proved to write both rather than the
+	// first one it meets.
+	second, err := s.Albums.Create(ctx, ws, "Werkzeug")
+	if err != nil {
+		t.Fatalf("Albums.Create: %v", err)
+	}
+	if _, err := s.Albums.AddItem(ctx, ws, second.ID, mediaID, "", ""); err != nil {
+		t.Fatalf("Albums.AddItem: %v", err)
+	}
+
+	written := manifestOf(t, exportTo(t, s, ws))
+
+	for _, want := range []string{
+		`"albums"`,
+		`"name": "Referenzen"`,
+		`"name": "Werkzeug"`,
+		`"media": "hobel.jpg"`,
+		`"alt": "Ein Hobel"`,
+		`"caption": "In der Werkstatt"`,
+	} {
+		if !strings.Contains(written, want) {
+			t.Errorf("the manifest does not carry %s:\n%s", want, written)
+		}
+	}
+	// A number would silently point at somebody else's picture on the machine
+	// the bundle lands on.
+	for _, unwanted := range []string{
+		fmt.Sprintf(`"media": %d`, mediaID),
+		fmt.Sprintf(`"media": "%d"`, mediaID),
+	} {
+		if strings.Contains(written, unwanted) {
+			t.Errorf("the manifest carries %s instead of the file name:\n%s", unwanted, written)
+		}
+	}
+	// No slug on an album: carrying both would be two sources for one key.
+	if strings.Contains(written, `"slug": "referenzen"`) {
+		t.Errorf("the album travels with a slug; the name alone is what travels:\n%s", written)
+	}
+}
+
+// Every album the manifest declares is created, its pictures resolve to the
+// media this import just made, and the count in the report is what was made.
+//
+// What this test can observe is the end state, which pins the "after the
+// media" half of the placement: a picture that resolved to an id of the NEW
+// website can only have been looked up in a media list that already existed.
+// The "before the pages" half has no observable hook from here — Go offers no
+// way to watch the order of two calls — and is held by the source-order gate
+// in this plan's verification block instead.
+func TestImportCreatesAlbumsBeforePages(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	photo := []byte("ein hobel")
+	archive := archiveWithFile(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Ankunft"},
+		Media: []Media{{
+			Filename: "hobel.jpg", OriginalName: "hobel.jpg",
+			MimeType: "image/jpeg", SHA256: hashBytes(photo),
+		}},
+		Albums: []Album{
+			{Name: "Referenzen", Items: []AlbumItem{
+				{Media: "hobel.jpg", Alt: "Ein Hobel", Caption: "In der Werkstatt"},
+			}},
+			{Name: "Werkzeug"},
+		},
+	}, "hobel.jpg", photo)
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Albums != 2 {
+		t.Errorf("report.Albums = %d, want 2 (warnings: %v)", report.Albums, report.Warnings)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("a clean album import warned: %v", report.Warnings)
+	}
+
+	for _, slug := range []string{"referenzen", "werkzeug"} {
+		a, err := s.Albums.BySlug(ctx, report.WebsiteID, slug)
+		if err != nil || a == nil {
+			t.Fatalf("album %q is not on the imported website: %v", slug, err)
+		}
+	}
+
+	a, err := s.Albums.BySlug(ctx, report.WebsiteID, "referenzen")
+	if err != nil || a == nil {
+		t.Fatalf("BySlug: %v", err)
+	}
+	items, err := s.Albums.Items(ctx, report.WebsiteID, a.ID)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("Items = %v, %v", items, err)
+	}
+	if items[0].Alt != "Ein Hobel" || items[0].Caption != "In der Werkstatt" {
+		t.Errorf("the picture's words did not arrive: %+v", items[0])
+	}
+	arrived, err := s.Media.GetByID(ctx, items[0].MediaID)
+	if err != nil || arrived == nil {
+		t.Fatalf("the album's picture points at no media row: %v", err)
+	}
+	if arrived.WebsiteID != report.WebsiteID {
+		t.Errorf("the album's picture belongs to website %d instead of %d",
+			arrived.WebsiteID, report.WebsiteID)
+	}
+}
+
+// A number a report names should be believable: report.Albums counts what was
+// created and not what the archive claimed (import.go:331-332).
+func TestImportReportsAlbumsCreatedNotClaimed(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Behauptet"},
+		Albums: []Album{
+			{Name: "Referenzen"},
+			// A name that cannot become one: whitespace only.
+			{Name: "   "},
+			// The same address a second time — the slug is what the unique
+			// constraint is on, so this one lands on it.
+			{Name: "Referenzen"},
+		},
+	})
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Albums != 1 {
+		t.Errorf("report.Albums = %d, want 1 — three were claimed, one could be made",
+			report.Albums)
+	}
+	if !warned(report, "Album 2") {
+		t.Errorf("the unusable name is not on the report: %v", report.Warnings)
+	}
+	if !warned(report, "Referenzen") {
+		t.Errorf("the album that could not be made is not named on the report: %v",
+			report.Warnings)
+	}
+	albums, err := s.Albums.List(ctx, report.WebsiteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(albums) != 1 {
+		t.Errorf("%d albums on the new website, want 1: %+v", len(albums), albums)
+	}
+	// And nothing called "untitled": a name that cannot become one is
+	// reported and skipped, not stored under a placeholder.
+	for _, a := range albums {
+		if a.Slug == "untitled" {
+			t.Errorf("an unusable name became an album: %+v", a)
+		}
+	}
+}
+
+// albums is optional, so every archive already written imports unchanged and
+// an export from a website without albums is byte-for-byte what it was.
+func TestManifestWithoutAlbumsImportsAsBefore(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Ohne Alben"},
+		Pages: []Page{{
+			Title: "Start", Slug: "start", Status: "published", Markdown: "Hallo.",
+		}},
+	})
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Albums != 0 {
+		t.Errorf("report.Albums = %d for a manifest with no albums key", report.Albums)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("a manifest with no albums key warned: %v", report.Warnings)
+	}
+	if report.Pages != 1 {
+		t.Errorf("report.Pages = %d, want 1", report.Pages)
+	}
+
+	// And the other direction: a website with no albums writes no albums key,
+	// which is what makes an optional field not a format break.
+	written := manifestOf(t, exportTo(t, s, report.WebsiteID))
+	if strings.Contains(written, `"albums"`) {
+		t.Errorf("a website without albums wrote an albums key:\n%s", written)
+	}
+	if strings.Contains(written, `"version": 2`) {
+		t.Errorf("the format version moved; an optional key is not a format break")
+	}
+}
+
 
 // Die weiteren Sprachen einer Website reisten nicht mit. Die Folgen waren
 // still und teuer: jede übersetzte Seite kam unter der Hauptsprache an, und
