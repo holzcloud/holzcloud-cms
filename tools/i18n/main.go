@@ -22,6 +22,43 @@
 // A key that disappears from the source is reported but never deleted: a
 // sentence often comes back one commit later, and a translation thrown away is
 // a translation somebody has to do again.
+//
+// # What this tool does NOT see
+//
+// Written down because "0 offen, 0 verwaist" is a release gate, and a gate has
+// to be honest about its edge. Three directories are read and no others:
+//
+//	cmd/holzcloud/templates/admin   .html only
+//	internal                        .go, minus _test.go
+//	internal/i18n/locales           the catalogues themselves
+//
+// So a German sentence in any of these is invisible here, and the report says
+// nothing about it — not "offen", not "verwaist", nothing, because the tool
+// does not know it exists:
+//
+//   - cmd/holzcloud/templates/public — the shipped themes. They carry no
+//     translation call at all and cannot: the public FuncMap
+//     (internal/template/loader.go) has no t, th or tf. That is a decision
+//     about the theme contract, recorded in
+//     .planning/audits/v1.6-I18N-REICHWEITE.md, and not an oversight here.
+//   - cmd/holzcloud/*.go — main.go, cli.go, cli_template.go. English by design
+//     today. Anything a browser or an operator reads that gets added there
+//     needs a home under internal/ or a fourth root in this file.
+//   - plugins/ and sdk/ — the WASM modules build their own admin screens and
+//     the SDK has no translation channel at all.
+//
+// Two shapes are invisible even inside the roots. Only ONE argument at ONE
+// index is collected per call, so a German literal arriving through a %s of a
+// tf or Titlef is a leak; and the template regex is anchored to the start of
+// the action, so {{if eq (t "…")}}, {{$x := t "…"}} and {{.Foo | t}} are not
+// matched. Neither shape is in the tree today, and both are cheap to reach for
+// by accident.
+//
+// i18n.SourceStrings, which the admin's own language screen counts, is built
+// from the union of the catalogues rather than from source. It therefore
+// inherits every blind spot above exactly: a string this tool never collected
+// is in no catalogue, so that screen reports full coverage over it. Two green
+// lights, one blind spot, and the second is the one an operator looks at.
 package main
 
 import (
@@ -46,10 +83,16 @@ import (
 // strconv.Unquote — the same rules the template parser applies.
 var callsInTemplates = regexp.MustCompile(`\{\{-?\s*(?:t|th|tf)\s+("(?:[^"\\]|\\.)*")`)
 
-// goFuncs are the Go functions whose first string argument a person reads.
+// goFuncs are the Go functions whose string argument a person reads, by the
+// ARGUMENT INDEX at which that string sits — not a count.
 //
 // SetFlash* translate what they are given, Errors.Add is rendered through {{t}}
 // in the template, and NewLayoutData translates the title it is handed.
+//
+// Matched by NAME alone, with no package or receiver check, so any method
+// called Add, T or N under internal/ lands here. That errs towards collecting
+// too much, which costs a stray key; the other direction costs a German
+// sentence on an English screen.
 var goFuncs = map[string]int{
 	"SetFlashError":   2,
 	"SetFlashSuccess": 2,
@@ -61,6 +104,30 @@ var goFuncs = map[string]int{
 	// N marks a label that is built at start-up and translated where it is
 	// rendered — see i18n.N.
 	"N": 0,
+	// Tf has no call site with a literal today. It is here because i18n.Tf
+	// exists and is exported: the day somebody writes i18n.Tf(lang, "…") the
+	// sentence has to be collected, and finding that out from a French screen
+	// is finding it out too late.
+	"Tf": 1,
+}
+
+// regional names the catalogues that are deviation lists rather than
+// translations. Named one by one, and that is the whole point.
+//
+// The test used to be "does the filename contain a hyphen", which is right for
+// exactly these three and silently wrong for the next locale somebody adds:
+// pt-BR.json, zh-Hans.json and en-GB.json are full translations with a hyphen
+// in the name, and each would have been classified as a deviation list and
+// never checked for "offen" again. The gate would have gone on reading green
+// over a catalogue nobody was filling in.
+//
+// A list has to be edited when a regional fassung is added, which is the
+// property wanted here: adding one is a decision, and a decision should cost a
+// line.
+var regional = map[string]bool{
+	"de-CH": true,
+	"fr-CH": true,
+	"it-CH": true,
 }
 
 func main() {
@@ -111,7 +178,7 @@ func main() {
 		// there means "the base language already says it right", and writing
 		// nine hundred of them in would turn a readable file of thirty
 		// corrections into a file nobody maintains. It is only checked.
-		if strings.Contains(strings.TrimSuffix(e.Name(), ".json"), "-") {
+		if regional[strings.TrimSuffix(e.Name(), ".json")] {
 			var wrong int
 			for k := range catalog {
 				if !keys[k] {
