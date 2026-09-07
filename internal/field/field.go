@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -574,7 +575,7 @@ func Encode(d Data) (string, error) {
 // dropped here, on the next save of that page, which is late enough to be
 // forgiving and early enough not to accumulate.
 func Clean(defs []Def, d Data) Data {
-	simple := map[string]bool{}
+	simple := map[string]Def{}
 	groups := map[string][]Def{}
 	for _, def := range defs {
 		if def.IsGroup() {
@@ -588,15 +589,17 @@ func Clean(defs []Def, d Data) Data {
 		// hides the field; it must not also empty it, or a mis-click would cost
 		// somebody the text they wrote — and ticking it again brings everything
 		// back exactly as it was.
-		simple[def.Key] = true
+		simple[def.Key] = def
 	}
 
 	out := Data{Values: Values{}, Rows: map[string][]Values{}}
 	for key, val := range d.Values {
-		if !simple[key] {
+		def, known := simple[key]
+		if !known {
 			continue
 		}
-		if val = trimTo(val); val != "" {
+		val = normalizeValue(def, trimTo(val))
+		if val != "" {
 			out.Values[key] = val
 		}
 	}
@@ -627,11 +630,27 @@ func Clean(defs []Def, d Data) Data {
 func cleanRow(sub []Def, row Values) Values {
 	out := Values{}
 	for _, def := range sub {
-		if val := trimTo(row[def.Key]); val != "" {
+		if val := normalizeValue(def, trimTo(row[def.Key])); val != "" {
 			out[def.Key] = val
 		}
 	}
 	return out
+}
+
+// normalizeValue is the one place a value's spelling is settled before it is
+// stored. Only the boolean needs it today: Resolve reads a stored value back
+// as `raw != "" && raw != "0"`, so the words have to become "1" or "" on the
+// way in or they mean their opposite on the way out. Check has already refused
+// a word neither reading knows, so an unreadable value here is left alone
+// rather than silently turned into no.
+func normalizeValue(d Def, val string) string {
+	if d.Kind != KindBool {
+		return val
+	}
+	if canonical, ok := NormalizeBool(val); ok {
+		return canonical
+	}
+	return val
 }
 
 // trimTo strips the whitespace around a value, which every caller relies on.
@@ -660,7 +679,40 @@ func ParseNumber(value string) (float64, bool) {
 	if err != nil {
 		return 0, false
 	}
+	// NaN und Unendlich sind keine Zahlen, die jemand meint, und NaN ist die
+	// eine, die dem Bereich seinen Sinn nimmt: n < unten und n > oben sind
+	// beide falsch für sie, sie liegt also in jedem Bereich, den es gibt.
+	// Hier und nicht in der Grenzprüfung, weil diese Funktion beide Seiten
+	// derselben Frage liest — sonst wäre eine als „NaN" getippte Grenze
+	// weiterhin eine Grenze, die nichts durchsetzt.
+	if math.IsNaN(n) || math.IsInf(n, 0) {
+		return 0, false
+	}
 	return n, true
+}
+
+// NormalizeBool reads a yes/no and gives back the two values everything else
+// in the tree agrees on: "" for no and "1" for yes.
+//
+// One reading, and it is exported for that reason. The CSV importer had the
+// only reading of a boolean in the codebase — everything else simply stored
+// what it was handed and let Resolve read `raw != "" && raw != "0"`, which
+// makes the word "nein" mean yes. Two readings of the same four words would
+// drift, and this one is where the drift showed: an archive or an assistant
+// could store "nein" and every theme printed "ja".
+//
+// The vocabulary is the CSV importer's, unchanged, because it is the one an
+// operator has already been able to type.
+func NormalizeBool(value string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "":
+		return "", true
+	case "ja", "yes", "wahr", "true", "1", "x":
+		return "1", true
+	case "nein", "no", "falsch", "false", "0":
+		return "", true
+	}
+	return "", false
 }
 
 // ParseTimeOfDay liest eine Uhrzeit ohne Datum und ohne Zeitzone.
@@ -754,6 +806,14 @@ func Check(d Def, value string) string {
 	case KindGroup:
 		// A group is checked row by row, not as one value.
 		return ""
+	case KindBool:
+		// The arm this switch was missing. Without it any non-empty string
+		// passed, and Resolve reads everything that is not "0" as yes — so a
+		// stored "nein" printed as "ja" on every shipped theme, on the three
+		// paths that name CheckAll as their only per-kind gate.
+		if _, ok := NormalizeBool(value); !ok {
+			return d.Label + " muss ja oder nein sein."
+		}
 	case KindNumber:
 		if _, ok := ParseNumber(value); !ok {
 			return d.Label + " muss eine Zahl sein."

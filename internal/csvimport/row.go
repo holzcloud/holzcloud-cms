@@ -89,15 +89,17 @@ func parseStatus(cell string) (string, bool) {
 // guess. The stored spelling is "1" and the empty string, which is what the
 // page form writes.
 func parseBool(cell string) (string, bool) {
-	switch foldCell(cell) {
-	case "":
-		return "", true
-	case "ja", "yes", "wahr", "true", "1", "x":
-		return "1", true
-	case "nein", "no", "falsch", "false", "0":
-		return "", true
-	}
-	return "", false
+	// field.NormalizeBool and not a copy of its four words. This function used
+	// to be the only reading of a boolean in the tree, which is why the gap it
+	// covered was invisible everywhere else: the archive import and the
+	// assistant stored what they were handed, and Resolve read "nein" as yes.
+	// Now there is one reading, and it cannot drift from the one Check applies.
+	//
+	// foldCell stays in front of it: it transliterates and settles combining
+	// marks, which nothing in this vocabulary needs but a cell out of a
+	// spreadsheet might carry. NormalizeBool lowercases and trims on its own,
+	// so the two overlap rather than fight.
+	return field.NormalizeBool(foldCell(cell))
 }
 
 // termNames reads the names out of one multi-name cell.
