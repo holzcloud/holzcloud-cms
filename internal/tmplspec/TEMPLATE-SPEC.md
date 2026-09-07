@@ -138,6 +138,7 @@ The view supplies a template named `content`; the layout pulls it in.
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{.Page.Title}}{{if .Site.Name}} — {{.Site.Name}}{{end}}</title>
+  <link rel="stylesheet" href="/assets/bausteine.css">
   <link rel="stylesheet" href="/t/style.css">
 </head>
 <body>
@@ -145,6 +146,9 @@ The view supplies a template named `content`; the layout pulls it in.
 </body>
 </html>
 ```
+
+The core stylesheet comes **before** yours, so yours wins every collision. See
+§4 — it is required for any theme that renders block content.
 
 **page.html**
 
@@ -181,11 +185,28 @@ means it knows the difference between HTML text, an attribute, a URL and a
 |---|---|
 | `/t/style.css` | `style.css` from your archive |
 | `/t/fonts/inter.woff2` | `fonts/inter.woff2` from your archive |
+| `/assets/bausteine.css` | the core's base styling for block content |
 | `{{.Site.LogoURL}}` | an uploaded image, e.g. `/media/1/logo.png` |
 
 `/t/` maps to your template directory, subfolders included. Media the operator
 uploaded is under `/media/` and always reaches you as a ready-made path — never
 build one yourself.
+
+**`/assets/bausteine.css` is required for any theme that renders block
+content**, which is every theme that prints `{{.Page.Content}}`. The core
+writes the markup of a block, so the core supplies its base styling: without
+this stylesheet a gallery is a column of pictures at full width, a card row is
+a wall of text, and a gallery's lightbox does not open at all — it is CSS that
+hides the enlarged picture until the fragment in the URL names it, so with no
+stylesheet there is nothing to reveal.
+
+Link it **before** your own `/t/style.css`. Both are ordinary stylesheets and
+the later one wins, so that order is what lets your theme override every rule
+in it — and every rule in it is one class deep, so overriding is cheap.
+
+`/assets/` is this server's own origin, so linking it is not fetching anything
+from a third party: the rule that nothing loads from elsewhere at runtime is
+untouched.
 
 Fixed public routes you may link to: `/` `/suche` `/feed.xml` `/sitemap.xml`.
 
@@ -870,6 +891,7 @@ Two files. It installs, and it renders every view.
   {{if .Meta.Description}}<meta name="description" content="{{.Meta.Description}}">{{end}}
   {{if .Meta.NoIndex}}<meta name="robots" content="noindex, follow">{{end}}
   {{if .Meta.CanonicalURL}}<link rel="canonical" href="{{.Meta.CanonicalURL}}">{{end}}
+  <link rel="stylesheet" href="/assets/bausteine.css">
   <link rel="stylesheet" href="/t/style.css">
   {{if .Site.Design}}<style>{{.Site.Design}}</style>{{end}}
 </head>
