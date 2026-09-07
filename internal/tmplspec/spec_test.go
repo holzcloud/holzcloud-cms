@@ -1,6 +1,8 @@
 package tmplspec
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -196,6 +198,74 @@ func TestSpecDocumentsEveryFieldKind(t *testing.T) {
 		if !rows[k.Kind] {
 			t.Errorf("the specification's kind table has no row for %q — a "+
 				"template author cannot learn what .Value holds for it", k.Kind)
+		}
+	}
+}
+
+// The two tests below are English while the rest of this file is German prose
+// in English function names; this project's code became English on 2026-09-06.
+//
+// They guard an instruction rather than a field, which is why reflection
+// cannot hold them. TestSpecDocumentsEveryFieldOfTheContract above walks the
+// data contract and would never notice that the specification tells nobody to
+// load /assets/bausteine.css — and until this phase it did not: the string
+// appeared in the document zero times and in all eight shipped layout.html
+// files.
+
+// The core writes the markup of a block, so the core supplies its base
+// styling. A theme that does not link the stylesheet shows a gallery as a
+// column of pictures and a :target lightbox not at all — the second one does
+// not degrade, it fails.
+func TestSpecRequiresTheBlockStylesheet(t *testing.T) {
+	spec := Markdown()
+
+	const link = "/assets/bausteine.css"
+	if !strings.Contains(spec, link) {
+		t.Fatalf("the specification never mentions %s, so a template author "+
+			"following it renders every block wrong", link)
+	}
+	// Three places, because two of them are copied whole: the asset table, the
+	// layout example in §3 and the complete minimal template in §11. A count
+	// below three means one of the two examples still teaches a theme that
+	// renders blocks wrong.
+	if got := strings.Count(spec, link); got < 3 {
+		t.Errorf("%s appears %d times, want at least 3 — the asset table, §3's "+
+			"layout example and §11's minimal template", link, got)
+	}
+}
+
+// This is the one that would have caught the drift. The document can be right
+// while a theme quietly stops linking the file, and nothing else in the suite
+// looks.
+//
+// The themes are read from disk relative to this package rather than through an
+// embedded filesystem: they are embedded by package main under cmd/holzcloud,
+// which a library test cannot import. Reading the source tree is therefore the
+// only way to see them from here, and it is enough — the files are in this
+// repository and the test runs in it.
+func TestEveryShippedThemeLinksTheBlockStylesheet(t *testing.T) {
+	const themes = "../../cmd/holzcloud/templates/public"
+
+	layouts, err := filepath.Glob(filepath.Join(themes, "*", "layout.html"))
+	if err != nil {
+		t.Fatalf("the theme directory could not be read: %v", err)
+	}
+	// A directory walk that finds nothing must fail. Passing on a tree with no
+	// themes at all is the failure mode of every test of this shape.
+	if len(layouts) == 0 {
+		t.Fatalf("no layout.html was found under %s — the test proved nothing", themes)
+	}
+
+	for _, path := range layouts {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s could not be read: %v", path, err)
+			continue
+		}
+		if !strings.Contains(string(body), "/assets/bausteine.css") {
+			t.Errorf("the theme %q does not link /assets/bausteine.css, so every "+
+				"block on it is unstyled and its lightbox does not open",
+				filepath.Base(filepath.Dir(path)))
 		}
 	}
 }
