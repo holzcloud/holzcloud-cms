@@ -1011,3 +1011,144 @@ func TestAFilledTermsCellStillReplacesThem(t *testing.T) {
 		t.Errorf("a stated Schlagwörter cell left %v, want exactly Steinobst", after)
 	}
 }
+
+// The importer is the one reader of the website's own fields that never asks
+// which pages a field belongs on.
+//
+// Nine other call sites wrap the list in field.For — admin/page.go five times,
+// page_fields.go, public/pagedata.go, ai/tools.go — and the one that omits it
+// on purpose (admin/snippet.go) writes down why. internal/csvimport says
+// nothing about gilt_fuer at all, and CheckRow always creates a plain page.
+//
+// Two directions, and the first is the one that stops an operator dead.
+func TestARequiredPostFieldDoesNotSkipEveryPageRow(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	ctx := context.Background()
+
+	// Legitimate and normal: an author belongs to a post, and the page form
+	// never asks for it.
+	autor := fieldDef(1, 1, "autor", "Autor", field.KindText)
+	autor.Required = true
+	autor.AppliesTo = field.ForPost
+	defs := []field.Def{autor}
+
+	head, rows := reader(t, "Titel,Text\nApfel,Ein Satz\n")
+	m := csvimport.AutoMap(head, defs)
+
+	v := w.WriteRow(ctx, websiteID, defs, rows[0], m, nil, csvimport.CollisionUpdate, &userID)
+	if v.Outcome != csvimport.OutcomeCreate {
+		t.Errorf("the row was %s / %q %v — a field that does not belong on a page refused it",
+			v.Outcome, v.Reason, v.Args)
+	}
+}
+
+// The other direction: a value pointed at a field that does not belong on the
+// page being created is stored where nothing will ever read it. The theme
+// filters it out, and the next save from the page form drops it without a word.
+func TestAPostFieldsValueIsNotStoredOnAnImportedPage(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	pages := page.NewStore(database)
+	ctx := context.Background()
+
+	autor := fieldDef(1, 1, "autor", "Autor", field.KindText)
+	autor.AppliesTo = field.ForPost
+	defs := []field.Def{autor}
+
+	head, rows := reader(t, "Titel,Autor\nApfel,Frisch\n")
+	m := csvimport.AutoMap(head, defs)
+
+	v := w.WriteRow(ctx, websiteID, defs, rows[0], m, nil, csvimport.CollisionUpdate, &userID)
+	if v.Outcome != csvimport.OutcomeCreate {
+		t.Fatalf("the row was %s / %q", v.Outcome, v.Reason)
+	}
+	created, err := pages.GetPageBySlugIn(ctx, websiteID, "", "apfel")
+	if err != nil || created == nil {
+		t.Fatalf("GetPageBySlugIn: %v", err)
+	}
+	if got := field.Decode(created.Fields).Values["autor"]; got != "" {
+		t.Errorf("a post-only field was stored on a page as %q — invisible to the theme "+
+			"and dropped by the next save from the page form", got)
+	}
+}
+
+// An update must be checked and cleaned against the EXISTING page's kind, not
+// against "page". Filtering an update by the kind the importer creates would
+// drop every post-only value the page already carries — the opposite mistake,
+// and a worse one, because it destroys data instead of refusing to write it.
+func TestUpdatingAPostKeepsItsOwnFields(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	pages := page.NewStore(database)
+	ctx := context.Background()
+
+	autor := fieldDef(1, 1, "autor", "Autor", field.KindText)
+	autor.AppliesTo = field.ForPost
+	defs := []field.Def{autor}
+
+	stored, err := field.Encode(field.Data{Values: field.Values{"autor": "Frisch"}})
+	if err != nil {
+		t.Fatalf("field.Encode: %v", err)
+	}
+	post, err := pages.CreatePage(ctx, page.PageCreate{
+		WebsiteID: websiteID, Title: "Apfel", Slug: "apfel",
+		Markdown: "Erster Text", HTML: "<p>Erster Text</p>",
+		Status: "published", Kind: page.KindPost, Fields: stored,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+
+	head, rows := reader(t, "Titel,Text\nApfelbaum,Zweiter Text\n")
+	m := csvimport.AutoMap(head, defs)
+
+	if v := w.WriteRow(ctx, websiteID, defs, rows[0], m, post, csvimport.CollisionUpdate, &userID); v.Outcome != csvimport.OutcomeUpdate {
+		t.Fatalf("the row was %s / %q %v", v.Outcome, v.Reason, v.Args)
+	}
+	after, err := pages.GetPage(ctx, post.ID)
+	if err != nil || after == nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if got := field.Decode(after.Fields).Values["autor"]; got != "Frisch" {
+		t.Errorf("updating a post through the importer left autor as %q, want Frisch", got)
+	}
+}
+
+// The Vorgaben card promises, in as many words: "Was eingetragen wird, wenn die
+// Datei für dieses Ziel keine Spalte hat."
+//
+// For the five fixed targets it is kept — cellFor falls back to the default
+// whether a column exists or not. For the website's OWN fields it was not: the
+// field loop walked m.Targets, which has exactly one entry per column, so a
+// field no column points at was never visited and its default never written.
+// The box is offered anyway, accepted, and carried through to the commit.
+func TestADefaultForAFieldWithNoColumnIsWritten(t *testing.T) {
+	_, database, userID, websiteID := setup(t)
+	w := writer(database)
+	pages := page.NewStore(database)
+	ctx := context.Background()
+
+	defs := []field.Def{fieldDef(1, 1, "farbe", "Farbe", field.KindText)}
+
+	head, rows := reader(t, "Titel\nApfel\n")
+	m := csvimport.AutoMap(head, defs)
+	if m.ColumnFor(csvimport.TargetField, "farbe") >= 0 {
+		t.Fatal("a column is pointed at the field — the test would prove nothing")
+	}
+	if m.Defaults == nil {
+		m.Defaults = map[string]string{}
+	}
+	m.Defaults[csvimport.Target{Kind: csvimport.TargetField, Key: "farbe"}.String()] = "rot"
+
+	if v := w.WriteRow(ctx, websiteID, defs, rows[0], m, nil, csvimport.CollisionUpdate, &userID); v.Outcome != csvimport.OutcomeCreate {
+		t.Fatalf("the row was %s / %q %v", v.Outcome, v.Reason, v.Args)
+	}
+	created, err := pages.GetPageBySlugIn(ctx, websiteID, "", "apfel")
+	if err != nil || created == nil {
+		t.Fatalf("GetPageBySlugIn: %v", err)
+	}
+	if got := field.Decode(created.Fields).Values["farbe"]; got != "rot" {
+		t.Errorf("the default was %q on the page, want rot — the screen promised it would be written", got)
+	}
+}
