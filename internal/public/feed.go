@@ -6,10 +6,12 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
+	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 )
 
 // atomFeed and atomEntry model Atom 1.0 (RFC 4287), through encoding/xml with
@@ -75,6 +77,20 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 	prefix := base + locale.Prefix(loc, website.Locale)
 	snippets := h.loadSnippets(r, website.ID)
 
+	// The albums of the whole feed in one load, not one per entry: the slugs
+	// are read out of every entry together and asked for once, which is
+	// album.Store.LoadFor's own rule applied to twenty documents instead of
+	// one.
+	//
+	// Scanned over the SNIPPET-EXPANDED bodies, because a snippet may itself
+	// carry a gallery marker — the same argument pageContent makes for
+	// expanding the snippets first.
+	var scan strings.Builder
+	for _, p := range pages {
+		scan.WriteString(snippet.Expand(p.ContentHTML, snippets.HTML))
+	}
+	albums := h.albumsFor(r, website.ID, scan.String())
+
 	feed := atomFeed{
 		Title: website.Name,
 		ID:    prefix + "/",
@@ -98,7 +114,7 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 			Summary: p.Excerpt,
 			// content_html is already sanitised; encoding/xml escapes it into
 			// the element, which is what type="html" means.
-			Content: atomContent{Type: "html", Body: expandForFeed(p.ContentHTML, snippets)},
+			Content: atomContent{Type: "html", Body: expandForFeed(p.ContentHTML, snippets, albums)},
 		}
 		if p.PublishedAt != nil {
 			entry.Published = p.PublishedAt.UTC().Format(time.RFC3339)
