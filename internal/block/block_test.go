@@ -2,6 +2,7 @@ package block
 
 import (
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -692,5 +693,272 @@ func TestBausteinfeldGeleertOderAbwesend(t *testing.T) {
 	leer := FromForm(url.Values{"b0.typ": {"merkmal"}, "b0.f.[]": {"Eiche"}})
 	if len(leer[0].Fields) != 0 {
 		t.Errorf("b0.f.[] ergab %+v, wollte nichts", leer[0].Fields)
+	}
+}
+
+// --- The lightbox --------------------------------------------------------
+//
+// From here down the tests are English while everything above them is German.
+// That is deliberate, not drift: this project's code became English on
+// 2026-09-06 and the file is mixed-language on purpose. Do not "fix" one half.
+
+// galleryLook is the three pictures the lightbox tests share.
+func galleryLook() Lookup {
+	return bilder(map[int64]Image{
+		1: {URL: "/media/1/eins.jpg", Alt: "Eins", Width: 1200, Height: 800},
+		2: {URL: "/media/1/zwei.jpg", Alt: "Zwei", Width: 1200, Height: 800},
+		3: {URL: "/media/1/drei.jpg", Alt: "Drei", Width: 1200, Height: 800},
+	})
+}
+
+// threePictures is one gallery block of three pictures, the middle one with a
+// caption.
+func threePictures() Block {
+	return Block{Type: TypeGallery, Items: []Item{
+		{MediaID: 1},
+		{MediaID: 2, Caption: "Das zweite Bild"},
+		{MediaID: 3},
+	}}
+}
+
+// largeViews cuts the rendered gallery into one string per large view, in
+// document order.
+func largeViews(t *testing.T, html string) []string {
+	t.Helper()
+	parts := strings.Split(html, `<figure class="hc-galerie__gross"`)
+	if len(parts) < 2 {
+		t.Fatalf("no large view was rendered at all:\n%s", html)
+	}
+	return parts[1:]
+}
+
+// A tile is the way into its own large view, and the fragment in the URL is the
+// whole mechanism — no script is involved on any path.
+func TestGalleryTileLinksToItsOwnLargeView(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+
+	for _, want := range []string{`href="#hc-b1-p1"`, `href="#hc-b1-p2"`, `href="#hc-b1-p3"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("no tile links %s:\n%s", want, html)
+		}
+	}
+	for _, want := range []string{`id="hc-b1-p1"`, `id="hc-b1-p2"`, `id="hc-b1-p3"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("no large view carries %s:\n%s", want, html)
+		}
+	}
+	// The tile's link has to come before the target it names, or the anchor
+	// would move the viewport backwards over the grid.
+	if strings.Index(html, `href="#hc-b1-p1"`) > strings.Index(html, `id="hc-b1-p1"`) {
+		t.Errorf("the tile's link stands after its own large view:\n%s", html)
+	}
+}
+
+// Every tile first, every large view after: the grid stays a grid, and the
+// enlargements are siblings underneath it rather than interleaved with it.
+func TestGalleryLargeViewsFollowEveryTile(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+
+	lastTile := strings.LastIndex(html, `<figure class="hc-galerie__bild">`)
+	firstLarge := strings.Index(html, `<figure class="hc-galerie__gross"`)
+	if lastTile < 0 || firstLarge < 0 {
+		t.Fatalf("tiles or large views are missing:\n%s", html)
+	}
+	if lastTile > firstLarge {
+		t.Errorf("a tile stands after the first large view:\n%s", html)
+	}
+	if got := len(largeViews(t, html)); got != 3 {
+		t.Errorf("%d large views, want 3:\n%s", got, html)
+	}
+}
+
+// An absent control at each end, never a wrap-around: a list of four holiday
+// photos that jumps back to the first is a surprise, and the browser's own back
+// button is the way out.
+func TestGalleryFirstHasNoPreviousAndLastHasNoNext(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+	views := largeViews(t, html)
+
+	if strings.Contains(views[0], "hc-galerie__zurueck") {
+		t.Errorf("the first picture offers a previous control:\n%s", views[0])
+	}
+	if !strings.Contains(views[0], `class="hc-galerie__weiter" href="#hc-b1-p2"`) {
+		t.Errorf("the first picture does not step to the second:\n%s", views[0])
+	}
+	if !strings.Contains(views[1], `class="hc-galerie__zurueck" href="#hc-b1-p1"`) ||
+		!strings.Contains(views[1], `class="hc-galerie__weiter" href="#hc-b1-p3"`) {
+		t.Errorf("the middle picture is missing a neighbour:\n%s", views[1])
+	}
+	if strings.Contains(views[2], "hc-galerie__weiter") {
+		t.Errorf("the last picture offers a next control:\n%s", views[2])
+	}
+	if !strings.Contains(views[2], `class="hc-galerie__zurueck" href="#hc-b1-p2"`) {
+		t.Errorf("the last picture does not step back to the second:\n%s", views[2])
+	}
+}
+
+// Closing is a link to a fragment that matches nothing, which returns :target
+// to no match. It is not href="#", which would scroll to the top of the
+// document and add a history entry the back button then has to walk back
+// through.
+func TestGalleryCloseTargetsNothingOnThePage(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+
+	if !strings.Contains(html, `href="#`+closeTarget+`"`) {
+		t.Errorf("no close control points at %q:\n%s", closeTarget, html)
+	}
+	if strings.Contains(html, `id="`+closeTarget+`"`) {
+		t.Errorf("the close target %q is also an id on the page, so it would "+
+			"open a large view instead of closing one:\n%s", closeTarget, html)
+	}
+	if strings.Contains(html, `href="#"`) {
+		t.Errorf("the bare hash is used somewhere:\n%s", html)
+	}
+}
+
+// Two galleries on one page would otherwise mint #bild-1 twice and the browser
+// would jump to whichever came first. The assertion is that the ids are
+// distinct, not how they are spelled.
+func TestTwoGalleriesOnOnePageMintDistinctIds(t *testing.T) {
+	blocks := []Block{
+		{Type: TypeText, Markdown: "Guten Tag."},
+		threePictures(),
+		{Type: TypeText, Markdown: "Und weiter."},
+		threePictures(),
+	}
+	html := Render(blocks, Builtin, galleryLook(), markdown)
+
+	ids := regexp.MustCompile(`id="([^"]+)"`).FindAllStringSubmatch(html, -1)
+	seen := map[string]bool{}
+	for _, m := range ids {
+		seen[m[1]] = true
+	}
+	if len(ids) != 6 || len(seen) != 6 {
+		t.Errorf("%d ids, %d of them distinct, want 6 and 6: %v", len(ids), len(seen), seen)
+	}
+}
+
+// The large view links no variant and builds no path. A hand-built
+// "-large.jpg" carries no ?v= cache-busting and 404s on an original too small
+// to have that size; media.MakeResponsive adds the candidate list at request
+// time instead.
+func TestGalleryLargeViewNamesNoVariant(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+
+	if strings.Contains(html, "srcset") {
+		t.Errorf("the renderer wrote a srcset:\n%s", html)
+	}
+	if strings.Contains(html, "-large") || strings.Contains(html, "-medium") ||
+		strings.Contains(html, "-thumb") {
+		t.Errorf("a variant is named in a path:\n%s", html)
+	}
+	view := largeViews(t, html)[0]
+	if !strings.Contains(view, `src="/media/1/eins.jpg"`) {
+		t.Errorf("the large view does not serve the tile's own address:\n%s", view)
+	}
+	if !strings.Contains(view, `sizes="100vw"`) {
+		t.Errorf("the large view is missing sizes=\"100vw\":\n%s", view)
+	}
+	// Nothing squeezes the large view into a fixed shape, so the focus point
+	// would change nothing there.
+	if strings.Contains(view, "object-position") {
+		t.Errorf("the large view carries an inline object-position:\n%s", view)
+	}
+}
+
+// With /assets/bausteine.css blocked the new rules simply do not exist, so the
+// markup has to read as a page on its own: the same picture again, at natural
+// size, with its caption, in the flow, with working anchors. Anything whose
+// unstyled rendering is a stack of grey boxes fails here.
+func TestGalleryUnstyledMarkupIsAFigureSibling(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+
+	if !strings.HasPrefix(html, `<div class="hc-block hc-galerie hc-spalten-3">`) ||
+		!strings.HasSuffix(html, `</div>`) {
+		t.Fatalf("the gallery is no longer one div:\n%s", html)
+	}
+	if got := strings.Count(html, "<div"); got != 1 {
+		t.Errorf("%d div elements, want 1 — a wrapper whose only purpose is to "+
+			"be positioned:\n%s", got, html)
+	}
+	for _, forbidden := range []string{"aria-modal", `role="dialog"`, "hintergrund", "backdrop"} {
+		if strings.Contains(html, forbidden) {
+			t.Errorf("the markup carries %q, which is chrome and not content:\n%s", forbidden, html)
+		}
+	}
+	// The large view is a figure, and it carries its caption where a figure
+	// carries one.
+	view := largeViews(t, html)[1]
+	if !strings.Contains(view, `<figcaption>Das zweite Bild</figcaption>`) {
+		t.Errorf("the large view lost the caption the tile has:\n%s", view)
+	}
+	// A keyboard user who followed the tile anchor continues from the picture
+	// they just opened rather than from where they were, and there is no script
+	// here to move focus for them.
+	if !strings.Contains(view, `tabindex="-1"`) {
+		t.Errorf("the large view is not focusable:\n%s", view)
+	}
+}
+
+// The behaviour that exists today and must survive the change.
+func TestGalleryWithNoResolvablePicturesRendersNothing(t *testing.T) {
+	html := Render([]Block{threePictures()}, Builtin, bilder(map[int64]Image{}), markdown)
+	if html != "" {
+		t.Errorf("a gallery of nothing rendered %q", html)
+	}
+}
+
+// block.Builtin has no translator, and every test and every caller that does
+// not supply one must still get a page.
+func TestSetWithoutTranslatorKeepsTheGermanSource(t *testing.T) {
+	if Builtin.T != nil {
+		t.Fatalf("block.Builtin arrived with a translator")
+	}
+	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+	for _, want := range []string{textPrevious, textNext, textClose} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the German source %q is missing without a translator:\n%s", want, html)
+		}
+	}
+}
+
+// The gate the rest of the i18n work is worthless without.
+//
+// Marking with i18n.N proves only that the string reaches the catalogue.
+// render.go carries no locale of its own, so a string can be marked, collected,
+// translated into four languages and printed in German anyway — with every
+// other gate green. The same gallery is rendered twice: once without a
+// translator, once with one that maps each control name to a token no German
+// sentence contains.
+func TestLightboxControlsGoThroughTheInjectedTranslator(t *testing.T) {
+	german := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+	for _, want := range []string{textPrevious, textNext, textClose} {
+		if !strings.Contains(german, want) {
+			t.Fatalf("the German source %q is missing before translation:\n%s", want, german)
+		}
+	}
+
+	tokens := map[string]string{
+		textPrevious: "QQ-previous-QQ",
+		textNext:     "QQ-next-QQ",
+		textClose:    "QQ-close-QQ",
+	}
+	set := Set{T: func(s string) string {
+		if out, ok := tokens[s]; ok {
+			return out
+		}
+		return s
+	}}
+
+	translated := Render([]Block{threePictures()}, set, galleryLook(), markdown)
+	for source, token := range tokens {
+		if !strings.Contains(translated, token) {
+			t.Errorf("%q was not translated:\n%s", source, translated)
+		}
+		if strings.Contains(translated, source) {
+			t.Errorf("the German literal %q survived the translator — the string "+
+				"is collected and translated in four catalogues and printed in "+
+				"German anyway:\n%s", source, translated)
+		}
 	}
 }
