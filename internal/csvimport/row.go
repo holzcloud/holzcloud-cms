@@ -259,6 +259,36 @@ func TermNames(defs []field.Def, m Mapping, rows []csv.Row) []string {
 }
 
 // definitionsByKey indexes the definitions a mapping may name.
+// applicableFields is the definitions that belong on the page this row writes.
+//
+// The importer is the one reader of a website's own fields that never asked
+// the question. Nine other call sites wrap the list in field.For, and the one
+// that omits it deliberately writes down why; internal/csvimport said nothing
+// about gilt_fuer at all. Two things went wrong at once: a REQUIRED field
+// scoped to Beiträge refused every row of every import, naming a field the
+// page form never asks for — and a column pointed at such a field stored a
+// value the theme filters out and the next save from the page form drops
+// without a word.
+//
+// The kind is the EXISTING page's on an update and page.KindPage on a create,
+// which is the whole reason this takes `existing` rather than a constant.
+// CheckRow builds a PageCreate with Kind: page.KindPage and no content-type
+// key, so a created page has exactly the built-in page's fields; but a row
+// UPDATING a post has to be checked and cleaned against the post's, or the
+// cleaning would drop every post-only value the page already carries. That is
+// the opposite mistake and the worse one, because it destroys data instead of
+// refusing to write it.
+func applicableFields(defs []field.Def, existing *page.Page) []field.Def {
+	kind := page.KindPage
+	if existing != nil {
+		kind = existing.Kind
+		if existing.TypeKey != "" {
+			kind = existing.TypeKey
+		}
+	}
+	return field.For(defs, kind)
+}
+
 func definitionsByKey(defs []field.Def) map[string]field.Def {
 	byKey := make(map[string]field.Def, len(defs))
 	for _, d := range defs {
@@ -393,24 +423,45 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 		return skip(ReasonBodyUnreadable, err.Error())
 	}
 
-	byKey := definitionsByKey(defs)
-	data := field.Data{Values: field.Values{}, Rows: map[string][]field.Values{}}
+	// Which fields belong on the page this row writes. Everything below —
+	// the loop, field.CheckAll and field.Clean — reads this list and not the
+	// website's whole one.
+	mine := applicableFields(defs, existing)
+
+	// D-29 first, and against the UNFILTERED list. The wizard spans four
+	// requests and an unknown amount of wall time, so the field a mapping names
+	// can be deleted while it is open: the column falls back to unmapped and
+	// the row says so, which is a reported row instead of a nil dereference.
+	//
+	// Against the unfiltered list, because "this field no longer exists" and
+	// "this field does not belong on this page" are two different answers. The
+	// first is worth a line in the report; the second is the mapping screen
+	// offering a target it cannot know is inapplicable to this particular row,
+	// and it passes over in silence.
+	all := definitionsByKey(defs)
 	done := map[string]bool{}
 	for _, t := range m.Targets {
 		if t.Kind != TargetField || done[t.Key] {
 			continue
 		}
 		done[t.Key] = true
-
-		d, exists := byKey[t.Key]
-		if !exists {
-			// The wizard spans four requests and an unknown amount of wall
-			// time, so the field a mapping names can be deleted while it is
-			// open. The column falls back to unmapped and the row says so,
-			// which is a reported row instead of a nil dereference (D-29).
+		if _, exists := all[t.Key]; !exists {
 			remember(ReasonFieldMissing, t.Key)
-			continue
 		}
+	}
+
+	// Over the DEFINITIONS and not over the columns.
+	//
+	// m.Targets holds exactly one entry per column, so a loop over it can only
+	// visit a field some column points at — and the Vorgaben card promises the
+	// opposite in as many words: "Was eingetragen wird, wenn die Datei für
+	// dieses Ziel keine Spalte hat." cellFor already falls back to the target's
+	// default, which is how the five fixed targets have always kept that
+	// promise. Walking the definitions is what extends it to the website's own
+	// fields, where the box was offered, accepted, carried through to the
+	// commit, and never written.
+	data := field.Data{Values: field.Values{}, Rows: map[string][]field.Values{}}
+	for _, d := range mine {
 		if !Mappable(d.Kind) {
 			// A mapping arriving from a form can name a kind no column may
 			// feed. Refused here as well as on the screen, because the screen
@@ -418,7 +469,7 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 			continue
 		}
 
-		cell := cellFor(row, m, t)
+		cell := cellFor(row, m, Target{Kind: TargetField, Key: d.Key})
 		switch d.Kind {
 		case field.KindBool:
 			stored, readable := parseBool(cell)
@@ -458,8 +509,8 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 	// argument and does not fix internal/field, which is on the list of what
 	// this phase must not change; named here so a later reader does not take it
 	// for debt this phase created.
-	if errs := field.CheckAll(defs, data); len(errs) > 0 {
-		for _, d := range defs {
+	if errs := field.CheckAll(mine, data); len(errs) > 0 {
+		for _, d := range mine {
 			if reason := errs[d.Key]; reason != "" {
 				return skip(ReasonFieldRejected, d.Label, reason)
 			}
@@ -479,7 +530,7 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 	}
 
 	// Clean before encoding, the same as the form path.
-	data = field.Clean(defs, data)
+	data = field.Clean(mine, data)
 	fields, err := field.Encode(data)
 	if err != nil {
 		return skip(ReasonNotWritten, title, err.Error())
@@ -688,7 +739,7 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 	// The field slots this row stated something for, and only those. A stated
 	// cell may still store the empty string — parseBool turns "nein" into it —
 	// and that is a value the file gave, not a slot it was silent about.
-	byKey := definitionsByKey(defs)
+	byKey := definitionsByKey(applicableFields(defs, existing))
 	merged := field.Decode(existing.Fields)
 	for _, t := range m.Targets {
 		if t.Kind != TargetField {
@@ -710,7 +761,7 @@ func (w Writer) update(existing *page.Page, create page.PageCreate, data field.D
 	// so this is close to unreachable; a swallowed error on the write path, on
 	// the one arm that touches pages the operator already had, is not
 	// something to leave standing for that reason.
-	encoded, err := field.Encode(field.Clean(defs, merged))
+	encoded, err := field.Encode(field.Clean(applicableFields(defs, existing), merged))
 	if err != nil {
 		return u, err
 	}
