@@ -58,8 +58,51 @@ func TestEveryHxPostFormAlsoSubmitsWithoutJS(t *testing.T) {
 			}
 			if !strings.EqualFold(a["method"], "post") || a["action"] == "" {
 				t.Errorf("%s: form has hx-post but no method/action fallback:\n  %s", name, strings.TrimSpace(tag))
+				continue
+			}
+			// And to the SAME place. An action fallback that goes somewhere
+			// else is worse than none: the form works with the script and
+			// works without it, and does two different things — which is the
+			// one failure nobody reports, because both paths answer 200.
+			if verb := a["hx-post"]; verb != a["action"] {
+				t.Errorf("%s: hx-post goes to %q and the form's action to %q — "+
+					"with the script the request lands in one place and without it in "+
+					"the other:\n  %s", name, verb, a["action"], strings.TrimSpace(tag))
 			}
 		}
+	}
+}
+
+// hx-confirm is the one place the enhancement-only rule is knowingly bent, and
+// it is written down here because nothing else in the tree says so.
+//
+// With the script gone there is no confirmation step at all — the button
+// simply posts. The action still happens, which is why this is not a
+// correctness defect: the no-JS path does what the control says it does. What
+// is lost is the second thought, on twenty-two destructive controls.
+//
+// The test does not forbid it. It counts it, so that the number is a thing
+// somebody chose rather than a thing that grew: a jump means a new destructive
+// control was given a confirmation that exists only with JavaScript, and that
+// is worth one deliberate look at whether the action deserves a real
+// confirmation page instead.
+func TestHxConfirmIsTheKnownDegradation(t *testing.T) {
+	const expected = 22
+
+	found := map[string]int{}
+	total := 0
+	for name, content := range adminTemplateFiles(t) {
+		if n := strings.Count(content, "hx-confirm"); n > 0 {
+			found[name] = n
+			total += n
+		}
+	}
+	if total != expected {
+		t.Errorf("hx-confirm now appears %d times, not %d: %v\n"+
+			"Not a failure of the code — a prompt. Each of these is a destructive "+
+			"control whose confirmation disappears with the script. If the new one "+
+			"deserves a confirmation that works without JavaScript, give it a page; "+
+			"if it does not, raise the number here.", total, expected, found)
 	}
 }
 

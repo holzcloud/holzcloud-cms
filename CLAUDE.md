@@ -97,6 +97,16 @@ data/                        — Runtime: SQLite DB + media + user templates
 - CSRF token in `<body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>` — server validates header
 - Use `HX-Redirect` (not 302) for post-mutation navigation from htmx requests
 - `hx-disabled-elt="this"` on all submit buttons to prevent double-submit
+- **Every `hx-post` must equal its form's `action`.** Enhancement means the
+  same request either way; a fallback that goes somewhere else is worse than
+  none, because both paths answer 200 and nobody reports the difference.
+  `internal/web/nojs_test.go` holds this, and holds that the form exists at all.
+- **`hx-confirm` is the one place the rule is knowingly bent.** With the script
+  gone there is no confirmation step — the button simply posts, and the action
+  still happens. What is lost is the second thought, on twenty-two destructive
+  controls. The count is asserted so that adding a twenty-third is a decision:
+  if the new control deserves a confirmation that works without JavaScript, it
+  needs a page, not an attribute.
 
 ### Templates
 - **The data contract is documented in exactly one place**: the structs in
