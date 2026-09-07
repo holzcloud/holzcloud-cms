@@ -166,6 +166,18 @@ offered and declined on 2026-09-05. The grid stays as it is.
   admin area, website scoping, the bundle round trip, `TEMPLATE-SPEC.md` +
   `SampleData` + `MinimalData` if a theme can reach it, and `tools/i18n -write`
   followed by `-schweiz`. Budget it once.
+- **A whole-tree count must not be asserted by a plan that shares its wave.**
+  Found twice in this phase and it is one rule, not two: the plan checker caught
+  11-04 gating `admin templates == 68`, a number **11-03** produces; and 11-02's
+  execution hit `1280` where its plan said `1277`, because **11-01's** three
+  lightbox labels landed in the same tree. 11-02 did the right thing — it
+  *measured* the attribution by taking its own package out and re-running, rather
+  than arguing it — but the threshold was unsatisfiable as written.
+
+  **The honest form of such a gate is an isolation measurement**: *removing this
+  plan's work must not change the count.* A whole-tree total belongs in the last
+  plan of the phase, once, where every contributor has landed.
+
 - **Counting gates are measured line-by-line against the post-change tree**, and
   a gate must measure what its name claims. Phase 9 produced three of the same
   failure, one per wave: a guessed number; a condition needing two numbers from
