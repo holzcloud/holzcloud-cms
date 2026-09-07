@@ -293,7 +293,10 @@ func (h *Handler) HandlePageCreate(w http.ResponseWriter, r *http.Request) error
 		}
 	}
 
-	data := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", ws.Name), values)
+	data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", ws.Name), values)
+	if err != nil {
+		return err
+	}
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "page_form", data)
 }
@@ -316,7 +319,7 @@ func (h *Handler) sourcePageFor(r *http.Request, websiteID int64, raw string) (*
 }
 
 // newPageFormData assembles the shared parts of the create and edit form.
-func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string, values PageValues) PageFormData {
+func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string, values PageValues) (PageFormData, error) {
 	data := PageFormData{
 		LayoutData:  web.NewLayoutData(r, h.sm, title),
 		FormState:   web.NewFormState(),
@@ -351,12 +354,20 @@ func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string
 	if ws, err := h.domains.GetWebsite(r.Context(), websiteID); err == nil && ws != nil {
 		data.Languages = languageChoices(ws, values.Locale)
 	}
-	data.Albums = h.siteAlbums(r.Context(), websiteID)
+	// A read failure here is reported and not swallowed: an editor shown "this
+	// website has no albums" when the truth is "I could not find out" is being
+	// told something false about their own site, and the block editor is where
+	// that used to cost a gallery.
+	albums, err := h.siteAlbums(r.Context(), websiteID)
+	if err != nil {
+		return data, err
+	}
+	data.Albums = albums
 	data.BlockViews = blockViews(values.BlockSet, values.Blocks, data.Media, data.Videos, data.Albums, websiteID)
 	data.BlockAction = fmt.Sprintf("/admin/websites/%d/pages/new", websiteID)
 	defs := h.fieldDefs(r.Context(), websiteID)
 	data.FieldViews = fieldViews(field.For(defs, values.KindValue()), values.Fields, data.pool(), nil)
-	return data
+	return data, nil
 }
 
 // renderPreview turns Markdown into the HTML shown in the preview pane.
@@ -412,7 +423,10 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	// A structural change in the block editor is not a save: apply it and draw
 	// the form again, with everything the editor has typed so far still in it.
 	if blockAction(r, &values) {
-		data := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+		data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+		if err != nil {
+			return err
+		}
 		if ws, err := h.domains.GetWebsite(r.Context(), websiteID); err == nil {
 			data.CurrentWebsite = ws
 		}
@@ -420,14 +434,20 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	}
 	// Adding or removing a row of a group is not a save either.
 	if groupAction(r, &values.Fields) {
-		data := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+		data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+		if err != nil {
+			return err
+		}
 		if ws, err := h.domains.GetWebsite(r.Context(), websiteID); err == nil {
 			data.CurrentWebsite = ws
 		}
 		return web.RenderAdmin(w, h.templates, r, "page_form", data)
 	}
 
-	data := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+	data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+	if err != nil {
+		return err
+	}
 	ws, err := h.domains.GetWebsite(r.Context(), websiteID)
 	if err != nil {
 		return err
@@ -540,7 +560,10 @@ func (h *Handler) HandlePageEdit(w http.ResponseWriter, r *http.Request) error {
 
 // editFormData builds the edit form for a stored page with the given values.
 func (h *Handler) editFormData(r *http.Request, websiteName string, p *page.Page, values PageValues) (PageFormData, error) {
-	data := h.newPageFormData(r, p.WebsiteID, web.Titlef(r, "Seite bearbeiten – %s", websiteName), values)
+	data, err := h.newPageFormData(r, p.WebsiteID, web.Titlef(r, "Seite bearbeiten – %s", websiteName), values)
+	if err != nil {
+		return data, err
+	}
 	data.PageID = p.ID
 	data.IsEdit = true
 	data.BlockAction = fmt.Sprintf("/admin/websites/%d/pages/%d/edit", p.WebsiteID, p.ID)

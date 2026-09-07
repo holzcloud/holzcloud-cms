@@ -181,8 +181,19 @@
              Darstellung darüber: eine Kartenreihe hat auch Einträge, aber ein
              Album ist eine Bilderliste und keine Kartenliste, und
              block.Set.Clean wirft ein Album an einer Kartenreihe ohnehin weg.
-             Die Liste ist leer, wenn diese Website noch kein Album hat — dann
-             steht hier nichts, statt einer Auswahl ohne Möglichkeiten. */}}
+             Die Liste ist leer, wenn diese Website noch kein Album hat und
+             dieser Baustein auch keines nennt — dann steht hier nichts, statt
+             einer Auswahl ohne Möglichkeiten.
+
+             Nennt der Baustein aber eines, das nicht in der Liste steht, dann
+             hat albumChoicesFor eine Möglichkeit dafür angehängt, und diese
+             Auswahl wird gezeichnet. Das ist keine Höflichkeit, sondern der
+             Träger des gespeicherten Werts: dieses Feld ist die EINZIGE Stelle,
+             an der bN.album mitgeschickt wird, und block.FromForm baut den
+             Baustein allein aus dem Mitgeschickten. Fehlte das Feld, käme
+             AlbumSlug leer zurück, Empty() hielte die Galerie für leer, und
+             Clean würfe den Baustein beim nächsten Speichern weg — mit der
+             Meldung „Seite gespeichert". */}}
         {{if .Albums}}
         <div class="form-group">
             <label class="form-label" for="{{.ID}}-album">{{t "Bilder aus"}}</label>
@@ -190,7 +201,7 @@
                 <option value=""{{if eq .Block.AlbumSlug ""}} selected{{end}}>{{t "– der eigenen Liste unten –"}}</option>
                 {{$chosen := .Block.AlbumSlug}}
                 {{range .Albums}}
-                <option value="{{.Slug}}"{{if eq $chosen .Slug}} selected{{end}}>{{.Name}}</option>
+                <option value="{{.Slug}}"{{if eq $chosen .Slug}} selected{{end}}>{{if .Missing}}{{tf "%s – dieses Album gibt es nicht mehr" .Slug}}{{else}}{{.Name}}{{end}}</option>
                 {{end}}
             </select>
             <p class="form-hint text-muted">{{t "Aus einem Album kommen die Bilder des Albums, und sie ändern sich mit ihm: wer das Album ergänzt, ergänzt jede Seite, die es zeigt. Die eigene Liste unten bleibt gespeichert und wird nicht gezeigt, solange ein Album gewählt ist."}}</p>

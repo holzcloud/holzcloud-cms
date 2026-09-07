@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -141,23 +140,29 @@ func (h *Handler) blockImages(ctx context.Context, websiteID int64) block.Lookup
 // takes the website id and its WHERE clause carries it, so there is no way to
 // call it and reach another website's albums by forgetting something here.
 //
-// Nil when no album store is wired, which is what a build without the feature
-// looks like: the select is then not drawn at all and a gallery keeps its own
-// list, exactly as it did before albums existed.
-func (h *Handler) siteAlbums(ctx context.Context, websiteID int64) []AlbumChoice {
+// Nil AND no error when no album store is wired, which is what a build without
+// the feature looks like: there is nothing to ask, and nothing went wrong.
+//
+// A read failure is REPORTED and not turned into an empty list. It used to be
+// logged and swallowed, and the two answers are not interchangeable: "this
+// website has no albums" and "I could not find out" differ in what the editor
+// is then shown and in what the form then posts. An editor told the first when
+// the second is true creates a second album beside the fifty they already have
+// — and, until the select learned to carry a value it cannot show, the next
+// save of that page deleted every album-backed gallery on it.
+func (h *Handler) siteAlbums(ctx context.Context, websiteID int64) ([]AlbumChoice, error) {
 	if h.albumStore == nil {
-		return nil
+		return nil, nil
 	}
 	list, err := h.albumStore.List(ctx, websiteID)
 	if err != nil {
-		slog.Error("list albums for the block editor", "err", err, "website", websiteID)
-		return nil
+		return nil, fmt.Errorf("list albums for the block editor: %w", err)
 	}
 	out := make([]AlbumChoice, 0, len(list))
 	for _, a := range list {
 		out = append(out, AlbumChoice{Slug: a.Slug, Name: a.Name})
 	}
-	return out
+	return out, nil
 }
 
 // blockContent is what a block page stores in the two content columns.
@@ -239,6 +244,50 @@ type BlockItemView struct {
 type AlbumChoice struct {
 	Slug string
 	Name string
+	// Missing marks an option that stands for an album this website does not
+	// have: the block names it, and the list does not contain it.
+	//
+	// It exists so that the select can carry a value it cannot offer. Without
+	// it the select was drawn with no matching option, the browser submitted
+	// the first one — value="", the block's own list — and the gallery was
+	// deleted by the next save. The option has no name to show, because there
+	// is no album to take one from, so the template shows the slug and says
+	// what it is.
+	Missing bool
+}
+
+// albumChoicesFor is the album select's options for one gallery block.
+//
+// The list as it is, plus — when the block names an album that is not in it —
+// one option standing for that album, so the value has somewhere to sit.
+//
+// This is the whole of the fix for a silent deletion with a success flash. The
+// select is the ONLY carrier of AlbumSlug in the block editor, and
+// block.FromForm rebuilds a block purely from the posted fields: an absent or
+// empty bN.album means AlbumSlug == "", Empty() then reports the gallery as
+// empty, and Clean drops the block. Two reachable routes, neither of which
+// needs anything to go wrong:
+//
+//   - the named album was deleted, so the select is drawn (there are others)
+//     with no option matching, and the browser posts the first;
+//   - the website has no albums left, so {{if .Albums}} is false and the
+//     select is not drawn at all.
+//
+// Both are answered here rather than in the template, because "is this slug in
+// this list" is a question Go can ask and html/template cannot — and because
+// the second route needs the LIST to become non-empty, which only this can do.
+func albumChoicesFor(albums []AlbumChoice, chosen string) []AlbumChoice {
+	if chosen == "" {
+		return albums
+	}
+	for _, a := range albums {
+		if a.Slug == chosen {
+			return albums
+		}
+	}
+	out := make([]AlbumChoice, 0, len(albums)+1)
+	out = append(out, albums...)
+	return append(out, AlbumChoice{Slug: chosen, Missing: true})
 }
 
 // ImageFieldView is the shared picture chooser.
@@ -285,7 +334,7 @@ func blockViews(set block.Set, blocks []block.Block, items, films []media.Media,
 			v.Videos = films
 		}
 		if b.Type == block.TypeGallery {
-			v.Albums = albums
+			v.Albums = albumChoicesFor(albums, b.AlbumSlug)
 		}
 		// A kind the website defined: its fields are the ordinary field inputs,
 		// drawn by the same template as the page's own fields. That is the
