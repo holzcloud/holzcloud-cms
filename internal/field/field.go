@@ -644,11 +644,20 @@ func cleanRow(sub []Def, row Values) Values {
 // a word neither reading knows, so an unreadable value here is left alone
 // rather than silently turned into no.
 func normalizeValue(d Def, val string) string {
-	if d.Kind != KindBool {
-		return val
-	}
-	if canonical, ok := NormalizeBool(val); ok {
-		return canonical
+	switch d.Kind {
+	case KindBool:
+		if canonical, ok := NormalizeBool(val); ok {
+			return canonical
+		}
+	case KindTime:
+		// „09:30:00" ist gültig, weil manche Browser die Sekunden mitschicken,
+		// und die Spezifikation verspricht dem Theme HH:MM. field.List formt
+		// es beim Lesen, damit auch das Gespeicherte von gestern stimmt; hier
+		// steht die andere Hälfte, damit ab jetzt gar nichts anderes mehr in
+		// die Spalte kommt.
+		if t, ok := ParseTimeOfDay(val); ok {
+			return t.Format("15:04")
+		}
 	}
 	return val
 }
