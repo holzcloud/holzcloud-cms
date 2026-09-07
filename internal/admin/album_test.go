@@ -327,3 +327,57 @@ func TestAlbumScreensAre404WithoutAStore(t *testing.T) {
 		t.Errorf("status = %d; want 404", rec.Code)
 	}
 }
+
+// TestAlbumScreensRenderInsideTheBaseLayout is the instrument the plan says
+// does not exist, and it turns out it does.
+//
+// A page missing from layoutPageNames (internal/web/render.go) renders through
+// RenderAdmin as a bare fragment: no navigation, no flash area, and — the part
+// that is a security finding rather than a cosmetic one — no hx-headers
+// attribute on the body, so every htmx POST from that screen fails the CSRF
+// check. The claim in 11-PATTERNS.md §E.7 is that nothing in go test can see
+// this. It can: RenderAdmin writes the whole document, and the document either
+// carries <body hx-headers=…> or it does not.
+//
+// It still does not replace the browser pass. This proves the layout wraps the
+// screen; it does not prove the screen is readable.
+func TestAlbumScreensRenderInsideTheBaseLayout(t *testing.T) {
+	f := newAlbumFixture(t)
+	f.mustAdd(t, f.albumA.ID, f.mediaA, "erstes")
+
+	for _, c := range []struct {
+		name string
+		fn   func(http.ResponseWriter, *http.Request) error
+		path string
+		vals map[string]string
+	}{
+		{"album_list", f.h.HandleAlbumList,
+			"/admin/websites/" + id64(f.siteA.ID) + "/albums",
+			map[string]string{"id": id64(f.siteA.ID)}},
+		{"album_edit", f.h.HandleAlbumEdit,
+			"/admin/websites/" + id64(f.siteA.ID) + "/albums/" + id64(f.albumA.ID),
+			map[string]string{"id": id64(f.siteA.ID), "albumID": id64(f.albumA.ID)}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, c.path, nil)
+			for k, v := range c.vals {
+				req.SetPathValue(k, v)
+			}
+			rec, _, _ := albumFlash(t, f.h, f.sm, c.fn, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d; want 200", rec.Code)
+			}
+			body := rec.Body.String()
+			if !strings.Contains(body, "hx-headers") {
+				t.Error("no hx-headers on the body: every htmx POST from this screen would fail CSRF")
+			}
+			if !strings.Contains(body, `class="nav-item`) {
+				t.Error("no navigation: the screen rendered outside the base layout")
+			}
+			if !strings.Contains(body, f.albumA.Name) {
+				t.Errorf("the album's name is not on the screen")
+			}
+		})
+	}
+}

@@ -97,6 +97,9 @@
                 <a href="/admin/websites/{{.NavWebsite.ID}}/media" class="nav-item{{if eq .ActiveNav "media"}} is-active{{end}}"{{if eq .ActiveNav "media"}} aria-current="page"{{end}}>
                     {{template "icon-media"}}<span>{{t "Medien"}}</span>
                 </a>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/albums" class="nav-item{{if eq .ActiveNav "albums"}} is-active{{end}}"{{if eq .ActiveNav "albums"}} aria-current="page"{{end}}>
+                    {{template "icon-album"}}<span>{{t "Alben"}}</span>
+                </a>
                 <a href="/admin/websites/{{.NavWebsite.ID}}/menus" class="nav-item{{if eq .ActiveNav "menus"}} is-active{{end}}"{{if eq .ActiveNav "menus"}} aria-current="page"{{end}}>
                     {{template "icon-menus"}}<span>{{t "Menüs"}}</span>
                 </a>
