@@ -163,6 +163,21 @@
             <p class="form-hint text-muted">{{t "Auf schmalen Bildschirmen stehen sie untereinander."}}</p>
         </div>
 
+        {{/* Nur die Galerie. Eine Kartenreihe hat auch Einträge, aber eine
+             schnappende Spur aus Karten ist nicht, was diese Phase gebaut hat
+             und nicht, was bausteine.css gestaltet — deshalb dieselbe
+             Bewachung, die das kartenspezifische Linkfeld weiter unten hat. */}}
+        {{if eq .Block.Type "galerie"}}
+        <div class="form-group">
+            <label class="form-label" for="{{.ID}}-darstellung">{{t "Darstellung"}}</label>
+            <select id="{{.ID}}-darstellung" name="{{.Prefix}}.darstellung" class="form-input form-select">
+                <option value=""{{if ne .Block.Display "diashow"}} selected{{end}}>{{t "Raster"}}</option>
+                <option value="diashow"{{if eq .Block.Display "diashow"}} selected{{end}}>{{t "Diashow"}}</option>
+            </select>
+            <p class="form-hint text-muted">{{t "Eine Diashow legt die Bilder nebeneinander in eine Spur, die man seitwärts schiebt und die an jedem Bild einrastet."}}</p>
+        </div>
+        {{end}}
+
         <div class="block-items">
             {{$blockType := .Block.Type}}
             {{$action := $.BlockAction}}
