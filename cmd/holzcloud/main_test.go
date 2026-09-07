@@ -5,7 +5,9 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -266,5 +268,330 @@ func TestUnknownHostGets404(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("unknown host: %d; want 404", rec.Code)
+	}
+}
+
+// Every admin route the router registers is classified below, and the test at
+// the bottom of this file fails when one is not.
+//
+// The reason is written at newRouter: "the missing requireAdmin on website
+// deletion shipped unnoticed precisely because there was no test here that
+// could see the route table." The table that was then written covered
+// nineteen routes out of ninety-five, and stayed at nineteen while three
+// phases added their screens — so "Phase 7's screens are for administrators,
+// Phase 8's for editors" was asserted by nothing at all and could have been
+// inverted without a single test noticing.
+//
+// What this classification is NOT: a second copy of the router. It was seeded
+// from the registration form once, so it inherits today's behaviour rather
+// than proving it correct. What it does from now on is make an authorization
+// decision a thing somebody WROTE DOWN. Move a route between the two lists in
+// main.go and the declaration here disagrees with the behaviour, out loud.
+
+// route is one registered pattern and, where the pattern carries wildcards, a
+// concrete path to drive it with.
+type route struct {
+	pattern string
+	// probe overrides the mechanical wildcard substitution below, for a route
+	// whose segments are not numbers.
+	probe string
+}
+
+// concrete turns a registered pattern into a path a request can be made to.
+// The values are deliberately ones that exist in no fixture: this test asks
+// who may enter, not what they find, and a 404 is a perfectly good answer to
+// the first question as long as it is not a 403.
+func (r route) concrete() (method, path string) {
+	method, pattern, _ := strings.Cut(r.pattern, " ")
+	if r.probe != "" {
+		return method, r.probe
+	}
+	out := []string{}
+	for _, seg := range strings.Split(pattern, "/") {
+		switch {
+		case !strings.HasPrefix(seg, "{"):
+			out = append(out, seg)
+		case strings.HasSuffix(seg, "...}"):
+			out = append(out, "x")
+		case seg == "{token}":
+			out = append(out, "abc")
+		case seg == "{slug}", seg == "{kind}", seg == "{path}":
+			out = append(out, "x")
+		default:
+			out = append(out, "1")
+		}
+	}
+	return method, strings.Join(out, "/")
+}
+
+// adminOnlyRoutes must answer 403 to an editor.
+var adminOnlyRoutes = []route{
+	{pattern: "GET /admin/websites/new"},
+	{pattern: "POST /admin/websites/new"},
+	{pattern: "POST /admin/websites/{id}/delete"},
+	{pattern: "POST /admin/websites/{id}/domains"},
+	{pattern: "POST /admin/websites/{id}/domains/{domainID}/delete"},
+	{pattern: "POST /admin/websites/{id}/domains/{domainID}/primary"},
+	{pattern: "POST /admin/websites/{id}/trash/{pageID}/purge"},
+	{pattern: "GET /admin/websites/{id}/shop"},
+	{pattern: "POST /admin/websites/{id}/shop"},
+	{pattern: "GET /admin/websites/{id}/export"},
+	{pattern: "POST /admin/websites/import"},
+	{pattern: "POST /admin/websites/import-wordpress"},
+	{pattern: "POST /admin/websites/import-csv"},
+	{pattern: "GET /admin/csv-import/{token}"},
+	{pattern: "POST /admin/csv-import/{token}/probe"},
+	{pattern: "POST /admin/csv-import/{token}/start"},
+	{pattern: "GET /admin/csv-vorlage"},
+	{pattern: "POST /admin/websites/{id}/design/tokens"},
+	{pattern: "GET /admin/websites/{id}/inhaltsarten"},
+	{pattern: "POST /admin/websites/{id}/inhaltsarten"},
+	{pattern: "POST /admin/websites/{id}/inhaltsarten/{kindID}/loeschen"},
+	{pattern: "POST /admin/websites/{id}/inhaltsarten/{kindID}/verschieben"},
+	{pattern: "GET /admin/websites/{id}/bausteinarten"},
+	{pattern: "POST /admin/websites/{id}/bausteinarten"},
+	{pattern: "POST /admin/websites/{id}/bausteinarten/{typeID}/loeschen"},
+	{pattern: "POST /admin/websites/{id}/bausteinarten/{typeID}/verschieben"},
+	{pattern: "GET /admin/websites/{id}/felder"},
+	{pattern: "POST /admin/websites/{id}/felder"},
+	{pattern: "POST /admin/websites/{id}/felder/{fieldID}/loeschen"},
+	{pattern: "POST /admin/websites/{id}/felder/{fieldID}/verschieben"},
+	{pattern: "GET /admin/users"},
+	{pattern: "GET /admin/users/new"},
+	{pattern: "POST /admin/users/new"},
+	{pattern: "GET /admin/users/{id}/edit"},
+	{pattern: "POST /admin/users/{id}/edit"},
+	{pattern: "POST /admin/users/{id}/delete"},
+	{pattern: "POST /admin/users/{id}/link"},
+	{pattern: "POST /admin/users/{id}/sessions/revoke"},
+	{pattern: "GET /admin/mail"},
+	{pattern: "POST /admin/mail/test"},
+	{pattern: "POST /admin/mail/retry"},
+	{pattern: "GET /admin/ai"},
+	{pattern: "POST /admin/ai/keys"},
+	{pattern: "POST /admin/ai/keys/{id}/revoke"},
+	{pattern: "GET /admin/plugins"},
+	{pattern: "POST /admin/plugins/upload"},
+	{pattern: "POST /admin/plugins/{id}/enable"},
+	{pattern: "POST /admin/plugins/{id}/websites"},
+	{pattern: "POST /admin/plugins/{id}/remove"},
+	{pattern: "GET /admin/templates/upload"},
+	{pattern: "POST /admin/templates/upload"},
+	{pattern: "GET /admin/templates/spec"},
+	{pattern: "POST /admin/templates/{id}/activate"},
+	{pattern: "POST /admin/templates/{id}/deactivate"},
+	{pattern: "POST /admin/templates/{id}/delete"},
+	{pattern: "GET /admin/protokoll"},
+	{pattern: "POST /admin/protokoll/aufraeumen"},
+	{pattern: "GET /admin/marke"},
+	{pattern: "POST /admin/marke"},
+	{pattern: "GET /admin/sprachen"},
+	{pattern: "POST /admin/sprachen"},
+	{pattern: "POST /admin/sprachen/neu-lesen"},
+	{pattern: "GET /admin/sprachen/vorlage"},
+	{pattern: "GET /admin/sprachen/{code}/datei"},
+	{pattern: "POST /admin/sprachen/{code}/loeschen"},
+}
+
+// editorOpenRoutes must NOT answer 403 to an editor. They are the content
+// screens, and locking an editor out of one is as much a defect as letting
+// them into a site-level one.
+var editorOpenRoutes = []route{
+	{pattern: "POST /admin/logout"},
+	{pattern: "GET /admin/bestaetigen"},
+	{pattern: "POST /admin/bestaetigen"},
+	{pattern: "GET /admin/konto"},
+	{pattern: "POST /admin/konto/sprache"},
+	{pattern: "GET /admin/2fa/einrichten"},
+	{pattern: "POST /admin/2fa/einrichten"},
+	{pattern: "POST /admin/2fa/einrichten/neu"},
+	{pattern: "POST /admin/2fa/codes"},
+	{pattern: "POST /admin/2fa/aus"},
+	{pattern: "GET /admin/"},
+	{pattern: "GET /admin/websites"},
+	{pattern: "GET /admin/websites/{id}"},
+	{pattern: "POST /admin/websites/{id}"},
+	{pattern: "GET /admin/websites/{id}/pages"},
+	{pattern: "GET /admin/websites/{id}/uebersetzungen"},
+	{pattern: "GET /admin/websites/{id}/pages/new"},
+	{pattern: "POST /admin/websites/{id}/pages/new"},
+	{pattern: "GET /admin/websites/{id}/pages/{pageID}/edit"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/edit"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/delete"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/status"},
+	{pattern: "GET /admin/websites/{id}/pages/{pageID}/edit-title"},
+	{pattern: "PUT /admin/websites/{id}/pages/{pageID}/title"},
+	{pattern: "POST /admin/websites/{id}/pages/preview"},
+	{pattern: "POST /admin/websites/{id}/pages/bulk"},
+	{pattern: "POST /admin/websites/{id}/spalten"},
+	{pattern: "POST /admin/websites/{id}/ansichten"},
+	{pattern: "POST /admin/websites/{id}/ansichten/{viewID}/loeschen"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/share"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/uebersetzen"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/duplicate"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/review"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/insert-media"},
+	{pattern: "GET /admin/websites/{id}/pages/{pageID}/revisions"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/revisions/{revID}/restore"},
+	{pattern: "GET /admin/websites/{id}/pages/{pageID}/revisions/vergleich"},
+	{pattern: "POST /admin/websites/{id}/pages/{pageID}/revisions/{revID}/beschriften"},
+	{pattern: "GET /admin/websites/{id}/snippets"},
+	{pattern: "POST /admin/websites/{id}/snippets"},
+	{pattern: "POST /admin/websites/{id}/snippets/{snippetID}/delete"},
+	{pattern: "GET /admin/websites/{id}/redirects"},
+	{pattern: "POST /admin/websites/{id}/redirects"},
+	{pattern: "POST /admin/websites/{id}/redirects/{redirectID}/delete"},
+	{pattern: "GET /admin/websites/{id}/trash"},
+	{pattern: "POST /admin/websites/{id}/trash/{pageID}/restore"},
+	{pattern: "GET /admin/websites/{id}/preview"},
+	{pattern: "GET /admin/websites/{id}/preview/t/{path...}"},
+	{pattern: "GET /admin/websites/{id}/preview/{slug}"},
+	{pattern: "GET /admin/websites/{id}/design"},
+	{pattern: "POST /admin/websites/{id}/design/activate"},
+	{pattern: "GET /admin/websites/{id}/produkte"},
+	{pattern: "GET /admin/websites/{id}/produkte/{productID}"},
+	{pattern: "POST /admin/websites/{id}/produkte/{productID}"},
+	{pattern: "POST /admin/websites/{id}/produkte/{productID}/delete"},
+	{pattern: "GET /admin/websites/{id}/bestellungen"},
+	{pattern: "GET /admin/websites/{id}/bestellungen/{number}"},
+	{pattern: "POST /admin/websites/{id}/bestellungen/{number}"},
+	{pattern: "GET /admin/websites/{id}/bestellungen/{number}/{kind}"},
+	{pattern: "GET /admin/websites/{id}/menus"},
+	{pattern: "POST /admin/websites/{id}/menus"},
+	{pattern: "GET /admin/websites/{id}/menus/{menuID}"},
+	{pattern: "POST /admin/websites/{id}/menus/{menuID}/update"},
+	{pattern: "POST /admin/websites/{id}/menus/{menuID}/delete"},
+	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items"},
+	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/update"},
+	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/delete"},
+	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/reorder"},
+	{pattern: "GET /admin/websites/{id}/albums"},
+	{pattern: "POST /admin/websites/{id}/albums"},
+	{pattern: "GET /admin/websites/{id}/albums/{albumID}"},
+	{pattern: "POST /admin/websites/{id}/albums/{albumID}/update"},
+	{pattern: "POST /admin/websites/{id}/albums/{albumID}/delete"},
+	{pattern: "POST /admin/websites/{id}/albums/{albumID}/pictures"},
+	{pattern: "POST /admin/websites/{id}/albums/{albumID}/pictures/{itemID}/update"},
+	{pattern: "POST /admin/websites/{id}/albums/{albumID}/pictures/{itemID}/delete"},
+	{pattern: "POST /admin/websites/{id}/albums/{albumID}/pictures/{itemID}/reorder"},
+	{pattern: "GET /admin/websites/{id}/tags"},
+	{pattern: "POST /admin/websites/{id}/tags/{termID}/rename"},
+	{pattern: "POST /admin/websites/{id}/tags/{termID}/delete"},
+	{pattern: "GET /admin/websites/{id}/media"},
+	{pattern: "POST /admin/websites/{id}/media/upload"},
+	{pattern: "POST /admin/websites/{id}/media/{mediaID}/delete"},
+	{pattern: "POST /admin/websites/{id}/media/{mediaID}/meta"},
+	{pattern: "GET /admin/websites/{id}/media/{mediaID}/zuschnitt"},
+	{pattern: "POST /admin/websites/{id}/media/{mediaID}/zuschnitt"},
+	{pattern: "GET /admin/websites/{id}/media/picker"},
+	{pattern: "GET /admin/plugins/{id}/bildschirm"},
+	{pattern: "POST /admin/plugins/{id}/bildschirm"},
+	{pattern: "GET /admin/websites/{websiteID}/plugins/{id}"},
+	{pattern: "POST /admin/websites/{websiteID}/plugins/{id}"},
+	{pattern: "GET /admin/templates"},
+}
+
+// handlerDecidesRoutes are the routes the ROUTER cannot classify, because the
+// answer depends on who is asking about whom. Each one names the check and
+// where it lives; a route here without a reason is a route nobody thought
+// about.
+var handlerDecidesRoutes = []struct {
+	pattern string
+	because string
+}{
+	{"GET /admin/users/{id}/password",
+		"an editor must be able to change their OWN password. HandlePasswordChange " +
+			"refuses !isSelf for a non-admin at internal/admin/user.go:409-416, which is a " +
+			"rule about two identities and not about a role, so requireAdmin cannot express it"},
+	{"POST /admin/users/{id}/password",
+		"the same handler and the same check, on the arm that writes"},
+}
+
+// adminRoutesInSource reads the patterns straight out of newRouter.
+//
+// From the source and not from the mux, because http.ServeMux does not hand
+// its patterns back — and reading the source is what makes this a check on the
+// router rather than a check on itself.
+func adminRoutesInSource(t *testing.T) map[string]bool {
+	t.Helper()
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	re := regexp.MustCompile(`adminProtectedMux\.(?:HandleFunc|Handle)\("((?:GET|POST|PUT|DELETE) /admin[^"]*)"`)
+	out := map[string]bool{}
+	for _, m := range re.FindAllStringSubmatch(string(src), -1) {
+		out[m[1]] = true
+	}
+	if len(out) < 50 {
+		t.Fatalf("only %d admin routes found in main.go — the pattern above has "+
+			"stopped matching the registrations, and this whole test would pass vacuously", len(out))
+	}
+	return out
+}
+
+// TestEveryAdminRouteIsClassified is the net under the three tables.
+func TestEveryAdminRouteIsClassified(t *testing.T) {
+	registered := adminRoutesInSource(t)
+
+	classified := map[string]string{}
+	add := func(pattern, list string) {
+		if was, dup := classified[pattern]; dup {
+			t.Errorf("%s is in both %s and %s — a route has one answer", pattern, was, list)
+			return
+		}
+		classified[pattern] = list
+	}
+	for _, r := range adminOnlyRoutes {
+		add(r.pattern, "adminOnlyRoutes")
+	}
+	for _, r := range editorOpenRoutes {
+		add(r.pattern, "editorOpenRoutes")
+	}
+	for _, r := range handlerDecidesRoutes {
+		add(r.pattern, "handlerDecidesRoutes")
+		if len(r.because) < 40 {
+			t.Errorf("%s is in handlerDecidesRoutes with no real reason — that list is "+
+				"where a route goes when somebody has read the handler, not where it goes to be quiet", r.pattern)
+		}
+	}
+
+	for pattern := range registered {
+		if classified[pattern] == "" {
+			t.Errorf("%s is registered and classified nowhere. Put it in adminOnlyRoutes, "+
+				"in editorOpenRoutes, or — if the handler decides — in handlerDecidesRoutes "+
+				"with the reason", pattern)
+		}
+	}
+	for pattern, list := range classified {
+		if !registered[pattern] {
+			t.Errorf("%s is in %s and is registered nowhere; the route was renamed or "+
+				"removed and its declaration was left behind", pattern, list)
+		}
+	}
+}
+
+// TestTheClassificationMatchesTheBehaviour drives every classified route as an
+// editor and holds it to what the table says.
+//
+// This is the half that catches a silent inversion: change a route in main.go
+// from requireAdmin to open and the declaration above still says admin-only,
+// so this fails. A 404 is fine everywhere — the fixtures are deliberately
+// empty, and the question is who may enter.
+func TestTheClassificationMatchesTheBehaviour(t *testing.T) {
+	handler, sm, database := testRouter(t)
+	editor := seedUser(t, handler, sm, database, "editor-cls@test", "editor")
+
+	for _, r := range adminOnlyRoutes {
+		method, path := r.concrete()
+		if got := do(handler, method, path, editor).Code; got != http.StatusForbidden {
+			t.Errorf("%s: editor got %d, want 403 — it is declared admin-only", r.pattern, got)
+		}
+	}
+	for _, r := range editorOpenRoutes {
+		method, path := r.concrete()
+		if got := do(handler, method, path, editor).Code; got == http.StatusForbidden {
+			t.Errorf("%s: editor got 403 — it is declared open to editors", r.pattern)
+		}
 	}
 }
