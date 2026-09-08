@@ -215,22 +215,33 @@ func TestSecondFactorSetupScreenDropsTheCompulsoryWarningForAnSSOAdmin(t *testin
 // provider meets a second-factor card that simply asks nothing of them, with no
 // explanation of why.
 func TestAccountScreenTellsAnSSOPersonWhereTheirSecondFactorIsEnforced(t *testing.T) {
-	h, sm, _ := newSecondFactorAdmin(t)
+	h, sm, database := newSecondFactorAdmin(t)
 
+	// enrolled is the half of the screen a grep gate for "ViaSSO" cannot see:
+	// the card has two branches and the sentence sits above both, so a notice
+	// moved inside one of them would still satisfy the grep while half the
+	// people it was written for never read it.
 	for _, tc := range []struct {
-		name   string
-		role   string
-		email  string
-		viaSSO bool
-		want   bool
+		name     string
+		role     string
+		email    string
+		viaSSO   bool
+		enrolled bool
+		want     bool
 	}{
-		{"an administrator through the identity provider", user.RoleAdmin, "a@test.local", true, true},
-		{"an editor through the identity provider", user.RoleEditor, "b@test.local", true, true},
-		{"an administrator with a password", user.RoleAdmin, "c@test.local", false, false},
-		{"an editor with a password", user.RoleEditor, "d@test.local", false, false},
+		{"an administrator through the identity provider", user.RoleAdmin, "a@test.local", true, false, true},
+		{"an editor through the identity provider", user.RoleEditor, "b@test.local", true, false, true},
+		{"an administrator with a password", user.RoleAdmin, "c@test.local", false, false, false},
+		{"an editor with a password", user.RoleEditor, "d@test.local", false, false, false},
+		{"an administrator through the identity provider who set one up here anyway", user.RoleAdmin, "e@test.local", true, true, true},
+		{"an editor through the identity provider who set one up here anyway", user.RoleEditor, "f@test.local", true, true, true},
+		{"an administrator with a password who has one", user.RoleAdmin, "g@test.local", false, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			id := seedSecondFactorAccount(t, h, tc.email, tc.role)
+			if tc.enrolled {
+				enableSecondFactor(t, database, id)
+			}
 			req := httptest.NewRequest(http.MethodGet, "/admin/konto", nil)
 			rec := serveSignedIn(t, h, sm, h.HandleAccount, req, id, tc.viaSSO)
 			got := strings.Contains(rec.Body.String(), "Anmeldung deiner Organisation")
