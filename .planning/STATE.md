@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Completed 10-06-PLAN.md
-last_updated: "2026-09-08T05:51:50.641Z"
+stopped_at: Completed 10-07-PLAN.md
+last_updated: "2026-09-08T05:55:53.233Z"
 last_activity: 2026-09-06
-state_head: ce33c563edd1bae6c021a29cdb2b83d3e7ba90a3
+state_head: 67d262d314b2b896439ed9fd2413a06e75829451
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 42
-  completed_plans: 38
+  completed_plans: 39
   percent: 29
 ---
 
@@ -270,6 +270,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 11 P07 | 40 min | 2 tasks | 9 files |
 | Phase 10 P05 | 40 min | 2 tasks | 2 files |
 | Phase 10 P06 | 25 min | 3 tasks | 7 files |
+| Phase 10 P07 | 28 min | 2 tasks | 2 files |
 
 ### Session Continuity
 
@@ -298,8 +299,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T05:51:43.021Z
-**Stopped at:** Completed 10-06-PLAN.md
+**Last session:** 2026-09-08T05:55:34.195Z
+**Stopped at:** Completed 10-07-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -369,6 +370,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 11]: 10-05: an editor whose groups map to no configured website is refused the sign-in rather than written as an empty assignment — D-01's inversion reached by subtraction
 - [Phase 11]: 10-05: with HOLZCLOUD_SSO_WEBSITE_GROUPS unset the website half of the sync does not run; the invariant is that it never WRITES an empty assignment, not that an empty result is always a refusal
 - [Phase 10]: MustHaveSecondFactor gains a viaSSO parameter rather than a variant: the arity change is what made the compiler enumerate five call sites where ROADMAP.md and 10-CONTEXT.md both recorded one
+- [Phase 10]: 10-07: Die Abmeldung einer über den Ausweisdienst begonnenen Sitzung leitet auf cfg.SSOSignOutPath um — ein Pfad auf diesem Server, nie aus r.Host zusammengesetzt. ROADMAP.md Zeile 481 verlangt das Gegenteil und widerspricht sich dabei selbst; Mutation 5 ist genau dieser Satz und ist an fünf Stellen rot.
+- [Phase 10]: 10-07: web.AdminCSP / web.AdminHeadersWith (Bauschritt ⑦) wurden bewusst NICHT gebaut — das Ziel ist gleicher Ursprung, also genügt form-action 'self'. Zwei Tests halten die Voraussetzung; sie fallen zuerst, sobald ein eigener Outpost-Host unterstützt wird.
+- [Phase 10]: 10-07: auth.SafeReturn wird nicht wiederverwendet, obwohl die Roadmap es verlangt — gemessen: SafeReturn("/outpost.goauthentik.io/sign_out") liefert "/admin/", die Abmeldung hätte den Menschen zurück in die Verwaltung geschickt.
 
 ## Accumulated Context
 
