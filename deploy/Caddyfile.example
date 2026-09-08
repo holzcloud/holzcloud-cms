@@ -12,14 +12,19 @@
 # Usage:
 #   sudo cp Caddyfile.example /etc/caddy/Caddyfile
 #   sudo systemctl reload caddy
+#
+# Minimum Caddy version for the single sign-on block at the foot of this file:
+# 2.11.2. Check with `caddy version`. The reason is CVE-2026-30851 and it is
+# explained where the block is; if you do not use single sign-on, any version
+# Caddy still supports will serve this file.
 
-# Shared settings for every site served by Holzcloud.
+# The transport-level response headers, kept in their own snippet so that the
+# plain site and the single sign-on site share one definition instead of two
+# that drift apart.
 #
 # The application sets its own Content-Security-Policy on /admin and on media
-# responses; these are the transport-level headers that belong at the edge.
-(holzcloud) {
-	reverse_proxy localhost:8080
-
+# responses; these are the headers that belong at the edge.
+(holzcloud-headers) {
 	header {
 		# HSTS — only meaningful once the domain is reliably served over HTTPS.
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -29,6 +34,118 @@
 		-Server
 	}
 }
+
+# Shared settings for every site served by Holzcloud.
+(holzcloud) {
+	reverse_proxy localhost:8080
+
+	import holzcloud-headers
+}
+
+# ─── Single sign-on through an Authentik outpost ─────────────────────────────
+#
+# Off by default. An installation that does not use single sign-on copies this
+# file and nothing below changes anything for it.
+#
+# To switch it on: uncomment the snippet, replace authentik.example.com:9000
+# with your own outpost address, and change the primary domain block above to
+# `import holzcloud-sso` instead of `import holzcloud`. Then set
+# HOLZCLOUD_SSO_ENABLED=true and the rest of the settings in the CMS's service
+# unit — see deploy/DEPLOY.md, section "Single sign-on (Authentik forward auth)".
+#
+# Everything sits inside one `route`, because a `route` runs its directives in
+# the order they are written here and nothing else in a Caddyfile guarantees
+# that. The order is the point: the deletes stand before the question is asked.
+#
+# (holzcloud-sso) {
+# 	# 1. The outpost, on this application's own domain.
+# 	#
+# 	# Keeping it here rather than on a host of its own is what makes the
+# 	# sign-out same-origin, and that is what keeps `form-action 'self'` in the
+# 	# admin's own content security policy sufficient. Move the outpost to its
+# 	# own host and the sign-out redirect stops working in Safari — silently,
+# 	# and only there. The CMS's sign-out target is a path and never a URL
+# 	# (HOLZCLOUD_SSO_SIGN_OUT_PATH, validated at start-up as exactly one
+# 	# leading slash), so it can only ever land on this domain anyway.
+# 	handle /outpost.goauthentik.io/* {
+# 		reverse_proxy authentik.example.com:9000
+# 	}
+#
+# 	handle {
+# 		route {
+# 			# 2. Delete the client's own identity headers. This is the
+# 			#    longest comment in this file and it earns it.
+# 			#
+# 			#    `forward_auth`'s `copy_headers` generates a CONDITIONAL
+# 			#    set and, before Caddy 2.11.2, NO delete. When the outpost
+# 			#    answers 200 without emitting one of these headers — an
+# 			#    anonymous route, an account with no e-mail address,
+# 			#    anything Authentik chose not to send — the client's own
+# 			#    value passed through to the backend untouched. That is
+# 			#    CVE-2026-30851 (GHSA-7r4p-vjf4-gxv4), present in Caddy
+# 			#    2.10.0 through 2.11.1 and fixed in 2.11.2. It had been
+# 			#    latent since November 2024, which means it is in the
+# 			#    stable apt package a lot of servers are running.
+# 			#
+# 			#    Both spellings are deleted. Go canonicalises `-` in a
+# 			#    header name but not `_`, so `X-authentik-email` and
+# 			#    `X_authentik_email` are two different headers — the
+# 			#    companion advisory GHSA-f59h-q822-g45g /
+# 			#    CVE-2026-52845. Measured on Caddy 2.11.4: the delete the
+# 			#    fix emits is for the canonical hyphenated name only, so
+# 			#    the underscore lines below are load-bearing even on a
+# 			#    Caddy that carries the fix.
+# 			#
+# 			#    Holzcloud deletes all of these again itself,
+# 			#    unconditionally, on every path and whoever the peer was,
+# 			#    before any handler runs (internal/web/forwardauth.go).
+# 			#    These lines are not what makes it safe; they are what
+# 			#    makes it correct here, so that a mistake in this file is
+# 			#    a mistake and not a way in.
+# 			request_header -X-authentik-username
+# 			request_header -X_authentik_username
+# 			request_header -X-authentik-email
+# 			request_header -X_authentik_email
+# 			request_header -X-authentik-name
+# 			request_header -X_authentik_name
+# 			request_header -X-authentik-groups
+# 			request_header -X_authentik_groups
+#
+# 			# 3. Ask the outpost who this is.
+# 			#
+# 			#    Only the four headers the CMS actually reads are copied.
+# 			#    Authentik also offers -uid, -jwt, -entitlements and the
+# 			#    -meta-* family; the CMS reads none of them, and a header
+# 			#    that is not copied is a header that cannot be got wrong.
+# 			#    In particular the identity is pinned to the username and
+# 			#    NOT to -uid, because -uid is the OIDC subject and its
+# 			#    shape depends on the provider's Subject mode.
+# 			forward_auth authentik.example.com:9000 {
+# 				uri /outpost.goauthentik.io/auth/caddy
+# 				copy_headers X-authentik-username X-authentik-email X-authentik-name X-authentik-groups
+# 			}
+#
+# 			# 4. The shared secret, and only on the hop to the CMS.
+# 			#
+# 			#    It proves the request came through this installation's
+# 			#    own proxy, and the CMS compares it in constant time. The
+# 			#    name is this installation's, not Authentik's, because a
+# 			#    header the proxy adds must be distinguishable from one it
+# 			#    merely copies. It is read from Caddy's environment and
+# 			#    never written into this file: a Caddyfile is a file
+# 			#    people paste into forums. The CMS's service unit sets the
+# 			#    same value; deploy/DEPLOY.md says where.
+# 			#
+# 			#    It is set after `forward_auth` on purpose, so the secret
+# 			#    goes to the CMS and not to the outpost.
+# 			reverse_proxy localhost:8080 {
+# 				header_up X-Holzcloud-Proxy-Secret {env.HOLZCLOUD_SSO_SECRET}
+# 			}
+# 		}
+# 	}
+#
+# 	import holzcloud-headers
+# }
 
 # Primary domain — admin + public site
 example.com {
@@ -43,7 +160,10 @@ example.com {
 # }
 
 # Caddy sets X-Forwarded-For automatically. Holzcloud only believes that header
-# when the request came from loopback — which is exactly this proxy — so the
-# login throttle keys on the real visitor instead of lumping the whole internet
-# into one bucket. Do not remove the header, and do not proxy from another host
-# without adjusting internal/admin/login.go:isTrustedProxy.
+# when the request came from a trusted peer — by default loopback, which is
+# exactly this proxy — so the login throttle keys on the real visitor instead of
+# lumping the whole internet into one bucket. Do not remove the header, and do
+# not proxy from another host without listing that host's address in
+# HOLZCLOUD_TRUSTED_PROXIES, the CIDR list read by internal/web/clientip.go. A
+# proxy on another host also needs HOLZCLOUD_LISTEN, because the CMS binds
+# 127.0.0.1 unless it is told otherwise.
