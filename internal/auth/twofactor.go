@@ -41,7 +41,25 @@ type SecondFactorLookup func(ctx context.Context, id int64) (SecondFactorState, 
 // installation, upload a template and reach every site. Editors are not: they
 // can be given the choice, and forcing a second factor on someone who edits
 // opening hours is how shared logins get created.
-func MustHaveSecondFactor(role string) bool { return role == "admin" }
+//
+// viaSSO is how the session was established, not who established it. A session
+// that came through the reverse proxy has already passed whatever the identity
+// provider demanded of it, so asking for a second factor here would ask the
+// same person for two — and the developer decided on 2026-09-03 that it does
+// not. The consequence belongs in the same breath as the decision: from that
+// point on, whether an administrator of this installation is protected by two
+// factors is settled on the operator's identity provider and not here. That
+// dependency is not left in this comment. It is stated in DEPLOY.md and shown
+// on two admin screens — the person's own account screen and the user list —
+// so anybody changing this function knows what else has to change with it.
+//
+// This is the only home of the decision. Every screen that says "compulsory"
+// and the middleware that enforces it ask this one function; there is no
+// second predicate and no wrapper, which is why the parameter was added rather
+// than a variant, so that the compiler enumerates the callers.
+func MustHaveSecondFactor(role string, viaSSO bool) bool {
+	return role == "admin" && !viaSSO
+}
 
 // RequireSecondFactor sends an account that owes a second factor to the setup
 // page, and lets everything else through.
@@ -67,7 +85,10 @@ func RequireSecondFactor(sm *scs.SessionManager, lookup SecondFactorLookup) Midd
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-			if MustHaveSecondFactor(state.Role) && !state.Enabled {
+			// scs answers false for a key that is not there, so a session
+			// reached by password takes no new branch here at all.
+			viaSSO := sm.GetBool(r.Context(), SessionKeyViaSSO)
+			if MustHaveSecondFactor(state.Role, viaSSO) && !state.Enabled {
 				http.Redirect(w, r, SetupPath, http.StatusSeeOther)
 				return
 			}

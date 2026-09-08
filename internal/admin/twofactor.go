@@ -54,6 +54,13 @@ type TwoFactorStatusData struct {
 	RecoveryLeft int
 }
 
+// viaSSO reports how this session was established. One reader per screen, one
+// writer in forwardauth.go — the fact is recorded once and never re-derived
+// from a header, because the headers are gone by the time any handler runs.
+func (h *Handler) viaSSO(r *http.Request) bool {
+	return h.sm.GetBool(r.Context(), auth.SessionKeyViaSSO)
+}
+
 // HandleTwoFactorVerify asks a half-authenticated session for its code.
 func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) error {
 	pending := h.sm.GetInt64(r.Context(), auth.SessionKeyPendingUserID)
@@ -164,7 +171,7 @@ func (h *Handler) HandleTwoFactorSetup(w http.ResponseWriter, r *http.Request) e
 		SecretGrouped: totp.FormatSecret(secret),
 		URI:           uri,
 		QR:            qrOrNothing(uri),
-		Required:      auth.MustHaveSecondFactor(role),
+		Required:      auth.MustHaveSecondFactor(role, h.viaSSO(r)),
 	}
 	data.ActiveNav = "account"
 	return web.RenderAdmin(w, h.templates, r, "two_factor_setup", data)
@@ -194,7 +201,7 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 			SecretGrouped: totp.FormatSecret(tf.PendingSecret),
 			URI:           retryURI,
 			QR:            qrOrNothing(retryURI),
-			Required:      auth.MustHaveSecondFactor(role),
+			Required:      auth.MustHaveSecondFactor(role, h.viaSSO(r)),
 			Error:         "Der Code stimmt nicht. Prüfe, ob die Uhr des Geräts richtig geht.",
 		}
 		data.ActiveNav = "account"
@@ -271,7 +278,7 @@ func (h *Handler) HandleTwoFactorDisable(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return err
 	}
-	if auth.MustHaveSecondFactor(role) {
+	if auth.MustHaveSecondFactor(role, h.viaSSO(r)) {
 		web.SetFlashError(h.sm, r.Context(),
 			"Für Administratoren ist die Bestätigung in zwei Schritten Pflicht. "+
 				"Wenn das Gerät verloren ist, hilft ein Wiederherstellungscode oder "+
@@ -371,6 +378,11 @@ type AccountData struct {
 	// Chosen is the stored tag, empty when nobody has chosen and the browser
 	// decides.
 	Chosen string
+	// ViaSSO says this session came through the identity provider. The screen
+	// uses it to explain why nothing about a second factor is being asked of
+	// this person — the same fact MustHaveSecondFactor decides, read from the
+	// same session key, so what is shown and what is enforced cannot drift.
+	ViaSSO bool
 }
 
 // HandleAccount shows the signed-in account and its second factor.
@@ -399,8 +411,9 @@ func (h *Handler) HandleAccount(w http.ResponseWriter, r *http.Request) error {
 		Email:      email,
 		Role:       role,
 		TwoFactorStatusData: TwoFactorStatusData{
-			Required: auth.MustHaveSecondFactor(role),
+			Required: auth.MustHaveSecondFactor(role, h.viaSSO(r)),
 		},
+		ViaSSO: h.viaSSO(r),
 	}
 	if tf != nil {
 		data.Enabled = tf.Enabled()
