@@ -6,9 +6,9 @@ current_phase: 11
 current_phase_name: Galerie
 status: in_progress
 stopped_at: Completed 10-06-PLAN.md
-last_updated: "2026-09-08T05:51:43.235Z"
+last_updated: "2026-09-08T05:51:50.641Z"
 last_activity: 2026-09-06
-state_head: f333a7b22978435eca48aff4a19525f5ed1e6992
+state_head: ce33c563edd1bae6c021a29cdb2b83d3e7ba90a3
 progress:
   total_phases: 7
   completed_phases: 2
@@ -368,6 +368,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 11]: ErrDuplicateSlug bekommt einen eigenen Satz, getrennt von ErrDuplicateName — Nach einer Umbenennung sind Adress- und Namenskollision verschiedene Ereignisse. 'Ein Album mit diesem Namen gibt es schon' schickt den Betreiber sonst in eine Liste, in der dieser Name nicht vorkommt.
 - [Phase 11]: 10-05: an editor whose groups map to no configured website is refused the sign-in rather than written as an empty assignment — D-01's inversion reached by subtraction
 - [Phase 11]: 10-05: with HOLZCLOUD_SSO_WEBSITE_GROUPS unset the website half of the sync does not run; the invariant is that it never WRITES an empty assignment, not that an empty result is always a refusal
+- [Phase 10]: MustHaveSecondFactor gains a viaSSO parameter rather than a variant: the arity change is what made the compiler enumerate five call sites where ROADMAP.md and 10-CONTEXT.md both recorded one
 
 ## Accumulated Context
 
