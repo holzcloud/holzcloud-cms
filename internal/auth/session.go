@@ -15,6 +15,22 @@ const (
 	SessionKeyUserEmail    = "user_email"
 	SessionKeyFlashError   = "flash_error"
 	SessionKeyFlashSuccess = "flash_success"
+
+	// SessionKeyViaSSO records HOW this session was established, not who
+	// established it: true means the sign-in came through forward
+	// authentication rather than through the password form.
+	//
+	// It is written in exactly one place — the forward-auth sign-in in
+	// package admin — and read in exactly two: the second-factor decision,
+	// which must not demand an authenticator the identity provider has
+	// already asked for, and the sign-out, which has to end the session at the
+	// identity provider as well. Every other question about a session is about
+	// who, and none of them belong here.
+	//
+	// A session reached by password never carries it, and scs's GetBool
+	// answers false for a key that is not there, so the absent case needs no
+	// branch anywhere.
+	SessionKeyViaSSO = "via_sso"
 )
 
 // DestroyUserSessions ends every stored session belonging to userID, except the
