@@ -418,7 +418,7 @@ Plans:
   5. With single sign-on switched off, nothing about signing in changes: the password path, the second factor, the recovery codes and the command-line way back in all behave exactly as they do today — proven by a browser pass run with forward-auth **disabled**.
   6. **Milestone close-out** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist` across everything v1.6 added, and every field kind from Phase 7, the snippet fields from Phase 8, **both** import paths from Phase 9 and the sign-on path here have each been driven once through the running application in a browser.
 
-**Plans**: 1/10 plans executed, in 9 waves. The wave structure **is** the eight-step build order below, which is why the waves are mostly sequential: each step is independently shippable and reversible, and step ② is explicitly the security core that must exist before anything can rest on it. Only wave 6 runs two plans together — the second factor and the sign-out share no file. GSD's tracer-first default is deliberately overruled for the same reason the build order gives: a tracer that signs somebody in end to end before the peer gate exists is not a thin slice of the finished system, it is the vulnerability with a test asserting it works.
+**Plans**: 3/10 plans executed, in 9 waves. The wave structure **is** the eight-step build order below, which is why the waves are mostly sequential: each step is independently shippable and reversible, and step ② is explicitly the security core that must exist before anything can rest on it. Only wave 6 runs two plans together — the second factor and the sign-out share no file. GSD's tracer-first default is deliberately overruled for the same reason the build order gives: a tracer that signs somebody in end to end before the peer gate exists is not a thin slice of the finished system, it is the vulnerability with a test asserting it works.
 
 Plans:
 **Wave 1**
@@ -427,11 +427,11 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 10-02-PLAN.md — the trust boundary: peer before header, the unconditional strip of every spelling, the constant-time secret, and the signed assertion deliberately not built — wired outermost, above `RequestID` (SSO-02, SSO-03, SSO-04)
+- [x] 10-02-PLAN.md — the trust boundary: peer before header, the unconditional strip of every spelling, the constant-time secret, and the signed assertion deliberately not built — wired outermost, above `RequestID` (SSO-02, SSO-03, SSO-04)
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 10-03-PLAN.md — the fourth caller of `completeLogin`: `RenewToken`, the account match, the non-ASCII e-mail refusal, and a gate for each of the seven things that must not change (SSO-01, SSO-09)
+- [x] 10-03-PLAN.md — the fourth caller of `completeLogin`: `RenewToken`, the account match, the non-ASCII e-mail refusal, and a gate for each of the seven things that must not change (SSO-01, SSO-09)
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -590,7 +590,7 @@ anywhere.
 | 7. Field Kinds | v1.6 | 7/7 | Complete | 2026-09-06 |
 | 8. Snippets Carry Fields | v1.6 | 5/5 | Complete | 2026-09-06 |
 | 9. CSV Import | v1.6 | 6/6 | Complete | 2026-09-07 |
-| 10. Authentik Forward-Auth | v1.6 | 1/10 | In Progress | - |
+| 10. Authentik Forward-Auth | v1.6 | 3/10 | In Progress|  |
 | 11. Galerie | v1.6 | 6/7 | In Progress |  |
 | 12. The Codebase Speaks English | v1.6 | 0/TBD | Not planned | - |
 
