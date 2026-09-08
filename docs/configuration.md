@@ -8,6 +8,8 @@ no configuration file: a process with the right environment is the whole setup.
 | Variable | Default | Description |
 |---|---|---|
 | `HOLZCLOUD_PORT` | `8080` | HTTP listen port |
+| `HOLZCLOUD_LISTEN` | `127.0.0.1` | The address the server binds. Loopback by default, which suits a proxy on the same host; a proxy elsewhere or a container with a published port needs `0.0.0.0` (or `::`) |
+| `HOLZCLOUD_TRUSTED_PROXIES` | `127.0.0.1/32,::1/128` | CIDRs whose `X-Forwarded-For` is believed, and the same list that decides whether a forwarded identity is even read |
 | `HOLZCLOUD_DATA_DIR` | `data` | Directory for the SQLite database, media and uploaded templates |
 | `HOLZCLOUD_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARN`, `ERROR` |
 | `HOLZCLOUD_SECURE` | `false` | Set `true` behind TLS — enables Secure cookies |
@@ -25,6 +27,23 @@ no configuration file: a process with the right environment is the whole setup.
 | `HOLZCLOUD_SMTP_FROM` | — | Sender address. To be set together with `_HOST` |
 | `HOLZCLOUD_SMTP_FROM_NAME` | — | Display name of the sender |
 | `HOLZCLOUD_SMTP_TLS` | `starttls` | `starttls`, `tls` or `none` |
+| `HOLZCLOUD_SSO_ENABLED` | `false` | Accept a sign-in forwarded by a reverse proxy from an identity provider. Off means the whole path is dead code |
+| `HOLZCLOUD_SSO_SECRET` | — | The shared secret the proxy sends. Required when SSO is on, environment only, never logged |
+| `HOLZCLOUD_SSO_ADMIN_GROUP` | — | The provider group that grants administration. No default on purpose; empty means no group does |
+| `HOLZCLOUD_SSO_WEBSITE_GROUPS` | — | Comma-separated `group=websiteID` pairs deciding which websites a group may enter |
+| `HOLZCLOUD_SSO_PROVISION` | `false` | Create an account for an identity this installation has never seen |
+| `HOLZCLOUD_SSO_DEFAULT_WEBSITE` | — | The website such an account is assigned to. Required whenever provisioning is on, and the service refuses to start without it |
+| `HOLZCLOUD_SSO_SIGN_OUT_PATH` | `/outpost.goauthentik.io/sign_out` | Where signing out sends the browser. A path on this server, never a URL |
+
+## Single sign-on
+
+The seven `HOLZCLOUD_SSO_` settings are inert until `HOLZCLOUD_SSO_ENABLED` is
+true, and several of them refuse to start the process in a combination that
+would be dangerous rather than merely wrong. The reasoning behind each — why the
+administration group has no default, why provisioning without a default website
+is a refusal and not a warning, and which minimum version of Caddy the
+arrangement needs — is in [`deploy/DEPLOY.md`](../deploy/DEPLOY.md), and is not repeated
+here.
 
 ## E-mail
 

@@ -4,6 +4,7 @@
 - [No runtime dependencies on third parties](#no-runtime-dependencies-on-third-parties)
 - [Why a Holzcloud site needs no cookie banner](#why-a-holzcloud-site-needs-no-cookie-banner)
 - [Two-factor authentication](#two-factor-authentication)
+- [Signing in through an identity provider](#signing-in-through-an-identity-provider)
 - [Rights per person](#rights-per-person)
 - [The password again, before the irreversible](#the-password-again-before-the-irreversible)
 - [Protected pages and preview links](#protected-pages-and-preview-links)
@@ -127,6 +128,63 @@ whole installation, so there are two ways back:
 A code is refused once it has been used, even inside the thirty seconds it stays
 arithmetically valid: that window is long enough for somebody who read the digits
 over a shoulder to type them in afterwards.
+
+There is one way this requirement is satisfied elsewhere: an installation wired
+to an identity provider accepts that provider's session as the second step, so
+what is asked for is then whatever the provider asks for. That is configured at
+the provider and not here, it is stated on *My account* and on the user list of
+any installation where it is switched on, and the section below says what it
+costs.
+
+## Signing in through an identity provider
+
+An installation may be wired to an organisation's own sign-in — Authentik, behind
+a reverse proxy that asks it who the visitor is and passes the answer on. It is
+off unless somebody switches it on, and while it is off not one line of it runs.
+It is worth describing here because it is **the first place in this program that
+believes a claim about who somebody is**, rather than verifying one. Everything
+else either checks a password, checks a secret it holds itself, or trusts nothing
+at all. A forwarded identity header is an ordinary line of text, and anything
+that can open a socket to this program can write one.
+
+So the believing is made narrow, in four layers, each covering a different
+failure of the one before it.
+
+**The address the connection came from.** Read from the accepted socket, and
+therefore not something a client can choose. It is checked *before* any identity
+header is read, so a claim from an untrusted peer is never even fetched — and
+that ordering is asserted against the source, because no answer the program gives
+could tell the two orderings apart.
+
+**Deleting the headers.** Every inbound header whose name looks like an identity
+header is removed on every request, whoever the peer was, before any handler
+runs. It is driven by a scan of the request's own header names rather than by a
+list somebody has to keep in step with a program on another machine, and it folds
+underscores to hyphens first, because those are two distinct names to Go and one
+name to a careless reader. This layer is why a reverse proxy that forwards a
+visitor's own copy — which a defect in Caddy made the default for a year — is a
+misconfiguration on somebody else's server rather than a way in here.
+
+**A shared secret.** The proxy adds a header this installation names itself, and
+this program compares it in constant time. It has nothing to do with the identity
+provider; it exists so that a mistake in the first layer is not on its own
+enough. It lives in the environment, never in the database, and it is stripped
+from the request before any handler could log it.
+
+**A signed assertion** would be the fourth, and it is deliberately **not** built.
+The reason is written in the source rather than left to be rediscovered: the
+three layers above are what a forward-auth arrangement can actually rest on, and
+a signature that the same proxy could mint would add ceremony and no guarantee.
+
+What it costs, plainly: the installation now depends on the operator's identity
+provider and on the reverse proxy in front of it being configured correctly. What
+it does not cost: the password login is untouched and stays the way back in when
+the provider is down, group membership is re-read at every sign-in so a removal
+there takes effect here at the next one, and an account the provider vouches for
+but this installation has never seen is refused unless somebody deliberately
+switched account creation on — and then only into a website named in advance.
+`deploy/DEPLOY.md` has the settings and the one command an operator can use to
+check their own installation from the outside.
 
 ## Rights per person
 
