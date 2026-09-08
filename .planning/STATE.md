@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-09-08T04:20:53.241Z"
+stopped_at: Completed 10-04-PLAN.md
+last_updated: "2026-09-08T04:44:33.499Z"
 last_activity: 2026-09-06
-state_head: 57d10d1962431fd147982cacfc6b530a9f61a5e0
+state_head: 5280ba84ff66003ea2fc7d94757acc6e0b9575da
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 42
-  completed_plans: 34
+  completed_plans: 35
   percent: 29
 ---
 
@@ -266,6 +266,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 11 P06 | 21 min | 3 tasks | 7 files |
 | Phase 10 P01 | 42 min | 3 tasks | 4 files |
 | Phase 10 P03 | 23 min | 3 tasks | 5 files |
+| Phase 10 P04 | 15 min | 2 tasks | 2 files |
 
 ### Session Continuity
 
@@ -294,8 +295,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T04:20:53.036Z
-**Stopped at:** Completed 10-03-PLAN.md
+**Last session:** 2026-09-08T04:43:59.571Z
+**Stopped at:** Completed 10-04-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -357,6 +358,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 10]: Env-Variablennamen als Konstanten (envListen, envSSO*) — die einzige Form, in der die Zaehl-Schranke des Plans (7 Zeilen) und seine Verhaltensliste (jede Absage nennt ihre Variable) beide gelten
 - [Phase 10]: Startabsagen bleiben schlichte Go-Literale in Englisch, nicht im Katalog — das ist, was die Payrexx- und SMTP-Absagen bereits tun; tools/i18n bleibt bei 1311/34 offen unveraendert
 - [Phase 10]: handler.go's 'return assigned == 0 || mine > 0' steht auf Zeile 183, nicht 173 (ROADMAP) und nicht 178 (Plan). Neue Kommentare nennen die Funktion NewWebsiteAccessLookup statt einer Zeilennummer
+- [Phase 10]: provisionSSOUser writes the website assignment in the same function that creates the account — NewWebsiteAccessLookup reads zero rows in user_websites as access to every website; between Create and the assignment there must be no request, no error path and no later plan
+- [Phase 10]: The zero-rows property is proved through NewWebsiteAccessLookup, never by counting rows in user_websites — Mutation 7 writes exactly one row naming the wrong website: a row-counting test passes while the account reaches the site it must not have
+- [Phase 10]: errSSOEmptyAddress is a sentinel so provisioning's empty-address guard can be asserted apart from the two other layers that also refuse it — Mutation 5 stayed green because step 4 and user.Store.Create both refuse; a guard whose removal nothing notices gets deleted by the next tidier
 
 ## Accumulated Context
 
