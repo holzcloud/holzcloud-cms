@@ -1,22 +1,27 @@
 package admin
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -615,5 +620,538 @@ func TestForwardAuthNeverMatchesAnEmptyAddress(t *testing.T) {
 	}
 	if res.viaSSO {
 		t.Error("an identity with no address was marked as signed in through single sign-on")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Provisioning (plan 10-04)
+//
+// Everything below is about one seam. NewWebsiteAccessLookup in handler.go ends
+// with `return assigned == 0 || mine > 0` — no assignment means every website —
+// and a freshly provisioned account has zero rows in user_websites *by
+// construction*. The tests therefore never count rows in user_websites as their
+// main assertion; they ask that function.
+// ---------------------------------------------------------------------------
+
+// newProvisioningAdmin is newForwardAuthAdmin plus the three things provisioning
+// needs and cannot be tested without.
+//
+// Affordable hashing first: user.Store.Create really derives an Argon2id hash,
+// and the package's ordinary fixture hands the store the zero Argon2Params,
+// which panic rather than hash. cheapHashing is the same fixture menu_scope_test
+// uses and for the same reason.
+//
+// Then two websites, created here rather than reusing the one newTestAdmin
+// seeds, so that both have a name a failure message can print: the default one a
+// provisioned account is given, and the second one that exists only to be
+// refused.
+func newProvisioningAdmin(t *testing.T, provision bool) (h *Handler, sm *scs.SessionManager, database *db.DB, defaultWebsite, otherWebsite int64) {
+	t.Helper()
+	h, sm, database = newForwardAuthAdmin(t, true)
+	h.users.Params = cheapHashing
+
+	domains := domain.NewStore(database)
+	home, err := domains.CreateWebsite(context.Background(), "Die eigene Seite", "")
+	if err != nil {
+		t.Fatalf("create the default website: %v", err)
+	}
+	other, err := domains.CreateWebsite(context.Background(), "Die fremde Seite", "")
+	if err != nil {
+		t.Fatalf("create the second website: %v", err)
+	}
+
+	h.cfg.SSOProvision = provision
+	h.cfg.SSODefaultWebsite = home.ID
+	return h, sm, database, home.ID, other.ID
+}
+
+// accountByEmail reads the row a provisioning run is supposed to have written.
+func accountByEmail(t *testing.T, database *db.DB, email string) (id int64, name, role, password string) {
+	t.Helper()
+	err := database.Read.QueryRowContext(context.Background(),
+		`SELECT id, name, role, password FROM users WHERE email = $1`, email).Scan(&id, &name, &role, &password)
+	if err != nil {
+		t.Fatalf("no account for %q: %v", email, err)
+	}
+	return id, name, role, password
+}
+
+// assignedWebsites is used for description, never as the load-bearing
+// assertion. What a request may reach is NewWebsiteAccessLookup's answer, and
+// the two are different claims.
+func assignedWebsites(t *testing.T, database *db.DB, userID int64) []int64 {
+	t.Helper()
+	rows, err := database.Read.QueryContext(context.Background(),
+		`SELECT website_id FROM user_websites WHERE user_id = $1 ORDER BY website_id`, userID)
+	if err != nil {
+		t.Fatalf("read user_websites: %v", err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// inSession runs fn inside a live session.
+//
+// Anything that reaches h.LogActivity needs one: the protocol reads the acting
+// account out of the session, and scs panics when the context carries none. The
+// tests that call provisionSSOUser directly go through here so that they fail
+// for the reason under test rather than in the session manager.
+func inSession(t *testing.T, sm *scs.SessionManager, fn func(r *http.Request)) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fn(r)
+	})).ServeHTTP(rec, httptest.NewRequest("GET", "/admin/", nil))
+}
+
+func TestForwardAuthProvisionsAnAccount(t *testing.T) {
+	h, sm, database, defaultWebsite, otherWebsite := newProvisioningAdmin(t, true)
+	before := countUsers(t, database)
+
+	cookie := establishSession(t, sm)
+	req := fwdRequest("ada", "ada@example.com", cookie)
+	req.Header.Set("X-authentik-name", "Ada Lovelace")
+	rec, res := serveForwardAuth(t, h, sm, true, req)
+
+	id, name, role, password := accountByEmail(t, database, "ada@example.com")
+
+	t.Run("one account was created, and exactly one", func(t *testing.T) {
+		if got := countUsers(t, database); got != before+1 {
+			t.Fatalf("the users table went from %d to %d; provisioning writes exactly one row", before, got)
+		}
+	})
+
+	t.Run("the account is an editor and never an administrator", func(t *testing.T) {
+		if role != user.RoleEditor {
+			t.Errorf("role = %q; want %q — what a group grants is plan 10-05's decision, and "+
+				"NewWebsiteAccessLookup returns true for an administrator before it counts any assignment",
+				role, user.RoleEditor)
+		}
+	})
+
+	t.Run("the name is the identity's own", func(t *testing.T) {
+		if name != "Ada Lovelace" {
+			t.Errorf("name = %q; want the name the identity carried", name)
+		}
+	})
+
+	t.Run("the account belongs to the default website and to nothing else", func(t *testing.T) {
+		got := assignedWebsites(t, database, id)
+		if len(got) != 1 || got[0] != defaultWebsite {
+			t.Errorf("user_websites = %v; want exactly [%d]. An empty list is the inversion itself",
+				got, defaultWebsite)
+		}
+	})
+
+	t.Run("the request that created it is the request that signs it in", func(t *testing.T) {
+		if res.runs != 1 {
+			t.Fatalf("the next handler ran %d times; want exactly 1", res.runs)
+		}
+		if res.userID != id {
+			t.Errorf("session user_id = %d; want the account just created (%d)", res.userID, id)
+		}
+		if res.role != user.RoleEditor {
+			t.Errorf("session user_role = %q; want %q", res.role, user.RoleEditor)
+		}
+		if res.email != "ada@example.com" {
+			t.Errorf("session user_email = %q; want the stored address", res.email)
+		}
+		if !res.viaSSO {
+			t.Error("via_sso is false after a provisioning sign-in")
+		}
+		if rec.Code != http.StatusOK {
+			t.Errorf("the middleware answered %d; it writes no status of its own on any path", rec.Code)
+		}
+	})
+
+	t.Run("the session token was rotated across the sign-in", func(t *testing.T) {
+		after := sessionCookie(t, sm, rec)
+		if after == nil {
+			t.Fatal("no session cookie was written across the sign-in")
+		}
+		if after.Value == cookie.Value {
+			t.Error("the session token did not change; whoever fixed the id before the sign-in still owns it after")
+		}
+	})
+
+	t.Run("the creation and the sign-in are both in the protocol", func(t *testing.T) {
+		rows := activityRows(t, database)
+		var created, signedIn int
+		for _, row := range rows {
+			switch row.Action {
+			case activity.ActionUserCreate:
+				created++
+				if row.EntityID != id {
+					t.Errorf("user.create names entity %d; want the new account %d", row.EntityID, id)
+				}
+			case activity.ActionAuthLoginSuccess:
+				signedIn++
+			case activity.ActionAuthLoginFail:
+				t.Error("a successful provisioning wrote a refusal row as well")
+			}
+		}
+		if created != 1 {
+			t.Errorf("wrote %d user.create rows; an account created without a person asking belongs in the journal exactly once", created)
+		}
+		if signedIn != 1 {
+			t.Errorf("wrote %d auth.login_success rows; want exactly 1", signedIn)
+		}
+	})
+
+	t.Run("the second website was not granted along the way", func(t *testing.T) {
+		if got := assignedWebsites(t, database, id); len(got) == 2 {
+			t.Errorf("user_websites = %v; the second website (%d) exists only to be refused", got, otherWebsite)
+		}
+	})
+
+	t.Run("the stored password is a real Argon2id hash and not the empty string", func(t *testing.T) {
+		if !strings.HasPrefix(password, "$argon2id$") {
+			t.Errorf("users.password = %q; want a PHC-format Argon2id hash", password)
+		}
+	})
+}
+
+func TestProvisionedAccountHasNoNameWhenTheHeaderCarriedNone(t *testing.T) {
+	h, sm, database, _, _ := newProvisioningAdmin(t, true)
+
+	// fwdRequest sets no X-authentik-name, which is the case under test: the
+	// operator's directory need not carry one.
+	_, res := serveForwardAuth(t, h, sm, true, fwdRequest("ada", "ada@example.com", nil))
+
+	_, name, _, _ := accountByEmail(t, database, "ada@example.com")
+	if name != "" {
+		t.Errorf("name = %q; a nameless account is fine and a wrong name is not", name)
+	}
+	if res.userID == 0 {
+		t.Error("the account was not signed in, so the name assertion proves nothing")
+	}
+}
+
+// TestNoPasswordSignsInAProvisionedAccount drives the real login form.
+//
+// The account holds an Argon2id hash of 32 bytes from crypto/rand that nothing
+// kept, so there is no password to get wrong — and the screen must behave for it
+// exactly as it behaves for an address no account carries.
+func TestNoPasswordSignsInAProvisionedAccount(t *testing.T) {
+	h, sm, database, _, _ := newProvisioningAdmin(t, true)
+	h.argon2Params = cheapHashing
+	h.loginThrottle = auth.NewLoginThrottle(1000, 1000, time.Minute)
+
+	serveForwardAuth(t, h, sm, true, fwdRequest("ada", "ada@example.com", nil))
+	if _, _, _, hash := accountByEmail(t, database, "ada@example.com"); hash == "" {
+		t.Fatal("no account was provisioned, so the password assertions prove nothing")
+	}
+
+	for _, tc := range []struct {
+		name, email, password string
+	}{
+		{"the empty password", "ada@example.com", ""},
+		{"a plausible password", "ada@example.com", "passwort123"},
+		{"the address itself", "ada@example.com", "ada@example.com"},
+		{"a control: an address no account carries", "nobody@example.com", "passwort123"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			form := url.Values{"email": {tc.email}, "password": {tc.password}}
+			req := postForm("/admin/login", form, nil)
+			req.RemoteAddr = "127.0.0.1:41234"
+
+			var signedIn int64
+			rec := httptest.NewRecorder()
+			sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := h.HandleLogin(w, r); err != nil {
+					t.Fatalf("HandleLogin: %v", err)
+				}
+				signedIn = sm.GetInt64(r.Context(), auth.SessionKeyUserID)
+			})).ServeHTTP(rec, req)
+
+			if signedIn != 0 {
+				t.Errorf("signed in as %d; nobody ever chose a password for a provisioned account", signedIn)
+			}
+			if got := rec.Header().Get("Location"); got != "/admin/login" {
+				t.Errorf("Location = %q; want the login form back, exactly as an unknown account gets it", got)
+			}
+		})
+	}
+}
+
+// TestProvisioningLeavesNoAccountWhenTheAssignmentFails is the compensation.
+//
+// An account that exists with no assignment is precisely the state D-01
+// describes — NewWebsiteAccessLookup reads zero rows as every website — so a
+// half-finished provisioning would create the vulnerability by accident rather
+// than by design. The failure is induced the way a real one arrives: a default
+// website id that names no row, which user_websites' foreign key refuses.
+func TestProvisioningLeavesNoAccountWhenTheAssignmentFails(t *testing.T) {
+	h, sm, database, _, _ := newProvisioningAdmin(t, true)
+	h.cfg.SSODefaultWebsite = 9999 // no such website
+	before := countUsers(t, database)
+
+	rec, res := serveForwardAuth(t, h, sm, true, fwdRequest("ada", "ada@example.com", nil))
+
+	if got := countUsers(t, database); got != before {
+		t.Errorf("the users table went from %d to %d; a failed provisioning leaves nothing behind, "+
+			"because what it would leave behind is an account with access to every website", before, got)
+	}
+	if res.userID != 0 {
+		t.Errorf("a failed provisioning signed somebody in as %d", res.userID)
+	}
+	if res.runs != 1 {
+		t.Fatalf("the next handler ran %d times; want exactly 1 — a refusal is a fall-through", res.runs)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("the middleware answered %d; never a 403, even here", rec.Code)
+	}
+
+	rows := activityRows(t, database)
+	if len(rows) != 1 || rows[0].Action != activity.ActionAuthLoginFail {
+		t.Errorf("protocol rows = %v; want exactly one auth.login_fail. An operator whose "+
+			"HOLZCLOUD_SSO_DEFAULT_WEBSITE names a deleted website learns about it here", rows)
+	}
+}
+
+// TestProvisioningResolvesADuplicateAddressByReReading is the race.
+//
+// Two requests for the same unknown identity both reach the creation, and the
+// database is what resolves it: users.email is UNIQUE COLLATE NOCASE, so the
+// second Create returns user.ErrDuplicateEmail. That is not an error to refuse
+// on — the honest resolution is the row the first request made.
+func TestProvisioningResolvesADuplicateAddressByReReading(t *testing.T) {
+	h, sm, database, _, _ := newProvisioningAdmin(t, true)
+
+	serveForwardAuth(t, h, sm, true, fwdRequest("ada", "ada@example.com", nil))
+	first, _, _, _ := accountByEmail(t, database, "ada@example.com")
+	afterFirst := countUsers(t, database)
+
+	var second *user.User
+	var err error
+	inSession(t, sm, func(r *http.Request) {
+		second, err = h.provisionSSOUser(r, &web.Identity{Username: "ada", Email: "ada@example.com", Name: "Ada Lovelace"}, "ada@example.com")
+	})
+
+	if err != nil {
+		t.Fatalf("the second provisioning refused instead of re-reading: %v", err)
+	}
+	if second == nil || second.ID != first {
+		t.Fatalf("the second provisioning returned %v; want the row the first one created (%d)", second, first)
+	}
+	if got := countUsers(t, database); got != afterFirst {
+		t.Errorf("the users table went from %d to %d; one identity is one account", afterFirst, got)
+	}
+}
+
+// TestProvisioningNeverCreatesAnAccountWithAnEmptyAddress is the constraint
+// wave 3 discovered and handed forward.
+//
+// users.email is NOT NULL UNIQUE COLLATE NOCASE and nothing there forbids the
+// empty string, so an account row carrying one is legal —
+// TestForwardAuthNeverMatchesAnEmptyAddress seeds exactly such a row, as an
+// administrator, because without the sign-in path's guard an identity with no
+// e-mail header is not refused but *looked up* and matches it.
+//
+// Provisioning is the other end of the same rope. If it could create such a
+// row, it would mint the very account that test seeds, and the next identity
+// arriving with no e-mail header would sign in as it.
+//
+// The second half of this test is the part that matters, and it is not
+// redundant. Driven through the middleware the empty address never reaches
+// provisioning at all — step 4 refuses it first — so removing the guard inside
+// provisionSSOUser leaves the middleware half green. Only the direct call can
+// fail, which is the whole reason it is written.
+func TestProvisioningNeverCreatesAnAccountWithAnEmptyAddress(t *testing.T) {
+	t.Run("through the middleware, an identity with no address creates nothing", func(t *testing.T) {
+		h, sm, database, _, _ := newProvisioningAdmin(t, true)
+		before := countUsers(t, database)
+
+		_, res := serveForwardAuth(t, h, sm, true, fwdRequest("ada", "", nil))
+
+		if got := countUsers(t, database); got != before {
+			t.Errorf("the users table went from %d to %d; an identity with no address creates no account", before, got)
+		}
+		if res.userID != 0 {
+			t.Errorf("an identity with no address was signed in as %d", res.userID)
+		}
+	})
+
+	t.Run("asked directly, provisioning refuses the empty address itself", func(t *testing.T) {
+		h, sm, database, _, _ := newProvisioningAdmin(t, true)
+		before := countUsers(t, database)
+
+		var u *user.User
+		var err error
+		inSession(t, sm, func(r *http.Request) {
+			u, err = h.provisionSSOUser(r, &web.Identity{Username: "ada"}, "")
+		})
+
+		if err == nil {
+			t.Error("provisionSSOUser accepted the empty address; it would create the row " +
+				"TestForwardAuthNeverMatchesAnEmptyAddress seeds, and the next identity with no " +
+				"e-mail header would sign in as it")
+		}
+		if u != nil {
+			t.Errorf("provisionSSOUser returned account %d for the empty address", u.ID)
+		}
+		if got := countUsers(t, database); got != before {
+			t.Errorf("the users table went from %d to %d for an empty address", before, got)
+		}
+	})
+}
+
+func TestRandomSecretIsFreshAndLongEnough(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 32; i++ {
+		s, err := randomSecret()
+		if err != nil {
+			t.Fatalf("randomSecret: %v", err)
+		}
+		if len(s) < auth.MinPasswordLength {
+			t.Fatalf("randomSecret returned %d characters; user.Store.Create requires at least %d",
+				len(s), auth.MinPasswordLength)
+		}
+		if seen[s] {
+			t.Fatalf("randomSecret repeated itself at call %d; every provisioned account gets its own", i)
+		}
+		seen[s] = true
+	}
+}
+
+// TestTheProvisioningSecretAppearsInNoLogLine asks the question the way it
+// matters rather than the way it is easy.
+//
+// A grep for slog on the lines that name the secret is a gate on the file. This
+// runs a real provisioning with the log captured at Debug, then takes every
+// token the log produced and asks the stored hash whether that token is the
+// password. If the secret leaked into any field of any line, exactly one token
+// verifies.
+func TestTheProvisioningSecretAppearsInNoLogLine(t *testing.T) {
+	h, sm, database, _, _ := newProvisioningAdmin(t, true)
+
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	serveForwardAuth(t, h, sm, true, fwdRequest("ada", "ada@example.com", nil))
+	_, _, _, hash := accountByEmail(t, database, "ada@example.com")
+
+	out := logged.String()
+	if !strings.Contains(out, "provision") {
+		t.Fatalf("the provisioning wrote no log line at all, so this test proves nothing; log was:\n%s", out)
+	}
+	for _, token := range strings.FieldsFunc(out, func(r rune) bool {
+		return r == ' ' || r == '\n' || r == '\t' || r == '"' || r == '='
+	}) {
+		if len(token) < auth.MinPasswordLength {
+			continue
+		}
+		match, err := auth.VerifyPassword(token, hash)
+		if err != nil {
+			continue
+		}
+		if match {
+			t.Fatalf("the provisioning secret was written to the log: %q", token)
+		}
+	}
+}
+
+// TestProvisionedAccountCannotReachASecondWebsite is the test this plan exists
+// for, and its shape matters more than its assertions.
+//
+// NewWebsiteAccessLookup is the function auth.RequireWebsiteAccess is built from
+// in main.go, so an assertion against it is an assertion about what a real
+// request is allowed to reach. It ends with `return assigned == 0 || mine > 0`.
+// A test that counted rows in user_websites would prove that a row was
+// inserted; it would say nothing about whether the function that authorises
+// requests agrees, and the two are different claims — de4a1ce in this repository
+// is a cross-website hole of exactly that family, found on 2026-09-06, where
+// four handlers checked that an item belonged to its menu and never that the
+// menu belonged to the website.
+func TestProvisionedAccountCannotReachASecondWebsite(t *testing.T) {
+	h, sm, database, defaultWebsite, otherWebsite := newProvisioningAdmin(t, true)
+	ctx := context.Background()
+
+	// Through the whole path, not by calling provisionSSOUser: the point is
+	// that an ordinary request produces this state.
+	_, res := serveForwardAuth(t, h, sm, true, fwdRequest("ada", "ada@example.com", nil))
+	newID, _, _, _ := accountByEmail(t, database, "ada@example.com")
+	if res.userID != newID {
+		t.Fatalf("the sign-in did not happen (session user_id = %d, account = %d); "+
+			"the assertions below would be measuring an account nobody reached", res.userID, newID)
+	}
+
+	// The same constructor main.go hands to auth.RequireWebsiteAccess.
+	lookup := NewWebsiteAccessLookup(database)
+
+	if !lookup(ctx, newID, defaultWebsite) {
+		t.Errorf("NewWebsiteAccessLookup refuses the provisioned account its own default website "+
+			"(%q, id %d); it was assigned that website in the request that created it",
+			"Die eigene Seite", defaultWebsite)
+	}
+	if lookup(ctx, newID, otherWebsite) {
+		t.Errorf("a freshly provisioned account reached a website it was never assigned to "+
+			"(%q, id %d) — NewWebsiteAccessLookup read zero assignments as every website",
+			"Die fremde Seite", otherWebsite)
+	}
+
+	// The control, and it is neither decoration nor redundant. Without it this
+	// test passes on a tree where provisioning never ran, where the assignment
+	// was written against the wrong id, or where the lookup was stubbed — it
+	// would be measuring a proxy. Deleting the one row and watching the same
+	// call flip to true demonstrates that the property asserted above is the one
+	// that would break, and that this single row is what holds it.
+	//
+	// Do not remove this as a tidy-up. It is the difference between a test that
+	// asserts the fix and a test that asserts the fix was attempted.
+	if _, err := database.Write.ExecContext(ctx,
+		`DELETE FROM user_websites WHERE user_id = $1`, newID); err != nil {
+		t.Fatalf("delete the assignment for the control step: %v", err)
+	}
+	if !lookup(ctx, newID, otherWebsite) {
+		t.Fatal("with the assignment deleted the same lookup still refuses the second website; " +
+			"the assertion above was not measuring the assignment at all")
+	}
+}
+
+// TestProvisioningOffCreatesNothing states a claim about a code path not being
+// taken as a claim about the database, because the code path can be moved and
+// the database cannot lie.
+func TestProvisioningOffCreatesNothing(t *testing.T) {
+	h, sm, database, _, _ := newProvisioningAdmin(t, false)
+	before := countUsers(t, database)
+
+	rec, res := serveForwardAuth(t, h, sm, true, fwdRequest("stranger", "stranger@example.com", nil))
+
+	if got := countUsers(t, database); got != before {
+		t.Errorf("the users table went from %d to %d with HOLZCLOUD_SSO_PROVISION off", before, got)
+	}
+	if res.userID != 0 {
+		t.Errorf("provisioning is off and somebody was signed in as %d", res.userID)
+	}
+	if res.runs != 1 {
+		t.Fatalf("the next handler ran %d times; want exactly 1 — the refusal is the password form", res.runs)
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("the middleware answered %d; a refusal is never a status of its own", rec.Code)
+	}
+
+	rows := activityRows(t, database)
+	if len(rows) != 1 {
+		t.Fatalf("wrote %d protocol rows; want exactly 1 refusal", len(rows))
+	}
+	if rows[0].Action != activity.ActionAuthLoginFail {
+		t.Errorf("action = %q; want %q", rows[0].Action, activity.ActionAuthLoginFail)
+	}
+	if rows[0].ActorEmail != "stranger@example.com" {
+		t.Errorf("actor_email = %q; want the attempted address", rows[0].ActorEmail)
 	}
 }
