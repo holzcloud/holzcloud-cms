@@ -1185,10 +1185,10 @@ const (
 	fwdGroupB     = "seite-b"
 )
 
-// newGroupSyncAdmin is newForwardAuthAdmin plus affordable hashing, two
+// newRightsSyncAdmin is newForwardAuthAdmin plus affordable hashing, two
 // websites with names a failure message can print, and the two settings the
 // synchronisation reads.
-func newGroupSyncAdmin(t *testing.T) (h *Handler, sm *scs.SessionManager, database *db.DB, siteA, siteB int64) {
+func newRightsSyncAdmin(t *testing.T) (h *Handler, sm *scs.SessionManager, database *db.DB, siteA, siteB int64) {
 	t.Helper()
 	h, sm, database = newForwardAuthAdmin(t, true)
 	h.users.Params = cheapHashing
@@ -1282,7 +1282,7 @@ func countAction(t *testing.T, database *db.DB, action string, entityID int64) i
 	return n
 }
 
-// TestGroupSyncMatchesAGroupAsAWholeElement is the trap this file exists for.
+// TestSyncRightsMatchesAGroupAsAWholeElement is the trap this file exists for.
 //
 // X-authentik-groups joins names with U+007C, and the obvious membership test —
 // strings.Contains over the raw header — answers yes about holzcloud-admins for
@@ -1293,7 +1293,7 @@ func countAction(t *testing.T, database *db.DB, action string, entityID int64) i
 //
 // Each case carries seite-a so the sign-in completes: an editor with no
 // matching website group is refused, which is a different test.
-func TestGroupSyncMatchesAGroupAsAWholeElement(t *testing.T) {
+func TestSyncRightsMatchesAGroupAsAWholeElement(t *testing.T) {
 	// The three trap headers below are written out as literals rather than
 	// built from fwdAdminGroup, because "not-holzcloud-admins" is the string a
 	// reader has to see to understand what is being asked. This keeps the
@@ -1322,7 +1322,7 @@ func TestGroupSyncMatchesAGroupAsAWholeElement(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+			h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 			h.cfg.SSOAdminGroup = tc.adminGroup
 			id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 			assign(t, database, id, siteA)
@@ -1348,10 +1348,10 @@ func TestGroupSyncMatchesAGroupAsAWholeElement(t *testing.T) {
 	}
 }
 
-// TestGroupSyncAppliesADemotionAtTheNextSignIn is the whole point of running the
+// TestSyncRightsAppliesADemotionAtTheNextSignIn is the whole point of running the
 // synchronisation on every sign-in rather than at account creation.
-func TestGroupSyncAppliesADemotionAtTheNextSignIn(t *testing.T) {
-	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+func TestSyncRightsAppliesADemotionAtTheNextSignIn(t *testing.T) {
+	h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 	// A second administrator, so the demotion below is not the last one.
 	seedAccount(t, database, "root@example.com", user.RoleAdmin)
 	id := seedAccount(t, database, "ada@example.com", user.RoleAdmin)
@@ -1374,12 +1374,12 @@ func TestGroupSyncAppliesADemotionAtTheNextSignIn(t *testing.T) {
 	}
 }
 
-// TestGroupSyncPromotionWritesOneProtocolRowNamingFromAndTo asserts the record,
+// TestSyncRightsPromotionWritesOneProtocolRowNamingFromAndTo asserts the record,
 // not just the change. SSO-06 asks for every change of rights to be in the
 // protocol, and a change nobody can see afterwards is a change nobody can
 // question.
-func TestGroupSyncPromotionWritesOneProtocolRowNamingFromAndTo(t *testing.T) {
-	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+func TestSyncRightsPromotionWritesOneProtocolRowNamingFromAndTo(t *testing.T) {
+	h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 	assign(t, database, id, siteA)
 
@@ -1404,12 +1404,12 @@ func TestGroupSyncPromotionWritesOneProtocolRowNamingFromAndTo(t *testing.T) {
 	}
 }
 
-// TestGroupSyncWritesExactlyTheMatchingWebsites covers the ordinary half:
+// TestSyncRightsWritesExactlyTheMatchingWebsites covers the ordinary half:
 // two groups map to two websites and to nothing else, in either header order,
 // and a website the person lost is gone.
-func TestGroupSyncWritesExactlyTheMatchingWebsites(t *testing.T) {
+func TestSyncRightsWritesExactlyTheMatchingWebsites(t *testing.T) {
 	t.Run("two groups in one order", func(t *testing.T) {
-		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		h, sm, database, siteA, siteB := newRightsSyncAdmin(t)
 		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 		serveForwardAuth(t, h, sm, true,
 			fwdGroupRequest("ada", "ada@example.com", fwdGroupA+"|"+fwdGroupB, nil))
@@ -1419,7 +1419,7 @@ func TestGroupSyncWritesExactlyTheMatchingWebsites(t *testing.T) {
 	})
 
 	t.Run("the same two groups in the other order", func(t *testing.T) {
-		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		h, sm, database, siteA, siteB := newRightsSyncAdmin(t)
 		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 		serveForwardAuth(t, h, sm, true,
 			fwdGroupRequest("ada", "ada@example.com", fwdGroupB+"|"+fwdGroupA, nil))
@@ -1430,7 +1430,7 @@ func TestGroupSyncWritesExactlyTheMatchingWebsites(t *testing.T) {
 	})
 
 	t.Run("a website the person lost is gone", func(t *testing.T) {
-		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		h, sm, database, siteA, siteB := newRightsSyncAdmin(t)
 		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 		assign(t, database, id, siteA, siteB)
 
@@ -1448,7 +1448,7 @@ func TestGroupSyncWritesExactlyTheMatchingWebsites(t *testing.T) {
 	})
 
 	t.Run("a group this installation has never heard of is ignored", func(t *testing.T) {
-		h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+		h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 		serveForwardAuth(t, h, sm, true,
 			fwdGroupRequest("ada", "ada@example.com", "ganz-woanders|"+fwdGroupA+"|noch-eine", nil))
@@ -1460,13 +1460,13 @@ func TestGroupSyncWritesExactlyTheMatchingWebsites(t *testing.T) {
 	})
 }
 
-// TestGroupSyncLeavesAnAdministratorsAssignmentAlone.
+// TestSyncRightsLeavesAnAdministratorsAssignmentAlone.
 //
 // user.Store.Rights returns Everything() for an administrator two statements
 // before it reads user_websites, so anything written there is invisible — and an
 // invisible write is a diff a later reader has to reason about for nothing.
-func TestGroupSyncLeavesAnAdministratorsAssignmentAlone(t *testing.T) {
-	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+func TestSyncRightsLeavesAnAdministratorsAssignmentAlone(t *testing.T) {
+	h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 	assign(t, database, id, siteA)
 
@@ -1483,13 +1483,13 @@ func TestGroupSyncLeavesAnAdministratorsAssignmentAlone(t *testing.T) {
 	}
 }
 
-// TestGroupSyncCarriesThePublishingRight.
+// TestSyncRightsCarriesThePublishingRight.
 //
 // No group grants may_publish. SetRights takes it as a field and would happily
 // overwrite it on every sign-in, which would undo an operator's decision about a
 // person on a schedule.
-func TestGroupSyncCarriesThePublishingRight(t *testing.T) {
-	h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+func TestSyncRightsCarriesThePublishingRight(t *testing.T) {
+	h, sm, database, siteA, siteB := newRightsSyncAdmin(t)
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 	assign(t, database, id, siteB)
 	if _, err := database.Write.ExecContext(context.Background(),
@@ -1510,11 +1510,11 @@ func TestGroupSyncCarriesThePublishingRight(t *testing.T) {
 	}
 }
 
-// TestGroupSyncIsIdempotent. SetRights replaces wholesale, so calling it twice
+// TestSyncRightsIsIdempotent. SetRights replaces wholesale, so calling it twice
 // with the same groups leaves the same rows; the protocol is where the
 // difference would show, and one row per page view is a log nobody reads.
-func TestGroupSyncIsIdempotent(t *testing.T) {
-	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+func TestSyncRightsIsIdempotent(t *testing.T) {
+	h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 
 	for i := 0; i < 2; i++ {
@@ -1534,14 +1534,14 @@ func TestGroupSyncIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestGroupSyncKeepsTheLastAdministrator.
+// TestSyncRightsKeepsTheLastAdministrator.
 //
 // user.Store.Update refuses to demote the last administrator. Locking an
 // installation out because a group changed at somebody else's directory is a
 // worse outcome than a role that lags one sign-in behind, so the refusal is
 // recognised, logged loudly, and the sign-in continues.
-func TestGroupSyncKeepsTheLastAdministrator(t *testing.T) {
-	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+func TestSyncRightsKeepsTheLastAdministrator(t *testing.T) {
+	h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 	id := seedAccount(t, database, "ada@example.com", user.RoleAdmin)
 	assign(t, database, id, siteA)
 
@@ -1574,12 +1574,12 @@ func TestGroupSyncKeepsTheLastAdministrator(t *testing.T) {
 	}
 }
 
-// TestGroupSyncRefusesAnEditorWithNoMatchingWebsiteGroup.
+// TestSyncRightsRefusesAnEditorWithNoMatchingWebsiteGroup.
 //
 // This is D-01's inversion reached by subtraction. An empty assignment is not
 // "no websites": NewWebsiteAccessLookup reads assigned == 0 as *every* website.
 // So the sign-in is refused and nothing is written.
-func TestGroupSyncRefusesAnEditorWithNoMatchingWebsiteGroup(t *testing.T) {
+func TestSyncRightsRefusesAnEditorWithNoMatchingWebsiteGroup(t *testing.T) {
 	cases := []struct {
 		name   string
 		groups string
@@ -1591,7 +1591,7 @@ func TestGroupSyncRefusesAnEditorWithNoMatchingWebsiteGroup(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+			h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 			id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 			assign(t, database, id, siteA)
 
@@ -1638,7 +1638,7 @@ func TestGroupSyncRefusesAnEditorWithNoMatchingWebsiteGroup(t *testing.T) {
 // website, so SELECT COUNT(*) returned 1 while the account reached a site it
 // must not have.
 func TestLosingEveryWebsiteGroupDoesNotGrantEveryWebsite(t *testing.T) {
-	h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+	h, sm, database, siteA, siteB := newRightsSyncAdmin(t)
 	ctx := context.Background()
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 	lookup := NewWebsiteAccessLookup(database)
@@ -1703,7 +1703,7 @@ func TestLosingEveryWebsiteGroupDoesNotGrantEveryWebsite(t *testing.T) {
 // call: SSO-06 asks for every *change* to be logged, and /admin/protokoll is
 // only evidence for as long as it is short enough to be read.
 func TestUnchangedGroupsWriteNoActivityRow(t *testing.T) {
-	h, sm, database, _, _ := newGroupSyncAdmin(t)
+	h, sm, database, _, _ := newRightsSyncAdmin(t)
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 
 	serveForwardAuth(t, h, sm, true, fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
@@ -1719,7 +1719,7 @@ func TestUnchangedGroupsWriteNoActivityRow(t *testing.T) {
 	}
 }
 
-// TestGroupSyncLeavesTheAssignmentAloneWithNoGroupMappingConfigured guards the
+// TestSyncRightsLeavesTheAssignmentAloneWithNoGroupMappingConfigured guards the
 // branch that keeps the refusal above from meaning something it does not.
 //
 // With HOLZCLOUD_SSO_WEBSITE_GROUPS unset, "your groups match no configured
@@ -1728,8 +1728,8 @@ func TestUnchangedGroupsWriteNoActivityRow(t *testing.T) {
 // correctly assigned. The rule that has to hold is narrower and it still holds:
 // the synchronisation never *writes* an empty assignment, and writing nothing
 // cannot.
-func TestGroupSyncLeavesTheAssignmentAloneWithNoGroupMappingConfigured(t *testing.T) {
-	h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+func TestSyncRightsLeavesTheAssignmentAloneWithNoGroupMappingConfigured(t *testing.T) {
+	h, sm, database, siteA, siteB := newRightsSyncAdmin(t)
 	h.cfg.SSOWebsiteGroups = nil
 	ctx := context.Background()
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
@@ -1766,7 +1766,7 @@ func TestGroupSyncLeavesTheAssignmentAloneWithNoGroupMappingConfigured(t *testin
 	})
 }
 
-// TestGroupSyncRefusesAnEmptyAdministrationGroupOnItsOwn asks the guard the one
+// TestSyncRightsRefusesAnEmptyAdministrationGroupOnItsOwn asks the guard the one
 // question no request can ask it.
 //
 // HOLZCLOUD_SSO_ADMIN_GROUP has no default, so an operator who never sets it has
@@ -1787,8 +1787,8 @@ func TestGroupSyncLeavesTheAssignmentAloneWithNoGroupMappingConfigured(t *testin
 // So this one calls the function directly with an identity built by hand, the
 // shape splitGroups never produces. Measured 2026-09-08: with both layers
 // removed, a header of "|seite-a|" makes an administrator.
-func TestGroupSyncRefusesAnEmptyAdministrationGroupOnItsOwn(t *testing.T) {
-	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+func TestSyncRightsRefusesAnEmptyAdministrationGroupOnItsOwn(t *testing.T) {
+	h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 	h.cfg.SSOAdminGroup = ""
 	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 	assign(t, database, id, siteA)
@@ -1820,7 +1820,7 @@ func TestGroupSyncRefusesAnEmptyAdministrationGroupOnItsOwn(t *testing.T) {
 	}
 }
 
-// TestGroupSyncIsIdempotentWhateverShapeTheHeaderArrivesIn is what makes the
+// TestSyncRightsIsIdempotentWhateverShapeTheHeaderArrivesIn is what makes the
 // sort and the deduplication load-bearing rather than tidy.
 //
 // Both were written because SetRights sorts and deduplicates again, so their
@@ -1833,9 +1833,9 @@ func TestGroupSyncRefusesAnEmptyAdministrationGroupOnItsOwn(t *testing.T) {
 //
 // The two headers below are the two shapes that produce it: groups arriving in
 // descending website order, and two groups the operator mapped to one website.
-func TestGroupSyncIsIdempotentWhateverShapeTheHeaderArrivesIn(t *testing.T) {
+func TestSyncRightsIsIdempotentWhateverShapeTheHeaderArrivesIn(t *testing.T) {
 	t.Run("two groups in descending website order", func(t *testing.T) {
-		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		h, sm, database, siteA, siteB := newRightsSyncAdmin(t)
 		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 
 		header := fwdGroupB + "|" + fwdGroupA
@@ -1855,7 +1855,7 @@ func TestGroupSyncIsIdempotentWhateverShapeTheHeaderArrivesIn(t *testing.T) {
 	})
 
 	t.Run("two groups the operator mapped to one website", func(t *testing.T) {
-		h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+		h, sm, database, siteA, _ := newRightsSyncAdmin(t)
 		h.cfg.SSOWebsiteGroups = map[string]int64{"redaktion-a": siteA, "leitung-a": siteA}
 		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
 
