@@ -585,3 +585,35 @@ func TestCompleteLoginHasExactlyFourCallers(t *testing.T) {
 			len(callers), strings.Join(callers, "\n  "))
 	}
 }
+
+// TestForwardAuthNeverMatchesAnEmptyAddress is what makes the empty-address
+// refusal load-bearing rather than tidy.
+//
+// users.email is declared NOT NULL UNIQUE COLLATE NOCASE and nothing in that
+// declaration forbids the empty string, so an account row carrying one is legal
+// and a command-line import or a hand-run statement can produce it. Without the
+// guard the empty address is not refused, it is *looked up* — and it matches
+// that row. Any identity the proxy asserts without an e-mail header would then
+// sign in as whoever holds it, which in the seeding below is an administrator.
+//
+// The other refusals in this file are all observably identical to one another
+// by design; this is the one that is not, and it is the reason the branch
+// exists rather than falling through to "no such account".
+func TestForwardAuthNeverMatchesAnEmptyAddress(t *testing.T) {
+	h, sm, database := newForwardAuthAdmin(t, true)
+	if _, err := database.Write.ExecContext(context.Background(),
+		`INSERT INTO users (name, email, password, role) VALUES ('T', '', 'x', 'admin')`); err != nil {
+		t.Fatalf("seed the empty-address account: %v", err)
+	}
+
+	_, res := serveForwardAuth(t, h, sm, true, fwdRequest("ada", "", nil))
+
+	if res.userID != 0 {
+		t.Errorf("an identity with no address signed in as user %d (role %q); "+
+			"the empty string is a legal value in users.email and must never be looked up",
+			res.userID, res.role)
+	}
+	if res.viaSSO {
+		t.Error("an identity with no address was marked as signed in through single sign-on")
+	}
+}
