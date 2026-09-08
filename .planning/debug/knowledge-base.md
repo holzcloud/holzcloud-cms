@@ -134,3 +134,40 @@ Worth recording, because a pattern-match is a hypothesis and not a finding.
 - If nothing else covers it, the mutation was wrong — usually too narrow.
 - If something does, say so in the comment: two guards where one would do is
   fine, two guards where nobody knows which one is load-bearing is not.
+
+## Method note — a gate must measure what its name claims
+
+**Five instances in one phase**, 2026-09-08, phase 10. Every one was found by an
+executor testing its own gate instead of running it and believing the number.
+
+| What the gate claimed | Why it was silent |
+|---|---|
+| "no secret is logged" — `grep 'secret\|password' \| grep -c 'slog.'` | `gofmt` wraps `slog.Info` across three lines, so a secret on a continuation line never shares a line with `slog.` |
+| "these tests pass" — `go test -run 'ForwardAuth\|SyncRights\|Groups'` | matched **none** of the twelve tests that plan added; `TestGroupSync…` contains no alternative |
+| "`MustHaveSecondFactor` appears 6 times" | counted its own doc comment; printed 7 before the plan changed anything |
+| "no `http.Redirect` in this handler" | a *comment* tripped it — the neighbouring gate stripped comments, this one did not |
+| "`isTrustedProxy` appears nowhere" — exclusion anchored `^\./\.planning/` | the local `grep` prints paths with **no** `./` prefix, so the exclusion never fired and the gate read 14 on a tree where the property fully held |
+
+**The generalisation, which is worth more than the five.** A gate has two halves
+and only the first is usually reviewed: what it counts, and what it *excludes*.
+An exclusion pattern is part of the gate. A `^`-anchored path pattern is a bet
+on which tool prints the path — and this repository's `grep` is a shell function
+over `ugrep`, which does not print `./`.
+
+**The two directions both happen.** Four of the five read **too low** and passed
+over a real hit. One read **too high** and would have been "fixed" by rewording
+the comment it was counting — which is the worse outcome, because the number
+then agrees with the gate and neither agrees with the code. In this phase the
+executor did not reword it; it excluded comments, measured 6 before *and* after,
+and wrote down that the plan's number had been 7 all along.
+
+**What to do.** Before trusting a gate you wrote or were handed:
+
+1. Ask what shape of code or text slips past it — a wrapped line, a comment, a
+   different path prefix, a test name that does not contain the word.
+2. Run it against a tree where the property is knowingly **violated**, not only
+   against one where it holds. A gate that has never been seen fail is a gate
+   that has never been tested, which is the same rule as for a test.
+3. If a behavioural test also holds the property, say in the summary **which of
+   the two** is load-bearing. Two checks where nobody knows which one holds it
+   are worse than one.
