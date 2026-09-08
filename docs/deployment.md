@@ -89,6 +89,36 @@ that survives the installation.
 A `Dockerfile` is in the repository. The image is a static binary on a minimal
 base; mount the data directory as a volume and set the environment as above.
 
+## Signing in through an identity provider
+
+Optional, off unless asked for, and reversible by deleting an environment block.
+`deploy/DEPLOY.md` has the whole procedure and the shipped `Caddyfile.example`;
+this is the shape of it and the two things worth knowing before you start.
+
+Authentik sits in front as a **forward-auth** outpost: the reverse proxy asks it
+about every admin request, and on a yes it copies the person's identity into
+request headers. Holzcloud believes those headers only from a peer it already
+trusts and only alongside a shared secret it compares in constant time — and it
+deletes any such header a *visitor* sent, before anything downstream can read
+one. That deletion happens in two places on purpose, here and in the proxy, and
+the reason is that neither one is enough alone.
+
+Two things are the operator's to check once against their own installation, and
+`DEPLOY.md` says so rather than claiming them:
+
+- **Caddy must be 2.11.2 or newer.** 2.10.0 through 2.11.1 do not remove the
+  client's own identity headers on the forward-auth path (CVE-2026-30851), and
+  the stable apt package may well be one of them.
+- **The shipped example deletes the underscore spellings itself** —
+  `X_authentik_username` and its three siblings — because Caddy's own fix
+  removes only the canonical hyphenated names. Measured against 2.11.4, not
+  inferred from the advisory.
+
+And one consequence that is easy to miss: with single sign-on on, this
+installation's **second factor is the one the identity provider enforces**. That
+is a deliberate decision, the admin says so on two screens, and it means an
+Authentik without a second factor is a Holzcloud without one.
+
 ## Versioning
 
 This repository starts at **`v1.4`**. That is its first tag, and the single commit
