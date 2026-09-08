@@ -100,3 +100,37 @@ they were never revisited.
 directory and compare with the ROADMAP table; then read each verification
 document's `gaps:` block and run the named guard. Four of four gaps in this
 sweep were already closed.
+
+## Method note — a mutation that stays green is a question, not a pass
+
+The rule in this project is that a guard is only believed once somebody has
+watched its test go red without it. The interesting case is the other one.
+
+**2026-09-08, phase 10 wave 3.** The executor removed its empty-address guard
+from the forward-auth middleware and *nothing changed* — same status, same
+behaviour, all ten tests green. The easy conclusion is that the guard is
+redundant. It kept going instead, and found that `users.email` is declared
+`NOT NULL UNIQUE COLLATE NOCASE` and **nothing in that declaration forbids the
+empty string**; it inserted one to be sure. So without the guard an identity
+carrying no e-mail header is not refused but *looked up*, and it matches that
+row. The guard was covered by the no-account branch for the inputs the tests
+happened to use, and not for the input that mattered.
+
+The test that came out of it seeds that row as an **administrator**, and the
+finding became a written constraint on the next plan: provisioning must never
+create an account with an empty address, or it creates exactly that row.
+
+**The same day, one step further.** Reading that, the obvious next worry is
+that `user.Store.Create` lets a caller make such a row and only the two
+callers refuse it — the "correct because every caller remembered" shape this
+knowledge base already has three entries about. Checked: `store.go:172-175`
+refuses it in the store. The instinct was wrong and checking cost a minute.
+Worth recording, because a pattern-match is a hypothesis and not a finding.
+
+**So:**
+
+- A green mutation means *something else is covering this input*. Find out what,
+  and whether it covers every input the guard was written for.
+- If nothing else covers it, the mutation was wrong — usually too narrow.
+- If something does, say so in the comment: two guards where one would do is
+  fine, two guards where nobody knows which one is load-bearing is not.
