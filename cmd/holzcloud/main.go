@@ -1114,8 +1114,17 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// und beide sollen ihre eigene Verwaltung sehen.
 	withLang := i18n.Middleware(admin.NewLanguageLookup(sm, database))
 
-	// Protected admin: headers -> CSRF -> setupGuard -> requireAuth -> language -> website access -> nav -> handler
-	mux.Handle("/admin/", web.AdminHeaders(csrfMiddleware(setupGuard(requireAuth(requireSecondFactor(withLang(requireWebsite(withNav(adminProtectedMux)))))))))
+	// Protected admin: headers -> CSRF -> setupGuard -> forward auth -> requireAuth -> language -> website access -> nav -> handler
+	//
+	// Forward auth signs a session in and authorises nothing. Its position is
+	// the whole design: outside requireAuth, so the session already carries the
+	// account by the time RequireAuth reads it, and inside setupGuard, so a
+	// first-run installation still goes to the setup form rather than signing a
+	// stranger in against an empty database. Everything behind it —
+	// RequireAuth, RequireSecondFactor, RequireWebsiteAccess — runs exactly as
+	// it did before it existed, and removing this one call is how the whole
+	// feature is switched off in an emergency.
+	mux.Handle("/admin/", web.AdminHeaders(csrfMiddleware(setupGuard(adminHandler.ForwardAuthSignIn(requireAuth(requireSecondFactor(withLang(requireWebsite(withNav(adminProtectedMux))))))))))
 
 	// Das Logo der Anlage. Öffentlich wie die Beigaben: es steht auch auf dem
 	// Anmeldebildschirm, und wer den sieht, darf auch das Bild darauf sehen.
