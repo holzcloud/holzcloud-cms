@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -831,11 +832,16 @@ func TestUntrustedPeerWithIdentityHeaderGetsTheLoginForm(t *testing.T) {
 		{"an untrusted peer over IPv6", "[2001:db8::1]:54321", "a-shared-secret"},
 		{"an untrusted peer that even has the right secret", "203.0.113.7:54321", "the-real-secret"},
 		{"a trusted peer with no secret", "127.0.0.1:41234", ""},
-		// The control. Layers 1 and 3 are both satisfied here and the answer
-		// is still the login form, because this plan puts an identity into the
-		// request context and nothing reads it. Plan 10-03 is what changes
-		// this line, and it should have to.
-		{"a trusted peer with the right secret, because nothing signs anybody in yet", "127.0.0.1:41234", "the-real-secret"},
+		// The control, and plan 10-03 changed why it holds rather than
+		// whether it holds. Layers 1 and 3 are both satisfied, so an identity
+		// really does reach ForwardAuthSignIn now — and the answer is still
+		// the login form, because stranger@example.com names no account and a
+		// refusal falls through to the password form instead of answering
+		// 403. The sign-in half of that middleware is proved green in
+		// TestForwardAuthSignsInThroughTheOrdinaryChain, against a seeded
+		// account; this line is the other half, and the two together are what
+		// SSO-02 asks for.
+		{"a trusted peer with the right secret, whose identity names no account", "127.0.0.1:41234", "the-real-secret"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			handler, _, _ := testRouterWith(t, routerTweaks{
@@ -860,5 +866,187 @@ func TestUntrustedPeerWithIdentityHeaderGetsTheLoginForm(t *testing.T) {
 			}
 			assertStripped(t, "the request the router served", req.Header)
 		})
+	}
+}
+
+// forwardAuthRequest builds a request the way the proxy would: from a trusted
+// peer, carrying this installation's shared secret and an identity.
+//
+// The identity is installed through web.ForwardAuth by driving a real request
+// through the real router, and never by writing the context key directly. A
+// test that fabricates the context would skip the layer wave 2 exists to build
+// and would keep passing after that layer was deleted.
+func forwardAuthRequest(target, username, email string, cookie *http.Cookie) *http.Request {
+	req := httptest.NewRequest("GET", target, nil)
+	req.Host = "admin.test"
+	req.RemoteAddr = "127.0.0.1:41234"
+	req.Header.Set(web.ProxySecretHeader, "the-real-secret")
+	req.Header.Set("X-authentik-username", username)
+	req.Header.Set("X-authentik-email", email)
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	return req
+}
+
+// ssoRouter builds the production router with single sign-on switched on and
+// loopback trusted, which is what forwardAuthRequest sets RemoteAddr to.
+func ssoRouter(t *testing.T) (http.Handler, *scs.SessionManager, *db.DB) {
+	t.Helper()
+	return testRouterWith(t, routerTweaks{
+		ssoEnabled: true,
+		ssoSecret:  "the-real-secret",
+		clientIP: web.NewClientIPResolver([]netip.Prefix{
+			netip.MustParsePrefix("127.0.0.1/32"),
+			netip.MustParsePrefix("::1/128"),
+		}),
+	})
+}
+
+// insertUser seeds an account without establishing a session for it — the
+// point of forward auth being that the session is what arrives without one.
+func insertUser(t *testing.T, database *db.DB, email, role string) int64 {
+	t.Helper()
+	res, err := database.Write.ExecContext(context.Background(),
+		`INSERT INTO users (name, email, password, role) VALUES ('T', $1, 'x', $2)`, email, role)
+	if err != nil {
+		t.Fatalf("insert user %q: %v", email, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// TestForwardAuthSignsInThroughTheOrdinaryChain is the whole of plan 10-03's
+// position argument, driven through the router main() serves.
+//
+// The middleware sits one nesting level outside requireAuth, so everything
+// behind it runs unchanged on the session it wrote. The second half of the test
+// is what proves "unchanged" rather than asserting it: the same person, signed
+// in the same way, is still refused an admin-only route, because the role check
+// behind the middleware is the one that was always there.
+func TestForwardAuthSignsInThroughTheOrdinaryChain(t *testing.T) {
+	handler, _, database := ssoRouter(t)
+	insertUser(t, database, "editor@test", "editor")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, forwardAuthRequest("/admin/", "editor", "editor@test", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /admin/ with an identity for a seeded editor answered %d; want 200 — "+
+			"a person the identity provider already signed in must not be asked again", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, forwardAuthRequest("/admin/users", "editor", "editor@test", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("GET /admin/users as an editor signed in through forward auth answered %d; want 403 — "+
+			"the middleware signs a session in and authorises nothing", rec.Code)
+	}
+}
+
+// TestForwardAuthDoesNotTouchTheLoginPage: the public admin chain carries no
+// forward-auth layer, which is half of what makes the password path provably
+// unchanged.
+func TestForwardAuthDoesNotTouchTheLoginPage(t *testing.T) {
+	handler, sm, database := ssoRouter(t)
+	insertUser(t, database, "editor@test", "editor")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, forwardAuthRequest("/admin/login", "editor", "editor@test", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /admin/login answered %d; want the login form", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `name="email"`) ||
+		!strings.Contains(rec.Body.String(), `type="password"`) {
+		t.Error("GET /admin/login did not answer the ordinary password form")
+	}
+	// A session written on that request would be the bug: nothing on the public
+	// chain may sign anybody in on the strength of a header.
+	for _, c := range rec.Result().Cookies() {
+		if c.Name != sm.Cookie.Name {
+			continue
+		}
+		var userID int64
+		req := httptest.NewRequest("GET", "/", nil)
+		req.AddCookie(c)
+		sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID = sm.GetInt64(r.Context(), auth.SessionKeyUserID)
+		})).ServeHTTP(httptest.NewRecorder(), req)
+		if userID != 0 {
+			t.Errorf("/admin/login signed in user %d; the public admin chain has no forward-auth layer", userID)
+		}
+	}
+}
+
+// TestPasswordPathIsUnchangedWithSSOOff is SSO-09 as a test rather than as a
+// sentence: with the zero-value SSO options — which is every existing
+// installation — the password sign-in answers what it always answered, writes
+// the session keys it always wrote, and is not marked as coming through single
+// sign-on.
+//
+// It runs from here to the end of the phase and is meant to be untouched by it.
+func TestPasswordPathIsUnchangedWithSSOOff(t *testing.T) {
+	handler, sm, database := testRouter(t)
+
+	hash, err := auth.HashPassword("ein sicheres passwort", auth.Argon2Params{
+		Memory: 8, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Write.ExecContext(context.Background(),
+		`INSERT INTO users (name, email, password, role) VALUES ('T', 'ada@example.com', $1, 'editor')`,
+		hash); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{"email": {"ada@example.com"}, "password": {"ein sicheres passwort"}}
+	req := httptest.NewRequest("POST", "/admin/login", strings.NewReader(form.Encode()))
+	req.Host = "admin.test"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// An identity header on the password request too: with the switch off it
+	// must make no difference whatsoever.
+	req.Header.Set("X-authentik-username", "somebody-else")
+	req.Header.Set("X-authentik-email", "somebody-else@example.com")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST /admin/login answered %d; want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/admin/" {
+		t.Errorf("redirected to %q; want /admin/", loc)
+	}
+
+	var cookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sm.Cookie.Name {
+			cookie = c
+		}
+	}
+	if cookie == nil {
+		t.Fatal("the password sign-in issued no session cookie")
+	}
+
+	var userID int64
+	var role, email string
+	var viaSSO bool
+	probe := httptest.NewRequest("GET", "/", nil)
+	probe.AddCookie(cookie)
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID = sm.GetInt64(r.Context(), auth.SessionKeyUserID)
+		role = sm.GetString(r.Context(), auth.SessionKeyUserRole)
+		email = sm.GetString(r.Context(), auth.SessionKeyUserEmail)
+		viaSSO = sm.GetBool(r.Context(), auth.SessionKeyViaSSO)
+	})).ServeHTTP(httptest.NewRecorder(), probe)
+
+	if userID == 0 || role != "editor" || email != "ada@example.com" {
+		t.Errorf("session after the password sign-in: user_id=%d role=%q email=%q; "+
+			"want the seeded editor", userID, role, email)
+	}
+	if viaSSO {
+		t.Error("a password sign-in was marked as established through single sign-on")
 	}
 }
