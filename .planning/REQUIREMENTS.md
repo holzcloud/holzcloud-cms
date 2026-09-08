@@ -177,7 +177,7 @@ enlarging a picture, assembling a set of them once, and paging through them.
 - [x] **GAL-02**: From the large view, next and previous move through the gallery without returning to the grid first, and each is an ordinary link to a sibling picture.
 - [x] **GAL-03**: An editor assembles a named album once for a website and places it on several pages. Changing the album changes every page that carries it, without touching those pages — the way menus and terms already work.
 - [x] **GAL-04**: An album survives the bundle round trip, including when it was renamed before export. The manifest carries a reusable thing by its name and re-derives the address on import; an album must be translated on the way out and back the way `KindRef` and `KindImage` already are, or its pictures resolve to nothing after import.
-- [ ] **GAL-05**: An album belongs to exactly one website and is invisible from every other, like every other resource in this CMS.
+- [x] **GAL-05**: An album belongs to exactly one website and is invisible from every other, like every other resource in this CMS.
 - [x] **GAL-06**: A gallery can be shown as a slideshow instead of a grid: pictures side by side, snapping to their edges, reachable by keyboard and by touch. CSS `scroll-snap` does the whole job.
 - [x] **GAL-07**: The gallery block and the album read and write their picture list through one mechanism, inherited from FIELD-07's exported pair — not a second spelling of the same thing.
 
@@ -300,7 +300,7 @@ v1.6 phases continue the numbering at 6.
 | GAL-02 | Phase 11 | Complete |
 | GAL-03 | Phase 11 | Complete |
 | GAL-04 | Phase 11 | Complete |
-| GAL-05 | Phase 11 | Pending |
+| GAL-05 | Phase 11 | Complete |
 | GAL-06 | Phase 11 | Complete |
 | GAL-07 | Phase 11 | Complete |
 | QUAL-01 | Phase 10 (gate on 6, 7, 8, 9, 10, 11) | Complete |
