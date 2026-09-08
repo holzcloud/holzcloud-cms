@@ -411,12 +411,52 @@ func (s *Store) AddItem(ctx context.Context, websiteID, albumID, mediaID int64, 
 		return 0, err
 	}
 
+	// The count, the next place, the insert and the parent's stamp are ONE
+	// transaction, because they are one change and because the first two decide
+	// the third.
+	//
+	// The read used to be on s.DB.Read and the write on s.DB.Write, and under
+	// WAL those are two connections and two snapshots: two adds to one album
+	// could both read MAX = 5 and both insert sort_order 6. The duplicate is
+	// invisible in the list — Pictures orders by (sort_order, id), which is
+	// still deterministic — and it breaks the arrow button, because
+	// SwapSortOrder exchanges two rows' sort_order values and exchanging two
+	// equal values writes nothing. The operator reads "Reihenfolge geändert"
+	// and the list does not move, for ever, with nothing anywhere saying why.
+	// The same window let MaxItems be exceeded.
+	//
+	// Reading inside the transaction rather than folding the arithmetic into
+	// the INSERT: the INSERT already reports "not this website's album" through
+	// RowsAffected() == 0, and putting the cap in the same WHERE would make one
+	// answer stand for two questions. ErrTooManyItems and ErrNotFound are
+	// different sentences to an operator, and the store's whole error contract
+	// is that they stay different.
+	//
+	// Two things do the work and it is worth knowing which does which, because
+	// a measurement said so rather than an argument. What SERIALISES the adds is
+	// BeginTx: the write pool holds one connection (db.Open sets
+	// SetMaxOpenConns(1)), so a second AddItem cannot get past this line while
+	// the first is inside. Moving the read back to s.DB.Read but leaving it
+	// BELOW this line makes both concurrency tests pass — the race is in the
+	// ordering, not in the pool. Reading on tx is what keeps it right anyway:
+	// the moment a statement is added above the count, a read on the other pool
+	// would be reading a state this transaction has already left.
+	//
+	// Nothing here waits on anything outside the database, which the write
+	// pool's single connection makes a requirement and not a preference (see
+	// SwapSortOrder).
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin add picture: %w", err)
+	}
+	defer tx.Rollback()
+
 	// How many pictures there are and where the last one sits, in one question,
 	// scoped so that another website's album answers "none" rather than a
 	// number. A count of MaxItems is the cap; the INSERT below is what reports
 	// an album that is not this website's.
 	var count, lastOrder int
-	if err := s.DB.Read.QueryRowContext(ctx,
+	if err := tx.QueryRowContext(ctx,
 		`SELECT COUNT(*), COALESCE(MAX(i.sort_order), -1)
 		   FROM album_items i
 		   JOIN albums a ON a.id = i.album_id
@@ -427,18 +467,6 @@ func (s *Store) AddItem(ctx context.Context, websiteID, albumID, mediaID int64, 
 	if count >= MaxItems {
 		return 0, fmt.Errorf("%w: album %d", ErrTooManyItems, albumID)
 	}
-
-	// The insert and the parent's stamp are one transaction, because they are
-	// one change: a picture that arrived without the album's updated_at moving
-	// is a picture no visitor with a warm cache is ever served. Both statements
-	// are against integers already in hand — nothing here waits on anything,
-	// which the write pool's single connection makes a requirement and not a
-	// preference (see SwapSortOrder).
-	tx, err := s.DB.Write.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, fmt.Errorf("begin add picture: %w", err)
-	}
-	defer tx.Rollback()
 
 	res, err := tx.ExecContext(ctx,
 		`INSERT INTO album_items (album_id, media_id, alt, caption, sort_order, updated_at)
