@@ -9,6 +9,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -146,18 +147,34 @@ func (h *Handler) albumFromPath(w http.ResponseWriter, r *http.Request) (*domain
 // what internal/admin/menu.go:172 still has to do: a string match reads a
 // sentence the driver is free to reword and cannot tell a unique violation from
 // a NOT NULL one that happens to mention the word.
+//
+// # Why every sentence is wrapped in i18n.N
+//
+// tools/i18n reads the ARGUMENTS of SetFlashError and SetFlashSuccess. These
+// sentences are returned from a helper and the call sites pass the helper's
+// result, so the collector saw a function call where it looks for a literal and
+// collected nothing: the gate would have read "0 offen, 0 verwaist" while all
+// six of these still printed in German to a French or an Italian operator, with
+// nothing anywhere saying so.
+//
+// i18n.N marks a literal where it is WRITTEN and returns it unchanged; the
+// SetFlash* family still translates it where it is put away. internal/block/
+// render.go uses it for exactly this, and its three keys are in the catalogue
+// because of it. internal/admin/menu.go needs none because it passes its
+// literals directly — this file is a regression against its own sibling, not a
+// shape the codebase had.
 func albumSaid(err error) string {
 	switch {
 	case errors.Is(err, album.ErrNoName):
-		return "Bitte einen Namen für das Album angeben"
+		return i18n.N("Bitte einen Namen für das Album angeben")
 	case errors.Is(err, album.ErrDuplicateName):
-		return "Ein Album mit diesem Namen gibt es schon"
+		return i18n.N("Ein Album mit diesem Namen gibt es schon")
 	case errors.Is(err, album.ErrTooManyItems):
-		return "Dieses Album ist voll. Leg für weitere Bilder ein zweites an."
+		return i18n.N("Dieses Album ist voll. Leg für weitere Bilder ein zweites an.")
 	case errors.Is(err, album.ErrForeignMedia):
-		return "Dieses Bild gehört nicht zur Mediathek dieser Website"
+		return i18n.N("Dieses Bild gehört nicht zur Mediathek dieser Website")
 	case errors.Is(err, album.ErrNotFound):
-		return "Das Album oder das Bild gibt es nicht mehr"
+		return i18n.N("Das Album oder das Bild gibt es nicht mehr")
 	}
 	return ""
 }
@@ -370,16 +387,19 @@ func albumPicture(r *http.Request) (mediaID int64, alt, caption string) {
 // site's library by typing its number. The handler's copy is what turns it into
 // a sentence rather than a 500, and it is also what catches a film chosen where
 // a photo belongs — which the store, correctly, has no opinion about.
+// The two sentences below are marked with i18n.N for the reason albumSaid
+// gives at length: they are returned from here and passed to SetFlashError at
+// the call site, where the collector looks for a literal and finds a variable.
 func (h *Handler) requireOwnPicture(r *http.Request, websiteID, mediaID int64) string {
 	if mediaID <= 0 {
-		return "Bitte ein Bild auswählen"
+		return i18n.N("Bitte ein Bild auswählen")
 	}
 	if h.mediaStore == nil {
-		return "Dieses Bild gehört nicht zur Mediathek dieser Website"
+		return i18n.N("Dieses Bild gehört nicht zur Mediathek dieser Website")
 	}
 	m, err := h.mediaStore.GetByID(r.Context(), mediaID)
 	if err != nil || m == nil || m.WebsiteID != websiteID || !m.IsImage() {
-		return "Dieses Bild gehört nicht zur Mediathek dieser Website"
+		return i18n.N("Dieses Bild gehört nicht zur Mediathek dieser Website")
 	}
 	return ""
 }
