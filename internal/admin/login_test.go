@@ -299,7 +299,14 @@ func TestLogoutWritesTheProtocolRowOnBothPaths(t *testing.T) {
 				t.Errorf("actor_email = %q; want %q", rows[0].ActorEmail, tc.email)
 			}
 			if rows[0].UserID == nil || *rows[0].UserID != id {
-				t.Errorf("user_id = %v; want %d", rows[0].UserID, id)
+				// Dereferenced: %v on the pointer prints an address, and a
+				// failure message nobody can read is a failure message that
+				// gets skimmed.
+				var got int64
+				if rows[0].UserID != nil {
+					got = *rows[0].UserID
+				}
+				t.Errorf("user_id = %d; want %d", got, id)
 			}
 		})
 	}
@@ -385,4 +392,30 @@ func TestLogoutReadsTheViaSSOFlagBeforeTheSessionIsDestroyed(t *testing.T) {
 			"and the branch could be moved below Destroy without any test noticing")
 	}
 
+}
+
+func TestLogoutSurvivesAHandlerWithNoConfiguration(t *testing.T) {
+	// Why this exists: removing the h.cfg != nil term from HandleLogout left
+	// the whole suite green, and a green mutation is a question. The answer
+	// here is that nothing covered it — a Handler with no configuration is
+	// constructible in this package today (page_fields_kinds_test.go builds
+	// &Handler{} by literal), and no test drove a sign-out on one.
+	//
+	// It is the same shape as absoluteAdminURL's h.cfg != nil guard, and the
+	// point of asserting it here is that the guard's own contribution is now
+	// falsifiable rather than only visible when somebody happens to hold a
+	// half-built handler.
+	h, sm, database := newLogoutAdmin(t, true)
+	id := seedAccount(t, database, "noconfig@test", "admin")
+	cookie := signedIn(t, sm, id, "noconfig@test", true)
+	h.cfg = nil
+
+	rec := serve(t, h, sm, h.HandleLogout, logoutRequest(cookie, false))
+
+	if got := rec.Header().Get("Location"); got != "/admin/login" {
+		t.Errorf("Location = %q; want %q — with no configuration there is no sign-out path to read", got, "/admin/login")
+	}
+	if got := sessionUserID(t, sm, cookie); got != 0 {
+		t.Errorf("the session survived the sign-out and still belongs to %d", got)
+	}
 }
