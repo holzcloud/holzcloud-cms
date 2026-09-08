@@ -48,6 +48,10 @@ Katalogschlüsseln.
 | Bereich | `range` | Die Feldart. `min_wert`/`max_wert` → `range_min`/`range_max` |
 | Verweis | `ref` | Auf eine eigene Seite |
 | Link | `link` | Auf eine beliebige Adresse |
+| Album | `album` | Eine Bilderreihe, die mehrere Seiten tragen können. **Nicht** `gallery` — die Galerie ist der Baustein, das Album ist der Vorrat, den er zeigt (Phase 11) |
+| Diashow | `slideshow` | Die zweite Darstellung des Galerie-Bausteins: eine waagerechte Spur mit `scroll-snap`. **Nicht** `carousel` — es dreht sich nichts von selbst |
+| Grossansicht | `large view` | Das grosse Bild, das ein Klick auf eine Kachel öffnet. Das, was der Besucher sieht |
+| Lichtkasten | `lightbox` | Der Mechanismus dahinter: `:target` auf einer `<figure>`, kein `<dialog>`, kein JavaScript. **Nicht** synonym mit `Grossansicht` — das eine ist die Sache, das andere ihr Bauteil |
 
 ## Seiten, Websites, Vorlagen
 
@@ -157,6 +161,13 @@ Katalogschlüsseln.
 - **`Type`** ist in Go belegt. `Art` heisst deshalb `kind`, durchgehend.
 - **`Site`** ist der Name des Vorlagen-Vertrags (`.Site.…`). Eine Website heisst
   im Code `website`, nie `site`.
+- **`Weiter`** und **`Zurück`** sind vergeben. Der Katalog übersetzt sie seit
+  langem als `Continue` und `Back` — die Wörter eines Assistenten, nicht die
+  eines Bildes. Wer irgendwo ein Blättern baut, mintet eigene Zeichenketten:
+  Phase 11 nahm `Vorheriges Bild` / `Nächstes Bild` (`Previous image` /
+  `Next image`). Gemessen 2026-09-08 am Katalog, nicht vermutet. Hätte die
+  Galerie `Weiter` wiederverwendet, stünde in vier Sprachen das falsche Wort
+  auf einem Bild, und jedes Tor wäre grün geblieben.
 
 ---
 
