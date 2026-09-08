@@ -50,7 +50,7 @@ sign-in the operator already runs.
 - [ ] **Phase 8: Snippets Carry Fields** — A text snippet stops being one Markdown box and holds any field kind, reusing the field table that already exists
 - [ ] **Phase 9: CSV Import** — Content arrives as a table: upload, map column to field, dry-run it, create pages the ordinary way, report every row
 - [ ] **Phase 10: Authentik Forward-Auth** — Single sign-on taken as a header from the reverse proxy, with the trust boundary closed before the first header is read and the password path untouched behind it
-- [ ] **Phase 11: Galerie** — What the picture grid has been missing since it was built: enlarging an image, assembling an album once and using it on several pages, and paging through pictures instead of scrolling past them — all of it without a line of JavaScript
+- [x] **Phase 11: Galerie** — What the picture grid has been missing since it was built: enlarging an image, assembling an album once and using it on several pages, and paging through pictures instead of scrolling past them — all of it without a line of JavaScript
 
 ---
 
@@ -591,7 +591,7 @@ anywhere.
 | 8. Snippets Carry Fields | v1.6 | 5/5 | Complete | 2026-09-06 |
 | 9. CSV Import | v1.6 | 6/6 | Complete | 2026-09-07 |
 | 10. Authentik Forward-Auth | v1.6 | 5/10 | In Progress|  |
-| 11. Galerie | v1.6 | 7/7 | In Progress|  |
+| 11. Galerie | v1.6 | 7/7 | Complete | 2026-09-08 |
 | 12. The Codebase Speaks English | v1.6 | 0/TBD | Not planned | - |
 
 ---
