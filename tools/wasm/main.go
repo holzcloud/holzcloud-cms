@@ -46,11 +46,11 @@
 // tree — the answer if a future Go release ever breaks the byte equality
 // between a contributor's machine and the runner.
 //
-// Four of the plugins also carry a .zip beside them, holding a byte-identical
+// Five of the plugins also carry a .zip beside them, holding a byte-identical
 // copy of the module. Rebuilding the modules without repacking those would
 // recreate one layer up exactly the staleness this tool exists to prevent, so
 // the archives are packed here too, from the module of the same run, and every
-// mode covers all ten artifacts at once.
+// mode covers all eleven artifacts at once.
 // # Touching sdk/ invalidates every committed artefact, comments included
 //
 // Each plugin's go.mod carries `replace …/sdk => ../../sdk`, so the SDK is
