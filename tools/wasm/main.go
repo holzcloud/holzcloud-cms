@@ -127,9 +127,17 @@ var ziele = []ziel{
 	{"echo", "internal/plugin/testdata/echo", "internal/plugin/testdata/echo.wasm", ""},
 }
 
-// What an archive holds: the manifest, then the module, flat and in that order.
-// This is what the four committed archives contain today and what the zip -j
-// line in plugins/README.md produces.
+// What an archive holds: the manifest, then the module, then whatever else the
+// plugin's own directory carries — a migrations/ directory, for instance.
+//
+// Not flat, and not what `zip -j` produces. That sentence used to stand here
+// and was wrong twice: `zip -j` flattens, so it would drop
+// kontaktformular's migrations/ — the loss packen was rewritten to prevent —
+// and it stamps wall-clock time, so its bytes can never match the fixed
+// 1980-01-01 stamp this tool's comparison rests on. plugins/README.md said the
+// same thing and now says otherwise. There are FIVE committed archives and
+// eleven artefacts, not four and ten; ba23dbd added the fifth and no comment
+// followed it.
 const (
 	manifestName = "plugin.json"
 	modulName    = "plugin.wasm"
