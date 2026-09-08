@@ -443,15 +443,45 @@ const closeTarget = "hc-zu"
 //
 // # What this marker must survive, and what it need not
 //
-// Half of the snippet marker's reasoning does not apply here. A snippet marker
-// is typed by an editor into Markdown and has to survive goldmark and
-// bluemonday, which is what its pattern is shaped for. This one is written by
-// this file into HTML this program controls and meets neither. What it must
-// survive is media.MakeResponsive, which parses the fragment with
+// What it must survive is media.MakeResponsive, which parses the fragment with
 // golang.org/x/net/html and re-renders it: a text node passes through
 // unchanged. That is a property to state and to test rather than to assume —
 // TestTheAlbumMarkerIsPlainTextInsideAnElement here, and
 // TestExpandedAlbumPicturesGetTheirSrcSet in internal/public for the other end.
+//
+// # A sentence that used to stand here and was wrong
+//
+// It said: "A snippet marker is typed by an editor into Markdown and has to
+// survive goldmark and bluemonday. This one is written by this file into HTML
+// this program controls and meets neither." The second half is false, and the
+// Phase 11 security audit measured it (UF-1, 2026-09-08). Nothing stops an
+// editor typing this marker into a text block, and both halves of the pipeline
+// pass it through:
+//
+//	in : Ein Absatz mit [[album:sommer-2025:1]] mittendrin.
+//	out: <p>Ein Absatz mit [[album:sommer-2025:1]] mittendrin.</p>
+//
+//	in : <a href="/x?q=[[album:sommer-2025:1]]">klick</a>
+//	out: <p><a href="/x?q=[[album:sommer-2025:1]]" rel="nofollow">klick</a></p>
+//
+// The second line is the one that matters: an editor writing raw HTML can put
+// the marker inside an ATTRIBUTE VALUE, and the replacement below is a
+// context-free string substitution — so the gallery's first quotation mark
+// ends the attribute and the markup after it is not what anybody wrote.
+//
+// The audit tried to make that reach further and could not. Everything after
+// the break is renderer-generated, alt text and captions go through
+// html.EscapeString, trailing editor text lands escaped in data state,
+// bluemonday drops an href containing a space, and script-src 'self' forbids
+// inline script regardless. So: broken markup on one page, done by an
+// authenticated editor to their own website, with no reach across websites.
+//
+// It is written down rather than fixed because the fix is a context-aware
+// replacement — the marker would have to know whether it sits in text or in an
+// attribute — and that is a change to the mechanism, not a correction to it.
+// What is fixed is the claim: this comment was cited by two threat rows as the
+// reason no check was needed, and it asserted the opposite of what the code
+// does.
 const albumMarkerPrefix = "[[album:"
 
 // albumMarkerPattern matches the marker albumMarkerPrefix opens.
