@@ -39,8 +39,13 @@ Enforced in two places, keep both working:
   a silently broken page.
 - `internal/tmplmgr/script.go` — the same for JavaScript. Uploaded templates
   carry none: not a `.js` file, not an inline `<script>`, not an `onclick`
-  attribute, not a `javascript:` URL. A `<script type="application/ld+json">`
-  data block is exempt because the browser never executes one.
+  attribute, not a `javascript:` URL. A `<script>` whose type marks it as **data**
+  is exempt, because the HTML parser hands its content to the page as text and
+  never prepares a script from it — `application/ld+json`, which is how the
+  shipped themes carry their schema.org description, and `application/json`.
+  `importmap` is explicitly **not** exempt: an import map is not data, it drives
+  loading. The list is `dataBlockTypes` in that file and it is the one place to
+  change it.
 
 ### Key Dependencies
 
