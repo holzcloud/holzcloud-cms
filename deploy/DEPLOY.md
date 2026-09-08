@@ -50,11 +50,16 @@ you:
   many readers and one writer; two pods on one volume are two writers.
 - **`HOLZCLOUD_SECURE=true`** behind TLS, so the session cookie carries the
   Secure flag.
+- **`HOLZCLOUD_LISTEN=0.0.0.0`**, because the process binds `127.0.0.1` by
+  default and a published port reaches a process that bound loopback *inside its
+  own network namespace* and finds nobody there. Without this the container
+  starts, logs nothing wrong, and answers no request.
 - **`/healthz`** for both probes. It answers 200 as soon as the database is
   open.
 
 The image is built for linux/amd64 only. `docker run --rm -v holzcloud:/data -p
-8080:8080 ghcr.io/holzcloud/holzcloud-cms:<tag>` is enough to try it.
+8080:8080 -e HOLZCLOUD_LISTEN=0.0.0.0 ghcr.io/holzcloud/holzcloud-cms:<tag>` is
+enough to try it.
 
 ## Transfer to the server
 
@@ -116,6 +121,7 @@ while the volume you mounted for data stays empty.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HOLZCLOUD_PORT` | `8080` | HTTP listen port |
+| `HOLZCLOUD_LISTEN` | `127.0.0.1` | The address the server binds. The process used to listen on every interface; it no longer does. A proxy on the same host — the documented deployment — is covered by the default. A proxy on another machine, or a container whose port is published, needs an explicit address here (`0.0.0.0`, or `::` for both families) |
 | `HOLZCLOUD_DATA_DIR` | `data` (relative!) | Database, media, and template storage — set this explicitly |
 | `HOLZCLOUD_LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
 | `HOLZCLOUD_SECURE` | `false` | Secure cookie flag — set `true` behind HTTPS |
@@ -158,6 +164,177 @@ sudo systemctl reload caddy
 ```
 
 For multiple websites, add one domain block per site in the Caddyfile. Holzcloud resolves the correct website by the incoming `Host` header.
+
+**If you intend to use single sign-on, Caddy must be 2.11.2 or newer.**
+`caddy version` says which you have, and
+[Single sign-on (Authentik forward auth)](#single-sign-on-authentik-forward-auth)
+below says what is wrong with the versions before it. Without single
+sign-on the version does not matter; any Caddy that still gets security
+updates serves this file.
+
+## Single sign-on (Authentik forward auth)
+
+Off unless you switch it on. With `HOLZCLOUD_SSO_ENABLED` unset — the default —
+not one line of this path executes and the password login is exactly what it was.
+
+### What it does, and what it does not
+
+Whoever your Authentik has already signed in reaches `/admin` without a second
+sign-in. Caddy asks the Authentik outpost who the visitor is, copies the answer
+onto the forwarded request as a handful of `X-authentik-…` headers, and adds a
+shared secret that says the request really came through your own proxy.
+Holzcloud believes that claim only from a trusted peer, only with the right
+secret, and it deletes every inbound identity header itself — on every path,
+whoever the peer was — before any handler runs. A visitor who writes those
+headers by hand is refused, and gets the ordinary login form.
+
+**The password path is untouched, and it is the way back in when the identity
+provider is down.** The login form, the throttle, two-factor, the recovery codes
+and `holzcloud user 2fa disable` all behave exactly as they did. If the identity
+provider is unreachable and nobody can sign in, see [Locked out of an
+administrator account](#locked-out-of-an-administrator-account) further down;
+that route needs shell access on this machine and nothing else.
+
+### The settings
+
+All seven are read only when `HOLZCLOUD_SSO_ENABLED` is true, and an invalid
+combination stops the process at start-up rather than at the first sign-in.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOLZCLOUD_SSO_ENABLED` | `false` | The master switch. False means the whole path is dead code |
+| `HOLZCLOUD_SSO_SECRET` | — | The shared secret the proxy sends in `X-Holzcloud-Proxy-Secret`. Environment only, never in the database and never in the log. Switched on without one, the service refuses to start |
+| `HOLZCLOUD_SSO_ADMIN_GROUP` | — | The identity provider group that grants administration. See below |
+| `HOLZCLOUD_SSO_WEBSITE_GROUPS` | — | Comma-separated `group=websiteID` pairs. A group not listed here grants no website. Ids and not names, because `websites` has no slug column and a rename would silently unassign everybody |
+| `HOLZCLOUD_SSO_PROVISION` | `false` | Create an account for an identity the provider vouches for but this installation has never seen. See below |
+| `HOLZCLOUD_SSO_DEFAULT_WEBSITE` | — | The website a newly created account is assigned to. Required whenever provisioning is on, and checked against the database at start-up |
+| `HOLZCLOUD_SSO_SIGN_OUT_PATH` | `/outpost.goauthentik.io/sign_out` | Where the sign-out button sends the browser. A path on this server, never a URL — validated at start-up as exactly one leading slash |
+
+**`HOLZCLOUD_SSO_ADMIN_GROUP` has no default, deliberately.** An empty value is a
+legal configuration and means that no group grants administration. A default
+group name would be a group name somebody at the identity provider can create.
+
+**`HOLZCLOUD_SSO_PROVISION` and `HOLZCLOUD_SSO_DEFAULT_WEBSITE` belong together,
+and the service refuses to start with the first set and the second missing.**
+This is the most important paragraph in this section. Holzcloud expresses "this
+person may enter every website" as *no website assignment at all* — see
+[Rights per person](../docs/security.md#rights-per-person). That reading is
+correct for an account you created by hand, and it inverts under provisioning: a
+freshly created account has no assignment *by construction*, so without a
+default website the first stranger who authenticates at your identity provider
+would get editor access to every website in the installation. The refusal is
+what stops that, and it is loud at start-up rather than quiet at the first
+sign-in. For the same reason, when `HOLZCLOUD_SSO_WEBSITE_GROUPS` **is** set
+and an existing account's groups match none of the pairs in it, that sign-in is
+refused rather than written back as an empty assignment — removing somebody's
+last website group must take access away, not grant everything. With
+`HOLZCLOUD_SSO_WEBSITE_GROUPS` unset the website half does not run at all, which
+is the difference between a setting that grants to nobody and a setting that
+does not decide.
+
+Group membership is re-read on **every** sign-in. Taking a group away at the
+identity provider takes the access away here at the next sign-in, not at the
+next session expiry.
+
+### The minimum Caddy version is 2.11.2
+
+`caddy version` tells you what you have. Anything from **2.10.0 through 2.11.1**
+is affected by **CVE-2026-30851** (GHSA-7r4p-vjf4-gxv4), and it is worth
+understanding rather than upgrading past: `forward_auth … { copy_headers X-Foo }`
+generated a *conditional set* of `X-Foo` and **no delete** of the client's own
+inbound `X-Foo`. Whenever the outpost answers 200 without emitting that header —
+an anonymous route, an account with no e-mail address, any header Authentik chose
+not to send — the visitor's own value was forwarded to the backend verbatim. The
+defect had been latent since November 2024, so it is in the Caddy a lot of
+servers currently have from the stable apt repository.
+
+The shipped `deploy/Caddyfile.example` **deletes each copied header explicitly**,
+in both the hyphenated and the underscored spelling, before `forward_auth` is
+asked anything. A correct Caddyfile is therefore not something you have to
+derive. The underscored spelling matters on a *fixed* Caddy too: Go treats
+`X-authentik-email` and `X_authentik_email` as two different headers, and the
+fix's own delete covers only the canonical hyphenated name (measured against
+Caddy 2.11.4 with `caddy adapt`). That is the companion advisory
+GHSA-f59h-q822-g45g / CVE-2026-52845.
+
+Holzcloud strips all of these again itself regardless, which is what makes a
+wrong Caddyfile a misconfiguration and not a way in. Three independent layers on
+a defect in a program this project does not ship.
+
+### Two things you verify once, against your own instance
+
+Neither can be looked up from here, and neither is a claim this project makes
+about your setup. Both are checks you run once, when you first wire it up.
+
+1. **That your Authentik really emits `X-authentik-username`, with the value you
+   expect.** The identity is pinned to the username and deliberately *not* to
+   `X-authentik-uid`: `-uid` carries the OIDC subject, whose shape depends on the
+   provider's **Subject mode** and defaults to a hashed identifier. Read the
+   header your outpost actually sends — Authentik's own provider preview, or a
+   temporary `respond {header.X-authentik-username}` route in Caddy, will show
+   it. **Once people are mapped, do not change the Subject mode**, and do not
+   rename users at the identity provider without expecting a new account here.
+
+2. **That your Caddy is 2.11.2 or newer, and that the configuration it generates
+   really carries a delete per copied header.** The version alone is not the
+   check; the generated configuration is:
+
+   ```bash
+   caddy version
+   caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null \
+     | grep -o '"delete":\[[^]]*\]'
+   ```
+
+   You should see one entry per copied header in the hyphenated spelling from
+   the shipped example, one in the underscored spelling, and — on 2.11.2 and
+   newer — Caddy's own canonical delete beside them.
+
+### The acceptance test, and the answer that is not a pass
+
+One command, run **from a second machine**, over IPv4 **and** over IPv6:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+  -H 'X-authentik-email: stranger@example.com' \
+  http://<server>:8080/admin/
+```
+
+The expected answer is `303` with a redirect to `…/admin/login` — **a login
+form, not a dashboard.** A stranger who writes the header themselves is nobody.
+
+**`Connection refused` is not a pass.** It means the port is not reachable from
+where you are standing, which is the default and is good, but it proves the
+*listener* and says nothing whatever about whether a header is believed. To
+actually test the header the port has to answer: set `HOLZCLOUD_LISTEN=0.0.0.0`
+temporarily, restart, run the command from the other machine over both address
+families, and then put the setting back. A test that cannot fail is not a test.
+
+### E-mail addresses above plain ASCII are refused
+
+An identity whose e-mail address contains any character above plain ASCII is
+refused at sign-in, and the person falls through to the password form. The
+reason is in the schema: `users.email` is unique under SQLite's
+`COLLATE NOCASE`, which folds ASCII and nothing else. `Müller@example.com` and
+`müller@example.com` are therefore two rows and would become two accounts — and
+if one of them is an administrator, two administrators. Refusing is the only
+answer that does not guess which one was meant. Give such a person an ASCII
+address at the identity provider, or create the account here by hand.
+
+### The second factor is whatever your Authentik enforces
+
+An Authentik session satisfies this installation's two-step requirement
+unconditionally. **So this installation's second factor is the one your identity
+provider asks for.** If your Authentik is satisfied by a password alone, then
+every administrator who signs in through it has a single factor, and the
+compulsory TOTP that Holzcloud requires of administrators on the password path
+does not apply to them.
+
+That is a deliberate decision and not an oversight — asking for a second factor
+twice is how people are trained to click past them — but it moves the guarantee
+onto your identity provider, and it is your job to put an authenticator or a
+passkey stage in front of the Holzcloud application in Authentik. The same
+dependency is stated inside the admin, on *My account* and on the user list, so
+whoever administers the installation reads it there without opening this file.
 
 ## First Run
 
