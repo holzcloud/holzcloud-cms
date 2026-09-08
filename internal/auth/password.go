@@ -53,12 +53,32 @@ var dummySalt = []byte("holzcloud-dummy!")
 //
 // Call it on the "user not found" path of a login so the response time does not
 // distinguish an unknown email from a wrong password.
+// Every parameter falls back to the default, and not only the key length.
+//
+// argon2.IDKey panics on zero rounds — "argon2: number of rounds too small" —
+// and this is called on the "no such address" branch of a login. A panic there
+// is a 500 where a known address gets a 200, which tells an attacker exactly
+// what the timing would have told them, instantly and without measuring
+// anything. The defence would have become the oracle it was written against.
+//
+// config.Load cannot produce such a struct: it floors the memory at 8 KB and
+// refuses zero iterations and zero parallelism, collecting all three as errors
+// rather than quietly defaulting. This is for every other caller — a partially
+// filled struct is easy to write and the compiler has nothing to say about it.
 func VerifyDummyPassword(password string, p Argon2Params) {
-	keyLen := p.KeyLength
-	if keyLen == 0 {
-		keyLen = DefaultParams.KeyLength
+	if p.KeyLength == 0 {
+		p.KeyLength = DefaultParams.KeyLength
 	}
-	hash := argon2.IDKey([]byte(password), dummySalt, p.Iterations, p.Memory, p.Parallelism, keyLen)
+	if p.Iterations == 0 {
+		p.Iterations = DefaultParams.Iterations
+	}
+	if p.Memory == 0 {
+		p.Memory = DefaultParams.Memory
+	}
+	if p.Parallelism == 0 {
+		p.Parallelism = DefaultParams.Parallelism
+	}
+	hash := argon2.IDKey([]byte(password), dummySalt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 	// Compare against itself so the compiler cannot elide the derivation.
 	_ = subtle.ConstantTimeCompare(hash, hash)
 }
