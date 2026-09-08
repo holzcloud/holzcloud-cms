@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Completed 10-07-PLAN.md
-last_updated: "2026-09-08T05:55:53.233Z"
+stopped_at: Completed 10-08-PLAN.md
+last_updated: "2026-09-08T06:13:18.188Z"
 last_activity: 2026-09-06
-state_head: 67d262d314b2b896439ed9fd2413a06e75829451
+state_head: 5b1bba71f3305687568ca02f293f384ee3adabeb
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 42
-  completed_plans: 39
+  completed_plans: 40
   percent: 29
 ---
 
@@ -271,6 +271,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P05 | 40 min | 2 tasks | 2 files |
 | Phase 10 P06 | 25 min | 3 tasks | 7 files |
 | Phase 10 P07 | 28 min | 2 tasks | 2 files |
+| Phase 10 P08 | 41min | 3 tasks | 5 files |
 
 ### Session Continuity
 
@@ -299,8 +300,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T05:55:34.195Z
-**Stopped at:** Completed 10-07-PLAN.md
+**Last session:** 2026-09-08T06:12:51.504Z
+**Stopped at:** Completed 10-08-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -373,6 +374,10 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 10]: 10-07: Die Abmeldung einer über den Ausweisdienst begonnenen Sitzung leitet auf cfg.SSOSignOutPath um — ein Pfad auf diesem Server, nie aus r.Host zusammengesetzt. ROADMAP.md Zeile 481 verlangt das Gegenteil und widerspricht sich dabei selbst; Mutation 5 ist genau dieser Satz und ist an fünf Stellen rot.
 - [Phase 10]: 10-07: web.AdminCSP / web.AdminHeadersWith (Bauschritt ⑦) wurden bewusst NICHT gebaut — das Ziel ist gleicher Ursprung, also genügt form-action 'self'. Zwei Tests halten die Voraussetzung; sie fallen zuerst, sobald ein eigener Outpost-Host unterstützt wird.
 - [Phase 10]: 10-07: auth.SafeReturn wird nicht wiederverwendet, obwohl die Roadmap es verlangt — gemessen: SafeReturn("/outpost.goauthentik.io/sign_out") liefert "/admin/", die Abmeldung hätte den Menschen zurück in die Verwaltung geschickt.
+- [Phase 11]: 10-08: der (holzcloud-sso)-Schnipsel steht ueber den Site-Bloecken — Caddy loest import beim Parsen in Dateireihenfolge auf, ein Schnipsel darunter scheitert mit 'File to import not found'
+- [Phase 11]: 10-08: die Antwortkopfzeilen liegen in (holzcloud-headers), von beiden Wegen importiert; caddy adapt liefert vorher und nachher byteweise dasselbe JSON
+- [Phase 11]: 10-08: gemessen auf Caddy 2.11.4 — die Loeschung, die die CVE-Behebung erzeugt, deckt nur die kanonische Bindestrich-Schreibweise; die Unterstrich-Zeilen tragen also auch auf einem behobenen Caddy
+- [Phase 11]: 10-08: docs/configuration.md bekommt neun Variablen, nicht sieben — HOLZCLOUD_LISTEN und HOLZCLOUD_TRUSTED_PROXIES fehlten dort schon vor dieser Phase
 
 ## Accumulated Context
 
@@ -385,3 +390,4 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - ~~07-04 gemeldet, nicht behoben: internal/bundle/import.go importFieldValues schreibt Feldwerte mit field.Encode direkt, ohne CheckAll und ohne Clean.~~ **ERLEDIGT in 07-05 (7cb09f4).** Entschieden wurde gedeckt und nicht vertagt: ein Archiv ist eine Datei, die jeder bearbeiten kann, alle anderen Schreibwege sind gedeckt, und seit 07-04 kuerzt trimTo nichts mehr — CheckAll ist damit die einzige Stelle, an der das Bytebudget ueberhaupt noch gilt. importPages liest die tatsaechlich angelegten Definitionen ueber s.Fields.List und reicht sie in importFieldValues; dort laufen field.Clean und field.CheckAll, ein beanstandeter Wert wird entfernt und namentlich in den Bericht geschrieben, nie die ganze Seite verworfen. TestArchivwerteGehenDurchDieselbePruefung beweist es, Gegenprobe mit deaktivierter Wache gefuehrt (vier Behauptungen fallen). Offene Blocker: keine
 - Plan 10-01: vier Zaehl-Schranken der Phase 10 sind gegen den Baum vom 2026-09-07 geeicht und seit Phase 11 veraltet (Migrationen 49 statt 50, Pakete 40 statt 41, Admin-Vorlagen 66 statt 68, Zeichenketten 1277 statt 1311). Die Plaene 10-02 bis 10-09 tragen dieselben Zahlen — gemessene Werte aus 10-01-SUMMARY uebernehmen
 - Offen (WINDOWS.md Eintrag 8): eine Album-Diashow zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch. render.go:212 uebersetzt mit s.text (nur beim Speichern gesetzt), die Bedienelemente ueber expand.go:133 mit set.t (bei der Anfrage). Die Behebung verschiebt die Grenze zwischen Speicherzeit und Anfragezeit — Architekturentscheid des Entwicklers.
+- 10-08: das isTrustedProxy-Tor des Plans schliesst '^\./\.planning/' aus, grep gibt hier aber Pfade ohne './' aus — es liest 14 statt 0. Korrigierte Form: grep -v '^\(\./\)\?\.planning/'. Die Eigenschaft selbst gilt (0 ausserhalb .planning/). Fuenfter Fall in dieser Phase.
