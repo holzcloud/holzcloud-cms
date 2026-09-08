@@ -1165,3 +1165,547 @@ func TestProvisioningOffCreatesNothing(t *testing.T) {
 		t.Errorf("actor_email = %q; want the attempted address", rows[0].ActorEmail)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Group synchronisation (plan 10-05)
+//
+// SSO-06: group membership decides role and website access, re-applied on every
+// sign-in so that a demotion at the identity provider takes effect here rather
+// than at the next session expiry.
+//
+// Four traps sit inside one function and three of them pass a naive
+// implementation's own tests. The tests below are named after the traps rather
+// than after the happy path, because the happy path is the part that would have
+// been written correctly anyway.
+// ---------------------------------------------------------------------------
+
+const (
+	fwdAdminGroup = "holzcloud-admins"
+	fwdGroupA     = "seite-a"
+	fwdGroupB     = "seite-b"
+)
+
+// newGroupSyncAdmin is newForwardAuthAdmin plus affordable hashing, two
+// websites with names a failure message can print, and the two settings the
+// synchronisation reads.
+func newGroupSyncAdmin(t *testing.T) (h *Handler, sm *scs.SessionManager, database *db.DB, siteA, siteB int64) {
+	t.Helper()
+	h, sm, database = newForwardAuthAdmin(t, true)
+	h.users.Params = cheapHashing
+
+	domains := domain.NewStore(database)
+	a, err := domains.CreateWebsite(context.Background(), "Seite A", "")
+	if err != nil {
+		t.Fatalf("create Seite A: %v", err)
+	}
+	b, err := domains.CreateWebsite(context.Background(), "Seite B", "")
+	if err != nil {
+		t.Fatalf("create Seite B: %v", err)
+	}
+
+	h.cfg.SSOAdminGroup = fwdAdminGroup
+	h.cfg.SSOWebsiteGroups = map[string]int64{fwdGroupA: a.ID, fwdGroupB: b.ID}
+	return h, sm, database, a.ID, b.ID
+}
+
+// fwdGroupRequest is fwdRequest carrying the identity provider's group header.
+//
+// The header is set even when groups is empty, because "the header arrived and
+// said nothing" is one of the cases under test and it is not the same request
+// as one where the proxy sent no header at all.
+func fwdGroupRequest(username, email, groups string, cookie *http.Cookie) *http.Request {
+	req := fwdRequest(username, email, cookie)
+	req.Header.Set("X-authentik-groups", groups)
+	return req
+}
+
+// assign writes a website assignment directly, so a test can set up the state a
+// previous sign-in would have left.
+func assign(t *testing.T, database *db.DB, userID int64, ids ...int64) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := database.Write.ExecContext(ctx,
+		`DELETE FROM user_websites WHERE user_id = $1`, userID); err != nil {
+		t.Fatalf("clear the assignment: %v", err)
+	}
+	for _, id := range ids {
+		if _, err := database.Write.ExecContext(ctx,
+			`INSERT INTO user_websites (user_id, website_id) VALUES ($1, $2)`, userID, id); err != nil {
+			t.Fatalf("assign website %d: %v", id, err)
+		}
+	}
+}
+
+// storedRole reads users.role, which is what the next request will be
+// authorised against — auth.RequireAuth re-reads it from the database.
+func storedRole(t *testing.T, database *db.DB, id int64) string {
+	t.Helper()
+	var role string
+	if err := database.Read.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE id = $1`, id).Scan(&role); err != nil {
+		t.Fatalf("read role of user %d: %v", id, err)
+	}
+	return role
+}
+
+func storedMayPublish(t *testing.T, database *db.DB, id int64) bool {
+	t.Helper()
+	var n int
+	if err := database.Read.QueryRowContext(context.Background(),
+		`SELECT may_publish FROM users WHERE id = $1`, id).Scan(&n); err != nil {
+		t.Fatalf("read may_publish of user %d: %v", id, err)
+	}
+	return n != 0
+}
+
+func sameIDList(a, b []int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// countAction counts protocol rows carrying one action for one entity.
+func countAction(t *testing.T, database *db.DB, action string, entityID int64) int {
+	t.Helper()
+	var n int
+	if err := database.Read.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM activity_log WHERE action = $1 AND entity_id = $2`,
+		action, entityID).Scan(&n); err != nil {
+		t.Fatalf("count %q rows: %v", action, err)
+	}
+	return n
+}
+
+// TestGroupSyncMatchesAGroupAsAWholeElement is the trap this file exists for.
+//
+// X-authentik-groups joins names with U+007C, and the obvious membership test —
+// strings.Contains over the raw header — answers yes about holzcloud-admins for
+// somebody whose only group is not-holzcloud-admins. Every row below whose name
+// begins "a group that" is a row a Contains implementation gets wrong; the rows
+// that only use a matching group prove nothing about the trap and are here to
+// show the same table can express the correct answer too.
+//
+// Each case carries seite-a so the sign-in completes: an editor with no
+// matching website group is refused, which is a different test.
+func TestGroupSyncMatchesAGroupAsAWholeElement(t *testing.T) {
+	cases := []struct {
+		name       string
+		adminGroup string
+		groups     string
+		want       string
+	}{
+		{"the configured group alone makes an administrator", fwdAdminGroup, fwdAdminGroup, user.RoleAdmin},
+		{"the configured group among others makes an administrator", fwdAdminGroup, fwdGroupA + "|" + fwdAdminGroup + "|andere", user.RoleAdmin},
+		{"a group the configured name is a suffix of is not the group", fwdAdminGroup, "not-" + fwdAdminGroup + "|" + fwdGroupA, user.RoleEditor},
+		{"a group the configured name is a prefix of is not the group", fwdAdminGroup, fwdAdminGroup + "-x|" + fwdGroupA, user.RoleEditor},
+		{"a group carrying the configured name inside it is not the group", fwdAdminGroup, "x" + fwdAdminGroup + "x|" + fwdGroupA, user.RoleEditor},
+		{"a website group is not an administration group", fwdAdminGroup, fwdGroupA, user.RoleEditor},
+		{"an empty configured group is matched by nobody", "", fwdAdminGroup + "|" + fwdGroupA, user.RoleEditor},
+		{"an empty configured group is not matched by an empty header element", "", "|" + fwdGroupA + "|", user.RoleEditor},
+		{"an empty configured group is not matched by a header of separators", "", fwdGroupA + "||", user.RoleEditor},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+			h.cfg.SSOAdminGroup = tc.adminGroup
+			id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+			assign(t, database, id, siteA)
+
+			_, res := serveForwardAuth(t, h, sm, true,
+				fwdGroupRequest("ada", "ada@example.com", tc.groups, nil))
+
+			if got := storedRole(t, database, id); got != tc.want {
+				t.Errorf("users.role = %q; want %q — the header was %q and the configured "+
+					"administration group was %q. A whole element is compared, not a substring: "+
+					"strings.Contains over the raw header is how %q becomes an administrator",
+					got, tc.want, tc.groups, tc.adminGroup, tc.groups)
+			}
+			if res.userID != id {
+				t.Fatalf("the sign-in did not happen (session user_id = %d, account %d); "+
+					"the role above was not the one that reached the session", res.userID, id)
+			}
+			if res.role != tc.want {
+				t.Errorf("session user_role = %q; want %q — the synchronised role has to be the "+
+					"one handed to completeLogin, not the stale one read before it", res.role, tc.want)
+			}
+		})
+	}
+}
+
+// TestGroupSyncAppliesADemotionAtTheNextSignIn is the whole point of running the
+// synchronisation on every sign-in rather than at account creation.
+func TestGroupSyncAppliesADemotionAtTheNextSignIn(t *testing.T) {
+	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+	// A second administrator, so the demotion below is not the last one.
+	seedAccount(t, database, "root@example.com", user.RoleAdmin)
+	id := seedAccount(t, database, "ada@example.com", user.RoleAdmin)
+	assign(t, database, id, siteA)
+
+	_, res := serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+
+	if got := storedRole(t, database, id); got != user.RoleEditor {
+		t.Errorf("users.role = %q; want %q — the account is no longer in %q at the identity "+
+			"provider and a demotion there has to take effect here at the next sign-in",
+			got, user.RoleEditor, fwdAdminGroup)
+	}
+	if res.role != user.RoleEditor {
+		t.Errorf("session user_role = %q; want %q", res.role, user.RoleEditor)
+	}
+	if n := countAction(t, database, activity.ActionUserUpdate, id); n != 1 {
+		t.Errorf("wrote %d %q rows for the demotion; want exactly 1 naming what changed",
+			n, activity.ActionUserUpdate)
+	}
+}
+
+// TestGroupSyncPromotionWritesOneProtocolRowNamingFromAndTo asserts the record,
+// not just the change. SSO-06 asks for every change of rights to be in the
+// protocol, and a change nobody can see afterwards is a change nobody can
+// question.
+func TestGroupSyncPromotionWritesOneProtocolRowNamingFromAndTo(t *testing.T) {
+	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+	assign(t, database, id, siteA)
+
+	serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdAdminGroup, nil))
+
+	if got := storedRole(t, database, id); got != user.RoleAdmin {
+		t.Fatalf("users.role = %q; want %q", got, user.RoleAdmin)
+	}
+
+	var meta string
+	if err := database.Read.QueryRowContext(context.Background(),
+		`SELECT COALESCE(metadata, '') FROM activity_log WHERE action = $1 AND entity_id = $2`,
+		activity.ActionUserUpdate, id).Scan(&meta); err != nil {
+		t.Fatalf("no %q row for the promotion: %v", activity.ActionUserUpdate, err)
+	}
+	for _, want := range []string{"role", user.RoleEditor, user.RoleAdmin, "sso"} {
+		if !strings.Contains(meta, want) {
+			t.Errorf("the protocol row's metadata is %s and does not name %q; a row that says "+
+				"something changed without saying from what to what is not a record", meta, want)
+		}
+	}
+}
+
+// TestGroupSyncWritesExactlyTheMatchingWebsites covers the ordinary half:
+// two groups map to two websites and to nothing else, in either header order,
+// and a website the person lost is gone.
+func TestGroupSyncWritesExactlyTheMatchingWebsites(t *testing.T) {
+	t.Run("two groups in one order", func(t *testing.T) {
+		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+		serveForwardAuth(t, h, sm, true,
+			fwdGroupRequest("ada", "ada@example.com", fwdGroupA+"|"+fwdGroupB, nil))
+		if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA, siteB}) {
+			t.Errorf("user_websites = %v; want exactly %v", got, []int64{siteA, siteB})
+		}
+	})
+
+	t.Run("the same two groups in the other order", func(t *testing.T) {
+		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+		serveForwardAuth(t, h, sm, true,
+			fwdGroupRequest("ada", "ada@example.com", fwdGroupB+"|"+fwdGroupA, nil))
+		if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA, siteB}) {
+			t.Errorf("user_websites = %v; want exactly %v — the header order is the identity "+
+				"provider's and must not reach the database", got, []int64{siteA, siteB})
+		}
+	})
+
+	t.Run("a website the person lost is gone", func(t *testing.T) {
+		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+		assign(t, database, id, siteA, siteB)
+
+		serveForwardAuth(t, h, sm, true,
+			fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+
+		if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA}) {
+			t.Errorf("user_websites = %v; want exactly %v", got, []int64{siteA})
+		}
+		lookup := NewWebsiteAccessLookup(database)
+		if lookup(context.Background(), id, siteB) {
+			t.Errorf("the account still reaches %q (id %d) after its group for that website was "+
+				"removed at the identity provider", "Seite B", siteB)
+		}
+	})
+
+	t.Run("a group this installation has never heard of is ignored", func(t *testing.T) {
+		h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+		serveForwardAuth(t, h, sm, true,
+			fwdGroupRequest("ada", "ada@example.com", "ganz-woanders|"+fwdGroupA+"|noch-eine", nil))
+		if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA}) {
+			t.Errorf("user_websites = %v; want exactly %v — a directory has groups this "+
+				"installation has never heard of, and that is normal rather than an error",
+				got, []int64{siteA})
+		}
+	})
+}
+
+// TestGroupSyncLeavesAnAdministratorsAssignmentAlone.
+//
+// user.Store.Rights returns Everything() for an administrator two statements
+// before it reads user_websites, so anything written there is invisible — and an
+// invisible write is a diff a later reader has to reason about for nothing.
+func TestGroupSyncLeavesAnAdministratorsAssignmentAlone(t *testing.T) {
+	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+	assign(t, database, id, siteA)
+
+	serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdAdminGroup, nil))
+
+	if got := storedRole(t, database, id); got != user.RoleAdmin {
+		t.Fatalf("users.role = %q; want %q", got, user.RoleAdmin)
+	}
+	if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA}) {
+		t.Errorf("user_websites = %v; want the untouched %v — an administrator's assignment is "+
+			"never read by Rights, so writing there changes nothing and shows in every diff",
+			got, []int64{siteA})
+	}
+}
+
+// TestGroupSyncCarriesThePublishingRight.
+//
+// No group grants may_publish. SetRights takes it as a field and would happily
+// overwrite it on every sign-in, which would undo an operator's decision about a
+// person on a schedule.
+func TestGroupSyncCarriesThePublishingRight(t *testing.T) {
+	h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+	assign(t, database, id, siteB)
+	if _, err := database.Write.ExecContext(context.Background(),
+		`UPDATE users SET may_publish = 0 WHERE id = $1`, id); err != nil {
+		t.Fatalf("take the publishing right away: %v", err)
+	}
+
+	serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+
+	if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA}) {
+		t.Fatalf("user_websites = %v; want %v — without a website change SetRights is never "+
+			"called and this test would prove nothing about may_publish", got, []int64{siteA})
+	}
+	if storedMayPublish(t, database, id) {
+		t.Error("may_publish went from false to true across a sign-in; no group grants the " +
+			"publishing right and nothing here decides it — an operator decided it about a person")
+	}
+}
+
+// TestGroupSyncIsIdempotent. SetRights replaces wholesale, so calling it twice
+// with the same groups leaves the same rows; the protocol is where the
+// difference would show, and one row per page view is a log nobody reads.
+func TestGroupSyncIsIdempotent(t *testing.T) {
+	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+
+	for i := 0; i < 2; i++ {
+		// A fresh session each time: an already signed-in session is left alone
+		// by step 3 and the synchronisation would not run at all.
+		serveForwardAuth(t, h, sm, true,
+			fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+	}
+
+	if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA}) {
+		t.Errorf("user_websites = %v after two identical sign-ins; want %v", got, []int64{siteA})
+	}
+	if n := countAction(t, database, activity.ActionUserUpdate, id); n != 1 {
+		t.Errorf("wrote %d %q rows across two identical sign-ins; want exactly 1 — the first "+
+			"one, from what changed then. SetRights is idempotent; logging every call is not",
+			n, activity.ActionUserUpdate)
+	}
+}
+
+// TestGroupSyncKeepsTheLastAdministrator.
+//
+// user.Store.Update refuses to demote the last administrator. Locking an
+// installation out because a group changed at somebody else's directory is a
+// worse outcome than a role that lags one sign-in behind, so the refusal is
+// recognised, logged loudly, and the sign-in continues.
+func TestGroupSyncKeepsTheLastAdministrator(t *testing.T) {
+	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+	id := seedAccount(t, database, "ada@example.com", user.RoleAdmin)
+	assign(t, database, id, siteA)
+
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	_, res := serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+
+	if got := storedRole(t, database, id); got != user.RoleAdmin {
+		t.Errorf("users.role = %q; want %q — this is the last administrator and the "+
+			"installation must not be left with none", got, user.RoleAdmin)
+	}
+	if res.userID != id {
+		t.Errorf("the sign-in did not happen (session user_id = %d); a refused demotion is "+
+			"not a refused sign-in", res.userID)
+	}
+	if res.role != user.RoleAdmin {
+		t.Errorf("session user_role = %q; want %q — the role that reaches the session is the "+
+			"one the account still has", res.role, user.RoleAdmin)
+	}
+	if !strings.Contains(logged.String(), "ada@example.com") {
+		t.Errorf("the refused demotion was not logged with the account it concerns; log was:\n%s",
+			logged.String())
+	}
+	if n := countAction(t, database, activity.ActionUserUpdate, id); n != 0 {
+		t.Errorf("wrote %d %q rows for a demotion that did not happen; want 0", n, activity.ActionUserUpdate)
+	}
+}
+
+// TestGroupSyncRefusesAnEditorWithNoMatchingWebsiteGroup.
+//
+// This is D-01's inversion reached by subtraction. An empty assignment is not
+// "no websites": NewWebsiteAccessLookup reads assigned == 0 as *every* website.
+// So the sign-in is refused and nothing is written.
+func TestGroupSyncRefusesAnEditorWithNoMatchingWebsiteGroup(t *testing.T) {
+	cases := []struct {
+		name   string
+		groups string
+	}{
+		{"no groups at all", ""},
+		{"a header of nothing but separators", "||"},
+		{"only groups this installation has never heard of", "ganz-woanders|noch-eine"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+			id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+			assign(t, database, id, siteA)
+
+			rec, res := serveForwardAuth(t, h, sm, true,
+				fwdGroupRequest("ada", "ada@example.com", tc.groups, nil))
+
+			if res.userID != 0 {
+				t.Errorf("an editor whose groups match no configured website signed in as %d", res.userID)
+			}
+			if res.runs != 1 {
+				t.Fatalf("the next handler ran %d times; want exactly 1 — a refusal is the "+
+					"password form and never a status", res.runs)
+			}
+			if rec.Code != http.StatusOK {
+				t.Errorf("the middleware answered %d; a refusal is never a status of its own", rec.Code)
+			}
+			if n := countAction(t, database, activity.ActionAuthLoginFail, 0); n != 1 {
+				t.Errorf("wrote %d %q rows; want exactly 1 naming the refusal", n, activity.ActionAuthLoginFail)
+			}
+			// The refusal must not itself be a way of emptying an assignment:
+			// that would be the bug wearing a different hat.
+			if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA}) {
+				t.Errorf("user_websites = %v after the refusal; want the untouched %v — a "+
+					"refusal that empties the assignment produces exactly the state it refuses",
+					got, []int64{siteA})
+			}
+		})
+	}
+}
+
+// TestLosingEveryWebsiteGroupDoesNotGrantEveryWebsite is plan 10-04's test run
+// from the other end, and it is the assertion D-01 does not make.
+//
+// D-01 is written about account *creation*: a new account must not have zero
+// rows in user_websites, because NewWebsiteAccessLookup reads zero as every
+// website. SSO-06 re-applies the rights on every sign-in, so the same state is
+// reachable by *subtraction* — an operator removes somebody's last website group
+// at the identity provider, meaning to take their access away, and an empty
+// SetRights would hand them everything.
+//
+// The assertion goes through NewWebsiteAccessLookup, the function main.go builds
+// auth.RequireWebsiteAccess from, and never through a row count. Plan 10-04's
+// mutation 7 is why: it wrote exactly one user_websites row naming the wrong
+// website, so SELECT COUNT(*) returned 1 while the account reached a site it
+// must not have.
+func TestLosingEveryWebsiteGroupDoesNotGrantEveryWebsite(t *testing.T) {
+	h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+	ctx := context.Background()
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+	lookup := NewWebsiteAccessLookup(database)
+
+	// 1. A sign-in through the real middleware with a group that maps to A.
+	_, res := serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+	if res.userID != id {
+		t.Fatalf("the first sign-in did not happen (session user_id = %d, account %d); "+
+			"everything below would be measuring an account nobody reached", res.userID, id)
+	}
+	if !lookup(ctx, id, siteA) {
+		t.Fatalf("after a sign-in carrying %q the editor cannot reach %q (id %d)", fwdGroupA, "Seite A", siteA)
+	}
+	if lookup(ctx, id, siteB) {
+		t.Fatalf("after a sign-in carrying only %q the editor already reaches %q (id %d); "+
+			"the second half of this test could not tell a regression from the starting state",
+			fwdGroupA, "Seite B", siteB)
+	}
+
+	// 2. The same account signs in again, carrying no group that maps to any
+	// configured website. This is the operator taking access away.
+	_, res = serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", "irgendwas-anderes", nil))
+
+	// 3. Three assertions, in this order, because each would be a different bug.
+	if res.userID != 0 {
+		t.Errorf("the editor lost every website group and was signed in anyway (as %d) — "+
+			"taking somebody's last website group away has to take their access away", res.userID)
+	}
+	if n := countAction(t, database, activity.ActionAuthLoginFail, 0); n != 1 {
+		t.Errorf("wrote %d %q rows; want exactly 1 — an operator has no other way to learn "+
+			"that somebody was turned away", n, activity.ActionAuthLoginFail)
+	}
+	if lookup(ctx, id, siteB) {
+		t.Errorf("the editor lost their last website group and gained access to %q (id %d) — "+
+			"the sync wrote an empty assignment and NewWebsiteAccessLookup read it as \"all\"",
+			"Seite B", siteB)
+	}
+	if !lookup(ctx, id, siteA) {
+		t.Errorf("the refusal also emptied the assignment: the editor can no longer reach %q "+
+			"(id %d) either. A refusal must not be a way of writing the empty list",
+			"Seite A", siteA)
+	}
+
+	// 4. The control. Without it this test passes on a tree where the
+	// synchronisation does nothing at all, or where the lookup was stubbed.
+	// Emptying the rows by hand is exactly the state step 2 must never produce,
+	// and the same call has to flip to true for it.
+	if _, err := database.Write.ExecContext(ctx,
+		`DELETE FROM user_websites WHERE user_id = $1`, id); err != nil {
+		t.Fatalf("delete the assignment for the control step: %v", err)
+	}
+	if !lookup(ctx, id, siteB) {
+		t.Fatal("with the assignment emptied the same lookup still refuses Seite B; the " +
+			"assertions above were not measuring the assignment at all, and an empty write " +
+			"would therefore have been invisible to them")
+	}
+}
+
+// TestUnchangedGroupsWriteNoActivityRow counts rows rather than asserting a
+// call: SSO-06 asks for every *change* to be logged, and /admin/protokoll is
+// only evidence for as long as it is short enough to be read.
+func TestUnchangedGroupsWriteNoActivityRow(t *testing.T) {
+	h, sm, database, _, _ := newGroupSyncAdmin(t)
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+
+	serveForwardAuth(t, h, sm, true, fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+	first := countAction(t, database, activity.ActionUserUpdate, id)
+
+	serveForwardAuth(t, h, sm, true, fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+	second := countAction(t, database, activity.ActionUserUpdate, id)
+
+	if second != first {
+		t.Errorf("%q rows went from %d to %d across a sign-in that changed nothing; "+
+			"a protocol with one row per sign-in is a protocol nobody reads",
+			activity.ActionUserUpdate, first, second)
+	}
+}
