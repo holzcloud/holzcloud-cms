@@ -437,6 +437,24 @@ func (s Set) Clean(blocks []Block) []Block {
 		if b.Type != TypeGallery {
 			b.AlbumSlug = ""
 		}
+		// And so does a display mode — with the vocabulary checked here rather
+		// than at each writer.
+		//
+		// setBlockField already checked it on the form path and said why: the
+		// value is written into a column every archive carries. The archive
+		// path itself did not, because importBlocks copies Display straight out
+		// of the manifest; so an operator uploading a bundle could store any
+		// string, and it round-tripped out again on the next export.
+		//
+		// Not an injection — DisplayClass maps by equality to a literal, so an
+		// unknown value is simply no modifier — but exactly the thing
+		// .planning/GLOSSARY.md's closing rule is about: a value the code does
+		// not know, sitting in the column. One check where every writer meets
+		// beats one check per writer, which is the same lesson the website id
+		// taught this codebase six times.
+		if b.Type != TypeGallery || b.Display != DisplaySlideshow {
+			b.Display = ""
+		}
 		out = append(out, b)
 		if len(out) >= MaxBlocks {
 			break
