@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -997,6 +998,15 @@ func TestProvisioningNeverCreatesAnAccountWithAnEmptyAddress(t *testing.T) {
 			t.Error("provisionSSOUser accepted the empty address; it would create the row " +
 				"TestForwardAuthNeverMatchesAnEmptyAddress seeds, and the next identity with no " +
 				"e-mail header would sign in as it")
+		}
+		// The sentinel and not merely "some error", because user.Store.Create
+		// refuses the empty address too. Without this line, deleting
+		// provisioning's own guard leaves this subtest green on the store's
+		// validation error, and the guard reads as tidiness rather than as the
+		// layer that states the reason.
+		if !errors.Is(err, errSSOEmptyAddress) {
+			t.Errorf("err = %v; want errSSOEmptyAddress. Provisioning must refuse the empty "+
+				"address itself, not lean on user.Store.Create happening to validate it", err)
 		}
 		if u != nil {
 			t.Errorf("provisionSSOUser returned account %d for the empty address", u.ID)

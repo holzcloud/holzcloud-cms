@@ -39,6 +39,21 @@ const (
 	ssoRefuseProvisionFailed = "provisioning_failed"
 )
 
+// errSSOEmptyAddress is returned when provisioning is asked to create an
+// account for an identity carrying no address.
+//
+// It is a sentinel rather than an ad-hoc errors.New for one reason worth
+// stating, because the reason is a test and not a style. Three independent
+// layers refuse the empty address today: step 4 of ForwardAuthSignIn, the guard
+// in provisionSSOUser, and user.Store.Create's own "email is required". Remove
+// any one of them and the other two still refuse, so no behavioural test can
+// tell which of the three is doing the work — a guard whose removal nothing
+// notices reads as tidiness and gets deleted by the next person tidying.
+//
+// Naming the error lets provisioning's own guard be asserted with errors.Is,
+// so its removal is red on its own rather than only when all three go.
+var errSSOEmptyAddress = errors.New("provision: an identity with no address")
+
 // ForwardAuthSignIn signs in the account the proxy's identity names.
 //
 // It is a method on *Handler and not a free function taking its dependencies,
@@ -246,7 +261,7 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 	// it. The guard belongs to whichever function could create the row, which
 	// is this one.
 	if email == "" {
-		return nil, errors.New("provision: an identity with no address")
+		return nil, errSSOEmptyAddress
 	}
 
 	// A value nobody will ever know, existing only so that users.password can
