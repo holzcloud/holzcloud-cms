@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 7
+open_count: 8
 waived_count: 1
 fixed_count: 2
-total_count: 10
-last_updated: 2026-09-08T05:47:40.320Z
+total_count: 11
+last_updated: 2026-09-08T06:09:24.781Z
 ---
 
 # Broken Windows Ledger
@@ -25,6 +25,7 @@ last_updated: 2026-09-08T05:47:40.320Z
 | 8 | 11 | deviation | internal/block/render.go | 212 | Eine Album-Galerie mit Diashow-Darstellung zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch — auf derselben Seite, im selben Durchgang. Im Browser gemessen am 2026-09-08: Website auf Englisch, /: 'Next image \| Previous image \| Close large view' neben aria-label="Galerie"; auf Spanisch: 'Imagen siguiente \| Imagen anterior \| Cerrar la vista grande' neben aria-label="Galerie". Ursache: render.go:212 uebersetzt den Regionsnamen mit s.text (block.Set.T, das internal/admin/page_blocks.go NUR beim Speichern setzt), waehrend die Bedienelemente in GalleryItems bei einer Album-Galerie ueber internal/album/expand.go:133 set.t bekommen, den Uebersetzer der Anfrage. Der Kommentar ueber textGallery behauptet, die Wiederverwendung von 'Galerie' koste nichts, weil der Schluessel 'in en, es, fr und it heute uebersetzt ist' — er wird nie uebersetzt gerendert. Genau die Klasse Fehler, die das i18n-Tor nicht sieht: markiert, gesammelt, viermal uebersetzt, 0 offen 0 verwaist, und trotzdem deutsch beim Besucher. Betrifft nur den Vorlese-Namen des Schiebefelds. Die Behebung verschiebt die Grenze zwischen dem, was eine Galerie beim Speichern einfriert, und dem, was sie bei der Anfrage aufloest — eine Architekturfrage (Regel 4), deshalb hier festgehalten und nicht am Phasenende gemacht. | open |  | 2026-09-08T05:10:24.057Z |  |
 | 9 | 10 | deviation | internal/admin/forwardauth.go |  | 10-05: the plan's HasGroup counting gate counts its own explanatory comment (prints 3, wants 1); the corrected gate adds grep -v '//' and prints 1 | open |  | 2026-09-08T05:24:33.848Z |  |
 | 10 | 10 | unmet-truth | cmd/holzcloud/templates/admin/account.html |  | Neue Zeichenkette noch nicht uebersetzt: en/es/fr/it je 2 offen (Kontobildschirm + Benutzerliste). Plan 10-09 schliesst sie mit tools/i18n -write. | open |  | 2026-09-08T05:47:40.320Z |  |
+| 11 | 10 | deviation | .planning/phases/10-authentik/10-08-PLAN.md |  | 10-08: the isTrustedProxy gate excludes '^\\./\\.planning/', but grep on this machine emits paths without a './' prefix, so the exclusion never fires — the gate reads 14 instead of 0. Corrected form: grep -v '^\\(\\./\\)\\?\\.planning/', which reads 0. Fifth instance of 'a gate must measure what its name claims' in this phase. | open |  | 2026-09-08T06:09:24.781Z |  |
 
 ````json
 [
@@ -146,6 +147,18 @@ last_updated: 2026-09-08T05:47:40.320Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T05:47:40.320Z",
+    "resolved_at": null
+  },
+  {
+    "id": 11,
+    "kind": "deviation",
+    "phase": "10",
+    "file": ".planning/phases/10-authentik/10-08-PLAN.md",
+    "line": null,
+    "description": "10-08: the isTrustedProxy gate excludes '^\\./\\.planning/', but grep on this machine emits paths without a './' prefix, so the exclusion never fires — the gate reads 14 instead of 0. Corrected form: grep -v '^\\(\\./\\)\\?\\.planning/', which reads 0. Fifth instance of 'a gate must measure what its name claims' in this phase.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T06:09:24.781Z",
     "resolved_at": null
   }
 ]
