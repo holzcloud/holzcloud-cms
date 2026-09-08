@@ -3,7 +3,27 @@
 ## Milestones
 
 - ✅ **v1.0 — Core CMS** — Phases 1–5 (shipped 2026-04-14)
-- 🚧 **v1.6 — Inhaltsmodell und Zugang** — Phases 6–10 (in progress)
+- 🚧 **v1.6 — Inhaltsmodell und Zugang** — Phases 6–11 (in progress)
+- 📋 **v2.0 — The Codebase Speaks English** — Phase 12 (not planned)
+
+**Phase 12 moved out of v1.6 on 2026-09-08, and Phase 11 stayed in.** The
+roadmap has carried the question in two scope notes since 2026-09-05 — extend
+the goal, or move both phases to a v2.0 shell — and left it for a later reader
+to trip over. Decided rather than inherited:
+
+- Phase 12 **carries a breaking change to a public contract** (`.Page.Felder` →
+  `.Page.Fields` and its siblings, with all eight themes converted). By this
+  project's own rule the release carrying it is **2.0**, so it cannot sit in a
+  milestone whose releases are 1.x.
+- Its scope grew materially after the note was written. `.planning/audits/v1.6-I18N-828.md`
+  measured **828 operator-facing strings the collector cannot see at all**, and
+  that became Phase 12's ninth success criterion. It was a rename of identifiers
+  and comments; it is now that plus making a third of the admin's own sentences
+  visible to the gate in the first place.
+- Phase 11 **stayed** because it shipped. Moving a completed phase out of the
+  milestone that built it would rewrite a record rather than correct one, and
+  the mismatch it was flagged for is better resolved by saying plainly what
+  v1.6 delivered — which is what the goal sentence below now does.
 
 Phase numbering continues from v1.0. It never restarts. The five v1.0 phase
 directories are archived under `.planning/milestones/v1.0-phases/`.
@@ -46,9 +66,9 @@ also arrive as a table — and whoever enters the admin may arrive through the
 sign-in the operator already runs.
 
 - [x] **Phase 6: Aufräumen** — The housekeeping that makes the rest measurable: the i18n writer's format locked by a test, CI rebuilding the plugin binaries it validates against, and the stale notes the later phases are planned against corrected
-- [ ] **Phase 7: Field Kinds** — The palette an author reaches for: choice as a button row, a genuine multiple choice, terms as a field, plus `zeit`, `bereich` and `code` — and the multi-value encoding everything else depends on
-- [ ] **Phase 8: Snippets Carry Fields** — A text snippet stops being one Markdown box and holds any field kind, reusing the field table that already exists
-- [ ] **Phase 9: CSV Import** — Content arrives as a table: upload, map column to field, dry-run it, create pages the ordinary way, report every row
+- [x] **Phase 7: Field Kinds** — The palette an author reaches for: choice as a button row, a genuine multiple choice, terms as a field, plus `zeit`, `bereich` and `code` — and the multi-value encoding everything else depends on
+- [x] **Phase 8: Snippets Carry Fields** — A text snippet stops being one Markdown box and holds any field kind, reusing the field table that already exists
+- [x] **Phase 9: CSV Import** — Content arrives as a table: upload, map column to field, dry-run it, create pages the ordinary way, report every row
 - [ ] **Phase 10: Authentik Forward-Auth** — Single sign-on taken as a header from the reverse proxy, with the trust boundary closed before the first header is read and the password path untouched behind it
 - [x] **Phase 11: Galerie** — What the picture grid has been missing since it was built: enlarging an image, assembling an album once and using it on several pages, and paging through pictures instead of scrolling past them — all of it without a line of JavaScript
 
@@ -522,7 +542,7 @@ Plans:
 
 **UI hint**: yes
 **Research flag**: **the lightbox markup only.** The `:target` pattern is well known but its accessible shape is not obvious — focus handling without script, what a screen reader announces when the overlay appears, and whether next/previous should be `<a>` elements pointing at sibling ids (they should). Worth a **UI-SPEC**. The album is a straight copy of an existing pattern (menus and terms are both "a named thing a website owns, assembled once, used in many places") and the slideshow is one CSS block.
-**Scope note**: this phase does **not** fit the v1.6 milestone goal sentence, which is about the content model and about access. It was added to v1.6 by explicit developer decision on 2026-09-05, scheduled last, depending on nothing that Phases 8–10 produce and blocking nothing they need. Either extend the milestone goal or move this phase to v1.7 — but do not leave a later reader to discover the mismatch on their own.
+**Scope note**: this phase does not fit the v1.6 goal sentence as that sentence was originally written — it is about neither the content model nor access. It was added on 2026-09-05 by explicit developer decision, scheduled last, depending on nothing Phases 8–10 produce and blocking nothing they need. **Resolved 2026-09-08 by extending the milestone rather than moving the phase**: it shipped in v1.6, so moving it out would rewrite a record instead of correcting one. See Milestones at the top of this file.
 **Planning notes**:
 
 - **What already exists, measured rather than assumed.** `internal/block/block.go:46` defines `TypeGallery = "galerie"` ("Mehrere Bilder als Raster", `HasItems: true`); `internal/block/render.go:157–175` renders it as `<div class="hc-block hc-galerie hc-spalten-N">` of `<figure class="hc-galerie__bild">` with `srcset`/`sizes`, an optional `<figcaption>` and focus-point cropping; `cmd/holzcloud/assets/bausteine.css:106–144` carries the grid (`auto-fit`/`minmax`, 2/3/4 columns). Since version 1.8 each picture keeps its own aspect ratio. **Everything this phase adds happens *after* the grid** — none of the above is being rebuilt.
@@ -552,7 +572,7 @@ Plans:
 **Plans**: TBD
 **UI hint**: no new UI. But **every existing screen is in the blast radius** of criterion 3, so the browser half of the standing gate is larger here than in any phase that adds screens.
 **Research flag**: none. Nothing here is unknown; it is large, and the risk is inconsistency rather than difficulty. The glossary exists to make it mechanical.
-**Scope note**: this phase does **not** fit the v1.6 milestone goal sentence any more than Phase 11 does. It was added on **2026-09-06** by explicit developer decision — the project is open source now, so the code speaks English. It carries a **breaking change to a public contract**, so whatever milestone holds it, the release is **2.0**. Either extend the milestone goal, or move this phase and Phase 11 into a v2.0 milestone — but do not leave a later reader to find the mismatch on their own.
+**Milestone**: **v2.0**, decided 2026-09-08. It was added to v1.6 on 2026-09-06 by explicit developer decision and its scope note asked, unresolved, whether to extend that milestone's goal or move this phase out. Moved out: the phase carries a breaking change to a public contract, so the release carrying it is 2.0 and cannot sit among 1.x releases; and its size changed after the note was written — see the planning note about the 828, below. Phase 11 stayed in v1.6 because it shipped there. The reasoning is at the top of this file under Milestones.
 **Planning notes**:
 
 - **Measured 2026-09-06, before planning.** 325 Go files, 84 753 lines. **191 files carry umlauts**, 2797 lines of them; German identifiers without umlauts add more (`Seite` 423×, `Feld` 274×, `Zeile` 154×, `Kennung` 153×). 37 of 868 test functions are plainly German. 12 German SQL column names across the migrations, `kennung` 26×. All eight themes read the German template contract. 1158 catalogue keys are German sentences and **there is no `de.json`** — German is the source language, which is exactly why criterion 5 is a re-keying and not a translation.
