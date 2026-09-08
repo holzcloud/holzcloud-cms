@@ -1292,11 +1292,11 @@ func TestAlbumMarkerReaderFindsWhatTheWriterWrote(t *testing.T) {
 	doc := "<p>" + AlbumMarker("moebel", 2) + "</p>" + AlbumMarker("sommer", 5) +
 		AlbumMarker("moebel", 9)
 
-	if !HasAlbumMarker(doc) {
-		t.Fatal("HasAlbumMarker did not see a marker the writer wrote")
+	if !hasAlbumMarker(doc) {
+		t.Fatal("hasAlbumMarker did not see a marker the writer wrote")
 	}
-	if HasAlbumMarker("<p>nothing here</p>") {
-		t.Error("HasAlbumMarker saw a marker in a document with none")
+	if hasAlbumMarker("<p>nothing here</p>") {
+		t.Error("hasAlbumMarker saw a marker in a document with none")
 	}
 
 	got := AlbumMarkerSlugs(doc)
