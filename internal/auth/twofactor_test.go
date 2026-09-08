@@ -46,6 +46,58 @@ func serveSecondFactor(t *testing.T, sm *scs.SessionManager, lookup SecondFactor
 	return rec, &reached
 }
 
+// TestMustHaveSecondFactorOverBothRolesAndBothWaysIn is the whole predicate,
+// all four combinations, so no row of it can change without a named test going
+// red.
+//
+// The two viaSSO == false rows are SSO-09 for this function: they ARE the old
+// MustHaveSecondFactor(role), asserted as a table rather than spot-checked,
+// because a later change to the password path has to break something named
+// after the password path.
+func TestMustHaveSecondFactorOverBothRolesAndBothWaysIn(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		role   string
+		viaSSO bool
+		want   bool
+	}{
+		{"an administrator who signed in with a password", "admin", false, true},
+		{"an editor who signed in with a password", "editor", false, false},
+		{"an administrator who signed in through the identity provider", "admin", true, false},
+		{"an editor who signed in through the identity provider", "editor", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := MustHaveSecondFactor(tc.role, tc.viaSSO); got != tc.want {
+				t.Errorf("MustHaveSecondFactor(%q, %v) = %v; want %v", tc.role, tc.viaSSO, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestMustHaveSecondFactorIsUnchangedForAPasswordSession states the same thing
+// the other way round, against the literal it replaced. If this ever fails,
+// this plan removed a protection from password users while adding a
+// convenience for SSO ones.
+func TestMustHaveSecondFactorIsUnchangedForAPasswordSession(t *testing.T) {
+	for _, role := range []string{"admin", "editor"} {
+		if got, want := MustHaveSecondFactor(role, false), role == "admin"; got != want {
+			t.Errorf("MustHaveSecondFactor(%q, false) = %v; want %v — passing false must be bit-for-bit the old one-argument predicate", role, got, want)
+		}
+	}
+}
+
+// TestMustHaveSecondFactorIgnoresAnUnknownRole keeps the boundary honest:
+// users.role carries CHECK (role IN ('admin','editor')) and there is no third
+// role, so anything else is a row that cannot exist — and it must not be
+// required to have a second factor by accident either way in.
+func TestMustHaveSecondFactorIgnoresAnUnknownRole(t *testing.T) {
+	for _, viaSSO := range []bool{false, true} {
+		if MustHaveSecondFactor("", viaSSO) {
+			t.Errorf("MustHaveSecondFactor(\"\", %v) = true; want false", viaSSO)
+		}
+	}
+}
+
 // TestRequireSecondFactorLetsAnSSOSessionThrough is the whole of D-04 seen from
 // the outside: an administrator whose session was established through the
 // reverse proxy has already answered whatever the identity provider demanded,
