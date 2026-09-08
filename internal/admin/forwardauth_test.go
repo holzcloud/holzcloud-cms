@@ -1709,3 +1709,50 @@ func TestUnchangedGroupsWriteNoActivityRow(t *testing.T) {
 			activity.ActionUserUpdate, first, second)
 	}
 }
+
+// TestGroupSyncLeavesTheAssignmentAloneWithNoGroupMappingConfigured guards the
+// branch that keeps the refusal above from meaning something it does not.
+//
+// With HOLZCLOUD_SSO_WEBSITE_GROUPS unset, "your groups match no configured
+// website" is true of everybody, so refusing on it would lock every editor out
+// of single sign-on — including the account provisioning had just created and
+// correctly assigned. The rule that has to hold is narrower and it still holds:
+// the synchronisation never *writes* an empty assignment, and writing nothing
+// cannot.
+func TestGroupSyncLeavesTheAssignmentAloneWithNoGroupMappingConfigured(t *testing.T) {
+	h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+	h.cfg.SSOWebsiteGroups = nil
+	ctx := context.Background()
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+	assign(t, database, id, siteB)
+
+	_, res := serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", "irgendwas-anderes", nil))
+
+	if res.userID != id {
+		t.Fatalf("the editor was refused (session user_id = %d) although this installation "+
+			"configures no group-to-website mapping at all; every editor would be locked out "+
+			"of single sign-on, silently, because a refusal looks like the password form", res.userID)
+	}
+	if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteB}) {
+		t.Errorf("user_websites = %v; want the untouched %v", got, []int64{siteB})
+	}
+	lookup := NewWebsiteAccessLookup(database)
+	if lookup(ctx, id, siteA) {
+		t.Errorf("the editor reaches %q (id %d) after a sign-in that was supposed to change "+
+			"nothing — an empty assignment was written and read as \"all\"", "Seite A", siteA)
+	}
+	if !lookup(ctx, id, siteB) {
+		t.Errorf("the editor lost %q (id %d) to a sign-in that was supposed to change nothing",
+			"Seite B", siteB)
+	}
+
+	t.Run("the role half still runs", func(t *testing.T) {
+		serveForwardAuth(t, h, sm, true,
+			fwdGroupRequest("ada", "ada@example.com", fwdAdminGroup, nil))
+		if got := storedRole(t, database, id); got != user.RoleAdmin {
+			t.Errorf("users.role = %q; want %q — the two halves of SSO-06 are independent, "+
+				"and an unconfigured website mapping does not switch the role off", got, user.RoleAdmin)
+		}
+	})
+}

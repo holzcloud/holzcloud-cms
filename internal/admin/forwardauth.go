@@ -1,12 +1,14 @@
 package admin
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
@@ -37,6 +39,8 @@ const (
 	ssoRefuseNonASCII        = "non_ascii_email"
 	ssoRefuseNoAccount       = "no_account"
 	ssoRefuseProvisionFailed = "provisioning_failed"
+	ssoRefuseNoWebsiteGroup  = "no_website_group"
+	ssoRefuseSyncFailed      = "rights_sync_failed"
 )
 
 // errSSOEmptyAddress is returned when provisioning is asked to create an
@@ -53,6 +57,17 @@ const (
 // Naming the error lets provisioning's own guard be asserted with errors.Is,
 // so its removal is red on its own rather than only when all three go.
 var errSSOEmptyAddress = errors.New("provision: an identity with no address")
+
+// errSSONoWebsiteGroup is returned when an editor's groups map to no website
+// this installation has been configured to know about.
+//
+// It is a sentinel for the same reason errSSOEmptyAddress is one: the refusal it
+// names is observably identical to the other refusals from outside — no session,
+// one auth.login_fail row, the password form — so without a name no test could
+// say which branch produced it, and the caller could not give the server log a
+// reason code that distinguishes an operator's misconfiguration from a database
+// that stopped answering.
+var errSSONoWebsiteGroup = errors.New("sync: no group maps to a configured website")
 
 // ForwardAuthSignIn signs in the account the proxy's identity names.
 //
@@ -75,8 +90,12 @@ var errSSOEmptyAddress = errors.New("provision: an identity with no address")
 //  5. the account lookup, and — only if the operator switched it on — the
 //     creation of the account it did not find, together with the one website
 //     assignment that account is allowed;
-//  6. the token rotation, before anything is put in the session;
-//  7. the funnel.
+//  6. the rights, re-derived from the identity provider's groups on every
+//     sign-in, so that the role reaching the session is the synchronised one and
+//     never the stale one — and so that an editor whose groups map to no
+//     configured website is refused rather than emptied;
+//  7. the token rotation, before anything is put in the session;
+//  8. the funnel.
 //
 // It writes no status of its own on any path and calls the next handler exactly
 // once. A refusal is the ordinary password form, because the way back into the
@@ -217,7 +236,32 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 			}
 		}
 
-		// 6. Rotate session ID BEFORE setting values (prevents session
+		// 6. The rights, from the groups, every time.
+		//
+		// Before the rotation and before the funnel, because completeLogin is
+		// handed a role and that role has to be the synchronised one: a session
+		// carrying the role the account had *before* this request would let a
+		// demotion at the identity provider take effect one sign-in late, which
+		// is precisely what SSO-06 asks not to happen.
+		role, err := h.syncRightsFromGroups(r.Context(), r, u, ident)
+		if err != nil {
+			// A refused sign-in, not a server error and not a status. The
+			// commonest way to arrive here is an editor whose last website
+			// group was removed at the identity provider — the operator meant
+			// to take their access away, and the refusal is what that looks
+			// like from here.
+			reason := ssoRefuseSyncFailed
+			if errors.Is(err, errSSONoWebsiteGroup) {
+				reason = ssoRefuseNoWebsiteGroup
+			}
+			slog.Warn("forward auth rights synchronisation refused the sign-in",
+				"err", err, "reason", reason, "user_id", u.ID, "username", ident.Username)
+			h.refuseSSO(r, ident, email, reason)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// 7. Rotate session ID BEFORE setting values (prevents session
 		// fixation). A failed rotation is a refused sign-in and never a
 		// sign-in on the old token.
 		if err := h.sm.RenewToken(r.Context()); err != nil {
@@ -226,11 +270,11 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 			return
 		}
 
-		// 7. The mark, then the funnel. The stored role and the stored address,
-		// not the header's: the session and the protocol row must name the
-		// account, and the header only claimed to.
+		// 8. The mark, then the funnel. The synchronised role and the stored
+		// address, not the header's: the session and the protocol row must name
+		// the account, and the header only claimed to.
 		h.sm.Put(r.Context(), auth.SessionKeyViaSSO, true)
-		h.completeLogin(r, u.ID, u.Role, u.Email)
+		h.completeLogin(r, u.ID, role, u.Email)
 
 		// The original request continues rather than being redirected: the
 		// session manager commits at the end of the request and the values are
@@ -238,6 +282,201 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 		// person lands on the page they asked for.
 		next.ServeHTTP(w, r)
 	})
+}
+
+// syncRightsFromGroups re-derives what a person may do from the groups the
+// identity provider vouched for, and returns the role the session is to carry.
+//
+// It runs on every sign-in and not once at account creation, which is the whole
+// of SSO-06: a demotion made in the directory has to take effect here at the
+// next sign-in rather than at the next session expiry. auth.RequireAuth re-reads
+// users.role from the database on every request, so a role written here is in
+// force one request later.
+//
+// The returned error is a refused sign-in and never a server error. The caller
+// turns it into refuseSSO plus a fall-through to the password form.
+//
+// Four traps live in this function and three of them pass a naive
+// implementation's own tests. They are named at the places they bite.
+func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
+	u *user.User, ident *web.Identity) (string, error) {
+
+	// Trap one, and the only one an ordinary test does not catch by accident.
+	// ident.HasGroup compares whole elements of the pipe-separated header;
+	// strings.Contains(rawHeader, "holzcloud-admins") — the obvious version — is
+	// true for somebody whose only group is not-holzcloud-admins, and for
+	// holzcloud-admins-x, and for anything with the name buried inside it.
+	// internal/web/forwardauth.go wrote HasGroup for exactly this reason.
+	//
+	// Trap two is the empty configured group. strings.Split("", "|") is a slice
+	// of one empty string, so a membership test against the naive result reports
+	// that everybody is in the group named "" — splitGroups drops empty elements
+	// and this condition refuses an empty configured name outright, because
+	// HOLZCLOUD_SSO_ADMIN_GROUP has no default and an unset one must grant
+	// administration to nobody rather than to everybody.
+	//
+	// And want is one of exactly two values. users.role carries a table-level
+	// CHECK (role IN ('admin','editor')) at 00001:7; loosening a table-head
+	// CHECK in SQLite means rebuilding a table with foreign-key children, so
+	// there is no third role and this is not the phase that invents one (D-05).
+	want := user.RoleEditor
+	if h.cfg.SSOAdminGroup != "" && ident.HasGroup(h.cfg.SSOAdminGroup) {
+		want = user.RoleAdmin
+	}
+
+	if want != u.Role {
+		err := h.users.Update(ctx, u.ID, u.Name, u.Email, want)
+		switch {
+		case errors.Is(err, user.ErrLastAdmin):
+			// The identity provider asked for a demotion this installation
+			// cannot perform. Locking the last administrator out because a group
+			// changed on somebody else's server is a worse outcome than a role
+			// that lags one sign-in behind, so the sign-in continues with the
+			// role the account still has — loudly, because nothing else would
+			// ever say so.
+			slog.Warn("forward auth cannot apply a demotion: this is the last administrator",
+				"user_id", u.ID, "email", u.Email, "username", ident.Username,
+				"role", u.Role, "requested_role", want)
+			want = u.Role
+		case err != nil:
+			return "", fmt.Errorf("sync: set the role: %w", err)
+		default:
+			// One row per actual change, naming what it changed from and to.
+			// The action is the existing one: entry.go says the names are the
+			// filter contract and that a new name makes older rows unfindable
+			// by a new filter, while metadata is free.
+			h.LogActivity(r, activity.Entry{
+				ActorEmail: u.Email,
+				Action:     activity.ActionUserUpdate,
+				EntityType: "user",
+				EntityID:   u.ID,
+				Metadata: map[string]any{
+					"field": "role", "from": u.Role, "to": want, "via": "sso",
+				},
+			})
+		}
+	}
+
+	// An administrator's assignment is left exactly as it is.
+	//
+	// user.Store.Rights returns Everything() for an administrator two statements
+	// before it reads user_websites at all, so anything written there is
+	// invisible — and an invisible write is a diff a later reader has to reason
+	// about for nothing.
+	if want == user.RoleAdmin {
+		return want, nil
+	}
+
+	// The website half only runs where the operator configured it, and the
+	// distinction is not a convenience.
+	//
+	// With HOLZCLOUD_SSO_WEBSITE_GROUPS unset there is no mapping from a group
+	// to a website, so "your groups match no configured website" is true of
+	// everybody and says nothing about anybody. Refusing on it would lock every
+	// editor out of single sign-on the moment SSO-06 shipped — including the
+	// account plan 10-04's provisioning had just created and correctly assigned
+	// one line earlier — and it would do so silently, because a refusal here
+	// looks exactly like the ordinary password form.
+	//
+	// Leaving the assignment alone is safe in the way that matters: the rule
+	// this function must never break is that it does not *write* an empty
+	// assignment, and writing nothing cannot. An account that already had no
+	// rows keeps none and keeps whatever it could reach before; no SSO path
+	// creates that state, because provisioning writes its one row in the same
+	// function that creates the account (D-01).
+	//
+	// Once the operator has configured even one group=website pair they have
+	// opted into group-driven website access, and from then on "no matching
+	// group" is an answer rather than an absence of a question.
+	if len(h.cfg.SSOWebsiteGroups) == 0 {
+		return want, nil
+	}
+
+	// A group this installation has never heard of is ignored rather than
+	// refused: a directory carries groups that have nothing to do with this
+	// program, and that is normal.
+	ids := make([]int64, 0, len(ident.Groups))
+	seen := make(map[int64]bool, len(ident.Groups))
+	for _, group := range ident.Groups {
+		id, ok := h.cfg.SSOWebsiteGroups[group]
+		if !ok || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	// SetRights sorts and deduplicates again; doing it here as well is what
+	// makes the comparison against the stored assignment below reliable, since
+	// user.Store.Rights returns its rows ORDER BY website_id.
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+	if len(ids) == 0 {
+		// An empty assignment is not "no websites". NewWebsiteAccessLookup
+		// (internal/admin/handler.go) reads assigned == 0 as *every* website,
+		// and it is right to — see internal/user/rights.go, whose package
+		// comment explains that anything else would have made the migration
+		// introducing website assignment lock everybody out.
+		//
+		// D-01 closes that road for account *creation*: a provisioned account
+		// gets its one row in the same function that creates it. This is the
+		// same door reached from the other side, because SSO-06 re-applies the
+		// rights on every sign-in. An operator who removes somebody's last
+		// website group at the identity provider means to take their access
+		// away, and writing an empty list would hand them everything —
+		// D-01's inversion arrived at by subtraction instead of by creation.
+		//
+		// So nothing is written and the sign-in is refused. The existing rows
+		// survive untouched: a refusal that also emptied the assignment would
+		// be this very bug wearing a different hat.
+		return "", errSSONoWebsiteGroup
+	}
+
+	current, err := h.users.Rights(ctx, u.ID)
+	if err != nil {
+		return "", fmt.Errorf("sync: read the current rights: %w", err)
+	}
+
+	if !sameWebsites(current.Websites, ids) {
+		// Trap four. MayPublish is read and carried through, never derived: no
+		// group grants the publishing right, and an operator who decided that
+		// somebody submits rather than publishes made that decision about a
+		// person. A literal here would undo it on a schedule.
+		if err := h.users.SetRights(ctx, u.ID,
+			user.Rights{MayPublish: current.MayPublish, Websites: ids}); err != nil {
+			return "", fmt.Errorf("sync: set the website assignment: %w", err)
+		}
+		// Only on a difference, and that is what keeps /admin/protokoll
+		// readable: SetRights is idempotent, so calling it every time would be
+		// harmless and logging every time would not.
+		h.LogActivity(r, activity.Entry{
+			ActorEmail: u.Email,
+			Action:     activity.ActionUserUpdate,
+			EntityType: "user",
+			EntityID:   u.ID,
+			Metadata: map[string]any{
+				"field": "websites", "from": current.Websites, "to": ids, "via": "sso",
+			},
+		})
+	}
+
+	return want, nil
+}
+
+// sameWebsites reports whether two sorted assignments are the same.
+//
+// Both sides arrive sorted — user.Store.Rights reads ORDER BY website_id and the
+// caller sorts what it collected — so this is an element-wise comparison and not
+// a set comparison, which is what makes an unchanged sign-in write nothing.
+func sameWebsites(a, b []int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // provisionSSOUser creates the account an identity names and gives it the one
