@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 5
+open_count: 6
 waived_count: 1
 fixed_count: 2
-total_count: 8
-last_updated: 2026-09-08T05:10:24.057Z
+total_count: 9
+last_updated: 2026-09-08T05:24:33.848Z
 ---
 
 # Broken Windows Ledger
@@ -23,6 +23,7 @@ last_updated: 2026-09-08T05:10:24.057Z
 | 6 | 11 | deviation | internal/bundle/import.go |  | Report.Warnings baut jeden Satz mit fmt.Sprintf und rohem Deutsch. CLAUDE.md haelt seit 7e0c834 ausdruecklich fest, dass ein mit fmt.Sprintf gebauter Satz fuer tools/i18n unsichtbar ist. Vorbestehend: rund 30 solche Warnungen standen schon vor Plan 11-06 in dieser Datei; 11-06 hat vier weitere in derselben Form ergaenzt (importAlbums, missingAlbum), weil die Alternative den Locale des Bedieners durch bundle.Import zu faedeln waere und der Bericht sonst in der Sprache der importierten Website erschiene statt in der des Bedieners. Der richtige Flick ist die Form, die .planning/GLOSSARY.md fuer csvimport schon vorschreibt: Code plus Argumente statt fertigem Satz (D-32). Folge: der Zaehler go run ./tools/i18n sieht keine dieser Zeilen. | open |  | 2026-09-07T23:07:58.770Z |  |
 | 7 | 10 | deviation | internal/admin/forwardauth.go |  | The plan 10-04 verify gate 'grep secret\|password \| grep -c slog.' reads a proxy: gofmt wraps slog.Info across lines, so a secret appended to a continuation line keeps the gate at 0. Held by TestTheProvisioningSecretAppearsInNoLogLine instead. | open |  | 2026-09-08T04:44:33.668Z |  |
 | 8 | 11 | deviation | internal/block/render.go | 212 | Eine Album-Galerie mit Diashow-Darstellung zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch — auf derselben Seite, im selben Durchgang. Im Browser gemessen am 2026-09-08: Website auf Englisch, /: 'Next image \| Previous image \| Close large view' neben aria-label="Galerie"; auf Spanisch: 'Imagen siguiente \| Imagen anterior \| Cerrar la vista grande' neben aria-label="Galerie". Ursache: render.go:212 uebersetzt den Regionsnamen mit s.text (block.Set.T, das internal/admin/page_blocks.go NUR beim Speichern setzt), waehrend die Bedienelemente in GalleryItems bei einer Album-Galerie ueber internal/album/expand.go:133 set.t bekommen, den Uebersetzer der Anfrage. Der Kommentar ueber textGallery behauptet, die Wiederverwendung von 'Galerie' koste nichts, weil der Schluessel 'in en, es, fr und it heute uebersetzt ist' — er wird nie uebersetzt gerendert. Genau die Klasse Fehler, die das i18n-Tor nicht sieht: markiert, gesammelt, viermal uebersetzt, 0 offen 0 verwaist, und trotzdem deutsch beim Besucher. Betrifft nur den Vorlese-Namen des Schiebefelds. Die Behebung verschiebt die Grenze zwischen dem, was eine Galerie beim Speichern einfriert, und dem, was sie bei der Anfrage aufloest — eine Architekturfrage (Regel 4), deshalb hier festgehalten und nicht am Phasenende gemacht. | open |  | 2026-09-08T05:10:24.057Z |  |
+| 9 | 10 | deviation | internal/admin/forwardauth.go |  | 10-05: the plan's HasGroup counting gate counts its own explanatory comment (prints 3, wants 1); the corrected gate adds grep -v '//' and prints 1 | open |  | 2026-09-08T05:24:33.848Z |  |
 
 ````json
 [
@@ -120,6 +121,18 @@ last_updated: 2026-09-08T05:10:24.057Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T05:10:24.057Z",
+    "resolved_at": null
+  },
+  {
+    "id": 9,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/admin/forwardauth.go",
+    "line": null,
+    "description": "10-05: the plan's HasGroup counting gate counts its own explanatory comment (prints 3, wants 1); the corrected gate adds grep -v '//' and prints 1",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T05:24:33.848Z",
     "resolved_at": null
   }
 ]
