@@ -1294,6 +1294,15 @@ func countAction(t *testing.T, database *db.DB, action string, entityID int64) i
 // Each case carries seite-a so the sign-in completes: an editor with no
 // matching website group is refused, which is a different test.
 func TestGroupSyncMatchesAGroupAsAWholeElement(t *testing.T) {
+	// The three trap headers below are written out as literals rather than
+	// built from fwdAdminGroup, because "not-holzcloud-admins" is the string a
+	// reader has to see to understand what is being asked. This keeps the
+	// literal and the constant from drifting apart in silence.
+	if fwdAdminGroup != "holzcloud-admins" {
+		t.Fatalf("fwdAdminGroup is %q; the trap headers below are literals built on "+
+			"\"holzcloud-admins\" and would no longer be traps", fwdAdminGroup)
+	}
+
 	cases := []struct {
 		name       string
 		adminGroup string
@@ -1302,9 +1311,9 @@ func TestGroupSyncMatchesAGroupAsAWholeElement(t *testing.T) {
 	}{
 		{"the configured group alone makes an administrator", fwdAdminGroup, fwdAdminGroup, user.RoleAdmin},
 		{"the configured group among others makes an administrator", fwdAdminGroup, fwdGroupA + "|" + fwdAdminGroup + "|andere", user.RoleAdmin},
-		{"a group the configured name is a suffix of is not the group", fwdAdminGroup, "not-" + fwdAdminGroup + "|" + fwdGroupA, user.RoleEditor},
-		{"a group the configured name is a prefix of is not the group", fwdAdminGroup, fwdAdminGroup + "-x|" + fwdGroupA, user.RoleEditor},
-		{"a group carrying the configured name inside it is not the group", fwdAdminGroup, "x" + fwdAdminGroup + "x|" + fwdGroupA, user.RoleEditor},
+		{"a group the configured name is a suffix of is not the group", fwdAdminGroup, "not-holzcloud-admins|" + fwdGroupA, user.RoleEditor},
+		{"a group the configured name is a prefix of is not the group", fwdAdminGroup, "holzcloud-admins-x|" + fwdGroupA, user.RoleEditor},
+		{"a group carrying the configured name inside it is not the group", fwdAdminGroup, "xholzcloud-adminsx|" + fwdGroupA, user.RoleEditor},
 		{"a website group is not an administration group", fwdAdminGroup, fwdGroupA, user.RoleEditor},
 		{"an empty configured group is matched by nobody", "", fwdAdminGroup + "|" + fwdGroupA, user.RoleEditor},
 		{"an empty configured group is not matched by an empty header element", "", "|" + fwdGroupA + "|", user.RoleEditor},
