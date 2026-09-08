@@ -172,8 +172,8 @@ func (s *Store) Role(ctx context.Context, id int64) (string, bool, error) {
 // # The empty address is refused here for a security reason, not a tidiness one
 //
 // `users.email` is declared `NOT NULL UNIQUE COLLATE NOCASE` (00001:5) and
-// nothing in that declaration forbids the empty string — a row with `email = ''`
-// is legal, and exactly one can exist. Every lookup by address that does not
+// nothing in that declaration forbids the empty string. A row whose address is
+// the empty string is legal, and exactly one of them can exist. Every lookup by address that does not
 // refuse an empty needle therefore *matches that row*, whoever it belongs to.
 //
 // Phase 10's forward authentication is where that stopped being hypothetical:
