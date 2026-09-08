@@ -1810,3 +1810,59 @@ func TestGroupSyncRefusesAnEmptyAdministrationGroupOnItsOwn(t *testing.T) {
 		t.Errorf("users.role = %q; want %q", got, user.RoleEditor)
 	}
 }
+
+// TestGroupSyncIsIdempotentWhateverShapeTheHeaderArrivesIn is what makes the
+// sort and the deduplication load-bearing rather than tidy.
+//
+// Both were written because SetRights sorts and deduplicates again, so their
+// absence changes no row in the database at all. What it changes is the
+// comparison against the stored assignment: user.Store.Rights reads its rows
+// ORDER BY website_id, so an unsorted or repeated collected list never equals
+// the stored one, SetRights is called on every sign-in, and one protocol row per
+// sign-in is written for a person whose rights never changed. Mutation 10
+// removed the sort and every other test in this file stayed green.
+//
+// The two headers below are the two shapes that produce it: groups arriving in
+// descending website order, and two groups the operator mapped to one website.
+func TestGroupSyncIsIdempotentWhateverShapeTheHeaderArrivesIn(t *testing.T) {
+	t.Run("two groups in descending website order", func(t *testing.T) {
+		h, sm, database, siteA, siteB := newGroupSyncAdmin(t)
+		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+
+		header := fwdGroupB + "|" + fwdGroupA
+		serveForwardAuth(t, h, sm, true, fwdGroupRequest("ada", "ada@example.com", header, nil))
+		first := countAction(t, database, activity.ActionUserUpdate, id)
+		serveForwardAuth(t, h, sm, true, fwdGroupRequest("ada", "ada@example.com", header, nil))
+
+		if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA, siteB}) {
+			t.Fatalf("user_websites = %v; want %v", got, []int64{siteA, siteB})
+		}
+		if n := countAction(t, database, activity.ActionUserUpdate, id); n != first {
+			t.Errorf("%q rows went from %d to %d across a second identical sign-in with the "+
+				"header %q; the collected ids are compared against a list the database returns "+
+				"ORDER BY website_id, so an unsorted list differs from itself forever",
+				activity.ActionUserUpdate, first, n, header)
+		}
+	})
+
+	t.Run("two groups the operator mapped to one website", func(t *testing.T) {
+		h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+		h.cfg.SSOWebsiteGroups = map[string]int64{"redaktion-a": siteA, "leitung-a": siteA}
+		id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+
+		header := "redaktion-a|leitung-a"
+		serveForwardAuth(t, h, sm, true, fwdGroupRequest("ada", "ada@example.com", header, nil))
+		first := countAction(t, database, activity.ActionUserUpdate, id)
+		serveForwardAuth(t, h, sm, true, fwdGroupRequest("ada", "ada@example.com", header, nil))
+
+		if got := assignedWebsites(t, database, id); !sameIDList(got, []int64{siteA}) {
+			t.Fatalf("user_websites = %v; want %v", got, []int64{siteA})
+		}
+		if n := countAction(t, database, activity.ActionUserUpdate, id); n != first {
+			t.Errorf("%q rows went from %d to %d across a second identical sign-in with the "+
+				"header %q; the database holds one row per website however many groups lead "+
+				"to it, so a repeated id differs from the stored list forever",
+				activity.ActionUserUpdate, first, n, header)
+		}
+	})
+}
