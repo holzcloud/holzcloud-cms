@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"unicode"
 
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
@@ -44,7 +47,7 @@ func (h *Handler) HandlePreview(w http.ResponseWriter, r *http.Request) error {
 	site := previewSiteData(ws)
 	data := tmpl.PageData{
 		Site:  site,
-		Page:  previewPageContent(pg),
+		Page:  h.previewPageContent(r, ws, pg),
 		Menus: h.loadPreviewMenus(r, ws.ID),
 		Meta:  previewMeta(site, pg, "/"),
 	}
@@ -95,7 +98,7 @@ func (h *Handler) HandlePreviewPage(w http.ResponseWriter, r *http.Request) erro
 	site := previewSiteData(ws)
 	data := tmpl.PageData{
 		Site:  site,
-		Page:  previewPageContent(pg),
+		Page:  h.previewPageContent(r, ws, pg),
 		Menus: h.loadPreviewMenus(r, ws.ID),
 		Meta:  previewMeta(site, pg, "/"+pg.Slug),
 	}
@@ -233,11 +236,38 @@ func previewSiteData(ws *domain.Website) tmpl.SiteData {
 	return site
 }
 
-func previewPageContent(pg *page.Page) tmpl.PageContent {
+// previewPageContent maps a stored page onto what a theme sees in the preview.
+//
+// The album markers are expanded here, and that is the point of the method
+// existing at all. A gallery bound to an album stores [[album:<slug>:<n>]] and
+// nothing else — the pictures are looked up per request, which is GAL-03 — so
+// writing pg.ContentHTML out unchanged showed an editor the internal syntax on
+// the one screen that exists to show what will be published.
+//
+// The expansion is the public one, not a copy of it: album.Expand over an
+// album.Set from the website's own store, with the website's locale for the
+// lightbox's three control names, exactly as internal/public/pagedata.go and
+// blockSet above both do. A second rendering of a tile would be a second place
+// to get the fragment ids wrong.
+//
+// # What the preview still does NOT do, said out loud
+//
+// It does not expand snippet markers, and it did not before. That gap predates
+// Phase 11 and is wider than one block: closing it means deciding what a
+// preview shows for a snippet that is edited but not yet saved, which is a
+// question about the preview and not about the album. A page with an
+// unexpanded snippet is a page with one sentence missing; a page with an
+// unexpanded album was a page with a bracketed token where a whole gallery
+// belongs, which is why only the second is fixed here.
+//
+// It also does not run the plugin filter or the responsive rewrite, for the
+// same reason internal/public/pagedata.go's expandForFeed does not: neither
+// leaves anything unreadable behind.
+func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *page.Page) tmpl.PageContent {
 	updated := pg.UpdatedAt
 	return tmpl.PageContent{
 		Title:         pg.Title,
-		ContentHTML:   template.HTML(pg.ContentHTML),
+		ContentHTML:   template.HTML(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML))),
 		Slug:          pg.Slug,
 		PublishedAt:   pg.PublishedAt,
 		UpdatedAt:     &updated,
@@ -248,6 +278,30 @@ func previewPageContent(pg *page.Page) tmpl.PageContent {
 		Art:    pg.TypeKey,
 		IsPost: pg.IsPost(),
 	}
+}
+
+// previewAlbums is the expansion set for one previewed page, and it never
+// fails.
+//
+// The zero Set expands every marker to nothing, which is what a preview wants
+// when the albums cannot be loaded or when no store is wired: a gallery that is
+// not there is better than a bracketed token the editor then has to guess
+// about. internal/public/pagedata.go's albumsFor is the same three lines for
+// the same reason, and this is deliberately not a shared helper — internal/admin
+// does not import internal/public, and one small function on each side is
+// cheaper than the dependency.
+func (h *Handler) previewAlbums(r *http.Request, ws *domain.Website, html string) album.Set {
+	if h.albumStore == nil || ws == nil {
+		return album.Set{}
+	}
+	locale := ws.Locale
+	set, err := h.albumStore.LoadFor(r.Context(), ws.ID, html,
+		func(word string) string { return i18n.T(locale, word) })
+	if err != nil {
+		slog.Error("load albums for preview", "err", err, "website", ws.ID)
+		return album.Set{}
+	}
+	return set
 }
 
 // startsWithHeading mirrors the public handler: a page whose content already
