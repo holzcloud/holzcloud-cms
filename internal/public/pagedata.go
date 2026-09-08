@@ -38,9 +38,8 @@ import (
 // its answer — the share-link preview, which is no-store — discards it.
 func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, snippets snippet.Rendered) (tmpl.PageContent, time.Time) {
 	updated := pg.UpdatedAt
-	var albumsAt time.Time
 	body := snippet.Expand(pg.ContentHTML, snippets.HTML)
-	// The albums, and both halves of where this call stands are decisions.
+	// The albums, and all three halves of where this call stands are decisions.
 	//
 	// AFTER the snippets, because a snippet could itself contain a gallery
 	// marker and the expansion should see it.
@@ -52,12 +51,18 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// anywhere would report it. The plugin filter's own comment below says it
 	// runs last so that it sees the page as a visitor would, which is the same
 	// argument from the other end.
-	if h.albumStore != nil {
-		if set, ok := h.albumSet(r, websiteID, body); ok {
-			albumsAt = set.Latest()
-			body = album.Expand(body, set)
-		}
-	}
+	//
+	// UNCONDITIONALLY, including when the albums could not be loaded and when
+	// no album store is wired at all. albumsFor answers the zero Set in both
+	// cases and the zero Set expands every marker to nothing, which is what
+	// loadSnippets and snippet.Expand have always done between them. The
+	// alternative — skip the expansion and serve what is stored — printed
+	// [[album:moebel:0]] to the visitor on every request with no recovery.
+	// A document naming no album costs nothing here: LoadFor reads the slugs
+	// out of the HTML first and Expand returns a marker-free body unchanged.
+	set := h.albumsFor(r, websiteID, body)
+	albumsAt := set.Latest()
+	body = album.Expand(body, set)
 	// Plugins last: they see the page as a visitor would, with the snippets
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.
@@ -76,32 +81,6 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 		Felder:        felder,
 		Feldliste:     liste,
 	}, albumsAt
-}
-
-// albumSet loads the albums this page's HTML names, in the website's language.
-//
-// The translator is built from the website's locale — the same one
-// internal/admin/page_blocks.go's blockSet uses for the save-time render — so a
-// page carrying an inline gallery and an album gallery does not end up with its
-// two sets of lightbox controls in two languages.
-//
-// A failing query is logged and reported as not-loaded, and the caller then
-// leaves the body unexpanded rather than replacing every marker with nothing. A
-// failing album must cost its own block and never the page, which is the rule
-// h.responsive below already follows and the one block.Render states for a
-// picture that was deleted.
-func (h *Handler) albumSet(r *http.Request, websiteID int64, body string) (album.Set, bool) {
-	var t func(string) string
-	if ws := domain.WebsiteFromContext(r.Context()); ws != nil {
-		locale := ws.Locale
-		t = func(word string) string { return i18n.T(locale, word) }
-	}
-	set, err := h.albumStore.LoadFor(r.Context(), websiteID, body, t)
-	if err != nil {
-		slog.Error("load albums for page", "err", err, "website", websiteID)
-		return album.Set{}, false
-	}
-	return set, true
 }
 
 // ownFields resolves the website's own fields for a theme.
@@ -377,18 +356,49 @@ func leereBausteine() snippet.Rendered {
 
 // albumsFor is the album expansion set for one document, and it never fails.
 //
-// The zero Set expands every marker to nothing, which is what both callers want
-// when the albums cannot be loaded: a marker a reader can see is worse than a
-// gallery that is not there. loadSnippets above has had exactly this shape
-// since it was written, and albumSet logs the reason before it gives up.
+// All three callers — the page, the feed and the admin preview — want the same
+// thing when the albums cannot be loaded, and it is the zero Set: it expands
+// every marker to nothing, and a gallery that is not there is better than a
+// bracketed token a reader can see. loadSnippets above has had exactly this
+// shape since it was written and snippet.Expand runs on its empty map for
+// exactly this reason.
+//
+// # Why not "leave the body as it is"
+//
+// Because that is not the safe half of the choice, which is how it was written
+// until the Phase 11 review argued the other way and was right. Leaving the
+// marker costs the PAGE: [[album:<slug>:<n>]] stands in the middle of an
+// article, on every gallery the website has, on every request, with no
+// recovery — and it leaks the album's internal address besides. Expanding to
+// nothing costs the BLOCK, which is one gallery missing from a page that still
+// reads. "A failing album must cost its own block and never the page" was the
+// right rule pointed the wrong way.
+//
+// The h.responsive analogy that used to be offered for it does not hold either:
+// a body that missed the responsive rewrite is still a page a visitor can read,
+// it merely has no srcset. A body that missed this one is not.
 //
 // Nil-safe on the store, because a build without albums wired must still serve
 // a page whose HTML was written when they were.
+//
+// The translator is built from the website's locale — the same one
+// internal/admin/page_blocks.go's blockSet uses for the save-time render — so a
+// page carrying an inline gallery and an album gallery does not end up with its
+// two sets of lightbox controls in two languages.
 func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album.Set {
 	if h.albumStore == nil {
 		return album.Set{}
 	}
-	set, _ := h.albumSet(r, websiteID, body)
+	var t func(string) string
+	if ws := domain.WebsiteFromContext(r.Context()); ws != nil {
+		locale := ws.Locale
+		t = func(word string) string { return i18n.T(locale, word) }
+	}
+	set, err := h.albumStore.LoadFor(r.Context(), websiteID, body, t)
+	if err != nil {
+		slog.Error("load albums for page", "err", err, "website", websiteID)
+		return album.Set{}
+	}
 	return set
 }
 

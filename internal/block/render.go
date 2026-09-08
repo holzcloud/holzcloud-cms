@@ -470,12 +470,20 @@ func AlbumMarker(slug string, at int) string {
 	return albumMarkerPrefix + slug + ":" + strconv.Itoa(at) + "]]"
 }
 
-// HasAlbumMarker reports whether a document contains any album marker at all.
+// hasAlbumMarker reports whether a document contains any album marker at all.
 //
 // The cheap question, asked before the expensive one: a page that names no
 // album must cost nothing — no regular expression over its whole body and no
 // database query. snippet.Expand opens with the same test for the same reason.
-func HasAlbumMarker(html string) bool {
+//
+// Unexported, and that is a decision rather than tidiness. It was exported for
+// a caller in internal/public that would have read "does this body name an
+// album, and if so expand it against an empty set". That caller does not exist
+// and now cannot: pagedata.go expands unconditionally, because deciding NOT to
+// expand is what printed the marker to a visitor. AlbumMarkerSlugs and
+// ReplaceAlbumMarkers are the two exported readers, and both open with this
+// test themselves, so no caller outside this package has to ask it first.
+func hasAlbumMarker(html string) bool {
 	return strings.Contains(html, albumMarkerPrefix)
 }
 
@@ -486,7 +494,7 @@ func HasAlbumMarker(html string) bool {
 // query, the way media.LoadImageSets reads the file names out of the HTML
 // before looking anything up.
 func AlbumMarkerSlugs(html string) []string {
-	if !HasAlbumMarker(html) {
+	if !hasAlbumMarker(html) {
 		return nil
 	}
 	seen := map[string]bool{}
@@ -505,7 +513,7 @@ func AlbumMarkerSlugs(html string) []string {
 // A document with no marker is returned unchanged and untouched, which is what
 // keeps this mechanism free for the pages that do not use it.
 func ReplaceAlbumMarkers(html string, expand func(slug string, at int) string) string {
-	if !HasAlbumMarker(html) {
+	if !hasAlbumMarker(html) {
 		return html
 	}
 	return albumMarkerPattern.ReplaceAllStringFunc(html, func(match string) string {
