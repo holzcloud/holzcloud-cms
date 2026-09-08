@@ -51,6 +51,26 @@
 // recreate one layer up exactly the staleness this tool exists to prevent, so
 // the archives are packed here too, from the module of the same run, and every
 // mode covers all ten artifacts at once.
+// # Touching sdk/ invalidates every committed artefact, comments included
+//
+// Each plugin's go.mod carries `replace …/sdk => ../../sdk`, so the SDK is
+// compiled from source into every module. A change there — a doc comment is
+// enough — changes each artefact's bytes while leaving its SIZE identical,
+// because what moves is the Go build ID, a hash over all build inputs that
+// -ldflags="-s -w" does not strip and -buildvcs=false has nothing to do with.
+//
+// Measured 2026-09-08: a comment-only edit to sdk/plugin.go turned this check
+// from green to "10 Datei(en) sind nicht aktuell". That is the tool working, not
+// misfiring — the committed bytes really did stop matching the source beside
+// them. But it means an edit that looks like documentation is a rebuild:
+//
+//	go run ./tools/wasm        # all of them, not just the one you touched
+//
+// The same property is why a stale artefact is worth catching at all. If bytes
+// only moved when behaviour did, a mismatch would be a small matter; because
+// they move whenever any input does, a mismatch means the committed module is
+// not the source's output, and nothing weaker is being claimed.
+
 package main
 
 import (
