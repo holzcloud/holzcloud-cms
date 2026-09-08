@@ -579,7 +579,19 @@ func GalleryItems(at int, items []Item, look Lookup, t func(string) string) stri
 	var pictures []shown
 	for j, it := range items {
 		img, ok := look(it.MediaID)
-		if !ok {
+		// A film in a picture grid is a broken <img> and nothing else — imgTag
+		// writes an <img> for whatever it is handed. The image arm at the top
+		// of this file has carried the same "|| img.Film" since long before the
+		// album existed; this is its sibling, and it was missing.
+		//
+		// Reachable without anything having gone wrong: album.Store.AddItem
+		// checks the website and correctly not the file type (internal/admin's
+		// requireOwnPicture is where that is caught), and the bundle importer
+		// calls AddItem directly with a name out of the archive's media list.
+		// The inline gallery has the same hole through a hand-edited archive,
+		// which is why the guard is here rather than in the store: one place
+		// covers both sources.
+		if !ok || img.Film {
 			continue
 		}
 		// The block's position and the item's index, so two galleries on one
