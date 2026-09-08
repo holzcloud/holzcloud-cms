@@ -82,6 +82,60 @@ func TestRenameRefusesANameAnotherAlbumAlreadyHas(t *testing.T) {
 	}
 }
 
+// TestCreateRefusesANameARenamedAlbumAlreadyHas closes the other door, and it
+// is the door the browser pass of 11-07 walked through.
+//
+// The comment above says "Create has refused a duplicate since 00050, through
+// the UNIQUE constraint on the slug". True — while a name still derives its
+// album's slug. A rename breaks that on purpose (GAL-04 needs the address to
+// stand still), and from then on the OLD name is free under a new slug:
+//
+//	create "Werkstatt 2024"           -> slug werkstatt-2024
+//	rename it to "Werkstatt 2025"     -> slug is STILL werkstatt-2024
+//	create "Werkstatt 2025"           -> slug werkstatt-2025, no constraint hit
+//
+// Two albums, one name, no error — the exact state this file forbids, reached
+// without ever calling Rename twice. Found in a browser on 2026-09-08, not in a
+// test, which is why the browser gate exists.
+func TestCreateRefusesANameARenamedAlbumAlreadyHas(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+	ws, first, _ := seedAlbumSite(t, s, "Werkstatt", "Werkstatt 2024")
+
+	if err := s.Albums.Rename(ctx, ws, first, "Werkstatt 2025"); err != nil {
+		t.Fatalf("Albums.Rename: %v", err)
+	}
+
+	_, err := s.Albums.Create(ctx, ws, "Werkstatt 2025")
+	if err == nil {
+		t.Fatal("Create produced a second album called \"Werkstatt 2025\" — an archive of this website can no longer say which of them a gallery means")
+	}
+	if !strings.Contains(err.Error(), album.ErrDuplicateName.Error()) {
+		t.Errorf("Create refused with %v; want the named ErrDuplicateName, which is what albumSaid turns into a sentence", err)
+	}
+
+	// The negative control: an ordinary create is still an ordinary create, or
+	// a Create that refused everything would pass this test.
+	if _, err := s.Albums.Create(ctx, ws, "Werkstatt 2026"); err != nil {
+		t.Fatalf("an ordinary create was refused too: %v", err)
+	}
+
+	// And the slug collision keeps its OWN sentence. "Werkstatt 2024" is the
+	// address the renamed album still carries while no album is called that
+	// any more, so answering it with ErrDuplicateName would send an operator
+	// to a list in which that name does not appear.
+	_, err = s.Albums.Create(ctx, ws, "Werkstatt 2024")
+	if err == nil {
+		t.Fatal("Create took an address another album still holds")
+	}
+	if !strings.Contains(err.Error(), album.ErrDuplicateSlug.Error()) {
+		t.Errorf("a slug collision refused with %v; want the named ErrDuplicateSlug", err)
+	}
+	if strings.Contains(err.Error(), album.ErrDuplicateName.Error()) {
+		t.Error("a slug collision was reported as a name collision — the list shows no such name")
+	}
+}
+
 // TestTwoAlbumsWithOneNameDoNotCollapseIntoOne is the import half, driven from
 // a manifest rather than through a rename — because a manifest is a file
 // anybody can edit (T-11-27), so the fix above closes the source and this one
