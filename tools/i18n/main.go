@@ -54,6 +54,25 @@
 // matched. Neither shape is in the tree today, and both are cheap to reach for
 // by accident.
 //
+// # The header count is of COLLECTABLE strings, not of German literals
+//
+// "N Zeichenketten im Quelltext" counts what this tool can see, which is not
+// the same as what a person wrote. A sentence that has always been in the code
+// but sat in a shape the collector cannot read — assembled with fmt.Sprintf,
+// returned from a helper, surfaced through err.Error() — is absent from that
+// number, and it JOINS the number on the day somebody moves it into a
+// collectable shape, with no new sentence written anywhere.
+//
+// Measured 2026-09-08: seven keys counted as added between two commits although
+// every one of them predated the first. They became collectable at 6efb3ba,
+// which moved six album sentences out of a helper and into SetFlash*. A plan
+// whose gate read "the count rises by exactly the two sentences this phase
+// added" therefore failed against a tree where the property held perfectly.
+//
+// So a delta in this number answers "how much more can be translated", not
+// "how much more was written". Where the difference matters, diff the KEY SET
+// through this tool rather than comparing two totals.
+//
 // i18n.SourceStrings, which the admin's own language screen counts, is built
 // from the union of the catalogues rather than from source. It therefore
 // inherits every blind spot above exactly: a string this tool never collected
