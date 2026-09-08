@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Completed 11-07-PLAN.md — Phase 11 complete
-last_updated: "2026-09-08T05:16:35.331Z"
+stopped_at: Completed 10-05-PLAN.md
+last_updated: "2026-09-08T05:24:33.696Z"
 last_activity: 2026-09-06
-state_head: 2cfca3cb05f3fe7e64d0a91e86b247f48e87e04f
+state_head: 2061e7e082953f0967d6eae1d4a6d09fdb99b988
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 42
-  completed_plans: 36
+  completed_plans: 37
   percent: 29
 ---
 
@@ -268,6 +268,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P03 | 23 min | 3 tasks | 5 files |
 | Phase 10 P04 | 15 min | 2 tasks | 2 files |
 | Phase 11 P07 | 40 min | 2 tasks | 9 files |
+| Phase 10 P05 | 40 min | 2 tasks | 2 files |
 
 ### Session Continuity
 
@@ -296,8 +297,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T05:15:33.058Z
-**Stopped at:** Completed 11-07-PLAN.md — Phase 11 complete
+**Last session:** 2026-09-08T05:24:33.474Z
+**Stopped at:** Completed 10-05-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -364,6 +365,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 10]: errSSOEmptyAddress is a sentinel so provisioning's empty-address guard can be asserted apart from the two other layers that also refuse it — Mutation 5 stayed green because step 4 and user.Store.Create both refuse; a guard whose removal nothing notices gets deleted by the next tidier
 - [Phase 11]: album.Store.Create prueft den Namen jetzt in derselben Schreibtransaktion wie Rename — Im Browserdurchgang von 11-07 gefunden: die Adresse bewegt sich beim Umbenennen absichtlich nicht (GAL-04), also ist der alte Name unter einer anderen Adresse wieder frei und das INSERT laeuft an der UNIQUE-Bedingung vorbei. CR-02 hatte nur Rename geschlossen.
 - [Phase 11]: ErrDuplicateSlug bekommt einen eigenen Satz, getrennt von ErrDuplicateName — Nach einer Umbenennung sind Adress- und Namenskollision verschiedene Ereignisse. 'Ein Album mit diesem Namen gibt es schon' schickt den Betreiber sonst in eine Liste, in der dieser Name nicht vorkommt.
+- [Phase 11]: 10-05: an editor whose groups map to no configured website is refused the sign-in rather than written as an empty assignment — D-01's inversion reached by subtraction
+- [Phase 11]: 10-05: with HOLZCLOUD_SSO_WEBSITE_GROUPS unset the website half of the sync does not run; the invariant is that it never WRITES an empty assignment, not that an empty result is always a refusal
 
 ## Accumulated Context
 
