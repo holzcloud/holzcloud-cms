@@ -42,10 +42,21 @@ and the screen they sit on.
 ## Building a plugin
 
 ```sh
+go run ./tools/wasm jahreszahl
+```
+
+That is the whole build, and it is the one to use. Written out by hand it is:
+
+```sh
 cd plugins/jahreszahl
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" -o plugin.wasm .
-zip -j jahreszahl.zip plugin.json plugin.wasm
 ```
+
+**Do not pack the archive with `zip -j`.** It stamps the wall-clock time into
+every entry, so two runs never produce the same bytes and the check below can
+never come out right — and `-j` flattens, which silently drops a `migrations/`
+directory. `kontaktformular` carries one, and losing it is the defect the
+packer was rewritten to prevent.
 
 `-buildvcs=false` is not a nicety but a condition. Without it, `go build` writes
 the git state of the moment into the module; a second build at a later commit then
@@ -53,7 +64,7 @@ produces different bytes although not a line of source has changed, and the
 comparison in the check pipeline can never come out right again.
 
 If you would rather not keep the flag in your head: `go run ./tools/wasm` builds
-all six bundled modules with the pinned Go version and packs the four archives
+all six bundled modules with the pinned Go version and packs the five archives
 along with them; `go run ./tools/wasm -check` says whether what is in the
 repository still matches the source beside it.
 
