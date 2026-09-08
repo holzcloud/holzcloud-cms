@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
+	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 )
 
@@ -53,6 +55,33 @@ func (h *Handler) hasSearch(websiteID int64) bool {
 	return ok
 }
 
+// expandForPlugin resolves the markers a plugin must never see.
+//
+// It takes a context rather than a request because that is what the plugin
+// host is handed; the request is fetched back out of it for the website's
+// locale, exactly as RenderForPlugin does, and its absence is survivable — a
+// gallery whose lightbox controls fall back to the default language is a page,
+// where a raw marker is not.
+func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body string) string {
+	if !strings.Contains(body, "[[") {
+		return body
+	}
+	r := requestFrom(ctx)
+	if r == nil {
+		// No request means no locale and no album lookup. Expanding the
+		// snippets alone is still strictly better than handing both markers
+		// over, and album.Expand on a zero Set removes what it cannot resolve.
+		if h.snippetStore != nil {
+			if rendered, err := h.snippetStore.LoadRendered(ctx, websiteID); err == nil {
+				body = snippet.Expand(body, rendered.HTML)
+			}
+		}
+		return album.Expand(body, album.Set{})
+	}
+	body = snippet.Expand(body, h.loadSnippets(r, websiteID).HTML)
+	return album.Expand(body, h.albumsFor(r, websiteID, body))
+}
+
 // PagesForPlugin answers the page operations.
 //
 // Published pages only, in every case. A plugin asking for a draft gets the
@@ -80,7 +109,21 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 			return plugin.PagesResult{}, nil
 		}
 		info := pageInfo(*p)
-		info.HTML = p.ContentHTML
+		// Expanded, not handed over as it stands. `content_html` is the
+		// FROZEN body and not what a visitor is served: a snippet marker has
+		// survived into it since Phase 8 and an album marker since Phase 11,
+		// and both are resolved per request. A plugin that printed this column
+		// would show `[[album:sommer:0]]` in the middle of an article — and
+		// leak the album's internal address with it.
+		//
+		// The same order and the same reason as pageContent and the feed:
+		// snippets first, because a snippet's body may itself carry a gallery
+		// marker; then the albums over the result.
+		//
+		// The feed's own comment already made this argument for a subscriber —
+		// "so a subscriber sees the same text as a visitor rather than the raw
+		// marker". A plugin is a reader too, and it was the last one left.
+		info.HTML = h.expandForPlugin(ctx, websiteID, p.ContentHTML)
 		h.addFields(&info, *p, q.WithFields)
 		return plugin.PagesResult{Pages: []plugin.PageInfo{info}, Total: 1}, nil
 
