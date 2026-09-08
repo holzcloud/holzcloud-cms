@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Completed 10-04-PLAN.md
-last_updated: "2026-09-08T04:44:33.499Z"
+stopped_at: Completed 11-07-PLAN.md — Phase 11 complete
+last_updated: "2026-09-08T05:16:35.331Z"
 last_activity: 2026-09-06
-state_head: 5280ba84ff66003ea2fc7d94757acc6e0b9575da
+state_head: 2cfca3cb05f3fe7e64d0a91e86b247f48e87e04f
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 42
-  completed_plans: 35
+  completed_plans: 36
   percent: 29
 ---
 
@@ -22,7 +22,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 11 — Galerie, **Wellen 1-4 von 5 ausgefuehrt**; Phase 10 geplant und wartend (v1.6 Inhaltsmodell und Zugang)
+- Current focus: Phase 11 — Galerie, **alle 5 Wellen ausgefuehrt, 7/7 Plaene**; Phase 10 laeuft parallel (v1.6 Inhaltsmodell und Zugang)
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
@@ -267,6 +267,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P01 | 42 min | 3 tasks | 4 files |
 | Phase 10 P03 | 23 min | 3 tasks | 5 files |
 | Phase 10 P04 | 15 min | 2 tasks | 2 files |
+| Phase 11 P07 | 40 min | 2 tasks | 9 files |
 
 ### Session Continuity
 
@@ -295,8 +296,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T04:43:59.571Z
-**Stopped at:** Completed 10-04-PLAN.md
+**Last session:** 2026-09-08T05:15:33.058Z
+**Stopped at:** Completed 11-07-PLAN.md — Phase 11 complete
 **Resume file:** None
 
 ## Decisions
@@ -361,6 +362,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 10]: provisionSSOUser writes the website assignment in the same function that creates the account — NewWebsiteAccessLookup reads zero rows in user_websites as access to every website; between Create and the assignment there must be no request, no error path and no later plan
 - [Phase 10]: The zero-rows property is proved through NewWebsiteAccessLookup, never by counting rows in user_websites — Mutation 7 writes exactly one row naming the wrong website: a row-counting test passes while the account reaches the site it must not have
 - [Phase 10]: errSSOEmptyAddress is a sentinel so provisioning's empty-address guard can be asserted apart from the two other layers that also refuse it — Mutation 5 stayed green because step 4 and user.Store.Create both refuse; a guard whose removal nothing notices gets deleted by the next tidier
+- [Phase 11]: album.Store.Create prueft den Namen jetzt in derselben Schreibtransaktion wie Rename — Im Browserdurchgang von 11-07 gefunden: die Adresse bewegt sich beim Umbenennen absichtlich nicht (GAL-04), also ist der alte Name unter einer anderen Adresse wieder frei und das INSERT laeuft an der UNIQUE-Bedingung vorbei. CR-02 hatte nur Rename geschlossen.
+- [Phase 11]: ErrDuplicateSlug bekommt einen eigenen Satz, getrennt von ErrDuplicateName — Nach einer Umbenennung sind Adress- und Namenskollision verschiedene Ereignisse. 'Ein Album mit diesem Namen gibt es schon' schickt den Betreiber sonst in eine Liste, in der dieser Name nicht vorkommt.
 
 ## Accumulated Context
 
@@ -372,3 +375,4 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 - ~~07-04 gemeldet, nicht behoben: internal/bundle/import.go importFieldValues schreibt Feldwerte mit field.Encode direkt, ohne CheckAll und ohne Clean.~~ **ERLEDIGT in 07-05 (7cb09f4).** Entschieden wurde gedeckt und nicht vertagt: ein Archiv ist eine Datei, die jeder bearbeiten kann, alle anderen Schreibwege sind gedeckt, und seit 07-04 kuerzt trimTo nichts mehr — CheckAll ist damit die einzige Stelle, an der das Bytebudget ueberhaupt noch gilt. importPages liest die tatsaechlich angelegten Definitionen ueber s.Fields.List und reicht sie in importFieldValues; dort laufen field.Clean und field.CheckAll, ein beanstandeter Wert wird entfernt und namentlich in den Bericht geschrieben, nie die ganze Seite verworfen. TestArchivwerteGehenDurchDieselbePruefung beweist es, Gegenprobe mit deaktivierter Wache gefuehrt (vier Behauptungen fallen). Offene Blocker: keine
 - Plan 10-01: vier Zaehl-Schranken der Phase 10 sind gegen den Baum vom 2026-09-07 geeicht und seit Phase 11 veraltet (Migrationen 49 statt 50, Pakete 40 statt 41, Admin-Vorlagen 66 statt 68, Zeichenketten 1277 statt 1311). Die Plaene 10-02 bis 10-09 tragen dieselben Zahlen — gemessene Werte aus 10-01-SUMMARY uebernehmen
+- Offen (WINDOWS.md Eintrag 8): eine Album-Diashow zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch. render.go:212 uebersetzt mit s.text (nur beim Speichern gesetzt), die Bedienelemente ueber expand.go:133 mit set.t (bei der Anfrage). Die Behebung verschiebt die Grenze zwischen Speicherzeit und Anfragezeit — Architekturentscheid des Entwicklers.

@@ -495,7 +495,7 @@ Plans:
   5. The gallery block and the album read and write their image list through **one** mechanism, inherited from Phase 7 — not a second one. The existing `hc-galerie` markup, its `srcset`/`sizes`, its focus-point cropping and its own-aspect-ratio rendering from version 1.8 all keep working unchanged; an album is a new source for that list, not a new renderer.
   6. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist`, and everything this phase added that a person can see — the large view, the album screens, the slideshow — has been driven once through the running application in a browser, not only through the test suite.
 
-**Plans**: 6/7 plans executed, in 5 waves. Two independent verticals start together — the lightbox (renderer, stylesheet, specification) and the album (migration, store) share no file and neither can disprove the other. They meet in wave 3, where the album's pictures are expanded into a page at request time; the bundle round trip follows in wave 4 because it needs both the store's `Rename` and the block's album field; and the standing gate is last, because the browser pass must run **after** the code-review fix round, which no plan that also writes code can promise.
+**Plans**: 7/7 plans executed, in 5 waves. Two independent verticals start together — the lightbox (renderer, stylesheet, specification) and the album (migration, store) share no file and neither can disprove the other. They meet in wave 3, where the album's pictures are expanded into a page at request time; the bundle round trip follows in wave 4 because it needs both the store's `Rename` and the block's album field; and the standing gate is last, because the browser pass must run **after** the code-review fix round, which no plan that also writes code can promise.
 
 Plans:
 **Wave 1**
@@ -518,7 +518,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4, and on the code-review fix round)*
 
-- [ ] 11-07-PLAN.md — the standing gate: five catalogues, four glossary entries, and the browser pass with the unstyled case and the scroll-width measurement (QUAL-01, QUAL-02)
+- [x] 11-07-PLAN.md — the standing gate: five catalogues, four glossary entries, and the browser pass with the unstyled case and the scroll-width measurement (QUAL-01, QUAL-02)
 
 **UI hint**: yes
 **Research flag**: **the lightbox markup only.** The `:target` pattern is well known but its accessible shape is not obvious — focus handling without script, what a screen reader announces when the overlay appears, and whether next/previous should be `<a>` elements pointing at sibling ids (they should). Worth a **UI-SPEC**. The album is a straight copy of an existing pattern (menus and terms are both "a named thing a website owns, assembled once, used in many places") and the slideshow is one CSS block.
@@ -591,7 +591,7 @@ anywhere.
 | 8. Snippets Carry Fields | v1.6 | 5/5 | Complete | 2026-09-06 |
 | 9. CSV Import | v1.6 | 6/6 | Complete | 2026-09-07 |
 | 10. Authentik Forward-Auth | v1.6 | 4/10 | In Progress|  |
-| 11. Galerie | v1.6 | 6/7 | In Progress |  |
+| 11. Galerie | v1.6 | 7/7 | In Progress|  |
 | 12. The Codebase Speaks English | v1.6 | 0/TBD | Not planned | - |
 
 ---
