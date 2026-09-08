@@ -26,7 +26,21 @@
 //
 // Build it with:
 //
+//	go run ./tools/wasm <name>
+//
+// and not by hand. The bare command reads well and produces bytes that the
+// repository's own check rejects:
+//
 //	GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
+//
+// It is missing -buildvcs=false, which writes the git state of the moment into
+// the module so that a second build at a later commit differs although no line
+// of source did; -trimpath and -ldflags="-s -w", which the shipped modules
+// carry; and a pinned GOTOOLCHAIN, without which the compiler that happens to
+// be installed decides the output. `go run ./tools/wasm` supplies all four,
+// packs the archive with a fixed timestamp so two runs are byte-identical, and
+// `-check` is what CI runs to say whether a committed module still matches the
+// source beside it.
 //
 // The two functions the host needs — the allocator and the entry point — are
 // exported by this package. An author never writes an unsafe pointer, and the
