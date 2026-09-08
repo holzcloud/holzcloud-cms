@@ -168,6 +168,26 @@ func (s *Store) Role(ctx context.Context, id int64) (string, bool, error) {
 }
 
 // Create hashes the password and inserts a user.
+//
+// # The empty address is refused here for a security reason, not a tidiness one
+//
+// `users.email` is declared `NOT NULL UNIQUE COLLATE NOCASE` (00001:5) and
+// nothing in that declaration forbids the empty string — a row with `email = ''`
+// is legal, and exactly one can exist. Every lookup by address that does not
+// refuse an empty needle therefore *matches that row*, whoever it belongs to.
+//
+// Phase 10's forward authentication is where that stopped being hypothetical:
+// an identity arriving with no e-mail header would be looked up rather than
+// refused, and would sign in as whatever that row is. Its middleware refuses
+// the empty address, its provisioning refuses it again by a named sentinel, and
+// this is the third layer — the one that stops the row from being created in
+// the first place.
+//
+// Said out loud because the line below reads like a validation message and is
+// not one. A later reader softening it into a form error, or moving it into the
+// handlers "where the other validation lives", would remove a guard without
+// noticing there was one. Measured 2026-09-08: with this check and
+// provisioning's own both removed, an account for the empty address is created.
 func (s *Store) Create(ctx context.Context, name, email, password, role string) (int64, error) {
 	email = strings.TrimSpace(email)
 	if email == "" {
