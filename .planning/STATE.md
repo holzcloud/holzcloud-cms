@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Completed 10-08-PLAN.md
-last_updated: "2026-09-08T06:13:18.188Z"
+stopped_at: Completed 10-09-PLAN.md
+last_updated: "2026-09-08T06:31:41.294Z"
 last_activity: 2026-09-06
-state_head: 5b1bba71f3305687568ca02f293f384ee3adabeb
+state_head: 7bc846fdf6737aa271fa6305525c28071ce3f8a2
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 42
-  completed_plans: 40
+  completed_plans: 41
   percent: 29
 ---
 
@@ -272,6 +272,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P06 | 25 min | 3 tasks | 7 files |
 | Phase 10 P07 | 28 min | 2 tasks | 2 files |
 | Phase 10 P08 | 41min | 3 tasks | 5 files |
+| Phase 10 P09 | 15 min | 2 tasks | 5 files |
 
 ### Session Continuity
 
@@ -300,8 +301,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T06:12:51.504Z
-**Stopped at:** Completed 10-08-PLAN.md
+**Last session:** 2026-09-08T06:31:26.021Z
+**Stopped at:** Completed 10-09-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -378,6 +379,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 11]: 10-08: die Antwortkopfzeilen liegen in (holzcloud-headers), von beiden Wegen importiert; caddy adapt liefert vorher und nachher byteweise dasselbe JSON
 - [Phase 11]: 10-08: gemessen auf Caddy 2.11.4 — die Loeschung, die die CVE-Behebung erzeugt, deckt nur die kanonische Bindestrich-Schreibweise; die Unterstrich-Zeilen tragen also auch auf einem behobenen Caddy
 - [Phase 11]: 10-08: docs/configuration.md bekommt neun Variablen, nicht sieben — HOLZCLOUD_LISTEN und HOLZCLOUD_TRUSTED_PROXIES fehlten dort schon vor dieser Phase
+- [Phase 11]: 10-09: Ein Zaehl-Tor, das eine Absolutzahl prueft, wird von jeder Phase bewegt, die sich denselben Baum teilt. Das ehrliche Tor vergleicht die Schluesselmenge gegen einen benannten Commit und nennt zu jedem neuen Schluessel den Commit: 10 hinzu seit cdcfbab, 8 davon Phase 11, 2 davon 10-06.
+- [Phase 11]: 10-09: Die Anrede wurde am Katalog gemessen und nicht aus dem Deutschen uebernommen — es und it duzen, fr siezt, in 40 bestehenden Eintraegen. Das deutsche du nach Franzoesisch zu kopieren waere ein Fehler gewesen, den kein Tor dieses Projekts sieht.
+- [Phase 11]: 10-09: Sechste und siebte Instanz von 'ein Tor misst etwas anderes als sein Name' in Phase 10 — completeLogin zaehlt eine Erwaehnung mitten in einem Kommentar (druckt 5, Aufrufstellen sind 4), MustHaveSecondFactor zaehlt Doku-Kommentar, Deklaration und einen neuen Prosa-Kommentar (druckt 8, Aufrufstellen 5 vorher wie nachher).
 
 ## Accumulated Context
 
