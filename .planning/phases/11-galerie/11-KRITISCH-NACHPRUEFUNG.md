@@ -164,3 +164,41 @@ go test ./...    0 Fehlschläge
 Jede Mutation wurde einzeln gesetzt und einzeln zurückgenommen, in einem
 eigenen Arbeitsbaum auf `5f8fb4e`, damit die beiden laufenden Agenten nichts
 davon merken.
+
+---
+
+## Nachtrag: meine CR-02-Probe war richtig und unvollständig
+
+Der Browserdurchgang von 11-07 hat am selben Tag gefunden, was diese
+Nachprüfung nicht gesucht hat (`a3a5fe8`):
+
+> Album umbenennen, dann ein zweites unter dem alten Namen anlegen — die Liste
+> zeigt den Namen zweimal.
+
+Meine Probe hat gefragt: **hält der Wächter?** Antwort ja — `Rename` weist eine
+Namenskollision ab, und ohne die neun Zeilen wird der Test rot. Das stimmt
+weiterhin.
+
+Sie hat nicht gefragt: **reicht der Wächter?** Und da lautet die Antwort nein,
+denn CR-02s Behebung stützte sich auf einen Satz, der ab der ersten Umbenennung
+nicht mehr gilt:
+
+> „Create refuses a duplicate through the UNIQUE constraint on the slug."
+
+Die Adresse bewegt sich beim Umbenennen **absichtlich nicht** — das ist GAL-04,
+und es ist der Grund, aus dem ein Album überhaupt umbenannt werden darf, ohne
+jede Seite zu verlieren, die es trägt. Also ist der **alte** Name danach unter
+einer anderen Adresse wieder frei, und das `INSERT` läuft an der Bedingung
+vorbei, auf die sich die Behebung verliess. Zwei Alben, ein Name, genau der
+Zustand, den `album_collision_test.go` verbietet — über die andere Tür.
+
+**Das ist die Lehre und nicht die Fussnote.** Eine Mutationsprobe misst, ob ein
+Wächter trägt. Sie kann nicht messen, ob er an der richtigen Stelle steht, und
+sie stellt die Frage gar nicht, ob es eine zweite Tür gibt. Dafür braucht es
+jemanden, der die Anwendung benutzt — hier: umbenennen und dann anlegen, was
+kein Test tat, weil kein Test auf die Idee kam.
+
+Die Projektgeschichte sagt genau das über sich selbst (`docs/offene-punkte.md`):
+die Fehler, die dieses Projekt ausgeliefert hat, fand ein Browserdurchgang und
+nie die Testreihe. Hier hat er einen Fehler in der **Behebung eines kritischen
+Befunds** gefunden, zwei Stunden nachdem sie abgesegnet war.
