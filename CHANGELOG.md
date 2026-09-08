@@ -13,6 +13,48 @@ The numbers are the same as the tags in the repository.
 
 ## Unveröffentlicht
 
+### Hinzugefügt
+
+**Anmeldung über den Ausweisdienst der Organisation.** Wer sich bei der eigenen
+Anmeldung des Betriebs — Authentik — bereits ausgewiesen hat, kommt in die
+Verwaltung, ohne ein zweites Mal ein Passwort einzugeben. Ein vorgeschalteter
+Caddy fragt den Ausweisdienst, wer da klopft, und reicht die Antwort weiter.
+Welche Gruppen jemand dort hat, entscheidet, ob er die Anlage verwaltet oder
+Inhalte pflegt und welche Websites er betreten darf; das wird bei **jeder**
+Anmeldung neu gelesen. Nimmt man jemandem beim Ausweisdienst eine Gruppe weg,
+ist der Zugang hier bei der nächsten Anmeldung weg — nicht erst, wenn seine
+Sitzung abläuft. Das Ganze ist ausgeschaltet, solange es niemand einschaltet,
+und der Weg über das Passwort bleibt unverändert daneben bestehen. Er ist auch
+der Weg zurück, wenn der Ausweisdienst einmal nicht antwortet.
+
+**Für eine Anlage, die das nicht benutzt, ändert sich genau eines, und das ist
+das Wichtigste an diesem Eintrag: Der Dienst horcht jetzt auf `127.0.0.1` und
+nicht mehr auf allen Netzwerkkarten.** Wer Caddy auf demselben Rechner
+betreibt — die beschriebene Einrichtung — merkt davon nichts. Alles andere
+braucht `HOLZCLOUD_LISTEN`. Das betrifft besonders den Betrieb im Container:
+`docker run -p 8080:8080` veröffentlicht einen Port zu einem Vorgang, der in
+seinem eigenen Netzwerkraum nur die Rückschleife belegt und dort niemanden
+findet. Der Container startet, meldet nichts Auffälliges und beantwortet keine
+Anfrage. `HOLZCLOUD_LISTEN=0.0.0.0` setzen, dann geht es wieder.
+
+**Wer die Anmeldung über den Ausweisdienst einschaltet, braucht Caddy in
+Fassung 2.11.2 oder neuer.** Ältere Fassungen ab 2.10.0 tragen CVE-2026-30851:
+`forward_auth` setzte die Kopfzeilen mit der Auskunft über die Person zwar,
+löschte aber die gleichnamigen Kopfzeilen nicht, die der Besucher selbst
+mitgeschickt hatte. Antwortete der Ausweisdienst einmal ohne eine davon, kam
+die Angabe des Besuchers unverändert hinten an. Der mitgelieferte
+`deploy/Caddyfile.example` löscht sie jetzt ausdrücklich, in beiden
+Schreibweisen, und Holzcloud löscht sie unabhängig davon noch einmal selbst.
+Was einzustellen ist, steht in `deploy/DEPLOY.md`.
+
+**Ein Hinweis, der eine Sicherheitszusage verschiebt:** Eine Sitzung des
+Ausweisdienstes erfüllt die Bestätigung in zwei Schritten. Diese Anlage verlangt
+sie dann nicht noch einmal — welcher zweite Schritt tatsächlich verlangt wird,
+entscheidet also ab sofort die Anmeldung der Organisation und nicht mehr
+Holzcloud. Für Verwaltende, die sich mit Passwort anmelden, bleibt sie
+unverändert Pflicht. Der Satz steht auch in der Verwaltung, unter *Mein Konto*
+und über der Liste der Personen.
+
 ### Behoben
 
 **Ein Redakteur konnte die Navigation einer fremden Website ändern.** Die
