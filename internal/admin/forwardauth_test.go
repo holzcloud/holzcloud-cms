@@ -1756,3 +1756,57 @@ func TestGroupSyncLeavesTheAssignmentAloneWithNoGroupMappingConfigured(t *testin
 		}
 	})
 }
+
+// TestGroupSyncRefusesAnEmptyAdministrationGroupOnItsOwn asks the guard the one
+// question no request can ask it.
+//
+// HOLZCLOUD_SSO_ADMIN_GROUP has no default, so an operator who never sets it has
+// the empty string configured — and an empty *configured* group must grant
+// administration to nobody. Two independent layers hold that today:
+// web.splitGroups drops empty elements so Identity.Groups never carries one, and
+// the SSOAdminGroup != "" term in syncRightsFromGroups.
+//
+// Removing the second one alone leaves every test in this file green, because
+// the first covers every input a real request can produce. That is not the same
+// as the guard being redundant: web.Identity is an exported struct with an
+// exported Groups field, splitGroups lives in another package and is not called
+// from here, and anything that one day builds an Identity another way — a second
+// reader, a preview screen, a fake in a test — arrives with the first layer
+// gone. A guard whose removal nothing notices reads as tidiness and gets deleted
+// by the next person tidying.
+//
+// So this one calls the function directly with an identity built by hand, the
+// shape splitGroups never produces. Measured 2026-09-08: with both layers
+// removed, a header of "|seite-a|" makes an administrator.
+func TestGroupSyncRefusesAnEmptyAdministrationGroupOnItsOwn(t *testing.T) {
+	h, sm, database, siteA, _ := newGroupSyncAdmin(t)
+	h.cfg.SSOAdminGroup = ""
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+	assign(t, database, id, siteA)
+
+	u := &user.User{ID: id, Name: "T", Email: "ada@example.com", Role: user.RoleEditor}
+	ident := &web.Identity{
+		Username: "ada",
+		Email:    "ada@example.com",
+		Groups:   []string{"", fwdGroupA, ""},
+	}
+
+	var role string
+	var err error
+	inSession(t, sm, func(r *http.Request) {
+		role, err = h.syncRightsFromGroups(r.Context(), r, u, ident)
+	})
+
+	if err != nil {
+		t.Fatalf("syncRightsFromGroups refused an editor whose group maps to a website: %v", err)
+	}
+	if role != user.RoleEditor {
+		t.Errorf("role = %q; want %q — the configured administration group is the empty string, "+
+			"and an unset HOLZCLOUD_SSO_ADMIN_GROUP grants administration to nobody. This "+
+			"identity carries an empty group element, which is what splitGroups is stopping "+
+			"today and what nothing would stop if an Identity were ever built another way", role, user.RoleEditor)
+	}
+	if got := storedRole(t, database, id); got != user.RoleEditor {
+		t.Errorf("users.role = %q; want %q", got, user.RoleEditor)
+	}
+}
