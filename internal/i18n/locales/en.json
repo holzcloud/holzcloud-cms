@@ -500,6 +500,7 @@
 "Ein Strich zwischen zwei Abschnitten. Sonst nichts einzustellen.": "A rule between two sections. Nothing else to set.",
 "Ein Tag, ohne Uhrzeit.": "A day, without a time.",
 "Ein Textbaustein bekommt jede Art von Feld, die auch eine Seite bekommt — Gruppen eingeschlossen. Seine Werte werden beim Anzeigen aufgelöst und nicht beim Speichern eingefroren, deshalb halten hier auch ein Verweis und ein Schlagwort ihr Versprechen.": "A snippet takes every kind of field a page takes, groups included. Its values are resolved on the way out rather than frozen when the page is saved, so a reference and a label keep their promise here too.",
+"Ein anderes Album hat schon die Adresse, die aus diesem Namen entsteht": "Another album already has the address this name produces",
 "Ein bis zwei Sätze, die in der Trefferliste erscheinen": "One or two sentences that appear in the results list",
 "Ein eigenes MP4 aus der Mediathek. Kein YouTube.": "An MP4 of your own from the library. No YouTube.",
 "Ein hervorgehobener Satz mit Quelle.": "A highlighted sentence with a source.",

@@ -108,8 +108,31 @@ var (
 	// another website's contents.
 	ErrNotFound = errors.New("album not found for this website")
 
-	// ErrDuplicateName is the UNIQUE (website_id, slug) violation, named.
+	// ErrDuplicateName is a name another album of this website already carries.
+	//
+	// Both write paths raise it and neither can be dropped. Rename checks the
+	// name because the slug does not move; Create checks it because a renamed
+	// album's name no longer matches its slug, so a second album taking that
+	// name derives a DIFFERENT slug, passes the UNIQUE constraint and lands
+	// exactly the state internal/bundle/album_collision_test.go exists to
+	// forbid — two indistinguishable manifest entries, one album's pictures
+	// lost on import, and every gallery that pointed at it bound to the
+	// survivor. Measured through the running application on 2026-09-08, not
+	// reasoned about: rename an album, create a second one under the old name,
+	// and the list shows the name twice.
 	ErrDuplicateName = errors.New("an album with this name already exists")
+
+	// ErrDuplicateSlug is the UNIQUE (website_id, slug) violation, named.
+	//
+	// Distinct from ErrDuplicateName since the name check above went in, and
+	// the distinction is the whole point of having two: after a rename the two
+	// collisions are different events with different remedies. "Sommer 2026"
+	// against an album called "Sommer 2026 am Seehof" whose address is still
+	// sommer-2026 is a SLUG collision, and answering it with "an album with
+	// this name already exists" sends an operator to a list in which no such
+	// name appears — the one answer that cannot be acted on, which is the
+	// argument Delete's comment below makes for its own strictness.
+	ErrDuplicateSlug = errors.New("another album already has the address this name produces")
 
 	// ErrNoName is a name that is not a name: empty, or only whitespace.
 	ErrNoName = errors.New("an album needs a name")
@@ -167,11 +190,27 @@ func isDuplicate(err error) bool {
 //
 // The name is normalised first, then the slug is derived from it with the one
 // call to page.Slugify this package makes. page.Slugify returns "untitled"
-// rather than "" for a name made only of punctuation, which is why the
-// collision needs a name at all: two albums called "..." and "!!!" do not
-// produce an empty key, they produce the same one and land on the UNIQUE
-// constraint — where ErrDuplicateName is a truthful thing to say to an operator
-// and the raw constraint text is not.
+// rather than "" for a name made only of punctuation, so two albums called
+// "..." and "!!!" do not produce an empty key, they produce the same one and
+// land on the UNIQUE constraint.
+//
+// # Two checks, because the slug alone sees only half
+//
+// The name is checked here as well, the way Rename checks it and for Rename's
+// reason. The comment Rename carries used to end "Create refuses a duplicate
+// through the UNIQUE constraint on the slug, and this refuses the case the
+// slug cannot see" — which is sound only while every album's name still
+// derives its slug. It stops being sound at the first rename, because the slug
+// deliberately does not move: an album named "Sommer 2026 am Seehof" whose
+// address is still sommer-2026 leaves the name "Sommer 2026 am Seehof" free
+// under a DIFFERENT slug, and a second Create takes it with no constraint in
+// the way. Driven through the running application on 2026-09-08 rather than
+// argued: rename, create, and the list shows one name twice.
+//
+// Read and write in one transaction on the write pool, not two statements on
+// two pools — Rename states the reason and it is the same one: the read pool
+// is a different WAL snapshot, so a check made there could be true when it is
+// asked and false when it is used. Nothing between the two waits on anything.
 func (s *Store) Create(ctx context.Context, websiteID int64, name string) (*Album, error) {
 	name = normalizeName(name)
 	if name == "" {
@@ -179,17 +218,36 @@ func (s *Store) Create(ctx context.Context, websiteID int64, name string) (*Albu
 	}
 	slug := page.Slugify(name)
 
-	res, err := s.DB.Write.ExecContext(ctx,
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin create: %w", err)
+	}
+	defer tx.Rollback()
+
+	var taken int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM albums WHERE website_id = $1 AND name = $2`,
+		websiteID, name).Scan(&taken); err != nil {
+		return nil, fmt.Errorf("check album name: %w", err)
+	}
+	if taken > 0 {
+		return nil, fmt.Errorf("%w: %q", ErrDuplicateName, name)
+	}
+
+	res, err := tx.ExecContext(ctx,
 		`INSERT INTO albums (website_id, slug, name, updated_at)
 		 VALUES ($1, $2, $3, `+nowStamp+`)`,
 		websiteID, slug, name)
 	if err != nil {
 		if isDuplicate(err) {
-			return nil, fmt.Errorf("%w: %q", ErrDuplicateName, name)
+			return nil, fmt.Errorf("%w: %q", ErrDuplicateSlug, name)
 		}
 		return nil, fmt.Errorf("create album: %w", err)
 	}
 	id, _ := res.LastInsertId()
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit create: %w", err)
+	}
 
 	// Re-read rather than build the struct here, as menu.CreateMenu does: the
 	// row that comes back is the row the database kept, defaults and all.
@@ -285,9 +343,12 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Album, error) {
 // never a page.
 //
 // So a name is refused here the way Create refuses one, and for the same
-// reason, which makes the two consistent as well as safe: Create refuses a
-// duplicate through the UNIQUE constraint on the slug, and this refuses the
-// case the slug cannot see. The importer no longer trusts a name either — it
+// reason, which makes the two consistent as well as safe. This comment used to
+// end "Create refuses a duplicate through the UNIQUE constraint on the slug,
+// and this refuses the case the slug cannot see", and that was wrong from the
+// second rename onwards: the slug not moving leaves the OLD name free under a
+// new slug, so Create could mint the duplicate this file forbids. Create now
+// carries the same name check. The importer no longer trusts a name either — it
 // resolves a block's reference against the albums it actually created — but
 // that is the second strap. This is the source.
 //

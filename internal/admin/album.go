@@ -169,6 +169,13 @@ func albumSaid(err error) string {
 		return i18n.N("Bitte einen Namen für das Album angeben")
 	case errors.Is(err, album.ErrDuplicateName):
 		return i18n.N("Ein Album mit diesem Namen gibt es schon")
+	// Its own sentence, and not folded into the one above: after a rename the
+	// two collisions are different events. A slug collision against an album
+	// that is called something else sends an operator to a list in which the
+	// name they typed does not appear, and "there is already an album with
+	// that name" is then untrue as well as unhelpful.
+	case errors.Is(err, album.ErrDuplicateSlug):
+		return i18n.N("Ein anderes Album hat schon die Adresse, die aus diesem Namen entsteht")
 	case errors.Is(err, album.ErrTooManyItems):
 		return i18n.N("Dieses Album ist voll. Leg für weitere Bilder ein zweites an.")
 	case errors.Is(err, album.ErrForeignMedia):
