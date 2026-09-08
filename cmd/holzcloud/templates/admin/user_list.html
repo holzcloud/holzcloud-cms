@@ -5,6 +5,11 @@
 {{end}}
 
 {{define "user_list-content"}}
+{{if .SSOEnabled}}
+<p class="callout">
+    {{t "Wer sich über die Anmeldung der Organisation anmeldet, bringt seine Bestätigung in zwei Schritten von dort mit. Ob sie verlangt wird, entscheidet die Anmeldung der Organisation und nicht diese Anlage."}}
+</p>
+{{end}}
 <div class="card">
     {{if .Users}}
     <table class="table">

@@ -33,6 +33,12 @@
 <div class="card">
     <h2>{{t "Bestätigung in zwei Schritten"}}</h2>
 
+    {{if .ViaSSO}}
+    <p class="callout">
+        {{t "Du bist über die Anmeldung deiner Organisation hier hereingekommen. Die Bestätigung in zwei Schritten verlangt dort, wer dich angemeldet hat – diese Anlage verlangt sie dann nicht noch einmal."}}
+    </p>
+    {{end}}
+
     {{if .Enabled}}
     <p>
         <span class="badge badge--published">{{t "eingeschaltet"}}</span>

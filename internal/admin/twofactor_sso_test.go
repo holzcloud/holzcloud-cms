@@ -209,3 +209,62 @@ func TestSecondFactorSetupScreenDropsTheCompulsoryWarningForAnSSOAdmin(t *testin
 		})
 	}
 }
+
+// TestAccountScreenTellsAnSSOPersonWhereTheirSecondFactorIsEnforced is the
+// person's half of SSO-07. Without it somebody signed in through the identity
+// provider meets a second-factor card that simply asks nothing of them, with no
+// explanation of why.
+func TestAccountScreenTellsAnSSOPersonWhereTheirSecondFactorIsEnforced(t *testing.T) {
+	h, sm, _ := newSecondFactorAdmin(t)
+
+	for _, tc := range []struct {
+		name   string
+		role   string
+		email  string
+		viaSSO bool
+		want   bool
+	}{
+		{"an administrator through the identity provider", user.RoleAdmin, "a@test.local", true, true},
+		{"an editor through the identity provider", user.RoleEditor, "b@test.local", true, true},
+		{"an administrator with a password", user.RoleAdmin, "c@test.local", false, false},
+		{"an editor with a password", user.RoleEditor, "d@test.local", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id := seedSecondFactorAccount(t, h, tc.email, tc.role)
+			req := httptest.NewRequest(http.MethodGet, "/admin/konto", nil)
+			rec := serveSignedIn(t, h, sm, h.HandleAccount, req, id, tc.viaSSO)
+			got := strings.Contains(rec.Body.String(), "Anmeldung deiner Organisation")
+			if got != tc.want {
+				t.Errorf("the account screen names the identity provider = %v; want %v — a person who signed in there has to be told that is where the second factor is decided", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestUserListTellsAnAdministratorTheInstallationDependsOnTheIdentityProvider
+// is the operator's half of SSO-07. The user list is where an administrator
+// thinks about who can get in, so it is where "what is guarding these accounts"
+// is a question somebody actually has.
+func TestUserListTellsAnAdministratorTheInstallationDependsOnTheIdentityProvider(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		on   bool
+		want bool
+	}{
+		{"with single sign-on switched on", true, true},
+		{"with single sign-on switched off", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sm, _ := newSecondFactorAdmin(t)
+			h.cfg.SSOEnabled = tc.on
+			id := seedSecondFactorAccount(t, h, "admin@test.local", user.RoleAdmin)
+
+			req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
+			rec := serveSignedIn(t, h, sm, h.HandleUserList, req, id, false)
+			got := strings.Contains(rec.Body.String(), "Anmeldung der Organisation")
+			if got != tc.want {
+				t.Errorf("the user list names the identity provider = %v; want %v — with single sign-on off the screen must be byte-for-byte what it was", got, tc.want)
+			}
+		})
+	}
+}

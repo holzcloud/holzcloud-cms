@@ -40,6 +40,12 @@ type UserListData struct {
 	web.LayoutData
 	Users         []UserRow
 	SessionUserID int64
+	// SSOEnabled says this installation accepts sign-ins from the operator's
+	// identity provider. The list says so, because after plan 10-06 whether an
+	// administrator here is protected by two factors is decided there — and
+	// SSO-07 requires that dependency to be shown rather than left in a source
+	// comment.
+	SSOEnabled bool
 }
 
 // UserFormData extends LayoutData for the user create/edit form.
@@ -169,6 +175,7 @@ func (h *Handler) HandleUserList(w http.ResponseWriter, r *http.Request) error {
 		LayoutData:    web.NewLayoutData(r, h.sm, "Benutzer"),
 		Users:         users,
 		SessionUserID: h.sm.GetInt64(r.Context(), auth.SessionKeyUserID),
+		SSOEnabled:    h.cfg != nil && h.cfg.SSOEnabled,
 	}
 	data.ActiveNav = "users"
 	return web.RenderAdmin(w, h.templates, r, "user_list", data)
