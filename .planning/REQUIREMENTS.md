@@ -158,7 +158,7 @@ runtime, and is listed under what this project deliberately does not build.
 - [ ] **SSO-02**: A request that does not come from the reverse proxy has its identity headers ignored, and falls through to the ordinary password form — not to a refusal, because the way back in must not die with the proxy.
 - [ ] **SSO-03**: The CMS strips every inbound identity header at the top of its chain, including the underscore spellings, before anything reads one. A misconfigured proxy is then a misconfiguration and not a way in.
 - [ ] **SSO-04**: The proxy proves it is the proxy with a shared secret, compared in constant time and kept in the environment rather than the database, because the database is what ends up in every backup.
-- [ ] **SSO-05**: An identity with no account is refused unless the operator has switched account creation on; with it on, the service refuses to start until it is told which website a new account belongs to. Silence must not mean "every website".
+- [x] **SSO-05**: An identity with no account is refused unless the operator has switched account creation on; with it on, the service refuses to start until it is told which website a new account belongs to. Silence must not mean "every website".
 - [ ] **SSO-06**: Group membership decides role and website access, re-applied at every sign-in so that a demotion at the identity provider takes effect here, and every change of rights is written to the activity log.
 - [ ] **SSO-07**: An Authentik session satisfies the second-factor requirement. Because that makes the second factor of this installation depend on the operator's Authentik enforcing one, the dependency is stated in `DEPLOY.md` and shown in the admin — not left in a source comment.
 - [ ] **SSO-08**: Signing out signs the person out at Authentik too, so the next click does not silently sign them back in.
@@ -289,7 +289,7 @@ v1.6 phases continue the numbering at 6.
 | SSO-02 | Phase 10 | Pending |
 | SSO-03 | Phase 10 | Pending |
 | SSO-04 | Phase 10 | Pending |
-| SSO-05 | Phase 10 | Pending |
+| SSO-05 | Phase 10 | Complete |
 | SSO-06 | Phase 10 | Pending |
 | SSO-07 | Phase 10 | Pending |
 | SSO-08 | Phase 10 | Pending |
