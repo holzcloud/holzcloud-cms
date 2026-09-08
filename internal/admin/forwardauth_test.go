@@ -3,9 +3,14 @@ package admin
 import (
 	"context"
 	"database/sql"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
@@ -463,5 +468,120 @@ func TestIsASCII(t *testing.T) {
 		if got := isASCII(tc.in); got != tc.want {
 			t.Errorf("isASCII(%q) = %v; want %v", tc.in, got, tc.want)
 		}
+	}
+}
+
+// The two properties below are not observable from outside the program, so they
+// are asserted against the source itself — the same shape, and for the same
+// reason, as the ordering gate wave 2 put on internal/web/forwardauth.go.
+//
+// Session fixation is the case in point. scs's RenewToken preserves the values
+// already in the session, so a middleware that rotated the token *after*
+// writing user_id would answer every request identically to one that rotated it
+// before: same status, same session contents, and a token that changed either
+// way. Every behavioural test in this file stays green under that reordering,
+// and the property — that a token fixed before the sign-in is not the token
+// after it — is gone. A test that reads the source is the only kind that fails.
+
+// forwardAuthSignInBody parses this package and returns the function under
+// test together with the file set positions belong to.
+func forwardAuthSignInBody(t *testing.T) (*ast.FuncDecl, *token.FileSet) {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "forwardauth.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse forwardauth.go: %v", err)
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Name.Name == "ForwardAuthSignIn" {
+			return fn, fset
+		}
+	}
+	t.Fatal("ForwardAuthSignIn not found in forwardauth.go")
+	return nil, nil
+}
+
+func TestForwardAuthRotatesTheTokenBeforeItWritesAnything(t *testing.T) {
+	fn, fset := forwardAuthSignInBody(t)
+
+	var renew []token.Pos
+	var writes []struct {
+		name string
+		pos  token.Pos
+	}
+	ast.Inspect(fn, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		switch sel.Sel.Name {
+		case "RenewToken":
+			renew = append(renew, sel.Sel.Pos())
+		case "Put", "completeLogin":
+			writes = append(writes, struct {
+				name string
+				pos  token.Pos
+			}{sel.Sel.Name, sel.Sel.Pos()})
+		}
+		return true
+	})
+
+	if len(renew) != 1 {
+		t.Fatalf("RenewToken is called %d times in ForwardAuthSignIn; want exactly 1", len(renew))
+	}
+	if len(writes) == 0 {
+		t.Fatal("nothing is written to the session at all; the sign-in cannot be happening")
+	}
+	for _, w := range writes {
+		if w.pos < renew[0] {
+			t.Errorf("%s is called at %s, before RenewToken at %s; "+
+				"the token must be rotated before anything goes into the session, or whoever fixed "+
+				"the session id before the sign-in still owns it after",
+				w.name, fset.Position(w.pos), fset.Position(renew[0]))
+		}
+	}
+}
+
+func TestCompleteLoginHasExactlyFourCallers(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fset := token.NewFileSet()
+	var callers []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "completeLogin" {
+				callers = append(callers, fset.Position(sel.Sel.Pos()).String())
+			}
+			return true
+		})
+	}
+
+	// The password form, the second factor, first-run setup, and forward auth.
+	// A three means a path put user_id into the session itself and its sign-in
+	// will not appear in /admin/protokoll; a five means a fifth funnel was
+	// opened, and the two ends of it will drift.
+	if len(callers) != 4 {
+		t.Errorf("completeLogin has %d call sites; want exactly 4\n  %s",
+			len(callers), strings.Join(callers, "\n  "))
 	}
 }
