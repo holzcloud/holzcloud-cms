@@ -154,15 +154,15 @@ Against a self-hosted Authentik, through its proxy provider in forward-auth mode
 an OIDC client inside the binary: that needs a dependency and an outbound call at
 runtime, and is listed under what this project deliberately does not build.
 
-- [ ] **SSO-01**: A person who has authenticated at Authentik reaches the admin without a second sign-in, because the reverse proxy passes their identity and the CMS believes it.
-- [ ] **SSO-02**: A request that does not come from the reverse proxy has its identity headers ignored, and falls through to the ordinary password form — not to a refusal, because the way back in must not die with the proxy.
-- [ ] **SSO-03**: The CMS strips every inbound identity header at the top of its chain, including the underscore spellings, before anything reads one. A misconfigured proxy is then a misconfiguration and not a way in.
-- [ ] **SSO-04**: The proxy proves it is the proxy with a shared secret, compared in constant time and kept in the environment rather than the database, because the database is what ends up in every backup.
+- [x] **SSO-01**: A person who has authenticated at Authentik reaches the admin without a second sign-in, because the reverse proxy passes their identity and the CMS believes it.
+- [x] **SSO-02**: A request that does not come from the reverse proxy has its identity headers ignored, and falls through to the ordinary password form — not to a refusal, because the way back in must not die with the proxy.
+- [x] **SSO-03**: The CMS strips every inbound identity header at the top of its chain, including the underscore spellings, before anything reads one. A misconfigured proxy is then a misconfiguration and not a way in.
+- [x] **SSO-04**: The proxy proves it is the proxy with a shared secret, compared in constant time and kept in the environment rather than the database, because the database is what ends up in every backup.
 - [x] **SSO-05**: An identity with no account is refused unless the operator has switched account creation on; with it on, the service refuses to start until it is told which website a new account belongs to. Silence must not mean "every website".
 - [x] **SSO-06**: Group membership decides role and website access, re-applied at every sign-in so that a demotion at the identity provider takes effect here, and every change of rights is written to the activity log.
 - [x] **SSO-07**: An Authentik session satisfies the second-factor requirement. Because that makes the second factor of this installation depend on the operator's Authentik enforcing one, the dependency is stated in `DEPLOY.md` and shown in the admin — not left in a source comment.
 - [x] **SSO-08**: Signing out signs the person out at Authentik too, so the next click does not silently sign them back in.
-- [ ] **SSO-09**: With single sign-on switched off, nothing about signing in changes. The password path, the second factor, the recovery codes and the command-line way back in all behave exactly as they do today.
+- [x] **SSO-09**: With single sign-on switched off, nothing about signing in changes. The password path, the second factor, the recovery codes and the command-line way back in all behave exactly as they do today.
 - [x] **SSO-10**: The server binds to the loopback address by default. It listens on every interface today, which is harmless while a password is required and a total bypass the moment a header is believed.
 - [x] **SSO-11**: The shipped Caddy example strips the client's own identity headers explicitly, and `DEPLOY.md` names the minimum Caddy version — the `forward_auth` directive emits no such strip on its own, which is CVE-2026-30851.
 
@@ -285,15 +285,15 @@ v1.6 phases continue the numbering at 6.
 | LANG-06 | Phase 12 | Pending |
 | LANG-07 | Phase 12 | Pending |
 | LANG-08 | Phase 12 | Pending |
-| SSO-01 | Phase 10 | Pending |
-| SSO-02 | Phase 10 | Pending |
-| SSO-03 | Phase 10 | Pending |
-| SSO-04 | Phase 10 | Pending |
+| SSO-01 | Phase 10 | Complete |
+| SSO-02 | Phase 10 | Complete |
+| SSO-03 | Phase 10 | Complete |
+| SSO-04 | Phase 10 | Complete |
 | SSO-05 | Phase 10 | Complete |
 | SSO-06 | Phase 10 | Complete |
 | SSO-07 | Phase 10 | Complete |
 | SSO-08 | Phase 10 | Complete |
-| SSO-09 | Phase 10 | Pending |
+| SSO-09 | Phase 10 | Complete |
 | SSO-10 | Phase 10 | Complete |
 | SSO-11 | Phase 10 | Complete |
 | GAL-01 | Phase 11 | Complete |

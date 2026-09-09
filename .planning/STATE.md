@@ -5,15 +5,15 @@ milestone_name: Inhaltsmodell und Zugang
 current_phase: 11
 current_phase_name: Galerie
 status: in_progress
-stopped_at: Completed 10-09-PLAN.md
-last_updated: "2026-09-08T06:31:41.294Z"
+stopped_at: Completed 10-10-PLAN.md — Phase 10 and milestone v1.6 complete
+last_updated: "2026-09-08T07:34:21.824Z"
 last_activity: 2026-09-06
-state_head: 7bc846fdf6737aa271fa6305525c28071ce3f8a2
+state_head: 48865f24a4d53b1445de08c00cbc4b76d47a2de2
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 42
-  completed_plans: 41
+  completed_plans: 42
   percent: 29
 ---
 
@@ -22,7 +22,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: Phase 11 — Galerie, **alle 5 Wellen ausgefuehrt, 7/7 Plaene**; Phase 10 laeuft parallel (v1.6 Inhaltsmodell und Zugang)
+- Current focus: **v1.6 ist inhaltlich fertig.** Phase 10 — Authentik Forward-Auth, 9 Wellen, 10/10 Plaene; Phase 11 — Galerie, 7/7 Plaene. Alle 13 Anforderungen der Phase 10 stehen auf Complete (SSO-03 und SSO-04 sind mit 10-10 nachgetragen worden — sie waren gefahren und belegt, aber im Register offen). Offen bleibt der Befund aus 10-10: fuenf deutsche Saetze auf einem englischen Verwaltungsbildschirm, WINDOWS.md 12–16.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
@@ -273,6 +273,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P07 | 28 min | 2 tasks | 2 files |
 | Phase 10 P08 | 41min | 3 tasks | 5 files |
 | Phase 10 P09 | 15 min | 2 tasks | 5 files |
+| Phase 10 P10 | 55 min | 3 tasks | 2 files |
 
 ### Session Continuity
 
@@ -301,8 +302,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T06:31:26.021Z
-**Stopped at:** Completed 10-09-PLAN.md
+**Last session:** 2026-09-08T07:34:21.604Z
+**Stopped at:** Completed 10-10-PLAN.md — Phase 10 and milestone v1.6 complete
 **Resume file:** None
 
 ## Decisions
