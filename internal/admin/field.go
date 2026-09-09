@@ -305,20 +305,27 @@ func (h *Handler) HandleFieldMove(w http.ResponseWriter, r *http.Request) error 
 func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName string,
 	group *field.Def, blockType *block.Own, snip *snippet.Snippet) (FieldListData, error) {
 
+	// Through web.Titlef and not by concatenation, which is what this screen
+	// did until 2026-09-08. A concatenated title has no string literal at the
+	// argument index tools/i18n reads, so it was neither offen nor verwaist —
+	// the gate did not know it existed, and the screen printed German to a
+	// reader whose admin was English. Found by switching the language and
+	// looking, because "Felder – " carries no umlaut either and no gate hunting
+	// German-looking literals could see it. The pattern is album.go's.
 	var (
 		defs  []field.Def
 		err   error
-		title = "Felder – " + websiteName
+		title = web.Titlef(r, "Felder – %s", websiteName)
 		kinds = field.Kinds
 	)
 	switch {
 	case blockType != nil:
 		defs, err = h.fields.OfBlockType(r.Context(), websiteID, blockType.ID)
-		title = "Baustein „" + blockType.Name + "“ – " + websiteName
+		title = web.Titlef(r, "Baustein „%s“ – %s", blockType.Name, websiteName)
 		kinds = field.BlockKinds()
 	case snip != nil:
 		defs, err = h.fields.OfSnippet(r.Context(), websiteID, snip.ID)
-		title = "Textbaustein „" + snip.Name + "“ – " + websiteName
+		title = web.Titlef(r, "Textbaustein „%s“ – %s", snip.Name, websiteName)
 		// The full palette, not BlockKinds(): its four exclusions exist because
 		// a block freezes to HTML when the page is saved, while a snippet's
 		// values are resolved on the way out. A reference and a label field can
@@ -326,7 +333,7 @@ func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName st
 		kinds = field.Kinds
 	case group != nil:
 		defs, err = h.fields.Sub(r.Context(), websiteID, group.ID)
-		title = "Gruppe „" + group.Label + "“ – " + websiteName
+		title = web.Titlef(r, "Gruppe „%s“ – %s", group.Label, websiteName)
 		kinds = field.SubKinds()
 	default:
 		defs, err = h.fields.List(r.Context(), websiteID)
