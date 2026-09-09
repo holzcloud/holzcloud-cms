@@ -2,19 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
-current_phase: 11
-current_phase_name: Galerie
+current_phase: 10
+current_phase_name: Authentik Forward-Auth
 status: in_progress
-stopped_at: Completed 10-10-PLAN.md — Phase 10 and milestone v1.6 complete
-last_updated: "2026-09-08T07:34:21.824Z"
-last_activity: 2026-09-06
-state_head: 48865f24a4d53b1445de08c00cbc4b76d47a2de2
+stopped_at: >-
+  Alle 42 Plaene gefahren. Phase 10 fehlen Verifizierung und Sicherheitspruefung
+  (59 Bedrohungszeilen) sowie ein Code-Durchgang; bis die vorliegen, ist der
+  Meilenstein gebaut und nicht abgeschlossen.
+last_updated: "2026-09-09T00:00:00.000Z"
+last_activity: 2026-09-09
+state_head: 46e072236bc0c13e1ce0812b636e4696527c829c
 progress:
-  total_phases: 7
-  completed_phases: 2
+  total_phases: 6
+  completed_phases: 5
   total_plans: 42
   completed_plans: 42
-  percent: 29
+  percent: 83
 ---
 
 ## State: Holzcloud CMS
@@ -29,51 +32,45 @@ progress:
 
 ### Current Position
 
-Phase: 9 — CSV Import (**Wellen 1–5 ausgeführt**)
-Plan: sechs, streng nacheinander — `internal/admin/csvimport.go` wird von 04, 05 und 06 angefasst, also lässt sich keine Welle teilen. `09-CONTEXT.md` steht — 30 Entscheide, jeder mit seinem Beleg
-gegen den Baum. **Zwei Notizen der Roadmap sind dabei widerlegt und sichtbar
-gestempelt statt still übergangen:** „die Datei mit der Zuordnung erneut
-absenden" ist nicht baubar (ein Server kann kein Dateifeld füllen, und IMP-08s
-„navigable to the next" verlangte damit je Klick eine neue Dateiauswahl — die
-Datei wird stattdessen serverseitig abgelegt, **rohe Bytes**, nie die geparste
-Tabelle, womit die eigentliche Sorge der Notiz gewahrt bleibt), und „eine
-Transaktion je Zeile" ist durch die gewöhnlichen Speicher nicht zu haben — eine
-Zeile umfasst heute schon zwei bis drei, und sie zusammenzuziehen hiesse einen
-zweiten Anlegepfad, den IMP-02 wörtlich verbietet. Kriterium 5 und IMP-10 sind
-auf das gesenkt, was gilt: **keine Transaktion über mehr als eine Zeile**, und
-die Zeile wird notfalls über den gewöhnlichen Löschweg zurückgenommen. Danach
-lief der Kantentest über IMP-01…IMP-10: **34 anwendbare Kanten, 34
-geschlossen** (27 ausdrücklich, 7 mit Begründung verworfen, 0 offen), und er
-hat vier Fehler vor der ersten Zeile Code gefunden — die Zeilennummer ist die
-des Tabellenprogramms (Kopfzeile ist Zeile 1, sonst ist jede Meldung dieser
-Phase um eins daneben), zwei Spalten mit demselben Kopf stossen nicht zusammen,
-weil eine Spalte über ihren Index angesprochen wird, ein zerlegter Umlaut aus
-einem macOS-Export fände sein Feld nie (`SlugifyKey` trifft das einzelne
-Zeichen `ü`, nicht `u` + Kombinationszeichen), und Ziel wie Zuordnung müssen vor
-dem Probelauf **und noch einmal** vor dem Schreiben nachgeprüft werden
-Status: **Phase 08 ist abgeschlossen.** Phase 9 ist geplant und geprüft: 38
-Entscheide, Kantentest 34/34 geschlossen, sechs Pläne, 134 Prüfbefehle, alle
-sechs strukturell gültig. Die Planprüfung fand **sechs Blocker**, alle behoben —
-vier davon Nachwehen von D-37 (die Beispieldatei wanderte vor den Upload), zwei
-geratene Zahlen in Zähl-Toren: `badge--` misst **6** und nicht 8, und das
-`@layer components`-Tor druckte eine Zahl, während seine Bedingung zwei brauchte,
-**es konnte also gar nicht rot werden**. Beide nachgemessen (6 und 15) und in die
-Grundzahlen aufgenommen. Der Checkpoint in 09-02 ist **beantwortet statt
-stehengelassen**: die Marke wird als Hash abgelegt (`user_tokens`, `00012:12` —
-„a stolen database must not yield working links"), und die Zuordnung reist als
-Formularzustand, damit die Zeile einmal geschrieben und nie geändert wird —
-worauf sich die Verwerfung der IMP-08-Kante und D-30 beide stützen. Die zwei
-Kosten dieser Wahl zahlt ein Konstrukt, das `page_form.html:136-137` schon
-zweimal benutzt (`formmethod`/`formaction`). **D-38 fiel dabei ab und keine
-Prüfung hatte danach gesucht:** die Spalten sind nirgends begrenzt — Bytes,
-Zeilen und Zellen schon —, also kommt eine Datei mit 5000 Spalten durch jede
-Grenze und ergibt einen Zuordnungsbildschirm mit 5000 Zeilen. Grenze bei 100,
-auf Bildschirm 1 abgewiesen und gemeldet statt still gekürzt
-Offen aus Phase 8: der `&#8592;`-Befund in `field_list.html` (dreimal; die
-Zeichenkette **ist** der Katalogschlüssel, ein Flick verwaist drei Schlüssel in
-vier Katalogen) — in `deferred-items.md` mit Schrittfolge und als Eintrag 5 im
-Fensterbuch. Dazu `V2-18`: Kennungen in einem Textbausteinwert reisen beim
-Archivweg **nicht** übersetzt (Bild, Verweis, Schlagwort)
+Phase: 10 — Authentik Forward-Auth (**10/10 Pläne ausgeführt**), zugleich die
+letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
+ihre Pläne gefahren: 42 von 42.
+
+Plan: keiner offen. Was fehlt, ist nicht Bau, sondern **Abschluss**: Phase 10
+ist die einzige Phase des Meilensteins ohne `10-VERIFICATION.md` und ohne
+`10-SECURITY.md` — bei 59 verschiedenen Bedrohungszeilen über zehn Pläne und
+einem Sicherheitskern, der die erste Stelle im ganzen Projekt einführt, an der
+einem HTTP-Header eine Identität geglaubt wird. Beide Berichte sind am
+2026-09-09 in Arbeit. Phase 10 hat ausserdem als einzige keinen Code-Durchgang
+(`REVIEW.md`).
+
+Status: **Der Meilenstein ist gebaut, aber nicht abgeschlossen.** Diese Zeile
+stand bis zum 2026-09-09 als „Phase 10 and milestone v1.6 complete" im Kopf
+dieser Datei, und das war die Behauptung, die nachzumessen war — sie zählte
+gefahrene Pläne und nannte das Ergebnis fertig. Ein Plan ist gefahren, wenn
+sein Ausführer fertig ist; eine Phase ist abgeschlossen, wenn jemand anderes
+nachgesehen hat.
+
+**Was 10-10 auf dem Bildschirm fand und kein Tor sah:** fünf deutsche Sätze auf
+einer englischen Verwaltung, während `go run ./tools/i18n` auf allen vier
+Katalogen `0 offen, 0 verwaist` meldete. Einer davon war v1.6s eigener
+(`internal/admin/field.go`, aus Phase 8, `48e5b1d`) und ist am 2026-09-09
+geschlossen (`46e0722`, Fensterbuch 13); die vier übrigen sind vorbestehend und
+gehören Phase 12 als deren neuntes Kriterium (Fensterbuch 12, 14, 15, 16). Der
+Grund, warum kein Tor sie sehen konnte, ist in beiden Hälften lehrreich: die
+Sätze sind verkettet, tragen an der Stelle, die der Sammler liest, also gar
+kein Literal — und `"Felder – "` trägt weder Umlaut noch Eszett noch deutsche
+Anführungszeichen, wäre also auch einem Tor entgangen, das nach deutsch
+*aussehenden* Literalen sucht. Gefunden allein durch Umschalten und Hinsehen.
+
+Offen aus Phase 8: `V2-18` — Kennungen in einem Textbausteinwert reisen beim
+Archivweg **nicht** übersetzt (Bild, Verweis, Schlagwort). ~~Der
+`&#8592;`-Befund in `field_list.html`~~ — **geschlossen am 2026-09-06 im
+Schnellauftrag 260906-m9z**, und die Begründung des Aufschubs, die hier stand
+(„die Zeichenkette **ist** der Katalogschlüssel, ein Flick verwaist drei
+Schlüssel in vier Katalogen"), war falsch: der gefahrene Flick wechselte nur
+`t` auf `th`, die Zeichenkette blieb byte-gleich, kein Schlüssel verwaiste.
+Fensterbuch 5 trägt die Berichtigung ausgeschrieben statt still gelöscht
 ~~Offen aus dem stehenden Tor (Phase 6)~~ — **erledigt, und dieser Eintrag war
 seit dem 4. September falsch.** `06-VERIFICATION.md:212-260` trägt den
 vollständigen Nachdurchgang: alle fünf Archive über die Verwaltung
@@ -105,11 +102,11 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-09-06
+Last activity: 2026-09-09
 
 ### Milestone Map
 
-**v1.6 — Inhaltsmodell und Zugang.** Phases 6–10. Numbering continues from v1.0
+**v1.6 — Inhaltsmodell und Zugang.** Phases 6–11. Numbering continues from v1.0
 and never restarts; the five v1.0 phase directories are archived under
 `.planning/milestones/v1.0-phases/`. There is no v1.5 milestone shell — its three
 phases were renumbered into this one as 7, 8 and 9.
