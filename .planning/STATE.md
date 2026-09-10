@@ -2,18 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Inhaltsmodell und Zugang
-current_phase: 10
-current_phase_name: Authentik Forward-Auth
-status: in_progress
-stopped_at: >-
-  Meilenstein-Audit v1.6 (cefdef4): gaps_found, die gebrochene Naht
-  (Feldarten in eigenen Bausteinarten, Feed-Datum ohne Alben) mit
-  Schnellauftrag 260910-o6d geschlossen (bda9151 rot, 9ab7beb Flick).
-  Audit jetzt tech_debt, 46/48; GAL-07 und QUAL-01 an Phase 12 (v2.0).
-  Bereit fuer den Meilenstein-Abschluss.
-last_updated: "2026-09-10T18:00:00.000Z"
+current_phase: null
+current_phase_name: "Meilenstein v1.6 abgeschlossen"
+status: completed
+stopped_at: "Meilenstein v1.6 abgeschlossen und archiviert (2026-09-10): Audit tech_debt 46/48, sechs Phasen nach milestones/v1.6-phases/, fuenf Befunde quittiert (Deferred Items). Kein Tag — v1.6 ist schon ein Release-Tag. Naechster Schritt: /gsd-new-milestone fuer v2.0."
+last_updated: "2026-09-10T15:48:12.058Z"
 last_activity: 2026-09-10
-state_head: 9ab7beb
+state_head: 0895897360c2b4bd1cca9e1a2dc2556a7b104135
 progress:
   total_phases: 6
   completed_phases: 6
@@ -27,7 +22,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **v1.6 ist inhaltlich fertig.** Phase 10 — Authentik Forward-Auth, 9 Wellen, 10/10 Plaene; Phase 11 — Galerie, 7/7 Plaene. Alle 13 Anforderungen der Phase 10 stehen auf Complete (SSO-03 und SSO-04 sind mit 10-10 nachgetragen worden — sie waren gefahren und belegt, aber im Register offen). Offen bleibt der Befund aus 10-10: fuenf deutsche Saetze auf einem englischen Verwaltungsbildschirm, WINDOWS.md 12–16.
+- Current focus: **v1.6 abgeschlossen und archiviert (2026-09-10).** Kein Meilenstein offen; der nächste ist v2.0 „The Codebase Speaks English“ (Phase 12, nicht geplant) und wird mit `/gsd-new-milestone` eröffnet. Einstieg: `.planning/PROJECT.md`, `.planning/MILESTONES.md`, `.planning/ROADMAP.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
@@ -67,8 +62,8 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: **Der Meilenstein v1.6 ist gebaut und verifiziert, mit einer benannten
-Übergabe an Phase 12.** Bereit für den Meilenstein-Abschluss. Die frühere Zeile
+Status: **Der Meilenstein v1.6 ist abgeschlossen (2026-09-10)** — gebaut, verifiziert,
+mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
 **Was 10-10 auf dem Bildschirm fand und kein Tor sah:** fünf deutsche Sätze auf
@@ -414,3 +409,26 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - Plan 10-01: vier Zaehl-Schranken der Phase 10 sind gegen den Baum vom 2026-09-07 geeicht und seit Phase 11 veraltet (Migrationen 49 statt 50, Pakete 40 statt 41, Admin-Vorlagen 66 statt 68, Zeichenketten 1277 statt 1311). Die Plaene 10-02 bis 10-09 tragen dieselben Zahlen — gemessene Werte aus 10-01-SUMMARY uebernehmen
 - Offen (WINDOWS.md Eintrag 8): eine Album-Diashow zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch. render.go:212 uebersetzt mit s.text (nur beim Speichern gesetzt), die Bedienelemente ueber expand.go:133 mit set.t (bei der Anfrage). Die Behebung verschiebt die Grenze zwischen Speicherzeit und Anfragezeit — Architekturentscheid des Entwicklers.
 - 10-08: das isTrustedProxy-Tor des Plans schliesst '^\./\.planning/' aus, grep gibt hier aber Pfade ohne './' aus — es liest 14 statt 0. Korrigierte Form: grep -v '^\(\./\)\?\.planning/'. Die Eigenschaft selbst gilt (0 ausserhalb .planning/). Fuenfter Fall in dieser Phase.
+
+## Current Position
+
+Phase: Milestone v1.6 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-09-10 — Milestone v1.6 completed and archived
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close, most recent first:
+
+| Category | Item | Status | Deferred At | Milestone |
+|----------|------|--------|-------------|-----------|
+| debug_sessions | knowledge-base | unknown (the knowledge base, not a session) | 2026-09-10 | v1.6 |
+| verification_gaps | 07/07-VERIFICATION.md | gaps_found (criterion 1, second sentence: a named limit) | 2026-09-10 | v1.6 |
+| verification_gaps | 10/10-VERIFICATION.md | gaps_found (criterion 6 → Phase 12) | 2026-09-10 | v1.6 |
+| verification_gaps | 11/11-VERIFICATION.md | gaps_found (QUAL-01 sentences → Phase 12) | 2026-09-10 | v1.6 |
+| deferred_items | 09/deferred-items.md: "1 Zeilen" survives in the three file-header sentences | acknowledged | 2026-09-10 | v1.6 |
