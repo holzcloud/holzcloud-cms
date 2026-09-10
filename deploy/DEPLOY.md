@@ -232,6 +232,27 @@ last website group must take access away, not grant everything. With
 is the difference between a setting that grants to nobody and a setting that
 does not decide.
 
+**An account is linked to one identity, and an address is never enough.** A
+sign-in reaches the account linked to its `X-authentik-username`. It does not
+reach an account because the identity arrives with that account's address: an
+address is something your identity provider emits, and in many setups something
+a person can change about themselves. Until this was fixed, whoever could make
+the identity provider emit an administrator's address signed in as that
+administrator.
+
+An account created by provisioning is linked to the identity it was created for.
+An account you create by hand is not reachable through single sign-on until you
+link it:
+
+```bash
+holzcloud user sso -email ada@example.com -username ada
+```
+
+`-unlink` removes the link. An identity whose username is linked to nothing but
+whose address belongs to an account is refused — with provisioning on as well —
+rather than linked on first sight, because otherwise whoever signs in first on
+the day you switch this on decides which account is whose.
+
 Group membership is re-read on **every** sign-in. Taking a group away at the
 identity provider takes the access away here at the next sign-in, not at the
 next session expiry.
@@ -257,9 +278,18 @@ fix's own delete covers only the canonical hyphenated name (measured against
 Caddy 2.11.4 with `caddy adapt`). That is the companion advisory
 GHSA-f59h-q822-g45g / CVE-2026-52845.
 
-Holzcloud strips all of these again itself regardless, which is what makes a
-wrong Caddyfile a misconfiguration and not a way in. Three independent layers on
-a defect in a program this project does not ship.
+Holzcloud strips all of these again itself regardless — and it matters to be
+exact about what that does and does not cover. It keeps every identity header
+away from a visitor who reaches this service directly, and away from any
+spelling Caddy did not canonicalise. It does **not** protect against a Caddy that
+forwards the visitor's own `X-authentik-email` under the canonical name: by the
+time the request arrives here it comes from the trusted proxy with the right
+secret, and a forwarded value looks exactly like one the outpost sent. A header
+that arrives with **two** values is refused outright, because that is the shape a
+proxy leaves when it appends instead of replacing. A single forwarded value
+cannot be told apart. **Against that case the Caddy version and the delete lines
+are the only defence**, which is why checking them below is a requirement and not
+background.
 
 ### Two things you verify once, against your own instance
 
@@ -272,8 +302,10 @@ about your setup. Both are checks you run once, when you first wire it up.
    provider's **Subject mode** and defaults to a hashed identifier. Read the
    header your outpost actually sends — Authentik's own provider preview, or a
    temporary `respond {header.X-authentik-username}` route in Caddy, will show
-   it. **Once people are mapped, do not change the Subject mode**, and do not
-   rename users at the identity provider without expecting a new account here.
+   it. Renaming a user at the identity provider **unlinks them here**: the new
+   username is linked to no account, so that person cannot sign in until you
+   link it again with `holzcloud user sso` (below). With provisioning on they are
+   refused too, because their address already belongs to the old account.
 
 2. **That your Caddy is 2.11.2 or newer, and that the configuration it generates
    really carries a delete per copied header.** The version alone is not the

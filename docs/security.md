@@ -161,9 +161,14 @@ header is removed on every request, whoever the peer was, before any handler
 runs. It is driven by a scan of the request's own header names rather than by a
 list somebody has to keep in step with a program on another machine, and it folds
 underscores to hyphens first, because those are two distinct names to Go and one
-name to a careless reader. This layer is why a reverse proxy that forwards a
-visitor's own copy — which a defect in Caddy made the default for a year — is a
-misconfiguration on somebody else's server rather than a way in here.
+name to a careless reader. What this layer does **not** do is make a reverse proxy
+that forwards a visitor's own copy harmless — which a defect in Caddy made the
+default for a year. By the time such a request arrives it comes from the trusted
+proxy with the right secret, and a forwarded value is indistinguishable from one
+the identity provider sent. A header arriving with two values is refused, because
+that is the shape an appending proxy leaves; against a single forwarded value the
+proxy's version and its own delete lines are the only defence. This paragraph
+said the opposite until the Phase 10 code review.
 
 **A shared secret.** The proxy adds a header this installation names itself, and
 this program compares it in constant time. It has nothing to do with the identity

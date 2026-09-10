@@ -32,10 +32,16 @@ import (
 // before it. Layer 1 is the peer address, read from the accepted connection and
 // therefore not choosable by a client; it stands to the left of every header
 // read, so an untrusted peer's claim is never even fetched. Layer 2 deletes
-// every inbound identity header on every path, whoever the peer was, so a
-// reverse proxy that forwards a client's own copy — which CVE-2026-30851 makes
-// the default on Caddy 2.10.0 through 2.11.1 — is a misconfiguration on someone
-// else's server rather than a bypass here. Layer 3 is a shared secret the proxy
+// every inbound identity header on every path, whoever the peer was, so no
+// handler can read a claim by accident and no unusual spelling survives. It
+// does NOT make a reverse proxy that forwards a client's own copy harmless —
+// which CVE-2026-30851 made the default on Caddy 2.10.0 through 2.11.1: the
+// strip runs after the read, and a forwarded value arrives from the trusted
+// peer with the right secret, indistinguishable from one the outpost sent. A
+// header that arrives with two values is refused (oneValueEach); against a
+// single forwarded value the proxy's version and its delete lines are the only
+// defence, and DEPLOY.md says so. This sentence claimed the opposite until the
+// Phase 10 code review (WR-03). Layer 3 is a shared secret the proxy
 // adds and this program compares in constant time, so a mistake in layer 1 is
 // not on its own enough. Layer 4 would be a signed assertion; it is
 // deliberately not built, and the reason is written at the foot of this file so
