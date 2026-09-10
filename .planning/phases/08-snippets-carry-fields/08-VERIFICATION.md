@@ -1,7 +1,9 @@
 ---
 phase: 08-snippets-carry-fields
 verified: 2026-09-06
-status: gaps_found
+status: passed
+status_at_verification: gaps_found
+amended: "2026-09-10 — beim Meilenstein-Audit: der Status war durch den eigenen Nachdurchgang vom 2026-09-06 ueberholt"
 score: 6/6 criteria verified — one with a named limitation
 score_note: >-
   5/6 beim Abschluss des Verifizierers. Beide human_needed-Punkte wurden am
@@ -253,3 +255,17 @@ Kriterium 4 ist eine Beobachtungsgrenze mit benanntem Grund, kein Zweifel am
 Verhalten. `status` bleibt `gaps_found` statt `passed`, weil WR-03 — Bild-,
 Verweis- und Schlagwortwerte gehen auf der Archivreise verloren — als Vorhaben
 offen ist und in die ROADMAP gehört, nicht nur in `deferred-items.md`.
+
+## Nachtrag 2026-09-10 — der Status im Kopf
+
+Beim Meilenstein-Audit von v1.6 aufgefallen und nachgetragen: der Kopf trug
+`status: gaps_found`, obwohl er selbst `score: 6/6` meldet, keine `gaps` enthält
+und beide `human_verification`-Punkte mit dem Nachdurchgang vom 2026-09-06 als
+geschlossen führt. Das ursprüngliche Urteil steht als `status_at_verification`
+weiter im Kopf. Der Status ist jetzt `passed`.
+
+Die benannte Beobachtungsgrenze bei Kriterium 4 bleibt, was sie war: eine Grenze
+dessen, was sich im Browser beobachten liess, kein Zweifel am Code. Die zwei
+Warnungen im Kopf sind erledigt: Fensterbuch 5 (`&#8592;`) ist seit dem
+2026-09-06 geschlossen (Schnellauftrag 260906-m9z), und WR-03 steht in
+`deferred-items.md` dieser Phase.

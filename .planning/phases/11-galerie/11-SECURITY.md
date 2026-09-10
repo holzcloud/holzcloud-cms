@@ -1,15 +1,19 @@
 ---
 phase: 11-galerie
 audited: 2026-09-08
-status: OPEN_THREATS
+status: SECURED
+status_at_audit: OPEN_THREATS
+amended: "2026-09-10 — beim Meilenstein-Audit: T-11-17 durch dca7e77 geschlossen"
 verdict_note: >-
   Kein blockierender Befund. 36 von 37 Bedrohungen geschlossen, eine offen und
   unterhalb der Schwelle (medium; block_on steht auf high). Dazu sechs
   unregistrierte Flächen, die keiner Bedrohungszeile zugeordnet waren — die
   wertvollste Hälfte dieses Berichts.
 threats_total: 37
-threats_closed: 36
-threats_open_nonblocking: 1
+threats_closed: 37
+threats_closed_at_audit: 36
+threats_open_nonblocking: 0
+threats_open_nonblocking_at_audit: 1
 threats_open_blocking: 0
 asvs_level: 2
 block_on: high
@@ -173,3 +177,24 @@ umgedreht. `albumsFor` gibt bei jedem Fehler die Null-Menge zurück und die
 Erweiterung läuft unbedingt, eine scheiternde Abfrage kostet also die Galerie
 und nicht die Seite — und leakt `[[album:<slug>:n]]` nicht mehr. Der berichtigte
 Satz gehört hierher, nicht der des Plans.
+
+## Nachtrag 2026-09-10 — T-11-17 ist geschlossen
+
+Nachgetragen beim Meilenstein-Audit von v1.6. Der Bericht oben beschreibt den
+Stand vom 2026-09-08 und bleibt stehen.
+
+**T-11-17**, die Manifesthälfte, wurde noch am selben Tag in **`dca7e77`**
+geschlossen: `block.Set.Clean` (`internal/block/block.go:455`) lässt `Display`
+nur als `diashow` an einer Galerie stehen und leert es sonst — an der Stelle, an
+der Formular und Bündelimport sich treffen, statt einmal pro Schreiber. Der
+Commit nennt eine Mutationsprobe (ohne die Vokabelprüfung überleben vier von
+fünf Eingaben Clean); dieser Bericht hat davon nie erfahren.
+
+**Beim Audit nachgefahren:**
+`go test ./internal/block/ -run TestCleanKeepsOnlyTheDisplayVocabulary -count=1`
+→ PASS.
+
+Die sechs unregistrierten Flächen oben bleiben, was sie waren: Befunde ohne
+Bedrohungszeile, keine offenen Bedrohungen.
+
+**Bilanz:** 37 von 37 geschlossen, 0 offen.

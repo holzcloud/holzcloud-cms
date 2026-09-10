@@ -1,11 +1,15 @@
 ---
 phase: "09"
 slug: "csv-import"
-status: audited
+status: SECURED
+status_at_audit: audited
+amended: 2026-09-10 — T-09-14 und T-09-30 durch 7c4f034 geschlossen, beim Meilenstein-Audit nachgemessen
 # threats_open = count of OPEN threats at or above workflow.security_block_on (= high)
-threats_open: 2
+threats_open: 0
+threats_open_at_audit: 2
 threats_total: 45
-threats_closed: 43
+threats_closed: 45
+threats_closed_at_audit: 43
 asvs_level: 1
 block_on: high
 created: "2026-09-06"
@@ -265,3 +269,37 @@ modified**; `git status` was clean before and after.
 
 **Next:** cap `TermNames` at `term.MaxPerPage` per row and batch `EnsureNames`,
 then re-run `/gsd-secure-phase`. Nothing else in the phase blocks ship.
+
+## Nachtrag 2026-09-10 — die zwei offenen Zeilen sind geschlossen
+
+Nachgetragen beim Meilenstein-Audit von v1.6. Der Bericht oben beschreibt den Stand
+vom 2026-09-06 und bleibt, wie er ist.
+
+**T-09-14 und T-09-30** waren ein Befund: `term.EnsureNames` öffnet eine
+Transaktion um alles, was es bekommt, auf einem Schreib-Pool mit einer
+Verbindung, und der Importpfad gab ihm die Schlagwörter der **ganzen Datei** auf
+einmal. Geschlossen in **`7c4f034`** (2026-09-06, zwei Tage vor der Verifizierung,
+die das Kriterium-5-Urteil entsprechend nachgetragen hat — nur dieser Bericht hat
+es nie erfahren):
+
+- `csvEnsureTerms` reicht die Namen in Stapeln von `csvTermChunk = 500` weiter,
+  etwa eine Zeile an Schreibarbeit.
+- `TermNames` ruft `RowTerms` und kappt deshalb genauso wie die Zeile — vorher
+  legte der Vorlauf Schlagwörter an, auf die keine Zeile zeigen konnte.
+
+Gemessen in jenem Commit an derselben 10-MB-Datei mit 398 Zeilen und einem
+konkurrierenden Schreiber, der den Pool jede Millisekunde anfragt: Laufzeit
+12,18 s → 3,54 s, **schlimmste Wartezeit 8,08 s → 3,64 ms**, angelegte
+Schlagwörter 796 000 → 4 776.
+
+**Beim Audit nachgefahren** (nicht aus dem Commit übernommen):
+`go test ./internal/csvimport/ ./internal/admin/ -run 'TestCSVTermPrePassIsChunked|TestTermNamesCapsWhatRowTermsCaps'`
+→ beide `ok`. Im Code: `internal/admin/csvimport.go:930` ruft `EnsureNames` mit
+`batch`.
+
+Was bleibt, und nicht zu diesem Befund gehört: `internal/bundle/import.go:335`
+ruft `EnsureNames` weiterhin mit allen Namen eines Bündels auf einmal. Der
+Bündelimport ist ein anderer Pfad mit einer anderen Grenze und nicht Gegenstand
+von Kriterium 5 dieser Phase.
+
+**Bilanz:** 45 von 45 geschlossen, 0 offen.

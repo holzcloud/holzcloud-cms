@@ -2,7 +2,9 @@
 phase: 11-galerie
 verified: 2026-09-08T07:40:00Z
 status: gaps_found
-score: 4/6 must-haves verified
+score: 5/6 must-haves verified
+score_at_verification: 4/6 must-haves verified
+amended: "2026-09-10 — beim Meilenstein-Audit: GAL-03 durch c113c22/f95e864 geschlossen; QUAL-01 bleibt offen"
 behavior_unverified: 0
 overrides_applied: 0
 tree_verified: 062c002 (source), re-confirmed at 2061e7e — the only commit between the two
@@ -250,3 +252,23 @@ Both gaps are small in code and specific in remedy. Neither undoes the phase.
 
 _Verified: 2026-09-08_
 _Verifier: Claude (gsd-verifier)_
+
+## Nachtrag 2026-09-10 — was sich seit dem Bericht bewegt hat
+
+Nachgetragen beim Meilenstein-Audit von v1.6. Der Bericht oben beschreibt den
+Baum `062c002`/`2061e7e` und bleibt stehen; die Lücken im Kopf sind die von
+damals. Der Status bleibt `gaps_found`, weil eine der zwei Lücken offen ist.
+
+| Punkt | Damals | Jetzt | Beleg, beim Audit nachgefahren |
+|---|---|---|---|
+| SC2 / GAL-03, der fünfte Pfad | ✗ `pluginhost.go:83` gab `ContentHTML` roh an ein Plugin | ✓ geschlossen | Rotbeweis `f95e864`, Flick `c113c22` (beide 2026-09-08): `expandForPlugin` in `internal/public/pluginhost.go:65`, aufgerufen auf `:126`. `go test ./internal/public/ -run 'Marker\|Plugin' -count=1` → `TestPagesGetHandsNoRawMarkerToAPlugin` PASS, dazu die vier Markertests für Feed, gelöschtes Album, fehlenden Speicher und fehlschlagende Abfrage |
+| GAL-05 im Hauptbuch | `REQUIREMENTS.md:180` stand auf `- [ ]` | ✓ `- [x]`, Tabelle „Complete" | `REQUIREMENTS.md:180` und `:303` |
+| SC6 / QUAL-01, fünf Sätze | ✗ fünf `fmt.Sprintf`-Warnungen in `importAlbums` | ✗ **unverändert offen** | dieselben fünf `fmt.Sprintf` in `internal/bundle/import.go` gezählt; Fensterbuch 6 steht auf `open` |
+| Fensterbuch 8 (`textGallery` immer Deutsch) | offen | offen | `internal/block/render.go:212`, Fensterbuch 8 `open` |
+| GAL-07, Wortlaut | an Phase 12 übergeben | an Phase 12 übergeben — **Phase 12 liegt seit `48865f2` in v2.0** | `ROADMAP.md` |
+
+**Neuer Stand: 5 von 6.** Die verbleibende Lücke ist QUAL-01 im ersten Satz
+(„every new string"), nicht in der Zahl. Sie geht als benannte technische Schuld
+in den Meilenstein-Abschluss: der Flick ist die Form Code plus Argumente, die
+`.planning/GLOSSARY.md` für csvimport schon vorschreibt (D-32), und gehört mit
+den 828 unkatalogisierten Zeichenketten zu Phase 12, Kriterium 9.
