@@ -998,6 +998,13 @@ func pageIDs(r *http.Request) (websiteID, pageID int64, ok bool) {
 	return websiteID, pageID, true
 }
 
+// hxRequestHeader is named rather than written out where redirect adds it to
+// Vary. tools/i18n collects the second argument of every method called Add as
+// a sentence an operator reads — it matches by name, deliberately, and errs
+// towards collecting too much — so a literal there became the catalogue key
+// "HX-Request" and turned the gate to one open string on every catalogue.
+const hxRequestHeader = "HX-Request"
+
 // redirect navigates after a successful mutation, using HX-Redirect for htmx
 // requests because a 303 would be swapped into the page instead of followed.
 func (h *Handler) redirect(w http.ResponseWriter, r *http.Request, to string) error {
@@ -1005,8 +1012,8 @@ func (h *Handler) redirect(w http.ResponseWriter, r *http.Request, to string) er
 	// other — CLAUDE.md's htmx section asks for this on every handler that
 	// branches on the header, and this helper is where every redirect in the
 	// package branches (Phase 10 code review IN-03).
-	w.Header().Add("Vary", "HX-Request")
-	if r.Header.Get("HX-Request") == "true" {
+	w.Header().Add("Vary", hxRequestHeader)
+	if r.Header.Get(hxRequestHeader) == "true" {
 		w.Header().Set("HX-Redirect", to)
 		return nil
 	}
