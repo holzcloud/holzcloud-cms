@@ -58,7 +58,11 @@ type TwoFactorStatusData struct {
 // writer in forwardauth.go — the fact is recorded once and never re-derived
 // from a header, because the headers are gone by the time any handler runs.
 func (h *Handler) viaSSO(r *http.Request) bool {
-	return h.sm.GetBool(r.Context(), auth.SessionKeyViaSSO)
+	// The switch belongs to the question. The sign-out asked it and these
+	// readers did not, so a session carrying the mark across switching single
+	// sign-on off stayed exempt from the second factor and could remove it
+	// (Phase 10 code review WR-04, measured under criterion 5).
+	return h.cfg != nil && h.cfg.SSOEnabled && h.sm.GetBool(r.Context(), auth.SessionKeyViaSSO)
 }
 
 // HandleTwoFactorVerify asks a half-authenticated session for its code.

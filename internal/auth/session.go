@@ -20,17 +20,30 @@ const (
 	// established it: true means the sign-in came through forward
 	// authentication rather than through the password form.
 	//
-	// It is written in exactly one place — the forward-auth sign-in in
-	// package admin — and read in exactly two: the second-factor decision,
-	// which must not demand an authenticator the identity provider has
-	// already asked for, and the sign-out, which has to end the session at the
-	// identity provider as well. Every other question about a session is about
-	// who, and none of them belong here.
+	// It is set in exactly one place — the forward-auth sign-in in package
+	// admin, after completeLogin — and removed by completeLogin on every other
+	// sign-in, because scs's RenewToken keeps every value and a password
+	// sign-in would otherwise inherit it. It is read by the second-factor
+	// decision, which must not demand an authenticator the identity provider
+	// has already asked for; by the sign-out, which has to end the session at
+	// the identity provider as well; and by the forward-auth sign-in itself,
+	// which ends such a session when single sign-on is switched off. Every
+	// reader asks together with the switch: a mark that outlived the switch
+	// used to keep its exemption from the second factor (Phase 10 code review,
+	// WR-04).
 	//
 	// A session reached by password never carries it, and scs's GetBool
 	// answers false for a key that is not there, so the absent case needs no
 	// branch anywhere.
 	SessionKeyViaSSO = "via_sso"
+
+	// SessionKeySSOUsername is the identity a single sign-on session was
+	// established for. A request on that session vouched for a different
+	// identity — somebody else signed in at the identity provider on the same
+	// browser — ends the session instead of running as its owner, and a
+	// request vouched for the same identity has its rights re-applied, so a
+	// demotion at the identity provider reaches a session that is still open.
+	SessionKeySSOUsername = "sso_username"
 )
 
 // DestroyUserSessions ends every stored session belonging to userID, except the

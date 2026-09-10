@@ -25,6 +25,13 @@ func lookupSecondFactor(role string, enabled bool) SecondFactorLookup {
 // RequireAuth.
 func serveSecondFactor(t *testing.T, sm *scs.SessionManager, lookup SecondFactorLookup, userID int64, viaSSO bool, path string) (*httptest.ResponseRecorder, *bool) {
 	t.Helper()
+	return serveSecondFactorWith(t, sm, lookup, userID, viaSSO, true, path)
+}
+
+// serveSecondFactorWith is serveSecondFactor with the single sign-on switch
+// named, for the one question that depends on it.
+func serveSecondFactorWith(t *testing.T, sm *scs.SessionManager, lookup SecondFactorLookup, userID int64, viaSSO, ssoEnabled bool, path string) (*httptest.ResponseRecorder, *bool) {
+	t.Helper()
 	reached := false
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reached = true
@@ -37,7 +44,7 @@ func serveSecondFactor(t *testing.T, sm *scs.SessionManager, lookup SecondFactor
 		if viaSSO {
 			sm.Put(r.Context(), SessionKeyViaSSO, true)
 		}
-		RequireSecondFactor(sm, lookup)(inner).ServeHTTP(w, r)
+		RequireSecondFactor(sm, lookup, ssoEnabled)(inner).ServeHTTP(w, r)
 	}))
 
 	req := httptest.NewRequest("GET", path, nil)
@@ -112,6 +119,28 @@ func TestRequireSecondFactorLetsAnSSOSessionThrough(t *testing.T) {
 	}
 	if !*reached {
 		t.Error("the next handler did not run; an SSO session must reach the administration")
+	}
+}
+
+// TestRequireSecondFactorIgnoresTheMarkWithSSOSwitchedOff: with single sign-on
+// off, a session still carrying via_sso is an administrator's session like any
+// other and is sent to set up a second factor.
+//
+// Sessions live in SQLite for a day and survive a restart, so the mark outlives
+// the switch. Before the switch was part of this question, an operator who
+// switched single sign-on off in an emergency kept every administrator session
+// the proxy had made exempt (Phase 10 code review WR-04, measured as 200 where
+// a password session got 303).
+func TestRequireSecondFactorIgnoresTheMarkWithSSOSwitchedOff(t *testing.T) {
+	sm := testSessionManager()
+	rec, reached := serveSecondFactorWith(t, sm, lookupSecondFactor("admin", false), 7, true, false, "/admin/")
+
+	if rec.Code != http.StatusSeeOther {
+		t.Errorf("status = %d; want 303 — with single sign-on switched off an administrator without a "+
+			"second factor is sent to set one up, whatever the session remembers about how it began", rec.Code)
+	}
+	if *reached {
+		t.Error("the next handler ran; a session marked by a switched-off single sign-on is exempt from nothing")
 	}
 }
 

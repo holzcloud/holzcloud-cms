@@ -64,6 +64,15 @@ func secondFactorEnabled(t *testing.T, database *db.DB, userID int64) bool {
 // established either by password or through the identity provider.
 func serveSignedIn(t *testing.T, h *Handler, sm *scs.SessionManager, fn func(http.ResponseWriter, *http.Request) error, req *http.Request, userID int64, viaSSO bool) *httptest.ResponseRecorder {
 	t.Helper()
+	// A session established through the identity provider exists only while
+	// single sign-on is switched on. This helper used to build one on a handler
+	// whose switch was off — the state the Phase 10 code review measured as a
+	// defect (WR-04) — and the tests using it passed because that defect let
+	// the mark count without the switch. A test about the switched-off case sets
+	// the mark itself and says so.
+	if viaSSO {
+		h.cfg.SSOEnabled = true
+	}
 	rec := httptest.NewRecorder()
 	var handlerErr error
 	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -277,5 +286,35 @@ func TestUserListTellsAnAdministratorTheInstallationDependsOnTheIdentityProvider
 				t.Errorf("the user list names the identity provider = %v; want %v — with single sign-on off the screen must be byte-for-byte what it was", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestSecondFactorDisableRefusesAMarkWithSSOSwitchedOff is the criterion 5
+// measurement written down as a test: with single sign-on switched off, a
+// session still carrying via_sso is an administrator's session like any other,
+// and this installation requires their second factor — so it may not be removed.
+func TestSecondFactorDisableRefusesAMarkWithSSOSwitchedOff(t *testing.T) {
+	h, sm, database := newSecondFactorAdmin(t)
+	h.cfg.SSOEnabled = false
+	id := seedSecondFactorAccount(t, h, "admin@test.local", user.RoleAdmin)
+	enableSecondFactor(t, database, id)
+
+	req := postForm("/admin/2fa/aus", url.Values{}, nil)
+	rec := httptest.NewRecorder()
+	var handlerErr error
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sm.Put(r.Context(), auth.SessionKeyUserID, id)
+		// Set by hand rather than through serveSignedIn, which switches single
+		// sign-on on for a session established through it.
+		sm.Put(r.Context(), auth.SessionKeyViaSSO, true)
+		handlerErr = h.HandleTwoFactorDisable(w, r)
+	})).ServeHTTP(rec, req)
+	if handlerErr != nil {
+		t.Fatalf("handler: %v", handlerErr)
+	}
+
+	if !secondFactorEnabled(t, database, id) {
+		t.Error("with single sign-on switched off, a session still carrying its mark removed an " +
+			"administrator's second factor")
 	}
 }

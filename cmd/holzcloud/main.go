@@ -768,7 +768,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// Runs inside RequireAuth: by then the session has a user, and an account
 	// that owes a second factor is sent to the setup page before it reaches
 	// anything else.
-	requireSecondFactor := auth.RequireSecondFactor(sm, admin.NewSecondFactorLookup(database))
+	requireSecondFactor := auth.RequireSecondFactor(sm, admin.NewSecondFactorLookup(database), cfg.SSOEnabled)
 	// Site-level and template administration is admin-only; editors keep full
 	// access to content (pages, menus, media).
 	requireAdmin := auth.RequireAdmin(sm)
