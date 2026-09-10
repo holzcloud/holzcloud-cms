@@ -132,7 +132,7 @@ func ForwardAuth(resolver *ClientIPResolver, opts ForwardAuthOptions) func(http.
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var ident *Identity
-			if opts.Enabled && opts.Secret != "" && resolver != nil && resolver.IsTrustedPeer(r) && secretMatches(r, opts.Secret) {
+			if opts.Enabled && opts.Secret != "" && resolver != nil && resolver.IsTrustedPeer(r) && secretMatches(r, opts.Secret) && oneValueEach(r.Header) {
 				// Header.Get and never map indexing: Get canonicalises the
 				// name it is given, indexing believes whatever spelling the
 				// caller typed.
@@ -158,6 +158,43 @@ func ForwardAuth(resolver *ClientIPResolver, opts ForwardAuthOptions) func(http.
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// believedHeaders are the headers ForwardAuth reads a claim from, and the
+// secret that proves the proxy sent them.
+var believedHeaders = []string{
+	"X-authentik-username",
+	"X-authentik-email",
+	"X-authentik-name",
+	"X-authentik-groups",
+	ProxySecretHeader,
+}
+
+// oneValueEach reports whether every header ForwardAuth reads arrived with at
+// most one value.
+//
+// Header.Get returns the first value under a key and silently drops the rest.
+// A proxy that appends its own value instead of replacing the client's — the
+// shape of CVE-2026-30851 on Caddy 2.10.0–2.11.1 when the outpost answers 200
+// without that header — leaves two values under one canonical key, and which
+// one Get returns is decided by whoever added theirs first. For the groups
+// header that is the administration group. The strip below runs after the read
+// and cannot tell the proxy's value from the client's, so a request like that
+// is not believed at all: it falls through to the password form, like any
+// other request this middleware does not believe.
+//
+// Only the canonical key is counted, because it is the only one Get reads. A
+// copy under another spelling is never read, and the strip removes it.
+//
+// It stands to the right of the peer and secret checks in the guard, so an
+// untrusted peer's headers are still never fetched.
+func oneValueEach(h http.Header) bool {
+	for _, name := range believedHeaders {
+		if len(h.Values(name)) > 1 {
+			return false
+		}
+	}
+	return true
 }
 
 // stripIdentityHeaders deletes every inbound identity header, and the shared
