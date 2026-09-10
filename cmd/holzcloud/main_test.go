@@ -1062,3 +1062,59 @@ func TestPasswordPathIsUnchangedWithSSOOff(t *testing.T) {
 		t.Error("a password sign-in was marked as established through single sign-on")
 	}
 }
+
+// TestSingleSignOnRefusesToStartWithAWebsiteGroupForNoWebsite is the other half
+// of the start-up check (Phase 10 code review CR-02). HOLZCLOUD_SSO_WEBSITE_GROUPS
+// maps a group to a website id, and nothing asked whether that website exists.
+// A sign-in carrying the group then failed its INSERT on the foreign key: before
+// migration 00052 that left an empty assignment, which was every website, and it
+// still turns away everybody in that group without anybody being told why. The
+// default website has been checked against the database since plan 10-04; the
+// groups never were.
+func TestSingleSignOnRefusesToStartWithAWebsiteGroupForNoWebsite(t *testing.T) {
+	dir := t.TempDir()
+	database, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(database.Close)
+	if err := db.RunMigrations(database.Write); err != nil {
+		t.Fatalf("migrations: %v", err)
+	}
+	ctx := context.Background()
+	store := domain.NewStore(database)
+	created, err := store.CreateWebsite(ctx, "Redaktion A", "")
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+	missing := created.ID + 4242
+
+	t.Run("a group naming an id nobody created", func(t *testing.T) {
+		cfg := config.Config{SSOEnabled: true, SSOWebsiteGroups: map[string]int64{
+			"redaktion-a": created.ID, "redaktion-x": missing,
+		}}
+		err := checkDefaultWebsite(ctx, cfg, store)
+		if err == nil {
+			t.Fatal("a website group naming a website that does not exist was accepted; want a refusal to start")
+		}
+		for _, want := range []string{"HOLZCLOUD_SSO_WEBSITE_GROUPS", "redaktion-x", strconv.FormatInt(missing, 10)} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("the refusal must name %q so the operator knows what to change: %v", want, err)
+			}
+		}
+	})
+
+	t.Run("every group naming a website that exists", func(t *testing.T) {
+		cfg := config.Config{SSOEnabled: true, SSOWebsiteGroups: map[string]int64{"redaktion-a": created.ID}}
+		if err := checkDefaultWebsite(ctx, cfg, store); err != nil {
+			t.Errorf("groups naming websites that exist must start: %v", err)
+		}
+	})
+
+	t.Run("single sign-on off asks the database nothing", func(t *testing.T) {
+		cfg := config.Config{SSOEnabled: false, SSOWebsiteGroups: map[string]int64{"redaktion-x": missing}}
+		if err := checkDefaultWebsite(ctx, cfg, refusingLookup{t}); err != nil {
+			t.Errorf("with single sign-on off there is nothing to check: %v", err)
+		}
+	})
+}
