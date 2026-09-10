@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 )
@@ -115,5 +116,41 @@ func TestCompleteLoginRemovesTheSSOMark(t *testing.T) {
 	if still {
 		t.Error("completeLogin left via_sso in the session; the password path would sign in exempt " +
 			"from the second factor")
+	}
+}
+
+// A running single sign-on session is not signed in again on every request.
+//
+// Step 3 of ForwardAuthSignIn exists because a sign-in per request would rotate
+// the token on every click and write one auth.login_success row per page view.
+// Re-applying the rights of a running session is not a sign-in. Nothing held
+// that until the session was re-checked on every request, which is exactly when
+// it became easy to break: a session that forgets whom it was established for
+// looks like somebody new on its next request.
+func TestARunningSSOSessionIsNotSignedInAgain(t *testing.T) {
+	h, sm, database, _, _ := newRightsSyncAdmin(t)
+	id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+
+	rec, first := serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdGroupA, nil))
+	if first.userID != id {
+		t.Fatalf("the first sign-in did not happen (user_id %d, account %d)", first.userID, id)
+	}
+	cookie := sessionCookie(t, sm, rec)
+
+	rec2, second := serveForwardAuth(t, h, sm, true,
+		fwdGroupRequest("ada", "ada@example.com", fwdGroupA, cookie))
+
+	if second.userID != id {
+		t.Errorf("the second request on a running session did not run as ada (user_id %d)", second.userID)
+	}
+	if n := countAction(t, database, activity.ActionAuthLoginSuccess, id); n != 1 {
+		t.Errorf("%d %q rows after two requests on one session; want 1 — re-applying the rights is "+
+			"not a sign-in", n, activity.ActionAuthLoginSuccess)
+	}
+	for _, c := range rec2.Result().Cookies() {
+		if c.Name == sm.Cookie.Name && c.Value != cookie.Value {
+			t.Errorf("the session token was rotated on an ordinary request of a running session")
+		}
 	}
 }

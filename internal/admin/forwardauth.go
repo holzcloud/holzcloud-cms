@@ -109,7 +109,16 @@ var errSSONoWebsiteGroup = errors.New("sync: no group maps to a configured websi
 func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 1. The switch. SSO-09's first line of defence and the cheapest one.
+		//
+		// Switched off, this path signs nobody in, and it ends every session it
+		// signed in before. Such a session is exempt from the second factor and
+		// lives in SQLite for a day, so an operator who switches single sign-on
+		// off because they no longer trust the proxy would otherwise keep every
+		// administrator session that proxy made (Phase 10 code review WR-04).
 		if h.cfg == nil || !h.cfg.SSOEnabled {
+			if h.sm.GetBool(r.Context(), auth.SessionKeyViaSSO) {
+				h.endSSOSession(r, "sso_disabled")
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -124,16 +133,36 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 			return
 		}
 
-		// 3. A session that is already signed in is left exactly as it is.
+		// 3. A session that is already signed in is not signed in again.
 		//
 		// This is not an optimisation. Without it every request would rotate
 		// the token and write a sign-in row, and /admin/protokoll would become
 		// one row per page view; and somebody signed in by password on a shared
 		// machine would be silently swapped for whoever the proxy last
-		// asserted.
-		if h.sm.GetInt64(r.Context(), auth.SessionKeyUserID) != 0 {
-			next.ServeHTTP(w, r)
-			return
+		// asserted. A password session is therefore left exactly as it is.
+		//
+		// A single sign-on session is different, because it is only ever as
+		// good as what the identity provider vouches for now. It used to be
+		// left alone as well, and a demotion there reached it only when the CMS
+		// session expired — up to a day — while DEPLOY.md promised the next
+		// sign-in (Phase 10 code review WR-08). So: vouched for somebody else,
+		// the session ends and this request becomes a fresh sign-in for whoever
+		// that is; vouched for the same identity, the rights are re-applied —
+		// which writes nothing unless something changed — and a refusal ends
+		// the session.
+		if uid := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID); uid != 0 {
+			if !h.sm.GetBool(r.Context(), auth.SessionKeyViaSSO) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if h.sm.GetString(r.Context(), auth.SessionKeySSOUsername) == ident.Username {
+				if !h.refreshSSOSession(r, uid, ident) {
+					h.endSSOSession(r, "rights_refused")
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+			h.endSSOSession(r, "identity_changed")
 		}
 
 		// 4. The address rule.
@@ -301,8 +330,11 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 		// 8. The mark, then the funnel. The synchronised role and the stored
 		// address, not the header's: the session and the protocol row must name
 		// the account, and the header only claimed to.
-		h.sm.Put(r.Context(), auth.SessionKeyViaSSO, true)
 		h.completeLogin(r, u.ID, role, u.Email)
+		// After the funnel, which removes both marks from every sign-in it
+		// completes.
+		h.sm.Put(r.Context(), auth.SessionKeyViaSSO, true)
+		h.sm.Put(r.Context(), auth.SessionKeySSOUsername, ident.Username)
 
 		// The original request continues rather than being redirected: the
 		// session manager commits at the end of the request and the values are
@@ -577,6 +609,54 @@ func sameWebsites(a, b []int64) bool {
 		}
 	}
 	return true
+}
+
+// refreshSSOSession re-applies the rights of a running single sign-on session
+// for the identity it was established for. It reports false when the session
+// must end: the identity is no longer linked to this account, the rights are
+// refused, or the database cannot say.
+//
+// A database that cannot answer ends the session rather than keeping rights
+// nobody could re-check; the next request is an ordinary sign-in again.
+func (h *Handler) refreshSSOSession(r *http.Request, uid int64, ident *web.Identity) bool {
+	ctx := r.Context()
+	u, err := h.users.GetBySSOUsername(ctx, ident.Username)
+	if err != nil {
+		slog.Error("forward auth session refresh lookup", "err", err, "user_id", uid)
+		return false
+	}
+	if u == nil || u.ID != uid {
+		return false
+	}
+	role, err := h.syncRightsFromGroups(ctx, r, u, ident)
+	if err != nil {
+		reason := ssoRefuseSyncFailed
+		if errors.Is(err, errSSONoWebsiteGroup) {
+			reason = ssoRefuseNoWebsiteGroup
+		}
+		h.refuseSSO(r, ident, u.Email, reason)
+		return false
+	}
+	if role != h.sm.GetString(ctx, auth.SessionKeyUserRole) {
+		h.sm.Put(ctx, auth.SessionKeyUserRole, role)
+	}
+	return true
+}
+
+// endSSOSession ends a session single sign-on established, and says so in the
+// protocol before the session forgets who it belonged to.
+func (h *Handler) endSSOSession(r *http.Request, reason string) {
+	uid := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
+	slog.Info("forward auth ended a session", "user_id", uid, "reason", reason)
+	h.LogActivity(r, activity.Entry{
+		Action:     activity.ActionAuthLogout,
+		EntityType: "user",
+		EntityID:   uid,
+		Metadata:   map[string]any{"via": "sso", "reason": reason},
+	})
+	if err := h.sm.Destroy(r.Context()); err != nil {
+		slog.Error("forward auth could not end a session", "err", err, "user_id", uid)
+	}
 }
 
 // provisionSSOUser creates the account an identity names and gives it the one

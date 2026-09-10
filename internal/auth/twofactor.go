@@ -65,7 +65,7 @@ func MustHaveSecondFactor(role string, viaSSO bool) bool {
 // page, and lets everything else through.
 //
 // It sits inside RequireAuth, so by the time it runs the session has a user.
-func RequireSecondFactor(sm *scs.SessionManager, lookup SecondFactorLookup) Middleware {
+func RequireSecondFactor(sm *scs.SessionManager, lookup SecondFactorLookup, ssoEnabled bool) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if lookup == nil || isSecondFactorPath(r.URL.Path) {
@@ -86,8 +86,10 @@ func RequireSecondFactor(sm *scs.SessionManager, lookup SecondFactorLookup) Midd
 				return
 			}
 			// scs answers false for a key that is not there, so a session
-			// reached by password takes no new branch here at all.
-			viaSSO := sm.GetBool(r.Context(), SessionKeyViaSSO)
+			// reached by password takes no new branch here at all. The switch
+			// is part of the question: with single sign-on off, a mark that
+			// outlived it exempts nobody.
+			viaSSO := ssoEnabled && sm.GetBool(r.Context(), SessionKeyViaSSO)
 			if MustHaveSecondFactor(state.Role, viaSSO) && !state.Enabled {
 				http.Redirect(w, r, SetupPath, http.StatusSeeOther)
 				return

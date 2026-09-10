@@ -105,6 +105,13 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 // the second-factor path cannot drift apart.
 func (h *Handler) completeLogin(r *http.Request, id int64, role, email string) {
 	h.sm.Remove(r.Context(), auth.SessionKeyPendingUserID)
+	// Every sign-in starts without the single sign-on marks, and the
+	// forward-auth path sets them again after this call. scs's RenewToken keeps
+	// every value, so without these two lines a session that once came through
+	// the identity provider carried its exemption from the second factor into a
+	// password sign-in, as whichever account signed in.
+	h.sm.Remove(r.Context(), auth.SessionKeyViaSSO)
+	h.sm.Remove(r.Context(), auth.SessionKeySSOUsername)
 	h.sm.Put(r.Context(), auth.SessionKeyUserID, id)
 	h.sm.Put(r.Context(), auth.SessionKeyUserRole, role)
 	h.sm.Put(r.Context(), auth.SessionKeyUserEmail, email)
@@ -157,8 +164,7 @@ func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	// half. With single sign-on switched off there is no outpost to tell, and a
 	// session carrying the mark across that change is sent to the login form.
 	target := "/admin/login"
-	if h.cfg != nil && h.cfg.SSOEnabled &&
-		h.sm.GetBool(r.Context(), auth.SessionKeyViaSSO) {
+	if h.viaSSO(r) {
 		// A path on this server, and never an address assembled from r.Host,
 		// X-Forwarded-Host or anything else the request carries: a host taken
 		// from a request and put into a redirect is how an open redirect is

@@ -184,8 +184,12 @@ a signature that the same proxy could mint would add ceremony and no guarantee.
 What it costs, plainly: the installation now depends on the operator's identity
 provider and on the reverse proxy in front of it being configured correctly. What
 it does not cost: the password login is untouched and stays the way back in when
-the provider is down, group membership is re-read at every sign-in so a removal
-there takes effect here at the next one, and an account the provider vouches for
+the provider is down; group membership is re-read on every request a single
+sign-on session makes, so a removal there takes effect here at that person's next
+click rather than when the session expires — which is what this sentence used to
+promise less exactly, and what the code did not do until the Phase 10 code review;
+a session established this way ends when single sign-on is switched off or when
+the provider vouches for somebody else on the same browser; and an account the provider vouches for
 but this installation has never seen is refused unless somebody deliberately
 switched account creation on — and then only into a website named in advance.
 `deploy/DEPLOY.md` has the settings and the one command an operator can use to

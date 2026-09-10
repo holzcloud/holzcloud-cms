@@ -253,9 +253,15 @@ whose address belongs to an account is refused — with provisioning on as well 
 rather than linked on first sight, because otherwise whoever signs in first on
 the day you switch this on decides which account is whose.
 
-Group membership is re-read on **every** sign-in. Taking a group away at the
-identity provider takes the access away here at the next sign-in, not at the
-next session expiry.
+Group membership is re-read on **every request** a single sign-on session makes,
+not only when it signs in. Taking a group away at the identity provider takes the
+access away here at that person's next click — until the Phase 10 code review
+this paragraph promised "the next sign-in", and for somebody who kept working the
+next sign-in was the session expiring a day later. When the identity provider
+vouches for a *different* person on the same browser, the session ends and that
+person is signed in instead. When single sign-on is switched off, every session
+it established ends at its next request; sessions made with a password are not
+touched either way.
 
 ### The minimum Caddy version is 2.11.2
 
