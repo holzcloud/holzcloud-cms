@@ -9,6 +9,7 @@ score_note: >-
   offene Kriterium ist Nummer 1, zweiter Satz.
 method: goal-backward — every verdict below rests on a file I read, a command I ran, or a named test I executed in this session
 gaps:
+
   - truth: "Kriterium 1, zweiter Satz: geleert ist von „dieses Formular trug das Feld nie“ unterscheidbar"
     status: partial
     reason: >-
@@ -44,7 +45,9 @@ gaps:
         issue: "Der Bausteineditor prägt seine Feldnamen seit bf4abdd (18:40) anders — ein Bedienelement, dessen Verhalten sich nach dem Durchgang geändert hat, mit Regressionstest, ohne Browser."
     missing:
       - "Ein kurzer Nachdurchgang: code im Baustein auf der öffentlichen Seite, der geänderte Hinweis und die neue Ablehnung auf dem Feldbildschirm, eine Mehrfachauswahl in einer eigenen Bausteinart"
+
 human_verification:
+
   - test: "Zwei gleichzeitige Speichervorgänge derselben Seite, beide mit Mehrfachauswahl"
     expected: "Der spätere Schreiber gewinnt vollständig; die Werte werden nicht vermischt"
     why_human: >-
@@ -59,10 +62,16 @@ human_verification:
       stabiler Sort über (Position, ID) und damit dem Augenschein nach total —
       aber kein Test misst es und niemand hat es beobachtet. insufficient_spec.
 warnings:
+
   - "WR-08 selbst bestätigt: renderOwn (block/render.go:264-334) hat keinen KindMulti-Zweig. Eine Mehrfachauswahl in einem Baustein landet im default-Zweig und erscheint als ein <p> mit Zeilenumbrüchen statt als Liste. PlainText hat den Zweig (render.go:441). Kriterium 3 spricht nur vom Theme, nicht vom Baustein — deshalb Warnung und kein Gap."
   - "WR-03 nachvollzogen: ParseNumber nimmt das Komma, <input type=\"number\"> nicht. Ein über die KI- oder Bündelschnittstelle geschriebenes 1,5 rendert in ein Steuerelement, das leer aussieht — Kriterium 5s „vor dem Speichern lesbar“ gilt dann nicht. Über den Adminweg unerreichbar, weil das Zahlenfeld kein Komma sendet."
   - "WR-07: TEMPLATE-SPEC.md verspricht bei bereich mehr, als das Programm hält (Grenzen gelten zum Speicherzeitpunkt, nachträglich verschärfte Grenzen schreiben gespeicherte Seiten nicht um). Der Vertrag wird von Themeautoren wörtlich gelesen."
   - "Die Ablehnungsgründe aus internal/field/field.go sind Zeichenkettenverkettungen ohne i18n.N — der QUAL-01-Zähler sieht sie nicht. Bereits als offenes Fenster Nr. 3 notiert; für Kriterium 6 wörtlich gelesen unschädlich, für dessen Sinn nicht."
+
+audit_acknowledged:
+  milestone: v1.6
+  at: 2026-09-10
+  status: gaps_found
 ---
 
 # Phase 7: Field Kinds — Verifikationsbericht

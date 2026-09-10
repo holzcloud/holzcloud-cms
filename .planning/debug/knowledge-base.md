@@ -1,3 +1,10 @@
+---
+audit_acknowledged:
+  milestone: v1.6
+  at: 2026-09-10
+  status: unknown
+---
+
 # GSD Debug Knowledge Base
 
 Resolved debug sessions. Used by `gsd-debugger` to surface known-pattern
@@ -6,6 +13,7 @@ hypotheses at the start of new investigations.
 ---
 
 ## menu-item-cross-website-write — an editor could rewrite another website's navigation
+
 - **Date:** 2026-09-06
 - **Error patterns:** cross-website, cross-tenant, website isolation, RequireWebsiteAccess, second path id, menuID, itemID, 303 instead of 404, silent write
 - **Root cause(s):** The four menu-ITEM handlers authorised on the websiteID taken from the address but never verified that the menu named by menuID belonged to that website; they compared item.MenuID != menuID only. auth.RequireWebsiteAccess reads only the leading /admin/websites/<number> by documented design and cannot compensate.
@@ -13,9 +21,11 @@ hypotheses at the start of new investigations.
 - **Files changed:** internal/admin/menu_scope_test.go, internal/admin/menu.go, internal/menu/store.go
 - **Why not caught:** No gate existed for this class. No test drove an admin write handler as a user restricted to a *different* website — every admin test used one website.
 - **Recurrence guard:** Regression test internal/admin/menu_scope_test.go (6 tests through the real middleware chain). The store still enforces nothing and carries a comment saying so — a weaker guard than a signature, and the reason the product fix went into the store instead.
+
 ---
 
 ## product-cross-website-write — an editor could rewrite and reprice another website's product
+
 - **Date:** 2026-09-07
 - **Error patterns:** cross-website, cross-tenant, website isolation, RequireWebsiteAccess, second path id, productID, unscoped UPDATE, WHERE id only, 303 instead of 404, silent write, repriced, product_terms cross-tenant row
 - **Root cause(s):** internal/admin/product.go handleProductSave took productID from the address and passed it to shop.Store.Update without checking ownership; shop.Store.Update's WHERE named only the id so it could not catch the omission; and the produkte routes are registered without requireAdmin, so editors reach them. All three were required simultaneously (AND-gate). Separately, term.SetForProduct's unscoped DELETE FROM product_terms wrote a join row whose two halves belonged to different websites.
@@ -23,9 +33,11 @@ hypotheses at the start of new investigations.
 - **Files changed:** internal/admin/product_scope_test.go, internal/shop/product.go, internal/shop/product_test.go, internal/admin/product.go, internal/term/store.go, internal/term/store_test.go, internal/shop/order_test.go, internal/shop/cart_test.go, CHANGELOG.md
 - **Why not caught:** No gate existed for this class — go vet cannot see a missing WHERE clause, and the menu-scope test written the day before covered only menus. The sibling handlers in the same file were correct, which made the file look reviewed.
 - **Recurrence guard:** internal/admin/product_scope_test.go (6 tests), internal/shop/product_test.go (4 store-level tests incl. the unknown-id boundary), internal/term/store_test.go (2 tests) — and above all the changed signature: Update and Delete can no longer be called without naming a website, which does not depend on anyone remembering to write a test. CHANGELOG carries a SQL query for operators to find cross-tenant product_terms rows, which no code fix repairs.
+
 ---
 
 ## order-retry-mail-cross-website-write — an editor could re-send another website's customer email
+
 - **Date:** 2026-09-07
 - **Error patterns:** cross-website, cross-tenant, website isolation, third id from a form, mail_id, outbox, unscoped UPDATE, WHERE id only, attempt counter reset, last_error cleared, duplicate delivery
 - **Root cause(s):** internal/admin/order.go HandleOrderDetail scopes the website and the order correctly but passes mail_id straight from the posted form to outbox.Store.Retry, whose statement was UPDATE outbox … WHERE id = ? AND status <> 'sent' — no website_id, though outbox.website_id is NOT NULL.
@@ -33,6 +45,7 @@ hypotheses at the start of new investigations.
 - **Files changed:** internal/admin/order_scope_test.go, internal/outbox/outbox.go, internal/outbox/outbox_test.go, internal/admin/order.go, CHANGELOG.md
 - **Why not caught:** No gate existed for this class, and the id was the *third* on the screen — the two ids in the address were both checked, which made the handler look scoped.
 - **Recurrence guard:** internal/admin/order_scope_test.go (2 tests), internal/outbox/outbox_test.go (1 store-level test), and the changed Retry signature.
+
 ---
 
 ## Pattern note — the recurring defect shape in this codebase
@@ -63,7 +76,6 @@ signal that the check must live in the handler instead — and that it needs a
 chain, and assert the **effect** (the row is unchanged) as well as the status.
 Always include the negative controls — the same action on the own website, and
 the create path — or a fix that refuses everything passes.
-
 
 ## Pattern note — the ledger drifts behind the code, and the gate reads the ledger
 

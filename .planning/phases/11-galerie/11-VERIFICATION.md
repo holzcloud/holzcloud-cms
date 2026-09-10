@@ -10,6 +10,7 @@ overrides_applied: 0
 tree_verified: 062c002 (source), re-confirmed at 2061e7e — the only commit between the two
   touches .planning/audits/v1.6-I18N-828.md and no Go source, so every gate run below stands
 gaps:
+
   - truth: "SC2 / GAL-03 — changing an album changes every page that carries it, without touching those pages"
     status: partial
     reason: >-
@@ -45,7 +46,9 @@ gaps:
     missing:
       - "The five import warnings moved into the code-plus-arguments shape .planning/GLOSSARY.md already prescribes for csvimport (D-32), then translated"
       - "A decision on WINDOWS entry 8 — the string is marked, collected, translated four times and printed in German"
+
 deferred:
+
   - truth: "828 operator-facing strings are in no catalogue at all"
     addressed_in: "Phase 12"
     evidence: >-
@@ -57,6 +60,7 @@ deferred:
     addressed_in: "Phase 12"
     evidence: "Phase 12 SC 2 rewrites identifiers and the glossary; the wording correction belongs with it"
 coincidental_reliance_items:
+
   - truth: "SC5 — the gallery block and the album read their image list through one mechanism"
     reason: undeclared-precondition
     harden: >-
@@ -64,6 +68,10 @@ coincidental_reliance_items:
       SplitValues/JoinValues, which the ROADMAP's Depends-on paragraph and REQUIREMENTS.md GAL-07
       both name and which no album code calls. The reasoning is recorded in migration 00050's
       comment; it is not recorded in either document a reader checks first.
+audit_acknowledged:
+  milestone: v1.6
+  at: 2026-09-10
+  status: gaps_found
 ---
 
 # Phase 11: Galerie — Verification Report

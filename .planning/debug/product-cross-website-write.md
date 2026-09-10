@@ -1,8 +1,10 @@
 ---
-status: verifying
+status: resolved
+status_before: verifying
+resolved: "2026-09-10 — beim Meilenstein-Abschluss v1.6 nachgetragen: Flick 2e43bc1 und 25c134e, Rotbeweise 071bead und fb9c76a; die 15 Tests aus menu_scope_test.go, product_scope_test.go und order_scope_test.go gruen am 2026-09-10; Eintrag in knowledge-base.md"
 trigger: "A second cross-website write vulnerability, same family as the menu one fixed on 2026-09-06. internal/admin/product.go handleProductSave (the POST arm of HandleProductForm) reads productID from the path, builds a shop.Product, and calls h.products.Update — without ever checking the product belongs to the website in the path. Prove it first with a failing test in its own commit, then fix it in the store."
 created: 2026-09-07T00:00:00Z
-updated: 2026-09-07T00:00:00Z
+updated: 2026-09-10T00:00:00Z
 ---
 
 ## Current Focus
