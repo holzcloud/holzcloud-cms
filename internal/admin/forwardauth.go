@@ -38,6 +38,7 @@ const (
 	ssoRefuseNoEmail         = "no_email"
 	ssoRefuseNonASCII        = "non_ascii_email"
 	ssoRefuseNoAccount       = "no_account"
+	ssoRefuseNotLinked       = "not_linked"
 	ssoRefuseProvisionFailed = "provisioning_failed"
 	ssoRefuseNoWebsiteGroup  = "no_website_group"
 	ssoRefuseSyncFailed      = "rights_sync_failed"
@@ -137,10 +138,15 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 
 		// 4. The address rule.
 		//
-		// The identity is X-authentik-username and the account key is
-		// users.email. They are two different things, and the reason is that
-		// the users schema is on this phase's deliberately-unchanged list and
-		// email is the only unique key it offers.
+		// The identity is X-authentik-username, and the account is the one
+		// linked to it (users.sso_username, step 5). The address is still
+		// needed, twice: a provisioned account is created with it, and an
+		// address that already belongs to an account turns into a refusal
+		// rather than into a second account. Until migration 00053 the address
+		// was the account key itself, because the users schema stood on this
+		// phase's deliberately-unchanged list and the address was its only
+		// unique key — and whoever could make the identity provider emit an
+		// administrator's address became that administrator (CR-01).
 		//
 		// That column is declared UNIQUE COLLATE NOCASE, and SQLite's NOCASE
 		// folds ASCII only. Go's strings.ToLower folds all of Unicode. Where
@@ -163,10 +169,12 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 			return
 		}
 
-		// 5. The account. The lookup itself creates nothing; whether the
-		// absence of a row becomes a refusal or a new account is decided by
-		// the branch below it, and by one setting that is off by default.
-		u, err := h.users.GetByEmail(r.Context(), email)
+		// 5. The account linked to this identity, and never the one that
+		// merely carries the address the identity arrived with. The lookup
+		// itself creates nothing; whether the absence of a row becomes a
+		// refusal or a new account is decided by the branch below it, and by
+		// one setting that is off by default.
+		u, err := h.users.GetBySSOUsername(r.Context(), ident.Username)
 		if err != nil {
 			// A database that cannot answer must not turn into a sign-in. No
 			// protocol row is attempted here: the store that would write it
@@ -176,6 +184,26 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 			return
 		}
 		if u == nil {
+			// 5a. An address that belongs to an account is not an invitation.
+			//
+			// Either the account was made by hand and nobody linked it — an
+			// operator does that on purpose, with `holzcloud user sso` —, or it
+			// is linked to another identity. Both are refusals, and provisioning
+			// must not run for either: linking an account to the first identity
+			// that arrives with its address would let whoever is quicker on the
+			// day single sign-on is switched on decide the link.
+			taken, err := h.users.GetByEmail(r.Context(), email)
+			if err != nil {
+				slog.Error("forward auth address lookup", "err", err, "username", ident.Username)
+				next.ServeHTTP(w, r)
+				return
+			}
+			if taken != nil {
+				h.refuseSSO(r, ident, email, ssoRefuseNotLinked)
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			// 5b. Provisioning, and the one seam this whole plan exists for.
 			//
 			// NewWebsiteAccessLookup (internal/admin/handler.go) ends with
@@ -598,13 +626,18 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 	if errors.Is(err, user.ErrDuplicateEmail) {
 		// Two requests for one new identity is a race, not an error. The
 		// database resolved it — users.email is UNIQUE COLLATE NOCASE — and the
-		// honest answer is the row that won.
-		existing, readErr := h.users.GetByEmail(ctx, email)
+		// honest answer is the row that won, but only if it won for this
+		// identity. This branch used to return whatever account carried the
+		// address, which was CR-01's second door. The winner links its account
+		// last, after the website assignment, so an account found here is
+		// complete; one not found yet is a refused sign-in this time and a
+		// sign-in on the next request.
+		existing, readErr := h.users.GetBySSOUsername(ctx, ident.Username)
 		if readErr != nil {
 			return nil, fmt.Errorf("provision: re-read after a duplicate address: %w", readErr)
 		}
 		if existing == nil {
-			return nil, errors.New("provision: the address is taken and no account carries it")
+			return nil, errors.New("provision: the address belongs to an account not linked to this identity")
 		}
 		return existing, nil
 	}
@@ -630,6 +663,21 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 				"err", delErr, "user_id", id, "username", ident.Username)
 		}
 		return nil, fmt.Errorf("provision: assign the default website: %w", err)
+	}
+
+	// The link, last, and under the same compensation. Last because the link
+	// is what makes the account findable by this identity: the race branch
+	// above and step 5 of every later sign-in reach an account only through
+	// it, so neither can hand out one that does not have its website yet. An
+	// account created for an identity and not linked to it would be reachable
+	// by nobody — harmless, and a row nobody can explain — so a failed link
+	// removes the account like a failed assignment does.
+	if err := h.users.LinkSSO(ctx, id, ident.Username); err != nil {
+		if delErr := h.users.Delete(ctx, id); delErr != nil {
+			slog.Error("forward auth could not remove an unlinked provisioned account",
+				"err", delErr, "user_id", id, "username", ident.Username)
+		}
+		return nil, fmt.Errorf("provision: link the identity: %w", err)
 	}
 
 	// An account came into existence without a person asking for one. That

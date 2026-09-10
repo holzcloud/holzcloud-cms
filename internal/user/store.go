@@ -113,6 +113,50 @@ func (s *Store) GetByEmail(ctx context.Context, email string) (*User, error) {
 		`SELECT id, name, email, role, password, locale FROM users WHERE email = $1`, strings.TrimSpace(email)))
 }
 
+// ErrSSOUsernameTaken is returned when an identity is already linked to
+// another account.
+var ErrSSOUsernameTaken = errors.New("that identity is already linked to another account")
+
+// GetBySSOUsername returns the account linked to an identity at the identity
+// provider, or nil when no account is.
+//
+// This, and not GetByEmail, is how a forward-auth sign-in finds its account.
+// An address is only something an identity claims; until migration 00053 the
+// sign-in trusted the claim, and whoever could make the identity provider emit
+// an administrator's address became that administrator.
+//
+// The comparison is exact. Folding case or Unicode here would be a second
+// definition of "the same identity" beside the identity provider's own.
+func (s *Store) GetBySSOUsername(ctx context.Context, username string) (*User, error) {
+	if username == "" {
+		return nil, nil
+	}
+	return s.scanOne(s.DB.Read.QueryRowContext(ctx,
+		`SELECT id, name, email, role, password, locale FROM users WHERE sso_username = $1`, username))
+}
+
+// LinkSSO links an account to an identity at the identity provider. The empty
+// username removes the link, and the account is then unreachable through
+// single sign-on until it is linked again.
+func (s *Store) LinkSSO(ctx context.Context, id int64, username string) error {
+	var value any
+	if username != "" {
+		value = username
+	}
+	res, err := s.DB.Write.ExecContext(ctx,
+		`UPDATE users SET sso_username = $1 WHERE id = $2`, value, id)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrSSOUsernameTaken
+		}
+		return fmt.Errorf("link identity: %w", err)
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return fmt.Errorf("link identity: no account %d", id)
+	}
+	return nil
+}
+
 func (s *Store) scanOne(row *sql.Row) (*User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Password, &u.Locale)

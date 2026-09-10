@@ -97,7 +97,8 @@ func serveForwardAuth(t *testing.T, h *Handler, sm *scs.SessionManager, proxyBel
 
 // fwdRequest builds a request that arrives from a trusted peer carrying the
 // right secret, so web.ForwardAuth believes it. username is the identity;
-// email is the account key, and the two are deliberately different things.
+// email is what a provisioned account is created with; the account a sign-in
+// reaches is the one linked to username, and the two are different things.
 func fwdRequest(username, email string, cookie *http.Cookie) *http.Request {
 	req := httptest.NewRequest("GET", "/admin/", nil)
 	req.Host = "admin.test"
@@ -126,6 +127,18 @@ func seedAccount(t *testing.T, database *db.DB, email, role string) int64 {
 	id, err := res.LastInsertId()
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Linked to the identity the address's local part names, lowercased —
+	// "ada@example.com" to "ada" —, which is the identity the tests in this
+	// package sign in with. Since migration 00053 an account is reached by the
+	// identity it is linked to and never by its address alone; a test that
+	// needs an account nobody linked writes the row itself, as
+	// sso_binding_test.go does.
+	if local, _, _ := strings.Cut(strings.ToLower(email), "@"); local != "" {
+		if _, err := database.Write.ExecContext(context.Background(),
+			`UPDATE users SET sso_username = $1 WHERE id = $2`, local, id); err != nil {
+			t.Fatalf("link %q to the identity %q: %v", email, local, err)
+		}
 	}
 	return id
 }
