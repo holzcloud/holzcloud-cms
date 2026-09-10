@@ -276,6 +276,26 @@ func TestSSORefusalsNameTheirVariables(t *testing.T) {
 			wantIn: []string{"HOLZCLOUD_SSO_SIGN_OUT_PATH"},
 		},
 		{
+			// A browser removes tab, line feed and carriage return from a URL
+			// before it resolves it (WHATWG URL), so "/<TAB>/evil.example" is
+			// followed as "//evil.example": protocol-relative, somebody else's
+			// server. net/http replaces CR and LF in a Location header but keeps
+			// the tab (threat T-10-05).
+			name:   "the sign-out target hides a second slash behind a tab",
+			env:    map[string]string{"HOLZCLOUD_SSO_SIGN_OUT_PATH": "/\t/evil.example/sign_out"},
+			wantIn: []string{"HOLZCLOUD_SSO_SIGN_OUT_PATH"},
+		},
+		{
+			name:   "the sign-out target hides a second slash behind a line feed",
+			env:    map[string]string{"HOLZCLOUD_SSO_SIGN_OUT_PATH": "/\n/evil.example/sign_out"},
+			wantIn: []string{"HOLZCLOUD_SSO_SIGN_OUT_PATH"},
+		},
+		{
+			name:   "the sign-out target carries a control character",
+			env:    map[string]string{"HOLZCLOUD_SSO_SIGN_OUT_PATH": "/outpost\x7f/sign_out"},
+			wantIn: []string{"HOLZCLOUD_SSO_SIGN_OUT_PATH"},
+		},
+		{
 			// With single sign-on on, the trusted proxies ARE layer 1: they alone
 			// decide whether an identity header is read at all. A prefix of length
 			// zero trusts every address, and then only the secret stands
