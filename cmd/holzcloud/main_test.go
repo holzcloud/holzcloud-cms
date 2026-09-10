@@ -659,7 +659,7 @@ func TestProvisioningRefusesToStartWithoutItsDefaultWebsite(t *testing.T) {
 	t.Run("an id nobody ever created", func(t *testing.T) {
 		cfg := config.Config{SSOProvision: true, SSODefaultWebsite: created.ID + 4242}
 
-		err := checkDefaultWebsite(ctx, cfg, store)
+		err := checkSSOWebsites(ctx, cfg, store)
 		if err == nil {
 			t.Fatal("a website that does not exist was accepted; want a refusal to start")
 		}
@@ -673,14 +673,14 @@ func TestProvisioningRefusesToStartWithoutItsDefaultWebsite(t *testing.T) {
 
 	t.Run("a website that exists", func(t *testing.T) {
 		cfg := config.Config{SSOProvision: true, SSODefaultWebsite: created.ID}
-		if err := checkDefaultWebsite(ctx, cfg, store); err != nil {
+		if err := checkSSOWebsites(ctx, cfg, store); err != nil {
 			t.Errorf("a named website that exists must start: %v", err)
 		}
 	})
 
 	t.Run("provisioning off asks the database nothing", func(t *testing.T) {
 		cfg := config.Config{SSOProvision: false, SSODefaultWebsite: 0}
-		if err := checkDefaultWebsite(ctx, cfg, refusingLookup{t}); err != nil {
+		if err := checkSSOWebsites(ctx, cfg, refusingLookup{t}); err != nil {
 			t.Errorf("with provisioning off there is nothing to check: %v", err)
 		}
 	})
@@ -1093,7 +1093,7 @@ func TestSingleSignOnRefusesToStartWithAWebsiteGroupForNoWebsite(t *testing.T) {
 		cfg := config.Config{SSOEnabled: true, SSOWebsiteGroups: map[string]int64{
 			"redaktion-a": created.ID, "redaktion-x": missing,
 		}}
-		err := checkDefaultWebsite(ctx, cfg, store)
+		err := checkSSOWebsites(ctx, cfg, store)
 		if err == nil {
 			t.Fatal("a website group naming a website that does not exist was accepted; want a refusal to start")
 		}
@@ -1106,14 +1106,14 @@ func TestSingleSignOnRefusesToStartWithAWebsiteGroupForNoWebsite(t *testing.T) {
 
 	t.Run("every group naming a website that exists", func(t *testing.T) {
 		cfg := config.Config{SSOEnabled: true, SSOWebsiteGroups: map[string]int64{"redaktion-a": created.ID}}
-		if err := checkDefaultWebsite(ctx, cfg, store); err != nil {
+		if err := checkSSOWebsites(ctx, cfg, store); err != nil {
 			t.Errorf("groups naming websites that exist must start: %v", err)
 		}
 	})
 
 	t.Run("single sign-on off asks the database nothing", func(t *testing.T) {
 		cfg := config.Config{SSOEnabled: false, SSOWebsiteGroups: map[string]int64{"redaktion-x": missing}}
-		if err := checkDefaultWebsite(ctx, cfg, refusingLookup{t}); err != nil {
+		if err := checkSSOWebsites(ctx, cfg, refusingLookup{t}); err != nil {
 			t.Errorf("with single sign-on off there is nothing to check: %v", err)
 		}
 	})

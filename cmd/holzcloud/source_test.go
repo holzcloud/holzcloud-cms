@@ -52,8 +52,8 @@ func callsIdent(n ast.Node, name string) bool {
 // website is only worth anything if main calls it.
 func TestMainRunsTheSingleSignOnStartUpCheck(t *testing.T) {
 	_, file := parseMainFile(t)
-	if !callsIdent(topLevelFunc(t, file, "main"), "checkDefaultWebsite") {
-		t.Error("main does not call checkDefaultWebsite; the service would start with provisioning or " +
+	if !callsIdent(topLevelFunc(t, file, "main"), "checkSSOWebsites") {
+		t.Error("main does not call checkSSOWebsites; the service would start with provisioning or " +
 			"website groups pointing at websites that do not exist")
 	}
 }

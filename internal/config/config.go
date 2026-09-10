@@ -170,6 +170,11 @@ type Config struct {
 // terminates TLS on the same host and proxies to localhost.
 const defaultTrustedProxies = "127.0.0.1/32,::1/128"
 
+// minSSOSecretLength is the shortest shared secret single sign-on accepts.
+// Thirty-two characters is what `openssl rand -hex 16` prints, and half of what
+// DEPLOY.md tells an operator to generate.
+const minSSOSecretLength = 32
+
 // defaultListen agrees with defaultTrustedProxies: the documented deployment
 // has a proxy on the same host, so the socket does not have to leave it.
 const defaultListen = "127.0.0.1"
@@ -309,6 +314,30 @@ func Load() (Config, error) {
 			"%s is on but %s is empty: the shared secret is the only thing that tells "+
 				"the reverse proxy apart from anyone else who can reach the port",
 			envSSOEnabled, envSSOSecret))
+	}
+
+	// Two refusals the Phase 10 code review found missing (WR-05, WR-06).
+	//
+	// With single sign-on on, the trusted proxies are layer 1: they alone decide
+	// whether an identity header is read at all. A prefix of length zero trusts
+	// every address, and what stands after it is the shared secret — which is
+	// why the secret has a minimum length. Constant time keeps a comparison from
+	// leaking timing; it does nothing against a short secret being guessed by
+	// whatever counts as a trusted peer. The value is never printed, only its
+	// length.
+	if cfg.SSOEnabled {
+		for _, prefix := range cfg.TrustedProxies {
+			if prefix.Bits() == 0 {
+				errs = append(errs, fmt.Errorf(
+					"HOLZCLOUD_TRUSTED_PROXIES: %s trusts every address while %s is on; the trusted proxies decide whether an identity header is believed at all, and with this prefix only the shared secret would stand",
+					prefix, envSSOEnabled))
+			}
+		}
+		if cfg.SSOSecret != "" && len(cfg.SSOSecret) < minSSOSecretLength {
+			errs = append(errs, fmt.Errorf(
+				"%s has %d characters; at least %d are required (generate one with: openssl rand -hex 32)",
+				envSSOSecret, len(cfg.SSOSecret), minSSOSecretLength))
+		}
 	}
 	if cfg.SSOProvision && !cfg.SSOEnabled {
 		errs = append(errs, fmt.Errorf(
