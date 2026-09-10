@@ -46,6 +46,11 @@ Environment=HOLZCLOUD_TRUSTED_PROXIES=127.0.0.1/32,::1/128
 #Environment=HOLZCLOUD_SMTP_USER=shop@example.ch
 #Environment=HOLZCLOUD_SMTP_PASSWORD=
 #Environment=HOLZCLOUD_SMTP_FROM=shop@example.ch
+#
+# Anmeldung über den Ausweisdienst: das gemeinsame Geheimnis gehört ebenfalls in
+# eine EnvironmentFile mit Rechten 0600 — und dieselbe Datei braucht Caddy.
+# deploy/DEPLOY.md, "The shared secret lives in two environments".
+#EnvironmentFile=/etc/holzcloud-sso.env
 
 # Security hardening
 NoNewPrivileges=true
