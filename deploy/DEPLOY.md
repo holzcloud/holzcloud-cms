@@ -203,9 +203,9 @@ combination stops the process at start-up rather than at the first sign-in.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HOLZCLOUD_SSO_ENABLED` | `false` | The master switch. False means the whole path is dead code |
-| `HOLZCLOUD_SSO_SECRET` | — | The shared secret the proxy sends in `X-Holzcloud-Proxy-Secret`. Environment only, never in the database and never in the log. Switched on without one, the service refuses to start |
+| `HOLZCLOUD_SSO_SECRET` | — | The shared secret the proxy sends in `X-Holzcloud-Proxy-Secret`. Environment only, never in the database and never in the log. Switched on without one, or with fewer than 32 characters, the service refuses to start. Generate one with `openssl rand -hex 32` |
 | `HOLZCLOUD_SSO_ADMIN_GROUP` | — | The identity provider group that grants administration. See below |
-| `HOLZCLOUD_SSO_WEBSITE_GROUPS` | — | Comma-separated `group=websiteID` pairs. A group not listed here grants no website. Ids and not names, because `websites` has no slug column and a rename would silently unassign everybody |
+| `HOLZCLOUD_SSO_WEBSITE_GROUPS` | — | Comma-separated `group=websiteID` pairs. A group not listed here grants no website. Ids and not names, because `websites` has no slug column and a rename would silently unassign everybody. Every id is checked against the database at start-up, and an id that names no website stops the service |
 | `HOLZCLOUD_SSO_PROVISION` | `false` | Create an account for an identity the provider vouches for but this installation has never seen. See below |
 | `HOLZCLOUD_SSO_DEFAULT_WEBSITE` | — | The website a newly created account is assigned to. Required whenever provisioning is on, and checked against the database at start-up |
 | `HOLZCLOUD_SSO_SIGN_OUT_PATH` | `/outpost.goauthentik.io/sign_out` | Where the sign-out button sends the browser. A path on this server, never a URL — validated at start-up as exactly one leading slash |
@@ -213,6 +213,13 @@ combination stops the process at start-up rather than at the first sign-in.
 **`HOLZCLOUD_SSO_ADMIN_GROUP` has no default, deliberately.** An empty value is a
 legal configuration and means that no group grants administration. A default
 group name would be a group name somebody at the identity provider can create.
+
+**`HOLZCLOUD_TRUSTED_PROXIES` may not trust every address while single sign-on is
+on.** With it on, the trusted proxies are the first layer: they alone decide
+whether an identity header is believed at all. A prefix like `0.0.0.0/0` or
+`::/0` would leave the shared secret as the only check, and the service refuses
+to start with one. In a container setup, name the proxy's own network rather than
+everything.
 
 **`HOLZCLOUD_SSO_PROVISION` and `HOLZCLOUD_SSO_DEFAULT_WEBSITE` belong together,
 and the service refuses to start with the first set and the second missing.**

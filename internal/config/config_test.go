@@ -189,7 +189,7 @@ func TestListenAcceptsAnyAddressTheOperatorNames(t *testing.T) {
 func TestSSOWithoutAnAdminGroupIsALegalInstallation(t *testing.T) {
 	t.Setenv("HOLZCLOUD_DATA_DIR", t.TempDir())
 	t.Setenv("HOLZCLOUD_SSO_ENABLED", "true")
-	t.Setenv("HOLZCLOUD_SSO_SECRET", "a-shared-secret")
+	t.Setenv("HOLZCLOUD_SSO_SECRET", "a-shared-secret-long-enough-to-be-one")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -230,7 +230,7 @@ func TestSSORefusalsNameTheirVariables(t *testing.T) {
 			name: "provisioning without a default website",
 			env: map[string]string{
 				"HOLZCLOUD_SSO_ENABLED":   "true",
-				"HOLZCLOUD_SSO_SECRET":    "a-shared-secret",
+				"HOLZCLOUD_SSO_SECRET":    "a-shared-secret-long-enough-to-be-one",
 				"HOLZCLOUD_SSO_PROVISION": "true",
 			},
 			wantIn: []string{"HOLZCLOUD_SSO_DEFAULT_WEBSITE"},
@@ -239,7 +239,7 @@ func TestSSORefusalsNameTheirVariables(t *testing.T) {
 			name: "a default website of zero is the same as none",
 			env: map[string]string{
 				"HOLZCLOUD_SSO_ENABLED":         "true",
-				"HOLZCLOUD_SSO_SECRET":          "a-shared-secret",
+				"HOLZCLOUD_SSO_SECRET":          "a-shared-secret-long-enough-to-be-one",
 				"HOLZCLOUD_SSO_PROVISION":       "true",
 				"HOLZCLOUD_SSO_DEFAULT_WEBSITE": "0",
 			},
@@ -249,7 +249,7 @@ func TestSSORefusalsNameTheirVariables(t *testing.T) {
 			name: "a negative default website is the same as none",
 			env: map[string]string{
 				"HOLZCLOUD_SSO_ENABLED":         "true",
-				"HOLZCLOUD_SSO_SECRET":          "a-shared-secret",
+				"HOLZCLOUD_SSO_SECRET":          "a-shared-secret-long-enough-to-be-one",
 				"HOLZCLOUD_SSO_PROVISION":       "true",
 				"HOLZCLOUD_SSO_DEFAULT_WEBSITE": "-1",
 			},
@@ -334,7 +334,7 @@ func TestSSORefusalsNameTheirVariables(t *testing.T) {
 func TestSSOProvisioningWithADefaultWebsiteLoads(t *testing.T) {
 	t.Setenv("HOLZCLOUD_DATA_DIR", t.TempDir())
 	t.Setenv("HOLZCLOUD_SSO_ENABLED", "true")
-	t.Setenv("HOLZCLOUD_SSO_SECRET", "a-shared-secret")
+	t.Setenv("HOLZCLOUD_SSO_SECRET", "a-shared-secret-long-enough-to-be-one")
 	t.Setenv("HOLZCLOUD_SSO_PROVISION", "true")
 	t.Setenv("HOLZCLOUD_SSO_DEFAULT_WEBSITE", "7")
 
@@ -420,7 +420,7 @@ func TestThreeBadSettingsProduceThreeErrors(t *testing.T) {
 
 // The startup log is the first thing anyone pastes into a bug report.
 func TestConfigLogValueCarriesTheSSOBlockButNotTheSecret(t *testing.T) {
-	const secret = "correct-horse-battery-staple"
+	const secret = "correct-horse-battery-staple-longer"
 
 	t.Setenv("HOLZCLOUD_DATA_DIR", t.TempDir())
 	t.Setenv("HOLZCLOUD_LISTEN", "0.0.0.0")

@@ -12,6 +12,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -210,7 +212,7 @@ func main() {
 	// than the environment, and beside the other start-up checks rather than
 	// inside newRouter — newRouter returns an error and is under test, and a
 	// fatal exit does not belong in a function a test calls.
-	if err := checkDefaultWebsite(context.Background(), cfg, domainStore); err != nil {
+	if err := checkSSOWebsites(context.Background(), cfg, domainStore); err != nil {
 		slog.Error("invalid configuration", "err", err)
 		os.Exit(1)
 	}
@@ -632,38 +634,63 @@ func main() {
 	slog.Info("shutdown complete")
 }
 
-// websiteLookup is the one thing checkDefaultWebsite needs from the domain
+// websiteLookup is the one thing checkSSOWebsites needs from the domain
 // store, named as an interface so the check can be tested without a router, a
 // session manager or a template set.
 type websiteLookup interface {
 	GetWebsite(ctx context.Context, id int64) (*domain.Website, error)
 }
 
-// checkDefaultWebsite refuses to start when account provisioning points at a
-// website that does not exist.
+// checkSSOWebsites refuses to start when single sign-on names a website that
+// does not exist: the default website of provisioning, or the website of any
+// group in HOLZCLOUD_SSO_WEBSITE_GROUPS.
 //
-// config.Load already refuses to switch provisioning on without an id. This is
-// the half the environment cannot answer: an id nobody ever created satisfies
-// every check in config.go and fails only against the database. It is asked at
-// start-up and not at the first sign-in, because a provisioned account assigned
-// to a website that is not there has no rows in user_websites at all — and
-// internal/admin/handler.go's NewWebsiteAccessLookup ends with
-// `return assigned == 0 || mine > 0`, which reads "no assignment" as "every
-// website". That is the same inversion the configuration refusal prevents,
-// arriving by a second road.
-func checkDefaultWebsite(ctx context.Context, cfg config.Config, websites websiteLookup) error {
-	if !cfg.SSOProvision {
+// config.Load refuses what the environment alone can answer. This is the half
+// only the database can: an id nobody ever created satisfies every check in
+// config.go. It is asked at start-up and not at the first sign-in, because at a
+// sign-in the answer is a refused person and an INSERT failing on the foreign
+// key — and before migration 00052, when "no rows" still meant "every website",
+// an assignment the failure left empty. The default website has been checked
+// here since plan 10-04; the website groups were not, until the Phase 10 code
+// review found it (CR-02).
+func checkSSOWebsites(ctx context.Context, cfg config.Config, websites websiteLookup) error {
+	if cfg.SSOProvision {
+		ws, err := websites.GetWebsite(ctx, cfg.SSODefaultWebsite)
+		if err != nil {
+			return fmt.Errorf("HOLZCLOUD_SSO_DEFAULT_WEBSITE=%d could not be checked against the database: %w",
+				cfg.SSODefaultWebsite, err)
+		}
+		if ws == nil {
+			return fmt.Errorf("HOLZCLOUD_SSO_DEFAULT_WEBSITE=%d names a website that does not exist: "+
+				"an account provisioned into nothing is an account nobody can place",
+				cfg.SSODefaultWebsite)
+		}
+	}
+	if !cfg.SSOEnabled || len(cfg.SSOWebsiteGroups) == 0 {
 		return nil
 	}
-	ws, err := websites.GetWebsite(ctx, cfg.SSODefaultWebsite)
-	if err != nil {
-		return fmt.Errorf("HOLZCLOUD_SSO_DEFAULT_WEBSITE=%d could not be checked against the database: %w",
-			cfg.SSODefaultWebsite, err)
+
+	groups := make([]string, 0, len(cfg.SSOWebsiteGroups))
+	for group := range cfg.SSOWebsiteGroups {
+		groups = append(groups, group)
 	}
-	if ws == nil {
-		return fmt.Errorf("HOLZCLOUD_SSO_DEFAULT_WEBSITE=%d names a website that does not exist: "+
-			"an account provisioned into nothing is an account with access to every website",
-			cfg.SSODefaultWebsite)
+	sort.Strings(groups)
+	var missing []string
+	for _, group := range groups {
+		id := cfg.SSOWebsiteGroups[group]
+		ws, err := websites.GetWebsite(ctx, id)
+		if err != nil {
+			return fmt.Errorf("HOLZCLOUD_SSO_WEBSITE_GROUPS: %s=%d could not be checked against the database: %w",
+				group, id, err)
+		}
+		if ws == nil {
+			missing = append(missing, fmt.Sprintf("%s=%d", group, id))
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("HOLZCLOUD_SSO_WEBSITE_GROUPS names websites that do not exist: %s — "+
+			"everybody in such a group would be turned away at sign-in without being told why",
+			strings.Join(missing, ", "))
 	}
 	return nil
 }
