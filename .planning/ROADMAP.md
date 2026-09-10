@@ -69,7 +69,7 @@ sign-in the operator already runs.
 - [x] **Phase 7: Field Kinds** — The palette an author reaches for: choice as a button row, a genuine multiple choice, terms as a field, plus `zeit`, `bereich` and `code` — and the multi-value encoding everything else depends on
 - [x] **Phase 8: Snippets Carry Fields** — A text snippet stops being one Markdown box and holds any field kind, reusing the field table that already exists
 - [x] **Phase 9: CSV Import** — Content arrives as a table: upload, map column to field, dry-run it, create pages the ordinary way, report every row
-- [ ] **Phase 10: Authentik Forward-Auth** — Single sign-on taken as a header from the reverse proxy, with the trust boundary closed before the first header is read and the password path untouched behind it
+- [x] **Phase 10: Authentik Forward-Auth** — Single sign-on taken as a header from the reverse proxy, with the trust boundary closed before the first header is read and the password path untouched behind it
 - [x] **Phase 11: Galerie** — What the picture grid has been missing since it was built: enlarging an image, assembling an album once and using it on several pages, and paging through pictures instead of scrolling past them — all of it without a line of JavaScript
 
 ---
@@ -552,6 +552,13 @@ Plans:
 - **A second gallery already exists and must not be forgotten:** the shop's product gallery (`internal/shop/product.go`, `.Product.Gallery`) is rendered by all seven themes as `.product__gallery`. Decide explicitly whether it inherits the large view — and record the decision either way, because "we only meant the block" is exactly the kind of silence that becomes a bug report.
 - **An album pays the same tax terms and menus pay:** a table, a migration, an admin area, website scoping, the bundle round trip, `TEMPLATE-SPEC.md` + `SampleData` + `MinimalData` if a theme can reach it, and `tools/i18n -write` followed by `-schweiz`. Budget it once. Migrations will stand at `00047` after Phase 8; this phase should claim its number when it is planned, not before.
 
+### 📋 v2.0 — The Codebase Speaks English (not planned)
+
+Moved out of v1.6 on 2026-09-08 (see the note under *Milestones*). This heading
+closes the v1.6 section for every tool that reads a milestone window: without
+it, the v1.6 window ran to the end of the file and counted Phase 12 as an
+unstarted v1.6 phase. Added 2026-09-10 at the v1.6 close.
+
 ### Phase 12: The Codebase Speaks English
 
 **Goal**: A stranger can read this repository. Every identifier, every comment, every test name, every SQL column and every catalogue key is English — and the template data contract is too, which is why the release carrying this phase is **2.0** and not 1.10.
@@ -610,9 +617,9 @@ anywhere.
 | 7. Field Kinds | v1.6 | 7/7 | Complete | 2026-09-06 |
 | 8. Snippets Carry Fields | v1.6 | 5/5 | Complete | 2026-09-06 |
 | 9. CSV Import | v1.6 | 6/6 | Complete | 2026-09-07 |
-| 10. Authentik Forward-Auth | v1.6 | 10/10 | In Progress|  |
+| 10. Authentik Forward-Auth | v1.6 | 10/10 | Complete | 2026-09-10 |
 | 11. Galerie | v1.6 | 7/7 | Complete | 2026-09-08 |
-| 12. The Codebase Speaks English | v1.6 | 0/TBD | Not planned | - |
+| 12. The Codebase Speaks English | v2.0 | 0/TBD | Not planned | - |
 
 ---
 

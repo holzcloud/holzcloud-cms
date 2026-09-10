@@ -12,6 +12,7 @@ tree_verified: >-
   Code-Durchgang unabhaengig bestaetigt, oder er steht am Code selbst.
 closed_since: [0536f96, 88bab2e, e724cdd, e391023, 5a5e753, 0c7b15b, 77cb92c, 7a90d46, e9a2f66, 3575760, b440505, e306eeb, ddb94f7, d5dde80, 4923c39, 4a3659d, 06be6a3, a781f07, 64b4b92, 8be4437, 2951abe, 029660d, c2dc0b3]
 gaps_at_480f21b:
+
   - truth: "SC1 — die Gruppen entscheiden Rolle und Website-Zugang, bei JEDER Anmeldung neu, damit eine Herabstufung hier wirkt"
     status: partial
     reason: >-
@@ -82,7 +83,9 @@ gaps_at_480f21b:
       Code-Durchgangs-Fixrunde abgezeichnet, die es nie gab.
     missing:
       - "Die fuenfzehn v1.6-Saetze durch den Katalog"
+
 gaps:
+
   - truth: "SC6 — 0 offen, 0 verwaist ueber alles, was v1.6 hinzufuegte"
     status: partial
     reason: >-
@@ -95,6 +98,11 @@ gaps:
       bis in den CSV-Import und die KI-Werkzeuge.
     missing:
       - "Die fuenfzehn Saetze durch den Katalog (Phase 12, Kriterium 9)"
+
+audit_acknowledged:
+  milestone: v1.6
+  at: 2026-09-10
+  status: gaps_found
 ---
 
 # Phase 10 — Verifizierung

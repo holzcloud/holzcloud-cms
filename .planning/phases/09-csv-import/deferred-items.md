@@ -52,6 +52,7 @@ administration, not a repair to this phase.
 CSV screens alone.
 
 ---
+  status: acknowledged
 
 ## 3. `ReasonRenamed` (D-23) could not be driven in a browser
 
