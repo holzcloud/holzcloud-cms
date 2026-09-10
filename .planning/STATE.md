@@ -6,19 +6,19 @@ current_phase: 10
 current_phase_name: Authentik Forward-Auth
 status: in_progress
 stopped_at: >-
-  Phase 10 ist gemessen: 1/6 Kriterien, OPEN_THREATS, Code-Durchgang mit 3
-  Critical. Vier Befunde seither geschlossen (e724cdd, e391023, 0c7b15b); CR-01,
-  die Sitzungs-Abgleichung und via_sso nach dem Abschalten sind offen und
-  blockieren den Meilenstein.
-last_updated: "2026-09-10T16:00:00.000Z"
+  Phase 10 abgeschlossen nach Fixrunde und zweitem Browserdurchgang:
+  Verifizierung 5/6 (Kriterium 6 an Phase 12 uebergeben, WINDOWS 18),
+  Sicherheit SECURED (58 geschlossen, 1 angenommen). Meilenstein bereit fuer
+  den Abschluss.
+last_updated: "2026-09-10T18:00:00.000Z"
 last_activity: 2026-09-10
-state_head: 0c7b15bae8e83ca6a87b2057457a8d1c3dc8d73b
+state_head: c2dc0b31c6f0ddd178924f9cfd97ab0ca7219c33
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 42
   completed_plans: 42
-  percent: 83
+  percent: 100
 ---
 
 ## State: Holzcloud CMS
@@ -37,35 +37,38 @@ Phase: 10 — Authentik Forward-Auth (**10/10 Pläne ausgeführt**), zugleich di
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
 ihre Pläne gefahren: 42 von 42.
 
-Plan: keiner offen. Der **Abschluss** der Phase liegt seit dem 2026-09-10 vor —
-`10-VERIFICATION.md` (**1 von 6 Kriterien erfüllt**, `gaps_found`),
-`10-SECURITY.md` (59 Bedrohungs-IDs: 43 geschlossen, 15 teilweise, 1 offen;
-dazu 39 unregistrierte Flächen, `OPEN_THREATS`, blockierend) und der nachgeholte
-Code-Durchgang `10-REVIEW.md` (3 Critical, 8 Warning, 6 Info). Die Phase ist
-damit gemessen, und das Ergebnis ist: nicht fertig.
+Plan: keiner offen. **Phase 10 ist abgeschlossen, mit einer ausdrücklichen
+Übergabe.** Am 2026-09-10 gemessen (`10-VERIFICATION.md`, `10-SECURITY.md`,
+nachgeholter Code-Durchgang `10-REVIEW.md`), dann in einer Fixrunde geschlossen,
+dann nach der Fixrunde erneut im Browser gefahren (Binär aus `64b4b92`):
 
-Seither geschlossen, je mit Rotbeweis vorher und Mutationsprobe nachher: drei
-Wege, auf denen ein begrenzter Redakteur zum Redakteur aller Websites wurde
-(`e724cdd`, `e391023` — geschlossen an der Kodierung, Migration `00052`), und
-ein Identitätsheader mit zwei Werten, der die Identität übernahm (`0c7b15b`).
-**Offen und blockierend:** CR-01 — eine SSO-Identität wird dem Konto mit
-derselben E-Mail-Adresse zugeordnet statt dem Benutzernamen; eine Herabstufung
-wirkt nicht auf eine laufende Sitzung (bis 24 Stunden); `via_sso` überlebt das
-Abschalten von SSO und befreit dann weiter vom zweiten Faktor.
+- Verifizierung **5 von 6** (vorher 1 von 6). Kriterium 6 bleibt teilweise: die
+  fünfzehn v1.6-Sätze aus `field.Check` und `internal/field/store.go`, die am
+  i18n-Tor vorbei auf den Bildschirm kommen, sind bewusst an **Phase 12**
+  übergeben (Fensterbuch 18).
+- Sicherheit **58 von 59 geschlossen, 1 angenommen, 0 offen** (vorher 43/15/1),
+  `SECURED`.
+- Code-Durchgang: alle drei Critical und sieben der acht Warnungen geschlossen;
+  WR-07 und IN-06 sind als bekannte Grenzen in `deploy/DEPLOY.md` beschrieben.
 
-**Wie gemessen wurde, hat selbst zwei Fehler gehabt, und beide stehen im
-Bericht:** der erste Prüflauf teilte sich einen Arbeitsbaum und die Prüfer
-sahen einander ihre Mutationen (zwei blieben stehen, als 66 Agenten am
-Wochenlimit starben — eine schaltete die Prüfung des Abmeldeziels aus); und der
-isolierte Nachlauf stand in allen drei Worktrees auf `d4ca500` statt auf dem
-geprüften Stand. Die Prüfer haben das Zweite selbst bemerkt.
+Die Fixrunde hat zwei Migrationen hinzugefügt (`00052 users.websites_limited`,
+`00053 users.sso_username`), einen CLI-Befehl (`holzcloud user sso`) und strengere
+Startprüfungen. Der CHANGELOG sagt Betreibern, was sie nach dem Aktualisieren
+tun müssen — insbesondere: Redakteure, die vor dem Update ihre einzige Website
+verloren haben, stehen danach bei „alle Websites" und müssen von Hand neu begrenzt
+werden, weil kein Programm sie von nie begrenzten unterscheiden kann.
 
-Status: **Der Meilenstein ist gebaut, aber nicht abgeschlossen.** Diese Zeile
-stand bis zum 2026-09-09 als „Phase 10 and milestone v1.6 complete" im Kopf
-dieser Datei, und das war die Behauptung, die nachzumessen war — sie zählte
-gefahrene Pläne und nannte das Ergebnis fertig. Ein Plan ist gefahren, wenn
-sein Ausführer fertig ist; eine Phase ist abgeschlossen, wenn jemand anderes
-nachgesehen hat.
+**Wie gemessen wurde, hatte eigene Fehler, und alle stehen in den Berichten
+und Commits:** der erste Prüflauf teilte sich einen Arbeitsbaum (zwei Mutationen
+blieben stehen, als 66 Agenten am Wochenlimit starben); der isolierte Nachlauf
+stand auf `d4ca500`; zwei erfundene Commit-IDs (vor bzw. per `--amend`
+berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über zwei
+leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
+Buildfehler als rot zählte.
+
+Status: **Der Meilenstein v1.6 ist gebaut und verifiziert, mit einer benannten
+Übergabe an Phase 12.** Bereit für den Meilenstein-Abschluss. Die frühere Zeile
+„gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
 **Was 10-10 auf dem Bildschirm fand und kein Tor sah:** fünf deutsche Sätze auf
 einer englischen Verwaltung, während `go run ./tools/i18n` auf allen vier

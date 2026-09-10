@@ -2,7 +2,9 @@
 phase: 10-authentik
 audited: 2026-09-10
 tree_audited: 480f21b
-status: OPEN_THREATS
+status: SECURED
+status_at_480f21b: OPEN_THREATS
+amended: 2026-09-10 — Fixrunde und zweiter Browserdurchgang auf 64b4b92
 verdict_note: >-
   Blockierend. Die Register-Zeilen stehen überwiegend, aber die schwersten
   Befunde dieser Prüfung hatten gar keine Zeile: eine Identität wird dem Konto
@@ -12,10 +14,12 @@ verdict_note: >-
   Die letzten beiden Gruppen sind seit e724cdd, e391023 und 0c7b15b geschlossen;
   CR-01 ist offen.
 threats_total: 59
-threats_closed: 43
-threats_partial: 15
-threats_open: 1
+threats_closed: 58
+threats_partial: 0
+threats_open: 0
 threats_not_applicable: 0
+threats_accepted: 1
+threats_at_480f21b: {closed: 43, partial: 15, open: 1}
 unregistered_surfaces: 39
 asvs_level: 2
 block_on: high
@@ -248,3 +252,141 @@ hier, damit sie nicht wieder auftauchen:
 - **Ein Verweigerungszweig sei ungemessen** — ein Werkzeugbefund über den
   verdorbenen ersten Lauf, kein Codebefund; die Gegenprobe hat die Messung in
   einem eigenen Worktree nachgeholt.
+
+## Nachtrag 2026-09-10 — nach der Fixrunde
+
+Der Bericht oben beschreibt `480f21b` und bleibt, wie er ist. Seither ist jede
+Bedrohungszeile, die „teilweise" oder „offen" stand, entweder geschlossen oder
+ausdrücklich angenommen — mit Rotbeweis vor dem Flick, Wächter oder Flick, und
+einer Mutationsprobe danach, deren Ergebnis im Commit steht.
+
+**Bilanz: 58 von 59 geschlossen, 1 angenommen, 0 offen.** `block_on: high` —
+nichts blockiert.
+
+### Die Zeilen, die nicht geschlossen standen
+
+| ID | Schwere | vorher | jetzt | durch |
+|---|---|---|---|---|
+| T-10-05 | niedrig | teilweise | geschlossen — kein Steuerzeichen im Abmeldeziel | `029660d` rot, `c2dc0b3` |
+| T-10-08 | hoch | teilweise | geschlossen — zwei Werte werden verweigert; die Dokumente sagen, dass gegen einen einzelnen weitergereichten Wert nur Caddy schützt | `5a5e753`, `0c7b15b`, `824ae93`, `2951abe` |
+| T-10-10 | niedrig | teilweise | geschlossen — konstante Zeit von einem Wächter gehalten | `ddb94f7` |
+| T-10-19 | mittel | teilweise | geschlossen — Wächter: die Anmeldung über den Ausweisdienst beantwortet nie selbst | `029660d` |
+| T-10-20 | mittel | teilweise | geschlossen — Wächter: die Anmeldebremse bleibt unberührt | `029660d` |
+| T-10-24 | hoch | teilweise | geschlossen — Wächter: `Create` bekommt nur `randomSecret()` (die Probe mit festem Passwort liess vorher die ganze Suite grün) | `029660d` |
+| T-10-29 | hoch | teilweise | geschlossen — an der Kodierung, Migration 00052 | `e724cdd`, `e391023` |
+| T-10-32 | mittel | teilweise | geschlossen — die Entzugszeile wird gehalten | `a781f07` |
+| T-10-36 | hoch | teilweise | geschlossen — Wächter: je genau ein Schreiber für `via_sso` und `sso_username` | `029660d` |
+| T-10-44 | hoch | teilweise | geschlossen — Caddyfile und DEPLOY.md von Tests gelesen | `8be4437`, `2951abe` |
+| T-10-45 | hoch | teilweise | geschlossen — wie das Geheimnis in Caddys Umgebung kommt | `8be4437`, `2951abe` |
+| T-10-50 | mittel | teilweise | geschlossen — die Ablehnung des zweiten Faktors übersetzt (Fensterbuch 17) | `029660d`, `c2dc0b3` |
+| T-10-51 | mittel | teilweise | geschlossen — Wächter gegen kopierte deutsche Werte | `029660d` |
+| T-10-52 | niedrig | teilweise | **angenommen** — von Hand gepflegte Regionalkataloge, konstruktionsbedingt (Fensterbuch 25) | — |
+| T-10-53 | hoch | offen | geschlossen — der Anmeldepfad nach der Fixrunde im Browser gefahren | dieser Durchgang |
+| T-10-58 | hoch | teilweise | geschlossen — Anmeldepfad und der nachträglich geänderte Feldbildschirm erneut gesehen; die übrigen deutschen Sätze an Phase 12 übergeben (Fensterbuch 18) | dieser Durchgang |
+
+### Die unregistrierten Flächen
+
+Die schwersten hatten keine Registerzeile und sind alle geschlossen: CR-01
+(`7a90d46`), zwei Werte in einem Header (`0c7b15b`), die drei Wege zu „jede
+Website" (`e724cdd`, `e391023`), die laufende Sitzung (`3575760`), `via_sso` nach
+dem Abschalten (`3575760`), `0.0.0.0/0` und das kurze Geheimnis (`d5dde80`,
+`4a3659d`), die Gruppen-Website-IDs (`d5dde80`). Was an kleineren Flächen bleibt,
+steht einzeln im Fensterbuch: 19 (Passwortbestätigung für SSO-Konten), 20
+(Abmelden einer Passwortsitzung), 21 (von Hand entzogene Website kehrt zurück),
+22 (`user_id NULL` bei der Bereitstellung), 26 (ungebremste Verweigerungszeilen),
+27 (kein Abbau), 28 (Protokolllücken bei Verweigerungen). Keine davon gibt jemandem
+Zugang, der ihm nicht zusteht.
+
+### Der zweite Browserdurchgang, Schritt für Schritt
+
+#### Bootstrap (SSO aus)
+- Admin per CLI angelegt (`user create`, Passwort über stdin).
+- Passwortanmeldung → landet auf `/admin/2fa/einrichten`, „For administrators this step is compulsory".
+- TOTP im Browser berechnet (crypto.subtle), eingerichtet, 10 Wiederherstellungscodes.
+- Websites „Redaktion A" = 1, „Redaktion B" = 2 über /admin/websites/new.
+
+#### A0 — Startprüfung (SSO an, Gruppen-Websites existieren noch nicht)
+- Exitcode 1; `HOLZCLOUD_SSO_WEBSITE_GROUPS names websites that do not exist: redaktion-a=1, redaktion-b=2 — …`
+- Geheimnis im Log: 0 Treffer. (Erster Versuch mit `timeout` maß nichts: Exitcode 127, Befehl fehlt auf macOS.)
+
+#### Start mit SSO an
+- Startprotokoll: sso_enabled, sso_configured, sso_provision, sso_admin_group, sso_default_website 1,
+  sso_website_groups 2, sso_sign_out_path — kein Geheimnis-Schlüssel, kein Wert.
+
+#### A1/A2 — Rita (redakteurin, redaktion-a)
+- `/admin/` 200 „Overview", kein Passwortfeld, Websiteauswahl nur [1].
+- `/admin/websites/1/pages` 200; `/admin/websites/2/pages` **403**; `/admin/users` **403**.
+- DB: sso_username=redakteurin, websites_limited=1, Zuweisung [1]. Log: provisioned website_id=1.
+
+#### A3/A4 — Hochstufung und Herabstufung in DERSELBEN Sitzung
+- Gruppen `holzcloud-admins|redaktion-a` → nächster Klick `/admin/users` **200**, kein Anmeldeformular.
+- Gruppen `redaktion-a` → nächster Klick `/admin/users` **403**; Website 1 weiter 200.
+- Protokoll: je genau 1 user.update, role editor→admin und admin→editor, via sso, actor_id = 2
+  (Sitzungskonto; NULL nur bei Bereitstellung ohne Sitzung — Befund (f) enger als formuliert).
+
+#### A5 — andere Person im selben Browser
+- grace/redaktion-b → `/admin/konto` zeigt grace@example.com; Auswahl [2]; Website 1 403, Website 2 200.
+- Log: `ended a session reason=identity_changed` (user 2), dann provisioned grace.
+- Protokoll: grace websites [1]→[2] (Bereitstellung setzt Standard-Website, Gruppe zieht auf 2).
+
+#### A6 — CR-01 im Binär
+- mallory / admin@test.local / holzcloud-admins → `/admin/` = Anmeldeformular; `/admin/users` → Anmeldeformular.
+- Log: `sign-in refused username=mallory reason=not_linked`. auth.login_fail für admin@test.local.
+
+#### A7 — laufende Sitzung verliert jede Website-Gruppe
+- Rita angemeldet (konto zeigt redakteurin@…), Gruppen leer → nächster Klick Anmeldeformular.
+- Log: refused reason=no_website_group; ended a session reason=rights_refused.
+
+#### A8 — Abmelden
+- POST /admin/logout → **303 Location /outpost.goauthentik.io/sign_out**, **Vary enthält HX-Request**
+  (Vary: "Cookie, Cookie, HX-Request" — doppeltes Cookie vorbestehend, nicht aus dieser Phase).
+- Proxy anonym → `/admin/` Anmeldeformular.
+- (Erster Lauf brach am versteckten Abmeldeknopf ab und verlor A6/A7 mit — Schritte danach je in try/catch.)
+
+#### A9 — SSO abgeschaltet (Neustart), beide Sitzungen vorher nachweislich lebendig
+- SSO-Sitzung (127.0.0.1): erster und zweiter Klick → Anmeldeformular. Log: `ended a session reason=sso_disabled`.
+- Passwortsitzung (localhost): `/admin/konto` admin@test.local, kein Anmeldeformular — unberührt.
+
+#### A10 — Website mit Redakteurin gelöscht (SSO aus, Passwort-Admin)
+- Zuerst (Grace noch auf [2]): Formular zeigt Häkchen 2 und „Nothing ticked: every website" angekreuzt;
+  unverändert gespeichert → Liste weiter „1 of 2 websites" (Häkchen begrenzt).
+- POST /admin/websites/2/delete (Token der Seite, nicht per Klick) → 303 /admin/bestaetigen?weiter=/admin/;
+  Passwort bestätigt → erneuter POST → 303 /admin/websites; `/admin/websites/2` 404.
+- Liste: Grace **„0 of 1 websites"**. Formular: „Nothing ticked: **no website**" angekreuzt, kein Häkchen.
+- Unverändert gespeichert → Liste weiter **„0 of 1 websites"**.
+- DB: grace websites_limited=1, assigned=0; Websites nur noch 1.
+
+#### A11a — Neustart mit SSO an, Gruppe zeigt auf die gelöschte Website
+- Exitcode 1; `HOLZCLOUD_SSO_WEBSITE_GROUPS names websites that do not exist: redaktion-b=2 — …`
+- Konfiguration auf `redaktion-a=1` berichtigt.
+
+#### A11 CLI — Verknüpfung
+- `holzcloud user sso -email admin@test.local -username admin` → `linked user 1 (admin@test.local) to the identity "admin"`.
+- `-username redakteurin` für den Admin → `error: the identity "redakteurin" is already linked to another account`.
+- ohne `-username` → `error: -username is required (or -unlink)`.
+
+#### IN-05 — CLI 2fa disable, SSO an
+- „Second factor removed … / … password alone. / Signing in with a password, it will be asked to set up a
+  new authenticator immediately. / Signing in through the identity provider, it is not asked here: …"
+
+#### A11b — der per CLI verknüpfte Admin über den Ausweisdienst
+- admin / admin@test.local / holzcloud-admins → `/admin/` 200 Overview, `/admin/users` 200,
+  `/admin/konto` admin@test.local, kein Anmeldeformular.
+- Zweiter Faktor laut DB aus (nach IN-05) — keine Umleitung zur Einrichtung (SSO-Sitzung befreit).
+- Konto zeigt: „You came in here through your organisation's sign-in. Two-step verification is required
+  there by whoever signed you in – this installation does not ask for it a second time."
+
+#### Abgeschlossen
+Alle Server gestoppt, .claude/launch.json entfernt.
+
+#### T-10-58 — der Feldbildschirm nach 46e0722, auf Englisch (SSO aus, Passwort-Admin)
+- Zuerst: der Admin ohne zweiten Faktor (nach der IN-05-CLI-Probe) wird bei SSO aus bei JEDER Anfrage
+  auf `/admin/2fa/einrichten` geschickt; auch Formular-POSTs landen dort. Kriterium 5 live.
+- Zweiter Faktor neu eingerichtet (Code im Browser berechnet).
+- Angelegt: Textbaustein „Adresse" (id 1), Gruppenfeld „Ausstattung" (id 1), Bausteinart „Hinweiskasten"
+  (POST → 303 `/admin/websites/1/felder?baustein=1`).
+- `/felder`                 → title/h1 „Fields – Redaktion A"
+- `/felder?textbaustein=1`  → „Snippet “Adresse” – Redaktion A"
+- `/felder?gruppe=1`        → „Group “Ausstattung” – Redaktion A"
+- `/felder?baustein=1`      → „Block “Hinweiskasten” – Redaktion A"
+- Server gestoppt, launch.json entfernt.
