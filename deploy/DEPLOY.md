@@ -304,6 +304,27 @@ cannot be told apart. **Against that case the Caddy version and the delete lines
 are the only defence**, which is why checking them below is a requirement and not
 background.
 
+### The shared secret lives in two environments
+
+The same value has to reach two processes: Holzcloud reads it as
+`HOLZCLOUD_SSO_SECRET`, and Caddy sends it as `{env.HOLZCLOUD_SSO_SECRET}`.
+Neither the Caddyfile nor a unit file is the place for it — both are files people
+copy, paste and commit. Put it in one file only root can read, and hand that file
+to both services:
+
+```bash
+sudo install -m 0600 -o root -g root /dev/null /etc/holzcloud-sso.env
+echo "HOLZCLOUD_SSO_SECRET=$(openssl rand -hex 32)" | sudo tee /etc/holzcloud-sso.env >/dev/null
+sudo systemctl edit holzcloud   # [Service]  EnvironmentFile=/etc/holzcloud-sso.env
+sudo systemctl edit caddy       # [Service]  EnvironmentFile=/etc/holzcloud-sso.env
+sudo systemctl restart holzcloud caddy
+```
+
+systemd reads an `EnvironmentFile` itself, before it starts the service as its
+own user, so the file can stay `0600 root:root`. The environment of a running
+process does not change: after changing the secret, restart **both** services.
+Holzcloud refuses to start with a secret shorter than 32 characters.
+
 ### Two things you verify once, against your own instance
 
 Neither can be looked up from here, and neither is a claim this project makes

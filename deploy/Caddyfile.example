@@ -96,12 +96,12 @@
 # 			#    the underscore lines below are load-bearing even on a
 # 			#    Caddy that carries the fix.
 # 			#
-# 			#    Holzcloud deletes all of these again itself,
-# 			#    unconditionally, on every path and whoever the peer was,
-# 			#    before any handler runs (internal/web/forwardauth.go).
-# 			#    These lines are not what makes it safe; they are what
-# 			#    makes it correct here, so that a mistake in this file is
-# 			#    a mistake and not a way in.
+# 			#    Holzcloud deletes all of these again itself, on every
+# 			#    path (internal/web/forwardauth.go) — but only after it
+# 			#    has read them. A visitor's value that this proxy forwards
+# 			#    under the right name arrives with the right secret and
+# 			#    cannot be told apart from the outpost's. Against that,
+# 			#    these lines and a fixed Caddy are the only defence.
 # 			request_header -X-authentik-username
 # 			request_header -X_authentik_username
 # 			request_header -X-authentik-email
@@ -133,8 +133,9 @@
 # 			#    header the proxy adds must be distinguishable from one it
 # 			#    merely copies. It is read from Caddy's environment and
 # 			#    never written into this file: a Caddyfile is a file
-# 			#    people paste into forums. The CMS's service unit sets the
-# 			#    same value; deploy/DEPLOY.md says where.
+# 			#    people paste into forums. The CMS's service unit reads the
+# 			#    same value from the same file; deploy/DEPLOY.md, "The
+# 			#    shared secret lives in two environments", says how.
 # 			#
 # 			#    It is set after `forward_auth` on purpose, so the secret
 # 			#    goes to the CMS and not to the outpost.
