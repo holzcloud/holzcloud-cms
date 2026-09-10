@@ -445,3 +445,35 @@ vor dem Flick eingecheckt wurde, und eine Mutationsprobe danach.
 | WR-07 | **offen** | — | — |
 | WR-08 | **offen** | — | — |
 | IN-01 bis IN-06 | **offen** | — | — |
+
+## Stand der Behebung — Nachtrag nach der Fixrunde
+
+Nachgetragen am 2026-09-10, nachdem die Fixrunde abgeschlossen und der Anmeldepfad
+im gebauten Binär (`64b4b92`) erneut im Browser gefahren war. Die Tabelle oben bleibt
+stehen, wie sie zum Zeitpunkt des Berichts galt; diese hier ersetzt sie nicht, sie
+schreibt sie fort.
+
+| ID | Stand | Rotbeweis / Wächter | Flick | Im Browser gesehen |
+|---|---|---|---|---|
+| CR-01 | geschlossen — Identität an `users.sso_username` gebunden (Migration 00053); `holzcloud user sso` verknüpft von Hand angelegte Konten | `77cb92c` | `7a90d46` | A6: `mallory` mit der Admin-Adresse → Anmeldeformular, `reason=not_linked`; A11b: verknüpfter Admin kommt hinein |
+| CR-02 | geschlossen — `SetRights` transaktional; Gruppen-Website-IDs beim Start geprüft | `88bab2e`, `ddb94f7` | `e724cdd`, `d5dde80` | A0 und A11a: Start verweigert, Gruppe und Id genannt |
+| CR-03 | geschlossen | `0536f96` | `e724cdd` | A10: gelöschte Website → Redakteurin „0 of 1 websites" |
+| WR-01 | geschlossen | `88bab2e` | `e391023` | — |
+| WR-02 | geschlossen | `5a5e753` | `0c7b15b` | — |
+| WR-03 | geschlossen — alle vier Dokumente berichtigt, das Caddy-Beispiel von einem Test gehalten | `8be4437` | `824ae93`, `2951abe` | — |
+| WR-04 | geschlossen — ein Prädikat mit Schalter; SSO aus beendet SSO-Sitzungen; `completeLogin` entfernt die Marke | `e9a2f66` | `3575760` | A9: SSO-Sitzung endet, Passwortsitzung bleibt |
+| WR-05 | geschlossen | `ddb94f7` | `d5dde80` | — |
+| WR-06 | geschlossen — Mindestlänge 32; falsches Geheimnis eines vertrauten Gegenparts wird protokolliert | `ddb94f7`, `4923c39` | `d5dde80`, `4a3659d` | — |
+| WR-07 | **offen**, ohne Sicherheitswirkung — in `deploy/DEPLOY.md` als bekannte Grenze beschrieben | — | — | — |
+| WR-08 | geschlossen — Rechte bei jeder Anfrage einer SSO-Sitzung neu angewandt; andere Identität beendet die Sitzung | `e9a2f66` | `3575760` | A3/A4: Hoch- und Herabstufung in derselben Sitzung; A5: andere Person im selben Browser |
+| IN-01 | gehalten (Wächter) | `ddb94f7` | — | — |
+| IN-02 | gehalten (Wächter) | `ddb94f7` | — | — |
+| IN-03 | geschlossen | `ddb94f7` | `d5dde80`, `64b4b92` | A8: `Vary` enthält `HX-Request` |
+| IN-04 | geschlossen — die Bereitstellung verknüpft zuletzt, nach der Website | — | `7a90d46` | — |
+| IN-05 | geschlossen | — | `06be6a3` | CLI live mit SSO an: beide Wege genannt |
+| IN-06 | **offen**, als bekannte Grenze in `deploy/DEPLOY.md` beschrieben | — | — | — |
+
+Zwei Fehler der Fixrunde selbst, beide in ihren Commits berichtigt: `d5dde80` wurde
+ohne i18n-Tor eingecheckt, und ein Headername wurde als Satz gesammelt (`64b4b92`);
+die Probe in `4a3659d` zählte einen Buildfehler als rot und ist mit einer
+kompilierenden Mutation nachgemessen (`64b4b92`).

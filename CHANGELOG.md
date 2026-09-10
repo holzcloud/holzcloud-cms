@@ -22,8 +22,8 @@ Caddy fragt den Ausweisdienst, wer da klopft, und reicht die Antwort weiter.
 Welche Gruppen jemand dort hat, entscheidet, ob er die Anlage verwaltet oder
 Inhalte pflegt und welche Websites er betreten darf; das wird bei **jeder**
 Anmeldung neu gelesen. Nimmt man jemandem beim Ausweisdienst eine Gruppe weg,
-ist der Zugang hier bei der nächsten Anmeldung weg — nicht erst, wenn seine
-Sitzung abläuft. Das Ganze ist ausgeschaltet, solange es niemand einschaltet,
+ist der Zugang hier beim nächsten Klick weg — auch mitten in einer laufenden
+Sitzung, nicht erst, wenn sie abläuft. Das Ganze ist ausgeschaltet, solange es niemand einschaltet,
 und der Weg über das Passwort bleibt unverändert daneben bestehen. Er ist auch
 der Weg zurück, wenn der Ausweisdienst einmal nicht antwortet.
 
@@ -55,7 +55,66 @@ Holzcloud. Für Verwaltende, die sich mit Passwort anmelden, bleibt sie
 unverändert Pflicht. Der Satz steht auch in der Verwaltung, unter *Mein Konto*
 und über der Liste der Personen.
 
+**Ein Konto gehört zu genau einer Identität beim Ausweisdienst, und eine
+E-Mail-Adresse genügt nie.** Eine Anmeldung erreicht das Konto, das mit ihrem
+Benutzernamen verknüpft ist — nicht das Konto, dessen Adresse zufällig mitkommt.
+Ein Konto, das die Anlage beim ersten Besuch selbst anlegt, ist von Anfang an
+verknüpft. **Ein von Hand angelegtes Konto ist über den Ausweisdienst nicht
+erreichbar, bis es verknüpft wird:**
+
+    holzcloud user sso -email ada@example.com -username ada
+
+`-unlink` hebt die Verknüpfung auf. Ein Konto wird bewusst nicht beim ersten
+Mal über die Adresse verknüpft: sonst entschiede, wer an dem Tag schneller ist,
+an dem die Anmeldung eingeschaltet wird. Wer einen Benutzer beim Ausweisdienst
+umbenennt, muss ihn hier neu verknüpfen.
+
+**Mit eingeschalteter Anmeldung prüft die Anlage beim Start strenger.** Das
+gemeinsame Geheimnis braucht mindestens 32 Zeichen (`openssl rand -hex 32`).
+`HOLZCLOUD_TRUSTED_PROXIES` darf nicht jede Adresse zulassen — `0.0.0.0/0` oder
+`::/0` halten den Dienst an, denn die vertrauten Proxys entscheiden, ob eine
+Auskunft über eine Person überhaupt gelesen wird. Und jede Website-Nummer in
+`HOLZCLOUD_SSO_WEBSITE_GROUPS` muss es geben; eine, die keine Website benennt,
+hält den Dienst ebenfalls an, statt jede Person dieser Gruppe beim Anmelden
+kommentarlos abzuweisen.
+
+**Eine Sitzung des Ausweisdienstes gilt nur so lange, wie er dieselbe Person
+bestätigt.** Meldet sich im selben Browser jemand anderes beim Ausweisdienst an,
+endet die Sitzung, und diese Person wird angemeldet. Schaltet man die Anmeldung
+über den Ausweisdienst ab, enden alle Sitzungen, die sie gemacht hat, bei ihrer
+nächsten Anfrage — Sitzungen mit Passwort bleiben unberührt. Kommt eine
+Auskunft über die Person mit zwei Werten an, wird sie nicht geglaubt.
+
+**Drei Dinge, die die Anmeldung über den Ausweisdienst noch nicht kann**, stehen
+in `deploy/DEPLOY.md` ausgeschrieben: Ein Konto, das nur so hereinkam, kennt kein
+Passwort und kommt an den fünf Aktionen nicht vorbei, die es noch einmal
+verlangen (`holzcloud user passwd` hilft). Abmelden aus einer Passwortsitzung
+meldet beim Ausweisdienst niemanden ab. Und eine von Hand entzogene Website kehrt
+beim nächsten Klick zurück, solange die Gruppen die Websites bestimmen.
+
 ### Behoben
+
+**Das Löschen einer Website konnte einen Redakteur zum Redakteur aller Websites
+machen.** Wer auf Websites eingeschränkt ist, war das bisher allein durch seine
+Zuordnungen, und keine Zuordnung hiess: alle Websites. Wurde die einzige Website
+eines Redakteurs gelöscht, verschwand mit ihr seine einzige Zuordnung — und aus
+„nur diese eine" wurde „alle". An diesem Redakteur hatte niemand etwas geändert.
+Dasselbe konnte ein Speichern der Rechte hinterlassen, das mittendrin
+scheiterte. Betroffen seit Fassung 1.3, und nur wer Redakteure einschränkt.
+
+Jetzt steht ausdrücklich da, ob jemand eingeschränkt ist. Wer eingeschränkt ist
+und seine letzte Website verliert, erreicht **keine** mehr. Die Liste der
+Personen zeigt das als „0 von N Websites", und das Formular fragt, was „nichts
+angekreuzt" heissen soll — „alle Websites" oder „keine Website" —, damit ein
+unverändertes Speichern nichts erweitert. Ein Häkchen schränkt immer ein.
+
+**Bitte nach dem Aktualisieren einmal durchsehen.** Die Umstellung erkennt
+eingeschränkte Personen an ihren Zuordnungen. Wer *vor* dem Aktualisieren die
+einzige Website verloren hat, hat keine mehr — und ist darum für die Anlage
+jemand, den nie jemand eingeschränkt hat. Kein Programm kann die beiden
+unterscheiden. In der Liste der Personen stehen diese Redakteure bei „alle
+Websites"; wer dort jemanden findet, der eingeschränkt sein sollte, setzt die
+Häkchen neu.
 
 **Ein Redakteur konnte die Navigation einer fremden Website ändern.** Die
 Zugangsprüfung nimmt die Website-Nummer aus der Adresse und prüft, ob der
