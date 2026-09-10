@@ -139,3 +139,51 @@ func formAsShown(t *testing.T, body string) url.Values {
 	}
 	return vals
 }
+
+// A tick always limits, whatever "nothing ticked" is set to mean.
+//
+// The form's question about an empty selection must not become a way to widen
+// a selection that is not empty: an administrator who ticks two websites for a
+// new editor and leaves the button on "every website" has limited that editor
+// to two websites. The obvious form of this control — "every website / only
+// the ticked ones" — would have granted everything in exactly that case.
+func TestATickAlwaysLimitsWhateverNothingTickedMeans(t *testing.T) {
+	for _, leer := range []string{"alle", "keine", ""} {
+		t.Run("leer_heisst="+leer, func(t *testing.T) {
+			h, sm, database, siteA := newTestAdmin(t)
+			ctx := context.Background()
+			siteB, err := domain.NewStore(database).CreateWebsite(ctx, "Seite B", "")
+			if err != nil {
+				t.Fatalf("create Seite B: %v", err)
+			}
+			id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+
+			form := url.Values{
+				"name": {"Ada"}, "email": {"ada@example.com"}, "role": {"editor"},
+				"websites": {strconv.FormatInt(siteA.ID, 10)},
+			}
+			if leer != "" {
+				form.Set("leer_heisst", leer)
+			}
+			mux := http.NewServeMux()
+			mux.HandleFunc("POST /admin/users/{id}/edit", h.ErrHandler(h.HandleUserEdit))
+			path := "/admin/users/" + strconv.FormatInt(id, 10) + "/edit"
+			post := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+			post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			rec := httptest.NewRecorder()
+			sm.LoadAndSave(mux).ServeHTTP(rec, post)
+			if rec.Code != http.StatusSeeOther {
+				t.Fatalf("POST answered %d", rec.Code)
+			}
+
+			lookup := NewWebsiteAccessLookup(database)
+			if !lookup(ctx, id, siteA.ID) {
+				t.Errorf("the editor cannot reach the website that was ticked")
+			}
+			if lookup(ctx, id, siteB.ID) {
+				t.Errorf("with one website ticked and leer_heisst=%q the editor reaches an unticked website — "+
+					"a tick has to limit whatever an empty selection would have meant", leer)
+			}
+		})
+	}
+}

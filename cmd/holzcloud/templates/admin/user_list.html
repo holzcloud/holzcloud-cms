@@ -32,7 +32,7 @@
                 <td class="text-muted">
                     {{if eq .Role "admin"}}—
                     {{else}}
-                    {{if .SiteCount}}{{tf "%d von %d Websites" .SiteCount .SiteTotal}}{{else}}{{t "alle Websites"}}{{end}}
+                    {{if .Limited}}{{tf "%d von %d Websites" .SiteCount .SiteTotal}}{{else}}{{t "alle Websites"}}{{end}}
                     {{if not .MayPublish}} · {{t "ohne Veröffentlichen"}}{{end}}
                     {{end}}
                 </td>

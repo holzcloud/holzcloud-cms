@@ -47,6 +47,20 @@
 
             {{if .Sites}}
             <p class="form-label" style="margin-top:var(--space-2)">{{t "Websites"}}</p>
+            {{/* What "nothing ticked" means, and nothing else. A tick always
+                 limits, whichever of the two is chosen, so no way through this
+                 form widens anybody's access by a forgotten button. The form
+                 used to know only "every website" for no tick, and an editor
+                 limited to no website — reachable since migration 00052 —
+                 became an editor of every website when saved unchanged. */}}
+            <label class="form-check">
+                <input type="radio" name="leer_heisst" value="alle"{{if not .NothingTickedMeansNone}} checked{{end}}>
+                <span class="form-check-label">{{t "Ohne Häkchen: alle Websites"}}</span>
+            </label>
+            <label class="form-check">
+                <input type="radio" name="leer_heisst" value="keine"{{if .NothingTickedMeansNone}} checked{{end}}>
+                <span class="form-check-label">{{t "Ohne Häkchen: keine Website"}}</span>
+            </label>
             {{range .Sites}}
             <label class="form-check">
                 <input type="checkbox" name="websites" value="{{.ID}}"{{if .Ticks}} checked{{end}}>
@@ -54,7 +68,7 @@
             </label>
             {{end}}
             <p class="form-hint text-muted">
-                {{t "Nichts angekreuzt heißt: alle Websites. Wer hier eine Auswahl bekommt, sieht ab da nur diese — überall, auch über eine mitgeschriebene Adresse."}}
+                {{t "Wer hier eine Auswahl bekommt, sieht ab da nur diese — überall, auch über eine mitgeschriebene Adresse."}}
             </p>
             {{end}}
         </fieldset>
