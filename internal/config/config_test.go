@@ -275,6 +275,39 @@ func TestSSORefusalsNameTheirVariables(t *testing.T) {
 			env:    map[string]string{"HOLZCLOUD_SSO_SIGN_OUT_PATH": "outpost.goauthentik.io/sign_out"},
 			wantIn: []string{"HOLZCLOUD_SSO_SIGN_OUT_PATH"},
 		},
+		{
+			// With single sign-on on, the trusted proxies ARE layer 1: they alone
+			// decide whether an identity header is read at all. A prefix of length
+			// zero trusts every address, and then only the secret stands
+			// (Phase 10 code review WR-05).
+			name: "single sign-on trusting every IPv4 address",
+			env: map[string]string{
+				"HOLZCLOUD_SSO_ENABLED":     "true",
+				"HOLZCLOUD_SSO_SECRET":      "a-shared-secret-long-enough-to-be-one",
+				"HOLZCLOUD_TRUSTED_PROXIES": "0.0.0.0/0",
+			},
+			wantIn: []string{"HOLZCLOUD_TRUSTED_PROXIES", "HOLZCLOUD_SSO_ENABLED"},
+		},
+		{
+			name: "single sign-on trusting every IPv6 address",
+			env: map[string]string{
+				"HOLZCLOUD_SSO_ENABLED":     "true",
+				"HOLZCLOUD_SSO_SECRET":      "a-shared-secret-long-enough-to-be-one",
+				"HOLZCLOUD_TRUSTED_PROXIES": "127.0.0.1/32,::/0",
+			},
+			wantIn: []string{"HOLZCLOUD_TRUSTED_PROXIES", "HOLZCLOUD_SSO_ENABLED"},
+		},
+		{
+			// Constant time protects against timing, not against guessing: a short
+			// secret can be enumerated by anything that counts as a trusted peer,
+			// without leaving a trace (WR-06).
+			name: "single sign-on with a secret too short to be one",
+			env: map[string]string{
+				"HOLZCLOUD_SSO_ENABLED": "true",
+				"HOLZCLOUD_SSO_SECRET":  "kurz",
+			},
+			wantIn: []string{"HOLZCLOUD_SSO_SECRET"},
+		},
 	}
 
 	for _, tc := range cases {
