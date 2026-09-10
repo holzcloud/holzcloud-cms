@@ -56,3 +56,8 @@ plugins/*/nicht-gefunden
 .planning/state.json
 # Websuch-Zwischenspeicher der Rechercheure: Inhalte mit TTL, kein Artefakt
 .planning/research/.cache/
+
+# Arbeitsbaeume der Workflow-Agenten und lokale Einstellungen von Claude Code.
+# Jeder Worktree ist ein vollstaendiger Checkout mit eigenem .git; einmal
+# versehentlich hinzugefuegt, stuende das halbe Repository doppelt im Index.
+.claude/
