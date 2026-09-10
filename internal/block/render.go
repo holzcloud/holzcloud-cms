@@ -319,11 +319,31 @@ func renderOwn(b *strings.Builder, at int, blk Block, own Own, s Set, look Looku
 
 		switch d.Kind {
 		case field.KindBool:
-			if value != "0" {
+			// Read through field.NormalizeBool, the one reading of a yes/no
+			// the tree has. This arm used to read `value != "0"`, so a block
+			// that stored "nein" — through a bundle, before Clean held own
+			// kinds to field.Check — printed as yes. Such a block is still in
+			// somebody's database and is rendered again on its page's next
+			// save, which is why the renderer is fixed and not only the gate.
+			if yes, _ := field.NormalizeBool(value); yes == "1" {
 				// A yes/no changes how the block looks rather than adding a
 				// line to it — printing the word "ja" would be a label nobody
 				// wants on their page.
 				class += " hc-ja--" + key
+			}
+
+		case field.KindMulti:
+			// Value by value, through the pair every other reader of this
+			// encoding uses (FIELD-07). A list and not a line: the values are
+			// separate on the page as they are in the column, and a theme can
+			// set them as tags or run them into a sentence.
+			var items strings.Builder
+			for _, v := range field.SplitValues(value) {
+				fmt.Fprintf(&items, `<li>%s</li>`, html.EscapeString(v))
+			}
+			if items.Len() > 0 {
+				fmt.Fprintf(&inner, `<ul class="hc-eigen__liste hc-eigen__liste--%s">%s</ul>`,
+					key, items.String())
 			}
 
 		case field.KindImage:

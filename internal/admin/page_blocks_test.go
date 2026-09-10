@@ -404,8 +404,12 @@ func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) 
 	if err != nil || saved == nil {
 		t.Fatalf("die Seite ist nach dem Speichern weg: %v", err)
 	}
-	set := block.Set{Own: []block.Own{{ID: art.ID, Key: art.Key, Name: art.Name,
-		Fields: []field.Def{{Key: "hoelzer", Kind: field.KindMulti}}}}}
+	// Read back through the website's own set, the one every production reader
+	// gets from the store. This used to be a hand-built set whose field had no
+	// choices; since Clean holds an own kind's values to field.Check (v1.6
+	// audit), such a set refuses "Eiche" on the way out, and the test measured
+	// its own stand-in instead of what was stored.
+	set := block.NewStore(database, fields).Set(ctx, ws.ID)
 	blocks, err := block.Decode(saved.Blocks, set)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)

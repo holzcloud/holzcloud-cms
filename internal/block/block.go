@@ -466,12 +466,31 @@ func (s Set) Clean(blocks []Block) []Block {
 // MaxFieldBytes bounds one value of an own kind's field.
 const MaxFieldBytes = 4000
 
-// keepFields drops what the kind no longer has and trims what is left.
+// keepFields drops what the kind no longer has, trims what is left, and holds
+// every value to the gate a page's own field meets.
+//
+// The last half came from the v1.6 milestone audit. This function used to trim
+// and cap and check nothing, and field.BlockKinds admits a kind by exclusion,
+// so every kind Phase 7 added arrived here unchecked: a bundle or a POST
+// written by hand could store "nein" in a yes/no — which renderOwn then read as
+// yes — a range outside its bounds, a time of 25:99, a choice that is not on
+// the list. field.Clean settles the spelling (a yes/no to "1" or "", a time to
+// HH:MM) and field.Check refuses what the page form refuses.
+//
+// A refused value is dropped, not reported. This path has no error surface of
+// its own, and dropping is the rule the paragraph in Clean already states for
+// a removed field: it happens on the next save.
+//
+// A link is the one kind not held to field.Check. The block renderer has its
+// own reading, safeURL, and it is wider by one shape — a "#fragment" renders,
+// Check refuses it — so checking here would silently delete links that work
+// on somebody's page today. safeURL still refuses everything that is not a
+// link, at the moment it would be printed.
 func keepFields(own Own, values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil
 	}
-	out := map[string]string{}
+	capped := field.Values{}
 	for _, d := range own.Fields {
 		v := strings.TrimSpace(values[d.Key])
 		if v == "" {
@@ -479,6 +498,19 @@ func keepFields(own Own, values map[string]string) map[string]string {
 		}
 		if len(v) > MaxFieldBytes {
 			v = v[:MaxFieldBytes]
+		}
+		capped[d.Key] = v
+	}
+	cleaned := field.Clean(own.Fields, field.Data{Values: capped})
+
+	out := map[string]string{}
+	for _, d := range own.Fields {
+		v, ok := cleaned.Values[d.Key]
+		if !ok {
+			continue
+		}
+		if d.Kind != field.KindLink && field.Check(d, v) != "" {
+			continue
 		}
 		out[d.Key] = v
 	}
