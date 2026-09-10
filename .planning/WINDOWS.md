@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 21
+open_count: 22
 waived_count: 2
 fixed_count: 5
-total_count: 28
-last_updated: 2026-09-10T18:00:00.000Z
+total_count: 29
+last_updated: 2026-09-10T15:24:10.774Z
 ---
 
 # Broken Windows Ledger
@@ -27,7 +27,7 @@ last_updated: 2026-09-10T18:00:00.000Z
 | 10 | 10 | unmet-truth | cmd/holzcloud/templates/admin/account.html |  | Neue Zeichenkette noch nicht uebersetzt: en/es/fr/it je 2 offen (Kontobildschirm + Benutzerliste). Plan 10-09 schliesst sie mit tools/i18n -write. | fixed |  | 2026-09-08T05:47:40.320Z | 2026-09-08T06:26:25.942Z |
 | 11 | 10 | deviation | .planning/phases/10-authentik/10-08-PLAN.md |  | 10-08: the isTrustedProxy gate excludes '^\\./\\.planning/', but grep on this machine emits paths without a './' prefix, so the exclusion never fires — the gate reads 14 instead of 0. Corrected form: grep -v '^\\(\\./\\)\\?\\.planning/', which reads 0. Fifth instance of 'a gate must measure what its name claims' in this phase. | open |  | 2026-09-08T06:09:24.781Z |  |
 | 12 | 10 | deviation | .planning/phases/10-authentik/10-09-PLAN.md |  | 10-09: two more counting gates measure something other than their name, sixth and seventh instance in this phase. (a) completeLogin: the gate excludes 'func (h *Handler) completeLogin' and '// completeLogin' but forwardauth.go:241 mentions the symbol mid-sentence inside a comment, so the gate prints 5 where the plan wants 4; grep 'h\\.completeLogin(' prints 4 (3 at the phase baseline, +1 from 10-03) and is the form that measures call sites. (b) MustHaveSecondFactor: 'grep -rn ... \| wc -l' counts a doc comment, the func declaration and, since 10-06, one new prose comment at admin/twofactor.go:383 — it prints 7 -> 8 while the actual call sites are unchanged at 5 -> 5, so the plan's 'Phase adds 0' is true of the property and false of the number. Same family as entry 9. Additionally the plan's absolute gates for migrations (49) and BeginTx files (14) were overtaken by Phase 11 landing between waves: measured 51 and 15, with 00050_albums.sql (11-02) and 00051_album_updated_at.sql (11-CR-01) attributed by git log --diff-filter=A, and zero migrations added by Phase 10. | open |  | 2026-09-08T06:26:43.345Z |  |
-| 13 | 10 | deviation | internal/admin/field.go:311 |  | 10-10 browser pass: the field screen's four page titles are raw German literals (Felder – %s, Baustein "…" – %s, Textbaustein "…" – %s, Gruppe "…" – %s). The snippet one is Phase 8's own (48e5b1d). They are never collected, so 'go run ./tools/i18n' reports 0 offen while <title> and <h1> read German on an English admin. Seen on screen in all four modes. GESCHLOSSEN 2026-09-09 im Commit 46e0722: alle vier Titel gehen jetzt durch web.Titlef, vier neue Schluessel in en/es/fr/it uebersetzt, de-CH per -schweiz neu erzeugt (drei Abweichungen). Rot vorher durch TestTheFieldScreenTitleIsTranslated, gruen nachher, wieder rot beim Leeren von "Felder – %s" in en.json. Die vier uebrigen deutschen Saetze dieses Durchgangs (Eintraege 12, 14, 15, 16) sind vorbestehend und gehoeren Phase 12. | fixed |  | 2026-09-08T07:27:26.865Z |  2026-09-09T00:00:00.000Z |
+| 13 | 10 | deviation | internal/admin/field.go:311 |  | 10-10 browser pass: the field screen's four page titles are raw German literals (Felder – %s, Baustein "…" – %s, Textbaustein "…" – %s, Gruppe "…" – %s). The snippet one is Phase 8's own (48e5b1d). They are never collected, so 'go run ./tools/i18n' reports 0 offen while <title> and <h1> read German on an English admin. Seen on screen in all four modes. | fixed | Geschlossen 2026-09-09 im Commit 46e0722: alle vier Titel gehen jetzt durch web.Titlef, vier neue Schluessel in en/es/fr/it uebersetzt, de-CH per -schweiz neu erzeugt (drei Abweichungen). Rot vorher durch TestTheFieldScreenTitleIsTranslated, gruen nachher, wieder rot beim Leeren von "Felder – %s" in en.json. Die vier uebrigen deutschen Saetze dieses Durchgangs (Eintraege 12, 14, 15, 16) sind vorbestehend und gehoeren Phase 12. | 2026-09-08T07:27:26.865Z | 2026-09-09T00:00:00.000Z |
 | 14 | 10 | deviation | internal/auth/middleware.go:109 |  | 10-10 browser pass: RequireWebsiteAccess refuses with http.Error("Diese Website gehoert nicht zu deinem Zugang."), an uncollected German literal. Seen as the 403 body when an SSO editor opened a website outside their access on an English admin. The sibling sentence 'Veroeffentlichen gehoert nicht zu deinem Zugang' IS in all four catalogues. | open |  | 2026-09-08T07:27:26.996Z |  |
 | 15 | 10 | deviation | internal/admin/starter.go:181 |  | 10-10 browser pass: starterContentSummary() returns a German sentence built with fmt.Sprintf and never marked; the flash after creating a website reads German on an English admin. Invisible to a German-character gate anchored on 'title=' or 'flash', because it is returned from a helper. | open |  | 2026-09-08T07:27:27.127Z |  |
 | 16 | 10 | deviation | internal/admin/media.go:176 |  | 10-10 browser pass: the media-upload flash is concatenated from three uncollected German fragments (message := "Datei hochgeladen" + ' – ' + warning + ' – bitte noch eine Bildbeschreibung eintragen'). Seen in German on an English admin after uploading an image. | open |  | 2026-09-08T07:27:27.260Z |  |
@@ -43,6 +43,7 @@ last_updated: 2026-09-10T18:00:00.000Z
 | 26 | 10 | deviation | internal/admin/forwardauth.go |  | Eine verweigerte SSO-Identitaet schreibt bei JEDER Anfrage eine auth.login_fail-Zeile, ungebremst (im Browserdurchgang A6: vier Zeilen fuer zwei Laeufe). Ein Proxy, der dieselbe verweigerte Identitaet dauernd behauptet, laesst das Taetigkeitsprotokoll unbegrenzt wachsen. Die Anmeldebremse bewusst nicht zu fuettern (T-10-20, gehalten) schliesst die naheliegende Loesung aus. | open |  | 2026-09-10T18:00:00.000Z |  |
 | 27 | 10 | deviation | internal/admin/forwardauth.go |  | Kein Abbau: ein durch SSO angelegtes Konto ueberlebt die Identitaet, die es erzeugt hat. Nimmt der Ausweisdienst jemanden heraus, bleibt das Konto hier bestehen (erreichbar nur noch ueber ein gesetztes Passwort oder eine neue Verknuepfung). | open |  | 2026-09-10T18:00:00.000Z |  |
 | 28 | 10 | deviation | internal/admin/forwardauth.go |  | Protokolllücken bei SSO-Verweigerungen: die auth.login_fail-Zeile traegt den Grund (not_linked, no_website_group, …) nicht, nur das Serverlog; ein misslungenes RenewToken verweigert ohne Protokollzeile; die Abmeldezeile unterscheidet nicht, welcher Weg gegangen wurde. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 29 | audit-v1.6 | deviation | internal/field/field.go | 1093 | Meilenstein-Audit v1.6: field.CheckAll baut die Zeilenmeldung einer Gruppe mit fmt.Sprintf("%s, Zeile %d: %s", def.Label, i+1, reason) an zwei Stellen (field.go:1093 Laengenpruefung verborgener Zeilen, :1113 Check pro Unterfeld). Der Rahmen 'Zeile %d' ist fuer tools/i18n unsichtbar, auch wenn reason selbst eines Tages katalogisiert ist. Dieselbe Klasse wie Eintrag 18, aber eine eigene Stelle, die 18 nicht nennt. Gefunden vom Integrationspruefer, im Code gelesen. Gehoert zu Phase 12 Kriterium 9 (v2.0). | open |  | 2026-09-10T15:24:10.774Z |  |
 
 ````json
 [
@@ -380,6 +381,18 @@ last_updated: 2026-09-10T18:00:00.000Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 29,
+    "kind": "deviation",
+    "phase": "audit-v1.6",
+    "file": "internal/field/field.go",
+    "line": 1093,
+    "description": "Meilenstein-Audit v1.6: field.CheckAll baut die Zeilenmeldung einer Gruppe mit fmt.Sprintf(\"%s, Zeile %d: %s\", def.Label, i+1, reason) an zwei Stellen (field.go:1093 Laengenpruefung verborgener Zeilen, :1113 Check pro Unterfeld). Der Rahmen 'Zeile %d' ist fuer tools/i18n unsichtbar, auch wenn reason selbst eines Tages katalogisiert ist. Dieselbe Klasse wie Eintrag 18, aber eine eigene Stelle, die 18 nicht nennt. Gefunden vom Integrationspruefer, im Code gelesen. Gehoert zu Phase 12 Kriterium 9 (v2.0).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T15:24:10.774Z",
     "resolved_at": null
   }
 ]
