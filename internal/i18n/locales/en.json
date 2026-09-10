@@ -614,6 +614,7 @@
 "Freie Software unter der AGPL-3.0.": "Free software under the AGPL-3.0.",
 "Frühere Fassung wiederhergestellt": "Earlier version restored",
 "Frühere Fassungen von": "Earlier versions of",
+"Für Administratoren ist die Bestätigung in zwei Schritten Pflicht. Wenn das Gerät verloren ist, hilft ein Wiederherstellungscode oder „holzcloud user 2fa disable“ auf dem Server.": "For administrators two-step verification is compulsory. If the device is lost, a recovery code helps, or “holzcloud user 2fa disable” on the server.",
 "Für Administratoren ist dieser Schritt Pflicht. Ohne ihn genügt ein erratenes Passwort, um die ganze Installation zu übernehmen.": "For administrators this step is compulsory. Without it a guessed password is enough to take over the whole installation.",
 "Für Sprachdateien ist kein Ordner eingerichtet": "No folder is set up for language files",
 "Für alle, die das Bild nicht sehen können.": "For everyone who cannot see the image.",

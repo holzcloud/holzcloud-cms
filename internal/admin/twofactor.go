@@ -283,10 +283,11 @@ func (h *Handler) HandleTwoFactorDisable(w http.ResponseWriter, r *http.Request)
 		return err
 	}
 	if auth.MustHaveSecondFactor(role, h.viaSSO(r)) {
+		// One literal and not three joined with +: the collector reads only a
+		// literal at this argument, and a refusal it cannot see is a refusal
+		// every administration reads in German (WINDOWS.md entry 17).
 		web.SetFlashError(h.sm, r.Context(),
-			"Für Administratoren ist die Bestätigung in zwei Schritten Pflicht. "+
-				"Wenn das Gerät verloren ist, hilft ein Wiederherstellungscode oder "+
-				"„holzcloud user 2fa disable“ auf dem Server.")
+			"Für Administratoren ist die Bestätigung in zwei Schritten Pflicht. Wenn das Gerät verloren ist, hilft ein Wiederherstellungscode oder „holzcloud user 2fa disable“ auf dem Server.")
 		return h.redirect(w, r, "/admin/konto")
 	}
 
