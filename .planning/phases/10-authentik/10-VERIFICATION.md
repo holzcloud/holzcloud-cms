@@ -2,13 +2,16 @@
 phase: 10-authentik
 verified: 2026-09-10T16:00:00Z
 status: gaps_found
-score: 1/6 must-haves verified
+score: 5/6 must-haves verified
+status_at_480f21b: gaps_found
+score_at_480f21b: 1/6 must-haves verified
+amended: 2026-09-10 — Fixrunde, zweiter Browserdurchgang auf 64b4b92
 tree_verified: >-
   480f21b. Kriterien 2-6 aus dem ersten Lauf, Kriterium 1 aus dem Nachlauf;
   jeder hier tragende Befund ist entweder von einer Gegenprobe oder vom
   Code-Durchgang unabhaengig bestaetigt, oder er steht am Code selbst.
-closed_since: [0536f96, 88bab2e, e724cdd, e391023, 5a5e753, 0c7b15b]
-gaps:
+closed_since: [0536f96, 88bab2e, e724cdd, e391023, 5a5e753, 0c7b15b, 77cb92c, 7a90d46, e9a2f66, 3575760, b440505, e306eeb, ddb94f7, d5dde80, 4923c39, 4a3659d, 06be6a3, a781f07, 64b4b92, 8be4437, 2951abe, 029660d, c2dc0b3]
+gaps_at_480f21b:
   - truth: "SC1 — die Gruppen entscheiden Rolle und Website-Zugang, bei JEDER Anmeldung neu, damit eine Herabstufung hier wirkt"
     status: partial
     reason: >-
@@ -79,6 +82,19 @@ gaps:
       Code-Durchgangs-Fixrunde abgezeichnet, die es nie gab.
     missing:
       - "Die fuenfzehn v1.6-Saetze durch den Katalog"
+gaps:
+  - truth: "SC6 — 0 offen, 0 verwaist ueber alles, was v1.6 hinzufuegte"
+    status: partial
+    reason: >-
+      Das Tor steht auf 1328 Zeichenketten, 0 offen, 0 verwaist, und der
+      Anmeldepfad samt Feldbildschirm ist nach der Fixrunde erneut im Browser
+      gefahren. Offen bleiben die fuenfzehn v1.6-Saetze, die am Tor vorbei
+      auf den Bildschirm kommen: neun Ablehnungsgruende aus field.Check und
+      sechs errors.New-Saetze aus internal/field/store.go. Sie sind bewusst an
+      Phase 12 uebergeben (WINDOWS.md 18) — field.CheckAll hat sechs Aufrufer
+      bis in den CSV-Import und die KI-Werkzeuge.
+    missing:
+      - "Die fuenfzehn Saetze durch den Katalog (Phase 12, Kriterium 9)"
 ---
 
 # Phase 10 — Verifizierung
@@ -195,3 +211,47 @@ dieser Phase ist vom 2026-09-10.
 | `SetRights` halb geschrieben | `88bab2e` | `e724cdd` | M2 rot |
 | Degradierter Admin → Redakteur aller Websites | `88bab2e` | `e391023` | S1, S3 rot; S2 grün → eigener Test |
 | Identitätsheader mit zwei Werten | `5a5e753` | `0c7b15b` | W1: 8 Unterfälle rot |
+
+## Nachtrag 2026-09-10 — nach der Fixrunde
+
+Der Bericht oben beschreibt `480f21b` und bleibt, wie er ist. Dieser Nachtrag
+schreibt ihn fort. Jeder Befund unten wurde zuerst rot gezeigt, dann geschlossen,
+dann per Mutationsprobe gehalten; die Commits nennen jede Probe. Danach ein
+zweiter Browserdurchgang auf einem Binär aus **`64b4b92`**, gefahren mit
+Playwright gegen einen Ersatz-Proxy für den Ausweisdienst, der eingehende
+Identitätsheader löscht und die gewünschte Identität setzt. Nicht abgedeckt wie in
+10-10: eine echte Authentik-Anmeldung, Caddys eigenes Verhalten, das Verwerfen
+eines echten Anbieter-Cookies beim Abmelden, der Befehl von einer zweiten
+Maschine.
+
+**Ergebnis: 5 von 6 Kriterien erfüllt.**
+
+| Kriterium | vorher | jetzt | geschlossen durch | im Browser gesehen |
+|---|---|---|---|---|
+| 1 SSO, Gruppen, jede Anmeldung, Protokoll | teilweise | **erfüllt** | `7a90d46` (CR-01), `3575760` (laufende Sitzung), `a781f07` (Protokollzeile gehalten), `e724cdd`/`e391023` | A3/A4 Hoch- und Herabstufung in derselben Sitzung; A5 andere Person im selben Browser; A6 `mallory` mit der Admin-Adresse → Anmeldeformular |
+| 2 Abnahmetest | erfüllt | **erfüllt** | `0c7b15b` (zwei Werte), `ddb94f7` (konstante Zeit und Kettenposition gehalten) | — (Schichten 1–3 unverändert) |
+| 3 kein Konto ohne Erlaubnis, Start nur mit existierenden Websites | teilweise | **erfüllt** | `d5dde80` (Gruppen-Websites), `ddb94f7` (Startaufruf gehalten), `8be4437`/`2951abe` (Caddyfile und DEPLOY.md gehalten, Geheimnis in Caddys Umgebung) | A0 und A11a: Start verweigert, Gruppe und Id genannt |
+| 4 zweiter Faktor sichtbar, Abmelden | teilweise | **erfüllt** | `06be6a3` (CLI), `d5dde80`/`64b4b92` (`Vary`) | A8 303 auf den Outpost-Pfad, `Vary` mit `HX-Request`; A11b Hinweis auf „Mein Konto"; CLI mit SSO an nennt beide Wege |
+| 5 mit SSO aus ändert sich nichts | nicht erfüllt | **erfüllt** | `3575760` (ein Prädikat mit Schalter, Sitzungsende beim Abschalten, `completeLogin` entfernt die Marke) | A9 SSO-Sitzung endet, Passwortsitzung bleibt; ein Admin ohne zweiten Faktor wird bei SSO aus bei jeder Anfrage zur Einrichtung geschickt |
+| 6 Katalog und Browserdurchgang | teilweise | **teilweise** | `c2dc0b3` (Ablehnung des zweiten Faktors übersetzt), dieser Durchgang (T-10-53, T-10-58) | Feldbildschirm in allen vier Modi auf Englisch: „Fields – …", „Snippet “Adresse” – …", „Group “Ausstattung” – …", „Block “Hinweiskasten” – …" |
+
+**Was an Kriterium 6 fehlt, ist entschieden und nicht vergessen:** die fünfzehn
+v1.6-Sätze aus `field.Check` und `internal/field/store.go`, gemessen, an Phase 12
+übergeben (`.planning/WINDOWS.md` 18).
+
+**Was die Fixrunde nebenbei fand und schloss:** das Nutzerformular konnte „auf
+keine Website begrenzt" nicht darstellen und hätte es beim unveränderten Speichern
+aufgehoben — die Kante des eigenen Flicks `e724cdd`, geschlossen in `e306eeb`, im
+Browser gesehen (A10: „0 of 1 websites", „Nothing ticked: no website"
+angekreuzt, nach unverändertem Speichern unverändert).
+
+**Was der Fixrunde selbst misslang, steht in ihren Commits:** eine erfundene
+Commit-ID in einem Bericht (vor dem Einchecken berichtigt) und in einer
+Commit-Nachricht (`824ae93`, per `--amend` berichtigt); ein Probenskript in zsh,
+das nichts sicherte und „byte-gleich" über zwei leere Prüfsummen meldete
+(wiederhergestellt, unter bash wiederholt, `3575760`); `d5dde80` ohne i18n-Tor
+eingecheckt (`64b4b92`); eine Probe, die einen Buildfehler als rot zählte
+(`4a3659d`, nachgemessen in `64b4b92`).
+
+Die vollständigen Messwerte des Durchgangs, Schritt für Schritt, stehen in
+`10-SECURITY.md` unter „Nachtrag".

@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 13
-waived_count: 1
-fixed_count: 3
-total_count: 17
-last_updated: 2026-09-08T07:27:27.391Z
+open_count: 21
+waived_count: 2
+fixed_count: 5
+total_count: 28
+last_updated: 2026-09-10T18:00:00.000Z
 ---
 
 # Broken Windows Ledger
@@ -31,7 +31,18 @@ last_updated: 2026-09-08T07:27:27.391Z
 | 14 | 10 | deviation | internal/auth/middleware.go:109 |  | 10-10 browser pass: RequireWebsiteAccess refuses with http.Error("Diese Website gehoert nicht zu deinem Zugang."), an uncollected German literal. Seen as the 403 body when an SSO editor opened a website outside their access on an English admin. The sibling sentence 'Veroeffentlichen gehoert nicht zu deinem Zugang' IS in all four catalogues. | open |  | 2026-09-08T07:27:26.996Z |  |
 | 15 | 10 | deviation | internal/admin/starter.go:181 |  | 10-10 browser pass: starterContentSummary() returns a German sentence built with fmt.Sprintf and never marked; the flash after creating a website reads German on an English admin. Invisible to a German-character gate anchored on 'title=' or 'flash', because it is returned from a helper. | open |  | 2026-09-08T07:27:27.127Z |  |
 | 16 | 10 | deviation | internal/admin/media.go:176 |  | 10-10 browser pass: the media-upload flash is concatenated from three uncollected German fragments (message := "Datei hochgeladen" + ' – ' + warning + ' – bitte noch eine Bildbeschreibung eintragen'). Seen in German on an English admin after uploading an image. | open |  | 2026-09-08T07:27:27.260Z |  |
-| 17 | 10 | deviation | internal/admin/twofactor.go:283 |  | 10-10 browser pass: the refusal that stops an administrator switching off their own second factor (the MustHaveSecondFactor call site 10-CONTEXT names) flashes three concatenated uncollected German fragments. The guard itself is correct and was driven; only its wording is untranslated. | open |  | 2026-09-08T07:27:27.391Z |  |
+| 17 | 10 | deviation | internal/admin/twofactor.go:283 |  | 10-10 browser pass: the refusal that stops an administrator switching off their own second factor (the MustHaveSecondFactor call site 10-CONTEXT names) flashes three concatenated uncollected German fragments. The guard itself is correct and was driven; only its wording is untranslated. | fixed | Geschlossen in c2dc0b3 (Rotbeweis 029660d): die Ablehnung ist ein Literal, in en/es/fr/it uebersetzt, de-CH per -schweiz; TestSecondFactorRefusalIsTranslated haelt die Uebersetzung, das i18n-Tor die Sichtbarkeit fuer den Sammler (Probe G50: Verkettung -> 1 verwaist). | 2026-09-08T07:27:27.391Z | 2026-09-10T18:00:00.000Z |
+| 18 | 10 | deviation | internal/field/field.go |  | v1.6s eigene deutsche Saetze am Katalog vorbei, gemessen im Phase-10-Abschluss: neun Ablehnungsgruende in field.Check (d.Label + Literal) erreichen ueber field.CheckAll Seitenformular, Textbausteinformular, CSV-Importbericht und KI-Werkzeuge; sechs errors.New-Saetze in internal/field/store.go erreichen die Meldezeile ueber den err.Error()-Rueckfall in internal/admin/field.go; die Kopfzeile der CSV-Beispieltabelle ist deutsch. Sonde mit lang=en: 422 und 'Preis muss eine Zahl sein.'. Das i18n-Tor sieht keinen davon. Bewusst an Phase 12 uebergeben (Kriterium 9, dieselbe Klasse wie Eintrag 3): field.CheckAll hat sechs Aufrufer bis in den CSV-Import, und ein Umbau am Rand eines Meilenstein-Abschlusses waere genau die Aenderung, die nach dem letzten Browserdurchgang landet. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 19 | 10 | deviation | cmd/holzcloud/main.go |  | Code-Durchgang WR-07: RequireFreshPassword verlangt vor fuenf Aktionen (Website loeschen, Nutzer loeschen, KI-Schluessel anlegen, Plugin entfernen, Protokoll aufraeumen — im Code nachgesehen) ein Passwort, das ein nur ueber SSO bereitgestelltes Konto nicht kennt. Keine Sicherheitswirkung. In deploy/DEPLOY.md 'Three things single sign-on does not do yet' beschrieben, Ausweg holzcloud user passwd. Ein Flick (Bestaetigung ueber eine frische Anmeldung beim Ausweisdienst) ist offen. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 20 | 10 | deviation | internal/admin/login.go |  | Code-Durchgang IN-06: wer bei eingeschaltetem SSO eine Passwortsitzung abmeldet, wird beim naechsten Klick ueber den Ausweisdienst wieder angemeldet, wenn der Browser dort noch eine Sitzung hat und das Konto verknuepft ist. In deploy/DEPLOY.md beschrieben. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 21 | 10 | deviation | internal/admin/forwardauth.go |  | Eine von Hand im Nutzerformular entzogene Website kehrt bei der naechsten Anfrage der SSO-Sitzung zurueck, solange HOLZCLOUD_SSO_WEBSITE_GROUPS gesetzt ist; kein Bildschirm sagt das. In deploy/DEPLOY.md beschrieben. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 22 | 10 | deviation | internal/admin/forwardauth.go |  | Rechtezeilen der SSO-Abgleichung tragen user_id NULL, wenn sie bei der Bereitstellung entstehen (noch keine Sitzung) und sind ueber den Benutzerfilter des Protokolls nicht auffindbar. Im Browserdurchgang gemessen: in einer laufenden Sitzung traegt die Zeile das Konto (A3/A4), NULL nur bei der Bereitstellung (A5) — der Befund ist enger als im Nachlauf formuliert. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 23 | 10 | deviation | tools/i18n/main.go |  | go run ./tools/i18n -schweiz entfernt einen verwaisten de-CH-Eintrag nicht, auch nicht beim zweiten Lauf. Nicht still: TestFassungKeysExistInTheSource wird rot. Einmal von Hand entfernt (e306eeb). | open |  | 2026-09-10T18:00:00.000Z |  |
+| 24 | 10 | deviation | internal/web/headers.go |  | Verwaltungsantworten tragen 'Vary: Cookie' zweimal (im Browserdurchgang an POST /admin/logout gesehen: 'Cookie, Cookie, HX-Request'). Vorbestehend, harmlos, nicht aus Phase 10. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 25 | 10 | deviation | internal/i18n/locales/fr-CH.json |  | T-10-52: fr-CH und it-CH werden von Hand gepflegt; eine formgerechte Handaenderung besteht Werkzeug, Tests und CI. Konstruktionsbedingt. | waived | Konstruktionsbedingt: die Regionalkataloge fr-CH und it-CH sind Abweichungslisten, die bewusst von Hand gepflegt werden; ein maschineller Pruefer muesste die Sprache verstehen. Ein Schluessel ohne Gegenstueck im Quelltext wird weiterhin von TestFassungKeysExistInTheSource gefangen. | 2026-09-10T18:00:00.000Z |  |
+| 26 | 10 | deviation | internal/admin/forwardauth.go |  | Eine verweigerte SSO-Identitaet schreibt bei JEDER Anfrage eine auth.login_fail-Zeile, ungebremst (im Browserdurchgang A6: vier Zeilen fuer zwei Laeufe). Ein Proxy, der dieselbe verweigerte Identitaet dauernd behauptet, laesst das Taetigkeitsprotokoll unbegrenzt wachsen. Die Anmeldebremse bewusst nicht zu fuettern (T-10-20, gehalten) schliesst die naheliegende Loesung aus. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 27 | 10 | deviation | internal/admin/forwardauth.go |  | Kein Abbau: ein durch SSO angelegtes Konto ueberlebt die Identitaet, die es erzeugt hat. Nimmt der Ausweisdienst jemanden heraus, bleibt das Konto hier bestehen (erreichbar nur noch ueber ein gesetztes Passwort oder eine neue Verknuepfung). | open |  | 2026-09-10T18:00:00.000Z |  |
+| 28 | 10 | deviation | internal/admin/forwardauth.go |  | Protokolllücken bei SSO-Verweigerungen: die auth.login_fail-Zeile traegt den Grund (not_linked, no_website_group, …) nicht, nur das Serverlog; ein misslungenes RenewToken verweigert ohne Protokollzeile; die Abmeldezeile unterscheidet nicht, welcher Weg gegangen wurde. | open |  | 2026-09-10T18:00:00.000Z |  |
 
 ````json
 [
@@ -187,7 +198,7 @@ last_updated: 2026-09-08T07:27:27.391Z
     "line": null,
     "description": "10-10 browser pass: the field screen's four page titles are raw German literals (Felder – %s, Baustein \"…\" – %s, Textbaustein \"…\" – %s, Gruppe \"…\" – %s). The snippet one is Phase 8's own (48e5b1d). They are never collected, so 'go run ./tools/i18n' reports 0 offen while <title> and <h1> read German on an English admin. Seen on screen in all four modes.",
     "status": "fixed",
-    "reason": "Geschlossen 2026-09-09 im Commit 46e0722: alle vier Titel gehen jetzt durch web.Titlef, vier neue Schluessel in en/es/fr/it uebersetzt, de-CH per -schweiz neu erzeugt (drei Abweichungen). Rot vorher durch TestTheFieldScreenTitleIsTranslated, gruen nachher, wieder rot beim Leeren von \"Felder \u2013 %s\" in en.json. Die vier uebrigen deutschen Saetze dieses Durchgangs (Eintraege 12, 14, 15, 16) sind vorbestehend und gehoeren Phase 12.",
+    "reason": "Geschlossen 2026-09-09 im Commit 46e0722: alle vier Titel gehen jetzt durch web.Titlef, vier neue Schluessel in en/es/fr/it uebersetzt, de-CH per -schweiz neu erzeugt (drei Abweichungen). Rot vorher durch TestTheFieldScreenTitleIsTranslated, gruen nachher, wieder rot beim Leeren von \"Felder – %s\" in en.json. Die vier uebrigen deutschen Saetze dieses Durchgangs (Eintraege 12, 14, 15, 16) sind vorbestehend und gehoeren Phase 12.",
     "recorded_at": "2026-09-08T07:27:26.865Z",
     "resolved_at": "2026-09-09T00:00:00.000Z"
   },
@@ -234,9 +245,141 @@ last_updated: 2026-09-08T07:27:27.391Z
     "file": "internal/admin/twofactor.go:283",
     "line": null,
     "description": "10-10 browser pass: the refusal that stops an administrator switching off their own second factor (the MustHaveSecondFactor call site 10-CONTEXT names) flashes three concatenated uncollected German fragments. The guard itself is correct and was driven; only its wording is untranslated.",
+    "status": "fixed",
+    "reason": "Geschlossen in c2dc0b3 (Rotbeweis 029660d): die Ablehnung ist ein Literal, in en/es/fr/it uebersetzt, de-CH per -schweiz; TestSecondFactorRefusalIsTranslated haelt die Uebersetzung, das i18n-Tor die Sichtbarkeit fuer den Sammler (Probe G50: Verkettung -> 1 verwaist).",
+    "recorded_at": "2026-09-08T07:27:27.391Z",
+    "resolved_at": "2026-09-10T18:00:00.000Z"
+  },
+  {
+    "id": 18,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/field/field.go",
+    "line": null,
+    "description": "v1.6s eigene deutsche Saetze am Katalog vorbei, gemessen im Phase-10-Abschluss: neun Ablehnungsgruende in field.Check (d.Label + Literal) erreichen ueber field.CheckAll Seitenformular, Textbausteinformular, CSV-Importbericht und KI-Werkzeuge; sechs errors.New-Saetze in internal/field/store.go erreichen die Meldezeile ueber den err.Error()-Rueckfall in internal/admin/field.go; die Kopfzeile der CSV-Beispieltabelle ist deutsch. Sonde mit lang=en: 422 und 'Preis muss eine Zahl sein.'. Das i18n-Tor sieht keinen davon. Bewusst an Phase 12 uebergeben (Kriterium 9, dieselbe Klasse wie Eintrag 3): field.CheckAll hat sechs Aufrufer bis in den CSV-Import, und ein Umbau am Rand eines Meilenstein-Abschlusses waere genau die Aenderung, die nach dem letzten Browserdurchgang landet.",
     "status": "open",
     "reason": "",
-    "recorded_at": "2026-09-08T07:27:27.391Z",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 19,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "cmd/holzcloud/main.go",
+    "line": null,
+    "description": "Code-Durchgang WR-07: RequireFreshPassword verlangt vor fuenf Aktionen (Website loeschen, Nutzer loeschen, KI-Schluessel anlegen, Plugin entfernen, Protokoll aufraeumen — im Code nachgesehen) ein Passwort, das ein nur ueber SSO bereitgestelltes Konto nicht kennt. Keine Sicherheitswirkung. In deploy/DEPLOY.md 'Three things single sign-on does not do yet' beschrieben, Ausweg holzcloud user passwd. Ein Flick (Bestaetigung ueber eine frische Anmeldung beim Ausweisdienst) ist offen.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 20,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/admin/login.go",
+    "line": null,
+    "description": "Code-Durchgang IN-06: wer bei eingeschaltetem SSO eine Passwortsitzung abmeldet, wird beim naechsten Klick ueber den Ausweisdienst wieder angemeldet, wenn der Browser dort noch eine Sitzung hat und das Konto verknuepft ist. In deploy/DEPLOY.md beschrieben.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 21,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/admin/forwardauth.go",
+    "line": null,
+    "description": "Eine von Hand im Nutzerformular entzogene Website kehrt bei der naechsten Anfrage der SSO-Sitzung zurueck, solange HOLZCLOUD_SSO_WEBSITE_GROUPS gesetzt ist; kein Bildschirm sagt das. In deploy/DEPLOY.md beschrieben.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 22,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/admin/forwardauth.go",
+    "line": null,
+    "description": "Rechtezeilen der SSO-Abgleichung tragen user_id NULL, wenn sie bei der Bereitstellung entstehen (noch keine Sitzung) und sind ueber den Benutzerfilter des Protokolls nicht auffindbar. Im Browserdurchgang gemessen: in einer laufenden Sitzung traegt die Zeile das Konto (A3/A4), NULL nur bei der Bereitstellung (A5) — der Befund ist enger als im Nachlauf formuliert.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 23,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "tools/i18n/main.go",
+    "line": null,
+    "description": "go run ./tools/i18n -schweiz entfernt einen verwaisten de-CH-Eintrag nicht, auch nicht beim zweiten Lauf. Nicht still: TestFassungKeysExistInTheSource wird rot. Einmal von Hand entfernt (e306eeb).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 24,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/web/headers.go",
+    "line": null,
+    "description": "Verwaltungsantworten tragen 'Vary: Cookie' zweimal (im Browserdurchgang an POST /admin/logout gesehen: 'Cookie, Cookie, HX-Request'). Vorbestehend, harmlos, nicht aus Phase 10.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 25,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/i18n/locales/fr-CH.json",
+    "line": null,
+    "description": "T-10-52: fr-CH und it-CH werden von Hand gepflegt; eine formgerechte Handaenderung besteht Werkzeug, Tests und CI. Konstruktionsbedingt.",
+    "status": "waived",
+    "reason": "Konstruktionsbedingt: die Regionalkataloge fr-CH und it-CH sind Abweichungslisten, die bewusst von Hand gepflegt werden; ein maschineller Pruefer muesste die Sprache verstehen. Ein Schluessel ohne Gegenstueck im Quelltext wird weiterhin von TestFassungKeysExistInTheSource gefangen.",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 26,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/admin/forwardauth.go",
+    "line": null,
+    "description": "Eine verweigerte SSO-Identitaet schreibt bei JEDER Anfrage eine auth.login_fail-Zeile, ungebremst (im Browserdurchgang A6: vier Zeilen fuer zwei Laeufe). Ein Proxy, der dieselbe verweigerte Identitaet dauernd behauptet, laesst das Taetigkeitsprotokoll unbegrenzt wachsen. Die Anmeldebremse bewusst nicht zu fuettern (T-10-20, gehalten) schliesst die naheliegende Loesung aus.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 27,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/admin/forwardauth.go",
+    "line": null,
+    "description": "Kein Abbau: ein durch SSO angelegtes Konto ueberlebt die Identitaet, die es erzeugt hat. Nimmt der Ausweisdienst jemanden heraus, bleibt das Konto hier bestehen (erreichbar nur noch ueber ein gesetztes Passwort oder eine neue Verknuepfung).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
+    "resolved_at": null
+  },
+  {
+    "id": 28,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "internal/admin/forwardauth.go",
+    "line": null,
+    "description": "Protokolllücken bei SSO-Verweigerungen: die auth.login_fail-Zeile traegt den Grund (not_linked, no_website_group, …) nicht, nur das Serverlog; ein misslungenes RenewToken verweigert ohne Protokollzeile; die Abmeldezeile unterscheidet nicht, welcher Weg gegangen wurde.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T18:00:00.000Z",
     "resolved_at": null
   }
 ]
