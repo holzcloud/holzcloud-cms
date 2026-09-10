@@ -6,12 +6,13 @@ current_phase: 10
 current_phase_name: Authentik Forward-Auth
 status: in_progress
 stopped_at: >-
-  Alle 42 Plaene gefahren. Phase 10 fehlen Verifizierung und Sicherheitspruefung
-  (59 Bedrohungszeilen) sowie ein Code-Durchgang; bis die vorliegen, ist der
-  Meilenstein gebaut und nicht abgeschlossen.
-last_updated: "2026-09-09T00:00:00.000Z"
-last_activity: 2026-09-09
-state_head: 46e072236bc0c13e1ce0812b636e4696527c829c
+  Phase 10 ist gemessen: 1/6 Kriterien, OPEN_THREATS, Code-Durchgang mit 3
+  Critical. Vier Befunde seither geschlossen (e724cdd, e391023, 0c7b15b); CR-01,
+  die Sitzungs-Abgleichung und via_sso nach dem Abschalten sind offen und
+  blockieren den Meilenstein.
+last_updated: "2026-09-10T16:00:00.000Z"
+last_activity: 2026-09-10
+state_head: 0c7b15bae8e83ca6a87b2057457a8d1c3dc8d73b
 progress:
   total_phases: 6
   completed_phases: 5
@@ -36,13 +37,28 @@ Phase: 10 — Authentik Forward-Auth (**10/10 Pläne ausgeführt**), zugleich di
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
 ihre Pläne gefahren: 42 von 42.
 
-Plan: keiner offen. Was fehlt, ist nicht Bau, sondern **Abschluss**: Phase 10
-ist die einzige Phase des Meilensteins ohne `10-VERIFICATION.md` und ohne
-`10-SECURITY.md` — bei 59 verschiedenen Bedrohungszeilen über zehn Pläne und
-einem Sicherheitskern, der die erste Stelle im ganzen Projekt einführt, an der
-einem HTTP-Header eine Identität geglaubt wird. Beide Berichte sind am
-2026-09-09 in Arbeit. Phase 10 hat ausserdem als einzige keinen Code-Durchgang
-(`REVIEW.md`).
+Plan: keiner offen. Der **Abschluss** der Phase liegt seit dem 2026-09-10 vor —
+`10-VERIFICATION.md` (**1 von 6 Kriterien erfüllt**, `gaps_found`),
+`10-SECURITY.md` (59 Bedrohungs-IDs: 43 geschlossen, 15 teilweise, 1 offen;
+dazu 39 unregistrierte Flächen, `OPEN_THREATS`, blockierend) und der nachgeholte
+Code-Durchgang `10-REVIEW.md` (3 Critical, 8 Warning, 6 Info). Die Phase ist
+damit gemessen, und das Ergebnis ist: nicht fertig.
+
+Seither geschlossen, je mit Rotbeweis vorher und Mutationsprobe nachher: drei
+Wege, auf denen ein begrenzter Redakteur zum Redakteur aller Websites wurde
+(`e724cdd`, `e391023` — geschlossen an der Kodierung, Migration `00052`), und
+ein Identitätsheader mit zwei Werten, der die Identität übernahm (`0c7b15b`).
+**Offen und blockierend:** CR-01 — eine SSO-Identität wird dem Konto mit
+derselben E-Mail-Adresse zugeordnet statt dem Benutzernamen; eine Herabstufung
+wirkt nicht auf eine laufende Sitzung (bis 24 Stunden); `via_sso` überlebt das
+Abschalten von SSO und befreit dann weiter vom zweiten Faktor.
+
+**Wie gemessen wurde, hat selbst zwei Fehler gehabt, und beide stehen im
+Bericht:** der erste Prüflauf teilte sich einen Arbeitsbaum und die Prüfer
+sahen einander ihre Mutationen (zwei blieben stehen, als 66 Agenten am
+Wochenlimit starben — eine schaltete die Prüfung des Abmeldeziels aus); und der
+isolierte Nachlauf stand in allen drei Worktrees auf `d4ca500` statt auf dem
+geprüften Stand. Die Prüfer haben das Zweite selbst bemerkt.
 
 Status: **Der Meilenstein ist gebaut, aber nicht abgeschlossen.** Diese Zeile
 stand bis zum 2026-09-09 als „Phase 10 and milestone v1.6 complete" im Kopf
@@ -102,7 +118,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-09-09
+Last activity: 2026-09-10
 
 ### Milestone Map
 
