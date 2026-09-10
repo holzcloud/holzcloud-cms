@@ -324,6 +324,44 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 		want = user.RoleAdmin
 	}
 
+	// The last administrator is recognised before anything is written.
+	//
+	// user.Store.Update refuses to demote the last administrator and the case
+	// below handles that refusal, but by then the website half would already
+	// have run for an account that is going to stay an administrator — a write
+	// nobody can see and a protocol row describing a change that did not
+	// happen. Asking first keeps the lagging role exactly as it was. The
+	// refusal in Update stays as the backstop for the race in between.
+	if want == user.RoleEditor && u.Role == user.RoleAdmin {
+		if n, err := h.countAdmins(ctx); err == nil && n <= 1 {
+			slog.Warn("forward auth cannot apply a demotion: this is the last administrator",
+				"user_id", u.ID, "email", u.Email, "username", ident.Username,
+				"role", u.Role, "requested_role", want)
+			want = u.Role
+		}
+	}
+
+	// The websites before the role, whenever the account is to be an editor.
+	//
+	// This function used to write the role first. An administrator has no rows
+	// in user_websites by design, so a demotion left an editor with no
+	// assignment until the website half ran — and when the website half then
+	// refused for want of a website group, or failed on a website that had
+	// been deleted, the account stayed that way, which before migration 00052
+	// was an editor of every website. Limiting first closes the gap from the
+	// side that fails safe: a limit on an account that is still an
+	// administrator is invisible, because user.Store.Rights answers
+	// Everything() for the role before it reads a row.
+	var refusal error
+	if want == user.RoleEditor {
+		if err := h.syncWebsites(ctx, r, u, ident); err != nil {
+			if !errors.Is(err, errSSONoWebsiteGroup) {
+				return "", err
+			}
+			refusal = err
+		}
+	}
+
 	if want != u.Role {
 		err := h.users.Update(ctx, u.ID, u.Name, u.Email, want)
 		switch {
@@ -357,16 +395,26 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 		}
 	}
 
-	// An administrator's assignment is left exactly as it is.
-	//
-	// user.Store.Rights returns Everything() for an administrator two statements
-	// before it reads user_websites at all, so anything written there is
-	// invisible — and an invisible write is a diff a later reader has to reason
-	// about for nothing.
+	// An administrator signs in whatever the website half said, and the website
+	// half does not run for one. An administrator's assignment is left exactly
+	// as it is: user.Store.Rights returns Everything() for the role before it
+	// reads user_websites, so anything written there would be invisible — and
+	// an invisible write is a diff a later reader has to reason about for
+	// nothing.
 	if want == user.RoleAdmin {
 		return want, nil
 	}
+	if refusal != nil {
+		return "", refusal
+	}
+	return want, nil
+}
 
+// syncWebsites re-applies the website half of the rights for an account that
+// is to be an editor. It returns errSSONoWebsiteGroup when the operator
+// configured website groups and none of this person's groups is one of them;
+// the caller turns that into a refused sign-in after the role is settled.
+func (h *Handler) syncWebsites(ctx context.Context, r *http.Request, u *user.User, ident *web.Identity) error {
 	// The website half only runs where the operator configured it, and the
 	// distinction is not a convenience.
 	//
@@ -389,7 +437,7 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 	// opted into group-driven website access, and from then on "no matching
 	// group" is an answer rather than an absence of a question.
 	if len(h.cfg.SSOWebsiteGroups) == 0 {
-		return want, nil
+		return nil
 	}
 
 	// A group this installation has never heard of is ignored rather than
@@ -410,12 +458,16 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 	// user.Store.Rights returns its rows ORDER BY website_id.
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
+	current, err := h.users.Assignment(ctx, u.ID)
+	if err != nil {
+		return fmt.Errorf("sync: read the current rights: %w", err)
+	}
+
 	if len(ids) == 0 {
-		// An empty assignment is not "no websites". NewWebsiteAccessLookup
-		// (internal/admin/handler.go) reads assigned == 0 as *every* website,
-		// and it is right to — see internal/user/rights.go, whose package
-		// comment explains that anything else would have made the migration
-		// introducing website assignment lock everybody out.
+		// An empty assignment written for an account nobody limited is not
+		// "no websites": NewWebsiteAccessLookup gives every website to an
+		// account that is neither limited nor assigned, which is right for an
+		// account created by hand — see internal/user/rights.go.
 		//
 		// D-01 closes that road for account *creation*: a provisioned account
 		// gets its one row in the same function that creates it. This is the
@@ -425,15 +477,35 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 		// away, and writing an empty list would hand them everything —
 		// D-01's inversion arrived at by subtraction instead of by creation.
 		//
-		// So nothing is written and the sign-in is refused. The existing rows
-		// survive untouched: a refusal that also emptied the assignment would
-		// be this very bug wearing a different hat.
-		return "", errSSONoWebsiteGroup
-	}
-
-	current, err := h.users.Rights(ctx, u.ID)
-	if err != nil {
-		return "", fmt.Errorf("sync: read the current rights: %w", err)
+		// So for an editor nothing is written and the sign-in is refused. The
+		// existing rows survive untouched: a refusal that also emptied the
+		// assignment would be this very bug wearing a different hat.
+		//
+		// An administrator being demoted is the same rule seen from the other
+		// side. Their rows — none by design, or rows left over from before a
+		// promotion — are about to become an editor's rows, and the identity
+		// provider has just said this person has no website here. So the
+		// account is limited to nothing before the role changes, and a demotion
+		// that the role half then fails to write leaves an administrator with an
+		// invisible limit rather than an editor with none.
+		if u.Role == user.RoleAdmin {
+			nothing := user.Nothing()
+			nothing.MayPublish = current.MayPublish
+			if err := h.users.SetRights(ctx, u.ID, nothing); err != nil {
+				return fmt.Errorf("sync: limit a demoted administrator to no website: %w", err)
+			}
+			h.LogActivity(r, activity.Entry{
+				ActorEmail: u.Email,
+				Action:     activity.ActionUserUpdate,
+				EntityType: "user",
+				EntityID:   u.ID,
+				Metadata: map[string]any{
+					"field": "websites", "from": current.Websites, "to": []int64{},
+					"limited": true, "via": "sso",
+				},
+			})
+		}
+		return errSSONoWebsiteGroup
 	}
 
 	if !sameWebsites(current.Websites, ids) {
@@ -443,7 +515,7 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 		// person. A literal here would undo it on a schedule.
 		if err := h.users.SetRights(ctx, u.ID,
 			user.Rights{MayPublish: current.MayPublish, Websites: ids}); err != nil {
-			return "", fmt.Errorf("sync: set the website assignment: %w", err)
+			return fmt.Errorf("sync: set the website assignment: %w", err)
 		}
 		// Only on a difference, and that is what keeps /admin/protokoll
 		// readable: SetRights is idempotent, so calling it every time would be
@@ -459,7 +531,7 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 		})
 	}
 
-	return want, nil
+	return nil
 }
 
 // sameWebsites reports whether two sorted assignments are the same.
