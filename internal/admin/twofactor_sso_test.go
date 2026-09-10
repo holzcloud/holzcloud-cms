@@ -11,6 +11,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 )
 
@@ -316,5 +317,38 @@ func TestSecondFactorDisableRefusesAMarkWithSSOSwitchedOff(t *testing.T) {
 	if !secondFactorEnabled(t, database, id) {
 		t.Error("with single sign-on switched off, a session still carrying its mark removed an " +
 			"administrator's second factor")
+	}
+}
+
+// TestSecondFactorRefusalIsTranslated: the refusal that stops an administrator
+// switching off their own second factor is a statement about security, at the
+// MustHaveSecondFactor call site Phase 10 changed. It was three string
+// literals joined with +, so the collector never saw it and every
+// administration read it in German (WINDOWS.md entry 17, threat T-10-50).
+func TestSecondFactorRefusalIsTranslated(t *testing.T) {
+	h, sm, database := newSecondFactorAdmin(t)
+	id := seedSecondFactorAccount(t, h, "admin@test.local", user.RoleAdmin)
+	enableSecondFactor(t, database, id)
+
+	var flash string
+	req := postForm("/admin/2fa/aus", url.Values{}, nil)
+	req = req.WithContext(i18n.WithLang(req.Context(), "en"))
+	rec := httptest.NewRecorder()
+	sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sm.Put(r.Context(), auth.SessionKeyUserID, id)
+		if err := h.HandleTwoFactorDisable(w, r); err != nil {
+			t.Fatalf("handler: %v", err)
+		}
+		flash = sm.GetString(r.Context(), auth.SessionKeyFlashError)
+	})).ServeHTTP(rec, req)
+
+	if flash == "" {
+		t.Fatal("no refusal was flashed; the guard this test is about did not run")
+	}
+	if strings.Contains(flash, "Pflicht") || strings.Contains(flash, "Administratoren") {
+		t.Errorf("the refusal reaches an English administration in German: %q", flash)
+	}
+	if !strings.Contains(flash, "holzcloud user 2fa disable") {
+		t.Errorf("the translated refusal lost the way back: %q", flash)
 	}
 }
