@@ -9,7 +9,7 @@ require (
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/tetratelabs/wazero v1.12.0
 	github.com/yuin/goldmark v1.8.5
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/image v0.45.0
 	golang.org/x/net v0.58.0
 	modernc.org/sqlite v1.57.0
