@@ -6,13 +6,14 @@ current_phase: 10
 current_phase_name: Authentik Forward-Auth
 status: in_progress
 stopped_at: >-
-  Phase 10 abgeschlossen nach Fixrunde und zweitem Browserdurchgang:
-  Verifizierung 5/6 (Kriterium 6 an Phase 12 uebergeben, WINDOWS 18),
-  Sicherheit SECURED (58 geschlossen, 1 angenommen). Meilenstein bereit fuer
-  den Abschluss.
+  Meilenstein-Audit v1.6 (cefdef4): gaps_found, die gebrochene Naht
+  (Feldarten in eigenen Bausteinarten, Feed-Datum ohne Alben) mit
+  Schnellauftrag 260910-o6d geschlossen (bda9151 rot, 9ab7beb Flick).
+  Audit jetzt tech_debt, 46/48; GAL-07 und QUAL-01 an Phase 12 (v2.0).
+  Bereit fuer den Meilenstein-Abschluss.
 last_updated: "2026-09-10T18:00:00.000Z"
 last_activity: 2026-09-10
-state_head: c2dc0b31c6f0ddd178924f9cfd97ab0ca7219c33
+state_head: 9ab7beb
 progress:
   total_phases: 6
   completed_phases: 6
@@ -230,6 +231,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 
 | Datum | Aufgabe | Ergebnis |
 |---|---|---|
+| 2026-09-10 | block-feldpruefung-und-feed-album | Aus dem Meilenstein-Audit: eigene Bausteinarten prüfen ihre Feldarten jetzt wie eine Seite (ein gespeichertes „nein“ erschien als Ja), Mehrfachauswahl im Baustein über `SplitValues`, Feed-Datum kennt die Alben. Rot `bda9151`, Flick `9ab7beb`, sechs Mutationsproben rot |
 | 2026-08-30 | uebergabe-kundenwebsite-abschliessen | Eine Kundenwebsite in zwei Bundles aufgeteilt, Übergabe und Zeiger in CLAUDE.md entfernt |
 | 2026-09-06 | pfeil-ruecklinks-t-zu-th | Die drei Rücklinks in `field_list.html` zeigen endlich einen Pfeil statt `&#8592;`. **Der Aufschub beruhte auf einer falschen Annahme über den eigenen Flick** — er setzte voraus, dass die Zeichenkette geändert werden müsste und drei Schlüssel in vier Katalogen verwaisen würden; der Flick ist `{{t}}` → `{{th}}`, die Zeichenkette bleibt Zeichen für Zeichen dieselbe, und `tools/i18n` sammelt `th` genauso wie `t`. Zähler unverändert bei 1158, `0 offen, 0 verwaist`. Alle drei Stellen im Browser gesehen, bei **englischer** Oberfläche — also durch den Übersetzungsweg hindurch. Fensterbuch Eintrag 5 und der Rückstandseintrag geschlossen, beide mit der berichtigten Begründung statt still gelöscht |
 | 2026-09-06 | phase-7-abschluss-vier-befunde | Feldschlüssel wird auf seine Form geprüft (T-07-02), die Bytegrenze erreicht auch ein verstecktes Feld (W-1), `JoinValues` verteidigt sein Trennzeichen (W-3); Kriterium 1 sichtbar gesenkt statt die Datenstruktur umgebaut |
