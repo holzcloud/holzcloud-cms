@@ -148,7 +148,7 @@ func cmdUser(args []string) error {
 
 	switch args[0] {
 	case "2fa":
-		return cmdUserTwoFactor(ctx, store, args[1:])
+		return cmdUserTwoFactor(ctx, store, args[1:], cfg.SSOEnabled)
 	case "sso":
 		// The one way an account made by hand becomes reachable through single
 		// sign-on. A sign-in never links an account by its address — whoever
@@ -435,7 +435,7 @@ func cmdRerender(args []string) error {
 //
 // It deliberately requires shell access to the machine — the one thing an
 // attacker who has the password but not the phone does not have.
-func cmdUserTwoFactor(ctx context.Context, store *user.Store, args []string) error {
+func cmdUserTwoFactor(ctx context.Context, store *user.Store, args []string, ssoEnabled bool) error {
 	if len(args) == 0 {
 		return errors.New("usage: holzcloud user 2fa status|disable -email <address>")
 	}
@@ -485,12 +485,10 @@ func cmdUserTwoFactor(ctx context.Context, store *user.Store, args []string) err
 			return err
 		}
 		// Saying what happens next matters: the account can sign in with its
-		// password alone right now, and for an administrator the next sign-in
-		// will insist on setting a new authenticator up.
-		fmt.Printf("Second factor removed for %s.\n", u.Email)
-		fmt.Println("The account can now sign in with its password alone.")
-		if u.Role == "admin" {
-			fmt.Println("As an administrator it will be asked to set up a new authenticator immediately.")
+		// password alone right now, and what the next sign-in insists on is the
+		// second-factor rule's to say, not this command's.
+		for _, line := range twoFactorDisabledNotice(u.Email, u.Role, ssoEnabled) {
+			fmt.Println(line)
 		}
 		return nil
 	}
@@ -585,4 +583,27 @@ func parseID(s string) (int64, error) {
 		return 0, fmt.Errorf("%q is not a valid id", s)
 	}
 	return id, nil
+}
+
+// twoFactorDisabledNotice is what `holzcloud user 2fa disable` tells the
+// operator afterwards.
+//
+// It asks auth.MustHaveSecondFactor instead of restating the rule. Until the
+// Phase 10 audit it told every administrator "it will be asked to set up a new
+// authenticator immediately", and since Phase 10 that is false for somebody who
+// signs in through the identity provider: exactly the family of defect that is
+// right at every known place and silently wrong at one overlooked place, here
+// the sixth statement of a rule whose five call sites had all been changed.
+func twoFactorDisabledNotice(email, role string, ssoEnabled bool) []string {
+	lines := []string{
+		fmt.Sprintf("Second factor removed for %s.", email),
+		"The account can now sign in with its password alone.",
+	}
+	if auth.MustHaveSecondFactor(role, false) {
+		lines = append(lines, "Signing in with a password, it will be asked to set up a new authenticator immediately.")
+		if ssoEnabled {
+			lines = append(lines, "Signing in through the identity provider, it is not asked here: whether that sign-in needs a second factor is decided at the identity provider.")
+		}
+	}
+	return lines
 }
