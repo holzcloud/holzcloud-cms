@@ -355,6 +355,32 @@ about your setup. Both are checks you run once, when you first wire it up.
    the shipped example, one in the underscored spelling, and — on 2.11.2 and
    newer — Caddy's own canonical delete beside them.
 
+### Three things single sign-on does not do yet
+
+Named here so they are not discovered in an emergency.
+
+**An account that came in only through single sign-on has no password it knows.**
+Provisioning stores the hash of a random value nobody learns. Five actions ask
+for the password again before they run — deleting a website, deleting a user,
+creating an AI key, removing a plugin and clearing the activity log — and such
+an account cannot answer. If every administrator came in that way, set a password
+for one of them from the server:
+
+```bash
+echo -n 'a new password' | sudo -u holzcloud HOLZCLOUD_DATA_DIR=/opt/holzcloud/data \
+  /opt/holzcloud/holzcloud user passwd -email ada@example.com
+```
+
+**Signing out of a password session does not sign anybody out at the identity
+provider.** If the same browser also holds a session there and the person's
+account is linked to it, the next click under `/admin/` signs them in again —
+through single sign-on this time.
+
+**The next sign-in through the identity provider rewrites a website assignment
+made by hand.** With `HOLZCLOUD_SSO_WEBSITE_GROUPS` set, the groups decide, at
+every request. Taking a website away from such an account in the user form lasts
+until its next click; take the group away at the identity provider instead.
+
 ### The acceptance test, and the answer that is not a pass
 
 One command, run **from a second machine**, over IPv4 **and** over IPv6:
