@@ -127,6 +127,14 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 	if snippets.LatestUpdate.After(newest) {
 		newest = snippets.LatestUpdate
 	}
+	// And the albums, for the reason contentModTime has them on the page path:
+	// an album that changed changes every entry carrying it without touching
+	// the page. Without this the ETag moved and both dates kept the old moment,
+	// so a reader trusting <updated>, or a cache sending only a date, kept the
+	// old gallery.
+	if latest := albums.Latest(); latest.After(newest) {
+		newest = latest
+	}
 	feed.Updated = newest.UTC().Format(time.RFC3339)
 
 	body, err := xml.MarshalIndent(feed, "", "  ")

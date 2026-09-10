@@ -378,6 +378,12 @@
     margin: 0;
 }
 
+/* Eine Mehrfachauswahl steht Wert für Wert da, wie in der Spalte. */
+.hc-eigen__liste {
+    margin: 0;
+    padding-inline-start: 1.25em;
+}
+
 .hc-eigen__text > :first-child { margin-block-start: 0; }
 .hc-eigen__text > :last-child { margin-block-end: 0; }
 

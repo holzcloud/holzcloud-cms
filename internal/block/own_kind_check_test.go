@@ -141,3 +141,24 @@ func TestAMultiValueInABlockIsReadValueByValue(t *testing.T) {
 		}
 	}
 }
+
+// TestCleanKeepsALinkTheBlockRendererAccepts holds the one kind keepFields does
+// not send through field.Check. safeURL renders a "#fragment" and checkLink
+// refuses it, so a gate that checked links here would silently delete a link
+// that works on somebody's page today. Without this test that exception is one
+// tidy-looking deletion away from doing exactly that.
+func TestCleanKeepsALinkTheBlockRendererAccepts(t *testing.T) {
+	got := eigeneArt().Clean([]Block{{Type: "rezeptschritt", Fields: map[string]string{
+		"quelle": "#zutaten", "nummer": "3",
+	}}})
+	if len(got) != 1 {
+		t.Fatalf("%d blocks, want 1", len(got))
+	}
+	if v := got[0].Fields["quelle"]; v != "#zutaten" {
+		t.Errorf("the link is %q after Clean, want %q — Clean deleted a link the renderer prints", v, "#zutaten")
+	}
+	html := Render(got, eigeneArt(), bilder(nil), markdown)
+	if !strings.Contains(html, `href="#zutaten"`) {
+		t.Errorf("the kept link does not render:\n%s", html)
+	}
+}

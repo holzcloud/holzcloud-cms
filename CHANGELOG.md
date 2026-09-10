@@ -94,6 +94,27 @@ beim nächsten Klick zurück, solange die Gruppen die Websites bestimmen.
 
 ### Behoben
 
+**Ein Nein in einer eigenen Bausteinart erschien auf der Seite als Ja.** Eigene
+Bausteinarten tragen dieselben Feldarten wie eine Seite, aber ihre Werte wurden
+beim Speichern nur gekürzt, nie geprüft. Über ein eingespieltes Archiv oder ein
+von Hand abgeschicktes Formular konnte so ein Ja/Nein „nein" heissen — und der
+Baustein las alles, was nicht „0" war, als Ja. Ebenso standen eine Zahl
+ausserhalb ihres Bereichs, eine Uhrzeit wie „25:99" oder eine Auswahl, die es
+nicht gibt, unverändert auf der öffentlichen Seite. Wer nur im Bausteineditor
+klickt, hat das nie gesehen: das Formular schickt für ein Häkchen immer „1".
+
+Jetzt gilt für ein Bausteinfeld dieselbe Prüfung wie für ein Seitenfeld. Was sie
+ablehnt, wird beim nächsten Speichern der Seite verworfen, ohne Meldung — so wie
+bisher schon ein Wert, dessen Feld aus der Bausteinart entfernt wurde. Ein
+bereits gespeichertes „nein" wird sofort richtig gelesen. Eine Mehrfachauswahl
+steht in einem Baustein jetzt als Liste da, ein Wert je Punkt, mit der Klasse
+`hc-eigen__liste`; bisher standen die Werte untereinander in einer Zeile.
+
+**Der Feed zeigte nach einer Albumänderung das alte Datum.** Die Einträge trugen
+die neuen Bilder schon, aber `<updated>` und `Last-Modified` des Feeds kannten
+nur Seiten und Textbausteine. Ein Feedleser, der sich auf das Datum verlässt,
+hatte keinen Grund nachzusehen. Die Seite selbst hatte das schon richtig.
+
 **Das Löschen einer Website konnte einen Redakteur zum Redakteur aller Websites
 machen.** Wer auf Websites eingeschränkt ist, war das bisher allein durch seine
 Zuordnungen, und keine Zuordnung hiess: alle Websites. Wurde die einzige Website
