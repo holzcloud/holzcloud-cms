@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -153,6 +154,16 @@ func ForwardAuth(resolver *ClientIPResolver, opts ForwardAuthOptions) func(http.
 						Groups:   splitGroups(r.Header.Get("X-authentik-groups")),
 					}
 				}
+			} else if opts.Enabled && opts.Secret != "" && resolver != nil && resolver.IsTrustedPeer(r) &&
+				carriesIdentity(r.Header) && !secretMatches(r, opts.Secret) {
+				// Constant time keeps the comparison from leaking timing; it
+				// does nothing against a trusted peer that simply guesses, and a
+				// wrong secret used to leave no trace at all (Phase 10 code
+				// review WR-06). This branch runs only after the peer check, so
+				// an untrusted peer's headers are still never read, and the line
+				// names neither secret.
+				slog.Warn("forward auth: a trusted peer sent identity headers with a wrong shared secret",
+					"peer", r.RemoteAddr)
 			}
 
 			// Layer 2, and its whole value is that it has no condition.
@@ -233,6 +244,17 @@ func stripIdentityHeaders(r *http.Request) {
 		// and would not remove the underscore spelling.
 		delete(r.Header, name)
 	}
+}
+
+// carriesIdentity reports whether a request carries any identity header,
+// the shared secret itself not counted.
+func carriesIdentity(h http.Header) bool {
+	for name := range h {
+		if isIdentityHeader(name) && !strings.EqualFold(name, ProxySecretHeader) {
+			return true
+		}
+	}
+	return false
 }
 
 func isIdentityHeader(name string) bool {
