@@ -1126,6 +1126,14 @@ func TestProvisionedAccountCannotReachASecondWebsite(t *testing.T) {
 		`DELETE FROM user_websites WHERE user_id = $1`, newID); err != nil {
 		t.Fatalf("delete the assignment for the control step: %v", err)
 	}
+	// Since migration 00052 an account stays limited when its last row goes,
+	// so the control also clears the explicit limit: row and flag gone is the
+	// state of an account nobody ever limited, and only that state may reach
+	// every website.
+	if _, err := database.Write.ExecContext(ctx,
+		`UPDATE users SET websites_limited = 0 WHERE id = $1`, newID); err != nil {
+		t.Fatalf("clear the explicit limit for the control step: %v", err)
+	}
 	if !lookup(ctx, newID, otherWebsite) {
 		t.Fatal("with the assignment deleted the same lookup still refuses the second website; " +
 			"the assertion above was not measuring the assignment at all")
@@ -1691,6 +1699,14 @@ func TestLosingEveryWebsiteGroupDoesNotGrantEveryWebsite(t *testing.T) {
 	if _, err := database.Write.ExecContext(ctx,
 		`DELETE FROM user_websites WHERE user_id = $1`, id); err != nil {
 		t.Fatalf("delete the assignment for the control step: %v", err)
+	}
+	// Since migration 00052 an account stays limited when its last row goes,
+	// so the control also clears the explicit limit: row and flag gone is the
+	// state of an account nobody ever limited, and only that state may reach
+	// every website.
+	if _, err := database.Write.ExecContext(ctx,
+		`UPDATE users SET websites_limited = 0 WHERE id = $1`, id); err != nil {
+		t.Fatalf("clear the explicit limit for the control step: %v", err)
 	}
 	if !lookup(ctx, id, siteB) {
 		t.Fatal("with the assignment emptied the same lookup still refuses Seite B; the " +
