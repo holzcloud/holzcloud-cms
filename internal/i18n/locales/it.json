@@ -614,6 +614,7 @@
 "Freie Software unter der AGPL-3.0.": "Software libero con licenza AGPL-3.0.",
 "Frühere Fassung wiederhergestellt": "Versione precedente ripristinata",
 "Frühere Fassungen von": "Versioni precedenti di",
+"Für Administratoren ist die Bestätigung in zwei Schritten Pflicht. Wenn das Gerät verloren ist, hilft ein Wiederherstellungscode oder „holzcloud user 2fa disable“ auf dem Server.": "Per gli amministratori la verifica in due passaggi è obbligatoria. Se il dispositivo è perso, aiuta un codice di recupero oppure «holzcloud user 2fa disable» sul server.",
 "Für Administratoren ist dieser Schritt Pflicht. Ohne ihn genügt ein erratenes Passwort, um die ganze Installation zu übernehmen.": "Per gli amministratori questo passaggio è obbligatorio. Senza, una password indovinata basta a impadronirsi dell'intera installazione.",
 "Für Sprachdateien ist kein Ordner eingerichtet": "Non è prevista alcuna cartella per i file di lingua",
 "Für alle, die das Bild nicht sehen können.": "Per tutti coloro che non possono vedere l'immagine.",

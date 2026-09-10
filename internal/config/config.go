@@ -376,6 +376,16 @@ func isLocalPath(p string) bool {
 	if !strings.HasPrefix(p, "/") {
 		return false
 	}
+	// No control character anywhere. A browser removes tab, line feed and
+	// carriage return from a URL before resolving it, so "/<TAB>/evil.example"
+	// is followed as "//evil.example" — protocol-relative, somebody else's
+	// server — and net/http keeps the tab in a Location header (Phase 10
+	// security audit, T-10-05).
+	for _, c := range p {
+		if c < 0x20 || c == 0x7f {
+			return false
+		}
+	}
 	return !strings.HasPrefix(p, "//") && !strings.HasPrefix(p, `/\`)
 }
 
