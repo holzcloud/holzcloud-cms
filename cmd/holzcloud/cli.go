@@ -134,7 +134,7 @@ func readPassword(in io.Reader) (string, error) {
 
 func cmdUser(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: holzcloud user list|create|passwd|2fa")
+		return errors.New("usage: holzcloud user list|create|passwd|2fa|sso")
 	}
 
 	cfg, database, err := openForCLI()
@@ -149,6 +149,46 @@ func cmdUser(args []string) error {
 	switch args[0] {
 	case "2fa":
 		return cmdUserTwoFactor(ctx, store, args[1:])
+	case "sso":
+		// The one way an account made by hand becomes reachable through single
+		// sign-on. A sign-in never links an account by its address — whoever
+		// was quicker on the day it was switched on would decide the link — so
+		// an operator does it here, on purpose, naming both sides.
+		fs := flag.NewFlagSet("user sso", flag.ContinueOnError)
+		email := fs.String("email", "", "email address of the account")
+		username := fs.String("username", "", "the identity's username at the identity provider (X-authentik-username)")
+		unlink := fs.Bool("unlink", false, "remove the link instead of setting it")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *email == "" {
+			return errors.New("-email is required")
+		}
+		name := strings.TrimSpace(*username)
+		if *unlink {
+			name = ""
+		} else if name == "" {
+			return errors.New("-username is required (or -unlink)")
+		}
+		u, err := store.GetByEmail(ctx, *email)
+		if err != nil {
+			return err
+		}
+		if u == nil {
+			return fmt.Errorf("no account with email %q", *email)
+		}
+		if err := store.LinkSSO(ctx, u.ID, name); err != nil {
+			if errors.Is(err, user.ErrSSOUsernameTaken) {
+				return fmt.Errorf("the identity %q is already linked to another account", name)
+			}
+			return err
+		}
+		if name == "" {
+			fmt.Printf("unlinked user %d (%s); it can no longer sign in through single sign-on\n", u.ID, u.Email)
+		} else {
+			fmt.Printf("linked user %d (%s) to the identity %q\n", u.ID, u.Email, name)
+		}
+		return nil
 	case "list":
 		users, err := store.List(ctx)
 		if err != nil {

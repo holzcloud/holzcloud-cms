@@ -930,6 +930,12 @@ func insertUser(t *testing.T, database *db.DB, email, role string) int64 {
 func TestForwardAuthSignsInThroughTheOrdinaryChain(t *testing.T) {
 	handler, _, database := ssoRouter(t)
 	insertUser(t, database, "editor@test", "editor")
+	// Linked on purpose: since migration 00053 a sign-in reaches the account
+	// linked to its identity, never the one that merely carries the address.
+	if _, err := database.Write.ExecContext(context.Background(),
+		`UPDATE users SET sso_username = 'editor' WHERE email = 'editor@test'`); err != nil {
+		t.Fatalf("link editor@test to the identity editor: %v", err)
+	}
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, forwardAuthRequest("/admin/", "editor", "editor@test", nil))
@@ -952,6 +958,12 @@ func TestForwardAuthSignsInThroughTheOrdinaryChain(t *testing.T) {
 func TestForwardAuthDoesNotTouchTheLoginPage(t *testing.T) {
 	handler, sm, database := ssoRouter(t)
 	insertUser(t, database, "editor@test", "editor")
+	// Linked on purpose: since migration 00053 a sign-in reaches the account
+	// linked to its identity, never the one that merely carries the address.
+	if _, err := database.Write.ExecContext(context.Background(),
+		`UPDATE users SET sso_username = 'editor' WHERE email = 'editor@test'`); err != nil {
+		t.Fatalf("link editor@test to the identity editor: %v", err)
+	}
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, forwardAuthRequest("/admin/login", "editor", "editor@test", nil))
