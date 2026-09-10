@@ -26,9 +26,12 @@ type UserRow struct {
 	// LastLogin is empty for an account that has never been used, which is what
 	// makes a forgotten colleague's account visible in the list.
 	LastLogin string
-	// MayPublish and SiteCount are the limits, for the list. SiteCount of zero
-	// means every website — see user.Rights.
+	// MayPublish, Limited and SiteCount are the limits, for the list. A
+	// SiteCount of zero means every website only when Limited is false; since
+	// migration 00052 an editor can be limited to no website, and the list used
+	// to print "alle Websites" for both.
 	MayPublish bool
+	Limited    bool
 	SiteCount  int
 	// SiteTotal is how many websites there are, so "2 von 5" is readable
 	// without counting.
@@ -58,6 +61,10 @@ type UserFormData struct {
 	// Sites are the websites with a tick each, so the form shows the whole
 	// answer and what comes back is complete.
 	Sites []SiteTick
+	// NothingTickedMeansNone is the form's answer to what no tick means, for an
+	// editor limited to no website at all. Without it such an editor is shown
+	// exactly like one nobody limited, and saving the form unchanged widens them.
+	NothingTickedMeansNone bool
 }
 
 // SiteTick is one website in the assignment list.
@@ -167,6 +174,7 @@ func (h *Handler) HandleUserList(w http.ResponseWriter, r *http.Request) error {
 			continue
 		}
 		users[i].MayPublish = rights.MayPublish
+		users[i].Limited = rights.Limited()
 		users[i].SiteCount = len(rights.Websites)
 		users[i].SiteTotal = total
 	}
@@ -279,6 +287,8 @@ func (h *Handler) HandleUserEdit(w http.ResponseWriter, r *http.Request) error {
 		IsEdit:     true,
 		MayPublish: rights.MayPublish,
 		Sites:      h.siteTicks(r, rights),
+		// Limited with no website left: the one state the ticks cannot show.
+		NothingTickedMeansNone: rights.Limited() && len(rights.Websites) == 0,
 	}
 	data.ActiveNav = "users"
 	return web.RenderAdmin(w, h.templates, r, "user_form", data)
