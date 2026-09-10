@@ -166,8 +166,9 @@ func NewUserLookup(database *db.DB) auth.UserLookup {
 func NewWebsiteAccessLookup(database *db.DB) auth.WebsiteAccess {
 	return func(ctx context.Context, userID, websiteID int64) bool {
 		var role string
+		var limited int
 		if err := database.Read.QueryRowContext(ctx,
-			`SELECT role FROM users WHERE id = $1`, userID).Scan(&role); err != nil {
+			`SELECT role, websites_limited FROM users WHERE id = $1`, userID).Scan(&role, &limited); err != nil {
 			return false
 		}
 		if role == user.RoleAdmin {
@@ -180,7 +181,18 @@ func NewWebsiteAccessLookup(database *db.DB) auth.WebsiteAccess {
 			userID, websiteID).Scan(&assigned, &mine); err != nil {
 			return false
 		}
-		return assigned == 0 || mine > 0
+		// Every website only for an account that is not limited AND has no
+		// rows. Until migration 00052 the second half was the whole test —
+		// `assigned == 0 || mine > 0` — and an account whose last row went away
+		// (a deleted website, a SetRights that failed half-way, a demotion at
+		// the identity provider) became an editor of everything. The first
+		// half is the stored answer; the second keeps a row written straight
+		// into user_websites, by hand or by some later import, from ever
+		// meaning "every website" because nobody set the flag.
+		if limited == 0 && assigned == 0 {
+			return true
+		}
+		return mine > 0
 	}
 }
 
