@@ -49,7 +49,7 @@ func NewStore(database *db.DB, fields *field.Store) *Store {
 // with eight kinds would otherwise pay eight round trips to show one form.
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Own, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, kennung, name, hinweis FROM block_types
+		`SELECT id, key, name, hint FROM block_types
 		 WHERE website_id = $1 ORDER BY position, id`, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("bausteinarten lesen: %w", err)
@@ -103,7 +103,7 @@ func (s *Store) Set(ctx context.Context, websiteID int64) Set {
 func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Own, error) {
 	var o Own
 	err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT id, kennung, name, hinweis FROM block_types WHERE id = $1 AND website_id = $2`,
+		`SELECT id, key, name, hint FROM block_types WHERE id = $1 AND website_id = $2`,
 		id, websiteID).Scan(&o.ID, &o.Key, &o.Name, &o.Hint)
 	if err != nil {
 		return nil, fmt.Errorf("bausteinart lesen: %w", err)
@@ -143,7 +143,7 @@ func (s *Store) Create(ctx context.Context, websiteID int64, name, hint string) 
 	}
 
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO block_types (website_id, kennung, name, hinweis, position)
+		`INSERT INTO block_types (website_id, key, name, hint, position)
 		 VALUES ($1, $2, $3, $4,
 		         COALESCE((SELECT MAX(position) + 1 FROM block_types WHERE website_id = $1), 0))`,
 		websiteID, key, name, strings.TrimSpace(hint))
@@ -171,7 +171,7 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, name, hint stri
 		name = name[:40]
 	}
 	_, err := s.DB.Write.ExecContext(ctx,
-		`UPDATE block_types SET name = $1, hinweis = $2 WHERE id = $3 AND website_id = $4`,
+		`UPDATE block_types SET name = $1, hint = $2 WHERE id = $3 AND website_id = $4`,
 		name, strings.TrimSpace(hint), id, websiteID)
 	if err != nil {
 		return fmt.Errorf("bausteinart ändern: %w", err)

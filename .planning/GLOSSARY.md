@@ -47,6 +47,9 @@ Katalogschlüsseln.
 | Darstellung | `display` | |
 | gilt für | `applies_to` | |
 | Bereich | `range` | Die Feldart. `min_wert`/`max_wert` → `range_min`/`range_max` |
+| Mehrzahl | `plural` | SQL-Spalte `mehrzahl` → `plural` (content_types). Am 2026-09-11 gefunden: die Kriterienliste nennt sie nicht |
+| Archiv (einer Inhaltsart) | `archive` | SQL-Spalte `archiv` → `archive` (content_types). **Nicht** zu verwechseln mit `bundle`, dem Archiv als Datei |
+| Sortierung | `sort_order` | SQL-Spalte `sortierung` → `sort_order` (content_types), passend zur gleichnamigen Spalte, die `album_items` und `menu_items` schon tragen |
 | Verweis | `ref` | Auf eine eigene Seite |
 | Link | `link` | Auf eine beliebige Adresse |
 | Album | `album` | Eine Bilderreihe, die mehrere Seiten tragen können. **Nicht** `gallery` — die Galerie ist der Baustein, das Album ist der Vorrat, den er zeigt (Phase 11) |
@@ -159,7 +162,18 @@ Katalogschlüsseln.
   wird umformuliert. Auch das wirft der Katalog heute zusammen.
 - **`Crop`** übersetzt **`Zuschnitt`** (das Ergebnis); `Zuschneiden` ist `crop`
   als Tätigkeit und `Ausschnitt` ist `crop area`.
-- **`Type`** ist in Go belegt. `Art` heisst deshalb `kind`, durchgehend.
+- **`Type`** ist in Go belegt. `Art` heisst deshalb `kind` — mit **genau einer**
+  aufgeschriebenen Ausnahme, und die steht in der Datenbank. `pages` trägt seit
+  00014 ein englisches `kind`, und das heisst `page` oder `post`. Die Spalte
+  `art` daneben (00036) hält die Kennung der **eigenen** Inhaltsart der Website
+  — `produkt`, `termin` — und ist ein Verweis nach `content_types`. Zwei
+  verschiedene Fragen, und die naheliegende Übersetzung der zweiten stösst
+  frontal auf die erste. 00054 nennt sie deshalb `content_kind`. Die Regel
+  „ein deutscher Begriff, genau ein englisches Wort" ist hier wissentlich
+  gebogen; die Alternative wäre, die ältere und bereits richtige Spalte
+  umzubenennen, um den Namen frei zu machen — mehr Code, schlechteres Schema.
+  Im Vorlagen-Vertrag gibt es die Kollision nicht: dort heisst das Feld
+  `.Page.Kind`, weil `PageContent` kein zweites `Kind` trägt.
 - **`Site`** ist der Name des Vorlagen-Vertrags (`.Site.…`). Eine Website heisst
   im Code `website`, nie `site`.
 - **`Weiter`** und **`Zurück`** sind vergeben. Der Katalog übersetzt sie seit

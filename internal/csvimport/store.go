@@ -126,7 +126,7 @@ func (s *Store) Stage(ctx context.Context, u Upload) (string, error) {
 
 	if _, err := s.DB.Write.ExecContext(ctx,
 		`INSERT INTO csv_imports
-		     (token_hash, user_id, website_id, website_name, modus, kollision, dateiname, daten, erstellt_am)
+		     (token_hash, user_id, website_id, website_name, mode, collision, filename, data, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		hashToken(token), u.UserID, website, u.WebsiteName, u.Mode, collision,
 		u.Filename, u.Data, time.Now().UTC().Format(timeLayout)); err != nil {
@@ -147,8 +147,8 @@ func (s *Store) Get(ctx context.Context, token string, userID int64) (*Upload, e
 	var u Upload
 	var created string
 	err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT id, user_id, COALESCE(website_id, 0), website_name, modus, kollision,
-		        dateiname, daten, erstellt_am
+		`SELECT id, user_id, COALESCE(website_id, 0), website_name, mode, collision,
+		        filename, data, created_at
 		   FROM csv_imports WHERE token_hash = $1`, hashToken(token)).
 		Scan(&u.ID, &u.UserID, &u.WebsiteID, &u.WebsiteName, &u.Mode, &u.Collision,
 			&u.Filename, &u.Data, &created)
@@ -220,7 +220,7 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 func (s *Store) Prune(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().UTC().Add(-olderThan).Format(timeLayout)
 	res, err := s.DB.Write.ExecContext(ctx,
-		`DELETE FROM csv_imports WHERE erstellt_am < $1`, cutoff)
+		`DELETE FROM csv_imports WHERE created_at < $1`, cutoff)
 	if err != nil {
 		return 0, fmt.Errorf("prune staged csv uploads: %w", err)
 	}

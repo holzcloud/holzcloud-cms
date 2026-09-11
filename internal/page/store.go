@@ -72,7 +72,7 @@ func scanPage(row interface{ Scan(...any) error }, extra ...any) (*Page, error) 
 	return &p, nil
 }
 
-const pageColumns = `id, website_id, title, slug, content_markdown, content_html, status, published_at, created_at, updated_at, version, created_by, updated_by, deleted_at, excerpt, meta_description, featured_media_id, noindex, publish_at, unpublish_at, review_state, kind, access, access_password, access_hint, blocks, fields, locale, translation_of, art`
+const pageColumns = `id, website_id, title, slug, content_markdown, content_html, status, published_at, created_at, updated_at, version, created_by, updated_by, deleted_at, excerpt, meta_description, featured_media_id, noindex, publish_at, unpublish_at, review_state, kind, access, access_password, access_hint, blocks, fields, locale, translation_of, content_kind`
 
 // ColumnsFor exposes the page projection to packages that join against pages,
 // so a column added here reaches their queries too rather than scanning as a
@@ -277,12 +277,12 @@ func (s *Store) ListPages(ctx context.Context, websiteID int64, f ListFilter) ([
 	// meint die Produkte und nicht die Seiten, unter denen sie wohnen.
 	if f.TypeKey != "" {
 		args = append(args, f.TypeKey)
-		where += fmt.Sprintf(" AND art = $%d", len(args))
+		where += fmt.Sprintf(" AND content_kind = $%d", len(args))
 	} else if f.Kind == KindPage || f.Kind == KindPost {
 		args = append(args, f.Kind)
 		// Und umgekehrt: "Seiten" heisst die Seiten, nicht die Produkte, die
 		// technisch ebenfalls Seiten sind.
-		where += fmt.Sprintf(" AND kind = $%d AND art = ''", len(args))
+		where += fmt.Sprintf(" AND kind = $%d AND content_kind = ''", len(args))
 	}
 	// "*" is every language; anything else is exactly that one, and the empty
 	// string is the main language — which is what a website with one language
@@ -494,7 +494,7 @@ func (s *Store) CreatePage(ctx context.Context, c PageCreate) (*Page, error) {
 		res, err := s.DB.Write.ExecContext(ctx,
 			`INSERT INTO pages (website_id, title, slug, content_markdown, content_html, status, published_at,
 			 created_by, updated_by, excerpt, meta_description, featured_media_id, noindex,
-			 publish_at, unpublish_at, kind, blocks, fields, locale, translation_of, art)
+			 publish_at, unpublish_at, kind, blocks, fields, locale, translation_of, content_kind)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
 			c.WebsiteID, c.Title, slug, c.Markdown, c.HTML, c.Status, publishedAt, nullableID(c.UserID),
 			c.Meta.Excerpt, c.Meta.MetaDescription, nullableID(c.Meta.FeaturedMediaID), boolToInt(c.Meta.NoIndex),
@@ -579,7 +579,7 @@ func (s *Store) UpdatePage(ctx context.Context, id int64, u PageUpdate) error {
 	var prevTitle, prevSlug, prevMarkdown, prevStatus, prevBlocks, prevKind, prevType string
 	var prevVersion, websiteID int64
 	err = tx.QueryRowContext(ctx,
-		`SELECT title, slug, content_markdown, status, version, website_id, blocks, kind, art
+		`SELECT title, slug, content_markdown, status, version, website_id, blocks, kind, content_kind
 		 FROM pages WHERE id = $1`, id).
 		Scan(&prevTitle, &prevSlug, &prevMarkdown, &prevStatus, &prevVersion, &websiteID, &prevBlocks,
 			&prevKind, &prevType)
@@ -631,7 +631,7 @@ func (s *Store) UpdatePage(ctx context.Context, id int64, u PageUpdate) error {
 		 END,
 		 updated_by = $6, version = version + 1,
 		 excerpt = $7, meta_description = $8, featured_media_id = $9, noindex = $10,
-		 publish_at = $11, unpublish_at = $12, kind = $13, blocks = $14, fields = $15, art = $18,
+		 publish_at = $11, unpublish_at = $12, kind = $13, blocks = $14, fields = $15, content_kind = $18,
 		 -- Saving is an editorial act; it clears a pending review request.
 		 review_state = 'none',
 		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')

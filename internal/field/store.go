@@ -64,9 +64,9 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // in der .Page.FieldList jedes Themes — still, und nur im Browser zu sehen.
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert,
+		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
+		        required, hint, choices, applies_to, position, condition,
+		        display, max_values, range_min, range_max,
 		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs
 		 WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL
@@ -111,9 +111,9 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 // Bedingung ist damit im Sinne von D-09 bereits ausdrücklich genannt.
 func (s *Store) Sub(ctx context.Context, websiteID, groupID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert,
+		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
+		        required, hint, choices, applies_to, position, condition,
+		        display, max_values, range_min, range_max,
 		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs WHERE website_id = $1 AND parent_id = $2 ORDER BY position, id`,
 		websiteID, groupID)
@@ -136,9 +136,9 @@ func (s *Store) Sub(ctx context.Context, websiteID, groupID int64) ([]Def, error
 // OfBlockType returns the fields of one block kind, in order.
 func (s *Store) OfBlockType(ctx context.Context, websiteID, blockTypeID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert,
+		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
+		        required, hint, choices, applies_to, position, condition,
+		        display, max_values, range_min, range_max,
 		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs
 		 WHERE website_id = $1 AND block_type_id = $2 AND snippet_id IS NULL
@@ -166,9 +166,9 @@ func (s *Store) OfBlockType(ctx context.Context, websiteID, blockTypeID int64) (
 // every draw of the block editor.
 func (s *Store) OfBlockTypes(ctx context.Context, websiteID int64) (map[int64][]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert,
+		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
+		        required, hint, choices, applies_to, position, condition,
+		        display, max_values, range_min, range_max,
 		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs
 		 WHERE website_id = $1 AND block_type_id IS NOT NULL AND snippet_id IS NULL
@@ -203,9 +203,9 @@ func (s *Store) OfBlockTypes(ctx context.Context, websiteID int64) (map[int64][]
 // Grund, der bei Get steht und hier unverändert gilt.
 func (s *Store) OfSnippet(ctx context.Context, websiteID, snippetID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert,
+		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
+		        required, hint, choices, applies_to, position, condition,
+		        display, max_values, range_min, range_max,
 		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs
 		 WHERE website_id = $1 AND snippet_id = $2
@@ -261,9 +261,9 @@ func (s *Store) OfSnippet(ctx context.Context, websiteID, snippetID int64) ([]De
 // auch nicht bei zwei Feldern auf derselben Position.
 func (s *Store) OfSnippets(ctx context.Context, websiteID int64) (map[int64][]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert,
+		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
+		        required, hint, choices, applies_to, position, condition,
+		        display, max_values, range_min, range_max,
 		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs
 		 WHERE website_id = $1 AND snippet_id IS NOT NULL
@@ -337,9 +337,9 @@ func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 // field by typing its number.
 func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Def, error) {
 	row := s.DB.Read.QueryRowContext(ctx,
-		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,
-		        pflicht, hinweis, auswahl, gilt_fuer, position, bedingung,
-		        darstellung, max_werte, min_wert, max_wert,
+		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
+		        required, hint, choices, applies_to, position, condition,
+		        display, max_values, range_min, range_max,
 		        COALESCE(block_type_id, 0), COALESCE(snippet_id, 0)
 		 FROM page_field_defs WHERE id = $1 AND website_id = $2`, id, websiteID)
 	d, err := scanDef(row)
@@ -480,8 +480,8 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 	// worlds in one table, and a field must never be able to move out of its
 	// own.
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO page_field_defs (website_id, parent_id, block_type_id, snippet_id, kennung, beschriftung, art, pflicht, hinweis, auswahl, gilt_fuer, bedingung,
-		                             darstellung, max_werte, min_wert, max_wert, position)
+		`INSERT INTO page_field_defs (website_id, parent_id, block_type_id, snippet_id, key, label, kind, required, hint, choices, applies_to, condition,
+		                             display, max_values, range_min, range_max, position)
 		 VALUES ($1, $2, $11, $16, $3, $4, $5, $6, $7, $8, $9, $10,
 		         $12, $13, $14, $15,
 		         COALESCE((SELECT MAX(position) + 1 FROM page_field_defs
@@ -534,9 +534,9 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, d Def) error {
 
 	_, err = s.DB.Write.ExecContext(ctx,
 		`UPDATE page_field_defs
-		 SET beschriftung = $1, art = $2, pflicht = $3, hinweis = $4, auswahl = $5,
-		     gilt_fuer = $6, bedingung = $7,
-		     darstellung = $10, max_werte = $11, min_wert = $12, max_wert = $13
+		 SET label = $1, kind = $2, required = $3, hint = $4, choices = $5,
+		     applies_to = $6, condition = $7,
+		     display = $10, max_values = $11, range_min = $12, range_max = $13
 		 WHERE id = $8 AND website_id = $9`,
 		d.Label, d.Kind, boolToInt(d.Required), d.Hint, JoinChoices(d.Choices), d.AppliesTo,
 		d.Condition, id, websiteID,
