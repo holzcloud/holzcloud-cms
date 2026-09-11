@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <!-- Papier und Zeichen nach docs/brand/README.md: eine Akzentfarbe plus
+       Papier, Freiraum eine halbe Zeichenhöhe, keine Kontur um die Wolke,
+       drei Ringe (freistehendes Zeichen) und kein vierter. -->
+  <rect width="1280" height="640" fill="#F7F4EE"/>
+  <g transform="translate(640 320) scale(5) translate(-32 -32)">
+    <defs><clipPath id="hc-cloud"><path d="M15 44a11 11 0 0 1 1.4-21.9A16 16 0 0 1 46 20.5 11.5 11.5 0 0 1 49 44z"/></clipPath></defs>
+    <g clip-path="url(#hc-cloud)">
+      <rect width="64" height="64" fill="#1F4F42"/>
+      <g fill="none" stroke="#F7F4EE" stroke-width="3.4">
+        <circle cx="31" cy="34" r="4.6"/><circle cx="31" cy="34" r="11.4"/><circle cx="31" cy="34" r="18.2"/>
+      </g>
+    </g>
+  </g>
+</svg>
