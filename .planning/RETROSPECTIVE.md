@@ -2,9 +2,9 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
-## Milestone: v1.6 — Inhaltsmodell und Zugang
+## Milestone: v1.10 — Inhaltsmodell und Zugang (planned as v1.6)
 
-**Shipped:** 2026-09-10
+**Shipped:** 2026-09-10 (milestone close), released as 1.10 on 2026-09-11
 **Phases:** 6 (6–11) | **Plans:** 42 | **Tasks:** 95 | **Sessions:** several, not counted
 
 ### What Was Built
@@ -45,7 +45,7 @@
 2. **Close the ledger in the commit that closes the defect.** A fix whose report still says "open" costs the next audit the full proof again.
 3. **Milestone-level integration checks are not optional.** Cross-phase seams (a new field kind reaching an older carrier) are exactly what per-phase verification is structured not to see.
 4. **Decide scope moves in the roadmap structure, not only in prose.** A note that says "moved to v2.0" under a v1.6 heading is still v1.6 to every tool.
-5. **Decide how milestone numbers relate to release tags before they collide.** The planning v1.6 closed while the release tags already stood at v1.9.
+5. **Keep milestone and release on one number.** The planning v1.6 closed while the release tags already stood at v1.9; it was released as 1.10 and renumbered to match (decided 2026-09-11). From here a milestone close creates its release tag.
 
 ### Cost Observations
 
@@ -62,15 +62,15 @@
 | Milestone | Sessions | Phases | Key Change |
 |-----------|----------|--------|------------|
 | v1.0 | not recorded | 5 | Initial build; no retrospective written |
-| v1.6 | several | 6 | Proof-first fixes, mutation probes, browser passes and a milestone integration check as standing practice |
+| v1.10 (planned as v1.6) | several | 6 | Proof-first fixes, mutation probes, browser passes and a milestone integration check as standing practice |
 
 ### Cumulative Quality
 
 | Milestone | Test packages | Coverage | Zero-Dep Additions |
 |-----------|---------------|----------|--------------------|
 | v1.0 | not recorded | not recorded | — |
-| v1.6 | 44 green at close | not measured | SSO, CSV import and gallery added without a new module dependency |
+| v1.10 | 44 green at close | not measured | SSO, CSV import and gallery added without a new module dependency |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. Planning artefacts that are not updated at boundaries fall behind the code — seen after v1.0 (five months of "v1.0 complete") and again inside v1.6 (ledgers behind fixes).
+1. Planning artefacts that are not updated at boundaries fall behind the code — seen after v1.0 (five months of "v1.0 complete") and again inside v1.10 (ledgers behind fixes).

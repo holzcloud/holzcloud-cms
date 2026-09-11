@@ -1,6 +1,9 @@
 # Milestones
 
-## v1.6 Inhaltsmodell und Zugang (Shipped: 2026-09-10)
+## v1.10 Inhaltsmodell und Zugang (Shipped: 2026-09-11)
+
+*Planned and worked as v1.6, closed on 2026-09-10, renumbered v1.10 when it was released
+so that milestone and release carry one number (decided 2026-09-11).*
 
 **Delivered:** A website describes its content model completely — every field kind
 an author needs, in every carrier that holds fields, content that can arrive as a
@@ -11,7 +14,7 @@ admin may arrive through the sign-in the operator already runs.
 **Timeline:** 2026-09-03 → 2026-09-10 (8 days), `30f2064` → close, 449 commits
 **Code:** 472 files changed, +119 622 / −9 700 lines since the `v1.5` release tag;
 110 399 lines of Go in 394 files at close
-**Audit:** `tech_debt`, 46/48 requirements satisfied — `milestones/v1.6-MILESTONE-AUDIT.md`
+**Audit:** `tech_debt`, 46/48 requirements satisfied — `milestones/v1.10-MILESTONE-AUDIT.md`
 (first verdict `gaps_found`; the one broken cross-phase seam was closed before this entry)
 **Closeout:** override_closeout — Known verification overrides: 5 newly acknowledged,
 0 carried forward from a prior close (see STATE.md Deferred Items)
@@ -59,9 +62,9 @@ album changes. Both were proven red and fixed (`bda9151`, `9ab7beb`).
 
 ### Tag
 
-No git tag was created for this milestone. `v1.6` already names the software
-release "Fassung 1.6" (2026-09-04, `ad6a793`), and releases have reached `v1.9`.
-Planning milestone numbers and release tags stopped meaning the same thing at the
-v1.5 renumbering; moving a published tag is not an option.
+`v1.10` — the release built from this milestone (2026-09-11). The tag `v1.6` already
+named the published release "Fassung 1.6" (2026-09-04, `ad6a793`) and releases had
+reached `v1.9`, so the milestone took the next free release number rather than moving a
+published tag. From here a milestone close creates its release tag.
 
 ---

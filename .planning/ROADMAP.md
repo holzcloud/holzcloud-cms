@@ -3,8 +3,14 @@
 ## Milestones
 
 - ✅ **v1.0 — Core CMS** — Phases 1–5 (shipped 2026-04-14)
-- ✅ **v1.6 — Inhaltsmodell und Zugang** — Phases 6–11 (shipped 2026-09-10)
+- ✅ **v1.10 — Inhaltsmodell und Zugang** — Phases 6–11 (closed 2026-09-10, released 2026-09-11; planned as v1.6)
 - 📋 **v2.0 — The Codebase Speaks English** — Phase 12 (not planned)
+
+**Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
+milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
+the release tags `v1.6`–`v1.9` already existed, and a published tag is never moved.
+Every document written while it ran still says v1.6 and stays that way. From here the
+close of a milestone creates its release tag — v2.0 closes as release 2.0.
 
 **Phase 12 moved out of v1.6 on 2026-09-08, and Phase 11 stayed in.** The
 roadmap has carried the question in two scope notes since 2026-09-05 — extend
@@ -26,8 +32,8 @@ to trip over. Decided rather than inherited:
   v1.6 delivered — which is what the goal sentence below now does.
 
 Phase numbering continues from v1.0. It never restarts. The five v1.0 phase
-directories are archived under `.planning/milestones/v1.0-phases/`. The six v1.6 phase
-directories are archived under `.planning/milestones/v1.6-phases/`.
+directories are archived under `.planning/milestones/v1.0-phases/`. The six v1.10 phase
+directories are archived under `.planning/milestones/v1.10-phases/`.
 
 There is no v1.5 milestone shell. The tags `v1.4` and `v1.5` are released and
 pushed and CHANGELOG.md carries `## 1.5 — 2026-09-03`; the planned milestone
@@ -60,7 +66,7 @@ archived with the phase directories under `.planning/milestones/v1.0-phases/`.
 </details>
 
 <details>
-<summary>✅ v1.6 — Inhaltsmodell und Zugang (Phases 6–11) — SHIPPED 2026-09-10</summary>
+<summary>✅ v1.10 — Inhaltsmodell und Zugang (Phases 6–11, planned as v1.6) — SHIPPED 2026-09-11</summary>
 
 **Milestone Goal:** A website describes its content model completely — every
 field kind an author needs, in every carrier that holds fields, and content can
@@ -70,9 +76,9 @@ sign-in the operator already runs.
 Requirements MAINT, FIELD, SNIP, IMP, SSO, GAL and QUAL — 48 in all, 46 satisfied at
 close; GAL-07 (wording) and QUAL-01 (sentences past the gate) are partial and handed
 to Phase 12. Goals, success criteria, the standing gates, coverage and the migration
-ledger are archived in `.planning/milestones/v1.6-ROADMAP.md`, the requirements in
-`v1.6-REQUIREMENTS.md`, the audit in `v1.6-MILESTONE-AUDIT.md`, and the phase
-directories under `v1.6-phases/`.
+ledger are archived in `.planning/milestones/v1.10-ROADMAP.md`, the requirements in
+`v1.10-REQUIREMENTS.md`, the audit in `v1.10-MILESTONE-AUDIT.md`, and the phase
+directories under `v1.10-phases/`.
 
 - [x] Phase 6: Aufräumen (7/7 plans) — completed 2026-09-04
 - [x] Phase 7: Field Kinds (7/7 plans) — completed 2026-09-06
@@ -89,14 +95,14 @@ Moved out of v1.6 on 2026-09-08 — see the note under *Milestones*. Not yet sta
 `/gsd-new-milestone` opens it and writes a fresh `.planning/REQUIREMENTS.md`.
 
 **Requirements to carry in:** LANG-01 … LANG-08. Their full text is in
-`.planning/milestones/v1.6-REQUIREMENTS.md` under *Language* — the active
-requirements file was removed at the v1.6 close, as it is at every close.
+`.planning/milestones/v1.10-REQUIREMENTS.md` under *Language* — the active
+requirements file was removed at the v1.10 close, as it is at every close.
 
-**Handed over from v1.6:** GAL-07's wording; QUAL-01's sentences past the gate
+**Handed over from v1.10:** GAL-07's wording; QUAL-01's sentences past the gate
 (`WINDOWS.md` 6, 18, 29) together with the 828 uncollectable strings
 (`.planning/audits/v1.6-I18N-828.md`, criterion 9 below); Phase 10's criterion 6.
-The standing gates (QUAL-01, QUAL-02) apply here as they did in v1.6 — their full
-wording is in the v1.6 archive, and criterion 8 below restates them.
+The standing gates (QUAL-01, QUAL-02) apply here as they did in v1.10 — their full
+wording is in the v1.10 archive, and criterion 8 below restates them.
 
 ### Phase 12: The Codebase Speaks English
 
@@ -146,15 +152,15 @@ Phase 12 is the only planned phase. Numbering continues from 12; it never restar
 | 3. Multi-Site + Pages + Public Rendering | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 4. Templates + Menus + Media | v1.0 | 3/3 | Complete | 2026-04-14 |
 | 5. Admin Polish + Users + Deployment | v1.0 | 3/3 | Complete | 2026-04-14 |
-| 6. Aufräumen | v1.6 | 7/7 | Complete | 2026-09-04 |
-| 7. Field Kinds | v1.6 | 7/7 | Complete | 2026-09-06 |
-| 8. Snippets Carry Fields | v1.6 | 5/5 | Complete | 2026-09-06 |
-| 9. CSV Import | v1.6 | 6/6 | Complete | 2026-09-07 |
-| 10. Authentik Forward-Auth | v1.6 | 10/10 | Complete | 2026-09-10 |
-| 11. Galerie | v1.6 | 7/7 | Complete | 2026-09-08 |
+| 6. Aufräumen | v1.10 | 7/7 | Complete | 2026-09-04 |
+| 7. Field Kinds | v1.10 | 7/7 | Complete | 2026-09-06 |
+| 8. Snippets Carry Fields | v1.10 | 5/5 | Complete | 2026-09-06 |
+| 9. CSV Import | v1.10 | 6/6 | Complete | 2026-09-07 |
+| 10. Authentik Forward-Auth | v1.10 | 10/10 | Complete | 2026-09-10 |
+| 11. Galerie | v1.10 | 7/7 | Complete | 2026-09-08 |
 | 12. The Codebase Speaks English | v2.0 | 0/TBD | Not planned | - |
 
 ---
-*Reorganized at the v1.6 close, 2026-09-10: v1.0 and v1.6 collapsed to their
-summaries, v2.0 kept in full. The v1.6 roadmap as it stood at the close is
-`.planning/milestones/v1.6-ROADMAP.md`.*
+*Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
+summaries, v2.0 kept in full. The v1.10 roadmap as it stood at the close is
+`.planning/milestones/v1.10-ROADMAP.md`.*
