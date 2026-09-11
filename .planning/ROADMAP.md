@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 — Core CMS** — Phases 1–5 (shipped 2026-04-14)
 - ✅ **v1.10 — Inhaltsmodell und Zugang** — Phases 6–11 (closed 2026-09-10, released 2026-09-11; planned as v1.6)
-- 📋 **v2.0 — The Codebase Speaks English** — Phase 12 (not planned)
+- 🚧 **v2.0 — The Codebase Speaks English** — Phase 12 (opened 2026-09-11, in progress)
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -89,10 +89,13 @@ directories under `v1.10-phases/`.
 
 </details>
 
-### 📋 v2.0 — The Codebase Speaks English (not planned)
+### 🚧 v2.0 — The Codebase Speaks English (opened 2026-09-11)
 
-Moved out of v1.6 on 2026-09-08 — see the note under *Milestones*. Not yet started:
-`/gsd-new-milestone` opens it and writes a fresh `.planning/REQUIREMENTS.md`.
+Moved out of v1.6 on 2026-09-08 — see the note under *Milestones*. Opened 2026-09-11
+with a fresh `.planning/REQUIREMENTS.md` (LANG-01…08 plus the two standing gates).
+The phase was re-measured against `ef4873a` before any change; the measurement, the
+two standing decisions (LANG-08, and the 403 outside the collector's reach) and the
+order of work are in `.planning/phases/12-codebase-speaks-english/12-CONTEXT.md`.
 
 **Requirements to carry in:** LANG-01 … LANG-08. Their full text is in
 `.planning/milestones/v1.10-REQUIREMENTS.md` under *Language* — the active
@@ -121,7 +124,7 @@ wording is in the v1.10 archive, and criterion 8 below restates them.
   8. **Standing gate** (QUAL-01, QUAL-02): `go run ./tools/i18n` reports `0 offen, 0 verwaist` on every catalogue **after the source flip**, and every screen a person can see has been driven once through the running application in a browser — because renaming a template contract field that a screen reads is exactly the change no test catches and every visitor does.
   9. **Every operator-facing string is *collectable*, and the gate says so.** Measured 2026-09-08 by an adversarial sweep (`.planning/audits/v1.6-I18N-828.md`): **828 strings a person can read are in no catalogue at all** — not untranslated, *unreported*, because `tools/i18n` cannot see them. 403 lie outside its two directories (274 in `plugins/`, 116 in the public themes); the other 425 lie inside and are invisible anyway, because a sentence built with `fmt.Sprintf`, joined with `+`, returned from a helper, or surfaced through `err.Error()` is not a string literal at the argument index the collector reads. **This criterion is what turns criterion 5 from a re-keying into a translation that is actually complete**, and criterion 7's mechanical gate must grow a second half: not only "no German enters Go source", but "no operator-facing string is minted in a shape the collector cannot see". The two are different failures and only the first has a gate today.
 
-**Plans**: TBD
+**Plans**: 10 waves — see `12-CONTEXT.md` §4 for the order and why it is that order
 **UI hint**: no new UI. But **every existing screen is in the blast radius** of criterion 3, so the browser half of the standing gate is larger here than in any phase that adds screens.
 **Research flag**: none. Nothing here is unknown; it is large, and the risk is inconsistency rather than difficulty. The glossary exists to make it mechanical.
 **Milestone**: **v2.0**, decided 2026-09-08. It was added to v1.6 on 2026-09-06 by explicit developer decision and its scope note asked, unresolved, whether to extend that milestone's goal or move this phase out. Moved out: the phase carries a breaking change to a public contract, so the release carrying it is 2.0 and cannot sit among 1.x releases; and its size changed after the note was written — see the planning note about the 828, below. Phase 11 stayed in v1.6 because it shipped there. The reasoning is at the top of this file under Milestones.
@@ -143,7 +146,7 @@ wording is in the v1.10 archive, and criterion 8 below restates them.
 
 ## Progress
 
-Phase 12 is the only planned phase. Numbering continues from 12; it never restarts.
+Phase 12 is the only planned phase and is running. Numbering continues from 12; it never restarts.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -158,7 +161,7 @@ Phase 12 is the only planned phase. Numbering continues from 12; it never restar
 | 9. CSV Import | v1.10 | 6/6 | Complete | 2026-09-07 |
 | 10. Authentik Forward-Auth | v1.10 | 10/10 | Complete | 2026-09-10 |
 | 11. Galerie | v1.10 | 7/7 | Complete | 2026-09-08 |
-| 12. The Codebase Speaks English | v2.0 | 0/TBD | Not planned | - |
+| 12. The Codebase Speaks English | v2.0 | 0/10 | In progress | - |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
