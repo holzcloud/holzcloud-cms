@@ -91,12 +91,12 @@ const (
 type nachricht struct {
 	// Kennung ist der Speicherschlüssel ohne Präfix, damit ein Formular in der
 	// Verwaltung auf eine einzelne Nachricht zeigen kann.
-	Kennung string `json:"kennung"`
+	Key     string `json:"kennung"`
 	Name    string `json:"name"`
 	Email   string `json:"email"`
 	Betreff string `json:"betreff,omitempty"`
 	Text    string `json:"text"`
-	Seite   string `json:"seite,omitempty"`
+	Page    string `json:"seite,omitempty"`
 	Zeit    string `json:"zeit"`
 	Gelesen bool   `json:"gelesen,omitempty"`
 	// Formular und FormularName sagen, woher die Nachricht kam. Leer für das
@@ -105,7 +105,7 @@ type nachricht struct {
 	FormularName string `json:"formularname,omitempty"`
 	// Felder sind die Antworten eines zusammengestellten Formulars, in der
 	// Reihenfolge, in der gefragt wurde.
-	Felder []antwort `json:"felder,omitempty"`
+	Fields []antwort `json:"felder,omitempty"`
 }
 
 func init() {
@@ -169,10 +169,10 @@ func ersetzen(re *regexp.Regexp, seite string, d daten, werte url.Values) string
 		if arg != "" {
 			if f, ok := formularLaden(arg); ok {
 				eigen := d
-				if d.Formular != "" && d.Formular != f.Kennung {
+				if d.Formular != "" && d.Formular != f.Key {
 					// Die Antwort gehört zu einem anderen Formular auf
 					// derselben Seite; dieses hier zeigt keine fremde Meldung.
-					eigen.Hinweis, eigen.IstFehler = "", false
+					eigen.Hint, eigen.IsError = "", false
 					werte = nil
 				}
 				return zeichnenEigen(f, eigen, werte)
@@ -187,7 +187,7 @@ func ersetzen(re *regexp.Regexp, seite string, d daten, werte url.Values) string
 			eigen.Betreff = arg
 		}
 		if d.Formular != "" {
-			eigen.Hinweis, eigen.IstFehler = "", false
+			eigen.Hint, eigen.IsError = "", false
 		}
 		return zeichnen(eigen)
 	})
@@ -195,15 +195,15 @@ func ersetzen(re *regexp.Regexp, seite string, d daten, werte url.Values) string
 
 // daten ist alles, was das gezeichnete Formular braucht.
 type daten struct {
-	Seite string
+	Page string
 	// Formular ist die Kennung des Formulars, dessen Absendung gerade
 	// beantwortet wird. Nur dieses zeigt die Meldung — auf einer Seite mit
 	// zwei Formularen stünde sie sonst zweimal.
 	Formular  string
-	Zeitmarke string
+	Timestamp string
 	Kontakt   string
-	Hinweis   string
-	IstFehler bool
+	Hint      string
+	IsError   bool
 	Name      string
 	Email     string
 	Betreff   string
@@ -211,7 +211,7 @@ type daten struct {
 }
 
 func formulardaten(in plugin.ContentIn) daten {
-	d := daten{Seite: in.Slug, Zeitmarke: zeitmarke(time.Now())}
+	d := daten{Page: in.Slug, Timestamp: zeitmarke(time.Now())}
 	if s, err := plugin.Site(); err == nil {
 		d.Kontakt = s.ContactEmail
 	}
@@ -224,10 +224,10 @@ func formulardaten(in plugin.ContentIn) daten {
 	switch q.Get("formular") {
 	case "gesendet":
 		f, ok := formularLaden(d.Formular)
-		d.Hinweis = hinweisFuer(f, ok)
+		d.Hint = hinweisFuer(f, ok)
 	case "fehler":
-		d.IstFehler = true
-		d.Hinweis = hinweistext(q.Get("hinweis"))
+		d.IsError = true
+		d.Hint = hinweistext(q.Get("hinweis"))
 	}
 	return d
 }
@@ -255,15 +255,15 @@ func zeichnen(d daten) string {
 	e := html.EscapeString
 	var b strings.Builder
 	fmt.Fprintf(&b, `<form class="contact-form" method="POST" action="%s">`, absendeAdresse)
-	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldZeit, e(d.Zeitmarke))
-	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldSeite, e(d.Seite))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldZeit, e(d.Timestamp))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldSeite, e(d.Page))
 
-	if d.Hinweis != "" {
+	if d.Hint != "" {
 		klasse := "contact-form__notice"
-		if d.IstFehler {
+		if d.IsError {
 			klasse += " contact-form__notice--error"
 		}
-		fmt.Fprintf(&b, `<p class="%s" role="status">%s</p>`, klasse, e(d.Hinweis))
+		fmt.Fprintf(&b, `<p class="%s" role="status">%s</p>`, klasse, e(d.Hint))
 	}
 
 	feld := func(id, label, typ, name, wert string, max int, extra string) {
@@ -431,7 +431,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 			Email:   strings.TrimSpace(form.Get(feldEmail)),
 			Betreff: strings.TrimSpace(form.Get(feldBetreff)),
 			Text:    strings.TrimSpace(form.Get(feldText)),
-			Seite:   seite,
+			Page:    seite,
 		}
 		if problem := pruefen(n); problem != "" {
 			return zurueck(seite, "fehler", problem), nil
@@ -467,7 +467,7 @@ func benachrichtigen(n nachricht) {
 	if n.FormularName != "" && !strings.Contains(betreff, n.FormularName) {
 		betreff = n.FormularName + ": " + betreff
 	}
-	von := n.Seite
+	von := n.Page
 	if von == "" {
 		von = "Startseite"
 	} else {
@@ -620,13 +620,13 @@ func altZaehlerWegwerfen(aktuell string) {
 
 func speichern(n nachricht) error {
 	n.Zeit = time.Now().UTC().Format(time.RFC3339)
-	n.Kennung = n.Zeit + "-" + zufallsende()
+	n.Key = n.Zeit + "-" + zufallsende()
 
 	roh, err := json.Marshal(n)
 	if err != nil {
 		return err
 	}
-	if err := plugin.Set(praefixNachricht+n.Kennung, string(roh)); err != nil {
+	if err := plugin.Set(praefixNachricht+n.Key, string(roh)); err != nil {
 		return err
 	}
 	aufraeumen()
@@ -683,7 +683,7 @@ func bildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 	}
 	liste := lesen(alle)
 	// Neueste zuerst: wer den Bildschirm öffnet, sucht fast immer die letzte.
-	sort.Slice(liste, func(i, j int) bool { return liste[i].Kennung > liste[j].Kennung })
+	sort.Slice(liste, func(i, j int) bool { return liste[i].Key > liste[j].Key })
 
 	// Die Tabelle zum Herunterladen. Sie steht hinter derselben Adresse mit
 	// ?ansicht=csv, weil ein Plugin nur einen Bildschirm hat und die Abfrage
@@ -723,21 +723,21 @@ func bildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 		fmt.Fprintf(&b, `<h3>%s</h3>`, ausgeben(betreffOder(n)))
 		fmt.Fprintf(&b, `<p class="text-muted">%s &lt;<a href="mailto:%s">%s</a>&gt; · %s`,
 			ausgeben(n.Name), ausgeben(n.Email), ausgeben(n.Email), ausgeben(kurzDatum(n.Zeit)))
-		if n.Seite != "" {
-			fmt.Fprintf(&b, ` · von <code>/%s</code>`, ausgeben(n.Seite))
+		if n.Page != "" {
+			fmt.Fprintf(&b, ` · von <code>/%s</code>`, ausgeben(n.Page))
 		}
 		if n.FormularName != "" {
 			fmt.Fprintf(&b, ` · %s`, ausgeben(n.FormularName))
 		}
 		b.WriteString(`</p>`)
-		if len(n.Felder) > 0 {
+		if len(n.Fields) > 0 {
 			// Ein zusammengestelltes Formular hat benannte Antworten. Als
 			// Tabelle statt als Fliesstext: wer zwanzig Anfragen durchgeht,
 			// sucht immer dasselbe Feld, und in einer Spalte findet er es.
 			b.WriteString(`<table class="table"><tbody>`)
-			for _, a := range n.Felder {
+			for _, a := range n.Fields {
 				fmt.Fprintf(&b, `<tr><th scope="row">%s</th><td>%s</td></tr>`,
-					ausgeben(a.Beschriftung), ausgeben(a.Wert))
+					ausgeben(a.Label), ausgeben(a.Value))
 			}
 			b.WriteString(`</tbody></table>`)
 		} else {
@@ -748,11 +748,11 @@ func bildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 
 		b.WriteString(`<p class="table-actions">`)
 		if n.Gelesen {
-			knopf(&b, "ungelesen", n.Kennung, "Als ungelesen markieren", "")
+			knopf(&b, "ungelesen", n.Key, "Als ungelesen markieren", "")
 		} else {
-			knopf(&b, "gelesen", n.Kennung, "Als gelesen markieren", "")
+			knopf(&b, "gelesen", n.Key, "Als gelesen markieren", "")
 		}
-		knopf(&b, "loeschen", n.Kennung, "Löschen", "btn--danger")
+		knopf(&b, "loeschen", n.Key, "Löschen", "btn--danger")
 		b.WriteString(`</p></article>`)
 	}
 
@@ -796,7 +796,7 @@ func lesen(roh map[string]string) []nachricht {
 	out := make([]nachricht, 0, len(roh))
 	for _, v := range roh {
 		var n nachricht
-		if json.Unmarshal([]byte(v), &n) == nil && n.Kennung != "" {
+		if json.Unmarshal([]byte(v), &n) == nil && n.Key != "" {
 			out = append(out, n)
 		}
 	}

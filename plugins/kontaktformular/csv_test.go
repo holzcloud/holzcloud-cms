@@ -40,17 +40,17 @@ func TestHarmloseZellenBleibenUnveraendert(t *testing.T) {
 func TestTabelleTraegtDieFestenSpaltenUndDieDerFormulare(t *testing.T) {
 	liste := []nachricht{
 		{
-			Kennung: "2026-08-30T10:00:00Z-a", Zeit: "2026-08-30T10:00:00Z",
+			Key: "2026-08-30T10:00:00Z-a", Zeit: "2026-08-30T10:00:00Z",
 			Name: "Anna", Email: "anna@example.ch", Betreff: "Anfrage",
-			Text: "Guten Tag", Seite: "kontakt",
+			Text: "Guten Tag", Page: "kontakt",
 		},
 		{
-			Kennung: "2026-08-30T11:00:00Z-b", Zeit: "2026-08-30T11:00:00Z",
+			Key: "2026-08-30T11:00:00Z-b", Zeit: "2026-08-30T11:00:00Z",
 			Name: "Bruno", Email: "bruno@example.ch", FormularName: "Anmeldung",
 			Gelesen: true,
-			Felder: []antwort{
-				{Beschriftung: "Kurs", Wert: "Drechseln"},
-				{Beschriftung: "Personen", Wert: "2"},
+			Fields: []antwort{
+				{Label: "Kurs", Value: "Drechseln"},
+				{Label: "Personen", Value: "2"},
 			},
 		},
 	}
@@ -82,8 +82,8 @@ func TestTabelleTraegtDieFestenSpaltenUndDieDerFormulare(t *testing.T) {
 // verschiebt die Spalten nicht.
 func TestFehlendeFelderVerschiebenDieSpaltenNicht(t *testing.T) {
 	liste := []nachricht{
-		{Kennung: "a", Felder: []antwort{{Beschriftung: "Kurs", Wert: "Drechseln"}}},
-		{Kennung: "b", Felder: []antwort{{Beschriftung: "Ort", Wert: "Bern"}}},
+		{Key: "a", Fields: []antwort{{Label: "Kurs", Value: "Drechseln"}}},
+		{Key: "b", Fields: []antwort{{Label: "Ort", Value: "Bern"}}},
 	}
 	raw, err := alsCSV(liste)
 	if err != nil {

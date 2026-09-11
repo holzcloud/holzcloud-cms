@@ -86,13 +86,13 @@ func formularliste() (plugin.AdminOut, error) {
 			`</tr></thead><tbody>`)
 		for _, f := range liste {
 			fmt.Fprintf(&b, `<tr><td>%s</td><td>%d</td><td><code>%s</code></td><td class="table-actions">`,
-				html.EscapeString(f.Name), len(f.Felder), html.EscapeString(markeFuer(f.Kennung)))
+				html.EscapeString(f.Name), len(f.Fields), html.EscapeString(markeFuer(f.Key)))
 			fmt.Fprintf(&b, `<a class="btn btn--sm" href="?ansicht=formular&amp;kennung=%s">Bearbeiten</a>`,
-				html.EscapeString(f.Kennung))
+				html.EscapeString(f.Key))
 			fmt.Fprintf(&b, `<form method="POST" class="inline-form">`+
 				`<input type="hidden" name="loeschen_formular" value="%s">`+
 				`<button type="submit" class="btn btn--sm btn--danger">Löschen</button></form>`,
-				html.EscapeString(f.Kennung))
+				html.EscapeString(f.Key))
 			b.WriteString(`</td></tr>`)
 		}
 		b.WriteString(`</tbody></table>`)
@@ -121,10 +121,10 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 	e := html.EscapeString
 	var b strings.Builder
 	b.WriteString(navigation(ansichtFormulare))
-	fmt.Fprintf(&b, `<p>In der Seite platzieren mit <code>%s</code>.</p>`, e(markeFuer(f.Kennung)))
+	fmt.Fprintf(&b, `<p>In der Seite platzieren mit <code>%s</code>.</p>`, e(markeFuer(f.Key)))
 
 	b.WriteString(`<form method="POST" class="stack">`)
-	fmt.Fprintf(&b, `<input type="hidden" name="kennung" value="%s">`, e(f.Kennung))
+	fmt.Fprintf(&b, `<input type="hidden" name="kennung" value="%s">`, e(f.Key))
 
 	b.WriteString(`<fieldset><legend>Formular</legend>`)
 	fmt.Fprintf(&b, `<label for="f-name">Name</label>`+
@@ -137,14 +137,14 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 		`placeholder="Danke, die Nachricht ist angekommen. Wir melden uns.">`, e(f.Dank))
 	b.WriteString(`</fieldset>`)
 
-	for i, fe := range f.Felder {
+	for i, fe := range f.Fields {
 		p := "fe" + strconv.Itoa(i)
-		fmt.Fprintf(&b, `<fieldset><legend>%d. %s</legend>`, i+1, e(fe.Beschriftung))
-		fmt.Fprintf(&b, `<input type="hidden" name="%s.kennung" value="%s">`, p, e(fe.Kennung))
+		fmt.Fprintf(&b, `<fieldset><legend>%d. %s</legend>`, i+1, e(fe.Label))
+		fmt.Fprintf(&b, `<input type="hidden" name="%s.kennung" value="%s">`, p, e(fe.Key))
 
 		fmt.Fprintf(&b, `<label for="%s-b">Frage</label>`+
 			`<input type="text" id="%s-b" name="%s.beschriftung" value="%s" maxlength="120" required>`,
-			p, p, p, e(fe.Beschriftung))
+			p, p, p, e(fe.Label))
 
 		fmt.Fprintf(&b, `<label for="%s-a">Art</label><select id="%s-a" name="%s.art">`, p, p, p)
 		for _, a := range feldArten {
@@ -158,14 +158,14 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 
 		fmt.Fprintf(&b, `<label for="%s-w">Zur Auswahl (eine Möglichkeit pro Zeile)</label>`+
 			`<textarea id="%s-w" name="%s.auswahl" rows="3">%s</textarea>`,
-			p, p, p, e(strings.Join(fe.Auswahl, "\n")))
+			p, p, p, e(strings.Join(fe.Choices, "\n")))
 
 		fmt.Fprintf(&b, `<label for="%s-h">Hinweis unter dem Feld</label>`+
 			`<input type="text" id="%s-h" name="%s.hinweis" value="%s" maxlength="200">`,
-			p, p, p, e(fe.Hinweis))
+			p, p, p, e(fe.Hint))
 
 		an := ""
-		if fe.Pflicht {
+		if fe.Required {
 			an = " checked"
 		}
 		fmt.Fprintf(&b, `<label><input type="checkbox" name="%s.pflicht" value="1"%s> `+
@@ -178,7 +178,7 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 		b.WriteString(`</p></fieldset>`)
 	}
 
-	if len(f.Felder) == 0 {
+	if len(f.Fields) == 0 {
 		b.WriteString(`<p class="empty">Noch kein Feld. Ein Formular ohne Felder wird nicht angezeigt.</p>`)
 	}
 
@@ -189,7 +189,7 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 		`Formular speichern</button></p>`)
 	b.WriteString(`</form>`)
 
-	if _, hat := f.ersteArt(ArtEmail); !hat && len(f.Felder) > 0 {
+	if _, hat := f.ersteArt(ArtEmail); !hat && len(f.Fields) > 0 {
 		b.WriteString(`<p class="text-muted">Kein Feld für eine E-Mail-Adresse: ` +
 			`Auf eine Anfrage über dieses Formular lässt sich dann nicht per Mail antworten.</p>`)
 	}
@@ -215,7 +215,7 @@ func formularAktion(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, err
 			return plugin.AdminOut{Redirect: "?ansicht=formulare",
 				Flash: "Ein Formular mit dieser Kennung gibt es schon.", FlashError: true}, true, nil
 		}
-		f := formular{Kennung: kennung, Name: name}
+		f := formular{Key: kennung, Name: name}
 		if err := formularSichern(f.saeubern()); err != nil {
 			return plugin.AdminOut{}, true, err
 		}
@@ -255,17 +255,17 @@ func formularSpeichern(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, 
 	f.Name = ersterWert(in.Form, "name")
 	f.Betreff = ersterWert(in.Form, "betreff")
 	f.Dank = ersterWert(in.Form, "dank")
-	f.Felder = felderAusFormular(in.Form)
+	f.Fields = felderAusFormular(in.Form)
 
 	if aktion := ersterWert(in.Form, "feldaktion"); aktion != "" {
-		f.Felder = feldaktion(f.Felder, aktion)
+		f.Fields = feldaktion(f.Fields, aktion)
 	}
 
 	f = f.saeubern()
 	if err := formularSichern(f); err != nil {
 		return plugin.AdminOut{}, true, err
 	}
-	out := plugin.AdminOut{Redirect: "?ansicht=formular&kennung=" + f.Kennung}
+	out := plugin.AdminOut{Redirect: "?ansicht=formular&kennung=" + f.Key}
 	if ersterWert(in.Form, "sichern") != "" {
 		out.Flash = "Formular gespeichert."
 	}
@@ -297,17 +297,17 @@ func felderAusFormular(form map[string][]string) []feld {
 		}
 		switch rest[punkt+1:] {
 		case "kennung":
-			fe.Kennung = werte[0]
+			fe.Key = werte[0]
 		case "beschriftung":
-			fe.Beschriftung = werte[0]
+			fe.Label = werte[0]
 		case "art":
 			fe.Art = werte[0]
 		case "hinweis":
-			fe.Hinweis = werte[0]
+			fe.Hint = werte[0]
 		case "pflicht":
-			fe.Pflicht = werte[0] != ""
+			fe.Required = werte[0] != ""
 		case "auswahl":
-			fe.Auswahl = zeilen(werte[0])
+			fe.Choices = zeilen(werte[0])
 		}
 	}
 
@@ -331,7 +331,7 @@ func feldaktion(felder []feld, aktion string) []feld {
 		if len(felder) >= maxFelder {
 			return felder
 		}
-		return append(felder, feld{Beschriftung: "Neue Frage", Art: ArtText})
+		return append(felder, feld{Label: "Neue Frage", Art: ArtText})
 	}
 	n, err := strconv.Atoi(arg)
 	if err != nil || n < 0 || n >= len(felder) {

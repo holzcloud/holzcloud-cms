@@ -38,7 +38,7 @@ const (
 	ArtTelefon = "telefon"
 	ArtZahl    = "zahl"
 	ArtDatum   = "datum"
-	ArtAuswahl = "auswahl"
+	KindChoice = "auswahl"
 	ArtAnkreuz = "ankreuz"
 )
 
@@ -55,7 +55,7 @@ var feldArten = []feldArt{
 	{ArtTelefon, "Telefonnummer"},
 	{ArtZahl, "Zahl"},
 	{ArtDatum, "Datum"},
-	{ArtAuswahl, "Auswahl aus einer Liste"},
+	{KindChoice, "Auswahl aus einer Liste"},
 	{ArtAnkreuz, "Ankreuzfeld"},
 }
 
@@ -74,23 +74,23 @@ type feld struct {
 	// Beschriftung erzeugt und bleibt danach stehen: würde er sich mit der
 	// Beschriftung ändern, käme nach jeder Umformulierung eine Antwort unter
 	// einem anderen Namen an, und die alten wären nicht mehr zuzuordnen.
-	Kennung      string   `json:"kennung"`
-	Beschriftung string   `json:"beschriftung"`
-	Art          string   `json:"art"`
-	Pflicht      bool     `json:"pflicht,omitempty"`
-	Hinweis      string   `json:"hinweis,omitempty"`
-	Auswahl      []string `json:"auswahl,omitempty"`
+	Key      string   `json:"kennung"`
+	Label    string   `json:"beschriftung"`
+	Art      string   `json:"art"`
+	Required bool     `json:"pflicht,omitempty"`
+	Hint     string   `json:"hinweis,omitempty"`
+	Choices  []string `json:"auswahl,omitempty"`
 }
 
 // formular ist ein zusammengestelltes Formular.
 type formular struct {
-	Kennung string `json:"kennung"`
-	Name    string `json:"name"`
+	Key  string `json:"kennung"`
+	Name string `json:"name"`
 	// Betreff steht in der Benachrichtigung, wenn kein Feld einen liefert.
 	Betreff string `json:"betreff,omitempty"`
 	// Dank ist der Satz nach dem Absenden.
 	Dank   string `json:"dank,omitempty"`
-	Felder []feld `json:"felder,omitempty"`
+	Fields []feld `json:"felder,omitempty"`
 }
 
 // reKennung ist so eng, weil eine Kennung in eine Marke im Seitentext kommt und
@@ -130,7 +130,7 @@ func kennungAus(s string) string {
 // Einstellung klar, wohin eine Antwort geht: die erste E-Mail-Adresse im
 // Formular ist die des Absenders.
 func (f formular) ersteArt(art string) (feld, bool) {
-	for _, fe := range f.Felder {
+	for _, fe := range f.Fields {
 		if fe.Art == art {
 			return fe, true
 		}
@@ -149,7 +149,7 @@ func formularLaden(kennung string) (formular, bool) {
 		return formular{}, false
 	}
 	var f formular
-	if json.Unmarshal([]byte(roh), &f) != nil || f.Kennung == "" {
+	if json.Unmarshal([]byte(roh), &f) != nil || f.Key == "" {
 		return formular{}, false
 	}
 	return f, true
@@ -160,7 +160,7 @@ func formularSichern(f formular) error {
 	if err != nil {
 		return err
 	}
-	return plugin.Set(praefixFormular+f.Kennung, string(roh))
+	return plugin.Set(praefixFormular+f.Key, string(roh))
 }
 
 // alleFormulare listet, was definiert ist, nach Namen sortiert.
@@ -172,7 +172,7 @@ func alleFormulare() []formular {
 	out := make([]formular, 0, len(roh))
 	for _, v := range roh {
 		var f formular
-		if json.Unmarshal([]byte(v), &f) == nil && f.Kennung != "" {
+		if json.Unmarshal([]byte(v), &f) == nil && f.Key != "" {
 			out = append(out, f)
 		}
 	}
@@ -193,34 +193,34 @@ func (f formular) saeubern() formular {
 	f.Betreff = strings.TrimSpace(f.Betreff)
 	f.Dank = strings.TrimSpace(f.Dank)
 
-	felder := make([]feld, 0, len(f.Felder))
+	felder := make([]feld, 0, len(f.Fields))
 	belegt := map[string]bool{}
-	for _, fe := range f.Felder {
-		fe.Beschriftung = strings.TrimSpace(fe.Beschriftung)
-		if fe.Beschriftung == "" {
+	for _, fe := range f.Fields {
+		fe.Label = strings.TrimSpace(fe.Label)
+		if fe.Label == "" {
 			continue
 		}
 		if artName(fe.Art) == fe.Art {
 			fe.Art = ArtText
 		}
-		if fe.Kennung == "" {
-			fe.Kennung = kennungAus(fe.Beschriftung)
+		if fe.Key == "" {
+			fe.Key = kennungAus(fe.Label)
 		}
-		if fe.Kennung == "" {
+		if fe.Key == "" {
 			continue
 		}
 		// Zwei Felder mit derselben Kennung überschrieben einander beim
 		// Empfangen — die zweite Antwort käme nie an.
-		if belegt[fe.Kennung] {
+		if belegt[fe.Key] {
 			continue
 		}
-		belegt[fe.Kennung] = true
+		belegt[fe.Key] = true
 
-		if fe.Art != ArtAuswahl {
-			fe.Auswahl = nil
+		if fe.Art != KindChoice {
+			fe.Choices = nil
 		} else {
-			auswahl := make([]string, 0, len(fe.Auswahl))
-			for _, w := range fe.Auswahl {
+			auswahl := make([]string, 0, len(fe.Choices))
+			for _, w := range fe.Choices {
 				if w = strings.TrimSpace(w); w != "" {
 					auswahl = append(auswahl, w)
 				}
@@ -230,13 +230,13 @@ func (f formular) saeubern() formular {
 				// ausfüllen kann.
 				fe.Art = ArtText
 			}
-			fe.Auswahl = auswahl
+			fe.Choices = auswahl
 		}
 		felder = append(felder, fe)
 		if len(felder) >= maxFelder {
 			break
 		}
 	}
-	f.Felder = felder
+	f.Fields = felder
 	return f
 }

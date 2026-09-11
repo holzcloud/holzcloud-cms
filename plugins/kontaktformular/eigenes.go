@@ -22,43 +22,43 @@ func zeichnenEigen(f formular, d daten, werte url.Values) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, `<form class="contact-form contact-form--%s" method="POST" action="%s">`,
-		e(f.Kennung), absendeAdresse)
-	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldZeit, e(d.Zeitmarke))
-	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldSeite, e(d.Seite))
-	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldFormular, e(f.Kennung))
+		e(f.Key), absendeAdresse)
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldZeit, e(d.Timestamp))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldSeite, e(d.Page))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, feldFormular, e(f.Key))
 
-	if d.Hinweis != "" {
+	if d.Hint != "" {
 		klasse := "contact-form__notice"
-		if d.IstFehler {
+		if d.IsError {
 			klasse += " contact-form__notice--error"
 		}
-		fmt.Fprintf(&b, `<p class="%s" role="status">%s</p>`, klasse, e(d.Hinweis))
+		fmt.Fprintf(&b, `<p class="%s" role="status">%s</p>`, klasse, e(d.Hint))
 	}
 
-	for _, fe := range f.Felder {
-		id := "cf-" + f.Kennung + "-" + fe.Kennung
-		name := feldPraefix + fe.Kennung
+	for _, fe := range f.Fields {
+		id := "cf-" + f.Key + "-" + fe.Key
+		name := feldPraefix + fe.Key
 		wert := werte.Get(name)
 		pflicht := ""
-		if fe.Pflicht {
+		if fe.Required {
 			pflicht = " required"
 		}
 
 		b.WriteString(`<div class="contact-form__field">`)
 		if fe.Art != ArtAnkreuz {
-			fmt.Fprintf(&b, `<label for="%s">%s</label>`, e(id), e(fe.Beschriftung))
+			fmt.Fprintf(&b, `<label for="%s">%s</label>`, e(id), e(fe.Label))
 		}
 
 		switch fe.Art {
 		case ArtLang:
 			fmt.Fprintf(&b, `<textarea id="%s" name="%s" rows="6" maxlength="%d"%s>%s</textarea>`,
 				e(id), e(name), maxText, pflicht, e(wert))
-		case ArtAuswahl:
+		case KindChoice:
 			fmt.Fprintf(&b, `<select id="%s" name="%s"%s>`, e(id), e(name), pflicht)
-			if !fe.Pflicht {
+			if !fe.Required {
 				b.WriteString(`<option value="">– bitte wählen –</option>`)
 			}
-			for _, w := range fe.Auswahl {
+			for _, w := range fe.Choices {
 				aus := ""
 				if w == wert {
 					aus = " selected"
@@ -73,14 +73,14 @@ func zeichnenEigen(f formular, d daten, werte url.Values) string {
 			}
 			fmt.Fprintf(&b, `<label for="%s" class="contact-form__check">`+
 				`<input type="checkbox" id="%s" name="%s" value="ja"%s%s> %s</label>`,
-				e(id), e(id), e(name), an, pflicht, e(fe.Beschriftung))
+				e(id), e(id), e(name), an, pflicht, e(fe.Label))
 		default:
 			fmt.Fprintf(&b, `<input type="%s" id="%s" name="%s" value="%s" maxlength="%d"%s>`,
 				eingabeArt(fe.Art), e(id), e(name), e(wert), maxName, pflicht)
 		}
 
-		if fe.Hinweis != "" {
-			fmt.Fprintf(&b, `<small class="contact-form__hint">%s</small>`, e(fe.Hinweis))
+		if fe.Hint != "" {
+			fmt.Fprintf(&b, `<small class="contact-form__hint">%s</small>`, e(fe.Hint))
 		}
 		b.WriteString(`</div>`)
 	}
@@ -90,7 +90,7 @@ func zeichnenEigen(f formular, d daten, werte url.Values) string {
 	fmt.Fprintf(&b, `<div class="contact-form__trap" aria-hidden="true">`+
 		`<label for="cf-website-%s">Website (bitte leer lassen)</label>`+
 		`<input type="text" id="cf-website-%s" name="%s" tabindex="-1" autocomplete="off"></div>`,
-		e(f.Kennung), e(f.Kennung), feldHonigtopf)
+		e(f.Key), e(f.Key), feldHonigtopf)
 
 	b.WriteString(`<button type="submit" class="contact-form__submit">Absenden</button>`)
 	if d.Kontakt != "" {
@@ -122,35 +122,35 @@ func eingabeArt(art string) string {
 
 // antwort ist eine ausgefüllte Zeile, so wie sie in der Verwaltung steht.
 type antwort struct {
-	Beschriftung string `json:"beschriftung"`
-	Wert         string `json:"wert"`
+	Label string `json:"beschriftung"`
+	Value string `json:"wert"`
 }
 
 // empfangenEigen nimmt die Absendung eines zusammengestellten Formulars an.
 func empfangenEigen(f formular, form url.Values, seite string) (nachricht, string) {
-	n := nachricht{Seite: seite, Formular: f.Kennung, FormularName: f.Name}
+	n := nachricht{Page: seite, Formular: f.Key, FormularName: f.Name}
 
-	for _, fe := range f.Felder {
-		roh := strings.TrimSpace(form.Get(feldPraefix + fe.Kennung))
+	for _, fe := range f.Fields {
+		roh := strings.TrimSpace(form.Get(feldPraefix + fe.Key))
 		if fe.Art == ArtAnkreuz {
 			if roh != "" {
 				roh = "ja"
-			} else if fe.Pflicht {
-				return n, "Bitte kreuze „" + fe.Beschriftung + "“ an."
+			} else if fe.Required {
+				return n, "Bitte kreuze „" + fe.Label + "“ an."
 			} else {
 				roh = "nein"
 			}
 		}
 		if roh == "" {
-			if fe.Pflicht {
-				return n, "Bitte fülle „" + fe.Beschriftung + "“ aus."
+			if fe.Required {
+				return n, "Bitte fülle „" + fe.Label + "“ aus."
 			}
 			continue
 		}
 		if problem := feldPruefen(fe, roh); problem != "" {
 			return n, problem
 		}
-		n.Felder = append(n.Felder, antwort{Beschriftung: fe.Beschriftung, Wert: roh})
+		n.Fields = append(n.Fields, antwort{Label: fe.Label, Value: roh})
 
 		// Woran die Benachrichtigung hängt: die erste E-Mail-Adresse ist die
 		// des Absenders, die erste kurze Antwort sein Name. So braucht es dafür
@@ -163,7 +163,7 @@ func empfangenEigen(f formular, form url.Values, seite string) (nachricht, strin
 		}
 	}
 
-	if len(n.Felder) == 0 {
+	if len(n.Fields) == 0 {
 		return n, "Bitte fülle das Formular aus."
 	}
 	n.Betreff = f.Betreff
@@ -173,7 +173,7 @@ func empfangenEigen(f formular, form url.Values, seite string) (nachricht, strin
 	if n.Name == "" {
 		n.Name = "Ohne Namen"
 	}
-	n.Text = alsText(n.Felder)
+	n.Text = alsText(n.Fields)
 	return n, ""
 }
 
@@ -181,17 +181,17 @@ func empfangenEigen(f formular, form url.Values, seite string) (nachricht, strin
 func feldPruefen(fe feld, wert string) string {
 	switch {
 	case len([]rune(wert)) > maxText:
-		return "„" + fe.Beschriftung + "“ ist zu lang."
+		return "„" + fe.Label + "“ ist zu lang."
 	case fe.Art == ArtEmail && !plausibleAdresse(wert):
-		return "Die Adresse in „" + fe.Beschriftung + "“ sieht nicht richtig aus."
+		return "Die Adresse in „" + fe.Label + "“ sieht nicht richtig aus."
 	case fe.Art == ArtZahl && !istZahl(wert):
-		return "„" + fe.Beschriftung + "“ muss eine Zahl sein."
+		return "„" + fe.Label + "“ muss eine Zahl sein."
 	case fe.Art == ArtDatum && !istDatum(wert):
-		return "„" + fe.Beschriftung + "“ muss ein Datum sein."
-	case fe.Art == ArtAuswahl && !enthaelt(fe.Auswahl, wert):
+		return "„" + fe.Label + "“ muss ein Datum sein."
+	case fe.Art == KindChoice && !enthaelt(fe.Choices, wert):
 		// Der Browser lässt nur die angebotenen Werte zu; wer etwas anderes
 		// schickt, hat das Formular nicht benutzt, sondern nachgebaut.
-		return "Bitte wähle bei „" + fe.Beschriftung + "“ einen der angebotenen Werte."
+		return "Bitte wähle bei „" + fe.Label + "“ einen der angebotenen Werte."
 	}
 	return ""
 }
@@ -221,7 +221,7 @@ func enthaelt(liste []string, wert string) bool {
 func alsText(felder []antwort) string {
 	var b strings.Builder
 	for _, a := range felder {
-		fmt.Fprintf(&b, "%s: %s\n", a.Beschriftung, a.Wert)
+		fmt.Fprintf(&b, "%s: %s\n", a.Label, a.Value)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

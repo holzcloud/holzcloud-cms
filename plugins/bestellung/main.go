@@ -147,7 +147,7 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 
 	bestellbare := 0
 	for _, p := range produkte {
-		if p.Bestellbar {
+		if p.Orderable {
 			bestellbare++
 		}
 	}
@@ -156,8 +156,8 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 		return b.String()
 	}
 
-	if e.Hinweis != "" {
-		b.WriteString(`<p class="bestellung__hinweis">` + html.EscapeString(e.Hinweis) + `</p>`)
+	if e.Hint != "" {
+		b.WriteString(`<p class="bestellung__hinweis">` + html.EscapeString(e.Hint) + `</p>`)
 	}
 
 	b.WriteString(`<form class="bestellung__form" method="POST" action="` + absendeAdresse + `">`)
@@ -176,19 +176,19 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 		b.WriteString(`<tr>`)
 		b.WriteString(`<th scope="row"><a href="/` + html.EscapeString(p.Slug) + `">` +
 			html.EscapeString(p.Titel) + `</a>`)
-		if !p.Bestellbar && p.Zustand != "" {
-			b.WriteString(` <span class="bestellung__aus">` + html.EscapeString(p.Zustand) + `</span>`)
+		if !p.Orderable && p.Status != "" {
+			b.WriteString(` <span class="bestellung__aus">` + html.EscapeString(p.Status) + `</span>`)
 		}
 		b.WriteString(`</th>`)
 
-		b.WriteString(`<td>` + html.EscapeString(e.Waehrung) + ` ` + html.EscapeString(p.Preis))
+		b.WriteString(`<td>` + html.EscapeString(e.Waehrung) + ` ` + html.EscapeString(p.Price))
 		if p.Einheit != "" {
 			b.WriteString(` <span class="bestellung__einheit">/ ` + html.EscapeString(p.Einheit) + `</span>`)
 		}
 		b.WriteString(`</td>`)
 
 		b.WriteString(`<td>`)
-		if p.Bestellbar {
+		if p.Orderable {
 			name := mengePraefix + p.Slug
 			b.WriteString(`<label class="sr-only" for="` + html.EscapeString(name) + `">Menge ` +
 				html.EscapeString(p.Titel) + `</label>`)
@@ -279,9 +279,9 @@ func bestellungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		Name:      saeubern(form.Get(feldName), maxName),
 		Email:     saeubern(form.Get(feldEmail), maxEmail),
 		Telefon:   saeubern(form.Get(feldTelefon), maxTelefon),
-		Adresse:   saeubern(form.Get(feldAdresse), maxAdresse),
+		Address:   saeubern(form.Get(feldAdresse), maxAdresse),
 		Bemerkung: saeubern(form.Get(feldBemerkung), maxBemerkung),
-		Seite:     seite,
+		Page:      seite,
 		Posten:    posten,
 		Waehrung:  e.Waehrung,
 	}
@@ -326,12 +326,12 @@ func postenLesen(form url.Values, produkte []produkt, e einstellungen) ([]posten
 		if menge > maxMenge {
 			return nil, "Bei „" + p.Titel + "“ ist die Menge zu gross. Bitte melde dich direkt bei uns."
 		}
-		if !p.Bestellbar {
+		if !p.Orderable {
 			return nil, "„" + p.Titel + "“ ist zurzeit nicht bestellbar."
 		}
 		out = append(out, posten{
-			Slug: p.Slug, Titel: p.Titel, Menge: menge,
-			Preis: p.Preis, Einheit: p.Einheit,
+			Slug: p.Slug, Titel: p.Titel, Quantity: menge,
+			Price: p.Price, Einheit: p.Einheit,
 		})
 		if len(out) > maxPosten {
 			return nil, "Das sind sehr viele verschiedene Posten. Bitte melde dich direkt bei uns."
@@ -352,11 +352,11 @@ func postenLesen(form url.Values, produkte []produkt, e einstellungen) ([]posten
 func summe(posten []posten) (float64, bool) {
 	total := 0.0
 	for _, p := range posten {
-		wert, ok := preisWert(p.Preis)
+		wert, ok := preisWert(p.Price)
 		if !ok {
 			return 0, false
 		}
-		total += wert * float64(p.Menge)
+		total += wert * float64(p.Quantity)
 	}
 	return total, true
 }
@@ -386,9 +386,9 @@ func benachrichtigen(b bestellung) {
 	var t strings.Builder
 	fmt.Fprintf(&t, "Neue Bestellung von %s\n\n", b.Name)
 	for _, p := range b.Posten {
-		fmt.Fprintf(&t, "  %d × %s", p.Menge, p.Titel)
-		if p.Preis != "" {
-			fmt.Fprintf(&t, "  (%s %s", b.Waehrung, p.Preis)
+		fmt.Fprintf(&t, "  %d × %s", p.Quantity, p.Titel)
+		if p.Price != "" {
+			fmt.Fprintf(&t, "  (%s %s", b.Waehrung, p.Price)
 			if p.Einheit != "" {
 				fmt.Fprintf(&t, " / %s", p.Einheit)
 			}
@@ -405,8 +405,8 @@ func benachrichtigen(b bestellung) {
 	if b.Telefon != "" {
 		fmt.Fprintf(&t, "Telefon: %s\n", b.Telefon)
 	}
-	if b.Adresse != "" {
-		fmt.Fprintf(&t, "Adresse:\n%s\n", b.Adresse)
+	if b.Address != "" {
+		fmt.Fprintf(&t, "Adresse:\n%s\n", b.Address)
 	}
 	if b.Bemerkung != "" {
 		fmt.Fprintf(&t, "\nBemerkung:\n%s\n", b.Bemerkung)
@@ -522,16 +522,16 @@ func unterDerStundengrenze() bool {
 	}
 	var z struct {
 		Stunde string `json:"stunde"`
-		Anzahl int    `json:"anzahl"`
+		Count  int    `json:"anzahl"`
 	}
 	_ = json.Unmarshal([]byte(roh), &z)
 	if z.Stunde != stunde {
-		z.Stunde, z.Anzahl = stunde, 0
+		z.Stunde, z.Count = stunde, 0
 	}
-	if z.Anzahl >= maxProStunde {
+	if z.Count >= maxProStunde {
 		return false
 	}
-	z.Anzahl++
+	z.Count++
 	if neu, err := json.Marshal(z); err == nil {
 		_ = plugin.Set(schluesselZaehler, string(neu))
 	}
@@ -542,11 +542,11 @@ func unterDerStundengrenze() bool {
 
 // posten ist eine Zeile der Bestellung.
 type posten struct {
-	Slug    string `json:"slug"`
-	Titel   string `json:"titel"`
-	Menge   int    `json:"menge"`
-	Preis   string `json:"preis,omitempty"`
-	Einheit string `json:"einheit,omitempty"`
+	Slug     string `json:"slug"`
+	Titel    string `json:"titel"`
+	Quantity int    `json:"menge"`
+	Price    string `json:"preis,omitempty"`
+	Einheit  string `json:"einheit,omitempty"`
 }
 
 // bestellung ist, was gespeichert wird.
@@ -559,9 +559,9 @@ type bestellung struct {
 	Name         string   `json:"name"`
 	Email        string   `json:"email"`
 	Telefon      string   `json:"telefon,omitempty"`
-	Adresse      string   `json:"adresse,omitempty"`
+	Address      string   `json:"adresse,omitempty"`
 	Bemerkung    string   `json:"bemerkung,omitempty"`
-	Seite        string   `json:"seite,omitempty"`
+	Page         string   `json:"seite,omitempty"`
 	Posten       []posten `json:"posten"`
 	Summe        float64  `json:"summe,omitempty"`
 	SummeBekannt bool     `json:"summe_bekannt,omitempty"`

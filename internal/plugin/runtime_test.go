@@ -116,7 +116,7 @@ func TestFehlendeBerechtigungWirdVerweigert(t *testing.T) {
 	r, _, _ := neueLaufzeit(t, PermStore)
 	var out struct {
 		Status  int    `json:"status"`
-		Meldung string `json:"meldung"`
+		Message string `json:"meldung"`
 	}
 	if err := r.Dispatch(context.Background(), "echo", HookEvent, 1,
 		EventIn{Name: "test", Data: map[string]string{"tue": "verboten"}}, &out); err != nil {
@@ -127,8 +127,8 @@ func TestFehlendeBerechtigungWirdVerweigert(t *testing.T) {
 	}
 	// Die Meldung muss sagen, welche Berechtigung fehlt — es ist ein Fehler im
 	// Manifest, nicht im Code, und der Autor soll ihn ohne Raten finden.
-	if !strings.Contains(out.Meldung, PermSettings) {
-		t.Errorf("die Meldung nennt die Berechtigung nicht: %q", out.Meldung)
+	if !strings.Contains(out.Message, PermSettings) {
+		t.Errorf("die Meldung nennt die Berechtigung nicht: %q", out.Message)
 	}
 }
 
@@ -136,14 +136,14 @@ func TestUnbekannteOperationWirdGemeldet(t *testing.T) {
 	r, _, _ := neueLaufzeit(t, PermStore)
 	var out struct {
 		Status  int    `json:"status"`
-		Meldung string `json:"meldung"`
+		Message string `json:"meldung"`
 	}
 	if err := r.Dispatch(context.Background(), "echo", HookEvent, 1,
 		EventIn{Name: "test", Data: map[string]string{"tue": "unbekannt"}}, &out); err != nil {
 		t.Fatalf("Dispatch: %v", err)
 	}
-	if out.Status != StatusError || !strings.Contains(out.Meldung, "gibtsnicht") {
-		t.Errorf("Status %d, Meldung %q", out.Status, out.Meldung)
+	if out.Status != StatusError || !strings.Contains(out.Message, "gibtsnicht") {
+		t.Errorf("Status %d, Meldung %q", out.Status, out.Message)
 	}
 }
 
@@ -172,15 +172,15 @@ func TestKurzerPufferWirdNachgefordert(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out struct {
-		Laenge int `json:"laenge"`
+		Length int `json:"laenge"`
 	}
 	if err := r.Dispatch(ctx, "echo", HookEvent, 3,
 		EventIn{Name: "test", WebsiteID: 3, Data: map[string]string{"tue": "grosse-antwort", "key": "gross"}},
 		&out); err != nil {
 		t.Fatalf("Dispatch: %v", err)
 	}
-	if out.Laenge < len(gross) {
-		t.Errorf("nur %d Bytes zurückbekommen, erwartet mindestens %d", out.Laenge, len(gross))
+	if out.Length < len(gross) {
+		t.Errorf("nur %d Bytes zurückbekommen, erwartet mindestens %d", out.Length, len(gross))
 	}
 }
 
