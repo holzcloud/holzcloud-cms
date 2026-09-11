@@ -42,7 +42,7 @@ func (h *Handler) siteData(r *http.Request, website *domain.Website) tmpl.SiteDa
 	if tag := LocaleFrom(r.Context()); tag != "" {
 		site.Locale = tag
 	}
-	site.Sprachen = h.languageHomes(r, website)
+	site.Languages = h.languageHomes(r, website)
 	site.FeedURL = localePrefixOf(r) + "/feed.xml"
 
 	if site.Locale == "" {

@@ -51,9 +51,9 @@ worse than no picker at all.
 `hreflang` for each version that really exists. The sitemap lists all languages
 with their prefixes and additionally every home page.
 
-**For a template** there are two fields: `.Site.Sprachen` is the language picker —
+**For a template** there are two fields: `.Site.Languages` is the language picker —
 the versions of this page where there are any, otherwise the home pages of the
-languages. `.Page.Uebersetzungen` are only the real versions, and `hreflang` is
+languages. `.Page.Translations` are only the real versions, and `hreflang` is
 built from those. The names are given in the language itself ("Français"),
 because the picker is read by somebody who does not understand the page they are
 standing on.

@@ -376,28 +376,28 @@ type SiteData struct {
 	// goldmark-then-bluemonday pipeline as page content.
 	Snippets map[string]template.HTML
 	// Bausteinfelder are the snippets' own fields, resolved to the types they
-	// mean, keyed by snippet key: {{ index .Site.Bausteinfelder "kontakt"
+	// mean, keyed by snippet key: {{ index .Site.SnippetFields "kontakt"
 	// "telefon" }} prints the contact snippet's phone number.
 	//
 	// Beside .Site.Snippets and not inside it: a snippet is a body plus
 	// optional fields exactly as a page is content plus optional fields, and
 	// .Site.Snippets keeps its type so no theme that indexes it today breaks.
 	//
-	// One level deeper than .Page.Felder, because there is one map per snippet:
+	// One level deeper than .Page.Fields, because there is one map per snippet:
 	// the first index picks the snippet, the second the field. German, unlike
 	// the rest of this struct, because it is a name a theme author types — and
 	// they type the field names in German too.
-	Bausteinfelder map[string]map[string]any
+	SnippetFields map[string]map[string]any
 	// Bausteinliste are the same fields in their defined order, with their
-	// labels, keyed by snippet key — .Page.Feldliste one level deeper.
+	// labels, keyed by snippet key — .Page.FieldList one level deeper.
 	//
 	// The list is what a shipped theme can use: it cannot know that this
 	// website calls a field "Telefon direkt", but it can print label and value.
 	// Bausteinfelder is for a theme written for one particular site.
 	//
 	// A snippet whose fields are all empty is missing from this map, the same
-	// asymmetry .Page.Feldliste has: field.List never emits an empty entry.
-	Bausteinliste map[string][]field.Entry
+	// asymmetry .Page.FieldList has: field.List never emits an empty entry.
+	SnippetList map[string][]field.Entry
 	// Terms are the labels in use on this website, most used first, so a layout
 	// can offer them as a way into the content.
 	Terms []TermLink
@@ -422,7 +422,7 @@ type SiteData struct {
 	// so a theme can hide the switcher with a single check.
 	//
 	// German, like Page.Felder, because it is a name a theme author types.
-	Sprachen []LanguageLink
+	Languages []LanguageLink
 }
 
 // LanguageLink is one language in the switcher.
@@ -464,7 +464,7 @@ type PageContent struct {
 	// and empty for the built-in page and post. A theme written for one website
 	// uses it to lay a product out differently from an ordinary page without
 	// having to guess from which fields happen to be filled.
-	Art string
+	Kind string
 	// Prev and Next are the neighbouring entries of a post, oldest-wards and
 	// newest-wards. Both are nil on a page and at the ends of the archive.
 	Prev *PageLink
@@ -477,17 +477,17 @@ type PageContent struct {
 	Terms []TermLink
 
 	// Felder are the website's own fields, resolved to the types they mean:
-	// {{ .Page.Felder.preis }} prints a price, {{ if .Page.Felder.verfuegbar }}
+	// {{ .Page.Fields.preis }} prints a price, {{ if .Page.Fields.verfuegbar }}
 	// asks a question. German, unlike the rest of this struct, because it is
 	// the one part a person writing a theme types out — and they type the
 	// field names in German too.
-	Felder map[string]any
+	Fields map[string]any
 	// Feldliste are the same fields in their defined order, with their labels.
 	//
 	// The list is what a shipped theme can use: it cannot know that this
 	// website calls a field "Preis pro Kilo", but it can print label and value.
 	// Felder is for a theme written for one particular site.
-	Feldliste []field.Entry
+	FieldList []field.Entry
 
 	// Uebersetzungen are the languages this page really exists in, this one
 	// included. A language the page has not been translated into is missing
@@ -497,7 +497,7 @@ type PageContent struct {
 	// This is what <link rel="alternate" hreflang> is built from. Site.Sprachen
 	// is the whole site's list and is the right thing on the archive or the
 	// search, where there is no single page to translate.
-	Uebersetzungen []LanguageLink
+	Translations []LanguageLink
 }
 
 // PageLink is a reference to another page, for prev/next navigation.

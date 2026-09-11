@@ -116,6 +116,31 @@ cross-site-scripting hole into an application that did not have one.
 Allowed: `.html` `.css` `.svg` `.png` `.jpg` `.jpeg` `.gif` `.webp` `.ico`
 `.woff` `.woff2` `.ttf`. At most 500 files, 10 MB uncompressed by default.
 
+### 2.5 A theme is single-language, and the words it mints are its own
+
+There is no translation function in a template. `t`, `th` and `tf` exist in the
+admin and are deliberately absent here, and that is a decision rather than an
+omission: a theme is uploadable content, so its sentences cannot live in this
+program's catalogue — this program does not ship them. A `t` that worked for the
+eight themes we ship and silently returned the key for yours would be worse than
+none, because nothing would report it and a visitor would read the wrong
+language on a page every gate called green.
+
+So every word **you** write into a template — "Cart", "Search", "Page not
+found", a button label, an empty state — is in whatever language you wrote it,
+on every page, in every language the website is published in.
+
+**That is why a multilingual website puts those words in content, not in the
+template.** A snippet carries fields (§5, `.Site.SnippetFields`); it belongs to
+one website, the operator edits it, and a website published in two languages
+holds one per language. A theme built that way reads its chrome out of
+`.Site.SnippetFields` and works in any language without a translation mechanism
+at all. A theme that hard-codes "Warenkorb" works in exactly one.
+
+Both are legitimate. A theme written for one site in one language should simply
+say so in its `README`, and a theme meant for other people should take its words
+from snippets.
+
 ---
 
 ## 3. How rendering works
@@ -231,13 +256,13 @@ today keeps working.
 | `.Site.LogoURL` | string | `/media/…` or empty |
 | `.Site.URL` | string | Canonical base, e.g. `https://example.de` |
 | `.Site.Snippets` | map | Reusable HTML blocks by key (§7) |
-| `.Site.Bausteinfelder` | map of maps | A snippet's own fields by snippet key, then by field key: `{{index .Site.Bausteinfelder "footer-kontakt" "telefon"}}` (§7) |
-| `.Site.Bausteinliste` | map of `field.Entry` lists | The same fields in their defined order with their labels, by snippet key. A snippet with nothing filled in is missing from this map (§7) |
+| `.Site.SnippetFields` | map of maps | A snippet's own fields by snippet key, then by field key: `{{index .Site.SnippetFields "footer-kontakt" "telefon"}}` (§7) |
+| `.Site.SnippetList` | map of `field.Entry` lists | The same fields in their defined order with their labels, by snippet key. A snippet with nothing filled in is missing from this map (§7) |
 | `.Site.Terms` | list of `TermLink` | Labels in use, most used first |
 | `.Site.Design` | CSS | The operator's colour and font settings (§7) |
 | `.Site.HasSearch` | bool | Whether this site answers `/suche` at all — hide the search form when false |
 | `.Site.FeedURL` | string | The Atom feed in the language being served, or empty |
-| `.Site.Sprachen` | list of `LanguageLink` | The site's languages, main one first. Empty on a one-language site |
+| `.Site.Languages` | list of `LanguageLink` | The site's languages, main one first. Empty on a one-language site |
 
 ### `.Page` — the page
 
@@ -255,10 +280,10 @@ today keeps working.
 | `.Page.Next` | `PageLink` or **nil** | Newer neighbouring post |
 | `.Page.ArchiveURL` | string | The blog index, or empty |
 | `.Page.Terms` | list of `TermLink` | This page's labels |
-| `.Page.Art` | string | The key of the website's own content kind — `produkt`, `termin`. Empty for an ordinary page or post |
-| `.Page.Felder` | map | The website's own fields by key, resolved to the type they mean |
-| `.Page.Feldliste` | list of `FieldEntry` | The same fields in their defined order, with labels |
-| `.Page.Uebersetzungen` | list of `LanguageLink` | The languages this page really exists in. Empty on a one-language site |
+| `.Page.Kind` | string | The key of the website's own content kind — `produkt`, `termin`. Empty for an ordinary page or post |
+| `.Page.Fields` | map | The website's own fields by key, resolved to the type they mean |
+| `.Page.FieldList` | list of `FieldEntry` | The same fields in their defined order, with labels |
+| `.Page.Translations` | list of `LanguageLink` | The languages this page really exists in. Empty on a one-language site |
 
 `.Page.HasOwnHeading` is true when the editor's text already starts with a
 heading. Print the title yourself only when it is false, or the page shows its
@@ -516,8 +541,8 @@ where it goes, which the person who placed it already knows.
 
 ### `LanguageLink`
 
-`.Code` `.Name` `.URL` `.Active` — used by `.Site.Sprachen` and
-`.Page.Uebersetzungen`.
+`.Code` `.Name` `.URL` `.Active` — used by `.Site.Languages` and
+`.Page.Translations`.
 
 `.Code` is the tag for `lang` and `hreflang` and is **always filled**, including
 for the main language. `.Name` is the language as it calls itself — "Français",
@@ -525,10 +550,10 @@ for the main language. `.Name` is the language as it calls itself — "Français
 they are standing on. `.Active` marks the language being shown right now.
 
 ```html
-{{if .Site.Sprachen}}
+{{if .Site.Languages}}
 <nav aria-label="Sprache">
   <ul>
-    {{range .Site.Sprachen}}
+    {{range .Site.Languages}}
     <li><a href="{{.URL}}" hreflang="{{.Code}}"{{if .Active}} aria-current="true"{{end}}>{{.Name}}</a></li>
     {{end}}
   </ul>
@@ -536,23 +561,23 @@ they are standing on. `.Active` marks the language being shown right now.
 {{end}}
 ```
 
-Use `.Page.Uebersetzungen` for `<link rel="alternate">` in `<head>`: it lists
+Use `.Page.Translations` for `<link rel="alternate">` in `<head>`: it lists
 only the languages this page actually exists in, so it will not promise a
 translation that answers with a 404.
 
 ### `FieldEntry`
 
 `.Key` `.Label` `.Kind` `.Value` `.Text` `.Image` `.Ref` `.Term` `.Values`
-`.Yes` `.Rows` — one entry of `.Page.Feldliste`, or of `.Site.Bausteinliste`,
+`.Yes` `.Rows` — one entry of `.Page.FieldList`, or of `.Site.SnippetList`,
 which carries a snippet's own fields in the same shape (§7).
 
 The website's own fields are defined by the operator, so a template cannot know
 their names. Print `.Label` and the value and let the order decide the layout:
 
 ```html
-{{if .Page.Feldliste}}
+{{if .Page.FieldList}}
 <dl>
-  {{range .Page.Feldliste}}
+  {{range .Page.FieldList}}
   <dt>{{.Label}}</dt>
   <dd>
     {{if eq .Kind "bild"}}{{with .Image}}<img src="{{.URL}}" alt="{{.Alt}}" loading="lazy">{{end}}
@@ -609,9 +634,9 @@ theme that marks the two differently.
 the link to its archive. Print `.Name`, never `.Slug`: renaming a label changes
 every page that carries it, and that is the whole point of the kind.
 
-`.Page.Felder` is the same data as a map, keyed by field name. It is the other
+`.Page.Fields` is the same data as a map, keyed by field name. It is the other
 half of the contract and it behaves differently: **every defined field is in the
-map, filled or not**, so `{{.Page.Felder.abfahrt}}` on a page where nobody
+map, filled or not**, so `{{.Page.Fields.abfahrt}}` on a page where nobody
 entered a time is a nil time rather than a missing key. Reach through it the way
 you reach through `.Page.Next` — with `{{with}}` or `{{if}}` — and see §9. The
 map is for a theme written for one particular site, which knows the names it
@@ -787,35 +812,35 @@ key. Useful for putting an address in the footer without hard-coding it:
 **A snippet is a body plus optional fields**, exactly as a page is content plus
 optional fields. `.Site.Snippets` still carries the body and has not changed;
 the fields sit beside it in two further maps, keyed by the same snippet key —
-the same pair `.Page.Felder` and `.Page.Feldliste` are for a page.
+the same pair `.Page.Fields` and `.Page.FieldList` are for a page.
 
-**`.Site.Bausteinfelder`** is indexed twice: first by the snippet's key, then by
+**`.Site.SnippetFields`** is indexed twice: first by the snippet's key, then by
 the field's. Use it when your template knows what this particular site calls
 something:
 
 ```html
-{{index .Site.Bausteinfelder "footer-kontakt" "telefon"}}
+{{index .Site.SnippetFields "footer-kontakt" "telefon"}}
 ```
 
-**`.Site.Bausteinliste`** carries the same values in their defined order with
+**`.Site.SnippetList`** carries the same values in their defined order with
 their labels, for a template that prints whatever the operator defined without
 knowing the names. Range the one snippet you want:
 
 ```html
-{{range index .Site.Bausteinliste "footer-kontakt"}}
+{{range index .Site.SnippetList "footer-kontakt"}}
   <p>{{.Label}}: {{.Text}}</p>
 {{end}}
 ```
 
-An entry is a `FieldEntry`, the same type `.Page.Feldliste` carries — §5
+An entry is a `FieldEntry`, the same type `.Page.FieldList` carries — §5
 describes it, and everything said there about `.Text`, `.Value`, dates and
 groups holds here unchanged.
 
-**A snippet with no filled-in field has an entry in `.Site.Bausteinfelder` and
-none in `.Site.Bausteinliste`.** The two maps are not mirror images and that is
-deliberate: `Bausteinfelder` holds every field the operator defined, filled or
+**A snippet with no filled-in field has an entry in `.Site.SnippetFields` and
+none in `.Site.SnippetList`.** The two maps are not mirror images and that is
+deliberate: `SnippetFields` holds every field the operator defined, filled or
 not, so indexing into it gives you an empty value rather than a missing key;
-`Bausteinliste` leaves an empty field out entirely, because a label with nothing
+`SnippetList` leaves an empty field out entirely, because a label with nothing
 beside it tells a reader less than no line at all. Both forms above are
 therefore safe on a site where nothing has been typed in — the first prints
 nothing, the second loops zero times. Reaching *through* a value is where it

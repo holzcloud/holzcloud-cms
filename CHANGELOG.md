@@ -11,6 +11,50 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.0 — unveröffentlicht
+
+### Geändert — mit Bruch
+
+**Der Vorlagen-Vertrag spricht Englisch. Ein Theme, das für 1.x geschrieben
+wurde, hört auf zu funktionieren.** Sieben Namen, die ein Theme-Autor eintippt,
+heissen ab dieser Fassung anders:
+
+| bis 1.10 | ab 2.0 |
+|---|---|
+| `.Page.Felder` | `.Page.Fields` |
+| `.Page.Feldliste` | `.Page.FieldList` |
+| `.Page.Art` | `.Page.Kind` |
+| `.Page.Uebersetzungen` | `.Page.Translations` |
+| `.Site.Bausteinfelder` | `.Site.SnippetFields` |
+| `.Site.Bausteinliste` | `.Site.SnippetList` |
+| `.Site.Sprachen` | `.Site.Languages` |
+
+Das ist Absicht und geschieht in genau einer Fassung, statt beide Schreibweisen
+jahrelang nebeneinander zu führen. Der Grund ist der Zweck dieser Fassung: die
+Quelle dieses Programms ist auf Englisch umgestellt, damit sie jemand lesen
+kann, der kein Deutsch spricht — und der Vertrag ist der Teil davon, den nicht
+nur wer hineinsieht, sondern jeder Theme-Autor tippt. Ein halber Umstieg wäre
+dauerhaft schlechter als ein ganzer.
+
+**Was zu tun ist.** In jeder `.html`-Datei des Themes die linke Spalte durch die
+rechte ersetzen; die Bedeutung ändert sich an keiner Stelle, nur der Name. Alle
+acht mitgelieferten Themes sind umgestellt. `holzcloud template check` nennt
+eine übersehene Stelle beim Namen, bevor ein Upload angenommen wird.
+
+**Was sich *nicht* ändert:** die gespeicherten Werte. Eine Feldart heisst
+weiterhin `langtext`, eine Bausteinart weiterhin `zitat`, und die CSS-Klassen
+der Bausteine heissen weiterhin `hc-aufruf`, `hc-zitat`, `hc-galerie`. Die
+stehen in jeder Datenbank und reisen in jedem Archiv; sie umzubenennen wäre ein
+zweiter Bruch ohne Gewinn für irgendjemanden. Ein Theme-Stylesheet bleibt also
+unangetastet.
+
+### Hinzugefügt
+
+**TEMPLATE-SPEC §2.5 sagt jetzt, dass ein Theme einsprachig ist** — und wie eine
+mehrsprachige Website stattdessen gebaut wird: die Wörter des Rahmens kommen aus
+Textbausteinen, die Felder tragen, nicht aus der Vorlage. Das war vorher wahr
+und stand nirgends.
+
 ## 1.10 — 2026-09-11
 
 ### Hinzugefügt

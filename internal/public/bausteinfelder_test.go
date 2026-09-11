@@ -25,9 +25,9 @@ import (
 )
 
 // bausteinFS ist ein Theme, das beide Hälften eines Textbausteins druckt: den
-// Rumpf über .Site.Snippets und ein einzelnes Feld über .Site.Bausteinfelder.
+// Rumpf über .Site.Snippets und ein einzelnes Feld über .Site.SnippetFields.
 //
-// Und es druckt die Zahl der Einträge in .Page.Feldliste dazu. Das ist die im
+// Und es druckt die Zahl der Einträge in .Page.FieldList dazu. Das ist die im
 // Browser sichtbare Hälfte von D-03: die Seite hat keine eigenen Felder, und
 // wenn dort etwas steht, ist das Feld des Textbausteins in den Seitenweg
 // gelaufen.
@@ -37,9 +37,9 @@ func bausteinFS() fstest.MapFS {
 			`<html><body>{{template "content" .}}</body></html>`)},
 		"page.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<article>` +
-				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>` +
+				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>` +
 				`<div class="rumpf">{{index .Site.Snippets "kontakt"}}</div>` +
-				`<p class="eigene">{{len .Page.Feldliste}}</p>` +
+				`<p class="eigene">{{len .Page.FieldList}}</p>` +
 				`</article>{{end}}`)},
 		"home.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<main>{{.Page.Title}}</main>{{end}}`)},
@@ -48,24 +48,24 @@ func bausteinFS() fstest.MapFS {
 		// gerade dort war die Fläche leer.
 		"404.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<p class="notfound">nichts gefunden</p>` +
-				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>{{end}}`)},
+				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>{{end}}`)},
 		"maintenance.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<p class="wartung">gleich zurück</p>` +
-				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>{{end}}`)},
+				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>{{end}}`)},
 		// Drei Ansichten von drei verschiedenen Zuschnitten, alle mit derselben
 		// einen Zeile: das Schlagwortarchiv und das Beitragsarchiv teilen sich
 		// list.html, die Suche und der Katalog haben je eine eigene.
 		"list.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="liste">` +
-				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>` +
+				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>` +
 				`</section>{{end}}`)},
 		"search.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="suche">` +
-				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>` +
+				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>` +
 				`</section>{{end}}`)},
 		"shop.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="katalog">` +
-				`<p class="telefon">{{index .Site.Bausteinfelder "kontakt" "telefon"}}</p>` +
+				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>` +
 				`</section>{{end}}`)},
 	}
 }
@@ -134,7 +134,7 @@ func bausteinVorrichtung(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 //   - der Feldwert erscheint,
 //   - der Markdown-Rumpf des Textbausteins erscheint weiterhin,
 //   - .Site.Snippets trägt weiterhin template.HTML,
-//   - .Page.Feldliste bleibt leer — die Seite hat keine eigenen Felder, und das
+//   - .Page.FieldList bleibt leer — die Seite hat keine eigenen Felder, und das
 //     Feld des Textbausteins darf dort nicht auftauchen.
 func TestBausteinfelderErreichenDasTheme(t *testing.T) {
 	h, database, ws := bausteinVorrichtung(t)
@@ -159,14 +159,14 @@ func TestBausteinfelderErreichenDasTheme(t *testing.T) {
 		t.Errorf("der Markdown-Rumpf des Textbausteins fehlt:\n%s", body)
 	}
 	if !strings.Contains(body, `<p class="eigene">0</p>`) {
-		t.Errorf(".Page.Feldliste ist nicht leer — ein Feld des Textbausteins ist "+
+		t.Errorf(".Page.FieldList ist nicht leer — ein Feld des Textbausteins ist "+
 			"in den Seitenweg gelaufen, und genau das sähe man sonst erst im Browser:\n%s", body)
 	}
 }
 
 // TestSnippetsBleibtTemplateHTML hält SNIP-05 fest: .Site.Snippets ändert
 // seinen Typ nicht, und ein Textbaustein ohne eine einzige Felddefinition
-// bekommt trotzdem seinen Eintrag in .Site.Bausteinfelder — eine leere Karte
+// bekommt trotzdem seinen Eintrag in .Site.SnippetFields — eine leere Karte
 // und keinen fehlenden Schlüssel.
 func TestSnippetsBleibtTemplateHTML(t *testing.T) {
 	ctx := context.Background()
@@ -207,19 +207,19 @@ func TestSnippetsBleibtTemplateHTML(t *testing.T) {
 	if _, ok := site.Snippets["kontakt"]; !ok {
 		t.Error(".Site.Snippets hat den Textbaustein verloren")
 	}
-	werte, ok := site.Bausteinfelder["kontakt"]
+	werte, ok := site.SnippetFields["kontakt"]
 	if !ok {
-		t.Fatal(".Site.Bausteinfelder hat keinen Eintrag für einen Textbaustein ohne Felder — " +
+		t.Fatal(".Site.SnippetFields hat keinen Eintrag für einen Textbaustein ohne Felder — " +
 			"ein Theme, das durch ihn hindurchgreift, scheitert dann auf der Anfrage eines Besuchers")
 	}
 	if werte == nil {
-		t.Error(".Site.Bausteinfelder trägt eine nil-Karte statt einer leeren")
+		t.Error(".Site.SnippetFields trägt eine nil-Karte statt einer leeren")
 	}
 	if len(werte) != 0 {
-		t.Errorf(".Site.Bausteinfelder trägt %d Werte, erwartet keine", len(werte))
+		t.Errorf(".Site.SnippetFields trägt %d Werte, erwartet keine", len(werte))
 	}
-	if _, ok := site.Bausteinliste["kontakt"]; ok {
-		t.Error(".Site.Bausteinliste trägt einen Eintrag ohne einen einzigen gefüllten Wert — " +
+	if _, ok := site.SnippetList["kontakt"]; ok {
+		t.Error(".Site.SnippetList trägt einen Eintrag ohne einen einzigen gefüllten Wert — " +
 			"field.List gibt keinen leeren heraus")
 	}
 }
@@ -233,7 +233,7 @@ func TestSnippetsBleibtTemplateHTML(t *testing.T) {
 // jede Route die neue Funktion auch aufruft: eine Route, die das Füllen
 // schlicht ganz vergässe, käme durch das grep-Gatter ohne Weiteres hindurch.
 // Und sie fiele nirgends auf. Die Seite erscheint, der Status ist 200, kein
-// Fehler wird protokolliert, {{index .Site.Bausteinfelder …}} des Themes gibt
+// Fehler wird protokolliert, {{index .Site.SnippetFields …}} des Themes gibt
 // nichts heraus — der ganze Befund ist eine leere Stelle auf einer Art von
 // Seite, und gesehen wird sie von einem Besucher.
 //
@@ -323,7 +323,7 @@ func TestBausteinfelderAufMehrerenRouten(t *testing.T) {
 			body := rec.Body.String()
 			if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
 				t.Errorf("%s (%s): der Feldwert des Textbausteins fehlt — diese Route "+
-					"füllt .Site.Bausteinfelder nicht, und im Betrieb wäre der ganze "+
+					"füllt .Site.SnippetFields nicht, und im Betrieb wäre der ganze "+
 					"Befund eine leere Stelle auf genau dieser Art von Seite:\n%s",
 					route.name, route.datei, body)
 			}

@@ -76,10 +76,10 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 		UpdatedAt:     &updated,
 		Excerpt:       pg.Excerpt,
 		HasOwnHeading: startsWithHeading(pg.ContentHTML),
-		Art:           pg.TypeKey,
+		Kind:          pg.TypeKey,
 		Terms:         termLinksAt(localePrefixOf(r), h.labelsForPage(r, pg.ID)),
-		Felder:        felder,
-		Feldliste:     liste,
+		Fields:        felder,
+		FieldList:     liste,
 	}, albumsAt
 }
 
@@ -134,8 +134,8 @@ func (h *Handler) ownFields(r *http.Request, websiteID int64, pg *page.Page) (ma
 // has to be read the new way without every snippet being saved again.
 func (h *Handler) fillSnippets(r *http.Request, site *tmpl.SiteData, websiteID int64, rendered snippet.Rendered) {
 	site.Snippets = rendered.HTML
-	site.Bausteinfelder = map[string]map[string]any{}
-	site.Bausteinliste = map[string][]field.Entry{}
+	site.SnippetFields = map[string]map[string]any{}
+	site.SnippetList = map[string][]field.Entry{}
 	if h.fieldStore == nil {
 		return
 	}
@@ -163,16 +163,16 @@ func (h *Handler) fillSnippets(r *http.Request, site *tmpl.SiteData, websiteID i
 		daten := field.Decode(rendered.Fields[key])
 		// Auch ein Textbaustein ohne eine einzige Definition bekommt seinen
 		// Eintrag — eine leere Karte und keinen fehlenden Schlüssel: ein Theme,
-		// das {{ index .Site.Bausteinfelder "kontakt" "telefon" }} schreibt,
+		// das {{ index .Site.SnippetFields "kontakt" "telefon" }} schreibt,
 		// soll auf einer Website, auf der noch niemand ein Feld angelegt hat,
 		// nichts drucken statt zu scheitern.
-		site.Bausteinfelder[key] = field.Resolve(defs, daten, links)
+		site.SnippetFields[key] = field.Resolve(defs, daten, links)
 		// Nur eingetragen, wenn wirklich etwas gefüllt ist: field.List gibt
 		// keinen leeren Eintrag heraus, und ein Schlüssel, hinter dem eine
 		// leere Liste steht, wäre für ein Theme nicht von einem gefüllten zu
 		// unterscheiden.
 		if liste := field.List(defs, daten, links); len(liste) > 0 {
-			site.Bausteinliste[key] = liste
+			site.SnippetList[key] = liste
 		}
 	}
 }

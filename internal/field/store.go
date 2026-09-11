@@ -61,7 +61,7 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // Die WHERE-Bedingung nennt jeden fremden Namensraum ausdrücklich und lässt
 // keinen als „was übrig bleibt" durchgehen. Ohne AND snippet_id IS NULL stünde
 // jedes Feld eines Textbausteins auf dem Bearbeitungsformular jeder Seite und
-// in der .Page.Feldliste jedes Themes — still, und nur im Browser zu sehen.
+// in der .Page.FieldList jedes Themes — still, und nur im Browser zu sehen.
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), kennung, beschriftung, art,

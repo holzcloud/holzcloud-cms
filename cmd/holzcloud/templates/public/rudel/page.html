@@ -36,9 +36,9 @@
          der Verwaltung festgelegt wurde. Auf dieser Website tragen die
          Tierporträts hier ihre Angaben. Alle acht Fälle unverändert aus der
          bisherigen Fassung übernommen. */}}
-    {{if .Page.Feldliste}}
+    {{if .Page.FieldList}}
     <dl class="page-fields">
-      {{range .Page.Feldliste}}
+      {{range .Page.FieldList}}
       <dt>{{.Label}}</dt>
       <dd>
         {{if eq .Kind "gruppe"}}

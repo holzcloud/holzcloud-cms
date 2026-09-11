@@ -743,7 +743,7 @@ func newFieldTestHandler(t *testing.T) (*Handler, *db.DB) {
 	// bekommt das Theme nil und lässt den Block aus.
 	fsys["page.html"] = &fstest.MapFile{Data: []byte(
 		`{{define "content"}}<article>{{.Page.Title}}` +
-			`{{with .Page.Felder.thema}}<span class="thema">{{.Name}}</span>` +
+			`{{with .Page.Fields.thema}}<span class="thema">{{.Name}}</span>` +
 			`<a href="{{.URL}}">{{.Slug}}</a>{{end}}</article>{{end}}`)}
 
 	loader := tmpl.NewLoader(dir, fsys, nil, nil)

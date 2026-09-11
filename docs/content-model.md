@@ -48,11 +48,11 @@ In a theme, fields are reachable two ways:
 
 ```gotemplate
 {{/* by name — for a theme written for this one website */}}
-{{ with .Page.Felder.preis_pro_kilo }}<p class="preis">CHF {{ . }}</p>{{ end }}
-{{ if .Page.Felder.direkt_bestellbar }}<p>Direct from the farm</p>{{ end }}
+{{ with .Page.Fields.preis_pro_kilo }}<p class="preis">CHF {{ . }}</p>{{ end }}
+{{ if .Page.Fields.direkt_bestellbar }}<p>Direct from the farm</p>{{ end }}
 
 {{/* as a list — for a bundled theme that cannot know the names */}}
-{{ range .Page.Feldliste }}<dt>{{ .Label }}</dt><dd>{{ .Text }}</dd>{{ end }}
+{{ range .Page.FieldList }}<dt>{{ .Label }}</dt><dd>{{ .Text }}</dd>{{ end }}
 ```
 
 Values arrive typed: a number as a number (and printed the way it was typed), a
@@ -82,7 +82,7 @@ A **condition** reveals a field only once another one is filled in: *offer
 price* only once *on offer* is ticked. While the field is not shown:
 
 - it is **not required**, even if it is a required field,
-- the theme does **not output it** — neither under its key nor in `.Feldliste`,
+- the theme does **not output it** — neither under its key nor in `.FieldList`,
 - **its value stays.** A checkbox unticked by accident costs nobody their input;
   tick it again and everything is back.
 
@@ -105,7 +105,7 @@ target, and nobody notices. A **reference** is a choice from your own stock
 instead:
 
 ```gotemplate
-{{ with .Page.Felder.gehoert_zu }}
+{{ with .Page.Fields.gehoert_zu }}
   Belongs to <a href="{{ .URL }}">{{ .Title }}</a>
 {{ end }}
 ```
@@ -140,7 +140,7 @@ that calls itself and a form nobody can find their way around.
 rebuilds the form. Like the block editor, it works without a line of JavaScript.
 
 ```gotemplate
-{{ range .Page.Felder.preisstaffel }}
+{{ range .Page.Fields.preisstaffel }}
   from {{ .ab_menge }} {{ .einheit }}: CHF {{ .preis }}
 {{ end }}
 ```
@@ -170,8 +170,8 @@ public listing and in the sitemap.
 {{/* the listing page uses list.html, like the archive */}}
 {{ range .Archive.Entries }}<h2><a href="{{ .URL }}">{{ .Title }}</a></h2>{{ end }}
 
-{{/* on an entry: .Page.Art is the key, empty for page and post */}}
-{{ if eq .Page.Art "produkt" }}<p>CHF {{ .Page.Felder.preis }}</p>{{ end }}
+{{/* on an entry: .Page.Kind is the key, empty for page and post */}}
+{{ if eq .Page.Kind "produkt" }}<p>CHF {{ .Page.Fields.preis }}</p>{{ end }}
 ```
 
 Two things a kind deliberately does **not** change:

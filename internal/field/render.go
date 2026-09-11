@@ -9,8 +9,8 @@ import (
 // What a theme sees.
 //
 // The stored value is always a string — that is what keeps the storage simple.
-// A template should not have to know that: `{{ if .Page.Felder.verfuegbar }}`
-// has to work, and `{{ .Page.Felder.preis }}` has to print 8.50 and not "8.5"
+// A template should not have to know that: `{{ if .Page.Fields.verfuegbar }}`
+// has to work, and `{{ .Page.Fields.preis }}` has to print 8.50 and not "8.5"
 // with a comma in the wrong place. So the values are turned into the types
 // they mean, once, on the way out.
 
@@ -95,7 +95,7 @@ func (n Number) String() string { return n.Raw }
 // Resolve turns stored values into what a template can use.
 //
 // Every defined field appears in the result, filled or not: a template that
-// writes {{ .Page.Felder.preis }} must not fail on a page where nobody entered
+// writes {{ .Page.Fields.preis }} must not fail on a page where nobody entered
 // one. An empty value is the zero of its kind — empty string, false, zero
 // number, zero time, nil picture.
 func Resolve(defs []Def, data Data, links Links) map[string]any {

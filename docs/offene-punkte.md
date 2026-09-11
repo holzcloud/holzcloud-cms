@@ -71,8 +71,8 @@ picture, a number, a group.
 **What the entry did not foresee.** `snippet_id` collided with the partial
 unique index that guards a top-level field's key, so 00047 had to swap the
 index rather than only add a column; and a snippet's own fields have to reach
-the theme through *two* views that must agree — `Bausteinfelder` (every defined
-field, filled or not) and `Bausteinliste` (only the filled ones), which is the
+the theme through *two* views that must agree — `SnippetFields` (every defined
+field, filled or not) and `SnippetList` (only the filled ones), which is the
 same asymmetry a page has and the same one a fixture can get backwards.
 
 **Also settled here, and it is a real limit:** a picture, a reference or a label

@@ -29,9 +29,9 @@
     {{/* Was die Website an eigenen Feldern kennt. Die Vorlage kennt die Namen
          nicht — sie druckt Beschriftung und Wert, in der Reihenfolge, die in
          der Verwaltung festgelegt wurde. */}}
-    {{if .Page.Feldliste}}
+    {{if .Page.FieldList}}
     <dl class="page-fields">
-      {{range .Page.Feldliste}}
+      {{range .Page.FieldList}}
       <dt>{{.Label}}</dt>
       <dd>
         {{if eq .Kind "gruppe"}}

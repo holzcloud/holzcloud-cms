@@ -124,13 +124,13 @@ func TestMinimalDataLeavesOptionalFieldsEmpty(t *testing.T) {
 func TestSampleFieldsAreShapedLikeTheRendererProducesThem(t *testing.T) {
 	d := SampleData()
 
-	if len(d.Page.Feldliste) != len(d.Page.Felder) {
+	if len(d.Page.FieldList) != len(d.Page.Fields) {
 		t.Errorf("Feldliste has %d entries and Felder %d keys — they are two "+
 			"views of the same data and a template author is told so",
-			len(d.Page.Feldliste), len(d.Page.Felder))
+			len(d.Page.FieldList), len(d.Page.Fields))
 	}
 
-	for _, e := range d.Page.Feldliste {
+	for _, e := range d.Page.FieldList {
 		if e.Key == "" || e.Label == "" || e.Kind == "" {
 			t.Errorf("an entry is missing its key, label or kind: %+v", e)
 			continue
@@ -139,7 +139,7 @@ func TestSampleFieldsAreShapedLikeTheRendererProducesThem(t *testing.T) {
 			t.Errorf("%s carries kind %q, which this version cannot render", e.Key, e.Kind)
 			continue
 		}
-		if value, ok := d.Page.Felder[e.Key]; !ok {
+		if value, ok := d.Page.Fields[e.Key]; !ok {
 			t.Errorf("%s is in Feldliste but not in Felder", e.Key)
 		} else if !reflect.DeepEqual(value, e.Value) {
 			t.Errorf("%s: Felder holds %#v and Feldliste holds %#v", e.Key, value, e.Value)
@@ -220,24 +220,24 @@ func TestSampleFieldsAreShapedLikeTheRendererProducesThem(t *testing.T) {
 // template for reading the list the way the specification tells it to.
 //
 // In Felder: Resolve puts every defined field in the map, filled or not. That
-// is where {{.Page.Felder.abholzeit}} is a nil time rather than a missing key,
+// is where {{.Page.Fields.abholzeit}} is a nil time rather than a missing key,
 // and where a theme that reaches through it unguarded has to fail.
 func TestMinimalDataCarriesTheEmptyValueOfEveryOwnField(t *testing.T) {
 	sample := SampleData()
 	minimal := MinimalData()
 
-	if len(minimal.Page.Feldliste) != 0 {
+	if len(minimal.Page.FieldList) != 0 {
 		t.Error("MinimalData carries field entries; field.List never produces an " +
 			"empty one, so the fixture would describe a page that cannot exist")
 	}
 
 	kinds := map[string]string{}
-	for _, e := range sample.Page.Feldliste {
+	for _, e := range sample.Page.FieldList {
 		kinds[e.Key] = e.Kind
 	}
 
-	for key := range sample.Page.Felder {
-		value, ok := minimal.Page.Felder[key]
+	for key := range sample.Page.Fields {
+		value, ok := minimal.Page.Fields[key]
 		if !ok {
 			t.Errorf("MinimalData has no %s; a page where nobody filled it in is "+
 				"then never rendered, and the upload check cannot catch a theme "+
@@ -250,8 +250,8 @@ func TestMinimalDataCarriesTheEmptyValueOfEveryOwnField(t *testing.T) {
 				key, value, kinds[key], want)
 		}
 	}
-	for key := range minimal.Page.Felder {
-		if _, ok := sample.Page.Felder[key]; !ok {
+	for key := range minimal.Page.Fields {
+		if _, ok := sample.Page.Fields[key]; !ok {
 			t.Errorf("MinimalData has %s and SampleData does not — the filled case "+
 				"of that field is then never rendered", key)
 		}
@@ -272,21 +272,21 @@ func TestMinimalDataCarriesTheEmptyValueOfEverySnippetField(t *testing.T) {
 	sample := SampleData()
 	minimal := MinimalData()
 
-	if len(minimal.Site.Bausteinliste) != 0 {
+	if len(minimal.Site.SnippetList) != 0 {
 		t.Error("MinimalData carries a snippet field list; field.List never " +
 			"produces an empty entry, so the fixture would describe a site " +
 			"that cannot exist")
 	}
 
 	kinds := map[string]string{}
-	for key, entries := range sample.Site.Bausteinliste {
+	for key, entries := range sample.Site.SnippetList {
 		for _, e := range entries {
 			kinds[key+"."+e.Key] = e.Kind
 		}
 	}
 
-	for key, fields := range sample.Site.Bausteinfelder {
-		got, ok := minimal.Site.Bausteinfelder[key]
+	for key, fields := range sample.Site.SnippetFields {
+		got, ok := minimal.Site.SnippetFields[key]
 		if !ok {
 			t.Errorf("MinimalData has no snippet %s; a site where nobody filled "+
 				"its fields in is then never rendered", key)
@@ -313,8 +313,8 @@ func TestMinimalDataCarriesTheEmptyValueOfEverySnippetField(t *testing.T) {
 			}
 		}
 	}
-	for key := range minimal.Site.Bausteinfelder {
-		if _, ok := sample.Site.Bausteinfelder[key]; !ok {
+	for key := range minimal.Site.SnippetFields {
+		if _, ok := sample.Site.SnippetFields[key]; !ok {
 			t.Errorf("MinimalData has snippet %s and SampleData does not", key)
 		}
 	}
@@ -323,9 +323,9 @@ func TestMinimalDataCarriesTheEmptyValueOfEverySnippetField(t *testing.T) {
 	// against the fixture that is meant to survive them. This is the assertion
 	// the document would otherwise be making on its own authority.
 	for name, src := range map[string]string{
-		"indexing a value":  `{{index .Site.Bausteinfelder "footer-kontakt" "telefon"}}`,
-		"ranging the list":  `{{range index .Site.Bausteinliste "footer-kontakt"}}{{.Label}}{{end}}`,
-		"an absent snippet": `{{index .Site.Bausteinfelder "gibtesnicht" "telefon"}}`,
+		"indexing a value":  `{{index .Site.SnippetFields "footer-kontakt" "telefon"}}`,
+		"ranging the list":  `{{range index .Site.SnippetList "footer-kontakt"}}{{.Label}}{{end}}`,
+		"an absent snippet": `{{index .Site.SnippetFields "gibtesnicht" "telefon"}}`,
 	} {
 		tpl, err := template.New("t").Parse(src)
 		if err != nil {
@@ -391,12 +391,12 @@ func TestEveryValueHoldingKindIsInTheSampleFixture(t *testing.T) {
 	data := SampleData()
 
 	inList := map[string]bool{}
-	for _, e := range data.Page.Feldliste {
+	for _, e := range data.Page.FieldList {
 		inList[e.Kind] = true
 	}
 	inMap := map[string]bool{}
-	for _, e := range data.Page.Feldliste {
-		if _, ok := data.Page.Felder[e.Key]; ok {
+	for _, e := range data.Page.FieldList {
+		if _, ok := data.Page.Fields[e.Key]; ok {
 			inMap[e.Kind] = true
 		}
 	}
@@ -406,11 +406,11 @@ func TestEveryValueHoldingKindIsInTheSampleFixture(t *testing.T) {
 			continue
 		}
 		if !inList[k.Kind] {
-			t.Errorf("no %q entry in SampleData().Page.Feldliste — template.Check renders "+
+			t.Errorf("no %q entry in SampleData().Page.FieldList — template.Check renders "+
 				"the fixture and nothing else, so a theme's handling of this kind is never run", k.Kind)
 		}
 		if !inMap[k.Kind] {
-			t.Errorf("no %q value in SampleData().Page.Felder — the map view and the list view "+
+			t.Errorf("no %q value in SampleData().Page.Fields — the map view and the list view "+
 				"are two halves of one contract and a template may reach for either", k.Kind)
 		}
 	}
