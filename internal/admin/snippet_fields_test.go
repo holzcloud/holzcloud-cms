@@ -633,7 +633,7 @@ func codeAusdruck(t *testing.T, koerper string) string {
 // validKey erlaubt den Bindestrich ausdrücklich (internal/admin/snippet.go),
 // und der Musterschlüssel dieses Projekts heisst „footer-kontakt"
 // (internal/template/sample.go). Die Feldsuffixform
-// {{.Site.Bausteinfelder.footer-kontakt.telefon}} ist für Go kein Ausdruck,
+// {{.Site.SnippetFields.footer-kontakt.telefon}} ist für Go kein Ausdruck,
 // sondern ein Übersetzungsfehler — „bad character U+002D". Wer den Rat
 // abschreibt, bekommt sein Theme von template.Check abgewiesen, mit einer
 // Meldung, die ein Zeichen nennt und keine Ursache.

@@ -197,3 +197,60 @@ func TestShippedThemesPassTheCheck(t *testing.T) {
 		t.Fatalf("no shipped themes found under %s", root)
 	}
 }
+
+// The 2.0 break, held from the outside. CHANGELOG.md promises that a theme
+// written against 1.x stops working — deliberately, in one release, rather than
+// both spellings living side by side for years. A promise that nothing asserts
+// is a sentence, not a behaviour: without this test the old names could quietly
+// come back as aliases and the changelog would be lying.
+//
+// It is written against all seven renamed names rather than one, because the
+// cheap mistake is to convert six and leave the seventh working by accident.
+func TestATemplateWrittenAgainstTheOldGermanContractIsRefused(t *testing.T) {
+	for _, old := range []string{
+		".Page.Felder.preis",
+		".Page.Feldliste",
+		".Page.Art",
+		".Page.Uebersetzungen",
+		".Site.Bausteinfelder",
+		".Site.Bausteinliste",
+		".Site.Sprachen",
+	} {
+		theme := themeFS(map[string]string{
+			"layout.html": goodLayout,
+			"page.html":   `{{define "content"}}<article>{{` + old + `}}</article>{{end}}`,
+		})
+
+		problems := Check(theme, nil)
+		if len(problems) == 0 {
+			t.Errorf("a theme using the 1.x name %s was accepted; the break "+
+				"CHANGELOG.md announces under 2.0 did not happen for this name", old)
+		}
+	}
+}
+
+// The other half, and the one a theme author actually meets: the refusal has to
+// name the English field, or converting a theme means guessing. Go's own error
+// lists the struct's fields, so this costs nothing to keep true — but only as
+// long as nobody wraps it in a friendlier message that drops the list.
+func TestTheRefusalNamesTheEnglishFieldsSoAThemeCanBeConverted(t *testing.T) {
+	theme := themeFS(map[string]string{
+		"layout.html": goodLayout,
+		"page.html":   `{{define "content"}}<article>{{.Page.Feldliste}}</article>{{end}}`,
+	})
+
+	problems := Check(theme, nil)
+	if len(problems) == 0 {
+		t.Fatalf("the old name was accepted")
+	}
+	var joined string
+	for _, p := range problems {
+		joined += p.String() + "\n"
+	}
+	for _, want := range []string{"Fields", "FieldList", "Translations"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("the refusal does not name %q, so a theme author is left "+
+				"guessing what to write instead:\n%s", want, joined)
+		}
+	}
+}

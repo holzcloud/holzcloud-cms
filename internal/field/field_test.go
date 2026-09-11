@@ -172,7 +172,7 @@ func TestAufloesenLiefertTypen(t *testing.T) {
 }
 
 // Ein Feld ohne Wert muss trotzdem im Ergebnis stehen, sonst scheitert
-// {{ .Page.Felder.preis }} auf der einen Seite, die keinen Preis hat.
+// {{ .Page.Fields.preis }} auf der einen Seite, die keinen Preis hat.
 func TestLeereFelderStehenTrotzdemDa(t *testing.T) {
 	defs := []Def{
 		{Key: "preis", Kind: KindNumber},

@@ -16,7 +16,7 @@
     <p><a href="/admin/websites/{{.WebsiteID}}/snippets">{{th "&#8592; Alle Textbausteine"}}</a></p>
     <p class="text-muted">
         {{tf "Woraus der Textbaustein „%s“ (%s) besteht. Mit Feldern ist er nicht mehr nur ein Kasten Markdown, sondern ein kleines Inhaltsmodell: die Felder erscheinen auf dem Formular des Bausteins, und der Markdown-Rumpf bleibt daneben stehen. Im Theme:" .Snippet.Name .Snippet.Key}}
-        <code>&#123;&#123;index .Site.Bausteinfelder "{{.Snippet.Key}}" "kennung"&#125;&#125;</code>.
+        <code>&#123;&#123;index .Site.SnippetFields "{{.Snippet.Key}}" "kennung"&#125;&#125;</code>.
     </p>
     <p class="text-muted">
         {{t "Ein Textbaustein bekommt jede Art von Feld, die auch eine Seite bekommt — Gruppen eingeschlossen. Seine Werte werden beim Anzeigen aufgelöst und nicht beim Speichern eingefroren, deshalb halten hier auch ein Verweis und ein Schlagwort ihr Versprechen."}}
@@ -25,11 +25,11 @@
     <p><a href="/admin/websites/{{.WebsiteID}}/felder">{{th "&#8592; Alle Felder"}}</a></p>
     <p class="text-muted">
         {{tf "Die Felder der Gruppe „%s“ (%s). Sie werden im Editor je Zeile abgefragt — eine Zeile je Öffnungstag, je Teammitglied, je Variante. Im Theme:" .Group.Label .Group.Key}}
-        <code>&#123;&#123;range .Page.Felder.{{.Group.Key}}&#125;&#125;</code>.
+        <code>&#123;&#123;range .Page.Fields.{{.Group.Key}}&#125;&#125;</code>.
     </p>
     {{else}}
     <p class="text-muted">
-        {{th "Eine Seite hat Titel, Adresse und Text. Was darüber hinaus zu einer Seite dieser Website gehört, legst du hier fest: ein Preis, eine Verfügbarkeit, ein Wurfdatum. Die Felder erscheinen im Editor unter dem Inhalt und stehen im Theme als <code>&#123;&#123; .Page.Felder.kennung &#125;&#125;</code> bereit."}}
+        {{th "Eine Seite hat Titel, Adresse und Text. Was darüber hinaus zu einer Seite dieser Website gehört, legst du hier fest: ein Preis, eine Verfügbarkeit, ein Wurfdatum. Die Felder erscheinen im Editor unter dem Inhalt und stehen im Theme als <code>&#123;&#123; .Page.Fields.kennung &#125;&#125;</code> bereit."}}
     </p>
     <p class="text-muted">
         {{th "Eine <strong>Gruppe</strong> ist ein Feld, das mehrfach ausgefüllt wird: Öffnungszeiten, Teammitglieder, Preisstaffeln. Lege sie an und bestimme danach, woraus eine Zeile besteht."}}

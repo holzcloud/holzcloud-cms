@@ -107,14 +107,14 @@ func SampleData() PageData {
 			// spells it: a snippet carries every kind a page carries, and a
 			// fixture of nothing but strings would let an upload through whose
 			// handling of a typed value has never once run.
-			Bausteinfelder: map[string]map[string]any{
+			SnippetFields: map[string]map[string]any{
 				"footer-kontakt": {
 					"telefon": "07721 123456",
 					"strasse": "Hauptstraße 4",
 					"oeffnet": &oeffnet,
 				},
 			},
-			Bausteinliste: map[string][]field.Entry{
+			SnippetList: map[string][]field.Entry{
 				"footer-kontakt": {
 					{Key: "telefon", Label: "Telefon", Kind: field.KindText, Value: "07721 123456", Text: "07721 123456"},
 					{Key: "strasse", Label: "Straße", Kind: field.KindText, Value: "Hauptstraße 4", Text: "Hauptstraße 4"},
@@ -128,7 +128,7 @@ func SampleData() PageData {
 			Design:    ":root{--hc-brand:oklch(55% 0.12 45)}",
 			HasSearch: true,
 			FeedURL:   "/feed.atom",
-			Sprachen: []LanguageLink{
+			Languages: []LanguageLink{
 				{Code: "de", Name: "Deutsch", URL: "/ueber-uns", Active: true},
 				{Code: "fr", Name: "Français", URL: "/fr/a-propos"},
 			},
@@ -148,8 +148,8 @@ func SampleData() PageData {
 			Terms:         []TermLink{{Name: "Möbel", URL: "/tag/moebel", Count: 3}},
 			Prev:          &PageLink{Title: "Voriger Beitrag", URL: "/vorig"},
 			Next:          &PageLink{Title: "Nächster Beitrag", URL: "/naechst"},
-			Art:           "produkt",
-			Felder: map[string]any{
+			Kind:          "produkt",
+			Fields: map[string]any{
 				"holzart":     "Eiche",
 				"lieferzeit":  "4 Wochen",
 				"ausstattung": ausstattung,
@@ -168,7 +168,7 @@ func SampleData() PageData {
 				"werkstatt":       &werkstatt,
 				"oeffnungszeiten": oeffnungszeiten,
 			},
-			Feldliste: []field.Entry{
+			FieldList: []field.Entry{
 				{Key: "holzart", Label: "Holzart", Kind: field.KindText, Value: "Eiche", Text: "Eiche"},
 				{Key: "lieferzeit", Label: "Lieferzeit", Kind: field.KindText, Value: "4 Wochen", Text: "4 Wochen"},
 				// One entry per kind this version can put in the list beyond a
@@ -229,7 +229,7 @@ func SampleData() PageData {
 					},
 				},
 			},
-			Uebersetzungen: []LanguageLink{
+			Translations: []LanguageLink{
 				{Code: "de", Name: "Deutsch", URL: "/ueber-uns", Active: true},
 				{Code: "fr", Name: "Français", URL: "/fr/a-propos"},
 			},
@@ -401,7 +401,7 @@ func SampleData() PageData {
 // template good. Everything that can legitimately be absent is absent here:
 // no dates, no neighbours, no image, no menus, no labels, no snippet bodies —
 // and one snippet whose fields are defined and empty, which is the state a
-// theme that indexes into .Site.Bausteinfelder actually breaks on.
+// theme that indexes into .Site.SnippetFields actually breaks on.
 func MinimalData() PageData {
 	return PageData{
 		Site: SiteData{
@@ -409,7 +409,7 @@ func MinimalData() PageData {
 			Locale: "de",
 			// The same for a snippet: its fields are defined and nobody has
 			// filled any of them in. Resolve puts every defined field in the
-			// map here too, so {{index .Site.Bausteinfelder "footer-kontakt"
+			// map here too, so {{index .Site.SnippetFields "footer-kontakt"
 			// "oeffnet"}} is a nil time rather than a missing key.
 			//
 			// There is deliberately no Bausteinliste, and it is the same
@@ -421,7 +421,7 @@ func MinimalData() PageData {
 			//
 			// The body is absent as well: a snippet is a body plus optional
 			// fields, and a theme has to survive either half being away.
-			Bausteinfelder: map[string]map[string]any{
+			SnippetFields: map[string]map[string]any{
 				"footer-kontakt": {
 					"telefon": "",
 					"strasse": "",
@@ -436,7 +436,7 @@ func MinimalData() PageData {
 			// The website has defined its fields; nobody has filled any of them
 			// in on this page. That is where the empty case of an own field
 			// lives: Resolve puts every defined field in the map, filled or
-			// not, so {{.Page.Felder.abholzeit}} is a nil time rather than a
+			// not, so {{.Page.Fields.abholzeit}} is a nil time rather than a
 			// missing key — and a theme that reaches through it unguarded fails
 			// here, which is the point of this fixture.
 			//
@@ -446,7 +446,7 @@ func MinimalData() PageData {
 			// state the program cannot produce. A fixture that invented one
 			// would reject a template for handling the list the way the
 			// specification tells it to.
-			Felder: map[string]any{
+			Fields: map[string]any{
 				"holzart":     "",
 				"lieferzeit":  "",
 				"ausstattung": []string{},

@@ -275,7 +275,7 @@ func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *pa
 		HasOwnHeading: startsWithHeading(pg.ContentHTML),
 		// The preview has to lay a product out as a product, or it is not a
 		// preview of the page that will be published.
-		Art:    pg.TypeKey,
+		Kind:   pg.TypeKey,
 		IsPost: pg.IsPost(),
 	}
 }

@@ -171,7 +171,7 @@ of it:
 it, the shop becomes an application rather than an extension.
 
 *Done.* Eight kinds, definable per website, in the editor below the content, in
-the theme as `.Page.Felder.key` and as `.Page.Feldliste`, validated in the admin,
+the theme as `.Page.Fields.key` and as `.Page.FieldList`, validated in the admin,
 on import and over AI access, and included in export and import. See the README,
 section *Fields of your own*.
 
@@ -182,7 +182,7 @@ Opening hours, team members, product variants, price tiers.
 
 *Done.* The kind "group", one level deep, with rows to add, remove and move —
 all ordinary submit buttons, without JavaScript. In the theme as
-`{{range .Page.Felder.preisstaffel}}`; included in export, import and AI access.
+`{{range .Page.Fields.preisstaffel}}`; included in export, import and AI access.
 With that our field system covers what Statamic has `replicator`, `grid`, `group`
 and `table` for.
 

@@ -31,11 +31,11 @@
   <script type="application/ld+json">{{.Meta.StructuredData}}</script>
   {{end}}
   <link rel="alternate" type="application/atom+xml" title="{{.Site.Name}}" href="{{if .Site.FeedURL}}{{.Site.FeedURL}}{{else}}/feed.xml{{end}}">
-  {{if .Page.Uebersetzungen}}
+  {{if .Page.Translations}}
   <!-- Welche Sprachfassungen es von dieser Seite gibt. Nur die, die es
        wirklich gibt: ein hreflang auf eine Seite, die es nicht gibt, ist für
        eine Suchmaschine schlimmer als gar keine Angabe. -->
-  {{range .Page.Uebersetzungen}}
+  {{range .Page.Translations}}
   <link rel="alternate" hreflang="{{.Code}}" href="{{$.Site.URL}}{{.URL}}">
   {{end}}
   {{end}}
@@ -91,10 +91,10 @@
 
       <nav class="site-menu" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
 
-      {{if .Site.Sprachen}}
+      {{if .Site.Languages}}
       <nav class="lang-nav" aria-label="Sprache">
         <ul>
-          {{range .Site.Sprachen}}
+          {{range .Site.Languages}}
           <li>
             {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Code}}</span>
             {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}" title="{{.Name}}">{{.Code}}</a>{{end}}

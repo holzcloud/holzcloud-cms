@@ -46,7 +46,7 @@ type Handler struct {
 	// looked like before they existed.
 	kindStore *kind.Store
 	// fieldStore supplies the website's own page fields. Nil means a theme sees
-	// an empty .Page.Felder, which is what every theme saw before they existed.
+	// an empty .Page.Fields, which is what every theme saw before they existed.
 	fieldStore *field.Store
 	// plugins may be nil, in which case no hook is ever dispatched and the
 	// public side behaves exactly as it did before there were plugins.
@@ -195,8 +195,8 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
 	inhalt, albumsAt := h.pageContent(r, website.ID, pg, snippets)
-	inhalt.Uebersetzungen = h.translationLinks(r, website, pg)
-	site.Sprachen = h.switcher(inhalt.Uebersetzungen, site.Sprachen)
+	inhalt.Translations = h.translationLinks(r, website, pg)
+	site.Languages = h.switcher(inhalt.Translations, site.Languages)
 	data := tmpl.PageData{
 		Site:  site,
 		Page:  inhalt,
@@ -282,8 +282,8 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 	h.fillSnippets(r, &site, website.ID, snippets)
 	inhalt, albumsAt := h.pageContent(r, website.ID, pg, snippets)
 	inhalt = h.withArchiveNav(r, website, inhalt, pg)
-	inhalt.Uebersetzungen = h.translationLinks(r, website, pg)
-	site.Sprachen = h.switcher(inhalt.Uebersetzungen, site.Sprachen)
+	inhalt.Translations = h.translationLinks(r, website, pg)
+	site.Languages = h.switcher(inhalt.Translations, site.Languages)
 	data := tmpl.PageData{
 		Site:  site,
 		Page:  inhalt,
