@@ -1,7 +1,7 @@
 # Holzcloud CMS — Project Context
 
 **Created:** 2026-04-13 (autonomous initialization after technical pivot)
-**Status:** v1.0 shipped 2026-04-14; v1.6 "Inhaltsmodell und Zugang" completed 2026-09-10. Software releases are tagged separately and have reached v1.9.
+**Status:** v1.0 shipped 2026-04-14; v1.10 "Inhaltsmodell und Zugang" (planned as v1.6) completed 2026-09-10 and released as 1.10 on 2026-09-11. A milestone and its release carry one number.
 **Current milestone:** none active — next is v2.0 "The Codebase Speaks English" (Phase 12, not planned; opened with `/gsd-new-milestone`)
 **Stack (HARD MANDATE):** Go + htmx + CSS + SQLite
 
@@ -13,26 +13,26 @@ A minimal, self-hosted CMS that runs as a single Go binary on a small linux/amd6
 
 One small binary runs several websites without dependency soup. Authors work through a clean, responsive admin UI; readers get fast server-rendered pages.
 
-Checked at the v1.6 close and unchanged: every v1.6 feature was built inside that promise — single sign-on without an OIDC client or a runtime call, a gallery without JavaScript, a CSV import without a new dependency.
+Checked at the v1.10 close and unchanged: every v1.10 feature was built inside that promise — single sign-on without an OIDC client or a runtime call, a gallery without JavaScript, a CSV import without a new dependency.
 
-## Current State (after v1.6)
+## Current State (after v1.10)
 
 - **Code:** 110 399 lines of Go in 394 files; 53 migrations; eight shipped public themes; six wasm plugin guests rebuilt and compared in CI.
 - **Admin languages:** de, en, es, fr, it with Swiss variants; the catalogue gate reads 1328 strings, 0 offen, 0 verwaist.
-- **Delivered in v1.6:** the full field palette in every carrier (pages, snippets, own block kinds), CSV import, single sign-on through Authentik forward-auth, and a gallery with albums, lightbox and slideshow. Details in `.planning/MILESTONES.md`.
-- **Known debt:** the milestone audit closed at `tech_debt`, 46/48 (`.planning/milestones/v1.6-MILESTONE-AUDIT.md`). `.planning/WINDOWS.md` holds 22 open of 29 entries — mostly Phase 10: counting gates that measure something other than their name, SSO follow-ups (no deprovisioning, rights rows without an actor, refusals not rate-limited), and German literals the gate cannot see.
-- **Release vs. milestone numbers:** the planning milestone called v1.6 does not correspond to the release tag `v1.6`. They diverged at the v1.5 renumbering; no tag was created at this close.
+- **Delivered in v1.10 (planned as v1.6):** the full field palette in every carrier (pages, snippets, own block kinds), CSV import, single sign-on through Authentik forward-auth, and a gallery with albums, lightbox and slideshow. Details in `.planning/MILESTONES.md`.
+- **Known debt:** the milestone audit closed at `tech_debt`, 46/48 (`.planning/milestones/v1.10-MILESTONE-AUDIT.md`). `.planning/WINDOWS.md` holds 22 open of 29 entries — mostly Phase 10: counting gates that measure something other than their name, SSO follow-ups (no deprovisioning, rights rows without an actor, refusals not rate-limited), and German literals the gate cannot see.
+- **Milestone and release numbers are one number** (decided 2026-09-11). The milestone planned as v1.6 was renumbered v1.10 when it was released, because the tags `v1.6`–`v1.9` were already published. From here the close of a milestone creates its release tag.
 
 ## Next Milestone Goals (v2.0 — The Codebase Speaks English)
 
 Not yet planned. What is already decided, and where it is written:
 
-- **LANG-01 … LANG-08** — comments, identifiers, test names, SQL columns and catalogue keys in English; the template data contract in English as a deliberate breaking change (hence 2.0); a gate that keeps German out of Go source. Full text in `.planning/milestones/v1.6-REQUIREMENTS.md`; the phase and its nine success criteria in `.planning/ROADMAP.md`.
-- **Carried from v1.6:** the 828 operator-facing strings no catalogue can see (`.planning/audits/v1.6-I18N-828.md`), the sentences built past the gate (`WINDOWS.md` 6, 18, 29), and GAL-07's wording.
+- **LANG-01 … LANG-08** — comments, identifiers, test names, SQL columns and catalogue keys in English; the template data contract in English as a deliberate breaking change (hence 2.0); a gate that keeps German out of Go source. Full text in `.planning/milestones/v1.10-REQUIREMENTS.md`; the phase and its nine success criteria in `.planning/ROADMAP.md`.
+- **Carried from v1.10:** the 828 operator-facing strings no catalogue can see (`.planning/audits/v1.6-I18N-828.md`), the sentences built past the gate (`WINDOWS.md` 6, 18, 29), and GAL-07's wording.
 - **Not decided yet:** whether the stored German vocabularies (field kinds, block kinds, `gilt_fuer`) turn too — LANG-08 requires the decision, not a particular answer.
 
 <details>
-<summary>Previous milestone framing — v1.6 Inhaltsmodell und Zugang, as written on 2026-09-03</summary>
+<summary>Previous milestone framing — v1.6 Inhaltsmodell und Zugang, as written on 2026-09-03 (released as v1.10)</summary>
 
 **Goal:** A website describes its content model completely — every field kind an author
 needs, in every carrier that holds fields, and content can also arrive as a table — and
@@ -97,16 +97,16 @@ April and September 2026 outside the planning artefacts, which is why this secti
 - ✓ schema.org JSON-LD for search engines
 - ✓ Background jobs, media variants, video from the site's own library
 - ✓ Deployment: systemd unit, Caddy config, backup procedure
-- ✓ Housekeeping gates: catalogue format locked by a test, CI rebuilds and compares the wasm guests and plugin archives, self-skipping tests fail on a runner — v1.6 (MAINT-01…05)
-- ✓ Choice as a button row with an explicit empty choice; a field condition still works against it — v1.6 (FIELD-01, FIELD-08)
-- ✓ Multiple choice with a server-side maximum, and one multi-value encoding shared by form, renderer, bundle and CSV importer — v1.6 (FIELD-02, FIELD-07)
-- ✓ Term field: stores the slug, prints the current name — v1.6 (FIELD-03)
-- ✓ Time, range and code field kinds, the code field escaped also inside a block — v1.6 (FIELD-04…06)
-- ✓ Own block kinds hold their field values to the same check as a page — v1.6 (closed at the milestone audit)
-- ✓ Text snippets carry every field kind, through the existing field table and the same sanitisation — v1.6 (SNIP-01…05)
-- ✓ CSV import: upload, column mapping, dry run, new or existing website, a report for every row — v1.6 (IMP-01…10)
-- ✓ Single sign-on through Authentik forward-auth: trusted peer and shared secret before any header is read, group-mapped roles and websites re-read on every request, identity bound by username and never by e-mail address, the password path unchanged — v1.6 (SSO-01…11)
-- ✓ Gallery: lightbox without JavaScript, previous/next, albums per website placed on many pages, scroll-snap slideshow, album references surviving the bundle round trip — v1.6 (GAL-01…06; GAL-07 met in substance)
+- ✓ Housekeeping gates: catalogue format locked by a test, CI rebuilds and compares the wasm guests and plugin archives, self-skipping tests fail on a runner — v1.10 (MAINT-01…05)
+- ✓ Choice as a button row with an explicit empty choice; a field condition still works against it — v1.10 (FIELD-01, FIELD-08)
+- ✓ Multiple choice with a server-side maximum, and one multi-value encoding shared by form, renderer, bundle and CSV importer — v1.10 (FIELD-02, FIELD-07)
+- ✓ Term field: stores the slug, prints the current name — v1.10 (FIELD-03)
+- ✓ Time, range and code field kinds, the code field escaped also inside a block — v1.10 (FIELD-04…06)
+- ✓ Own block kinds hold their field values to the same check as a page — v1.10 (closed at the milestone audit)
+- ✓ Text snippets carry every field kind, through the existing field table and the same sanitisation — v1.10 (SNIP-01…05)
+- ✓ CSV import: upload, column mapping, dry run, new or existing website, a report for every row — v1.10 (IMP-01…10)
+- ✓ Single sign-on through Authentik forward-auth: trusted peer and shared secret before any header is read, group-mapped roles and websites re-read on every request, identity bound by username and never by e-mail address, the password path unchanged — v1.10 (SSO-01…11)
+- ✓ Gallery: lightbox without JavaScript, previous/next, albums per website placed on many pages, scroll-snap slideshow, album references surviving the bundle round trip — v1.10 (GAL-01…06; GAL-07 met in substance)
 
 ### Active
 
@@ -114,7 +114,7 @@ Nothing is being built. The next milestone's requirements are listed under *Next
 
 ### Out of Scope
 
-Beyond the v1 exclusions further down, the following were considered and left out. Every reason was re-read at the v1.6 close and still holds.
+Beyond the v1 exclusions further down, the following were considered and left out. Every reason was re-read at the v1.10 close and still holds.
 
 - **Static export** — a second mode of operation beside the one that works: it can serve
   neither forms, nor search, nor protected pages. If it is ever built, it must be an
@@ -123,7 +123,7 @@ Beyond the v1 exclusions further down, the following were considered and left ou
   OAuth under what is deliberately not built, for the reason that holds here too: it is a
   second mode of operation beside the one that works, and it needs a dependency and an
   outbound call at runtime. The forward-auth header from the reverse proxy delivered the
-  same single sign-on in v1.6 with neither.
+  same single sign-on in v1.10 with neither.
 - **Verifying `X-authentik-jwt`** — verification means fetching keys at runtime or pinning
   one; it protects nothing the trust boundary does not already protect, and parsing without
   verifying would look like protection.
@@ -137,7 +137,7 @@ Beyond the v1 exclusions further down, the following were considered and left ou
 
 ## Key Decisions
 
-Decisions taken during v1.6 that a later reader should not reopen without a reason.
+Decisions taken during v1.10 (planned as v1.6) that a later reader should not reopen without a reason.
 
 | Decision | Why | Outcome |
 |----------|-----|---------|
@@ -150,7 +150,7 @@ Decisions taken during v1.6 that a later reader should not reopen without a reas
 | The lightbox uses `:target`, the slideshow CSS scroll-snap | htmx only, and a public page must work with no script at all | ✓ Good — survives a blocked stylesheet and a disabled script engine |
 | An album reference travels through a bundle by name; the address is re-derived on import | The same lesson Phase 7 learned on terms | ✓ Good |
 | Phase 12 moved to v2.0; Phase 11 stayed in v1.6 | Phase 12 breaks the public template contract; Phase 11 had shipped | ✓ Good |
-| No git tag at the v1.6 close | `v1.6` already names a published release; a published tag is never moved | — Pending: decide how planning milestones and release tags relate before v2.0 |
+| A milestone and its release carry one number; the milestone planned as v1.6 was released as 1.10 | The tags `v1.6`–`v1.9` were already published and a published tag is never moved, so the milestone took the release number | ✓ Decided 2026-09-11 — a milestone close creates its release tag |
 
 ## Mandatory Stack (unchangeable)
 
@@ -168,7 +168,7 @@ Anything outside this stack requires explicit user approval.
 - Single binary on a small linux/amd64 server. (Retargeted from arm64/Pi on 2026-09-03;
   CI builds linux/amd64 and the release workflow publishes it on a `v*` tag.)
 - Reverse proxy (Caddy or similar) in front for TLS + HTTP/2; binary listens on localhost:PORT.
-  Since v1.6 the same proxy may carry single sign-on (Caddy ≥ 2.11.2 with Authentik's outpost).
+  Since 1.10 the same proxy may carry single sign-on (Caddy ≥ 2.11.2 with Authentik's outpost).
 - SQLite file + asset directory on local disk; no external services required.
 
 ## Key Capabilities (high-level)
@@ -235,4 +235,4 @@ whole time.
 *Stack is mandated by the user. Every phase, research note, and plan must respect it. If a requirement seems to need something outside the stack, flag and propose a stack-compatible alternative.*
 
 ---
-*Last updated: 2026-09-10 after the v1.6 milestone*
+*Last updated: 2026-09-11 — milestone renumbered v1.10 and released as 1.10*

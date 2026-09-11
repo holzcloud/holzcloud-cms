@@ -11,7 +11,7 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
-## Unveröffentlicht
+## 1.10 — 2026-09-11
 
 ### Hinzugefügt
 

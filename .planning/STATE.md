@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.6
+milestone: v1.10
 milestone_name: Inhaltsmodell und Zugang
 current_phase: null
 current_phase_name: "Meilenstein v1.6 abgeschlossen"
 status: completed
-stopped_at: "Meilenstein v1.6 abgeschlossen und archiviert (2026-09-10): Audit tech_debt 46/48, sechs Phasen nach milestones/v1.6-phases/, fuenf Befunde quittiert (Deferred Items). Kein Tag — v1.6 ist schon ein Release-Tag. Naechster Schritt: /gsd-new-milestone fuer v2.0."
+stopped_at: "Meilenstein v1.10 (geplant als v1.6) abgeschlossen (2026-09-10) und als Release 1.10 gebaut (2026-09-11). Meilenstein und Release tragen ab jetzt dieselbe Nummer. Naechster Schritt: /gsd-new-milestone fuer v2.0."
 last_updated: "2026-09-10T15:48:12.058Z"
 last_activity: 2026-09-10
 state_head: 0895897360c2b4bd1cca9e1a2dc2556a7b104135
@@ -22,7 +22,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **v1.6 abgeschlossen und archiviert (2026-09-10).** Kein Meilenstein offen; der nächste ist v2.0 „The Codebase Speaks English“ (Phase 12, nicht geplant) und wird mit `/gsd-new-milestone` eröffnet. Einstieg: `.planning/PROJECT.md`, `.planning/MILESTONES.md`, `.planning/ROADMAP.md`.
+- Current focus: **v1.10 (geplant als v1.6) abgeschlossen, archiviert und als Release 1.10 gebaut (2026-09-11).** Kein Meilenstein offen; der nächste ist v2.0 „The Codebase Speaks English“ (Phase 12, nicht geplant) und wird mit `/gsd-new-milestone` eröffnet. Einstieg: `.planning/PROJECT.md`, `.planning/MILESTONES.md`, `.planning/ROADMAP.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
@@ -412,10 +412,10 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: Milestone v1.6 complete
+Phase: Milestone v1.10 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-09-10 — Milestone v1.6 completed and archived
+Last activity: 2026-09-11 — Milestone v1.10 (planned as v1.6) released as 1.10
 
 ## Operator Next Steps
 
@@ -432,3 +432,5 @@ Items acknowledged and deferred at milestone close, most recent first:
 | verification_gaps | 10/10-VERIFICATION.md | gaps_found (criterion 6 → Phase 12) | 2026-09-10 | v1.6 |
 | verification_gaps | 11/11-VERIFICATION.md | gaps_found (QUAL-01 sentences → Phase 12) | 2026-09-10 | v1.6 |
 | deferred_items | 09/deferred-items.md: "1 Zeilen" survives in the three file-header sentences | acknowledged | 2026-09-10 | v1.6 |
+
+Quittiert unter dem Arbeitsnamen v1.6; der Meilenstein heisst seit dem Release (2026-09-11) v1.10.
