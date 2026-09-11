@@ -2,6 +2,7 @@ package csvimport
 
 import (
 	"context"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"sort"
 	"strconv"
 	"strings"
@@ -356,7 +357,14 @@ func RowSlug(row csv.Row, m Mapping) string {
 // It returns the verdict together with everything a write would need — a
 // page.PageCreate lacking only the website and the user, which are the writer's
 // to know, and the field data as field.Clean left it.
-func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, collision string) (Verdict, page.PageCreate, field.Data) {
+// lang is the operator's language. It is here, and not further out, because
+// field.CheckAll now hands back a Reason — a format plus its arguments — rather
+// than a finished German sentence, and a Verdict's Args are strings by design:
+// GroupKey folds two rows that say the same thing into one line of the report,
+// and it can only do that if the thing they say is a string. So the sentence is
+// rendered exactly once, here, in the language of the person who will read the
+// report. One run is one language, so the folding is unaffected.
+func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, collision, lang string) (Verdict, page.PageCreate, field.Data) {
 	skip := func(reason Reason, args ...string) (Verdict, page.PageCreate, field.Data) {
 		return Verdict{Row: row.Number, Outcome: OutcomeSkip, Reason: reason, Args: args}, page.PageCreate{}, field.Data{}
 	}
@@ -504,15 +512,15 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 	// to be laxer than the others, and the lax one is the one that gets used —
 	// and it is what makes the dry run trustworthy at no cost at all.
 	//
-	// The reason it hands back is itself an untranslated German string standing
-	// in the tree today (field.go:740-800). This phase carries it as an
-	// argument and does not fix internal/field, which is on the list of what
-	// this phase must not change; named here so a later reader does not take it
-	// for debt this phase created.
+	// The reason it hands back used to be an untranslated German string built
+	// by concatenation, carried here as an argument because Phase 9 was not
+	// allowed to change internal/field. v2.0 changed it: CheckAll returns a
+	// field.Reason — a collected format plus its arguments — and the sentence
+	// is assembled below in the operator's language.
 	if errs := field.CheckAll(mine, data); len(errs) > 0 {
 		for _, d := range mine {
-			if reason := errs[d.Key]; reason != "" {
-				return skip(ReasonFieldRejected, d.Label, reason)
+			if reason := errs[d.Key]; !reason.Empty() {
+				return skip(ReasonFieldRejected, d.Label, reason.Text(lang))
 			}
 		}
 		// A key belonging to a row of a group. Sorted, so a row that is refused
@@ -522,7 +530,7 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-		return skip(ReasonFieldRejected, keys[0], errs[keys[0]])
+		return skip(ReasonFieldRejected, keys[0], errs[keys[0]].Text(lang))
 	}
 
 	if _, cut := RowTerms(row, m); cut {
@@ -611,7 +619,7 @@ type Writer struct {
 func (w Writer) WriteRow(ctx context.Context, websiteID int64, defs []field.Def,
 	row csv.Row, m Mapping, existing *page.Page, collision string, userID *int64) Verdict {
 
-	v, create, data := CheckRow(defs, row, m, existing, collision)
+	v, create, data := CheckRow(defs, row, m, existing, collision, i18n.Lang(ctx))
 	if !v.Written() {
 		return v
 	}

@@ -754,14 +754,14 @@ func ParseTimeOfDay(value string) (time.Time, bool) {
 
 // rangeReason schreibt die Begründung für die Person am Formular und nennt die
 // Grenze, an der der Wert scheitert — beide, wo es beide gibt.
-func rangeReason(unten, oben string, hatUnten, hatOben bool) string {
+func rangeReason(label, unten, oben string, hatUnten, hatOben bool) Reason {
 	switch {
 	case hatUnten && hatOben:
-		return "muss zwischen " + unten + " und " + oben + " liegen."
+		return reasonf(i18n.N("%s muss zwischen %s und %s liegen."), label, unten, oben)
 	case hatUnten:
-		return "muss mindestens " + unten + " sein."
+		return reasonf(i18n.N("%s muss mindestens %s sein."), label, unten)
 	default:
-		return "darf höchstens " + oben + " sein."
+		return reasonf(i18n.N("%s darf höchstens %s sein."), label, oben)
 	}
 }
 
@@ -785,12 +785,12 @@ func rangeReason(unten, oben string, hatUnten, hatOben bool) string {
 // keine Frage an irgendwen — sie sagt, wieviel Platz ein Wert in der Zeile hat,
 // die geschrieben wird. Darum überspringt CheckAll für ein verstecktes Feld
 // alles ausser dieser einen Prüfung.
-func tooLong(d Def, value string) string {
+func tooLong(d Def, value string) Reason {
 	if len(value) > MaxValueBytes {
-		return d.Label + " ist zu lang: höchstens " + strconv.Itoa(MaxValueBytes) +
-			" Zeichen, wobei Umlaute doppelt zählen."
+		return reasonf(i18n.N("%s ist zu lang: höchstens %s Zeichen, wobei Umlaute doppelt zählen."),
+			d.Label, strconv.Itoa(MaxValueBytes))
 	}
-	return ""
+	return Reason{}
 }
 
 // Check validates one value against its definition and returns a reason, or
@@ -798,39 +798,39 @@ func tooLong(d Def, value string) string {
 //
 // The reasons are written for the person filling the form in, not for a log:
 // "Preis muss eine Zahl sein" and not "strconv.ParseFloat: invalid syntax".
-func Check(d Def, value string) string {
+func Check(d Def, value string) Reason {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		if d.Required {
-			return d.Label + " muss ausgefüllt werden."
+			return reasonf(i18n.N("%s muss ausgefüllt werden."), d.Label)
 		}
-		return ""
+		return Reason{}
 	}
 
-	if reason := tooLong(d, value); reason != "" {
+	if reason := tooLong(d, value); !reason.Empty() {
 		return reason
 	}
 
 	switch d.Kind {
 	case KindGroup:
 		// A group is checked row by row, not as one value.
-		return ""
+		return Reason{}
 	case KindBool:
 		// The arm this switch was missing. Without it any non-empty string
 		// passed, and Resolve reads everything that is not "0" as yes — so a
 		// stored "nein" printed as "ja" on every shipped theme, on the three
 		// paths that name CheckAll as their only per-kind gate.
 		if _, ok := NormalizeBool(value); !ok {
-			return d.Label + " muss ja oder nein sein."
+			return reasonf(i18n.N("%s muss ja oder nein sein."), d.Label)
 		}
 	case KindNumber:
 		if _, ok := ParseNumber(value); !ok {
-			return d.Label + " muss eine Zahl sein."
+			return reasonf(i18n.N("%s muss eine Zahl sein."), d.Label)
 		}
 	case KindRange:
 		n, ok := ParseNumber(value)
 		if !ok {
-			return d.Label + " muss eine Zahl sein."
+			return reasonf(i18n.N("%s muss eine Zahl sein."), d.Label)
 		}
 		// Beide Vergleiche schliessen die Grenze ein: die Grenze selbst ist
 		// ein erlaubter Wert. Eine Grenze, die keine Zahl ist, ist keine
@@ -839,23 +839,23 @@ func Check(d Def, value string) string {
 		unten, hatUnten := ParseNumber(d.RangeMin)
 		oben, hatOben := ParseNumber(d.RangeMax)
 		if (hatUnten && n < unten) || (hatOben && n > oben) {
-			return d.Label + " " + rangeReason(d.RangeMin, d.RangeMax, hatUnten, hatOben)
+			return rangeReason(d.Label, d.RangeMin, d.RangeMax, hatUnten, hatOben)
 		}
 	case KindTime:
 		if _, ok := ParseTimeOfDay(value); !ok {
-			return d.Label + " muss eine Uhrzeit sein, z. B. 09:30."
+			return reasonf(i18n.N("%s muss eine Uhrzeit sein, z. B. 09:30."), d.Label)
 		}
 	case KindDate:
 		if _, err := time.Parse("2006-01-02", value); err != nil {
-			return d.Label + " muss ein Datum sein."
+			return reasonf(i18n.N("%s muss ein Datum sein."), d.Label)
 		}
 	case KindChoice:
 		for _, c := range d.Choices {
 			if c == value {
-				return ""
+				return Reason{}
 			}
 		}
-		return d.Label + ": „" + value + "“ steht nicht zur Auswahl."
+		return reasonf(i18n.N("%s: „%s“ steht nicht zur Auswahl."), d.Label, value)
 	case KindMulti:
 		// Every picked value has to be on the list. The options are a closed
 		// vocabulary, so an arbitrary string must not get in through a
@@ -871,7 +871,7 @@ func Check(d Def, value string) string {
 				}
 			}
 			if !known {
-				return d.Label + ": „" + picked + "“ steht nicht zur Auswahl."
+				return reasonf(i18n.N("%s: „%s“ steht nicht zur Auswahl."), d.Label, picked)
 			}
 		}
 		// Die Höchstzahl gilt hier oder nirgends: eine Häkchengruppe lässt
@@ -883,15 +883,16 @@ func Check(d Def, value string) string {
 		if d.MaxValues > 0 {
 			if n := len(SplitValues(value)); n > d.MaxValues {
 				if d.MaxValues == 1 {
-					return d.Label + ": höchstens ein Wert, ausgewählt sind " + strconv.Itoa(n) + "."
+					return reasonf(i18n.N("%s: höchstens ein Wert, ausgewählt sind %s."),
+						d.Label, strconv.Itoa(n))
 				}
-				return d.Label + ": höchstens " + strconv.Itoa(d.MaxValues) +
-					" Werte, ausgewählt sind " + strconv.Itoa(n) + "."
+				return reasonf(i18n.N("%s: höchstens %s Werte, ausgewählt sind %s."),
+					d.Label, strconv.Itoa(d.MaxValues), strconv.Itoa(n))
 			}
 		}
 	case KindImage:
 		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
-			return d.Label + ": das ist kein Bild aus der Mediathek."
+			return reasonf(i18n.N("%s: das ist kein Bild aus der Mediathek."), d.Label)
 		}
 	case KindRef:
 		// That the page exists and belongs to this website is decided where
@@ -899,7 +900,7 @@ func Check(d Def, value string) string {
 		// resolves through a lookup that checks. Here it is a number or it is
 		// somebody typing into the form by hand.
 		if id, err := strconv.ParseInt(value, 10, 64); err != nil || id <= 0 {
-			return d.Label + ": das ist keine Seite dieser Website."
+			return reasonf(i18n.N("%s: das ist keine Seite dieser Website."), d.Label)
 		}
 	case KindTerm:
 		// Dass es das Schlagwort gibt und dass es dieser Website gehört, wird
@@ -913,54 +914,55 @@ func Check(d Def, value string) string {
 		// Zeichenkette, die aus sich selbst wieder sich selbst ergibt. Zwei
 		// Regeln nebeneinander wären zwei Regeln, die auseinanderlaufen.
 		if page.Slugify(value) != value {
-			return d.Label + ": das ist kein Schlagwort dieser Website."
+			return reasonf(i18n.N("%s: das ist kein Schlagwort dieser Website."), d.Label)
 		}
 	case KindLink:
-		if reason := checkLink(value); reason != "" {
-			return d.Label + ": " + reason
+		if reason := checkLink(value); !reason.Empty() {
+			return reasonf(i18n.N("%s: %s"), d.Label, reason)
 		}
 	}
-	return ""
+	return Reason{}
 }
 
 // checkLink keeps a field from becoming a way to put javascript: into a theme.
 //
 // Only three shapes are allowed, and they are the three that mean something on
 // a website: a path on this site, an http(s) address, and a mail address.
-func checkLink(value string) string {
+func checkLink(value string) Reason {
 	switch {
 	case strings.HasPrefix(value, "/"):
 		if strings.HasPrefix(value, "//") {
-			return "eine Adresse mit zwei Schrägstrichen führt auf einen fremden Server."
+			return reasonf(i18n.N("eine Adresse mit zwei Schrägstrichen führt auf einen fremden Server."))
 		}
-		return ""
+		return Reason{}
 	case strings.HasPrefix(value, "https://"), strings.HasPrefix(value, "http://"),
 		strings.HasPrefix(value, "mailto:"), strings.HasPrefix(value, "tel:"):
-		return ""
+		return Reason{}
 	}
-	return "das muss mit / beginnen (eigene Seite) oder mit https:// (fremde Adresse)."
+	return reasonf(i18n.N("das muss mit / beginnen (eigene Seite) oder mit https:// (fremde Adresse)."))
 }
 
 // SlugifyKey turns a label into a key.
 func SlugifyKey(label string) string {
 	var b strings.Builder
 	prevDash := false
-	for _, r := range strings.ToLower(strings.TrimSpace(label)) {
+	// page.Transliterate and not a second table here.
+	//
+	// This function used to carry its own four-entry list — ä, ö, ü, ß — and
+	// silently DROPPED every other accented letter, because the first arm of
+	// the switch only keeps a-z. So "Título" became "ttulo" and "État" became
+	// "tat": a German operator's label transliterated and a Spanish or French
+	// one lost a letter. page.Transliterate has known the full Latin-1 set all
+	// along, and this file already argues the principle in its KindTerm arm —
+	// two spellings of one rule are two rules that drift apart.
+	//
+	// Only NEW keys are affected. A key is minted once from the label and then
+	// stands for good, precisely so a page does not lose its values when
+	// somebody rewords a label.
+	for _, r := range page.Transliterate(label) {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
 			b.WriteRune(r)
-			prevDash = false
-		case r == 'ä':
-			b.WriteString("ae")
-			prevDash = false
-		case r == 'ö':
-			b.WriteString("oe")
-			prevDash = false
-		case r == 'ü':
-			b.WriteString("ue")
-			prevDash = false
-		case r == 'ß':
-			b.WriteString("ss")
 			prevDash = false
 		case unicode.IsSpace(r), r == '-', r == '_':
 			if !prevDash && b.Len() > 0 {
@@ -1062,8 +1064,8 @@ var faltZeilen = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 // One function for the admin form, the import and the assistant. Three copies
 // of these rules would be three chances for one of them to be laxer than the
 // others, and the lax one is the one that gets used.
-func CheckAll(defs []Def, d Data) map[string]string {
-	errs := map[string]string{}
+func CheckAll(defs []Def, d Data) map[string]Reason {
+	errs := map[string]Reason{}
 	hidden := Hidden(defs, d.Values)
 	for _, def := range defs {
 		// A heading has nothing to check.
@@ -1082,40 +1084,51 @@ func CheckAll(defs []Def, d Data) map[string]string {
 		// gilt das Bytebudget sonst nirgends mehr.
 		if hidden[def.Key] {
 			if !def.IsGroup() {
-				if reason := tooLong(def, strings.TrimSpace(d.Values[def.Key])); reason != "" {
+				if reason := tooLong(def, strings.TrimSpace(d.Values[def.Key])); !reason.Empty() {
 					errs[def.Key] = reason
 				}
 				continue
 			}
 			for i, row := range d.Rows[def.Key] {
 				for _, sub := range def.Sub {
-					if reason := tooLong(sub, strings.TrimSpace(row[sub.Key])); reason != "" {
-						errs[RowKey(def.Key, i, sub.Key)] = fmt.Sprintf("%s, Zeile %d: %s", def.Label, i+1, reason)
+					if reason := tooLong(sub, strings.TrimSpace(row[sub.Key])); !reason.Empty() {
+						errs[RowKey(def.Key, i, sub.Key)] = inRow(def.Label, i, reason)
 					}
 				}
 			}
 			continue
 		}
 		if !def.IsGroup() {
-			if reason := Check(def, d.Values[def.Key]); reason != "" {
+			if reason := Check(def, d.Values[def.Key]); !reason.Empty() {
 				errs[def.Key] = reason
 			}
 			continue
 		}
 		rows := d.Rows[def.Key]
 		if def.Required && len(rows) == 0 {
-			errs[def.Key] = def.Label + " braucht mindestens eine Zeile."
+			errs[def.Key] = reasonf(i18n.N("%s braucht mindestens eine Zeile."), def.Label)
 			continue
 		}
 		for i, row := range rows {
 			for _, sub := range def.Sub {
-				if reason := Check(sub, row[sub.Key]); reason != "" {
-					errs[RowKey(def.Key, i, sub.Key)] = fmt.Sprintf("%s, Zeile %d: %s", def.Label, i+1, reason)
+				if reason := Check(sub, row[sub.Key]); !reason.Empty() {
+					errs[RowKey(def.Key, i, sub.Key)] = inRow(def.Label, i, reason)
 				}
 			}
 		}
 	}
 	return errs
+}
+
+// inRow wraps the reason of a sub-field in the row it stands in.
+//
+// The frame used to be fmt.Sprintf("%s, Zeile %d: %s", …), which is the shape
+// broken window 29 was opened for: even once the inner reason carried a key,
+// the frame around it never could. As a Reason holding a Reason, both halves
+// are collected and both are rendered in the reader's language — which matters
+// more here than anywhere, because the two ended up on the same line.
+func inRow(groupLabel string, index int, inner Reason) Reason {
+	return reasonf(i18n.N("%s, Zeile %d: %s"), groupLabel, index+1, inner)
 }
 
 // RowKey identifies one field of one row, in the form and in an error map.

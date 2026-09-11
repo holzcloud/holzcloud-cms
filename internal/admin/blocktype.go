@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -112,7 +113,11 @@ func (h *Handler) HandleBlockTypeSave(w http.ResponseWriter, r *http.Request) er
 		web.SetFlashError(h.sm, r.Context(),
 			"Mehr Bausteinarten werden nicht angelegt — ein Menü, das so lang ist, liest niemand mehr.")
 	case err != nil:
-		web.SetFlashError(h.sm, r.Context(), err.Error())
+		// A database failure, whose text is a German fmt.Errorf wrap around a
+		// driver message. The operator reads a collected sentence; the wrap
+		// goes to the log, where its detail is worth something.
+		slog.Error("save block kind", "err", err)
+		web.SetFlashError(h.sm, r.Context(), "Speichern fehlgeschlagen.")
 	default:
 		web.SetFlashSuccess(h.sm, r.Context(), "Bausteinart geändert.")
 	}

@@ -77,7 +77,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 	head, rows := reader(t, "Titel,Text\nApfel,Ein Baum\nBirne,Noch einer\n")
 	m := csvimport.AutoMap(head, nil)
 	for _, row := range rows {
-		v, create, _ := csvimport.CheckRow(nil, row, m, nil, csvimport.CollisionSkip)
+		v, create, _ := csvimport.CheckRow(nil, row, m, nil, csvimport.CollisionSkip, "de")
 		if v.Outcome != csvimport.OutcomeCreate || v.Reason != "" {
 			t.Errorf("row %d: %s / %q, want a clean create", v.Row, v.Outcome, v.Reason)
 		}
@@ -109,7 +109,7 @@ func TestBoolKnowsAClosedVocabulary(t *testing.T) {
 	for _, c := range cases {
 		head, rows := reader(t, "Titel,Verfuegbar\nApfel,"+c.cell+"\n")
 		m := csvimport.AutoMap(head, defs)
-		v, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip)
+		v, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip, "de")
 		if v.Outcome != csvimport.OutcomeCreate {
 			t.Fatalf("cell %q: %s / %q, want a create", c.cell, v.Outcome, v.Reason)
 		}
@@ -121,7 +121,7 @@ func TestBoolKnowsAClosedVocabulary(t *testing.T) {
 	// Anything outside the vocabulary is a reported row and never a guess.
 	head, rows := reader(t, "Titel,Verfuegbar\nApfel,vielleicht\n")
 	m := csvimport.AutoMap(head, defs)
-	v, _, _ := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip)
+	v, _, _ := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeSkip || v.Reason != csvimport.ReasonBoolUnreadable {
 		t.Errorf("an unreadable boolean gave %s / %q, want a skip with %q", v.Outcome, v.Reason, csvimport.ReasonBoolUnreadable)
 	}
@@ -135,7 +135,7 @@ func TestMultiChoiceTravelsOnThePipe(t *testing.T) {
 
 	head, rows := reader(t, "Titel,Farben\nApfel,rot|blau\n")
 	m := csvimport.AutoMap(head, defs)
-	_, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip)
+	_, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if got := field.SplitValues(data.Values["farben"]); len(got) != 2 || got[0] != "rot" || got[1] != "blau" {
 		t.Errorf("rot|blau read back as %v, want two values", got)
 	}
@@ -145,7 +145,7 @@ func TestMultiChoiceTravelsOnThePipe(t *testing.T) {
 	// same string byte for byte.
 	head, rows = reader(t, "Titel,Farben\nApfel,rot|rot|\n")
 	m = csvimport.AutoMap(head, defs)
-	_, _, data = csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip)
+	_, _, data = csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if got := field.SplitValues(data.Values["farben"]); len(got) != 2 {
 		t.Errorf("rot|rot| read back as %v, want two values", got)
 	}
@@ -159,7 +159,7 @@ func TestMultiChoiceTravelsOnThePipe(t *testing.T) {
 	folded := []field.Def{fieldDef(1, 1, "farben", "Farben", field.KindMulti, "rot blau")}
 	head, rows = reader(t, "Titel,Farben\nApfel,\"rot\nblau\"\n")
 	m = csvimport.AutoMap(head, folded)
-	_, _, data = csvimport.CheckRow(folded, rows[0], m, nil, csvimport.CollisionSkip)
+	_, _, data = csvimport.CheckRow(folded, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if got := field.SplitValues(data.Values["farben"]); len(got) != 1 {
 		t.Errorf("a cell with an embedded line break read back as %v, want one value", got)
 	}
@@ -169,7 +169,7 @@ func TestMultiChoiceTravelsOnThePipe(t *testing.T) {
 	// are.
 	head, rows = reader(t, "Titel,Farben\nApfel,\"rot\nblau\"\n")
 	m = csvimport.AutoMap(head, defs)
-	v, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip)
+	v, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeSkip || v.Reason != csvimport.ReasonFieldRejected {
 		t.Errorf("the folded cell gave %s / %q, want a skip with %q", v.Outcome, v.Reason, csvimport.ReasonFieldRejected)
 	}
@@ -200,7 +200,7 @@ func TestTermNameBecomesASlug(t *testing.T) {
 	}
 
 	for _, row := range rows {
-		_, _, data := csvimport.CheckRow(defs, row, m, nil, csvimport.CollisionSkip)
+		_, _, data := csvimport.CheckRow(defs, row, m, nil, csvimport.CollisionSkip, "de")
 		if got := data.Values["kategorie"]; got != "moebel" {
 			t.Errorf("row %d stored %q, want %q", row.Number, got, "moebel")
 		}
@@ -626,7 +626,7 @@ func TestImageColumnIsNotWritten(t *testing.T) {
 	// would.
 	m.Targets[1] = csvimport.Target{Kind: csvimport.TargetField, Key: "bild"}
 
-	v, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip)
+	v, _, data := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeCreate {
 		t.Fatalf("the row gave %s / %q", v.Outcome, v.Reason)
 	}
@@ -642,7 +642,7 @@ func TestMissingDefinitionIsReported(t *testing.T) {
 	m := csvimport.AutoMap(head, []field.Def{fieldDef(1, 1, "sorte", "Sorte", field.KindText)})
 
 	// The same mapping, re-checked against a website whose field is gone.
-	v, create, data := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip)
+	v, create, data := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeCreate {
 		t.Fatalf("the row gave %s / %q, want the row to survive the loss of one column", v.Outcome, v.Reason)
 	}
@@ -668,7 +668,7 @@ func TestStatusKnowsAClosedVocabulary(t *testing.T) {
 	} {
 		head, rows := reader(t, "Titel,Zustand\nApfel,"+cell+"\n")
 		m := csvimport.AutoMap(head, nil)
-		v, create, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip)
+		v, create, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip, "de")
 		if v.Outcome != csvimport.OutcomeCreate {
 			t.Fatalf("cell %q gave %s / %q", cell, v.Outcome, v.Reason)
 		}
@@ -679,7 +679,7 @@ func TestStatusKnowsAClosedVocabulary(t *testing.T) {
 
 	head, rows := reader(t, "Titel,Zustand\nApfel,halbfertig\n")
 	m := csvimport.AutoMap(head, nil)
-	v, _, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip)
+	v, _, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeSkip || v.Reason != csvimport.ReasonStatusUnknown {
 		t.Errorf("an unknown status gave %s / %q, want a skip with %q", v.Outcome, v.Reason, csvimport.ReasonStatusUnknown)
 	}
@@ -691,13 +691,13 @@ func TestRowWithoutATitleIsSkipped(t *testing.T) {
 	head, rows := reader(t, "Titel,Text\n,Ein Baum\n")
 	m := csvimport.AutoMap(head, nil)
 
-	v, _, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip)
+	v, _, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeSkip || v.Reason != csvimport.ReasonNoTitle {
 		t.Errorf("a row with no title gave %s / %q, want a skip with %q", v.Outcome, v.Reason, csvimport.ReasonNoTitle)
 	}
 
 	m.Defaults[csvimport.Target{Kind: csvimport.TargetTitle}.String()] = "Ohne Namen"
-	v, create, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip)
+	v, create, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeCreate || create.Title != "Ohne Namen" {
 		t.Errorf("the default gave %s / %q with the title %q", v.Outcome, v.Reason, create.Title)
 	}
@@ -709,7 +709,7 @@ func TestUnreadableRowIsReported(t *testing.T) {
 	row := csv.Row{Number: 4, Cells: []string{"Apfel"}, Error: "cell in column 1 is too big"}
 	m := csvimport.AutoMap([]string{"Titel"}, nil)
 
-	v, _, _ := csvimport.CheckRow(nil, row, m, nil, csvimport.CollisionSkip)
+	v, _, _ := csvimport.CheckRow(nil, row, m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeSkip || v.Reason != csvimport.ReasonRowUnreadable {
 		t.Fatalf("gave %s / %q, want a skip with %q", v.Outcome, v.Reason, csvimport.ReasonRowUnreadable)
 	}
@@ -728,7 +728,7 @@ func TestRejectedFieldValueIsReported(t *testing.T) {
 	head, rows := reader(t, "Titel,Sorte\nApfel,Klarapfel\n")
 	m := csvimport.AutoMap(head, defs)
 
-	v, _, _ := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip)
+	v, _, _ := csvimport.CheckRow(defs, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeSkip || v.Reason != csvimport.ReasonFieldRejected {
 		t.Fatalf("gave %s / %q, want a skip with %q", v.Outcome, v.Reason, csvimport.ReasonFieldRejected)
 	}
@@ -897,7 +897,7 @@ func TestWideRowIsRefusedWithItsNumbers(t *testing.T) {
 	head, rows := reader(t, "Titel,Text,Zustand\nApfel,Ein Baum,entwurf,zuviel,nochmal\n")
 	m := csvimport.AutoMap(head, nil)
 
-	v, _, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip)
+	v, _, _ := csvimport.CheckRow(nil, rows[0], m, nil, csvimport.CollisionSkip, "de")
 	if v.Outcome != csvimport.OutcomeSkip {
 		t.Fatalf("the wide row gave %s / %q, want a skip", v.Outcome, v.Reason)
 	}
@@ -917,7 +917,7 @@ func TestWideRowIsRefusedWithItsNumbers(t *testing.T) {
 	// known" and must not be read as "no columns" — every row of every file
 	// would be wider than nothing.
 	bare := csv.Row{Number: 2, Cells: []string{"Apfel"}}
-	if v, _, _ := csvimport.CheckRow(nil, bare, m, nil, csvimport.CollisionSkip); v.Reason == csvimport.ReasonRowTooWide {
+	if v, _, _ := csvimport.CheckRow(nil, bare, m, nil, csvimport.CollisionSkip, "de"); v.Reason == csvimport.ReasonRowTooWide {
 		t.Error("a row with no known header width was refused as too wide")
 	}
 }

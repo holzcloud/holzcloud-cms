@@ -80,14 +80,18 @@ func foldHeader(header string) string {
 	return field.SlugifyKey(settleHeaderMarks(header))
 }
 
-// The two answers settle gives a combining mark it cannot compose away.
+// settleHeaderMarks used to be a SECOND fold, and it is one no longer.
 //
-// A bool at a call site says nothing; these two names say which consumer the
-// fold is written for and why the answers differ. See foldHeader.
-const (
-	keepMarkedBase = false
-	dropMarkedBase = true
-)
+// It existed because field.SlugifyKey had its own four-entry transliteration
+// list — ä, ö, ü, ß — and dropped every other accented letter whole. So a
+// heading had to drop the base letter along with its combining mark to end up
+// at the same key: "Café" became "caf" on both paths, wrongly but consistently,
+// and TestFoldHeaderAgreesOnEveryOtherAccent held exactly that consistency.
+//
+// v2.0 made SlugifyKey use page.Transliterate, which has known the full
+// Latin-1 set all along. With the letter no longer lost, there is nothing for
+// the header fold to do differently, and the two collapse into one. The
+// distinction was never about headings — it was a mirror of a bug.
 
 // settleMarks writes a decomposed spelling out as a composed one, for a CELL.
 //
@@ -102,16 +106,16 @@ const (
 // types that has to be recognised however their editor normalised it: the
 // status vocabulary and the janein vocabulary in row.go fold the same way and
 // must not spell the rule a second time.
-func settleMarks(s string) string { return settle(s, keepMarkedBase) }
+func settleMarks(s string) string { return settle(s) }
 
 // settleHeaderMarks is the same fold for a HEADING, which is handed to
 // field.SlugifyKey rather than to page.Transliterate. The one difference is
 // what happens to a mark that is not a diaeresis on a, o or u: the base letter
 // goes with it. foldHeader carries the argument.
-func settleHeaderMarks(s string) string { return settle(s, dropMarkedBase) }
+func settleHeaderMarks(s string) string { return settleMarks(s) }
 
 // settle is the one loop both folds are.
-func settle(s string, dropMarked bool) string {
+func settle(s string) string {
 	runes := []rune(s)
 
 	var b strings.Builder
@@ -131,12 +135,6 @@ func settle(s string, dropMarked bool) string {
 					i++
 					continue
 				}
-			}
-			if dropMarked {
-				// The base goes with the mark, because the precomposed
-				// spelling of this letter is dropped whole by SlugifyKey.
-				i++
-				continue
 			}
 		}
 		b.WriteRune(r)
@@ -329,6 +327,48 @@ var fixedSpellings = map[string]string{
 	"schlagwoerter": TargetTerms,
 	"schlagworte":   TargetTerms,
 	"tags":          TargetTerms,
+
+	// The other three languages the admin is translated into.
+	//
+	// They are here because the example file's heading row is written in the
+	// operator's language (admin/csvimport.go, csvExampleColumns): a Spanish
+	// operator downloads a Spanish example, fills it in, uploads it — and
+	// without these lines the importer would not recognise a single one of its
+	// own headings. A heading an operator types by hand is recognised by the
+	// same lines.
+	//
+	// Folded spellings, as every entry in this table is: "Título" reaches a
+	// lookup as "titulo" and "Mots-clés" as "mots_cles". They are data an
+	// operator types into a spreadsheet, not identifiers, which is why they
+	// stay in their own language rather than going through the glossary.
+	"titulo":     TargetTitle,
+	"titre":      TargetTitle,
+	"titolo":     TargetTitle,
+	"direccion":  TargetSlug,
+	"indirizzo":  TargetSlug,
+	"texto":      TargetBody,
+	"texte":      TargetBody,
+	"testo":      TargetBody,
+	"contenido":  TargetBody,
+	"contenu":    TargetBody,
+	"contenuto":  TargetBody,
+	"estado":     TargetStatus,
+	"etat":       TargetStatus,
+	"statut":     TargetStatus,
+	"stato":      TargetStatus,
+	"terms":      TargetTerms,
+	"terminos":   TargetTerms,
+	"etiquettes": TargetTerms,
+	"termini":    TargetTerms,
+}
+
+// KnownHeading reports whether a FOLDED heading is one the importer maps by
+// name. Exported for the guard in internal/admin that holds the example file's
+// heading row and this table together — see
+// TestTheFoldedSpellingOfEveryExampleHeadingIsKnown.
+func KnownHeading(folded string) bool {
+	_, ok := fixedSpellings[folded]
+	return ok
 }
 
 // Mapping is where every column of one file goes.

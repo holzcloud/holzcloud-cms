@@ -39,7 +39,7 @@ func TestLinkPruefung(t *testing.T) {
 		"/hofladen", "/", "https://example.ch", "http://example.ch",
 		"mailto:hof@example.ch", "tel:+41791234567",
 	} {
-		if reason := Check(d, gut); reason != "" {
+		if reason := Check(d, gut); !reason.Empty() {
 			t.Errorf("Check(%q) = %q, erwartet in Ordnung", gut, reason)
 		}
 	}
@@ -47,7 +47,7 @@ func TestLinkPruefung(t *testing.T) {
 		"javascript:alert(1)", "JavaScript:alert(1)", "data:text/html,<script>",
 		"//example.ch/fremd", "hofladen", "vbscript:msgbox",
 	} {
-		if reason := Check(d, schlecht); reason == "" {
+		if reason := Check(d, schlecht); reason.Empty() {
 			t.Errorf("Check(%q) wurde durchgelassen", schlecht)
 		}
 	}
@@ -56,39 +56,39 @@ func TestLinkPruefung(t *testing.T) {
 // Die Prüfungen sagen, was der Redakteur ändern soll — nicht, was Go gemeldet hat.
 func TestPruefungen(t *testing.T) {
 	zahl := Def{Label: "Preis", Kind: KindNumber}
-	if r := Check(zahl, "8.50"); r != "" {
+	if r := Check(zahl, "8.50"); !r.Empty() {
 		t.Errorf("8.50 abgelehnt: %q", r)
 	}
 	// Ein Komma ist, was jemand mit einer deutschen Tastatur tippt.
-	if r := Check(zahl, "8,50"); r != "" {
+	if r := Check(zahl, "8,50"); !r.Empty() {
 		t.Errorf("8,50 abgelehnt: %q", r)
 	}
-	if r := Check(zahl, "acht"); r == "" {
+	if r := Check(zahl, "acht"); r.Empty() {
 		t.Error("„acht“ als Zahl durchgelassen")
 	}
 
 	datum := Def{Label: "Wurfdatum", Kind: KindDate}
-	if r := Check(datum, "2026-04-01"); r != "" {
+	if r := Check(datum, "2026-04-01"); !r.Empty() {
 		t.Errorf("Datum abgelehnt: %q", r)
 	}
-	if r := Check(datum, "01.04.2026"); r == "" {
+	if r := Check(datum, "01.04.2026"); r.Empty() {
 		t.Error("Datum im falschen Format durchgelassen")
 	}
 
 	auswahl := Def{Label: "Zustand", Kind: KindChoice, Choices: []string{"frisch", "vergriffen"}}
-	if r := Check(auswahl, "frisch"); r != "" {
+	if r := Check(auswahl, "frisch"); !r.Empty() {
 		t.Errorf("gültige Auswahl abgelehnt: %q", r)
 	}
 	// Der wichtigste Fall: das <select> lässt sich umgehen, die Prüfung nicht.
-	if r := Check(auswahl, "erfunden"); r == "" {
+	if r := Check(auswahl, "erfunden"); r.Empty() {
 		t.Error("eine Möglichkeit, die es nicht gibt, wurde angenommen")
 	}
 
 	pflicht := Def{Label: "Preis", Kind: KindText, Required: true}
-	if r := Check(pflicht, "   "); r == "" {
+	if r := Check(pflicht, "   "); r.Empty() {
 		t.Error("Leerzeichen als Pflichtangabe angenommen")
 	}
-	if r := Check(Def{Label: "Preis", Kind: KindText}, ""); r != "" {
+	if r := Check(Def{Label: "Preis", Kind: KindText}, ""); !r.Empty() {
 		t.Errorf("leeres Kannfeld abgelehnt: %q", r)
 	}
 }
@@ -303,7 +303,7 @@ func TestZeileWirdBenannt(t *testing.T) {
 	if !da {
 		t.Fatalf("kein Fehler für Zeile 2: %v", errs)
 	}
-	if !strings.Contains(reason, "Zeile 2") {
+	if !strings.Contains(reason.String(), "Zeile 2") {
 		t.Errorf("Fehler nennt die Zeile nicht: %q", reason)
 	}
 }
@@ -394,11 +394,11 @@ func TestVerweisAufNichtSichtbaresWirdNil(t *testing.T) {
 // Was aus dem Formular kommt, ist eine Zahl oder es ist nichts.
 func TestVerweisPruefung(t *testing.T) {
 	d := Def{Label: "Produkt", Kind: KindRef}
-	if reason := Check(d, "17"); reason != "" {
+	if reason := Check(d, "17"); !reason.Empty() {
 		t.Errorf("Check(17) = %q, want nichts", reason)
 	}
 	for _, bad := range []string{"/eine-seite", "0", "-3", "abc"} {
-		if Check(d, bad) == "" {
+		if Check(d, bad).Empty() {
 			t.Errorf("Check(%q) hat nichts zu beanstanden, sollte aber", bad)
 		}
 	}
@@ -448,7 +448,7 @@ func TestBedingtesPflichtfeldBlockiertNicht(t *testing.T) {
 	}
 
 	an := Data{Values: Values{"angebot": "1"}}
-	if errs := CheckAll(defs, an); len(errs) != 1 || errs["sonderpreis"] == "" {
+	if errs := CheckAll(defs, an); len(errs) != 1 || errs["sonderpreis"].Empty() {
 		t.Errorf("mit Häkchen fehlt die Meldung: %v", errs)
 	}
 }
@@ -567,7 +567,7 @@ func TestWoranEineBedingungHaengenDarf(t *testing.T) {
 func TestZeitPruefung(t *testing.T) {
 	zeit := Def{Label: "Abfahrt", Kind: KindTime}
 	for _, gut := range []string{"09:30", "00:00", "23:59", "09:30:00"} {
-		if r := Check(zeit, gut); r != "" {
+		if r := Check(zeit, gut); !r.Empty() {
 			t.Errorf("%q abgelehnt: %q", gut, r)
 		}
 	}
@@ -575,15 +575,15 @@ func TestZeitPruefung(t *testing.T) {
 	// <input type="time"> sendet, und wer es von Hand einträgt, soll es
 	// merken statt eine still zurechtgebogene Zeit zu bekommen.
 	for _, schlecht := range []string{"25:00", "9:30", "halb zehn", "09:30+02:00", "2026-04-01"} {
-		if r := Check(zeit, schlecht); r == "" {
+		if r := Check(zeit, schlecht); r.Empty() {
 			t.Errorf("%q durchgelassen", schlecht)
 		}
 	}
 	// Leer ist erlaubt, solange das Feld kein Pflichtfeld ist.
-	if r := Check(zeit, ""); r != "" {
+	if r := Check(zeit, ""); !r.Empty() {
 		t.Errorf("leeres Kannfeld abgelehnt: %q", r)
 	}
-	if r := Check(Def{Label: "Abfahrt", Kind: KindTime, Required: true}, ""); r == "" {
+	if r := Check(Def{Label: "Abfahrt", Kind: KindTime, Required: true}, ""); r.Empty() {
 		t.Error("leeres Pflichtfeld angenommen")
 	}
 }
@@ -674,28 +674,28 @@ func TestBereichPruefung(t *testing.T) {
 		t.Run(f.name, func(t *testing.T) {
 			d := Def{Label: "Menge", Kind: KindRange, RangeMin: f.unten, RangeMax: f.obn}
 			for _, gut := range f.gut {
-				if r := Check(d, gut); r != "" {
+				if r := Check(d, gut); !r.Empty() {
 					t.Errorf("%q abgelehnt: %q", gut, r)
 				}
 			}
 			for _, schlecht := range f.schlecht {
 				r := Check(d, schlecht)
-				if r == "" {
+				if r.Empty() {
 					t.Errorf("%q durchgelassen", schlecht)
 					continue
 				}
 				if _, istZahl := ParseNumber(schlecht); !istZahl {
 					// Keine Zahl ist keine Grenzverletzung, sondern etwas
 					// anderes — die Begründung sagt das auch so.
-					if !strings.Contains(r, "Zahl") {
+					if !strings.Contains(r.String(), "Zahl") {
 						t.Errorf("die Begründung zu %q nennt die Zahl nicht: %q", schlecht, r)
 					}
 					continue
 				}
 				// Die Begründung ist für die Person am Formular: sie nennt die
 				// Grenzen, zwischen denen der Wert liegen müsste.
-				genannt := (f.unten != "" && strings.Contains(r, f.unten)) ||
-					(f.obn != "" && strings.Contains(r, f.obn))
+				genannt := (f.unten != "" && strings.Contains(r.String(), f.unten)) ||
+					(f.obn != "" && strings.Contains(r.String(), f.obn))
 				if !genannt {
 					t.Errorf("die Begründung zu %q nennt keine Grenze: %q", schlecht, r)
 				}
@@ -708,14 +708,14 @@ func TestBereichPruefung(t *testing.T) {
 // niemand ausgefüllt hat, ist nicht ausgefüllt.
 func TestLeererBereichIstNichtNull(t *testing.T) {
 	kann := Def{Key: "menge", Label: "Menge", Kind: KindRange, RangeMin: "1", RangeMax: "10"}
-	if r := Check(kann, ""); r != "" {
+	if r := Check(kann, ""); !r.Empty() {
 		t.Errorf("leeres Kannfeld abgelehnt: %q", r)
 	}
 	pflicht := kann
 	pflicht.Required = true
-	if r := Check(pflicht, ""); r == "" {
+	if r := Check(pflicht, ""); r.Empty() {
 		t.Error("leeres Pflichtfeld angenommen")
-	} else if !strings.Contains(r, "ausgefüllt") {
+	} else if !strings.Contains(r.String(), "ausgefüllt") {
 		t.Errorf("die Begründung ist nicht die übliche Pflichtmeldung: %q", r)
 	}
 
@@ -776,7 +776,7 @@ func TestCodeIstRoherText(t *testing.T) {
 		t.Errorf("der Eintrag nennt seine Art als %q", e.Kind)
 	}
 	// Check nimmt jeden Text an: es gibt keine falsche Zeile Code.
-	if r := Check(d, roh); r != "" {
+	if r := Check(d, roh); !r.Empty() {
 		t.Errorf("Code abgelehnt: %q", r)
 	}
 	list := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})
@@ -845,22 +845,22 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 		t.Run(f.name, func(t *testing.T) {
 			d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: auswahl, MaxValues: f.max}
 			for _, gut := range f.gut {
-				if r := Check(d, gut); r != "" {
+				if r := Check(d, gut); !r.Empty() {
 					t.Errorf("%q abgelehnt: %q", gut, r)
 				}
 			}
 			for _, schlecht := range f.schlecht {
 				r := Check(d, schlecht)
-				if r == "" {
+				if r.Empty() {
 					t.Errorf("%q durchgelassen", schlecht)
 					continue
 				}
 				// Die Begründung ist für die Person am Formular: sie nennt das
 				// Feld und die Zahl, auf die es ankommt.
-				if !strings.Contains(r, "Sorten") {
+				if !strings.Contains(r.String(), "Sorten") {
 					t.Errorf("die Begründung zu %q nennt das Feld nicht: %q", schlecht, r)
 				}
-				if f.max > 1 && !strings.Contains(r, strconv.Itoa(f.max)) {
+				if f.max > 1 && !strings.Contains(r.String(), strconv.Itoa(f.max)) {
 					t.Errorf("die Begründung zu %q nennt die Höchstzahl nicht: %q", schlecht, r)
 				}
 			}
@@ -874,12 +874,12 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 func TestMehrfachauswahlGenauAmRand(t *testing.T) {
 	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti,
 		Choices: []string{"a", "b", "c"}, MaxValues: 3}
-	if r := Check(d, "a\nb\nc"); r != "" {
+	if r := Check(d, "a\nb\nc"); !r.Empty() {
 		t.Errorf("genau drei abgelehnt: %q", r)
 	}
 	// Doppelte zählen einzeln: JoinValues bewahrt sie, also sind es vier
 	// Werte, auch wenn nur drei verschiedene darunter sind.
-	if r := Check(d, "a\nb\nc\na"); r == "" {
+	if r := Check(d, "a\nb\nc\na"); r.Empty() {
 		t.Error("vier Werte durchgelassen, obwohl höchstens drei erlaubt sind")
 	}
 }
@@ -891,17 +891,17 @@ func TestGemeinsamesBytebudget(t *testing.T) {
 	text := Def{Key: "notiz", Label: "Notiz", Kind: KindLong}
 
 	genau := strings.Repeat("a", MaxValueBytes)
-	if r := Check(text, genau); r != "" {
+	if r := Check(text, genau); !r.Empty() {
 		t.Errorf("genau %d Byte abgelehnt: %q", MaxValueBytes, r)
 	}
 	r := Check(text, genau+"a")
-	if r == "" {
+	if r.Empty() {
 		t.Fatalf("%d Byte durchgelassen", MaxValueBytes+1)
 	}
-	if !strings.Contains(r, "Notiz") {
+	if !strings.Contains(r.String(), "Notiz") {
 		t.Errorf("die Begründung nennt das Feld nicht: %q", r)
 	}
-	if !strings.Contains(r, strconv.Itoa(MaxValueBytes)) {
+	if !strings.Contains(r.String(), strconv.Itoa(MaxValueBytes)) {
 		t.Errorf("die Begründung nennt die Grenze nicht: %q", r)
 	}
 
@@ -912,10 +912,10 @@ func TestGemeinsamesBytebudget(t *testing.T) {
 	if len([]rune(umlaute)) >= MaxValueBytes {
 		t.Fatalf("der Prüffall taugt nicht: %d Runen", len([]rune(umlaute)))
 	}
-	if r := Check(text, umlaute); r != "" {
+	if r := Check(text, umlaute); !r.Empty() {
 		t.Errorf("genau %d Byte aus Umlauten abgelehnt: %q", len(umlaute), r)
 	}
-	if r := Check(text, umlaute+"ä"); r == "" {
+	if r := Check(text, umlaute+"ä"); r.Empty() {
 		t.Errorf("%d Byte aus Umlauten durchgelassen", len(umlaute)+2)
 	}
 }
@@ -928,7 +928,7 @@ func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
 	lang := kurz + "a"
 	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: []string{kurz, lang}}
 
-	if r := Check(d, kurz); r != "" {
+	if r := Check(d, kurz); !r.Empty() {
 		t.Errorf("ein Wert von %d Byte abgelehnt: %q", len(kurz), r)
 	}
 	// Zwei Werte zu je MaxValueBytes/2 plus der Umbruch dazwischen: ein Byte
@@ -938,7 +938,7 @@ func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
 	if len(zusammen) != MaxValueBytes+1 {
 		t.Fatalf("der Prüffall taugt nicht: %d Byte", len(zusammen))
 	}
-	if r := Check(d, zusammen); r == "" {
+	if r := Check(d, zusammen); r.Empty() {
 		t.Errorf("%d Byte verbunden durchgelassen — gemessen wurde offenbar der längste einzelne Wert", len(zusammen))
 	}
 }
@@ -966,7 +966,7 @@ func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
 	// Und CheckAll meldet ihn, unter der Kennung des Feldes, damit das
 	// Formular die Begründung unter dem richtigen Feld zeigt.
 	errs := CheckAll([]Def{d}, Data{Values: Values{"notiz": zuLang}})
-	if errs["notiz"] == "" {
+	if errs["notiz"].Empty() {
 		t.Errorf("CheckAll meldet den zu langen Wert nicht: %v", errs)
 	}
 }
@@ -999,7 +999,7 @@ func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 	}
 
 	an := CheckAll(defs, Data{Values: Values{"spezial": "1", "sorten": uebervoll}})
-	if an["sorten"] == "" {
+	if an["sorten"].Empty() {
 		t.Errorf("das sichtbare Feld wurde nicht geprüft: %v", an)
 	}
 }
@@ -1160,12 +1160,12 @@ func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
 func TestSchlagwortPruefung(t *testing.T) {
 	d := Def{Label: "Thema", Kind: KindTerm}
 	for _, gut := range []string{"moebel", "moebel-nach-mass", "holz2024"} {
-		if reason := Check(d, gut); reason != "" {
+		if reason := Check(d, gut); !reason.Empty() {
 			t.Errorf("Check(%q) = %q, want nichts", gut, reason)
 		}
 	}
 	for _, bad := range []string{"Moebel", "moebel nach mass", "möbel", "/tag/moebel", "-moebel"} {
-		if Check(d, bad) == "" {
+		if Check(d, bad).Empty() {
 			t.Errorf("Check(%q) hat nichts zu beanstanden, sollte aber", bad)
 		}
 	}
@@ -1186,12 +1186,12 @@ func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 
 	zuLang := strings.Repeat("x", MaxValueBytes+1)
 	aus := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": zuLang}})
-	if aus["sorten"] == "" {
+	if aus["sorten"].Empty() {
 		t.Fatalf("der zu lange Wert eines versteckten Feldes wurde nicht gemeldet: %v", aus)
 	}
 	// Und zwar mit der Längenbegründung, nicht mit der Optionsbegründung: eine
 	// Artregel darf hier nicht zurückgeschmuggelt worden sein.
-	if !strings.Contains(aus["sorten"], "zu lang") {
+	if !strings.Contains(aus["sorten"].String(), "zu lang") {
 		t.Errorf("die Begründung ist nicht die der Länge: %q", aus["sorten"])
 	}
 
@@ -1225,10 +1225,10 @@ func TestVersteckteGruppeBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 		Rows:   map[string][]Values{"staffel": {{"notiz": zuLang}}},
 	})
 	schluessel := RowKey("staffel", 0, "notiz")
-	if aus[schluessel] == "" {
+	if aus[schluessel].Empty() {
 		t.Fatalf("der zu lange Wert in der Zeile einer versteckten Gruppe wurde nicht gemeldet: %v", aus)
 	}
-	if !strings.Contains(aus[schluessel], "zu lang") {
+	if !strings.Contains(aus[schluessel].String(), "zu lang") {
 		t.Errorf("die Begründung ist nicht die der Länge: %q", aus[schluessel])
 	}
 

@@ -1,6 +1,7 @@
 {
 "%d Treffer für „%s“": "%d Treffer für «%s»",
 "%s eingespielt: %d Übersetzungen. Unter „Mein Konto“ lässt sie sich jetzt wählen.": "%s eingespielt: %d Übersetzungen. Unter «Mein Konto» lässt sie sich jetzt wählen.",
+"%s: „%s“ steht nicht zur Auswahl.": "%s: «%s» steht nicht zur Auswahl.",
 "(bei „Externe Adresse“)": "(bei «Externe Adresse»)",
 "(bei „Link auf eine Seite“)": "(bei «Link auf eine Seite»)",
 "Alle Zeiten in UTC. Eine Seite mit Startzeitpunkt bleibt bis dahin unsichtbar, auch wenn sie auf „Veröffentlicht“ steht – dafür muss nichts im Hintergrund laufen und kein Zeitpunkt kann verpasst werden.": "Alle Zeiten in UTC. Eine Seite mit Startzeitpunkt bleibt bis dahin unsichtbar, auch wenn sie auf «Veröffentlicht» steht – dafür muss nichts im Hintergrund laufen und kein Zeitpunkt kann verpasst werden.",

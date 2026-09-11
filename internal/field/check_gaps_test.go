@@ -30,7 +30,7 @@ func TestCheckReadsABooleanOrRefusesIt(t *testing.T) {
 		{"0", false}, {"nein", false}, {"no", false}, {"falsch", false}, {"false", false},
 		{"JA", true}, {"Nein", false},
 	} {
-		if r := Check(d, tc.in); r != "" {
+		if r := Check(d, tc.in); !r.Empty() {
 			t.Errorf("Check refused %q: %q", tc.in, r)
 			continue
 		}
@@ -45,7 +45,7 @@ func TestCheckReadsABooleanOrRefusesIt(t *testing.T) {
 	// And a value that is not a boolean at all must be refused rather than
 	// silently read as yes.
 	for _, bad := range []string{"vielleicht", "2", "-1", "ja bitte"} {
-		if r := Check(d, bad); r == "" {
+		if r := Check(d, bad); r.Empty() {
 			t.Errorf("Check let %q through; Resolve reads it as %v",
 				bad, Resolve([]Def{d}, Data{Values: Values{d.Key: bad}}, Links{})[d.Key])
 		}
@@ -57,7 +57,7 @@ func TestCheckReadsABooleanOrRefusesIt(t *testing.T) {
 func TestNaNIsNotANumberInsideEveryRange(t *testing.T) {
 	d := Def{Key: "plaetze", Label: "Sitzplätze", Kind: KindRange, RangeMin: "2", RangeMax: "12"}
 	for _, bad := range []string{"NaN", "nan", "+Inf", "-Inf", "inf", "Infinity"} {
-		if r := Check(d, bad); r == "" {
+		if r := Check(d, bad); r.Empty() {
 			n, _ := ParseNumber(bad)
 			t.Errorf("Check accepted %q as a number between 2 and 12 (parsed as %v)", bad, n)
 		}
@@ -67,7 +67,7 @@ func TestNaNIsNotANumberInsideEveryRange(t *testing.T) {
 	// number in it.
 	plain := Def{Key: "menge", Label: "Menge", Kind: KindNumber}
 	for _, bad := range []string{"NaN", "Inf"} {
-		if r := Check(plain, bad); r == "" {
+		if r := Check(plain, bad); r.Empty() {
 			t.Errorf("Check accepted %q as a number", bad)
 		}
 	}
@@ -95,7 +95,7 @@ func TestATimeReachesAThemeAsHHMM(t *testing.T) {
 		{"09:30:00", "09:30"},
 		{"16:30:45", "16:30"},
 	} {
-		if r := Check(d, tc.stored); r != "" {
+		if r := Check(d, tc.stored); !r.Empty() {
 			t.Fatalf("Check refused %q: %q — the parser accepts it, so the test is about what happens next", tc.stored, r)
 		}
 		list := List([]Def{d}, Data{Values: Values{d.Key: tc.stored}}, Links{})

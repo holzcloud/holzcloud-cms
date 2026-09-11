@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -155,7 +156,12 @@ func (h *Handler) kindFailed(w http.ResponseWriter, r *http.Request, back string
 	case errors.Is(err, kind.ErrNotFound):
 		web.SetFlashError(h.sm, r.Context(), "Diese Inhaltsart gibt es nicht")
 	default:
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Inhaltsart abgelehnt: %s", err))
+		// The %s used to carry the store's own German sentences, which the
+		// collector cannot reach through a verb. They are marked at the store
+		// now, so the argument is translated before it is substituted.
+		slog.Error("save content kind", "err", err)
+		web.SetFlashError(h.sm, r.Context(),
+			web.Titlef(r, "Inhaltsart abgelehnt: %s", web.T(r, err.Error())))
 	}
 	return h.redirect(w, r, back)
 }

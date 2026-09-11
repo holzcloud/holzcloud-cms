@@ -457,7 +457,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	slug := values.validateOn(r, data.Errors, ws.BlogBase, ws.Locales())
 	schedule := values.schedule(data.Errors)
 	defs := h.fieldDefs(r.Context(), websiteID)
-	fieldErrs := checkFields(defs, values.KindValue(), values.Fields)
+	fieldErrs := reasonTexts(r.Context(), checkFields(defs, values.KindValue(), values.Fields))
 	if len(fieldErrs) > 0 {
 		data.FieldViews = fieldViews(field.For(defs, values.KindValue()), values.Fields, data.pool(), fieldErrs)
 		for _, reason := range fieldErrs {
@@ -627,7 +627,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	slug := values.validateOn(r, data.Errors, ws.BlogBase, ws.Locales())
 	schedule := values.schedule(data.Errors)
 	defs := h.fieldDefs(r.Context(), existing.WebsiteID)
-	fieldErrs := checkFields(defs, values.KindValue(), values.Fields)
+	fieldErrs := reasonTexts(r.Context(), checkFields(defs, values.KindValue(), values.Fields))
 	if len(fieldErrs) > 0 {
 		data.FieldViews = fieldViews(field.For(defs, values.KindValue()), values.Fields, data.pool(), fieldErrs)
 		for _, reason := range fieldErrs {
