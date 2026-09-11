@@ -50,16 +50,17 @@ you:
   many readers and one writer; two pods on one volume are two writers.
 - **`HOLZCLOUD_SECURE=true`** behind TLS, so the session cookie carries the
   Secure flag.
-- **`HOLZCLOUD_LISTEN=0.0.0.0`**, because the process binds `127.0.0.1` by
-  default and a published port reaches a process that bound loopback *inside its
-  own network namespace* and finds nobody there. Without this the container
-  starts, logs nothing wrong, and answers no request.
+- **Nothing for the listen address.** The process binds `127.0.0.1` by default,
+  and a published port reaches a process that bound loopback *inside its own
+  network namespace* and finds nobody there — the container would start, log
+  nothing wrong and answer no request. So the image sets
+  `HOLZCLOUD_LISTEN=0.0.0.0` itself, from 1.10 on. Setting it again in a
+  deployment does no harm; images before 1.10 listened on every interface.
 - **`/healthz`** for both probes. It answers 200 as soon as the database is
   open.
 
 The image is built for linux/amd64 only. `docker run --rm -v holzcloud:/data -p
-8080:8080 -e HOLZCLOUD_LISTEN=0.0.0.0 ghcr.io/holzcloud/holzcloud-cms:<tag>` is
-enough to try it.
+8080:8080 ghcr.io/holzcloud/holzcloud-cms:<tag>` is enough to try it.
 
 ## Transfer to the server
 
@@ -121,7 +122,7 @@ while the volume you mounted for data stays empty.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HOLZCLOUD_PORT` | `8080` | HTTP listen port |
-| `HOLZCLOUD_LISTEN` | `127.0.0.1` | The address the server binds. The process used to listen on every interface; it no longer does. A proxy on the same host — the documented deployment — is covered by the default. A proxy on another machine, or a container whose port is published, needs an explicit address here (`0.0.0.0`, or `::` for both families) |
+| `HOLZCLOUD_LISTEN` | `127.0.0.1` | The address the server binds. The process used to listen on every interface; it no longer does. A proxy on the same host — the documented deployment — is covered by the default. A proxy on another machine needs an explicit address here (`0.0.0.0`, or `::` for both families). The container image sets `0.0.0.0` itself |
 | `HOLZCLOUD_DATA_DIR` | `data` (relative!) | Database, media, and template storage — set this explicitly |
 | `HOLZCLOUD_LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
 | `HOLZCLOUD_SECURE` | `false` | Secure cookie flag — set `true` behind HTTPS |

@@ -8,7 +8,7 @@ no configuration file: a process with the right environment is the whole setup.
 | Variable | Default | Description |
 |---|---|---|
 | `HOLZCLOUD_PORT` | `8080` | HTTP listen port |
-| `HOLZCLOUD_LISTEN` | `127.0.0.1` | The address the server binds. Loopback by default, which suits a proxy on the same host; a proxy elsewhere or a container with a published port needs `0.0.0.0` (or `::`) |
+| `HOLZCLOUD_LISTEN` | `127.0.0.1` | The address the server binds. Loopback by default, which suits a proxy on the same host; a proxy elsewhere needs `0.0.0.0` (or `::`). The container image sets `0.0.0.0` itself |
 | `HOLZCLOUD_TRUSTED_PROXIES` | `127.0.0.1/32,::1/128` | CIDRs whose `X-Forwarded-For` is believed, and the same list that decides whether a forwarded identity is even read. With single sign-on on, a prefix of length zero (`0.0.0.0/0`, `::/0`) is refused at start-up |
 | `HOLZCLOUD_DATA_DIR` | `data` | Directory for the SQLite database, media and uploaded templates |
 | `HOLZCLOUD_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARN`, `ERROR` |
