@@ -39,8 +39,17 @@ COPY --from=bau /holzcloud /holzcloud
 # VOLUME angelegt: ein VOLUME ohne Einhängepunkt erzeugt bei jedem Start
 # stillschweigend ein namenloses Volume, und die SQLite-Datei darin wäre beim
 # nächsten Start weg, ohne dass irgendwo etwas fehlgeschlagen wäre.
+#
+# HOLZCLOUD_LISTEN=0.0.0.0, weil der Dienst seit 1.10 standardmässig nur
+# 127.0.0.1 bindet. Das ist richtig für die Einrichtung mit Caddy auf demselben
+# Rechner und im Container ohne Ausnahme falsch: der Container ist sein eigener
+# Netzwerkraum, und ein veröffentlichter Port, ein Kubernetes-Service und die
+# Proben des kubelet kommen alle über die Adresse des Containers — auf der
+# Rückschleife fänden sie niemanden. Der Container startete, meldete nichts und
+# beantwortete keine Anfrage. Gehalten von cmd/holzcloud/dockerfile_test.go.
 ENV HOLZCLOUD_DATA_DIR=/data \
-    HOLZCLOUD_PORT=8080
+    HOLZCLOUD_PORT=8080 \
+    HOLZCLOUD_LISTEN=0.0.0.0
 
 EXPOSE 8080
 

@@ -30,12 +30,12 @@ der Weg zurück, wenn der Ausweisdienst einmal nicht antwortet.
 **Für eine Anlage, die das nicht benutzt, ändert sich genau eines, und das ist
 das Wichtigste an diesem Eintrag: Der Dienst horcht jetzt auf `127.0.0.1` und
 nicht mehr auf allen Netzwerkkarten.** Wer Caddy auf demselben Rechner
-betreibt — die beschriebene Einrichtung — merkt davon nichts. Alles andere
-braucht `HOLZCLOUD_LISTEN`. Das betrifft besonders den Betrieb im Container:
-`docker run -p 8080:8080` veröffentlicht einen Port zu einem Vorgang, der in
-seinem eigenen Netzwerkraum nur die Rückschleife belegt und dort niemanden
-findet. Der Container startet, meldet nichts Auffälliges und beantwortet keine
-Anfrage. `HOLZCLOUD_LISTEN=0.0.0.0` setzen, dann geht es wieder.
+betreibt — die beschriebene Einrichtung — merkt davon nichts. Wer den Dienst von
+einem anderen Rechner aus erreicht, braucht `HOLZCLOUD_LISTEN=0.0.0.0`. **Das
+Container-Abbild setzt das selbst**: im Container ist die Rückschleife immer die
+falsche Adresse, weil ein veröffentlichter Port, ein Kubernetes-Service und die
+Proben alle über die Adresse des Containers kommen. Wer das Abbild betreibt,
+muss nichts ändern.
 
 **Wer die Anmeldung über den Ausweisdienst einschaltet, braucht Caddy in
 Fassung 2.11.2 oder neuer.** Ältere Fassungen ab 2.10.0 tragen CVE-2026-30851:
