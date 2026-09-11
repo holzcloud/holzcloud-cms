@@ -34,6 +34,7 @@ Katalogschlüsseln.
 | Bausteinfelder | `SnippetFields` | `.Site.Bausteinfelder` → `.Site.SnippetFields` |
 | Bausteinliste | `SnippetList` | `.Site.Bausteinliste` → `.Site.SnippetList` |
 | Übersetzungen | `Translations` | `.Page.Uebersetzungen` → `.Page.Translations` |
+| Sprache / Sprachen | `language` / `Languages` | `.Site.Sprachen` → `.Site.Languages`. Gemessen 2026-09-11: der siebte und letzte deutsche Name im Vorlagen-Vertrag, in der Kriterienliste der Roadmap nicht genannt |
 | Gruppe | `group` | |
 | Abschnitt | `section` | |
 | Auswahl | `choice` / `choices` | Einzahl die Art, Mehrzahl die Möglichkeiten |
@@ -175,7 +176,7 @@ Katalogschlüsseln.
 
 Angelegt 2026-09-06, als der Entwickler die Umstellung auf Englisch beauftragt
 hat. Die Kollisionsliste unten stammt aus einer Messung von `en.json`: von 1158
-deutschen Schlüsseln fallen genau **neun** auf einen gemeinsamen englischen Wert
+deutschen Schlüsseln fielen genau **neun** auf einen gemeinsamen englischen Wert
 zusammen, und drei davon sind vorbestehende Übersetzungsfehler.
 
 | Englisch | Deutsche Schlüssel, die darauf fallen |
@@ -188,6 +189,7 @@ zusammen, und drei davon sind vorbestehende Übersetzungsfehler.
 | `Label` | `Beschriftung`, `Schlagwort` — **falsch zusammengeworfen** |
 | `Reset link` | `Link zum Zurücksetzen`, `Reset-Link` |
 | `Time` | `Uhrzeit`, `Zeitpunkt` |
+| `Import finished` | `Einlesen abgeschlossen`, `Import abgeschlossen` | neu seit der Messung von 2026-09-06, gefunden am 2026-09-11 |
 | `– none –` | `– keines –`, `– keins –` |
 
 ---

@@ -1,20 +1,19 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.10
-milestone_name: Inhaltsmodell und Zugang
-current_phase: null
-current_phase_name: "Meilenstein v1.6 abgeschlossen"
-status: completed
-stopped_at: "Meilenstein v1.10 (geplant als v1.6) abgeschlossen (2026-09-10) und als Release 1.10 gebaut (2026-09-11). Meilenstein und Release tragen ab jetzt dieselbe Nummer. Naechster Schritt: /gsd-new-milestone fuer v2.0."
-last_updated: "2026-09-10T15:48:12.058Z"
-last_activity: 2026-09-10
-state_head: 0895897360c2b4bd1cca9e1a2dc2556a7b104135
+milestone: v2.0
+milestone_name: The Codebase Speaks English
+current_phase: 12
+current_phase_name: "The Codebase Speaks English"
+status: in_progress
+stopped_at: "Meilenstein v2.0 eroeffnet (2026-09-11). Phase 12, Welle 12-01 (Bestandsaufnahme und die zwei stehenden Entscheidungen) geschrieben."
+last_updated: "2026-09-11T00:00:00.000Z"
+last_activity: 2026-09-11
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 42
-  completed_plans: 42
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 10
+  completed_plans: 0
+  percent: 0
 ---
 
 ## State: Holzcloud CMS
@@ -412,14 +411,20 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: Milestone v1.10 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-09-11 — Milestone v1.10 (planned as v1.6) released as 1.10
+Phase: 12 — The Codebase Speaks English (milestone v2.0)
+Plan: 12-01 done (measurement + the two standing decisions)
+Status: In progress
+Last activity: 2026-09-11 — v2.0 opened, phase 12 measured against `ef4873a`
+
+The GSD plugin is not installed in the execution container that opened this
+milestone (no `/gsd-*` commands, no `gsd-tools` binary) — only the artifacts it
+wrote. The workflow is therefore being carried by hand in the same shape: the
+same artifacts, the same order, the same gates.
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Phase 12 is running. Waves and their order are in
+  `.planning/phases/12-codebase-speaks-english/12-CONTEXT.md` §4.
 
 ## Deferred Items
 
