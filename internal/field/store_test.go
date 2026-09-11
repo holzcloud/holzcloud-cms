@@ -179,7 +179,7 @@ func TestNeueSpalten(t *testing.T) {
 
 	// --- OfBlockType und OfBlockTypes ---------------------------------------
 	res, err := store.DB.Write.ExecContext(ctx,
-		`INSERT INTO block_types (website_id, kennung, name) VALUES ($1, 'karte', 'Karte')`, site)
+		`INSERT INTO block_types (website_id, key, name) VALUES ($1, 'karte', 'Karte')`, site)
 	if err != nil {
 		t.Fatalf("Bausteinart anlegen: %v", err)
 	}
@@ -559,7 +559,7 @@ func TestBausteinNamensraum(t *testing.T) {
 		t.Fatalf("Textbaustein-Nummer: %v", err)
 	}
 	res, err = store.DB.Write.ExecContext(ctx,
-		`INSERT INTO block_types (website_id, kennung, name) VALUES ($1, 'karte', 'Karte')`, site)
+		`INSERT INTO block_types (website_id, key, name) VALUES ($1, 'karte', 'Karte')`, site)
 	if err != nil {
 		t.Fatalf("Bausteinart anlegen: %v", err)
 	}
@@ -733,7 +733,7 @@ func neuerTextbaustein(t *testing.T, store *Store, websiteID int64, key, name st
 func neueBausteinart(t *testing.T, store *Store, websiteID int64, key, name string) int64 {
 	t.Helper()
 	res, err := store.DB.Write.Exec(
-		`INSERT INTO block_types (website_id, kennung, name) VALUES ($1, $2, $3)`, websiteID, key, name)
+		`INSERT INTO block_types (website_id, key, name) VALUES ($1, $2, $3)`, websiteID, key, name)
 	if err != nil {
 		t.Fatalf("Bausteinart %q anlegen: %v", key, err)
 	}

@@ -77,6 +77,11 @@ func TestAPopulatedDatabaseSurvivesTheRebuildOfPages(t *testing.T) {
 		`INSERT INTO media (website_id, filename, original_name, mime_type, size_bytes)
 		 VALUES ($1, 'bild.jpg', 'Bild.jpg', 'image/jpeg', 1234)`, websiteID)
 
+	// Written in the schema of version 44, so the German column names are the
+	// right ones HERE and the English ones would be wrong: `art` became
+	// `content_kind` in 00054, seven versions after this row is inserted. That
+	// is the point of the test — the row is written the old way and read the
+	// new way, which is what an operator's database does when it is upgraded.
 	// Every column 00045 has to carry across is filled with a value that is not
 	// the default, so a column dropped from the INSERT list shows up as a
 	// changed value and not as an equal-by-accident empty string.
@@ -113,7 +118,7 @@ func TestAPopulatedDatabaseSurvivesTheRebuildOfPages(t *testing.T) {
 		title, slug, md, html, status, publishedAt string
 		excerpt, metaDesc, reviewState, kind       string
 		access, accessPassword, accessHint         string
-		blocks, fields, locale, art                string
+		blocks, fields, locale, contentKind        string
 		publishAt, unpublishAt                     string
 		version, noindex                           int
 		featured, createdBy, updatedBy             sql.NullInt64
@@ -121,12 +126,12 @@ func TestAPopulatedDatabaseSurvivesTheRebuildOfPages(t *testing.T) {
 	err := conn.QueryRowContext(ctx, `
 		SELECT title, slug, content_markdown, content_html, status, published_at,
 		       excerpt, meta_description, review_state, kind, access, access_password,
-		       access_hint, blocks, fields, locale, art, publish_at, unpublish_at,
+		       access_hint, blocks, fields, locale, content_kind, publish_at, unpublish_at,
 		       version, noindex, featured_media_id, created_by, updated_by
 		  FROM pages WHERE id = $1`, pageID).Scan(
 		&title, &slug, &md, &html, &status, &publishedAt,
 		&excerpt, &metaDesc, &reviewState, &kind, &access, &accessPassword,
-		&accessHint, &blocks, &fields, &locale, &art, &publishAt, &unpublishAt,
+		&accessHint, &blocks, &fields, &locale, &contentKind, &publishAt, &unpublishAt,
 		&version, &noindex, &featured, &createdBy, &updatedBy)
 	if err != nil {
 		t.Fatalf("the page did not survive the migration at all: %v", err)
@@ -149,7 +154,7 @@ func TestAPopulatedDatabaseSurvivesTheRebuildOfPages(t *testing.T) {
 		{"blocks", blocks, `[{"typ":"text"}]`},
 		{"fields", fields, `{"werte":{"a":"b"}}`},
 		{"locale", locale, "fr"},
-		{"art", art, "produkt"},
+		{"content_kind", contentKind, "produkt"},
 		{"publish_at", publishAt, "2026-02-01T00:00:00Z"},
 		{"unpublish_at", unpublishAt, "2099-01-01T00:00:00Z"},
 	} {

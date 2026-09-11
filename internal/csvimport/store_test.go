@@ -225,7 +225,7 @@ func TestTokenIsNotInTheDatabase(t *testing.T) {
 	var hash, name, filename, mode, collision string
 	var data []byte
 	if err := database.Read.QueryRowContext(ctx,
-		`SELECT token_hash, website_name, dateiname, modus, kollision, daten FROM csv_imports`).
+		`SELECT token_hash, website_name, filename, mode, collision, data FROM csv_imports`).
 		Scan(&hash, &name, &filename, &mode, &collision, &data); err != nil {
 		t.Fatalf("read row: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestPruneSweepsOnlyTheOld(t *testing.T) {
 		t.Fatalf("Get: %v", err)
 	}
 	if _, err := database.Write.ExecContext(ctx,
-		`UPDATE csv_imports SET erstellt_am = $1 WHERE id = $2`, twoDaysAgo, oldUpload.ID); err != nil {
+		`UPDATE csv_imports SET created_at = $1 WHERE id = $2`, twoDaysAgo, oldUpload.ID); err != nil {
 		t.Fatalf("backdate: %v", err)
 	}
 

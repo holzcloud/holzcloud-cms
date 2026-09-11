@@ -31,7 +31,7 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // List returns a website's own kinds in their order.
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Type, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, website_id, kennung, name, mehrzahl, archiv, sortierung, position
+		`SELECT id, website_id, key, name, plural, archive, sort_order, position
 		 FROM content_types WHERE website_id = $1 ORDER BY position, id`, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("inhaltsarten lesen: %w", err)
@@ -54,7 +54,7 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Type, error) {
 func (s *Store) Get(ctx context.Context, websiteID, id int64) (Type, error) {
 	var t Type
 	err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT id, website_id, kennung, name, mehrzahl, archiv, sortierung, position
+		`SELECT id, website_id, key, name, plural, archive, sort_order, position
 		 FROM content_types WHERE id = $1 AND website_id = $2`, id, websiteID).
 		Scan(&t.ID, &t.WebsiteID, &t.Key, &t.Name, &t.Plural, &t.Archive, &t.Sort, &t.Position)
 	if err == sql.ErrNoRows {
@@ -97,7 +97,7 @@ func (s *Store) Create(ctx context.Context, t Type) (Type, error) {
 	t.Position = len(existing)
 
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO content_types (website_id, kennung, name, mehrzahl, archiv, sortierung, position)
+		`INSERT INTO content_types (website_id, key, name, plural, archive, sort_order, position)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		t.WebsiteID, t.Key, t.Name, t.Plural, t.Archive, t.Sort, t.Position)
 	if err != nil {
@@ -129,7 +129,7 @@ func (s *Store) Update(ctx context.Context, t Type) error {
 	}
 
 	res, err := s.DB.Write.ExecContext(ctx,
-		`UPDATE content_types SET name = $1, mehrzahl = $2, archiv = $3, sortierung = $4
+		`UPDATE content_types SET name = $1, plural = $2, archive = $3, sort_order = $4
 		 WHERE id = $5 AND website_id = $6`,
 		t.Name, t.Plural, t.Archive, t.Sort, t.ID, t.WebsiteID)
 	if err != nil {

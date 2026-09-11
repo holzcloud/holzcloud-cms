@@ -29,16 +29,16 @@ func (s *Store) ListArchiveIn(ctx context.Context, websiteID int64, loc string, 
 // SQL and cannot be a bound parameter. Two orders are what an overview needs —
 // by date for anything that happens, by title for anything that is.
 func (s *Store) ListOfKind(ctx context.Context, websiteID int64, loc, typeKey string, byTitle bool, pageNum, perPage int) ([]Page, int, error) {
-	return s.listWhere(ctx, websiteID, loc, "art", typeKey, byTitle, pageNum, perPage)
+	return s.listWhere(ctx, websiteID, loc, "content_kind", typeKey, byTitle, pageNum, perPage)
 }
 
-// listWhere is the shared body: the same query against kind or against art.
+// listWhere is the shared body: the same query against kind or against content_kind.
 //
 // column is one of two literals from this file and never a caller's string —
 // it cannot be a bound parameter, and interpolating something from outside is
 // how an injection is written.
 func (s *Store) listWhere(ctx context.Context, websiteID int64, loc, column, value string, byTitle bool, pageNum, perPage int) ([]Page, int, error) {
-	if column != "kind" && column != "art" {
+	if column != "kind" && column != "content_kind" {
 		return nil, 0, fmt.Errorf("unbekannte Spalte %q", column)
 	}
 	if perPage <= 0 {
