@@ -1,8 +1,8 @@
-// Ein Plugin, das zeigt, wie wenig ein Plugin sein muss.
+// A plugin that shows how little a plugin has to be.
 //
-// Es ersetzt [[jahr]] im Seitentext durch das laufende Jahr und zählt mit, wie
-// oft es das getan hat. Damit berührt es beide Seiten der Schnittstelle — den
-// Inhalt und den eigenen Speicher — und ist trotzdem in dreissig Zeilen lesbar.
+// It replaces [[jahr]] in a page's text with the current year and counts how
+// often it has done so. That touches both sides of the interface — the content
+// and its own storage — and is still readable in thirty lines.
 package main
 
 import (
@@ -13,40 +13,48 @@ import (
 	plugin "github.com/holzcloud/holzcloud-cms/sdk"
 )
 
-const marke = "[[jahr]]"
+// marker is what an author types into a page, so it is content and not an
+// identifier: every page that already carries it would stop working if this
+// string changed. .planning/GLOSSARY.md carries the rule — a German word that
+// is stored is a value, not a name — and this is a value.
+const marker = "[[jahr]]"
 
-// init und nicht main: der Host startet ein Plugin als Reaktor-Modul, das
-// heisst er ruft _initialize auf. Das führt die Paket-Initialisierung aus und
-// kehrt zurück — main läuft nie. Wer hier main schriebe, bekäme ein Plugin,
-// das sich einspielen und einschalten lässt und dann bei jedem Haken nichts
-// tut. Das SDK sagt es einem beim ersten Aufruf ins Protokoll.
+// countKey is the plugin's own storage key, and the same argument applies: it
+// names a row in every installation that has ever run this plugin.
+const countKey = "ersetzungen"
+
+// init and not main: the host starts a plugin as a reactor module, which means
+// it calls _initialize. That runs the package initialisation and returns —
+// main never runs. Writing main here gives you a plugin that installs, switches
+// on, and then does nothing at every hook. The SDK says so in the log the first
+// time it is called.
 func init() {
 	plugin.OnContent(func(in plugin.ContentIn) (plugin.ContentOut, error) {
-		if !strings.Contains(in.HTML, marke) {
-			// Nichts zu tun ist die häufigste Antwort. Sie kostet den Host
-			// einen Umlauf und keine Kopie der Seite.
+		if !strings.Contains(in.HTML, marker) {
+			// Nothing to do is the commonest answer. It costs the host one
+			// round trip and no copy of the page.
 			return plugin.ContentOut{}, nil
 		}
-		jahr := strconv.Itoa(time.Now().Year())
-		html := strings.ReplaceAll(in.HTML, marke, jahr)
+		year := strconv.Itoa(time.Now().Year())
+		html := strings.ReplaceAll(in.HTML, marker, year)
 
-		// Mitzählen, wie oft. Ein Fehler dabei darf die Seite nicht kosten:
-		// der Besucher will das Jahr sehen, nicht unsere Buchhaltung.
-		if n, _, err := plugin.Get("ersetzungen"); err == nil {
-			z, _ := strconv.Atoi(n)
-			_ = plugin.Set("ersetzungen", strconv.Itoa(z+1))
+		// Keeping count. A failure here must not cost the page: the visitor
+		// wants to see the year, not our bookkeeping.
+		if n, _, err := plugin.Get(countKey); err == nil {
+			count, _ := strconv.Atoi(n)
+			_ = plugin.Set(countKey, strconv.Itoa(count+1))
 		}
 		return plugin.ContentOut{HTML: html, Changed: true}, nil
 	})
 
 	plugin.OnAdmin(func(in plugin.AdminIn) (plugin.AdminOut, error) {
-		n, _, _ := plugin.Get("ersetzungen")
+		n, _, _ := plugin.Get(countKey)
 		if n == "" {
 			n = "0"
 		}
 		return plugin.AdminOut{
 			Title: "Jahreszahl",
-			HTML: "<p>Schreibe <code>" + marke + "</code> in eine Seite; " +
+			HTML: "<p>Schreibe <code>" + marker + "</code> in eine Seite; " +
 				"beim Ausliefern steht dort das laufende Jahr.</p>" +
 				"<p>Bisher ersetzt: <strong>" + n + "</strong></p>",
 		}, nil

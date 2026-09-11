@@ -339,8 +339,8 @@ func warnIfEmpty() {
 		return
 	}
 	warned = true
-	Log("error", "kein Haken registriert — die Registrierung gehört in func init(), "+
-		"nicht in func main(): ein Reaktor-Modul führt main nie aus")
+	Log("error", "no hook registered — registration belongs in func init(), "+
+		"not in func main(): a reactor module never runs main")
 }
 
 // call unmarshals, runs a handler and marshals the answer.
