@@ -22,30 +22,30 @@ import (
 type einstellungen struct {
 	// PreisFeld entscheidet, was ein Produkt ist: ist es ausgefüllt, steht die
 	// Seite in der Liste.
-	PreisFeld string `json:"preis_feld"`
+	PriceField string `json:"preis_feld"`
 	// EinheitFeld und ZustandFeld sind freiwillig.
-	EinheitFeld string `json:"einheit_feld"`
-	ZustandFeld string `json:"zustand_feld"`
+	UnitField   string `json:"einheit_feld"`
+	StatusField string `json:"zustand_feld"`
 	// AusverkauftWert ist der Wert des Zustandsfeldes, bei dem nicht mehr
 	// bestellt werden kann. Leer heisst: alles ist bestellbar.
-	AusverkauftWert string `json:"ausverkauft_wert"`
+	SoldOutValue string `json:"ausverkauft_wert"`
 	// Waehrung steht vor dem Preis.
 	Waehrung string `json:"waehrung"`
 	// Hinweis steht über dem Formular — dort gehört hin, wie geliefert und wie
 	// bezahlt wird, denn beides passiert ausserhalb dieses Programms.
-	Hinweis string `json:"hinweis"`
+	Hint string `json:"hinweis"`
 }
 
 const schluesselEinstellungen = "einstellungen"
 
 func standardEinstellungen() einstellungen {
 	return einstellungen{
-		PreisFeld:       "preis",
-		EinheitFeld:     "einheit",
-		ZustandFeld:     "verfuegbarkeit",
-		AusverkauftWert: "vergriffen",
-		Waehrung:        "CHF",
-		Hinweis: "Wir melden uns nach der Bestellung bei dir und vereinbaren Abholung " +
+		PriceField:   "preis",
+		UnitField:    "einheit",
+		StatusField:  "verfuegbarkeit",
+		SoldOutValue: "vergriffen",
+		Waehrung:     "CHF",
+		Hint: "Wir melden uns nach der Bestellung bei dir und vereinbaren Abholung " +
 			"oder Lieferung. Bezahlt wird bei der Übergabe oder per Rechnung.",
 	}
 }
@@ -62,16 +62,16 @@ func einstellungenLaden() einstellungen {
 	}
 	// Feld für Feld: eine ältere Fassung hat womöglich noch nicht alle
 	// geschrieben, und ein leeres Preisfeld liesse die Liste für immer leer.
-	if gespeichert.PreisFeld != "" {
-		e.PreisFeld = gespeichert.PreisFeld
+	if gespeichert.PriceField != "" {
+		e.PriceField = gespeichert.PriceField
 	}
-	e.EinheitFeld = gespeichert.EinheitFeld
-	e.ZustandFeld = gespeichert.ZustandFeld
-	e.AusverkauftWert = gespeichert.AusverkauftWert
+	e.UnitField = gespeichert.UnitField
+	e.StatusField = gespeichert.StatusField
+	e.SoldOutValue = gespeichert.SoldOutValue
 	if gespeichert.Waehrung != "" {
 		e.Waehrung = gespeichert.Waehrung
 	}
-	e.Hinweis = gespeichert.Hinweis
+	e.Hint = gespeichert.Hint
 	return e
 }
 
@@ -87,11 +87,11 @@ func einstellungenSichern(e einstellungen) error {
 type produkt struct {
 	Slug    string
 	Titel   string
-	Preis   string
+	Price   string
 	Einheit string
-	Zustand string
+	Status  string
 	// Bestellbar ist falsch, wenn das Zustandsfeld den Ausverkauft-Wert trägt.
-	Bestellbar bool
+	Orderable bool
 }
 
 // maxProdukte bounds the list.
@@ -110,17 +110,17 @@ func produkteLesen(e einstellungen) ([]produkt, error) {
 
 	out := make([]produkt, 0, len(seiten))
 	for _, s := range seiten {
-		preis := strings.TrimSpace(s.Feld(e.PreisFeld))
+		preis := strings.TrimSpace(s.Field(e.PriceField))
 		if preis == "" {
 			continue
 		}
 		p := produkt{
-			Slug: s.Slug, Titel: s.Title, Preis: preis,
-			Einheit: strings.TrimSpace(s.Feld(e.EinheitFeld)),
-			Zustand: strings.TrimSpace(s.Feld(e.ZustandFeld)),
+			Slug: s.Slug, Titel: s.Title, Price: preis,
+			Einheit: strings.TrimSpace(s.Field(e.UnitField)),
+			Status:  strings.TrimSpace(s.Field(e.StatusField)),
 		}
-		p.Bestellbar = e.AusverkauftWert == "" ||
-			!strings.EqualFold(p.Zustand, e.AusverkauftWert)
+		p.Orderable = e.SoldOutValue == "" ||
+			!strings.EqualFold(p.Status, e.SoldOutValue)
 		out = append(out, p)
 	}
 	return out, nil

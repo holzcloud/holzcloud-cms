@@ -46,11 +46,11 @@ func alsCSV(liste []nachricht) ([]byte, error) {
 		if formular == "" {
 			formular = "Kontaktformular"
 		}
-		zeile := []string{n.Zeit, formular, n.Name, n.Email, n.Betreff, n.Seite, gelesen}
+		zeile := []string{n.Zeit, formular, n.Name, n.Email, n.Betreff, n.Page, gelesen}
 
 		werte := map[string]string{}
-		for _, a := range n.Felder {
-			werte[a.Beschriftung] = a.Wert
+		for _, a := range n.Fields {
+			werte[a.Label] = a.Value
 		}
 		// Der freie Text steht in der Spalte "Nachricht", damit das eingebaute
 		// Formular und ein zusammengestelltes in derselben Datei nebeneinander
@@ -82,10 +82,10 @@ func feldSpalten(liste []nachricht) []string {
 	var out []string
 	var hatText bool
 	for _, n := range liste {
-		for _, a := range n.Felder {
-			if !gesehen[a.Beschriftung] {
-				gesehen[a.Beschriftung] = true
-				out = append(out, a.Beschriftung)
+		for _, a := range n.Fields {
+			if !gesehen[a.Label] {
+				gesehen[a.Label] = true
+				out = append(out, a.Label)
 			}
 		}
 		if n.Text != "" {
@@ -149,7 +149,7 @@ func csvDateiname(liste []nachricht) string {
 func neuesteKennung(liste []nachricht) string {
 	keys := make([]string, 0, len(liste))
 	for _, n := range liste {
-		keys = append(keys, n.Kennung)
+		keys = append(keys, n.Key)
 	}
 	sort.Strings(keys)
 	return keys[len(keys)-1]

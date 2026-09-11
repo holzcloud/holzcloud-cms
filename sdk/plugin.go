@@ -194,12 +194,12 @@ type Page struct {
 	// Felder and Gruppen are the website's own fields, filled only by the
 	// calls that ask for them. As stored: a picture is its media id, a number
 	// is the text somebody typed — with a comma, if that is what they typed.
-	Felder  map[string]string              `json:"fields,omitempty"`
-	Gruppen map[string][]map[string]string `json:"groups,omitempty"`
+	Fields map[string]string              `json:"fields,omitempty"`
+	Groups map[string][]map[string]string `json:"groups,omitempty"`
 }
 
 // Feld returns one of the website's own fields, or the empty string.
-func (p Page) Feld(key string) string { return p.Felder[key] }
+func (p Page) Field(key string) string { return p.Fields[key] }
 
 // RenderArg asks the host to draw a public page in the website's theme.
 //

@@ -99,10 +99,10 @@ func seitenAuflisten(d Deps) Tool {
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
-				Website int64  `json:"website"`
-				Zustand string `json:"zustand"`
-				Anzahl  int    `json:"anzahl"`
-				Sprache string `json:"sprache"`
+				Website  int64  `json:"website"`
+				Status   string `json:"zustand"`
+				Count    int    `json:"anzahl"`
+				Language string `json:"sprache"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -112,16 +112,16 @@ func seitenAuflisten(d Deps) Tool {
 			}
 			// Ohne Angabe alle Sprachen: eine Liste, die stillschweigend nur die
 			// Hauptsprache zeigt, sieht vollständig aus und ist es nicht.
-			filter := page.ListFilter{Locale: "*", Page: 1, PerPage: clampCount(a.Anzahl)}
-			switch strings.TrimSpace(a.Sprache) {
+			filter := page.ListFilter{Locale: "*", Page: 1, PerPage: clampCount(a.Count)}
+			switch strings.TrimSpace(a.Language) {
 			case "":
 				// alle
 			case "haupt":
 				filter.Locale = ""
 			default:
-				filter.Locale = locale.Normalise(a.Sprache)
+				filter.Locale = locale.Normalise(a.Language)
 			}
-			switch a.Zustand {
+			switch a.Status {
 			case "entwurf":
 				filter.Status = "draft"
 			case "veroeffentlicht":
@@ -202,7 +202,7 @@ func seiteSuchen(d Deps) Tool {
 			var a struct {
 				Website int64  `json:"website"`
 				Suche   string `json:"suche"`
-				Anzahl  int    `json:"anzahl"`
+				Count   int    `json:"anzahl"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -210,7 +210,7 @@ func seiteSuchen(d Deps) Tool {
 			if err := c.Scope.MaySee(a.Website); err != nil {
 				return nil, err
 			}
-			anzahl := a.Anzahl
+			anzahl := a.Count
 			if anzahl <= 0 {
 				anzahl = 20
 			}
@@ -250,7 +250,7 @@ func medienAuflisten(d Deps) Tool {
 			var a struct {
 				Website int64  `json:"website"`
 				Suche   string `json:"suche"`
-				Anzahl  int    `json:"anzahl"`
+				Count   int    `json:"anzahl"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -259,7 +259,7 @@ func medienAuflisten(d Deps) Tool {
 				return nil, err
 			}
 			items, _, err := d.Media.List(c.Ctx, a.Website,
-				media.Filter{Query: a.Suche}, 1, clampCount(a.Anzahl))
+				media.Filter{Query: a.Suche}, 1, clampCount(a.Count))
 			if err != nil {
 				return nil, err
 			}
@@ -428,11 +428,11 @@ func seiteAnlegen(d Deps) Tool {
 				Website   int64                     `json:"website"`
 				Titel     string                    `json:"titel"`
 				Markdown  string                    `json:"markdown"`
-				Adresse   string                    `json:"adresse"`
+				Address   string                    `json:"adresse"`
 				Art       string                    `json:"art"`
-				Felder    field.Values              `json:"felder"`
-				Gruppen   map[string][]field.Values `json:"gruppen"`
-				Sprache   string                    `json:"sprache"`
+				Fields    field.Values              `json:"felder"`
+				Groups    map[string][]field.Values `json:"gruppen"`
+				Language  string                    `json:"sprache"`
 				GehoertZu int64                     `json:"uebersetzung_von"`
 			}
 			if err := c.Into(&a); err != nil {
@@ -449,13 +449,13 @@ func seiteAnlegen(d Deps) Tool {
 			if err != nil {
 				return nil, fmt.Errorf("der Text lässt sich nicht ausgeben: %w", err)
 			}
-			slug := strings.TrimSpace(strings.Trim(a.Adresse, "/"))
+			slug := strings.TrimSpace(strings.Trim(a.Address, "/"))
 			if slug == "" {
 				slug = page.Slugify(a.Titel)
 			}
 
 			felder, reason, err := pruefeFelder(c, d, a.Website, artZuKind(a.Art),
-				field.Data{Values: a.Felder, Rows: a.Gruppen})
+				field.Data{Values: a.Fields, Rows: a.Groups})
 			if err != nil {
 				return nil, err
 			}
@@ -482,7 +482,7 @@ func seiteAnlegen(d Deps) Tool {
 			}
 			c.Log.Info("ai created page", "key", c.Scope.Name, "page", created.ID, "website", a.Website)
 
-			if hinweis := d.setzeSprache(c, a.Website, created.ID, a.Sprache, a.GehoertZu); hinweis != "" {
+			if hinweis := d.setzeSprache(c, a.Website, created.ID, a.Language, a.GehoertZu); hinweis != "" {
 				out := kurz(*created)
 				out["hinweis"] = hinweis
 				return out, nil
@@ -521,9 +521,9 @@ func seiteAendern(d Deps) Tool {
 				ID        int64                     `json:"id"`
 				Titel     *string                   `json:"titel"`
 				Markdown  *string                   `json:"markdown"`
-				Felder    field.Values              `json:"felder"`
-				Gruppen   map[string][]field.Values `json:"gruppen"`
-				Sprache   string                    `json:"sprache"`
+				Fields    field.Values              `json:"felder"`
+				Groups    map[string][]field.Values `json:"gruppen"`
+				Language  string                    `json:"sprache"`
 				GehoertZu int64                     `json:"uebersetzung_von"`
 			}
 			if err := c.Into(&a); err != nil {
@@ -562,12 +562,12 @@ func seiteAendern(d Deps) Tool {
 			// Angegebene Felder ergänzen die bisherigen, statt sie zu ersetzen:
 			// wer den Preis ändert, will nicht die Verfügbarkeit verlieren.
 			gespeicherte := field.Decode(p.Fields)
-			for key, val := range a.Felder {
+			for key, val := range a.Fields {
 				gespeicherte.Values[key] = val
 			}
 			// Eine angegebene Gruppe ersetzt ihre Zeilen ganz: eine Liste
 			// zeilenweise zu ergänzen hiesse zu raten, welche Zeile gemeint ist.
-			for key, rows := range a.Gruppen {
+			for key, rows := range a.Groups {
 				gespeicherte.Rows[key] = rows
 			}
 			felder, reason, ferr := pruefeFelder(c, d, p.WebsiteID, p.Kind, gespeicherte)
@@ -623,8 +623,8 @@ func seiteVeroeffentlichen(d Deps) Tool {
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
-				ID      int64  `json:"id"`
-				Zustand string `json:"zustand"`
+				ID     int64  `json:"id"`
+				Status string `json:"zustand"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -638,7 +638,7 @@ func seiteVeroeffentlichen(d Deps) Tool {
 			}
 
 			status := "draft"
-			if a.Zustand == "veroeffentlicht" {
+			if a.Status == "veroeffentlicht" {
 				status = "published"
 			}
 			if err := d.Pages.SetPageStatus(c.Ctx, p.ID, status, nil); err != nil {
@@ -680,7 +680,7 @@ func findePage(c Call, d Deps) (*page.Page, error) {
 	var a struct {
 		ID      int64  `json:"id"`
 		Website int64  `json:"website"`
-		Adresse string `json:"adresse"`
+		Address string `json:"adresse"`
 	}
 	if err := c.Into(&a); err != nil {
 		return nil, err
@@ -691,8 +691,8 @@ func findePage(c Call, d Deps) (*page.Page, error) {
 	switch {
 	case a.ID > 0:
 		p, err = d.Pages.GetPage(c.Ctx, a.ID)
-	case a.Website > 0 && a.Adresse != "":
-		p, err = d.Pages.GetPageBySlug(c.Ctx, a.Website, strings.Trim(a.Adresse, "/"))
+	case a.Website > 0 && a.Address != "":
+		p, err = d.Pages.GetPageBySlug(c.Ctx, a.Website, strings.Trim(a.Address, "/"))
 	default:
 		return nil, errors.New("entweder id oder website und adresse angeben")
 	}

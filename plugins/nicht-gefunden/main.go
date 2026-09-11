@@ -21,7 +21,7 @@ import (
 // eintrag ist eine angefragte Adresse.
 type eintrag struct {
 	Pfad     string `json:"pfad"`
-	Anzahl   int    `json:"anzahl"`
+	Count    int    `json:"anzahl"`
 	Zuletzt  string `json:"zuletzt"`
 	Herkunft string `json:"herkunft,omitempty"`
 }
@@ -51,7 +51,7 @@ func init() {
 		if roh, ok, _ := plugin.Get(key); ok {
 			_ = json.Unmarshal([]byte(roh), &e)
 		}
-		e.Anzahl++
+		e.Count++
 		e.Zuletzt = time.Now().UTC().Format(time.RFC3339)
 		if h := in.Data["referer"]; h != "" && len(h) < 300 {
 			e.Herkunft = h
@@ -81,7 +81,7 @@ func aufraeumen() {
 		return
 	}
 	liste := lies(alle)
-	sort.Slice(liste, func(i, j int) bool { return liste[i].Anzahl < liste[j].Anzahl })
+	sort.Slice(liste, func(i, j int) bool { return liste[i].Count < liste[j].Count })
 	for i := 0; i < len(liste)-maxEintraege; i++ {
 		_ = plugin.Delete(praefix + liste[i].Pfad)
 	}
@@ -123,8 +123,8 @@ func bildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 	// Häufigstes zuerst: das ist die Adresse, für die sich eine Weiterleitung
 	// am ehesten lohnt.
 	sort.Slice(liste, func(i, j int) bool {
-		if liste[i].Anzahl != liste[j].Anzahl {
-			return liste[i].Anzahl > liste[j].Anzahl
+		if liste[i].Count != liste[j].Count {
+			return liste[i].Count > liste[j].Count
 		}
 		return liste[i].Pfad < liste[j].Pfad
 	})
@@ -143,7 +143,7 @@ func bildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 		`</tr></thead><tbody>`)
 	for _, e := range liste {
 		fmt.Fprintf(&b, `<tr><td><code>%s</code></td><td>%d</td><td>%s</td><td>%s</td>`,
-			html.EscapeString(e.Pfad), e.Anzahl,
+			html.EscapeString(e.Pfad), e.Count,
 			html.EscapeString(kurzDatum(e.Zuletzt)), html.EscapeString(e.Herkunft))
 		// Das Formular sendet an dieselbe Adresse zurück; den Sitzungsschlüssel
 		// setzt der Host ein, das Plugin sieht ihn nie.

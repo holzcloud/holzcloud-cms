@@ -41,14 +41,14 @@ func aktion(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
 	switch form.Get("aktion") {
 	case "einstellungen":
 		e := einstellungen{
-			PreisFeld:       strings.TrimSpace(form.Get("preis_feld")),
-			EinheitFeld:     strings.TrimSpace(form.Get("einheit_feld")),
-			ZustandFeld:     strings.TrimSpace(form.Get("zustand_feld")),
-			AusverkauftWert: strings.TrimSpace(form.Get("ausverkauft_wert")),
-			Waehrung:        strings.TrimSpace(form.Get("waehrung")),
-			Hinweis:         strings.TrimSpace(form.Get("hinweis")),
+			PriceField:   strings.TrimSpace(form.Get("preis_feld")),
+			UnitField:    strings.TrimSpace(form.Get("einheit_feld")),
+			StatusField:  strings.TrimSpace(form.Get("zustand_feld")),
+			SoldOutValue: strings.TrimSpace(form.Get("ausverkauft_wert")),
+			Waehrung:     strings.TrimSpace(form.Get("waehrung")),
+			Hint:         strings.TrimSpace(form.Get("hinweis")),
 		}
-		if e.PreisFeld == "" {
+		if e.PriceField == "" {
 			return plugin.AdminOut{Redirect: "?ansicht=einstellungen",
 				Flash: "Ohne Preisfeld weiss der Hofladen nicht, was ein Produkt ist.", FlashError: true}, nil
 		}
@@ -147,9 +147,9 @@ func einzelne(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 	b.WriteString(`<h3>Bestellt</h3><table><thead><tr>` +
 		`<th>Menge</th><th>Produkt</th><th>Einzelpreis</th></tr></thead><tbody>`)
 	for _, p := range best.Posten {
-		b.WriteString(`<tr><td>` + html.EscapeString(zahl(p.Menge)) + `</td>`)
+		b.WriteString(`<tr><td>` + html.EscapeString(zahl(p.Quantity)) + `</td>`)
 		b.WriteString(`<td><a href="/` + html.EscapeString(p.Slug) + `">` + html.EscapeString(p.Titel) + `</a></td>`)
-		preis := best.Waehrung + " " + p.Preis
+		preis := best.Waehrung + " " + p.Price
 		if p.Einheit != "" {
 			preis += " / " + p.Einheit
 		}
@@ -173,10 +173,10 @@ func einzelne(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 	b.WriteString(`<dt>E-Mail</dt><dd><a href="mailto:` + html.EscapeString(best.Email) + `">` +
 		html.EscapeString(best.Email) + `</a></dd>`)
 	zeile("Telefon", best.Telefon)
-	zeile("Adresse", best.Adresse)
+	zeile("Adresse", best.Address)
 	zeile("Bemerkung", best.Bemerkung)
 	zeile("Eingegangen", kurzesDatum(best.Eingegangen))
-	zeile("Bestellt auf", best.Seite)
+	zeile("Bestellt auf", best.Page)
 	b.WriteString(`</dl>`)
 
 	b.WriteString(`<form method="POST"><input type="hidden" name="id" value="` +
@@ -227,19 +227,19 @@ func einstellungsbildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 		}
 		b.WriteString(`</p>`)
 	}
-	eingabe("preis_feld", "Kennung des Preisfeldes", e.PreisFeld,
+	eingabe("preis_feld", "Kennung des Preisfeldes", e.PriceField,
 		"Ist dieses Feld an einer Seite ausgefüllt, ist die Seite ein Produkt.")
-	eingabe("einheit_feld", "Kennung des Einheitsfeldes", e.EinheitFeld,
+	eingabe("einheit_feld", "Kennung des Einheitsfeldes", e.UnitField,
 		"Freiwillig. Steht hinter dem Preis: „pro Kilo“.")
-	eingabe("zustand_feld", "Kennung des Verfügbarkeitsfeldes", e.ZustandFeld,
+	eingabe("zustand_feld", "Kennung des Verfügbarkeitsfeldes", e.StatusField,
 		"Freiwillig. Wird neben dem Produkt angezeigt.")
-	eingabe("ausverkauft_wert", "Wert, der „nicht bestellbar“ heisst", e.AusverkauftWert,
+	eingabe("ausverkauft_wert", "Wert, der „nicht bestellbar“ heisst", e.SoldOutValue,
 		"Trägt das Verfügbarkeitsfeld diesen Wert, gibt es kein Mengenfeld.")
 	eingabe("waehrung", "Währung", e.Waehrung, "Steht vor dem Preis.")
 
 	b.WriteString(`<p><label for="e_hinweis">Hinweis über dem Formular</label>`)
 	b.WriteString(`<textarea id="e_hinweis" name="hinweis" rows="3">` +
-		html.EscapeString(e.Hinweis) + `</textarea>`)
+		html.EscapeString(e.Hint) + `</textarea>`)
 	b.WriteString(`<span>Hierhin gehört, wie geliefert und wie bezahlt wird — beides passiert ausserhalb dieses Programms.</span></p>`)
 
 	b.WriteString(`<p><button type="submit">Speichern</button></p></form>`)
@@ -255,7 +255,7 @@ func zusammenfassung(b bestellung) string {
 			teile = append(teile, "…")
 			break
 		}
-		teile = append(teile, zahl(p.Menge)+" × "+p.Titel)
+		teile = append(teile, zahl(p.Quantity)+" × "+p.Titel)
 	}
 	return strings.Join(teile, ", ")
 }
