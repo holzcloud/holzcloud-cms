@@ -7,18 +7,18 @@ import (
 	"testing"
 )
 
-// Diese Tests laufen nativ, nicht in WebAssembly. Genau das sollen sie zeigen:
-// ein Plugin-Autor kann seine Haken mit gewöhnlichem `go test` prüfen und
-// braucht die wasm-Werkzeugkette erst, wenn er das Modul haben will.
+// These tests run natively, not in WebAssembly. That is exactly what they are
+// meant to show: a plugin author can check their hooks with an ordinary
+// `go test` and only needs the wasm toolchain once they want the module.
 
-func zuruecksetzen() {
+func reset() {
 	onContent, onRequest, onRoute, onAdmin, onEvent = nil, nil, nil, nil, nil
 	warned = false
 	SetTestHost(nil)
 }
 
-func TestInhaltsHakenLaeuftUeberDieEchteVerpackung(t *testing.T) {
-	zuruecksetzen()
+func TestTheContentHookRunsThroughTheRealEnvelope(t *testing.T) {
+	reset()
 	OnContent(func(in ContentIn) (ContentOut, error) {
 		html := strings.ReplaceAll(in.HTML, "[[jahr]]", "2026")
 		return ContentOut{HTML: html, Changed: html != in.HTML}, nil
@@ -34,47 +34,47 @@ func TestInhaltsHakenLaeuftUeberDieEchteVerpackung(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !out.Changed || out.HTML != "© 2026" {
-		t.Errorf("Antwort: %+v", out)
+		t.Errorf("answer: %+v", out)
 	}
 }
 
-func TestNichtRegistrierterHakenSchweigt(t *testing.T) {
-	zuruecksetzen()
+func TestAHookThatIsNotRegisteredStaysSilent(t *testing.T) {
+	reset()
 	OnContent(func(ContentIn) (ContentOut, error) { return ContentOut{}, nil })
 
-	// "request" ist nicht registriert. Das ist kein Fehler: das Manifest darf
-	// einen Haken nennen, den erst eine spätere Fassung behandelt.
+	// "request" is not registered. That is not an error: a manifest may name a
+	// hook that only a later version handles.
 	raw, err := Dispatch("request", []byte(`{}`))
 	if err != nil || raw != nil {
 		t.Errorf("raw=%q err=%v", raw, err)
 	}
 }
 
-func TestUnbekannterHakenIstEinFehler(t *testing.T) {
-	zuruecksetzen()
+func TestAnUnknownHookIsAnError(t *testing.T) {
+	reset()
 	OnContent(func(ContentIn) (ContentOut, error) { return ContentOut{}, nil })
 	if _, err := Dispatch("gibtsnicht", []byte(`{}`)); err == nil {
-		t.Error("ein unbekannter Haken wurde angenommen")
+		t.Error("an unknown hook was accepted")
 	}
 }
 
-func TestFehlerAusDemHakenWirdWeitergereicht(t *testing.T) {
-	zuruecksetzen()
-	eigen := errors.New("etwas ging schief")
-	OnContent(func(ContentIn) (ContentOut, error) { return ContentOut{}, eigen })
-	if _, err := Dispatch("content", []byte(`{}`)); !errors.Is(err, eigen) {
-		t.Errorf("erwartet %v, bekommen %v", eigen, err)
+func TestAnErrorFromTheHookIsPassedOn(t *testing.T) {
+	reset()
+	own := errors.New("something went wrong")
+	OnContent(func(ContentIn) (ContentOut, error) { return ContentOut{}, own })
+	if _, err := Dispatch("content", []byte(`{}`)); !errors.Is(err, own) {
+		t.Errorf("wanted %v, got %v", own, err)
 	}
 }
 
-func TestOhneRegistrierungWirdGewarnt(t *testing.T) {
-	zuruecksetzen()
-	var zeilen []string
+func TestNotRegisteringAnythingIsWarnedAbout(t *testing.T) {
+	reset()
+	var lines []string
 	SetTestHost(func(op string, arg []byte) ([]byte, error) {
 		if op == "log" {
 			var a struct{ Message string }
 			json.Unmarshal(arg, &a)
-			zeilen = append(zeilen, a.Message)
+			lines = append(lines, a.Message)
 		}
 		return nil, nil
 	})
@@ -82,22 +82,22 @@ func TestOhneRegistrierungWirdGewarnt(t *testing.T) {
 	Dispatch("content", []byte(`{}`))
 	Dispatch("content", []byte(`{}`))
 
-	// Der Fehler, den jeder Autor genau einmal macht. Ohne diese Warnung ist
-	// das Plugin still und sieht richtig aus, und das einzige Anzeichen ist
-	// eine Funktion, die nicht passiert.
-	if len(zeilen) != 1 {
-		t.Fatalf("%d Warnungen, erwartet genau eine: %v", len(zeilen), zeilen)
+	// The mistake every author makes exactly once. Without this warning the
+	// plugin is silent and looks correct, and the only symptom is a feature
+	// that does not happen.
+	if len(lines) != 1 {
+		t.Fatalf("%d warnings, wanted exactly one: %v", len(lines), lines)
 	}
-	if !strings.Contains(zeilen[0], "init") || !strings.Contains(zeilen[0], "main") {
-		t.Errorf("die Warnung nennt die Ursache nicht: %q", zeilen[0])
+	if !strings.Contains(lines[0], "init") || !strings.Contains(lines[0], "main") {
+		t.Errorf("the warning does not name the cause: %q", lines[0])
 	}
 }
 
-func TestSpeicherzugriffeGehenAlsJSONHinaus(t *testing.T) {
-	zuruecksetzen()
-	var gesehen []string
+func TestStorageCallsGoOutAsJSON(t *testing.T) {
+	reset()
+	var seen []string
 	SetTestHost(func(op string, arg []byte) ([]byte, error) {
-		gesehen = append(gesehen, op+" "+string(arg))
+		seen = append(seen, op+" "+string(arg))
 		switch op {
 		case "store.get":
 			return json.Marshal(map[string]any{"value": "grün", "found": true})
@@ -121,48 +121,48 @@ func TestSpeicherzugriffeGehenAlsJSONHinaus(t *testing.T) {
 		t.Errorf("List: %v %v", m, err)
 	}
 
-	// Der globale Raum muss als solcher hinausgehen, sonst landet eine
-	// Einstellung bei einer einzelnen Website.
-	if !strings.Contains(gesehen[2], `"global":true`) {
-		t.Errorf("GlobalSet ging nicht global hinaus: %s", gesehen[2])
+	// The global space has to go out as such, or a setting meant for the whole
+	// installation lands on a single website.
+	if !strings.Contains(seen[2], `"global":true`) {
+		t.Errorf("GlobalSet did not go out globally: %s", seen[2])
 	}
-	if strings.Contains(gesehen[1], `"global"`) {
-		t.Errorf("Set ging unnötig global hinaus: %s", gesehen[1])
+	if strings.Contains(seen[1], `"global"`) {
+		t.Errorf("Set went out global without needing to: %s", seen[1])
 	}
 }
 
-func TestVerweigerteBerechtigungKommtAlsErrDenied(t *testing.T) {
-	zuruecksetzen()
+func TestARefusedPermissionArrivesAsErrDenied(t *testing.T) {
+	reset()
 	SetTestHost(func(string, []byte) ([]byte, error) { return nil, ErrDenied })
 
-	// Ein Plugin, das scheinbar speichert und es nicht tut, ist schlimmer als
-	// eines, das aufhört — der Fehler muss beim Autor ankommen.
+	// A plugin that appears to store and does not is worse than one that stops
+	// — the error has to reach the author.
 	if err := Set("x", "y"); !errors.Is(err, ErrDenied) {
-		t.Errorf("erwartet ErrDenied, bekommen: %v", err)
+		t.Errorf("wanted ErrDenied, got: %v", err)
 	}
 	if _, _, err := Get("x"); !errors.Is(err, ErrDenied) {
-		t.Errorf("erwartet ErrDenied, bekommen: %v", err)
+		t.Errorf("wanted ErrDenied, got: %v", err)
 	}
 }
 
-func TestOhneHostGibtEsEinenKlarenFehler(t *testing.T) {
-	zuruecksetzen()
+func TestWithoutAHostTheErrorIsAClearOne(t *testing.T) {
+	reset()
 	if err := Set("x", "y"); err == nil {
-		t.Error("ohne Host wurde ein Schreibvorgang gemeldet, als sei er gelungen")
+		t.Error("without a host a write was reported as though it had succeeded")
 	}
 }
 
-func TestEreignisHakenBekommtDieDaten(t *testing.T) {
-	zuruecksetzen()
-	var gesehen EventIn
-	OnEvent(func(in EventIn) error { gesehen = in; return nil })
+func TestTheEventHookGetsTheData(t *testing.T) {
+	reset()
+	var seen EventIn
+	OnEvent(func(in EventIn) error { seen = in; return nil })
 
 	in, _ := json.Marshal(EventIn{Name: EventNotFound, WebsiteID: 4,
 		Data: map[string]string{"path": "/alte-seite"}})
 	if _, err := Dispatch("event", in); err != nil {
 		t.Fatal(err)
 	}
-	if gesehen.Name != EventNotFound || gesehen.Data["path"] != "/alte-seite" {
-		t.Errorf("Ereignis: %+v", gesehen)
+	if seen.Name != EventNotFound || seen.Data["path"] != "/alte-seite" {
+		t.Errorf("event: %+v", seen)
 	}
 }
