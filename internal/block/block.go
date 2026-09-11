@@ -509,7 +509,7 @@ func keepFields(own Own, values map[string]string) map[string]string {
 		if !ok {
 			continue
 		}
-		if d.Kind != field.KindLink && field.Check(d, v) != "" {
+		if d.Kind != field.KindLink && !field.Check(d, v).Empty() {
 			continue
 		}
 		out[d.Key] = v

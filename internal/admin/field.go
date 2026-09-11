@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -244,8 +245,32 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	case errors.Is(err, field.ErrTooMany):
 		web.SetFlashError(h.sm, r.Context(),
 			"Mehr Felder werden nicht angelegt — ein Formular, das so lang ist, füllt niemand richtig aus.")
+	// The three carriers a field can hang off, answered by name.
+	//
+	// They were missing from this switch, so they fell through to err.Error()
+	// below — and the store composes them with fmt.Errorf("%w: %s", …,
+	// "gehört zu einer anderen Website"), which no catalogue can hold whichever
+	// half is marked. Reachable by posting a baustein= id that belongs to
+	// another website, which this handler does not pre-check (it pre-checks
+	// only snippetID, above).
+	case errors.Is(err, field.ErrNoGroup):
+		web.SetFlashError(h.sm, r.Context(),
+			"Diese Gruppe gibt es nicht, oder sie gehört zu einer anderen Website.")
+	case errors.Is(err, field.ErrNoSnippet):
+		web.SetFlashError(h.sm, r.Context(),
+			"Diesen Textbaustein gibt es nicht, oder er gehört zu einer anderen Website.")
+	case errors.Is(err, field.ErrNoBlockType):
+		web.SetFlashError(h.sm, r.Context(),
+			"Diese Bausteinart gibt es nicht, oder sie gehört zu einer anderen Website.")
 	case err != nil:
-		web.SetFlashError(h.sm, r.Context(), err.Error())
+		// What is left is a database failure, and its text is a German
+		// fmt.Errorf wrap around a driver message ("feld anlegen: database is
+		// locked"). Putting that on a screen answered an English admin in two
+		// languages at once and told the operator nothing they could act on.
+		// The sentence they read is a collected one; the wrap goes to the log,
+		// where its detail is worth something.
+		slog.Error("save field", "err", err, "website", websiteID)
+		web.SetFlashError(h.sm, r.Context(), "Speichern fehlgeschlagen.")
 	case id > 0:
 		web.SetFlashSuccess(h.sm, r.Context(), "Feld geändert.")
 	default:

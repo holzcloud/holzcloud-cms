@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"io"
 	"net/http"
 	"path"
@@ -1012,7 +1013,7 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 			result.Repeated++
 		}
 
-		v, _, _ := csvimport.CheckRow(defs, row, m, existing, upload.Collision)
+		v, _, _ := csvimport.CheckRow(defs, row, m, existing, upload.Collision, i18n.Lang(ctx))
 		if v.Outcome == csvimport.OutcomeCreate && slug != "" {
 			// Only a row that really creates takes an address. A row refused
 			// for its title or its status creates nothing, so the row below it
@@ -1238,7 +1239,7 @@ func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error
 	// website yet, so there is nothing to read field definitions from, and
 	// answering 404 there hands the operator a bare error page from the very
 	// download they were just told to use.
-	header, sample := csvExampleColumns(defs)
+	header, sample := csvExampleColumns(defs, i18n.Lang(r.Context()))
 	body, err := csv.Example(header, [][]string{sample})
 	if err != nil {
 		return err
@@ -1293,8 +1294,24 @@ func csvExampleFilename(name string) string {
 // position, id), the order they stand in on the field screen, and a definition
 // csvimport.Mappable refuses gets no column at all: offering a heading no cell
 // could ever fill would be a promise the dry run then breaks.
-func csvExampleColumns(defs []field.Def) (header, sample []string) {
-	header = []string{"Titel", "Adresse", "Text", "Zustand", "Schlagwörter"}
+// lang is the operator's, and it reaches the HEADING row only.
+//
+// The heading is what the operator reads to know what the column is for, and
+// csvimport.fixedSpellings knows the translated spellings, so a Spanish example
+// filled in and uploaded maps back onto the same targets. The SAMPLE row below
+// is deliberately not translated: "entwurf" is a member of the status
+// vocabulary that the importer reads back (row.go, statusVocabulary), which
+// knows German and English and not Spanish, French or Italian. Translating the
+// cells would hand an operator a file this program then refuses — worse than a
+// German word in a row they overwrite anyway.
+func csvExampleColumns(defs []field.Def, lang string) (header, sample []string) {
+	header = []string{
+		i18n.T(lang, i18n.N("Titel")),
+		i18n.T(lang, i18n.N("Adresse")),
+		i18n.T(lang, i18n.N("Text")),
+		i18n.T(lang, i18n.N("Zustand")),
+		i18n.T(lang, i18n.N("Schlagwörter")),
+	}
 	sample = []string{"Beispielseite", "beispielseite", "Ein Satz über die Seite.", "entwurf", "Beispiel|Muster"}
 	for _, d := range defs {
 		if !csvimport.Mappable(d.Kind) {

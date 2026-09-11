@@ -271,7 +271,7 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 	// checkFields, denn das legt `field.For` mit einer Seitenart darum, und
 	// ein Textbaustein hat keine.
 	defs := h.snippetFieldDefs(r.Context(), websiteID, values.ID)
-	fieldErrs := field.CheckAll(defs, values.Fields)
+	fieldErrs := reasonTexts(r.Context(), field.CheckAll(defs, values.Fields))
 	if len(fieldErrs) > 0 {
 		data.FieldViews = fieldViews(defs, values.Fields, data.pool(), fieldErrs)
 		for _, reason := range fieldErrs {

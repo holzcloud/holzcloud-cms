@@ -140,24 +140,24 @@ func TestFeldNameTraegtDieMarkierung(t *testing.T) {
 func TestMehrfachauswahlPruefung(t *testing.T) {
 	d := Def{Label: "Sorten", Kind: KindMulti, Choices: []string{"Eiche", "Buche", "Esche"}}
 
-	if reason := Check(d, JoinValues([]string{"Eiche", "Esche"})); reason != "" {
+	if reason := Check(d, JoinValues([]string{"Eiche", "Esche"})); !reason.Empty() {
 		t.Errorf("Check auf zwei gültige Werte = %q, erwartet in Ordnung", reason)
 	}
 	reason := Check(d, JoinValues([]string{"Eiche", "Ahorn"}))
-	if reason == "" {
+	if reason.Empty() {
 		t.Fatal("„Ahorn“ wurde durchgelassen")
 	}
-	if !strings.Contains(reason, "Ahorn") {
+	if !strings.Contains(reason.String(), "Ahorn") {
 		t.Errorf("die Meldung nennt den fehlerhaften Wert nicht: %q", reason)
 	}
 	// Leer auf einem freiwilligen Feld ist in Ordnung, auf einem Pflichtfeld
 	// nicht — das entscheidet die Wache oben in Check und muss so bleiben.
-	if reason := Check(d, ""); reason != "" {
+	if reason := Check(d, ""); !reason.Empty() {
 		t.Errorf("leer auf einem freiwilligen Feld = %q", reason)
 	}
 	pflicht := d
 	pflicht.Required = true
-	if reason := Check(pflicht, ""); reason == "" {
+	if reason := Check(pflicht, ""); reason.Empty() {
 		t.Error("leer auf einem Pflichtfeld wurde durchgelassen")
 	}
 }

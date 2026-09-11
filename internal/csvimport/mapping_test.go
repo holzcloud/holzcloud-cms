@@ -55,20 +55,28 @@ func TestFoldHeaderComposesCombiningUmlauts(t *testing.T) {
 // One word must yield one key, and which key it is does not matter — only that
 // the two spellings Unicode allows meet. They did not: settleMarks composed the
 // diaeresis back for a, o and u and dropped every other mark while KEEPING its
-// base, so "Café" written NFC folded to "caf" (SlugifyKey drops the precomposed
-// é whole) and the same word written NFD folded to "cafe". A field whose label
-// is "Café" carries the key "caf", so a spreadsheet exported by anything that
-// normalises to NFD produced a heading that did not match its own field and
-// landed unmapped with no note against it.
+// base, so "Café" written NFC folded to "caf" (SlugifyKey dropped the
+// precomposed é whole) and the same word written NFD folded to "cafe". A
+// spreadsheet exported by anything that normalises to NFD produced a heading
+// that did not match its own field and landed unmapped with no note against it.
+//
+// The wanted keys changed in v2.0, and the property did not. SlugifyKey used to
+// carry its own four-entry transliteration list and dropped every other accented
+// letter; it now goes through page.Transliterate, which has known the full
+// Latin-1 set all along. So the key for "Café" is "cafe" and not "caf" — the
+// letter is transliterated instead of lost, in the header fold and in the label
+// the field was created from alike. Only NEW field keys move: a key is minted
+// once and then stands, which is what keeps a page's values when a label is
+// reworded.
 func TestFoldHeaderAgreesOnEveryOtherAccent(t *testing.T) {
 	// Escapes and not literals: which normalisation a literal would carry is
 	// the very question under test.
 	for _, c := range []struct{ name, nfc, nfd, want string }{
-		{"e acute", "Caf\u00E9", "Cafe\u0301", "caf"},
-		{"n tilde", "A\u00F1o", "An\u0303o", "ao"},
-		{"c cedilla", "Fa\u00E7ade", "Fac\u0327ade", "faade"},
-		{"a ring", "M\u00E5l", "Ma\u030Al", "ml"},
-		{"s caron", "\u0160kola", "S\u030Ckola", "kola"},
+		{"e acute", "Caf\u00E9", "Cafe\u0301", "cafe"},
+		{"n tilde", "A\u00F1o", "An\u0303o", "ano"},
+		{"c cedilla", "Fa\u00E7ade", "Fac\u0327ade", "facade"},
+		{"a ring", "M\u00E5l", "Ma\u030Al", "mal"},
+		{"s caron", "\u0160kola", "S\u030Ckola", "skola"},
 	} {
 		if c.nfc == c.nfd {
 			t.Fatalf("%s: the two spellings are the same string, so this case proves nothing", c.name)
@@ -87,12 +95,14 @@ func TestFoldHeaderAgreesOnEveryOtherAccent(t *testing.T) {
 
 // TestFoldCellKeepsTheBaseLetter (WR-01, the other consumer): a CELL is folded
 // through page.Transliterate, which writes é out as "e", so there the base
-// letter has to be KEPT — dropping it would break the agreement the header fold
-// needs it dropped to reach.
+// letter has to be KEPT.
 //
-// Asserted because the two folds are one loop with one flag, and a later change
-// to the flag would silently move a whole status column outside its own closed
-// vocabulary.
+// Since v2.0 the header fold keeps it too — SlugifyKey transliterates rather
+// than drops, so there is nothing left for the two folds to do differently and
+// they are one function. The test stays, because the cell path has its own
+// consumers (the status vocabulary, the janein vocabulary) and a later change
+// that reintroduced a second fold would silently move a whole status column
+// outside its own closed vocabulary.
 func TestFoldCellKeepsTheBaseLetter(t *testing.T) {
 	const nfc = "Caf\u00E9"  // LATIN SMALL LETTER E WITH ACUTE, one rune
 	const nfd = "Cafe\u0301" // 'e' followed by COMBINING ACUTE ACCENT, two runes

@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"net/http"
 	"strconv"
 	"strings"
@@ -419,8 +421,28 @@ func (h *Handler) fieldDefs(ctx context.Context, websiteID int64) []field.Def {
 
 // checkFields validates the submitted values against the definitions that
 // apply to this kind of page, and returns the reasons by field key.
-func checkFields(defs []field.Def, pageKind string, data field.Data) map[string]string {
+func checkFields(defs []field.Def, pageKind string, data field.Data) map[string]field.Reason {
 	return field.CheckAll(field.For(defs, pageKind), data)
+}
+
+// reasonTexts renders a field.Reason map into the language of the person who
+// submitted the form.
+//
+// The rendering happens here, at the edge of the admin, and not inside
+// internal/field: a Reason is a format and its arguments precisely so that the
+// language can be chosen as late as possible, and the latest possible point is
+// the request. Everything downstream — the error list, the message beside the
+// input — takes plain strings and always did.
+func reasonTexts(ctx context.Context, errs map[string]field.Reason) map[string]string {
+	if len(errs) == 0 {
+		return nil
+	}
+	lang := i18n.Lang(ctx)
+	out := make(map[string]string, len(errs))
+	for key, reason := range errs {
+		out[key] = reason.Text(lang)
+	}
+	return out
 }
 
 // fieldImages resolves media ids for a website, for rendering.

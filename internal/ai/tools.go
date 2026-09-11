@@ -3,6 +3,7 @@ package ai
 import (
 	"errors"
 	"fmt"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
@@ -668,7 +669,7 @@ func pruefeFelder(c Call, d Deps, websiteID int64, pageKind string, daten field.
 	}
 	mine := field.For(defs, pageKind)
 	for _, reason := range field.CheckAll(mine, daten) {
-		return "", reason, nil
+		return "", reason.Text(i18n.Lang(c.Ctx)), nil
 	}
 	raw, err := field.Encode(field.Clean(mine, daten))
 	return raw, "", err

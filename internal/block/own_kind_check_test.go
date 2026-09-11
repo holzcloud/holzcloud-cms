@@ -50,7 +50,7 @@ func TestCleanRefusesWhatCheckRefusesInAnOwnKind(t *testing.T) {
 	// Each refused value is named against its own field, so a failure says
 	// which kind still gets through rather than that something did.
 	for _, d := range checkedKind().Own[0].Fields {
-		if reason := field.Check(d, in[d.Key]); reason == "" {
+		if reason := field.Check(d, in[d.Key]); reason.Empty() {
 			t.Fatalf("the probe is wrong: field.Check accepts %s=%q", d.Key, in[d.Key])
 		}
 	}
