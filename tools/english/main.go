@@ -116,6 +116,45 @@ var fixtures = map[string]bool{
 	"internal/template/sample.go": true,
 }
 
+// germanVoice are the files whose string literals are the product speaking
+// German to a visitor, and the standing exception this milestone did not close.
+//
+// .planning/phases/12-codebase-speaks-english/12-CONTEXT.md §3b is the decision
+// and carries the reason in full: the public FuncMap has no `t` at all, so the
+// shipped themes have no translation channel, and giving one to the checkout
+// while the theme around it stays German would be half a feature rather than
+// half a cleanup. Until that is decided, these sentences stay where a reader
+// can see them rather than being hidden behind a waiver comment on every line.
+//
+// Each one is a sentence a CUSTOMER reads — the checkout, the cart, the order
+// e-mails, the VAT wording, the month names — or, in kind.go, the two words
+// this CMS calls its own built-in kinds. None of them is an operator's screen:
+// those go through the catalogue and are this gate's business.
+//
+// Comments and identifiers in these files are NOT exempt — only the content.
+var germanVoice = map[string]bool{
+	"internal/public/access.go":   true,
+	"internal/public/cart.go":     true,
+	"internal/public/checkout.go": true,
+	"internal/public/pagedata.go": true,
+	"internal/shop/cart.go":       true,
+	"internal/shop/order.go":      true,
+	"internal/shop/product.go":    true,
+	"internal/outbox/compose.go":  true,
+	"internal/money/money.go":     true,
+	"internal/template/dates.go":  true,
+	"internal/kind/kind.go":       true,
+	// The names of the languages and the regions, each written the way its own
+	// speakers write it: "Türkçe", "Österreich". Data, not prose, and the one
+	// place where translating would be actively wrong.
+	"internal/i18n/i18n.go":     true,
+	"internal/locale/locale.go": true,
+	// The gate and the rename tool both carry the German alphabet as a
+	// character class. That is the subject matter itself.
+	"tools/english/main.go": true,
+	"tools/rename/main.go":  true,
+}
+
 type finding struct {
 	path string
 	line int
@@ -205,7 +244,8 @@ func check(path string) []finding {
 		return nil
 	}
 	isTest := strings.HasSuffix(path, "_test.go")
-	isFixture := fixtures[strings.TrimPrefix(filepath.ToSlash(path), "./")]
+	clean := strings.TrimPrefix(filepath.ToSlash(path), "./")
+	isFixture := fixtures[clean] || germanVoice[clean]
 	lines := strings.Split(string(src), "\n")
 	waived := map[int]bool{}
 	for i, l := range lines {
