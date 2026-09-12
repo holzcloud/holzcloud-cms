@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
@@ -18,7 +19,7 @@ import (
 // The example plugin from plugins/jahreszahl, built with the SDK, against the
 // real runtime. It checks the chain as a whole: SDK, calling convention, host,
 // permissions and the plugin's own store.
-func TestBeispielPluginLaeuftDurch(t *testing.T) {
+func TestTheExamplePluginRunsThrough(t *testing.T) {
 	module := wasmtest.Module(t, "../../plugins/jahreszahl/plugin.wasm")
 	raw, err := os.ReadFile("../../plugins/jahreszahl/plugin.json")
 	if err != nil {
@@ -85,11 +86,25 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		plugin.AdminIn{WebsiteID: 1, Method: "GET"}, &admin); err != nil {
 		t.Fatal(err)
 	}
-	if admin.Title != "Jahreszahl" || !strings.Contains(admin.HTML, "Bisher ersetzt") {
-		t.Errorf("Admin-Bildschirm: %+v", admin)
+	if admin.Title != "Year" || !strings.Contains(admin.HTML, "Replaced so far") {
+		t.Errorf("admin screen: %+v", admin)
 	}
 	if !strings.Contains(admin.HTML, ">1<") {
 		t.Errorf("the counter is not on the screen: %s", admin.HTML)
+	}
+
+	// And the same screen in the operator's language, which is the whole of the
+	// plugin translation channel driven end to end: sdk.T asks the host, the
+	// host reads the language out of THIS context and looks the sentence up in
+	// its own catalogue. Without the context the call above fell back to the
+	// source language, which is the other half of the promise.
+	var german plugin.AdminOut
+	if err := r.Dispatch(i18n.WithLang(ctx, "de"), m.ID, plugin.HookAdmin, 1,
+		plugin.AdminIn{WebsiteID: 1, Method: "GET"}, &german); err != nil {
+		t.Fatal(err)
+	}
+	if german.Title != "Jahreszahl" || !strings.Contains(german.HTML, "Bisher ersetzt") {
+		t.Errorf("the admin screen did not arrive in German: %+v", german)
 	}
 	_ = json.Marshal
 }

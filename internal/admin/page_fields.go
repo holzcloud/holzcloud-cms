@@ -234,30 +234,45 @@ func viewOf(d field.Def, under map[string][]field.Def, seen map[string]bool,
 // is part of the answer: a choice drawn as a row of buttons has the same kind
 // as one drawn as a drop-down and needs a different rule.
 //
-//   - "knopfreihe" — a choice as a row of buttons. Its rule matches the
+//   - switchButtonRow — a choice as a row of buttons. Its rule matches the
 //     checked radio carrying the empty value; the drop-down's rule looks for
 //     an <option>, and a row of radios has none.
-//   - "auswahl" — a drop-down with an empty first option: a choice, a picture,
-//     a reference, a label. The rule reads which option is chosen.
-//   - "kreuz" — something ticked: a yes/no box, and a multiple choice, whose
-//     control is a group of check boxes. The hidden sentinel before that group
-//     is never checked and cannot make the rule fire.
-//   - "text" — everything typed, which still shows its placeholder or no
+//   - switchChoice — a drop-down with an empty first option: a choice, a
+//     picture, a reference, a label. The rule reads which option is chosen.
+//   - switchTicked — something ticked: a yes/no box, and a multiple choice,
+//     whose control is a group of check boxes. The hidden sentinel before that
+//     group is never checked and cannot make the rule fire.
+//   - switchTyped — everything typed, which still shows its placeholder or no
 //     longer does. A range field and a code field are here, and both carry
 //     placeholder=" " for exactly that reason.
 func switchOf(d field.Def) string {
 	if d.IsButtonRow() {
-		return "knopfreihe"
+		return switchButtonRow
 	}
 	switch d.Kind {
 	case field.KindBool, field.KindMulti:
-		return "kreuz"
+		return switchTicked
 	case field.KindChoice, field.KindImage, field.KindRef, field.KindTerm:
-		return "auswahl"
+		return switchChoice
 	default:
-		return "text"
+		return switchTyped
 	}
 }
+
+// The four switch names, bound once.
+//
+// They are German because they are the second half of a CSS class name that
+// stands in cmd/holzcloud/assets/admin.css — .feld-schalter--knopfreihe and its
+// three siblings — and a stylesheet an operator may have overridden is the same
+// kind of promise as a stored value. Renaming them is a theme break for a
+// rename no reader benefits from; binding them here is what a reader needs, and
+// it is the rule LANG-08 states for every German word left standing in Go.
+const (
+	switchButtonRow = "knopfreihe"
+	switchChoice    = "auswahl"
+	switchTicked    = "kreuz"
+	switchTyped     = "text"
+)
 
 // groupView builds one group with its rows.
 func groupView(d field.Def, rows []field.Values, p pool, errs map[string]string) FieldView {

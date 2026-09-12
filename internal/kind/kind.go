@@ -72,8 +72,24 @@ func (t Type) SortsByTitle() bool { return t.Sort == SortTitle }
 // nobody could tell apart from the built-in one.
 var reserved = map[string]bool{
 	Page: true, Post: true,
-	"seite": true, "beitrag": true, "beides": true, "alle": true, "": true,
+	FilterPage: true, FilterPost: true, FilterBoth: true, FilterAll: true,
+	"": true,
 }
+
+// The four German words this package keeps for itself, bound once.
+//
+// They are STORED values — they stand in a saved filter and in a field's
+// "applies to" column — and LANG-08 states why they stay German and why each is
+// named exactly once. The first three are the same words as field.ForPage,
+// field.ForPost and field.ForBoth; they are written out here rather than
+// imported, because importing internal/field would pull internal/page and
+// internal/auth into a package that is a name, a plural and an order.
+const (
+	FilterPage = "seite"
+	FilterPost = "beitrag"
+	FilterBoth = "beides"
+	FilterAll  = "alle"
+)
 
 // Reserved reports whether a key is one this program keeps for itself.
 func Reserved(key string) bool { return reserved[strings.ToLower(strings.TrimSpace(key))] }
