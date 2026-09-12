@@ -49,7 +49,7 @@ func NormalizeDomain(raw string) (string, error) {
 		return "", errors.New("domain is too long")
 	}
 
-	// Browsers send internationalised names in their punycode form, so "möbel.de"
+	// Browsers send internationalised names in their punycode form, so "möbel.de" //nolint:german — the example domain
 	// has to be stored as "xn--mbel-5qa.de" or it could never match a Host header.
 	ascii, err := idna.Lookup.ToASCII(d)
 	if err != nil {

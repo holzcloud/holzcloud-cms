@@ -16,7 +16,7 @@ import (
 type LanguageChoice struct {
 	// Code is the stored value: empty for the main language.
 	Code string
-	// Name is what an editor reads: "Deutsch", "Französisch".
+	// Name is what an editor reads: "Deutsch", "Französisch". //nolint:german — the names a German editor sees
 	Name string
 	// Selected marks the language this page is in.
 	Selected bool
@@ -219,8 +219,8 @@ func (h *Handler) HandlePageTranslate(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	// Zusammengesetzt, also vorher übersetzt: SetFlashSuccess schlägt den ganzen
-	// Satz nach, und einen in Go zusammengeklebten findet es nie.
+	// Assembled, so translated beforehand: SetFlashSuccess looks up the whole
+	// sentence, and one glued together in Go it never finds.
 	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r,
 		"%s: draft created from the original — now translate the text and the address",
 		web.T(r, locale.Name(tag))))

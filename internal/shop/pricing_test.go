@@ -1,8 +1,8 @@
 package shop
 
-// Die Preisliterale hier tragen U+00A0 zwischen Währung und Zahl — sichtbar
-// als \u00a0 geschrieben, weil ein rohes geschütztes Leerzeichen im Quelltext
-// nicht von einem gewöhnlichen zu unterscheiden ist.
+// The price literals here carry U+00A0 between the currency and the number —
+// written visibly as \u00a0, because a raw non-breaking space in the source
+// cannot be told apart from an ordinary one.
 import (
 	"net/http"
 	"net/http/httptest"

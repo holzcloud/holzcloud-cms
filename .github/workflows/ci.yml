@@ -15,10 +15,10 @@ permissions:
 env:
   # Pure-Go SQLite driver: the binary must build without a C toolchain.
   CGO_ENABLED: "0"
-  # Ein Test, der sich selbst überspringt, meldet grün und prüft nichts. Auf
-  # einem Läufer ist ein fehlendes Plugin-Modul deshalb ein Fehler; auf einem
-  # Entwicklungsrechner bleibt es einer von mehreren guten Gründen, nur einen
-  # Teil des Baums ausgecheckt zu haben.
+  # A test that skips itself reports green and checks nothing. On a runner a
+  # missing plugin module is therefore a fault; on a development machine it
+  # stays one of several good reasons to have checked out only part of the
+  # tree.
   HOLZCLOUD_TEST_REQUIRE_WASM: "1"
 
 jobs:
@@ -58,22 +58,34 @@ jobs:
     - name: Vet
       run: go vet ./...
 
-    # Ein festgeschriebenes .wasm im Baum ist nur dann eine Zusage, wenn jemand
-    # nachrechnet. Ohne diesen Schritt prüft eine SDK-Änderung gegen ein Modul,
-    # das vor ihr gebaut wurde — ein Grün, das nichts bedeutet. Der Schritt steht
-    # deshalb vor `go test ./...` und nicht danach: sonst wäre der Testlauf schon
-    # grün gemeldet, bevor irgendjemand die Module nachgerechnet hat.
+    # LANG-07. The source of this program is English since 2.0, and a rule that
+    # nothing enforces is a rule the next phase writes around without noticing.
+    # This one blocks, unlike the catalogue step below: a German comment is not
+    # a translation in progress, it is a regression, and it costs one line to
+    # fix at the moment it is written and an afternoon to find six months later.
+    #
+    # The tool's own package comment carries the exceptions and the reason for
+    # each; it is deliberately a program and not a grep, because a grep with no
+    # locale set confuses Ü with a typographic quotation mark and miscounts.
+    - name: No German in the Go source
+      run: go run ./tools/english
+
+    # A committed .wasm in the tree is a promise only if somebody recomputes it.
+    # Without this step an SDK change is checked against a module built before
+    # it — a green that means nothing. The step therefore stands BEFORE
+    # `go test ./...` and not after: otherwise the test run would already have
+    # been reported green before anybody recomputed the modules.
     - name: Verify the committed plugin modules are current
       run: go run ./tools/wasm -check
 
-    # Zwilling zu "Verify go.mod is tidy" weiter oben: das Erzeugte muss mit der
-    # Quelle Schritt halten, sonst beschreibt der Katalog eine Oberfläche, die es
-    # nicht mehr gibt. Der Schritt beweist NICHT, dass jede Zeichenkette übersetzt
-    # ist — -write legt einen fehlenden Schlüssel mit leerem Wert an, danach ist
-    # der Diff sauber und die Übersetzung fehlt weiterhin. Das Zählen der offenen
-    # Übersetzungen bleibt Sache des stehenden Tors, das ein Mensch mit
-    # `go run ./tools/i18n` prüft: als blockierende Prüfung würde eine
-    # Übersetzung, die berechtigterweise gerade läuft, den Bau rot färben.
+    # Twin of "Verify go.mod is tidy" above: what is generated has to keep step
+    # with the source, or the catalogue describes a surface that no longer
+    # exists. The step does NOT prove that every string is translated — -write
+    # creates a missing key with an empty value, after which the diff is clean
+    # and the translation is still missing. Counting the open translations stays
+    # the business of the standing gate a person checks with
+    # `go run ./tools/i18n`: as a blocking check, a translation legitimately in
+    # progress would turn the build red.
     - name: Verify the message catalogues are in step
       run: |
         go run ./tools/i18n -write

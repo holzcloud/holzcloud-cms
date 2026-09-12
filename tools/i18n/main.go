@@ -168,6 +168,15 @@ func main() {
 	if err := collectGo(filepath.Join(*root, "internal"), keys); err != nil {
 		fail(err)
 	}
+	// The third root, added in v2.0. The five WASM plugins in this repository
+	// are ours: they ship in the binary and an operator cannot tell their
+	// screens from the admin proper. A sentence one of them mints reaches the
+	// same person as a sentence internal/admin mints, so the gate has to report
+	// it the same way. They reach the catalogue through sdk.T, which asks the
+	// host — see .planning/phases/12-codebase-speaks-english §3a.
+	if err := collectGo(filepath.Join(*root, "plugins"), keys); err != nil {
+		fail(err)
+	}
 
 	dir := filepath.Join(*root, "internal/i18n/locales")
 	entries, err := os.ReadDir(dir)
@@ -313,7 +322,30 @@ func collectGo(dir string, keys map[string]bool) error {
 				name = fun.Name
 			}
 			at, ok := goFuncs[name]
-			if !ok || len(call.Args) <= at {
+			if !ok {
+				return true
+			}
+			// T and Tf exist in two shapes in this repository: web.T(r, s) and
+			// i18n.Tf(lang, format, …), which carry the language in front, and
+			// the SDK's T(s) and Tf(format, …), which have nothing to carry —
+			// a plugin asks the host and the host knows. So for these two names
+			// the sentence is the FIRST string literal in the call, wherever it
+			// sits. Fixing it at one index would make either the host's
+			// sentences or the plugins' invisible, and invisible is the exact
+			// failure this tool exists to prevent.
+			if name == "T" || name == "Tf" {
+				at = -1
+				for i, a := range call.Args {
+					if l, ok := a.(*ast.BasicLit); ok && l.Kind == token.STRING {
+						at = i
+						break
+					}
+				}
+				if at < 0 {
+					return true
+				}
+			}
+			if len(call.Args) <= at {
 				return true
 			}
 			lit, ok := call.Args[at].(*ast.BasicLit)

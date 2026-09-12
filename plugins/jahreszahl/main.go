@@ -53,10 +53,9 @@ func init() {
 			n = "0"
 		}
 		return plugin.AdminOut{
-			Title: "Jahreszahl",
-			HTML: "<p>Schreibe <code>" + marker + "</code> in eine Seite; " +
-				"beim Ausliefern steht dort das laufende Jahr.</p>" +
-				"<p>Bisher ersetzt: <strong>" + n + "</strong></p>",
+			Title: plugin.T("Year"),
+			HTML: plugin.Tf("<p>Write <code>%s</code> into a page; on delivery the current year stands there.</p>", marker) +
+				plugin.Tf("<p>Replaced so far: <strong>%s</strong></p>", n),
 		}, nil
 	})
 }

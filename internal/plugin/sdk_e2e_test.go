@@ -54,7 +54,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 
 	jahr := time.Now().Format("2006")
 
-	// Eine Seite ohne die Marke bleibt unangetastet.
+	// A page without the token stays untouched.
 	var out plugin.ContentOut
 	if err := r.Dispatch(ctx, m.ID, plugin.HookContent, 1,
 		plugin.ContentIn{WebsiteID: 1, HTML: "<p>nichts</p>"}, &out); err != nil {
@@ -79,7 +79,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		t.Errorf("counter: %q (%v, %v)", v, ok, err)
 	}
 
-	// Und der Admin-Haken rendert.
+	// And the admin hook renders.
 	var admin plugin.AdminOut
 	if err := r.Dispatch(ctx, m.ID, plugin.HookAdmin, 1,
 		plugin.AdminIn{WebsiteID: 1, Method: "GET"}, &admin); err != nil {

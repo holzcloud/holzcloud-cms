@@ -37,9 +37,9 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 		web.SetFlashError(h.sm, r.Context(), "No page selected")
 		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 	}
-	// Dieselbe Regel wie im Editor: wer nicht veröffentlichen darf, ändert den
-	// Zustand auch nicht über die Sammelaktion — sonst wäre die Auswahlliste
-	// die Hintertür zum Knopf, den es oben nicht gibt.
+	// The same rule as in the editor: whoever may not publish does not change
+	// the status through the bulk action either — or the selection list would be
+	// the back door to the button that is not there above.
 	if (action == "publish" || action == "unpublish") && !h.mayPublish(r) {
 		web.SetFlashError(h.sm, r.Context(),
 			"Publishing is not part of your account. Submit the page for review.")

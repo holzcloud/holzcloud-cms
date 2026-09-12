@@ -288,7 +288,7 @@ type badAlt struct {
 // simply unreadable to anyone using a screen reader. Nobody sighted will ever
 // notice, which is why it has to be caught by a machine.
 //
-// Rewriting the text automatically would be worse: "Nahida: die erste Hündin"
+// Rewriting the text automatically would be worse: "Nahida: die erste Hündin" //nolint:german — the example sentence
 // is not the author's sentence once a tool has been at it, and the author is
 // the only one who knows what it should say instead.
 func unsafeAltTexts(markdown string) []badAlt {

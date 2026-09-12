@@ -313,7 +313,7 @@ func TestImportRefusesANewerFormat(t *testing.T) {
 		t.Fatal("an archive from a newer version was accepted")
 	}
 	// Guessing would mean silently dropping the fields it did not recognise.
-	if !strings.Contains(err.Error(), "neueren") {
+	if !strings.Contains(err.Error(), "newer version") {
 		t.Errorf("the error does not explain why: %v", err)
 	}
 }

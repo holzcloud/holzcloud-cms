@@ -245,12 +245,12 @@ func accessMail(r *http.Request, u *user.User, link string, expires time.Time, p
 		return mail.Message{
 			To:      u.Email,
 			Subject: web.T(r, "Your access to Holzcloud"),
-			Body: web.Titlef(r, "Hello %s\n\nan account for the admin has been created for you. The following link is where you set your password:\n\n%s\n\nThe link is valid until %s and can be used only once.\nAfter that you sign in normally with your e-mail address.\n\nIf this means nothing to you, simply ignore this message — without the link nothing happens.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
+			Body:    web.Titlef(r, "Hello %s\n\nan account for the admin has been created for you. The following link is where you set your password:\n\n%s\n\nThe link is valid until %s and can be used only once.\nAfter that you sign in normally with your e-mail address.\n\nIf this means nothing to you, simply ignore this message — without the link nothing happens.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
 		}
 	}
 	return mail.Message{
 		To:      u.Email,
 		Subject: web.T(r, "Reset your password"),
-		Body: web.Titlef(r, "Hello %s\n\na link to reset the password has been created for your account:\n\n%s\n\nThe link is valid until %s and can be used only once.\nEvery open session of your account has already been ended.\n\nIf you did not ask for this, tell whoever looks after the server — somebody with access to the admin created this link.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
+		Body:    web.Titlef(r, "Hello %s\n\na link to reset the password has been created for your account:\n\n%s\n\nThe link is valid until %s and can be used only once.\nEvery open session of your account has already been ended.\n\nIf you did not ask for this, tell whoever looks after the server — somebody with access to the admin created this link.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
 	}
 }

@@ -214,9 +214,9 @@ func (h *Handler) HandleShareLink(w http.ResponseWriter, r *http.Request) error 
 // serveShareError explains a link that no longer works.
 func (h *Handler) serveShareError(w http.ResponseWriter, r *http.Request, website *domain.Website, cause error) error {
 	site := h.siteData(r, website)
-	// Dieselbe Fläche wie auf jeder Route, aus demselben Grund wie bei
-	// renderNotFound: gezeichnet wird die 404-Vorlage des Themes mit ihrem
-	// Fussteil, und wer hier landet, will jemanden erreichen.
+	// The same area as on every route, for the same reason as in renderNotFound:
+	// the theme's 404 template is drawn with its footer, and whoever lands here
+	// wants to reach somebody.
 	h.fillSnippets(r, &site, website.ID, h.loadSnippets(r, website.ID))
 	title := "Vorschaulink ungültig"
 	message := "Dieser Link ist nicht gültig."

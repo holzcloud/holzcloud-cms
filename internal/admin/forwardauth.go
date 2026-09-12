@@ -179,9 +179,9 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 		//
 		// That column is declared UNIQUE COLLATE NOCASE, and SQLite's NOCASE
 		// folds ASCII only. Go's strings.ToLower folds all of Unicode. Where
-		// the two disagree the database considers Müller@example.com and
-		// müller@example.com to be two distinct rows — two accounts, and in the
-		// worst case two administrators — while a Go-side match would happily
+		// the two disagree the database considers Müller@example.com and //nolint:german — the pair of addresses is the example
+		// müller@example.com to be two distinct rows — two accounts, and in the //nolint:german — the pair of addresses is the example
+		// worst case two administrators — while a Go-side match would happily //nolint:german — the pair of addresses is the example
 		// pick one of them. So an address carrying any byte above 0x7F is
 		// refused with a named reason instead of matched. Folding it by hand
 		// would be a second definition of identity standing beside the

@@ -18,7 +18,7 @@ import (
 // (sort_order, id), which is still deterministic. What it costs is the arrow
 // button. SwapSortOrder exchanges two rows' sort_order values, and exchanging
 // two equal values writes nothing — so the operator presses "up", reads
-// "Reihenfolge geändert", and the list does not move. Whatever they try after
+// "Order changed", and the list does not move. Whatever they try after
 // that has the same answer, and nothing anywhere says why. The same window lets
 // MaxItems be exceeded by one.
 //

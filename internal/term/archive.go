@@ -11,7 +11,7 @@ import (
 // newest first, plus the total.
 //
 // Pages and posts both appear: a label describes a subject, and a visitor
-// following "Möbel" wants everything about it, not only the dated entries.
+// following "Möbel" wants everything about it, not only the dated entries. //nolint:german — the example label
 func (s *Store) ListTagged(ctx context.Context, websiteID, termID int64, pageNum, perPage int) ([]page.Page, int, error) {
 	return s.ListTaggedIn(ctx, websiteID, termID, "", pageNum, perPage)
 }

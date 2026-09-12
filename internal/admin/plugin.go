@@ -364,9 +364,9 @@ func writePluginDownload(w http.ResponseWriter, d plugin.Download) error {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	// Ohne nosniff könnte ein Browser den Inhalt anders deuten als die
-	// Kopfzeile sagt, und die Liste oben wäre eine Empfehlung statt einer
-	// Schranke.
+	// Without nosniff a browser could read the content differently from what the
+	// header says, and the list above would be a recommendation rather than a
+	// bar.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+safeDownloadName(d.Filename)+`"`)
 	w.WriteHeader(http.StatusOK)

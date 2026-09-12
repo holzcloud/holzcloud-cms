@@ -261,9 +261,9 @@ func TestForPagesLoadsAWholeListingAtOnce(t *testing.T) {
 	}
 }
 
-// Normalize ist die eine Hälfte von Parse, die von einem einzelnen Namen
-// handelt. Was sie nicht tut, ist der Grund, warum sie für sich steht: ein
-// Archiv ist keine Seite, es kennt weder Kommas als Trenner noch MaxPerPage.
+// Normalize is the one half of Parse that deals with a single name. What it
+// does NOT do is the reason it stands on its own: an archive is not a page, it
+// knows neither commas as separators nor MaxPerPage.
 func TestNormalizeKeepsAWholeNameAndDoesNotCount(t *testing.T) {
 	if got, want := Normalize("  Möbel,   Bau  "), "Möbel, Bau"; got != want {
 		t.Errorf("Normalize = %q, want %q", got, want)

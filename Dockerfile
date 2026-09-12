@@ -1,29 +1,28 @@
-# Ein Abbild für den Cluster. Zwei Stufen, und die zweite ist fast leer.
+# An image for the cluster. Two stages, and the second one is nearly empty.
 #
-# Das Programm ist ein einzelnes Binär ohne CGO: Vorlagen, Mittel, Migrationen
-# und Schriften stecken über embed.FS darin. Also braucht die Laufzeitstufe
-# keine Distribution, keine Bibliotheken und keine Paketverwaltung — nur die
-# Wurzelzertifikate für den Mailversand und einen Benutzer, der nicht root ist.
-# Beides bringt distroless/static mit.
+# The program is a single binary without CGO: templates, assets, migrations and
+# fonts sit inside it through embed.FS. So the runtime stage needs no
+# distribution, no libraries and no package manager — only the root
+# certificates for sending mail and a user that is not root. distroless/static
+# brings both.
 #
-# Gebaut wird für linux/amd64, wie der Rest des Projekts seit 1.4.
+# It is built for linux/amd64, like the rest of the project since 1.4.
 
-FROM golang:1.26 AS bau
+FROM golang:1.26 AS build
 
 WORKDIR /src
 
-# Erst die Modulliste, dann der Quelltext: so bleibt die Schicht mit den
-# Abhängigkeiten im Zwischenspeicher, solange go.mod und go.sum sich nicht
-# ändern.
+# The module list first, then the source: that way the layer with the
+# dependencies stays in the cache as long as go.mod and go.sum do not change.
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-# Dieselben Angaben, die der Freigabe-Ablauf ins Binär schreibt. Ohne sie meldet
-# `holzcloud version` "dev", und die Verwaltung zeigt in ihrer Fusszeile eine
-# Fassung, die niemand einer Freigabe zuordnen kann — was nach AGPL §13 genau
-# die Angabe ist, die gebraucht wird.
+# The same particulars the release workflow writes into the binary. Without
+# them `holzcloud version` reports "dev", and the admin shows a version in its
+# footer that nobody can tie to a release — which is exactly the statement
+# AGPL §13 asks for.
 ARG VERSION=dev
 ARG COMMIT=unknown
 
@@ -33,28 +32,28 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
-COPY --from=bau /holzcloud /holzcloud
+COPY --from=build /holzcloud /holzcloud
 
-# Das Datenverzeichnis wird zur Laufzeit eingehängt und hier bewusst nicht als
-# VOLUME angelegt: ein VOLUME ohne Einhängepunkt erzeugt bei jedem Start
-# stillschweigend ein namenloses Volume, und die SQLite-Datei darin wäre beim
-# nächsten Start weg, ohne dass irgendwo etwas fehlgeschlagen wäre.
+# The data directory is mounted at run time and deliberately not declared as a
+# VOLUME here: a VOLUME with no mount point silently creates a nameless volume
+# on every start, and the SQLite file inside it would be gone at the next start
+# without anything anywhere having failed.
 #
-# HOLZCLOUD_LISTEN=0.0.0.0, weil der Dienst seit 1.10 standardmässig nur
-# 127.0.0.1 bindet. Das ist richtig für die Einrichtung mit Caddy auf demselben
-# Rechner und im Container ohne Ausnahme falsch: der Container ist sein eigener
-# Netzwerkraum, und ein veröffentlichter Port, ein Kubernetes-Service und die
-# Proben des kubelet kommen alle über die Adresse des Containers — auf der
-# Rückschleife fänden sie niemanden. Der Container startete, meldete nichts und
-# beantwortete keine Anfrage. Gehalten von cmd/holzcloud/dockerfile_test.go.
+# HOLZCLOUD_LISTEN=0.0.0.0, because since 1.10 the service binds only 127.0.0.1
+# by default. That is right for the setup with Caddy on the same machine and
+# wrong in a container without exception: the container is its own network
+# space, and a published port, a Kubernetes service and the kubelet's probes
+# all arrive over the container's address — on the loopback they would find
+# nobody. The container started, reported nothing and answered no request. Held
+# by cmd/holzcloud/dockerfile_test.go.
 ENV HOLZCLOUD_DATA_DIR=/data \
     HOLZCLOUD_PORT=8080 \
     HOLZCLOUD_LISTEN=0.0.0.0
 
 EXPOSE 8080
 
-# 65532, der Benutzer aus distroless. Das eingehängte Verzeichnis muss ihm
-# gehören — im Cluster über fsGroup.
+# 65532, the user from distroless. The mounted directory has to belong to them
+# — in the cluster through fsGroup.
 USER nonroot:nonroot
 
 ENTRYPOINT ["/holzcloud"]

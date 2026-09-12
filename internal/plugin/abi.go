@@ -78,6 +78,7 @@ const (
 	OpPagesSearch = "pages.search"
 	OpRender      = "render"
 	OpNotify      = "notify"
+	OpTranslate   = "translate"
 )
 
 // opPermission maps an operation to the permission that unlocks it.
@@ -93,6 +94,26 @@ var opPermission = map[string]string{
 	OpPagesSearch: PermPagesRead,
 	OpRender:      PermRender,
 	OpNotify:      PermNotify,
+	// Translating needs no permission, and the empty string is how that is
+	// said. A plugin that asks for a word in the operator's language is asking
+	// for nothing of theirs: the catalogue is the host's, the answer carries no
+	// data of any website, and a plugin that could not reach it would have to
+	// ship German — which is phase 12's whole subject.
+	OpTranslate: PermNone,
+}
+
+// PermNone marks an operation every plugin may call.
+const PermNone = ""
+
+// TranslateArg is what OpTranslate takes: the source sentence, verbatim.
+type TranslateArg struct {
+	Text string `json:"text"`
+}
+
+// TranslateResult is the sentence in the operator's language, or the source
+// sentence again when the catalogue does not have it.
+type TranslateResult struct {
+	Text string `json:"text"`
 }
 
 // --- payloads ---------------------------------------------------------------

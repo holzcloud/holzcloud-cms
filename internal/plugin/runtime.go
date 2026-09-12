@@ -12,6 +12,8 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // CallTimeout bounds one hook.
@@ -389,7 +391,7 @@ func (r *Runtime) hostCall(ctx context.Context, m api.Module,
 	if !known {
 		return r.answerError(m, outPtr, outCap, fmt.Errorf("unbekannte Operation %q", op))
 	}
-	if !cc.manifest.Allows(perm) {
+	if perm != PermNone && !cc.manifest.Allows(perm) {
 		return r.answer(m, outPtr, outCap, StatusDenied,
 			[]byte(fmt.Sprintf("the plugin does not have the permission %q", perm)))
 	}
@@ -494,6 +496,16 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 			return nil, err
 		}
 		return json.Marshal(res)
+
+	case OpTranslate:
+		// The language comes out of the request's context and not out of the
+		// call: a plugin must not be able to choose which language an operator
+		// is answered in, and the host already knows.
+		var a TranslateArg
+		if err := json.Unmarshal(arg, &a); err != nil {
+			return nil, err
+		}
+		return json.Marshal(TranslateResult{Text: i18n.T(i18n.Lang(ctx), a.Text)})
 
 	case OpNotify:
 		if r.notify == nil {

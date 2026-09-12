@@ -21,7 +21,7 @@ func alloc(n int32) int32 {
 	return int32(uintptr(unsafe.Pointer(unsafe.SliceData(puffer))))
 }
 
-// Haken und Nutzlast kommen in einem Puffer, Haken zuerst.
+// The hook and the payload come in one buffer, the hook first.
 func teile(hookLen, totalLen int32) (string, []byte) {
 	if hookLen < 0 || totalLen < hookLen || int(totalLen) > len(puffer) {
 		return "", nil
@@ -41,7 +41,7 @@ func ruf(op string, arg any) (uint32, []byte) {
 			uint32(uintptr(unsafe.Pointer(unsafe.SliceData(a)))), uint32(len(a)),
 			uint32(uintptr(unsafe.Pointer(ob))), uint32(len(out)))
 		status, n := uint32(r>>32), uint32(r)
-		if status == 2 { // zu klein: mit der genannten Grösse noch einmal
+		if status == 2 { // too small: once more with the size it named
 			out = make([]byte, n)
 			continue
 		}

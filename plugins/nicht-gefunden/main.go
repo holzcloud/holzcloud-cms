@@ -136,11 +136,10 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 	})
 
 	var b strings.Builder
-	b.WriteString(`<p>Adressen, die Besucher angefragt und nicht bekommen haben. ` +
-		`Die häufigsten stehen oben — für die lohnt sich eine Weiterleitung am ehesten.</p>`)
+	b.WriteString(plugin.T(`<p>Addresses visitors asked for and did not get. The most frequent stand at the top — those are the ones a redirect is most worth.</p>`))
 
 	if len(list) == 0 {
-		b.WriteString(`<p class="empty">Noch nichts angefragt, was es nicht gibt.</p>`)
+		b.WriteString(plugin.T(`<p class="empty">Nothing asked for yet that does not exist.</p>`))
 		return plugin.AdminOut{Title: "Nicht gefunden", HTML: b.String()}, nil
 	}
 

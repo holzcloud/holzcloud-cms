@@ -50,7 +50,7 @@ func TestKeinMP4BleibtUnberuehrt(t *testing.T) {
 		[]byte("überhaupt kein mp4"),
 		{},
 		{0, 0, 0, 3},
-		box("moov", []byte{0, 0, 0, 99, 'u', 'd', 't', 'a'}), // Länge lügt
+		box("moov", []byte{0, 0, 0, 99, 'u', 'd', 't', 'a'}), // the length lies
 	} {
 		vorher := append([]byte(nil), rein...)
 		if out := StripMP4Metadata(rein); !bytes.Equal(out, vorher) {

@@ -230,7 +230,7 @@ func quoteName(s string) string {
 
 // encodeSubject puts a non-ASCII subject into the encoded form RFC 2047 wants.
 //
-// "Anfrage zu Rohwolle für Grösse M" in a raw header is a subject that arrives
+// "Anfrage zu Rohwolle für Grösse M" in a raw header is a subject that arrives //nolint:german — the example subject
 // as mojibake in about half of all mail clients.
 func encodeSubject(s string) string {
 	if isASCII(s) {
