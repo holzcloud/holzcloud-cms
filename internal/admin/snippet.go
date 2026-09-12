@@ -26,13 +26,13 @@ type SnippetListData struct {
 	Values SnippetValues
 	IsEdit bool
 
-	// FieldViews sind die eigenen Felder dieses Textbausteins, als Modell des
-	// Formulars. Gebaut wie die der Seite, von derselben Funktion, aus
-	// demselben Grund: welche Eingabe eine Feldart braucht, ist eine
-	// Entscheidung mit acht Zweigen, und acht Zweige in einer Vorlage sind der
-	// Ort, an dem ein fehlendes name-Attribut sich versteckt.
+	// FieldViews are the own fields of this snippet, as the model of the form.
+	// Built like those of the page, by the same function, for the same reason:
+	// which input a field kind needs is a decision with eight branches, and
+	// eight branches in a template are the place where a missing name attribute
+	// hides.
 	FieldViews []FieldBlock
-	// Media ist der Bildvorrat eines Bildfeldes.
+	// Media is the image supply of an image field.
 	Media []media.Media
 	// RefPages ist die Auswahl eines Verweisfeldes: die Seiten dieser Website.
 	RefPages []PageChoice
@@ -63,10 +63,9 @@ type SnippetValues struct {
 	Name     string
 	Markdown string
 
-	// Fields sind die Antworten auf die eigenen Felder dieses Textbausteins,
-	// so getippt wie abgeschickt — dieselbe Rolle, die PageValues.Fields auf
-	// einer Seite spielt, damit ein abgewiesenes Formular zurückgibt, was
-	// dastand.
+	// Fields are the answers to the own fields of this snippet, typed as they
+	// were submitted — the same role PageValues.Fields plays on a page, so that
+	// a refused form hands back what stood there.
 	Fields field.Data
 }
 
@@ -77,17 +76,15 @@ func snippetValuesFromRequest(r *http.Request) SnippetValues {
 		Key:      strings.TrimSpace(strings.ToLower(r.FormValue("key"))),
 		Name:     strings.TrimSpace(r.FormValue("name")),
 		Markdown: r.FormValue("content_markdown"),
-		// Der Parser des Seiteneditors, gerufen und nicht abgeschrieben. Sein
-		// Doc-Kommentar erklärt, warum ein leerer Wert und ein fehlender
-		// Schlüssel dasselbe JSON ergeben; genau diese Eigenschaft macht
-		// snippets.fields DEFAULT '' unbedenklich.
+		// The parser of the page editor, called and not copied. Its doc comment
+		// explains why an empty value and a missing key yield the same JSON;
+		// exactly that property makes snippets.fields DEFAULT '' harmless.
 		//
-		// Der Vorbehalt, den derselbe Kommentar erhebt, trifft diesen Handler
-		// nicht: sein Speicherweg ist ein vollständiges Ersetzen, ein UPDATE
-		// über die ganze Spalte durch SetFields. Ein Aufrufer, der je nur
-		// einen Teil der Felder fortschreibt, müsste die Anwesenheit auf
-		// seiner eigenen Ebene tragen — der nächste weiss das vielleicht
-		// nicht.
+		// The reservation the same comment raises does not apply to this
+		// handler: its storage path is a complete replacement, an UPDATE over
+		// the whole column through SetFields. A caller that only ever carries
+		// part of the fields forward would have to carry the presence on its
+		// own level — the next one may not know that.
 		Fields: fieldsFromRequest(r),
 	}
 }
@@ -139,9 +136,9 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	// Opening one for editing prefills the same form rather than showing a
-	// second screen. Gelesen wird vor snippetListData und nicht danach, weil
-	// die Feldeingaben aus genau diesen Werten gebaut werden: ein Formular, das
-	// die Werte erst hinterher bekommt, zeigt leere Kästchen.
+	// second screen. It is read before snippetListData and not after, because
+	// the field inputs are built from exactly these values: a form that gets the
+	// values only afterwards shows empty boxes.
 	values := SnippetValues{}
 	isEdit := false
 	if raw := r.URL.Query().Get("edit"); raw != "" {
@@ -170,13 +167,13 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 
 // snippetFieldDefs loads the own fields of one snippet, or none.
 //
-// Ein Textbaustein, den es noch nicht gibt, hat keine Felder und keine Nummer,
-// nach der sich fragen liesse — der Bildschirm für einen neuen trägt darum kein
-// Feld, und das ist keine Einschränkung, sondern die Reihenfolge der Sache.
+// A snippet that does not exist yet has no fields and no number that could be
+// asked about — the screen for a new one therefore carries no field, and that
+// is not a restriction but the order of the thing.
 //
-// Wie bei fieldDefs ist ein Fehler hier keinen gescheiterten Aufruf wert: ohne
-// die Definitionen werden die Felder schlicht nicht angeboten, und alles andere
-// am Bildschirm bleibt bedienbar.
+// As with fieldDefs, an error here is not worth a failed call: without the
+// definitions the fields are simply not offered, and everything else on the
+// screen stays usable.
 func (h *Handler) snippetFieldDefs(ctx context.Context, websiteID, snippetID int64) []field.Def {
 	if h.fields == nil || snippetID == 0 {
 		return nil
@@ -209,9 +206,9 @@ func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName 
 		data.Snippets = append(data.Snippets, SnippetRow{Snippet: sn, UsedOn: used})
 	}
 
-	// Dieselben drei Vorräte, die der Seiteneditor lädt, mit denselben
-	// Wächtern: ein Bildfeld, ein Verweisfeld und ein Bezeichnungsfeld
-	// brauchen eine Auswahl, und die Auswahl gehört dieser Website.
+	// The same three supplies the page editor loads, with the same guards: an
+	// image field, a reference field and a term field need a choice, and the
+	// choice belongs to this website.
 	if h.mediaStore != nil {
 		if all, _, err := h.mediaStore.List(r.Context(), websiteID, media.Filter{MimePrefix: "image/"}, 1, 200); err == nil {
 			data.Media = all
@@ -220,11 +217,10 @@ func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName 
 	data.RefPages = h.refPages(r.Context(), websiteID)
 	data.RefTerms = h.siteTerms(r.Context(), websiteID)
 
-	// Die Definitionen gehen unverengt hinein. Kein `field.For`: jener Filter
-	// verengt nach „gilt für", was auf einer Seite etwas bedeutet und an einem
-	// Textbaustein von validate ohnehin auf „beides" gestellt wird (Plan
-	// 08-02). Gefiltert würde hier also nichts gewonnen und im Zweifel ein Feld
-	// verloren.
+	// The definitions go in unnarrowed. No `field.For`: that filter narrows by
+	// "applies to", which means something on a page and on a snippet is set to
+	// "beides" by validate anyway (plan 08-02). Filtering would therefore gain
+	// nothing here and, in case of doubt, lose a field.
 	defs := h.snippetFieldDefs(r.Context(), websiteID, values.ID)
 	data.FieldViews = fieldViews(defs, values.Fields, data.pool(), nil)
 	return data, nil
@@ -237,9 +233,9 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 
 	values := snippetValuesFromRequest(r)
 
-	// Eine Zeile einer Gruppe hinzuzufügen oder wegzunehmen ist kein Speichern:
-	// der Knopf ist ein gewöhnliches Absenden, der Server baut das Formular neu
-	// auf, und der ganze Bildschirm kommt ohne eine Zeile JavaScript aus.
+	// Adding a row to a group or taking one away is not a save: the button is
+	// an ordinary submit, the server builds the form anew, and the whole screen
+	// gets by without a line of JavaScript.
 	if groupAction(r, &values.Fields) {
 		data, err := h.snippetListData(r, websiteID, websiteName, values)
 		if err != nil {
@@ -265,11 +261,10 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 
 	values.validate(data.Errors)
 
-	// Geprüft wird gegen die Definitionen, die der **Server** geladen hat, nie
-	// gegen das, was das Formular behauptet: ein Wert, der keine Definition
-	// benennt, wird von field.Clean verworfen und nie gespeichert. Nicht
-	// checkFields, denn das legt `field.For` mit einer Seitenart darum, und
-	// ein Textbaustein hat keine.
+	// It is checked against the definitions the **server** loaded, never
+	// against what the form claims: a value that names no definition is
+	// discarded by field.Clean and never stored. Not checkFields, because that
+	// puts `field.For` with a page kind around it, and a snippet has none.
 	defs := h.snippetFieldDefs(r.Context(), websiteID, values.ID)
 	fieldErrs := reasonTexts(r.Context(), field.CheckAll(defs, values.Fields))
 	if len(fieldErrs) > 0 {
@@ -278,17 +273,16 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 			data.Errors.Add("felder", reason)
 		}
 	}
-	// Kein Flash: ein Flash überlebt eine Umleitung und nicht den Inhalt des
-	// Formulars. Das Wertformular eines Textbausteins ist lang, und ein
-	// abgewiesenes Speichern muss zurückgeben, was dastand — mit dem Grund
-	// neben dem Feld, das ihn ausgelöst hat.
+	// No flash: a flash survives a redirect and not the content of the form.
+	// The value form of a snippet is long, and a refused save has to hand back
+	// what stood there — with the reason next to the field that triggered it.
 	if data.Errors.Any() {
 		return web.RenderFormError(w, h.templates, r, "snippet_list", data)
 	}
 
-	// Dieselbe Auswahl wie in CheckAll eine Zeile darüber: geprüft und
-	// gesäubert wird gegen dieselben Definitionen, sonst bliebe ein Wert, den
-	// niemand geprüft hat, ungeprüft liegen.
+	// The same selection as in CheckAll one line above: it is checked and
+	// cleaned against the same definitions, or a value nobody checked would be
+	// left lying unchecked.
 	storedFields, err := field.Encode(field.Clean(defs, values.Fields))
 	if err != nil {
 		return err
@@ -327,9 +321,9 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 		return err
 	}
 
-	// Erst jetzt, denn ein neuer Textbaustein hat seine Nummer bis hierher
-	// nicht. Die Spalte wird ganz geschrieben und nicht verschmolzen — das ist
-	// die Zusage, auf der der Parser oben ruht.
+	// Only now, because a new snippet does not have its number until here. The
+	// column is written whole and not merged — that is the promise the parser
+	// above rests on.
 	if err := h.snippets.SetFields(r.Context(), websiteID, id, storedFields); err != nil {
 		return err
 	}

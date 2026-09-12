@@ -14,10 +14,10 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
-// Der ganze Weg eines mehrwertigen Feldes: Name im Formular, Lesen der
-// Anfrage, Speichern, Auflösen, Neuzeichnen. Ein Häkchenfeld ist der erste
-// Feldwert dieses Programms, der kein einzelner String ist — was hier grün
-// ist, erbt Phase 9 unverändert.
+// The whole way of a multi-valued field: name in the form, reading the request,
+// storing, resolving, redrawing. A checkbox field is the first field value in
+// this program that is not a single string — what is green here, phase 9
+// inherits unchanged.
 func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -29,8 +29,8 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Feld anlegen: %v", err)
 	}
-	// Ein gewöhnliches Textfeld daneben. Es ist die Gegenprobe dafür, dass die
-	// bedingte Beschriftungsverknüpfung sich nicht überall abgeschaltet hat.
+	// An ordinary text field next to it. It is the counter-check that the
+	// conditional label link has not switched itself off everywhere.
 	if _, err := fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "herkunft", Label: "Herkunft", Kind: field.KindText,
 	}); err != nil {
@@ -74,8 +74,8 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 		return field.Decode(stored.Fields).Values["sorten"]
 	}
 
-	// Drei Häkchen — drei Werte, eine Zeile je Wert, in der Reihenfolge des
-	// Formulars.
+	// Three checkboxes — three values, one line per value, in the order of the
+	// form.
 	speichern(t, url.Values{
 		"feld_sorten[]": {"Eiche", "Buche", "Esche"},
 		"feld_herkunft": {"Jura"},
@@ -84,8 +84,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 		t.Fatalf("gespeichert %q, wollte %q", got, will)
 	}
 
-	// Zweimal dasselbe Formular ergibt dieselbe Zeichenkette, Zeichen für
-	// Zeichen.
+	// The same form twice yields the same string, character for character.
 	speichern(t, url.Values{
 		"feld_sorten[]": {"Eiche", "Buche", "Esche"},
 		"feld_herkunft": {"Jura"},
@@ -94,7 +93,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 		t.Errorf("after the second save %q, wanted %q", got, will)
 	}
 
-	// Neuzeichnen: dieselben drei Kästchen sind angekreuzt.
+	// Redrawing: the same three boxes are ticked.
 	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
 	req.SetPathValue("id", wsID)
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
@@ -106,18 +105,17 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 
 	angekreuzt := regexp.MustCompile(`<input type="checkbox" name="feld_sorten\[\]" value="[^"]*" checked>`)
 	if n := len(angekreuzt.FindAllString(body, -1)); n != 3 {
-		t.Errorf("%d ticked boxes in the redrawn form, wanted 3:\n%s", n, ausschnitt(body, "feld_sorten"))
+		t.Errorf("%d ticked boxes in the redrawn form, wanted 3:\n%s", n, around(body, "feld_sorten"))
 	}
 	for _, sorte := range []string{"Eiche", "Buche", "Esche"} {
 		if !strings.Contains(body, `value="`+sorte+`" checked`) {
 			t.Errorf("%q is not ticked", sorte)
 		}
 	}
-	// Und der versteckte Wächter steht davor, sonst kann eine leergeräumte
-	// Gruppe nicht von einem Formular unterschieden werden, das das Feld nie
-	// getragen hat.
+	// And the hidden guard stands before them, or a group that has been emptied
+	// cannot be told apart from a form that never carried the field.
 	if !strings.Contains(body, `<input type="hidden" name="feld_sorten[]" value="">`) {
-		t.Errorf("the hidden sentinel is missing:\n%s", ausschnitt(body, "feld_sorten"))
+		t.Errorf("the hidden sentinel is missing:\n%s", around(body, "feld_sorten"))
 	}
 
 	if strings.Contains(body, "checked checked") {
@@ -126,7 +124,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 
 	pruefeBeschriftung(t, body)
 
-	// Nur der Wächter, kein Häkchen: der Wert ist geleert.
+	// Only the guard, no checkbox: the value is emptied.
 	speichern(t, url.Values{
 		"feld_sorten[]": {""},
 		"feld_herkunft": {"Jura"},
@@ -136,11 +134,10 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 	}
 }
 
-// Geleert und gar nicht da sind zwei verschiedene Dinge, und die Stelle, an
-// der sie sich unterscheiden, ist fieldsFromRequest: mit dem Wächter steht die
-// Kennung mit leerem Wert in den Daten, ohne ihn steht sie gar nicht darin.
-// Ohne diesen Unterschied kann ein Formular, das das Feld nie trug, einen Wert
-// nicht in Ruhe lassen.
+// Emptied and not there at all are two different things, and the place where
+// they differ is fieldsFromRequest: with the guard the key stands in the data
+// with an empty value, without it it does not stand there at all. Without that
+// difference a form that never carried the field cannot leave a value alone.
 func TestMehrfachauswahlGeleertOderAbwesend(t *testing.T) {
 	drei := fieldsFromRequest(anfrageMit(url.Values{
 		"feld_sorten[]": {"Eiche", "Buche", "Esche"},
@@ -149,7 +146,7 @@ func TestMehrfachauswahlGeleertOderAbwesend(t *testing.T) {
 		t.Errorf("three ticks yielded %q, wanted %q", got, will)
 	}
 
-	// Der Wächter allein: die Kennung IST da und trägt den leeren Wert.
+	// The guard alone: the key IS there and carries the empty value.
 	geleert := fieldsFromRequest(anfrageMit(url.Values{"feld_sorten[]": {""}}))
 	val, da := geleert.Values["sorten"]
 	if !da {
@@ -159,36 +156,36 @@ func TestMehrfachauswahlGeleertOderAbwesend(t *testing.T) {
 		t.Errorf("after the sentinel alone %q is there, wanted empty", val)
 	}
 
-	// Teilweise angekreuzt: der Wächter fällt weg, die Häkchen bleiben.
+	// Partly ticked: the guard falls away, the checkboxes stay.
 	teil := fieldsFromRequest(anfrageMit(url.Values{"feld_sorten[]": {"", "Buche"}}))
 	if got, will := teil.Values["sorten"], "Buche"; got != will {
 		t.Errorf("the sentinel beside a tick yielded %q, wanted %q", got, will)
 	}
 
-	// Gar keine Kennung: sie kommt in den Daten nicht vor.
+	// No key at all: it does not appear in the data.
 	ohne := fieldsFromRequest(anfrageMit(url.Values{"feld_herkunft": {"Jura"}}))
 	if _, da := ohne.Values["sorten"]; da {
 		t.Error("the key is in the data although the form never carried it")
 	}
 
-	// Und ein einwertiges Feld verhält sich unverändert.
+	// And a single-valued field behaves unchanged.
 	if got, will := ohne.Values["herkunft"], "Jura"; got != will {
 		t.Errorf("the single-valued field yielded %q, wanted %q", got, will)
 	}
 
-	// Eine Kennung, die nach dem Abschneiden der Markierung leer wäre, wird
-	// übergangen statt unter dem leeren Namen abgelegt.
+	// A key that would be empty after the marker is cut off is passed over
+	// rather than stored under the empty name.
 	leer := fieldsFromRequest(anfrageMit(url.Values{"feld_[]": {"x"}}))
 	if _, da := leer.Values[""]; da {
 		t.Error("an empty key was stored")
 	}
 }
 
-// Die gemeinsame Beschriftung über einem Feld zeigt mit for= auf die Kennung
-// eines Bedienelements. Eine Häkchengruppe hat kein einzelnes Bedienelement,
-// auf das sie zeigen könnte — dort benennt aria-labelledby die Gruppe. Beides
-// muss stimmen: die Gruppe darf nicht auf ein Element zeigen, das es nicht
-// gibt, und jedes andere Feld muss seine Verknüpfung behalten.
+// The shared label above a field points with for= at the id of one control. A
+// checkbox group has no single control it could point at — there
+// aria-labelledby names the group. Both have to be right: the group must not
+// point at an element that does not exist, and every other field has to keep
+// its link.
 func pruefeBeschriftung(t *testing.T, body string) {
 	t.Helper()
 
@@ -199,7 +196,7 @@ func pruefeBeschriftung(t *testing.T, body string) {
 	labelledBy := regexp.MustCompile(`aria-labelledby="([^"]+)"`)
 	treffer := labelledBy.FindAllStringSubmatch(body, -1)
 	if len(treffer) == 0 {
-		t.Fatalf("kein aria-labelledby im Formular:\n%s", ausschnitt(body, "feld_sorten"))
+		t.Fatalf("kein aria-labelledby im Formular:\n%s", around(body, "feld_sorten"))
 	}
 	var benannt bool
 	for _, m := range treffer {
@@ -215,8 +212,8 @@ func pruefeBeschriftung(t *testing.T, body string) {
 		t.Errorf("the checkbox group is named by no label: %v", treffer)
 	}
 
-	// Die Gegenprobe: das gewöhnliche Textfeld daneben hat sein for= behalten,
-	// und die Kennung, die es nennt, steht im selben Formular.
+	// The counter-check: the ordinary text field next to it has kept its for=,
+	// and the id it names stands in the same form.
 	if !strings.Contains(body, `for="feld_herkunft"`) {
 		t.Error("the text field lost its for= — the condition switched itself off everywhere")
 	}
@@ -234,9 +231,9 @@ func anfrageMit(values url.Values) *http.Request {
 	return req
 }
 
-// ausschnitt schneidet die Umgebung einer Zeichenkette heraus, damit eine
-// fehlgeschlagene Zusicherung nicht das ganze Formular ausgibt.
-func ausschnitt(body, um string) string {
+// around cuts out the surroundings of a string, so that a failed assertion does
+// not print the whole form.
+func around(body, um string) string {
 	i := strings.Index(body, um)
 	if i < 0 {
 		return body
@@ -251,10 +248,10 @@ func ausschnitt(body, um string) string {
 	return body[von:bis]
 }
 
-// Dasselbe Feld, eine Ebene tiefer. Eine Gruppenzeile trägt ihre eigenen
-// Namen, und ohne die Markierung an dieser zweiten Stelle bliebe von drei
-// Häkchen genau das erste übrig — still, denn ein einzelner Wert sieht aus
-// wie einer, den jemand so gesetzt hat.
+// The same field, one level down. A group row carries names of its own, and
+// without the marker in this second place exactly the first of three checkboxes
+// would be left — silently, because a single value looks like one somebody set
+// that way.
 func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -272,8 +269,8 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Unterfeld anlegen: %v", err)
 	}
-	// Ein einwertiges Unterfeld daneben: die Gegenprobe, dass sich in der
-	// Zeile nicht alles auf mehrwertig umgestellt hat.
+	// A single-valued subfield next to it: the counter-check that not
+	// everything in the row has switched over to multi-valued.
 	if _, err := fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "notiz", Label: "Notiz",
 		Kind: field.KindText,
@@ -318,8 +315,8 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 		return field.Decode(stored.Fields).Rows["zeiten"]
 	}
 
-	// Zwei Zeilen mit verschiedenen Häkchen. Der Wächter steht in jeder Zeile
-	// vor den Kästchen, genau wie oben auf der Seite.
+	// Two rows with different checkboxes. The guard stands in every row before
+	// the boxes, exactly as above on the page.
 	speichern(t, url.Values{
 		"gruppe.zeiten.0.tage[]": {"", "Mo", "Di", "Mi"},
 		"gruppe.zeiten.0.notiz":  {"Vormittag"},
@@ -337,13 +334,13 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	if got[1]["tage"] != "Di" {
 		t.Errorf("Zeile 2 speicherte %q, wollte %q", got[1]["tage"], "Di")
 	}
-	// Das einwertige Unterfeld ist unberührt.
+	// The single-valued subfield is untouched.
 	if got[0]["notiz"] != "Vormittag" || got[1]["notiz"] != "Nachmittag" {
 		t.Errorf("die einwertigen Unterfelder stimmen nicht: %q / %q", got[0]["notiz"], got[1]["notiz"])
 	}
 
-	// Neuzeichnen: dieselben Häkchen stehen wieder da, je Zeile unter dem
-	// Namen dieser Zeile.
+	// Redrawing: the same checkboxes stand there again, per row under the name
+	// of that row.
 	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
 	req.SetPathValue("id", wsID)
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
@@ -358,19 +355,19 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 			`\.tage\[\]" value="[^"]*" checked>`)
 		if n := len(muster.FindAllString(body, -1)); n != will {
 			t.Errorf("row %s shows %d ticked boxes, wanted %d:\n%s",
-				zeile, n, will, ausschnitt(body, "gruppe.zeiten."+zeile+".tage"))
+				zeile, n, will, around(body, "gruppe.zeiten."+zeile+".tage"))
 		}
 		if !strings.Contains(body, `<input type="hidden" name="gruppe.zeiten.`+zeile+`.tage[]" value="">`) {
 			t.Errorf("row %s is missing the hidden sentinel", zeile)
 		}
 	}
-	// Das einwertige Unterfeld trägt die Markierung nicht.
+	// The single-valued subfield does not carry the marker.
 	if strings.Contains(body, "gruppe.zeiten.0.notiz[]") {
 		t.Error("the single-valued sub-field carries the marking")
 	}
 
-	// Nur der Wächter in der ersten Zeile: deren Auswahl ist geleert, die
-	// zweite bleibt, wie sie war.
+	// Only the guard in the first row: its selection is emptied, the second
+	// stays as it was.
 	speichern(t, url.Values{
 		"gruppe.zeiten.0.tage[]": {""},
 		"gruppe.zeiten.0.notiz":  {"Vormittag"},
@@ -389,11 +386,10 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	}
 }
 
-// Der Name einer Gruppenzeile wird an einer Stelle gelesen, und diese Stelle
-// muss die Markierung erkennen, ohne eine ihrer Wachen aufzugeben: der
-// Vorsatz, die drei Teile und vor allem die Schranke auf die Zeilennummer.
-// Ein von Hand gebauter Name darf keine Zeile ausserhalb der Schranke und
-// keinen vierten Namensraum erreichen.
+// The name of a group row is read in one place, and that place has to recognise
+// the marker without giving up any of its guards: the prefix, the three parts
+// and above all the bound on the row number. A name built by hand must reach
+// neither a row outside the bound nor a fourth namespace.
 func TestZeilennameMitMarkierung(t *testing.T) {
 	group, index, sub, multi, ok := parseRowName("gruppe.zeiten.0.tage[]")
 	if !ok || group != "zeiten" || index != 0 || sub != "tage" || !multi {
@@ -405,13 +401,13 @@ func TestZeilennameMitMarkierung(t *testing.T) {
 		t.Errorf("gruppe.zeiten.3.tage ergab (%q, %d, %q, %v, %v)", group, index, sub, multi, ok)
 	}
 
-	// Jede bestehende Wache steht noch.
+	// Every existing guard still stands.
 	abgelehnt := []string{
 		"feld_tage[]",
 		"gruppe.zeiten.0",
 		"gruppe.zeiten.0.tage.extra[]",
-		// Nach dem Abschneiden der Markierung bliebe kein Unterfeldname
-		// übrig — dieselbe Wache, die das Feld auf der Seite selbst hat.
+		// After the marker is cut off no subfield name would be left — the same
+		// guard the field has on the page itself.
 		"gruppe.zeiten.0.[]",
 		"gruppe.zeiten.0.",
 		"gruppe.zeiten.x.tage[]",
@@ -426,8 +422,8 @@ func TestZeilennameMitMarkierung(t *testing.T) {
 	}
 }
 
-// Und in der Zeile gilt derselbe Unterschied wie oben auf der Seite: mit dem
-// Wächter ist die Kennung da und leer, ohne ihn ist sie gar nicht da.
+// And inside the row the same difference holds as above on the page: with the
+// guard the key is there and empty, without it it is not there at all.
 func TestGruppenzeileGeleertOderAbwesend(t *testing.T) {
 	drei := fieldsFromRequest(anfrageMit(url.Values{
 		"gruppe.zeiten.0.tage[]": {"", "Mo", "Di", "Mi"},
