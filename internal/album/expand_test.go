@@ -144,7 +144,7 @@ func TestExpandUsesTheInjectedTranslator(t *testing.T) {
 
 	got := Expand(block.AlbumMarker("moebel", 0), set)
 
-	if !strings.Contains(got, "NÄCHSTES BILD") {
+	if !strings.Contains(got, "NEXT IMAGE") {
 		t.Errorf("the controls did not go through the translator:\n%s", got)
 	}
 }

@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/csv-import/{{.Token}}" class="btn">{{t "Zuordnung ändern"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/csv-import/{{.Token}}" class="btn">{{t "Change the mapping"}}</a>{{end}}
 
 {{define "content"}}
 {{template "csv_dryrun-content" .}}
@@ -7,53 +7,53 @@
 {{define "csv_dryrun-content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="alert alert--warning">
-        {{t "Es wurde nichts geschrieben. Was hier steht, würde beim Einlesen geschehen – noch ist keine einzige Seite entstanden und keine verändert worden."}}
+        {{t "Nothing has been written. What stands here is what would happen on import — not a single page has come into being yet, and none has been changed."}}
     </p>
 
     <p class="text-muted">
-        {{tf "Datei „%s“, %d Zeilen geprüft." .Filename .Report.Total}}
-        {{if .NewWebsite}}{{tf "Es entsteht eine neue Website „%s“ – erst beim Einlesen." .WebsiteName}}{{else}}{{tf "Die Zeilen kommen in die bestehende Website „%s“." .WebsiteName}}{{end}}
+        {{tf "File “%s”, %d rows checked." .Filename .Report.Total}}
+        {{if .NewWebsite}}{{tf "A new website “%s” comes into being — only when you import." .WebsiteName}}{{else}}{{tf "The rows go into the existing website “%s”." .WebsiteName}}{{end}}
     </p>
 
     <p>
-        <span class="badge badge--published">{{tf "%d anlegen" .Report.Created}}</span>
-        <span class="badge badge--primary">{{tf "%d aktualisieren" .Report.Updated}}</span>
-        <span class="badge badge--draft">{{tf "%d übergehen" .Report.Skipped}}</span>
+        <span class="badge badge--published">{{tf "%d to create" .Report.Created}}</span>
+        <span class="badge badge--primary">{{tf "%d to update" .Report.Updated}}</span>
+        <span class="badge badge--draft">{{tf "%d to skip" .Report.Skipped}}</span>
     </p>
 
     {{if .Terms}}
     <p class="text-muted">
-        {{if eq .Terms 1}}{{t "Ein Schlagwort wird dabei angelegt, falls es das noch nicht gibt."}}{{else}}{{tf "%d Schlagwörter werden dabei angelegt, soweit es sie noch nicht gibt." .Terms}}{{end}}
+        {{if eq .Terms 1}}{{t "One term will be created along the way, if it does not exist yet."}}{{else}}{{tf "%d terms will be created along the way, as far as they do not exist yet." .Terms}}{{end}}
     </p>
     {{end}}
 
     {{if .Repeated}}
     <p class="alert alert--warning">
-        {{if eq .Repeated 1}}{{t "Eine Zeile dieser Datei will eine Adresse, die eine Zeile über ihr schon nimmt."}}{{else}}{{tf "%d Zeilen dieser Datei wollen eine Adresse, die eine Zeile über ihnen schon nimmt." .Repeated}}{{end}}
-        {{t "Die erste legt an, die späteren aktualisieren oder werden übergangen – oben ist das schon so gezählt."}}
+        {{if eq .Repeated 1}}{{t "One row of this file wants an address that a row above it already takes."}}{{else}}{{tf "%d rows of this file want an address that a row above them already takes." .Repeated}}{{end}}
+        {{t "The first one creates; the later ones update or are skipped — the counts above already say so."}}
     </p>
     {{end}}
 
     {{if .Report.Truncated}}
     <p class="alert alert--warning">
-        {{t "Die Datei hat mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde weder geprüft noch wird er geschrieben."}}
+        {{t "The file has more rows than can be imported in one go. The rest was neither checked nor will it be written."}}
     </p>
     {{end}}
 </div>
 
 <div class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{t "Was zu sehen ist"}}</h2>
+    <h2>{{t "What there is to see"}}</h2>
     {{if .Report.Groups}}
     <p class="text-muted">
-        {{t "Gleiche Ursachen stehen in einer Zeile zusammen, mit den Zeilennummern deiner Tabelle daneben. Öffne die Datei, ändere die genannten Zeilen, und lade sie noch einmal hoch – oder lies jetzt ein und nimm die übergangenen Zeilen in Kauf."}}
+        {{t "The same causes stand together on one line, with the row numbers of your spreadsheet beside them. Open the file, change the rows named and upload it again — or import now and accept the skipped rows."}}
     </p>
     <div class="csv-scroll">
         <table class="table csv-groups">
             <thead>
                 <tr>
-                    <th scope="col">{{t "Ausgang"}}</th>
-                    <th scope="col">{{t "Grund"}}</th>
-                    <th scope="col">{{t "Zeilen"}}</th>
+                    <th scope="col">{{t "Outcome"}}</th>
+                    <th scope="col">{{t "Reason"}}</th>
+                    <th scope="col">{{t "Rows"}}</th>
                 </tr>
             </thead>
             <tbody>
@@ -68,7 +68,7 @@
         </table>
     </div>
     {{else}}
-    <p class="text-muted">{{t "Nichts zu melden: jede Zeile dieser Datei geht durch."}}</p>
+    <p class="text-muted">{{t "Nothing to report: every row of this file goes through."}}</p>
     {{end}}
 </div>
 
@@ -81,10 +81,10 @@
     {{range .Inputs}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">
     {{end}}
     <div class="card">
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Jetzt einlesen"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Import now"}}</button>
         <p class="form-hint">
-            {{if eq .Collision "aktualisieren"}}{{t "Eine Zeile, deren Adresse es schon gibt, aktualisiert die vorhandene Seite."}}{{else}}{{t "Eine Zeile, deren Adresse es schon gibt, wird übergangen."}}{{end}}
-            {{t "Die übergangenen Zeilen bleiben liegen; alles andere wird geschrieben."}}
+            {{if eq .Collision "aktualisieren"}}{{t "A row whose address already exists updates the existing page."}}{{else}}{{t "A row whose address already exists is skipped."}}{{end}}
+            {{t "The skipped rows stay where they are; everything else is written."}}
         </p>
     </div>
 </form>

@@ -2,7 +2,7 @@
 //
 //	go run ./tools/i18n            # report what is missing
 //	go run ./tools/i18n -write     # add the missing keys with empty values
-//	go run ./tools/i18n -schweiz   # rebuild de-CH.json from the German
+//	go run ./tools/i18n -schweiz   # rebuild de-CH.json from de.json
 //
 // It collects every German string that reaches a person: the {{t}}, {{th}} and
 // {{tf}} calls in the admin templates, and the flash messages, form errors and
@@ -100,7 +100,7 @@ import (
 //
 // The string is a Go literal inside the template, so it is read back with
 // strconv.Unquote — the same rules the template parser applies.
-var callsInTemplates = regexp.MustCompile(`\{\{-?\s*(?:t|th|tf)\s+("(?:[^"\\]|\\.)*")`)
+var callsInTemplates = regexp.MustCompile(`\{\{-?\s*(?:t|th|tf|thf)\s+("(?:[^"\\]|\\.)*")`)
 
 // goFuncs are the Go functions whose string argument a person reads, by the
 // ARGUMENT INDEX at which that string sits — not a count.
@@ -151,7 +151,7 @@ var regional = map[string]bool{
 
 func main() {
 	write := flag.Bool("write", false, "add missing keys to the catalogues")
-	swiss := flag.Bool("schweiz", false, "rebuild de-CH.json from the German source")
+	swiss := flag.Bool("schweiz", false, "rebuild de-CH.json from de.json")
 	root := flag.String("root", ".", "repository root")
 	flag.Parse()
 
@@ -177,7 +177,17 @@ func main() {
 	fmt.Printf("%d Zeichenketten im Quelltext\n", len(sorted))
 
 	if *swiss {
-		if err := writeSwiss(filepath.Join(dir, "de-CH.json"), sorted); err != nil {
+		// de-CH derives from de.json and no longer from the source.
+		//
+		// Until v2.0 the source WAS German, so the Swiss edition could be
+		// derived from the keys themselves. Since the flip the keys are
+		// English, and applying the ß rule to an English sentence would produce
+		// a de-CH entry that is not German at all.
+		german, err := readCatalog(filepath.Join(dir, "de.json"))
+		if err != nil {
+			fail(fmt.Errorf("de-CH derives from de.json, which could not be read: %w", err))
+		}
+		if err := writeSwiss(filepath.Join(dir, "de-CH.json"), sorted, german); err != nil {
 			fail(err)
 		}
 	}
@@ -328,7 +338,7 @@ var swissSpelling = strings.NewReplacer("ß", "ss", "„", "«", "“", "»")
 // Entries the rule produces are rewritten; entries about something else — a
 // word Switzerland simply uses differently — are kept as they are. So a
 // translator can add one by hand without the next run throwing it away.
-func writeSwiss(path string, sources []string) error {
+func writeSwiss(path string, sources []string, german map[string]string) error {
 	kept, err := readCatalog(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -336,9 +346,16 @@ func writeSwiss(path string, sources []string) error {
 
 	out := map[string]string{}
 	byRule := 0
-	for _, german := range sources {
-		if swiss := swissSpelling.Replace(german); swiss != german {
-			out[german] = swiss
+	for _, key := range sources {
+		// The key is English; what the rule applies to is its GERMAN
+		// translation. A key with no German translation has nothing to make
+		// Swiss, and the gate reports it as offen on de.json rather than here.
+		de, ok := german[key]
+		if !ok || de == "" {
+			continue
+		}
+		if swiss := swissSpelling.Replace(de); swiss != de {
+			out[key] = swiss
 			byRule++
 		}
 	}

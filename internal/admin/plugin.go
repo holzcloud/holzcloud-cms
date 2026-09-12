@@ -88,7 +88,7 @@ func (h *Handler) HandlePluginUpload(w http.ResponseWriter, r *http.Request) err
 
 	file, _, err := r.FormFile("plugin")
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Datei zu groß oder nicht ausgewählt")
+		web.SetFlashError(h.sm, r.Context(), "File too large or not selected")
 		return h.redirect(w, r, "/admin/plugins")
 	}
 	defer file.Close()
@@ -97,13 +97,13 @@ func (h *Handler) HandlePluginUpload(w http.ResponseWriter, r *http.Request) err
 	// reader above, which is what keeps the server out of swap.
 	data, err := io.ReadAll(file)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Die Datei konnte nicht gelesen werden")
+		web.SetFlashError(h.sm, r.Context(), "The file could not be read")
 		return h.redirect(w, r, "/admin/plugins")
 	}
 
 	m, err := h.plugins.Install(r.Context(), bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Einspielen fehlgeschlagen: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Installing failed: %s", err))
 		return h.redirect(w, r, "/admin/plugins")
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), fmt.Sprintf(
@@ -133,13 +133,13 @@ func (h *Handler) HandlePluginEnable(w http.ResponseWriter, r *http.Request) err
 		// Enable reports the reason the module did not come up. Showing a
 		// green tick for something that is not running would be the one
 		// outcome worse than the failure.
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Einschalten fehlgeschlagen: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Switching on failed: %s", err))
 	case err != nil:
 		return err
 	case on:
-		web.SetFlashSuccess(h.sm, r.Context(), "Eingeschaltet.")
+		web.SetFlashSuccess(h.sm, r.Context(), "Switched on.")
 	default:
-		web.SetFlashSuccess(h.sm, r.Context(), "Ausgeschaltet.")
+		web.SetFlashSuccess(h.sm, r.Context(), "Switched off.")
 	}
 	return h.redirect(w, r, "/admin/plugins")
 }
@@ -164,7 +164,7 @@ func (h *Handler) HandlePluginWebsites(w http.ResponseWriter, r *http.Request) e
 		}
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Zuordnung gespeichert.")
+	web.SetFlashSuccess(h.sm, r.Context(), "Assignment saved.")
 	return h.redirect(w, r, "/admin/plugins")
 }
 
@@ -178,7 +178,7 @@ func (h *Handler) HandlePluginRemove(w http.ResponseWriter, r *http.Request) err
 	// it, and that is not something to undo with the back button.
 	if r.FormValue("bestaetigung") != id {
 		web.SetFlashError(h.sm, r.Context(),
-			"Zum Entfernen die Kennung des Plugins eintippen.")
+			"Type the plugin's key to remove it.")
 		return h.redirect(w, r, "/admin/plugins")
 	}
 	if err := h.plugins.Remove(r.Context(), id); err != nil {
@@ -187,7 +187,7 @@ func (h *Handler) HandlePluginRemove(w http.ResponseWriter, r *http.Request) err
 		}
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Entfernt, samt seiner Daten.")
+	web.SetFlashSuccess(h.sm, r.Context(), "Removed, together with its data.")
 	return h.redirect(w, r, "/admin/plugins")
 }
 
@@ -242,7 +242,7 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 
 	out, err := h.plugins.Admin(r.Context(), id, in)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Das Plugin meldete einen Fehler: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The plugin reported an error: %s", err))
 		return h.redirect(w, r, "/admin/plugins")
 	}
 	if out.Flash != "" {

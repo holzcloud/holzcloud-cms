@@ -212,7 +212,7 @@ func (h *Handler) HandleOrderDetail(w http.ResponseWriter, r *http.Request) erro
 				web.SetFlashError(h.sm, r.Context(), err.Error())
 				break
 			}
-			web.SetFlashSuccess(h.sm, r.Context(), "Status geändert")
+			web.SetFlashSuccess(h.sm, r.Context(), "Status changed")
 			// Auf "versandt" gehört eine Nachricht an die Kundschaft. Nur beim
 			// Wechsel: wer den Status zweimal speichert, soll nicht zweimal
 			// melden, dass dasselbe Paket unterwegs ist.
@@ -263,24 +263,24 @@ func (h *Handler) HandleOrderDetail(w http.ResponseWriter, r *http.Request) erro
 // comes from Payrexx, not from the button.
 func (h *Handler) recheckPayment(r *http.Request, order *shop.Order) {
 	if !h.payments.Configured() {
-		web.SetFlashError(h.sm, r.Context(), "Für diese Installation ist kein Zahlungsanbieter eingerichtet.")
+		web.SetFlashError(h.sm, r.Context(), "No payment provider is set up for this installation.")
 		return
 	}
 	if order.PaymentMethod != shop.PayPayrexx || order.PaymentReference == "" {
-		web.SetFlashError(h.sm, r.Context(), "Diese Bestellung wurde nicht online bezahlt.")
+		web.SetFlashError(h.sm, r.Context(), "This order was not paid online.")
 		return
 	}
 
 	id, err := strconv.ParseInt(order.PaymentReference, 10, 64)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Die Zahlungsreferenz ist unlesbar.")
+		web.SetFlashError(h.sm, r.Context(), "The payment reference is unreadable.")
 		return
 	}
 
 	gw, err := h.payments.GetGateway(r.Context(), id)
 	if err != nil {
 		slog.Error("payment recheck failed", "order", order.Number, "err", err)
-		web.SetFlashError(h.sm, r.Context(), "Der Zahlungsanbieter war nicht erreichbar.")
+		web.SetFlashError(h.sm, r.Context(), "The payment provider could not be reached.")
 		return
 	}
 
@@ -290,24 +290,24 @@ func (h *Handler) recheckPayment(r *http.Request, order *shop.Order) {
 		// side: a gateway is only evidence for the amount it names.
 		if gw.Amount != int64(order.Totals.TotalGross) {
 			web.SetFlashError(h.sm, r.Context(),
-				"Der beim Anbieter verbuchte Betrag stimmt nicht mit der Bestellung überein.")
+				"The amount recorded with the provider does not match the order.")
 			return
 		}
 		if err := h.orders.SetPayment(r.Context(), order.ID, shop.PaymentPaid, order.PaymentReference); err != nil {
 			web.SetFlashError(h.sm, r.Context(), err.Error())
 			return
 		}
-		web.SetFlashSuccess(h.sm, r.Context(), "Die Zahlung ist eingegangen.")
+		web.SetFlashSuccess(h.sm, r.Context(), "The payment has come in.")
 
 	case gw.Failed():
 		if err := h.orders.SetPayment(r.Context(), order.ID, shop.PaymentFailed, order.PaymentReference); err != nil {
 			web.SetFlashError(h.sm, r.Context(), err.Error())
 			return
 		}
-		web.SetFlashSuccess(h.sm, r.Context(), "Die Zahlung wurde abgebrochen oder abgelehnt.")
+		web.SetFlashSuccess(h.sm, r.Context(), "The payment was cancelled or declined.")
 
 	default:
-		web.SetFlashSuccess(h.sm, r.Context(), "Beim Anbieter ist noch keine Zahlung verbucht.")
+		web.SetFlashSuccess(h.sm, r.Context(), "The provider has no payment recorded yet.")
 	}
 }
 
@@ -331,7 +331,7 @@ func (h *Handler) announceShipment(r *http.Request, ws *domain.Website, order *s
 	for _, m := range outbox.ForShipment(shopInfo, order) {
 		if _, err := h.outbox.Queue(r.Context(), m); err != nil {
 			slog.Error("shipment mail not queued", "order", order.Number, "err", err)
-			web.SetFlashError(h.sm, r.Context(), "Die Versandmeldung konnte nicht abgelegt werden.")
+			web.SetFlashError(h.sm, r.Context(), "The shipping notification could not be stored.")
 		}
 	}
 }
@@ -352,12 +352,12 @@ func (h *Handler) retryMail(r *http.Request, websiteID int64, raw string) {
 	}
 	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Unbekannte Nachricht.")
+		web.SetFlashError(h.sm, r.Context(), "Unknown message.")
 		return
 	}
 	if err := h.outbox.Retry(r.Context(), websiteID, id); err != nil {
 		web.SetFlashError(h.sm, r.Context(), err.Error())
 		return
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Die Nachricht steht wieder zum Versand an.")
+	web.SetFlashSuccess(h.sm, r.Context(), "The message is queued for sending again.")
 }

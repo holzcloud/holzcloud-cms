@@ -6,41 +6,41 @@
 
 {{define "media_list-content"}}
 <div class="card">
-    <h3>{{t "Datei hochladen"}}</h3>
+    <h3>{{t "Upload a file"}}</h3>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/media/upload" enctype="multipart/form-data" class="form-row">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <label class="sr-only" for="media">{{t "Datei"}}</label>
+        <label class="sr-only" for="media">{{t "File"}}</label>
         <input type="file" id="media" name="media" accept="image/*,application/pdf,video/mp4" required class="form-input">
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Hochladen"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Upload"}}</button>
     </form>
     <p class="text-muted" style="margin-top: var(--space-2)">
-        {{t "Erlaubt: JPEG, PNG, GIF, WebP, SVG, PDF (höchstens 5 MB) und MP4 (höchstens 64 MB). Aus Fotos und Videos werden beim Hochladen Kamera-Angaben entfernt – eine Handyaufnahme enthält sonst die GPS-Koordinaten des Aufnahmeorts."}}
+        {{t "Allowed: JPEG, PNG, GIF, WebP, SVG, PDF (at most 5 MB) and MP4 (at most 64 MB). Camera data is removed from photos and videos at upload — otherwise a phone recording contains the GPS coordinates of where it was made."}}
     </p>
 </div>
 
 <div class="card" style="margin-top: var(--space-3)">
     <form method="GET" action="/admin/websites/{{.WebsiteID}}/media" class="list-controls" role="search">
         <div class="list-controls__search">
-            <label class="sr-only" for="q">{{t "Medien durchsuchen"}}</label>
+            <label class="sr-only" for="q">{{t "Search the media"}}</label>
             <input type="search" id="q" name="q" class="form-input" value="{{.Filter.Query}}"
-                   placeholder="{{t "Dateiname oder Beschreibung"}}">
+                   placeholder="{{t "File name or description"}}">
         </div>
-        <label class="sr-only" for="kind">{{t "Art"}}</label>
+        <label class="sr-only" for="kind">{{t "Kind"}}</label>
         <select id="kind" name="kind" class="form-input form-select">
-            <option value="">{{t "Alle Arten"}}</option>
-            <option value="image"{{if eq .Filter.MimePrefix "image/"}} selected{{end}}>{{t "Bilder"}}</option>
-            <option value="document"{{if eq .Filter.MimePrefix "application/"}} selected{{end}}>{{t "Dokumente"}}</option>
+            <option value="">{{t "All kinds"}}</option>
+            <option value="image"{{if eq .Filter.MimePrefix "image/"}} selected{{end}}>{{t "Images"}}</option>
+            <option value="document"{{if eq .Filter.MimePrefix "application/"}} selected{{end}}>{{t "Documents"}}</option>
         </select>
         <label class="form-check">
             <input type="checkbox" name="unused" value="1" {{if .Filter.Unused}}checked{{end}}>
-            <span class="form-check-label">{{t "Nur unbenutzte"}}</span>
+            <span class="form-check-label">{{t "Unused only"}}</span>
         </label>
-        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Filtern"}}</button>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Filter"}}</button>
     </form>
 
     {{if .MissingAltText}}
     <p class="alert alert--warning" style="margin-top: var(--space-2)">
-        {{if eq .MissingAltText 1}}{{t "Ein Bild ohne Beschreibung. Ohne Beschreibung ist das Bild für blinde Besucher und für Suchmaschinen unsichtbar."}}{{else}}{{tf "%d Bilder ohne Beschreibung. Ohne Beschreibung ist ein Bild für blinde Besucher und für Suchmaschinen unsichtbar." .MissingAltText}}{{end}}
+        {{if eq .MissingAltText 1}}{{t "One image without a description. Without one, the image is invisible to blind visitors and to search engines."}}{{else}}{{tf "%d images without a description. Without one, an image is invisible to blind visitors and to search engines." .MissingAltText}}{{end}}
     </p>
     {{end}}
 </div>
@@ -65,39 +65,39 @@
                 <span class="media-card__name" title="{{.OriginalName}}">{{.OriginalName}}</span>
                 <span class="text-muted">{{.MimeType}}</span>
                 <span class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</span>
-                {{if .NeedsAltText}}<span class="badge badge--draft">{{t "ohne Beschreibung"}}</span>{{end}}
+                {{if .NeedsAltText}}<span class="badge badge--draft">{{t "without a description"}}</span>{{end}}
             </div>
 
             <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/meta" class="media-card__meta-form">
                 <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                <label class="sr-only" for="alt-{{.ID}}">{{tf "Bildbeschreibung für %s" .OriginalName}}</label>
+                <label class="sr-only" for="alt-{{.ID}}">{{tf "Image description for %s" .OriginalName}}</label>
                 <input type="text" id="alt-{{.ID}}" name="alt_text" class="form-input" value="{{.AltText}}"
-                       placeholder="{{t "Was ist zu sehen?"}}" maxlength="300">
-                <label class="sr-only" for="caption-{{.ID}}">{{tf "Bildunterschrift für %s" .OriginalName}}</label>
+                       placeholder="{{t "What is in the picture?"}}" maxlength="300">
+                <label class="sr-only" for="caption-{{.ID}}">{{tf "Caption for %s" .OriginalName}}</label>
                 <input type="text" id="caption-{{.ID}}" name="caption" class="form-input" value="{{.Caption}}"
-                       placeholder="{{t "Bildunterschrift (optional)"}}" maxlength="300">
-                <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Beschreibung speichern"}}</button>
+                       placeholder="{{t "Caption (optional)"}}" maxlength="300">
+                <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Save description"}}</button>
             </form>
 
             <div class="media-card__actions">
                 {{if .IsImage}}
                 <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/zuschnitt">
-                    {{t "Ausschnitt"}}{{if .IsCropped}} ✓{{end}}
+                    {{t "Crop area"}}{{if .IsCropped}} ✓{{end}}
                 </a>
                 {{end}}
-                <label class="sr-only" for="url-{{.ID}}">{{tf "Öffentliche Adresse von %s" .OriginalName}}</label>
+                <label class="sr-only" for="url-{{.ID}}">{{tf "Public address of %s" .OriginalName}}</label>
                 <input class="media-url" type="text" id="url-{{.ID}}" readonly value="{{.MarkdownRef}}">
                 <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete" hx-post="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete"
-                      style="display:inline" hx-confirm="{{t "Diese Datei löschen?"}}">
+                      style="display:inline" hx-confirm="{{t "Delete this file?"}}">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                 </form>
                 <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete?force=1"
                       style="display:inline"
-                      hx-confirm="{{t "Trotz Verwendung löschen? Auf den betroffenen Seiten erscheint dann ein kaputtes Bild."}}">
+                      hx-confirm="{{t "Delete it even though it is in use? The pages concerned will then show a broken image."}}">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                     <input type="hidden" name="force" value="1">
-                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Trotzdem löschen"}}</button>
+                    <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete anyway"}}</button>
                 </form>
             </div>
         </div>
@@ -106,7 +106,7 @@
 
     {{template "pager" .}}
     {{else}}
-    <p class="text-muted">{{t "Keine Dateien gefunden."}}</p>
+    <p class="text-muted">{{t "No files found."}}</p>
     {{end}}
     </div>
 </div>

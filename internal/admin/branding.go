@@ -34,7 +34,7 @@ func (h *Handler) HandleBranding(w http.ResponseWriter, r *http.Request) error {
 		return h.handleBrandingPost(w, r)
 	}
 	data := BrandingData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Marke"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Brand"),
 		FormState:  web.NewFormState(),
 		Brand:      branding.Current(),
 		HasLogo:    branding.LogoPath() != "",
@@ -45,7 +45,7 @@ func (h *Handler) HandleBranding(w http.ResponseWriter, r *http.Request) error {
 
 func (h *Handler) handleBrandingPost(w http.ResponseWriter, r *http.Request) error {
 	if err := r.ParseMultipartForm(2 * branding.MaxLogoBytes); err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Das Formular konnte nicht gelesen werden")
+		web.SetFlashError(h.sm, r.Context(), "The form could not be read")
 		return h.redirect(w, r, "/admin/marke")
 	}
 
@@ -54,7 +54,7 @@ func (h *Handler) handleBrandingPost(w http.ResponseWriter, r *http.Request) err
 			return err
 		}
 		branding.Load(r.Context(), h.db.Read)
-		web.SetFlashSuccess(h.sm, r.Context(), "Logo entfernt")
+		web.SetFlashSuccess(h.sm, r.Context(), "Logo removed")
 		return h.redirect(w, r, "/admin/marke")
 	}
 
@@ -73,7 +73,7 @@ func (h *Handler) handleBrandingPost(w http.ResponseWriter, r *http.Request) err
 		branding.Load(r.Context(), h.db.Read)
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Marke gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Brand saved")
 	return h.redirect(w, r, "/admin/marke")
 }
 

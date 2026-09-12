@@ -27,25 +27,25 @@
     {{range .Rows}}
     <div class="group-row">
         <div class="group-row__head">
-            <span class="group-row__no">{{tf "Zeile %d" .Number}}</span>
+            <span class="group-row__no">{{tf "Row %d" .Number}}</span>
             <span class="group-row__tools">
                 <button type="submit" class="reorder-btn" name="gruppenaktion"
                         value="hoch:{{$g.Name}}:{{.Index}}" formnovalidate
-                        {{if .First}}disabled{{end}}><span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Zeile nach oben"}}</span></button>
+                        {{if .First}}disabled{{end}}><span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Move the row up"}}</span></button>
                 <button type="submit" class="reorder-btn" name="gruppenaktion"
                         value="runter:{{$g.Name}}:{{.Index}}" formnovalidate
-                        {{if .Last}}disabled{{end}}><span aria-hidden="true">&#8595;</span><span class="sr-only">{{t "Zeile nach unten"}}</span></button>
+                        {{if .Last}}disabled{{end}}><span aria-hidden="true">&#8595;</span><span class="sr-only">{{t "Move the row down"}}</span></button>
                 <button type="submit" class="btn btn--danger btn--sm" name="gruppenaktion"
-                        value="weg:{{$g.Name}}:{{.Index}}" formnovalidate>{{t "Entfernen"}}</button>
+                        value="weg:{{$g.Name}}:{{.Index}}" formnovalidate>{{t "Remove"}}</button>
             </span>
         </div>
         {{range .Fields}}{{template "field_input" .}}{{end}}
     </div>
     {{end}}
 
-    {{if not .Rows}}<p class="text-muted">{{t "Noch keine Zeile."}}</p>{{end}}
+    {{if not .Rows}}<p class="text-muted">{{t "No row yet."}}</p>{{end}}
     <button type="submit" class="btn btn--sm" name="gruppenaktion"
-            value="neu:{{.Name}}" formnovalidate>{{t "Zeile hinzufügen"}}</button>
+            value="neu:{{.Name}}" formnovalidate>{{t "Add a row"}}</button>
 </fieldset>
 {{else}}
 {{template "field_input" .}}

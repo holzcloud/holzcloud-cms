@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="content-header-row">
     <h1>{{.Title}}</h1>
-    <a class="btn btn--sm" href="/admin/plugins">{{t "Zu den Plugins"}}</a>
+    <a class="btn btn--sm" href="/admin/plugins">{{t "To the plugins"}}</a>
 </div>
 
 <!-- Was hier steht, kommt aus dem Plugin und ist vorher durch dieselbe
@@ -14,6 +14,6 @@
 </div>
 
 <p class="hint">
-    {{t "Diese Ansicht stammt aus dem Plugin"}} <code>{{.PluginID}}</code>{{t ". Formulare darin senden an diese Adresse zurück; die Prüfung des Sitzungsschlüssels macht das CMS, nicht das Plugin."}}
+    {{t "This screen comes from the plugin"}} <code>{{.PluginID}}</code>{{t ". Forms inside it post back to this address; the CMS checks the session token, not the plugin."}}
 </p>
 {{end}}

@@ -42,12 +42,12 @@ func Normalise(tag string) string { return i18n.Normalise(tag) }
 // ones a visitor might. An unknown tag is shown as it is — a wrong name would
 // be worse than the tag.
 var names = map[string]string{
-	"de": i18n.N("Deutsch"), "fr": i18n.N("Französisch"), "it": i18n.N("Italienisch"), "rm": i18n.N("Rätoromanisch"),
-	"en": i18n.N("Englisch"), "es": i18n.N("Spanisch"), "pt": i18n.N("Portugiesisch"), "nl": i18n.N("Niederländisch"),
-	"pl": i18n.N("Polnisch"), "tr": i18n.N("Türkisch"), "ru": i18n.N("Russisch"), "uk": i18n.N("Ukrainisch"),
-	"cs": i18n.N("Tschechisch"), "hu": i18n.N("Ungarisch"), "da": i18n.N("Dänisch"), "sv": i18n.N("Schwedisch"),
-	"no": i18n.N("Norwegisch"), "fi": i18n.N("Finnisch"), "hr": i18n.N("Kroatisch"), "sr": i18n.N("Serbisch"),
-	"sq": i18n.N("Albanisch"), "ar": i18n.N("Arabisch"),
+	"de": i18n.N("German"), "fr": i18n.N("French"), "it": i18n.N("Italian"), "rm": i18n.N("Romansh"),
+	"en": i18n.N("English"), "es": i18n.N("Spanish"), "pt": i18n.N("Portuguese"), "nl": i18n.N("Dutch"),
+	"pl": i18n.N("Polish"), "tr": i18n.N("Turkish"), "ru": i18n.N("Russian"), "uk": i18n.N("Ukrainian"),
+	"cs": i18n.N("Czech"), "hu": i18n.N("Hungarian"), "da": i18n.N("Danish"), "sv": i18n.N("Swedish"),
+	"no": i18n.N("Norwegian"), "fi": i18n.N("Finnish"), "hr": i18n.N("Croatian"), "sr": i18n.N("Serbian"),
+	"sq": i18n.N("Albanian"), "ar": i18n.N("Arabic"),
 }
 
 // Name is the language's name in German, with the region appended when there is

@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn btn--primary">{{t "Zu den Seiten"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn btn--primary">{{t "To the pages"}}</a>{{end}}
 
 {{define "content"}}
 {{template "csv_report-content" .}}
@@ -7,47 +7,47 @@
 {{define "csv_report-content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="text-muted">
-        {{tf "Datei „%s“, %d Zeilen gelesen, Website „%s“." .Filename .Report.Total .WebsiteName}}
+        {{tf "File “%s”, %d rows read, website “%s”." .Filename .Report.Total .WebsiteName}}
     </p>
 
     <p>
-        <span class="badge badge--published">{{tf "%d angelegt" .Report.Created}}</span>
-        <span class="badge badge--primary">{{tf "%d aktualisiert" .Report.Updated}}</span>
-        <span class="badge badge--draft">{{tf "%d übergangen" .Report.Skipped}}</span>
+        <span class="badge badge--published">{{tf "%d created" .Report.Created}}</span>
+        <span class="badge badge--primary">{{tf "%d updated" .Report.Updated}}</span>
+        <span class="badge badge--draft">{{tf "%d skipped" .Report.Skipped}}</span>
     </p>
 
     {{/* Die Zahl allein nützt niemandem: sie steht neben dem Weg, dort
          nachzusehen (D-25). */}}
     <p>
-        <a href="/admin/websites/{{.WebsiteID}}/pages">{{t "Alle Seiten dieser Website ansehen"}}</a>
+        <a href="/admin/websites/{{.WebsiteID}}/pages">{{t "View all pages of this website"}}</a>
     </p>
 
     {{if .Report.Renamed}}
     <p class="text-muted">
-        {{tf "%d Adressen waren schon vergeben und wurden umbenannt. Welche, steht unten." .Report.Renamed}}
+        {{tf "%d addresses were already taken and were renamed. Which ones is written below." .Report.Renamed}}
     </p>
     {{end}}
 
     {{if .Report.Truncated}}
     <p class="alert alert--warning">
-        {{t "Die Datei hatte mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde nicht gelesen und nicht geschrieben."}}
+        {{t "The file had more rows than can be imported in one go. The rest was not read and not written."}}
     </p>
     {{end}}
 </div>
 
 <div class="card">
-    <h2>{{t "Was zu melden ist"}}</h2>
+    <h2>{{t "What there is to report"}}</h2>
     {{if .Report.Groups}}
     <p class="text-muted">
-        {{t "Gleiche Ursachen stehen in einer Zeile zusammen, mit den Zeilennummern deiner Tabelle daneben. Was übergangen wurde, ist nicht geschrieben worden – ändere die genannten Zeilen und lade die Datei noch einmal hoch."}}
+        {{t "The same causes stand together on one line, with the row numbers of your spreadsheet beside them. What was skipped has not been written — change the rows named and upload the file again."}}
     </p>
     <div class="csv-scroll">
         <table class="table csv-groups">
             <thead>
                 <tr>
-                    <th scope="col">{{t "Ausgang"}}</th>
-                    <th scope="col">{{t "Grund"}}</th>
-                    <th scope="col">{{t "Zeilen"}}</th>
+                    <th scope="col">{{t "Outcome"}}</th>
+                    <th scope="col">{{t "Reason"}}</th>
+                    <th scope="col">{{t "Rows"}}</th>
                 </tr>
             </thead>
             <tbody>
@@ -62,7 +62,7 @@
         </table>
     </div>
     {{else}}
-    <p class="text-muted">{{t "Nichts zu melden: jede Zeile der Datei ist durchgegangen."}}</p>
+    <p class="text-muted">{{t "Nothing to report: every row of the file went through."}}</p>
     {{end}}
 </div>
 {{end}}

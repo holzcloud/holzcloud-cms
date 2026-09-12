@@ -5,14 +5,14 @@
 {{define "kind_list-content"}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <p class="text-muted">
-        {{th "Eine Website hat von Haus aus zwei Arten: die <strong>Seite</strong>, die für sich steht, und den <strong>Beitrag</strong>, der im Archiv nach Datum liegt. Wer Produkte, Termine, Rezepte oder Tiere führt, legt hier seine eigene Art an — mit eigenem Namen, eigener Übersicht und eigenen Feldern."}}
+        {{th "A website comes with two kinds: the <strong>page</strong>, which stands on its own, and the <strong>post</strong>, which lies in the archive by date. Anyone keeping products, events, recipes or animals creates their own kind here — with its own name, its own overview and its own fields."}}
     </p>
     <p class="text-muted">
-        {{th "Eine Art ändert nichts an den Adressen: jeder Eintrag wohnt weiter unter seiner eigenen. Was sie ändert, ist die Sprache der Verwaltung („Neues Produkt“ statt „Neuer Beitrag“), die Liste, die Filter — und welche Felder im Editor erscheinen."}}
+        {{th "A kind changes nothing about addresses: every entry keeps living under its own. What it changes is the language of the administration (“New product” instead of “New post”), the list, the filters — and which fields appear in the editor."}}
     </p>
     <p class="text-muted">
-        {{tf "Eingebaut: %d Seiten, %d Beiträge." .Pages .Posts}}
-        {{if .BlogBase}}{{tf "Das Archiv der Beiträge liegt unter /%s." .BlogBase}}{{end}}
+        {{tf "Built in: %d pages, %d posts." .Pages .Posts}}
+        {{if .BlogBase}}{{tf "The archive of posts lives at /%s." .BlogBase}}{{end}}
     </p>
 </div>
 
@@ -22,11 +22,11 @@
         <thead>
             <tr>
                 <th scope="col">{{t "Name"}}</th>
-                <th scope="col">{{t "Kennung"}}</th>
-                <th scope="col">{{t "Übersicht"}}</th>
-                <th scope="col">{{t "Sortierung"}}</th>
-                <th scope="col">{{t "Einträge"}}</th>
-                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+                <th scope="col">{{t "Key"}}</th>
+                <th scope="col">{{t "Overview"}}</th>
+                <th scope="col">{{t "Sorting"}}</th>
+                <th scope="col">{{t "Entries"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Actions"}}</span></th>
             </tr>
         </thead>
         <tbody>
@@ -35,7 +35,7 @@
                 <td style="font-weight:500">{{.Name}} <span class="text-muted">/ {{.Plural}}</span></td>
                 <td><code>{{.Key}}</code></td>
                 <td class="text-muted">{{if .Archive}}<code>/{{.Archive}}</code>{{else}}—{{end}}</td>
-                <td class="text-muted">{{if .SortsByTitle}}{{t "nach Titel"}}{{else}}{{t "neueste zuerst"}}{{end}}</td>
+                <td class="text-muted">{{if .SortsByTitle}}{{t "by title"}}{{else}}{{t "newest first"}}{{end}}</td>
                 <td class="text-muted">
                     <a href="/admin/websites/{{$.WebsiteID}}/pages?kind={{.Key}}">{{.Entries}}</a>
                 </td>
@@ -44,19 +44,19 @@
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <input type="hidden" name="richtung" value="hoch">
                         <button type="submit" class="reorder-btn" {{if .First}}disabled{{end}}
-                                aria-label="{{t "Nach oben"}}" hx-disabled-elt="this">↑</button>
+                                aria-label="{{t "Up"}}" hx-disabled-elt="this">↑</button>
                     </form>
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/inhaltsarten/{{.ID}}/verschieben" style="display:inline">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <input type="hidden" name="richtung" value="runter">
                         <button type="submit" class="reorder-btn" {{if .Last}}disabled{{end}}
-                                aria-label="{{t "Nach unten"}}" hx-disabled-elt="this">↓</button>
+                                aria-label="{{t "Down"}}" hx-disabled-elt="this">↓</button>
                     </form>
-                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/inhaltsarten?aendern={{.ID}}">{{t "Ändern"}}</a>
+                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/inhaltsarten?aendern={{.ID}}">{{t "Change"}}</a>
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/inhaltsarten/{{.ID}}/loeschen" style="display:inline"
-                          hx-confirm="{{t "Diese Inhaltsart entfernen? Die Einträge bleiben und tragen weiter ihre Kennung."}}">
+                          hx-confirm="{{t "Remove this content kind? The entries stay and keep carrying its key."}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>
                     </form>
                 </td>
             </tr>
@@ -67,57 +67,57 @@
 {{end}}
 
 <div class="card">
-    <h2>{{if .Edit}}{{t "Inhaltsart ändern"}}{{else}}{{t "Neue Inhaltsart"}}{{end}}</h2>
+    <h2>{{if .Edit}}{{t "Change content kind"}}{{else}}{{t "New content kind"}}{{end}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/inhaltsarten">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         {{if .Edit}}<input type="hidden" name="id" value="{{.Edit.ID}}">{{end}}
 
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label" for="art-name">{{t "Name (Einzahl)"}}</label>
+                <label class="form-label" for="art-name">{{t "Name (singular)"}}</label>
                 <input type="text" id="art-name" name="name" class="form-input" required maxlength="40"
-                       value="{{if .Edit}}{{.Edit.Name}}{{end}}" placeholder="{{t "Produkt"}}">
+                       value="{{if .Edit}}{{.Edit.Name}}{{end}}" placeholder="{{t "Product"}}">
             </div>
             <div class="form-group">
-                <label class="form-label" for="art-mehrzahl">{{t "Mehrzahl"}}</label>
+                <label class="form-label" for="art-mehrzahl">{{t "Plural"}}</label>
                 <input type="text" id="art-mehrzahl" name="mehrzahl" class="form-input" required maxlength="40"
-                       value="{{if .Edit}}{{.Edit.Plural}}{{end}}" placeholder="{{t "Produkte"}}">
-                <p class="form-hint text-muted">{{t "Steht über der Liste und im Filter."}}</p>
+                       value="{{if .Edit}}{{.Edit.Plural}}{{end}}" placeholder="{{t "Products"}}">
+                <p class="form-hint text-muted">{{t "Shown above the list and in the filter."}}</p>
             </div>
         </div>
 
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label" for="art-archiv">{{t "Übersichtsseite"}}</label>
+                <label class="form-label" for="art-archiv">{{t "Overview page"}}</label>
                 <input type="text" id="art-archiv" name="archiv" class="form-input" maxlength="60"
                        value="{{if .Edit}}{{.Edit.Archive}}{{end}}" placeholder="hofladen">
                 <p class="form-hint text-muted">
-                    {{th "Adresse einer Seite, die alle Einträge dieser Art aufzählt — <code>/hofladen</code>. Leer lassen für eine Art ohne Übersicht; die Einträge sind dann nur über Menü und Links erreichbar."}}
+                    {{th "Address of a page that lists every entry of this kind — <code>/shop</code>. Leave it empty for a kind without an overview; its entries are then reachable only through menus and links."}}
                 </p>
             </div>
             <div class="form-group">
-                <label class="form-label" for="art-sortierung">{{t "Sortierung der Übersicht"}}</label>
+                <label class="form-label" for="art-sortierung">{{t "Sorting of the overview"}}</label>
                 <select id="art-sortierung" name="sortierung" class="form-input form-select">
-                    <option value="neueste"{{if and .Edit (not .Edit.SortsByTitle)}} selected{{end}}>{{t "Neueste zuerst"}}</option>
-                    <option value="titel"{{if and .Edit .Edit.SortsByTitle}} selected{{end}}>{{t "Nach Titel"}}</option>
+                    <option value="neueste"{{if and .Edit (not .Edit.SortsByTitle)}} selected{{end}}>{{t "Newest first"}}</option>
+                    <option value="titel"{{if and .Edit .Edit.SortsByTitle}} selected{{end}}>{{t "By title"}}</option>
                 </select>
             </div>
         </div>
 
         {{if .Edit}}
         <p class="form-hint text-muted">
-            {{tf "Die Kennung „%s“ steht fest: sie steckt in jedem Eintrag dieser Art." .Edit.Key}}
+            {{tf "The key “%s” is fixed: it sits in every entry of this kind." .Edit.Key}}
         </p>
         {{else}}
         <p class="form-hint text-muted">
-            {{t "Die Kennung wird aus dem Namen gebildet und steht danach fest — sie steckt in jedem Eintrag dieser Art."}}
+            {{t "The key is derived from the name and is fixed afterwards — it sits in every entry of this kind."}}
         </p>
         {{end}}
 
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
-            {{if .Edit}}{{t "Änderungen speichern"}}{{else}}{{t "Inhaltsart anlegen"}}{{end}}
+            {{if .Edit}}{{t "Save changes"}}{{else}}{{t "Create content kind"}}{{end}}
         </button>
-        {{if .Edit}}<a href="/admin/websites/{{.WebsiteID}}/inhaltsarten" class="btn">{{t "Abbrechen"}}</a>{{end}}
+        {{if .Edit}}<a href="/admin/websites/{{.WebsiteID}}/inhaltsarten" class="btn">{{t "Cancel"}}</a>{{end}}
     </form>
 </div>
 {{end}}

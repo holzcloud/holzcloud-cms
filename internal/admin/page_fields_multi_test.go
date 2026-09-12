@@ -261,7 +261,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 
 	fields := field.NewStore(database)
 	gruppe, err := fields.Create(ctx, field.Def{
-		WebsiteID: ws.ID, Key: "zeiten", Label: "Öffnungszeiten", Kind: field.KindGroup,
+		WebsiteID: ws.ID, Key: "zeiten", Label: "Opening hours", Kind: field.KindGroup,
 	})
 	if err != nil {
 		t.Fatalf("Gruppe anlegen: %v", err)

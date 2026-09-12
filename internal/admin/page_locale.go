@@ -178,7 +178,7 @@ func (h *Handler) HandlePageTranslate(w http.ResponseWriter, r *http.Request) er
 	// the button asked for.
 	tag := locale.Pick(r.URL.Query().Get("sprache"), ws.Locales())
 	if tag == "" {
-		web.SetFlashError(h.sm, r.Context(), "Diese Sprache gibt es auf dieser Website nicht")
+		web.SetFlashError(h.sm, r.Context(), "This website does not have that language")
 		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID))
 	}
 
@@ -222,7 +222,7 @@ func (h *Handler) HandlePageTranslate(w http.ResponseWriter, r *http.Request) er
 	// Zusammengesetzt, also vorher übersetzt: SetFlashSuccess schlägt den ganzen
 	// Satz nach, und einen in Go zusammengeklebten findet es nie.
 	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r,
-		"%s: Entwurf aus der Vorlage angelegt – Text und Adresse jetzt übersetzen",
+		"%s: draft created from the original — now translate the text and the address",
 		web.T(r, locale.Name(tag))))
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, created.ID))
 }

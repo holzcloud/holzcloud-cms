@@ -50,7 +50,7 @@ func (h *Handler) HandleBlockTypeList(w http.ResponseWriter, r *http.Request) er
 	}
 
 	data := BlockTypeListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Bausteinarten – %s", ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Block kinds – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Builtin:    block.Kinds,
 	}
@@ -97,7 +97,7 @@ func (h *Handler) HandleBlockTypeSave(w http.ResponseWriter, r *http.Request) er
 			// renders to nothing, and the next thing anybody wants is to say
 			// what goes in it.
 			web.SetFlashSuccess(h.sm, r.Context(),
-				"Bausteinart angelegt. Jetzt fehlen noch ihre Felder — hier sind sie.")
+				"Block kind created. Its fields are still missing — here they are.")
 			return h.redirect(w, r, fieldPathOfBlockType(websiteID, created.ID))
 		}
 	}
@@ -105,21 +105,21 @@ func (h *Handler) HandleBlockTypeSave(w http.ResponseWriter, r *http.Request) er
 	switch {
 	case errors.Is(err, block.ErrDuplicate):
 		web.SetFlashError(h.sm, r.Context(),
-			"Eine Bausteinart mit dieser Kennung gibt es schon. Wähle einen anderen Namen.")
+			"A block kind with this key already exists. Choose another name.")
 	case errors.Is(err, block.ErrReserved):
 		web.SetFlashError(h.sm, r.Context(),
-			"Diese Kennung gehört einer eingebauten Bausteinart. Wähle einen anderen Namen.")
+			"This key belongs to a built-in block kind. Choose another name.")
 	case errors.Is(err, block.ErrTooManyTypes):
 		web.SetFlashError(h.sm, r.Context(),
-			"Mehr Bausteinarten werden nicht angelegt — ein Menü, das so lang ist, liest niemand mehr.")
+			"No more block kinds are created — a menu that long is one nobody reads any more.")
 	case err != nil:
 		// A database failure, whose text is a German fmt.Errorf wrap around a
 		// driver message. The operator reads a collected sentence; the wrap
 		// goes to the log, where its detail is worth something.
 		slog.Error("save block kind", "err", err)
-		web.SetFlashError(h.sm, r.Context(), "Speichern fehlgeschlagen.")
+		web.SetFlashError(h.sm, r.Context(), "Saving failed.")
 	default:
-		web.SetFlashSuccess(h.sm, r.Context(), "Bausteinart geändert.")
+		web.SetFlashSuccess(h.sm, r.Context(), "Block kind changed.")
 	}
 	return h.redirect(w, r, back)
 }
@@ -141,7 +141,7 @@ func (h *Handler) HandleBlockTypeDelete(w http.ResponseWriter, r *http.Request) 
 	// Says what did not happen, like the field screen: the blocks are still on
 	// the pages, invisible, until each page is next saved.
 	web.SetFlashSuccess(h.sm, r.Context(),
-		"Bausteinart entfernt. Bausteine dieser Art verschwinden von den Seiten, sobald diese das nächste Mal gespeichert werden.")
+		"Block kind removed. Blocks of this kind disappear from the pages the next time each one is saved.")
 	return h.redirect(w, r, blockTypePath(websiteID))
 }
 

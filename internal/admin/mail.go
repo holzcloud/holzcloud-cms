@@ -28,7 +28,7 @@ func (h *Handler) HandleMailStatus(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 	data := MailStatusData{
-		LayoutData: web.NewLayoutData(r, h.sm, "E-Mail"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Email"),
 		Status:     st,
 		OwnEmail:   h.sm.GetString(r.Context(), auth.SessionKeyUserEmail),
 	}
@@ -40,12 +40,12 @@ func (h *Handler) HandleMailStatus(w http.ResponseWriter, r *http.Request) error
 func (h *Handler) HandleMailTest(w http.ResponseWriter, r *http.Request) error {
 	to := h.sm.GetString(r.Context(), auth.SessionKeyUserEmail)
 	if to == "" {
-		web.SetFlashError(h.sm, r.Context(), "Für dein Konto ist keine Adresse hinterlegt.")
+		web.SetFlashError(h.sm, r.Context(), "No address is on file for your account.")
 		return h.redirect(w, r, "/admin/mail")
 	}
 	if !h.mail.Enabled() {
 		web.SetFlashError(h.sm, r.Context(),
-			"Es ist kein Mailserver eingerichtet — setze HOLZCLOUD_SMTP_HOST und HOLZCLOUD_SMTP_FROM.")
+			"No mail server is set up — set HOLZCLOUD_SMTP_HOST and HOLZCLOUD_SMTP_FROM.")
 		return h.redirect(w, r, "/admin/mail")
 	}
 
@@ -61,7 +61,7 @@ Benachrichtigungen über neue Anfragen.
 `, time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
 	})
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Einreihen fehlgeschlagen: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Queueing failed: %s", err))
 		return h.redirect(w, r, "/admin/mail")
 	}
 	// Queued, not sent: the job picks it up within half a minute. Saying
@@ -79,7 +79,7 @@ func (h *Handler) HandleMailRetry(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	if n == 0 {
-		web.SetFlashSuccess(h.sm, r.Context(), "Es liegt nichts mehr an.")
+		web.SetFlashSuccess(h.sm, r.Context(), "Nothing is waiting any more.")
 	} else {
 		web.SetFlashSuccess(h.sm, r.Context(),
 			fmt.Sprintf("%d Nachrichten werden erneut versucht.", n))

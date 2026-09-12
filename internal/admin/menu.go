@@ -124,7 +124,7 @@ func (h *Handler) HandleMenuList(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := MenuListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Menüs – %s", ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Menus – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Menus:      menus,
 		Languages:  languageChoices(ws, ""),
@@ -157,28 +157,28 @@ func (h *Handler) HandleMenuCreate(w http.ResponseWriter, r *http.Request) error
 	}
 
 	if name == "" || locationKey == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte Name und Kennung angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give a name and a key")
 		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID), http.StatusSeeOther)
 		return nil
 	}
 
 	// Validate location_key format (T-04-09)
 	if !isValidLocationKey(locationKey) {
-		web.SetFlashError(h.sm, r.Context(), "Die Kennung darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten")
+		web.SetFlashError(h.sm, r.Context(), "The key may only contain lower-case letters, digits and hyphens")
 		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID), http.StatusSeeOther)
 		return nil
 	}
 
 	if _, err := h.menuStore.CreateMenu(r.Context(), websiteID, name, locationKey, loc); err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint") {
-			web.SetFlashError(h.sm, r.Context(), "Für diese Website gibt es in dieser Sprache bereits ein Menü mit dieser Kennung")
+			web.SetFlashError(h.sm, r.Context(), "This website already has a menu with that key in this language")
 			http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID), http.StatusSeeOther)
 			return nil
 		}
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Menü angelegt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Menu created")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus", websiteID)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -237,7 +237,7 @@ func (h *Handler) HandleMenuEdit(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := MenuEditData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Menü %s – %s", m.Name, ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Menu %s – %s", m.Name, ws.Name)),
 		WebsiteID:  websiteID,
 		Menu:       m,
 		Items:      flat,
@@ -277,7 +277,7 @@ func (h *Handler) HandleMenuUpdate(w http.ResponseWriter, r *http.Request) error
 	name := strings.TrimSpace(r.FormValue("name"))
 	locationKey := strings.TrimSpace(r.FormValue("location_key"))
 	if name == "" || locationKey == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte Name und Kennung angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give a name and a key")
 		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
 		return nil
 	}
@@ -286,7 +286,7 @@ func (h *Handler) HandleMenuUpdate(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Menü gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Menu saved")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -322,7 +322,7 @@ func (h *Handler) HandleMenuDelete(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Menü gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Menu deleted")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus", websiteID)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -363,7 +363,7 @@ func (h *Handler) HandleMenuItemCreate(w http.ResponseWriter, r *http.Request) e
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte einen Titel für den Eintrag angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give the entry a title")
 		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
 		return nil
 	}
@@ -371,7 +371,7 @@ func (h *Handler) HandleMenuItemCreate(w http.ResponseWriter, r *http.Request) e
 	itemType := r.FormValue("item_type")
 	// Validate item_type (T-04-09)
 	if itemType != "page" && itemType != "url" && itemType != "custom" {
-		web.SetFlashError(h.sm, r.Context(), "Ungültige Art des Menüeintrags")
+		web.SetFlashError(h.sm, r.Context(), "Invalid kind of menu entry")
 		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
 		return nil
 	}
@@ -413,7 +413,7 @@ func (h *Handler) HandleMenuItemCreate(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Eintrag hinzugefügt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Entry added")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -474,7 +474,7 @@ func (h *Handler) HandleMenuItemUpdate(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Eintrag gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Entry saved")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
 	_ = menuID // used in redirect
 	if r.Header.Get("HX-Request") == "true" {
@@ -516,7 +516,7 @@ func (h *Handler) HandleMenuItemDelete(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Eintrag gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Entry deleted")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -546,7 +546,7 @@ func (h *Handler) HandleMenuItemReorder(w http.ResponseWriter, r *http.Request) 
 
 	direction := r.URL.Query().Get("direction")
 	if direction != "up" && direction != "down" {
-		web.SetFlashError(h.sm, r.Context(), "Ungültige Richtung")
+		web.SetFlashError(h.sm, r.Context(), "Invalid direction")
 		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
 		return nil
 	}
@@ -593,7 +593,7 @@ func (h *Handler) HandleMenuItemReorder(w http.ResponseWriter, r *http.Request) 
 		if err := h.menuStore.SwapSortOrder(r.Context(), itemID, adjacentID); err != nil {
 			return err
 		}
-		web.SetFlashSuccess(h.sm, r.Context(), "Reihenfolge geändert")
+		web.SetFlashSuccess(h.sm, r.Context(), "Order changed")
 	}
 
 	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)

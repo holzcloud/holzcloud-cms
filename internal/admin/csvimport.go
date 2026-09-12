@@ -322,14 +322,14 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 		// A file that is missing or over the cap is not a form-validation
 		// error: there is nothing the operator typed to hand back, so this is a
 		// flash and a redirect rather than a 422 — wordpress.go:28-32.
-		web.SetFlashError(h.sm, r.Context(), "Datei zu groß oder nicht ausgewählt")
+		web.SetFlashError(h.sm, r.Context(), "File too large or not selected")
 		return h.redirect(w, r, "/admin/websites")
 	}
 	defer file.Close()
 
 	raw, err := io.ReadAll(file)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Die Datei konnte nicht gelesen werden.")
+		web.SetFlashError(h.sm, r.Context(), "The file could not be read.")
 		return h.redirect(w, r, "/admin/websites")
 	}
 
@@ -342,13 +342,13 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 	if err := csv.CheckBytes(raw); err != nil {
 		switch {
 		case errors.Is(err, csv.ErrEmpty):
-			web.SetFlashError(h.sm, r.Context(), "Die Datei ist leer. Es wurde nichts abgelegt.")
+			web.SetFlashError(h.sm, r.Context(), "The file is empty. Nothing was stored.")
 		case errors.Is(err, csv.ErrOnlyBOM):
-			web.SetFlashError(h.sm, r.Context(), "Die Datei enthält nur eine Byte-Reihenfolge-Marke und sonst nichts – so sieht ein leeres Tabellenblatt auf der Festplatte aus.")
+			web.SetFlashError(h.sm, r.Context(), "The file contains nothing but a byte order mark — that is what an empty spreadsheet looks like on disk.")
 		case errors.Is(err, csv.ErrNULByte):
-			web.SetFlashError(h.sm, r.Context(), "Die Datei enthält ein Nullbyte und ist keine CSV-Datei.")
+			web.SetFlashError(h.sm, r.Context(), "The file contains a null byte and is not a CSV file.")
 		default:
-			web.SetFlashError(h.sm, r.Context(), "Die Datei konnte nicht gelesen werden.")
+			web.SetFlashError(h.sm, r.Context(), "The file could not be read.")
 		}
 		return h.redirect(w, r, "/admin/websites")
 	}
@@ -361,12 +361,12 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 	if _, err := csv.New(bytes.NewReader(raw)); err != nil {
 		switch {
 		case errors.Is(err, csv.ErrNoHeader):
-			web.SetFlashError(h.sm, r.Context(), "Die Datei hat keine Kopfzeile. Die erste Zeile muss die Spaltenüberschriften enthalten.")
+			web.SetFlashError(h.sm, r.Context(), "The file has no header row. The first row must contain the column headings.")
 		case errors.Is(err, csv.ErrTooManyColumns):
 			web.SetFlashError(h.sm, r.Context(), web.Titlef(r,
-				"Die Datei hat mehr als %d Spalten. Es wurde nichts abgelegt.", csv.MaxColumns))
+				"The file has more than %d columns. Nothing was stored.", csv.MaxColumns))
 		default:
-			web.SetFlashError(h.sm, r.Context(), "Die Datei konnte nicht als Tabelle gelesen werden.")
+			web.SetFlashError(h.sm, r.Context(), "The file could not be read as a spreadsheet.")
 		}
 		return h.redirect(w, r, "/admin/websites")
 	}
@@ -397,7 +397,7 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 			return err
 		}
 		if ws == nil {
-			web.SetFlashError(h.sm, r.Context(), "Diese Website gibt es nicht.")
+			web.SetFlashError(h.sm, r.Context(), "This website does not exist.")
 			return h.redirect(w, r, "/admin/websites")
 		}
 		upload.WebsiteID = ws.ID
@@ -465,7 +465,7 @@ func (h *Handler) staged(w http.ResponseWriter, r *http.Request) (*csvimport.Upl
 // something the operator did wrong, so neither is a 404, and both mean the same
 // thing to them: this file is not here to be read in, start again.
 func (h *Handler) csvExpired(w http.ResponseWriter, r *http.Request) error {
-	data := CSVExpiredData{LayoutData: web.NewLayoutData(r, h.sm, "Der Upload ist abgelaufen")}
+	data := CSVExpiredData{LayoutData: web.NewLayoutData(r, h.sm, "The upload has expired")}
 	data.ActiveNav = "websites"
 	return web.RenderAdmin(w, h.templates, r, "csv_expired", data)
 }
@@ -503,7 +503,7 @@ func (h *Handler) csvTarget(w http.ResponseWriter, r *http.Request, upload *csvi
 			return nil, nil, false, err
 		}
 		web.SetFlashError(h.sm, r.Context(),
-			"Die Website dieses Imports gibt es nicht mehr. Der Import wurde abgebrochen; geschrieben wurde nichts.")
+			"The website of this import no longer exists. The import was broken off; nothing was written.")
 		return nil, nil, false, h.redirect(w, r, "/admin/websites")
 	}
 
@@ -531,7 +531,7 @@ func csvHeader(upload *csvimport.Upload) ([]string, error) {
 // csvUnreadable is the one answer to a staged file that no longer parses.
 func (h *Handler) csvUnreadable(w http.ResponseWriter, r *http.Request) error {
 	web.SetFlashError(h.sm, r.Context(),
-		"Die abgelegte Datei lässt sich nicht mehr als Tabelle lesen. Bitte noch einmal hochladen.")
+		"The stored file can no longer be read as a spreadsheet. Please upload it again.")
 	return h.redirect(w, r, "/admin/websites")
 }
 
@@ -546,7 +546,7 @@ func (h *Handler) csvMappingData(r *http.Request, upload *csvimport.Upload,
 	ws *domain.Website, defs []field.Def, chosen *csvimport.Mapping) (CSVMappingData, error) {
 
 	data := CSVMappingData{
-		LayoutData:  web.NewLayoutData(r, h.sm, "Spalten zuordnen"),
+		LayoutData:  web.NewLayoutData(r, h.sm, "Map the columns"),
 		FormState:   web.NewFormState(),
 		Token:       r.PathValue("token"),
 		Website:     ws,
@@ -1092,7 +1092,7 @@ func (h *Handler) HandleCSVDryRun(w http.ResponseWriter, r *http.Request) error 
 	report.Truncated = run.Truncated
 
 	data := CSVDryRunData{
-		LayoutData:  web.NewLayoutData(r, h.sm, "Probelauf"),
+		LayoutData:  web.NewLayoutData(r, h.sm, "Dry run"),
 		Token:       r.PathValue("token"),
 		Filename:    upload.Filename,
 		WebsiteName: upload.WebsiteName,
@@ -1170,7 +1170,7 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 	report.Truncated = run.Truncated
 
 	data := CSVReportData{
-		LayoutData:  web.NewLayoutData(r, h.sm, "Einlesen abgeschlossen"),
+		LayoutData:  web.NewLayoutData(r, h.sm, "Import finished"),
 		WebsiteID:   websiteID,
 		WebsiteName: websiteName,
 		Filename:    upload.Filename,
@@ -1306,11 +1306,11 @@ func csvExampleFilename(name string) string {
 // German word in a row they overwrite anyway.
 func csvExampleColumns(defs []field.Def, lang string) (header, sample []string) {
 	header = []string{
-		i18n.T(lang, i18n.N("Titel")),
-		i18n.T(lang, i18n.N("Adresse")),
+		i18n.T(lang, i18n.N("Title")),
+		i18n.T(lang, i18n.N("Address")),
 		i18n.T(lang, i18n.N("Text")),
-		i18n.T(lang, i18n.N("Zustand")),
-		i18n.T(lang, i18n.N("Schlagwörter")),
+		i18n.T(lang, i18n.N("State")),
+		i18n.T(lang, i18n.N("Terms")),
 	}
 	sample = []string{"Beispielseite", "beispielseite", "Ein Satz über die Seite.", "entwurf", "Beispiel|Muster"}
 	for _, d := range defs {

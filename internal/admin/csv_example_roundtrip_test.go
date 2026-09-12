@@ -18,7 +18,7 @@ import (
 // download the screen told them to use.
 //
 // The failure this test was written after is the shape to remember. The
-// catalogue translated "Schlagwörter" as "Labels", because it also translated
+// catalogue translated "Terms" as "Labels", because it also translated
 // "Beschriftung" that way — a collision .planning/GLOSSARY.md had recorded as a
 // defect long before. Nothing was broken by translating the heading; the break
 // was already in the catalogue, and putting the word on a file that has to come

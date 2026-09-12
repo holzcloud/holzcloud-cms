@@ -5,63 +5,63 @@
 {{define "mail_status-content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="text-muted">
-        {{t "Holzcloud verschickt E-Mails nur, wenn ein Mailserver eingerichtet ist. Das ist die einzige Stelle, an der dieser Server von sich aus nach außen wählt – zu genau dem Server, den du eingetragen hast, und zu keinem anderen. Was Besucher im Browser laden, kommt weiterhin ausschließlich von hier."}}
+        {{t "Holzcloud sends email only when a mail server is set up. This is the one place where this server dials out of its own accord — to exactly the server you entered and to no other. What visitors load in their browser still comes from here and nowhere else."}}
     </p>
 </div>
 
 <div class="card">
-    <h2>{{t "Mailserver"}}</h2>
+    <h2>{{t "Mail server"}}</h2>
     {{if .Status.Configured}}
     <dl class="facts">
-        <dt>{{t "Zustand"}}</dt><dd><span class="badge badge--ok">{{t "eingerichtet"}}</span></dd>
+        <dt>{{t "State"}}</dt><dd><span class="badge badge--ok">{{t "set up"}}</span></dd>
         <dt>{{t "Server"}}</dt><dd><code>{{.Status.Host}}</code></dd>
-        <dt>{{t "Absender"}}</dt><dd><code>{{.Status.From}}</code></dd>
+        <dt>{{t "Sender"}}</dt><dd><code>{{.Status.From}}</code></dd>
     </dl>
 
     <form method="POST" action="/admin/mail/test">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
-            {{tf "Testnachricht an %s senden" .OwnEmail}}
+            {{tf "Send a test message to %s" .OwnEmail}}
         </button>
         <p class="form-hint text-muted">
-            {{t "Geht an deine eigene Adresse. Ein Feld zum Eintragen gibt es bewusst nicht: ein Formular, das an beliebige Adressen sendet, wird irgendwann zum Spamversand."}}
+            {{t "Goes to your own address. There is deliberately no field to type one in: a form that sends to any address becomes a spam relay sooner or later."}}
         </p>
     </form>
     {{else}}
-    <p><span class="badge">{{t "aus"}}</span></p>
+    <p><span class="badge">{{t "off"}}</span></p>
     <p class="text-muted">
-        {{th "Setze <code>HOLZCLOUD_SMTP_HOST</code> und <code>HOLZCLOUD_SMTP_FROM</code> und starte den Dienst neu. Optional: <code>HOLZCLOUD_SMTP_PORT</code> (Vorgabe 587), <code>HOLZCLOUD_SMTP_USER</code>, <code>HOLZCLOUD_SMTP_PASSWORD</code>, <code>HOLZCLOUD_SMTP_FROM_NAME</code> und <code>HOLZCLOUD_SMTP_TLS</code> (<code>starttls</code>, <code>tls</code> oder <code>none</code>)."}}
+        {{th "Set <code>HOLZCLOUD_SMTP_HOST</code> and <code>HOLZCLOUD_SMTP_FROM</code> and restart the service. Optional: <code>HOLZCLOUD_SMTP_PORT</code> (default 587), <code>HOLZCLOUD_SMTP_USER</code>, <code>HOLZCLOUD_SMTP_PASSWORD</code>, <code>HOLZCLOUD_SMTP_FROM_NAME</code> and <code>HOLZCLOUD_SMTP_TLS</code> (<code>starttls</code>, <code>tls</code> or <code>none</code>)."}}
     </p>
     <p class="text-muted">
-        {{t "Bis dahin funktioniert alles wie bisher: ein Einladungslink wird einmal angezeigt und von Hand weitergegeben, und Anfragen aus dem Kontaktformular stehen nur in der Verwaltung."}}
+        {{t "Until then everything works as before: an invitation link is shown once and passed on by hand, and contact-form enquiries live only in the administration."}}
     </p>
     {{end}}
 </div>
 
 <div class="card" style="margin-top: var(--space-3);">
-    <h2>{{t "Postausgang"}}</h2>
+    <h2>{{t "Outbox"}}</h2>
     <dl class="facts">
-        <dt>{{t "Wartet"}}</dt><dd>{{.Status.Pending}}</dd>
-        <dt>{{t "Aufgegeben"}}</dt><dd>{{.Status.Failed}}</dd>
-        {{if .Status.LastSent}}<dt>{{t "Zuletzt zugestellt"}}</dt><dd>{{tf "%s UTC" (.Status.LastSent.Format "02.01.2006 15:04")}}</dd>{{end}}
+        <dt>{{t "Waiting"}}</dt><dd>{{.Status.Pending}}</dd>
+        <dt>{{t "Given up"}}</dt><dd>{{.Status.Failed}}</dd>
+        {{if .Status.LastSent}}<dt>{{t "Last delivered"}}</dt><dd>{{tf "%s UTC" (.Status.LastSent.Format "02.01.2006 15:04")}}</dd>{{end}}
     </dl>
 
     {{if .Status.LastError}}
     <div class="alert alert--warning" role="alert">
-        <p><strong>{{t "Zuletzt gescheitert:"}}</strong> {{.Status.LastError}}</p>
+        <p><strong>{{t "Last failure:"}}</strong> {{.Status.LastError}}</p>
     </div>
     {{end}}
 
     {{if or .Status.Pending .Status.Failed}}
     <form method="POST" action="/admin/mail/retry">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Jetzt erneut versuchen"}}</button>
+        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Try again now"}}</button>
         <p class="form-hint text-muted">
-            {{t "Für den Fall, dass gerade ein falsches Passwort oder ein blockierter Port korrigiert wurde: dann soll das, was liegen geblieben ist, sofort raus statt gar nicht."}}
+            {{t "For the case where a wrong password or a blocked port has just been fixed: whatever is stuck should go out now rather than never."}}
         </p>
     </form>
     {{else}}
-    <p class="text-muted">{{t "Es liegt nichts an."}}</p>
+    <p class="text-muted">{{t "Nothing is waiting."}}</p>
     {{end}}
 </div>
 {{end}}

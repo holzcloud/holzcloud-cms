@@ -192,7 +192,7 @@ func (h *Handler) HandlePageList(w http.ResponseWriter, r *http.Request) error {
 
 	csrfToken := web.CSRFTokenFromRequest(r)
 	data := PageListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Seiten – %s", ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Pages – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Filter:     filter,
 		Query:      query,
@@ -293,7 +293,7 @@ func (h *Handler) HandlePageCreate(w http.ResponseWriter, r *http.Request) error
 		}
 	}
 
-	data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", ws.Name), values)
+	data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "New page – %s", ws.Name), values)
 	if err != nil {
 		return err
 	}
@@ -423,7 +423,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	// A structural change in the block editor is not a save: apply it and draw
 	// the form again, with everything the editor has typed so far still in it.
 	if blockAction(r, &values) {
-		data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+		data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "New page – %s", websiteName), values)
 		if err != nil {
 			return err
 		}
@@ -434,7 +434,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	}
 	// Adding or removing a row of a group is not a save either.
 	if groupAction(r, &values.Fields) {
-		data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+		data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "New page – %s", websiteName), values)
 		if err != nil {
 			return err
 		}
@@ -444,7 +444,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 		return web.RenderAdmin(w, h.templates, r, "page_form", data)
 	}
 
-	data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "Neue Seite – %s", websiteName), values)
+	data, err := h.newPageFormData(r, websiteID, web.Titlef(r, "New page – %s", websiteName), values)
 	if err != nil {
 		return err
 	}
@@ -513,7 +513,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 		WebsiteID:  &websiteID,
 		Metadata:   map[string]any{"slug": created.Slug, "titel": created.Title},
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Seite erstellt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Page created")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 }
 
@@ -560,7 +560,7 @@ func (h *Handler) HandlePageEdit(w http.ResponseWriter, r *http.Request) error {
 
 // editFormData builds the edit form for a stored page with the given values.
 func (h *Handler) editFormData(r *http.Request, websiteName string, p *page.Page, values PageValues) (PageFormData, error) {
-	data, err := h.newPageFormData(r, p.WebsiteID, web.Titlef(r, "Seite bearbeiten – %s", websiteName), values)
+	data, err := h.newPageFormData(r, p.WebsiteID, web.Titlef(r, "Edit page – %s", websiteName), values)
 	if err != nil {
 		return data, err
 	}
@@ -674,7 +674,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 			"Dein Text steht unverändert unten – vergleiche ihn mit der aktuellen Fassung, bevor du erneut speicherst."
 		return rerender(data)
 	case errors.Is(err, page.ErrSlugTaken):
-		data.Errors.Add("slug", "Diese Adresse wird bereits von einer anderen Seite benutzt.")
+		data.Errors.Add("slug", "That address is already used by another page.")
 		return rerender(data)
 	case errors.Is(err, page.ErrNotFound):
 		http.NotFound(w, r)
@@ -697,7 +697,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 		WebsiteID:  &existing.WebsiteID,
 		Metadata:   map[string]any{"slug": existing.Slug, "titel": values.Title},
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Seite gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Page saved")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", existing.WebsiteID, existing.ID))
 }
 
@@ -730,7 +730,7 @@ func (h *Handler) HandlePageDelete(w http.ResponseWriter, r *http.Request) error
 		WebsiteID:  &websiteID,
 		Metadata:   map[string]any{"slug": existing.Slug, "titel": existing.Title},
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Seite in den Papierkorb verschoben")
+	web.SetFlashSuccess(h.sm, r.Context(), "Page moved to the wastebasket")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 }
 
@@ -753,7 +753,7 @@ func (h *Handler) HandlePageStatusToggle(w http.ResponseWriter, r *http.Request)
 
 	if !h.mayPublish(r) {
 		web.SetFlashError(h.sm, r.Context(),
-			"Veröffentlichen gehört nicht zu deinem Zugang. Reiche die Seite zur Prüfung ein.")
+			"Publishing is not part of your account. Submit the page for review.")
 		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 	}
 
@@ -792,7 +792,7 @@ func (h *Handler) HandlePageStatusToggle(w http.ResponseWriter, r *http.Request)
 		WebsiteID:  &websiteID,
 		Metadata:   map[string]any{"slug": updated.Slug, "titel": updated.Title},
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Status geändert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Status changed")
 
 	// htmx: return updated row for in-place swap
 	if r.Header.Get("HX-Request") == "true" {

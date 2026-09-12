@@ -244,7 +244,7 @@ func TestNichtZuschneidbaresErklaertSichStattZuScheitern(t *testing.T) {
 	req.SetPathValue("mediaID", strconv.FormatInt(m.ID, 10))
 	body := serve(t, h, sm, h.HandleMediaCrop, req).Body.String()
 
-	if !strings.Contains(body, "lässt sich nicht zuschneiden") {
+	if !strings.Contains(body, "cannot be cropped") {
 		t.Errorf("keine Erklärung:\n%s", body)
 	}
 	if strings.Contains(body, `type="image"`) {

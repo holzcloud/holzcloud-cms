@@ -46,7 +46,7 @@ func (h *Handler) HandlePageRevisions(w http.ResponseWriter, r *http.Request) er
 	}
 
 	data := PageRevisionsData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Verlauf – %s", p.Title)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "History – %s", p.Title)),
 		WebsiteID:  websiteID,
 		Page:       p,
 		Revisions:  revisions,
@@ -110,7 +110,7 @@ func (h *Handler) HandlePageRevisionRestore(w http.ResponseWriter, r *http.Reque
 	})
 	switch {
 	case errors.Is(err, page.ErrConflict):
-		web.SetFlashError(h.sm, r.Context(), "Die Seite wurde gerade geändert. Bitte den Verlauf neu laden und noch einmal versuchen.")
+		web.SetFlashError(h.sm, r.Context(), "The page has just been changed. Please reload the history and try again.")
 		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/revisions", websiteID, pageID))
 	case err != nil:
 		return err
@@ -123,7 +123,7 @@ func (h *Handler) HandlePageRevisionRestore(w http.ResponseWriter, r *http.Reque
 		WebsiteID:  &websiteID,
 		Metadata:   map[string]any{"fassung": rev.ID, "stand": rev.CreatedAt.Format("02.01.2006 15:04")},
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Frühere Fassung wiederhergestellt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Earlier version restored")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID))
 }
 
@@ -160,7 +160,7 @@ func (h *Handler) HandleTrash(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := TrashData{
-		LayoutData:    web.NewLayoutData(r, h.sm, web.Titlef(r, "Papierkorb – %s", ws.Name)),
+		LayoutData:    web.NewLayoutData(r, h.sm, web.Titlef(r, "Wastebasket – %s", ws.Name)),
 		WebsiteID:     websiteID,
 		Pages:         pages,
 		RetentionDays: int(page.TrashRetention.Hours() / 24),
@@ -195,7 +195,7 @@ func (h *Handler) HandleTrashRestore(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Seite wiederhergestellt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Page restored")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/trash", websiteID))
 }
 
@@ -224,6 +224,6 @@ func (h *Handler) HandleTrashPurge(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Seite endgültig gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Page deleted for good")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/trash", websiteID))
 }

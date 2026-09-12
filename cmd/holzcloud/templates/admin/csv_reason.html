@@ -16,24 +16,24 @@
      Deutsch gibt (D-32). */}}
 
 {{define "csv-reason"}}
-{{- if eq .Reason "row_unreadable"}}{{tf "Diese Zeile liess sich nicht lesen: %s" (index .Args 0)}}
-{{- else if eq .Reason "row_too_wide"}}{{tf "Diese Zeile hat %s Zellen, die Kopfzeile hat %s Spalten. Ein Trennzeichen zu viel verschiebt die Werte, deshalb wurde die Zeile nicht übernommen." (index .Args 0) (index .Args 1)}}
-{{- else if eq .Reason "cell_too_long"}}{{tf "Spalte %s hat eine Zelle mit %s Bytes – mehr, als eine Zelle tragen darf." (index .Args 0) (index .Args 1)}}
-{{- else if eq .Reason "no_title"}}{{t "Diese Zeile hat keinen Titel. Ohne Titel findet die Seite später niemand wieder."}}
-{{- else if eq .Reason "slug_invalid"}}{{tf "„%s“ ist keine gültige Adresse." (index .Args 0)}}
-{{- else if eq .Reason "status_unknown"}}{{tf "„%s“ ist weder ein Entwurf noch veröffentlicht." (index .Args 0)}}
-{{- else if eq .Reason "bool_unreadable"}}{{tf "„%s“: „%s“ ist kein Ja und kein Nein." (index .Args 0) (index .Args 1)}}
-{{- else if eq .Reason "field_rejected"}}{{tf "„%s“: %s" (index .Args 0) (index .Args 1)}}
-{{- else if eq .Reason "field_missing"}}{{tf "Das Feld „%s“ gibt es nicht mehr. Diese Spalte blieb ohne Ziel." (index .Args 0)}}
-{{- else if eq .Reason "terms_truncated"}}{{tf "Es wurden nur die ersten %s Schlagwörter übernommen." (index .Args 0)}}
-{{- else if eq .Reason "renamed"}}{{tf "Die Adresse „%s“ war schon vergeben. Die Seite hat „%s“ bekommen." (index .Args 0) (index .Args 1)}}
-{{- else if eq .Reason "existing_skipped"}}{{tf "Unter „%s“ gibt es die Seite schon. Sie wurde nicht angerührt." (index .Args 0)}}
-{{- else if eq .Reason "not_rolled_back"}}{{tf "„%s“ wurde nur halb geschrieben und steht so da: %s" (index .Args 0) (index .Args 1)}}
-{{- else if eq .Reason "not_written"}}{{tf "„%s“ wurde nicht geschrieben: %s" (index .Args 0) (index .Args 1)}}
-{{- else if eq .Reason "body_unreadable"}}{{tf "Der Text dieser Zeile liess sich nicht umwandeln: %s" (index .Args 0)}}
-{{- else if eq .Reason "column_taken"}}{{tf "Dieselbe Überschrift steht schon über Spalte %s. Diese hier bleibt ohne Ziel, bis du eines wählst." (index .Args 0)}}
-{{- else if eq .Reason "empty_header"}}{{t "Diese Spalte hat keine Überschrift und wurde deshalb nicht von selbst zugeordnet."}}
-{{- else}}{{t "Diese Zeile konnte nicht übernommen werden."}}
+{{- if eq .Reason "row_unreadable"}}{{tf "This row could not be read: %s" (index .Args 0)}}
+{{- else if eq .Reason "row_too_wide"}}{{tf "This row has %s cells, the header row has %s columns. One separator too many shifts the values, so the row was not taken over." (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "cell_too_long"}}{{tf "Column %s has a cell of %s bytes — more than a cell may carry." (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "no_title"}}{{t "This row has no title. Without a title nobody will find the page again later."}}
+{{- else if eq .Reason "slug_invalid"}}{{tf "“%s” is not a valid address." (index .Args 0)}}
+{{- else if eq .Reason "status_unknown"}}{{tf "“%s” is neither a draft nor published." (index .Args 0)}}
+{{- else if eq .Reason "bool_unreadable"}}{{tf "“%s”: “%s” is neither a yes nor a no." (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "field_rejected"}}{{tf "“%s”: %s" (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "field_missing"}}{{tf "The field “%s” no longer exists. This column was left without a target." (index .Args 0)}}
+{{- else if eq .Reason "terms_truncated"}}{{tf "Only the first %s terms were taken over." (index .Args 0)}}
+{{- else if eq .Reason "renamed"}}{{tf "The address “%s” was already taken. The page got “%s”." (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "existing_skipped"}}{{tf "The page already exists at “%s”. It was not touched." (index .Args 0)}}
+{{- else if eq .Reason "not_rolled_back"}}{{tf "“%s” was only half written and stands that way: %s" (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "not_written"}}{{tf "“%s” was not written: %s" (index .Args 0) (index .Args 1)}}
+{{- else if eq .Reason "body_unreadable"}}{{tf "The text of this row could not be converted: %s" (index .Args 0)}}
+{{- else if eq .Reason "column_taken"}}{{tf "The same heading already stands over column %s. This one stays without a target until you choose one." (index .Args 0)}}
+{{- else if eq .Reason "empty_header"}}{{t "This column has no heading and was therefore not mapped by itself."}}
+{{- else}}{{t "This row could not be taken over."}}
 {{- end}}
 {{- end}}
 
@@ -51,8 +51,8 @@
      eine siebte Stelle, die es anders macht, wäre die, die auffällt. */}}
 {{define "csv-rows"}}
 <td class="csv-rows">
-    {{if eq .Total 1}}{{t "Eine Zeile"}}{{else}}{{tf "%d Zeilen" .Total}}{{end}}:
-    {{range $i, $n := .Rows}}{{if $i}}, {{end}}{{$n}}{{end}}{{if .More}}, {{tf "und %d weitere" .More}}{{end}}
+    {{if eq .Total 1}}{{t "One row"}}{{else}}{{tf "%d rows" .Total}}{{end}}:
+    {{range $i, $n := .Rows}}{{if $i}}, {{end}}{{$n}}{{end}}{{if .More}}, {{tf "and %d more" .More}}{{end}}
 </td>
 {{end}}
 
@@ -60,8 +60,8 @@
      im Probelauf gelesen als Absicht, im Bericht als Tatsache. Keine neue
      badge--Abart — es gibt drei, und sie reichen. */}}
 {{define "csv-outcome"}}
-{{- if eq .Outcome "create"}}<span class="badge badge--published">{{t "anlegen"}}</span>
-{{- else if eq .Outcome "update"}}<span class="badge badge--primary">{{t "aktualisieren"}}</span>
-{{- else}}<span class="badge badge--draft">{{t "übergehen"}}</span>
+{{- if eq .Outcome "create"}}<span class="badge badge--published">{{t "create"}}</span>
+{{- else if eq .Outcome "update"}}<span class="badge badge--primary">{{t "update"}}</span>
+{{- else}}<span class="badge badge--draft">{{t "skip"}}</span>
 {{- end}}
 {{- end}}

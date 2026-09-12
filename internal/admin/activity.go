@@ -96,7 +96,7 @@ func (h *Handler) HandleActivityList(w http.ResponseWriter, r *http.Request) err
 	}
 
 	data := ActivityListData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Protokoll"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Activity log"),
 		Pagination: NewPagination(pageNum, activityPerPage, total).
 			WithFilteredTarget("/admin/protokoll", "#activity-list", activityPagerQuery(q)),
 		Rows:            rows,
@@ -173,12 +173,12 @@ func (h *Handler) HandleActivityPurge(w http.ResponseWriter, r *http.Request) er
 
 	beforeStr := strings.TrimSpace(r.FormValue("before"))
 	if beforeStr == "" {
-		web.SetFlashError(h.sm, r.Context(), web.T(r, "Bitte ein Datum angeben"))
+		web.SetFlashError(h.sm, r.Context(), web.T(r, "Please give a date"))
 		return h.redirectBack(w, r, "/admin/protokoll")
 	}
 	before, err := time.Parse("2006-01-02", beforeStr)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.T(r, "Das ist kein gültiges Datum"))
+		web.SetFlashError(h.sm, r.Context(), web.T(r, "That is not a valid date"))
 		return h.redirectBack(w, r, "/admin/protokoll")
 	}
 	before = before.Add(24*time.Hour - time.Second)
@@ -199,7 +199,7 @@ func (h *Handler) HandleActivityPurge(w http.ResponseWriter, r *http.Request) er
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(),
-		web.Titlef(r, "%d Einträge vor dem %s gelöscht", deleted, beforeStr))
+		web.Titlef(r, "%d entries before %s deleted", deleted, beforeStr))
 	return h.redirectBack(w, r, "/admin/protokoll")
 }
 

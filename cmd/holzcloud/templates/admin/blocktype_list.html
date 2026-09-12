@@ -5,13 +5,13 @@
 {{define "blocktype_list-content"}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <p class="text-muted">
-        {{th "Der Bausteineditor bringt neun Arten mit — Text, Bild, Galerie, Karten und so fort. Was diese Website darüber hinaus braucht, legst du hier an: einen <strong>Rezeptschritt</strong>, einen <strong>Öffnungszeiten-Kasten</strong>, eine <strong>Preiszeile</strong>. Woraus so ein Baustein besteht, bestimmst du danach mit denselben Feldern wie bei einer Seite."}}
+        {{th "The block editor comes with nine kinds — text, picture, gallery, cards and so on. Whatever this website needs beyond those you create here: a <strong>recipe step</strong>, an <strong>opening-hours box</strong>, a <strong>price line</strong>. What such a block is made of you then decide with the same fields as on a page."}}
     </p>
     <p class="text-muted">
-        {{th "Im Theme trägt jeder Baustein die Klasse <code>hc-eigen--kennung</code>, jedes ausgefüllte Feld darin eine eigene. Das Aussehen macht das Stylesheet des Themes — hier entsteht die Struktur, nicht das Bild."}}
+        {{th "In the theme every block carries the class <code>hc-eigen--key</code>, and every filled-in field inside it one of its own. The looks come from the theme's stylesheet — what is made here is the structure, not the picture."}}
     </p>
     <p class="text-muted">
-        {{t "Eingebaut und immer da:"}}
+        {{t "Built in and always there:"}}
         {{range $i, $k := .Builtin}}{{if $i}}, {{end}}{{t $k.Name}}{{end}}.
     </p>
 </div>
@@ -22,10 +22,10 @@
         <thead>
             <tr>
                 <th scope="col">{{t "Name"}}</th>
-                <th scope="col">{{t "Kennung"}}</th>
-                <th scope="col">{{t "Felder"}}</th>
-                <th scope="col">{{t "Benutzt auf"}}</th>
-                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+                <th scope="col">{{t "Key"}}</th>
+                <th scope="col">{{t "Fields"}}</th>
+                <th scope="col">{{t "Used on"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Actions"}}</span></th>
             </tr>
         </thead>
         <tbody>
@@ -38,29 +38,29 @@
                 <td><code>{{.Key}}</code></td>
                 <td>
                     <a href="/admin/websites/{{$.WebsiteID}}/felder?baustein={{.ID}}">
-                        {{if .Fields}}{{if eq (len .Fields) 1}}{{t "ein Feld"}}{{else}}{{tf "%d Felder" (len .Fields)}}{{end}}{{else}}{{t "noch keine"}}{{end}}
+                        {{if .Fields}}{{if eq (len .Fields) 1}}{{t "one field"}}{{else}}{{tf "%d fields" (len .Fields)}}{{end}}{{else}}{{t "none yet"}}{{end}}
                     </a>
                 </td>
-                <td class="text-muted">{{if eq .Used 1}}{{t "einer Seite"}}{{else}}{{tf "%d Seiten" .Used}}{{end}}</td>
+                <td class="text-muted">{{if eq .Used 1}}{{t "one page"}}{{else}}{{tf "%d pages" .Used}}{{end}}</td>
                 <td class="table-actions">
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/verschieben" style="display:inline">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <input type="hidden" name="richtung" value="hoch">
                         <button type="submit" class="reorder-btn" {{if .First}}disabled{{end}}
-                                aria-label="{{t "Nach oben"}}" hx-disabled-elt="this">↑</button>
+                                aria-label="{{t "Up"}}" hx-disabled-elt="this">↑</button>
                     </form>
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/verschieben" style="display:inline">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <input type="hidden" name="richtung" value="runter">
                         <button type="submit" class="reorder-btn" {{if .Last}}disabled{{end}}
-                                aria-label="{{t "Nach unten"}}" hx-disabled-elt="this">↓</button>
+                                aria-label="{{t "Down"}}" hx-disabled-elt="this">↓</button>
                     </form>
-                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/felder?baustein={{.ID}}">{{t "Felder"}}</a>
-                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/bausteinarten?aendern={{.ID}}">{{t "Ändern"}}</a>
+                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/felder?baustein={{.ID}}">{{t "Fields"}}</a>
+                    <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/bausteinarten?aendern={{.ID}}">{{t "Change"}}</a>
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/loeschen" style="display:inline"
-                          hx-confirm="{{tf "Bausteinart „%s“ entfernen? Bausteine dieser Art verschwinden von den Seiten, sobald diese das nächste Mal gespeichert werden." .Name}}">
+                          hx-confirm="{{tf "Remove the block kind “%s”? Blocks of this kind disappear from the pages the next time each one is saved." .Name}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>
                     </form>
                 </td>
             </tr>
@@ -71,7 +71,7 @@
 {{end}}
 
 <div class="card">
-    <h2>{{if .Edit}}{{t "Bausteinart ändern"}}{{else}}{{t "Neue Bausteinart"}}{{end}}</h2>
+    <h2>{{if .Edit}}{{t "Change block kind"}}{{else}}{{t "New block kind"}}{{end}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/bausteinarten">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         {{if .Edit}}<input type="hidden" name="id" value="{{.Edit.ID}}">{{end}}
@@ -79,31 +79,31 @@
         <div class="form-group">
             <label class="form-label" for="art-name">{{t "Name"}}</label>
             <input type="text" id="art-name" name="name" class="form-input" required maxlength="40"
-                   value="{{if .Edit}}{{.Edit.Name}}{{end}}" placeholder="{{t "Rezeptschritt"}}">
-            <p class="form-hint text-muted">{{t "So heisst der Knopf im Editor."}}</p>
+                   value="{{if .Edit}}{{.Edit.Name}}{{end}}" placeholder="{{t "Recipe step"}}">
+            <p class="form-hint text-muted">{{t "That is what the button in the editor says."}}</p>
         </div>
 
         <div class="form-group">
-            <label class="form-label" for="art-hinweis">{{t "Hinweis im Editor"}}</label>
+            <label class="form-label" for="art-hinweis">{{t "Hint in the editor"}}</label>
             <input type="text" id="art-hinweis" name="hinweis" class="form-input" maxlength="200"
                    value="{{if .Edit}}{{.Edit.Hint}}{{end}}"
-                   placeholder="{{t "z. B. Ein Schritt der Anleitung, mit Bild."}}">
+                   placeholder="{{t "e.g. One step of the instructions, with a picture."}}">
         </div>
 
         {{if .Edit}}
         <p class="form-hint text-muted">
-            {{tf "Die Kennung „%s“ steht fest: sie steckt in jedem Baustein dieser Art und in der CSS-Klasse, die das Theme anspricht." .Edit.Key}}
+            {{tf "The key “%s” is fixed: it sits in every block of this kind and in the CSS class the theme addresses." .Edit.Key}}
         </p>
         {{else}}
         <p class="form-hint text-muted">
-            {{t "Die Kennung wird aus dem Namen gebildet und steht danach fest — sie steckt in jedem Baustein dieser Art und in der CSS-Klasse des Themes."}}
+            {{t "The key is derived from the name and is fixed afterwards — it sits in every block of this kind and in the theme's CSS class."}}
         </p>
         {{end}}
 
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
-            {{if .Edit}}{{t "Änderungen speichern"}}{{else}}{{t "Bausteinart anlegen"}}{{end}}
+            {{if .Edit}}{{t "Save changes"}}{{else}}{{t "Create block kind"}}{{end}}
         </button>
-        {{if .Edit}}<a href="/admin/websites/{{.WebsiteID}}/bausteinarten" class="btn">{{t "Abbrechen"}}</a>{{end}}
+        {{if .Edit}}<a href="/admin/websites/{{.WebsiteID}}/bausteinarten" class="btn">{{t "Cancel"}}</a>{{end}}
     </form>
 </div>
 {{end}}

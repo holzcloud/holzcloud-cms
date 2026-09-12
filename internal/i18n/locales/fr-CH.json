@@ -1,6 +1,6 @@
 {
-"Danach bekommst du Wiederherstellungscodes. Drucke sie aus – ohne sie ist ein verlorenes Handy nur noch über die Kommandozeile des Servers zu lösen.": "Ensuite vous recevrez des codes de secours. Imprimez-les — sans eux, un natel perdu ne se règle plus que par la ligne de commande du serveur.",
-"Erlaubt: JPEG, PNG, GIF, WebP, SVG, PDF (höchstens 5 MB) und MP4 (höchstens 64 MB). Aus Fotos und Videos werden beim Hochladen Kamera-Angaben entfernt – eine Handyaufnahme enthält sonst die GPS-Koordinaten des Aufnahmeorts.": "Autorisés : JPEG, PNG, GIF, WebP, SVG, PDF (5 Mo au plus) et MP4 (64 Mo au plus). Les données d'appareil sont retirées des photos et des vidéos au téléversement — sinon une prise faite au natel contient les coordonnées GPS du lieu.",
-"Je näher, desto weniger Pixel bleiben übrig. Bei einem Handyfoto ist ab etwa 2× nicht mehr viel zu holen.": "Plus on s'approche, moins il reste de pixels. Sur une photo de natel il n'y a plus grand-chose à gagner au-delà d'environ 2×.",
-"z. B. Claude auf dem Laptop": "p. ex. Claude sur le laptop"
+"Afterwards you get recovery codes. Print them out — without them a lost phone can only be sorted out from the server's command line.": "Ensuite vous recevrez des codes de secours. Imprimez-les — sans eux, un natel perdu ne se règle plus que par la ligne de commande du serveur.",
+"Allowed: JPEG, PNG, GIF, WebP, SVG, PDF (at most 5 MB) and MP4 (at most 64 MB). Camera data is removed from photos and videos at upload — otherwise a phone recording contains the GPS coordinates of where it was made.": "Autorisés : JPEG, PNG, GIF, WebP, SVG, PDF (5 Mo au plus) et MP4 (64 Mo au plus). Les données d'appareil sont retirées des photos et des vidéos au téléversement — sinon une prise faite au natel contient les coordonnées GPS du lieu.",
+"The closer in, the fewer pixels are left. On a phone photo there is not much to gain beyond about 2×.": "Plus on s'approche, moins il reste de pixels. Sur une photo de natel il n'y a plus grand-chose à gagner au-delà d'environ 2×.",
+"e.g. Claude on the laptop": "p. ex. Claude sur le laptop"
 }

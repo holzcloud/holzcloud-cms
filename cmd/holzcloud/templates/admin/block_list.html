@@ -20,7 +20,7 @@
 
     {{if not .BlockViews}}
     <p class="empty">
-        {{th "Noch kein Baustein. Wähle unten einen aus – <strong>Text</strong> ist der gewohnte Markdown-Abschnitt."}}
+        {{th "No block yet. Choose one below — <strong>Text</strong> is the familiar Markdown section."}}
     </p>
     {{end}}
 
@@ -39,11 +39,11 @@
         {{else if .IsType "bild"}}
         {{template "block_bild" .Image}}
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-variante">{{t "Breite"}}</label>
+            <label class="form-label" for="{{.ID}}-variante">{{t "Width"}}</label>
             <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
-                <option value=""{{if eq .Block.Variant ""}} selected{{end}}>{{t "Wie der Text"}}</option>
-                <option value="breit"{{if eq .Block.Variant "breit"}} selected{{end}}>{{t "Breiter als der Text"}}</option>
-                <option value="voll"{{if eq .Block.Variant "voll"}} selected{{end}}>{{t "Über die volle Breite"}}</option>
+                <option value=""{{if eq .Block.Variant ""}} selected{{end}}>{{t "Like the text"}}</option>
+                <option value="breit"{{if eq .Block.Variant "breit"}} selected{{end}}>{{t "Wider than the text"}}</option>
+                <option value="voll"{{if eq .Block.Variant "voll"}} selected{{end}}>{{t "Across the full width"}}</option>
             </select>
         </div>
 
@@ -51,70 +51,70 @@
         <div class="form-group">
             <label class="form-label" for="{{.ID}}-medium">{{t "Video"}}</label>
             <select id="{{.ID}}-medium" name="{{.Prefix}}.medium" class="form-input form-select">
-                <option value="0">{{t "– kein Video –"}}</option>
+                <option value="0">{{t "– no video –"}}</option>
                 {{$film := .Block.MediaID}}
                 {{range .Videos}}<option value="{{.ID}}"{{if eq .ID $film}} selected{{end}}>{{.OriginalName}}</option>{{end}}
             </select>
             {{if not .Videos}}
-            <p class="form-hint text-muted">{{t "In dieser Mediathek liegt noch kein Video. MP4 hochladen, dann steht es hier."}}</p>
+            <p class="form-hint text-muted">{{t "There is no video in this library yet. Upload an MP4 and it appears here."}}</p>
             {{end}}
         </div>
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-vorschaubild">{{t "Vorschaubild"}}</label>
+            <label class="form-label" for="{{.ID}}-vorschaubild">{{t "Preview image"}}</label>
             <select id="{{.ID}}-vorschaubild" name="{{.Prefix}}.vorschaubild" class="form-input form-select">
-                <option value="0">{{t "– keines –"}}</option>
+                <option value="0">{{t "– none –"}}</option>
                 {{$poster := .Block.PosterID}}
                 {{range .Image.Media}}<option value="{{.ID}}"{{if eq .ID $poster}} selected{{end}}>{{.OriginalName}}</option>{{end}}
             </select>
-            <p class="form-hint text-muted">{{t "Steht still da, bis jemand auf Abspielen drückt. Ohne Vorschaubild zeigen die meisten Browser ein schwarzes Rechteck."}}</p>
+            <p class="form-hint text-muted">{{t "Sits still until somebody presses play. Without one, most browsers show a black rectangle."}}</p>
         </div>
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-bildunterschrift">{{t "Bildunterschrift"}}</label>
+            <label class="form-label" for="{{.ID}}-bildunterschrift">{{t "Caption"}}</label>
             <input type="text" id="{{.ID}}-bildunterschrift" name="{{.Prefix}}.bildunterschrift"
                    class="form-input" value="{{.Block.Caption}}">
         </div>
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-variante">{{t "Breite"}}</label>
+            <label class="form-label" for="{{.ID}}-variante">{{t "Width"}}</label>
             <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
-                <option value=""{{if eq .Block.Variant ""}} selected{{end}}>{{t "Wie der Text"}}</option>
-                <option value="breit"{{if eq .Block.Variant "breit"}} selected{{end}}>{{t "Breiter als der Text"}}</option>
-                <option value="voll"{{if eq .Block.Variant "voll"}} selected{{end}}>{{t "Über die volle Breite"}}</option>
+                <option value=""{{if eq .Block.Variant ""}} selected{{end}}>{{t "Like the text"}}</option>
+                <option value="breit"{{if eq .Block.Variant "breit"}} selected{{end}}>{{t "Wider than the text"}}</option>
+                <option value="voll"{{if eq .Block.Variant "voll"}} selected{{end}}>{{t "Across the full width"}}</option>
             </select>
         </div>
 
         {{else if .IsType "bildtext"}}
         {{template "block_bild" .Image}}
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-markdown">{{t "Text daneben (Markdown)"}}</label>
+            <label class="form-label" for="{{.ID}}-markdown">{{t "Text beside it (Markdown)"}}</label>
             <textarea id="{{.ID}}-markdown" name="{{.Prefix}}.markdown" rows="6"
                       class="form-input form-textarea">{{.Block.Markdown}}</textarea>
         </div>
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-variante">{{t "Bild steht"}}</label>
+            <label class="form-label" for="{{.ID}}-variante">{{t "Image sits"}}</label>
             <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
-                <option value=""{{if ne .Block.Variant "rechts"}} selected{{end}}>{{t "links"}}</option>
-                <option value="rechts"{{if eq .Block.Variant "rechts"}} selected{{end}}>{{t "rechts"}}</option>
+                <option value=""{{if ne .Block.Variant "rechts"}} selected{{end}}>{{t "left"}}</option>
+                <option value="rechts"{{if eq .Block.Variant "rechts"}} selected{{end}}>{{t "right"}}</option>
             </select>
             <p class="form-hint text-muted">
-                {{t "Auf einem schmalen Bildschirm steht das Bild immer über dem Text."}}
+                {{t "On a narrow screen the image always sits above the text."}}
             </p>
         </div>
 
         {{else if .IsType "zitat"}}
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-text">{{t "Zitat"}}</label>
+            <label class="form-label" for="{{.ID}}-text">{{t "Quotation"}}</label>
             <textarea id="{{.ID}}-text" name="{{.Prefix}}.text" rows="3"
                       class="form-input form-textarea">{{.Block.Text}}</textarea>
         </div>
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-quelle">{{t "Wer hat das gesagt"}}</label>
+            <label class="form-label" for="{{.ID}}-quelle">{{t "Who said it"}}</label>
             <input type="text" id="{{.ID}}-quelle" name="{{.Prefix}}.quelle" class="form-input"
-                   value="{{.Block.Source}}" placeholder="{{t "Eine Kundin aus Solothurn"}}">
+                   value="{{.Block.Source}}" placeholder="{{t "A customer from Solothurn"}}">
         </div>
 
         {{else if .IsType "aufruf"}}
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-titel">{{t "Überschrift"}}</label>
+            <label class="form-label" for="{{.ID}}-titel">{{t "Heading"}}</label>
             <input type="text" id="{{.ID}}-titel" name="{{.Prefix}}.titel" class="form-input"
                    value="{{.Block.Title}}">
         </div>
@@ -125,22 +125,22 @@
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label" for="{{.ID}}-linktext">{{t "Aufschrift des Knopfs"}}</label>
+                <label class="form-label" for="{{.ID}}-linktext">{{t "Button label"}}</label>
                 <input type="text" id="{{.ID}}-linktext" name="{{.Prefix}}.linktext" class="form-input"
-                       value="{{.Block.LinkText}}" placeholder="{{t "Wolle anfragen"}}">
+                       value="{{.Block.LinkText}}" placeholder="{{t "Ask about wool"}}">
             </div>
             <div class="form-group">
-                <label class="form-label" for="{{.ID}}-linkziel">{{t "Ziel"}}</label>
+                <label class="form-label" for="{{.ID}}-linkziel">{{t "Target"}}</label>
                 <input type="text" id="{{.ID}}-linkziel" name="{{.Prefix}}.linkziel" class="form-input"
-                       value="{{.Block.LinkURL}}" placeholder="{{t "/kontakt"}}">
+                       value="{{.Block.LinkURL}}" placeholder="{{t "/contact"}}">
                 <p class="form-hint text-muted">
-                    {{th "Eine Adresse dieser Website wie <code>/kontakt</code>, eine vollständige Adresse mit <code>https://</code> oder <code>mailto:</code>."}}
+                    {{th "An address on this website such as <code>/kontakt</code>, a full address with <code>https://</code>, or <code>mailto:</code>."}}
                 </p>
             </div>
         </div>
 
         {{else if .IsType "trenner"}}
-        <p class="text-muted">{{t "Ein Strich zwischen zwei Abschnitten. Sonst nichts einzustellen."}}</p>
+        <p class="text-muted">{{t "A rule between two sections. Nothing else to set."}}</p>
         {{end}}
 
         {{/* Eine Bausteinart dieser Website. Ihre Felder sind dieselben
@@ -154,13 +154,13 @@
 
         {{if .HasItems}}
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-variante">{{t "Spalten"}}</label>
+            <label class="form-label" for="{{.ID}}-variante">{{t "Columns"}}</label>
             <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
                 <option value="2"{{if eq .Block.Variant "2"}} selected{{end}}>2</option>
                 <option value=""{{if or (eq .Block.Variant "") (eq .Block.Variant "3")}} selected{{end}}>3</option>
                 <option value="4"{{if eq .Block.Variant "4"}} selected{{end}}>4</option>
             </select>
-            <p class="form-hint text-muted">{{t "Auf schmalen Bildschirmen stehen sie untereinander."}}</p>
+            <p class="form-hint text-muted">{{t "On narrow screens they stack."}}</p>
         </div>
 
         {{/* Nur die Galerie. Eine Kartenreihe hat auch Einträge, aber eine
@@ -169,12 +169,12 @@
              Bewachung, die das kartenspezifische Linkfeld weiter unten hat. */}}
         {{if eq .Block.Type "galerie"}}
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-darstellung">{{t "Darstellung"}}</label>
+            <label class="form-label" for="{{.ID}}-darstellung">{{t "Display"}}</label>
             <select id="{{.ID}}-darstellung" name="{{.Prefix}}.darstellung" class="form-input form-select">
-                <option value=""{{if ne .Block.Display "diashow"}} selected{{end}}>{{t "Raster"}}</option>
-                <option value="diashow"{{if eq .Block.Display "diashow"}} selected{{end}}>{{t "Diashow"}}</option>
+                <option value=""{{if ne .Block.Display "diashow"}} selected{{end}}>{{t "Grid"}}</option>
+                <option value="diashow"{{if eq .Block.Display "diashow"}} selected{{end}}>{{t "Slideshow"}}</option>
             </select>
-            <p class="form-hint text-muted">{{t "Eine Diashow legt die Bilder nebeneinander in eine Spur, die man seitwärts schiebt und die an jedem Bild einrastet."}}</p>
+            <p class="form-hint text-muted">{{t "A slideshow lays the images side by side in a track that is pushed sideways and snaps at every image."}}</p>
         </div>
 
         {{/* Die Bildquelle. Nur an der Galerie, aus demselben Grund wie die
@@ -196,15 +196,15 @@
              Meldung „Seite gespeichert". */}}
         {{if .Albums}}
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-album">{{t "Bilder aus"}}</label>
+            <label class="form-label" for="{{.ID}}-album">{{t "Images from"}}</label>
             <select id="{{.ID}}-album" name="{{.Prefix}}.album" class="form-input form-select">
-                <option value=""{{if eq .Block.AlbumSlug ""}} selected{{end}}>{{t "– der eigenen Liste unten –"}}</option>
+                <option value=""{{if eq .Block.AlbumSlug ""}} selected{{end}}>{{t "– your own list below –"}}</option>
                 {{$chosen := .Block.AlbumSlug}}
                 {{range .Albums}}
-                <option value="{{.Slug}}"{{if eq $chosen .Slug}} selected{{end}}>{{if .Missing}}{{tf "%s – dieses Album gibt es nicht mehr" .Slug}}{{else}}{{.Name}}{{end}}</option>
+                <option value="{{.Slug}}"{{if eq $chosen .Slug}} selected{{end}}>{{if .Missing}}{{tf "%s – this album no longer exists" .Slug}}{{else}}{{.Name}}{{end}}</option>
                 {{end}}
             </select>
-            <p class="form-hint text-muted">{{t "Aus einem Album kommen die Bilder des Albums, und sie ändern sich mit ihm: wer das Album ergänzt, ergänzt jede Seite, die es zeigt. Die eigene Liste unten bleibt gespeichert und wird nicht gezeigt, solange ein Album gewählt ist."}}</p>
+            <p class="form-hint text-muted">{{t "With an album the images come from the album, and they change with it: whoever adds to the album adds to every page that shows it. Your own list below stays saved and is not shown while an album is chosen."}}</p>
         </div>
         {{end}}
         {{end}}
@@ -217,7 +217,7 @@
              eine Zeile Skript, wie der Rest dieses Bildschirms. */}}
         {{if .Block.AlbumSlug}}
         <details class="block-own-list">
-            <summary class="form-hint text-muted">{{t "Eigene Bilderliste — bleibt gespeichert, wird aber nicht gezeigt, solange ein Album gewählt ist"}}</summary>
+            <summary class="form-hint text-muted">{{t "Your own list of images — stays saved, but is not shown while an album is chosen"}}</summary>
         {{end}}
 
         <div class="block-items">
@@ -229,7 +229,7 @@
 
                 {{if eq $blockType "karten"}}
                 <div class="form-group">
-                    <label class="form-label" for="{{.ID}}-titel">{{t "Titel"}}</label>
+                    <label class="form-label" for="{{.ID}}-titel">{{t "Title"}}</label>
                     <input type="text" id="{{.ID}}-titel" name="{{.Prefix}}.titel"
                            class="form-input" value="{{.Item.Title}}">
                 </div>
@@ -244,24 +244,24 @@
 
                 {{if eq $blockType "karten"}}
                 <div class="form-group">
-                    <label class="form-label" for="{{.ID}}-linkziel">{{t "Verlinkt auf"}}</label>
+                    <label class="form-label" for="{{.ID}}-linkziel">{{t "Links to"}}</label>
                     <input type="text" id="{{.ID}}-linkziel" name="{{.Prefix}}.linkziel"
-                           class="form-input" value="{{.Item.LinkURL}}" placeholder="{{t "/wolle"}}">
-                    <p class="form-hint text-muted">{{t "Leer lassen für eine Karte ohne Link."}}</p>
+                           class="form-input" value="{{.Item.LinkURL}}" placeholder="{{t "/wool"}}">
+                    <p class="form-hint text-muted">{{t "Leave empty for a card without a link."}}</p>
                 </div>
                 {{end}}
 
                 <button type="submit" class="btn btn--sm btn--danger"
                         name="bausteinaktion" value="{{.Remove}}"
                         hx-post="{{$action}}" hx-target="#bausteine" hx-swap="outerHTML"
-                        hx-disabled-elt="this">{{t "Eintrag entfernen"}}</button>
+                        hx-disabled-elt="this">{{t "Remove entry"}}</button>
             </fieldset>
             {{end}}
         </div>
 
         <button type="submit" class="btn btn--sm" name="bausteinaktion" value="{{.AddItem}}"
                 hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
-                hx-disabled-elt="this">{{t "Eintrag hinzufügen"}}</button>
+                hx-disabled-elt="this">{{t "Add entry"}}</button>
 
         {{if .Block.AlbumSlug}}
         </details>
@@ -272,22 +272,22 @@
             <button type="submit" class="btn btn--sm" name="bausteinaktion" value="{{.Up}}"
                     hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
                     hx-disabled-elt="this" {{if .First}}disabled{{end}}>
-                <span aria-hidden="true">↑</span> {{t "nach oben"}}
+                <span aria-hidden="true">↑</span> {{t "up"}}
             </button>
             <button type="submit" class="btn btn--sm" name="bausteinaktion" value="{{.Down}}"
                     hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
                     hx-disabled-elt="this" {{if .Last}}disabled{{end}}>
-                <span aria-hidden="true">↓</span> {{t "nach unten"}}
+                <span aria-hidden="true">↓</span> {{t "down"}}
             </button>
             <button type="submit" class="btn btn--sm btn--danger" name="bausteinaktion" value="{{.Remove}}"
                     hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
-                    hx-confirm="{{t "Diesen Baustein entfernen?"}}" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+                    hx-confirm="{{t "Remove this block?"}}" hx-disabled-elt="this">{{t "Remove"}}</button>
         </footer>
     </fieldset>
     {{end}}
 
     <div class="block-add">
-        <span class="block-add__label">{{t "Baustein hinzufügen:"}}</span>
+        <span class="block-add__label">{{t "Add a block:"}}</span>
         {{range .Values.BlockKinds}}
         <button type="submit" class="btn btn--sm" name="bausteinaktion" value="neu:{{.Type}}"
                 title="{{t .Hint}}"
@@ -301,7 +301,7 @@
         <!-- Ohne htmx: der Wechsel tauscht das ganze Formular aus, nicht nur
              diese Liste. Ein Teiltausch würde Titel und Adresse mitreissen. -->
         <button type="submit" class="btn btn--sm" name="editorwechsel" value="zu-markdown">
-            {{t "Zurück zum einfachen Editor"}}
+            {{t "Back to the plain editor"}}
         </button>
     </p>
     {{end}}
@@ -313,29 +313,29 @@
 {{define "block_bild"}}
 <div class="form-row block-bild">
     <div class="form-group">
-        <label class="form-label" for="{{.ID}}-medium">{{t "Bild"}}</label>
+        <label class="form-label" for="{{.ID}}-medium">{{t "Image"}}</label>
         <select id="{{.ID}}-medium" name="{{.Prefix}}.medium" class="form-input form-select">
-            <option value="">{{t "– keins –"}}</option>
+            <option value="">{{t "– none –"}}</option>
             {{$chosen := .MediaID}}
             {{range .Media}}
             <option value="{{.ID}}"{{if eq .ID $chosen}} selected{{end}}>{{.OriginalName}}</option>
             {{end}}
         </select>
         <p class="form-hint text-muted">
-            {{t "Aus der"}} <a href="/admin/websites/{{.WebsiteID}}/media">{{t "Mediathek"}}</a>.
+            {{t "From the"}} <a href="/admin/websites/{{.WebsiteID}}/media">{{t "media library"}}</a>.
         </p>
     </div>
     <div class="form-group">
-        <label class="form-label" for="{{.ID}}-alt">{{t "Bildbeschreibung"}}</label>
+        <label class="form-label" for="{{.ID}}-alt">{{t "Image description"}}</label>
         <input type="text" id="{{.ID}}-alt" name="{{.Prefix}}.alt" class="form-input"
-               value="{{.Alt}}" placeholder="{{t "Wird sonst aus der Mediathek genommen"}}">
-        <p class="form-hint text-muted">{{t "Für alle, die das Bild nicht sehen können."}}</p>
+               value="{{.Alt}}" placeholder="{{t "Otherwise taken from the media library"}}">
+        <p class="form-hint text-muted">{{t "For everyone who cannot see the image."}}</p>
     </div>
     <div class="form-group">
-        <label class="form-label" for="{{.ID}}-bildunterschrift">{{t "Bildunterschrift"}}</label>
+        <label class="form-label" for="{{.ID}}-bildunterschrift">{{t "Caption"}}</label>
         <input type="text" id="{{.ID}}-bildunterschrift" name="{{.Prefix}}.bildunterschrift"
                class="form-input" value="{{.Caption}}">
-        <p class="form-hint text-muted">{{t "Steht sichtbar unter dem Bild. Darf leer bleiben."}}</p>
+        <p class="form-hint text-muted">{{t "Shown visibly below the image. May stay empty."}}</p>
     </div>
 </div>
 {{end}}

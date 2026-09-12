@@ -70,7 +70,7 @@ func (h *Handler) kindListData(r *http.Request, websiteID int64, websiteName str
 	}
 
 	data := KindListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Inhaltsarten – %s", websiteName)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Content kinds – %s", websiteName)),
 		WebsiteID:  websiteID,
 	}
 	data.ActiveNav = "kinds"
@@ -116,12 +116,12 @@ func (h *Handler) HandleKindSave(w http.ResponseWriter, r *http.Request) error {
 	// wird. Lieber hier ablehnen als dort still gewinnen.
 	if t.Archive != "" {
 		if t.Archive == ws.BlogBase {
-			web.SetFlashError(h.sm, r.Context(), "Diese Adresse gehört schon zum Archiv der Beiträge")
+			web.SetFlashError(h.sm, r.Context(), "This address already belongs to the archive of posts")
 			return h.redirect(w, r, back)
 		}
 		if existing, err := h.pages.GetPageBySlug(r.Context(), websiteID, t.Archive); err == nil && existing != nil {
 			web.SetFlashError(h.sm, r.Context(),
-				"Unter dieser Adresse liegt schon eine Seite. Wähle eine andere, sonst wäre eine von beiden unerreichbar.")
+				"There is already a page at this address. Choose another one, otherwise one of the two would be unreachable.")
 			return h.redirect(w, r, back)
 		}
 	}
@@ -131,7 +131,7 @@ func (h *Handler) HandleKindSave(w http.ResponseWriter, r *http.Request) error {
 		if err := h.kinds.Update(r.Context(), t); err != nil {
 			return h.kindFailed(w, r, back, err)
 		}
-		web.SetFlashSuccess(h.sm, r.Context(), "Inhaltsart gesichert")
+		web.SetFlashSuccess(h.sm, r.Context(), "Content kind saved")
 		return h.redirect(w, r, back)
 	}
 
@@ -140,7 +140,7 @@ func (h *Handler) HandleKindSave(w http.ResponseWriter, r *http.Request) error {
 		return h.kindFailed(w, r, back, err)
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r,
-		"Inhaltsart „%s“ angelegt. Sie steht ab sofort im Editor zur Wahl.", created.Name))
+		"Content kind “%s” created. It is available in the editor from now on.", created.Name))
 	return h.redirect(w, r, back)
 }
 
@@ -148,20 +148,20 @@ func (h *Handler) HandleKindSave(w http.ResponseWriter, r *http.Request) error {
 func (h *Handler) kindFailed(w http.ResponseWriter, r *http.Request, back string, err error) error {
 	switch {
 	case errors.Is(err, kind.ErrDuplicate):
-		web.SetFlashError(h.sm, r.Context(), "Diese Inhaltsart gibt es schon")
+		web.SetFlashError(h.sm, r.Context(), "This content kind already exists")
 	case errors.Is(err, kind.ErrTooMany):
-		web.SetFlashError(h.sm, r.Context(), "Mehr Inhaltsarten gehen nicht")
+		web.SetFlashError(h.sm, r.Context(), "No more content kinds are possible")
 	case errors.Is(err, kind.ErrArchiveTaken):
-		web.SetFlashError(h.sm, r.Context(), "Diese Adresse gehört schon zu einer anderen Übersicht")
+		web.SetFlashError(h.sm, r.Context(), "This address already belongs to another overview")
 	case errors.Is(err, kind.ErrNotFound):
-		web.SetFlashError(h.sm, r.Context(), "Diese Inhaltsart gibt es nicht")
+		web.SetFlashError(h.sm, r.Context(), "There is no such content kind")
 	default:
 		// The %s used to carry the store's own German sentences, which the
 		// collector cannot reach through a verb. They are marked at the store
 		// now, so the argument is translated before it is substituted.
 		slog.Error("save content kind", "err", err)
 		web.SetFlashError(h.sm, r.Context(),
-			web.Titlef(r, "Inhaltsart abgelehnt: %s", web.T(r, err.Error())))
+			web.Titlef(r, "Content kind rejected: %s", web.T(r, err.Error())))
 	}
 	return h.redirect(w, r, back)
 }
@@ -197,9 +197,9 @@ func (h *Handler) HandleKindDelete(w http.ResponseWriter, r *http.Request) error
 	// Produkte mitnehmen.
 	if n > 0 {
 		web.SetFlashWarning(h.sm, r.Context(), web.Titlef(r,
-			"Inhaltsart entfernt. Die %d Einträge sind noch da und tragen weiter die Kennung „%s“ — stelle sie im Editor auf eine andere Art um oder lege die Art wieder an.", n, t.Key))
+			"Content kind removed. The %d entries are still there and still carry the key “%s” — switch them to another kind in the editor, or create the kind again.", n, t.Key))
 	} else {
-		web.SetFlashSuccess(h.sm, r.Context(), "Inhaltsart entfernt")
+		web.SetFlashSuccess(h.sm, r.Context(), "Content kind removed")
 	}
 	return h.redirect(w, r, back)
 }

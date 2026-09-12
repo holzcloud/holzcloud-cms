@@ -5,10 +5,10 @@
 {{define "branding-content"}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <p class="text-muted">
-        {{t "Wie sich diese Verwaltung nennt. Steht oben in der Ecke, im Fenstertitel und auf dem Anmeldebildschirm — überall dort, wo sonst „Holzcloud“ steht."}}
+        {{t "What this administration calls itself. It appears in the corner, in the window title and on the sign-in screen — everywhere that otherwise says “Holzcloud”."}}
     </p>
     <p class="text-muted">
-        {{t "Betrifft nur die Verwaltung. Wie die Websites selbst aussehen, steht unter Design."}}
+        {{t "Applies to the administration only. How the websites themselves look is under Design."}}
     </p>
 </div>
 
@@ -24,10 +24,10 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="zeichen">{{t "Zeichen"}}</label>
+                <label class="form-label" for="zeichen">{{t "Mark"}}</label>
                 <input type="text" id="zeichen" name="zeichen" class="form-input" maxlength="2"
                        value="{{.Brand.Mark}}" placeholder="H" style="max-width:6rem">
-                <p class="form-hint text-muted">{{t "Ein oder zwei Buchstaben für das Quadrat in der Ecke. Ohne Logo ist das, was man sieht."}}</p>
+                <p class="form-hint text-muted">{{t "One or two letters for the square in the corner. Without a logo it is what one sees."}}</p>
             </div>
         </div>
 
@@ -38,18 +38,18 @@
             {{end}}
             <input type="file" id="logo" name="logo" class="form-input" accept=".png,.webp,.svg,image/png,image/webp,image/svg+xml">
             <p class="form-hint text-muted">
-                {{t "PNG, WebP oder SVG, höchstens 512 KB. Ersetzt das Quadrat mit dem Buchstaben. Ein SVG wird geprüft: Skript darin wird abgelehnt, nicht entschärft."}}
+                {{t "PNG, WebP or SVG, at most 512 KB. Replaces the square with the letter. An SVG is checked: script inside it is refused, not defused."}}
             </p>
         </div>
 
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
     </form>
 
     {{if .HasLogo}}
     <form method="POST" action="/admin/marke" enctype="multipart/form-data" style="margin-top:var(--space-2)">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <input type="hidden" name="logo_entfernen" value="1">
-        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Logo entfernen"}}</button>
+        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove the logo"}}</button>
     </form>
     {{end}}
 </div>

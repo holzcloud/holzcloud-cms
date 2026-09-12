@@ -69,7 +69,7 @@ func (h *Handler) HandleMediaCrop(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	data := CropData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Bildausschnitt – %s", m.OriginalName)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Crop – %s", m.OriginalName)),
 		WebsiteID:  websiteID,
 		Media:      m,
 		Ratios:     media.Ratios,
@@ -100,7 +100,7 @@ func (h *Handler) HandleMediaCropSave(w http.ResponseWriter, r *http.Request) er
 		return h.restoreMedia(w, r, websiteID, mediaID, m, back)
 	}
 	if !media.CanMakeVariants(m.MimeType) {
-		web.SetFlashError(h.sm, r.Context(), "Dieses Format lässt sich nicht zuschneiden.")
+		web.SetFlashError(h.sm, r.Context(), "This format cannot be cropped.")
 		return h.redirect(w, r, back)
 	}
 
@@ -175,7 +175,7 @@ func (h *Handler) restoreMedia(w http.ResponseWriter, r *http.Request, websiteID
 	}
 	h.rebuildVariants(r, m, dir, width, height)
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Das hochgeladene Bild ist wieder da.")
+	web.SetFlashSuccess(h.sm, r.Context(), "The uploaded image is back.")
 	return h.redirect(w, r, back)
 }
 

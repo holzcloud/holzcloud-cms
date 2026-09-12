@@ -312,8 +312,8 @@ func TestCSVEmptyHeadingIsColumnN(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "Spalte 3") {
-		t.Error("the column without a heading is not offered as „Spalte 3“")
+	if !strings.Contains(rec.Body.String(), "Column 3") {
+		t.Error("the column without a heading is not offered as “Column 3”")
 	}
 	if !strings.Contains(rec.Body.String(), `name="target_2"`) {
 		t.Error("the column without a heading carries no select and cannot be pointed anywhere")
@@ -347,7 +347,7 @@ func TestCSVSweptTokenShowsExpired(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200 — an expiry is not a refusal", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "abgelaufen") {
+	if !strings.Contains(rec.Body.String(), "expired") {
 		t.Error("the expiry screen does not say the upload has expired")
 	}
 	if !strings.Contains(rec.Body.String(), "/admin/websites") {
@@ -416,10 +416,10 @@ func TestCSVSampleRowSteppingIsClamped(t *testing.T) {
 		// keyboard user lands on. The control is a submit button of the
 		// mapping form and no longer an anchor (WR-07), so what is looked for
 		// is the control's own wording and not an href.
-		if got := strings.Contains(body, "vorherige"); got != c.wantPrev {
+		if got := strings.Contains(body, "previous row"); got != c.wantPrev {
 			t.Errorf("%s: previous control present = %v; want %v", c.query, got, c.wantPrev)
 		}
-		if got := strings.Contains(body, "nächste"); got != c.wantNext {
+		if got := strings.Contains(body, "next row"); got != c.wantNext {
 			t.Errorf("%s: next control present = %v; want %v", c.query, got, c.wantNext)
 		}
 	}
@@ -447,9 +447,9 @@ func TestCSVSampleLineCountsBothNumbersTheSameWay(t *testing.T) {
 		query string
 		want  string
 	}{
-		{"row=1", "Beispiel: Zeile 2 von 5"},
-		{"row=3", "Beispiel: Zeile 4 von 5"},
-		{"row=4", "Beispiel: Zeile 5 von 5"},
+		{"row=1", "Sample: row 2 of 5"},
+		{"row=3", "Sample: row 4 of 5"},
+		{"row=4", "Sample: row 5 of 5"},
 	} {
 		rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, c.query))
 		if rec.Code != http.StatusOK {
@@ -466,7 +466,7 @@ func TestCSVSampleLineCountsBothNumbersTheSameWay(t *testing.T) {
 	}
 }
 
-// A reason group of one row says "Eine Zeile" and not "1 Zeilen", on both
+// A reason group of one row says "One row" and not "1 Zeilen", on both
 // screens.
 //
 // Found in the browser, in all five languages at once: every reason group of a
@@ -497,8 +497,8 @@ func TestCSVOneRowIsSingularOnBothScreens(t *testing.T) {
 	}
 	if body := groupCell(t, dry.Body.String()); strings.Contains(body, "1 Zeilen") {
 		t.Errorf(`the dry run's group cell says "1 Zeilen" for one row: %q`, body)
-	} else if !strings.Contains(body, "Eine Zeile") {
-		t.Errorf(`the dry run's group cell does not say "Eine Zeile": %q`, body)
+	} else if !strings.Contains(body, "One row") {
+		t.Errorf(`the dry run's group cell does not say "One row": %q`, body)
 	}
 
 	rep, _ := serveAs(t, h, sm, admin, h.HandleCSVStart, csvPost(token, "start", csvTargets("title", "status")))
@@ -507,8 +507,8 @@ func TestCSVOneRowIsSingularOnBothScreens(t *testing.T) {
 	}
 	if body := groupCell(t, rep.Body.String()); strings.Contains(body, "1 Zeilen") {
 		t.Errorf(`the report's group cell says "1 Zeilen" for one row: %q`, body)
-	} else if !strings.Contains(body, "Eine Zeile") {
-		t.Errorf(`the report's group cell does not say "Eine Zeile": %q`, body)
+	} else if !strings.Contains(body, "One row") {
+		t.Errorf(`the report's group cell does not say "One row": %q`, body)
 	}
 }
 
@@ -528,7 +528,7 @@ func groupCell(t *testing.T, body string) string {
 //
 // base.html:198 renders <h1>{{.Title}}</h1> in the content header for every
 // page. All four of these templates rendered a second one below it saying the
-// same thing, so the operator read "Einlesen abgeschlossen" twice, stacked, and
+// same thing, so the operator read "Import finished" twice, stacked, and
 // the document had two first-level headings. Fifty-four of the sixty-six admin
 // templates rely on the header alone; these four did not.
 //
@@ -573,10 +573,10 @@ func TestCSVHeaderOnlySaysSoInsteadOfAnEmptyTable(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", rec.Code)
 	}
-	if !strings.Contains(body, "keine einzige Datenzeile") {
+	if !strings.Contains(body, "The file has a header row and not a single data row. There is therefore no sample row to show. The mapping and the defaults can be set all the same") {
 		t.Error("a file with no data rows does not say so")
 	}
-	if strings.Contains(body, "vorherige") || strings.Contains(body, "nächste") {
+	if strings.Contains(body, "previous row") || strings.Contains(body, "next row") {
 		t.Error("a file with no data rows still offers a row stepper")
 	}
 	if !strings.Contains(body, `name="target_0"`) {
@@ -599,7 +599,7 @@ func TestCSVMappingIsNotEmptyWithoutOwnFields(t *testing.T) {
 			t.Errorf("the fixed target %s is missing from the select", want)
 		}
 	}
-	if !strings.Contains(body, "keine eigenen Felder") {
+	if !strings.Contains(body, "This website has no fields of its own") {
 		t.Error("a website without its own fields does not say so and the screen looks broken")
 	}
 }
@@ -611,7 +611,7 @@ func TestCSVMappingWarnsAboutARequiredGroup(t *testing.T) {
 	admin := seedAdmin(t, database, "eins@test")
 
 	if _, err := h.fields.Create(context.Background(), field.Def{
-		WebsiteID: ws.ID, Key: "zeiten", Label: "Öffnungszeiten",
+		WebsiteID: ws.ID, Key: "zeiten", Label: "Opening hours",
 		Kind: field.KindGroup, Required: true, AppliesTo: field.ForBoth,
 	}); err != nil {
 		t.Fatalf("Create group: %v", err)
@@ -620,10 +620,10 @@ func TestCSVMappingWarnsAboutARequiredGroup(t *testing.T) {
 	token := stage(t, h, admin, ws.ID, "Titel\nErste\n")
 	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
 	body := rec.Body.String()
-	if !strings.Contains(body, "Öffnungszeiten") {
+	if !strings.Contains(body, "Opening hours") {
 		t.Error("the required group is not named on the mapping screen")
 	}
-	if !strings.Contains(body, "jede einzelne Zeile dieser Datei abgewiesen") {
+	if !strings.Contains(body, "A group is made of rows, a spreadsheet row is flat — it cannot be filled from a spreadsheet. As long as the field is required, every single row of this file will be rejected. Take the requirement off this field before you import") {
 		t.Error("the mapping screen does not say that a required group refuses every row")
 	}
 }
@@ -858,7 +858,10 @@ func TestCSVExampleHasHeaderAndBOM(t *testing.T) {
 		t.Fatal("the body does not begin with the byte-order mark Excel needs")
 	}
 	text := string(body)
-	for _, want := range []string{"Titel", "Adresse", "Text", "Zustand", "Schlagwörter", "Sorte", "Vorrätig"} {
+	// The five fixed headings are written in the OPERATOR's language, which in
+	// a test is the source language; "Sorte" and "Vorrätig" are the operator's
+	// own field labels and are never translated.
+	for _, want := range []string{"Title", "Address", "Text", "State", "Terms", "Sorte", "Vorrätig"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the header row has no %q column", want)
 		}
@@ -882,7 +885,7 @@ func TestCSVExampleSkipsUnmappableKinds(t *testing.T) {
 	for i, d := range []field.Def{
 		{Key: "bild", Label: "Titelbild", Kind: field.KindImage},
 		{Key: "verweis", Label: "Verwandte Seite", Kind: field.KindRef},
-		{Key: "zeiten", Label: "Öffnungszeiten", Kind: field.KindGroup},
+		{Key: "zeiten", Label: "Opening hours", Kind: field.KindGroup},
 		{Key: "trenner", Label: "Zwischenüberschrift", Kind: field.KindSection},
 		{Key: "preis", Label: "Preis", Kind: field.KindNumber},
 	} {
@@ -894,7 +897,7 @@ func TestCSVExampleSkipsUnmappableKinds(t *testing.T) {
 
 	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVExample, exampleRequest(fmt.Sprintf("%d", ws.ID)))
 	text := rec.Body.String()
-	for _, unwanted := range []string{"Titelbild", "Verwandte Seite", "Öffnungszeiten", "Zwischenüberschrift"} {
+	for _, unwanted := range []string{"Titelbild", "Verwandte Seite", "Opening hours", "Zwischenüberschrift"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("the example offers a column for %q, which no cell can fill", unwanted)
 		}
@@ -986,7 +989,7 @@ func TestCSVExampleWithoutAWebsiteIsTheFixedColumns(t *testing.T) {
 			t.Fatalf("website=%q: status = %d; want 200 — this is the new-website case, not a refusal", id, rec.Code)
 		}
 		body := rec.Body.String()
-		for _, column := range []string{"Titel", "Adresse", "Text", "Zustand"} {
+		for _, column := range []string{"Title", "Address", "Text", "State"} {
 			if !strings.Contains(body, column) {
 				t.Errorf("website=%q: the fixed column %q is missing:\n%s", id, column, body)
 			}
@@ -1012,7 +1015,7 @@ func TestWebsiteListOffersTheNewWebsiteExample(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", rec.Code)
 	}
-	if !strings.Contains(body, "Beispieldatei für eine neue Website") {
+	if !strings.Contains(body, "Example file for a new website") {
 		t.Errorf("the panel offers no way to get the fixed-column file:\n%s", body)
 	}
 	// Its own form, carrying no website field: a second button named "website"
@@ -1140,10 +1143,10 @@ func TestCSVProbeWritesNothing(t *testing.T) {
 		t.Errorf("pages went from %d to %d; the dry run must write nothing", before, after)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Es wurde nichts geschrieben") {
+	if !strings.Contains(body, "Nothing has been written") {
 		t.Error("the dry run does not say that nothing has been written")
 	}
-	if !strings.Contains(body, "keinen Titel") {
+	if !strings.Contains(body, "no title") {
 		t.Error("the row without a title is not reported by its reason")
 	}
 	// And the staging row survives: the operator has not committed yet.
@@ -1164,7 +1167,7 @@ func TestCSVProbeWritesNothing(t *testing.T) {
 //
 // The repeated address: two rows at one new address are one create and one
 // update, and the counters now say so. The sentence is what makes that
-// readable, because "1 anlegen / 1 aktualisieren" on a website that does not
+// readable, because "1 to create / 1 to update" on a website that does not
 // exist yet is otherwise unexplainable.
 func TestCSVDryRunNamesTheLabelsAndTheRepeatedAddress(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
@@ -1181,13 +1184,13 @@ func TestCSVDryRunNamesTheLabelsAndTheRepeatedAddress(t *testing.T) {
 	}
 	body := rec.Body.String()
 
-	if !strings.Contains(body, "3 Schlagwörter werden dabei angelegt") {
+	if !strings.Contains(body, "3 terms will be created") {
 		t.Errorf("the dry run does not count the labels it is about to create: %q", body)
 	}
-	if !strings.Contains(body, "eine Adresse, die eine Zeile über ihr schon nimmt") {
+	if !strings.Contains(body, "an address that a row above it already takes") {
 		t.Error("the dry run does not name the row that repeats an address above it")
 	}
-	if !strings.Contains(body, "1 anlegen") || !strings.Contains(body, "1 aktualisieren") {
+	if !strings.Contains(body, "1 to create") || !strings.Contains(body, "1 to update") {
 		t.Errorf("the counters do not read 1 anlegen / 1 aktualisieren: %q", body)
 	}
 
@@ -1344,7 +1347,7 @@ func TestCSVStartCreatesInFileOrder(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("pages were written as %v; want the file's own order %v", got, want)
 	}
-	if !strings.Contains(rec.Body.String(), "Einlesen abgeschlossen") {
+	if !strings.Contains(rec.Body.String(), "Import finished") {
 		t.Error("the report screen did not render")
 	}
 }
@@ -1372,7 +1375,7 @@ func TestCSVReportNamesEveryRename(t *testing.T) {
 
 	rec, _ := serveAs(t, h, sm, admin, func(w http.ResponseWriter, r *http.Request) error {
 		return web.RenderAdmin(w, h.templates, r, "csv_report", CSVReportData{
-			LayoutData:  web.NewLayoutData(r, h.sm, "Einlesen abgeschlossen"),
+			LayoutData:  web.NewLayoutData(r, h.sm, "Import finished"),
 			WebsiteID:   ws.ID,
 			WebsiteName: ws.Name,
 			Filename:    "tabelle.csv",
@@ -1381,7 +1384,7 @@ func TestCSVReportNamesEveryRename(t *testing.T) {
 	}, httptest.NewRequest(http.MethodGet, "/admin/csv-import/abc/start", nil))
 
 	body := rec.Body.String()
-	for _, want := range []string{"alpha", "alpha-2", "war schon vergeben", "1 Adressen"} {
+	for _, want := range []string{"alpha", "alpha-2", "was already taken", "1 addresses"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the report does not carry %q:\n%s", want, body)
 		}
@@ -1407,7 +1410,7 @@ func TestCSVSecondImportWithUpdateIsIdempotent(t *testing.T) {
 	if n := pageCount(t, database); n != 2 {
 		t.Errorf("second run left %d pages; want 2 — an update is idempotent", n)
 	}
-	if body := rec.Body.String(); !strings.Contains(body, "2 aktualisiert") {
+	if body := rec.Body.String(); !strings.Contains(body, "2 updated") {
 		t.Errorf("the second run's report does not say both rows were updated:\n%s", body)
 	}
 }
@@ -1428,7 +1431,7 @@ func TestCSVSecondImportWithSkipLeavesThePageAlone(t *testing.T) {
 	if n := pageCount(t, database); n != 1 {
 		t.Errorf("pages = %d; want 1", n)
 	}
-	if body := rec.Body.String(); !strings.Contains(body, "gibt es die Seite schon") {
+	if body := rec.Body.String(); !strings.Contains(body, "The page already exists") {
 		t.Errorf("the skipped row is not reported by its reason:\n%s", body)
 	}
 }
@@ -1449,7 +1452,7 @@ func TestCSVDeletedTargetWebsiteEndsTheWizard(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Errorf("status = %d; want 303", rec.Code)
 	}
-	if !strings.Contains(flash, "gibt es nicht mehr") {
+	if !strings.Contains(flash, "no longer exists") {
 		t.Errorf("flash = %q; the operator is not told what happened", flash)
 	}
 	if n := stagedCount(t, database); n != 0 {
@@ -1480,7 +1483,7 @@ func TestCSVDeletedFieldDefinitionIsReported(t *testing.T) {
 	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVStart,
 		csvPost(token, "start", csvTargets("title", "field:sorte")))
 
-	if body := rec.Body.String(); !strings.Contains(body, "gibt es nicht mehr") {
+	if body := rec.Body.String(); !strings.Contains(body, "no longer exists") {
 		t.Errorf("the deleted definition is not reported:\n%s", body)
 	}
 	if got := slugsInOrder(t, database, ws.ID); !reflect.DeepEqual(got, []string{"alpha"}) {
@@ -1507,7 +1510,7 @@ func TestCSVReloadDoesNotImportTwice(t *testing.T) {
 	if n := pageCount(t, database); n != 2 {
 		t.Errorf("the refresh imported the file again: %d pages", n)
 	}
-	if body := rec.Body.String(); !strings.Contains(body, "abgelaufen") {
+	if body := rec.Body.String(); !strings.Contains(body, "expired") {
 		t.Errorf("the refresh did not land on the expiry screen:\n%s", body)
 	}
 }
@@ -1592,10 +1595,10 @@ func TestCSVMixedFileImportsTheGoodRows(t *testing.T) {
 		t.Errorf("pages = %v; want alpha and delta", got)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "2 angelegt") || !strings.Contains(body, "2 übergangen") {
+	if !strings.Contains(body, "2 created") || !strings.Contains(body, "2 skipped") {
 		t.Errorf("the counters do not say 2 and 2:\n%s", body)
 	}
-	if !strings.Contains(body, "keinen Titel") || !strings.Contains(body, "weder ein Entwurf") {
+	if !strings.Contains(body, "no title") || !strings.Contains(body, "is neither a draft") {
 		t.Error("the two refusals are not both named on the report")
 	}
 }
@@ -1615,7 +1618,7 @@ func TestCSVMappingWithoutATitleIsAFormError(t *testing.T) {
 		t.Fatalf("status = %d; want 422", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Keine Spalte zeigt auf den Titel") {
+	if !strings.Contains(body, "No column points at the title") {
 		t.Error("the screen does not say what is wrong with the mapping")
 	}
 	// Their choices are still there: the second column is still on the body.
@@ -1644,13 +1647,13 @@ func TestCSVReportIsGroupedNotListed(t *testing.T) {
 		csvPost(token, "probe", csvTargets("title", "status")))
 
 	body := rec.Body.String()
-	if n := strings.Count(body, "weder ein Entwurf"); n != 1 {
+	if n := strings.Count(body, "is neither a draft"); n != 1 {
 		t.Errorf("the reason is printed %d times; want once — that is the whole of D-25", n)
 	}
-	if !strings.Contains(body, "40 Zeilen") {
+	if !strings.Contains(body, "40 rows") {
 		t.Error("the group does not carry its own count")
 	}
-	if !strings.Contains(body, "und 15 weitere") {
+	if !strings.Contains(body, "and 15 more") {
 		t.Errorf("the row list is not capped at 25 with the rest counted:\n%s", body)
 	}
 }

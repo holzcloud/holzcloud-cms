@@ -72,26 +72,26 @@ func (v *ProductValues) validate(errs web.FormErrors) {
 	v.Slug = strings.TrimSpace(v.Slug)
 
 	if v.Title == "" {
-		errs.Add("title", "Bitte einen Titel angeben.")
+		errs.Add("title", "Please give a title.")
 	}
 	if v.Slug == "" {
 		v.Slug = slugify(v.Title)
 	}
 	if v.Slug == "" {
-		errs.Add("slug", "Die Adresse muss Buchstaben oder Ziffern enthalten.")
+		errs.Add("slug", "The address must contain letters or digits.")
 	}
 
 	amount, err := money.ParseAmount(v.Price)
 	if err != nil {
-		errs.Add("price", "Preis nicht lesbar. Beispiele: 49.50, 1'234.00")
+		errs.Add("price", "Price not readable. Examples: 49.50, 1'234.00")
 	} else if amount < 0 {
-		errs.Add("price", "Ein Preis kann nicht negativ sein.")
+		errs.Add("price", "A price cannot be negative.")
 	} else {
 		v.price = amount
 	}
 
 	if !money.KnownRate(money.TaxRate(v.TaxBP)) {
-		errs.Add("tax", "Bitte einen der Schweizer Steuersätze wählen.")
+		errs.Add("tax", "Please choose one of the Swiss tax rates.")
 	}
 
 	// Empty is "not tracked", which is a different thing from zero. A joiner
@@ -103,7 +103,7 @@ func (v *ProductValues) validate(errs web.FormErrors) {
 	default:
 		n, err := strconv.Atoi(text)
 		if err != nil || n < 0 {
-			errs.Add("stock", "Bitte eine Zahl ab 0 angeben, oder das Feld leer lassen.")
+			errs.Add("stock", "Please give a number from 0 upwards, or leave the field empty.")
 		} else {
 			v.stock = &n
 		}
@@ -282,7 +282,7 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 		saveErr = h.products.Update(r.Context(), ws.ID, p)
 	}
 	if saveErr == shop.ErrSlugTaken {
-		state.Errors.Add("slug", "Diese Adresse ist schon vergeben.")
+		state.Errors.Add("slug", "That address is already taken.")
 		return h.renderProductForm(w, r, ws, values, values.ID != 0, state)
 	}
 	// The address named this website and the product id named another one. The
@@ -301,7 +301,7 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Produkt gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Product saved")
 	return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/produkte")
 }
 
@@ -332,7 +332,7 @@ func (h *Handler) HandleProductDelete(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Produkt gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Product deleted")
 	return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/produkte")
 }
 

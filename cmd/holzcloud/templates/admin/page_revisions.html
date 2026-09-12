@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/edit" class="btn">{{t "Zurück zur Seite"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/edit" class="btn">{{t "Back to the page"}}</a>{{end}}
 
 {{define "content"}}
 {{template "page_revisions-content" .}}
@@ -7,7 +7,7 @@
 {{define "page_revisions-content"}}
 <div class="card">
     <p class="text-muted">
-        {{t "Frühere Fassungen von"}} <strong>{{.Page.Title}}</strong>{{t ". Es werden die letzten 20 Änderungen aufbewahrt. Beim Wiederherstellen wird die aktuelle Fassung ebenfalls als Version gesichert."}}
+        {{t "Earlier versions of"}} <strong>{{.Page.Title}}</strong>{{t ". The last 20 changes are kept. Restoring one also saves the current text as a version."}}
     </p>
 
     {{if .Revisions}}
@@ -19,12 +19,12 @@
         <table class="table">
             <thead>
                 <tr>
-                    <th scope="col">{{t "Von"}}</th>
-                    <th scope="col">{{t "Bis"}}</th>
-                    <th scope="col">{{t "Geändert am"}}</th>
-                    <th scope="col">{{t "Von wem"}}</th>
-                    <th scope="col">{{t "Beschriftung"}}</th>
-                    <th scope="col">{{t "Umfang"}}</th>
+                    <th scope="col">{{t "From"}}</th>
+                    <th scope="col">{{t "To"}}</th>
+                    <th scope="col">{{t "Changed on"}}</th>
+                    <th scope="col">{{t "By whom"}}</th>
+                    <th scope="col">{{t "Label"}}</th>
+                    <th scope="col">{{t "Scope"}}</th>
                     <th scope="col"></th>
                 </tr>
             </thead>
@@ -32,49 +32,49 @@
                 <tr>
                     <td></td>
                     <td>
-                        <label class="sr-only" for="bis-aktuell">{{t "Bis: aktuelle Fassung"}}</label>
+                        <label class="sr-only" for="bis-aktuell">{{t "To: current version"}}</label>
                         <input type="radio" id="bis-aktuell" name="bis" value="aktuell" checked>
                     </td>
-                    <td colspan="5"><strong>{{t "Aktuelle Fassung"}}</strong></td>
+                    <td colspan="5"><strong>{{t "Current version"}}</strong></td>
                 </tr>
                 {{range .Revisions}}
                 <tr>
                     <td>
-                        <label class="sr-only" for="von-{{.ID}}">{{tf "Von: Fassung vom %s" (.CreatedAt.Format "02.01.2006 15:04")}}</label>
+                        <label class="sr-only" for="von-{{.ID}}">{{tf "From: version of %s" (.CreatedAt.Format "02.01.2006 15:04")}}</label>
                         <input type="radio" id="von-{{.ID}}" name="von" value="{{.ID}}">
                     </td>
                     <td>
-                        <label class="sr-only" for="bis-{{.ID}}">{{tf "Bis: Fassung vom %s" (.CreatedAt.Format "02.01.2006 15:04")}}</label>
+                        <label class="sr-only" for="bis-{{.ID}}">{{tf "To: version of %s" (.CreatedAt.Format "02.01.2006 15:04")}}</label>
                         <input type="radio" id="bis-{{.ID}}" name="bis" value="{{.ID}}">
                     </td>
                     <td>{{.CreatedAt.Format "02.01.2006 15:04"}}</td>
-                    <td>{{if .UserEmail}}{{.UserEmail}}{{else}}<span class="text-muted">{{t "unbekannt"}}</span>{{end}}</td>
+                    <td>{{if .UserEmail}}{{.UserEmail}}{{else}}<span class="text-muted">{{t "unknown"}}</span>{{end}}</td>
                     <td>
                         {{if .Label}}<strong>{{.Label}}</strong>{{else}}<span class="text-muted">—</span>{{end}}
                     </td>
-                    <td class="text-muted">{{tf "%d Zeichen" (len .ContentMarkdown)}}</td>
+                    <td class="text-muted">{{tf "%d characters" (len .ContentMarkdown)}}</td>
                     <td class="table-actions">
                         <a class="btn btn--sm"
-                           href="/admin/websites/{{$.WebsiteID}}/pages/{{$.Page.ID}}/revisions/vergleich?von={{.ID}}&amp;bis=aktuell">{{t "Vergleichen"}}</a>
+                           href="/admin/websites/{{$.WebsiteID}}/pages/{{$.Page.ID}}/revisions/vergleich?von={{.ID}}&amp;bis=aktuell">{{t "Compare"}}</a>
                     </td>
                 </tr>
                 <tr>
                     <td colspan="7">
                         <details>
-                            <summary class="text-muted">{{t "Text ansehen, beschriften oder wiederherstellen"}}</summary>
+                            <summary class="text-muted">{{t "View the text, label it, or restore it"}}</summary>
 
                             {{/* Beschriften ist keine Änderung an der Seite: es
                                  schreibt nur diese eine Zeile und legt keine
                                  neue Fassung an. */}}
                             <div class="revision-tools">
-                                <label class="form-label" for="label-{{.ID}}">{{t "Beschriftung"}}</label>
+                                <label class="form-label" for="label-{{.ID}}">{{t "Label"}}</label>
                                 <input type="text" form="label-form-{{.ID}}" id="label-{{.ID}}" name="label"
                                        class="form-input" maxlength="80" value="{{.Label}}"
-                                       placeholder="{{t "z. B. vor dem Umbau"}}">
+                                       placeholder="{{t "e.g. before the rebuild"}}">
                                 <button type="submit" form="label-form-{{.ID}}" class="btn btn--sm"
-                                        hx-disabled-elt="this">{{t "Beschriftung speichern"}}</button>
+                                        hx-disabled-elt="this">{{t "Save label"}}</button>
                                 <button type="submit" form="restore-form-{{.ID}}" class="btn btn--sm"
-                                        hx-disabled-elt="this">{{t "Wiederherstellen"}}</button>
+                                        hx-disabled-elt="this">{{t "Restore"}}</button>
                             </div>
 
                             <pre class="revision-source">{{.ContentMarkdown}}</pre>
@@ -86,7 +86,7 @@
         </table>
 
         <div class="list-controls" style="margin-top:var(--space-3)">
-            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Ausgewählte Fassungen vergleichen"}}</button>
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Compare the selected versions"}}</button>
         </div>
     </form>
 
@@ -101,13 +101,13 @@
     <form id="restore-form-{{.ID}}" method="POST"
           action="/admin/websites/{{$.WebsiteID}}/pages/{{$.Page.ID}}/revisions/{{.ID}}/restore"
           hx-post="/admin/websites/{{$.WebsiteID}}/pages/{{$.Page.ID}}/revisions/{{.ID}}/restore"
-          hx-confirm="{{t "Diese Fassung wiederherstellen? Der aktuelle Text wird als Version gesichert."}}">
+          hx-confirm="{{t "Restore this version? The current text is saved as a version."}}">
         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
     </form>
     {{end}}
 
     {{else}}
-    <p class="text-muted">{{t "Diese Seite wurde seit dem Anlegen noch nicht geändert."}}</p>
+    <p class="text-muted">{{t "This page has not been changed since it was created."}}</p>
     {{end}}
 </div>
 {{end}}

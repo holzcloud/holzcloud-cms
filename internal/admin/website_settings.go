@@ -162,24 +162,24 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 	}
 	checks = append(checks,
 		SiteCheck{
-			Label: i18n.N("Mindestens eine Domain"),
+			Label: i18n.N("At least one domain"),
 			OK:    len(domains) > 0,
-			Hint:  i18n.N("Ohne Domain ist die Website nicht erreichbar."),
+			Hint:  i18n.N("Without a domain the website cannot be reached."),
 			Link:  base,
 		},
 		SiteCheck{
-			Label: i18n.N("Eine Hauptdomain festgelegt"),
+			Label: i18n.N("A primary domain has been set"),
 			OK:    primaries == 1,
-			Hint:  i18n.N("Die Hauptdomain bestimmt die kanonische Adresse in der Sitemap und im Quelltext."),
+			Hint:  i18n.N("The primary domain decides the canonical address in the sitemap and in the page source."),
 			Link:  base,
 		},
 	)
 
 	home, err := h.pages.GetHomePage(ctx, ws.ID)
 	checks = append(checks, SiteCheck{
-		Label: i18n.N("Veröffentlichte Startseite"),
+		Label: i18n.N("A published start page"),
 		OK:    err == nil && home != nil,
-		Hint:  i18n.N("Ohne veröffentlichte Startseite antwortet die eigene Domain mit „Seite nicht gefunden“."),
+		Hint:  i18n.N("Without a published start page your own domain answers “page not found”."),
 		Link:  base + "/pages",
 	})
 
@@ -188,30 +188,30 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 		activeSlug, _ = h.tmplStore.ActiveTemplateSlug(ctx, ws.ID)
 	}
 	checks = append(checks, SiteCheck{
-		Label: i18n.N("Vorlage aktiviert"),
+		Label: i18n.N("Template activated"),
 		OK:    activeSlug != "",
-		Hint:  i18n.N("Ohne aktivierte Vorlage wird die mitgelieferte Standardvorlage benutzt."),
+		Hint:  i18n.N("Without an activated template the built-in default template is used."),
 		Link:  base + "/design",
 	})
 
 	checks = append(checks, SiteCheck{
-		Label: i18n.N("Impressum im Footer-Menü verlinkt"),
+		Label: i18n.N("Imprint linked in the footer menu"),
 		OK:    h.footerLinksImprint(ctx, ws.ID),
-		Hint:  i18n.N("§ 5 DDG verlangt ein von jeder Seite erreichbares Impressum; das Footer-Menü leistet das."),
+		Hint:  i18n.N("German law (§ 5 DDG) requires an imprint reachable from every page; the footer menu does that."),
 		Link:  base + "/menus",
 	})
 
 	checks = append(checks,
 		SiteCheck{
-			Label: i18n.N("Beschreibung für Suchmaschinen"),
+			Label: i18n.N("Description for search engines"),
 			OK:    strings.TrimSpace(ws.MetaDescription) != "" || strings.TrimSpace(ws.Description) != "",
-			Hint:  i18n.N("Ohne Beschreibung sucht sich Google selbst einen Textausschnitt aus."),
+			Hint:  i18n.N("Without a description Google picks a passage of text itself."),
 			Link:  base,
 		},
 		SiteCheck{
-			Label: i18n.N("Favicon gesetzt"),
+			Label: i18n.N("Favicon set"),
 			OK:    ws.FaviconMediaID != nil,
-			Hint:  i18n.N("Ohne Favicon fragt jeder Browser /favicon.ico an und bekommt eine 404."),
+			Hint:  i18n.N("Without a favicon every browser asks for /favicon.ico and gets a 404."),
 			Link:  base,
 		},
 	)

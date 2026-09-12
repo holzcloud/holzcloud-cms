@@ -17,6 +17,10 @@ import (
 // kinds that were translated (measured 2026-09-08,
 // .planning/audits/v1.6-I18N-828.md).
 //
+// The source language became English later in the same milestone, so the
+// direction of the check turned round with it: the format is English now and
+// German is the translation. The property is the same one.
+//
 // The test asserts two halves that have to hold together. The sentence must
 // change with the language — otherwise nothing was translated — and the
 // operator's own label must NOT change, because it is their word and this
@@ -29,15 +33,18 @@ func TestAFieldRefusalIsTranslatedAndTheLabelIsNot(t *testing.T) {
 		t.Fatalf("the probe is wrong: Check accepted a non-number")
 	}
 
-	german := reason.Text(i18n.Source)
-	english := reason.Text("en")
+	english := reason.Text(i18n.Source)
+	german := reason.Text("de")
 
 	if german == english {
-		t.Errorf("the refusal reads the same in German and English (%q) — either the "+
-			"format never reached the catalogue, or it is not being looked up", german)
+		t.Errorf("the refusal reads the same in English and German (%q) — either the "+
+			"format never reached the catalogue, or it is not being looked up", english)
 	}
 	if !strings.Contains(english, "number") {
-		t.Errorf("the English refusal is %q and does not contain \"number\"", english)
+		t.Errorf("the source refusal is %q and does not contain \"number\"", english)
+	}
+	if !strings.Contains(german, "Zahl") {
+		t.Errorf("the German refusal is %q and does not contain \"Zahl\"", german)
 	}
 	for _, got := range []string{german, english} {
 		if !strings.Contains(got, "Preis") {
@@ -117,15 +124,15 @@ func TestTheRowFrameAroundAGroupReasonIsTranslatedToo(t *testing.T) {
 		reason = r
 	}
 
-	english := reason.Text("en")
-	if strings.Contains(english, "Zeile") {
-		t.Errorf("the row frame is still German inside an English sentence: %q — the frame "+
-			"and the reason inside it must be looked up in one language", english)
+	german := reason.Text("de")
+	if strings.Contains(german, "row") {
+		t.Errorf("the row frame is still English inside a German sentence: %q — the frame "+
+			"and the reason inside it must be looked up in one language", german)
 	}
-	if !strings.Contains(english, "row") {
-		t.Errorf("the English row frame is %q and does not contain \"row\"", english)
+	if !strings.Contains(german, "Zeile") {
+		t.Errorf("the German row frame is %q and does not contain \"Zeile\"", german)
 	}
-	if !strings.Contains(english, "Öffnungszeiten") {
-		t.Errorf("the reason %q has lost the group's label", english)
+	if !strings.Contains(german, "Öffnungszeiten") {
+		t.Errorf("the reason %q has lost the group's label", german)
 	}
 }

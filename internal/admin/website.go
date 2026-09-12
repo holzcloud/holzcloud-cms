@@ -155,7 +155,7 @@ func (h *Handler) HandleWebsiteCreate(w http.ResponseWriter, r *http.Request) er
 	}
 
 	data := WebsiteFormData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Neue Website"),
+		LayoutData: web.NewLayoutData(r, h.sm, "New website"),
 	}
 	data.ActiveNav = "websites"
 	return web.RenderAdmin(w, h.templates, r, "website_form", data)
@@ -168,7 +168,7 @@ func (h *Handler) handleWebsiteCreatePost(w http.ResponseWriter, r *http.Request
 
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte einen Namen für die Website angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give the website a name")
 		http.Redirect(w, r, "/admin/websites/new", http.StatusSeeOther)
 		return nil
 	}
@@ -230,7 +230,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	data := WebsiteFormData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Einstellungen – %s", ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Settings – %s", ws.Name)),
 		FormState:  web.NewFormState(),
 		Website:    ws,
 		Domains:    domains,
@@ -264,7 +264,7 @@ func (h *Handler) handleWebsiteEditPost(w http.ResponseWriter, r *http.Request, 
 
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte einen Namen für die Website angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give the website a name")
 		redirect := fmt.Sprintf("/admin/websites/%d", id)
 		http.Redirect(w, r, redirect, http.StatusSeeOther)
 		return nil
@@ -287,7 +287,7 @@ func (h *Handler) handleWebsiteEditPost(w http.ResponseWriter, r *http.Request, 
 	// time-zone change has to drop it too.
 	h.loader.InvalidateTemplateCache(id)
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Website gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Website saved")
 	redirect := fmt.Sprintf("/admin/websites/%d", id)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -320,7 +320,7 @@ func (h *Handler) HandleWebsiteDelete(w http.ResponseWriter, r *http.Request) er
 		slog.Error("remove media directory of deleted website", "err", err, "dir", mediaDir)
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Website gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Website deleted")
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", "/admin/websites")
 		return nil
@@ -365,7 +365,7 @@ func (h *Handler) HandleDomainAdd(w http.ResponseWriter, r *http.Request) error 
 		WebsiteID:  &id,
 		Metadata:   map[string]any{"domain": domainName, "haupt": isPrimary},
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Domain hinzugefügt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Domain added")
 
 	// For htmx: return domain list partial
 	if r.Header.Get("HX-Request") == "true" {
@@ -424,7 +424,7 @@ func (h *Handler) HandleDomainRemove(w http.ResponseWriter, r *http.Request) err
 		EntityID:   domainID,
 		WebsiteID:  &id,
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Domain entfernt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Domain removed")
 
 	// For htmx: return domain list partial
 	if r.Header.Get("HX-Request") == "true" {
@@ -508,7 +508,7 @@ func (h *Handler) HandleWebsiteDesignActivate(w http.ResponseWriter, r *http.Req
 
 	templateID, err := strconv.ParseInt(r.FormValue("template_id"), 10, 64)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Ungültige Vorlage")
+		web.SetFlashError(h.sm, r.Context(), "Invalid template")
 		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/design", id), http.StatusSeeOther)
 		return nil
 	}
@@ -519,7 +519,7 @@ func (h *Handler) HandleWebsiteDesignActivate(w http.ResponseWriter, r *http.Req
 
 	h.loader.InvalidateTemplateCache(id)
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Vorlage aktiviert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Template activated")
 	redirect := fmt.Sprintf("/admin/websites/%d/design", id)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -551,7 +551,7 @@ func (h *Handler) HandleWebsiteTokens(w http.ResponseWriter, r *http.Request) er
 			return err
 		}
 		h.invalidateWebsiteCaches(websiteID)
-		web.SetFlashSuccess(h.sm, r.Context(), "Eigene Farben entfernt – es gilt wieder die Vorlage")
+		web.SetFlashSuccess(h.sm, r.Context(), "Custom colours removed — the template applies again")
 		return h.redirect(w, r, redirect)
 	}
 
@@ -585,7 +585,7 @@ func (h *Handler) HandleWebsiteTokens(w http.ResponseWriter, r *http.Request) er
 		EntityID:   websiteID,
 		WebsiteID:  &websiteID,
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Design gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Design saved")
 	return h.redirect(w, r, redirect)
 }
 

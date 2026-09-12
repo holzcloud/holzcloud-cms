@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/users" class="btn">{{t "Zurück zu den Benutzern"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/users" class="btn">{{t "Back to the users"}}</a>{{end}}
 
 {{define "content"}}
 {{template "user_link-content" .}}
@@ -6,11 +6,11 @@
 
 {{define "user_link-content"}}
 <div class="card">
-    <h2>{{if eq .Purpose "invite"}}{{t "Einladungslink"}}{{else}}{{t "Link zum Zurücksetzen"}}{{end}} {{tf "für %s" .User.Email}}</h2>
+    <h2>{{if eq .Purpose "invite"}}{{t "Invitation link"}}{{else}}{{t "Reset link"}}{{end}} {{tf "for %s" .User.Email}}</h2>
 
     <div class="alert alert--warning" role="alert">
         <p>
-            {{th "<strong>Dieser Link wird genau einmal angezeigt.</strong> Er ist nirgends gespeichert – sichtbar ist nur seine Prüfsumme. Kopiere ihn jetzt; wenn er verloren geht, erzeuge einfach einen neuen."}}
+            {{th "<strong>This link is shown exactly once.</strong> It is stored nowhere — only its checksum is kept. Copy it now; if it gets lost, simply generate a new one."}}
         </p>
     </div>
 
@@ -20,22 +20,22 @@
     </div>
 
     <p class="text-muted">
-        {{tf "Gültig bis %s UTC, danach funktioniert er nicht mehr. Er lässt sich nur einmal benutzen." (.Expires.Format "02.01.2006 15:04")}}
-        {{if eq .Purpose "reset"}}{{t "Alle offenen Sitzungen dieses Benutzers wurden bereits beendet."}}{{end}}
+        {{tf "Valid until %s UTC, after that it stops working. It can be used only once." (.Expires.Format "02.01.2006 15:04")}}
+        {{if eq .Purpose "reset"}}{{t "All open sessions of this user have already been ended."}}{{end}}
     </p>
 
     {{if .Sent}}
     <p class="text-muted">
-        {{t "Der Link ist außerdem an"}} <strong>{{.User.Email}}</strong> {{t "unterwegs. Er steht hier trotzdem: E-Mail kann verzögert werden oder im Spam landen, und dann ist dies der Weg, der sicher funktioniert."}}
+        {{t "The link is also on its way to"}} <strong>{{.User.Email}}</strong> {{t "as well. It is shown here anyway: email can be delayed or land in spam, and then this is the way that certainly works."}}
     </p>
     {{else if .SendError}}
     <div class="alert alert--warning" role="alert">
-        <p>{{tf "Die E-Mail konnte nicht eingereiht werden: %s" .SendError}}</p>
-        <p>{{t "Gib den Link von Hand weiter."}}</p>
+        <p>{{tf "The email could not be queued: %s" .SendError}}</p>
+        <p>{{t "Pass the link on by hand."}}</p>
     </div>
     {{else}}
     <p class="text-muted">
-        {{t "Es ist kein Mailserver eingerichtet, also wird nichts verschickt. Gib den Link über den Weg weiter, den ihr ohnehin benutzt. Anders als ein durchgesagtes Passwort läuft er ab und funktioniert nur ein einziges Mal."}}
+        {{t "No mail server is set up, so nothing is sent. Pass the link on the way you normally would. Unlike a password read out loud, it expires and works exactly once."}}
     </p>
     {{end}}
 </div>

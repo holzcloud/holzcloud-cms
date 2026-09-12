@@ -9,19 +9,19 @@
 */}}
 {{define "pager"}}
 {{if or .HasPrev .HasNext}}
-<nav class="pagination" aria-label="{{t "Seitennavigation"}}">
+<nav class="pagination" aria-label="{{t "Pagination"}}">
     {{if .HasPrev}}
     <a class="btn btn--sm"
        href="{{.PagerTarget.Link .PrevPage}}"
        hx-get="{{.PagerTarget.Link .PrevPage}}"
-       hx-target="{{.PagerTarget.Selector}}" hx-swap="innerHTML">{{t "Zurück"}}</a>
+       hx-target="{{.PagerTarget.Selector}}" hx-swap="innerHTML">{{t "Back"}}</a>
     {{end}}
-    <span class="text-muted">{{tf "Seite %d von %d (%d Einträge)" .Page .TotalPages .Total}}</span>
+    <span class="text-muted">{{tf "Page %d of %d (%d entries)" .Page .TotalPages .Total}}</span>
     {{if .HasNext}}
     <a class="btn btn--sm"
        href="{{.PagerTarget.Link .NextPage}}"
        hx-get="{{.PagerTarget.Link .NextPage}}"
-       hx-target="{{.PagerTarget.Selector}}" hx-swap="innerHTML">{{t "Weiter"}}</a>
+       hx-target="{{.PagerTarget.Selector}}" hx-swap="innerHTML">{{t "Continue"}}</a>
     {{end}}
 </nav>
 {{end}}

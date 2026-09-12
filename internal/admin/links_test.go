@@ -49,7 +49,7 @@ func TestRedirectMakesALinkResolve(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/admin/websites/1/redirects", nil)
 	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
 	body := serve(t, h, sm, h.HandleRedirectList, req).Body.String()
-	if !strings.Contains(body, "Alle internen Links führen irgendwohin") {
+	if !strings.Contains(body, "Every internal link leads somewhere") {
 		t.Error("der Link gilt trotz Weiterleitung noch als kaputt")
 	}
 }

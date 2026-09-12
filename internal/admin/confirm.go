@@ -49,23 +49,23 @@ func (h *Handler) HandleConfirmPassword(w http.ResponseWriter, r *http.Request) 
 			// is somebody who is already signed in, and the password is the
 			// same one the login screen already protects.
 			data := ConfirmData{
-				LayoutData: web.NewLayoutData(r, h.sm, "Bitte bestätigen"),
+				LayoutData: web.NewLayoutData(r, h.sm, "Please confirm"),
 				FormState:  web.NewFormState(),
 				Back:       back,
 			}
-			data.Errors.Add("password", "Das Passwort stimmt nicht")
+			data.Errors.Add("password", "That password is wrong")
 			return web.RenderFormError(w, h.templates, r, "confirm", data)
 		}
 
 		auth.MarkElevated(h.sm, r.Context())
 		web.SetFlashSuccess(h.sm, r.Context(),
-			"Bestätigt. Der Knopf, den du gedrückt hast, funktioniert jetzt für die nächsten 15 Minuten.")
+			"Confirmed. The button you pressed works for the next 15 minutes.")
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return nil
 	}
 
 	data := ConfirmData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Bitte bestätigen"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Please confirm"),
 		FormState:  web.NewFormState(),
 		Back:       back,
 	}

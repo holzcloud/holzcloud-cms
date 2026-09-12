@@ -4,9 +4,9 @@
 
 {{define "activity_log-content"}}
 <div class="card">
-    <h2 style="margin-bottom:var(--space-2)">{{t "Protokoll"}}</h2>
+    <h2 style="margin-bottom:var(--space-2)">{{t "Activity log"}}</h2>
     <p class="text-muted" style="margin-bottom:var(--space-3);font-size:var(--text-sm)">
-        {{tf "%d Einträge. Wer was wann geändert hat." .Total}}
+        {{tf "%d entries. Who changed what, and when." .Total}}
     </p>
 
     {{/* GET, damit ein gefiltertes Protokoll eine Adresse hat, die man
@@ -18,30 +18,30 @@
           hx-push-url="true">
         <label class="sr-only" for="website_id">{{t "Website"}}</label>
         <select id="website_id" name="website_id" class="form-input form-select">
-            <option value="">{{t "Alle Websites"}}</option>
+            <option value="">{{t "All websites"}}</option>
             {{range .Websites}}
             <option value="{{.ID}}"{{if eq (printf "%d" .ID) $.FilterWebsiteID}} selected{{end}}>{{.Name}}</option>
             {{end}}
         </select>
 
         <div class="list-controls__search">
-            <label class="sr-only" for="action">{{t "Aktion"}}</label>
+            <label class="sr-only" for="action">{{t "Action"}}</label>
             <input type="search" id="action" name="action" class="form-input"
-                   value="{{.FilterAction}}" placeholder="{{t "seite.* oder seite.create"}}">
+                   value="{{.FilterAction}}" placeholder="{{t "page.* or page.create"}}">
         </div>
 
-        <label class="sr-only" for="user_id">{{t "Benutzernummer"}}</label>
+        <label class="sr-only" for="user_id">{{t "User number"}}</label>
         <input type="number" id="user_id" name="user_id" class="form-input"
-               style="max-width:7em" value="{{.FilterUserID}}" placeholder="{{t "Nr."}}">
+               style="max-width:7em" value="{{.FilterUserID}}" placeholder="{{t "No."}}">
 
-        <label class="sr-only" for="from">{{t "Von"}}</label>
+        <label class="sr-only" for="from">{{t "From"}}</label>
         <input type="date" id="from" name="from" class="form-input" value="{{.FilterFrom}}">
 
-        <label class="sr-only" for="to">{{t "Bis"}}</label>
+        <label class="sr-only" for="to">{{t "To"}}</label>
         <input type="date" id="to" name="to" class="form-input" value="{{.FilterTo}}">
 
-        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Filtern"}}</button>
-        <a href="/admin/protokoll" class="btn btn--sm">{{t "Zurücksetzen"}}</a>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Filter"}}</button>
+        <a href="/admin/protokoll" class="btn btn--sm">{{t "Reset"}}</a>
     </form>
 
     <div id="activity-list">
@@ -49,10 +49,10 @@
         <table class="table">
             <thead>
                 <tr>
-                    <th>{{t "Zeitpunkt"}}</th>
-                    <th>{{t "Wer"}}</th>
-                    <th>{{t "Aktion"}}</th>
-                    <th>{{t "Betrifft"}}</th>
+                    <th>{{t "When"}}</th>
+                    <th>{{t "Who"}}</th>
+                    <th>{{t "Action"}}</th>
+                    <th>{{t "Concerns"}}</th>
                     <th>{{t "Website"}}</th>
                 </tr>
             </thead>
@@ -74,7 +74,7 @@
 
         {{template "pager" .}}
         {{else}}
-        <p class="text-muted">{{t "Hier steht noch nichts."}}</p>
+        <p class="text-muted">{{t "Nothing here yet."}}</p>
         {{end}}
     </div>
 </div>
@@ -84,15 +84,15 @@
      verlangt vorher das Passwort. Ein Rückfragefenster wäre JavaScript und
      kommt hier nicht in Frage. */}}
 <div class="card" style="margin-top:var(--space-3)">
-    <h3 style="margin-bottom:var(--space-2)">{{t "Alte Einträge löschen"}}</h3>
+    <h3 style="margin-bottom:var(--space-2)">{{t "Delete old entries"}}</h3>
     <p class="text-muted" style="margin-bottom:var(--space-2);font-size:var(--text-sm)">
-        {{t "Löscht alles vor dem gewählten Tag, unwiderruflich. Das Löschen selbst wird als nächster Eintrag festgehalten."}}
+        {{t "Deletes everything before the chosen day, irreversibly. The deletion itself is recorded as the next entry."}}
     </p>
     <form method="POST" action="/admin/protokoll/aufraeumen" class="list-controls">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <label class="form-label" for="before">{{t "Alles löschen vor dem"}}</label>
+        <label class="form-label" for="before">{{t "Delete everything before"}}</label>
         <input type="date" id="before" name="before" class="form-input" required>
-        <button type="submit" class="btn btn--danger" hx-disabled-elt="this">{{t "Löschen"}}</button>
+        <button type="submit" class="btn btn--danger" hx-disabled-elt="this">{{t "Delete"}}</button>
     </form>
 </div>
 {{end}}

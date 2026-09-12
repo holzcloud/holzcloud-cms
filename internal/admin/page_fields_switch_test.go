@@ -341,7 +341,7 @@ func zeichneAlleArten(t *testing.T) string {
 		{Key: "adresse", Label: "Adresse", Kind: field.KindLink},
 		{Key: "seite", Label: "Seite", Kind: field.KindRef},
 		{Key: "thema", Label: "Thema", Kind: field.KindTerm},
-		{Key: "ueberschrift", Label: "Überschrift", Kind: field.KindSection},
+		{Key: "ueberschrift", Label: "Heading", Kind: field.KindSection},
 		{Key: "zeiten", Label: "Zeiten", Kind: field.KindGroup},
 	} {
 		d.WebsiteID = ws.ID

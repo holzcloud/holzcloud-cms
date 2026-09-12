@@ -111,10 +111,10 @@ func validKey(key string) bool {
 
 func (v SnippetValues) validate(errs web.FormErrors) {
 	if v.Name == "" {
-		errs.Add("name", "Bitte einen Namen angeben.")
+		errs.Add("name", "Please give a name.")
 	}
 	if !validKey(v.Key) {
-		errs.Add("key", "Nur Kleinbuchstaben, Ziffern, Bindestrich und Unterstrich.")
+		errs.Add("key", "Lower-case letters, digits, hyphen and underscore only.")
 	}
 }
 
@@ -190,7 +190,7 @@ func (h *Handler) snippetFieldDefs(ctx context.Context, websiteID, snippetID int
 
 func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName string, values SnippetValues) (SnippetListData, error) {
 	data := SnippetListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Textbausteine – %s", websiteName)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Snippets – %s", websiteName)),
 		FormState:  web.NewFormState(),
 		WebsiteID:  websiteID,
 		Values:     values,
@@ -320,7 +320,7 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 		err = h.snippets.Update(r.Context(), websiteID, values.ID, values.Key, values.Name, values.Markdown, html)
 	}
 	if errors.Is(err, snippet.ErrKeyTaken) {
-		data.Errors.Add("key", "Diese Kennung wird bereits von einem anderen Baustein benutzt.")
+		data.Errors.Add("key", "That key is already used by another snippet.")
 		return web.RenderFormError(w, h.templates, r, "snippet_list", data)
 	}
 	if err != nil {
@@ -334,7 +334,7 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Textbaustein gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Snippet saved")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/snippets", websiteID))
 }
 
@@ -363,6 +363,6 @@ func (h *Handler) HandleSnippetDelete(w http.ResponseWriter, r *http.Request) er
 	if err := h.snippets.Delete(r.Context(), websiteID, id); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Textbaustein gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Snippet deleted")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/snippets", websiteID))
 }

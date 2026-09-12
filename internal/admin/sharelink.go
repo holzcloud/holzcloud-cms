@@ -63,7 +63,7 @@ func (h *Handler) HandlePageShare(w http.ResponseWriter, r *http.Request) error 
 	base := h.publicBase(r, ws.ID)
 
 	data := ShareLinkData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Vorschaulink – %s", pg.Title)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Preview link – %s", pg.Title)),
 		WebsiteID:  websiteID,
 		PageID:     pg.ID,
 		Title:      pg.Title,

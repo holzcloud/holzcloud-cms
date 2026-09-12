@@ -223,28 +223,28 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	switch {
 	case errors.Is(err, field.ErrNested):
 		web.SetFlashError(h.sm, r.Context(),
-			"Eine Gruppe in einer Gruppe gibt es nicht — eine Ebene, damit sich im Formular noch jemand zurechtfindet.")
+			"There is no group inside a group — one level, so somebody can still find their way around the form.")
 	case errors.Is(err, field.ErrKindFixed):
 		web.SetFlashError(h.sm, r.Context(),
-			"Aus einer Gruppe wird kein einfaches Feld und umgekehrt: die Zeilen hätten nirgends hin.")
+			"A group cannot become a plain field or the other way round: the rows would have nowhere to go.")
 	case errors.Is(err, field.ErrDuplicateKey):
 		web.SetFlashError(h.sm, r.Context(),
-			"Ein Feld mit dieser Kennung gibt es schon. Wähle eine andere Beschriftung.")
+			"A field with that key already exists. Choose a different label.")
 	case errors.Is(err, field.ErrNotInBlock):
 		web.SetFlashError(h.sm, r.Context(),
-			"Diese Art von Feld gibt es in einem Baustein nicht. Ein Verweis folgt einer Umbenennung, und der Baustein wird beim Speichern der Seite ein für alle Mal in HTML verwandelt — er könnte dieses Versprechen nicht halten. Nimm einen Link.")
+			"This kind of field does not exist inside a block. A reference follows a rename, and a block is turned into HTML once and for all when the page is saved — it could not keep that promise. Use a link.")
 	case errors.Is(err, field.ErrNoCondition):
 		web.SetFlashError(h.sm, r.Context(),
-			"An dieses Feld lässt sich keine Bedingung hängen. Möglich sind die Felder, bei denen der Browser sehen kann, ob sie ausgefüllt sind — ein Datum und eine Gruppe gehören nicht dazu.")
+			"No condition can be hung on this field. Possible are the fields where the browser can see whether they are filled in — a date and a group are not among them.")
 	case errors.Is(err, field.ErrConditionLoop):
 		web.SetFlashError(h.sm, r.Context(),
-			"Die Bedingungen drehen sich im Kreis: keines der beteiligten Felder wäre je zu sehen.")
+			"The conditions go round in a circle: none of the fields involved would ever be visible.")
 	case errors.Is(err, field.ErrRangeInverted):
 		web.SetFlashError(h.sm, r.Context(),
-			"Die untere Grenze liegt über der oberen — so gäbe es keine Zahl, die dazwischenpasst. Vertausche die beiden Werte.")
+			"The lower limit is above the upper one — no number would fit between them. Swap the two values.")
 	case errors.Is(err, field.ErrTooMany):
 		web.SetFlashError(h.sm, r.Context(),
-			"Mehr Felder werden nicht angelegt — ein Formular, das so lang ist, füllt niemand richtig aus.")
+			"No more fields are created — a form that long is one nobody fills in properly.")
 	// The three carriers a field can hang off, answered by name.
 	//
 	// They were missing from this switch, so they fell through to err.Error()
@@ -255,13 +255,13 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	// only snippetID, above).
 	case errors.Is(err, field.ErrNoGroup):
 		web.SetFlashError(h.sm, r.Context(),
-			"Diese Gruppe gibt es nicht, oder sie gehört zu einer anderen Website.")
+			"There is no such group, or it belongs to another website.")
 	case errors.Is(err, field.ErrNoSnippet):
 		web.SetFlashError(h.sm, r.Context(),
-			"Diesen Textbaustein gibt es nicht, oder er gehört zu einer anderen Website.")
+			"There is no such snippet, or it belongs to another website.")
 	case errors.Is(err, field.ErrNoBlockType):
 		web.SetFlashError(h.sm, r.Context(),
-			"Diese Bausteinart gibt es nicht, oder sie gehört zu einer anderen Website.")
+			"There is no such kind of block, or it belongs to another website.")
 	case err != nil:
 		// What is left is a database failure, and its text is a German
 		// fmt.Errorf wrap around a driver message ("feld anlegen: database is
@@ -270,12 +270,12 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 		// The sentence they read is a collected one; the wrap goes to the log,
 		// where its detail is worth something.
 		slog.Error("save field", "err", err, "website", websiteID)
-		web.SetFlashError(h.sm, r.Context(), "Speichern fehlgeschlagen.")
+		web.SetFlashError(h.sm, r.Context(), "Saving failed.")
 	case id > 0:
-		web.SetFlashSuccess(h.sm, r.Context(), "Feld geändert.")
+		web.SetFlashSuccess(h.sm, r.Context(), "Field changed.")
 	default:
 		web.SetFlashSuccess(h.sm, r.Context(),
-			"Feld angelegt. Es steht ab sofort im Editor und im Theme.")
+			"Field created. It is available in the editor and the theme from now on.")
 	}
 	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID, snippetID))
 }
@@ -340,17 +340,17 @@ func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName st
 	var (
 		defs  []field.Def
 		err   error
-		title = web.Titlef(r, "Felder – %s", websiteName)
+		title = web.Titlef(r, "Fields – %s", websiteName)
 		kinds = field.Kinds
 	)
 	switch {
 	case blockType != nil:
 		defs, err = h.fields.OfBlockType(r.Context(), websiteID, blockType.ID)
-		title = web.Titlef(r, "Baustein „%s“ – %s", blockType.Name, websiteName)
+		title = web.Titlef(r, "Block “%s” – %s", blockType.Name, websiteName)
 		kinds = field.BlockKinds()
 	case snip != nil:
 		defs, err = h.fields.OfSnippet(r.Context(), websiteID, snip.ID)
-		title = web.Titlef(r, "Textbaustein „%s“ – %s", snip.Name, websiteName)
+		title = web.Titlef(r, "Snippet “%s” – %s", snip.Name, websiteName)
 		// The full palette, not BlockKinds(): its four exclusions exist because
 		// a block freezes to HTML when the page is saved, while a snippet's
 		// values are resolved on the way out. A reference and a label field can
@@ -358,7 +358,7 @@ func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName st
 		kinds = field.Kinds
 	case group != nil:
 		defs, err = h.fields.Sub(r.Context(), websiteID, group.ID)
-		title = web.Titlef(r, "Gruppe „%s“ – %s", group.Label, websiteName)
+		title = web.Titlef(r, "Group “%s” – %s", group.Label, websiteName)
 		kinds = field.SubKinds()
 	default:
 		defs, err = h.fields.List(r.Context(), websiteID)

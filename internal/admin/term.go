@@ -35,7 +35,7 @@ func (h *Handler) HandleTermList(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := TermListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Schlagwörter – %s", ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Terms – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Terms:      terms,
 	}
@@ -57,18 +57,18 @@ func (h *Handler) HandleTermRename(w http.ResponseWriter, r *http.Request) error
 	redirect := fmt.Sprintf("/admin/websites/%d/tags", websiteID)
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
-		web.SetFlashError(h.sm, r.Context(), "Ein Schlagwort braucht einen Namen")
+		web.SetFlashError(h.sm, r.Context(), "A term needs a name")
 		return h.redirect(w, r, redirect)
 	}
 	if err := h.terms.Rename(r.Context(), websiteID, termID, name); err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Umbenennen fehlgeschlagen: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Renaming failed: %s", err))
 		return h.redirect(w, r, redirect)
 	}
 
 	// The address stays as it was, which is worth saying: an editor renaming a
 	// label usually expects the URL to follow, and it deliberately does not.
 	web.SetFlashSuccess(h.sm, r.Context(),
-		"Umbenannt. Die Adresse bleibt unverändert, damit bestehende Links weiter funktionieren.")
+		"Renamed. The address stays as it was so existing links keep working.")
 	return h.redirect(w, r, redirect)
 }
 
@@ -81,7 +81,7 @@ func (h *Handler) HandleTermDelete(w http.ResponseWriter, r *http.Request) error
 	if err := h.terms.Delete(r.Context(), websiteID, termID); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Schlagwort gelöscht. Die Inhalte selbst bleiben.")
+	web.SetFlashSuccess(h.sm, r.Context(), "Term deleted. The content itself stays.")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/tags", websiteID))
 }
 

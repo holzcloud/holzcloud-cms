@@ -182,7 +182,7 @@ func TestVerdrehteGrenzenWerdenGemeldetUndNichtGespeichert(t *testing.T) {
 	if meldung.Error == "" {
 		t.Fatalf("es wurde nichts gemeldet — die Ablehnung wäre unsichtbar: %+v", meldung)
 	}
-	if !strings.Contains(meldung.Error, "Grenze") {
+	if !strings.Contains(meldung.Error, "limit") {
 		t.Errorf("die Meldung nennt die Grenze nicht: %q", meldung.Error)
 	}
 }

@@ -1112,11 +1112,11 @@ func TestSlideshowNameGoesThroughTheTranslator(t *testing.T) {
 	loud := Set{T: strings.ToUpper}
 	html := Render([]Block{show}, loud, galleryLook(), markdown)
 
-	if !strings.Contains(html, `aria-label="GALERIE"`) {
+	if !strings.Contains(html, `aria-label="GALLERY"`) {
 		t.Errorf("the name did not go through Set.T:\n%.300s", html)
 	}
-	if strings.Contains(html, `aria-label="Galerie"`) {
-		t.Errorf("the German source survived a translator that maps it away:\n%.300s", html)
+	if strings.Contains(html, `aria-label="Gallery"`) {
+		t.Errorf("the source text survived a translator that maps it away:\n%.300s", html)
 	}
 }
 

@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/websites" class="btn">{{t "Zu den Websites"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites" class="btn">{{t "To the websites"}}</a>{{end}}
 
 {{define "content"}}
 {{template "csv_expired-content" .}}
@@ -7,11 +7,11 @@
 {{define "csv_expired-content"}}
 <div class="card">
     <p class="alert alert--warning">
-        {{t "Eine hochgeladene Tabelle wird nach einem Tag wieder weggeräumt. Diese hier ist nicht mehr da – geschrieben wurde nichts, und die Website ist unverändert."}}
+        {{t "An uploaded spreadsheet is cleared away again after a day. This one is no longer there — nothing was written, and the website is unchanged."}}
     </p>
     <p class="text-muted">
-        {{t "Lade die Datei einfach noch einmal hoch. Die Zuordnung der Spalten schlägt der nächste Bildschirm wieder von selbst vor."}}
+        {{t "Just upload the file again. The next screen suggests the column mapping by itself once more."}}
     </p>
-    <a href="/admin/websites" class="btn btn--primary">{{t "Noch einmal beginnen"}}</a>
+    <a href="/admin/websites" class="btn btn--primary">{{t "Start again"}}</a>
 </div>
 {{end}}

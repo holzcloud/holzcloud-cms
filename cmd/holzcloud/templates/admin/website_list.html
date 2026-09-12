@@ -1,78 +1,78 @@
-{{define "actions"}}<a href="/admin/websites/new" class="btn btn--primary">{{t "Neue Website"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites/new" class="btn btn--primary">{{t "New website"}}</a>{{end}}
 
 {{define "content"}}
 <details class="card" style="margin-bottom: var(--space-3);">
-    <summary>{{th "<strong>Website aus einer Sicherung einspielen</strong>"}}</summary>
+    <summary>{{th "<strong>Restore a website from a backup</strong>"}}</summary>
     <p class="text-muted">
-        {{th "Legt immer eine <em>neue</em> Website an, nie eine bestehende zusammen. Zusammenführen bräuchte für jeden Konflikt eine Antwort – gleiche Adresse, anderer Text –, und die ehrliche Antwort ist eine zweite Website, die man vergleichen und dann löschen kann."}}
+        {{th "Always creates a <em>new</em> website, never merges into an existing one. Merging would need an answer for every conflict — same address, different text — and the honest answer is a second website you can compare and then delete."}}
     </p>
     <form method="POST" action="/admin/websites/import" enctype="multipart/form-data">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <div class="form-group">
-            <label class="form-label" for="bundle">{{t "Archiv (.holzcloud.zip)"}}</label>
+            <label class="form-label" for="bundle">{{t "Archive (.holzcloud.zip)"}}</label>
             <input type="file" id="bundle" name="bundle" class="form-input" accept=".zip" required>
         </div>
         <div class="form-group">
-            <label class="form-label" for="import_name">{{t "Name der neuen Website"}}</label>
+            <label class="form-label" for="import_name">{{t "Name of the new website"}}</label>
             <input type="text" id="import_name" name="name" class="form-input"
-                   placeholder="{{t "wie im Archiv"}}">
+                   placeholder="{{t "as in the archive"}}">
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Einspielen"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Install"}}</button>
     </form>
 </details>
 
 <details class="card" style="margin-bottom: var(--space-3);">
-    <summary>{{th "<strong>Von WordPress umziehen</strong>"}}</summary>
+    <summary>{{th "<strong>Move over from WordPress</strong>"}}</summary>
     <p class="text-muted">
-        {{th "In WordPress unter <em>Werkzeuge → Daten exportieren → Alle Inhalte</em>. Die entstehende <code>.xml</code> hier hochladen: Seiten und Beiträge kommen mit Titel, Adresse, Text, Zustand und Schlagwörtern herüber. Auch hier entsteht immer eine neue Website."}}
+        {{th "In WordPress under <em>Tools → Export → All content</em>. Upload the resulting <code>.xml</code> here: pages and posts come over with title, address, text, state and tags. Here too a new website is always created."}}
     </p>
     <p class="text-muted">
-        {{th "<strong>Bilder bleiben zurück.</strong> Sie liegen auf dem alten Server, und dieser hier holt von sich aus nichts von Dritten — das ist die Regel, die dieses CMS ohne Cookie-Banner auskommen lässt. Der Bericht zählt danach auf, welche Dateien fehlen; sie kommen unter <em>Medien</em> herüber."}}
+        {{th "<strong>Pictures stay behind.</strong> They sit on the old server, and this one fetches nothing from third parties of its own accord — the rule that lets this CMS do without a cookie banner. The report then lists which files are missing; they come over under <em>Media</em>."}}
     </p>
     <form method="POST" action="/admin/websites/import-wordpress" enctype="multipart/form-data">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <div class="form-group">
-            <label class="form-label" for="wxr">{{t "WordPress-Datei (.xml)"}}</label>
+            <label class="form-label" for="wxr">{{t "WordPress file (.xml)"}}</label>
             <input type="file" id="wxr" name="wxr" class="form-input" accept=".xml,text/xml,application/xml" required>
         </div>
         <div class="form-group">
-            <label class="form-label" for="wp_name">{{t "Name der neuen Website"}}</label>
+            <label class="form-label" for="wp_name">{{t "Name of the new website"}}</label>
             <input type="text" id="wp_name" name="name" class="form-input"
-                   placeholder="{{t "wie in der Datei"}}">
+                   placeholder="{{t "as in the file"}}">
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Einspielen"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Install"}}</button>
     </form>
 </details>
 
 <details class="card" style="margin-bottom: var(--space-3);">
-    <summary>{{th "<strong>Seiten aus einer Tabelle einlesen (.csv)</strong>"}}</summary>
+    <summary>{{th "<strong>Import pages from a spreadsheet (.csv)</strong>"}}</summary>
     <p class="text-muted">
-        {{th "Eine Tabelle aus Excel, LibreOffice oder Numbers, als <code>.csv</code> gespeichert. Die erste Zeile sind die Spaltenüberschriften; jede weitere Zeile wird eine Seite. Auf dem nächsten Bildschirm sagst du, welche Spalte wohin gehört – vorgeschlagen wird es dir."}}
+        {{th "A spreadsheet from Excel, LibreOffice or Numbers, saved as <code>.csv</code>. The first row is the column headings; every further row becomes a page. On the next screen you say which column goes where — and a suggestion is made for you."}}
     </p>
     <p class="text-muted">
-        {{th "Anders als die beiden Wege darüber führt dieser nicht sofort zu einem Bericht, sondern zu einem <em>Probelauf</em>: du siehst Zeile für Zeile, was passieren würde, bevor irgendetwas geschrieben wird."}}
+        {{th "Unlike the two ways above, this one does not lead straight to a report but to a <em>dry run</em>: you see row by row what would happen, before anything is written."}}
     </p>
     <form method="POST" action="/admin/websites/import-csv" enctype="multipart/form-data">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <div class="form-group">
-            <label class="form-label" for="csv">{{t "Tabelle (.csv)"}}</label>
+            <label class="form-label" for="csv">{{t "Spreadsheet (.csv)"}}</label>
             <input type="file" id="csv" name="csv" class="form-input" accept=".csv,text/csv" required>
         </div>
 
         <fieldset class="form-group">
-            <legend class="form-label">{{t "Wohin?"}}</legend>
+            <legend class="form-label">{{t "Where to?"}}</legend>
             <div class="form-check">
                 <input type="radio" id="csv_target_neu" name="target" value="neu" checked>
-                <label class="form-check-label" for="csv_target_neu">{{t "In eine neue Website"}}</label>
+                <label class="form-check-label" for="csv_target_neu">{{t "Into a new website"}}</label>
             </div>
             <div class="form-group">
-                <label class="form-label" for="csv_name">{{t "Name der neuen Website"}}</label>
+                <label class="form-label" for="csv_name">{{t "Name of the new website"}}</label>
                 <input type="text" id="csv_name" name="name" class="form-input"
-                       placeholder="{{t "wie die Datei"}}">
+                       placeholder="{{t "like the file"}}">
             </div>
             <div class="form-check">
                 <input type="radio" id="csv_target_bestehend" name="target" value="bestehend">
-                <label class="form-check-label" for="csv_target_bestehend">{{t "In eine bestehende Website"}}</label>
+                <label class="form-check-label" for="csv_target_bestehend">{{t "Into an existing website"}}</label>
             </div>
             <div class="form-group">
                 <label class="form-label" for="csv_website">{{t "Website"}}</label>
@@ -83,36 +83,36 @@
         </fieldset>
 
         <fieldset class="form-group">
-            <legend class="form-label">{{t "Wenn es eine Seite mit dieser Adresse schon gibt"}}</legend>
+            <legend class="form-label">{{t "If a page with this address already exists"}}</legend>
             <div class="form-check">
                 <input type="radio" id="csv_collision_uebergehen" name="collision" value="uebergehen" checked>
-                <label class="form-check-label" for="csv_collision_uebergehen">{{t "Übergehen – die vorhandene Seite bleibt, wie sie ist. Die Zeile steht im Bericht."}}</label>
+                <label class="form-check-label" for="csv_collision_uebergehen">{{t "Skip — the existing page stays as it is. The row appears in the report."}}</label>
             </div>
             <div class="form-check">
                 <input type="radio" id="csv_collision_aktualisieren" name="collision" value="aktualisieren">
-                <label class="form-check-label" for="csv_collision_aktualisieren">{{t "Aktualisieren – die vorhandene Seite wird mit dieser Zeile überschrieben. Das schreibt."}}</label>
+                <label class="form-check-label" for="csv_collision_aktualisieren">{{t "Update — the existing page is overwritten with this row. This writes."}}</label>
             </div>
         </fieldset>
 
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Weiter zur Zuordnung"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "On to the mapping"}}</button>
     </form>
 
     <hr>
     <p class="text-muted">
-        {{th "<strong>Du weisst nicht, wie die Spalten heissen müssen?</strong> Lade eine Beispieldatei herunter: sie hat die Überschriften dieser Website schon drin, samt ihren eigenen Feldern, und eine Musterzeile. Sie ist eine Momentaufnahme – ein Feld, das du danach anlegst, fehlt darin und kommt beim Einlesen einfach unzugeordnet an."}}
+        {{th "<strong>Not sure what the columns have to be called?</strong> Download an example file: it already carries this website's headings, its own fields included, plus a sample row. It is a snapshot — a field you create afterwards is missing from it and simply arrives unmapped when you import."}}
     </p>
     <p class="text-muted">
-        {{t "Für eine Website, die es noch nicht gibt, gibt es keine Felder zu lesen: dort sind es nur die fünf festen Spalten Titel, Adresse, Text, Zustand und Schlagwörter."}}
+        {{t "For a website that does not exist yet there are no fields to read: there it is only the five fixed columns title, address, text, state and terms."}}
     </p>
     {{if .Websites}}
     <form method="GET" action="/admin/csv-vorlage">
         <div class="form-group">
-            <label class="form-label" for="example_website">{{t "Beispiel für diese Website"}}</label>
+            <label class="form-label" for="example_website">{{t "Example for this website"}}</label>
             <select id="example_website" name="website" class="form-input form-select">
                 {{range .Websites}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
             </select>
         </div>
-        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Beispieldatei herunterladen"}}</button>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Download the example file"}}</button>
     </form>
     {{end}}
     {{/* Ein eigenes Formular und keine zweite Schaltfläche im ersten: beide
@@ -124,7 +124,7 @@
          einzige Website gibt: das ist der wahrscheinlichste Augenblick für
          den allerersten Import. */}}
     <form method="GET" action="/admin/csv-vorlage">
-        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Beispieldatei für eine neue Website"}}</button>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Example file for a new website"}}</button>
     </form>
 </details>
 
@@ -138,28 +138,28 @@
         <thead>
             <tr>
                 <th scope="col">{{t "Name"}}</th>
-                <th scope="col">{{t "Vorlage"}}</th>
+                <th scope="col">{{t "Template"}}</th>
                 <th scope="col">{{t "Domains"}}</th>
                 <th scope="col">{{t "Status"}}</th>
-                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+                <th scope="col"><span class="sr-only">{{t "Actions"}}</span></th>
             </tr>
         </thead>
         <tbody>
             {{range .Websites}}
             <tr>
                 <td><a href="/admin/websites/{{.ID}}">{{.Name}}</a></td>
-                <td>{{if .TemplateName}}<a href="/admin/websites/{{.ID}}/design" class="text-muted">{{.TemplateName}}</a>{{else}}<span class="text-muted">{{t "Standard"}}</span>{{end}}</td>
-                <td class="text-muted">{{if eq .DomainCount 1}}{{t "Eine Domain"}}{{else}}{{tf "%d Domains" .DomainCount}}{{end}}</td>
+                <td>{{if .TemplateName}}<a href="/admin/websites/{{.ID}}/design" class="text-muted">{{.TemplateName}}</a>{{else}}<span class="text-muted">{{t "Default"}}</span>{{end}}</td>
+                <td class="text-muted">{{if eq .DomainCount 1}}{{t "One domain"}}{{else}}{{tf "%d domains" .DomainCount}}{{end}}</td>
                 <td>
-                    {{if .Active}}<span class="badge badge--published">{{t "Aktiv"}}</span>{{else}}<span class="badge badge--draft">{{t "Inaktiv"}}</span>{{end}}
+                    {{if .Active}}<span class="badge badge--published">{{t "Active"}}</span>{{else}}<span class="badge badge--draft">{{t "Inactive"}}</span>{{end}}
                 </td>
                 <td class="table-actions">
-                    <a href="/admin/websites/{{.ID}}" class="btn btn--sm">{{t "Bearbeiten"}}</a>
-                    <a href="/admin/websites/{{.ID}}/pages" class="btn btn--sm">{{t "Seiten"}}</a>
+                    <a href="/admin/websites/{{.ID}}" class="btn btn--sm">{{t "Edit"}}</a>
+                    <a href="/admin/websites/{{.ID}}/pages" class="btn btn--sm">{{t "Pages"}}</a>
                     <form method="POST" action="/admin/websites/{{.ID}}/delete" hx-post="/admin/websites/{{.ID}}/delete" style="display:inline"
-                          hx-confirm="{{t "Diese Website mit allen Seiten löschen?"}}">
+                          hx-confirm="{{t "Delete this website with all its pages?"}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Löschen"}}</button>
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                     </form>
                 </td>
             </tr>
@@ -167,7 +167,7 @@
         </tbody>
     </table>
     {{else}}
-    <p class="text-muted">{{t "Noch keine Website. Leg die erste an, um loszulegen."}}</p>
+    <p class="text-muted">{{t "No website yet. Create the first one to get going."}}</p>
     {{end}}
 </div>
 {{end}}

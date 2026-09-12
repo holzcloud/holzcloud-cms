@@ -11,38 +11,38 @@
             <label class="form-label" for="name">{{t "Name"}}</label>
             <input type="text" id="name" name="name" class="form-input"
                    value="{{if .User}}{{.User.Name}}{{end}}"
-                   placeholder="{{t "Vor- und Nachname"}}">
+                   placeholder="{{t "First and last name"}}">
         </div>
 
         <div class="form-group">
-            <label class="form-label" for="email">{{t "E-Mail"}}</label>
+            <label class="form-label" for="email">{{t "Email"}}</label>
             <input type="email" id="email" name="email" class="form-input" required
                    value="{{if .User}}{{.User.Email}}{{end}}"
                    placeholder="{{t "user@example.com"}}">
         </div>
 
         <div class="form-group">
-            <label class="form-label" for="role">{{t "Rolle"}}</label>
+            <label class="form-label" for="role">{{t "Role"}}</label>
             <select id="role" name="role" class="form-input" required>
                 <option value="admin"{{if and .User (eq .User.Role "admin")}} selected{{end}}>{{t "Admin"}}</option>
-                <option value="editor"{{if and .User (eq .User.Role "editor")}} selected{{end}}>{{t "Redakteur"}}</option>
+                <option value="editor"{{if and .User (eq .User.Role "editor")}} selected{{end}}>{{t "Editor"}}</option>
             </select>
         </div>
 
         {{/* Die Rechte innerhalb der Rolle. Für einen Administrator gibt es sie
              nicht: die Rolle ist das Recht, die Anlage zu führen. */}}
         <fieldset class="form-group rights">
-            <legend class="form-label">{{t "Rechte"}}</legend>
+            <legend class="form-label">{{t "Rights"}}</legend>
             <p class="form-hint text-muted">
-                {{t "Gilt für Redakteure. Ein Administrator führt die ganze Anlage und ist von beidem nicht betroffen."}}
+                {{t "Applies to editors. An administrator runs the whole installation and is affected by neither."}}
             </p>
 
             <label class="form-check">
                 <input type="checkbox" name="darf_veroeffentlichen" value="1"{{if or .MayPublish (not .IsEdit)}} checked{{end}}>
-                <span class="form-check-label">{{t "Darf veröffentlichen"}}</span>
+                <span class="form-check-label">{{t "May publish"}}</span>
             </label>
             <p class="form-hint text-muted">
-                {{t "Ohne dieses Recht wird geschrieben und zur Prüfung eingereicht; online stellt jemand anders."}}
+                {{t "Without this right one writes and submits for review; somebody else puts it online."}}
             </p>
 
             {{if .Sites}}
@@ -55,11 +55,11 @@
                  became an editor of every website when saved unchanged. */}}
             <label class="form-check">
                 <input type="radio" name="leer_heisst" value="alle"{{if not .NothingTickedMeansNone}} checked{{end}}>
-                <span class="form-check-label">{{t "Ohne Häkchen: alle Websites"}}</span>
+                <span class="form-check-label">{{t "Nothing ticked: every website"}}</span>
             </label>
             <label class="form-check">
                 <input type="radio" name="leer_heisst" value="keine"{{if .NothingTickedMeansNone}} checked{{end}}>
-                <span class="form-check-label">{{t "Ohne Häkchen: keine Website"}}</span>
+                <span class="form-check-label">{{t "Nothing ticked: no website"}}</span>
             </label>
             {{range .Sites}}
             <label class="form-check">
@@ -68,21 +68,21 @@
             </label>
             {{end}}
             <p class="form-hint text-muted">
-                {{t "Wer hier eine Auswahl bekommt, sieht ab da nur diese — überall, auch über eine mitgeschriebene Adresse."}}
+                {{t "Whoever gets a selection here sees only those from then on — everywhere, including through a copied address."}}
             </p>
             {{end}}
         </fieldset>
 
         {{if not .IsEdit}}
         <div class="form-group">
-            <label class="form-label" for="password">{{t "Passwort"}}</label>
+            <label class="form-label" for="password">{{t "Password"}}</label>
             <input type="password" id="password" name="password" class="form-input" required
-                   placeholder="{{t "Erstes Passwort"}}" minlength="8">
+                   placeholder="{{t "First password"}}" minlength="8">
         </div>
         {{end}}
 
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
-            {{if .IsEdit}}{{t "Änderungen speichern"}}{{else}}{{t "Benutzer anlegen"}}{{end}}
+            {{if .IsEdit}}{{t "Save changes"}}{{else}}{{t "Create user"}}{{end}}
         </button>
     </form>
 </div>
