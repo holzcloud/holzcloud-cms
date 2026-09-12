@@ -128,6 +128,12 @@ var goFuncs = map[string]int{
 	// sentence has to be collected, and finding that out from a French screen
 	// is finding it out too late.
 	"Tf": 1,
+	// tr and trs are internal/admin/page_form.go's two wrappers around Titlef
+	// and T for the places that have no request. Without them here their two
+	// sentences were collected by nothing and stayed German through the whole
+	// of v2.0's flip — criterion 9 in one file.
+	"tr":  1,
+	"trs": 1,
 }
 
 // regional names the catalogues that are deviation lists rather than

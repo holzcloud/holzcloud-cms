@@ -374,14 +374,14 @@ func TestCSVMappingIsInColumnOrder(t *testing.T) {
 	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, ""))
 	body := rec.Body.String()
 
-	preis := strings.Index(body, `name="target_0"`)
+	price := strings.Index(body, `name="target_0"`)
 	titel := strings.Index(body, `name="target_1"`)
 	sorte := strings.Index(body, `name="target_2"`)
-	if preis < 0 || titel < 0 || sorte < 0 {
-		t.Fatalf("not every column is on the screen: %d %d %d", preis, titel, sorte)
+	if price < 0 || titel < 0 || sorte < 0 {
+		t.Fatalf("not every column is on the screen: %d %d %d", price, titel, sorte)
 	}
-	if !(preis < titel && titel < sorte) {
-		t.Errorf("the columns are not in the file's order: %d %d %d", preis, titel, sorte)
+	if !(price < titel && titel < sorte) {
+		t.Errorf("the columns are not in the file's order: %d %d %d", price, titel, sorte)
 	}
 }
 

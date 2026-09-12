@@ -20,11 +20,11 @@ import (
 // Berechtigungen und eigener Speicher.
 func TestBeispielPluginLaeuftDurch(t *testing.T) {
 	module := wasmtest.Module(t, "../../plugins/jahreszahl/plugin.wasm")
-	roh, err := os.ReadFile("../../plugins/jahreszahl/plugin.json")
+	raw, err := os.ReadFile("../../plugins/jahreszahl/plugin.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := plugin.ParseManifest(roh)
+	m, err := plugin.ParseManifest(raw)
 	if err != nil {
 		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}

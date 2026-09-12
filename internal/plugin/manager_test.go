@@ -19,7 +19,7 @@ import (
 // echoArchive packs the test module as an uploadable zip.
 func echoArchive(t *testing.T, anpassen func(*Manifest)) []byte {
 	t.Helper()
-	m := gutesManifest()
+	m := goodManifest()
 	m.ID = "echo"
 	m.Name = "Echo"
 	m.Hooks = []string{HookContent, HookEvent, HookAdmin}
@@ -81,7 +81,7 @@ func einspielen(t *testing.T, m *Manager, a []byte) *Manifest {
 	return man
 }
 
-func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
+func TestTheWholeWayFromTheZipToThePage(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
 	einspielen(t, m, echoArchive(t, nil))
@@ -265,7 +265,7 @@ func TestEreignisErreichtDasPlugin(t *testing.T) {
 	}
 }
 
-func TestVerwaltungsBildschirmUndSeitenleiste(t *testing.T) {
+func TestTheAdminScreenAndTheSidebar(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
 	einspielen(t, m, echoArchive(t, nil))
@@ -287,7 +287,7 @@ func TestVerwaltungsBildschirmUndSeitenleiste(t *testing.T) {
 	}
 }
 
-func TestAdressenWerdenNurVomBesitzerBedient(t *testing.T) {
+func TestAddressesAreServedOnlyByTheirOwner(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
 	einspielen(t, m, echoArchive(t, func(mf *Manifest) {
@@ -325,7 +325,7 @@ func TestBeigabenPfadKannNichtEntkommen(t *testing.T) {
 	}
 }
 
-func TestZweiPluginsFilternInStabilerReihenfolge(t *testing.T) {
+func TestTwoPluginsFilterInAStableOrder(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
 	for _, id := range []string{"bbb", "aaa"} {

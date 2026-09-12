@@ -189,7 +189,7 @@ func TestEveryAdminDocumentNamesAFavicon(t *testing.T) {
 		t.Fatalf("read admin templates: %v", err)
 	}
 
-	var geprueft int
+	var checked int
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
 			continue
@@ -203,7 +203,7 @@ func TestEveryAdminDocumentNamesAFavicon(t *testing.T) {
 		if !strings.Contains(strings.ToLower(string(body)), "<!doctype") {
 			continue
 		}
-		geprueft++
+		checked++
 		if !strings.Contains(string(body), `rel="icon"`) {
 			t.Errorf("%s ist ein vollständiges Dokument ohne <link rel=\"icon\"> — "+
 				"jeder Aufruf erzeugt damit einen 404 auf /favicon.ico", e.Name())
@@ -212,7 +212,7 @@ func TestEveryAdminDocumentNamesAFavicon(t *testing.T) {
 
 	// Ohne diese Zeile wäre der Test grün, wenn die Vorlagen umbenannt oder
 	// verschoben würden und die Schleife gar nichts mehr fände.
-	if geprueft < 5 {
-		t.Fatalf("only %d complete documents found; the search no longer bites", geprueft)
+	if checked < 5 {
+		t.Fatalf("only %d complete documents found; the search no longer bites", checked)
 	}
 }

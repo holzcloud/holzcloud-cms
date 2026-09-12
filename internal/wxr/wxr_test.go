@@ -61,33 +61,33 @@ func TestParse(t *testing.T) {
 		t.Errorf("skipped = %d, expected 2", export.Skipped)
 	}
 
-	seite := export.Items[0]
-	if seite.Kind != "page" || !seite.Published || seite.Slug != "ueber-uns" {
-		t.Errorf("Seite = %+v", seite)
+	page := export.Items[0]
+	if page.Kind != "page" || !page.Published || page.Slug != "ueber-uns" {
+		t.Errorf("Seite = %+v", page)
 	}
-	if seite.Excerpt != "Kurz gesagt." {
-		t.Errorf("Kurzfassung = %q", seite.Excerpt)
+	if page.Excerpt != "Kurz gesagt." {
+		t.Errorf("Kurzfassung = %q", page.Excerpt)
 	}
-	if strings.Contains(seite.HTML, "[gallery") {
-		t.Errorf("the shortcode is still in the text: %q", seite.HTML)
+	if strings.Contains(page.HTML, "[gallery") {
+		t.Errorf("the shortcode is still in the text: %q", page.HTML)
 	}
-	if !strings.Contains(seite.HTML, "Wir halten Schafe") {
-		t.Errorf("der Text fehlt: %q", seite.HTML)
+	if !strings.Contains(page.HTML, "Wir halten Schafe") {
+		t.Errorf("der Text fehlt: %q", page.HTML)
 	}
-	if seite.Date.Year() != 2020 || seite.Date.Month() != 5 {
-		t.Errorf("Datum = %v", seite.Date)
+	if page.Date.Year() != 2020 || page.Date.Month() != 5 {
+		t.Errorf("Datum = %v", page.Date)
 	}
 	// "Uncategorized" ist keine Angabe, sondern die Abwesenheit einer.
-	if len(seite.Terms) != 0 {
-		t.Errorf("terms of the page = %v", seite.Terms)
+	if len(page.Terms) != 0 {
+		t.Errorf("terms of the page = %v", page.Terms)
 	}
 
-	beitrag := export.Items[1]
-	if beitrag.Kind != "post" || beitrag.Published {
-		t.Errorf("Beitrag = %+v", beitrag)
+	post := export.Items[1]
+	if post.Kind != "post" || post.Published {
+		t.Errorf("Beitrag = %+v", post)
 	}
-	if len(beitrag.Terms) != 2 {
-		t.Errorf("terms = %v, expected Wolle and Hof", beitrag.Terms)
+	if len(post.Terms) != 2 {
+		t.Errorf("terms = %v, expected Wolle and Hof", post.Terms)
 	}
 
 	// Die Bilder werden aufgezählt, nicht geholt: einmal aus dem Anhang und

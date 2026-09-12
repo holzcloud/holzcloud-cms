@@ -30,7 +30,7 @@ func blockForm(ws int64, extra url.Values) url.Values {
 }
 
 // Der ganze Weg: Formular, Speichern, ausgegebenes HTML.
-func TestBausteineWerdenGespeichertUndAusgegeben(t *testing.T) {
+func TestBlocksAreStoredAndRendered(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
 	req := postForm("/admin/websites/1/pages/new", blockForm(ws.ID, url.Values{
@@ -132,7 +132,7 @@ func TestEditoraktionMitUndOhneHtmx(t *testing.T) {
 
 // The way into the blocks turns the text into a block without taking it apart —
 // and without saving in the process.
-func TestWechselInDieBausteine(t *testing.T) {
+func TestSwitchingIntoTheBlocks(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	p := seedPage(t, database, ws.ID, "Über uns", "ueber-uns", "Ein langer Artikel.", "published")
 
@@ -163,7 +163,7 @@ func TestWechselInDieBausteine(t *testing.T) {
 
 // An image from another website's media library must not be reachable through a
 // typed-in number.
-func TestBildEinerFremdenWebsiteWirdNichtAusgegeben(t *testing.T) {
+func TestAnImageOfAForeignWebsiteIsNotRendered(t *testing.T) {
 	h, _, database, ws := newTestAdmin(t)
 	fremd, err := h.domains.CreateWebsite(context.Background(), "Andere", "")
 	if err != nil {
@@ -201,7 +201,7 @@ func TestBildEinerFremdenWebsiteWirdNichtAusgegeben(t *testing.T) {
 
 // A page made of blocks keeps them across saving and opening again — the most
 // common way for something like this to lose content.
-func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
+func TestBlocksSurviveBeingEditedAgain(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
 	req := postForm("/admin/websites/1/pages/new", blockForm(ws.ID, url.Values{
@@ -242,7 +242,7 @@ func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
 // saving, without a message, and Apply created no new one. A page with six
 // features came back as running text, and the editor no longer offered the kind
 // it could have been restored with.
-func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
+func TestAnOwnBlockKindSurvivesEditing(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
@@ -307,7 +307,7 @@ func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 }
 
 // And the kind can be added while editing, too.
-func TestEigeneBausteinartLaesstSichBeimBearbeitenAnlegen(t *testing.T) {
+func TestAnOwnBlockKindCanBeAddedWhileEditing(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
@@ -343,7 +343,7 @@ func TestEigeneBausteinartLaesstSichBeimBearbeitenAnlegen(t *testing.T) {
 // draws a checkbox group without "[]", the parser keeps values[0], and because
 // the guard stands before the group that is the empty string: every checkbox
 // would be lost on every save, without a message.
-func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) {
+func TestAMultipleChoiceInAnOwnBlockKindSurvivesSaving(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 

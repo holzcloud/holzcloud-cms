@@ -44,7 +44,7 @@ func newFieldStore(t *testing.T) (*Store, int64) {
 // multi-choice, the two bounds on a range field. Not one field can carry all
 // three. Together the three cover all four new columns, and that is the point
 // here: each of the four has to arrive on every read path.
-func auswahlFeld(websiteID int64, key string) Def {
+func choiceField(websiteID int64, key string) Def {
 	return Def{
 		WebsiteID: websiteID, Key: key, Label: "Farbe", Kind: KindChoice,
 		Choices: []string{"rot", "blau"},
@@ -52,7 +52,7 @@ func auswahlFeld(websiteID int64, key string) Def {
 	}
 }
 
-func mehrfachFeld(websiteID int64, key string) Def {
+func multiField(websiteID int64, key string) Def {
 	return Def{
 		WebsiteID: websiteID, Key: key, Label: "Zutaten", Kind: KindMulti,
 		Choices:   []string{"salz", "pfeffer"},
@@ -60,28 +60,28 @@ func mehrfachFeld(websiteID int64, key string) Def {
 	}
 }
 
-func bereichFeld(websiteID int64, key string) Def {
+func rangeField(websiteID int64, key string) Def {
 	return Def{
 		WebsiteID: websiteID, Key: key, Label: "Menge", Kind: KindRange,
 		RangeMin: "1", RangeMax: "9",
 	}
 }
 
-func pruefeAuswahl(t *testing.T, wo string, d Def) {
+func checkChoice(t *testing.T, wo string, d Def) {
 	t.Helper()
 	if d.Display != DisplayButtons {
 		t.Errorf("%s: Darstellung = %q, erwartet %q", wo, d.Display, DisplayButtons)
 	}
 }
 
-func pruefeMehrfach(t *testing.T, wo string, d Def) {
+func checkMultiple(t *testing.T, wo string, d Def) {
 	t.Helper()
 	if d.MaxValues != 3 {
 		t.Errorf("%s: maximum = %d, expected 3", wo, d.MaxValues)
 	}
 }
 
-func pruefeBereich(t *testing.T, wo string, d Def) {
+func checkRange(t *testing.T, wo string, d Def) {
 	t.Helper()
 	if d.RangeMin != "1" || d.RangeMax != "9" {
 		t.Errorf("%s: Grenzen = %q/%q, erwartet \"1\"/\"9\"", wo, d.RangeMin, d.RangeMax)
@@ -108,72 +108,72 @@ func finde(t *testing.T, wo string, defs []Def, key string) Def {
 // nowhere is there an error. Counting the occurrences would not find that: a
 // SELECT can name the column and still never write it into the Def. So this
 // reads rather than counts.
-func TestNeueSpalten(t *testing.T) {
+func TestTheNewColumns(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	// --- Get, for a field of the page itself --------------------------------
-	oben1, err := store.Create(ctx, auswahlFeld(site, "farbe"))
+	oben1, err := store.Create(ctx, choiceField(site, "farbe"))
 	if err != nil {
 		t.Fatalf("Auswahl anlegen: %v", err)
 	}
-	oben2, err := store.Create(ctx, mehrfachFeld(site, "zutaten"))
+	oben2, err := store.Create(ctx, multiField(site, "zutaten"))
 	if err != nil {
 		t.Fatalf("Mehrfachauswahl anlegen: %v", err)
 	}
-	oben3, err := store.Create(ctx, bereichFeld(site, "menge"))
+	oben3, err := store.Create(ctx, rangeField(site, "menge"))
 	if err != nil {
 		t.Fatalf("Bereich anlegen: %v", err)
 	}
-	pruefeAuswahl(t, "Get (Seitenfeld)", *oben1)
-	pruefeMehrfach(t, "Get (Seitenfeld)", *oben2)
-	pruefeBereich(t, "Get (Seitenfeld)", *oben3)
+	checkChoice(t, "Get (Seitenfeld)", *oben1)
+	checkMultiple(t, "Get (Seitenfeld)", *oben2)
+	checkRange(t, "Get (Seitenfeld)", *oben3)
 
 	// --- List ---------------------------------------------------------------
 	top, err := store.List(ctx, site)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	pruefeAuswahl(t, "List", finde(t, "List", top, "farbe"))
-	pruefeMehrfach(t, "List", finde(t, "List", top, "zutaten"))
-	pruefeBereich(t, "List", finde(t, "List", top, "menge"))
+	checkChoice(t, "List", finde(t, "List", top, "farbe"))
+	checkMultiple(t, "List", finde(t, "List", top, "zutaten"))
+	checkRange(t, "List", finde(t, "List", top, "menge"))
 
 	// --- Sub, for a field inside a group ------------------------------------
-	gruppe, err := store.Create(ctx, Def{
+	group, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 	if err != nil {
 		t.Fatalf("Gruppe anlegen: %v", err)
 	}
-	inGruppe1 := auswahlFeld(site, "gfarbe")
-	inGruppe1.ParentID = gruppe.ID
-	if _, err := store.Create(ctx, inGruppe1); err != nil {
+	inGroup1 := choiceField(site, "gfarbe")
+	inGroup1.ParentID = group.ID
+	if _, err := store.Create(ctx, inGroup1); err != nil {
 		t.Fatalf("Auswahl in Gruppe: %v", err)
 	}
-	inGruppe2 := mehrfachFeld(site, "gzutaten")
-	inGruppe2.ParentID = gruppe.ID
-	if _, err := store.Create(ctx, inGruppe2); err != nil {
+	inGroup2 := multiField(site, "gzutaten")
+	inGroup2.ParentID = group.ID
+	if _, err := store.Create(ctx, inGroup2); err != nil {
 		t.Fatalf("Mehrfachauswahl in Gruppe: %v", err)
 	}
-	inGruppe3 := bereichFeld(site, "gmenge")
-	inGruppe3.ParentID = gruppe.ID
-	if _, err := store.Create(ctx, inGruppe3); err != nil {
+	inGroup3 := rangeField(site, "gmenge")
+	inGroup3.ParentID = group.ID
+	if _, err := store.Create(ctx, inGroup3); err != nil {
 		t.Fatalf("Bereich in Gruppe: %v", err)
 	}
-	sub, err := store.Sub(ctx, site, gruppe.ID)
+	sub, err := store.Sub(ctx, site, group.ID)
 	if err != nil {
 		t.Fatalf("Sub: %v", err)
 	}
-	pruefeAuswahl(t, "Sub", finde(t, "Sub", sub, "gfarbe"))
-	pruefeMehrfach(t, "Sub", finde(t, "Sub", sub, "gzutaten"))
-	pruefeBereich(t, "Sub", finde(t, "Sub", sub, "gmenge"))
+	checkChoice(t, "Sub", finde(t, "Sub", sub, "gfarbe"))
+	checkMultiple(t, "Sub", finde(t, "Sub", sub, "gzutaten"))
+	checkRange(t, "Sub", finde(t, "Sub", sub, "gmenge"))
 
 	// And the same path once more through List, which builds the tree in memory.
 	top, err = store.List(ctx, site)
 	if err != nil {
 		t.Fatalf("List (zweites Mal): %v", err)
 	}
-	pruefeAuswahl(t, "List/Sub", finde(t, "List/Sub", finde(t, "List", top, "zeiten").Sub, "gfarbe"))
-	pruefeBereich(t, "List/Sub", finde(t, "List/Sub", finde(t, "List", top, "zeiten").Sub, "gmenge"))
+	checkChoice(t, "List/Sub", finde(t, "List/Sub", finde(t, "List", top, "zeiten").Sub, "gfarbe"))
+	checkRange(t, "List/Sub", finde(t, "List/Sub", finde(t, "List", top, "zeiten").Sub, "gmenge"))
 
 	// --- OfBlockType und OfBlockTypes ---------------------------------------
 	res, err := store.DB.Write.ExecContext(ctx,
@@ -181,45 +181,45 @@ func TestNeueSpalten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bausteinart anlegen: %v", err)
 	}
-	bausteinart, err := res.LastInsertId()
+	blockKind, err := res.LastInsertId()
 	if err != nil {
 		t.Fatalf("Bausteinart-Nummer: %v", err)
 	}
-	imBaustein1 := auswahlFeld(site, "bfarbe")
-	imBaustein1.BlockTypeID = bausteinart
-	if _, err := store.Create(ctx, imBaustein1); err != nil {
+	inBlock1 := choiceField(site, "bfarbe")
+	inBlock1.BlockTypeID = blockKind
+	if _, err := store.Create(ctx, inBlock1); err != nil {
 		t.Fatalf("Auswahl im Baustein: %v", err)
 	}
-	imBaustein2 := mehrfachFeld(site, "bzutaten")
-	imBaustein2.BlockTypeID = bausteinart
-	if _, err := store.Create(ctx, imBaustein2); err != nil {
+	inBlock2 := multiField(site, "bzutaten")
+	inBlock2.BlockTypeID = blockKind
+	if _, err := store.Create(ctx, inBlock2); err != nil {
 		t.Fatalf("Mehrfachauswahl im Baustein: %v", err)
 	}
-	imBaustein3 := bereichFeld(site, "bmenge")
-	imBaustein3.BlockTypeID = bausteinart
-	if _, err := store.Create(ctx, imBaustein3); err != nil {
+	inBlock3 := rangeField(site, "bmenge")
+	inBlock3.BlockTypeID = blockKind
+	if _, err := store.Create(ctx, inBlock3); err != nil {
 		t.Fatalf("Bereich im Baustein: %v", err)
 	}
-	derBaustein, err := store.OfBlockType(ctx, site, bausteinart)
+	theBlock, err := store.OfBlockType(ctx, site, blockKind)
 	if err != nil {
 		t.Fatalf("OfBlockType: %v", err)
 	}
-	pruefeAuswahl(t, "OfBlockType", finde(t, "OfBlockType", derBaustein, "bfarbe"))
-	pruefeMehrfach(t, "OfBlockType", finde(t, "OfBlockType", derBaustein, "bzutaten"))
-	pruefeBereich(t, "OfBlockType", finde(t, "OfBlockType", derBaustein, "bmenge"))
+	checkChoice(t, "OfBlockType", finde(t, "OfBlockType", theBlock, "bfarbe"))
+	checkMultiple(t, "OfBlockType", finde(t, "OfBlockType", theBlock, "bzutaten"))
+	checkRange(t, "OfBlockType", finde(t, "OfBlockType", theBlock, "bmenge"))
 
-	alleBausteine, err := store.OfBlockTypes(ctx, site)
+	everyBlock, err := store.OfBlockTypes(ctx, site)
 	if err != nil {
 		t.Fatalf("OfBlockTypes: %v", err)
 	}
-	pruefeAuswahl(t, "OfBlockTypes", finde(t, "OfBlockTypes", alleBausteine[bausteinart], "bfarbe"))
-	pruefeMehrfach(t, "OfBlockTypes", finde(t, "OfBlockTypes", alleBausteine[bausteinart], "bzutaten"))
-	pruefeBereich(t, "OfBlockTypes", finde(t, "OfBlockTypes", alleBausteine[bausteinart], "bmenge"))
+	checkChoice(t, "OfBlockTypes", finde(t, "OfBlockTypes", everyBlock[blockKind], "bfarbe"))
+	checkMultiple(t, "OfBlockTypes", finde(t, "OfBlockTypes", everyBlock[blockKind], "bzutaten"))
+	checkRange(t, "OfBlockTypes", finde(t, "OfBlockTypes", everyBlock[blockKind], "bmenge"))
 
 	// --- Update -------------------------------------------------------------
-	geaendert := *oben1
-	geaendert.Display = ""
-	if err := store.Update(ctx, site, oben1.ID, geaendert); err != nil {
+	changed := *oben1
+	changed.Display = ""
+	if err := store.Update(ctx, site, oben1.ID, changed); err != nil {
 		t.Fatalf("Update (Auswahl): %v", err)
 	}
 	nach, err := store.Get(ctx, site, oben1.ID)
@@ -230,9 +230,9 @@ func TestNeueSpalten(t *testing.T) {
 		t.Errorf("Update: Darstellung = %q, erwartet leer", nach.Display)
 	}
 
-	geaendert2 := *oben2
-	geaendert2.MaxValues = 7
-	if err := store.Update(ctx, site, oben2.ID, geaendert2); err != nil {
+	changed2 := *oben2
+	changed2.MaxValues = 7
+	if err := store.Update(ctx, site, oben2.ID, changed2); err != nil {
 		t.Fatalf("Update (Mehrfachauswahl): %v", err)
 	}
 	nach2, err := store.Get(ctx, site, oben2.ID)
@@ -243,10 +243,10 @@ func TestNeueSpalten(t *testing.T) {
 		t.Errorf("Update: maximum = %d, expected 7", nach2.MaxValues)
 	}
 
-	geaendert3 := *oben3
-	geaendert3.RangeMin = "10"
-	geaendert3.RangeMax = "20"
-	if err := store.Update(ctx, site, oben3.ID, geaendert3); err != nil {
+	changed3 := *oben3
+	changed3.RangeMin = "10"
+	changed3.RangeMax = "20"
+	if err := store.Update(ctx, site, oben3.ID, changed3); err != nil {
 		t.Fatalf("Update (Bereich): %v", err)
 	}
 	nach3, err := store.Get(ctx, site, oben3.ID)
@@ -302,7 +302,7 @@ func TestNeueSpalten(t *testing.T) {
 // values travel as $n parameters and are never glued into an SQL string. A
 // quotation mark and a semicolon therefore come back unchanged instead of
 // taking the statement apart.
-func TestNeueSpaltenSindGebundeneParameter(t *testing.T) {
+func TestTheNewColumnsAreBoundParameters(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
@@ -326,7 +326,7 @@ func TestNeueSpaltenSindGebundeneParameter(t *testing.T) {
 }
 
 // TestNeueSpaltenGeprueft deckt die drei Regeln in validate ab.
-func TestNeueSpaltenGeprueft(t *testing.T) {
+func TestTheNewColumnsChecked(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
@@ -446,7 +446,7 @@ func TestIsButtonRow(t *testing.T) {
 // The second half is the counter-check for the unified upper bound: SlugifyKey
 // truncates at maxKeyBytes, validKey reads the same number. If the two drifted
 // apart, validate would refuse what SlugifyKey itself produced.
-func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
+func TestAFieldKeyIsCheckedForItsShape(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
@@ -532,7 +532,7 @@ func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
 // and a snippet field "telefon" of the same website may stand side by side is
 // half of the promise, and that neither appears on the other's path is the
 // other half.
-func TestBausteinNamensraum(t *testing.T) {
+func TestBlockNamespace(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
@@ -541,7 +541,7 @@ func TestBausteinNamensraum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Textbaustein anlegen: %v", err)
 	}
-	textbaustein, err := res.LastInsertId()
+	snippet, err := res.LastInsertId()
 	if err != nil {
 		t.Fatalf("Textbaustein-Nummer: %v", err)
 	}
@@ -550,7 +550,7 @@ func TestBausteinNamensraum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zweiten Textbaustein anlegen: %v", err)
 	}
-	zweiterBaustein, err := res.LastInsertId()
+	secondBlock, err := res.LastInsertId()
 	if err != nil {
 		t.Fatalf("Textbaustein-Nummer: %v", err)
 	}
@@ -559,19 +559,19 @@ func TestBausteinNamensraum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bausteinart anlegen: %v", err)
 	}
-	bausteinart, err := res.LastInsertId()
+	blockKind, err := res.LastInsertId()
 	if err != nil {
 		t.Fatalf("Bausteinart-Nummer: %v", err)
 	}
 
-	seitenfeld, err := store.Create(ctx, Def{
+	pageField, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText})
 	if err != nil {
 		t.Fatalf("Seitenfeld anlegen: %v", err)
 	}
-	bausteinfeld, err := store.Create(ctx, Def{
+	blockField, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
-		SnippetID: textbaustein})
+		SnippetID: snippet})
 	if err != nil {
 		t.Fatalf("Textbausteinfeld anlegen: %v", err)
 	}
@@ -584,32 +584,32 @@ func TestBausteinNamensraum(t *testing.T) {
 	if len(oben) != 1 {
 		t.Fatalf("List gibt %d Felder heraus, erwartet 1", len(oben))
 	}
-	if oben[0].ID != seitenfeld.ID {
+	if oben[0].ID != pageField.ID {
 		t.Errorf("List gibt Feld %d heraus, erwartet das Seitenfeld %d — "+
 			"ohne AND snippet_id IS NULL steht jedes Textbausteinfeld auf jedem Seitenformular",
-			oben[0].ID, seitenfeld.ID)
+			oben[0].ID, pageField.ID)
 	}
 	if oben[0].SnippetID != 0 {
 		t.Errorf("List: SnippetID = %d, erwartet 0", oben[0].SnippetID)
 	}
 
 	// --- OfSnippet sieht nur die Felder dieses Textbausteins ------------------
-	amBaustein, err := store.OfSnippet(ctx, site, textbaustein)
+	onBlock, err := store.OfSnippet(ctx, site, snippet)
 	if err != nil {
 		t.Fatalf("OfSnippet: %v", err)
 	}
-	if len(amBaustein) != 1 {
-		t.Fatalf("OfSnippet gibt %d Felder heraus, erwartet 1", len(amBaustein))
+	if len(onBlock) != 1 {
+		t.Fatalf("OfSnippet gibt %d Felder heraus, erwartet 1", len(onBlock))
 	}
-	if amBaustein[0].ID != bausteinfeld.ID {
-		t.Errorf("OfSnippet hands out field %d, expected %d", amBaustein[0].ID, bausteinfeld.ID)
+	if onBlock[0].ID != blockField.ID {
+		t.Errorf("OfSnippet hands out field %d, expected %d", onBlock[0].ID, blockField.ID)
 	}
-	if amBaustein[0].SnippetID != textbaustein {
-		t.Errorf("OfSnippet: SnippetID = %d, erwartet %d", amBaustein[0].SnippetID, textbaustein)
+	if onBlock[0].SnippetID != snippet {
+		t.Errorf("OfSnippet: SnippetID = %d, erwartet %d", onBlock[0].SnippetID, snippet)
 	}
 	// A snippet of a foreign id gets nothing, and this website's second snippet
 	// has no field yet.
-	leer, err := store.OfSnippet(ctx, site, zweiterBaustein)
+	leer, err := store.OfSnippet(ctx, site, secondBlock)
 	if err != nil {
 		t.Fatalf("OfSnippet (zweiter Baustein): %v", err)
 	}
@@ -618,83 +618,83 @@ func TestBausteinNamensraum(t *testing.T) {
 	}
 
 	// --- Sub, OfBlockType and OfBlockTypes see neither of the two ------------
-	gruppe, err := store.Create(ctx, Def{
+	group, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 	if err != nil {
 		t.Fatalf("Gruppe anlegen: %v", err)
 	}
-	sub, err := store.Sub(ctx, site, gruppe.ID)
+	sub, err := store.Sub(ctx, site, group.ID)
 	if err != nil {
 		t.Fatalf("Sub: %v", err)
 	}
 	if len(sub) != 0 {
 		t.Errorf("Sub gibt %d Felder heraus, erwartet keines", len(sub))
 	}
-	imBaustein, err := store.OfBlockType(ctx, site, bausteinart)
+	inBlock, err := store.OfBlockType(ctx, site, blockKind)
 	if err != nil {
 		t.Fatalf("OfBlockType: %v", err)
 	}
-	if len(imBaustein) != 0 {
-		t.Errorf("OfBlockType gibt %d Felder heraus, erwartet keines", len(imBaustein))
+	if len(inBlock) != 0 {
+		t.Errorf("OfBlockType gibt %d Felder heraus, erwartet keines", len(inBlock))
 	}
-	alleBausteinarten, err := store.OfBlockTypes(ctx, site)
+	everyBlockKind, err := store.OfBlockTypes(ctx, site)
 	if err != nil {
 		t.Fatalf("OfBlockTypes: %v", err)
 	}
-	if len(alleBausteinarten) != 0 {
-		t.Errorf("OfBlockTypes hands out %d block kinds, expected none", len(alleBausteinarten))
+	if len(everyBlockKind) != 0 {
+		t.Errorf("OfBlockTypes hands out %d block kinds, expected none", len(everyBlockKind))
 	}
 
 	// --- Get really writes the column into the Def ---------------------------
 	//
 	// This is the probe counting does not replace: what is read here is what
 	// scanDef wrote into the Def, and not what stands in the SELECT.
-	geholt, err := store.Get(ctx, site, bausteinfeld.ID)
+	geholt, err := store.Get(ctx, site, blockField.ID)
 	if err != nil {
 		t.Fatalf("Get (Textbausteinfeld): %v", err)
 	}
-	if geholt.SnippetID != textbaustein {
+	if geholt.SnippetID != snippet {
 		t.Errorf("Get: SnippetID = %d, erwartet %d — ein SELECT kann die Spalte "+
-			"nennen und sie trotzdem nie in den Def schreiben", geholt.SnippetID, textbaustein)
+			"nennen und sie trotzdem nie in den Def schreiben", geholt.SnippetID, snippet)
 	}
 	if geholt.BlockTypeID != 0 {
 		t.Errorf("Get: BlockTypeID = %d, erwartet 0", geholt.BlockTypeID)
 	}
-	geholtSeite, err := store.Get(ctx, site, seitenfeld.ID)
+	fetchedPage, err := store.Get(ctx, site, pageField.ID)
 	if err != nil {
 		t.Fatalf("Get (Seitenfeld): %v", err)
 	}
-	if geholtSeite.SnippetID != 0 || geholtSeite.BlockTypeID != 0 {
+	if fetchedPage.SnippetID != 0 || fetchedPage.BlockTypeID != 0 {
 		t.Errorf("Get (Seitenfeld): SnippetID = %d, BlockTypeID = %d, erwartet 0/0",
-			geholtSeite.SnippetID, geholtSeite.BlockTypeID)
+			fetchedPage.SnippetID, fetchedPage.BlockTypeID)
 	}
 
 	// --- Die beiden Teilindizes ----------------------------------------------
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
-		SnippetID: textbaustein}); !errors.Is(err, ErrDuplicateKey) {
+		SnippetID: snippet}); !errors.Is(err, ErrDuplicateKey) {
 		t.Errorf("zweites „telefon“ am selben Textbaustein: Fehler = %v, erwartet ErrDuplicateKey", err)
 	}
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
-		SnippetID: zweiterBaustein}); err != nil {
+		SnippetID: secondBlock}); err != nil {
 		t.Errorf("“telefon” on the second snippet: %v — every snippet is a namespace of its own", err)
 	}
 
 	// --- Update moves no field out of its namespace --------------------------
-	geaendert := *bausteinfeld
-	geaendert.SnippetID = zweiterBaustein
-	geaendert.Label = "Telefon direkt"
-	if err := store.Update(ctx, site, bausteinfeld.ID, geaendert); err != nil {
+	changed := *blockField
+	changed.SnippetID = secondBlock
+	changed.Label = "Telefon direkt"
+	if err := store.Update(ctx, site, blockField.ID, changed); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	nach, err := store.Get(ctx, site, bausteinfeld.ID)
+	nach, err := store.Get(ctx, site, blockField.ID)
 	if err != nil {
 		t.Fatalf("Get nach Update: %v", err)
 	}
-	if nach.SnippetID != textbaustein {
+	if nach.SnippetID != snippet {
 		t.Errorf("Update: SnippetID = %d, erwartet unverändert %d — ein Formular "+
-			"darf ein Feld nicht in einen anderen Namensraum schieben", nach.SnippetID, textbaustein)
+			"darf ein Feld nicht in einen anderen Namensraum schieben", nach.SnippetID, snippet)
 	}
 	if nach.Label != "Telefon direkt" {
 		t.Errorf("Update: Beschriftung = %q, erwartet \"Telefon direkt\"", nach.Label)
@@ -781,7 +781,7 @@ func sameSlices(t *testing.T, wo string, massen, einzeln []Def) {
 // the admin screen. If they handed out different things for the same website,
 // the difference would be visible nowhere but in the browser — and there only
 // if somebody held both screens side by side.
-func TestBausteinNamensraumMassenleser(t *testing.T) {
+func TestBlockNamespaceBulkReader(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
@@ -891,12 +891,12 @@ func TestBausteinNamensraumMassenleser(t *testing.T) {
 // A block kind can carry none, a snippet can — and its sub-fields carry both,
 // parent_id and snippet_id. The bulk reader therefore has to fold them into the
 // tree and must hand out no sub-field at the top level.
-func TestBausteinNamensraumGruppe(t *testing.T) {
+func TestBlockNamespaceGroup(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 	kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
 
-	gruppe, err := store.Create(ctx, Def{
+	group, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup,
 		SnippetID: kontakt})
 	if err != nil {
@@ -905,12 +905,12 @@ func TestBausteinNamensraumGruppe(t *testing.T) {
 	for _, key := range []string{"tag", "von"} {
 		if _, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: key, Label: key, Kind: KindText,
-			ParentID: gruppe.ID, SnippetID: kontakt}); err != nil {
+			ParentID: group.ID, SnippetID: kontakt}); err != nil {
 			t.Fatalf("Unterfeld %q: %v", key, err)
 		}
 	}
 
-	sub, err := store.Sub(ctx, site, gruppe.ID)
+	sub, err := store.Sub(ctx, site, group.ID)
 	if err != nil {
 		t.Fatalf("Sub: %v", err)
 	}
@@ -919,9 +919,9 @@ func TestBausteinNamensraumGruppe(t *testing.T) {
 			"in Sub liesse jede Gruppe an einem Textbaustein leer zurückkommen", len(sub))
 	}
 	for _, d := range sub {
-		if d.ParentID != gruppe.ID || d.SnippetID != kontakt {
+		if d.ParentID != group.ID || d.SnippetID != kontakt {
 			t.Errorf("Unterfeld %q: ParentID = %d, SnippetID = %d, erwartet %d / %d",
-				d.Key, d.ParentID, d.SnippetID, gruppe.ID, kontakt)
+				d.Key, d.ParentID, d.SnippetID, group.ID, kontakt)
 		}
 	}
 
@@ -949,7 +949,7 @@ func TestBausteinNamensraumGruppe(t *testing.T) {
 // The block-kind arm forces "not required" and narrows the field kinds; the
 // snippet arm deliberately does neither. If the two had ever run into each
 // other, nothing would fail — a required field would quietly stop being one.
-func TestBausteinNamensraumValidate(t *testing.T) {
+func TestBlockNamespaceValidate(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 	kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
@@ -961,33 +961,33 @@ func TestBausteinNamensraumValidate(t *testing.T) {
 		Choices: []string{"ja", "nein"}}); err != nil {
 		t.Fatalf("Steuerfeld anlegen: %v", err)
 	}
-	amBaustein, err := store.Create(ctx, Def{
+	onBlock, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
 		SnippetID: kontakt, Required: true, AppliesTo: ForPage, Condition: "anrede"})
 	if err != nil {
 		t.Fatalf("Textbausteinfeld anlegen: %v", err)
 	}
-	if !amBaustein.Required {
+	if !onBlock.Required {
 		t.Error("Pflicht = false, erwartet true — ein Textbaustein hat ein eigenes " +
 			"Formular, auf dem sich ein Pflichtfeld mit einer Begründung zurückweisen lässt")
 	}
-	if amBaustein.AppliesTo != ForBoth {
+	if onBlock.AppliesTo != ForBoth {
 		t.Errorf("applies_to = %q, expected %q — a snippet belongs to no content kind",
-			amBaustein.AppliesTo, ForBoth)
+			onBlock.AppliesTo, ForBoth)
 	}
-	if amBaustein.Condition != "" {
+	if onBlock.Condition != "" {
 		t.Errorf("Bedingung = %q, erwartet leer — checkCondition läuft über die "+
-			"Feldliste der Seite, eine Bedingung hier würde nie beachtet", amBaustein.Condition)
+			"Feldliste der Seite, eine Bedingung hier würde nie beachtet", onBlock.Condition)
 	}
 
 	// --- The block-kind arm is unchanged --------------------------------------
-	imBaustein, err := store.Create(ctx, Def{
+	inBlock, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "beschriftung", Label: "Beschriftung", Kind: KindText,
 		BlockTypeID: karte, Required: true})
 	if err != nil {
 		t.Fatalf("Bausteinartfeld anlegen: %v", err)
 	}
-	if imBaustein.Required {
+	if inBlock.Required {
 		t.Error("Bausteinartfeld: Pflicht = true, erwartet false — eine Seite darf " +
 			"nicht an einem halb geschriebenen Baustein scheitern")
 	}
@@ -1010,17 +1010,17 @@ func TestBausteinNamensraumValidate(t *testing.T) {
 }
 
 // TestBausteinNamensraumMove keeps a field inside its own snippet.
-func TestBausteinNamensraumMove(t *testing.T) {
+func TestBlockNamespaceMove(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 	kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
 
-	seiteEins, err := store.Create(ctx, Def{
+	pageOne, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "titel", Label: "Titel", Kind: KindText})
 	if err != nil {
 		t.Fatalf("erstes Seitenfeld: %v", err)
 	}
-	seiteZwei, err := store.Create(ctx, Def{
+	pageTwo, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "untertitel", Label: "Untertitel", Kind: KindText})
 	if err != nil {
 		t.Fatalf("zweites Seitenfeld: %v", err)
@@ -1056,7 +1056,7 @@ func TestBausteinNamensraumMove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List nach Move: %v", err)
 	}
-	if len(seitlich) != 2 || seitlich[0].ID != seiteEins.ID || seitlich[1].ID != seiteZwei.ID {
+	if len(seitlich) != 2 || seitlich[0].ID != pageOne.ID || seitlich[1].ID != pageTwo.ID {
 		t.Errorf("the page fields stand differently after the Move: %v", seitlich)
 	}
 	if seitlich[0].Position != 0 || seitlich[1].Position != 1 {
@@ -1086,7 +1086,7 @@ func TestBausteinNamensraumMove(t *testing.T) {
 // snippet, a page field and a block-kind field are accepted distinguishes the
 // change from merely raising the number — and makes the sentence "no more
 // fields can be added" true.
-func TestBausteinNamensraumFeldvorrat(t *testing.T) {
+func TestBlockNamespaceFieldSupply(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("der Vorrat eines Textbausteins verwehrt keinem anderen Träger", func(t *testing.T) {
@@ -1131,7 +1131,7 @@ func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 
 		// A group and its sub-fields count against the page's allowance,
 		// exactly as before: 1 group + 58 sub-fields + 1 page field = 60.
-		gruppe, err := store.Create(ctx, Def{
+		group, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 		if err != nil {
 			t.Fatalf("Gruppe: %v", err)
@@ -1139,7 +1139,7 @@ func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 		for i := 0; i < MaxFields-2; i++ {
 			if _, err := store.Create(ctx, Def{
 				WebsiteID: site, Key: fmt.Sprintf("u%02d", i), Label: fmt.Sprintf("Unterfeld %d", i),
-				Kind: KindText, ParentID: gruppe.ID}); err != nil {
+				Kind: KindText, ParentID: group.ID}); err != nil {
 				t.Fatalf("Unterfeld %d: %v", i, err)
 			}
 		}
@@ -1154,7 +1154,7 @@ func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 		}
 		if _, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "nochein", Label: "Noch eins", Kind: KindText,
-			ParentID: gruppe.ID}); !errors.Is(err, ErrTooMany) {
+			ParentID: group.ID}); !errors.Is(err, ErrTooMany) {
 			t.Errorf("ein weiteres Unterfeld derselben Gruppe: Fehler = %v, erwartet ErrTooMany — "+
 				"Unterfelder zählen gegen den Vorrat der Seite", err)
 		}
@@ -1176,29 +1176,29 @@ func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 // gone through, and once on the snippet. The two have to give the same answer,
 // or the screen promises the operator something the database does not keep
 // (field_list.html:20).
-func TestBausteinGruppenNamensraum(t *testing.T) {
+func TestBlockGroupNamespace(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	// --- The page: the yardstick ---------------------------------------------
-	seiteGruppe1, err := store.Create(ctx, Def{
+	pageGroup1, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 	if err != nil {
 		t.Fatalf("Seite, erste Gruppe: %v", err)
 	}
-	seiteGruppe2, err := store.Create(ctx, Def{
+	pageGroup2, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "ferien", Label: "Ferien", Kind: KindGroup})
 	if err != nil {
 		t.Fatalf("Seite, zweite Gruppe: %v", err)
 	}
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
-		ParentID: seiteGruppe1.ID}); err != nil {
+		ParentID: pageGroup1.ID}); err != nil {
 		t.Fatalf("page, “tag” in the first group: %v", err)
 	}
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
-		ParentID: seiteGruppe2.ID}); err != nil {
+		ParentID: pageGroup2.ID}); err != nil {
 		t.Fatalf("Seite, „tag“ in der zweiten Gruppe: %v — zwei Gruppen einer "+
 			"Seite dürfen dieselbe Unterkennung tragen", err)
 	}
@@ -1209,34 +1209,34 @@ func TestBausteinGruppenNamensraum(t *testing.T) {
 	}
 
 	// --- Der Textbaustein: dieselben vier Schritte ----------------------------
-	baustein := newSnippet(t, store, site, "kontakt", "Kontakt")
+	block := newSnippet(t, store, site, "kontakt", "Kontakt")
 
-	bausteinGruppe1, err := store.Create(ctx, Def{
+	blockGroup1, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: KindGroup,
-		SnippetID: baustein})
+		SnippetID: block})
 	if err != nil {
 		t.Fatalf("Textbaustein, erste Gruppe: %v", err)
 	}
-	bausteinGruppe2, err := store.Create(ctx, Def{
+	blockGroup2, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "ferien", Label: "Ferien", Kind: KindGroup,
-		SnippetID: baustein})
+		SnippetID: block})
 	if err != nil {
 		t.Fatalf("Textbaustein, zweite Gruppe: %v", err)
 	}
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
-		ParentID: bausteinGruppe1.ID, SnippetID: baustein}); err != nil {
+		ParentID: blockGroup1.ID, SnippetID: block}); err != nil {
 		t.Fatalf("Textbaustein, „tag“ in der ersten Gruppe: %v", err)
 	}
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
-		ParentID: bausteinGruppe2.ID, SnippetID: baustein}); err != nil {
+		ParentID: blockGroup2.ID, SnippetID: block}); err != nil {
 		t.Fatalf("Textbaustein, „tag“ in der zweiten Gruppe: %v — was die Seite "+
 			"trägt, muss der Textbaustein auch tragen", err)
 	}
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Tag", Kind: KindText,
-		SnippetID: baustein}); err != nil {
+		SnippetID: block}); err != nil {
 		t.Fatalf("Textbaustein, „tag“ auf der obersten Ebene: %v — die oberste "+
 			"Ebene des Textbausteins und seine Gruppen sind zwei Namensräume", err)
 	}
@@ -1249,13 +1249,13 @@ func TestBausteinGruppenNamensraum(t *testing.T) {
 	// idx_page_field_defs_kennung_gruppe since 00029.
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Noch ein Tag", Kind: KindText,
-		SnippetID: baustein}); !errors.Is(err, ErrDuplicateKey) {
+		SnippetID: block}); !errors.Is(err, ErrDuplicateKey) {
 		t.Errorf("zweites „tag“ auf der obersten Ebene des Textbausteins: Fehler = %v, "+
 			"erwartet ErrDuplicateKey", err)
 	}
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Noch ein Tag", Kind: KindText,
-		ParentID: bausteinGruppe1.ID, SnippetID: baustein}); !errors.Is(err, ErrDuplicateKey) {
+		ParentID: blockGroup1.ID, SnippetID: block}); !errors.Is(err, ErrDuplicateKey) {
 		t.Errorf("zweites „tag“ in derselben Gruppe des Textbausteins: Fehler = %v, "+
 			"erwartet ErrDuplicateKey", err)
 	}
@@ -1274,7 +1274,7 @@ func TestBausteinGruppenNamensraum(t *testing.T) {
 //
 // block_type_id has carried the same gap since 00038; both are closed here,
 // because it is the same line.
-func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
+func TestCreateChecksTheCarrierAgainstTheWebsite(t *testing.T) {
 	store, site := newFieldStore(t)
 	ctx := context.Background()
 
@@ -1288,12 +1288,12 @@ func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
 		t.Fatalf("Website-Nummer: %v", err)
 	}
 
-	fremderBaustein := newSnippet(t, store, fremd, "kontakt", "Kontakt")
+	foreignBlock := newSnippet(t, store, fremd, "kontakt", "Kontakt")
 	fremdeArt := newBlockType(t, store, fremd, "zitat", "Zitat")
 
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
-		SnippetID: fremderBaustein}); err == nil {
+		SnippetID: foreignBlock}); err == nil {
 		t.Error("a field was created on another website's snippet")
 	} else if !errors.Is(err, ErrNoSnippet) {
 		t.Errorf("Fehler = %v, erwartet ErrNoSnippet", err)
@@ -1308,11 +1308,11 @@ func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
 	}
 
 	// And its own stay untouched: the guard must not become a bar.
-	eigenerBaustein := newSnippet(t, store, site, "kontakt", "Kontakt")
+	ownBlock := newSnippet(t, store, site, "kontakt", "Kontakt")
 	eigeneArt := newBlockType(t, store, site, "zitat", "Zitat")
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
-		SnippetID: eigenerBaustein}); err != nil {
+		SnippetID: ownBlock}); err != nil {
 		t.Errorf("eigener Textbaustein: %v", err)
 	}
 	if _, err := store.Create(ctx, Def{
@@ -1335,8 +1335,8 @@ func columnLists(t *testing.T) []string {
 		t.Fatalf("store.go lesen: %v", err)
 	}
 	var out []string
-	for _, roh := range regexp.MustCompile("`[^`]*`").FindAllString(string(quelle), -1) {
-		inhalt := strings.TrimSpace(strings.Trim(roh, "`"))
+	for _, raw := range regexp.MustCompile("`[^`]*`").FindAllString(string(quelle), -1) {
+		inhalt := strings.TrimSpace(strings.Trim(raw, "`"))
 		if !strings.HasPrefix(inhalt, "SELECT id, website_id") {
 			continue
 		}
@@ -1380,7 +1380,7 @@ func columnCount(liste string) int {
 //
 // A fifth carrier turns this test red. That is the intention: the author should
 // pass the lines of scanDef on their way to changing the number.
-func TestSpaltenlistenSindAbschriften(t *testing.T) {
+func TestColumnListsAreCopies(t *testing.T) {
 	lists := columnLists(t)
 	if len(lists) != 7 {
 		t.Fatalf("%d SELECT-Spaltenlisten in store.go, der Kommentar über scanDef "+

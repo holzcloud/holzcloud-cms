@@ -104,10 +104,10 @@ const goToolchain = "go1.26.6"
 // ziel is one committed guest module: where it is built and where the built
 // file belongs in the repository.
 type ziel struct {
-	name   string // what a positional argument selects it by
-	dir    string // module directory, relative to the repository root
-	out    string // committed artifact, relative to the repository root
-	archiv string // committed archive beside it, empty when the plugin has none
+	name        string // what a positional argument selects it by
+	dir         string // module directory, relative to the repository root
+	out         string // committed artifact, relative to the repository root
+	archiveFile string // committed archive beside it, empty when the plugin has none
 }
 
 // echo is not a plugin and therefore has no archive; every plugin has one.
@@ -201,7 +201,7 @@ func sammeln(quelle, verzeichnis string) ([]struct {
 // zip format can represent, which reads as "deliberately none" rather than as a
 // date somebody might mistake for provenance — the commit carrying the archive
 // is its provenance, exactly as with -buildvcs=false.
-var archivZeit = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
+var archiveTime = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 // artefakt is one produced file, held in memory. Every mode works from these
 // bytes and none of them builds its own: what -check compares is byte for byte
@@ -209,7 +209,7 @@ var archivZeit = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
 type artefakt struct {
 	label  string // short name for the report column
 	ziel   string // committed path, relative to the repository root
-	datei  string // file name used by -out
+	file   string // file name used by -out
 	quelle string // the target it came from, so a report can name the command that rebuilds it
 	inhalt []byte
 }
@@ -237,8 +237,8 @@ func main() {
 	flag.Parse()
 
 	modi := 0
-	for _, gewaehlt := range []bool{*printHashes, *check, *out != ""} {
-		if gewaehlt {
+	for _, chosen := range []bool{*printHashes, *check, *out != ""} {
+		if chosen {
 			modi++
 		}
 	}
@@ -246,17 +246,17 @@ func main() {
 		usage("exactly one mode at a time")
 	}
 
-	auswahl, err := waehlen(flag.Args())
+	choice, err := choose(flag.Args())
 	if err != nil {
 		usage(err.Error())
 	}
-	if err := bodenPruefen(*root); err != nil {
+	if err := checkFloor(*root); err != nil {
 		fail(err)
 	}
 
 	switch {
 	case *check:
-		abweichungen, err := vergleichen(*root, auswahl)
+		abweichungen, err := vergleichen(*root, choice)
 		if err != nil {
 			fail(err)
 		}
@@ -265,38 +265,38 @@ func main() {
 			os.Exit(1)
 		}
 	case *printHashes:
-		if err := hashesDrucken(*root, auswahl); err != nil {
+		if err := hashesDrucken(*root, choice); err != nil {
 			fail(err)
 		}
 	case *out != "":
-		if err := nachVerzeichnis(*root, auswahl, *out); err != nil {
+		if err := nachVerzeichnis(*root, choice, *out); err != nil {
 			fail(err)
 		}
 	default:
-		if err := inDenBaum(*root, auswahl); err != nil {
+		if err := inDenBaum(*root, choice); err != nil {
 			fail(err)
 		}
 	}
 }
 
 // waehlen resolves positional arguments to targets. No argument means all six.
-func waehlen(namen []string) ([]ziel, error) {
+func choose(namen []string) ([]ziel, error) {
 	if len(namen) == 0 {
 		return ziele, nil
 	}
-	var gewaehlt []ziel
+	var chosen []ziel
 	for _, n := range namen {
 		i := slices.IndexFunc(ziele, func(z ziel) bool { return z.name == n })
 		if i < 0 {
 			return nil, fmt.Errorf("unknown target %q", n)
 		}
-		gewaehlt = append(gewaehlt, ziele[i])
+		chosen = append(chosen, ziele[i])
 	}
-	return gewaehlt, nil
+	return chosen, nil
 }
 
 // goVorgabe finds the `go` directive of a go.mod without parsing the file.
-var goVorgabe = regexp.MustCompile(`(?m)^go[ \t]+([0-9]+(?:\.[0-9]+)*)`)
+var goDefault = regexp.MustCompile(`(?m)^go[ \t]+([0-9]+(?:\.[0-9]+)*)`)
 
 // bodenPruefen refuses to do anything when the pinned toolchain is older than
 // the root go.mod's `go` directive. internal/plugin/testdata/echo lives in the
@@ -305,12 +305,12 @@ var goVorgabe = regexp.MustCompile(`(?m)^go[ \t]+([0-9]+(?:\.[0-9]+)*)`)
 // a reason that has nothing to do with the guests. One sentence naming both
 // numbers is worth more than five green lines and one puzzling failure. Whoever
 // raises the directive raises the constant in the same commit.
-func bodenPruefen(root string) error {
+func checkFloor(root string) error {
 	b, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return err
 	}
-	m := goVorgabe.FindSubmatch(b)
+	m := goDefault.FindSubmatch(b)
 	if m == nil {
 		return nil
 	}
@@ -357,14 +357,14 @@ func zahlen(v string) []int {
 // every mode, including the one that writes into it: a build that fails then
 // cannot leave a truncated file behind, because it never had the destination
 // open. Installing into the tree is atomarSchreiben's job.
-func jeArtefakt(root string, auswahl []ziel, fn func(artefakt) error) error {
+func jeArtefakt(root string, choice []ziel, fn func(artefakt) error) error {
 	tmp, err := os.MkdirTemp("", "holzcloud-wasm-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmp)
 
-	for _, z := range auswahl {
+	for _, z := range choice {
 		artefakte, err := erzeugen(root, z, tmp)
 		if err != nil {
 			return err
@@ -384,8 +384,8 @@ func jeArtefakt(root string, auswahl []ziel, fn func(artefakt) error) error {
 // basename: five of the six destinations are called plugin.wasm, so basenames
 // would collide in a single directory — which is also what -out would do.
 func erzeugen(root string, z ziel, bauplatz string) ([]artefakt, error) {
-	datei := z.name + ".wasm"
-	nach := filepath.Join(bauplatz, datei)
+	file := z.name + ".wasm"
+	nach := filepath.Join(bauplatz, file)
 	if err := bauen(root, z, nach); err != nil {
 		return nil, fmt.Errorf("%s: %w", z.name, err)
 	}
@@ -393,8 +393,8 @@ func erzeugen(root string, z ziel, bauplatz string) ([]artefakt, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", z.name, err)
 	}
-	artefakte := []artefakt{{label: z.name, ziel: z.out, datei: datei, quelle: z.name, inhalt: inhalt}}
-	if z.archiv == "" {
+	artefakte := []artefakt{{label: z.name, ziel: z.out, file: file, quelle: z.name, inhalt: inhalt}}
+	if z.archiveFile == "" {
 		return artefakte, nil
 	}
 
@@ -402,16 +402,16 @@ func erzeugen(root string, z ziel, bauplatz string) ([]artefakt, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", z.name, err)
 	}
-	archiv, err := packen(filepath.Join(root, z.dir), manifest, inhalt)
+	archiveFile, err := packen(filepath.Join(root, z.dir), manifest, inhalt)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", z.name, err)
 	}
 	return append(artefakte, artefakt{
 		label:  z.name + ".zip",
-		ziel:   z.archiv,
-		datei:  filepath.Base(z.archiv),
+		ziel:   z.archiveFile,
+		file:   filepath.Base(z.archiveFile),
 		quelle: z.name,
-		inhalt: archiv,
+		inhalt: archiveFile,
 	}), nil
 }
 
@@ -455,7 +455,7 @@ func packen(quelle string, manifest, module []byte) ([]byte, error) {
 		eintraege = append(eintraege, gefunden...)
 	}
 	for _, e := range eintraege {
-		kopf := &zip.FileHeader{Name: e.name, Method: zip.Deflate, Modified: archivZeit}
+		kopf := &zip.FileHeader{Name: e.name, Method: zip.Deflate, Modified: archiveTime}
 		kopf.SetMode(0o644)
 		w, err := zw.CreateHeader(kopf)
 		if err != nil {
@@ -472,8 +472,8 @@ func packen(quelle string, manifest, module []byte) ([]byte, error) {
 }
 
 // inDenBaum replaces the committed files with what was just built.
-func inDenBaum(root string, auswahl []ziel) error {
-	return jeArtefakt(root, auswahl, func(a artefakt) error {
+func inDenBaum(root string, choice []ziel) error {
+	return jeArtefakt(root, choice, func(a artefakt) error {
 		pfad := filepath.Join(root, a.ziel)
 		if err := atomarSchreiben(pfad, a.inhalt); err != nil {
 			return err
@@ -487,12 +487,12 @@ func inDenBaum(root string, auswahl []ziel) error {
 // nothing in the repository. This is the documented answer if the byte equality
 // between a contributor's machine and the runner ever breaks: CI builds into
 // its own directory and the tests read from there.
-func nachVerzeichnis(root string, auswahl []ziel, verzeichnis string) error {
+func nachVerzeichnis(root string, choice []ziel, verzeichnis string) error {
 	if err := os.MkdirAll(verzeichnis, 0o755); err != nil {
 		return err
 	}
-	return jeArtefakt(root, auswahl, func(a artefakt) error {
-		pfad := filepath.Join(verzeichnis, a.datei)
+	return jeArtefakt(root, choice, func(a artefakt) error {
+		pfad := filepath.Join(verzeichnis, a.file)
 		if err := atomarSchreiben(pfad, a.inhalt); err != nil {
 			return err
 		}
@@ -504,8 +504,8 @@ func nachVerzeichnis(root string, auswahl []ziel, verzeichnis string) error {
 // hashesDrucken reports what a build would produce, without comparing it to
 // anything and without writing into the working tree — a mode that modified the
 // artifacts it describes could not be run to answer a question.
-func hashesDrucken(root string, auswahl []ziel) error {
-	return jeArtefakt(root, auswahl, func(a artefakt) error {
+func hashesDrucken(root string, choice []ziel) error {
+	return jeArtefakt(root, choice, func(a artefakt) error {
 		summe, groesse, version := beschreiben(a.inhalt)
 		fmt.Printf("%-19s %s %9d Bytes  gebaut mit %s\n", a.label, summe, groesse, version)
 		return nil
@@ -515,9 +515,9 @@ func hashesDrucken(root string, auswahl []ziel) error {
 // vergleichen compares a fresh build against the committed file and reports
 // every difference before returning how many it found. A missing file is a
 // difference, not a crash: the run keeps going and the count carries it.
-func vergleichen(root string, auswahl []ziel) (int, error) {
+func vergleichen(root string, choice []ziel) (int, error) {
 	abweichungen := 0
-	err := jeArtefakt(root, auswahl, func(a artefakt) error {
+	err := jeArtefakt(root, choice, func(a artefakt) error {
 		neuSumme, neuGroesse, neuVersion := beschreiben(a.inhalt)
 		alt, err := os.ReadFile(filepath.Join(root, a.ziel))
 		if errors.Is(err, os.ErrNotExist) {
@@ -637,7 +637,7 @@ func beschreiben(inhalt []byte) (summe string, groesse int64, version string) {
 	return hex.EncodeToString(h[:]), int64(len(inhalt)), version
 }
 
-func usage(grund string) {
+func usage(reason string) {
 	fmt.Fprintln(os.Stderr, "usage: wasm [-check | -print-hashes | -out <dir>] [target...]")
 	fmt.Fprintln(os.Stderr, "  (no flag)      build the selected modules into the working tree")
 	fmt.Fprintln(os.Stderr, "  -check         compare against the committed files, exit 1 on a mismatch")
@@ -645,7 +645,7 @@ func usage(grund string) {
 	fmt.Fprintln(os.Stderr, "  -out <dir>     build into <dir>, touch nothing in the tree")
 	fmt.Fprintln(os.Stderr, "  targets: bestellung jahreszahl kontaktformular nicht-gefunden suche echo")
 	fmt.Fprintln(os.Stderr, "  (no target means all six)")
-	fmt.Fprintln(os.Stderr, "  "+grund)
+	fmt.Fprintln(os.Stderr, "  "+reason)
 	os.Exit(2)
 }
 

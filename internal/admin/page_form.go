@@ -169,17 +169,16 @@ func fieldsFromRequest(r *http.Request) field.Data {
 				// never carried the field has no key at all — that is the
 				// difference this branch exists to keep.
 				//
-				// Und hier endet sie, zwei Aufrufe später: field.Clean
-				// (field.go:575-581) schreibt nur fort, was nach dem Trimmen
-				// nicht leer ist, also erzeugen der vorhandene leere Schlüssel
-				// und der fehlende Schlüssel dasselbe JSON aus field.Encode.
-				// Diesen Handler kostet das nichts, weil sein Speicherweg ein
-				// vollständiges Ersetzen ist: die ganze fields-Spalte wird in
-				// einem UPDATE geschrieben (internal/page/store.go:185). Ein
-				// Aufrufer, der je nur einen Teil der Felder einer Seite
-				// fortschreibt, muss die Anwesenheit auf seiner eigenen Ebene
-				// tragen und darf nicht versuchen, sie aus dem Speicher
-				// zurückzulesen.
+				// And here it ends, two calls later: field.Clean
+				// (field.go:575-581) carries forward only what is not empty
+				// after trimming, so the present empty key and the missing key
+				// produce the same JSON out of field.Encode. That costs this
+				// handler nothing, because its storage path is a complete
+				// replacement: the whole fields column is written in one UPDATE
+				// (internal/page/store.go:185). A caller that only ever carries
+				// part of a page's fields forward has to carry the presence on
+				// its own level and must not try to read it back out of the
+				// store.
 				out.Values[trimmed] = field.JoinValues(values)
 				continue
 			}
@@ -196,10 +195,9 @@ func fieldsFromRequest(r *http.Request) field.Data {
 		if rows[group][index] == nil {
 			rows[group][index] = field.Values{}
 		}
-		// Dieselbe Verzweigung wie oben, an der zweiten Stelle, an der Namen
-		// gelesen werden. Ohne sie bliebe von drei Häkchen einer Zeile das
-		// erste übrig, und ein einzelner Wert sieht aus wie einer, den jemand
-		// so gesetzt hat.
+		// The same branch as above, in the second place where names are read.
+		// Without it the first of three checkboxes in a row would be left, and a
+		// single value looks like one somebody set that way.
 		if multi {
 			rows[group][index][sub] = field.JoinValues(values)
 			continue
@@ -432,12 +430,11 @@ func (v *PageValues) validateOn(r *http.Request, errs web.FormErrors, archiveSlu
 	}
 	if v.Title != "" {
 		if err := page.ValidateSlug(slug); err != nil {
-			errs.Add("slug", tr(r, "Ungültige Adresse: %s", err))
+			errs.Add("slug", tr(r, "Invalid address: %s", err))
 		} else if archiveSlug != "" && slug == archiveSlug {
 			errs.Add("slug", "That address belongs to the archive and would never be reachable.")
 		} else if locale.Reserved(slug, extras) {
-			errs.Add("slug", tr(r, "Diese Adresse gehört der Sprache %s und wäre nicht erreichbar.",
-				trs(r, locale.Name(slug))))
+			errs.Add("slug", tr(r, "This address belongs to the language %s and would not be reachable.", trs(r, locale.Name(slug))))
 		}
 	}
 	return slug
@@ -445,6 +442,14 @@ func (v *PageValues) validateOn(r *http.Request, errs web.FormErrors, archiveSlu
 
 // tr and trs are Titlef and T that survive a nil request, for the validator —
 // which is also called from places that have none.
+// tr and trs are web.Titlef and web.T with one thing added: they work without a
+// request. checkSlug is called from a test and from a place that has no request
+// in its hand, and a nil there would panic inside i18n.Lang.
+//
+// Both are named in tools/i18n's goFuncs, so their literals are collected. A
+// wrapper the collector does not know about is exactly the shape criterion 9
+// names: the sentence compiles, reads correctly in German, and never reaches a
+// catalogue.
 func tr(r *http.Request, format string, args ...any) string {
 	if r == nil {
 		return fmt.Sprintf(format, args...)

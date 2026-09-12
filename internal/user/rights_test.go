@@ -7,7 +7,7 @@ import (
 
 // Die Regel, an der alles hängt: keine Zuordnung heisst alle Websites. Sonst
 // wäre die Migration selbst eine Aussperrung.
-func TestOhneZuordnungAlleWebsites(t *testing.T) {
+func TestWithoutAnAssignmentEveryWebsite(t *testing.T) {
 	s, id := newTestStore(t)
 	rights, err := s.Rights(context.Background(), id)
 	if err != nil {
@@ -24,7 +24,7 @@ func TestOhneZuordnungAlleWebsites(t *testing.T) {
 	}
 }
 
-func TestZuordnungGrenztEin(t *testing.T) {
+func TestTheAssignmentNarrows(t *testing.T) {
 	s, id := newTestStore(t)
 	ctx := context.Background()
 	if err := websites(ctx, s, 3); err != nil {

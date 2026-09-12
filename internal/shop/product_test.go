@@ -264,9 +264,9 @@ func TestProductsCanBeListedByTheirLabel(t *testing.T) {
 
 	tisch := seedProduct(t, s, ws, "tisch", StatusPublished, nil)
 	seedProduct(t, s, ws, "stuhl", StatusPublished, nil)
-	entwurf := seedProduct(t, s, ws, "bank", StatusDraft, nil)
+	draft := seedProduct(t, s, ws, "bank", StatusDraft, nil)
 
-	for _, id := range []int64{tisch.ID, entwurf.ID} {
+	for _, id := range []int64{tisch.ID, draft.ID} {
 		if err := s.SetTerms(ctx, id, []int64{termID}); err != nil {
 			t.Fatalf("SetTerms: %v", err)
 		}

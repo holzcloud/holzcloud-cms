@@ -25,7 +25,7 @@ func neuerSpeicher(t *testing.T) (*Store, *domain.Store) {
 }
 
 func paket(id string, routen ...string) *Package {
-	m := gutesManifest()
+	m := goodManifest()
 	m.ID = id
 	m.Name = strings.ToUpper(id[:1]) + id[1:]
 	if len(routen) > 0 {
@@ -98,7 +98,7 @@ func TestNeueFassungBehaeltEingeschaltetUndWebsites(t *testing.T) {
 	}
 }
 
-func TestAdresseWirdNurEinmalVergeben(t *testing.T) {
+func TestAnAddressIsGivenOutOnlyOnce(t *testing.T) {
 	s, _ := neuerSpeicher(t)
 	ctx := context.Background()
 
@@ -192,7 +192,7 @@ func TestSpeicherGrenzen(t *testing.T) {
 	}
 }
 
-func TestEntfernenNimmtDieDatenMit(t *testing.T) {
+func TestRemovingTakesTheDataWithIt(t *testing.T) {
 	s, _ := neuerSpeicher(t)
 	ctx := context.Background()
 	if err := s.Install(ctx, paket("eins")); err != nil {
@@ -235,8 +235,8 @@ func TestEigeneMigrationenLaufenEinmal(t *testing.T) {
 
 	// Changed SQL under an old name: otherwise nothing happens, and the schema
 	// silently no longer fits the code that expects it.
-	geaendert := []Migration{{Name: "0001.sql", SQL: `CREATE TABLE anders (b TEXT) STRICT;`}}
-	err := s.ApplyMigrations(ctx, "eins", geaendert)
+	changed := []Migration{{Name: "0001.sql", SQL: `CREATE TABLE anders (b TEXT) STRICT;`}}
+	err := s.ApplyMigrations(ctx, "eins", changed)
 	if err == nil || !strings.Contains(err.Error(), "geändert") {
 		t.Errorf("a changed migration was not reported: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestFehlgeschlageneMigrationLaesstNichtsHalbesZurueck(t *testing.T) {
 	}
 }
 
-func TestFehlerWirdVermerktUndGekuerzt(t *testing.T) {
+func TestAFailureIsNotedAndTruncated(t *testing.T) {
 	s, _ := neuerSpeicher(t)
 	ctx := context.Background()
 	if err := s.Install(ctx, paket("eins")); err != nil {

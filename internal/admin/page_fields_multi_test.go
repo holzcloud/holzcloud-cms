@@ -18,7 +18,7 @@ import (
 // storing, resolving, redrawing. A checkbox field is the first field value in
 // this program that is not a single string — what is green here, phase 9
 // inherits unchanged.
-func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
+func TestAMultipleChoiceFromTheFormToTheDisplay(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
@@ -122,7 +122,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 		t.Error("checked stands twice on the same box")
 	}
 
-	pruefeBeschriftung(t, body)
+	checkLabel(t, body)
 
 	// Only the guard, no checkbox: the value is emptied.
 	speichern(t, url.Values{
@@ -138,7 +138,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 // they differ is fieldsFromRequest: with the guard the key stands in the data
 // with an empty value, without it it does not stand there at all. Without that
 // difference a form that never carried the field cannot leave a value alone.
-func TestMehrfachauswahlGeleertOderAbwesend(t *testing.T) {
+func TestAMultipleChoiceEmptiedOrAbsent(t *testing.T) {
 	drei := fieldsFromRequest(anfrageMit(url.Values{
 		"feld_sorten[]": {"Eiche", "Buche", "Esche"},
 	}))
@@ -186,7 +186,7 @@ func TestMehrfachauswahlGeleertOderAbwesend(t *testing.T) {
 // aria-labelledby names the group. Both have to be right: the group must not
 // point at an element that does not exist, and every other field has to keep
 // its link.
-func pruefeBeschriftung(t *testing.T, body string) {
+func checkLabel(t *testing.T, body string) {
 	t.Helper()
 
 	if strings.Contains(body, `for="feld_sorten[]"`) {
@@ -252,19 +252,19 @@ func around(body, um string) string {
 // without the marker in this second place exactly the first of three checkboxes
 // would be left — silently, because a single value looks like one somebody set
 // that way.
-func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
+func TestAMultipleChoiceInsideAGroup(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
 	fields := field.NewStore(database)
-	gruppe, err := fields.Create(ctx, field.Def{
+	group, err := fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "zeiten", Label: "Opening hours", Kind: field.KindGroup,
 	})
 	if err != nil {
 		t.Fatalf("Gruppe anlegen: %v", err)
 	}
 	if _, err := fields.Create(ctx, field.Def{
-		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "tage", Label: "Tage",
+		WebsiteID: ws.ID, ParentID: group.ID, Key: "tage", Label: "Tage",
 		Kind: field.KindMulti, Choices: []string{"Mo", "Di", "Mi"},
 	}); err != nil {
 		t.Fatalf("Unterfeld anlegen: %v", err)
@@ -272,7 +272,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	// A single-valued subfield next to it: the counter-check that not
 	// everything in the row has switched over to multi-valued.
 	if _, err := fields.Create(ctx, field.Def{
-		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "notiz", Label: "Notiz",
+		WebsiteID: ws.ID, ParentID: group.ID, Key: "notiz", Label: "Notiz",
 		Kind: field.KindText,
 	}); err != nil {
 		t.Fatalf("Unterfeld anlegen: %v", err)
@@ -306,7 +306,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 		}
 	}
 
-	zeilen := func(t *testing.T) []field.Values {
+	rows := func(t *testing.T) []field.Values {
 		t.Helper()
 		stored, err := pages.GetPage(ctx, p.ID)
 		if err != nil || stored == nil {
@@ -324,7 +324,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 		"gruppe.zeiten.1.notiz":  {"Nachmittag"},
 	})
 
-	got := zeilen(t)
+	got := rows(t)
 	if len(got) != 2 {
 		t.Fatalf("%d Zeilen gespeichert, wollte 2: %+v", len(got), got)
 	}
@@ -350,15 +350,15 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	}
 	body := rec.Body.String()
 
-	for zeile, will := range map[string]int{"0": 3, "1": 1} {
-		muster := regexp.MustCompile(`<input type="checkbox" name="gruppe\.zeiten\.` + zeile +
+	for row, will := range map[string]int{"0": 3, "1": 1} {
+		muster := regexp.MustCompile(`<input type="checkbox" name="gruppe\.zeiten\.` + row +
 			`\.tage\[\]" value="[^"]*" checked>`)
 		if n := len(muster.FindAllString(body, -1)); n != will {
 			t.Errorf("row %s shows %d ticked boxes, wanted %d:\n%s",
-				zeile, n, will, around(body, "gruppe.zeiten."+zeile+".tage"))
+				row, n, will, around(body, "gruppe.zeiten."+row+".tage"))
 		}
-		if !strings.Contains(body, `<input type="hidden" name="gruppe.zeiten.`+zeile+`.tage[]" value="">`) {
-			t.Errorf("row %s is missing the hidden sentinel", zeile)
+		if !strings.Contains(body, `<input type="hidden" name="gruppe.zeiten.`+row+`.tage[]" value="">`) {
+			t.Errorf("row %s is missing the hidden sentinel", row)
 		}
 	}
 	// The single-valued subfield does not carry the marker.
@@ -374,7 +374,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 		"gruppe.zeiten.1.tage[]": {"", "Di"},
 		"gruppe.zeiten.1.notiz":  {"Nachmittag"},
 	})
-	got = zeilen(t)
+	got = rows(t)
 	if len(got) != 2 {
 		t.Fatalf("after clearing, %d rows, wanted 2: %+v", len(got), got)
 	}
@@ -390,7 +390,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 // the marker without giving up any of its guards: the prefix, the three parts
 // and above all the bound on the row number. A name built by hand must reach
 // neither a row outside the bound nor a fourth namespace.
-func TestZeilennameMitMarkierung(t *testing.T) {
+func TestARowNameWithTheMarker(t *testing.T) {
 	group, index, sub, multi, ok := parseRowName("gruppe.zeiten.0.tage[]")
 	if !ok || group != "zeiten" || index != 0 || sub != "tage" || !multi {
 		t.Errorf("gruppe.zeiten.0.tage[] ergab (%q, %d, %q, %v, %v)", group, index, sub, multi, ok)
@@ -424,7 +424,7 @@ func TestZeilennameMitMarkierung(t *testing.T) {
 
 // And inside the row the same difference holds as above on the page: with the
 // guard the key is there and empty, without it it is not there at all.
-func TestGruppenzeileGeleertOderAbwesend(t *testing.T) {
+func TestAGroupRowEmptiedOrAbsent(t *testing.T) {
 	drei := fieldsFromRequest(anfrageMit(url.Values{
 		"gruppe.zeiten.0.tage[]": {"", "Mo", "Di", "Mi"},
 	}))

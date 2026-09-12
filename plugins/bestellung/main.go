@@ -36,14 +36,14 @@ import (
 // The form's field names. As constants, because they stand in two places — when
 // drawing and when receiving — and would otherwise drift apart.
 const (
-	feldName      = "name"
-	feldEmail     = "email"
-	feldTelefon   = "telefon"
-	feldAdresse   = "adresse"
-	feldBemerkung = "bemerkung"
-	feldSeite     = "seite"
-	feldZeit      = "gestellt"
-	feldHonigtopf = "website"
+	fieldName     = "name"
+	fieldEmail    = "email"
+	fieldPhone    = "telefon"
+	fieldAddress  = "adresse"
+	fieldRemark   = "bemerkung"
+	fieldPageKey  = "seite"
+	fieldTime     = "gestellt"
+	fieldHoneypot = "website"
 	// quantityPrefix + the page's address is a product's quantity field.
 	quantityPrefix = "menge_"
 )
@@ -58,9 +58,9 @@ const (
 	maxName      = 120
 	maxEmail     = 254
 	maxTelefon   = 40
-	maxAdresse   = 400
+	maxAddress   = 400
 	maxBemerkung = 2000
-	maxMenge     = 999
+	maxQuantity  = 999
 	maxPosten    = 40
 )
 
@@ -69,13 +69,13 @@ const maxProStunde = 30
 
 func init() {
 	plugin.OnContent(formularEinsetzen)
-	plugin.OnRoute(bestellungAnnehmen)
+	plugin.OnRoute(acceptOrder)
 	plugin.OnAdmin(verwaltung)
 }
 
 // --- die Marke im Text ------------------------------------------------------
 
-var marke = regexp.MustCompile(`(?i)\[\[bestellung\]\]`)
+var token = regexp.MustCompile(`(?i)\[\[bestellung\]\]`)
 
 // markerInParagraph matches the marker when it stands alone in a paragraph —
 // which it does as soon as it is on a line of its own in Markdown. A form inside
@@ -85,7 +85,7 @@ var markerInParagraph = regexp.MustCompile(`(?i)<p>\s*\[\[bestellung\]\]\s*</p>`
 
 // formularEinsetzen ersetzt [[bestellung]] durch das Formular.
 func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
-	if !marke.MatchString(in.HTML) {
+	if !token.MatchString(in.HTML) {
 		return plugin.ContentOut{}, nil
 	}
 
@@ -96,22 +96,22 @@ func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
 		fehltext := `<p>The product list is not available at the moment.</p>`
 		out := markerInParagraph.ReplaceAllLiteralString(in.HTML, fehltext)
 		return plugin.ContentOut{
-			HTML:    marke.ReplaceAllLiteralString(out, fehltext),
+			HTML:    token.ReplaceAllLiteralString(out, fehltext),
 			Changed: true,
 		}, nil
 	}
 
-	stand, hinweis := stateFromQuery(in.Query)
-	formular := draw(produkte, e, in.Slug, stand, hinweis)
+	stand, note := stateFromQuery(in.Query)
+	formular := draw(produkte, e, in.Slug, stand, note)
 	// The paragraph first, so that the <p> disappears along with its marker. In
 	// one pass an empty <p></p> would be left behind.
 	out := markerInParagraph.ReplaceAllLiteralString(in.HTML, formular)
-	out = marke.ReplaceAllLiteralString(out, formular)
+	out = token.ReplaceAllLiteralString(out, formular)
 	return plugin.ContentOut{HTML: out, Changed: true}, nil
 }
 
 // stateFromQuery reads what came back from the last submission.
-func stateFromQuery(query string) (stand, hinweis string) {
+func stateFromQuery(query string) (stand, note string) {
 	q, err := url.ParseQuery(query)
 	if err != nil {
 		return "", ""
@@ -125,7 +125,7 @@ func stateFromQuery(query string) (stand, hinweis string) {
 // host's filter, and every value coming from outside is escaped individually
 // here. A template with automatic escaping does not come free in a WASM module,
 // and half a one would be worse than none.
-func draw(produkte []product, e settings, seite, stand, hinweis string) string {
+func draw(produkte []product, e settings, page, stand, note string) string {
 	var b strings.Builder
 	b.WriteString(`<div class="bestellung">`)
 
@@ -136,7 +136,7 @@ func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 		b.WriteString(`</div>`)
 		return b.String()
 	case "fehler":
-		text := hinweis
+		text := note
 		if text == "" {
 			text = "The order could not be accepted."
 		}
@@ -159,13 +159,13 @@ func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 	}
 
 	b.WriteString(`<form class="bestellung__form" method="POST" action="` + submitAddress + `">`)
-	b.WriteString(`<input type="hidden" name="` + feldSeite + `" value="` + html.EscapeString(seite) + `">`)
-	b.WriteString(`<input type="hidden" name="` + feldZeit + `" value="` + html.EscapeString(timestamp()) + `">`)
+	b.WriteString(`<input type="hidden" name="` + fieldPageKey + `" value="` + html.EscapeString(page) + `">`)
+	b.WriteString(`<input type="hidden" name="` + fieldTime + `" value="` + html.EscapeString(timestamp()) + `">`)
 	// The honeypot: a field that looks like one and is not. Hidden with CSS
 	// only, so that a screen reader can skip it and a form filler in the
 	// browser writes nothing into it.
 	b.WriteString(`<p class="bestellung__falle" aria-hidden="true">` +
-		`<label>Website<input type="text" name="` + feldHonigtopf + `" tabindex="-1" autocomplete="off"></label></p>`)
+		`<label>Website<input type="text" name="` + fieldHoneypot + `" tabindex="-1" autocomplete="off"></label></p>`)
 
 	b.WriteString(`<table class="bestellung__tabelle"><thead><tr>` +
 		`<th scope="col">Produkt</th><th scope="col">Preis</th><th scope="col">Menge</th>` +
@@ -191,7 +191,7 @@ func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 			b.WriteString(`<label class="sr-only" for="` + html.EscapeString(name) + `">Menge ` +
 				html.EscapeString(p.Titel) + `</label>`)
 			b.WriteString(`<input type="number" inputmode="numeric" min="0" max="` +
-				strconv.Itoa(maxMenge) + `" step="1" value="" id="` + html.EscapeString(name) +
+				strconv.Itoa(maxQuantity) + `" step="1" value="" id="` + html.EscapeString(name) +
 				`" name="` + html.EscapeString(name) + `">`)
 		} else {
 			b.WriteString(`<span class="bestellung__aus">nicht bestellbar</span>`)
@@ -200,10 +200,10 @@ func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 	}
 	b.WriteString(`</tbody></table>`)
 
-	feld := func(name, beschriftung, art string, pflicht bool, hilfe string) {
+	field := func(name, label, art string, required bool, hilfe string) {
 		b.WriteString(`<p class="bestellung__feld"><label for="b_` + name + `">` +
-			html.EscapeString(beschriftung))
-		if pflicht {
+			html.EscapeString(label))
+		if required {
 			b.WriteString(` <span aria-hidden="true">*</span>`)
 		}
 		b.WriteString(`</label>`)
@@ -211,7 +211,7 @@ func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 			b.WriteString(`<textarea id="b_` + name + `" name="` + name + `" rows="3"></textarea>`)
 		} else {
 			b.WriteString(`<input type="` + art + `" id="b_` + name + `" name="` + name + `"`)
-			if pflicht {
+			if required {
 				b.WriteString(` required`)
 			}
 			b.WriteString(`>`)
@@ -222,11 +222,11 @@ func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 		b.WriteString(`</p>`)
 	}
 
-	feld(feldName, "Name", "text", true, "")
-	feld(feldEmail, "E-Mail", "email", true, "")
-	feld(feldTelefon, "Telefon", "tel", false, "Optional — helps if we have to ask something.")
-	feld(feldAdresse, "Adresse", "textarea", false, "Only needed if it is to be delivered.")
-	feld(feldBemerkung, "Bemerkung", "textarea", false, "")
+	field(fieldName, "Name", "text", true, "")
+	field(fieldEmail, "E-Mail", "email", true, "")
+	field(fieldPhone, "Telefon", "tel", false, "Optional — helps if we have to ask something.")
+	field(fieldAddress, "Adresse", "textarea", false, "Only needed if it is to be delivered.")
+	field(fieldRemark, "Bemerkung", "textarea", false, "")
 
 	b.WriteString(`<p class="bestellung__abschicken">` +
 		`<button type="submit">Bestellung abschicken</button></p>`)
@@ -237,7 +237,7 @@ func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 // --- die Absendung ----------------------------------------------------------
 
 // bestellungAnnehmen nimmt die Bestellung entgegen.
-func bestellungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
+func acceptOrder(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if in.Method != "POST" {
 		// A GET on this address is somebody who opened the link. To the start
 		// page rather than onto an empty one.
@@ -248,17 +248,17 @@ func bestellungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if err != nil {
 		return back("", "fehler", "Die Bestellung war nicht lesbar."), nil
 	}
-	seite := clean(form.Get(feldSeite), 200)
+	page := clean(form.Get(fieldPageKey), 200)
 
 	// The honeypot first: whatever was written in here was not a human being.
 	// The answer looks like a success, so that a script does not learn what it
 	// failed on.
-	if strings.TrimSpace(form.Get(feldHonigtopf)) != "" {
+	if strings.TrimSpace(form.Get(fieldHoneypot)) != "" {
 		plugin.Log("info", "order with a filled honeypot discarded")
-		return back(seite, "gesendet", ""), nil
+		return back(page, "gesendet", ""), nil
 	}
-	if !zeitmarkeGilt(form.Get(feldZeit)) {
-		return back(seite, "fehler",
+	if !timeTokenHolds(form.Get(fieldTime)) {
+		return back(page, "fehler",
 			"The form has expired. Please reload the page and send it again."), nil
 	}
 
@@ -270,36 +270,36 @@ func bestellungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 
 	item, problem := readItems(form, produkte, e)
 	if problem != "" {
-		return back(seite, "fehler", problem), nil
+		return back(page, "fehler", problem), nil
 	}
 
 	b := order{
-		Name:      clean(form.Get(feldName), maxName),
-		Email:     clean(form.Get(feldEmail), maxEmail),
-		Telefon:   clean(form.Get(feldTelefon), maxTelefon),
-		Address:   clean(form.Get(feldAdresse), maxAdresse),
-		Bemerkung: clean(form.Get(feldBemerkung), maxBemerkung),
-		Page:      seite,
+		Name:      clean(form.Get(fieldName), maxName),
+		Email:     clean(form.Get(fieldEmail), maxEmail),
+		Telefon:   clean(form.Get(fieldPhone), maxTelefon),
+		Address:   clean(form.Get(fieldAddress), maxAddress),
+		Bemerkung: clean(form.Get(fieldRemark), maxBemerkung),
+		Page:      page,
 		Posten:    item,
 		Currency:  e.Currency,
 	}
 	if b.Name == "" {
-		return back(seite, "fehler", "Bitte trage deinen Namen ein."), nil
+		return back(page, "fehler", "Bitte trage deinen Namen ein."), nil
 	}
 	if !addressLooksReal(b.Email) {
-		return back(seite, "fehler", "Please enter a valid e-mail address."), nil
+		return back(page, "fehler", "Please enter a valid e-mail address."), nil
 	}
 	b.Summe, b.SummeBekannt = total(item)
 
 	if !underTheHourlyLimit() {
-		return back(seite, "fehler",
+		return back(page, "fehler",
 			"A great many orders are coming in just now. Please try again in an hour."), nil
 	}
 	if err := speichern(&b); err != nil {
 		return plugin.RequestOut{}, err
 	}
 	notify(b)
-	return back(seite, "gesendet", ""), nil
+	return back(page, "gesendet", ""), nil
 }
 
 // readItems collects the quantities that were ordered.
@@ -310,18 +310,18 @@ func bestellungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 func readItems(form url.Values, produkte []product, e settings) ([]item, string) {
 	var out []item
 	for _, p := range produkte {
-		roh := strings.TrimSpace(form.Get(quantityPrefix + p.Slug))
-		if roh == "" || roh == "0" {
+		raw := strings.TrimSpace(form.Get(quantityPrefix + p.Slug))
+		if raw == "" || raw == "0" {
 			continue
 		}
-		quantity, err := strconv.Atoi(roh)
+		quantity, err := strconv.Atoi(raw)
 		if err != nil || quantity < 0 {
 			return nil, "Bei „" + p.Titel + "” there is no number."
 		}
 		if quantity == 0 {
 			continue
 		}
-		if quantity > maxMenge {
+		if quantity > maxQuantity {
 			return nil, "Bei „" + p.Titel + "“ ist die Menge zu gross. Bitte melde dich direkt bei uns."
 		}
 		if !p.Orderable {
@@ -350,11 +350,11 @@ func readItems(form url.Values, produkte []product, e settings) ([]item, string)
 func total(item []item) (float64, bool) {
 	total := 0.0
 	for _, p := range item {
-		wert, ok := priceValue(p.Price)
+		value, ok := priceValue(p.Price)
 		if !ok {
 			return 0, false
 		}
-		total += wert * float64(p.Quantity)
+		total += value * float64(p.Quantity)
 	}
 	return total, true
 }
@@ -362,15 +362,15 @@ func total(item []item) (float64, bool) {
 // back sends the visitor back to the page, with the outcome in the address. A
 // redirect rather than an answer in the body, so that a reload does not send the
 // order a second time.
-func back(seite, stand, hinweis string) plugin.RequestOut {
+func back(page, stand, note string) plugin.RequestOut {
 	ziel := "/"
-	if seite != "" {
-		ziel = "/" + seite
+	if page != "" {
+		ziel = "/" + page
 	}
 	q := url.Values{}
 	q.Set("bestellung", stand)
-	if hinweis != "" {
-		q.Set("hinweis", hinweis)
+	if note != "" {
+		q.Set("hinweis", note)
 	}
 	return plugin.RequestOut{Handled: true, Status: 303, Location: ziel + "?" + q.Encode()}
 }
@@ -413,12 +413,12 @@ func notify(b order) {
 
 	// The orderer's address as the reply address: the operator presses reply
 	// and writes to the customer without typing the address out.
-	queued, grund, err := plugin.Notify("Neue Bestellung von "+b.Name, t.String(), b.Email)
+	queued, reason, err := plugin.Notify("Neue Bestellung von "+b.Name, t.String(), b.Email)
 	switch {
 	case err != nil:
 		plugin.Logf("warn", "the notification about the order did not go out: %v", err)
 	case !queued:
-		plugin.Logf("info", "keine Benachrichtigung verschickt: %s", grund)
+		plugin.Logf("info", "keine Benachrichtigung verschickt: %s", reason)
 	}
 }
 
@@ -464,7 +464,7 @@ func timestamp() string {
 	return jetzt + "." + zeichen(jetzt)
 }
 
-func zeitmarkeGilt(v string) bool {
+func timeTokenHolds(v string) bool {
 	teile := strings.SplitN(v, ".", 2)
 	if len(teile) != 2 || !hmac.Equal([]byte(zeichen(teile[0])), []byte(teile[1])) {
 		return false
@@ -486,11 +486,11 @@ func zeichen(v string) string {
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
-const schluesselMarke = "zeitmarken-schluessel"
+const keyToken = "zeitmarken-schluessel"
 
 func schluessel() []byte {
-	if roh, da, err := plugin.Get(schluesselMarke); err == nil && da && roh != "" {
-		if key, err := base64.RawStdEncoding.DecodeString(roh); err == nil && len(key) == 32 {
+	if raw, da, err := plugin.Get(keyToken); err == nil && da && raw != "" {
+		if key, err := base64.RawStdEncoding.DecodeString(raw); err == nil && len(key) == 32 {
 			return key
 		}
 	}
@@ -501,7 +501,7 @@ func schluessel() []byte {
 		plugin.Logf("error", "no randomness for the key: %v", err)
 		return nil
 	}
-	if err := plugin.Set(schluesselMarke, base64.RawStdEncoding.EncodeToString(key)); err != nil {
+	if err := plugin.Set(keyToken, base64.RawStdEncoding.EncodeToString(key)); err != nil {
 		plugin.Logf("warn", "key not stored: %v", err)
 	}
 	return key
@@ -514,7 +514,7 @@ const schluesselZaehler = "zaehler"
 // underTheHourlyLimit counts the current hour's orders.
 func underTheHourlyLimit() bool {
 	stunde := time.Now().UTC().Format("2006-01-02T15")
-	roh, _, err := plugin.Get(schluesselZaehler)
+	raw, _, err := plugin.Get(schluesselZaehler)
 	if err != nil {
 		return true
 	}
@@ -522,7 +522,7 @@ func underTheHourlyLimit() bool {
 		Stunde string `json:"stunde"`
 		Count  int    `json:"anzahl"`
 	}
-	_ = json.Unmarshal([]byte(roh), &z)
+	_ = json.Unmarshal([]byte(raw), &z)
 	if z.Stunde != stunde {
 		z.Stunde, z.Count = stunde, 0
 	}
@@ -578,29 +578,29 @@ const prefixOrder = "bestellung:"
 func speichern(b *order) error {
 	jetzt := time.Now().UTC()
 	b.Eingegangen = jetzt.Format(time.RFC3339)
-	roh := make([]byte, 6)
-	if _, err := rand.Read(roh); err != nil {
+	raw := make([]byte, 6)
+	if _, err := rand.Read(raw); err != nil {
 		return err
 	}
-	b.ID = jetzt.Format("20060102T150405") + "-" + base64.RawURLEncoding.EncodeToString(roh)
+	b.ID = jetzt.Format("20060102T150405") + "-" + base64.RawURLEncoding.EncodeToString(raw)
 
-	daten, err := json.Marshal(b)
+	data, err := json.Marshal(b)
 	if err != nil {
 		return err
 	}
-	return plugin.Set(prefixOrder+b.ID, string(daten))
+	return plugin.Set(prefixOrder+b.ID, string(data))
 }
 
 // alleBestellungen liest sie, neueste zuerst.
 func allOrders() ([]order, error) {
-	werte, err := plugin.List(prefixOrder, 500)
+	values, err := plugin.List(prefixOrder, 500)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]order, 0, len(werte))
-	for _, roh := range werte {
+	out := make([]order, 0, len(values))
+	for _, raw := range values {
 		var b order
-		if err := json.Unmarshal([]byte(roh), &b); err != nil {
+		if err := json.Unmarshal([]byte(raw), &b); err != nil {
 			continue
 		}
 		out = append(out, b)
@@ -610,23 +610,23 @@ func allOrders() ([]order, error) {
 }
 
 func loadOrder(id string) (order, bool) {
-	roh, da, err := plugin.Get(prefixOrder + id)
+	raw, da, err := plugin.Get(prefixOrder + id)
 	if err != nil || !da {
 		return order{}, false
 	}
 	var b order
-	if err := json.Unmarshal([]byte(roh), &b); err != nil {
+	if err := json.Unmarshal([]byte(raw), &b); err != nil {
 		return order{}, false
 	}
 	return b, true
 }
 
-func bestellungSichern(b order) error {
-	daten, err := json.Marshal(b)
+func saveOrder(b order) error {
+	data, err := json.Marshal(b)
 	if err != nil {
 		return err
 	}
-	return plugin.Set(prefixOrder+b.ID, string(daten))
+	return plugin.Set(prefixOrder+b.ID, string(data))
 }
 
 func main() {}

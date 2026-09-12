@@ -72,7 +72,7 @@ func TestRueckwegBleibtImHaus(t *testing.T) {
 }
 
 // Ein Referer von woanders darf ebenso wenig zum Ziel werden.
-func TestBackToNimmtNurEigeneAdressen(t *testing.T) {
+func TestBackToTakesOnlyItsOwnAddresses(t *testing.T) {
 	req := httptest.NewRequest("POST", "/admin/websites/1/delete", nil)
 	req.Host = "example.com"
 	req.Header.Set("Referer", "https://boese.example/admin/websites/1")

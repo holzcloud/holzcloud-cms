@@ -67,7 +67,7 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.
 	body = h.filterByPlugins(r, websiteID, pg, body)
-	felder, liste := h.ownFields(r, websiteID, pg)
+	fields, liste := h.ownFields(r, websiteID, pg)
 	return tmpl.PageContent{
 		Title:         pg.Title,
 		ContentHTML:   template.HTML(h.responsive(r, websiteID, body)),
@@ -78,7 +78,7 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 		HasOwnHeading: startsWithHeading(pg.ContentHTML),
 		Kind:          pg.TypeKey,
 		Terms:         termLinksAt(localePrefixOf(r), h.labelsForPage(r, pg.ID)),
-		Fields:        felder,
+		Fields:        fields,
 		FieldList:     liste,
 	}, albumsAt
 }
@@ -101,13 +101,13 @@ func (h *Handler) ownFields(r *http.Request, websiteID int64, pg *page.Page) (ma
 		return nil, nil
 	}
 	mine := field.For(defs, pg.KindValue())
-	daten := field.Decode(pg.Fields)
+	data := field.Decode(pg.Fields)
 	links := field.Links{
 		Image: h.fieldImages(r, websiteID),
 		Page:  h.fieldRefs(r, websiteID),
 		Term:  h.fieldTerms(r, websiteID),
 	}
-	return field.Resolve(mine, daten, links), field.List(mine, daten, links)
+	return field.Resolve(mine, data, links), field.List(mine, data, links)
 }
 
 // fillSnippets writes all three snippet members of SiteData.
@@ -158,17 +158,17 @@ func (h *Handler) fillSnippets(r *http.Request, site *tmpl.SiteData, websiteID i
 	}
 	for key, snippetID := range rendered.IDs {
 		defs := alle[snippetID]
-		daten := field.Decode(rendered.Fields[key])
+		data := field.Decode(rendered.Fields[key])
 		// A snippet without a single definition gets its entry too — an empty
 		// map and not a missing key: a theme that writes
 		// {{ index .Site.SnippetFields "kontakt" "telefon" }} should print
 		// nothing, rather than fail, on a website where nobody has created a
 		// field yet.
-		site.SnippetFields[key] = field.Resolve(defs, daten, links)
+		site.SnippetFields[key] = field.Resolve(defs, data, links)
 		// Entered only when something is really filled: field.List hands out no
 		// empty entry, and a key behind which an empty list stands would be
 		// indistinguishable from a filled one to a theme.
-		if liste := field.List(defs, daten, links); len(liste) > 0 {
+		if liste := field.List(defs, data, links); len(liste) > 0 {
 			site.SnippetList[key] = liste
 		}
 	}
@@ -332,17 +332,17 @@ func (h *Handler) responsive(r *http.Request, websiteID int64, body string) stri
 // one that did not.
 func (h *Handler) loadSnippets(r *http.Request, websiteID int64) snippet.Rendered {
 	if h.snippetStore == nil {
-		return leereBausteine()
+		return emptyBlocks()
 	}
 	rendered, err := h.snippetStore.LoadRendered(r.Context(), websiteID)
 	if err != nil {
 		slog.Error("load snippets", "err", err, "website", websiteID)
-		return leereBausteine()
+		return emptyBlocks()
 	}
 	return rendered
 }
 
-func leereBausteine() snippet.Rendered {
+func emptyBlocks() snippet.Rendered {
 	return snippet.Rendered{
 		HTML:   map[string]template.HTML{},
 		Fields: map[string]string{},

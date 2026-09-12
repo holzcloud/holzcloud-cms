@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// gutesManifest ist die Vorlage, von der jeder Test das Eine abweichen lässt,
-// das er prüfen will.
-func gutesManifest() Manifest {
+// goodManifest is the template every test lets deviate in the one thing it
+// wants to check.
+func goodManifest() Manifest {
 	return Manifest{
 		ID: "weiterleitungen", ABI: ABIVersion,
 		Name: "Weiterleitungen", Version: "1.0.0",
@@ -20,7 +20,7 @@ func gutesManifest() Manifest {
 	}
 }
 
-func archiv(t *testing.T, m any, dateien map[string][]byte) []byte {
+func archiveFile(t *testing.T, m any, files map[string][]byte) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -33,7 +33,7 @@ func archiv(t *testing.T, m any, dateien map[string][]byte) []byte {
 			t.Fatal(err)
 		}
 	}
-	for name, data := range dateien {
+	for name, data := range files {
 		w, err := zw.Create(name)
 		if err != nil {
 			t.Fatal(err)
@@ -48,7 +48,7 @@ func archiv(t *testing.T, m any, dateien map[string][]byte) []byte {
 	return buf.Bytes()
 }
 
-// wasm ist das Kleinste, was der Prüfung als Modul durchgeht.
+// wasm is the smallest thing that gets past the check as a module.
 var wasm = []byte("\x00asm\x01\x00\x00\x00")
 
 func lies(t *testing.T, data []byte) (*Package, error) {
@@ -57,7 +57,7 @@ func lies(t *testing.T, data []byte) (*Package, error) {
 }
 
 func TestGutesPaketWirdGelesen(t *testing.T) {
-	a := archiv(t, gutesManifest(), map[string][]byte{
+	a := archiveFile(t, goodManifest(), map[string][]byte{
 		ModuleName:                    wasm,
 		AssetDir + "stil.css":         []byte("a{}"),
 		AssetDir + "bild/logo.svg":    []byte("<svg/>"),
@@ -74,7 +74,7 @@ func TestGutesPaketWirdGelesen(t *testing.T) {
 	if len(p.Assets) != 2 || p.Assets["bild/logo.svg"] == nil {
 		t.Errorf("Beigaben: %v", p.Assets)
 	}
-	// Die Reihenfolge muss der Name bestimmen und nicht das Archiv.
+	// The name has to determine the order, not the archive.
 	if len(p.Migrations) != 2 || p.Migrations[0].Name != "0001_tab.sql" {
 		t.Errorf("Migrationen: %+v", p.Migrations)
 	}
@@ -85,18 +85,18 @@ func TestGutesPaketWirdGelesen(t *testing.T) {
 
 func TestPaketOhneModulOderManifest(t *testing.T) {
 	t.Run("ohne Modul", func(t *testing.T) {
-		if _, err := lies(t, archiv(t, gutesManifest(), nil)); err == nil ||
+		if _, err := lies(t, archiveFile(t, goodManifest(), nil)); err == nil ||
 			!strings.Contains(err.Error(), ModuleName) {
 			t.Errorf("erwartet: fehlendes Modul, bekommen: %v", err)
 		}
 	})
 	t.Run("ohne Manifest", func(t *testing.T) {
-		if _, err := lies(t, archiv(t, nil, map[string][]byte{ModuleName: wasm})); err == nil {
+		if _, err := lies(t, archiveFile(t, nil, map[string][]byte{ModuleName: wasm})); err == nil {
 			t.Error("a package without a manifest was accepted")
 		}
 	})
 	t.Run("Modul ist kein WebAssembly", func(t *testing.T) {
-		a := archiv(t, gutesManifest(), map[string][]byte{ModuleName: []byte("#!/bin/sh\nrm -rf /")})
+		a := archiveFile(t, goodManifest(), map[string][]byte{ModuleName: []byte("#!/bin/sh\nrm -rf /")})
 		if _, err := lies(t, a); err == nil || !strings.Contains(err.Error(), "WebAssembly") {
 			t.Errorf("erwartet: kein WebAssembly, bekommen: %v", err)
 		}
@@ -104,8 +104,8 @@ func TestPaketOhneModulOderManifest(t *testing.T) {
 }
 
 func TestPaketMitEntkommendemPfad(t *testing.T) {
-	// Zip-Slip durch die dritte Tür. Der Vorlagen-Upload und der Bundle-Import
-	// sind je einzeln dagegen abgesichert; hier muss es auch halten.
+	// Zip slip through the third door. The template upload and the bundle import
+	// are each secured against it on their own; here it has to hold too.
 	for _, name := range []string{
 		AssetDir + "../../etc/holzcloud.conf",
 		AssetDir + "../heimlich.txt",
@@ -114,7 +114,7 @@ func TestPaketMitEntkommendemPfad(t *testing.T) {
 		AssetDir + ".versteckt",
 	} {
 		t.Run(name, func(t *testing.T) {
-			a := archiv(t, gutesManifest(), map[string][]byte{ModuleName: wasm, name: []byte("x")})
+			a := archiveFile(t, goodManifest(), map[string][]byte{ModuleName: wasm, name: []byte("x")})
 			if _, err := lies(t, a); err == nil {
 				t.Errorf("the path %q was accepted", name)
 			}
@@ -122,10 +122,10 @@ func TestPaketMitEntkommendemPfad(t *testing.T) {
 	}
 }
 
-func TestUnbekannteDateienWerdenAbgelehnt(t *testing.T) {
-	// Nicht überspringen: eine Datei, die der Host nicht kennt, ist entweder
-	// ein Fehler im Bau oder sollte irgendwo landen, wo sie nichts zu suchen hat.
-	a := archiv(t, gutesManifest(), map[string][]byte{
+func TestUnknownFilesAreRefused(t *testing.T) {
+	// Not skipped: a file the host does not know is either a fault in the build
+	// or was meant to land somewhere it has no business being.
+	a := archiveFile(t, goodManifest(), map[string][]byte{
 		ModuleName: wasm, "README.md": []byte("hallo"),
 	})
 	if _, err := lies(t, a); err == nil || !strings.Contains(err.Error(), "README.md") {
@@ -135,30 +135,30 @@ func TestUnbekannteDateienWerdenAbgelehnt(t *testing.T) {
 
 func TestMigrationenNurFlachUndAlsSQL(t *testing.T) {
 	for _, name := range []string{MigrationDir + "unter/ordner.sql", MigrationDir + "kein.txt"} {
-		a := archiv(t, gutesManifest(), map[string][]byte{ModuleName: wasm, name: []byte("x")})
+		a := archiveFile(t, goodManifest(), map[string][]byte{ModuleName: wasm, name: []byte("x")})
 		if _, err := lies(t, a); err == nil {
 			t.Errorf("%q wurde angenommen", name)
 		}
 	}
 }
 
-func TestManifestLehntUnbekannteFelderAb(t *testing.T) {
-	// Ein vertipptes Feld würde sonst still verworfen: das Plugin liesse sich
-	// einspielen, liefe, und scheiterte beim ersten Aufruf an einer
-	// Berechtigung, die niemand erklären kann.
-	roh := []byte(`{"id":"x","abi":1,"name":"X","version":"1.0.0",
+func TestTheManifestRefusesUnknownFields(t *testing.T) {
+	// A mistyped field would otherwise be silently discarded: the plugin could
+	// be installed, would run, and would fail on the first call over a
+	// permission nobody can explain.
+	raw := []byte(`{"id":"x","abi":1,"name":"X","version":"1.0.0",
 	                "hooks":["content"],"permissons":["store"]}`)
-	if _, err := ParseManifest(roh); err == nil ||
+	if _, err := ParseManifest(raw); err == nil ||
 		!strings.Contains(err.Error(), "permissons") {
 		t.Errorf("erwartet: unbekanntes Feld genannt, bekommen: %v", err)
 	}
 }
 
-func TestManifestPrueftJedesFeld(t *testing.T) {
+func TestTheManifestChecksEveryField(t *testing.T) {
 	cases := []struct {
-		name    string
-		aendern func(*Manifest)
-		suche   string
+		name   string
+		change func(*Manifest)
+		suche  string
 	}{
 		{"Kennung mit Grossbuchstaben", func(m *Manifest) { m.ID = "Weiterleitungen" }, "Kennung"},
 		{"Kennung mit Schrägstrich", func(m *Manifest) { m.ID = "a/b" }, "Kennung"},
@@ -186,8 +186,8 @@ func TestManifestPrueftJedesFeld(t *testing.T) {
 	}
 	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
-			m := gutesManifest()
-			f.aendern(&m)
+			m := goodManifest()
+			f.change(&m)
 			err := m.Validate()
 			if err == nil {
 				t.Fatal("angenommen, obwohl fehlerhaft")
@@ -199,12 +199,12 @@ func TestManifestPrueftJedesFeld(t *testing.T) {
 	}
 }
 
-func TestZuVieleDateien(t *testing.T) {
-	dateien := map[string][]byte{ModuleName: wasm}
+func TestTooManyFiles(t *testing.T) {
+	files := map[string][]byte{ModuleName: wasm}
 	for i := 0; i < MaxEntries+5; i++ {
-		dateien[AssetDir+string(rune('a'+i%26))+string(rune('a'+i/26))+".txt"] = []byte("x")
+		files[AssetDir+string(rune('a'+i%26))+string(rune('a'+i/26))+".txt"] = []byte("x")
 	}
-	if _, err := lies(t, archiv(t, gutesManifest(), dateien)); err == nil {
+	if _, err := lies(t, archiveFile(t, goodManifest(), files)); err == nil {
 		t.Error("an archive with too many files was accepted")
 	}
 }

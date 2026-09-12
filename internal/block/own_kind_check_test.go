@@ -103,7 +103,7 @@ func TestAStoredNoIsNotRenderedAsYes(t *testing.T) {
 	render := func(value string) string {
 		return Render([]Block{{Type: "probe", Fields: map[string]string{
 			"janein": value, "wahl": "a",
-		}}}, checkedKind(), bilder(nil), markdown)
+		}}}, checkedKind(), images(nil), markdown)
 	}
 	for _, no := range []string{"nein", "no", "false", "0"} {
 		if html := render(no); strings.Contains(html, "hc-ja--janein") {
@@ -126,7 +126,7 @@ func TestAMultiValueInABlockIsReadValueByValue(t *testing.T) {
 	html := Render([]Block{{
 		Type:   "hinweis",
 		Fields: map[string]string{"sorten": "Eiche\n<b>Buche</b>"},
-	}}, artMitCode(), bilder(nil), markdown)
+	}}, artMitCode(), images(nil), markdown)
 
 	if strings.Contains(html, "Eiche\n") {
 		t.Errorf("the stored encoding reached the page as it lies in the column:\n%s", html)
@@ -157,7 +157,7 @@ func TestCleanKeepsALinkTheBlockRendererAccepts(t *testing.T) {
 	if v := got[0].Fields["quelle"]; v != "#zutaten" {
 		t.Errorf("the link is %q after Clean, want %q — Clean deleted a link the renderer prints", v, "#zutaten")
 	}
-	html := Render(got, eigeneArt(), bilder(nil), markdown)
+	html := Render(got, eigeneArt(), images(nil), markdown)
 	if !strings.Contains(html, `href="#zutaten"`) {
 		t.Errorf("the kept link does not render:\n%s", html)
 	}

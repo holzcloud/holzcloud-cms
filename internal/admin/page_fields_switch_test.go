@@ -46,17 +46,17 @@ import (
 // begin. Back come the name of the rule and exactly the markup that rule has to
 // be able to reach — the dependent fields themselves do not belong to it,
 // because the ">" in every :has() excludes them.
-func switchBox(t *testing.T, body, feldname string) (string, string) {
+func switchBox(t *testing.T, body, fieldName string) (string, string) {
 	t.Helper()
 	const auftakt = `class="feld-schalter feld-schalter--`
 
-	at := strings.Index(body, `name="`+feldname+`"`)
+	at := strings.Index(body, `name="`+fieldName+`"`)
 	if at < 0 {
-		t.Fatalf("the field %q is not in the form", feldname)
+		t.Fatalf("the field %q is not in the form", fieldName)
 	}
 	von := strings.LastIndex(body[:at], auftakt)
 	if von < 0 {
-		t.Fatalf("the field %q is in no switch box — does anything hang off it at all?", feldname)
+		t.Fatalf("the field %q is in no switch box — does anything hang off it at all?", fieldName)
 	}
 	rest := body[von:]
 
@@ -191,11 +191,11 @@ func TestSchalter(t *testing.T) {
 		if len(gesehen) == 0 {
 			t.Fatal("no switch name measured — the cases above did not run")
 		}
-		roh, err := os.ReadFile("../../cmd/holzcloud/assets/admin.css")
+		raw, err := os.ReadFile("../../cmd/holzcloud/assets/admin.css")
 		if err != nil {
 			t.Fatalf("das Stylesheet lesen: %v", err)
 		}
-		css := string(roh)
+		css := string(raw)
 
 		// And not only that the rule exists, but what it takes hold of. A rule
 		// that carries the name and looks for the wrong element is no rule —
@@ -434,11 +434,11 @@ func TestKnopfreihe(t *testing.T) {
 	}
 
 	// --- with a stored value ------------------------------------------------
-	roh, err := field.Encode(field.Data{Values: field.Values{"farbe": "mittel"}})
+	raw, err := field.Encode(field.Data{Values: field.Values{"farbe": "mittel"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := page.NewStore(database).SetFields(ctx, p.ID, roh); err != nil {
+	if err := page.NewStore(database).SetFields(ctx, p.ID, raw); err != nil {
 		t.Fatalf("Wert setzen: %v", err)
 	}
 	reihe := knopfreihe(t, zeichnen(), "feld_farbe")
@@ -451,15 +451,15 @@ func TestKnopfreihe(t *testing.T) {
 }
 
 // knopfreihe schneidet die Knopfreihe eines Feldes aus.
-func knopfreihe(t *testing.T, body, feldname string) string {
+func knopfreihe(t *testing.T, body, fieldName string) string {
 	t.Helper()
-	return between(t, body, `aria-labelledby="`+feldname+`-label"`, "</div>")
+	return between(t, body, `aria-labelledby="`+fieldName+`-label"`, "</div>")
 }
 
 // buttonValues reads the values of the radio buttons in the order in which they
 // stand in the document — the order in which the options were typed.
-func buttonValues(reihe, feldname string) []string {
-	re := regexp.MustCompile(`<input type="radio" name="` + regexp.QuoteMeta(feldname) + `" value="([^"]*)"`)
+func buttonValues(reihe, fieldName string) []string {
+	re := regexp.MustCompile(`<input type="radio" name="` + regexp.QuoteMeta(fieldName) + `" value="([^"]*)"`)
 	var out []string
 	for _, m := range re.FindAllStringSubmatch(reihe, -1) {
 		out = append(out, m[1])

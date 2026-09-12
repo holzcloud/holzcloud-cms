@@ -809,7 +809,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			}
 		}
 
-		felder, verworfen := importFieldValues(defs, fieldKinds, p, mediaByName, pages.in(loc))
+		fields, verworfen := importFieldValues(defs, fieldKinds, p, mediaByName, pages.in(loc))
 		if len(verworfen) > 0 {
 			report.warnf(i18n.N("page %q: the values of %s were not taken over, they do not keep the rules of their fields."),
 				p.Title, strings.Join(verworfen, ", "))
@@ -818,7 +818,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		created, err := s.Pages.CreatePage(ctx, page.PageCreate{
 			WebsiteID: websiteID, Title: p.Title, Slug: slug, Locale: loc,
 			Markdown: markdown, HTML: html, Blocks: encodedBlocks, Status: p.Status,
-			Fields: felder,
+			Fields: fields,
 			Meta:   meta, Kind: p.Kind, TypeKey: p.TypeKey,
 			Schedule: page.PageSchedule{PublishAt: p.PublishAt, UnpublishAt: p.UnpublishAt},
 		})

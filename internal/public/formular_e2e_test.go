@@ -145,9 +145,9 @@ func TestNachrichtWirdInDerVerwaltungMaskiert(t *testing.T) {
 	// wrote, <script> would be a script in the operator's browser. The host
 	// filters once more afterwards — but a plugin that relies on that is a
 	// plugin that gets it wrong somewhere else.
-	for _, roh := range []string{"<script", "<img"} {
-		if strings.Contains(out.HTML, roh) {
-			t.Errorf("%s kam ungefiltert durch:\n%s", roh, out.HTML)
+	for _, raw := range []string{"<script", "<img"} {
+		if strings.Contains(out.HTML, raw) {
+			t.Errorf("%s kam ungefiltert durch:\n%s", raw, out.HTML)
 		}
 	}
 }
@@ -157,11 +157,11 @@ func TestNachrichtWirdInDerVerwaltungMaskiert(t *testing.T) {
 func formularAufbau(t *testing.T) (*Handler, *db.DB, *domain.Website, *plugin.Manager) {
 	t.Helper()
 	module := wasmtest.Module(t, "../../plugins/kontaktformular/plugin.wasm")
-	roh, err := os.ReadFile("../../plugins/kontaktformular/plugin.json")
+	raw, err := os.ReadFile("../../plugins/kontaktformular/plugin.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := plugin.ParseManifest(roh)
+	manifest, err := plugin.ParseManifest(raw)
 	if err != nil {
 		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
@@ -203,11 +203,11 @@ func submit(t *testing.T, h *Handler, ws *domain.Website, form url.Values) *http
 func timeToken(t *testing.T, database *db.DB, alter time.Duration) string {
 	t.Helper()
 	store := plugin.NewStore(database)
-	roh, ok, err := store.StoreGet(context.Background(), "kontaktformular", 0, "signaturschluessel")
+	raw, ok, err := store.StoreGet(context.Background(), "kontaktformular", 0, "signaturschluessel")
 	if err != nil || !ok {
 		t.Fatalf("the plugin has not drawn a signing key yet (ok=%v, err=%v)", ok, err)
 	}
-	key, err := base64.RawStdEncoding.DecodeString(roh)
+	key, err := base64.RawStdEncoding.DecodeString(raw)
 	if err != nil {
 		t.Fatalf("the signing key is not readable: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestAnfrageLandetImPostausgang(t *testing.T) {
 
 // Without a stored address nothing is sent — and that is not a fault but a
 // decision of the operator's.
-func TestOhneBenachrichtigungsadresseKeineMail(t *testing.T) {
+func TestWithoutANotificationAddressNoMail(t *testing.T) {
 	h, database, ws, _ := formularAufbau(t)
 	h.SetNotify(domain.NewStore(database), mail.NewQueue(database, mail.NewSender(mail.Config{
 		Host: "mail.example.test", From: "cms@example.test",
@@ -397,7 +397,7 @@ func TestEigenesFormularVonEndeZuEnde(t *testing.T) {
 
 // The token stays backwards compatible: what names no form is, as before, a
 // pre-filled subject.
-func TestMarkeMitUnbekanntemArgumentBleibtDerBetreff(t *testing.T) {
+func TestATokenWithAnUnknownArgumentStaysTheSubject(t *testing.T) {
 	_, _, ws, manager := formularAufbau(t)
 
 	page := manager.FilterContent(context.Background(), ws.ID, plugin.ContentIn{

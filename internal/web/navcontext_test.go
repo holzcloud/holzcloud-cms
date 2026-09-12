@@ -9,7 +9,7 @@ import (
 // Die Adresse ist die Quelle. Wenn das schiefgeht, zeigt die Seitenleiste die
 // Abschnitte der falschen Website an — und zwar plausibel genug, dass es
 // jemandem erst auffällt, wenn er auf der falschen Seite etwas geändert hat.
-func TestWebsiteAusDerAdresse(t *testing.T) {
+func TestTheWebsiteOutOfTheAddress(t *testing.T) {
 	cases := []struct {
 		pfad string
 		will int64
@@ -34,7 +34,7 @@ func TestWebsiteAusDerAdresse(t *testing.T) {
 
 // Ohne Treffer die erste Website: besser als gar kein Menü, und wer nur eine
 // Website hat — der Regelfall — merkt von der Auswahl nie etwas.
-func TestAuswahlFaelltAufDieErsteZurueck(t *testing.T) {
+func TestAChoiceFallsBackToTheFirst(t *testing.T) {
 	liste := websitesMit(3, 7, 9)
 
 	if ws := pick(liste, 7); ws == nil || ws.ID != 7 {
@@ -55,7 +55,7 @@ func TestAuswahlFaelltAufDieErsteZurueck(t *testing.T) {
 
 // pick liefert einen Zeiger in die Liste. Zeigten alle Aufrufe auf dieselbe
 // Schleifenvariable, bekäme jede Anfrage die zuletzt gesehene Website.
-func TestAuswahlZeigtAufDieRichtigeWebsite(t *testing.T) {
+func TestAChoicePointsAtTheRightWebsite(t *testing.T) {
 	liste := websitesMit(1, 2, 3)
 	a, b := pick(liste, 1), pick(liste, 3)
 	if a.ID != 1 || b.ID != 3 {

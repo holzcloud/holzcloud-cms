@@ -27,19 +27,18 @@ var partialFiles = []string{
 	"markdown_help.html",
 	"media_picker.html",
 	"block_list.html",
-	// Die Symbole. Hier, weil ein Fragment sie ebenso braucht wie eine ganze
-	// Seite: eine Zeile, die htmx nachlädt, soll dasselbe Menü tragen wie
-	// vorher.
+	// The icons. Here, because a fragment needs them just as much as a whole
+	// page: a row that htmx reloads should carry the same menu as before.
 	"icons.html",
-	// Ein Eingabefeld der Website — einmal in der Feldliste, einmal je Zeile
+	// One input field of the website — once in the field list, once per row
 	// einer Gruppe.
 	"field_input.html",
-	// Ein Feld des Formulars samt allem, was daran hängt. Ruft sich selbst auf.
+	// One field of the form together with everything hanging off it. Calls itself.
 	"field_top.html",
-	// Der Grund einer Zeile als Satz, und der Ausgang als Abzeichen. Ein
-	// Teilstück, weil der Probelauf und der Bericht zwei getrennt geparste
-	// Sätze sind: derselbe Grund muss auf beiden Bildschirmen gleich lauten,
-	// und zwei Ausfertigungen davon würden auseinanderlaufen.
+	// The reason for a row as a sentence, and the outcome as a badge. A partial,
+	// because the dry run and the report are two separately parsed templates:
+	// the same reason has to read the same on both screens, and two copies of it
+	// would drift apart.
 	"csv_reason.html",
 }
 
@@ -200,10 +199,10 @@ func parseFor(fsys fs.FS, lang string) (*langSet, error) {
 		set.pages[name] = t
 	}
 
-	// Jede Vorlage muss in genau einer der beiden Listen stehen. Fehlt sie in
-	// beiden, wird sie beim Start anstandslos übersprungen und schlägt erst
-	// beim Aufruf mit "template not found" fehl — auf einer Seite, die
-	// vielleicht niemand vor der Kundschaft öffnet.
+	// Every template has to stand in exactly one of the two lists. If it is
+	// missing from both, it is skipped without complaint at start-up and fails
+	// only when it is called, with "template not found" — on a page that perhaps
+	// nobody opens before the customers do.
 	if err := checkAllPagesRegistered(fsys, set); err != nil {
 		return nil, err
 	}
@@ -249,8 +248,7 @@ func checkAllPagesRegistered(fsys fs.FS, set *langSet) error {
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("diese Admin-Vorlagen sind in keiner Liste in render.go "+
-			"eingetragen und wären zur Laufzeit nicht auffindbar: %s",
+		return fmt.Errorf("these admin templates stand in no list in render.go and would not be findable at run time: %s",
 			strings.Join(missing, ", "))
 	}
 	return nil
