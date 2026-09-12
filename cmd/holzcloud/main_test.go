@@ -248,8 +248,8 @@ func TestAdminRoutesRequireASession(t *testing.T) {
 		"/admin/", "/admin/websites", "/admin/users", "/admin/templates",
 		"/admin/websites/1/pages", "/admin/websites/1/media",
 		"/admin/websites/1/albums",
-		// Rechnung und Lieferschein tragen Namen und Anschrift der Kundschaft
-		// und sind über eine ratbare Bestellnummer erreichbar.
+		// Invoice and delivery note carry the customer's name and address and
+		// are reachable through a guessable order number.
 		"/admin/websites/1/bestellungen/2026-0001/rechnung",
 		"/admin/websites/1/bestellungen/2026-0001/lieferschein",
 	} {

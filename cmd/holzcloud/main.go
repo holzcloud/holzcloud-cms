@@ -95,9 +95,9 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("starting", "version", Version, "commit", Commit)
-	// Die Seitenleiste zeigt Fassung und Quelltextadresse. Siehe web.SetBuild:
-	// bei einer veränderten Fassung, die als Dienst läuft, verlangt die AGPL,
-	// dass die Benutzer an den Quelltext kommen.
+	// The sidebar shows the version and the source-code address. See
+	// web.SetBuild: for a modified version running as a service the AGPL
+	// requires that its users can get at the source.
 	web.SetBuild(Version, os.Getenv("HOLZCLOUD_SOURCE_URL"))
 	slog.Info("configuration loaded", "config", cfg)
 
@@ -152,14 +152,13 @@ func main() {
 		slog.Error("database integrity check reported a problem", "result", integrity)
 	}
 
-	// Sprachen von der Platte, bevor die Vorlagen geparst werden: je Sprache
-	// entsteht ein eigener Satz, und eine Sprache, die erst danach auftaucht,
-	// hätte keinen.
+	// Languages from disk before the templates are parsed: one set is built per
+	// language, and a language that only turned up afterwards would have none.
 	i18n.SetDir(filepath.Join(cfg.DataDir, i18n.DirName))
 
-	// Der Name, den diese Anlage trägt. Einmal gelesen und danach im Speicher:
-	// er steht auf jedem Bildschirm, und eine Abfrage je Seitenaufruf für ein
-	// Wort wäre eine Abfrage zu viel.
+	// The name this installation carries. Read once and then kept in memory: it
+	// stands on every screen, and one query per page view for a single word
+	// would be one query too many.
 	branding.SetDir(filepath.Join(cfg.DataDir, branding.DirName))
 	branding.Load(context.Background(), database.Read)
 
@@ -228,10 +227,9 @@ func main() {
 	productStore := shop.NewStore(database)
 	cartStore := shop.NewCartStore(productStore)
 	orderStore := shop.NewOrderStore(cartStore)
-	// Der Postausgang für die Bestellbestätigungen. Das Mailkonto dazu ist das
-	// des Kerns (siehe mailSender weiter unten); ohne eingerichtetes Konto
-	// bleibt der Postausgang stehen und der Shop funktioniert weiter, nur
-	// erfährt niemand von einer Bestellung.
+	// The outbox for the order confirmations. Its mail account is the core's
+	// (see mailSender further down); with no account configured the outbox
+	// stays put and the shop keeps working, only nobody hears about an order.
 	outboxStore := outbox.NewStore(database)
 	// Two signers with distinct labels: a preview token must never open a
 	// protected page, and an unlock cookie must never show a draft.
@@ -286,13 +284,13 @@ func main() {
 		BaseURL:  cfg.PayrexxBaseURL,
 	})
 
-	// Plugins: Speicher, Laufzeit, Manager. Ein Fehler hier ist nicht tödlich —
-	// ein Server, der vier Websites bedient, soll nicht am Plugin-System
-	// scheitern, das vielleicht niemand benutzt. Ohne Manager hat die
-	// Verwaltung schlicht keine Plugin-Seiten.
-	// Der Postausgang. Ohne HOLZCLOUD_SMTP_HOST verschickt er nichts, und dann
-	// verhält sich alles wie vorher: ein Einladungslink steht auf dem Bildschirm
-	// und wird von Hand weitergegeben.
+	// Plugins: storage, runtime, manager. A failure here is not fatal — a
+	// server serving four websites should not fall over the plugin system,
+	// which perhaps nobody uses. Without a manager the admin simply has no
+	// plugin pages.
+	// The outbox. Without HOLZCLOUD_SMTP_HOST it sends nothing, and then
+	// everything behaves as before: an invitation link stands on the screen and
+	// is passed on by hand.
 	mailSender := mail.NewSender(mail.Config{
 		Host: cfg.SMTPHost, Port: cfg.SMTPPort,
 		User: cfg.SMTPUser, Password: cfg.SMTPPassword,
@@ -301,13 +299,12 @@ func main() {
 	mailQueue := mail.NewQueue(database, mailSender, slog.Default())
 	adminHandler.SetMail(mailQueue)
 
-	// Der Anschluss für einen KI-Assistenten. Er kommt von aussen herein, mit
-	// einem Schlüssel, den jemand in der Verwaltung ausgestellt hat — dieser
-	// Server ruft nirgends an.
+	// The connection for an AI assistant. It comes in from outside, with a key
+	// somebody issued in the admin — this server calls nobody.
 	aiTokens := ai.NewStore(database)
 	adminHandler.SetAITokens(aiTokens)
-	// Das Protokoll. Es hängt an nichts ausser der Datenbank, deshalb steht es
-	// hier und nicht weiter unten bei den Diensten, die einander brauchen.
+	// The activity log. It hangs off nothing but the database, which is why it
+	// stands here and not further down among the services that need each other.
 	adminHandler.SetActivityStore(activity.NewStore(database))
 	aiServer := ai.NewServer(aiTokens, "Holzcloud CMS", slog.Default(), ai.Tools(ai.Deps{
 		Domains: domainStore, Pages: pageStore, Media: mediaStore, Fields: field.NewStore(database),
@@ -315,16 +312,16 @@ func main() {
 
 	pluginStore := plugin.NewStore(database)
 	var pluginManager *plugin.Manager
-	// Ausserhalb des Blocks, weil zwei der Host-Funktionen den öffentlichen
-	// Handler brauchen, den es hier noch nicht gibt. Sie werden weiter unten
-	// nachgereicht; ein Plugin ruft sie erst in einem Haken auf, also nie vorher.
+	// Outside the block, because two of the host functions need the public
+	// handler, which does not exist yet here. They are supplied further down; a
+	// plugin only calls them inside a hook, so never before then.
 	var pluginRT *plugin.Runtime
 	if pluginRuntime, err := plugin.NewRuntime(context.Background(), pluginStore, slog.Default()); err != nil {
 		slog.Error("plugin runtime unavailable", "err", err)
 	} else {
-		// Ein Plugin darf die Einstellungen einer Website lesen, wenn es die
-		// Berechtigung hat. Als Funktion hineingereicht, damit das Plugin-Paket
-		// nicht vom Domain-Paket abhängt und die beiden getrennt prüfbar bleiben.
+		// A plugin may read a website's settings if it has the permission.
+		// Handed in as a function, so that the plugin package does not depend
+		// on the domain package and the two stay separately testable.
 		pluginRuntime.WithSettings(func(ctx context.Context, websiteID int64) (plugin.SettingsResult, error) {
 			ws, err := domainStore.GetWebsite(ctx, websiteID)
 			if err != nil || ws == nil {
@@ -378,7 +375,7 @@ func main() {
 		})
 	}
 
-	// Wer welche Website betreten darf, brauchen Umschalter und Router.
+	// Who may enter which website is needed by both the switcher and the router.
 	userStore := user.NewStore(database, argon2Params)
 
 	readiness := web.NewReadinessProbe(Version, Commit, integrity)
@@ -477,19 +474,19 @@ func main() {
 			Fn:    func(ctx context.Context) error { return sessionStore.DeleteExpired(ctx) },
 		},
 		jobs.Job{
-			// Bilder, die ohne Masse in der Datenbank stehen, bekommen sie
-			// nachgetragen — samt der verkleinerten Fassungen.
+			// Images that stand in the database without their dimensions get
+			// them filled in afterwards — along with the scaled copies.
 			//
-			// Der Weg über das Hochladen misst jedes Bild; der Weg über ein
-			// eingespieltes Archiv tat es nie. Auf einer so entstandenen
-			// Website hat kein Bild Breite und Höhe im HTML, das Layout springt
-			// beim Nachladen, und es gibt kein srcset — ein Handy lädt jedes
-			// Original in voller Grösse.
+			// The upload path measures every image; the path through an
+			// imported archive never did. On a website built that way no image
+			// has a width and a height in the HTML, the layout jumps while
+			// loading, and there is no srcset — a phone loads every original at
+			// full size.
 			//
-			// Beim Start und danach stündlich: der Start bringt eine
-			// bestehende Installation in Ordnung, der Takt fängt ein, was ein
-			// späterer Import hinterlässt. Sobald nichts mehr fehlt, ist der
-			// Lauf eine Abfrage ohne Treffer.
+			// At start-up and hourly afterwards: the start brings an existing
+			// installation into order, the rhythm catches what a later import
+			// leaves behind. Once nothing is missing any more, the run is a
+			// query with no hits.
 			Name:       "media-backfill",
 			Every:      time.Hour,
 			RunAtStart: true,
@@ -507,17 +504,17 @@ func main() {
 			Fn:    func(ctx context.Context) error { return db.Maintain(ctx, database) },
 		},
 		jobs.Job{
-			// Häufig, weil eine Einladung, die eine Minute später ankommt, in
-			// Ordnung ist, und eine, die eine Stunde später ankommt, nicht.
+			// Often, because an invitation arriving a minute later is fine, and
+			// one arriving an hour later is not.
 			Name:  "mail-send",
 			Every: 30 * time.Second,
 			Fn:    mailQueue.Flush,
 		},
 		jobs.Job{
 			Name: "outbox-dispatch",
-			// Eine Minute ist der Kompromiss: die Bestätigung soll ankommen,
-			// solange die Kundin noch am Bildschirm sitzt, aber ein Mailserver
-			// muss nicht im Sekundentakt angeklopft bekommen.
+			// A minute is the compromise: the confirmation should arrive while
+			// the customer is still at the screen, but a mail server does not
+			// need to be knocked on every second.
 			Every: time.Minute,
 			Fn:    (&outbox.Dispatcher{Store: outboxStore, Sender: outboxSender{mailSender}}).Run,
 		},
@@ -707,8 +704,8 @@ type routerDeps struct {
 	setupGuard     func(http.Handler) http.Handler
 	domainResolver *domain.Resolver
 	domainStore    *domain.Store
-	// userStore beantwortet, wer welche Website betreten darf. Nil hiesse: die
-	// Einschränkung greift nicht, also wird sie hier immer gesetzt.
+	// userStore answers who may enter which website. Nil would mean the
+	// restriction does not bite, so it is always set here.
 	userStore *user.Store
 	pageStore *page.Store
 	menuStore *menu.Store
@@ -729,15 +726,15 @@ type routerDeps struct {
 	publicDefaultFS fs.FS
 	readiness       *web.ReadinessProbe
 	clientIP        *web.ClientIPResolver
-	// plugins darf nil sein: dann gibt es keine Haken und keine Plugin-Seiten,
-	// und alles verhält sich wie vor dem Plugin-System.
+	// plugins may be nil: then there are no hooks and no plugin pages, and
+	// everything behaves as it did before the plugin system.
 	plugins *plugin.Manager
-	// pluginRT bekommt hier die Host-Funktionen, die den öffentlichen Handler
-	// brauchen. Nil, wenn die Laufzeit nicht hochkam.
+	// pluginRT gets the host functions that need the public handler here. Nil
+	// when the runtime did not come up.
 	pluginRT  *plugin.Runtime
 	mailQueue *mail.Queue
-	// aiServer beantwortet MCP unter /ai. Nil hiesse: kein Anschluss für einen
-	// Assistenten, und die Adresse gibt es dann nicht.
+	// aiServer answers MCP under /ai. Nil would mean no connection for an
+	// assistant, and then the address does not exist.
 	aiServer *ai.Server
 }
 
@@ -799,13 +796,13 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// Site-level and template administration is admin-only; editors keep full
 	// access to content (pages, menus, media).
 	requireAdmin := auth.RequireAdmin(sm)
-	// Wer nur für eine Website zuständig ist, kommt auch nur dort hinein. Eine
-	// Prüfung über der ganzen Verwaltung statt in sechzig Handlern — siehe
+	// Whoever is responsible for one website only gets into that one only. One
+	// check over the whole admin rather than in sixty handlers — see
 	// RequireWebsiteAccess.
 	requireWebsite := auth.RequireWebsiteAccess(sm, admin.NewWebsiteAccessLookup(database))
-	// Vor den wenigen Knöpfen, die etwas zerstören, das keine Sicherung
-	// zurückholt: noch einmal das Passwort. Absichtlich wenige — eine
-	// Rückfrage, die überall kommt, liest niemand mehr.
+	// Before the few buttons that destroy something no backup brings back: the
+	// password once more. Deliberately few — a confirmation that comes up
+	// everywhere is one nobody reads any more.
 	requireFresh := auth.RequireFreshPassword(sm)
 
 	mux := http.NewServeMux()
@@ -828,14 +825,13 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	}
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assetsFS))))
 
-	// Der Anschluss für einen KI-Assistenten.
+	// The connection for an AI assistant.
 	//
-	// Ausserhalb des CSRF-Schutzes und ausserhalb der Sitzung, und beides mit
-	// Absicht: hier meldet sich kein Browser an, sondern ein Programm mit einem
-	// Schlüssel im Kopf der Anfrage. Ein Formular kann diesen Kopf nicht setzen,
-	// also kann eine fremde Seite diese Adresse auch nicht im Namen eines
-	// angemeldeten Benutzers aufrufen — die Lücke, gegen die CSRF sonst schützt,
-	// gibt es hier gar nicht.
+	// Outside the CSRF protection and outside the session, and both
+	// deliberately: what signs in here is not a browser but a program with a
+	// key in the request header. A form cannot set that header, so another
+	// site cannot call this address in a signed-in user's name either — the
+	// hole CSRF otherwise protects against does not exist here.
 	if d.aiServer != nil {
 		mux.Handle("/ai", d.aiServer)
 	}
@@ -900,8 +896,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("PUT /admin/websites/{id}/pages/{pageID}/title", adminHandler.ErrHandler(adminHandler.HandlePageInlineEditSave))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/preview", adminHandler.ErrHandler(adminHandler.HandlePagePreview))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/bulk", adminHandler.ErrHandler(adminHandler.HandlePageBulk))
-	// Die Liste, wie eine bestimmte Person sie braucht: eigene Spalten und
-	// gemerkte Filter. Beides gehört zu ihr, nicht zur Website.
+	// The list as one particular person needs it: their own columns and
+	// remembered filters. Both belong to them, not to the website.
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/spalten", adminHandler.ErrHandler(adminHandler.HandlePageColumns))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/ansichten", adminHandler.ErrHandler(adminHandler.HandleSavedViewCreate))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/ansichten/{viewID}/loeschen", adminHandler.ErrHandler(adminHandler.HandleSavedViewDelete))
@@ -949,8 +945,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/bestellungen", adminHandler.ErrHandler(adminHandler.HandleOrderList))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/bestellungen/{number}", adminHandler.ErrHandler(adminHandler.HandleOrderDetail))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/bestellungen/{number}", adminHandler.ErrHandler(adminHandler.HandleOrderDetail))
-	// Rechnung und Lieferschein zum Ausdrucken. Eine eigene Seite ohne die
-	// Navigation des Admin-Bereichs, die auf Papier nichts verloren hat.
+	// Invoice and delivery note for printing. A page of its own without the
+	// admin's navigation, which has no business on paper.
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/bestellungen/{number}/{kind}", adminHandler.ErrHandler(adminHandler.HandleOrderDocument))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
@@ -990,31 +986,30 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.Handle("GET /admin/websites/{id}/export", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteExport))))
 	adminProtectedMux.Handle("POST /admin/websites/import", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteImport))))
 	adminProtectedMux.Handle("POST /admin/websites/import-wordpress", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWordPressImport))))
-	// Der CSV-Import. Bildschirm 1 steht hier neben seinen beiden Geschwistern;
-	// jeder Bildschirm mit einer Marke liegt unter /admin/csv-import/{token},
-	// weil /admin/websites/import-csv/{token} mit
-	// GET /admin/websites/{id}/pages kollidiert und newRouter beim Start
-	// abstuerzen liesse (D-36).
+	// The CSV import. Screen 1 stands here beside its two siblings; every
+	// screen with a token lies under /admin/csv-import/{token}, because
+	// /admin/websites/import-csv/{token} collides with
+	// GET /admin/websites/{id}/pages and would make newRouter crash at start-up
+	// (D-36).
 	adminProtectedMux.Handle("POST /admin/websites/import-csv", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVImport))))
 	adminProtectedMux.Handle("GET /admin/csv-import/{token}", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVMapping))))
 	adminProtectedMux.Handle("POST /admin/csv-import/{token}/probe", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVDryRun))))
 	adminProtectedMux.Handle("POST /admin/csv-import/{token}/start", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVStart))))
-	// Die Beispieldatei haengt NICHT an der Marke (D-37): sie hilft beim
-	// Schreiben der Datei und muss deshalb erreichbar sein, bevor etwas
-	// hochgeladen ist. Ein GET wie alle fuenf bestehenden Downloads (D-34).
+	// The example file does NOT hang off the token (D-37): it helps in writing
+	// the file and therefore has to be reachable before anything is uploaded. A
+	// GET like all five existing downloads (D-34).
 	adminProtectedMux.Handle("GET /admin/csv-vorlage", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleCSVExample))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/design/tokens", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteTokens))))
-	// Eigene Felder. Wer sie ändert, ändert, woraus die Seiten dieser Website
-	// bestehen — das ist Verwaltersache, nicht Redaktion.
-	// Eigene Inhaltsarten. Wie die Felder ein Bildschirm für den, der die
-	// Website einrichtet, nicht für den, der sie füllt.
+	// Fields of one's own. Whoever changes them changes what this website's
+	// pages are made of — that is an administrator's business, not an editor's.
+	// Content kinds of one's own. Like the fields, a screen for whoever
 	adminProtectedMux.Handle("GET /admin/websites/{id}/inhaltsarten", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleKindList))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/inhaltsarten", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleKindSave))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/inhaltsarten/{kindID}/loeschen", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleKindDelete))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/inhaltsarten/{kindID}/verschieben", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleKindMove))))
 
-	// Eigene Bausteinarten. Wie die Inhaltsarten dem Administrator vorbehalten:
-	// eine Bausteinart ist eine Zusage an jedes Theme dieser Website.
+	// Block kinds of one's own. Reserved for the administrator like the content
+	// kinds: a block kind is a promise to every theme of this website.
 	adminProtectedMux.Handle("GET /admin/websites/{id}/bausteinarten", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleBlockTypeList))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/bausteinarten", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleBlockTypeSave))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/bausteinarten/{typeID}/loeschen", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleBlockTypeDelete))))
@@ -1048,19 +1043,19 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/users/{id}/password", adminHandler.ErrHandler(adminHandler.HandlePasswordChange))
 
 	// Template routes
-	// Plugins. Einspielen, Ein- und Ausschalten und Entfernen sind
-	// Administratorensache: es ist Code, der auf dem Server läuft, und das ist
-	// keine redaktionelle Entscheidung.
-	// Für Verwalter, nicht für Redakteure: hier steht die Anschrift des
-	// Mailservers, und der Testversand geht zwar nur an einen selbst, sagt aber
-	// aus, ob die Einrichtung steht.
+	// Plugins. Installing, switching on and off and removing are an
+	// administrator's business: it is code that runs on the server, and that is
+	// not an editorial decision.
+	// For administrators, not for editors: the mail server's address stands
+	// here, and although the test send only goes to yourself it says whether
+	// the setup stands.
 	adminProtectedMux.Handle("GET /admin/mail", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleMailStatus))))
 	adminProtectedMux.Handle("POST /admin/mail/test", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleMailTest))))
 	adminProtectedMux.Handle("POST /admin/mail/retry", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleMailRetry))))
 
-	// KI-Zugang. Einen Schlüssel auszustellen heisst, einem Programm auf einem
-	// fremden Rechner das Schreiben auf dieser Website zu erlauben — das ist
-	// Verwaltersache und keine redaktionelle Entscheidung.
+	// AI access. Issuing a key means allowing a program on somebody else's
+	// machine to write on this website — that is an administrator's business
+	// and not an editorial decision.
 	adminProtectedMux.Handle("GET /admin/ai", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIKeys))))
 	adminProtectedMux.Handle("POST /admin/ai/keys", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIKeyCreate)))))
 	adminProtectedMux.Handle("POST /admin/ai/keys/{id}/revoke", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIKeyRevoke))))
@@ -1069,8 +1064,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.Handle("POST /admin/plugins/{id}/enable", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginEnable))))
 	adminProtectedMux.Handle("POST /admin/plugins/{id}/websites", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginWebsites))))
 	adminProtectedMux.Handle("POST /admin/plugins/{id}/remove", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginRemove)))))
-	// Der eigene Bildschirm eines Plugins steht auch der Redaktion offen, wenn
-	// das Manifest nichts anderes sagt: dort wird Inhalt gepflegt.
+	// A plugin's own screen is open to editors too, unless the manifest says
+	// otherwise: content is maintained there.
 	adminProtectedMux.HandleFunc("GET /admin/plugins/{id}/bildschirm", adminHandler.ErrHandler(adminHandler.HandlePluginScreen))
 	adminProtectedMux.HandleFunc("POST /admin/plugins/{id}/bildschirm", adminHandler.ErrHandler(adminHandler.HandlePluginScreen))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{websiteID}/plugins/{id}", adminHandler.ErrHandler(adminHandler.HandlePluginScreen))
@@ -1087,12 +1082,12 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.Handle("POST /admin/templates/{id}/deactivate", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleTemplateDeactivate))))
 	adminProtectedMux.Handle("POST /admin/templates/{id}/delete", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleTemplateDelete))))
 
-	// Die Sprachen der Verwaltung. Nur für Administratoren: eine Sprachdatei
-	// wirkt auf alle Bildschirme aller Benutzer.
-	// Die Marke der Anlage: Name, Zeichen, Logo.
+	// The admin's languages. Administrators only: a language file affects every
+	// screen of every user.
+	// The installation's brand: name, mark, logo.
 	adminProtectedMux.Handle("GET /admin/protokoll", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleActivityList))))
-	// Das Aufräumen entfernt die Spur der übrigen Handlungen. Es ist deshalb
-	// die eine Stelle im Protokoll, die das Passwort noch einmal verlangt.
+	// Sweeping removes the trace of the other actions. It is therefore the one
+	// place in the log that asks for the password again.
 	adminProtectedMux.Handle("POST /admin/protokoll/aufraeumen", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleActivityPurge)))))
 	adminProtectedMux.Handle("GET /admin/marke", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleBranding))))
 	adminProtectedMux.Handle("POST /admin/marke", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleBranding))))
@@ -1106,10 +1101,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// Wire middleware: admin security headers wrap CSRF, setupGuard wraps both,
 	// RequireAuth wraps protected only.
 	// Public admin: headers -> CSRF -> setupGuard -> handler
-	// Die Sprache liegt ganz aussen, auch vor der Anmeldung: der Anmeldebildschirm
-	// ist genau der Ort, an dem eine unlesbare Sprache am schlimmsten ist — von
-	// dort führt kein Weg zu einer Einstellung. Hier kennt niemand einen
-	// Benutzer, also entscheidet Accept-Language.
+	// The language sits right on the outside, before signing in too: the
+	// sign-in screen is exactly the place where an unreadable language is worst
+	// — from there no path leads to a setting. Nobody knows a user here, so
+	// Accept-Language decides.
 	adminPublic := i18n.Middleware(nil)(web.AdminHeaders(csrfMiddleware(setupGuard(adminPublicMux))))
 	mux.Handle("/admin/login", adminPublic)
 	mux.Handle("/admin/login/", adminPublic)
@@ -1119,26 +1114,26 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	mux.Handle("/admin/reset/", adminPublic)
 	mux.Handle("/admin/setup", adminPublic)
 	mux.Handle("/admin/setup/", adminPublic)
-	// Die Navigation braucht auf jedem Bildschirm dieselben zwei Dinge: welche
-	// Websites es gibt und an welcher gerade gearbeitet wird. Einmal hier
-	// geholt statt in dreissig Handlern — sonst zeigt die Seitenleiste die
-	// Abschnitte einer Website nur dort, wo der Handler zufällig eine kennt.
-	// Innen, hinter requireAuth: wer nicht angemeldet ist, braucht keine Liste.
+	// The navigation needs the same two things on every screen: which websites
+	// there are and which one is being worked on. Fetched here once rather than
+	// in thirty handlers — otherwise the sidebar shows a website's sections
+	// only where the handler happens to know one.
+	// Inside, behind requireAuth: whoever is not signed in needs no list.
 	var listWebsites func(context.Context) ([]domain.Website, error)
 	if d.domainStore != nil {
-		// Nicht die blosse Liste: der Umschalter zeigt nur, was diese Person
-		// auch betreten darf — sonst führt jeder zweite Eintrag auf ein 403.
+		// Not the bare list: the switcher shows only what this person may
+		// actually enter — otherwise every second entry leads to a 403.
 		listWebsites = admin.NewNavWebsiteList(sm, d.domainStore, d.userStore)
 	}
 	withNav := web.WithNav(sm, listWebsites, pluginNavLinks(d.plugins))
 
-	// Die eigene Sprache des angemeldeten Menschen. Innerhalb von requireAuth,
-	// weil vorher niemand weiss, wer da liest; wer nichts gewählt hat, bekommt
-	// wieder das, was der Browser mitbringt.
+	// The signed-in person's own language. Inside requireAuth, because before
+	// that nobody knows who is reading; whoever has chosen nothing gets what
+	// the browser brings along again.
 	//
-	// Die Sprache gehört zum Menschen, nicht zur Website: auf derselben Website
-	// arbeiten eine deutsche Redaktorin und ein englischsprachiger Entwickler,
-	// und beide sollen ihre eigene Verwaltung sehen.
+	// The language belongs to the person, not to the website: a German editor
+	// and an English-speaking developer work on the same website, and both
+	// should see their own admin.
 	withLang := i18n.Middleware(admin.NewLanguageLookup(sm, database))
 
 	// Protected admin: headers -> CSRF -> setupGuard -> forward auth -> requireAuth -> language -> website access -> nav -> handler
@@ -1153,25 +1148,25 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// feature is switched off in an emergency.
 	mux.Handle("/admin/", web.AdminHeaders(csrfMiddleware(setupGuard(adminHandler.ForwardAuthSignIn(requireAuth(requireSecondFactor(withLang(requireWebsite(withNav(adminProtectedMux))))))))))
 
-	// Das Logo der Anlage. Öffentlich wie die Beigaben: es steht auch auf dem
-	// Anmeldebildschirm, und wer den sieht, darf auch das Bild darauf sehen.
+	// The installation's logo. Public like the assets: it stands on the sign-in
+	// screen too, and whoever sees that may see the picture on it.
 	mux.HandleFunc("GET /admin/marke/logo", adminHandler.ErrHandler(adminHandler.HandleBrandingLogo))
 
 	// Media serve (public, no auth)
 	mux.HandleFunc("GET /media/{websiteID}/{filename}", adminHandler.ErrHandler(adminHandler.HandleMediaServe))
-	// Beigaben eines Plugins. Eigener Pfad statt /assets, damit ein Plugin die
-	// Dateien des Kerns nicht überschatten kann.
+	// A plugin's assets. A path of their own rather than /assets, so that a
+	// plugin cannot shadow the core's files.
 	mux.HandleFunc("GET /plugin-assets/{id}/{path...}", adminHandler.ErrHandler(adminHandler.HandlePluginAsset))
 
 	// Public site handler and routes
 	publicHandler := public.NewHandler(pageStore, menuStore, mediaStore, snippetStore, templateLoader, domainResolver, cfg.DataDir, publicDefaultFS, cfg.Secure)
-	// Der Manager entsteht weiter oben, weil die Verwaltung ihn schon braucht;
-	// hier bekommt ihn die öffentliche Seite. Ist er nil, verhält sich alles
-	// wie vor den Plugins.
+	// The manager is built further up, because the admin already needs it; here
+	// the public side gets it. If it is nil, everything behaves as it did
+	// before the plugins.
 	publicHandler.SetPlugins(d.plugins)
-	// Zwei Host-Funktionen brauchen den öffentlichen Handler: Seiten lesen und
-	// eine Seite im Theme der Website ausgeben. Erst hier gibt es ihn, und ein
-	// Plugin ruft sie ohnehin frühestens in einem Haken auf.
+	// Two host functions need the public handler: reading pages and rendering a
+	// page in the website's theme. Only here does it exist, and a plugin calls
+	// them inside a hook at the earliest anyway.
 	publicHandler.SetNotify(d.domainStore, d.mailQueue)
 	if d.pluginRT != nil {
 		d.pluginRT.WithPages(publicHandler.PagesForPlugin)
@@ -1228,20 +1223,20 @@ func newRouter(d routerDeps) (http.Handler, error) {
 
 	// Public routes: domain resolver middleware wraps public mux
 	// Registered AFTER admin routes so /admin/ takes priority
-	// Die Plugin-Schicht liegt innerhalb des Auflösers (die Website ist also
-	// bekannt) und ausserhalb des Verteilers (ein Plugin kann also eine Adresse
-	// beanspruchen, die der Kern gar nicht kennt).
-	// Die Sprachschicht liegt zwischen Auflöser und Plugins: sie braucht die
-	// Website (welche Präfixe Sprachen sind, hängt an ihr), und ein Plugin soll
-	// unter /fr/… dieselbe Adresse sehen wie unter /… — sonst müsste jedes
-	// Plugin die Mehrsprachigkeit selbst kennen.
+	// The plugin layer lies inside the resolver (so the website is known) and
+	// outside the router (so a plugin can claim an address the core does not
+	// know at all).
+	// The language layer lies between resolver and plugins: it needs the
+	// website (which prefixes are languages hangs off it), and a plugin should
+	// see the same address under /fr/… as under /… — otherwise every plugin
+	// would have to know about multilingualism itself.
 	//
-	// Die Shop-Schicht sitzt zuinnerst, direkt vor dem Verteiler: die Adresse
-	// des Katalogs ist eine Einstellung der Website und steht deshalb nicht in
-	// der Routentabelle — als Muster wäre sie "/{base}/{slug}" und würde mit
-	// "/t/{path...}" kollidieren, was Gos mux beim Start mit einem panic
-	// quittiert. Das erste Segment gegen die Einstellung der Website zu
-	// prüfen ist, was der Aufruf wirklich braucht.
+	// The shop layer sits innermost, right before the router: the catalogue's
+	// address is a setting of the website and therefore does not stand in the
+	// route table — as a pattern it would be "/{base}/{slug}" and would collide
+	// with "/t/{path...}", which Go's mux answers at start-up with a panic.
+	// Checking the first segment against the website's setting is what the call
+	// really needs.
 	mux.Handle("/", domainResolver.Middleware(public.LocaleMiddleware(publicHandler.PluginMiddleware(publicHandler.ShopRoutes(publicMux)))))
 
 	// Outermost first: the forward-auth strip, then an id for every request,
