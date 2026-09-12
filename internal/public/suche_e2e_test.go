@@ -24,7 +24,7 @@ import (
 // von aussen ununterscheidbar bleibt: dieselbe Adresse, dieselbe Ansicht des
 // Themes, dieselben Kopfzeilen.
 func TestSuchePluginBeantwortetSuche(t *testing.T) {
-	modul := wasmtest.Modul(t, "../../plugins/suche/plugin.wasm")
+	module := wasmtest.Module(t, "../../plugins/suche/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/suche/plugin.json")
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 	seedPage(t, database, ws.ID, "Noch nicht fertig", "entwurf",
 		"Auch hier steht Wolle, aber die Seite ist ein Entwurf.", "draft")
 
-	h.SetPlugins(loadPlugin(t, h, database, manifest, modul, ws.ID))
+	h.SetPlugins(loadPlugin(t, h, database, manifest, module, ws.ID))
 
 	// Die Anfrage geht durch dieselbe Middleware wie im Server: der Auflöser
 	// hat die Website schon gesetzt, der Mux käme erst danach.

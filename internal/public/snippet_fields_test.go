@@ -339,7 +339,7 @@ func TestSnippetFieldsOnSeveralRoutes(t *testing.T) {
 //
 // The .Site.Snippets half was open before that; the two new members inherited
 // the gap on the day they were introduced.
-func TestBausteinfelderAufDenRoutenOhneSeite(t *testing.T) {
+func TestSnippetFieldsOnTheRoutesWithoutAPage(t *testing.T) {
 	h, database, ws := snippetFixture(t)
 	_ = database
 

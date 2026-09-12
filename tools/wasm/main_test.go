@@ -36,7 +36,7 @@ func TestPackerAndFormatAgreeOnTheirNames(t *testing.T) {
 func TestPackedArchiveRoundTripsThroughReadPackage(t *testing.T) {
 	quelle := t.TempDir()
 	manifest := []byte(`{"id":"pruef","abi":1,"name":"Pruefung","version":"1.0.0","hooks":["content"]}`)
-	modul := []byte("\x00asm\x01\x00\x00\x00")
+	module := []byte("\x00asm\x01\x00\x00\x00")
 
 	schreiben(t, filepath.Join(quelle, "assets", "stil.css"), []byte("b{color:red}"))
 	schreiben(t, filepath.Join(quelle, "assets", "tief", "bild.svg"), []byte("<svg/>"))
@@ -44,7 +44,7 @@ func TestPackedArchiveRoundTripsThroughReadPackage(t *testing.T) {
 	// Source that must NOT be packed: it is not part of the format.
 	schreiben(t, filepath.Join(quelle, "main.go"), []byte("package main"))
 
-	archiv, err := packen(quelle, manifest, modul)
+	archiv, err := packen(quelle, manifest, module)
 	if err != nil {
 		t.Fatalf("packen: %v", err)
 	}
@@ -54,8 +54,8 @@ func TestPackedArchiveRoundTripsThroughReadPackage(t *testing.T) {
 		t.Fatalf("ReadPackage rejected an archive this tool produced: %v", err)
 	}
 
-	if !bytes.Equal(pkg.Module, modul) {
-		t.Errorf("module changed in transit: %d bytes in, %d out", len(modul), len(pkg.Module))
+	if !bytes.Equal(pkg.Module, module) {
+		t.Errorf("module changed in transit: %d bytes in, %d out", len(module), len(pkg.Module))
 	}
 	for name, want := range map[string]string{
 		"stil.css":      "b{color:red}",
@@ -88,16 +88,16 @@ func TestPackedArchiveRoundTripsThroughReadPackage(t *testing.T) {
 func TestPackingTwiceProducesTheSameBytes(t *testing.T) {
 	quelle := t.TempDir()
 	manifest := []byte(`{"id":"pruef","abi":1,"name":"Pruefung","version":"1.0.0","hooks":["content"]}`)
-	modul := []byte("\x00asm\x01\x00\x00\x00")
+	module := []byte("\x00asm\x01\x00\x00\x00")
 	schreiben(t, filepath.Join(quelle, "assets", "b.css"), []byte("b{}"))
 	schreiben(t, filepath.Join(quelle, "assets", "a.css"), []byte("a{}"))
 	schreiben(t, filepath.Join(quelle, "migrations", "0001_x.sql"), []byte("SELECT 1;"))
 
-	erst, err := packen(quelle, manifest, modul)
+	erst, err := packen(quelle, manifest, module)
 	if err != nil {
 		t.Fatalf("packen: %v", err)
 	}
-	zweit, err := packen(quelle, manifest, modul)
+	zweit, err := packen(quelle, manifest, module)
 	if err != nil {
 		t.Fatalf("packen: %v", err)
 	}

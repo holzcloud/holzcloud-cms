@@ -112,22 +112,20 @@ func (h *Handler) ownFields(r *http.Request, websiteID int64, pg *page.Page) (ma
 
 // fillSnippets writes all three snippet members of SiteData.
 //
-// Der einzige Ort im Baum, an dem Snippets, Bausteinfelder und Bausteinliste
-// an eine SiteData geschrieben werden, und das ist keine Ordnungsliebe: die
-// Zuweisung stand an vierzehn Stellen in zehn Dateien, und ein Mitglied, das
-// an dreizehn davon gefüllt wird, ist auf der vierzehnten unsichtbar — die
-// Seite erscheint, das Theme druckt an einer Stelle nichts, nichts wird
-// protokolliert, und niemand erfährt davon ausser einem Besucher. Deshalb eine
-// Funktion und vierzehn Aufrufe, und deshalb ein Gatter im Plan, das
-// nachweist, dass ausserhalb dieser Funktion keine Zuweisung überlebt hat.
+// The only place in the tree where Snippets, SnippetFields and SnippetList are
+// written onto a SiteData, and that is not tidiness: the assignment stood in
+// fourteen places in ten files, and a member that is filled in thirteen of them
+// is invisible in the fourteenth — the page appears, the theme prints nothing
+// in one place, nothing is logged, and nobody learns of it but a visitor. Hence
+// one function and fourteen calls, and hence a gate in the plan that shows no
+// assignment survived outside this function.
 //
-// Was jenes Gatter nicht sehen kann, ist die entgegengesetzte Lücke: eine
-// Route, die weder das eine noch das andere tut. Drei taten es —
-// renderNotFound, serveShareError und HandleMaintenance —, und sie fielen
-// nirgends auf, weil index über eine nil-Karte die leere Zeichenkette gibt und
-// range über eine keine Runde dreht. Dagegen steht keine Zählung, sondern
-// TestBausteinfelderAufDenRoutenOhneSeite: es zeichnet die drei Ansichten und
-// liest den Wert aus dem Körper.
+// What that gate cannot see is the opposite gap: a route that does neither the
+// one nor the other. Three did — renderNotFound, serveShareError and
+// HandleMaintenance — and they were noticed nowhere, because index over a nil
+// map gives the empty string and range over one takes no turn. Against that
+// stands no count but TestSnippetFieldsOnTheRoutesWithoutAPage: it draws the
+// three views and reads the value out of the body.
 //
 // Resolved on the way out rather than stored resolved: a picture chosen last
 // month has to pick up this month's crop, and a field whose definition changed
@@ -139,15 +137,15 @@ func (h *Handler) fillSnippets(r *http.Request, site *tmpl.SiteData, websiteID i
 	if h.fieldStore == nil {
 		return
 	}
-	// Eine Website ohne einen einzigen Textbaustein zahlt keine Abfrage: sie
-	// baut ihre Seiten auf wie vor dieser Phase, nur eben mit drei leeren
-	// Karten statt mit dreien, die es nicht gibt.
+	// A website without a single snippet pays for no query: it builds its pages
+	// as it did before this phase, only with three empty maps instead of three
+	// that do not exist.
 	if len(rendered.IDs) == 0 {
 		return
 	}
-	// Eine Abfrage für alle Textbausteine dieser Website und keine je
-	// Textbaustein: das hier läuft auf jedem öffentlichen Aufbau einer Seite,
-	// und eine Website mit fünf Textbausteinen zahlte sonst fünf Umläufe.
+	// One query for all snippets of this website and not one per snippet: this
+	// runs on every public build of a page, and a website with five snippets
+	// would otherwise pay five round trips.
 	alle, err := h.fieldStore.OfSnippets(r.Context(), websiteID)
 	if err != nil {
 		slog.Error("load snippet fields", "err", err, "website", websiteID)
@@ -161,16 +159,15 @@ func (h *Handler) fillSnippets(r *http.Request, site *tmpl.SiteData, websiteID i
 	for key, snippetID := range rendered.IDs {
 		defs := alle[snippetID]
 		daten := field.Decode(rendered.Fields[key])
-		// Auch ein Textbaustein ohne eine einzige Definition bekommt seinen
-		// Eintrag — eine leere Karte und keinen fehlenden Schlüssel: ein Theme,
-		// das {{ index .Site.SnippetFields "kontakt" "telefon" }} schreibt,
-		// soll auf einer Website, auf der noch niemand ein Feld angelegt hat,
-		// nichts drucken statt zu scheitern.
+		// A snippet without a single definition gets its entry too — an empty
+		// map and not a missing key: a theme that writes
+		// {{ index .Site.SnippetFields "kontakt" "telefon" }} should print
+		// nothing, rather than fail, on a website where nobody has created a
+		// field yet.
 		site.SnippetFields[key] = field.Resolve(defs, daten, links)
-		// Nur eingetragen, wenn wirklich etwas gefüllt ist: field.List gibt
-		// keinen leeren Eintrag heraus, und ein Schlüssel, hinter dem eine
-		// leere Liste steht, wäre für ein Theme nicht von einem gefüllten zu
-		// unterscheiden.
+		// Entered only when something is really filled: field.List hands out no
+		// empty entry, and a key behind which an empty list stands would be
+		// indistinguishable from a filled one to a theme.
 		if liste := field.List(defs, daten, links); len(liste) > 0 {
 			site.SnippetList[key] = liste
 		}
@@ -266,11 +263,10 @@ func (h *Handler) fieldTerms(r *http.Request, websiteID int64) field.TermLookup 
 				slog.Error("load website terms", "err", err, "website", websiteID)
 			}
 			for _, t := range list {
-				// Dieselbe Adresse mit demselben Sprachpräfix, das die
-				// Schlagwortlinks auf dem Rest der Seite bekommen. Die
-				// Adresse selbst kommt von Term.URL und steht hier deshalb
-				// nicht ein zweites Mal ausgeschrieben — zwei Schreibweisen
-				// derselben Adresse laufen irgendwann auseinander.
+				// The same address with the same language prefix the term links
+				// get on the rest of the page. The address itself comes from
+				// Term.URL and is therefore not written out a second time here
+				// — two spellings of the same address drift apart eventually.
 				bySlug[t.Slug] = field.Term{Name: t.Name, Slug: t.Slug, URL: prefix + t.URL()}
 			}
 		}
@@ -331,9 +327,9 @@ func (h *Handler) responsive(r *http.Request, websiteID int64, body string) stri
 
 // loadSnippets fetches the expansion map for a website.
 //
-// Die drei Karten sind auch in den beiden Ausweichfällen angelegt und nie nil:
-// ein Aufrufer soll nicht wissen müssen, ob er den geglückten oder den
-// missglückten Weg in der Hand hält.
+// The three maps are created in both fallback cases as well and are never nil:
+// a caller should not have to know whether it holds the path that worked or the
+// one that did not.
 func (h *Handler) loadSnippets(r *http.Request, websiteID int64) snippet.Rendered {
 	if h.snippetStore == nil {
 		return leereBausteine()
@@ -537,12 +533,11 @@ func (h *Handler) HandleMaintenance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	site := h.siteData(r, website)
-	// Auch hier, und das ist eine Entscheidung und keine Gleichmacherei: eine
-	// abgeschaltete Website führt eine Abfrage weniger gern aus, aber die
-	// Wartungsseite ist die einzige Seite, die ein Besucher in dieser Zeit
-	// überhaupt zu sehen bekommt — und die Zeile, die er dort sucht, ist die
-	// Telefonnummer. Eine Abfrage je Anfrage, auf einer Seite, die niemand
-	// oft abruft.
+	// Here too, and that is a decision and not levelling: a switched-off
+	// website runs one more query less gladly, but the maintenance page is the
+	// only page a visitor gets to see at all during that time — and the line
+	// they are looking for there is the telephone number. One query per
+	// request, on a page nobody fetches often.
 	h.fillSnippets(r, &site, website.ID, h.loadSnippets(r, website.ID))
 	content, err := h.loader.RenderMaintenance(r.Context(), website.ID, site, website.OfflineMessage)
 	if err != nil {

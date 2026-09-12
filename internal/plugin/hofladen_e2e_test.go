@@ -17,11 +17,11 @@ import (
 
 // The farm shop from plugins/bestellung, against the real runtime.
 //
-// Er ist das erste Plugin, das die eigenen Felder einer Website liest, und
-// damit der Beweis, dass die Kette hält: Feld in der Verwaltung, Wert an der
-// Seite, Wert im Plugin, Formular auf der Website, Bestellung im Speicher.
+// It is the first plugin that reads a website's own fields, and thereby the
+// proof that the chain holds: field in the admin, value on the page, value in
+// the plugin, form on the website, order in the store.
 func TestHofladenLaeuftDurch(t *testing.T) {
-	modul := wasmtest.Modul(t, "../../plugins/bestellung/plugin.wasm")
+	module := wasmtest.Module(t, "../../plugins/bestellung/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/bestellung/plugin.json")
 	if err != nil {
 		t.Fatal(err)
@@ -43,17 +43,17 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 
 	ctx := context.Background()
 	if err := store.Install(ctx, &plugin.Package{
-		Manifest: m, Module: modul, SHA256: strings.Repeat("c", 64),
+		Manifest: m, Module: module, SHA256: strings.Repeat("c", 64),
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	// Zwei Produkte und eines, das vergriffen ist. Sie kommen aus der
-	// Seitenfunktion des Hosts, wie im Betrieb — mit ihren eigenen Feldern.
+	// Two products and one that is sold out. They come from the host's page
+	// function, as in operation — with their own fields.
 	seiten := func(_ context.Context, websiteID int64, q plugin.PagesQuery) (plugin.PagesResult, error) {
 		if !q.WithFields {
-			// Das Plugin muss die Felder ausdrücklich anfordern; täte es das
-			// nicht, fände es nie ein Produkt, und dieser Test soll das merken.
+			// The plugin has to ask for the fields expressly; if it did not, it
+			// would never find a product, and this test should notice that.
 			return plugin.PagesResult{}, nil
 		}
 		return plugin.PagesResult{Pages: []plugin.PageInfo{
@@ -63,7 +63,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 				Fields: map[string]string{"preis": "7,00", "einheit": "Glas", "verfuegbarkeit": "frisch"}},
 			{ID: 3, Slug: "wolle", Title: "Rohwolle",
 				Fields: map[string]string{"preis": "12,00", "verfuegbarkeit": "vergriffen"}},
-			// Eine Seite ohne Preis ist kein Produkt.
+			// A page without a price is no product.
 			{ID: 4, Slug: "hof", Title: "Der Hof"},
 		}, Total: 4}, nil
 	}
@@ -79,11 +79,11 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		return true, "", nil
 	})
 	defer r.Close(ctx)
-	if err := r.Load(ctx, m, modul); err != nil {
+	if err := r.Load(ctx, m, module); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 
-	// Eine Seite ohne die Marke bleibt unangetastet.
+	// A page without the token stays untouched.
 	var out plugin.ContentOut
 	if err := r.Dispatch(ctx, m.ID, plugin.HookContent, 1,
 		plugin.ContentIn{WebsiteID: 1, HTML: "<p>nichts</p>"}, &out); err != nil {
@@ -93,8 +93,8 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Errorf("a page with no marker was changed: %+v", out)
 	}
 
-	// Mit Marke steht dort das Formular — mit den bestellbaren Produkten und
-	// ohne ein Mengenfeld für das vergriffene.
+	// With the token the form stands there — with the orderable products and
+	// without a quantity field for the one that is sold out.
 	out = plugin.ContentOut{}
 	if err := r.Dispatch(ctx, m.ID, plugin.HookContent, 1,
 		plugin.ContentIn{WebsiteID: 1, Slug: "bestellen", HTML: "<p>[[bestellung]]</p>"}, &out); err != nil {
@@ -103,35 +103,35 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	if !out.Changed {
 		t.Fatal("the marker was not replaced")
 	}
-	for _, nötig := range []string{
+	for _, wanted := range []string{
 		`name="menge_seife"`, `name="menge_joghurt"`,
 		"Schafmilchseife", "8,50", "Rohwolle", "nicht bestellbar",
 	} {
-		if !strings.Contains(out.HTML, nötig) {
-			t.Errorf("%q fehlt im Formular", nötig)
+		if !strings.Contains(out.HTML, wanted) {
+			t.Errorf("%q is missing from the form", wanted)
 		}
 	}
 	if strings.Contains(out.HTML, `name="menge_wolle"`) {
 		t.Error("das vergriffene Produkt hat ein Mengenfeld bekommen")
 	}
-	// Die Seite „Der Hof“ hat keinen Preis und ist deshalb kein Produkt.
+	// The page "Der Hof" has no price and is therefore no product.
 	if strings.Contains(out.HTML, "Der Hof") {
 		t.Error("a page with no price is in the product list")
 	}
-	// Ein Absatz um das Formular wäre ungültiges HTML.
+	// A paragraph around the form would be invalid HTML.
 	if strings.Contains(out.HTML, "<p><div") {
 		t.Error("the form is stuck inside a paragraph")
 	}
 
-	zeitmarke := zwischen(out.HTML, `name="gestellt" value="`, `"`)
+	zeitmarke := between(out.HTML, `name="gestellt" value="`, `"`)
 	if zeitmarke == "" {
 		t.Fatal("keine Zeitmarke im Formular")
 	}
 
-	// Ein sofort abgeschicktes Formular wird abgelehnt: ein Mensch braucht
-	// länger als zwei Sekunden. Erst prüfen, dann warten — sonst liefe der Rest
-	// des Tests in diese Ablehnung und bestünde aus den falschen Gründen.
-	antwortSofort := absenden(t, r, ctx, m.ID, url.Values{
+	// A form submitted at once is refused: a human needs longer than two
+	// seconds. Check first, then wait — otherwise the rest of the test would run
+	// into that refusal and would pass for the wrong reasons.
+	antwortSofort := submit(t, r, ctx, m.ID, url.Values{
 		"seite": {"bestellen"}, "gestellt": {zeitmarke},
 		"name": {"Anna"}, "email": {"anna@example.ch"}, "menge_seife": {"1"},
 	})
@@ -140,8 +140,8 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	}
 	time.Sleep(2100 * time.Millisecond)
 
-	// Ohne Menge wird nichts angenommen.
-	antwort := absenden(t, r, ctx, m.ID, url.Values{
+	// Without a quantity nothing is accepted.
+	antwort := submit(t, r, ctx, m.ID, url.Values{
 		"seite": {"bestellen"}, "gestellt": {zeitmarke},
 		"name": {"Anna"}, "email": {"anna@example.ch"},
 	})
@@ -149,8 +149,8 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Errorf("an order with no quantity was accepted: %+v", antwort)
 	}
 
-	// Ein gefüllter Honigtopf sieht wie ein Erfolg aus und wird verworfen.
-	antwort = absenden(t, r, ctx, m.ID, url.Values{
+	// A filled honeypot looks like a success and is discarded.
+	antwort = submit(t, r, ctx, m.ID, url.Values{
 		"seite": {"bestellen"}, "gestellt": {zeitmarke},
 		"name": {"Bot"}, "email": {"bot@example.ch"},
 		"menge_seife": {"1"}, "website": {"https://spam.example"},
@@ -159,8 +159,8 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Errorf("the honeypot gave itself away: %+v", antwort)
 	}
 
-	// Eine erfundene Zeitmarke wird abgelehnt: sonst wäre sie kein Schutz.
-	antwort = absenden(t, r, ctx, m.ID, url.Values{
+	// An invented time token is refused: otherwise it would be no protection.
+	antwort = submit(t, r, ctx, m.ID, url.Values{
 		"seite": {"bestellen"}, "gestellt": {"1700000000.erfunden"},
 		"name": {"Anna"}, "email": {"anna@example.ch"}, "menge_seife": {"1"},
 	})
@@ -169,7 +169,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	}
 
 	// Und die richtige Bestellung.
-	antwort = absenden(t, r, ctx, m.ID, url.Values{
+	antwort = submit(t, r, ctx, m.ID, url.Values{
 		"seite": {"bestellen"}, "gestellt": {zeitmarke},
 		"name": {"Anna Muster"}, "email": {"anna@example.ch"},
 		"telefon":     {"079 123 45 67"},
@@ -179,7 +179,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Fatalf("the order was not accepted: %+v", antwort)
 	}
 
-	// Der Betreiber wurde benachrichtigt, und die Summe stimmt: 3×8,50 + 2×7,00.
+	// The operator was notified, and the total is right: 3×8.50 + 2×7.00.
 	if len(verschickt) != 1 {
 		t.Fatalf("%d Benachrichtigungen, want 1", len(verschickt))
 	}
@@ -190,8 +190,8 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Errorf("der Name fehlt:\n%s", verschickt[0])
 	}
 
-	// Die Bestellung liegt im Speicher des Plugins — und nur die eine, denn der
-	// Honigtopf-Versuch wurde verworfen.
+	// The order lies in the plugin's store — and only the one, because the
+	// honeypot attempt was discarded.
 	werte, err := store.StoreList(ctx, m.ID, 1, "bestellung:", 100)
 	if err != nil {
 		t.Fatal(err)
@@ -200,7 +200,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Fatalf("%d Bestellungen gespeichert, want 1", len(werte))
 	}
 
-	// Und sie steht auf dem Bildschirm in der Verwaltung.
+	// And it stands on the screen in the admin.
 	var admin plugin.AdminOut
 	if err := r.Dispatch(ctx, m.ID, plugin.HookAdmin, 1,
 		plugin.AdminIn{WebsiteID: 1, Method: "GET"}, &admin); err != nil {
@@ -211,8 +211,8 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	}
 }
 
-// absenden schickt eine Bestellung durch den Routen-Haken.
-func absenden(t *testing.T, r *plugin.Runtime, ctx context.Context, id string, form url.Values) plugin.RequestOut {
+// submit sends an order through the route hook.
+func submit(t *testing.T, r *plugin.Runtime, ctx context.Context, id string, form url.Values) plugin.RequestOut {
 	t.Helper()
 	var out plugin.RequestOut
 	if err := r.Dispatch(ctx, id, plugin.HookRoute, 1, plugin.RequestIn{
@@ -223,8 +223,8 @@ func absenden(t *testing.T, r *plugin.Runtime, ctx context.Context, id string, f
 	return out
 }
 
-// zwischen liest den Wert zwischen zwei Zeichenketten.
-func zwischen(s, vor, nach string) string {
+// between reads the value between two strings.
+func between(s, vor, nach string) string {
 	i := strings.Index(s, vor)
 	if i < 0 {
 		return ""

@@ -1,24 +1,23 @@
-// Package wasmtest entscheidet an einer Stelle, was passiert, wenn ein
-// gebautes Plugin-Modul fehlt.
+// Package wasmtest decides in one place what happens when a built plugin module
+// is missing.
 //
-// Auf dem Rechner eines Mitwirkenden ist ein fehlendes .wasm kein Fehler: er
-// hat vielleicht nur einen Teil des Baums ausgecheckt, und ein Test, der ihn
-// dafür bestraft, vertreibt ihn. Auf einem Läufer ist es einer — ein Test, der
-// sich selbst überspringt, meldet grün und prüft nichts, und genau das ist der
-// falsche Erfolg, den niemand bemerkt, weil er wie ein Erfolg aussieht.
+// On a contributor's machine a missing .wasm is not a fault: they may have
+// checked out only part of the tree, and a test that punishes them for it
+// drives them away. On a runner it is one — a test that skips itself reports
+// green and checks nothing, and that is exactly the false success nobody
+// notices, because it looks like a success.
 //
-// HOLZCLOUD_TEST_REQUIRE_WASM unterscheidet die beiden Fälle. Die drei
-// Arbeitsabläufe, die Tests ausführen — ci.yml, security.yml und release.yml —
-// setzen die Variable; image.yml führt keine Tests aus und setzt sie nicht.
-// Geprüft wird auf »nicht leer«, nicht auf den Wert 1: wer einen Fehler vom
-// Läufer bei sich nachstellt, greift zu true oder yes, und ein strenger
-// Vergleich würde ihn stillschweigend weiter überspringen lassen — dieselbe
-// Lücke, nur eine Ebene tiefer.
+// HOLZCLOUD_TEST_REQUIRE_WASM tells the two cases apart. The three workflows
+// that run tests — ci.yml, security.yml and release.yml — set the variable;
+// image.yml runs no tests and does not set it. The check is for "not empty" and
+// not for the value 1: whoever reproduces a runner's failure locally reaches
+// for true or yes, and a strict comparison would silently let them keep
+// skipping — the same gap, only one level down.
 //
-// Das Paket ist kein Testpaket, weil die fünf Aufrufstellen in drei
-// verschiedenen Go-Paketen liegen und ein in einer Testdatei erklärter Helfer
-// die anderen beiden nicht erreicht. Es wird von nichts eingebunden, was
-// ausgeliefert wird, und trägt deshalb nichts zur Binärdatei bei.
+// The package is not a test package, because the five call sites lie in three
+// different Go packages and a helper declared in a test file does not reach the
+// other two. Nothing that ships imports it, so it contributes nothing to the
+// binary.
 package wasmtest
 
 import (
@@ -26,27 +25,26 @@ import (
 	"testing"
 )
 
-// bauhinweis nennt den einen Befehl, der jedes fehlende Modul erzeugt. Er steht
-// hier einmal, damit die überspringende und die fehlschlagende Meldung nicht
-// auseinanderlaufen können.
-const bauhinweis = "gebaut wird es mit: go run ./tools/wasm"
+// buildHint names the one command that produces every missing module. It stands
+// here once, so that the skipping message and the failing message cannot drift
+// apart.
+const buildHint = "build it with: go run ./tools/wasm"
 
-// Modul liest ein gebautes .wasm für einen Test. pfad ist relativ zum
-// Verzeichnis des Tests.
+// Module reads a built .wasm for a test. path is relative to the test's
+// directory.
 //
-// Fehlt die Datei, entscheidet HOLZCLOUD_TEST_REQUIRE_WASM: gesetzt (mit
-// beliebigem nicht leerem Wert) lässt den Test fehlschlagen, nicht gesetzt
-// lässt ihn überspringen. Beide Meldungen nennen den Pfad, den zugrunde
-// liegenden Fehler und den Bauhinweis.
-func Modul(t *testing.T, pfad string) []byte {
+// If the file is missing, HOLZCLOUD_TEST_REQUIRE_WASM decides: set (with any
+// non-empty value) makes the test fail, unset makes it skip. Both messages name
+// the path, the underlying error and the build hint.
+func Module(t *testing.T, path string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(pfad)
+	b, err := os.ReadFile(path)
 	if err == nil {
 		return b
 	}
 	if os.Getenv("HOLZCLOUD_TEST_REQUIRE_WASM") != "" {
-		t.Fatalf("%s fehlt und HOLZCLOUD_TEST_REQUIRE_WASM ist gesetzt: %v\n%s", pfad, err, bauhinweis)
+		t.Fatalf("%s is missing and HOLZCLOUD_TEST_REQUIRE_WASM is set: %v\n%s", path, err, buildHint)
 	}
-	t.Skipf("%s fehlt: %v\n%s", pfad, err, bauhinweis)
+	t.Skipf("%s is missing: %v\n%s", path, err, buildHint)
 	return nil
 }

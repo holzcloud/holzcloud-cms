@@ -68,9 +68,9 @@ func TestQueueAndDue(t *testing.T) {
 	}
 }
 
-// Eine Nachricht ohne Empfänger wird gar nicht erst abgelegt. Sonst sammelt ein
-// Betrieb, der nie eine Meldeadresse eingetragen hat, pro Bestellung eine
-// unzustellbare Zeile an — für immer.
+// A message without a recipient is not filed at all. Otherwise a business that
+// never entered a notification address collects one undeliverable row per order
+// — for ever.
 func TestQueueWithoutRecipientIsDropped(t *testing.T) {
 	s := store(t)
 	id, err := s.Queue(context.Background(), Mail{WebsiteID: 1, Kind: KindOrderOperator})
@@ -108,8 +108,8 @@ func TestMarkSent(t *testing.T) {
 	}
 }
 
-// Ein Fehlschlag wartet, und die Wartezeit wächst. Sonst klopft der Server im
-// Sekundentakt an einen Mailserver, der ohnehin gerade nicht kann.
+// A failure waits, and the wait grows. Otherwise the server knocks once a
+// second at a mail server that cannot manage just now anyway.
 func TestFailedMailWaitsLongerEachTime(t *testing.T) {
 	s := store(t)
 	ctx := context.Background()
@@ -140,7 +140,7 @@ func TestFailedMailWaitsLongerEachTime(t *testing.T) {
 		}
 	}
 
-	// Der fünfte Fehlschlag gibt auf.
+	// The fifth failure gives up.
 	if err := s.MarkFailed(ctx, id, errors.New("endgültig")); err != nil {
 		t.Fatal(err)
 	}
@@ -149,14 +149,14 @@ func TestFailedMailWaitsLongerEachTime(t *testing.T) {
 		t.Errorf("nach %d Versuchen: Status %q, erwartet %q", MaxAttempts, m.Status, StatusFailed)
 	}
 
-	// Und wird nicht mehr angefasst, auch nicht viel später.
+	// And is not touched again, not even much later.
 	clockAt(s, start.Add(30*24*time.Hour))
 	if due, _ := s.Due(ctx, 10); len(due) != 0 {
 		t.Error("an abandoned message is queued for sending again")
 	}
 }
 
-// Eine wartende Nachricht wird vor ihrer Zeit nicht angefasst.
+// A waiting message is not touched before its time.
 func TestDueRespectsTheWait(t *testing.T) {
 	s := store(t)
 	ctx := context.Background()
@@ -196,7 +196,7 @@ func TestRetryPutsAGivenUpMailBack(t *testing.T) {
 	if m.Status != StatusPending {
 		t.Errorf("Status nach Retry: %q", m.Status)
 	}
-	// Der Zähler muss back, sonst gibt der nächste Fehlschlag sofort wieder auf.
+	// The counter has to go back, or the next failure gives up at once again.
 	if m.Attempts != 0 {
 		t.Errorf("Attempts nach Retry: %d", m.Attempts)
 	}
@@ -205,8 +205,8 @@ func TestRetryPutsAGivenUpMailBack(t *testing.T) {
 	}
 }
 
-// Was raus ist, ist raus. Ein zweites Mal verschicken wäre für die Kundin eine
-// zweite Bestellbestätigung zu einer Bestellung, die es nur einmal gibt.
+// What is out is out. Sending a second time would be, for the customer, a
+// second order confirmation for an order that exists only once.
 func TestRetryRefusesASentMail(t *testing.T) {
 	s := store(t)
 	ctx := context.Background()
@@ -219,8 +219,8 @@ func TestRetryRefusesASentMail(t *testing.T) {
 	}
 }
 
-// Aufgeräumt wird nur, was zugestellt wurde. Ein Fehlschlag bleibt stehen, bis
-// jemand hingesehen hat — das ist der ganze Grund, ihn aufzuschreiben.
+// Only what was delivered is cleared away. A failure stays standing until
+// somebody has looked at it — that is the whole reason for writing it down.
 func TestPruneKeepsFailures(t *testing.T) {
 	s := store(t)
 	ctx := context.Background()
@@ -255,8 +255,8 @@ func TestForOrder(t *testing.T) {
 	s := store(t)
 	ctx := context.Background()
 	var orderID int64 = 7
-	// Die Bestellung selbst gibt es in diesem Test nicht; das Feld darf leer
-	// bleiben, deshalb wird hier ohne Fremdschlüsselziel eingestellt.
+	// The order itself does not exist in this test; the field may stay empty,
+	// which is why it is set here without a foreign key target.
 	if _, err := s.DB.Write.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestForOrder(t *testing.T) {
 	}
 }
 
-// fakeSender zählt mit und kann auf Wunsch scheitern.
+// fakeSender counts along and can fail on request.
 type fakeSender struct {
 	mu         sync.Mutex
 	sent       []mail.Message
@@ -317,7 +317,7 @@ func TestDispatcherSends(t *testing.T) {
 		t.Errorf("handed over wrongly: %+v", f.sent[0])
 	}
 
-	// Und beim zweiten Lauf nicht noch einmal.
+	// And not once more on the second run.
 	if err := d.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -326,8 +326,8 @@ func TestDispatcherSends(t *testing.T) {
 	}
 }
 
-// Ohne eingerichteten Versand wird nichts angefasst — und vor allem nichts als
-// gescheitert vermerkt. Ein Shop ohne Mailkonto ist ein funktionierender Shop.
+// Without sending set up nothing is touched — and above all nothing is noted as
+// failed. A shop without a mail account is a working shop.
 func TestDispatcherWithoutMailAccountLeavesEverythingAlone(t *testing.T) {
 	s := store(t)
 	ctx := context.Background()
@@ -344,7 +344,7 @@ func TestDispatcherWithoutMailAccountLeavesEverythingAlone(t *testing.T) {
 	}
 }
 
-// Eine Nachricht, die nicht rausgeht, hält die dahinter nicht auf.
+// A message that does not go out does not hold up the ones behind it.
 func TestDispatcherKeepsGoingAfterAFailure(t *testing.T) {
 	s := store(t)
 	ctx := context.Background()
@@ -421,8 +421,8 @@ func TestForOrderProducesBothMessages(t *testing.T) {
 	if betrieb.Recipient != "bestellungen@example.ch" {
 		t.Errorf("der Betrieb bekommt %q", betrieb.Recipient)
 	}
-	// Antwortet der Betrieb auf die Meldung, muss die Antwort bei der Kundin
-	// ankommen und nicht bei ihm selbst.
+	// If the business replies to the notification, the reply has to reach the
+	// customer and not the business itself.
 	if betrieb.ReplyTo != "anna@example.ch" {
 		t.Errorf("Antwortadresse der Meldung: %q", betrieb.ReplyTo)
 	}
@@ -445,10 +445,10 @@ func TestCustomerMailSaysWhatMatters(t *testing.T) {
 		"2 × ",               // die Menge
 		"CHF\u00a0110.00",    // die Summe
 		"Seestrasse 4",       // die Lieferadresse
-		"Bitte vormittags",   // ihre Bemerkung
-		"Rechnung liegt der", // was von ihr erwartet wird
-		"https://example.ch/bestellung/2026-0007", // wo sie nachsehen kann
-		"CHE-123.456.789 MWST",                    // die UID im Fuss
+		"Bitte vormittags",   // her remark
+		"Rechnung liegt der", // what is expected of her
+		"https://example.ch/bestellung/2026-0007", // where she can look it up
+		"CHE-123.456.789 MWST",                    // the VAT number in the footer
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the confirmation is missing %q:\n%s", want, body)
@@ -459,8 +459,8 @@ func TestCustomerMailSaysWhatMatters(t *testing.T) {
 	}
 }
 
-// Bei Vorauskasse ist die Nachricht der einzige Ort, an dem die Kundin je
-// erfährt, wohin sie überweisen soll.
+// With payment in advance the message is the only place the customer ever
+// learns where they are supposed to transfer the money.
 func TestPrepaymentCarriesTheBankDetails(t *testing.T) {
 	s := testShop()
 	s.PaymentDetails = "Holzbau Schmidt AG\nCH93 0076 2011 6238 5295 7"
@@ -476,8 +476,8 @@ func TestPrepaymentCarriesTheBankDetails(t *testing.T) {
 	}
 }
 
-// Und wenn der Betrieb sie nicht hinterlegt hat, darf die Nachricht nicht so
-// tun, als stünde alles drin.
+// And when the business has not stored it, the message must not pretend that
+// everything is in there.
 func TestPrepaymentWithoutBankDetailsSaysSo(t *testing.T) {
 	o := testOrder()
 	o.PaymentMethod = shop.PayPrepay
@@ -503,8 +503,8 @@ func TestOperatorMailCarriesTheContactDetails(t *testing.T) {
 	}
 }
 
-// Ohne Meldeadresse geht nur die Bestätigung raus — und keine unzustellbare
-// zweite Nachricht.
+// Without a notification address only the confirmation goes out — and no
+// undeliverable second message.
 func TestWithoutAnOrderAddressOnlyTheCustomerHears(t *testing.T) {
 	s := testShop()
 	s.OrderEmail = ""
@@ -518,8 +518,8 @@ func TestWithoutAnOrderAddressOnlyTheCustomerHears(t *testing.T) {
 	}
 }
 
-// Eine Bestellung ohne E-Mail-Adresse kann es über die Kasse nicht geben, über
-// die Datenbank schon. Dann darf nichts an die leere Adresse gehen.
+// An order without an e-mail address cannot come about through the checkout,
+// but it can through the database. Then nothing may go to the empty address.
 func TestWithoutACustomerAddressOnlyTheOperatorHears(t *testing.T) {
 	o := testOrder()
 	o.Customer.Email = ""
@@ -545,8 +545,8 @@ func TestShipmentMail(t *testing.T) {
 	}
 }
 
-// Ein Shop ohne MWST-Pflicht muss das sagen, nicht bloss die Steuerzeile
-// weglassen: die Rechnung braucht den Grund.
+// A shop not liable for VAT has to say so, not merely leave the tax line out:
+// the invoice needs the reason.
 func TestExemptShopSaysWhyThereIsNoTax(t *testing.T) {
 	o := testOrder()
 	o.VATExempt = true
@@ -558,8 +558,8 @@ func TestExemptShopSaysWhyThereIsNoTax(t *testing.T) {
 	}
 }
 
-// Eine Bestellung trägt ihre eigene Währung. Wechselt der Shop später, darf
-// eine alte Bestellung nicht in der neuen nachgedruckt werden.
+// An order carries its own currency. If the shop changes later, an old order
+// must not be reprinted in the new one.
 func TestOrderKeepsItsOwnCurrency(t *testing.T) {
 	s := testShop()
 	s.Currency = money.CurrencyFor("EUR")
