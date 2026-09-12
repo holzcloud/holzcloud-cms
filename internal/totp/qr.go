@@ -2,6 +2,7 @@ package totp
 
 import (
 	"fmt"
+	"html"
 	"html/template"
 	"strings"
 
@@ -18,7 +19,7 @@ import (
 // The squares are drawn as one <path> rather than a few hundred <rect>
 // elements: same picture, a fifth of the bytes, and no gaps between modules
 // where a renderer rounds coordinates differently.
-func QRCode(value string) (template.HTML, error) {
+func QRCode(value, label string) (template.HTML, error) {
 	// M corrects about 15% and is what authenticator apps are tested against;
 	// a higher level makes the code denser for no gain on a screen.
 	code, err := qr.Encode(value, qr.M)
@@ -45,8 +46,8 @@ func QRCode(value string) (template.HTML, error) {
 	fmt.Fprintf(&svg,
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" `+
 			`width="240" height="240" shape-rendering="crispEdges" `+
-			`role="img" aria-label="QR-Code für die Authenticator-App">`,
-		total, total)
+			`role="img" aria-label="%s">`,
+		total, total, html.EscapeString(label))
 	// The white background is drawn rather than assumed: a dark admin theme
 	// behind a transparent code makes it unreadable.
 	fmt.Fprintf(&svg, `<rect width="%d" height="%d" fill="#fff"/>`, total, total)

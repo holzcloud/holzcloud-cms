@@ -174,7 +174,7 @@ func (h *Handler) HandleTwoFactorSetup(w http.ResponseWriter, r *http.Request) e
 		LayoutData:    web.NewLayoutData(r, h.sm, "Set up two-factor"),
 		SecretGrouped: totp.FormatSecret(secret),
 		URI:           uri,
-		QR:            qrOrNothing(uri),
+		QR:            qrOrNothing(r, uri),
 		Required:      auth.MustHaveSecondFactor(role, h.viaSSO(r)),
 	}
 	data.ActiveNav = "account"
@@ -204,7 +204,7 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 			LayoutData:    web.NewLayoutData(r, h.sm, "Set up two-factor"),
 			SecretGrouped: totp.FormatSecret(tf.PendingSecret),
 			URI:           retryURI,
-			QR:            qrOrNothing(retryURI),
+			QR:            qrOrNothing(r, retryURI),
 			Required:      auth.MustHaveSecondFactor(role, h.viaSSO(r)),
 			Error:         "Der Code stimmt nicht. Prüfe, ob die Uhr des Geräts richtig geht.",
 		}
@@ -303,8 +303,8 @@ func (h *Handler) HandleTwoFactorDisable(w http.ResponseWriter, r *http.Request)
 // A failure here must not block the setup: the secret is printed beside it and
 // can be typed in by hand, which is the same path someone with a broken camera
 // takes anyway.
-func qrOrNothing(uri string) template.HTML {
-	svg, err := totp.QRCode(uri)
+func qrOrNothing(r *http.Request, uri string) template.HTML {
+	svg, err := totp.QRCode(uri, web.T(r, "QR code for the authenticator app"))
 	if err != nil {
 		slog.Error("render totp qr code", "err", err)
 		return ""

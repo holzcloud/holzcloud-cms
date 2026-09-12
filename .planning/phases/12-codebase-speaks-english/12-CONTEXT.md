@@ -203,6 +203,34 @@ sentence at the handler.
 
 ---
 
+## 3d. Decision taken 2026-09-12: `tools/english` gets two named exemptions
+
+The gate reads string literals as well as comments, which is right and which
+turned up two classes it should not judge. Both are named files in
+`tools/english/main.go` and both carry their reason there:
+
+**`fixtures`** — `internal/template/sample.go`. Its strings ARE the German
+content: it is the page an uploaded template is rendered against, and
+TEMPLATE-SPEC.md prints it to a theme author verbatim.
+
+**`germanVoice`** — the sixteen files where a **customer**, not an operator,
+reads the sentence: the checkout, the cart, the order e-mails, the VAT wording,
+the month names, and the two words this CMS calls its own built-in kinds. Plus
+the language and region names, which are data, and the two tools that carry the
+German alphabet as a character class.
+
+This is §3b's decision made enforceable rather than a new one. Nothing in this
+list is an operator's screen — every one of those goes through the catalogue and
+stays the gate's business. Comments and identifiers in all eighteen files stay
+under the gate; only the content is exempt.
+
+What remains open, and is written here so that the next phase finds it: the
+public side has no translation channel at all, so a French-language website
+sells in German. Closing that is a feature, not a cleanup, and it needs the
+theme and the handler decided together.
+
+---
+
 ## 4. Order of work, and why it is this order
 
 1. **The template contract** (LANG-04) — independent of everything, lands in its
