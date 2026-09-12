@@ -283,7 +283,7 @@ func TestExportCarriesNoSecrets(t *testing.T) {
 		t.Error("the page claims to be protected with no password behind it")
 	}
 	// Silence here would leave a price list publicly readable and nobody told.
-	if !warned(report, "Passwort") {
+	if !warned(report, "password") {
 		t.Errorf("the import did not warn about the lost password: %v", report.Warnings)
 	}
 }
@@ -353,7 +353,7 @@ func TestImportRefusesAnEscapingFileName(t *testing.T) {
 	if report.Media != 0 {
 		t.Error("a file with an escaping name was stored")
 	}
-	if !warned(report, "unzulässigen Namen") {
+	if !warned(report, "not allowed") {
 		t.Errorf("the import did not say why: %v", report.Warnings)
 	}
 	// Nothing may have been written outside the media directory.
@@ -384,7 +384,7 @@ func TestImportNoticesACorruptedFile(t *testing.T) {
 	if report.Media != 0 {
 		t.Error("a corrupted file was stored")
 	}
-	if !warned(report, "beschädigt") {
+	if !warned(report, "damaged") {
 		t.Errorf("the corruption was not reported: %v", report.Warnings)
 	}
 	// And nothing may have been written to disk for it.
@@ -988,7 +988,7 @@ func TestImportReportsAlbumsCreatedNotClaimed(t *testing.T) {
 		t.Errorf("report.Albums = %d, want 1 — three were claimed, one could be made",
 			report.Albums)
 	}
-	if !warned(report, "Album 2") {
+	if !warned(report, "album 2") {
 		t.Errorf("the unusable name is not on the report: %v", report.Warnings)
 	}
 	if !warned(report, "Referenzen") {

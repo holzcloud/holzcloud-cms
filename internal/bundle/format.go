@@ -367,7 +367,7 @@ type MenuItem struct {
 // „Recorded" heisst seit dem Review zu Phase 8 wirklich aufgeschrieben, und
 // zwar zweimal ausserhalb dieses Kommentars: in deferred-items.md, und im
 // Bericht jedes Imports, der einen solchen Wert mitbringt
-// (ortsgebundeneWerte, import.go). Der Bildschirm bietet diese Feldarten am
+// (installationBoundValues, import.go). Der Bildschirm bietet diese Feldarten am
 // Textbaustein ausdrücklich an; ein Versprechen, das beim Ausfahren
 // stillschweigend bricht, wäre der lautlose Verlust, den dieses Projekt sonst
 // überall vermeidet. Die Übersetzung selbst bleibt offen und gehört in die

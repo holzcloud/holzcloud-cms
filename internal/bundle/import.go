@@ -50,7 +50,32 @@ type Report struct {
 	Albums    int
 	// Warnings are the things that did not come through. Each one names what
 	// was lost and why; none of them stops the import.
+	//
+	// Finished sentences and not codes, unlike csvimport's Verdict — an import
+	// report is read once and thrown away, and there is nothing here to group
+	// two rows by. They are assembled by warnf in the OPERATOR's language.
 	Warnings []string
+
+	// lang is the language of whoever started the import, taken from the
+	// request's context by Import and used by nothing but warnf.
+	//
+	// It is here rather than being passed down through fifteen functions
+	// because every one of those would carry it only to hand it on. Broken
+	// window 6 held that threading a locale through bundle.Import was the
+	// reason these sentences had to stay raw German, and that the report would
+	// otherwise appear in the language of the IMPORTED website: neither is so.
+	// Import already takes a context, and the language in it is the reader's —
+	// an archive carries no language of its own that a report could pick up.
+	lang string
+}
+
+// warnf records one warning, in the language of whoever is reading the report.
+//
+// The format has to be written as i18n.N("…") at the call site so that
+// tools/i18n collects it. Everything filled into it is operator data — a page
+// title, a filename, an error — and is never translated.
+func (r *Report) warnf(format string, args ...any) {
+	r.Warnings = append(r.Warnings, i18n.Tf(r.lang, format, args...))
 }
 
 // MaxMediaBytes bounds one file inside an archive.
@@ -97,16 +122,16 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 		return nil, fmt.Errorf("create website: %w", err)
 	}
 	websiteID := created.ID
-	report := &Report{WebsiteID: websiteID}
+	report := &Report{WebsiteID: websiteID, lang: i18n.Lang(ctx)}
 
 	if err := applySettings(ctx, s, websiteID, manifest.Site); err != nil {
-		report.Warnings = append(report.Warnings, "Einstellungen: "+err.Error())
+		report.warnf(i18n.N("Settings: %v"), err)
 	}
 	mediaByName := importMedia(ctx, s, websiteID, zr, manifest, report)
 	// The field definitions go in before the pages: a value without its
 	// definition would be dropped by the first save of that page.
-	// Die Inhaltsarten zuerst: ein Eintrag, dessen Art es noch nicht gibt,
-	// stünde in der Liste unter einer Kennung ohne Namen.
+	// The content kinds first: an entry whose kind does not exist yet would
+	// stand in the list under a key with no name.
 	importTypes(ctx, s, websiteID, manifest, report)
 	fieldKinds := importFields(ctx, s, websiteID, manifest, report)
 	importBlockTypes(ctx, s, websiteID, manifest, report)
@@ -124,16 +149,16 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// a re-rendered lightbox on an imported page speaks the language of the
 	// site in the manifest, not the language of whoever ran the import.
 	set.T = func(word string) string { return i18n.T(manifest.Site.Locale, word) }
-	// Die Schlagwörter vor den Seiten: eines, das nur ein Schlagwortfeld
-	// nennt, gibt es sonst nirgends — SetForPage legt nur an, was in der
-	// Schlagwortliste einer Seite steht.
+	// The terms before the pages: one that only a term field names exists
+	// nowhere else — SetForPage creates only what stands in a page's term
+	// list.
 	importTerms(ctx, s, websiteID, manifest, report)
-	// Die Alben vor den Seiten, weil ein Galeriebaustein eines nennt und der
-	// Bericht sagen können soll, welches Album ein Baustein nicht gefunden
-	// hat. Nach den Bildern, weil die Bilder eines Albums Dateinamen sind und
-	// mediaByName die Stelle ist, an der daraus Nummern werden. Ausdrücklich
-	// nicht zuletzt wie die Menüs, deren Einträge über Adressen auf Seiten
-	// zeigen und die Seiten deshalb brauchen (import.go:1087).
+	// The albums before the pages, because a gallery block names one and the
+	// report should be able to say which album a block did not find. After the
+	// images, because an album's pictures are filenames and mediaByName is
+	// where those become ids. Deliberately not last like the menus, whose
+	// entries point at pages by address and therefore need the pages
+	// (import.go:1087).
 	albumSlugs := importAlbums(ctx, s, websiteID, manifest, mediaByName, report)
 	importPages(ctx, s, websiteID, manifest, mediaByName, albumSlugs, fieldKinds, set, report)
 	importSnippets(ctx, s, websiteID, manifest, report)
@@ -199,15 +224,14 @@ func importMedia(ctx context.Context, s Stores, websiteID int64, zr *zip.Reader,
 
 	dir := filepath.Join(s.DataDir, "media", strconv.FormatInt(websiteID, 10))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		report.Warnings = append(report.Warnings, "Medienordner: "+err.Error())
+		report.warnf(i18n.N("Media folder: %v"), err)
 		return byName
 	}
 
 	for _, entry := range m.Media {
 		name := safeName(entry.Filename)
 		if name == "" {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Datei %q hat einen unzulässigen Namen und wurde übersprungen", entry.Filename))
+			report.warnf(i18n.N("file %q has a name that is not allowed and was skipped"), entry.Filename)
 			continue
 		}
 
@@ -216,33 +240,29 @@ func importMedia(ctx context.Context, s Stores, websiteID int64, zr *zip.Reader,
 			// Absent and damaged are different problems with different answers:
 			// one means the archive was assembled wrong, the other that it did
 			// not survive the journey.
-			why := "fehlt im Archiv"
+			why := i18n.N("is missing from the archive")
 			if !errors.Is(err, fs.ErrNotExist) {
-				why = "ist beschädigt (Prüfsumme des Archivs stimmt nicht)"
+				why = i18n.N("is damaged (the archive's checksum does not match)")
 			}
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Datei %q %s", entry.Filename, why))
+			report.warnf(i18n.N("file %q %s"), entry.Filename, i18n.T(report.lang, why))
 			continue
 		}
 		// The checksum is the difference between storing a corrupted file and
 		// finding out when a page renders a grey box.
 		if entry.SHA256 != "" && hashBytes(data) != entry.SHA256 {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Datei %q ist beschädigt und wurde übersprungen", entry.Filename))
+			report.warnf(i18n.N("file %q is corrupt and was skipped"), entry.Filename)
 			continue
 		}
 
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Datei %q konnte nicht gespeichert werden: %v", entry.Filename, err))
+			report.warnf(i18n.N("file %q could not be stored: %v"), entry.Filename, err)
 			continue
 		}
 
 		created, err := s.Media.Create(ctx, websiteID, name, entry.OriginalName,
 			entry.MimeType, int64(len(data)), hashBytes(data))
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Datei %q konnte nicht eingetragen werden: %v", entry.Filename, err))
+			report.warnf(i18n.N("file %q could not be recorded: %v"), entry.Filename, err)
 			continue
 		}
 		if entry.AltText != "" || entry.Caption != "" {
@@ -283,8 +303,7 @@ func safeName(name string) string {
 func importTypes(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
 	if s.Kinds == nil {
 		if len(m.Types) > 0 {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("%d Inhaltsarten konnten nicht angelegt werden.", len(m.Types)))
+			report.warnf(i18n.N("%d content kinds could not be created."), len(m.Types))
 		}
 		return
 	}
@@ -293,8 +312,7 @@ func importTypes(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 			WebsiteID: websiteID, Key: t.Key, Name: t.Name, Plural: t.Plural,
 			Archive: t.Archive, Sort: t.Sort,
 		}); err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Inhaltsart %q: %v", t.Name, err))
+			report.warnf(i18n.N("content kind %q: %v"), t.Name, err)
 		}
 	}
 }
@@ -315,17 +333,15 @@ func importTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 		return
 	}
 	if s.Terms == nil {
-		report.Warnings = append(report.Warnings,
-			fmt.Sprintf("%d Schlagwörter konnten nicht angelegt werden.", len(m.Terms)))
+		report.warnf(i18n.N("%d terms could not be created."), len(m.Terms))
 		return
 	}
-	// term.Normalize und nicht term.Parse: Parse ist der Leser des Feldes,
-	// das ein Redaktor tippt. Es trennt an Kommas und hört bei
-	// term.MaxPerPage auf — beides gilt für einen Eintrag und für nichts
-	// sonst. Die ganze Liste einer Website durch diesen Leser zu schicken
-	// liess ab dem dreizehnten Schlagwort alles fallen, still, und riss
-	// einen Namen mit einem Komma darin entzwei. Jeder Name für sich, mit
-	// derselben Normalisierung, die jedes andere Schlagwort auch bekommt.
+	// term.Normalize and not term.Parse: Parse is the reader of the field an
+	// editor types. It splits on commas and stops at term.MaxPerPage — both of
+	// which hold for one ENTRY and for nothing else. Sending a whole website's
+	// list through that reader dropped everything from the thirteenth term on,
+	// silently, and tore a name with a comma in it in two. Each name on its
+	// own, with the same normalisation every other term gets.
 	names := make([]string, 0, len(m.Terms))
 	for _, t := range m.Terms {
 		if name := term.Normalize(t.Name); name != "" {
@@ -334,11 +350,11 @@ func importTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 	}
 	n, err := s.Terms.EnsureNames(ctx, websiteID, names)
 	if err != nil {
-		report.Warnings = append(report.Warnings, fmt.Sprintf("Schlagwörter: %v", err))
+		report.warnf(i18n.N("terms: %v"), err)
 		return
 	}
-	// Was angelegt wurde, nicht was das Archiv behauptet: eine Zahl, die ein
-	// Bericht nennt, soll geglaubt werden können.
+	// What was created, not what the archive claims: a number a report names
+	// should be believable.
 	report.Terms = n
 }
 
@@ -366,16 +382,14 @@ func importAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		return nil
 	}
 	if s.Albums == nil {
-		report.Warnings = append(report.Warnings,
-			fmt.Sprintf("%d Alben konnten nicht angelegt werden.", len(m.Albums)))
+		report.warnf(i18n.N("%d albums could not be created."), len(m.Albums))
 		return nil
 	}
-	// Welche Namen das Archiv doppelt nennt. Ein Baustein, der so einen Namen
-	// nennt, nennt zwei Alben, und im Archiv steht nichts, was sagen würde,
-	// welches — die Zuordnung ist dann nicht schwer zu treffen, sondern gar
-	// nicht vorhanden. Sie wird deshalb fallengelassen und gemeldet, nicht
-	// geraten: an das erste Album gebunden hiesse, eine Galerie zeigt die
-	// Bilder einer anderen, und niemand erführe es.
+	// Which names the archive uses twice. A block naming such a name names two
+	// albums, and there is nothing in the archive that would say which — so
+	// the mapping is not hard to make, it is absent. It is therefore dropped
+	// and reported rather than guessed: binding it to the first album would
+	// mean a gallery shows another album's pictures and nobody ever finds out.
 	twice := map[string]bool{}
 	seen := map[string]bool{}
 	for _, a := range m.Albums {
@@ -390,41 +404,35 @@ func importAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	for i, a := range m.Albums {
 		row, err := s.Albums.Create(ctx, websiteID, a.Name)
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Album %d %q konnte nicht angelegt werden: %v", i+1, a.Name, err))
+			report.warnf(i18n.N("album %d %q could not be created: %v"), i+1, a.Name, err)
 			continue
 		}
 		created++
-		// Die Adresse, die dieses Album auf DIESER Maschine bekommen hat, vom
-		// Store erfragt und nicht ein zweites Mal abgeleitet. blocks.go liest
-		// hier nach, statt page.Slugify selbst zu rufen: zwei Ableitungen
-		// desselben Schlüssels sind die Gefahr, vor der die Paketbeschreibung
-		// von internal/album ausdrücklich warnt.
+		// The address this album was given on THIS machine, asked of the store
+		// and not derived a second time. blocks.go reads it back here rather
+		// than calling page.Slugify itself: two derivations of the same key are
+		// the danger internal/album's package comment warns about explicitly.
 		if !twice[a.Name] {
 			slugs[a.Name] = row.Slug
 		}
 		for _, it := range a.Items {
 			id, ok := mediaByName[it.Media]
 			if !ok {
-				report.Warnings = append(report.Warnings, fmt.Sprintf(
-					"Album %q: das Bild %q ist nicht im Archiv.", row.Name, it.Media))
+				report.warnf(i18n.N("album %q: the image %q is not in the archive."), row.Name, it.Media)
 				continue
 			}
 			if _, err := s.Albums.AddItem(ctx, websiteID, row.ID, id, it.Alt, it.Caption); err != nil {
-				report.Warnings = append(report.Warnings, fmt.Sprintf(
-					"Album %q: das Bild %q kam nicht an: %v", row.Name, it.Media, err))
+				report.warnf(i18n.N("album %q: the image %q did not arrive: %v"), row.Name, it.Media, err)
 			}
 		}
 	}
 	for name := range twice {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"Das Archiv nennt zwei Alben %q. Es kann nur eines davon geben, und "+
-				"keine Galerie wird daran gebunden — sonst zeigte sie die Bilder des "+
-				"falschen. Die betroffenen Seiten stehen unten einzeln.", name))
+		report.warnf(i18n.N("Das Archiv nennt zwei Alben %q. Es kann nur eines davon geben, und "+
+			"keine Galerie wird daran gebunden — sonst zeigte sie die Bilder des "+
+			"falschen. Die betroffenen Seiten stehen unten einzeln."), name)
 	}
-	// Was angelegt wurde, nicht was das Archiv behauptet — dieselbe Regel wie
-	// bei den Schlagwörtern oben: eine Zahl, die ein Bericht nennt, soll
-	// geglaubt werden können.
+	// What was created, not what the archive claims — the same rule as for the
+	// terms above: a number a report names should be believable.
 	report.Albums = created
 	return slugs
 }
@@ -435,8 +443,7 @@ func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, r
 	kinds := map[string]string{}
 	if s.Fields == nil {
 		if len(m.Fields) > 0 {
-			report.Warnings = append(report.Warnings,
-				"Die eigenen Felder der Website konnten nicht angelegt werden.")
+			report.warnf(i18n.N("the website's own fields could not be created."))
 		}
 		return kinds
 	}
@@ -459,8 +466,7 @@ func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, r
 			conditions[created.ID] = def
 		}
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Feld %q konnte nicht angelegt werden: %v", f.Label, err))
+			report.warnf(i18n.N("field %q could not be created: %v"), f.Label, err)
 			continue
 		}
 		for _, sub := range f.Sub {
@@ -471,8 +477,7 @@ func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, r
 				Display: sub.Display, MaxValues: sub.MaxValues,
 				RangeMin: sub.Min, RangeMax: sub.Max,
 			}); err != nil {
-				report.Warnings = append(report.Warnings,
-					fmt.Sprintf("Feld %q in der Gruppe %q konnte nicht angelegt werden: %v", sub.Label, f.Label, err))
+				report.warnf(i18n.N("field %q in the group %q could not be created: %v"), sub.Label, f.Label, err)
 			}
 		}
 	}
@@ -481,8 +486,7 @@ func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, r
 		if err := s.Fields.Update(ctx, websiteID, id, def); err != nil {
 			// The field is there and works; only the condition is missing, so it
 			// is always shown. Worth a line, not worth failing the import.
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Die Bedingung von Feld %q konnte nicht übernommen werden: %v", def.Label, err))
+			report.warnf(i18n.N("the condition of field %q could not be taken over: %v"), def.Label, err)
 		}
 	}
 	return kinds
@@ -496,16 +500,14 @@ func importFields(ctx context.Context, s Stores, websiteID int64, m *Manifest, r
 func importBlockTypes(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
 	if s.BlockTypes == nil || len(m.BlockTypes) == 0 {
 		if len(m.BlockTypes) > 0 {
-			report.Warnings = append(report.Warnings,
-				"Die eigenen Bausteinarten der Website konnten nicht angelegt werden.")
+			report.warnf(i18n.N("the website's own block kinds could not be created."))
 		}
 		return
 	}
 	for _, t := range m.BlockTypes {
 		created, err := s.BlockTypes.Create(ctx, websiteID, t.Name, t.Hint)
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Bausteinart %q konnte nicht angelegt werden: %v", t.Name, err))
+			report.warnf(i18n.N("block kind %q could not be created: %v"), t.Name, err)
 			continue
 		}
 		for _, f := range t.Fields {
@@ -516,9 +518,8 @@ func importBlockTypes(ctx context.Context, s Stores, websiteID int64, m *Manifes
 				Display: f.Display, MaxValues: f.MaxValues,
 				RangeMin: f.Min, RangeMax: f.Max,
 			}); err != nil {
-				report.Warnings = append(report.Warnings,
-					fmt.Sprintf("Feld %q der Bausteinart %q konnte nicht angelegt werden: %v",
-						f.Label, t.Name, err))
+				report.warnf(i18n.N("field %q of block kind %q could not be created: %v"),
+					f.Label, t.Name, err)
 			}
 		}
 	}
@@ -579,13 +580,12 @@ func (x pageIndex) in(loc string) addressLookup {
 // with one over-long value in it is still worth having, and the operator has
 // to be told which value did not arrive rather than left to find the gap.
 //
-// Beide laufen ohne Vorbedingung, und das ist eine Berichtigung: sie hingen an
-// „if len(defs) > 0". Ein Manifest, das Werte mitbringt und keine
-// Definitionen, kam damit an keinem der beiden vorbei — der eine Zuschnitt,
-// für den es kein Formular und keinen Bildschirm gibt, war zugleich der
-// einzige, der ungeprüft in die Spalte lief. Ohne Definition wirft Clean
-// richtigerweise alles weg: ein Wert, den keine Definition trägt, ist von
-// nichts darstellbar.
+// Both run unconditionally, and that is a correction: they used to hang off
+// `if len(defs) > 0`. A manifest that brought values and no definitions got
+// past neither of them — the one shape for which there is no form and no
+// screen was at the same time the only one that ran into the column unchecked.
+// Without definitions Clean rightly throws everything away: a value no
+// definition carries is displayable by nothing.
 func importFieldValues(defs []field.Def, kinds map[string]string, p Page,
 	mediaByName map[string]int64, byAddress addressLookup) (string, []string) {
 
@@ -609,9 +609,9 @@ func importFieldValues(defs []field.Def, kinds map[string]string, p Page,
 	var dropped []string
 	data = field.Clean(defs, data)
 	for key := range field.CheckAll(defs, data) {
-		// Ein Pflichtfeld ohne Wert wird hier auch gemeldet, und dort ist
-		// nichts wegzunehmen — die Seite kommt eben ohne an, so wie sie
-		// abgereist ist. Weggenommen wird nur, was tatsächlich dasteht.
+		// A required field with no value is reported here too, and there is
+		// nothing to take away there — the page simply arrives without it, just
+		// as it departed. What is taken away is only what actually stands there.
 		if _, ok := data.Values[key]; ok {
 			delete(data.Values, key)
 			dropped = append(dropped, key)
@@ -671,15 +671,13 @@ func translateIn(kinds map[string]string, values map[string]string, mediaByName 
 			continue
 		}
 		if kinds[key] == field.KindTerm {
-			// Der Wert im Archiv ist ein Name, gespeichert wird ein Kürzel.
-			// page.Slugify ist die eine Regel, die auch der Schlagwortspeicher
-			// anwendet — die beiden stimmen dadurch von Bauart wegen überein
-			// und nicht durch Zufall.
+			// The value in the archive is a name; what is stored is a slug.
+			// page.Slugify is the one rule the term store applies as well — so
+			// the two agree by construction and not by accident.
 			//
-			// Nicht nachgeschlagen und nicht fallengelassen: importTerms ist
-			// schon gelaufen, und ein Wert, dessen Schlagwort das Archiv nie
-			// genannt hat, löst sich beim Rendern zu nichts auf — genau das
-			// leere Verhalten, das die Art zusagt.
+			// Neither looked up nor dropped: importTerms has already run, and a
+			// value whose term the archive never named resolves to nothing when
+			// rendered — exactly the empty behaviour the kind promises.
 			out[key] = page.Slugify(val)
 			continue
 		}
@@ -704,9 +702,9 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	// read once.
 	look := blockImages(ctx, s, websiteID)
 
-	// Die Felddefinitionen, wie sie tatsächlich angelegt wurden — gelesen und
-	// nicht aus dem Archiv nachgebaut, damit die Prüfung gegen das läuft, was
-	// diese Website hat, samt allem, was validate beim Anlegen geleert hat.
+	// The field definitions as they were actually created — read back rather
+	// than rebuilt from the archive, so that the check runs against what this
+	// website has, including everything validate emptied on the way in.
 	var defs []field.Def
 	if s.Fields != nil {
 		defs, _ = s.Fields.List(ctx, websiteID)
@@ -747,8 +745,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			slug = page.Slugify(p.Title)
 		}
 		if err := page.ValidateSlug(slug); err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Seite %q: Adresse %q ist nicht zulässig", p.Title, p.Slug))
+			report.warnf(i18n.N("page %q: the address %q is not allowed"), p.Title, p.Slug)
 			continue
 		}
 
@@ -760,9 +757,8 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		if p.Locale != "" {
 			loc = locale.Pick(p.Locale, extras)
 			if loc == "" {
-				report.Warnings = append(report.Warnings, fmt.Sprintf(
-					"Seite %q ist in der Sprache %q verfasst, die diese Website nicht hat – "+
-						"sie liegt jetzt in der Hauptsprache.", p.Title, p.Locale))
+				report.warnf(i18n.N("Seite %q ist in der Sprache %q verfasst, die diese Website nicht hat – "+
+					"sie liegt jetzt in der Hauptsprache."), p.Title, p.Locale)
 			}
 		}
 
@@ -773,8 +769,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		// matches what this version produces.
 		html, err := page.RenderMarkdown(markdown)
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Seite %q konnte nicht gesetzt werden: %v", p.Title, err))
+			report.warnf(i18n.N("page %q could not be set: %v"), p.Title, err)
 			continue
 		}
 
@@ -787,8 +782,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			if len(blocks) > 0 {
 				encoded, eerr := block.Encode(blocks, set)
 				if eerr != nil {
-					report.Warnings = append(report.Warnings,
-						fmt.Sprintf("Seite %q: die Bausteine konnten nicht gesichert werden: %v", p.Title, eerr))
+					report.warnf(i18n.N("page %q: the blocks could not be stored: %v"), p.Title, eerr)
 				} else {
 					encodedBlocks = encoded
 					markdown = block.PlainText(blocks, set)
@@ -796,15 +790,13 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 				}
 			}
 			for _, name := range missingMedia(p.Blocks, set, mediaByName) {
-				report.Warnings = append(report.Warnings,
-					fmt.Sprintf("Seite %q: die Datei %q fehlt, der Baustein bleibt ohne Bild", p.Title, name))
+				report.warnf(i18n.N("page %q: the file %q is missing, the block stays without an image"), p.Title, name)
 			}
-			// Dasselbe eine Ebene höher: ein Baustein, der ein Album nennt,
-			// das im Archiv nicht steht, bekommt eine Zeile im Bericht statt
-			// einer leeren Galerie ohne Erklärung.
+			// The same thing one level up: a block naming an album that is not
+			// in the archive gets a line in the report rather than an empty
+			// gallery with no explanation.
 			for _, name := range missingAlbum(p.Blocks, albumSlugs) {
-				report.Warnings = append(report.Warnings, fmt.Sprintf(
-					"Seite %q: das Album %q ist nicht im Archiv, die Galerie bleibt leer", p.Title, name))
+				report.warnf(i18n.N("page %q: the album %q is not in the archive, the gallery stays empty"), p.Title, name)
 			}
 		}
 
@@ -819,9 +811,8 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 
 		felder, verworfen := importFieldValues(defs, fieldKinds, p, mediaByName, pages.in(loc))
 		if len(verworfen) > 0 {
-			report.Warnings = append(report.Warnings, fmt.Sprintf(
-				"Seite %q: die Werte von %s wurden nicht übernommen, sie halten die Regeln ihrer Felder nicht ein.",
-				p.Title, strings.Join(verworfen, ", ")))
+			report.warnf(i18n.N("page %q: the values of %s were not taken over, they do not keep the rules of their fields."),
+				p.Title, strings.Join(verworfen, ", "))
 		}
 
 		created, err := s.Pages.CreatePage(ctx, page.PageCreate{
@@ -832,8 +823,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			Schedule: page.PageSchedule{PublishAt: p.PublishAt, UnpublishAt: p.UnpublishAt},
 		})
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Seite %q konnte nicht angelegt werden: %v", p.Title, err))
+			report.warnf(i18n.N("page %q could not be created: %v"), p.Title, err)
 			continue
 		}
 		report.Pages++
@@ -848,16 +838,14 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 
 		if len(p.Terms) > 0 && s.Terms != nil {
 			if err := s.Terms.SetForPage(ctx, websiteID, created.ID, term.Parse(strings.Join(p.Terms, ", "))); err != nil {
-				report.Warnings = append(report.Warnings,
-					fmt.Sprintf("Schlagwörter von %q: %v", p.Title, err))
+				report.warnf(i18n.N("terms of %q: %v"), p.Title, err)
 			}
 		}
 		// The password never travels, so a protected page arrives unprotected
 		// and the operator has to be told rather than left to discover it.
 		if p.Protected() {
-			report.Warnings = append(report.Warnings, fmt.Sprintf(
-				"Seite %q war mit einem Passwort geschützt. Passwörter werden nie exportiert – "+
-					"bitte ein neues vergeben, die Seite ist bis dahin öffentlich.", p.Title))
+			report.warnf(i18n.N("page %q was protected with a password. Passwords are never exported – "+
+				"please set a new one; until then the page is public."), p.Title)
 		}
 	}
 
@@ -868,7 +856,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		// looked up there and nowhere else.
 		of, _ := pages.at("", l.ofSlug)
 		if err := s.Pages.SetTranslation(ctx, websiteID, l.id, l.loc, of); err != nil {
-			report.Warnings = append(report.Warnings, fmt.Sprintf("Sprache konnte nicht gesetzt werden: %v", err))
+			report.warnf(i18n.N("the language could not be set: %v"), err)
 		}
 	}
 
@@ -877,12 +865,11 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	// every address in the bundle has an id. Only the pages that actually carry
 	// a reference are written again.
 	for _, rp := range refs {
-		// Was hier verworfen wird, wurde im ersten Durchgang schon gemeldet —
-		// dieselbe Seite, dieselben Werte, dieselben Regeln.
+		// Whatever is discarded here was already reported on the first pass —
+		// same page, same values, same rules.
 		raw, _ := importFieldValues(defs, fieldKinds, rp.page, mediaByName, pages.in(rp.loc))
 		if err := s.Pages.SetFields(ctx, rp.id, raw); err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Verweise von %q konnten nicht gesetzt werden: %v", rp.page.Title, err))
+			report.warnf(i18n.N("references of %q could not be set: %v"), rp.page.Title, err)
 		}
 	}
 
@@ -900,25 +887,22 @@ func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		// places it can appear.
 		html, err := page.RenderMarkdown(markdown)
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Textbaustein %q: %v", sn.Key, err))
+			report.warnf(i18n.N("snippet %q: %v"), sn.Key, err)
 			continue
 		}
 		created, err := s.Snippets.Create(ctx, websiteID, sn.Key, sn.Name, markdown, html)
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Textbaustein %q konnte nicht angelegt werden: %v", sn.Key, err))
+			report.warnf(i18n.N("snippet %q could not be created: %v"), sn.Key, err)
 			continue
 		}
-		// Create endet auf Get, und Get gibt (nil, nil) heraus, wenn die Zeile
-		// nicht dasteht — durch den Lesepool, einen anderen als den, der eben
-		// geschrieben hat. Vor 08-05 wurde der Rückgabewert weggeworfen; seit
-		// die Felder nachgezogen werden, wäre nil ein Absturz, der die ganze
-		// Anfrage mitnimmt. internal/admin/snippet.go wacht über denselben
-		// Wert, und die zwei Aufrufstellen sagen jetzt dasselbe über ihn.
+		// Create ends in Get, and Get hands out (nil, nil) when the row is not
+		// there — through the read pool, a different one from the one that has
+		// just written. Before 08-05 the return value was thrown away; since
+		// the fields are fetched afterwards, nil would be a crash that takes
+		// the whole request with it. internal/admin/snippet.go guards the same
+		// value, and the two call sites now say the same thing about it.
 		if created == nil {
-			report.Warnings = append(report.Warnings, fmt.Sprintf(
-				"Textbaustein %q konnte nach dem Anlegen nicht zurückgelesen werden.", sn.Key))
+			report.warnf(i18n.N("snippet %q could not be read back after being created."), sn.Key)
 			continue
 		}
 		report.Snippets++
@@ -939,10 +923,10 @@ func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 // The SnippetID handed to Create is the id of the snippet this import has just
 // created on the website it is importing into. The manifest never supplies an
 // id, so a bundle cannot name another website's snippet, and Create's own
-// website scoping is the second layer under that — es prüft seit dem Review zu
-// Phase 8, dass die Nummer zu d.WebsiteID gehört (ErrNoSnippet). Der Satz stand
-// vorher schon da und war da noch keiner: REFERENCES beweist nur, dass es die
-// Zeile gibt.
+// website scoping is the second layer under that — since the review of phase 8
+// it checks that the id belongs to d.WebsiteID (ErrNoSnippet). That sentence
+// stood here before and was not yet true: REFERENCES proves only that the row
+// exists.
 //
 // The conditions are not carried and there is no second pass for them:
 // validate empties the condition of every snippet field (08-02), so there would
@@ -952,8 +936,7 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 
 	if s.Fields == nil {
 		if len(sn.Fields) > 0 {
-			report.Warnings = append(report.Warnings, fmt.Sprintf(
-				"Die eigenen Felder des Textbausteins %q konnten nicht angelegt werden.", sn.Key))
+			report.warnf(i18n.N("the snippet %q's own fields could not be created."), sn.Key)
 		}
 		return
 	}
@@ -967,8 +950,7 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 			RangeMin: f.Min, RangeMax: f.Max,
 		})
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Feld %q konnte nicht angelegt werden: %v", f.Label, err))
+			report.warnf(i18n.N("field %q could not be created: %v"), f.Label, err)
 			continue
 		}
 		for _, sub := range f.Sub {
@@ -982,8 +964,7 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 				Display: sub.Display, MaxValues: sub.MaxValues,
 				RangeMin: sub.Min, RangeMax: sub.Max,
 			}); err != nil {
-				report.Warnings = append(report.Warnings, fmt.Sprintf(
-					"Feld %q in der Gruppe %q konnte nicht angelegt werden: %v", sub.Label, f.Label, err))
+				report.warnf(i18n.N("field %q in the group %q could not be created: %v"), sub.Label, f.Label, err)
 			}
 		}
 	}
@@ -996,51 +977,45 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 	// all, and OfSnippet is the same reader the snippet's own form uses.
 	defs, err := s.Fields.OfSnippet(ctx, websiteID, snippetID)
 	if err != nil {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"Die Werte des Textbausteins %q konnten nicht übernommen werden: %v", sn.Key, err))
+		report.warnf(i18n.N("the values of snippet %q could not be taken over: %v"), sn.Key, err)
 		return
 	}
 	raw, verworfen, err := cleanSnippetValues(defs, sn)
 	if err != nil {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"Die Werte des Textbausteins %q konnten nicht übernommen werden: %v", sn.Key, err))
+		report.warnf(i18n.N("the values of snippet %q could not be taken over: %v"), sn.Key, err)
 		return
 	}
 	if len(verworfen) > 0 {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"Textbaustein %q: die Werte von %s wurden nicht übernommen, sie halten die Regeln ihrer Felder nicht ein.",
-			sn.Key, strings.Join(verworfen, ", ")))
+		report.warnf(i18n.N("snippet %q: the values of %s were not taken over, they do not keep the rules of their fields."),
+			sn.Key, strings.Join(verworfen, ", "))
 	}
-	if maschinennummern := ortsgebundeneWerte(defs, raw); len(maschinennummern) > 0 {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"Textbaustein %q: die Werte von %s zeigen auf Nummern der Anlage, aus der "+
-				"das Archiv stammt, und müssen hier neu gewählt werden.",
-			sn.Key, strings.Join(maschinennummern, ", ")))
+	if bound := installationBoundValues(defs, raw); len(bound) > 0 {
+		report.warnf(i18n.N("snippet %q: the values of %s point at ids of the installation "+
+			"the archive came from, and have to be chosen again here."),
+			sn.Key, strings.Join(bound, ", "))
 	}
 	if err := s.Snippets.SetFields(ctx, websiteID, snippetID, raw); err != nil {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"Die Werte des Textbausteins %q konnten nicht gespeichert werden: %v", sn.Key, err))
+		report.warnf(i18n.N("the values of snippet %q could not be stored: %v"), sn.Key, err)
 	}
 }
 
-// ortsgebundeneWerte nennt die Felder, deren Wert eine Nummer der Anlage ist,
-// aus der das Archiv stammt.
+// installationBoundValues names the fields whose value is an id of the
+// installation the archive came from.
 //
-// Der Wert eines Bild-, Verweis- oder Schlagwortfeldes ist keine Zeichenkette,
-// die überall dasselbe bedeutet, sondern eine Nummer. Auf dem Seitenweg werden
-// solche Nummern beim Ausfahren in einen Dateinamen und eine Adresse übersetzt
-// und beim Einfahren zurück (exportFieldValues/translateIn); die Werte eines
-// Textbausteins gehen roh hinaus und roh hinein. Drüben gehört die Nummer einer
-// anderen Website, fieldImages und fieldRefs weisen sie zurück, und das Feld
-// kommt an, während das Bild fehlt.
+// The value of an image, reference or term field is not a string that means the
+// same thing everywhere — it is an id. On the page path such ids are translated
+// into a filename and an address on the way out and back on the way in
+// (exportFieldValues/translateIn); a snippet's values go out raw and come in
+// raw. On the other side the id belongs to a different website, fieldImages and
+// fieldRefs refuse it, and the field arrives while the picture is missing.
 //
-// Das bleibt vorerst so — die Übersetzung sitzt im Seitenweg, und sie von dort
-// zu lösen ist eine eigene Arbeit (deferred-items.md). Was hier steht, ist die
-// Lautstärke: der Verwaltungsbildschirm bietet diese Feldarten ausdrücklich an
-// und verspricht sie dem Betreiber, also darf das Versprechen nicht
-// stillschweigend brechen. Der Wert reist trotzdem mit, damit nichts verschwindet
-// und die Wahl drüben nur zu wiederholen ist.
-func ortsgebundeneWerte(defs []field.Def, raw string) []string {
+// That stays so for now — the translation sits on the page path, and prising it
+// out of there is work of its own (deferred-items.md). What stands here is the
+// volume: the admin screen offers these field kinds explicitly and promises
+// them to the operator, so the promise must not break silently. The value
+// travels along regardless, so that nothing disappears and the choice only has
+// to be repeated on the other side.
+func installationBoundValues(defs []field.Def, raw string) []string {
 	data := field.Decode(raw)
 	ortsgebunden := func(kind string) bool {
 		switch kind {
@@ -1084,11 +1059,10 @@ func ortsgebundeneWerte(defs []field.Def, raw string) []string {
 // budget and the per-kind rules live; leaving it out here would re-open on the
 // snippet exactly the hole 07-04 closed on the page.
 //
-// Ohne Vorbedingung, aus demselben Grund wie in importFieldValues und als
-// dieselbe Entscheidung: „if len(defs) > 0" liess genau das Manifest durch,
-// das Werte ohne Definitionen mitbringt — den Zuschnitt, der zur Gänze von Hand
-// geschrieben ist. Der Satz oben nannte damit ein Loch, das darunter offen
-// stand.
+// Unconditional, for the same reason as in importFieldValues and as the same
+// decision: `if len(defs) > 0` let through exactly the manifest that brings
+// values without definitions — the shape that is written entirely by hand. The
+// sentence above therefore named a hole that stood open underneath it.
 func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) {
 	data := field.Data{Values: field.Values{}, Rows: map[string][]field.Values{}}
 	for key, val := range sn.Values {
@@ -1203,8 +1177,7 @@ func importMenus(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 		loc := locale.Pick(mn.Locale, extras)
 		created, err := s.Menus.CreateMenu(ctx, websiteID, mn.Name, mn.LocationKey, loc)
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Menü %q konnte nicht angelegt werden: %v", mn.Name, err))
+			report.warnf(i18n.N("menu %q could not be created: %v"), mn.Name, err)
 			continue
 		}
 		importItems(ctx, s, websiteID, created.ID, nil, mn.Items, loc, report)
@@ -1232,14 +1205,12 @@ func importItems(ctx context.Context, s Stores, websiteID, menuID int64,
 			if err == nil && pg != nil {
 				pageID = &pg.ID
 			} else {
-				report.Warnings = append(report.Warnings, fmt.Sprintf(
-					"Menüpunkt %q zeigt auf die Seite %q, die es nicht gibt", item.Title, item.PageSlug))
+				report.warnf(i18n.N("menu item %q points at the page %q, which does not exist"), item.Title, item.PageSlug)
 			}
 		}
 		created, err := s.Menus.CreateItem(ctx, menuID, parent, item.Title, item.Type, item.URL, pageID, i)
 		if err != nil {
-			report.Warnings = append(report.Warnings,
-				fmt.Sprintf("Menüpunkt %q: %v", item.Title, err))
+			report.warnf(i18n.N("menu item %q: %v"), item.Title, err)
 			continue
 		}
 		if len(item.Children) > 0 {
