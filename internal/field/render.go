@@ -127,10 +127,10 @@ func Resolve(defs []Def, data Data, links Links) map[string]any {
 			out[d.Key] = raw != "" && raw != "0"
 
 		case KindNumber, KindRange:
-			// Ein Bereichsfeld ist eine Zahl mit Grenzen, und die Grenzen sind
-			// eine Frage der Prüfung, nicht der Auflösung. Raw bleibt die
-			// getippte Zeichenkette, damit 0.1 als 0.1 gedruckt wird und nicht
-			// als das, was ein float64 daraus zurückformatiert.
+			// A range field is a number with bounds, and the bounds are a
+			// question for the check rather than for resolution. Raw stays the
+			// string as it was typed, so that 0.1 prints as 0.1 and not as
+			// whatever a float64 formats back out of it.
 			n := Number{Raw: raw}
 			if raw != "" {
 				n.Value, _ = ParseNumber(raw)
@@ -138,9 +138,9 @@ func Resolve(defs []Def, data Data, links Links) map[string]any {
 			out[d.Key] = n
 
 		case KindTime:
-			// Ein Zeiger, aus demselben Grund wie beim Datum: „nichts
-			// eingetragen“ und „Mitternacht“ sind zwei verschiedene Tatsachen,
-			// und ein time.Time könnte sie nicht auseinanderhalten.
+			// A pointer, for the same reason as the date: "nothing entered"
+			// and "midnight" are two different facts, and a time.Time could
+			// not tell them apart.
 			t, ok := ParseTimeOfDay(raw)
 			if !ok {
 				out[d.Key] = (*time.Time)(nil)
@@ -192,22 +192,21 @@ func Resolve(defs []Def, data Data, links Links) map[string]any {
 			out[d.Key] = &ref
 
 		case KindTerm:
-			// Kein ParseInt: der gespeicherte Wert *ist* die Identität, also
-			// geht das Kürzel unverändert in die Nachschlagefunktion. Der
-			// Vergleich dort ist genaue Zeichengleichheit — ein Kürzel ist
-			// bereits die kleingeschriebene Schreibweise eines Namens, und
-			// hier noch einmal zu falten liesse zwei verschiedene
-			// Schlagwörter zusammenfallen.
+			// No ParseInt: the stored value *is* the identity, so the slug
+			// goes into the lookup unchanged. The comparison there is exact
+			// string equality — a slug is already the lower-case spelling of a
+			// name, and folding it a second time here would make two different
+			// terms collapse into one.
 			if raw == "" || links.Term == nil {
 				out[d.Key] = (*Term)(nil)
 				continue
 			}
 			t, ok := links.Term(raw)
 			if !ok {
-				// Gelöscht, oder von einer anderen Website. Nil statt eines
-				// alten Namens: ein {{ with }} im Theme lässt den Block dann
-				// aus, statt eine Beschriftung zu drucken, die es nicht mehr
-				// gibt.
+				// Deleted, or belonging to another website. Nil rather than an
+				// old name: a {{ with }} in the theme then leaves the block
+				// out instead of printing a label for something that no longer
+				// exists.
 				out[d.Key] = (*Term)(nil)
 				continue
 			}
@@ -315,18 +314,16 @@ func List(defs []Def, data Data, links Links) []Entry {
 			if v == nil {
 				continue
 			}
-			// Ein Datum überlässt der Text dem formatDate des Themes. Eine
-			// Uhrzeit hat keinen solchen Helfer, also steht sie hier — sonst
-			// druckt eine Liste aus Beschriftung und Wert neben „Abfahrt“
-			// nichts.
+			// A date is left to the theme's formatDate. A time of day has no
+			// such helper, so it stands here — otherwise a list of labels and
+			// values prints nothing next to "Departure".
 			if d.Kind == KindTime {
-				// Aus dem gelesenen Zeitpunkt und nicht aus der gespeicherten
-				// Zeichenkette. ParseTimeOfDay nimmt „09:30:00" absichtlich an —
-				// manche Browser schicken die Sekunden mit —, und die
-				// Spezifikation verspricht dem Theme „.Text ist sie als HH:MM".
-				// Wer die Rohform durchreichte, brach dieses Versprechen für
-				// jeden Wert, den ein Formular oder eine Tabelle in der langen
-				// Form abgeliefert hat.
+				// From the parsed point in time and not from the stored
+				// string. ParseTimeOfDay deliberately accepts "09:30:00" —
+				// some browsers send the seconds — and the specification
+				// promises the theme ".Text is it as HH:MM". Passing the raw
+				// form through broke that promise for every value a form or a
+				// spreadsheet delivered in the long shape.
 				e.Text = v.Format("15:04")
 			}
 		case *Image:
@@ -345,9 +342,9 @@ func List(defs []Def, data Data, links Links) []Entry {
 				continue
 			}
 			e.Term = v
-			// Der Name und nicht das Kürzel: FIELD-03 verlangt genau das,
-			// und eine Liste aus Beschriftung und Wert soll „Möbelbau“
-			// zeigen und nicht „moebel“.
+			// The name and not the slug: FIELD-03 asks for exactly that, and a
+			// list of labels and values should show "Möbelbau" rather than
+			// "moebel".
 			e.Text = v.Name
 		}
 		out = append(out, e)

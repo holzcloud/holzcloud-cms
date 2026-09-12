@@ -27,7 +27,7 @@ func RenderForDiff(raw string) (string, error) {
 	}
 	var blocks []Block
 	if err := json.Unmarshal([]byte(raw), &blocks); err != nil {
-		return "", fmt.Errorf("bausteine lesen: %w", err)
+		return "", fmt.Errorf("read blocks: %w", err)
 	}
 
 	var b strings.Builder

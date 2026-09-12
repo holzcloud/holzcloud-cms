@@ -93,7 +93,7 @@ func (q *Queue) Flush(ctx context.Context) error {
 		 ORDER BY id LIMIT 20`,
 		now.Format(timeLayout))
 	if err != nil {
-		return fmt.Errorf("postausgang lesen: %w", err)
+		return fmt.Errorf("read outbox: %w", err)
 	}
 
 	type pending struct {
@@ -107,7 +107,7 @@ func (q *Queue) Flush(ctx context.Context) error {
 		if err := rows.Scan(&p.id, &p.msg.To, &p.msg.Subject, &p.msg.Body,
 			&p.msg.ReplyTo, &p.attempts); err != nil {
 			rows.Close()
-			return fmt.Errorf("zeile lesen: %w", err)
+			return fmt.Errorf("read row: %w", err)
 		}
 		batch = append(batch, p)
 	}
@@ -174,7 +174,7 @@ func (q *Queue) Prune(ctx context.Context) error {
 	res, err := q.db.Write.ExecContext(ctx,
 		`DELETE FROM mail_outbox WHERE sent_at IS NOT NULL AND sent_at < $1`, cutoff)
 	if err != nil {
-		return fmt.Errorf("postausgang aufräumen: %w", err)
+		return fmt.Errorf("sweep outbox: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n > 0 {
 		q.log.Info("pruned sent mail", "rows", n)
@@ -211,7 +211,7 @@ func (q *Queue) Status(ctx context.Context) (Status, error) {
 		   COUNT(*) FILTER (WHERE sent_at IS NULL AND attempts >= $1)
 		 FROM mail_outbox`, MaxAttempts).Scan(&st.Pending, &st.Failed)
 	if err != nil {
-		return st, fmt.Errorf("postausgang zählen: %w", err)
+		return st, fmt.Errorf("count outbox: %w", err)
 	}
 
 	var last, sent sql.NullString

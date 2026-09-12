@@ -217,7 +217,7 @@ func ApplyCrop(dir, filename, mimeType string, c Crop, maxMegapixels int) (int, 
 	// picture they uploaded.
 	if _, err := os.Stat(source); errors.Is(err, os.ErrNotExist) {
 		if err := copyFile(served, source); err != nil {
-			return 0, 0, fmt.Errorf("original sichern: %w", err)
+			return 0, 0, fmt.Errorf("store original: %w", err)
 		}
 	} else if err != nil {
 		return 0, 0, err
@@ -239,7 +239,7 @@ func ApplyCrop(dir, filename, mimeType string, c Crop, maxMegapixels int) (int, 
 	src, _, err := image.Decode(f)
 	f.Close()
 	if err != nil {
-		return 0, 0, fmt.Errorf("bild lesen: %w", err)
+		return 0, 0, fmt.Errorf("read image: %w", err)
 	}
 
 	c = c.Normalise()

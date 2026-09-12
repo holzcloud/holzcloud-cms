@@ -53,7 +53,7 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Own, error) {
 		`SELECT id, key, name, hint FROM block_types
 		 WHERE website_id = $1 ORDER BY position, id`, websiteID)
 	if err != nil {
-		return nil, fmt.Errorf("bausteinarten lesen: %w", err)
+		return nil, fmt.Errorf("read block kinds: %w", err)
 	}
 	defer rows.Close()
 
@@ -61,7 +61,7 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Own, error) {
 	for rows.Next() {
 		var o Own
 		if err := rows.Scan(&o.ID, &o.Key, &o.Name, &o.Hint); err != nil {
-			return nil, fmt.Errorf("bausteinart lesen: %w", err)
+			return nil, fmt.Errorf("read block kind: %w", err)
 		}
 		out = append(out, o)
 	}
@@ -107,7 +107,7 @@ func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Own, error) {
 		`SELECT id, key, name, hint FROM block_types WHERE id = $1 AND website_id = $2`,
 		id, websiteID).Scan(&o.ID, &o.Key, &o.Name, &o.Hint)
 	if err != nil {
-		return nil, fmt.Errorf("bausteinart lesen: %w", err)
+		return nil, fmt.Errorf("read block kind: %w", err)
 	}
 	if fields, ferr := s.Fields.OfBlockType(ctx, websiteID, o.ID); ferr == nil {
 		o.Fields = fields
@@ -137,7 +137,7 @@ func (s *Store) Create(ctx context.Context, websiteID int64, name, hint string) 
 	var count int
 	if err := s.DB.Read.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM block_types WHERE website_id = $1`, websiteID).Scan(&count); err != nil {
-		return nil, fmt.Errorf("bausteinarten zählen: %w", err)
+		return nil, fmt.Errorf("count block kinds: %w", err)
 	}
 	if count >= MaxTypes {
 		return nil, ErrTooManyTypes
@@ -152,7 +152,7 @@ func (s *Store) Create(ctx context.Context, websiteID int64, name, hint string) 
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return nil, ErrDuplicate
 		}
-		return nil, fmt.Errorf("bausteinart anlegen: %w", err)
+		return nil, fmt.Errorf("create block kind: %w", err)
 	}
 	id, _ := res.LastInsertId()
 	return s.Get(ctx, websiteID, id)
@@ -175,7 +175,7 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, name, hint stri
 		`UPDATE block_types SET name = $1, hint = $2 WHERE id = $3 AND website_id = $4`,
 		name, strings.TrimSpace(hint), id, websiteID)
 	if err != nil {
-		return fmt.Errorf("bausteinart ändern: %w", err)
+		return fmt.Errorf("update block kind: %w", err)
 	}
 	return nil
 }
@@ -190,7 +190,7 @@ func (s *Store) Delete(ctx context.Context, websiteID, id int64) error {
 	_, err := s.DB.Write.ExecContext(ctx,
 		`DELETE FROM block_types WHERE id = $1 AND website_id = $2`, id, websiteID)
 	if err != nil {
-		return fmt.Errorf("bausteinart löschen: %w", err)
+		return fmt.Errorf("delete block kind: %w", err)
 	}
 	return nil
 }
@@ -222,13 +222,13 @@ func (s *Store) Move(ctx context.Context, websiteID, id int64, up bool) error {
 
 	tx, err := s.DB.Write.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("reihenfolge ändern: %w", err)
+		return fmt.Errorf("update order: %w", err)
 	}
 	defer tx.Rollback()
 	for i, t := range types {
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE block_types SET position = $1 WHERE id = $2`, i, t.ID); err != nil {
-			return fmt.Errorf("reihenfolge ändern: %w", err)
+			return fmt.Errorf("update order: %w", err)
 		}
 	}
 	return tx.Commit()
@@ -245,7 +245,7 @@ func (s *Store) Used(ctx context.Context, websiteID int64, key string) (int, err
 		`SELECT COUNT(*) FROM pages WHERE website_id = $1 AND blocks LIKE $2`,
 		websiteID, `%"typ":"`+key+`"%`).Scan(&n)
 	if err != nil {
-		return 0, fmt.Errorf("bausteine zählen: %w", err)
+		return 0, fmt.Errorf("count blocks: %w", err)
 	}
 	return n, nil
 }

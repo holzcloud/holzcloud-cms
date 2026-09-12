@@ -120,13 +120,13 @@ func (s *Sender) Send(m Message) error {
 	client, err := smtp.NewClient(conn, s.cfg.Host)
 	if err != nil {
 		conn.Close()
-		return fmt.Errorf("mailserver antwortet nicht wie erwartet: %w", err)
+		return fmt.Errorf("mail server does not answer as expected: %w", err)
 	}
 	defer client.Close()
 
 	if s.cfg.TLS == "starttls" {
 		if err := client.StartTLS(&tls.Config{ServerName: s.cfg.Host}); err != nil {
-			return fmt.Errorf("verschlüsselung fehlgeschlagen: %w", err)
+			return fmt.Errorf("encryption failed: %w", err)
 		}
 	}
 	if s.cfg.User != "" {
@@ -143,18 +143,18 @@ func (s *Sender) Send(m Message) error {
 		return fmt.Errorf("absender abgelehnt: %w", err)
 	}
 	if err := client.Rcpt(m.To); err != nil {
-		return fmt.Errorf("empfänger abgelehnt: %w", err)
+		return fmt.Errorf("recipient refused: %w", err)
 	}
 	w, err := client.Data()
 	if err != nil {
-		return fmt.Errorf("mailserver nimmt keine daten an: %w", err)
+		return fmt.Errorf("mail server accepts no data: %w", err)
 	}
 	if _, err := w.Write([]byte(s.compose(m))); err != nil {
 		w.Close()
-		return fmt.Errorf("schreiben fehlgeschlagen: %w", err)
+		return fmt.Errorf("write failed: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("mailserver hat die nachricht abgelehnt: %w", err)
+		return fmt.Errorf("mail server refused the message: %w", err)
 	}
 	return client.Quit()
 }
@@ -274,7 +274,7 @@ func validAddress(s string) error {
 	}
 	name, host, ok := strings.Cut(s, "@")
 	if !ok || name == "" || host == "" || strings.Contains(host, "@") {
-		return fmt.Errorf("%q ist keine e-mail-adresse", s)
+		return fmt.Errorf("%q is not an e-mail address", s)
 	}
 	return nil
 }

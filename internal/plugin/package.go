@@ -61,14 +61,14 @@ type Migration struct {
 // is to say so while nothing has been installed yet.
 func ReadPackage(r io.ReaderAt, size int64) (*Package, error) {
 	if size > MaxTotalBytes {
-		return nil, fmt.Errorf("das Archiv ist größer als %d MB", MaxTotalBytes>>20)
+		return nil, fmt.Errorf("the archive is larger than %d MB", MaxTotalBytes>>20)
 	}
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
-		return nil, fmt.Errorf("die Datei ist kein gültiges Archiv: %w", err)
+		return nil, fmt.Errorf("the file is not a valid archive: %w", err)
 	}
 	if len(zr.File) > MaxEntries {
-		return nil, fmt.Errorf("das Archiv enthält mehr als %d Dateien", MaxEntries)
+		return nil, fmt.Errorf("the archive contains more than %d files", MaxEntries)
 	}
 
 	manifestRaw, err := readEntry(zr, ManifestName, MaxManifestBytes)
@@ -85,7 +85,7 @@ func ReadPackage(r io.ReaderAt, size int64) (*Package, error) {
 		return nil, fmt.Errorf("im Archiv fehlt %s", ModuleName)
 	}
 	if !bytes.HasPrefix(module, []byte("\x00asm")) {
-		return nil, fmt.Errorf("%s ist kein WebAssembly-Modul", ModuleName)
+		return nil, fmt.Errorf("%s is not a WebAssembly module", ModuleName)
 	}
 
 	pkg := &Package{
@@ -125,7 +125,7 @@ func ReadPackage(r io.ReaderAt, size int64) (*Package, error) {
 				return nil, err
 			}
 			if !strings.HasSuffix(rel, ".sql") || strings.Contains(rel, "/") {
-				return nil, fmt.Errorf("%s: unter %s sind nur .sql-Dateien ohne Unterordner erlaubt",
+				return nil, fmt.Errorf("%s: only .sql files without subdirectories are allowed under %s",
 					name, MigrationDir)
 			}
 			data, err := readEntry(zr, name, MaxMigrationBytes)
@@ -139,11 +139,11 @@ func ReadPackage(r io.ReaderAt, size int64) (*Package, error) {
 			// Not ignored: a file the host does not understand is either a
 			// mistake in the build or something that was meant to end up
 			// somewhere it should not.
-			return nil, fmt.Errorf("das Archiv enthält %q, das dort nicht hingehört", name)
+			return nil, fmt.Errorf("the archive contains %q, which does not belong there", name)
 		}
 
 		if total > MaxTotalBytes {
-			return nil, fmt.Errorf("das Archiv entpackt sich auf mehr als %d MB", MaxTotalBytes>>20)
+			return nil, fmt.Errorf("the archive unpacks to more than %d MB", MaxTotalBytes>>20)
 		}
 	}
 
@@ -169,11 +169,11 @@ func safeRelative(name, prefix string) (string, error) {
 	}
 	clean := path.Clean(rel)
 	if clean != rel || strings.HasPrefix(clean, "/") || strings.HasPrefix(clean, "..") {
-		return "", fmt.Errorf("der Eintrag %q ist kein zulässiger Pfad", name)
+		return "", fmt.Errorf("the entry %q is not an allowed path", name)
 	}
 	for _, seg := range strings.Split(clean, "/") {
 		if seg == "" || seg == "." || seg == ".." || strings.HasPrefix(seg, ".") {
-			return "", fmt.Errorf("der Eintrag %q ist kein zulässiger Pfad", name)
+			return "", fmt.Errorf("the entry %q is not an allowed path", name)
 		}
 	}
 	return clean, nil
@@ -194,7 +194,7 @@ func readEntry(zr *zip.Reader, name string, max int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(data)) > max {
-		return nil, fmt.Errorf("%s ist größer als %d Bytes", name, max)
+		return nil, fmt.Errorf("%s is larger than %d bytes", name, max)
 	}
 	return data, nil
 }

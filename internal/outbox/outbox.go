@@ -318,7 +318,7 @@ func (d *Dispatcher) Run(ctx context.Context) error {
 
 	due, err := d.Store.Due(ctx, batch)
 	if err != nil {
-		return fmt.Errorf("outbox lesen: %w", err)
+		return fmt.Errorf("read outbox: %w", err)
 	}
 
 	for _, m := range due {

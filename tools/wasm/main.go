@@ -314,18 +314,18 @@ func bodenPruefen(root string) error {
 	if m == nil {
 		return nil
 	}
-	boden := string(m[1])
-	if kleiner(strings.TrimPrefix(goToolchain, "go"), boden) {
-		return fmt.Errorf("die feste Werkzeugkette %s ist älter als die Vorgabe »go %s« in go.mod; "+
-			"echo liegt im Wurzelmodul und liesse sich damit nicht bauen. "+
-			"goToolchain in tools/wasm/main.go im selben Commit anheben", goToolchain, boden)
+	floor := string(m[1])
+	if lessThan(strings.TrimPrefix(goToolchain, "go"), floor) {
+		return fmt.Errorf("the pinned toolchain %s is older than the \"go %s\" directive in go.mod; "+
+			"echo lives in the root module and could not be built with it. "+
+			"Raise goToolchain in tools/wasm/main.go in the same commit", goToolchain, floor)
 	}
 	return nil
 }
 
 // kleiner compares two dotted version numbers component by component. A missing
 // component counts as zero, so "1.26" is below "1.26.6".
-func kleiner(a, b string) bool {
+func lessThan(a, b string) bool {
 	az, bz := zahlen(a), zahlen(b)
 	for i := 0; i < len(az) || i < len(bz); i++ {
 		var x, y int

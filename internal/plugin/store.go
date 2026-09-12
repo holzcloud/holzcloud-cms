@@ -109,7 +109,7 @@ func (s *Store) checkRoutes(ctx context.Context, m *Manifest) error {
 	}
 	for _, r := range m.Routes {
 		if by, ok := claimed[r]; ok {
-			return fmt.Errorf("%w: %q gehört bereits zu %q", ErrRouteTaken, r, by)
+			return fmt.Errorf("%w: %q already belongs to %q", ErrRouteTaken, r, by)
 		}
 	}
 	return nil
@@ -302,10 +302,10 @@ func (s *Store) StoreGet(ctx context.Context, id string, websiteID int64, key st
 // StoreSet writes one value.
 func (s *Store) StoreSet(ctx context.Context, id string, websiteID int64, key, value string) error {
 	if key == "" || len(key) > MaxKeyBytes {
-		return fmt.Errorf("der Schlüssel ist leer oder länger als %d Zeichen", MaxKeyBytes)
+		return fmt.Errorf("the key is empty or longer than %d characters", MaxKeyBytes)
 	}
 	if len(value) > MaxValueBytes {
-		return fmt.Errorf("der Wert ist größer als %d KB", MaxValueBytes>>10)
+		return fmt.Errorf("the value is larger than %d KB", MaxValueBytes>>10)
 	}
 	_, err := s.DB.Write.ExecContext(ctx, `
 		INSERT INTO plugin_store (plugin_id, website_id, key, value, updated_at)
@@ -406,7 +406,7 @@ func (s *Store) ApplyMigrations(ctx context.Context, id string, ms []Migration) 
 		}
 		if _, err := tx.ExecContext(ctx, m.SQL); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("die Migration %q des Plugins %q ist fehlgeschlagen: %w", m.Name, id, err)
+			return fmt.Errorf("migration %q of plugin %q failed: %w", m.Name, id, err)
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO plugin_migrations (plugin_id, name, sha256, applied_at) VALUES ($1, $2, $3, $4)`,

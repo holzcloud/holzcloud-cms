@@ -328,7 +328,7 @@ func main() {
 		pluginRuntime.WithSettings(func(ctx context.Context, websiteID int64) (plugin.SettingsResult, error) {
 			ws, err := domainStore.GetWebsite(ctx, websiteID)
 			if err != nil || ws == nil {
-				return plugin.SettingsResult{}, fmt.Errorf("website %d nicht gefunden", websiteID)
+				return plugin.SettingsResult{}, fmt.Errorf("website %d not found", websiteID)
 			}
 			return plugin.SettingsResult{
 				WebsiteID: ws.ID, Name: ws.Name, Description: ws.Description,

@@ -141,7 +141,7 @@ func ReadFile(path string) (map[string]string, error) {
 		return nil, err
 	}
 	if info.Size() > MaxFileBytes {
-		return nil, fmt.Errorf("die Datei ist größer als %d Bytes", MaxFileBytes)
+		return nil, fmt.Errorf("the file is larger than %d bytes", MaxFileBytes)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -154,10 +154,10 @@ func ReadFile(path string) (map[string]string, error) {
 func Parse(data []byte) (map[string]string, error) {
 	var raw map[string]string
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("keine gültige JSON-Datei aus Text-Paaren: %w", err)
+		return nil, fmt.Errorf("not a valid JSON file of text pairs: %w", err)
 	}
 	if len(raw) == 0 {
-		return nil, fmt.Errorf("die Datei enthält keine Übersetzungen")
+		return nil, fmt.Errorf("the file contains no translations")
 	}
 
 	out := make(map[string]string, len(raw))
@@ -179,7 +179,7 @@ func Parse(data []byte) (map[string]string, error) {
 		out[german] = sanitise(translated)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("die Datei enthält keine brauchbare Übersetzung")
+		return nil, fmt.Errorf("the file contains no usable translation")
 	}
 	return out, nil
 }

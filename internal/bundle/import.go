@@ -71,7 +71,7 @@ const MaxManifestBytes = 32 << 20
 func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name string) (*Report, error) {
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
-		return nil, fmt.Errorf("die Datei ist kein gültiges Archiv: %w", err)
+		return nil, fmt.Errorf("the file is not a valid archive: %w", err)
 	}
 
 	manifest, err := readManifest(zr)
@@ -89,12 +89,12 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 		siteName = manifest.Site.Name
 	}
 	if siteName == "" {
-		return nil, fmt.Errorf("das Archiv nennt keinen Namen für die Website")
+		return nil, fmt.Errorf("the archive names no name for the website")
 	}
 
 	created, err := s.Domains.CreateWebsite(ctx, siteName, manifest.Site.Description)
 	if err != nil {
-		return nil, fmt.Errorf("Website anlegen: %w", err)
+		return nil, fmt.Errorf("create website: %w", err)
 	}
 	websiteID := created.ID
 	report := &Report{WebsiteID: websiteID}
@@ -151,12 +151,12 @@ func readManifest(zr *zip.Reader) (*Manifest, error) {
 
 	data, err := io.ReadAll(io.LimitReader(f, MaxManifestBytes))
 	if err != nil {
-		return nil, fmt.Errorf("%s konnte nicht gelesen werden: %w", ManifestName, err)
+		return nil, fmt.Errorf("%s could not be read: %w", ManifestName, err)
 	}
 
 	var m Manifest
 	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, fmt.Errorf("%s ist beschädigt: %w", ManifestName, err)
+		return nil, fmt.Errorf("%s is corrupt: %w", ManifestName, err)
 	}
 	return &m, nil
 }

@@ -64,7 +64,7 @@ func NewManager(ctx context.Context, store *Store, rt *Runtime, dataDir string, 
 	}
 	m := &Manager{store: store, rt: rt, dataDir: dataDir, log: log}
 	if err := os.MkdirAll(m.root(), 0o755); err != nil {
-		return nil, fmt.Errorf("plugin-verzeichnis anlegen: %w", err)
+		return nil, fmt.Errorf("create plugin directory: %w", err)
 	}
 	if err := m.Sync(ctx); err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (m *Manager) Sync(ctx context.Context) error {
 		}
 		module, err := os.ReadFile(filepath.Join(m.dir(p.ID), ModuleName))
 		if err != nil {
-			m.note(ctx, p.ID, fmt.Errorf("das Modul fehlt auf der Platte: %w", err))
+			m.note(ctx, p.ID, fmt.Errorf("the module is missing from disk: %w", err))
 			continue
 		}
 		if err := m.rt.Load(ctx, p.Manifest, module); err != nil {
@@ -396,7 +396,7 @@ func (m *Manager) Enable(ctx context.Context, id string) error {
 		if err == nil && p.LastError != "" {
 			return errors.New(p.LastError)
 		}
-		return fmt.Errorf("das Plugin %q liess sich nicht laden", id)
+		return fmt.Errorf("the plugin %q could not be loaded", id)
 	}
 	return nil
 }
