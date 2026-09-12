@@ -430,7 +430,7 @@ func erzeugen(root string, z ziel, bauplatz string) ([]artefakt, error) {
 // Go has not changed that output in years, and if a release ever does, the fix
 // is the same as for a compiler bump: repack in the commit that raises the
 // version.
-func packen(quelle string, manifest, modul []byte) ([]byte, error) {
+func packen(quelle string, manifest, module []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	eintraege := []struct {
@@ -438,7 +438,7 @@ func packen(quelle string, manifest, modul []byte) ([]byte, error) {
 		inhalt []byte
 	}{
 		{manifestName, manifest},
-		{modulName, modul},
+		{modulName, module},
 	}
 	// Everything else the format admits, read from the plugin's own directory.
 	// Writing a fixed two-entry archive was the earlier shape, and it was wrong

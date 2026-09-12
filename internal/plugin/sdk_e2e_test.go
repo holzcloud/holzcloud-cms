@@ -19,7 +19,7 @@ import (
 // echte Laufzeit. Es prüft die Kette als Ganzes: SDK, Aufrufkonvention, Host,
 // Berechtigungen und eigener Speicher.
 func TestBeispielPluginLaeuftDurch(t *testing.T) {
-	modul := wasmtest.Modul(t, "../../plugins/jahreszahl/plugin.wasm")
+	module := wasmtest.Module(t, "../../plugins/jahreszahl/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/jahreszahl/plugin.json")
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 	store := plugin.NewStore(database)
 
 	ctx := context.Background()
-	if err := store.Install(ctx, &plugin.Package{Manifest: m, Module: modul, SHA256: strings.Repeat("b", 64)}); err != nil {
+	if err := store.Install(ctx, &plugin.Package{Manifest: m, Module: module, SHA256: strings.Repeat("b", 64)}); err != nil {
 		t.Fatal(err)
 	}
 	r, err := plugin.NewRuntime(ctx, store, slog.New(slog.DiscardHandler))
@@ -48,7 +48,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Close(ctx)
-	if err := r.Load(ctx, m, modul); err != nil {
+	if err := r.Load(ctx, m, module); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 

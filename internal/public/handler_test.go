@@ -264,14 +264,14 @@ func TestHandleTemplateAssetServesAndRejectsTraversal(t *testing.T) {
 	}
 }
 
-// Eine geänderte Vorlage muss ankommen.
+// A changed template has to arrive.
 //
-// Bis Fassung 1.8 ging jedes Vorlagen-Asset mit `max-age=31536000, immutable`
-// hinaus, auf einer Adresse, die sich nie ändert. `immutable` heisst: frag nicht
-// nach, auch nicht beim Neuladen. Ein korrigiertes Stylesheet erreichte damit
-// niemanden, der die Seite schon einmal geöffnet hatte — ein Jahr lang. Der Test
-// hält beide Hälften fest: die kurze Frist ohne Version und das lange
-// Versprechen nur dort, wo die Adresse es einlöst.
+// Up to version 1.8 every template asset went out with
+// `max-age=31536000, immutable`, on an address that never changes. `immutable`
+// means: do not ask back, not even on a reload. A corrected stylesheet thereby
+// reached nobody who had already opened the page — for a year. The test holds
+// both halves fast: the short lifetime without a version and the long promise
+// only where the address redeems it.
 func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
 	h, database := newTestHandler(t)
 	ws := seedWebsite(t, database, "Test Site")
@@ -291,7 +291,7 @@ func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
 		return rec
 	}
 
-	// Ohne Version: kurz und nachfragbar.
+	// Without a version: short and revalidatable.
 	rec := hole("/t/style.css", "")
 	if cc := rec.Header().Get("Cache-Control"); strings.Contains(cc, "immutable") {
 		t.Errorf("Cache-Control = %q; nothing on a fixed address may be immutable", cc)
@@ -301,7 +301,7 @@ func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
 		t.Fatal("without an ETag the revalidation costs as much as a fresh fetch")
 	}
 
-	// Die Rückfrage kostet dann nichts mehr.
+	// Asking back then costs nothing any more.
 	rec = hole("/t/style.css", etag)
 	if rec.Code != http.StatusNotModified {
 		t.Errorf("status = %d; want 304", rec.Code)
@@ -310,7 +310,7 @@ func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
 		t.Errorf("304 with a body: %q", rec.Body.String())
 	}
 
-	// Mit Version im Verweis hält der Aufrufer das Versprechen, also gilt es.
+	// With a version in the reference the caller keeps the promise, so it holds.
 	rec = hole("/t/style.css?v=1.8", "")
 	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
 		t.Errorf("Cache-Control = %q; a versioned address may sit for a long time", cc)
@@ -341,8 +341,8 @@ func TestSitemapListsOnlyPublishedPages(t *testing.T) {
 			t.Errorf("sitemap missing %s:\n%s", want, body)
 		}
 	}
-	// Die Startseite steht als "/" schon oben. Ihre zweite Adresse gehört
-	// nicht dazu — siehe TestTheStartPageHasOneAddress.
+	// The start page stands above already as "/". Its second address does not
+	// belong here — see TestTheStartPageHasOneAddress.
 	if strings.Contains(body, "/home</loc>") {
 		t.Errorf("die Startseite steht zweimal im Sitemap:\n%s", body)
 	}
@@ -510,13 +510,12 @@ func TestTheStartPageHasOneAddress(t *testing.T) {
 	}
 }
 
-// Das Versprechen des Schlagwortfeldes, und die einzige Behauptung, die es
-// beweist: die Seite druckt den Namen, wie er *gerade jetzt* lautet.
+// The promise of the term field, and the one assertion that proves it: the page
+// prints the name as it reads *right now*.
 //
-// Gespeichert ist das Kürzel, gedruckt wird der Name. Wird das Schlagwort
-// umbenannt, ändert sich, was die Seite zeigt — ohne dass die Seite
-// geschrieben würde. Deshalb steht zwischen den beiden Abrufen kein
-// SetFields, sondern nur ein Rename.
+// What is stored is the slug, what is printed is the name. If the term is
+// renamed, what the page shows changes — without the page being written.
+// That is why no SetFields stands between the two fetches, only a Rename.
 func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
 	h, database := newFieldTestHandler(t)
 	ctx := context.Background()
@@ -543,8 +542,8 @@ func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
 	}
 
 	terms := term.NewStore(database)
-	// Das Schlagwort hängt bewusst an einer anderen Seite: das Feld ist der
-	// einzige Weg, auf dem es auf diese hier kommt.
+	// The term hangs on another page on purpose: the field is the only way it
+	// reaches this one.
 	traeger, err := pages.CreatePage(ctx, page.PageCreate{
 		WebsiteID: ws.ID, Title: "Träger", Slug: "traeger",
 		Markdown: "text", HTML: html, Status: "published",
@@ -583,12 +582,12 @@ func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
 	if !strings.Contains(vorher, `<span class="thema">Möbel</span>`) {
 		t.Fatalf("the page does not print the term's name:\n%s", vorher)
 	}
-	// Und die Adresse trägt das Kürzel, nicht den Namen.
+	// And the address carries the slug, not the name.
 	if !strings.Contains(vorher, "/tag/moebel") {
 		t.Errorf("die Adresse des Schlagworts fehlt:\n%s", vorher)
 	}
 
-	// --- Umbenennen, ohne die Seite anzufassen ------------------------------
+	// --- rename, without touching the page ----------------------------------
 	alle, err := terms.ListAll(ctx, ws.ID)
 	if err != nil || len(alle) != 1 {
 		t.Fatalf("ListAll = %v, %v", alle, err)
@@ -604,15 +603,14 @@ func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
 	if strings.Contains(nachher, ">Möbel<") {
 		t.Errorf("after the rename the old name is still there:\n%s", nachher)
 	}
-	// Das Kürzel bleibt, absichtlich: eine Umbenennung soll bestehende Links
-	// nicht zerbrechen.
+	// The slug stays, deliberately: a rename should not break existing links.
 	if !strings.Contains(nachher, "/tag/moebel") {
 		t.Errorf("the address moved when it was renamed:\n%s", nachher)
 	}
 }
 
-// Gelöscht heisst nichts gedruckt, nicht eine kaputte Seite: das {{with}} im
-// Theme lässt den Block aus.
+// Deleted means nothing printed, not a broken page: the {{with}} in the theme
+// leaves the block out.
 func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
 	h, database := newFieldTestHandler(t)
 	ctx := context.Background()
@@ -632,8 +630,8 @@ func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Ein Kürzel, das es nie gab — dasselbe, was ein gelöschtes Schlagwort
-	// hinterlässt.
+	// A slug that never existed — the same as what a deleted term leaves
+	// behind.
 	raw, _ := field.Encode(field.Data{Values: field.Values{"thema": "verschwunden"}})
 	if err := pages.SetFields(ctx, pg.ID, raw); err != nil {
 		t.Fatal(err)
@@ -659,13 +657,12 @@ func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
 	}
 }
 
-// Das Schlagwort einer fremden Website löst sich zu nichts auf (T-07-19).
+// The term of a foreign website resolves to nothing (T-07-19).
 //
-// Ein gespeichertes Kürzel sagt nichts darüber, welcher Website es gehört —
-// deshalb ist die Nachschlagefunktion und nicht Check die Stelle, an der die
-// Regel steht: fieldTerms füllt seine Karte aus einem ListAll genau der
-// Website, die gerade gerendert wird, und ein fremdes Kürzel steht darin
-// schlicht nicht.
+// A stored slug says nothing about which website it belongs to — which is why
+// the lookup function and not Check is the place the rule stands: fieldTerms
+// fills its map from a ListAll of exactly the website being rendered, and a
+// foreign slug simply does not stand in it.
 func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
 	h, database := newFieldTestHandler(t)
 	ctx := context.Background()
@@ -680,7 +677,7 @@ func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
 
 	pages := page.NewStore(database)
 	html, _ := page.RenderMarkdown("text")
-	// Das Schlagwort gehört der fremden Website.
+	// The term belongs to the foreign website.
 	fremdeSeite, err := pages.CreatePage(ctx, page.PageCreate{
 		WebsiteID: fremd.ID, Title: "Anderswo", Slug: "anderswo",
 		Markdown: "text", HTML: html, Status: "published",
@@ -699,8 +696,8 @@ func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Und die eigene Seite trägt sein Kürzel — von Hand eingetragen, so wie
-	// es nur an der Auswahl vorbei entstehen kann.
+	// And the own page carries its slug — entered by hand, the way it can only
+	// come about past the choice field.
 	raw, _ := field.Encode(field.Data{Values: field.Values{"thema": "geheim"}})
 	if err := pages.SetFields(ctx, pg.ID, raw); err != nil {
 		t.Fatal(err)
@@ -723,8 +720,8 @@ func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
 	}
 }
 
-// newFieldTestHandler ist newTestHandler mit einer Vorlage, die ein
-// Schlagwortfeld druckt, und mit den beiden Ablagen, die dafür hängen müssen.
+// newFieldTestHandler is newTestHandler with a template that prints a term
+// field, and with the two stores that have to hang on it for that.
 func newFieldTestHandler(t *testing.T) (*Handler, *db.DB) {
 	t.Helper()
 
@@ -739,8 +736,8 @@ func newFieldTestHandler(t *testing.T) (*Handler, *db.DB) {
 	}
 
 	fsys := testFS()
-	// Das {{with}} ist der Punkt: bei einem nicht auflösbaren Schlagwort
-	// bekommt das Theme nil und lässt den Block aus.
+	// The {{with}} is the point: for a term that cannot be resolved the theme
+	// gets nil and leaves the block out.
 	fsys["page.html"] = &fstest.MapFile{Data: []byte(
 		`{{define "content"}}<article>{{.Page.Title}}` +
 			`{{with .Page.Fields.thema}}<span class="thema">{{.Name}}</span>` +

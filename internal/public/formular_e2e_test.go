@@ -156,7 +156,7 @@ func TestNachrichtWirdInDerVerwaltungMaskiert(t *testing.T) {
 
 func formularAufbau(t *testing.T) (*Handler, *db.DB, *domain.Website, *plugin.Manager) {
 	t.Helper()
-	modul := wasmtest.Modul(t, "../../plugins/kontaktformular/plugin.wasm")
+	module := wasmtest.Module(t, "../../plugins/kontaktformular/plugin.wasm")
 	roh, err := os.ReadFile("../../plugins/kontaktformular/plugin.json")
 	if err != nil {
 		t.Fatal(err)
@@ -168,7 +168,7 @@ func formularAufbau(t *testing.T) (*Handler, *db.DB, *domain.Website, *plugin.Ma
 
 	h, database := newTestHandler(t)
 	ws := seedWebsite(t, database, "Velowerkstatt")
-	manager := loadPlugin(t, h, database, manifest, modul, ws.ID)
+	manager := loadPlugin(t, h, database, manifest, module, ws.ID)
 	h.SetPlugins(manager)
 
 	// Have the token filled in once: in doing so the plugin draws its signing

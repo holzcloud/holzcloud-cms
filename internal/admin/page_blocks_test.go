@@ -53,7 +53,7 @@ func TestBausteineWerdenGespeichertUndAusgegeben(t *testing.T) {
 		t.Fatalf("Bausteine = %+v, %v", blocks, err)
 	}
 
-	// Das ausgegebene HTML trägt den Rahmen und den Text.
+	// The delivered HTML carries the frame and the text.
 	for _, wollte := range []string{
 		`class="hc-block hc-text"`, "Willkommen", `class="hc-block hc-zitat"`, "Eine Kundin",
 	} {
@@ -62,8 +62,8 @@ func TestBausteineWerdenGespeichertUndAusgegeben(t *testing.T) {
 		}
 	}
 
-	// Und der reine Text ist da, sonst wäre die Seite für die eigene Suche
-	// unsichtbar.
+	// And the plain text is there, or the page would be invisible to the
+	// website's own search.
 	for _, wollte := range []string{"Willkommen", "Schöne Tiere", "Eine Kundin"} {
 		if !strings.Contains(p.ContentMarkdown, wollte) {
 			t.Errorf("%q fehlt im reinen Text:\n%s", wollte, p.ContentMarkdown)
@@ -71,8 +71,8 @@ func TestBausteineWerdenGespeichertUndAusgegeben(t *testing.T) {
 	}
 }
 
-// Ein Knopf im Editor ist kein Speichern. Er darf die Seite nicht anlegen und
-// muss zurückgeben, was schon getippt wurde.
+// A button in the editor is not a save. It must not create the page and has to
+// hand back what has already been typed.
 func TestEineEditoraktionSpeichertNicht(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
@@ -90,14 +90,14 @@ func TestEineEditoraktionSpeichertNicht(t *testing.T) {
 	if !strings.Contains(body, "Ein angefangener Satz") {
 		t.Errorf("the typed text did not come back:\n%s", body)
 	}
-	// Und der neue Baustein steht jetzt drin.
+	// And the new block now stands in it.
 	if !strings.Contains(body, `name="b1.typ" value="bild"`) {
 		t.Errorf("the new block is missing:\n%s", body)
 	}
 }
 
-// Mit htmx kommt nur die Liste back, ohne htmx das ganze Formular. Beides
-// muss den Zustand tragen, sonst verliert einer der beiden Wege den Text.
+// With htmx only the list comes back, without htmx the whole form. Both have to
+// carry the state, or one of the two paths loses the text.
 func TestEditoraktionMitUndOhneHtmx(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
 
@@ -130,8 +130,8 @@ func TestEditoraktionMitUndOhneHtmx(t *testing.T) {
 	}
 }
 
-// Der Weg in die Bausteine macht aus dem Text einen Baustein, ohne ihn zu
-// zerlegen — und ohne dabei zu speichern.
+// The way into the blocks turns the text into a block without taking it apart —
+// and without saving in the process.
 func TestWechselInDieBausteine(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	p := seedPage(t, database, ws.ID, "Über uns", "ueber-uns", "Ein langer Artikel.", "published")
@@ -154,15 +154,15 @@ func TestWechselInDieBausteine(t *testing.T) {
 		t.Errorf("the text was lost in the switch:\n%s", body)
 	}
 
-	// Gespeichert wurde nichts: die Seite ist unverändert Markdown.
+	// Nothing was saved: the page is markdown, unchanged.
 	nach, _ := page.NewStore(database).GetPage(context.Background(), p.ID)
 	if nach.Blocks != "" {
 		t.Errorf("der Wechsel hat gespeichert: %q", nach.Blocks)
 	}
 }
 
-// Ein Bild aus der Mediathek einer anderen Website darf nicht durch eine
-// getippte Nummer erreichbar sein.
+// An image from another website's media library must not be reachable through a
+// typed-in number.
 func TestBildEinerFremdenWebsiteWirdNichtAusgegeben(t *testing.T) {
 	h, _, database, ws := newTestAdmin(t)
 	fremd, err := h.domains.CreateWebsite(context.Background(), "Andere", "")
@@ -199,8 +199,8 @@ func TestBildEinerFremdenWebsiteWirdNichtAusgegeben(t *testing.T) {
 	}
 }
 
-// Eine Seite aus Bausteinen behält sie über das Speichern und erneute Öffnen
-// hinweg — der häufigste Weg, auf dem so etwas Inhalt verliert.
+// A page made of blocks keeps them across saving and opening again — the most
+// common way for something like this to lose content.
 func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
@@ -227,21 +227,21 @@ func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
 			t.Errorf("%q is missing from the reopened editor:\n%s", wollte, body)
 		}
 	}
-	// Und der einfache Editor wird nicht angeboten, weil dabei die Karten
-	// verloren gingen.
+	// And the simple editor is not offered, because the cards would be lost in
+	// the process.
 	if strings.Contains(body, "zu-markdown") {
 		t.Error("the way back is offered although the cards were lost")
 	}
 }
 
-// Eine eigene Bausteinart überlebt das Speichern einer bestehenden Seite.
+// A block kind of one's own survives the saving of an existing page.
 //
-// Sie tat es lange nicht: handlePageCreatePost setzte values.BlockSet,
-// handlePageEditPost nicht — und ein leeres Set kennt nur die neun eingebauten
-// Arten. Clean verwarf daraufhin beim Speichern jeden Baustein einer eigenen
-// Art, ohne Meldung, und Apply legte keinen neuen an. Eine Seite mit sechs
-// Merkmalen kam als Fliesstext back, und der Editor bot die Art nicht mehr
-// an, mit der man sie hätte wiederherstellen können.
+// For a long time it did not: handlePageCreatePost set values.BlockSet,
+// handlePageEditPost did not — and an empty set knows only the nine built-in
+// kinds. Clean thereupon discarded every block of a kind of one's own on
+// saving, without a message, and Apply created no new one. A page with six
+// features came back as running text, and the editor no longer offered the kind
+// it could have been restored with.
 func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -273,7 +273,7 @@ func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 		t.Fatalf("the page was not created: %v", err)
 	}
 
-	// Bearbeiten, ohne irgendetwas zu ändern.
+	// Editing without changing anything at all.
 	req = postForm("/admin/websites/1/pages/1/edit", blockForm(ws.ID, url.Values{
 		"b0.typ":       {"text"},
 		"b0.markdown":  {"Ein Absatz."},
@@ -306,7 +306,7 @@ func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 	}
 }
 
-// Und die Art lässt sich beim Bearbeiten auch hinzufügen.
+// And the kind can be added while editing, too.
 func TestEigeneBausteinartLaesstSichBeimBearbeitenAnlegen(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -331,18 +331,18 @@ func TestEigeneBausteinartLaesstSichBeimBearbeitenAnlegen(t *testing.T) {
 	req.Header.Set("HX-Request", "true")
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 
-	// Zwei Bausteine im zurückgegebenen Teil, nicht einer.
+	// Two blocks in the returned fragment, not one.
 	if got := strings.Count(rec.Body.String(), `name="b1.typ"`); got != 1 {
 		t.Errorf("the new block is missing from the form (b1.typ %d times):\n%s", got, rec.Body.String())
 	}
 }
 
-// Der dritte Ort, an dem Feldnamen entstehen. Auf der Seite selbst prägt
-// Def.FieldName die Markierung, in einer Gruppenzeile hängt groupView
-// NameSuffix an — und im Bausteineditor muss dieselbe Quelle gelten. Ohne sie
-// zeichnet das Formular eine Häkchengruppe ohne "[]", der Parser behält
-// values[0], und weil der Wächter vor der Gruppe steht, ist das der leere
-// String: jedes Häkchen ginge bei jedem Speichern verloren, ohne Meldung.
+// The third place where field names come about. On the page itself
+// Def.FieldName mints the marker, in a group row groupView appends NameSuffix —
+// and in the block editor the same source has to hold. Without it the form
+// draws a checkbox group without "[]", the parser keeps values[0], and because
+// the guard stands before the group that is the empty string: every checkbox
+// would be lost on every save, without a message.
 func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -361,8 +361,8 @@ func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) 
 
 	p := seedPage(t, database, ws.ID, "Titel", "titel", "Ein Absatz.", "draft")
 
-	// Erst das Formular: der Editor muss die Markierung selbst zeichnen,
-	// sonst schickt kein Browser sie je mit.
+	// The form first: the editor has to draw the marker itself, or no browser
+	// ever sends it along.
 	req := postForm("/admin/websites/1/pages/1/edit", blockForm(ws.ID, url.Values{
 		"title":           {"Titel"},
 		"slug":            {"titel"},
@@ -386,7 +386,7 @@ func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) 
 		t.Errorf("the sentinel is missing before the group:\n%s", body)
 	}
 
-	// Und dann, was dieses Formular absendet: der Wächter voran, zwei Haken.
+	// And then what this form submits: the guard in front, two ticks.
 	req = postForm("/admin/websites/1/pages/1/edit", blockForm(ws.ID, url.Values{
 		"title":          {"Titel"},
 		"slug":           {"titel"},

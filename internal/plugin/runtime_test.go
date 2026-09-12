@@ -25,7 +25,7 @@ import (
 // laufen — ein Test, der einen Compiler-Lauf braucht, wird irgendwann
 // übersprungen und dann nie wieder ausgeführt.
 func echoModul(t *testing.T) []byte {
-	return wasmtest.Modul(t, "testdata/echo.wasm")
+	return wasmtest.Module(t, "testdata/echo.wasm")
 }
 
 func neueLaufzeit(t *testing.T, erlaubt ...string) (*Runtime, *Store, *bytes.Buffer) {
