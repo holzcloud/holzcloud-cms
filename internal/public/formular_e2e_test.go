@@ -23,50 +23,50 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// Das Kontaktformular als Plugin, durch die ganze Kette: die Marke im Text wird
-// zum Formular, /formular nimmt die Absendung an, und die Nachricht liegt
-// danach im eigenen Speicher des Plugins.
+// The contact form as a plugin, through the whole chain: the token in the text
+// becomes the form, /formular accepts the submission, and the message lies
+// afterwards in the plugin's own store.
 func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	h, database, ws, manager := formularAufbau(t)
 
-	// --- die Marke wird zum Formular ---
-	seite := h.plugins.FilterContent(context.Background(), ws.ID, plugin.ContentIn{
+	// --- the token becomes the form ---
+	page := h.plugins.FilterContent(context.Background(), ws.ID, plugin.ContentIn{
 		WebsiteID: ws.ID, Slug: "kontakt", Title: "Kontakt",
 		HTML: "<p>Schreib uns:</p><p>[[formular:Rohwolle]]</p>",
 	})
-	if !strings.Contains(seite, `<form class="contact-form"`) {
-		t.Fatalf("the marker did not become a form:\n%s", seite)
+	if !strings.Contains(page, `<form class="contact-form"`) {
+		t.Fatalf("the marker did not become a form:\n%s", page)
 	}
-	if !strings.Contains(seite, `value="Rohwolle"`) {
-		t.Errorf("the subject from the marker is not in the field:\n%s", seite)
+	if !strings.Contains(page, `value="Rohwolle"`) {
+		t.Errorf("the subject from the marker is not in the field:\n%s", page)
 	}
-	// Ein <form> in einem <p> ist ungültiges HTML, das der Browser umsortiert.
-	if strings.Contains(seite, "<p><form") || strings.Contains(seite, "<p></p>") {
-		t.Errorf("the paragraph around the marker was not replaced with it:\n%s", seite)
+	// A <form> inside a <p> is invalid HTML that the browser reorders.
+	if strings.Contains(page, "<p><form") || strings.Contains(page, "<p></p>") {
+		t.Errorf("the paragraph around the marker was not replaced with it:\n%s", page)
 	}
 
 	// --- der Honigtopf ---
-	rec := absenden(t, h, ws, url.Values{
+	rec := submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
-		"gestellt":  {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Ein Roboter"},
 		"email":     {"bot@example.test"},
 		"nachricht": {"Günstige Uhren."},
 		"website":   {"https://spam.example"}, // die Falle
 	})
-	// Genau wie ein Erfolg beantwortet: ein Roboter, der erfährt, dass er
-	// abgewiesen wurde, erfährt damit, wie er am Filter vorbeikommt.
+	// Answered exactly like a success: a robot that learns it was refused
+	// learns by that how to get past the filter.
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
 		t.Errorf("the honeypot was not answered like a success: %q", ort)
 	}
-	if n := nachrichten(t, database); n != 0 {
+	if n := messages(t, database); n != 0 {
 		t.Errorf("der Roboter hat %d Nachrichten hinterlassen", n)
 	}
 
 	// --- eine zu schnelle Absendung ---
-	rec = absenden(t, h, ws, url.Values{
+	rec = submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
-		"gestellt":  {zeitmarke(t, database, 0)},
+		"gestellt":  {timeToken(t, database, 0)},
 		"name":      {"Zu schnell"},
 		"email":     {"schnell@example.test"},
 		"nachricht": {"Sofort abgeschickt."},
@@ -74,14 +74,14 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
 		t.Errorf("the too-fast submission was not answered like a success: %q", ort)
 	}
-	if n := nachrichten(t, database); n != 0 {
+	if n := messages(t, database); n != 0 {
 		t.Errorf("die zu schnelle Absendung wurde gespeichert (%d)", n)
 	}
 
-	// --- eine unvollständige Absendung ---
-	rec = absenden(t, h, ws, url.Values{
+	// --- an incomplete submission ---
+	rec = submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
-		"gestellt":  {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {""},
 		"email":     {"eva@example.test"},
 		"nachricht": {"Ohne Namen."},
@@ -91,9 +91,9 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	}
 
 	// --- eine echte Absendung ---
-	rec = absenden(t, h, ws, url.Values{
+	rec = submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
-		"gestellt":  {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Eva Muster"},
 		"email":     {"eva@example.test"},
 		"betreff":   {"Rohwolle"},
@@ -105,32 +105,32 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	if ort := rec.Header().Get("Location"); ort != "/kontakt?formular=gesendet" {
 		t.Errorf("Location = %q", ort)
 	}
-	if n := nachrichten(t, database); n != 1 {
+	if n := messages(t, database); n != 1 {
 		t.Fatalf("%d Nachrichten gespeichert, want 1", n)
 	}
 
-	// --- und sie steht in der Verwaltung ---
+	// --- and it stands on the admin side ---
 	out, err := manager.Admin(context.Background(), "kontaktformular",
 		plugin.AdminIn{WebsiteID: ws.ID, Method: "GET"})
 	if err != nil {
 		t.Fatalf("Admin: %v", err)
 	}
-	for _, wollte := range []string{"Eva Muster", "Rohwolle", "braune Wolle"} {
-		if !strings.Contains(out.HTML, wollte) {
-			t.Errorf("%q fehlt auf dem Verwaltungsbildschirm:\n%s", wollte, out.HTML)
+	for _, wanted := range []string{"Eva Muster", "Rohwolle", "braune Wolle"} {
+		if !strings.Contains(out.HTML, wanted) {
+			t.Errorf("%q fehlt auf dem Verwaltungsbildschirm:\n%s", wanted, out.HTML)
 		}
 	}
 }
 
-// Was ein Besucher schreibt, wird auf dem Bildschirm des Betreibers gelesen.
-// Eine Nachricht mit Markup darin darf dort kein Markup werden — sonst ist das
-// Kontaktformular der Weg, dem Betreiber etwas in die Verwaltung zu legen.
+// What a visitor writes is read on the operator's screen. A message with markup
+// in it must not become markup there — or the contact form is the way to put
+// something into the operator's admin.
 func TestNachrichtWirdInDerVerwaltungMaskiert(t *testing.T) {
 	h, database, ws, manager := formularAufbau(t)
 
-	absenden(t, h, ws, url.Values{
+	submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
-		"gestellt":  {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {`<img src=x onerror="alert(1)">`},
 		"email":     {"boese@example.test"},
 		"nachricht": {`<script>alert(2)</script>`},
@@ -141,10 +141,10 @@ func TestNachrichtWirdInDerVerwaltungMaskiert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Admin: %v", err)
 	}
-	// Die spitze Klammer ist der Unterschied: &lt;script&gt; ist Text, den
-	// jemand geschrieben hat, <script> wäre ein Skript im Browser des
-	// Betreibers. Der Host filtert danach noch einmal — aber ein Plugin, das
-	// sich darauf verlässt, ist ein Plugin, das anderswo daneben liegt.
+	// The angle bracket is the difference: &lt;script&gt; is text somebody
+	// wrote, <script> would be a script in the operator's browser. The host
+	// filters once more afterwards — but a plugin that relies on that is a
+	// plugin that gets it wrong somewhere else.
 	for _, roh := range []string{"<script", "<img"} {
 		if strings.Contains(out.HTML, roh) {
 			t.Errorf("%s kam ungefiltert durch:\n%s", roh, out.HTML)
@@ -171,16 +171,16 @@ func formularAufbau(t *testing.T) (*Handler, *db.DB, *domain.Website, *plugin.Ma
 	manager := loadPlugin(t, h, database, manifest, modul, ws.ID)
 	h.SetPlugins(manager)
 
-	// Einmal die Marke ausfüllen lassen: dabei zieht das Plugin seinen
-	// Signaturschlüssel, den die Tests danach brauchen.
+	// Have the token filled in once: in doing so the plugin draws its signing
+	// key, which the tests need afterwards.
 	manager.FilterContent(context.Background(), ws.ID, plugin.ContentIn{
 		WebsiteID: ws.ID, Slug: "kontakt", Title: "Kontakt", HTML: "<p>[[formular]]</p>",
 	})
 	return h, database, ws, manager
 }
 
-// absenden schickt ein Formular durch dieselbe Middleware wie der Server.
-func absenden(t *testing.T, h *Handler, ws *domain.Website, form url.Values) *httptest.ResponseRecorder {
+// submit sends a form through the same middleware as the server.
+func submit(t *testing.T, h *Handler, ws *domain.Website, form url.Values) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest("POST", "http://velowerkstatt.test/formular",
 		strings.NewReader(form.Encode()))
@@ -194,14 +194,13 @@ func absenden(t *testing.T, h *Handler, ws *domain.Website, form url.Values) *ht
 	return rec
 }
 
-// zeitmarke baut eine gültige Marke mit dem Schlüssel, den das Plugin selbst
-// gezogen hat.
+// timeToken builds a valid token with the key the plugin drew itself.
 //
-// Der Test greift damit in den Speicher des Plugins hinein. Der Grund ist die
-// Zeitfalle: sie verlangt drei Sekunden zwischen Zeichnen und Absenden, und
-// diese drei Sekunden in jedem Testlauf abzuwarten wäre die Art von Kosten, die
-// am Ende dazu führt, dass niemand die Tests mehr laufen lässt.
-func zeitmarke(t *testing.T, database *db.DB, alter time.Duration) string {
+// The test thereby reaches into the plugin's store. The reason is the time
+// trap: it demands three seconds between drawing and submitting, and waiting
+// those three seconds out in every test run would be the kind of cost that ends
+// with nobody running the tests any more.
+func timeToken(t *testing.T, database *db.DB, alter time.Duration) string {
 	t.Helper()
 	store := plugin.NewStore(database)
 	roh, ok, err := store.StoreGet(context.Background(), "kontaktformular", 0, "signaturschluessel")
@@ -219,8 +218,8 @@ func zeitmarke(t *testing.T, database *db.DB, alter time.Duration) string {
 	return stempel + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// nachrichten zählt, was im Speicher des Plugins liegt.
-func nachrichten(t *testing.T, database *db.DB) int {
+// messages counts what lies in the plugin's store.
+func messages(t *testing.T, database *db.DB) int {
 	t.Helper()
 	var n int
 	if err := database.Read.QueryRow(
@@ -231,14 +230,14 @@ func nachrichten(t *testing.T, database *db.DB) int {
 	return n
 }
 
-// Eine Anfrage soll den Betreiber erreichen, nicht nur in der Verwaltung
-// liegen. Das Plugin darf dabei keine Adresse nennen — die steht in den
-// Einstellungen der Website, und der Host setzt sie ein.
+// An enquiry should reach the operator, not merely lie in the admin. The plugin
+// may name no address in doing so — that stands in the website's settings, and
+// the host puts it in.
 func TestAnfrageLandetImPostausgang(t *testing.T) {
 	h, database, ws, _ := formularAufbau(t)
 
-	// Ein Mailserver, der nichts kann ausser existieren: geprüft wird, was
-	// eingereiht wird, nicht was zugestellt wird.
+	// A mail server that can do nothing but exist: what is checked is what gets
+	// queued, not what gets delivered.
 	queue := mail.NewQueue(database, mail.NewSender(mail.Config{
 		Host: "mail.example.test", From: "cms@example.test",
 	}), slog.New(slog.DiscardHandler))
@@ -248,12 +247,12 @@ func TestAnfrageLandetImPostausgang(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
 	}
-	// Neu gelesen, damit der Handler die frisch gesetzte Adresse sieht.
+	// Read afresh, so that the handler sees the newly set address.
 	h.SetNotify(domains, queue)
 
-	absenden(t, h, ws, url.Values{
+	submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
-		"gestellt":  {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Eva Muster"},
 		"email":     {"besucher@example.test"},
 		"betreff":   {"Rohwolle"},
@@ -272,7 +271,7 @@ func TestAnfrageLandetImPostausgang(t *testing.T) {
 	if !strings.Contains(betreff, "Rohwolle") || !strings.Contains(betreff, ws.Name) {
 		t.Errorf("Betreff = %q, erwartet Website-Name und Anliegen", betreff)
 	}
-	// Antworten ist ein Klick und kein Wechsel in die Verwaltung.
+	// Replying is one click and not a move into the admin.
 	if antwortAn != "besucher@example.test" {
 		t.Errorf("Antwortadresse = %q", antwortAn)
 	}
@@ -281,26 +280,26 @@ func TestAnfrageLandetImPostausgang(t *testing.T) {
 	}
 }
 
-// Ohne hinterlegte Adresse wird nichts verschickt — und das ist kein Fehler,
-// sondern eine Entscheidung des Betreibers.
+// Without a stored address nothing is sent — and that is not a fault but a
+// decision of the operator's.
 func TestOhneBenachrichtigungsadresseKeineMail(t *testing.T) {
 	h, database, ws, _ := formularAufbau(t)
 	h.SetNotify(domain.NewStore(database), mail.NewQueue(database, mail.NewSender(mail.Config{
 		Host: "mail.example.test", From: "cms@example.test",
 	}), slog.New(slog.DiscardHandler)))
 
-	rec := absenden(t, h, ws, url.Values{
+	rec := submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
-		"gestellt":  {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Eva Muster"},
 		"email":     {"besucher@example.test"},
 		"nachricht": {"Eine Frage."},
 	})
-	// Für den Besucher ändert sich nichts: seine Nachricht ist angekommen.
+	// For the visitor nothing changes: their message has arrived.
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
 		t.Errorf("die Absendung schlug fehl: %q", ort)
 	}
-	if n := nachrichten(t, database); n != 1 {
+	if n := messages(t, database); n != 1 {
 		t.Errorf("the message was not stored (%d)", n)
 	}
 
@@ -311,8 +310,8 @@ func TestOhneBenachrichtigungsadresseKeineMail(t *testing.T) {
 	}
 }
 
-// Ein zusammengestelltes Formular: anlegen, in eine Seite setzen, ausfüllen,
-// und die Antworten stehen benannt in der Verwaltung.
+// An assembled form: create it, put it into a page, fill it in, and the answers
+// stand named on the admin side.
 func TestEigenesFormularVonEndeZuEnde(t *testing.T) {
 	h, database, ws, manager := formularAufbau(t)
 	ctx := context.Background()
@@ -336,8 +335,8 @@ func TestEigenesFormularVonEndeZuEnde(t *testing.T) {
 		t.Fatalf("Anlegen fehlgeschlagen: %s", out.Flash)
 	}
 
-	// Zwei Felder anlegen und ausfüllen. Der Editor schickt bei jeder Aktion
-	// das ganze Formular mit, also wird hier genauso vorgegangen.
+	// Create two fields and fill them in. The editor sends the whole form along
+	// with every action, so the same is done here.
 	admin(url.Values{"kennung": {"anmeldung-zum-hoffest"}, "name": {"Anmeldung zum Hoffest"},
 		"feldaktion": {"neu"}})
 	admin(url.Values{"kennung": {"anmeldung-zum-hoffest"}, "name": {"Anmeldung zum Hoffest"},
@@ -351,31 +350,31 @@ func TestEigenesFormularVonEndeZuEnde(t *testing.T) {
 	liste := admin(nil)
 	_ = liste
 
-	// --- die Marke wird zum eigenen Formular ---
-	seite := manager.FilterContent(ctx, ws.ID, plugin.ContentIn{
+	// --- the token becomes the form of one's own ---
+	page := manager.FilterContent(ctx, ws.ID, plugin.ContentIn{
 		WebsiteID: ws.ID, Slug: "hoffest", Title: "Hoffest",
 		HTML: "<p>[[formular:anmeldung-zum-hoffest]]</p>",
 	})
-	for _, wollte := range []string{"Dein Name", "E-Mail", `name="f_dein-name"`, `type="email"`} {
-		if !strings.Contains(seite, wollte) {
-			t.Errorf("%q fehlt im gezeichneten Formular:\n%s", wollte, seite)
+	for _, wanted := range []string{"Dein Name", "E-Mail", `name="f_dein-name"`, `type="email"`} {
+		if !strings.Contains(page, wanted) {
+			t.Errorf("%q fehlt im gezeichneten Formular:\n%s", wanted, page)
 		}
 	}
 
 	// --- ein Pflichtfeld fehlt ---
-	rec := absenden(t, h, ws, url.Values{
+	rec := submit(t, h, ws, url.Values{
 		"seite": {"hoffest"}, "formular": {"anmeldung-zum-hoffest"},
-		"gestellt":    {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":    {timeToken(t, database, -10*time.Second)},
 		"f_dein-name": {"Eva"},
 	})
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=fehler") {
 		t.Errorf("the incomplete submission was accepted: %q", ort)
 	}
 
-	// --- vollständig ---
-	rec = absenden(t, h, ws, url.Values{
+	// --- complete ---
+	rec = submit(t, h, ws, url.Values{
 		"seite": {"hoffest"}, "formular": {"anmeldung-zum-hoffest"},
-		"gestellt":    {zeitmarke(t, database, -10*time.Second)},
+		"gestellt":    {timeToken(t, database, -10*time.Second)},
 		"f_dein-name": {"Eva Muster"},
 		"f_e-mail":    {"eva@example.test"},
 	})
@@ -383,58 +382,57 @@ func TestEigenesFormularVonEndeZuEnde(t *testing.T) {
 		!strings.Contains(ort, "welches=anmeldung-zum-hoffest") {
 		t.Errorf("Location = %q", ort)
 	}
-	if n := nachrichten(t, database); n != 1 {
+	if n := messages(t, database); n != 1 {
 		t.Fatalf("%d Nachrichten gespeichert", n)
 	}
 
-	// --- und die Antworten stehen benannt in der Verwaltung ---
+	// --- and the answers stand named on the admin side ---
 	out := admin(nil)
-	for _, wollte := range []string{"Dein Name", "Eva Muster", "eva@example.test", "Anmeldung zum Hoffest"} {
-		if !strings.Contains(out.HTML, wollte) {
-			t.Errorf("%q fehlt auf dem Bildschirm:\n%s", wollte, out.HTML)
+	for _, wanted := range []string{"Dein Name", "Eva Muster", "eva@example.test", "Anmeldung zum Hoffest"} {
+		if !strings.Contains(out.HTML, wanted) {
+			t.Errorf("%q fehlt auf dem Bildschirm:\n%s", wanted, out.HTML)
 		}
 	}
 }
 
-// Die Marke bleibt rückwärtskompatibel: was kein Formular benennt, ist wie
-// bisher ein vorausgefüllter Betreff.
+// The token stays backwards compatible: what names no form is, as before, a
+// pre-filled subject.
 func TestMarkeMitUnbekanntemArgumentBleibtDerBetreff(t *testing.T) {
 	_, _, ws, manager := formularAufbau(t)
 
-	seite := manager.FilterContent(context.Background(), ws.ID, plugin.ContentIn{
+	page := manager.FilterContent(context.Background(), ws.ID, plugin.ContentIn{
 		WebsiteID: ws.ID, Slug: "wolle", Title: "Wolle",
 		HTML: "<p>[[formular:Rohwolle]]</p>",
 	})
-	if !strings.Contains(seite, `value="Rohwolle"`) {
-		t.Errorf("the subject was not pre-filled:\n%s", seite)
+	if !strings.Contains(page, `value="Rohwolle"`) {
+		t.Errorf("the subject was not pre-filled:\n%s", page)
 	}
-	// Gemeint ist mit der zweiten Prüfung: der klassische Zeichner lief, der
-	// zusammengestellte nicht. Zwei Zeichen irgendwo im Dokument zu suchen war
-	// dafür ein schlechter Stellvertreter, und zwar in beide Richtungen. Das
-	// versteckte Feld "gestellt" trägt eine base64url-Signatur, deren Alphabet
-	// f und _ enthält, also stand "f_" rund einmal in achtzig Läufen zufällig
-	// darin und färbte die CI rot, ohne dass etwas kaputt war. Und ein
-	// zusammengestelltes Formular ohne Felder hat gar keinen Feldnamen; es wäre
-	// unbemerkt durchgegangen. Also wird gefragt, was gemeint ist: einmal
-	// positiv, dass das klassische Formular dasteht, und dreimal negativ nach
-	// den Spuren, die zeichnenEigen unvermeidlich hinterlässt.
-	if !strings.Contains(seite, `<form class="contact-form" method="POST"`) {
-		t.Errorf("the plain form was not drawn:\n%s", seite)
+	// What the second check means: the classic renderer ran, the assembled one
+	// did not. Looking for two characters somewhere in the document was a poor
+	// stand-in for that, and in both directions. The hidden field "gestellt"
+	// carries a base64url signature whose alphabet contains f and _, so "f_"
+	// stood in it by chance about once in eighty runs and turned CI red without
+	// anything being broken. And an assembled form without fields has no field
+	// name at all; it would have gone through unnoticed. So what is meant is
+	// what is asked: once positively, that the classic form is there, and three
+	// times negatively for the traces that zeichnenEigen inevitably leaves.
+	if !strings.Contains(page, `<form class="contact-form" method="POST"`) {
+		t.Errorf("the plain form was not drawn:\n%s", page)
 	}
-	for _, spur := range []string{
-		`contact-form--`,  // die Klasse, mit der zeichnenEigen öffnet
-		`name="formular"`, // das versteckte Feld, das sagt, welches Formular es war
-		`name="f_`,        // ein Feldname, in der einzigen Stellung, die er haben kann
+	for _, trace := range []string{
+		`contact-form--`,  // the class zeichnenEigen opens with
+		`name="formular"`, // the hidden field that says which form it was
+		`name="f_`,        // a field name, in the only position it can have
 	} {
-		if strings.Contains(seite, spur) {
-			t.Errorf("an assembled form was drawn, %q is in the page:\n%s", spur, seite)
+		if strings.Contains(page, trace) {
+			t.Errorf("an assembled form was drawn, %q is in the page:\n%s", trace, page)
 		}
 	}
 }
 
-// Der Bildschirm eines Plugins geht durch den Filter des Hosts, bevor er in der
-// Verwaltung landet. Ein Editor, dessen Felder dabei wegfallen, ist ein Editor,
-// der beim Speichern leere Werte schickt — und das sieht man ihm nicht an.
+// A plugin's screen goes through the host's filter before it lands in the
+// admin. An editor whose fields fall away in the process is an editor that
+// sends empty values on saving — and you cannot tell that by looking at it.
 func TestFormulareditorUeberstehtDenFilterDesHosts(t *testing.T) {
 	_, _, ws, manager := formularAufbau(t)
 	ctx := context.Background()
@@ -464,23 +462,23 @@ func TestFormulareditorUeberstehtDenFilterDesHosts(t *testing.T) {
 	}
 	sauber := string(web.SanitizeAdminHTML(out.HTML))
 
-	// Jedes Bedienelement, ohne das der Editor nicht funktioniert.
-	for _, wollte := range []string{
-		`<form method="POST"`,       // das Formular selbst
-		`name="kennung"`,            // welches Formular bearbeitet wird
-		`name="fe0.beschriftung"`,   // die Frage
-		`<select`, `name="fe0.art"`, // die Feldart
-		`<textarea`, `name="fe0.auswahl"`, // die Möglichkeiten
+	// Every control without which the editor does not work.
+	for _, wanted := range []string{
+		`<form method="POST"`,       // the form itself
+		`name="kennung"`,            // which form is being edited
+		`name="fe0.beschriftung"`,   // the question
+		`<select`, `name="fe0.art"`, // the field kind
+		`<textarea`, `name="fe0.auswahl"`, // the options
 		`type="checkbox"`, `name="fe0.pflicht"`,
-		`name="feldaktion" value="neu"`, // Feld hinzufügen
-		`name="sichern"`,                // speichern
-		`href="?ansicht=formulare"`,     // back zur Liste
+		`name="feldaktion" value="neu"`, // add a field
+		`name="sichern"`,                // save
+		`href="?ansicht=formulare"`,     // back to the list
 	} {
-		if !strings.Contains(sauber, wollte) {
-			t.Errorf("%q did not survive the filter", wollte)
+		if !strings.Contains(sauber, wanted) {
+			t.Errorf("%q did not survive the filter", wanted)
 		}
 	}
-	// Und nichts, was ausführen könnte.
+	// And nothing that could execute.
 	for _, darfNicht := range []string{"<script", "onclick", "javascript:"} {
 		if strings.Contains(sauber, darfNicht) {
 			t.Errorf("%q steht im gefilterten Bildschirm", darfNicht)

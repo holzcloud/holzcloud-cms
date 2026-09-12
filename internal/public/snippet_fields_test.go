@@ -24,14 +24,13 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 )
 
-// bausteinFS ist ein Theme, das beide Hälften eines Textbausteins druckt: den
-// Rumpf über .Site.Snippets und ein einzelnes Feld über .Site.SnippetFields.
+// snippetFS is a theme that prints both halves of a snippet: the body through
+// .Site.Snippets and one single field through .Site.SnippetFields.
 //
-// Und es druckt die Zahl der Einträge in .Page.FieldList dazu. Das ist die im
-// Browser sichtbare Hälfte von D-03: die Seite hat keine eigenen Felder, und
-// wenn dort etwas steht, ist das Feld des Textbausteins in den Seitenweg
-// gelaufen.
-func bausteinFS() fstest.MapFS {
+// And it prints the number of entries in .Page.FieldList alongside. That is the
+// browser-visible half of D-03: the page has no fields of its own, and if
+// something stands there, the snippet's field has run into the page path.
+func snippetFS() fstest.MapFS {
 	return fstest.MapFS{
 		"layout.html": &fstest.MapFile{Data: []byte(
 			`<html><body>{{template "content" .}}</body></html>`)},
@@ -43,18 +42,18 @@ func bausteinFS() fstest.MapFS {
 				`</article>{{end}}`)},
 		"home.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<main>{{.Page.Title}}</main>{{end}}`)},
-		// Die 404- und die Wartungsansicht drucken dieselbe eine Zeile: es sind
-		// die Seiten, auf denen ein Besucher am ehesten den Kontakt sucht, und
-		// gerade dort war die Fläche leer.
+		// The 404 view and the maintenance view print the same one line: they
+		// are the pages on which a visitor is most likely to look for the
+		// contact details, and exactly there the area was empty.
 		"404.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<p class="notfound">nichts gefunden</p>` +
 				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>{{end}}`)},
 		"maintenance.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<p class="wartung">gleich back</p>` +
 				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>{{end}}`)},
-		// Drei Ansichten von drei verschiedenen Zuschnitten, alle mit derselben
-		// einen Zeile: das Schlagwortarchiv und das Beitragsarchiv teilen sich
-		// list.html, die Suche und der Katalog haben je eine eigene.
+		// Three views of three different shapes, all with the same one line:
+		// the term archive and the post archive share list.html, the search and
+		// the catalogue have one each of their own.
 		"list.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="liste">` +
 				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>` +
@@ -70,11 +69,10 @@ func bausteinFS() fstest.MapFS {
 	}
 }
 
-// bausteinVorrichtung baut, was jede Prüfung hier teilt: eine gewanderte
-// Datenbank, einen Handler über bausteinFS, eine Website, einen Textbaustein
-// „kontakt" mit einem Markdown-Rumpf, eine Felddefinition „telefon" daran und
-// deren Wert.
-func bausteinVorrichtung(t *testing.T) (*Handler, *db.DB, *domain.Website) {
+// snippetFixture builds what every check here shares: a migrated database, a
+// handler over snippetFS, a website, a snippet "kontakt" with a markdown body,
+// a field definition "telefon" on it and that field's value.
+func snippetFixture(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -88,17 +86,17 @@ func bausteinVorrichtung(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 		t.Fatalf("RunMigrations: %v", err)
 	}
 
-	loader := tmpl.NewLoader(dir, bausteinFS(), nil, nil)
+	loader := tmpl.NewLoader(dir, snippetFS(), nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database),
-		snippet.NewStore(database), loader, nil, dir, bausteinFS(), false)
+		snippet.NewStore(database), loader, nil, dir, snippetFS(), false)
 	felder := field.NewStore(database)
 	h.SetFieldStore(felder)
 
 	ws := seedWebsite(t, database, "Test Site")
 
-	// Der Textbaustein mit einem Rumpf aus Markdown, durch dieselbe Kette wie
-	// jeder Seiteninhalt: goldmark, dann bluemonday. Eine zweite Kette gibt es
-	// nicht, und darum trägt der Guss nach template.HTML dieselbe Zusage.
+	// The snippet with a body of markdown, through the same chain as any page
+	// content: goldmark, then bluemonday. There is no second chain, and that is
+	// why the cast to template.HTML carries the same promise.
 	html, err := page.RenderMarkdown("Wir sind **da**.")
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
@@ -125,19 +123,18 @@ func bausteinVorrichtung(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 	return h, database, ws
 }
 
-// TestBausteinfelderErreichenDasTheme führt ein Feld eines Textbausteins den
-// ganzen Weg: Definition in der Tabelle, Wert am Textbaustein, Auflösung auf
-// dem Weg nach draussen, Ausgabe durch eine Vorlage auf einer echten
-// öffentlichen Adresse.
+// TestSnippetFieldsReachTheTheme drives a snippet's field the whole way:
+// definition in the table, value on the snippet, resolution on the way out,
+// output through a template on a real public address.
 //
-// Vier Zusagen auf einmal, und jede fällt einzeln auf:
-//   - der Feldwert erscheint,
-//   - der Markdown-Rumpf des Textbausteins erscheint weiterhin,
-//   - .Site.Snippets trägt weiterhin template.HTML,
-//   - .Page.FieldList bleibt leer — die Seite hat keine eigenen Felder, und das
-//     Feld des Textbausteins darf dort nicht auftauchen.
-func TestBausteinfelderErreichenDasTheme(t *testing.T) {
-	h, database, ws := bausteinVorrichtung(t)
+// Four promises at once, and each falls on its own:
+//   - the field value appears,
+//   - the snippet's markdown body still appears,
+//   - .Site.Snippets still carries template.HTML,
+//   - .Page.FieldList stays empty — the page has no fields of its own, and the
+//     snippet's field must not show up there.
+func TestSnippetFieldsReachTheTheme(t *testing.T) {
+	h, database, ws := snippetFixture(t)
 	seedPage(t, database, ws.ID, "Kontakt", "kontakt-seite", "# Kontakt", "published")
 
 	rec, err := request(func(w http.ResponseWriter, r *http.Request) error {
@@ -164,11 +161,10 @@ func TestBausteinfelderErreichenDasTheme(t *testing.T) {
 	}
 }
 
-// TestSnippetsBleibtTemplateHTML hält SNIP-05 fest: .Site.Snippets ändert
-// seinen Typ nicht, und ein Textbaustein ohne eine einzige Felddefinition
-// bekommt trotzdem seinen Eintrag in .Site.SnippetFields — eine leere Karte
-// und keinen fehlenden Schlüssel.
-func TestSnippetsBleibtTemplateHTML(t *testing.T) {
+// TestSnippetsStaysTemplateHTML holds SNIP-05 fast: .Site.Snippets does not
+// change its type, and a snippet without a single field definition still gets
+// its entry in .Site.SnippetFields — an empty map and not a missing key.
+func TestSnippetsStaysTemplateHTML(t *testing.T) {
 	ctx := context.Background()
 
 	dir := t.TempDir()
@@ -181,9 +177,9 @@ func TestSnippetsBleibtTemplateHTML(t *testing.T) {
 		t.Fatalf("RunMigrations: %v", err)
 	}
 
-	loader := tmpl.NewLoader(dir, bausteinFS(), nil, nil)
+	loader := tmpl.NewLoader(dir, snippetFS(), nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database),
-		snippet.NewStore(database), loader, nil, dir, bausteinFS(), false)
+		snippet.NewStore(database), loader, nil, dir, snippetFS(), false)
 	h.SetFieldStore(field.NewStore(database))
 
 	ws := seedWebsite(t, database, "Test Site")
@@ -224,27 +220,25 @@ func TestSnippetsBleibtTemplateHTML(t *testing.T) {
 	}
 }
 
-// TestBausteinfelderAufMehrerenRouten ist die Hälfte, die ein grep nicht geben
-// kann — und der Grund, warum sie hier steht, ist der Fehler, den Phase 7
-// zweimal vorgeführt hat.
+// TestSnippetFieldsOnSeveralRoutes is the half a grep cannot give — and the
+// reason it stands here is the fault phase 7 demonstrated twice.
 //
-// Das Zählgatter dieses Plans weist nach, dass ausserhalb von fillSnippets
-// keine Zuweisung an .Site.Snippets überlebt hat. Es weist nicht nach, dass
-// jede Route die neue Funktion auch aufruft: eine Route, die das Füllen
-// schlicht ganz vergässe, käme durch das grep-Gatter ohne Weiteres hindurch.
-// Und sie fiele nirgends auf. Die Seite erscheint, der Status ist 200, kein
-// Fehler wird protokolliert, {{index .Site.SnippetFields …}} des Themes gibt
-// nichts heraus — der ganze Befund ist eine leere Stelle auf einer Art von
-// Seite, und gesehen wird sie von einem Besucher.
+// This plan's counting gate shows that no assignment to .Site.Snippets survived
+// outside fillSnippets. It does not show that every route also calls the new
+// function: a route that simply forgot the filling entirely would pass the grep
+// gate without any trouble. And it would be noticed nowhere. The page appears,
+// the status is 200, no error is logged, the theme's
+// {{index .Site.SnippetFields …}} hands out nothing — the whole finding is an
+// empty spot on one kind of page, and it is seen by a visitor.
 //
-// Drei Routen von drei verschiedenen Zuschnitten, weil die zwölf umgestellten
-// Stellen zwei verschiedene Formen hatten: eine, die den Rendered bereits in
-// der Hand hält (tag.go), und eine, die ihn erst laden muss (shop.go). Die
-// Suche kommt dazu, weil sie eine eigene Ansicht zeichnet und dieselbe Zusage
-// tragen muss.
-func TestBausteinfelderAufMehrerenRouten(t *testing.T) {
+// Three routes of three different shapes, because the twelve converted places
+// had two different forms: one that already holds the Rendered in its hand
+// (tag.go), and one that has to load it first (shop.go). The search comes in
+// addition, because it draws a view of its own and has to carry the same
+// promise.
+func TestSnippetFieldsOnSeveralRoutes(t *testing.T) {
 	ctx := context.Background()
-	h, database, ws := bausteinVorrichtung(t)
+	h, database, ws := snippetFixture(t)
 
 	schlagworte := term.NewStore(database)
 	h.SetTermStore(schlagworte)
@@ -264,8 +258,8 @@ func TestBausteinfelderAufMehrerenRouten(t *testing.T) {
 	if err := schlagworte.SetForPage(ctx, ws.ID, beitrag.ID, []string{"Moebel"}); err != nil {
 		t.Fatalf("Schlagwort setzen: %v", err)
 	}
-	// Die Kennung wird abgeleitet, nicht mitgebracht — deshalb hier
-	// nachgelesen statt geraten.
+	// The key is derived, not brought along — which is why it is read back here
+	// rather than guessed.
 	var schlagwortSlug string
 	if err := database.Read.QueryRowContext(ctx,
 		`SELECT slug FROM terms WHERE website_id = $1 LIMIT 1`, ws.ID).Scan(&schlagwortSlug); err != nil {
@@ -331,22 +325,22 @@ func TestBausteinfelderAufMehrerenRouten(t *testing.T) {
 	}
 }
 
-// Die Gegenprobe zum Zählgatter: eine Route, die fillSnippets gar nicht ruft.
+// The counter-check to the counting gate: a route that does not call
+// fillSnippets at all.
 //
-// Das grep-Gatter des Plans weist nach, dass ausserhalb von fillSnippets keine
-// Zuweisung überlebt hat. Es kann die entgegengesetzte Lücke nicht sehen — eine
-// Route, die weder das eine noch das andere tut, kommt hindurch, ohne dass
-// irgendwo etwas fehlt. Drei taten es: renderNotFound, serveShareError und
-// HandleMaintenance. Alle drei zeichnen die echte Vorlage des Themes, und alle
-// drei sind Seiten, auf denen ein Besucher den Kontakt sucht — die eine
-// gefundene Adresse ist falsch, die Website ist gerade weg, der Vorschaulink
-// ist abgelaufen. Der Fussteil war dort leer, ohne Fehler und ohne Eintrag im
-// Protokoll.
+// The plan's grep gate shows that no assignment survived outside fillSnippets.
+// It cannot see the opposite gap — a route that does neither the one nor the
+// other passes through without anything being missing anywhere. Three did:
+// renderNotFound, serveShareError and HandleMaintenance. All three draw the
+// theme's real template, and all three are pages on which a visitor looks for
+// the contact details — the one address found is wrong, the website is away
+// just now, the preview link has expired. The footer was empty there, with no
+// error and no entry in the log.
 //
-// Die .Site.Snippets-Hälfte war schon vorher offen; die beiden neuen Mitglieder
-// erbten die Lücke am Tag ihrer Einführung.
+// The .Site.Snippets half was open before that; the two new members inherited
+// the gap on the day they were introduced.
 func TestBausteinfelderAufDenRoutenOhneSeite(t *testing.T) {
-	h, database, ws := bausteinVorrichtung(t)
+	h, database, ws := snippetFixture(t)
 	_ = database
 
 	t.Run("404", func(t *testing.T) {
