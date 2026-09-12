@@ -6,7 +6,7 @@ import "github.com/holzcloud/holzcloud-cms/internal/i18n"
 // the values that fill it in.
 //
 // It exists because the finished sentence could not be translated. Check used
-// to return `d.Label + " muss eine Zahl sein."` — a string built by
+// to return `d.Label + " muss eine Zahl sein."` — a string built by //nolint:german — quotes the sentence this type replaces
 // concatenation, at run time, out of the operator's own label and a German
 // literal. Three things are wrong with that at once, and only the third is
 // obvious:
@@ -19,7 +19,7 @@ import "github.com/holzcloud/holzcloud-cms/internal/i18n"
 //     ("Preis", "Wurfdatum", "Artikelnummer"); a catalogue keyed on the finished
 //     sentence would need one entry per label anybody ever typed.
 //   - And so, measured on 2026-09-08 with the admin set to English, a form
-//     answered "Preis muss eine Zahl sein." next to fields whose kind names
+//     answered "Preis muss eine Zahl sein." next to fields whose kind names //nolint:german — quotes what an English admin used to read
 //     were translated.
 //
 // Splitting the sentence in two fixes all three: the format is a literal and is

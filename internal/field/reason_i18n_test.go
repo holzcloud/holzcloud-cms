@@ -11,9 +11,9 @@ import (
 // in the reader's language.
 //
 // Before v2.0 this was false and every gate said otherwise. Check returned
-// `d.Label + " muss eine Zahl sein."` — a string built at run time, which
+// `d.Label + " muss eine Zahl sein."` — a string built at run time, which //nolint:german — quotes the sentence this test is about
 // tools/i18n cannot see, so the report said `0 offen` while an operator with
-// the admin set to English read "Preis muss eine Zahl sein." next to field
+// the admin set to English read "Preis muss eine Zahl sein." next to field //nolint:german — quotes what an English admin used to read
 // kinds that were translated (measured 2026-09-08,
 // .planning/audits/v1.6-I18N-828.md).
 //

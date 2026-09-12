@@ -280,7 +280,7 @@ func TestVerwaltungsBildschirmUndSeitenleiste(t *testing.T) {
 	if len(links) != 1 || links[0].Label != "Echo" || !links[0].PerWebsite {
 		t.Errorf("Seitenleiste: %+v", links)
 	}
-	// Das Prüfmodul beantwortet "admin" nicht, gibt also nichts zurück. Das
+	// Das Prüfmodul beantwortet "admin" nicht, gibt also nichts back. Das
 	// darf kein Fehler sein.
 	if _, err := m.Admin(ctx, "echo", AdminIn{WebsiteID: site, Method: "GET"}); err != nil {
 		t.Errorf("Admin: %v", err)

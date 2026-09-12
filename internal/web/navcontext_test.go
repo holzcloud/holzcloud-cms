@@ -10,7 +10,7 @@ import (
 // Abschnitte der falschen Website an — und zwar plausibel genug, dass es
 // jemandem erst auffällt, wenn er auf der falschen Seite etwas geändert hat.
 func TestWebsiteAusDerAdresse(t *testing.T) {
-	fälle := []struct {
+	cases := []struct {
 		pfad string
 		will int64
 	}{
@@ -25,7 +25,7 @@ func TestWebsiteAusDerAdresse(t *testing.T) {
 		{"/admin/websites/2x/pages", 0},
 		{"/admin/websites/-1/pages", 0},
 	}
-	for _, f := range fälle {
+	for _, f := range cases {
 		if got := websiteFromPath(f.pfad); got != f.will {
 			t.Errorf("websiteFromPath(%q) = %d, want %d", f.pfad, got, f.will)
 		}

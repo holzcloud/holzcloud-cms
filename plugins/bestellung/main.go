@@ -106,7 +106,7 @@ func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
 	stand, hinweis := standAusQuery(in.Query)
 	formular := zeichnen(produkte, e, in.Slug, stand, hinweis)
 	// Der Absatz zuerst, damit das <p> mit seiner Marke verschwindet. In einem
-	// Durchgang bliebe ein leeres <p></p> zurück.
+	// Durchgang bliebe ein leeres <p></p> back.
 	out := markeImAbsatz.ReplaceAllLiteralString(in.HTML, formular)
 	out = marke.ReplaceAllLiteralString(out, formular)
 	return plugin.ContentOut{HTML: out, Changed: true}, nil
@@ -361,7 +361,7 @@ func summe(posten []posten) (float64, bool) {
 	return total, true
 }
 
-// zurueck schickt den Besucher auf die Seite zurück, mit dem Ausgang in der
+// zurueck schickt den Besucher auf die Seite back, mit dem Ausgang in der
 // Adresse. Umleitung statt einer Antwort im Rumpf, damit ein Neuladen die
 // Bestellung nicht ein zweites Mal abschickt.
 func zurueck(seite, stand, hinweis string) plugin.RequestOut {

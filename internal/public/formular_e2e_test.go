@@ -474,7 +474,7 @@ func TestFormulareditorUeberstehtDenFilterDesHosts(t *testing.T) {
 		`type="checkbox"`, `name="fe0.pflicht"`,
 		`name="feldaktion" value="neu"`, // Feld hinzufügen
 		`name="sichern"`,                // speichern
-		`href="?ansicht=formulare"`,     // zurück zur Liste
+		`href="?ansicht=formulare"`,     // back zur Liste
 	} {
 		if !strings.Contains(sauber, wollte) {
 			t.Errorf("%q did not survive the filter", wollte)

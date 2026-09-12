@@ -159,7 +159,7 @@ func TestCountUsageCountsLivePagesOnly(t *testing.T) {
 // vorher Update aufruft und Update den Stempel setzt — eine Reihenfolge
 // zwischen zwei Funktionen in zwei Paketen, die nichts festhält. Der Archivweg
 // kommt über Create davon. Der Test wartet keine Sekunde ab, sondern setzt den
-// Stempel zurück: an einer Uhr mit Sekundenauflösung wäre sonst nicht die
+// Stempel back: an einer Uhr mit Sekundenauflösung wäre sonst nicht die
 // Wache geprüft, sondern die Laufzeit des Tests.
 func TestSetFieldsZiehtDenPruefwertMit(t *testing.T) {
 	s, ws := newTestStore(t)

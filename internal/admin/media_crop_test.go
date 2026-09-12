@@ -172,7 +172,7 @@ func TestZweiterZuschnittGehtWiederVomOriginalAus(t *testing.T) {
 	}
 }
 
-// Zurücksetzen holt das hochgeladene Bild zurück — der Punkt fürs Motiv bleibt,
+// Zurücksetzen holt das hochgeladene Bild back — der Punkt fürs Motiv bleibt,
 // denn der sagt, wo etwas ist, und das stimmt auch beim ganzen Bild.
 func TestZuruecksetzenBehaeltDenFokus(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)

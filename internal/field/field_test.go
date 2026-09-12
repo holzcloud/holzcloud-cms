@@ -7,11 +7,11 @@ import (
 	"time"
 )
 
-// Die Kennung wird einmal aus der Beschriftung gebildet und steht danach fest.
-// Sie ist der Name, unter dem das Theme das Feld anspricht und unter dem jeder
-// gespeicherte Wert steht — bewegt sie sich, sind alle Werte still weg.
+// The key is derived once from the label and then stands for good. It is the
+// name the theme addresses the field by and the name every stored value sits
+// under — if it moves, every value is silently gone.
 func TestKennungAusBeschriftung(t *testing.T) {
-	fälle := map[string]string{
+	cases := map[string]string{
 		"Preis":          "preis",
 		"Preis pro Kilo": "preis_pro_kilo",
 		"Verfügbar?":     "verfuegbar",
@@ -24,14 +24,14 @@ func TestKennungAusBeschriftung(t *testing.T) {
 		"a b  c":         "a_b_c",
 		"Sehr langer Name der weit über vierzig Zeichen hinausgeht": "sehr_langer_name_der_weit_ueber_vierzig",
 	}
-	for label, want := range fälle {
+	for label, want := range cases {
 		if got := SlugifyKey(label); got != want {
 			t.Errorf("SlugifyKey(%q) = %q, want %q", label, got, want)
 		}
 	}
 }
 
-// Ein Link-Feld darf kein Weg sein, javascript: in ein Theme zu bekommen.
+// A link field must not be a way to get javascript: into a theme.
 func TestLinkPruefung(t *testing.T) {
 	d := Def{Label: "Ziel", Kind: KindLink}
 
@@ -53,13 +53,13 @@ func TestLinkPruefung(t *testing.T) {
 	}
 }
 
-// Die Prüfungen sagen, was der Redakteur ändern soll — nicht, was Go gemeldet hat.
+// The checks say what the editor should change — not what Go reported.
 func TestPruefungen(t *testing.T) {
 	zahl := Def{Label: "Preis", Kind: KindNumber}
 	if r := Check(zahl, "8.50"); !r.Empty() {
 		t.Errorf("8.50 abgelehnt: %q", r)
 	}
-	// Ein Komma ist, was jemand mit einer deutschen Tastatur tippt.
+	// A comma is what somebody with a German keyboard types.
 	if r := Check(zahl, "8,50"); !r.Empty() {
 		t.Errorf("8,50 abgelehnt: %q", r)
 	}
@@ -79,7 +79,7 @@ func TestPruefungen(t *testing.T) {
 	if r := Check(auswahl, "frisch"); !r.Empty() {
 		t.Errorf("valid choice refused: %q", r)
 	}
-	// Der wichtigste Fall: das <select> lässt sich umgehen, die Prüfung nicht.
+	// The most important case: the <select> can be bypassed, the check cannot.
 	if r := Check(auswahl, "erfunden"); r.Empty() {
 		t.Error("an option that does not exist was accepted")
 	}
@@ -93,9 +93,8 @@ func TestPruefungen(t *testing.T) {
 	}
 }
 
-// Werte zu Feldern, die es nicht mehr gibt, verschwinden beim nächsten
-// Speichern — und nicht schon beim Löschen des Feldes, damit ein Versehen
-// rückgängig zu machen ist.
+// Values for fields that no longer exist disappear on the next save — and not
+// already when the field is deleted, so that a mistake can be undone.
 func TestAufraeumen(t *testing.T) {
 	defs := []Def{{Key: "preis", Kind: KindText}, {Key: "einheit", Kind: KindText}}
 	v := Clean(defs, Data{Values: Values{
@@ -115,8 +114,8 @@ func TestAufraeumen(t *testing.T) {
 	}
 }
 
-// Leere Felder speichern gar nichts: eine Seite auf einer Website ohne eigene
-// Felder soll kein JSON mit sich herumtragen.
+// Empty fields store nothing at all: a page on a website with no fields of its
+// own should not carry JSON around with it.
 func TestLeeresSpeichertNichts(t *testing.T) {
 	raw, err := Encode(Data{})
 	if err != nil || raw != "" {
@@ -125,14 +124,14 @@ func TestLeeresSpeichertNichts(t *testing.T) {
 	if !Decode("").Empty() {
 		t.Error("Decode(\"\") lieferte etwas")
 	}
-	// Kaputtes JSON darf die Seite nicht unbearbeitbar machen.
+	// Broken JSON must not make the page uneditable.
 	if !Decode("{kein json").Empty() {
 		t.Error("Decode auf Unsinn lieferte etwas")
 	}
 }
 
-// Das Theme bekommt Typen und nicht Zeichenketten: sonst ist jedes {{if}} wahr
-// und jeder Preis eine Zeichenkette, die sich nicht vergleichen lässt.
+// The theme gets types and not strings: otherwise every {{if}} is true and
+// every price is a string that cannot be compared.
 func TestAufloesenLiefertTypen(t *testing.T) {
 	defs := []Def{
 		{Key: "preis", Kind: KindNumber},
@@ -154,7 +153,7 @@ func TestAufloesenLiefertTypen(t *testing.T) {
 	if n, ok := got["preis"].(Number); !ok || n.Value != 8.5 {
 		t.Errorf("preis = %#v", got["preis"])
 	} else if n.String() != "8,50" {
-		// Ausgegeben wird, was getippt wurde — nicht 8.5.
+		// What is printed is what was typed — not 8.5.
 		t.Errorf("preis gedruckt als %q, want 8,50", n.String())
 	}
 	if b, ok := got["verfuegbar"].(bool); !ok || !b {
@@ -171,8 +170,8 @@ func TestAufloesenLiefertTypen(t *testing.T) {
 	}
 }
 
-// Ein Feld ohne Wert muss trotzdem im Ergebnis stehen, sonst scheitert
-// {{ .Page.Fields.preis }} auf der einen Seite, die keinen Preis hat.
+// A field with no value still has to be in the result, or
+// {{ .Page.Fields.preis }} fails on the one page that has no price.
 func TestLeereFelderStehenTrotzdemDa(t *testing.T) {
 	defs := []Def{
 		{Key: "preis", Kind: KindNumber},
@@ -193,7 +192,7 @@ func TestLeereFelderStehenTrotzdemDa(t *testing.T) {
 	}
 }
 
-// Ein gelöschtes Bild darf kein kaputtes <img> ergeben.
+// A deleted image must not produce a broken <img>.
 func TestVerschwundenesBildWirdNil(t *testing.T) {
 	got := Resolve([]Def{{Key: "bild", Kind: KindImage}}, Data{Values: Values{"bild": "99"}},
 		Links{Image: func(int64) (Image, bool) { return Image{}, false }})
@@ -202,7 +201,7 @@ func TestVerschwundenesBildWirdNil(t *testing.T) {
 	}
 }
 
-// Ein Feld für Beiträge gehört nicht auf eine Seite.
+// A field for posts does not belong on a page.
 func TestGiltFuer(t *testing.T) {
 	defs := []Def{
 		{Key: "preis", AppliesTo: ForPage},
@@ -237,8 +236,8 @@ func gruppe() Def {
 	}}
 }
 
-// Eine Gruppe reist als eigene Liste durch Speichern und Lesen. Ginge dabei die
-// Reihenfolge verloren, stünde die Staffel „ab 10“ vor „ab 1“.
+// A group travels as a list of its own through saving and reading. If the
+// order were lost on the way, the tier "from 10" would stand before "from 1".
 func TestGruppeUeberlebtSpeichern(t *testing.T) {
 	daten := Data{Rows: map[string][]Values{"preisstaffel": {
 		{"ab_menge": "1", "preis": "8,50", "einheit": "Stück"},
@@ -248,8 +247,8 @@ func TestGruppeUeberlebtSpeichern(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zurück := Decode(raw)
-	rows := zurück.Row("preisstaffel")
+	back := Decode(raw)
+	rows := back.Row("preisstaffel")
 	if len(rows) != 2 {
 		t.Fatalf("%d rows back, want 2", len(rows))
 	}
@@ -258,8 +257,8 @@ func TestGruppeUeberlebtSpeichern(t *testing.T) {
 	}
 }
 
-// Die flache Form aus der ersten Fassung muss weiter lesbar sein — sonst wäre
-// jede Seite, die vorher gespeichert wurde, leer.
+// The flat shape from the first version has to stay readable — otherwise every
+// page saved before it would be empty.
 func TestAlteFlacheFormWirdGelesen(t *testing.T) {
 	d := Decode(`{"preis":"8,50","einheit":"kg"}`)
 	if d.Values["preis"] != "8,50" || d.Values["einheit"] != "kg" {
@@ -270,7 +269,7 @@ func TestAlteFlacheFormWirdGelesen(t *testing.T) {
 	}
 }
 
-// Eine leere Zeile ist keine Zeile: wer alle Felder leert, hat sie entfernt.
+// An empty row is not a row: emptying every field removes it.
 func TestLeereZeilenVerschwinden(t *testing.T) {
 	g := gruppe()
 	out := Clean([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
@@ -282,7 +281,7 @@ func TestLeereZeilenVerschwinden(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("%d Zeilen, want 2 — die leere sollte weg sein: %v", len(rows), rows)
 	}
-	// Und was in einer Zeile steht, das es nicht gibt, geht denselben Weg.
+	// And what stands in a row and does not exist goes the same way.
 	out = Clean([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
 		{"preis": "7,00", "erfunden": "x"},
 	}}})
@@ -291,8 +290,8 @@ func TestLeereZeilenVerschwinden(t *testing.T) {
 	}
 }
 
-// Eine Zeile mit einem falschen Wert wird benannt — mit Nummer, sonst sucht
-// jemand in zwanzig Zeilen nach der einen.
+// A row with a wrong value is named — with its number, or somebody searches
+// twenty rows for the one.
 func TestZeileWirdBenannt(t *testing.T) {
 	g := gruppe()
 	errs := CheckAll([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
@@ -308,7 +307,7 @@ func TestZeileWirdBenannt(t *testing.T) {
 	}
 }
 
-// Eine Pflicht-Gruppe ohne Zeile ist ein Fehler, und zwar an der Gruppe.
+// A required group with no row is an error, and it belongs to the group.
 func TestPflichtgruppeBrauchtEineZeile(t *testing.T) {
 	g := gruppe()
 	g.Required = true
@@ -318,7 +317,7 @@ func TestPflichtgruppeBrauchtEineZeile(t *testing.T) {
 	}
 }
 
-// Das Theme bekommt die Zeilen aufgelöst — mit Typen, wie ein einzelnes Feld.
+// The theme gets the rows resolved — with types, like a single field.
 func TestGruppeAufgeloest(t *testing.T) {
 	g := gruppe()
 	got := Resolve([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
@@ -333,7 +332,7 @@ func TestGruppeAufgeloest(t *testing.T) {
 		t.Errorf("preis in the row = %#v", rows[0]["preis"])
 	}
 
-	// Und als Liste mit Beschriftungen, für ein Theme, das die Namen nicht kennt.
+	// And as a list with labels, for a theme that does not know the names.
 	list := List([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
 		{"ab_menge": "1", "preis": "8,50"},
 	}}}, Links{})
@@ -345,16 +344,16 @@ func TestGruppeAufgeloest(t *testing.T) {
 	}
 }
 
-// Eine Gruppe ohne Zeilen steht nicht in der Liste: eine Überschrift ohne
-// alles darunter sagt weniger als gar nichts.
+// A group with no rows is not in the list: a heading with nothing under it
+// says less than nothing.
 func TestLeereGruppeStehtNichtInDerListe(t *testing.T) {
 	if list := List([]Def{gruppe()}, Data{}, Links{}); len(list) != 0 {
 		t.Errorf("Liste = %#v, want leer", list)
 	}
 }
 
-// Ein Verweis wird über die Nachschlagefunktion aufgelöst — die entscheidet,
-// ob die Zielseite überhaupt gezeigt werden darf.
+// A reference is resolved through the lookup — which decides whether the
+// target page may be shown at all.
 func TestVerweisWirdAufgeloest(t *testing.T) {
 	defs := []Def{{Key: "produkt", Kind: KindRef}}
 	got := Resolve(defs, Data{Values: Values{"produkt": "42"}}, Links{
@@ -374,8 +373,8 @@ func TestVerweisWirdAufgeloest(t *testing.T) {
 	}
 }
 
-// Gelöscht, verschoben oder noch ein Entwurf: das Theme bekommt nichts, nicht
-// einen Link ins Leere. Das ist dieselbe Regel wie beim Bild.
+// Deleted, moved or still a draft: the theme gets nothing, not a link into the
+// void. That is the same rule as for the image.
 func TestVerweisAufNichtSichtbaresWirdNil(t *testing.T) {
 	defs := []Def{{Key: "produkt", Kind: KindRef}}
 	got := Resolve(defs, Data{Values: Values{"produkt": "42"}}, Links{
@@ -384,14 +383,14 @@ func TestVerweisAufNichtSichtbaresWirdNil(t *testing.T) {
 	if ref := got["produkt"].(*Ref); ref != nil {
 		t.Errorf("produkt = %#v, want nil", ref)
 	}
-	// Und ohne Nachschlagefunktion — etwa im Export — genauso.
+	// And with no lookup — in an export, say — just the same.
 	got = Resolve(defs, Data{Values: Values{"produkt": "42"}}, Links{})
 	if ref := got["produkt"].(*Ref); ref != nil {
 		t.Errorf("ohne Lookup: produkt = %#v, want nil", ref)
 	}
 }
 
-// Was aus dem Formular kommt, ist eine Zahl oder es ist nichts.
+// What comes out of the form is a number or it is nothing.
 func TestVerweisPruefung(t *testing.T) {
 	d := Def{Label: "Produkt", Kind: KindRef}
 	if reason := Check(d, "17"); !reason.Empty() {
@@ -404,8 +403,8 @@ func TestVerweisPruefung(t *testing.T) {
 	}
 }
 
-// Ein Feld kann zu einer eigenen Inhaltsart gehören — ein Preis gehört an ein
-// Produkt und an sonst nichts.
+// A field can belong to a content kind of its own — a price belongs on a
+// product and on nothing else.
 func TestFeldGiltFuerEigeneArt(t *testing.T) {
 	defs := []Def{
 		{Key: "preis", AppliesTo: "produkt"},
@@ -423,8 +422,8 @@ func TestFeldGiltFuerEigeneArt(t *testing.T) {
 	if got := keys("produkt"); len(got) != 2 || got[0] != "preis" || got[1] != "notiz" {
 		t.Errorf("for a product: %v", got)
 	}
-	// Ein Produkt ist technisch eine Seite. Ein Feld "nur Seiten" darf trotzdem
-	// nicht im Produktformular auftauchen.
+	// A product is technically a page. A field marked "pages only" still must
+	// not turn up in the product form.
 	if got := keys("page"); len(got) != 2 || got[0] != "hinweis" || got[1] != "notiz" {
 		t.Errorf("for a page: %v", got)
 	}
@@ -433,9 +432,8 @@ func TestFeldGiltFuerEigeneArt(t *testing.T) {
 	}
 }
 
-// Ein bedingtes Feld wird nicht verlangt, solange es niemand sieht. Ein
-// Pflichtfeld, das unsichtbar blockiert, ist der Fehler, den diese Prüfung
-// verhindern soll.
+// A conditional field is not demanded as long as nobody can see it. A required
+// field that blocks invisibly is the fault this check exists to prevent.
 func TestBedingtesPflichtfeldBlockiertNicht(t *testing.T) {
 	defs := []Def{
 		{Key: "angebot", Label: "Im Angebot", Kind: KindBool},
@@ -453,9 +451,9 @@ func TestBedingtesPflichtfeldBlockiertNicht(t *testing.T) {
 	}
 }
 
-// Der Wert bleibt stehen, wird aber nicht ausgegeben, solange die Bedingung
-// nicht erfüllt ist: ein versehentlich entferntes Häkchen darf niemandem seine
-// Eingabe kosten, und das Theme darf trotzdem nichts davon zeigen.
+// The value stays put but is not printed as long as the condition is not met:
+// an accidentally cleared tick must cost nobody their input, and the theme
+// still must show none of it.
 func TestBedingterWertBleibtUndWirktNicht(t *testing.T) {
 	defs := []Def{
 		{Key: "angebot", Label: "Im Angebot", Kind: KindBool},
@@ -469,19 +467,19 @@ func TestBedingterWertBleibtUndWirktNicht(t *testing.T) {
 	if got := List(defs, d, Links{}); len(got) != 0 {
 		t.Errorf("the field list shows %d entries", len(got))
 	}
-	// Aufräumen wirft ihn nicht weg.
+	// Cleaning does not throw it away.
 	if got := Clean(defs, d).Values["sonderpreis"]; got != "9.50" {
 		t.Errorf("the value is gone: %q", got)
 	}
-	// Und mit Häkchen ist er wieder da.
+	// And with the tick it is back.
 	d.Values["angebot"] = "1"
 	if got := Resolve(defs, d, Links{})["sonderpreis"].(Number).Raw; got != "9.50" {
 		t.Errorf("with the tick the value is missing: %q", got)
 	}
 }
 
-// Eine Kette: C hängt an B, B hängt an A. Fällt A weg, fallen beide weg — und
-// zwar unabhängig davon, in welcher Reihenfolge die Felder stehen.
+// A chain: C hangs off B, B hangs off A. If A falls away both fall away — and
+// regardless of the order the fields stand in.
 func TestBedingungsketteFaelltGanz(t *testing.T) {
 	defs := []Def{
 		{Key: "c", Kind: KindText, Condition: "b"},
@@ -497,8 +495,8 @@ func TestBedingungsketteFaelltGanz(t *testing.T) {
 	}
 }
 
-// Eine Bedingung, die auf ein Feld zeigt, das es nicht gibt, ist keine: sonst
-// wäre das Feld für immer unerreichbar und niemand sähe, warum.
+// A condition pointing at a field that does not exist is none: otherwise the
+// field would be unreachable for good and nobody would see why.
 func TestBedingungInsLeereZeigtNichts(t *testing.T) {
 	defs := []Def{{Key: "preis", Kind: KindNumber, Condition: "gibtsnicht"}}
 	if hidden := Hidden(defs, Values{}); len(hidden) != 0 {
@@ -506,8 +504,7 @@ func TestBedingungInsLeereZeigtNichts(t *testing.T) {
 	}
 }
 
-// Ein Abschnitt ist eine Überschrift: kein Wert, keine Prüfung, nichts im
-// Theme.
+// A section is a heading: no value, no check, nothing in the theme.
 func TestAbschnittHatKeinenWert(t *testing.T) {
 	defs := []Def{
 		{Key: "masse", Label: "Masse", Kind: KindSection, Required: true},
@@ -525,14 +522,14 @@ func TestAbschnittHatKeinenWert(t *testing.T) {
 	}
 }
 
-// Woran eine Bedingung hängen darf, entscheidet der Browser: was er nicht als
-// "ausgefüllt" erkennen kann, wird gar nicht erst angeboten.
+// What a condition may hang off is decided by the browser: whatever it cannot
+// recognise as "filled in" is not offered in the first place.
 func TestWoranEineBedingungHaengenDarf(t *testing.T) {
-	// KindRange bleibt bewusst dabei: die Notiz im Fahrplan, es auszuschliessen,
-	// ruhte auf der Annahme eines Schiebers. Ein Zahlenfeld zeigt sehr wohl
-	// einen Platzhalter — beobachtet im Browserdurchgang zu Plan 07-07 und
-	// nicht bloss erschlossen: das abhängige Feld war verborgen, solange das
-	// Zahlenfeld leer war, und sichtbar, sobald eine Zahl darinstand.
+	// KindRange deliberately stays in: the note in the roadmap to exclude it
+	// rested on the assumption of a slider. A number field does show a
+	// placeholder — observed in the browser pass of plan 07-07 and not merely
+	// inferred: the dependent field was hidden while the number field was
+	// empty, and visible as soon as a number stood in it.
 	darf := []string{KindText, KindLong, KindNumber, KindBool, KindChoice,
 		KindImage, KindLink, KindRef, KindRange, KindCode}
 	for _, k := range darf {
@@ -540,30 +537,29 @@ func TestWoranEineBedingungHaengenDarf(t *testing.T) {
 			t.Errorf("%s should be allowed to carry a condition", k)
 		}
 	}
-	// KindTime steht aus demselben Grund draussen wie KindDate: ein
-	// <input type="time"> trifft :placeholder-shown nie, die Regel, die die
-	// abhängigen Felder ausblendet, könnte also nie greifen.
+	// KindTime stays out for the same reason as KindDate: an
+	// <input type="time"> never matches :placeholder-shown, so the rule that
+	// hides the dependent fields could never fire.
 	for _, k := range []string{KindDate, KindTime, KindGroup, KindSection} {
 		if (Def{Kind: k}).MayControl() {
 			t.Errorf("%s should not be allowed to carry a condition", k)
 		}
 	}
-	// Ein Feld in einer Gruppe auch nicht: dort wird eine Zeile als Ganzes
-	// ausgefüllt.
+	// Nor a field inside a group: there a row is filled in as a whole.
 	if (Def{Kind: KindBool, ParentID: 3}).MayControl() {
 		t.Error("a field inside a group should not be allowed to carry a condition")
 	}
 }
 
-// --- Die drei kleinen Arten: zeit, bereich, code -------------------------
+// --- The three small kinds: time, range, code ----------------------------
 //
-// Was hier steht, ist der ganze Vertrag der drei Arten. Die Grenzfälle sind
-// die eigentliche Arbeit: die Grenze selbst gehört noch dazu, ein Schritt
-// daneben nicht mehr, und leer ist nie null.
+// What stands here is the whole contract of the three. The edge cases are the
+// real work: the bound itself still counts, one step beyond it does not, and
+// empty is never zero.
 
-// Eine Uhrzeit ist eine Uhrzeit und keine Zeichenkette, die zufällig einen
-// Doppelpunkt enthält. Der Browser schickt je nach Gerät mit oder ohne
-// Sekunden — beides muss durch.
+// A time of day is a time of day and not a string that happens to contain a
+// colon. Depending on the device the browser sends it with or without seconds
+// — both have to get through.
 func TestZeitPruefung(t *testing.T) {
 	zeit := Def{Label: "Abfahrt", Kind: KindTime}
 	for _, gut := range []string{"09:30", "00:00", "23:59", "09:30:00"} {
@@ -571,15 +567,15 @@ func TestZeitPruefung(t *testing.T) {
 			t.Errorf("%q abgelehnt: %q", gut, r)
 		}
 	}
-	// 25:00 gibt es nicht; 9:30 ohne führende Null ist nicht, was ein
-	// <input type="time"> sendet, und wer es von Hand einträgt, soll es
-	// merken statt eine still zurechtgebogene Zeit zu bekommen.
+	// 25:00 does not exist; 9:30 without a leading zero is not what an
+	// <input type="time"> sends, and somebody entering it by hand should
+	// notice rather than be handed a quietly corrected time.
 	for _, schlecht := range []string{"25:00", "9:30", "halb zehn", "09:30+02:00", "2026-04-01"} {
 		if r := Check(zeit, schlecht); r.Empty() {
 			t.Errorf("%q durchgelassen", schlecht)
 		}
 	}
-	// Leer ist erlaubt, solange das Feld kein Pflichtfeld ist.
+	// Empty is allowed as long as the field is not required.
 	if r := Check(zeit, ""); !r.Empty() {
 		t.Errorf("leeres Kannfeld abgelehnt: %q", r)
 	}
@@ -588,8 +584,8 @@ func TestZeitPruefung(t *testing.T) {
 	}
 }
 
-// Mitternacht und „nichts eingetragen“ sind zwei verschiedene Tatsachen. Ein
-// Zeiger kann sie auseinanderhalten, ein time.Time nicht.
+// Midnight and "nothing entered" are two different facts. A pointer can tell
+// them apart, a time.Time cannot.
 func TestZeitAufgeloest(t *testing.T) {
 	defs := []Def{{Key: "abfahrt", Kind: KindTime}, {Key: "ankunft", Kind: KindTime}}
 	got := Resolve(defs, Data{Values: Values{"abfahrt": "00:00"}}, Links{})
@@ -606,8 +602,8 @@ func TestZeitAufgeloest(t *testing.T) {
 		t.Errorf("arrival = %#v, wanted nil — empty is not midnight", got["ankunft"])
 	}
 
-	// Keine Zeitzone: die Uhrzeit wird ohne Datum gelesen, sie trägt also
-	// keinen Versatz und kein Datum, das jemand für einen Tag halten könnte.
+	// No time zone: the time of day is read without a date, so it carries no
+	// offset and no date anybody could mistake for a day.
 	mittag := Resolve([]Def{{Key: "t", Kind: KindTime}}, Data{Values: Values{"t": "12:15"}}, Links{})
 	tz := mittag["t"].(*time.Time)
 	if _, versatz := tz.Zone(); versatz != 0 {
@@ -623,9 +619,9 @@ func TestZeitAufgeloest(t *testing.T) {
 	}
 }
 
-// Ein Datum überlässt das Theme seinem formatDate, eine Uhrzeit hat keinen
-// solchen Helfer — also steht sie als Text da, sonst druckt eine Liste von
-// Beschriftungen neben der Uhrzeit nichts.
+// A date is left to the theme's formatDate, a time of day has no such helper —
+// so it stands there as text, or a list of labels beside the time of day
+// prints nothing.
 func TestZeitStehtAlsTextInDerListe(t *testing.T) {
 	defs := []Def{{Key: "abfahrt", Label: "Abfahrt", Kind: KindTime},
 		{Key: "wurf", Label: "Wurf", Kind: KindDate}}
@@ -639,16 +635,16 @@ func TestZeitStehtAlsTextInDerListe(t *testing.T) {
 	if _, ok := list[0].Value.(*time.Time); !ok {
 		t.Errorf("Value der Uhrzeit = %#v, wollte *time.Time", list[0].Value)
 	}
-	// Das Datum bleibt, wie es war: leerer Text, das Theme formatiert selbst.
+	// The date stays as it was: empty text, the theme formats it itself.
 	if list[1].Text != "" {
 		t.Errorf("the date now carries text %q — that was not the intention", list[1].Text)
 	}
 }
 
-// Die Grenzen eines Bereichsfeldes, an jeder Kante einzeln nachgemessen. Die
-// Grenze selbst ist ein gültiger Wert; ein Schritt daneben ist es nicht.
+// A range field's bounds, measured at each edge separately. The bound itself is
+// a valid value; one step beyond it is not.
 func TestBereichPruefung(t *testing.T) {
-	faelle := []struct {
+	cases := []struct {
 		name       string
 		unten, obn string
 		gut        []string
@@ -670,7 +666,7 @@ func TestBereichPruefung(t *testing.T) {
 			[]string{"0", "-7", "12345.6"},
 			[]string{"viel"}},
 	}
-	for _, f := range faelle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			d := Def{Label: "Menge", Kind: KindRange, RangeMin: f.unten, RangeMax: f.obn}
 			for _, gut := range f.gut {
@@ -685,15 +681,15 @@ func TestBereichPruefung(t *testing.T) {
 					continue
 				}
 				if _, istZahl := ParseNumber(schlecht); !istZahl {
-					// Keine Zahl ist keine Grenzverletzung, sondern etwas
-					// anderes — die Begründung sagt das auch so.
+					// Not a number is not a bounds violation but something
+					// else — and the reason says so too.
 					if !strings.Contains(r.String(), "number") {
 						t.Errorf("the reason for %q does not name the number: %q", schlecht, r)
 					}
 					continue
 				}
-				// Die Begründung ist für die Person am Formular: sie nennt die
-				// Grenzen, zwischen denen der Wert liegen müsste.
+				// The reason is for the person at the form: it names the bounds
+				// the value would have to lie between.
 				genannt := (f.unten != "" && strings.Contains(r.String(), f.unten)) ||
 					(f.obn != "" && strings.Contains(r.String(), f.obn))
 				if !genannt {
@@ -704,8 +700,8 @@ func TestBereichPruefung(t *testing.T) {
 	}
 }
 
-// Leer ist nicht null und nicht die untere Grenze: ein Bereichsfeld, das
-// niemand ausgefüllt hat, ist nicht ausgefüllt.
+// Empty is not zero and not the lower bound: a range field nobody has filled in
+// is not filled in.
 func TestLeererBereichIstNichtNull(t *testing.T) {
 	kann := Def{Key: "menge", Label: "Menge", Kind: KindRange, RangeMin: "1", RangeMax: "10"}
 	if r := Check(kann, ""); !r.Empty() {
@@ -735,7 +731,7 @@ func TestLeererBereichIstNichtNull(t *testing.T) {
 	}
 }
 
-// Gedruckt wird, was getippt wurde. 0.1 ist 0.1 und nicht 0.10000000000000001.
+// What is printed is what was typed. 0.1 is 0.1 and not 0.10000000000000001.
 func TestBereichDrucktDasGetippte(t *testing.T) {
 	d := Def{Key: "menge", Label: "Menge", Kind: KindRange, RangeMin: "0", RangeMax: "1"}
 	got := Resolve([]Def{d}, Data{Values: Values{"menge": "0.1"}}, Links{})
@@ -755,8 +751,8 @@ func TestBereichDrucktDasGetippte(t *testing.T) {
 	}
 }
 
-// Ein Codefeld ist Text, wie er getippt wurde — kein Markdown, keine
-// Umdeutung. Und ein leeres bleibt aus der Liste heraus.
+// A code field is text as it was typed — no Markdown, no reinterpretation. And
+// an empty one stays out of the list.
 func TestCodeIstRoherText(t *testing.T) {
 	d := Def{Key: "schnipsel", Label: "Schnipsel", Kind: KindCode}
 	roh := "<b>fett</b> & \"Anführung\"\n  eingerückt"
@@ -764,18 +760,17 @@ func TestCodeIstRoherText(t *testing.T) {
 	if got["schnipsel"] != roh {
 		t.Errorf("snippet = %#v, wanted the raw text unchanged", got["schnipsel"])
 	}
-	// Und ausdrücklich als string und nicht als template.HTML: ein Theme
-	// bekommt einen Wert, den html/template beim Drucken maskiert. Eine
-	// Umtypung irgendwo auf diesem Weg wäre genau die Lücke, die FIELD-06
-	// schliesst — sie fiele sonst nirgends auf, weil sich beide gleich
-	// ausdrucken.
+	// And explicitly as a string and not as template.HTML: a theme gets a
+	// value that html/template escapes when printing. A retyping anywhere on
+	// this path would be exactly the hole FIELD-06 closes — and it would show
+	// up nowhere else, because the two print identically.
 	if _, istString := got["schnipsel"].(string); !istString {
 		t.Errorf("snippet is %T and not a string — is it still escaped?", got["schnipsel"])
 	}
 	if e := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})[0]; e.Kind != KindCode {
 		t.Errorf("der Eintrag nennt seine Art als %q", e.Kind)
 	}
-	// Check nimmt jeden Text an: es gibt keine falsche Zeile Code.
+	// Check accepts any text: there is no wrong line of code.
 	if r := Check(d, roh); !r.Empty() {
 		t.Errorf("Code abgelehnt: %q", r)
 	}
@@ -788,10 +783,9 @@ func TestCodeIstRoherText(t *testing.T) {
 	}
 }
 
-// Die beiden Listen sind abziehend: eine neue Art ist drin, solange sie nicht
-// ausdrücklich ausgeschlossen wird. Für alle drei ist das richtig — und für
-// code ist es die Bedingung, unter der Erfolgskriterium 5 überhaupt gestellt
-// werden kann.
+// The two lists are subtractive: a new kind is in unless it is explicitly
+// excluded. For all three that is right — and for code it is the condition
+// under which success criterion 5 can be posed at all.
 func TestNeueArtenStehenInBeidenListen(t *testing.T) {
 	enthaelt := func(kinds []Kind, art string) bool {
 		for _, k := range kinds {
@@ -817,15 +811,15 @@ func TestNeueArtenStehenInBeidenListen(t *testing.T) {
 	}
 }
 
-// --- Die zwei Wächter eines mehrwertigen Feldes -------------------------
+// --- The two guards of a multi-valued field ------------------------------
 //
-// Ein Häkchenfeld kann in der Auszeichnung nicht begrenzt werden — dafür
-// bräuchte es JavaScript, und davon trägt dieses Programm nichts ausser htmx.
-// Die Höchstzahl gilt also hier, auf dem Server, oder nirgends.
+// A checkbox field cannot be bounded in the markup — that would need
+// JavaScript, and this program carries none of it besides htmx. So the maximum
+// holds here, on the server, or nowhere.
 
 func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 	auswahl := []string{"Eiche", "Buche", "Esche", "Erle"}
-	faelle := []struct {
+	cases := []struct {
 		name     string
 		max      int
 		gut      []string
@@ -841,7 +835,7 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 			[]string{"Eiche", "Eiche\nBuche\nEsche\nErle"},
 			nil},
 	}
-	for _, f := range faelle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: auswahl, MaxValues: f.max}
 			for _, gut := range f.gut {
@@ -855,8 +849,8 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 					t.Errorf("%q durchgelassen", schlecht)
 					continue
 				}
-				// Die Begründung ist für die Person am Formular: sie nennt das
-				// Feld und die Zahl, auf die es ankommt.
+				// The reason is for the person at the form: it names the field
+				// and the number that matters.
 				if !strings.Contains(r.String(), "Sorten") {
 					t.Errorf("the reason for %q does not name the field: %q", schlecht, r)
 				}
@@ -868,25 +862,24 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 	}
 }
 
-// Genau die Höchstzahl geht noch, eine mehr nicht. Der Rand ist die ganze
-// Frage — eine Grenze, bei der man raten muss, ob sie noch dazugehört, ist
-// keine.
+// Exactly the maximum still passes, one more does not. The edge is the whole
+// question — a limit you have to guess the inclusiveness of is not one.
 func TestMehrfachauswahlGenauAmRand(t *testing.T) {
 	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti,
 		Choices: []string{"a", "b", "c"}, MaxValues: 3}
 	if r := Check(d, "a\nb\nc"); !r.Empty() {
 		t.Errorf("genau drei abgelehnt: %q", r)
 	}
-	// Doppelte zählen einzeln: JoinValues bewahrt sie, also sind es vier
-	// Werte, auch wenn nur drei verschiedene darunter sind.
+	// Duplicates count singly: JoinValues keeps them, so there are four
+	// values even though only three of them are distinct.
 	if r := Check(d, "a\nb\nc\na"); r.Empty() {
 		t.Error("four values let through although at most three are allowed")
 	}
 }
 
-// MaxValueBytes ist der Platz für alle Werte eines Feldes zusammen, beim
-// mehrwertigen einschliesslich der Zeilenumbrüche dazwischen. Genau so lang
-// geht noch, ein Byte mehr nicht — und nichts wird dabei gekürzt.
+// MaxValueBytes is the room for all of a field's values together, in a
+// multi-valued one including the line breaks between them. Exactly that long
+// still passes, one byte more does not — and nothing is truncated on the way.
 func TestGemeinsamesBytebudget(t *testing.T) {
 	text := Def{Key: "notiz", Label: "Notiz", Kind: KindLong}
 
@@ -905,9 +898,9 @@ func TestGemeinsamesBytebudget(t *testing.T) {
 		t.Errorf("the reason does not name the bound: %q", r)
 	}
 
-	// Gezählt werden Byte, nicht Zeichen: ein Umlaut braucht zwei davon, also
-	// ist die Grenze bei halb so vielen Zeichen erreicht. Ein Runen- oder
-	// Graphemzähler wäre eine andere Zahl und würde die Datenbank überziehen.
+	// Bytes are counted, not characters: an umlaut needs two of them, so the
+	// limit is reached at half as many characters. A rune or grapheme counter
+	// would be a different number and would overrun the database.
 	umlaute := strings.Repeat("ä", MaxValueBytes/2)
 	if len([]rune(umlaute)) >= MaxValueBytes {
 		t.Fatalf("the probe is no good: %d runes", len([]rune(umlaute)))
@@ -920,9 +913,9 @@ func TestGemeinsamesBytebudget(t *testing.T) {
 	}
 }
 
-// Beim mehrwertigen Feld wird die verbundene Zeichenkette gemessen, nicht der
-// längste einzelne Wert: drei Werte zu je zwei Dritteln des Platzes passen
-// nicht nebeneinander, auch wenn jeder für sich passt.
+// In a multi-valued field the joined string is measured, not the longest single
+// value: three values of two thirds of the room each do not fit side by side,
+// even though each fits on its own.
 func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
 	kurz := strings.Repeat("a", MaxValueBytes/2)
 	lang := kurz + "a"
@@ -931,9 +924,9 @@ func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
 	if r := Check(d, kurz); !r.Empty() {
 		t.Errorf("a value of %d bytes refused: %q", len(kurz), r)
 	}
-	// Zwei Werte zu je MaxValueBytes/2 plus der Umbruch dazwischen: ein Byte
-	// über der Grenze. Der Umbruch zählt mit, sonst ginge in die Datenbank
-	// mehr, als sie zugesagt bekommt.
+	// Two values of MaxValueBytes/2 each plus the break between them: one byte
+	// over the limit. The break counts, or more would go into the database
+	// than it was promised.
 	zusammen := JoinValues([]string{kurz, kurz})
 	if len(zusammen) != MaxValueBytes+1 {
 		t.Fatalf("the probe is no good: %d bytes", len(zusammen))
@@ -943,10 +936,10 @@ func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
 	}
 }
 
-// Nichts auf dem Speicherweg kürzt noch. Ein zu langer Wert wird gemeldet,
-// nicht halbiert: ein halbierter Wert sieht aus wie einer, den jemand so
-// getippt hat, und beim mehrwertigen Feld wäre die Hälfte eines Wertes ein
-// Wert, den es nie gab (D-13).
+// Nothing on the storage path truncates any more. An over-long value is
+// reported, not halved: a halved value looks like one somebody typed that way,
+// and in a multi-valued field half a value would be a value that never existed
+// (D-13).
 func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
 	zuLang := strings.Repeat("a", MaxValueBytes+50)
 
@@ -963,23 +956,22 @@ func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
 		t.Errorf("%d bytes were stored in the row, wanted %d", len(got), len(zuLang))
 	}
 
-	// Und CheckAll meldet ihn, unter der Kennung des Feldes, damit das
-	// Formular die Begründung unter dem richtigen Feld zeigt.
+	// And CheckAll reports it, under the field's key, so that the form shows
+	// the reason under the right field.
 	errs := CheckAll([]Def{d}, Data{Values: Values{"notiz": zuLang}})
 	if errs["notiz"].Empty() {
 		t.Errorf("CheckAll does not report the over-long value: %v", errs)
 	}
 }
 
-// Ein Feld, dessen Bedingung nicht erfüllt ist, wird gar nicht geprüft —
-// beim mehrwertigen genauso wie bei jedem anderen. Etwas zu verlangen, das
-// die Person nicht sehen kann, ist der eine Weg, auf dem sich ein Formular
-// nicht abschicken lässt, ohne zu sagen warum.
+// A field whose condition is not met is not checked at all — in a multi-valued
+// one as much as in any other. Demanding something the person cannot see is the
+// one way a form cannot be submitted without saying why.
 //
-// Wo die Grenze liegt: jede Artregel wird für ein verstecktes Feld
-// übersprungen — die Pflicht, die Höchstzahl, die geschlossene Möglichkeitenliste.
-// Die Bytegrenze nicht: sie ist keine Frage an irgendwen, sondern sagt, wieviel
-// Platz ein Wert in der Zeile hat, die geschrieben wird. Die bewacht
+// Where the boundary lies: every per-kind rule is skipped for a hidden field —
+// the required check, the maximum, the closed list of options. The byte limit
+// is not: it is a question to nobody, it says how much room a value has in the
+// row that gets written. That one is guarded by
 // TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden.
 func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
@@ -987,10 +979,10 @@ func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 		Choices: []string{"Eiche", "Buche"}, MaxValues: 1, Condition: "spezial"}
 	defs := []Def{schalter, sorten}
 
-	// Über jeder Artgrenze zugleich: drei Werte bei MaxValues 1, „Ahorn“ steht
-	// nicht auf der Liste, und das Feld ist Pflicht. Deutlich unter der
-	// Bytegrenze, damit ein Fehler hier eindeutig heisst, dass eine Artregel
-	// gefeuert hat — und nicht die Länge.
+	// Over every per-kind bound at once: three values at MaxValues 1, "Ahorn"
+	// is not on the list, and the field is required. Well under the byte limit,
+	// so that a failure here unambiguously means a per-kind rule fired — and
+	// not the length.
 	uebervoll := JoinValues([]string{"Eiche", "Buche", "Ahorn"})
 
 	aus := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": uebervoll}})
@@ -1004,13 +996,12 @@ func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 	}
 }
 
-// --- Das Schlagwortfeld -------------------------------------------------
+// --- The term field ------------------------------------------------------
 //
-// Es speichert die Adresse des Schlagworts und druckt dessen Namen. Wird das
-// Schlagwort umbenannt, ändert sich, was jede Seite zeigt, ohne dass eine
-// einzige Seite angefasst wird. Genau dieses Versprechen ist auch der Grund,
-// warum die Art in keiner Bausteinart stehen darf: ein Baustein friert beim
-// Speichern zu HTML ein und könnte es nicht halten.
+// It stores the term's address and prints its name. Rename the term and what
+// every page shows changes without a single page being touched. That same
+// promise is also why the kind must not appear in any block kind: a block
+// freezes into HTML when the page is saved and could not keep it.
 
 func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
 	enthaelt := func(kinds []Kind, art string) bool {
@@ -1027,7 +1018,7 @@ func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
 	if KindName(KindTerm) == KindTerm {
 		t.Errorf("%s has no label", KindTerm)
 	}
-	// In einer Gruppe ist es erlaubt: eine Gruppe friert nichts ein.
+	// Inside a group it is allowed: a group freezes nothing.
 	if !enthaelt(SubKinds(), KindTerm) {
 		t.Errorf("%s fehlt in SubKinds", KindTerm)
 	}
@@ -1035,9 +1026,9 @@ func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
 		t.Errorf("%s is in BlockKinds but should not be", KindTerm)
 	}
 
-	// Genau zwei Arten fehlen dort neben Gruppe und Abschnitt — der Verweis
-	// und das Schlagwort. Der Filter ist abziehend: eine Art, die hier
-	// versehentlich dazukäme, verschwände lautlos aus jedem Bausteinformular.
+	// Exactly two kinds are missing there beside group and section — the
+	// reference and the term. The filter is subtractive: a kind that got added
+	// here by accident would vanish silently from every block form.
 	fehlend := map[string]bool{}
 	for _, k := range Kinds {
 		fehlend[k.Kind] = true
@@ -1054,8 +1045,8 @@ func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
 			t.Errorf("BlockKinds contains %s but should leave it out", art)
 		}
 	}
-	// Ein Codefeld darf in einem Baustein stehen (D-06); es ist die Art, die
-	// beim Ausschluss am ehesten mitgerissen würde.
+	// A code field may stand in a block (D-06); it is the kind most likely to
+	// be swept along by the exclusion.
 	if !enthaelt(BlockKinds(), KindCode) {
 		t.Errorf("%s fehlt in BlockKinds", KindCode)
 	}
@@ -1075,15 +1066,16 @@ func TestSchlagwortWirdAufgeloest(t *testing.T) {
 	if !ok || term == nil {
 		t.Fatalf("thema = %#v, want a *Term", got["thema"])
 	}
-	// Der Name von jetzt, nicht der von damals: gespeichert ist „moebel“,
-	// gedruckt wird „Möbelbau“.
+	// The name as of now, not the one from back then: what is stored is
+	// "moebel", what is printed is "Möbelbau". //nolint:german — the fixture
+	// it names is German content, which is what an operator types.
 	if term.Name != "Möbelbau" || term.Slug != "moebel" || term.URL != "/tag/moebel" {
 		t.Errorf("term = %#v", term)
 	}
 }
 
-// Die vier Wege ins Nichts. Jeder ergibt denselben getippten nil, damit ein
-// {{with}} im Theme den Block auslässt statt einen alten Namen zu drucken.
+// The four paths into nothing. Each yields the same typed nil, so that a
+// {{with}} in the theme leaves the block out instead of printing an old name.
 func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
 	defs := []Def{{Key: "thema", Kind: KindTerm}}
 	treffer := func(slug string) (Term, bool) {
@@ -1092,7 +1084,7 @@ func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
 		}
 		return Term{}, false
 	}
-	faelle := []struct {
+	cases := []struct {
 		name  string
 		wert  string
 		links Links
@@ -1100,11 +1092,11 @@ func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
 		{"kein Wert", "", Links{Term: treffer}},
 		{"ohne Nachschlagefunktion", "moebel", Links{}},
 		{"gelöschtes Schlagwort", "verschwunden", Links{Term: treffer}},
-		// Ein Kürzel ist die kleingeschriebene Fassung eines Namens. Wird
-		// hier gefaltet, fielen zwei verschiedene Schlagwörter zusammen.
+		// A slug is the lower-case form of a name. Folding here would make two
+		// different terms collapse into one.
 		{"andere Schreibung", "Moebel", Links{Term: treffer}},
 	}
-	for _, f := range faelle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			got := Resolve(defs, Data{Values: Values{"thema": f.wert}}, f.links)
 			term, ok := got["thema"].(*Term)
@@ -1139,8 +1131,8 @@ func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
 	if e.Term == nil || e.Term.Name != "Möbelbau" {
 		t.Errorf("Term = %#v", e.Term)
 	}
-	// Der Name, nicht das Kürzel: eine Liste aus Beschriftung und Wert soll
-	// „Möbelbau“ zeigen und nicht „moebel“.
+	// The name, not the slug: a list of labels and values should show
+	// "Möbelbau" and not "moebel". //nolint:german — same fixture as above.
 	if e.Text != "Möbelbau" {
 		t.Errorf("Text = %q, wollte den Namen", e.Text)
 	}
@@ -1148,15 +1140,15 @@ func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
 	if !Filled(Resolve(defs, daten, links)) {
 		t.Error("Filled reports nothing although a term is resolved")
 	}
-	// Und ohne Treffer ist die Seite leer — sonst verschwände nur der Text
-	// und die Tafel bliebe stehen.
+	// And with no hit the page is empty — otherwise only the text would
+	// disappear and the panel would stay.
 	if Filled(Resolve(defs, Data{Values: Values{"weg": "verschwunden"}}, links)) {
 		t.Error("Filled reports something although no term is resolved")
 	}
 }
 
-// Was aus dem Formular kommt, ist ein Kürzel oder es ist jemand, der von Hand
-// ins Formular tippt.
+// What comes out of the form is a slug, or it is somebody typing into the form
+// by hand.
 func TestSchlagwortPruefung(t *testing.T) {
 	d := Def{Label: "Thema", Kind: KindTerm}
 	for _, gut := range []string{"moebel", "moebel-nach-mass", "holz2024"} {
@@ -1171,13 +1163,13 @@ func TestSchlagwortPruefung(t *testing.T) {
 	}
 }
 
-// Die Bytegrenze gilt auch dort, wo nach dem Wert niemand gefragt hat.
+// The byte limit holds where nobody was asked for the value either.
 //
-// Clean behält den Wert eines versteckten Feldes ausdrücklich (field.go:568-573),
-// und seit D-13 kürzt trimTo nichts mehr — CheckAll ist damit die einzige
-// Stelle, an der das Bytebudget überhaupt noch gilt. Ging es hier vorbei, gab
-// es die Grenze für diese Klasse nirgends: der Browser schickt den Wert eines
-// versteckten Feldes mit, und wer das Formular von Hand baut, sowieso.
+// Clean deliberately keeps a hidden field's value (field.go:568-573), and since
+// D-13 trimTo truncates nothing — CheckAll is therefore the only place the byte
+// budget still holds at all. If it were bypassed here, the limit would exist
+// nowhere for this class: the browser sends a hidden field's value along, and
+// somebody building the form by hand sends whatever they like.
 func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
 	sorten := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Required: true,
@@ -1189,29 +1181,28 @@ func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	if aus["sorten"].Empty() {
 		t.Fatalf("the over-long value of a hidden field was not reported: %v", aus)
 	}
-	// Und zwar mit der Längenbegründung, nicht mit der Optionsbegründung: eine
-	// Artregel darf hier nicht zurückgeschmuggelt worden sein.
+	// And with the LENGTH reason, not the options reason: no per-kind rule may
+	// have been smuggled back in here.
 	if !strings.Contains(aus["sorten"].String(), "too long") {
 		t.Errorf("the reason is not the length one: %q", aus["sorten"])
 	}
 
-	// Die eigentliche Zusage dieser Änderung: nur Artregeln verletzt, und das
-	// versteckte Feld bleibt still. Pflicht, Höchstzahl und geschlossene
-	// Liste gelten weiterhin nicht für ein Feld, das niemand sieht.
+	// The real promise of this change: only per-kind rules violated, and the
+	// hidden field stays silent. Required, maximum and the closed list still do
+	// not hold for a field nobody can see.
 	nurArt := JoinValues([]string{"Eiche", "Buche", "Ahorn"})
 	if still := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": nurArt}}); len(still) != 0 {
 		t.Errorf("a per-kind rule fired for a hidden field: %v", still)
 	}
-	// Auch der leere Pflichtwert bleibt still.
+	// The empty required value stays silent too.
 	if still := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": ""}}); len(still) != 0 {
 		t.Errorf("the required check fired for a hidden field: %v", still)
 	}
 }
 
-// Dasselbe Loch eine Ebene tiefer, mit MaxRows Zeilen mal Unterfeldern als
-// Hebel: validate leert die Bedingung nur für ein Feld in einer Gruppe oder in
-// einer Bausteinart (store.go:521-523), eine Gruppe auf oberster Ebene darf
-// also eine tragen.
+// The same hole one level down, with MaxRows rows times sub-fields as the
+// lever: validate empties the condition only for a field inside a group or
+// inside a block kind (store.go:521-523), so a top-level group may carry one.
 func TestVersteckteGruppeBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
 	notiz := Def{Key: "notiz", Label: "Notiz", Kind: KindLong, Required: true}
@@ -1232,8 +1223,8 @@ func TestVersteckteGruppeBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 		t.Errorf("the reason is not the length one: %q", aus[schluessel])
 	}
 
-	// Gegenprobe: eine versteckte Pflichtgruppe ohne Zeile bleibt still, und
-	// ein leeres Pflichtunterfeld in ihrer Zeile ebenso.
+	// Counter-check: a hidden required group with no row stays silent, and so
+	// does an empty required sub-field in its row.
 	if still := CheckAll(defs, Data{Values: Values{"spezial": ""}}); len(still) != 0 {
 		t.Errorf("“needs at least one row” fired for a hidden group: %v", still)
 	}

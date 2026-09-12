@@ -13,7 +13,7 @@ import (
 )
 
 // Die vier neuen Eigenschaften auf dem Bildschirm für Felddefinitionen: hin
-// über das Formular, zurück beim Neuzeichnen. Was der Speicher behält, nützt
+// über das Formular, back beim Neuzeichnen. Was der Speicher behält, nützt
 // niemandem, wenn das Formular es beim nächsten Öffnen nicht wieder anzeigt —
 // dann trägt man es jedes Mal neu ein und merkt erst am Ergebnis, dass es
 // nicht ankam.

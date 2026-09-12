@@ -6,13 +6,12 @@ import (
 	"testing"
 )
 
-// SplitValues und JoinValues sind das eine Paar, über das jeder mehrwertige
-// Feldwert läuft — das Seitenformular, die Auflösung fürs Theme und die Reise
-// durchs Archiv. Alles, was hier steht, ist die Zusage an Phase 9: der
-// Einleser erbt diese beiden Funktionen, statt eine dritte Schreibweise zu
-// erfinden.
+// SplitValues and JoinValues are the one pair every multi-valued field value
+// goes through — the page form, the resolution for the theme and the journey
+// through an archive. Everything here is the promise made to phase 9: the
+// importer inherits these two functions rather than inventing a third spelling.
 func TestSplitValues(t *testing.T) {
-	fälle := []struct {
+	cases := []struct {
 		name string
 		roh  string
 		will []string
@@ -25,7 +24,7 @@ func TestSplitValues(t *testing.T) {
 		{"Doppelte bleiben doppelt", "a\na", []string{"a", "a"}},
 		{"eine einzige Zeile", "eiche", []string{"eiche"}},
 	}
-	for _, f := range fälle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			if got := SplitValues(f.roh); !reflect.DeepEqual(got, f.will) {
 				t.Errorf("SplitValues(%q) = %#v, wollte %#v", f.roh, got, f.will)
@@ -35,7 +34,7 @@ func TestSplitValues(t *testing.T) {
 }
 
 func TestJoinValues(t *testing.T) {
-	fälle := []struct {
+	cases := []struct {
 		name  string
 		werte []string
 		will  string
@@ -48,7 +47,7 @@ func TestJoinValues(t *testing.T) {
 		{"Reihenfolge bleibt, kein Sortieren", []string{"esche", "buche", "eiche"}, "esche\nbuche\neiche"},
 		{"wird beschnitten", []string{" eiche ", "buche"}, "eiche\nbuche"},
 	}
-	for _, f := range fälle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			if got := JoinValues(f.werte); got != f.will {
 				t.Errorf("JoinValues(%#v) = %q, wollte %q", f.werte, got, f.will)
@@ -57,10 +56,9 @@ func TestJoinValues(t *testing.T) {
 	}
 }
 
-// Die eigentliche Zusage: die beiden sind Umkehrungen voneinander, solange
-// kein Eintrag leer ist und keiner ungetrimmt. Ein Wert kann selbst keine
-// Zeilenschaltung enthalten, weil die Möglichkeiten, aus denen er stammt,
-// schon zeilenweise gelesen werden.
+// The real promise: the two are inverses of each other as long as no entry is
+// empty and none is untrimmed. A value cannot itself contain a line break,
+// because the options it comes from are read line by line.
 func TestValuesRundreise(t *testing.T) {
 	for _, v := range [][]string{
 		{"eiche"},
@@ -68,22 +66,22 @@ func TestValuesRundreise(t *testing.T) {
 		{"a", "a"},
 		{"esche", "buche", "eiche"},
 	} {
-		zurück := SplitValues(JoinValues(v))
-		if !reflect.DeepEqual(zurück, v) {
-			t.Errorf("SplitValues(JoinValues(%#v)) = %#v", v, zurück)
+		back := SplitValues(JoinValues(v))
+		if !reflect.DeepEqual(back, v) {
+			t.Errorf("SplitValues(JoinValues(%#v)) = %#v", v, back)
 		}
-		// Die Zählinvariante, über jeden Fall mitgemessen: aus einem Eintrag
-		// kann nie mehr als ein Wert werden. Ein späterer Aufrufer, dessen
-		// Werte nicht aus einer geschlossenen Liste stammen — Phase 9s
-		// CSV-Spalte —, kann damit keinen zusätzlichen Wert prägen.
+		// The counting invariant, measured along in every case: one entry can
+		// never become more than one value. A later caller whose values do not
+		// come from a closed list — phase 9's CSV column — therefore cannot
+		// mint an extra value.
 		nichtLeer := 0
 		for _, e := range v {
 			if strings.TrimSpace(e) != "" {
 				nichtLeer++
 			}
 		}
-		if len(zurück) > nichtLeer {
-			t.Errorf("%d non-empty entries became %d values: %#v", nichtLeer, len(zurück), zurück)
+		if len(back) > nichtLeer {
+			t.Errorf("%d non-empty entries became %d values: %#v", nichtLeer, len(back), back)
 		}
 		// Zweimal speichern muss dieselbe Zeichenkette ergeben.
 		einmal := JoinValues(v)
@@ -93,19 +91,18 @@ func TestValuesRundreise(t *testing.T) {
 	}
 }
 
-// Die leeren Einträge fallen beim Verbinden weg, die doppelten nicht. Das ist
-// die Kante, an der ein Häkchenfeld hängt: der versteckte Wächter schickt
-// einen leeren Eintrag mit, und eine teilweise angekreuzte Gruppe darf davon
-// nichts merken.
+// The empty entries fall away when joining, the duplicates do not. That is the
+// edge a checkbox field hangs off: the hidden sentinel sends an empty entry
+// along, and a partly ticked group must not notice it.
 func TestJoinValuesWaechterUndDoppelte(t *testing.T) {
 	if got := SplitValues(JoinValues([]string{"a", "", "a"})); !reflect.DeepEqual(got, []string{"a", "a"}) {
 		t.Errorf("[a,\"\",a] came back as %#v, wanted [a a]", got)
 	}
 }
 
-// Die Mehrwertigkeit steht im Namen des Formularfeldes, und geprägt wird der
-// Name an genau einer Stelle. Steht die Markierung irgendwo sonst noch einmal
-// buchstabiert, kann sie auseinanderlaufen.
+// Being multi-valued is stated in the form field's name, and that name is
+// minted in exactly one place. If the marking is spelled out anywhere else as
+// well, the two can drift apart.
 func TestFeldNameTraegtDieMarkierung(t *testing.T) {
 	multi := Def{Kind: KindMulti, Key: "sorten"}
 	if got, will := multi.FieldName(), "feld_sorten[]"; got != will {
@@ -118,8 +115,9 @@ func TestFeldNameTraegtDieMarkierung(t *testing.T) {
 		t.Errorf("NameSuffix() = %q, wollte %q", got, will)
 	}
 
-	// Und jede andere Art trägt sie nicht — sonst hiesse jedes bestehende
-	// Feld ab heute anders und jeder gespeicherte Wert wäre still weg.
+	// And no other kind carries it — otherwise every existing field would be
+	// called something else from today and every stored value would be
+	// silently gone.
 	for _, k := range Kinds {
 		if k.Kind == KindMulti {
 			continue
@@ -134,9 +132,8 @@ func TestFeldNameTraegtDieMarkierung(t *testing.T) {
 	}
 }
 
-// Ein Wert, der nicht auf der Liste steht, wird gemeldet und nicht gespeichert.
-// Die Möglichkeiten sind ein geschlossener Wortschatz; über eine Häkchenreihe
-// darf keine beliebige Zeichenkette hereinkommen.
+// A value that is not on the list is reported and not stored. The options are a
+// closed vocabulary; no arbitrary string may come in through a row of ticks.
 func TestMehrfachauswahlPruefung(t *testing.T) {
 	d := Def{Label: "Sorten", Kind: KindMulti, Choices: []string{"Eiche", "Buche", "Esche"}}
 
@@ -150,8 +147,8 @@ func TestMehrfachauswahlPruefung(t *testing.T) {
 	if !strings.Contains(reason.String(), "Ahorn") {
 		t.Errorf("the message does not name the faulty value: %q", reason)
 	}
-	// Leer auf einem freiwilligen Feld ist in Ordnung, auf einem Pflichtfeld
-	// nicht — das entscheidet die Wache oben in Check und muss so bleiben.
+	// Empty on an optional field is fine, on a required one it is not — the
+	// guard at the top of Check decides that and has to stay that way.
 	if reason := Check(d, ""); !reason.Empty() {
 		t.Errorf("empty on an optional field = %q", reason)
 	}
@@ -162,8 +159,8 @@ func TestMehrfachauswahlPruefung(t *testing.T) {
 	}
 }
 
-// Ein mehrwertiges Feld erreicht das Theme als Liste, nicht als Zeichenkette,
-// und die Liste ist leer statt nil-verwirrt, wenn nichts gespeichert ist.
+// A multi-valued field reaches the theme as a list, not as a string, and the
+// list is empty rather than nil-confusing when nothing is stored.
 func TestMehrfachauswahlAufgeloest(t *testing.T) {
 	defs := []Def{{Key: "sorten", Label: "Sorten", Kind: KindMulti,
 		Choices: []string{"Eiche", "Buche", "Esche"}}}
@@ -182,8 +179,8 @@ func TestMehrfachauswahlAufgeloest(t *testing.T) {
 		t.Errorf("resolved empty = %#v (%T), wanted an empty []string", leer["sorten"], leer["sorten"])
 	}
 
-	// List lässt das leere Feld weg und macht aus dem gefüllten einen lesbaren
-	// Text — sonst druckt ein Theme, das .Text nimmt, einen Klumpen.
+	// List leaves the empty field out and turns the filled one into readable
+	// text — or a theme that takes .Text prints a lump.
 	entries := List(defs, Data{Values: Values{"sorten": "Eiche\nEsche"}}, Links{})
 	if len(entries) != 1 {
 		t.Fatalf("List = %+v, wollte einen Eintrag", entries)
@@ -198,8 +195,8 @@ func TestMehrfachauswahlAufgeloest(t *testing.T) {
 		t.Errorf("the empty field is in the list: %+v", leer)
 	}
 
-	// Und Filled muss die Liste kennen, sonst verschwindet die ganze
-	// Feldtafel auf einer Seite, die nur mehrwertige Felder trägt.
+	// And Filled has to know the list, or the whole field panel disappears on
+	// a page that carries only multi-valued fields.
 	if !Filled(Resolve(defs, Data{Values: Values{"sorten": "Eiche"}}, Links{})) {
 		t.Error("Filled = false although a value is there")
 	}
@@ -208,29 +205,28 @@ func TestMehrfachauswahlAufgeloest(t *testing.T) {
 	}
 }
 
-// JoinValues verteidigt sein eigenes Trennzeichen.
+// JoinValues defends its own separator.
 //
-// Der Doc-Kommentar von SplitValues sagte, ein Wert könne selbst keine
-// Zeilenschaltung enthalten, weil die Möglichkeiten, aus denen er stammt,
-// zeilenweise gelesen werden. Das war eine Aussage über die Aufrufer und nicht
-// über die Funktion: gab ihr jemand einen Eintrag mit Zeilenschaltung, kamen
-// zwei Werte zurück, wo einer übergeben wurde.
+// SplitValues' doc comment used to say a value could not itself contain a line
+// break, because the options it comes from are read line by line. That was a
+// statement about the CALLERS and not about the function: hand it an entry with
+// a line break in it and two values came back where one was passed in.
 //
-// Heute fängt die geschlossene Möglichkeitenliste im KindMulti-Zweig von Check
-// das ab. Die fällt weg, sobald der Aufrufer eine CSV-Spalte ist — und
-// JoinValues ist ausdrücklich zum Erben gebaut (D-02). Also wird die Prämisse
-// dort durchgesetzt, wo der exportierte Vertrag steht.
+// Today the closed list of options in Check's KindMulti arm catches that. It
+// falls away as soon as the caller is a CSV column — and JoinValues is built to
+// be inherited, explicitly (D-02). So the premise is enforced where the
+// exported contract stands.
 func TestJoinValuesVerteidigtSeinTrennzeichen(t *testing.T) {
-	zurück := SplitValues(JoinValues([]string{"a\nb", "c"}))
-	if len(zurück) != 2 {
-		t.Fatalf("two entries became %d values: %#v", len(zurück), zurück)
+	back := SplitValues(JoinValues([]string{"a\nb", "c"}))
+	if len(back) != 2 {
+		t.Fatalf("two entries became %d values: %#v", len(back), back)
 	}
-	if zurück[0] != "a b" {
-		t.Errorf("the first value = %q, wanted \"a b\"", zurück[0])
+	if back[0] != "a b" {
+		t.Errorf("the first value = %q, wanted \"a b\"", back[0])
 	}
 
-	// Jede Schreibweise der Zeilenschaltung, und die Wagenrücklaufform ergibt
-	// ein Leerzeichen und nicht zwei.
+	// Every spelling of the line break, and the carriage-return form yields one
+	// space and not two.
 	for _, f := range []struct {
 		roh  string
 		will string
@@ -245,14 +241,14 @@ func TestJoinValuesVerteidigtSeinTrennzeichen(t *testing.T) {
 		}
 	}
 
-	// Nur das Trennzeichen wird gefaltet: zwei Leerzeichen innerhalb eines
-	// gültigen Wertes bleiben zwei Leerzeichen. Wer hier mit einer Funktion
-	// arbeitet, die jeden Weissraum zusammenfasst, verschluckt sie.
+	// Only the separator is folded: two spaces inside a valid value stay two
+	// spaces. Anybody reaching for a function here that collapses every
+	// whitespace swallows them.
 	if got := JoinValues([]string{"eiche  rot"}); got != "eiche  rot" {
 		t.Errorf("JoinValues([\"eiche  rot\"]) = %q — the whitespace inside the value was touched", got)
 	}
 
-	// Und die Faltung bleibt idempotent über ihre eigene Ausgabe.
+	// And the folding stays idempotent over its own output.
 	einmal := JoinValues([]string{"a\nb", "c"})
 	if zweimal := JoinValues(SplitValues(einmal)); zweimal != einmal {
 		t.Errorf("not idempotent: %q then %q", einmal, zweimal)

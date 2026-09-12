@@ -13,12 +13,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 )
 
-// neuerFeldSpeicher legt eine frische Datenbank samt einer Website an.
+// newFieldStore creates a fresh database along with a website.
 //
-// Eine Datei und keine Datenbank im Arbeitsspeicher: db.Open prüft die
-// WAL-Pragmata nach dem Öffnen, und die kann eine Datenbank im Arbeitsspeicher
-// nicht erfüllen.
-func neuerFeldSpeicher(t *testing.T) (*Store, int64) {
+// A file and not an in-memory database: db.Open checks the WAL pragmas after
+// opening, and an in-memory database cannot satisfy them.
+func newFieldStore(t *testing.T) (*Store, int64) {
 	t.Helper()
 	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
 	if err != nil {
@@ -40,12 +39,11 @@ func neuerFeldSpeicher(t *testing.T) (*Store, int64) {
 	return NewStore(database), id
 }
 
-// Drei Prüffelder und nicht eines, weil validate jede Eigenschaft leert, die
-// zur gewählten Art nicht passt: die Darstellung lebt an einer Auswahl, die
-// Höchstzahl an einer Mehrfachauswahl, die beiden Grenzen an einem
-// Bereichsfeld. Kein einziges Feld kann alle drei tragen. Zusammen belegen die
-// drei alle vier neuen Spalten, und darum geht es hier: jede der vier muss auf
-// jedem Leseweg ankommen.
+// Three probe fields and not one, because validate empties every property that
+// does not fit the chosen kind: the display lives on a choice, the maximum on a
+// multi-choice, the two bounds on a range field. Not one field can carry all
+// three. Together the three cover all four new columns, and that is the point
+// here: each of the four has to arrive on every read path.
 func auswahlFeld(websiteID int64, key string) Def {
 	return Def{
 		WebsiteID: websiteID, Key: key, Label: "Farbe", Kind: KindChoice,
@@ -101,20 +99,20 @@ func finde(t *testing.T, wo string, defs []Def, key string) Def {
 	return Def{}
 }
 
-// TestNeueSpalten ist das eigentliche Tor auf die neun SQL-Stellen.
+// TestNeueSpalten is the real gate on the nine SQL sites.
 //
-// Die Spaltenliste von page_field_defs steht neun Mal in store.go: sieben
-// SELECTs (List, Sub, OfBlockType, OfBlockTypes, OfSnippet, OfSnippets, Get),
-// das INSERT und das UPDATE. Wird eine davon vergessen, lädt ein Feld
-// still mit einem Nullwert — eine Knopfreihe erscheint als Klappliste, eine
-// Grenze wird nicht durchgesetzt, und nirgends steht ein Fehler. Eine Zählung
-// der Vorkommen fände das nicht: ein SELECT kann die Spalte nennen und sie
-// trotzdem nie in den Def schreiben. Deshalb wird hier gelesen, nicht gezählt.
+// page_field_defs' column list stands nine times in store.go: seven SELECTs
+// (List, Sub, OfBlockType, OfBlockTypes, OfSnippet, OfSnippets, Get), the
+// INSERT and the UPDATE. Forget one and a field loads silently with a zero
+// value — a row of buttons appears as a drop-down, a bound is not enforced, and
+// nowhere is there an error. Counting the occurrences would not find that: a
+// SELECT can name the column and still never write it into the Def. So this
+// reads rather than counts.
 func TestNeueSpalten(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
-	// --- Get, für ein Feld der Seite selbst ---------------------------------
+	// --- Get, for a field of the page itself --------------------------------
 	oben1, err := store.Create(ctx, auswahlFeld(site, "farbe"))
 	if err != nil {
 		t.Fatalf("Auswahl anlegen: %v", err)
@@ -140,7 +138,7 @@ func TestNeueSpalten(t *testing.T) {
 	pruefeMehrfach(t, "List", finde(t, "List", top, "zutaten"))
 	pruefeBereich(t, "List", finde(t, "List", top, "menge"))
 
-	// --- Sub, für ein Feld in einer Gruppe ----------------------------------
+	// --- Sub, for a field inside a group ------------------------------------
 	gruppe, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 	if err != nil {
@@ -169,7 +167,7 @@ func TestNeueSpalten(t *testing.T) {
 	pruefeMehrfach(t, "Sub", finde(t, "Sub", sub, "gzutaten"))
 	pruefeBereich(t, "Sub", finde(t, "Sub", sub, "gmenge"))
 
-	// Und derselbe Weg noch einmal über List, die den Baum im Speicher baut.
+	// And the same path once more through List, which builds the tree in memory.
 	top, err = store.List(ctx, site)
 	if err != nil {
 		t.Fatalf("List (zweites Mal): %v", err)
@@ -259,9 +257,9 @@ func TestNeueSpalten(t *testing.T) {
 		t.Errorf("Update: Grenzen = %q/%q, erwartet \"10\"/\"20\"", nach3.RangeMin, nach3.RangeMax)
 	}
 
-	// --- Ein Feld, das keine der vier setzt ---------------------------------
-	// Die Gegenprobe: die Standardwerte der Wanderung dürfen kein Feld mit
-	// einer Eigenschaft ausstatten, die niemand gesetzt hat.
+	// --- A field that sets none of the four ---------------------------------
+	// The counter-check: the migration's default values must not equip a field
+	// with a property nobody set.
 	schlicht, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "notiz", Label: "Notiz", Kind: KindText})
 	if err != nil {
@@ -273,10 +271,10 @@ func TestNeueSpalten(t *testing.T) {
 			schlicht.Display, schlicht.MaxValues, schlicht.RangeMin, schlicht.RangeMax)
 	}
 
-	// --- Die dritte Leerregel: die Grenzen gehören dem Bereichsfeld ---------
-	// Der Rückfall, gegen den diese Klausel steht: wer ein Bereichsfeld auf
-	// eine andere Art umstellt, behielte sonst zwei Grenzen, die niemand mehr
-	// liest — und die beim nächsten Umstellen zurück plötzlich wieder gälten.
+	// --- The third emptying rule: the bounds belong to the range field ------
+	// The regression this clause stands against: converting a range field to
+	// another kind would otherwise keep two bounds nobody reads any more — and
+	// which would suddenly hold again on the next conversion back.
 	fremd, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "umgestellt", Label: "Umgestellt", Kind: KindText,
 		RangeMin: "1", RangeMax: "9"})
@@ -286,8 +284,8 @@ func TestNeueSpalten(t *testing.T) {
 	if fremd.RangeMin != "" || fremd.RangeMax != "" {
 		t.Errorf("ein Textfeld behielt die Grenzen %q/%q", fremd.RangeMin, fremd.RangeMax)
 	}
-	// Und der Fehler, den eine zu eifrige Leerregel macht: ein Bereichsfeld,
-	// das nur eine der beiden Grenzen setzt, behält sie.
+	// And the mistake an over-eager emptying rule makes: a range field that
+	// sets only one of the two bounds keeps it.
 	halb, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "nachoben", Label: "Nach oben offen", Kind: KindRange,
 		RangeMin: "1"})
@@ -300,18 +298,18 @@ func TestNeueSpalten(t *testing.T) {
 	}
 }
 
-// TestNeueSpaltenSindGebundeneParameter ist die Prüfung zu T-07-05: die vier
-// neuen Werte reisen als $n-Parameter und werden nie in eine SQL-Zeichenkette
-// geklebt. Ein Anführungszeichen und ein Semikolon kommen deshalb unverändert
-// zurück, statt die Anweisung zu zerlegen.
+// TestNeueSpaltenSindGebundeneParameter is the check for T-07-05: the four new
+// values travel as $n parameters and are never glued into an SQL string. A
+// quotation mark and a semicolon therefore come back unchanged instead of
+// taking the statement apart.
 func TestNeueSpaltenSindGebundeneParameter(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	boshaft := `O'Brien"; DROP TABLE page_field_defs; --`
-	// Ein Bereichsfeld, weil validate die Grenzen an jeder anderen Art leert —
-	// und ein geleerter Wert könnte keine Anweisung zerlegen, die Prüfung
-	// hätte also keine Zähne mehr.
+	// A range field, because validate empties the bounds on every other kind —
+	// and an emptied value could not take a statement apart, so the check would
+	// have no teeth left.
 	d, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "grenze", Label: "Grenze", Kind: KindRange,
 		RangeMin: boshaft, RangeMax: boshaft})
@@ -321,7 +319,7 @@ func TestNeueSpaltenSindGebundeneParameter(t *testing.T) {
 	if d.RangeMin != boshaft || d.RangeMax != boshaft {
 		t.Fatalf("the bounds came back changed: %q / %q", d.RangeMin, d.RangeMax)
 	}
-	// Und die Tabelle steht noch.
+	// And the table is still there.
 	if _, err := store.List(ctx, site); err != nil {
 		t.Fatalf("List after the malicious value: %v", err)
 	}
@@ -329,7 +327,7 @@ func TestNeueSpaltenSindGebundeneParameter(t *testing.T) {
 
 // TestNeueSpaltenGeprueft deckt die drei Regeln in validate ab.
 func TestNeueSpaltenGeprueft(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	t.Run("verdrehte Grenzen werden abgelehnt", func(t *testing.T) {
@@ -339,9 +337,9 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 		if err == nil {
 			t.Fatal("a lower bound above the upper one was accepted")
 		}
-		// errors.Is und nicht nur der Text: der Bildschirm hängt seine
-		// ausführliche Begründung an genau dieses Wächterzeichen, und dass
-		// Create es unverpackt durchreicht, ist die Bedingung dafür.
+		// errors.Is and not just the text: the screen hangs its detailed
+		// reason off exactly this sentinel, and that Create passes it through
+		// unwrapped is the condition for that.
 		if !errors.Is(err, ErrRangeInverted) {
 			t.Errorf("the refusal does not carry ErrRangeInverted: %v", err)
 		}
@@ -367,12 +365,11 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 		}
 	})
 
-	// Eine Mehrfachauswahl ohne Möglichkeiten zeichnet eine Gruppe, in der
-	// nichts steht als der versteckte Wächter — sie kann nie einen Wert
-	// tragen. Ist sie zusätzlich Pflicht, meldet Check bei jedem Speichern
-	// jeder Seite „muss ausgefüllt werden“, und das Formular bietet nichts an,
-	// womit sich das erfüllen liesse: die Seite ist unspeicherbar, bis jemand
-	// die Definition ändert.
+	// A multi-choice with no options draws a group with nothing in it but the
+	// hidden sentinel — it can never carry a value. If it is required on top of
+	// that, Check reports "has to be filled in" on every save of every page, and
+	// the form offers nothing that could satisfy it: the page is unsaveable
+	// until somebody changes the definition.
 	t.Run("Mehrfachauswahl ohne Möglichkeiten wird abgelehnt", func(t *testing.T) {
 		_, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "leerauswahl", Label: "Leerauswahl", Kind: KindMulti})
@@ -383,14 +380,14 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 			t.Errorf("the reason does not name the options: %v", err)
 		}
 
-		// Die einwertige Auswahl war schon immer gebunden — dieselbe Regel,
-		// jetzt an beiden Arten.
+		// The single-valued choice has always been bound — the same rule, now
+		// on both kinds.
 		if _, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "leereauswahl", Label: "Leere Auswahl", Kind: KindChoice}); err == nil {
 			t.Error("a choice with not a single option was accepted")
 		}
 
-		// Mit einer Möglichkeit geht beides.
+		// With one option both work.
 		if _, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "hoelzer", Label: "Hölzer", Kind: KindMulti,
 			Choices: []string{"Eiche"}}); err != nil {
@@ -399,9 +396,9 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 	})
 
 	t.Run("artfremde Eigenschaften werden geleert statt abgelehnt", func(t *testing.T) {
-		// Wer ein bestehendes Feld auf eine andere Art umstellt, soll nicht
-		// erst von Hand Kästchen ausräumen müssen — dieselbe Abmachung, die
-		// die Überschrift schon macht.
+		// Converting an existing field to another kind should not mean
+		// clearing boxes by hand first — the same bargain the heading already
+		// makes.
 		d, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "umgestellt", Label: "Umgestellt", Kind: KindText,
 			Display: DisplayButtons, MaxValues: 5})
@@ -417,11 +414,11 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 	})
 }
 
-// TestIsButtonRow: die Knopfreihe ist ein Anzeigemodus der Auswahl, kein
-// eigener Feldtyp. Das Prädikat lebt hier, damit weder die Vorlage noch
-// switchOf den Vergleich noch einmal ausschreibt.
+// TestIsButtonRow: the row of buttons is a display mode of the choice, not a
+// field type of its own. The predicate lives here so that neither the template
+// nor switchOf spells the comparison out again.
 func TestIsButtonRow(t *testing.T) {
-	faelle := []struct {
+	cases := []struct {
 		art     string
 		anzeige string
 		will    bool
@@ -431,7 +428,7 @@ func TestIsButtonRow(t *testing.T) {
 		{KindMulti, DisplayButtons, false},
 		{KindText, DisplayButtons, false},
 	}
-	for _, f := range faelle {
+	for _, f := range cases {
 		d := Def{Kind: f.art, Display: f.anzeige}
 		if got := d.IsButtonRow(); got != f.will {
 			t.Errorf("IsButtonRow(%q, %q) = %v, erwartet %v", f.art, f.anzeige, got, f.will)
@@ -439,22 +436,22 @@ func TestIsButtonRow(t *testing.T) {
 	}
 }
 
-// Der Feldschlüssel ist der Name, unter dem jeder gespeicherte Wert steht und
-// unter dem das Theme das Feld anspricht. validate leitete ihn bisher nur aus
-// der Beschriftung ab, wenn keiner mitkam — mitgebrachte Schlüssel gingen
-// ungeprüft durch. Der einzige Weg, auf dem ein mitgebrachter Schlüssel herein
-// kommt, ist der Archivweg (internal/bundle/import.go:351), also eine Datei
-// von einem fremden Rechner.
+// The field key is the name every stored value sits under and the name the
+// theme addresses the field by. validate used to derive it from the label only
+// when none came along — a brought key went through unchecked. The one path on
+// which a brought key comes in is the archive path
+// (internal/bundle/import.go:351), which is to say a file from somebody else's
+// machine.
 //
-// Die zweite Hälfte ist die Gegenprobe zur vereinheitlichten Obergrenze:
-// SlugifyKey schneidet bei maxKeyBytes ab, validKey liest dieselbe Zahl. Liefen
-// die beiden auseinander, lehnte validate ab, was SlugifyKey selbst erzeugt hat.
+// The second half is the counter-check for the unified upper bound: SlugifyKey
+// truncates at maxKeyBytes, validKey reads the same number. If the two drifted
+// apart, validate would refuse what SlugifyKey itself produced.
 func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	t.Run("Klammern im Schlüssel werden abgelehnt", func(t *testing.T) {
-		// Wörtlich die Gestalt, die internal/bundle/import.go:351 übergibt.
+		// Literally the shape internal/bundle/import.go:351 hands over.
 		_, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "farbe[]", Label: "Farbe", Kind: KindChoice,
 			Choices: []string{"rot", "blau"}})
@@ -465,7 +462,7 @@ func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
 			t.Errorf("the reason does not name the key: %v", err)
 		}
 
-		// Und nichts wurde angelegt.
+		// And nothing was created.
 		defs, err := store.List(ctx, site)
 		if err != nil {
 			t.Fatalf("List: %v", err)
@@ -487,10 +484,10 @@ func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
 	})
 
 	t.Run("eine 39 Zeichen lange Kennung bleibt speicherbar", func(t *testing.T) {
-		// Dieselbe Beschriftung wie in TestKennungAusBeschriftung: SlugifyKey
-		// macht daraus 39 Zeichen. Vor der Vereinheitlichung lehnte validKey
-		// alles über 30 ab — die Ableitung hätte etwas erzeugt, das die
-		// Prüfung derselben Funktion nicht mehr passiert.
+		// The same label as in TestKennungAusBeschriftung: SlugifyKey makes 39
+		// characters of it. Before the unification validKey refused anything
+		// over 30 — the derivation would have produced something the check in
+		// the same function no longer let through.
 		lang := "Sehr langer Name der weit über vierzig Zeichen hinausgeht"
 		d, err := store.Create(ctx, Def{
 			WebsiteID: site, Label: lang, Kind: KindText})
@@ -506,9 +503,9 @@ func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
 	})
 
 	t.Run("eine Bedingung auf ein langes Feld fällt nicht mehr still weg", func(t *testing.T) {
-		// validKey(d.Condition) löschte wortlos eine Bedingung, die auf ein
-		// Feld mit 31 bis 40 Zeichen langer Kennung zeigte — derselbe
-		// Zahlenunterschied, eine Ebene weiter.
+		// validKey(d.Condition) silently deleted a condition pointing at a
+		// field with a key of 31 to 40 characters — the same difference of
+		// numbers, one level further on.
 		schalter := "sehr_langer_name_der_weit_ueber_vierzig"
 		d, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "abhaengig", Label: "Abhängig", Kind: KindText,
@@ -522,22 +519,21 @@ func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
 	})
 }
 
-// TestBausteinNamensraum ist das Tor auf den vierten Namensraum.
+// TestBausteinNamensraum is the gate on the fourth namespace.
 //
-// Was eine Zählung nicht fände, und darum steht hier eine Lesung: ein SELECT
-// kann die neue Spalte nennen und sie trotzdem nie in den Def schreiben — die
-// Liste stimmt, das Feld bleibt null, und nichts schlägt fehl. Und eine
-// WHERE-Bedingung kann an fünf Anweisungen stehen und an der sechsten fehlen —
-// die Zählung geht auf, und jedes Feld eines Textbausteins steht auf dem
-// Bearbeitungsformular jeder Seite. Beides fällt nur auf, wenn über jeden
-// Leseweg zurückgelesen wird.
+// What counting would not find, and why this reads instead: a SELECT can name
+// the new column and still never write it into the Def — the list is right, the
+// field stays zero, and nothing fails. And a WHERE clause can stand on five
+// statements and be missing from the sixth — the count adds up, and every
+// snippet's field stands on every page's editing form. Both show up only when
+// every read path is read back.
 //
-// Die beiden Felder tragen absichtlich dieselbe Kennung: dass ein Seitenfeld
-// „telefon" und ein Textbausteinfeld „telefon" derselben Website nebeneinander
-// stehen dürfen, ist die Hälfte der Zusage, und dass keines von beiden auf dem
-// Weg des anderen erscheint, die andere.
+// The two fields deliberately carry the same key: that a page field "telefon"
+// and a snippet field "telefon" of the same website may stand side by side is
+// half of the promise, and that neither appears on the other's path is the
+// other half.
 func TestBausteinNamensraum(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	res, err := store.DB.Write.ExecContext(ctx,
@@ -611,8 +607,8 @@ func TestBausteinNamensraum(t *testing.T) {
 	if amBaustein[0].SnippetID != textbaustein {
 		t.Errorf("OfSnippet: SnippetID = %d, erwartet %d", amBaustein[0].SnippetID, textbaustein)
 	}
-	// Ein Textbaustein einer fremden Nummer bekommt nichts, und der zweite
-	// Textbaustein dieser Website hat noch kein Feld.
+	// A snippet of a foreign id gets nothing, and this website's second snippet
+	// has no field yet.
 	leer, err := store.OfSnippet(ctx, site, zweiterBaustein)
 	if err != nil {
 		t.Fatalf("OfSnippet (zweiter Baustein): %v", err)
@@ -621,7 +617,7 @@ func TestBausteinNamensraum(t *testing.T) {
 		t.Errorf("OfSnippet of the second block hands out %d fields, expected none", len(leer))
 	}
 
-	// --- Sub, OfBlockType und OfBlockTypes sehen keines von beiden ------------
+	// --- Sub, OfBlockType and OfBlockTypes see neither of the two ------------
 	gruppe, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 	if err != nil {
@@ -649,10 +645,10 @@ func TestBausteinNamensraum(t *testing.T) {
 		t.Errorf("OfBlockTypes hands out %d block kinds, expected none", len(alleBausteinarten))
 	}
 
-	// --- Get schreibt die Spalte wirklich in den Def -------------------------
+	// --- Get really writes the column into the Def ---------------------------
 	//
-	// Das ist die Probe, die eine Zählung nicht ersetzt: hier wird gelesen, was
-	// scanDef in den Def geschrieben hat, und nicht, was im SELECT steht.
+	// This is the probe counting does not replace: what is read here is what
+	// scanDef wrote into the Def, and not what stands in the SELECT.
 	geholt, err := store.Get(ctx, site, bausteinfeld.ID)
 	if err != nil {
 		t.Fatalf("Get (Textbausteinfeld): %v", err)
@@ -685,7 +681,7 @@ func TestBausteinNamensraum(t *testing.T) {
 		t.Errorf("“telefon” on the second snippet: %v — every snippet is a namespace of its own", err)
 	}
 
-	// --- Update verschiebt kein Feld aus seinem Namensraum -------------------
+	// --- Update moves no field out of its namespace --------------------------
 	geaendert := *bausteinfeld
 	geaendert.SnippetID = zweiterBaustein
 	geaendert.Label = "Telefon direkt"
@@ -704,7 +700,7 @@ func TestBausteinNamensraum(t *testing.T) {
 		t.Errorf("Update: Beschriftung = %q, erwartet \"Telefon direkt\"", nach.Label)
 	}
 
-	// --- Und die Seitenfelder sind davon unberührt geblieben ------------------
+	// --- And the page fields were left untouched by it ------------------------
 	obenDanach, err := store.List(ctx, site)
 	if err != nil {
 		t.Fatalf("List (danach): %v", err)
@@ -714,8 +710,8 @@ func TestBausteinNamensraum(t *testing.T) {
 	}
 }
 
-// neuerTextbaustein legt einen Textbaustein an und gibt seine Nummer zurück.
-func neuerTextbaustein(t *testing.T, store *Store, websiteID int64, key, name string) int64 {
+// newSnippet creates a snippet and returns its id.
+func newSnippet(t *testing.T, store *Store, websiteID int64, key, name string) int64 {
 	t.Helper()
 	res, err := store.DB.Write.Exec(
 		`INSERT INTO snippets (website_id, key, name) VALUES ($1, $2, $3)`, websiteID, key, name)
@@ -729,8 +725,8 @@ func neuerTextbaustein(t *testing.T, store *Store, websiteID int64, key, name st
 	return id
 }
 
-// neueBausteinart legt eine Bausteinart an und gibt ihre Nummer zurück.
-func neueBausteinart(t *testing.T, store *Store, websiteID int64, key, name string) int64 {
+// newBlockType creates a block kind and returns its id.
+func newBlockType(t *testing.T, store *Store, websiteID int64, key, name string) int64 {
 	t.Helper()
 	res, err := store.DB.Write.Exec(
 		`INSERT INTO block_types (website_id, key, name) VALUES ($1, $2, $3)`, websiteID, key, name)
@@ -744,12 +740,12 @@ func neueBausteinart(t *testing.T, store *Store, websiteID int64, key, name stri
 	return id
 }
 
-// gleicheScheiben vergleicht Element für Element und Sub für Sub.
+// sameSlices compares element for element and Sub for Sub.
 //
-// Nicht len und fertig: die Massenlesung und die Einzellesung dürfen sich weder
-// über die Reihenfolge noch über den Baum uneins sein, sonst zeigt der
-// öffentliche Aufbau eine andere Website als der Verwaltungsbildschirm.
-func gleicheScheiben(t *testing.T, wo string, massen, einzeln []Def) {
+// Not len and done: the bulk read and the single read must disagree neither
+// about the order nor about the tree, or the public assembly shows a different
+// website from the admin screen.
+func sameSlices(t *testing.T, wo string, massen, einzeln []Def) {
 	t.Helper()
 	if len(massen) != len(einzeln) {
 		t.Fatalf("%s: OfSnippets gibt %d Felder heraus, OfSnippet %d",
@@ -779,19 +775,18 @@ func gleicheScheiben(t *testing.T, wo string, massen, einzeln []Def) {
 	}
 }
 
-// TestBausteinNamensraumMassenleser stellt OfSnippets neben OfSnippet.
+// TestBausteinNamensraumMassenleser puts OfSnippets beside OfSnippet.
 //
-// Der Massenleser läuft auf jedem öffentlichen Aufbau einer Seite, der
-// Einzelleser auf dem Verwaltungsbildschirm. Gäben sie für dieselbe Website
-// Verschiedenes heraus, wäre der Unterschied nirgends zu sehen ausser im
-// Browser — und auch dort nur, wenn jemand beide Bildschirme nebeneinander
-// hält.
+// The bulk reader runs on every public assembly of a page, the single reader on
+// the admin screen. If they handed out different things for the same website,
+// the difference would be visible nowhere but in the browser — and there only
+// if somebody held both screens side by side.
 func TestBausteinNamensraumMassenleser(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	t.Run("ohne Textbausteinfelder eine leere Karte und keine nil-Karte", func(t *testing.T) {
-		leerStore, leerSite := neuerFeldSpeicher(t)
+		leerStore, leerSite := newFieldStore(t)
 		if _, err := leerStore.Create(ctx, Def{
 			WebsiteID: leerSite, Key: "titel", Label: "Titel", Kind: KindText}); err != nil {
 			t.Fatalf("Seitenfeld anlegen: %v", err)
@@ -808,9 +803,9 @@ func TestBausteinNamensraumMassenleser(t *testing.T) {
 		}
 	})
 
-	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
-	impressum := neuerTextbaustein(t, store, site, "impressum", "Impressum")
-	karte := neueBausteinart(t, store, site, "karte", "Karte")
+	kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
+	impressum := newSnippet(t, store, site, "impressum", "Impressum")
+	karte := newBlockType(t, store, site, "karte", "Karte")
 
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "titel", Label: "Titel", Kind: KindText}); err != nil {
@@ -851,9 +846,9 @@ func TestBausteinNamensraumMassenleser(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OfSnippet(%d): %v", id, err)
 		}
-		gleicheScheiben(t, "Textbaustein", alle[id], einzeln)
+		sameSlices(t, "Textbaustein", alle[id], einzeln)
 	}
-	// Nichts, was einer Seite oder einer Bausteinart gehört.
+	// Nothing belonging to a page or to a block kind.
 	for id, defs := range alle {
 		for _, d := range defs {
 			if d.SnippetID != id {
@@ -866,11 +861,11 @@ func TestBausteinNamensraumMassenleser(t *testing.T) {
 		}
 	}
 
-	// --- Zwei Felder auf derselben Position ----------------------------------
+	// --- Two fields at the same position -------------------------------------
 	//
-	// Der Gleichstandsbrecher ist die Nummer, in beiden Lesewegen. Ohne ihn
-	// entschiede SQLite frei, und die zwei Wege kämen an manchen Tagen in
-	// verschiedener Reihenfolge heraus.
+	// The tie-breaker is the id, on both read paths. Without it SQLite would
+	// decide freely, and the two paths would come out in different orders on
+	// some days.
 	if _, err := store.DB.Write.ExecContext(ctx,
 		`UPDATE page_field_defs SET position = 0 WHERE id IN ($1, $2)`,
 		ersts.ID, zweits.ID); err != nil {
@@ -884,23 +879,22 @@ func TestBausteinNamensraumMassenleser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OfSnippet (nach Gleichstand): %v", err)
 	}
-	gleicheScheiben(t, "gleiche Position", alle[kontakt], einzeln)
+	sameSlices(t, "gleiche Position", alle[kontakt], einzeln)
 	if len(einzeln) != 2 || einzeln[0].ID != ersts.ID {
 		t.Errorf("at equal position the id breaks the tie: first field = %d, expected %d",
 			einzeln[0].ID, ersts.ID)
 	}
 }
 
-// TestBausteinNamensraumGruppe prüft die Gruppe an einem Textbaustein.
+// TestBausteinNamensraumGruppe checks the group on a snippet.
 //
-// Eine Bausteinart kann keine tragen, ein Textbaustein schon — und ihre
-// Unterfelder tragen beides, parent_id und snippet_id. Der Massenleser muss sie
-// deshalb zum Baum fügen und darf kein Unterfeld auf der obersten Ebene
-// herausgeben.
+// A block kind can carry none, a snippet can — and its sub-fields carry both,
+// parent_id and snippet_id. The bulk reader therefore has to fold them into the
+// tree and must hand out no sub-field at the top level.
 func TestBausteinNamensraumGruppe(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
-	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+	kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
 
 	gruppe, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup,
@@ -947,20 +941,19 @@ func TestBausteinNamensraumGruppe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OfSnippet: %v", err)
 	}
-	gleicheScheiben(t, "Gruppe", oben, einzeln)
+	sameSlices(t, "Gruppe", oben, einzeln)
 }
 
-// TestBausteinNamensraumValidate hält die zwei Arme auseinander.
+// TestBausteinNamensraumValidate keeps the two arms apart.
 //
-// Der Bausteinart-Arm erzwingt „keine Pflicht" und verengt die Feldarten; der
-// Textbaustein-Arm tut beides ausdrücklich nicht. Wären die beiden je
-// ineinandergeraten, fiele nichts aus — ein Pflichtfeld hörte still auf, eines
-// zu sein.
+// The block-kind arm forces "not required" and narrows the field kinds; the
+// snippet arm deliberately does neither. If the two had ever run into each
+// other, nothing would fail — a required field would quietly stop being one.
 func TestBausteinNamensraumValidate(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
-	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
-	karte := neueBausteinart(t, store, site, "karte", "Karte")
+	kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
+	karte := newBlockType(t, store, site, "karte", "Karte")
 
 	// --- Pflicht bleibt Pflicht, gilt_fuer wird gestellt, Bedingung geleert ---
 	if _, err := store.Create(ctx, Def{
@@ -987,7 +980,7 @@ func TestBausteinNamensraumValidate(t *testing.T) {
 			"Feldliste der Seite, eine Bedingung hier würde nie beachtet", amBaustein.Condition)
 	}
 
-	// --- Der Bausteinart-Arm ist unverändert ---------------------------------
+	// --- The block-kind arm is unchanged --------------------------------------
 	imBaustein, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "beschriftung", Label: "Beschriftung", Kind: KindText,
 		BlockTypeID: karte, Required: true})
@@ -999,7 +992,7 @@ func TestBausteinNamensraumValidate(t *testing.T) {
 			"nicht an einem halb geschriebenen Baustein scheitern")
 	}
 
-	// --- Verweis und Schlagwort: am Textbaustein ja, in der Bausteinart nein --
+	// --- Reference and term: on a snippet yes, in a block kind no ------------
 	for _, art := range []string{KindRef, KindTerm} {
 		if _, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "b_" + art, Label: art, Kind: art,
@@ -1016,11 +1009,11 @@ func TestBausteinNamensraumValidate(t *testing.T) {
 	}
 }
 
-// TestBausteinNamensraumMove hält ein Feld in seinem eigenen Textbaustein.
+// TestBausteinNamensraumMove keeps a field inside its own snippet.
 func TestBausteinNamensraumMove(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
-	kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+	kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
 
 	seiteEins, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "titel", Label: "Titel", Kind: KindText})
@@ -1032,33 +1025,33 @@ func TestBausteinNamensraumMove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zweites Seitenfeld: %v", err)
 	}
-	bausteinEins, err := store.Create(ctx, Def{
+	blockOne, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
 		SnippetID: kontakt})
 	if err != nil {
 		t.Fatalf("erstes Textbausteinfeld: %v", err)
 	}
-	bausteinZwei, err := store.Create(ctx, Def{
+	blockTwo, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "fax", Label: "Fax", Kind: KindText,
 		SnippetID: kontakt})
 	if err != nil {
 		t.Fatalf("zweites Textbausteinfeld: %v", err)
 	}
 
-	// Das zweite Textbausteinfeld eine Stelle nach oben.
-	if err := store.Move(ctx, site, bausteinZwei.ID, true); err != nil {
+	// The second snippet field one place up.
+	if err := store.Move(ctx, site, blockTwo.ID, true); err != nil {
 		t.Fatalf("Move (Textbausteinfeld nach oben): %v", err)
 	}
 	nach, err := store.OfSnippet(ctx, site, kontakt)
 	if err != nil {
 		t.Fatalf("OfSnippet nach Move: %v", err)
 	}
-	if len(nach) != 2 || nach[0].ID != bausteinZwei.ID || nach[1].ID != bausteinEins.ID {
+	if len(nach) != 2 || nach[0].ID != blockTwo.ID || nach[1].ID != blockOne.ID {
 		t.Fatalf("after the Move: %v, expected %d before %d",
-			nach, bausteinZwei.ID, bausteinEins.ID)
+			nach, blockTwo.ID, blockOne.ID)
 	}
-	// Die Seitenfelder haben sich nicht bewegt: ohne den vierten Arm hätte Move
-	// die Liste der Seite gelesen und deren Positionen neu geschrieben.
+	// The page fields have not moved: without the fourth arm Move would have
+	// read the page's list and rewritten its positions.
 	seitlich, err := store.List(ctx, site)
 	if err != nil {
 		t.Fatalf("List nach Move: %v", err)
@@ -1071,36 +1064,36 @@ func TestBausteinNamensraumMove(t *testing.T) {
 			seitlich[0].Position, seitlich[1].Position)
 	}
 
-	// Das nun erste Textbausteinfeld nach oben: nichts geschieht, obwohl
-	// Seitenfelder derselben Website tiefere Positionen belegen.
-	if err := store.Move(ctx, site, bausteinZwei.ID, true); err != nil {
+	// The now-first snippet field upwards: nothing happens, even though page
+	// fields of the same website occupy lower positions.
+	if err := store.Move(ctx, site, blockTwo.ID, true); err != nil {
 		t.Fatalf("Move (first field upwards): %v", err)
 	}
 	danach, err := store.OfSnippet(ctx, site, kontakt)
 	if err != nil {
 		t.Fatalf("OfSnippet after the second Move: %v", err)
 	}
-	if len(danach) != 2 || danach[0].ID != bausteinZwei.ID || danach[1].ID != bausteinEins.ID {
+	if len(danach) != 2 || danach[0].ID != blockTwo.ID || danach[1].ID != blockOne.ID {
 		t.Errorf("the first field of a snippet has nothing to swap with upwards: %v", danach)
 	}
 }
 
-// TestBausteinNamensraumFeldvorrat ist D-05, und die vorletzte Zusicherung ist die
-// ganze Entscheidung.
+// TestBausteinNamensraumFeldvorrat is D-05, and the second-to-last assertion is
+// the whole decision.
 //
-// Dass das einundsechzigste Feld eines Textbausteins abgelehnt wird, wäre auch
-// bei einem geteilten Vorrat so. Erst dass im selben Atemzug das erste Feld
-// eines zweiten Textbausteins, ein Seitenfeld und ein Bausteinartfeld
-// angenommen werden, unterscheidet die Änderung vom blossen Heraufsetzen der
-// Zahl — und macht den Satz „mehr Felder gehen nicht" wahr.
+// That the sixty-first field of a snippet is refused would be so with a shared
+// allowance too. Only that in the same breath the first field of a SECOND
+// snippet, a page field and a block-kind field are accepted distinguishes the
+// change from merely raising the number — and makes the sentence "no more
+// fields can be added" true.
 func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("der Vorrat eines Textbausteins verwehrt keinem anderen Träger", func(t *testing.T) {
-		store, site := neuerFeldSpeicher(t)
-		kontakt := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
-		impressum := neuerTextbaustein(t, store, site, "impressum", "Impressum")
-		karte := neueBausteinart(t, store, site, "karte", "Karte")
+		store, site := newFieldStore(t)
+		kontakt := newSnippet(t, store, site, "kontakt", "Kontakt")
+		impressum := newSnippet(t, store, site, "impressum", "Impressum")
+		karte := newBlockType(t, store, site, "karte", "Karte")
 
 		for i := 0; i < MaxFields; i++ {
 			if _, err := store.Create(ctx, Def{
@@ -1133,11 +1126,11 @@ func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 	})
 
 	t.Run("der Vorrat der Seite ist unverändert, Gruppen eingerechnet", func(t *testing.T) {
-		store, site := neuerFeldSpeicher(t)
-		neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+		store, site := newFieldStore(t)
+		newSnippet(t, store, site, "kontakt", "Kontakt")
 
-		// Eine Gruppe und ihre Unterfelder zählen gegen den Vorrat der Seite,
-		// genau wie bisher: 1 Gruppe + 58 Unterfelder + 1 Seitenfeld = 60.
+		// A group and its sub-fields count against the page's allowance,
+		// exactly as before: 1 group + 58 sub-fields + 1 page field = 60.
 		gruppe, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "zeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 		if err != nil {
@@ -1168,27 +1161,26 @@ func TestBausteinNamensraumFeldvorrat(t *testing.T) {
 	})
 }
 
-// TestBausteinGruppenNamensraum stellt den Textbaustein neben die Seite.
+// TestBausteinGruppenNamensraum puts the snippet beside the page.
 //
-// 00047 zog idx_page_field_defs_kennung_textbaustein als
-// ON page_field_defs(snippet_id, kennung) WHERE snippet_id IS NOT NULL — ohne
-// „AND parent_id IS NULL". Seit die Unterfelder einer Gruppe ihren Träger von
-// der Gruppe erben (08-05), tragen sie snippet_id, und der Teilindex fasste sie
-// mit ein: die Unterfelder fielen in denselben Namensraum wie die Felder der
-// obersten Ebene. Zwei Gruppen an einem Textbaustein konnten dann nicht beide
-// ein Unterfeld „tag" tragen, und ein Feld der obersten Ebene konnte seine
-// Kennung nicht mit einem Unterfeld teilen — auf einer Seite ist beides seit
-// 00029 erlaubt.
+// 00047 drew idx_page_field_defs_kennung_textbaustein as
+// ON page_field_defs(snippet_id, kennung) WHERE snippet_id IS NOT NULL —
+// without "AND parent_id IS NULL". Since a group's sub-fields inherit their
+// carrier from the group (08-05) they carry snippet_id, and the partial index
+// caught them too: the sub-fields fell into the same namespace as the top-level
+// fields. Two groups on one snippet could then not both carry a sub-field
+// "tag", and a top-level field could not share its key with a sub-field — on a
+// page both have been allowed since 00029.
 //
-// Deshalb steht der Fall hier zweimal: einmal an der Seite, wo er seit jeher
-// durchgeht, und einmal am Textbaustein. Die beiden müssen dieselbe Antwort
-// geben, sonst sagt der Bildschirm dem Bedienenden etwas zu, was die Datenbank
-// nicht hält (field_list.html:20).
+// That is why the case stands here twice: once on the page, where it has always
+// gone through, and once on the snippet. The two have to give the same answer,
+// or the screen promises the operator something the database does not keep
+// (field_list.html:20).
 func TestBausteinGruppenNamensraum(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
-	// --- Die Seite: der Massstab ---------------------------------------------
+	// --- The page: the yardstick ---------------------------------------------
 	seiteGruppe1, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: KindGroup})
 	if err != nil {
@@ -1217,7 +1209,7 @@ func TestBausteinGruppenNamensraum(t *testing.T) {
 	}
 
 	// --- Der Textbaustein: dieselben vier Schritte ----------------------------
-	baustein := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
+	baustein := newSnippet(t, store, site, "kontakt", "Kontakt")
 
 	bausteinGruppe1, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: KindGroup,
@@ -1249,12 +1241,12 @@ func TestBausteinGruppenNamensraum(t *testing.T) {
 			"Ebene des Textbausteins und seine Gruppen sind zwei Namensräume", err)
 	}
 
-	// --- Und der eigene Namensraum bleibt eng --------------------------------
+	// --- And its own namespace stays narrow -----------------------------------
 	//
-	// Der Index wird enger gezogen und nicht weggenommen: zwei Felder der
-	// obersten Ebene desselben Textbausteins dürfen weiterhin nicht dieselbe
-	// Kennung tragen, und zwei Unterfelder derselben Gruppe auch nicht — das
-	// zweite hält seit 00029 idx_page_field_defs_kennung_gruppe.
+	// The index is drawn narrower and not taken away: two top-level fields of
+	// the same snippet still must not carry the same key, and nor may two
+	// sub-fields of the same group — the second of those has been held by
+	// idx_page_field_defs_kennung_gruppe since 00029.
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "tag", Label: "Noch ein Tag", Kind: KindText,
 		SnippetID: baustein}); !errors.Is(err, ErrDuplicateKey) {
@@ -1269,22 +1261,21 @@ func TestBausteinGruppenNamensraum(t *testing.T) {
 	}
 }
 
-// Create nimmt seinen Träger nicht mehr auf Treu und Glauben.
+// Create no longer takes its carrier on trust.
 //
-// REFERENCES snippets(id) beweist, dass es den Textbaustein gibt; nichts
-// bewies, dass er zu d.WebsiteID gehört, und
-// idx_page_field_defs_kennung_textbaustein ist auf snippet_id allein gezogen.
-// Die Datenbank hätte eine Definition über die Websitegrenze hinweg
-// klaglos abgelegt. Heute wacht der Verwaltungsbildschirm mit snippetOf davor,
-// und der Archivweg reicht eine eben angelegte Nummer herein — beide richtig,
-// beide ausserhalb des Speichers. Der Kommentar über importSnippetFields
-// versprach dagegen eine „zweite Schicht" im Speicher, und die gab es nicht.
-// Wer dem Kommentar glaubt, schreibt das Loch.
+// REFERENCES snippets(id) proves the snippet exists; nothing proved it belonged
+// to d.WebsiteID, and idx_page_field_defs_kennung_textbaustein is drawn on
+// snippet_id alone. The database would have filed a definition across the
+// website boundary without complaint. Today the admin screen guards it with
+// snippetOf, and the archive path hands in an id it has just created — both
+// correct, both outside the store. The comment above importSnippetFields, by
+// contrast, promised a "second layer" in the store, and there was none.
+// Whoever believes the comment writes the hole.
 //
-// Dieselbe Lücke trägt block_type_id seit 00038; beide werden hier geschlossen,
-// weil es dieselbe Zeile ist.
+// block_type_id has carried the same gap since 00038; both are closed here,
+// because it is the same line.
 func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
-	store, site := neuerFeldSpeicher(t)
+	store, site := newFieldStore(t)
 	ctx := context.Background()
 
 	res, err := store.DB.Write.Exec(
@@ -1297,8 +1288,8 @@ func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
 		t.Fatalf("Website-Nummer: %v", err)
 	}
 
-	fremderBaustein := neuerTextbaustein(t, store, fremd, "kontakt", "Kontakt")
-	fremdeArt := neueBausteinart(t, store, fremd, "zitat", "Zitat")
+	fremderBaustein := newSnippet(t, store, fremd, "kontakt", "Kontakt")
+	fremdeArt := newBlockType(t, store, fremd, "zitat", "Zitat")
 
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
@@ -1316,10 +1307,9 @@ func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
 		t.Errorf("Fehler = %v, erwartet ErrNoBlockType", err)
 	}
 
-	// Und die eigenen bleiben unangetastet: die Wache darf nicht zur Sperre
-	// werden.
-	eigenerBaustein := neuerTextbaustein(t, store, site, "kontakt", "Kontakt")
-	eigeneArt := neueBausteinart(t, store, site, "zitat", "Zitat")
+	// And its own stay untouched: the guard must not become a bar.
+	eigenerBaustein := newSnippet(t, store, site, "kontakt", "Kontakt")
+	eigeneArt := newBlockType(t, store, site, "zitat", "Zitat")
 	if _, err := store.Create(ctx, Def{
 		WebsiteID: site, Key: "telefon", Label: "Telefon", Kind: KindText,
 		SnippetID: eigenerBaustein}); err != nil {
@@ -1332,13 +1322,13 @@ func TestCreatePruefsDenTraegerGegenDieWebsite(t *testing.T) {
 	}
 }
 
-// spaltenlisten holt die SELECT-Spaltenlisten von page_field_defs aus store.go.
+// columnLists takes page_field_defs' SELECT column lists out of store.go.
 //
-// Gelesen wird die Datei und nicht der Speicher: die Gefahr, um die es geht,
-// ist eine Liste, die von den anderen abweicht, und die ist zur Laufzeit nicht
-// zu sehen — ein SELECT kann eine Spalte nennen und sie nie in den Def
-// schreiben, und andersherum lädt ein vergessener Eintrag still einen Nullwert.
-func spaltenlisten(t *testing.T) []string {
+// The FILE is read and not the store: the danger in question is a list that
+// differs from the others, and that is invisible at run time — a SELECT can
+// name a column and never write it into the Def, and the other way round a
+// forgotten entry silently loads a zero value.
+func columnLists(t *testing.T) []string {
 	t.Helper()
 	quelle, err := os.ReadFile("store.go")
 	if err != nil {
@@ -1359,11 +1349,11 @@ func spaltenlisten(t *testing.T) []string {
 	return out
 }
 
-// spaltenzahl zählt die Spalten einer SELECT-Liste.
+// columnCount counts the columns of a SELECT list.
 //
-// Die Kommata innerhalb einer Klammer gehören zu einem Aufruf und nicht zur
-// Liste, deshalb wird die Klammertiefe mitgeführt.
-func spaltenzahl(liste string) int {
+// The commas inside a bracket belong to a call and not to the list, which is
+// why the bracket depth is carried along.
+func columnCount(liste string) int {
 	tiefe, n := 0, 1
 	for _, r := range liste {
 		switch r {
@@ -1380,37 +1370,37 @@ func spaltenzahl(liste string) int {
 	return n
 }
 
-// Die Zahl im Kommentar über scanDef wird ausgezählt statt geglaubt.
+// The number in the comment above scanDef is counted out rather than believed.
 //
-// Sie stand vier Wanderungen lang auf „fünf", während es längst sieben waren —
-// und sie ist das Einzige in der Datei, das dem nächsten Autor sagt, wie viele
-// Stellen er anzufassen hat, auf der Gefahr, die diese Phase selbst als ihre
-// gefährlichste benannt hat. Eine Zahl, die nur in einem Satz steht, geht mit
-// der nächsten Änderung wieder schief; eine, die ein Test auszählt, nicht.
+// It said "five" for four migrations while there had long been seven — and it
+// is the only thing in the file that tells the next author how many places they
+// have to touch, on the danger this phase itself named as its most dangerous. A
+// number that stands only in a sentence goes wrong again with the next change;
+// one a test counts out does not.
 //
-// Ein fünfter Träger macht diesen Test rot. Das ist die Absicht: der Autor soll
-// beim Ändern der Zahl an den Zeilen von scanDef vorbeikommen.
+// A fifth carrier turns this test red. That is the intention: the author should
+// pass the lines of scanDef on their way to changing the number.
 func TestSpaltenlistenSindAbschriften(t *testing.T) {
-	listen := spaltenlisten(t)
-	if len(listen) != 7 {
+	lists := columnLists(t)
+	if len(lists) != 7 {
 		t.Fatalf("%d SELECT-Spaltenlisten in store.go, der Kommentar über scanDef "+
 			"nennt sieben — stimmt die Zahl nicht mehr, sind beide zu berichtigen "+
-			"und scanDefs Scan-Reihenfolge nachzusehen", len(listen))
+			"und scanDefs Scan-Reihenfolge nachzusehen", len(lists))
 	}
-	for i, l := range listen[1:] {
-		if l != listen[0] {
-			t.Errorf("Spaltenliste %d weicht ab:\n  %s\n  %s", i+2, listen[0], l)
+	for i, l := range lists[1:] {
+		if l != lists[0] {
+			t.Errorf("Spaltenliste %d weicht ab:\n  %s\n  %s", i+2, lists[0], l)
 		}
 	}
-	// Und sie ist die Reihenfolge, die scanDef scannt: achtzehn Spalten,
-	// snippet_id zuletzt. Gezählt werden die Kommata der obersten Ebene — die
-	// in COALESCE(parent_id, 0) trennen keine Spalte, und wer sie mitzählt,
-	// bekommt einundzwanzig heraus. (Genau das ist beim ersten Schreiben
-	// dieses Tests passiert.)
-	if n := spaltenzahl(listen[0]); n != 18 {
+	// And it is the order scanDef scans: eighteen columns, snippet_id last.
+	// What is counted are the top-level commas — the ones in
+	// COALESCE(parent_id, 0) separate no column, and counting them gives
+	// twenty-one. (Which is exactly what happened when this test was first
+	// written.)
+	if n := columnCount(lists[0]); n != 18 {
 		t.Errorf("the column list holds %d columns, scanDef scans eighteen", n)
 	}
-	if !strings.HasSuffix(listen[0], "COALESCE(snippet_id, 0)") {
-		t.Errorf("die Spaltenliste endet auf %q, scanDef scannt SnippetID zuletzt", listen[0])
+	if !strings.HasSuffix(lists[0], "COALESCE(snippet_id, 0)") {
+		t.Errorf("die Spaltenliste endet auf %q, scanDef scannt SnippetID zuletzt", lists[0])
 	}
 }

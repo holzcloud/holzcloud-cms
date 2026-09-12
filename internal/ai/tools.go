@@ -610,7 +610,7 @@ func seiteVeroeffentlichen(d Deps) Tool {
 	return Tool{
 		Name:   "seite_veroeffentlichen",
 		Writes: true,
-		Description: "Schaltet eine Seite öffentlich oder zurück auf Entwurf. Rufe das nur auf, " +
+		Description: "Schaltet eine Seite öffentlich oder back auf Entwurf. Rufe das nur auf, " +
 			"wenn ausdrücklich darum gebeten wurde.",
 		InputSchema: Schema{
 			Type: "object",

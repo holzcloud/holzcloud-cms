@@ -2434,10 +2434,10 @@ func TestTextbausteinDerSichNichtZurueckLesenLaesstStuerztNicht(t *testing.T) {
 //
 // Der Wert eines Bild-, Verweis- oder Schlagwortfeldes ist eine Nummer *dieser*
 // Anlage. Auf dem Seitenweg werden solche Nummern beim Ausfahren in einen
-// Dateinamen und eine Adresse übersetzt und beim Einfahren zurück
+// Dateinamen und eine Adresse übersetzt und beim Einfahren back
 // (exportFieldValues/translateIn); die Werte eines Textbausteins gehen roh
 // hinaus und roh hinein. Drüben gehört die Nummer einer anderen Website, und
-// fieldImages/fieldRefs weisen sie zurück — das Feld kommt an, das Bild nicht.
+// fieldImages/fieldRefs weisen sie back — das Feld kommt an, das Bild nicht.
 //
 // Das bleibt vorerst so: die Übersetzung sitzt im Seitenweg und sie von dort zu
 // lösen ist eine eigene Arbeit (deferred-items.md). Was sich hier ändert, ist

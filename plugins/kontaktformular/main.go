@@ -133,7 +133,7 @@ var marke = regexp.MustCompile(`\[\[formular(?::([^\]\[]{1,` + strconv.Itoa(maxB
 //
 // Eine Marke allein in einem Absatz ersetzt den ganzen Absatz: ein <form> in
 // einem <p> ist ungültiges HTML, das ein Browser stillschweigend umsortiert —
-// er zieht das Formular heraus und lässt die Felder zurück.
+// er zieht das Formular heraus und lässt die Felder back.
 var markeImAbsatz = regexp.MustCompile(`<p>` + marke.String() + `</p>`)
 
 func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
@@ -149,7 +149,7 @@ func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
 	// deshalb, was fehlt; die Eingaben hat der Browser beim Zurückgehen noch.
 	var werte url.Values
 	// Der Absatz zuerst, damit das <p> mit seiner Marke verschwindet. In einem
-	// Durchgang bliebe ein leeres <p></p> zurück.
+	// Durchgang bliebe ein leeres <p></p> back.
 	out := ersetzen(markeImAbsatz, in.HTML, daten, werte)
 	out = ersetzen(marke, out, daten, werte)
 	return plugin.ContentOut{HTML: out, Changed: out != in.HTML}, nil
@@ -309,7 +309,7 @@ func zeitmarke(jetzt time.Time) string {
 	return stempel + "." + unterschrift(stempel)
 }
 
-// pruefeZeitmarke gibt einen Grund zurück, oder "" wenn alles stimmt.
+// pruefeZeitmarke gibt einen Grund back, oder "" wenn alles stimmt.
 func pruefeZeitmarke(marke string, jetzt time.Time) string {
 	stempel, sig, ok := strings.Cut(marke, ".")
 	if !ok {
@@ -499,7 +499,7 @@ Antworten geht direkt auf diese Nachricht — sie geht an den Absender.
 	}
 }
 
-// zurueck schickt den Besucher auf die Seite zurück und trägt das Ergebnis in
+// zurueck schickt den Besucher auf die Seite back und trägt das Ergebnis in
 // der Adresse mit. Ohne JavaScript, und ein Neuladen sendet nicht zweimal.
 func zurueck(seite, stand, hinweis string) plugin.RequestOut {
 	return zurueckAn(seite, "", stand, hinweis)
@@ -548,7 +548,7 @@ func seitenname(roh string) string {
 	return roh
 }
 
-// pruefen gibt zurück, was an einer Absendung als Erstes fehlt.
+// pruefen gibt back, was an einer Absendung als Erstes fehlt.
 //
 // Die Sätze sind für den Besucher, also schlichtes Deutsch, das sagt, was zu
 // tun ist — eine mit "Validierungsfehler" abgewiesene Anfrage ist eine
@@ -760,7 +760,7 @@ func bildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 }
 
 // knopf zeichnet ein Formular mit einem Knopf. Es sendet an dieselbe Adresse
-// zurück; den Sitzungsschlüssel setzt der Host ein, das Plugin sieht ihn nie.
+// back; den Sitzungsschlüssel setzt der Host ein, das Plugin sieht ihn nie.
 // aktionsknopf ist ein Knopf ohne eigenes Formular: er sendet das ab, in dem er
 // steht. Ein <form> in einem <form> ist ungültiges HTML, und ein Browser wirft
 // das innere weg — der Knopf täte dann gar nichts.

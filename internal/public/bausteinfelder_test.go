@@ -50,7 +50,7 @@ func bausteinFS() fstest.MapFS {
 			`{{define "content"}}<p class="notfound">nichts gefunden</p>` +
 				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>{{end}}`)},
 		"maintenance.html": &fstest.MapFile{Data: []byte(
-			`{{define "content"}}<p class="wartung">gleich zurück</p>` +
+			`{{define "content"}}<p class="wartung">gleich back</p>` +
 				`<p class="telefon">{{index .Site.SnippetFields "kontakt" "telefon"}}</p>{{end}}`)},
 		// Drei Ansichten von drei verschiedenen Zuschnitten, alle mit derselben
 		// einen Zeile: das Schlagwortarchiv und das Beitragsarchiv teilen sich
@@ -393,7 +393,7 @@ func TestBausteinfelderAufDenRoutenOhneSeite(t *testing.T) {
 			t.Fatalf("Status = %d, erwartet 503", rec.Code)
 		}
 		body := rec.Body.String()
-		if !strings.Contains(body, "gleich zurück") {
+		if !strings.Contains(body, "gleich back") {
 			t.Fatalf("the theme's maintenance view was not drawn:\n%s", body)
 		}
 		if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {

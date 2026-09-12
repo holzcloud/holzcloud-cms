@@ -196,7 +196,7 @@ func TestRetryPutsAGivenUpMailBack(t *testing.T) {
 	if m.Status != StatusPending {
 		t.Errorf("Status nach Retry: %q", m.Status)
 	}
-	// Der Zähler muss zurück, sonst gibt der nächste Fehlschlag sofort wieder auf.
+	// Der Zähler muss back, sonst gibt der nächste Fehlschlag sofort wieder auf.
 	if m.Attempts != 0 {
 		t.Errorf("Attempts nach Retry: %d", m.Attempts)
 	}
