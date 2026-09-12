@@ -185,8 +185,8 @@ type Revision struct {
 	// Blocks is what the page was built from at the time. Without it a restore
 	// would bring back a block page as an empty one.
 	Blocks string
-	// Label is what somebody called this version — "vor dem Umbau", "Stand
-	// Preisliste 2026". Empty on all the versions nobody had a reason to name,
+	// Label is what somebody called this version — "before the rebuild", "price
+	// list 2026". Empty on all the versions nobody had a reason to name,
 	// which is most of them.
 	Label string
 }

@@ -162,8 +162,8 @@ func (h *Handler) HandleUserList(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	// Die Grenzen je Person. Eine Abfrage je Zeile, und die Liste ist so lang
-	// wie die Redaktion — bei zwanzig Leuten sind das zwanzig sehr kurze.
+	// The limits per person. One query per row, and the list is as long as the
+	// editorial team — with twenty people that is twenty very short ones.
 	total := 0
 	if all, err := h.domains.ListWebsites(r.Context()); err == nil {
 		total = len(all)

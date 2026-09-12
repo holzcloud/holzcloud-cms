@@ -133,6 +133,31 @@ point of criterion 9.
 **Sized, not hidden:** this is real work and it is scheduled as its own wave. If
 it cannot land, it becomes a named carry-over rather than a silence.
 
+**Landed 2026-09-12, and smaller than the measurement suggested.** The 274 was
+counted across `plugins/` as a whole and most of it is a VISITOR's text — the
+contact form, the order form, the farm shop's own screen — which §3b covers and
+this milestone does not touch. What an operator reads is two screens, and they
+are done:
+
+- `internal/plugin`: a new host operation `translate`, and the first one that
+  needs **no permission**. `PermNone` is the empty string and `hostCall` lets it
+  through: asking for a word is not asking for anybody's data, the catalogue is
+  the host's, and the language comes out of the request's context so that a
+  plugin cannot choose which language an operator is answered in.
+- `sdk`: `T` and `Tf`. A sentence the catalogue does not know comes back
+  unchanged, and a failure is silent — a screen that cannot draw because a word
+  could not be looked up is worse than a screen in the source language.
+- `tools/i18n`: `plugins/` is the third root. The collector's rule for `T` and
+  `Tf` changed with it: the sentence is the FIRST string literal of the call,
+  because the host's shape carries the language in front (`web.T(r, s)`) and the
+  plugin's has nothing to carry (`T(s)`). Fixing it at one index would have made
+  one of the two invisible.
+
+What is NOT translated, and is the honest remainder: `plugin.json`'s own name
+and description. They are the plugin's identity in a list, they are written once
+by whoever built it, and a third-party plugin cannot be expected to have entries
+in this installation's catalogue.
+
 ### 3b. The public themes — **no, and here is why**
 
 116 strings across 104 theme files in eight themes. `t`, `th` and `tf` are

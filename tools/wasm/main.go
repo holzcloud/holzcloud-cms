@@ -60,7 +60,7 @@
 // -ldflags="-s -w" does not strip and -buildvcs=false has nothing to do with.
 //
 // Measured 2026-09-08: a comment-only edit to sdk/plugin.go turned this check
-// from green to "10 Datei(en) sind nicht aktuell". That is the tool working, not
+// from green to "10 file(s) are out of date". That is the tool working, not
 // misfiring — the committed bytes really did stop matching the source beside
 // them. But it means an edit that looks like documentation is a rebuild:
 //

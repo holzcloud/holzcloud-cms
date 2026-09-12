@@ -20,7 +20,7 @@ type TermListData struct {
 
 // HandleTermList shows every label of a website with how often it is used.
 //
-// The screen exists mostly to find the mistakes: "Möbel" next to "Moebel" is
+// The screen exists mostly to find the mistakes: "Möbel" next to "Moebel" is //nolint:german — the pair is the example
 // two archives where the editor meant one, and nothing else in the admin would
 // ever show them side by side.
 func (h *Handler) HandleTermList(w http.ResponseWriter, r *http.Request) error {

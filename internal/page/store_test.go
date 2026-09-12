@@ -364,18 +364,18 @@ func TestAnAddressIsUniquePerLanguage(t *testing.T) {
 		t.Errorf("the French page got the address %q instead of kontakt", fr.Slug)
 	}
 
-	// Innerhalb einer Sprache gilt der Zwang weiter.
+	// Inside one language the constraint still holds.
 	zweite, err := s.CreatePage(ctx, PageCreate{
 		WebsiteID: ws, Title: "Kontakt", Slug: "kontakt", Status: "published",
 	})
 	if err != nil {
-		t.Fatalf("die zweite deutsche Seite: %v", err)
+		t.Fatalf("the second German page: %v", err)
 	}
 	if zweite.Slug != "kontakt-2" {
 		t.Errorf("two German pages under %q — the second should be called kontakt-2", zweite.Slug)
 	}
 
-	// Und jede der beiden Sprachen findet ihre eigene.
+	// And each of the two languages finds its own.
 	got, err := s.GetPageBySlugIn(ctx, ws, "fr", "kontakt")
 	if err != nil || got == nil {
 		t.Fatalf("the French page cannot be found under its address: %v", err)

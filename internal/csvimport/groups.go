@@ -11,10 +11,10 @@
 // One line per reason, with the rows named inside it, is the shape that lets a
 // person open their file and fix something:
 //
-//	17 rows: "Sorte": "Apfel" steht nicht zur Auswahl (Zeilen 4, 9, 12, ...)
+//	17 rows: "Sorte": "Apfel" is not one of the choices (rows 4, 9, 12, ...)
 //
 // Rows that worked are a count and a link to the page list, never a list of
-// their own: "272 Seiten angelegt" beside the way to go and look at them.
+// their own: "272 pages created" beside the way to go and look at them.
 //
 // Nothing in this file formats a sentence and it imports no fmt. A group
 // carries a reason CODE and the reason's arguments; the sentence is a {{tf}}

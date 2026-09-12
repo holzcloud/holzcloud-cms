@@ -79,8 +79,8 @@ func Normalize(raw string) string {
 
 // Parse reads the comma-separated field an editor types.
 //
-// Duplicates that differ only in case or spacing are folded together — "Möbel"
-// and "möbel" are one label, and storing both would split an archive in two
+// Duplicates that differ only in case or spacing are folded together — "Möbel" //nolint:german — the example labels
+// and "möbel" are one label, and storing both would split an archive in two //nolint:german — the example labels
 // with no visible reason.
 func Parse(raw string) []string {
 	var out []string
@@ -293,7 +293,7 @@ func (s *Store) Delete(ctx context.Context, websiteID, id int64) error {
 // Rename changes the visible name of a label without moving its address.
 //
 // The slug stays: it is what links and search results point at, and renaming
-// "Möbel" to "Möbelbau" should not break every link that already exists.
+// "Möbel" to "Möbelbau" should not break every link that already exists. //nolint:german — the example labels
 func (s *Store) Rename(ctx context.Context, websiteID, id int64, name string) error {
 	name = strings.Join(strings.Fields(name), " ")
 	if name == "" {

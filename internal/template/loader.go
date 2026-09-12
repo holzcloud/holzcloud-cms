@@ -458,7 +458,7 @@ type PageContent struct {
 	HasOwnHeading bool
 
 	// IsPost marks an archive entry, so a theme can print the date on a post
-	// and leave it off an "Über uns" that has no meaningful one.
+	// and leave it off an "Über uns" that has no meaningful one. //nolint:german — the example page title
 	IsPost bool
 	// Art is the key of the website's own content kind — "produkt", "termin" —
 	// and empty for the built-in page and post. A theme written for one website

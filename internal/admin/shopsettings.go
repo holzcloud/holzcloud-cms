@@ -70,9 +70,9 @@ func (v *ShopSettingsValues) validate(errs web.FormErrors) {
 		errs.Add("shipping_tax", "Please choose one of the Swiss tax rates.")
 	}
 
-	// Leer ist erlaubt und heisst: es geht keine Meldung raus. Eine Adresse
-	// ohne @ ist dagegen ein Tippfehler, und der fällt sonst erst bei der
-	// ersten Bestellung auf, die niemand bemerkt.
+	// Empty is allowed and means: no notice goes out. An address without an @,
+	// on the other hand, is a typo, and that would otherwise come to light only
+	// with the first order nobody notices.
 	if v.OrderEmail != "" && !strings.Contains(v.OrderEmail, "@") {
 		errs.Add("order_email", "That does not look like an email address.")
 	}

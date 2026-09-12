@@ -181,6 +181,19 @@ var aboutGerman = map[string]bool{
 	"tools/english/main.go": true,
 	"tools/rename/main.go":  true,
 	"tools/i18n/main.go":    true,
+	// The language machinery itself. internal/i18n/tag.go has to be able to say
+	// that Swiss German writes no ß and quotes with «Anführung» where Germany
+	// writes „Anführung“, and internal/csvimport/mapping.go has to name ä, ö, ü
+	// and ß because SlugifyKey has a case for each of them and for nothing
+	// else. A comment that cannot name its subject is a comment that stops
+	// explaining it.
+	"internal/i18n/tag.go":               true,
+	"internal/i18n/i18n.go":              true,
+	"internal/i18n/i18n_test.go":         true,
+	"internal/i18n/catalog_test.go":      true,
+	"internal/locale/locale.go":          true,
+	"internal/csvimport/mapping.go":      true,
+	"internal/csvimport/mapping_test.go": true,
 }
 
 type finding struct {

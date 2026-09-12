@@ -66,8 +66,8 @@ const (
 	ActionDomainAdd    = "domain.add"
 	ActionDomainRemove = "domain.remove"
 
-	// Das Design heisst auf diesem Stamm design und nicht theme; die
-	// Zeichenkette folgt dem Paketnamen, damit ein Filter sich raten lässt.
+	// On this trunk the design is called design and not theme; the string
+	// follows the package name, so that a filter can be guessed.
 	ActionDesignSave = "design.save"
 
 	ActionActivityPurge = "activity.purge"

@@ -289,8 +289,8 @@ func TestNoHeaderIsAnError(t *testing.T) {
 //
 // It used to hand over one: fmt.Sprintf("row has %d cells, the header has %d"),
 // set on Row.Error, carried forward as ReasonRowUnreadable's only argument and
-// substituted into a German sentence on the report screen — "Diese Zeile liess
-// sich nicht lesen: row has 5 cells, the header has 3". The frame was a literal
+// substituted into a German sentence on the report screen — "Diese Zeile liess //nolint:german — the broken report, quoted
+// sich nicht lesen: row has 5 cells, the header has 3". The frame was a literal //nolint:german — the broken report, quoted
 // tools/i18n could see; the half a person actually needs was not. Reachable by
 // any row with a stray separator in it.
 func TestWideRowCarriesNumbersAndNotASentence(t *testing.T) {

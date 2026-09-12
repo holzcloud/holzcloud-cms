@@ -52,7 +52,7 @@ func (h *Handler) HandleMailTest(w http.ResponseWriter, r *http.Request) error {
 	err := h.mail.Enqueue(r.Context(), 0, mail.Message{
 		To:      to,
 		Subject: web.T(r, "Test message from Holzcloud"),
-		Body: web.Titlef(r, "This message confirms that sending is set up.\n\nSent on %s.\n\nIf it has arrived, then invitations, password links and notifications about new enquiries work too.\n", time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
+		Body:    web.Titlef(r, "This message confirms that sending is set up.\n\nSent on %s.\n\nIf it has arrived, then invitations, password links and notifications about new enquiries work too.\n", time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
 	})
 	if err != nil {
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Queueing failed: %s", err))

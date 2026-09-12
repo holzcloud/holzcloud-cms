@@ -148,7 +148,7 @@ func TestURICarriesWhatAnAppNeeds(t *testing.T) {
 }
 
 func TestQRCodeIsSelfContainedSVG(t *testing.T) {
-	svg, err := QRCode(URI("JBSWY3DPEHPK3PXP", "erika@example.de", "Holzcloud"))
+	svg, err := QRCode(URI("JBSWY3DPEHPK3PXP", "erika@example.de", "Holzcloud"), "QR code for the authenticator app")
 	if err != nil {
 		t.Fatalf("QRCode: %v", err)
 	}

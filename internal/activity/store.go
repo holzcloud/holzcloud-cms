@@ -146,9 +146,9 @@ func (s *Store) Purge(ctx context.Context, before time.Time, actor Entry) (int64
 	}
 	deleted, _ := delRes.RowsAffected()
 
-	// Die Zahl steht erst jetzt fest, also wird sie nachgetragen. Sie gehört in
-	// die Zeile: "aufgeräumt" ohne Umfang beantwortet die Frage nicht, die man
-	// später an so eine Zeile stellt.
+	// The number is settled only now, so it is filled in afterwards. It belongs
+	// in the row: "cleared up" without a scope does not answer the question one
+	// later asks of such a row.
 	actor.Metadata["rows_deleted"] = deleted
 	metaJSON2, err := json.Marshal(sanitize(actor.Metadata))
 	if err != nil {

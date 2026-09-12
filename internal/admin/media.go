@@ -114,7 +114,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 		return h.uploadFailed(w, r, redirect, web.Titlef(r, "File type not allowed: %s", err))
 	}
 
-	// Ein Video darf mehr wiegen als ein Bild — aber nur ein Video.
+	// A video may weigh more than an image — but only a video.
 	limit := h.cfg.MaxMediaSize
 	if mimeType == "video/mp4" {
 		limit = h.cfg.MaxVideoSize

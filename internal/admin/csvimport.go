@@ -231,7 +231,7 @@ type CSVMappingData struct {
 	//
 	// TotalRows is a count of data rows and never counts the header, so putting
 	// it beside SampleNumber — which does count the header — made the last row
-	// of a twelve-row file read "Zeile 13 von 12". Two numbers in one sentence
+	// of a twelve-row file read "row 13 of 12". Two numbers in one sentence
 	// have to be counted the same way; D-26 says which way that is. Found in a
 	// browser and not by the suite, because no test read the two numbers of the
 	// sentence together.
@@ -1232,7 +1232,7 @@ func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error
 	}
 	// No website named: the fixed columns and nothing else, which is what the
 	// panel promises in words and what D-37 states for the "new website" path.
-	// (D-37 counts four of them and the file carries five — Schlagwörter is
+	// (D-37 counts four of them and the file carries five — the terms column is
 	// the fifth; the count is the decision's, the columns are
 	// csvExampleColumns'.) It is also the single
 	// most likely moment for a first import: a fresh installation has no

@@ -237,7 +237,7 @@ func TestEigeneMigrationenLaufenEinmal(t *testing.T) {
 	// silently no longer fits the code that expects it.
 	changed := []Migration{{Name: "0001.sql", SQL: `CREATE TABLE anders (b TEXT) STRICT;`}}
 	err := s.ApplyMigrations(ctx, "eins", changed)
-	if err == nil || !strings.Contains(err.Error(), "geändert") {
+	if err == nil || !strings.Contains(err.Error(), "has changed") {
 		t.Errorf("a changed migration was not reported: %v", err)
 	}
 }

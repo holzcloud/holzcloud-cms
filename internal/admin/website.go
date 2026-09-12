@@ -119,8 +119,8 @@ func (h *Handler) HandleWebsiteList(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
-	// Nur die eigenen: eine Liste mit Websites, die beim Anklicken 403 sagen,
-	// ist keine Liste, sondern eine Falle.
+	// Only their own: a list with websites that answer 403 when clicked is not a
+	// list but a trap.
 	websites := keepMine(h.rightsOf(r), all)
 
 	var items []WebsiteWithDomainCount
@@ -544,7 +544,7 @@ func (h *Handler) HandleWebsiteTokens(w http.ResponseWriter, r *http.Request) er
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/design", websiteID)
 
-	// "Zurücksetzen" is its own button rather than six emptied fields: clearing
+	// "Reset" is its own button rather than six emptied fields: clearing
 	// a colour input is something browsers make surprisingly hard.
 	if r.FormValue("reset") != "" {
 		if err := h.domains.UpdateDesignTokens(r.Context(), websiteID, domain.DesignTokens{Radius: -1}); err != nil {

@@ -372,6 +372,38 @@ func Log(level, message string) {
 // Logf is Log with a format string.
 func Logf(level, format string, args ...any) { Log(level, fmt.Sprintf(format, args...)) }
 
+// T is one sentence in the language the operator is reading right now.
+//
+// Write the sentence in English, as the host's own screens do; `go run
+// ./tools/i18n` collects every literal handed to this function and reports it
+// as open until de, es, fr and it have it. A sentence the catalogue does not
+// know comes back unchanged, so a plugin that ships before its translations
+// still reads correctly — in English.
+//
+// It needs no permission. Asking for a word is not asking for anybody's data,
+// and a plugin that could not reach the catalogue would have to ship one
+// language and print it to everyone.
+//
+// A failure is silent on purpose: a screen that cannot draw because a word
+// could not be looked up is worse than a screen in the source language.
+func T(s string) string {
+	raw, err := hostJSON("translate", map[string]string{"text": s})
+	if err != nil {
+		return s
+	}
+	var r struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil || r.Text == "" {
+		return s
+	}
+	return r.Text
+}
+
+// Tf is T with a format string. The FRAME is translated and then filled in, so
+// a language that wants the parts the other way round can say so.
+func Tf(format string, args ...any) string { return fmt.Sprintf(T(format), args...) }
+
 // Get reads one value from the plugin's own space for the current website.
 // Needs "store". A missing key is not an error.
 func Get(key string) (string, bool, error) { return get(key, false) }

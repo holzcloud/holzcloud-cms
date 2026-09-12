@@ -8,7 +8,7 @@ import (
 )
 
 // The whole feature rests on FTS5 being compiled into the pure-Go driver and on
-// remove_diacritics finding "Möbel" when a visitor types "mobel" — decisive for
+// remove_diacritics finding "Möbel" when a visitor types "mobel" — decisive for //nolint:german — the example word
 // a German-language CMS.
 func TestSearchFindsPagesIgnoringDiacritics(t *testing.T) {
 	s, ws := newTestStore(t)

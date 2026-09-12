@@ -65,8 +65,8 @@ func (h *Handler) HandleActivityList(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 
-	// Die Namen der Websites in einem Zug, nicht je Zeile. Ein Protokoll hat
-	// viele Zeilen und wenige Websites.
+	// The names of the websites in one go, not one per row. A log has many rows
+	// and few websites.
 	websites, err := h.domains.ListWebsites(r.Context())
 	if err != nil {
 		return err
@@ -134,8 +134,8 @@ func activityFilter(q url.Values) activity.Filter {
 	}
 	if v := strings.TrimSpace(q.Get("to")); v != "" {
 		if t, err := time.Parse("2006-01-02", v); err == nil {
-			// Bis einschliesslich dieses Tages. Wer "bis 5. Mai" schreibt,
-			// meint den 5. Mai mit, und nicht seinen ersten Augenblick.
+			// Up to and including this day. Whoever writes "until 5 May" means
+			// the 5th of May with it, and not its first moment.
 			t = t.Add(24*time.Hour - time.Second)
 			f.To = &t
 		}

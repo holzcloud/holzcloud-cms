@@ -41,7 +41,7 @@ func TestPick(t *testing.T) {
 		"termin":  "termin",
 		"post":    Post,
 		"page":    Page,
-		"rezept":  Page, // gibt es auf dieser Website nicht
+		"rezept":  Page, // does not exist on this website
 		"":        Page,
 	}
 	for in, want := range cases {

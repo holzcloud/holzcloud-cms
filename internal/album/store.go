@@ -482,7 +482,7 @@ func (s *Store) AddItem(ctx context.Context, websiteID, albumID, mediaID int64, 
 	// invisible in the list — Pictures orders by (sort_order, id), which is
 	// still deterministic — and it breaks the arrow button, because
 	// SwapSortOrder exchanges two rows' sort_order values and exchanging two
-	// equal values writes nothing. The operator reads "Reihenfolge geändert"
+	// equal values writes nothing. The operator reads "Order changed"
 	// and the list does not move, for ever, with nothing anywhere saying why.
 	// The same window let MaxItems be exceeded.
 	//

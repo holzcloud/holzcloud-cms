@@ -19,7 +19,7 @@ type starterPage struct {
 
 // starterPages are what a brand-new website starts with.
 //
-// A site with no pages answers its own domain with "Seite nicht gefunden",
+// A site with no pages answers its own domain with "page not found",
 // which is the first thing the owner sees after pointing DNS at it. The two
 // legal pages are drafts: they are scaffolding to fill in, and publishing an
 // empty imprint would be worse than having none.

@@ -176,8 +176,8 @@ func (h *Handler) HandlePageRevisionLabel(w http.ResponseWriter, r *http.Request
 		return err
 	}
 
-	// Die Fassung muss zu dieser Seite gehören. Ohne die Prüfung liesse sich
-	// über eine geratene Kennung die Fassung einer fremden Website benennen.
+	// The revision has to belong to this page. Without the check a guessed id
+	// could name the revision of a foreign website.
 	rev, err := h.pages.GetRevision(r.Context(), revID)
 	if err != nil {
 		return err

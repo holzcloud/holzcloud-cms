@@ -113,7 +113,7 @@ func TestEveryPictureIsTheTypeItClaims(t *testing.T) {
 // labelManifest is the smallest manifest that carries a label whose name is not
 // its own slug — the shape that could not be packed at all until 2026-09-03.
 //
-// "Laufräder" slugs to "laufraeder" because internal/page/slug.go folds ä to
+// "Laufräder" slugs to "laufraeder" because internal/page/slug.go folds ä to //nolint:german — the example label
 // ae, so name and slug genuinely differ. That difference is the whole point:
 // a manifest whose labels happen to be lowercase ASCII passes either reading of
 // the check and proves nothing about which one is in force.
@@ -180,7 +180,7 @@ func TestALabelThatIsNeitherNameNorSlugIsStillRefused(t *testing.T) {
 //
 // The example was without labels for as long as mkbundle could not pack one
 // whose name differs from its slug. Now that it can, the example is where the
-// format is demonstrated, and "Laufräder" under "laufraeder" is deliberately
+// format is demonstrated, and "Laufräder" under "laufraeder" is deliberately //nolint:german — the example label
 // the awkward case rather than a tidy lowercase one. Without this test the next
 // person tidying the manifest could drop the umlaut in good faith and quietly
 // remove the only shipped case that exercises the fix.

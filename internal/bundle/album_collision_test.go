@@ -203,7 +203,7 @@ func TestTwoAlbumsWithOneNameDoNotCollapseIntoOne(t *testing.T) {
 	// 2. And the operator is told, by name. The old code was silent here for
 	//    the exact reason that made it wrong: the name HAD been declared.
 	joined := strings.Join(report.Warnings, "\n")
-	if !strings.Contains(joined, "zwei Alben") {
+	if !strings.Contains(joined, "two albums") {
 		t.Errorf("nothing in the report says the archive named one album twice:\n%s", joined)
 	}
 	if !strings.Contains(joined, "Arbeiten") || !strings.Contains(joined, name) {

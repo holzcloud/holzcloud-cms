@@ -15,7 +15,7 @@ var (
 // transliterations maps non-ASCII letters to their ASCII spelling before the
 // slug is stripped down.
 //
-// Without this, dropping the character outright mangles the word: "Möbelbau"
+// Without this, dropping the character outright mangles the word: "Möbelbau" //nolint:german — the example word
 // would become "m-belbau" rather than "moebelbau". German umlauts follow the
 // ae/oe/ue/ss convention; the accented Latin letters fall back to their base
 // letter, which is the usual convention for URLs.
