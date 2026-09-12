@@ -73,7 +73,7 @@ func ReadPackage(r io.ReaderAt, size int64) (*Package, error) {
 
 	manifestRaw, err := readEntry(zr, ManifestName, MaxManifestBytes)
 	if err != nil {
-		return nil, fmt.Errorf("im Archiv fehlt %s", ManifestName)
+		return nil, fmt.Errorf("%s is missing from the archive", ManifestName)
 	}
 	manifest, err := ParseManifest(manifestRaw)
 	if err != nil {
@@ -82,7 +82,7 @@ func ReadPackage(r io.ReaderAt, size int64) (*Package, error) {
 
 	module, err := readEntry(zr, ModuleName, MaxModuleBytes)
 	if err != nil {
-		return nil, fmt.Errorf("im Archiv fehlt %s", ModuleName)
+		return nil, fmt.Errorf("%s is missing from the archive", ModuleName)
 	}
 	if !bytes.HasPrefix(module, []byte("\x00asm")) {
 		return nil, fmt.Errorf("%s is not a WebAssembly module", ModuleName)

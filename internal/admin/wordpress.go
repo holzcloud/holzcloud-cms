@@ -11,17 +11,17 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/wxr"
 )
 
-// Der Umzug von WordPress.
+// The move from WordPress.
 //
-// Wie der eigene Import: es entsteht immer eine **neue** Website. Zusammenlegen
-// bräuchte für jeden Zusammenstoss eine Antwort — gleiche Adresse, anderer Text
-// —, und die ehrliche Antwort für ein CMS dieser Grösse ist eine zweite
-// Website, die man vergleicht und dann behält oder löscht.
+// Like the CMS's own import: a **new** website always comes about. Merging
+// would need an answer for every collision — same address, different text —
+// and the honest answer for a CMS of this size is a second website that you
+// compare and then keep or delete.
 
 // HandleWordPressImport creates a website from a WordPress export file.
 func (h *Handler) HandleWordPressImport(w http.ResponseWriter, r *http.Request) error {
-	// Eine WXR-Datei ist Text und wird ohne Bilder exportiert; zehn Megabyte
-	// sind mehr als jede davon und wenig genug für einen kleinen Server.
+	// A WXR file is text and is exported without images; ten megabytes is more
+	// than any of them and little enough for a small server.
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 
 	file, _, err := r.FormFile("wxr")
@@ -60,32 +60,29 @@ func (h *Handler) HandleWordPressImport(w http.ResponseWriter, r *http.Request) 
 		report.Pages++
 	}
 
-	// Die Bilder liegen auf dem alten Server. Sie hierher zu holen hiesse, dass
-	// dieser Server von sich aus nach draussen wählt — genau die Regel, die
-	// dieses CMS ohne Cookie-Banner auskommen lässt. Also werden die Adressen
-	// aufgezählt, und der Betreiber bringt sie mit.
+	// The images lie on the old server. Fetching them here would mean that this
+	// server dials out of its own accord — exactly the rule that lets this CMS
+	// do without a cookie banner. So the addresses are listed, and the operator
+	// brings them along.
 	if len(export.MediaURLs) > 0 {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"%d Bilder und Dateien liegen weiterhin auf dem alten Server. Sie werden nicht "+
-				"heruntergeladen — dieser Server holt von sich aus nichts von Dritten. "+
-				"Lade sie unter Medien hoch und setze die Links neu:", len(export.MediaURLs)))
+		// One literal and not three joined with +: the collector reads a string,
+		// not an expression, and a sentence assembled in Go is a sentence the
+		// catalogue never learns about.
+		report.Warnings = append(report.Warnings, web.Titlef(r, "%d images and files still lie on the old server. They are not downloaded — this server fetches nothing from third parties of its own accord. Upload them under Media and set the links anew:", len(export.MediaURLs)))
 		for i, u := range export.MediaURLs {
 			if i == 25 {
 				report.Warnings = append(report.Warnings,
-					fmt.Sprintf("… und %d weitere", len(export.MediaURLs)-25))
+					web.Titlef(r, "… and %d more", len(export.MediaURLs)-25))
 				break
 			}
 			report.Warnings = append(report.Warnings, u)
 		}
 	}
 	if export.Skipped > 0 {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"%d Einträge waren keine Seiten oder Beiträge (Anhänge, Menüpunkte, Papierkorb) "+
-				"und wurden übergangen.", export.Skipped))
+		report.Warnings = append(report.Warnings, web.Titlef(r, "%d entries were neither pages nor posts (attachments, menu items, trash) and were passed over.", export.Skipped))
 	}
 	if export.Truncated {
-		report.Warnings = append(report.Warnings, fmt.Sprintf(
-			"Die Datei enthält mehr als %d Einträge. Der Rest wurde nicht eingelesen.", wxr.MaxItems))
+		report.Warnings = append(report.Warnings, web.Titlef(r, "The file holds more than %d entries. The rest was not read in.", wxr.MaxItems))
 	}
 
 	h.resolver.InvalidateCache()
@@ -107,7 +104,7 @@ func (h *Handler) HandleWordPressImport(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) importWordPressItem(r *http.Request, websiteID int64, item wxr.Item, seen map[string]bool) string {
 	title := item.Title
 	if title == "" {
-		title = "Ohne Titel"
+		title = web.T(r, "Untitled")
 	}
 
 	slug := page.Slugify(item.Slug)
@@ -115,7 +112,7 @@ func (h *Handler) importWordPressItem(r *http.Request, websiteID int64, item wxr
 		slug = page.Slugify(title)
 	}
 	if err := page.ValidateSlug(slug); err != nil {
-		return fmt.Sprintf("%q: die Adresse %q ist nicht zulässig", title, item.Slug)
+		return web.Titlef(r, "%q: the address %q is not allowed", title, item.Slug)
 	}
 	// WordPress allows the same slug under different parents; this CMS does
 	// not. The second one gets a number rather than silently overwriting.
@@ -127,7 +124,7 @@ func (h *Handler) importWordPressItem(r *http.Request, websiteID int64, item wxr
 
 	html, err := page.RenderMarkdown(item.HTML)
 	if err != nil {
-		return fmt.Sprintf("%q konnte nicht gesetzt werden: %v", title, err)
+		return web.Titlef(r, "%q could not be set: %v", title, err)
 	}
 
 	status := "draft"
@@ -141,12 +138,12 @@ func (h *Handler) importWordPressItem(r *http.Request, websiteID int64, item wxr
 		Meta: page.PageMeta{Excerpt: item.Excerpt},
 	})
 	if err != nil {
-		return fmt.Sprintf("%q konnte nicht angelegt werden: %v", title, err)
+		return web.Titlef(r, "%q could not be created: %v", title, err)
 	}
 
 	if len(item.Terms) > 0 && h.terms != nil {
 		if err := h.terms.SetForPage(r.Context(), websiteID, created.ID, item.Terms); err != nil {
-			return fmt.Sprintf("Schlagwörter von %q: %v", title, err)
+			return web.Titlef(r, "Terms of %q: %v", title, err)
 		}
 	}
 	return ""

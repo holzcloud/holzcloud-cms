@@ -17,8 +17,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 )
 
-// seedBild legt eine Bilddatei samt Eintrag an, so wie ein Upload es täte.
-func seedBild(t *testing.T, h *Handler, websiteID int64, name string, w, hgt int) *media.Media {
+// seedImage creates an image file together with its row, the way an upload would.
+func seedImage(t *testing.T, h *Handler, websiteID int64, name string, w, hgt int) *media.Media {
 	t.Helper()
 	dir := media.WebsiteDir(h.cfg.DataDir, websiteID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -61,7 +61,7 @@ func cropRequest(t *testing.T, m *media.Media, values url.Values) *http.Request 
 // Der ganze Weg: zuschneiden, Datei auf der Platte, Eintrag in der Datenbank.
 func TestZuschnittSchneidetUndMerktEsSich(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
-	m := seedBild(t, h, ws.ID, "weide.jpg", 1600, 600)
+	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
 	serve(t, h, sm, h.HandleMediaCropSave, cropRequest(t, m, url.Values{
 		"form":           {"1-1"},
@@ -89,7 +89,7 @@ func TestZuschnittSchneidetUndMerktEsSich(t *testing.T) {
 		t.Error("the image does not count as cropped")
 	}
 
-	// Und das Original liegt daneben, unangetastet.
+	// And the original lies beside it, untouched.
 	dir := media.WebsiteDir(h.cfg.DataDir, ws.ID)
 	ow, oh, err := media.Dimensions(filepath.Join(dir, media.SourceName("weide.jpg")))
 	if err != nil {
@@ -100,11 +100,11 @@ func TestZuschnittSchneidetUndMerktEsSich(t *testing.T) {
 	}
 }
 
-// Der Klick aufs Bild ist der eigentliche Bedienweg. Der Browser schickt ihn in
-// Pixeln der Anzeige; daraus muss ein Prozentwert werden.
+// Clicking the image is the actual way this is used. The browser sends it in
+// pixels of the display; that has to become a percentage.
 func TestKlickAufsBildSetztDenFokus(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
-	m := seedBild(t, h, ws.ID, "weide.jpg", 1600, 600)
+	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
 	serve(t, h, sm, h.HandleMediaCropSave, cropRequest(t, m, url.Values{
 		"form":           {""},
@@ -112,7 +112,7 @@ func TestKlickAufsBildSetztDenFokus(t *testing.T) {
 		"fokus_y":        {"50"},
 		"gezeigt_breite": {"640"},
 		"gezeigt_hoehe":  {"240"},
-		// Ein Klick auf ein Viertel der Breite und drei Viertel der Höhe.
+		// A click on a quarter of the width and three quarters of the height.
 		"fokus.x": {"160"},
 		"fokus.y": {"180"},
 	}))
@@ -123,12 +123,12 @@ func TestKlickAufsBildSetztDenFokus(t *testing.T) {
 	}
 }
 
-// Über die Tastatur schickt ein <input type="image"> 0,0 — nicht zu
-// unterscheiden von einem Klick in die äusserste Ecke. Das darf niemandem das
-// Motiv nach links oben schieben, nur weil er die Eingabetaste gedrückt hat.
+// From the keyboard an <input type="image"> sends 0,0 — indistinguishable from
+// a click in the outermost corner. That must not shift anybody's subject to the
+// top left just because they pressed Enter.
 func TestTastaturVerschiebtDasMotivNicht(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
-	m := seedBild(t, h, ws.ID, "weide.jpg", 1600, 600)
+	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
 	serve(t, h, sm, h.HandleMediaCropSave, cropRequest(t, m, url.Values{
 		"form":           {""},
@@ -147,11 +147,11 @@ func TestTastaturVerschiebtDasMotivNicht(t *testing.T) {
 	}
 }
 
-// Ein zweiter Zuschnitt beginnt wieder beim Original. Sonst verlöre ein Bild
-// bei jeder Meinungsänderung an Fläche und an Qualität.
+// A second crop starts from the original again. Otherwise an image would lose
+// area and quality every time somebody changed their mind.
 func TestZweiterZuschnittGehtWiederVomOriginalAus(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
-	m := seedBild(t, h, ws.ID, "weide.jpg", 1600, 600)
+	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
 	serve(t, h, sm, h.HandleMediaCropSave, cropRequest(t, m, url.Values{
 		"form": {"1-1"}, "naehe": {"200"}, "fokus_x": {"50"}, "fokus_y": {"50"},
@@ -172,11 +172,11 @@ func TestZweiterZuschnittGehtWiederVomOriginalAus(t *testing.T) {
 	}
 }
 
-// Zurücksetzen holt das hochgeladene Bild back — der Punkt fürs Motiv bleibt,
-// denn der sagt, wo etwas ist, und das stimmt auch beim ganzen Bild.
+// Resetting brings the uploaded image back — the point for the subject stays,
+// because it says where something is, and that holds for the whole image too.
 func TestZuruecksetzenBehaeltDenFokus(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
-	m := seedBild(t, h, ws.ID, "weide.jpg", 1600, 600)
+	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
 	serve(t, h, sm, h.HandleMediaCropSave, cropRequest(t, m, url.Values{
 		"form": {"1-1"}, "fokus_x": {"15"}, "fokus_y": {"80"},
@@ -199,20 +199,20 @@ func TestZuruecksetzenBehaeltDenFokus(t *testing.T) {
 	}
 }
 
-// Der Bildschirm zeigt das Bild in einer festen Breite, weil der Klick in
-// Pixeln dieser Anzeige zurückkommt — und muss die passende Höhe mitschicken.
+// The screen shows the image at a fixed width, because the click comes back in
+// pixels of that display — and it has to send the matching height along.
 func TestZuschnittbildschirmNenntSeineAnzeigegroesse(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
-	m := seedBild(t, h, ws.ID, "weide.jpg", 1600, 600)
+	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/media/1/zuschnitt", nil)
 	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
 	req.SetPathValue("mediaID", strconv.FormatInt(m.ID, 10))
 	body := serve(t, h, sm, h.HandleMediaCrop, req).Body.String()
 
-	// Die Angabe muss zur gezeichneten Grösse passen, sonst rechnet der Server
-	// den Klick falsch um — genau das ist einmal passiert, weil das Stylesheet
-	// das Bild verkleinert hat.
+	// The figure has to match the drawn size, or the server converts the click
+	// wrongly — which is exactly what happened once, because the stylesheet had
+	// scaled the image down.
 	breite := strconv.Itoa(previewWidth)
 	if !strings.Contains(body, `name="gezeigt_breite" value="`+breite+`"`) {
 		t.Errorf("die Anzeigebreite fehlt:\n%s", body)
@@ -229,8 +229,8 @@ func TestZuschnittbildschirmNenntSeineAnzeigegroesse(t *testing.T) {
 	}
 }
 
-// Was sich nicht dekodieren lässt, bekommt eine Erklärung statt Bedienelemente,
-// die beim Absenden scheitern würden.
+// What cannot be decoded gets an explanation instead of controls that would
+// fail on submitting.
 func TestNichtZuschneidbaresErklaertSichStattZuScheitern(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
 	m, err := h.mediaStore.Create(context.Background(), ws.ID,

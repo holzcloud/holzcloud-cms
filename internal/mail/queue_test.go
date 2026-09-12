@@ -28,12 +28,12 @@ func newTestDB(t *testing.T) *db.DB {
 	return database
 }
 
-// Einreihen darf nie irgendwohin verbinden: eine Anfrage, die auf einen
-// Mailserver wartet, ist eine Anfrage, die scheitert, wenn er nicht antwortet.
+// Queueing must never connect anywhere: a request that waits for a mail server
+// is a request that fails when it does not answer.
 func TestEinreihenVerbindetNicht(t *testing.T) {
 	database := newTestDB(t)
-	// Ein Wirt, den es garantiert nicht gibt. Wenn Enqueue verbinden würde,
-	// hinge dieser Test statt durchzulaufen.
+	// A host that is guaranteed not to exist. If Enqueue connected, this test
+	// would hang instead of running through.
 	q := NewQueue(database, NewSender(Config{
 		Host: "gibt.es.nicht.invalid", From: "cms@example.test", Timeout: time.Second,
 	}), slog.New(slog.DiscardHandler))
@@ -53,7 +53,7 @@ func TestEinreihenVerbindetNicht(t *testing.T) {
 	}
 }
 
-// Eine Nachricht, die durchgeht, wird zugestellt und als zugestellt vermerkt.
+// A message that gets through is delivered and noted as delivered.
 func TestFlushStelltZuUndVermerktEs(t *testing.T) {
 	database := newTestDB(t)
 	server := neuerTestserver(t)
@@ -84,7 +84,7 @@ func TestFlushStelltZuUndVermerktEs(t *testing.T) {
 		t.Errorf("after sending: Pending=%d, LastSent=%v", st.Pending, st.LastSent)
 	}
 
-	// Und ein zweiter Durchgang schickt sie nicht noch einmal.
+	// And a second pass does not send it once more.
 	if err := q.Flush(ctx); err != nil {
 		t.Fatalf("zweites Flush: %v", err)
 	}
@@ -93,12 +93,12 @@ func TestFlushStelltZuUndVermerktEs(t *testing.T) {
 	}
 }
 
-// Ein einzelner Punkt auf einer eigenen Zeile wird auf der Leitung genau einmal
-// verdoppelt — nicht null mal, dann bricht die Nachricht ab, und nicht zweimal,
-// dann kommt sie mit zwei Punkten an.
+// A single dot on a line of its own is doubled on the wire exactly once — not
+// zero times, or the message breaks off, and not twice, or it arrives with two
+// dots.
 //
-// Das lässt sich nur hier prüfen, wo eine echte SMTP-Sitzung läuft: compose
-// allein sieht die Maskierung nie, weil sie textproto.DotWriter macht.
+// That can only be checked here, where a real SMTP session runs: compose alone
+// never sees the escaping, because textproto.DotWriter does it.
 func TestPunktAufDerLeitungGenauEinmalVerdoppelt(t *testing.T) {
 	database := newTestDB(t)
 	server := neuerTestserver(t)
@@ -129,8 +129,8 @@ func TestPunktAufDerLeitungGenauEinmalVerdoppelt(t *testing.T) {
 	}
 }
 
-// Ein Mailserver, der nicht antwortet, darf die Nachricht nicht verlieren — und
-// er darf auch nicht sofort wieder gefragt werden.
+// A mail server that does not answer must not lose the message — and it must
+// not be asked again straight away either.
 func TestFehlschlagWirdSpaeterErneutVersucht(t *testing.T) {
 	database := newTestDB(t)
 	q := NewQueue(database, NewSender(Config{
@@ -156,8 +156,8 @@ func TestFehlschlagWirdSpaeterErneutVersucht(t *testing.T) {
 	if attempts != 1 {
 		t.Errorf("attempts = %d, want 1", attempts)
 	}
-	// Der nächste Versuch liegt in der Zukunft, sonst würde der Auftrag alle
-	// dreissig Sekunden gegen dieselbe Wand laufen.
+	// The next attempt lies in the future, or the job would run into the same
+	// wall every thirty seconds.
 	next, err := time.Parse(timeLayout, nextTry)
 	if err != nil {
 		t.Fatalf("next_try ist unlesbar: %v", err)
@@ -171,8 +171,8 @@ func TestFehlschlagWirdSpaeterErneutVersucht(t *testing.T) {
 		t.Error("the reason was not recorded")
 	}
 
-	// Und Retry holt sie back in die Gegenwart, für den Betreiber, der gerade
-	// das Passwort korrigiert hat.
+	// And Retry brings it back into the present, for the operator who has just
+	// corrected the password.
 	if n, err := q.Retry(ctx); err != nil || n != 1 {
 		t.Errorf("Retry: %d, %v", n, err)
 	}
@@ -201,11 +201,11 @@ func TestOhneMailserverBleibtLiegen(t *testing.T) {
 
 // --- ein sehr kleiner SMTP-Server -------------------------------------------
 
-// testserver spricht gerade so viel SMTP, dass net/smtp zufrieden ist.
+// testserver speaks just enough SMTP to satisfy net/smtp.
 //
-// Ein echter Server im Test und kein nachgebauter Sender: das, was hier schief
-// gehen kann, ist genau die Reihenfolge der Befehle und das Format der Daten,
-// und beides prüft nur etwas, das wirklich zuhört.
+// A real server in the test and not a mocked sender: what can go wrong here is
+// precisely the order of the commands and the format of the data, and only
+// something that really listens checks either.
 type testserver struct {
 	host string
 	port int

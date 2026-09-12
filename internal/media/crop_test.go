@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// Ein Bild mit einem erkennbaren Punkt: so lässt sich prüfen, was der Zuschnitt
-// tatsächlich behalten hat, statt nur die Masse zu zählen.
+// An image with a recognisable spot: that way it can be checked what the crop
+// actually kept, rather than only counting the dimensions.
 func testBild(t *testing.T, pfad string, w, h int, punkt image.Point) {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -19,7 +19,7 @@ func testBild(t *testing.T, pfad string, w, h int, punkt image.Point) {
 			img.Set(x, y, color.RGBA{20, 20, 20, 255})
 		}
 	}
-	// Ein 20×20 großer roter Fleck an der angegebenen Stelle.
+	// A 20×20 red spot in the given place.
 	for y := punkt.Y - 10; y < punkt.Y+10; y++ {
 		for x := punkt.X - 10; x < punkt.X+10; x++ {
 			if x >= 0 && y >= 0 && x < w && y < h {
@@ -60,7 +60,7 @@ func hatRot(t *testing.T, pfad string) bool {
 	return false
 }
 
-// Das Rechteck hat die gewählte Form und ist so gross, wie es hineinpasst.
+// The rectangle has the chosen shape and is as large as fits inside.
 func TestZuschnittHatDieGewaehlteForm(t *testing.T) {
 	c := Crop{Ratio: "1-1", Zoom: 100, FocusX: 50, FocusY: 50}
 	r := c.Rect(1600, 900)
@@ -77,9 +77,9 @@ func TestZuschnittHatDieGewaehlteForm(t *testing.T) {
 	}
 }
 
-// Der Fokuspunkt zieht das Rechteck zu sich — aber nie über den Rand hinaus.
-// Ein Zuschnitt, der überstünde, müsste mit irgendetwas gefüllt werden, und es
-// gibt nichts, womit sich das ehrlich füllen liesse.
+// The focus point pulls the rectangle towards itself — but never past the edge.
+// A crop that stood out would have to be filled with something, and there is
+// nothing it could honestly be filled with.
 func TestZuschnittFolgtDemFokusUndBleibtImBild(t *testing.T) {
 	c := Crop{Ratio: "1-1", Zoom: 100, FocusX: 10, FocusY: 50}
 	r := c.Rect(1600, 900)
@@ -100,7 +100,7 @@ func TestZuschnittFolgtDemFokusUndBleibtImBild(t *testing.T) {
 	}
 }
 
-// Werte aus einem Formular dürfen nie zu einem Bild von null Pixeln führen.
+// Values out of a form must never lead to an image of zero pixels.
 func TestUnsinnigeWerteWerdenGebaendigt(t *testing.T) {
 	c := Crop{Rotation: 37, Ratio: "gibtsnicht", Zoom: -5, FocusX: -20, FocusY: 500}.Normalise()
 	if c.Rotation != 0 || c.Ratio != "" || c.Zoom != 100 || c.FocusX != 0 || c.FocusY != 100 {
@@ -111,8 +111,8 @@ func TestUnsinnigeWerteWerdenGebaendigt(t *testing.T) {
 	}
 }
 
-// Eine Vierteldrehung verschiebt Pixel, sie rechnet sie nicht neu — die Masse
-// tauschen einfach die Plätze.
+// A quarter turn moves pixels, it does not recompute them — the dimensions
+// simply swap places.
 func TestDrehungTauschtBreiteUndHoehe(t *testing.T) {
 	dir := t.TempDir()
 	pfad := filepath.Join(dir, "bild.jpg")
@@ -127,9 +127,8 @@ func TestDrehungTauschtBreiteUndHoehe(t *testing.T) {
 	}
 }
 
-// Der hochgeladene Zustand bleibt erhalten, und ein zweiter Zuschnitt setzt
-// nicht auf dem ersten auf — sonst verlöre ein Bild bei jeder Meinungsänderung
-// an Qualität.
+// The uploaded state is kept, and a second crop does not build on the first —
+// otherwise an image would lose quality every time somebody changed their mind.
 func TestZweiterZuschnittBeginntWiederBeimOriginal(t *testing.T) {
 	dir := t.TempDir()
 	pfad := filepath.Join(dir, "bild.jpg")
@@ -148,8 +147,8 @@ func TestZweiterZuschnittBeginntWiederBeimOriginal(t *testing.T) {
 		t.Errorf("the image set aside is not the original: %dx%d", ow, oh)
 	}
 
-	// Ein zweiter, weiterer Zuschnitt muss wieder gross werden können. Ginge er
-	// vom Ergebnis des ersten aus, wäre er höchstens so gross wie dieses.
+	// A second, wider crop has to be able to become large again. If it started
+	// from the result of the first, it could at most be as large as that one.
 	w, h, err := ApplyCrop(dir, "bild.jpg", "image/jpeg", Crop{}, 24)
 	if err != nil {
 		t.Fatalf("zweiter Zuschnitt: %v", err)
@@ -159,7 +158,7 @@ func TestZweiterZuschnittBeginntWiederBeimOriginal(t *testing.T) {
 	}
 }
 
-// Zurücksetzen stellt das hochgeladene Bild wieder her und räumt die Kopie weg.
+// Resetting restores the uploaded image and clears the copy away.
 func TestZuruecksetzenStelltDasOriginalWiederHer(t *testing.T) {
 	dir := t.TempDir()
 	testBild(t, filepath.Join(dir, "bild.jpg"), 1000, 500, image.Pt(500, 250))
@@ -180,8 +179,8 @@ func TestZuruecksetzenStelltDasOriginalWiederHer(t *testing.T) {
 	}
 }
 
-// Und die Probe aufs Ganze: was der Fokus zeigt, bleibt drin; was weit davon
-// weg liegt, fliegt raus.
+// And the proof of the whole thing: what the focus points at stays in; what
+// lies far away from it flies out.
 func TestDerFokusEntscheidetWasImBildBleibt(t *testing.T) {
 	dir := t.TempDir()
 	// Der rote Fleck sitzt ganz links.
@@ -195,7 +194,7 @@ func TestDerFokusEntscheidetWasImBildBleibt(t *testing.T) {
 		t.Error("the focus was on the spot and it is gone regardless")
 	}
 
-	// Derselbe Fleck, aber der Fokus zeigt nach rechts.
+	// The same spot, but the focus points to the right.
 	testBild(t, filepath.Join(dir, "rechts.jpg"), 1200, 400, image.Pt(80, 200))
 	if _, _, err := ApplyCrop(dir, "rechts.jpg", "image/jpeg",
 		Crop{Ratio: "1-1", FocusX: 95, FocusY: 50}, 24); err != nil {
@@ -206,9 +205,9 @@ func TestDerFokusEntscheidetWasImBildBleibt(t *testing.T) {
 	}
 }
 
-// Ein Bild, das auf seiner eigenen Mitte liegt, bekommt kein Attribut: das ist
-// ohnehin, was ein Browser tut, und eine Angabe, die nichts ändert, steht sonst
-// auf jeder Seite.
+// An image that lies on its own centre gets no attribute: that is what a browser
+// does anyway, and a statement that changes nothing would otherwise stand on
+// every page.
 func TestFokusCSSNurWennErEtwasAendert(t *testing.T) {
 	m := Media{Crop: Crop{FocusX: 50, FocusY: 50}}
 	if got := m.FocusCSS(); got != "" {

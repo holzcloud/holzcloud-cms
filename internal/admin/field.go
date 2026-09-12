@@ -52,7 +52,7 @@ type FieldListData struct {
 	Snippet *snippet.Snippet
 }
 
-// TypeName is the plural of one own content kind, for the "gilt für" column.
+// TypeName is the plural of one own content kind, for the "applies to" column.
 //
 // Falls back to the key: a field can be tied to a kind that was removed later,
 // and "nur produkt" is still more use than an empty cell — it says which kind
@@ -69,7 +69,7 @@ func (d FieldListData) TypeName(key string) string {
 // Simple reports whether this is the website's own top-level field list — the
 // one place where a field can say which pages it belongs to and hang on
 // another. Inside a group, inside a block kind and on a text snippet none of
-// those questions applies: „gilt für" names a kind of page, and a snippet is
+// those questions applies: "applies to" names a kind of page, and a snippet is
 // not a page.
 func (d FieldListData) Simple() bool {
 	return d.Group == nil && d.BlockType == nil && d.Snippet == nil
@@ -181,21 +181,20 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 		RangeMin:    r.FormValue("min_wert"),
 		RangeMax:    r.FormValue("max_wert"),
 	}
-	// Ein leeres Kästchen heisst keine Obergrenze, und das ist genau die Null,
-	// die Atoi bei einem Fehler ohnehin zurückgibt — deshalb bleibt der Fehler
-	// hier liegen. Eine ausgeschriebene Zahl unter null lehnt validate ab; sie
-	// wird hier nicht stillschweigend zurechtgebogen.
+	// An empty box means no upper limit, and that is exactly the zero Atoi
+	// returns on an error anyway — which is why the error is left lying here. A
+	// number written out below zero is refused by validate; it is not silently
+	// bent into shape here.
 	def.MaxValues, _ = strconv.Atoi(r.FormValue("max_werte"))
 
-	// Ein Unterfeld erbt seinen Träger von der Gruppe, in der es steht, und
-	// nicht aus dem Formular. Der Gruppenbildschirm ist eine Ebene tiefer und
-	// weiss von keinem Textbaustein — ohne diese Zeilen bekäme das Unterfeld
-	// einer Gruppe an einem Textbaustein snippet_id NULL, und OfSnippet, das
-	// „WHERE snippet_id = $2" fragt, gäbe die Gruppe ohne ihre Unterfelder
-	// heraus: eine Gruppe, die auf dem Formular des Textbausteins keine einzige
-	// Zeile zeichnet. Aus dem Gespeicherten gepinnt und nicht aus dem Körper
-	// gelesen, aus demselben Grund, aus dem Update seinen Träger pinnt — was
-	// nicht aus dem Formular kommt, kann auch nicht gefälscht werden.
+	// A subfield inherits its carrier from the group it stands in, and not from
+	// the form. The group screen is one level down and knows of no snippet —
+	// without these lines the subfield of a group on a snippet would get
+	// snippet_id NULL, and OfSnippet, which asks "WHERE snippet_id = $2", would
+	// hand the group out without its subfields: a group that draws not a single
+	// row on the snippet's form. Pinned from what is stored and not read out of
+	// the body, for the same reason Update pins its carrier — what does not come
+	// out of the form cannot be forged either.
 	if def.ParentID > 0 {
 		parent, gerr := h.fields.Get(r.Context(), websiteID, def.ParentID)
 		if gerr != nil || parent == nil || !parent.IsGroup() {
@@ -249,7 +248,7 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	//
 	// They were missing from this switch, so they fell through to err.Error()
 	// below — and the store composes them with fmt.Errorf("%w: %s", …,
-	// "gehört zu einer anderen Website"), which no catalogue can hold whichever
+	// "belongs to another website"), which no catalogue can hold whichever
 	// half is marked. Reachable by posting a baustein= id that belongs to
 	// another website, which this handler does not pre-check (it pre-checks
 	// only snippetID, above).
@@ -300,9 +299,7 @@ func (h *Handler) HandleFieldDelete(w http.ResponseWriter, r *http.Request) erro
 	}
 	// Deliberately says what did not happen: the values are still on the pages,
 	// and someone who deleted the wrong field should know they can get it back.
-	web.SetFlashSuccess(h.sm, r.Context(),
-		"Feld entfernt. Das Ausgefüllte bleibt an den Seiten stehen, bis sie das nächste Mal gespeichert werden — "+
-			"wer sich vertan hat, legt das Feld einfach wieder an.")
+	web.SetFlashSuccess(h.sm, r.Context(), "Field removed. What was filled in stays on the pages until they are next saved — whoever made a mistake simply creates the field again.")
 	return h.redirect(w, r, fieldPath(websiteID, parentID, blockTypeID, snippetID))
 }
 

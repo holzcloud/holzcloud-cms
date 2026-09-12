@@ -31,17 +31,17 @@ func rollBackTheEnglishRename(t *testing.T, ctx context.Context, provider *goose
 	}
 }
 
-// TestMigration00047RunterUndRauf fährt die Rückwärtshälfte von 00047.
+// TestMigration00047DownAndUp drives the backward half of 00047.
 //
-// Nichts sonst im Baum fährt sie — deshalb ist sie die Hälfte, die kaputt
-// ausgeliefert wird. Der Test liegt in package db und nicht in package db_test,
-// weil er migrationProvider braucht: RunMigrations kennt nur den Weg nach oben.
+// Nothing else in the tree drives it — which is why it is the half that ships
+// broken. The test lies in package db and not in package db_test, because it
+// needs migrationProvider: RunMigrations knows only the way up.
 //
-// Geprüft werden die drei Stellen, an denen die Rücknahme zu weit oder zu kurz
-// greifen kann: die DELETE-Bedingung darf nur Felder eines Textbausteins
-// treffen, der wiederhergestellte Index muss die Form aus 00038 haben und nicht
-// die aus 00029, und danach muss die Wanderung wieder nach oben gehen.
-func TestMigration00047RunterUndRauf(t *testing.T) {
+// What is checked are the three places where the rollback can reach too far or
+// not far enough: the DELETE condition may only hit fields of a snippet, the
+// restored index has to have the shape from 00038 and not the one from 00029,
+// and afterwards the migration has to go up again.
+func TestMigration00047DownAndUp(t *testing.T) {
 	ctx := context.Background()
 	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
 	if err != nil {
@@ -73,10 +73,9 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 	}
 	snippetID, _ := res.LastInsertId()
 
-	// Zwei Felder mit derselben Kennung: eines an der Seite, eines am
-	// Textbaustein. Dass beide nebeneinander stehen dürfen, ist die eine
-	// Hälfte des Indexpaars; dass die Rücknahme nur das zweite trifft, die
-	// andere.
+	// Two fields with the same key: one on the page, one on the snippet. That
+	// both may stand side by side is the one half of the index pair; that the
+	// rollback hits only the second is the other.
 	if _, err := database.Write.ExecContext(ctx,
 		`INSERT INTO page_field_defs (website_id, kennung, beschriftung, art)
 		 VALUES ($1, 'telefon', 'Telefon', 'text')`, websiteID); err != nil {
@@ -148,15 +147,15 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 	}
 }
 
-// TestMigration00048RunterUndRauf fährt die Rückwärtshälfte von 00048.
+// TestMigration00048DownAndUp drives the backward half of 00048.
 //
-// Aus demselben Grund wie oben: nichts sonst im Baum fährt sie. Und aus einem
-// zweiten — 00048 ist eine Berichtigung, und eine Berichtigung stellt bei ihrer
-// Rücknahme den *falschen* Zustand wieder her. Wer beim Schreiben des Down die
-// neue Form abschreibt statt der alten, nimmt gar nichts back; das fällt
-// nirgends auf, weil beide Formen gültiges SQL sind und denselben Namen tragen.
-// Der Test liest deshalb den Indextext und nicht bloss seine Anwesenheit.
-func TestMigration00048RunterUndRauf(t *testing.T) {
+// For the same reason as above: nothing else in the tree drives it. And for a
+// second — 00048 is a correction, and a correction restores the *wrong* state
+// when it is rolled back. Whoever writes the Down by copying the new shape
+// instead of the old takes nothing back at all; that is noticed nowhere,
+// because both shapes are valid SQL and carry the same name. The test therefore
+// reads the index text and not merely its presence.
+func TestMigration00048DownAndUp(t *testing.T) {
 	ctx := context.Background()
 	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
 	if err != nil {

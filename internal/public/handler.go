@@ -234,9 +234,9 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 	if website.HasArchive() && slug == website.BlogBase {
 		return h.HandleArchive(w, r, website)
 	}
-	// Und dasselbe für die Übersichtsseite einer eigenen Inhaltsart. Zuerst
-	// geprüft, aus demselben Grund: eine Seite mit derselben Adresse würde sie
-	// verdecken, und der Editor lehnt sie deshalb ab.
+	// And the same for the overview page of a content type of one's own.
+	// Checked first, for the same reason: a page with the same address would
+	// cover it, and the editor therefore refuses one.
 	if t, ok := kind.ByArchive(h.typesOf(r, website.ID), slug); ok {
 		return h.HandleTypeArchive(w, r, website, t)
 	}
@@ -255,17 +255,17 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 		return h.serve404(w, r, website)
 	}
 
-	// Die Startseite hat eine Adresse und nicht zwei.
+	// The start page has one address and not two.
 	//
-	// Sie liegt als Seite mit der Adresse "home" in der Datenbank, und die
-	// Wurzel der Sprache zeigt genau sie (GetHomePageIn sucht diese Adresse
-	// zuerst). Ohne diese Umleitung war dieselbe Seite unter / und unter /home
-	// zu haben, beide mit sich selbst als kanonischer Adresse und beide im
-	// Sitemap — für eine Suchmaschine zwei Seiten mit demselben Text, und bei
-	// fünf Sprachen zehn Adressen für fünf Seiten.
+	// It lies in the database as a page with the address "home", and the root
+	// of the language points at exactly that one (GetHomePageIn looks for this
+	// address first). Without this redirect the same page was to be had under /
+	// and under /home, both with themselves as the canonical address and both
+	// in the sitemap — for a search engine two pages with the same text, and
+	// with five languages ten addresses for five pages.
 	//
-	// 301 und nicht 302: die Adresse /home ist nie die richtige gewesen, und
-	// wer doch darauf verlinkt hat, soll den Verweis umschreiben können.
+	// 301 and not 302: the address /home was never the right one, and whoever
+	// did link to it should be able to rewrite the reference.
 	if slug == page.HomeSlug {
 		http.Redirect(w, r, h.localePath(r, website, "/"), http.StatusMovedPermanently)
 		return nil
@@ -398,11 +398,10 @@ func (h *Handler) serve404(w http.ResponseWriter, r *http.Request, website *doma
 
 // renderNotFound writes the themed 404 response.
 //
-// Die Textbausteinfläche wird gefüllt wie auf jeder anderen Route: hier steht
-// die echte Vorlage des Themes, samt Fussteil, und das ist eine der Seiten, auf
-// denen ein Besucher den Kontakt sucht — die Adresse, die er gefunden hat, ist
-// falsch. Ohne diese Zeile bliebe die Stelle leer, ohne Fehler und ohne Eintrag
-// im Protokoll.
+// The snippet area is filled as on every other route: the theme's real template
+// stands here, footer included, and this is one of the pages on which a visitor
+// looks for the contact details — the address they found is wrong. Without this
+// line the spot would stay empty, with no error and no entry in the log.
 func (h *Handler) renderNotFound(w http.ResponseWriter, r *http.Request, website *domain.Website) error {
 	site := h.siteData(r, website)
 	h.fillSnippets(r, &site, website.ID, h.loadSnippets(r, website.ID))

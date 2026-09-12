@@ -204,6 +204,13 @@ func ParseManifest(data []byte) (*Manifest, error) {
 }
 
 // Validate checks everything that can be checked without running the module.
+//
+// Its sentences are English and go through no catalogue, deliberately: they are
+// the detail of a technical refusal, addressed to whoever wrote the
+// manifest.json, and they reach an operator only as the tail of "Installing
+// failed: %s" — a frame that IS translated. A plugin author reads their own
+// manifest's field names in this file, and a message that named them in four
+// languages would say less, not more.
 func (m *Manifest) Validate() error {
 	var problems []string
 	add := func(format string, args ...any) {
@@ -211,76 +218,74 @@ func (m *Manifest) Validate() error {
 	}
 
 	if !reID.MatchString(m.ID) {
-		add("die Kennung %q ist nicht zulässig: erlaubt sind Kleinbuchstaben, "+
-			"Ziffern und Bindestriche, beginnend mit einem Buchstaben", m.ID)
+		add("the id %q is not allowed: lower-case letters, digits and hyphens, beginning with a letter", m.ID)
 	}
 	if reservedIDs[m.ID] {
-		add("die Kennung %q ist für das System reserviert", m.ID)
+		add("the id %q is reserved for the system", m.ID)
 	}
 	if m.ABI != ABIVersion {
-		add("das Plugin ist für Schnittstelle %d gebaut, diese Fassung spricht %d",
-			m.ABI, ABIVersion)
+		add("the plugin is built for interface %d, this version speaks %d", m.ABI, ABIVersion)
 	}
 	if strings.TrimSpace(m.Name) == "" {
-		add("der Anzeigename fehlt")
+		add("the display name is missing")
 	}
 	if len(m.Name) > 80 {
-		add("der Anzeigename ist länger als 80 Zeichen")
+		add("the display name is longer than 80 characters")
 	}
 	if !reVersion.MatchString(m.Version) {
-		add("die Fassung %q ist keine Versionsnummer der Form 1.2.3", m.Version)
+		add("the version %q is not a version number of the form 1.2.3", m.Version)
 	}
 	if len(m.Description) > 500 {
-		add("die Beschreibung ist länger als 500 Zeichen")
+		add("the description is longer than 500 characters")
 	}
 	// http and https only: the value ends up in an href, and javascript: in a
 	// link the admin clicks is the oldest trick against an admin.
 	if m.URL != "" && !strings.HasPrefix(m.URL, "https://") && !strings.HasPrefix(m.URL, "http://") {
-		add("die Adresse %q ist keine http- oder https-Adresse", m.URL)
+		add("the address %q is not an http or https address", m.URL)
 	}
 
 	for _, h := range m.Hooks {
 		if !knownHooks[h] {
-			add("den Haken %q gibt es nicht", h)
+			add("there is no hook %q", h)
 		}
 	}
 	for _, p := range m.Permissions {
 		if !knownPermissions[p] {
-			add("die Berechtigung %q gibt es nicht", p)
+			add("there is no permission %q", p)
 		}
 	}
 	if len(m.Hooks) == 0 && len(m.Routes) == 0 {
-		add("das Plugin nennt weder einen Haken noch eine Adresse und könnte nie aufgerufen werden")
+		add("the plugin names neither a hook nor an address and could never be called")
 	}
 
 	seen := map[string]bool{}
 	for _, r := range m.Routes {
 		switch {
 		case !strings.HasPrefix(r, "/"):
-			add("die Adresse %q beginnt nicht mit einem Schrägstrich", r)
+			add("the address %q does not begin with a slash", r)
 		case strings.Contains(r, ".."), strings.Contains(r, "//"):
-			add("die Adresse %q ist nicht zulässig", r)
+			add("the address %q is not allowed", r)
 		case reservedRoutes[strings.TrimSuffix(r, "/")]:
-			add("die Adresse %q gehört bereits dem Server", r)
+			add("the address %q already belongs to the server", r)
 		case seen[r]:
-			add("die Adresse %q steht doppelt", r)
+			add("the address %q stands twice", r)
 		}
 		seen[r] = true
 	}
 
 	if m.Admin != nil {
 		if strings.TrimSpace(m.Admin.Label) == "" {
-			add("der Eintrag für die Verwaltung hat keine Beschriftung")
+			add("the admin entry has no label")
 		}
 		if len(m.Admin.Label) > 40 {
-			add("die Beschriftung in der Verwaltung ist länger als 40 Zeichen")
+			add("the label in the admin is longer than 40 characters")
 		}
 		if !m.Declares(HookAdmin) {
-			add("das Plugin will einen Eintrag in der Verwaltung, hat aber den Haken %q nicht", HookAdmin)
+			add("the plugin wants an entry in the admin but does not have the hook %q", HookAdmin)
 		}
 	}
 	if len(m.Routes) > 0 && !m.Declares(HookRoute) {
-		add("das Plugin beansprucht Adressen, hat aber den Haken %q nicht", HookRoute)
+		add("the plugin claims addresses but does not have the hook %q", HookRoute)
 	}
 
 	if len(problems) == 0 {
