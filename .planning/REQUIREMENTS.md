@@ -55,7 +55,7 @@ milestone is **2.0** and not 1.11.
 
 ## Quality (standing gates, carried from v1.10)
 
-- [ ] **QUAL-01**: `go run ./tools/i18n` reports `0 offen, 0 verwaist` on every
+- [ ] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
       catalogue — **and** every operator-facing string is *collectable*, so that
       the report means what it says. 828 strings were measured outside the
       collector's sight on 2026-09-08

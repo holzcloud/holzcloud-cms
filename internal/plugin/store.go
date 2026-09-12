@@ -394,8 +394,7 @@ func (s *Store) ApplyMigrations(ctx context.Context, id string, ms []Migration) 
 		case err == nil && have == want:
 			continue
 		case err == nil:
-			return fmt.Errorf("die Migration %q des Plugins %q wurde bereits angewendet, "+
-				"hat sich aber geändert — bitte unter einem neuen Namen ausliefern", m.Name, id)
+			return fmt.Errorf("migration %q of plugin %q has already been applied but has changed — please ship it under a new name", m.Name, id)
 		case !errors.Is(err, sql.ErrNoRows):
 			return fmt.Errorf("plugin migration lookup: %w", err)
 		}

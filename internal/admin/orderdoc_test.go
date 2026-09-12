@@ -144,22 +144,22 @@ func TestExemptInvoiceSaysWhy(t *testing.T) {
 // An open invoice carries the bank details, a paid one does not — that would be
 // an invitation to transfer the money a second time.
 func TestPaidInvoiceDropsTheBankDetails(t *testing.T) {
-	offen := orderDocument(docWebsite(), docOrder(), true)
-	if !strings.Contains(offen.PaymentDetails, "CH93") {
-		t.Errorf("der offenen Rechnung fehlen die Kontoangaben: %q", offen.PaymentDetails)
+	unpaid := orderDocument(docWebsite(), docOrder(), true)
+	if !strings.Contains(unpaid.PaymentDetails, "CH93") {
+		t.Errorf("the unpaid invoice is missing the bank details: %q", unpaid.PaymentDetails)
 	}
-	if !strings.Contains(offen.PaymentNote, "30 Tagen") {
-		t.Errorf("Zahlungsfrist fehlt: %q", offen.PaymentNote)
+	if !strings.Contains(unpaid.PaymentNote, "30 Tagen") {
+		t.Errorf("the payment term is missing: %q", unpaid.PaymentNote)
 	}
 
 	o := docOrder()
 	o.PaymentStatus = shop.PaymentPaid
-	bezahlt := orderDocument(docWebsite(), o, true)
-	if bezahlt.PaymentDetails != "" {
-		t.Errorf("a paid invoice asks for payment again: %q", bezahlt.PaymentDetails)
+	paid := orderDocument(docWebsite(), o, true)
+	if paid.PaymentDetails != "" {
+		t.Errorf("a paid invoice asks for payment again: %q", paid.PaymentDetails)
 	}
-	if !strings.Contains(bezahlt.PaymentNote, "Bezahlt am 04.08.2026") {
-		t.Errorf("das Zahlungsdatum fehlt: %q", bezahlt.PaymentNote)
+	if !strings.Contains(paid.PaymentNote, "Bezahlt am 04.08.2026") {
+		t.Errorf("das Zahlungsdatum fehlt: %q", paid.PaymentNote)
 	}
 }
 

@@ -362,7 +362,7 @@ func (i *instance) write(ctx context.Context, data []byte) (uint32, error) {
 		return 0, fmt.Errorf("%s hat keinen Speicher geliefert", GuestAlloc)
 	}
 	if !i.mod.Memory().Write(ptr, data) {
-		return 0, errors.New("der gelieferte Speicher liegt ausserhalb des Moduls")
+		return 0, errors.New("the memory handed over lies outside the module")
 	}
 	return ptr, nil
 }
@@ -391,7 +391,7 @@ func (r *Runtime) hostCall(ctx context.Context, m api.Module,
 	}
 	if !cc.manifest.Allows(perm) {
 		return r.answer(m, outPtr, outCap, StatusDenied,
-			[]byte(fmt.Sprintf("das Plugin hat die Berechtigung %q nicht", perm)))
+			[]byte(fmt.Sprintf("the plugin does not have the permission %q", perm)))
 	}
 
 	arg, ok := readBytes(m, argPtr, argLen)
@@ -460,7 +460,7 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 
 	case OpSettings:
 		if r.settings == nil {
-			return nil, errors.New("die Einstellungen sind nicht verfügbar")
+			return nil, errors.New("the settings are not available")
 		}
 		s, err := r.settings(ctx, site)
 		if err != nil {
@@ -470,7 +470,7 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 
 	case OpPagesList, OpPagesGet, OpPagesSearch:
 		if r.pages == nil {
-			return nil, errors.New("die Seiten sind nicht verfügbar")
+			return nil, errors.New("the pages are not available")
 		}
 		var a PagesArg
 		if err := json.Unmarshal(arg, &a); err != nil {
@@ -497,7 +497,7 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 
 	case OpNotify:
 		if r.notify == nil {
-			return json.Marshal(NotifyResult{Reason: "es ist kein Mailserver eingerichtet"})
+			return json.Marshal(NotifyResult{Reason: "no mail server is set up"})
 		}
 		var a NotifyArg
 		if err := json.Unmarshal(arg, &a); err != nil {
@@ -514,7 +514,7 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 
 	case OpRender:
 		if r.render == nil {
-			return nil, errors.New("das Ausgeben von Seiten ist nicht verfügbar")
+			return nil, errors.New("rendering pages is not available")
 		}
 		var a RenderArg
 		if err := json.Unmarshal(arg, &a); err != nil {

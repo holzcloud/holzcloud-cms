@@ -91,7 +91,7 @@ func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body str
 // guarantee.
 func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.PagesQuery) (plugin.PagesResult, error) {
 	if h.pageStore == nil {
-		return plugin.PagesResult{}, errors.New("die Seiten sind nicht verfügbar")
+		return plugin.PagesResult{}, errors.New("the pages are not available")
 	}
 
 	switch q.Op {
@@ -214,11 +214,11 @@ func (h *Handler) RenderForPlugin(ctx context.Context, websiteID int64, a plugin
 	if r == nil {
 		// Reachable from the admin hook, where there is no visitor and no site
 		// to draw. Saying so beats returning a page nobody asked for.
-		return "", errors.New("es wird gerade keine öffentliche Seite ausgeliefert")
+		return "", errors.New("no public page is being served just now")
 	}
 	website := domain.WebsiteFromContext(r.Context())
 	if website == nil || website.ID != websiteID {
-		return "", errors.New("die Website ist nicht bekannt")
+		return "", errors.New("the website is not known")
 	}
 
 	site := h.siteData(r, website)
@@ -270,20 +270,20 @@ func (h *Handler) RenderForPlugin(ctx context.Context, websiteID int64, a plugin
 // complaint about a decision somebody made on purpose.
 func (h *Handler) NotifyForPlugin(ctx context.Context, websiteID int64, a plugin.NotifyArg) (bool, string, error) {
 	if h.mail == nil || !h.mail.Enabled() {
-		return false, "es ist kein Mailserver eingerichtet", nil
+		return false, "no mail server is set up", nil
 	}
 	if h.domains == nil {
-		return false, "die Website ist nicht bekannt", nil
+		return false, "the website is not known", nil
 	}
 	ws, err := h.domains.GetWebsite(ctx, websiteID)
 	if err != nil {
 		return false, "", err
 	}
 	if ws == nil {
-		return false, "die Website ist nicht bekannt", nil
+		return false, "the website is not known", nil
 	}
 	if ws.NotifyEmail == "" {
-		return false, "für diese Website ist keine Benachrichtigungsadresse hinterlegt", nil
+		return false, "no notification address is stored for this website", nil
 	}
 
 	subject := strings.TrimSpace(a.Subject)

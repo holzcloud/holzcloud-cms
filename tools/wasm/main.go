@@ -261,7 +261,7 @@ func main() {
 			fail(err)
 		}
 		if abweichungen > 0 {
-			fmt.Printf("\n%d Datei(en) sind nicht aktuell. Neu bauen mit: go run ./tools/wasm\n", abweichungen)
+			fmt.Printf("\n%d file(s) are out of date. Rebuild with: go run ./tools/wasm\n", abweichungen)
 			os.Exit(1)
 		}
 	case *printHashes:
@@ -537,7 +537,7 @@ func vergleichen(root string, choice []ziel) (int, error) {
 			return nil
 		}
 		abweichungen++
-		fmt.Printf("%s ist nicht aktuell\n", a.ziel)
+		fmt.Printf("%s is out of date\n", a.ziel)
 		fmt.Printf("  im Repository: %s %9d Bytes  gebaut mit %s\n", altSumme, altGroesse, altVersion)
 		fmt.Printf("  neu gebaut:    %s %9d Bytes  gebaut mit %s\n", neuSumme, neuGroesse, neuVersion)
 		fmt.Printf("  Neu bauen mit: go run ./tools/wasm %s\n\n", a.quelle)

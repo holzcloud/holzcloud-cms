@@ -86,7 +86,7 @@ func TestCatalogsSurviveTheRoundTrip(t *testing.T) {
 // hyphen", which is right for the three that exist and silently wrong for the
 // next one somebody adds: pt-BR.json, zh-Hans.json and en-GB.json are full
 // translations with a hyphen in the name, and every one of them would have been
-// filed as a deviation list and never checked for "offen" again. The gate would
+// filed as a deviation list and never checked for "open" again. The gate would
 // have gone on reading green over a catalogue nobody was filling in.
 //
 // It is a named list now. This test holds the two properties a named list can

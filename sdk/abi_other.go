@@ -13,7 +13,7 @@ import "errors"
 // at all.
 //
 // Tests that do need the host substitute one with SetTestHost.
-var errNoHost = errors.New("kein Host: ausserhalb von WebAssembly gibt es nichts aufzurufen")
+var errNoHost = errors.New("no host: outside WebAssembly there is nothing to call")
 
 // testHost stands in for the host in tests.
 var testHost func(op string, arg []byte) ([]byte, error)

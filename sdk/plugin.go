@@ -65,7 +65,7 @@ const ABIVersion = 1
 
 // ErrDenied is returned when the manifest did not ask for the permission an
 // operation needs.
-var ErrDenied = errors.New("das Plugin hat diese Berechtigung nicht")
+var ErrDenied = errors.New("the plugin does not have this permission")
 
 // --- what a hook receives and returns ---------------------------------------
 

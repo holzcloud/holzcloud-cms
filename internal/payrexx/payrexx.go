@@ -181,7 +181,7 @@ type apiResponse struct {
 // CreateGateway sets up a payment and returns where to send the customer.
 func (c *Client) CreateGateway(ctx context.Context, req GatewayRequest) (*Gateway, error) {
 	if !c.Configured() {
-		return nil, errors.New("payrexx ist nicht eingerichtet")
+		return nil, errors.New("payrexx is not set up")
 	}
 
 	params := url.Values{}
@@ -220,7 +220,7 @@ func (c *Client) CreateGateway(ctx context.Context, req GatewayRequest) (*Gatewa
 // arrives over the open internet and anyone can post one.
 func (c *Client) GetGateway(ctx context.Context, id int64) (*Gateway, error) {
 	if !c.Configured() {
-		return nil, errors.New("payrexx ist nicht eingerichtet")
+		return nil, errors.New("payrexx is not set up")
 	}
 
 	// A GET carries no parameters, so the signature is over the empty string.

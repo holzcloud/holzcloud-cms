@@ -221,9 +221,9 @@ func (s *Store) SaveCrop(ctx context.Context, id int64, c Crop, width, height in
 	_, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE media SET crop_ratio = $1, crop_zoom = $2, crop_rotation = $3,
 		 focus_x = $4, focus_y = $5, width = $6, height = $7,
-		 -- Die ausgelieferte Datei ist eine andere geworden, also braucht sie
-		 -- eine andere Adresse. Sonst zeigt jeder Browser, der sie schon hat,
-		 -- weiter das alte Bild.
+		 -- The delivered file has become a different one, so it needs a
+		 -- different address. Otherwise every browser that already has it goes
+		 -- on showing the old picture.
 		 version = version + 1
 		 WHERE id = $8`,
 		c.Ratio, c.Zoom, c.Rotation, c.FocusX, c.FocusY, width, height, id)

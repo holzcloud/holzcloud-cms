@@ -11,12 +11,12 @@ import (
 )
 
 // Plan 10-10's browser pass found five German sentences standing on an English
-// admin while `go run ./tools/i18n` reported 0 offen, 0 verwaist on all four
+// admin while `go run ./tools/i18n` reported 0 open, 0 orphaned on all four
 // catalogues. Four of the five predate this milestone. This one does not:
 // `git log -S 'Textbaustein „' -- internal/admin/field.go` returns
 // 48e5b1d feat(08-03), 2026-09-06 — Phase 8, inside v1.6.
 //
-// Criterion 6 of the milestone reads "0 offen, 0 verwaist across everything
+// Criterion 6 of the milestone reads "0 open, 0 orphaned across everything
 // v1.6 added". The gate says yes. The screen says otherwise, and the screen is
 // what the criterion is about.
 //
@@ -24,8 +24,8 @@ import (
 //
 // The title is built by concatenation — `"Felder – " + websiteName` — so there
 // is no string literal at the argument index the collector reads, and the
-// sentence is not merely untranslated but unreported: neither offen nor
-// verwaist, because tools/i18n does not know it exists. Its own package comment
+// sentence is not merely untranslated but unreported: neither open nor
+// orphaned, because tools/i18n does not know it exists. Its own package comment
 // describes the mechanism; this is the consequence the comment stops short of.
 //
 // And "Felder – " carries no umlaut, no sharp s and no German quotation mark,

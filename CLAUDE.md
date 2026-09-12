@@ -145,7 +145,7 @@ Every word an operator reads goes through the catalogue. In a template that is
 German sentence **is** the key — there are no invented identifiers and no
 `de.json`.
 
-`go run ./tools/i18n` is the gate: `0 offen, 0 verwaist`.
+`go run ./tools/i18n` is the gate: `0 open, 0 orphaned`.
 
 **A sentence built with `fmt.Sprintf` is invisible to it, wherever it stands.**
 So is a German literal handed to a `%s` of `tf`/`Titlef` — only the format
