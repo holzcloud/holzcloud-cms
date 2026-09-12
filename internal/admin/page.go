@@ -173,7 +173,7 @@ func (h *Handler) HandlePageList(w http.ResponseWriter, r *http.Request) error {
 			loc = locale.Pick(loc, ws.Locales())
 		}
 	}
-	// Die Art aus der Adresse kann eine eingebaute oder eine eigene sein.
+	// The kind out of the address can be a built-in one or one of the site's own.
 	types := h.kindsOf(r, websiteID)
 	wantKind := r.URL.Query().Get("kind")
 	filter := page.ListFilter{
@@ -203,8 +203,8 @@ func (h *Handler) HandlePageList(w http.ResponseWriter, r *http.Request) error {
 	data.MayPublish = darfVeroeffentlichen
 	data.Types = types
 
-	// Die Spalten dieser Person und ihre gemerkten Ansichten. Beides gehört zu
-	// ihr und nicht zur Website — siehe listview.go.
+	// This person's columns and their remembered views. Both belong to them and
+	// not to the website — see listview.go.
 	mehrsprachig := len(ws.Locales()) > 0
 	data.Columns = h.pageColumns(r, mehrsprachig)
 	data.Choices = columnChoices(data.Columns, mehrsprachig)
@@ -280,9 +280,9 @@ func (h *Handler) HandlePageCreate(w http.ResponseWriter, r *http.Request) error
 		return h.handlePageCreatePost(w, r, websiteID, ws.Name)
 	}
 
-	// Aus der Übersichtsseite kommt man mit Sprache und Vorlage in der
-	// Adresse: dort steht die Lücke, die man gerade schliessen will, und das
-	// Formular soll sie nicht noch einmal abfragen.
+	// From the overview page one arrives with a language and a template in the
+	// address: that is where the gap stands that one wants to close, and the
+	// form should not ask for it a second time.
 	values := PageValues{Status: "draft"}
 	if q := r.URL.Query(); q.Has("sprache") || q.Has("uebersetzung_von") {
 		values.Locale = locale.Pick(q.Get("sprache"), ws.Locales())
@@ -417,7 +417,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	values := pageValuesFromRequest(r, h.blockSet(r.Context(), websiteID))
 	values.setKind(h.kindsOf(r, websiteID))
 	if !h.mayPublish(r) {
-		// Neu und ohne Veröffentlichungsrecht: ein Entwurf, den jemand ansieht.
+		// New and without the right to publish: a draft somebody is looking at.
 		values.Status = "draft"
 	}
 	// A structural change in the block editor is not a save: apply it and draw
@@ -467,10 +467,10 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	if data.Errors.Any() {
 		return web.RenderFormError(w, h.templates, r, "page_form", data)
 	}
-	// Dieselbe Auswahl wie in checkFields eine Zeile darüber. Lief Clean über
-	// die ungefilterten Definitionen, während CheckAll nur die dieser Seitenart
-	// sah, blieb ein Wert, den niemand geprüft hatte, ungeprüft liegen — ein
-	// von Hand gebautes Formular konnte ihn hineinlegen.
+	// The same selection as in checkFields one line above. If Clean ran over the
+	// unfiltered definitions while CheckAll saw only those of this page kind, a
+	// value nobody had checked was left lying unchecked — a form built by hand
+	// could put it in there.
 	storedFields, err := field.Encode(field.Clean(field.For(defs, values.KindValue()), values.Fields))
 	if err != nil {
 		return err
@@ -585,10 +585,9 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 
 	values := pageValuesFromRequest(r, h.blockSet(r.Context(), existing.WebsiteID))
 	values.setKind(h.kindsOf(r, existing.WebsiteID))
-	// Wer nicht veröffentlichen darf, ändert den Zustand nicht — weder hinauf
-	// noch hinunter. Ein stilles Zurückstufen wäre schlimmer als ein
-	// abgelehnter Knopf: eine laufende Seite verschwände beim Korrigieren
-	// eines Tippfehlers.
+	// Whoever may not publish does not change the status — neither up nor down.
+	// A silent demotion would be worse than a refused button: a live page would
+	// vanish while somebody corrected a typo.
 	if !h.mayPublish(r) {
 		values.Status = existing.Status
 	}
@@ -637,10 +636,10 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	if data.Errors.Any() {
 		return rerender(data)
 	}
-	// Dieselbe Auswahl wie in checkFields eine Zeile darüber. Lief Clean über
-	// die ungefilterten Definitionen, während CheckAll nur die dieser Seitenart
-	// sah, blieb ein Wert, den niemand geprüft hatte, ungeprüft liegen — ein
-	// von Hand gebautes Formular konnte ihn hineinlegen.
+	// The same selection as in checkFields one line above. If Clean ran over the
+	// unfiltered definitions while CheckAll saw only those of this page kind, a
+	// value nobody had checked was left lying unchecked — a form built by hand
+	// could put it in there.
 	storedFields, err := field.Encode(field.Clean(field.For(defs, values.KindValue()), values.Fields))
 	if err != nil {
 		return err
@@ -670,8 +669,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	case errors.Is(err, page.ErrConflict):
 		// The typed Markdown is handed straight back — it is the only copy that
 		// exists. The stored version is one click away rather than in its place.
-		data.Conflict = "Diese Seite wurde inzwischen von jemand anderem gespeichert. " +
-			"Dein Text steht unverändert unten – vergleiche ihn mit der aktuellen Fassung, bevor du erneut speicherst."
+		data.Conflict = web.T(r, "Somebody else has saved this page in the meantime. Your text stands unchanged below – compare it with the current version before you save again.")
 		return rerender(data)
 	case errors.Is(err, page.ErrSlugTaken):
 		data.Errors.Add("slug", "That address is already used by another page.")
@@ -929,13 +927,12 @@ func (h *Handler) recordAccess(r *http.Request, pageID int64, values PageValues)
 	err := h.pages.SetAccess(r.Context(), pageID, values.access(), h.argon2Params)
 	switch {
 	case errors.Is(err, page.ErrPagePasswordTooShort):
-		return fmt.Sprintf("Die Seite wurde gespeichert, aber nicht geschützt: "+
-			"ein Seitenpasswort braucht mindestens %d Zeichen.", page.MinPagePasswordLength)
+		return web.Titlef(r, "The page was saved but not protected: a page password needs at least %d characters.", page.MinPagePasswordLength)
 	case errors.Is(err, page.ErrNoPagePassword):
-		return "Die Seite wurde gespeichert, aber nicht geschützt: bitte noch ein Passwort vergeben."
+		return web.T(r, "The page was saved but not protected: please set a password as well.")
 	case err != nil:
 		slog.Error("set page access", "err", err, "page", pageID)
-		return "Der Zugriffsschutz konnte nicht gespeichert werden."
+		return web.T(r, "The access protection could not be saved.")
 	}
 	return ""
 }
@@ -972,9 +969,9 @@ func (h *Handler) renderPageRow(w http.ResponseWriter, r *http.Request, websiteI
 		Page:       p,
 		CSRFToken:  web.CSRFTokenFromRequest(r),
 	}
-	// Dieselben Spalten wie in der Liste, aus der die Zeile kommt: eine Zeile,
-	// die htmx nachlädt, muss aussehen wie die, die sie ersetzt — sonst hat die
-	// Tabelle nach einem Klick eine Zelle mehr als ihr Kopf.
+	// The same columns as in the list the row comes from: a row that htmx
+	// reloads has to look like the one it replaces — or the table has one cell
+	// more than its head after a click.
 	mehrsprachig := false
 	if ws, err := h.domains.GetWebsite(r.Context(), websiteID); err == nil {
 		row.Language = rowLanguage(ws, p.Locale)
