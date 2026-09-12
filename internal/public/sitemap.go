@@ -55,17 +55,17 @@ func (h *Handler) HandleSitemap(w http.ResponseWriter, r *http.Request) error {
 	if website.HasArchive() {
 		doc.URLs = append(doc.URLs, sitemapURL{Loc: base + "/" + url.PathEscape(website.BlogBase)})
 	}
-	// Und aus demselben Grund die Übersicht jeder eigenen Inhaltsart.
+	// And for the same reason the overview of every content type of its own.
 	for _, t := range h.typesOf(r, website.ID) {
 		if t.HasArchive() {
 			doc.URLs = append(doc.URLs, sitemapURL{Loc: base + "/" + url.PathEscape(t.Archive)})
 		}
 	}
 	for _, e := range entries {
-		// Die Startseite steht schon oben, unter der Wurzel ihrer Sprache. Sie
-		// hier ein zweites Mal unter /home aufzuführen hiesse, einer
-		// Suchmaschine zwei Adressen für denselben Text zu nennen — und die
-		// Adresse /home antwortet seit dem Umleiten ohnehin mit 301.
+		// The start page already stands above, under the root of its language.
+		// Listing it here a second time under /home would mean naming a search
+		// engine two addresses for the same text — and since the redirect the
+		// address /home answers with a 301 anyway.
 		if e.Slug == page.HomeSlug {
 			continue
 		}

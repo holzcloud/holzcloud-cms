@@ -12,14 +12,14 @@ import (
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 )
 
-// Die Übersichtsseite einer eigenen Inhaltsart.
+// The overview page of a content type of one's own.
 //
-// Dasselbe wie das Archiv der Beiträge, nur für eine Art, die der Betreiber
-// selbst angelegt hat — und mit demselben Theme: eine Website, die "Produkte"
-// führt, bekommt ihre Liste ohne dass jemand eine Vorlage anfassen müsste.
+// The same thing as the archive of the posts, only for a kind the operator
+// created themselves — and with the same theme: a website that keeps "Produkte"
+// gets its list without anybody having to touch a template.
 //
-// Wie beim Archiv gibt es keine eigene Route: die Adresse steht in der
-// Datenbank, und ein Mux, der beim Start gebaut wird, kann sie nicht kennen.
+// As with the archive there is no route of its own: the address stands in the
+// database, and a mux built at start-up cannot know it.
 
 // typesOf are a website's own kinds, or none when the store is absent.
 func (h *Handler) typesOf(r *http.Request, websiteID int64) []kind.Type {

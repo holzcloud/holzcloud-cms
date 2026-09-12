@@ -14,8 +14,8 @@ func box(name string, payload []byte) []byte {
 	return out
 }
 
-// Ein Handyvideo trägt den Aufnahmeort. Er muss verschwinden — und die Datei
-// muss danach noch abspielbar sein, also exakt gleich lang.
+// A phone video carries where it was taken. That has to disappear — and the
+// file has to be playable afterwards, so exactly the same length.
 func TestMP4VerliertDenAufnahmeort(t *testing.T) {
 	udta := box("udta", []byte("\x00\x00\x00\x18\xa9xyz+47.3769+008.5417/"))
 	moov := box("moov", append(box("mvhd", make([]byte, 100)), udta...))
@@ -37,14 +37,14 @@ func TestMP4VerliertDenAufnahmeort(t *testing.T) {
 	if !bytes.Contains(out, []byte("free")) {
 		t.Error("there is no free box in its place")
 	}
-	// Und der Film selbst ist unberührt.
+	// And the film itself is untouched.
 	if !bytes.Contains(out, []byte("filmdaten")) || !bytes.Contains(out, []byte("isomiso2")) {
 		t.Error("something was changed in the film or in the header")
 	}
 }
 
-// Was kein MP4 ist, kommt unverändert back: das hier ist ein Putzmittel,
-// keine Prüfung.
+// What is not an MP4 comes back unchanged: this is a cleaning agent, not a
+// check.
 func TestKeinMP4BleibtUnberuehrt(t *testing.T) {
 	for _, rein := range [][]byte{
 		[]byte("überhaupt kein mp4"),

@@ -47,9 +47,9 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) error 
 	// Trashed rows are excluded everywhere here: a page in the trash is not
 	// content the operator has, and counting it made the dashboard disagree
 	// with the page list it links to.
-	// Wer nur für bestimmte Websites zuständig ist, sieht auch nur deren Zahlen.
-	// Eine Gesamtzahl über alles wäre eine Auskunft über Websites, die diese
-	// Person nicht betreten darf.
+	// Whoever is responsible only for certain websites sees only their numbers.
+	// A total over everything would be information about websites this person
+	// may not enter.
 	rights := h.rightsOf(r)
 
 	var websiteCount, pageCount, mediaCount int
@@ -122,8 +122,8 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) error 
 		}
 		rp.UpdatedAt, _ = time.Parse("2006-01-02T15:04:05Z", updatedAt)
 		recentPages = append(recentPages, rp)
-		// Fünf, aber fünf der eigenen: gefiltert wird hier und nicht in SQL,
-		// darum holt die Abfrage mehr und hier wird abgeschnitten.
+		// Five, but five of their own: the filtering happens here and not in
+		// SQL, so the query fetches more and the cut is made here.
 		if len(recentPages) == 5 {
 			break
 		}

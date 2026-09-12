@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Frisch bestätigt lässt durch, alt nicht — und "alt" heisst hier: älter als
-// die Viertelstunde, nicht "andere Sitzung".
+// Freshly confirmed lets through, old does not — and "old" here means older
+// than the quarter of an hour, not "a different session".
 func TestElevatedAblauf(t *testing.T) {
 	sm := testSessionManager()
 	var frisch, alt bool
@@ -52,8 +52,8 @@ func TestRequireFreshPasswordSchicktZumBestaetigen(t *testing.T) {
 	}
 }
 
-// Der Rückweg kommt aus einem Header, den jeder setzen kann. Er darf nie von
-// diesem Server wegführen — sonst ist die Bestätigung eine offene Weiterleitung.
+// The way back comes out of a header anybody can set. It must never lead away
+// from this server — or the confirmation is an open redirect.
 func TestRueckwegBleibtImHaus(t *testing.T) {
 	for _, fremd := range []string{
 		"https://beispiel.example/boese",
@@ -71,7 +71,7 @@ func TestRueckwegBleibtImHaus(t *testing.T) {
 	}
 }
 
-// Ein Referer von woanders darf ebenso wenig zum Ziel werden.
+// A referer from elsewhere must not become the target either.
 func TestBackToTakesOnlyItsOwnAddresses(t *testing.T) {
 	req := httptest.NewRequest("POST", "/admin/websites/1/delete", nil)
 	req.Host = "example.com"

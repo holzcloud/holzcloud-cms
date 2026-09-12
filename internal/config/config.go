@@ -35,10 +35,10 @@ type Config struct {
 
 	// Media
 	MaxMediaSize int64 // HOLZCLOUD_MAX_MEDIA_SIZE — bytes, default 5MB
-	// MaxVideoSize gilt nur für Videodateien. Getrennt von MaxMediaSize, weil
-	// die fünf Megabyte, die für ein Foto grosszügig sind, für eine halbe
-	// Minute Film nicht reichen — und weil ein Bild von 60 MB trotzdem ein
-	// Versehen bleibt.
+	// MaxVideoSize applies only to video files. Separate from MaxMediaSize,
+	// because the five megabytes that are generous for a photo are not enough
+	// for half a minute of film — and because an image of 60 MB is still a
+	// mistake.
 	MaxVideoSize int64 // HOLZCLOUD_MAX_VIDEO_SIZE — bytes, default 64MB
 
 	// MaxMegapixels bounds what the variant pipeline will decode.
@@ -464,7 +464,7 @@ func (c Config) LogValue() slog.Value {
 		// not even truncated. A log file goes to places a key must not.
 		slog.String("smtp_host", c.SMTPHost),
 		slog.String("smtp_from", c.SMTPFrom),
-		// Das Passwort wird nie geschrieben, auch nicht gekürzt.
+		// The password is never written, not even truncated.
 		slog.Bool("smtp_configured", c.SMTPHost != "" && c.SMTPFrom != ""),
 		slog.String("payrexx_instance", c.PayrexxInstance),
 		slog.Bool("payrexx_configured", c.PayrexxInstance != "" && c.PayrexxSecret != ""),

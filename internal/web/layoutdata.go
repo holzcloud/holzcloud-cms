@@ -131,10 +131,10 @@ func NewLayoutData(r *http.Request, sm *scs.SessionManager, title string) Layout
 		NavWebsite:    NavWebsiteFrom(ctx),
 		PluginScreens: PluginLinksFrom(ctx),
 		UserInitial:   initial(sm.GetString(ctx, "user_email")),
-		// Vollbild ist eine Frage der Adresse und nicht eine Einstellung: es
-		// gilt für diesen einen Bildschirm, solange man darauf ist, und ist
-		// beim nächsten Aufruf wieder weg. Genau so benutzt man es — man
-		// schreibt einen Text zu Ende, nicht ein halbes Jahr.
+		// Full screen is a question of the address and not a setting: it holds
+		// for this one screen while you are on it and is gone again on the next
+		// call. That is exactly how it is used — you write one text to the end,
+		// not for half a year.
 		Fullscreen: r.URL.Query().Get("vollbild") == "1",
 		Brand:      branding.Current(),
 		Version:    buildVersion,

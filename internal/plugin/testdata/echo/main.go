@@ -1,6 +1,6 @@
-// Ein Plugin, das gerade genug tut, um die Aufrufkonvention zu beweisen:
-// es hallt wider, es schreibt und liest im eigenen Speicher, es greift nach
-// einer Berechtigung, die es nicht hat, und es hängt sich auf Befehl auf.
+// A plugin that does just enough to prove the calling convention: it echoes, it
+// writes and reads in its own store, it reaches for a permission it does not
+// have, and it hangs on command.
 package main
 
 import (
@@ -11,8 +11,8 @@ import (
 //go:wasmimport holzcloud hc_call
 func hcCall(opPtr, opLen, argPtr, argLen, outPtr, outCap uint32) uint64
 
-// puffer bleibt am Leben, solange der Host liest. Ohne die Referenz könnte der
-// Sammler ihn einziehen, während der Host noch darin liest.
+// buffer stays alive as long as the host is reading. Without the reference the
+// collector could take it in while the host is still reading from it.
 var puffer []byte
 
 //go:wasmexport hc_alloc

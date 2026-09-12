@@ -10,12 +10,12 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// Der Bildschirm, auf dem eine Website ihre eigenen Bausteinarten bekommt.
+// The screen on which a website gets block kinds of its own.
 //
-// Wie bei den Inhaltsarten und den Feldern: eine Liste, darunter dasselbe
-// Formular zum Anlegen und Ändern. Die Felder einer Art bekommen keinen dritten
-// Bildschirm — dafür gibt es die Feldliste schon, sie muss nur wissen, wessen
-// Felder sie zeigt (siehe field.go, ?baustein=).
+// As with the content types and the fields: a list, and below it the same form
+// for creating and changing. The fields of a kind get no third screen — the
+// field list is there for that already, it only has to know whose fields it is
+// showing (see field.go, ?baustein=).
 
 // BlockTypeRow is one kind with how many pages use it.
 type BlockTypeRow struct {

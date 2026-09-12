@@ -266,10 +266,10 @@ func groupView(d field.Def, rows []field.Values, p pool, errs map[string]string)
 		r := FieldRow{Index: i, Number: i + 1, First: i == 0, Last: i == len(rows)-1}
 		for _, sub := range d.Sub {
 			key := field.RowKey(d.Key, i, sub.Key)
-			// Die Markierung steht auch hier nicht ausgeschrieben: NameSuffix
-			// ist die eine Stelle, die sie kennt, so wie FieldName es für ein
-			// Feld auf der Seite selbst ist. Der Schlüssel für die Begründung
-			// trägt sie nicht — CheckAll benennt seine Meldungen ohne sie.
+			// The marker is not written out here either: NameSuffix is the one
+			// place that knows it, the way FieldName is for a field on the page
+			// itself. The key for the reason does not carry it — CheckAll names
+			// its messages without it.
 			r.Fields = append(r.Fields, oneView(sub, "gruppe."+key+sub.NameSuffix(), row[sub.Key], p, errs[key]))
 		}
 		v.Rows = append(v.Rows, r)
@@ -296,9 +296,9 @@ func oneView(d field.Def, name, value string, p pool, reason string) FieldView {
 			}
 		}
 	case field.KindTerm:
-		// Kein ParseInt: das Kürzel steht schon in v.Value, und die Vorlage
-		// vergleicht direkt damit. Das ist der eine Unterschied zum Verweis,
-		// der aus seinem Wert erst eine Nummer machen muss.
+		// No ParseInt: the slug already stands in v.Value, and the template
+		// compares against it directly. That is the one difference from the
+		// reference, which has to turn its value into a number first.
 		v.Terms = p.terms
 	}
 	return v
