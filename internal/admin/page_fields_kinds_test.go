@@ -18,12 +18,12 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 )
 
-// Die drei kleinen Arten im Seiteneditor: zeit, bereich und code.
+// The three small kinds in the page editor: zeit, bereich and code.
 //
-// Geprüft wird das ausgelieferte HTML und nicht das Ansichtsmodell. Was ein
-// FieldView trägt, nützt nichts, wenn der Zweig in field_input.html fehlt —
-// und ein fehlender Zweig fällt nicht auf: die Kette endet in einem
-// gewöhnlichen Textfeld, das eine Uhrzeit ebenso klaglos entgegennimmt.
+// What is checked is the delivered HTML and not the view model. What a
+// FieldView carries is of no use if the branch in field_input.html is missing —
+// and a missing branch is not noticed: the chain ends in an ordinary text field
+// that takes a time of day just as uncomplainingly.
 func TestFeldartenImSeiteneditor(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -38,15 +38,15 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 	}
 
 	anlegen(field.Def{Key: "abfahrt", Label: "Abfahrt", Kind: field.KindTime})
-	// Mit Grenzen — und mit einem abhängigen Feld daran, damit .Switch "text"
-	// ist und der Platzhalterzweig überhaupt gezogen wird. Ohne ihn kann ein
-	// Bereichsfeld seine Abhängigen nie ein- und ausblenden.
+	// With bounds — and with a dependent field on it, so that .Switch is "text"
+	// and the placeholder branch is taken at all. Without it a range field can
+	// never show and hide its dependants.
 	anlegen(field.Def{Key: "menge", Label: "Menge", Kind: field.KindRange,
 		RangeMin: "1", RangeMax: "9"})
 	anlegen(field.Def{Key: "hinweis", Label: "Hinweis", Kind: field.KindText,
 		Condition: "menge"})
-	// Und eines ohne Grenzen: nach oben und unten offen ist eine gültige
-	// Angabe, und dann darf kein leeres min="" im Formular stehen.
+	// And one without bounds: open at the top and at the bottom is a valid
+	// statement, and then no empty min="" may stand in the form.
 	anlegen(field.Def{Key: "offen", Label: "Offen", Kind: field.KindRange})
 	anlegen(field.Def{Key: "schnipsel", Label: "Schnipsel", Kind: field.KindCode})
 
@@ -61,21 +61,21 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 	body := rec.Body.String()
 
 	// --- zeit ---------------------------------------------------------------
-	zeit := umFeld(t, body, "feld_abfahrt")
+	zeit := aroundField(t, body, "feld_abfahrt")
 	if !strings.Contains(zeit, `type="time"`) {
 		t.Errorf("the time of day is not an <input type=\"time\">:\n%s", zeit)
 	}
 
 	// --- bereich ------------------------------------------------------------
-	bereich := umFeld(t, body, "feld_menge")
+	bereich := aroundField(t, body, "feld_menge")
 	for _, will := range []string{`type="number"`, `min="1"`, `max="9"`, `step="any"`} {
 		if !strings.Contains(bereich, will) {
 			t.Errorf("dem Bereichsfeld fehlt %s:\n%s", will, bereich)
 		}
 	}
-	// Der Platzhalter ist keine Zier: .feld-schalter--text blendet ein
-	// abhängiges Feld über :placeholder-shown aus, und ohne Platzhalter greift
-	// die Regel nie.
+	// The placeholder is no ornament: .feld-schalter--text hides a dependent
+	// field through :placeholder-shown, and without a placeholder the rule never
+	// takes hold.
 	if !strings.Contains(bereich, `placeholder=" "`) {
 		t.Errorf("the range field is missing the placeholder its dependants hang off:\n%s", bereich)
 	}
@@ -86,23 +86,23 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 		t.Errorf("the range field has become a slider:\n%s", bereich)
 	}
 
-	// Ohne Grenzen kein Attribut — nicht min="" und nicht max="". Gemessen am
-	// Element selbst und nicht an einem Fenster darum herum: das min="1" des
-	// Nachbarfeldes darf hier nicht mitzählen.
-	offen := imTag(t, body, "feld_offen")
+	// Without bounds no attribute — not min="" and not max="". Measured on the
+	// element itself and not on a window around it: the min="1" of the
+	// neighbouring field must not count here.
+	offen := inTag(t, body, "feld_offen")
 	for _, darfNicht := range []string{`min=`, `max=`} {
 		if strings.Contains(offen, darfNicht) {
 			t.Errorf("an unbounded range field carries %s:\n%s", darfNicht, offen)
 		}
 	}
-	// Die Gegenprobe auf demselben Weg: das begrenzte Feld trägt beide.
-	begrenzt := imTag(t, body, "feld_menge")
+	// The counter-check on the same path: the bounded field carries both.
+	begrenzt := inTag(t, body, "feld_menge")
 	if !strings.Contains(begrenzt, `min="1"`) || !strings.Contains(begrenzt, `max="9"`) {
 		t.Errorf("the bounds are not on the element itself:\n%s", begrenzt)
 	}
 
 	// --- code ---------------------------------------------------------------
-	code := umFeld(t, body, "feld_schnipsel")
+	code := aroundField(t, body, "feld_schnipsel")
 	if !strings.Contains(code, "<textarea") || !strings.Contains(code, "form-code") {
 		t.Errorf("the code field is not a <textarea class=\"… form-code\">:\n%s", code)
 	}
@@ -111,11 +111,11 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 	}
 }
 
-// Die drei neuen Bedienelemente kommen ohne eine Zeile JavaScript aus.
+// The three new controls get by without a line of JavaScript.
 //
-// Gemessen wird der Ausschnitt um die drei Felder herum und nicht die ganze
-// Seite: die Verwaltungshülle lädt htmx, ein <script> dort wäre also kein
-// Befund, sondern die Bauart des Programms.
+// What is measured is the section around the three fields and not the whole
+// page: the admin shell loads htmx, so a <script> there would be no finding but
+// the build of the program.
 func TestFeldartenTragenKeinJavaScript(t *testing.T) {
 	roh, err := os.ReadFile("../../cmd/holzcloud/templates/admin/field_input.html")
 	if err != nil {
@@ -127,9 +127,9 @@ func TestFeldartenTragenKeinJavaScript(t *testing.T) {
 		}
 	}
 
-	// Und dasselbe am ausgelieferten HTML, im Fenster um jedes der drei
-	// Felder. Die ganze Seite zu messen wäre kein Befund: die
-	// Verwaltungshülle lädt htmx, und das ist die Bauart des Programms.
+	// And the same on the delivered HTML, in the window around each of the
+	// three fields. Measuring the whole page would be no finding: the admin
+	// shell loads htmx, and that is the build of the program.
 	h, sm, database, ws := newTestAdmin(t)
 	fields := field.NewStore(database)
 	for _, d := range []field.Def{
@@ -148,7 +148,7 @@ func TestFeldartenTragenKeinJavaScript(t *testing.T) {
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 	body := serve(t, h, sm, h.HandlePageEdit, req).Body.String()
 	for _, name := range []string{"feld_abfahrt", "feld_menge", "feld_schnipsel"} {
-		fenster := umFeld(t, body, name)
+		fenster := aroundField(t, body, name)
 		for _, verboten := range []string{"<script", "onclick", "javascript:"} {
 			if strings.Contains(fenster, verboten) {
 				t.Errorf("um %s herum steht %q:\n%s", name, verboten, fenster)
@@ -157,14 +157,14 @@ func TestFeldartenTragenKeinJavaScript(t *testing.T) {
 	}
 }
 
-// Das Schlagwortfeld im Seiteneditor: eine Auswahl aus dem, was diese Website
-// schon trägt.
+// The term field in the page editor: a choice out of what this website already
+// carries.
 //
-// Die letzte Behauptung ist die, auf die es ankommt: das Schlagwort einer
-// anderen Website steht nirgends im Formular. Jede Sache in diesem Programm
-// gehört genau einer Website, und ein Auswahlfeld ist die Stelle, an der eine
-// fremde am leichtesten hereinkäme — der Wert wäre gespeichert, das Feld sähe
-// gefüllt aus, und die Seite druckte trotzdem nichts.
+// The last assertion is the one that matters: the term of another website
+// stands nowhere in the form. Everything in this program belongs to exactly one
+// website, and a choice field is the place where a foreign one would get in
+// most easily — the value would be stored, the field would look filled, and the
+// page would print nothing all the same.
 func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -177,12 +177,12 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 		t.Fatalf("Feld anlegen: %v", err)
 	}
 
-	// Zwei eigene Schlagwörter dieser Website ...
+	// Two terms of this website's own ...
 	p := seedPage(t, database, ws.ID, "Eichentisch", "eichentisch", "text", "draft")
 	if err := terms.SetForPage(ctx, ws.ID, p.ID, []string{"Möbelbau", "Eiche"}); err != nil {
 		t.Fatalf("create terms: %v", err)
 	}
-	// ... und eines einer fremden.
+	// ... and one of a foreign one.
 	fremd, err := domain.NewStore(database).CreateWebsite(ctx, "Fremde Website", "")
 	if err != nil {
 		t.Fatalf("zweite Website: %v", err)
@@ -192,7 +192,7 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 		t.Fatalf("fremdes Schlagwort: %v", err)
 	}
 
-	// Der gespeicherte Wert ist das Kürzel, nicht der Name.
+	// The stored value is the slug, not the name.
 	raw, err := field.Encode(field.Data{Values: field.Values{"thema": "moebelbau"}})
 	if err != nil {
 		t.Fatal(err)
@@ -209,12 +209,12 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 		t.Fatalf("the form returned %d", rec.Code)
 	}
 	body := rec.Body.String()
-	fenster := umFeld(t, body, "feld_thema")
+	fenster := aroundField(t, body, "feld_thema")
 
 	if !strings.Contains(fenster, "<select") {
 		t.Errorf("the term field is not a <select>:\n%s", fenster)
 	}
-	// Beide eigenen stehen darin — der Name als Text, das Kürzel als Wert.
+	// Both of its own stand in it — the name as text, the slug as value.
 	for kuerzel, name := range map[string]string{"moebelbau": "Möbelbau", "eiche": "Eiche"} {
 		if !strings.Contains(fenster, `value="`+kuerzel+`"`) {
 			t.Errorf("the field is missing the slug %q:\n%s", kuerzel, fenster)
@@ -223,20 +223,20 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 			t.Errorf("the field is missing the name %q:\n%s", name, fenster)
 		}
 	}
-	// Das gespeicherte ist vorausgewählt.
+	// The stored one is preselected.
 	if !strings.Contains(fenster, `value="moebelbau" selected`) {
 		t.Errorf("the stored term is not selected:\n%s", fenster)
 	}
-	// Und das fremde steht nirgends — nicht im Fenster und nicht im ganzen
-	// Dokument.
+	// And the foreign one stands nowhere — not in the window and not in the
+	// whole document.
 	if strings.Contains(body, "Zementbau") || strings.Contains(body, "zementbau") {
 		t.Error("another website's term is in the form")
 	}
 }
 
-// siteTerms gibt eine leere Liste back und niemals einen Fehler: ein
-// Auswahlfeld ohne Auswahl ist ein leeres Auswahlfeld, eine gescheiterte
-// Anfrage wäre ein Formular, das sich gar nicht mehr öffnen lässt.
+// siteTerms hands back an empty list and never an error: a choice field without
+// a choice is an empty choice field, a failed query would be a form that can no
+// longer be opened at all.
 func TestSchlagwortauswahlScheitertLeise(t *testing.T) {
 	ctx := context.Background()
 
@@ -245,7 +245,7 @@ func TestSchlagwortauswahlScheitertLeise(t *testing.T) {
 		t.Errorf("ohne Ablage: %#v, wollte nil", got)
 	}
 
-	// Und mit einer, die nicht mehr antwortet.
+	// And with one that no longer answers.
 	dir := t.TempDir()
 	database, err := db.Open(filepath.Join(dir, "kaputt.sqlite"))
 	if err != nil {
@@ -261,11 +261,11 @@ func TestSchlagwortauswahlScheitertLeise(t *testing.T) {
 	}
 }
 
-// umFeld schneidet das Formularfeld mit dem gegebenen Namen aus dem Dokument.
+// aroundField cuts the form field with the given name out of the document.
 //
-// Ein Fenster und nicht die ganze Seite: ein min="1" irgendwo sonst im
-// Dokument wäre kein Beweis für das Feld, um das es geht.
-func umFeld(t *testing.T, body, name string) string {
+// A window and not the whole page: a min="1" somewhere else in the document
+// would be no proof about the field in question.
+func aroundField(t *testing.T, body, name string) string {
 	t.Helper()
 	at := strings.Index(body, `name="`+name+`"`)
 	if at < 0 {
@@ -282,9 +282,9 @@ func umFeld(t *testing.T, body, name string) string {
 	return body[von:bis]
 }
 
-// imTag schneidet genau das Element aus, dessen name-Attribut gesucht wurde —
-// von seinem "<" bis zu seinem ">".
-func imTag(t *testing.T, body, name string) string {
+// inTag cuts out exactly the element whose name attribute was looked for — from
+// its "<" to its ">".
+func inTag(t *testing.T, body, name string) string {
 	t.Helper()
 	at := strings.Index(body, `name="`+name+`"`)
 	if at < 0 {
@@ -298,12 +298,12 @@ func imTag(t *testing.T, body, name string) string {
 	return body[von : at+bis+1]
 }
 
-// checkFields prüft field.For(defs, Seitenart) — die Felder, die auf dieser
-// Seite überhaupt stehen. field.Clean lief daneben über die ungefilterte
-// Liste. Zwischen den beiden lag ein Loch: ein von Hand gebautes Formular
-// konnte den Wert eines Feldes mitschicken, das nur für Beiträge gilt, und der
-// wurde abgelegt, ohne dass ihn je etwas geprüft hätte. Seit trimTo nichts
-// mehr kürzt (D-13), ohne jede Längengrenze.
+// checkFields checks field.For(defs, pageKind) — the fields that stand on this
+// page at all. field.Clean ran alongside it over the unfiltered list. Between
+// the two lay a hole: a form built by hand could send along the value of a
+// field that applies only to posts, and it was stored without anything ever
+// having checked it. Since trimTo truncates nothing any more (D-13), without
+// any length limit at all.
 func TestEinFremderFeldwertWirdNichtMitgespeichert(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -316,8 +316,8 @@ func TestEinFremderFeldwertWirdNichtMitgespeichert(t *testing.T) {
 		t.Fatalf("Feld anlegen: %v", err)
 	}
 
-	// Eine Seite, kein Beitrag — und trotzdem der Wert des Beitragsfeldes,
-	// deutlich über der Bytegrenze.
+	// A page, not a post — and the value of the post field all the same, well
+	// over the byte limit.
 	zuLang := strings.Repeat("a", field.MaxValueBytes+50)
 	req := postForm("/admin/websites/1/pages/new", url.Values{
 		"title":         {"Startseite"},

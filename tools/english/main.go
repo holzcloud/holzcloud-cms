@@ -101,6 +101,21 @@ var allowed = map[string]bool{
 	"AppliesTo": true, "Collision": true, "Mode": true, "Status": true,
 }
 
+// fixtures are the files whose string literals ARE German content.
+//
+// One file, and it earns the exception the way a test does. SampleData and
+// MinimalData are the page a template is rendered against before an upload is
+// accepted, and TEMPLATE-SPEC.md prints them verbatim to a theme author. A
+// fixture in English would show an author a page this CMS never produces, and
+// would stop catching the bugs a German page catches: the byte limit where an
+// umlaut counts double, the slug built from "Möbelbau", the sort order of
+// "Ä" against "A".
+//
+// Comments and identifiers in these files are NOT exempt — only the content.
+var fixtures = map[string]bool{
+	"internal/template/sample.go": true,
+}
+
 type finding struct {
 	path string
 	line int
@@ -190,6 +205,7 @@ func check(path string) []finding {
 		return nil
 	}
 	isTest := strings.HasSuffix(path, "_test.go")
+	isFixture := fixtures[strings.TrimPrefix(filepath.ToSlash(path), "./")]
 	lines := strings.Split(string(src), "\n")
 	waived := map[int]bool{}
 	for i, l := range lines {
@@ -243,7 +259,7 @@ func check(path string) []finding {
 				}
 			}
 		case *ast.BasicLit:
-			if v.Kind != token.STRING || isTest {
+			if v.Kind != token.STRING || isTest || isFixture {
 				// In a test file a literal is content until it is a message,
 				// and the message case is handled above.
 				return true

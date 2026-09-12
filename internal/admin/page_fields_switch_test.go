@@ -175,7 +175,7 @@ func TestSchalter(t *testing.T) {
 				}
 			}
 			if len(f.element) > 0 {
-				tag := imTag(t, kasten, f.def.FieldName())
+				tag := inTag(t, kasten, f.def.FieldName())
 				for _, will := range f.element {
 					if !strings.Contains(tag, will) {
 						t.Errorf("the control of %q is missing %s:\n%s", f.def.Key, will, tag)
@@ -425,7 +425,7 @@ func TestKnopfreihe(t *testing.T) {
 	// Measured on the element itself and on the buttons that carry its name,
 	// and not on a window around it: the button row of the neighbouring field
 	// would otherwise stand inside it and would be no finding.
-	glanz := imTag(t, body, "feld_glanz")
+	glanz := inTag(t, body, "feld_glanz")
 	if !strings.Contains(glanz, "<select") {
 		t.Errorf("the ordinary choice is no longer a drop-down:\n%s", glanz)
 	}

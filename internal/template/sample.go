@@ -36,14 +36,14 @@ func SampleData() PageData {
 	//
 	// A time of day carries no date and no zone — this is exactly what
 	// field.ParseTimeOfDay hands back for "16:30", down to the year.
-	abholzeit := time.Date(0, time.January, 1, 16, 30, 0, 0, time.UTC)
-	ausstattung := []string{"Schublade", "Kabelauslass", "Verlängerung"}
+	pickupTime := time.Date(0, time.January, 1, 16, 30, 0, 0, time.UTC)
+	fittings := []string{"Schublade", "Kabelauslass", "Verlängerung"}
 	material := field.Term{Name: "Eiche", Slug: "eiche", URL: "/tag/eiche"}
-	sitzplaetze := field.Number{Value: 8, Raw: "8"}
+	seats := field.Number{Value: 8, Raw: "8"}
 	// A code field holds what somebody typed, tags and all. It is a plain
 	// string on purpose: html/template escapes it, and that escaping is the
 	// whole promise of the kind.
-	abbund := `<balken laenge="240">Eiche</balken>`
+	joinery := `<balken laenge="240">Eiche</balken>`
 	// The nine kinds the fixture did not carry until the gate was measured.
 	// template.Check renders this and nothing else, so a kind that is absent
 	// here is a kind whose branch in an uploaded theme has never once been
@@ -54,12 +54,12 @@ func SampleData() PageData {
 	// Every value is the shape field.Resolve produces, not a shape that merely
 	// looks like it: a fixture that got that wrong would document a contract
 	// the renderer never fulfils.
-	beschreibung := "Massive Eiche, von Hand geölt.\nZwei Zeilen, ohne Formatierung."
-	preis := field.Number{Value: 1290.5, Raw: "1290.50"}
+	description := "Massive Eiche, von Hand geölt.\nZwei Zeilen, ohne Formatierung."
+	price := field.Number{Value: 1290.5, Raw: "1290.50"}
 	// A date carries a day and no time of day, which is what time.Parse gives
 	// back for "2026-05-01" — down to the zone.
-	eroeffnet := time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
-	ansicht := field.Image{
+	opened := time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
+	view := field.Image{
 		URL: "/media/1/tisch.jpg", Alt: "Ein Eichentisch in der Werkstatt",
 		// Width, Height and Focus are filled because internal/public fills
 		// them, and every shipped theme reads two of the three. A fixture that
@@ -67,23 +67,23 @@ func SampleData() PageData {
 		// has never been rendered.
 		Width: 1600, Height: 1067, Focus: "50% 35%",
 	}
-	werkstatt := field.Ref{Title: "Die Werkstatt", URL: "/werkstatt", Kind: "page"}
+	workshop := field.Ref{Title: "Die Werkstatt", URL: "/werkstatt", Kind: "page"}
 	// A group's rows are what Resolve makes of them: one map per row, each
 	// holding the sub-fields' resolved values. This is the shape the map side
 	// of the contract has never carried.
-	montagVon := time.Date(0, time.January, 1, 8, 0, 0, 0, time.UTC)
-	montagBis := time.Date(0, time.January, 1, 12, 0, 0, 0, time.UTC)
-	donnerstagVon := time.Date(0, time.January, 1, 13, 30, 0, 0, time.UTC)
-	donnerstagBis := time.Date(0, time.January, 1, 18, 0, 0, 0, time.UTC)
-	oeffnungszeiten := []map[string]any{
-		{"tag": "Montag", "von": &montagVon, "bis": &montagBis},
-		{"tag": "Donnerstag", "von": &donnerstagVon, "bis": &donnerstagBis},
+	mondayFrom := time.Date(0, time.January, 1, 8, 0, 0, 0, time.UTC)
+	mondayTo := time.Date(0, time.January, 1, 12, 0, 0, 0, time.UTC)
+	thursdayFrom := time.Date(0, time.January, 1, 13, 30, 0, 0, time.UTC)
+	thursdayTo := time.Date(0, time.January, 1, 18, 0, 0, 0, time.UTC)
+	openingHours := []map[string]any{
+		{"tag": "Montag", "von": &mondayFrom, "bis": &mondayTo},
+		{"tag": "Donnerstag", "von": &thursdayFrom, "bis": &thursdayTo},
 	}
 
 	// A snippet's own values are declared here for the reason the page's are:
 	// its two views have to hold the same value, not two that look alike.
 	// A time of day again carries no date and no zone.
-	oeffnet := time.Date(0, time.January, 1, 7, 30, 0, 0, time.UTC)
+	opens := time.Date(0, time.January, 1, 7, 30, 0, 0, time.UTC)
 
 	return PageData{
 		Site: SiteData{
@@ -111,14 +111,14 @@ func SampleData() PageData {
 				"footer-kontakt": {
 					"telefon": "07721 123456",
 					"strasse": "Hauptstraße 4",
-					"oeffnet": &oeffnet,
+					"oeffnet": &opens,
 				},
 			},
 			SnippetList: map[string][]field.Entry{
 				"footer-kontakt": {
 					{Key: "telefon", Label: "Telefon", Kind: field.KindText, Value: "07721 123456", Text: "07721 123456"},
 					{Key: "strasse", Label: "Straße", Kind: field.KindText, Value: "Hauptstraße 4", Text: "Hauptstraße 4"},
-					{Key: "oeffnet", Label: "Öffnet", Kind: field.KindTime, Value: &oeffnet, Text: "07:30"},
+					{Key: "oeffnet", Label: "Öffnet", Kind: field.KindTime, Value: &opens, Text: "07:30"},
 				},
 			},
 			Terms: []TermLink{
@@ -152,21 +152,21 @@ func SampleData() PageData {
 			Fields: map[string]any{
 				"holzart":     "Eiche",
 				"lieferzeit":  "4 Wochen",
-				"ausstattung": ausstattung,
-				"abholzeit":   &abholzeit,
-				"sitzplaetze": sitzplaetze,
-				"abbundzeile": abbund,
+				"ausstattung": fittings,
+				"abholzeit":   &pickupTime,
+				"sitzplaetze": seats,
+				"abbundzeile": joinery,
 				"material":    &material,
 
-				"beschreibung":    beschreibung,
-				"preis":           preis,
-				"eroeffnet":       &eroeffnet,
+				"beschreibung":    description,
+				"preis":           price,
+				"eroeffnet":       &opened,
 				"lieferbar":       true,
 				"oberflaeche":     "geölt",
-				"ansicht":         &ansicht,
+				"ansicht":         &view,
 				"prospekt":        "https://example.de/prospekt.pdf",
-				"werkstatt":       &werkstatt,
-				"oeffnungszeiten": oeffnungszeiten,
+				"werkstatt":       &workshop,
+				"oeffnungszeiten": openingHours,
 			},
 			FieldList: []field.Entry{
 				{Key: "holzart", Label: "Holzart", Kind: field.KindText, Value: "Eiche", Text: "Eiche"},
@@ -179,52 +179,52 @@ func SampleData() PageData {
 				// form of both.
 				{
 					Key: "ausstattung", Label: "Ausstattung", Kind: field.KindMulti,
-					Value: ausstattung, Values: ausstattung,
+					Value: fittings, Values: fittings,
 					Text: "Schublade, Kabelauslass, Verlängerung",
 				},
-				{Key: "abholzeit", Label: "Abholzeit", Kind: field.KindTime, Value: &abholzeit, Text: "16:30"},
-				{Key: "sitzplaetze", Label: "Sitzplätze", Kind: field.KindRange, Value: sitzplaetze, Text: "8"},
-				{Key: "abbundzeile", Label: "Abbundzeile", Kind: field.KindCode, Value: abbund, Text: abbund},
+				{Key: "abholzeit", Label: "Abholzeit", Kind: field.KindTime, Value: &pickupTime, Text: "16:30"},
+				{Key: "sitzplaetze", Label: "Sitzplätze", Kind: field.KindRange, Value: seats, Text: "8"},
+				{Key: "abbundzeile", Label: "Abbundzeile", Kind: field.KindCode, Value: joinery, Text: joinery},
 				{
 					Key: "material", Label: "Material", Kind: field.KindTerm,
 					Value: &material, Term: &material, Text: material.Name,
 				},
 				{
 					Key: "beschreibung", Label: "Beschreibung", Kind: field.KindLong,
-					Value: beschreibung, Text: beschreibung,
+					Value: description, Text: description,
 				},
-				{Key: "preis", Label: "Preis", Kind: field.KindNumber, Value: preis, Text: preis.Raw},
+				{Key: "preis", Label: "Preis", Kind: field.KindNumber, Value: price, Text: price.Raw},
 				// A date leaves Text empty: the theme prints it with its own
 				// formatDate, and field.List says so where it decides not to
 				// fill it in.
-				{Key: "eroeffnet", Label: "Eröffnet", Kind: field.KindDate, Value: &eroeffnet},
+				{Key: "eroeffnet", Label: "Eröffnet", Kind: field.KindDate, Value: &opened},
 				{Key: "lieferbar", Label: "Lieferbar", Kind: field.KindBool, Value: true, Yes: true},
 				{
 					Key: "oberflaeche", Label: "Oberfläche", Kind: field.KindChoice,
 					Value: "geölt", Text: "geölt",
 				},
-				{Key: "ansicht", Label: "Ansicht", Kind: field.KindImage, Value: &ansicht, Image: &ansicht},
+				{Key: "ansicht", Label: "Ansicht", Kind: field.KindImage, Value: &view, Image: &view},
 				{
 					Key: "prospekt", Label: "Prospekt", Kind: field.KindLink,
 					Value: "https://example.de/prospekt.pdf", Text: "https://example.de/prospekt.pdf",
 				},
 				{
 					Key: "werkstatt", Label: "Werkstatt", Kind: field.KindRef,
-					Value: &werkstatt, Ref: &werkstatt, Text: werkstatt.Title,
+					Value: &workshop, Ref: &workshop, Text: workshop.Title,
 				},
 				{
 					Key: "oeffnungszeiten", Label: "Öffnungszeiten", Kind: field.KindGroup,
-					Value: oeffnungszeiten,
+					Value: openingHours,
 					Rows: [][]field.Entry{
 						{
 							{Key: "tag", Label: "Tag", Kind: field.KindText, Value: "Montag", Text: "Montag"},
-							{Key: "von", Label: "Von", Kind: field.KindTime, Value: &montagVon, Text: "08:00"},
-							{Key: "bis", Label: "Bis", Kind: field.KindTime, Value: &montagBis, Text: "12:00"},
+							{Key: "von", Label: "Von", Kind: field.KindTime, Value: &mondayFrom, Text: "08:00"},
+							{Key: "bis", Label: "Bis", Kind: field.KindTime, Value: &mondayTo, Text: "12:00"},
 						},
 						{
 							{Key: "tag", Label: "Tag", Kind: field.KindText, Value: "Donnerstag", Text: "Donnerstag"},
-							{Key: "von", Label: "Von", Kind: field.KindTime, Value: &donnerstagVon, Text: "13:30"},
-							{Key: "bis", Label: "Bis", Kind: field.KindTime, Value: &donnerstagBis, Text: "18:00"},
+							{Key: "von", Label: "Von", Kind: field.KindTime, Value: &thursdayFrom, Text: "13:30"},
+							{Key: "bis", Label: "Bis", Kind: field.KindTime, Value: &thursdayTo, Text: "18:00"},
 						},
 					},
 				},
