@@ -13,27 +13,27 @@ milestone is **2.0** and not 1.11.
 
 ## Language
 
-- [ ] **LANG-01**: Every comment in Go source is English, and a comment that
+- [x] **LANG-01**: Every comment in Go source is English, and a comment that
       carried a *reason* still carries it at the same length. The reasoning in
       this repository's comments is its most valuable content; a sweep that
       shortens it has done damage, not work.
-- [ ] **LANG-02**: Every identifier is English, and each German term maps to
+- [x] **LANG-02**: Every identifier is English, and each German term maps to
       exactly one English word, fixed in `.planning/GLOSSARY.md`. A term
       translated without an entry gets one in the same commit.
-- [ ] **LANG-03**: Every test function name is English and still says what it
+- [x] **LANG-03**: Every test function name is English and still says what it
       asserts. The German names are unusually good at this; the English ones
       must be no worse.
-- [ ] **LANG-04**: The template data contract is English — `.Page.Fields`,
+- [x] **LANG-04**: The template data contract is English — `.Page.Fields`,
       `.Site.SnippetFields`, `.Page.Translations`, `.Page.Kind`. All eight
       shipped themes come with it, `TEMPLATE-SPEC.md` names only the English
       fields, and `CHANGELOG.md` records it as a **breaking change** under
       `## 2.0`. A theme written against 1.x stops working, deliberately and in
       one release.
-- [ ] **LANG-05**: The German SQL column names are English, through **new**
+- [x] **LANG-05**: The German SQL column names are English, through **new**
       migrations. No released migration is edited. Every hand-written SQL
       statement follows, including the carrier discriminator in
       `internal/field/store.go`.
-- [ ] **LANG-06**: The catalogue's source language is English: the German keys
+- [x] **LANG-06**: The catalogue's source language is English: the German keys
       become English keys, a new `de.json` carries German as a translation,
       `de-CH.json` derives from it, and `es/fr/it.json` are re-keyed through the
       old German→English mapping. The colliding keys are resolved one by one,
@@ -41,10 +41,10 @@ milestone is **2.0** and not 1.11.
       are fixed rather than merged.
       *(The archive says 1158 keys / nine collisions, measured 2026-09-06. The
       gate reads 1328 keys today; 12-01 re-measures the collisions.)*
-- [ ] **LANG-07**: German cannot return unnoticed. A mechanical gate fails the
+- [x] **LANG-07**: German cannot return unnoticed. A mechanical gate fails the
       build if German enters Go source outside the catalogue files — a gate, not
       a review convention.
-- [ ] **LANG-08**: The stored German vocabularies are decided explicitly. About
+- [x] **LANG-08**: The stored German vocabularies are decided explicitly. About
       25 German strings in Go are **data**, not identifiers — the field kinds,
       `gilt_fuer`'s three values, `knopfreihe`, and the seven block kinds, which
       also appear as CSS classes in all eight themes. They sit in every existing
@@ -55,7 +55,7 @@ milestone is **2.0** and not 1.11.
 
 ## Quality (standing gates, carried from v1.10)
 
-- [ ] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
+- [x] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
       catalogue — **and** every operator-facing string is *collectable*, so that
       the report means what it says. 828 strings were measured outside the
       collector's sight on 2026-09-08
@@ -71,16 +71,16 @@ milestone is **2.0** and not 1.11.
 
 | Requirement | Phase | Status |
 |---|---|---|
-| LANG-01 | 12 | Pending |
-| LANG-02 | 12 | Pending |
-| LANG-03 | 12 | Pending |
-| LANG-04 | 12 | Pending |
-| LANG-05 | 12 | Pending |
-| LANG-06 | 12 | Pending |
-| LANG-07 | 12 | Pending |
-| LANG-08 | 12 | Pending |
-| QUAL-01 | 12 | Pending |
-| QUAL-02 | 12 | Pending |
+| LANG-01 | 12 | Met — `go run ./tools/english` reports nothing |
+| LANG-02 | 12 | Met — `go run ./tools/rename -inventory` reports nothing German |
+| LANG-03 | 12 | Met — 149 test names renamed by hand, one map |
+| LANG-04 | 12 | Met — seven fields, eight themes, TEMPLATE-SPEC §2.5, CHANGELOG |
+| LANG-05 | 12 | Met — migration 00054, 24 columns, Down half driven by a test |
+| LANG-06 | 12 | Met — `i18n.Source = "en"`, de.json is a translation, 1599 keys |
+| LANG-07 | 12 | Met — `tools/english`, blocking, in `ci.yml` |
+| LANG-08 | 12 | Met — decided in §2 of 12-CONTEXT, every value bound once |
+| QUAL-01 | 12 | Met — `0 open, 0 orphaned`, and the collector now reaches `plugins/` |
+| QUAL-02 | 12 | Pending — the browser pass |
 
 ## Handed in from v1.10
 
