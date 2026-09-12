@@ -1025,6 +1025,7 @@
 "The first one creates; the later ones update or are skipped — the counts above already say so.": "La prima crea; le successive aggiornano o vengono saltate: il conteggio qui sopra lo dice già così.",
 "The form could not be read": "Il modulo non è stato letto",
 "The image is inserted at the end of the text and can be moved from there. Unsaved changes in the editor are lost — save first.": "L'immagine viene inserita in fondo al testo e da lì può essere spostata. Le modifiche non salvate nell'editor vanno perse — salva prima.",
+"The key needs a name.": "La chiave ha bisogno di un nome.",
 "The key": "L'identificatore",
 "The key for the theme is built from this. It is fixed afterwards.": "Da qui si forma l'identificatore per il tema. Dopo resta fisso.",
 "The key for “%s”": "La chiave per «%s»",

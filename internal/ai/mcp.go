@@ -142,18 +142,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, MaxRequestBytes))
 	if err != nil {
-		writeRPC(w, rpcResponse{JSONRPC: "2.0", Error: &rpcError{codeParse, "Anfrage nicht lesbar"}})
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", Error: &rpcError{codeParse, "the request cannot be read"}})
 		return
 	}
 
 	var req rpcRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		writeRPC(w, rpcResponse{JSONRPC: "2.0", Error: &rpcError{codeParse, "kein gültiges JSON"}})
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", Error: &rpcError{codeParse, "not valid JSON"}})
 		return
 	}
 	if req.JSONRPC != "2.0" {
 		writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID,
-			Error: &rpcError{codeInvalidReq, "erwartet wird JSON-RPC 2.0"}})
+			Error: &rpcError{codeInvalidReq, "JSON-RPC 2.0 is expected"}})
 		return
 	}
 
@@ -194,8 +194,8 @@ func (s *Server) dispatch(r *http.Request, scope Scope, req rpcRequest) rpcRespo
 			"serverInfo":      map[string]any{"name": s.name, "version": "1"},
 			// Shown by some clients before the first call. It is the place to
 			// say the one thing an assistant should know before it starts.
-			"instructions": "Dies ist ein Holzcloud-CMS. Neue Seiten entstehen als Entwurf; " +
-				"veröffentliche nur, wenn du ausdrücklich darum gebeten wurdest.",
+			"instructions": "This is a Holzcloud CMS. New pages are born drafts; publish " +
+				"only when you were expressly asked to.",
 		})
 
 	case "ping":
@@ -227,11 +227,11 @@ func (s *Server) dispatch(r *http.Request, scope Scope, req rpcRequest) rpcRespo
 			Arguments json.RawMessage `json:"arguments"`
 		}
 		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return fail(codeBadParams, "die Aufrufparameter sind nicht lesbar")
+			return fail(codeBadParams, "the call parameters cannot be read")
 		}
 		tool, ok := s.tools[params.Name]
 		if !ok {
-			return fail(codeNoSuchThing, fmt.Sprintf("das Werkzeug %q gibt es nicht", params.Name))
+			return fail(codeNoSuchThing, fmt.Sprintf("there is no tool %q", params.Name))
 		}
 		if tool.Writes {
 			if err := scope.MayWrite(); err != nil {
@@ -252,7 +252,7 @@ func (s *Server) dispatch(r *http.Request, scope Scope, req rpcRequest) rpcRespo
 		}
 		return answer(toolResult(out))
 	}
-	return fail(codeNoSuchThing, fmt.Sprintf("die Methode %q gibt es nicht", req.Method))
+	return fail(codeNoSuchThing, fmt.Sprintf("there is no method %q", req.Method))
 }
 
 // Call is what a tool is handed.
@@ -282,7 +282,7 @@ func (c Call) Into(v any) error {
 func toolResult(v any) map[string]any {
 	raw, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return toolError("die Antwort lässt sich nicht darstellen")
+		return toolError("the answer cannot be rendered")
 	}
 	return map[string]any{
 		"content": []map[string]any{{"type": "text", "text": string(raw)}},

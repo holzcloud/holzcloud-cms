@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -102,6 +103,14 @@ func (h *Handler) HandleAIKeyCreate(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	secret, token, err := h.aiTokens.Issue(r.Context(), r.FormValue("name"), websiteID, canWrite, lifetime)
+	if errors.Is(err, ai.ErrNameMissing) {
+		// The one refusal here that an operator can act on, so the one that
+		// goes through the catalogue. Everything else Issue can fail with is a
+		// database fault, and a database fault is not a sentence anybody has
+		// written.
+		web.SetFlashError(h.sm, r.Context(), "The key needs a name.")
+		return h.redirect(w, r, "/admin/ai")
+	}
 	if err != nil {
 		web.SetFlashError(h.sm, r.Context(), err.Error())
 		return h.redirect(w, r, "/admin/ai")

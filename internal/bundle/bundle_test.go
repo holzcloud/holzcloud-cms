@@ -648,10 +648,10 @@ func manifestOf(t *testing.T, archive []byte) string {
 	return string(data)
 }
 
-// A page built from snippets travelled this far as plain text: the snippets
-// were never in the archive. This test is the promise that they are — together
-// with their own snippet kind and with the image inside, which travels as a
-// file name and is given a new number on the other side.
+// A page built from blocks travelled this far as plain text: the blocks were
+// never in the archive. This test is the promise that they are — together with
+// their own block kind and with the image inside, which travels as a file name
+// and is given a new number on the other side.
 func TestRoundTripKeepsBlocks(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -674,7 +674,7 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		t.Fatalf("Media.Create: %v", err)
 	}
 
-	// A snippet kind of its own with a text field and an image field.
+	// A block kind of its own with a text field and an image field.
 	art, err := s.BlockTypes.Create(ctx, ws, "Rezeptschritt", "Ein Schritt.")
 	if err != nil {
 		t.Fatalf("BlockTypes.Create: %v", err)
@@ -689,7 +689,7 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		}
 	}
 
-	// The album that the gallery snippet below names. Since 11-06 the
+	// The album that the gallery block below names. Since 11-06 the
 	// reference travels as a name and is derived again on the other side, so
 	// the album really has to exist — a slug that names no album of this
 	// website is deliberately dropped.
@@ -1511,7 +1511,7 @@ func TestMehrfachauswahlUeberlebtDieArchivreise(t *testing.T) {
 // over there as a dropdown again is not the same website.
 //
 // Three places build a manifest field and three build a definition back out of
-// it — the page field, the field inside a group and the field of a snippet
+// it — the page field, the field inside a group and the field of a block
 // kind. All three pairs are read here.
 func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 	s := newStores(t)

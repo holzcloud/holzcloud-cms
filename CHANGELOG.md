@@ -48,6 +48,32 @@ stehen in jeder Datenbank und reisen in jedem Archiv; sie umzubenennen wäre ein
 zweiter Bruch ohne Gewinn für irgendjemanden. Ein Theme-Stylesheet bleibt also
 unangetastet.
 
+**Die Werkzeuge des KI-Zugangs sprechen Englisch. Ein gespeicherter Prompt, der
+ein Werkzeug beim deutschen Namen nennt, hört auf zu funktionieren.** Aus
+`seite_anlegen` wird `create_page`, aus `felder_auflisten` wird `list_fields`,
+und ebenso heissen die Argumente und die Antwortschlüssel neu: `"titel"` wird
+`"title"`, `"zustand": "entwurf"` wird `"status": "draft"`. Die ganze Liste
+steht in [docs/ai-access.md](docs/ai-access.md).
+
+Derselbe Grund wie beim Vorlagen-Vertrag: was eine Maschine liest, gehört zur
+Quelle und nicht zu dem, was ein Betreiber tippt. Ein Assistent, der die
+Werkzeugliste abfragt — und so ist MCP gedacht — merkt von der Umstellung
+nichts. Wer einen Werkzeugnamen fest in einen Prompt geschrieben hat, bekommt
+eine klare Absage (`there is no tool "seite_anlegen"`) statt eines stillen
+Fehlverhaltens.
+
+**Was sich *nicht* ändert:** alles, was ein Betreiber selbst eingetippt hat. Ein
+Feldschlüssel heisst weiterhin `preis`, eine eigene Inhaltsart weiterhin
+`produkt`, und `list_fields` meldet eine Feldart weiterhin als
+`mehrfachauswahl`. Das sind Werte in der Datenbank, nicht Vokabular des
+Protokolls.
+
+**Die deutschen Spaltennamen der Datenbank heissen englisch** — Wanderung 00054
+benennt vierundzwanzig Spalten um, darunter `pages.art` zu `pages.content_kind`.
+Das geschieht beim Start von selbst und ist von aussen nicht zu sehen; es steht
+hier, weil eine Sicherung aus 1.x mit einer Fassung 1.x zurückgespielt werden
+muss und nicht mit dieser.
+
 ### Hinzugefügt
 
 **TEMPLATE-SPEC §2.5 sagt jetzt, dass ein Theme einsprachig ist** — und wie eine

@@ -19,18 +19,17 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 )
 
-// Der vierte Modus des Feldbildschirms, dort geprüft, wo die Berechtigung
-// wohnt.
+// The fourth mode of the field screen, checked where the permission lives.
 //
-// `?textbaustein=<id>` ist die einzige Stelle der Phase, an der eine Nummer aus
-// der Adresse einen Träger benennt, den `snippets.Get` **ohne** Websitenummer
-// heraussucht. Bei einer Bausteinart erledigt das die Abfrage selbst; hier ist
-// es Sache des Handlers, und darum steht die Prüfung in `internal/admin` und
-// nicht im Speicher. Geprüft wird über die echten Vorlagen von der Platte, denn
-// eine Vorlage, die nicht mehr zu ihrer Datenstruktur passt, soll hier
-// scheitern und nicht im Browser.
+// `?textbaustein=<id>` is the one place in this phase where a number out of the
+// address names a carrier that `snippets.Get` looks up **without** a website
+// number. For a block kind the query itself takes care of that; here it is the
+// handler's business, and that is why the check stands in `internal/admin` and
+// not in the store. It is checked against the real templates from disk, because
+// a template that no longer fits its data structure should fail here and not in
+// the browser.
 
-// feldBildschirm ruft GET …/felder mit der übergebenen Abfrage auf.
+// fieldScreen calls GET …/felder with the query it is given.
 func feldBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	target := "/admin/websites/" + strconv.FormatInt(websiteID, 10) + "/felder"
@@ -42,7 +41,7 @@ func feldBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID 
 	return serve(t, h, sm, h.HandleFieldList, req)
 }
 
-// feldAnlegen schickt das Formular des Feldbildschirms ab.
+// createField submits the form of the field screen.
 func feldAnlegen(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, values url.Values) *httptest.ResponseRecorder {
 	t.Helper()
 	return serve(t, h, sm, h.HandleFieldSave, postForm(
@@ -50,8 +49,8 @@ func feldAnlegen(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int
 		values, map[string]string{"id": strconv.FormatInt(websiteID, 10)}))
 }
 
-// zweiteWebsite legt eine zweite Website mit einem eigenen Textbaustein an —
-// die Gegenseite jeder Berechtigungsprüfung in dieser Datei.
+// secondWebsite creates a second website with a snippet of its own — the other
+// side of every permission check in this file.
 func zweiteWebsite(t *testing.T, database *db.DB, name, key, snippetName string) (*domain.Website, *snippet.Snippet) {
 	t.Helper()
 	ctx := context.Background()
@@ -66,20 +65,20 @@ func zweiteWebsite(t *testing.T, database *db.DB, name, key, snippetName string)
 	return ws, sn
 }
 
-// Der Modus öffnet sich für einen eigenen Textbaustein, trägt seinen Namen und
-// legt ein Feld an, das über OfSnippet zurückkommt.
-// Eine Gruppe an einem Textbaustein zeichnet ihre Zeilen — der Fehler, den
-// erst der Browserdurchgang gezeigt hat.
+// The mode opens for a snippet of one's own, carries its name and creates a
+// field that comes back through OfSnippet.
+// A group on a snippet draws its rows — the fault that only the browser pass
+// brought to light.
 //
-// Der Gruppenbildschirm ist eine Ebene tiefer und trägt „?gruppe=<id>" ohne
-// „textbaustein". Wer sein Formular abschickt, legte darum ein Unterfeld mit
-// snippet_id NULL an — während seine Gruppe snippet_id trägt. OfSnippet fragt
-// „WHERE snippet_id = $2" und gab die Gruppe danach ohne ein einziges
-// Unterfeld heraus: eine Gruppe, die auf dem Formular des Textbausteins keine
-// Zeile zeichnen kann und im Archiv anders aussieht als auf dem Bildschirm,
-// weil der Importweg beides setzt.
+// The group screen is one level down and carries "?gruppe=<id>" without
+// "textbaustein". Whoever submitted its form therefore created a subfield with
+// snippet_id NULL — while its group carries a snippet_id. OfSnippet asks
+// "WHERE snippet_id = $2" and handed the group out afterwards without a single
+// subfield: a group that can draw no row on the snippet's form and looks
+// different in the archive than on the screen, because the import path sets
+// both.
 //
-// Das Unterfeld erbt seinen Träger deshalb aus der gespeicherten Gruppe.
+// The subfield therefore inherits its carrier from the stored group.
 func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -104,9 +103,9 @@ func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 	}
 	gruppe := defs[0]
 
-	// Und jetzt das Unterfeld, so wie der Bildschirm es abschickt: mit
-	// „gruppe" und ohne „textbaustein", weil eine Ebene tiefer niemand mehr
-	// weiss, an wem die Gruppe hängt.
+	// And now the subfield, the way the screen submits it: with "gruppe" and
+	// without "textbaustein", because one level down nobody knows any more
+	// whom the group hangs on.
 	if rec := feldAnlegen(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Tag"},
 		"art":          {field.KindText},
@@ -127,8 +126,8 @@ func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 			"Träger aus der gespeicherten Gruppe", defs[0].Sub[0].SnippetID, sn.ID)
 	}
 
-	// Die Gegenprobe des gefährlichen Schnitts: das Unterfeld darf dadurch
-	// nicht auf dem Seitenbildschirm auftauchen.
+	// The counter-check on the dangerous cut: the subfield must not show up on
+	// the page screen because of this.
 	seiten, err := h.fields.List(ctx, ws.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -150,8 +149,8 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 		t.Fatalf("snippet.Create: %v", err)
 	}
 
-	// Der leere Fall zuerst: derselbe Bildschirm, eine leere Liste und der
-	// Satz, der das sagt.
+	// The empty case first: the same screen, an empty list and the sentence
+	// that says so.
 	rec := feldBildschirm(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("Status %d, wollte 200", rec.Code)
@@ -163,16 +162,16 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 	if !strings.Contains(leer, "This snippet has no fields yet") {
 		t.Error("the empty case does not show its sentence")
 	}
-	// Ein Textbaustein ist nicht „einfach": „Gilt für" hat an ihm keine
-	// Bedeutung. „Pflicht" dagegen schon, und das Kästchen muss stehen.
+	// A snippet is not "simple": "Applies to" has no meaning on it. "Required"
+	// does, and the checkbox has to be there.
 	if !strings.Contains(leer, `name="pflicht"`) {
 		t.Error("the required box is missing — a field on a snippet may be demanded")
 	}
 	if strings.Contains(leer, `name="gilt_fuer"`) {
 		t.Error(`"gilt für" steht auf dem Textbaustein-Bildschirm, wo es nichts bedeutet`) //nolint:german — the message quotes the German fixture it is about
 	}
-	// Die Auswahl der Feldart ist die volle: eine Gruppe gehört dazu, anders
-	// als bei einer Bausteinart.
+	// The choice of field kind is the full one: a group belongs to it, unlike
+	// on a block kind.
 	if !strings.Contains(leer, `value="`+field.KindGroup+`"`) {
 		t.Error("the list of field kinds knows no group — it is not field.Kinds")
 	}
@@ -201,14 +200,14 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 	}
 }
 
-// Ein Textbaustein einer anderen Website öffnet den Modus nicht — und nichts
-// von jener Website erscheint. Die Abwesenheit ist die Zusicherung: ein still
-// geöffneter Modus gäbe ebenfalls 200 back.
+// A snippet of another website does not open the mode — and nothing of that
+// website appears. The absence is the assurance: a mode opened silently would
+// answer 200 as well.
 func TestTextbausteinFremderWebsiteOeffnetDenModusNicht(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
-	// Ein eigenes Seitenfeld, damit der Rückfall auf den Seitenbildschirm
-	// etwas Nachweisbares zeigt.
+	// A page field of one's own, so that the fallback to the page screen shows
+	// something demonstrable.
 	feldAnlegen(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Seitenpreis"},
 		"art":          {field.KindNumber},
@@ -230,9 +229,9 @@ func TestTextbausteinFremderWebsiteOeffnetDenModusNicht(t *testing.T) {
 	}
 }
 
-// Derselbe Versuch als POST. Der Status allein beweist nichts: ein Handler, der
-// erst anlegt und dann 404 sagt, käme damit durch. Deshalb wird über den
-// Speicher nachgesehen.
+// The same attempt as a POST. The status alone proves nothing: a handler that
+// first creates and then says 404 would get through on it. That is why the
+// store is consulted.
 func TestTextbausteinFremderWebsiteWirdBeimSpeichernAbgewiesen(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -249,9 +248,9 @@ func TestTextbausteinFremderWebsiteWirdBeimSpeichernAbgewiesen(t *testing.T) {
 	}
 
 	fields := field.NewStore(database)
-	// Unter beiden Websitenummern nachsehen: angelegt worden wäre die
-	// Definition mit der Nummer aus der Adresse, gefunden werden soll sie
-	// unter keiner von beiden.
+	// Look under both website numbers: the definition would have been created
+	// with the number out of the address, and it should be found under neither
+	// of the two.
 	for _, id := range []int64{ws.ID, fremdeWS.ID} {
 		defs, err := fields.OfSnippet(ctx, id, fremd.ID)
 		if err != nil {
@@ -263,10 +262,9 @@ func TestTextbausteinFremderWebsiteWirdBeimSpeichernAbgewiesen(t *testing.T) {
 	}
 }
 
-// Der Seitenbildschirm bleibt sauber: mit einem Textbausteinfeld in der
-// Datenbank listet GET …/felder ohne Abfrageparameter genau die eigenen Felder
-// der Seite. Das ist ROADMAP-Kriterium 3 als Prüfung, die bei jedem Commit
-// läuft.
+// The page screen stays clean: with a snippet field in the database, GET
+// …/felder without a query parameter lists exactly the page's own fields. That
+// is ROADMAP criterion 3 as a check that runs on every commit.
 func TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -298,22 +296,21 @@ func TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm(t *testing.T) {
 	}
 }
 
-// Die Wertehälfte: was die Redaktion in die Felder eines Textbausteins tippt.
+// The value half: what the editors type into the fields of a snippet.
 //
-// Die vier Fälle hier fahren über die echten Vorlagen von der Platte und über
-// den echten Speicherweg, weil beide Enden zusammen die Zusage tragen: ein
-// Formular, das seine Namen selbst prägt, und ein Parser, der andere erwartet,
-// sind einzeln grün und zusammen still kaputt. Deshalb baut jeder Fall seine
-// Formularschlüssel mit field.Def.FieldName — derselben Funktion, aus der die
-// Vorlage sie bezieht — und nie von Hand.
+// The four cases here drive over the real templates from disk and over the real
+// storage path, because both ends together carry the promise: a form that mints
+// its own names and a parser that expects different ones are green separately
+// and silently broken together. That is why every case builds its form keys
+// with field.Def.FieldName — the same function the template draws them from —
+// and never by hand.
 //
-// Wie ein übersehener Ort aussähe, wenn nur die zählenden Tore liefen: jedes
-// grep -c der Pläne 08-01 bis 08-04 meldet grün, das Textbausteinfeld
-// erscheint zusätzlich im Seiteneditor unter einem Namen, den niemand gewählt
-// hat, jemand füllt es aus, und der Wert landet in der fields-Spalte der Seite,
-// wo kein Theme ihn liest. Nichts protokolliert, nichts schlägt fehl, und die
-// erste Meldung ist ein Bildschirmfoto. Der vierte Fall unten ist genau dagegen
-// geschrieben.
+// What an overlooked place would look like if only the counting gates ran:
+// every grep -c of plans 08-01 through 08-04 reports green, the snippet field
+// additionally appears in the page editor under a name nobody chose, somebody
+// fills it in, and the value lands in the page's fields column, where no theme
+// reads it. Nothing is logged, nothing fails, and the first report is a
+// screenshot. The fourth case below is written against exactly that.
 
 // textbausteinSpeichern schickt das Wertformular eines Textbausteins ab.
 func textbausteinSpeichern(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, values url.Values) *httptest.ResponseRecorder {
@@ -323,7 +320,7 @@ func textbausteinSpeichern(t *testing.T, h *Handler, sm *scs.SessionManager, web
 		values, map[string]string{"id": strconv.FormatInt(websiteID, 10)}))
 }
 
-// textbausteinBildschirm ruft GET …/snippets mit der übergebenen Abfrage auf.
+// snippetScreen calls GET …/snippets with the query it is given.
 func textbausteinBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	target := "/admin/websites/" + strconv.FormatInt(websiteID, 10) + "/snippets"
@@ -335,9 +332,8 @@ func textbausteinBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, we
 	return serve(t, h, sm, h.HandleSnippetList, req)
 }
 
-// textbausteinFeld legt eine Felddefinition an einem Textbaustein an und gibt
-// sie back, damit der Aufrufer seinen Formularschlüssel aus FieldName holen
-// kann statt ihn zu tippen.
+// snippetField creates a field definition on a snippet and hands it back, so
+// that the caller can fetch its form key from FieldName instead of typing it.
 func textbausteinFeld(t *testing.T, database *db.DB, websiteID, snippetID int64, def field.Def) field.Def {
 	t.Helper()
 	def.WebsiteID = websiteID
@@ -349,7 +345,7 @@ func textbausteinFeld(t *testing.T, database *db.DB, websiteID, snippetID int64,
 	return *angelegt
 }
 
-// bausteinMitFeldern legt einen Textbaustein an und gibt ihn back.
+// snippetWithFields creates a snippet and hands it back.
 func bausteinMitFeldern(t *testing.T, database *db.DB, websiteID int64, key, name string) *snippet.Snippet {
 	t.Helper()
 	sn, err := snippet.NewStore(database).Create(context.Background(), websiteID, key, name,
@@ -370,8 +366,8 @@ func gespeicherteFelder(t *testing.T, database *db.DB, websiteID, id int64) fiel
 	return field.Decode(sn.Fields)
 }
 
-// Der Rundlauf: getippt, gespeichert, wieder geöffnet, und dieselben Werte
-// stehen da — im Formular und in der Spalte.
+// The round trip: typed, stored, opened again, and the same values stand there
+// — in the form and in the column.
 func TestSnippetFeldRundlauf(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
@@ -401,7 +397,7 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 		t.Errorf("hinweis = %q, wollte %q", got, "Nur vormittags erreichbar.")
 	}
 
-	// Und dasselbe im Formular, unter denselben Namen.
+	// And the same in the form, under the same names.
 	body := textbausteinBildschirm(t, h, sm, ws.ID, "edit="+strconv.FormatInt(sn.ID, 10)).Body.String()
 	for _, wollte := range []string{
 		`name="` + kurz.FieldName() + `"`,
@@ -414,7 +410,7 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 		}
 	}
 
-	// Der Rumpf und die Kennung haben den Durchgang überstanden.
+	// The body and the key came through the pass intact.
 	sn2, err := snippet.NewStore(database).Get(context.Background(), ws.ID, sn.ID)
 	if err != nil || sn2 == nil {
 		t.Fatalf("read back: %v", err)
@@ -424,10 +420,10 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 	}
 }
 
-// Ein abgewiesenes Speichern schreibt nichts — auch nicht halb.
+// A refused save writes nothing — not even half.
 //
-// Der Nachweis steht im Speicher und nicht nur im Rumpf der Antwort: ein
-// Handler, der erst schreibt und dann ablehnt, käme sonst durch.
+// The proof stands in the store and not only in the body of the answer: a
+// handler that first writes and then refuses would otherwise get through.
 func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
@@ -474,26 +470,25 @@ func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 	}
 }
 
-// TestSnippetFeldSanierung: derselbe Schutz auf beiden Trägern, und der Beweis
-// ist, dass die beiden übereinstimmen.
+// TestSnippetFieldSanitising: the same protection on both carriers, and the
+// proof is that the two agree.
 //
-// Was einen langtext-Feldwert schützt, ist **nicht** goldmark und nicht
-// bluemonday. field.Resolve hat für KindLong keinen eigenen Arm; der Wert fällt
-// in den default:-Arm und kommt als schlichte Go-Zeichenkette heraus, und
-// html/template maskiert sie kontextabhängig dort, wo das Theme sie druckt.
-// Genau dasselbe geschieht mit demselben Wert auf einer Seite — deshalb ist
-// „die beiden stimmen überein" eine Aussage über einen geteilten Mechanismus
-// und kein Zufall.
+// What protects a langtext field value is **not** goldmark and not bluemonday.
+// field.Resolve has no arm of its own for KindLong; the value falls into the
+// default: arm and comes out as a plain Go string, and html/template escapes it
+// context-sensitively where the theme prints it. Exactly the same happens with
+// the same value on a page — which is why "the two agree" is a statement about
+// a shared mechanism and not a coincidence.
 //
-// Die Kette goldmark → bluemonday gehört dem **Rumpf** des Textbausteins. Das
-// ist ein anderer Wert auf einem anderen Weg, und er wird hier nur genannt, um
-// die Linie zu ziehen.
+// The chain goldmark → bluemonday belongs to the **body** of the snippet. That
+// is a different value on a different path, and it is named here only to draw
+// the line.
 //
-// Was dieser Fall nicht ist: er prüft nicht den Maskierer von html/template
-// nach, der eigene Prüfungen hat, und er prüft goldmark nicht nach. Er weist
-// nach, dass der Feldweg des Textbausteins dieselbe Maskierung erreicht wie der
-// Feldweg der Seite — „eine Kette, keine zweite" ist eine Eigenschaft des
-// Aufrufgraphen, und so wird sie von aussen behauptet.
+// What this case is not: it does not re-check html/template's escaper, which
+// has checks of its own, and it does not re-check goldmark. It shows that the
+// snippet's field path reaches the same escaping as the page's field path —
+// "one chain, not a second" is a property of the call graph, and that is how it
+// is asserted from outside.
 func TestSnippetFeldSanierung(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -503,7 +498,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 	amBaustein := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
 		Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
 
-	// Dieselbe Kennung, dieselbe Feldart, der andere Träger.
+	// The same key, the same field kind, the other carrier.
 	anDerSeite, err := field.NewStore(database).Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
 	if err != nil {
@@ -530,7 +525,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 		t.Fatalf("the page was not created: %v", err)
 	}
 
-	// Beide Träger durch denselben Auflöser, mit ihren eigenen Definitionen.
+	// Both carriers through the same resolver, with their own definitions.
 	amBausteinAufgeloest := field.Resolve([]field.Def{amBaustein},
 		gespeicherteFelder(t, database, ws.ID, sn.ID), field.Links{})
 	anDerSeiteAufgeloest := field.Resolve([]field.Def{*anDerSeite},
@@ -541,7 +536,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 			amBausteinAufgeloest["hinweis"], anDerSeiteAufgeloest["hinweis"])
 	}
 
-	// Und so, wie ein Theme sie druckt: dieselbe Vorlage über beide.
+	// And the way a theme prints them: the same template over both.
 	wieEinTheme := template.Must(template.New("theme").Parse(`<p class="hinweis">{{.}}</p>`))
 	druck := func(wert any) string {
 		var aus strings.Builder
@@ -563,7 +558,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 			ausBaustein, ausSeite)
 	}
 
-	// Der Rumpf behält seine eigene, andere Kette — unberührt von dieser Phase.
+	// The body keeps its own, different chain — untouched by this phase.
 	sn2, err := snippet.NewStore(database).Get(ctx, ws.ID, sn.ID)
 	if err != nil || sn2 == nil {
 		t.Fatalf("read back: %v", err)
@@ -573,11 +568,11 @@ func TestSnippetFeldSanierung(t *testing.T) {
 	}
 }
 
-// Das Seitenformular bleibt sauber, im Browser gesehen.
+// The page form stays clean, seen in the browser.
 //
-// Die Speicherhälfte dieser Zusage hält 08-01s TestBausteinNamensraum. Hier
-// steht die andere: was eine Redaktorin *sieht*, ist eine gezeichnete Vorlage
-// und kein Abfrageergebnis, und darum wird sie gezeichnet.
+// The storage half of this promise is held by 08-01's TestBausteinNamensraum.
+// The other half stands here: what an editor *sees* is a drawn template and not
+// a query result, and that is why it is drawn.
 func TestSnippetFeldStehtNichtImSeitenformular(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
@@ -601,19 +596,19 @@ func TestSnippetFeldStehtNichtImSeitenformular(t *testing.T) {
 	if strings.Contains(body, "Telefonnummer") {
 		t.Error("a snippet field's label is in the page editor")
 	}
-	// Der einzige von Hand geschriebene Feldpräfix dieser Datei, und er steht
-	// in einer Behauptung über eine Abwesenheit.
+	// The one hand-written field prefix in this file, and it stands inside an
+	// assertion about an absence.
 	if strings.Contains(body, `name="feld_telefonnummer"`) {
 		t.Error("the form name of a snippet field is in the page editor")
 	}
 }
 
-// codeAusdruck holt den ersten <code>…</code> aus einer gerenderten Seite und
-// macht die Entitäten wieder zu Zeichen.
+// codeExpression fetches the first <code>…</code> out of a rendered page and
+// turns the entities back into characters.
 //
-// Der Bildschirm schreibt die geschweiften Klammern als &#123;, sonst würde die
-// Verwaltungsvorlage den Rat selbst auszuführen versuchen. Für die Prüfung muss
-// er wieder das sein, was der Betreiber abschreibt.
+// The screen writes the curly braces as &#123;, or the admin template would try
+// to carry out the advice itself. For the check it has to be again what the
+// operator copies out.
 func codeAusdruck(t *testing.T, koerper string) string {
 	t.Helper()
 	auf := strings.Index(koerper, "<code>")
@@ -628,19 +623,19 @@ func codeAusdruck(t *testing.T, koerper string) string {
 	return stdhtml.UnescapeString(rest[:zu])
 }
 
-// Der Rat auf dem Bildschirm muss ein Ausdruck sein, der sich übersetzen lässt.
+// The advice on the screen has to be an expression that parses.
 //
-// validKey erlaubt den Bindestrich ausdrücklich (internal/admin/snippet.go),
-// und der Musterschlüssel dieses Projekts heisst „footer-kontakt"
-// (internal/template/sample.go). Die Feldsuffixform
-// {{.Site.SnippetFields.footer-kontakt.telefon}} ist für Go kein Ausdruck,
-// sondern ein Übersetzungsfehler — „bad character U+002D". Wer den Rat
-// abschreibt, bekommt sein Theme von template.Check abgewiesen, mit einer
-// Meldung, die ein Zeichen nennt und keine Ursache.
+// validKey allows the hyphen expressly (internal/admin/snippet.go), and this
+// project's sample key is called "footer-kontakt"
+// (internal/template/sample.go). The field suffix form
+// {{.Site.SnippetFields.footer-kontakt.telefon}} is no expression to Go but a
+// parse error — "bad character U+002D". Whoever copies the advice gets their
+// theme refused by template.Check, with a message that names a character and no
+// cause.
 //
-// Geprüft wird deshalb nicht der Wortlaut, sondern die Eigenschaft: was da
-// steht, geht durch den Übersetzer. TEMPLATE-SPEC.md benutzt durchweg index;
-// der Bildschirm war die eine Stelle, die der Spezifikation widersprach.
+// What is checked is therefore not the wording but the property: what stands
+// there goes through the parser. TEMPLATE-SPEC.md uses index throughout; the
+// screen was the one place that contradicted the specification.
 func TestRatDesFeldbildschirmsLaesstSichUebersetzen(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
