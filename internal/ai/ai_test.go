@@ -32,8 +32,8 @@ func newTestDB(t *testing.T) *db.DB {
 	return database
 }
 
-// aufbau baut einen Server mit einer Website und liefert beide Schlüssel.
-func aufbau(t *testing.T) (*httptest.Server, *db.DB, int64, string, string) {
+// setUp builds a server with one website and hands back both keys.
+func setUp(t *testing.T) (*httptest.Server, *db.DB, int64, string, string) {
 	t.Helper()
 	database := newTestDB(t)
 
@@ -63,8 +63,8 @@ func aufbau(t *testing.T) (*httptest.Server, *db.DB, int64, string, string) {
 	return ts, database, ws.ID, schreiben, lesen
 }
 
-// ruf schickt eine JSON-RPC-Nachricht und liefert die Antwort.
-func ruf(t *testing.T, ts *httptest.Server, key, method string, params any) map[string]any {
+// call sends a JSON-RPC message and hands back the answer.
+func call(t *testing.T, ts *httptest.Server, key, method string, params any) map[string]any {
 	t.Helper()
 	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": method}
 	if params != nil {
@@ -91,22 +91,22 @@ func ruf(t *testing.T, ts *httptest.Server, key, method string, params any) map[
 	return out
 }
 
-// werkzeug ruft ein Werkzeug auf und liefert das ausgepackte Ergebnis.
-func werkzeug(t *testing.T, ts *httptest.Server, key, name string, args map[string]any) (map[string]any, bool) {
+// callTool calls a tool and hands back the unwrapped result.
+func callTool(t *testing.T, ts *httptest.Server, key, name string, args map[string]any) (map[string]any, bool) {
 	t.Helper()
-	res := ruf(t, ts, key, "tools/call", map[string]any{"name": name, "arguments": args})
+	res := call(t, ts, key, "tools/call", map[string]any{"name": name, "arguments": args})
 	if res["error"] != nil {
-		t.Fatalf("%s: Protokollfehler %v", name, res["error"])
+		t.Fatalf("%s: protocol error %v", name, res["error"])
 	}
 	result, _ := res["result"].(map[string]any)
-	fehler, _ := result["isError"].(bool)
+	failed, _ := result["isError"].(bool)
 
 	content, _ := result["content"].([]any)
 	if len(content) == 0 {
 		t.Fatalf("%s: keine Antwort", name)
 	}
 	text, _ := content[0].(map[string]any)["text"].(string)
-	if fehler {
+	if failed {
 		return map[string]any{"text": text}, true
 	}
 	var out map[string]any
@@ -116,10 +116,10 @@ func werkzeug(t *testing.T, ts *httptest.Server, key, name string, args map[stri
 	return out, false
 }
 
-// Ohne Schlüssel kommt niemand herein. Das ist die eine Prüfung, die alles
-// andere trägt: fällt sie, ist jede weitere Grenze in dieser Datei gegenstandslos.
-func TestOhneSchluesselAbgewiesen(t *testing.T) {
-	ts, _, _, key, _ := aufbau(t)
+// Without a key nobody gets in. This is the one check everything else rests on:
+// if it falls, every further boundary in this file is beside the point.
+func TestARequestWithoutAKeyIsRefused(t *testing.T) {
+	ts, _, _, key, _ := setUp(t)
 
 	for _, fall := range []struct{ name, key string }{
 		{"gar keiner", ""},
@@ -144,15 +144,15 @@ func TestOhneSchluesselAbgewiesen(t *testing.T) {
 	}
 }
 
-// Ein abgelaufener Schlüssel ist ein toter Schlüssel.
-func TestAbgelaufenerSchluessel(t *testing.T) {
+// An expired key is a dead key.
+func TestAnExpiredKeyIsRefused(t *testing.T) {
 	database := newTestDB(t)
 	tokens := NewStore(database)
 	secret, tok, err := tokens.Issue(context.Background(), "alt", 0, true, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Ablauf in die Vergangenheit rücken statt eine Stunde zu warten.
+	// Move the expiry into the past rather than wait an hour.
 	if _, err := database.Write.Exec(`UPDATE ai_tokens SET expires_at = $1 WHERE id = $2`,
 		time.Now().UTC().Add(-time.Minute).Format(timeLayout), tok.ID); err != nil {
 		t.Fatal(err)
@@ -162,8 +162,8 @@ func TestAbgelaufenerSchluessel(t *testing.T) {
 	}
 }
 
-// Ein zurückgezogener Schlüssel wirkt sofort und nicht erst beim Neustart.
-func TestZurueckgezogenerSchluessel(t *testing.T) {
+// A revoked key takes effect at once and not at the next restart.
+func TestARevokedKeyIsRefused(t *testing.T) {
 	database := newTestDB(t)
 	tokens := NewStore(database)
 	secret, tok, err := tokens.Issue(context.Background(), "weg", 0, true, 0)
@@ -178,9 +178,9 @@ func TestZurueckgezogenerSchluessel(t *testing.T) {
 	}
 }
 
-// Der Schlüssel selbst darf nirgends in der Datenbank stehen. Wer einen Abzug
-// bekommt, soll damit nichts anfangen können.
-func TestNurDerAbdruckWirdGespeichert(t *testing.T) {
+// The key itself must stand nowhere in the database. Whoever gets a copy of it
+// should be able to do nothing with that.
+func TestOnlyTheFingerprintIsStored(t *testing.T) {
 	database := newTestDB(t)
 	tokens := NewStore(database)
 	secret, _, err := tokens.Issue(context.Background(), "geheim", 0, true, 0)
@@ -197,32 +197,32 @@ func TestNurDerAbdruckWirdGespeichert(t *testing.T) {
 	}
 }
 
-// Ein nur lesender Schlüssel bekommt die schreibenden Werkzeuge nicht einmal zu
-// sehen — und wenn er sie doch aufruft, wird er abgewiesen. Beides, weil das
-// eine Bequemlichkeit ist und das andere die Grenze.
-func TestNurLesenSiehtUndDarfNichtSchreiben(t *testing.T) {
-	ts, _, wsID, _, lesen := aufbau(t)
+// A read-only key does not even get to see the writing tools — and if it calls
+// them anyway, it is refused. Both, because the one is a convenience and the
+// other is the boundary.
+func TestAReadOnlyKeySeesAndMayNotWrite(t *testing.T) {
+	ts, _, wsID, _, lesen := setUp(t)
 
-	res := ruf(t, ts, lesen, "tools/list", nil)
+	res := call(t, ts, lesen, "tools/list", nil)
 	result := res["result"].(map[string]any)
-	for _, roh := range result["tools"].([]any) {
-		name := roh.(map[string]any)["name"].(string)
-		if strings.HasPrefix(name, "seite_anlegen") || strings.HasPrefix(name, "seite_aendern") ||
-			strings.HasPrefix(name, "seite_veroeffentlichen") {
+	for _, raw := range result["tools"].([]any) {
+		name := raw.(map[string]any)["name"].(string)
+		if strings.HasPrefix(name, "create_page") || strings.HasPrefix(name, "update_page") ||
+			strings.HasPrefix(name, "publish_page") {
 			t.Errorf("a read-only key sees %q", name)
 		}
 	}
 
-	_, fehler := werkzeug(t, ts, lesen, "seite_anlegen", map[string]any{
-		"website": wsID, "titel": "Verboten", "markdown": "Text",
+	_, failed := callTool(t, ts, lesen, "create_page", map[string]any{
+		"website": wsID, "title": "Verboten", "markdown": "Text",
 	})
-	if !fehler {
+	if !failed {
 		t.Error("a read-only key was able to create a page")
 	}
 }
 
-// Ein Schlüssel für eine Website darf die andere nicht sehen.
-func TestSchluesselBleibtBeiSeinerWebsite(t *testing.T) {
+// A key for one website must not see the other.
+func TestAKeyStaysWithItsOwnWebsite(t *testing.T) {
 	database := newTestDB(t)
 	domains := domain.NewStore(database)
 	eins, _ := domains.CreateWebsite(context.Background(), "Eins", "")
@@ -238,64 +238,64 @@ func TestSchluesselBleibtBeiSeinerWebsite(t *testing.T) {
 	})))
 	defer ts.Close()
 
-	liste, fehler := werkzeug(t, ts, secret, "websites_auflisten", nil)
-	if fehler {
-		t.Fatalf("websites_auflisten: %v", liste["text"])
+	list, failed := callTool(t, ts, secret, "list_websites", nil)
+	if failed {
+		t.Fatalf("list_websites: %v", list["text"])
 	}
-	sites := liste["websites"].([]any)
+	sites := list["websites"].([]any)
 	if len(sites) != 1 {
 		t.Fatalf("%d Websites sichtbar, erwartet 1", len(sites))
 	}
 
-	if _, fehler := werkzeug(t, ts, secret, "seite_anlegen", map[string]any{
-		"website": zwei.ID, "titel": "Fremd", "markdown": "Text",
-	}); !fehler {
+	if _, failed := callTool(t, ts, secret, "create_page", map[string]any{
+		"website": zwei.ID, "title": "Fremd", "markdown": "Text",
+	}); !failed {
 		t.Error("it was possible to write on somebody else's website")
 	}
 }
 
-// Der ganze Weg, den ein Assistent geht: verbinden, Werkzeuge holen, eine Seite
-// anlegen, sie ändern und am Ende veröffentlichen.
-func TestDerGanzeWeg(t *testing.T) {
-	ts, database, wsID, key, _ := aufbau(t)
+// The whole way an assistant goes: connect, fetch the tools, create a page,
+// change it and publish it at the end.
+func TestTheWholeWayThrough(t *testing.T) {
+	ts, database, wsID, key, _ := setUp(t)
 
-	res := ruf(t, ts, key, "initialize", map[string]any{})
+	res := call(t, ts, key, "initialize", map[string]any{})
 	if got := res["result"].(map[string]any)["protocolVersion"]; got != ProtocolVersion {
 		t.Errorf("protocolVersion = %v, want %v", got, ProtocolVersion)
 	}
 
-	angelegt, fehler := werkzeug(t, ts, key, "seite_anlegen", map[string]any{
-		"website": wsID, "titel": "Unsere Schafe", "markdown": "# Hallo\n\nText.",
+	angelegt, failed := callTool(t, ts, key, "create_page", map[string]any{
+		"website": wsID, "title": "Unsere Schafe", "markdown": "# Hallo\n\nText.",
 	})
-	if fehler {
-		t.Fatalf("seite_anlegen: %v", angelegt["text"])
+	if failed {
+		t.Fatalf("create_page: %v", angelegt["text"])
 	}
-	// Alles Neue ist ein Entwurf. Das ist die Regel, an der am meisten hängt:
-	// ein Assistent, der aus Versehen veröffentlicht, stellt etwas Halbfertiges
-	// ins Netz, und gemerkt wird das erst, wenn jemand es gelesen hat.
-	if angelegt["zustand"] != "entwurf" {
-		t.Fatalf("zustand = %v, want entwurf", angelegt["zustand"])
+	// Everything new is a draft. This is the rule most hangs on: an assistant
+	// that publishes by accident puts something half-finished on the net, and
+	// that is noticed only once somebody has read it.
+	if angelegt["status"] != "draft" {
+		t.Fatalf("status = %v, want draft", angelegt["status"])
 	}
 	id := int64(angelegt["id"].(float64))
 
-	gelesen, _ := werkzeug(t, ts, key, "seite_lesen", map[string]any{"id": id})
+	gelesen, _ := callTool(t, ts, key, "read_page", map[string]any{"id": id})
 	if !strings.Contains(gelesen["markdown"].(string), "Hallo") {
 		t.Errorf("markdown = %q", gelesen["markdown"])
 	}
 
-	geaendert, fehler := werkzeug(t, ts, key, "seite_aendern", map[string]any{
+	changed, failed := callTool(t, ts, key, "update_page", map[string]any{
 		"id": id, "markdown": "# Hallo\n\nMehr Text.",
 	})
-	if fehler {
-		t.Fatalf("seite_aendern: %v", geaendert["text"])
+	if failed {
+		t.Fatalf("update_page: %v", changed["text"])
 	}
-	// Ändern ist nicht Veröffentlichen.
-	if geaendert["zustand"] != "entwurf" {
-		t.Errorf("after the change status = %v, want entwurf", geaendert["zustand"])
+	// Changing is not publishing.
+	if changed["status"] != "draft" {
+		t.Errorf("after the change status = %v, want draft", changed["status"])
 	}
 
-	// Der alte Stand bleibt als Fassung erhalten, genau wie bei einer Änderung
-	// aus der Verwaltung — sonst wäre ein Text, den eine KI überschreibt, weg.
+	// The old state is kept as a revision, exactly as with a change made from
+	// the admin side — otherwise a text an AI overwrites would be gone.
 	fassungen, err := page.NewStore(database).ListRevisions(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
@@ -304,22 +304,21 @@ func TestDerGanzeWeg(t *testing.T) {
 		t.Error("the change left no version behind")
 	}
 
-	oeffentlich, fehler := werkzeug(t, ts, key, "seite_veroeffentlichen", map[string]any{
-		"id": id, "zustand": "veroeffentlicht",
+	oeffentlich, failed := callTool(t, ts, key, "publish_page", map[string]any{
+		"id": id, "status": "published",
 	})
-	if fehler {
-		t.Fatalf("seite_veroeffentlichen: %v", oeffentlich["text"])
+	if failed {
+		t.Fatalf("publish_page: %v", oeffentlich["text"])
 	}
-	if oeffentlich["zustand"] != "veroeffentlicht" {
-		t.Errorf("zustand = %v, want veroeffentlicht", oeffentlich["zustand"])
+	if oeffentlich["status"] != "published" {
+		t.Errorf("status = %v, want published", oeffentlich["status"])
 	}
 }
 
-// Eine Seite aus Bausteinen darf nicht durch Markdown ersetzt werden. Ohne
-// diese Sperre schreibt ein Assistent seinen Text hinein und der Aufbau der
-// Seite ist still verloren.
-func TestBausteinseiteWirdNichtUeberschrieben(t *testing.T) {
-	ts, database, wsID, key, _ := aufbau(t)
+// A page made of blocks must not be replaced by markdown. Without this bar an
+// assistant writes its text into it and the build of the page is silently lost.
+func TestABlockPageIsNotOverwritten(t *testing.T) {
+	ts, database, wsID, key, _ := setUp(t)
 
 	pages := page.NewStore(database)
 	p, err := pages.CreatePage(context.Background(), page.PageCreate{
@@ -331,34 +330,33 @@ func TestBausteinseiteWirdNichtUeberschrieben(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gelesen, _ := werkzeug(t, ts, key, "seite_lesen", map[string]any{"id": p.ID})
-	if gelesen["aufbau"] != "bausteine" {
-		t.Errorf("aufbau = %v, want bausteine", gelesen["aufbau"])
+	gelesen, _ := callTool(t, ts, key, "read_page", map[string]any{"id": p.ID})
+	if gelesen["built_from"] != "blocks" {
+		t.Errorf("built_from = %v, want blocks", gelesen["built_from"])
 	}
 
-	antwort, fehler := werkzeug(t, ts, key, "seite_aendern", map[string]any{
+	answer, failed := callTool(t, ts, key, "update_page", map[string]any{
 		"id": p.ID, "markdown": "alles neu",
 	})
-	if !fehler {
+	if !failed {
 		t.Fatal("the blocks were overwritten")
 	}
-	if !strings.Contains(antwort["text"].(string), "Bausteine") {
-		t.Errorf("reason = %q", antwort["text"])
+	if !strings.Contains(answer["text"].(string), "blocks") {
+		t.Errorf("reason = %q", answer["text"])
 	}
 
-	// Nur den Titel zu ändern muss trotzdem gehen.
-	if _, fehler := werkzeug(t, ts, key, "seite_aendern", map[string]any{
-		"id": p.ID, "titel": "Neuer Titel",
-	}); fehler {
+	// Changing only the title has to keep working all the same.
+	if _, failed := callTool(t, ts, key, "update_page", map[string]any{
+		"id": p.ID, "title": "Neuer Titel",
+	}); failed {
 		t.Error("the title of a block page could not be changed")
 	}
 }
 
-// GET ist die Anfrage, die ein Client stellt, wenn er einen Ereignisstrom
-// erwartet. Eine klare Absage schlägt einen 404, der nach falscher Adresse
-// aussieht.
-func TestNurPost(t *testing.T) {
-	ts, _, _, key, _ := aufbau(t)
+// GET is the request a client makes when it expects an event stream. A clear
+// refusal beats a 404, which looks like a wrong address.
+func TestOnlyPostIsAccepted(t *testing.T) {
+	ts, _, _, key, _ := setUp(t)
 	req, _ := http.NewRequest(http.MethodGet, ts.URL, nil)
 	req.Header.Set("Authorization", "Bearer "+key)
 	res, err := ts.Client().Do(req)
@@ -371,10 +369,10 @@ func TestNurPost(t *testing.T) {
 	}
 }
 
-// Eine Benachrichtigung hat keine Kennung und will keine Antwort. Wer darauf
-// antwortet, bringt manche Clients zum Klagen.
-func TestBenachrichtigungOhneAntwort(t *testing.T) {
-	ts, _, _, key, _ := aufbau(t)
+// A notification has no id and wants no answer. Whoever answers one makes some
+// clients complain.
+func TestANotificationGetsNoAnswer(t *testing.T) {
+	ts, _, _, key, _ := setUp(t)
 	req, _ := http.NewRequest(http.MethodPost, ts.URL,
 		strings.NewReader(`{"jsonrpc":"2.0","method":"notifications/initialized"}`))
 	req.Header.Set("Authorization", "Bearer "+key)
@@ -388,8 +386,8 @@ func TestBenachrichtigungOhneAntwort(t *testing.T) {
 	}
 }
 
-// Jedes Werkzeug braucht ein Schema, sonst rät der Assistent die Argumente.
-func TestJedesWerkzeugHatEinSchema(t *testing.T) {
+// Every tool needs a schema, or the assistant guesses the arguments.
+func TestEveryToolHasASchema(t *testing.T) {
 	for _, w := range Tools(Deps{}) {
 		if w.Description == "" {
 			t.Errorf("%s hat keine Beschreibung", w.Name)
@@ -397,20 +395,20 @@ func TestJedesWerkzeugHatEinSchema(t *testing.T) {
 		if w.InputSchema.Type != "object" {
 			t.Errorf("%s: Schema-Typ %q", w.Name, w.InputSchema.Type)
 		}
-		for _, pflicht := range w.InputSchema.Required {
-			if _, ok := w.InputSchema.Properties[pflicht]; !ok {
-				t.Errorf("%s demands %q but does not describe it", w.Name, pflicht)
+		for _, required := range w.InputSchema.Required {
+			if _, ok := w.InputSchema.Properties[required]; !ok {
+				t.Errorf("%s demands %q but does not describe it", w.Name, required)
 			}
 		}
 	}
 }
 
-// --- Was ein Assistent über die neuen Feldeigenschaften erfährt -----------
+// --- What an assistant learns about the new field properties --------------
 
-// aufbauMitFeldern ist aufbau, nur mit den eigenen Feldern der Website dabei.
-// Ein Server ohne Fields meldet gar keine Felder — richtig für einen Bau ohne
-// sie, unbrauchbar für diese Prüfungen.
-func aufbauMitFeldern(t *testing.T) (*httptest.Server, *field.Store, int64, string) {
+// setUpWithFields is setUp, only with the website's own fields along. A server
+// without Fields reports no fields at all — right for a build without them,
+// useless for these checks.
+func setUpWithFields(t *testing.T) (*httptest.Server, *field.Store, int64, string) {
 	t.Helper()
 	database := newTestDB(t)
 
@@ -436,29 +434,29 @@ func aufbauMitFeldern(t *testing.T) (*httptest.Server, *field.Store, int64, stri
 	return ts, fields, ws.ID, schreiben
 }
 
-// feldNamens sucht ein Feld in der Antwort von felder_auflisten.
-func feldNamens(t *testing.T, liste []any, kennung string) map[string]any {
+// fieldNamed finds one field in the answer of list_fields.
+func fieldNamed(t *testing.T, list []any, key string) map[string]any {
 	t.Helper()
-	for _, roh := range liste {
-		e, _ := roh.(map[string]any)
-		if e["kennung"] == kennung {
+	for _, raw := range list {
+		e, _ := raw.(map[string]any)
+		if e["key"] == key {
 			return e
 		}
 	}
-	t.Fatalf("no field %q in %v", kennung, liste)
+	t.Fatalf("no field %q in %v", key, list)
 	return nil
 }
 
-// Ein Assistent schreibt in die Felder, die diese Liste beschreibt. Steht die
-// Höchstzahl nicht da, schreibt es drei Werte in ein Feld, das zwei nimmt;
-// steht die Schreibweise nicht da, schreibt es „Mo, Di" in eines, das eine
-// Zeile je Wert erwartet. Beides wird abgelehnt, und der Assistent erfährt
-// den Grund erst danach — die Liste ist die Stelle, an der es vorher steht.
-func TestFelderAuflistenBeschreibtDieNeuenEigenschaften(t *testing.T) {
-	ts, fields, wsID, key := aufbauMitFeldern(t)
+// An assistant writes into the fields this list describes. If the maximum is
+// not there, it writes three values into a field that takes two; if the
+// spelling is not there, it writes "Mo, Di" into one that expects one line per
+// value. Both are refused, and the assistant learns the reason only afterwards
+// — the list is the place where it stands beforehand.
+func TestListFieldsDescribesTheNewProperties(t *testing.T) {
+	ts, fields, wsID, key := setUpWithFields(t)
 	ctx := context.Background()
 
-	anlegen := func(d field.Def) field.Def {
+	create := func(d field.Def) field.Def {
 		t.Helper()
 		d.WebsiteID = wsID
 		got, err := fields.Create(ctx, d)
@@ -468,123 +466,122 @@ func TestFelderAuflistenBeschreibtDieNeuenEigenschaften(t *testing.T) {
 		return *got
 	}
 
-	anlegen(field.Def{Key: "sorten", Label: "Sorten", Kind: field.KindMulti,
+	create(field.Def{Key: "sorten", Label: "Sorten", Kind: field.KindMulti,
 		Choices: []string{"Eiche", "Buche", "Esche"}, MaxValues: 2})
-	anlegen(field.Def{Key: "menge", Label: "Menge", Kind: field.KindRange,
+	create(field.Def{Key: "menge", Label: "Menge", Kind: field.KindRange,
 		RangeMin: "1", RangeMax: "10"})
-	anlegen(field.Def{Key: "stil", Label: "Stil", Kind: field.KindChoice,
+	create(field.Def{Key: "stil", Label: "Stil", Kind: field.KindChoice,
 		Choices: []string{"hell", "dunkel"}, Display: field.DisplayButtons})
-	anlegen(field.Def{Key: "form", Label: "Form", Kind: field.KindChoice,
+	create(field.Def{Key: "form", Label: "Form", Kind: field.KindChoice,
 		Choices: []string{"rund", "eckig"}})
-	anlegen(field.Def{Key: "herkunft", Label: "Herkunft", Kind: field.KindText})
-	gruppe := anlegen(field.Def{Key: "zeiten", Label: "Zeiten", Kind: field.KindGroup})
-	anlegen(field.Def{ParentID: gruppe.ID, Key: "tage", Label: "Tage", Kind: field.KindMulti,
+	create(field.Def{Key: "herkunft", Label: "Herkunft", Kind: field.KindText})
+	group := create(field.Def{Key: "zeiten", Label: "Zeiten", Kind: field.KindGroup})
+	create(field.Def{ParentID: group.ID, Key: "tage", Label: "Tage", Kind: field.KindMulti,
 		Choices: []string{"Mo", "Di", "Mi"}, MaxValues: 2})
-	anlegen(field.Def{ParentID: gruppe.ID, Key: "von", Label: "Von", Kind: field.KindRange,
+	create(field.Def{ParentID: group.ID, Key: "von", Label: "Von", Kind: field.KindRange,
 		RangeMin: "0", RangeMax: "24"})
 
-	res, fehler := werkzeug(t, ts, key, "felder_auflisten", map[string]any{"website": wsID})
-	if fehler {
-		t.Fatalf("felder_auflisten: %v", res["text"])
+	res, failed := callTool(t, ts, key, "list_fields", map[string]any{"website": wsID})
+	if failed {
+		t.Fatalf("list_fields: %v", res["text"])
 	}
-	liste, _ := res["felder"].([]any)
-	if len(liste) == 0 {
-		t.Fatalf("keine Felder gemeldet: %v", res)
+	list, _ := res["fields"].([]any)
+	if len(list) == 0 {
+		t.Fatalf("no fields reported: %v", res)
 	}
 
-	// Die Höchstzahl steht da, und zwar als Zahl.
-	sorten := feldNamens(t, liste, "sorten")
-	if got, will := sorten["max_werte"], float64(2); got != will {
+	// The maximum is there, and as a number at that.
+	sorten := fieldNamed(t, list, "sorten")
+	if got, will := sorten["max_values"], float64(2); got != will {
 		t.Errorf("max_werte = %v (%T), wollte %v", got, got, will)
 	}
-	// Und die eine Zeile, die sagt, wie mehrere Werte geschrieben werden.
-	hinweis, _ := sorten["mehrere_werte"].(string)
-	if hinweis == "" {
+	// And the one line that says how several values are written.
+	note, _ := sorten["multiple_values"].(string)
+	if note == "" {
 		t.Errorf("the multi-valued field does not say how its value is written: %v", sorten)
 	}
 
-	// Beide Grenzen, jede für sich.
-	menge := feldNamens(t, liste, "menge")
-	if menge["min_wert"] != "1" || menge["max_wert"] != "10" {
-		t.Errorf("the bounds are missing or wrong: %v", menge)
+	// Both bounds, each on its own.
+	quantity := fieldNamed(t, list, "menge")
+	if quantity["min_value"] != "1" || quantity["max_value"] != "10" {
+		t.Errorf("the bounds are missing or wrong: %v", quantity)
 	}
 
-	// Die Darstellung nur dort, wo sie von der Ausklappliste abweicht, die
-	// jedes bestehende Feld ist.
-	if got := feldNamens(t, liste, "stil")["darstellung"]; got != field.DisplayButtons {
+	// The presentation only where it differs from the dropdown that every
+	// existing field is.
+	if got := fieldNamed(t, list, "stil")["presentation"]; got != field.DisplayButtons {
 		t.Errorf("darstellung = %v, wollte %q", got, field.DisplayButtons)
 	}
-	if _, da := feldNamens(t, liste, "form")["darstellung"]; da {
+	if _, da := fieldNamed(t, list, "form")["presentation"]; da {
 		t.Error("the drop-down reports a display although it is the ordinary one")
 	}
 
-	// Ein gewöhnliches Textfeld trägt nichts davon: eine gemeldete Null läse
-	// sich als „keiner erlaubt", und eine gemeldete leere Grenze als „die
-	// Grenze ist leer".
-	herkunft := feldNamens(t, liste, "herkunft")
-	for _, schluessel := range []string{"darstellung", "max_werte", "min_wert", "max_wert", "mehrere_werte"} {
+	// An ordinary text field carries none of it: a reported zero would read as
+	// "none allowed", and a reported empty bound as "the bound is empty".
+	herkunft := fieldNamed(t, list, "herkunft")
+	for _, schluessel := range []string{"presentation", "max_values", "min_value", "max_value", "multiple_values"} {
 		if _, da := herkunft[schluessel]; da {
 			t.Errorf("das Textfeld meldet %q: %v", schluessel, herkunft)
 		}
 	}
 
-	// Und dasselbe eine Ebene tiefer: ein Assistent, der über ein Unterfeld
-	// weniger erfährt, schreibt in genau dieses falsch hinein.
-	unter, _ := feldNamens(t, liste, "zeiten")["unterfelder"].([]any)
+	// And the same one level down: an assistant that learns less about a
+	// subfield is an assistant that writes into exactly that one wrongly.
+	unter, _ := fieldNamed(t, list, "zeiten")["subfields"].([]any)
 	if len(unter) == 0 {
-		t.Fatalf("die Gruppe meldet keine Unterfelder: %v", feldNamens(t, liste, "zeiten"))
+		t.Fatalf("die Gruppe meldet keine Unterfelder: %v", fieldNamed(t, list, "zeiten"))
 	}
-	tage := feldNamens(t, unter, "tage")
-	if got, will := tage["max_werte"], float64(2); got != will {
+	tage := fieldNamed(t, unter, "tage")
+	if got, will := tage["max_values"], float64(2); got != will {
 		t.Errorf("das Unterfeld meldet max_werte = %v, wollte %v", got, will)
 	}
-	if h, _ := tage["mehrere_werte"].(string); h == "" {
+	if h, _ := tage["multiple_values"].(string); h == "" {
 		t.Errorf("the multi-valued sub-field does not say how its value is written: %v", tage)
 	}
-	von := feldNamens(t, unter, "von")
-	if von["min_wert"] != "0" || von["max_wert"] != "24" {
+	von := fieldNamed(t, unter, "von")
+	if von["min_value"] != "0" || von["max_value"] != "24" {
 		t.Errorf("the sub-field does not report the bounds: %v", von)
 	}
 }
 
-// Die Rundreise: geschrieben, wie die Notiz es beschreibt, und unverändert
-// zurückgelesen. Das ist die einzige Zusicherung hier, die eine Notiz auffliegen
-// liesse, die eine Schreibweise beschreibt, welche der Schreibweg nicht nimmt.
-func TestMehrwertigesFeldGehtDurchDieWerkzeugeUndZurueck(t *testing.T) {
-	ts, fields, wsID, key := aufbauMitFeldern(t)
-	if _, err := fields.Create(context.Background(), field.Def{
+// The round trip: written the way the note describes it, and read back
+// unchanged. This is the only assurance here that would expose a note
+// describing a spelling the writing path does not take.
+func TestAMultiValuedFieldGoesThroughTheToolsAndBack(t *testing.T) {
+	ts, fieldStore, wsID, key := setUpWithFields(t)
+	if _, err := fieldStore.Create(context.Background(), field.Def{
 		WebsiteID: wsID, Key: "sorten", Label: "Sorten", Kind: field.KindMulti,
 		Choices: []string{"Eiche", "Buche", "Esche"}, MaxValues: 2,
 	}); err != nil {
 		t.Fatalf("Feld anlegen: %v", err)
 	}
 
-	angelegt, fehler := werkzeug(t, ts, key, "seite_anlegen", map[string]any{
-		"website": wsID, "titel": "Bretter", "markdown": "Text.",
-		"felder": map[string]any{"sorten": "Eiche\nBuche"},
+	angelegt, failed := callTool(t, ts, key, "create_page", map[string]any{
+		"website": wsID, "title": "Bretter", "markdown": "Text.",
+		"fields": map[string]any{"sorten": "Eiche\nBuche"},
 	})
-	if fehler {
-		t.Fatalf("seite_anlegen: %v", angelegt["text"])
+	if failed {
+		t.Fatalf("create_page: %v", angelegt["text"])
 	}
 	id := int64(angelegt["id"].(float64))
 
-	gelesen, fehler := werkzeug(t, ts, key, "seite_lesen", map[string]any{"id": id})
-	if fehler {
-		t.Fatalf("seite_lesen: %v", gelesen["text"])
+	gelesen, failed := callTool(t, ts, key, "read_page", map[string]any{"id": id})
+	if failed {
+		t.Fatalf("read_page: %v", gelesen["text"])
 	}
-	felder, _ := gelesen["felder"].(map[string]any)
-	if got, will := felder["sorten"], "Eiche\nBuche"; got != will {
+	fields, _ := gelesen["fields"].(map[string]any)
+	if got, will := fields["sorten"], "Eiche\nBuche"; got != will {
 		t.Errorf("read back %q, wanted %q", got, will)
 	}
 
-	// Und die Höchstzahl gilt auch hier: der Schreibweg läuft durch dasselbe
-	// CheckAll wie das Formular, ein Assistent kommt also nicht an einer
-	// Regel vorbei, an die sich eine Person halten muss.
-	zuViel, fehler := werkzeug(t, ts, key, "seite_anlegen", map[string]any{
-		"website": wsID, "titel": "Zu viel", "markdown": "Text.",
-		"felder": map[string]any{"sorten": "Eiche\nBuche\nEsche"},
+	// And the maximum holds here too: the writing path runs through the same
+	// CheckAll as the form, so an assistant does not get past a rule a person
+	// has to keep.
+	zuViel, failed := callTool(t, ts, key, "create_page", map[string]any{
+		"website": wsID, "title": "Zu viel", "markdown": "Text.",
+		"fields": map[string]any{"sorten": "Eiche\nBuche\nEsche"},
 	})
-	if !fehler {
+	if !failed {
 		t.Errorf("three values were accepted although at most two are allowed: %v", zuViel)
 	}
 }

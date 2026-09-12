@@ -39,16 +39,35 @@ same address rules, the same versions, the same validation. Two rules sit on top
 
 | Tool | What it does | Writes |
 |---|---|---|
-| `websites_auflisten` | the websites of this installation | no |
-| `seiten_auflisten` | pages of a website, without their text | no |
-| `seite_lesen` | one page including its Markdown | no |
-| `seiten_durchsuchen` | full-text search, drafts included | no |
-| `medien_auflisten` | images and files with a ready-made Markdown reference | no |
-| `felder_auflisten` | the website's own fields including groups | no |
-| `seite_anlegen` | a new page, always as a draft; accepts own fields | yes |
-| `seite_aendern` | title, text or individual fields; the status stays | yes |
-| `seite_veroeffentlichen` | make public, or take back | yes |
+| `list_websites` | the websites of this installation | no |
+| `list_pages` | pages of a website, without their text | no |
+| `read_page` | one page including its Markdown | no |
+| `search_pages` | full-text search, drafts included | no |
+| `list_media` | images and files with a ready-made Markdown reference | no |
+| `list_fields` | the website's own fields including groups | no |
+| `create_page` | a new page, always as a draft; accepts own fields | yes |
+| `update_page` | title, text or individual fields; the status stays | yes |
+| `publish_page` | make public, or take back | yes |
 
 A read-only key is not even shown the three writing tools — and is refused if it
 calls them anyway. A page made of blocks cannot be overwritten with Markdown; the
 assistant is told why, and that this is done in the admin.
+
+## The vocabulary changed in 2.0
+
+Up to 1.x every tool name, every argument and every answer key was German:
+`seite_anlegen`, `"titel"`, `"zustand": "entwurf"`. Since 2.0 they are English —
+`create_page`, `"title"`, `"status": "draft"` — for the same reason the template
+contract is: the words a machine reads are part of the codebase, not part of what
+an operator writes.
+
+This is a **breaking change**. A stored prompt or a script that names a tool or
+an argument by its German name stops working, and says so: the server answers
+`there is no tool "seite_anlegen"` rather than doing something unexpected. An
+assistant that asks for the tool list — which is how MCP is meant to be used —
+notices nothing at all.
+
+What did **not** change is anything an operator typed: a field key stays
+`preis`, a content type stays `produkt`, and a field kind stays `mehrfachauswahl`
+in the answer of `list_fields`. Those are values in the database, not vocabulary
+of the protocol.

@@ -40,25 +40,25 @@ type Deps struct {
 // Tools builds the tool list.
 func Tools(d Deps) []Tool {
 	return []Tool{
-		websitesAuflisten(d),
-		seitenAuflisten(d),
-		seiteLesen(d),
-		seiteSuchen(d),
-		medienAuflisten(d),
-		felderAuflisten(d),
-		seiteAnlegen(d),
-		seiteAendern(d),
-		seiteVeroeffentlichen(d),
+		listWebsites(d),
+		listPages(d),
+		readPage(d),
+		searchPages(d),
+		listMedia(d),
+		listFields(d),
+		createPage(d),
+		changePage(d),
+		publishPage(d),
 	}
 }
 
-// --- lesen ------------------------------------------------------------------
+// --- reading ----------------------------------------------------------------
 
-func websitesAuflisten(d Deps) Tool {
+func listWebsites(d Deps) Tool {
 	return Tool{
-		Name: "websites_auflisten",
-		Description: "Listet die Websites dieser Installation mit Kennung, Name und Adresse. " +
-			"Der erste Aufruf, wenn nicht klar ist, um welche Website es geht.",
+		Name: "list_websites",
+		Description: "Lists the websites of this installation with their id, name and locale. " +
+			"The first call to make when it is not clear which website is meant.",
 		InputSchema: Schema{Type: "object"},
 		Run: func(c Call) (any, error) {
 			list, err := d.Domains.ListWebsites(c.Ctx)
@@ -71,8 +71,8 @@ func websitesAuflisten(d Deps) Tool {
 					continue
 				}
 				out = append(out, map[string]any{
-					"id": ws.ID, "name": ws.Name, "beschreibung": ws.Description,
-					"aktiv": ws.Active, "sprache": ws.Locale,
+					"id": ws.ID, "name": ws.Name, "description": ws.Description,
+					"active": ws.Active, "language": ws.Locale,
 				})
 			}
 			return map[string]any{"websites": out}, nil
@@ -80,29 +80,29 @@ func websitesAuflisten(d Deps) Tool {
 	}
 }
 
-func seitenAuflisten(d Deps) Tool {
+func listPages(d Deps) Tool {
 	return Tool{
-		Name: "seiten_auflisten",
-		Description: "Listet die Seiten einer Website mit Kennung, Titel, Adresse und Zustand. " +
-			"Ohne Inhalt — den holt seite_lesen.",
+		Name: "list_pages",
+		Description: "Lists the pages of a website with their id, title, slug and status. " +
+			"Without the body — read_page fetches that.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"website": {Type: "integer", Description: "Kennung der Website"},
-				"zustand": {Type: "string", Description: "entwurf, veroeffentlicht oder alle",
-					Enum: []string{"entwurf", "veroeffentlicht", "alle"}},
-				"anzahl": {Type: "integer", Description: "höchstens so viele, Vorgabe 50"},
-				"sprache": {Type: "string", Description: "Sprachkürzel wie fr; leer lassen " +
-					"für alle Sprachen, \"haupt\" für die Hauptsprache"},
+				"website": {Type: "integer", Description: "id of the website"},
+				"status": {Type: "string", Description: "draft, published or all",
+					Enum: []string{"draft", "published", "all"}},
+				"limit": {Type: "integer", Description: "at most this many, 50 by default"},
+				"language": {Type: "string", Description: "a language tag such as fr; leave " +
+					"empty for all languages, \"main\" for the main language"},
 			},
 			Required: []string{"website"},
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website  int64  `json:"website"`
-				Status   string `json:"zustand"`
-				Count    int    `json:"anzahl"`
-				Language string `json:"sprache"`
+				Status   string `json:"status"`
+				Count    int    `json:"limit"`
+				Language string `json:"language"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -110,21 +110,21 @@ func seitenAuflisten(d Deps) Tool {
 			if err := c.Scope.MaySee(a.Website); err != nil {
 				return nil, err
 			}
-			// Ohne Angabe alle Sprachen: eine Liste, die stillschweigend nur die
-			// Hauptsprache zeigt, sieht vollständig aus und ist es nicht.
+			// Without a value, all languages: a list that silently shows only
+			// the main language looks complete and is not.
 			filter := page.ListFilter{Locale: "*", Page: 1, PerPage: clampCount(a.Count)}
 			switch strings.TrimSpace(a.Language) {
 			case "":
-				// alle
-			case "haupt":
+				// all of them
+			case "main":
 				filter.Locale = ""
 			default:
 				filter.Locale = locale.Normalise(a.Language)
 			}
 			switch a.Status {
-			case "entwurf":
+			case "draft":
 				filter.Status = "draft"
-			case "veroeffentlicht":
+			case "published":
 				filter.Status = "published"
 			}
 
@@ -134,75 +134,74 @@ func seitenAuflisten(d Deps) Tool {
 			}
 			out := make([]map[string]any, 0, len(pages))
 			for _, p := range pages {
-				out = append(out, kurz(p))
+				out = append(out, brief(p))
 			}
-			return map[string]any{"seiten": out, "insgesamt": total}, nil
+			return map[string]any{"pages": out, "total": total}, nil
 		},
 	}
 }
 
-func seiteLesen(d Deps) Tool {
+func readPage(d Deps) Tool {
 	return Tool{
-		Name: "seite_lesen",
-		Description: "Holt eine Seite mit ihrem vollständigen Text. Entweder über die Kennung " +
-			"oder über Website und Adresse.",
+		Name: "read_page",
+		Description: "Fetches a page with its complete body. Either by its id or by " +
+			"website and slug.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"id":      {Type: "integer", Description: "Kennung der Seite"},
-				"website": {Type: "integer", Description: "Kennung der Website, zusammen mit adresse"},
-				"adresse": {Type: "string", Description: "Adresse der Seite ohne Schrägstrich"},
+				"id":      {Type: "integer", Description: "id of the page"},
+				"website": {Type: "integer", Description: "id of the website, together with slug"},
+				"slug":    {Type: "string", Description: "slug of the page, without a leading slash"},
 			},
 		},
 		Run: func(c Call) (any, error) {
-			p, err := findePage(c, d)
+			p, err := findPage(c, d)
 			if err != nil {
 				return nil, err
 			}
-			out := kurz(*p)
+			out := brief(*p)
 			out["markdown"] = p.ContentMarkdown
-			out["kurzfassung"] = p.Excerpt
-			daten := field.Decode(p.Fields)
-			if len(daten.Values) > 0 {
-				out["felder"] = map[string]string(daten.Values)
+			out["excerpt"] = p.Excerpt
+			data := field.Decode(p.Fields)
+			if len(data.Values) > 0 {
+				out["fields"] = map[string]string(data.Values)
 			}
-			if len(daten.Rows) > 0 {
-				out["gruppen"] = daten.Rows
+			if len(data.Rows) > 0 {
+				out["groups"] = data.Rows
 			}
-			// Eine Seite aus Bausteinen hat kein Markdown, das sich sinnvoll
-			// zurückschreiben liesse. Das muss dastehen, sonst schreibt ein
-			// Assistent seinen Text hinein und wundert sich, dass die Bausteine
-			// gewinnen.
+			// A page made of blocks has no markdown that could sensibly be
+			// written back. That has to be stated, or an assistant writes its
+			// text into it and is surprised that the blocks win.
 			if p.Blocks != "" {
-				out["aufbau"] = "bausteine"
-				out["hinweis"] = "Diese Seite besteht aus Bausteinen. seite_aendern schreibt " +
-					"Markdown und würde die Bausteine ersetzen — bitte nachfragen, bevor du das tust."
+				out["built_from"] = "blocks"
+				out["note"] = "This page is made of blocks. update_page writes markdown and " +
+					"would replace the blocks — please ask before you do that."
 			} else {
-				out["aufbau"] = "markdown"
+				out["built_from"] = "markdown"
 			}
 			return out, nil
 		},
 	}
 }
 
-func seiteSuchen(d Deps) Tool {
+func searchPages(d Deps) Tool {
 	return Tool{
-		Name:        "seiten_durchsuchen",
-		Description: "Sucht in den Seiten einer Website nach Wörtern und liefert die Fundstellen.",
+		Name:        "search_pages",
+		Description: "Searches the pages of a website for words and hands back the matches.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"website": {Type: "integer", Description: "Kennung der Website"},
-				"suche":   {Type: "string", Description: "wonach gesucht wird"},
-				"anzahl":  {Type: "integer", Description: "höchstens so viele, Vorgabe 20"},
+				"website": {Type: "integer", Description: "id of the website"},
+				"query":   {Type: "string", Description: "what is searched for"},
+				"limit":   {Type: "integer", Description: "at most this many, 20 by default"},
 			},
-			Required: []string{"website", "suche"},
+			Required: []string{"website", "query"},
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64  `json:"website"`
-				Suche   string `json:"suche"`
-				Count   int    `json:"anzahl"`
+				Query   string `json:"query"`
+				Count   int    `json:"limit"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -210,47 +209,47 @@ func seiteSuchen(d Deps) Tool {
 			if err := c.Scope.MaySee(a.Website); err != nil {
 				return nil, err
 			}
-			anzahl := a.Count
-			if anzahl <= 0 {
-				anzahl = 20
+			count := a.Count
+			if count <= 0 {
+				count = 20
 			}
-			// Entwürfe dürfen mit: dies ist die Verwaltung, nicht die Website,
-			// und ein Assistent, der einen halbfertigen Text überarbeiten soll,
-			// muss ihn finden können.
-			res, err := d.Pages.SearchPages(c.Ctx, a.Website, a.Suche, true, clampCount(anzahl))
+			// Drafts may come along: this is the admin side, not the website,
+			// and an assistant asked to rework a half-finished text has to be
+			// able to find it.
+			res, err := d.Pages.SearchPages(c.Ctx, a.Website, a.Query, true, clampCount(count))
 			if err != nil {
 				return nil, err
 			}
 			out := make([]map[string]any, 0, len(res))
 			for _, r := range res {
-				e := kurz(r.Page)
-				e["fundstelle"] = string(r.Snippet)
+				e := brief(r.Page)
+				e["match"] = string(r.Snippet)
 				out = append(out, e)
 			}
-			return map[string]any{"treffer": out}, nil
+			return map[string]any{"matches": out}, nil
 		},
 	}
 }
 
-func medienAuflisten(d Deps) Tool {
+func listMedia(d Deps) Tool {
 	return Tool{
-		Name: "medien_auflisten",
-		Description: "Listet die Bilder und Dateien einer Website mit ihrer Adresse und ihrer " +
-			"Beschreibung. Die Adresse ist das, was in einen Markdown-Verweis gehört.",
+		Name: "list_media",
+		Description: "Lists the images and files of a website with their URL and their " +
+			"description. The URL is what belongs inside a markdown reference.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"website": {Type: "integer", Description: "Kennung der Website"},
-				"suche":   {Type: "string", Description: "Dateiname oder Beschreibung"},
-				"anzahl":  {Type: "integer", Description: "höchstens so viele, Vorgabe 50"},
+				"website": {Type: "integer", Description: "id of the website"},
+				"query":   {Type: "string", Description: "file name or description"},
+				"limit":   {Type: "integer", Description: "at most this many, 50 by default"},
 			},
 			Required: []string{"website"},
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64  `json:"website"`
-				Suche   string `json:"suche"`
-				Count   int    `json:"anzahl"`
+				Query   string `json:"query"`
+				Count   int    `json:"limit"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -259,38 +258,38 @@ func medienAuflisten(d Deps) Tool {
 				return nil, err
 			}
 			items, _, err := d.Media.List(c.Ctx, a.Website,
-				media.Filter{Query: a.Suche}, 1, clampCount(a.Count))
+				media.Filter{Query: a.Query}, 1, clampCount(a.Count))
 			if err != nil {
 				return nil, err
 			}
 			out := make([]map[string]any, 0, len(items))
 			for _, m := range items {
 				e := map[string]any{
-					"id": m.ID, "datei": m.OriginalName, "adresse": m.URL(),
-					"art": m.MimeType, "beschreibung": m.AltText,
+					"id": m.ID, "file": m.OriginalName, "url": m.URL(),
+					"mime": m.MimeType, "description": m.AltText,
 					"markdown": m.MarkdownRef(),
 				}
 				if m.NeedsAltText() {
-					e["hinweis"] = "Diesem Bild fehlt eine Beschreibung. " +
-						"Wer es einbaut, sollte eine schreiben."
+					e["note"] = "This image has no description. " +
+						"Whoever puts it into a page should write one."
 				}
 				out = append(out, e)
 			}
-			return map[string]any{"medien": out}, nil
+			return map[string]any{"media": out}, nil
 		},
 	}
 }
 
-func felderAuflisten(d Deps) Tool {
+func listFields(d Deps) Tool {
 	return Tool{
-		Name: "felder_auflisten",
-		Description: "Listet die eigenen Felder einer Website — was diese Website über Titel und Text " +
-			"hinaus an einer Seite kennt, etwa Preis oder Verfügbarkeit. Vor dem ersten Schreiben " +
-			"aufrufen: nur so weiß man, welche Angaben eine Seite hier tragen kann.",
+		Name: "list_fields",
+		Description: "Lists a website's own fields — what this website knows about a page beyond " +
+			"title and body, a price or an availability say. Call it before the first write: it is " +
+			"the only way to learn which particulars a page can carry here.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"website": {Type: "integer", Description: "Kennung der Website"},
+				"website": {Type: "integer", Description: "id of the website"},
 			},
 			Required: []string{"website"},
 		},
@@ -305,7 +304,7 @@ func felderAuflisten(d Deps) Tool {
 				return nil, err
 			}
 			if d.Fields == nil {
-				return map[string]any{"felder": []any{}}, nil
+				return map[string]any{"fields": []any{}}, nil
 			}
 			defs, err := d.Fields.List(c.Ctx, a.Website)
 			if err != nil {
@@ -314,126 +313,124 @@ func felderAuflisten(d Deps) Tool {
 			out := make([]map[string]any, 0, len(defs))
 			for _, def := range defs {
 				e := map[string]any{
-					"kennung": def.Key, "beschriftung": def.Label,
-					"art": def.Kind, "pflicht": def.Required, "gilt_fuer": def.AppliesTo,
+					"key": def.Key, "label": def.Label,
+					"kind": def.Kind, "required": def.Required, "applies_to": def.AppliesTo,
 				}
 				if def.Hint != "" {
-					e["hinweis"] = def.Hint
+					e["hint"] = def.Hint
 				}
 				if def.Condition != "" {
-					// Sonst schreibt ein Assistent in ein Feld, das niemand
-					// sieht, und wundert sich, dass die Seite es nicht zeigt.
-					e["nur_wenn_ausgefuellt"] = def.Condition
+					// Otherwise an assistant writes into a field nobody sees
+					// and is surprised that the page does not show it.
+					e["only_if_filled"] = def.Condition
 				}
 				if len(def.Choices) > 0 {
-					e["auswahl"] = def.Choices
+					e["choices"] = def.Choices
 				}
-				feldeigenschaften(e, def)
+				fieldProperties(e, def)
 				if def.IsGroup() {
 					sub := make([]map[string]any, 0, len(def.Sub))
 					for _, s := range def.Sub {
 						se := map[string]any{
-							"kennung": s.Key, "beschriftung": s.Label,
-							"art": s.Kind, "pflicht": s.Required,
+							"key": s.Key, "label": s.Label,
+							"kind": s.Kind, "required": s.Required,
 						}
 						if len(s.Choices) > 0 {
-							se["auswahl"] = s.Choices
+							se["choices"] = s.Choices
 						}
-						// Dieselben Angaben eine Ebene tiefer, aus derselben
-						// Stelle: ein Assistent, der über ein Unterfeld
-						// weniger erfährt, schreibt in genau dieses falsch
-						// hinein.
-						feldeigenschaften(se, s)
+						// The same particulars one level down, out of the same
+						// place: an assistant that learns less about a subfield
+						// is an assistant that writes into exactly that one
+						// wrongly.
+						fieldProperties(se, s)
 						sub = append(sub, se)
 					}
-					e["unterfelder"] = sub
+					e["subfields"] = sub
 				}
 				out = append(out, e)
 			}
-			return map[string]any{"felder": out}, nil
+			return map[string]any{"fields": out}, nil
 		},
 	}
 }
 
-// feldeigenschaften trägt in die Beschreibung eines Feldes ein, was ein
-// Assistent braucht, um einen Wert zu schreiben, der auch angenommen wird: die
-// Darstellung, die Höchstzahl der Werte, die beiden Grenzen einer Zahl — und,
-// bei einem mehrwertigen Feld, wie mehrere Werte in die eine Zeichenkette
-// geschrieben werden, die die Schreibwerkzeuge nehmen. Die Art selbst steht
-// schon unter "art"; was hier dazukommt, ist die Gestalt eines annehmbaren
-// Wertes.
+// fieldProperties enters into the description of a field whatever an assistant
+// needs in order to write a value that will actually be accepted: the
+// presentation, the maximum number of values, the two bounds of a number — and,
+// for a multi-valued field, how several values are written into the one string
+// that the writing tools take. The kind itself already stands under "kind"; what
+// is added here is the shape of an acceptable value.
 //
-// Eine Stelle für das Feld auf der Seite und für das Unterfeld in einer
-// Gruppe, damit die beiden nicht auseinanderlaufen können.
+// One place for the field on the page and for the subfield inside a group, so
+// that the two cannot drift apart.
 //
-// Jeder Eintrag fehlt, wo es ihn nicht gibt, und das ist keine Sparsamkeit:
-// eine gemeldete Null läse sich als "keiner erlaubt", wo sie "ohne Grenze"
-// heisst, und eine gemeldete leere Grenze als "die Grenze ist leer". "Keine
-// Grenze" und "die Grenze ist null" sind zwei verschiedene Tatsachen —
-// derselbe Grund, aus dem die beiden Spalten in 07-02 einen Texttyp bekommen
-// haben.
+// Every entry is absent where there is none, and that is not thrift: a reported
+// zero would read as "none allowed" where it means "no limit", and a reported
+// empty bound as "the bound is empty". "No bound" and "the bound is zero" are
+// two different facts — the same reason the two columns were given a text type
+// in 07-02.
 //
-// Diese Angaben werden von einer Maschine gelesen, die danach handelt: eine
-// mehrdeutige Formulierung hier ist eine falsch geschriebene Seite dort.
-func feldeigenschaften(e map[string]any, d field.Def) {
+// These particulars are read by a machine that acts on them: an ambiguous
+// wording here is a wrongly written page over there.
+func fieldProperties(e map[string]any, d field.Def) {
 	if d.Display != "" {
-		e["darstellung"] = d.Display
+		e["presentation"] = d.Display
 	}
 	if d.MaxValues > 0 {
-		e["max_werte"] = d.MaxValues
+		e["max_values"] = d.MaxValues
 	}
 	if d.RangeMin != "" {
-		e["min_wert"] = d.RangeMin
+		e["min_value"] = d.RangeMin
 	}
 	if d.RangeMax != "" {
-		e["max_wert"] = d.RangeMax
+		e["max_value"] = d.RangeMax
 	}
 	if d.IsMultiValued() {
-		e["mehrere_werte"] = "Mehrere Werte stehen in derselben Zeichenkette, " +
-			"einer je Zeile, getrennt durch einen Zeilenumbruch; erlaubt sind nur " +
-			"die unter auswahl genannten Optionen."
+		e["multiple_values"] = "Several values stand inside the same string, one per " +
+			"line, separated by a line break; only the options named under choices " +
+			"are allowed."
 	}
 }
 
-// --- schreiben --------------------------------------------------------------
+// --- writing ----------------------------------------------------------------
 
-func seiteAnlegen(d Deps) Tool {
+func createPage(d Deps) Tool {
 	return Tool{
-		Name:   "seite_anlegen",
+		Name:   "create_page",
 		Writes: true,
-		Description: "Legt eine neue Seite an. Sie entsteht immer als Entwurf und ist erst " +
-			"öffentlich, wenn sie jemand veröffentlicht.",
+		Description: "Creates a new page. It is always born a draft and is public only once " +
+			"somebody publishes it.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"website":  {Type: "integer", Description: "Kennung der Website"},
-				"titel":    {Type: "string", Description: "Titel der Seite"},
-				"markdown": {Type: "string", Description: "Inhalt in Markdown"},
-				"adresse":  {Type: "string", Description: "Adresse ohne Schrägstrich; sonst aus dem Titel"},
-				"art": {Type: "string", Description: "seite oder beitrag",
-					Enum: []string{"seite", "beitrag"}},
-				"felder": {Type: "object", Description: "die eigenen Felder dieser Website, " +
-					"als {\"kennung\": \"wert\"}; welche es gibt, sagt felder_auflisten"},
-				"gruppen": {Type: "object", Description: "die wiederholbaren Gruppen, als " +
-					"{\"kennung\": [{\"unterfeld\": \"wert\"}, …]}"},
-				"sprache": {Type: "string", Description: "Sprachkürzel wie fr, wenn die Website " +
-					"mehrsprachig ist; leer heißt Hauptsprache"},
-				"uebersetzung_von": {Type: "integer", Description: "Kennung der Seite in der " +
-					"Hauptsprache, zu der diese Fassung gehört"},
+				"website":  {Type: "integer", Description: "id of the website"},
+				"title":    {Type: "string", Description: "title of the page"},
+				"markdown": {Type: "string", Description: "body in markdown"},
+				"slug":     {Type: "string", Description: "slug without a slash; otherwise from the title"},
+				"type": {Type: "string", Description: "page or post",
+					Enum: []string{"page", "post"}},
+				"fields": {Type: "object", Description: "this website's own fields, as " +
+					"{\"key\": \"value\"}; list_fields says which ones there are"},
+				"groups": {Type: "object", Description: "the repeatable groups, as " +
+					"{\"key\": [{\"subfield\": \"value\"}, …]}"},
+				"language": {Type: "string", Description: "a language tag such as fr, when the " +
+					"website is multilingual; empty means the main language"},
+				"translation_of": {Type: "integer", Description: "id of the page in the main " +
+					"language this version belongs to"},
 			},
-			Required: []string{"website", "titel", "markdown"},
+			Required: []string{"website", "title", "markdown"},
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website   int64                     `json:"website"`
-				Titel     string                    `json:"titel"`
+				Title     string                    `json:"title"`
 				Markdown  string                    `json:"markdown"`
-				Address   string                    `json:"adresse"`
-				Art       string                    `json:"art"`
-				Fields    field.Values              `json:"felder"`
-				Groups    map[string][]field.Values `json:"gruppen"`
-				Language  string                    `json:"sprache"`
-				GehoertZu int64                     `json:"uebersetzung_von"`
+				Address   string                    `json:"slug"`
+				Type      string                    `json:"type"`
+				Fields    field.Values              `json:"fields"`
+				Groups    map[string][]field.Values `json:"groups"`
+				Language  string                    `json:"language"`
+				BelongsTo int64                     `json:"translation_of"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
@@ -441,8 +438,8 @@ func seiteAnlegen(d Deps) Tool {
 			if err := c.Scope.MaySee(a.Website); err != nil {
 				return nil, err
 			}
-			if strings.TrimSpace(a.Titel) == "" {
-				return nil, errors.New("die Seite braucht einen Titel")
+			if strings.TrimSpace(a.Title) == "" {
+				return nil, errors.New("the page needs a title")
 			}
 
 			html, err := page.RenderMarkdown(a.Markdown)
@@ -451,10 +448,10 @@ func seiteAnlegen(d Deps) Tool {
 			}
 			slug := strings.TrimSpace(strings.Trim(a.Address, "/"))
 			if slug == "" {
-				slug = page.Slugify(a.Titel)
+				slug = page.Slugify(a.Title)
 			}
 
-			felder, reason, err := pruefeFelder(c, d, a.Website, artZuKind(a.Art),
+			fields, reason, err := checkFields(c, d, a.Website, kindFromWire(a.Type),
 				field.Data{Values: a.Fields, Rows: a.Groups})
 			if err != nil {
 				return nil, err
@@ -465,91 +462,89 @@ func seiteAnlegen(d Deps) Tool {
 
 			created, err := d.Pages.CreatePage(c.Ctx, page.PageCreate{
 				WebsiteID: a.Website,
-				Title:     strings.TrimSpace(a.Titel),
+				Title:     strings.TrimSpace(a.Title),
 				Slug:      slug,
 				Markdown:  a.Markdown,
 				HTML:      html,
-				// Immer ein Entwurf. Ein Assistent, der versehentlich
-				// veröffentlicht, stellt etwas Halbfertiges ins Netz, und das
-				// merkt der Betreiber erst, wenn jemand es gelesen hat.
+				// Always a draft. An assistant that publishes by accident puts
+				// something half-finished on the net, and the operator notices
+				// only once somebody has read it.
 				Status: "draft",
-				Fields: felder,
+				Fields: fields,
 				Meta:   page.PageMeta{Excerpt: page.Excerpt(a.Markdown)},
-				Kind:   artZuKind(a.Art),
+				Kind:   kindFromWire(a.Type),
 			})
 			if err != nil {
 				return nil, err
 			}
 			c.Log.Info("ai created page", "key", c.Scope.Name, "page", created.ID, "website", a.Website)
 
-			if hinweis := d.setzeSprache(c, a.Website, created.ID, a.Language, a.GehoertZu); hinweis != "" {
-				out := kurz(*created)
-				out["hinweis"] = hinweis
+			if note := d.setLanguage(c, a.Website, created.ID, a.Language, a.BelongsTo); note != "" {
+				out := brief(*created)
+				out["note"] = note
 				return out, nil
 			}
 
-			out := kurz(*created)
-			out["hinweis"] = "Als Entwurf angelegt. Zum Veröffentlichen seite_veroeffentlichen aufrufen."
+			out := brief(*created)
+			out["note"] = "Created as a draft. Call publish_page to publish it."
 			return out, nil
 		},
 	}
 }
 
-func seiteAendern(d Deps) Tool {
+func changePage(d Deps) Tool {
 	return Tool{
-		Name:   "seite_aendern",
+		Name:   "update_page",
 		Writes: true,
-		Description: "Ändert Titel oder Text einer Seite. Der bisherige Stand bleibt als Fassung " +
-			"erhalten und lässt sich in der Verwaltung zurückholen. Am Zustand ändert sich nichts: " +
-			"eine veröffentlichte Seite bleibt veröffentlicht.",
+		Description: "Changes the title or the body of a page. The previous state is kept as a " +
+			"revision and can be fetched back from the admin side. The status does not change: " +
+			"a published page stays published.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"id":       {Type: "integer", Description: "Kennung der Seite"},
-				"titel":    {Type: "string", Description: "neuer Titel; ohne Angabe bleibt der alte"},
-				"markdown": {Type: "string", Description: "neuer Inhalt; ohne Angabe bleibt der alte"},
-				"felder": {Type: "object", Description: "die eigenen Felder dieser Website, " +
-					"als {\"kennung\": \"wert\"}; ohne Angabe bleiben die bisherigen"},
-				"gruppen": {Type: "object", Description: "wiederholbare Gruppen als " +
-					"{\"kennung\": [{\"unterfeld\": \"wert\"}, …]}; eine angegebene Gruppe " +
-					"ersetzt ihre bisherigen Zeilen vollständig"},
+				"id":       {Type: "integer", Description: "id of the page"},
+				"title":    {Type: "string", Description: "new title; without one the old stays"},
+				"markdown": {Type: "string", Description: "new body; without one the old stays"},
+				"fields": {Type: "object", Description: "this website's own fields, as " +
+					"{\"key\": \"value\"}; without them the existing ones stay"},
+				"groups": {Type: "object", Description: "repeatable groups as " +
+					"{\"key\": [{\"subfield\": \"value\"}, …]}; a group that is given " +
+					"replaces its existing rows entirely"},
 			},
 			Required: []string{"id"},
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
-				ID        int64                     `json:"id"`
-				Titel     *string                   `json:"titel"`
-				Markdown  *string                   `json:"markdown"`
-				Fields    field.Values              `json:"felder"`
-				Groups    map[string][]field.Values `json:"gruppen"`
-				Language  string                    `json:"sprache"`
-				GehoertZu int64                     `json:"uebersetzung_von"`
+				ID       int64                     `json:"id"`
+				Title    *string                   `json:"title"`
+				Markdown *string                   `json:"markdown"`
+				Fields   field.Values              `json:"fields"`
+				Groups   map[string][]field.Values `json:"groups"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
 			}
 			p, err := d.Pages.GetPage(c.Ctx, a.ID)
 			if err != nil || p == nil {
-				return nil, errors.New("diese Seite gibt es nicht")
+				return nil, errors.New("there is no such page")
 			}
 			if err := c.Scope.MaySee(p.WebsiteID); err != nil {
 				return nil, err
 			}
 			if p.Blocks != "" && a.Markdown != nil {
-				return nil, errors.New("diese Seite besteht aus Bausteinen; " +
-					"Markdown hineinzuschreiben würde sie ersetzen. Bitte in der Verwaltung ändern.")
+				return nil, errors.New("this page is made of blocks; writing markdown into it " +
+					"would replace them. Please change it on the admin side.")
 			}
 
-			titel, markdown := p.Title, p.ContentMarkdown
-			if a.Titel != nil {
-				titel = strings.TrimSpace(*a.Titel)
+			title, markdown := p.Title, p.ContentMarkdown
+			if a.Title != nil {
+				title = strings.TrimSpace(*a.Title)
 			}
 			if a.Markdown != nil {
 				markdown = *a.Markdown
 			}
-			if strings.TrimSpace(titel) == "" {
-				return nil, errors.New("die Seite braucht einen Titel")
+			if strings.TrimSpace(title) == "" {
+				return nil, errors.New("the page needs a title")
 			}
 
 			html := p.ContentHTML
@@ -559,18 +554,18 @@ func seiteAendern(d Deps) Tool {
 				}
 			}
 
-			// Angegebene Felder ergänzen die bisherigen, statt sie zu ersetzen:
-			// wer den Preis ändert, will nicht die Verfügbarkeit verlieren.
-			gespeicherte := field.Decode(p.Fields)
+			// Given fields add to the existing ones instead of replacing them:
+			// whoever changes the price does not want to lose the availability.
+			stored := field.Decode(p.Fields)
 			for key, val := range a.Fields {
-				gespeicherte.Values[key] = val
+				stored.Values[key] = val
 			}
-			// Eine angegebene Gruppe ersetzt ihre Zeilen ganz: eine Liste
-			// zeilenweise zu ergänzen hiesse zu raten, welche Zeile gemeint ist.
+			// A given group replaces its rows entirely: adding to a list row by
+			// row would mean guessing which row is meant.
 			for key, rows := range a.Groups {
-				gespeicherte.Rows[key] = rows
+				stored.Rows[key] = rows
 			}
-			felder, reason, ferr := pruefeFelder(c, d, p.WebsiteID, p.Kind, gespeicherte)
+			fields, reason, ferr := checkFields(c, d, p.WebsiteID, p.Kind, stored)
 			if ferr != nil {
 				return nil, ferr
 			}
@@ -579,11 +574,11 @@ func seiteAendern(d Deps) Tool {
 			}
 
 			err = d.Pages.UpdatePage(c.Ctx, p.ID, page.PageUpdate{
-				Title: titel, Slug: p.Slug, Markdown: markdown, HTML: html,
-				Blocks: p.Blocks, Fields: felder,
-				// Der Zustand bleibt: Ändern ist nicht Veröffentlichen, und
-				// ein Assistent, der beim Korrigieren eines Entwurfs die Seite
-				// live schaltet, ist genau das, was niemand will.
+				Title: title, Slug: p.Slug, Markdown: markdown, HTML: html,
+				Blocks: p.Blocks, Fields: fields,
+				// The status stays: changing is not publishing, and an
+				// assistant that puts a page live while correcting a draft is
+				// exactly what nobody wants.
 				Status:          p.Status,
 				Meta:            page.PageMeta{Excerpt: p.Excerpt, MetaDescription: p.MetaDescription, FeaturedMediaID: p.FeaturedMediaID, NoIndex: p.NoIndex},
 				Schedule:        page.PageSchedule{PublishAt: p.PublishAt, UnpublishAt: p.UnpublishAt},
@@ -593,52 +588,52 @@ func seiteAendern(d Deps) Tool {
 			})
 			if err != nil {
 				if errors.Is(err, page.ErrConflict) {
-					return nil, errors.New("die Seite wurde inzwischen von jemand anderem gespeichert; " +
-						"bitte noch einmal lesen und dann erneut ändern")
+					return nil, errors.New("somebody else has saved the page in the meantime; " +
+						"please read it again and then change it once more")
 				}
 				return nil, err
 			}
 			c.Log.Info("ai updated page", "key", c.Scope.Name, "page", p.ID)
 
-			nach, _ := d.Pages.GetPage(c.Ctx, p.ID)
-			return kurz(*nach), nil
+			after, _ := d.Pages.GetPage(c.Ctx, p.ID)
+			return brief(*after), nil
 		},
 	}
 }
 
-func seiteVeroeffentlichen(d Deps) Tool {
+func publishPage(d Deps) Tool {
 	return Tool{
-		Name:   "seite_veroeffentlichen",
+		Name:   "publish_page",
 		Writes: true,
-		Description: "Schaltet eine Seite öffentlich oder back auf Entwurf. Rufe das nur auf, " +
-			"wenn ausdrücklich darum gebeten wurde.",
+		Description: "Puts a page public or back to draft. Call this only when you were " +
+			"expressly asked to.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
-				"id": {Type: "integer", Description: "Kennung der Seite"},
-				"zustand": {Type: "string", Description: "veroeffentlicht oder entwurf",
-					Enum: []string{"veroeffentlicht", "entwurf"}},
+				"id": {Type: "integer", Description: "id of the page"},
+				"status": {Type: "string", Description: "published or draft",
+					Enum: []string{"published", "draft"}},
 			},
-			Required: []string{"id", "zustand"},
+			Required: []string{"id", "status"},
 		},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				ID     int64  `json:"id"`
-				Status string `json:"zustand"`
+				Status string `json:"status"`
 			}
 			if err := c.Into(&a); err != nil {
 				return nil, err
 			}
 			p, err := d.Pages.GetPage(c.Ctx, a.ID)
 			if err != nil || p == nil {
-				return nil, errors.New("diese Seite gibt es nicht")
+				return nil, errors.New("there is no such page")
 			}
 			if err := c.Scope.MaySee(p.WebsiteID); err != nil {
 				return nil, err
 			}
 
 			status := "draft"
-			if a.Status == "veroeffentlicht" {
+			if a.Status == "published" {
 				status = "published"
 			}
 			if err := d.Pages.SetPageStatus(c.Ctx, p.ID, status, nil); err != nil {
@@ -646,21 +641,21 @@ func seiteVeroeffentlichen(d Deps) Tool {
 			}
 			c.Log.Info("ai changed page status", "key", c.Scope.Name, "page", p.ID, "status", status)
 
-			nach, _ := d.Pages.GetPage(c.Ctx, p.ID)
-			return kurz(*nach), nil
+			after, _ := d.Pages.GetPage(c.Ctx, p.ID)
+			return brief(*after), nil
 		},
 	}
 }
 
-// --- gemeinsam --------------------------------------------------------------
+// --- shared -----------------------------------------------------------------
 
-// pruefeFelder validates the website's own fields and encodes them for storage.
+// checkFields validates the website's own fields and encodes them for storage.
 //
 // The same check the admin form runs, for the same reason: a price that is not
 // a number has to be refused here too, or an assistant becomes the way around
 // every rule an editor has to follow.
-func pruefeFelder(c Call, d Deps, websiteID int64, pageKind string, daten field.Data) (string, string, error) {
-	if d.Fields == nil || daten.Empty() {
+func checkFields(c Call, d Deps, websiteID int64, pageKind string, data field.Data) (string, string, error) {
+	if d.Fields == nil || data.Empty() {
 		return "", "", nil
 	}
 	defs, err := d.Fields.List(c.Ctx, websiteID)
@@ -668,19 +663,19 @@ func pruefeFelder(c Call, d Deps, websiteID int64, pageKind string, daten field.
 		return "", "", err
 	}
 	mine := field.For(defs, pageKind)
-	for _, reason := range field.CheckAll(mine, daten) {
+	for _, reason := range field.CheckAll(mine, data) {
 		return "", reason.Text(i18n.Lang(c.Ctx)), nil
 	}
-	raw, err := field.Encode(field.Clean(mine, daten))
+	raw, err := field.Encode(field.Clean(mine, data))
 	return raw, "", err
 }
 
-// findePage löst die beiden Wege auf, eine Seite zu benennen.
-func findePage(c Call, d Deps) (*page.Page, error) {
+// findPage resolves the two ways of naming a page.
+func findPage(c Call, d Deps) (*page.Page, error) {
 	var a struct {
 		ID      int64  `json:"id"`
 		Website int64  `json:"website"`
-		Address string `json:"adresse"`
+		Address string `json:"slug"`
 	}
 	if err := c.Into(&a); err != nil {
 		return nil, err
@@ -694,13 +689,13 @@ func findePage(c Call, d Deps) (*page.Page, error) {
 	case a.Website > 0 && a.Address != "":
 		p, err = d.Pages.GetPageBySlug(c.Ctx, a.Website, strings.Trim(a.Address, "/"))
 	default:
-		return nil, errors.New("entweder id oder website und adresse angeben")
+		return nil, errors.New("give either id, or website and slug")
 	}
 	if err != nil {
 		return nil, err
 	}
 	if p == nil {
-		return nil, errors.New("diese Seite gibt es nicht")
+		return nil, errors.New("there is no such page")
 	}
 	if err := c.Scope.MaySee(p.WebsiteID); err != nil {
 		return nil, err
@@ -708,73 +703,79 @@ func findePage(c Call, d Deps) (*page.Page, error) {
 	return p, nil
 }
 
-// kurz ist eine Seite ohne ihren Text — was in eine Liste gehört und was nach
-// einer Änderung zurückkommt.
-// setzeSprache files a freshly created page under its language.
+// setLanguage files a freshly created page under its language.
 //
 // Anything the website does not have becomes the main language and is said out
 // loud: an assistant that writes a French page onto a German-only site should
 // be told, not left with a page that quietly never appears.
-func (d Deps) setzeSprache(c Call, websiteID, pageID int64, sprache string, gehoertZu int64) string {
-	if strings.TrimSpace(sprache) == "" && gehoertZu == 0 {
+func (d Deps) setLanguage(c Call, websiteID, pageID int64, language string, belongsTo int64) string {
+	if strings.TrimSpace(language) == "" && belongsTo == 0 {
 		return ""
 	}
 	ws, err := d.Domains.GetWebsite(c.Ctx, websiteID)
 	if err != nil || ws == nil {
 		return ""
 	}
-	tag := locale.Pick(sprache, ws.Locales())
-	if tag == "" && strings.TrimSpace(sprache) != "" {
-		return "Als Entwurf angelegt – aber in der Hauptsprache: die Sprache " +
-			strings.TrimSpace(sprache) + " ist auf dieser Website nicht eingeschaltet."
+	tag := locale.Pick(language, ws.Locales())
+	if tag == "" && strings.TrimSpace(language) != "" {
+		return "Created as a draft – but in the main language: the language " +
+			strings.TrimSpace(language) + " is not switched on for this website."
 	}
 	if tag == "" {
-		gehoertZu = 0
+		belongsTo = 0
 	}
-	if err := d.Pages.SetTranslation(c.Ctx, websiteID, pageID, tag, gehoertZu); err != nil {
-		return "Als Entwurf angelegt, die Sprache liess sich aber nicht setzen: " + err.Error()
+	if err := d.Pages.SetTranslation(c.Ctx, websiteID, pageID, tag, belongsTo); err != nil {
+		return "Created as a draft, but the language could not be set: " + err.Error()
 	}
 	return ""
 }
 
-func kurz(p page.Page) map[string]any {
+// brief is a page without its body — what belongs in a list and what comes
+// back after a change.
+func brief(p page.Page) map[string]any {
 	out := map[string]any{
-		"id": p.ID, "website": p.WebsiteID, "titel": p.Title, "adresse": p.Slug,
-		// Eine eigene Inhaltsart steht mit ihrer Kennung da: "seite" wäre für ein
-		// Produkt zwar technisch richtig und für einen Assistenten irreführend.
-		"zustand": zustandVon(p.Status), "art": artVon(p),
-		"geaendert": p.UpdatedAt.UTC().Format(timeLayout),
+		"id": p.ID, "website": p.WebsiteID, "title": p.Title, "slug": p.Slug,
+		// A content type of its own stands there with its own key: "page"
+		// would be technically right for a product and misleading to an
+		// assistant.
+		"status": wireStatus(p.Status), "type": wireKindOf(p),
+		"updated": p.UpdatedAt.UTC().Format(timeLayout),
 	}
 	if p.PublishedAt != nil {
-		out["veroeffentlicht_am"] = p.PublishedAt.UTC().Format(timeLayout)
+		out["published_at"] = p.PublishedAt.UTC().Format(timeLayout)
 	}
-	// Nur wenn es etwas zu sagen gibt: auf einer einsprachigen Website wäre
-	// "sprache": "" bei jeder Seite ein Feld, das nichts unterscheidet.
+	// Only when there is something to say: on a single-language website
+	// "language": "" on every page would be a field that distinguishes nothing.
 	if p.Locale != "" {
-		out["sprache"] = p.Locale
+		out["language"] = p.Locale
 	}
 	if p.TranslationOf != 0 {
-		out["uebersetzung_von"] = p.TranslationOf
+		out["translation_of"] = p.TranslationOf
 	}
 	return out
 }
 
-func zustandVon(status string) string {
+// wireStatus, wireKind and kindFromWire are the vocabulary an assistant sees.
+// Since 2.0 that vocabulary is the same English as the stored one, so the three
+// read almost like identity — they are not. They NORMALISE: anything that is
+// not "published" is a draft to a reader, and anything that is not "post" is a
+// page. The wire is written by a machine that guesses; the column is not.
+func wireStatus(status string) string {
 	if status == "published" {
-		return "veroeffentlicht"
+		return "published"
 	}
-	return "entwurf"
+	return "draft"
 }
 
-func kindZuArt(kind string) string {
+func wireKind(kind string) string {
 	if kind == page.KindPost {
-		return "beitrag"
+		return page.KindPost
 	}
-	return "seite"
+	return page.KindPage
 }
 
-func artZuKind(art string) string {
-	if art == "beitrag" {
+func kindFromWire(kind string) string {
+	if kind == page.KindPost {
 		return page.KindPost
 	}
 	return page.KindPage
@@ -793,11 +794,11 @@ func clampCount(n int) int {
 	return n
 }
 
-// artVon ist die Art eines Eintrags, wie ein Assistent sie lesen soll: die
-// Kennung der eigenen Inhaltsart, sonst "seite" oder "beitrag".
-func artVon(p page.Page) string {
+// wireKindOf is the kind of an entry as an assistant should read it: the key of
+// its own content type, otherwise "page" or "post".
+func wireKindOf(p page.Page) string {
 	if p.TypeKey != "" {
 		return p.TypeKey
 	}
-	return kindZuArt(p.Kind)
+	return wireKind(p.Kind)
 }

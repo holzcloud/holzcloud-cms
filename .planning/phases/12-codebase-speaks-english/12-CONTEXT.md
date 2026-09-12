@@ -164,6 +164,45 @@ with a paragraph about it.
 
 ---
 
+## 3c. Decision taken 2026-09-12: the MCP surface — **English, and it breaks**
+
+Not foreseen when this phase was measured, and found only because
+`tools/english` flags string literals as well as comments. The whole `/ai`
+surface was German: nine tool names (`seite_anlegen`), every argument
+(`"titel"`, `"zustand"`), every answer key (`"geaendert"`), every enum value
+(`"entwurf"`, `"veroeffentlicht"`), every description and every refusal.
+
+It is translated, in full, and 2.0 says so as a breaking change.
+
+**Why it is in scope.** It is not a stored value and it is not the catalogue.
+Nothing persists a tool name: the tool list is built per request, and the tables
+hold none of these words. What it is, is *vocabulary a machine reads* — and the
+measurement that names this phase ("the codebase speaks English") is about
+exactly that. A field kind stored as `mehrfachauswahl` is data an operator
+created; `seite_anlegen` is a name this repository chose.
+
+**Why it may break.** The break is loud, which is what makes it acceptable: an
+assistant that names a German tool gets `there is no tool "seite_anlegen"` and
+stops. Nothing is silently misread, and nothing halfway-renamed is left behind.
+An assistant that asks for the tool list — the way MCP is meant to be used —
+notices nothing at all. Carrying both spellings would mean two names for every
+tool for years, and would put the German half of the codebase back on the wire
+after this phase had taken it out of the source.
+
+**What was deliberately left alone.** Everything an operator typed: field keys
+(`preis`), content type keys (`produkt`), field kinds (`mehrfachauswahl`) and
+block kinds (`zitat`). `list_fields` still reports those verbatim, because they
+are rows, and §2's stored-value rule holds.
+
+**One criterion 9 find in passing.** `ai.Store.Issue` refused a nameless key with
+`errors.New("der Schlüssel braucht einen Namen")`, and `internal/admin/ai.go`
+put that straight into a flash message. A German sentence an operator reads, in
+a package the collector reaches, invisible to it because it was minted by
+`errors.New`. It is now the sentinel `ai.ErrNameMissing` and one catalogue
+sentence at the handler.
+
+---
+
 ## 4. Order of work, and why it is this order
 
 1. **The template contract** (LANG-04) — independent of everything, lands in its

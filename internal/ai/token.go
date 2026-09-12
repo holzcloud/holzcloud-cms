@@ -40,12 +40,17 @@ const TokenPrefix = "hc_"
 
 // ErrNoToken and friends are the reasons a request is refused.
 var (
-	ErrNoToken   = errors.New("kein Zugangsschlüssel")
-	ErrBadToken  = errors.New("der Zugangsschlüssel stimmt nicht")
-	ErrExpired   = errors.New("der Zugangsschlüssel ist abgelaufen")
-	ErrReadOnly  = errors.New("dieser Zugangsschlüssel darf nur lesen")
-	ErrNotForYou = errors.New("dieser Zugangsschlüssel gilt für eine andere Website")
+	ErrNoToken   = errors.New("no access key")
+	ErrBadToken  = errors.New("the access key is wrong")
+	ErrExpired   = errors.New("the access key has expired")
+	ErrReadOnly  = errors.New("this access key may only read")
+	ErrNotForYou = errors.New("this access key is for another website")
 )
+
+// ErrNameMissing is the one refusal an operator reads rather than a machine.
+// It is a sentinel and not a sentence, because the sentence belongs in the
+// catalogue: the admin handler that calls Issue turns it into one.
+var ErrNameMissing = errors.New("ai: a key needs a name")
 
 // Token is a key as the admin shows it. The secret is not part of it: it exists
 // once, in the response to the request that created it, and never again.
@@ -100,7 +105,7 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 func (s *Store) Issue(ctx context.Context, name string, websiteID int64, canWrite bool, lifetime time.Duration) (string, *Token, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", nil, errors.New("der Schlüssel braucht einen Namen")
+		return "", nil, ErrNameMissing
 	}
 	if len(name) > 80 {
 		name = name[:80]
