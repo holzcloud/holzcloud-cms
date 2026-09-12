@@ -46,8 +46,8 @@ func TestEinspielenUndLesen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	// Ausgeschaltet ankommen: ein Plugin, das mit dem Hochladen zu laufen
-	// beginnt, ist eines, das sich niemand vorher ansehen konnte.
+	// Arrive switched off: a plugin that starts running as it is uploaded is one
+	// nobody could look at first.
 	if p.Enabled {
 		t.Error("freshly installed and already switched on")
 	}
@@ -85,8 +85,8 @@ func TestNeueFassungBehaeltEingeschaltetUndWebsites(t *testing.T) {
 	}
 
 	p, _ := s.Get(ctx, "suche")
-	// Wer aktualisiert, erwartet, dass es weiterläuft — nicht, dass es sich
-	// selbst abschaltet und die Zuordnung verliert.
+	// Whoever updates expects it to keep running — not to switch itself off and
+	// lose its assignment.
 	if !p.Enabled {
 		t.Error("die Aktualisierung hat das Plugin abgeschaltet")
 	}
@@ -109,13 +109,13 @@ func TestAdresseWirdNurEinmalVergeben(t *testing.T) {
 	if !errors.Is(err, ErrRouteTaken) {
 		t.Fatalf("erwartet ErrRouteTaken, bekommen: %v", err)
 	}
-	// Die Meldung muss sagen, wem die Adresse gehört — sonst sucht der
-	// Betreiber unter einem Dutzend Plugins.
+	// The message has to say whom the address belongs to — otherwise the
+	// operator searches through a dozen plugins.
 	if !strings.Contains(err.Error(), "Suche") {
 		t.Errorf("the message does not name the owner: %v", err)
 	}
-	// Dieselbe Adresse in einer neuen Fassung desselben Plugins ist kein
-	// Zusammenstoss mit sich selbst.
+	// The same address in a new version of the same plugin is no collision with
+	// itself.
 	if err := s.Install(ctx, paket("suche", "/suche")); err != nil {
 		t.Errorf("die eigene Adresse wurde als vergeben gemeldet: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestEigenerSpeicherIstProPluginUndWebsiteGetrennt(t *testing.T) {
 		}
 	}
 
-	// Ein fehlender Schlüssel ist kein Fehler, sondern der erste Lauf.
+	// A missing key is not a fault but the first run.
 	if _, ok, err := s.StoreGet(ctx, "eins", 1, "gibtsnicht"); err != nil || ok {
 		t.Errorf("missing key: ok=%v err=%v", ok, err)
 	}
@@ -172,7 +172,7 @@ func TestSpeicherPraefixIstKeinMuster(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Ohne Maskierung wäre "a%" ein Muster und träfe alles.
+	// Without escaping, "a%" would be a pattern and would match everything.
 	if len(got) != 1 || got["a%b"] != "treffer" {
 		t.Errorf("the prefix was read as a pattern: %v", got)
 	}
@@ -204,8 +204,8 @@ func TestEntfernenNimmtDieDatenMit(t *testing.T) {
 	if err := s.Remove(ctx, "eins"); err != nil {
 		t.Fatal(err)
 	}
-	// Wieder eingespielt darf es nichts vom Vorgänger erben: die alte Fassung
-	// kann die Daten in einer anderen Form gehalten haben.
+	// Installed again it must inherit nothing from its predecessor: the old
+	// version may have held the data in a different shape.
 	if err := s.Install(ctx, paket("eins")); err != nil {
 		t.Fatal(err)
 	}
@@ -228,13 +228,13 @@ func TestEigeneMigrationenLaufenEinmal(t *testing.T) {
 	if err := s.ApplyMigrations(ctx, "eins", ms); err != nil {
 		t.Fatalf("erster Lauf: %v", err)
 	}
-	// Ein zweiter Lauf darf nicht an "table already exists" scheitern.
+	// A second run must not fail on "table already exists".
 	if err := s.ApplyMigrations(ctx, "eins", ms); err != nil {
 		t.Fatalf("zweiter Lauf: %v", err)
 	}
 
-	// Geänderte SQL unter altem Namen: sonst passiert nichts, und das Schema
-	// passt still nicht mehr zu dem Code, der es erwartet.
+	// Changed SQL under an old name: otherwise nothing happens, and the schema
+	// silently no longer fits the code that expects it.
 	geaendert := []Migration{{Name: "0001.sql", SQL: `CREATE TABLE anders (b TEXT) STRICT;`}}
 	err := s.ApplyMigrations(ctx, "eins", geaendert)
 	if err == nil || !strings.Contains(err.Error(), "geändert") {
@@ -254,8 +254,8 @@ func TestFehlgeschlageneMigrationLaesstNichtsHalbesZurueck(t *testing.T) {
 	if err := s.ApplyMigrations(ctx, "eins", ms); err == nil {
 		t.Fatal("fehlerhaftes SQL wurde angenommen")
 	}
-	// Weder die Tabelle noch der Eintrag dürfen stehen geblieben sein, sonst
-	// meldet der nächste Start "bereits angewendet" für etwas, das nie lief.
+	// Neither the table nor the entry may have been left standing, or the next
+	// start reports "already applied" for something that never ran.
 	var n int
 	if err := s.DB.Read.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM plugin_migrations WHERE plugin_id = 'eins'`).Scan(&n); err != nil {
@@ -279,7 +279,7 @@ func TestFehlerWirdVermerktUndGekuerzt(t *testing.T) {
 	if p.LastError == "" || len(p.LastError) > 2100 {
 		t.Errorf("error length: %d", len(p.LastError))
 	}
-	// Eine neue Fassung räumt den alten Fehler weg.
+	// A new version clears the old fault away.
 	if err := s.Install(ctx, paket("eins")); err != nil {
 		t.Fatal(err)
 	}

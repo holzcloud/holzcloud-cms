@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// Ein Plugin darf kein Skript in die Verwaltung bekommen: es liefe in der
-// Herkunft, die das Sitzungsplätzchen hält.
+// A plugin must get no script into the admin: it would run in the origin that
+// holds the session cookie.
 func TestPluginBildschirmOhneSkript(t *testing.T) {
 	roh := `<p>Hallo</p><script>alert(1)</script><img src="x" onerror="alert(2)">` +
 		`<a href="javascript:alert(3)">klick</a><iframe src="https://example.com"></iframe>`
@@ -22,8 +22,8 @@ func TestPluginBildschirmOhneSkript(t *testing.T) {
 	}
 }
 
-// Ein Einstellungsbildschirm besteht aus Formularen — die müssen überleben,
-// sonst kann ein Plugin nichts anbieten, was man bedienen kann.
+// A settings screen consists of forms — those have to survive, or a plugin can
+// offer nothing that can be operated.
 func TestPluginBildschirmBehaeltFormulare(t *testing.T) {
 	roh := `<form method="POST"><input type="hidden" name="aktion" value="speichern">` +
 		`<label for="a">A</label><input type="text" id="a" name="a" value="1">` +
@@ -42,10 +42,10 @@ func TestPluginBildschirmBehaeltFormulare(t *testing.T) {
 	}
 }
 
-// Der Sitzungsschlüssel wird vom Host eingesetzt, in jedes Formular.
+// The session key is put in by the host, into every form.
 //
-// Ohne ihn antwortet jeder Knopf auf jedem Plugin-Bildschirm mit 403: das
-// Formular eines Plugins ist ein gewöhnliches Absenden ohne Kopfzeile.
+// Without it every button on every plugin screen answers 403: a plugin's form
+// is an ordinary submit without a header.
 func TestSchluesselKommtInJedesFormular(t *testing.T) {
 	screen := SanitizeAdminHTML(
 		`<form method="POST"><button type="submit">Eins</button></form>` +
@@ -59,14 +59,14 @@ func TestSchluesselKommtInJedesFormular(t *testing.T) {
 	if !strings.Contains(out, `value="geheim123"`) {
 		t.Errorf("the value is missing: %s", out)
 	}
-	// Direkt hinter dem öffnenden Tag, sonst steht er ausserhalb des Formulars
-	// und wird nicht mitgesendet.
+	// Directly behind the opening tag, or it stands outside the form and is not
+	// sent along.
 	if !strings.Contains(out, `<form method="POST"><input type="hidden" name="gorilla.csrf.Token"`) {
 		t.Errorf("the field is not in the form: %s", out)
 	}
 }
 
-// Ohne Formular ändert sich nichts, und ohne Schlüssel auch nicht.
+// Without a form nothing changes, and without a key nothing either.
 func TestSchluesselNurWoEinFormularIst(t *testing.T) {
 	screen := SafeHTML(`<p>nur Text</p>`)
 	if out := string(WithCSRFToken(screen, "geheim")); out != `<p>nur Text</p>` {
@@ -78,8 +78,8 @@ func TestSchluesselNurWoEinFormularIst(t *testing.T) {
 	}
 }
 
-// Ein Plugin darf sich keinen Schlüssel selbst schreiben — was es sendet, geht
-// durch die Bereinigung, und der echte kommt erst danach dazu.
+// A plugin must not write itself a key — what it sends goes through the
+// sanitiser, and the real one is added only afterwards.
 func TestPluginKannKeinenSchluesselErfinden(t *testing.T) {
 	roh := `<form method="POST"><input type="hidden" name="gorilla.csrf.Token" value="erfunden"></form>`
 	out := string(WithCSRFToken(SanitizeAdminHTML(roh), "echt"))
@@ -90,7 +90,7 @@ func TestPluginKannKeinenSchluesselErfinden(t *testing.T) {
 	if !strings.Contains(out, `value="echt"`) {
 		t.Errorf("the real key is missing: %s", out)
 	}
-	// Der echte steht vorn: das erste Feld gleichen Namens gewinnt beim Lesen.
+	// The real one stands in front: the first field of the same name wins on reading.
 	echt := strings.Index(out, `value="echt"`)
 	erfunden := strings.Index(out, `value="erfunden"`)
 	if erfunden >= 0 && erfunden < echt {

@@ -187,7 +187,7 @@ func TestConflictingSaveShowsTheBannerAndKeepsTheText(t *testing.T) {
 	if !strings.Contains(body, typed) {
 		t.Error("the second editor's text is gone from the response")
 	}
-	if !strings.Contains(body, "jemand anderem gespeichert") {
+	if !strings.Contains(body, "has saved this page in the meantime") {
 		t.Error("no conflict banner")
 	}
 

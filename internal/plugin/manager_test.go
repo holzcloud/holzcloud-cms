@@ -16,8 +16,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 )
 
-// echoArchiv packt das Prüfmodul als hochladbares Zip.
-func echoArchiv(t *testing.T, anpassen func(*Manifest)) []byte {
+// echoArchive packs the test module as an uploadable zip.
+func echoArchive(t *testing.T, anpassen func(*Manifest)) []byte {
 	t.Helper()
 	m := gutesManifest()
 	m.ID = "echo"
@@ -34,7 +34,7 @@ func echoArchiv(t *testing.T, anpassen func(*Manifest)) []byte {
 	w, _ := zw.Create(ManifestName)
 	json.NewEncoder(w).Encode(m)
 	w, _ = zw.Create(ModuleName)
-	w.Write(echoModul(t))
+	w.Write(echoModule(t))
 	w, _ = zw.Create(AssetDir + "stil.css")
 	w.Write([]byte(".echo{}"))
 	zw.Close()
@@ -84,9 +84,9 @@ func einspielen(t *testing.T, m *Manager, a []byte) *Manifest {
 func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, nil))
+	einspielen(t, m, echoArchive(t, nil))
 
-	// Eingespielt heisst aus. Erst schauen, dann einschalten.
+	// Installed means off. Look first, then switch on.
 	st, err := m.Get(ctx, "echo")
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
 	if st.Enabled || st.Running {
 		t.Fatalf("freshly installed and already active: %+v", st)
 	}
-	// Und ausgeschaltet fasst es keine Seite an.
+	// And switched off it touches no page.
 	if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p>" {
 		t.Errorf("ein ausgeschaltetes Plugin hat gefiltert: %q", got)
 	}
@@ -102,7 +102,7 @@ func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
 	if err := m.Enable(ctx, "echo"); err != nil {
 		t.Fatalf("Enable: %v", err)
 	}
-	// Eingeschaltet, aber noch keiner Website zugeordnet: immer noch nichts.
+	// Switched on but assigned to no website yet: still nothing.
 	if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p>" {
 		t.Errorf("filtering happened with no mapping: %q", got)
 	}
@@ -113,12 +113,12 @@ func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
 	if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p><!-- echo -->" {
 		t.Errorf("the page was not filtered: %q", got)
 	}
-	// Eine andere Website bleibt unberührt.
+	// Another website stays untouched.
 	if got := m.FilterContent(ctx, site+1, ContentIn{WebsiteID: site + 1, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p>" {
 		t.Errorf("another website was filtered: %q", got)
 	}
 
-	// Die Beigabe liegt auf der Platte, unter dem Plugin.
+	// The extra file lies on disk, under the plugin.
 	if b, err := os.ReadFile(m.AssetPath("echo", "stil.css")); err != nil || string(b) != ".echo{}" {
 		t.Errorf("Beigabe: %q %v", b, err)
 	}
@@ -127,7 +127,7 @@ func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
 func TestAusschaltenUndEntfernen(t *testing.T) {
 	m, store, site := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, nil))
+	einspielen(t, m, echoArchive(t, nil))
 	if err := m.Enable(ctx, "echo"); err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestAusschaltenUndEntfernen(t *testing.T) {
 		t.Errorf("filtering happened after it was switched off: %q", got)
 	}
 
-	// Etwas im eigenen Speicher, damit das Entfernen etwas mitzunehmen hat.
+	// Something in its own store, so that removing has something to take along.
 	if err := store.StoreSet(ctx, "echo", site, "farbe", "grün"); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestAusschaltenUndEntfernen(t *testing.T) {
 func TestNeustartLaedtWasEingeschaltetIst(t *testing.T) {
 	m, store, site := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, nil))
+	einspielen(t, m, echoArchive(t, nil))
 	if err := m.Enable(ctx, "echo"); err != nil {
 		t.Fatal(err)
 	}
@@ -194,12 +194,12 @@ func TestNeustartLaedtWasEingeschaltetIst(t *testing.T) {
 func TestFehlendesModulIstKeinAbsturz(t *testing.T) {
 	m, store, _ := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, nil))
+	einspielen(t, m, echoArchive(t, nil))
 	if err := m.Enable(ctx, "echo"); err != nil {
 		t.Fatal(err)
 	}
 
-	// Jemand hat die Datei gelöscht.
+	// Somebody has deleted the file.
 	if err := os.Remove(filepath.Join(m.root(), "echo", ModuleName)); err != nil {
 		t.Fatal(err)
 	}
@@ -209,8 +209,8 @@ func TestFehlendesModulIstKeinAbsturz(t *testing.T) {
 	}
 	defer rt2.Close(ctx)
 
-	// Ein kaputtes Modul darf einen Server, der vier andere Websites bedient,
-	// nicht am Starten hindern.
+	// A broken module must not stop a server that serves four other websites
+	// from starting.
 	m2, err := NewManager(ctx, store, rt2, m.dataDir, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("ein fehlendes Modul hat den Start verhindert: %v", err)
@@ -227,11 +227,11 @@ func TestFehlendesModulIstKeinAbsturz(t *testing.T) {
 func TestEinschaltenMeldetWennEsNichtHochkommt(t *testing.T) {
 	m, _, _ := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, nil))
+	einspielen(t, m, echoArchive(t, nil))
 	if err := os.Remove(filepath.Join(m.root(), "echo", ModuleName)); err != nil {
 		t.Fatal(err)
 	}
-	// Kein grüner Haken für etwas, das nicht läuft.
+	// No green tick for something that is not running.
 	if err := m.Enable(ctx, "echo"); err == nil {
 		t.Error("Enable meldete Erfolg, obwohl das Modul fehlt")
 	}
@@ -240,7 +240,7 @@ func TestEinschaltenMeldetWennEsNichtHochkommt(t *testing.T) {
 func TestEreignisErreichtDasPlugin(t *testing.T) {
 	m, store, site := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, nil))
+	einspielen(t, m, echoArchive(t, nil))
 	if err := m.Enable(ctx, "echo"); err != nil {
 		t.Fatal(err)
 	}
@@ -250,8 +250,8 @@ func TestEreignisErreichtDasPlugin(t *testing.T) {
 
 	m.Emit("test", site, map[string]string{"tue": "schreiben", "key": "k", "value": "v"})
 
-	// Emit wartet nicht — ein Plugin, das langsam von einer gespeicherten
-	// Seite erfährt, darf das Speichern nicht langsam machen.
+	// Emit does not wait — a plugin that learns slowly about a saved page must
+	// not make saving slow.
 	var gefunden bool
 	for i := 0; i < 100 && !gefunden; i++ {
 		if _, ok, _ := store.StoreGet(ctx, "echo", site, "k"); ok {
@@ -268,7 +268,7 @@ func TestEreignisErreichtDasPlugin(t *testing.T) {
 func TestVerwaltungsBildschirmUndSeitenleiste(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, nil))
+	einspielen(t, m, echoArchive(t, nil))
 	if err := m.Enable(ctx, "echo"); err != nil {
 		t.Fatal(err)
 	}
@@ -280,8 +280,8 @@ func TestVerwaltungsBildschirmUndSeitenleiste(t *testing.T) {
 	if len(links) != 1 || links[0].Label != "Echo" || !links[0].PerWebsite {
 		t.Errorf("Seitenleiste: %+v", links)
 	}
-	// Das Prüfmodul beantwortet "admin" nicht, gibt also nichts back. Das
-	// darf kein Fehler sein.
+	// The test module does not answer "admin", so it hands back nothing. That
+	// must not be a fault.
 	if _, err := m.Admin(ctx, "echo", AdminIn{WebsiteID: site, Method: "GET"}); err != nil {
 		t.Errorf("Admin: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestVerwaltungsBildschirmUndSeitenleiste(t *testing.T) {
 func TestAdressenWerdenNurVomBesitzerBedient(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
-	einspielen(t, m, echoArchiv(t, func(mf *Manifest) {
+	einspielen(t, m, echoArchive(t, func(mf *Manifest) {
 		mf.Hooks = append(mf.Hooks, HookRoute)
 		mf.Routes = []string{"/echo"}
 	}))
@@ -304,7 +304,7 @@ func TestAdressenWerdenNurVomBesitzerBedient(t *testing.T) {
 	if _, ok := m.RouteOwner("/echo", site); !ok {
 		t.Error("die beanspruchte Adresse hat keinen Besitzer")
 	}
-	// Nicht auf einer Website, der das Plugin nicht zugeordnet ist.
+	// Not on a website the plugin is not assigned to.
 	if _, ok := m.RouteOwner("/echo", site+1); ok {
 		t.Error("die Adresse gilt auf einer fremden Website")
 	}
@@ -329,7 +329,7 @@ func TestZweiPluginsFilternInStabilerReihenfolge(t *testing.T) {
 	m, _, site := neuerManager(t)
 	ctx := context.Background()
 	for _, id := range []string{"bbb", "aaa"} {
-		einspielen(t, m, echoArchiv(t, func(mf *Manifest) { mf.ID = id; mf.Name = id }))
+		einspielen(t, m, echoArchive(t, func(mf *Manifest) { mf.ID = id; mf.Name = id }))
 		if err := m.Enable(ctx, id); err != nil {
 			t.Fatal(err)
 		}
@@ -337,8 +337,8 @@ func TestZweiPluginsFilternInStabilerReihenfolge(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Beide hängen dieselbe Marke an; entscheidend ist, dass es zweimal
-	// passiert und bei jedem Lauf gleich.
+	// Both append the same token; what matters is that it happens twice and is
+	// the same on every run.
 	erste := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "", HTML: "<p>x</p>"})
 	if strings.Count(erste, "<!-- echo -->") != 2 {
 		t.Fatalf("not both filtered: %q", erste)
@@ -350,5 +350,5 @@ func TestZweiPluginsFilternInStabilerReihenfolge(t *testing.T) {
 	}
 }
 
-// waitABit ist ein kurzer Schlaf, damit die Absicht im Test lesbar bleibt.
+// waitABit is a short sleep, so that the intent stays readable in the test.
 func waitABit() { time.Sleep(10 * time.Millisecond) }

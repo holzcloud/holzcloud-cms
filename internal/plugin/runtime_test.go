@@ -11,20 +11,21 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
-// Ein »go generate ./...« aus dem Wurzelverzeichnis erreicht die fünf Plugins
-// nicht — sie sind eigene Module. Diese Zeile ist deshalb nur die örtliche
-// Abkürzung für das eine Modul, das im Wurzelmodul liegt; alle sechs baut
-// »go run ./tools/wasm«. -buildvcs=false gehört dazu: ohne die Angabe trägt das
-// Modul den Git-Stand des Augenblicks und ein zweiter Bau ergibt andere Bytes.
+// A "go generate ./..." from the root directory does not reach the five plugins
+// — they are modules of their own. This line is therefore only the local
+// shortcut for the one module that lies inside the root module; all six are
+// built by "go run ./tools/wasm". -buildvcs=false belongs to it: without that
+// flag the module carries the git state of the moment and a second build yields
+// different bytes.
 //go:generate sh -c "cd testdata/echo && GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags=\"-s -w\" -o ../echo.wasm ."
 
-// echoModul ist in testdata/echo/ gebaut, siehe testdata/README.md und die
-// Erzeugungszeile darüber.
+// echoModule is built in testdata/echo/, see testdata/README.md and the
+// generate line above.
 //
-// Es liegt gebaut im Repository, damit die Tests ohne zweite Werkzeugkette
-// laufen — ein Test, der einen Compiler-Lauf braucht, wird irgendwann
-// übersprungen und dann nie wieder ausgeführt.
-func echoModul(t *testing.T) []byte {
+// It lies built in the repository so that the tests run without a second
+// toolchain — a test that needs a compiler run gets skipped eventually and is
+// then never run again.
+func echoModule(t *testing.T) []byte {
 	return wasmtest.Module(t, "testdata/echo.wasm")
 }
 
@@ -47,7 +48,7 @@ func neueLaufzeit(t *testing.T, erlaubt ...string) (*Runtime, *Store, *bytes.Buf
 	m.Hooks = []string{HookContent, HookEvent, HookRequest, HookAdmin}
 	m.Permissions = erlaubt
 
-	p := &Package{Manifest: &m, Module: echoModul(t), SHA256: strings.Repeat("a", 64)}
+	p := &Package{Manifest: &m, Module: echoModule(t), SHA256: strings.Repeat("a", 64)}
 	if err := s.Install(ctx, p); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -72,8 +73,8 @@ func TestHakenWirdAufgerufenUndAntwortKommtZurueck(t *testing.T) {
 
 func TestNichtDeklarierterHakenWirdNichtAufgerufen(t *testing.T) {
 	r, _, _ := neueLaufzeit(t, PermStore)
-	// Das Manifest nennt "route" nicht. Das ist kein Fehler, sondern heisst
-	// nur: dieses Plugin kostet an dieser Stelle nichts.
+	// The manifest does not name "route". That is not a fault but means only:
+	// this plugin costs nothing in that place.
 	var out RequestOut
 	if err := r.Dispatch(context.Background(), "echo", HookRoute, 1, RequestIn{}, &out); err != nil {
 		t.Errorf("an undeclared hook reported an error: %v", err)
@@ -96,7 +97,7 @@ func TestEigenerSpeicherUeberDieGrenze(t *testing.T) {
 	}
 	ereignis(map[string]string{"tue": "schreiben", "key": "farbe", "value": "grün"}, nil)
 
-	// Der Host muss es unter genau diesem Plugin und dieser Website sehen.
+	// The host has to see it under exactly this plugin and this website.
 	v, ok, err := s.StoreGet(ctx, "echo", 7, "farbe")
 	if err != nil || !ok || v != "grün" {
 		t.Fatalf("the value did not arrive: %q %v %v", v, ok, err)
@@ -125,8 +126,8 @@ func TestFehlendeBerechtigungWirdVerweigert(t *testing.T) {
 	if out.Status != StatusDenied {
 		t.Errorf("Status %d, erwartet %d (verweigert)", out.Status, StatusDenied)
 	}
-	// Die Meldung muss sagen, welche Berechtigung fehlt — es ist ein Fehler im
-	// Manifest, nicht im Code, und der Autor soll ihn ohne Raten finden.
+	// The message has to say which permission is missing — it is a fault in the
+	// manifest, not in the code, and the author should find it without guessing.
 	if !strings.Contains(out.Message, PermSettings) {
 		t.Errorf("die Meldung nennt die Berechtigung nicht: %q", out.Message)
 	}
@@ -155,8 +156,8 @@ func TestProtokollTraegtDenNamenDesPlugins(t *testing.T) {
 		t.Fatalf("Dispatch: %v", err)
 	}
 	s := log.String()
-	// Der Name kommt vom Host und nicht aus der Nachricht: ein Plugin soll
-	// keine Zeile schreiben können, die nach jemand anderem aussieht.
+	// The name comes from the host and not from the message: a plugin should not
+	// be able to write a line that looks like somebody else.
 	if !strings.Contains(s, `plugin=echo`) || !strings.Contains(s, "etwas ist passiert") {
 		t.Errorf("Protokoll: %s", s)
 	}
@@ -165,8 +166,8 @@ func TestProtokollTraegtDenNamenDesPlugins(t *testing.T) {
 func TestKurzerPufferWirdNachgefordert(t *testing.T) {
 	r, s, _ := neueLaufzeit(t, PermStore)
 	ctx := context.Background()
-	// Grösser als der 4096-Byte-Puffer des Gasts, damit er die Grösse
-	// nachfragen und noch einmal fragen muss.
+	// Larger than the guest's 4096-byte buffer, so that it has to ask for the
+	// size and then ask once more.
 	gross := strings.Repeat("x", 20000)
 	if err := s.StoreSet(ctx, "echo", 3, "gross", gross); err != nil {
 		t.Fatal(err)
@@ -196,13 +197,13 @@ func TestEndlosschleifeWirdAbgebrochen(t *testing.T) {
 	if err == nil {
 		t.Fatal("die Endlosschleife lief durch")
 	}
-	// Ohne Zeitgrenze hält so ein Modul die Verbindung, dann die nächste, und
-	// die Website antwortet nicht mehr — ohne eine Zeile im Protokoll.
+	// Without a time limit a module like this holds the connection, then the
+	// next one, and the website stops answering — without a line in the log.
 	if dauer > 3*CallTimeout {
 		t.Errorf("the abort took %v, the limit is %v", dauer, CallTimeout)
 	}
-	// Der Grund muss beim Plugin vermerkt sein, nicht nur im Protokoll von vor
-	// drei Neustarts.
+	// The reason has to be noted on the plugin, not only in the log from three
+	// restarts ago.
 	p, _ := s.Get(ctx, "echo")
 	if p.LastError == "" {
 		t.Error("the abort was not recorded on the plugin")
@@ -235,7 +236,7 @@ func TestModulOhneExporteWirdAbgelehnt(t *testing.T) {
 	defer r.Close(ctx)
 
 	m := gutesManifest()
-	// Ein gültiges, aber leeres Modul: der Kopf stimmt, die Exporte fehlen.
+	// A valid but empty module: the header is right, the exports are missing.
 	leer := []byte{0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00}
 	err = r.Load(ctx, &m, leer)
 	if err == nil || !strings.Contains(err.Error(), GuestAlloc) {

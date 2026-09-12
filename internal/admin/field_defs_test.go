@@ -12,19 +12,18 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// Die vier neuen Eigenschaften auf dem Bildschirm für Felddefinitionen: hin
-// über das Formular, back beim Neuzeichnen. Was der Speicher behält, nützt
-// niemandem, wenn das Formular es beim nächsten Öffnen nicht wieder anzeigt —
-// dann trägt man es jedes Mal neu ein und merkt erst am Ergebnis, dass es
-// nicht ankam.
+// The four new properties on the field definition screen: there through the
+// form, back on redrawing. What the store keeps is of no use to anybody if the
+// form does not show it again the next time it is opened — then it gets entered
+// afresh every time and the only sign that it did not arrive is the result.
 func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 	fields := field.NewStore(database)
 
-	// Eine Auswahl als Knopfreihe. Die beiden Grenzen stehen an einem
-	// Bereichsfeld weiter unten und nicht hier: validate leert eine
-	// Eigenschaft, die zur gewählten Art nicht passt.
+	// A choice as a button row. The two bounds stand on a range field further
+	// down and not here: validate empties a property that does not fit the
+	// chosen kind.
 	serve(t, h, sm, h.HandleFieldSave, postForm(
 		"/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
 		url.Values{
@@ -73,7 +72,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		t.Errorf("Grenzen = %q/%q, wollte \"1\"/\"9\"", bereich.RangeMin, bereich.RangeMax)
 	}
 
-	// Und eine Mehrfachauswahl mit einer Höchstzahl.
+	// And a multiple choice with a maximum.
 	serve(t, h, sm, h.HandleFieldSave, postForm(
 		"/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
 		url.Values{
@@ -99,8 +98,8 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		t.Errorf("maximum = %d, wanted 2", mehrfach.MaxValues)
 	}
 
-	// Das Neuzeichnen: das Formular muss die gespeicherten Werte wieder
-	// zeigen, sonst trägt man sie beim nächsten Ändern versehentlich aus.
+	// The redraw: the form has to show the stored values again, or they get
+	// unset by accident the next time somebody changes something.
 	req := postForm("/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder", url.Values{},
 		map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
 	req.Method = "GET"
@@ -115,9 +114,9 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 			t.Errorf("the form has no box %q", name)
 		}
 	}
-	// Die beiden Grenzen stehen wieder in ihren Kästchen. Gemessen wird der
-	// Ausschnitt um das jeweilige Kästchen herum, nicht die ganze Seite: ein
-	// value="1" irgendwo sonst im Dokument wäre kein Beweis.
+	// The two bounds stand in their boxes again. What is measured is the
+	// section around the respective box, not the whole page: a value="1"
+	// somewhere else in the document would be no proof.
 	for _, will := range []struct{ name, wert string }{{"min_wert", "1"}, {"max_wert", "9"}} {
 		at := strings.Index(html, `name="`+will.name+`"`)
 		if at < 0 {
@@ -132,7 +131,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		}
 	}
 
-	// Und dasselbe für die Darstellung, an dem Feld, dem sie gehört.
+	// And the same for the presentation, on the field it belongs to.
 	reqAuswahl := postForm("/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
 		url.Values{}, map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
 	reqAuswahl.Method = "GET"
@@ -145,9 +144,8 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 	}
 }
 
-// Ein verdrehtes Grenzenpaar wird abgelehnt, und die Ablehnung ist zu lesen:
-// eine stillschweigend nicht gespeicherte Definition ist der Fall, den
-// FIELD-05 ausdrücklich ausschliesst.
+// A twisted pair of bounds is refused, and the refusal can be read: a
+// definition silently not stored is the case FIELD-05 expressly rules out.
 func TestVerdrehteGrenzenWerdenGemeldetUndNichtGespeichert(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()

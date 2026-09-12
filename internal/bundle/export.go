@@ -146,23 +146,23 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 	if err != nil {
 		return nil, err
 	}
-	// Die Alben nach den Bildern und vor den Seiten, aus denselben zwei
-	// Gründen wie die Schlagwörter unten: ein Bild eines Albums reist als
-	// Dateiname und steht in mediaByID, und der Verweis eines Galeriebausteins
-	// reist als Name und steht in dieser Karte. Wer diesen Aufruf wieder nach
-	// unten schiebt, nimmt der Seitenausfuhr die Karte weg. Die Reihenfolge
-	// der Aufrufe ändert die Bytes des Archivs nicht — die JSON-Schlüssel
-	// kommen aus der Reihenfolge der Felder von Manifest.
+	// The albums after the images and before the pages, for the same two
+	// reasons as the terms below: an image of an album travels as a file name
+	// and stands in mediaByID, and the reference of a gallery block travels as
+	// a name and stands in this map. Whoever pushes this call back down takes
+	// the map away from the page export. The order of the calls does not change
+	// the bytes of the archive — the JSON keys come from the order of
+	// Manifest's fields.
 	albumNameBySlug, err := exportAlbums(ctx, s, ws.ID, m, mediaByID)
 	if err != nil {
 		return nil, err
 	}
-	// Die Schlagwörter vor den Seiten, weil eine Seite sie braucht: der Wert
-	// eines Schlagwortfeldes reist als Name, und die Namen stehen in dieser
-	// Karte. Die Reihenfolge der Aufrufe ändert die Bytes des Archivs nicht —
-	// die JSON-Schlüssel kommen aus der Reihenfolge der Felder von Manifest,
-	// nicht aus der, in der sie gefüllt werden. Wer diesen Aufruf wieder nach
-	// unten schiebt, nimmt exportPages die Karte weg.
+	// The terms before the pages, because a page needs them: the value of a
+	// term field travels as a name, and the names stand in this map. The order
+	// of the calls does not change the bytes of the archive — the JSON keys
+	// come from the order of Manifest's fields, not from the order in which
+	// they are filled. Whoever pushes this call back down takes the map away
+	// from exportPages.
 	nameBySlug, err := exportTerms(ctx, s, ws.ID, m)
 	if err != nil {
 		return nil, err
@@ -573,19 +573,17 @@ func translateOut(kinds map[string]string, values field.Values, mediaByID, slugB
 			continue
 		}
 		if kinds[key] == field.KindTerm {
-			// Ein Schlagwortfeld hält das Kürzel eines Schlagworts, und ein
-			// Kürzel ist nicht übertragbar: Rename behält es, während der
-			// Name sich ändert, also leitet die andere Maschine aus dem Namen
-			// ein anderes ab. Es reist als Name — dieselbe Schreibweise, in
-			// der die Schlagwortliste einer Seite eine Beschriftung immer
-			// schon trägt.
+			// A term field holds the slug of a term, and a slug is not
+			// transferable: Rename keeps it while the name changes, so the
+			// other machine derives a different one from the name. It travels
+			// as a name — the same spelling in which a page's term list has
+			// always carried a label.
 			name := nameBySlug[val]
 			if name == "" {
-				// Ein Kürzel, das kein Schlagwort dieser Website benennt.
-				// Fallengelassen, aus demselben Grund wie ein Verweis auf eine
-				// nicht mit ausgeführte Seite: der Wert landete sonst auf dem
-				// Schlagwort, das die andere Seite zufällig daraus ableitet,
-				// und das ist schlimmer, als auf nichts zu landen.
+				// A slug that names no term of this website. Dropped, for the
+				// same reason as a reference to a page not exported along: the
+				// value would otherwise land on the term the other side happens
+				// to derive from it, and that is worse than landing on nothing.
 				continue
 			}
 			out[key] = name

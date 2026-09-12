@@ -12,9 +12,9 @@ func testSender() *Sender {
 	})
 }
 
-// Der Betreff einer Benachrichtigung wird von einem Fremden getippt. Ein
-// Zeilenumbruch darin beendet die Betreffzeile und beginnt, was der Angreifer
-// als Nächstes schreibt — zum Beispiel einen zweiten Empfänger.
+// The subject of a notification is typed by a stranger. A line break in it ends
+// the subject line and begins whatever the attacker writes next — a second
+// recipient, for instance.
 func TestKopfzeilenLassenSichNichtEinschleusen(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{
@@ -23,10 +23,9 @@ func TestKopfzeilenLassenSichNichtEinschleusen(t *testing.T) {
 		Body:    "Text.",
 	})
 
-	// Der Umbruch wird zu einem Leerzeichen: "Bcc:" steht dann mitten in der
-	// Betreffzeile und ist Text, keine Kopfzeile. Geprüft wird deshalb, dass
-	// keine Zeile damit anfängt — und dass es weiterhin genau eine Betreffzeile
-	// gibt.
+	// The break becomes a space: "Bcc:" then stands in the middle of the subject
+	// line and is text, not a header. What is checked is therefore that no line
+	// starts with it — and that there is still exactly one subject line.
 	kopf, _, _ := strings.Cut(roh, "\r\n\r\n")
 	for _, zeile := range strings.Split(kopf, "\r\n") {
 		if strings.HasPrefix(strings.ToLower(zeile), "bcc:") {
@@ -38,8 +37,8 @@ func TestKopfzeilenLassenSichNichtEinschleusen(t *testing.T) {
 	}
 }
 
-// Dasselbe für den Empfänger und die Antwortadresse: beide kommen aus dem
-// Formular eines Besuchers, wenn ein Plugin eine Benachrichtigung schickt.
+// The same for the recipient and the reply address: both come out of a
+// visitor's form when a plugin sends a notification.
 func TestEmpfaengerUndAntwortadresseWerdenGesaeubert(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{
@@ -48,15 +47,15 @@ func TestEmpfaengerUndAntwortadresseWerdenGesaeubert(t *testing.T) {
 		Subject: "Anfrage",
 		Body:    "Text.",
 	})
-	// Hier ist die Antwort strenger: was keine Adresse ist, fliegt ganz raus.
+	// Here the answer is stricter: what is not an address flies out entirely.
 	kopf, _, _ := strings.Cut(roh, "\r\n\r\n")
 	if strings.Contains(kopf, "Reply-To:") {
 		t.Errorf("the mangled reply address was taken over:\n%s", kopf)
 	}
 }
 
-// Eine saubere Antwortadresse muss aber ankommen — sie ist der Grund, warum
-// Antworten auf eine Anfrage ein Klick ist.
+// A clean reply address has to arrive, though — it is the reason replying to an
+// enquiry is one click.
 func TestSaubereAntwortadresseBleibt(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{
@@ -68,10 +67,10 @@ func TestSaubereAntwortadresseBleibt(t *testing.T) {
 	}
 }
 
-// compose baut die Nachricht, die Übertragung maskiert sie. Wer hier einen
-// einzelnen Punkt verdoppelt, verdoppelt ihn ein zweites Mal, weil
-// textproto.DotWriter das schon tut — und dann kommt bei einem Besucher, der
-// einen Punkt getippt hat, ein doppelter an. Genau das ist passiert.
+// compose builds the message, the transport escapes it. Whoever doubles a
+// single dot here doubles it a second time, because textproto.DotWriter already
+// does that — and then a visitor who typed one dot gets two. That is exactly
+// what happened.
 func TestComposeMaskiertDenPunktNicht(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{
@@ -88,8 +87,8 @@ func TestComposeMaskiertDenPunktNicht(t *testing.T) {
 	}
 }
 
-// Ein deutscher Betreff in einer rohen Kopfzeile kommt in etwa der Hälfte aller
-// Mailprogramme als Buchstabensalat an.
+// A German subject in a raw header arrives as gibberish in roughly half of all
+// mail programs.
 func TestUmlauteImBetreffWerdenKodiert(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{
@@ -104,8 +103,8 @@ func TestUmlauteImBetreffWerdenKodiert(t *testing.T) {
 	}
 }
 
-// Ein reiner ASCII-Betreff soll lesbar bleiben und nicht ohne Grund kodiert
-// werden — kodierte Kopfzeilen sind ein Spam-Signal.
+// A pure ASCII subject should stay readable and not be encoded without reason —
+// encoded headers are a spam signal.
 func TestEinfacherBetreffBleibtLesbar(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{To: "eva@example.test", Subject: "Neue Anfrage", Body: "x"})
@@ -114,7 +113,7 @@ func TestEinfacherBetreffBleibtLesbar(t *testing.T) {
 	}
 }
 
-// Ein Komma im Anzeigenamen würde die Adressliste spalten.
+// A comma in the display name would split the address list.
 func TestAnzeigenameWirdInAnfuehrungszeichenGesetzt(t *testing.T) {
 	s := NewSender(Config{
 		Host: "mail.example.test", From: "cms@example.test",
@@ -126,8 +125,8 @@ func TestAnzeigenameWirdInAnfuehrungszeichenGesetzt(t *testing.T) {
 	}
 }
 
-// Jede Zeile im Rumpf braucht CRLF, sonst zählen manche Server die Nachricht
-// als eine einzige sehr lange Zeile.
+// Every line in the body needs CRLF, or some servers count the message as one
+// single very long line.
 func TestZeilenendenWerdenVereinheitlicht(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "eins\nzwei\r\ndrei\rvier"})
@@ -138,8 +137,8 @@ func TestZeilenendenWerdenVereinheitlicht(t *testing.T) {
 	}
 }
 
-// Eine Endlosschleife zwischen zwei Abwesenheitsnotizen merkt niemand, bis das
-// Postfach voll ist.
+// An endless loop between two out-of-office notices is noticed by nobody until
+// the mailbox is full.
 func TestNachrichtIstAlsMaschinellMarkiert(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "x"})
