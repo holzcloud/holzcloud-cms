@@ -426,7 +426,7 @@ func TestCSVSampleRowSteppingIsClamped(t *testing.T) {
 }
 
 // The two numbers of the sample line are both the spreadsheet's, and the test
-// is here because a browser found the sentence reading "Zeile 13 von 12".
+// is here because a browser found the sentence reading "row 13 of 12".
 //
 // SampleNumber is minted by csv.RowNumber, so it counts the header: the first
 // data row is 2. The second number used to be TotalRows, which counts data rows
@@ -859,7 +859,7 @@ func TestCSVExampleHasHeaderAndBOM(t *testing.T) {
 	}
 	text := string(body)
 	// The five fixed headings are written in the OPERATOR's language, which in
-	// a test is the source language; "Sorte" and "Vorrätig" are the operator's
+	// a test is the source language; "Sorte" and "Vorrätig" are the operator's //nolint:german — the operator's own labels, quoted
 	// own field labels and are never translated.
 	for _, want := range []string{"Title", "Address", "Text", "State", "Terms", "Sorte", "Vorrätig"} {
 		if !strings.Contains(text, want) {
@@ -961,9 +961,9 @@ func TestCSVExampleUnknownWebsiteIsNotFound(t *testing.T) {
 // TestCSVExampleWithoutAWebsiteIsTheFixedColumns (WR-08): the file the panel
 // promises in words for a website that does not exist yet.
 //
-// D-37 states the requirement and the answer, and the panel prints it: "Für
-// eine Website, die es noch nicht gibt, gibt es keine Felder zu lesen: dort
-// sind es nur die festen Spalten." There was no control that produced it and
+// D-37 states the requirement and the answer, and the panel prints it: "For a
+// website that does not exist yet there are no fields to read: there it is only
+// the fixed columns." There was no control that produced it and
 // the handler accepted no request without an existing website — ParseInt("")
 // yields 0, GetWebsite(0) yields nil, and the answer was http.NotFound. On a
 // fresh installation, which is the single most likely moment for a first CSV

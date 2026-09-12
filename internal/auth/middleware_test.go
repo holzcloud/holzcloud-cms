@@ -149,8 +149,8 @@ func TestRequireAdminPassesForAdmin(t *testing.T) {
 	}
 }
 
-// Die Adresse entscheidet, nicht die Route: alles unter /admin/websites/<Zahl>
-// gehört zu dieser Website, ganz gleich, was danach kommt.
+// The address decides, not the route: everything under /admin/websites/<number>
+// belongs to that website, whatever comes after it.
 func TestWebsiteIDInPath(t *testing.T) {
 	cases := map[string]int64{
 		"/admin/websites/7":                     7,
@@ -196,8 +196,8 @@ func TestRequireWebsiteAccess(t *testing.T) {
 	if code, reached := run("/admin/websites/2/pages"); !reached || code != http.StatusOK {
 		t.Errorf("die eigene Website wurde abgewiesen: %d", code)
 	}
-	// Und alles andere unter der fremden Website ebenso — die Prüfung hängt an
-	// der Adresse, nicht an einer Liste von Routen.
+	// And everything else under the foreign website just the same — the check
+	// hangs on the address, not on a list of routes.
 	for _, path := range []string{
 		"/admin/websites/1/pages",
 		"/admin/websites/1/pages/9/edit",
@@ -209,7 +209,7 @@ func TestRequireWebsiteAccess(t *testing.T) {
 			t.Errorf("%s: code %d, reached %v; expected 403 and not reached", path, code, reached)
 		}
 	}
-	// Eine Adresse ohne Website geht die Prüfung nichts an.
+	// An address without a website is no business of the check.
 	if code, reached := run("/admin/users"); !reached || code != http.StatusOK {
 		t.Errorf("/admin/users wurde abgewiesen: %d", code)
 	}

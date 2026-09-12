@@ -15,9 +15,9 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
-// Das Beispiel-Plugin aus plugins/jahreszahl, mit dem SDK gebaut, gegen die
-// echte Laufzeit. Es prüft die Kette als Ganzes: SDK, Aufrufkonvention, Host,
-// Berechtigungen und eigener Speicher.
+// The example plugin from plugins/jahreszahl, built with the SDK, against the
+// real runtime. It checks the chain as a whole: SDK, calling convention, host,
+// permissions and the plugin's own store.
 func TestBeispielPluginLaeuftDurch(t *testing.T) {
 	module := wasmtest.Module(t, "../../plugins/jahreszahl/plugin.wasm")
 	raw, err := os.ReadFile("../../plugins/jahreszahl/plugin.json")
@@ -64,7 +64,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		t.Errorf("a page with no marker was changed: %+v", out)
 	}
 
-	// Eine Seite mit der Marke bekommt das Jahr.
+	// A page with the token gets the year.
 	out = plugin.ContentOut{}
 	if err := r.Dispatch(ctx, m.ID, plugin.HookContent, 1,
 		plugin.ContentIn{WebsiteID: 1, HTML: "<footer>© [[jahr]] Velowerkstatt</footer>"}, &out); err != nil {
@@ -74,7 +74,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		t.Fatalf("the marker was not replaced: %+v", out)
 	}
 
-	// Der eigene Speicher hat mitgezählt.
+	// Its own store has counted along.
 	if v, ok, err := store.StoreGet(ctx, m.ID, 1, "ersetzungen"); err != nil || !ok || v != "1" {
 		t.Errorf("counter: %q (%v, %v)", v, ok, err)
 	}

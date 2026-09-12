@@ -56,7 +56,7 @@ func TestParse(t *testing.T) {
 	if len(export.Items) != 2 {
 		t.Fatalf("%d entries, expected 2: %+v", len(export.Items), export.Items)
 	}
-	// Anhang und Papierkorb sind kein Inhalt.
+	// An attachment and the trash are not content.
 	if export.Skipped != 2 {
 		t.Errorf("skipped = %d, expected 2", export.Skipped)
 	}
@@ -77,7 +77,7 @@ func TestParse(t *testing.T) {
 	if page.Date.Year() != 2020 || page.Date.Month() != 5 {
 		t.Errorf("Datum = %v", page.Date)
 	}
-	// "Uncategorized" ist keine Angabe, sondern die Abwesenheit einer.
+	// "Uncategorized" is not a statement but the absence of one.
 	if len(page.Terms) != 0 {
 		t.Errorf("terms of the page = %v", page.Terms)
 	}
@@ -90,8 +90,8 @@ func TestParse(t *testing.T) {
 		t.Errorf("terms = %v, expected Wolle and Hof", post.Terms)
 	}
 
-	// Die Bilder werden aufgezählt, nicht geholt: einmal aus dem Anhang und
-	// einmal aus dem Text, und beides ist dieselbe Datei.
+	// The images are listed, not fetched: once out of the attachment and once
+	// out of the text, and both are the same file.
 	if len(export.MediaURLs) != 1 || export.MediaURLs[0] != "https://alt.example/wp-content/2020/hof.jpg" {
 		t.Errorf("Medien = %v", export.MediaURLs)
 	}

@@ -21,9 +21,9 @@ var allowedMIME = map[string]bool{
 	"image/webp":      true,
 	"image/svg+xml":   true,
 	"application/pdf": true,
-	// Ein eigenes Video, kein eingebettetes. Der Baustein "Video" zeigt es in
-	// einem <video>-Element von diesem Server — genau das, was die Einbettung
-	// bei YouTube unmöglich macht, ohne die Regel zu brechen.
+	// A video of one's own, not an embedded one. The "Video" block shows it in
+	// a <video> element from this server — exactly what makes embedding YouTube
+	// impossible without breaking the rule.
 	"video/mp4": true,
 }
 
@@ -138,9 +138,9 @@ func PrepareUpload(file io.Reader, mimeType string, maxSize int64) (io.Reader, e
 	switch mimeType {
 	case "image/jpeg", "image/png", "image/webp":
 	case "video/mp4":
-		// Dieselbe Regel wie beim Foto: Aufnahmeort und Gerät verlassen die
-		// Datei, bevor sie auf der Platte liegt. Siehe mp4.go, warum dabei
-		// nichts kürzer wird.
+		// The same rule as for a photo: where it was taken and on what device
+		// leave the file before it lies on the disk. See mp4.go for why nothing
+		// gets shorter in the process.
 		raw, err := io.ReadAll(io.LimitReader(file, maxSize+1))
 		if err != nil {
 			return nil, fmt.Errorf("read upload: %w", err)

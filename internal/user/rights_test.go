@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// Die Regel, an der alles hängt: keine Zuordnung heisst alle Websites. Sonst
-// wäre die Migration selbst eine Aussperrung.
+// The rule everything hangs on: no assignment means every website. Otherwise
+// the migration itself would be a lockout.
 func TestWithoutAnAssignmentEveryWebsite(t *testing.T) {
 	s, id := newTestStore(t)
 	rights, err := s.Rights(context.Background(), id)
@@ -45,7 +45,7 @@ func TestTheAssignmentNarrows(t *testing.T) {
 		t.Error("the right to publish was not withdrawn")
 	}
 
-	// Und wieder aufheben: keine Zeile heisst wieder alle.
+	// And undone again: no row means everything again.
 	if err := s.SetRights(ctx, id, Everything()); err != nil {
 		t.Fatalf("SetRights: %v", err)
 	}
@@ -55,8 +55,8 @@ func TestTheAssignmentNarrows(t *testing.T) {
 	}
 }
 
-// Ein Administrator führt die Anlage. Eine Website, die er nicht betreten darf,
-// wäre eine, die niemand reparieren kann — die Zuordnung gilt für ihn nicht.
+// An administrator runs the installation. A website they may not enter would be
+// one nobody can repair — the assignment does not apply to them.
 func TestAdministratorKennnKeineGrenze(t *testing.T) {
 	s, id := newTestStore(t)
 	ctx := context.Background()
@@ -80,7 +80,7 @@ func TestAdministratorKennnKeineGrenze(t *testing.T) {
 	}
 }
 
-// websites legt n Websites an, damit die Fremdschlüssel der Zuordnung halten.
+// websites creates n websites, so that the assignment's foreign keys hold.
 func websites(ctx context.Context, s *Store, n int) error {
 	for i := 0; i < n; i++ {
 		if _, err := s.DB.Write.ExecContext(ctx,

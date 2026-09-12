@@ -50,9 +50,9 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 		// known one. Without this the response time reveals which emails exist.
 		auth.VerifyDummyPassword(password, h.argon2Params)
 		h.loginThrottle.RecordFailure(ip, account)
-		// Die versuchte Adresse und nicht die Kennung: bei einem Fehlversuch
-		// gibt es kein angemeldetes Konto, und gerade die Adresse ist es, die
-		// man später wiedererkennen will.
+		// The address that was tried and not the id: on a failed attempt there
+		// is no signed-in account, and it is precisely the address one wants to
+		// recognise later.
 		h.LogActivity(r, activity.Entry{
 			ActorEmail: account,
 			Action:     activity.ActionAuthLoginFail,
@@ -149,7 +149,7 @@ func (h *Handler) completeLogin(r *http.Request, id int64, role, email string) {
 // keeping frame-ancestors 'none', X-Frame-Options: DENY and Cache-Control:
 // no-store — cmd/holzcloud/main_test.go asserts those three.
 func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) error {
-	// Vor dem Zerstören: danach weiss die Sitzung nicht mehr, wer gegangen ist.
+	// Before destroying it: afterwards the session no longer knows who left.
 	h.LogActivity(r, activity.Entry{Action: activity.ActionAuthLogout, EntityType: "user"})
 
 	// Read before Destroy, for the same reason the line above is where it is:

@@ -290,7 +290,7 @@ func TestTermNamesCapsWhatRowTermsCaps(t *testing.T) {
 // value comes from the mapping screen rather than from a column is stored by
 // the row, so the pre-pass has to create it.
 //
-// Found in the browser and not by reading: a file with no Schlagwörter column
+// Found in the browser and not by reading: a file with no Schlagwörter column //nolint:german — the column heading, quoted
 // and "importiert|hofladen" typed into the Vorgaben card had the dry run
 // promise two labels while four were created. TermNames walked the columns and
 // a default-only target has none, while RowTerms goes through cellFor, which
@@ -890,7 +890,7 @@ func TestBlankCellSaysNothingOnTheUpdateArm(t *testing.T) {
 //
 // The old shape was ReasonRowUnreadable carrying one argument: the English
 // sentence internal/csv built with fmt.Sprintf. csv_reason.html then wrote it
-// into a German frame, so the report read "Diese Zeile liess sich nicht lesen:
+// into a German frame, so the report read "Diese Zeile liess sich nicht lesen: //nolint:german — the broken report, quoted
 // row has 5 cells, the header has 3" and the translation gate reported nothing
 // missing — the D-32 hole, narrowed from a whole sentence to its argument.
 func TestWideRowIsRefusedWithItsNumbers(t *testing.T) {
@@ -929,7 +929,7 @@ func TestWideRowIsRefusedWithItsNumbers(t *testing.T) {
 //
 // setTerms asks its question of the FILE ("is a terms column mapped at all")
 // while update asks it of the ROW ("did this row put anything in this slot").
-// So a row whose Schlagwörter cell is blank reaches term.Store.SetForPage with
+// So a row whose Schlagwörter cell is blank reaches term.Store.SetForPage with //nolint:german — the column heading, quoted
 // an empty list, and SetForPage's first statement is an unconditional
 // DELETE FROM page_terms.
 //
@@ -954,7 +954,7 @@ func TestABlankTermsCellDoesNotWipeAPagesTerms(t *testing.T) {
 		t.Fatalf("SetForPage: %v", err)
 	}
 
-	// A file that carries a Schlagwörter column — the column is mapped, which
+	// A file that carries a Schlagwörter column — the column is mapped, which //nolint:german — the column heading, quoted
 	// is the point — and a row that leaves it blank.
 	head, rows := reader(t, "Titel,Schlagwörter\nApfelbaum,\n")
 	m := csvimport.AutoMap(head, nil)
@@ -1115,8 +1115,8 @@ func TestUpdatingAPostKeepsItsOwnFields(t *testing.T) {
 	}
 }
 
-// The Vorgaben card promises, in as many words: "Was eingetragen wird, wenn die
-// Datei für dieses Ziel keine Spalte hat."
+// The defaults card promises, in as many words: "What is entered when the file
+// has no column for this target or the cell stays empty."
 //
 // For the five fixed targets it is kept — cellFor falls back to the default
 // whether a column exists or not. For the website's OWN fields it was not: the

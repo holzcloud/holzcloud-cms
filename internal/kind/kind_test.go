@@ -18,8 +18,8 @@ func TestKeyAusDemNamen(t *testing.T) {
 	}
 }
 
-// Die Kennung landet in pages.art, in einem Formularfeld und in einer Adresse.
-// Was dort Ärger macht, wird hier abgelehnt.
+// The key lands in pages.content_kind, in a form field and in an address. What
+// causes trouble there is refused here.
 func TestValidKey(t *testing.T) {
 	for _, gut := range []string{"produkt", "termin_2026", "tier"} {
 		if !ValidKey(gut) {
@@ -33,7 +33,7 @@ func TestValidKey(t *testing.T) {
 	}
 }
 
-// Was aus einem Formular kommt, ist eine Art dieser Website oder eine Seite.
+// What comes out of a form is a kind of this website or a page.
 func TestPick(t *testing.T) {
 	types := []Type{{Key: "produkt"}, {Key: "termin"}}
 	cases := map[string]string{
@@ -62,8 +62,8 @@ func TestNameOf(t *testing.T) {
 	if got := NameOf(types, Post, true); got != "Beiträge" {
 		t.Errorf("eingebaut = %q", got)
 	}
-	// Eine gelöschte Art: die Einträge tragen sie noch, und sie bekommen einen
-	// Namen statt einer Leerstelle.
+	// A deleted kind: the entries still carry it, and they get a name instead of
+	// a blank.
 	if got := NameOf(types, "rezept", false); got != "rezept" {
 		t.Errorf("verschwundene Art = %q", got)
 	}

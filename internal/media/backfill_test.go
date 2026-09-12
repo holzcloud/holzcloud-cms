@@ -9,11 +9,11 @@ import (
 	"testing"
 )
 
-// Ein eingespieltes Bild bekommt seine Masse nachgetragen.
+// An imported image gets its dimensions filled in afterwards.
 //
-// Der Import legt die Zeile ohne Breite und Höhe an. Ohne die beiden Zahlen
-// steht im HTML kein width/height und kein srcset: die Seite springt beim
-// Nachladen, und ein Handy lädt das Original in voller Grösse.
+// The import creates the row without a width and a height. Without those two
+// numbers the HTML has no width/height and no srcset: the page jumps while it
+// loads, and a phone fetches the original at full size.
 func TestBackfillTraegtMasseUndFassungenNach(t *testing.T) {
 	s, ws := newTestStore(t)
 	data := t.TempDir()
@@ -23,7 +23,7 @@ func TestBackfillTraegtMasseUndFassungenNach(t *testing.T) {
 	}
 	testImage(t, filepath.Join(dir, "hof.png"), 1600, 900, image.Point{X: 800, Y: 450})
 
-	// So, wie der Import sie anlegt: ohne Masse.
+	// The way the import creates it: without dimensions.
 	m, err := s.Create(context.Background(), ws, "hof.png", "hof.png", "image/png", 1234, "abc")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -58,7 +58,7 @@ func TestBackfillTraegtMasseUndFassungenNach(t *testing.T) {
 	}
 }
 
-// Was keine Masse haben kann, darf den Lauf nicht bei jedem Takt beschäftigen.
+// What can have no dimensions must not occupy the job on every tick.
 func TestBackfillLaesstEinPDFLiegen(t *testing.T) {
 	s, ws := newTestStore(t)
 	data := t.TempDir()

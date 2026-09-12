@@ -313,8 +313,8 @@ type CSVReportData struct {
 // website list. It ends in a 303 to screen 2 and never renders anything itself,
 // so a refresh of the mapping screen is an ordinary GET.
 func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error {
-	// Eine CSV-Datei ist Text; zehn Megabyte sind mehr als jede Tabelle, die
-	// jemand von Hand pflegt, und wenig genug für einen kleinen Server.
+	// A CSV file is text; ten megabytes is more than any table somebody keeps by
+	// hand, and little enough for a small server.
 	r.Body = http.MaxBytesReader(w, r.Body, csvMaxUpload)
 
 	file, header, err := r.FormFile("csv")
@@ -1246,9 +1246,9 @@ func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error
 	}
 
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	// Ohne nosniff könnte ein Browser den Inhalt anders deuten als die
-	// Kopfzeile sagt, und die Angabe oben wäre eine Empfehlung statt einer
-	// Schranke.
+	// Without nosniff a browser could read the content differently from what the
+	// header says, and the statement above would be a recommendation rather than
+	// a bar.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+csvExampleFilename(name)+`"`)
 	// The file is a snapshot of the definitions as they are right now

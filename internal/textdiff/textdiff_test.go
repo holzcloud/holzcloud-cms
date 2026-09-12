@@ -52,7 +52,7 @@ func TestInsertionKeepsSurroundingLinesAsContext(t *testing.T) {
 	}
 }
 
-// Eine leere Seite gegen eine volle: alles ist neu, nichts ist gelöscht.
+// An empty page against a full one: everything is new, nothing is deleted.
 func TestEmptyOldTextIsAllAdditions(t *testing.T) {
 	lines := textdiff.Lines("", "eins\nzwei\n")
 	if len(lines) != 2 {
@@ -65,8 +65,8 @@ func TestEmptyOldTextIsAllAdditions(t *testing.T) {
 	}
 }
 
-// Der abschliessende Zeilenumbruch darf keine Geisterzeile erzeugen — sonst
-// meldet jeder Vergleich eine Änderung, die niemand gemacht hat.
+// The trailing line break must not produce a ghost line — otherwise every
+// comparison reports a change nobody made.
 func TestTrailingNewlineIsNotALine(t *testing.T) {
 	withNewline := textdiff.Lines("eins\n", "eins\n")
 	without := textdiff.Lines("eins", "eins")
@@ -121,8 +121,8 @@ func TestCompactReplacesLongUnchangedRunsWithOneMarker(t *testing.T) {
 	}
 }
 
-// Eine kurze unveränderte Strecke bleibt stehen: "2 Zeilen ausgelassen" sagt
-// weniger als die zwei Zeilen selbst.
+// A short unchanged stretch stays standing: "2 lines left out" says less than
+// the two lines themselves.
 func TestCompactKeepsRunsShorterThanTheMarker(t *testing.T) {
 	oldText := "a\ngleich\ngleich\nb\n"
 	newText := "A\ngleich\ngleich\nB\n"

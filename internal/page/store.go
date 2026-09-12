@@ -273,15 +273,15 @@ func (s *Store) ListPages(ctx context.Context, websiteID int64, f ListFilter) ([
 	if f.Review == "pending" {
 		where += " AND review_state = 'pending'"
 	}
-	// Eine eigene Art gewinnt über die eingebaute: wer nach "Produkte" filtert,
-	// meint die Produkte und nicht die Seiten, unter denen sie wohnen.
+	// A kind of one's own wins over the built-in one: whoever filters for
+	// "Produkte" means the products and not the pages they live under.
 	if f.TypeKey != "" {
 		args = append(args, f.TypeKey)
 		where += fmt.Sprintf(" AND content_kind = $%d", len(args))
 	} else if f.Kind == KindPage || f.Kind == KindPost {
 		args = append(args, f.Kind)
-		// Und umgekehrt: "Seiten" heisst die Seiten, nicht die Produkte, die
-		// technisch ebenfalls Seiten sind.
+		// And the other way round: "Seiten" means the pages, not the products,
+		// which are technically pages as well.
 		where += fmt.Sprintf(" AND kind = $%d AND content_kind = ''", len(args))
 	}
 	// "*" is every language; anything else is exactly that one, and the empty
@@ -1084,8 +1084,8 @@ func (s *Store) TranslationMatrix(ctx context.Context, websiteID int64) ([]Trans
 		return rec.id
 	}
 
-	// Zwei Durchgänge: erst die Originale, damit eine Übersetzung, die vor
-	// ihrem Original einsortiert wurde, keine eigene Zeile anlegt.
+	// Two passes: the originals first, so that a translation sorted in before
+	// its original does not create a row of its own.
 	for _, rec := range all {
 		if root(rec) != rec.id {
 			continue
@@ -1105,7 +1105,7 @@ func (s *Store) TranslationMatrix(ctx context.Context, websiteID int64) ([]Trans
 		}
 		row, ok := byRoot[r]
 		if !ok {
-			// Die Übersetzung einer gelöschten Seite. Sie steht für sich.
+			// The translation of a deleted page. It stands on its own.
 			byRoot[rec.id] = &TranslationRow{
 				ID: rec.id, Title: rec.title, Slug: rec.slug, Status: rec.status,
 				ByLocale: map[string]TranslationCell{

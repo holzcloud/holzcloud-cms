@@ -186,8 +186,8 @@ func RowTerms(row csv.Row, m Mapping) ([]string, bool) {
 // default for it. That is the same rule read from the other end — cellFor falls
 // back to the default whether a column exists or not, so the row stores the
 // name and the pre-pass owes it. Walking the columns alone had a file with no
-// Schlagwörter column and two names typed into the Vorgaben card create four
-// labels while the dry run promised two.
+// terms column and two names typed into the defaults card create four labels
+// while the dry run promised two.
 func TermNames(defs []field.Def, m Mapping, rows []csv.Row) []string {
 	byKey := definitionsByKey(defs)
 
@@ -266,7 +266,7 @@ func TermNames(defs []field.Def, m Mapping, rows []csv.Row) []string {
 // the question. Nine other call sites wrap the list in field.For, and the one
 // that omits it deliberately writes down why; internal/csvimport said nothing
 // about gilt_fuer at all. Two things went wrong at once: a REQUIRED field
-// scoped to Beiträge refused every row of every import, naming a field the
+// scoped to posts refused every row of every import, naming a field the
 // page form never asks for — and a column pointed at such a field stored a
 // value the theme filters out and the next save from the page form drops
 // without a word.
@@ -461,9 +461,9 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 	// Over the DEFINITIONS and not over the columns.
 	//
 	// m.Targets holds exactly one entry per column, so a loop over it can only
-	// visit a field some column points at — and the Vorgaben card promises the
-	// opposite in as many words: "Was eingetragen wird, wenn die Datei für
-	// dieses Ziel keine Spalte hat." cellFor already falls back to the target's
+	// visit a field some column points at — and the defaults card promises the
+	// opposite in as many words: "What is entered when the file has no column
+	// for this target." cellFor already falls back to the target's
 	// default, which is how the five fixed targets have always kept that
 	// promise. Walking the definitions is what extends it to the website's own
 	// fields, where the box was offered, accepted, carried through to the
@@ -802,8 +802,8 @@ func (w Writer) setTerms(ctx context.Context, websiteID, pageID int64, row csv.R
 	// reached the body, the status and every field while this slot was left
 	// behind on the old one.
 	//
-	// So a file of five hundred rows with a Schlagwörter column, three hundred
-	// of whose cells are blank, stripped the labels off three hundred existing
+	// So a file of five hundred rows with a terms column, three hundred of whose
+	// cells are blank, stripped the labels off three hundred existing
 	// pages with no line in the report. cellFor already falls back to the
 	// target's default, so a default typed on the mapping screen still counts
 	// as the operator stating a value.
