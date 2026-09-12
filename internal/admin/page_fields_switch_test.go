@@ -14,40 +14,39 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
-// Der Schaltermechanismus, an dem Markup gemessen, das er braucht.
+// The switch mechanism, measured on the markup it needs.
 //
-// Ein abhängiges Feld wird von einer Stylesheet-Regel ein- und ausgeblendet,
-// von nichts sonst. Die Regel heisst .feld-schalter--<name>, der Server
-// schreibt den Namen in die Klasse, und keine Zeile im laufenden Programm
-// prüft je, dass es die Regel dazu wirklich gibt. Fehlt sie, bleibt ein Feld,
-// das der Redaktion verborgen sein sollte, für immer sichtbar — ohne Fehler,
-// ohne Eintrag im Protokoll, ohne irgendein Zeichen.
+// A dependent field is shown and hidden by one stylesheet rule and by nothing
+// else. The rule is called .feld-schalter--<name>, the server writes the name
+// into the class, and no line in the running program ever checks that the rule
+// to go with it really exists. If it is missing, a field that should be hidden
+// from the editors stays visible for ever — with no error, no entry in the log,
+// no sign of any kind.
 //
-// Deshalb behauptet jeder Fall hier zwei Dinge auf einmal: die Klasse am
-// Kasten *und* das Element darin, das die zugehörige Regel auswählt. Nur die
-// Klasse zu prüfen lässt eine veraltete Regel durch, nur das Element zu prüfen
-// lässt einen falschen Namen durch. Das Paar ist der Punkt.
+// That is why every case here asserts two things at once: the class on the box
+// *and* the element inside it that the matching rule selects. Checking only the
+// class lets an outdated rule through, checking only the element lets a wrong
+// name through. The pair is the point.
 //
-// Was dieser Test NICHT beweist: dass :has() und :placeholder-shown sich im
-// Browser an einem echten Zahlenfeld so verhalten, wie hier angenommen. Ein
-// grüner Lauf hier misst das Markup und nicht den Browser; das war und bleibt
-// die Grenze dieses Tests.
+// What this test does NOT prove: that :has() and :placeholder-shown behave in
+// the browser on a real number field the way they are assumed to here. A green
+// run here measures the markup and not the browser; that was and stays the
+// limit of this test.
 //
-// Nachgesehen wurde es trotzdem, einmal und ausserhalb der Suite: im
-// Browserdurchgang zu Plan 07-07 (5. September 2026, Playwright gegen einen
-// frisch gebauten Binary mit eigener Wegwerf-Datenbank). Ein abhängiges Feld
-// an einem Bereichsfeld hatte display: none, solange das Zahlenfeld leer war,
-// und display: block, sobald eine 6 darinstand. Damit ist D-08 beantwortet:
-// KindRange bleibt steuernd, und die Notiz im Fahrplan, es auszuschliessen,
-// ruhte auf der Schieber-Annahme, die D-07 verworfen hat. MayControl() wurde
-// deshalb nicht angefasst.
+// It was looked at anyway, once and outside the suite: in the browser pass for
+// plan 07-07 (5 September 2026, Playwright against a freshly built binary with
+// a throwaway database of its own). A dependent field on a range field had
+// display: none as long as the number field was empty, and display: block as
+// soon as a 6 stood in it. D-08 is answered by that: KindRange stays
+// controlling, and the note in the roadmap to exclude it rested on the slider
+// assumption that D-07 discarded. MayControl() was therefore left alone.
 
-// schalterKasten schneidet den Schalterkasten eines Feldes aus: vom
-// <div class="feld-schalter feld-schalter--…"> bis dorthin, wo die abhängigen
-// Felder anfangen. Zurück kommen der Name der Regel und genau das Markup, das
-// diese Regel erreichen können muss — die abhängigen Felder selbst gehören
-// nicht dazu, denn das ">" in jedem :has() schliesst sie aus.
-func schalterKasten(t *testing.T, body, feldname string) (string, string) {
+// switchBox cuts out the switch box of a field: from the
+// <div class="feld-schalter feld-schalter--…"> to where the dependent fields
+// begin. Back come the name of the rule and exactly the markup that rule has to
+// be able to reach — the dependent fields themselves do not belong to it,
+// because the ">" in every :has() excludes them.
+func switchBox(t *testing.T, body, feldname string) (string, string) {
 	t.Helper()
 	const auftakt = `class="feld-schalter feld-schalter--`
 
@@ -73,9 +72,9 @@ func schalterKasten(t *testing.T, body, feldname string) (string, string) {
 	return name, kasten
 }
 
-// zeichneMitSchalter legt das steuernde Feld an, hängt ein Textfeld daran und
-// gibt den gezeichneten Seiteneditor back.
-func zeichneMitSchalter(t *testing.T, steuernd field.Def) string {
+// drawWithSwitch creates the controlling field, hangs a text field on it and
+// hands the drawn page editor back.
+func drawWithSwitch(t *testing.T, steuernd field.Def) string {
 	t.Helper()
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -108,7 +107,7 @@ func TestSchalter(t *testing.T) {
 		name     string
 		def      field.Def
 		schalter string
-		// braucht steht im ganzen Kasten, element im Bedienelement selbst.
+		// needs is looked for in the whole box, element in the control itself.
 		braucht []string
 		element []string
 	}{
@@ -162,8 +161,8 @@ func TestSchalter(t *testing.T) {
 	gesehen := map[string]bool{}
 	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
-			body := zeichneMitSchalter(t, f.def)
-			name, kasten := schalterKasten(t, body, f.def.FieldName())
+			body := drawWithSwitch(t, f.def)
+			name, kasten := switchBox(t, body, f.def.FieldName())
 			if name != f.schalter {
 				t.Fatalf("the switch is called %q, wanted %q — its rule catches the wrong markup", name, f.schalter)
 			}
@@ -186,8 +185,8 @@ func TestSchalter(t *testing.T) {
 		})
 	}
 
-	// Der billige, ehrliche Wächter gegen die nächste Art, die einen neuen
-	// Schalternamen bekommt und keine Regel dazu.
+	// The cheap, honest guard against the next kind that gets a new switch name
+	// and no rule to go with it.
 	t.Run("zu jedem Schalternamen gibt es eine Regel", func(t *testing.T) {
 		if len(gesehen) == 0 {
 			t.Fatal("no switch name measured — the cases above did not run")
@@ -198,10 +197,9 @@ func TestSchalter(t *testing.T) {
 		}
 		css := string(roh)
 
-		// Und nicht nur, dass es die Regel gibt, sondern woran sie greift.
-		// Eine Regel, die den Namen trägt und das falsche Element sucht, ist
-		// keine Regel — sie ist genau die stumme Fehlfunktion, um deretwillen
-		// dieser Test geschrieben ist.
+		// And not only that the rule exists, but what it takes hold of. A rule
+		// that carries the name and looks for the wrong element is no rule —
+		// it is exactly the mute malfunction this test is written for.
 		woran := map[string]string{
 			"kreuz":      `input[type="checkbox"]:checked`,
 			"auswahl":    `option[value=""]:checked`,
@@ -218,16 +216,16 @@ func TestSchalter(t *testing.T) {
 				t.Errorf("the switch %q is new and this test does not know what its rule is meant to catch — please enter it here", name)
 				continue
 			}
-			regel := zwischen(t, css, ".feld-schalter--"+name+":has(", "{")
+			regel := between(t, css, ".feld-schalter--"+name+":has(", "{")
 			if !strings.Contains(regel, will) {
 				t.Errorf("die Regel zu %q greift nicht an %s:\n%s", name, will, regel)
 			}
 		}
 	})
 
-	// Plan 07-03 hat die Uhrzeit ausgeschlossen, weil ein <input type="time">
-	// nie einen Platzhalter zeigt. Ohne diesen Fall liesse sich das
-	// zurücknehmen, ohne dass irgendetwas rot wird.
+	// Plan 07-03 excluded the time of day, because an <input type="time"> never
+	// shows a placeholder. Without this case that could be taken back without
+	// anything going red.
 	t.Run("an einer Uhrzeit haengt nichts", func(t *testing.T) {
 		h, sm, database, ws := newTestAdmin(t)
 		ctx := context.Background()
@@ -247,7 +245,7 @@ func TestSchalter(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("the field list returned %d", rec.Code)
 		}
-		liste := zwischen(t, rec.Body.String(), `id="feld-bedingung"`, `</select>`)
+		liste := between(t, rec.Body.String(), `id="feld-bedingung"`, `</select>`)
 		if !strings.Contains(liste, `value="sorte"`) {
 			t.Fatalf("the text field is not offered at all — then the case says nothing:\n%s", liste)
 		}
@@ -256,12 +254,12 @@ func TestSchalter(t *testing.T) {
 		}
 	})
 
-	// Allgemein statt je Art: eine Beschriftung, deren for= auf nichts zeigt,
-	// ist mit gar nichts verknüpft, und für einen Screenreader ist das
-	// schlechter als gar keine Beschriftung. Der Fall merkt es, wenn eine
-	// spätere Art eine Gruppe wird und niemand daran denkt, es zu sagen.
+	// In general rather than per kind: a label whose for= points at nothing is
+	// tied to nothing at all, and for a screen reader that is worse than no
+	// label. The case notices when a later kind becomes a group and nobody
+	// thinks to say so.
 	t.Run("jedes for zeigt auf eine Kennung, die es gibt", func(t *testing.T) {
-		bereich := eigeneFelder(t, zeichneAlleArten(t))
+		bereich := ownFields(t, drawEveryKind(t))
 
 		ids := map[string]bool{}
 		for _, m := range regexp.MustCompile(`id="([^"]+)"`).FindAllStringSubmatch(bereich, -1) {
@@ -277,8 +275,8 @@ func TestSchalter(t *testing.T) {
 			}
 		}
 
-		// Und die beiden Gruppen ausdrücklich: kein for=, dafür ein
-		// aria-labelledby auf eine Kennung, die da ist.
+		// And the two groups expressly: no for=, but an aria-labelledby onto an
+		// id that is there.
 		for _, name := range []string{"feld_hoelzer[]", "feld_knopfreihe"} {
 			if strings.Contains(bereich, `for="`+name+`"`) {
 				t.Errorf("%s is a group of controls and carries a for= regardless", name)
@@ -293,9 +291,8 @@ func TestSchalter(t *testing.T) {
 	})
 }
 
-// zwischen schneidet den Ausschnitt von der ersten Marke bis zur nächsten
-// zweiten aus.
-func zwischen(t *testing.T, body, von, bis string) string {
+// between cuts out the section from the first marker to the next second one.
+func between(t *testing.T, body, von, bis string) string {
 	t.Helper()
 	a := strings.Index(body, von)
 	if a < 0 {
@@ -308,17 +305,17 @@ func zwischen(t *testing.T, body, von, bis string) string {
 	return rest
 }
 
-// eigeneFelder schneidet den Teil des Seitenformulars aus, der die eigenen
-// Felder der Website trägt. Nicht das ganze Dokument: die Verwaltungshülle
-// bringt eigene Beschriftungen mit, und die gehen diesen Test nichts an.
-func eigeneFelder(t *testing.T, body string) string {
+// ownFields cuts out the part of the page form that carries the website's own
+// fields. Not the whole document: the admin shell brings labels of its own, and
+// those are no business of this test.
+func ownFields(t *testing.T, body string) string {
 	t.Helper()
-	return zwischen(t, body, `class="own-fields"`, `class="access-fields"`)
+	return between(t, body, `class="own-fields"`, `class="access-fields"`)
 }
 
-// zeichneAlleArten zeichnet ein Formular mit je einem Feld jeder Art, die
-// diese Phase kennt — die Knopfreihe eingeschlossen.
-func zeichneAlleArten(t *testing.T) string {
+// drawEveryKind draws a form with one field of every kind this phase knows —
+// the button row included.
+func drawEveryKind(t *testing.T) string {
 	t.Helper()
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -361,13 +358,13 @@ func zeichneAlleArten(t *testing.T) string {
 	return rec.Body.String()
 }
 
-// Die Knopfreihe selbst: welche Knöpfe sie sendet, in welcher Reihenfolge und
-// welcher davon angekreuzt ist.
+// The button row itself: which buttons it sends, in what order and which of
+// them is ticked.
 //
-// Der leere Knopf ganz vorn ist die Zusage aus D-11. Eine Reihe von
-// Radioknöpfen lässt sich in reinem HTML nicht wieder abwählen, ohne ihn wäre
-// ein Klick also unwiderruflich — und die Regel .feld-schalter--knopfreihe
-// liest genau ihn.
+// The empty button right at the front is the promise from D-11. A row of radio
+// buttons cannot be unselected again in plain HTML, so without it a click would
+// be irreversible — and the rule .feld-schalter--knopfreihe reads exactly that
+// one.
 func TestKnopfreihe(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
@@ -376,13 +373,12 @@ func TestKnopfreihe(t *testing.T) {
 	for _, d := range []field.Def{
 		{Key: "farbe", Label: "Farbe", Kind: field.KindChoice,
 			Display: field.DisplayButtons, Choices: []string{"hell", "mittel", "dunkel"}},
-		// Zwei gleiche Zeilen in der Liste. Die Liste wird wortwörtlich
-		// gespeichert und wortwörtlich gelesen; hier eine davon zu
-		// unterschlagen hiesse, den Definitionsbildschirm und den Editor
-		// verschiedene Dinge sagen zu lassen.
+		// Two identical lines in the list. The list is stored verbatim and read
+		// verbatim; suppressing one of them here would mean letting the
+		// definition screen and the editor say different things.
 		{Key: "sorte", Label: "Sorte", Kind: field.KindChoice,
 			Display: field.DisplayButtons, Choices: []string{"Eiche", "Buche", "Eiche"}},
-		// Die Gegenprobe: eine gewöhnliche Auswahl bleibt eine Klappliste.
+		// The counter-check: an ordinary choice stays a dropdown.
 		{Key: "glanz", Label: "Glanz", Kind: field.KindChoice,
 			Choices: []string{"matt", "seidig"}},
 	} {
@@ -407,7 +403,7 @@ func TestKnopfreihe(t *testing.T) {
 
 	body := zeichnen()
 
-	// --- die Reihe, wie sie ohne gespeicherten Wert aussieht ----------------
+	// --- the row as it looks without a stored value -------------------------
 	for _, f := range []struct {
 		key  string
 		will []string
@@ -416,7 +412,7 @@ func TestKnopfreihe(t *testing.T) {
 		{"sorte", []string{"", "Eiche", "Buche", "Eiche"}},
 	} {
 		reihe := knopfreihe(t, body, "feld_"+f.key)
-		if got := knopfwerte(reihe, "feld_"+f.key); !gleich(got, f.will) {
+		if got := buttonValues(reihe, "feld_"+f.key); !gleich(got, f.will) {
 			t.Errorf("%s carries the buttons %q, wanted %q", f.key, got, f.will)
 		}
 		if !strings.Contains(reihe, `value="" checked`) {
@@ -424,20 +420,20 @@ func TestKnopfreihe(t *testing.T) {
 		}
 	}
 
-	// --- eine Klappliste bleibt eine Klappliste -----------------------------
+	// --- a dropdown stays a dropdown ----------------------------------------
 	//
-	// Gemessen am Element selbst und an den Knöpfen, die seinen Namen tragen,
-	// und nicht an einem Fenster darum herum: die Knopfreihe des Nachbarfeldes
-	// stünde sonst mit darin und wäre kein Befund.
+	// Measured on the element itself and on the buttons that carry its name,
+	// and not on a window around it: the button row of the neighbouring field
+	// would otherwise stand inside it and would be no finding.
 	glanz := imTag(t, body, "feld_glanz")
 	if !strings.Contains(glanz, "<select") {
 		t.Errorf("the ordinary choice is no longer a drop-down:\n%s", glanz)
 	}
-	if got := knopfwerte(body, "feld_glanz"); len(got) > 0 {
+	if got := buttonValues(body, "feld_glanz"); len(got) > 0 {
 		t.Errorf("the ordinary choice carries radio buttons: %q", got)
 	}
 
-	// --- mit gespeichertem Wert --------------------------------------------
+	// --- with a stored value ------------------------------------------------
 	roh, err := field.Encode(field.Data{Values: field.Values{"farbe": "mittel"}})
 	if err != nil {
 		t.Fatal(err)
@@ -457,13 +453,12 @@ func TestKnopfreihe(t *testing.T) {
 // knopfreihe schneidet die Knopfreihe eines Feldes aus.
 func knopfreihe(t *testing.T, body, feldname string) string {
 	t.Helper()
-	return zwischen(t, body, `aria-labelledby="`+feldname+`-label"`, "</div>")
+	return between(t, body, `aria-labelledby="`+feldname+`-label"`, "</div>")
 }
 
-// knopfwerte liest die Werte der Radioknöpfe in der Reihenfolge, in der sie
-// im Dokument stehen — die Reihenfolge, in der die Möglichkeiten getippt
-// wurden.
-func knopfwerte(reihe, feldname string) []string {
+// buttonValues reads the values of the radio buttons in the order in which they
+// stand in the document — the order in which the options were typed.
+func buttonValues(reihe, feldname string) []string {
 	re := regexp.MustCompile(`<input type="radio" name="` + regexp.QuoteMeta(feldname) + `" value="([^"]*)"`)
 	var out []string
 	for _, m := range re.FindAllStringSubmatch(reihe, -1) {

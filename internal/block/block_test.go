@@ -10,8 +10,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 )
 
-// markdown steht für den Renderer des Hosts. Er wird hineingereicht, damit
-// dieses Paket ohne Datenbank prüfbar bleibt.
+// markdown stands in for the host's renderer. It is handed in so that this
+// package stays checkable without a database.
 func markdown(src string) (string, error) { return "<p>" + src + "</p>", nil }
 
 func bilder(m map[int64]Image) Lookup {
@@ -21,9 +21,9 @@ func bilder(m map[int64]Image) Lookup {
 	}
 }
 
-// Der Editor schickt flache Feldnamen. Was zusammengehört, erkennt der Parser
-// an der Nummer — und die Nummern dürfen Lücken haben, weil ein gelöschter
-// Baustein sonst alle folgenden umbenennen müsste.
+// The editor submits flat field names. What belongs together the parser
+// recognises by the number — and the numbers may have gaps, because a deleted
+// block would otherwise have to rename all the following ones.
 func TestFormularWirdInBausteineGelesen(t *testing.T) {
 	form := url.Values{
 		"b0.typ":      {"text"},
@@ -47,9 +47,8 @@ func TestFormularWirdInBausteineGelesen(t *testing.T) {
 	}
 }
 
-// Verschachtelte Einträge einer Galerie oder Kartenreihe behalten ihre
-// Reihenfolge, auch wenn das Formular sie in beliebiger Ordnung liefert — eine
-// Map hat keine.
+// Nested entries of a gallery or a card row keep their order, even when the
+// form delivers them in an arbitrary one — a map has none.
 func TestVerschachtelteEintraegeBehaltenDieReihenfolge(t *testing.T) {
 	form := url.Values{
 		"b0.typ":         {"karten"},
@@ -74,8 +73,8 @@ func TestVerschachtelteEintraegeBehaltenDieReihenfolge(t *testing.T) {
 	}
 }
 
-// Ein Knopf kann gegen eine Liste gezeichnet worden sein, die es so nicht mehr
-// gibt. Die ehrliche Antwort darauf ist die Liste, wie sie jetzt ist.
+// A button may have been drawn against a list that no longer exists in that
+// shape. The honest answer to that is the list as it is now.
 func TestUnsinnigeAktionenAendernNichts(t *testing.T) {
 	start := []Block{{Type: TypeText, Markdown: "eins"}, {Type: TypeText, Markdown: "zwei"}}
 	for _, aktion := range []string{"hoch:0", "runter:1", "weg:9", "hoch:abc", "neu:gibtsnicht", ""} {
@@ -109,8 +108,8 @@ func TestVerschiebenUndLoeschen(t *testing.T) {
 	}
 }
 
-// Eine Galerie oder Kartenreihe beginnt mit einem Eintrag: sonst fügt jemand
-// den Baustein ein und findet nichts, was er ausfüllen könnte.
+// A gallery or card row starts with one entry: otherwise somebody inserts the
+// block and finds nothing they could fill in.
 func TestNeueGalerieHatEinenEintrag(t *testing.T) {
 	got := Apply(nil, "neu:galerie", Builtin)
 	if len(got) != 1 || len(got[0].Items) != 1 {
@@ -126,8 +125,8 @@ func TestNeueGalerieHatEinenEintrag(t *testing.T) {
 	}
 }
 
-// Ein Baustein, den jemand hinzugefügt und dann in Ruhe gelassen hat, soll
-// nicht als leerer Kasten auf der Website landen.
+// A block somebody added and then left alone should not land on the website as
+// an empty box.
 func TestLeereBausteineFallenBeimSichernWeg(t *testing.T) {
 	blocks := []Block{
 		{Type: TypeText, Markdown: "  "},
@@ -142,8 +141,8 @@ func TestLeereBausteineFallenBeimSichernWeg(t *testing.T) {
 	}
 }
 
-// Was ein Redakteur tippt, ist Text und nie Markup. Der Rahmen darum ist
-// unserer — deshalb darf er Klassen tragen.
+// What an editor types is text and never markup. The frame around it is ours —
+// which is why it may carry classes.
 func TestTextWirdMaskiertUndDerRahmenNicht(t *testing.T) {
 	html := Render([]Block{{
 		Type: TypeQuote, Text: `<script>alert(1)</script>`, Source: `Eva & Co`,
@@ -160,8 +159,8 @@ func TestTextWirdMaskiertUndDerRahmenNicht(t *testing.T) {
 	}
 }
 
-// Ein Redakteur, der etwas Merkwürdiges einfügt, soll eine Karte ohne Link
-// bekommen — keine Seite, die es ausführt.
+// An editor who pastes in something odd should get a card without a link — not
+// a page that carries it out.
 func TestNurBrauchbareLinkzieleUeberleben(t *testing.T) {
 	for _, boese := range []string{
 		"javascript:alert(1)", "//fremde.example/laden", "data:text/html,<script>",
@@ -186,8 +185,8 @@ func TestNurBrauchbareLinkzieleUeberleben(t *testing.T) {
 	}
 }
 
-// Ein Bild, das aus der Mediathek gelöscht wurde, kostet seinen eigenen
-// Baustein — nie den Artikel darum herum.
+// An image deleted from the media library costs its own block — never the
+// article around it.
 func TestFehlendesBildKostetNurSeinenBaustein(t *testing.T) {
 	html := Render([]Block{
 		{Type: TypeText, Markdown: "Vorher."},
@@ -203,8 +202,8 @@ func TestFehlendesBildKostetNurSeinenBaustein(t *testing.T) {
 	}
 }
 
-// Die Beschreibung aus der Mediathek gilt, solange der Baustein keine eigene
-// hat — sonst müsste sie an jeder Stelle neu getippt werden.
+// The description from the media library holds as long as the block has none
+// of its own — otherwise it would have to be typed again in every place.
 func TestBildbeschreibungFaelltAufDieMediathekZurueck(t *testing.T) {
 	look := bilder(map[int64]Image{
 		1: {URL: "/media/1/schaf.jpg", Alt: "Ein Schaf auf der Weide", Width: 800, Height: 600},
@@ -224,9 +223,9 @@ func TestBildbeschreibungFaelltAufDieMediathekZurueck(t *testing.T) {
 	}
 }
 
-// Der Auszug, die Suche und die Kurzfassung lasen bisher die Markdown-Spalte.
-// Eine Seite aus Bausteinen hätte dort nichts stehen und wäre für die eigene
-// Suche unsichtbar.
+// The excerpt, the search and the summary used to read the markdown column. A
+// page made of blocks would have nothing standing there and would be invisible
+// to the website's own search.
 func TestReinerTextSammeltAlleWorte(t *testing.T) {
 	text := PlainText([]Block{
 		{Type: TypeText, Markdown: "Wir haben Wolle."},
@@ -246,7 +245,7 @@ func TestReinerTextSammeltAlleWorte(t *testing.T) {
 	}
 }
 
-// Hin und back durch die Datenbank darf nichts verändern.
+// There and back through the database must change nothing.
 func TestKodierenUndLesenIstVerlustfrei(t *testing.T) {
 	blocks := []Block{
 		{Type: TypeImageText, MediaID: 3, Alt: "Der Hof", Markdown: "Text daneben.", Variant: "rechts"},
@@ -346,8 +345,8 @@ func TestDisplayClassIsMintedAndNotConcatenated(t *testing.T) {
 	}
 }
 
-// Keine Bausteine ist ein Wert und nicht zwei, die sich gleich verhalten, bis
-// sie jemand vergleicht.
+// No blocks is one value and not two that behave alike until somebody compares
+// them.
 func TestKeineBausteineIstDieLeereZeichenkette(t *testing.T) {
 	raw, err := Encode(nil, Builtin)
 	if err != nil || raw != "" {
@@ -363,8 +362,8 @@ func TestKeineBausteineIstDieLeereZeichenkette(t *testing.T) {
 	}
 }
 
-// Der Weg back in den einfachen Editor steht offen, solange nichts verloren
-// ginge — und ist zu, sobald etwas verloren ginge.
+// The way back into the simple editor stands open as long as nothing would be
+// lost — and is shut the moment something would be.
 func TestZurueckZuMarkdownNurWennNichtsVerlorenGeht(t *testing.T) {
 	md, ok := ToMarkdown([]Block{
 		{Type: TypeText, Markdown: "Erster Absatz."},
@@ -378,30 +377,30 @@ func TestZurueckZuMarkdownNurWennNichtsVerlorenGeht(t *testing.T) {
 	}
 }
 
-// Wo ein Baustein ein Bild in eine feste Form presst, entscheidet der
-// Fokuspunkt, was übrig bleibt. Ohne ihn schneidet der Browser stur aus der
-// Mitte — bei einem Tier am linken Bildrand jedes Mal daneben.
+// Where a block presses an image into a fixed shape, the focus point decides
+// what is left. Without it the browser crops stubbornly from the middle — with
+// an animal at the left edge, wrong every time.
 func TestFokusPunktWirkNurWoZugeschnittenWird(t *testing.T) {
 	look := bilder(map[int64]Image{
 		1: {URL: "/media/1/schaf.jpg", Alt: "Ein Schaf", Focus: "20% 40%"},
 	})
 
-	// Eine Galeriekachel wird in ein festes Seitenverhältnis gepresst.
+	// A gallery tile is pressed into a fixed aspect ratio.
 	html := Render([]Block{{Type: TypeGallery, Items: []Item{{MediaID: 1}}}}, Builtin, look, markdown)
 	if !strings.Contains(html, `object-position:20% 40%`) {
 		t.Errorf("der Fokus fehlt in der Galerie:\n%s", html)
 	}
 
-	// Ein einzelnes Bild behält seine eigene Form; dort gibt es nichts zu
-	// verschieben, und ein Attribut, das nichts tut, gehört nicht auf die Seite.
+	// A single image keeps its own shape; there is nothing to shift there, and
+	// an attribute that does nothing does not belong on the page.
 	html = Render([]Block{{Type: TypeImage, MediaID: 1}}, Builtin, look, markdown)
 	if strings.Contains(html, "object-position") {
 		t.Errorf("the focus stands somewhere where it has no effect:\n%s", html)
 	}
 }
 
-// Ein Video ist eine eigene Datei dieser Website in einem <video>, kein
-// eingebetteter Rahmen von einem fremden Server.
+// A video is a file of this website's own inside a <video>, not an embedded
+// frame from somebody else's server.
 func TestVideoBaustein(t *testing.T) {
 	look := func(id int64) (Image, bool) {
 		switch id {
@@ -433,8 +432,8 @@ func TestVideoBaustein(t *testing.T) {
 	}
 }
 
-// Ein Bildbaustein, der auf einen Film zeigt, ergibt kein kaputtes <img> —
-// und ein Videobaustein mit einem Foto darin kein <video> ohne Film.
+// An image block pointing at a film does not make a broken <img> — and a video
+// block with a photo in it does not make a <video> without a film.
 func TestVerwechselteDateiartFaelltWeg(t *testing.T) {
 	look := func(id int64) (Image, bool) {
 		if id == 1 {
@@ -452,8 +451,7 @@ func TestVerwechselteDateiartFaelltWeg(t *testing.T) {
 
 // --- eigene Bausteinarten ----------------------------------------------------
 
-// eigeneArt ist ein "Rezeptschritt": eine Zeile, ein Absatz, ein Bild, ein
-// Häkchen.
+// ownKind is a "recipe step": a line, a paragraph, an image, a checkbox.
 func eigeneArt() Set {
 	return Set{Own: []Own{{
 		ID: 1, Key: "rezeptschritt", Name: "Rezeptschritt",
@@ -467,8 +465,8 @@ func eigeneArt() Set {
 	}}}
 }
 
-// Eine eigene Art wird zu Auszeichnung, die das Theme ansprechen kann: eine
-// Klasse für die Art, eine je Feld.
+// A kind of one's own becomes markup the theme can address: one class for the
+// kind, one per field.
 func TestEigeneArtWirdZuKlassen(t *testing.T) {
 	set := eigeneArt()
 	html := Render([]Block{{
@@ -498,7 +496,7 @@ func TestEigeneArtWirdZuKlassen(t *testing.T) {
 	}
 }
 
-// Der Rahmen ist unserer, der Inhalt nicht: was jemand tippt, wird maskiert.
+// The frame is ours, the content is not: what somebody types gets escaped.
 func TestEigeneArtMaskiertDenInhalt(t *testing.T) {
 	html := Render([]Block{{
 		Type:   "rezeptschritt",
@@ -516,8 +514,8 @@ func TestEigeneArtMaskiertDenInhalt(t *testing.T) {
 	}
 }
 
-// Eine Art, die diese Website nicht hat, ist kein Baustein — sonst könnte eine
-// von Hand geschriebene Zeile in der Datenbank einen Typ erfinden.
+// A kind this website does not have is no block — otherwise a row written by
+// hand in the database could invent a type.
 func TestUnbekannteArtVerschwindet(t *testing.T) {
 	blocks := Builtin.Clean([]Block{
 		{Type: "rezeptschritt", Fields: map[string]string{"nummer": "3"}},
@@ -526,7 +524,7 @@ func TestUnbekannteArtVerschwindet(t *testing.T) {
 	if len(blocks) != 1 || blocks[0].Type != TypeText {
 		t.Errorf("die fremde Art blieb stehen: %+v", blocks)
 	}
-	// Mit der Art dagegen bleibt sie.
+	// With the kind present, on the other hand, it stays.
 	if blocks := eigeneArt().Clean([]Block{
 		{Type: "rezeptschritt", Fields: map[string]string{"nummer": "3"}},
 	}); len(blocks) != 1 {
@@ -534,8 +532,8 @@ func TestUnbekannteArtVerschwindet(t *testing.T) {
 	}
 }
 
-// Ein Wert, dessen Feld aus der Art entfernt wurde, geht mit ihm — beim
-// nächsten Speichern, nicht sofort.
+// A value whose field was removed from the kind goes with it — at the next
+// save, not at once.
 func TestWertOhneFeldWirdAufgeraeumt(t *testing.T) {
 	blocks := eigeneArt().Clean([]Block{{
 		Type:   "rezeptschritt",
@@ -552,8 +550,8 @@ func TestWertOhneFeldWirdAufgeraeumt(t *testing.T) {
 	}
 }
 
-// Ein Baustein, in dem nichts steht, ist keiner: sonst hinterlässt jeder
-// Fehlklick im Menü einen leeren Kasten auf der Seite.
+// A block with nothing in it is none: otherwise every misclick in the menu
+// leaves an empty box on the page.
 func TestLeereEigeneArtVerschwindet(t *testing.T) {
 	if blocks := eigeneArt().Clean([]Block{
 		{Type: "rezeptschritt", Fields: map[string]string{"nummer": "   "}},
@@ -562,8 +560,8 @@ func TestLeereEigeneArtVerschwindet(t *testing.T) {
 	}
 }
 
-// Nur die Felder mit Worten landen im Suchtext. Eine Bildnummer im Anriss
-// eines Rezepts wäre schlimmer als gar keiner.
+// Only the fields with words land in the search text. An image number in the
+// teaser of a recipe would be worse than none at all.
 func TestNurWorteImReinenText(t *testing.T) {
 	text := PlainText([]Block{{
 		Type: "rezeptschritt",
@@ -580,9 +578,9 @@ func TestNurWorteImReinenText(t *testing.T) {
 	}
 }
 
-// Die Felder kommen unter einem eigenen Vorzeichen aus dem Formular, damit eine
-// Art ein Feld "text" oder "typ" haben darf, ohne dem Baustein selbst ins
-// Gehege zu kommen.
+// The fields come out of the form under a prefix of their own, so that a kind
+// may have a field "text" or "typ" without getting in the way of the block
+// itself.
 func TestEigeneFelderAusDemFormular(t *testing.T) {
 	blocks := FromForm(map[string][]string{
 		"b0.typ":      {"rezeptschritt"},
@@ -606,7 +604,7 @@ func TestEigeneFelderAusDemFormular(t *testing.T) {
 	}
 }
 
-// Das Menü bietet die eingebauten zuerst und die eigenen dahinter.
+// The menu offers the built-in ones first and the own ones behind them.
 func TestMenuStelltEingebauteVoran(t *testing.T) {
 	menu := eigeneArt().Menu()
 	if len(menu) != len(Kinds)+1 {
@@ -620,8 +618,8 @@ func TestMenuStelltEingebauteVoran(t *testing.T) {
 	}
 }
 
-// artMitCode ist eine eigene Bausteinart mit einem Codefeld und einer
-// Mehrfachauswahl — die beiden Arten, um die es in dieser Datei geht.
+// kindWithCode is a block kind of one's own with a code field and a multiple
+// choice — the two kinds this file is about.
 func artMitCode() Set {
 	return Set{Own: []Own{{
 		ID: 2, Key: "hinweis", Name: "Hinweis",
@@ -633,13 +631,12 @@ func artMitCode() Set {
 	}}}
 }
 
-// Der schärfste Satz dieser Phase: was in ein Codefeld getippt wird, erscheint
-// wörtlich und wird nicht ausgeführt — auch in einem Baustein.
+// The sharpest sentence of this phase: what is typed into a code field appears
+// verbatim and is not carried out — inside a block too.
 //
-// „Auch in einem Baustein" ist die ganze Schwierigkeit. Ein Baustein wird beim
-// Speichern der Seite zu HTML eingefroren, und dieses HTML bekommt der
-// Besucher. Im Theme zu maskieren wäre zu spät: dann stehen die Bytes längst
-// in der Datenbank.
+// "Inside a block too" is the whole difficulty. A block is frozen into HTML
+// when the page is saved, and that HTML is what the visitor gets. Escaping in
+// the theme would be too late: by then the bytes stand in the database.
 func TestCodeImBausteinWirdMaskiert(t *testing.T) {
 	roh := `<script>alert("x" & 1)</script>`
 	html := Render([]Block{{
@@ -655,20 +652,19 @@ func TestCodeImBausteinWirdMaskiert(t *testing.T) {
 			t.Errorf("%q is missing — it was not escaped:\n%s", will, html)
 		}
 	}
-	// Ein eigenes Element und nicht die Zeile, die jede unbekannte Art
-	// bekommt: ein Codefeld ist vorformatiert, und das Theme muss es
-	// ansprechen können.
+	// An element of its own and not the line every unknown kind gets: a code
+	// field is preformatted, and the theme has to be able to address it.
 	for _, will := range []string{"<pre", "<code", "hc-eigen__code--schnipsel"} {
 		if !strings.Contains(html, will) {
 			t.Errorf("%q fehlt in der Ausgabe:\n%s", will, html)
 		}
 	}
-	// Und niemals durch den Markdown-Renderer: der Prüfdoppelgänger oben legt
-	// um alles ein <p>, ein <p> hier wäre also der Beweis, dass der Wert den
-	// Markdown-Weg genommen hat. Der Baustein trägt nur dieses eine Feld, ein
-	// <p> kann also von nirgendwo sonst kommen.
-	// „<p" allein wäre zu grob — das trifft auch das <pre>, das hier stehen
-	// soll.
+	// And never through the markdown renderer: the check stand-in above puts a
+	// <p> around everything, so a <p> here would be the proof that the value
+	// took the markdown path. The block carries only this one field, so a <p>
+	// can come from nowhere else.
+	// "<p" alone would be too coarse — that would also hit the <pre> that is
+	// supposed to stand here.
 	for _, absatz := range []string{"<p>", "<p "} {
 		if strings.Contains(html, absatz) {
 			t.Errorf("the code ran through the Markdown renderer:\n%s", html)
@@ -676,7 +672,7 @@ func TestCodeImBausteinWirdMaskiert(t *testing.T) {
 	}
 }
 
-// Ein leeres Codefeld hinterlässt keinen leeren Kasten auf der Seite.
+// An empty code field leaves no empty box on the page.
 func TestCodeImBausteinLeerErgibtNichts(t *testing.T) {
 	html := Render([]Block{{
 		Type:   "hinweis",
@@ -685,7 +681,7 @@ func TestCodeImBausteinLeerErgibtNichts(t *testing.T) {
 	if html != "" {
 		t.Errorf("ein leeres Codefeld ergab Auszeichnung:\n%s", html)
 	}
-	// Auch neben einem gefüllten Feld: kein Element für das leere.
+	// Next to a filled field too: no element for the empty one.
 	html = Render([]Block{{
 		Type:   "hinweis",
 		Fields: map[string]string{"schnipsel": "", "sorten": "Eiche"},
@@ -695,10 +691,10 @@ func TestCodeImBausteinLeerErgibtNichts(t *testing.T) {
 	}
 }
 
-// Was die Suche der Website sieht. Die Liste ist eine Entscheidung und keine
-// Aufzählung: ein Codefeld hält Worte — eine Adresse, eine Zeile Einstellung —
-// und eine Seite aus Bausteinen wäre für ihre eigene Suche sonst gerade dort
-// unsichtbar, wo der Verfasser sich am meisten Mühe gab.
+// What the website's search sees. The list is a decision and not an
+// enumeration: a code field holds words — an address, a line of configuration —
+// and a page made of blocks would otherwise be invisible to its own search
+// exactly where its author took the most trouble.
 func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
 	text := PlainText([]Block{{
 		Type: "hinweis",
@@ -711,9 +707,8 @@ func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
 	if !strings.Contains(text, "Musterweg 3, 3000 Bern") {
 		t.Errorf("der Code fehlt im Suchtext:\n%s", text)
 	}
-	// Mit einem Leerzeichen verbunden und nicht mit den gespeicherten
-	// Zeilenumbrüchen: ein Anriss soll sich wie ein Satz lesen und nicht wie
-	// eine Spalte.
+	// Joined with a space and not with the stored line breaks: a teaser should
+	// read like a sentence and not like a column.
 	if !strings.Contains(text, "Eiche Buche") {
 		t.Errorf("the multi-choice is not in the search text as words:\n%s", text)
 	}
@@ -722,11 +717,11 @@ func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
 	}
 }
 
-// Ein mehrwertiges Feld einer eigenen Bausteinart trägt dieselbe Markierung
-// wie eines auf der Seite selbst, und der Parser muss sie hier genauso lesen.
-// Ohne diesen Zweig bliebe von drei Häkchen der erste Wert übrig — und weil
-// der Wächter vor der Gruppe steht, wäre das der leere String: jedes Häkchen
-// verschwände beim Speichern, ohne dass irgendwo etwas gemeldet würde.
+// A multi-valued field of a block kind of one's own carries the same marker as
+// one on the page itself, and the parser has to read it here just the same.
+// Without this branch the first of three checkboxes would be left — and because
+// the guard stands before the group, that would be the empty string: every
+// checkbox would vanish on saving without anything being reported anywhere.
 func TestMehrfachauswahlImBausteinBehaeltAlleHaken(t *testing.T) {
 	blocks := FromForm(url.Values{
 		"b0.typ":         {"merkmal"},
@@ -747,8 +742,8 @@ func TestMehrfachauswahlImBausteinBehaeltAlleHaken(t *testing.T) {
 	}
 }
 
-// Und derselbe Unterschied wie oben auf der Seite: mit dem Wächter allein ist
-// die Kennung da und leer, ganz ohne das Feld ist sie gar nicht da.
+// And the same difference as above on the page: with the guard alone the key is
+// there and empty, without the field at all it is not there.
 func TestBausteinfeldGeleertOderAbwesend(t *testing.T) {
 	geleert := FromForm(url.Values{
 		"b0.typ":         {"merkmal"},
@@ -770,7 +765,7 @@ func TestBausteinfeldGeleertOderAbwesend(t *testing.T) {
 		t.Error("the key is in the block although the form never carried it")
 	}
 
-	// Eine Markierung ohne Kennung ist kein Feld.
+	// A marker without a key is no field.
 	leer := FromForm(url.Values{"b0.typ": {"merkmal"}, "b0.f.[]": {"Eiche"}})
 	if len(leer[0].Fields) != 0 {
 		t.Errorf("b0.f.[] ergab %+v, wollte nichts", leer[0].Fields)
