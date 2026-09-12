@@ -75,7 +75,7 @@ type Message struct {
 }
 
 // ErrNotConfigured is returned when sending is off.
-var ErrNotConfigured = errors.New("es ist kein Mailserver eingerichtet")
+var ErrNotConfigured = errors.New("no mail server is set up")
 
 // Sender delivers messages over SMTP.
 type Sender struct{ cfg Config }
@@ -267,10 +267,10 @@ func normaliseNewlines(s string) string {
 // validAddress is a shape check. Anything stricter rejects real addresses.
 func validAddress(s string) error {
 	if s == "" {
-		return errors.New("keine empfängeradresse")
+		return errors.New("no recipient address")
 	}
 	if s != header(s) {
-		return errors.New("die empfängeradresse enthält zeilenumbrüche")
+		return errors.New("the recipient address contains line breaks")
 	}
 	name, host, ok := strings.Cut(s, "@")
 	if !ok || name == "" || host == "" || strings.Contains(host, "@") {

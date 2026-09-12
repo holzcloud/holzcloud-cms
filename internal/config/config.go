@@ -233,7 +233,7 @@ func Load() (Config, error) {
 	// payment and then fail at the moment the customer presses the button.
 	if (cfg.PayrexxInstance == "") != (cfg.PayrexxSecret == "") {
 		errs = append(errs, errors.New(
-			"HOLZCLOUD_PAYREXX_INSTANCE und HOLZCLOUD_PAYREXX_SECRET müssen zusammen gesetzt werden"))
+			"HOLZCLOUD_PAYREXX_INSTANCE and HOLZCLOUD_PAYREXX_SECRET have to be set together"))
 	}
 
 	cfg.MaxMegapixels = int(envSize("HOLZCLOUD_MAX_MEGAPIXELS", 24, &errs))
@@ -277,14 +277,14 @@ func Load() (Config, error) {
 	case "starttls", "tls", "none":
 	default:
 		errs = append(errs, fmt.Errorf(
-			"HOLZCLOUD_SMTP_TLS %q: erlaubt sind starttls, tls oder none", cfg.SMTPTLS))
+			"HOLZCLOUD_SMTP_TLS %q: allowed are starttls, tls or none", cfg.SMTPTLS))
 	}
 	// Half-configured is the dangerous state: a host without a sender address
 	// queues messages that every receiver refuses, and the operator sees a
 	// growing outbox with no clue why.
 	if (cfg.SMTPHost == "") != (cfg.SMTPFrom == "") {
 		errs = append(errs, errors.New(
-			"HOLZCLOUD_SMTP_HOST und HOLZCLOUD_SMTP_FROM gehören zusammen: "+
+			"HOLZCLOUD_SMTP_HOST and HOLZCLOUD_SMTP_FROM belong together: "+
 				"entweder beide setzen oder keines"))
 	}
 

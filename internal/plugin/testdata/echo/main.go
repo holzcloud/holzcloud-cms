@@ -89,7 +89,7 @@ func handle(ptr, hookLen, totalLen int32) uint64 {
 			_, b := ruf("store.get", map[string]any{"key": e.Data["key"]})
 			res = map[string]any{"laenge": len(b)}
 		case "muell":
-			antwort = []byte("{das ist kein json")
+			antwort = []byte("{this is not json")
 			return uint64(uintptr(unsafe.Pointer(unsafe.SliceData(antwort))))<<32 | uint64(len(antwort))
 		}
 
