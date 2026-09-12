@@ -86,10 +86,10 @@ func FromForm(form url.Values) []Block {
 			setItemField(it, itemRest, value)
 			continue
 		}
-		// Die ganze Liste, nicht nur der erste Wert: ein Feld einer eigenen
-		// Bausteinart kann mehrwertig sein, und welcher Name mehrere Werte
-		// trägt, steht im Namen selbst. Ein verschachtelter Eintrag hat keine
-		// eigenen Felder und bleibt deshalb bei values[0].
+		// The whole list, not only the first value: a field of a block kind of
+		// one's own can be multi-valued, and which name carries several values
+		// is stated in the name itself. A nested entry has no fields of its own
+		// and therefore stays with values[0].
 		setBlockField(&s.block, rest, values)
 	}
 
@@ -140,12 +140,11 @@ func setBlockField(b *Block, name string, values []string) {
 	// call a field "typ" or "text" without colliding with the built-in names —
 	// the operator picks those words, not us.
 	if key, ok := strings.CutPrefix(name, "f."); ok {
-		// Dieselbe Verzweigung wie in fieldsFromRequest, an der dritten und
-		// letzten Stelle, an der Feldnamen gelesen werden. Die Markierung wird
-		// in field.Def.NameSuffix geprägt und nirgends sonst ausgeschrieben;
-		// hier wird sie nur wieder abgeschnitten. Ohne diesen Zweig bliebe von
-		// einer Häkchengruppe values[0] übrig, und das ist der Wächter: der
-		// leere String.
+		// The same branch as in fieldsFromRequest, in the third and last place
+		// where field names are read. The marker is minted in
+		// field.Def.NameSuffix and written out nowhere else; here it is only cut
+		// off again. Without this branch values[0] would be left of a checkbox
+		// group, and that is the guard: the empty string.
 		if trimmed, multi := strings.CutSuffix(key, "[]"); multi {
 			if trimmed == "" {
 				return

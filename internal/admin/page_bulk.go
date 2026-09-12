@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -80,31 +81,43 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// A bare "done" would hide the fact that some pages were left alone.
-	message := fmt.Sprintf("%d %s %s", done, plural(done, "Seite", "Seiten"), bulkVerb(action))
+	//
+	// One whole sentence per action and per number, and no assembly out of a
+	// noun and a participle: a language that puts the verb elsewhere, or that
+	// inflects the noun after a numeral, cannot be served by gluing two
+	// catalogue words together — and the collector sees neither half.
+	message := web.Titlef(r, bulkMessage(action, done), done)
 	if len(skipped) > 0 {
-		message += fmt.Sprintf(", %d übersprungen", len(skipped))
+		message += web.Titlef(r, ", %d skipped", len(skipped))
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), message)
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 }
 
-func bulkVerb(action string) string {
+// bulkMessage is the catalogue key for what was done, to how many pages.
+func bulkMessage(action string, n int) string {
+	one := n == 1
 	switch action {
 	case "publish":
-		return "veröffentlicht"
+		if one {
+			return i18n.N("%d page published")
+		}
+		return i18n.N("%d pages published")
 	case "unpublish":
-		return "zurückgezogen"
+		if one {
+			return i18n.N("%d page withdrawn")
+		}
+		return i18n.N("%d pages withdrawn")
 	case "trash":
-		return "in den Papierkorb verschoben"
+		if one {
+			return i18n.N("%d page moved to the trash")
+		}
+		return i18n.N("%d pages moved to the trash")
 	}
-	return "geändert"
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
+	if one {
+		return i18n.N("%d page changed")
 	}
-	return many
+	return i18n.N("%d pages changed")
 }
 
 // HandlePageDuplicate copies a page as a new draft.
@@ -176,9 +189,9 @@ func (h *Handler) HandlePageReview(w http.ResponseWriter, r *http.Request) error
 	}
 
 	state := "pending"
-	message := "Zur Prüfung eingereicht"
+	message := web.T(r, "Submitted for review")
 	if strings.EqualFold(r.FormValue("clear"), "1") || p.ReviewState == "pending" {
-		state, message = "none", "Prüfungsvermerk entfernt"
+		state, message = "none", web.T(r, "Review note removed")
 	}
 
 	if err := h.pages.SetReviewState(r.Context(), pageID, state); err != nil {

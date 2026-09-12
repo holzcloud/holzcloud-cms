@@ -110,8 +110,7 @@ func (h *Handler) HandleMediaCropSave(w http.ResponseWriter, r *http.Request) er
 	width, height, err := media.ApplyCrop(dir, m.Filename, m.MimeType, crop, h.cfg.MaxMegapixels)
 	switch {
 	case errors.Is(err, media.ErrTooManyPixels):
-		web.SetFlashError(h.sm, r.Context(), fmt.Sprintf(
-			"Das Bild ist zu groß zum Zuschneiden (Grenze: %d Megapixel).", h.cfg.MaxMegapixels))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The image is too large to crop (limit: %d megapixels).", h.cfg.MaxMegapixels))
 		return h.redirect(w, r, back)
 	case err != nil:
 		return err

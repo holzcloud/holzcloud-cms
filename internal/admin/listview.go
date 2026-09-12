@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -31,13 +32,17 @@ type Column struct {
 //
 // Title and the actions are not among them: a list without titles is not a
 // list, and a row you cannot open is a dead end.
+// The key is a STORED value — it stands in a person's saved column choice and
+// in every saved view — so it stays German. The name is a catalogue key, drawn
+// through {{t .Name}} in page_list.html; i18n.N marks it so the collector sees a
+// name that is only ever translated through a variable.
 var columnNames = []struct{ Key, Name string }{
-	{"status", "Status"},
-	{"art", "Art"},
-	{"sprache", "Sprache"},
-	{"adresse", "Adresse"},
-	{"veroeffentlicht", "Veröffentlicht"},
-	{"geaendert", "Geändert"},
+	{"status", i18n.N("Status")},
+	{"art", i18n.N("Kind")},
+	{"sprache", i18n.N("Language")},
+	{"adresse", i18n.N("Address")},
+	{"veroeffentlicht", i18n.N("Published")},
+	{"geaendert", i18n.N("Changed")},
 }
 
 // defaultColumns is what the list looked like before this existed. A person who

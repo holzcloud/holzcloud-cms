@@ -104,9 +104,7 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 		return nil, err
 	}
 	if manifest.Version > Version {
-		return nil, fmt.Errorf(
-			"das Archiv wurde mit einer neueren Fassung erstellt (Format %d, diese Fassung kennt %d)",
-			manifest.Version, Version)
+		return nil, fmt.Errorf("the archive was made with a newer version (format %d, this version knows %d)", manifest.Version, Version)
 	}
 
 	siteName := strings.TrimSpace(name)
@@ -427,9 +425,7 @@ func importAlbums(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		}
 	}
 	for name := range twice {
-		report.warnf(i18n.N("Das Archiv nennt zwei Alben %q. Es kann nur eines davon geben, und "+
-			"keine Galerie wird daran gebunden — sonst zeigte sie die Bilder des "+
-			"falschen. Die betroffenen Seiten stehen unten einzeln."), name)
+		report.warnf(i18n.N("The archive names two albums %q. Only one of them can exist, and no gallery is bound to it — otherwise it would show the pictures of the wrong one. The pages affected stand below one by one."), name)
 	}
 	// What was created, not what the archive claims — the same rule as for the
 	// terms above: a number a report names should be believable.
@@ -757,8 +753,7 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		if p.Locale != "" {
 			loc = locale.Pick(p.Locale, extras)
 			if loc == "" {
-				report.warnf(i18n.N("Seite %q ist in der Sprache %q verfasst, die diese Website nicht hat – "+
-					"sie liegt jetzt in der Hauptsprache."), p.Title, p.Locale)
+				report.warnf(i18n.N("Page %q is written in the language %q, which this website does not have – it now lies in the main language."), p.Title, p.Locale)
 			}
 		}
 

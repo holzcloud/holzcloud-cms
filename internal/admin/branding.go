@@ -66,7 +66,7 @@ func (h *Handler) handleBrandingPost(w http.ResponseWriter, r *http.Request) err
 	// The picture is optional: a save without one keeps whatever is there.
 	if file, header, err := r.FormFile("logo"); err == nil {
 		defer file.Close()
-		if reason := h.storeLogo(file, header.Filename); reason != "" {
+		if reason := h.storeLogo(r, file, header.Filename); reason != "" {
 			web.SetFlashError(h.sm, r.Context(), reason)
 			return h.redirect(w, r, "/admin/marke")
 		}
@@ -83,16 +83,16 @@ func (h *Handler) handleBrandingPost(w http.ResponseWriter, r *http.Request) err
 // that is something else would be served as a PNG that no browser can draw,
 // and — the case that matters — an SVG is a document that can carry script, so
 // what claims to be one has to actually look like one.
-func (h *Handler) storeLogo(file io.Reader, filename string) string {
+func (h *Handler) storeLogo(r *http.Request, file io.Reader, filename string) string {
 	data, err := io.ReadAll(io.LimitReader(file, branding.MaxLogoBytes+1))
 	if err != nil {
-		return "Die Datei konnte nicht gelesen werden"
+		return web.T(r, "The file could not be read")
 	}
 	if len(data) > branding.MaxLogoBytes {
-		return "Das Logo ist grösser als 512 KB"
+		return web.T(r, "The logo is larger than 512 KB")
 	}
 	if len(data) == 0 {
-		return "Die Datei ist leer"
+		return web.T(r, "The file is empty")
 	}
 
 	ext := strings.ToLower(filepath.Ext(filename))
@@ -101,11 +101,11 @@ func (h *Handler) storeLogo(file io.Reader, filename string) string {
 	case ext == ".webp" && bytes.HasPrefix(data, []byte("RIFF")) && bytes.Contains(data[:min(64, len(data))], []byte("WEBP")):
 	case ext == ".svg" && looksLikeSVG(data):
 	default:
-		return "Erlaubt sind PNG, WebP und SVG — und die Datei muss auch eines davon sein"
+		return web.T(r, "PNG, WebP and SVG are allowed — and the file has to really be one of them")
 	}
 
 	if err := branding.WriteLogo(ext, data); err != nil {
-		return "Das Logo konnte nicht gespeichert werden"
+		return web.T(r, "The logo could not be saved")
 	}
 	return ""
 }

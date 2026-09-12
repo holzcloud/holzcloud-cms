@@ -411,7 +411,7 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 			upload.WebsiteName = strings.TrimSuffix(header.Filename, path.Ext(header.Filename))
 		}
 		if upload.WebsiteName == "" {
-			upload.WebsiteName = "Aus einer Tabelle"
+			upload.WebsiteName = web.T(r, "From a table")
 		}
 	}
 
@@ -1312,7 +1312,7 @@ func csvExampleColumns(defs []field.Def, lang string) (header, sample []string) 
 		i18n.T(lang, i18n.N("State")),
 		i18n.T(lang, i18n.N("Terms")),
 	}
-	sample = []string{"Beispielseite", "beispielseite", "Ein Satz über die Seite.", "entwurf", "Beispiel|Muster"}
+	sample = []string{"Beispielseite", "beispielseite", "Ein Satz über die Seite.", "entwurf", "Beispiel|Muster"} //nolint:german — the sample row of a CSV file, deliberately untranslated: see csvExampleCell
 	for _, d := range defs {
 		if !csvimport.Mappable(d.Kind) {
 			continue
@@ -1333,7 +1333,7 @@ func csvExampleColumns(defs []field.Def, lang string) (header, sample []string) 
 func csvExampleCell(d field.Def) string {
 	switch d.Kind {
 	case field.KindLong:
-		return "Ein längerer Text über mehrere Zeilen."
+		return "Ein längerer Text über mehrere Zeilen." //nolint:german — file content, not a screen
 	case field.KindCode:
 		return "beispiel"
 	case field.KindNumber:
@@ -1363,7 +1363,7 @@ func csvExampleCell(d field.Def) string {
 		}
 		return "rot|blau"
 	case field.KindLink:
-		return "/eine-seite"
+		return "/eine-seite" //nolint:german — file content, not a screen
 	case field.KindTerm:
 		return "Beispiel"
 	default:

@@ -2,18 +2,18 @@ package media
 
 import "encoding/binary"
 
-// Metadaten aus einem MP4 nehmen, ohne die Datei zu verschieben.
+// Take the metadata out of an MP4 without moving the file.
 //
-// Ein Handyvideo trägt dieselben Angaben wie ein Handyfoto: Aufnahmeort,
-// Gerät, Zeitpunkt. Für Fotos werden sie beim Hochladen entfernt — für ein
-// Video muss dieselbe Regel gelten, sonst veröffentlicht der Hofladen die
-// Koordinaten des Stalls.
+// A phone video carries the same particulars as a phone photo: where it was
+// taken, on what device, when. For photos they are removed on upload — the same
+// rule has to hold for a video, or the farm shop publishes the coordinates of
+// the barn.
 //
-// Der Haken: ein MP4 verweist mit absoluten Byte-Positionen auf sich selbst
-// (stco/co64). Bytes herauszuschneiden verschiebt alles dahinter und macht die
-// Datei unabspielbar. Deshalb wird nichts entfernt, sondern **überschrieben**:
-// die Box behält ihre Länge und heisst danach "free" — ein Bereich, den jeder
-// Abspieler überspringt. Gleiche Länge, gleiche Positionen, keine Angaben mehr.
+// The catch: an MP4 refers to itself with absolute byte positions (stco/co64).
+// Cutting bytes out shifts everything behind them and makes the file
+// unplayable. So nothing is removed but **overwritten**: the box keeps its
+// length and is afterwards called "free" — an area every player skips. Same
+// length, same positions, no particulars any more.
 
 // stripBoxes are the boxes that carry metadata rather than picture or sound.
 //

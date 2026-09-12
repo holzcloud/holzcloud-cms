@@ -51,14 +51,8 @@ func (h *Handler) HandleMailTest(w http.ResponseWriter, r *http.Request) error {
 
 	err := h.mail.Enqueue(r.Context(), 0, mail.Message{
 		To:      to,
-		Subject: "Testnachricht von Holzcloud",
-		Body: fmt.Sprintf(`Diese Nachricht bestätigt, dass der Versand eingerichtet ist.
-
-Verschickt am %s.
-
-Wenn sie angekommen ist, funktionieren auch Einladungen, Passwort-Links und
-Benachrichtigungen über neue Anfragen.
-`, time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
+		Subject: web.T(r, "Test message from Holzcloud"),
+		Body: web.Titlef(r, "This message confirms that sending is set up.\n\nSent on %s.\n\nIf it has arrived, then invitations, password links and notifications about new enquiries work too.\n", time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
 	})
 	if err != nil {
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Queueing failed: %s", err))
@@ -67,8 +61,7 @@ Benachrichtigungen über neue Anfragen.
 	// Queued, not sent: the job picks it up within half a minute. Saying
 	// "queued" rather than "sent" is the honest word — whether it arrives is
 	// what the screen below reports afterwards.
-	web.SetFlashSuccess(h.sm, r.Context(),
-		"Testnachricht an "+to+" eingereiht. Sie geht in den nächsten Sekunden raus.")
+	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r, "Test message to %s queued. It goes out in the next few seconds.", to))
 	return h.redirect(w, r, "/admin/mail")
 }
 

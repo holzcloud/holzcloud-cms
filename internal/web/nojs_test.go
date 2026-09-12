@@ -175,13 +175,13 @@ func TestVendoredHtmxIsTheRealLibrary(t *testing.T) {
 	}
 }
 
-// Jedes vollständige Dokument im Admin-Bereich muss ein Zeichen nennen.
+// Every complete document in the admin has to name an icon.
 //
-// Tut es das nicht, fordert der Browser von sich aus /favicon.ico an und
-// bekommt auf jedem einzelnen Seitenaufruf einen 404 — im Protokoll des
-// Servers und in der Konsole der Betreiberin. Das war lange so und ist beim
-// Durchsehen der Vorlagen aufgefallen, nicht beim Benutzen: ein 404 auf ein
-// Bild sieht man der Seite nicht an.
+// If it does not, the browser asks for /favicon.ico of its own accord and gets
+// a 404 on every single page view — in the server's log and in the operator's
+// console. That was the case for a long time and came to light while reading
+// through the templates, not while using them: a 404 on an image is not
+// something you can see on the page.
 func TestEveryAdminDocumentNamesAFavicon(t *testing.T) {
 	dir := filepath.Join("..", "..", "cmd", "holzcloud", "templates", "admin")
 	entries, err := os.ReadDir(dir)
@@ -198,8 +198,8 @@ func TestEveryAdminDocumentNamesAFavicon(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", e.Name(), err)
 		}
-		// Nur vollständige Dokumente. Ein Seitenfragment hat keinen Kopf, in
-		// den ein Zeichen gehörte.
+		// Complete documents only. A page fragment has no head for an icon to
+		// belong in.
 		if !strings.Contains(strings.ToLower(string(body)), "<!doctype") {
 			continue
 		}
@@ -210,8 +210,8 @@ func TestEveryAdminDocumentNamesAFavicon(t *testing.T) {
 		}
 	}
 
-	// Ohne diese Zeile wäre der Test grün, wenn die Vorlagen umbenannt oder
-	// verschoben würden und die Schleife gar nichts mehr fände.
+	// Without this line the test would be green if the templates were renamed
+	// or moved and the loop found nothing at all any more.
 	if checked < 5 {
 		t.Fatalf("only %d complete documents found; the search no longer bites", checked)
 	}

@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"golang.org/x/image/draw"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // Cropping without a mouse.
@@ -41,13 +43,16 @@ type Ratio struct {
 }
 
 // Ratios is the menu, in the order it is offered.
+// The name is a catalogue key: the crop screen draws it through {{t .Name}},
+// and i18n.N is what lets the collector see a label that is only ever
+// translated through a variable. The key is a STORED value and stays as it is.
 var Ratios = []Ratio{
-	{"", "Wie das Original", 0, 0},
-	{"1-1", "Quadrat (1:1)", 1, 1},
-	{"4-3", "Klassisch (4:3)", 4, 3},
-	{"3-2", "Foto (3:2)", 3, 2},
-	{"16-9", "Breit (16:9)", 16, 9},
-	{"4-5", "Hoch (4:5)", 4, 5},
+	{"", i18n.N("Like the original"), 0, 0},
+	{"1-1", i18n.N("Square (1:1)"), 1, 1},
+	{"4-3", i18n.N("Classic (4:3)"), 4, 3},
+	{"3-2", i18n.N("Photo (3:2)"), 3, 2},
+	{"16-9", i18n.N("Wide (16:9)"), 16, 9},
+	{"4-5", i18n.N("Tall (4:5)"), 4, 5},
 	{"9-16", "Hochkant (9:16)", 9, 16},
 }
 
@@ -193,7 +198,7 @@ func SourceName(filename string) string {
 }
 
 // ErrNotCroppable is returned for a file the pipeline cannot decode.
-var ErrNotCroppable = errors.New("dieses Format lässt sich nicht zuschneiden")
+var ErrNotCroppable = errors.New("this format cannot be cropped")
 
 // ApplyCrop writes the cropped picture over the served filename, keeping the
 // upload beside it.

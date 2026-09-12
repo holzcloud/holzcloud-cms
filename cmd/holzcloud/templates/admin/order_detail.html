@@ -4,14 +4,14 @@
 
 {{define "order_detail-content"}}
 <div class="card" style="max-width:760px">
-    <h2>Bestellung {{.Order.Number}}</h2>
+    <h2>{{tf "Order %s" .Order.Number}}</h2>
     <p class="text-muted" style="font-size:var(--text-sm)">
         {{.Order.CreatedAt.Format "02.01.2006, 15:04"}} Uhr ·
-        {{if eq .Order.Audience "business"}}Gewerbekunde (Nettopreise){{else}}Privatkunde (Bruttopreise){{end}}
+        {{if eq .Order.Audience "business"}}{{t "Trade customer (net prices)"}}{{else}}{{t "Private customer (gross prices)"}}{{end}}
     </p>
 
     <table class="table" style="margin-block:var(--space-3)">
-        <thead><tr><th>Artikel</th><th>Menge</th><th>Einzelpreis</th><th>Zeile</th></tr></thead>
+        <thead><tr><th>{{t "Item"}}</th><th>{{t "Quantity"}}</th><th>{{t "Unit price"}}</th><th>{{t "Line"}}</th></tr></thead>
         <tbody>
             {{range .Order.Items}}
             <tr>
@@ -25,55 +25,54 @@
     </table>
 
     <dl class="detail-list">
-        <dt>Zwischensumme</dt><dd>{{.Currency.Format .Order.Totals.ItemsGross}}</dd>
-        <dt>Versand</dt><dd>{{.Currency.Format .Order.Totals.ShippingGross}}</dd>
+        <dt>{{t "Subtotal"}}</dt><dd>{{.Currency.Format .Order.Totals.ItemsGross}}</dd>
+        <dt>{{t "Shipping"}}</dt><dd>{{.Currency.Format .Order.Totals.ShippingGross}}</dd>
         {{if .Order.VATExempt}}
-        <dt>MWST</dt><dd>keine (Kleinunternehmen)</dd>
+        <dt>{{t "VAT"}}</dt><dd>{{t "none (small business)"}}</dd>
         {{else}}
-        <dt>davon MWST</dt><dd>{{.Currency.Format .Order.Totals.TotalTax}}</dd>
+        <dt>{{t "of which VAT"}}</dt><dd>{{.Currency.Format .Order.Totals.TotalTax}}</dd>
         {{end}}
-        <dt><strong>Gesamt</strong></dt><dd><strong>{{.Currency.Format .Order.Totals.TotalGross}}</strong></dd>
+        <dt><strong>{{t "Total"}}</strong></dt><dd><strong>{{.Currency.Format .Order.Totals.TotalGross}}</strong></dd>
     </dl>
 
-    <h3 style="margin-block-start:var(--space-4)">Kundin/Kunde</h3>
+    <h3 style="margin-block-start:var(--space-4)">{{t "Customer"}}</h3>
     <dl class="detail-list">
-        <dt>Name</dt><dd>{{.Order.Customer.Name}}</dd>
-        {{if .Order.Customer.Company}}<dt>Firma</dt><dd>{{.Order.Customer.Company}}</dd>{{end}}
-        {{if .Order.Customer.VATNumber}}<dt>UID</dt><dd>{{.Order.Customer.VATNumber}}</dd>{{end}}
-        <dt>E-Mail</dt><dd><a href="mailto:{{.Order.Customer.Email}}">{{.Order.Customer.Email}}</a></dd>
-        {{if .Order.Customer.Phone}}<dt>Telefon</dt><dd>{{.Order.Customer.Phone}}</dd>{{end}}
-        <dt>Adresse</dt>
+        <dt>{{t "Name"}}</dt><dd>{{.Order.Customer.Name}}</dd>
+        {{if .Order.Customer.Company}}<dt>{{t "Company"}}</dt><dd>{{.Order.Customer.Company}}</dd>{{end}}
+        {{if .Order.Customer.VATNumber}}<dt>{{t "VAT number"}}</dt><dd>{{.Order.Customer.VATNumber}}</dd>{{end}}
+        <dt>{{t "E-mail"}}</dt><dd><a href="mailto:{{.Order.Customer.Email}}">{{.Order.Customer.Email}}</a></dd>
+        {{if .Order.Customer.Phone}}<dt>{{t "Phone"}}</dt><dd>{{.Order.Customer.Phone}}</dd>{{end}}
+        <dt>{{t "Address"}}</dt>
         <dd>{{.Order.Customer.Street}}<br>{{.Order.Customer.PostalCode}} {{.Order.Customer.City}}<br>{{.Order.Customer.Country}}</dd>
-        <dt>Zahlungsart</dt>
-        <dd>{{.PaymentMethod}} — {{.PaymentState}}
-            {{if .Order.PaymentReference}}<br><span class="text-muted" style="font-size:var(--text-sm)">Referenz {{.Order.PaymentReference}}</span>{{end}}
+        <dt>{{t "Payment method"}}</dt>
+        <dd>{{t .PaymentMethod}} — {{t .PaymentState}}
+            {{if .Order.PaymentReference}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{tf "Reference %s" .Order.PaymentReference}}</span>{{end}}
         </dd>
-        {{if .Order.Customer.Note}}<dt>Bemerkung</dt><dd>{{.Order.Customer.Note}}</dd>{{end}}
-        {{if .Order.ReturnPolicy}}<dt>Zugesagte Rückgabe</dt><dd>{{.Order.ReturnPolicy}}</dd>{{end}}
+        {{if .Order.Customer.Note}}<dt>{{t "Remark"}}</dt><dd>{{.Order.Customer.Note}}</dd>{{end}}
+        {{if .Order.ReturnPolicy}}<dt>{{t "Promised returns policy"}}</dt><dd>{{.Order.ReturnPolicy}}</dd>{{end}}
     </dl>
 
-    <h3 style="margin-block-start:var(--space-4)">Papiere</h3>
+    <h3 style="margin-block-start:var(--space-4)">{{t "Papers"}}</h3>
     <p>
-        <a class="btn" href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen/{{.Order.Number}}/rechnung">Rechnung</a>
+        <a class="btn" href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen/{{.Order.Number}}/rechnung">{{t "Invoice"}}</a>
         <a class="btn" style="margin-left:var(--space-1)"
-           href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen/{{.Order.Number}}/lieferschein">Lieferschein</a>
+           href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen/{{.Order.Number}}/lieferschein">{{t "Delivery note"}}</a>
     </p>
     <p class="text-muted" style="font-size:var(--text-sm);margin-block-start:var(--space-1)">
-        Beides öffnet ein Blatt zum Ausdrucken oder zum Sichern als PDF. Der
-        Lieferschein ist dasselbe Blatt ohne Preise — der zum Beilegen.
+        {{t "Both open a sheet to print or to save as a PDF. The delivery note is the same sheet without prices — the one to put in the parcel."}}
     </p>
 
-    <h3 style="margin-block-start:var(--space-4)">Benachrichtigungen</h3>
+    <h3 style="margin-block-start:var(--space-4)">{{t "Notifications"}}</h3>
     {{if .Mails}}
     <table class="table">
-        <thead><tr><th>Nachricht</th><th>An</th><th>Stand</th><th></th></tr></thead>
+        <thead><tr><th>{{t "Message"}}</th><th>{{t "To"}}</th><th>{{t "State"}}</th><th></th></tr></thead>
         <tbody>
             {{range .Mails}}
             <tr>
-                <td>{{.What}}</td>
+                <td>{{t .What}}</td>
                 <td>{{.Recipient}}</td>
                 <td>
-                    {{.State}}{{if .When}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.When}}</span>{{end}}
+                    {{t .State}}{{if .When}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.When}}</span>{{end}}
                     {{if .Detail}}<br><span class="text-muted" style="font-size:var(--text-sm)">{{.Detail}}</span>{{end}}
                 </td>
                 <td>
@@ -82,7 +81,7 @@
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <input type="hidden" name="aktion" value="mail-erneut">
                         <input type="hidden" name="mail_id" value="{{.ID}}">
-                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">Nochmals versuchen</button>
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Try again"}}</button>
                     </form>
                     {{end}}
                 </td>
@@ -92,9 +91,7 @@
     </table>
     {{else}}
     <p class="text-muted" style="font-size:var(--text-sm)">
-        Zu dieser Bestellung wurde nichts verschickt. Das ist der Fall, wenn für
-        diese Installation kein Mailversand eingerichtet ist — die Bestellung
-        steht dann nur hier.
+        {{t "Nothing was sent for this order. That is the case when no mail sending is set up for this installation — the order then stands only here."}}
     </p>
     {{end}}
 
@@ -103,25 +100,24 @@
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <input type="hidden" name="aktion" value="zahlung-pruefen">
         <p class="text-muted" style="font-size:var(--text-sm)">
-            Die Zahlung ist noch offen. Falls die Kundin das Fenster zu früh geschlossen hat,
-            fragen Sie hier beim Anbieter nach.
+            {{t "The payment is still open. If the customer closed the window too early, ask the provider here."}}
         </p>
-        <button type="submit" class="btn" hx-disabled-elt="this">Zahlung beim Anbieter prüfen</button>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Check the payment with the provider"}}</button>
     </form>
     {{end}}
 
     <form method="POST" style="margin-block-start:var(--space-4)">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <div class="form-group">
-            <label class="form-label" for="status">Status</label>
+            <label class="form-label" for="status">{{t "Status"}}</label>
             <select id="status" name="status" class="form-input form-select">
                 {{range .Statuses}}
-                <option value="{{.Value}}" {{if eq .Value $.Order.Status}}selected{{end}}>{{.Label}}</option>
+                <option value="{{.Value}}" {{if eq .Value $.Order.Status}}selected{{end}}>{{t .Label}}</option>
                 {{end}}
             </select>
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">Speichern</button>
-        <a href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen" class="btn" style="margin-left:var(--space-1)">Zurück</a>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+        <a href="/admin/websites/{{.CurrentWebsite.ID}}/bestellungen" class="btn" style="margin-left:var(--space-1)">{{t "Back"}}</a>
     </form>
 </div>
 {{end}}

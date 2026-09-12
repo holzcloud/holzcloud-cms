@@ -69,13 +69,12 @@ type Field struct {
 	// Condition is the key of the field this one hangs on: it is asked for only
 	// once that one is filled in. Empty for a field that is always shown.
 	Condition string `json:"condition,omitempty"`
-	// Display ist der Anzeigemodus einer Auswahl, MaxValues die Höchstzahl der
-	// Werte einer Mehrfachauswahl, Min und Max die beiden Grenzen eines
-	// Bereichs.
+	// Display is the presentation of a choice, MaxValues the maximum number of
+	// values of a multiple choice, Min and Max the two bounds of a range.
 	//
-	// Alle vier mit omitempty: eine Website, die keine davon benutzt, schreibt
-	// ein Manifest, das Byte für Byte so aussieht wie eines von vor dieser
-	// Phase. Ein Archiv ist dazu da, von Hand gelesen und geflickt zu werden.
+	// All four with omitempty: a website that uses none of them writes a
+	// manifest that looks byte for byte like one from before this phase. An
+	// archive exists to be read and patched by hand.
 	Display   string `json:"display,omitempty"`
 	MaxValues int    `json:"max_values,omitempty"`
 	Min       string `json:"min,omitempty"`
@@ -165,8 +164,9 @@ type Page struct {
 	// meaningless on the machine the bundle lands on.
 	FeaturedImage string `json:"featured_image,omitempty"`
 	// Terms are the labels this page carries, spelled as their names are shown
-	// — "Laufräder", not "laufraeder". Each one matches the name of an entry in
-	// the manifest's own term list, and the import derives the slug from it.
+	// — "Laufräder", not "laufraeder". //nolint:german (the pair is the point)
+	// Each one matches the name of an entry in the manifest's own term list,
+	// and the import derives the slug from it.
 	// The name and not the slug because a manifest exists to be read and
 	// repaired by hand, and because the reading side has always worked this
 	// way: changing it would alter the meaning of every bundle already handed
@@ -364,14 +364,13 @@ type MenuItem struct {
 // change to the page path. A text, a number, a date, a choice or a yes/no —
 // which is what a snippet's fields are in practice — travel whole.
 //
-// „Recorded" heisst seit dem Review zu Phase 8 wirklich aufgeschrieben, und
-// zwar zweimal ausserhalb dieses Kommentars: in deferred-items.md, und im
-// Bericht jedes Imports, der einen solchen Wert mitbringt
-// (installationBoundValues, import.go). Der Bildschirm bietet diese Feldarten am
-// Textbaustein ausdrücklich an; ein Versprechen, das beim Ausfahren
-// stillschweigend bricht, wäre der lautlose Verlust, den dieses Projekt sonst
-// überall vermeidet. Die Übersetzung selbst bleibt offen und gehört in die
-// Roadmap.
+// "Recorded" has meant really written down since the review of phase 8, and
+// twice outside this comment: in deferred-items.md, and in the report of every
+// import that brings such a value along (installationBoundValues, import.go).
+// The screen offers these field kinds on a snippet expressly; a promise broken
+// silently on the way out would be the soundless loss this project avoids
+// everywhere else. The translation itself stays open and belongs in the
+// roadmap.
 type Snippet struct {
 	Key      string `json:"key"`
 	Name     string `json:"name"`

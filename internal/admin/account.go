@@ -98,7 +98,7 @@ func (h *Handler) HandleUserLink(w http.ResponseWriter, r *http.Request) error {
 		// Queued, not sent: an SMTP server that takes twenty seconds to answer
 		// would be twenty seconds the admin stares at a spinner, and one that
 		// is down would turn issuing a link into an error page.
-		err := h.mail.Enqueue(r.Context(), 0, accessMail(u, link, expires, purpose))
+		err := h.mail.Enqueue(r.Context(), 0, accessMail(r, u, link, expires, purpose))
 		switch {
 		case err != nil:
 			data.SendError = err.Error()
@@ -206,8 +206,7 @@ func (h *Handler) invalidLink(w http.ResponseWriter, r *http.Request) error {
 		LayoutData: web.NewLayoutData(r, h.sm, "Link not valid"),
 		FormState:  web.NewFormState(),
 	}
-	data.Conflict = "Dieser Link ist abgelaufen oder wurde bereits benutzt. " +
-		"Bitte lass dir einen neuen geben."
+	data.Conflict = web.T(r, "This link has expired or has already been used. Please ask for a new one.")
 	return web.RenderAdminStatus(w, h.templates, r, "set_password", data, http.StatusGone)
 }
 
@@ -232,7 +231,12 @@ func (h *Handler) HandleUserSessions(w http.ResponseWriter, r *http.Request) err
 // clickable and none of them has to be trusted with markup. It deliberately
 // says what the link does and when it stops working: a message that says only
 // "click here" is indistinguishable from the phishing it will be mistaken for.
-func accessMail(u *user.User, link string, expires time.Time, purpose string) mail.Message {
+//
+// The language is the INVITING person's, not the invited one's, and that is the
+// only honest choice: somebody who has never signed in has told this server no
+// language, and guessing one from an e-mail address would be worse than
+// following the person who is looking at the screen right now.
+func accessMail(r *http.Request, u *user.User, link string, expires time.Time, purpose string) mail.Message {
 	name := u.Name
 	if name == "" {
 		name = u.Email
@@ -240,36 +244,13 @@ func accessMail(u *user.User, link string, expires time.Time, purpose string) ma
 	if purpose == user.PurposeInvite {
 		return mail.Message{
 			To:      u.Email,
-			Subject: "Dein Zugang zu Holzcloud",
-			Body: fmt.Sprintf(`Hallo %s
-
-für dich wurde ein Zugang zur Verwaltung angelegt. Über den folgenden Link
-vergibst du dein Passwort:
-
-%s
-
-Der Link gilt bis %s und lässt sich nur ein einziges Mal benutzen.
-Danach meldest du dich ganz normal mit deiner E-Mail-Adresse an.
-
-Wenn du damit nichts anfangen kannst, ignoriere diese Nachricht einfach —
-ohne den Link passiert nichts.
-`, name, link, expires.Format("02.01.2006 15:04")+" UTC"),
+			Subject: web.T(r, "Your access to Holzcloud"),
+			Body: web.Titlef(r, "Hello %s\n\nan account for the admin has been created for you. The following link is where you set your password:\n\n%s\n\nThe link is valid until %s and can be used only once.\nAfter that you sign in normally with your e-mail address.\n\nIf this means nothing to you, simply ignore this message — without the link nothing happens.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
 		}
 	}
 	return mail.Message{
 		To:      u.Email,
-		Subject: "Passwort zurücksetzen",
-		Body: fmt.Sprintf(`Hallo %s
-
-für dein Konto wurde ein Link zum Zurücksetzen des Passworts erzeugt:
-
-%s
-
-Der Link gilt bis %s und lässt sich nur ein einziges Mal benutzen.
-Alle offenen Sitzungen deines Kontos wurden bereits beendet.
-
-Wenn du das nicht angefordert hast, sag der Person Bescheid, die den Server
-betreut — jemand mit Zugang zur Verwaltung hat diesen Link erzeugt.
-`, name, link, expires.Format("02.01.2006 15:04")+" UTC"),
+		Subject: web.T(r, "Reset your password"),
+		Body: web.Titlef(r, "Hello %s\n\na link to reset the password has been created for your account:\n\n%s\n\nThe link is valid until %s and can be used only once.\nEvery open session of your account has already been ended.\n\nIf you did not ask for this, tell whoever looks after the server — somebody with access to the admin created this link.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
 	}
 }

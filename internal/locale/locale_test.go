@@ -31,14 +31,14 @@ func TestNormalisieren(t *testing.T) {
 	}
 }
 
-// Die Liste kommt aus einem Formular: Kommas, Leerzeichen, Zeilen, Unsinn.
+// The list comes out of a form: commas, spaces, lines, nonsense.
 func TestListeLesen(t *testing.T) {
 	got := ParseList("fr, it\nrm  ; de, fr, unsinn!, en", "de")
 	want := []string{"fr", "it", "rm", "en"}
 	if !slices.Equal(got, want) {
 		t.Errorf("ParseList = %v, want %v", got, want)
 	}
-	// Die Hauptsprache gehört nicht in die Liste der weiteren.
+	// The main language does not belong in the list of the further ones.
 	if got := ParseList("de", "de"); len(got) != 0 {
 		t.Errorf("the main language is in the list: %v", got)
 	}
@@ -47,8 +47,8 @@ func TestListeLesen(t *testing.T) {
 	}
 }
 
-// Die Hauptsprache hat kein Präfix. Daran hängt, dass keine bestehende Adresse
-// sich ändert, wenn jemand eine zweite Sprache einschaltet.
+// The main language has no prefix. On that hangs the fact that no existing
+// address changes when somebody switches on a second language.
 func TestTheMainLanguageHasNoPrefix(t *testing.T) {
 	if p := Prefix("de", "de"); p != "" {
 		t.Errorf("Prefix(de, de) = %q, want leer", p)
@@ -73,9 +73,9 @@ func TestTheMainLanguageHasNoPrefix(t *testing.T) {
 	}
 }
 
-// Nur eine Sprache, die die Website wirklich hat, wird als Präfix erkannt.
-// Sonst lieferte /it/kontakt still die deutsche Seite unter einer erfundenen
-// Adresse — und eine Suchmaschine nähme beide auf.
+// Only a language the website really has is recognised as a prefix. Otherwise
+// /it/kontakt would silently deliver the German page under an invented address
+// — and a search engine would take in both.
 func TestPraefixAbtrennen(t *testing.T) {
 	extras := []string{"fr", "it"}
 	for _, f := range []struct{ path, tag, rest string }{
@@ -85,9 +85,9 @@ func TestPraefixAbtrennen(t *testing.T) {
 		{"/it/tag/wolle", "it", "/tag/wolle"},
 		{"/kontakt", "", "/kontakt"},
 		{"/", "", "/"},
-		// Kein Präfix: die Website hat kein Spanisch.
+		// No prefix: the website has no Spanish.
 		{"/es/kontakt", "", "/es/kontakt"},
-		// Eine Seite, die zufällig wie eine Sprache anfängt, bleibt eine Seite.
+		// A page that happens to start like a language stays a page.
 		{"/franzoesisch", "", "/franzoesisch"},
 	} {
 		tag, rest := Split(f.path, extras)
@@ -97,8 +97,8 @@ func TestPraefixAbtrennen(t *testing.T) {
 	}
 }
 
-// Eine Seite mit der Adresse „fr" wäre auf einer Website mit Französisch nie
-// erreichbar.
+// A page with the address "fr" would never be reachable on a website that has
+// French.
 func TestTakenAddresses(t *testing.T) {
 	if !Reserved("fr", []string{"fr", "it"}) {
 		t.Error("fr was not recognised as taken")

@@ -7,7 +7,7 @@
 <div class="card">
     <table class="table">
         <thead>
-            <tr><th>Nummer</th><th>Datum</th><th>Kundin/Kunde</th><th>Summe</th><th>Status</th><th>Zahlung</th></tr>
+            <tr><th>{{t "Number"}}</th><th>{{t "Date"}}</th><th>{{t "Customer"}}</th><th>{{t "Total"}}</th><th>{{t "Status"}}</th><th>{{t "Payment"}}</th></tr>
         </thead>
         <tbody>
             {{range .Orders}}
@@ -20,13 +20,13 @@
                 </td>
                 <td style="white-space:nowrap">{{$.Currency.Format .Totals.TotalGross}}</td>
                 <td>
-                    {{if eq .Status "new"}}<span class="badge">Neu</span>
-                    {{else if eq .Status "paid"}}<span class="badge badge--primary">Bezahlt</span>
-                    {{else if eq .Status "shipped"}}<span class="badge badge--primary">Versandt</span>
-                    {{else}}<span class="badge">Storniert</span>{{end}}
+                    {{if eq .Status "new"}}<span class="badge">{{t "New"}}</span>
+                    {{else if eq .Status "paid"}}<span class="badge badge--primary">{{t "Paid"}}</span>
+                    {{else if eq .Status "shipped"}}<span class="badge badge--primary">{{t "Dispatched"}}</span>
+                    {{else}}<span class="badge">{{t "Cancelled"}}</span>{{end}}
                 </td>
                 <td class="text-muted" style="font-size:var(--text-sm)">
-                    {{if eq .PaymentStatus "paid"}}bezahlt{{else if eq .PaymentStatus "failed"}}fehlgeschlagen{{else}}offen{{end}}
+                    {{if eq .PaymentStatus "paid"}}{{t "paid"}}{{else if eq .PaymentStatus "failed"}}{{t "failed"}}{{else}}{{t "open"}}{{end}}
                 </td>
             </tr>
             {{end}}
@@ -34,6 +34,6 @@
     </table>
 </div>
 {{else}}
-<div class="card"><p class="text-muted">Noch keine Bestellungen.</p></div>
+<div class="card"><p class="text-muted">{{t "No orders yet."}}</p></div>
 {{end}}
 {{end}}

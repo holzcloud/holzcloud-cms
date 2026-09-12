@@ -151,16 +151,16 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, key, name, mark
 // token, and the value is written whole rather than merged. Update already
 // takes four strings in a row; a fifth would be a trap the compiler cannot see.
 //
-// Anders als page.Store.SetFields zieht diese Fassung updated_at mit, und der
-// Grund hängt an diesem Träger und nicht an der Ähnlichkeit der beiden:
-// Rendered.LatestUpdate ist der Prüfwert für *jede* Seite der Website
-// (contentModTime, internal/public/pagedata.go), und seit Phase 8 gehören die
-// Feldwerte eines Textbausteins zu dem, was eine Seite darstellt. An einer
-// Seite hängt kein solcher Prüfwert, deshalb trägt das Vorbild hier nicht.
+// Unlike page.Store.SetFields this version pulls updated_at along, and the
+// reason hangs on this carrier and not on the likeness of the two:
+// Rendered.LatestUpdate is the check value for *every* page of the website
+// (contentModTime, internal/public/pagedata.go), and since phase 8 the field
+// values of a snippet belong to what a page shows. No such check value hangs
+// on a page, which is why the model does not carry here.
 //
-// Ohne diese Zeile ginge es nur deshalb gut, weil handleSnippetSave vorher
-// Update aufruft — eine Reihenfolge zwischen zwei Funktionen in zwei Paketen,
-// die nichts festhält.
+// Without this line it would only go well because handleSnippetSave calls
+// Update first — an order between two functions in two packages that nothing
+// holds fast.
 func (s *Store) SetFields(ctx context.Context, websiteID, id int64, raw string) error {
 	res, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE snippets SET fields = $1,

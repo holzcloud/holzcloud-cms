@@ -141,9 +141,14 @@ var germanVoice = map[string]bool{
 	"internal/shop/order.go":      true,
 	"internal/shop/product.go":    true,
 	"internal/outbox/compose.go":  true,
-	"internal/money/money.go":     true,
-	"internal/template/dates.go":  true,
-	"internal/kind/kind.go":       true,
+	// The invoice and the delivery note. They lie in package admin because an
+	// operator prints them, but every word on them is addressed to the customer
+	// who receives the parcel — including the sentence about the VAT exemption,
+	// which is a legal formula and not a translation.
+	"internal/admin/orderdoc.go": true,
+	"internal/money/money.go":    true,
+	"internal/template/dates.go": true,
+	"internal/kind/kind.go":      true,
 	// The names of the languages and the regions, each written the way its own
 	// speakers write it: "Türkçe", "Österreich". Data, not prose, and the one
 	// place where translating would be actively wrong.
@@ -153,6 +158,29 @@ var germanVoice = map[string]bool{
 	// character class. That is the subject matter itself.
 	"tools/english/main.go": true,
 	"tools/rename/main.go":  true,
+	// The starter pages a new website is born with: a welcome page and the two
+	// German legal pages (§ 5 DDG, Datenschutz) that a site run from Germany
+	// has to have. They are CONTENT — an editor opens them and rewrites them —
+	// and they are multi-line raw strings, which a per-line waiver cannot mark
+	// without writing the marker into the page itself.
+	"internal/admin/starter.go": true,
+}
+
+// aboutGerman are the files whose COMMENTS are about German and cannot be
+// written without naming it.
+//
+// This file is the clearest case: its own package comment has to be able to say
+// that "ä, ö, ü and ß" are what the rule is about, that grep confuses Ü with a
+// typographic quotation mark, and that a slug built from "Möbelbau" is content
+// and not prose. A gate that cannot explain itself in its own words is a gate
+// somebody switches off.
+//
+// Only comments. String literals in these files are judged like anywhere else,
+// except where germanVoice above names them.
+var aboutGerman = map[string]bool{
+	"tools/english/main.go": true,
+	"tools/rename/main.go":  true,
+	"tools/i18n/main.go":    true,
 }
 
 type finding struct {
@@ -246,6 +274,7 @@ func check(path string) []finding {
 	isTest := strings.HasSuffix(path, "_test.go")
 	clean := strings.TrimPrefix(filepath.ToSlash(path), "./")
 	isFixture := fixtures[clean] || germanVoice[clean]
+	explainsGerman := aboutGerman[clean]
 	lines := strings.Split(string(src), "\n")
 	waived := map[int]bool{}
 	for i, l := range lines {
@@ -261,7 +290,7 @@ func check(path string) []finding {
 	for _, group := range file.Comments {
 		for _, c := range group.List {
 			line := at(c.Pos())
-			if waived[line] || strings.Contains(c.Text, "//nolint:german") {
+			if explainsGerman || waived[line] || strings.Contains(c.Text, "//nolint:german") {
 				continue
 			}
 			if why := german(c.Text); why != "" {

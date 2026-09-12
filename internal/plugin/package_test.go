@@ -150,7 +150,7 @@ func TestTheManifestRefusesUnknownFields(t *testing.T) {
 	                "hooks":["content"],"permissons":["store"]}`)
 	if _, err := ParseManifest(raw); err == nil ||
 		!strings.Contains(err.Error(), "permissons") {
-		t.Errorf("erwartet: unbekanntes Feld genannt, bekommen: %v", err)
+		t.Errorf("wanted the unknown field named, got: %v", err)
 	}
 }
 
@@ -158,31 +158,31 @@ func TestTheManifestChecksEveryField(t *testing.T) {
 	cases := []struct {
 		name   string
 		change func(*Manifest)
-		suche  string
+		names  string
 	}{
-		{"Kennung mit Grossbuchstaben", func(m *Manifest) { m.ID = "Weiterleitungen" }, "Kennung"},
-		{"Kennung mit Schrägstrich", func(m *Manifest) { m.ID = "a/b" }, "Kennung"},
-		{"Kennung reserviert", func(m *Manifest) { m.ID = "admin" }, "reserviert"},
-		{"falsche Schnittstelle", func(m *Manifest) { m.ABI = 99 }, "Schnittstelle"},
-		{"kein Name", func(m *Manifest) { m.Name = "" }, "Anzeigename"},
-		{"krumme Fassung", func(m *Manifest) { m.Version = "eins" }, "Versionsnummer"},
-		{"unbekannter Haken", func(m *Manifest) { m.Hooks = []string{"irgendwas"} }, "Haken"},
-		{"unbekannte Berechtigung", func(m *Manifest) { m.Permissions = []string{"root"} }, "Berechtigung"},
-		{"Adresse ohne Schrägstrich", func(m *Manifest) {
+		{"id in capitals", func(m *Manifest) { m.ID = "Weiterleitungen" }, "the id"},
+		{"id with a slash", func(m *Manifest) { m.ID = "a/b" }, "the id"},
+		{"id reserved", func(m *Manifest) { m.ID = "admin" }, "reserved"},
+		{"wrong interface", func(m *Manifest) { m.ABI = 99 }, "interface"},
+		{"no name", func(m *Manifest) { m.Name = "" }, "display name"},
+		{"crooked version", func(m *Manifest) { m.Version = "eins" }, "version number"},
+		{"unknown hook", func(m *Manifest) { m.Hooks = []string{"irgendwas"} }, "hook"},
+		{"unknown permission", func(m *Manifest) { m.Permissions = []string{"root"} }, "permission"},
+		{"address without a slash", func(m *Manifest) {
 			m.Hooks = append(m.Hooks, HookRoute)
 			m.Routes = []string{"suche"}
-		}, "Schrägstrich"},
-		{"Adresse gehört dem Server", func(m *Manifest) {
+		}, "does not begin with a slash"},
+		{"address belongs to the server", func(m *Manifest) {
 			m.Hooks = append(m.Hooks, HookRoute)
 			m.Routes = []string{"/feed.xml"}
-		}, "gehört bereits"},
-		{"Adressen ohne Haken", func(m *Manifest) { m.Routes = []string{"/suche"} }, "Haken"},
-		{"Verwaltung ohne Haken", func(m *Manifest) {
+		}, "already belongs"},
+		{"addresses without the hook", func(m *Manifest) { m.Routes = []string{"/suche"} }, "hook"},
+		{"admin entry without the hook", func(m *Manifest) {
 			m.Hooks = []string{HookRequest}
 			m.Admin = &AdminEntry{Label: "X"}
-		}, "Verwaltung"},
-		{"javascript-Adresse", func(m *Manifest) { m.URL = "javascript:alert(1)" }, "Adresse"},
-		{"weder Haken noch Adresse", func(m *Manifest) { m.Hooks = nil; m.Admin = nil }, "nie aufgerufen"},
+		}, "admin"},
+		{"javascript address", func(m *Manifest) { m.URL = "javascript:alert(1)" }, "address"},
+		{"neither hook nor address", func(m *Manifest) { m.Hooks = nil; m.Admin = nil }, "never be called"},
 	}
 	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
@@ -190,10 +190,10 @@ func TestTheManifestChecksEveryField(t *testing.T) {
 			f.change(&m)
 			err := m.Validate()
 			if err == nil {
-				t.Fatal("angenommen, obwohl fehlerhaft")
+				t.Fatal("accepted although faulty")
 			}
-			if !strings.Contains(err.Error(), f.suche) {
-				t.Errorf("die Meldung nennt %q nicht: %v", f.suche, err)
+			if !strings.Contains(err.Error(), f.names) {
+				t.Errorf("the message does not name %q: %v", f.names, err)
 			}
 		})
 	}
