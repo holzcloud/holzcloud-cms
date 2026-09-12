@@ -128,17 +128,17 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 		case "breit":
 			class += " hc-video--breit"
 		}
-		// controls, sonst nichts: kein autoplay, kein loop, kein muted-Trick.
-		// preload="metadata" holt die Länge und das erste Bild, nicht den Film
-		// — auf einem Mobilanschluss ist das der Unterschied zwischen einer
-		// Seite und einem Download.
+		// controls and nothing else: no autoplay, no loop, no muted trick.
+		// preload="metadata" fetches the length and the first frame, not the
+		// film — on a mobile connection that is the difference between a page
+		// and a download.
 		fmt.Fprintf(b, `<figure class="%s"><video controls playsinline preload="metadata"`, class)
 		if poster, ok := look(blk.PosterID); ok && !poster.Film {
 			fmt.Fprintf(b, ` poster="%s"`, html.EscapeString(poster.URL))
 		}
 		fmt.Fprintf(b, `><source src="%s" type="video/mp4">%s</video>`,
 			html.EscapeString(film.URL),
-			html.EscapeString("Dein Browser kann dieses Video nicht abspielen."))
+			html.EscapeString(s.text(textNoVideo)))
 		if c := strings.TrimSpace(blk.Caption); c != "" {
 			fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(c))
 		}
@@ -383,13 +383,13 @@ func renderOwn(b *strings.Builder, at int, blk Block, own Own, s Set, look Looku
 				key, html.EscapeString(value), html.EscapeString(shown))
 
 		case field.KindCode:
-			// Hier und nicht im Theme. Ein Baustein wird beim Speichern der
-			// Seite zu HTML eingefroren, und diese Bytes bekommt der Besucher
-			// — im Theme zu maskieren wäre zu spät, dann steht das rohe Tag
-			// längst in der Datenbank. html.EscapeString ist dieselbe
-			// Hausregel wie im default-Zweig; prose() steht bewusst nicht
-			// hier, denn das ist der Markdown-Weg, und ein Codefeld
-			// verspricht gerade, nicht gedeutet zu werden.
+			// Here and not in the theme. A block is frozen into HTML when the
+			// page is saved, and those bytes are what the visitor gets —
+			// escaping in the theme would be too late, by then the raw tag has
+			// long stood in the database. html.EscapeString is the same house
+			// rule as in the default branch; prose() deliberately does not
+			// stand here, because that is the markdown path, and a code field
+			// promises precisely not to be interpreted.
 			fmt.Fprintf(&inner, `<pre class="hc-eigen__code hc-eigen__code--%s"><code>%s</code></pre>`,
 				key, html.EscapeString(value))
 
@@ -405,22 +405,29 @@ func renderOwn(b *strings.Builder, at int, blk Block, own Own, s Set, look Looku
 	fmt.Fprintf(b, `<div class="%s">%s</div>`, class, inner.String())
 }
 
-// The three names the lightbox writes, and they are new words on purpose.
+// The words this file writes into the page, and the first three are new on
+// purpose.
 //
-// Measured against internal/i18n/locales/en.json: "Weiter" is already in there
-// as "Continue" and "Zurück" as "Back", and both are the wrong sentence on a
-// picture. Reusing an existing key would ship the wrong word in four languages
-// with every gate green, so three fresh German literals are minted instead.
+// Measured against the catalogue: "Continue" and "Back" are already in it, and
+// both are the wrong sentence on a picture. Reusing an existing key would ship
+// the wrong word in four languages with every gate green, so fresh strings are
+// minted instead.
 //
 // i18n.N marks them so `go run ./tools/i18n` collects them; it translates
 // nothing. Marking is only half the job: this file carries no locale, so the
 // words are translated through the function on Set — see Set.T. A string that
 // is marked and never injected is collected, translated into four catalogues
-// and printed in German anyway.
+// and printed in the source language anyway.
 var (
 	textPrevious = i18n.N("Previous image")
 	textNext     = i18n.N("Next image")
 	textClose    = i18n.N("Close large view")
+
+	// textNoVideo is what a browser that cannot play the file shows instead.
+	// It sits between the <video> tags, so it is the one sentence on a page
+	// that only appears when everything else has failed — which is exactly why
+	// it has to be in the visitor's language and not in the source's.
+	textNoVideo = i18n.N("Your browser cannot play this video.")
 
 	// textGallery names the slideshow's scrolling region. Deliberately the
 	// literal the block kind at block.go:77 already carries, so this mints no
@@ -795,23 +802,22 @@ func PlainText(blocks []Block, s Set) string {
 			// not something anybody searches for, and "12" in the excerpt of a
 			// recipe is worse than nothing.
 			//
-			// Ein Codefeld hält Worte — eine Adresse, eine Zeile Einstellung,
-			// ein Schnipsel — und steht deshalb dabei: eine Seite aus
-			// Bausteinen wäre für ihre eigene Suche sonst gerade dort
-			// unsichtbar, wo der Verfasser sich am meisten Mühe gab. Eine
-			// Uhrzeit und ein Bereich stehen aus demselben Grund draussen wie
-			// eine Bildnummer und ein Datum: das sucht niemand.
+			// A code field holds words — an address, a line of configuration, a
+			// snippet — and therefore stands among them: a page made of blocks
+			// would otherwise be invisible to its own search exactly where its
+			// author took the most trouble. A time of day and a range stay out
+			// for the same reason as a picture id and a date: nobody searches
+			// for those.
 			for _, d := range own.Fields {
 				switch d.Kind {
 				case field.KindText, field.KindLong, field.KindChoice, field.KindCode:
 					add(b.Fields[d.Key])
 				case field.KindMulti:
-					// Mit Leerzeichen verbunden statt mit den gespeicherten
-					// Zeilenumbrüchen: ein Anriss soll sich wie ein Satz
-					// lesen und nicht wie eine Spalte. Das Trennzeichen wird
-					// nicht ein zweites Mal ausgeschrieben — SplitValues ist
-					// die eine Stelle, die weiss, wie ein mehrwertiger Wert
-					// gespeichert ist.
+					// Joined with spaces rather than with the stored line
+					// breaks: a teaser should read like a sentence and not like
+					// a column. The separator is not written out a second time
+					// — SplitValues is the one place that knows how a
+					// multi-valued value is stored.
 					add(strings.Join(field.SplitValues(b.Fields[d.Key]), " "))
 				}
 			}
