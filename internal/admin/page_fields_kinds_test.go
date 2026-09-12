@@ -24,12 +24,12 @@ import (
 // FieldView carries is of no use if the branch in field_input.html is missing —
 // and a missing branch is not noticed: the chain ends in an ordinary text field
 // that takes a time of day just as uncomplainingly.
-func TestFeldartenImSeiteneditor(t *testing.T) {
+func TestFieldKindsInThePageEditor(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 	fields := field.NewStore(database)
 
-	anlegen := func(d field.Def) {
+	create := func(d field.Def) {
 		t.Helper()
 		d.WebsiteID = ws.ID
 		if _, err := fields.Create(ctx, d); err != nil {
@@ -37,18 +37,18 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 		}
 	}
 
-	anlegen(field.Def{Key: "abfahrt", Label: "Abfahrt", Kind: field.KindTime})
+	create(field.Def{Key: "abfahrt", Label: "Abfahrt", Kind: field.KindTime})
 	// With bounds — and with a dependent field on it, so that .Switch is "text"
 	// and the placeholder branch is taken at all. Without it a range field can
 	// never show and hide its dependants.
-	anlegen(field.Def{Key: "menge", Label: "Menge", Kind: field.KindRange,
+	create(field.Def{Key: "menge", Label: "Menge", Kind: field.KindRange,
 		RangeMin: "1", RangeMax: "9"})
-	anlegen(field.Def{Key: "hinweis", Label: "Hinweis", Kind: field.KindText,
+	create(field.Def{Key: "hinweis", Label: "Hinweis", Kind: field.KindText,
 		Condition: "menge"})
 	// And one without bounds: open at the top and at the bottom is a valid
 	// statement, and then no empty min="" may stand in the form.
-	anlegen(field.Def{Key: "offen", Label: "Offen", Kind: field.KindRange})
-	anlegen(field.Def{Key: "schnipsel", Label: "Schnipsel", Kind: field.KindCode})
+	create(field.Def{Key: "offen", Label: "Offen", Kind: field.KindRange})
+	create(field.Def{Key: "schnipsel", Label: "Schnipsel", Kind: field.KindCode})
 
 	p := seedPage(t, database, ws.ID, "Fahrplan", "fahrplan", "text", "draft")
 	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
@@ -116,13 +116,13 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 // What is measured is the section around the three fields and not the whole
 // page: the admin shell loads htmx, so a <script> there would be no finding but
 // the build of the program.
-func TestFeldartenTragenKeinJavaScript(t *testing.T) {
-	roh, err := os.ReadFile("../../cmd/holzcloud/templates/admin/field_input.html")
+func TestFieldKindsCarryNoJavaScript(t *testing.T) {
+	raw, err := os.ReadFile("../../cmd/holzcloud/templates/admin/field_input.html")
 	if err != nil {
 		t.Fatalf("die Vorlage lesen: %v", err)
 	}
 	for _, verboten := range []string{"<script", "onclick", "oninput", "onchange", "javascript:"} {
-		if strings.Contains(string(roh), verboten) {
+		if strings.Contains(string(raw), verboten) {
 			t.Errorf("field_input.html contains %q", verboten)
 		}
 	}
@@ -165,7 +165,7 @@ func TestFeldartenTragenKeinJavaScript(t *testing.T) {
 // website, and a choice field is the place where a foreign one would get in
 // most easily — the value would be stored, the field would look filled, and the
 // page would print nothing all the same.
-func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
+func TestATermFieldInThePageEditor(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 	fields := field.NewStore(database)
@@ -187,8 +187,8 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zweite Website: %v", err)
 	}
-	fremdeSeite := seedPage(t, database, fremd.ID, "Anderswo", "anderswo", "text", "draft")
-	if err := terms.SetForPage(ctx, fremd.ID, fremdeSeite.ID, []string{"Zementbau"}); err != nil {
+	foreignPage := seedPage(t, database, fremd.ID, "Anderswo", "anderswo", "text", "draft")
+	if err := terms.SetForPage(ctx, fremd.ID, foreignPage.ID, []string{"Zementbau"}); err != nil {
 		t.Fatalf("fremdes Schlagwort: %v", err)
 	}
 
@@ -237,7 +237,7 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 // siteTerms hands back an empty list and never an error: a choice field without
 // a choice is an empty choice field, a failed query would be a form that can no
 // longer be opened at all.
-func TestSchlagwortauswahlScheitertLeise(t *testing.T) {
+func TestTheTermChoiceFailsQuietly(t *testing.T) {
 	ctx := context.Background()
 
 	// Ohne Ablage.
@@ -304,7 +304,7 @@ func inTag(t *testing.T, body, name string) string {
 // field that applies only to posts, and it was stored without anything ever
 // having checked it. Since trimTo truncates nothing any more (D-13), without
 // any length limit at all.
-func TestEinFremderFeldwertWirdNichtMitgespeichert(t *testing.T) {
+func TestAForeignFieldValueIsNotStoredAlong(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 

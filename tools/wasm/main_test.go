@@ -44,12 +44,12 @@ func TestPackedArchiveRoundTripsThroughReadPackage(t *testing.T) {
 	// Source that must NOT be packed: it is not part of the format.
 	schreiben(t, filepath.Join(quelle, "main.go"), []byte("package main"))
 
-	archiv, err := packen(quelle, manifest, module)
+	archiveFile, err := packen(quelle, manifest, module)
 	if err != nil {
 		t.Fatalf("packen: %v", err)
 	}
 
-	pkg, err := plugin.ReadPackage(bytes.NewReader(archiv), int64(len(archiv)))
+	pkg, err := plugin.ReadPackage(bytes.NewReader(archiveFile), int64(len(archiveFile)))
 	if err != nil {
 		t.Fatalf("ReadPackage rejected an archive this tool produced: %v", err)
 	}
@@ -110,11 +110,11 @@ func TestPackingTwiceProducesTheSameBytes(t *testing.T) {
 // neither — and must still pack.
 func TestAPluginWithoutAssetsOrMigrationsStillPacks(t *testing.T) {
 	quelle := t.TempDir()
-	archiv, err := packen(quelle, []byte(`{"id":"leer","abi":1,"name":"Leer","version":"1.0.0","hooks":["content"]}`), []byte("\x00asm\x01\x00\x00\x00"))
+	archiveFile, err := packen(quelle, []byte(`{"id":"leer","abi":1,"name":"Leer","version":"1.0.0","hooks":["content"]}`), []byte("\x00asm\x01\x00\x00\x00"))
 	if err != nil {
 		t.Fatalf("packen: %v", err)
 	}
-	pkg, err := plugin.ReadPackage(bytes.NewReader(archiv), int64(len(archiv)))
+	pkg, err := plugin.ReadPackage(bytes.NewReader(archiveFile), int64(len(archiveFile)))
 	if err != nil {
 		t.Fatalf("ReadPackage: %v", err)
 	}

@@ -63,8 +63,8 @@ func TestInvoiceCarriesWhatTheLawWants(t *testing.T) {
 	}
 }
 
-// Der Steuerausweis ist der Grund, warum eine Rechnung eine Rechnung ist. Ware
-// und Versand tragen hier denselben Satz und gehören deshalb in eine Zeile.
+// The tax statement is the reason an invoice is an invoice. Goods and shipping
+// carry the same rate here and therefore belong on one line.
 func TestInvoiceBreaksTheTaxOutByRate(t *testing.T) {
 	d := orderDocument(docWebsite(), docOrder(), true)
 
@@ -85,8 +85,8 @@ func TestInvoiceBreaksTheTaxOutByRate(t *testing.T) {
 	}
 }
 
-// Zwei Sätze auf einer Rechnung müssen getrennt ausgewiesen werden — sonst
-// kann der Empfänger die Vorsteuer nicht richtig abziehen.
+// Two rates on one invoice have to be stated separately — otherwise the
+// recipient cannot deduct the input tax correctly.
 func TestInvoiceKeepsTwoRatesApart(t *testing.T) {
 	o := docOrder()
 	o.Items = append(o.Items, shop.OrderItem{
@@ -104,9 +104,9 @@ func TestInvoiceKeepsTwoRatesApart(t *testing.T) {
 	}
 }
 
-// Der wichtigste Unterschied der beiden Papiere. Ein Lieferschein liegt im
-// Paket; ein Preis darauf ist bei einem Geschenk peinlich und bei einer
-// Nachlieferung schlicht falsch.
+// The most important difference between the two papers. A delivery note lies in
+// the parcel; a price on it is embarrassing with a present and simply wrong with
+// a follow-up delivery.
 func TestDeliveryNoteHasNoMoneyOnIt(t *testing.T) {
 	d := orderDocument(docWebsite(), docOrder(), false)
 
@@ -119,15 +119,15 @@ func TestDeliveryNoteHasNoMoneyOnIt(t *testing.T) {
 	if !strings.HasPrefix(d.Title, "Lieferschein") {
 		t.Errorf("Titel = %q", d.Title)
 	}
-	// Die Beträge sind zwar gefüllt, die Vorlage druckt sie aber nicht. Was
-	// hier geprüft wird, ist die Weiche: der Rest hängt an .Invoice.
+	// The amounts are filled in, but the template does not print them. What is
+	// checked here is the switch: the rest hangs on .Invoice.
 	if len(d.Lines) != 1 || d.Lines[0].Quantity != 2 {
 		t.Errorf("die Ware fehlt: %+v", d.Lines)
 	}
 }
 
-// Ein Betrieb unter der Umsatzgrenze weist keine MWST aus — und muss den Grund
-// aufs Papier schreiben, nicht die Zeile weglassen.
+// A business under the turnover threshold states no VAT — and has to write the
+// reason on the paper, not leave the line out.
 func TestExemptInvoiceSaysWhy(t *testing.T) {
 	o := docOrder()
 	o.VATExempt = true
@@ -141,8 +141,8 @@ func TestExemptInvoiceSaysWhy(t *testing.T) {
 	}
 }
 
-// Eine offene Rechnung trägt die Kontoangaben, eine bezahlte nicht — die wäre
-// eine Aufforderung, noch einmal zu überweisen.
+// An open invoice carries the bank details, a paid one does not — that would be
+// an invitation to transfer the money a second time.
 func TestPaidInvoiceDropsTheBankDetails(t *testing.T) {
 	offen := orderDocument(docWebsite(), docOrder(), true)
 	if !strings.Contains(offen.PaymentDetails, "CH93") {
@@ -163,8 +163,8 @@ func TestPaidInvoiceDropsTheBankDetails(t *testing.T) {
 	}
 }
 
-// Der Versandsatz steht nicht in der Bestellung, er wird aus zwei Beträgen
-// zurückgerechnet. Das Runden darf ihn nicht danebenlegen.
+// The shipping rate does not stand in the order, it is computed back from two
+// amounts. The rounding must not put it beside the mark.
 func TestShippingRateIsRecovered(t *testing.T) {
 	cases := []struct {
 		net, tax money.Amount
@@ -184,8 +184,8 @@ func TestShippingRateIsRecovered(t *testing.T) {
 	}
 }
 
-// Eine Bestellung in einer Währung, die der Shop längst gewechselt hat, wird
-// in ihrer eigenen gedruckt.
+// An order in a currency the shop changed away from long ago is printed in its
+// own.
 func TestDocumentKeepsTheOrderCurrency(t *testing.T) {
 	ws := docWebsite()
 	ws.Currency = "EUR"

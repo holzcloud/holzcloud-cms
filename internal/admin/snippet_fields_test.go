@@ -30,7 +30,7 @@ import (
 // the browser.
 
 // fieldScreen calls GET …/felder with the query it is given.
-func feldBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, query string) *httptest.ResponseRecorder {
+func fieldScreen(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	target := "/admin/websites/" + strconv.FormatInt(websiteID, 10) + "/felder"
 	if query != "" {
@@ -42,7 +42,7 @@ func feldBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID 
 }
 
 // createField submits the form of the field screen.
-func feldAnlegen(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, values url.Values) *httptest.ResponseRecorder {
+func createField(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, values url.Values) *httptest.ResponseRecorder {
 	t.Helper()
 	return serve(t, h, sm, h.HandleFieldSave, postForm(
 		"/admin/websites/"+strconv.FormatInt(websiteID, 10)+"/felder",
@@ -79,7 +79,7 @@ func zweiteWebsite(t *testing.T, database *db.DB, name, key, snippetName string)
 // both.
 //
 // The subfield therefore inherits its carrier from the stored group.
-func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
+func TestAGroupOnASnippetCarriesItsSubfields(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
@@ -89,7 +89,7 @@ func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 		t.Fatalf("snippet.Create: %v", err)
 	}
 
-	if rec := feldAnlegen(t, h, sm, ws.ID, url.Values{
+	if rec := createField(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Öffnungszeiten"},
 		"art":          {field.KindGroup},
 		"textbaustein": {strconv.FormatInt(sn.ID, 10)},
@@ -101,15 +101,15 @@ func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 	if err != nil || len(defs) != 1 {
 		t.Fatalf("OfSnippet: %v (%d)", err, len(defs))
 	}
-	gruppe := defs[0]
+	group := defs[0]
 
 	// And now the subfield, the way the screen submits it: with "gruppe" and
 	// without "textbaustein", because one level down nobody knows any more
 	// whom the group hangs on.
-	if rec := feldAnlegen(t, h, sm, ws.ID, url.Values{
+	if rec := createField(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Tag"},
 		"art":          {field.KindText},
-		"gruppe":       {strconv.FormatInt(gruppe.ID, 10)},
+		"gruppe":       {strconv.FormatInt(group.ID, 10)},
 	}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Unterfeld anlegen: Status %d, wollte 303", rec.Code)
 	}
@@ -128,18 +128,18 @@ func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 
 	// The counter-check on the dangerous cut: the subfield must not show up on
 	// the page screen because of this.
-	seiten, err := h.fields.List(ctx, ws.ID)
+	pages, err := h.fields.List(ctx, ws.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range seiten {
+	for _, d := range pages {
 		if d.Key == "tag" || d.Key == "oeffnungszeiten" {
 			t.Errorf("a snippet's field is in the page list: %+v", d)
 		}
 	}
 }
 
-func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
+func TestTheSnippetModeOpensForOnesOwn(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
@@ -151,7 +151,7 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 
 	// The empty case first: the same screen, an empty list and the sentence
 	// that says so.
-	rec := feldBildschirm(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
+	rec := fieldScreen(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("Status %d, wollte 200", rec.Code)
 	}
@@ -177,7 +177,7 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 	}
 
 	// Und jetzt eines anlegen.
-	feldAnlegen(t, h, sm, ws.ID, url.Values{
+	createField(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Telefonnummer"},
 		"art":          {field.KindText},
 		"textbaustein": {strconv.FormatInt(sn.ID, 10)},
@@ -194,7 +194,7 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 		t.Errorf("SnippetID = %d, wollte %d", defs[0].SnippetID, sn.ID)
 	}
 
-	rec = feldBildschirm(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
+	rec = fieldScreen(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
 	if !strings.Contains(rec.Body.String(), "Telefonnummer") {
 		t.Error("the created field is not in its snippet's list")
 	}
@@ -203,12 +203,12 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 // A snippet of another website does not open the mode — and nothing of that
 // website appears. The absence is the assurance: a mode opened silently would
 // answer 200 as well.
-func TestTextbausteinFremderWebsiteOeffnetDenModusNicht(t *testing.T) {
+func TestASnippetOfAForeignWebsiteDoesNotOpenTheMode(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
 	// A page field of one's own, so that the fallback to the page screen shows
 	// something demonstrable.
-	feldAnlegen(t, h, sm, ws.ID, url.Values{
+	createField(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Seitenpreis"},
 		"art":          {field.KindNumber},
 		"gilt_fuer":    {"beides"},
@@ -216,7 +216,7 @@ func TestTextbausteinFremderWebsiteOeffnetDenModusNicht(t *testing.T) {
 
 	_, fremd := zweiteWebsite(t, database, "Zweite Seite", "fremd", "Fremder Kontaktblock")
 
-	rec := feldBildschirm(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(fremd.ID, 10))
+	rec := fieldScreen(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(fremd.ID, 10))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("Status %d, wollte 200", rec.Code)
 	}
@@ -232,13 +232,13 @@ func TestTextbausteinFremderWebsiteOeffnetDenModusNicht(t *testing.T) {
 // The same attempt as a POST. The status alone proves nothing: a handler that
 // first creates and then says 404 would get through on it. That is why the
 // store is consulted.
-func TestTextbausteinFremderWebsiteWirdBeimSpeichernAbgewiesen(t *testing.T) {
+func TestASnippetOfAForeignWebsiteIsRefusedOnSaving(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
 	fremdeWS, fremd := zweiteWebsite(t, database, "Zweite Seite", "fremd", "Fremder Kontaktblock")
 
-	rec := feldAnlegen(t, h, sm, ws.ID, url.Values{
+	rec := createField(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Eingeschmuggelt"},
 		"art":          {field.KindText},
 		"textbaustein": {strconv.FormatInt(fremd.ID, 10)},
@@ -265,7 +265,7 @@ func TestTextbausteinFremderWebsiteWirdBeimSpeichernAbgewiesen(t *testing.T) {
 // The page screen stays clean: with a snippet field in the database, GET
 // …/felder without a query parameter lists exactly the page's own fields. That
 // is ROADMAP criterion 3 as a check that runs on every commit.
-func TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm(t *testing.T) {
+func TestASnippetFieldDoesNotAppearOnThePageScreen(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
@@ -275,18 +275,18 @@ func TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm(t *testing.T) {
 		t.Fatalf("snippet.Create: %v", err)
 	}
 
-	feldAnlegen(t, h, sm, ws.ID, url.Values{
+	createField(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Seitenpreis"},
 		"art":          {field.KindNumber},
 		"gilt_fuer":    {"beides"},
 	})
-	feldAnlegen(t, h, sm, ws.ID, url.Values{
+	createField(t, h, sm, ws.ID, url.Values{
 		"beschriftung": {"Telefonnummer"},
 		"art":          {field.KindText},
 		"textbaustein": {strconv.FormatInt(sn.ID, 10)},
 	})
 
-	rec := feldBildschirm(t, h, sm, ws.ID, "")
+	rec := fieldScreen(t, h, sm, ws.ID, "")
 	body := rec.Body.String()
 	if !strings.Contains(body, "Seitenpreis") {
 		t.Error("the page's own field is missing from the page screen")
@@ -313,7 +313,7 @@ func TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm(t *testing.T) {
 // screenshot. The fourth case below is written against exactly that.
 
 // textbausteinSpeichern schickt das Wertformular eines Textbausteins ab.
-func textbausteinSpeichern(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, values url.Values) *httptest.ResponseRecorder {
+func saveSnippet(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, values url.Values) *httptest.ResponseRecorder {
 	t.Helper()
 	return serve(t, h, sm, h.HandleSnippetList, postForm(
 		"/admin/websites/"+strconv.FormatInt(websiteID, 10)+"/snippets",
@@ -321,7 +321,7 @@ func textbausteinSpeichern(t *testing.T, h *Handler, sm *scs.SessionManager, web
 }
 
 // snippetScreen calls GET …/snippets with the query it is given.
-func textbausteinBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, query string) *httptest.ResponseRecorder {
+func snippetScreen(t *testing.T, h *Handler, sm *scs.SessionManager, websiteID int64, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	target := "/admin/websites/" + strconv.FormatInt(websiteID, 10) + "/snippets"
 	if query != "" {
@@ -334,7 +334,7 @@ func textbausteinBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, we
 
 // snippetField creates a field definition on a snippet and hands it back, so
 // that the caller can fetch its form key from FieldName instead of typing it.
-func textbausteinFeld(t *testing.T, database *db.DB, websiteID, snippetID int64, def field.Def) field.Def {
+func snippetField(t *testing.T, database *db.DB, websiteID, snippetID int64, def field.Def) field.Def {
 	t.Helper()
 	def.WebsiteID = websiteID
 	def.SnippetID = snippetID
@@ -346,7 +346,7 @@ func textbausteinFeld(t *testing.T, database *db.DB, websiteID, snippetID int64,
 }
 
 // snippetWithFields creates a snippet and hands it back.
-func bausteinMitFeldern(t *testing.T, database *db.DB, websiteID int64, key, name string) *snippet.Snippet {
+func blockWithFields(t *testing.T, database *db.DB, websiteID int64, key, name string) *snippet.Snippet {
 	t.Helper()
 	sn, err := snippet.NewStore(database).Create(context.Background(), websiteID, key, name,
 		"Wir sind **da**.", "<p>Wir sind <strong>da</strong>.</p>")
@@ -357,7 +357,7 @@ func bausteinMitFeldern(t *testing.T, database *db.DB, websiteID int64, key, nam
 }
 
 // gespeicherteFelder liest die fields-Spalte eines Textbausteins back.
-func gespeicherteFelder(t *testing.T, database *db.DB, websiteID, id int64) field.Data {
+func storedFields(t *testing.T, database *db.DB, websiteID, id int64) field.Data {
 	t.Helper()
 	sn, err := snippet.NewStore(database).Get(context.Background(), websiteID, id)
 	if err != nil || sn == nil {
@@ -368,16 +368,16 @@ func gespeicherteFelder(t *testing.T, database *db.DB, websiteID, id int64) fiel
 
 // The round trip: typed, stored, opened again, and the same values stand there
 // — in the form and in the column.
-func TestSnippetFeldRundlauf(t *testing.T) {
+func TestASnippetFieldRoundTrip(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
-	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
-	kurz := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+	sn := blockWithFields(t, database, ws.ID, "kontakt", "Kontaktblock")
+	kurz := snippetField(t, database, ws.ID, sn.ID, field.Def{
 		Key: "telefon", Label: "Telefon", Kind: field.KindText})
-	lang := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+	lang := snippetField(t, database, ws.ID, sn.ID, field.Def{
 		Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
 
-	rec := textbausteinSpeichern(t, h, sm, ws.ID, url.Values{
+	rec := saveSnippet(t, h, sm, ws.ID, url.Values{
 		"id":               {strconv.FormatInt(sn.ID, 10)},
 		"key":              {"kontakt"},
 		"name":             {"Kontaktblock"},
@@ -389,16 +389,16 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 		t.Fatalf("status %d, wanted a redirect after saving", rec.Code)
 	}
 
-	daten := gespeicherteFelder(t, database, ws.ID, sn.ID)
-	if got := daten.Values["telefon"]; got != "07721 123456" {
+	data := storedFields(t, database, ws.ID, sn.ID)
+	if got := data.Values["telefon"]; got != "07721 123456" {
 		t.Errorf("telefon = %q, wollte %q", got, "07721 123456")
 	}
-	if got := daten.Values["hinweis"]; got != "Nur vormittags erreichbar." {
+	if got := data.Values["hinweis"]; got != "Nur vormittags erreichbar." {
 		t.Errorf("hinweis = %q, wollte %q", got, "Nur vormittags erreichbar.")
 	}
 
 	// And the same in the form, under the same names.
-	body := textbausteinBildschirm(t, h, sm, ws.ID, "edit="+strconv.FormatInt(sn.ID, 10)).Body.String()
+	body := snippetScreen(t, h, sm, ws.ID, "edit="+strconv.FormatInt(sn.ID, 10)).Body.String()
 	for _, wollte := range []string{
 		`name="` + kurz.FieldName() + `"`,
 		`name="` + lang.FieldName() + `"`,
@@ -424,32 +424,32 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 //
 // The proof stands in the store and not only in the body of the answer: a
 // handler that first writes and then refuses would otherwise get through.
-func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
+func TestARequiredSnippetFieldIsRefused(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
-	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
-	pflicht := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+	sn := blockWithFields(t, database, ws.ID, "kontakt", "Kontaktblock")
+	required := snippetField(t, database, ws.ID, sn.ID, field.Def{
 		Key: "telefon", Label: "Telefon", Kind: field.KindText, Required: true})
-	frei := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+	frei := snippetField(t, database, ws.ID, sn.ID, field.Def{
 		Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
 
-	gemeinsam := func(telefon, hinweis string) url.Values {
+	gemeinsam := func(telefon, note string) url.Values {
 		return url.Values{
-			"id":                {strconv.FormatInt(sn.ID, 10)},
-			"key":               {"kontakt"},
-			"name":              {"Kontaktblock"},
-			"content_markdown":  {"Wir sind **da**."},
-			pflicht.FieldName(): {telefon},
-			frei.FieldName():    {hinweis},
+			"id":                 {strconv.FormatInt(sn.ID, 10)},
+			"key":                {"kontakt"},
+			"name":               {"Kontaktblock"},
+			"content_markdown":   {"Wir sind **da**."},
+			required.FieldName(): {telefon},
+			frei.FieldName():     {note},
 		}
 	}
 
-	textbausteinSpeichern(t, h, sm, ws.ID, gemeinsam("07721 123456", "Erster Hinweis"))
-	if got := gespeicherteFelder(t, database, ws.ID, sn.ID).Values["telefon"]; got != "07721 123456" {
+	saveSnippet(t, h, sm, ws.ID, gemeinsam("07721 123456", "Erster Hinweis"))
+	if got := storedFields(t, database, ws.ID, sn.ID).Values["telefon"]; got != "07721 123456" {
 		t.Fatalf("the first pass stored nothing: telefon = %q", got)
 	}
 
-	rec := textbausteinSpeichern(t, h, sm, ws.ID, gemeinsam("", "Zweiter Hinweis"))
+	rec := saveSnippet(t, h, sm, ws.ID, gemeinsam("", "Zweiter Hinweis"))
 	if rec.Code == http.StatusSeeOther || rec.Code == http.StatusFound {
 		t.Fatalf("status %d — the empty required field was accepted", rec.Code)
 	}
@@ -461,11 +461,11 @@ func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 		t.Error("there is no reason beside the field")
 	}
 
-	daten := gespeicherteFelder(t, database, ws.ID, sn.ID)
-	if got := daten.Values["telefon"]; got != "07721 123456" {
+	data := storedFields(t, database, ws.ID, sn.ID)
+	if got := data.Values["telefon"]; got != "07721 123456" {
 		t.Errorf("telefon = %q — the refusal touched the previous value", got)
 	}
-	if got := daten.Values["hinweis"]; got != "Erster Hinweis" {
+	if got := data.Values["hinweis"]; got != "Erster Hinweis" {
 		t.Errorf("hinweis = %q — die Ablehnung hat halb geschrieben", got)
 	}
 }
@@ -489,35 +489,35 @@ func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 // snippet's field path reaches the same escaping as the page's field path —
 // "one chain, not a second" is a property of the call graph, and that is how it
 // is asserted from outside.
-func TestSnippetFeldSanierung(t *testing.T) {
+func TestSnippetFieldSanitising(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 	const boshaft = `<script>alert(1)</script>`
 
-	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
-	amBaustein := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+	sn := blockWithFields(t, database, ws.ID, "kontakt", "Kontaktblock")
+	onBlock := snippetField(t, database, ws.ID, sn.ID, field.Def{
 		Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
 
 	// The same key, the same field kind, the other carrier.
-	anDerSeite, err := field.NewStore(database).Create(ctx, field.Def{
+	onPage, err := field.NewStore(database).Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "hinweis", Label: "Hinweis", Kind: field.KindLong})
 	if err != nil {
 		t.Fatalf("Seitenfeld anlegen: %v", err)
 	}
 
-	textbausteinSpeichern(t, h, sm, ws.ID, url.Values{
-		"id":                   {strconv.FormatInt(sn.ID, 10)},
-		"key":                  {"kontakt"},
-		"name":                 {"Kontaktblock"},
-		"content_markdown":     {"Wir sind **da**."},
-		amBaustein.FieldName(): {boshaft},
+	saveSnippet(t, h, sm, ws.ID, url.Values{
+		"id":                {strconv.FormatInt(sn.ID, 10)},
+		"key":               {"kontakt"},
+		"name":              {"Kontaktblock"},
+		"content_markdown":  {"Wir sind **da**."},
+		onBlock.FieldName(): {boshaft},
 	})
 	serve(t, h, sm, h.HandlePageCreate, postForm("/admin/websites/1/pages/new", url.Values{
-		"title":                {"Startseite"},
-		"slug":                 {"start"},
-		"status":               {"published"},
-		"kind":                 {"page"},
-		anDerSeite.FieldName(): {boshaft},
+		"title":            {"Startseite"},
+		"slug":             {"start"},
+		"status":           {"published"},
+		"kind":             {"page"},
+		onPage.FieldName(): {boshaft},
 	}, map[string]string{"id": strconv.FormatInt(ws.ID, 10)}))
 
 	p, err := page.NewStore(database).GetPageBySlug(ctx, ws.ID, "start")
@@ -526,36 +526,36 @@ func TestSnippetFeldSanierung(t *testing.T) {
 	}
 
 	// Both carriers through the same resolver, with their own definitions.
-	amBausteinAufgeloest := field.Resolve([]field.Def{amBaustein},
-		gespeicherteFelder(t, database, ws.ID, sn.ID), field.Links{})
-	anDerSeiteAufgeloest := field.Resolve([]field.Def{*anDerSeite},
+	onBlockResolved := field.Resolve([]field.Def{onBlock},
+		storedFields(t, database, ws.ID, sn.ID), field.Links{})
+	onPageResolved := field.Resolve([]field.Def{*onPage},
 		field.Decode(p.Fields), field.Links{})
 
-	if amBausteinAufgeloest["hinweis"] != anDerSeiteAufgeloest["hinweis"] {
+	if onBlockResolved["hinweis"] != onPageResolved["hinweis"] {
 		t.Fatalf("snippet and page resolve the same value differently:\n  block: %#v\n  page:  %#v",
-			amBausteinAufgeloest["hinweis"], anDerSeiteAufgeloest["hinweis"])
+			onBlockResolved["hinweis"], onPageResolved["hinweis"])
 	}
 
 	// And the way a theme prints them: the same template over both.
 	wieEinTheme := template.Must(template.New("theme").Parse(`<p class="hinweis">{{.}}</p>`))
-	druck := func(wert any) string {
+	druck := func(value any) string {
 		var aus strings.Builder
-		if err := wieEinTheme.Execute(&aus, wert); err != nil {
+		if err := wieEinTheme.Execute(&aus, value); err != nil {
 			t.Fatalf("drucken: %v", err)
 		}
 		return aus.String()
 	}
-	ausBaustein := druck(amBausteinAufgeloest["hinweis"])
-	ausSeite := druck(anDerSeiteAufgeloest["hinweis"])
+	fromBlock := druck(onBlockResolved["hinweis"])
+	fromPage := druck(onPageResolved["hinweis"])
 
-	for name, aus := range map[string]string{"Textbaustein": ausBaustein, "Page": ausSeite} {
+	for name, aus := range map[string]string{"Textbaustein": fromBlock, "Page": fromPage} {
 		if strings.Contains(aus, "<script") {
 			t.Errorf("%s: a live token survived: %s", name, aus)
 		}
 	}
-	if ausBaustein != ausSeite {
+	if fromBlock != fromPage {
 		t.Errorf("the two carriers print the same value differently:\n  block: %s\n  page:  %s",
-			ausBaustein, ausSeite)
+			fromBlock, fromPage)
 	}
 
 	// The body keeps its own, different chain — untouched by this phase.
@@ -573,19 +573,19 @@ func TestSnippetFeldSanierung(t *testing.T) {
 // The storage half of this promise is held by 08-01's TestBausteinNamensraum.
 // The other half stands here: what an editor *sees* is a drawn template and not
 // a query result, and that is why it is drawn.
-func TestSnippetFeldStehtNichtImSeitenformular(t *testing.T) {
+func TestASnippetFieldDoesNotStandInThePageForm(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
-	sn := bausteinMitFeldern(t, database, ws.ID, "kontakt", "Kontaktblock")
-	amBaustein := textbausteinFeld(t, database, ws.ID, sn.ID, field.Def{
+	sn := blockWithFields(t, database, ws.ID, "kontakt", "Kontaktblock")
+	onBlock := snippetField(t, database, ws.ID, sn.ID, field.Def{
 		Key: "telefonnummer", Label: "Telefonnummer", Kind: field.KindText})
 
-	textbausteinSpeichern(t, h, sm, ws.ID, url.Values{
-		"id":                   {strconv.FormatInt(sn.ID, 10)},
-		"key":                  {"kontakt"},
-		"name":                 {"Kontaktblock"},
-		"content_markdown":     {"Wir sind **da**."},
-		amBaustein.FieldName(): {"07721 123456"},
+	saveSnippet(t, h, sm, ws.ID, url.Values{
+		"id":                {strconv.FormatInt(sn.ID, 10)},
+		"key":               {"kontakt"},
+		"name":              {"Kontaktblock"},
+		"content_markdown":  {"Wir sind **da**."},
+		onBlock.FieldName(): {"07721 123456"},
 	})
 
 	req := httptest.NewRequest(http.MethodGet,
@@ -636,7 +636,7 @@ func codeAusdruck(t *testing.T, koerper string) string {
 // What is checked is therefore not the wording but the property: what stands
 // there goes through the parser. TEMPLATE-SPEC.md uses index throughout; the
 // screen was the one place that contradicted the specification.
-func TestRatDesFeldbildschirmsLaesstSichUebersetzen(t *testing.T) {
+func TestTheFieldScreensAdviceParses(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
@@ -646,7 +646,7 @@ func TestRatDesFeldbildschirmsLaesstSichUebersetzen(t *testing.T) {
 		t.Fatalf("snippet.Create: %v", err)
 	}
 
-	rec := feldBildschirm(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
+	rec := fieldScreen(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("Status %d, wollte 200", rec.Code)
 	}

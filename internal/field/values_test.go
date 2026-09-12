@@ -13,7 +13,7 @@ import (
 func TestSplitValues(t *testing.T) {
 	cases := []struct {
 		name string
-		roh  string
+		raw  string
 		will []string
 	}{
 		{"zwei Zeilen", "eiche\nbuche", []string{"eiche", "buche"}},
@@ -26,8 +26,8 @@ func TestSplitValues(t *testing.T) {
 	}
 	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
-			if got := SplitValues(f.roh); !reflect.DeepEqual(got, f.will) {
-				t.Errorf("SplitValues(%q) = %#v, wollte %#v", f.roh, got, f.will)
+			if got := SplitValues(f.raw); !reflect.DeepEqual(got, f.will) {
+				t.Errorf("SplitValues(%q) = %#v, wollte %#v", f.raw, got, f.will)
 			}
 		})
 	}
@@ -35,9 +35,9 @@ func TestSplitValues(t *testing.T) {
 
 func TestJoinValues(t *testing.T) {
 	cases := []struct {
-		name  string
-		werte []string
-		will  string
+		name   string
+		values []string
+		will   string
 	}{
 		{"nichts", nil, ""},
 		{"leere Liste", []string{}, ""},
@@ -49,8 +49,8 @@ func TestJoinValues(t *testing.T) {
 	}
 	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
-			if got := JoinValues(f.werte); got != f.will {
-				t.Errorf("JoinValues(%#v) = %q, wollte %q", f.werte, got, f.will)
+			if got := JoinValues(f.values); got != f.will {
+				t.Errorf("JoinValues(%#v) = %q, wollte %q", f.values, got, f.will)
 			}
 		})
 	}
@@ -103,7 +103,7 @@ func TestJoinValuesWaechterUndDoppelte(t *testing.T) {
 // Being multi-valued is stated in the form field's name, and that name is
 // minted in exactly one place. If the marking is spelled out anywhere else as
 // well, the two can drift apart.
-func TestFeldNameTraegtDieMarkierung(t *testing.T) {
+func TestFieldNameCarriesTheMarker(t *testing.T) {
 	multi := Def{Kind: KindMulti, Key: "sorten"}
 	if got, will := multi.FieldName(), "feld_sorten[]"; got != will {
 		t.Errorf("FieldName() = %q, wollte %q", got, will)
@@ -134,7 +134,7 @@ func TestFeldNameTraegtDieMarkierung(t *testing.T) {
 
 // A value that is not on the list is reported and not stored. The options are a
 // closed vocabulary; no arbitrary string may come in through a row of ticks.
-func TestMehrfachauswahlPruefung(t *testing.T) {
+func TestMultipleChoiceCheck(t *testing.T) {
 	d := Def{Label: "Sorten", Kind: KindMulti, Choices: []string{"Eiche", "Buche", "Esche"}}
 
 	if reason := Check(d, JoinValues([]string{"Eiche", "Esche"})); !reason.Empty() {
@@ -152,30 +152,30 @@ func TestMehrfachauswahlPruefung(t *testing.T) {
 	if reason := Check(d, ""); !reason.Empty() {
 		t.Errorf("empty on an optional field = %q", reason)
 	}
-	pflicht := d
-	pflicht.Required = true
-	if reason := Check(pflicht, ""); reason.Empty() {
+	required := d
+	required.Required = true
+	if reason := Check(required, ""); reason.Empty() {
 		t.Error("empty on a required field was let through")
 	}
 }
 
 // A multi-valued field reaches the theme as a list, not as a string, and the
 // list is empty rather than nil-confusing when nothing is stored.
-func TestMehrfachauswahlAufgeloest(t *testing.T) {
+func TestAMultipleChoiceResolved(t *testing.T) {
 	defs := []Def{{Key: "sorten", Label: "Sorten", Kind: KindMulti,
 		Choices: []string{"Eiche", "Buche", "Esche"}}}
 
 	got := Resolve(defs, Data{Values: Values{"sorten": "Eiche\nEsche"}}, Links{})
-	werte, ok := got["sorten"].([]string)
+	values, ok := got["sorten"].([]string)
 	if !ok {
 		t.Fatalf("sorten kam als %T, wollte []string", got["sorten"])
 	}
-	if !reflect.DeepEqual(werte, []string{"Eiche", "Esche"}) {
-		t.Errorf("sorten = %#v", werte)
+	if !reflect.DeepEqual(values, []string{"Eiche", "Esche"}) {
+		t.Errorf("sorten = %#v", values)
 	}
 
 	leer := Resolve(defs, Data{Values: Values{}}, Links{})
-	if werte, ok := leer["sorten"].([]string); !ok || len(werte) != 0 {
+	if values, ok := leer["sorten"].([]string); !ok || len(values) != 0 {
 		t.Errorf("resolved empty = %#v (%T), wanted an empty []string", leer["sorten"], leer["sorten"])
 	}
 
@@ -228,7 +228,7 @@ func TestJoinValuesVerteidigtSeinTrennzeichen(t *testing.T) {
 	// Every spelling of the line break, and the carriage-return form yields one
 	// space and not two.
 	for _, f := range []struct {
-		roh  string
+		raw  string
 		will string
 	}{
 		{"a\nb", "a b"},
@@ -236,8 +236,8 @@ func TestJoinValuesVerteidigtSeinTrennzeichen(t *testing.T) {
 		{"a\rb", "a b"},
 		{"a\n\nb", "a  b"},
 	} {
-		if got := JoinValues([]string{f.roh}); got != f.will {
-			t.Errorf("JoinValues([%q]) = %q, wollte %q", f.roh, got, f.will)
+		if got := JoinValues([]string{f.raw}); got != f.will {
+			t.Errorf("JoinValues([%q]) = %q, wollte %q", f.raw, got, f.will)
 		}
 	}
 

@@ -22,11 +22,11 @@ import (
 // the plugin, form on the website, order in the store.
 func TestHofladenLaeuftDurch(t *testing.T) {
 	module := wasmtest.Module(t, "../../plugins/bestellung/plugin.wasm")
-	roh, err := os.ReadFile("../../plugins/bestellung/plugin.json")
+	raw, err := os.ReadFile("../../plugins/bestellung/plugin.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := plugin.ParseManifest(roh)
+	m, err := plugin.ParseManifest(raw)
 	if err != nil {
 		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 
 	// Two products and one that is sold out. They come from the host's page
 	// function, as in operation — with their own fields.
-	seiten := func(_ context.Context, websiteID int64, q plugin.PagesQuery) (plugin.PagesResult, error) {
+	pages := func(_ context.Context, websiteID int64, q plugin.PagesQuery) (plugin.PagesResult, error) {
 		if !q.WithFields {
 			// The plugin has to ask for the fields expressly; if it did not, it
 			// would never find a product, and this test should notice that.
@@ -73,7 +73,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.WithPages(seiten)
+	r.WithPages(pages)
 	r.WithNotify(func(_ context.Context, _ int64, a plugin.NotifyArg) (bool, string, error) {
 		verschickt = append(verschickt, a.Subject+"\n"+a.Body)
 		return true, "", nil
@@ -123,8 +123,8 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Error("the form is stuck inside a paragraph")
 	}
 
-	zeitmarke := between(out.HTML, `name="gestellt" value="`, `"`)
-	if zeitmarke == "" {
+	timeToken := between(out.HTML, `name="gestellt" value="`, `"`)
+	if timeToken == "" {
 		t.Fatal("keine Zeitmarke im Formular")
 	}
 
@@ -132,7 +132,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	// seconds. Check first, then wait — otherwise the rest of the test would run
 	// into that refusal and would pass for the wrong reasons.
 	antwortSofort := submit(t, r, ctx, m.ID, url.Values{
-		"seite": {"bestellen"}, "gestellt": {zeitmarke},
+		"seite": {"bestellen"}, "gestellt": {timeToken},
 		"name": {"Anna"}, "email": {"anna@example.ch"}, "menge_seife": {"1"},
 	})
 	if !strings.Contains(antwortSofort.Location, "has+expired") {
@@ -142,7 +142,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 
 	// Without a quantity nothing is accepted.
 	antwort := submit(t, r, ctx, m.ID, url.Values{
-		"seite": {"bestellen"}, "gestellt": {zeitmarke},
+		"seite": {"bestellen"}, "gestellt": {timeToken},
 		"name": {"Anna"}, "email": {"anna@example.ch"},
 	})
 	if !strings.Contains(antwort.Location, "at+least+one+product") {
@@ -151,7 +151,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 
 	// A filled honeypot looks like a success and is discarded.
 	antwort = submit(t, r, ctx, m.ID, url.Values{
-		"seite": {"bestellen"}, "gestellt": {zeitmarke},
+		"seite": {"bestellen"}, "gestellt": {timeToken},
 		"name": {"Bot"}, "email": {"bot@example.ch"},
 		"menge_seife": {"1"}, "website": {"https://spam.example"},
 	})
@@ -170,7 +170,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 
 	// Und die richtige Bestellung.
 	antwort = submit(t, r, ctx, m.ID, url.Values{
-		"seite": {"bestellen"}, "gestellt": {zeitmarke},
+		"seite": {"bestellen"}, "gestellt": {timeToken},
 		"name": {"Anna Muster"}, "email": {"anna@example.ch"},
 		"telefon":     {"079 123 45 67"},
 		"menge_seife": {"3"}, "menge_joghurt": {"2"},
@@ -192,12 +192,12 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 
 	// The order lies in the plugin's store — and only the one, because the
 	// honeypot attempt was discarded.
-	werte, err := store.StoreList(ctx, m.ID, 1, "bestellung:", 100)
+	values, err := store.StoreList(ctx, m.ID, 1, "bestellung:", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(werte) != 1 {
-		t.Fatalf("%d Bestellungen gespeichert, want 1", len(werte))
+	if len(values) != 1 {
+		t.Fatalf("%d Bestellungen gespeichert, want 1", len(values))
 	}
 
 	// And it stands on the screen in the admin.

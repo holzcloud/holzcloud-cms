@@ -16,12 +16,12 @@ import (
 // Nachladen, und ein Handy lädt das Original in voller Grösse.
 func TestBackfillTraegtMasseUndFassungenNach(t *testing.T) {
 	s, ws := newTestStore(t)
-	daten := t.TempDir()
-	dir := filepath.Join(daten, "media", strconv.FormatInt(ws, 10))
+	data := t.TempDir()
+	dir := filepath.Join(data, "media", strconv.FormatInt(ws, 10))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	testBild(t, filepath.Join(dir, "hof.png"), 1600, 900, image.Point{X: 800, Y: 450})
+	testImage(t, filepath.Join(dir, "hof.png"), 1600, 900, image.Point{X: 800, Y: 450})
 
 	// So, wie der Import sie anlegt: ohne Masse.
 	m, err := s.Create(context.Background(), ws, "hof.png", "hof.png", "image/png", 1234, "abc")
@@ -32,7 +32,7 @@ func TestBackfillTraegtMasseUndFassungenNach(t *testing.T) {
 		t.Fatalf("die Vorbedingung stimmt nicht: Create setzt jetzt %dx%d", m.Width, m.Height)
 	}
 
-	done, failed, err := Backfill(context.Background(), s, daten, 40, 100)
+	done, failed, err := Backfill(context.Background(), s, data, 40, 100)
 	if err != nil {
 		t.Fatalf("Backfill: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestBackfillTraegtMasseUndFassungenNach(t *testing.T) {
 	}
 
 	// Ein zweiter Lauf findet nichts mehr — sonst liefe die Arbeit ewig im Kreis.
-	done, _, err = Backfill(context.Background(), s, daten, 40, 100)
+	done, _, err = Backfill(context.Background(), s, data, 40, 100)
 	if err != nil || done != 0 {
 		t.Errorf("zweiter Lauf: ergaenzt=%d, err=%v; wollte 0", done, err)
 	}
@@ -61,12 +61,12 @@ func TestBackfillTraegtMasseUndFassungenNach(t *testing.T) {
 // Was keine Masse haben kann, darf den Lauf nicht bei jedem Takt beschäftigen.
 func TestBackfillLaesstEinPDFLiegen(t *testing.T) {
 	s, ws := newTestStore(t)
-	daten := t.TempDir()
+	data := t.TempDir()
 	if _, err := s.Create(context.Background(), ws, "preise.pdf", "preise.pdf",
 		"application/pdf", 99, "def"); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	done, failed, err := Backfill(context.Background(), s, daten, 40, 100)
+	done, failed, err := Backfill(context.Background(), s, data, 40, 100)
 	if err != nil || done != 0 || failed != 0 {
 		t.Errorf("ergaenzt=%d fehlgeschlagen=%d err=%v; ein PDF wird uebergangen", done, failed, err)
 	}

@@ -100,13 +100,13 @@ func TestMigration00047DownAndUp(t *testing.T) {
 	if uebrig != 1 {
 		t.Fatalf("after the rollback %d fields are there, expected 1 (the page field only)", uebrig)
 	}
-	var kennung string
+	var key string
 	if err := database.Read.QueryRowContext(ctx,
-		`SELECT kennung FROM page_field_defs`).Scan(&kennung); err != nil {
+		`SELECT kennung FROM page_field_defs`).Scan(&key); err != nil {
 		t.Fatalf("Feld lesen: %v", err)
 	}
-	if kennung != "telefon" {
-		t.Errorf("remaining field = %q, expected \"telefon\"", kennung)
+	if key != "telefon" {
+		t.Errorf("remaining field = %q, expected \"telefon\"", key)
 	}
 
 	var indexSQL string

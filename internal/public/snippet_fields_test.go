@@ -89,8 +89,8 @@ func snippetFixture(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 	loader := tmpl.NewLoader(dir, snippetFS(), nil, nil)
 	h := NewHandler(page.NewStore(database), menu.NewStore(database), media.NewStore(database),
 		snippet.NewStore(database), loader, nil, dir, snippetFS(), false)
-	felder := field.NewStore(database)
-	h.SetFieldStore(felder)
+	fields := field.NewStore(database)
+	h.SetFieldStore(fields)
 
 	ws := seedWebsite(t, database, "Test Site")
 
@@ -101,23 +101,23 @@ func snippetFixture(t *testing.T) (*Handler, *db.DB, *domain.Website) {
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	bausteine := snippet.NewStore(database)
-	sn, err := bausteine.Create(ctx, ws.ID, "kontakt", "Kontakt", "Wir sind **da**.", html)
+	blocks := snippet.NewStore(database)
+	sn, err := blocks.Create(ctx, ws.ID, "kontakt", "Kontakt", "Wir sind **da**.", html)
 	if err != nil {
 		t.Fatalf("Textbaustein anlegen: %v", err)
 	}
 
-	if _, err := felder.Create(ctx, field.Def{
+	if _, err := fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "telefon", Label: "Telefon", Kind: field.KindText,
 		SnippetID: sn.ID}); err != nil {
 		t.Fatalf("Textbausteinfeld anlegen: %v", err)
 	}
 
-	roh, err := field.Encode(field.Data{Values: field.Values{"telefon": "07721 123456"}})
+	raw, err := field.Encode(field.Data{Values: field.Values{"telefon": "07721 123456"}})
 	if err != nil {
 		t.Fatalf("field.Encode: %v", err)
 	}
-	if err := bausteine.SetFields(ctx, ws.ID, sn.ID, roh); err != nil {
+	if err := blocks.SetFields(ctx, ws.ID, sn.ID, raw); err != nil {
 		t.Fatalf("SetFields: %v", err)
 	}
 	return h, database, ws
@@ -203,16 +203,16 @@ func TestSnippetsStaysTemplateHTML(t *testing.T) {
 	if _, ok := site.Snippets["kontakt"]; !ok {
 		t.Error(".Site.Snippets hat den Textbaustein verloren")
 	}
-	werte, ok := site.SnippetFields["kontakt"]
+	values, ok := site.SnippetFields["kontakt"]
 	if !ok {
 		t.Fatal(".Site.SnippetFields hat keinen Eintrag für einen Textbaustein ohne Felder — " +
 			"ein Theme, das durch ihn hindurchgreift, scheitert dann auf der Anfrage eines Besuchers")
 	}
-	if werte == nil {
+	if values == nil {
 		t.Error(".Site.SnippetFields carries a nil map instead of an empty one")
 	}
-	if len(werte) != 0 {
-		t.Errorf(".Site.SnippetFields carries %d values, expected none", len(werte))
+	if len(values) != 0 {
+		t.Errorf(".Site.SnippetFields carries %d values, expected none", len(values))
 	}
 	if _, ok := site.SnippetList["kontakt"]; ok {
 		t.Error(".Site.SnippetList trägt einen Eintrag ohne einen einzigen gefüllten Wert — " +
@@ -240,29 +240,29 @@ func TestSnippetFieldsOnSeveralRoutes(t *testing.T) {
 	ctx := context.Background()
 	h, database, ws := snippetFixture(t)
 
-	schlagworte := term.NewStore(database)
-	h.SetTermStore(schlagworte)
+	terms := term.NewStore(database)
+	h.SetTermStore(terms)
 
-	beitragHTML, err := page.RenderMarkdown("Ein Beitrag über Möbel.")
+	postHTML, err := page.RenderMarkdown("Ein Beitrag über Möbel.")
 	if err != nil {
 		t.Fatalf("RenderMarkdown: %v", err)
 	}
-	beitrag, err := page.NewStore(database).CreatePage(ctx, page.PageCreate{
+	post, err := page.NewStore(database).CreatePage(ctx, page.PageCreate{
 		WebsiteID: ws.ID, Title: "Beitrag", Slug: "beitrag",
-		Markdown: "Ein Beitrag über Möbel.", HTML: beitragHTML,
+		Markdown: "Ein Beitrag über Möbel.", HTML: postHTML,
 		Status: "published", Kind: "post",
 	})
 	if err != nil {
 		t.Fatalf("Beitrag anlegen: %v", err)
 	}
-	if err := schlagworte.SetForPage(ctx, ws.ID, beitrag.ID, []string{"Moebel"}); err != nil {
+	if err := terms.SetForPage(ctx, ws.ID, post.ID, []string{"Moebel"}); err != nil {
 		t.Fatalf("Schlagwort setzen: %v", err)
 	}
 	// The key is derived, not brought along — which is why it is read back here
 	// rather than guessed.
-	var schlagwortSlug string
+	var termSlug string
 	if err := database.Read.QueryRowContext(ctx,
-		`SELECT slug FROM terms WHERE website_id = $1 LIMIT 1`, ws.ID).Scan(&schlagwortSlug); err != nil {
+		`SELECT slug FROM terms WHERE website_id = $1 LIMIT 1`, ws.ID).Scan(&termSlug); err != nil {
 		t.Fatalf("Schlagwortkennung lesen: %v", err)
 	}
 
@@ -276,29 +276,29 @@ func TestSnippetFieldsOnSeveralRoutes(t *testing.T) {
 
 	routen := []struct {
 		name   string
-		datei  string
+		file   string
 		ziel   string
 		fahren func(http.ResponseWriter, *http.Request) error
 	}{
 		{
-			name:  "Schlagwortarchiv",
-			datei: "tag.go",
-			ziel:  "/tag/" + schlagwortSlug,
+			name: "Schlagwortarchiv",
+			file: "tag.go",
+			ziel: "/tag/" + termSlug,
 			fahren: func(w http.ResponseWriter, r *http.Request) error {
-				r.SetPathValue("slug", schlagwortSlug)
+				r.SetPathValue("slug", termSlug)
 				return h.HandleTag(w, r)
 			},
 		},
 		{
 			name:   "Suche",
-			datei:  "search.go",
+			file:   "search.go",
 			ziel:   "/suche?q=Beitrag",
 			fahren: h.HandleSearch,
 		},
 		{
-			name:  "Katalog",
-			datei: "shop.go",
-			ziel:  "/shop",
+			name: "Katalog",
+			file: "shop.go",
+			ziel: "/shop",
 			fahren: func(w http.ResponseWriter, r *http.Request) error {
 				return h.HandleShop(w, r, ws, "")
 			},
@@ -319,7 +319,7 @@ func TestSnippetFieldsOnSeveralRoutes(t *testing.T) {
 				t.Errorf("%s (%s): der Feldwert des Textbausteins fehlt — diese Route "+
 					"füllt .Site.SnippetFields nicht, und im Betrieb wäre der ganze "+
 					"Befund eine leere Stelle auf genau dieser Art von Seite:\n%s",
-					route.name, route.datei, body)
+					route.name, route.file, body)
 			}
 		})
 	}

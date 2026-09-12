@@ -110,18 +110,18 @@ func (h *Handler) translationLinks(r *http.Request, website *domain.Website, pg 
 	if !website.Multilingual() || h.pageStore == nil || pg == nil {
 		return nil
 	}
-	übersetzungen, err := h.pageStore.Translations(r.Context(), website.ID, pg)
+	translations, err := h.pageStore.Translations(r.Context(), website.ID, pg)
 	if err != nil {
 		slog.Error("load translations", "err", err, "page", pg.ID)
 		return nil
 	}
-	if len(übersetzungen) < 2 {
+	if len(translations) < 2 {
 		return nil
 	}
 
 	aktuell := LocaleFrom(r.Context())
-	out := make([]tmpl.LanguageLink, 0, len(übersetzungen))
-	for _, t := range übersetzungen {
+	out := make([]tmpl.LanguageLink, 0, len(translations))
+	for _, t := range translations {
 		out = append(out, tmpl.LanguageLink{
 			Code:   codeOf(t.Locale, website.Locale),
 			Name:   locale.Native(codeOf(t.Locale, website.Locale)),
@@ -138,9 +138,9 @@ func (h *Handler) translationLinks(r *http.Request, website *domain.Website, pg 
 // One field for a theme to read, so a theme author does not have to write the
 // fallback themselves — and get it wrong on the archive, where there is no page
 // to translate.
-func (h *Handler) switcher(übersetzungen []tmpl.LanguageLink, homes []tmpl.LanguageLink) []tmpl.LanguageLink {
-	if len(übersetzungen) > 0 {
-		return übersetzungen
+func (h *Handler) switcher(translations []tmpl.LanguageLink, homes []tmpl.LanguageLink) []tmpl.LanguageLink {
+	if len(translations) > 0 {
+		return translations
 	}
 	return homes
 }

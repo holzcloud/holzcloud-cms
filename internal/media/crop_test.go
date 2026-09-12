@@ -11,7 +11,7 @@ import (
 
 // An image with a recognisable spot: that way it can be checked what the crop
 // actually kept, rather than only counting the dimensions.
-func testBild(t *testing.T, pfad string, w, h int, punkt image.Point) {
+func testImage(t *testing.T, pfad string, w, h int, punkt image.Point) {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
@@ -61,7 +61,7 @@ func hatRot(t *testing.T, pfad string) bool {
 }
 
 // The rectangle has the chosen shape and is as large as fits inside.
-func TestZuschnittHatDieGewaehlteForm(t *testing.T) {
+func TestTheCropHasTheChosenShape(t *testing.T) {
 	c := Crop{Ratio: "1-1", Zoom: 100, FocusX: 50, FocusY: 50}
 	r := c.Rect(1600, 900)
 	if r.Dx() != r.Dy() {
@@ -80,7 +80,7 @@ func TestZuschnittHatDieGewaehlteForm(t *testing.T) {
 // The focus point pulls the rectangle towards itself — but never past the edge.
 // A crop that stood out would have to be filled with something, and there is
 // nothing it could honestly be filled with.
-func TestZuschnittFolgtDemFokusUndBleibtImBild(t *testing.T) {
+func TestTheCropFollowsTheFocusAndStaysInThePicture(t *testing.T) {
 	c := Crop{Ratio: "1-1", Zoom: 100, FocusX: 10, FocusY: 50}
 	r := c.Rect(1600, 900)
 	if r.Min.X != 0 {
@@ -101,7 +101,7 @@ func TestZuschnittFolgtDemFokusUndBleibtImBild(t *testing.T) {
 }
 
 // Values out of a form must never lead to an image of zero pixels.
-func TestUnsinnigeWerteWerdenGebaendigt(t *testing.T) {
+func TestNonsensicalValuesAreTamed(t *testing.T) {
 	c := Crop{Rotation: 37, Ratio: "gibtsnicht", Zoom: -5, FocusX: -20, FocusY: 500}.Normalise()
 	if c.Rotation != 0 || c.Ratio != "" || c.Zoom != 100 || c.FocusX != 0 || c.FocusY != 100 {
 		t.Errorf("got %+v", c)
@@ -113,10 +113,10 @@ func TestUnsinnigeWerteWerdenGebaendigt(t *testing.T) {
 
 // A quarter turn moves pixels, it does not recompute them — the dimensions
 // simply swap places.
-func TestDrehungTauschtBreiteUndHoehe(t *testing.T) {
+func TestARotationSwapsWidthAndHeight(t *testing.T) {
 	dir := t.TempDir()
 	pfad := filepath.Join(dir, "bild.jpg")
-	testBild(t, pfad, 400, 200, image.Pt(200, 100))
+	testImage(t, pfad, 400, 200, image.Pt(200, 100))
 
 	w, h, err := ApplyCrop(dir, "bild.jpg", "image/jpeg", Crop{Rotation: 90}, 24)
 	if err != nil {
@@ -132,7 +132,7 @@ func TestDrehungTauschtBreiteUndHoehe(t *testing.T) {
 func TestZweiterZuschnittBeginntWiederBeimOriginal(t *testing.T) {
 	dir := t.TempDir()
 	pfad := filepath.Join(dir, "bild.jpg")
-	testBild(t, pfad, 1200, 800, image.Pt(600, 400))
+	testImage(t, pfad, 1200, 800, image.Pt(600, 400))
 
 	if _, _, err := ApplyCrop(dir, "bild.jpg", "image/jpeg",
 		Crop{Ratio: "1-1", Zoom: 200, FocusX: 50, FocusY: 50}, 24); err != nil {
@@ -161,7 +161,7 @@ func TestZweiterZuschnittBeginntWiederBeimOriginal(t *testing.T) {
 // Resetting restores the uploaded image and clears the copy away.
 func TestZuruecksetzenStelltDasOriginalWiederHer(t *testing.T) {
 	dir := t.TempDir()
-	testBild(t, filepath.Join(dir, "bild.jpg"), 1000, 500, image.Pt(500, 250))
+	testImage(t, filepath.Join(dir, "bild.jpg"), 1000, 500, image.Pt(500, 250))
 
 	if _, _, err := ApplyCrop(dir, "bild.jpg", "image/jpeg",
 		Crop{Ratio: "1-1", FocusX: 50, FocusY: 50}, 24); err != nil {
@@ -181,10 +181,10 @@ func TestZuruecksetzenStelltDasOriginalWiederHer(t *testing.T) {
 
 // And the proof of the whole thing: what the focus points at stays in; what
 // lies far away from it flies out.
-func TestDerFokusEntscheidetWasImBildBleibt(t *testing.T) {
+func TestTheFocusDecidesWhatStaysInThePicture(t *testing.T) {
 	dir := t.TempDir()
 	// Der rote Fleck sitzt ganz links.
-	testBild(t, filepath.Join(dir, "links.jpg"), 1200, 400, image.Pt(80, 200))
+	testImage(t, filepath.Join(dir, "links.jpg"), 1200, 400, image.Pt(80, 200))
 
 	if _, _, err := ApplyCrop(dir, "links.jpg", "image/jpeg",
 		Crop{Ratio: "1-1", FocusX: 5, FocusY: 50}, 24); err != nil {
@@ -195,7 +195,7 @@ func TestDerFokusEntscheidetWasImBildBleibt(t *testing.T) {
 	}
 
 	// The same spot, but the focus points to the right.
-	testBild(t, filepath.Join(dir, "rechts.jpg"), 1200, 400, image.Pt(80, 200))
+	testImage(t, filepath.Join(dir, "rechts.jpg"), 1200, 400, image.Pt(80, 200))
 	if _, _, err := ApplyCrop(dir, "rechts.jpg", "image/jpeg",
 		Crop{Ratio: "1-1", FocusX: 95, FocusY: 50}, 24); err != nil {
 		t.Fatal(err)

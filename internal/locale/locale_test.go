@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestGueltigeSprachkennungen(t *testing.T) {
+func TestValidLanguageTags(t *testing.T) {
 	for _, gut := range []string{"de", "fr", "en", "rm", "de-CH", "fr-CH", "pt-BR"} {
 		if !Valid(gut) {
 			t.Errorf("%q wurde abgelehnt", gut)
@@ -22,11 +22,11 @@ func TestGueltigeSprachkennungen(t *testing.T) {
 }
 
 func TestNormalisieren(t *testing.T) {
-	for roh, will := range map[string]string{
+	for raw, will := range map[string]string{
 		"DE": "de", "de_ch": "de-CH", " fr ": "fr", "FR-ch": "fr-CH", "de-CH": "de-CH",
 	} {
-		if got := Normalise(roh); got != will {
-			t.Errorf("Normalise(%q) = %q, want %q", roh, got, will)
+		if got := Normalise(raw); got != will {
+			t.Errorf("Normalise(%q) = %q, want %q", raw, got, will)
 		}
 	}
 }
@@ -49,7 +49,7 @@ func TestListeLesen(t *testing.T) {
 
 // Die Hauptsprache hat kein Präfix. Daran hängt, dass keine bestehende Adresse
 // sich ändert, wenn jemand eine zweite Sprache einschaltet.
-func TestHauptspracheOhnePraefix(t *testing.T) {
+func TestTheMainLanguageHasNoPrefix(t *testing.T) {
 	if p := Prefix("de", "de"); p != "" {
 		t.Errorf("Prefix(de, de) = %q, want leer", p)
 	}
@@ -99,7 +99,7 @@ func TestPraefixAbtrennen(t *testing.T) {
 
 // Eine Seite mit der Adresse „fr" wäre auf einer Website mit Französisch nie
 // erreichbar.
-func TestBelegteAdressen(t *testing.T) {
+func TestTakenAddresses(t *testing.T) {
 	if !Reserved("fr", []string{"fr", "it"}) {
 		t.Error("fr was not recognised as taken")
 	}

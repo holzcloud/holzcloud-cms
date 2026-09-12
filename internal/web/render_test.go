@@ -61,8 +61,8 @@ type testPageRow struct {
 	KindName   string
 }
 
-// testColumns steht für admin.ColumnSet: die Zeile fragt sie nach jeder
-// wählbaren Spalte.
+// testColumns stands in for admin.ColumnSet: the row asks it about every
+// selectable column.
 type testColumns struct{}
 
 func (testColumns) Has(string) bool { return true }
@@ -242,13 +242,12 @@ func TestUnknownLanguageFallsBackToTheSource(t *testing.T) {
 	}
 }
 
-// Der Fusszeile in der Seitenleiste liegt eine Pflicht zugrunde, keine
-// Verzierung: Abschnitt 13 der AGPL verlangt von jemandem, der eine veränderte
-// Fassung als Netzdienst betreibt, dass er den Benutzenden den Quelltext
-// anbietet. Der benannte Fehlerfall ist eine Fusszeile, die als leere Lücke
-// erscheint, weil ein Feld nie gelesen wurde — deshalb prüft das hier die ganze
-// Kette von LayoutData bis ins fertige HTML und nicht nur das Vorhandensein
-// einer Regel im Stylesheet.
+// Behind the footer in the sidebar lies an obligation, not an ornament: section
+// 13 of the AGPL requires somebody who runs a modified version as a network
+// service to offer the users the source. The named failure case is a footer
+// that appears as an empty gap because a field was never read — which is why
+// this checks the whole chain from LayoutData into the finished HTML and not
+// merely the presence of a rule in the stylesheet.
 func TestSidebarFooterShowsBuildAndLicence(t *testing.T) {
 	pt := adminTemplateFS(t)
 	rec := httptest.NewRecorder()
@@ -274,15 +273,15 @@ func TestSidebarFooterShowsBuildAndLicence(t *testing.T) {
 	if !strings.Contains(body, "AGPL") {
 		t.Error("die Lizenz wird nirgends genannt")
 	}
-	// 3 — das Angebot ist ein Link und kein blosser Text.
+	// 3 — the offer is a link and not mere text.
 	if !strings.Contains(body, `href="https://example.invalid/quelle"`) {
 		t.Error("the source-code address is not a link target")
 	}
 }
 
-// Ein ohne ldflags gebautes Programm muss trotzdem etwas anzeigen: „dev“ und
-// die vorgegebene Adresse sind besser als zwei leere Stellen. Der Test steht im
-// Paket web, also sind beide Paketvariablen erreichbar.
+// A program built without ldflags still has to show something: "dev" and the
+// default address are better than two empty spots. The test stands in package
+// web, so both package variables are reachable.
 func TestBuildStampNeverEmpty(t *testing.T) {
 	if buildVersion == "" || buildSource == "" {
 		t.Fatalf("Vorgabe leer: buildVersion=%q buildSource=%q", buildVersion, buildSource)

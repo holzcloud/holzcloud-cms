@@ -15,9 +15,9 @@ func testSender() *Sender {
 // The subject of a notification is typed by a stranger. A line break in it ends
 // the subject line and begins whatever the attacker writes next — a second
 // recipient, for instance.
-func TestKopfzeilenLassenSichNichtEinschleusen(t *testing.T) {
+func TestHeadersCannotBeInjected(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{
+	raw := s.compose(Message{
 		To:      "eva@example.test",
 		Subject: "Anfrage\r\nBcc: opfer@example.test",
 		Body:    "Text.",
@@ -26,9 +26,9 @@ func TestKopfzeilenLassenSichNichtEinschleusen(t *testing.T) {
 	// The break becomes a space: "Bcc:" then stands in the middle of the subject
 	// line and is text, not a header. What is checked is therefore that no line
 	// starts with it — and that there is still exactly one subject line.
-	kopf, _, _ := strings.Cut(roh, "\r\n\r\n")
-	for _, zeile := range strings.Split(kopf, "\r\n") {
-		if strings.HasPrefix(strings.ToLower(zeile), "bcc:") {
+	kopf, _, _ := strings.Cut(raw, "\r\n\r\n")
+	for _, row := range strings.Split(kopf, "\r\n") {
+		if strings.HasPrefix(strings.ToLower(row), "bcc:") {
 			t.Errorf("eine zweite Kopfzeile kam durch:\n%s", kopf)
 		}
 	}
@@ -39,16 +39,16 @@ func TestKopfzeilenLassenSichNichtEinschleusen(t *testing.T) {
 
 // The same for the recipient and the reply address: both come out of a
 // visitor's form when a plugin sends a notification.
-func TestEmpfaengerUndAntwortadresseWerdenGesaeubert(t *testing.T) {
+func TestRecipientAndReplyAddressAreCleaned(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{
+	raw := s.compose(Message{
 		To:      "eva@example.test",
 		ReplyTo: "besucher@example.test\r\nBcc: opfer@example.test",
 		Subject: "Anfrage",
 		Body:    "Text.",
 	})
 	// Here the answer is stricter: what is not an address flies out entirely.
-	kopf, _, _ := strings.Cut(roh, "\r\n\r\n")
+	kopf, _, _ := strings.Cut(raw, "\r\n\r\n")
 	if strings.Contains(kopf, "Reply-To:") {
 		t.Errorf("the mangled reply address was taken over:\n%s", kopf)
 	}
@@ -56,14 +56,14 @@ func TestEmpfaengerUndAntwortadresseWerdenGesaeubert(t *testing.T) {
 
 // A clean reply address has to arrive, though — it is the reason replying to an
 // enquiry is one click.
-func TestSaubereAntwortadresseBleibt(t *testing.T) {
+func TestACleanReplyAddressStays(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{
+	raw := s.compose(Message{
 		To: "eva@example.test", ReplyTo: "besucher@example.test",
 		Subject: "Anfrage", Body: "Text.",
 	})
-	if !strings.Contains(roh, "Reply-To: besucher@example.test\r\n") {
-		t.Errorf("die Antwortadresse fehlt:\n%s", roh)
+	if !strings.Contains(raw, "Reply-To: besucher@example.test\r\n") {
+		t.Errorf("die Antwortadresse fehlt:\n%s", raw)
 	}
 }
 
@@ -73,12 +73,12 @@ func TestSaubereAntwortadresseBleibt(t *testing.T) {
 // what happened.
 func TestComposeMaskiertDenPunktNicht(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{
+	raw := s.compose(Message{
 		To:      "eva@example.test",
 		Subject: "Anfrage",
 		Body:    "Erste Zeile\n.\nZweite Zeile",
 	})
-	_, rumpf, _ := strings.Cut(roh, "\r\n\r\n")
+	_, rumpf, _ := strings.Cut(raw, "\r\n\r\n")
 	if strings.Contains(rumpf, "\r\n..") {
 		t.Errorf("the dot was already doubled here:\n%q", rumpf)
 	}
@@ -91,10 +91,10 @@ func TestComposeMaskiertDenPunktNicht(t *testing.T) {
 // mail programs.
 func TestUmlauteImBetreffWerdenKodiert(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{
+	raw := s.compose(Message{
 		To: "eva@example.test", Subject: "Anfrage zu Grösse M", Body: "x",
 	})
-	kopf, _, _ := strings.Cut(roh, "\r\n\r\n")
+	kopf, _, _ := strings.Cut(raw, "\r\n\r\n")
 	if strings.Contains(kopf, "Grösse") {
 		t.Errorf("the umlaut is raw in the header row:\n%s", kopf)
 	}
@@ -107,9 +107,9 @@ func TestUmlauteImBetreffWerdenKodiert(t *testing.T) {
 // encoded headers are a spam signal.
 func TestEinfacherBetreffBleibtLesbar(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{To: "eva@example.test", Subject: "Neue Anfrage", Body: "x"})
-	if !strings.Contains(roh, "Subject: Neue Anfrage\r\n") {
-		t.Errorf("the subject was changed without need:\n%s", roh)
+	raw := s.compose(Message{To: "eva@example.test", Subject: "Neue Anfrage", Body: "x"})
+	if !strings.Contains(raw, "Subject: Neue Anfrage\r\n") {
+		t.Errorf("the subject was changed without need:\n%s", raw)
 	}
 }
 
@@ -119,18 +119,18 @@ func TestAnzeigenameWirdInAnfuehrungszeichenGesetzt(t *testing.T) {
 		Host: "mail.example.test", From: "cms@example.test",
 		FromName: `Velowerkstatt, Musterhausen`,
 	})
-	roh := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "x"})
-	if !strings.Contains(roh, `From: "Velowerkstatt, Musterhausen" <cms@example.test>`) {
-		t.Errorf("the display name was not escaped:\n%s", roh)
+	raw := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "x"})
+	if !strings.Contains(raw, `From: "Velowerkstatt, Musterhausen" <cms@example.test>`) {
+		t.Errorf("the display name was not escaped:\n%s", raw)
 	}
 }
 
 // Every line in the body needs CRLF, or some servers count the message as one
 // single very long line.
-func TestZeilenendenWerdenVereinheitlicht(t *testing.T) {
+func TestLineEndingsAreUnified(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "eins\nzwei\r\ndrei\rvier"})
-	_, rumpf, _ := strings.Cut(roh, "\r\n\r\n")
+	raw := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "eins\nzwei\r\ndrei\rvier"})
+	_, rumpf, _ := strings.Cut(raw, "\r\n\r\n")
 	if strings.Contains(strings.ReplaceAll(rumpf, "\r\n", ""), "\n") ||
 		strings.Contains(strings.ReplaceAll(rumpf, "\r\n", ""), "\r") {
 		t.Errorf("single line endings were left over: %q", rumpf)
@@ -141,8 +141,8 @@ func TestZeilenendenWerdenVereinheitlicht(t *testing.T) {
 // the mailbox is full.
 func TestNachrichtIstAlsMaschinellMarkiert(t *testing.T) {
 	s := testSender()
-	roh := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "x"})
-	if !strings.Contains(roh, "Auto-Submitted: auto-generated") {
+	raw := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "x"})
+	if !strings.Contains(raw, "Auto-Submitted: auto-generated") {
 		t.Error("the message is not marked as machine-generated")
 	}
 }
@@ -157,7 +157,7 @@ func TestOhneEinrichtungWirdNichtsVerschickt(t *testing.T) {
 	}
 }
 
-func TestAdressenWerdenGeprueft(t *testing.T) {
+func TestAddressesAreChecked(t *testing.T) {
 	for _, schlecht := range []string{"", "keine-adresse", "@example.test", "eva@", "eva@a\r\nBcc: x@y"} {
 		if err := validAddress(schlecht); err == nil {
 			t.Errorf("%q wurde als Adresse angenommen", schlecht)

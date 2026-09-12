@@ -16,7 +16,7 @@ import (
 // form, back on redrawing. What the store keeps is of no use to anybody if the
 // form does not show it again the next time it is opened — then it gets entered
 // afresh every time and the only sign that it did not arrive is the result.
-func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
+func TestAFieldDefinitionCarriesTheFourProperties(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 	fields := field.NewStore(database)
@@ -117,7 +117,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 	// The two bounds stand in their boxes again. What is measured is the
 	// section around the respective box, not the whole page: a value="1"
 	// somewhere else in the document would be no proof.
-	for _, will := range []struct{ name, wert string }{{"min_wert", "1"}, {"max_wert", "9"}} {
+	for _, will := range []struct{ name, value string }{{"min_wert", "1"}, {"max_wert", "9"}} {
 		at := strings.Index(html, `name="`+will.name+`"`)
 		if at < 0 {
 			continue // schon oben gemeldet
@@ -126,19 +126,19 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		if ende > len(html) {
 			ende = len(html)
 		}
-		if !strings.Contains(html[at:ende], `value="`+will.wert+`"`) {
-			t.Errorf("%s does not read %q again when redrawn", will.name, will.wert)
+		if !strings.Contains(html[at:ende], `value="`+will.value+`"`) {
+			t.Errorf("%s does not read %q again when redrawn", will.name, will.value)
 		}
 	}
 
 	// And the same for the presentation, on the field it belongs to.
-	reqAuswahl := postForm("/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
+	reqChoice := postForm("/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
 		url.Values{}, map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
-	reqAuswahl.Method = "GET"
-	qa := reqAuswahl.URL.Query()
+	reqChoice.Method = "GET"
+	qa := reqChoice.URL.Query()
 	qa.Set("aendern", strconv.FormatInt(defs[0].ID, 10))
-	reqAuswahl.URL.RawQuery = qa.Encode()
-	if html := serve(t, h, sm, h.HandleFieldList, reqAuswahl).Body.String(); !strings.Contains(
+	reqChoice.URL.RawQuery = qa.Encode()
+	if html := serve(t, h, sm, h.HandleFieldList, reqChoice).Body.String(); !strings.Contains(
 		html, `value="knopfreihe" selected`) {
 		t.Error("the stored display is not selected when redrawn")
 	}
@@ -151,12 +151,12 @@ func TestVerdrehteGrenzenWerdenGemeldetUndNichtGespeichert(t *testing.T) {
 	ctx := context.Background()
 	fields := field.NewStore(database)
 
-	var meldung web.Flash
+	var message web.Flash
 	rec := serve(t, h, sm, func(w http.ResponseWriter, r *http.Request) error {
 		if err := h.HandleFieldSave(w, r); err != nil {
 			return err
 		}
-		meldung = web.GetFlash(sm, r.Context())
+		message = web.GetFlash(sm, r.Context())
 		return nil
 	}, postForm(
 		"/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/felder",
@@ -177,10 +177,10 @@ func TestVerdrehteGrenzenWerdenGemeldetUndNichtGespeichert(t *testing.T) {
 	if len(defs) != 0 {
 		t.Fatalf("die Definition wurde trotz verdrehter Grenzen gespeichert: %+v", defs)
 	}
-	if meldung.Error == "" {
-		t.Fatalf("nothing was reported — the refusal would be invisible: %+v", meldung)
+	if message.Error == "" {
+		t.Fatalf("nothing was reported — the refusal would be invisible: %+v", message)
 	}
-	if !strings.Contains(meldung.Error, "limit") {
-		t.Errorf("die Meldung nennt die Grenze nicht: %q", meldung.Error)
+	if !strings.Contains(message.Error, "limit") {
+		t.Errorf("die Meldung nennt die Grenze nicht: %q", message.Error)
 	}
 }

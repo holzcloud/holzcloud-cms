@@ -10,7 +10,7 @@ import (
 // The key is derived once from the label and then stands for good. It is the
 // name the theme addresses the field by and the name every stored value sits
 // under — if it moves, every value is silently gone.
-func TestKennungAusBeschriftung(t *testing.T) {
+func TestAKeyOutOfALabel(t *testing.T) {
 	cases := map[string]string{
 		"Preis":          "preis",
 		"Preis pro Kilo": "preis_pro_kilo",
@@ -32,7 +32,7 @@ func TestKennungAusBeschriftung(t *testing.T) {
 }
 
 // A link field must not be a way to get javascript: into a theme.
-func TestLinkPruefung(t *testing.T) {
+func TestLinkCheck(t *testing.T) {
 	d := Def{Label: "Ziel", Kind: KindLink}
 
 	for _, gut := range []string{
@@ -54,7 +54,7 @@ func TestLinkPruefung(t *testing.T) {
 }
 
 // The checks say what the editor should change — not what Go reported.
-func TestPruefungen(t *testing.T) {
+func TestTheChecks(t *testing.T) {
 	zahl := Def{Label: "Preis", Kind: KindNumber}
 	if r := Check(zahl, "8.50"); !r.Empty() {
 		t.Errorf("8.50 abgelehnt: %q", r)
@@ -75,17 +75,17 @@ func TestPruefungen(t *testing.T) {
 		t.Error("Datum im falschen Format durchgelassen")
 	}
 
-	auswahl := Def{Label: "Zustand", Kind: KindChoice, Choices: []string{"frisch", "vergriffen"}}
-	if r := Check(auswahl, "frisch"); !r.Empty() {
+	choice := Def{Label: "Zustand", Kind: KindChoice, Choices: []string{"frisch", "vergriffen"}}
+	if r := Check(choice, "frisch"); !r.Empty() {
 		t.Errorf("valid choice refused: %q", r)
 	}
 	// The most important case: the <select> can be bypassed, the check cannot.
-	if r := Check(auswahl, "erfunden"); r.Empty() {
+	if r := Check(choice, "erfunden"); r.Empty() {
 		t.Error("an option that does not exist was accepted")
 	}
 
-	pflicht := Def{Label: "Preis", Kind: KindText, Required: true}
-	if r := Check(pflicht, "   "); r.Empty() {
+	required := Def{Label: "Preis", Kind: KindText, Required: true}
+	if r := Check(required, "   "); r.Empty() {
 		t.Error("Leerzeichen als Pflichtangabe angenommen")
 	}
 	if r := Check(Def{Label: "Preis", Kind: KindText}, ""); !r.Empty() {
@@ -140,7 +140,7 @@ func TestAufloesenLiefertTypen(t *testing.T) {
 		{Key: "bild", Kind: KindImage},
 		{Key: "notiz", Kind: KindText},
 	}
-	bilder := func(id int64) (Image, bool) {
+	images := func(id int64) (Image, bool) {
 		if id == 7 {
 			return Image{URL: "/media/1/hund.jpg", Alt: "Ein Hund"}, true
 		}
@@ -148,7 +148,7 @@ func TestAufloesenLiefertTypen(t *testing.T) {
 	}
 	got := Resolve(defs, Data{Values: Values{
 		"preis": "8,50", "verfuegbar": "1", "wurf": "2026-04-01", "bild": "7", "notiz": "Text",
-	}}, Links{Image: bilder})
+	}}, Links{Image: images})
 
 	if n, ok := got["preis"].(Number); !ok || n.Value != 8.5 {
 		t.Errorf("preis = %#v", got["preis"])
@@ -172,7 +172,7 @@ func TestAufloesenLiefertTypen(t *testing.T) {
 
 // A field with no value still has to be in the result, or
 // {{ .Page.Fields.preis }} fails on the one page that has no price.
-func TestLeereFelderStehenTrotzdemDa(t *testing.T) {
+func TestEmptyFieldsStandThereAllTheSame(t *testing.T) {
 	defs := []Def{
 		{Key: "preis", Kind: KindNumber},
 		{Key: "bild", Kind: KindImage},
@@ -193,7 +193,7 @@ func TestLeereFelderStehenTrotzdemDa(t *testing.T) {
 }
 
 // A deleted image must not produce a broken <img>.
-func TestVerschwundenesBildWirdNil(t *testing.T) {
+func TestAVanishedImageBecomesNil(t *testing.T) {
 	got := Resolve([]Def{{Key: "bild", Kind: KindImage}}, Data{Values: Values{"bild": "99"}},
 		Links{Image: func(int64) (Image, bool) { return Image{}, false }})
 	if img := got["bild"].(*Image); img != nil {
@@ -208,13 +208,13 @@ func TestGiltFuer(t *testing.T) {
 		{Key: "autor", AppliesTo: ForPost},
 		{Key: "notiz", AppliesTo: ForBoth},
 	}
-	seite := For(defs, "page")
-	if len(seite) != 2 || seite[0].Key != "preis" || seite[1].Key != "notiz" {
-		t.Errorf("Seite bekommt %v", keys(seite))
+	page := For(defs, "page")
+	if len(page) != 2 || page[0].Key != "preis" || page[1].Key != "notiz" {
+		t.Errorf("Seite bekommt %v", keys(page))
 	}
-	beitrag := For(defs, "post")
-	if len(beitrag) != 2 || beitrag[0].Key != "autor" {
-		t.Errorf("Beitrag bekommt %v", keys(beitrag))
+	post := For(defs, "post")
+	if len(post) != 2 || post[0].Key != "autor" {
+		t.Errorf("Beitrag bekommt %v", keys(post))
 	}
 }
 
@@ -228,7 +228,7 @@ func keys(defs []Def) []string {
 
 // --- Gruppen -----------------------------------------------------------------
 
-func gruppe() Def {
+func group() Def {
 	return Def{Key: "preisstaffel", Label: "Preisstaffel", Kind: KindGroup, Sub: []Def{
 		{Key: "ab_menge", Label: "Ab Menge", Kind: KindNumber},
 		{Key: "preis", Label: "Preis", Kind: KindNumber, Required: true},
@@ -238,12 +238,12 @@ func gruppe() Def {
 
 // A group travels as a list of its own through saving and reading. If the
 // order were lost on the way, the tier "from 10" would stand before "from 1".
-func TestGruppeUeberlebtSpeichern(t *testing.T) {
-	daten := Data{Rows: map[string][]Values{"preisstaffel": {
+func TestAGroupSurvivesSaving(t *testing.T) {
+	data := Data{Rows: map[string][]Values{"preisstaffel": {
 		{"ab_menge": "1", "preis": "8,50", "einheit": "Stück"},
 		{"ab_menge": "10", "preis": "7,00", "einheit": "Stück"},
 	}}}
-	raw, err := Encode(daten)
+	raw, err := Encode(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,8 +270,8 @@ func TestAlteFlacheFormWirdGelesen(t *testing.T) {
 }
 
 // An empty row is not a row: emptying every field removes it.
-func TestLeereZeilenVerschwinden(t *testing.T) {
-	g := gruppe()
+func TestEmptyRowsDisappear(t *testing.T) {
+	g := group()
 	out := Clean([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
 		{"ab_menge": "1", "preis": "8,50"},
 		{"ab_menge": "  ", "preis": ""},
@@ -292,8 +292,8 @@ func TestLeereZeilenVerschwinden(t *testing.T) {
 
 // A row with a wrong value is named — with its number, or somebody searches
 // twenty rows for the one.
-func TestZeileWirdBenannt(t *testing.T) {
-	g := gruppe()
+func TestARowIsNamed(t *testing.T) {
+	g := group()
 	errs := CheckAll([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
 		{"ab_menge": "1", "preis": "8,50", "einheit": "Stück"},
 		{"ab_menge": "10", "preis": "teuer", "einheit": "Stück"},
@@ -308,8 +308,8 @@ func TestZeileWirdBenannt(t *testing.T) {
 }
 
 // A required group with no row is an error, and it belongs to the group.
-func TestPflichtgruppeBrauchtEineZeile(t *testing.T) {
-	g := gruppe()
+func TestARequiredGroupNeedsARow(t *testing.T) {
+	g := group()
 	g.Required = true
 	errs := CheckAll([]Def{g}, Data{})
 	if _, da := errs["preisstaffel"]; !da {
@@ -318,8 +318,8 @@ func TestPflichtgruppeBrauchtEineZeile(t *testing.T) {
 }
 
 // The theme gets the rows resolved — with types, like a single field.
-func TestGruppeAufgeloest(t *testing.T) {
-	g := gruppe()
+func TestAGroupResolved(t *testing.T) {
+	g := group()
 	got := Resolve([]Def{g}, Data{Rows: map[string][]Values{"preisstaffel": {
 		{"ab_menge": "1", "preis": "8,50", "einheit": "Stück"},
 	}}}, Links{})
@@ -346,15 +346,15 @@ func TestGruppeAufgeloest(t *testing.T) {
 
 // A group with no rows is not in the list: a heading with nothing under it
 // says less than nothing.
-func TestLeereGruppeStehtNichtInDerListe(t *testing.T) {
-	if list := List([]Def{gruppe()}, Data{}, Links{}); len(list) != 0 {
+func TestAnEmptyGroupDoesNotStandInTheList(t *testing.T) {
+	if list := List([]Def{group()}, Data{}, Links{}); len(list) != 0 {
 		t.Errorf("Liste = %#v, want leer", list)
 	}
 }
 
 // A reference is resolved through the lookup — which decides whether the
 // target page may be shown at all.
-func TestVerweisWirdAufgeloest(t *testing.T) {
+func TestAReferenceIsResolved(t *testing.T) {
 	defs := []Def{{Key: "produkt", Kind: KindRef}}
 	got := Resolve(defs, Data{Values: Values{"produkt": "42"}}, Links{
 		Page: func(id int64) (Ref, bool) {
@@ -375,7 +375,7 @@ func TestVerweisWirdAufgeloest(t *testing.T) {
 
 // Deleted, moved or still a draft: the theme gets nothing, not a link into the
 // void. That is the same rule as for the image.
-func TestVerweisAufNichtSichtbaresWirdNil(t *testing.T) {
+func TestAReferenceToSomethingInvisibleBecomesNil(t *testing.T) {
 	defs := []Def{{Key: "produkt", Kind: KindRef}}
 	got := Resolve(defs, Data{Values: Values{"produkt": "42"}}, Links{
 		Page: func(int64) (Ref, bool) { return Ref{}, false },
@@ -391,7 +391,7 @@ func TestVerweisAufNichtSichtbaresWirdNil(t *testing.T) {
 }
 
 // What comes out of the form is a number or it is nothing.
-func TestVerweisPruefung(t *testing.T) {
+func TestReferenceCheck(t *testing.T) {
 	d := Def{Label: "Produkt", Kind: KindRef}
 	if reason := Check(d, "17"); !reason.Empty() {
 		t.Errorf("Check(17) = %q, want nichts", reason)
@@ -405,7 +405,7 @@ func TestVerweisPruefung(t *testing.T) {
 
 // A field can belong to a content kind of its own — a price belongs on a
 // product and on nothing else.
-func TestFeldGiltFuerEigeneArt(t *testing.T) {
+func TestAFieldAppliesToAnOwnKind(t *testing.T) {
 	defs := []Def{
 		{Key: "preis", AppliesTo: "produkt"},
 		{Key: "autor", AppliesTo: ForPost},
@@ -434,7 +434,7 @@ func TestFeldGiltFuerEigeneArt(t *testing.T) {
 
 // A conditional field is not demanded as long as nobody can see it. A required
 // field that blocks invisibly is the fault this check exists to prevent.
-func TestBedingtesPflichtfeldBlockiertNicht(t *testing.T) {
+func TestAConditionalRequiredFieldDoesNotBlock(t *testing.T) {
 	defs := []Def{
 		{Key: "angebot", Label: "Im Angebot", Kind: KindBool},
 		{Key: "sonderpreis", Label: "Sonderpreis", Kind: KindNumber, Required: true, Condition: "angebot"},
@@ -454,7 +454,7 @@ func TestBedingtesPflichtfeldBlockiertNicht(t *testing.T) {
 // The value stays put but is not printed as long as the condition is not met:
 // an accidentally cleared tick must cost nobody their input, and the theme
 // still must show none of it.
-func TestBedingterWertBleibtUndWirktNicht(t *testing.T) {
+func TestAConditionalValueStaysAndHasNoEffect(t *testing.T) {
 	defs := []Def{
 		{Key: "angebot", Label: "Im Angebot", Kind: KindBool},
 		{Key: "sonderpreis", Label: "Sonderpreis", Kind: KindNumber, Condition: "angebot"},
@@ -480,7 +480,7 @@ func TestBedingterWertBleibtUndWirktNicht(t *testing.T) {
 
 // A chain: C hangs off B, B hangs off A. If A falls away both fall away — and
 // regardless of the order the fields stand in.
-func TestBedingungsketteFaelltGanz(t *testing.T) {
+func TestAChainOfConditionsFallsEntirely(t *testing.T) {
 	defs := []Def{
 		{Key: "c", Kind: KindText, Condition: "b"},
 		{Key: "b", Kind: KindText, Condition: "a"},
@@ -497,7 +497,7 @@ func TestBedingungsketteFaelltGanz(t *testing.T) {
 
 // A condition pointing at a field that does not exist is none: otherwise the
 // field would be unreachable for good and nobody would see why.
-func TestBedingungInsLeereZeigtNichts(t *testing.T) {
+func TestAConditionPointingAtNothingShowsNothing(t *testing.T) {
 	defs := []Def{{Key: "preis", Kind: KindNumber, Condition: "gibtsnicht"}}
 	if hidden := Hidden(defs, Values{}); len(hidden) != 0 {
 		t.Errorf("versteckt: %v", hidden)
@@ -505,7 +505,7 @@ func TestBedingungInsLeereZeigtNichts(t *testing.T) {
 }
 
 // A section is a heading: no value, no check, nothing in the theme.
-func TestAbschnittHatKeinenWert(t *testing.T) {
+func TestASectionHasNoValue(t *testing.T) {
 	defs := []Def{
 		{Key: "masse", Label: "Masse", Kind: KindSection, Required: true},
 		{Key: "hoehe", Label: "Höhe", Kind: KindNumber},
@@ -524,7 +524,7 @@ func TestAbschnittHatKeinenWert(t *testing.T) {
 
 // What a condition may hang off is decided by the browser: whatever it cannot
 // recognise as "filled in" is not offered in the first place.
-func TestWoranEineBedingungHaengenDarf(t *testing.T) {
+func TestWhatAConditionMayHangOn(t *testing.T) {
 	// KindRange deliberately stays in: the note in the roadmap to exclude it
 	// rested on the assumption of a slider. A number field does show a
 	// placeholder — observed in the browser pass of plan 07-07 and not merely
@@ -560,7 +560,7 @@ func TestWoranEineBedingungHaengenDarf(t *testing.T) {
 // A time of day is a time of day and not a string that happens to contain a
 // colon. Depending on the device the browser sends it with or without seconds
 // — both have to get through.
-func TestZeitPruefung(t *testing.T) {
+func TestTimeOfDayCheck(t *testing.T) {
 	zeit := Def{Label: "Abfahrt", Kind: KindTime}
 	for _, gut := range []string{"09:30", "00:00", "23:59", "09:30:00"} {
 		if r := Check(zeit, gut); !r.Empty() {
@@ -643,7 +643,7 @@ func TestZeitStehtAlsTextInDerListe(t *testing.T) {
 
 // A range field's bounds, measured at each edge separately. The bound itself is
 // a valid value; one step beyond it is not.
-func TestBereichPruefung(t *testing.T) {
+func TestRangeCheck(t *testing.T) {
 	cases := []struct {
 		name       string
 		unten, obn string
@@ -707,9 +707,9 @@ func TestLeererBereichIstNichtNull(t *testing.T) {
 	if r := Check(kann, ""); !r.Empty() {
 		t.Errorf("leeres Kannfeld abgelehnt: %q", r)
 	}
-	pflicht := kann
-	pflicht.Required = true
-	if r := Check(pflicht, ""); r.Empty() {
+	required := kann
+	required.Required = true
+	if r := Check(required, ""); r.Empty() {
 		t.Error("leeres Pflichtfeld angenommen")
 	} else if !strings.Contains(r.String(), "filled in") {
 		t.Errorf("the reason is not the usual required message: %q", r)
@@ -755,9 +755,9 @@ func TestBereichDrucktDasGetippte(t *testing.T) {
 // an empty one stays out of the list.
 func TestCodeIstRoherText(t *testing.T) {
 	d := Def{Key: "schnipsel", Label: "Schnipsel", Kind: KindCode}
-	roh := "<b>fett</b> & \"Anführung\"\n  eingerückt"
-	got := Resolve([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})
-	if got["schnipsel"] != roh {
+	raw := "<b>fett</b> & \"Anführung\"\n  eingerückt"
+	got := Resolve([]Def{d}, Data{Values: Values{"schnipsel": raw}}, Links{})
+	if got["schnipsel"] != raw {
 		t.Errorf("snippet = %#v, wanted the raw text unchanged", got["schnipsel"])
 	}
 	// And explicitly as a string and not as template.HTML: a theme gets a
@@ -767,15 +767,15 @@ func TestCodeIstRoherText(t *testing.T) {
 	if _, istString := got["schnipsel"].(string); !istString {
 		t.Errorf("snippet is %T and not a string — is it still escaped?", got["schnipsel"])
 	}
-	if e := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})[0]; e.Kind != KindCode {
+	if e := List([]Def{d}, Data{Values: Values{"schnipsel": raw}}, Links{})[0]; e.Kind != KindCode {
 		t.Errorf("der Eintrag nennt seine Art als %q", e.Kind)
 	}
 	// Check accepts any text: there is no wrong line of code.
-	if r := Check(d, roh); !r.Empty() {
+	if r := Check(d, raw); !r.Empty() {
 		t.Errorf("Code abgelehnt: %q", r)
 	}
-	list := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})
-	if len(list) != 1 || list[0].Text != roh {
+	list := List([]Def{d}, Data{Values: Values{"schnipsel": raw}}, Links{})
+	if len(list) != 1 || list[0].Text != raw {
 		t.Errorf("list = %+v, wanted an entry with the raw text", list)
 	}
 	if len(List([]Def{d}, Data{}, Links{})) != 0 {
@@ -817,8 +817,8 @@ func TestNeueArtenStehenInBeidenListen(t *testing.T) {
 // JavaScript, and this program carries none of it besides htmx. So the maximum
 // holds here, on the server, or nowhere.
 
-func TestMehrfachauswahlHoechstzahl(t *testing.T) {
-	auswahl := []string{"Eiche", "Buche", "Esche", "Erle"}
+func TestAMultipleChoiceMaximum(t *testing.T) {
+	choice := []string{"Eiche", "Buche", "Esche", "Erle"}
 	cases := []struct {
 		name     string
 		max      int
@@ -837,7 +837,7 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 	}
 	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
-			d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: auswahl, MaxValues: f.max}
+			d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: choice, MaxValues: f.max}
 			for _, gut := range f.gut {
 				if r := Check(d, gut); !r.Empty() {
 					t.Errorf("%q abgelehnt: %q", gut, r)
@@ -864,7 +864,7 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 
 // Exactly the maximum still passes, one more does not. The edge is the whole
 // question — a limit you have to guess the inclusiveness of is not one.
-func TestMehrfachauswahlGenauAmRand(t *testing.T) {
+func TestAMultipleChoiceExactlyAtTheEdge(t *testing.T) {
 	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti,
 		Choices: []string{"a", "b", "c"}, MaxValues: 3}
 	if r := Check(d, "a\nb\nc"); !r.Empty() {
@@ -916,7 +916,7 @@ func TestGemeinsamesBytebudget(t *testing.T) {
 // In a multi-valued field the joined string is measured, not the longest single
 // value: three values of two thirds of the room each do not fit side by side,
 // even though each fits on its own.
-func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
+func TestTheByteBudgetAppliesToAllValuesTogether(t *testing.T) {
 	kurz := strings.Repeat("a", MaxValueBytes/2)
 	lang := kurz + "a"
 	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: []string{kurz, lang}}
@@ -951,8 +951,8 @@ func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
 
 	// In einer Gruppenzeile ebenso.
 	g := Def{Key: "staffel", Label: "Staffel", Kind: KindGroup, Sub: []Def{d}}
-	zeilen := Clean([]Def{g}, Data{Rows: map[string][]Values{"staffel": {{"notiz": zuLang}}}})
-	if got := zeilen.Rows["staffel"][0]["notiz"]; got != zuLang {
+	rows := Clean([]Def{g}, Data{Rows: map[string][]Values{"staffel": {{"notiz": zuLang}}}})
+	if got := rows.Rows["staffel"][0]["notiz"]; got != zuLang {
 		t.Errorf("%d bytes were stored in the row, wanted %d", len(got), len(zuLang))
 	}
 
@@ -973,7 +973,7 @@ func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
 // is not: it is a question to nobody, it says how much room a value has in the
 // row that gets written. That one is guarded by
 // TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden.
-func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
+func TestAHiddenMultiValuedFieldIsNotChecked(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
 	sorten := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Required: true,
 		Choices: []string{"Eiche", "Buche"}, MaxValues: 1, Condition: "spezial"}
@@ -1003,7 +1003,7 @@ func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 // promise is also why the kind must not appear in any block kind: a block
 // freezes into HTML when the page is saved and could not keep it.
 
-func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
+func TestATermDoesNotStandInBlockKinds(t *testing.T) {
 	enthaelt := func(kinds []Kind, art string) bool {
 		for _, k := range kinds {
 			if k.Kind == art {
@@ -1052,7 +1052,7 @@ func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
 	}
 }
 
-func TestSchlagwortWirdAufgeloest(t *testing.T) {
+func TestATermIsResolved(t *testing.T) {
 	defs := []Def{{Key: "thema", Kind: KindTerm}}
 	got := Resolve(defs, Data{Values: Values{"thema": "moebel"}}, Links{
 		Term: func(slug string) (Term, bool) {
@@ -1076,7 +1076,7 @@ func TestSchlagwortWirdAufgeloest(t *testing.T) {
 
 // The four paths into nothing. Each yields the same typed nil, so that a
 // {{with}} in the theme leaves the block out instead of printing an old name.
-func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
+func TestATermWithNoMatchBecomesNil(t *testing.T) {
 	defs := []Def{{Key: "thema", Kind: KindTerm}}
 	treffer := func(slug string) (Term, bool) {
 		if slug == "moebel" {
@@ -1086,7 +1086,7 @@ func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
 	}
 	cases := []struct {
 		name  string
-		wert  string
+		value string
 		links Links
 	}{
 		{"kein Wert", "", Links{Term: treffer}},
@@ -1098,7 +1098,7 @@ func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
 	}
 	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
-			got := Resolve(defs, Data{Values: Values{"thema": f.wert}}, f.links)
+			got := Resolve(defs, Data{Values: Values{"thema": f.value}}, f.links)
 			term, ok := got["thema"].(*Term)
 			if !ok {
 				t.Fatalf("thema = %#v, want a typed nil *Term", got["thema"])
@@ -1110,12 +1110,12 @@ func TestSchlagwortOhneTrefferWirdNil(t *testing.T) {
 	}
 }
 
-func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
+func TestATermStandsInTheListWithItsName(t *testing.T) {
 	defs := []Def{
 		{Key: "thema", Label: "Thema", Kind: KindTerm},
 		{Key: "weg", Label: "Weg", Kind: KindTerm},
 	}
-	daten := Data{Values: Values{"thema": "moebel", "weg": "verschwunden"}}
+	data := Data{Values: Values{"thema": "moebel", "weg": "verschwunden"}}
 	links := Links{Term: func(slug string) (Term, bool) {
 		if slug != "moebel" {
 			return Term{}, false
@@ -1123,7 +1123,7 @@ func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
 		return Term{Name: "Möbelbau", Slug: "moebel", URL: "/tag/moebel"}, true
 	}}
 
-	liste := List(defs, daten, links)
+	liste := List(defs, data, links)
 	if len(liste) != 1 {
 		t.Fatalf("liste = %#v, wollte genau einen Eintrag", liste)
 	}
@@ -1137,7 +1137,7 @@ func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
 		t.Errorf("Text = %q, wollte den Namen", e.Text)
 	}
 
-	if !Filled(Resolve(defs, daten, links)) {
+	if !Filled(Resolve(defs, data, links)) {
 		t.Error("Filled reports nothing although a term is resolved")
 	}
 	// And with no hit the page is empty — otherwise only the text would
@@ -1149,7 +1149,7 @@ func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
 
 // What comes out of the form is a slug, or it is somebody typing into the form
 // by hand.
-func TestSchlagwortPruefung(t *testing.T) {
+func TestTermCheck(t *testing.T) {
 	d := Def{Label: "Thema", Kind: KindTerm}
 	for _, gut := range []string{"moebel", "moebel-nach-mass", "holz2024"} {
 		if reason := Check(d, gut); !reason.Empty() {
@@ -1170,7 +1170,7 @@ func TestSchlagwortPruefung(t *testing.T) {
 // budget still holds at all. If it were bypassed here, the limit would exist
 // nowhere for this class: the browser sends a hidden field's value along, and
 // somebody building the form by hand sends whatever they like.
-func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
+func TestAHiddenFieldStaysBoundToTheByteLimit(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
 	sorten := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Required: true,
 		Choices: []string{"Eiche", "Buche"}, MaxValues: 1, Condition: "spezial"}
@@ -1203,12 +1203,12 @@ func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 // The same hole one level down, with MaxRows rows times sub-fields as the
 // lever: validate empties the condition only for a field inside a group or
 // inside a block kind (store.go:521-523), so a top-level group may carry one.
-func TestVersteckteGruppeBleibtAnDieBytegrenzeGebunden(t *testing.T) {
+func TestAHiddenGroupStaysBoundToTheByteLimit(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
 	notiz := Def{Key: "notiz", Label: "Notiz", Kind: KindLong, Required: true}
-	gruppe := Def{Key: "staffel", Label: "Staffel", Kind: KindGroup, Required: true,
+	group := Def{Key: "staffel", Label: "Staffel", Kind: KindGroup, Required: true,
 		Condition: "spezial", Sub: []Def{notiz}}
-	defs := []Def{schalter, gruppe}
+	defs := []Def{schalter, group}
 
 	zuLang := strings.Repeat("x", MaxValueBytes+1)
 	aus := CheckAll(defs, Data{

@@ -7,10 +7,10 @@ import (
 
 // A plugin must get no script into the admin: it would run in the origin that
 // holds the session cookie.
-func TestPluginBildschirmOhneSkript(t *testing.T) {
-	roh := `<p>Hallo</p><script>alert(1)</script><img src="x" onerror="alert(2)">` +
+func TestAPluginScreenWithoutAScript(t *testing.T) {
+	raw := `<p>Hallo</p><script>alert(1)</script><img src="x" onerror="alert(2)">` +
 		`<a href="javascript:alert(3)">klick</a><iframe src="https://example.com"></iframe>`
-	out := string(SanitizeAdminHTML(roh))
+	out := string(SanitizeAdminHTML(raw))
 
 	for _, verboten := range []string{"<script", "onerror", "javascript:", "<iframe"} {
 		if strings.Contains(out, verboten) {
@@ -24,20 +24,20 @@ func TestPluginBildschirmOhneSkript(t *testing.T) {
 
 // A settings screen consists of forms — those have to survive, or a plugin can
 // offer nothing that can be operated.
-func TestPluginBildschirmBehaeltFormulare(t *testing.T) {
-	roh := `<form method="POST"><input type="hidden" name="aktion" value="speichern">` +
+func TestAPluginScreenKeepsItsForms(t *testing.T) {
+	raw := `<form method="POST"><input type="hidden" name="aktion" value="speichern">` +
 		`<label for="a">A</label><input type="text" id="a" name="a" value="1">` +
 		`<select name="b"><option value="x" selected>X</option></select>` +
 		`<textarea name="c" rows="3">Text</textarea>` +
 		`<button type="submit">Speichern</button></form>`
-	out := string(SanitizeAdminHTML(roh))
+	out := string(SanitizeAdminHTML(raw))
 
-	for _, nötig := range []string{
+	for _, wanted := range []string{
 		`<form`, `name="aktion"`, `value="speichern"`, `<label`, `<select`,
 		`<option`, `selected`, `<textarea`, `<button`,
 	} {
-		if !strings.Contains(out, nötig) {
-			t.Errorf("%q is missing after the cleaning: %s", nötig, out)
+		if !strings.Contains(out, wanted) {
+			t.Errorf("%q is missing after the cleaning: %s", wanted, out)
 		}
 	}
 }
@@ -81,8 +81,8 @@ func TestSchluesselNurWoEinFormularIst(t *testing.T) {
 // A plugin must not write itself a key — what it sends goes through the
 // sanitiser, and the real one is added only afterwards.
 func TestPluginKannKeinenSchluesselErfinden(t *testing.T) {
-	roh := `<form method="POST"><input type="hidden" name="gorilla.csrf.Token" value="erfunden"></form>`
-	out := string(WithCSRFToken(SanitizeAdminHTML(roh), "echt"))
+	raw := `<form method="POST"><input type="hidden" name="gorilla.csrf.Token" value="erfunden"></form>`
+	out := string(WithCSRFToken(SanitizeAdminHTML(raw), "echt"))
 
 	if strings.Contains(out, "erfunden") && !strings.Contains(out, "echt") {
 		t.Errorf("only the invented key is there: %s", out)

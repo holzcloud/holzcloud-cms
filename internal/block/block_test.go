@@ -14,7 +14,7 @@ import (
 // package stays checkable without a database.
 func markdown(src string) (string, error) { return "<p>" + src + "</p>", nil }
 
-func bilder(m map[int64]Image) Lookup {
+func images(m map[int64]Image) Lookup {
 	return func(id int64) (Image, bool) {
 		img, ok := m[id]
 		return img, ok
@@ -24,7 +24,7 @@ func bilder(m map[int64]Image) Lookup {
 // The editor submits flat field names. What belongs together the parser
 // recognises by the number — and the numbers may have gaps, because a deleted
 // block would otherwise have to rename all the following ones.
-func TestFormularWirdInBausteineGelesen(t *testing.T) {
+func TestTheFormIsReadIntoBlocks(t *testing.T) {
 	form := url.Values{
 		"b0.typ":      {"text"},
 		"b0.markdown": {"Guten Tag."},
@@ -49,7 +49,7 @@ func TestFormularWirdInBausteineGelesen(t *testing.T) {
 
 // Nested entries of a gallery or a card row keep their order, even when the
 // form delivers them in an arbitrary one — a map has none.
-func TestVerschachtelteEintraegeBehaltenDieReihenfolge(t *testing.T) {
+func TestNestedEntriesKeepTheirOrder(t *testing.T) {
 	form := url.Values{
 		"b0.typ":         {"karten"},
 		"b0.e2.titel":    {"Drittens"},
@@ -75,7 +75,7 @@ func TestVerschachtelteEintraegeBehaltenDieReihenfolge(t *testing.T) {
 
 // A button may have been drawn against a list that no longer exists in that
 // shape. The honest answer to that is the list as it is now.
-func TestUnsinnigeAktionenAendernNichts(t *testing.T) {
+func TestNonsensicalActionsChangeNothing(t *testing.T) {
 	start := []Block{{Type: TypeText, Markdown: "eins"}, {Type: TypeText, Markdown: "zwei"}}
 	for _, aktion := range []string{"hoch:0", "runter:1", "weg:9", "hoch:abc", "neu:gibtsnicht", ""} {
 		got := Apply(append([]Block(nil), start...), aktion, Builtin)
@@ -85,7 +85,7 @@ func TestUnsinnigeAktionenAendernNichts(t *testing.T) {
 	}
 }
 
-func TestVerschiebenUndLoeschen(t *testing.T) {
+func TestMovingAndDeleting(t *testing.T) {
 	start := []Block{
 		{Type: TypeText, Markdown: "eins"},
 		{Type: TypeText, Markdown: "zwei"},
@@ -110,7 +110,7 @@ func TestVerschiebenUndLoeschen(t *testing.T) {
 
 // A gallery or card row starts with one entry: otherwise somebody inserts the
 // block and finds nothing they could fill in.
-func TestNeueGalerieHatEinenEintrag(t *testing.T) {
+func TestANewGalleryHasOneEntry(t *testing.T) {
 	got := Apply(nil, "neu:galerie", Builtin)
 	if len(got) != 1 || len(got[0].Items) != 1 {
 		t.Fatalf("got %+v", got)
@@ -127,7 +127,7 @@ func TestNeueGalerieHatEinenEintrag(t *testing.T) {
 
 // A block somebody added and then left alone should not land on the website as
 // an empty box.
-func TestLeereBausteineFallenBeimSichernWeg(t *testing.T) {
+func TestEmptyBlocksFallAwayOnSaving(t *testing.T) {
 	blocks := []Block{
 		{Type: TypeText, Markdown: "  "},
 		{Type: TypeText, Markdown: "Bleibt."},
@@ -143,10 +143,10 @@ func TestLeereBausteineFallenBeimSichernWeg(t *testing.T) {
 
 // What an editor types is text and never markup. The frame around it is ours —
 // which is why it may carry classes.
-func TestTextWirdMaskiertUndDerRahmenNicht(t *testing.T) {
+func TestTheTextIsEscapedAndTheFrameIsNot(t *testing.T) {
 	html := Render([]Block{{
 		Type: TypeQuote, Text: `<script>alert(1)</script>`, Source: `Eva & Co`,
-	}}, Builtin, bilder(nil), markdown)
+	}}, Builtin, images(nil), markdown)
 
 	if strings.Contains(html, "<script") {
 		t.Errorf("das Skript kam durch:\n%s", html)
@@ -167,7 +167,7 @@ func TestNurBrauchbareLinkzieleUeberleben(t *testing.T) {
 	} {
 		html := Render([]Block{{
 			Type: TypeCards, Items: []Item{{Title: "Wolle", LinkURL: boese}},
-		}}, Builtin, bilder(nil), markdown)
+		}}, Builtin, images(nil), markdown)
 		if strings.Contains(html, "href=") {
 			t.Errorf("%q became a link:\n%s", boese, html)
 		}
@@ -178,7 +178,7 @@ func TestNurBrauchbareLinkzieleUeberleben(t *testing.T) {
 	for _, gut := range []string{"/laden", "https://beispiel.ch", "mailto:eva@beispiel.ch", "#unten"} {
 		html := Render([]Block{{
 			Type: TypeCards, Items: []Item{{Title: "Wolle", LinkURL: gut}},
-		}}, Builtin, bilder(nil), markdown)
+		}}, Builtin, images(nil), markdown)
 		if !strings.Contains(html, `href="`+gut+`"`) {
 			t.Errorf("%q wurde verworfen:\n%s", gut, html)
 		}
@@ -187,12 +187,12 @@ func TestNurBrauchbareLinkzieleUeberleben(t *testing.T) {
 
 // An image deleted from the media library costs its own block — never the
 // article around it.
-func TestFehlendesBildKostetNurSeinenBaustein(t *testing.T) {
+func TestAMissingImageCostsOnlyItsOwnBlock(t *testing.T) {
 	html := Render([]Block{
 		{Type: TypeText, Markdown: "Vorher."},
 		{Type: TypeImage, MediaID: 999},
 		{Type: TypeText, Markdown: "Nachher."},
-	}, Builtin, bilder(nil), markdown)
+	}, Builtin, images(nil), markdown)
 
 	if !strings.Contains(html, "Vorher.") || !strings.Contains(html, "Nachher.") {
 		t.Errorf("the text around the missing image is gone:\n%s", html)
@@ -204,8 +204,8 @@ func TestFehlendesBildKostetNurSeinenBaustein(t *testing.T) {
 
 // The description from the media library holds as long as the block has none
 // of its own — otherwise it would have to be typed again in every place.
-func TestBildbeschreibungFaelltAufDieMediathekZurueck(t *testing.T) {
-	look := bilder(map[int64]Image{
+func TestTheImageDescriptionFallsBackToTheMediaLibrary(t *testing.T) {
+	look := images(map[int64]Image{
 		1: {URL: "/media/1/schaf.jpg", Alt: "Ein Schaf auf der Weide", Width: 800, Height: 600},
 	})
 
@@ -347,7 +347,7 @@ func TestDisplayClassIsMintedAndNotConcatenated(t *testing.T) {
 
 // No blocks is one value and not two that behave alike until somebody compares
 // them.
-func TestKeineBausteineIstDieLeereZeichenkette(t *testing.T) {
+func TestNoBlocksIsTheEmptyString(t *testing.T) {
 	raw, err := Encode(nil, Builtin)
 	if err != nil || raw != "" {
 		t.Errorf("Encode(nil, Builtin) = %q, %v", raw, err)
@@ -381,7 +381,7 @@ func TestZurueckZuMarkdownNurWennNichtsVerlorenGeht(t *testing.T) {
 // what is left. Without it the browser crops stubbornly from the middle — with
 // an animal at the left edge, wrong every time.
 func TestFokusPunktWirkNurWoZugeschnittenWird(t *testing.T) {
-	look := bilder(map[int64]Image{
+	look := images(map[int64]Image{
 		1: {URL: "/media/1/schaf.jpg", Alt: "Ein Schaf", Focus: "20% 40%"},
 	})
 
@@ -401,7 +401,7 @@ func TestFokusPunktWirkNurWoZugeschnittenWird(t *testing.T) {
 
 // A video is a file of this website's own inside a <video>, not an embedded
 // frame from somebody else's server.
-func TestVideoBaustein(t *testing.T) {
+func TestTheVideoBlock(t *testing.T) {
 	look := func(id int64) (Image, bool) {
 		switch id {
 		case 1:
@@ -434,7 +434,7 @@ func TestVideoBaustein(t *testing.T) {
 
 // An image block pointing at a film does not make a broken <img> — and a video
 // block with a photo in it does not make a <video> without a film.
-func TestVerwechselteDateiartFaelltWeg(t *testing.T) {
+func TestAMixedUpFileKindFallsAway(t *testing.T) {
 	look := func(id int64) (Image, bool) {
 		if id == 1 {
 			return Image{URL: "/media/1/film.mp4", Film: true}, true
@@ -478,7 +478,7 @@ func TestEigeneArtWirdZuKlassen(t *testing.T) {
 			"wichtig":   "1",
 			"quelle":    "/rezepte/brot",
 		},
-	}}, set, bilder(map[int64]Image{1: {URL: "/media/1/teig.jpg", Alt: "Teig"}}), markdown)
+	}}, set, images(map[int64]Image{1: {URL: "/media/1/teig.jpg", Alt: "Teig"}}), markdown)
 
 	for _, teil := range []string{
 		`hc-eigen--rezeptschritt`,
@@ -501,7 +501,7 @@ func TestEigeneArtMaskiertDenInhalt(t *testing.T) {
 	html := Render([]Block{{
 		Type:   "rezeptschritt",
 		Fields: map[string]string{"nummer": `<img src=x onerror=alert(1)>`, "quelle": "javascript:alert(1)"},
-	}}, eigeneArt(), bilder(nil), markdown)
+	}}, eigeneArt(), images(nil), markdown)
 
 	if strings.Contains(html, "<img") {
 		t.Errorf("das Bild kam durch:\n%s", html)
@@ -534,7 +534,7 @@ func TestUnbekannteArtVerschwindet(t *testing.T) {
 
 // A value whose field was removed from the kind goes with it — at the next
 // save, not at once.
-func TestWertOhneFeldWirdAufgeraeumt(t *testing.T) {
+func TestAValueWithoutAFieldIsClearedAway(t *testing.T) {
 	blocks := eigeneArt().Clean([]Block{{
 		Type:   "rezeptschritt",
 		Fields: map[string]string{"nummer": "3", "gabsmalgibtsnichtmehr": "Rest"},
@@ -581,7 +581,7 @@ func TestNurWorteImReinenText(t *testing.T) {
 // The fields come out of the form under a prefix of their own, so that a kind
 // may have a field "text" or "typ" without getting in the way of the block
 // itself.
-func TestEigeneFelderAusDemFormular(t *testing.T) {
+func TestOwnFieldsOutOfTheForm(t *testing.T) {
 	blocks := FromForm(map[string][]string{
 		"b0.typ":      {"rezeptschritt"},
 		"b0.f.nummer": {"3"},
@@ -637,12 +637,12 @@ func artMitCode() Set {
 // "Inside a block too" is the whole difficulty. A block is frozen into HTML
 // when the page is saved, and that HTML is what the visitor gets. Escaping in
 // the theme would be too late: by then the bytes stand in the database.
-func TestCodeImBausteinWirdMaskiert(t *testing.T) {
-	roh := `<script>alert("x" & 1)</script>`
+func TestCodeInsideABlockIsEscaped(t *testing.T) {
+	raw := `<script>alert("x" & 1)</script>`
 	html := Render([]Block{{
 		Type:   "hinweis",
-		Fields: map[string]string{"schnipsel": roh},
-	}}, artMitCode(), bilder(nil), markdown)
+		Fields: map[string]string{"schnipsel": raw},
+	}}, artMitCode(), images(nil), markdown)
 
 	if strings.Contains(html, "<script") {
 		t.Errorf("das Skript kam durch:\n%s", html)
@@ -665,19 +665,19 @@ func TestCodeImBausteinWirdMaskiert(t *testing.T) {
 	// can come from nowhere else.
 	// "<p" alone would be too coarse — that would also hit the <pre> that is
 	// supposed to stand here.
-	for _, absatz := range []string{"<p>", "<p "} {
-		if strings.Contains(html, absatz) {
+	for _, paragraph := range []string{"<p>", "<p "} {
+		if strings.Contains(html, paragraph) {
 			t.Errorf("the code ran through the Markdown renderer:\n%s", html)
 		}
 	}
 }
 
 // An empty code field leaves no empty box on the page.
-func TestCodeImBausteinLeerErgibtNichts(t *testing.T) {
+func TestAnEmptyCodeFieldInABlockYieldsNothing(t *testing.T) {
 	html := Render([]Block{{
 		Type:   "hinweis",
 		Fields: map[string]string{"schnipsel": "   "},
-	}}, artMitCode(), bilder(nil), markdown)
+	}}, artMitCode(), images(nil), markdown)
 	if html != "" {
 		t.Errorf("ein leeres Codefeld ergab Auszeichnung:\n%s", html)
 	}
@@ -685,7 +685,7 @@ func TestCodeImBausteinLeerErgibtNichts(t *testing.T) {
 	html = Render([]Block{{
 		Type:   "hinweis",
 		Fields: map[string]string{"schnipsel": "", "sorten": "Eiche"},
-	}}, artMitCode(), bilder(nil), markdown)
+	}}, artMitCode(), images(nil), markdown)
 	if strings.Contains(html, "hc-eigen__code") {
 		t.Errorf("das leere Codefeld bekam trotzdem ein Element:\n%s", html)
 	}
@@ -695,7 +695,7 @@ func TestCodeImBausteinLeerErgibtNichts(t *testing.T) {
 // enumeration: a code field holds words — an address, a line of configuration —
 // and a page made of blocks would otherwise be invisible to its own search
 // exactly where its author took the most trouble.
-func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
+func TestPlainTextTakesCodeAndMultipleChoice(t *testing.T) {
 	text := PlainText([]Block{{
 		Type: "hinweis",
 		Fields: map[string]string{
@@ -722,7 +722,7 @@ func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
 // Without this branch the first of three checkboxes would be left — and because
 // the guard stands before the group, that would be the empty string: every
 // checkbox would vanish on saving without anything being reported anywhere.
-func TestMehrfachauswahlImBausteinBehaeltAlleHaken(t *testing.T) {
+func TestAMultipleChoiceInABlockKeepsEveryTick(t *testing.T) {
 	blocks := FromForm(url.Values{
 		"b0.typ":         {"merkmal"},
 		"b0.f.hoelzer[]": {"", "Eiche", "Buche"},
@@ -744,7 +744,7 @@ func TestMehrfachauswahlImBausteinBehaeltAlleHaken(t *testing.T) {
 
 // And the same difference as above on the page: with the guard alone the key is
 // there and empty, without the field at all it is not there.
-func TestBausteinfeldGeleertOderAbwesend(t *testing.T) {
+func TestABlockFieldEmptiedOrAbsent(t *testing.T) {
 	geleert := FromForm(url.Values{
 		"b0.typ":         {"merkmal"},
 		"b0.f.hoelzer[]": {""},
@@ -780,7 +780,7 @@ func TestBausteinfeldGeleertOderAbwesend(t *testing.T) {
 
 // galleryLook is the three pictures the lightbox tests share.
 func galleryLook() Lookup {
-	return bilder(map[int64]Image{
+	return images(map[int64]Image{
 		1: {URL: "/media/1/eins.jpg", Alt: "Eins", Width: 1200, Height: 800},
 		2: {URL: "/media/1/zwei.jpg", Alt: "Zwei", Width: 1200, Height: 800},
 		3: {URL: "/media/1/drei.jpg", Alt: "Drei", Width: 1200, Height: 800},
@@ -978,7 +978,7 @@ func TestGalleryUnstyledMarkupIsAFigureSibling(t *testing.T) {
 
 // The behaviour that exists today and must survive the change.
 func TestGalleryWithNoResolvablePicturesRendersNothing(t *testing.T) {
-	html := Render([]Block{threePictures()}, Builtin, bilder(map[int64]Image{}), markdown)
+	html := Render([]Block{threePictures()}, Builtin, images(map[int64]Image{}), markdown)
 	if html != "" {
 		t.Errorf("a gallery of nothing rendered %q", html)
 	}

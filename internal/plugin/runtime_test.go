@@ -42,7 +42,7 @@ func neueLaufzeit(t *testing.T, erlaubt ...string) (*Runtime, *Store, *bytes.Buf
 	}
 	t.Cleanup(func() { r.Close(context.Background()) })
 
-	m := gutesManifest()
+	m := goodManifest()
 	m.ID = "echo"
 	m.Name = "Echo"
 	m.Hooks = []string{HookContent, HookEvent, HookRequest, HookAdmin}
@@ -235,7 +235,7 @@ func TestModulOhneExporteWirdAbgelehnt(t *testing.T) {
 	}
 	defer r.Close(ctx)
 
-	m := gutesManifest()
+	m := goodManifest()
 	// A valid but empty module: the header is right, the exports are missing.
 	leer := []byte{0x00, 'a', 's', 'm', 0x01, 0x00, 0x00, 0x00}
 	err = r.Load(ctx, &m, leer)

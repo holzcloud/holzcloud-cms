@@ -75,7 +75,7 @@ func einstellungenLaden() settings {
 	return e
 }
 
-func einstellungenSichern(e settings) error {
+func saveSettings(e settings) error {
 	raw, err := json.Marshal(e)
 	if err != nil {
 		return err
@@ -103,13 +103,13 @@ const maxProducts = 100
 // readProducts fetches the published pages with their own fields and keeps the
 // ones that carry a price.
 func readProducts(e settings) ([]product, error) {
-	seiten, _, err := plugin.PagesWithFields(maxProducts, 0)
+	pages, _, err := plugin.PagesWithFields(maxProducts, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]product, 0, len(seiten))
-	for _, s := range seiten {
+	out := make([]product, 0, len(pages))
+	for _, s := range pages {
 		price := strings.TrimSpace(s.Field(e.PriceField))
 		if price == "" {
 			continue
@@ -132,12 +132,12 @@ func readProducts(e settings) ([]product, error) {
 // without thousands separators, because a farm shop has none. If it does not
 // work out the total is unknown — then it does not stand in the confirmation and
 // the operator works it out. Working it out wrongly would be worse.
-func priceValue(roh string) (float64, bool) {
-	roh = strings.TrimSpace(strings.ReplaceAll(roh, ",", "."))
-	if roh == "" {
+func priceValue(raw string) (float64, bool) {
+	raw = strings.TrimSpace(strings.ReplaceAll(raw, ",", "."))
+	if raw == "" {
 		return 0, false
 	}
-	v, err := strconv.ParseFloat(roh, 64)
+	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil || v < 0 {
 		return 0, false
 	}

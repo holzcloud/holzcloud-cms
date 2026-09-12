@@ -301,9 +301,9 @@ func (s *Store) OfSnippets(ctx context.Context, websiteID int64) (map[int64][]De
 
 func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 	var (
-		d       Def
-		pflicht int
-		auswahl string
+		d        Def
+		required int
+		choice   string
 	)
 	// The order here is that of the seven SELECT column lists — List, Sub,
 	// OfBlockType, OfBlockTypes, OfSnippet, OfSnippets and Get — character for
@@ -317,13 +317,13 @@ func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 	// file and compares them character for character; a fifth carrier turns
 	// that test red, and that is the intention.
 	if err := row.Scan(&d.ID, &d.WebsiteID, &d.ParentID, &d.Key, &d.Label, &d.Kind,
-		&pflicht, &d.Hint, &auswahl, &d.AppliesTo, &d.Position, &d.Condition,
+		&required, &d.Hint, &choice, &d.AppliesTo, &d.Position, &d.Condition,
 		&d.Display, &d.MaxValues, &d.RangeMin, &d.RangeMax, &d.BlockTypeID,
 		&d.SnippetID); err != nil {
 		return Def{}, fmt.Errorf("read field: %w", err)
 	}
-	d.Required = pflicht == 1
-	d.Choices = SplitChoices(auswahl)
+	d.Required = required == 1
+	d.Choices = SplitChoices(choice)
 	return d, nil
 }
 
@@ -420,7 +420,7 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 	//
 	var (
 		zaehlung string
-		werte    []any
+		values   []any
 	)
 	switch {
 	case d.SnippetID > 0:
@@ -429,10 +429,10 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		// $2 catches them too, and that is right — they are rows of the same
 		// form.
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND snippet_id = $2`
-		werte = []any{d.WebsiteID, d.SnippetID}
+		values = []any{d.WebsiteID, d.SnippetID}
 	case d.BlockTypeID > 0:
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id = $2 AND snippet_id IS NULL`
-		werte = []any{d.WebsiteID, d.BlockTypeID}
+		values = []any{d.WebsiteID, d.BlockTypeID}
 	case d.ParentID > 0:
 		// A sub-field of a group on a page counts against the page's
 		// allowance, exactly as before: the group is drawn on the page's form,
@@ -440,15 +440,15 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		// default arm, so that the namespace stands there and does not have to
 		// be inferred.
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL`
-		werte = []any{d.WebsiteID}
+		values = []any{d.WebsiteID}
 	default:
 		// The page's own fields — the carrier of this arm, and not the
 		// remainder.
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL`
-		werte = []any{d.WebsiteID}
+		values = []any{d.WebsiteID}
 	}
 	var count int
-	if err := s.DB.Read.QueryRowContext(ctx, zaehlung, werte...).Scan(&count); err != nil {
+	if err := s.DB.Read.QueryRowContext(ctx, zaehlung, values...).Scan(&count); err != nil {
 		return nil, fmt.Errorf("count fields: %w", err)
 	}
 	if count >= MaxFields {

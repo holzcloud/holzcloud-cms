@@ -102,7 +102,7 @@ func TestZuschnittSchneidetUndMerktEsSich(t *testing.T) {
 
 // Clicking the image is the actual way this is used. The browser sends it in
 // pixels of the display; that has to become a percentage.
-func TestKlickAufsBildSetztDenFokus(t *testing.T) {
+func TestAClickOnTheImageSetsTheFocus(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
 	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
@@ -201,7 +201,7 @@ func TestZuruecksetzenBehaeltDenFokus(t *testing.T) {
 
 // The screen shows the image at a fixed width, because the click comes back in
 // pixels of that display — and it has to send the matching height along.
-func TestZuschnittbildschirmNenntSeineAnzeigegroesse(t *testing.T) {
+func TestTheCropScreenNamesItsDisplaySize(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
 	m := seedImage(t, h, ws.ID, "weide.jpg", 1600, 600)
 
@@ -213,15 +213,15 @@ func TestZuschnittbildschirmNenntSeineAnzeigegroesse(t *testing.T) {
 	// The figure has to match the drawn size, or the server converts the click
 	// wrongly — which is exactly what happened once, because the stylesheet had
 	// scaled the image down.
-	breite := strconv.Itoa(previewWidth)
-	if !strings.Contains(body, `name="gezeigt_breite" value="`+breite+`"`) {
+	width := strconv.Itoa(previewWidth)
+	if !strings.Contains(body, `name="gezeigt_breite" value="`+width+`"`) {
 		t.Errorf("die Anzeigebreite fehlt:\n%s", body)
 	}
-	if !strings.Contains(body, `width="`+breite+`"`) {
+	if !strings.Contains(body, `width="`+width+`"`) {
 		t.Errorf("the image is not drawn at the stated width:\n%s", body)
 	}
-	hoehe := strconv.Itoa(600 * previewWidth / 1600)
-	if !strings.Contains(body, `name="gezeigt_hoehe" value="`+hoehe+`"`) {
+	height := strconv.Itoa(600 * previewWidth / 1600)
+	if !strings.Contains(body, `name="gezeigt_hoehe" value="`+height+`"`) {
 		t.Errorf("the display height is wrong:\n%s", body)
 	}
 	if !strings.Contains(body, `type="image"`) {

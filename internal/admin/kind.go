@@ -11,11 +11,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// Der Bildschirm, auf dem eine Website ihre eigenen Inhaltsarten bekommt.
+// The screen on which a website gets content types of its own.
 //
-// Wie bei den Feldern: eine Liste und darunter dasselbe Formular, das anlegt
-// und ändert. Eine Inhaltsart hat vier Angaben — für vier Angaben auf einen
-// zweiten Bildschirm zu schicken ist mehr Navigation, als die Sache wert ist.
+// As with the fields: a list and below it the same form that creates and
+// changes. A content type has four particulars — sending somebody to a second
+// screen for four particulars is more navigation than the thing is worth.
 
 // KindRow is one kind with the number of entries that carry it.
 type KindRow struct {
@@ -111,9 +111,9 @@ func (h *Handler) HandleKindSave(w http.ResponseWriter, r *http.Request) error {
 		Sort:      r.FormValue("sortierung"),
 	}
 
-	// Die Adresse der Übersicht ist reserviert wie die des Archivs: eine Seite
-	// mit derselben Adresse käme nie zum Zug, weil die Übersicht zuerst geprüft
-	// wird. Lieber hier ablehnen als dort still gewinnen.
+	// The address of the overview is reserved like that of the archive: a page
+	// with the same address would never get its turn, because the overview is
+	// checked first. Better to refuse here than to win silently there.
 	if t.Archive != "" {
 		if t.Archive == ws.BlogBase {
 			web.SetFlashError(h.sm, r.Context(), "This address already belongs to the archive of posts")
@@ -191,10 +191,9 @@ func (h *Handler) HandleKindDelete(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	// Die Einträge bleiben, und das wird gesagt. Sie behalten ihre Kennung,
-	// stehen in der Liste unter ihr und lassen sich im Editor auf eine andere
-	// Art umstellen — eine versehentlich gelöschte Art darf nicht hundert
-	// Produkte mitnehmen.
+	// The entries stay, and that is said. They keep their key, stand in the list
+	// under it and can be switched to another kind in the editor — a kind
+	// deleted by accident must not take a hundred products with it.
 	if n > 0 {
 		web.SetFlashWarning(h.sm, r.Context(), web.Titlef(r,
 			"Content kind removed. The %d entries are still there and still carry the key “%s” — switch them to another kind in the editor, or create the kind again.", n, t.Key))
@@ -279,9 +278,9 @@ func kindChoices(types []kind.Type, current string) []KindChoice {
 	for _, t := range types {
 		out = append(out, KindChoice{Key: t.Key, Name: t.Name, Selected: current == t.Key})
 	}
-	// Eine Art, die es nicht mehr gibt, deren Einträge sie aber noch tragen:
-	// sie steht mit ihrer Kennung da, damit ein Eintrag beim Speichern nicht
-	// still zur Seite wird.
+	// A kind that no longer exists but whose entries still carry it: it stands
+	// there with its key, so that an entry does not silently become a page on
+	// saving.
 	if current != "" && current != kind.Page && current != kind.Post && !hasKey(types, current) {
 		out = append(out, KindChoice{Key: current, Name: current, Selected: true})
 	}

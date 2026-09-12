@@ -272,7 +272,7 @@ func TestHandleTemplateAssetServesAndRejectsTraversal(t *testing.T) {
 // reached nobody who had already opened the page — for a year. The test holds
 // both halves fast: the short lifetime without a version and the long promise
 // only where the address redeems it.
-func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
+func TestTemplateAssetsStayReachable(t *testing.T) {
 	h, database := newTestHandler(t)
 	ws := seedWebsite(t, database, "Test Site")
 
@@ -516,7 +516,7 @@ func TestTheStartPageHasOneAddress(t *testing.T) {
 // What is stored is the slug, what is printed is the name. If the term is
 // renamed, what the page shows changes — without the page being written.
 // That is why no SetFields stands between the two fetches, only a Rename.
-func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
+func TestATermFieldPrintsTheCurrentName(t *testing.T) {
 	h, database := newFieldTestHandler(t)
 	ctx := context.Background()
 	ws := seedWebsite(t, database, "Holzbau")
@@ -611,7 +611,7 @@ func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
 
 // Deleted means nothing printed, not a broken page: the {{with}} in the theme
 // leaves the block out.
-func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
+func TestATermFieldWithoutATermStaysEmpty(t *testing.T) {
 	h, database := newFieldTestHandler(t)
 	ctx := context.Background()
 	ws := seedWebsite(t, database, "Holzbau")
@@ -663,7 +663,7 @@ func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
 // the lookup function and not Check is the place the rule stands: fieldTerms
 // fills its map from a ListAll of exactly the website being rendered, and a
 // foreign slug simply does not stand in it.
-func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
+func TestATermFieldReachesNoForeignWebsite(t *testing.T) {
 	h, database := newFieldTestHandler(t)
 	ctx := context.Background()
 	ws := seedWebsite(t, database, "Holzbau")
@@ -678,14 +678,14 @@ func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
 	pages := page.NewStore(database)
 	html, _ := page.RenderMarkdown("text")
 	// The term belongs to the foreign website.
-	fremdeSeite, err := pages.CreatePage(ctx, page.PageCreate{
+	foreignPage, err := pages.CreatePage(ctx, page.PageCreate{
 		WebsiteID: fremd.ID, Title: "Anderswo", Slug: "anderswo",
 		Markdown: "text", HTML: html, Status: "published",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := term.NewStore(database).SetForPage(ctx, fremd.ID, fremdeSeite.ID, []string{"Geheim"}); err != nil {
+	if err := term.NewStore(database).SetForPage(ctx, fremd.ID, foreignPage.ID, []string{"Geheim"}); err != nil {
 		t.Fatal(err)
 	}
 

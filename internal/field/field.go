@@ -1039,7 +1039,7 @@ func JoinValues(values []string) string {
 	for _, v := range values {
 		// Only the separator, not every whitespace: two spaces inside a valid
 		// value are part of the value.
-		if v = strings.TrimSpace(faltZeilen.Replace(v)); v != "" {
+		if v = strings.TrimSpace(foldLines.Replace(v)); v != "" {
 			out = append(out, v)
 		}
 	}
@@ -1049,7 +1049,7 @@ func JoinValues(values []string) string {
 // foldLineBreaks replaces every spelling of the line break with a single
 // space. The carriage-return form stands first, so that it yields one space
 // and not two.
-var faltZeilen = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
+var foldLines = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 
 // CheckAll validates a page's answers against the fields that apply to it and
 // returns the reasons, keyed by the form field they belong to.

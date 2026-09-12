@@ -23,7 +23,7 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 
 	switch q.Get("ansicht") {
 	case "einstellungen":
-		return einstellungsbildschirm(in)
+		return settingsScreen(in)
 	case "bestellung":
 		return single(in, q.Get("id"))
 	default:
@@ -52,7 +52,7 @@ func action(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
 			return plugin.AdminOut{Redirect: "?ansicht=einstellungen",
 				Flash: "Without a price field the farm shop does not know what a product is.", FlashError: true}, nil
 		}
-		if err := einstellungenSichern(e); err != nil {
+		if err := saveSettings(e); err != nil {
 			return plugin.AdminOut{}, err
 		}
 		return plugin.AdminOut{Redirect: "?ansicht=einstellungen", Flash: "Gespeichert."}, nil
@@ -63,7 +63,7 @@ func action(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
 			return plugin.AdminOut{Redirect: "?", Flash: "This order no longer exists.", FlashError: true}, nil
 		}
 		b.Done = form.Get("aktion") == "erledigt"
-		if err := bestellungSichern(b); err != nil {
+		if err := saveOrder(b); err != nil {
 			return plugin.AdminOut{}, err
 		}
 		wort := "als offen markiert"
@@ -163,20 +163,20 @@ func single(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 	b.WriteString(`</p>`)
 
 	b.WriteString(`<h3>Wer</h3><dl>`)
-	zeile := func(k, v string) {
+	row := func(k, v string) {
 		if v == "" {
 			return
 		}
 		b.WriteString(`<dt>` + html.EscapeString(k) + `</dt><dd>` + html.EscapeString(v) + `</dd>`)
 	}
-	zeile("Name", best.Name)
+	row("Name", best.Name)
 	b.WriteString(`<dt>E-Mail</dt><dd><a href="mailto:` + html.EscapeString(best.Email) + `">` +
 		html.EscapeString(best.Email) + `</a></dd>`)
-	zeile("Telefon", best.Telefon)
-	zeile("Adresse", best.Address)
-	zeile("Bemerkung", best.Bemerkung)
-	zeile("Eingegangen", shortDate(best.Eingegangen))
-	zeile("Bestellt auf", best.Page)
+	row("Telefon", best.Telefon)
+	row("Adresse", best.Address)
+	row("Bemerkung", best.Bemerkung)
+	row("Eingegangen", shortDate(best.Eingegangen))
+	row("Bestellt auf", best.Page)
 	b.WriteString(`</dl>`)
 
 	b.WriteString(`<form method="POST"><input type="hidden" name="id" value="` +
@@ -193,7 +193,7 @@ func single(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 }
 
 // einstellungsbildschirm ist, wo die Feldnamen stehen.
-func einstellungsbildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
+func settingsScreen(in plugin.AdminIn) (plugin.AdminOut, error) {
 	e := einstellungenLaden()
 	produkte, err := readProducts(e)
 	if err != nil {
@@ -218,10 +218,10 @@ func einstellungsbildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 	}
 
 	b.WriteString(`<form method="POST"><input type="hidden" name="aktion" value="einstellungen">`)
-	eingabe := func(name, beschriftung, wert, hilfe string) {
-		b.WriteString(`<p><label for="e_` + name + `">` + html.EscapeString(beschriftung) + `</label>`)
+	eingabe := func(name, label, value, hilfe string) {
+		b.WriteString(`<p><label for="e_` + name + `">` + html.EscapeString(label) + `</label>`)
 		b.WriteString(`<input type="text" id="e_` + name + `" name="` + name + `" value="` +
-			html.EscapeString(wert) + `">`)
+			html.EscapeString(value) + `">`)
 		if hilfe != "" {
 			b.WriteString(`<span>` + html.EscapeString(hilfe) + `</span>`)
 		}

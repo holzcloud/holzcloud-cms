@@ -146,22 +146,22 @@ func TestCountUsageCountsLivePagesOnly(t *testing.T) {
 	}
 }
 
-// SetFields muss updated_at mitziehen, sonst geht der Wert eines Feldes am
-// Zwischenspeicher der ganzen Website vorbei.
+// SetFields has to pull updated_at along, or the value of a field slips past
+// the cache of the whole website.
 //
-// Rendered.LatestUpdate ist der Prüfwert, den contentModTime für *jede* Seite
-// der Website heranzieht — der Kommentar dort sagt, warum: „sonst antwortet
-// eine bedingte Anfrage mit 304 und den alten Öffnungszeiten". Seit Phase 8
-// gehören die Feldwerte eines Textbausteins zu dem, was eine Seite darstellt,
-// und SetFields ist der einzige Schreiber davon.
+// Rendered.LatestUpdate is the check value contentModTime draws on for *every*
+// page of the website — the comment there says why: "otherwise a conditional
+// request answers with 304 and last week's opening hours". Since phase 8 the
+// field values of a snippet belong to what a page shows, and SetFields is the
+// only writer of them.
 //
-// Dass es heute trotzdem geht, liegt allein daran, dass handleSnippetSave
-// vorher Update aufruft und Update den Stempel setzt — eine Reihenfolge
-// zwischen zwei Funktionen in zwei Paketen, die nichts festhält. Der Archivweg
-// kommt über Create davon. Der Test wartet keine Sekunde ab, sondern setzt den
-// Stempel back: an einer Uhr mit Sekundenauflösung wäre sonst nicht die
-// Wache geprüft, sondern die Laufzeit des Tests.
-func TestSetFieldsZiehtDenPruefwertMit(t *testing.T) {
+// That it works today all the same is down to handleSnippetSave calling Update
+// first and Update setting the stamp — an order between two functions in two
+// packages that nothing holds fast. The archive path gets away with it through
+// Create. The test waits not a second but sets the stamp back: on a clock with
+// one-second resolution it would otherwise be measuring the runtime of the
+// test rather than the guard.
+func TestSetFieldsPullsTheCheckValueAlong(t *testing.T) {
 	s, ws := newTestStore(t)
 	ctx := context.Background()
 	sn, err := s.Create(ctx, ws, "kontakt", "Kontakt", "Adresse", "<p>Adresse</p>")

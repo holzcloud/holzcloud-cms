@@ -16,20 +16,20 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
-// Die Suche als Plugin, durch die ganze Kette: echtes Modul, echte Laufzeit,
-// echte Middleware, echte HTTP-Antwort.
+// The search as a plugin, through the whole chain: real module, real runtime,
+// real middleware, real HTTP answer.
 //
-// Der Punkt ist nicht, dass die Suche funktioniert — das prüft der Seitenspeicher
-// selbst. Der Punkt ist, dass eine Funktion, die aus dem Kern ausgezogen ist,
-// von aussen ununterscheidbar bleibt: dieselbe Adresse, dieselbe Ansicht des
-// Themes, dieselben Kopfzeilen.
+// The point is not that the search works — the page store checks that itself.
+// The point is that a function that has moved out of the core stays
+// indistinguishable from outside: the same address, the same view of the theme,
+// the same headers.
 func TestSuchePluginBeantwortetSuche(t *testing.T) {
 	module := wasmtest.Module(t, "../../plugins/suche/plugin.wasm")
-	roh, err := os.ReadFile("../../plugins/suche/plugin.json")
+	raw, err := os.ReadFile("../../plugins/suche/plugin.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := plugin.ParseManifest(roh)
+	manifest, err := plugin.ParseManifest(raw)
 	if err != nil {
 		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
@@ -43,8 +43,8 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 
 	h.SetPlugins(loadPlugin(t, h, database, manifest, module, ws.ID))
 
-	// Die Anfrage geht durch dieselbe Middleware wie im Server: der Auflöser
-	// hat die Website schon gesetzt, der Mux käme erst danach.
+	// The request goes through the same middleware as in the server: the
+	// resolver has already set the website, the mux would come only afterwards.
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://velowerkstatt.test/suche?q=Wolle", nil)
 	req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
@@ -57,14 +57,14 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 	}
 	body := rec.Body.String()
 
-	// Die Ansicht des Themes, nicht eine nackte Seite des Plugins.
+	// The theme's view, not a bare page of the plugin.
 	if !strings.Contains(body, "<html>") || !strings.Contains(body, "Suche: Wolle") {
 		t.Errorf("the answer is not a page of the theme:\n%s", body)
 	}
 	if !strings.Contains(body, "Wolle vom Hof") {
 		t.Errorf("der Treffer fehlt:\n%s", body)
 	}
-	// Und der Entwurf ist auch über das Plugin nicht zu bekommen.
+	// And the draft is not to be had through the plugin either.
 	if strings.Contains(body, "Noch nicht fertig") {
 		t.Errorf("the draft is among the hits:\n%s", body)
 	}
@@ -76,8 +76,8 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 	}
 }
 
-// Ohne Plugin gibt es keine Suche — und ein Theme darf dann auch nicht darauf
-// verlinken, sonst zeigt die Website selbst auf eine Adresse, die es nicht gibt.
+// Without the plugin there is no search — and a theme must then not link to it
+// either, or the website points at an address of its own that does not exist.
 func TestOhneSuchePluginKeineSuche(t *testing.T) {
 	h, database := newTestHandler(t)
 	ws := seedWebsite(t, database, "Velowerkstatt")
@@ -119,7 +119,7 @@ func loadPlugin(t *testing.T, h *Handler, database *db.DB, m *plugin.Manifest, m
 		t.Fatalf("SetWebsites: %v", err)
 	}
 
-	// Der Manager liest das Modul von der Platte, so wie im Server.
+	// The manager reads the module from disk, just as in the server.
 	if err := os.MkdirAll(filepath.Join(dir, "plugins", m.ID), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +132,8 @@ func loadPlugin(t *testing.T, h *Handler, database *db.DB, m *plugin.Manifest, m
 		t.Fatalf("NewRuntime: %v", err)
 	}
 	t.Cleanup(func() { rt.Close(context.Background()) })
-	// Dieselben Host-Funktionen wie im Server: Seiten lesen und im Theme
-	// ausgeben. Ohne sie stünde das Plugin vor verschlossenen Türen.
+	// The same host functions as in the server: read pages and render in the
+	// theme. Without them the plugin would stand before locked doors.
 	rt.WithPages(h.PagesForPlugin)
 	rt.WithRender(h.RenderForPlugin)
 	rt.WithNotify(h.NotifyForPlugin)

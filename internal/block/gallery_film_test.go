@@ -28,7 +28,7 @@ import (
 // a film. The middle one, on purpose: the numbering and the step links are what
 // a naive "skip it" would get wrong.
 func filmInTheMiddle() Lookup {
-	return bilder(map[int64]Image{
+	return images(map[int64]Image{
 		1: {URL: "/media/1/eins.jpg", Alt: "Eins", Width: 1200, Height: 800},
 		2: {URL: "/media/1/film.mp4", Alt: "Film", Film: true},
 		3: {URL: "/media/1/drei.jpg", Alt: "Drei", Width: 1200, Height: 800},
@@ -81,7 +81,7 @@ func TestAFilmInAGalleryLeavesTheStepLinksWhole(t *testing.T) {
 // TestAGalleryOfNothingButFilmsRendersNothing is the boundary: no picture is no
 // gallery, which is what a gallery whose media ids do not resolve already does.
 func TestAGalleryOfNothingButFilmsRendersNothing(t *testing.T) {
-	look := bilder(map[int64]Image{
+	look := images(map[int64]Image{
 		1: {URL: "/media/1/a.mp4", Film: true},
 		2: {URL: "/media/1/b.mp4", Film: true},
 		3: {URL: "/media/1/c.mp4", Film: true},
