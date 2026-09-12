@@ -524,7 +524,7 @@ func (d Data) Row(key string) []Values { return d.Rows[key] }
 // would be the database.
 //
 // It also reads the flat shape that the first version of this feature wrote —
-// a plain {"kennung": "wert"} object, before groups existed. Five lines here
+// a plain {"kennung": "wert"} object, before groups existed. Five lines here //nolint:german — quotes the stored JSON shape as it was
 // instead of a migration that rewrites every page's JSON, and an export written
 // by that version still imports.
 func Decode(raw string) Data {
@@ -794,7 +794,7 @@ func tooLong(d Def, value string) Reason {
 // the empty string when it is fine.
 //
 // The reasons are written for the person filling the form in, not for a log:
-// "Preis muss eine Zahl sein" and not "strconv.ParseFloat: invalid syntax".
+// "Preis muss eine Zahl sein" and not "strconv.ParseFloat: invalid syntax". //nolint:german — quotes the sentence this reason replaces
 func Check(d Def, value string) Reason {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -942,7 +942,7 @@ func SlugifyKey(label string) string {
 	prevDash := false
 	// page.Transliterate and not a second table here.
 	//
-	// This function used to carry its own four-entry list — ä, ö, ü, ß — and
+	// This function used to carry its own four-entry list — ä, ö, ü, ß — and //nolint:german — names the letters it is about
 	// silently DROPPED every other accented letter, because the first arm of
 	// the switch only keeps a-z. So "Título" became "ttulo" and "État" became
 	// "tat": a German operator's label transliterated and a Spanish or French

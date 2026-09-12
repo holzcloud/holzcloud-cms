@@ -81,7 +81,7 @@ func TestNaNIsNotANumberInsideEveryRange(t *testing.T) {
 // TEMPLATE-SPEC.md says of a `zeit` field, in as many words: ".Text is it as
 // HH:MM". field.List does not format anything for that kind — it copies the
 // stored string back out — and ParseTimeOfDay deliberately accepts the
-// eight-character form as well, "weil manche Browser sie mitschicken". So
+// eight-character form as well, "weil manche Browser sie mitschicken". So //nolint:german — quotes the German comment it is about
 // "09:30:00" is valid, is stored verbatim, and reaches every theme as
 // .Text = "09:30:00".
 //

@@ -234,7 +234,7 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 	}
 }
 
-// siteTerms gibt eine leere Liste zurück und niemals einen Fehler: ein
+// siteTerms gibt eine leere Liste back und niemals einen Fehler: ein
 // Auswahlfeld ohne Auswahl ist ein leeres Auswahlfeld, eine gescheiterte
 // Anfrage wäre ein Formular, das sich gar nicht mehr öffnen lässt.
 func TestSchlagwortauswahlScheitertLeise(t *testing.T) {

@@ -74,7 +74,7 @@ func schalterKasten(t *testing.T, body, feldname string) (string, string) {
 }
 
 // zeichneMitSchalter legt das steuernde Feld an, hängt ein Textfeld daran und
-// gibt den gezeichneten Seiteneditor zurück.
+// gibt den gezeichneten Seiteneditor back.
 func zeichneMitSchalter(t *testing.T, steuernd field.Def) string {
 	t.Helper()
 	h, sm, database, ws := newTestAdmin(t)
@@ -104,7 +104,7 @@ func zeichneMitSchalter(t *testing.T, steuernd field.Def) string {
 }
 
 func TestSchalter(t *testing.T) {
-	faelle := []struct {
+	cases := []struct {
 		name     string
 		def      field.Def
 		schalter string
@@ -160,7 +160,7 @@ func TestSchalter(t *testing.T) {
 	}
 
 	gesehen := map[string]bool{}
-	for _, f := range faelle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			body := zeichneMitSchalter(t, f.def)
 			name, kasten := schalterKasten(t, body, f.def.FieldName())

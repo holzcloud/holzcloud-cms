@@ -343,7 +343,7 @@ func List(defs []Def, data Data, links Links) []Entry {
 			}
 			e.Term = v
 			// The name and not the slug: FIELD-03 asks for exactly that, and a
-			// list of labels and values should show "Möbelbau" rather than
+			// list of labels and values should show "Möbelbau" rather than //nolint:german — names the German example it is about
 			// "moebel".
 			e.Text = v.Name
 		}

@@ -155,7 +155,7 @@ func TestManifestLehntUnbekannteFelderAb(t *testing.T) {
 }
 
 func TestManifestPrueftJedesFeld(t *testing.T) {
-	faelle := []struct {
+	cases := []struct {
 		name    string
 		aendern func(*Manifest)
 		suche   string
@@ -184,7 +184,7 @@ func TestManifestPrueftJedesFeld(t *testing.T) {
 		{"javascript-Adresse", func(m *Manifest) { m.URL = "javascript:alert(1)" }, "Adresse"},
 		{"weder Haken noch Adresse", func(m *Manifest) { m.Hooks = nil; m.Admin = nil }, "nie aufgerufen"},
 	}
-	for _, f := range faelle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			m := gutesManifest()
 			f.aendern(&m)

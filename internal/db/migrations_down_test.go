@@ -118,7 +118,7 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 	}
 	if !strings.Contains(indexSQL, "block_type_id") {
 		t.Errorf("wiederhergestellter Index = %q — ohne block_type_id ist das die Form aus 00029 "+
-			"und damit eine Wanderung zu weit zurück", indexSQL)
+			"und damit eine Wanderung zu weit back", indexSQL)
 	}
 	if strings.Contains(indexSQL, "snippet_id") {
 		t.Errorf("restored index = %q — snippet_id does not belong in it after the rollback", indexSQL)
@@ -153,7 +153,7 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 // Aus demselben Grund wie oben: nichts sonst im Baum fährt sie. Und aus einem
 // zweiten — 00048 ist eine Berichtigung, und eine Berichtigung stellt bei ihrer
 // Rücknahme den *falschen* Zustand wieder her. Wer beim Schreiben des Down die
-// neue Form abschreibt statt der alten, nimmt gar nichts zurück; das fällt
+// neue Form abschreibt statt der alten, nimmt gar nichts back; das fällt
 // nirgends auf, weil beide Formen gültiges SQL sind und denselben Namen tragen.
 // Der Test liest deshalb den Indextext und nicht bloss seine Anwesenheit.
 func TestMigration00048RunterUndRauf(t *testing.T) {

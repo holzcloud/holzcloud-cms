@@ -43,7 +43,7 @@ func TestMP4VerliertDenAufnahmeort(t *testing.T) {
 	}
 }
 
-// Was kein MP4 ist, kommt unverändert zurück: das hier ist ein Putzmittel,
+// Was kein MP4 ist, kommt unverändert back: das hier ist ein Putzmittel,
 // keine Prüfung.
 func TestKeinMP4BleibtUnberuehrt(t *testing.T) {
 	for _, rein := range [][]byte{

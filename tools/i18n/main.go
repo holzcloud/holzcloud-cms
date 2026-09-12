@@ -248,7 +248,7 @@ func main() {
 		sort.Strings(stale)
 		fmt.Printf("%-12s %d übersetzt, %d offen, %d verwaist\n", e.Name(), done, missing, len(stale))
 		// Verwaiste beim Namen nennen. Gelöscht wird nichts — ein Satz kommt
-		// oft einen Commit später zurück —, aber ein Bericht, der nur "1
+		// oft einen Commit später back —, aber ein Bericht, der nur "1
 		// verwaist" sagt, lässt jemanden die Datei von Hand durchsuchen.
 		for i, k := range stale {
 			if i == 5 {

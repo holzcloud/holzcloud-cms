@@ -246,7 +246,7 @@ func TestReinerTextSammeltAlleWorte(t *testing.T) {
 	}
 }
 
-// Hin und zurück durch die Datenbank darf nichts verändern.
+// Hin und back durch die Datenbank darf nichts verändern.
 func TestKodierenUndLesenIstVerlustfrei(t *testing.T) {
 	blocks := []Block{
 		{Type: TypeImageText, MediaID: 3, Alt: "Der Hof", Markdown: "Text daneben.", Variant: "rechts"},
@@ -363,7 +363,7 @@ func TestKeineBausteineIstDieLeereZeichenkette(t *testing.T) {
 	}
 }
 
-// Der Weg zurück in den einfachen Editor steht offen, solange nichts verloren
+// Der Weg back in den einfachen Editor steht offen, solange nichts verloren
 // ginge — und ist zu, sobald etwas verloren ginge.
 func TestZurueckZuMarkdownNurWennNichtsVerlorenGeht(t *testing.T) {
 	md, ok := ToMarkdown([]Block{

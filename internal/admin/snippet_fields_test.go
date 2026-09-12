@@ -203,7 +203,7 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 
 // Ein Textbaustein einer anderen Website öffnet den Modus nicht — und nichts
 // von jener Website erscheint. Die Abwesenheit ist die Zusicherung: ein still
-// geöffneter Modus gäbe ebenfalls 200 zurück.
+// geöffneter Modus gäbe ebenfalls 200 back.
 func TestTextbausteinFremderWebsiteOeffnetDenModusNicht(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
 
@@ -336,7 +336,7 @@ func textbausteinBildschirm(t *testing.T, h *Handler, sm *scs.SessionManager, we
 }
 
 // textbausteinFeld legt eine Felddefinition an einem Textbaustein an und gibt
-// sie zurück, damit der Aufrufer seinen Formularschlüssel aus FieldName holen
+// sie back, damit der Aufrufer seinen Formularschlüssel aus FieldName holen
 // kann statt ihn zu tippen.
 func textbausteinFeld(t *testing.T, database *db.DB, websiteID, snippetID int64, def field.Def) field.Def {
 	t.Helper()
@@ -349,7 +349,7 @@ func textbausteinFeld(t *testing.T, database *db.DB, websiteID, snippetID int64,
 	return *angelegt
 }
 
-// bausteinMitFeldern legt einen Textbaustein an und gibt ihn zurück.
+// bausteinMitFeldern legt einen Textbaustein an und gibt ihn back.
 func bausteinMitFeldern(t *testing.T, database *db.DB, websiteID int64, key, name string) *snippet.Snippet {
 	t.Helper()
 	sn, err := snippet.NewStore(database).Create(context.Background(), websiteID, key, name,
@@ -360,7 +360,7 @@ func bausteinMitFeldern(t *testing.T, database *db.DB, websiteID int64, key, nam
 	return sn
 }
 
-// gespeicherteFelder liest die fields-Spalte eines Textbausteins zurück.
+// gespeicherteFelder liest die fields-Spalte eines Textbausteins back.
 func gespeicherteFelder(t *testing.T, database *db.DB, websiteID, id int64) field.Data {
 	t.Helper()
 	sn, err := snippet.NewStore(database).Get(context.Background(), websiteID, id)

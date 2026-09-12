@@ -171,7 +171,7 @@ func TestFehlschlagWirdSpaeterErneutVersucht(t *testing.T) {
 		t.Error("the reason was not recorded")
 	}
 
-	// Und Retry holt sie zurück in die Gegenwart, für den Betreiber, der gerade
+	// Und Retry holt sie back in die Gegenwart, für den Betreiber, der gerade
 	// das Passwort korrigiert hat.
 	if n, err := q.Retry(ctx); err != nil || n != 1 {
 		t.Errorf("Retry: %d, %v", n, err)

@@ -96,7 +96,7 @@ func TestEineEditoraktionSpeichertNicht(t *testing.T) {
 	}
 }
 
-// Mit htmx kommt nur die Liste zurück, ohne htmx das ganze Formular. Beides
+// Mit htmx kommt nur die Liste back, ohne htmx das ganze Formular. Beides
 // muss den Zustand tragen, sonst verliert einer der beiden Wege den Text.
 func TestEditoraktionMitUndOhneHtmx(t *testing.T) {
 	h, sm, _, ws := newTestAdmin(t)
@@ -240,7 +240,7 @@ func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
 // handlePageEditPost nicht — und ein leeres Set kennt nur die neun eingebauten
 // Arten. Clean verwarf daraufhin beim Speichern jeden Baustein einer eigenen
 // Art, ohne Meldung, und Apply legte keinen neuen an. Eine Seite mit sechs
-// Merkmalen kam als Fliesstext zurück, und der Editor bot die Art nicht mehr
+// Merkmalen kam als Fliesstext back, und der Editor bot die Art nicht mehr
 // an, mit der man sie hätte wiederherstellen können.
 func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
