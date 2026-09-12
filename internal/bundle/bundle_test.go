@@ -551,9 +551,9 @@ func archiveWithFile(t *testing.T, m Manifest, name string, data []byte) []byte 
 	return buf.Bytes()
 }
 
-// Ein Verweis ist eine Seiten-Nummer, und eine Nummer bedeutet auf der anderen
-// Maschine nichts. Er reist als Adresse — und zwar auch dann, wenn er auf eine
-// Seite zeigt, die im Archiv erst später kommt.
+// A reference is a page number, and a number means nothing on the other
+// machine. It travels as an address — and does so even when it points at a
+// page that comes later in the archive.
 func TestRoundTripKeepsAReferenceForward(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -568,8 +568,8 @@ func TestRoundTripKeepsAReferenceForward(t *testing.T) {
 		t.Fatalf("create field: %v", err)
 	}
 
-	// Die Zielseite wird nach der verweisenden angelegt, damit der Import sie
-	// beim ersten Durchgang nicht kennen kann.
+	// The target page is created after the referring one, so that the import
+	// cannot possibly know it on the first pass.
 	quelle, err := s.Pages.CreatePage(ctx, page.PageCreate{
 		WebsiteID: ws.ID, Title: "Wollpaket", Slug: "wollpaket",
 		Markdown: "x", HTML: "<p>x</p>", Status: "published",
@@ -648,16 +648,16 @@ func manifestOf(t *testing.T, archive []byte) string {
 	return string(data)
 }
 
-// Eine mit Bausteinen gebaute Seite reiste bis hierher als reiner Text: die
-// Bausteine standen nie im Archiv. Dieser Test ist die Zusage, dass sie es tun
-// — samt der eigenen Bausteinart und samt dem Bild darin, das als Dateiname
-// reist und auf der anderen Seite eine neue Nummer bekommt.
+// A page built from snippets travelled this far as plain text: the snippets
+// were never in the archive. This test is the promise that they are — together
+// with their own snippet kind and with the image inside, which travels as a
+// file name and is given a new number on the other side.
 func TestRoundTripKeepsBlocks(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
 	ws := seedSite(t, s)
 
-	// Ein Bild, das der Export auch wirklich mitnehmen kann.
+	// An image the export can genuinely carry along.
 	dir := filepath.Join(s.DataDir, "media", strconv.FormatInt(ws, 10))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -666,15 +666,15 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "teig.jpg"), foto, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Die Prüfsumme muss zur Datei passen: der Import wirft eine Datei weg,
-	// deren Summe nicht stimmt, und das wäre hier kein Fehler des Bündels.
+	// The checksum has to match the file: the import throws away a file whose
+	// sum does not add up, and that would not be a fault of the bundle here.
 	bild, err := s.Media.Create(ctx, ws, "teig.jpg", "teig.jpg", "image/jpeg",
 		int64(len(foto)), hashBytes(foto))
 	if err != nil {
 		t.Fatalf("Media.Create: %v", err)
 	}
 
-	// Eine eigene Bausteinart mit einem Text- und einem Bildfeld.
+	// A snippet kind of its own with a text field and an image field.
 	art, err := s.BlockTypes.Create(ctx, ws, "Rezeptschritt", "Ein Schritt.")
 	if err != nil {
 		t.Fatalf("BlockTypes.Create: %v", err)
@@ -689,10 +689,10 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		}
 	}
 
-	// Das Album, das der Galeriebaustein unten nennt. Seit 11-06 reist der
-	// Verweis als Name und wird auf der anderen Seite wieder abgeleitet, also
-	// muss es das Album wirklich geben — ein Kürzel, das kein Album dieser
-	// Website benennt, wird absichtlich fallengelassen.
+	// The album that the gallery snippet below names. Since 11-06 the
+	// reference travels as a name and is derived again on the other side, so
+	// the album really has to exist — a slug that names no album of this
+	// website is deliberately dropped.
 	if _, err := s.Albums.Create(ctx, ws, "Möbel"); err != nil {
 		t.Fatalf("Albums.Create: %v", err)
 	}
@@ -770,9 +770,9 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		t.Errorf("die eigene Art kam nicht an: %+v", angekommen[2])
 	}
 
-	// Die Bildnummer muss eine neue sein — die der Kopie, nicht die des
-	// Originals. Genau hier ginge ein Bündel sonst still auf die Bibliothek
-	// der falschen Website.
+	// The image number has to be a new one — that of the copy, not that of the
+	// original. This is exactly where a bundle would otherwise reach silently
+	// into the library of the wrong website.
 	neuesBild, err := s.Media.GetByID(ctx, angekommen[1].MediaID)
 	if err != nil || neuesBild == nil {
 		t.Fatalf("the block's image does not exist: %v", err)
@@ -785,7 +785,7 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 			angekommen[2].Fields["bild"], neuesBild.ID)
 	}
 
-	// Und die Seite ist gesetzt, nicht leer: das HTML entsteht beim Import neu.
+	// And the page is set, not empty: the HTML is built anew on import.
 	if !strings.Contains(pg.ContentHTML, "hc-eigen--rezeptschritt") {
 		t.Errorf("the page was not re-rendered:\n%s", pg.ContentHTML)
 	}
@@ -1280,10 +1280,10 @@ func TestManifestWithoutAlbumsImportsAsBefore(t *testing.T) {
 	}
 }
 
-// Die weiteren Sprachen einer Website reisten nicht mit. Die Folgen waren
-// still und teuer: jede übersetzte Seite kam unter der Hauptsprache an, und
-// zwei Menüs, die sich nur in der Sprache unterscheiden, stiessen beim Anlegen
-// zusammen — die Kopie stand ohne halbe Navigation da.
+// The further languages of a website did not travel along. The consequences
+// were silent and expensive: every translated page arrived under the main
+// language, and two menus that differ only in language collided on creation —
+// the copy stood there with half its navigation missing.
 func TestRoundTripKeepsTheLanguages(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -1295,7 +1295,7 @@ func TestRoundTripKeepsTheLanguages(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
 	}
-	// Eine französische Seite und zwei Menüs am selben Ort, eines je Sprache.
+	// A French page and two menus in the same place, one per language.
 	if _, err := s.Pages.CreatePage(ctx, page.PageCreate{
 		WebsiteID: ws, Title: "Contact", Slug: "contact",
 		Markdown: "Bonjour.", Status: "published", Locale: "fr",
@@ -1333,7 +1333,7 @@ func TestRoundTripKeepsTheLanguages(t *testing.T) {
 	if fr.Locale != "fr" {
 		t.Errorf("the French page arrived as %q", fr.Locale)
 	}
-	// Die drei aus seedSite und diesem Test, keines davon verloren.
+	// The three from seedSite and from this test, none of them lost.
 	menus, err := s.Menus.ListMenus(ctx, report.WebsiteID)
 	if err != nil {
 		t.Fatalf("List menus: %v", err)
@@ -1385,7 +1385,7 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 	importPages(ctx, s, ws, m, map[string]int64{}, nil, map[string]string{}, block.Set{}, report)
 	importMenus(ctx, s, ws, m, report)
 
-	// Drei Seiten, alle drei unter derselben Adresse.
+	// Three pages, all three under the same address.
 	for _, loc := range []string{"", "fr", "it"} {
 		pg, err := s.Pages.GetPageBySlugIn(ctx, ws, loc, "produkt")
 		if err != nil || pg == nil {
@@ -1407,7 +1407,7 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 		}
 	}
 
-	// Und das französische Menü zeigt auf die französische Seite.
+	// And the French menu points at the French page.
 	menus, err := s.Menus.ListMenus(ctx, ws)
 	if err != nil {
 		t.Fatalf("ListMenus: %v", err)
@@ -1437,11 +1437,11 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 	}
 }
 
-// Ein mehrwertiger Wert reist als das, was er ist: eine Zeichenkette mit einer
-// Zeile je Wert. Übersetzt werden nur Bildnummern und Seitennummern, alles
-// andere trägt das Archiv unverändert — und genau das muss nachweisbar bleiben,
-// sonst zerlegt eine spätere Übersetzung still die Kodierung, auf der Phase 9
-// aufbaut.
+// A multi-value value travels as what it is: a string with one line per value.
+// Only image numbers and page numbers are translated, everything else the
+// archive carries unchanged — and exactly that has to stay demonstrable, or a
+// later translation silently takes apart the encoding that phase 9 builds
+// upon.
 func TestMehrfachauswahlUeberlebtDieArchivreise(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -1464,8 +1464,8 @@ func TestMehrfachauswahlUeberlebtDieArchivreise(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Doppelte und Reihenfolge sind Teil des Wertes: beide müssen die Reise
-	// unverändert überstehen.
+	// Duplicates and order are part of the value: both have to survive the
+	// journey unchanged.
 	wert := field.JoinValues([]string{"Esche", "Eiche", "Esche"})
 	raw, err := field.Encode(field.Data{Values: field.Values{"sorten": wert}})
 	if err != nil {
@@ -1506,13 +1506,13 @@ func TestMehrfachauswahlUeberlebtDieArchivreise(t *testing.T) {
 	}
 }
 
-// Die vier Eigenschaften aus Wanderung 00046 müssen die Archivreise überstehen:
-// Ein Bundle ist die Übergabe einer Website, und eine Auswahl, die drüben
-// wieder als Klappliste erscheint, ist nicht dieselbe Website.
+// The four properties from migration 00046 have to survive the archive
+// journey: a bundle is the handover of a website, and a choice that shows up
+// over there as a dropdown again is not the same website.
 //
-// Drei Stellen bauen ein Manifest-Feld und drei bauen daraus wieder eine
-// Definition — das Seitenfeld, das Feld in einer Gruppe und das Feld einer
-// Bausteinart. Alle drei Paare werden hier gelesen.
+// Three places build a manifest field and three build a definition back out of
+// it — the page field, the field inside a group and the field of a snippet
+// kind. All three pairs are read here.
 func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -1522,7 +1522,7 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Ein Seitenfeld als Auswahl: trägt die Darstellung.
+	// A page field as a choice: carries the presentation.
 	if _, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "farbe", Label: "Farbe", Kind: field.KindChoice,
 		Choices: []string{"hell", "dunkel"},
@@ -1530,9 +1530,9 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Auswahlfeld anlegen: %v", err)
 	}
-	// Ein Seitenfeld als Mehrfachauswahl: trägt die Höchstzahl. Und eines als
-	// Bereich: trägt die beiden Grenzen. Drei Felder, weil validate leert, was
-	// zur Art nicht passt — kein einziges Feld kann alle vier tragen.
+	// A page field as a multiple choice: carries the maximum. And one as a
+	// range: carries the two bounds. Three fields, because validate empties
+	// whatever does not fit the kind — no single field can carry all four.
 	if _, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "hoelzer", Label: "Hölzer", Kind: field.KindMulti,
 		Choices: []string{"Eiche", "Buche"}, MaxValues: 2,
@@ -1545,7 +1545,7 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Bereichsfeld anlegen: %v", err)
 	}
-	// Dasselbe noch einmal in einer Gruppe.
+	// The same again inside a group.
 	gruppe, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "zeiten", Label: "Zeiten", Kind: field.KindGroup,
 	})
@@ -1620,10 +1620,10 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 	}
 }
 
-// Ein Manifest einer Website, die keine der vier neuen Eigenschaften benutzt,
-// darf keine der vier Schlüssel tragen — omitempty ist das Versprechen, dass
-// ein Archiv von vor dieser Phase Byte für Byte gleich aussieht. Ein Archiv
-// ist dazu da, von Hand gelesen und geflickt zu werden.
+// A manifest of a website that uses none of the four new properties must carry
+// none of the four keys — omitempty is the promise that an archive from before
+// this phase looks the same byte for byte. An archive exists to be read and
+// patched by hand.
 func TestManifestSchweigtUeberUngenutzteEigenschaften(t *testing.T) {
 	roh, err := json.Marshal(Field{Key: "preis", Label: "Preis", Kind: field.KindNumber})
 	if err != nil {
@@ -1636,20 +1636,18 @@ func TestManifestSchweigtUeberUngenutzteEigenschaften(t *testing.T) {
 	}
 }
 
-// Die Rundreise eines Schlagwortfeldes — und der eine Fall, der sie heute
-// zerbricht.
+// The round trip of a term field — and the one case that breaks it today.
 //
-// Rename behält absichtlich das Kürzel: bestehende Links sollen nicht
-// zerbrechen. Eine Seite trägt danach das *alte* Kürzel, während das
-// Schlagwort einen *neuen* Namen zeigt. Reist der Wert als Kürzel, leitet die
-// andere Maschine aus dem Namen ein anderes Kürzel ab, und der Wert zeigt auf
-// nichts — lautlos. Deshalb wird hier vor dem Export umbenannt: ein
-// Schlagwort, dessen Name noch zu seinem Kürzel passt, reist auch ohne die
-// Übersetzung heil und bewiese gar nichts.
+// Rename deliberately keeps the slug: existing links should not break. A page
+// afterwards carries the *old* slug while the term shows a *new* name. If the
+// value travels as a slug, the other machine derives a different slug from the
+// name, and the value points at nothing — silently. That is why the rename
+// happens here before the export: a term whose name still matches its slug
+// would travel intact even without the translation and would prove nothing.
 //
-// Das Schlagwort hängt ausserdem an keiner Seite. Ein Schlagwort, das kein
-// Seiten-Schlagwortfeld trägt, wurde beim Import bisher gezählt und nicht
-// angelegt — die zweite Hälfte desselben Fehlers, in derselben Seite.
+// The term is moreover attached to no page. A term that no page term field
+// carries used to be counted on import and not created — the second half of
+// the same fault, on the same page.
 func TestSchlagwortfeldRundreise(t *testing.T) {
 	t.Run("umbenannt und an keiner Seite", func(t *testing.T) {
 		s := newStores(t)
@@ -1672,9 +1670,8 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Anlegen, umbenennen, wieder abhängen: übrig bleibt ein Schlagwort
-		// mit dem Kürzel "moebel" und dem Namen "Möbelbau", das keine Seite
-		// trägt.
+		// Create, rename, detach again: what remains is a term whose slug is
+		// still "moebel" while its name has moved on, carried by no page.
 		if err := s.Terms.SetForPage(ctx, ws.ID, seite.ID, []string{"Möbel"}); err != nil {
 			t.Fatal(err)
 		}
@@ -1692,8 +1689,8 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Der gespeicherte Wert ist das *alte* Kürzel — genau das, was Rename
-		// hinterlässt.
+		// The stored value is the *old* slug — exactly what Rename leaves
+		// behind.
 		raw, err := field.Encode(field.Data{Values: field.Values{"thema": "moebel"}})
 		if err != nil {
 			t.Fatal(err)
@@ -1704,8 +1701,8 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 
 		archive := exportTo(t, s, ws.ID)
 		geschrieben := manifestOf(t, archive)
-		// Das Archiv trägt den Namen, so wie eine Schlagwortliste einer Seite
-		// ihn immer schon getragen hat — nicht das Kürzel.
+		// The archive carries the name, the way a page's term list has always
+		// carried it — not the slug.
 		if !strings.Contains(geschrieben, `"thema": "Möbelbau"`) {
 			t.Errorf("the archive does not carry the term's name:\n%s", geschrieben)
 		}
@@ -1721,8 +1718,8 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Errorf("Warnungen: %v", report.Warnings)
 		}
 
-		// Das Schlagwort ist auf der neuen Website angelegt, obwohl keine
-		// Seite es trägt.
+		// The term is created on the new website even though no page carries
+		// it.
 		neue, err := s.Terms.ListAll(ctx, report.WebsiteID)
 		if err != nil {
 			t.Fatal(err)
@@ -1734,12 +1731,12 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Errorf("report.Terms = %d, wollte 1 angelegtes Schlagwort", report.Terms)
 		}
 
-		// Und der Wert der Seite zeigt auf *dieses* Schlagwort. Die Adresse
-		// ist eine andere als auf der Quellwebsite — dort "moebel", hier
-		// "moebelbau" — und das ist kein Fehler: das Format leitet die
-		// Adresse eines Schlagworts aus seinem Namen ab (format.go:274-284),
-		// also darf sie sich über eine Rundreise bewegen. Was sich nicht
-		// bewegen darf, ist, auf welches Schlagwort das Feld zeigt.
+		// And the value of the page points at *this* term. The address is a
+		// different one than on the source website — "moebel" there,
+		// "moebelbau" here — and that is not a fault: the format derives the
+		// address of a term from its name (format.go:274-284), so it may move
+		// across a round trip. What may not move is which term the field
+		// points at.
 		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
 		if err != nil {
 			t.Fatal(err)
@@ -1796,12 +1793,12 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Einmal von importTerms, einmal von der Schlagwortliste der Seite —
-		// dieselbe Kürzelableitung, also dieselbe Zeile.
+		// Once from importTerms, once from the page's term list — the same
+		// slug derivation, hence the same row.
 		if len(neue) != 1 {
 			t.Errorf("terms of the copy = %+v, wanted exactly one", neue)
 		}
-		// Und die Seite trägt es weiterhin als eigenes Schlagwort.
+		// And the page still carries it as its own term.
 		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
 		if err != nil || len(kopien) != 1 {
 			t.Fatalf("Seiten der Kopie = %+v, %v", kopien, err)
@@ -1815,11 +1812,11 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		}
 	})
 
-	// term.MaxPerPage ist eine redaktionelle Grenze für einen Eintrag, nicht
-	// für ein Archiv. Ging die ganze Liste des Manifests durch term.Parse,
-	// hörte der Import beim zwölften Schlagwort auf — und gerade die, die
-	// keine Seite trägt, sind der Grund, warum importTerms überhaupt
-	// existiert. Der Bericht nannte die gekürzte Zahl ohne ein Wort dazu.
+	// term.MaxPerPage is an editorial limit for one entry, not for an archive.
+	// If the manifest's whole list went through term.Parse, the import stopped
+	// at the twelfth term — and precisely those that no page carries are the
+	// reason importTerms exists at all. The report named the truncated number
+	// without a word about it.
 	t.Run("fünfzehn Schlagwörter, keines geht verloren", func(t *testing.T) {
 		s := newStores(t)
 		ctx := context.Background()
@@ -1841,9 +1838,9 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Fünfzehn Schlagwörter, an keiner Seite. Das letzte trägt ein Komma
-		// im Namen — ein Manifest ist eine Datei von Hand, und der Leser für
-		// ein Formularfeld zerrisse ihn in zwei.
+		// Fifteen terms, on no page. The last one carries a comma in its name
+		// — a manifest is a file written by hand, and the reader for a form
+		// field would tear it in two.
 		namen := []string{
 			"Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta",
 			"Theta", "Iota", "Kappa", "Lambda", "My", "Ny", "Xi",
@@ -1857,8 +1854,8 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatalf("ListAll = %d terms, %v", len(alle), err)
 		}
 
-		// Das Feld zeigt auf das letzte — das, das ohne den Fehler nie
-		// angelegt würde.
+		// The field points at the last one — the one that would never be
+		// created without the fix.
 		letztes := alle[len(alle)-1]
 		for _, tt := range alle {
 			if tt.Name == "Möbel, Bau" {
@@ -1902,7 +1899,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Errorf("report.Terms = %d, wollte %d", report.Terms, len(namen))
 		}
 
-		// Und das Feld findet sein Schlagwort auf der Kopie wieder.
+		// And the field finds its term again on the copy.
 		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
 		if err != nil || len(kopien) != 1 {
 			t.Fatalf("Seiten der Kopie = %+v, %v", kopien, err)
@@ -1923,14 +1920,14 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 	})
 }
 
-// Ein Archiv ist eine Datei, die jeder bearbeiten kann — genauso unvertraut
-// wie ein Formularfeld, und deshalb durch dieselben Prüfungen.
+// An archive is a file anyone can edit — just as untrusted as a form field,
+// and therefore put through the same checks.
 //
-// Bis hierher war der Importweg der eine, der ohne sie schrieb: field.Encode
-// legte ab, was im Manifest stand, ohne field.Clean und ohne field.CheckAll.
-// Alle anderen Schreibwege sind gedeckt (internal/admin/page.go, die Werkzeuge
-// in internal/ai). Seit 07-04 kürzt trimTo nichts mehr, also ist CheckAll auch
-// die einzige Stelle, an der das Bytebudget überhaupt noch gilt.
+// Up to here the import path was the one that wrote without them: field.Encode
+// stored whatever stood in the manifest, without field.Clean and without
+// field.CheckAll. All other write paths are covered (internal/admin/page.go,
+// the tools in internal/ai). Since 07-04 trimTo truncates nothing any more, so
+// CheckAll is also the only place where the byte budget still applies at all.
 func TestArchivwerteGehenDurchDieselbePruefung(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -1971,40 +1968,39 @@ func TestArchivwerteGehenDurchDieselbePruefung(t *testing.T) {
 	if _, da := werte["art"]; da {
 		t.Errorf("“Zement” is not one of the choices and was stored regardless: %q", werte["art"])
 	}
-	// field.Clean nimmt weg, was zu keinem Feld dieser Website gehört.
+	// field.Clean removes whatever belongs to no field of this website.
 	if _, da := werte["gibtesnie"]; da {
 		t.Error("a value with no field definition was stored")
 	}
-	// Und der gültige Wert kommt an: die Wache wirft nicht die ganze Seite weg.
+	// And the valid value arrives: the guard does not throw away the whole page.
 	if werte["gut"] != "das hier bleibt" {
 		t.Errorf("the valid value = %q, wanted “das hier bleibt”", werte["gut"]) //nolint:german — the message quotes the German fixture it is about
 	}
-	// Der Bericht sagt, was fehlt — sonst müsste der Betreiber die Lücke
-	// selbst finden.
+	// The report says what is missing — otherwise the operator would have to
+	// find the gap themselves.
 	if !warned(report, "notiz") || !warned(report, "art") {
 		t.Errorf("the report does not name the discarded values: %v", report.Warnings)
 	}
 }
 
-// Der Archivweg ist der einzige, auf dem ein Feldschlüssel mitgebracht statt
-// abgeleitet wird: importFields übergibt Key: f.Key wörtlich aus dem Manifest
-// (internal/bundle/import.go:351), und ein Manifest ist eine Datei, die jeder
-// von Hand schreiben kann.
+// The archive path is the only one on which a field key is brought along
+// instead of derived: importFields passes Key: f.Key verbatim from the
+// manifest (internal/bundle/import.go:351), and a manifest is a file anyone
+// can write by hand.
 //
-// Ein Schlüssel wie farbe[] wäre das Formularpräfix der Mehrwertigkeit als
-// Felddefinition getarnt (D-03: die Mehrwertigkeit steht im Namen des
-// Formularfeldes). Er wird abgelehnt — aber als Warnung im Bericht und nicht
-// als Abbruch des Imports, dieselbe Härte wie bei jedem anderen verworfenen
-// Wert: das echte Feld daneben kommt trotzdem an.
-// Die Rundreise der Felder eines Textbausteins.
+// A key like farbe[] would be the form prefix of multi-value disguised as a
+// field definition (D-03: multi-value is stated in the name of the form
+// field). It is refused — but as a warning in the report and not as an abort
+// of the import, the same severity as for every other discarded value: the
+// real field next to it arrives all the same.
+// The round trip of the fields of a snippet.
 //
-// Ein Archiv, das die Definitionen eines Textbausteins ausführt und die Werte
-// beim Import verliert, ist der lautlose Datenverlust, den dieses Projekt
-// überall sonst vermeidet: der Rumpf kommt an, die Website sieht heil aus, und
-// die Hälfte, die jemand eingetippt hat, ist weg. Deshalb wird hier die
-// schwierige Reise gefahren und nicht die leichte — ein Textfeld, ein Zahlfeld
-// und eine Gruppe mit zwei Zeilen, samt Reihenfolge und Feldarten auf der
-// anderen Seite.
+// An archive that carries out the definitions of a snippet and loses the
+// values on import is the silent data loss this project avoids everywhere
+// else: the body arrives, the website looks intact, and the half somebody
+// typed in is gone. That is why the difficult journey is driven here and not
+// the easy one — a text field, a number field and a group with two rows,
+// together with order and field kinds on the other side.
 func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -2019,8 +2015,8 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 		t.Fatalf("Snippets.Create: %v", err)
 	}
 
-	// Ein Seitenfeld mit derselben Kennung steht danebem: es darf weder in den
-	// Definitionen des Textbausteins landen noch dessen Wert bekommen.
+	// A page field with the same key stands next to it: it may neither land in
+	// the definitions of the snippet nor receive its value.
 	if _, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "telefon", Label: "Seitentelefon", Kind: field.KindText,
 	}); err != nil {
@@ -2093,8 +2089,8 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OfSnippet: %v", err)
 	}
-	// Reihenfolge und Feldart, beides: eine Definition, die als Text
-	// zurückkommt, obwohl sie eine Zahl war, ist ein anderes Formular.
+	// Order and field kind, both: a definition that comes back as text although
+	// it was a number is a different form.
 	wollte := []struct{ key, kind string }{
 		{"zeiten", field.KindGroup},
 		{"telefon", field.KindText},
@@ -2127,8 +2123,8 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 		t.Errorf("die Zeilen kamen in anderer Gestalt an: %+v", zeilen)
 	}
 
-	// Der gefährliche Schnitt, auf dem Archivweg: das Seitenfeld hat dieselbe
-	// Kennung und darf den Wert des Textbausteins nicht bekommen.
+	// The dangerous cut, on the archive path: the page field has the same key
+	// and must not receive the value of the snippet.
 	seiten, err := s.Fields.List(ctx, report.WebsiteID)
 	if err != nil {
 		t.Fatal(err)
@@ -2140,12 +2136,12 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 	}
 }
 
-// Ein Manifest von vor dieser Phase: der Textbaustein trägt weder Felder noch
-// Werte, und er kommt an, wie er immer angekommen ist.
+// A manifest from before this phase: the snippet carries neither fields nor
+// values, and it arrives the way it has always arrived.
 //
-// Das ist SNIP-05 für das Archiv. Beide Schlüssel tragen omitempty, also ist
-// „kein Schlüssel“ genau das, was ein älteres Bündel schreibt — und der
-// Importweg darf daraus keinen halben Textbaustein machen.
+// This is SNIP-05 for the archive. Both keys carry omitempty, so "no key" is
+// exactly what an older bundle writes — and the import path must not make half
+// a snippet out of it.
 func TestAeltererTextbausteinImportiertUnveraendert(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -2189,8 +2185,8 @@ func TestAeltererTextbausteinImportiertUnveraendert(t *testing.T) {
 		t.Errorf("the snippet was given definitions out of nowhere: %+v", defs)
 	}
 
-	// Und die Gegenprobe an der Schreibweise: ein Textbaustein ohne Felder
-	// schreibt ein Manifest, das die zwei neuen Schlüssel nicht nennt.
+	// And the counter-check on the writing side: a snippet without fields
+	// writes a manifest that does not name the two new keys.
 	roh, err := json.Marshal(Snippet{Key: "k", Name: "n", Markdown: "m"})
 	if err != nil {
 		t.Fatal(err)
@@ -2202,10 +2198,9 @@ func TestAeltererTextbausteinImportiertUnveraendert(t *testing.T) {
 	}
 }
 
-// Ein Manifest ist eine Datei, die jemand geschrieben hat: eine Definition,
-// die validate ablehnt, kostet ihr Feld und nicht den Import, und ein Wert
-// unter einer Kennung, die es nicht gibt, wird von field.Clean weggenommen
-// statt gespeichert.
+// A manifest is a file somebody wrote: a definition that validate refuses
+// costs its field and not the import, and a value under a key that does not
+// exist is removed by field.Clean instead of being stored.
 func TestTextbausteinfelderAusDemArchivGehenDurchDieselbePruefung(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -2217,7 +2212,7 @@ func TestTextbausteinfelderAusDemArchivGehenDurchDieselbePruefung(t *testing.T) 
 			Key: "footer-kontakt", Name: "Kontakt", Markdown: "x",
 			Fields: []Field{
 				{Key: "telefon", Label: "Telefon", Kind: field.KindText},
-				// Eine Feldart, die es nicht gibt: validate weist sie ab.
+				// A field kind that does not exist: validate refuses it.
 				{Key: "kaputt", Label: "Kaputt", Kind: "gibtesnicht"},
 			},
 			Values: map[string]string{
@@ -2294,27 +2289,26 @@ func TestArchivSchluesselMitKlammernWirdAbgelehnt(t *testing.T) {
 	if defs[0].Key != "farbe" {
 		t.Errorf("angelegtes Feld = %q, wollte farbe", defs[0].Key)
 	}
-	// Der Bericht sagt, was fehlt — sonst müsste der Betreiber die Lücke
-	// selbst finden.
+	// The report says what is missing — otherwise the operator would have to
+	// find the gap themselves.
 	if !warned(report, "Farbe") {
 		t.Errorf("the report does not name the discarded field: %v", report.Warnings)
 	}
 }
 
-// Ein Manifest, das Werte mitbringt und keine Definitionen, ist die eine Form,
-// die vollständig von Hand geschrieben ist.
+// A manifest that brings values and no definitions is the one shape that is
+// written entirely by hand.
 //
-// Beide Wächter — field.Clean und field.CheckAll — hingen an „if len(defs) > 0".
-// Ein Archiv ohne fields kam damit an keinem von beiden vorbei und ging
-// unverändert in die Spalte: der eine Manifestzuschnitt, für den es keinen
-// Bildschirm und kein Formular gibt, war zugleich der einzige, der ohne Prüfung
-// gespeichert wurde. Der Doppelkommentar über cleanSnippetValues sagt dabei das
-// Gegenteil — er nennt das Loch, das 07-04 auf der Seite geschlossen hat, und
-// genau dieses stand hier offen.
+// Both guards — field.Clean and field.CheckAll — hung off "if len(defs) > 0".
+// An archive without fields therefore got past neither of them and went into
+// the column unchanged: the one manifest shape for which there is no screen and
+// no form was at the same time the only one stored without a check. The double
+// comment above cleanSnippetValues says the opposite — it names the hole that
+// 07-04 closed on the page, and exactly that one stood open here.
 //
-// Ohne Definition ist ein Wert von nichts darstellbar; er gehört weggeworfen,
-// und beide Träger — die Seite und der Textbaustein — müssen sich darin gleich
-// verhalten, weil es dieselbe Entscheidung ist.
+// Without a definition a value is displayable by nothing; it belongs in the
+// bin, and both carriers — the page and the snippet — have to behave alike in
+// this, because it is the same decision.
 func TestWerteOhneDefinitionWerdenAufBeidenTraegernVerworfen(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -2323,7 +2317,7 @@ func TestWerteOhneDefinitionWerdenAufBeidenTraegernVerworfen(t *testing.T) {
 	archive := archiveWith(t, Manifest{
 		Version: Version,
 		Site:    Site{Name: "Ohne Definitionen"},
-		// Kein Fields am Manifest und keines am Textbaustein — nur Werte.
+		// No Fields on the manifest and none on the snippet — only values.
 		Pages: []Page{{
 			Title: "Seite", Slug: "seite", Status: "published", Markdown: "x",
 			Fields:      map[string]string{"erfunden": zuLang},
@@ -2368,30 +2362,28 @@ func TestWerteOhneDefinitionWerdenAufBeidenTraegernVerworfen(t *testing.T) {
 			bausteinwerte.Rows)
 	}
 
-	// Und die Spalte bleibt klein. Gemessen wird das Rohe und nicht nur die
-	// Karte: ein Wert kann durch Decode fallen und trotzdem in der Datenbank
-	// stehen.
+	// And the column stays small. What is measured is the raw value and not
+	// just the map: a value can fall through Decode and still stand in the
+	// database.
 	if n := len(kopien[0].Fields); n > 64 {
 		t.Errorf("die fields-Spalte des Textbausteins hält %d Byte — ein von Hand "+
 			"geschriebenes Manifest darf nicht ungeprüft in die Spalte laufen", n)
 	}
 }
 
-// snippet.Store.Create endet auf s.Get(ctx, id), und Get gibt (nil, nil)
-// heraus, wenn die Zeile nicht dasteht (internal/snippet/store.go:92-94). Get
-// liest dabei durch s.DB.Read — einen anderen Pool als den, der geschrieben
-// hat.
+// snippet.Store.Create ends on s.Get(ctx, id), and Get hands out (nil, nil)
+// when the row is not there (internal/snippet/store.go:92-94). Get reads
+// through s.DB.Read — a different pool than the one that wrote.
 //
-// Vor 08-05 wurde der Rückgabewert weggeworfen („if _, err := …"). Seit der
-// Import die Felder des Textbausteins nachzieht, wird created.ID gelesen, und
-// (nil, nil) ist damit kein leeres Ergebnis mehr, sondern ein Absturz, der die
-// ganze Anfrage mitnimmt. internal/admin/snippet.go:307-310 wacht über
-// denselben Wert — die zwei Aufrufstellen waren sich uneins darüber, ob er
-// nil sein kann.
+// Before 08-05 the return value was thrown away ("if _, err := …"). Since the
+// import pulls the fields of the snippet along, created.ID is read, and
+// (nil, nil) is therefore no longer an empty result but a crash that takes the
+// whole request with it. internal/admin/snippet.go:307-310 watches over the
+// same value — the two call sites disagreed about whether it can be nil.
 //
-// Nachgestellt wird die Lage über den Lesepool und nicht über eine Attrappe:
-// der Schreibpool zeigt auf die echte Datenbank, der Lesepool auf eine zweite,
-// leere. Genau das, was Get sieht, wenn seine Zeile nicht dasteht.
+// The situation is reproduced over the read pool and not over a mock: the
+// write pool points at the real database, the read pool at a second, empty
+// one. Exactly what Get sees when its row is not there.
 func TestTextbausteinDerSichNichtZurueckLesenLaesstStuerztNicht(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -2429,22 +2421,22 @@ func TestTextbausteinDerSichNichtZurueckLesenLaesstStuerztNicht(t *testing.T) {
 	}
 }
 
-// Ein Bildfeld an einem Textbaustein überlebt die Archivreise nicht, und der
-// Bericht sagt es jetzt.
+// An image field on a snippet does not survive the archive journey, and the
+// report says so now.
 //
-// Der Wert eines Bild-, Verweis- oder Schlagwortfeldes ist eine Nummer *dieser*
-// Anlage. Auf dem Seitenweg werden solche Nummern beim Ausfahren in einen
-// Dateinamen und eine Adresse übersetzt und beim Einfahren back
-// (exportFieldValues/translateIn); die Werte eines Textbausteins gehen roh
-// hinaus und roh hinein. Drüben gehört die Nummer einer anderen Website, und
-// fieldImages/fieldRefs weisen sie back — das Feld kommt an, das Bild nicht.
+// The value of an image, reference or term field is a number of *this*
+// installation. On the page path such numbers are translated into a file name
+// and an address on the way out and back again on the way in
+// (exportFieldValues/translateIn); the values of a snippet go out raw and come
+// in raw. Over there the number belongs to a different website, and
+// fieldImages/fieldRefs refuse it — the field arrives, the image does not.
 //
-// Das bleibt vorerst so: die Übersetzung sitzt im Seitenweg und sie von dort zu
-// lösen ist eine eigene Arbeit (deferred-items.md). Was sich hier ändert, ist
-// die Lautstärke. Der Verwaltungsbildschirm bietet diese Feldarten ausdrücklich
-// an und field_list.html verspricht sie dem Betreiber; ein Versprechen, das beim
-// Ausfahren stillschweigend gebrochen wird, ist der lautlose Datenverlust, den
-// dieses Projekt sonst überall vermeidet.
+// That stays so for now: the translation sits in the page path and prising it
+// loose from there is a piece of work of its own (deferred-items.md). What
+// changes here is the volume. The admin screen offers these field kinds
+// explicitly and field_list.html promises them to the operator; a promise
+// broken silently on the way out is the silent data loss this project avoids
+// everywhere else.
 func TestBildwertEinesTextbausteinsWirdBeimImportGemeldet(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -2471,8 +2463,8 @@ func TestBildwertEinesTextbausteinsWirdBeimImportGemeldet(t *testing.T) {
 			"zeigt: %v", report.Warnings)
 	}
 
-	// Und der Rest kommt heil an: die Meldung ersetzt keinen Wert und wirft
-	// keinen weg.
+	// And the rest arrives intact: the message replaces no value and throws
+	// none away.
 	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
 	if err != nil || len(kopien) != 1 {
 		t.Fatalf("List snippets: %v (%d)", err, len(kopien))
