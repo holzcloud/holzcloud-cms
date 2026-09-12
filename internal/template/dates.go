@@ -67,8 +67,8 @@ var SupportedLocales = []struct {
 	// The names are marked for translation and translated where they are
 	// rendered, like every other language name in the administration: an
 	// English administration should not offer "Deutsch" beside "German".
-	{Code: "de", Name: i18n.N("Deutsch")},
-	{Code: "en", Name: i18n.N("Englisch")},
+	{Code: "de", Name: i18n.N("German")},
+	{Code: "en", Name: i18n.N("English")},
 }
 
 func normalizeLocale(locale string) string {

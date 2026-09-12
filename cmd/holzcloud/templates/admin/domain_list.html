@@ -9,24 +9,24 @@
 <div class="domain-item" id="domain-{{.ID}}">
     <span class="domain-name">{{.Display}}</span>
     {{if .IsPrimary}}
-    <span class="badge badge--primary">{{t "Hauptdomain"}}</span>
+    <span class="badge badge--primary">{{t "Primary domain"}}</span>
     {{else}}
     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/primary"
           hx-post="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/primary"
           hx-target="#domain-list" hx-swap="innerHTML" style="display:inline">
         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Zur Hauptdomain machen"}}</button>
+        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Make this the primary domain"}}</button>
     </form>
     {{end}}
     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/delete"
           hx-post="/admin/websites/{{$.WebsiteID}}/domains/{{.ID}}/delete"
           hx-target="#domain-list" hx-swap="innerHTML"
-          hx-confirm="{{t "Diese Domain entfernen?"}}" style="display:inline">
+          hx-confirm="{{t "Remove this domain?"}}" style="display:inline">
         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>
     </form>
 </div>
 {{else}}
-<p class="text-muted">{{t "Noch keine Domain zugeordnet."}}</p>
+<p class="text-muted">{{t "No domain assigned yet."}}</p>
 {{end}}
 {{end}}

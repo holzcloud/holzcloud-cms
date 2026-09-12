@@ -45,11 +45,11 @@ func (v *ShopSettingsValues) validate(errs web.FormErrors) {
 	// routes nobody can reach.
 	v.ShopBase = strings.Trim(strings.TrimSpace(v.ShopBase), "/")
 	if strings.ContainsAny(v.ShopBase, "/ ?#") {
-		errs.Add("shop_base", "Nur ein Pfadabschnitt, ohne Schrägstrich — zum Beispiel: shop")
+		errs.Add("shop_base", "Just one path segment, without a slash — for example: shop")
 	}
 
 	if amount, err := money.ParseAmount(v.ShippingGross); err != nil || amount < 0 {
-		errs.Add("shipping", "Betrag nicht lesbar.")
+		errs.Add("shipping", "Amount not readable.")
 	} else {
 		v.shipping = amount
 	}
@@ -60,21 +60,21 @@ func (v *ShopSettingsValues) validate(errs web.FormErrors) {
 	if text := strings.TrimSpace(v.ShippingFreeAt); text != "" {
 		amount, err := money.ParseAmount(text)
 		if err != nil || amount < 0 {
-			errs.Add("free_from", "Betrag nicht lesbar.")
+			errs.Add("free_from", "Amount not readable.")
 		} else {
 			v.freeAt = &amount
 		}
 	}
 
 	if !money.KnownRate(money.TaxRate(v.ShippingTaxBP)) {
-		errs.Add("shipping_tax", "Bitte einen der Schweizer Steuersätze wählen.")
+		errs.Add("shipping_tax", "Please choose one of the Swiss tax rates.")
 	}
 
 	// Leer ist erlaubt und heisst: es geht keine Meldung raus. Eine Adresse
 	// ohne @ ist dagegen ein Tippfehler, und der fällt sonst erst bei der
 	// ersten Bestellung auf, die niemand bemerkt.
 	if v.OrderEmail != "" && !strings.Contains(v.OrderEmail, "@") {
-		errs.Add("order_email", "Das sieht nicht nach einer E-Mail-Adresse aus.")
+		errs.Add("order_email", "That does not look like an email address.")
 	}
 
 	switch v.PriceDisplay {
@@ -191,6 +191,6 @@ func (h *Handler) handleShopSettingsSave(w http.ResponseWriter, r *http.Request,
 	// restart — the same trap the design tokens fell into.
 	h.invalidateWebsiteCaches(ws.ID)
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Shop-Einstellungen gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Shop settings saved")
 	return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/shop")
 }

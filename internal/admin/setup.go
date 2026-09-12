@@ -37,7 +37,7 @@ func (h *Handler) HandleSetupForm(w http.ResponseWriter, r *http.Request) error 
 		http.NotFound(w, r)
 		return nil
 	}
-	data := web.NewLayoutData(r, h.sm, "Einrichtung")
+	data := web.NewLayoutData(r, h.sm, "Setup")
 	return web.RenderAdmin(w, h.templates, r, "setup", data)
 }
 
@@ -62,7 +62,7 @@ func (h *Handler) HandleSetup(w http.ResponseWriter, r *http.Request) error {
 
 	// Validate
 	if email == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte eine E-Mail-Adresse angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give an email address")
 		http.Redirect(w, r, "/admin/setup", http.StatusSeeOther)
 		return nil
 	}
@@ -73,7 +73,7 @@ func (h *Handler) HandleSetup(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 	if password != passwordConfirm {
-		web.SetFlashError(h.sm, r.Context(), "Die Passwörter stimmen nicht überein")
+		web.SetFlashError(h.sm, r.Context(), "The passwords do not match")
 		http.Redirect(w, r, "/admin/setup", http.StatusSeeOther)
 		return nil
 	}
@@ -88,7 +88,7 @@ func (h *Handler) HandleSetup(w http.ResponseWriter, r *http.Request) error {
 		email, hash)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint") {
-			web.SetFlashError(h.sm, r.Context(), "Diese E-Mail-Adresse wird bereits benutzt")
+			web.SetFlashError(h.sm, r.Context(), "That email address is already in use")
 			http.Redirect(w, r, "/admin/setup", http.StatusSeeOther)
 			return nil
 		}

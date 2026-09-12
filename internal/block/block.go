@@ -71,15 +71,15 @@ type Kind struct {
 
 // Kinds is the menu, in the order it is offered.
 var Kinds = []Kind{
-	{TypeText, i18n.N("Text"), i18n.N("Ein Abschnitt in Markdown, wie gewohnt."), false},
-	{TypeImage, i18n.N("Bild"), i18n.N("Ein Bild, wahlweise über die volle Breite."), false},
-	{TypeImageText, i18n.N("Bild und Text"), i18n.N("Ein Bild neben einem Absatz."), false},
-	{TypeGallery, i18n.N("Galerie"), i18n.N("Mehrere Bilder als Raster."), true},
-	{TypeCards, i18n.N("Karten"), i18n.N("Eine Reihe kleiner Felder mit Titel und Text."), true},
-	{TypeQuote, i18n.N("Zitat"), i18n.N("Ein hervorgehobener Satz mit Quelle."), false},
-	{TypeCallout, i18n.N("Aufruf"), i18n.N("Ein Kasten mit Knopf."), false},
-	{TypeVideo, i18n.N("Video"), i18n.N("Ein eigenes MP4 aus der Mediathek. Kein YouTube."), false},
-	{TypeDivider, i18n.N("Trennlinie"), i18n.N("Ein Strich zwischen zwei Abschnitten."), false},
+	{TypeText, i18n.N("Text"), i18n.N("A section in Markdown, as usual."), false},
+	{TypeImage, i18n.N("Image"), i18n.N("An image, optionally across the full width."), false},
+	{TypeImageText, i18n.N("Image and text"), i18n.N("An image beside a paragraph."), false},
+	{TypeGallery, i18n.N("Gallery"), i18n.N("Several images as a grid."), true},
+	{TypeCards, i18n.N("Cards"), i18n.N("A row of small panels with a title and text."), true},
+	{TypeQuote, i18n.N("Quotation"), i18n.N("A highlighted sentence with a source."), false},
+	{TypeCallout, i18n.N("Call to action"), i18n.N("A box with a button."), false},
+	{TypeVideo, i18n.N("Video"), i18n.N("An MP4 of your own from the library. No YouTube."), false},
+	{TypeDivider, i18n.N("Rule"), i18n.N("A line between two sections."), false},
 }
 
 // KindOf returns the description of a built-in type, or false.

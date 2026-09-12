@@ -141,7 +141,7 @@ func TestRejectedEditKeepsTheSubmittedText(t *testing.T) {
 	if !strings.Contains(body, typed) {
 		t.Error("the submitted text is not in the re-rendered form — it was thrown away")
 	}
-	if !strings.Contains(body, "Titel angeben") {
+	if !strings.Contains(body, "Please give a title") {
 		t.Error("no field error next to the title")
 	}
 
@@ -340,7 +340,7 @@ func TestHistoryAndTrashPagesRender(t *testing.T) {
 	}
 }
 
-// A new website that answers "Seite nicht gefunden" on its own domain is the
+// A new website that answers "Page not found (404)" on its own domain is the
 // first thing its owner sees after pointing DNS at it.
 func TestNewWebsiteGetsStarterContent(t *testing.T) {
 	h, sm, database, _ := newTestAdmin(t)
@@ -417,7 +417,7 @@ func TestNewWebsiteGetsStarterContent(t *testing.T) {
 
 func imprintCheck(checks []SiteCheck) bool {
 	for _, c := range checks {
-		if strings.Contains(c.Label, "Impressum") {
+		if strings.Contains(c.Label, "Imprint") {
 			return c.OK
 		}
 	}
@@ -465,10 +465,10 @@ func TestSiteChecksReportWhatIsMissing(t *testing.T) {
 	}
 
 	got := byLabel(h.siteChecks(ctx, ws, nil))
-	if got["Mindestens eine Domain"] {
+	if got["At least one domain"] {
 		t.Error("a website with no domains passed the domain check")
 	}
-	if got["Veröffentlichte Startseite"] {
+	if got["A published start page"] {
 		t.Error("a website with no pages passed the start page check")
 	}
 
@@ -481,10 +481,10 @@ func TestSiteChecksReportWhatIsMissing(t *testing.T) {
 
 	list, _ := domains.ListDomains(ctx, ws.ID)
 	got = byLabel(h.siteChecks(ctx, ws, list))
-	if !got["Mindestens eine Domain"] || !got["Eine Hauptdomain festgelegt"] {
+	if !got["At least one domain"] || !got["A primary domain has been set"] {
 		t.Error("domain checks did not pass after adding a primary domain")
 	}
-	if !got["Veröffentlichte Startseite"] {
+	if !got["A published start page"] {
 		t.Error("start page check did not pass after publishing one")
 	}
 }

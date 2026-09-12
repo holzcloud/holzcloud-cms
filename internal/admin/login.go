@@ -14,7 +14,7 @@ import (
 
 // HandleLoginForm renders the login page.
 func (h *Handler) HandleLoginForm(w http.ResponseWriter, r *http.Request) error {
-	data := web.NewLayoutData(r, h.sm, "Anmelden")
+	data := web.NewLayoutData(r, h.sm, "Sign in")
 	return web.RenderAdmin(w, h.templates, r, "login", data)
 }
 
@@ -58,7 +58,7 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 			Action:     activity.ActionAuthLoginFail,
 			EntityType: "user",
 		})
-		web.SetFlashError(h.sm, r.Context(), "E-Mail-Adresse oder Passwort stimmt nicht")
+		web.SetFlashError(h.sm, r.Context(), "Email address or password is not right")
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
 	}
@@ -69,7 +69,7 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	match, err := auth.VerifyPassword(password, storedPassword)
 	if err != nil || !match {
 		h.loginThrottle.RecordFailure(ip, account)
-		web.SetFlashError(h.sm, r.Context(), "E-Mail-Adresse oder Passwort stimmt nicht")
+		web.SetFlashError(h.sm, r.Context(), "Email address or password is not right")
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
 	}

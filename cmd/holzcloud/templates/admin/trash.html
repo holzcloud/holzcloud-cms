@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Zurück zu den Seiten"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Back to the pages"}}</a>{{end}}
 
 {{define "content"}}
 {{template "trash-content" .}}
@@ -7,16 +7,16 @@
 {{define "trash-content"}}
 <div class="card">
     <p class="text-muted">
-        {{tf "Gelöschte Seiten bleiben %d Tage im Papierkorb und werden danach automatisch endgültig entfernt. Sie sind währenddessen nicht öffentlich erreichbar." .RetentionDays}}
+        {{tf "Deleted pages stay in the wastebasket for %d days and are then removed for good automatically. In the meantime they are not publicly reachable." .RetentionDays}}
     </p>
 
     {{if .Pages}}
     <table class="table">
         <thead>
             <tr>
-                <th scope="col">{{t "Titel"}}</th>
-                <th scope="col">{{t "Adresse"}}</th>
-                <th scope="col">{{t "Gelöscht am"}}</th>
+                <th scope="col">{{t "Title"}}</th>
+                <th scope="col">{{t "Address"}}</th>
+                <th scope="col">{{t "Deleted on"}}</th>
                 <th scope="col"></th>
             </tr>
         </thead>
@@ -31,14 +31,14 @@
                           action="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/restore"
                           hx-post="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/restore">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Wiederherstellen"}}</button>
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Restore"}}</button>
                     </form>
                     <form method="POST"
                           action="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/purge"
                           hx-post="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/purge"
-                          hx-confirm="{{t "Diese Seite endgültig löschen? Das lässt sich nicht rückgängig machen."}}">
+                          hx-confirm="{{t "Delete this page for good? This cannot be undone."}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn--sm btn--danger" hx-disabled-elt="this">{{t "Endgültig löschen"}}</button>
+                        <button type="submit" class="btn btn--sm btn--danger" hx-disabled-elt="this">{{t "Delete for good"}}</button>
                     </form>
                 </td>
             </tr>
@@ -46,7 +46,7 @@
         </tbody>
     </table>
     {{else}}
-    <p class="text-muted">{{t "Der Papierkorb ist leer."}}</p>
+    <p class="text-muted">{{t "The wastebasket is empty."}}</p>
     {{end}}
 </div>
 {{end}}

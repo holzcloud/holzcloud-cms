@@ -303,7 +303,7 @@ func TestZeileWirdBenannt(t *testing.T) {
 	if !da {
 		t.Fatalf("kein Fehler für Zeile 2: %v", errs)
 	}
-	if !strings.Contains(reason.String(), "Zeile 2") {
+	if !strings.Contains(reason.String(), "row 2") {
 		t.Errorf("Fehler nennt die Zeile nicht: %q", reason)
 	}
 }
@@ -687,7 +687,7 @@ func TestBereichPruefung(t *testing.T) {
 				if _, istZahl := ParseNumber(schlecht); !istZahl {
 					// Keine Zahl ist keine Grenzverletzung, sondern etwas
 					// anderes — die Begründung sagt das auch so.
-					if !strings.Contains(r.String(), "Zahl") {
+					if !strings.Contains(r.String(), "number") {
 						t.Errorf("die Begründung zu %q nennt die Zahl nicht: %q", schlecht, r)
 					}
 					continue
@@ -715,7 +715,7 @@ func TestLeererBereichIstNichtNull(t *testing.T) {
 	pflicht.Required = true
 	if r := Check(pflicht, ""); r.Empty() {
 		t.Error("leeres Pflichtfeld angenommen")
-	} else if !strings.Contains(r.String(), "ausgefüllt") {
+	} else if !strings.Contains(r.String(), "filled in") {
 		t.Errorf("die Begründung ist nicht die übliche Pflichtmeldung: %q", r)
 	}
 
@@ -1191,7 +1191,7 @@ func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	}
 	// Und zwar mit der Längenbegründung, nicht mit der Optionsbegründung: eine
 	// Artregel darf hier nicht zurückgeschmuggelt worden sein.
-	if !strings.Contains(aus["sorten"].String(), "zu lang") {
+	if !strings.Contains(aus["sorten"].String(), "too long") {
 		t.Errorf("die Begründung ist nicht die der Länge: %q", aus["sorten"])
 	}
 
@@ -1228,7 +1228,7 @@ func TestVersteckteGruppeBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	if aus[schluessel].Empty() {
 		t.Fatalf("der zu lange Wert in der Zeile einer versteckten Gruppe wurde nicht gemeldet: %v", aus)
 	}
-	if !strings.Contains(aus[schluessel].String(), "zu lang") {
+	if !strings.Contains(aus[schluessel].String(), "too long") {
 		t.Errorf("die Begründung ist nicht die der Länge: %q", aus[schluessel])
 	}
 

@@ -1,10 +1,10 @@
 {{define "content"}}
 <div class="card">
-    <h1>{{t "Bestätigung in zwei Schritten einrichten"}}</h1>
+    <h1>{{t "Set up two-step verification"}}</h1>
 
     {{if .Required}}
     <p class="callout callout--warning">
-        {{t "Für Administratoren ist dieser Schritt Pflicht. Ohne ihn genügt ein erratenes Passwort, um die ganze Installation zu übernehmen."}}
+        {{t "For administrators this step is compulsory. Without it a guessed password is enough to take over the whole installation."}}
     </p>
     {{end}}
 
@@ -12,30 +12,30 @@
 
     <ol class="setup-steps">
         <li>
-            <p>{{t "Öffne eine Authenticator-App und scanne diesen Code."}}</p>
+            <p>{{t "Open an authenticator app and scan this code."}}</p>
             <div class="qr-code">{{.QR}}</div>
         </li>
         <li>
-            <p>{{t "Geht die Kamera nicht? Trage stattdessen diesen Schlüssel von Hand ein:"}}</p>
+            <p>{{t "Camera not working? Type this key in by hand instead:"}}</p>
             <p><code class="totp-secret">{{.SecretGrouped}}</code></p>
         </li>
         <li>
-            <p>{{t "Gib zum Schluss den Code ein, den die App jetzt anzeigt."}}</p>
+            <p>{{t "Finally, enter the code the app is showing now."}}</p>
             <form method="POST" action="/admin/2fa/einrichten">
                 <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
                 <div class="form-group">
-                    <label class="form-label" for="code">{{t "Code aus der App"}}</label>
+                    <label class="form-label" for="code">{{t "Code from the app"}}</label>
                     <input type="text" id="code" name="code" class="form-input" required autofocus
                            inputmode="numeric" pattern="[0-9 ]*" maxlength="8"
                            autocomplete="one-time-code" spellcheck="false">
                 </div>
-                <button type="submit" class="btn btn-primary" hx-disabled-elt="this">{{t "Einschalten"}}</button>
+                <button type="submit" class="btn btn-primary" hx-disabled-elt="this">{{t "Switch on"}}</button>
             </form>
         </li>
     </ol>
 
     <p class="text-muted">
-        {{t "Danach bekommst du Wiederherstellungscodes. Drucke sie aus – ohne sie ist ein verlorenes Handy nur noch über die Kommandozeile des Servers zu lösen."}}
+        {{t "Afterwards you get recovery codes. Print them out — without them a lost phone can only be sorted out from the server's command line."}}
     </p>
 </div>
 {{end}}

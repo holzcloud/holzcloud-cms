@@ -37,7 +37,7 @@ type LanguageData struct {
 // HandleLanguages shows the languages and what may be done with them.
 func (h *Handler) HandleLanguages(w http.ResponseWriter, r *http.Request) error {
 	data := LanguageData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Sprachen"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Languages"),
 		Stats:      i18n.Stats(),
 		Dir:        i18n.Dir(),
 		Strings:    len(i18n.SourceStrings()),
@@ -56,10 +56,10 @@ func (h *Handler) HandleLanguageReload(w http.ResponseWriter, r *http.Request) e
 	i18n.Reload()
 	if err := h.templates.Reload(); err != nil {
 		slog.Error("re-parse admin templates", "err", err)
-		web.SetFlashError(h.sm, r.Context(), "Die Sprachdateien wurden gelesen, die Bildschirme ließen sich aber nicht neu aufbauen")
+		web.SetFlashError(h.sm, r.Context(), "The language files were read, but the screens could not be rebuilt")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Sprachdateien neu eingelesen")
+	web.SetFlashSuccess(h.sm, r.Context(), "Language files re-read")
 	return h.redirect(w, r, "/admin/sprachen")
 }
 
@@ -99,17 +99,17 @@ func (h *Handler) HandleLanguageDownload(w http.ResponseWriter, r *http.Request)
 func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) error {
 	dir := i18n.Dir()
 	if dir == "" {
-		web.SetFlashError(h.sm, r.Context(), "Für Sprachdateien ist kein Ordner eingerichtet")
+		web.SetFlashError(h.sm, r.Context(), "No folder is set up for language files")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 	if err := r.ParseMultipartForm(2 * i18n.MaxFileBytes); err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Die Datei konnte nicht gelesen werden")
+		web.SetFlashError(h.sm, r.Context(), "The file could not be read")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 
 	file, header, err := r.FormFile("datei")
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Bitte eine .json-Datei auswählen")
+		web.SetFlashError(h.sm, r.Context(), "Please choose a .json file")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 	defer file.Close()
@@ -122,7 +122,7 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 	}
 	if !locale.Valid(code) {
 		web.SetFlashError(h.sm, r.Context(),
-			"Das Sprachkürzel ist keines: erwartet werden zwei oder drei Buchstaben wie fr, gern mit Region wie fr-CH")
+			"That is not a language tag: two or three letters such as fr are expected, optionally with a region such as fr-CH")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 	if code == i18n.Source {
@@ -135,16 +135,16 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 	// refused at load time must not sit in the folder looking installed.
 	data, err := io.ReadAll(io.LimitReader(file, i18n.MaxFileBytes+1))
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Die Datei konnte nicht gelesen werden")
+		web.SetFlashError(h.sm, r.Context(), "The file could not be read")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 	if len(data) > i18n.MaxFileBytes {
-		web.SetFlashError(h.sm, r.Context(), "Die Datei ist zu groß")
+		web.SetFlashError(h.sm, r.Context(), "The file is too large")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 	msgs, err := i18n.Parse(data)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Die Sprachdatei wurde abgelehnt: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The language file was refused: %s", err))
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 
@@ -161,7 +161,7 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r,
-		"%s eingespielt: %d Übersetzungen. Unter „Mein Konto“ lässt sie sich jetzt wählen.",
+		"%s installed: %d translations. It can now be chosen under “My account”.",
 		locale.Name(code), len(msgs)))
 
 	// A fassung of a language nobody installed works, but only its own
@@ -170,7 +170,7 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 	// discovered on a half-German screen.
 	if base := i18n.Base(code); base != "" && base != i18n.Source && !i18n.Known(base) {
 		web.SetFlashWarning(h.sm, r.Context(), web.Titlef(r,
-			"Die Grundsprache %s fehlt. %s trägt nur seine eigenen Sätze; alles Übrige erscheint auf Deutsch, bis auch %s eingespielt ist.",
+			"The base language %s is missing. %s only carries its own sentences; everything else appears in German until %s is installed as well.",
 			locale.Name(base), code, base))
 	}
 	return h.redirect(w, r, "/admin/sprachen")
@@ -184,7 +184,7 @@ func (h *Handler) HandleLanguageDelete(w http.ResponseWriter, r *http.Request) e
 	code := locale.Normalise(r.PathValue("code"))
 	dir := i18n.Dir()
 	if dir == "" || !i18n.FromDisk(code) {
-		web.SetFlashError(h.sm, r.Context(), "Diese Sprache gehört zum Programm und lässt sich nicht entfernen")
+		web.SetFlashError(h.sm, r.Context(), "This language belongs to the program and cannot be removed")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
 
@@ -199,6 +199,6 @@ func (h *Handler) HandleLanguageDelete(w http.ResponseWriter, r *http.Request) e
 
 	// Anybody still set to that language now gets what their browser asks for,
 	// because the middleware falls back on an unknown tag. Nothing to clean up.
-	web.SetFlashSuccess(h.sm, r.Context(), "Sprachdatei entfernt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Language file removed")
 	return h.redirect(w, r, "/admin/sprachen")
 }

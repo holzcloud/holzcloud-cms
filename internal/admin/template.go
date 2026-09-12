@@ -73,7 +73,7 @@ func (h *Handler) HandleTemplateList(w http.ResponseWriter, r *http.Request) err
 	}
 
 	data := TemplateListData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Vorlagen"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Templates"),
 		Templates:  items,
 	}
 	data.ActiveNav = "templates"
@@ -87,7 +87,7 @@ func (h *Handler) HandleTemplateUpload(w http.ResponseWriter, r *http.Request) e
 	}
 
 	data := TemplateUploadData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Vorlage hochladen"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Upload a template"),
 	}
 	data.ActiveNav = "templates"
 	return web.RenderAdmin(w, h.templates, r, "template_upload", data)
@@ -98,28 +98,28 @@ func (h *Handler) handleTemplateUploadPost(w http.ResponseWriter, r *http.Reques
 	r.Body = http.MaxBytesReader(w, r.Body, h.cfg.MaxTemplateSize)
 
 	if err := r.ParseMultipartForm(h.cfg.MaxTemplateSize); err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Datei zu groß oder Upload fehlerhaft")
+		web.SetFlashError(h.sm, r.Context(), "File too large or the upload went wrong")
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
 
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte einen Namen für die Vorlage angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give the template a name")
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
 
 	file, header, err := r.FormFile("template_file")
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Bitte eine .zip-Datei zum Hochladen auswählen")
+		web.SetFlashError(h.sm, r.Context(), "Please choose a .zip file to upload")
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
 	defer file.Close()
 
 	if !strings.HasSuffix(strings.ToLower(header.Filename), ".zip") {
-		web.SetFlashError(h.sm, r.Context(), "Es werden nur .zip-Dateien angenommen")
+		web.SetFlashError(h.sm, r.Context(), "Only .zip files are accepted")
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
@@ -127,7 +127,7 @@ func (h *Handler) handleTemplateUploadPost(w http.ResponseWriter, r *http.Reques
 	// Read file into memory for zip.NewReader
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, file); err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Die hochgeladene Datei konnte nicht gelesen werden")
+		web.SetFlashError(h.sm, r.Context(), "The uploaded file could not be read")
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
@@ -137,7 +137,7 @@ func (h *Handler) handleTemplateUploadPost(w http.ResponseWriter, r *http.Reques
 	// the templates root — ExtractTemplate would then RemoveAll every installed
 	// template before renaming its temp dir into place.
 	if slug == "" {
-		web.SetFlashError(h.sm, r.Context(), "Der Name der Vorlage muss Buchstaben oder Ziffern enthalten")
+		web.SetFlashError(h.sm, r.Context(), "The template name must contain letters or digits")
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
@@ -148,7 +148,7 @@ func (h *Handler) handleTemplateUploadPost(w http.ResponseWriter, r *http.Reques
 		return err
 	}
 	if existing != nil {
-		web.SetFlashError(h.sm, r.Context(), "Eine Vorlage mit diesem Namen gibt es bereits")
+		web.SetFlashError(h.sm, r.Context(), "A template with that name already exists")
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
@@ -157,7 +157,7 @@ func (h *Handler) handleTemplateUploadPost(w http.ResponseWriter, r *http.Reques
 	reader := bytes.NewReader(buf.Bytes())
 
 	if err := tmplmgr.ExtractTemplate(reader, int64(buf.Len()), destDir, h.cfg.MaxTemplateSize, h.loader.DefaultFS()); err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Ungültige Vorlage: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Invalid template: %s", err))
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
 	}
@@ -168,7 +168,7 @@ func (h *Handler) handleTemplateUploadPost(w http.ResponseWriter, r *http.Reques
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Vorlage hochgeladen")
+	web.SetFlashSuccess(h.sm, r.Context(), "Template uploaded")
 	redirect := "/admin/templates"
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -192,7 +192,7 @@ func (h *Handler) HandleTemplateActivate(w http.ResponseWriter, r *http.Request)
 
 	websiteID, err := strconv.ParseInt(r.FormValue("website_id"), 10, 64)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Ungültige Website")
+		web.SetFlashError(h.sm, r.Context(), "Invalid website")
 		http.Redirect(w, r, "/admin/templates", http.StatusSeeOther)
 		return nil
 	}
@@ -216,7 +216,7 @@ func (h *Handler) HandleTemplateActivate(w http.ResponseWriter, r *http.Request)
 		EntityID:   id,
 		WebsiteID:  &websiteID,
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Vorlage aktiviert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Template activated")
 	redirect := "/admin/templates"
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -240,7 +240,7 @@ func (h *Handler) HandleTemplateDeactivate(w http.ResponseWriter, r *http.Reques
 
 	websiteID, err := strconv.ParseInt(r.FormValue("website_id"), 10, 64)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Ungültige Website")
+		web.SetFlashError(h.sm, r.Context(), "Invalid website")
 		http.Redirect(w, r, "/admin/templates", http.StatusSeeOther)
 		return nil
 	}
@@ -251,7 +251,7 @@ func (h *Handler) HandleTemplateDeactivate(w http.ResponseWriter, r *http.Reques
 
 	h.loader.InvalidateTemplateCache(websiteID)
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Vorlage deaktiviert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Template deactivated")
 	redirect := "/admin/templates"
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)
@@ -279,7 +279,7 @@ func (h *Handler) HandleTemplateDelete(w http.ResponseWriter, r *http.Request) e
 		return nil
 	}
 	if t.IsBuiltin {
-		web.SetFlashError(h.sm, r.Context(), "Mitgelieferte Vorlagen lassen sich nicht löschen.")
+		web.SetFlashError(h.sm, r.Context(), "Built-in templates cannot be deleted.")
 		http.Redirect(w, r, "/admin/templates", http.StatusSeeOther)
 		return nil
 	}
@@ -290,7 +290,7 @@ func (h *Handler) HandleTemplateDelete(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 	if active {
-		web.SetFlashError(h.sm, r.Context(), "Eine Vorlage, die auf einer Website aktiv ist, lässt sich nicht löschen. Bitte zuerst dort eine andere Vorlage aktivieren.")
+		web.SetFlashError(h.sm, r.Context(), "A template that is active on a website cannot be deleted. Please activate a different template there first.")
 		http.Redirect(w, r, "/admin/templates", http.StatusSeeOther)
 		return nil
 	}
@@ -299,7 +299,7 @@ func (h *Handler) HandleTemplateDelete(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Vorlage gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Template deleted")
 	redirect := "/admin/templates"
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirect)

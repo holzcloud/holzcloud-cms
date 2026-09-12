@@ -148,7 +148,7 @@ func TestDomainListPartialHandlesEmptyList(t *testing.T) {
 	if err := RenderPartial(rec, pt, req(), "domain_list", testDomainList{WebsiteID: 1}); err != nil {
 		t.Fatalf("RenderPartial: %v", err)
 	}
-	if !strings.Contains(rec.Body.String(), "Noch keine Domain zugeordnet") {
+	if !strings.Contains(rec.Body.String(), "No domain assigned yet") {
 		t.Errorf("expected the empty-state message:\n%s", rec.Body.String())
 	}
 }
@@ -228,7 +228,7 @@ func TestAdminRendersInTheRequestsLanguage(t *testing.T) {
 
 // An unknown language must render rather than fail: a build can drop a
 // language while somebody still has it stored in their account.
-func TestUnknownLanguageFallsBackToGerman(t *testing.T) {
+func TestUnknownLanguageFallsBackToTheSource(t *testing.T) {
 	pt := adminTemplateFS(t)
 	r := httptest.NewRequest("GET", "/admin/", nil)
 	r = r.WithContext(i18n.WithLang(r.Context(), "klingon"))
@@ -237,8 +237,8 @@ func TestUnknownLanguageFallsBackToGerman(t *testing.T) {
 	if err := RenderAdmin(rec, pt, r, "dashboard", testDashboard{LayoutData: LayoutData{Title: "Übersicht"}}); err != nil {
 		t.Fatalf("RenderAdmin: %v", err)
 	}
-	if !strings.Contains(rec.Body.String(), ">Seiten<") {
-		t.Error("an unknown language did not fall back to German")
+	if !strings.Contains(rec.Body.String(), ">Pages<") {
+		t.Error("an unknown language did not fall back to the source language")
 	}
 }
 

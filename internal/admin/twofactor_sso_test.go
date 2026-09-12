@@ -172,7 +172,7 @@ func TestAccountScreenDoesNotCallTheSecondFactorCompulsoryForAnSSOAdmin(t *testi
 	rec := serveSignedIn(t, h, sm, h.HandleAccount, req, id, true)
 	body := rec.Body.String()
 
-	if strings.Contains(body, "Für dein Konto ist sie Pflicht") {
+	if strings.Contains(body, "For your account it is compulsory") {
 		t.Error("the account screen tells an administrator signed in through the identity provider that a second factor is compulsory here; for them it is not, and that is the same fact the predicate decides")
 	}
 }
@@ -188,7 +188,7 @@ func TestAccountScreenStillCallsTheSecondFactorCompulsoryForAPasswordAdmin(t *te
 	rec := serveSignedIn(t, h, sm, h.HandleAccount, req, id, false)
 	body := rec.Body.String()
 
-	if !strings.Contains(body, "Für dein Konto ist sie Pflicht") {
+	if !strings.Contains(body, "For your account it is compulsory") {
 		t.Error("an administrator who signed in with a password is no longer told a second factor is compulsory; nothing about the password path may move in this plan")
 	}
 }
@@ -212,7 +212,7 @@ func TestSecondFactorSetupScreenDropsTheCompulsoryWarningForAnSSOAdmin(t *testin
 			req := httptest.NewRequest(http.MethodGet, auth.SetupPath, nil)
 			req.Host = "admin.test"
 			rec := serveSignedIn(t, h, sm, h.HandleTwoFactorSetup, req, id, tc.viaSSO)
-			got := strings.Contains(rec.Body.String(), "Für Administratoren ist dieser Schritt Pflicht")
+			got := strings.Contains(rec.Body.String(), "For administrators this step is compulsory")
 			if got != tc.want {
 				t.Errorf("the setup screen's compulsory warning = %v; want %v", got, tc.want)
 			}
@@ -254,7 +254,7 @@ func TestAccountScreenTellsAnSSOPersonWhereTheirSecondFactorIsEnforced(t *testin
 			}
 			req := httptest.NewRequest(http.MethodGet, "/admin/konto", nil)
 			rec := serveSignedIn(t, h, sm, h.HandleAccount, req, id, tc.viaSSO)
-			got := strings.Contains(rec.Body.String(), "Anmeldung deiner Organisation")
+			got := strings.Contains(rec.Body.String(), "through your organisation")
 			if got != tc.want {
 				t.Errorf("the account screen names the identity provider = %v; want %v — a person who signed in there has to be told that is where the second factor is decided", got, tc.want)
 			}
@@ -282,7 +282,7 @@ func TestUserListTellsAnAdministratorTheInstallationDependsOnTheIdentityProvider
 
 			req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
 			rec := serveSignedIn(t, h, sm, h.HandleUserList, req, id, false)
-			got := strings.Contains(rec.Body.String(), "Anmeldung der Organisation")
+			got := strings.Contains(rec.Body.String(), "brings their two-step verification with them")
 			if got != tc.want {
 				t.Errorf("the user list names the identity provider = %v; want %v — with single sign-on off the screen must be byte-for-byte what it was", got, tc.want)
 			}

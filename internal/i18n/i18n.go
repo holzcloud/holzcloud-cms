@@ -31,8 +31,15 @@ import (
 
 // Source is the language the strings in the source code are written in. It
 // needs no catalogue: a lookup that finds nothing returns the text unchanged,
-// which is already German.
-const Source = "de"
+// which is already English.
+//
+// It was "de" until v2.0, and the catalogue was keyed on the German sentence —
+// which was a good design and had one consequence: the source of this program
+// was full of German sentences, so "a stranger can read this repository" could
+// not be true while it stood. Turning it round was a bijection through the old
+// en.json (tools/flip), and German became a translation like any other:
+// de.json is new, and de-CH.json now falls back to it rather than to the source.
+const Source = "en"
 
 //go:embed locales/*.json
 var catalogFS embed.FS

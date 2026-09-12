@@ -243,13 +243,13 @@ func absolute(base, ref string) string {
 // A short list, not the whole vocabulary: the value only helps if it is right,
 // and a dropdown of six hundred types is one nobody reads to the end of.
 var OrgTypes = []struct{ Value, Label string }{
-	{"", i18n.N("Keine Angabe")},
-	{"LocalBusiness", i18n.N("Betrieb vor Ort")},
-	{"HomeAndConstructionBusiness", i18n.N("Handwerk und Bau")},
-	{"Store", i18n.N("Laden")},
-	{"Restaurant", i18n.N("Gastronomie")},
-	{"ProfessionalService", i18n.N("Dienstleistung")},
-	{"Organization", i18n.N("Organisation oder Verein")},
+	{"", i18n.N("Not given")},
+	{"LocalBusiness", i18n.N("Local business")},
+	{"HomeAndConstructionBusiness", i18n.N("Trades and construction")},
+	{"Store", i18n.N("Shop")},
+	{"Restaurant", i18n.N("Restaurant or café")},
+	{"ProfessionalService", i18n.N("Professional service")},
+	{"Organization", i18n.N("Organisation or club")},
 }
 
 // KnownOrgType reports whether a value is one of the offered types.

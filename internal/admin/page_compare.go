@@ -95,7 +95,7 @@ func (h *Handler) HandlePageRevisionCompare(w http.ResponseWriter, r *http.Reque
 	}
 
 	data := PageCompareData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Vergleich – %s", p.Title)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Comparison – %s", p.Title)),
 		WebsiteID:  websiteID,
 		Page:       p,
 		From:       fromSide,
@@ -195,7 +195,7 @@ func (h *Handler) HandlePageRevisionLabel(w http.ResponseWriter, r *http.Request
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), web.T(r, "Beschriftung gespeichert"))
+	web.SetFlashSuccess(h.sm, r.Context(), web.T(r, "Label saved"))
 	return h.redirect(w, r, revisionsPath(websiteID, pageID))
 }
 

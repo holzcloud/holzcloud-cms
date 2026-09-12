@@ -6,7 +6,7 @@
      editor: one picture chooser, not two that agree until one of them is
      changed. */}}
 
-{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/albums" class="btn btn--sm">{{t "Zurück zu den Alben"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/albums" class="btn btn--sm">{{t "Back to the albums"}}</a>{{end}}
 
 {{define "content"}}
 {{template "album_edit-content" .}}
@@ -14,7 +14,7 @@
 
 {{define "album_edit-content"}}
 <div class="card" style="margin-bottom:var(--space-3)">
-    <h2 style="margin-bottom:var(--space-2)">{{t "Name des Albums"}}</h2>
+    <h2 style="margin-bottom:var(--space-2)">{{t "Name of the album"}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums/{{.Album.ID}}/update"
           style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
@@ -23,56 +23,56 @@
             <input type="text" id="album-name" name="name" class="form-input"
                    value="{{.Album.Name}}" required maxlength="60">
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
     </form>
     <p class="form-hint text-muted" style="margin-top:var(--space-1)">
-        {{t "Die Adresse des Albums bleibt"}} <code>{{.Album.Slug}}</code>{{t ". Seiten, die es tragen, verlieren es beim Umbenennen nicht."}}
+        {{t "The album’s address stays"}} <code>{{.Album.Slug}}</code>{{t ". Pages carrying it do not lose it when it is renamed."}}
     </p>
 </div>
 
 <div class="card" style="margin-bottom:var(--space-3)">
-    <h2 style="margin-bottom:var(--space-2)">{{t "Bilder"}}</h2>
+    <h2 style="margin-bottom:var(--space-2)">{{t "Images"}}</h2>
     {{if .Pictures}}
     {{range .Pictures}}
     <fieldset class="album-picture">
-        <legend>{{t "Bild"}} {{.Number}}</legend>
+        <legend>{{t "Image"}} {{.Number}}</legend>
         <div class="album-picture__order">
             <form method="POST" action="{{.Up}}" style="display:inline">
                 <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                 <button type="submit" class="reorder-btn" hx-post="{{.Up}}" hx-disabled-elt="this"{{if .First}} disabled{{end}}>
-                    <span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Nach oben schieben"}}</span>
+                    <span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Move up"}}</span>
                 </button>
             </form>
             <form method="POST" action="{{.Down}}" style="display:inline">
                 <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                 <button type="submit" class="reorder-btn" hx-post="{{.Down}}" hx-disabled-elt="this"{{if .Last}} disabled{{end}}>
-                    <span aria-hidden="true">&#8595;</span><span class="sr-only">{{t "Nach unten schieben"}}</span>
+                    <span aria-hidden="true">&#8595;</span><span class="sr-only">{{t "Move down"}}</span>
                 </button>
             </form>
             <form method="POST" action="{{.Remove}}" hx-post="{{.Remove}}" style="display:inline"
-                  hx-confirm="{{t "Dieses Bild aus dem Album nehmen? Die Datei bleibt in der Mediathek."}}">
+                  hx-confirm="{{t "Take this image out of the album? The file stays in the media library."}}">
                 <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+                <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>
             </form>
         </div>
         <form method="POST" action="{{.Update}}">
             <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
             {{template "block_bild" .Image}}
-            <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Bild speichern"}}</button>
+            <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Save image"}}</button>
         </form>
     </fieldset>
     {{end}}
     {{else}}
-    <p class="text-muted">{{t "Noch keine Bilder. Füge unten das erste hinzu."}}</p>
+    <p class="text-muted">{{t "No images yet. Add the first one below."}}</p>
     {{end}}
 </div>
 
 <div class="card">
-    <h2 style="margin-bottom:var(--space-2)">{{t "Bild hinzufügen"}}</h2>
+    <h2 style="margin-bottom:var(--space-2)">{{t "Add image"}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums/{{.Album.ID}}/pictures">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         {{template "block_bild" .NewPicture}}
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this" style="margin-top:var(--space-1)">{{t "Bild hinzufügen"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this" style="margin-top:var(--space-1)">{{t "Add image"}}</button>
     </form>
 </div>
 {{end}}

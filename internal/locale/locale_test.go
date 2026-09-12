@@ -109,9 +109,12 @@ func TestBelegteAdressen(t *testing.T) {
 }
 
 func TestNamen(t *testing.T) {
+	// Name is what the ADMIN calls a language, so it is in the admin's source
+	// language — English since v2.0, German before it. Native, below, is what
+	// the language calls itself and does not move.
 	for tag, will := range map[string]string{
-		"de": "Deutsch", "fr": "Französisch", "fr-CH": "Französisch (CH)",
-		"xx": "xx", "rm": "Rätoromanisch",
+		"de": "German", "fr": "French", "fr-CH": "French (CH)",
+		"xx": "xx", "rm": "Romansh",
 	} {
 		if got := Name(tag); got != will {
 			t.Errorf("Name(%q) = %q, want %q", tag, got, will)
@@ -141,8 +144,8 @@ func TestNativeNamesTheLanguageInItself(t *testing.T) {
 	if got := Native("fr"); got != "Français" {
 		t.Errorf(`Native("fr") = %q; want "Français"`, got)
 	}
-	if got := Name("fr"); got != "Französisch" {
-		t.Errorf(`Name("fr") = %q; want "Französisch" — the admin stays German`, got)
+	if got := Name("fr"); got != "French" {
+		t.Errorf(`Name("fr") = %q; want "French" — Name is in the admin's own language`, got)
 	}
 	// An unknown tag falls back rather than inventing a name.
 	if got := Native("xx"); got != "xx" {

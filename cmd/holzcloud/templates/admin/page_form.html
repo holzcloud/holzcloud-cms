@@ -8,9 +8,9 @@
     <div class="alert alert--warning" role="alert">
         <p>{{.Conflict}}</p>
         <p>
-            <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/edit" target="_blank" rel="noopener">{{t "Aktuelle Fassung ansehen"}}</a>
+            <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/edit" target="_blank" rel="noopener">{{t "View the current version"}}</a>
             {{if .RevisionCount}}
-            &middot; <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" target="_blank" rel="noopener">{{t "Versionsverlauf"}}</a>
+            &middot; <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" target="_blank" rel="noopener">{{t "Version history"}}</a>
             {{end}}
         </p>
     </div>
@@ -20,9 +20,9 @@
          diesem Bildschirm ist. Ein Link, kein Schalter — und kein JavaScript. */}}
     <p class="fullscreen-toggle">
         {{if .Fullscreen}}
-        <a href="{{.BlockAction}}" class="btn btn--sm">{{t "Vollbild verlassen"}}</a>
+        <a href="{{.BlockAction}}" class="btn btn--sm">{{t "Leave full screen"}}</a>
         {{else}}
-        <a href="{{.BlockAction}}?vollbild=1" class="btn btn--sm">{{t "Vollbild"}}</a>
+        <a href="{{.BlockAction}}?vollbild=1" class="btn btn--sm">{{t "Full screen"}}</a>
         {{end}}
     </p>
 
@@ -32,25 +32,25 @@
         {{if .IsEdit}}<input type="hidden" name="version" value="{{.Values.Version}}">{{end}}
 
         <div class="form-group">
-            <label class="form-label" for="title">{{t "Titel"}}</label>
+            <label class="form-label" for="title">{{t "Title"}}</label>
             <input type="text" id="title" name="title" class="form-input" required
                    value="{{.Values.Title}}"
-                   placeholder="{{t "Titel der Seite"}}"
+                   placeholder="{{t "Title of the page"}}"
                    {{with .Errors.title}}aria-invalid="true" aria-describedby="title-error"{{end}}>
             {{with .Errors.title}}<p class="form-error" id="title-error">{{t .}}</p>{{end}}
         </div>
 
         <div class="form-group">
-            <label class="form-label" for="slug">{{t "Adresse"}}</label>
+            <label class="form-label" for="slug">{{t "Address"}}</label>
             <input type="text" id="slug" name="slug" class="form-input"
                    value="{{.Values.Slug}}"
-                   placeholder="{{t "wird-aus-dem-titel-erzeugt"}}"
+                   placeholder="{{t "built-from-the-title"}}"
                    aria-describedby="slug-hint{{with .Errors.slug}} slug-error{{end}}"
                    {{with .Errors.slug}}aria-invalid="true"{{end}}>
             {{with .Errors.slug}}<p class="form-error" id="slug-error">{{t .}}</p>{{end}}
             <p class="form-hint text-muted" id="slug-hint">
-                {{t "Leer lassen, um die Adresse aus dem Titel zu erzeugen."}}
-                {{if .IsEdit}}{{t "Beim Ändern wird automatisch eine Weiterleitung von der alten Adresse angelegt."}}{{end}}
+                {{t "Leave empty to build the address from the title."}}
+                {{if .IsEdit}}{{t "Changing it creates a redirect from the old address automatically."}}{{end}}
             </p>
         </div>
 
@@ -58,24 +58,24 @@
         <!-- Der Baustein-Editor. Die Liste wird von htmx an Ort und Stelle
              ersetzt; ohne htmx lädt der Browser das ganze Formular neu. -->
         <div class="form-group">
-            <span class="form-label">{{t "Inhalt"}}</span>
+            <span class="form-label">{{t "Content"}}</span>
             {{template "block_list" .}}
         </div>
         {{else}}
         <div class="form-group">
-            <label class="form-label" for="content_markdown">{{t "Inhalt (Markdown)"}}</label>
+            <label class="form-label" for="content_markdown">{{t "Content (Markdown)"}}</label>
             <div class="editor-split">
                 <textarea id="content_markdown" name="content_markdown"
                           class="form-input form-textarea form-textarea--tall"
-                          rows="20" placeholder="{{t "Inhalt in Markdown schreiben …"}}"
+                          rows="20" placeholder="{{t "Write the content in Markdown …"}}"
                           hx-post="/admin/websites/{{.WebsiteID}}/pages/preview"
                           hx-trigger="input changed delay:600ms"
                           hx-target="#preview-pane"
                           hx-swap="innerHTML">{{.Values.Markdown}}</textarea>
                 <!-- Without htmx this section simply stays on its initial content;
                      the editor keeps working, the pane just does not follow along. -->
-                <section class="editor-preview" aria-label="{{t "Vorschau"}}">
-                    <h2 class="editor-preview__title">{{t "Vorschau"}}</h2>
+                <section class="editor-preview" aria-label="{{t "Preview"}}">
+                    <h2 class="editor-preview__title">{{t "Preview"}}</h2>
                     <div id="preview-pane" class="editor-preview__body prose" aria-live="polite">
                         {{template "preview_pane" .PreviewHTML}}
                     </div>
@@ -84,14 +84,14 @@
             {{template "markdown_help" .}}
             {{if .Snippets}}
             <details class="snippet-help">
-                <summary>{{t "Textbausteine einfügen"}}</summary>
+                <summary>{{t "Insert a snippet"}}</summary>
                 <ul class="snippet-help__list">
                     {{range .Snippets}}
                     <li><code>[[snippet:{{.Key}}]]</code> — {{.Name}}</li>
                     {{end}}
                 </ul>
                 <p class="form-hint text-muted">
-                    <a href="/admin/websites/{{.WebsiteID}}/snippets">{{t "Textbausteine verwalten"}}</a>
+                    <a href="/admin/websites/{{.WebsiteID}}/snippets">{{t "Manage snippets"}}</a>
                 </p>
             </details>
             {{end}}
@@ -99,10 +99,10 @@
                 <!-- Bewusst ohne htmx: hier wird das ganze Formular neu
                      gezeichnet, nicht ein Ausschnitt davon. -->
                 <button type="submit" class="btn btn--sm" name="editorwechsel" value="zu-bausteinen">
-                    {{t "Mit Bausteinen gestalten"}}
+                    {{t "Build it from blocks"}}
                 </button>
                 <span class="form-hint text-muted">
-                    {{t "Bild neben Text, Galerien, Karten. Der bisherige Text wird der erste Baustein, und solange nur Text darin steht, geht es jederzeit zurück."}}
+                    {{t "Image beside text, galleries, cards. The text you have becomes the first block, and as long as it holds nothing but text you can switch back at any time."}}
                 </span>
             </p>
         </div>
@@ -111,68 +111,68 @@
         {{if .Languages}}
         <input type="hidden" name="uebersetzung_von" value="{{.Values.TranslationOf}}">
         <div class="form-group">
-            <label class="form-label" for="sprache">{{t "Sprache"}}</label>
+            <label class="form-label" for="sprache">{{t "Language"}}</label>
             <select id="sprache" name="sprache" class="form-input form-select">
                 {{range .Languages}}
-                <option value="{{.Code}}"{{if .Selected}} selected{{end}}>{{t .Name}}{{if .Primary}} {{t "(Hauptsprache)"}}{{end}}</option>
+                <option value="{{.Code}}"{{if .Selected}} selected{{end}}>{{t .Name}}{{if .Primary}} {{t "(main language)"}}{{end}}</option>
                 {{end}}
             </select>
             <p class="form-hint text-muted">
-                {{th "Die Hauptsprache behält ihre Adresse, jede weitere Sprache liegt unter ihrem Kürzel – <code>/fr/…</code>."}}
+                {{th "The main language keeps its address; every further language sits under its tag — <code>/fr/…</code>."}}
             </p>
         </div>
         {{end}}
 
         {{if .Translations}}
         <div class="form-group">
-            <span class="form-label">{{t "Fassungen in anderen Sprachen"}}</span>
+            <span class="form-label">{{t "Versions in other languages"}}</span>
             <ul class="translations">
                 {{range .Translations}}
                 <li class="translations-row">
                     <span class="translations-lang">{{t .Name}}</span>
                     {{if .Missing}}
-                    <span class="text-muted">{{t "– noch nicht übersetzt –"}}</span>
+                    <span class="text-muted">{{t "– not translated yet –"}}</span>
                     <button type="submit" class="btn btn-sm" hx-disabled-elt="this"
                             formmethod="POST"
                             formaction="/admin/websites/{{$.WebsiteID}}/pages/{{$.PageID}}/uebersetzen?sprache={{.Code}}"
-                            formnovalidate>{{t "Fassung anlegen"}}</button>
+                            formnovalidate>{{t "Create version"}}</button>
                     {{else if .Self}}
                     <span>{{.Title}}</span>
-                    <span class="badge">{{t "diese Seite"}}</span>
+                    <span class="badge">{{t "this page"}}</span>
                     {{else}}
                     <a href="/admin/websites/{{$.WebsiteID}}/pages/{{.PageID}}/edit">{{.Title}}</a>
-                    {{if .Draft}}<span class="badge badge-draft">{{t "Entwurf"}}</span>{{end}}
+                    {{if .Draft}}<span class="badge badge-draft">{{t "Draft"}}</span>{{end}}
                     {{end}}
                 </li>
                 {{end}}
             </ul>
             <p class="form-hint text-muted">
-                {{t "„Fassung anlegen“ kopiert diese Seite als Entwurf in die andere Sprache – Text und Adresse werden dort übersetzt."}}
+                {{t "“Create version” copies this page into the other language as a draft — text and address are translated there."}}
             </p>
         </div>
         {{end}}
 
         <div class="form-group">
-            <label class="form-label" for="kind">{{t "Art"}}</label>
+            <label class="form-label" for="kind">{{t "Kind"}}</label>
             <select id="kind" name="kind" class="form-input form-select">
                 {{range .KindChoices}}
                 <option value="{{.Key}}"{{if .Selected}} selected{{end}}>{{t .Name}}</option>
                 {{end}}
             </select>
             <p class="form-hint text-muted">
-                {{t "Ein Beitrag erscheint zusätzlich im Archiv, nach Datum sortiert. Eine Seite steht für sich und gehört meist ins Menü. Eigene Arten legst du unter „Inhaltsarten“ an."}}
+                {{t "A post also appears in the archive, sorted by date. A page stands on its own and usually belongs in a menu. You create your own kinds under “Content kinds”."}}
             </p>
         </div>
 
         {{if .IsEdit}}
         <div class="form-group">
-            <span class="form-label">{{t "Vorschaulink"}}</span>
+            <span class="form-label">{{t "Preview link"}}</span>
             <p class="form-hint text-muted">
-                {{t "Zeigt die Seite jemandem ohne Zugang – auch als Entwurf. So muss nichts „kurz“ veröffentlicht werden, damit ein Kunde draufschaut."}}
+                {{t "Shows the page to somebody without an account — even as a draft. So nothing has to be published “briefly” for a client to take a look."}}
             </p>
             <button type="submit" class="btn" hx-disabled-elt="this"
                     formmethod="POST" formaction="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/share"
-                    formnovalidate>{{t "Vorschaulink erzeugen"}}</button>
+                    formnovalidate>{{t "Generate a preview link"}}</button>
         </div>
         {{end}}
 
@@ -182,7 +182,7 @@
              Eine Überschrift teilt sie in Abschnitte; der erste hat keine, weil
              die Felder von vor der Einteilung irgendwo stehen müssen. */}}
         <fieldset class="own-fields">
-            <legend>{{t "Angaben zu dieser Seite"}}</legend>
+            <legend>{{t "Details about this page"}}</legend>
             {{range .FieldViews}}
             {{if .Title}}
             <h3 class="own-fields__abschnitt">{{.Title}}</h3>
@@ -194,45 +194,45 @@
         {{end}}
 
         <details class="access-fields"{{if .Values.Protected}} open{{end}}>
-            <summary>{{t "Zugriffsschutz"}}</summary>
+            <summary>{{t "Access protection"}}</summary>
             <p class="form-hint text-muted">
-                {{t "Eine geschützte Seite verlangt ein Passwort und taucht weder in der Suche noch im Menü, im Archiv, in der Sitemap oder im Feed auf. Sie ersetzt keine Benutzerkonten: wer das Passwort weitergibt, gibt den Zugang weiter, und nachvollziehen lässt sich das nicht."}}
+                {{t "A protected page asks for a password and appears neither in search nor in a menu, the archive, the sitemap or the feed. It is no substitute for user accounts: whoever passes the password on passes the access on, and there is no way to trace it."}}
             </p>
 
             <div class="form-group">
                 <label class="form-check">
                     <input type="checkbox" name="protected" {{if .Values.Protected}}checked{{end}}>
-                    <span class="form-check-label">{{t "Seite mit Passwort schützen"}}</span>
+                    <span class="form-check-label">{{t "Protect the page with a password"}}</span>
                 </label>
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="page_password">{{t "Passwort"}}</label>
+                <label class="form-label" for="page_password">{{t "Password"}}</label>
                 <input type="password" id="page_password" name="page_password" class="form-input"
                        autocomplete="new-password"
-                       placeholder="{{if .Values.HasPassword}}{{t "unverändert lassen"}}{{else}}{{t "mindestens 6 Zeichen"}}{{end}}">
+                       placeholder="{{if .Values.HasPassword}}{{t "leave unchanged"}}{{else}}{{t "at least 6 characters"}}{{end}}">
                 {{if .Values.HasPassword}}
                 <input type="hidden" name="has_password" value="1">
                 <p class="form-hint text-muted">
-                    {{t "Leer lassen, um das bestehende Passwort zu behalten. Es wird hier nie angezeigt – gespeichert ist nur seine Prüfsumme."}}
+                    {{t "Leave empty to keep the existing password. It is never shown here — only its checksum is stored."}}
                 </p>
                 {{end}}
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="access_hint">{{t "Hinweis über dem Feld"}}</label>
+                <label class="form-label" for="access_hint">{{t "Hint above the field"}}</label>
                 <input type="text" id="access_hint" name="access_hint" class="form-input"
                        value="{{.Values.AccessHint}}"
-                       placeholder="{{t "Das Passwort steht in unserem Anschreiben."}}">
+                       placeholder="{{t "The password is in our letter."}}">
             </div>
         </details>
 
         <div class="form-group">
-            <label class="form-label" for="tags">{{t "Schlagwörter"}}</label>
+            <label class="form-label" for="tags">{{t "Terms"}}</label>
             <input type="text" id="tags" name="tags" class="form-input"
-                   value="{{.Values.Tags}}" placeholder="{{t "Möbel, Eiche, Werkstatt"}}">
+                   value="{{.Values.Tags}}" placeholder="{{t "furniture, oak, workshop"}}">
             <p class="form-hint text-muted">
-                {{th "Mit Komma getrennt. Jedes Schlagwort bekommt eine eigene Übersichtsseite unter <code>/tag/…</code>. Höchstens zwölf pro Eintrag."}}
+                {{th "Separated by commas. Every term gets its own overview page under <code>/tag/…</code>. At most twelve per entry."}}
             </p>
         </div>
 
@@ -240,35 +240,35 @@
             <label class="form-label" for="status">{{t "Status"}}</label>
             {{if .MayPublish}}
             <select id="status" name="status" class="form-input form-select">
-                <option value="draft" {{if eq .Values.Status "draft"}}selected{{end}}>{{t "Entwurf"}}</option>
-                <option value="published" {{if eq .Values.Status "published"}}selected{{end}}>{{t "Veröffentlicht"}}</option>
+                <option value="draft" {{if eq .Values.Status "draft"}}selected{{end}}>{{t "Draft"}}</option>
+                <option value="published" {{if eq .Values.Status "published"}}selected{{end}}>{{t "Published"}}</option>
             </select>
             {{else}}
             <p>
-                <span class="badge">{{if eq .Values.Status "published"}}{{t "Veröffentlicht"}}{{else}}{{t "Entwurf"}}{{end}}</span>
+                <span class="badge">{{if eq .Values.Status "published"}}{{t "Published"}}{{else}}{{t "Draft"}}{{end}}</span>
             </p>
             <p class="form-hint text-muted">
-                {{t "Veröffentlichen gehört nicht zu deinem Zugang. Speichere und reiche die Seite zur Prüfung ein — jemand mit dem Recht stellt sie online."}}
+                {{t "Publishing is not part of your account. Save and submit the page for review — somebody with the right will put it online."}}
             </p>
             {{end}}
         </div>
 
         {{if .PublishedAt}}
         <div class="form-group">
-            <span class="form-label">{{t "Veröffentlicht am"}}</span>
+            <span class="form-label">{{t "Published on"}}</span>
             <span class="text-muted">{{.PublishedAt.Format "02.01.2006 15:04"}}</span>
         </div>
         {{end}}
 
         <details class="schedule-fields"{{if or .Values.PublishAt .Values.UnpublishAt}} open{{end}}>
-            <summary>{{t "Zeitsteuerung"}}</summary>
+            <summary>{{t "Scheduling"}}</summary>
             <p class="form-hint text-muted">
-                {{t "Alle Zeiten in UTC. Eine Seite mit Startzeitpunkt bleibt bis dahin unsichtbar, auch wenn sie auf „Veröffentlicht“ steht – dafür muss nichts im Hintergrund laufen und kein Zeitpunkt kann verpasst werden."}}
+                {{t "All times in UTC. A page with a start time stays invisible until then, even when it is set to “Published” — nothing has to run in the background and no moment can be missed."}}
             </p>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label" for="publish_at">{{t "Sichtbar ab"}}</label>
+                    <label class="form-label" for="publish_at">{{t "Visible from"}}</label>
                     <input type="datetime-local" id="publish_at" name="publish_at" class="form-input"
                            value="{{.Values.PublishAt}}"
                            {{with .Errors.publish_at}}aria-invalid="true" aria-describedby="publish-at-error"{{end}}>
@@ -276,7 +276,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="unpublish_at">{{t "Sichtbar bis"}}</label>
+                    <label class="form-label" for="unpublish_at">{{t "Visible until"}}</label>
                     <input type="datetime-local" id="unpublish_at" name="unpublish_at" class="form-input"
                            value="{{.Values.UnpublishAt}}"
                            {{with .Errors.unpublish_at}}aria-invalid="true" aria-describedby="unpublish-at-error"{{end}}>
@@ -286,51 +286,51 @@
         </details>
 
         <details class="seo-fields"{{if .Values.MetaDescription}} open{{end}}>
-            <summary>{{t "Suchmaschinen und Vorschau"}}</summary>
+            <summary>{{t "Search engines and preview"}}</summary>
 
             <div class="form-group">
-                <label class="form-label" for="excerpt">{{t "Kurzfassung"}}</label>
+                <label class="form-label" for="excerpt">{{t "Excerpt"}}</label>
                 <textarea id="excerpt" name="excerpt" class="form-input form-textarea" rows="2"
                           maxlength="300"
-                          placeholder="{{t "Wird sonst aus den ersten Sätzen des Inhalts erzeugt"}}">{{.Values.Excerpt}}</textarea>
-                <p class="form-hint text-muted">{{t "Leer lassen, um sie automatisch aus dem Text zu erzeugen."}}</p>
+                          placeholder="{{t "Otherwise built from the first sentences of the content"}}">{{.Values.Excerpt}}</textarea>
+                <p class="form-hint text-muted">{{t "Leave empty to build it from the text automatically."}}</p>
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="meta_description">{{t "Beschreibung für Suchmaschinen"}}</label>
+                <label class="form-label" for="meta_description">{{t "Description for search engines"}}</label>
                 <textarea id="meta_description" name="meta_description" class="form-input form-textarea" rows="2"
                           maxlength="300"
-                          placeholder="{{t "Überschreibt die Kurzfassung in der Trefferliste"}}">{{.Values.MetaDescription}}</textarea>
+                          placeholder="{{t "Overrides the excerpt in the results list"}}">{{.Values.MetaDescription}}</textarea>
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="featured_media_id">{{t "Vorschaubild"}}</label>
+                <label class="form-label" for="featured_media_id">{{t "Preview image"}}</label>
                 <select id="featured_media_id" name="featured_media_id" class="form-input form-select">
-                    <option value="">{{t "– keins –"}}</option>
+                    <option value="">{{t "– none –"}}</option>
                     {{range .Media}}
                     <option value="{{.ID}}"{{if eq (printf "%d" .ID) $.Values.FeaturedMediaID}} selected{{end}}>{{.OriginalName}}</option>
                     {{end}}
                 </select>
-                <p class="form-hint text-muted">{{t "Wird angezeigt, wenn jemand den Link in einem Messenger oder sozialen Netzwerk teilt."}}</p>
+                <p class="form-hint text-muted">{{t "Shown when somebody shares the link in a messenger or a social network."}}</p>
             </div>
 
             <div class="form-group">
                 <label class="form-check">
                     <input type="checkbox" name="noindex" value="1" {{if .Values.NoIndex}}checked{{end}}>
-                    <span class="form-check-label">{{t "Nicht in Suchmaschinen aufnehmen"}}</span>
+                    <span class="form-check-label">{{t "Keep out of search engines"}}</span>
                 </label>
-                <p class="form-hint text-muted">{{t "Die Seite bleibt öffentlich erreichbar, taucht aber nicht in der Suche auf."}}</p>
+                <p class="form-hint text-muted">{{t "The page stays publicly reachable but does not show up in search."}}</p>
             </div>
         </details>
 
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
-            {{if .IsEdit}}{{t "Änderungen speichern"}}{{else}}{{t "Seite anlegen"}}{{end}}
+            {{if .IsEdit}}{{t "Save changes"}}{{else}}{{t "Create page"}}{{end}}
         </button>
-        <a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Abbrechen"}}</a>
+        <a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Cancel"}}</a>
         {{if .IsEdit}}
-        <a href="/admin/websites/{{.WebsiteID}}/preview/{{.Values.Slug}}" target="_blank" rel="noopener" class="btn">{{t "Vorschau"}}</a>
+        <a href="/admin/websites/{{.WebsiteID}}/preview/{{.Values.Slug}}" target="_blank" rel="noopener" class="btn">{{t "Preview"}}</a>
         {{if .RevisionCount}}
-        <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" class="btn">{{tf "Verlauf (%d)" .RevisionCount}}</a>
+        <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" class="btn">{{tf "History (%d)" .RevisionCount}}</a>
         {{end}}
         {{end}}
     </form>
@@ -347,13 +347,13 @@
          hx-get="/admin/websites/{{.WebsiteID}}/media/picker?page_id={{.PageID}}"
          hx-target="#media-picker-body" hx-swap="innerHTML"
          hx-trigger="toggle once">
-    <summary>{{t "Bild aus der Mediathek einfügen"}}</summary>
+    <summary>{{t "Insert an image from the media library"}}</summary>
     <p class="form-hint text-muted">
-        {{t "Das Bild wird am Ende des Textes eingefügt und lässt sich von dort verschieben. Ungespeicherte Änderungen im Editor gehen dabei verloren — vorher speichern."}}
+        {{t "The image is inserted at the end of the text and can be moved from there. Unsaved changes in the editor are lost — save first."}}
     </p>
     <div id="media-picker-body">
         <!-- Without htmx the picker cannot load itself; the library is one click away. -->
-        <p><a href="/admin/websites/{{.WebsiteID}}/media">{{t "Zur Mediathek"}}</a></p>
+        <p><a href="/admin/websites/{{.WebsiteID}}/media">{{t "To the media library"}}</a></p>
     </div>
 </details>
 
@@ -364,10 +364,10 @@
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         {{if .ReviewPending}}<input type="hidden" name="clear" value="1">{{end}}
         <button type="submit" class="btn btn--sm" hx-disabled-elt="this">
-            {{if .ReviewPending}}{{t "Prüfungsvermerk entfernen"}}{{else}}{{t "Zur Prüfung einreichen"}}{{end}}
+            {{if .ReviewPending}}{{t "Remove the review mark"}}{{else}}{{t "Submit for review"}}{{end}}
         </button>
         <span class="form-hint text-muted">
-            {{if .ReviewPending}}{{t "Diese Seite ist als „zur Prüfung“ markiert."}}{{else}}{{t "Markiert die Seite in der Seitenliste als zu prüfen."}}{{end}}
+            {{if .ReviewPending}}{{t "This page is marked “awaiting review”."}}{{else}}{{t "Marks the page as awaiting review in the page list."}}{{end}}
         </span>
     </form>
 </div>

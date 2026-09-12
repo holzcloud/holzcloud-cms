@@ -340,15 +340,15 @@ func (v PageValues) schedule(errs web.FormErrors) page.PageSchedule {
 	if t, ok := parseLocalInput(v.PublishAt); ok {
 		s.PublishAt = t
 	} else {
-		errs.Add("publish_at", "Bitte ein gültiges Datum angeben.")
+		errs.Add("publish_at", "Please give a valid date.")
 	}
 	if t, ok := parseLocalInput(v.UnpublishAt); ok {
 		s.UnpublishAt = t
 	} else {
-		errs.Add("unpublish_at", "Bitte ein gültiges Datum angeben.")
+		errs.Add("unpublish_at", "Please give a valid date.")
 	}
 	if s.PublishAt != nil && s.UnpublishAt != nil && !s.UnpublishAt.After(*s.PublishAt) {
-		errs.Add("unpublish_at", "Das Ende muss nach dem Start liegen.")
+		errs.Add("unpublish_at", "The end must come after the start.")
 	}
 	return s
 }
@@ -421,7 +421,7 @@ func (v *PageValues) validateFor(errs web.FormErrors, archiveSlug string) string
 // in the catalogue. It may be nil, and then the messages stay German.
 func (v *PageValues) validateOn(r *http.Request, errs web.FormErrors, archiveSlug string, extras []string) string {
 	if v.Title == "" {
-		errs.Add("title", "Bitte einen Titel angeben.")
+		errs.Add("title", "Please give a title.")
 	}
 
 	slug := v.Slug
@@ -434,7 +434,7 @@ func (v *PageValues) validateOn(r *http.Request, errs web.FormErrors, archiveSlu
 		if err := page.ValidateSlug(slug); err != nil {
 			errs.Add("slug", tr(r, "Ungültige Adresse: %s", err))
 		} else if archiveSlug != "" && slug == archiveSlug {
-			errs.Add("slug", "Diese Adresse gehört dem Archiv und wäre nicht erreichbar.")
+			errs.Add("slug", "That address belongs to the archive and would never be reachable.")
 		} else if locale.Reserved(slug, extras) {
 			errs.Add("slug", tr(r, "Diese Adresse gehört der Sprache %s und wäre nicht erreichbar.",
 				trs(r, locale.Name(slug))))

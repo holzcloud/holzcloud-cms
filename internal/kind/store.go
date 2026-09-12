@@ -12,16 +12,16 @@ import (
 )
 
 // ErrDuplicate is returned when a website already has a kind with that key.
-var ErrDuplicate = errors.New(i18n.N("diese Inhaltsart gibt es schon"))
+var ErrDuplicate = errors.New(i18n.N("this content kind already exists"))
 
 // ErrTooMany is returned when a website has reached MaxTypes.
-var ErrTooMany = errors.New(i18n.N("mehr Inhaltsarten gehen nicht"))
+var ErrTooMany = errors.New(i18n.N("no more content kinds can be added"))
 
 // ErrNotFound is returned when no kind matches.
-var ErrNotFound = errors.New(i18n.N("diese Inhaltsart gibt es nicht"))
+var ErrNotFound = errors.New(i18n.N("there is no such content kind"))
 
 // ErrArchiveTaken is returned when two kinds would share one overview address.
-var ErrArchiveTaken = errors.New(i18n.N("diese Adresse gehört schon zu einer anderen Übersicht"))
+var ErrArchiveTaken = errors.New(i18n.N("this address already belongs to another overview"))
 
 // Store keeps the kinds.
 type Store struct{ DB *db.DB }
@@ -77,7 +77,7 @@ func (s *Store) Create(ctx context.Context, t Type) (Type, error) {
 		return Type{}, fmt.Errorf("die Kennung %q ist keine: zwei bis dreissig kleine Buchstaben, Ziffern und Unterstriche", t.Key)
 	}
 	if t.Name == "" || t.Plural == "" {
-		return Type{}, errors.New(i18n.N("eine Inhaltsart braucht einen Namen und eine Mehrzahl"))
+		return Type{}, errors.New(i18n.N("a content kind needs a name and a plural"))
 	}
 
 	existing, err := s.List(ctx, t.WebsiteID)
@@ -116,7 +116,7 @@ func (s *Store) Create(ctx context.Context, t Type) (Type, error) {
 func (s *Store) Update(ctx context.Context, t Type) error {
 	t = clean(t)
 	if t.Name == "" || t.Plural == "" {
-		return errors.New(i18n.N("eine Inhaltsart braucht einen Namen und eine Mehrzahl"))
+		return errors.New(i18n.N("a content kind needs a name and a plural"))
 	}
 
 	others, err := s.List(ctx, t.WebsiteID)

@@ -26,14 +26,14 @@ func (h *Handler) HandleWordPressImport(w http.ResponseWriter, r *http.Request) 
 
 	file, _, err := r.FormFile("wxr")
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Datei zu groß oder nicht ausgewählt")
+		web.SetFlashError(h.sm, r.Context(), "File too large or not selected")
 		return h.redirect(w, r, "/admin/websites")
 	}
 	defer file.Close()
 
 	export, err := wxr.Parse(file)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Import fehlgeschlagen: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Import failed: %s", err))
 		return h.redirect(w, r, "/admin/websites")
 	}
 
@@ -91,7 +91,7 @@ func (h *Handler) HandleWordPressImport(w http.ResponseWriter, r *http.Request) 
 	h.resolver.InvalidateCache()
 
 	data := ImportReportData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Import abgeschlossen"),
+		LayoutData: web.NewLayoutData(r, h.sm, "WordPress import finished"),
 		Report:     report,
 	}
 	data.ActiveNav = "websites"

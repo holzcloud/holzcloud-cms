@@ -76,7 +76,7 @@ func TestAGalleryKeepsItsAlbumWhenTheAlbumIsGone(t *testing.T) {
 	if !strings.Contains(body, `<option value="`+gone.Slug+`" selected`) {
 		t.Fatalf("the block's own album has no selected option, so the browser will submit the first one (value=\"\") and the next save deletes the gallery:\n%s", body)
 	}
-	if !strings.Contains(body, "gibt es nicht mehr") {
+	if !strings.Contains(body, "this album no longer exists") {
 		t.Errorf("the option does not say that this album is gone, so the editor cannot tell it from a real one:\n%s", body)
 	}
 

@@ -5,13 +5,13 @@
 {{define "language_list-content"}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <p class="text-muted">
-        {{th "Die Verwaltung spricht Deutsch, und jede weitere Sprache ist eine Datei. Was mitgeliefert wird, steckt im Programm; was im Ordner unten liegt, gilt darüber. Eine Datei hineinkopieren und <em>Neu einlesen</em> drücken genügt — ein Neustart ist nicht nötig."}}
+        {{th "The administration speaks German, and every further language is a file. What ships sits inside the program; what lies in the folder below wins over it. Copy a file in and press <em>Re-read</em> — no restart needed."}}
     </p>
     <p class="text-muted">
-        {{th "Eine Regionalfassung wie <code>de-CH</code> trägt nur, was sie anders sagt; alles Übrige kommt aus ihrer Grundsprache. Für die Landessprachen Deutsch, Französisch und Italienisch ist die Schweizer Fassung mitgeliefert: kein Eszett, dafür spitze Anführungszeichen und die hier üblichen Wörter."}}
+        {{th "A regional edition such as <code>de-CH</code> only carries what it says differently; everything else comes from its base language. The Swiss edition ships for German, French and Italian, the national languages: no sharp s, angle quotation marks instead, and the words used here."}}
     </p>
     <p class="text-muted">
-        {{tf "Ordner auf dem Server: %s" .Dir}}
+        {{tf "Folder on the server: %s" .Dir}}
     </p>
 </div>
 
@@ -19,11 +19,11 @@
     <table class="table">
         <thead>
             <tr>
-                <th scope="col">{{t "Sprache"}}</th>
-                <th scope="col">{{t "Kürzel"}}</th>
-                <th scope="col">{{t "Vollständigkeit"}}</th>
-                <th scope="col">{{t "Herkunft"}}</th>
-                <th scope="col"><span class="sr-only">{{t "Aktionen"}}</span></th>
+                <th scope="col">{{t "Language"}}</th>
+                <th scope="col">{{t "Tag"}}</th>
+                <th scope="col">{{t "Completeness"}}</th>
+                <th scope="col">{{t "Origin"}}</th>
+                <th scope="col"><span class="sr-only">{{t "Actions"}}</span></th>
             </tr>
         </thead>
         <tbody>
@@ -32,28 +32,28 @@
                 <td style="font-weight:500">{{t .Name}}</td>
                 <td><code>{{.Code}}</code></td>
                 <td>
-                    {{if .Source}}<span class="text-muted">{{t "Ursprache"}}</span>
+                    {{if .Source}}<span class="text-muted">{{t "Source language"}}</span>
                     {{else}}
                     <span class="lang-bar" aria-hidden="true"><span style="width:{{.Percent}}%"></span></span>
                     {{if .BaseMissing}}
-                    <span class="text-muted">{{tf "%d Abweichungen — %s ist nicht eingespielt, alles Übrige erscheint auf Deutsch" .Own .BaseName}}</span>
+                    <span class="text-muted">{{tf "%d differences — %s is not installed, everything else appears in German" .Own .BaseName}}</span>
                     {{else if .BaseName}}
-                    <span class="text-muted">{{tf "%d Abweichungen von %s" .Own .BaseName}}</span>
+                    <span class="text-muted">{{tf "%d differences from %s" .Own .BaseName}}</span>
                     {{else}}
-                    <span class="text-muted">{{tf "%d von %d" .Translated .Total}}</span>
+                    <span class="text-muted">{{tf "%d of %d" .Translated .Total}}</span>
                     {{end}}
                     {{end}}
                 </td>
-                <td class="text-muted">{{if .OnDisk}}{{t "eigene Datei"}}{{else}}{{t "mitgeliefert"}}{{end}}</td>
+                <td class="text-muted">{{if .OnDisk}}{{t "own file"}}{{else}}{{t "built in"}}{{end}}</td>
                 <td class="table-actions">
                     {{if not .Source}}
-                    <a class="btn btn--sm" href="/admin/sprachen/{{.Code}}/datei">{{t "Herunterladen"}}</a>
+                    <a class="btn btn--sm" href="/admin/sprachen/{{.Code}}/datei">{{t "Download"}}</a>
                     {{end}}
                     {{if .OnDisk}}
                     <form method="POST" action="/admin/sprachen/{{.Code}}/loeschen" style="display:inline"
-                          hx-confirm="{{t "Diese Sprachdatei entfernen? Wer sie eingestellt hat, sieht danach wieder die Sprache seines Browsers."}}">
+                          hx-confirm="{{t "Remove this language file? Anyone who had chosen it will see their browser's language again."}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
-                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Entfernen"}}</button>
+                        <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>
                     </form>
                     {{end}}
                 </td>
@@ -64,48 +64,48 @@
 
     <form method="POST" action="/admin/sprachen/neu-lesen" style="margin-top:var(--space-2)">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Neu einlesen"}}</button>
-        <span class="form-hint text-muted">{{t "Liest den Ordner noch einmal und baut die Bildschirme neu auf."}}</span>
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Re-read"}}</button>
+        <span class="form-hint text-muted">{{t "Reads the folder again and rebuilds the screens."}}</span>
     </form>
 </div>
 
 <div class="card" style="margin-bottom:var(--space-3)">
-    <h2>{{t "Eine Sprache hinzufügen"}}</h2>
+    <h2>{{t "Add a language"}}</h2>
     <ol class="lang-steps">
         <li>
-            {{t "Vorlage herunterladen — eine JSON-Datei mit allen deutschen Sätzen als Schlüssel und leeren Werten."}}
-            <a class="btn btn--sm" href="/admin/sprachen/vorlage">{{tf "Vorlage (%d Sätze)" .Strings}}</a>
+            {{t "Download the starter file — a JSON file with every German sentence as a key and empty values."}}
+            <a class="btn btn--sm" href="/admin/sprachen/vorlage">{{tf "Starter file (%d sentences)" .Strings}}</a>
         </li>
-        <li>{{th "Werte ausfüllen. Was leer bleibt, erscheint auf Deutsch — eine halbe Übersetzung ist brauchbar."}}</li>
-        <li>{{th "Datei nach dem Sprachkürzel benennen: <code>nl.json</code>, <code>fr-CH.json</code>."}}</li>
-        <li>{{th "Für eine Regionalfassung genügen die Sätze, die anders lauten: <code>de-CH.json</code> holt sich alles Fehlende aus <code>de</code>. Die Grundsprache muss dafür vorhanden sein — die mitgelieferten fünf sind es immer; sonst lädst du beide Dateien hoch, in beliebiger Reihenfolge."}}</li>
-        <li>{{t "Hier hochladen oder in den Ordner kopieren und neu einlesen."}}</li>
+        <li>{{th "Fill in the values. Whatever stays empty appears in German — half a translation is usable."}}</li>
+        <li>{{th "Name the file after the language tag: <code>nl.json</code>, <code>fr-CH.json</code>."}}</li>
+        <li>{{th "For a regional edition the sentences that differ are enough: <code>de-CH.json</code> takes everything missing from <code>de</code>. The base language has to be there for that — the five that ship always are; otherwise you upload both files, in any order."}}</li>
+        <li>{{t "Upload it here, or copy it into the folder and re-read."}}</li>
     </ol>
 
     <form method="POST" action="/admin/sprachen" enctype="multipart/form-data">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label" for="datei">{{t "Sprachdatei (.json)"}}</label>
+                <label class="form-label" for="datei">{{t "Language file (.json)"}}</label>
                 <input type="file" id="datei" name="datei" class="form-input" accept=".json,application/json" required>
             </div>
             <div class="form-group">
-                <label class="form-label" for="kuerzel">{{t "Kürzel"}}</label>
+                <label class="form-label" for="kuerzel">{{t "Tag"}}</label>
                 <input type="text" id="kuerzel" name="kuerzel" class="form-input" placeholder="nl">
-                <p class="form-hint text-muted">{{t "Leer lassen, dann gilt der Dateiname."}}</p>
+                <p class="form-hint text-muted">{{t "Leave empty and the file name applies."}}</p>
             </div>
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Hochladen"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Upload"}}</button>
     </form>
 </div>
 
 <div class="card">
-    <h2>{{t "Was geprüft wird"}}</h2>
+    <h2>{{t "What is checked"}}</h2>
     <ul>
-        <li>{{th "Die Datei muss aus Text-Paaren bestehen — deutscher Satz zu Übersetzung. Alles andere wird abgelehnt, bevor es im Ordner landet."}}</li>
-        <li>{{th "Die Platzhalter müssen zum deutschen Satz passen. Ein fehlendes <code>%s</code> verschluckt sonst still einen Namen; solche Zeilen werden übergangen."}}</li>
-        <li>{{th "Auszeichnung in einer Übersetzung wird gefiltert: erlaubt sind <code>&lt;code&gt;</code>, <code>&lt;strong&gt;</code> und ein paar weitere für den Text selbst. Alles andere wird entfernt."}}</li>
-        <li>{{t "Ein Satz ohne Übersetzung erscheint auf Deutsch. Eine Sprachdatei kann die Verwaltung also nicht unlesbar machen."}}</li>
+        <li>{{th "The file has to consist of text pairs — German sentence to translation. Anything else is refused before it reaches the folder."}}</li>
+        <li>{{th "The placeholders have to match the German sentence. A missing <code>%s</code> would silently swallow a name; such lines are skipped."}}</li>
+        <li>{{th "Markup inside a translation is filtered: <code>&lt;code&gt;</code>, <code>&lt;strong&gt;</code> and a few more meant for the text itself are allowed. Everything else is stripped."}}</li>
+        <li>{{t "A sentence without a translation appears in German. So a language file cannot make the administration unreadable."}}</li>
     </ul>
 </div>
 {{end}}

@@ -1,5 +1,5 @@
 {{define "actions"}}
-<a href="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/revisions" class="btn">{{t "Zurück zum Verlauf"}}</a>
+<a href="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/revisions" class="btn">{{t "Back to the history"}}</a>
 {{end}}
 
 {{define "content"}}
@@ -16,7 +16,7 @@
         {{if eq (printf "%s" .Kind) "skip"}}
         <tr class="diff-row diff-row--skip">
             <td class="diff-no" colspan="2">…</td>
-            <td class="diff-text">{{tf "%d unveränderte Zeilen" .Count}}</td>
+            <td class="diff-text">{{tf "%d unchanged lines" .Count}}</td>
         </tr>
         {{else}}
         <tr class="diff-row diff-row--{{.Kind}}">
@@ -34,15 +34,15 @@
 <div class="card">
     <p class="text-muted" style="margin-bottom:var(--space-3)">
         <strong>{{.Page.Title}}</strong> —
-        {{t "verglichen wird"}}
+        {{t "comparing"}}
         <strong>{{if .From.Label}}{{.From.Label}}{{else}}{{.From.When}}{{end}}</strong>
-        {{t "mit"}}
-        <strong>{{if .To.Current}}{{t "der aktuellen Fassung"}}{{else if .To.Label}}{{.To.Label}}{{else}}{{.To.When}}{{end}}</strong>.
-        {{if .From.Who}}<br>{{tf "Ältere Fassung von %s." .From.Who}}{{end}}
+        {{t "with"}}
+        <strong>{{if .To.Current}}{{t "the current version"}}{{else if .To.Label}}{{.To.Label}}{{else}}{{.To.When}}{{end}}</strong>.
+        {{if .From.Who}}<br>{{tf "Older version by %s." .From.Who}}{{end}}
     </p>
 
     {{if .Unchanged}}
-    <p class="text-muted">{{t "Die beiden Fassungen unterscheiden sich nicht im Text und nicht in den Bausteinen."}}</p>
+    <p class="text-muted">{{t "The two versions differ neither in the text nor in the blocks."}}</p>
     {{else}}
 
     {{if .TextDiff}}
@@ -51,9 +51,9 @@
     {{end}}
 
     {{if .BlockDiff}}
-    <h3 style="margin-top:var(--space-4);margin-bottom:var(--space-2)">{{t "Bausteine"}}</h3>
+    <h3 style="margin-top:var(--space-4);margin-bottom:var(--space-2)">{{t "Blocks"}}</h3>
     <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--space-2)">
-        {{t "Die Bausteine als lesbare Liste, nicht als gespeicherte Form — sonst stünde hier eine einzige lange Zeile."}}
+        {{t "The blocks as a readable list, not as stored — otherwise there would be one single long line here."}}
     </p>
     {{template "diff-table" .BlockDiff}}
     {{end}}

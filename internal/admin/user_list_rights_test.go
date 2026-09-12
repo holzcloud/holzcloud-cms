@@ -14,7 +14,7 @@ import (
 // The user list must not show an editor limited to no website as an editor of
 // every website.
 //
-// The list printed "alle Websites" whenever the number of assigned websites
+// The list printed "every website" whenever the number of assigned websites
 // was zero — the same false distinction the form had, one screen earlier. Since
 // migration 00052 zero assigned websites means one of two opposite things, and
 // the screen an administrator reads to decide who can get in must say which.
@@ -52,10 +52,10 @@ func TestTheUserListShowsAnEditorLimitedToNothingAsLimited(t *testing.T) {
 		t.Fatalf("no row for %s in the user list", email)
 		return ""
 	}
-	if strings.Contains(row("begrenzt@example.com"), "alle Websites") {
-		t.Error("the user list says \"alle Websites\" for an editor who is limited to no website")
+	if strings.Contains(row("begrenzt@example.com"), "every website") {
+		t.Error("the user list says \"every website\" for an editor who is limited to no website")
 	}
-	if !strings.Contains(row("offen@example.com"), "alle Websites") {
-		t.Error("the user list no longer says \"alle Websites\" for an editor nobody limited — the control")
+	if !strings.Contains(row("offen@example.com"), "every website") {
+		t.Error("the user list no longer says \"every website\" for an editor nobody limited — the control")
 	}
 }

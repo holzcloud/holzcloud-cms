@@ -110,7 +110,7 @@ func (h *Handler) HandleTranslations(w http.ResponseWriter, r *http.Request) err
 	}
 
 	data := TranslationsData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Übersetzungen"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Translations"),
 		WebsiteID:  websiteID,
 		Columns:    columns,
 		Rows:       view,

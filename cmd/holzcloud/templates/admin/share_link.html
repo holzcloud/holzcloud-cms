@@ -1,11 +1,11 @@
-{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/edit" class="btn">{{t "Zurück zur Seite"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/edit" class="btn">{{t "Back to the page"}}</a>{{end}}
 
 {{define "content"}}
 <div class="card">
-    <h1>{{tf "Vorschaulink für „%s“" .Title}}</h1>
+    <h1>{{tf "Preview link for “%s”" .Title}}</h1>
 
     <p>
-        {{t "Mit diesem Link kann jemand ohne Zugang die Seite ansehen – auch wenn sie noch ein Entwurf ist. Damit muss ein Entwurf nicht „kurz“ veröffentlicht werden, damit ein Kunde draufschauen kann."}}
+        {{t "This link lets somebody without an account look at the page — even while it is still a draft. So a draft need not be published “briefly” for a client to take a look."}}
     </p>
 
     <div class="form-group">
@@ -16,11 +16,11 @@
     </div>
 
     <p class="text-muted">
-        {{tf "Gültig bis %s UTC. Danach zeigt der Link einen Hinweis statt der Seite. Wer ihn hat, kommt hinein – er ist so vertraulich wie die E-Mail, in der er steht." (.Expires.Format "02.01.2006 15:04")}}
+        {{tf "Valid until %s UTC. After that the link shows a notice instead of the page. Whoever has it gets in — it is as confidential as the email it sits in." (.Expires.Format "02.01.2006 15:04")}}
     </p>
 
     <p class="text-muted">
-        {{t "Die Seite wird über diesen Link nie indexiert und trägt oben einen Hinweis, dass es sich um eine Vorschau handelt."}}
+        {{t "Through this link the page is never indexed and carries a note at the top saying it is a preview."}}
     </p>
 </div>
 {{end}}

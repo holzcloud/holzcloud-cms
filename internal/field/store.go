@@ -11,41 +11,41 @@ import (
 )
 
 // ErrDuplicateKey is returned when a key is already taken on this website.
-var ErrDuplicateKey = errors.New(i18n.N("dieses Feld gibt es schon"))
+var ErrDuplicateKey = errors.New(i18n.N("this field already exists"))
 
 // ErrTooMany is returned when a website has reached MaxFields.
-var ErrTooMany = errors.New(i18n.N("mehr Felder gehen nicht"))
+var ErrTooMany = errors.New(i18n.N("no more fields can be added"))
 
 // ErrNested is returned for a group inside a group.
-var ErrNested = errors.New(i18n.N("eine Gruppe in einer Gruppe gibt es nicht"))
+var ErrNested = errors.New(i18n.N("there is no group inside a group"))
 
 // ErrNoGroup is returned when the named parent is not a group of this website.
-var ErrNoGroup = errors.New(i18n.N("diese Gruppe gibt es nicht"))
+var ErrNoGroup = errors.New(i18n.N("there is no such group"))
 
 // ErrNoSnippet is returned when the named snippet is not one of this website.
-var ErrNoSnippet = errors.New(i18n.N("diesen Textbaustein gibt es nicht"))
+var ErrNoSnippet = errors.New(i18n.N("there is no such snippet"))
 
 // ErrNoBlockType is returned when the named block kind is not one of this
 // website.
-var ErrNoBlockType = errors.New(i18n.N("diese Bausteinart gibt es nicht"))
+var ErrNoBlockType = errors.New(i18n.N("there is no such kind of block"))
 
 // ErrKindFixed is returned when a group would become a plain field or back.
-var ErrKindFixed = errors.New(i18n.N("aus einer Gruppe wird kein einfaches Feld und umgekehrt"))
+var ErrKindFixed = errors.New(i18n.N("a group does not become a plain field, nor the other way round"))
 
 // ErrNotInBlock is returned for a field kind a block kind cannot carry.
-var ErrNotInBlock = errors.New(i18n.N("diese Art von Feld gibt es in einem Baustein nicht"))
+var ErrNotInBlock = errors.New(i18n.N("a block has no field of this kind"))
 
 // ErrNoCondition is returned when the field a condition names is not one this
 // field can hang on.
-var ErrNoCondition = errors.New(i18n.N("an dieses Feld lässt sich keine Bedingung hängen"))
+var ErrNoCondition = errors.New(i18n.N("no condition can be hung on this field"))
 
 // ErrRangeInverted is returned when a range's lower bound is above its upper
 // one. A sentinel and not a bare error so the screen can answer it with a
 // sentence written for the person filling the form in.
-var ErrRangeInverted = errors.New(i18n.N("die untere Grenze liegt über der oberen"))
+var ErrRangeInverted = errors.New(i18n.N("the lower bound is above the upper one"))
 
 // ErrConditionLoop is returned when a condition would close a circle.
-var ErrConditionLoop = errors.New(i18n.N("die Bedingungen drehen sich im Kreis: dann wäre keines der Felder je zu sehen"))
+var ErrConditionLoop = errors.New(i18n.N("the conditions go round in a circle: none of the fields would ever be visible"))
 
 // Store keeps the definitions.
 type Store struct{ DB *db.DB }
@@ -368,7 +368,7 @@ func (s *Store) gehoertZurWebsite(ctx context.Context, tabelle string, id, websi
 		return fmt.Errorf("träger prüfen: %w", err)
 	}
 	if n == 0 {
-		return errors.New(i18n.N("gehört zu einer anderen Website"))
+		return errors.New(i18n.N("belongs to another website"))
 	}
 	return nil
 }
@@ -674,7 +674,7 @@ func (s *Store) Move(ctx context.Context, websiteID, id int64, up bool) error {
 func validate(d *Def) error {
 	d.Label = strings.TrimSpace(d.Label)
 	if d.Label == "" {
-		return errors.New(i18n.N("das Feld braucht eine Beschriftung"))
+		return errors.New(i18n.N("the field needs a label"))
 	}
 	if len(d.Label) > 60 {
 		d.Label = d.Label[:60]
@@ -683,7 +683,7 @@ func validate(d *Def) error {
 		d.Key = SlugifyKey(d.Label)
 	}
 	if d.Key == "" {
-		return errors.New(i18n.N("aus dieser Beschriftung lässt sich keine Kennung bilden — bitte Buchstaben verwenden"))
+		return errors.New(i18n.N("no key can be made from this label — please use letters"))
 	}
 	// Erst hier, nach der Ableitung: der leere Fall darüber behält seine
 	// eigene, hilfreichere Begründung.
@@ -693,10 +693,10 @@ func validate(d *Def) error {
 	// Schlüssel mitgebracht statt abgeleitet wird, ist der Archivweg
 	// (internal/bundle/import.go:351) — eine Datei von einem fremden Rechner.
 	if !validKey(d.Key) {
-		return errors.New(i18n.N("eine Kennung trägt nur Kleinbuchstaben, Ziffern und Unterstriche"))
+		return errors.New(i18n.N("a key carries only lower-case letters, digits and underscores"))
 	}
 	if !KnownKind(d.Kind) {
-		return errors.New(i18n.N("diese Art von Feld gibt es nicht"))
+		return errors.New(i18n.N("there is no field of this kind"))
 	}
 	// Beide Auswahlarten: eine Mehrfachauswahl ohne Möglichkeiten zeichnet
 	// eine Gruppe, in der nichts steht als der versteckte Wächter, kann also
@@ -705,7 +705,7 @@ func validate(d *Def) error {
 	// bietet nichts an, womit das ginge — die Seite wäre unspeicherbar, bis
 	// jemand die Definition ändert.
 	if (d.Kind == KindChoice || d.Kind == KindMulti) && len(d.Choices) == 0 {
-		return errors.New(i18n.N("eine Auswahl braucht mindestens eine Möglichkeit"))
+		return errors.New(i18n.N("a choice needs at least one option"))
 	}
 	// Eine negative Höchstzahl kann kein ehrliches Formular erzeugen — das Feld
 	// trägt min="0" — und stillschweigend auf null zu ziehen hiesse, eine
@@ -713,7 +713,7 @@ func validate(d *Def) error {
 	// und die Ablehnung steht vor dem Leeren weiter unten, damit sie nicht von
 	// der Art abhängt, die zufällig gewählt war.
 	if d.MaxValues < 0 {
-		return errors.New(i18n.N("eine Höchstzahl unter null gibt es nicht — null heisst keine Obergrenze"))
+		return errors.New(i18n.N("there is no maximum below zero — zero means no upper limit"))
 	}
 	// Verdrehte Grenzen: nur wenn beide als Zahl zu lesen sind, ist die Frage
 	// überhaupt gestellt. Zwei Wörter sind kein verdrehtes Zahlenpaar, sondern
@@ -754,7 +754,7 @@ func validate(d *Def) error {
 		return ErrNested
 	}
 	if d.ParentID > 0 && d.Kind == KindSection {
-		return errors.New(i18n.N("eine Überschrift in einer Gruppe gibt es nicht"))
+		return errors.New(i18n.N("there is no heading inside a group"))
 	}
 	// A heading has nothing to fill in, so nothing to require and nothing to
 	// choose from. Silently dropped rather than refused: the screen does not
@@ -822,7 +822,7 @@ func validate(d *Def) error {
 	d.Condition = strings.TrimSpace(d.Condition)
 	if d.Condition != "" {
 		if d.Condition == d.Key {
-			return errors.New(i18n.N("ein Feld kann nicht von sich selbst abhängen"))
+			return errors.New(i18n.N("a field cannot depend on itself"))
 		}
 		if !validKey(d.Condition) {
 			d.Condition = ""

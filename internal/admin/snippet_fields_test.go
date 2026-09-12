@@ -160,7 +160,7 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 	if !strings.Contains(leer, "Kontaktblock") {
 		t.Error("der Bildschirm nennt den Textbaustein nicht beim Namen")
 	}
-	if !strings.Contains(leer, "noch keine Felder") {
+	if !strings.Contains(leer, "This snippet has no fields yet") {
 		t.Error("der leere Fall zeigt seinen Satz nicht")
 	}
 	// Ein Textbaustein ist nicht „einfach": „Gilt für" hat an ihm keine
@@ -461,7 +461,7 @@ func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 	if !strings.Contains(body, "Zweiter Hinweis") {
 		t.Error("das abgewiesene Formular hat den getippten Wert des anderen Feldes verloren")
 	}
-	if !strings.Contains(body, "muss ausgefüllt werden") {
+	if !strings.Contains(body, "has to be filled in") {
 		t.Error("neben dem Feld steht kein Grund")
 	}
 
@@ -553,7 +553,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 	ausBaustein := druck(amBausteinAufgeloest["hinweis"])
 	ausSeite := druck(anDerSeiteAufgeloest["hinweis"])
 
-	for name, aus := range map[string]string{"Textbaustein": ausBaustein, "Seite": ausSeite} {
+	for name, aus := range map[string]string{"Textbaustein": ausBaustein, "Page": ausSeite} {
 		if strings.Contains(aus, "<script") {
 			t.Errorf("%s: eine lebende Marke hat überlebt: %s", name, aus)
 		}

@@ -76,7 +76,7 @@ func (h *Handler) HandleMediaList(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	data := MediaListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Medien – %s", ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Media – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Media:      items,
 		Pagination: NewPagination(pageNum, media.DefaultPerPage, total).
@@ -111,7 +111,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	// Validate MIME via magic bytes (not Content-Type header) per D-16
 	mimeType, err := media.ValidateMIME(file, header.Filename)
 	if err != nil {
-		return h.uploadFailed(w, r, redirect, web.Titlef(r, "Dateityp nicht erlaubt: %s", err))
+		return h.uploadFailed(w, r, redirect, web.Titlef(r, "File type not allowed: %s", err))
 	}
 
 	// Ein Video darf mehr wiegen als ein Bild — aber nur ein Video.
@@ -121,7 +121,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	}
 	if header.Size > limit {
 		return h.uploadFailed(w, r, redirect, web.Titlef(r,
-			"Die Datei ist größer als erlaubt (%d MB)", limit>>20))
+			"The file is larger than allowed (%d MB)", limit>>20))
 	}
 
 	// An SVG is markup and can pull a stylesheet or an image from another
@@ -141,7 +141,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	source, stripErr := media.PrepareUpload(source, mimeType, limit)
 	if stripErr != nil {
 		if source == nil {
-			return h.uploadFailed(w, r, redirect, web.Titlef(r, "Hochladen fehlgeschlagen: %s", stripErr))
+			return h.uploadFailed(w, r, redirect, web.Titlef(r, "Upload failed: %s", stripErr))
 		}
 		logStripFailure(stripErr, header.Filename, mimeType)
 	}
@@ -150,7 +150,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	destPath := filepath.Join(h.cfg.DataDir, "media", strconv.FormatInt(websiteID, 10), filename)
 	written, hash, err := media.StoreFile(source, destPath, limit)
 	if err != nil {
-		return h.uploadFailed(w, r, redirect, web.Titlef(r, "Hochladen fehlgeschlagen: %s", err))
+		return h.uploadFailed(w, r, redirect, web.Titlef(r, "Upload failed: %s", err))
 	}
 
 	// The same file twice is almost always an accident. Saying so beats letting
@@ -264,7 +264,7 @@ func (h *Handler) HandleMediaMeta(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Beschreibung gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Description saved")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/media", websiteID))
 }
 
@@ -289,11 +289,11 @@ func (h *Handler) HandleMediaDelete(w http.ResponseWriter, r *http.Request) erro
 		return h.redirect(w, r, redirect)
 	}
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Löschen fehlgeschlagen: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Delete failed: %s", err))
 		return h.redirect(w, r, redirect)
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Datei gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "File deleted")
 	return h.redirect(w, r, redirect)
 }
 

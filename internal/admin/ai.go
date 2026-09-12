@@ -72,7 +72,7 @@ func (h *Handler) HandleAIKeys(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := AIKeysData{
-		LayoutData: web.NewLayoutData(r, h.sm, "KI-Zugang"),
+		LayoutData: web.NewLayoutData(r, h.sm, "AI access"),
 		Keys:       keys,
 		Websites:   sites,
 		NewKey:     h.sm.PopString(r.Context(), sessionNewKey),
@@ -127,6 +127,6 @@ func (h *Handler) HandleAIKeyRevoke(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	web.SetFlashSuccess(h.sm, r.Context(),
-		"Der Schlüssel gilt nicht mehr. Ein Assistent, der ihn noch benutzt, wird abgewiesen.")
+		"The key is no longer valid. An assistant still using it is turned away.")
 	return h.redirect(w, r, "/admin/ai")
 }

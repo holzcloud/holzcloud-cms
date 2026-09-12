@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/websites" class="btn">{{t "Abbrechen"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites" class="btn">{{t "Cancel"}}</a>{{end}}
 
 {{define "content"}}
 {{template "csv_mapping-content" .}}
@@ -7,52 +7,52 @@
 {{define "csv_mapping-content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="text-muted">
-        {{tf "Datei „%s“, %d Spalten, %d Zeilen." .Filename (len .Columns) .TotalRows}}
-        {{if .Website}}{{tf "Die Zeilen kommen in die bestehende Website „%s“." .WebsiteName}}{{else}}{{tf "Es entsteht eine neue Website „%s“ – erst beim Einlesen, nicht jetzt." .WebsiteName}}{{end}}
-        {{if eq .Collision "aktualisieren"}}{{t "Eine Zeile, deren Adresse es schon gibt, aktualisiert die vorhandene Seite."}}{{else}}{{t "Eine Zeile, deren Adresse es schon gibt, wird übergangen."}}{{end}}
+        {{tf "File “%s”, %d columns, %d rows." .Filename (len .Columns) .TotalRows}}
+        {{if .Website}}{{tf "The rows go into the existing website “%s”." .WebsiteName}}{{else}}{{tf "A new website “%s” comes into being — only when you import, not now." .WebsiteName}}{{end}}
+        {{if eq .Collision "aktualisieren"}}{{t "A row whose address already exists updates the existing page."}}{{else}}{{t "A row whose address already exists is skipped."}}{{end}}
     </p>
 
     {{if .NoTitleTarget}}
     <p class="alert alert--warning">
-        {{t "Keine Spalte zeigt auf den Titel. Ohne Titel wird jede Zeile abgewiesen – wähle bei einer Spalte „Titel“ und starte den Probelauf noch einmal."}}
+        {{t "No column points at the title. Without a title every row is rejected — choose “Title” for one column and start the dry run again."}}
     </p>
     {{end}}
 
     {{if .Truncated}}
     <p class="alert alert--warning">
-        {{t "Die Datei hat mehr Zeilen, als auf einmal eingelesen werden können. Der Rest wurde nicht gelesen und wird auch nicht geschrieben."}}
+        {{t "The file has more rows than can be imported in one go. The rest was not read and will not be written either."}}
     </p>
     {{end}}
 
     {{if .RequiredGroups}}
     <p class="alert alert--warning">
-        {{range .RequiredGroups}}{{tf "Das Pflichtfeld „%s“ ist eine Gruppe." .}} {{end}}
-        {{t "Eine Gruppe besteht aus Zeilen, eine Tabellenzeile ist flach – aus einer Tabelle lässt sie sich deshalb nicht füllen. Solange das Feld Pflicht ist, wird jede einzelne Zeile dieser Datei abgewiesen. Nimm die Pflicht bei diesem Feld heraus, bevor du einliest."}}
+        {{range .RequiredGroups}}{{tf "The required field “%s” is a group." .}} {{end}}
+        {{t "A group is made of rows, a spreadsheet row is flat — it cannot be filled from a spreadsheet. As long as the field is required, every single row of this file will be rejected. Take the requirement off this field before you import."}}
     </p>
     {{end}}
 
     {{if .NoOwnFields}}
     <p class="text-muted">
-        {{t "Diese Website hat keine eigenen Felder. Es stehen die Ziele zur Verfügung, die jede Seite hat: Titel, Adresse, Text, Zustand und Schlagwörter."}}
+        {{t "This website has no fields of its own. The targets available are the ones every page has: title, address, text, state and terms."}}
     </p>
     {{end}}
 
     {{if .UnmappableFields}}
     <p class="text-muted">
-        {{t "Diese Felder stehen nicht zur Auswahl, weil eine Tabellenzelle sie nicht füllen kann:"}}
+        {{t "These fields are not on offer, because a spreadsheet cell cannot fill them:"}}
         {{range .UnmappableFields}}<span class="badge">{{.Label}}</span> {{end}}
     </p>
     {{end}}
 
     <p class="text-muted">
-        {{th "Mehrere Werte in einer Zelle werden mit einem senkrechten Strich getrennt: <code>rot|blau</code>."}}
-        {{th "Eine Ja/Nein-Spalte versteht <code>ja/nein</code>, <code>yes/no</code>, <code>true/false</code>, <code>wahr/falsch</code>, <code>1/0</code> und <code>x</code> gegen leer – sonst nichts."}}
+        {{th "Several values in one cell are separated by a vertical bar: <code>red|blue</code>."}}
+        {{th "A yes/no column understands <code>ja/nein</code>, <code>yes/no</code>, <code>true/false</code>, <code>wahr/falsch</code>, <code>1/0</code> and <code>x</code> against empty — nothing else."}}
     </p>
 
     {{if .Website}}
     <p class="text-muted">
-        <a href="/admin/csv-vorlage?website={{.Website.ID}}" download>{{t "Beispieldatei dieser Website herunterladen"}}</a>
-        {{t "Sie ist eine Momentaufnahme der Felder von jetzt. Ein Feld, das danach angelegt wird, fehlt darin und käme beim nächsten Einlesen einfach unzugeordnet an – was diese Liste hier dann zeigt."}}
+        <a href="/admin/csv-vorlage?website={{.Website.ID}}" download>{{t "Download this website's example file"}}</a>
+        {{t "It is a snapshot of the fields as they are now. A field created afterwards is missing from it and would simply arrive unmapped at the next import — which is what this list here would then show."}}
     </p>
     {{end}}
 </div>
@@ -61,14 +61,14 @@
     <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
 
     <div class="card" style="margin-bottom: var(--space-3);">
-        <h2>{{t "Die Spalten der Datei"}}</h2>
+        <h2>{{t "The file's columns"}}</h2>
         {{if .NoRows}}
         <p class="text-muted">
-            {{t "Die Datei hat eine Kopfzeile und keine einzige Datenzeile. Es gibt deshalb keine Beispielzeile zu zeigen. Die Zuordnung und die Vorgaben lassen sich trotzdem setzen."}}
+            {{t "The file has a header row and not a single data row. There is therefore no sample row to show. The mapping and the defaults can be set all the same."}}
         </p>
         {{else}}
         <p class="text-muted">
-            {{tf "Beispiel: Zeile %d von %d" .SampleNumber .LastRowNumber}}
+            {{tf "Sample: row %d of %d" .SampleNumber .LastRowNumber}}
             {{/* Submit-Schaltflächen und keine Verweise. Ein Verweis wäre ein
                  frisches GET: die Zuordnung, die der Bediener gerade getroffen
                  hat, käme nicht mit, und der Bildschirm käme mit der
@@ -80,41 +80,41 @@
                  zwei Ziele. Reines HTML, funktioniert auch ohne htmx. */}}
             {{if .PrevRow}}<button type="submit" class="btn btn--sm" formmethod="GET"
                     formaction="/admin/csv-import/{{.Token}}" name="row" value="{{.PrevRow}}"
-                    formnovalidate hx-disabled-elt="this">{{t "vorherige Zeile"}}</button>{{end}}
+                    formnovalidate hx-disabled-elt="this">{{t "previous row"}}</button>{{end}}
             {{if .NextRow}}<button type="submit" class="btn btn--sm" formmethod="GET"
                     formaction="/admin/csv-import/{{.Token}}" name="row" value="{{.NextRow}}"
-                    formnovalidate hx-disabled-elt="this">{{t "nächste Zeile"}}</button>{{end}}
+                    formnovalidate hx-disabled-elt="this">{{t "next row"}}</button>{{end}}
         </p>
         {{end}}
 
         <table class="table csv-columns">
             <thead>
                 <tr>
-                    <th scope="col">{{t "Spalte"}}</th>
-                    <th scope="col">{{t "Beispiel"}}</th>
-                    <th scope="col">{{t "Ziel"}}</th>
+                    <th scope="col">{{t "Column"}}</th>
+                    <th scope="col">{{t "Sample"}}</th>
+                    <th scope="col">{{t "Target"}}</th>
                 </tr>
             </thead>
             <tbody>
                 {{range $c := .Columns}}
                 <tr>
                     <th scope="row">
-                        <label for="target_{{$c.Index}}">{{if $c.HasHeading}}{{$c.Heading}}{{else}}{{tf "Spalte %d" $c.Number}}{{end}}</label>
+                        <label for="target_{{$c.Index}}">{{if $c.HasHeading}}{{$c.Heading}}{{else}}{{tf "Column %d" $c.Number}}{{end}}</label>
                         {{if eq $c.Note.Reason "empty_header"}}
-                        <span class="form-hint">{{t "Diese Spalte hat keine Überschrift und wurde deshalb nicht von selbst zugeordnet."}}</span>
+                        <span class="form-hint">{{t "This column has no heading and was therefore not mapped by itself."}}</span>
                         {{else if eq $c.Note.Reason "column_taken"}}
-                        <span class="form-hint">{{tf "Dieselbe Überschrift steht schon über Spalte %s. Diese hier bleibt ohne Ziel, bis du eines wählst." (index $c.Note.Args 0)}}</span>
+                        <span class="form-hint">{{tf "The same heading already stands over column %s. This one stays without a target until you choose one." (index $c.Note.Args 0)}}</span>
                         {{end}}
                     </th>
                     <td class="text-muted">{{$c.Sample}}</td>
                     <td>
                         <select id="target_{{$c.Index}}" name="target_{{$c.Index}}" class="form-input form-select">
-                            <option value="none"{{if eq $c.Selected "none"}} selected{{end}}>{{t "– nichts –"}}</option>
-                            <option value="title"{{if eq $c.Selected "title"}} selected{{end}}>{{t "Titel"}}</option>
-                            <option value="slug"{{if eq $c.Selected "slug"}} selected{{end}}>{{t "Adresse"}}</option>
+                            <option value="none"{{if eq $c.Selected "none"}} selected{{end}}>{{t "– nothing –"}}</option>
+                            <option value="title"{{if eq $c.Selected "title"}} selected{{end}}>{{t "Title"}}</option>
+                            <option value="slug"{{if eq $c.Selected "slug"}} selected{{end}}>{{t "Address"}}</option>
                             <option value="body"{{if eq $c.Selected "body"}} selected{{end}}>{{t "Text"}}</option>
-                            <option value="status"{{if eq $c.Selected "status"}} selected{{end}}>{{t "Zustand"}}</option>
-                            <option value="terms"{{if eq $c.Selected "terms"}} selected{{end}}>{{t "Schlagwörter"}}</option>
+                            <option value="status"{{if eq $c.Selected "status"}} selected{{end}}>{{t "State"}}</option>
+                            <option value="terms"{{if eq $c.Selected "terms"}} selected{{end}}>{{t "Terms"}}</option>
                             {{range $f := $.Fields}}
                             <option value="field:{{$f.Key}}"{{if eq $c.Selected (printf "field:%s" $f.Key)}} selected{{end}}>{{$f.Label}}</option>
                             {{end}}
@@ -127,24 +127,24 @@
     </div>
 
     <div class="card" style="margin-bottom: var(--space-3);">
-        <h2>{{t "Vorgaben"}}</h2>
+        <h2>{{t "Defaults"}}</h2>
         <p class="text-muted">
-            {{t "Was eingetragen wird, wenn die Datei für dieses Ziel keine Spalte hat oder die Zelle leer bleibt. Leer lassen heißt: nichts eintragen."}}
+            {{t "What is entered when the file has no column for this target or the cell stays empty. Leaving it empty means: enter nothing."}}
         </p>
         {{/* Ein Feld je Ziel, das eine Vorgabe tragen kann — csvimport.TakesDefault
              führt dieselbe Liste, und TestCSVMappingShowsEveryDefaultItAccepts
              hält die beiden zusammen. Vorher stand hier nur Zustand samt
              Feldern, während cellFor jede Vorgabe angenommen hat. */}}
         <div class="form-group">
-            <label class="form-label" for="default_title">{{t "Titel"}}</label>
+            <label class="form-label" for="default_title">{{t "Title"}}</label>
             <input type="text" id="default_title" name="default_title" class="form-input"
                    value="{{index .Defaults "title"}}">
         </div>
         <div class="form-group">
-            <label class="form-label" for="default_slug">{{t "Adresse"}}</label>
+            <label class="form-label" for="default_slug">{{t "Address"}}</label>
             <input type="text" id="default_slug" name="default_slug" class="form-input"
                    value="{{index .Defaults "slug"}}">
-            <span class="form-hint">{{t "Eine Vorgabe für Titel oder Adresse gibt jeder Zeile ohne eigene Angabe dieselbe Adresse: die erste legt an, die weiteren aktualisieren oder werden übergangen."}}</span>
+            <span class="form-hint">{{t "A default for the title or the address gives every row without one of its own the same address: the first creates, the later ones update or are skipped."}}</span>
         </div>
         <div class="form-group">
             <label class="form-label" for="default_body">{{t "Text"}}</label>
@@ -152,12 +152,12 @@
                    value="{{index .Defaults "body"}}">
         </div>
         <div class="form-group">
-            <label class="form-label" for="default_status">{{t "Zustand"}}</label>
+            <label class="form-label" for="default_status">{{t "State"}}</label>
             <input type="text" id="default_status" name="default_status" class="form-input"
-                   value="{{index .Defaults "status"}}" placeholder="{{t "entwurf"}}">
+                   value="{{index .Defaults "status"}}" placeholder="{{t "draft"}}">
         </div>
         <div class="form-group">
-            <label class="form-label" for="default_terms">{{t "Schlagwörter"}}</label>
+            <label class="form-label" for="default_terms">{{t "Terms"}}</label>
             <input type="text" id="default_terms" name="default_terms" class="form-input"
                    value="{{index .Defaults "terms"}}" placeholder="rot|blau">
         </div>
@@ -171,8 +171,8 @@
     </div>
 
     <div class="card">
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Probelauf starten"}}</button>
-        <p class="form-hint">{{t "Der Probelauf schreibt nichts. Er zeigt Zeile für Zeile, was passieren würde."}}</p>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Start the dry run"}}</button>
+        <p class="form-hint">{{t "The dry run writes nothing. It shows row by row what would happen."}}</p>
     </div>
 </form>
 {{end}}

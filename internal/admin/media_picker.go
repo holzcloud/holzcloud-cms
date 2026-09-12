@@ -124,9 +124,9 @@ func (h *Handler) HandlePageInsertMedia(w http.ResponseWriter, r *http.Request) 
 
 	if m.NeedsAltText() {
 		web.SetFlashWarning(h.sm, r.Context(),
-			"Eingefügt. Dieses Bild hat noch keine Beschreibung – bitte in der Mediathek nachtragen.")
+			"Inserted. This image has no description yet — please add one in the media library.")
 	} else {
-		web.SetFlashSuccess(h.sm, r.Context(), "Bild eingefügt")
+		web.SetFlashSuccess(h.sm, r.Context(), "Image inserted")
 	}
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID))
 }

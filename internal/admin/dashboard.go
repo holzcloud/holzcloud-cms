@@ -151,7 +151,7 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	data := DashboardData{
-		LayoutData:   web.NewLayoutData(r, h.sm, "Übersicht"),
+		LayoutData:   web.NewLayoutData(r, h.sm, "Overview"),
 		WebsiteCount: websiteCount,
 		PageCount:    pageCount,
 		MediaCount:   mediaCount,

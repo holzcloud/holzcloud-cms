@@ -97,6 +97,29 @@ func adminFuncs(lang string) template.FuncMap {
 		// The format string is what gets translated, so a language that needs
 		// the parts in another order can say so.
 		"tf": func(format string, args ...any) string { return i18n.Tf(lang, format, args...) },
+		// thf is th and tf at once: a sentence that carries BOTH inline markup
+		// and a value.
+		//
+		// It exists because two sentences in this admin were chopped in three
+		// for want of it, and the pieces reached the catalogue as keys. One of
+		// them was the fragment "an." — a full stop, whose English translation
+		// is a full stop, which is the point at which a catalogue entry has
+		// stopped carrying meaning. The other was "fest.". Both are now one
+		// sentence, and a translator can see what they are translating.
+		//
+		// Every ARGUMENT is escaped, and that is the difference from th.
+		// th is safe because it only ever sees literals compiled into this
+		// binary; thf sees whatever the caller substitutes, which on the screen
+		// that needed it is an e-mail address somebody typed. The markup of the
+		// FORMAT is trusted for the same reason th's is; the values filled into
+		// it never are.
+		"thf": func(format string, args ...any) template.HTML {
+			safe := make([]any, len(args))
+			for i, a := range args {
+				safe[i] = template.HTMLEscapeString(fmt.Sprint(a))
+			}
+			return template.HTML(i18n.Tf(lang, format, safe...))
+		},
 		// lang is the tag itself, for <html lang="…">.
 		"lang": func() string { return lang },
 	}

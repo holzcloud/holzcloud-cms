@@ -120,22 +120,22 @@ type Kind struct {
 // make sense in a form someone fills in (e-mail, telephone) and plus the two a
 // page needs and a form does not (picture, link).
 var Kinds = []Kind{
-	{KindText, i18n.N("Kurzer Text"), i18n.N("Eine Zeile: ein Name, eine Menge, eine Sorte.")},
-	{KindLong, i18n.N("Langer Text"), i18n.N("Mehrere Zeilen ohne Formatierung.")},
-	{KindCode, i18n.N("Code"), i18n.N("Mehrere Zeilen, genau so angezeigt, wie sie getippt wurden.")},
-	{KindNumber, i18n.N("Zahl"), i18n.N("Ein Preis, ein Gewicht, ein Jahrgang.")},
-	{KindRange, i18n.N("Bereich"), i18n.N("Eine Zahl zwischen zwei Grenzen — die Grenzen selbst gelten mit.")},
-	{KindDate, i18n.N("Datum"), i18n.N("Ein Tag, ohne Uhrzeit.")},
-	{KindTime, i18n.N("Uhrzeit"), i18n.N("Eine Uhrzeit, ohne Tag.")},
-	{KindBool, i18n.N("Ja/Nein"), i18n.N("Ein Ankreuzfeld: verfügbar, vergriffen.")},
-	{KindChoice, i18n.N("Auswahl"), i18n.N("Eine Liste von Möglichkeiten, eine davon.")},
-	{KindMulti, i18n.N("Mehrfachauswahl"), i18n.N("Dieselbe Liste, aber beliebig viele davon — als Kästchen zum Ankreuzen.")},
-	{KindImage, i18n.N("Bild"), i18n.N("Ein Bild aus der Mediathek dieser Website.")},
-	{KindLink, i18n.N("Link"), i18n.N("Eine eigene Seite oder eine fremde Adresse.")},
-	{KindRef, i18n.N("Verweis"), i18n.N("Eine Seite dieser Website, ausgewählt statt eingetippt. Für mehrere: eine Gruppe mit einem Verweis darin.")},
-	{KindTerm, i18n.N("Schlagwort"), i18n.N("Ein Schlagwort dieser Website, ausgewählt statt eingetippt. Die Seite zeigt immer den aktuellen Namen.")},
-	{KindGroup, i18n.N("Gruppe"), i18n.N("Mehrere Felder, mehrfach ausgefüllt — z. B. Öffnungszeiten.")},
-	{KindSection, i18n.N("Abschnitt"), i18n.N("Keine Eingabe, sondern eine Überschrift über den folgenden Feldern.")},
+	{KindText, i18n.N("Short text"), i18n.N("One line: a name, an amount, a variety.")},
+	{KindLong, i18n.N("Long text"), i18n.N("Several lines without formatting.")},
+	{KindCode, i18n.N("Code"), i18n.N("Several lines, shown exactly as they were typed.")},
+	{KindNumber, i18n.N("Number"), i18n.N("A price, a weight, a year.")},
+	{KindRange, i18n.N("Range"), i18n.N("A number between two limits — the limits themselves are allowed too.")},
+	{KindDate, i18n.N("Date"), i18n.N("A day, without a time.")},
+	{KindTime, i18n.N("Time"), i18n.N("A time, without a day.")},
+	{KindBool, i18n.N("Yes/no"), i18n.N("A checkbox: in stock, sold out.")},
+	{KindChoice, i18n.N("Choice"), i18n.N("A list of options, one of them.")},
+	{KindMulti, i18n.N("Multiple choice"), i18n.N("The same list, but as many of them as you like — as checkboxes.")},
+	{KindImage, i18n.N("Image"), i18n.N("An image from this website's media library.")},
+	{KindLink, i18n.N("Link"), i18n.N("One of your own pages or an outside address.")},
+	{KindRef, i18n.N("Reference"), i18n.N("A page of this website, chosen rather than typed. For several: a group with a reference in it.")},
+	{KindTerm, i18n.N("Term"), i18n.N("A term of this website, chosen rather than typed. The page always shows the current name.")},
+	{KindGroup, i18n.N("Group"), i18n.N("Several fields, filled in more than once — opening hours, say.")},
+	{KindSection, i18n.N("Section"), i18n.N("Not an input but a heading over the fields that follow.")},
 }
 
 // SubKinds are the kinds a field inside a group may have: everything except a
@@ -757,11 +757,11 @@ func ParseTimeOfDay(value string) (time.Time, bool) {
 func rangeReason(label, unten, oben string, hatUnten, hatOben bool) Reason {
 	switch {
 	case hatUnten && hatOben:
-		return reasonf(i18n.N("%s muss zwischen %s und %s liegen."), label, unten, oben)
+		return reasonf(i18n.N("%s has to be between %s and %s."), label, unten, oben)
 	case hatUnten:
-		return reasonf(i18n.N("%s muss mindestens %s sein."), label, unten)
+		return reasonf(i18n.N("%s has to be at least %s."), label, unten)
 	default:
-		return reasonf(i18n.N("%s darf höchstens %s sein."), label, oben)
+		return reasonf(i18n.N("%s may be at most %s."), label, oben)
 	}
 }
 
@@ -787,7 +787,7 @@ func rangeReason(label, unten, oben string, hatUnten, hatOben bool) Reason {
 // alles ausser dieser einen Prüfung.
 func tooLong(d Def, value string) Reason {
 	if len(value) > MaxValueBytes {
-		return reasonf(i18n.N("%s ist zu lang: höchstens %s Zeichen, wobei Umlaute doppelt zählen."),
+		return reasonf(i18n.N("%s is too long: at most %s characters, where accented letters count double."),
 			d.Label, strconv.Itoa(MaxValueBytes))
 	}
 	return Reason{}
@@ -802,7 +802,7 @@ func Check(d Def, value string) Reason {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		if d.Required {
-			return reasonf(i18n.N("%s muss ausgefüllt werden."), d.Label)
+			return reasonf(i18n.N("%s has to be filled in."), d.Label)
 		}
 		return Reason{}
 	}
@@ -821,16 +821,16 @@ func Check(d Def, value string) Reason {
 		// stored "nein" printed as "ja" on every shipped theme, on the three
 		// paths that name CheckAll as their only per-kind gate.
 		if _, ok := NormalizeBool(value); !ok {
-			return reasonf(i18n.N("%s muss ja oder nein sein."), d.Label)
+			return reasonf(i18n.N("%s has to be yes or no."), d.Label)
 		}
 	case KindNumber:
 		if _, ok := ParseNumber(value); !ok {
-			return reasonf(i18n.N("%s muss eine Zahl sein."), d.Label)
+			return reasonf(i18n.N("%s has to be a number."), d.Label)
 		}
 	case KindRange:
 		n, ok := ParseNumber(value)
 		if !ok {
-			return reasonf(i18n.N("%s muss eine Zahl sein."), d.Label)
+			return reasonf(i18n.N("%s has to be a number."), d.Label)
 		}
 		// Beide Vergleiche schliessen die Grenze ein: die Grenze selbst ist
 		// ein erlaubter Wert. Eine Grenze, die keine Zahl ist, ist keine
@@ -843,11 +843,11 @@ func Check(d Def, value string) Reason {
 		}
 	case KindTime:
 		if _, ok := ParseTimeOfDay(value); !ok {
-			return reasonf(i18n.N("%s muss eine Uhrzeit sein, z. B. 09:30."), d.Label)
+			return reasonf(i18n.N("%s has to be a time, for example 09:30."), d.Label)
 		}
 	case KindDate:
 		if _, err := time.Parse("2006-01-02", value); err != nil {
-			return reasonf(i18n.N("%s muss ein Datum sein."), d.Label)
+			return reasonf(i18n.N("%s has to be a date."), d.Label)
 		}
 	case KindChoice:
 		for _, c := range d.Choices {
@@ -855,7 +855,7 @@ func Check(d Def, value string) Reason {
 				return Reason{}
 			}
 		}
-		return reasonf(i18n.N("%s: „%s“ steht nicht zur Auswahl."), d.Label, value)
+		return reasonf(i18n.N("%s: “%s” is not one of the choices."), d.Label, value)
 	case KindMulti:
 		// Every picked value has to be on the list. The options are a closed
 		// vocabulary, so an arbitrary string must not get in through a
@@ -871,7 +871,7 @@ func Check(d Def, value string) Reason {
 				}
 			}
 			if !known {
-				return reasonf(i18n.N("%s: „%s“ steht nicht zur Auswahl."), d.Label, picked)
+				return reasonf(i18n.N("%s: “%s” is not one of the choices."), d.Label, picked)
 			}
 		}
 		// Die Höchstzahl gilt hier oder nirgends: eine Häkchengruppe lässt
@@ -883,16 +883,16 @@ func Check(d Def, value string) Reason {
 		if d.MaxValues > 0 {
 			if n := len(SplitValues(value)); n > d.MaxValues {
 				if d.MaxValues == 1 {
-					return reasonf(i18n.N("%s: höchstens ein Wert, ausgewählt sind %s."),
+					return reasonf(i18n.N("%s: at most one value, %s are selected."),
 						d.Label, strconv.Itoa(n))
 				}
-				return reasonf(i18n.N("%s: höchstens %s Werte, ausgewählt sind %s."),
+				return reasonf(i18n.N("%s: at most %s values, %s are selected."),
 					d.Label, strconv.Itoa(d.MaxValues), strconv.Itoa(n))
 			}
 		}
 	case KindImage:
 		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
-			return reasonf(i18n.N("%s: das ist kein Bild aus der Mediathek."), d.Label)
+			return reasonf(i18n.N("%s: that is not a picture from the media library."), d.Label)
 		}
 	case KindRef:
 		// That the page exists and belongs to this website is decided where
@@ -900,7 +900,7 @@ func Check(d Def, value string) Reason {
 		// resolves through a lookup that checks. Here it is a number or it is
 		// somebody typing into the form by hand.
 		if id, err := strconv.ParseInt(value, 10, 64); err != nil || id <= 0 {
-			return reasonf(i18n.N("%s: das ist keine Seite dieser Website."), d.Label)
+			return reasonf(i18n.N("%s: that is not a page of this website."), d.Label)
 		}
 	case KindTerm:
 		// Dass es das Schlagwort gibt und dass es dieser Website gehört, wird
@@ -914,7 +914,7 @@ func Check(d Def, value string) Reason {
 		// Zeichenkette, die aus sich selbst wieder sich selbst ergibt. Zwei
 		// Regeln nebeneinander wären zwei Regeln, die auseinanderlaufen.
 		if page.Slugify(value) != value {
-			return reasonf(i18n.N("%s: das ist kein Schlagwort dieser Website."), d.Label)
+			return reasonf(i18n.N("%s: that is not a term of this website."), d.Label)
 		}
 	case KindLink:
 		if reason := checkLink(value); !reason.Empty() {
@@ -932,14 +932,14 @@ func checkLink(value string) Reason {
 	switch {
 	case strings.HasPrefix(value, "/"):
 		if strings.HasPrefix(value, "//") {
-			return reasonf(i18n.N("eine Adresse mit zwei Schrägstrichen führt auf einen fremden Server."))
+			return reasonf(i18n.N("an address with two slashes leads to somebody else’s server."))
 		}
 		return Reason{}
 	case strings.HasPrefix(value, "https://"), strings.HasPrefix(value, "http://"),
 		strings.HasPrefix(value, "mailto:"), strings.HasPrefix(value, "tel:"):
 		return Reason{}
 	}
-	return reasonf(i18n.N("das muss mit / beginnen (eigene Seite) oder mit https:// (fremde Adresse)."))
+	return reasonf(i18n.N("this has to start with / (a page of your own) or with https:// (an address elsewhere)."))
 }
 
 // SlugifyKey turns a label into a key.
@@ -1106,7 +1106,7 @@ func CheckAll(defs []Def, d Data) map[string]Reason {
 		}
 		rows := d.Rows[def.Key]
 		if def.Required && len(rows) == 0 {
-			errs[def.Key] = reasonf(i18n.N("%s braucht mindestens eine Zeile."), def.Label)
+			errs[def.Key] = reasonf(i18n.N("%s needs at least one row."), def.Label)
 			continue
 		}
 		for i, row := range rows {
@@ -1128,7 +1128,7 @@ func CheckAll(defs []Def, d Data) map[string]Reason {
 // are collected and both are rendered in the reader's language — which matters
 // more here than anywhere, because the two ended up on the same line.
 func inRow(groupLabel string, index int, inner Reason) Reason {
-	return reasonf(i18n.N("%s, Zeile %d: %s"), groupLabel, index+1, inner)
+	return reasonf(i18n.N("%s, row %d: %s"), groupLabel, index+1, inner)
 }
 
 // RowKey identifies one field of one row, in the form and in an error map.

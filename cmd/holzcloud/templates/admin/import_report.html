@@ -1,28 +1,28 @@
-{{define "actions"}}<a href="/admin/websites" class="btn">{{t "Zu den Websites"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites" class="btn">{{t "To the websites"}}</a>{{end}}
 
 {{define "content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
-    <h1>{{t "Import abgeschlossen"}}</h1>
+    <h1>{{t "WordPress import finished"}}</h1>
     <ul class="import-summary">
-        <li>{{tf "%d Seiten und Beiträge" .Report.Pages}}</li>
-        <li>{{tf "%d Dateien" .Report.Media}}</li>
-        <li>{{tf "%d Menüs" .Report.Menus}}</li>
-        <li>{{tf "%d Textbausteine" .Report.Snippets}}</li>
-        <li>{{tf "%d Alben" .Report.Albums}}</li>
+        <li>{{tf "%d pages and posts" .Report.Pages}}</li>
+        <li>{{tf "%d files" .Report.Media}}</li>
+        <li>{{tf "%d menus" .Report.Menus}}</li>
+        <li>{{tf "%d snippets" .Report.Snippets}}</li>
+        <li>{{tf "%d albums" .Report.Albums}}</li>
     </ul>
 
     <p class="callout callout--warning">
-        {{t "Die neue Website hat noch keine Domain – Domains werden bewusst nicht mitexportiert, sonst würde ein Import einen Namen beanspruchen, der dem neuen Rechner nicht gehört. Trage unter „Einstellungen“ eine ein, damit die Website erreichbar wird."}}
+        {{t "The new website has no domain yet — domains are deliberately not exported, or an import would claim a name that does not belong to the new machine. Add one under “Settings” so the website becomes reachable."}}
     </p>
 
-    <a href="/admin/websites/{{.Report.WebsiteID}}" class="btn btn--primary">{{t "Einstellungen öffnen"}}</a>
+    <a href="/admin/websites/{{.Report.WebsiteID}}" class="btn btn--primary">{{t "Open settings"}}</a>
 </div>
 
 {{if .Report.Warnings}}
 <div class="card">
-    <h2>{{t "Was nicht mitgekommen ist"}}</h2>
+    <h2>{{t "What did not come along"}}</h2>
     <p class="text-muted">
-        {{t "Nichts davon hat den Import abgebrochen. Aufgelistet, damit niemand zweihundert Seiten von Hand durchsehen muss, um es zu finden."}}
+        {{t "None of this stopped the import. Listed so nobody has to go through two hundred pages by hand to find it."}}
     </p>
     <ul class="import-warnings">
         {{range .Report.Warnings}}<li>{{.}}</li>{{end}}

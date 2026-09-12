@@ -33,7 +33,7 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if len(ids) == 0 {
-		web.SetFlashError(h.sm, r.Context(), "Keine Seite ausgewählt")
+		web.SetFlashError(h.sm, r.Context(), "No page selected")
 		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 	}
 	// Dieselbe Regel wie im Editor: wer nicht veröffentlichen darf, ändert den
@@ -41,7 +41,7 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 	// die Hintertür zum Knopf, den es oben nicht gibt.
 	if (action == "publish" || action == "unpublish") && !h.mayPublish(r) {
 		web.SetFlashError(h.sm, r.Context(),
-			"Veröffentlichen gehört nicht zu deinem Zugang. Reiche die Seite zur Prüfung ein.")
+			"Publishing is not part of your account. Submit the page for review.")
 		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 	}
 
@@ -69,7 +69,7 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 		case "trash":
 			err = h.pages.TrashPage(r.Context(), id)
 		default:
-			web.SetFlashError(h.sm, r.Context(), "Unbekannte Aktion")
+			web.SetFlashError(h.sm, r.Context(), "Unknown action")
 			return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 		}
 		if err != nil {
@@ -154,7 +154,7 @@ func (h *Handler) HandlePageDuplicate(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Kopie angelegt")
+	web.SetFlashSuccess(h.sm, r.Context(), "Copy created")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, copy.ID))
 }
 

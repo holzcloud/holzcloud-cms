@@ -345,7 +345,7 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 		if !errors.Is(err, ErrRangeInverted) {
 			t.Errorf("die Ablehnung trägt nicht ErrRangeInverted: %v", err)
 		}
-		if !strings.Contains(err.Error(), "Grenze") {
+		if !strings.Contains(err.Error(), "bound") {
 			t.Errorf("die Begründung nennt die Grenze nicht: %v", err)
 		}
 	})
@@ -379,7 +379,7 @@ func TestNeueSpaltenGeprueft(t *testing.T) {
 		if err == nil {
 			t.Fatal("eine Mehrfachauswahl ohne eine einzige Möglichkeit wurde angenommen")
 		}
-		if !strings.Contains(err.Error(), "Möglichkeit") {
+		if !strings.Contains(err.Error(), "option") {
 			t.Errorf("die Begründung nennt die Möglichkeiten nicht: %v", err)
 		}
 
@@ -461,7 +461,7 @@ func TestFeldschluesselWirdAufSeineFormGeprueft(t *testing.T) {
 		if err == nil {
 			t.Fatal("ein Schlüssel mit Klammern wurde angenommen")
 		}
-		if !strings.Contains(err.Error(), "Kennung") {
+		if !strings.Contains(err.Error(), "key") {
 			t.Errorf("die Begründung nennt die Kennung nicht: %v", err)
 		}
 

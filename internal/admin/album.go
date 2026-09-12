@@ -166,22 +166,22 @@ func (h *Handler) albumFromPath(w http.ResponseWriter, r *http.Request) (*domain
 func albumSaid(err error) string {
 	switch {
 	case errors.Is(err, album.ErrNoName):
-		return i18n.N("Bitte einen Namen für das Album angeben")
+		return i18n.N("Please give the album a name")
 	case errors.Is(err, album.ErrDuplicateName):
-		return i18n.N("Ein Album mit diesem Namen gibt es schon")
+		return i18n.N("An album with this name already exists")
 	// Its own sentence, and not folded into the one above: after a rename the
 	// two collisions are different events. A slug collision against an album
 	// that is called something else sends an operator to a list in which the
 	// name they typed does not appear, and "there is already an album with
 	// that name" is then untrue as well as unhelpful.
 	case errors.Is(err, album.ErrDuplicateSlug):
-		return i18n.N("Ein anderes Album hat schon die Adresse, die aus diesem Namen entsteht")
+		return i18n.N("Another album already has the address this name produces")
 	case errors.Is(err, album.ErrTooManyItems):
-		return i18n.N("Dieses Album ist voll. Leg für weitere Bilder ein zweites an.")
+		return i18n.N("This album is full. Create a second one for further images.")
 	case errors.Is(err, album.ErrForeignMedia):
-		return i18n.N("Dieses Bild gehört nicht zur Mediathek dieser Website")
+		return i18n.N("This image does not belong to this website’s media library")
 	case errors.Is(err, album.ErrNotFound):
-		return i18n.N("Das Album oder das Bild gibt es nicht mehr")
+		return i18n.N("The album or the image no longer exists")
 	}
 	return ""
 }
@@ -227,7 +227,7 @@ func (h *Handler) HandleAlbumList(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	data := AlbumListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Alben – %s", ws.Name)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Albums – %s", ws.Name)),
 		WebsiteID:  ws.ID,
 		Albums:     rows,
 	}
@@ -253,7 +253,7 @@ func (h *Handler) HandleAlbumCreate(w http.ResponseWriter, r *http.Request) erro
 	_, err = h.albumStore.Create(r.Context(), ws.ID, r.FormValue("name"))
 	switch {
 	case err == nil:
-		web.SetFlashSuccess(h.sm, r.Context(), "Album angelegt")
+		web.SetFlashSuccess(h.sm, r.Context(), "Album created")
 	case albumSaid(err) != "":
 		web.SetFlashError(h.sm, r.Context(), albumSaid(err))
 	default:
@@ -335,7 +335,7 @@ func (h *Handler) HandleAlbumUpdate(w http.ResponseWriter, r *http.Request) erro
 	err = h.albumStore.Rename(r.Context(), ws.ID, a.ID, r.FormValue("name"))
 	switch {
 	case err == nil:
-		web.SetFlashSuccess(h.sm, r.Context(), "Album gespeichert")
+		web.SetFlashSuccess(h.sm, r.Context(), "Album saved")
 	case albumSaid(err) != "":
 		web.SetFlashError(h.sm, r.Context(), albumSaid(err))
 	default:
@@ -362,7 +362,7 @@ func (h *Handler) HandleAlbumDelete(w http.ResponseWriter, r *http.Request) erro
 	err = h.albumStore.Delete(r.Context(), ws.ID, a.ID)
 	switch {
 	case err == nil:
-		web.SetFlashSuccess(h.sm, r.Context(), "Album gelöscht")
+		web.SetFlashSuccess(h.sm, r.Context(), "Album deleted")
 	case albumSaid(err) != "":
 		web.SetFlashError(h.sm, r.Context(), albumSaid(err))
 	default:
@@ -399,14 +399,14 @@ func albumPicture(r *http.Request) (mediaID int64, alt, caption string) {
 // the call site, where the collector looks for a literal and finds a variable.
 func (h *Handler) requireOwnPicture(r *http.Request, websiteID, mediaID int64) string {
 	if mediaID <= 0 {
-		return i18n.N("Bitte ein Bild auswählen")
+		return i18n.N("Please choose an image")
 	}
 	if h.mediaStore == nil {
-		return i18n.N("Dieses Bild gehört nicht zur Mediathek dieser Website")
+		return i18n.N("This image does not belong to this website’s media library")
 	}
 	m, err := h.mediaStore.GetByID(r.Context(), mediaID)
 	if err != nil || m == nil || m.WebsiteID != websiteID || !m.IsImage() {
-		return i18n.N("Dieses Bild gehört nicht zur Mediathek dieser Website")
+		return i18n.N("This image does not belong to this website’s media library")
 	}
 	return ""
 }
@@ -429,7 +429,7 @@ func (h *Handler) HandleAlbumItemCreate(w http.ResponseWriter, r *http.Request) 
 		_, err = h.albumStore.AddItem(r.Context(), ws.ID, a.ID, mediaID, alt, caption)
 		switch {
 		case err == nil:
-			web.SetFlashSuccess(h.sm, r.Context(), "Bild hinzugefügt")
+			web.SetFlashSuccess(h.sm, r.Context(), "Image added")
 		case albumSaid(err) != "":
 			web.SetFlashError(h.sm, r.Context(), albumSaid(err))
 		default:
@@ -469,7 +469,7 @@ func (h *Handler) HandleAlbumItemUpdate(w http.ResponseWriter, r *http.Request) 
 		err = h.albumStore.UpdateItem(r.Context(), ws.ID, a.ID, itemID, mediaID, alt, caption)
 		switch {
 		case err == nil:
-			web.SetFlashSuccess(h.sm, r.Context(), "Bild gespeichert")
+			web.SetFlashSuccess(h.sm, r.Context(), "Image saved")
 		case albumSaid(err) != "":
 			web.SetFlashError(h.sm, r.Context(), albumSaid(err))
 		default:
@@ -502,7 +502,7 @@ func (h *Handler) HandleAlbumItemDelete(w http.ResponseWriter, r *http.Request) 
 	err = h.albumStore.DeleteItem(r.Context(), ws.ID, a.ID, itemID)
 	switch {
 	case err == nil:
-		web.SetFlashSuccess(h.sm, r.Context(), "Bild entfernt")
+		web.SetFlashSuccess(h.sm, r.Context(), "Image removed")
 	case albumSaid(err) != "":
 		web.SetFlashError(h.sm, r.Context(), albumSaid(err))
 	default:
@@ -560,14 +560,14 @@ func (h *Handler) HandleAlbumItemReorder(w http.ResponseWriter, r *http.Request)
 
 	switch {
 	case direction != "up" && direction != "down":
-		web.SetFlashError(h.sm, r.Context(), "Ungültige Richtung")
+		web.SetFlashError(h.sm, r.Context(), "Invalid direction")
 	case neighbour == 0:
-		web.SetFlashSuccess(h.sm, r.Context(), "Die Reihenfolge steht schon so")
+		web.SetFlashSuccess(h.sm, r.Context(), "The order already stands that way")
 	default:
 		err = h.albumStore.SwapSortOrder(r.Context(), ws.ID, a.ID, itemID, neighbour)
 		switch {
 		case err == nil:
-			web.SetFlashSuccess(h.sm, r.Context(), "Reihenfolge geändert")
+			web.SetFlashSuccess(h.sm, r.Context(), "Order changed")
 		case albumSaid(err) != "":
 			web.SetFlashError(h.sm, r.Context(), albumSaid(err))
 		default:

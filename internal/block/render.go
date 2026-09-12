@@ -418,15 +418,15 @@ func renderOwn(b *strings.Builder, at int, blk Block, own Own, s Set, look Looku
 // is marked and never injected is collected, translated into four catalogues
 // and printed in German anyway.
 var (
-	textPrevious = i18n.N("Vorheriges Bild")
-	textNext     = i18n.N("Nächstes Bild")
-	textClose    = i18n.N("Grossansicht schliessen")
+	textPrevious = i18n.N("Previous image")
+	textNext     = i18n.N("Next image")
+	textClose    = i18n.N("Close large view")
 
 	// textGallery names the slideshow's scrolling region. Deliberately the
 	// literal the block kind at block.go:77 already carries, so this mints no
 	// fifth string: it is translated in en, es, fr and it today, and a new one
 	// would cost four translations for a word the catalogue already has.
-	textGallery = i18n.N("Galerie")
+	textGallery = i18n.N("Gallery")
 )
 
 // closeTarget is the fragment the close control points at.

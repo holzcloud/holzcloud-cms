@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/media" class="btn">{{t "Zurück zur Mediathek"}}</a>{{end}}
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/media" class="btn">{{t "Back to the media library"}}</a>{{end}}
 
 {{define "content"}}
 {{template "media_crop-content" .}}
@@ -8,7 +8,7 @@
 {{if not .Croppable}}
 <div class="card">
     <p>
-        <strong>{{.Media.OriginalName}}</strong> {{t "lässt sich nicht zuschneiden – das geht nur bei JPEG-, PNG- und WebP-Bildern."}}
+        <strong>{{.Media.OriginalName}}</strong> {{t "cannot be cropped — that works for JPEG, PNG and WebP images only."}}
     </p>
 </div>
 {{else}}
@@ -18,9 +18,9 @@
 
     <div class="crop-layout">
         <div class="card">
-            <h2>{{t "Wo ist das Motiv?"}}</h2>
+            <h2>{{t "Where is the subject?"}}</h2>
             <p class="text-muted">
-                {{t "Klicke auf die Stelle, die auf jeden Fall zu sehen sein soll. Der Ausschnitt wird um diesen Punkt herum gelegt, und wenn ein Theme das Bild in eine feste Form pressen muss, bleibt diese Stelle im Bild."}}
+                {{t "Click the spot that must be visible whatever happens. The crop is laid around that point, and when a theme has to press the image into a fixed shape, that spot stays in it."}}
             </p>
 
             <!-- Ein <input type="image"> schickt die Koordinaten des Klicks als
@@ -33,7 +33,7 @@
               <div class="crop-canvas">
                 <input type="image" name="fokus" class="crop-canvas__img"
                        src="{{.Media.URL}}" width="{{.PreviewWidth}}"
-                       alt="{{tf "%s – klicke auf das Motiv" .Media.OriginalName}}">
+                       alt="{{tf "%s – click on the subject" .Media.OriginalName}}">
                 <span class="crop-marker" aria-hidden="true"
                       style="left: {{.Media.Crop.FocusX}}%; top: {{.Media.Crop.FocusY}}%"></span>
               </div>
@@ -43,26 +43,26 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label" for="fokus_x">{{t "Motiv von links (%)"}}</label>
+                    <label class="form-label" for="fokus_x">{{t "Subject from the left (%)"}}</label>
                     <input type="number" id="fokus_x" name="fokus_x" class="form-input"
                            min="0" max="100" value="{{.Media.Crop.FocusX}}">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="fokus_y">{{t "Motiv von oben (%)"}}</label>
+                    <label class="form-label" for="fokus_y">{{t "Subject from the top (%)"}}</label>
                     <input type="number" id="fokus_y" name="fokus_y" class="form-input"
                            min="0" max="100" value="{{.Media.Crop.FocusY}}">
                 </div>
             </div>
             <p class="form-hint text-muted">
-                {{t "Die Felder sind der Weg über die Tastatur, und der genaueste bei einem sehr breiten Bild. Ein Klick ins Bild überschreibt sie."}}
+                {{t "The fields are the way in from the keyboard, and the most precise one on a very wide image. A click on the image overwrites them."}}
             </p>
         </div>
 
         <div class="card">
-            <h2>{{t "Zuschnitt"}}</h2>
+            <h2>{{t "Crop"}}</h2>
 
             <div class="form-group">
-                <label class="form-label" for="form">{{t "Form"}}</label>
+                <label class="form-label" for="form">{{t "Shape"}}</label>
                 <select id="form" name="form" class="form-input form-select">
                     {{$gewaehlt := .Media.Crop.Ratio}}
                     {{range .Ratios}}
@@ -72,47 +72,47 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="naehe">{{t "Nähe"}}</label>
+                <label class="form-label" for="naehe">{{t "Zoom"}}</label>
                 <select id="naehe" name="naehe" class="form-input form-select">
                     {{$n := .Media.Crop.Zoom}}
-                    <option value="100"{{if le $n 100}} selected{{end}}>{{t "Alles zeigen"}}</option>
-                    <option value="125"{{if eq $n 125}} selected{{end}}>{{t "Etwas näher (1,25×)"}}</option>
-                    <option value="150"{{if eq $n 150}} selected{{end}}>{{t "Näher (1,5×)"}}</option>
-                    <option value="200"{{if eq $n 200}} selected{{end}}>{{t "Deutlich näher (2×)"}}</option>
-                    <option value="300"{{if ge $n 300}} selected{{end}}>{{t "Sehr nah (3×)"}}</option>
+                    <option value="100"{{if le $n 100}} selected{{end}}>{{t "Show everything"}}</option>
+                    <option value="125"{{if eq $n 125}} selected{{end}}>{{t "A little closer (1.25×)"}}</option>
+                    <option value="150"{{if eq $n 150}} selected{{end}}>{{t "Closer (1.5×)"}}</option>
+                    <option value="200"{{if eq $n 200}} selected{{end}}>{{t "Much closer (2×)"}}</option>
+                    <option value="300"{{if ge $n 300}} selected{{end}}>{{t "Very close (3×)"}}</option>
                 </select>
                 <p class="form-hint text-muted">
-                    {{t "Je näher, desto weniger Pixel bleiben übrig. Bei einem Handyfoto ist ab etwa 2× nicht mehr viel zu holen."}}
+                    {{t "The closer in, the fewer pixels are left. On a phone photo there is not much to gain beyond about 2×."}}
                 </p>
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="drehung">{{t "Drehung"}}</label>
+                <label class="form-label" for="drehung">{{t "Rotation"}}</label>
                 <select id="drehung" name="drehung" class="form-input form-select">
                     {{$d := .Media.Crop.Rotation}}
-                    <option value="0"{{if eq $d 0}} selected{{end}}>{{t "Keine"}}</option>
-                    <option value="90"{{if eq $d 90}} selected{{end}}>{{t "90° nach rechts"}}</option>
-                    <option value="180"{{if eq $d 180}} selected{{end}}>{{t "Auf den Kopf"}}</option>
-                    <option value="270"{{if eq $d 270}} selected{{end}}>{{t "90° nach links"}}</option>
+                    <option value="0"{{if eq $d 0}} selected{{end}}>{{t "None"}}</option>
+                    <option value="90"{{if eq $d 90}} selected{{end}}>{{t "90° right"}}</option>
+                    <option value="180"{{if eq $d 180}} selected{{end}}>{{t "Upside down"}}</option>
+                    <option value="270"{{if eq $d 270}} selected{{end}}>{{t "90° left"}}</option>
                 </select>
                 <p class="form-hint text-muted">
-                    {{t "Eine Vierteldrehung verschiebt Pixel, sie rechnet sie nicht neu – das Bild bleibt genau so scharf."}}
+                    {{t "A quarter turn moves pixels, it does not recompute them — the image stays exactly as sharp."}}
                 </p>
             </div>
 
             <dl class="facts">
-                <dt>{{t "Jetzt"}}</dt><dd>{{tf "%d × %d Pixel" .Media.Width .Media.Height}}</dd>
-                {{if .Cropped}}<dt>{{t "Zustand"}}</dt><dd><span class="badge">{{t "zugeschnitten"}}</span></dd>{{end}}
+                <dt>{{t "Now"}}</dt><dd>{{tf "%d × %d pixels" .Media.Width .Media.Height}}</dd>
+                {{if .Cropped}}<dt>{{t "State"}}</dt><dd><span class="badge">{{t "cropped"}}</span></dd>{{end}}
             </dl>
 
             <div class="form-actions">
                 <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
-                    {{t "Zuschneiden"}}
+                    {{t "Apply crop"}}
                 </button>
             </div>
 
             <p class="text-muted">
-                {{t "Das hochgeladene Bild bleibt erhalten. Jeder Zuschnitt beginnt wieder bei ihm, nicht beim vorigen Ergebnis – so verliert ein Bild auch nach dem fünften Versuch nichts an Qualität."}}
+                {{t "The uploaded image is kept. Every crop starts from it again, not from the previous result — so an image loses no quality even on the fifth attempt."}}
             </p>
         </div>
     </div>
@@ -124,10 +124,10 @@
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <input type="hidden" name="zuruecksetzen" value="1">
         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">
-            {{t "Hochgeladenes Bild wiederherstellen"}}
+            {{t "Restore the uploaded image"}}
         </button>
         <p class="form-hint text-muted">
-            {{t "Setzt den Zuschnitt zurück. Der Punkt für das Motiv bleibt – er sagt, wo etwas ist, und das stimmt auch beim ungeschnittenen Bild."}}
+            {{t "Resets the crop. The subject point stays — it says where something is, and that holds for the uncropped image too."}}
         </p>
     </form>
 </div>

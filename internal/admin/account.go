@@ -88,7 +88,7 @@ func (h *Handler) HandleUserLink(w http.ResponseWriter, r *http.Request) error {
 
 	link := h.absoluteAdminURL(r, path+secret)
 	data := AccountLinkData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Zugangslink"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Access link"),
 		User:       u,
 		URL:        link,
 		Expires:    expires,
@@ -159,10 +159,10 @@ func (h *Handler) HandleSetPassword(purpose string) func(http.ResponseWriter, *h
 		}
 		password := r.FormValue("password")
 		if len(password) < 8 {
-			data.Errors.Add("password", "Das Passwort muss mindestens 8 Zeichen lang sein.")
+			data.Errors.Add("password", "The password must be at least 8 characters long.")
 		}
 		if password != r.FormValue("password_confirm") {
-			data.Errors.Add("password_confirm", "Die Passwörter stimmen nicht überein.")
+			data.Errors.Add("password_confirm", "The passwords do not match.")
 		}
 		if data.Errors.Any() {
 			return web.RenderFormError(w, h.templates, r, "set_password", data)
@@ -184,7 +184,7 @@ func (h *Handler) HandleSetPassword(purpose string) func(http.ResponseWriter, *h
 			slog.Error("destroy sessions after password change", "err", err, "user_id", u.ID)
 		}
 
-		web.SetFlashSuccess(h.sm, r.Context(), "Passwort gesetzt. Bitte melde dich jetzt an.")
+		web.SetFlashSuccess(h.sm, r.Context(), "Password set. Please sign in now.")
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
 	}
@@ -203,7 +203,7 @@ func linkTitle(purpose string) string {
 // would tell a stranger whether the token ever existed.
 func (h *Handler) invalidLink(w http.ResponseWriter, r *http.Request) error {
 	data := SetPasswordData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Link ungültig"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Link not valid"),
 		FormState:  web.NewFormState(),
 	}
 	data.Conflict = "Dieser Link ist abgelaufen oder wurde bereits benutzt. " +
@@ -222,7 +222,7 @@ func (h *Handler) HandleUserSessions(w http.ResponseWriter, r *http.Request) err
 	if err := auth.DestroyUserSessions(r.Context(), h.sm, id, ""); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Alle Sitzungen dieses Benutzers wurden beendet")
+	web.SetFlashSuccess(h.sm, r.Context(), "All sessions of this user have been ended")
 	return h.redirect(w, r, fmt.Sprintf("/admin/users/%d/edit", id))
 }
 

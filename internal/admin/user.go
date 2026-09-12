@@ -180,7 +180,7 @@ func (h *Handler) HandleUserList(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := UserListData{
-		LayoutData:    web.NewLayoutData(r, h.sm, "Benutzer"),
+		LayoutData:    web.NewLayoutData(r, h.sm, "Users"),
 		Users:         users,
 		SessionUserID: h.sm.GetInt64(r.Context(), auth.SessionKeyUserID),
 		SSOEnabled:    h.cfg != nil && h.cfg.SSOEnabled,
@@ -196,7 +196,7 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) error
 	}
 
 	data := UserFormData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Neuer Benutzer"),
+		LayoutData: web.NewLayoutData(r, h.sm, "New user"),
 		MayPublish: true,
 		Sites:      h.siteTicks(r, usr.Everything()),
 	}
@@ -216,7 +216,7 @@ func (h *Handler) handleUserCreatePost(w http.ResponseWriter, r *http.Request) e
 
 	// Validate
 	if email == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte eine E-Mail-Adresse angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give an email address")
 		return h.redirectBack(w, r, "/admin/users/new")
 	}
 	if len(password) < auth.MinPasswordLength {
@@ -225,7 +225,7 @@ func (h *Handler) handleUserCreatePost(w http.ResponseWriter, r *http.Request) e
 		return h.redirectBack(w, r, "/admin/users/new")
 	}
 	if role != "admin" && role != "editor" {
-		web.SetFlashError(h.sm, r.Context(), "Die Rolle muss Administrator oder Redakteur sein")
+		web.SetFlashError(h.sm, r.Context(), "The role must be administrator or editor")
 		return h.redirectBack(w, r, "/admin/users/new")
 	}
 
@@ -237,7 +237,7 @@ func (h *Handler) handleUserCreatePost(w http.ResponseWriter, r *http.Request) e
 	newID, err := h.createUser(r.Context(), name, email, hash, role)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			web.SetFlashError(h.sm, r.Context(), "Ein Benutzer mit dieser E-Mail-Adresse existiert bereits")
+			web.SetFlashError(h.sm, r.Context(), "A user with that email address already exists")
 			return h.redirectBack(w, r, "/admin/users/new")
 		}
 		return err
@@ -252,7 +252,7 @@ func (h *Handler) handleUserCreatePost(w http.ResponseWriter, r *http.Request) e
 		EntityID:   newID,
 		Metadata:   map[string]any{"email": email, "rolle": role},
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Benutzer angelegt")
+	web.SetFlashSuccess(h.sm, r.Context(), "User created")
 	return h.redirectBack(w, r, "/admin/users")
 }
 
@@ -282,7 +282,7 @@ func (h *Handler) HandleUserEdit(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	data := UserFormData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Benutzer bearbeiten"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Edit user"),
 		User:       user,
 		IsEdit:     true,
 		MayPublish: rights.MayPublish,
@@ -305,11 +305,11 @@ func (h *Handler) handleUserEditPost(w http.ResponseWriter, r *http.Request, id 
 	redirect := fmt.Sprintf("/admin/users/%d/edit", id)
 
 	if email == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte eine E-Mail-Adresse angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give an email address")
 		return h.redirectBack(w, r, redirect)
 	}
 	if role != "admin" && role != "editor" {
-		web.SetFlashError(h.sm, r.Context(), "Die Rolle muss Administrator oder Redakteur sein")
+		web.SetFlashError(h.sm, r.Context(), "The role must be administrator or editor")
 		return h.redirectBack(w, r, redirect)
 	}
 
@@ -329,7 +329,7 @@ func (h *Handler) handleUserEditPost(w http.ResponseWriter, r *http.Request, id 
 			return err
 		}
 		if count <= 1 {
-			web.SetFlashError(h.sm, r.Context(), "Dem letzten Administrator kann die Rolle nicht entzogen werden")
+			web.SetFlashError(h.sm, r.Context(), "The last administrator cannot have the role taken away")
 			return h.redirectBack(w, r, redirect)
 		}
 	}
@@ -341,7 +341,7 @@ func (h *Handler) handleUserEditPost(w http.ResponseWriter, r *http.Request, id 
 
 	if err := h.updateUser(r.Context(), id, name, email, role); err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			web.SetFlashError(h.sm, r.Context(), "Ein Benutzer mit dieser E-Mail-Adresse existiert bereits")
+			web.SetFlashError(h.sm, r.Context(), "A user with that email address already exists")
 			return h.redirectBack(w, r, redirect)
 		}
 		return err
@@ -352,7 +352,7 @@ func (h *Handler) handleUserEditPost(w http.ResponseWriter, r *http.Request, id 
 		EntityType: "user",
 		EntityID:   id,
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Benutzer gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "User saved")
 	return h.redirectBack(w, r, "/admin/users")
 }
 
@@ -368,7 +368,7 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) error
 
 	// Safety: cannot delete self
 	if id == sessionUserID {
-		web.SetFlashError(h.sm, r.Context(), "Du kannst dein eigenes Konto nicht löschen")
+		web.SetFlashError(h.sm, r.Context(), "You cannot delete your own account")
 		return h.redirectBack(w, r, "/admin/users")
 	}
 
@@ -387,7 +387,7 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) error
 			return err
 		}
 		if count <= 1 {
-			web.SetFlashError(h.sm, r.Context(), "Der letzte Administrator kann nicht gelöscht werden")
+			web.SetFlashError(h.sm, r.Context(), "The last administrator cannot be deleted")
 			return h.redirectBack(w, r, "/admin/users")
 		}
 	}
@@ -401,7 +401,7 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) error
 		EntityType: "user",
 		EntityID:   id,
 	})
-	web.SetFlashSuccess(h.sm, r.Context(), "Benutzer gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "User deleted")
 	return h.redirectBack(w, r, "/admin/users")
 }
 
@@ -437,7 +437,7 @@ func (h *Handler) HandlePasswordChange(w http.ResponseWriter, r *http.Request) e
 	}
 
 	data := UserPasswordData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Passwort ändern"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Change password"),
 		User:       user,
 		IsSelf:     isSelf,
 	}
@@ -460,7 +460,7 @@ func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Reques
 			return err
 		}
 		if !ok {
-			web.SetFlashError(h.sm, r.Context(), "Das aktuelle Passwort stimmt nicht")
+			web.SetFlashError(h.sm, r.Context(), "The current password is not right")
 			return h.redirectBack(w, r, redirect)
 		}
 	}
@@ -474,7 +474,7 @@ func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Reques
 		return h.redirectBack(w, r, redirect)
 	}
 	if newPassword != confirmPassword {
-		web.SetFlashError(h.sm, r.Context(), "Die Passwörter stimmen nicht überein")
+		web.SetFlashError(h.sm, r.Context(), "The passwords do not match")
 		return h.redirectBack(w, r, redirect)
 	}
 
@@ -500,7 +500,7 @@ func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Reques
 		slog.Error("could not end other sessions after password change", "err", err, "user_id", user.ID)
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Passwort geändert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Password changed")
 	return h.redirectBack(w, r, "/admin/users")
 }
 

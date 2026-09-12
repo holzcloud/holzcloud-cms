@@ -1,93 +1,93 @@
 {{define "content"}}
 <div class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{t "Anmeldedaten"}}</h2>
+    <h2>{{t "Sign-in details"}}</h2>
     <dl class="detail-list">
-        <dt>{{t "E-Mail"}}</dt>
+        <dt>{{t "Email"}}</dt>
         <dd>{{.Email}}</dd>
-        <dt>{{t "Rolle"}}</dt>
-        <dd>{{if eq .Role "admin"}}{{t "Administrator"}}{{else}}{{t "Redakteur"}}{{end}}</dd>
+        <dt>{{t "Role"}}</dt>
+        <dd>{{if eq .Role "admin"}}{{t "Administrator"}}{{else}}{{t "Editor"}}{{end}}</dd>
     </dl>
-    <a href="/admin/users/{{.UserID}}/password" class="btn">{{t "Passwort ändern"}}</a>
+    <a href="/admin/users/{{.UserID}}/password" class="btn">{{t "Change password"}}</a>
 </div>
 
 <div class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{t "Sprache der Verwaltung"}}</h2>
+    <h2>{{t "Language of the administration"}}</h2>
     <p class="text-muted">
-        {{t "Gilt nur für dich und nur für diese Verwaltung – die Sprachen deiner Websites stehen in deren Einstellungen."}}
+        {{t "Applies to you only and to this administration only — the languages of your websites live in their own settings."}}
     </p>
     <form method="POST" action="/admin/konto/sprache" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <div class="form-group" style="margin-bottom:0;min-width:200px">
-            <label class="form-label" for="sprache">{{t "Sprache"}}</label>
+            <label class="form-label" for="sprache">{{t "Language"}}</label>
             <select id="sprache" name="sprache" class="form-input form-select">
-                <option value="">{{t "Wie der Browser (automatisch)"}}</option>
+                <option value="">{{t "As the browser asks (automatic)"}}</option>
                 {{range .Languages}}
                 <option value="{{.Code}}"{{if eq $.Chosen .Code}} selected{{end}}>{{.Name}}</option>
                 {{end}}
             </select>
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Speichern"}}</button>
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
     </form>
 </div>
 
 <div class="card">
-    <h2>{{t "Bestätigung in zwei Schritten"}}</h2>
+    <h2>{{t "Two-step verification"}}</h2>
 
     {{if .ViaSSO}}
     <p class="callout">
-        {{t "Du bist über die Anmeldung deiner Organisation hier hereingekommen. Die Bestätigung in zwei Schritten verlangt dort, wer dich angemeldet hat – diese Anlage verlangt sie dann nicht noch einmal."}}
+        {{t "You came in here through your organisation's sign-in. Two-step verification is required there by whoever signed you in – this installation does not ask for it a second time."}}
     </p>
     {{end}}
 
     {{if .Enabled}}
     <p>
-        <span class="badge badge--published">{{t "eingeschaltet"}}</span>
-        {{t "Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App verlangt."}}
+        <span class="badge badge--published">{{t "switched on"}}</span>
+        {{t "Signing in also asks for a code from your authenticator app."}}
     </p>
 
     <p{{if lt .RecoveryLeft 3}} class="callout callout--warning"{{end}}>
-        {{t "Wiederherstellungscodes übrig:"}} <strong>{{.RecoveryLeft}}</strong>.
+        {{t "Recovery codes left:"}} <strong>{{.RecoveryLeft}}</strong>.
         {{if lt .RecoveryLeft 3}}
-        {{t "Das wird knapp – hole dir eine neue Liste, solange du noch hineinkommst."}}
+        {{t "That is getting tight — fetch a new list while you can still get in."}}
         {{end}}
     </p>
 
     <div class="form-actions">
         <form method="POST" action="/admin/2fa/codes">
             <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-            <button type="submit" class="btn" hx-disabled-elt="this">{{t "Neue Wiederherstellungscodes"}}</button>
+            <button type="submit" class="btn" hx-disabled-elt="this">{{t "New recovery codes"}}</button>
         </form>
 
         <form method="POST" action="/admin/2fa/einrichten/neu">
             <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-            <button type="submit" class="btn" hx-disabled-elt="this">{{t "Neues Gerät einrichten"}}</button>
+            <button type="submit" class="btn" hx-disabled-elt="this">{{t "Set up a new device"}}</button>
         </form>
 
         {{if not .Required}}
         <form method="POST" action="/admin/2fa/aus">
             <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-            <button type="submit" class="btn btn-danger" hx-disabled-elt="this">{{t "Ausschalten"}}</button>
+            <button type="submit" class="btn btn-danger" hx-disabled-elt="this">{{t "Switch off"}}</button>
         </form>
         {{end}}
     </div>
 
     {{if .Required}}
     <p class="text-muted">
-        {{t "Als Administrator kannst du sie nicht ausschalten. Ist das Gerät weg und kein Wiederherstellungscode mehr da, hilft auf dem Server:"}}
+        {{t "As an administrator you cannot switch it off. If the device is gone and no recovery code is left, this helps on the server:"}}
         <code>holzcloud user 2fa disable -email {{.Email}}</code>
     </p>
     {{end}}
 
     {{else}}
     <p>
-        <span class="badge badge--draft">{{t "aus"}}</span>
+        <span class="badge badge--draft">{{t "off"}}</span>
         {{if .Required}}
-        {{t "Für dein Konto ist sie Pflicht – ohne sie kommst du nicht in die Verwaltung."}}
+        {{t "For your account it is compulsory — without it you cannot get into the administration."}}
         {{else}}
-        {{t "Empfohlen: ein erratenes Passwort allein genügt dann nicht mehr."}}
+        {{t "Recommended: a guessed password alone is then no longer enough."}}
         {{end}}
     </p>
-    <a href="/admin/2fa/einrichten" class="btn btn-primary">{{t "Jetzt einrichten"}}</a>
+    <a href="/admin/2fa/einrichten" class="btn btn-primary">{{t "Set it up now"}}</a>
     {{end}}
 </div>
 {{end}}

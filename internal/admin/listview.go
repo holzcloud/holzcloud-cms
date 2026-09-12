@@ -150,7 +150,7 @@ func (h *Handler) HandlePageColumns(w http.ResponseWriter, r *http.Request) erro
 		`UPDATE users SET page_columns = $1 WHERE id = $2`, stored, id); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Spalten gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Columns saved")
 	return h.redirect(w, r, listURL(websiteID, r.FormValue("zurueck")))
 }
 
@@ -241,7 +241,7 @@ func (h *Handler) HandleSavedViewCreate(w http.ResponseWriter, r *http.Request) 
 
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
-		web.SetFlashError(h.sm, r.Context(), "Bitte einen Namen für die Ansicht angeben")
+		web.SetFlashError(h.sm, r.Context(), "Please give the view a name")
 		return h.redirect(w, r, listURL(websiteID, r.FormValue("filter")))
 	}
 	if len(name) > 40 {
@@ -255,7 +255,7 @@ func (h *Handler) HandleSavedViewCreate(w http.ResponseWriter, r *http.Request) 
 	query := filterQuery(values)
 	if query == "" {
 		web.SetFlashError(h.sm, r.Context(),
-			"Diese Ansicht ist die ganze Liste — stelle erst einen Filter ein.")
+			"This view is the whole list — set a filter first.")
 		return h.redirect(w, r, listURL(websiteID, ""))
 	}
 
@@ -267,7 +267,7 @@ func (h *Handler) HandleSavedViewCreate(w http.ResponseWriter, r *http.Request) 
 		userID, websiteID, name, query); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Ansicht gemerkt")
+	web.SetFlashSuccess(h.sm, r.Context(), "View remembered")
 	return h.redirect(w, r, listURL(websiteID, query))
 }
 
@@ -291,6 +291,6 @@ func (h *Handler) HandleSavedViewDelete(w http.ResponseWriter, r *http.Request) 
 		viewID, userID, websiteID); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Ansicht entfernt")
+	web.SetFlashSuccess(h.sm, r.Context(), "View removed")
 	return h.redirect(w, r, listURL(websiteID, ""))
 }

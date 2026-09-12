@@ -77,7 +77,7 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 	recovery := r.URL.Query().Get("wiederherstellung") != ""
 	if r.Method != http.MethodPost {
 		data := TwoFactorVerifyData{
-			LayoutData: web.NewLayoutData(r, h.sm, "Bestätigung"),
+			LayoutData: web.NewLayoutData(r, h.sm, "Confirmation"),
 			Recovery:   recovery,
 		}
 		return web.RenderAdmin(w, h.templates, r, "two_factor_verify", data)
@@ -93,7 +93,7 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 	accountKey := "2fa:" + strings.ToLower(h.emailFor(r, pending))
 	if !h.loginThrottle.Allowed(ip, accountKey) {
 		web.SetFlashError(h.sm, r.Context(),
-			"Zu viele Fehlversuche. Bitte warte einen Moment.")
+			"Too many failed attempts. Please wait a moment.")
 		http.Redirect(w, r, auth.VerifyPath, http.StatusSeeOther)
 		return nil
 	}
@@ -110,7 +110,7 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 			return err
 		}
 		h.loginThrottle.RecordFailure(ip, accountKey)
-		web.SetFlashError(h.sm, r.Context(), "Der Code stimmt nicht.")
+		web.SetFlashError(h.sm, r.Context(), "That code is not right.")
 		http.Redirect(w, r, verifyPathFor(recovery), http.StatusSeeOther)
 		return nil
 	}
@@ -132,7 +132,7 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 		// Using one up is worth saying out loud — the whole point is that the
 		// list runs out.
 		web.SetFlashSuccess(h.sm, r.Context(),
-			"Wiederherstellungscode verbraucht. Prüfe unter „Mein Konto“, wie viele noch übrig sind.")
+			"Recovery code used up. Check under “My account” how many are left.")
 	}
 	http.Redirect(w, r, "/admin/", http.StatusSeeOther)
 	return nil
@@ -171,7 +171,7 @@ func (h *Handler) HandleTwoFactorSetup(w http.ResponseWriter, r *http.Request) e
 	uri := totp.URI(secret, email, h.issuerName(r))
 
 	data := TwoFactorSetupData{
-		LayoutData:    web.NewLayoutData(r, h.sm, "Zwei-Faktor einrichten"),
+		LayoutData:    web.NewLayoutData(r, h.sm, "Set up two-factor"),
 		SecretGrouped: totp.FormatSecret(secret),
 		URI:           uri,
 		QR:            qrOrNothing(uri),
@@ -196,12 +196,12 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 		// back is to start over and rescan.
 		tf, lookupErr := h.users.GetTwoFactor(r.Context(), userID)
 		if lookupErr != nil || tf == nil || tf.PendingSecret == "" {
-			web.SetFlashError(h.sm, r.Context(), "Die Einrichtung ist abgelaufen. Bitte noch einmal beginnen.")
+			web.SetFlashError(h.sm, r.Context(), "The setup has expired. Please start again.")
 			return h.redirect(w, r, auth.SetupPath)
 		}
 		retryURI := totp.URI(tf.PendingSecret, email, h.issuerName(r))
 		data := TwoFactorSetupData{
-			LayoutData:    web.NewLayoutData(r, h.sm, "Zwei-Faktor einrichten"),
+			LayoutData:    web.NewLayoutData(r, h.sm, "Set up two-factor"),
 			SecretGrouped: totp.FormatSecret(tf.PendingSecret),
 			URI:           retryURI,
 			QR:            qrOrNothing(retryURI),
@@ -259,7 +259,7 @@ func (h *Handler) HandleRecoveryCodes(w http.ResponseWriter, r *http.Request) er
 
 func (h *Handler) showRecoveryCodes(w http.ResponseWriter, r *http.Request, codes []string, fresh bool) error {
 	data := TwoFactorCodesData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Wiederherstellungscodes"),
+		LayoutData: web.NewLayoutData(r, h.sm, "Recovery codes"),
 		Codes:      codes,
 		Fresh:      fresh,
 	}
@@ -287,14 +287,14 @@ func (h *Handler) HandleTwoFactorDisable(w http.ResponseWriter, r *http.Request)
 		// literal at this argument, and a refusal it cannot see is a refusal
 		// every administration reads in German (WINDOWS.md entry 17).
 		web.SetFlashError(h.sm, r.Context(),
-			"Für Administratoren ist die Bestätigung in zwei Schritten Pflicht. Wenn das Gerät verloren ist, hilft ein Wiederherstellungscode oder „holzcloud user 2fa disable“ auf dem Server.")
+			"For administrators two-step verification is compulsory. If the device is lost, a recovery code helps, or “holzcloud user 2fa disable” on the server.")
 		return h.redirect(w, r, "/admin/konto")
 	}
 
 	if err := h.users.DisableTwoFactor(r.Context(), *userID); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Bestätigung in zwei Schritten ausgeschaltet")
+	web.SetFlashSuccess(h.sm, r.Context(), "Two-step verification switched off")
 	return h.redirect(w, r, "/admin/konto")
 }
 
@@ -411,7 +411,7 @@ func (h *Handler) HandleAccount(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := AccountData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Mein Konto"),
+		LayoutData: web.NewLayoutData(r, h.sm, "My account"),
 		UserID:     *userID,
 		Email:      email,
 		Role:       role,
@@ -449,7 +449,7 @@ func (h *Handler) HandleAccountLanguage(w http.ResponseWriter, r *http.Request) 
 	}
 	chosen := i18n.Normalise(r.FormValue("sprache"))
 	if chosen != "" && !i18n.Known(chosen) {
-		web.SetFlashError(h.sm, r.Context(), "Diese Sprache gibt es in dieser Fassung nicht")
+		web.SetFlashError(h.sm, r.Context(), "This build does not have that language")
 		http.Redirect(w, r, "/admin/konto", http.StatusSeeOther)
 		return nil
 	}
@@ -460,7 +460,7 @@ func (h *Handler) HandleAccountLanguage(w http.ResponseWriter, r *http.Request) 
 	// The confirmation is written in the language just chosen, not the one the
 	// page was rendered in: it is read on the next screen, which will already
 	// be in the new language.
-	web.SetFlashSuccess(h.sm, i18n.WithLang(r.Context(), langOrBrowser(chosen, r)), "Sprache gespeichert")
+	web.SetFlashSuccess(h.sm, i18n.WithLang(r.Context(), langOrBrowser(chosen, r)), "Language saved")
 	http.Redirect(w, r, "/admin/konto", http.StatusSeeOther)
 	return nil
 }

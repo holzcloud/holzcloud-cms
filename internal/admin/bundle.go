@@ -85,7 +85,7 @@ func (h *Handler) HandleWebsiteImport(w http.ResponseWriter, r *http.Request) er
 
 	file, _, err := r.FormFile("bundle")
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Datei zu groß oder nicht ausgewählt")
+		web.SetFlashError(h.sm, r.Context(), "File too large or not selected")
 		return h.redirect(w, r, "/admin/websites")
 	}
 	defer file.Close()
@@ -94,7 +94,7 @@ func (h *Handler) HandleWebsiteImport(w http.ResponseWriter, r *http.Request) er
 	// the reader above, which is what keeps the server out of the swap.
 	data, err := io.ReadAll(file)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), "Die Datei konnte nicht gelesen werden")
+		web.SetFlashError(h.sm, r.Context(), "The file could not be read")
 		return h.redirect(w, r, "/admin/websites")
 	}
 
@@ -102,7 +102,7 @@ func (h *Handler) HandleWebsiteImport(w http.ResponseWriter, r *http.Request) er
 	report, err := bundle.Import(r.Context(), h.bundleStores(),
 		bytes.NewReader(data), int64(len(data)), name)
 	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Import fehlgeschlagen: %s", err))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Import failed: %s", err))
 		return h.redirect(w, r, "/admin/websites")
 	}
 
@@ -111,7 +111,7 @@ func (h *Handler) HandleWebsiteImport(w http.ResponseWriter, r *http.Request) er
 	h.resolver.InvalidateCache()
 
 	data2 := ImportReportData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Import abgeschlossen"),
+		LayoutData: web.NewLayoutData(r, h.sm, "WordPress import finished"),
 		Report:     report,
 	}
 	data2.ActiveNav = "websites"

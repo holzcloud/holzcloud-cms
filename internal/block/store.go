@@ -18,13 +18,13 @@ import (
 // the pages' own fields rather than having one of their own.
 
 // ErrDuplicate is returned when a key is already taken on this website.
-var ErrDuplicate = errors.New(i18n.N("diese Bausteinart gibt es schon"))
+var ErrDuplicate = errors.New(i18n.N("this kind of block already exists"))
 
 // ErrTooManyTypes is returned when a website has reached MaxTypes.
-var ErrTooManyTypes = errors.New(i18n.N("mehr Bausteinarten gehen nicht"))
+var ErrTooManyTypes = errors.New(i18n.N("no more kinds of block can be added"))
 
 // ErrReserved is returned for a key that a built-in kind already uses.
-var ErrReserved = errors.New(i18n.N("diese Kennung gehört einer eingebauten Bausteinart"))
+var ErrReserved = errors.New(i18n.N("this key belongs to a built-in kind of block"))
 
 // MaxTypes bounds how many kinds one website may define.
 //
@@ -119,14 +119,14 @@ func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Own, error) {
 func (s *Store) Create(ctx context.Context, websiteID int64, name, hint string) (*Own, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return nil, errors.New(i18n.N("die Bausteinart braucht einen Namen"))
+		return nil, errors.New(i18n.N("the kind of block needs a name"))
 	}
 	if len(name) > 40 {
 		name = name[:40]
 	}
 	key := field.SlugifyKey(name)
 	if key == "" {
-		return nil, errors.New(i18n.N("aus diesem Namen lässt sich keine Kennung bilden — bitte Buchstaben verwenden"))
+		return nil, errors.New(i18n.N("no key can be made from this name — please use letters"))
 	}
 	// A built-in kind's key would win every lookup and the own one would be
 	// invisible for ever, with nothing on the screen to say why.
@@ -166,7 +166,7 @@ func (s *Store) Create(ctx context.Context, websiteID int64, name, hint string) 
 func (s *Store) Update(ctx context.Context, websiteID, id int64, name, hint string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return errors.New(i18n.N("die Bausteinart braucht einen Namen"))
+		return errors.New(i18n.N("the kind of block needs a name"))
 	}
 	if len(name) > 40 {
 		name = name[:40]

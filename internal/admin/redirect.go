@@ -61,7 +61,7 @@ func (h *Handler) HandleRedirectList(w http.ResponseWriter, r *http.Request) err
 
 func (h *Handler) redirectListData(r *http.Request, websiteID int64, websiteName string) (RedirectListData, error) {
 	data := RedirectListData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Weiterleitungen – %s", websiteName)),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Redirects – %s", websiteName)),
 		FormState:  web.NewFormState(),
 		WebsiteID:  websiteID,
 	}
@@ -132,14 +132,14 @@ func (h *Handler) handleRedirectAdd(w http.ResponseWriter, r *http.Request, webs
 	data.CurrentWebsite = ws
 
 	if from == "" || from == "/" {
-		data.Errors.Add("from_path", "Bitte die alte Adresse angeben.")
+		data.Errors.Add("from_path", "Please give the old address.")
 	}
 	if to == "" {
-		data.Errors.Add("to_path", "Bitte das Ziel angeben.")
+		data.Errors.Add("to_path", "Please give the target.")
 	}
 	if from != "" && from == to {
 		// Otherwise the browser follows the redirect back to itself forever.
-		data.Errors.Add("to_path", "Ziel und Quelle dürfen nicht gleich sein.")
+		data.Errors.Add("to_path", "Target and source must not be the same.")
 	}
 	if data.Errors.Any() {
 		return web.RenderFormError(w, h.templates, r, "redirect_list", data)
@@ -153,7 +153,7 @@ func (h *Handler) handleRedirectAdd(w http.ResponseWriter, r *http.Request, webs
 		return err
 	}
 
-	web.SetFlashSuccess(h.sm, r.Context(), "Weiterleitung gespeichert")
+	web.SetFlashSuccess(h.sm, r.Context(), "Redirect saved")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/redirects", websiteID))
 }
 
@@ -173,6 +173,6 @@ func (h *Handler) HandleRedirectDelete(w http.ResponseWriter, r *http.Request) e
 	if err := h.pages.DeleteRedirect(r.Context(), websiteID, id); err != nil {
 		return err
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), "Weiterleitung gelöscht")
+	web.SetFlashSuccess(h.sm, r.Context(), "Redirect deleted")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/redirects", websiteID))
 }
