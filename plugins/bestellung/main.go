@@ -1,20 +1,18 @@
-// Der Hofladen als Plugin.
+// The farm shop as a plugin.
 //
-// Ein Bestellformular über die eigenen Produkte — und ein Produkt ist eine
-// Seite, die ein Preisfeld ausgefüllt hat. Damit steht das Ganze auf dem, was
-// der Kern seit den eigenen Feldern kann, und bringt selbst nur mit, was ohne
-// Bestellungen niemand braucht: das Formular, die Bestellungen und den
-// Bildschirm, auf dem sie liegen.
+// An order form over the operator's own products — and a product is a page that
+// has filled in a price field. So the whole thing stands on what the core has
+// been able to do since it grew fields of its own, and brings along only what
+// nobody needs without orders: the form, the orders and the screen they sit on.
 //
-// Kein Warenkorb. Wer bei einem Hof bestellt, wählt einmal aus, was er will,
-// und schickt es ab; ein Warenkorb bräuchte eine Sitzung je Besucher, ein
-// Plätzchen und eine zweite Seite, und alles davon müsste stimmen, bevor die
-// erste Bestellung ankommt. Ein Formular tut es.
+// No basket. Somebody ordering from a farm picks what they want once and sends
+// it off; a basket would need a session per visitor, a cookie and a second page,
+// and all of that would have to be right before the first order arrived. A form
+// does the job.
 //
-// Keine Bezahlung. Ein Zahlungsanbieter wäre ein Aufruf nach draussen zur
-// Laufzeit — genau die Regel, die dieses CMS ohne Cookie-Banner auskommen
-// lässt. Bezahlt wird bei der Übergabe oder per Rechnung, und das steht als
-// Hinweis über dem Formular.
+// No payment. A payment provider would be a call to the outside at run time —
+// exactly the rule that lets this CMS do without a cookie banner. Payment is on
+// handover or by invoice, and that stands as a note above the form.
 package main
 
 import (
@@ -35,8 +33,8 @@ import (
 	plugin "github.com/holzcloud/holzcloud-cms/sdk"
 )
 
-// Feldnamen des Formulars. Als Konstanten, weil sie an zwei Stellen stehen —
-// beim Zeichnen und beim Empfangen — und sonst auseinanderlaufen.
+// The form's field names. As constants, because they stand in two places — when
+// drawing and when receiving — and would otherwise drift apart.
 const (
 	feldName      = "name"
 	feldEmail     = "email"
@@ -46,16 +44,16 @@ const (
 	feldSeite     = "seite"
 	feldZeit      = "gestellt"
 	feldHonigtopf = "website"
-	// mengePraefix + Adresse der Seite ist das Mengenfeld eines Produkts.
-	mengePraefix = "menge_"
+	// quantityPrefix + the page's address is a product's quantity field.
+	quantityPrefix = "menge_"
 )
 
-// absendeAdresse ist fest und nicht die der Seite: dann bleibt jede Seite ein
-// schlichtes GET, und das Formular funktioniert überall gleich.
-const absendeAdresse = "/bestellung"
+// submitAddress is fixed and not the page's: then every page stays a plain GET,
+// and the form works the same everywhere.
+const submitAddress = "/bestellung"
 
-// Grenzen einer Bestellung. Sie halten eine einzelne Absendung davon ab, eine
-// Speicherkarte zu füllen, und sind weit genug für jede echte Bestellung.
+// An order's limits. They keep a single submission from filling a memory card,
+// and are wide enough for any real order.
 const (
 	maxName      = 120
 	maxEmail     = 254
@@ -79,11 +77,11 @@ func init() {
 
 var marke = regexp.MustCompile(`(?i)\[\[bestellung\]\]`)
 
-// markeImAbsatz trifft die Marke, wenn sie allein in einem Absatz steht — was
-// sie tut, sobald sie in Markdown auf einer eigenen Zeile steht. Ein Formular
-// in einem <p> ist ungültiges HTML, das ein Browser stillschweigend umsortiert;
-// dabei landet der Absatz mitten im Formular und die Abstände sitzen falsch.
-var markeImAbsatz = regexp.MustCompile(`(?i)<p>\s*\[\[bestellung\]\]\s*</p>`)
+// markerInParagraph matches the marker when it stands alone in a paragraph —
+// which it does as soon as it is on a line of its own in Markdown. A form inside
+// a <p> is invalid HTML that a browser silently reorders; the paragraph ends up
+// in the middle of the form and the spacing sits wrong.
+var markerInParagraph = regexp.MustCompile(`(?i)<p>\s*\[\[bestellung\]\]\s*</p>`)
 
 // formularEinsetzen ersetzt [[bestellung]] durch das Formular.
 func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
@@ -92,28 +90,28 @@ func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
 	}
 
 	e := einstellungenLaden()
-	produkte, err := produkteLesen(e)
+	produkte, err := readProducts(e)
 	if err != nil {
 		plugin.Logf("warn", "Produkte nicht lesbar: %v", err)
-		fehltext := `<p>Die Produktliste ist gerade nicht verfügbar.</p>`
-		out := markeImAbsatz.ReplaceAllLiteralString(in.HTML, fehltext)
+		fehltext := `<p>The product list is not available at the moment.</p>`
+		out := markerInParagraph.ReplaceAllLiteralString(in.HTML, fehltext)
 		return plugin.ContentOut{
 			HTML:    marke.ReplaceAllLiteralString(out, fehltext),
 			Changed: true,
 		}, nil
 	}
 
-	stand, hinweis := standAusQuery(in.Query)
-	formular := zeichnen(produkte, e, in.Slug, stand, hinweis)
-	// Der Absatz zuerst, damit das <p> mit seiner Marke verschwindet. In einem
-	// Durchgang bliebe ein leeres <p></p> back.
-	out := markeImAbsatz.ReplaceAllLiteralString(in.HTML, formular)
+	stand, hinweis := stateFromQuery(in.Query)
+	formular := draw(produkte, e, in.Slug, stand, hinweis)
+	// The paragraph first, so that the <p> disappears along with its marker. In
+	// one pass an empty <p></p> would be left behind.
+	out := markerInParagraph.ReplaceAllLiteralString(in.HTML, formular)
 	out = marke.ReplaceAllLiteralString(out, formular)
 	return plugin.ContentOut{HTML: out, Changed: true}, nil
 }
 
-// standAusQuery liest, was von der letzten Absendung zurückkam.
-func standAusQuery(query string) (stand, hinweis string) {
+// stateFromQuery reads what came back from the last submission.
+func stateFromQuery(query string) (stand, hinweis string) {
 	q, err := url.ParseQuery(query)
 	if err != nil {
 		return "", ""
@@ -121,13 +119,13 @@ func standAusQuery(query string) (stand, hinweis string) {
 	return q.Get("bestellung"), q.Get("hinweis")
 }
 
-// zeichnen baut das Formular.
+// draw builds the form.
 //
-// Von Hand zusammengesetzt statt mit einer Vorlage: das Ergebnis geht durch den
-// Filter des Hosts, und jeder Wert, der von aussen kommt, ist hier einzeln
-// maskiert. Eine Vorlage mit automatischem Maskieren gibt es in einem
-// WASM-Modul nicht umsonst, und eine halbe wäre schlimmer als keine.
-func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string) string {
+// Assembled by hand rather than with a template: the result goes through the
+// host's filter, and every value coming from outside is escaped individually
+// here. A template with automatic escaping does not come free in a WASM module,
+// and half a one would be worse than none.
+func draw(produkte []product, e settings, seite, stand, hinweis string) string {
 	var b strings.Builder
 	b.WriteString(`<div class="bestellung">`)
 
@@ -140,19 +138,19 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 	case "fehler":
 		text := hinweis
 		if text == "" {
-			text = "Die Bestellung konnte nicht angenommen werden."
+			text = "The order could not be accepted."
 		}
 		b.WriteString(`<p class="bestellung__fehler" role="alert">` + html.EscapeString(text) + `</p>`)
 	}
 
-	bestellbare := 0
+	orderable := 0
 	for _, p := range produkte {
 		if p.Orderable {
-			bestellbare++
+			orderable++
 		}
 	}
-	if bestellbare == 0 {
-		b.WriteString(`<p>Zurzeit ist nichts zu bestellen.</p></div>`)
+	if orderable == 0 {
+		b.WriteString(`<p>There is nothing to order at the moment.</p></div>`)
 		return b.String()
 	}
 
@@ -160,12 +158,12 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 		b.WriteString(`<p class="bestellung__hinweis">` + html.EscapeString(e.Hint) + `</p>`)
 	}
 
-	b.WriteString(`<form class="bestellung__form" method="POST" action="` + absendeAdresse + `">`)
+	b.WriteString(`<form class="bestellung__form" method="POST" action="` + submitAddress + `">`)
 	b.WriteString(`<input type="hidden" name="` + feldSeite + `" value="` + html.EscapeString(seite) + `">`)
-	b.WriteString(`<input type="hidden" name="` + feldZeit + `" value="` + html.EscapeString(zeitmarke()) + `">`)
-	// Der Honigtopf: ein Feld, das aussieht wie eines und keines ist. Nur mit
-	// CSS versteckt, damit ein Vorleseprogramm es überspringen kann und ein
-	// Formularausfüller im Browser nichts hineinschreibt.
+	b.WriteString(`<input type="hidden" name="` + feldZeit + `" value="` + html.EscapeString(timestamp()) + `">`)
+	// The honeypot: a field that looks like one and is not. Hidden with CSS
+	// only, so that a screen reader can skip it and a form filler in the
+	// browser writes nothing into it.
 	b.WriteString(`<p class="bestellung__falle" aria-hidden="true">` +
 		`<label>Website<input type="text" name="` + feldHonigtopf + `" tabindex="-1" autocomplete="off"></label></p>`)
 
@@ -181,7 +179,7 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 		}
 		b.WriteString(`</th>`)
 
-		b.WriteString(`<td>` + html.EscapeString(e.Waehrung) + ` ` + html.EscapeString(p.Price))
+		b.WriteString(`<td>` + html.EscapeString(e.Currency) + ` ` + html.EscapeString(p.Price))
 		if p.Einheit != "" {
 			b.WriteString(` <span class="bestellung__einheit">/ ` + html.EscapeString(p.Einheit) + `</span>`)
 		}
@@ -189,7 +187,7 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 
 		b.WriteString(`<td>`)
 		if p.Orderable {
-			name := mengePraefix + p.Slug
+			name := quantityPrefix + p.Slug
 			b.WriteString(`<label class="sr-only" for="` + html.EscapeString(name) + `">Menge ` +
 				html.EscapeString(p.Titel) + `</label>`)
 			b.WriteString(`<input type="number" inputmode="numeric" min="0" max="` +
@@ -226,8 +224,8 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 
 	feld(feldName, "Name", "text", true, "")
 	feld(feldEmail, "E-Mail", "email", true, "")
-	feld(feldTelefon, "Telefon", "tel", false, "Freiwillig — hilft bei Rückfragen.")
-	feld(feldAdresse, "Adresse", "textarea", false, "Nur nötig, wenn geliefert werden soll.")
+	feld(feldTelefon, "Telefon", "tel", false, "Optional — helps if we have to ask something.")
+	feld(feldAdresse, "Adresse", "textarea", false, "Only needed if it is to be delivered.")
 	feld(feldBemerkung, "Bemerkung", "textarea", false, "")
 
 	b.WriteString(`<p class="bestellung__abschicken">` +
@@ -241,118 +239,118 @@ func zeichnen(produkte []produkt, e einstellungen, seite, stand, hinweis string)
 // bestellungAnnehmen nimmt die Bestellung entgegen.
 func bestellungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if in.Method != "POST" {
-		// Ein GET auf diese Adresse ist jemand, der den Link geöffnet hat. Zur
-		// Startseite statt auf eine leere Seite.
+		// A GET on this address is somebody who opened the link. To the start
+		// page rather than onto an empty one.
 		return plugin.RequestOut{Handled: true, Status: 303, Location: "/"}, nil
 	}
 
 	form, err := url.ParseQuery(in.Body)
 	if err != nil {
-		return zurueck("", "fehler", "Die Bestellung war nicht lesbar."), nil
+		return back("", "fehler", "Die Bestellung war nicht lesbar."), nil
 	}
-	seite := saeubern(form.Get(feldSeite), 200)
+	seite := clean(form.Get(feldSeite), 200)
 
-	// Der Honigtopf zuerst: was hier hineingeschrieben wurde, war kein Mensch.
-	// Die Antwort sieht aus wie ein Erfolg, damit ein Skript nicht lernt,
-	// woran es gescheitert ist.
+	// The honeypot first: whatever was written in here was not a human being.
+	// The answer looks like a success, so that a script does not learn what it
+	// failed on.
 	if strings.TrimSpace(form.Get(feldHonigtopf)) != "" {
-		plugin.Log("info", "Bestellung mit gefülltem Honigtopf verworfen")
-		return zurueck(seite, "gesendet", ""), nil
+		plugin.Log("info", "order with a filled honeypot discarded")
+		return back(seite, "gesendet", ""), nil
 	}
 	if !zeitmarkeGilt(form.Get(feldZeit)) {
-		return zurueck(seite, "fehler",
-			"Das Formular ist abgelaufen. Bitte lade die Seite neu und schicke es noch einmal."), nil
+		return back(seite, "fehler",
+			"The form has expired. Please reload the page and send it again."), nil
 	}
 
 	e := einstellungenLaden()
-	produkte, err := produkteLesen(e)
+	produkte, err := readProducts(e)
 	if err != nil {
 		return plugin.RequestOut{}, err
 	}
 
-	posten, problem := postenLesen(form, produkte, e)
+	item, problem := readItems(form, produkte, e)
 	if problem != "" {
-		return zurueck(seite, "fehler", problem), nil
+		return back(seite, "fehler", problem), nil
 	}
 
-	b := bestellung{
-		Name:      saeubern(form.Get(feldName), maxName),
-		Email:     saeubern(form.Get(feldEmail), maxEmail),
-		Telefon:   saeubern(form.Get(feldTelefon), maxTelefon),
-		Address:   saeubern(form.Get(feldAdresse), maxAdresse),
-		Bemerkung: saeubern(form.Get(feldBemerkung), maxBemerkung),
+	b := order{
+		Name:      clean(form.Get(feldName), maxName),
+		Email:     clean(form.Get(feldEmail), maxEmail),
+		Telefon:   clean(form.Get(feldTelefon), maxTelefon),
+		Address:   clean(form.Get(feldAdresse), maxAdresse),
+		Bemerkung: clean(form.Get(feldBemerkung), maxBemerkung),
 		Page:      seite,
-		Posten:    posten,
-		Waehrung:  e.Waehrung,
+		Posten:    item,
+		Currency:  e.Currency,
 	}
 	if b.Name == "" {
-		return zurueck(seite, "fehler", "Bitte trage deinen Namen ein."), nil
+		return back(seite, "fehler", "Bitte trage deinen Namen ein."), nil
 	}
-	if !adresseSiehtEchtAus(b.Email) {
-		return zurueck(seite, "fehler", "Bitte trage eine gültige E-Mail-Adresse ein."), nil
+	if !addressLooksReal(b.Email) {
+		return back(seite, "fehler", "Please enter a valid e-mail address."), nil
 	}
-	b.Summe, b.SummeBekannt = summe(posten)
+	b.Summe, b.SummeBekannt = total(item)
 
-	if !unterDerStundengrenze() {
-		return zurueck(seite, "fehler",
-			"Gerade gehen sehr viele Bestellungen ein. Bitte versuche es in einer Stunde noch einmal."), nil
+	if !underTheHourlyLimit() {
+		return back(seite, "fehler",
+			"A great many orders are coming in just now. Please try again in an hour."), nil
 	}
 	if err := speichern(&b); err != nil {
 		return plugin.RequestOut{}, err
 	}
-	benachrichtigen(b)
-	return zurueck(seite, "gesendet", ""), nil
+	notify(b)
+	return back(seite, "gesendet", ""), nil
 }
 
-// postenLesen sammelt die bestellten Mengen.
+// readItems collects the quantities that were ordered.
 //
-// Preis und Bezeichnung kommen aus der Seite und nicht aus dem Formular: sonst
-// bestimmte der Besucher, was etwas kostet. Aus dem Formular kommt die Menge,
-// und sonst nichts.
-func postenLesen(form url.Values, produkte []produkt, e einstellungen) ([]posten, string) {
-	var out []posten
+// Price and description come from the page and not from the form: otherwise the
+// visitor would decide what something costs. What comes from the form is the
+// quantity, and nothing else.
+func readItems(form url.Values, produkte []product, e settings) ([]item, string) {
+	var out []item
 	for _, p := range produkte {
-		roh := strings.TrimSpace(form.Get(mengePraefix + p.Slug))
+		roh := strings.TrimSpace(form.Get(quantityPrefix + p.Slug))
 		if roh == "" || roh == "0" {
 			continue
 		}
-		menge, err := strconv.Atoi(roh)
-		if err != nil || menge < 0 {
-			return nil, "Bei „" + p.Titel + "“ steht keine Zahl."
+		quantity, err := strconv.Atoi(roh)
+		if err != nil || quantity < 0 {
+			return nil, "Bei „" + p.Titel + "” there is no number."
 		}
-		if menge == 0 {
+		if quantity == 0 {
 			continue
 		}
-		if menge > maxMenge {
+		if quantity > maxMenge {
 			return nil, "Bei „" + p.Titel + "“ ist die Menge zu gross. Bitte melde dich direkt bei uns."
 		}
 		if !p.Orderable {
-			return nil, "„" + p.Titel + "“ ist zurzeit nicht bestellbar."
+			return nil, "„" + p.Titel + "” cannot be ordered at the moment."
 		}
-		out = append(out, posten{
-			Slug: p.Slug, Titel: p.Titel, Quantity: menge,
+		out = append(out, item{
+			Slug: p.Slug, Titel: p.Titel, Quantity: quantity,
 			Price: p.Price, Einheit: p.Einheit,
 		})
 		if len(out) > maxPosten {
-			return nil, "Das sind sehr viele verschiedene Posten. Bitte melde dich direkt bei uns."
+			return nil, "That is a great many different items. Please get in touch with us directly."
 		}
 	}
 	if len(out) == 0 {
-		return nil, "Bitte trage bei mindestens einem Produkt eine Menge ein."
+		return nil, "Please enter a quantity for at least one product."
 	}
 	_ = e
 	return out, ""
 }
 
-// summe rechnet zusammen, wenn sich alle Preise lesen lassen.
+// total adds up when every price can be read.
 //
-// Lässt sich einer nicht lesen, gibt es keine Summe statt einer falschen: der
-// Betreiber sieht die Posten und rechnet nach, und niemand bekommt einen Betrag
-// bestätigt, der nicht stimmt.
-func summe(posten []posten) (float64, bool) {
+// If one cannot be read there is no total rather than a wrong one: the operator
+// sees the items and works it out, and nobody is sent a confirmed amount that is
+// wrong.
+func total(item []item) (float64, bool) {
 	total := 0.0
-	for _, p := range posten {
-		wert, ok := preisWert(p.Price)
+	for _, p := range item {
+		wert, ok := priceValue(p.Price)
 		if !ok {
 			return 0, false
 		}
@@ -361,10 +359,10 @@ func summe(posten []posten) (float64, bool) {
 	return total, true
 }
 
-// zurueck schickt den Besucher auf die Seite back, mit dem Ausgang in der
-// Adresse. Umleitung statt einer Antwort im Rumpf, damit ein Neuladen die
-// Bestellung nicht ein zweites Mal abschickt.
-func zurueck(seite, stand, hinweis string) plugin.RequestOut {
+// back sends the visitor back to the page, with the outcome in the address. A
+// redirect rather than an answer in the body, so that a reload does not send the
+// order a second time.
+func back(seite, stand, hinweis string) plugin.RequestOut {
 	ziel := "/"
 	if seite != "" {
 		ziel = "/" + seite
@@ -377,18 +375,18 @@ func zurueck(seite, stand, hinweis string) plugin.RequestOut {
 	return plugin.RequestOut{Handled: true, Status: 303, Location: ziel + "?" + q.Encode()}
 }
 
-// benachrichtigen sagt dem Betreiber Bescheid.
+// notify tells the operator.
 //
-// Nach dem Speichern: eine Bestellung, die in der Verwaltung steht, ist
-// angekommen — ob die E-Mail durchkommt, ändert daran nichts. Ein Fehler hier
-// darf den Besteller nie erreichen.
-func benachrichtigen(b bestellung) {
+// After storing: an order that stands in the admin has arrived — whether the
+// e-mail gets through changes nothing about that. A failure here must never
+// reach the person ordering.
+func notify(b order) {
 	var t strings.Builder
 	fmt.Fprintf(&t, "Neue Bestellung von %s\n\n", b.Name)
 	for _, p := range b.Posten {
 		fmt.Fprintf(&t, "  %d × %s", p.Quantity, p.Titel)
 		if p.Price != "" {
-			fmt.Fprintf(&t, "  (%s %s", b.Waehrung, p.Price)
+			fmt.Fprintf(&t, "  (%s %s", b.Currency, p.Price)
 			if p.Einheit != "" {
 				fmt.Fprintf(&t, " / %s", p.Einheit)
 			}
@@ -397,9 +395,9 @@ func benachrichtigen(b bestellung) {
 		t.WriteString("\n")
 	}
 	if b.SummeBekannt {
-		fmt.Fprintf(&t, "\nSumme: %s %s\n", b.Waehrung, betragTexten(b.Summe))
+		fmt.Fprintf(&t, "\nSumme: %s %s\n", b.Currency, amountText(b.Summe))
 	} else {
-		t.WriteString("\nSumme: konnte nicht gerechnet werden – bitte nachrechnen.\n")
+		t.WriteString("\nTotal: could not be worked out – please check.\n")
 	}
 	fmt.Fprintf(&t, "\nE-Mail: %s\n", b.Email)
 	if b.Telefon != "" {
@@ -411,14 +409,14 @@ func benachrichtigen(b bestellung) {
 	if b.Bemerkung != "" {
 		fmt.Fprintf(&t, "\nBemerkung:\n%s\n", b.Bemerkung)
 	}
-	t.WriteString("\nDie Bestellung steht auch in der Verwaltung unter „Bestellungen“.\n")
+	t.WriteString("\nThe order also stands in the admin under “Orders”.\n")
 
-	// Die Adresse des Bestellers als Antwortadresse: der Betreiber drückt auf
-	// Antworten und schreibt dem Kunden, ohne die Adresse abzutippen.
+	// The orderer's address as the reply address: the operator presses reply
+	// and writes to the customer without typing the address out.
 	queued, grund, err := plugin.Notify("Neue Bestellung von "+b.Name, t.String(), b.Email)
 	switch {
 	case err != nil:
-		plugin.Logf("warn", "Benachrichtigung über die Bestellung ging nicht raus: %v", err)
+		plugin.Logf("warn", "the notification about the order did not go out: %v", err)
 	case !queued:
 		plugin.Logf("info", "keine Benachrichtigung verschickt: %s", grund)
 	}
@@ -426,8 +424,8 @@ func benachrichtigen(b bestellung) {
 
 // --- Kleinkram --------------------------------------------------------------
 
-// saeubern nimmt Steuerzeichen heraus und kürzt.
-func saeubern(v string, max int) string {
+// clean takes control characters out and truncates.
+func clean(v string, max int) string {
 	v = strings.TrimSpace(v)
 	v = strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\t' {
@@ -444,8 +442,8 @@ func saeubern(v string, max int) string {
 	return v
 }
 
-// adresseSiehtEchtAus prüft so viel, wie sich prüfen lässt, ohne hinzuschreiben.
-func adresseSiehtEchtAus(v string) bool {
+// addressLooksReal checks as much as can be checked without writing to it.
+func addressLooksReal(v string) bool {
 	at := strings.LastIndex(v, "@")
 	if at <= 0 || at == len(v)-1 || len(v) > maxEmail {
 		return false
@@ -456,12 +454,12 @@ func adresseSiehtEchtAus(v string) bool {
 
 // --- Zeitmarke gegen Skripte ------------------------------------------------
 
-// zeitmarke ist der Zeitpunkt, zu dem das Formular gezeichnet wurde, signiert.
+// timestamp is the moment the form was drawn, signed.
 //
-// Signiert, weil ein Wert, den der Absender frei setzen kann, keine Aussage
-// ist. Der Schlüssel liegt im Speicher des Plugins und wird beim ersten Mal
-// erzeugt: ein fest eingebauter stünde in jeder Kopie dieses Quelltexts.
-func zeitmarke() string {
+// Signed, because a value the sender can set freely is not a statement. The key
+// lies in the plugin's storage and is created the first time: a hard-coded one
+// would stand in every copy of this source.
+func timestamp() string {
 	jetzt := strconv.FormatInt(time.Now().Unix(), 10)
 	return jetzt + "." + zeichen(jetzt)
 }
@@ -476,9 +474,9 @@ func zeitmarkeGilt(v string) bool {
 		return false
 	}
 	alter := time.Now().Unix() - gestellt
-	// Nach unten, weil ein Mensch nicht in zwei Sekunden eine Bestellung
-	// ausfüllt; nach oben, weil ein Formular, das seit einem Tag offen steht,
-	// von einer Seite stammt, deren Preise sich geändert haben könnten.
+	// Downwards, because a human being does not fill in an order in two
+	// seconds; upwards, because a form that has stood open for a day comes from
+	// a page whose prices may have changed.
 	return alter >= 2 && alter <= 12*60*60
 }
 
@@ -498,13 +496,13 @@ func schluessel() []byte {
 	}
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
-		// Ohne Zufall keine Signatur. Ein fester Wert wäre schlimmer als gar
-		// keine Marke, also gibt es hier keinen.
-		plugin.Logf("error", "kein Zufall für den Schlüssel: %v", err)
+		// Without randomness there is no signature. A fixed value would be
+		// worse than no marker at all, so there is none here.
+		plugin.Logf("error", "no randomness for the key: %v", err)
 		return nil
 	}
 	if err := plugin.Set(schluesselMarke, base64.RawStdEncoding.EncodeToString(key)); err != nil {
-		plugin.Logf("warn", "Schlüssel nicht gesichert: %v", err)
+		plugin.Logf("warn", "key not stored: %v", err)
 	}
 	return key
 }
@@ -513,8 +511,8 @@ func schluessel() []byte {
 
 const schluesselZaehler = "zaehler"
 
-// unterDerStundengrenze zählt die Bestellungen der laufenden Stunde.
-func unterDerStundengrenze() bool {
+// underTheHourlyLimit counts the current hour's orders.
+func underTheHourlyLimit() bool {
 	stunde := time.Now().UTC().Format("2006-01-02T15")
 	roh, _, err := plugin.Get(schluesselZaehler)
 	if err != nil {
@@ -540,8 +538,8 @@ func unterDerStundengrenze() bool {
 
 // --- Speicher ---------------------------------------------------------------
 
-// posten ist eine Zeile der Bestellung.
-type posten struct {
+// item is one line of the order.
+type item struct {
 	Slug     string `json:"slug"`
 	Titel    string `json:"titel"`
 	Quantity int    `json:"menge"`
@@ -549,35 +547,35 @@ type posten struct {
 	Einheit  string `json:"einheit,omitempty"`
 }
 
-// bestellung ist, was gespeichert wird.
+// order is what gets stored.
 //
-// Die Preise stehen mit darin und werden nicht später aus der Seite geholt:
-// ändert sich der Preis morgen, gilt für diese Bestellung der von heute.
-type bestellung struct {
-	ID           string   `json:"id"`
-	Eingegangen  string   `json:"eingegangen"`
-	Name         string   `json:"name"`
-	Email        string   `json:"email"`
-	Telefon      string   `json:"telefon,omitempty"`
-	Address      string   `json:"adresse,omitempty"`
-	Bemerkung    string   `json:"bemerkung,omitempty"`
-	Page         string   `json:"seite,omitempty"`
-	Posten       []posten `json:"posten"`
-	Summe        float64  `json:"summe,omitempty"`
-	SummeBekannt bool     `json:"summe_bekannt,omitempty"`
-	Waehrung     string   `json:"waehrung,omitempty"`
-	// Erledigt ist gesetzt, wenn der Betreiber die Bestellung abgehakt hat.
-	Erledigt bool `json:"erledigt,omitempty"`
+// The prices are stored with it and are not fetched from the page later:
+// if the price changes tomorrow, this order keeps today's.
+type order struct {
+	ID           string  `json:"id"`
+	Eingegangen  string  `json:"eingegangen"`
+	Name         string  `json:"name"`
+	Email        string  `json:"email"`
+	Telefon      string  `json:"telefon,omitempty"`
+	Address      string  `json:"adresse,omitempty"`
+	Bemerkung    string  `json:"bemerkung,omitempty"`
+	Page         string  `json:"seite,omitempty"`
+	Posten       []item  `json:"posten"`
+	Summe        float64 `json:"summe,omitempty"`
+	SummeBekannt bool    `json:"summe_bekannt,omitempty"`
+	Currency     string  `json:"waehrung,omitempty"`
+	// Done is set once the operator has ticked the order off.
+	Done bool `json:"erledigt,omitempty"`
 }
 
-const praefixBestellung = "bestellung:"
+const prefixOrder = "bestellung:"
 
 // speichern legt die Bestellung ab.
 //
-// Der Schlüssel beginnt mit dem Zeitpunkt, damit die Liste nach Datum sortiert
-// zurückkommt, und endet auf Zufall, damit zwei Bestellungen in derselben
-// Sekunde einander nicht überschreiben.
-func speichern(b *bestellung) error {
+// The key starts with the point in time, so that the list comes back sorted
+// by date, and ends in randomness, so that two orders in the same second do
+// not overwrite each other.
+func speichern(b *order) error {
 	jetzt := time.Now().UTC()
 	b.Eingegangen = jetzt.Format(time.RFC3339)
 	roh := make([]byte, 6)
@@ -590,18 +588,18 @@ func speichern(b *bestellung) error {
 	if err != nil {
 		return err
 	}
-	return plugin.Set(praefixBestellung+b.ID, string(daten))
+	return plugin.Set(prefixOrder+b.ID, string(daten))
 }
 
 // alleBestellungen liest sie, neueste zuerst.
-func alleBestellungen() ([]bestellung, error) {
-	werte, err := plugin.List(praefixBestellung, 500)
+func allOrders() ([]order, error) {
+	werte, err := plugin.List(prefixOrder, 500)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]bestellung, 0, len(werte))
+	out := make([]order, 0, len(werte))
 	for _, roh := range werte {
-		var b bestellung
+		var b order
 		if err := json.Unmarshal([]byte(roh), &b); err != nil {
 			continue
 		}
@@ -611,24 +609,24 @@ func alleBestellungen() ([]bestellung, error) {
 	return out, nil
 }
 
-func bestellungLaden(id string) (bestellung, bool) {
-	roh, da, err := plugin.Get(praefixBestellung + id)
+func loadOrder(id string) (order, bool) {
+	roh, da, err := plugin.Get(prefixOrder + id)
 	if err != nil || !da {
-		return bestellung{}, false
+		return order{}, false
 	}
-	var b bestellung
+	var b order
 	if err := json.Unmarshal([]byte(roh), &b); err != nil {
-		return bestellung{}, false
+		return order{}, false
 	}
 	return b, true
 }
 
-func bestellungSichern(b bestellung) error {
+func bestellungSichern(b order) error {
 	daten, err := json.Marshal(b)
 	if err != nil {
 		return err
 	}
-	return plugin.Set(praefixBestellung+b.ID, string(daten))
+	return plugin.Set(prefixOrder+b.ID, string(daten))
 }
 
 func main() {}

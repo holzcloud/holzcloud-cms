@@ -15,7 +15,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
 
-// Der Hofladen aus plugins/bestellung, gegen die echte Laufzeit.
+// The farm shop from plugins/bestellung, against the real runtime.
 //
 // Er ist das erste Plugin, das die eigenen Felder einer Website liest, und
 // damit der Beweis, dass die Kette hält: Feld in der Verwaltung, Wert an der
@@ -135,7 +135,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		"seite": {"bestellen"}, "gestellt": {zeitmarke},
 		"name": {"Anna"}, "email": {"anna@example.ch"}, "menge_seife": {"1"},
 	})
-	if !strings.Contains(antwortSofort.Location, "abgelaufen") {
+	if !strings.Contains(antwortSofort.Location, "has+expired") {
 		t.Errorf("ein sofort abgeschicktes Formular kam durch: %+v", antwortSofort)
 	}
 	time.Sleep(2100 * time.Millisecond)
@@ -145,7 +145,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		"seite": {"bestellen"}, "gestellt": {zeitmarke},
 		"name": {"Anna"}, "email": {"anna@example.ch"},
 	})
-	if !strings.Contains(antwort.Location, "mindestens+einem+Produkt") {
+	if !strings.Contains(antwort.Location, "at+least+one+product") {
 		t.Errorf("an order with no quantity was accepted: %+v", antwort)
 	}
 
@@ -164,7 +164,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		"seite": {"bestellen"}, "gestellt": {"1700000000.erfunden"},
 		"name": {"Anna"}, "email": {"anna@example.ch"}, "menge_seife": {"1"},
 	})
-	if !strings.Contains(antwort.Location, "abgelaufen") {
+	if !strings.Contains(antwort.Location, "has+expired") {
 		t.Errorf("eine erfundene Zeitmarke kam durch: %+v", antwort)
 	}
 

@@ -8,74 +8,74 @@ import (
 	plugin "github.com/holzcloud/holzcloud-cms/sdk"
 )
 
-// Was ein Produkt ist.
+// What a product is.
 //
-// Kein eigener Inhaltstyp, keine zweite Tabelle: ein Produkt ist eine
-// veröffentlichte Seite, die ein Preisfeld ausgefüllt hat. Die Seite trägt Bild,
-// Beschreibung und Adresse ohnehin schon — ein Produkt daneben zu stellen hiesse,
-// beides doppelt zu pflegen und beim zweiten Mal zu vergessen.
+// No content type of its own, no second table: a product is a published page
+// that has filled in a price field. The page carries the image, the description
+// and the address anyway — putting a product beside it would mean maintaining
+// both and forgetting the second one.
 //
-// Welches Feld der Preis ist, sagt der Betreiber. Vorbelegt mit den Namen, die
-// jemand von selbst vergibt; wer andere gewählt hat, trägt sie einmal ein.
+// Which field is the price is what the operator says. Pre-filled with the names
+// somebody would choose by themselves; whoever chose others enters them once.
 
-// einstellungen sind die Feldnamen und der Text um das Formular herum.
-type einstellungen struct {
-	// PreisFeld entscheidet, was ein Produkt ist: ist es ausgefüllt, steht die
-	// Seite in der Liste.
+// settings are the field names and the text around the form.
+type settings struct {
+	// PriceField decides what a product is: if it is filled in, the page stands
+	// in the list.
 	PriceField string `json:"preis_feld"`
-	// EinheitFeld und ZustandFeld sind freiwillig.
+	// UnitField and StatusField are optional.
 	UnitField   string `json:"einheit_feld"`
 	StatusField string `json:"zustand_feld"`
-	// AusverkauftWert ist der Wert des Zustandsfeldes, bei dem nicht mehr
-	// bestellt werden kann. Leer heisst: alles ist bestellbar.
+	// SoldOutValue is the value of the status field at which no more can be
+	// ordered. Empty means: everything is orderable.
 	SoldOutValue string `json:"ausverkauft_wert"`
-	// Waehrung steht vor dem Preis.
-	Waehrung string `json:"waehrung"`
-	// Hinweis steht über dem Formular — dort gehört hin, wie geliefert und wie
-	// bezahlt wird, denn beides passiert ausserhalb dieses Programms.
+	// Currency stands before the price.
+	Currency string `json:"waehrung"`
+	// Hint stands above the form — that is where how it is delivered and how it
+	// is paid for belong, because both happen outside this program.
 	Hint string `json:"hinweis"`
 }
 
 const schluesselEinstellungen = "einstellungen"
 
-func standardEinstellungen() einstellungen {
-	return einstellungen{
+func standardEinstellungen() settings {
+	return settings{
 		PriceField:   "preis",
 		UnitField:    "einheit",
 		StatusField:  "verfuegbarkeit",
 		SoldOutValue: "vergriffen",
-		Waehrung:     "CHF",
-		Hint: "Wir melden uns nach der Bestellung bei dir und vereinbaren Abholung " +
-			"oder Lieferung. Bezahlt wird bei der Übergabe oder per Rechnung.",
+		Currency:     "CHF",
+		Hint: "We will get in touch after the order and arrange collection " +
+			"or delivery. Payment is on handover or by invoice.",
 	}
 }
 
-func einstellungenLaden() einstellungen {
+func einstellungenLaden() settings {
 	e := standardEinstellungen()
 	raw, da, err := plugin.Get(schluesselEinstellungen)
 	if err != nil || !da || raw == "" {
 		return e
 	}
-	var gespeichert einstellungen
+	var gespeichert settings
 	if err := json.Unmarshal([]byte(raw), &gespeichert); err != nil {
 		return e
 	}
-	// Feld für Feld: eine ältere Fassung hat womöglich noch nicht alle
-	// geschrieben, und ein leeres Preisfeld liesse die Liste für immer leer.
+	// Field by field: an older version may not have written all of them yet,
+	// and an empty price field would leave the list empty for good.
 	if gespeichert.PriceField != "" {
 		e.PriceField = gespeichert.PriceField
 	}
 	e.UnitField = gespeichert.UnitField
 	e.StatusField = gespeichert.StatusField
 	e.SoldOutValue = gespeichert.SoldOutValue
-	if gespeichert.Waehrung != "" {
-		e.Waehrung = gespeichert.Waehrung
+	if gespeichert.Currency != "" {
+		e.Currency = gespeichert.Currency
 	}
 	e.Hint = gespeichert.Hint
 	return e
 }
 
-func einstellungenSichern(e einstellungen) error {
+func einstellungenSichern(e settings) error {
 	raw, err := json.Marshal(e)
 	if err != nil {
 		return err
@@ -83,39 +83,39 @@ func einstellungenSichern(e einstellungen) error {
 	return plugin.Set(schluesselEinstellungen, string(raw))
 }
 
-// produkt ist eine Seite, wie das Formular sie braucht.
-type produkt struct {
+// product is a page as the form needs it.
+type product struct {
 	Slug    string
 	Titel   string
 	Price   string
 	Einheit string
 	Status  string
-	// Bestellbar ist falsch, wenn das Zustandsfeld den Ausverkauft-Wert trägt.
+	// Orderable is false when the status field carries the sold-out value.
 	Orderable bool
 }
 
-// maxProdukte bounds the list.
+// maxProducts bounds the list.
 //
-// Der Host gibt ohnehin höchstens hundert Seiten heraus; die Grenze steht hier,
-// damit ein Formular mit hundert Zeilen nicht als Überraschung kommt.
-const maxProdukte = 100
+// The host hands out at most a hundred pages anyway; the limit stands here so
+// that a form with a hundred rows does not come as a surprise.
+const maxProducts = 100
 
-// produkteLesen holt die veröffentlichten Seiten mit ihren eigenen Feldern und
-// behält die, die einen Preis tragen.
-func produkteLesen(e einstellungen) ([]produkt, error) {
-	seiten, _, err := plugin.PagesWithFields(maxProdukte, 0)
+// readProducts fetches the published pages with their own fields and keeps the
+// ones that carry a price.
+func readProducts(e settings) ([]product, error) {
+	seiten, _, err := plugin.PagesWithFields(maxProducts, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]produkt, 0, len(seiten))
+	out := make([]product, 0, len(seiten))
 	for _, s := range seiten {
-		preis := strings.TrimSpace(s.Field(e.PriceField))
-		if preis == "" {
+		price := strings.TrimSpace(s.Field(e.PriceField))
+		if price == "" {
 			continue
 		}
-		p := produkt{
-			Slug: s.Slug, Titel: s.Title, Price: preis,
+		p := product{
+			Slug: s.Slug, Titel: s.Title, Price: price,
 			Einheit: strings.TrimSpace(s.Field(e.UnitField)),
 			Status:  strings.TrimSpace(s.Field(e.StatusField)),
 		}
@@ -126,13 +126,13 @@ func produkteLesen(e einstellungen) ([]produkt, error) {
 	return out, nil
 }
 
-// preisWert liest einen getippten Preis als Zahl.
+// priceValue reads a typed price as a number.
 //
-// Mit Komma, weil das ist, was jemand mit einer deutschen Tastatur tippt, und
-// ohne Tausendertrennung, weil ein Hofladen keine hat. Geht es nicht auf, ist
-// die Summe unbekannt — dann steht sie nicht in der Bestätigung, und der
-// Betreiber rechnet nach. Falsch zu rechnen wäre schlimmer.
-func preisWert(roh string) (float64, bool) {
+// With a comma, because that is what somebody with a German keyboard types, and
+// without thousands separators, because a farm shop has none. If it does not
+// work out the total is unknown — then it does not stand in the confirmation and
+// the operator works it out. Working it out wrongly would be worse.
+func priceValue(roh string) (float64, bool) {
 	roh = strings.TrimSpace(strings.ReplaceAll(roh, ",", "."))
 	if roh == "" {
 		return 0, false
@@ -144,7 +144,7 @@ func preisWert(roh string) (float64, bool) {
 	return v, true
 }
 
-// betragTexten schreibt einen Betrag mit zwei Nachkommastellen und Komma.
-func betragTexten(v float64) string {
+// amountText writes an amount with two decimal places and a comma.
+func amountText(v float64) string {
 	return strings.Replace(strconv.FormatFloat(v, 'f', 2, 64), ".", ",", 1)
 }
