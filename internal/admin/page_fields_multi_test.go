@@ -61,7 +61,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 			"id": wsID, "pageID": strconv.FormatInt(p.ID, 10),
 		})
 		if rec := serve(t, h, sm, h.HandlePageEdit, req); rec.Code != http.StatusSeeOther {
-			t.Fatalf("Speichern gab %d zurück, wollte 303:\n%s", rec.Code, rec.Body.String())
+			t.Fatalf("saving returned %d, wanted 303:\n%s", rec.Code, rec.Body.String())
 		}
 	}
 
@@ -91,7 +91,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 		"feld_herkunft": {"Jura"},
 	})
 	if got, will := gespeichert(t), "Eiche\nBuche\nEsche"; got != will {
-		t.Errorf("nach dem zweiten Speichern %q, wollte %q", got, will)
+		t.Errorf("after the second save %q, wanted %q", got, will)
 	}
 
 	// Neuzeichnen: dieselben drei Kästchen sind angekreuzt.
@@ -100,28 +100,28 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("das Formular gab %d zurück", rec.Code)
+		t.Fatalf("the form returned %d", rec.Code)
 	}
 	body := rec.Body.String()
 
 	angekreuzt := regexp.MustCompile(`<input type="checkbox" name="feld_sorten\[\]" value="[^"]*" checked>`)
 	if n := len(angekreuzt.FindAllString(body, -1)); n != 3 {
-		t.Errorf("%d angekreuzte Kästchen im neu gezeichneten Formular, wollte 3:\n%s", n, ausschnitt(body, "feld_sorten"))
+		t.Errorf("%d ticked boxes in the redrawn form, wanted 3:\n%s", n, ausschnitt(body, "feld_sorten"))
 	}
 	for _, sorte := range []string{"Eiche", "Buche", "Esche"} {
 		if !strings.Contains(body, `value="`+sorte+`" checked`) {
-			t.Errorf("%q ist nicht angekreuzt", sorte)
+			t.Errorf("%q is not ticked", sorte)
 		}
 	}
 	// Und der versteckte Wächter steht davor, sonst kann eine leergeräumte
 	// Gruppe nicht von einem Formular unterschieden werden, das das Feld nie
 	// getragen hat.
 	if !strings.Contains(body, `<input type="hidden" name="feld_sorten[]" value="">`) {
-		t.Errorf("der versteckte Wächter fehlt:\n%s", ausschnitt(body, "feld_sorten"))
+		t.Errorf("the hidden sentinel is missing:\n%s", ausschnitt(body, "feld_sorten"))
 	}
 
 	if strings.Contains(body, "checked checked") {
-		t.Error("checked steht zweimal am selben Kästchen")
+		t.Error("checked stands twice on the same box")
 	}
 
 	pruefeBeschriftung(t, body)
@@ -132,7 +132,7 @@ func TestMehrfachauswahlVomFormularBisZurAnzeige(t *testing.T) {
 		"feld_herkunft": {"Jura"},
 	})
 	if got := gespeichert(t); got != "" {
-		t.Errorf("nach dem Leerräumen %q, wollte leer", got)
+		t.Errorf("after clearing, %q, wanted empty", got)
 	}
 }
 
@@ -146,41 +146,41 @@ func TestMehrfachauswahlGeleertOderAbwesend(t *testing.T) {
 		"feld_sorten[]": {"Eiche", "Buche", "Esche"},
 	}))
 	if got, will := drei.Values["sorten"], "Eiche\nBuche\nEsche"; got != will {
-		t.Errorf("drei Häkchen ergaben %q, wollte %q", got, will)
+		t.Errorf("three ticks yielded %q, wanted %q", got, will)
 	}
 
 	// Der Wächter allein: die Kennung IST da und trägt den leeren Wert.
 	geleert := fieldsFromRequest(anfrageMit(url.Values{"feld_sorten[]": {""}}))
 	val, da := geleert.Values["sorten"]
 	if !da {
-		t.Error("nach dem Wächter allein fehlt die Kennung ganz — geleert wäre nicht von abwesend zu unterscheiden")
+		t.Error("after the sentinel alone the key is missing entirely — emptied would not be distinguishable from absent")
 	}
 	if val != "" {
-		t.Errorf("nach dem Wächter allein steht %q da, wollte leer", val)
+		t.Errorf("after the sentinel alone %q is there, wanted empty", val)
 	}
 
 	// Teilweise angekreuzt: der Wächter fällt weg, die Häkchen bleiben.
 	teil := fieldsFromRequest(anfrageMit(url.Values{"feld_sorten[]": {"", "Buche"}}))
 	if got, will := teil.Values["sorten"], "Buche"; got != will {
-		t.Errorf("der Wächter neben einem Häkchen ergab %q, wollte %q", got, will)
+		t.Errorf("the sentinel beside a tick yielded %q, wanted %q", got, will)
 	}
 
 	// Gar keine Kennung: sie kommt in den Daten nicht vor.
 	ohne := fieldsFromRequest(anfrageMit(url.Values{"feld_herkunft": {"Jura"}}))
 	if _, da := ohne.Values["sorten"]; da {
-		t.Error("die Kennung steht in den Daten, obwohl das Formular sie nie trug")
+		t.Error("the key is in the data although the form never carried it")
 	}
 
 	// Und ein einwertiges Feld verhält sich unverändert.
 	if got, will := ohne.Values["herkunft"], "Jura"; got != will {
-		t.Errorf("das einwertige Feld ergab %q, wollte %q", got, will)
+		t.Errorf("the single-valued field yielded %q, wanted %q", got, will)
 	}
 
 	// Eine Kennung, die nach dem Abschneiden der Markierung leer wäre, wird
 	// übergangen statt unter dem leeren Namen abgelegt.
 	leer := fieldsFromRequest(anfrageMit(url.Values{"feld_[]": {"x"}}))
 	if _, da := leer.Values[""]; da {
-		t.Error("eine leere Kennung wurde abgelegt")
+		t.Error("an empty key was stored")
 	}
 }
 
@@ -193,7 +193,7 @@ func pruefeBeschriftung(t *testing.T, body string) {
 	t.Helper()
 
 	if strings.Contains(body, `for="feld_sorten[]"`) {
-		t.Error(`die Beschriftung der Häkchengruppe trägt ein for=, das auf kein Element zeigt`)
+		t.Error(`die Beschriftung der Häkchengruppe trägt ein for=, das auf kein Element zeigt`) //nolint:german — the message quotes the German fixture it is about
 	}
 
 	labelledBy := regexp.MustCompile(`aria-labelledby="([^"]+)"`)
@@ -204,7 +204,7 @@ func pruefeBeschriftung(t *testing.T, body string) {
 	var benannt bool
 	for _, m := range treffer {
 		if !strings.Contains(body, `id="`+m[1]+`"`) {
-			t.Errorf("aria-labelledby zeigt auf %q, aber kein Element trägt diese Kennung", m[1])
+			t.Errorf("aria-labelledby points at %q, but no element carries that id", m[1])
 			continue
 		}
 		if strings.Contains(m[1], "feld_sorten") {
@@ -212,16 +212,16 @@ func pruefeBeschriftung(t *testing.T, body string) {
 		}
 	}
 	if !benannt {
-		t.Errorf("die Häkchengruppe wird von keiner Beschriftung benannt: %v", treffer)
+		t.Errorf("the checkbox group is named by no label: %v", treffer)
 	}
 
 	// Die Gegenprobe: das gewöhnliche Textfeld daneben hat sein for= behalten,
 	// und die Kennung, die es nennt, steht im selben Formular.
 	if !strings.Contains(body, `for="feld_herkunft"`) {
-		t.Error("das Textfeld hat sein for= verloren — die Bedingung hat sich überall abgeschaltet")
+		t.Error("the text field lost its for= — the condition switched itself off everywhere")
 	}
 	if !strings.Contains(body, `id="feld_herkunft"`) {
-		t.Error("das for= des Textfeldes nennt eine Kennung, die im Formular nicht vorkommt")
+		t.Error("the text field's for= names an id that does not occur in the form")
 	}
 }
 
@@ -305,7 +305,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 			"id": wsID, "pageID": strconv.FormatInt(p.ID, 10),
 		})
 		if rec := serve(t, h, sm, h.HandlePageEdit, req); rec.Code != http.StatusSeeOther {
-			t.Fatalf("Speichern gab %d zurück, wollte 303:\n%s", rec.Code, rec.Body.String())
+			t.Fatalf("saving returned %d, wanted 303:\n%s", rec.Code, rec.Body.String())
 		}
 	}
 
@@ -349,7 +349,7 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("das Formular gab %d zurück", rec.Code)
+		t.Fatalf("the form returned %d", rec.Code)
 	}
 	body := rec.Body.String()
 
@@ -357,16 +357,16 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 		muster := regexp.MustCompile(`<input type="checkbox" name="gruppe\.zeiten\.` + zeile +
 			`\.tage\[\]" value="[^"]*" checked>`)
 		if n := len(muster.FindAllString(body, -1)); n != will {
-			t.Errorf("Zeile %s zeigt %d angekreuzte Kästchen, wollte %d:\n%s",
+			t.Errorf("row %s shows %d ticked boxes, wanted %d:\n%s",
 				zeile, n, will, ausschnitt(body, "gruppe.zeiten."+zeile+".tage"))
 		}
 		if !strings.Contains(body, `<input type="hidden" name="gruppe.zeiten.`+zeile+`.tage[]" value="">`) {
-			t.Errorf("in Zeile %s fehlt der versteckte Wächter", zeile)
+			t.Errorf("row %s is missing the hidden sentinel", zeile)
 		}
 	}
 	// Das einwertige Unterfeld trägt die Markierung nicht.
 	if strings.Contains(body, "gruppe.zeiten.0.notiz[]") {
-		t.Error("das einwertige Unterfeld trägt die Markierung")
+		t.Error("the single-valued sub-field carries the marking")
 	}
 
 	// Nur der Wächter in der ersten Zeile: deren Auswahl ist geleert, die
@@ -379,13 +379,13 @@ func TestMehrfachauswahlInEinerGruppe(t *testing.T) {
 	})
 	got = zeilen(t)
 	if len(got) != 2 {
-		t.Fatalf("nach dem Leerräumen %d Zeilen, wollte 2: %+v", len(got), got)
+		t.Fatalf("after clearing, %d rows, wanted 2: %+v", len(got), got)
 	}
 	if got[0]["tage"] != "" {
-		t.Errorf("die geleerte Zeile trägt noch %q", got[0]["tage"])
+		t.Errorf("the emptied row still carries %q", got[0]["tage"])
 	}
 	if got[1]["tage"] != "Di" {
-		t.Errorf("die andere Zeile wurde mitgeleert: %q", got[1]["tage"])
+		t.Errorf("the other row was emptied along with it: %q", got[1]["tage"])
 	}
 }
 
@@ -433,21 +433,21 @@ func TestGruppenzeileGeleertOderAbwesend(t *testing.T) {
 		"gruppe.zeiten.0.tage[]": {"", "Mo", "Di", "Mi"},
 	}))
 	if got, will := drei.Rows["zeiten"][0]["tage"], "Mo\nDi\nMi"; got != will {
-		t.Errorf("drei Häkchen in der Zeile ergaben %q, wollte %q", got, will)
+		t.Errorf("three ticks in the row yielded %q, wanted %q", got, will)
 	}
 
 	geleert := fieldsFromRequest(anfrageMit(url.Values{"gruppe.zeiten.0.tage[]": {""}}))
 	val, da := geleert.Rows["zeiten"][0]["tage"]
 	if !da {
-		t.Error("nach dem Wächter allein fehlt die Kennung der Zeile ganz")
+		t.Error("after the sentinel alone the row's key is missing entirely")
 	}
 	if val != "" {
-		t.Errorf("nach dem Wächter allein steht %q da, wollte leer", val)
+		t.Errorf("after the sentinel alone %q is there, wanted empty", val)
 	}
 
 	ohne := fieldsFromRequest(anfrageMit(url.Values{"gruppe.zeiten.0.notiz": {"Vormittag"}}))
 	if _, da := ohne.Rows["zeiten"][0]["tage"]; da {
-		t.Error("die Kennung steht in der Zeile, obwohl das Formular sie nie trug")
+		t.Error("the key is in the row although the form never carried it")
 	}
 	if got := ohne.Rows["zeiten"][0]["notiz"]; got != "Vormittag" {
 		t.Errorf("das einwertige Unterfeld ergab %q, wollte %q", got, "Vormittag")

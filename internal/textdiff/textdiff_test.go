@@ -28,7 +28,7 @@ func TestIdenticalTextsHaveNoChangedLines(t *testing.T) {
 	lines := textdiff.Lines("eins\nzwei\ndrei\n", "eins\nzwei\ndrei\n")
 	for _, l := range lines {
 		if l.Kind != textdiff.KindContext {
-			t.Fatalf("unveränderter Text ergibt %q: %s", l.Kind, l.Text)
+			t.Fatalf("unchanged text yields %q: %s", l.Kind, l.Text)
 		}
 	}
 	if len(lines) != 3 {
@@ -71,7 +71,7 @@ func TestTrailingNewlineIsNotALine(t *testing.T) {
 	withNewline := textdiff.Lines("eins\n", "eins\n")
 	without := textdiff.Lines("eins", "eins")
 	if len(withNewline) != 1 || len(without) != 1 {
-		t.Fatalf("je 1 Zeile erwartet, %d und %d bekommen", len(withNewline), len(without))
+		t.Fatalf("expected 1 row each, got %d and %d", len(withNewline), len(without))
 	}
 }
 
@@ -80,14 +80,14 @@ func TestLineNumbersFollowBothTexts(t *testing.T) {
 	for _, l := range lines {
 		switch {
 		case l.Kind == textdiff.KindAdd && l.OldNo != 0:
-			t.Fatalf("neue Zeile trägt eine alte Nummer: %+v", l)
+			t.Fatalf("a new row carries an old id: %+v", l)
 		case l.Kind == textdiff.KindDelete && l.NewNo != 0:
-			t.Fatalf("gelöschte Zeile trägt eine neue Nummer: %+v", l)
+			t.Fatalf("the deleted row carries a new id: %+v", l)
 		}
 	}
 	last := lines[len(lines)-1]
 	if last.OldNo != 2 || last.NewNo != 3 {
-		t.Fatalf("letzte Zeile: alt %d neu %d, erwartet 2 und 3", last.OldNo, last.NewNo)
+		t.Fatalf("last row: old %d new %d, expected 2 and 3", last.OldNo, last.NewNo)
 	}
 }
 
@@ -107,7 +107,7 @@ func TestCompactReplacesLongUnchangedRunsWithOneMarker(t *testing.T) {
 		case textdiff.KindSkip:
 			skips++
 			if l.Count != 27 {
-				t.Fatalf("Marke steht für %d Zeilen, 27 erwartet", l.Count)
+				t.Fatalf("the token stands for %d rows, expected 27", l.Count)
 			}
 		case textdiff.KindContext:
 			contexts++
@@ -128,7 +128,7 @@ func TestCompactKeepsRunsShorterThanTheMarker(t *testing.T) {
 	newText := "A\ngleich\ngleich\nB\n"
 	for _, l := range textdiff.Compact(textdiff.Lines(oldText, newText), 0) {
 		if l.Kind == textdiff.KindSkip {
-			t.Fatalf("kurze Strecke wurde durch eine Marke ersetzt")
+			t.Fatalf("a short stretch was replaced by a marker")
 		}
 	}
 }
@@ -140,7 +140,7 @@ func TestOversizedInputDegradesToWholesaleReplacement(t *testing.T) {
 	}
 	for _, l := range textdiff.Lines(big.String(), "kurz\n") {
 		if l.Kind == textdiff.KindContext {
-			t.Fatalf("übergrosse Eingabe liefert Kontextzeilen statt einer klaren Ersetzung")
+			t.Fatalf("over-large input yields context lines instead of a clean replacement")
 		}
 	}
 }

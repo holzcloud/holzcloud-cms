@@ -462,7 +462,7 @@ func TestCSVSampleLineCountsBothNumbersTheSameWay(t *testing.T) {
 	// And the sentence that started this: a row number above its own total.
 	rec, _ := serveAs(t, h, sm, admin, h.HandleCSVMapping, mappingRequest(token, "row=4"))
 	if strings.Contains(rec.Body.String(), "Zeile 5 von 4") {
-		t.Error(`the last row still reads "Zeile 5 von 4" — the total counts data rows while the row number counts the header`)
+		t.Error(`the last row still reads "Zeile 5 von 4" — the total counts data rows while the row number counts the header`) //nolint:german — the message quotes the German fixture it is about
 	}
 }
 

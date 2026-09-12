@@ -117,10 +117,10 @@ func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 
 	defs, err = h.fields.OfSnippet(ctx, ws.ID, sn.ID)
 	if err != nil || len(defs) != 1 {
-		t.Fatalf("OfSnippet nach dem Unterfeld: %v (%d)", err, len(defs))
+		t.Fatalf("OfSnippet after the sub-field: %v (%d)", err, len(defs))
 	}
 	if len(defs[0].Sub) != 1 || defs[0].Sub[0].Key != "tag" {
-		t.Fatalf("die Gruppe kommt ohne ihr Unterfeld zurück: %+v", defs[0].Sub)
+		t.Fatalf("the group comes back without its sub-field: %+v", defs[0].Sub)
 	}
 	if defs[0].Sub[0].SnippetID != sn.ID {
 		t.Errorf("das Unterfeld trägt snippet_id %d, wollte %d — es erbt seinen "+
@@ -135,7 +135,7 @@ func TestGruppeAmTextbausteinTraegtIhreUnterfelder(t *testing.T) {
 	}
 	for _, d := range seiten {
 		if d.Key == "tag" || d.Key == "oeffnungszeiten" {
-			t.Errorf("ein Feld des Textbausteins steht in der Seitenliste: %+v", d)
+			t.Errorf("a snippet's field is in the page list: %+v", d)
 		}
 	}
 }
@@ -158,23 +158,23 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 	}
 	leer := rec.Body.String()
 	if !strings.Contains(leer, "Kontaktblock") {
-		t.Error("der Bildschirm nennt den Textbaustein nicht beim Namen")
+		t.Error("the screen does not name the snippet")
 	}
 	if !strings.Contains(leer, "This snippet has no fields yet") {
-		t.Error("der leere Fall zeigt seinen Satz nicht")
+		t.Error("the empty case does not show its sentence")
 	}
 	// Ein Textbaustein ist nicht „einfach": „Gilt für" hat an ihm keine
 	// Bedeutung. „Pflicht" dagegen schon, und das Kästchen muss stehen.
 	if !strings.Contains(leer, `name="pflicht"`) {
-		t.Error("das Pflicht-Kästchen fehlt — an einem Textbaustein darf ein Feld verlangt werden")
+		t.Error("the required box is missing — a field on a snippet may be demanded")
 	}
 	if strings.Contains(leer, `name="gilt_fuer"`) {
-		t.Error(`"gilt für" steht auf dem Textbaustein-Bildschirm, wo es nichts bedeutet`)
+		t.Error(`"gilt für" steht auf dem Textbaustein-Bildschirm, wo es nichts bedeutet`) //nolint:german — the message quotes the German fixture it is about
 	}
 	// Die Auswahl der Feldart ist die volle: eine Gruppe gehört dazu, anders
 	// als bei einer Bausteinart.
 	if !strings.Contains(leer, `value="`+field.KindGroup+`"`) {
-		t.Error("die Feldartenliste kennt keine Gruppe — sie ist nicht field.Kinds")
+		t.Error("the list of field kinds knows no group — it is not field.Kinds")
 	}
 
 	// Und jetzt eines anlegen.
@@ -197,7 +197,7 @@ func TestTextbausteinModusOeffnetSichFuerDeneigenen(t *testing.T) {
 
 	rec = feldBildschirm(t, h, sm, ws.ID, "textbaustein="+strconv.FormatInt(sn.ID, 10))
 	if !strings.Contains(rec.Body.String(), "Telefonnummer") {
-		t.Error("das angelegte Feld steht nicht in der Liste seines Textbausteins")
+		t.Error("the created field is not in its snippet's list")
 	}
 }
 
@@ -223,10 +223,10 @@ func TestTextbausteinFremderWebsiteOeffnetDenModusNicht(t *testing.T) {
 	}
 	body := rec.Body.String()
 	if strings.Contains(body, "Fremder Kontaktblock") {
-		t.Error("der Name eines Textbausteins einer anderen Website steht auf dem Bildschirm")
+		t.Error("another website's snippet name is on the screen")
 	}
 	if !strings.Contains(body, "Seitenpreis") {
-		t.Error("der Rückfall auf die eigenen Seitenfelder fand nicht statt")
+		t.Error("the fallback to the page's own fields did not happen")
 	}
 }
 
@@ -258,7 +258,7 @@ func TestTextbausteinFremderWebsiteWirdBeimSpeichernAbgewiesen(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(defs) != 0 {
-			t.Errorf("Website %d trägt %d Definitionen am fremden Textbaustein, wollte 0", id, len(defs))
+			t.Errorf("website %d carries %d definitions on the foreign snippet, wanted 0", id, len(defs))
 		}
 	}
 }
@@ -291,10 +291,10 @@ func TestTextbausteinfeldErscheintNichtAufDemSeitenbildschirm(t *testing.T) {
 	rec := feldBildschirm(t, h, sm, ws.ID, "")
 	body := rec.Body.String()
 	if !strings.Contains(body, "Seitenpreis") {
-		t.Error("das eigene Feld der Seite fehlt auf dem Seitenbildschirm")
+		t.Error("the page's own field is missing from the page screen")
 	}
 	if strings.Contains(body, "Telefonnummer") {
-		t.Error("ein Textbausteinfeld steht auf dem Seitenbildschirm — der gefährliche Schnitt dieser Phase")
+		t.Error("a snippet field is on the page screen — the dangerous cut of this phase")
 	}
 }
 
@@ -365,7 +365,7 @@ func gespeicherteFelder(t *testing.T, database *db.DB, websiteID, id int64) fiel
 	t.Helper()
 	sn, err := snippet.NewStore(database).Get(context.Background(), websiteID, id)
 	if err != nil || sn == nil {
-		t.Fatalf("den Textbaustein zurücklesen: %v", err)
+		t.Fatalf("read the snippet back: %v", err)
 	}
 	return field.Decode(sn.Fields)
 }
@@ -390,7 +390,7 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 		lang.FieldName():   {"Nur vormittags erreichbar."},
 	})
 	if rec.Code != http.StatusSeeOther && rec.Code != http.StatusFound {
-		t.Fatalf("Status %d, wollte eine Umleitung nach dem Speichern", rec.Code)
+		t.Fatalf("status %d, wanted a redirect after saving", rec.Code)
 	}
 
 	daten := gespeicherteFelder(t, database, ws.ID, sn.ID)
@@ -410,17 +410,17 @@ func TestSnippetFeldRundlauf(t *testing.T) {
 		"Nur vormittags erreichbar.",
 	} {
 		if !strings.Contains(body, wollte) {
-			t.Errorf("das wiedergeöffnete Formular trägt %q nicht", wollte)
+			t.Errorf("the reopened form does not carry %q", wollte)
 		}
 	}
 
 	// Der Rumpf und die Kennung haben den Durchgang überstanden.
 	sn2, err := snippet.NewStore(database).Get(context.Background(), ws.ID, sn.ID)
 	if err != nil || sn2 == nil {
-		t.Fatalf("zurücklesen: %v", err)
+		t.Fatalf("read back: %v", err)
 	}
 	if sn2.Key != "kontakt" || sn2.ContentMarkdown != "Wir sind **da**." {
-		t.Errorf("Kennung oder Rumpf haben sich geändert: %q / %q", sn2.Key, sn2.ContentMarkdown)
+		t.Errorf("key or body has changed: %q / %q", sn2.Key, sn2.ContentMarkdown)
 	}
 }
 
@@ -450,24 +450,24 @@ func TestSnippetFeldPflichtWirdAbgewiesen(t *testing.T) {
 
 	textbausteinSpeichern(t, h, sm, ws.ID, gemeinsam("07721 123456", "Erster Hinweis"))
 	if got := gespeicherteFelder(t, database, ws.ID, sn.ID).Values["telefon"]; got != "07721 123456" {
-		t.Fatalf("der erste Durchgang hat nichts abgelegt: telefon = %q", got)
+		t.Fatalf("the first pass stored nothing: telefon = %q", got)
 	}
 
 	rec := textbausteinSpeichern(t, h, sm, ws.ID, gemeinsam("", "Zweiter Hinweis"))
 	if rec.Code == http.StatusSeeOther || rec.Code == http.StatusFound {
-		t.Fatalf("Status %d — das leere Pflichtfeld wurde angenommen", rec.Code)
+		t.Fatalf("status %d — the empty required field was accepted", rec.Code)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "Zweiter Hinweis") {
-		t.Error("das abgewiesene Formular hat den getippten Wert des anderen Feldes verloren")
+		t.Error("the refused form lost the typed value of the other field")
 	}
 	if !strings.Contains(body, "has to be filled in") {
-		t.Error("neben dem Feld steht kein Grund")
+		t.Error("there is no reason beside the field")
 	}
 
 	daten := gespeicherteFelder(t, database, ws.ID, sn.ID)
 	if got := daten.Values["telefon"]; got != "07721 123456" {
-		t.Errorf("telefon = %q — die Ablehnung hat den vorherigen Wert angetastet", got)
+		t.Errorf("telefon = %q — the refusal touched the previous value", got)
 	}
 	if got := daten.Values["hinweis"]; got != "Erster Hinweis" {
 		t.Errorf("hinweis = %q — die Ablehnung hat halb geschrieben", got)
@@ -527,7 +527,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 
 	p, err := page.NewStore(database).GetPageBySlug(ctx, ws.ID, "start")
 	if err != nil || p == nil {
-		t.Fatalf("die Seite wurde nicht angelegt: %v", err)
+		t.Fatalf("the page was not created: %v", err)
 	}
 
 	// Beide Träger durch denselben Auflöser, mit ihren eigenen Definitionen.
@@ -537,7 +537,7 @@ func TestSnippetFeldSanierung(t *testing.T) {
 		field.Decode(p.Fields), field.Links{})
 
 	if amBausteinAufgeloest["hinweis"] != anDerSeiteAufgeloest["hinweis"] {
-		t.Fatalf("Textbaustein und Seite lösen denselben Wert verschieden auf:\n  Baustein: %#v\n  Seite:    %#v",
+		t.Fatalf("snippet and page resolve the same value differently:\n  block: %#v\n  page:  %#v",
 			amBausteinAufgeloest["hinweis"], anDerSeiteAufgeloest["hinweis"])
 	}
 
@@ -555,21 +555,21 @@ func TestSnippetFeldSanierung(t *testing.T) {
 
 	for name, aus := range map[string]string{"Textbaustein": ausBaustein, "Page": ausSeite} {
 		if strings.Contains(aus, "<script") {
-			t.Errorf("%s: eine lebende Marke hat überlebt: %s", name, aus)
+			t.Errorf("%s: a live token survived: %s", name, aus)
 		}
 	}
 	if ausBaustein != ausSeite {
-		t.Errorf("die beiden Träger drucken denselben Wert verschieden:\n  Baustein: %s\n  Seite:    %s",
+		t.Errorf("the two carriers print the same value differently:\n  block: %s\n  page:  %s",
 			ausBaustein, ausSeite)
 	}
 
 	// Der Rumpf behält seine eigene, andere Kette — unberührt von dieser Phase.
 	sn2, err := snippet.NewStore(database).Get(ctx, ws.ID, sn.ID)
 	if err != nil || sn2 == nil {
-		t.Fatalf("zurücklesen: %v", err)
+		t.Fatalf("read back: %v", err)
 	}
 	if !strings.Contains(sn2.ContentHTML, "<strong>da</strong>") {
-		t.Errorf("der Markdown-Rumpf ist nicht mehr das, was die Kette aus ihm gemacht hat: %q", sn2.ContentHTML)
+		t.Errorf("the Markdown body is no longer what the chain made of it: %q", sn2.ContentHTML)
 	}
 }
 
@@ -599,12 +599,12 @@ func TestSnippetFeldStehtNichtImSeitenformular(t *testing.T) {
 	body := serve(t, h, sm, h.HandlePageCreate, req).Body.String()
 
 	if strings.Contains(body, "Telefonnummer") {
-		t.Error("die Beschriftung eines Textbausteinfeldes steht im Seiteneditor")
+		t.Error("a snippet field's label is in the page editor")
 	}
 	// Der einzige von Hand geschriebene Feldpräfix dieser Datei, und er steht
 	// in einer Behauptung über eine Abwesenheit.
 	if strings.Contains(body, `name="feld_telefonnummer"`) {
-		t.Error("der Formularname eines Textbausteinfeldes steht im Seiteneditor")
+		t.Error("the form name of a snippet field is in the page editor")
 	}
 }
 
@@ -618,7 +618,7 @@ func codeAusdruck(t *testing.T, koerper string) string {
 	t.Helper()
 	auf := strings.Index(koerper, "<code>")
 	if auf < 0 {
-		t.Fatal("kein <code> auf dem Bildschirm")
+		t.Fatal("no <code> on the screen")
 	}
 	rest := koerper[auf+len("<code>"):]
 	zu := strings.Index(rest, "</code>")
@@ -657,10 +657,10 @@ func TestRatDesFeldbildschirmsLaesstSichUebersetzen(t *testing.T) {
 	}
 	rat := codeAusdruck(t, rec.Body.String())
 	if !strings.Contains(rat, "footer-kontakt") {
-		t.Fatalf("der Rat nennt den Schlüssel nicht: %q", rat)
+		t.Fatalf("the advice does not name the key: %q", rat)
 	}
 	if _, err := template.New("rat").Parse(rat); err != nil {
-		t.Errorf("der Rat auf dem Bildschirm ist kein übersetzbarer Ausdruck:\n  %s\n  %v",
+		t.Errorf("the advice on the screen is not a translatable expression:\n  %s\n  %v",
 			rat, err)
 	}
 }

@@ -23,10 +23,10 @@ func TestRedirectScreenReportsBrokenInternalLinks(t *testing.T) {
 	body := serve(t, h, sm, h.HandleRedirectList, req).Body.String()
 
 	if !strings.Contains(body, "/hofseite") {
-		t.Error("der Link auf die fehlende Seite wird nicht gemeldet")
+		t.Error("the link to the missing page is not reported")
 	}
 	if strings.Contains(body, ">/laden<") {
-		t.Error("ein Link auf eine vorhandene Seite wurde als kaputt gemeldet")
+		t.Error("a link to an existing page was reported as broken")
 	}
 }
 
@@ -39,7 +39,7 @@ func TestRedirectMakesALinkResolve(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/redirects", nil)
 	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
 	if !strings.Contains(serve(t, h, sm, h.HandleRedirectList, req).Body.String(), "/alte-seite") {
-		t.Fatal("ohne Weiterleitung muss der Link als kaputt gelten")
+		t.Fatal("without a redirect the link has to count as broken")
 	}
 
 	if err := h.pages.AddRedirect(context.Background(), ws.ID, "/alte-seite", "/start", 301); err != nil {
@@ -50,7 +50,7 @@ func TestRedirectMakesALinkResolve(t *testing.T) {
 	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
 	body := serve(t, h, sm, h.HandleRedirectList, req).Body.String()
 	if !strings.Contains(body, "Every internal link leads somewhere") {
-		t.Error("der Link gilt trotz Weiterleitung noch als kaputt")
+		t.Error("the link still counts as broken despite the redirect")
 	}
 }
 
@@ -68,6 +68,6 @@ func TestBrokenLinkPrefillsTheForm(t *testing.T) {
 
 	if !strings.Contains(body, `id="from_path" name="from_path" class="form-input" required`) ||
 		!strings.Contains(body, `value="/alte-seite"`) {
-		t.Error("die alte Adresse steht nicht im Formular")
+		t.Error("the old address is not in the form")
 	}
 }

@@ -81,7 +81,7 @@ func TestFlushStelltZuUndVermerktEs(t *testing.T) {
 
 	st, _ := q.Status(ctx)
 	if st.Pending != 0 || st.LastSent == nil {
-		t.Errorf("nach dem Versand: Pending=%d, LastSent=%v", st.Pending, st.LastSent)
+		t.Errorf("after sending: Pending=%d, LastSent=%v", st.Pending, st.LastSent)
 	}
 
 	// Und ein zweiter Durchgang schickt sie nicht noch einmal.
@@ -122,10 +122,10 @@ func TestPunktAufDerLeitungGenauEinmalVerdoppelt(t *testing.T) {
 		t.Fatalf("%d Nachrichten kamen an", len(zugestellt))
 	}
 	if !strings.Contains(zugestellt[0], "\r\n..\r\n") {
-		t.Errorf("der Punkt wurde nicht verdoppelt:\n%q", zugestellt[0])
+		t.Errorf("the dot was not doubled:\n%q", zugestellt[0])
 	}
 	if strings.Contains(zugestellt[0], "\r\n...\r\n") {
-		t.Errorf("der Punkt wurde zweimal verdoppelt:\n%q", zugestellt[0])
+		t.Errorf("the dot was doubled twice:\n%q", zugestellt[0])
 	}
 }
 
@@ -163,12 +163,12 @@ func TestFehlschlagWirdSpaeterErneutVersucht(t *testing.T) {
 		t.Fatalf("next_try ist unlesbar: %v", err)
 	}
 	if !next.After(time.Now().UTC()) {
-		t.Errorf("next_try liegt nicht in der Zukunft: %s", nextTry)
+		t.Errorf("next_try is not in the future: %s", nextTry)
 	}
 
 	st, _ := q.Status(ctx)
 	if st.LastError == "" {
-		t.Error("der Grund wurde nicht vermerkt")
+		t.Error("the reason was not recorded")
 	}
 
 	// Und Retry holt sie zurück in die Gegenwart, für den Betreiber, der gerade
@@ -188,7 +188,7 @@ func TestOhneMailserverBleibtLiegen(t *testing.T) {
 		t.Fatalf("Enqueue: %v", err)
 	}
 	if err := q.Flush(ctx); err != nil {
-		t.Errorf("Flush ohne Mailserver ist ein Fehler: %v", err)
+		t.Errorf("Flush without a mail server is an error: %v", err)
 	}
 	st, _ := q.Status(ctx)
 	if st.Configured {

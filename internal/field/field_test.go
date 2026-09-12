@@ -77,11 +77,11 @@ func TestPruefungen(t *testing.T) {
 
 	auswahl := Def{Label: "Zustand", Kind: KindChoice, Choices: []string{"frisch", "vergriffen"}}
 	if r := Check(auswahl, "frisch"); !r.Empty() {
-		t.Errorf("gültige Auswahl abgelehnt: %q", r)
+		t.Errorf("valid choice refused: %q", r)
 	}
 	// Der wichtigste Fall: das <select> lässt sich umgehen, die Prüfung nicht.
 	if r := Check(auswahl, "erfunden"); r.Empty() {
-		t.Error("eine Möglichkeit, die es nicht gibt, wurde angenommen")
+		t.Error("an option that does not exist was accepted")
 	}
 
 	pflicht := Def{Label: "Preis", Kind: KindText, Required: true}
@@ -108,10 +108,10 @@ func TestAufraeumen(t *testing.T) {
 		t.Errorf("preis = %q, want 8.50", v["preis"])
 	}
 	if _, da := v["veraltet"]; da {
-		t.Error("ein Wert ohne Feld hat überlebt")
+		t.Error("a value with no field survived")
 	}
 	if _, da := v["leer"]; da {
-		t.Error("ein leerer Wert wurde gespeichert")
+		t.Error("an empty value was stored")
 	}
 }
 
@@ -251,7 +251,7 @@ func TestGruppeUeberlebtSpeichern(t *testing.T) {
 	zurück := Decode(raw)
 	rows := zurück.Row("preisstaffel")
 	if len(rows) != 2 {
-		t.Fatalf("%d Zeilen zurück, want 2", len(rows))
+		t.Fatalf("%d rows back, want 2", len(rows))
 	}
 	if rows[0]["ab_menge"] != "1" || rows[1]["ab_menge"] != "10" {
 		t.Errorf("Reihenfolge vertauscht: %v", rows)
@@ -287,7 +287,7 @@ func TestLeereZeilenVerschwinden(t *testing.T) {
 		{"preis": "7,00", "erfunden": "x"},
 	}}})
 	if _, da := out.Row("preisstaffel")[0]["erfunden"]; da {
-		t.Error("ein Wert ohne Unterfeld hat überlebt")
+		t.Error("a value with no sub-field survived")
 	}
 }
 
@@ -301,10 +301,10 @@ func TestZeileWirdBenannt(t *testing.T) {
 	}}})
 	reason, da := errs[RowKey("preisstaffel", 1, "preis")]
 	if !da {
-		t.Fatalf("kein Fehler für Zeile 2: %v", errs)
+		t.Fatalf("no error for row 2: %v", errs)
 	}
 	if !strings.Contains(reason.String(), "row 2") {
-		t.Errorf("Fehler nennt die Zeile nicht: %q", reason)
+		t.Errorf("the error does not name the row: %q", reason)
 	}
 }
 
@@ -314,7 +314,7 @@ func TestPflichtgruppeBrauchtEineZeile(t *testing.T) {
 	g.Required = true
 	errs := CheckAll([]Def{g}, Data{})
 	if _, da := errs["preisstaffel"]; !da {
-		t.Errorf("keine Meldung für die leere Pflichtgruppe: %v", errs)
+		t.Errorf("no message for the empty required group: %v", errs)
 	}
 }
 
@@ -330,7 +330,7 @@ func TestGruppeAufgeloest(t *testing.T) {
 		t.Fatalf("preisstaffel = %#v", got["preisstaffel"])
 	}
 	if n, ok := rows[0]["preis"].(Number); !ok || n.Value != 8.5 {
-		t.Errorf("preis in der Zeile = %#v", rows[0]["preis"])
+		t.Errorf("preis in the row = %#v", rows[0]["preis"])
 	}
 
 	// Und als Liste mit Beschriftungen, für ein Theme, das die Namen nicht kennt.
@@ -399,7 +399,7 @@ func TestVerweisPruefung(t *testing.T) {
 	}
 	for _, bad := range []string{"/eine-seite", "0", "-3", "abc"} {
 		if Check(d, bad).Empty() {
-			t.Errorf("Check(%q) hat nichts zu beanstanden, sollte aber", bad)
+			t.Errorf("Check(%q) has nothing to object to but should have", bad)
 		}
 	}
 }
@@ -421,15 +421,15 @@ func TestFeldGiltFuerEigeneArt(t *testing.T) {
 		return out
 	}
 	if got := keys("produkt"); len(got) != 2 || got[0] != "preis" || got[1] != "notiz" {
-		t.Errorf("für ein Produkt: %v", got)
+		t.Errorf("for a product: %v", got)
 	}
 	// Ein Produkt ist technisch eine Seite. Ein Feld "nur Seiten" darf trotzdem
 	// nicht im Produktformular auftauchen.
 	if got := keys("page"); len(got) != 2 || got[0] != "hinweis" || got[1] != "notiz" {
-		t.Errorf("für eine Seite: %v", got)
+		t.Errorf("for a page: %v", got)
 	}
 	if got := keys("post"); len(got) != 2 || got[0] != "autor" {
-		t.Errorf("für einen Beitrag: %v", got)
+		t.Errorf("for a post: %v", got)
 	}
 }
 
@@ -444,12 +444,12 @@ func TestBedingtesPflichtfeldBlockiertNicht(t *testing.T) {
 
 	leer := Data{Values: Values{}}
 	if errs := CheckAll(defs, leer); len(errs) != 0 {
-		t.Errorf("ohne Häkchen wird gemeckert: %v", errs)
+		t.Errorf("without the tick there is a complaint: %v", errs)
 	}
 
 	an := Data{Values: Values{"angebot": "1"}}
 	if errs := CheckAll(defs, an); len(errs) != 1 || errs["sonderpreis"].Empty() {
-		t.Errorf("mit Häkchen fehlt die Meldung: %v", errs)
+		t.Errorf("with the tick the message is missing: %v", errs)
 	}
 }
 
@@ -464,19 +464,19 @@ func TestBedingterWertBleibtUndWirktNicht(t *testing.T) {
 	d := Data{Values: Values{"sonderpreis": "9.50"}}
 
 	if got := Resolve(defs, d, Links{})["sonderpreis"].(Number).Raw; got != "" {
-		t.Errorf("das Theme sieht %q statt nichts", got)
+		t.Errorf("the theme sees %q instead of nothing", got)
 	}
 	if got := List(defs, d, Links{}); len(got) != 0 {
-		t.Errorf("die Feldliste zeigt %d Einträge", len(got))
+		t.Errorf("the field list shows %d entries", len(got))
 	}
 	// Aufräumen wirft ihn nicht weg.
 	if got := Clean(defs, d).Values["sonderpreis"]; got != "9.50" {
-		t.Errorf("der Wert ist weg: %q", got)
+		t.Errorf("the value is gone: %q", got)
 	}
 	// Und mit Häkchen ist er wieder da.
 	d.Values["angebot"] = "1"
 	if got := Resolve(defs, d, Links{})["sonderpreis"].(Number).Raw; got != "9.50" {
-		t.Errorf("mit Häkchen fehlt der Wert: %q", got)
+		t.Errorf("with the tick the value is missing: %q", got)
 	}
 }
 
@@ -490,10 +490,10 @@ func TestBedingungsketteFaelltGanz(t *testing.T) {
 	}
 	hidden := Hidden(defs, Values{"b": "x", "c": "y"})
 	if !hidden["b"] || !hidden["c"] {
-		t.Errorf("die Kette hält nicht: %v", hidden)
+		t.Errorf("the chain does not hold: %v", hidden)
 	}
 	if hidden = Hidden(defs, Values{"a": "1", "b": "x", "c": "y"}); len(hidden) != 0 {
-		t.Errorf("mit ausgefülltem a ist noch etwas versteckt: %v", hidden)
+		t.Errorf("with a filled in, something is still hidden: %v", hidden)
 	}
 }
 
@@ -514,14 +514,14 @@ func TestAbschnittHatKeinenWert(t *testing.T) {
 		{Key: "hoehe", Label: "Höhe", Kind: KindNumber},
 	}
 	if errs := CheckAll(defs, Data{Values: Values{}}); len(errs) != 0 {
-		t.Errorf("eine Überschrift wird geprüft: %v", errs)
+		t.Errorf("a heading is being checked: %v", errs)
 	}
 	resolved := Resolve(defs, Data{Values: Values{"masse": "irgendwas"}}, Links{})
 	if _, da := resolved["masse"]; da {
-		t.Error("die Überschrift steht im Theme")
+		t.Error("the heading is in the theme")
 	}
 	if got := Clean(defs, Data{Values: Values{"masse": "irgendwas"}}).Values["masse"]; got != "" {
-		t.Errorf("die Überschrift hat einen Wert behalten: %q", got)
+		t.Errorf("the heading kept a value: %q", got)
 	}
 }
 
@@ -537,7 +537,7 @@ func TestWoranEineBedingungHaengenDarf(t *testing.T) {
 		KindImage, KindLink, KindRef, KindRange, KindCode}
 	for _, k := range darf {
 		if !(Def{Kind: k}).MayControl() {
-			t.Errorf("%s sollte eine Bedingung tragen dürfen", k)
+			t.Errorf("%s should be allowed to carry a condition", k)
 		}
 	}
 	// KindTime steht aus demselben Grund draussen wie KindDate: ein
@@ -545,13 +545,13 @@ func TestWoranEineBedingungHaengenDarf(t *testing.T) {
 	// abhängigen Felder ausblendet, könnte also nie greifen.
 	for _, k := range []string{KindDate, KindTime, KindGroup, KindSection} {
 		if (Def{Kind: k}).MayControl() {
-			t.Errorf("%s sollte keine Bedingung tragen dürfen", k)
+			t.Errorf("%s should not be allowed to carry a condition", k)
 		}
 	}
 	// Ein Feld in einer Gruppe auch nicht: dort wird eine Zeile als Ganzes
 	// ausgefüllt.
 	if (Def{Kind: KindBool, ParentID: 3}).MayControl() {
-		t.Error("ein Feld in einer Gruppe sollte keine Bedingung tragen dürfen")
+		t.Error("a field inside a group should not be allowed to carry a condition")
 	}
 }
 
@@ -603,7 +603,7 @@ func TestZeitAufgeloest(t *testing.T) {
 	}
 	an, ok := got["ankunft"].(*time.Time)
 	if !ok || an != nil {
-		t.Errorf("ankunft = %#v, wollte nil — leer ist nicht Mitternacht", got["ankunft"])
+		t.Errorf("arrival = %#v, wanted nil — empty is not midnight", got["ankunft"])
 	}
 
 	// Keine Zeitzone: die Uhrzeit wird ohne Datum gelesen, sie trägt also
@@ -611,7 +611,7 @@ func TestZeitAufgeloest(t *testing.T) {
 	mittag := Resolve([]Def{{Key: "t", Kind: KindTime}}, Data{Values: Values{"t": "12:15"}}, Links{})
 	tz := mittag["t"].(*time.Time)
 	if _, versatz := tz.Zone(); versatz != 0 {
-		t.Errorf("die Uhrzeit trägt einen Versatz von %d Sekunden", versatz)
+		t.Errorf("the time of day carries an offset of %d seconds", versatz)
 	}
 	if tz.Location() != time.UTC {
 		t.Errorf("die Uhrzeit steht in %v statt in UTC", tz.Location())
@@ -631,7 +631,7 @@ func TestZeitStehtAlsTextInDerListe(t *testing.T) {
 		{Key: "wurf", Label: "Wurf", Kind: KindDate}}
 	list := List(defs, Data{Values: Values{"abfahrt": "09:30", "wurf": "2026-04-01"}}, Links{})
 	if len(list) != 2 {
-		t.Fatalf("%d Einträge, wollte 2: %+v", len(list), list)
+		t.Fatalf("%d entries, wanted 2: %+v", len(list), list)
 	}
 	if list[0].Text != "09:30" {
 		t.Errorf("Text der Uhrzeit = %q, wollte \"09:30\"", list[0].Text)
@@ -641,7 +641,7 @@ func TestZeitStehtAlsTextInDerListe(t *testing.T) {
 	}
 	// Das Datum bleibt, wie es war: leerer Text, das Theme formatiert selbst.
 	if list[1].Text != "" {
-		t.Errorf("das Datum trägt jetzt Text %q — das war nicht die Absicht", list[1].Text)
+		t.Errorf("the date now carries text %q — that was not the intention", list[1].Text)
 	}
 }
 
@@ -688,7 +688,7 @@ func TestBereichPruefung(t *testing.T) {
 					// Keine Zahl ist keine Grenzverletzung, sondern etwas
 					// anderes — die Begründung sagt das auch so.
 					if !strings.Contains(r.String(), "number") {
-						t.Errorf("die Begründung zu %q nennt die Zahl nicht: %q", schlecht, r)
+						t.Errorf("the reason for %q does not name the number: %q", schlecht, r)
 					}
 					continue
 				}
@@ -697,7 +697,7 @@ func TestBereichPruefung(t *testing.T) {
 				genannt := (f.unten != "" && strings.Contains(r.String(), f.unten)) ||
 					(f.obn != "" && strings.Contains(r.String(), f.obn))
 				if !genannt {
-					t.Errorf("die Begründung zu %q nennt keine Grenze: %q", schlecht, r)
+					t.Errorf("the reason for %q names no bound: %q", schlecht, r)
 				}
 			}
 		})
@@ -716,7 +716,7 @@ func TestLeererBereichIstNichtNull(t *testing.T) {
 	if r := Check(pflicht, ""); r.Empty() {
 		t.Error("leeres Pflichtfeld angenommen")
 	} else if !strings.Contains(r.String(), "filled in") {
-		t.Errorf("die Begründung ist nicht die übliche Pflichtmeldung: %q", r)
+		t.Errorf("the reason is not the usual required message: %q", r)
 	}
 
 	got := Resolve([]Def{kann}, Data{}, Links{})
@@ -725,10 +725,10 @@ func TestLeererBereichIstNichtNull(t *testing.T) {
 		t.Fatalf("menge = %#v, wollte Number", got["menge"])
 	}
 	if n.Raw != "" || n.Value != 0 {
-		t.Errorf("leerer Bereich = %#v, wollte den Nullwert mit leerem Raw", n)
+		t.Errorf("empty range = %#v, wanted the zero value with an empty Raw", n)
 	}
 	if len(List([]Def{kann}, Data{}, Links{})) != 0 {
-		t.Error("ein leerer Bereich steht in der Liste")
+		t.Error("an empty range is in the list")
 	}
 	if Filled(got) {
 		t.Error("Filled meldet Inhalt, wo keiner ist")
@@ -751,7 +751,7 @@ func TestBereichDrucktDasGetippte(t *testing.T) {
 	}
 	list := List([]Def{d}, Data{Values: Values{"menge": "0.1"}}, Links{})
 	if len(list) != 1 || list[0].Text != "0.1" {
-		t.Errorf("Liste = %+v, wollte einen Eintrag mit Text \"0.1\"", list)
+		t.Errorf("list = %+v, wanted an entry with text \"0.1\"", list)
 	}
 }
 
@@ -762,7 +762,7 @@ func TestCodeIstRoherText(t *testing.T) {
 	roh := "<b>fett</b> & \"Anführung\"\n  eingerückt"
 	got := Resolve([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})
 	if got["schnipsel"] != roh {
-		t.Errorf("schnipsel = %#v, wollte den rohen Text unverändert", got["schnipsel"])
+		t.Errorf("snippet = %#v, wanted the raw text unchanged", got["schnipsel"])
 	}
 	// Und ausdrücklich als string und nicht als template.HTML: ein Theme
 	// bekommt einen Wert, den html/template beim Drucken maskiert. Eine
@@ -770,7 +770,7 @@ func TestCodeIstRoherText(t *testing.T) {
 	// schliesst — sie fiele sonst nirgends auf, weil sich beide gleich
 	// ausdrucken.
 	if _, istString := got["schnipsel"].(string); !istString {
-		t.Errorf("schnipsel ist %T und kein string — wird es noch maskiert?", got["schnipsel"])
+		t.Errorf("snippet is %T and not a string — is it still escaped?", got["schnipsel"])
 	}
 	if e := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})[0]; e.Kind != KindCode {
 		t.Errorf("der Eintrag nennt seine Art als %q", e.Kind)
@@ -781,10 +781,10 @@ func TestCodeIstRoherText(t *testing.T) {
 	}
 	list := List([]Def{d}, Data{Values: Values{"schnipsel": roh}}, Links{})
 	if len(list) != 1 || list[0].Text != roh {
-		t.Errorf("Liste = %+v, wollte einen Eintrag mit dem rohen Text", list)
+		t.Errorf("list = %+v, wanted an entry with the raw text", list)
 	}
 	if len(List([]Def{d}, Data{}, Links{})) != 0 {
-		t.Error("ein leeres Codefeld steht in der Liste")
+		t.Error("an empty code field is in the list")
 	}
 }
 
@@ -803,7 +803,7 @@ func TestNeueArtenStehenInBeidenListen(t *testing.T) {
 	}
 	for _, art := range []string{KindTime, KindRange, KindCode} {
 		if !KnownKind(art) {
-			t.Errorf("%s steht nicht in Kinds", art)
+			t.Errorf("%s is not in Kinds", art)
 		}
 		if !enthaelt(SubKinds(), art) {
 			t.Errorf("%s fehlt in SubKinds", art)
@@ -812,7 +812,7 @@ func TestNeueArtenStehenInBeidenListen(t *testing.T) {
 			t.Errorf("%s fehlt in BlockKinds", art)
 		}
 		if KindName(art) == art {
-			t.Errorf("%s hat keine Beschriftung", art)
+			t.Errorf("%s has no label", art)
 		}
 	}
 }
@@ -858,10 +858,10 @@ func TestMehrfachauswahlHoechstzahl(t *testing.T) {
 				// Die Begründung ist für die Person am Formular: sie nennt das
 				// Feld und die Zahl, auf die es ankommt.
 				if !strings.Contains(r.String(), "Sorten") {
-					t.Errorf("die Begründung zu %q nennt das Feld nicht: %q", schlecht, r)
+					t.Errorf("the reason for %q does not name the field: %q", schlecht, r)
 				}
 				if f.max > 1 && !strings.Contains(r.String(), strconv.Itoa(f.max)) {
-					t.Errorf("die Begründung zu %q nennt die Höchstzahl nicht: %q", schlecht, r)
+					t.Errorf("the reason for %q does not name the maximum: %q", schlecht, r)
 				}
 			}
 		})
@@ -880,7 +880,7 @@ func TestMehrfachauswahlGenauAmRand(t *testing.T) {
 	// Doppelte zählen einzeln: JoinValues bewahrt sie, also sind es vier
 	// Werte, auch wenn nur drei verschiedene darunter sind.
 	if r := Check(d, "a\nb\nc\na"); r.Empty() {
-		t.Error("vier Werte durchgelassen, obwohl höchstens drei erlaubt sind")
+		t.Error("four values let through although at most three are allowed")
 	}
 }
 
@@ -899,10 +899,10 @@ func TestGemeinsamesBytebudget(t *testing.T) {
 		t.Fatalf("%d Byte durchgelassen", MaxValueBytes+1)
 	}
 	if !strings.Contains(r.String(), "Notiz") {
-		t.Errorf("die Begründung nennt das Feld nicht: %q", r)
+		t.Errorf("the reason does not name the field: %q", r)
 	}
 	if !strings.Contains(r.String(), strconv.Itoa(MaxValueBytes)) {
-		t.Errorf("die Begründung nennt die Grenze nicht: %q", r)
+		t.Errorf("the reason does not name the bound: %q", r)
 	}
 
 	// Gezählt werden Byte, nicht Zeichen: ein Umlaut braucht zwei davon, also
@@ -910,7 +910,7 @@ func TestGemeinsamesBytebudget(t *testing.T) {
 	// Graphemzähler wäre eine andere Zahl und würde die Datenbank überziehen.
 	umlaute := strings.Repeat("ä", MaxValueBytes/2)
 	if len([]rune(umlaute)) >= MaxValueBytes {
-		t.Fatalf("der Prüffall taugt nicht: %d Runen", len([]rune(umlaute)))
+		t.Fatalf("the probe is no good: %d runes", len([]rune(umlaute)))
 	}
 	if r := Check(text, umlaute); !r.Empty() {
 		t.Errorf("genau %d Byte aus Umlauten abgelehnt: %q", len(umlaute), r)
@@ -929,17 +929,17 @@ func TestBytebudgetGiltAllenWertenZusammen(t *testing.T) {
 	d := Def{Key: "sorten", Label: "Sorten", Kind: KindMulti, Choices: []string{kurz, lang}}
 
 	if r := Check(d, kurz); !r.Empty() {
-		t.Errorf("ein Wert von %d Byte abgelehnt: %q", len(kurz), r)
+		t.Errorf("a value of %d bytes refused: %q", len(kurz), r)
 	}
 	// Zwei Werte zu je MaxValueBytes/2 plus der Umbruch dazwischen: ein Byte
 	// über der Grenze. Der Umbruch zählt mit, sonst ginge in die Datenbank
 	// mehr, als sie zugesagt bekommt.
 	zusammen := JoinValues([]string{kurz, kurz})
 	if len(zusammen) != MaxValueBytes+1 {
-		t.Fatalf("der Prüffall taugt nicht: %d Byte", len(zusammen))
+		t.Fatalf("the probe is no good: %d bytes", len(zusammen))
 	}
 	if r := Check(d, zusammen); r.Empty() {
-		t.Errorf("%d Byte verbunden durchgelassen — gemessen wurde offenbar der längste einzelne Wert", len(zusammen))
+		t.Errorf("%d bytes let through joined — what was measured was evidently the longest single value", len(zusammen))
 	}
 }
 
@@ -953,21 +953,21 @@ func TestNichtsWirdMehrStillGekuerzt(t *testing.T) {
 	d := Def{Key: "notiz", Label: "Notiz", Kind: KindLong}
 	sauber := Clean([]Def{d}, Data{Values: Values{"notiz": "  " + zuLang + "  "}})
 	if got := sauber.Values["notiz"]; got != zuLang {
-		t.Errorf("Clean legte %d Byte ab, wollte %d — es wird noch gekürzt", len(got), len(zuLang))
+		t.Errorf("Clean stored %d bytes, wanted %d — it is still truncating", len(got), len(zuLang))
 	}
 
 	// In einer Gruppenzeile ebenso.
 	g := Def{Key: "staffel", Label: "Staffel", Kind: KindGroup, Sub: []Def{d}}
 	zeilen := Clean([]Def{g}, Data{Rows: map[string][]Values{"staffel": {{"notiz": zuLang}}}})
 	if got := zeilen.Rows["staffel"][0]["notiz"]; got != zuLang {
-		t.Errorf("in der Zeile wurden %d Byte abgelegt, wollte %d", len(got), len(zuLang))
+		t.Errorf("%d bytes were stored in the row, wanted %d", len(got), len(zuLang))
 	}
 
 	// Und CheckAll meldet ihn, unter der Kennung des Feldes, damit das
 	// Formular die Begründung unter dem richtigen Feld zeigt.
 	errs := CheckAll([]Def{d}, Data{Values: Values{"notiz": zuLang}})
 	if errs["notiz"].Empty() {
-		t.Errorf("CheckAll meldet den zu langen Wert nicht: %v", errs)
+		t.Errorf("CheckAll does not report the over-long value: %v", errs)
 	}
 }
 
@@ -995,12 +995,12 @@ func TestVerstecktesMehrwertigesFeldWirdNichtGeprueft(t *testing.T) {
 
 	aus := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": uebervoll}})
 	if len(aus) != 0 {
-		t.Errorf("ein verstecktes Feld wurde geprüft: %v", aus)
+		t.Errorf("a hidden field was checked: %v", aus)
 	}
 
 	an := CheckAll(defs, Data{Values: Values{"spezial": "1", "sorten": uebervoll}})
 	if an["sorten"].Empty() {
-		t.Errorf("das sichtbare Feld wurde nicht geprüft: %v", an)
+		t.Errorf("the visible field was not checked: %v", an)
 	}
 }
 
@@ -1022,17 +1022,17 @@ func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
 		return false
 	}
 	if !KnownKind(KindTerm) {
-		t.Errorf("%s steht nicht in Kinds", KindTerm)
+		t.Errorf("%s is not in Kinds", KindTerm)
 	}
 	if KindName(KindTerm) == KindTerm {
-		t.Errorf("%s hat keine Beschriftung", KindTerm)
+		t.Errorf("%s has no label", KindTerm)
 	}
 	// In einer Gruppe ist es erlaubt: eine Gruppe friert nichts ein.
 	if !enthaelt(SubKinds(), KindTerm) {
 		t.Errorf("%s fehlt in SubKinds", KindTerm)
 	}
 	if enthaelt(BlockKinds(), KindTerm) {
-		t.Errorf("%s steht in BlockKinds, sollte aber nicht", KindTerm)
+		t.Errorf("%s is in BlockKinds but should not be", KindTerm)
 	}
 
 	// Genau zwei Arten fehlen dort neben Gruppe und Abschnitt — der Verweis
@@ -1047,11 +1047,11 @@ func TestSchlagwortStehtNichtInBausteinarten(t *testing.T) {
 	}
 	wollte := map[string]bool{KindGroup: true, KindSection: true, KindRef: true, KindTerm: true}
 	if len(fehlend) != len(wollte) {
-		t.Errorf("BlockKinds lässt %v aus, wollte %v", fehlend, wollte)
+		t.Errorf("BlockKinds leaves out %v, wanted %v", fehlend, wollte)
 	}
 	for art := range wollte {
 		if !fehlend[art] {
-			t.Errorf("BlockKinds enthält %s, sollte es aber auslassen", art)
+			t.Errorf("BlockKinds contains %s but should leave it out", art)
 		}
 	}
 	// Ein Codefeld darf in einem Baustein stehen (D-06); es ist die Art, die
@@ -1146,12 +1146,12 @@ func TestSchlagwortStehtMitNamenInDerListe(t *testing.T) {
 	}
 
 	if !Filled(Resolve(defs, daten, links)) {
-		t.Error("Filled meldet nichts, obwohl ein Schlagwort aufgelöst ist")
+		t.Error("Filled reports nothing although a term is resolved")
 	}
 	// Und ohne Treffer ist die Seite leer — sonst verschwände nur der Text
 	// und die Tafel bliebe stehen.
 	if Filled(Resolve(defs, Data{Values: Values{"weg": "verschwunden"}}, links)) {
-		t.Error("Filled meldet etwas, obwohl kein Schlagwort aufgelöst ist")
+		t.Error("Filled reports something although no term is resolved")
 	}
 }
 
@@ -1166,7 +1166,7 @@ func TestSchlagwortPruefung(t *testing.T) {
 	}
 	for _, bad := range []string{"Moebel", "moebel nach mass", "möbel", "/tag/moebel", "-moebel"} {
 		if Check(d, bad).Empty() {
-			t.Errorf("Check(%q) hat nichts zu beanstanden, sollte aber", bad)
+			t.Errorf("Check(%q) has nothing to object to but should have", bad)
 		}
 	}
 }
@@ -1187,12 +1187,12 @@ func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	zuLang := strings.Repeat("x", MaxValueBytes+1)
 	aus := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": zuLang}})
 	if aus["sorten"].Empty() {
-		t.Fatalf("der zu lange Wert eines versteckten Feldes wurde nicht gemeldet: %v", aus)
+		t.Fatalf("the over-long value of a hidden field was not reported: %v", aus)
 	}
 	// Und zwar mit der Längenbegründung, nicht mit der Optionsbegründung: eine
 	// Artregel darf hier nicht zurückgeschmuggelt worden sein.
 	if !strings.Contains(aus["sorten"].String(), "too long") {
-		t.Errorf("die Begründung ist nicht die der Länge: %q", aus["sorten"])
+		t.Errorf("the reason is not the length one: %q", aus["sorten"])
 	}
 
 	// Die eigentliche Zusage dieser Änderung: nur Artregeln verletzt, und das
@@ -1200,11 +1200,11 @@ func TestVerstecktesFeldBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	// Liste gelten weiterhin nicht für ein Feld, das niemand sieht.
 	nurArt := JoinValues([]string{"Eiche", "Buche", "Ahorn"})
 	if still := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": nurArt}}); len(still) != 0 {
-		t.Errorf("eine Artregel feuerte für ein verstecktes Feld: %v", still)
+		t.Errorf("a per-kind rule fired for a hidden field: %v", still)
 	}
 	// Auch der leere Pflichtwert bleibt still.
 	if still := CheckAll(defs, Data{Values: Values{"spezial": "", "sorten": ""}}); len(still) != 0 {
-		t.Errorf("die Pflicht feuerte für ein verstecktes Feld: %v", still)
+		t.Errorf("the required check fired for a hidden field: %v", still)
 	}
 }
 
@@ -1226,21 +1226,21 @@ func TestVersteckteGruppeBleibtAnDieBytegrenzeGebunden(t *testing.T) {
 	})
 	schluessel := RowKey("staffel", 0, "notiz")
 	if aus[schluessel].Empty() {
-		t.Fatalf("der zu lange Wert in der Zeile einer versteckten Gruppe wurde nicht gemeldet: %v", aus)
+		t.Fatalf("the over-long value in the row of a hidden group was not reported: %v", aus)
 	}
 	if !strings.Contains(aus[schluessel].String(), "too long") {
-		t.Errorf("die Begründung ist nicht die der Länge: %q", aus[schluessel])
+		t.Errorf("the reason is not the length one: %q", aus[schluessel])
 	}
 
 	// Gegenprobe: eine versteckte Pflichtgruppe ohne Zeile bleibt still, und
 	// ein leeres Pflichtunterfeld in ihrer Zeile ebenso.
 	if still := CheckAll(defs, Data{Values: Values{"spezial": ""}}); len(still) != 0 {
-		t.Errorf("„braucht mindestens eine Zeile“ feuerte für eine versteckte Gruppe: %v", still)
+		t.Errorf("“needs at least one row” fired for a hidden group: %v", still)
 	}
 	if still := CheckAll(defs, Data{
 		Values: Values{"spezial": ""},
 		Rows:   map[string][]Values{"staffel": {{"notiz": ""}}},
 	}); len(still) != 0 {
-		t.Errorf("die Pflicht feuerte in der Zeile einer versteckten Gruppe: %v", still)
+		t.Errorf("the required check fired in the row of a hidden group: %v", still)
 	}
 }

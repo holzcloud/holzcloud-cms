@@ -47,7 +47,7 @@ func TestInvoiceCarriesWhatTheLawWants(t *testing.T) {
 	d := orderDocument(docWebsite(), docOrder(), true)
 
 	if d.Seller.Name != "Holzbau Schmidt" || d.Seller.VAT != "CHE-123.456.789 MWST" {
-		t.Errorf("der Absender ist unvollständig: %+v", d.Seller)
+		t.Errorf("the sender is incomplete: %+v", d.Seller)
 	}
 	if strings.Join(d.Buyer, " ") != "Anna Meier Seestrasse 4 8002 Zürich" {
 		t.Errorf("die Anschrift stimmt nicht: %v", d.Buyer)
@@ -56,7 +56,7 @@ func TestInvoiceCarriesWhatTheLawWants(t *testing.T) {
 		t.Errorf("Datum = %q", d.Date)
 	}
 	if len(d.Lines) != 1 || d.Lines[0].SKU != "HB-49" || d.Lines[0].Quantity != 2 {
-		t.Errorf("die Zeile stimmt nicht: %+v", d.Lines)
+		t.Errorf("the row is wrong: %+v", d.Lines)
 	}
 	if d.Total != money.CurrencyFor("CHF").Format(11000) {
 		t.Errorf("Gesamtbetrag = %q", d.Total)
@@ -100,7 +100,7 @@ func TestInvoiceKeepsTwoRatesApart(t *testing.T) {
 	}
 	saetze := d.Taxes[0].Rate + " " + d.Taxes[1].Rate
 	if !strings.Contains(saetze, "8.1 %") || !strings.Contains(saetze, "2.6 %") {
-		t.Errorf("die Sätze stimmen nicht: %q", saetze)
+		t.Errorf("the sentences are wrong: %q", saetze)
 	}
 }
 
@@ -111,7 +111,7 @@ func TestDeliveryNoteHasNoMoneyOnIt(t *testing.T) {
 	d := orderDocument(docWebsite(), docOrder(), false)
 
 	if d.Invoice {
-		t.Fatal("der Lieferschein hält sich für eine Rechnung")
+		t.Fatal("the delivery note thinks it is an invoice")
 	}
 	if d.PaymentDetails != "" {
 		t.Errorf("auf dem Lieferschein stehen Kontoangaben: %q", d.PaymentDetails)
@@ -156,7 +156,7 @@ func TestPaidInvoiceDropsTheBankDetails(t *testing.T) {
 	o.PaymentStatus = shop.PaymentPaid
 	bezahlt := orderDocument(docWebsite(), o, true)
 	if bezahlt.PaymentDetails != "" {
-		t.Errorf("eine bezahlte Rechnung fordert erneut zur Zahlung auf: %q", bezahlt.PaymentDetails)
+		t.Errorf("a paid invoice asks for payment again: %q", bezahlt.PaymentDetails)
 	}
 	if !strings.Contains(bezahlt.PaymentNote, "Bezahlt am 04.08.2026") {
 		t.Errorf("das Zahlungsdatum fehlt: %q", bezahlt.PaymentNote)
@@ -192,6 +192,6 @@ func TestDocumentKeepsTheOrderCurrency(t *testing.T) {
 
 	d := orderDocument(ws, docOrder(), true)
 	if !strings.Contains(d.Total, "CHF") {
-		t.Errorf("die Rechnung wurde in der neuen Währung gedruckt: %q", d.Total)
+		t.Errorf("the invoice was printed in the new currency: %q", d.Total)
 	}
 }

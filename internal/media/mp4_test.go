@@ -26,20 +26,20 @@ func TestMP4VerliertDenAufnahmeort(t *testing.T) {
 	out := StripMP4Metadata(append([]byte(nil), film...))
 
 	if len(out) != vorher {
-		t.Fatalf("Länge %d statt %d — jede Positionsangabe in der Datei zeigt jetzt daneben", len(out), vorher)
+		t.Fatalf("length %d instead of %d — every position in the file now points to the wrong place", len(out), vorher)
 	}
 	if bytes.Contains(out, []byte("47.3769")) {
 		t.Error("die Koordinaten stehen noch drin")
 	}
 	if bytes.Contains(out, []byte("udta")) {
-		t.Error("die udta-Box heisst noch udta")
+		t.Error("the udta box is still called udta")
 	}
 	if !bytes.Contains(out, []byte("free")) {
-		t.Error("an ihrer Stelle steht keine free-Box")
+		t.Error("there is no free box in its place")
 	}
 	// Und der Film selbst ist unberührt.
 	if !bytes.Contains(out, []byte("filmdaten")) || !bytes.Contains(out, []byte("isomiso2")) {
-		t.Error("am Film oder am Kopf wurde etwas verändert")
+		t.Error("something was changed in the film or in the header")
 	}
 }
 
@@ -54,7 +54,7 @@ func TestKeinMP4BleibtUnberuehrt(t *testing.T) {
 	} {
 		vorher := append([]byte(nil), rein...)
 		if out := StripMP4Metadata(rein); !bytes.Equal(out, vorher) {
-			t.Errorf("%q wurde verändert zu %q", vorher, out)
+			t.Errorf("%q was changed to %q", vorher, out)
 		}
 	}
 }

@@ -54,11 +54,11 @@ func TestParse(t *testing.T) {
 		t.Errorf("Titel = %q", export.SiteTitle)
 	}
 	if len(export.Items) != 2 {
-		t.Fatalf("%d Einträge, erwartet 2: %+v", len(export.Items), export.Items)
+		t.Fatalf("%d entries, expected 2: %+v", len(export.Items), export.Items)
 	}
 	// Anhang und Papierkorb sind kein Inhalt.
 	if export.Skipped != 2 {
-		t.Errorf("übergangen = %d, erwartet 2", export.Skipped)
+		t.Errorf("skipped = %d, expected 2", export.Skipped)
 	}
 
 	seite := export.Items[0]
@@ -69,7 +69,7 @@ func TestParse(t *testing.T) {
 		t.Errorf("Kurzfassung = %q", seite.Excerpt)
 	}
 	if strings.Contains(seite.HTML, "[gallery") {
-		t.Errorf("der Shortcode steht noch im Text: %q", seite.HTML)
+		t.Errorf("the shortcode is still in the text: %q", seite.HTML)
 	}
 	if !strings.Contains(seite.HTML, "Wir halten Schafe") {
 		t.Errorf("der Text fehlt: %q", seite.HTML)
@@ -79,7 +79,7 @@ func TestParse(t *testing.T) {
 	}
 	// "Uncategorized" ist keine Angabe, sondern die Abwesenheit einer.
 	if len(seite.Terms) != 0 {
-		t.Errorf("Schlagwörter der Seite = %v", seite.Terms)
+		t.Errorf("terms of the page = %v", seite.Terms)
 	}
 
 	beitrag := export.Items[1]
@@ -87,7 +87,7 @@ func TestParse(t *testing.T) {
 		t.Errorf("Beitrag = %+v", beitrag)
 	}
 	if len(beitrag.Terms) != 2 {
-		t.Errorf("Schlagwörter = %v, erwartet Wolle und Hof", beitrag.Terms)
+		t.Errorf("terms = %v, expected Wolle and Hof", beitrag.Terms)
 	}
 
 	// Die Bilder werden aufgezählt, nicht geholt: einmal aus dem Anhang und
@@ -99,9 +99,9 @@ func TestParse(t *testing.T) {
 
 func TestParseLehntUnsinnAb(t *testing.T) {
 	if _, err := Parse(strings.NewReader("kein XML")); err == nil {
-		t.Error("eine Datei ohne XML wurde angenommen")
+		t.Error("a file with no XML was accepted")
 	}
 	if _, err := Parse(strings.NewReader(`<rss><channel><title>Leer</title></channel></rss>`)); err == nil {
-		t.Error("eine Datei ohne Einträge wurde angenommen")
+		t.Error("a file with no entries was accepted")
 	}
 }

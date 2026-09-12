@@ -21,7 +21,7 @@ func TestSearchFindsPagesIgnoringDiacritics(t *testing.T) {
 		t.Fatalf("SearchPages: %v", err)
 	}
 	if len(results) != 1 || results[0].Page.Slug != "moebel" {
-		t.Fatalf("got %d results (%+v), want the Möbel page", len(results), results)
+		t.Fatalf("got %d results (%+v), want the Möbel page", len(results), results) //nolint:german — the message quotes the German fixture it is about
 	}
 }
 

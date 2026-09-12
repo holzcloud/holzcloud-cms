@@ -206,7 +206,7 @@ func TestRequireWebsiteAccess(t *testing.T) {
 		"/admin/websites/1/export",
 	} {
 		if code, reached := run(path); reached || code != http.StatusForbidden {
-			t.Errorf("%s: code %d, erreicht %v; erwartet 403 und nicht erreicht", path, code, reached)
+			t.Errorf("%s: code %d, reached %v; expected 403 and not reached", path, code, reached)
 		}
 	}
 	// Eine Adresse ohne Website geht die Prüfung nichts an.

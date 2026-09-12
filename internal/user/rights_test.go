@@ -14,13 +14,13 @@ func TestOhneZuordnungAlleWebsites(t *testing.T) {
 		t.Fatalf("Rights: %v", err)
 	}
 	if rights.Limited() {
-		t.Error("ein frischer Zugang ist eingeschränkt, sollte er nicht sein")
+		t.Error("a fresh account is limited and should not be")
 	}
 	if !rights.MayUse(1) || !rights.MayUse(999) {
-		t.Error("ohne Zuordnung muss jede Website erlaubt sein")
+		t.Error("with no mapping every website has to be allowed")
 	}
 	if !rights.MayPublish {
-		t.Error("ein frischer Zugang darf nicht veröffentlichen — die Migration nimmt etwas weg")
+		t.Error("a fresh account must not publish — the migration takes something away")
 	}
 }
 
@@ -42,7 +42,7 @@ func TestZuordnungGrenztEin(t *testing.T) {
 		t.Errorf("Zuordnung = %+v", rights)
 	}
 	if rights.MayPublish {
-		t.Error("das Veröffentlichungsrecht wurde nicht entzogen")
+		t.Error("the right to publish was not withdrawn")
 	}
 
 	// Und wieder aufheben: keine Zeile heisst wieder alle.
@@ -51,7 +51,7 @@ func TestZuordnungGrenztEin(t *testing.T) {
 	}
 	rights, _ = s.Rights(ctx, id)
 	if rights.Limited() || !rights.MayPublish {
-		t.Errorf("nach dem Aufheben = %+v", rights)
+		t.Errorf("after lifting it = %+v", rights)
 	}
 }
 
@@ -76,7 +76,7 @@ func TestAdministratorKennnKeineGrenze(t *testing.T) {
 		t.Fatalf("Rights: %v", err)
 	}
 	if rights.Limited() || !rights.MayPublish || !rights.MayUse(2) {
-		t.Errorf("ein Administrator ist eingeschränkt: %+v", rights)
+		t.Errorf("an administrator is limited: %+v", rights)
 	}
 }
 

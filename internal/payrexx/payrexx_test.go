@@ -132,10 +132,10 @@ func TestConfigured(t *testing.T) {
 func TestUnconfiguredNeverCalls(t *testing.T) {
 	c := &Client{}
 	if _, err := c.CreateGateway(context.Background(), GatewayRequest{}); err == nil {
-		t.Error("CreateGateway ohne Schlüssel hat keinen Fehler geliefert")
+		t.Error("CreateGateway without a key returned no error")
 	}
 	if _, err := c.GetGateway(context.Background(), 1); err == nil {
-		t.Error("GetGateway ohne Schlüssel hat keinen Fehler geliefert")
+		t.Error("GetGateway without a key returned no error")
 	}
 }
 
@@ -168,7 +168,7 @@ func TestSignatureExcludesItself(t *testing.T) {
 
 	params.Set("ApiSignature", "irgendwas")
 	if got := c.Signature(params); got != want {
-		t.Error("die Signatur ändert sich, wenn ApiSignature bereits gesetzt ist")
+		t.Error("the signature changes when ApiSignature is already set")
 	}
 }
 
@@ -177,7 +177,7 @@ func TestSignatureDependsOnSecret(t *testing.T) {
 	a := (&Client{Secret: "eins"}).Signature(params)
 	b := (&Client{Secret: "zwei"}).Signature(params)
 	if a == b {
-		t.Error("zwei verschiedene Schlüssel ergeben dieselbe Signatur")
+		t.Error("two different keys produce the same signature")
 	}
 }
 
@@ -254,10 +254,10 @@ func TestWrongSecretIsRejected(t *testing.T) {
 
 	_, err := c.CreateGateway(context.Background(), GatewayRequest{Amount: 100, Currency: "CHF"})
 	if err == nil {
-		t.Fatal("ein falscher Schlüssel wurde akzeptiert")
+		t.Fatal("a wrong key was accepted")
 	}
 	if !strings.Contains(err.Error(), "401") {
-		t.Errorf("Fehler nennt den Grund nicht: %v", err)
+		t.Errorf("the error does not name the reason: %v", err)
 	}
 }
 
@@ -349,7 +349,7 @@ func TestErrorsAreReadable(t *testing.T) {
 			continue
 		}
 		if !strings.Contains(err.Error(), tc.want) {
-			t.Errorf("%s: %v enthält %q nicht", tc.name, err, tc.want)
+			t.Errorf("%s: %v does not contain %q", tc.name, err, tc.want)
 		}
 	}
 }
@@ -368,7 +368,7 @@ func TestOversizedResponseIsBounded(t *testing.T) {
 
 	c := &Client{Instance: "example", Secret: "geheim", BaseURL: srv.URL}
 	if _, err := c.GetGateway(context.Background(), 1); err == nil {
-		t.Error("eine überlange Antwort wurde als gültig gelesen")
+		t.Error("an over-long answer was read as valid")
 	}
 }
 
@@ -380,7 +380,7 @@ func TestContextCancelStopsTheCall(t *testing.T) {
 	cancel()
 
 	if _, err := c.CreateGateway(ctx, GatewayRequest{Amount: 1, Currency: "CHF"}); err == nil {
-		t.Error("ein abgebrochener Kontext hat den Aufruf nicht gestoppt")
+		t.Error("a cancelled context did not stop the call")
 	}
 }
 
@@ -423,6 +423,6 @@ func TestWebhookStatusIsIgnored(t *testing.T) {
 	// point. If a future change adds such a function, this test should be the
 	// one that makes someone stop and think.
 	if _, err := (&Client{}).GetGateway(context.Background(), id); err == nil {
-		t.Error("die Bestätigung lief ohne eingerichteten Zugang durch")
+		t.Error("the confirmation went through without configured access")
 	}
 }

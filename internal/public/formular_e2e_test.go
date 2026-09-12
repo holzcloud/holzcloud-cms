@@ -35,14 +35,14 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 		HTML: "<p>Schreib uns:</p><p>[[formular:Rohwolle]]</p>",
 	})
 	if !strings.Contains(seite, `<form class="contact-form"`) {
-		t.Fatalf("aus der Marke wurde kein Formular:\n%s", seite)
+		t.Fatalf("the marker did not become a form:\n%s", seite)
 	}
 	if !strings.Contains(seite, `value="Rohwolle"`) {
-		t.Errorf("der Betreff aus der Marke steht nicht im Feld:\n%s", seite)
+		t.Errorf("the subject from the marker is not in the field:\n%s", seite)
 	}
 	// Ein <form> in einem <p> ist ungültiges HTML, das der Browser umsortiert.
 	if strings.Contains(seite, "<p><form") || strings.Contains(seite, "<p></p>") {
-		t.Errorf("der Absatz um die Marke wurde nicht mit ersetzt:\n%s", seite)
+		t.Errorf("the paragraph around the marker was not replaced with it:\n%s", seite)
 	}
 
 	// --- der Honigtopf ---
@@ -57,7 +57,7 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	// Genau wie ein Erfolg beantwortet: ein Roboter, der erfährt, dass er
 	// abgewiesen wurde, erfährt damit, wie er am Filter vorbeikommt.
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
-		t.Errorf("der Honigtopf wurde nicht wie ein Erfolg beantwortet: %q", ort)
+		t.Errorf("the honeypot was not answered like a success: %q", ort)
 	}
 	if n := nachrichten(t, database); n != 0 {
 		t.Errorf("der Roboter hat %d Nachrichten hinterlassen", n)
@@ -72,7 +72,7 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 		"nachricht": {"Sofort abgeschickt."},
 	})
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
-		t.Errorf("die zu schnelle Absendung wurde nicht wie ein Erfolg beantwortet: %q", ort)
+		t.Errorf("the too-fast submission was not answered like a success: %q", ort)
 	}
 	if n := nachrichten(t, database); n != 0 {
 		t.Errorf("die zu schnelle Absendung wurde gespeichert (%d)", n)
@@ -87,7 +87,7 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 		"nachricht": {"Ohne Namen."},
 	})
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=fehler") {
-		t.Errorf("die unvollständige Absendung wurde angenommen: %q", ort)
+		t.Errorf("the incomplete submission was accepted: %q", ort)
 	}
 
 	// --- eine echte Absendung ---
@@ -163,7 +163,7 @@ func formularAufbau(t *testing.T) (*Handler, *db.DB, *domain.Website, *plugin.Ma
 	}
 	manifest, err := plugin.ParseManifest(roh)
 	if err != nil {
-		t.Fatalf("das mitgelieferte Manifest ist ungültig: %v", err)
+		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
 
 	h, database := newTestHandler(t)
@@ -206,11 +206,11 @@ func zeitmarke(t *testing.T, database *db.DB, alter time.Duration) string {
 	store := plugin.NewStore(database)
 	roh, ok, err := store.StoreGet(context.Background(), "kontaktformular", 0, "signaturschluessel")
 	if err != nil || !ok {
-		t.Fatalf("das Plugin hat noch keinen Signaturschlüssel gezogen (ok=%v, err=%v)", ok, err)
+		t.Fatalf("the plugin has not drawn a signing key yet (ok=%v, err=%v)", ok, err)
 	}
 	key, err := base64.RawStdEncoding.DecodeString(roh)
 	if err != nil {
-		t.Fatalf("der Signaturschlüssel ist nicht lesbar: %v", err)
+		t.Fatalf("the signing key is not readable: %v", err)
 	}
 
 	stempel := strconv.FormatInt(time.Now().Add(alter).UTC().Unix(), 10)
@@ -226,7 +226,7 @@ func nachrichten(t *testing.T, database *db.DB) int {
 	if err := database.Read.QueryRow(
 		`SELECT COUNT(*) FROM plugin_store WHERE plugin_id = 'kontaktformular' AND key LIKE 'nachricht:%'`).
 		Scan(&n); err != nil {
-		t.Fatalf("zählen: %v", err)
+		t.Fatalf("count: %v", err)
 	}
 	return n
 }
@@ -267,7 +267,7 @@ func TestAnfrageLandetImPostausgang(t *testing.T) {
 		t.Fatalf("nichts im Postausgang: %v", err)
 	}
 	if empfaenger != "eva@example.test" {
-		t.Errorf("Empfänger = %q — die Adresse kommt aus den Einstellungen", empfaenger)
+		t.Errorf("recipient = %q — the address comes from the settings", empfaenger)
 	}
 	if !strings.Contains(betreff, "Rohwolle") || !strings.Contains(betreff, ws.Name) {
 		t.Errorf("Betreff = %q, erwartet Website-Name und Anliegen", betreff)
@@ -301,13 +301,13 @@ func TestOhneBenachrichtigungsadresseKeineMail(t *testing.T) {
 		t.Errorf("die Absendung schlug fehl: %q", ort)
 	}
 	if n := nachrichten(t, database); n != 1 {
-		t.Errorf("die Nachricht wurde nicht gespeichert (%d)", n)
+		t.Errorf("the message was not stored (%d)", n)
 	}
 
 	var offen int
 	database.Read.QueryRow(`SELECT COUNT(*) FROM mail_outbox`).Scan(&offen)
 	if offen != 0 {
-		t.Errorf("%d Nachrichten im Postausgang, obwohl keine Adresse hinterlegt ist", offen)
+		t.Errorf("%d messages in the outbox although no address is configured", offen)
 	}
 }
 
@@ -369,7 +369,7 @@ func TestEigenesFormularVonEndeZuEnde(t *testing.T) {
 		"f_dein-name": {"Eva"},
 	})
 	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=fehler") {
-		t.Errorf("die unvollständige Absendung wurde angenommen: %q", ort)
+		t.Errorf("the incomplete submission was accepted: %q", ort)
 	}
 
 	// --- vollständig ---
@@ -406,7 +406,7 @@ func TestMarkeMitUnbekanntemArgumentBleibtDerBetreff(t *testing.T) {
 		HTML: "<p>[[formular:Rohwolle]]</p>",
 	})
 	if !strings.Contains(seite, `value="Rohwolle"`) {
-		t.Errorf("der Betreff wurde nicht vorausgefüllt:\n%s", seite)
+		t.Errorf("the subject was not pre-filled:\n%s", seite)
 	}
 	// Gemeint ist mit der zweiten Prüfung: der klassische Zeichner lief, der
 	// zusammengestellte nicht. Zwei Zeichen irgendwo im Dokument zu suchen war
@@ -419,7 +419,7 @@ func TestMarkeMitUnbekanntemArgumentBleibtDerBetreff(t *testing.T) {
 	// positiv, dass das klassische Formular dasteht, und dreimal negativ nach
 	// den Spuren, die zeichnenEigen unvermeidlich hinterlässt.
 	if !strings.Contains(seite, `<form class="contact-form" method="POST"`) {
-		t.Errorf("das klassische Formular wurde nicht gezeichnet:\n%s", seite)
+		t.Errorf("the plain form was not drawn:\n%s", seite)
 	}
 	for _, spur := range []string{
 		`contact-form--`,  // die Klasse, mit der zeichnenEigen öffnet
@@ -427,7 +427,7 @@ func TestMarkeMitUnbekanntemArgumentBleibtDerBetreff(t *testing.T) {
 		`name="f_`,        // ein Feldname, in der einzigen Stellung, die er haben kann
 	} {
 		if strings.Contains(seite, spur) {
-			t.Errorf("es wurde ein zusammengestelltes Formular gezeichnet, %q steht in der Seite:\n%s", spur, seite)
+			t.Errorf("an assembled form was drawn, %q is in the page:\n%s", spur, seite)
 		}
 	}
 }
@@ -477,7 +477,7 @@ func TestFormulareditorUeberstehtDenFilterDesHosts(t *testing.T) {
 		`href="?ansicht=formulare"`,     // zurück zur Liste
 	} {
 		if !strings.Contains(sauber, wollte) {
-			t.Errorf("%q hat den Filter nicht überstanden", wollte)
+			t.Errorf("%q did not survive the filter", wollte)
 		}
 	}
 	// Und nichts, was ausführen könnte.

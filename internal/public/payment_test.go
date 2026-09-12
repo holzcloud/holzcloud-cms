@@ -170,7 +170,7 @@ func TestPaymentForTheWrongAmountIsRefused(t *testing.T) {
 
 	got := reload(t, h, ws, order.Number)
 	if got.PaymentStatus == shop.PaymentPaid {
-		t.Fatal("eine Zahlung über 1.00 hat eine Bestellung über 49.00 als bezahlt markiert")
+		t.Fatal("a payment of 1.00 marked an order of 49.00 as paid")
 	}
 	if got.Status == shop.OrderPaid {
 		t.Error("die Bestellung wurde trotzdem auf bezahlt gesetzt")
@@ -194,7 +194,7 @@ func TestPaymentInTheWrongCurrencyIsRefused(t *testing.T) {
 	}
 
 	if got := reload(t, h, ws, order.Number); got.PaymentStatus == shop.PaymentPaid {
-		t.Error("eine Zahlung in einer anderen Währung wurde angenommen")
+		t.Error("a payment in another currency was accepted")
 	}
 }
 
@@ -220,7 +220,7 @@ func TestFailedPaymentIsRecordedAndTheOrderStays(t *testing.T) {
 	// A customer who cancelled may still want the goods on account. Deleting
 	// their order is the one thing that makes that impossible.
 	if got.Status != shop.OrderNew {
-		t.Errorf("Bestellstatus = %q; eine gescheiterte Zahlung darf die Bestellung nicht entfernen", got.Status)
+		t.Errorf("order status = %q; a failed payment must not remove the order", got.Status)
 	}
 }
 
@@ -242,7 +242,7 @@ func TestAuthorizedIsNotPaid(t *testing.T) {
 
 	got := reload(t, h, ws, order.Number)
 	if got.PaymentStatus != shop.PaymentOpen {
-		t.Errorf("Zahlungsstatus = %q; reserviertes Geld ist kein eingegangenes Geld", got.PaymentStatus)
+		t.Errorf("payment status = %q; reserved money is not received money", got.PaymentStatus)
 	}
 }
 
@@ -268,10 +268,10 @@ func TestSettledPaymentIsNotAskedAboutAgain(t *testing.T) {
 	}
 
 	if fake.calls != 0 {
-		t.Errorf("der Anbieter wurde %d× gefragt, obwohl die Zahlung abgeschlossen ist", fake.calls)
+		t.Errorf("the provider was asked %d times although the payment is complete", fake.calls)
 	}
 	if got := reload(t, h, ws, order.Number); got.PaymentStatus != shop.PaymentRefunded {
-		t.Errorf("Zahlungsstatus = %q; eine Rückerstattung wurde überschrieben", got.PaymentStatus)
+		t.Errorf("payment status = %q; a refund was overwritten", got.PaymentStatus)
 	}
 }
 
@@ -292,7 +292,7 @@ func TestUnreachableProviderStillShowsTheOrder(t *testing.T) {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
 	if rec.Code != http.StatusSeeOther {
-		t.Errorf("Status = %d, erwartet 303 zur Bestätigung", rec.Code)
+		t.Errorf("status = %d, expected 303 to the confirmation", rec.Code)
 	}
 	if got := reload(t, h, ws, order.Number); got.PaymentStatus != shop.PaymentOpen {
 		t.Errorf("Zahlungsstatus = %q, erwartet offen", got.PaymentStatus)
@@ -330,7 +330,7 @@ func TestPaymentRoutesAreClosedWithoutKeys(t *testing.T) {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("Rückkehr-Adresse antwortet mit %d, obwohl kein Zugang eingerichtet ist", rec.Code)
+		t.Errorf("the return address answers with %d although no access is set up", rec.Code)
 	}
 
 	rec, err = postHook(h, ws, `{"transaction":{"id":4711}}`)
@@ -338,7 +338,7 @@ func TestPaymentRoutesAreClosedWithoutKeys(t *testing.T) {
 		t.Fatalf("HandlePaymentHook: %v", err)
 	}
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("Webhook antwortet mit %d, obwohl kein Zugang eingerichtet ist", rec.Code)
+		t.Errorf("the webhook answers with %d although no access is set up", rec.Code)
 	}
 }
 
@@ -368,10 +368,10 @@ func TestWebhookIsVerifiedAgainstTheProvider(t *testing.T) {
 		t.Errorf("Status = %d, erwartet 200", rec.Code)
 	}
 	if fake.calls == 0 {
-		t.Error("der Anbieter wurde gar nicht gefragt — die Nutzlast wurde geglaubt")
+		t.Error("the provider was not asked at all — the payload was believed")
 	}
 	if got := reload(t, h, ws, order.Number); got.PaymentStatus != shop.PaymentOpen {
-		t.Errorf("Zahlungsstatus = %q; der Webhook-Inhalt wurde als Beleg genommen", got.PaymentStatus)
+		t.Errorf("payment status = %q; the webhook's body was taken as proof", got.PaymentStatus)
 	}
 }
 
@@ -415,7 +415,7 @@ func TestWebhookRubbishIsAccepted(t *testing.T) {
 		}
 	}
 	if fake.calls != 0 {
-		t.Errorf("der Anbieter wurde %d× wegen einer unlesbaren Nutzlast gefragt", fake.calls)
+		t.Errorf("the provider was asked %d times because of an unreadable payload", fake.calls)
 	}
 }
 
@@ -443,7 +443,7 @@ func TestWebhookCannotReachAnotherWebsitesOrder(t *testing.T) {
 		t.Errorf("Status = %d", rec.Code)
 	}
 	if got := reload(t, h, seller, order.Number); got.PaymentStatus == shop.PaymentPaid {
-		t.Error("eine Bestellung einer anderen Website wurde als bezahlt markiert")
+		t.Error("another website's order was marked as paid")
 	}
 }
 
@@ -455,7 +455,7 @@ func TestPaymentMethodsDependOnConfiguration(t *testing.T) {
 	h.SetPayments(&payrexx.Client{})
 	for _, m := range h.paymentMethods() {
 		if m.Value == shop.PayPayrexx {
-			t.Fatal("Online-Zahlung wird angeboten, obwohl kein Zugang eingerichtet ist")
+			t.Fatal("online payment is offered although no access is set up")
 		}
 	}
 
@@ -467,7 +467,7 @@ func TestPaymentMethodsDependOnConfiguration(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("Online-Zahlung fehlt, obwohl der Zugang eingerichtet ist")
+		t.Error("online payment is missing although the access is set up")
 	}
 }
 
@@ -480,10 +480,10 @@ func TestOnlinePaymentIsRejectedWhenNotConfigured(t *testing.T) {
 	}
 
 	if errs := v.validate(shop.Private, false); errs["zahlungsart"] == "" {
-		t.Error("eine nicht eingerichtete Zahlungsart wurde angenommen")
+		t.Error("a payment method that is not configured was accepted")
 	}
 	if errs := v.validate(shop.Private, true); len(errs) != 0 {
-		t.Errorf("das Formular wurde abgelehnt, obwohl alles stimmt: %v", errs)
+		t.Errorf("the form was refused although everything is right: %v", errs)
 	}
 }
 
@@ -501,7 +501,7 @@ func TestPaymentNoteSpeaksToTheCustomer(t *testing.T) {
 	for _, tc := range cases {
 		got := paymentNote(&shop.Order{PaymentMethod: tc.method, PaymentStatus: tc.status})
 		if !strings.Contains(got, tc.want) {
-			t.Errorf("%s/%s: %q enthält %q nicht", tc.method, tc.status, got, tc.want)
+			t.Errorf("%s/%s: %q does not contain %q", tc.method, tc.status, got, tc.want)
 		}
 	}
 }

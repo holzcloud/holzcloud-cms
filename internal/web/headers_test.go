@@ -102,7 +102,7 @@ func TestPublicCSPAllowsTheHandoverToTheProvider(t *testing.T) {
 	csp := PublicCSP(PaymentFormAction)
 
 	if !strings.Contains(csp, "form-action 'self' "+PaymentFormAction+";") {
-		t.Errorf("form-action erlaubt den Zahlungsanbieter nicht: %s", csp)
+		t.Errorf("form-action does not allow the payment provider: %s", csp)
 	}
 	// Everything else has to stay exactly as strict.
 	for _, must := range []string{
@@ -117,7 +117,7 @@ func TestPublicCSPAllowsTheHandoverToTheProvider(t *testing.T) {
 	if strings.Contains(csp, "default-src 'self' https") ||
 		strings.Contains(csp, "script-src 'self' https") ||
 		strings.Contains(csp, "connect-src 'self' https") {
-		t.Errorf("der Zahlungsanbieter darf nur ein Navigationsziel sein: %s", csp)
+		t.Errorf("the payment provider may only be a navigation target: %s", csp)
 	}
 }
 

@@ -40,7 +40,7 @@ func TestListeLesen(t *testing.T) {
 	}
 	// Die Hauptsprache gehört nicht in die Liste der weiteren.
 	if got := ParseList("de", "de"); len(got) != 0 {
-		t.Errorf("die Hauptsprache steht in der Liste: %v", got)
+		t.Errorf("the main language is in the list: %v", got)
 	}
 	if got := ParseList("fr fr fr fr fr fr fr fr fr fr", "de"); len(got) != 1 {
 		t.Errorf("Doppelte nicht entfernt: %v", got)
@@ -101,10 +101,10 @@ func TestPraefixAbtrennen(t *testing.T) {
 // erreichbar.
 func TestBelegteAdressen(t *testing.T) {
 	if !Reserved("fr", []string{"fr", "it"}) {
-		t.Error("fr wurde nicht als belegt erkannt")
+		t.Error("fr was not recognised as taken")
 	}
 	if Reserved("frankreich", []string{"fr"}) {
-		t.Error("frankreich wurde fälschlich als belegt erkannt")
+		t.Error("frankreich was wrongly recognised as taken")
 	}
 }
 

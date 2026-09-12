@@ -134,7 +134,7 @@ func TestListWithCountsHidesLabelsOnlyDraftsCarry(t *testing.T) {
 	if len(public) != 1 || public[0].Name != "Möbel" {
 		// A label leading to an empty archive also tells a visitor that an
 		// unpublished page exists under that name.
-		t.Errorf("public labels = %v, want only Möbel", public)
+		t.Errorf("public terms = %v, want only Möbel", public) //nolint:german — the message quotes the German fixture it is about
 	}
 	if public[0].Count != 1 {
 		t.Errorf("count = %d, want 1", public[0].Count)
@@ -209,7 +209,7 @@ func TestRenameKeepsTheAddress(t *testing.T) {
 		t.Fatalf("the address changed with the name: %v %v", renamed, err)
 	}
 	if renamed.Name != "Möbelbau" {
-		t.Errorf("name = %q, want Möbelbau", renamed.Name)
+		t.Errorf("name = %q, want Möbelbau", renamed.Name) //nolint:german — the message quotes the German fixture it is about
 	}
 }
 

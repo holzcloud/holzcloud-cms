@@ -28,7 +28,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	}
 	m, err := plugin.ParseManifest(roh)
 	if err != nil {
-		t.Fatalf("das mitgelieferte Manifest ist ungültig: %v", err)
+		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
 
 	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
@@ -90,7 +90,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out.Changed {
-		t.Errorf("eine Seite ohne Marke wurde verändert: %+v", out)
+		t.Errorf("a page with no marker was changed: %+v", out)
 	}
 
 	// Mit Marke steht dort das Formular — mit den bestellbaren Produkten und
@@ -101,7 +101,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !out.Changed {
-		t.Fatal("die Marke wurde nicht ersetzt")
+		t.Fatal("the marker was not replaced")
 	}
 	for _, nötig := range []string{
 		`name="menge_seife"`, `name="menge_joghurt"`,
@@ -116,11 +116,11 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	}
 	// Die Seite „Der Hof“ hat keinen Preis und ist deshalb kein Produkt.
 	if strings.Contains(out.HTML, "Der Hof") {
-		t.Error("eine Seite ohne Preis steht in der Produktliste")
+		t.Error("a page with no price is in the product list")
 	}
 	// Ein Absatz um das Formular wäre ungültiges HTML.
 	if strings.Contains(out.HTML, "<p><div") {
-		t.Error("das Formular steckt in einem Absatz")
+		t.Error("the form is stuck inside a paragraph")
 	}
 
 	zeitmarke := zwischen(out.HTML, `name="gestellt" value="`, `"`)
@@ -146,7 +146,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		"name": {"Anna"}, "email": {"anna@example.ch"},
 	})
 	if !strings.Contains(antwort.Location, "mindestens+einem+Produkt") {
-		t.Errorf("eine Bestellung ohne Menge wurde angenommen: %+v", antwort)
+		t.Errorf("an order with no quantity was accepted: %+v", antwort)
 	}
 
 	// Ein gefüllter Honigtopf sieht wie ein Erfolg aus und wird verworfen.
@@ -156,7 +156,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		"menge_seife": {"1"}, "website": {"https://spam.example"},
 	})
 	if !strings.Contains(antwort.Location, "bestellung=gesendet") {
-		t.Errorf("der Honigtopf hat sich verraten: %+v", antwort)
+		t.Errorf("the honeypot gave itself away: %+v", antwort)
 	}
 
 	// Eine erfundene Zeitmarke wird abgelehnt: sonst wäre sie kein Schutz.
@@ -176,7 +176,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		"menge_seife": {"3"}, "menge_joghurt": {"2"},
 	})
 	if !strings.Contains(antwort.Location, "bestellung=gesendet") {
-		t.Fatalf("die Bestellung wurde nicht angenommen: %+v", antwort)
+		t.Fatalf("the order was not accepted: %+v", antwort)
 	}
 
 	// Der Betreiber wurde benachrichtigt, und die Summe stimmt: 3×8,50 + 2×7,00.
@@ -184,7 +184,7 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Fatalf("%d Benachrichtigungen, want 1", len(verschickt))
 	}
 	if !strings.Contains(verschickt[0], "39,50") {
-		t.Errorf("die Summe fehlt oder stimmt nicht:\n%s", verschickt[0])
+		t.Errorf("the total is missing or wrong:\n%s", verschickt[0])
 	}
 	if !strings.Contains(verschickt[0], "Anna Muster") {
 		t.Errorf("der Name fehlt:\n%s", verschickt[0])

@@ -76,7 +76,7 @@ func TestNichtDeklarierterHakenWirdNichtAufgerufen(t *testing.T) {
 	// nur: dieses Plugin kostet an dieser Stelle nichts.
 	var out RequestOut
 	if err := r.Dispatch(context.Background(), "echo", HookRoute, 1, RequestIn{}, &out); err != nil {
-		t.Errorf("ein nicht deklarierter Haken meldete einen Fehler: %v", err)
+		t.Errorf("an undeclared hook reported an error: %v", err)
 	}
 	if out.Handled {
 		t.Error("ein nicht deklarierter Haken hat geantwortet")
@@ -99,7 +99,7 @@ func TestEigenerSpeicherUeberDieGrenze(t *testing.T) {
 	// Der Host muss es unter genau diesem Plugin und dieser Website sehen.
 	v, ok, err := s.StoreGet(ctx, "echo", 7, "farbe")
 	if err != nil || !ok || v != "grün" {
-		t.Fatalf("der Wert kam nicht an: %q %v %v", v, ok, err)
+		t.Fatalf("the value did not arrive: %q %v %v", v, ok, err)
 	}
 
 	var gelesen struct {
@@ -107,7 +107,7 @@ func TestEigenerSpeicherUeberDieGrenze(t *testing.T) {
 	}
 	ereignis(map[string]string{"tue": "lesen", "key": "farbe"}, &gelesen)
 	if !strings.Contains(gelesen.Gelesen, "grün") {
-		t.Errorf("das Plugin hat seinen eigenen Wert nicht gelesen: %q", gelesen.Gelesen)
+		t.Errorf("the plugin did not read its own value: %q", gelesen.Gelesen)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestKurzerPufferWirdNachgefordert(t *testing.T) {
 		t.Fatalf("Dispatch: %v", err)
 	}
 	if out.Length < len(gross) {
-		t.Errorf("nur %d Bytes zurückbekommen, erwartet mindestens %d", out.Length, len(gross))
+		t.Errorf("only %d bytes back, expected at least %d", out.Length, len(gross))
 	}
 }
 
@@ -199,13 +199,13 @@ func TestEndlosschleifeWirdAbgebrochen(t *testing.T) {
 	// Ohne Zeitgrenze hält so ein Modul die Verbindung, dann die nächste, und
 	// die Website antwortet nicht mehr — ohne eine Zeile im Protokoll.
 	if dauer > 3*CallTimeout {
-		t.Errorf("der Abbruch dauerte %v, Grenze ist %v", dauer, CallTimeout)
+		t.Errorf("the abort took %v, the limit is %v", dauer, CallTimeout)
 	}
 	// Der Grund muss beim Plugin vermerkt sein, nicht nur im Protokoll von vor
 	// drei Neustarts.
 	p, _ := s.Get(ctx, "echo")
 	if p.LastError == "" {
-		t.Error("der Abbruch wurde beim Plugin nicht vermerkt")
+		t.Error("the abort was not recorded on the plugin")
 	}
 }
 
@@ -215,13 +215,13 @@ func TestUnsinnigeAntwortBrichtDieAnfrageNicht(t *testing.T) {
 	err := r.Dispatch(context.Background(), "echo", HookEvent, 1,
 		EventIn{Name: "test", Data: map[string]string{"tue": "muell"}}, &out)
 	if err == nil {
-		t.Fatal("ungültiges JSON wurde angenommen")
+		t.Fatal("invalid JSON was accepted")
 	}
 	if !strings.Contains(err.Error(), "JSON") {
 		t.Errorf("die Meldung sagt nicht, was falsch war: %v", err)
 	}
 	if p, _ := s.Get(context.Background(), "echo"); p.LastError == "" {
-		t.Error("der Fehler wurde beim Plugin nicht vermerkt")
+		t.Error("the error was not recorded on the plugin")
 	}
 }
 
@@ -247,11 +247,11 @@ func TestEntladenUndNichtGeladen(t *testing.T) {
 	r, _, _ := neueLaufzeit(t, PermStore)
 	ctx := context.Background()
 	if !r.Loaded("echo") {
-		t.Fatal("nach Load nicht geladen")
+		t.Fatal("not loaded after Load")
 	}
 	r.Unload(ctx, "echo")
 	if r.Loaded("echo") {
-		t.Error("nach Unload noch geladen")
+		t.Error("still loaded after Unload")
 	}
 	if err := r.Dispatch(ctx, "echo", HookContent, 1, ContentIn{}, &ContentOut{}); err == nil {
 		t.Error("ein entladenes Plugin wurde aufgerufen")

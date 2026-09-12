@@ -14,11 +14,11 @@ func TestPluginBildschirmOhneSkript(t *testing.T) {
 
 	for _, verboten := range []string{"<script", "onerror", "javascript:", "<iframe"} {
 		if strings.Contains(out, verboten) {
-			t.Errorf("%q hat die Bereinigung überlebt: %s", verboten, out)
+			t.Errorf("%q survived the cleaning: %s", verboten, out)
 		}
 	}
 	if !strings.Contains(out, "<p>Hallo</p>") {
-		t.Errorf("der harmlose Teil ist weg: %s", out)
+		t.Errorf("the harmless part is gone: %s", out)
 	}
 }
 
@@ -37,7 +37,7 @@ func TestPluginBildschirmBehaeltFormulare(t *testing.T) {
 		`<option`, `selected`, `<textarea`, `<button`,
 	} {
 		if !strings.Contains(out, nötig) {
-			t.Errorf("%q fehlt nach der Bereinigung: %s", nötig, out)
+			t.Errorf("%q is missing after the cleaning: %s", nötig, out)
 		}
 	}
 }
@@ -54,15 +54,15 @@ func TestSchluesselKommtInJedesFormular(t *testing.T) {
 	out := string(WithCSRFToken(screen, "geheim123"))
 
 	if n := strings.Count(out, `name="gorilla.csrf.Token"`); n != 2 {
-		t.Errorf("%d Schlüsselfelder, want 2: %s", n, out)
+		t.Errorf("%d key fields, want 2: %s", n, out)
 	}
 	if !strings.Contains(out, `value="geheim123"`) {
-		t.Errorf("der Wert fehlt: %s", out)
+		t.Errorf("the value is missing: %s", out)
 	}
 	// Direkt hinter dem öffnenden Tag, sonst steht er ausserhalb des Formulars
 	// und wird nicht mitgesendet.
 	if !strings.Contains(out, `<form method="POST"><input type="hidden" name="gorilla.csrf.Token"`) {
-		t.Errorf("das Feld steht nicht im Formular: %s", out)
+		t.Errorf("the field is not in the form: %s", out)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestSchluesselNurWoEinFormularIst(t *testing.T) {
 	}
 	mitForm := SafeHTML(`<form method="POST"></form>`)
 	if out := string(WithCSRFToken(mitForm, "")); out != `<form method="POST"></form>` {
-		t.Errorf("ohne Schlüssel wurde etwas eingesetzt: %q", out)
+		t.Errorf("something was substituted without a key: %q", out)
 	}
 }
 
@@ -85,15 +85,15 @@ func TestPluginKannKeinenSchluesselErfinden(t *testing.T) {
 	out := string(WithCSRFToken(SanitizeAdminHTML(roh), "echt"))
 
 	if strings.Contains(out, "erfunden") && !strings.Contains(out, "echt") {
-		t.Errorf("nur der erfundene Schlüssel steht da: %s", out)
+		t.Errorf("only the invented key is there: %s", out)
 	}
 	if !strings.Contains(out, `value="echt"`) {
-		t.Errorf("der echte Schlüssel fehlt: %s", out)
+		t.Errorf("the real key is missing: %s", out)
 	}
 	// Der echte steht vorn: das erste Feld gleichen Namens gewinnt beim Lesen.
 	echt := strings.Index(out, `value="echt"`)
 	erfunden := strings.Index(out, `value="erfunden"`)
 	if erfunden >= 0 && erfunden < echt {
-		t.Errorf("der erfundene Schlüssel steht vor dem echten: %s", out)
+		t.Errorf("the invented key stands before the real one: %s", out)
 	}
 }

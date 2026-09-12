@@ -90,16 +90,16 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 
 	// --- runter -------------------------------------------------------------
 	if _, err := provider.ApplyVersion(ctx, 47, false); err != nil {
-		t.Fatalf("00047 zurücknehmen: %v", err)
+		t.Fatalf("roll 00047 back: %v", err)
 	}
 
 	var uebrig int
 	if err := database.Read.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM page_field_defs`).Scan(&uebrig); err != nil {
-		t.Fatalf("Felder zählen: %v", err)
+		t.Fatalf("count fields: %v", err)
 	}
 	if uebrig != 1 {
-		t.Fatalf("nach der Rücknahme sind %d Felder da, erwartet 1 (nur das Seitenfeld)", uebrig)
+		t.Fatalf("after the rollback %d fields are there, expected 1 (the page field only)", uebrig)
 	}
 	var kennung string
 	if err := database.Read.QueryRowContext(ctx,
@@ -107,7 +107,7 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 		t.Fatalf("Feld lesen: %v", err)
 	}
 	if kennung != "telefon" {
-		t.Errorf("übriges Feld = %q, erwartet \"telefon\"", kennung)
+		t.Errorf("remaining field = %q, expected \"telefon\"", kennung)
 	}
 
 	var indexSQL string
@@ -121,7 +121,7 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 			"und damit eine Wanderung zu weit zurück", indexSQL)
 	}
 	if strings.Contains(indexSQL, "snippet_id") {
-		t.Errorf("wiederhergestellter Index = %q — snippet_id gehört nach der Rücknahme nicht mehr hinein", indexSQL)
+		t.Errorf("restored index = %q — snippet_id does not belong in it after the rollback", indexSQL)
 	}
 
 	// --- und wieder rauf ----------------------------------------------------
@@ -129,19 +129,19 @@ func TestMigration00047RunterUndRauf(t *testing.T) {
 		t.Fatalf("00047 erneut anwenden: %v", err)
 	}
 	if err := RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations nach der Rückfahrt: %v", err)
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
 	}
 
 	var wieder string
 	if err := database.Read.QueryRowContext(ctx,
 		`SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_page_field_defs_key_snippet'`).
 		Scan(&wieder); err != nil {
-		t.Fatalf("Textbaustein-Index nach der Rückfahrt: %v", err)
+		t.Fatalf("snippet index after the trip back up: %v", err)
 	}
 	var leer string
 	if err := database.Read.QueryRowContext(ctx,
 		`SELECT fields FROM snippets WHERE id = $1`, snippetID).Scan(&leer); err != nil {
-		t.Fatalf("snippets.fields nach der Rückfahrt: %v", err)
+		t.Fatalf("snippets.fields after the trip back up: %v", err)
 	}
 	if leer != "" {
 		t.Errorf("snippets.fields = %q, erwartet leer", leer)
@@ -192,7 +192,7 @@ func TestMigration00048RunterUndRauf(t *testing.T) {
 
 	// --- runter -------------------------------------------------------------
 	if _, err := provider.ApplyVersion(ctx, 48, false); err != nil {
-		t.Fatalf("00048 zurücknehmen: %v", err)
+		t.Fatalf("roll 00048 back: %v", err)
 	}
 	zurueck := indexText("nach der Rücknahme")
 	if strings.Contains(zurueck, "parent_id") {
@@ -209,13 +209,13 @@ func TestMigration00048RunterUndRauf(t *testing.T) {
 		t.Fatalf("00048 erneut anwenden: %v", err)
 	}
 	if got := indexText("nach der Rückfahrt"); !strings.Contains(got, "parent_id") {
-		t.Errorf("nach der Rückfahrt: Index = %q, erwartet die engere Form mit parent_id", got)
+		t.Errorf("after the trip back up: index = %q, expected the narrower form with parent_id", got)
 	}
 
 	// And back to head, so the database this test leaves behind is the one every
 	// other test starts from.
 	if err := RunMigrations(database.Write); err != nil {
-		t.Fatalf("RunMigrations nach der Rückfahrt: %v", err)
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
 	}
 }
 

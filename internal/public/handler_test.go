@@ -294,11 +294,11 @@ func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
 	// Ohne Version: kurz und nachfragbar.
 	rec := hole("/t/style.css", "")
 	if cc := rec.Header().Get("Cache-Control"); strings.Contains(cc, "immutable") {
-		t.Errorf("Cache-Control = %q; auf einer festen Adresse darf nichts immutable sein", cc)
+		t.Errorf("Cache-Control = %q; nothing on a fixed address may be immutable", cc)
 	}
 	etag := rec.Header().Get("ETag")
 	if etag == "" {
-		t.Fatal("ohne ETag ist die Rückfrage so teuer wie ein neuer Abruf")
+		t.Fatal("without an ETag the revalidation costs as much as a fresh fetch")
 	}
 
 	// Die Rückfrage kostet dann nichts mehr.
@@ -307,13 +307,13 @@ func TestVorlagenAssetsBleibenErreichbar(t *testing.T) {
 		t.Errorf("status = %d; want 304", rec.Code)
 	}
 	if rec.Body.Len() != 0 {
-		t.Errorf("304 mit Körper: %q", rec.Body.String())
+		t.Errorf("304 with a body: %q", rec.Body.String())
 	}
 
 	// Mit Version im Verweis hält der Aufrufer das Versprechen, also gilt es.
 	rec = hole("/t/style.css?v=1.8", "")
 	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
-		t.Errorf("Cache-Control = %q; eine versionierte Adresse darf lange liegen", cc)
+		t.Errorf("Cache-Control = %q; a versioned address may sit for a long time", cc)
 	}
 }
 
@@ -475,7 +475,7 @@ func TestTheStartPageHasOneAddress(t *testing.T) {
 		WebsiteID: ws.ID, Title: "Accueil", Slug: page.HomeSlug, Status: "published",
 		Markdown: "Bienvenue.", Locale: "fr",
 	}); err != nil {
-		t.Fatalf("die französische Startseite: %v", err)
+		t.Fatalf("the French start page: %v", err)
 	}
 
 	for _, c := range []struct{ locale, want string }{{"", "/"}, {"fr", "/fr"}} {
@@ -493,11 +493,11 @@ func TestTheStartPageHasOneAddress(t *testing.T) {
 			t.Fatalf("HandlePage %q: %v", c.locale, err)
 		}
 		if rec.Code != http.StatusMovedPermanently {
-			t.Errorf("/home in der Sprache %q antwortet mit %d statt 301", c.locale, rec.Code)
+			t.Errorf("/home in the language %q answers with %d instead of 301", c.locale, rec.Code)
 			continue
 		}
 		if got := rec.Header().Get("Location"); got != c.want {
-			t.Errorf("/home in der Sprache %q leitet nach %q statt nach %q", c.locale, got, c.want)
+			t.Errorf("/home in the language %q redirects to %q instead of to %q", c.locale, got, c.want)
 		}
 	}
 
@@ -574,14 +574,14 @@ func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
 			t.Fatalf("HandlePage: %v", err)
 		}
 		if rec.Code != http.StatusOK {
-			t.Fatalf("die Seite gab %d zurück", rec.Code)
+			t.Fatalf("the page returned %d", rec.Code)
 		}
 		return rec.Body.String()
 	}
 
 	vorher := hole()
 	if !strings.Contains(vorher, `<span class="thema">Möbel</span>`) {
-		t.Fatalf("die Seite druckt den Namen des Schlagworts nicht:\n%s", vorher)
+		t.Fatalf("the page does not print the term's name:\n%s", vorher)
 	}
 	// Und die Adresse trägt das Kürzel, nicht den Namen.
 	if !strings.Contains(vorher, "/tag/moebel") {
@@ -599,15 +599,15 @@ func TestSchlagwortfeldDrucktDenAktuellenNamen(t *testing.T) {
 
 	nachher := hole()
 	if !strings.Contains(nachher, `<span class="thema">Möbelbau</span>`) {
-		t.Errorf("nach dem Umbenennen fehlt der neue Name:\n%s", nachher)
+		t.Errorf("after the rename the new name is missing:\n%s", nachher)
 	}
 	if strings.Contains(nachher, ">Möbel<") {
-		t.Errorf("nach dem Umbenennen steht noch der alte Name da:\n%s", nachher)
+		t.Errorf("after the rename the old name is still there:\n%s", nachher)
 	}
 	// Das Kürzel bleibt, absichtlich: eine Umbenennung soll bestehende Links
 	// nicht zerbrechen.
 	if !strings.Contains(nachher, "/tag/moebel") {
-		t.Errorf("die Adresse hat sich beim Umbenennen bewegt:\n%s", nachher)
+		t.Errorf("the address moved when it was renamed:\n%s", nachher)
 	}
 }
 
@@ -648,14 +648,14 @@ func TestSchlagwortfeldOhneSchlagwortBleibtLeer(t *testing.T) {
 		t.Fatalf("HandlePage: %v", err)
 	}
 	if rec.Code != http.StatusOK {
-		t.Fatalf("die Seite gab %d zurück", rec.Code)
+		t.Fatalf("the page returned %d", rec.Code)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "Eichentisch") {
-		t.Errorf("die Seite selbst fehlt:\n%s", body)
+		t.Errorf("the page itself is missing:\n%s", body)
 	}
 	if strings.Contains(body, `class="thema"`) {
-		t.Errorf("für das leere Feld wurde etwas gedruckt:\n%s", body)
+		t.Errorf("something was printed for the empty field:\n%s", body)
 	}
 }
 
@@ -716,10 +716,10 @@ func TestSchlagwortfeldErreichtKeineFremdeWebsite(t *testing.T) {
 	}
 	body := rec.Body.String()
 	if strings.Contains(body, "Geheim") || strings.Contains(body, "geheim") {
-		t.Errorf("das Schlagwort einer fremden Website steht auf der Seite:\n%s", body)
+		t.Errorf("another website's term is on the page:\n%s", body)
 	}
 	if strings.Contains(body, `class="thema"`) {
-		t.Errorf("für das fremde Schlagwort wurde etwas gedruckt:\n%s", body)
+		t.Errorf("something was printed for the foreign term:\n%s", body)
 	}
 }
 

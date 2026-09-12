@@ -971,7 +971,7 @@ func TestABlankTermsCellDoesNotWipeAPagesTerms(t *testing.T) {
 		t.Fatalf("ForPage: %v", err)
 	}
 	if len(after) != 2 {
-		t.Errorf("a blank Schlagwörter cell left the page with %d terms, want the 2 it had: %v",
+		t.Errorf("a blank terms cell left the page with %d terms, want the 2 it had: %v",
 			len(after), after)
 	}
 }
@@ -1008,7 +1008,7 @@ func TestAFilledTermsCellStillReplacesThem(t *testing.T) {
 		t.Fatalf("ForPage: %v", err)
 	}
 	if len(after) != 1 || after[0].Name != "Steinobst" {
-		t.Errorf("a stated Schlagwörter cell left %v, want exactly Steinobst", after)
+		t.Errorf("a stated terms cell left %v, want exactly Steinobst", after)
 	}
 }
 

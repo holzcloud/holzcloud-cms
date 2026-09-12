@@ -213,6 +213,6 @@ func TestEveryAdminDocumentNamesAFavicon(t *testing.T) {
 	// Ohne diese Zeile wäre der Test grün, wenn die Vorlagen umbenannt oder
 	// verschoben würden und die Schleife gar nichts mehr fände.
 	if geprueft < 5 {
-		t.Fatalf("nur %d vollständige Dokumente gefunden; die Suche greift nicht mehr", geprueft)
+		t.Fatalf("only %d complete documents found; the search no longer bites", geprueft)
 	}
 }

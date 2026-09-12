@@ -21,10 +21,10 @@ func TestZellenDieAlsFormelGelesenWuerdenBekommenEinApostroph(t *testing.T) {
 	for _, wert := range gefaehrlich {
 		got := entschaerfen([]string{wert})[0]
 		if !strings.HasPrefix(got, "'") {
-			t.Errorf("%q bleibt unentschärft: %q", wert, got)
+			t.Errorf("%q stays undefused: %q", wert, got)
 		}
 		if got != "'"+wert {
-			t.Errorf("%q wurde über das Apostroph hinaus verändert: %q", wert, got)
+			t.Errorf("%q was changed beyond the apostrophe: %q", wert, got)
 		}
 	}
 }
@@ -62,7 +62,7 @@ func TestTabelleTraegtDieFestenSpaltenUndDieDerFormulare(t *testing.T) {
 	out := string(raw)
 
 	if !strings.HasPrefix(out, "\ufeff") {
-		t.Error("ohne Byte-Order-Mark öffnet Excel die Datei nicht als UTF-8")
+		t.Error("without a byte-order mark Excel does not open the file as UTF-8")
 	}
 	for _, spalte := range []string{"Zeit", "Formular", "Name", "E-Mail", "Kurs", "Personen", "Nachricht"} {
 		if !strings.Contains(out, spalte) {
@@ -70,11 +70,11 @@ func TestTabelleTraegtDieFestenSpaltenUndDieDerFormulare(t *testing.T) {
 		}
 	}
 	if !strings.Contains(out, "Drechseln") || !strings.Contains(out, "Guten Tag") {
-		t.Error("die Antworten stehen nicht in der Tabelle")
+		t.Error("the answers are not in the table")
 	}
 	// Beide Zeilen und die Kopfzeile.
 	if n := strings.Count(strings.TrimSpace(out), "\n"); n != 2 {
-		t.Errorf("%d Zeilenumbrüche, 2 erwartet — Kopfzeile plus zwei Nachrichten", n)
+		t.Errorf("%d line breaks, expected 2 — header row plus two messages", n)
 	}
 }
 
