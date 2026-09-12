@@ -11,17 +11,17 @@ import (
 	plugin "github.com/holzcloud/holzcloud-cms/sdk"
 )
 
-// Der Bildschirm, auf dem Formulare zusammengestellt werden.
+// The screen on which forms are assembled.
 //
-// Er hat zwei Ansichten, und die Adresse sagt welche: ohne Angabe die
-// Nachrichten, mit ?ansicht=formulare die Liste der Formulare, mit
-// ?ansicht=formular&kennung=… der Editor für eines. Ein Plugin bekommt die
-// Abfragezeichenkette vom Host, deshalb kann es das überhaupt.
+// It has two views, and the address says which: with nothing the messages, with
+// ?ansicht=formulare the list of forms, with ?ansicht=formular&kennung=… the
+// editor for one. A plugin gets the query string from the host, which is what
+// makes this possible at all.
 //
-// Der Feldeditor arbeitet wie der Baustein-Editor der Seiten: Hinzufügen,
-// Verschieben und Entfernen sind Absende-Knöpfe, und der Bildschirm wird danach
-// neu gezeichnet. Ohne JavaScript, weil ein Plugin keines mitbringen darf — und
-// weil es so auch nicht kaputtgehen kann.
+// The field editor works like the pages' block editor: adding, moving and
+// removing are submit buttons, and the screen is redrawn afterwards. Without
+// JavaScript, because a plugin may bring none — and because that way it cannot
+// break either.
 
 const (
 	ansichtNachrichten = ""
@@ -34,7 +34,7 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 	q, _ := url.ParseQuery(in.Query)
 
 	if in.Method == "POST" {
-		if out, behandelt, err := formularAktion(in, q); behandelt {
+		if out, behandelt, err := formAction(in, q); behandelt {
 			return out, err
 		}
 	}
@@ -45,22 +45,22 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 	case ansichtFormular:
 		return formulareditor(in, q.Get("kennung"))
 	default:
-		return bildschirm(in)
+		return screen(in)
 	}
 }
 
-// navigation ist die Zeile, die zwischen den Ansichten wechselt.
+// navigation is the row that switches between the views.
 func navigation(aktuell string) string {
-	art := func(name, beschriftung, ansicht string) string {
-		klasse := "btn btn--sm"
+	art := func(name, label, ansicht string) string {
+		class := "btn btn--sm"
 		if aktuell == name {
-			klasse += " btn--primary"
+			class += " btn--primary"
 		}
 		ziel := "."
 		if ansicht != "" {
 			ziel = "?ansicht=" + ansicht
 		}
-		return fmt.Sprintf(`<a class="%s" href="%s">%s</a> `, klasse, ziel, beschriftung)
+		return fmt.Sprintf(`<a class="%s" href="%s">%s</a> `, class, ziel, label)
 	}
 	return `<p class="table-actions">` +
 		art(ansichtNachrichten, "Nachrichten", "") +
@@ -74,24 +74,24 @@ func formularliste() (plugin.AdminOut, error) {
 	var b strings.Builder
 	b.WriteString(navigation(ansichtFormulare))
 	b.WriteString(`<p>Ein eigenes Formular fragt genau das, was du wissen willst. ` +
-		`Setze es mit seiner Marke in eine Seite, so wie einen Textbaustein.</p>`)
+		`Put it into a page with its marker, the way you would a snippet.</p>`)
 
-	liste := alleFormulare()
+	liste := allForms()
 	if len(liste) == 0 {
-		b.WriteString(`<p class="empty">Noch kein eigenes Formular. ` +
-			`Das eingebaute Kontaktformular steht weiterhin unter <code>[[formular]]</code>.</p>`)
+		b.WriteString(`<p class="empty">No form of your own yet. ` +
+			`The built-in contact form is still available under <code>[[formular]]</code>.</p>`)
 	} else {
 		b.WriteString(`<table class="table"><thead><tr>` +
-			`<th>Formular</th><th>Felder</th><th>Marke für die Seite</th><th></th>` +
+			`<th>Form</th><th>Fields</th><th>Marker for the page</th><th></th>` +
 			`</tr></thead><tbody>`)
 		for _, f := range liste {
 			fmt.Fprintf(&b, `<tr><td>%s</td><td>%d</td><td><code>%s</code></td><td class="table-actions">`,
-				html.EscapeString(f.Name), len(f.Fields), html.EscapeString(markeFuer(f.Key)))
+				html.EscapeString(f.Name), len(f.Fields), html.EscapeString(markerFor(f.Key)))
 			fmt.Fprintf(&b, `<a class="btn btn--sm" href="?ansicht=formular&amp;kennung=%s">Bearbeiten</a>`,
 				html.EscapeString(f.Key))
 			fmt.Fprintf(&b, `<form method="POST" class="inline-form">`+
 				`<input type="hidden" name="loeschen_formular" value="%s">`+
-				`<button type="submit" class="btn btn--sm btn--danger">Löschen</button></form>`,
+				`<button type="submit" class="btn btn--sm btn--danger">Delete</button></form>`,
 				html.EscapeString(f.Key))
 			b.WriteString(`</td></tr>`)
 		}
@@ -111,17 +111,17 @@ func formularliste() (plugin.AdminOut, error) {
 
 // --- Editor -----------------------------------------------------------------
 
-func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) {
-	f, ok := formularLaden(kennung)
+func formulareditor(in plugin.AdminIn, key string) (plugin.AdminOut, error) {
+	f, ok := formularLaden(key)
 	if !ok {
 		return plugin.AdminOut{Redirect: "?ansicht=formulare",
-			Flash: "Dieses Formular gibt es nicht.", FlashError: true}, nil
+			Flash: "There is no such form.", FlashError: true}, nil
 	}
 
 	e := html.EscapeString
 	var b strings.Builder
 	b.WriteString(navigation(ansichtFormulare))
-	fmt.Fprintf(&b, `<p>In der Seite platzieren mit <code>%s</code>.</p>`, e(markeFuer(f.Key)))
+	fmt.Fprintf(&b, `<p>Place it in the page with <code>%s</code>.</p>`, e(markerFor(f.Key)))
 
 	b.WriteString(`<form method="POST" class="stack">`)
 	fmt.Fprintf(&b, `<input type="hidden" name="kennung" value="%s">`, e(f.Key))
@@ -131,8 +131,8 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 		`<input type="text" id="f-name" name="name" value="%s" maxlength="80" required>`, e(f.Name))
 	fmt.Fprintf(&b, `<label for="f-betreff">Betreff der Benachrichtigung</label>`+
 		`<input type="text" id="f-betreff" name="betreff" value="%s" maxlength="120" `+
-		`placeholder="Sonst der Name des Formulars">`, e(f.Betreff))
-	fmt.Fprintf(&b, `<label for="f-dank">Satz nach dem Absenden</label>`+
+		`placeholder="Otherwise the name of the form">`, e(f.Subject))
+	fmt.Fprintf(&b, `<label for="f-dank">Sentence after submitting</label>`+
 		`<input type="text" id="f-dank" name="dank" value="%s" maxlength="200" `+
 		`placeholder="Danke, die Nachricht ist angekommen. Wir melden uns.">`, e(f.Dank))
 	b.WriteString(`</fieldset>`)
@@ -147,7 +147,7 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 			p, p, p, e(fe.Label))
 
 		fmt.Fprintf(&b, `<label for="%s-a">Art</label><select id="%s-a" name="%s.art">`, p, p, p)
-		for _, a := range feldArten {
+		for _, a := range fieldKinds {
 			aus := ""
 			if a.Art == fe.Art {
 				aus = " selected"
@@ -156,11 +156,11 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 		}
 		b.WriteString(`</select>`)
 
-		fmt.Fprintf(&b, `<label for="%s-w">Zur Auswahl (eine Möglichkeit pro Zeile)</label>`+
+		fmt.Fprintf(&b, `<label for="%s-w">Options (one per line)</label>`+
 			`<textarea id="%s-w" name="%s.auswahl" rows="3">%s</textarea>`,
 			p, p, p, e(strings.Join(fe.Choices, "\n")))
 
-		fmt.Fprintf(&b, `<label for="%s-h">Hinweis unter dem Feld</label>`+
+		fmt.Fprintf(&b, `<label for="%s-h">Hint under the field</label>`+
 			`<input type="text" id="%s-h" name="%s.hinweis" value="%s" maxlength="200">`,
 			p, p, p, e(fe.Hint))
 
@@ -169,29 +169,29 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 			an = " checked"
 		}
 		fmt.Fprintf(&b, `<label><input type="checkbox" name="%s.pflicht" value="1"%s> `+
-			`Muss ausgefüllt werden</label>`, p, an)
+			`Has to be filled in</label>`, p, an)
 
 		b.WriteString(`<p class="table-actions">`)
-		aktionsknopf(&b, "feldaktion", "hoch:"+strconv.Itoa(i), "↑ nach oben", "")
-		aktionsknopf(&b, "feldaktion", "runter:"+strconv.Itoa(i), "↓ nach unten", "")
-		aktionsknopf(&b, "feldaktion", "weg:"+strconv.Itoa(i), "Feld entfernen", "btn--danger")
+		actionButton(&b, "feldaktion", "hoch:"+strconv.Itoa(i), "↑ nach oben", "")
+		actionButton(&b, "feldaktion", "runter:"+strconv.Itoa(i), "↓ nach unten", "")
+		actionButton(&b, "feldaktion", "weg:"+strconv.Itoa(i), "Feld entfernen", "btn--danger")
 		b.WriteString(`</p></fieldset>`)
 	}
 
 	if len(f.Fields) == 0 {
-		b.WriteString(`<p class="empty">Noch kein Feld. Ein Formular ohne Felder wird nicht angezeigt.</p>`)
+		b.WriteString(`<p class="empty">No field yet. A form with no fields is not shown.</p>`)
 	}
 
 	b.WriteString(`<p class="table-actions">`)
-	aktionsknopf(&b, "feldaktion", "neu", "Feld hinzufügen", "")
+	actionButton(&b, "feldaktion", "neu", "Add field", "")
 	b.WriteString(`</p>`)
 	b.WriteString(`<p><button type="submit" name="sichern" value="1" class="btn btn--primary">` +
 		`Formular speichern</button></p>`)
 	b.WriteString(`</form>`)
 
 	if _, hat := f.ersteArt(ArtEmail); !hat && len(f.Fields) > 0 {
-		b.WriteString(`<p class="text-muted">Kein Feld für eine E-Mail-Adresse: ` +
-			`Auf eine Anfrage über dieses Formular lässt sich dann nicht per Mail antworten.</p>`)
+		b.WriteString(`<p class="text-muted">No field for an e-mail address: ` +
+			`an enquiry through this form then cannot be answered by mail.</p>`)
 	}
 
 	return plugin.AdminOut{Title: "Formular: " + f.Name, HTML: b.String()}, nil
@@ -199,86 +199,86 @@ func formulareditor(in plugin.AdminIn, kennung string) (plugin.AdminOut, error) 
 
 // --- Aktionen ---------------------------------------------------------------
 
-// formularAktion behandelt alles, was auf den beiden Formularansichten
-// abgesendet wird. Der zweite Rückgabewert sagt, ob es dazugehörte.
-func formularAktion(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) {
+// formAction handles everything submitted on the two form views. The second
+// return value says whether it belonged to them.
+func formAction(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) {
 	switch {
 	case len(in.Form["neues_formular"]) > 0:
 		name := strings.TrimSpace(in.Form["neues_formular"][0])
-		kennung := kennungAus(name)
-		if kennung == "" {
+		key := keyFrom(name)
+		if key == "" {
 			return plugin.AdminOut{Redirect: "?ansicht=formulare",
-				Flash:      "Aus diesem Namen lässt sich keine Kennung bilden. Bitte Buchstaben verwenden.",
+				Flash:      "No key can be made from this name. Please use letters.",
 				FlashError: true}, true, nil
 		}
-		if _, da := formularLaden(kennung); da {
+		if _, da := formularLaden(key); da {
 			return plugin.AdminOut{Redirect: "?ansicht=formulare",
-				Flash: "Ein Formular mit dieser Kennung gibt es schon.", FlashError: true}, true, nil
+				Flash: "A form with this key already exists.", FlashError: true}, true, nil
 		}
-		f := formular{Key: kennung, Name: name}
-		if err := formularSichern(f.saeubern()); err != nil {
+		f := formular{Key: key, Name: name}
+		if err := save(f.clean()); err != nil {
 			return plugin.AdminOut{}, true, err
 		}
-		return plugin.AdminOut{Redirect: "?ansicht=formular&kennung=" + kennung,
+		return plugin.AdminOut{Redirect: "?ansicht=formular&kennung=" + key,
 			Flash: "Angelegt. Jetzt die Felder festlegen."}, true, nil
 
 	case len(in.Form["loeschen_formular"]) > 0:
-		kennung := in.Form["loeschen_formular"][0]
-		if reKennung.MatchString(kennung) {
-			_ = plugin.Delete(praefixFormular + kennung)
+		key := in.Form["loeschen_formular"][0]
+		if reKey.MatchString(key) {
+			_ = plugin.Delete(praefixFormular + key)
 		}
-		// Die schon eingegangenen Nachrichten bleiben: sie sind der Grund,
-		// warum es das Formular gab, und mit ihm zu verschwinden wäre das
-		// Gegenteil von dem, was jemand beim Aufräumen erwartet.
+		// The messages that have already come in stay: they are the reason the
+		// form existed, and disappearing with it would be the opposite of what
+		// somebody expects when tidying up.
 		return plugin.AdminOut{Redirect: "?ansicht=formulare",
-			Flash: "Formular gelöscht. Die eingegangenen Nachrichten bleiben."}, true, nil
+			Flash: "Form deleted. The messages that came in stay."}, true, nil
 
 	case len(in.Form["feldaktion"]) > 0, len(in.Form["sichern"]) > 0:
-		return formularSpeichern(in, q)
+		return storeForm(in, q)
 	}
 	return plugin.AdminOut{}, false, nil
 }
 
-// formularSpeichern liest den Editor, wendet eine Aktion an und sichert.
+// storeForm reads the editor, applies an action and stores.
 //
-// Auch eine Aktion sichert: der Editor ist ein Formular, und ein Knopf schickt
-// ohnehin alles mit. Nichts zu sichern hiesse, dass ein Feld hinzufügen alles
-// verwirft, was daneben schon getippt war.
-func formularSpeichern(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) {
-	kennung := ersterWert(in.Form, "kennung")
-	f, ok := formularLaden(kennung)
+// An action stores too: the editor is a form, and a button submits everything
+// anyway. Storing nothing would mean that adding a field discards everything
+// already typed beside it.
+func storeForm(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) {
+	key := firstValue(in.Form, "kennung")
+	f, ok := formularLaden(key)
 	if !ok {
 		return plugin.AdminOut{Redirect: "?ansicht=formulare",
-			Flash: "Dieses Formular gibt es nicht.", FlashError: true}, true, nil
+			Flash: "There is no such form.", FlashError: true}, true, nil
 	}
 
-	f.Name = ersterWert(in.Form, "name")
-	f.Betreff = ersterWert(in.Form, "betreff")
-	f.Dank = ersterWert(in.Form, "dank")
-	f.Fields = felderAusFormular(in.Form)
+	f.Name = firstValue(in.Form, "name")
+	f.Subject = firstValue(in.Form, "betreff")
+	f.Dank = firstValue(in.Form, "dank")
+	f.Fields = fieldsFromForm(in.Form)
 
-	if aktion := ersterWert(in.Form, "feldaktion"); aktion != "" {
-		f.Fields = feldaktion(f.Fields, aktion)
+	if aktion := firstValue(in.Form, "feldaktion"); aktion != "" {
+		f.Fields = fieldAction(f.Fields, aktion)
 	}
 
-	f = f.saeubern()
-	if err := formularSichern(f); err != nil {
+	f = f.clean()
+	if err := save(f); err != nil {
 		return plugin.AdminOut{}, true, err
 	}
 	out := plugin.AdminOut{Redirect: "?ansicht=formular&kennung=" + f.Key}
-	if ersterWert(in.Form, "sichern") != "" {
+	if firstValue(in.Form, "sichern") != "" {
 		out.Flash = "Formular gespeichert."
 	}
 	return out, true, nil
 }
 
-// felderAusFormular liest die Feldliste. Wie im Baustein-Editor sind die Namen
-// mit einer Nummer versehen, und die Nummern werden beim Lesen neu vergeben —
-// ein entferntes Feld hinterlässt so keine Lücke.
-func felderAusFormular(form map[string][]string) []feld {
-	slots := map[int]*feld{}
-	for key, werte := range form {
-		if !strings.HasPrefix(key, "fe") || len(werte) == 0 {
+// fieldsFromForm reads the field list. As in the block editor the names carry a
+// number, and the numbers are handed out afresh on reading — so a removed field
+// leaves no gap.
+func fieldsFromForm(form map[string][]string) []field {
+	slots := map[int]*field{}
+	for key, values := range form {
+		if !strings.HasPrefix(key, "fe") || len(values) == 0 {
 			continue
 		}
 		rest := key[2:]
@@ -292,22 +292,22 @@ func felderAusFormular(form map[string][]string) []feld {
 		}
 		fe, da := slots[n]
 		if !da {
-			fe = &feld{}
+			fe = &field{}
 			slots[n] = fe
 		}
 		switch rest[punkt+1:] {
 		case "kennung":
-			fe.Key = werte[0]
+			fe.Key = values[0]
 		case "beschriftung":
-			fe.Label = werte[0]
+			fe.Label = values[0]
 		case "art":
-			fe.Art = werte[0]
+			fe.Art = values[0]
 		case "hinweis":
-			fe.Hint = werte[0]
+			fe.Hint = values[0]
 		case "pflicht":
-			fe.Required = werte[0] != ""
+			fe.Required = values[0] != ""
 		case "auswahl":
-			fe.Choices = zeilen(werte[0])
+			fe.Choices = rows(values[0])
 		}
 	}
 
@@ -317,42 +317,42 @@ func felderAusFormular(form map[string][]string) []feld {
 	}
 	sort.Ints(nummern)
 
-	out := make([]feld, 0, len(nummern))
+	out := make([]field, 0, len(nummern))
 	for _, n := range nummern {
 		out = append(out, *slots[n])
 	}
 	return out
 }
 
-// feldaktion verschiebt, entfernt oder ergänzt ein Feld.
-func feldaktion(felder []feld, aktion string) []feld {
+// fieldAction moves, removes or adds a field.
+func fieldAction(fields []field, aktion string) []field {
 	name, arg, _ := strings.Cut(aktion, ":")
 	if name == "neu" {
-		if len(felder) >= maxFelder {
-			return felder
+		if len(fields) >= maxFields {
+			return fields
 		}
-		return append(felder, feld{Label: "Neue Frage", Art: ArtText})
+		return append(fields, field{Label: "Neue Frage", Art: ArtText})
 	}
 	n, err := strconv.Atoi(arg)
-	if err != nil || n < 0 || n >= len(felder) {
-		return felder
+	if err != nil || n < 0 || n >= len(fields) {
+		return fields
 	}
 	switch name {
 	case "weg":
-		return append(felder[:n:n], felder[n+1:]...)
+		return append(fields[:n:n], fields[n+1:]...)
 	case "hoch":
 		if n > 0 {
-			felder[n-1], felder[n] = felder[n], felder[n-1]
+			fields[n-1], fields[n] = fields[n], fields[n-1]
 		}
 	case "runter":
-		if n < len(felder)-1 {
-			felder[n], felder[n+1] = felder[n+1], felder[n]
+		if n < len(fields)-1 {
+			fields[n], fields[n+1] = fields[n+1], fields[n]
 		}
 	}
-	return felder
+	return fields
 }
 
-func zeilen(s string) []string {
+func rows(s string) []string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	var out []string
 	for _, z := range strings.Split(s, "\n") {
@@ -363,7 +363,7 @@ func zeilen(s string) []string {
 	return out
 }
 
-func ersterWert(form map[string][]string, name string) string {
+func firstValue(form map[string][]string, name string) string {
 	if v := form[name]; len(v) > 0 {
 		return strings.TrimSpace(v[0])
 	}

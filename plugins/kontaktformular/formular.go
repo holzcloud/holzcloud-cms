@@ -9,28 +9,28 @@ import (
 	plugin "github.com/holzcloud/holzcloud-cms/sdk"
 )
 
-// Eigene Formulare.
+// Forms of one's own.
 //
-// Das Kontaktformular fragt Name, E-Mail, Betreff und Nachricht. Für eine
-// Anfrage nach Wolle ist das die Hälfte von dem, was man wissen will — wie viel,
-// welche Farbe, bis wann — und für eine Anmeldung zum Hoffest ist es das
-// Falsche. Also kann ein Betreiber eigene Formulare zusammenstellen, jedes mit
-// seinen eigenen Feldern, und sie mit derselben Marke in eine Seite setzen.
+// The contact form asks for a name, an e-mail address, a subject and a message.
+// For an enquiry about wool that is half of what you want to know — how much,
+// which colour, by when — and for signing up to a farm festival it is the wrong
+// thing. So an operator can assemble their own forms, each with its own fields,
+// and put them into a page with the same marker.
 //
-// Das eingebaute Formular bleibt, wie es war. Wer nichts definiert, merkt von
-// alldem nichts.
+// The built-in form stays as it was. Whoever defines nothing notices none of
+// this.
 
 const praefixFormular = "formular:"
 
-// maxFelder begrenzt ein Formular.
+// maxFields bounds a form.
 //
-// Zwanzig Felder sind schon eines, das niemand ausfüllt. Die Grenze ist nicht
-// gegen Missbrauch — es ist der eigene Betreiber, der hier tippt —, sondern
-// gegen ein Formular, das die Anfragen verhindert, für die es da ist.
-const maxFelder = 20
+// Twenty fields are already a form nobody fills in. The limit is not against
+// abuse — it is the operator themselves typing here — but against a form that
+// prevents the enquiries it exists for.
+const maxFields = 20
 
-// Feldarten. Wenige, weil jede eine ist, die der Betreiber verstehen und das
-// Theme gestalten muss.
+// Field kinds. Few of them, because each is one the operator has to understand
+// and the theme has to style.
 const (
 	ArtText    = "text"
 	ArtLang    = "lang"
@@ -42,25 +42,25 @@ const (
 	ArtAnkreuz = "ankreuz"
 )
 
-// feldArt beschreibt eine Art für das Auswahlfeld in der Verwaltung.
-type feldArt struct {
+// fieldKind describes a kind for the select in the admin.
+type fieldKind struct {
 	Art  string
 	Name string
 }
 
-var feldArten = []feldArt{
+var fieldKinds = []fieldKind{
 	{ArtText, "Kurze Antwort"},
 	{ArtLang, "Lange Antwort"},
 	{ArtEmail, "E-Mail-Adresse"},
 	{ArtTelefon, "Telefonnummer"},
 	{ArtZahl, "Zahl"},
 	{ArtDatum, "Datum"},
-	{KindChoice, "Auswahl aus einer Liste"},
+	{KindChoice, "Choice from a list"},
 	{ArtAnkreuz, "Ankreuzfeld"},
 }
 
 func artName(art string) string {
-	for _, a := range feldArten {
+	for _, a := range fieldKinds {
 		if a.Art == art {
 			return a.Name
 		}
@@ -68,12 +68,12 @@ func artName(art string) string {
 	return art
 }
 
-// feld ist eine Frage.
-type feld struct {
-	// Kennung ist der Feldname im abgesendeten Formular. Er wird aus der
-	// Beschriftung erzeugt und bleibt danach stehen: würde er sich mit der
-	// Beschriftung ändern, käme nach jeder Umformulierung eine Antwort unter
-	// einem anderen Namen an, und die alten wären nicht mehr zuzuordnen.
+// field is one question.
+type field struct {
+	// Key is the field name in the submitted form. It is derived from the label
+	// and then stands: if it changed with the label, an answer would arrive
+	// under a different name after every rewording, and the old ones could no
+	// longer be matched up.
 	Key      string   `json:"kennung"`
 	Label    string   `json:"beschriftung"`
 	Art      string   `json:"art"`
@@ -86,91 +86,93 @@ type feld struct {
 type formular struct {
 	Key  string `json:"kennung"`
 	Name string `json:"name"`
-	// Betreff steht in der Benachrichtigung, wenn kein Feld einen liefert.
-	Betreff string `json:"betreff,omitempty"`
-	// Dank ist der Satz nach dem Absenden.
-	Dank   string `json:"dank,omitempty"`
-	Fields []feld `json:"felder,omitempty"`
+	// Subject stands in the notification when no field supplies one.
+	Subject string `json:"betreff,omitempty"`
+	// Thanks is the sentence after submitting.
+	Dank   string  `json:"dank,omitempty"`
+	Fields []field `json:"felder,omitempty"`
 }
 
-// reKennung ist so eng, weil eine Kennung in eine Marke im Seitentext kommt und
-// in einen Feldnamen: alles, was dort maskiert werden müsste, wird irgendwann
-// falsch maskiert.
-var reKennung = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+// reKey is this narrow because a key goes into a marker in the page text and
+// into a field name: everything that would have to be escaped there is escaped
+// wrongly sooner or later.
+var reKey = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
-// kennungAus macht aus einer Beschriftung eine Kennung.
-func kennungAus(s string) string {
+// keyFrom makes a key out of a label.
+func keyFrom(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
-	ersatz := strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
-	s = ersatz.Replace(s)
+	// The four German letters, spelled out because this IS the table that
+	// transliterates them.
+	replacer := strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss") //nolint:german — the letters this rule is made of
+	s = replacer.Replace(s)
 
 	var b strings.Builder
-	strich := false
+	dash := false
 	for _, r := range s {
 		switch {
 		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
 			b.WriteRune(r)
-			strich = false
-		case !strich && b.Len() > 0:
+			dash = false
+		case !dash && b.Len() > 0:
 			b.WriteByte('-')
-			strich = true
+			dash = true
 		}
 	}
 	out := strings.Trim(b.String(), "-")
 	if len(out) > 40 {
 		out = strings.Trim(out[:40], "-")
 	}
-	if out == "" || !reKennung.MatchString(out) {
+	if out == "" || !reKey.MatchString(out) {
 		return ""
 	}
 	return out
 }
 
-// antwortfeld sucht das erste Feld einer Art. So wird ohne eine zusätzliche
-// Einstellung klar, wohin eine Antwort geht: die erste E-Mail-Adresse im
-// Formular ist die des Absenders.
-func (f formular) ersteArt(art string) (feld, bool) {
+// answerField looks for the first field of a kind. That way it is clear without
+// an extra setting where an answer goes: the first e-mail address in the form is
+// the sender's.
+func (f formular) ersteArt(art string) (field, bool) {
 	for _, fe := range f.Fields {
 		if fe.Art == art {
 			return fe, true
 		}
 	}
-	return feld{}, false
+	return field{}, false
 }
 
-// laden holt ein Formular. Nicht gefunden ist kein Fehler: die Marke im Text
-// kann eine Kennung nennen, die es nicht mehr gibt.
-func formularLaden(kennung string) (formular, bool) {
-	if !reKennung.MatchString(kennung) {
+// load fetches a form. Not found is not an error: the marker in the text can
+// name a key that no longer exists.
+func formularLaden(key string) (formular, bool) {
+	if !reKey.MatchString(key) {
 		return formular{}, false
 	}
-	roh, ok, err := plugin.Get(praefixFormular + kennung)
+	raw, ok, err := plugin.Get(praefixFormular + key)
 	if err != nil || !ok {
 		return formular{}, false
 	}
 	var f formular
-	if json.Unmarshal([]byte(roh), &f) != nil || f.Key == "" {
+	if json.Unmarshal([]byte(raw), &f) != nil || f.Key == "" {
 		return formular{}, false
 	}
 	return f, true
 }
 
-func formularSichern(f formular) error {
-	roh, err := json.Marshal(f)
+func save(f formular) error {
+	raw, err := json.Marshal(f)
 	if err != nil {
 		return err
 	}
-	return plugin.Set(praefixFormular+f.Key, string(roh))
+	return plugin.Set(praefixFormular+f.Key, string(raw))
 }
 
-// alleFormulare listet, was definiert ist, nach Namen sortiert.
-func alleFormulare() []formular {
-	roh, err := plugin.List(praefixFormular, 200)
+// allForms lists what is defined, sorted by name.
+func allForms() []formular {
+	raw, err := plugin.List(praefixFormular, 200)
 	if err != nil {
 		return nil
 	}
-	out := make([]formular, 0, len(roh))
-	for _, v := range roh {
+	out := make([]formular, 0, len(raw))
+	for _, v := range raw {
 		var f formular
 		if json.Unmarshal([]byte(v), &f) == nil && f.Key != "" {
 			out = append(out, f)
@@ -180,9 +182,8 @@ func alleFormulare() []formular {
 	return out
 }
 
-// saeubern bringt ein Formular in einen Zustand, in dem es sich ausgeben und
-// wieder einlesen lässt.
-func (f formular) saeubern() formular {
+// clean brings a form into a state in which it can be output and read back in.
+func (f formular) clean() formular {
 	f.Name = strings.TrimSpace(f.Name)
 	if f.Name == "" {
 		f.Name = "Formular"
@@ -190,10 +191,10 @@ func (f formular) saeubern() formular {
 	if len(f.Name) > 80 {
 		f.Name = f.Name[:80]
 	}
-	f.Betreff = strings.TrimSpace(f.Betreff)
+	f.Subject = strings.TrimSpace(f.Subject)
 	f.Dank = strings.TrimSpace(f.Dank)
 
-	felder := make([]feld, 0, len(f.Fields))
+	fields := make([]field, 0, len(f.Fields))
 	belegt := map[string]bool{}
 	for _, fe := range f.Fields {
 		fe.Label = strings.TrimSpace(fe.Label)
@@ -204,13 +205,13 @@ func (f formular) saeubern() formular {
 			fe.Art = ArtText
 		}
 		if fe.Key == "" {
-			fe.Key = kennungAus(fe.Label)
+			fe.Key = keyFrom(fe.Label)
 		}
 		if fe.Key == "" {
 			continue
 		}
-		// Zwei Felder mit derselben Kennung überschrieben einander beim
-		// Empfangen — die zweite Antwort käme nie an.
+		// Two fields with the same key would overwrite each other on receipt —
+		// the second answer would never arrive.
 		if belegt[fe.Key] {
 			continue
 		}
@@ -219,24 +220,23 @@ func (f formular) saeubern() formular {
 		if fe.Art != KindChoice {
 			fe.Choices = nil
 		} else {
-			auswahl := make([]string, 0, len(fe.Choices))
+			choices := make([]string, 0, len(fe.Choices))
 			for _, w := range fe.Choices {
 				if w = strings.TrimSpace(w); w != "" {
-					auswahl = append(auswahl, w)
+					choices = append(choices, w)
 				}
 			}
-			if len(auswahl) == 0 {
-				// Eine Auswahl ohne Möglichkeiten ist ein Feld, das niemand
-				// ausfüllen kann.
+			if len(choices) == 0 {
+				// A choice with no options is a field nobody can fill in.
 				fe.Art = ArtText
 			}
-			fe.Choices = auswahl
+			fe.Choices = choices
 		}
-		felder = append(felder, fe)
-		if len(felder) >= maxFelder {
+		fields = append(fields, fe)
+		if len(fields) >= maxFields {
 			break
 		}
 	}
-	f.Fields = felder
+	f.Fields = fields
 	return f
 }

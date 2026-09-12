@@ -9,27 +9,27 @@ import (
 	plugin "github.com/holzcloud/holzcloud-cms/sdk"
 )
 
-// alsCSV macht aus den Nachrichten eine Tabelle zum Herunterladen.
+// asCSV turns the messages into a table to download.
 //
-// Warum das eine Ansicht wert ist: eine Anfrage kommt herein und muss danach
-// irgendwo weiterverarbeitet werden — in eine Adressliste, in eine
-// Anmeldeübersicht, in die Buchhaltung. Ohne Ausgabe wird das abgetippt, und
-// abgetippt wird es falsch.
+// Why that is worth a view: an enquiry comes in and then has to be processed
+// somewhere else — into an address list, into a list of sign-ups, into the
+// bookkeeping. Without an export it gets typed out again, and typed out again
+// it gets typed wrong.
 //
-// Die Spalten stehen fest: Zeit, Formular, Name, E-Mail, Betreff, Seite,
-// gelesen — und danach je eine Spalte für jedes Feld, das in irgendeiner
-// Nachricht vorkam. Eine Nachricht, die ein Feld nicht hat, lässt die Zelle
-// leer, statt die Spalten zu verschieben.
-func alsCSV(liste []nachricht) ([]byte, error) {
-	spalten := feldSpalten(liste)
+// The columns are fixed: time, form, name, e-mail, subject, page, read — and
+// after that one column for every field that occurred in any message. A message
+// that does not have a field leaves the cell empty rather than shifting the
+// columns.
+func asCSV(liste []message) ([]byte, error) {
+	columns := fieldColumns(liste)
 
 	kopf := append([]string{
 		"Zeit", "Formular", "Name", "E-Mail", "Betreff", "Seite", "Gelesen",
-	}, spalten...)
+	}, columns...)
 
 	var buf bytes.Buffer
-	// Die Byte-Order-Mark, damit Excel die Datei als UTF-8 öffnet. Ohne sie
-	// wird aus einem Ü ein Ãœ, und dann tippt doch wieder jemand ab.
+	// The byte-order mark, so that Excel opens the file as UTF-8. Without it a
+	// Ü becomes a Ãœ, and then somebody types it out again after all. //nolint:german — names the two spellings it is about
 	buf.WriteString("\ufeff")
 
 	w := csv.NewWriter(&buf)
@@ -38,31 +38,30 @@ func alsCSV(liste []nachricht) ([]byte, error) {
 	}
 
 	for _, n := range liste {
-		gelesen := "nein"
-		if n.Gelesen {
-			gelesen = "ja"
+		read := "nein"
+		if n.Read {
+			read = "ja"
 		}
-		formular := n.FormularName
+		formular := n.FormName
 		if formular == "" {
 			formular = "Kontaktformular"
 		}
-		zeile := []string{n.Zeit, formular, n.Name, n.Email, n.Betreff, n.Page, gelesen}
+		row := []string{n.Time, formular, n.Name, n.Email, n.Subject, n.Page, read}
 
-		werte := map[string]string{}
+		values := map[string]string{}
 		for _, a := range n.Fields {
-			werte[a.Label] = a.Value
+			values[a.Label] = a.Value
 		}
-		// Der freie Text steht in der Spalte "Nachricht", damit das eingebaute
-		// Formular und ein zusammengestelltes in derselben Datei nebeneinander
-		// stehen können.
+		// The free text stands in the "Nachricht" column, so that the built-in
+		// form and an assembled one can stand side by side in the same file.
 		if n.Text != "" {
-			werte["Nachricht"] = n.Text
+			values["Nachricht"] = n.Text
 		}
-		for _, s := range spalten {
-			zeile = append(zeile, werte[s])
+		for _, s := range columns {
+			row = append(row, values[s])
 		}
 
-		if err := w.Write(entschaerfen(zeile)); err != nil {
+		if err := w.Write(entschaerfen(row)); err != nil {
 			return nil, fmt.Errorf("write row: %w", err)
 		}
 	}
@@ -74,10 +73,10 @@ func alsCSV(liste []nachricht) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// feldSpalten sind alle Feldbeschriftungen, die vorkommen, in stabiler
-// Reihenfolge: zuerst in der Reihenfolge, in der sie das erste Mal auftauchen,
-// damit die Spalten eines Formulars so stehen wie auf dem Bildschirm.
-func feldSpalten(liste []nachricht) []string {
+// fieldColumns are all the field labels that occur, in a stable order: first in
+// the order in which they first turn up, so that a form's columns stand as they
+// do on the screen.
+func fieldColumns(liste []message) []string {
 	gesehen := map[string]bool{}
 	var out []string
 	var hatText bool
@@ -98,18 +97,16 @@ func feldSpalten(liste []nachricht) []string {
 	return out
 }
 
-// entschaerfen macht aus jeder Zelle eine, die kein Tabellenprogramm als
-// Formel liest.
+// defuse turns every cell into one no spreadsheet program reads as a formula.
 //
-// Der Anlass: eine Zelle, die mit = + - @ oder einem Tabulator beginnt, wird
-// von Excel und LibreOffice als Formel ausgewertet, sobald die Datei geöffnet
-// wird. Der Inhalt kommt hier von einem Besucher der Website — jemand kann
-// also in ein Formularfeld schreiben, was auf dem Rechner der Empfängerin
-// ausgeführt wird. Ein vorangestelltes Apostroph nimmt dem die Bedeutung; es
-// ist die Schreibweise, die beide Programme als "das ist Text" verstehen.
+// The occasion: a cell beginning with = + - @ or a tab is evaluated as a formula
+// by Excel and LibreOffice as soon as the file is opened. The content here comes
+// from a visitor to the website — so somebody can write into a form field what
+// then runs on the recipient's machine. A leading apostrophe takes that meaning
+// away; it is the spelling both programs understand as "this is text".
 //
-// Das Anführungszeichen und das Trennzeichen erledigt encoding/csv. Von Hand
-// zusammengesetzt wird hier nichts.
+// The quotation mark and the separator are handled by encoding/csv. Nothing is
+// assembled by hand here.
 //
 // This rule stands twice in this directory tree. The second copy is
 // internal/csv/example.go, for the CSV import's example file. This one here
@@ -132,21 +129,21 @@ func entschaerfen(row []string) []string {
 	return out
 }
 
-// csvDateiname benennt die Datei nach dem Tag, damit zwei Ausgaben im selben
-// Ordner nicht dieselbe Datei sind.
-func csvDateiname(liste []nachricht) string {
+// csvFilename names the file after the day, so that two exports in the same
+// folder are not the same file.
+func csvFilename(liste []message) string {
 	tag := "export"
 	if len(liste) > 0 {
-		// Der Schlüssel beginnt mit dem Zeitstempel; die ersten zehn Zeichen
-		// sind das Datum.
-		if k := neuesteKennung(liste); len(k) >= 10 {
+		// The key starts with the timestamp; the first ten characters are the
+		// date.
+		if k := newestKey(liste); len(k) >= 10 {
 			tag = k[:10]
 		}
 	}
 	return "nachrichten-" + tag + ".csv"
 }
 
-func neuesteKennung(liste []nachricht) string {
+func newestKey(liste []message) string {
 	keys := make([]string, 0, len(liste))
 	for _, n := range liste {
 		keys = append(keys, n.Key)
@@ -155,15 +152,15 @@ func neuesteKennung(liste []nachricht) string {
 	return keys[len(keys)-1]
 }
 
-// csvAusgabe ist die Antwort, die der Host als Datei weiterreicht.
-func csvAusgabe(liste []nachricht) (plugin.AdminOut, error) {
-	body, err := alsCSV(liste)
+// csvOutput is the answer the host passes on as a file.
+func csvAusgabe(liste []message) (plugin.AdminOut, error) {
+	body, err := asCSV(liste)
 	if err != nil {
 		return plugin.AdminOut{}, err
 	}
 	return plugin.AdminOut{
 		Download: &plugin.Download{
-			Filename:    csvDateiname(liste),
+			Filename:    csvFilename(liste),
 			ContentType: "text/csv",
 			Body:        string(body),
 		},

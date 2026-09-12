@@ -8,31 +8,31 @@ import (
 	plugin "github.com/holzcloud/holzcloud-cms/sdk"
 )
 
-// Der Bildschirm in der Verwaltung.
+// The screen in the admin.
 //
-// Drei Ansichten in einer: die Liste der Bestellungen, eine einzelne Bestellung
-// und die Einstellungen. Welche gemeint ist, sagt die Abfragezeichenkette — ein
-// Plugin bekommt eine Adresse und kann auf sich selbst verweisen.
+// Three views in one: the list of orders, a single order, and the settings.
+// Which is meant is said by the query string — a plugin gets an address and can
+// point at itself.
 
 func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 	q, _ := url.ParseQuery(in.Query)
 
 	if in.Method == "POST" {
-		return aktion(in, q)
+		return action(in, q)
 	}
 
 	switch q.Get("ansicht") {
 	case "einstellungen":
 		return einstellungsbildschirm(in)
 	case "bestellung":
-		return einzelne(in, q.Get("id"))
+		return single(in, q.Get("id"))
 	default:
 		return liste(in)
 	}
 }
 
-// aktion führt aus, was ein Knopf ausgelöst hat.
-func aktion(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
+// action carries out what a button triggered.
+func action(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
 	form := url.Values{}
 	for k, v := range in.Form {
 		form[k] = v
@@ -40,17 +40,17 @@ func aktion(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
 
 	switch form.Get("aktion") {
 	case "einstellungen":
-		e := einstellungen{
+		e := settings{
 			PriceField:   strings.TrimSpace(form.Get("preis_feld")),
 			UnitField:    strings.TrimSpace(form.Get("einheit_feld")),
 			StatusField:  strings.TrimSpace(form.Get("zustand_feld")),
 			SoldOutValue: strings.TrimSpace(form.Get("ausverkauft_wert")),
-			Waehrung:     strings.TrimSpace(form.Get("waehrung")),
+			Currency:     strings.TrimSpace(form.Get("waehrung")),
 			Hint:         strings.TrimSpace(form.Get("hinweis")),
 		}
 		if e.PriceField == "" {
 			return plugin.AdminOut{Redirect: "?ansicht=einstellungen",
-				Flash: "Ohne Preisfeld weiss der Hofladen nicht, was ein Produkt ist.", FlashError: true}, nil
+				Flash: "Without a price field the farm shop does not know what a product is.", FlashError: true}, nil
 		}
 		if err := einstellungenSichern(e); err != nil {
 			return plugin.AdminOut{}, err
@@ -58,32 +58,32 @@ func aktion(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
 		return plugin.AdminOut{Redirect: "?ansicht=einstellungen", Flash: "Gespeichert."}, nil
 
 	case "erledigt", "offen":
-		b, da := bestellungLaden(form.Get("id"))
+		b, da := loadOrder(form.Get("id"))
 		if !da {
-			return plugin.AdminOut{Redirect: "?", Flash: "Diese Bestellung gibt es nicht mehr.", FlashError: true}, nil
+			return plugin.AdminOut{Redirect: "?", Flash: "This order no longer exists.", FlashError: true}, nil
 		}
-		b.Erledigt = form.Get("aktion") == "erledigt"
+		b.Done = form.Get("aktion") == "erledigt"
 		if err := bestellungSichern(b); err != nil {
 			return plugin.AdminOut{}, err
 		}
 		wort := "als offen markiert"
-		if b.Erledigt {
+		if b.Done {
 			wort = "abgehakt"
 		}
 		return plugin.AdminOut{Redirect: "?", Flash: "Bestellung " + wort + "."}, nil
 
 	case "loeschen":
-		if err := plugin.Delete(praefixBestellung + form.Get("id")); err != nil {
+		if err := plugin.Delete(prefixOrder + form.Get("id")); err != nil {
 			return plugin.AdminOut{}, err
 		}
-		return plugin.AdminOut{Redirect: "?", Flash: "Bestellung gelöscht."}, nil
+		return plugin.AdminOut{Redirect: "?", Flash: "Order deleted."}, nil
 	}
 	return plugin.AdminOut{Redirect: "?"}, nil
 }
 
 // liste zeigt alle Bestellungen.
 func liste(in plugin.AdminIn) (plugin.AdminOut, error) {
-	bestellungen, err := alleBestellungen()
+	orders, err := allOrders()
 	if err != nil {
 		return plugin.AdminOut{}, err
 	}
@@ -92,15 +92,15 @@ func liste(in plugin.AdminIn) (plugin.AdminOut, error) {
 	b.WriteString(`<p><a href="?ansicht=einstellungen">Einstellungen</a></p>`)
 
 	offen := 0
-	for _, best := range bestellungen {
-		if !best.Erledigt {
+	for _, best := range orders {
+		if !best.Done {
 			offen++
 		}
 	}
 
-	if len(bestellungen) == 0 {
-		b.WriteString(`<p>Noch keine Bestellung. Setze <code>[[bestellung]]</code> in eine Seite, ` +
-			`dann steht dort die Liste deiner Produkte mit Mengenfeldern.</p>`)
+	if len(orders) == 0 {
+		b.WriteString(`<p>No order yet. Put <code>[[bestellung]]</code> into a page, ` +
+			`and the list of your products with quantity fields stands there.</p>`)
 		return plugin.AdminOut{Title: "Bestellungen", HTML: b.String()}, nil
 	}
 
@@ -115,11 +115,11 @@ func liste(in plugin.AdminIn) (plugin.AdminOut, error) {
 	b.WriteString(`<table><thead><tr>` +
 		`<th>Eingegangen</th><th>Wer</th><th>Was</th><th>Summe</th><th></th>` +
 		`</tr></thead><tbody>`)
-	for _, best := range bestellungen {
+	for _, best := range orders {
 		b.WriteString(`<tr>`)
-		b.WriteString(`<td>` + html.EscapeString(kurzesDatum(best.Eingegangen)) + `</td>`)
+		b.WriteString(`<td>` + html.EscapeString(shortDate(best.Eingegangen)) + `</td>`)
 		b.WriteString(`<td>` + html.EscapeString(best.Name))
-		if best.Erledigt {
+		if best.Done {
 			b.WriteString(` <em>erledigt</em>`)
 		}
 		b.WriteString(`</td>`)
@@ -133,12 +133,12 @@ func liste(in plugin.AdminIn) (plugin.AdminOut, error) {
 	return plugin.AdminOut{Title: "Bestellungen", HTML: b.String()}, nil
 }
 
-// einzelne zeigt eine Bestellung mit allem, was drinsteht.
-func einzelne(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
-	best, da := bestellungLaden(id)
+// single shows one order with everything in it.
+func single(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
+	best, da := loadOrder(id)
 	if !da {
 		return plugin.AdminOut{Title: "Bestellung",
-			HTML: `<p>Diese Bestellung gibt es nicht mehr.</p><p><a href="?">Zurück zur Liste</a></p>`}, nil
+			HTML: `<p>This order no longer exists.</p><p><a href="?">Back to the list</a></p>`}, nil
 	}
 
 	var b strings.Builder
@@ -149,16 +149,16 @@ func einzelne(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 	for _, p := range best.Posten {
 		b.WriteString(`<tr><td>` + html.EscapeString(zahl(p.Quantity)) + `</td>`)
 		b.WriteString(`<td><a href="/` + html.EscapeString(p.Slug) + `">` + html.EscapeString(p.Titel) + `</a></td>`)
-		preis := best.Waehrung + " " + p.Price
+		price := best.Currency + " " + p.Price
 		if p.Einheit != "" {
-			preis += " / " + p.Einheit
+			price += " / " + p.Einheit
 		}
-		b.WriteString(`<td>` + html.EscapeString(preis) + `</td></tr>`)
+		b.WriteString(`<td>` + html.EscapeString(price) + `</td></tr>`)
 	}
 	b.WriteString(`</tbody></table>`)
 	b.WriteString(`<p><strong>Summe: ` + html.EscapeString(summeText(best)) + `</strong>`)
 	if !best.SummeBekannt {
-		b.WriteString(` <em>— ein Preis liess sich nicht als Zahl lesen, bitte nachrechnen.</em>`)
+		b.WriteString(` <em>— a price could not be read as a number, please check.</em>`)
 	}
 	b.WriteString(`</p>`)
 
@@ -175,18 +175,18 @@ func einzelne(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 	zeile("Telefon", best.Telefon)
 	zeile("Adresse", best.Address)
 	zeile("Bemerkung", best.Bemerkung)
-	zeile("Eingegangen", kurzesDatum(best.Eingegangen))
+	zeile("Eingegangen", shortDate(best.Eingegangen))
 	zeile("Bestellt auf", best.Page)
 	b.WriteString(`</dl>`)
 
 	b.WriteString(`<form method="POST"><input type="hidden" name="id" value="` +
 		html.EscapeString(best.ID) + `">`)
-	if best.Erledigt {
+	if best.Done {
 		b.WriteString(`<button type="submit" name="aktion" value="offen">Wieder als offen markieren</button> `)
 	} else {
 		b.WriteString(`<button type="submit" name="aktion" value="erledigt">Abhaken</button> `)
 	}
-	b.WriteString(`<button type="submit" name="aktion" value="loeschen">Löschen</button>`)
+	b.WriteString(`<button type="submit" name="aktion" value="loeschen">Delete</button>`)
 	b.WriteString(`</form>`)
 
 	return plugin.AdminOut{Title: "Bestellung von " + best.Name, HTML: b.String()}, nil
@@ -195,19 +195,19 @@ func einzelne(in plugin.AdminIn, id string) (plugin.AdminOut, error) {
 // einstellungsbildschirm ist, wo die Feldnamen stehen.
 func einstellungsbildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 	e := einstellungenLaden()
-	produkte, err := produkteLesen(e)
+	produkte, err := readProducts(e)
 	if err != nil {
 		produkte = nil
 	}
 
 	var b strings.Builder
 	b.WriteString(`<p><a href="?">&#8592; Alle Bestellungen</a></p>`)
-	b.WriteString(`<p>Ein Produkt ist eine veröffentlichte Seite, die das Preisfeld ausgefüllt hat. ` +
-		`Die Felder legst du unter <em>Felder</em> an; hier steht nur, welches davon welche Rolle spielt.</p>`)
+	b.WriteString(`<p>A product is a published page that has filled in the price field. ` +
+		`You create the fields under <em>Fields</em>; here it only says which of them plays which role.</p>`)
 
 	if len(produkte) == 0 {
-		b.WriteString(`<p><strong>Zurzeit findet der Hofladen kein Produkt.</strong> ` +
-			`Prüfe, ob der Name des Preisfeldes stimmt und ob mindestens eine veröffentlichte Seite ihn ausgefüllt hat.</p>`)
+		b.WriteString(`<p><strong>The farm shop currently finds no product.</strong> ` +
+			`Check that the price field's name is right and that at least one published page has filled it in.</p>`)
 	} else {
 		b.WriteString(`<p>` + html.EscapeString(zahlwort(len(produkte), "Produkt gefunden", "Produkte gefunden")) + `: `)
 		namen := make([]string, 0, len(produkte))
@@ -227,20 +227,20 @@ func einstellungsbildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 		}
 		b.WriteString(`</p>`)
 	}
-	eingabe("preis_feld", "Kennung des Preisfeldes", e.PriceField,
-		"Ist dieses Feld an einer Seite ausgefüllt, ist die Seite ein Produkt.")
-	eingabe("einheit_feld", "Kennung des Einheitsfeldes", e.UnitField,
-		"Freiwillig. Steht hinter dem Preis: „pro Kilo“.")
-	eingabe("zustand_feld", "Kennung des Verfügbarkeitsfeldes", e.StatusField,
-		"Freiwillig. Wird neben dem Produkt angezeigt.")
-	eingabe("ausverkauft_wert", "Wert, der „nicht bestellbar“ heisst", e.SoldOutValue,
-		"Trägt das Verfügbarkeitsfeld diesen Wert, gibt es kein Mengenfeld.")
-	eingabe("waehrung", "Währung", e.Waehrung, "Steht vor dem Preis.")
+	eingabe("preis_feld", "Key of the price field", e.PriceField,
+		"If this field is filled in on a page, the page is a product.")
+	eingabe("einheit_feld", "Key of the unit field", e.UnitField,
+		"Optional. Stands after the price: “per kilo”.")
+	eingabe("zustand_feld", "Key of the availability field", e.StatusField,
+		"Optional. Shown beside the product.")
+	eingabe("ausverkauft_wert", "Value that means “cannot be ordered”", e.SoldOutValue,
+		"If the availability field carries this value, there is no quantity field.")
+	eingabe("waehrung", "Currency", e.Currency, "Stands before the price.")
 
-	b.WriteString(`<p><label for="e_hinweis">Hinweis über dem Formular</label>`)
+	b.WriteString(`<p><label for="e_hinweis">Hint above the form</label>`)
 	b.WriteString(`<textarea id="e_hinweis" name="hinweis" rows="3">` +
 		html.EscapeString(e.Hint) + `</textarea>`)
-	b.WriteString(`<span>Hierhin gehört, wie geliefert und wie bezahlt wird — beides passiert ausserhalb dieses Programms.</span></p>`)
+	b.WriteString(`<span>How it is delivered and how it is paid for belongs here — both happen outside this program.</span></p>`)
 
 	b.WriteString(`<p><button type="submit">Speichern</button></p></form>`)
 	return plugin.AdminOut{Title: "Hofladen einrichten", HTML: b.String()}, nil
@@ -248,7 +248,7 @@ func einstellungsbildschirm(in plugin.AdminIn) (plugin.AdminOut, error) {
 
 // --- Kleinkram --------------------------------------------------------------
 
-func zusammenfassung(b bestellung) string {
+func zusammenfassung(b order) string {
 	teile := make([]string, 0, len(b.Posten))
 	for i, p := range b.Posten {
 		if i == 3 {
@@ -260,18 +260,18 @@ func zusammenfassung(b bestellung) string {
 	return strings.Join(teile, ", ")
 }
 
-func summeText(b bestellung) string {
+func summeText(b order) string {
 	if !b.SummeBekannt {
 		return "?"
 	}
-	return b.Waehrung + " " + betragTexten(b.Summe)
+	return b.Currency + " " + amountText(b.Summe)
 }
 
-// kurzesDatum macht aus 2026-08-06T14:22:31Z ein 06.08.2026, 14:22.
+// shortDate turns 2026-08-06T14:22:31Z into 06.08.2026, 14:22.
 //
-// Von Hand statt mit time.Parse: das Format ist bekannt, und ein Fehlschlag
-// soll den Bildschirm nicht kosten — dann steht eben da, was gespeichert ist.
-func kurzesDatum(iso string) string {
+// By hand rather than with time.Parse: the format is known, and a failure should
+// not cost the screen — then what is stored simply stands there.
+func shortDate(iso string) string {
 	if len(iso) < 16 || iso[4] != '-' || iso[10] != 'T' {
 		return iso
 	}
