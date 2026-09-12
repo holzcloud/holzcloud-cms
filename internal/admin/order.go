@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/outbox"
 	"github.com/holzcloud/holzcloud-cms/internal/payrexx"
@@ -60,11 +61,11 @@ type MailLine struct {
 func mailKindLabel(kind string) string {
 	switch kind {
 	case outbox.KindOrderCustomer:
-		return "Bestätigung an die Kundschaft"
+		return i18n.N("Confirmation to the customer")
 	case outbox.KindOrderOperator:
-		return "Meldung an den Betrieb"
+		return i18n.N("Notice to the business")
 	case outbox.KindOrderShipped:
-		return "Versandmeldung"
+		return i18n.N("Dispatch notice")
 	}
 	return kind
 }
@@ -72,14 +73,14 @@ func mailKindLabel(kind string) string {
 func mailStateLabel(m outbox.Mail) string {
 	switch m.Status {
 	case outbox.StatusSent:
-		return "verschickt"
+		return i18n.N("sent")
 	case outbox.StatusFailed:
-		return "aufgegeben"
+		return i18n.N("given up")
 	default:
 		if m.Attempts > 0 {
-			return "wartet auf den nächsten Versuch"
+			return i18n.N("waiting for the next attempt")
 		}
-		return "wartet auf Versand"
+		return i18n.N("waiting to be sent")
 	}
 }
 
@@ -114,11 +115,11 @@ func (h *Handler) SetOutbox(o *outbox.Store) { h.outbox = o }
 func paymentMethodLabel(code string) string {
 	switch code {
 	case shop.PayPrepay:
-		return "Vorauskasse"
+		return i18n.N("Payment in advance")
 	case shop.PayPayrexx:
-		return "Online-Zahlung (Payrexx)"
+		return i18n.N("Online payment (Payrexx)")
 	case shop.PayInvoice:
-		return "Rechnung"
+		return i18n.N("Invoice")
 	}
 	return code
 }
@@ -127,23 +128,23 @@ func paymentMethodLabel(code string) string {
 func paymentStateLabel(code string) string {
 	switch code {
 	case shop.PaymentPaid:
-		return "bezahlt"
+		return i18n.N("paid")
 	case shop.PaymentFailed:
-		return "gescheitert"
+		return i18n.N("failed")
 	case shop.PaymentRefunded:
-		return "zurückerstattet"
+		return i18n.N("refunded")
 	case shop.PaymentOpen:
-		return "offen"
+		return i18n.N("open")
 	}
 	return code
 }
 
 // orderStatuses are the moves an operator can make, in the order they happen.
 var orderStatuses = []struct{ Value, Label string }{
-	{shop.OrderNew, "Neu"},
-	{shop.OrderPaid, "Bezahlt"},
-	{shop.OrderShipped, "Versandt"},
-	{shop.OrderCancelled, "Storniert"},
+	{shop.OrderNew, i18n.N("New")},
+	{shop.OrderPaid, i18n.N("Paid")},
+	{shop.OrderShipped, i18n.N("Dispatched")},
+	{shop.OrderCancelled, i18n.N("Cancelled")},
 }
 
 // HandleOrderList shows a website's orders, newest first.
@@ -213,9 +214,9 @@ func (h *Handler) HandleOrderDetail(w http.ResponseWriter, r *http.Request) erro
 				break
 			}
 			web.SetFlashSuccess(h.sm, r.Context(), "Status changed")
-			// Auf "versandt" gehört eine Nachricht an die Kundschaft. Nur beim
-			// Wechsel: wer den Status zweimal speichert, soll nicht zweimal
-			// melden, dass dasselbe Paket unterwegs ist.
+			// Moving to "dispatched" deserves a message to the customer. Only on
+			// the change: whoever saves the status twice should not report twice
+			// that the same parcel is on its way.
 			if status == shop.OrderShipped && order.Status != shop.OrderShipped {
 				h.announceShipment(r, ws, order)
 			}

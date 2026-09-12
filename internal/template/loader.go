@@ -751,7 +751,10 @@ func (l *Loader) RenderPage(ctx context.Context, websiteID int64, view string, d
 
 // Render404 renders the 404 template for a website.
 func (l *Loader) Render404(ctx context.Context, websiteID int64, site SiteData) ([]byte, error) {
-	title := "Seite nicht gefunden"
+	// A visitor's sentence, and the public side has no catalogue — see the
+	// germanVoice note in tools/english. The two spellings by hand are what a
+	// theme gets today; §3b of phase 12 carries the open decision.
+	title := "Seite nicht gefunden" //nolint:german — visitor-facing, no public catalogue (phase 12 §3b)
 	if normalizeLocale(site.Locale) == "en" {
 		title = "Page not found"
 	}

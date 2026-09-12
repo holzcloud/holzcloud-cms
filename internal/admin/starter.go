@@ -2,10 +2,11 @@ package admin
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // starterPage is one of the pages a new website gets.
@@ -177,6 +178,9 @@ func (h *Handler) createStarterMenu(ctx context.Context, websiteID int64, name, 
 }
 
 // starterContentSummary is what the flash message says after creating a site.
-func starterContentSummary() string {
-	return fmt.Sprintf("Website angelegt – mit Startseite sowie Impressum und Datenschutzerklärung als Entwurf (%d Seiten)", len(starterPages))
+//
+// The one sentence in this file addressed to the operator rather than written
+// into a page, so the one that goes through the catalogue.
+func starterContentSummary(r *http.Request) string {
+	return web.Titlef(r, "Website created – with a start page plus an imprint and a privacy statement as drafts (%d pages)", len(starterPages))
 }

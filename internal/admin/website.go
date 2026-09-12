@@ -190,7 +190,7 @@ func (h *Handler) handleWebsiteCreatePost(w http.ResponseWriter, r *http.Request
 	message := "Website angelegt"
 	if r.FormValue("starter_content") != "off" {
 		h.createStarterContent(r.Context(), ws.ID, h.currentUserID(r))
-		message = starterContentSummary()
+		message = starterContentSummary(r)
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), message)

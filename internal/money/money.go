@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // Amount is a value in the smallest unit of its currency.
@@ -26,22 +28,27 @@ type TaxRate int
 
 // The Swiss rates, current since 1 January 2024.
 const (
-	RateStandard  TaxRate = 810 // Normalsatz
-	RateReduced   TaxRate = 260 // Reduzierter Satz: Lebensmittel, Bücher, Medikamente
-	RateLodging   TaxRate = 380 // Sondersatz Beherbergung
-	RateExempt    TaxRate = 0   // von der Steuer ausgenommen oder befreit
+	RateStandard  TaxRate = 810 // standard rate
+	RateReduced   TaxRate = 260 // reduced rate: food, books, medicines
+	RateLodging   TaxRate = 380 // special rate for lodging
+	RateExempt    TaxRate = 0   // excluded from, or exempt of, the tax
 	basisPointsIn         = 10000
 )
 
 // SwissRates are the rates offered in the admin, in the order they are shown.
+//
+// The label is a catalogue key — product_form.html and shop_settings.html draw
+// it through {{t .Label}} — and i18n.N is what lets the collector see a label
+// that is only ever translated through a variable. The rate itself is a number
+// in the database and has no language.
 var SwissRates = []struct {
 	Rate  TaxRate
 	Label string
 }{
-	{RateStandard, "8.1 % (Normalsatz)"},
-	{RateReduced, "2.6 % (reduziert: Lebensmittel, Bücher, Medikamente)"},
-	{RateLodging, "3.8 % (Beherbergung)"},
-	{RateExempt, "0 % (ausgenommen oder befreit)"},
+	{RateStandard, i18n.N("8.1 % (standard rate)")},
+	{RateReduced, i18n.N("2.6 % (reduced: food, books, medicines)")},
+	{RateLodging, i18n.N("3.8 % (lodging)")},
+	{RateExempt, i18n.N("0 % (excluded or exempt)")},
 }
 
 // KnownRate reports whether a value is one of the offered rates.

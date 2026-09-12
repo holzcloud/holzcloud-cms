@@ -98,13 +98,13 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/media", websiteID)
 
-	// Die äussere Grenze ist die grössere der beiden, weil die Art der Datei
-	// erst nach dem Lesen feststeht. Die eigentliche Grenze steht darunter.
+	// The outer limit is the larger of the two, because the kind of the file is
+	// settled only after reading. The actual limit stands below.
 	r.Body = http.MaxBytesReader(w, r.Body, max(h.cfg.MaxMediaSize, h.cfg.MaxVideoSize))
 
 	file, header, err := r.FormFile("media")
 	if err != nil {
-		return h.uploadFailed(w, r, redirect, "Datei zu groß oder nicht ausgewählt")
+		return h.uploadFailed(w, r, redirect, web.T(r, "File too large or not selected"))
 	}
 	defer file.Close()
 
@@ -160,8 +160,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 		return err
 	} else if existing != nil {
 		os.Remove(destPath)
-		web.SetFlashWarning(h.sm, r.Context(),
-			"Diese Datei gibt es bereits als „"+existing.OriginalName+"“ – es wurde nichts hochgeladen.")
+		web.SetFlashWarning(h.sm, r.Context(), web.Titlef(r, "This file already exists as “%s” – nothing was uploaded.", existing.OriginalName))
 		return h.redirect(w, r, redirect)
 	}
 
@@ -173,13 +172,17 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 		return fmt.Errorf("create media record: %w", err)
 	}
 
-	message := "Datei hochgeladen"
+	// Each part is its own catalogue sentence; only the dash between them is
+	// assembled here. A message glued together out of half-sentences is a
+	// message the collector never sees.
+	parts := []string{web.T(r, "File uploaded")}
 	if warning := h.makeVariants(r, m, filepath.Dir(destPath), destPath); warning != "" {
-		message += " – " + warning
+		parts = append(parts, warning)
 	}
 	if m.NeedsAltText() {
-		message += " – bitte noch eine Bildbeschreibung eintragen"
+		parts = append(parts, web.T(r, "please still enter an image description"))
 	}
+	message := strings.Join(parts, " – ")
 	web.SetFlashSuccess(h.sm, r.Context(), message)
 	return h.redirect(w, r, redirect)
 }
@@ -198,11 +201,10 @@ func (h *Handler) makeVariants(r *http.Request, m *media.Media, destDir, sourceP
 	variants, err := media.MakeVariantsThrottled(sourcePath, destDir, m.Filename, m.MimeType, h.cfg.MaxMegapixels)
 	if err != nil {
 		if errors.Is(err, media.ErrTooManyPixels) {
-			return fmt.Sprintf("das Bild ist zu groß für verkleinerte Fassungen (Grenze: %d Megapixel)",
-				h.cfg.MaxMegapixels)
+			return web.Titlef(r, "the image is too large for scaled copies (limit: %d megapixels)", h.cfg.MaxMegapixels)
 		}
 		slog.Warn("could not create image variants", "err", err, "media", m.ID)
-		return "verkleinerte Fassungen konnten nicht erstellt werden"
+		return web.T(r, "the scaled copies could not be created")
 	}
 
 	width, height, err := media.Dimensions(sourcePath)
@@ -212,7 +214,7 @@ func (h *Handler) makeVariants(r *http.Request, m *media.Media, destDir, sourceP
 	}
 	if err := h.mediaStore.SaveVariants(r.Context(), m.ID, width, height, variants); err != nil {
 		slog.Error("could not store image variants", "err", err, "media", m.ID)
-		return "verkleinerte Fassungen konnten nicht gespeichert werden"
+		return web.T(r, "the scaled copies could not be stored")
 	}
 	return ""
 }
@@ -283,9 +285,7 @@ func (h *Handler) HandleMediaDelete(w http.ResponseWriter, r *http.Request) erro
 	if errors.As(err, &inUse) {
 		// Naming the pages is the whole point: "in use" without saying where
 		// leaves the operator to search by hand.
-		web.SetFlashError(h.sm, r.Context(), fmt.Sprintf(
-			"Die Datei wird noch verwendet auf: %s. Zum Löschen trotzdem bestätigen.",
-			strings.Join(inUse.Pages, ", ")))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The file is still used on: %s. Confirm to delete it anyway.", strings.Join(inUse.Pages, ", ")))
 		return h.redirect(w, r, redirect)
 	}
 	if err != nil {

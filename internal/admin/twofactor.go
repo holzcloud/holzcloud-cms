@@ -206,7 +206,7 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 			URI:           retryURI,
 			QR:            qrOrNothing(r, retryURI),
 			Required:      auth.MustHaveSecondFactor(role, h.viaSSO(r)),
-			Error:         "Der Code stimmt nicht. Prüfe, ob die Uhr des Geräts richtig geht.",
+			Error:         web.T(r, "The code is wrong. Check that the device's clock is right."),
 		}
 		data.ActiveNav = "account"
 		return web.RenderFormError(w, h.templates, r, "two_factor_setup", data)

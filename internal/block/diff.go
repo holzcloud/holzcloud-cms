@@ -38,9 +38,9 @@ func RenderForDiff(raw string) (string, error) {
 		}
 		fmt.Fprintf(&b, "[%d] %s\n", i+1, name)
 		for _, kv := range blockFields(blk) {
-			// Ein mehrzeiliger Wert wird eingerückt weitergeschrieben, damit
-			// eine geänderte Zeile in einem Textbaustein als diese eine Zeile
-			// im Vergleich steht und nicht als der ganze Baustein.
+			// A multi-line value is written on indented, so that a changed line
+			// in a snippet stands in the comparison as that one line and not as
+			// the whole block.
 			lines := strings.Split(kv[1], "\n")
 			fmt.Fprintf(&b, "    %s: %s\n", kv[0], lines[0])
 			for _, extra := range lines[1:] {
@@ -79,9 +79,8 @@ func blockFields(b Block) [][2]string {
 	add("Linktext", b.LinkText)
 	add("Linkziel", b.LinkURL)
 
-	// Die eigenen Felder einer eigenen Baustein-Art. Sortiert, weil eine Map
-	// keine Reihenfolge hat und eine wechselnde Reihenfolge als Änderung
-	// erschiene.
+	// The own fields of a block kind of one's own. Sorted, because a map has no
+	// order and a changing order would appear as a change.
 	for _, key := range sortedKeys(b.Fields) {
 		add(key, b.Fields[key])
 	}
@@ -106,8 +105,8 @@ func sortedKeys(m map[string]string) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	// Kleine Karten, kurze Schlüssel: ein Einfügesortieren spart hier den
-	// Import und ist nicht langsamer.
+	// Small maps, short keys: an insertion sort saves the import here and is no
+	// slower.
 	for i := 1; i < len(keys); i++ {
 		for j := i; j > 0 && keys[j] < keys[j-1]; j-- {
 			keys[j], keys[j-1] = keys[j-1], keys[j]

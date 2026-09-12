@@ -106,9 +106,7 @@ func (h *Handler) HandlePluginUpload(w http.ResponseWriter, r *http.Request) err
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Installing failed: %s", err))
 		return h.redirect(w, r, "/admin/plugins")
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), fmt.Sprintf(
-		"%s %s eingespielt. Es ist noch ausgeschaltet — schalte es ein und wähle die Websites.",
-		m.Name, m.Version))
+	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r, "%s %s installed. It is still switched off — switch it on and choose the websites.", m.Name, m.Version))
 	return h.redirect(w, r, "/admin/plugins")
 }
 
@@ -207,8 +205,7 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 		return h.notFound(w, r)
 	}
 	if !st.Running {
-		web.SetFlashError(h.sm, r.Context(),
-			"Das Plugin läuft nicht: "+firstLine(st.LastError))
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The plugin is not running: %s", firstLine(st.LastError)))
 		return h.redirect(w, r, "/admin/plugins")
 	}
 	if st.Manifest.Admin.AdminOnly && h.sm.GetString(r.Context(), "user_role") != "admin" {
@@ -315,7 +312,7 @@ func (h *Handler) HandlePluginAsset(w http.ResponseWriter, r *http.Request) erro
 // same answer on purpose: telling an editor that an admin-only screen exists is
 // telling them something they were not meant to know.
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) error {
-	http.Error(w, "Seite nicht gefunden", http.StatusNotFound)
+	http.Error(w, web.T(r, "Page not found"), http.StatusNotFound)
 	return nil
 }
 

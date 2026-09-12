@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/alexedwards/scs/v2"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // Middleware is a standard HTTP middleware signature.
@@ -106,7 +108,7 @@ func RequireWebsiteAccess(sm *scs.SessionManager, allowed WebsiteAccess) Middlew
 			}
 			userID := sm.GetInt64(r.Context(), SessionKeyUserID)
 			if userID == 0 || !allowed(r.Context(), userID, websiteID) {
-				http.Error(w, "Diese Website gehört nicht zu deinem Zugang.", http.StatusForbidden)
+				http.Error(w, i18n.T(i18n.Lang(r.Context()), "This website is not part of your access."), http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)

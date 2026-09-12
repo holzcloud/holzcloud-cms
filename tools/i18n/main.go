@@ -337,7 +337,7 @@ func collectGo(dir string, keys map[string]bool) error {
 // administration, they cannot be got wrong, and they must never drift — a new
 // German sentence with a ß in it should turn into a Swiss one by running this,
 // not by somebody noticing.
-var swissSpelling = strings.NewReplacer("ß", "ss", "„", "«", "“", "»")
+var swissSpelling = strings.NewReplacer("ß", "ss", "„", "«", "“", "»") //nolint:german — the letter the Swiss rule replaces
 
 // writeSwiss rebuilds de-CH.json.
 //
