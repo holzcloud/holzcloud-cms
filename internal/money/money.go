@@ -297,7 +297,7 @@ func ParseAmount(input string) (Amount, error) {
 			}
 			prevSeparator = true
 		default:
-			return 0, fmt.Errorf("keine Zahl: %q", input)
+			return 0, fmt.Errorf("not a number: %q", input)
 		}
 	}
 
@@ -325,11 +325,11 @@ func ParseAmount(input string) (Amount, error) {
 
 	w, err := strconv.ParseInt(whole, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("keine Zahl: %q", input)
+		return 0, fmt.Errorf("not a number: %q", input)
 	}
 	f, err := strconv.ParseInt(frac, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("keine Zahl: %q", input)
+		return 0, fmt.Errorf("not a number: %q", input)
 	}
 
 	total := Amount(w*100 + f)

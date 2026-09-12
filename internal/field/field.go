@@ -46,7 +46,7 @@ const (
 	KindGroup = "gruppe"
 	// KindSection is a heading between the fields, and nothing else: no value,
 	// no validation, nothing in the theme. Twenty fields in a row are a wall;
-	// "Preis und Verfügbarkeit" over four of them is a form somebody fills in.
+	// "Price and availability" over four of them is a form somebody fills in.
 	KindSection = "abschnitt"
 	// KindMulti holds several of its options at once, one value per line in the
 	// same string slot every other kind uses.
@@ -58,45 +58,43 @@ const (
 	// no runtime error, just a theme printing a list where it printed a word.
 	// A new kind is purely additive, and KindChoice keeps its contract.
 	KindMulti = "mehrfachauswahl"
-	// KindTime ist eine Uhrzeit ohne Datum und ohne Zeitzone: eine Abfahrt,
-	// ein Ladenschluss, der Beginn einer Führung.
+	// KindTime is a time of day without a date and without a time zone: a
+	// departure, a closing time, the start of a guided tour.
 	//
-	// Getrennt von KindDate und nicht als dessen zweite Hälfte, weil das, was
-	// eine Uhrzeit braucht, gerade das ist, was ein Datum nicht hat: „nichts
-	// eingetragen“ und „Mitternacht“ sind zwei verschiedene Tatsachen, und
-	// eine Zeichenkette könnte sie nicht auseinanderhalten. Deshalb löst das
-	// Feld zu einem Zeiger auf. Eine Zeitzone trägt es nicht — ein Laden
-	// öffnet um acht, und das bleibt acht, egal von wo aus jemand hinsieht.
+	// Separate from KindDate rather than its second half, because what a time
+	// of day needs is exactly what a date does not have: "nothing entered" and
+	// "midnight" are two different facts, and a string could not tell them
+	// apart. That is why the field resolves to a pointer. It carries no time
+	// zone — a shop opens at eight, and that stays eight wherever somebody is
+	// looking from.
 	KindTime = "zeit"
-	// KindRange ist eine Zahl zwischen zwei Grenzen — und ein
-	// <input type="number"> mit min, max und step, ausdrücklich kein Schieber.
+	// KindRange is a number between two bounds — and an <input type="number">
+	// with min, max and step, deliberately not a slider.
 	//
-	// Die Bedingung, an der drei Schiebervarianten scheitern: die gewählte
-	// Zahl muss vor dem Speichern lesbar sein, und dieses Programm trägt
-	// ausser htmx kein JavaScript. Ein Schieber allein zeigt seine Zahl nie;
-	// mit einem <output> daneben zeigt er sie nur, wenn ein Skript sie
-	// hinschreibt — genau das Muster, das internal/tmplmgr/script.go in einer
-	// hochgeladenen Vorlage zurückweist. Bei einem Zahlenfeld *ist* die
-	// gewählte Zahl der sichtbare Inhalt.
+	// The condition three slider variants fail: the chosen number has to be
+	// readable before saving, and this program carries no JavaScript besides
+	// htmx. A slider on its own never shows its number; with an <output>
+	// beside it, it shows one only when a script writes it there — exactly the
+	// pattern internal/tmplmgr/script.go refuses in an uploaded template. In a
+	// number field the chosen number *is* the visible content.
 	KindRange = "bereich"
-	// KindCode ist die eine Art, deren Inhalt genau so erscheint, wie er
-	// getippt wurde: ein Schnipsel, eine Adresszeile, eine Konfigurationszeile.
+	// KindCode is the one kind whose content appears exactly as it was typed:
+	// a snippet, a line of an address, a line of configuration.
 	//
-	// Nie durch den Markdown-Renderer — das ist keine Auslassung, sondern der
-	// ganze Zweck. Was hineingeschrieben wird, wird maskiert und angezeigt,
-	// nicht gedeutet. Für Fliesstext mit Auszeichnung gibt es KindLong.
+	// Never through the Markdown renderer — that is not an omission but the
+	// whole purpose. What is written in is escaped and shown, not interpreted.
+	// For flowing text with markup there is KindLong.
 	KindCode = "code"
-	// KindTerm ist eines der Schlagwörter dieser Website — ausgewählt aus dem,
-	// was die Website schon trägt, nicht getippt.
+	// KindTerm is one of this website's terms — chosen from what the website
+	// already carries, not typed.
 	//
-	// Der Unterschied zu einem Textfeld ist derselbe wie der zwischen
-	// KindLink und KindRef: ein getippter Name geht in dem Moment schief, in
-	// dem jemand das Schlagwort umbenennt, und eine Seite trüge dann eine
-	// Beschriftung, die es nicht mehr gibt, ohne dass irgendetwas es meldet.
-	// Gespeichert wird deshalb das Kürzel — die Adresse, die eine Umbenennung
-	// absichtlich behält — und gedruckt wird der Name, wie er gerade jetzt
-	// lautet. Eine Umbenennung ändert damit, was jede Seite zeigt, ohne dass
-	// eine einzige Seite angefasst wird.
+	// The difference from a text field is the same as the one between KindLink
+	// and KindRef: a typed name goes wrong the moment somebody renames the
+	// term, and a page would then carry a label that no longer exists with
+	// nothing anywhere to report it. What is stored is therefore the slug —
+	// the address a rename deliberately keeps — and what is printed is the
+	// name as it reads right now. A rename thus changes what every page shows
+	// without a single page being touched.
 	KindTerm = "schlagwort"
 )
 
@@ -215,10 +213,10 @@ func KnownKind(kind string) bool {
 // Not a technical limit but an editorial one: a form with sixty extra fields
 // is a form nobody fills in correctly.
 //
-// Und genau dieser Grund ist es, der die Zählung auf den Träger stellt statt
-// auf die Website (D-05): ein Formular zeichnet immer nur die Felder eines
-// Trägers. Ein geteilter Vorrat liesse einen Träger den anderen verwehren, und
-// ErrTooMany nennte dann einen Grund, der nicht wahr ist.
+// And that reason is exactly what puts the count on the CARRIER rather than on
+// the website (D-05): a form ever draws the fields of one carrier only. A
+// shared allowance would let one carrier deny another, and ErrTooMany would
+// then name a reason that is not true.
 const MaxFields = 60
 
 // MaxRows bounds how many times one group may be filled in on one page.
@@ -229,10 +227,10 @@ const MaxValueBytes = 4000
 
 // maxKeyBytes bounds a field key.
 //
-// Eine Zahl und nicht zwei: SlugifyKey schneidet die abgeleitete Kennung hier
-// ab, validKey (store.go) prüft dagegen. Liefen die beiden auseinander, lehnte
-// validate ab, was SlugifyKey selbst erzeugt hat — und löschte nebenbei
-// wortlos jede Bedingung, die auf ein Feld mit einer Kennung dazwischen zeigt.
+// One number and not two: SlugifyKey truncates the derived key here, and
+// validKey (store.go) checks against it. If the two drifted apart, validate
+// would refuse what SlugifyKey itself produced — and would silently delete
+// every condition pointing at a field with a key in between.
 const maxKeyBytes = 40
 
 // Def is one field an operator has defined.
@@ -259,46 +257,46 @@ type Def struct {
 	// same key without meeting.
 	BlockTypeID int64
 	// SnippetID names the text snippet this field belongs to, or 0 for a field
-	// that belongs to no snippet. Der vierte Träger derselben Tabelle — siehe
-	// Wanderung 00047 —, eine eigene Welt neben der Seite, der Gruppe und der
-	// Bausteinart: ein Seitenfeld und ein Feld eines Textbausteins dürfen
-	// dieselbe Kennung tragen, ohne sich zu treffen.
+	// that belongs to no snippet. The fourth carrier of the same table — see
+	// migration 00047 — a world of its own beside the page, the group and the
+	// block kind: a page field and a snippet's field may carry the same key
+	// without ever meeting.
 	SnippetID int64
 	// Sub are the fields of a group, in order. Empty for everything else.
 	Sub []Def
 	// Condition is the key of the field this one hangs on: it is asked for only
 	// once that field is filled in. Empty for a field that is always shown.
 	Condition string
-	// Display ist der Anzeigemodus einer Auswahl: leer die Klappliste,
-	// DisplayButtons die Knopfreihe. Für jede andere Art bedeutungslos und
-	// beim Speichern geleert.
+	// Display is the display mode of a choice: empty for the drop-down,
+	// DisplayButtons for the row of buttons. Meaningless for every other kind
+	// and emptied on save.
 	Display string
-	// MaxValues ist die Höchstzahl der Werte, die an einer Mehrfachauswahl
-	// gleichzeitig gewählt sein dürfen. Null heisst keine Obergrenze. Eine
-	// Anzahl — nicht zu verwechseln mit RangeMax, das eine Grenze ist.
+	// MaxValues is the greatest number of values that may be picked at once in
+	// a multi-choice. Zero means no upper limit. A COUNT — not to be confused
+	// with RangeMax, which is a BOUND.
 	MaxValues int
-	// RangeMin und RangeMax sind die untere und die obere Grenze eines
-	// Bereichsfeldes. Text und keine Zahlen, damit „keine Grenze" von „die
-	// Grenze ist null" unterscheidbar bleibt: die leere Zeichenkette heisst
-	// keine Grenze in dieser Richtung.
+	// RangeMin and RangeMax are the lower and the upper bound of a range
+	// field. Text and not numbers, so that "no bound" stays distinguishable
+	// from "the bound is zero": the empty string means no bound in that
+	// direction.
 	RangeMin string
 	RangeMax string
 }
 
-// DisplayButtons ist der eine Anzeigemodus neben der Klappliste: eine Auswahl
-// als Reihe von Knöpfen.
+// DisplayButtons is the one display mode beside the drop-down: a choice drawn
+// as a row of buttons.
 //
-// Ein leeres Display ist die Klappliste, die es heute schon gibt — deshalb
-// behält jedes Feld in einer bestehenden Datenbank sein Aussehen, ohne dass
-// irgendwelche Daten wandern müssten.
+// An empty Display is the drop-down that exists today — which is why every
+// field in an existing database keeps its appearance without any data having
+// to move.
 const DisplayButtons = "knopfreihe"
 
 // IsButtonRow reports whether this field is a choice drawn as a row of
 // buttons rather than as a drop-down.
 //
-// Das Prädikat lebt hier und nicht in der Vorlage, damit weder das Formular
-// noch switchOf den Vergleich ein zweites Mal ausschreibt — zwei Stellen, die
-// dieselbe Regel buchstabieren, laufen früher oder später auseinander.
+// The predicate lives here and not in the template, so that neither the form
+// nor switchOf spells the comparison out a second time — two places spelling
+// out the same rule drift apart sooner or later.
 func (d Def) IsButtonRow() bool {
 	return d.Kind == KindChoice && d.Display == DisplayButtons
 }
@@ -329,14 +327,13 @@ func (d Def) MayControl() bool {
 	case KindGroup, KindSection:
 		return false
 	case KindDate, KindTime:
-		// Beide aus demselben Grund: ein Datums- und ein Uhrzeitfeld zeigen
-		// nie einen Platzhalter. Die Regel, die die abhängigen Felder
-		// ausblendet, ist :placeholder-shown — sie könnte hier also nie
-		// greifen, und jedes Feld, das an einem solchen hinge, bliebe für
-		// immer sichtbar. Ein Bereichsfeld steht bewusst nicht hier: es ist
-		// ein Zahlenfeld und trägt sehr wohl einen Platzhalter — im
-		// Browserdurchgang zu Plan 07-07 im Browser nachgesehen und bestätigt,
-		// nicht aus dem Lesen geschlossen (D-08).
+		// Both for the same reason: a date field and a time field never show a
+		// placeholder. The rule that hides the dependent fields is
+		// :placeholder-shown — so it could never fire here, and every field
+		// hanging off one of these would stay visible for good. A range field
+		// deliberately does NOT stand here: it is a number field and does
+		// carry a placeholder — looked at in the browser during plan 07-07's
+		// pass and confirmed, not inferred from reading (D-08).
 		return false
 	}
 	return d.ParentID == 0
@@ -563,7 +560,7 @@ func Encode(d Data) (string, error) {
 	}
 	raw, err := json.Marshal(d)
 	if err != nil {
-		return "", fmt.Errorf("felder sichern: %w", err)
+		return "", fmt.Errorf("store fields: %w", err)
 	}
 	return string(raw), nil
 }
@@ -650,11 +647,11 @@ func normalizeValue(d Def, val string) string {
 			return canonical
 		}
 	case KindTime:
-		// „09:30:00" ist gültig, weil manche Browser die Sekunden mitschicken,
-		// und die Spezifikation verspricht dem Theme HH:MM. field.List formt
-		// es beim Lesen, damit auch das Gespeicherte von gestern stimmt; hier
-		// steht die andere Hälfte, damit ab jetzt gar nichts anderes mehr in
-		// die Spalte kommt.
+		// "09:30:00" is valid because some browsers send the seconds along,
+		// and the specification promises the theme HH:MM. field.List shapes it
+		// on the way in, so that yesterday's stored values are right too; here
+		// stands the other half, so that from now on nothing else reaches the
+		// column at all.
 		if t, ok := ParseTimeOfDay(val); ok {
 			return t.Format("15:04")
 		}
@@ -672,13 +669,13 @@ func trimTo(val string) string {
 	return strings.TrimSpace(val)
 }
 
-// ParseNumber liest eine Zahl so, wie sie auf einer Tastatur hier getippt
-// wird: das Komma ist ein Dezimaltrennzeichen.
+// ParseNumber reads a number the way it is typed on a keyboard here: the comma
+// is a decimal separator.
 //
-// Eine Stelle für beide Seiten derselben Frage — der eingegebene Wert und die
-// beiden Grenzen, gegen die er gehalten wird. Zwei Lesarten für dieselben
-// Ziffern wären genau die Art Unterschied, die nur an einem Zahlenpaar
-// auffällt, das niemand von Hand nachrechnet.
+// One place for both sides of the same question — the value that was entered
+// and the two bounds it is held against. Two readings of the same digits would
+// be exactly the kind of difference that only shows up on a pair of numbers
+// nobody checks by hand.
 func ParseNumber(value string) (float64, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -688,12 +685,12 @@ func ParseNumber(value string) (float64, bool) {
 	if err != nil {
 		return 0, false
 	}
-	// NaN und Unendlich sind keine Zahlen, die jemand meint, und NaN ist die
-	// eine, die dem Bereich seinen Sinn nimmt: n < unten und n > oben sind
-	// beide falsch für sie, sie liegt also in jedem Bereich, den es gibt.
-	// Hier und nicht in der Grenzprüfung, weil diese Funktion beide Seiten
-	// derselben Frage liest — sonst wäre eine als „NaN" getippte Grenze
-	// weiterhin eine Grenze, die nichts durchsetzt.
+	// NaN and infinity are not numbers anybody means, and NaN is the one that
+	// takes a range's meaning away: n < lower and n > upper are both false for
+	// it, so it lies inside every range there is. Here and not in the bounds
+	// check, because this function reads both sides of the same question —
+	// otherwise a bound typed as "NaN" would still be a bound that enforces
+	// nothing.
 	if math.IsNaN(n) || math.IsInf(n, 0) {
 		return 0, false
 	}
@@ -724,16 +721,16 @@ func NormalizeBool(value string) (string, bool) {
 	return "", false
 }
 
-// ParseTimeOfDay liest eine Uhrzeit ohne Datum und ohne Zeitzone.
+// ParseTimeOfDay reads a time of day without a date and without a time zone.
 //
-// Die Länge entscheidet über das Muster, statt time.Parse raten zu lassen:
-// dessen Stundenfeld nimmt auch eine einstellige Zahl an, „9:30“ käme also
-// stillschweigend als halb zehn durch. Ein <input type="time"> sendet immer
-// zweistellig; wer von Hand einträgt, soll es merken. Die Sekunden sind
-// zugelassen, weil manche Browser sie mitschicken.
+// The length decides the pattern rather than letting time.Parse guess: its
+// hour field also accepts a single digit, so "9:30" would quietly come through
+// as half past nine. An <input type="time"> always sends two digits; somebody
+// typing by hand should notice. The seconds are allowed because some browsers
+// send them along.
 //
-// Das Ergebnis trägt keinen Zeitzonenversatz und kein brauchbares Datum: es
-// ist eine Uhrzeit und sonst nichts.
+// The result carries no zone offset and no usable date: it is a time of day
+// and nothing else.
 func ParseTimeOfDay(value string) (time.Time, bool) {
 	value = strings.TrimSpace(value)
 	layout := ""
@@ -752,8 +749,8 @@ func ParseTimeOfDay(value string) (time.Time, bool) {
 	return t, true
 }
 
-// rangeReason schreibt die Begründung für die Person am Formular und nennt die
-// Grenze, an der der Wert scheitert — beide, wo es beide gibt.
+// rangeReason writes the reason for the person at the form and names the bound
+// the value fails against — both, where there are both.
 func rangeReason(label, unten, oben string, hatUnten, hatOben bool) Reason {
 	switch {
 	case hatUnten && hatOben:
@@ -768,23 +765,23 @@ func rangeReason(label, unten, oben string, hatUnten, hatOben bool) Reason {
 // tooLong reports whether a value exceeds the space one stored value has, and
 // with what reason.
 //
-// Der Platz ist für alle Werte eines Feldes zusammen da: beim mehrwertigen
-// Feld einschliesslich der Zeilenumbrüche zwischen ihnen, denn genau diese
-// Zeichenkette geht in die Datenbank. Gemessen wird mit len, also in Byte
-// und nicht in Runen — die Grenze bewacht, was gespeichert wird, und
-// gespeichert werden Byte. Ein Umlaut braucht zwei davon.
+// The space is there for all of a field's values together: in a multi-value
+// field including the line breaks between them, because that is exactly the
+// string that goes into the database. It is measured with len, so in bytes and
+// not in runes — the limit guards what is stored, and what is stored is bytes.
+// An umlaut needs two of them.
 //
-// Gemeldet und nicht gekürzt (D-13): ein gekürzter Wert sieht aus wie
-// einer, den jemand so getippt hat, und bei einem mehrwertigen Feld wäre
-// die Hälfte eines Wertes ein Wert, den es nie gegeben hat. Check ruft sie
-// vor dem Verteiler auf, damit die Regel für jede Art gilt.
+// Reported and not truncated (D-13): a truncated value looks like one somebody
+// typed that way, and in a multi-value field half a value would be a value
+// that never existed. Check calls it before the per-kind switch, so the rule
+// holds for every kind.
 //
-// Eine eigene Funktion, weil sie auch dort gilt, wo nach dem Wert niemand
-// gefragt hat: eine Artregel ist eine Frage an die Person vor dem Formular,
-// und wer das Feld nicht sieht, kann sie nicht beantworten. Die Bytegrenze ist
-// keine Frage an irgendwen — sie sagt, wieviel Platz ein Wert in der Zeile hat,
-// die geschrieben wird. Darum überspringt CheckAll für ein verstecktes Feld
-// alles ausser dieser einen Prüfung.
+// A function of its own, because it also holds where nobody was asked for the
+// value: a per-kind rule is a question to the person in front of the form, and
+// somebody who cannot see the field cannot answer it. The byte limit is a
+// question to nobody — it says how much room a value has in the row that gets
+// written. That is why CheckAll skips everything but this one check for a
+// hidden field.
 func tooLong(d Def, value string) Reason {
 	if len(value) > MaxValueBytes {
 		return reasonf(i18n.N("%s is too long: at most %s characters, where accented letters count double."),
@@ -832,10 +829,10 @@ func Check(d Def, value string) Reason {
 		if !ok {
 			return reasonf(i18n.N("%s has to be a number."), d.Label)
 		}
-		// Beide Vergleiche schliessen die Grenze ein: die Grenze selbst ist
-		// ein erlaubter Wert. Eine Grenze, die keine Zahl ist, ist keine
-		// Grenze — dieselbe Lesart, die validate in store.go anwendet, wenn es
-		// ein verdrehtes Paar sucht.
+		// Both comparisons include the bound: the bound itself is an allowed
+		// value. A bound that is not a number is not a bound — the same
+		// reading validate applies in store.go when it looks for an inverted
+		// pair.
 		unten, hatUnten := ParseNumber(d.RangeMin)
 		oben, hatOben := ParseNumber(d.RangeMax)
 		if (hatUnten && n < unten) || (hatOben && n > oben) {
@@ -874,12 +871,11 @@ func Check(d Def, value string) Reason {
 				return reasonf(i18n.N("%s: “%s” is not one of the choices."), d.Label, picked)
 			}
 		}
-		// Die Höchstzahl gilt hier oder nirgends: eine Häkchengruppe lässt
-		// sich in der Auszeichnung nicht begrenzen, dafür bräuchte es
-		// JavaScript, und davon trägt dieses Programm nichts ausser htmx
-		// (D-05). Null heisst ohne Grenze — das ist, was jedes vor dieser
-		// Phase angelegte Feld trägt, und an keinem davon darf sich etwas
-		// ändern.
+		// The maximum holds here or nowhere: a checkbox group cannot be
+		// bounded in the markup, that would need JavaScript, and this program
+		// carries none of it besides htmx (D-05). Zero means no bound — which
+		// is what every field created before this phase carries, and nothing
+		// about any of them may change.
 		if d.MaxValues > 0 {
 			if n := len(SplitValues(value)); n > d.MaxValues {
 				if d.MaxValues == 1 {
@@ -903,16 +899,14 @@ func Check(d Def, value string) Reason {
 			return reasonf(i18n.N("%s: that is not a page of this website."), d.Label)
 		}
 	case KindTerm:
-		// Dass es das Schlagwort gibt und dass es dieser Website gehört, wird
-		// dort entschieden, wo die Schlagwörter bekannt sind — das Formular
-		// bietet nur die eigenen an, und das Theme löst über eine
-		// Nachschlagefunktion auf, die prüft. Hier ist es ein Kürzel oder es
-		// ist jemand, der von Hand ins Formular tippt.
+		// That the term exists and that it belongs to this website is decided
+		// where the terms are known — the form offers only its own, and the
+		// theme resolves through a lookup that checks. Here it is a slug, or
+		// it is somebody typing into the form by hand.
 		//
-		// Geprüft wird gegen page.Slugify und nicht gegen eine zweite
-		// Schreibweise dessen, was ein Kürzel ist: ein Kürzel ist genau die
-		// Zeichenkette, die aus sich selbst wieder sich selbst ergibt. Zwei
-		// Regeln nebeneinander wären zwei Regeln, die auseinanderlaufen.
+		// Checked against page.Slugify and not against a second spelling of
+		// what a slug is: a slug is exactly the string that yields itself
+		// again. Two rules side by side would be two rules that drift apart.
 		if page.Slugify(value) != value {
 			return reasonf(i18n.N("%s: that is not a term of this website."), d.Label)
 		}
@@ -1025,27 +1019,26 @@ func SplitValues(raw string) []string {
 // exactly as the caller passed them: no sorting, no removing, so saving the
 // same form twice produces the same string byte for byte.
 //
-// Ein Eintrag, der das Trennzeichen selbst trägt, wird gefaltet: jede
-// Zeilenschaltung darin wird zu einem Leerzeichen, damit die Zahl der von
-// SplitValues zurückgelesenen Werte die Zahl der nicht-leeren Einträge nie
-// übersteigt. Aus einem Eintrag kann so nie ein zweiter Wert werden.
+// An entry that carries the separator itself is folded: every line break
+// inside it becomes a space, so that the number of values SplitValues reads
+// back never exceeds the number of non-empty entries. One entry can therefore
+// never become a second value.
 //
-// Gefaltet und nicht maskiert: eine Maskierung wäre eine zweite Schreibweise
-// desselben Wertes, und ein späterer Einleser erbte beide (D-02). Auch kein
-// Fehlerweg, denn der eine Aufrufer, der das Formular liest, hat keinen —
-// fieldsFromRequest läuft ausdrücklich, bevor die Definitionen geladen sind
-// (D-03). Die Faltung ist dieselbe Klasse Normalisierung, die diese Funktion
-// mit dem Trimmen und dem Wegfallen leerer Einträge ohnehin schon macht: sie
-// setzt durch, was der Doc-Kommentar von SplitValues bisher nur behauptet hat.
-// Für ein Feld mit geschlossener Möglichkeitenliste ändert sie nichts — ein
-// gefalteter Wert steht dort so wenig zur Auswahl wie der ungefaltete. Für
-// einen späteren Aufrufer, dessen Werte aus einer CSV-Spalte stammen, ist sie
-// die Grenze, hinter der er keinen zusätzlichen Wert prägen kann.
+// Folded and not escaped: an escape would be a second spelling of the same
+// value, and a later reader would inherit both (D-02). No error path either,
+// because the one caller that reads the form has none — fieldsFromRequest
+// deliberately runs before the definitions are loaded (D-03). The folding is
+// the same class of normalisation this function already does by trimming and
+// by dropping empty entries: it enforces what SplitValues' doc comment has so
+// far only claimed. For a field with a closed list of options it changes
+// nothing — a folded value is no more one of the choices than the unfolded
+// one. For a later caller whose values come out of a CSV column it is the
+// boundary beyond which no extra value can be minted.
 func JoinValues(values []string) string {
 	out := make([]string, 0, len(values))
 	for _, v := range values {
-		// Nur das Trennzeichen, nicht jeder Weissraum: zwei Leerzeichen
-		// innerhalb eines gültigen Wertes sind Teil des Wertes.
+		// Only the separator, not every whitespace: two spaces inside a valid
+		// value are part of the value.
 		if v = strings.TrimSpace(faltZeilen.Replace(v)); v != "" {
 			out = append(out, v)
 		}
@@ -1053,9 +1046,9 @@ func JoinValues(values []string) string {
 	return strings.Join(out, "\n")
 }
 
-// faltZeilen ersetzt jede Schreibweise der Zeilenschaltung durch ein einzelnes
-// Leerzeichen. Die Wagenrücklaufform steht zuerst, damit sie ein Leerzeichen
-// ergibt und nicht zwei.
+// foldLineBreaks replaces every spelling of the line break with a single
+// space. The carriage-return form stands first, so that it yields one space
+// and not two.
 var faltZeilen = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 
 // CheckAll validates a page's answers against the fields that apply to it and
@@ -1072,16 +1065,15 @@ func CheckAll(defs []Def, d Data) map[string]Reason {
 		if !def.HoldsValue() {
 			continue
 		}
-		// Ein Feld, dessen Bedingung nicht erfüllt ist, wird nicht danach
-		// gefragt: eine Artregel dafür einzufordern hiesse, etwas zu
-		// verlangen, das die Person nicht einmal sehen kann — der eine Weg,
-		// auf dem sich ein Formular nicht abschicken lässt, ohne zu sagen
-		// warum. Übersprungen werden also die Pflicht, der Artverteiler und
-		// die Ablehnung „braucht mindestens eine Zeile“.
+		// A field whose condition is not met is not asked for: demanding a
+		// per-kind rule of it would mean demanding something the person cannot
+		// even see — the one way a form cannot be submitted without saying
+		// why. So what is skipped is the required check, the per-kind switch
+		// and the refusal "needs at least one row".
 		//
-		// Die Bytegrenze bleibt: Clean behält den Wert eines versteckten
-		// Feldes ausdrücklich, und seit D-13 kürzt trimTo nichts mehr — hier
-		// gilt das Bytebudget sonst nirgends mehr.
+		// The byte limit stays: Clean deliberately keeps a hidden field's
+		// value, and since D-13 trimTo truncates nothing — this is the only
+		// place the byte budget still holds at all.
 		if hidden[def.Key] {
 			if !def.IsGroup() {
 				if reason := tooLong(def, strings.TrimSpace(d.Values[def.Key])); !reason.Empty() {

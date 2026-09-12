@@ -252,7 +252,7 @@ func (h *Handler) RenderForPlugin(ctx context.Context, websiteID int64, a plugin
 	}
 	out, err := h.loader.RenderPage(ctx, websiteID, view, data)
 	if err != nil {
-		return "", fmt.Errorf("die Ansicht %q lässt sich nicht ausgeben: %w", view, err)
+		return "", fmt.Errorf("the view %q cannot be rendered: %w", view, err)
 	}
 	return string(out), nil
 }

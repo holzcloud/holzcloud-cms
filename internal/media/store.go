@@ -228,7 +228,7 @@ func (s *Store) SaveCrop(ctx context.Context, id int64, c Crop, width, height in
 		 WHERE id = $8`,
 		c.Ratio, c.Zoom, c.Rotation, c.FocusX, c.FocusY, width, height, id)
 	if err != nil {
-		return fmt.Errorf("zuschnitt sichern: %w", err)
+		return fmt.Errorf("store crop: %w", err)
 	}
 	return nil
 }
@@ -243,7 +243,7 @@ func (s *Store) SaveFocus(ctx context.Context, id, x, y int64) error {
 		`UPDATE media SET focus_x = $1, focus_y = $2 WHERE id = $3`,
 		clampPercent(int(x)), clampPercent(int(y)), id)
 	if err != nil {
-		return fmt.Errorf("fokus sichern: %w", err)
+		return fmt.Errorf("store focus: %w", err)
 	}
 	return nil
 }

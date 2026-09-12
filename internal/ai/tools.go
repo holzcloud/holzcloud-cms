@@ -447,7 +447,7 @@ func seiteAnlegen(d Deps) Tool {
 
 			html, err := page.RenderMarkdown(a.Markdown)
 			if err != nil {
-				return nil, fmt.Errorf("der Text lässt sich nicht ausgeben: %w", err)
+				return nil, fmt.Errorf("the text cannot be rendered: %w", err)
 			}
 			slug := strings.TrimSpace(strings.Trim(a.Address, "/"))
 			if slug == "" {
@@ -555,7 +555,7 @@ func seiteAendern(d Deps) Tool {
 			html := p.ContentHTML
 			if a.Markdown != nil {
 				if html, err = page.RenderMarkdown(markdown); err != nil {
-					return nil, fmt.Errorf("der Text lässt sich nicht ausgeben: %w", err)
+					return nil, fmt.Errorf("the text cannot be rendered: %w", err)
 				}
 			}
 

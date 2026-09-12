@@ -59,10 +59,10 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // would be a query per group on every page render, and a website with five
 // groups would pay five round trips to draw one page.
 //
-// Die WHERE-Bedingung nennt jeden fremden Namensraum ausdrücklich und lässt
-// keinen als „was übrig bleibt" durchgehen. Ohne AND snippet_id IS NULL stünde
-// jedes Feld eines Textbausteins auf dem Bearbeitungsformular jeder Seite und
-// in der .Page.FieldList jedes Themes — still, und nur im Browser zu sehen.
+// The WHERE clause names every foreign namespace explicitly and lets none of
+// them through as "whatever is left over". Without AND snippet_id IS NULL
+// every snippet's field would stand on every page's editing form and in every
+// theme's .Page.FieldList — silently, and visible only in the browser.
 func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
@@ -73,7 +73,7 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 		 WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL
 		 ORDER BY position, id`, websiteID)
 	if err != nil {
-		return nil, fmt.Errorf("felder lesen: %w", err)
+		return nil, fmt.Errorf("read fields: %w", err)
 	}
 	defer rows.Close()
 
@@ -103,13 +103,13 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Def, error) {
 
 // Sub returns the fields of one group.
 //
-// Hier steht absichtlich kein snippet_id-Zusatz, und das ist die eine Stelle,
-// an der das Muster nicht abgeschrieben wird: eine Gruppe kann an einer Seite
-// stehen und ebenso an einem Textbaustein, und ihre Unterfelder tragen dann
-// beides — parent_id und snippet_id. Ein AND snippet_id IS NULL liesse jede
-// Gruppe an einem Textbaustein leer zurückkommen. Der Namensraum ist hier die
-// Gruppe, und eine Gruppennummer ist innerhalb der Website eindeutig; die
-// Bedingung ist damit im Sinne von D-09 bereits ausdrücklich genannt.
+// There is deliberately no snippet_id clause here, and this is the one place
+// where the pattern is not copied: a group can stand on a page and equally on
+// a snippet, and its sub-fields then carry both — parent_id and snippet_id. An
+// AND snippet_id IS NULL would make every group on a snippet come back empty.
+// The namespace here is the GROUP, and a group's id is unique within the
+// website; the condition is therefore already named explicitly in the sense of
+// D-09.
 func (s *Store) Sub(ctx context.Context, websiteID, groupID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
@@ -119,7 +119,7 @@ func (s *Store) Sub(ctx context.Context, websiteID, groupID int64) ([]Def, error
 		 FROM page_field_defs WHERE website_id = $1 AND parent_id = $2 ORDER BY position, id`,
 		websiteID, groupID)
 	if err != nil {
-		return nil, fmt.Errorf("gruppenfelder lesen: %w", err)
+		return nil, fmt.Errorf("read group fields: %w", err)
 	}
 	defer rows.Close()
 
@@ -146,7 +146,7 @@ func (s *Store) OfBlockType(ctx context.Context, websiteID, blockTypeID int64) (
 		 ORDER BY position, id`,
 		websiteID, blockTypeID)
 	if err != nil {
-		return nil, fmt.Errorf("bausteinfelder lesen: %w", err)
+		return nil, fmt.Errorf("read block fields: %w", err)
 	}
 	defer rows.Close()
 
@@ -175,7 +175,7 @@ func (s *Store) OfBlockTypes(ctx context.Context, websiteID int64) (map[int64][]
 		 WHERE website_id = $1 AND block_type_id IS NOT NULL AND snippet_id IS NULL
 		 ORDER BY block_type_id, position, id`, websiteID)
 	if err != nil {
-		return nil, fmt.Errorf("bausteinfelder lesen: %w", err)
+		return nil, fmt.Errorf("read block fields: %w", err)
 	}
 	defer rows.Close()
 
@@ -193,15 +193,14 @@ func (s *Store) OfBlockTypes(ctx context.Context, websiteID int64) (map[int64][]
 // OfSnippet returns the fields of one text snippet, in order, each group
 // carrying its own.
 //
-// Zwei Vorbilder, und beide absichtlich: die Spaltenliste, die Fehlerhülle und
-// der Zuschnitt auf einen Träger kommen von OfBlockType; der Baumbau kommt von
-// List. Eine Bausteinart kann keine Gruppe tragen — BlockKinds() lässt sie
-// nicht zu —, deshalb braucht OfBlockType davon nichts. Ein Textbaustein hat
-// ein eigenes Formular und trägt darum alles, was das Formular einer Seite
-// trägt, Gruppen eingeschlossen.
+// Two models, and both deliberate: the column list, the error wrapper and the
+// narrowing to one carrier come from OfBlockType; the tree building comes from
+// List. A block kind cannot carry a group — BlockKinds() does not allow one —
+// so OfBlockType needs none of that. A snippet has a form of its own and
+// therefore carries everything a page's form carries, groups included.
 //
-// Die Websitenummer ist Teil der Abfrage und keine Prüfung danach — aus dem
-// Grund, der bei Get steht und hier unverändert gilt.
+// The website id is part of the query and not a check afterwards — for the
+// reason stated at Get, which holds here unchanged.
 func (s *Store) OfSnippet(ctx context.Context, websiteID, snippetID int64) ([]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
@@ -212,7 +211,7 @@ func (s *Store) OfSnippet(ctx context.Context, websiteID, snippetID int64) ([]De
 		 WHERE website_id = $1 AND snippet_id = $2
 		 ORDER BY position, id`, websiteID, snippetID)
 	if err != nil {
-		return nil, fmt.Errorf("textbausteinfelder lesen: %w", err)
+		return nil, fmt.Errorf("read snippet fields: %w", err)
 	}
 	defer rows.Close()
 
@@ -243,23 +242,20 @@ func (s *Store) OfSnippet(ctx context.Context, websiteID, snippetID int64) ([]De
 // OfSnippets returns every text snippet's fields of one website, keyed by
 // snippet.
 //
-// Eine Abfrage statt einer je Textbaustein, und der Grund ist derselbe, den
-// OfBlockTypes nennt: das hier läuft auf jedem öffentlichen Aufbau einer Seite,
-// und eine Website mit fünf Textbausteinen zahlte sonst fünf Umläufe, um eine
-// Seite zu zeichnen.
+// One query rather than one per snippet, and the reason is the one OfBlockTypes
+// names: this runs on every public assembly of a page, and a website with five
+// snippets would otherwise pay five round trips to draw one page.
 //
-// Der Baumbau kommt von OfSnippet und aus demselben Grund: ein Textbaustein
-// kann eine Gruppe tragen. Die Scheibe eines Textbausteins kommt hier Element
-// für Element und Sub für Sub so heraus, wie OfSnippet sie für denselben
-// Textbaustein herausgibt — sonst wären der öffentliche Aufbau und der
-// Verwaltungsbildschirm über eine Website uneins, an der niemand etwas
-// geändert hat.
+// The tree building comes from OfSnippet and for the same reason: a snippet can
+// carry a group. A snippet's slice comes out here element for element and Sub
+// for Sub exactly as OfSnippet hands it out for the same snippet — otherwise
+// the public assembly and the admin screen would disagree about a website
+// nobody had changed.
 //
-// Das ORDER BY trägt mehr als Ordentlichkeit: snippet_id gruppiert die Zeilen,
-// sodass ein Durchgang die Karte baut, und position, id ist derselbe
-// Gleichstandsbrecher, den List und OfSnippet benutzen — die Massenlesung und
-// die Einzellesung können sich über die Reihenfolge damit nicht uneins werden,
-// auch nicht bei zwei Feldern auf derselben Position.
+// The ORDER BY carries more than tidiness: snippet_id groups the rows so that
+// one pass builds the map, and position, id is the same tie-breaker List and
+// OfSnippet use — the bulk read and the single read therefore cannot disagree
+// about the order, not even for two fields at the same position.
 func (s *Store) OfSnippets(ctx context.Context, websiteID int64) (map[int64][]Def, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
 		`SELECT id, website_id, COALESCE(parent_id, 0), key, label, kind,
@@ -270,13 +266,13 @@ func (s *Store) OfSnippets(ctx context.Context, websiteID int64) (map[int64][]De
 		 WHERE website_id = $1 AND snippet_id IS NOT NULL
 		 ORDER BY snippet_id, position, id`, websiteID)
 	if err != nil {
-		return nil, fmt.Errorf("textbausteinfelder lesen: %w", err)
+		return nil, fmt.Errorf("read snippet fields: %w", err)
 	}
 	defer rows.Close()
 
-	// Vor der Abfrage angelegt und nie nil: ein Aufrufer soll auf einer
-	// Website ohne ein einziges Textbausteinfeld dieselbe Karte in der Hand
-	// halten wie auf einer mit vielen.
+	// Created before the query and never nil: a caller on a website without a
+	// single snippet field should hold the same map in their hand as one on a
+	// website with many.
 	out := map[int64][]Def{}
 	children := map[int64][]Def{}
 	for rows.Next() {
@@ -309,22 +305,22 @@ func scanDef(row interface{ Scan(...any) error }) (Def, error) {
 		pflicht int
 		auswahl string
 	)
-	// Die Reihenfolge hier ist die der sieben SELECT-Spaltenlisten — List, Sub,
-	// OfBlockType, OfBlockTypes, OfSnippet, OfSnippets und Get —, Zeichen für
-	// Zeichen. Die sieben sind Abschriften voneinander und müssen es bleiben:
-	// eine Liste, die von den anderen abweicht, lädt ein Feld still mit einem
-	// Nullwert, und nichts schlägt fehl.
+	// The order here is that of the seven SELECT column lists — List, Sub,
+	// OfBlockType, OfBlockTypes, OfSnippet, OfSnippets and Get — character for
+	// character. The seven are copies of one another and have to stay that
+	// way: a list that differs from the others loads a field silently with a
+	// zero value, and nothing fails.
 	//
-	// Die Zahl steht mit ihren Namen da, damit sie nachzuzählen ist und nicht
-	// geglaubt werden muss — sie stand vier Wanderungen lang auf fünf, während
-	// es längst sieben waren. TestSpaltenlistenSindAbschriften zählt sie aus
-	// der Datei und vergleicht sie Zeichen für Zeichen; ein fünfter Träger
-	// macht diesen Test rot, und das ist die Absicht.
+	// The number stands there with their names so that it can be counted
+	// rather than believed — it said five for four migrations while there had
+	// long been seven. TestSpaltenlistenSindAbschriften counts them out of the
+	// file and compares them character for character; a fifth carrier turns
+	// that test red, and that is the intention.
 	if err := row.Scan(&d.ID, &d.WebsiteID, &d.ParentID, &d.Key, &d.Label, &d.Kind,
 		&pflicht, &d.Hint, &auswahl, &d.AppliesTo, &d.Position, &d.Condition,
 		&d.Display, &d.MaxValues, &d.RangeMin, &d.RangeMax, &d.BlockTypeID,
 		&d.SnippetID); err != nil {
-		return Def{}, fmt.Errorf("feld lesen: %w", err)
+		return Def{}, fmt.Errorf("read field: %w", err)
 	}
 	d.Required = pflicht == 1
 	d.Choices = SplitChoices(auswahl)
@@ -355,17 +351,17 @@ func (s *Store) Get(ctx context.Context, websiteID, id int64) (*Def, error) {
 	return &d, nil
 }
 
-// gehoertZurWebsite prüft, dass eine Trägerzeile zu dieser Website gehört.
+// belongsToWebsite checks that a carrier row belongs to this website.
 //
-// Der Tabellenname kommt aus dem Rumpf dieser Datei und nie von aussen — zwei
-// feste Zeichenketten an zwei Aufrufstellen —, deshalb ist er hier eingesetzt
-// und nicht gebunden. Die beiden Nummern sind gebunden, wie überall sonst.
-func (s *Store) gehoertZurWebsite(ctx context.Context, tabelle string, id, websiteID int64) error {
+// The table name comes from the body of this file and never from outside — two
+// fixed strings at two call sites — which is why it is interpolated here
+// rather than bound. The two ids are bound, as everywhere else.
+func (s *Store) belongsToWebsite(ctx context.Context, tabelle string, id, websiteID int64) error {
 	var n int
 	if err := s.DB.Read.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM `+tabelle+` WHERE id = $1 AND website_id = $2`,
 		id, websiteID).Scan(&n); err != nil {
-		return fmt.Errorf("träger prüfen: %w", err)
+		return fmt.Errorf("check carrier: %w", err)
 	}
 	if n == 0 {
 		return errors.New(i18n.N("belongs to another website"))
@@ -392,24 +388,23 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		}
 	}
 
-	// Der Träger gehört dieser Website, und das steht hier und nicht nur bei
-	// den Aufrufern.
+	// The carrier belongs to this website, and that is stated here and not
+	// only at the callers.
 	//
-	// REFERENCES beweist, dass es die Zeile gibt; dass sie zu d.WebsiteID
-	// gehört, beweist es nicht, und die beiden Teilindizes sind auf snippet_id
-	// beziehungsweise block_type_id allein gezogen — die Datenbank legte eine
-	// Definition über die Websitegrenze hinweg klaglos ab. Der
-	// Verwaltungsbildschirm wacht davor (snippetOf), der Archivweg reicht eine
-	// eben angelegte Nummer herein; beide richtig, beide ausserhalb des
-	// Speichers. Eine Zeile je Definition ist billig, und sie deckt jeden
-	// künftigen Aufrufer mit, der das nicht weiss.
+	// REFERENCES proves the row exists; it does not prove it belongs to
+	// d.WebsiteID, and the two partial indexes are drawn on snippet_id and
+	// block_type_id alone — the database would file a definition across the
+	// website boundary without complaint. The admin screen guards it
+	// (snippetOf) and the archive path hands in an id it has just created;
+	// both correct, both outside the store. One row per definition is cheap,
+	// and it covers every future caller who does not know this.
 	if d.SnippetID > 0 {
-		if err := s.gehoertZurWebsite(ctx, "snippets", d.SnippetID, d.WebsiteID); err != nil {
+		if err := s.belongsToWebsite(ctx, "snippets", d.SnippetID, d.WebsiteID); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrNoSnippet, err)
 		}
 	}
 	if d.BlockTypeID > 0 {
-		if err := s.gehoertZurWebsite(ctx, "block_types", d.BlockTypeID, d.WebsiteID); err != nil {
+		if err := s.belongsToWebsite(ctx, "block_types", d.BlockTypeID, d.WebsiteID); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrNoBlockType, err)
 		}
 	}
@@ -418,49 +413,43 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		return nil, err
 	}
 
-	// Gezählt wird der Träger, in den geschrieben wird, und nicht die Website
-	// (D-05). Vier Arme in derselben Hausform wie der Schalter in Move, jeder
-	// nennt seinen Namensraum mit einer ausdrücklichen SQL-Bedingung, und
-	// keiner heisst „was übrig bleibt" (D-09).
+	// What is counted is the carrier being written into, and not the website
+	// (D-05). Four arms in the same house style as the switch in Move, each
+	// naming its namespace with an explicit SQL condition, and none of them
+	// called "whatever is left over" (D-09).
 	//
-	// Warum überhaupt: der Vorrat ist da, damit ein Formular benutzbar bleibt,
-	// und ein Formular zeichnet immer nur die Felder eines Trägers. Ein
-	// geteilter Vorrat lässt einen Träger den anderen still verwehren — wer das
-	// zweite Feld an einen Textbaustein hängt, bekäme „mehr Felder gehen nicht"
-	// zu lesen, weil die Bausteinarten den Vorrat aufgebraucht haben, und der
-	// Satz wäre schlicht nicht wahr.
 	var (
 		zaehlung string
 		werte    []any
 	)
 	switch {
 	case d.SnippetID > 0:
-		// Steht über dem Gruppenarm, und das ist kein Zufall: eine Gruppe darf
-		// an einem Textbaustein stehen, und ihre Unterfelder tragen dann beides.
-		// snippet_id = $2 fängt sie mit ein, und das ist richtig — sie sind
-		// Zeilen desselben Formulars.
+		// Stands above the group arm, and that is no accident: a group may
+		// stand on a snippet, and its sub-fields then carry both. snippet_id =
+		// $2 catches them too, and that is right — they are rows of the same
+		// form.
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND snippet_id = $2`
 		werte = []any{d.WebsiteID, d.SnippetID}
 	case d.BlockTypeID > 0:
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id = $2 AND snippet_id IS NULL`
 		werte = []any{d.WebsiteID, d.BlockTypeID}
 	case d.ParentID > 0:
-		// Ein Unterfeld einer Gruppe an einer Seite zählt gegen den Vorrat der
-		// Seite, genau wie bisher: die Gruppe wird auf dem Seitenformular
-		// gezeichnet, ihre Zeilen gehören dorthin. Ausgeschrieben statt in den
-		// default-Arm gefaltet, damit der Namensraum dasteht und nicht
-		// erschlossen werden muss.
+		// A sub-field of a group on a page counts against the page's
+		// allowance, exactly as before: the group is drawn on the page's form,
+		// and its rows belong there. Written out rather than folded into the
+		// default arm, so that the namespace stands there and does not have to
+		// be inferred.
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL`
 		werte = []any{d.WebsiteID}
 	default:
-		// Die eigenen Felder der Seite — der Träger dieses Arms und nicht der
-		// Rest.
+		// The page's own fields — the carrier of this arm, and not the
+		// remainder.
 		zaehlung = `SELECT COUNT(*) FROM page_field_defs WHERE website_id = $1 AND block_type_id IS NULL AND snippet_id IS NULL`
 		werte = []any{d.WebsiteID}
 	}
 	var count int
 	if err := s.DB.Read.QueryRowContext(ctx, zaehlung, werte...).Scan(&count); err != nil {
-		return nil, fmt.Errorf("felder zählen: %w", err)
+		return nil, fmt.Errorf("count fields: %w", err)
 	}
 	if count >= MaxFields {
 		return nil, ErrTooMany
@@ -497,7 +486,7 @@ func (s *Store) Create(ctx context.Context, d Def) (*Def, error) {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return nil, ErrDuplicateKey
 		}
-		return nil, fmt.Errorf("feld anlegen: %w", err)
+		return nil, fmt.Errorf("create field: %w", err)
 	}
 	id, _ := res.LastInsertId()
 	return s.Get(ctx, d.WebsiteID, id)
@@ -517,9 +506,9 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, d Def) error {
 	d.Key = existing.Key
 	d.ParentID = existing.ParentID
 	d.BlockTypeID = existing.BlockTypeID
-	// Der Träger wird aus dem Gespeicherten übernommen und nie aus dem, was
-	// hereinkommt: sonst könnte ein Bearbeitungsformular ein Feld aus seinem
-	// Namensraum in einen anderen schieben.
+	// The carrier is taken from what is stored and never from what comes in:
+	// otherwise an editing form could push a field out of its namespace into
+	// another one.
 	d.SnippetID = existing.SnippetID
 	// The kind of a group cannot change: its rows would have nowhere to go,
 	// and a plain field turned into a group would start out with none.
@@ -543,7 +532,7 @@ func (s *Store) Update(ctx context.Context, websiteID, id int64, d Def) error {
 		d.Condition, id, websiteID,
 		d.Display, d.MaxValues, d.RangeMin, d.RangeMax)
 	if err != nil {
-		return fmt.Errorf("feld ändern: %w", err)
+		return fmt.Errorf("update field: %w", err)
 	}
 	return nil
 }
@@ -600,7 +589,7 @@ func (s *Store) Delete(ctx context.Context, websiteID, id int64) error {
 	_, err := s.DB.Write.ExecContext(ctx,
 		`DELETE FROM page_field_defs WHERE id = $1 AND website_id = $2`, id, websiteID)
 	if err != nil {
-		return fmt.Errorf("feld löschen: %w", err)
+		return fmt.Errorf("delete field: %w", err)
 	}
 	return nil
 }
@@ -617,13 +606,12 @@ func (s *Store) Move(ctx context.Context, websiteID, id int64, up bool) error {
 	// Moved within its own level: a field inside a group, inside a block kind
 	// or inside a text snippet has nothing to swap places with outside it.
 	//
-	// Jeder Arm nennt seinen Träger, und der default-Arm ist die Seite selbst
-	// und nicht „was übrig bleibt" (D-09): ein Feld ohne Gruppe, ohne
-	// Bausteinart und ohne Textbaustein ist ein Seitenfeld. Kommt ein fünfter
-	// Träger, bekommt er einen eigenen Arm, statt still hier zu landen — und
-	// bis dahin bleibt es das erste Feld eines Textbausteins, das nach oben
-	// nichts zu tauschen hat, auch wenn Seitenfelder derselben Website tiefere
-	// Positionen belegen.
+	// Every arm names its carrier, and the default arm is the page itself and
+	// not "whatever is left over" (D-09): a field with no group, no block kind
+	// and no snippet is a page field. When a fifth carrier comes it gets an arm
+	// of its own rather than landing here silently — and until then the first
+	// field of a snippet has nothing to swap upwards with, even when page
+	// fields of the same website occupy lower positions.
 	var defs []Def
 	switch {
 	case current.ParentID > 0:
@@ -659,13 +647,13 @@ func (s *Store) Move(ctx context.Context, websiteID, id int64, up bool) error {
 
 	tx, err := s.DB.Write.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("reihenfolge ändern: %w", err)
+		return fmt.Errorf("update order: %w", err)
 	}
 	defer tx.Rollback()
 	for i, d := range defs {
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE page_field_defs SET position = $1 WHERE id = $2`, i, d.ID); err != nil {
-			return fmt.Errorf("reihenfolge ändern: %w", err)
+			return fmt.Errorf("update order: %w", err)
 		}
 	}
 	return tx.Commit()
@@ -685,62 +673,59 @@ func validate(d *Def) error {
 	if d.Key == "" {
 		return errors.New(i18n.N("no key can be made from this label — please use letters"))
 	}
-	// Erst hier, nach der Ableitung: der leere Fall darüber behält seine
-	// eigene, hilfreichere Begründung.
+	// Only here, after the derivation: the empty case above keeps its own,
+	// more helpful reason.
 	//
-	// Ein abgeleiteter Schlüssel trägt ohnehin nur [a-z0-9_], vom Bildschirm
-	// kommt also nichts, was hier hängen bliebe. Der eine Weg, auf dem ein
-	// Schlüssel mitgebracht statt abgeleitet wird, ist der Archivweg
-	// (internal/bundle/import.go:351) — eine Datei von einem fremden Rechner.
+	// A derived key carries only [a-z0-9_] anyway, so nothing from the screen
+	// would catch here. The one path on which a key is BROUGHT rather than
+	// derived is the archive path (internal/bundle/import.go:351) — a file from
+	// somebody else's machine.
 	if !validKey(d.Key) {
 		return errors.New(i18n.N("a key carries only lower-case letters, digits and underscores"))
 	}
 	if !KnownKind(d.Kind) {
 		return errors.New(i18n.N("there is no field of this kind"))
 	}
-	// Beide Auswahlarten: eine Mehrfachauswahl ohne Möglichkeiten zeichnet
-	// eine Gruppe, in der nichts steht als der versteckte Wächter, kann also
-	// nie einen Wert tragen. Ist sie zusätzlich Pflicht, meldet Check bei jedem
-	// Speichern jeder Seite, dass sie ausgefüllt werden müsse, und das Formular
-	// bietet nichts an, womit das ginge — die Seite wäre unspeicherbar, bis
-	// jemand die Definition ändert.
+	// Both kinds of choice: a multi-choice with no options draws a group with
+	// nothing in it but the hidden sentinel, so it can never carry a value. If
+	// it is required on top of that, Check reports on every save of every page
+	// that it has to be filled in, and the form offers nothing to do that with
+	// — the page would be unsaveable until somebody changes the definition.
 	if (d.Kind == KindChoice || d.Kind == KindMulti) && len(d.Choices) == 0 {
 		return errors.New(i18n.N("a choice needs at least one option"))
 	}
-	// Eine negative Höchstzahl kann kein ehrliches Formular erzeugen — das Feld
-	// trägt min="0" — und stillschweigend auf null zu ziehen hiesse, eine
-	// gebastelte Eingabe als Absicht zu lesen. Abgelehnt statt zurechtgebogen,
-	// und die Ablehnung steht vor dem Leeren weiter unten, damit sie nicht von
-	// der Art abhängt, die zufällig gewählt war.
+	// A negative maximum cannot come from an honest form — the field carries
+	// min="0" — and quietly pulling it to zero would mean reading a crafted
+	// input as an intention. Refused rather than bent into shape, and the
+	// refusal stands before the emptying further down, so that it does not
+	// depend on which kind happened to be chosen.
 	if d.MaxValues < 0 {
 		return errors.New(i18n.N("there is no maximum below zero — zero means no upper limit"))
 	}
-	// Verdrehte Grenzen: nur wenn beide als Zahl zu lesen sind, ist die Frage
-	// überhaupt gestellt. Zwei Wörter sind kein verdrehtes Zahlenpaar, sondern
-	// zwei Wörter, und die gehen diese Prüfung nichts an.
+	// Inverted bounds: the question is only asked at all when both read as
+	// numbers. Two words are not an inverted pair of numbers, they are two
+	// words, and this check is none of their business.
 	d.RangeMin = strings.TrimSpace(d.RangeMin)
 	d.RangeMax = strings.TrimSpace(d.RangeMax)
 	if d.RangeMin != "" && d.RangeMax != "" {
-		// Dieselbe Lesart wie Check: ParseNumber nimmt das Komma als
-		// Dezimaltrennzeichen. Zwei Stellen, die dieselben Ziffern
-		// verschieden läsen, wären ein Paar, das hier durchgeht und dort
-		// nichts mehr durchlässt.
+		// The same reading as Check: ParseNumber takes the comma as a decimal
+		// separator. Two places reading the same digits differently would be a
+		// pair that gets through here and lets nothing through there.
 		unten, hatUnten := ParseNumber(d.RangeMin)
 		oben, hatOben := ParseNumber(d.RangeMax)
 		if hatUnten && hatOben && unten > oben {
 			return ErrRangeInverted
 		}
 	}
-	// Die Darstellung gehört einer Auswahl, die Höchstzahl einer
-	// Mehrfachauswahl, die beiden Grenzen einem Bereichsfeld. Was zur
-	// gewählten Art nicht passt, wird geleert und nicht abgelehnt — dieselbe
-	// Abmachung, die die Überschrift weiter unten schon macht: wer ein
-	// bestehendes Feld umstellt, soll nicht erst von Hand Kästchen ausräumen
-	// müssen.
+	// The display belongs to a choice, the maximum to a multi-choice, the two
+	// bounds to a range field. Whatever does not fit the chosen kind is
+	// emptied rather than refused — the same bargain the heading further down
+	// already makes: somebody converting an existing field should not have to
+	// clear boxes by hand first.
 	//
-	// Geleert wird immer beides oder keines: ein Bereichsfeld, das nur die
-	// untere oder nur die obere Grenze setzt, behält sie. Nach oben oder nach
-	// unten offen ist eine gewollte Angabe und kein halb ausgefülltes Paar.
+	// Both or neither is emptied: a range field that sets only the lower or
+	// only the upper bound keeps it. Open at the top or at the bottom is a
+	// deliberate statement and not a half-filled pair.
 	if d.Kind != KindChoice {
 		d.Display = ""
 	}
@@ -772,39 +757,36 @@ func validate(d *Def) error {
 	// went within a row would be a rule the person filling it in cannot see.
 	// Inside a block kind the same, one level over.
 	//
-	// An einem Textbaustein aus demselben Grund — sein Formular wird als Ganzes
-	// ausgefüllt — und zusätzlich aus einem eigenen: checkCondition läuft über
-	// die Feldliste der Seite (List), und die CSS-Regel, die ein abhängiges
-	// Feld verbirgt, ist für das Seitenformular geschrieben. Eine Bedingung an
-	// einem Textbausteinfeld wäre also gespeichert und würde nie beachtet, und
-	// das ist schlechter, als sie gar nicht anzubieten.
+	// On a snippet for the same reason — its form is filled in as a whole —
+	// and for one of its own on top: checkCondition walks the page's field list
+	// (List), and the CSS rule that hides a dependent field is written for the
+	// page form. A condition on a snippet field would therefore be stored and
+	// never honoured, and that is worse than not offering it at all.
 	if d.ParentID > 0 || d.BlockTypeID > 0 || d.SnippetID > 0 {
 		d.Condition = ""
 	}
-	// Absichtlich ein eigener Arm und nicht der Bausteinart-Arm darunter. Dies
-	// ist die eine Stelle dieser Phase, an der das Abschreiben des Vorbilds
-	// falsch wäre — und still, denn nichts schlüge fehl.
+	// Deliberately an arm of its own and not the block-kind arm below it. This
+	// is the one place in this phase where copying the model would be wrong —
+	// and silent, because nothing would fail.
 	//
-	// Pflicht wird hier nicht auf falsch gezwungen: die Bausteinart tut das,
-	// weil das Speichern einer Seite nicht an einem halb geschriebenen
-	// Baustein scheitern darf — und der Arm darunter bleibt der einzige Ort im
-	// Baum, an dem ein Träger das erzwingt, was ein Zählgatter dieses Plans
-	// nachweist. Ein Textbaustein hat ein eigenes Formular, auf dem sich ein
-	// Pflichtfeld mit einer Begründung zurückweisen lässt — Pflicht bleibt
-	// hier also bedeutungsvoll.
+	// Required is not forced to false here: the block kind does that, because
+	// saving a page must not fail on a half-written block — and the arm below
+	// stays the only place in the tree where a carrier enforces what a counting
+	// gate of this plan proves. A snippet has a form of its own on which a
+	// required field can be refused with a reason, so required stays meaningful
+	// here.
 	//
-	// Und keine Verengung der Feldarten: BlockKinds() lässt Verweis und
-	// Schlagwort weg, weil ein Baustein beim Speichern der Seite zu HTML
-	// erstarrt und beide beim nächsten Umbenennen still veralten würden. Die
-	// Werte eines Textbausteins werden auf dem Weg nach draussen durch
-	// field.Resolve aufgelöst, genau wie die einer Seite — dieser Grund reicht
-	// also nicht hierher, und ein Textbaustein bietet field.Kinds vollständig
-	// an, Gruppen eingeschlossen.
+	// And no narrowing of the field kinds: BlockKinds() leaves out reference
+	// and term, because a block freezes into HTML when the page is saved and
+	// both would silently go stale at the next rename. A snippet's values are
+	// resolved on the way out by field.Resolve, exactly like a page's — so that
+	// reason does not reach this far, and a snippet offers field.Kinds in full,
+	// groups included.
 	//
-	// Verengt wird zweierlei, und keines davon ist eine Feldart: die Bedingung
-	// oben, aus dem dort genannten Grund, und gilt_fuer hier — „gilt für Seiten
-	// / für Beiträge" hat an einem Textbaustein keinen Sinn, denn ein
-	// Textbaustein ist keine Seite und gehört zu keiner Inhaltsart.
+	// Two things are narrowed, and neither is a field kind: the condition
+	// above, for the reason given there, and applies_to here — "applies to
+	// pages / to posts" has no meaning on a snippet, because a snippet is not a
+	// page and belongs to no content kind.
 	if d.SnippetID > 0 {
 		d.AppliesTo = ForBoth
 	}
@@ -828,11 +810,10 @@ func validate(d *Def) error {
 			d.Condition = ""
 		}
 	}
-	// Für Seiten, für Beiträge, für alles — oder für eine eigene Inhaltsart
-	// dieser Website. Deren Kennung wird hier nicht geprüft: der Bildschirm
-	// bietet nur vorhandene an, und eine Art, die später verschwindet, soll
-	// ihre Felder behalten, falls sie wiederkommt. Was zu keiner Art gehört,
-	// erscheint schlicht nirgends.
+	// For pages, for posts, for everything — or for one of this website's own
+	// content kinds. Its key is not checked here: the screen offers only ones
+	// that exist, and a kind that disappears later should keep its fields in
+	// case it comes back. Whatever belongs to no kind simply appears nowhere.
 	if d.AppliesTo == "" {
 		d.AppliesTo = ForBoth
 	}
@@ -856,9 +837,8 @@ func boolToInt(b bool) int {
 // validKey is the shape both a field key and a content kind's key have: lower
 // case letters, digits and underscores.
 //
-// Die Obergrenze ist maxKeyBytes und damit dieselbe Zahl, bei der SlugifyKey
-// abschneidet: eine Kennung, die die Ableitung erzeugt hat, muss diese Prüfung
-// bestehen.
+// The upper bound is maxKeyBytes and therefore the same number at which
+// SlugifyKey truncates: a key the derivation produced has to pass this check.
 func validKey(s string) bool {
 	if s == "" || len(s) > maxKeyBytes {
 		return false

@@ -108,7 +108,7 @@ func (s *Store) Issue(ctx context.Context, name string, websiteID int64, canWrit
 
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
-		return "", nil, fmt.Errorf("schlüssel erzeugen: %w", err)
+		return "", nil, fmt.Errorf("generate key: %w", err)
 	}
 	secret := TokenPrefix + base64.RawURLEncoding.EncodeToString(raw)
 
@@ -126,7 +126,7 @@ func (s *Store) Issue(ctx context.Context, name string, websiteID int64, canWrit
 		 VALUES ($1, $2, $3, $4, $5)`,
 		name, hash(secret), site, boolToInt(canWrite), expires)
 	if err != nil {
-		return "", nil, fmt.Errorf("schlüssel sichern: %w", err)
+		return "", nil, fmt.Errorf("store key: %w", err)
 	}
 	id, _ := res.LastInsertId()
 
@@ -190,7 +190,7 @@ func (s *Store) List(ctx context.Context) ([]Token, error) {
 		`SELECT id, name, website_id, can_write, last_used_at, expires_at, created_at
 		 FROM ai_tokens ORDER BY id DESC`)
 	if err != nil {
-		return nil, fmt.Errorf("schlüssel lesen: %w", err)
+		return nil, fmt.Errorf("read key: %w", err)
 	}
 	defer rows.Close()
 
@@ -221,7 +221,7 @@ func (s *Store) Get(ctx context.Context, id int64) (*Token, error) {
 func (s *Store) Revoke(ctx context.Context, id int64) error {
 	_, err := s.DB.Write.ExecContext(ctx, `DELETE FROM ai_tokens WHERE id = $1`, id)
 	if err != nil {
-		return fmt.Errorf("schlüssel zurückziehen: %w", err)
+		return fmt.Errorf("revoke key: %w", err)
 	}
 	return nil
 }

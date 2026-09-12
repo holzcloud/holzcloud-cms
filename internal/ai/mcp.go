@@ -269,7 +269,7 @@ func (c Call) Into(v any) error {
 		return nil
 	}
 	if err := json.Unmarshal(c.Args, v); err != nil {
-		return fmt.Errorf("die Angaben sind nicht lesbar: %w", err)
+		return fmt.Errorf("the details are not readable: %w", err)
 	}
 	return nil
 }

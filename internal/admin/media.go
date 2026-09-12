@@ -231,7 +231,7 @@ func (h *Handler) uploadFailed(w http.ResponseWriter, r *http.Request, redirect,
 // bounded by MaxMediaSize, which the caller has already applied to the body.
 func (h *Handler) rejectExternalSVG(file io.ReadSeeker, mimeType string) (io.Reader, error) {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("Datei konnte nicht gelesen werden")
+		return nil, fmt.Errorf("the file could not be read")
 	}
 	if mimeType != "image/svg+xml" {
 		return file, nil
@@ -239,10 +239,10 @@ func (h *Handler) rejectExternalSVG(file io.ReadSeeker, mimeType string) (io.Rea
 
 	content, err := io.ReadAll(io.LimitReader(file, h.cfg.MaxMediaSize+1))
 	if err != nil {
-		return nil, fmt.Errorf("Datei konnte nicht gelesen werden")
+		return nil, fmt.Errorf("the file could not be read")
 	}
 	if refs := tmplmgr.CheckExternalRefs("upload.svg", string(content)); len(refs) > 0 {
-		return nil, fmt.Errorf("Die SVG-Datei lädt %s von einem fremden Server; das ist nicht erlaubt", refs[0].URL)
+		return nil, fmt.Errorf("the SVG file loads %s from somebody else's server; that is not allowed", refs[0].URL)
 	}
 	return bytes.NewReader(content), nil
 }

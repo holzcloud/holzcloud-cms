@@ -134,7 +134,7 @@ func (r *Runtime) Close(ctx context.Context) error {
 func (r *Runtime) Load(ctx context.Context, m *Manifest, module []byte) error {
 	compiled, err := r.engine.CompileModule(ctx, module)
 	if err != nil {
-		return fmt.Errorf("das Modul lässt sich nicht übersetzen: %w", err)
+		return fmt.Errorf("the module cannot be compiled: %w", err)
 	}
 
 	// A guest that does not export what the convention requires is refused
@@ -143,7 +143,7 @@ func (r *Runtime) Load(ctx context.Context, m *Manifest, module []byte) error {
 	for _, name := range []string{GuestAlloc, GuestHandle} {
 		if _, ok := compiled.ExportedFunctions()[name]; !ok {
 			compiled.Close(ctx)
-			return fmt.Errorf("das Modul exportiert %q nicht", name)
+			return fmt.Errorf("the module does not export %q", name)
 		}
 	}
 
@@ -158,7 +158,7 @@ func (r *Runtime) Load(ctx context.Context, m *Manifest, module []byte) error {
 	mod, err := r.engine.InstantiateModule(ctx, compiled, cfg)
 	if err != nil {
 		compiled.Close(ctx)
-		return fmt.Errorf("das Modul lässt sich nicht starten: %w", err)
+		return fmt.Errorf("the module cannot be started: %w", err)
 	}
 
 	inst := &instance{
@@ -244,7 +244,7 @@ func (r *Runtime) Dispatch(ctx context.Context, id, hook string, websiteID int64
 		return err
 	}
 	if len(payload) > MaxPayloadBytes {
-		return fmt.Errorf("die Nutzlast für %q ist größer als %d MB", hook, MaxPayloadBytes>>20)
+		return fmt.Errorf("the payload for %q is larger than %d MB", hook, MaxPayloadBytes>>20)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, CallTimeout)
@@ -261,7 +261,7 @@ func (r *Runtime) Dispatch(ctx context.Context, id, hook string, websiteID int64
 		return nil
 	}
 	if err := json.Unmarshal(answer, out); err != nil {
-		err = fmt.Errorf("die Antwort auf %q ist kein gültiges JSON: %w", hook, err)
+		err = fmt.Errorf("the answer to %q is not valid JSON: %w", hook, err)
 		r.fail(id, hook, err)
 		return err
 	}
@@ -297,7 +297,7 @@ func (i *instance) call(ctx context.Context, hook string, payload []byte) ([]byt
 	func() {
 		defer func() {
 			if p := recover(); p != nil {
-				err = fmt.Errorf("das Modul ist abgestürzt: %v", p)
+				err = fmt.Errorf("the module crashed: %v", p)
 			}
 		}()
 		res, err = i.callLocked(ctx, hook, payload)
@@ -333,7 +333,7 @@ func (i *instance) callLocked(ctx context.Context, hook string, payload []byte) 
 		return nil, nil
 	}
 	if n > MaxPayloadBytes {
-		return nil, fmt.Errorf("die Antwort ist größer als %d MB", MaxPayloadBytes>>20)
+		return nil, fmt.Errorf("the answer is larger than %d MB", MaxPayloadBytes>>20)
 	}
 	buf, ok := i.mod.Memory().Read(ptr, n)
 	if !ok {
@@ -355,7 +355,7 @@ func (i *instance) write(ctx context.Context, data []byte) (uint32, error) {
 		return 0, fmt.Errorf("%s: %w", GuestAlloc, err)
 	}
 	if len(ret) == 0 {
-		return 0, fmt.Errorf("%s hat nichts zurückgegeben", GuestAlloc)
+		return 0, fmt.Errorf("%s returned nothing", GuestAlloc)
 	}
 	ptr := uint32(ret[0])
 	if ptr == 0 {
@@ -504,7 +504,7 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 			return nil, err
 		}
 		if len(a.Subject)+len(a.Body) > MaxNotifyBytes {
-			return nil, fmt.Errorf("die Benachrichtigung ist größer als %d KB", MaxNotifyBytes>>10)
+			return nil, fmt.Errorf("the notification is larger than %d KB", MaxNotifyBytes>>10)
 		}
 		queued, reason, err := r.notify(ctx, site, a)
 		if err != nil {
@@ -525,7 +525,7 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 			a.View = ViewPage
 		case ViewSearch:
 		default:
-			return nil, fmt.Errorf("die Ansicht %q gibt es nicht", a.View)
+			return nil, fmt.Errorf("there is no view %q", a.View)
 		}
 		out, err := r.render(ctx, site, a)
 		if err != nil {

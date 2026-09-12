@@ -358,7 +358,7 @@ const maxPluginDownload = 8 << 20
 // is on the list.
 func writePluginDownload(w http.ResponseWriter, d plugin.Download) error {
 	if len(d.Body) > maxPluginDownload {
-		return fmt.Errorf("das Plugin wollte %d Bytes übergeben, erlaubt sind %d", len(d.Body), maxPluginDownload)
+		return fmt.Errorf("the plugin wanted to pass %d bytes, %d are allowed", len(d.Body), maxPluginDownload)
 	}
 
 	contentType := "application/octet-stream"

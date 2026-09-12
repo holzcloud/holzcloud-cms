@@ -188,7 +188,7 @@ const MaxManifestBytes = 64 << 10
 // call with a permission error nobody can explain.
 func ParseManifest(data []byte) (*Manifest, error) {
 	if len(data) > MaxManifestBytes {
-		return nil, fmt.Errorf("%s ist größer als %d Bytes", ManifestName, MaxManifestBytes)
+		return nil, fmt.Errorf("%s is larger than %d bytes", ManifestName, MaxManifestBytes)
 	}
 	dec := json.NewDecoder(strings.NewReader(string(data)))
 	dec.DisallowUnknownFields()

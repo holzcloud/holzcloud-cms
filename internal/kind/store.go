@@ -35,7 +35,7 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Type, error) {
 		`SELECT id, website_id, key, name, plural, archive, sort_order, position
 		 FROM content_types WHERE website_id = $1 ORDER BY position, id`, websiteID)
 	if err != nil {
-		return nil, fmt.Errorf("inhaltsarten lesen: %w", err)
+		return nil, fmt.Errorf("read content kinds: %w", err)
 	}
 	defer rows.Close()
 
@@ -44,7 +44,7 @@ func (s *Store) List(ctx context.Context, websiteID int64) ([]Type, error) {
 		var t Type
 		if err := rows.Scan(&t.ID, &t.WebsiteID, &t.Key, &t.Name, &t.Plural,
 			&t.Archive, &t.Sort, &t.Position); err != nil {
-			return nil, fmt.Errorf("inhaltsart lesen: %w", err)
+			return nil, fmt.Errorf("read content kind: %w", err)
 		}
 		out = append(out, t)
 	}
@@ -62,7 +62,7 @@ func (s *Store) Get(ctx context.Context, websiteID, id int64) (Type, error) {
 		return Type{}, ErrNotFound
 	}
 	if err != nil {
-		return Type{}, fmt.Errorf("inhaltsart lesen: %w", err)
+		return Type{}, fmt.Errorf("read content kind: %w", err)
 	}
 	return t, nil
 }
@@ -74,7 +74,7 @@ func (s *Store) Create(ctx context.Context, t Type) (Type, error) {
 		t.Key = Key(t.Name)
 	}
 	if !ValidKey(t.Key) {
-		return Type{}, fmt.Errorf("die Kennung %q ist keine: zwei bis dreissig kleine Buchstaben, Ziffern und Unterstriche", t.Key)
+		return Type{}, fmt.Errorf("%q is not a key: two to thirty lower-case letters, digits and underscores", t.Key)
 	}
 	if t.Name == "" || t.Plural == "" {
 		return Type{}, errors.New(i18n.N("a content kind needs a name and a plural"))
@@ -102,7 +102,7 @@ func (s *Store) Create(ctx context.Context, t Type) (Type, error) {
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		t.WebsiteID, t.Key, t.Name, t.Plural, t.Archive, t.Sort, t.Position)
 	if err != nil {
-		return Type{}, fmt.Errorf("inhaltsart anlegen: %w", err)
+		return Type{}, fmt.Errorf("create content kind: %w", err)
 	}
 	t.ID, _ = res.LastInsertId()
 	return t, nil
@@ -134,7 +134,7 @@ func (s *Store) Update(ctx context.Context, t Type) error {
 		 WHERE id = $5 AND website_id = $6`,
 		t.Name, t.Plural, t.Archive, t.Sort, t.ID, t.WebsiteID)
 	if err != nil {
-		return fmt.Errorf("inhaltsart sichern: %w", err)
+		return fmt.Errorf("store content kind: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
@@ -162,7 +162,7 @@ func (s *Store) Count(ctx context.Context, websiteID int64, key string) (int, er
 		`SELECT COUNT(*) FROM pages WHERE website_id = $1 AND kind = $2 AND deleted_at IS NULL`,
 		websiteID, key).Scan(&n)
 	if err != nil {
-		return 0, fmt.Errorf("einträge zählen: %w", err)
+		return 0, fmt.Errorf("count entries: %w", err)
 	}
 	return n, nil
 }
@@ -194,7 +194,7 @@ func (s *Store) Move(ctx context.Context, websiteID, id int64, up bool) error {
 	for i, t := range list {
 		if _, err := s.DB.Write.ExecContext(ctx,
 			`UPDATE content_types SET position = $1 WHERE id = $2`, i, t.ID); err != nil {
-			return fmt.Errorf("reihenfolge sichern: %w", err)
+			return fmt.Errorf("store order: %w", err)
 		}
 	}
 	return nil

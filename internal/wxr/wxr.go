@@ -130,10 +130,10 @@ func Parse(r io.Reader) (*Export, error) {
 	dec.CharsetReader = func(_ string, input io.Reader) (io.Reader, error) { return input, nil }
 	dec.Strict = false
 	if err := dec.Decode(&f); err != nil {
-		return nil, fmt.Errorf("das ist keine lesbare WordPress-Datei: %w", err)
+		return nil, fmt.Errorf("that is not a readable WordPress file: %w", err)
 	}
 	if len(f.Channel.Items) == 0 {
-		return nil, fmt.Errorf("die Datei enthält keine Einträge")
+		return nil, fmt.Errorf("the file contains no entries")
 	}
 
 	out := &Export{SiteTitle: strings.TrimSpace(f.Channel.Title)}

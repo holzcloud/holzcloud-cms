@@ -34,7 +34,7 @@ func alsCSV(liste []nachricht) ([]byte, error) {
 
 	w := csv.NewWriter(&buf)
 	if err := w.Write(entschaerfen(kopf)); err != nil {
-		return nil, fmt.Errorf("kopfzeile schreiben: %w", err)
+		return nil, fmt.Errorf("write header row: %w", err)
 	}
 
 	for _, n := range liste {
@@ -63,7 +63,7 @@ func alsCSV(liste []nachricht) ([]byte, error) {
 		}
 
 		if err := w.Write(entschaerfen(zeile)); err != nil {
-			return nil, fmt.Errorf("zeile schreiben: %w", err)
+			return nil, fmt.Errorf("write row: %w", err)
 		}
 	}
 

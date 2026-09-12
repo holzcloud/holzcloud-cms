@@ -373,7 +373,7 @@ func Encode(blocks []Block, s Set) (string, error) {
 	}
 	raw, err := json.Marshal(blocks)
 	if err != nil {
-		return "", fmt.Errorf("bausteine sichern: %w", err)
+		return "", fmt.Errorf("store blocks: %w", err)
 	}
 	return string(raw), nil
 }
@@ -386,7 +386,7 @@ func Decode(raw string, s Set) ([]Block, error) {
 	}
 	var blocks []Block
 	if err := json.Unmarshal([]byte(raw), &blocks); err != nil {
-		return nil, fmt.Errorf("bausteine lesen: %w", err)
+		return nil, fmt.Errorf("read blocks: %w", err)
 	}
 	return s.Clean(blocks), nil
 }
