@@ -44,7 +44,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		t.Fatalf("%d Felder angelegt, wollte 1", len(defs))
 	}
 	if !defs[0].IsButtonRow() {
-		t.Errorf("die Auswahl ist keine Knopfreihe: Darstellung = %q", defs[0].Display)
+		t.Errorf("the choice is not a row of buttons: display = %q", defs[0].Display)
 	}
 
 	// Ein Bereichsfeld mit beiden Grenzen.
@@ -96,7 +96,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 		}
 	}
 	if mehrfach.MaxValues != 2 {
-		t.Errorf("Höchstzahl = %d, wollte 2", mehrfach.MaxValues)
+		t.Errorf("maximum = %d, wanted 2", mehrfach.MaxValues)
 	}
 
 	// Das Neuzeichnen: das Formular muss die gespeicherten Werte wieder
@@ -112,7 +112,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 
 	for _, name := range []string{"darstellung", "max_werte", "min_wert", "max_wert"} {
 		if !strings.Contains(html, `name="`+name+`"`) {
-			t.Errorf("das Formular hat kein Kästchen %q", name)
+			t.Errorf("the form has no box %q", name)
 		}
 	}
 	// Die beiden Grenzen stehen wieder in ihren Kästchen. Gemessen wird der
@@ -128,7 +128,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 			ende = len(html)
 		}
 		if !strings.Contains(html[at:ende], `value="`+will.wert+`"`) {
-			t.Errorf("%s steht beim Neuzeichnen nicht wieder auf %q", will.name, will.wert)
+			t.Errorf("%s does not read %q again when redrawn", will.name, will.wert)
 		}
 	}
 
@@ -141,7 +141,7 @@ func TestFelddefinitionTraegtDieVierEigenschaften(t *testing.T) {
 	reqAuswahl.URL.RawQuery = qa.Encode()
 	if html := serve(t, h, sm, h.HandleFieldList, reqAuswahl).Body.String(); !strings.Contains(
 		html, `value="knopfreihe" selected`) {
-		t.Error("die gespeicherte Darstellung ist beim Neuzeichnen nicht gewählt")
+		t.Error("the stored display is not selected when redrawn")
 	}
 }
 
@@ -180,7 +180,7 @@ func TestVerdrehteGrenzenWerdenGemeldetUndNichtGespeichert(t *testing.T) {
 		t.Fatalf("die Definition wurde trotz verdrehter Grenzen gespeichert: %+v", defs)
 	}
 	if meldung.Error == "" {
-		t.Fatalf("es wurde nichts gemeldet — die Ablehnung wäre unsichtbar: %+v", meldung)
+		t.Fatalf("nothing was reported — the refusal would be invisible: %+v", meldung)
 	}
 	if !strings.Contains(meldung.Error, "limit") {
 		t.Errorf("die Meldung nennt die Grenze nicht: %q", meldung.Error)

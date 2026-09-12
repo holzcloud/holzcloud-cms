@@ -31,7 +31,7 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 	}
 	manifest, err := plugin.ParseManifest(roh)
 	if err != nil {
-		t.Fatalf("das mitgelieferte Manifest ist ungültig: %v", err)
+		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
 
 	h, database := newTestHandler(t)
@@ -59,14 +59,14 @@ func TestSuchePluginBeantwortetSuche(t *testing.T) {
 
 	// Die Ansicht des Themes, nicht eine nackte Seite des Plugins.
 	if !strings.Contains(body, "<html>") || !strings.Contains(body, "Suche: Wolle") {
-		t.Errorf("die Antwort ist keine Seite des Themes:\n%s", body)
+		t.Errorf("the answer is not a page of the theme:\n%s", body)
 	}
 	if !strings.Contains(body, "Wolle vom Hof") {
 		t.Errorf("der Treffer fehlt:\n%s", body)
 	}
 	// Und der Entwurf ist auch über das Plugin nicht zu bekommen.
 	if strings.Contains(body, "Noch nicht fertig") {
-		t.Errorf("der Entwurf steht in den Treffern:\n%s", body)
+		t.Errorf("the draft is among the hits:\n%s", body)
 	}
 	if rec.Header().Get("Cache-Control") != "no-store" {
 		t.Errorf("Cache-Control = %q", rec.Header().Get("Cache-Control"))
@@ -83,7 +83,7 @@ func TestOhneSuchePluginKeineSuche(t *testing.T) {
 	ws := seedWebsite(t, database, "Velowerkstatt")
 
 	if h.hasSearch(ws.ID) {
-		t.Error("ohne Plugin meldet die Website eine Suche")
+		t.Error("without the plugin the website reports a search")
 	}
 
 	rec := httptest.NewRecorder()
@@ -95,7 +95,7 @@ func TestOhneSuchePluginKeineSuche(t *testing.T) {
 	})).ServeHTTP(rec, req)
 
 	if !reached {
-		t.Error("die Anfrage kam nicht beim Kern an")
+		t.Error("the request did not reach the core")
 	}
 }
 

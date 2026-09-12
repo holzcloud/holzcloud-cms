@@ -265,10 +265,10 @@ func TestSidebarFooterShowsBuildAndLicence(t *testing.T) {
 
 	// 1 — die Fassung erreicht die Seite.
 	if !strings.Contains(body, "Holzcloud CMS") {
-		t.Error("die Fusszeile nennt das Programm nicht")
+		t.Error("the footer does not name the program")
 	}
 	if !strings.Contains(body, "v9.9.9-test") {
-		t.Error("die Fassung aus LayoutData.Version steht nicht auf der Seite")
+		t.Error("the version from LayoutData.Version is not on the page")
 	}
 	// 2 — die Lizenz ist benannt.
 	if !strings.Contains(body, "AGPL") {
@@ -276,7 +276,7 @@ func TestSidebarFooterShowsBuildAndLicence(t *testing.T) {
 	}
 	// 3 — das Angebot ist ein Link und kein blosser Text.
 	if !strings.Contains(body, `href="https://example.invalid/quelle"`) {
-		t.Error("die Quelltextadresse ist kein Verweisziel")
+		t.Error("the source-code address is not a link target")
 	}
 }
 
@@ -289,6 +289,6 @@ func TestBuildStampNeverEmpty(t *testing.T) {
 	}
 	SetBuild("", "")
 	if buildVersion == "" || buildSource == "" {
-		t.Errorf("SetBuild(\"\", \"\") hat die Vorgabe gelöscht: buildVersion=%q buildSource=%q", buildVersion, buildSource)
+		t.Errorf("SetBuild(\"\", \"\") deleted the default: buildVersion=%q buildSource=%q", buildVersion, buildSource)
 	}
 }

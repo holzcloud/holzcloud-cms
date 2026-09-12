@@ -21,10 +21,10 @@ func TestElevatedAblauf(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/admin/", nil))
 
 	if !frisch {
-		t.Error("gerade bestätigt gilt nicht")
+		t.Error("just confirmed does not count")
 	}
 	if alt {
-		t.Error("eine Bestätigung von vor einer Viertelstunde gilt noch")
+		t.Error("a confirmation from a quarter of an hour ago still counts")
 	}
 }
 
@@ -42,7 +42,7 @@ func TestRequireFreshPasswordSchicktZumBestaetigen(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if erreicht {
-		t.Error("die Aktion lief ohne Bestätigung durch")
+		t.Error("the action went through without a confirmation")
 	}
 	if rec.Code != http.StatusSeeOther {
 		t.Errorf("Code %d, erwartet 303", rec.Code)

@@ -172,7 +172,7 @@ func TestSetFieldsZiehtDenPruefwertMit(t *testing.T) {
 	const alt = "2020-01-01T00:00:00Z"
 	if _, err := s.DB.Write.ExecContext(ctx,
 		`UPDATE snippets SET updated_at = $1 WHERE id = $2`, alt, sn.ID); err != nil {
-		t.Fatalf("Stempel zurücksetzen: %v", err)
+		t.Fatalf("reset the timestamp: %v", err)
 	}
 
 	if err := s.SetFields(ctx, ws, sn.ID, `{"values":{"telefon":"07721 123456"}}`); err != nil {

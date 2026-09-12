@@ -111,7 +111,7 @@ func werkzeug(t *testing.T, ts *httptest.Server, key, name string, args map[stri
 	}
 	var out map[string]any
 	if err := json.Unmarshal([]byte(text), &out); err != nil {
-		t.Fatalf("%s: %q ist kein JSON: %v", name, text, err)
+		t.Fatalf("%s: %q is not JSON: %v", name, text, err)
 	}
 	return out, false
 }
@@ -193,7 +193,7 @@ func TestNurDerAbdruckWirdGespeichert(t *testing.T) {
 		t.Fatal(err)
 	}
 	if treffer != 0 {
-		t.Error("der Schlüssel steht im Klartext in der Datenbank")
+		t.Error("the key is in the database in clear text")
 	}
 }
 
@@ -209,7 +209,7 @@ func TestNurLesenSiehtUndDarfNichtSchreiben(t *testing.T) {
 		name := roh.(map[string]any)["name"].(string)
 		if strings.HasPrefix(name, "seite_anlegen") || strings.HasPrefix(name, "seite_aendern") ||
 			strings.HasPrefix(name, "seite_veroeffentlichen") {
-			t.Errorf("ein lesender Schlüssel sieht %q", name)
+			t.Errorf("a read-only key sees %q", name)
 		}
 	}
 
@@ -217,7 +217,7 @@ func TestNurLesenSiehtUndDarfNichtSchreiben(t *testing.T) {
 		"website": wsID, "titel": "Verboten", "markdown": "Text",
 	})
 	if !fehler {
-		t.Error("ein lesender Schlüssel konnte eine Seite anlegen")
+		t.Error("a read-only key was able to create a page")
 	}
 }
 
@@ -250,7 +250,7 @@ func TestSchluesselBleibtBeiSeinerWebsite(t *testing.T) {
 	if _, fehler := werkzeug(t, ts, secret, "seite_anlegen", map[string]any{
 		"website": zwei.ID, "titel": "Fremd", "markdown": "Text",
 	}); !fehler {
-		t.Error("auf einer fremden Website konnte geschrieben werden")
+		t.Error("it was possible to write on somebody else's website")
 	}
 }
 
@@ -291,7 +291,7 @@ func TestDerGanzeWeg(t *testing.T) {
 	}
 	// Ändern ist nicht Veröffentlichen.
 	if geaendert["zustand"] != "entwurf" {
-		t.Errorf("nach dem Ändern zustand = %v, want entwurf", geaendert["zustand"])
+		t.Errorf("after the change status = %v, want entwurf", geaendert["zustand"])
 	}
 
 	// Der alte Stand bleibt als Fassung erhalten, genau wie bei einer Änderung
@@ -301,7 +301,7 @@ func TestDerGanzeWeg(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(fassungen) == 0 {
-		t.Error("die Änderung hat keine Fassung hinterlassen")
+		t.Error("the change left no version behind")
 	}
 
 	oeffentlich, fehler := werkzeug(t, ts, key, "seite_veroeffentlichen", map[string]any{
@@ -340,17 +340,17 @@ func TestBausteinseiteWirdNichtUeberschrieben(t *testing.T) {
 		"id": p.ID, "markdown": "alles neu",
 	})
 	if !fehler {
-		t.Fatal("die Bausteine wurden überschrieben")
+		t.Fatal("the blocks were overwritten")
 	}
 	if !strings.Contains(antwort["text"].(string), "Bausteine") {
-		t.Errorf("Begründung = %q", antwort["text"])
+		t.Errorf("reason = %q", antwort["text"])
 	}
 
 	// Nur den Titel zu ändern muss trotzdem gehen.
 	if _, fehler := werkzeug(t, ts, key, "seite_aendern", map[string]any{
 		"id": p.ID, "titel": "Neuer Titel",
 	}); fehler {
-		t.Error("der Titel einer Bausteinseite liess sich nicht ändern")
+		t.Error("the title of a block page could not be changed")
 	}
 }
 
@@ -399,7 +399,7 @@ func TestJedesWerkzeugHatEinSchema(t *testing.T) {
 		}
 		for _, pflicht := range w.InputSchema.Required {
 			if _, ok := w.InputSchema.Properties[pflicht]; !ok {
-				t.Errorf("%s verlangt %q, beschreibt es aber nicht", w.Name, pflicht)
+				t.Errorf("%s demands %q but does not describe it", w.Name, pflicht)
 			}
 		}
 	}
@@ -445,7 +445,7 @@ func feldNamens(t *testing.T, liste []any, kennung string) map[string]any {
 			return e
 		}
 	}
-	t.Fatalf("kein Feld %q in %v", kennung, liste)
+	t.Fatalf("no field %q in %v", kennung, liste)
 	return nil
 }
 
@@ -500,13 +500,13 @@ func TestFelderAuflistenBeschreibtDieNeuenEigenschaften(t *testing.T) {
 	// Und die eine Zeile, die sagt, wie mehrere Werte geschrieben werden.
 	hinweis, _ := sorten["mehrere_werte"].(string)
 	if hinweis == "" {
-		t.Errorf("das mehrwertige Feld sagt nicht, wie sein Wert geschrieben wird: %v", sorten)
+		t.Errorf("the multi-valued field does not say how its value is written: %v", sorten)
 	}
 
 	// Beide Grenzen, jede für sich.
 	menge := feldNamens(t, liste, "menge")
 	if menge["min_wert"] != "1" || menge["max_wert"] != "10" {
-		t.Errorf("die Grenzen fehlen oder stimmen nicht: %v", menge)
+		t.Errorf("the bounds are missing or wrong: %v", menge)
 	}
 
 	// Die Darstellung nur dort, wo sie von der Ausklappliste abweicht, die
@@ -515,7 +515,7 @@ func TestFelderAuflistenBeschreibtDieNeuenEigenschaften(t *testing.T) {
 		t.Errorf("darstellung = %v, wollte %q", got, field.DisplayButtons)
 	}
 	if _, da := feldNamens(t, liste, "form")["darstellung"]; da {
-		t.Error("die Ausklappliste meldet eine Darstellung, obwohl sie die gewöhnliche ist")
+		t.Error("the drop-down reports a display although it is the ordinary one")
 	}
 
 	// Ein gewöhnliches Textfeld trägt nichts davon: eine gemeldete Null läse
@@ -539,11 +539,11 @@ func TestFelderAuflistenBeschreibtDieNeuenEigenschaften(t *testing.T) {
 		t.Errorf("das Unterfeld meldet max_werte = %v, wollte %v", got, will)
 	}
 	if h, _ := tage["mehrere_werte"].(string); h == "" {
-		t.Errorf("das mehrwertige Unterfeld sagt nicht, wie sein Wert geschrieben wird: %v", tage)
+		t.Errorf("the multi-valued sub-field does not say how its value is written: %v", tage)
 	}
 	von := feldNamens(t, unter, "von")
 	if von["min_wert"] != "0" || von["max_wert"] != "24" {
-		t.Errorf("das Unterfeld meldet die Grenzen nicht: %v", von)
+		t.Errorf("the sub-field does not report the bounds: %v", von)
 	}
 }
 
@@ -574,7 +574,7 @@ func TestMehrwertigesFeldGehtDurchDieWerkzeugeUndZurueck(t *testing.T) {
 	}
 	felder, _ := gelesen["felder"].(map[string]any)
 	if got, will := felder["sorten"], "Eiche\nBuche"; got != will {
-		t.Errorf("zurückgelesen %q, wollte %q", got, will)
+		t.Errorf("read back %q, wanted %q", got, will)
 	}
 
 	// Und die Höchstzahl gilt auch hier: der Schreibweg läuft durch dasselbe
@@ -585,6 +585,6 @@ func TestMehrwertigesFeldGehtDurchDieWerkzeugeUndZurueck(t *testing.T) {
 		"felder": map[string]any{"sorten": "Eiche\nBuche\nEsche"},
 	})
 	if !fehler {
-		t.Errorf("drei Werte wurden angenommen, obwohl höchstens zwei erlaubt sind: %v", zuViel)
+		t.Errorf("three values were accepted although at most two are allowed: %v", zuViel)
 	}
 }

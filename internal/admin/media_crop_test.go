@@ -80,13 +80,13 @@ func TestZuschnittSchneidetUndMerktEsSich(t *testing.T) {
 		t.Errorf("kein Quadrat: %d × %d", nach.Width, nach.Height)
 	}
 	if nach.Width != 600 {
-		t.Errorf("das Quadrat ist %d breit, want 600", nach.Width)
+		t.Errorf("the square is %d wide, want 600", nach.Width)
 	}
 	if nach.Crop.Ratio != "1-1" || nach.Crop.FocusX != 10 || nach.Crop.FocusY != 70 {
-		t.Errorf("die Entscheidung wurde nicht gemerkt: %+v", nach.Crop)
+		t.Errorf("the decision was not remembered: %+v", nach.Crop)
 	}
 	if !nach.IsCropped() {
-		t.Error("das Bild gilt nicht als zugeschnitten")
+		t.Error("the image does not count as cropped")
 	}
 
 	// Und das Original liegt daneben, unangetastet.
@@ -96,7 +96,7 @@ func TestZuschnittSchneidetUndMerktEsSich(t *testing.T) {
 		t.Fatalf("das Original fehlt: %v", err)
 	}
 	if ow != 1600 || oh != 600 {
-		t.Errorf("das Original ist %d × %d", ow, oh)
+		t.Errorf("the original is %d × %d", ow, oh)
 	}
 }
 
@@ -142,7 +142,7 @@ func TestTastaturVerschiebtDasMotivNicht(t *testing.T) {
 
 	nach, _ := h.mediaStore.GetByID(context.Background(), m.ID)
 	if nach.Crop.FocusX != 30 || nach.Crop.FocusY != 60 {
-		t.Errorf("Fokus = %d/%d — die getippten Werte wurden überschrieben",
+		t.Errorf("focus = %d/%d — the typed values were overwritten",
 			nach.Crop.FocusX, nach.Crop.FocusY)
 	}
 }
@@ -167,7 +167,7 @@ func TestZweiterZuschnittGehtWiederVomOriginalAus(t *testing.T) {
 		t.Errorf("der zweite Zuschnitt kam nur auf %d × %d", weit.Width, weit.Height)
 	}
 	if weit.Width <= eng.Width {
-		t.Errorf("der zweite Zuschnitt ist nicht grösser als der erste (%d vs %d)",
+		t.Errorf("the second crop is not larger than the first (%d vs %d)",
 			weit.Width, eng.Width)
 	}
 }
@@ -218,11 +218,11 @@ func TestZuschnittbildschirmNenntSeineAnzeigegroesse(t *testing.T) {
 		t.Errorf("die Anzeigebreite fehlt:\n%s", body)
 	}
 	if !strings.Contains(body, `width="`+breite+`"`) {
-		t.Errorf("das Bild wird nicht in der angegebenen Breite gezeichnet:\n%s", body)
+		t.Errorf("the image is not drawn at the stated width:\n%s", body)
 	}
 	hoehe := strconv.Itoa(600 * previewWidth / 1600)
 	if !strings.Contains(body, `name="gezeigt_hoehe" value="`+hoehe+`"`) {
-		t.Errorf("die Anzeigehöhe stimmt nicht:\n%s", body)
+		t.Errorf("the display height is wrong:\n%s", body)
 	}
 	if !strings.Contains(body, `type="image"`) {
 		t.Errorf("das anklickbare Bild fehlt:\n%s", body)
@@ -245,7 +245,7 @@ func TestNichtZuschneidbaresErklaertSichStattZuScheitern(t *testing.T) {
 	body := serve(t, h, sm, h.HandleMediaCrop, req).Body.String()
 
 	if !strings.Contains(body, "cannot be cropped") {
-		t.Errorf("keine Erklärung:\n%s", body)
+		t.Errorf("no explanation:\n%s", body)
 	}
 	if strings.Contains(body, `type="image"`) {
 		t.Errorf("es werden trotzdem Bedienelemente angeboten:\n%s", body)

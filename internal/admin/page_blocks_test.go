@@ -44,7 +44,7 @@ func TestBausteineWerdenGespeichertUndAusgegeben(t *testing.T) {
 
 	p, err := page.NewStore(database).GetPageBySlug(context.Background(), ws.ID, "start")
 	if err != nil || p == nil {
-		t.Fatalf("die Seite wurde nicht angelegt: %v", err)
+		t.Fatalf("the page was not created: %v", err)
 	}
 
 	// Die Bausteine liegen als solche in der Datenbank.
@@ -88,11 +88,11 @@ func TestEineEditoraktionSpeichertNicht(t *testing.T) {
 		t.Error("die Aktion hat die Seite angelegt")
 	}
 	if !strings.Contains(body, "Ein angefangener Satz") {
-		t.Errorf("der getippte Text kam nicht zurück:\n%s", body)
+		t.Errorf("the typed text did not come back:\n%s", body)
 	}
 	// Und der neue Baustein steht jetzt drin.
 	if !strings.Contains(body, `name="b1.typ" value="bild"`) {
-		t.Errorf("der neue Baustein fehlt:\n%s", body)
+		t.Errorf("the new block is missing:\n%s", body)
 	}
 }
 
@@ -116,17 +116,17 @@ func TestEditoraktionMitUndOhneHtmx(t *testing.T) {
 		t.Errorf("htmx bekam mehr als die Liste:\n%s", teil)
 	}
 	if !strings.Contains(teil, "Bleibt stehen") || !strings.Contains(teil, `value="trenner"`) {
-		t.Errorf("die Liste ist unvollständig:\n%s", teil)
+		t.Errorf("the list is incomplete:\n%s", teil)
 	}
 
 	req = postForm("/admin/websites/1/pages/new", values,
 		map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
 	ganz := serve(t, h, sm, h.HandlePageCreate, req).Body.String()
 	if !strings.Contains(ganz, `name="title"`) {
-		t.Errorf("ohne htmx fehlt das Formular drumherum:\n%s", ganz)
+		t.Errorf("without htmx the surrounding form is missing:\n%s", ganz)
 	}
 	if !strings.Contains(ganz, "Bleibt stehen") {
-		t.Errorf("ohne htmx ging der Text verloren:\n%s", ganz)
+		t.Errorf("without htmx the text was lost:\n%s", ganz)
 	}
 }
 
@@ -148,10 +148,10 @@ func TestWechselInDieBausteine(t *testing.T) {
 	body := serve(t, h, sm, h.HandlePageEdit, req).Body.String()
 
 	if !strings.Contains(body, `name="b0.typ" value="text"`) {
-		t.Errorf("aus dem Text wurde kein Baustein:\n%s", body)
+		t.Errorf("the text did not become a block:\n%s", body)
 	}
 	if !strings.Contains(body, "Ein langer Artikel.") {
-		t.Errorf("der Text ging beim Wechsel verloren:\n%s", body)
+		t.Errorf("the text was lost in the switch:\n%s", body)
 	}
 
 	// Gespeichert wurde nichts: die Seite ist unverändert Markdown.
@@ -182,7 +182,7 @@ func TestBildEinerFremdenWebsiteWirdNichtAusgegeben(t *testing.T) {
 		Type: block.TypeImage, MediaID: id,
 	}})
 	if strings.Contains(html, "fremd.jpg") {
-		t.Errorf("das Bild der anderen Website wurde ausgegeben:\n%s", html)
+		t.Errorf("the other website's image was rendered:\n%s", html)
 	}
 
 	// Auf der eigenen Website erscheint dasselbe Bild sehr wohl.
@@ -214,7 +214,7 @@ func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
 
 	p, _ := page.NewStore(database).GetPageBySlug(context.Background(), ws.ID, "start")
 	if p == nil {
-		t.Fatal("die Seite wurde nicht angelegt")
+		t.Fatal("the page was not created")
 	}
 
 	get := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
@@ -224,13 +224,13 @@ func TestBausteineUeberlebenDasErneuteBearbeiten(t *testing.T) {
 
 	for _, wollte := range []string{`value="karten"`, "Rohwolle", "Gekardet"} {
 		if !strings.Contains(body, wollte) {
-			t.Errorf("%q fehlt im wieder geöffneten Editor:\n%s", wollte, body)
+			t.Errorf("%q is missing from the reopened editor:\n%s", wollte, body)
 		}
 	}
 	// Und der einfache Editor wird nicht angeboten, weil dabei die Karten
 	// verloren gingen.
 	if strings.Contains(body, "zu-markdown") {
-		t.Error("der Weg zurück wird angeboten, obwohl die Karten verloren gingen")
+		t.Error("the way back is offered although the cards were lost")
 	}
 }
 
@@ -270,7 +270,7 @@ func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 	pages := page.NewStore(database)
 	p, err := pages.GetPageBySlug(ctx, ws.ID, "start")
 	if err != nil || p == nil {
-		t.Fatalf("die Seite wurde nicht angelegt: %v", err)
+		t.Fatalf("the page was not created: %v", err)
 	}
 
 	// Bearbeiten, ohne irgendetwas zu ändern.
@@ -287,7 +287,7 @@ func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 
 	p, err = pages.GetPageBySlug(ctx, ws.ID, "start")
 	if err != nil || p == nil {
-		t.Fatalf("die Seite ist nach dem Bearbeiten weg: %v", err)
+		t.Fatalf("the page is gone after editing: %v", err)
 	}
 	set := block.Set{Own: []block.Own{{ID: art.ID, Key: art.Key, Name: art.Name,
 		Fields: []field.Def{{Key: "begriff"}}}}}
@@ -296,10 +296,10 @@ func TestEigeneBausteinartUeberlebtDasBearbeiten(t *testing.T) {
 		t.Fatalf("Decode: %v", err)
 	}
 	if len(blocks) != 2 {
-		t.Fatalf("nach dem Bearbeiten %d Bausteine, wollte 2: %+v", len(blocks), blocks)
+		t.Fatalf("after editing %d blocks, wanted 2: %+v", len(blocks), blocks)
 	}
 	if blocks[1].Type != art.Key {
-		t.Errorf("Baustein 1 ist %q, wollte %q", blocks[1].Type, art.Key)
+		t.Errorf("block 1 is %q, wanted %q", blocks[1].Type, art.Key)
 	}
 	if got := blocks[1].Fields["begriff"]; got != "Eine Installation" {
 		t.Errorf("Feldwert %q, wollte %q", got, "Eine Installation")
@@ -333,7 +333,7 @@ func TestEigeneBausteinartLaesstSichBeimBearbeitenAnlegen(t *testing.T) {
 
 	// Zwei Bausteine im zurückgegebenen Teil, nicht einer.
 	if got := strings.Count(rec.Body.String(), `name="b1.typ"`); got != 1 {
-		t.Errorf("der neue Baustein fehlt im Formular (b1.typ %dmal):\n%s", got, rec.Body.String())
+		t.Errorf("the new block is missing from the form (b1.typ %d times):\n%s", got, rec.Body.String())
 	}
 }
 
@@ -377,13 +377,13 @@ func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) 
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 	body := rec.Body.String()
 	if !strings.Contains(body, `name="b1.f.hoelzer[]"`) {
-		t.Errorf("die Häkchengruppe trägt die Markierung nicht:\n%s", body)
+		t.Errorf("the checkbox group does not carry the marking:\n%s", body)
 	}
 	if strings.Contains(body, `name="b1.f.hoelzer"`) {
-		t.Errorf("die Gruppe steht ohne Markierung im Formular:\n%s", body)
+		t.Errorf("the group is in the form without a marking:\n%s", body)
 	}
 	if !strings.Contains(body, `<input type="hidden" name="b1.f.hoelzer[]" value="">`) {
-		t.Errorf("der Wächter fehlt vor der Gruppe:\n%s", body)
+		t.Errorf("the sentinel is missing before the group:\n%s", body)
 	}
 
 	// Und dann, was dieses Formular absendet: der Wächter voran, zwei Haken.
@@ -402,7 +402,7 @@ func TestMehrfachauswahlInEigenerBausteinartUeberlebtDasSpeichern(t *testing.T) 
 
 	saved, err := page.NewStore(database).GetPageBySlug(ctx, ws.ID, "titel")
 	if err != nil || saved == nil {
-		t.Fatalf("die Seite ist nach dem Speichern weg: %v", err)
+		t.Fatalf("the page is gone after saving: %v", err)
 	}
 	// Read back through the website's own set, the one every production reader
 	// gets from the store. This used to be a hand-built set whose field had no

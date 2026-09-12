@@ -358,10 +358,10 @@ func TestAnAddressIsUniquePerLanguage(t *testing.T) {
 		Locale: "fr", TranslationOf: de.ID,
 	})
 	if err != nil {
-		t.Fatalf("die französische Seite: %v", err)
+		t.Fatalf("the French page: %v", err)
 	}
 	if fr.Slug != "kontakt" {
-		t.Errorf("die französische Seite bekam die Adresse %q statt kontakt", fr.Slug)
+		t.Errorf("the French page got the address %q instead of kontakt", fr.Slug)
 	}
 
 	// Innerhalb einer Sprache gilt der Zwang weiter.
@@ -372,15 +372,15 @@ func TestAnAddressIsUniquePerLanguage(t *testing.T) {
 		t.Fatalf("die zweite deutsche Seite: %v", err)
 	}
 	if zweite.Slug != "kontakt-2" {
-		t.Errorf("zwei deutsche Seiten unter %q — die zweite müsste kontakt-2 heissen", zweite.Slug)
+		t.Errorf("two German pages under %q — the second should be called kontakt-2", zweite.Slug)
 	}
 
 	// Und jede der beiden Sprachen findet ihre eigene.
 	got, err := s.GetPageBySlugIn(ctx, ws, "fr", "kontakt")
 	if err != nil || got == nil {
-		t.Fatalf("die französische Seite ist unter ihrer Adresse nicht zu finden: %v", err)
+		t.Fatalf("the French page cannot be found under its address: %v", err)
 	}
 	if got.ID != fr.ID {
-		t.Errorf("unter /fr/kontakt liegt Seite %d statt %d", got.ID, fr.ID)
+		t.Errorf("page %d lies under /fr/kontakt instead of %d", got.ID, fr.ID)
 	}
 }

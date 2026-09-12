@@ -92,7 +92,7 @@ func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
 		t.Fatal(err)
 	}
 	if st.Enabled || st.Running {
-		t.Fatalf("frisch eingespielt und schon aktiv: %+v", st)
+		t.Fatalf("freshly installed and already active: %+v", st)
 	}
 	// Und ausgeschaltet fasst es keine Seite an.
 	if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p>" {
@@ -104,18 +104,18 @@ func TestGanzerWegVomZipBisZurSeite(t *testing.T) {
 	}
 	// Eingeschaltet, aber noch keiner Website zugeordnet: immer noch nichts.
 	if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p>" {
-		t.Errorf("ohne Zuordnung wurde gefiltert: %q", got)
+		t.Errorf("filtering happened with no mapping: %q", got)
 	}
 
 	if err := m.SetWebsites(ctx, "echo", []int64{site}); err != nil {
 		t.Fatal(err)
 	}
 	if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p><!-- echo -->" {
-		t.Errorf("die Seite wurde nicht gefiltert: %q", got)
+		t.Errorf("the page was not filtered: %q", got)
 	}
 	// Eine andere Website bleibt unberührt.
 	if got := m.FilterContent(ctx, site+1, ContentIn{WebsiteID: site + 1, Slug: "home", Title: "Start", HTML: "<p>x</p>"}); got != "<p>x</p>" {
-		t.Errorf("eine fremde Website wurde gefiltert: %q", got)
+		t.Errorf("another website was filtered: %q", got)
 	}
 
 	// Die Beigabe liegt auf der Platte, unter dem Plugin.
@@ -139,10 +139,10 @@ func TestAusschaltenUndEntfernen(t *testing.T) {
 		t.Fatal(err)
 	}
 	if st, _ := m.Get(ctx, "echo"); st.Running {
-		t.Error("nach dem Ausschalten läuft es noch")
+		t.Error("it still runs after being switched off")
 	}
 	if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "", HTML: "<p>x</p>"}); got != "<p>x</p>" {
-		t.Errorf("nach dem Ausschalten wurde gefiltert: %q", got)
+		t.Errorf("filtering happened after it was switched off: %q", got)
 	}
 
 	// Etwas im eigenen Speicher, damit das Entfernen etwas mitzunehmen hat.
@@ -151,7 +151,7 @@ func TestAusschaltenUndEntfernen(t *testing.T) {
 	}
 	dir := filepath.Join(m.root(), "echo")
 	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("das Verzeichnis fehlt schon vor dem Entfernen: %v", err)
+		t.Fatalf("the directory is missing before the removal: %v", err)
 	}
 
 	if err := m.Remove(ctx, "echo"); err != nil {
@@ -161,7 +161,7 @@ func TestAusschaltenUndEntfernen(t *testing.T) {
 		t.Error("das Verzeichnis blieb liegen")
 	}
 	if _, err := m.Get(ctx, "echo"); err == nil {
-		t.Error("das Plugin steht noch in der Datenbank")
+		t.Error("the plugin is still in the database")
 	}
 }
 
@@ -187,7 +187,7 @@ func TestNeustartLaedtWasEingeschaltetIst(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := m2.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "", HTML: "<p>x</p>"}); got != "<p>x</p><!-- echo -->" {
-		t.Errorf("nach dem Neustart filtert es nicht: %q", got)
+		t.Errorf("after the restart it does not filter: %q", got)
 	}
 }
 
@@ -217,10 +217,10 @@ func TestFehlendesModulIstKeinAbsturz(t *testing.T) {
 	}
 	st, _ := m2.Get(ctx, "echo")
 	if st.Running {
-		t.Error("es läuft, obwohl das Modul fehlt")
+		t.Error("it runs although the module is missing")
 	}
 	if st.LastError == "" {
-		t.Error("der Grund steht nirgends")
+		t.Error("the reason is nowhere")
 	}
 }
 
@@ -261,7 +261,7 @@ func TestEreignisErreichtDasPlugin(t *testing.T) {
 		waitABit()
 	}
 	if !gefunden {
-		t.Error("das Ereignis kam nicht an")
+		t.Error("the event did not arrive")
 	}
 }
 
@@ -309,7 +309,7 @@ func TestAdressenWerdenNurVomBesitzerBedient(t *testing.T) {
 		t.Error("die Adresse gilt auf einer fremden Website")
 	}
 	if _, ok := m.RouteOwner("/etwas-anderes", site); ok {
-		t.Error("eine nicht beanspruchte Adresse hat einen Besitzer")
+		t.Error("an unclaimed address has an owner")
 	}
 }
 
@@ -321,7 +321,7 @@ func TestBeigabenPfadKannNichtEntkommen(t *testing.T) {
 		}
 	}
 	if p := m.AssetPath("../andere", "stil.css"); p != "" {
-		t.Errorf("eine entkommende Kennung ergab einen Pfad: %s", p)
+		t.Errorf("an escaping key yielded a path: %s", p)
 	}
 }
 
@@ -341,7 +341,7 @@ func TestZweiPluginsFilternInStabilerReihenfolge(t *testing.T) {
 	// passiert und bei jedem Lauf gleich.
 	erste := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "", HTML: "<p>x</p>"})
 	if strings.Count(erste, "<!-- echo -->") != 2 {
-		t.Fatalf("nicht beide haben gefiltert: %q", erste)
+		t.Fatalf("not both filtered: %q", erste)
 	}
 	for i := 0; i < 5; i++ {
 		if got := m.FilterContent(ctx, site, ContentIn{WebsiteID: site, Slug: "home", Title: "", HTML: "<p>x</p>"}); got != erste {

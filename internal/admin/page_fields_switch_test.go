@@ -53,11 +53,11 @@ func schalterKasten(t *testing.T, body, feldname string) (string, string) {
 
 	at := strings.Index(body, `name="`+feldname+`"`)
 	if at < 0 {
-		t.Fatalf("das Feld %q steht nicht im Formular", feldname)
+		t.Fatalf("the field %q is not in the form", feldname)
 	}
 	von := strings.LastIndex(body[:at], auftakt)
 	if von < 0 {
-		t.Fatalf("das Feld %q steht in keinem Schalterkasten — hängt überhaupt etwas daran?", feldname)
+		t.Fatalf("the field %q is in no switch box — does anything hang off it at all?", feldname)
 	}
 	rest := body[von:]
 
@@ -83,13 +83,13 @@ func zeichneMitSchalter(t *testing.T, steuernd field.Def) string {
 
 	steuernd.WebsiteID = ws.ID
 	if _, err := fields.Create(ctx, steuernd); err != nil {
-		t.Fatalf("das steuernde Feld %q anlegen: %v", steuernd.Key, err)
+		t.Fatalf("create the controlling field %q: %v", steuernd.Key, err)
 	}
 	if _, err := fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, Key: "abhaengig", Label: "Abhängig",
 		Kind: field.KindText, Condition: steuernd.Key,
 	}); err != nil {
-		t.Fatalf("das abhängige Feld anlegen: %v", err)
+		t.Fatalf("create the dependent field: %v", err)
 	}
 
 	p := seedPage(t, database, ws.ID, "Seite", "seite", "text", "draft")
@@ -98,7 +98,7 @@ func zeichneMitSchalter(t *testing.T, steuernd field.Def) string {
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("das Formular gab %d zurück", rec.Code)
+		t.Fatalf("the form returned %d", rec.Code)
 	}
 	return rec.Body.String()
 }
@@ -165,13 +165,13 @@ func TestSchalter(t *testing.T) {
 			body := zeichneMitSchalter(t, f.def)
 			name, kasten := schalterKasten(t, body, f.def.FieldName())
 			if name != f.schalter {
-				t.Fatalf("der Schalter heisst %q, wollte %q — die Regel dazu greift am falschen Markup", name, f.schalter)
+				t.Fatalf("the switch is called %q, wanted %q — its rule catches the wrong markup", name, f.schalter)
 			}
 			gesehen[name] = true
 
 			for _, will := range f.braucht {
 				if !strings.Contains(kasten, will) {
-					t.Errorf("im Kasten von %q fehlt %s — die Regel .feld-schalter--%s hätte nichts zu greifen:\n%s",
+					t.Errorf("the box of %q is missing %s — the rule .feld-schalter--%s would have nothing to catch:\n%s",
 						f.def.Key, will, name, kasten)
 				}
 			}
@@ -179,7 +179,7 @@ func TestSchalter(t *testing.T) {
 				tag := imTag(t, kasten, f.def.FieldName())
 				for _, will := range f.element {
 					if !strings.Contains(tag, will) {
-						t.Errorf("dem Bedienelement von %q fehlt %s:\n%s", f.def.Key, will, tag)
+						t.Errorf("the control of %q is missing %s:\n%s", f.def.Key, will, tag)
 					}
 				}
 			}
@@ -190,7 +190,7 @@ func TestSchalter(t *testing.T) {
 	// Schalternamen bekommt und keine Regel dazu.
 	t.Run("zu jedem Schalternamen gibt es eine Regel", func(t *testing.T) {
 		if len(gesehen) == 0 {
-			t.Fatal("kein Schaltername gemessen — die Fälle darüber sind nicht gelaufen")
+			t.Fatal("no switch name measured — the cases above did not run")
 		}
 		roh, err := os.ReadFile("../../cmd/holzcloud/assets/admin.css")
 		if err != nil {
@@ -210,12 +210,12 @@ func TestSchalter(t *testing.T) {
 		}
 		for name := range gesehen {
 			if !strings.Contains(css, ".feld-schalter--"+name) {
-				t.Errorf("der Server kann den Schalter %q senden, das Stylesheet kennt keine Regel dazu — jedes Feld daran bliebe für immer sichtbar", name)
+				t.Errorf("the server can send the switch %q, the stylesheet knows no rule for it — every field hanging off it would stay visible for good", name)
 				continue
 			}
 			will, bekannt := woran[name]
 			if !bekannt {
-				t.Errorf("der Schalter %q ist neu und dieser Test weiss nicht, woran seine Regel greifen soll — bitte hier eintragen", name)
+				t.Errorf("the switch %q is new and this test does not know what its rule is meant to catch — please enter it here", name)
 				continue
 			}
 			regel := zwischen(t, css, ".feld-schalter--"+name+":has(", "{")
@@ -245,14 +245,14 @@ func TestSchalter(t *testing.T) {
 		req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
 		rec := serve(t, h, sm, h.HandleFieldList, req)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("die Feldliste gab %d zurück", rec.Code)
+			t.Fatalf("the field list returned %d", rec.Code)
 		}
 		liste := zwischen(t, rec.Body.String(), `id="feld-bedingung"`, `</select>`)
 		if !strings.Contains(liste, `value="sorte"`) {
-			t.Fatalf("das Textfeld wird gar nicht angeboten — dann sagt der Fall nichts:\n%s", liste)
+			t.Fatalf("the text field is not offered at all — then the case says nothing:\n%s", liste)
 		}
 		if strings.Contains(liste, `value="abfahrt"`) {
-			t.Errorf("die Uhrzeit wird als Bedingung angeboten, obwohl ihre Regel nie greifen könnte:\n%s", liste)
+			t.Errorf("the time of day is offered as a condition although its rule could never fire:\n%s", liste)
 		}
 	})
 
@@ -269,11 +269,11 @@ func TestSchalter(t *testing.T) {
 		}
 		fuer := regexp.MustCompile(`for="([^"]+)"`).FindAllStringSubmatch(bereich, -1)
 		if len(fuer) == 0 {
-			t.Fatal("kein einziges for= im Formular — der Fall misst nichts")
+			t.Fatal("not a single for= in the form — the case measures nothing")
 		}
 		for _, m := range fuer {
 			if !ids[m[1]] {
-				t.Errorf("for=%q zeigt auf eine Kennung, die im Formular nicht vorkommt", m[1])
+				t.Errorf("for=%q points at an id that does not occur in the form", m[1])
 			}
 		}
 
@@ -281,13 +281,13 @@ func TestSchalter(t *testing.T) {
 		// aria-labelledby auf eine Kennung, die da ist.
 		for _, name := range []string{"feld_hoelzer[]", "feld_knopfreihe"} {
 			if strings.Contains(bereich, `for="`+name+`"`) {
-				t.Errorf("%s ist eine Gruppe von Bedienelementen und trägt trotzdem ein for=", name)
+				t.Errorf("%s is a group of controls and carries a for= regardless", name)
 			}
 			if !strings.Contains(bereich, `aria-labelledby="`+name+`-label"`) {
-				t.Errorf("%s nennt seine Beschriftung nicht über aria-labelledby", name)
+				t.Errorf("%s does not name its label through aria-labelledby", name)
 			}
 			if !ids[name+"-label"] {
-				t.Errorf("die Beschriftung von %s trägt die Kennung nicht, auf die sich die Gruppe beruft", name)
+				t.Errorf("the label of %s does not carry the id the group appeals to", name)
 			}
 		}
 	})
@@ -299,7 +299,7 @@ func zwischen(t *testing.T, body, von, bis string) string {
 	t.Helper()
 	a := strings.Index(body, von)
 	if a < 0 {
-		t.Fatalf("%q steht nicht im Dokument", von)
+		t.Fatalf("%q is not in the document", von)
 	}
 	rest := body[a:]
 	if b := strings.Index(rest, bis); b >= 0 {
@@ -356,7 +356,7 @@ func zeichneAlleArten(t *testing.T) string {
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("das Formular gab %d zurück", rec.Code)
+		t.Fatalf("the form returned %d", rec.Code)
 	}
 	return rec.Body.String()
 }
@@ -400,7 +400,7 @@ func TestKnopfreihe(t *testing.T) {
 		req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 		rec := serve(t, h, sm, h.HandlePageEdit, req)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("das Formular gab %d zurück", rec.Code)
+			t.Fatalf("the form returned %d", rec.Code)
 		}
 		return rec.Body.String()
 	}
@@ -417,10 +417,10 @@ func TestKnopfreihe(t *testing.T) {
 	} {
 		reihe := knopfreihe(t, body, "feld_"+f.key)
 		if got := knopfwerte(reihe, "feld_"+f.key); !gleich(got, f.will) {
-			t.Errorf("%s trägt die Knöpfe %q, wollte %q", f.key, got, f.will)
+			t.Errorf("%s carries the buttons %q, wanted %q", f.key, got, f.will)
 		}
 		if !strings.Contains(reihe, `value="" checked`) {
-			t.Errorf("bei %s ist ohne gespeicherten Wert nicht der leere Knopf angekreuzt:\n%s", f.key, reihe)
+			t.Errorf("on %s the empty button is not ticked when there is no stored value:\n%s", f.key, reihe)
 		}
 	}
 
@@ -431,10 +431,10 @@ func TestKnopfreihe(t *testing.T) {
 	// stünde sonst mit darin und wäre kein Befund.
 	glanz := imTag(t, body, "feld_glanz")
 	if !strings.Contains(glanz, "<select") {
-		t.Errorf("die gewöhnliche Auswahl ist keine Klappliste mehr:\n%s", glanz)
+		t.Errorf("the ordinary choice is no longer a drop-down:\n%s", glanz)
 	}
 	if got := knopfwerte(body, "feld_glanz"); len(got) > 0 {
-		t.Errorf("die gewöhnliche Auswahl trägt Radioknöpfe: %q", got)
+		t.Errorf("the ordinary choice carries radio buttons: %q", got)
 	}
 
 	// --- mit gespeichertem Wert --------------------------------------------
@@ -447,10 +447,10 @@ func TestKnopfreihe(t *testing.T) {
 	}
 	reihe := knopfreihe(t, zeichnen(), "feld_farbe")
 	if !strings.Contains(reihe, `value="mittel" checked`) {
-		t.Errorf("der gespeicherte Wert ist nicht angekreuzt:\n%s", reihe)
+		t.Errorf("the stored value is not ticked:\n%s", reihe)
 	}
 	if strings.Contains(reihe, `value="" checked`) {
-		t.Errorf("der leere Knopf ist angekreuzt, obwohl ein Wert gespeichert ist:\n%s", reihe)
+		t.Errorf("the empty button is ticked although a value is stored:\n%s", reihe)
 	}
 }
 

@@ -27,7 +27,7 @@ func TestPluginsNeverSeeADraft(t *testing.T) {
 	}
 	for _, p := range list {
 		if p.Slug == "entwurf" {
-			t.Fatal("der Entwurf steht in der Liste")
+			t.Fatal("the draft is in the list")
 		}
 	}
 
@@ -68,7 +68,7 @@ func TestPagesAreScopedToOneWebsite(t *testing.T) {
 		t.Fatalf("pages.list: %v", err)
 	}
 	if len(list) != 1 || list[0].Slug != "nur-a" {
-		t.Errorf("got %+v, want nur die Seite von A", list)
+		t.Errorf("got %+v, want only A's page", list)
 	}
 }
 
@@ -85,7 +85,7 @@ func TestListingHasNoBodies(t *testing.T) {
 		t.Fatalf("pages.list: %v", err)
 	}
 	if len(list) != 1 || list[0].HTML != "" {
-		t.Errorf("die Liste trägt einen Rumpf mit: %+v", list)
+		t.Errorf("the list carries a body along: %+v", list)
 	}
 
 	one, err := h.PagesForPlugin(context.Background(), ws.ID, plugin.PagesQuery{
@@ -95,7 +95,7 @@ func TestListingHasNoBodies(t *testing.T) {
 		t.Fatalf("pages.get: %v", err)
 	}
 	if len(one.Pages) != 1 || !strings.Contains(one.Pages[0].HTML, "langer Text") {
-		t.Errorf("pages.get liefert den Rumpf nicht: %+v", one.Pages)
+		t.Errorf("pages.get does not return the body: %+v", one.Pages)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestRenderStripsWhatWouldExecute(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	if strings.Contains(out, "<script") || strings.Contains(out, "onerror") {
-		t.Errorf("das Skript hat es auf die Seite geschafft:\n%s", out)
+		t.Errorf("the script made it onto the page:\n%s", out)
 	}
 	if !strings.Contains(out, "Harmlos") {
 		t.Error("der harmlose Teil fehlt")
@@ -132,7 +132,7 @@ func TestRenderUsesTheTheme(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	if !strings.Contains(out, "<html>") || !strings.Contains(out, "<title>Suche</title>") {
-		t.Errorf("die Ausgabe ist keine ganze Seite des Themes:\n%s", out)
+		t.Errorf("the output is not a whole page of the theme:\n%s", out)
 	}
 }
 
@@ -145,7 +145,7 @@ func TestRenderRefusesAnUnknownView(t *testing.T) {
 	if _, err := renderFor(t, h, ws, plugin.RenderArg{
 		Title: "Egal", View: "../../etc/passwd",
 	}); err == nil {
-		t.Error("eine erfundene Ansicht wurde angenommen")
+		t.Error("an invented view was accepted")
 	}
 }
 
@@ -159,11 +159,11 @@ func TestSnippetKeepsOnlyTheHighlight(t *testing.T) {
 	}
 	for _, bad := range []string{"<b>", "<script>"} {
 		if strings.Contains(got, bad) {
-			t.Errorf("%s hat überlebt: %q", bad, got)
+			t.Errorf("%s survived: %q", bad, got)
 		}
 	}
 	if !strings.Contains(got, "&amp;") {
-		t.Errorf("das kaufmännische Und wurde nicht maskiert: %q", got)
+		t.Errorf("the ampersand was not escaped: %q", got)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestRenderOutsideARequestFails(t *testing.T) {
 
 	if _, err := h.RenderForPlugin(context.Background(), ws.ID,
 		plugin.RenderArg{Title: "Egal"}); err == nil {
-		t.Error("das Ausgeben ohne Anfrage wurde angenommen")
+		t.Error("rendering without a request was accepted")
 	}
 }
 

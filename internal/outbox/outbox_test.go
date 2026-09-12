@@ -64,7 +64,7 @@ func TestQueueAndDue(t *testing.T) {
 		t.Errorf("frisch eingestellt: %q / %d Versuche", due[0].Status, due[0].Attempts)
 	}
 	if due[0].Body != "Vielen Dank." {
-		t.Errorf("der Text kam nicht durch: %q", due[0].Body)
+		t.Errorf("the text did not come through: %q", due[0].Body)
 	}
 }
 
@@ -78,11 +78,11 @@ func TestQueueWithoutRecipientIsDropped(t *testing.T) {
 		t.Fatalf("Queue: %v", err)
 	}
 	if id != 0 {
-		t.Errorf("es wurde eine Zeile angelegt (id %d)", id)
+		t.Errorf("a row was created (id %d)", id)
 	}
 	due, _ := s.Due(context.Background(), 10)
 	if len(due) != 0 {
-		t.Errorf("Due lieferte %d Nachrichten ohne Empfänger", len(due))
+		t.Errorf("Due returned %d messages with no recipient", len(due))
 	}
 }
 
@@ -97,7 +97,7 @@ func TestMarkSent(t *testing.T) {
 
 	due, _ := s.Due(ctx, 10)
 	if len(due) != 0 {
-		t.Error("eine verschickte Nachricht steht weiter zum Versand an")
+		t.Error("a sent message is still queued for sending")
 	}
 	m, err := s.byID(ctx, id)
 	if err != nil {
@@ -127,7 +127,7 @@ func TestFailedMailWaitsLongerEachTime(t *testing.T) {
 			t.Fatal(err)
 		}
 		if m.Attempts != i+1 {
-			t.Errorf("nach %d Fehlschlägen: Attempts = %d", i+1, m.Attempts)
+			t.Errorf("after %d failures: Attempts = %d", i+1, m.Attempts)
 		}
 		if got := m.NextAttemptAt.Sub(start); got != want {
 			t.Errorf("Versuch %d wartet %v, erwartet %v", i+1, got, want)
@@ -136,7 +136,7 @@ func TestFailedMailWaitsLongerEachTime(t *testing.T) {
 			t.Errorf("Versuch %d: Status %q, erwartet noch offen", i+1, m.Status)
 		}
 		if !strings.Contains(m.LastError, "antwortet nicht") {
-			t.Errorf("der Grund wurde nicht vermerkt: %q", m.LastError)
+			t.Errorf("the reason was not recorded: %q", m.LastError)
 		}
 	}
 
@@ -152,7 +152,7 @@ func TestFailedMailWaitsLongerEachTime(t *testing.T) {
 	// Und wird nicht mehr angefasst, auch nicht viel später.
 	clockAt(s, start.Add(30*24*time.Hour))
 	if due, _ := s.Due(ctx, 10); len(due) != 0 {
-		t.Error("eine aufgegebene Nachricht steht wieder zum Versand an")
+		t.Error("an abandoned message is queued for sending again")
 	}
 }
 
@@ -170,12 +170,12 @@ func TestDueRespectsTheWait(t *testing.T) {
 
 	clockAt(s, start.Add(30*time.Second))
 	if due, _ := s.Due(ctx, 10); len(due) != 0 {
-		t.Error("die Nachricht wurde vor Ablauf der Wartezeit wieder ausgeliefert")
+		t.Error("the message was delivered again before the waiting time was up")
 	}
 
 	clockAt(s, start.Add(2*time.Minute))
 	if due, _ := s.Due(ctx, 10); len(due) != 1 {
-		t.Error("nach der Wartezeit wurde die Nachricht nicht wieder angeboten")
+		t.Error("after the waiting time the message was not offered again")
 	}
 }
 
@@ -201,7 +201,7 @@ func TestRetryPutsAGivenUpMailBack(t *testing.T) {
 		t.Errorf("Attempts nach Retry: %d", m.Attempts)
 	}
 	if due, _ := s.Due(ctx, 10); len(due) != 1 {
-		t.Error("nach Retry steht die Nachricht nicht zum Versand an")
+		t.Error("after Retry the message is not queued for sending")
 	}
 }
 
@@ -215,7 +215,7 @@ func TestRetryRefusesASentMail(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.Retry(ctx, 1, id); err == nil {
-		t.Error("eine verschickte Nachricht liess sich erneut einstellen")
+		t.Error("a sent message could be queued again")
 	}
 }
 
@@ -247,7 +247,7 @@ func TestPruneKeepsFailures(t *testing.T) {
 		t.Errorf("Prune entfernte %d Zeilen, erwartet 1", n)
 	}
 	if _, err := s.byID(ctx, gescheitert); err != nil {
-		t.Errorf("die gescheiterte Nachricht wurde mit aufgeräumt: %v", err)
+		t.Errorf("the failed message was swept away with the rest: %v", err)
 	}
 }
 
@@ -311,10 +311,10 @@ func TestDispatcherSends(t *testing.T) {
 	}
 
 	if len(f.sent) != 1 {
-		t.Fatalf("es wurden %d Nachrichten übergeben", len(f.sent))
+		t.Fatalf("%d messages were handed over", len(f.sent))
 	}
 	if f.sent[0].To != "kundin@example.ch" || f.sent[0].Subject != "Ihre Bestellung" {
-		t.Errorf("falsch übergeben: %+v", f.sent[0])
+		t.Errorf("handed over wrongly: %+v", f.sent[0])
 	}
 
 	// Und beim zweiten Lauf nicht noch einmal.
@@ -364,7 +364,7 @@ func TestDispatcherKeepsGoingAfterAFailure(t *testing.T) {
 		t.Errorf("der Grund fehlt: %q", m.LastError)
 	}
 	if m.Status != StatusPending {
-		t.Errorf("nach einem Fehlschlag: %q", m.Status)
+		t.Errorf("after one failure: %q", m.Status)
 	}
 }
 
@@ -427,7 +427,7 @@ func TestForOrderProducesBothMessages(t *testing.T) {
 		t.Errorf("Antwortadresse der Meldung: %q", betrieb.ReplyTo)
 	}
 	if kundin.ReplyTo != "bestellungen@example.ch" {
-		t.Errorf("Antwortadresse der Bestätigung: %q", kundin.ReplyTo)
+		t.Errorf("reply address of the confirmation: %q", kundin.ReplyTo)
 	}
 	if kundin.OrderID == nil || *kundin.OrderID != 7 {
 		t.Error("die Nachricht ist keiner Bestellung zugeordnet")
@@ -451,11 +451,11 @@ func TestCustomerMailSaysWhatMatters(t *testing.T) {
 		"CHE-123.456.789 MWST",                    // die UID im Fuss
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("in der Bestätigung fehlt %q:\n%s", want, body)
+			t.Errorf("the confirmation is missing %q:\n%s", want, body)
 		}
 	}
 	if strings.Contains(mails[0].Subject, "\n") {
-		t.Error("der Betreff enthält einen Zeilenumbruch")
+		t.Error("the subject contains a line break")
 	}
 }
 
@@ -484,7 +484,7 @@ func TestPrepaymentWithoutBankDetailsSaysSo(t *testing.T) {
 
 	body := ForOrder(testShop(), o)[0].Body
 	if !strings.Contains(body, "melden uns mit den Zahlungsangaben") {
-		t.Errorf("ohne Kontoangaben fehlt der Hinweis:\n%s", body)
+		t.Errorf("without the account details the hint is missing:\n%s", body)
 	}
 }
 
@@ -554,7 +554,7 @@ func TestExemptShopSaysWhyThereIsNoTax(t *testing.T) {
 
 	body := ForOrder(testShop(), o)[0].Body
 	if !strings.Contains(body, "Kleinunternehmen") {
-		t.Errorf("der Grund für die fehlende MWST fehlt:\n%s", body)
+		t.Errorf("the reason for the missing VAT is missing:\n%s", body)
 	}
 }
 
@@ -567,7 +567,7 @@ func TestOrderKeepsItsOwnCurrency(t *testing.T) {
 
 	body := ForOrder(s, o)[0].Body
 	if !strings.Contains(body, "CHF") {
-		t.Errorf("die Bestellung wurde in der neuen Währung gedruckt:\n%s", body)
+		t.Errorf("the order was printed in the new currency:\n%s", body)
 	}
 }
 

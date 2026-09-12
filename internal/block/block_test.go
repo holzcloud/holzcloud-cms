@@ -81,7 +81,7 @@ func TestUnsinnigeAktionenAendernNichts(t *testing.T) {
 	for _, aktion := range []string{"hoch:0", "runter:1", "weg:9", "hoch:abc", "neu:gibtsnicht", ""} {
 		got := Apply(append([]Block(nil), start...), aktion, Builtin)
 		if len(got) != 2 || got[0].Markdown != "eins" || got[1].Markdown != "zwei" {
-			t.Errorf("%q hat die Liste verändert: %+v", aktion, got)
+			t.Errorf("%q changed the list: %+v", aktion, got)
 		}
 	}
 }
@@ -122,7 +122,7 @@ func TestNeueGalerieHatEinenEintrag(t *testing.T) {
 	}
 	got = Apply(got, "weg-e:0:0", Builtin)
 	if len(got[0].Items) != 1 {
-		t.Errorf("der Eintrag ging nicht weg: %+v", got[0])
+		t.Errorf("the entry did not go away: %+v", got[0])
 	}
 }
 
@@ -153,7 +153,7 @@ func TestTextWirdMaskiertUndDerRahmenNicht(t *testing.T) {
 		t.Errorf("das Skript kam durch:\n%s", html)
 	}
 	if !strings.Contains(html, "Eva &amp; Co") {
-		t.Errorf("die Quelle wurde nicht maskiert:\n%s", html)
+		t.Errorf("the source was not escaped:\n%s", html)
 	}
 	if !strings.Contains(html, `class="hc-block hc-zitat"`) {
 		t.Errorf("der Rahmen fehlt:\n%s", html)
@@ -170,10 +170,10 @@ func TestNurBrauchbareLinkzieleUeberleben(t *testing.T) {
 			Type: TypeCards, Items: []Item{{Title: "Wolle", LinkURL: boese}},
 		}}, Builtin, bilder(nil), markdown)
 		if strings.Contains(html, "href=") {
-			t.Errorf("%q wurde zu einem Link:\n%s", boese, html)
+			t.Errorf("%q became a link:\n%s", boese, html)
 		}
 		if !strings.Contains(html, "Wolle") {
-			t.Errorf("mit dem Link ging auch die Karte verloren:\n%s", html)
+			t.Errorf("the map was lost along with the link:\n%s", html)
 		}
 	}
 	for _, gut := range []string{"/laden", "https://beispiel.ch", "mailto:eva@beispiel.ch", "#unten"} {
@@ -196,7 +196,7 @@ func TestFehlendesBildKostetNurSeinenBaustein(t *testing.T) {
 	}, Builtin, bilder(nil), markdown)
 
 	if !strings.Contains(html, "Vorher.") || !strings.Contains(html, "Nachher.") {
-		t.Errorf("der Text um das fehlende Bild ist weg:\n%s", html)
+		t.Errorf("the text around the missing image is gone:\n%s", html)
 	}
 	if strings.Contains(html, "<img") {
 		t.Errorf("es wurde ein Bild ausgegeben:\n%s", html)
@@ -215,12 +215,12 @@ func TestBildbeschreibungFaelltAufDieMediathekZurueck(t *testing.T) {
 		t.Errorf("die Beschreibung der Mediathek fehlt:\n%s", html)
 	}
 	if !strings.Contains(html, `width="800" height="600"`) {
-		t.Errorf("die Masse fehlen, die Seite springt beim Laden:\n%s", html)
+		t.Errorf("the dimensions are missing, the page jumps while loading:\n%s", html)
 	}
 
 	html = Render([]Block{{Type: TypeImage, MediaID: 1, Alt: "Hier: die Blesse"}}, Builtin, look, markdown)
 	if !strings.Contains(html, `alt="Hier: die Blesse"`) {
-		t.Errorf("die eigene Beschreibung wurde nicht genommen:\n%s", html)
+		t.Errorf("the own description was not taken:\n%s", html)
 	}
 }
 
@@ -374,7 +374,7 @@ func TestZurueckZuMarkdownNurWennNichtsVerlorenGeht(t *testing.T) {
 		t.Errorf("got %q, %v", md, ok)
 	}
 	if _, ok := ToMarkdown([]Block{{Type: TypeText}, {Type: TypeImage, MediaID: 1}}); ok {
-		t.Error("ein Bild würde verloren gehen, der Weg zurück darf nicht offen sein")
+		t.Error("an image would be lost, the way back must not be open")
 	}
 }
 
@@ -396,7 +396,7 @@ func TestFokusPunktWirkNurWoZugeschnittenWird(t *testing.T) {
 	// verschieben, und ein Attribut, das nichts tut, gehört nicht auf die Seite.
 	html = Render([]Block{{Type: TypeImage, MediaID: 1}}, Builtin, look, markdown)
 	if strings.Contains(html, "object-position") {
-		t.Errorf("der Fokus steht an einer Stelle, an der er nichts bewirkt:\n%s", html)
+		t.Errorf("the focus stands somewhere where it has no effect:\n%s", html)
 	}
 }
 
@@ -429,7 +429,7 @@ func TestVideoBaustein(t *testing.T) {
 		}
 	}
 	if strings.Contains(html, "<iframe") || strings.Contains(html, "autoplay") {
-		t.Errorf("das Video wird eingebettet oder spielt von allein:\n%s", html)
+		t.Errorf("the video is embedded or plays by itself:\n%s", html)
 	}
 }
 
@@ -509,7 +509,7 @@ func TestEigeneArtMaskiertDenInhalt(t *testing.T) {
 		t.Errorf("das Bild kam durch:\n%s", html)
 	}
 	if !strings.Contains(html, "&lt;img") {
-		t.Errorf("es wurde nicht maskiert:\n%s", html)
+		t.Errorf("it was not escaped:\n%s", html)
 	}
 	if strings.Contains(html, "javascript:") {
 		t.Errorf("die Adresse kam durch:\n%s", html)
@@ -542,13 +542,13 @@ func TestWertOhneFeldWirdAufgeraeumt(t *testing.T) {
 		Fields: map[string]string{"nummer": "3", "gabsmalgibtsnichtmehr": "Rest"},
 	}})
 	if len(blocks) != 1 {
-		t.Fatalf("der Baustein verschwand: %+v", blocks)
+		t.Fatalf("the block disappeared: %+v", blocks)
 	}
 	if _, da := blocks[0].Fields["gabsmalgibtsnichtmehr"]; da {
-		t.Errorf("der verwaiste Wert blieb: %+v", blocks[0].Fields)
+		t.Errorf("the orphaned value stayed: %+v", blocks[0].Fields)
 	}
 	if blocks[0].Fields["nummer"] != "3" {
-		t.Errorf("der gültige Wert ging verloren: %+v", blocks[0].Fields)
+		t.Errorf("the valid value was lost: %+v", blocks[0].Fields)
 	}
 }
 
@@ -558,7 +558,7 @@ func TestLeereEigeneArtVerschwindet(t *testing.T) {
 	if blocks := eigeneArt().Clean([]Block{
 		{Type: "rezeptschritt", Fields: map[string]string{"nummer": "   "}},
 	}); len(blocks) != 0 {
-		t.Errorf("der leere Baustein blieb: %+v", blocks)
+		t.Errorf("the empty block stayed: %+v", blocks)
 	}
 }
 
@@ -576,7 +576,7 @@ func TestNurWorteImReinenText(t *testing.T) {
 		t.Errorf("die Worte fehlen:\n%s", text)
 	}
 	if strings.Contains(text, "42") || strings.Contains(text, "/rezepte") {
-		t.Errorf("was keine Worte sind, steht im Text:\n%s", text)
+		t.Errorf("what are not words are in the text:\n%s", text)
 	}
 }
 
@@ -592,7 +592,7 @@ func TestEigeneFelderAusDemFormular(t *testing.T) {
 		"b0.markdown": {"gehört dem Baustein"},
 	})
 	if len(blocks) != 1 {
-		t.Fatalf("aus dem Formular kam: %+v", blocks)
+		t.Fatalf("what came out of the form: %+v", blocks)
 	}
 	b := blocks[0]
 	if b.Type != "rezeptschritt" {
@@ -602,7 +602,7 @@ func TestEigeneFelderAusDemFormular(t *testing.T) {
 		t.Errorf("die eigenen Felder kamen falsch an: %+v", b.Fields)
 	}
 	if b.Markdown != "gehört dem Baustein" {
-		t.Errorf("das eingebaute Feld wurde überschrieben: %q", b.Markdown)
+		t.Errorf("the built-in field was overwritten: %q", b.Markdown)
 	}
 }
 
@@ -610,7 +610,7 @@ func TestEigeneFelderAusDemFormular(t *testing.T) {
 func TestMenuStelltEingebauteVoran(t *testing.T) {
 	menu := eigeneArt().Menu()
 	if len(menu) != len(Kinds)+1 {
-		t.Fatalf("das Menü hat %d Einträge", len(menu))
+		t.Fatalf("the menu has %d entries", len(menu))
 	}
 	if menu[0].Type != TypeText {
 		t.Errorf("vorn steht %q", menu[0].Type)
@@ -652,7 +652,7 @@ func TestCodeImBausteinWirdMaskiert(t *testing.T) {
 	}
 	for _, will := range []string{"&lt;script&gt;", "&amp;", "&#34;"} {
 		if !strings.Contains(html, will) {
-			t.Errorf("%q fehlt — es wurde nicht maskiert:\n%s", will, html)
+			t.Errorf("%q is missing — it was not escaped:\n%s", will, html)
 		}
 	}
 	// Ein eigenes Element und nicht die Zeile, die jede unbekannte Art
@@ -671,7 +671,7 @@ func TestCodeImBausteinWirdMaskiert(t *testing.T) {
 	// soll.
 	for _, absatz := range []string{"<p>", "<p "} {
 		if strings.Contains(html, absatz) {
-			t.Errorf("der Code lief durch den Markdown-Renderer:\n%s", html)
+			t.Errorf("the code ran through the Markdown renderer:\n%s", html)
 		}
 	}
 }
@@ -715,7 +715,7 @@ func TestPlainTextNimmtCodeUndMehrfachauswahl(t *testing.T) {
 	// Zeilenumbrüchen: ein Anriss soll sich wie ein Satz lesen und nicht wie
 	// eine Spalte.
 	if !strings.Contains(text, "Eiche Buche") {
-		t.Errorf("die Mehrfachauswahl steht nicht als Worte im Suchtext:\n%s", text)
+		t.Errorf("the multi-choice is not in the search text as words:\n%s", text)
 	}
 	if strings.Contains(text, "Eiche\nBuche") {
 		t.Errorf("die Mehrfachauswahl steht als Spalte im Suchtext:\n%s", text)
@@ -737,13 +737,13 @@ func TestMehrfachauswahlImBausteinBehaeltAlleHaken(t *testing.T) {
 		t.Fatalf("%d Bausteine, want 1: %+v", len(blocks), blocks)
 	}
 	if got, will := blocks[0].Fields["hoelzer"], "Eiche\nBuche"; got != will {
-		t.Errorf("die Häkchen ergaben %q, wollte %q", got, will)
+		t.Errorf("the ticks yielded %q, wanted %q", got, will)
 	}
 	if _, da := blocks[0].Fields["hoelzer[]"]; da {
-		t.Error("die Markierung steht noch in der Kennung")
+		t.Error("the marking is still in the key")
 	}
 	if got := blocks[0].Fields["bemerkung"]; got != "einwertig" {
-		t.Errorf("das einwertige Feld ergab %q, wollte %q", got, "einwertig")
+		t.Errorf("the single-valued field yielded %q, wanted %q", got, "einwertig")
 	}
 }
 
@@ -759,15 +759,15 @@ func TestBausteinfeldGeleertOderAbwesend(t *testing.T) {
 	}
 	val, da := geleert[0].Fields["hoelzer"]
 	if !da {
-		t.Error("nach dem Wächter allein fehlt die Kennung ganz")
+		t.Error("after the sentinel alone the key is missing entirely")
 	}
 	if val != "" {
-		t.Errorf("nach dem Wächter allein steht %q da, wollte leer", val)
+		t.Errorf("after the sentinel alone %q is there, wanted empty", val)
 	}
 
 	ohne := FromForm(url.Values{"b0.typ": {"merkmal"}, "b0.f.notiz": {"x"}})
 	if _, da := ohne[0].Fields["hoelzer"]; da {
-		t.Error("die Kennung steht im Baustein, obwohl das Formular sie nie trug")
+		t.Error("the key is in the block although the form never carried it")
 	}
 
 	// Eine Markierung ohne Kennung ist kein Feld.

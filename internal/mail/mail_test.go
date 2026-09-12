@@ -51,7 +51,7 @@ func TestEmpfaengerUndAntwortadresseWerdenGesaeubert(t *testing.T) {
 	// Hier ist die Antwort strenger: was keine Adresse ist, fliegt ganz raus.
 	kopf, _, _ := strings.Cut(roh, "\r\n\r\n")
 	if strings.Contains(kopf, "Reply-To:") {
-		t.Errorf("die verunstaltete Antwortadresse wurde übernommen:\n%s", kopf)
+		t.Errorf("the mangled reply address was taken over:\n%s", kopf)
 	}
 }
 
@@ -81,7 +81,7 @@ func TestComposeMaskiertDenPunktNicht(t *testing.T) {
 	})
 	_, rumpf, _ := strings.Cut(roh, "\r\n\r\n")
 	if strings.Contains(rumpf, "\r\n..") {
-		t.Errorf("der Punkt wurde hier schon verdoppelt:\n%q", rumpf)
+		t.Errorf("the dot was already doubled here:\n%q", rumpf)
 	}
 	if !strings.Contains(rumpf, "\r\n.\r\n") {
 		t.Errorf("der Punkt fehlt ganz:\n%q", rumpf)
@@ -97,10 +97,10 @@ func TestUmlauteImBetreffWerdenKodiert(t *testing.T) {
 	})
 	kopf, _, _ := strings.Cut(roh, "\r\n\r\n")
 	if strings.Contains(kopf, "Grösse") {
-		t.Errorf("der Umlaut steht roh in der Kopfzeile:\n%s", kopf)
+		t.Errorf("the umlaut is raw in the header row:\n%s", kopf)
 	}
 	if !strings.Contains(kopf, "=?utf-8?") {
-		t.Errorf("der Betreff wurde nicht kodiert:\n%s", kopf)
+		t.Errorf("the subject was not encoded:\n%s", kopf)
 	}
 }
 
@@ -110,7 +110,7 @@ func TestEinfacherBetreffBleibtLesbar(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{To: "eva@example.test", Subject: "Neue Anfrage", Body: "x"})
 	if !strings.Contains(roh, "Subject: Neue Anfrage\r\n") {
-		t.Errorf("der Betreff wurde unnötig verändert:\n%s", roh)
+		t.Errorf("the subject was changed without need:\n%s", roh)
 	}
 }
 
@@ -122,7 +122,7 @@ func TestAnzeigenameWirdInAnfuehrungszeichenGesetzt(t *testing.T) {
 	})
 	roh := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "x"})
 	if !strings.Contains(roh, `From: "Velowerkstatt, Musterhausen" <cms@example.test>`) {
-		t.Errorf("der Anzeigename wurde nicht geschützt:\n%s", roh)
+		t.Errorf("the display name was not escaped:\n%s", roh)
 	}
 }
 
@@ -134,7 +134,7 @@ func TestZeilenendenWerdenVereinheitlicht(t *testing.T) {
 	_, rumpf, _ := strings.Cut(roh, "\r\n\r\n")
 	if strings.Contains(strings.ReplaceAll(rumpf, "\r\n", ""), "\n") ||
 		strings.Contains(strings.ReplaceAll(rumpf, "\r\n", ""), "\r") {
-		t.Errorf("es blieben einzelne Zeilenenden übrig: %q", rumpf)
+		t.Errorf("single line endings were left over: %q", rumpf)
 	}
 }
 
@@ -144,14 +144,14 @@ func TestNachrichtIstAlsMaschinellMarkiert(t *testing.T) {
 	s := testSender()
 	roh := s.compose(Message{To: "eva@example.test", Subject: "A", Body: "x"})
 	if !strings.Contains(roh, "Auto-Submitted: auto-generated") {
-		t.Error("die Nachricht ist nicht als maschinell erzeugt markiert")
+		t.Error("the message is not marked as machine-generated")
 	}
 }
 
 func TestOhneEinrichtungWirdNichtsVerschickt(t *testing.T) {
 	s := NewSender(Config{})
 	if s.Enabled() {
-		t.Fatal("ein Sender ohne Wirt meldet sich als eingerichtet")
+		t.Fatal("a sender with no host reports itself as configured")
 	}
 	if err := s.Send(Message{To: "eva@example.test", Subject: "A", Body: "x"}); err != ErrNotConfigured {
 		t.Errorf("Send lieferte %v, want ErrNotConfigured", err)

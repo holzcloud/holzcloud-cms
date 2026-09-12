@@ -90,7 +90,7 @@ func TestSwissFassungenCarryNoSharpS(t *testing.T) {
 		}
 		for german, translated := range catalog {
 			if strings.Contains(translated, "ß") {
-				t.Errorf("%s: %q has a ß in it: %q", lang, german, translated)
+				t.Errorf("%s: %q has a sharp s in it: %q", lang, german, translated)
 			}
 		}
 	}

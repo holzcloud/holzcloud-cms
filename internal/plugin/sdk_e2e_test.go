@@ -26,7 +26,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 	}
 	m, err := plugin.ParseManifest(roh)
 	if err != nil {
-		t.Fatalf("das mitgelieferte Manifest ist ungültig: %v", err)
+		t.Fatalf("the shipped manifest is invalid: %v", err)
 	}
 
 	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
@@ -61,7 +61,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out.Changed {
-		t.Errorf("eine Seite ohne Marke wurde verändert: %+v", out)
+		t.Errorf("a page with no marker was changed: %+v", out)
 	}
 
 	// Eine Seite mit der Marke bekommt das Jahr.
@@ -71,12 +71,12 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !out.Changed || !strings.Contains(out.HTML, jahr) || strings.Contains(out.HTML, "[[jahr]]") {
-		t.Fatalf("die Marke wurde nicht ersetzt: %+v", out)
+		t.Fatalf("the marker was not replaced: %+v", out)
 	}
 
 	// Der eigene Speicher hat mitgezählt.
 	if v, ok, err := store.StoreGet(ctx, m.ID, 1, "ersetzungen"); err != nil || !ok || v != "1" {
-		t.Errorf("Zähler: %q (%v, %v)", v, ok, err)
+		t.Errorf("counter: %q (%v, %v)", v, ok, err)
 	}
 
 	// Und der Admin-Haken rendert.
@@ -89,7 +89,7 @@ func TestBeispielPluginLaeuftDurch(t *testing.T) {
 		t.Errorf("Admin-Bildschirm: %+v", admin)
 	}
 	if !strings.Contains(admin.HTML, ">1<") {
-		t.Errorf("der Zähler steht nicht auf dem Bildschirm: %s", admin.HTML)
+		t.Errorf("the counter is not on the screen: %s", admin.HTML)
 	}
 	_ = json.Marshal
 }

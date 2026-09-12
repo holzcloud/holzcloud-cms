@@ -597,10 +597,10 @@ func TestRoundTripKeepsAReferenceForward(t *testing.T) {
 	archive := exportTo(t, s, ws.ID)
 	geschrieben := manifestOf(t, archive)
 	if strings.Contains(geschrieben, `"gehoert_zu": "`+strconv.FormatInt(ziel.ID, 10)+`"`) {
-		t.Error("das Archiv trägt die Nummer der Seite statt ihrer Adresse")
+		t.Error("the archive carries the page's id instead of its address")
 	}
 	if !strings.Contains(geschrieben, `"gehoert_zu": "schafe"`) {
-		t.Errorf("das Archiv trägt die Adresse der Zielseite nicht:\n%s", geschrieben)
+		t.Errorf("the archive does not carry the target page's address:\n%s", geschrieben)
 	}
 
 	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Hof (Kopie)")
@@ -744,7 +744,7 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 		t.Fatalf("GetPageBySlug: %v", err)
 	}
 	if pg.Blocks == "" {
-		t.Fatal("die Seite kam ohne Bausteine an")
+		t.Fatal("the page arrived without blocks")
 	}
 
 	neuerSatz := s.BlockTypes.Set(ctx, report.WebsiteID)
@@ -775,25 +775,25 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 	// der falschen Website.
 	neuesBild, err := s.Media.GetByID(ctx, angekommen[1].MediaID)
 	if err != nil || neuesBild == nil {
-		t.Fatalf("das Bild des Bausteins gibt es nicht: %v", err)
+		t.Fatalf("the block's image does not exist: %v", err)
 	}
 	if neuesBild.WebsiteID != report.WebsiteID {
-		t.Errorf("das Bild gehört zu Website %d statt %d", neuesBild.WebsiteID, report.WebsiteID)
+		t.Errorf("the image belongs to website %d instead of %d", neuesBild.WebsiteID, report.WebsiteID)
 	}
 	if angekommen[2].Fields["bild"] != strconv.FormatInt(neuesBild.ID, 10) {
-		t.Errorf("das Bild im eigenen Baustein zeigt auf %q statt auf %d",
+		t.Errorf("the image in the own block points at %q instead of at %d",
 			angekommen[2].Fields["bild"], neuesBild.ID)
 	}
 
 	// Und die Seite ist gesetzt, nicht leer: das HTML entsteht beim Import neu.
 	if !strings.Contains(pg.ContentHTML, "hc-eigen--rezeptschritt") {
-		t.Errorf("die Seite wurde nicht neu gesetzt:\n%s", pg.ContentHTML)
+		t.Errorf("the page was not re-rendered:\n%s", pg.ContentHTML)
 	}
 	if !strings.Contains(pg.ContentHTML, neuesBild.URL()) {
-		t.Errorf("das Bild fehlt in der gesetzten Seite:\n%s", pg.ContentHTML)
+		t.Errorf("the image is missing from the rendered page:\n%s", pg.ContentHTML)
 	}
 	if !strings.Contains(pg.ContentMarkdown, "Schritt 1") {
-		t.Errorf("der reine Text für Suche und Anriss fehlt: %q", pg.ContentMarkdown)
+		t.Errorf("the plain text for search and excerpt is missing: %q", pg.ContentMarkdown)
 	}
 }
 
@@ -1328,10 +1328,10 @@ func TestRoundTripKeepsTheLanguages(t *testing.T) {
 
 	fr, err := s.Pages.GetPageBySlug(ctx, report.WebsiteID, "contact")
 	if err != nil || fr == nil {
-		t.Fatalf("die französische Seite fehlt: %v", err)
+		t.Fatalf("the French page is missing: %v", err)
 	}
 	if fr.Locale != "fr" {
-		t.Errorf("die französische Seite kam als %q an", fr.Locale)
+		t.Errorf("the French page arrived as %q", fr.Locale)
 	}
 	// Die drei aus seedSite und diesem Test, keines davon verloren.
 	menus, err := s.Menus.ListMenus(ctx, report.WebsiteID)
@@ -1339,7 +1339,7 @@ func TestRoundTripKeepsTheLanguages(t *testing.T) {
 		t.Fatalf("List menus: %v", err)
 	}
 	if len(menus) != 3 {
-		t.Errorf("%d Menüs statt 3 — %v", len(menus), report.Warnings)
+		t.Errorf("%d menus instead of 3 — %v", len(menus), report.Warnings)
 	}
 }
 
@@ -1389,7 +1389,7 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 	for _, loc := range []string{"", "fr", "it"} {
 		pg, err := s.Pages.GetPageBySlugIn(ctx, ws, loc, "produkt")
 		if err != nil || pg == nil {
-			t.Fatalf("die Seite in der Sprache %q fehlt: %v — %v", loc, err, report.Warnings)
+			t.Fatalf("the page in the language %q is missing: %v — %v", loc, err, report.Warnings)
 		}
 		if pg.Slug != "produkt" {
 			t.Errorf("die Sprache %q bekam die Adresse %q statt produkt", loc, pg.Slug)
@@ -1400,10 +1400,10 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 	for _, loc := range []string{"fr", "it"} {
 		pg, _ := s.Pages.GetPageBySlugIn(ctx, ws, loc, "produkt")
 		if pg.TranslationOf == 0 {
-			t.Fatalf("die Sprache %q hängt an keinem Original", loc)
+			t.Fatalf("the language %q hangs off no original", loc)
 		}
 		if pg.TranslationOf != de.ID {
-			t.Errorf("die Sprache %q übersetzt Seite %d statt %d", loc, pg.TranslationOf, de.ID)
+			t.Errorf("the language %q translates page %d instead of %d", loc, pg.TranslationOf, de.ID)
 		}
 	}
 
@@ -1424,16 +1424,16 @@ func TestSameAddressInEveryLanguage(t *testing.T) {
 		}
 		for _, it := range items {
 			if it.PageID == nil {
-				t.Fatal("der französische Menüpunkt zeigt auf gar nichts")
+				t.Fatal("the French menu item points at nothing at all")
 			}
 			if *it.PageID != fr.ID {
-				t.Errorf("der französische Menüpunkt zeigt auf Seite %d statt %d", *it.PageID, fr.ID)
+				t.Errorf("the French menu item points at page %d instead of %d", *it.PageID, fr.ID)
 			}
 			checked = true
 		}
 	}
 	if !checked {
-		t.Fatal("kein französisches Menü gefunden")
+		t.Fatal("no French menu found")
 	}
 }
 
@@ -1495,14 +1495,14 @@ func TestMehrfachauswahlUeberlebtDieArchivreise(t *testing.T) {
 		}
 	}
 	if kopie == nil {
-		t.Fatalf("die Seite fehlt in der Kopie: %+v", kopien)
+		t.Fatalf("the page is missing from the copy: %+v", kopien)
 	}
 	got := field.Decode(kopie.Fields).Values["sorten"]
 	if got != wert {
-		t.Errorf("nach der Reise %q, wollte %q — Zeichen für Zeichen dasselbe", got, wert)
+		t.Errorf("after the journey %q, wanted %q — the same character for character", got, wert)
 	}
 	if werte := field.SplitValues(got); len(werte) != 3 {
-		t.Errorf("nach der Reise %d Werte, wollte 3: %#v", len(werte), werte)
+		t.Errorf("after the journey %d values, wanted 3: %#v", len(werte), werte)
 	}
 }
 
@@ -1557,7 +1557,7 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 		Kind: field.KindChoice, Choices: []string{"hell", "dunkel"},
 		Display: field.DisplayButtons,
 	}); err != nil {
-		t.Fatalf("Feld in der Gruppe anlegen: %v", err)
+		t.Fatalf("create field inside the group: %v", err)
 	}
 	if _, err := s.Fields.Create(ctx, field.Def{
 		WebsiteID: ws.ID, ParentID: gruppe.ID, Key: "gmenge", Label: "Menge",
@@ -1586,36 +1586,36 @@ func TestNeueFeldeigenschaftenUeberlebenDieArchivreise(t *testing.T) {
 				return d
 			}
 		}
-		t.Fatalf("Feld %q fehlt in der Kopie", key)
+		t.Fatalf("field %q is missing from the copy", key)
 		return field.Def{}
 	}
 
 	farbe := nimm(kopien, "farbe")
 	if farbe.Display != field.DisplayButtons {
-		t.Errorf("Darstellung nach der Reise = %q, wollte %q", farbe.Display, field.DisplayButtons)
+		t.Errorf("display after the journey = %q, wanted %q", farbe.Display, field.DisplayButtons)
 	}
 	if !farbe.IsButtonRow() {
-		t.Error("die Auswahl ist nach der Reise keine Knopfreihe mehr")
+		t.Error("after the journey the choice is no longer a row of buttons")
 	}
 
 	menge := nimm(kopien, "menge")
 	if menge.RangeMin != "1" || menge.RangeMax != "9" {
-		t.Errorf("Grenzen nach der Reise = %q/%q, wollte \"1\"/\"9\"", menge.RangeMin, menge.RangeMax)
+		t.Errorf("bounds after the journey = %q/%q, wanted \"1\"/\"9\"", menge.RangeMin, menge.RangeMax)
 	}
 
 	hoelzer := nimm(kopien, "hoelzer")
 	if hoelzer.MaxValues != 2 {
-		t.Errorf("Höchstzahl nach der Reise = %d, wollte 2", hoelzer.MaxValues)
+		t.Errorf("maximum after the journey = %d, wanted 2", hoelzer.MaxValues)
 	}
 
 	inGruppe := nimm(nimm(kopien, "zeiten").Sub, "gfarbe")
 	if inGruppe.Display != field.DisplayButtons {
-		t.Errorf("Darstellung in der Gruppe nach der Reise = %q, wollte %q",
+		t.Errorf("display inside the group after the journey = %q, wanted %q",
 			inGruppe.Display, field.DisplayButtons)
 	}
 	inGruppeMenge := nimm(nimm(kopien, "zeiten").Sub, "gmenge")
 	if inGruppeMenge.RangeMin != "3" || inGruppeMenge.RangeMax != "7" {
-		t.Errorf("Grenzen in der Gruppe nach der Reise = %q/%q, wollte \"3\"/\"7\"",
+		t.Errorf("bounds inside the group after the journey = %q/%q, wanted \"3\"/\"7\"",
 			inGruppeMenge.RangeMin, inGruppeMenge.RangeMax)
 	}
 }
@@ -1631,7 +1631,7 @@ func TestManifestSchweigtUeberUngenutzteEigenschaften(t *testing.T) {
 	}
 	for _, schluessel := range []string{"display", "max_values", `"min"`, `"max"`} {
 		if strings.Contains(string(roh), schluessel) {
-			t.Errorf("das Manifest nennt %s, obwohl nichts gesetzt war: %s", schluessel, roh)
+			t.Errorf("the manifest names %s although nothing was set: %s", schluessel, roh)
 		}
 	}
 }
@@ -1683,7 +1683,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatalf("ListAll = %v, %v", alle, err)
 		}
 		if alle[0].Slug != "moebel" {
-			t.Fatalf("Kürzel = %q, wollte moebel", alle[0].Slug)
+			t.Fatalf("slug = %q, wanted moebel", alle[0].Slug)
 		}
 		if err := s.Terms.Rename(ctx, ws.ID, alle[0].ID, "Möbelbau"); err != nil {
 			t.Fatal(err)
@@ -1707,10 +1707,10 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		// Das Archiv trägt den Namen, so wie eine Schlagwortliste einer Seite
 		// ihn immer schon getragen hat — nicht das Kürzel.
 		if !strings.Contains(geschrieben, `"thema": "Möbelbau"`) {
-			t.Errorf("das Archiv trägt den Namen des Schlagworts nicht:\n%s", geschrieben)
+			t.Errorf("the archive does not carry the term's name:\n%s", geschrieben)
 		}
 		if strings.Contains(geschrieben, `"thema": "moebel"`) {
-			t.Errorf("das Archiv trägt das Kürzel statt des Namens:\n%s", geschrieben)
+			t.Errorf("the archive carries the slug instead of the name:\n%s", geschrieben)
 		}
 
 		report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Werkstatt (Kopie)")
@@ -1728,7 +1728,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(neue) != 1 || neue[0].Name != "Möbelbau" {
-			t.Fatalf("Schlagwörter der Kopie = %+v, wollte genau „Möbelbau“", neue)
+			t.Fatalf("terms of the copy = %+v, wanted exactly “Möbelbau”", neue) //nolint:german — the message quotes the German fixture it is about
 		}
 		if report.Terms != 1 {
 			t.Errorf("report.Terms = %d, wollte 1 angelegtes Schlagwort", report.Terms)
@@ -1749,10 +1749,10 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		}
 		got := field.Decode(kopien[0].Fields).Values["thema"]
 		if got != neue[0].Slug {
-			t.Errorf("das Feld zeigt auf %q, das Schlagwort dieser Website hat %q", got, neue[0].Slug)
+			t.Errorf("the field points at %q, this website's term has %q", got, neue[0].Slug)
 		}
 		if got == "" {
-			t.Error("der Wert ist unterwegs verlorengegangen")
+			t.Error("the value was lost on the way")
 		}
 	})
 
@@ -1799,7 +1799,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		// Einmal von importTerms, einmal von der Schlagwortliste der Seite —
 		// dieselbe Kürzelableitung, also dieselbe Zeile.
 		if len(neue) != 1 {
-			t.Errorf("Schlagwörter der Kopie = %+v, wollte genau eines", neue)
+			t.Errorf("terms of the copy = %+v, wanted exactly one", neue)
 		}
 		// Und die Seite trägt es weiterhin als eigenes Schlagwort.
 		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
@@ -1811,7 +1811,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(haengt) != 1 || haengt[0].Name != "Eiche" {
-			t.Errorf("die Seite trägt %+v, wollte „Eiche“", haengt)
+			t.Errorf("the page carries %+v, wanted “Eiche”", haengt)
 		}
 	})
 
@@ -1854,7 +1854,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		}
 		alle, err := s.Terms.ListAll(ctx, ws.ID)
 		if err != nil || len(alle) != len(namen) {
-			t.Fatalf("ListAll = %d Schlagwörter, %v", len(alle), err)
+			t.Fatalf("ListAll = %d terms, %v", len(alle), err)
 		}
 
 		// Das Feld zeigt auf das letzte — das, das ohne den Fehler nie
@@ -1887,7 +1887,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(neue) != len(namen) {
-			t.Fatalf("die Kopie hat %d Schlagwörter, wollte %d", len(neue), len(namen))
+			t.Fatalf("the copy has %d terms, wanted %d", len(neue), len(namen))
 		}
 		bekannt := map[string]bool{}
 		for _, tt := range neue {
@@ -1909,7 +1909,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 		}
 		got := field.Decode(kopien[0].Fields).Values["thema"]
 		if got == "" {
-			t.Fatal("der Wert des Schlagwortfeldes ging verloren")
+			t.Fatal("the term field's value was lost")
 		}
 		gefunden := false
 		for _, tt := range neue {
@@ -1918,7 +1918,7 @@ func TestSchlagwortfeldRundreise(t *testing.T) {
 			}
 		}
 		if !gefunden {
-			t.Errorf("das Feld zeigt auf %q, das auf der Kopie kein „Möbel, Bau“ ist: %+v", got, neue)
+			t.Errorf("the field points at %q, which on the copy is no “Möbel, Bau”: %+v", got, neue) //nolint:german — the message quotes the German fixture it is about
 		}
 	})
 }
@@ -1966,23 +1966,23 @@ func TestArchivwerteGehenDurchDieselbePruefung(t *testing.T) {
 	werte := field.Decode(seiten[0].Fields).Values
 
 	if _, da := werte["notiz"]; da {
-		t.Errorf("ein Wert über dem Bytebudget wurde abgelegt (%d Byte)", len(werte["notiz"]))
+		t.Errorf("a value over the byte budget was stored (%d bytes)", len(werte["notiz"]))
 	}
 	if _, da := werte["art"]; da {
-		t.Errorf("„Zement“ steht nicht zur Auswahl und wurde trotzdem abgelegt: %q", werte["art"])
+		t.Errorf("“Zement” is not one of the choices and was stored regardless: %q", werte["art"])
 	}
 	// field.Clean nimmt weg, was zu keinem Feld dieser Website gehört.
 	if _, da := werte["gibtesnie"]; da {
-		t.Error("ein Wert ohne Felddefinition wurde abgelegt")
+		t.Error("a value with no field definition was stored")
 	}
 	// Und der gültige Wert kommt an: die Wache wirft nicht die ganze Seite weg.
 	if werte["gut"] != "das hier bleibt" {
-		t.Errorf("der gültige Wert = %q, wollte „das hier bleibt“", werte["gut"])
+		t.Errorf("the valid value = %q, wanted “das hier bleibt”", werte["gut"]) //nolint:german — the message quotes the German fixture it is about
 	}
 	// Der Bericht sagt, was fehlt — sonst müsste der Betreiber die Lücke
 	// selbst finden.
 	if !warned(report, "notiz") || !warned(report, "art") {
-		t.Errorf("der Bericht nennt die verworfenen Werte nicht: %v", report.Warnings)
+		t.Errorf("the report does not name the discarded values: %v", report.Warnings)
 	}
 }
 
@@ -2069,7 +2069,7 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 
 	archive := exportTo(t, s, ws.ID)
 	if !strings.Contains(manifestOf(t, archive), `"values"`) {
-		t.Fatalf("das Manifest trägt keine Werte des Textbausteins:\n%s", manifestOf(t, archive))
+		t.Fatalf("the manifest carries no values of the snippet:\n%s", manifestOf(t, archive))
 	}
 
 	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Schreinerei (Kopie)")
@@ -2101,7 +2101,7 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 		{"sitzplaetze", field.KindNumber},
 	}
 	if len(defs) != len(wollte) {
-		t.Fatalf("nach der Reise %d Definitionen, wollte %d: %+v", len(defs), len(wollte), defs)
+		t.Fatalf("after the journey %d definitions, wanted %d: %+v", len(defs), len(wollte), defs)
 	}
 	for i, w := range wollte {
 		if defs[i].Key != w.key || defs[i].Kind != w.kind {
@@ -2114,14 +2114,14 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 
 	daten := field.Decode(kopie.Fields)
 	if daten.Values["telefon"] != "07721 123456" {
-		t.Errorf("telefon nach der Reise %q", daten.Values["telefon"])
+		t.Errorf("telefon after the journey %q", daten.Values["telefon"])
 	}
 	if daten.Values["sitzplaetze"] != "8" {
-		t.Errorf("sitzplaetze nach der Reise %q", daten.Values["sitzplaetze"])
+		t.Errorf("sitzplaetze after the journey %q", daten.Values["sitzplaetze"])
 	}
 	zeilen := daten.Rows["zeiten"]
 	if len(zeilen) != 2 {
-		t.Fatalf("nach der Reise %d Zeilen, wollte 2: %+v", len(zeilen), zeilen)
+		t.Fatalf("after the journey %d rows, wanted 2: %+v", len(zeilen), zeilen)
 	}
 	if zeilen[0]["tag"] != "Montag" || zeilen[1]["von"] != "09:00" {
 		t.Errorf("die Zeilen kamen in anderer Gestalt an: %+v", zeilen)
@@ -2135,7 +2135,7 @@ func TestTextbausteinfelderUeberlebenDieArchivreise(t *testing.T) {
 	}
 	for _, d := range seiten {
 		if d.SnippetID != 0 {
-			t.Errorf("ein Textbausteinfeld steht in der Seitenliste: %+v", d)
+			t.Errorf("a snippet field is in the page list: %+v", d)
 		}
 	}
 }
@@ -2165,7 +2165,7 @@ func TestAeltererTextbausteinImportiertUnveraendert(t *testing.T) {
 		t.Errorf("Warnungen: %v", report.Warnings)
 	}
 	if report.Snippets != 1 {
-		t.Fatalf("%d Textbausteine gezählt, wollte 1", report.Snippets)
+		t.Fatalf("counted %d snippets, wanted 1", report.Snippets)
 	}
 
 	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
@@ -2176,17 +2176,17 @@ func TestAeltererTextbausteinImportiertUnveraendert(t *testing.T) {
 		t.Errorf("der Rumpf kam anders an: %q", kopien[0].ContentMarkdown)
 	}
 	if kopien[0].ContentHTML == "" {
-		t.Error("der Rumpf wurde nicht gerendert")
+		t.Error("the body was not rendered")
 	}
 	if kopien[0].Fields != "" {
-		t.Errorf("der Textbaustein trägt Werte, obwohl das Manifest keine nennt: %q", kopien[0].Fields)
+		t.Errorf("the snippet carries values although the manifest names none: %q", kopien[0].Fields)
 	}
 	defs, err := s.Fields.OfSnippet(ctx, report.WebsiteID, kopien[0].ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(defs) != 0 {
-		t.Errorf("der Textbaustein bekam Definitionen aus dem Nichts: %+v", defs)
+		t.Errorf("the snippet was given definitions out of nowhere: %+v", defs)
 	}
 
 	// Und die Gegenprobe an der Schreibweise: ein Textbaustein ohne Felder
@@ -2197,7 +2197,7 @@ func TestAeltererTextbausteinImportiertUnveraendert(t *testing.T) {
 	}
 	for _, schluessel := range []string{`"fields"`, `"values"`, `"value_groups"`} {
 		if strings.Contains(string(roh), schluessel) {
-			t.Errorf("das Manifest nennt %s, obwohl nichts gesetzt war: %s", schluessel, roh)
+			t.Errorf("the manifest names %s although nothing was set: %s", schluessel, roh)
 		}
 	}
 }
@@ -2232,7 +2232,7 @@ func TestTextbausteinfelderAusDemArchivGehenDurchDieselbePruefung(t *testing.T) 
 		t.Fatalf("Import: %v", err)
 	}
 	if report.Snippets != 1 {
-		t.Fatalf("%d Textbausteine gezählt, wollte 1", report.Snippets)
+		t.Fatalf("counted %d snippets, wanted 1", report.Snippets)
 	}
 	if len(report.Warnings) == 0 {
 		t.Error("die abgewiesene Definition wurde nicht gemeldet — der Betreiber " +
@@ -2253,11 +2253,11 @@ func TestTextbausteinfelderAusDemArchivGehenDurchDieselbePruefung(t *testing.T) 
 
 	werte := field.Decode(kopien[0].Fields).Values
 	if werte["telefon"] != "07721 123456" {
-		t.Errorf("der gültige Wert kam nicht an: %q", werte["telefon"])
+		t.Errorf("the valid value did not arrive: %q", werte["telefon"])
 	}
 	for _, kennung := range []string{"kaputt", "erfunden"} {
 		if _, ok := werte[kennung]; ok {
-			t.Errorf("%q wurde gespeichert, obwohl keine Definition ihn trägt: %+v", kennung, werte)
+			t.Errorf("%q was stored although no definition carries it: %+v", kennung, werte)
 		}
 	}
 }
@@ -2297,7 +2297,7 @@ func TestArchivSchluesselMitKlammernWirdAbgelehnt(t *testing.T) {
 	// Der Bericht sagt, was fehlt — sonst müsste der Betreiber die Lücke
 	// selbst finden.
 	if !warned(report, "Farbe") {
-		t.Errorf("der Bericht nennt das verworfene Feld nicht: %v", report.Warnings)
+		t.Errorf("the report does not name the discarded field: %v", report.Warnings)
 	}
 }
 
@@ -2347,11 +2347,11 @@ func TestWerteOhneDefinitionWerdenAufBeidenTraegernVerworfen(t *testing.T) {
 	}
 	seitenwerte := field.Decode(seiten[0].Fields)
 	if _, ok := seitenwerte.Values["erfunden"]; ok {
-		t.Errorf("Seite: ein Wert unter keiner Definition wurde abgelegt (%d Byte)",
+		t.Errorf("page: a value under no definition was stored (%d bytes)",
 			len(seitenwerte.Values["erfunden"]))
 	}
 	if len(seitenwerte.Rows) != 0 {
-		t.Errorf("Seite: Gruppenzeilen unter keiner Definition wurden abgelegt: %+v", seitenwerte.Rows)
+		t.Errorf("page: group rows under no definition were stored: %+v", seitenwerte.Rows)
 	}
 
 	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
@@ -2360,7 +2360,7 @@ func TestWerteOhneDefinitionWerdenAufBeidenTraegernVerworfen(t *testing.T) {
 	}
 	bausteinwerte := field.Decode(kopien[0].Fields)
 	if _, ok := bausteinwerte.Values["erfunden"]; ok {
-		t.Errorf("Textbaustein: ein Wert unter keiner Definition wurde abgelegt (%d Byte)",
+		t.Errorf("snippet: a value under no definition was stored (%d bytes)",
 			len(bausteinwerte.Values["erfunden"]))
 	}
 	if len(bausteinwerte.Rows) != 0 {
@@ -2425,7 +2425,7 @@ func TestTextbausteinDerSichNichtZurueckLesenLaesstStuerztNicht(t *testing.T) {
 			"werden konnte", report.Snippets)
 	}
 	if !warned(report, "footer-kontakt") {
-		t.Errorf("der Bericht schweigt über den Textbaustein, der nicht ankam: %v", report.Warnings)
+		t.Errorf("the report says nothing about the snippet that did not arrive: %v", report.Warnings)
 	}
 }
 
@@ -2479,6 +2479,6 @@ func TestBildwertEinesTextbausteinsWirdBeimImportGemeldet(t *testing.T) {
 	}
 	werte := field.Decode(kopien[0].Fields).Values
 	if werte["telefon"] != "07721 123456" {
-		t.Errorf("der gültige Wert kam nicht an: %q", werte["telefon"])
+		t.Errorf("the valid value did not arrive: %q", werte["telefon"])
 	}
 }

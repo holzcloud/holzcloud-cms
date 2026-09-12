@@ -49,10 +49,10 @@ func TestEinspielenUndLesen(t *testing.T) {
 	// Ausgeschaltet ankommen: ein Plugin, das mit dem Hochladen zu laufen
 	// beginnt, ist eines, das sich niemand vorher ansehen konnte.
 	if p.Enabled {
-		t.Error("frisch eingespielt und schon eingeschaltet")
+		t.Error("freshly installed and already switched on")
 	}
 	if p.Manifest == nil || p.Manifest.ID != "weiterleitungen" {
-		t.Errorf("Manifest kam nicht zurück: %+v", p.Manifest)
+		t.Errorf("the manifest did not come back: %+v", p.Manifest)
 	}
 	if _, err := s.Get(ctx, "gibtsnicht"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("erwartet ErrNotFound, bekommen: %v", err)
@@ -112,7 +112,7 @@ func TestAdresseWirdNurEinmalVergeben(t *testing.T) {
 	// Die Meldung muss sagen, wem die Adresse gehört — sonst sucht der
 	// Betreiber unter einem Dutzend Plugins.
 	if !strings.Contains(err.Error(), "Suche") {
-		t.Errorf("die Meldung nennt den Besitzer nicht: %v", err)
+		t.Errorf("the message does not name the owner: %v", err)
 	}
 	// Dieselbe Adresse in einer neuen Fassung desselben Plugins ist kein
 	// Zusammenstoss mit sich selbst.
@@ -153,7 +153,7 @@ func TestEigenerSpeicherIstProPluginUndWebsiteGetrennt(t *testing.T) {
 
 	// Ein fehlender Schlüssel ist kein Fehler, sondern der erste Lauf.
 	if _, ok, err := s.StoreGet(ctx, "eins", 1, "gibtsnicht"); err != nil || ok {
-		t.Errorf("fehlender Schlüssel: ok=%v err=%v", ok, err)
+		t.Errorf("missing key: ok=%v err=%v", ok, err)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestSpeicherPraefixIstKeinMuster(t *testing.T) {
 	}
 	// Ohne Maskierung wäre "a%" ein Muster und träfe alles.
 	if len(got) != 1 || got["a%b"] != "treffer" {
-		t.Errorf("das Präfix wurde als Muster gelesen: %v", got)
+		t.Errorf("the prefix was read as a pattern: %v", got)
 	}
 }
 
@@ -185,10 +185,10 @@ func TestSpeicherGrenzen(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.StoreSet(ctx, "eins", 0, strings.Repeat("k", MaxKeyBytes+1), "x"); err == nil {
-		t.Error("ein zu langer Schlüssel wurde angenommen")
+		t.Error("an over-long key was accepted")
 	}
 	if err := s.StoreSet(ctx, "eins", 0, "gross", strings.Repeat("x", MaxValueBytes+1)); err == nil {
-		t.Error("ein zu grosser Wert wurde angenommen")
+		t.Error("an over-large value was accepted")
 	}
 }
 
@@ -210,7 +210,7 @@ func TestEntfernenNimmtDieDatenMit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok, _ := s.StoreGet(ctx, "eins", 0, "farbe"); ok {
-		t.Error("nach dem Entfernen und Wiedereinspielen war der alte Wert noch da")
+		t.Error("after removing and reinstalling, the old value was still there")
 	}
 	if err := s.Remove(ctx, "gibtsnicht"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("erwartet ErrNotFound, bekommen: %v", err)
@@ -238,7 +238,7 @@ func TestEigeneMigrationenLaufenEinmal(t *testing.T) {
 	geaendert := []Migration{{Name: "0001.sql", SQL: `CREATE TABLE anders (b TEXT) STRICT;`}}
 	err := s.ApplyMigrations(ctx, "eins", geaendert)
 	if err == nil || !strings.Contains(err.Error(), "geändert") {
-		t.Errorf("eine geänderte Migration wurde nicht gemeldet: %v", err)
+		t.Errorf("a changed migration was not reported: %v", err)
 	}
 }
 
@@ -277,13 +277,13 @@ func TestFehlerWirdVermerktUndGekuerzt(t *testing.T) {
 	}
 	p, _ := s.Get(ctx, "eins")
 	if p.LastError == "" || len(p.LastError) > 2100 {
-		t.Errorf("Fehlerlänge: %d", len(p.LastError))
+		t.Errorf("error length: %d", len(p.LastError))
 	}
 	// Eine neue Fassung räumt den alten Fehler weg.
 	if err := s.Install(ctx, paket("eins")); err != nil {
 		t.Fatal(err)
 	}
 	if p, _ := s.Get(ctx, "eins"); p.LastError != "" {
-		t.Errorf("der alte Fehler blieb nach der Aktualisierung stehen: %q", p.LastError)
+		t.Errorf("the old error stayed after the update: %q", p.LastError)
 	}
 }

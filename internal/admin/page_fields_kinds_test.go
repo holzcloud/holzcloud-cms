@@ -56,14 +56,14 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("das Formular gab %d zurück", rec.Code)
+		t.Fatalf("the form returned %d", rec.Code)
 	}
 	body := rec.Body.String()
 
 	// --- zeit ---------------------------------------------------------------
 	zeit := umFeld(t, body, "feld_abfahrt")
 	if !strings.Contains(zeit, `type="time"`) {
-		t.Errorf("die Uhrzeit ist kein <input type=\"time\">:\n%s", zeit)
+		t.Errorf("the time of day is not an <input type=\"time\">:\n%s", zeit)
 	}
 
 	// --- bereich ------------------------------------------------------------
@@ -77,13 +77,13 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 	// abhängiges Feld über :placeholder-shown aus, und ohne Platzhalter greift
 	// die Regel nie.
 	if !strings.Contains(bereich, `placeholder=" "`) {
-		t.Errorf("dem Bereichsfeld fehlt der Platzhalter, an dem seine Abhängigen hängen:\n%s", bereich)
+		t.Errorf("the range field is missing the placeholder its dependants hang off:\n%s", bereich)
 	}
 	if !strings.Contains(bereich, "feld-schalter--text") {
-		t.Errorf("das Bereichsfeld trägt keinen Schalter — hängt das abhängige Feld daran?\n%s", bereich)
+		t.Errorf("the range field carries no switch — does the dependent field hang off it?\n%s", bereich)
 	}
 	if strings.Contains(bereich, `type="range"`) {
-		t.Errorf("das Bereichsfeld ist ein Schieber geworden:\n%s", bereich)
+		t.Errorf("the range field has become a slider:\n%s", bereich)
 	}
 
 	// Ohne Grenzen kein Attribut — nicht min="" und nicht max="". Gemessen am
@@ -92,19 +92,19 @@ func TestFeldartenImSeiteneditor(t *testing.T) {
 	offen := imTag(t, body, "feld_offen")
 	for _, darfNicht := range []string{`min=`, `max=`} {
 		if strings.Contains(offen, darfNicht) {
-			t.Errorf("ein unbegrenztes Bereichsfeld trägt %s:\n%s", darfNicht, offen)
+			t.Errorf("an unbounded range field carries %s:\n%s", darfNicht, offen)
 		}
 	}
 	// Die Gegenprobe auf demselben Weg: das begrenzte Feld trägt beide.
 	begrenzt := imTag(t, body, "feld_menge")
 	if !strings.Contains(begrenzt, `min="1"`) || !strings.Contains(begrenzt, `max="9"`) {
-		t.Errorf("die Grenzen stehen nicht am Element selbst:\n%s", begrenzt)
+		t.Errorf("the bounds are not on the element itself:\n%s", begrenzt)
 	}
 
 	// --- code ---------------------------------------------------------------
 	code := umFeld(t, body, "feld_schnipsel")
 	if !strings.Contains(code, "<textarea") || !strings.Contains(code, "form-code") {
-		t.Errorf("das Codefeld ist kein <textarea class=\"… form-code\">:\n%s", code)
+		t.Errorf("the code field is not a <textarea class=\"… form-code\">:\n%s", code)
 	}
 	if !strings.Contains(code, `spellcheck="false"`) {
 		t.Errorf("dem Codefeld fehlt spellcheck=\"false\":\n%s", code)
@@ -123,7 +123,7 @@ func TestFeldartenTragenKeinJavaScript(t *testing.T) {
 	}
 	for _, verboten := range []string{"<script", "onclick", "oninput", "onchange", "javascript:"} {
 		if strings.Contains(string(roh), verboten) {
-			t.Errorf("field_input.html enthält %q", verboten)
+			t.Errorf("field_input.html contains %q", verboten)
 		}
 	}
 
@@ -180,7 +180,7 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 	// Zwei eigene Schlagwörter dieser Website ...
 	p := seedPage(t, database, ws.ID, "Eichentisch", "eichentisch", "text", "draft")
 	if err := terms.SetForPage(ctx, ws.ID, p.ID, []string{"Möbelbau", "Eiche"}); err != nil {
-		t.Fatalf("Schlagwörter anlegen: %v", err)
+		t.Fatalf("create terms: %v", err)
 	}
 	// ... und eines einer fremden.
 	fremd, err := domain.NewStore(database).CreateWebsite(ctx, "Fremde Website", "")
@@ -206,31 +206,31 @@ func TestSchlagwortfeldImSeiteneditor(t *testing.T) {
 	req.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
 	rec := serve(t, h, sm, h.HandlePageEdit, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("das Formular gab %d zurück", rec.Code)
+		t.Fatalf("the form returned %d", rec.Code)
 	}
 	body := rec.Body.String()
 	fenster := umFeld(t, body, "feld_thema")
 
 	if !strings.Contains(fenster, "<select") {
-		t.Errorf("das Schlagwortfeld ist kein <select>:\n%s", fenster)
+		t.Errorf("the term field is not a <select>:\n%s", fenster)
 	}
 	// Beide eigenen stehen darin — der Name als Text, das Kürzel als Wert.
 	for kuerzel, name := range map[string]string{"moebelbau": "Möbelbau", "eiche": "Eiche"} {
 		if !strings.Contains(fenster, `value="`+kuerzel+`"`) {
-			t.Errorf("dem Feld fehlt das Kürzel %q:\n%s", kuerzel, fenster)
+			t.Errorf("the field is missing the slug %q:\n%s", kuerzel, fenster)
 		}
 		if !strings.Contains(fenster, ">"+name+"<") {
-			t.Errorf("dem Feld fehlt der Name %q:\n%s", name, fenster)
+			t.Errorf("the field is missing the name %q:\n%s", name, fenster)
 		}
 	}
 	// Das gespeicherte ist vorausgewählt.
 	if !strings.Contains(fenster, `value="moebelbau" selected`) {
-		t.Errorf("das gespeicherte Schlagwort ist nicht ausgewählt:\n%s", fenster)
+		t.Errorf("the stored term is not selected:\n%s", fenster)
 	}
 	// Und das fremde steht nirgends — nicht im Fenster und nicht im ganzen
 	// Dokument.
 	if strings.Contains(body, "Zementbau") || strings.Contains(body, "zementbau") {
-		t.Error("das Schlagwort einer fremden Website steht im Formular")
+		t.Error("another website's term is in the form")
 	}
 }
 
@@ -269,7 +269,7 @@ func umFeld(t *testing.T, body, name string) string {
 	t.Helper()
 	at := strings.Index(body, `name="`+name+`"`)
 	if at < 0 {
-		t.Fatalf("das Feld %q steht nicht im Formular", name)
+		t.Fatalf("the field %q is not in the form", name)
 	}
 	von := at - 600
 	if von < 0 {
@@ -288,12 +288,12 @@ func imTag(t *testing.T, body, name string) string {
 	t.Helper()
 	at := strings.Index(body, `name="`+name+`"`)
 	if at < 0 {
-		t.Fatalf("das Feld %q steht nicht im Formular", name)
+		t.Fatalf("the field %q is not in the form", name)
 	}
 	von := strings.LastIndex(body[:at], "<")
 	bis := strings.Index(body[at:], ">")
 	if von < 0 || bis < 0 {
-		t.Fatalf("das Element um %q ist nicht geschlossen", name)
+		t.Fatalf("the element around %q is not closed", name)
 	}
 	return body[von : at+bis+1]
 }
@@ -330,7 +330,7 @@ func TestEinFremderFeldwertWirdNichtMitgespeichert(t *testing.T) {
 
 	p, err := page.NewStore(database).GetPageBySlug(ctx, ws.ID, "start")
 	if err != nil || p == nil {
-		t.Fatalf("die Seite wurde nicht angelegt: %v", err)
+		t.Fatalf("the page was not created: %v", err)
 	}
 	if got := field.Decode(p.Fields).Values["vorspann"]; got != "" {
 		t.Errorf("%d Byte eines fremden Feldes wurden abgelegt", len(got))

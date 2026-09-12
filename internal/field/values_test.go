@@ -83,12 +83,12 @@ func TestValuesRundreise(t *testing.T) {
 			}
 		}
 		if len(zurück) > nichtLeer {
-			t.Errorf("aus %d nicht-leeren Einträgen wurden %d Werte: %#v", nichtLeer, len(zurück), zurück)
+			t.Errorf("%d non-empty entries became %d values: %#v", nichtLeer, len(zurück), zurück)
 		}
 		// Zweimal speichern muss dieselbe Zeichenkette ergeben.
 		einmal := JoinValues(v)
 		if zweimal := JoinValues(SplitValues(einmal)); zweimal != einmal {
-			t.Errorf("nicht idempotent: %q dann %q", einmal, zweimal)
+			t.Errorf("not idempotent: %q then %q", einmal, zweimal)
 		}
 	}
 }
@@ -99,7 +99,7 @@ func TestValuesRundreise(t *testing.T) {
 // nichts merken.
 func TestJoinValuesWaechterUndDoppelte(t *testing.T) {
 	if got := SplitValues(JoinValues([]string{"a", "", "a"})); !reflect.DeepEqual(got, []string{"a", "a"}) {
-		t.Errorf("[a,\"\",a] kam als %#v zurück, wollte [a a]", got)
+		t.Errorf("[a,\"\",a] came back as %#v, wanted [a a]", got)
 	}
 }
 
@@ -112,7 +112,7 @@ func TestFeldNameTraegtDieMarkierung(t *testing.T) {
 		t.Errorf("FieldName() = %q, wollte %q", got, will)
 	}
 	if !multi.IsMultiValued() {
-		t.Error("IsMultiValued() = false für eine Mehrfachauswahl")
+		t.Error("IsMultiValued() = false for a multi-choice")
 	}
 	if got, will := multi.NameSuffix(), "[]"; got != will {
 		t.Errorf("NameSuffix() = %q, wollte %q", got, will)
@@ -126,10 +126,10 @@ func TestFeldNameTraegtDieMarkierung(t *testing.T) {
 		}
 		d := Def{Kind: k.Kind, Key: "sorten"}
 		if got, will := d.FieldName(), "feld_sorten"; got != will {
-			t.Errorf("FieldName() für %q = %q, wollte %q", k.Kind, got, will)
+			t.Errorf("FieldName() for %q = %q, wanted %q", k.Kind, got, will)
 		}
 		if d.IsMultiValued() {
-			t.Errorf("IsMultiValued() = true für %q", k.Kind)
+			t.Errorf("IsMultiValued() = true for %q", k.Kind)
 		}
 	}
 }
@@ -141,24 +141,24 @@ func TestMehrfachauswahlPruefung(t *testing.T) {
 	d := Def{Label: "Sorten", Kind: KindMulti, Choices: []string{"Eiche", "Buche", "Esche"}}
 
 	if reason := Check(d, JoinValues([]string{"Eiche", "Esche"})); !reason.Empty() {
-		t.Errorf("Check auf zwei gültige Werte = %q, erwartet in Ordnung", reason)
+		t.Errorf("Check on two valid values = %q, expected fine", reason)
 	}
 	reason := Check(d, JoinValues([]string{"Eiche", "Ahorn"}))
 	if reason.Empty() {
 		t.Fatal("„Ahorn“ wurde durchgelassen")
 	}
 	if !strings.Contains(reason.String(), "Ahorn") {
-		t.Errorf("die Meldung nennt den fehlerhaften Wert nicht: %q", reason)
+		t.Errorf("the message does not name the faulty value: %q", reason)
 	}
 	// Leer auf einem freiwilligen Feld ist in Ordnung, auf einem Pflichtfeld
 	// nicht — das entscheidet die Wache oben in Check und muss so bleiben.
 	if reason := Check(d, ""); !reason.Empty() {
-		t.Errorf("leer auf einem freiwilligen Feld = %q", reason)
+		t.Errorf("empty on an optional field = %q", reason)
 	}
 	pflicht := d
 	pflicht.Required = true
 	if reason := Check(pflicht, ""); reason.Empty() {
-		t.Error("leer auf einem Pflichtfeld wurde durchgelassen")
+		t.Error("empty on a required field was let through")
 	}
 }
 
@@ -179,7 +179,7 @@ func TestMehrfachauswahlAufgeloest(t *testing.T) {
 
 	leer := Resolve(defs, Data{Values: Values{}}, Links{})
 	if werte, ok := leer["sorten"].([]string); !ok || len(werte) != 0 {
-		t.Errorf("leer aufgelöst = %#v (%T), wollte eine leere []string", leer["sorten"], leer["sorten"])
+		t.Errorf("resolved empty = %#v (%T), wanted an empty []string", leer["sorten"], leer["sorten"])
 	}
 
 	// List lässt das leere Feld weg und macht aus dem gefüllten einen lesbaren
@@ -195,16 +195,16 @@ func TestMehrfachauswahlAufgeloest(t *testing.T) {
 		t.Errorf("Entry.Text = %q, wollte %q", got, will)
 	}
 	if leer := List(defs, Data{Values: Values{}}, Links{}); len(leer) != 0 {
-		t.Errorf("das leere Feld steht in der Liste: %+v", leer)
+		t.Errorf("the empty field is in the list: %+v", leer)
 	}
 
 	// Und Filled muss die Liste kennen, sonst verschwindet die ganze
 	// Feldtafel auf einer Seite, die nur mehrwertige Felder trägt.
 	if !Filled(Resolve(defs, Data{Values: Values{"sorten": "Eiche"}}, Links{})) {
-		t.Error("Filled = false, obwohl ein Wert da ist")
+		t.Error("Filled = false although a value is there")
 	}
 	if Filled(Resolve(defs, Data{Values: Values{}}, Links{})) {
-		t.Error("Filled = true auf einer leeren Seite")
+		t.Error("Filled = true on an empty page")
 	}
 }
 
@@ -223,10 +223,10 @@ func TestMehrfachauswahlAufgeloest(t *testing.T) {
 func TestJoinValuesVerteidigtSeinTrennzeichen(t *testing.T) {
 	zurück := SplitValues(JoinValues([]string{"a\nb", "c"}))
 	if len(zurück) != 2 {
-		t.Fatalf("aus zwei Einträgen wurden %d Werte: %#v", len(zurück), zurück)
+		t.Fatalf("two entries became %d values: %#v", len(zurück), zurück)
 	}
 	if zurück[0] != "a b" {
-		t.Errorf("der erste Wert = %q, wollte \"a b\"", zurück[0])
+		t.Errorf("the first value = %q, wanted \"a b\"", zurück[0])
 	}
 
 	// Jede Schreibweise der Zeilenschaltung, und die Wagenrücklaufform ergibt
@@ -249,12 +249,12 @@ func TestJoinValuesVerteidigtSeinTrennzeichen(t *testing.T) {
 	// gültigen Wertes bleiben zwei Leerzeichen. Wer hier mit einer Funktion
 	// arbeitet, die jeden Weissraum zusammenfasst, verschluckt sie.
 	if got := JoinValues([]string{"eiche  rot"}); got != "eiche  rot" {
-		t.Errorf("JoinValues([\"eiche  rot\"]) = %q — der Weissraum im Wert wurde angetastet", got)
+		t.Errorf("JoinValues([\"eiche  rot\"]) = %q — the whitespace inside the value was touched", got)
 	}
 
 	// Und die Faltung bleibt idempotent über ihre eigene Ausgabe.
 	einmal := JoinValues([]string{"a\nb", "c"})
 	if zweimal := JoinValues(SplitValues(einmal)); zweimal != einmal {
-		t.Errorf("nicht idempotent: %q dann %q", einmal, zweimal)
+		t.Errorf("not idempotent: %q then %q", einmal, zweimal)
 	}
 }

@@ -153,10 +153,10 @@ func TestBausteinfelderErreichenDasTheme(t *testing.T) {
 	body := rec.Body.String()
 
 	if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
-		t.Errorf("der Feldwert steht nicht in der Seite:\n%s", body)
+		t.Errorf("the field value is not in the page:\n%s", body)
 	}
 	if !strings.Contains(body, "<strong>da</strong>") {
-		t.Errorf("der Markdown-Rumpf des Textbausteins fehlt:\n%s", body)
+		t.Errorf("the snippet's Markdown body is missing:\n%s", body)
 	}
 	if !strings.Contains(body, `<p class="eigene">0</p>`) {
 		t.Errorf(".Page.FieldList ist nicht leer — ein Feld des Textbausteins ist "+
@@ -213,10 +213,10 @@ func TestSnippetsBleibtTemplateHTML(t *testing.T) {
 			"ein Theme, das durch ihn hindurchgreift, scheitert dann auf der Anfrage eines Besuchers")
 	}
 	if werte == nil {
-		t.Error(".Site.SnippetFields trägt eine nil-Karte statt einer leeren")
+		t.Error(".Site.SnippetFields carries a nil map instead of an empty one")
 	}
 	if len(werte) != 0 {
-		t.Errorf(".Site.SnippetFields trägt %d Werte, erwartet keine", len(werte))
+		t.Errorf(".Site.SnippetFields carries %d values, expected none", len(werte))
 	}
 	if _, ok := site.SnippetList["kontakt"]; ok {
 		t.Error(".Site.SnippetList trägt einen Eintrag ohne einen einzigen gefüllten Wert — " +
@@ -358,10 +358,10 @@ func TestBausteinfelderAufDenRoutenOhneSeite(t *testing.T) {
 		}
 		body := rec.Body.String()
 		if !strings.Contains(body, "nichts gefunden") {
-			t.Fatalf("die 404-Ansicht des Themes wurde nicht gezeichnet:\n%s", body)
+			t.Fatalf("the theme's 404 view was not drawn:\n%s", body)
 		}
 		if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
-			t.Errorf("die 404-Seite trägt die Textbausteinfläche nicht:\n%s", body)
+			t.Errorf("the 404 page does not carry the snippet surface:\n%s", body)
 		}
 	})
 
@@ -374,7 +374,7 @@ func TestBausteinfelderAufDenRoutenOhneSeite(t *testing.T) {
 		}
 		body := rec.Body.String()
 		if !strings.Contains(body, "nichts gefunden") {
-			t.Fatalf("die 404-Ansicht des Themes wurde nicht gezeichnet:\n%s", body)
+			t.Fatalf("the theme's 404 view was not drawn:\n%s", body)
 		}
 		if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
 			t.Errorf("die Seite zum abgelaufenen Vorschaulink trägt die "+
@@ -394,10 +394,10 @@ func TestBausteinfelderAufDenRoutenOhneSeite(t *testing.T) {
 		}
 		body := rec.Body.String()
 		if !strings.Contains(body, "gleich zurück") {
-			t.Fatalf("die Wartungsansicht des Themes wurde nicht gezeichnet:\n%s", body)
+			t.Fatalf("the theme's maintenance view was not drawn:\n%s", body)
 		}
 		if !strings.Contains(body, `<p class="telefon">07721 123456</p>`) {
-			t.Errorf("die Wartungsseite trägt die Textbausteinfläche nicht:\n%s", body)
+			t.Errorf("the maintenance page does not carry the snippet surface:\n%s", body)
 		}
 	})
 }

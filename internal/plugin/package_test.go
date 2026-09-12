@@ -79,7 +79,7 @@ func TestGutesPaketWirdGelesen(t *testing.T) {
 		t.Errorf("Migrationen: %+v", p.Migrations)
 	}
 	if len(p.SHA256) != 64 {
-		t.Errorf("Prüfsumme: %q", p.SHA256)
+		t.Errorf("checksum: %q", p.SHA256)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestPaketOhneModulOderManifest(t *testing.T) {
 	})
 	t.Run("ohne Manifest", func(t *testing.T) {
 		if _, err := lies(t, archiv(t, nil, map[string][]byte{ModuleName: wasm})); err == nil {
-			t.Error("ein Paket ohne Manifest wurde angenommen")
+			t.Error("a package without a manifest was accepted")
 		}
 	})
 	t.Run("Modul ist kein WebAssembly", func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestPaketMitEntkommendemPfad(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			a := archiv(t, gutesManifest(), map[string][]byte{ModuleName: wasm, name: []byte("x")})
 			if _, err := lies(t, a); err == nil {
-				t.Errorf("der Pfad %q wurde angenommen", name)
+				t.Errorf("the path %q was accepted", name)
 			}
 		})
 	}
@@ -205,6 +205,6 @@ func TestZuVieleDateien(t *testing.T) {
 		dateien[AssetDir+string(rune('a'+i%26))+string(rune('a'+i/26))+".txt"] = []byte("x")
 	}
 	if _, err := lies(t, archiv(t, gutesManifest(), dateien)); err == nil {
-		t.Error("ein Archiv mit zu vielen Dateien wurde angenommen")
+		t.Error("an archive with too many files was accepted")
 	}
 }

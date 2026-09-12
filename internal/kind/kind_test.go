@@ -75,9 +75,9 @@ func TestByArchive(t *testing.T) {
 		t.Errorf("ByArchive(hofladen) = %+v, %v", got, ok)
 	}
 	if _, ok := ByArchive(types, ""); ok {
-		t.Error("eine leere Adresse darf keine Übersicht treffen — sonst führte jede Seite ohne Slug dorthin")
+		t.Error("an empty address must not hit an overview — otherwise every page without a slug would lead there")
 	}
 	if _, ok := ByArchive(types, "irgendwas"); ok {
-		t.Error("eine fremde Adresse trifft eine Übersicht")
+		t.Error("a foreign address hits an overview")
 	}
 }

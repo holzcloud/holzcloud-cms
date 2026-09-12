@@ -68,12 +68,12 @@ func TestZuschnittHatDieGewaehlteForm(t *testing.T) {
 		t.Errorf("kein Quadrat: %dx%d", r.Dx(), r.Dy())
 	}
 	if r.Dy() != 900 {
-		t.Errorf("das Quadrat nutzt die Höhe nicht aus: %d", r.Dy())
+		t.Errorf("the square does not use the height: %d", r.Dy())
 	}
 
 	r = Crop{Ratio: "16-9", Zoom: 100, FocusX: 50, FocusY: 50}.Rect(1000, 1000)
 	if r.Dx() != 1000 || r.Dy() != 562 {
-		t.Errorf("16:9 aus einem Quadrat = %dx%d", r.Dx(), r.Dy())
+		t.Errorf("16:9 out of a square = %dx%d", r.Dx(), r.Dy())
 	}
 }
 
@@ -84,19 +84,19 @@ func TestZuschnittFolgtDemFokusUndBleibtImBild(t *testing.T) {
 	c := Crop{Ratio: "1-1", Zoom: 100, FocusX: 10, FocusY: 50}
 	r := c.Rect(1600, 900)
 	if r.Min.X != 0 {
-		t.Errorf("links wurde nicht am Rand angehalten: %+v", r)
+		t.Errorf("it was not stopped at the left edge: %+v", r)
 	}
 
 	c.FocusX = 90
 	r = c.Rect(1600, 900)
 	if r.Max.X != 1600 {
-		t.Errorf("rechts wurde nicht am Rand angehalten: %+v", r)
+		t.Errorf("it was not stopped at the right edge: %+v", r)
 	}
 
 	c.FocusX = 50
 	r = c.Rect(1600, 900)
 	if r.Min.X != (1600-900)/2 {
-		t.Errorf("in der Mitte sitzt es nicht mittig: %+v", r)
+		t.Errorf("in the middle it does not sit centred: %+v", r)
 	}
 }
 
@@ -107,7 +107,7 @@ func TestUnsinnigeWerteWerdenGebaendigt(t *testing.T) {
 		t.Errorf("got %+v", c)
 	}
 	if r := (Crop{Zoom: 100000}).Rect(100, 100); r.Dx() < 1 || r.Dy() < 1 {
-		t.Errorf("ein Rechteck ohne Fläche: %+v", r)
+		t.Errorf("a rectangle with no area: %+v", r)
 	}
 }
 
@@ -123,7 +123,7 @@ func TestDrehungTauschtBreiteUndHoehe(t *testing.T) {
 		t.Fatalf("ApplyCrop: %v", err)
 	}
 	if w != 200 || h != 400 {
-		t.Errorf("nach der Drehung %dx%d, want 200x400", w, h)
+		t.Errorf("after the rotation %dx%d, want 200x400", w, h)
 	}
 }
 
@@ -141,11 +141,11 @@ func TestZweiterZuschnittBeginntWiederBeimOriginal(t *testing.T) {
 	}
 	original := filepath.Join(dir, SourceName("bild.jpg"))
 	if _, err := os.Stat(original); err != nil {
-		t.Fatalf("das Original wurde nicht beiseite gelegt: %v", err)
+		t.Fatalf("the original was not set aside: %v", err)
 	}
 	ow, oh, _ := Dimensions(original)
 	if ow != 1200 || oh != 800 {
-		t.Errorf("das beiseite gelegte Bild ist nicht das Original: %dx%d", ow, oh)
+		t.Errorf("the image set aside is not the original: %dx%d", ow, oh)
 	}
 
 	// Ein zweiter, weiterer Zuschnitt muss wieder gross werden können. Ginge er
@@ -155,7 +155,7 @@ func TestZweiterZuschnittBeginntWiederBeimOriginal(t *testing.T) {
 		t.Fatalf("zweiter Zuschnitt: %v", err)
 	}
 	if w != 1200 || h != 800 {
-		t.Errorf("der zweite Zuschnitt kam nicht ans Original heran: %dx%d", w, h)
+		t.Errorf("the second crop did not reach the original: %dx%d", w, h)
 	}
 }
 
@@ -192,7 +192,7 @@ func TestDerFokusEntscheidetWasImBildBleibt(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !hatRot(t, filepath.Join(dir, "links.jpg")) {
-		t.Error("der Fokus lag auf dem Fleck, und er ist trotzdem weg")
+		t.Error("the focus was on the spot and it is gone regardless")
 	}
 
 	// Derselbe Fleck, aber der Fokus zeigt nach rechts.
@@ -202,7 +202,7 @@ func TestDerFokusEntscheidetWasImBildBleibt(t *testing.T) {
 		t.Fatal(err)
 	}
 	if hatRot(t, filepath.Join(dir, "rechts.jpg")) {
-		t.Error("der Fokus lag weit rechts, der Fleck links ist trotzdem drin")
+		t.Error("the focus was far right, the spot on the left is in it regardless")
 	}
 }
 
