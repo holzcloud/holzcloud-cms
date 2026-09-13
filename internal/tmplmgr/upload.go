@@ -35,6 +35,13 @@ var allowedExtensions = map[string]bool{
 	".woff":  true,
 	".woff2": true,
 	".ttf":   true,
+	// .json is here for lang/<tag>.json, a theme's own catalogue. It is never
+	// served: the loader reads it, the browser never asks for it, and
+	// CheckNoScripts does not need to look at it because a JSON file cannot be
+	// a script — no <script>, no attribute, no javascript: URL. What it can be
+	// is malformed, and template.Check says so at upload rather than at the
+	// visitor.
+	".json": true,
 }
 
 // ExtractTemplate extracts a zip archive to destDir with security validation.

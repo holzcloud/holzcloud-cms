@@ -570,10 +570,27 @@ func NewLoader(dataDir string, defaultFS fs.FS, publicFS fs.FS, resolver Templat
 //
 // It takes parameters rather than being a package-level constant because
 // formatDate has to speak the site's language; the locale is part of cacheKey
-// so two websites with different settings cannot share a parsed set.
-func funcMap(locale, timezone string) template.FuncMap {
+// so two websites with different settings cannot share a parsed set. The
+// catalogue joined it for the same reason and by the same route — see lang.go
+// for why a theme carries its own and resolves against nothing else.
+func funcMap(locale, timezone string, words Catalog) template.FuncMap {
 	dates := newDateFormatter(locale, timezone)
 	return template.FuncMap{
+		// t translates one of the theme's own words. The key is the word the
+		// theme author wrote, so an untranslated theme renders as it always
+		// did. It is escaped like any other string: a translation is content
+		// and a catalogue is uploadable.
+		"t": words.T,
+		// th is t for a sentence that carries its own inline markup — a link in
+		// the middle of it, an <em>. The catalogue is part of the theme, and a
+		// theme already writes raw HTML on every line; this is not a new way in.
+		"th": func(key string) template.HTML { return template.HTML(words.T(key)) },
+		// tf is t with values in it. The FRAME is translated and then filled,
+		// so a language that wants the parts the other way round can say so —
+		// "Seite 2 von 9" and "page 2 of 9" are the same key. //nolint:german — the two sentences this rule exists for
+		"tf": func(key string, args ...any) string {
+			return fmt.Sprintf(words.T(key), args...)
+		},
 		// safeHTML marks a string as safe HTML for template rendering.
 		// This is SAFE because content_html is always pre-sanitized by bluemonday
 		// on page save (see internal/page/markdown.go). The raw goldmark output
@@ -680,6 +697,16 @@ func (l *Loader) resolveSource(ctx context.Context, websiteID int64) fileReader 
 	}
 }
 
+// words is the catalogue this website renders with.
+//
+// Today that is the theme's own and nothing else. It is a method rather than a
+// call to loadCatalog so that the operator's own wording, which belongs to the
+// website and not to the theme, has one place to be layered in — the
+// precedence being override, then theme, then the key itself.
+func (l *Loader) words(_ context.Context, _ int64, read fileReader, locale string) Catalog {
+	return loadCatalog(read, locale)
+}
+
 // loadTemplates parses the template set for one view of a website: layout.html
 // plus the view file that provides its "content" block.
 func (l *Loader) loadTemplates(ctx context.Context, websiteID int64, view, locale, timezone string) (*template.Template, error) {
@@ -689,10 +716,13 @@ func (l *Loader) loadTemplates(ctx context.Context, websiteID int64, view, local
 	}
 
 	read := l.resolveSource(ctx, websiteID)
+	// The catalogue comes through the same reader as the templates, so a theme
+	// on disk, a built-in one and the default all find theirs the same way.
+	words := l.words(ctx, websiteID, read, locale)
 	// The root is left unnamed; layout.html and the view are added to the set as
 	// named associates. Naming the root layout.html would leave an unparsed
 	// template of that name in the set and break escaping.
-	tmpl := template.New("").Funcs(funcMap(locale, timezone))
+	tmpl := template.New("").Funcs(funcMap(locale, timezone, words))
 
 	for _, name := range []string{layoutFile, view} {
 		content, err := read(name)
