@@ -47,6 +47,9 @@ type snapshot struct {
 	routes map[string]string
 	// admin is the sidebar, in display order.
 	admin []AdminLink
+	// perms maps a plugin id to the permissions it declared, for a caller that
+	// has to know BEFORE the plugin is called — see Manager.Allows.
+	perms map[string]map[string]bool
 }
 
 // AdminLink is one plugin's entry in the admin.
@@ -130,6 +133,7 @@ func (m *Manager) rebuild(installed []Installed) {
 		byHook: map[string][]string{},
 		sites:  map[string]map[int64]bool{},
 		routes: map[string]string{},
+		perms:  map[string]map[string]bool{},
 	}
 	// Sorted by id so two plugins filtering the same page always run in the
 	// same order. Content filters are not commutative, and an order that
@@ -140,6 +144,10 @@ func (m *Manager) rebuild(installed []Installed) {
 	for _, p := range installed {
 		if !p.Enabled || p.Manifest == nil || !m.rt.Loaded(p.ID) {
 			continue
+		}
+		s.perms[p.ID] = map[string]bool{}
+		for _, perm := range p.Manifest.Permissions {
+			s.perms[p.ID][perm] = true
 		}
 		for _, h := range p.Manifest.Hooks {
 			s.byHook[h] = append(s.byHook[h], p.ID)
@@ -190,6 +198,19 @@ func (m *Manager) forHook(hook string, websiteID int64) []string {
 // to nobody is the kind of cost that only shows up under load.
 func (m *Manager) Active(hook string, websiteID int64) bool {
 	return len(m.forHook(hook, websiteID)) > 0
+}
+
+// Allows reports whether one plugin declared a permission.
+//
+// For the caller that has to prepare something BEFORE the plugin is called and
+// only if it may have it — an attachment, whose bytes the host reads off the
+// wire and holds. Asking the manifest is the same check the runtime makes on
+// the call itself; this one only avoids doing the work for a plugin that would
+// be refused anyway.
+func (m *Manager) Allows(pluginID, permission string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.snap.perms[pluginID][permission]
 }
 
 // AdminLinks returns the sidebar entries.

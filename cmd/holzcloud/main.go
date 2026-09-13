@@ -1173,6 +1173,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// the public side gets it. If it is nil, everything behaves as it did
 	// before the plugins.
 	publicHandler.SetPlugins(d.plugins)
+	// The same two limits the administration's upload uses. A file a stranger
+	// attaches to a form must not be allowed to be larger than one the operator
+	// chooses themselves.
+	publicHandler.SetUploadLimits(cfg.MaxMediaSize, cfg.MaxVideoSize)
 	// Two host functions need the public handler: reading pages and rendering a
 	// page in the website's theme. Only here does it exist, and a plugin calls
 	// them inside a hook at the earliest anyway.

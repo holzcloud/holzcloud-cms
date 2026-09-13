@@ -97,7 +97,37 @@ type RequestIn struct {
 	Path      string            `json:"path"`
 	Query     string            `json:"query,omitempty"`
 	Headers   map[string]string `json:"headers,omitempty"`
-	Body      string            `json:"body,omitempty"`
+	// Body is the submission. A multipart form arrives here as an ordinary
+	// encoded one: the host takes the files out and leaves the fields, so a
+	// plugin written before attachments existed reads what it always read.
+	Body string `json:"body,omitempty"`
+	// Files are the attachments the host is holding for this request.
+	//
+	// Without the bytes, and there is no way to ask for them. A module that
+	// could pull a five-megabyte file into its linear memory would be a way to
+	// exhaust a small node with one request. What is here is the name, the kind
+	// and the size — enough to decide, which is all a plugin has to do.
+	//
+	// Nothing is on the disk yet. Call KeepFiles after deciding the submission
+	// is real; refuse it and simply do not call, and the files go away with the
+	// request.
+	Files []AttachedFile `json:"files,omitempty"`
+}
+
+// AttachedFile is one file that came in with a request.
+type AttachedFile struct {
+	// Field is the form field it arrived in.
+	Field string `json:"field"`
+	// Name is what the sender's computer called it.
+	Name string `json:"name"`
+	// MimeType is what the bytes say, never what the browser claimed.
+	MimeType string `json:"mime_type"`
+	// Size is the bytes actually read.
+	Size int64 `json:"size"`
+	// Refused says the host would not take this one, and why. Such a file is
+	// not held and will not be kept; the reason is here so the sender can be
+	// told.
+	Refused string `json:"refused,omitempty"`
 }
 
 // RequestOut answers a request, or declines to.
@@ -416,6 +446,50 @@ func N(s string) string { return s }
 // Tf is T with a format string. The FRAME is translated and then filled in, so
 // a language that wants the parts the other way round can say so.
 func Tf(format string, args ...any) string { return fmt.Sprintf(T(format), args...) }
+
+// KeepFiles stores the attachments that came in with this request. Needs
+// "attach".
+//
+// Nothing is on the disk until this is called, which is what lets a form run
+// its spam traps first: refuse the submission and simply do not call this, and
+// the files go away with the request. Call it after deciding and not before.
+//
+// The bytes are never yours. What comes back is a media id per file, which is
+// what goes into a page, into a link, or into whatever you store — and reading
+// the file back is not something a plugin can do.
+//
+// An empty answer with a nil error means there was nothing to keep: no file
+// came in, or the host is not holding any. That is ordinary, not a failure.
+func KeepFiles() ([]KeptFile, error) {
+	raw, err := hostJSON("files.keep", struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	var r struct {
+		Kept []KeptFile `json:"kept"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return nil, err
+	}
+	return r.Kept, nil
+}
+
+// KeptFile is one attachment now stored.
+type KeptFile struct {
+	// Field is the form field it arrived in, so a form with two file fields can
+	// tell them apart.
+	Field string `json:"field"`
+	// MediaID is the record in this website's media, and the only handle there
+	// is.
+	MediaID int64 `json:"media_id"`
+	// Name is what the sender's computer called it.
+	Name string `json:"name"`
+	// Filename is the name it has HERE, which is the handle /media/ takes.
+	Filename string `json:"filename"`
+	// Existed marks a file that was already stored byte for byte. The id is the
+	// existing one; nothing was written twice.
+	Existed bool `json:"existed,omitempty"`
+}
 
 // Get reads one value from the plugin's own space for the current website.
 // Needs "store". A missing key is not an error.

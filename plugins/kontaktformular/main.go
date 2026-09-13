@@ -47,6 +47,10 @@ const (
 	// fieldConsent is the tick box, present only when the operator wrote a
 	// sentence for it.
 	fieldConsent = "einwilligung"
+
+	// fieldAttach is the file field, present only when the operator asked for
+	// it.
+	fieldAttach = "anhang"
 )
 
 // submitAddress is a fixed address and not the page's: then every page stays a
@@ -92,6 +96,17 @@ const maxMessages = 500
 // to agree to is a matter for the person running the site, not for a CMS.
 const keyConsent = "einwilligungstext"
 
+// keyAttach switches the attachment field on.
+//
+// Off until the operator asks for it, and for the same reason as the receipt:
+// switching it on means strangers may put files on this server. An operator who
+// reads the setting and switches it on has weighed that.
+const keyAttach = "anhang"
+
+// maxAttachments is what one submission may bring. The host bounds it too; this
+// is the number the form offers.
+const maxAttachments = 3
+
 // maxConsent bounds it. A consent nobody reads to the end is not consent, and a
 // tick box with a page of text beside it is exactly that.
 const maxConsent = 400
@@ -101,6 +116,19 @@ const (
 	praefixZaehler = "zaehler:"
 	schluesselName = "signaturschluessel"
 )
+
+// attachment is one file kept with a message.
+//
+// An id and a name. The plugin never had the bytes and cannot read them back;
+// what it can do is put the id into a link, which is what the admin does.
+type attachment struct {
+	MediaID int64 `json:"medien_id"`
+	// Name is what the sender called it; Filename is what it is called here,
+	// which is the handle /media/ takes. Both are kept, because a link needs
+	// the second and a person needs the first.
+	Name     string `json:"name"`
+	Filename string `json:"dateiname"`
+}
 
 // message is an enquiry that has come in.
 type message struct {
@@ -130,6 +158,11 @@ type message struct {
 	// is how it should read — they were not asked, so they did not agree.
 	Consent     string `json:"einwilligung,omitempty"`
 	ConsentTime string `json:"einwilligungszeit,omitempty"`
+	// Attachments are the files that came with the message, as media ids.
+	//
+	// Ids and not bytes: the plugin never had the file and cannot read it back.
+	// What it can do is put the id into a link, which is what the admin does.
+	Attachments []attachment `json:"anhaenge,omitempty"`
 	// RefusedFor is why a submission was turned away, empty on a real message.
 	// It is the one field that tells the two lists apart, so that a submission
 	// released into the messages cannot keep looking refused.
@@ -242,6 +275,8 @@ type data struct {
 	// ErrorField is the form field the message belongs under, empty when it is
 	// about the submission as a whole.
 	ErrorField string
+	// Attach says the form offers a file field.
+	Attach bool
 	// Consent is the operator's sentence, or empty when they ask for none.
 	//
 	// It is the operator's own HTML, cleaned by the host the way any of their
@@ -259,6 +294,7 @@ func formData(in plugin.ContentIn) data {
 		d.Kontakt = s.ContactEmail
 	}
 	d.Consent = consentText()
+	d.Attach = attachWanted()
 
 	q, err := url.ParseQuery(in.Query)
 	if err != nil {
@@ -308,7 +344,7 @@ const maxLabel = 120
 // fieldName2 keeps only a field name this form could actually have.
 func fieldName2(raw string) string {
 	switch raw {
-	case fieldName, fieldEmail, fieldSubject, fieldText, fieldConsent:
+	case fieldName, fieldEmail, fieldSubject, fieldText, fieldConsent, fieldAttach:
 		return raw
 	}
 	// An assembled form's field: the prefix plus a key, and a key is the narrow
@@ -346,7 +382,14 @@ func draw(d data) string {
 	// cannot judge — the shape of an address, a length, an hour that was too
 	// busy — comes back from the server with a sentence in the page's language
 	// under the field it is about.
-	fmt.Fprintf(&b, `<form class="contact-form" method="POST" action="%s">`, submitAddress)
+	enctype := ""
+	if d.Attach {
+		// Without this the browser sends only the file NAMES, and the form
+		// silently arrives with no attachment at all — the sort of defect that
+		// looks like the server losing files.
+		enctype = ` enctype="multipart/form-data"`
+	}
+	fmt.Fprintf(&b, `<form class="contact-form" method="POST" action="%s"%s>`, submitAddress, enctype)
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldTime, e(d.Timestamp))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPage, e(d.Page))
 
@@ -425,6 +468,27 @@ func draw(d data) string {
 		`<label for="cf-website">%s</label>`+
 		`<input type="text" id="cf-website" name="%s" tabindex="-1" autocomplete="off"></div>`,
 		e(plugin.T("Website (please leave empty)")), fieldHoneypot)
+
+	if d.Attach {
+		wrong := d.ErrorField == fieldAttach && d.IsError
+		class := "contact-form__field"
+		extra := ""
+		if wrong {
+			class += " contact-form__field--wrong"
+			extra = ` aria-invalid="true" aria-describedby="cf-attach-why"`
+		}
+		fmt.Fprintf(&b, `<div class="%s"><label for="cf-attach">%s</label>`,
+			class, e(plugin.T("Attachment")))
+		if wrong {
+			fmt.Fprintf(&b, `<p class="contact-form__why" id="cf-attach-why" role="alert">%s</p>`,
+				e(d.Hint))
+		}
+		// multiple, and the host bounds the number as well: a form that offers
+		// three and takes one is a form that loses files without saying so.
+		fmt.Fprintf(&b, `<input type="file" id="cf-attach" name="%s" multiple%s>`+
+			`<span class="contact-form__limit">%s</span></div>`,
+			fieldAttach, extra, e(plugin.Tf("at most %d files", maxAttachments)))
+	}
 
 	if d.Consent != "" {
 		wrong := d.ErrorField == fieldConsent && d.IsError
@@ -613,9 +677,35 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		n.ConsentTime = time.Now().UTC().Format(time.RFC3339)
 	}
 
+	// A file the host would not take is said so before anything else is done
+	// with the submission: the sender has to be able to send it again with a
+	// smaller picture, and telling them after the message was stored would mean
+	// an enquiry with half its attachments and nobody the wiser.
+	for _, f := range in.Files {
+		if f.Refused != "" {
+			return backTo(page, welches, "fehler",
+				refusal{Field: fieldAttach, Code: "attach-refused", Arg: f.Refused}), nil
+		}
+	}
+
 	if !roomThisHour() {
 		return backTo(page, welches, "fehler", refusal{Code: "too-many"}), nil
 	}
+
+	// Only here. Every trap has been past, the message is real, and this is the
+	// first moment a stranger's file is allowed to reach the disk.
+	if len(in.Files) > 0 {
+		kept, err := plugin.KeepFiles()
+		if err != nil {
+			plugin.Logf("error", "the attachments could not be kept: %v", err)
+		}
+		for _, k := range kept {
+			n.Attachments = append(n.Attachments, attachment{
+				MediaID: k.MediaID, Name: k.Name, Filename: k.Filename,
+			})
+		}
+	}
+
 	if err := speichern(n); err != nil {
 		return plugin.RequestOut{}, err
 	}
@@ -798,6 +888,7 @@ var reasons = map[string]string{
 	"too-many":        plugin.N("A great many messages have just come in. Please try again in an hour."),
 	"form-incomplete": plugin.N("Please fill in the form."),
 	"consent-missing": plugin.N("Please agree before sending."),
+	"attach-refused":  plugin.N("The attachment was not accepted: %s"),
 	// The five below are about one field of an assembled form and carry its
 	// label in their %s.
 	"field-tick":  plugin.N("Please tick “%s”."),
@@ -1050,6 +1141,17 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 			// The text comes from outside. It is printed escaped, and the line
 			// breaks are made by the stylesheet, not by inserted markup.
 			fmt.Fprintf(&b, `<pre class="message-body">%s</pre>`, escape(n.Text))
+		}
+
+		if len(n.Attachments) > 0 {
+			b.WriteString(`<p class="table-actions">`)
+			for _, a := range n.Attachments {
+				// The media route is the host's, and it is the only way to
+				// reach the file: the plugin has an id and nothing else.
+				fmt.Fprintf(&b, `<a class="btn btn--sm" href="/media/%d/%s" download>%s</a> `,
+					in.WebsiteID, escape(a.Filename), escape(a.Name))
+			}
+			b.WriteString(`</p>`)
 		}
 
 		// What they agreed to, exactly as it stood beside the box. Not
@@ -1378,4 +1480,10 @@ func consentText() string {
 		return ""
 	}
 	return clip(raw, maxConsent)
+}
+
+// attachWanted reports whether the operator asked for a file field.
+func attachWanted() bool {
+	raw, ok, err := plugin.Get(keyAttach)
+	return err == nil && ok && raw == "1"
 }

@@ -56,7 +56,7 @@ func zeichnenEigen(f formular, d data, values url.Values) string {
 		case KindChoice:
 			fmt.Fprintf(&b, `<select id="%s" name="%s"%s>`, e(id), e(name), required)
 			if !fe.Required {
-				b.WriteString(`<option value="">– please choose –</option>`)
+				fmt.Fprintf(&b, `<option value="">%s</option>`, e(plugin.T("– please choose –")))
 			}
 			for _, w := range fe.Choices {
 				aus := ""
@@ -88,14 +88,16 @@ func zeichnenEigen(f formular, d data, values url.Values) string {
 	// The honeypot belongs to every form, an own-built one included: a robot
 	// does not tell them apart.
 	fmt.Fprintf(&b, `<div class="contact-form__trap" aria-hidden="true">`+
-		`<label for="cf-website-%s">Website (bitte leer lassen)</label>`+
+		`<label for="cf-website-%s">%s</label>`+
 		`<input type="text" id="cf-website-%s" name="%s" tabindex="-1" autocomplete="off"></div>`,
-		e(f.Key), e(f.Key), fieldHoneypot)
+		e(f.Key), e(plugin.T("Website (please leave empty)")), e(f.Key), fieldHoneypot)
 
-	b.WriteString(`<button type="submit" class="contact-form__submit">Absenden</button>`)
+	fmt.Fprintf(&b, `<button type="submit" class="contact-form__submit">%s</button>`,
+		e(plugin.T("Send")))
 	if d.Kontakt != "" {
-		fmt.Fprintf(&b, `<p class="contact-form__alternative">Lieber direkt schreiben? `+
-			`<a href="mailto:%s">%s</a></p>`, e(d.Kontakt), e(d.Kontakt))
+		fmt.Fprintf(&b, `<p class="contact-form__alternative">%s `+
+			`<a href="mailto:%s">%s</a></p>`,
+			e(plugin.T("Would you rather write directly?")), e(d.Kontakt), e(d.Kontakt))
 	}
 	b.WriteString(`</form>`)
 	return b.String()
@@ -171,7 +173,7 @@ func empfangenEigen(f formular, form url.Values, page string) (message, refusal)
 		n.Subject = f.Name
 	}
 	if n.Name == "" {
-		n.Name = "Ohne Namen"
+		n.Name = plugin.T("Without a name")
 	}
 	n.Text = asText(n.Fields)
 	return n, refusal{}

@@ -154,6 +154,21 @@ const (
 	// nothing back today. They do not know whether it arrived, so they write
 	// again, or they telephone, or they assume the shop is shut.
 	PermConfirm = "confirm"
+	// PermAttach allows a plugin to keep the files that came in with a request
+	// it is answering — and nothing else about media.
+	//
+	// Narrower than "may write media", and the narrowness is the point. A
+	// plugin with this cannot upload a file of its own, cannot reach into the
+	// media of another website, and cannot read back a single byte of what it
+	// kept: what it gets is an id. What it CAN do is turn an attachment on its
+	// own form into a file in this website's media, which is the one thing a
+	// contact form needs.
+	//
+	// The host has already checked the file — magic bytes rather than the
+	// browser's claim, the SVG scanner, the size for its kind — and is holding
+	// it in memory. Nothing reaches the disk until the plugin asks, so a
+	// submission the spam traps refuse leaves nothing behind.
+	PermAttach = "attach"
 	// PermRender allows drawing a public page in the website's own theme.
 	//
 	// Its own permission rather than a free operation, because it is the one
@@ -172,6 +187,7 @@ var (
 		PermStore: true, PermPagesRead: true, PermPagesWrite: true,
 		PermMediaRead: true, PermSettings: true, PermLog: true,
 		PermRender: true, PermNotify: true, PermConfirm: true,
+		PermAttach: true,
 	}
 	// reID is deliberately narrower than a slug: it becomes a table prefix and
 	// a path segment, and a name that needs quoting in either is a name that
