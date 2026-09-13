@@ -1,19 +1,19 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: The Codebase Speaks English
-current_phase: 12
-current_phase_name: "The Codebase Speaks English"
-status: complete
-stopped_at: "Phase 12 abgeschlossen und verifiziert (2026-09-13). Alle neun Kriterien erfuellt, Browserdurchgang gefahren, vier Funde behoben. Meilenstein v2.0 bereit zum Tag."
+milestone: v2.1
+milestone_name: "The Public Side Speaks the Visitor's Language"
+current_phase: 13
+current_phase_name: "The public side speaks the visitor's language"
+status: in_progress
+stopped_at: "Meilenstein v2.1 eroeffnet (2026-09-13). Phase 13 gemessen und geplant; PUB-01 ist eine lebende Regression aus v2.0 und geht zuerst."
 last_updated: "2026-09-13T00:00:00.000Z"
 last_activity: 2026-09-13
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_phases: 2
+  completed_phases: 0
+  total_plans: 9
+  completed_plans: 0
+  percent: 0
 ---
 
 ## State: Holzcloud CMS
@@ -21,7 +21,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **v2.0 „The Codebase Speaks English“ (Phase 12) abgeschlossen und verifiziert (2026-09-13).** Kein Meilenstein offen, keine Phase offen. Der nächste wird mit `/gsd-new-milestone` eröffnet; die benannte offene Entscheidung dafür steht unter *Operator Next Steps*. Einstieg: `.planning/PROJECT.md`, `.planning/MILESTONES.md`, `.planning/ROADMAP.md`.
+- Current focus: **v2.1 „The Public Side Speaks the Visitor's Language“ (Phasen 13–14), eröffnet 2026-09-13** — am selben Tag, an dem v2.0 schloss, und der erste Punkt repariert v2.0: PUB-01 ist eine lebende Regression, englische Ablehnungen vor deutschen Besuchern. Die Entscheidung, auf der alles ruht, steht in `phases/13-public-translation/13-CONTEXT.md` §2 und stürzt `TEMPLATE-SPEC.md` §2.5 um. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind

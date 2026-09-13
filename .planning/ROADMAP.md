@@ -5,6 +5,7 @@
 - ✅ **v1.0 — Core CMS** — Phases 1–5 (shipped 2026-04-14)
 - ✅ **v1.10 — Inhaltsmodell und Zugang** — Phases 6–11 (closed 2026-09-10, released 2026-09-11; planned as v1.6)
 - ✅ **v2.0 — The Codebase Speaks English** — Phase 12 (closed 2026-09-13, released as 2.0)
+- 🚧 **v2.1 — The Public Side Speaks the Visitor's Language** — Phases 13–14 (opened 2026-09-13)
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -149,6 +150,55 @@ MCP-Flaeche spricht Englisch), §3d macht §3b im Tor vollstreckbar.
 
 ---
 
+### 🚧 v2.1 — The Public Side Speaks the Visitor's Language (opened 2026-09-13)
+
+Opened the day v2.0 closed, and it starts by repairing v2.0. Its first
+requirement is a **regression**: `df4ff4c` translated the visitor-facing
+refusals of two plugins into English while the public side has no channel to
+turn them back, so a German visitor who mistypes an address is told *"The
+e-mail address does not look right."* The gate built to prevent exactly this
+could not see it, because its exception list names `internal/` files and no
+plugin.
+
+**Requirements:** PUB-01 … PUB-06, FORM-01 … FORM-06, plus the standing gates.
+Full text in `.planning/REQUIREMENTS.md`.
+
+**The decision this milestone rests on**, taken 2026-09-13: a theme carries its
+own catalogue (`lang/<tag>.json`), `t`/`th`/`tf` resolve only against it, and
+the operator can override any key per website and language. It overturns
+`TEMPLATE-SPEC.md` §2.5, written three days earlier; §2.5's argument is
+answered rather than deleted in `13-CONTEXT.md` §2.
+
+### Phase 13: The public side speaks the visitor's language
+
+**Goal**: A website published in French reads French — chrome, plugin refusals
+and forms, not only pages.
+**Requirements**: PUB-01 … PUB-06, QUAL-01
+**Depends on**: nothing. `sdk.T` shipped in v2.0 and `funcMap` already takes the
+locale.
+**Measured before planning** (2026-09-13, against `5c1e6bf`): 150 distinct
+strings in 955 places across the eight themes, nearly every one in all eight —
+so they are generated from one shared source rather than maintained eight times.
+**Planning notes**: PUB-01 goes first and alone, because it is the only item a
+visitor is harmed by today. The themes go last, because 955 replacements
+against a moving mechanism is how you do them twice.
+
+### Phase 14: A contact form worth writing into
+
+**Goal**: The form a visitor actually types into is worth looking at and does
+what a contact form has to do.
+**Requirements**: FORM-01 … FORM-06, QUAL-02
+**Depends on**: **Phase 13** — the form is the loudest consumer of the channel,
+and building it first means building it twice.
+**Measured before planning** (2026-09-13): `holzcloud`, `rudel` and `weide`
+carry zero CSS rules for `.contact-form`, the other five carry 11–15; so on
+three of eight themes the form renders in browser defaults. `sweep()` deletes
+the oldest messages past 500 with only a log line.
+**UI hint**: the public form in eight themes, plus the admin screens for
+answering, quarantine and consent.
+
+---
+
 ## Progress
 
 Phase 12 was the only planned phase of v2.0 and is complete. Numbering continues from 12; it never restarts.
@@ -167,6 +217,8 @@ Phase 12 was the only planned phase of v2.0 and is complete. Numbering continues
 | 10. Authentik Forward-Auth | v1.10 | 10/10 | Complete | 2026-09-10 |
 | 11. Galerie | v1.10 | 7/7 | Complete | 2026-09-08 |
 | 12. The Codebase Speaks English | v2.0 | 10/10 | Complete | 2026-09-13 |
+| 13. The Public Side Speaks the Visitor's Language | v2.1 | 0/5 | In progress | - |
+| 14. A Contact Form Worth Writing Into | v2.1 | 0/4 | Planned | - |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
