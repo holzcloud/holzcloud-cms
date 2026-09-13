@@ -21,12 +21,12 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **v1.10 (geplant als v1.6) abgeschlossen, archiviert und als Release 1.10 gebaut (2026-09-11).** Kein Meilenstein offen; der nächste ist v2.0 „The Codebase Speaks English“ (Phase 12, nicht geplant) und wird mit `/gsd-new-milestone` eröffnet. Einstieg: `.planning/PROJECT.md`, `.planning/MILESTONES.md`, `.planning/ROADMAP.md`.
+- Current focus: **v2.0 „The Codebase Speaks English“ (Phase 12) abgeschlossen und verifiziert (2026-09-13).** Kein Meilenstein offen, keine Phase offen. Der nächste wird mit `/gsd-new-milestone` eröffnet; die benannte offene Entscheidung dafür steht unter *Operator Next Steps*. Einstieg: `.planning/PROJECT.md`, `.planning/MILESTONES.md`, `.planning/ROADMAP.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
 
-### Current Position
+### Current Position (v1.10, geschrieben beim Abschluss von Phase 10 — die geltende steht unter `## Current Position`)
 
 Phase: 10 — Authentik Forward-Auth (**10/10 Pläne ausgeführt**), zugleich die
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben

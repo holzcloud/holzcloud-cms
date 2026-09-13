@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 — Core CMS** — Phases 1–5 (shipped 2026-04-14)
 - ✅ **v1.10 — Inhaltsmodell und Zugang** — Phases 6–11 (closed 2026-09-10, released 2026-09-11; planned as v1.6)
-- 🚧 **v2.0 — The Codebase Speaks English** — Phase 12 (opened 2026-09-11, in progress)
+- ✅ **v2.0 — The Codebase Speaks English** — Phase 12 (closed 2026-09-13, released as 2.0)
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -89,7 +89,7 @@ directories under `v1.10-phases/`.
 
 </details>
 
-### 🚧 v2.0 — The Codebase Speaks English (opened 2026-09-11)
+### ✅ v2.0 — The Codebase Speaks English (opened 2026-09-11, closed 2026-09-13)
 
 Moved out of v1.6 on 2026-09-08 — see the note under *Milestones*. Opened 2026-09-11
 with a fresh `.planning/REQUIREMENTS.md` (LANG-01…08 plus the two standing gates).
@@ -151,7 +151,7 @@ MCP-Flaeche spricht Englisch), §3d macht §3b im Tor vollstreckbar.
 
 ## Progress
 
-Phase 12 is the only planned phase and is running. Numbering continues from 12; it never restarts.
+Phase 12 was the only planned phase of v2.0 and is complete. Numbering continues from 12; it never restarts.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -166,7 +166,7 @@ Phase 12 is the only planned phase and is running. Numbering continues from 12; 
 | 9. CSV Import | v1.10 | 6/6 | Complete | 2026-09-07 |
 | 10. Authentik Forward-Auth | v1.10 | 10/10 | Complete | 2026-09-10 |
 | 11. Galerie | v1.10 | 7/7 | Complete | 2026-09-08 |
-| 12. The Codebase Speaks English | v2.0 | 0/10 | In progress | - |
+| 12. The Codebase Speaks English | v2.0 | 10/10 | Complete | 2026-09-13 |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
