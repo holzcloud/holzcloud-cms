@@ -66,7 +66,7 @@
        Textur. -->
   <div class="hc-cubes" aria-hidden="true"></div>
 
-  <a href="#main" class="skip-link">Zum Inhalt springen</a>
+  <a href="#main" class="skip-link">{{t "Skip to the content"}}</a>
 
   <header class="hc-bar">
     <div class="hc-wide hc-bar__inner">
@@ -78,10 +78,10 @@
              nicht — deshalb trägt allein favicon.svg eine feste Farbe. -->
         <svg class="site-mark-glyph" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false"><defs><clipPath id="hkm-top"><path d="M32 8 L58 21 L32 34 L6 21 Z"/></clipPath></defs><g stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M32 8 L58 21 L32 34 L6 21 Z"/><path d="M6 21 L32 34 L32 56 L6 43 Z"/><path d="M58 21 L32 34 L32 56 L58 43 Z"/></g><g clip-path="url(#hkm-top)" stroke="currentColor" stroke-width="1.6" opacity=".75"><ellipse cx="25" cy="18" rx="6" ry="3"/><ellipse cx="25" cy="18" rx="12" ry="6"/><ellipse cx="25" cy="18" rx="19" ry="9.5"/><ellipse cx="25" cy="18" rx="27" ry="13.5"/></g></svg>{{end}}<b>{{.Site.Name}}</b></a>
 
-      <nav class="site-menu" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
+      <nav class="site-menu" aria-label="{{t "Main navigation"}}">{{menuFor .Menus "main" .Page.Slug}}</nav>
 
       {{if .Site.Languages}}
-      <nav class="site-langs" aria-label="Sprache">
+      <nav class="site-langs" aria-label="{{t "Language"}}">
         <ul>
           {{range .Site.Languages}}
           <li>
@@ -94,14 +94,14 @@
       {{end}}
 
       {{if .Shop.Enabled}}
-      <a class="site-cart" href="{{.Cart.URL}}">Warenkorb <span class="site-cart__count">{{.Cart.Count}}</span></a>
+      <a class="site-cart" href="{{.Cart.URL}}">{{t "Cart"}} <span class="site-cart__count">{{.Cart.Count}}</span></a>
       {{end}}
 
       {{if .Site.HasSearch}}
       <form class="site-search" method="GET" action="/suche" role="search">
-        <label class="sr-only" for="bar-q">Suchbegriff</label>
-        <input class="hc-input" type="search" id="bar-q" name="q" value="{{.Search.Query}}" placeholder="Suchen">
-        <button class="hc-btn hc-btn--ghost hc-btn--sm" type="submit">Suchen</button>
+        <label class="sr-only" for="bar-q">{{t "Search term"}}</label>
+        <input class="hc-input" type="search" id="bar-q" name="q" value="{{.Search.Query}}" placeholder="{{t "Find"}}">
+        <button class="hc-btn hc-btn--ghost hc-btn--sm" type="submit">{{t "Find"}}</button>
       </form>
       {{end}}
     </div>
@@ -114,7 +114,7 @@
   <footer class="site-footer" role="contentinfo">
     <div class="hc-wide">
       <div class="site-frow">
-        <nav class="site-fnav" aria-label="Rechtliches">{{menuFor .Menus "footer" .Page.Slug}}</nav>
+        <nav class="site-fnav" aria-label="{{t "Legal"}}">{{menuFor .Menus "footer" .Page.Slug}}</nav>
         {{if .Shop.Enabled}}{{if .Shop.TaxNote}}<p>{{.Shop.TaxNote}}</p>{{end}}{{end}}
         <p>&copy; {{.Site.Name}}</p>
       </div>

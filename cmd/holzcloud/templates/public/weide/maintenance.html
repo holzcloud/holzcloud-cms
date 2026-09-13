@@ -1,12 +1,11 @@
 {{define "content"}}
 <section class="hc-wide page-wrap page--kurz">
-  <p class="hc-eyebrow"><span class="hc-status hc-status--warn">Wartung</span></p>
+  <p class="hc-eyebrow"><span class="hc-status hc-status--warn">{{t "Maintenance"}}</span></p>
   <h1 class="hc-title">{{.Page.Title}}</h1>
   {{/* Der Betrieb hinterlegt hier oft nichts. Ein eigener Satz mit dem Namen
        ist dann besser als eine leere Seite, auf der nur „Wartungsarbeiten"
        steht — er sagt wenigstens, wessen Seite gerade nicht da ist. */}}
   {{with .Meta.Message}}<p class="hc-lede">{{.}}</p>
-  {{else}}<p class="hc-lede">Wir sind gerade draussen bei den Tieren. Die Seite
-     von {{.Site.Name}} ist gleich wieder da.</p>{{end}}
+  {{else}}<p class="hc-lede">{{tf "We are out with the animals just now. The site of %s will be back in a moment." .Site.Name}}</p>{{end}}
 </section>
 {{end}}

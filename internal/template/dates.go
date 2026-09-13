@@ -21,9 +21,15 @@ const DefaultTimeZone = "Europe/Berlin"
 
 // localeNames holds the month and weekday names for the supported locales.
 //
-// Hand-written rather than pulled from golang.org/x/text: two languages need
-// about thirty lines, while the CLDR tables behind the plural and gender
+// Hand-written rather than pulled from golang.org/x/text: five languages need
+// about seventy lines, while the CLDR tables behind the plural and gender
 // machinery would add megabytes to a binary that runs on an SD card.
+//
+// French, Italian and Spanish came with v2.1, and not for tidiness: the
+// milestone put a translation channel on the public side, and a French page
+// whose chrome said "Panier" and whose date said "12. März 2026" would have //nolint:german — the date this rule fixes
+// been the same defect one layer down. A language this program can translate
+// into is a language it can write a date in.
 type localeNames struct {
 	months   [12]string
 	weekdays [7]string
@@ -50,6 +56,36 @@ var locales = map[string]localeNames{
 		long:  "%[2]s %[1]d, %[3]d",
 		short: "01/02/2006",
 	},
+	// The month names of French, Italian and Spanish are lower case, and they
+	// stay lower case in the middle of a date: "12 mars 2026", not "12 Mars
+	// 2026". Capitalising them would be a German habit applied to three
+	// languages that do not have it.
+	"fr": {
+		months: [12]string{"janvier", "février", "mars", "avril", "mai", "juin",
+			"juillet", "août", "septembre", "octobre", "novembre", "décembre"},
+		weekdays: [7]string{"dimanche", "lundi", "mardi", "mercredi",
+			"jeudi", "vendredi", "samedi"},
+		long:  "%d %s %d",
+		short: "02/01/2006",
+	},
+	"it": {
+		months: [12]string{"gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+			"luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"},
+		weekdays: [7]string{"domenica", "lunedì", "martedì", "mercoledì",
+			"giovedì", "venerdì", "sabato"},
+		long:  "%d %s %d",
+		short: "02/01/2006",
+	},
+	"es": {
+		months: [12]string{"enero", "febrero", "marzo", "abril", "mayo", "junio",
+			"julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"},
+		weekdays: [7]string{"domingo", "lunes", "martes", "miércoles",
+			"jueves", "viernes", "sábado"},
+		// Spanish writes "12 de marzo de 2026". The two "de" are part of the
+		// date and not of the month name, so they belong in the layout.
+		long:  "%d de %s de %d",
+		short: "02/01/2006",
+	},
 }
 
 // KnownLocale reports whether a locale has date names. Used by the settings
@@ -69,6 +105,9 @@ var SupportedLocales = []struct {
 	// English administration should not offer "Deutsch" beside "German".
 	{Code: "de", Name: i18n.N("German")},
 	{Code: "en", Name: i18n.N("English")},
+	{Code: "fr", Name: i18n.N("French")},
+	{Code: "it", Name: i18n.N("Italian")},
+	{Code: "es", Name: i18n.N("Spanish")},
 }
 
 func normalizeLocale(locale string) string {

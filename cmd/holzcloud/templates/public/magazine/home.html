@@ -6,7 +6,7 @@
     {{.Page.ContentHTML}}
   </div>
   {{else}}
-  <p class="hero-tagline">Willkommen bei {{.Site.Name}}</p>
+  <p class="hero-tagline">{{tf "Welcome to %s" .Site.Name}}</p>
   {{end}}
 </section>
 {{end}}

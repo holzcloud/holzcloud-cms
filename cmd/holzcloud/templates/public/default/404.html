@@ -4,11 +4,11 @@
     <p class="notice__code" aria-hidden="true">404</p>
     <h1 class="notice__title">{{.Page.Title}}</h1>
     <p class="notice__text">
-      {{if .Meta.Message}}{{.Meta.Message}}{{else}}Diese Seite gibt es nicht (mehr).{{end}}
+      {{if .Meta.Message}}{{.Meta.Message}}{{else}}{{t "This page is gone."}}{{end}}
     </p>
     <p class="notice__actions">
-      <a class="button" href="/">Zur Startseite</a>
-      {{if .Site.HasSearch}}<a class="button button--quiet" href="/suche">Suchen</a>{{end}}
+      <a class="button" href="/">{{t "To the home page"}}</a>
+      {{if .Site.HasSearch}}<a class="button button--quiet" href="/suche">{{t "Find"}}</a>{{end}}
     </p>
   </div>
 </section>

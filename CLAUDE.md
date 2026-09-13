@@ -152,15 +152,30 @@ So is a German literal handed to a `%s` of `tf`/`Titlef` — only the format
 string is collected. Assemble the sentence in the catalogue, not in Go.
 
 The collector reads `cmd/holzcloud/templates/admin` and `internal`, and
-nothing else. Anything operator-facing that lands outside those two — in
-`cmd/holzcloud/*.go`, in `plugins/`, in a public theme — is not merely
-untranslated, it is unreported: the gate says neither *offen* nor *verwaist*
-about it, because it does not know it exists. Put such a string under
-`internal/`, or add a root to `tools/i18n` deliberately.
+`plugins/`, and nothing else. Anything operator-facing that lands outside those
+three — in `cmd/holzcloud/*.go`, in a public theme — is not merely untranslated,
+it is unreported: the gate says neither *open* nor *orphaned* about it, because
+it does not know it exists. Put such a string under `internal/`, or add a root
+to `tools/i18n` deliberately.
 
-The shipped public themes are the standing exception and it is a known open
-decision, not an oversight: the public FuncMap has no `t` at all. See
-`.planning/audits/v1.6-I18N-REICHWEITE.md` before changing anything about it.
+**A plugin translates through the host**, not through this catalogue directly:
+`sdk.T` and `sdk.Tf` ask the host, which answers in the operator's language on
+an admin request and in the **page's** language on a public one. Those two are
+different questions and getting them the wrong way round is how v2.0 came to
+answer German visitors in English. `tools/english` fails the build on a
+sentence-shaped literal in `plugins/` or `sdk/` that is not an argument of `T`,
+`Tf`, `Log` or `Logf`.
+
+**A public theme carries its own catalogue**, `lang/<tag>.json` beside its
+templates, and the public FuncMap has `t`, `th` and `tf` that resolve against it
+and against nothing else — never against this program's. The eight shipped
+themes are generated from one source, `tools/themewords/words.json`, by
+`go run ./tools/themewords`; `-check` is a CI step. A key a theme mints and does
+not translate is reported by `holzcloud template check` and refuses nothing.
+Above that sits the operator's own wording (`internal/wording`), per website and
+language, which wins over the theme's catalogue. The order is: the operator's
+word, the theme's, then the key itself. TEMPLATE-SPEC.md §2.5 is the document
+for theme authors; it replaced the opposite rule in v2.1 and says why.
 
 ### Error Handling
 - Handlers return `error`; a wrapper writes the appropriate HTTP response

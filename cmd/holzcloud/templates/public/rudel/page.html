@@ -5,8 +5,8 @@
        Vorschau anschaut — sonst meldet der Empfänger die Seite als
        veröffentlicht und niemand findet sie. */}}
   <p class="preview-banner" role="status">
-    <strong>Vorschau{{if ne .Preview.Status "published"}} eines Entwurfs{{end}}.</strong>
-    Diese Seite ist über einen Link sichtbar, aber nicht veröffentlicht.
+    <strong>{{if ne .Preview.Status "published"}}{{t "Preview of a draft"}}{{else}}{{t "Preview"}}{{end}}.</strong>
+    {{t "This page is visible through a link, but it is not published."}}
   </p>
   {{end}}
 
@@ -67,7 +67,7 @@
     {{end}}
 
     {{if .Page.Terms}}
-    <ul class="term-list" aria-label="Schlagwörter">
+    <ul class="term-list" aria-label="{{t "Tags"}}">
       {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
     {{end}}
@@ -80,17 +80,17 @@
          Der Nachbar zeigt ausser der Richtung auch seinen Titel, wie in der
          bisherigen Fassung: „Älterer Beitrag" allein sagt niemandem, wohin er
          kommt. */}}
-    <nav class="post-nav" aria-label="Weitere Beiträge">
+    <nav class="post-nav" aria-label="{{t "More posts"}}">
       {{with .Page.Prev}}
       <a class="post-nav__link post-nav__prev" href="{{.URL}}" rel="prev">
-        <span class="post-nav__label">Älterer Beitrag</span>
+        <span class="post-nav__label">{{t "Older post"}}</span>
         <span class="post-nav__title">{{.Title}}</span>
       </a>
       {{end}}
-      {{with .Page.ArchiveURL}}<a class="post-nav__index" href="{{.}}">Alle Beiträge</a>{{end}}
+      {{with .Page.ArchiveURL}}<a class="post-nav__index" href="{{.}}">{{t "All posts"}}</a>{{end}}
       {{with .Page.Next}}
       <a class="post-nav__link post-nav__next" href="{{.URL}}" rel="next">
-        <span class="post-nav__label">Neuerer Beitrag</span>
+        <span class="post-nav__label">{{t "Newer post"}}</span>
         <span class="post-nav__title">{{.Title}}</span>
       </a>
       {{end}}

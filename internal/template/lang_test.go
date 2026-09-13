@@ -179,3 +179,28 @@ func TestALeftoverEntryIsReportedButDoesNotRefuse(t *testing.T) {
 		t.Errorf("the leftover entry is not named:\n%s", problems[0])
 	}
 }
+
+// A word the program mints is not left over, and is not demanded either.
+//
+// Render404 fills "Page not found" into {{.Page.Title}}, so no template
+// contains it — yet a catalogue that carries it is right to. A theme that
+// leaves it out is not nagged, because the fallback is the key, which is
+// English and readable; a theme that carries it is not told it has a spare
+// entry, because it does not.
+func TestAWordTheProgramMintsIsNeitherLeftOverNorDemanded(t *testing.T) {
+	carries := fstest.MapFS{
+		"layout.html":  &fstest.MapFile{Data: []byte(`{{t "Cart"}}`)},
+		"lang/de.json": &fstest.MapFile{Data: []byte(`{"Cart":"Warenkorb","Page not found":"Seite nicht gefunden"}`)},
+	}
+	if problems := CheckCatalogs(carries); len(problems) != 0 {
+		t.Errorf("a catalogue carrying a program-minted word was reported:\n%v", problems)
+	}
+
+	leaves := fstest.MapFS{
+		"layout.html":  &fstest.MapFile{Data: []byte(`{{t "Cart"}}`)},
+		"lang/de.json": &fstest.MapFile{Data: []byte(`{"Cart":"Warenkorb"}`)},
+	}
+	if problems := CheckCatalogs(leaves); len(problems) != 0 {
+		t.Errorf("a theme was nagged about a word no template of its own asks for:\n%v", problems)
+	}
+}

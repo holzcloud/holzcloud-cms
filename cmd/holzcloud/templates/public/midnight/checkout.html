@@ -1,7 +1,7 @@
 {{define "content"}}
 <section class="checkout">
   <header class="page-header">
-    <h1 class="page-header__title">Kasse</h1>
+    <h1 class="page-header__title">{{t "Checkout"}}</h1>
   </header>
 
   {{if .Checkout.Notice}}
@@ -11,34 +11,34 @@
   <div class="checkout__grid">
     <form class="checkout__form" method="POST" action="{{.Checkout.Action}}">
       <fieldset class="checkout__group">
-        <legend>Kontakt</legend>
+        <legend>{{t "Contact"}}</legend>
 
         <div class="field">
-          <label for="email">E-Mail</label>
+          <label for="email">{{t "E-mail"}}</label>
           <input type="email" id="email" name="email" required autocomplete="email"
                  value="{{index .Checkout.Values "email"}}">
           {{with index .Checkout.Errors "email"}}<p class="field__error">{{.}}</p>{{end}}
         </div>
 
         <div class="field">
-          <label for="telefon">Telefon (freiwillig)</label>
+          <label for="telefon">{{t "Telephone (optional)"}}</label>
           <input type="tel" id="telefon" name="telefon" autocomplete="tel"
                  value="{{index .Checkout.Values "telefon"}}">
         </div>
       </fieldset>
 
       <fieldset class="checkout__group">
-        <legend>Lieferadresse</legend>
+        <legend>{{t "Delivery address"}}</legend>
 
         <div class="field">
-          <label for="name">Name</label>
+          <label for="name">{{t "Name"}}</label>
           <input type="text" id="name" name="name" required autocomplete="name"
                  value="{{index .Checkout.Values "name"}}">
           {{with index .Checkout.Errors "name"}}<p class="field__error">{{.}}</p>{{end}}
         </div>
 
         <div class="field">
-          <label for="firma">Firma{{if not .Checkout.Business}} (freiwillig){{end}}</label>
+          <label for="firma">{{t "Company"}}{{if not .Checkout.Business}} {{t "(optional)"}}{{end}}</label>
           <input type="text" id="firma" name="firma" autocomplete="organization"
                  {{if .Checkout.Business}}required{{end}}
                  value="{{index .Checkout.Values "firma"}}">
@@ -47,14 +47,14 @@
 
         {{if .Checkout.Business}}
         <div class="field">
-          <label for="uid">UID / MWST-Nummer (freiwillig)</label>
-          <input type="text" id="uid" name="uid" placeholder="CHE-123.456.789 MWST"
+          <label for="uid">{{t "VAT number (optional)"}}</label>
+          <input type="text" id="uid" name="uid" placeholder="{{t "CHE-123.456.789 MWST"}}"
                  value="{{index .Checkout.Values "uid"}}">
         </div>
         {{end}}
 
         <div class="field">
-          <label for="strasse">Strasse und Nummer</label>
+          <label for="strasse">{{t "Street and number"}}</label>
           <input type="text" id="strasse" name="strasse" required autocomplete="street-address"
                  value="{{index .Checkout.Values "strasse"}}">
           {{with index .Checkout.Errors "strasse"}}<p class="field__error">{{.}}</p>{{end}}
@@ -62,14 +62,14 @@
 
         <div class="field-row">
           <div class="field field--narrow">
-            <label for="plz">PLZ</label>
+            <label for="plz">{{t "Postcode"}}</label>
             <input type="text" id="plz" name="plz" required inputmode="numeric"
                    autocomplete="postal-code" value="{{index .Checkout.Values "plz"}}">
             {{with index .Checkout.Errors "plz"}}<p class="field__error">{{.}}</p>{{end}}
           </div>
 
           <div class="field">
-            <label for="ort">Ort</label>
+            <label for="ort">{{t "Town"}}</label>
             <input type="text" id="ort" name="ort" required autocomplete="address-level2"
                    value="{{index .Checkout.Values "ort"}}">
             {{with index .Checkout.Errors "ort"}}<p class="field__error">{{.}}</p>{{end}}
@@ -77,16 +77,16 @@
         </div>
 
         <div class="field">
-          <label for="land">Land</label>
+          <label for="land">{{t "Country"}}</label>
           <select id="land" name="land" class="field__select" autocomplete="country">
-            <option value="CH" {{if eq (index .Checkout.Values "land") "CH"}}selected{{end}}>Schweiz</option>
-            <option value="LI" {{if eq (index .Checkout.Values "land") "LI"}}selected{{end}}>Liechtenstein</option>
+            <option value="CH" {{if eq (index .Checkout.Values "land") "CH"}}selected{{end}}>{{t "Switzerland"}}</option>
+            <option value="LI" {{if eq (index .Checkout.Values "land") "LI"}}selected{{end}}>{{t "Liechtenstein"}}</option>
           </select>
         </div>
       </fieldset>
 
       <fieldset class="checkout__group">
-        <legend>Zahlung</legend>
+        <legend>{{t "Payment"}}</legend>
         {{range .Checkout.Methods}}
         <label class="choice">
           <input type="radio" name="zahlungsart" value="{{.Value}}"
@@ -99,9 +99,9 @@
       </fieldset>
 
       <fieldset class="checkout__group">
-        <legend>Bemerkung</legend>
+        <legend>{{t "Remark"}}</legend>
         <div class="field">
-          <label for="bemerkung" class="sr-only">Bemerkung zur Bestellung</label>
+          <label for="bemerkung" class="sr-only">{{t "Remark on the order"}}</label>
           <textarea id="bemerkung" name="bemerkung" rows="3">{{index .Checkout.Values "bemerkung"}}</textarea>
         </div>
       </fieldset>
@@ -112,15 +112,15 @@
 
       <label class="choice choice--confirm">
         <input type="checkbox" name="bestaetigt" value="1" {{if .Checkout.Accepted}}checked{{end}}>
-        <span class="choice__label">Ich bestelle kostenpflichtig.</span>
+        <span class="choice__label">{{t "I am placing a paid order."}}</span>
       </label>
       {{with index .Checkout.Errors "bestaetigt"}}<p class="field__error">{{.}}</p>{{end}}
 
-      <button type="submit" class="button checkout__submit">Zahlungspflichtig bestellen</button>
+      <button type="submit" class="button checkout__submit">{{t "Place a paid order"}}</button>
     </form>
 
-    <aside class="checkout__summary" aria-label="Ihre Bestellung">
-      <h2 class="checkout__summary-title">Ihre Bestellung</h2>
+    <aside class="checkout__summary" aria-label="{{t "Your order"}}">
+      <h2 class="checkout__summary-title">{{t "Your order"}}</h2>
       <ul class="checkout__lines">
         {{range .Cart.Lines}}
         <li>
@@ -131,16 +131,16 @@
         {{end}}
       </ul>
       <dl class="cart-totals">
-        <dt>Zwischensumme</dt><dd>{{.Cart.Totals.Items}}</dd>
-        <dt>Versand</dt>
-        <dd>{{if .Cart.Totals.ShippingFree}}kostenlos{{else}}{{.Cart.Totals.Shipping}}{{end}}</dd>
+        <dt>{{t "Subtotal"}}</dt><dd>{{.Cart.Totals.Items}}</dd>
+        <dt>{{t "Shipping"}}</dt>
+        <dd>{{if .Cart.Totals.ShippingFree}}{{t "free"}}{{else}}{{.Cart.Totals.Shipping}}{{end}}</dd>
         {{range .Cart.Totals.TaxLines}}
         <dt class="cart-totals__tax">{{.Label}}</dt><dd class="cart-totals__tax">{{.Tax}}</dd>
         {{end}}
-        <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
+        <dt class="cart-totals__sum">{{t "Total"}}</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
       </dl>
       {{if .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.Cart.Totals.TaxNote}}</p>{{end}}
-      <a class="cart-continue" href="{{.Cart.URL}}">Warenkorb ändern</a>
+      <a class="cart-continue" href="{{.Cart.URL}}">{{t "Change the cart"}}</a>
     </aside>
   </div>
 </section>

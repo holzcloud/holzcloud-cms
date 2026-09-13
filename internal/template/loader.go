@@ -813,31 +813,39 @@ func (l *Loader) RenderPage(ctx context.Context, websiteID int64, view string, d
 }
 
 // Render404 renders the 404 template for a website.
+//
+// The title is a word the theme mints, so it comes out of the theme's own
+// catalogue like every other. Until v2.1 it was two spellings written out by
+// hand here — German, and English when the site's locale was "en" — with a
+// comment saying the public side had no catalogue. It has one now, and the
+// hand-written pair was exactly the defect it was built to remove: a French
+// site served a page whose chrome was French and whose title said
+// "Seite nicht gefunden". //nolint:german — the title this rule removes
 func (l *Loader) Render404(ctx context.Context, websiteID int64, site SiteData) ([]byte, error) {
-	// A visitor's sentence, and the public side has no catalogue — see the
-	// germanVoice note in tools/english. The two spellings by hand are what a
-	// theme gets today; §3b of phase 12 carries the open decision.
-	title := "Seite nicht gefunden" //nolint:german — visitor-facing, no public catalogue (phase 12 §3b)
-	if normalizeLocale(site.Locale) == "en" {
-		title = "Page not found"
-	}
 	data := PageData{
 		Site: site,
-		Page: PageContent{Title: title},
+		Page: PageContent{Title: l.Word(ctx, websiteID, site.Locale, "Page not found")},
 		Meta: MetaData{NoIndex: true},
 	}
 	return l.RenderPage(ctx, websiteID, "404.html", data)
 }
 
+// Word translates one of the theme's own words outside a template.
+//
+// Only for the few sentences this package mints itself — the titles of the 404
+// and maintenance pages, which no template can supply because they are what
+// {{.Page.Title}} is filled WITH. Everything else a visitor reads goes through
+// {{t}} in the theme, where a theme author can see it.
+func (l *Loader) Word(ctx context.Context, websiteID int64, locale, key string) string {
+	read := l.resolveSource(ctx, websiteID)
+	return l.words(ctx, websiteID, read, locale).T(key)
+}
+
 // RenderMaintenance renders the maintenance page of a deactivated website.
 func (l *Loader) RenderMaintenance(ctx context.Context, websiteID int64, site SiteData, message string) ([]byte, error) {
-	title := "Wartungsarbeiten"
-	if normalizeLocale(site.Locale) == "en" {
-		title = "Down for maintenance"
-	}
 	data := PageData{
 		Site: site,
-		Page: PageContent{Title: title},
+		Page: PageContent{Title: l.Word(ctx, websiteID, site.Locale, "Down for maintenance")},
 		Meta: MetaData{NoIndex: true, Message: message},
 	}
 	return l.RenderPage(ctx, websiteID, "maintenance.html", data)

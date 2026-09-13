@@ -46,16 +46,16 @@
   {{end}}
 </head>
 <body>
-  <a href="#main" class="skip-link">Zum Inhalt springen</a>
+  <a href="#main" class="skip-link">{{t "Skip to the content"}}</a>
 
   <header class="site-header">
     <div class="container">
       {{if .Site.LogoURL}}<a href="/" class="site-logo"><img src="{{.Site.LogoURL}}" alt="{{.Site.Name}}"></a>{{end}}
       <a href="/" class="site-name">{{.Site.Name}}</a>
       {{if .Site.Description}}<p class="site-description">{{.Site.Description}}</p>{{end}}
-      <nav class="site-nav" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
+      <nav class="site-nav" aria-label="{{t "Main navigation"}}">{{menuFor .Menus "main" .Page.Slug}}</nav>
       {{if .Site.Languages}}
-      <nav class="lang-nav" aria-label="Sprache">
+      <nav class="lang-nav" aria-label="{{t "Language"}}">
         <ul>
           {{range .Site.Languages}}
           <li>
@@ -75,7 +75,7 @@
 
   <footer class="site-footer" role="contentinfo">
     <div class="container">
-      <nav class="footer-nav" aria-label="Rechtliches">{{menuFor .Menus "footer" .Page.Slug}}</nav>
+      <nav class="footer-nav" aria-label="{{t "Legal"}}">{{menuFor .Menus "footer" .Page.Slug}}</nav>
       <p>&copy; {{.Site.Name}}</p>
     </div>
   </footer>

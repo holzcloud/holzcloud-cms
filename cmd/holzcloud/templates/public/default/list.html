@@ -2,13 +2,13 @@
 <section class="archive">
   <header class="page-header">
     {{if .Archive.Term}}
-    <p class="page-header__kicker">Schlagwort</p>
+    <p class="page-header__kicker">{{t "Tag"}}</p>
     <h1 class="page-header__title">{{.Archive.Term}}</h1>
     {{else}}
     <h1 class="page-header__title">{{.Page.Title}}</h1>
     {{end}}
     {{if .Archive.Total}}
-    <p class="page-header__meta">{{.Archive.Total}} Beiträge</p>
+    <p class="page-header__meta">{{tf "%d posts" .Archive.Total}}</p>
     {{end}}
   </header>
 
@@ -33,7 +33,7 @@
           <h2 class="card__title archive-entry__title"><a href="{{.URL}}">{{.Title}}</a></h2>
           {{if .Excerpt}}<p class="card__excerpt archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
           {{if .Terms}}
-          <ul class="term-list" aria-label="Schlagwörter">
+          <ul class="term-list" aria-label="{{t "Tags"}}">
             {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
           </ul>
           {{end}}
@@ -45,14 +45,14 @@
   </ol>
 
   {{if gt .Archive.TotalPages 1}}
-  <nav class="archive-pager" aria-label="Seiten des Archivs">
-    {{if .Archive.PrevURL}}<a class="archive-pager__prev button button--quiet" href="{{.Archive.PrevURL}}" rel="prev">Neuere Beiträge</a>{{end}}
-    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
-    {{if .Archive.NextURL}}<a class="archive-pager__next button button--quiet" href="{{.Archive.NextURL}}" rel="next">Ältere Beiträge</a>{{end}}
+  <nav class="archive-pager" aria-label="{{t "Pages of the archive"}}">
+    {{if .Archive.PrevURL}}<a class="archive-pager__prev button button--quiet" href="{{.Archive.PrevURL}}" rel="prev">{{t "Newer posts"}}</a>{{end}}
+    <span class="archive-pager__position">{{tf "Page %d of %d" .Archive.Page .Archive.TotalPages}}</span>
+    {{if .Archive.NextURL}}<a class="archive-pager__next button button--quiet" href="{{.Archive.NextURL}}" rel="next">{{t "Older posts"}}</a>{{end}}
   </nav>
   {{end}}
   {{else}}
-  <div class="prose"><p class="archive-empty">Hier steht noch nichts.</p></div>
+  <div class="prose"><p class="archive-empty">{{t "There is nothing here yet."}}</p></div>
   {{end}}
 </section>
 {{end}}

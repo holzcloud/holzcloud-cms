@@ -1,6 +1,6 @@
 {{define "content"}}
 <section class="archive">
-  {{if .Archive.Term}}<h1>Schlagwort: {{.Archive.Term}}</h1>{{else}}<h1>{{.Page.Title}}</h1>{{end}}
+  {{if .Archive.Term}}<h1>{{tf "Tag: %s" .Archive.Term}}</h1>{{else}}<h1>{{.Page.Title}}</h1>{{end}}
 
   {{if .Archive.Entries}}
   <ol class="archive-list">
@@ -18,7 +18,7 @@
         {{end}}
         {{if .Excerpt}}<p class="archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
         {{if .Terms}}
-        <ul class="term-list" aria-label="Schlagwörter">
+        <ul class="term-list" aria-label="{{t "Tags"}}">
           {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
         </ul>
         {{end}}
@@ -28,14 +28,14 @@
   </ol>
 
   {{if gt .Archive.TotalPages 1}}
-  <nav class="archive-pager" aria-label="Seiten des Archivs">
-    {{if .Archive.PrevURL}}<a class="archive-pager__prev" href="{{.Archive.PrevURL}}" rel="prev">Neuere Beiträge</a>{{end}}
-    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
-    {{if .Archive.NextURL}}<a class="archive-pager__next" href="{{.Archive.NextURL}}" rel="next">Ältere Beiträge</a>{{end}}
+  <nav class="archive-pager" aria-label="{{t "Pages of the archive"}}">
+    {{if .Archive.PrevURL}}<a class="archive-pager__prev" href="{{.Archive.PrevURL}}" rel="prev">{{t "Newer posts"}}</a>{{end}}
+    <span class="archive-pager__position">{{tf "Page %d of %d" .Archive.Page .Archive.TotalPages}}</span>
+    {{if .Archive.NextURL}}<a class="archive-pager__next" href="{{.Archive.NextURL}}" rel="next">{{t "Older posts"}}</a>{{end}}
   </nav>
   {{end}}
   {{else}}
-  <p class="archive-empty">Hier steht noch nichts.</p>
+  <p class="archive-empty">{{t "There is nothing here yet."}}</p>
   {{end}}
 </section>
 {{end}}

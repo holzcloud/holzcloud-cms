@@ -1,13 +1,13 @@
 {{define "content"}}
 <section class="hc-wide page-wrap gate">
   <div class="hc-pane hc-pane--pad gate-card">
-    <p class="hc-eyebrow">Geschützt</p>
+    <p class="hc-eyebrow">{{t "Protected"}}</p>
     <h1>{{.Page.Title}}</h1>
-    <p class="gate-lead hc-lede">Diese Seite ist mit einem Passwort geschützt.</p>
+    <p class="gate-lead hc-lede">{{t "This page is protected by a password."}}</p>
     {{/* Der Hinweis des Betriebs ist das, woran jemand merkt, dass er beim
          richtigen Formular steht — „das Passwort steht in unserem Brief". */}}
     {{with .Gate.Hint}}<p class="gate-hint hc-dim">{{.}}</p>{{end}}
-    {{if .Gate.Wrong}}<p class="hc-alert hc-alert--danger gate-error" role="alert"><span>Das Passwort stimmt nicht.</span></p>{{end}}
+    {{if .Gate.Wrong}}<p class="hc-alert hc-alert--danger gate-error" role="alert"><span>{{t "The password is not right."}}</span></p>{{end}}
 
     {{/* POST auf /freischalten, verstecktes Feld seite, Passwortfeld passwort —
          die Namen stehen fest und werden beim Hochladen geprüft. Wer hier etwas
@@ -15,16 +15,16 @@
     <form class="gate-form" method="POST" action="/freischalten">
       <input type="hidden" name="seite" value="{{.Page.Slug}}">
       <div class="hc-field">
-        <label class="hc-label" for="gate-password">Passwort</label>
+        <label class="hc-label" for="gate-password">{{t "Password"}}</label>
         <input class="hc-input" type="password" id="gate-password" name="passwort" required autofocus
                autocomplete="current-password">
       </div>
-      <button type="submit" class="hc-btn gate-form__submit">Weiter</button>
+      <button type="submit" class="hc-btn gate-form__submit">{{t "Continue"}}</button>
     </form>
 
     {{/* Wohin es nach dem Freischalten weitergeht. Ohne diese Zeile klickt
          jemand ein Passwort ein, ohne zu wissen, wofür. */}}
-    {{with .Gate.Path}}<p class="gate-target hc-dim">Danach geht es weiter zu <code>{{.}}</code>.</p>{{end}}
+    {{with .Gate.Path}}<p class="gate-target hc-dim">{{t "You will then be taken to"}} <code>{{.}}</code>.</p>{{end}}
   </div>
 </section>
 {{end}}
