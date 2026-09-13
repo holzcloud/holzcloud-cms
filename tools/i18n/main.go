@@ -336,7 +336,7 @@ func collectGo(dir string, keys map[string]bool) error {
 			if name == "T" || name == "Tf" {
 				at = -1
 				for i, a := range call.Args {
-					if l, ok := a.(*ast.BasicLit); ok && l.Kind == token.STRING {
+					if _, ok := literalText(a); ok {
 						at = i
 						break
 					}
@@ -348,11 +348,7 @@ func collectGo(dir string, keys map[string]bool) error {
 			if len(call.Args) <= at {
 				return true
 			}
-			lit, ok := call.Args[at].(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING {
-				return true
-			}
-			if s, err := strconv.Unquote(lit.Value); err == nil && s != "" {
+			if s, ok := literalText(call.Args[at]); ok && s != "" {
 				keys[s] = true
 			}
 			return true
@@ -461,4 +457,54 @@ func writeCatalog(path string, catalog map[string]string) error {
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, "error:", err)
 	os.Exit(1)
+}
+
+// literalText reads a sentence out of an expression, following the + that joins
+// a long one across lines.
+//
+// A sentence that does not fit on one line is written like this in Go, and it
+// is the right way to write it:
+//
+//	plugin.T("Submissions the spam traps turned away. They are answered exactly "+
+//		"like a success, because a robot that learns it was refused learns how "+
+//		"to get past the filter.")
+//
+// Until v2.1 this tool read only a BasicLit, so every sentence written that way
+// was collected by nothing and stayed in the source language — *unreported*,
+// not merely untranslated, which is criterion 9's distinction. Twelve of them
+// were found at once when somebody finally looked, two of them a year old.
+// Banning the idiom would have been the wrong fix: it exists because lines have
+// a width, and a tool that cannot read what a reader reads is the thing to
+// correct.
+//
+// Only an all-literal join folds. "Guten Tag, " + name is not a sentence with a
+// value in it — it is a sentence nobody can translate, because a language that
+// wants the name first cannot say so. That shape stays invisible here and is
+// reported by tools/english instead, which is where it belongs: it is a defect
+// in the code, not a missing entry in a catalogue.
+func literalText(e ast.Expr) (string, bool) {
+	switch v := e.(type) {
+	case *ast.BasicLit:
+		if v.Kind != token.STRING {
+			return "", false
+		}
+		s, err := strconv.Unquote(v.Value)
+		return s, err == nil
+	case *ast.ParenExpr:
+		return literalText(v.X)
+	case *ast.BinaryExpr:
+		if v.Op != token.ADD {
+			return "", false
+		}
+		left, ok := literalText(v.X)
+		if !ok {
+			return "", false
+		}
+		right, ok := literalText(v.Y)
+		if !ok {
+			return "", false
+		}
+		return left + right, true
+	}
+	return "", false
 }

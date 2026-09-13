@@ -43,6 +43,10 @@ const (
 	// fieldForm says on receipt which assembled form was submitted. Without it
 	// the receiving side would have to guess from the field names.
 	fieldForm = "formular"
+
+	// fieldConsent is the tick box, present only when the operator wrote a
+	// sentence for it.
+	fieldConsent = "einwilligung"
 )
 
 // submitAddress is a fixed address and not the page's: then every page stays a
@@ -80,6 +84,18 @@ const hourlyLimit = 30
 // maxMessages is how many messages are kept.
 const maxMessages = 500
 
+// keyConsent is where the operator's consent sentence is kept.
+//
+// Empty means no tick box: a form that asks for nothing must not grow one
+// because the plugin was updated. Switching it on is the operator writing the
+// sentence, which is also the only way this can be right — what a visitor has
+// to agree to is a matter for the person running the site, not for a CMS.
+const keyConsent = "einwilligungstext"
+
+// maxConsent bounds it. A consent nobody reads to the end is not consent, and a
+// tick box with a page of text beside it is exactly that.
+const maxConsent = 400
+
 const (
 	prefixMessage  = "nachricht:"
 	praefixZaehler = "zaehler:"
@@ -105,6 +121,19 @@ type message struct {
 	// Fields are the answers of an assembled form, in the order they were
 	// asked.
 	Fields []answer `json:"felder,omitempty"`
+	// Consent is the sentence the sender ticked, word for word, and when.
+	//
+	// The wording is stored and not only a yes, because a consent nobody can
+	// reconstruct is not one: an operator who changes the sentence next year
+	// would otherwise have no way to say what this person actually agreed to.
+	// Empty on every message from before the operator asked for consent, which
+	// is how it should read — they were not asked, so they did not agree.
+	Consent     string `json:"einwilligung,omitempty"`
+	ConsentTime string `json:"einwilligungszeit,omitempty"`
+	// RefusedFor is why a submission was turned away, empty on a real message.
+	// It is the one field that tells the two lists apart, so that a submission
+	// released into the messages cannot keep looking refused.
+	RefusedFor string `json:"abgewiesen,omitempty"`
 	// Reply is what the operator wrote back, and when.
 	//
 	// Kept with the message rather than only sent, because the point of
@@ -213,10 +242,15 @@ type data struct {
 	// ErrorField is the form field the message belongs under, empty when it is
 	// about the submission as a whole.
 	ErrorField string
-	Name       string
-	Email      string
-	Subject    string
-	Text       string
+	// Consent is the operator's sentence, or empty when they ask for none.
+	//
+	// It is the operator's own HTML, cleaned by the host the way any of their
+	// text is, so that a link to their privacy page can stand inside it.
+	Consent string
+	Name    string
+	Email   string
+	Subject string
+	Text    string
 }
 
 func formData(in plugin.ContentIn) data {
@@ -224,6 +258,7 @@ func formData(in plugin.ContentIn) data {
 	if s, err := plugin.Site(); err == nil {
 		d.Kontakt = s.ContactEmail
 	}
+	d.Consent = consentText()
 
 	q, err := url.ParseQuery(in.Query)
 	if err != nil {
@@ -273,7 +308,7 @@ const maxLabel = 120
 // fieldName2 keeps only a field name this form could actually have.
 func fieldName2(raw string) string {
 	switch raw {
-	case fieldName, fieldEmail, fieldSubject, fieldText:
+	case fieldName, fieldEmail, fieldSubject, fieldText, fieldConsent:
 		return raw
 	}
 	// An assembled form's field: the prefix plus a key, and a key is the narrow
@@ -391,6 +426,28 @@ func draw(d data) string {
 		`<input type="text" id="cf-website" name="%s" tabindex="-1" autocomplete="off"></div>`,
 		e(plugin.T("Website (please leave empty)")), fieldHoneypot)
 
+	if d.Consent != "" {
+		wrong := d.ErrorField == fieldConsent && d.IsError
+		class := "contact-form__consent"
+		extra := ""
+		if wrong {
+			class += " contact-form__field--wrong"
+			extra = ` aria-invalid="true" aria-describedby="cf-consent-why"`
+		}
+		fmt.Fprintf(&b, `<div class="%s">`, class)
+		if wrong {
+			fmt.Fprintf(&b, `<p class="contact-form__why" id="cf-consent-why" role="alert">%s</p>`,
+				e(d.Hint))
+		}
+		// The sentence stands beside the box and is not a link to a sentence.
+		// Whoever has to follow a link to find out what they are agreeing to
+		// has not agreed to it; an operator who wants a link puts one inside
+		// their own sentence, which is why this goes through th.
+		fmt.Fprintf(&b, `<label for="cf-consent"><input type="checkbox" id="cf-consent" `+
+			`name="%s" value="1" required%s> <span>%s</span></label></div>`,
+			fieldConsent, extra, d.Consent)
+	}
+
 	fmt.Fprintf(&b, `<button type="submit" class="contact-form__submit">%s</button>`,
 		e(plugin.T("Send message")))
 	if d.Kontakt != "" {
@@ -498,6 +555,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	// learns how to get past the filter.
 	if strings.TrimSpace(form.Get(fieldHoneypot)) != "" {
 		plugin.Log("info", "honeypot triggered")
+		quarantine(form, page, "honeypot")
 		return back(page, "gesendet", refusal{}), nil
 	}
 	switch reason := checkTimestamp(form.Get(fieldTime), time.Now()); reason {
@@ -508,6 +566,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		return back(page, "fehler", refusal{Code: "expired"}), nil
 	default:
 		plugin.Logf("info", "submission refused: %s", reason)
+		quarantine(form, page, reason)
 		return back(page, "gesendet", refusal{}), nil
 	}
 
@@ -537,6 +596,21 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		if problem := check(n); !problem.ok() {
 			return back(page, "fehler", problem), nil
 		}
+	}
+
+	// The consent, checked here for both kinds of form.
+	//
+	// Read from the store and not from the submission: what the sender ticked
+	// is what the form showed them, and a POST that carries its own sentence
+	// would let anybody write their own consent and have it stored as the
+	// visitor's.
+	if wording := consentText(); wording != "" {
+		if strings.TrimSpace(form.Get(fieldConsent)) == "" {
+			return backTo(page, welches, "fehler",
+				refusal{Field: fieldConsent, Code: "consent-missing"}), nil
+		}
+		n.Consent = wording
+		n.ConsentTime = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	if !roomThisHour() {
@@ -723,6 +797,7 @@ var reasons = map[string]string{
 	"gone":            plugin.N("This form no longer exists. Please reload the page."),
 	"too-many":        plugin.N("A great many messages have just come in. Please try again in an hour."),
 	"form-incomplete": plugin.N("Please fill in the form."),
+	"consent-missing": plugin.N("Please agree before sending."),
 	// The five below are about one field of an assembled form and carry its
 	// label in their %s.
 	"field-tick":  plugin.N("Please tick “%s”."),
@@ -900,6 +975,7 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 			return plugin.AdminOut{Redirect: "."}, nil
 		case len(in.Form["antworten"]) > 0:
 			return reply(in.Form["antworten"][0], firstValue(in.Form, "antwort"))
+
 		}
 	}
 
@@ -974,6 +1050,18 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 			// The text comes from outside. It is printed escaped, and the line
 			// breaks are made by the stylesheet, not by inserted markup.
 			fmt.Fprintf(&b, `<pre class="message-body">%s</pre>`, escape(n.Text))
+		}
+
+		// What they agreed to, exactly as it stood beside the box. Not
+		// "consent given" — that is a claim, and this is the evidence.
+		if n.Consent != "" {
+			// The sentence is written as it STOOD, markup and all, not escaped
+			// into <a href="…">. The record is meant to answer "what did this
+			// person see and agree to", and a record nobody can read does not
+			// answer it. It is the operator's own text either way — the same
+			// text the public form already renders.
+			fmt.Fprintf(&b, `<p class="text-muted">%s</p>`,
+				plugin.Tf("Agreed on %s: “%s”", escape(shortDate(n.ConsentTime)), n.Consent))
 		}
 
 		// What was already answered, and when. It stands above the box so that
@@ -1163,4 +1251,131 @@ This is the answer to your enquiry of %s.
 		return plugin.AdminOut{Redirect: ".", FlashError: true,
 			Flash: plugin.T("The answer is stored with the message, and no mail went out. Switch “Tell the sender that their message arrived” on in the website settings.")}, nil
 	}
+}
+
+// --- die Quarantaene --------------------------------------------------------
+
+// The submissions that were turned away without being told.
+//
+// The honeypot and the time trap answer exactly like a success, because a robot
+// that learns which of its submissions were refused learns how to get past the
+// filter. The cost of that is a visitor who is refused wrongly and never finds
+// out — and neither does the operator, because the submission went nowhere.
+// Somebody whose browser fills in every field it finds, or who has a clock an
+// hour out, simply stops being able to write to this website.
+//
+// So a refused submission is kept, with the reason, and the operator can see
+// it. What is kept is bounded and what falls out of it falls silently: unlike
+// an enquiry, nobody has promised to read these, and what matters is the recent
+// false positive rather than a year of robots.
+const (
+	prefixQuarantine = "abgewiesen:"
+	maxQuarantine    = 50
+)
+
+// quarantineReasons names what turned a submission away, for the screen.
+var quarantineReasons = map[string]string{
+	"honeypot":   plugin.N("The hidden field was filled in"),
+	"zu schnell": plugin.N("Sent less than three seconds after the page was drawn"),
+	"gefaelscht": plugin.N("The timestamp was missing or does not match"),
+	"abgelaufen": plugin.N("The form had been open for more than twelve hours"),
+}
+
+// quarantine keeps a refused submission so that a wrong refusal is visible.
+//
+// It stores what was typed and not a message: a submission that never became
+// one has no key, no subject and possibly no address, and pretending otherwise
+// would put half-built messages into the list the operator reads.
+func quarantine(form url.Values, page, reason string) {
+	n := message{
+		Name:    clip(form.Get(fieldName), maxName),
+		Email:   clip(form.Get(fieldEmail), maxEmail),
+		Subject: clip(form.Get(fieldSubject), maxBetreff),
+		Text:    clip(form.Get(fieldText), maxText),
+		Page:    page,
+		Form:    strings.TrimSpace(form.Get(fieldForm)),
+		Time:    time.Now().UTC().Format(time.RFC3339),
+	}
+	n.Key = n.Time + "-" + zufallsende()
+	n.RefusedFor = reason
+
+	raw, err := json.Marshal(n)
+	if err != nil {
+		return
+	}
+	if err := plugin.Set(prefixQuarantine+n.Key, string(raw)); err != nil {
+		return
+	}
+	sweepQuarantine()
+}
+
+// clip bounds one field on its way into the quarantine.
+//
+// The same limits the real form applies, said again here because these values
+// did NOT go through check(): they were refused before it, and a robot is
+// exactly the sort of caller that sends a megabyte.
+func clip(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > max {
+		return string(r[:max])
+	}
+	return s
+}
+
+// sweepQuarantine keeps the newest and lets the rest go.
+//
+// Unlike sweep() for real messages this does not spare the unread, and the
+// difference is the point: an enquiry nobody has read is one nobody has dealt
+// with, while a refused submission nobody has read is almost always a robot.
+func sweepQuarantine() {
+	alle, err := plugin.List(prefixQuarantine, 200)
+	if err != nil || len(alle) <= maxQuarantine {
+		return
+	}
+	keys := make([]string, 0, len(alle))
+	for k := range alle {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for i := 0; i < len(keys)-maxQuarantine; i++ {
+		_ = plugin.Delete(keys[i])
+	}
+}
+
+// release moves a refused submission into the messages.
+//
+// For the false positive: the operator reads it, sees a real person, and the
+// enquiry becomes an enquiry. It gets a fresh key from speichern, so it sorts
+// where it is being read rather than where it was refused — and it does NOT
+// notify, because the moment has passed and a notification about a message the
+// operator is looking at is noise.
+func release(key string) (plugin.AdminOut, error) {
+	raw, ok, err := plugin.Get(prefixQuarantine + key)
+	if err != nil {
+		return plugin.AdminOut{}, err
+	}
+	if !ok {
+		return plugin.AdminOut{Redirect: "?ansicht=abgewiesen",
+			Flash: plugin.T("This submission no longer exists."), FlashError: true}, nil
+	}
+	var n message
+	if err := json.Unmarshal([]byte(raw), &n); err != nil {
+		return plugin.AdminOut{}, err
+	}
+	n.RefusedFor = ""
+	if err := speichern(n); err != nil {
+		return plugin.AdminOut{}, err
+	}
+	_ = plugin.Delete(prefixQuarantine + key)
+	return plugin.AdminOut{Redirect: "?ansicht=abgewiesen",
+		Flash: plugin.T("Moved into the messages.")}, nil
+}
+
+// consentText is the sentence the operator asks visitors to agree to, or empty.
+func consentText() string {
+	raw, ok, err := plugin.Get(keyConsent)
+	if err != nil || !ok {
+		return ""
+	}
+	return clip(raw, maxConsent)
 }
