@@ -48,6 +48,7 @@ func settingsFromRequest(r *http.Request) domain.Settings {
 		TimeZone:          strings.TrimSpace(r.FormValue("timezone")),
 		MetaDescription:   strings.TrimSpace(r.FormValue("meta_description")),
 		CanonicalRedirect: r.FormValue("canonical_redirect") != "",
+		ConfirmSenders:    r.FormValue("confirm_senders") != "",
 		OfflineMode:       r.FormValue("offline_mode"),
 		OfflineMessage:    strings.TrimSpace(r.FormValue("offline_message")),
 	}

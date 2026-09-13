@@ -565,24 +565,49 @@ func Render(a RenderArg) (string, error) {
 // server, or no address on this website. That is an ordinary state and not a
 // failure; reason says which.
 func Notify(subject, body, replyTo string) (queued bool, reason string, err error) {
-	raw, err := hostJSON("notify", notifyArg{Subject: subject, Body: body, ReplyTo: replyTo})
+	queued, _, reason, err = send(notifyArg{Subject: subject, Body: body, ReplyTo: replyTo})
+	return queued, reason, err
+}
+
+// NotifyAndConfirm is Notify plus one copy to replyTo, so the person who wrote
+// knows it arrived. Needs "notify" AND "confirm".
+//
+// The copy goes to replyTo and to no other address — that bound is what keeps
+// this from being a mail relay, and it is enforced by the host and not here.
+// The operator also has to switch receipts on for the website; until they do,
+// confirmed comes back false with no error, and that is an ordinary state. The
+// message arrived either way, so a plugin must not turn it into something a
+// visitor reads.
+func NotifyAndConfirm(subject, body, replyTo, confirmSubject, confirmBody string) (queued, confirmed bool, reason string, err error) {
+	return send(notifyArg{
+		Subject: subject, Body: body, ReplyTo: replyTo,
+		Confirm: true, ConfirmSubject: confirmSubject, ConfirmBody: confirmBody,
+	})
+}
+
+func send(a notifyArg) (queued, confirmed bool, reason string, err error) {
+	raw, err := hostJSON("notify", a)
 	if err != nil {
-		return false, "", err
+		return false, false, "", err
 	}
 	var r struct {
-		Queued bool   `json:"queued"`
-		Reason string `json:"reason"`
+		Queued    bool   `json:"queued"`
+		Confirmed bool   `json:"confirmed"`
+		Reason    string `json:"reason"`
 	}
 	if err := json.Unmarshal(raw, &r); err != nil {
-		return false, "", err
+		return false, false, "", err
 	}
-	return r.Queued, r.Reason, nil
+	return r.Queued, r.Confirmed, r.Reason, nil
 }
 
 type notifyArg struct {
-	Subject string `json:"subject"`
-	Body    string `json:"body"`
-	ReplyTo string `json:"reply_to,omitempty"`
+	Subject        string `json:"subject"`
+	Body           string `json:"body"`
+	ReplyTo        string `json:"reply_to,omitempty"`
+	Confirm        bool   `json:"confirm,omitempty"`
+	ConfirmSubject string `json:"confirm_subject,omitempty"`
+	ConfirmBody    string `json:"confirm_body,omitempty"`
 }
 
 type pagesArg struct {

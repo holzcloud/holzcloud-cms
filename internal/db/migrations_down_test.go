@@ -24,6 +24,22 @@ import (
 // newest-first, and newest-first is exactly what this function restores. The
 // tests below therefore do what an operator would do — take the top one off
 // first — and then test the half they are about.
+// rollBackTo takes off every migration above version.
+//
+// Never ApplyVersion(n, false) on its own for this. Rolling one migration out
+// of the middle leaves goose with a database version higher than a migration it
+// no longer has, and the next up refuses with "detected 1 missing (out-of-order)
+// migration". The failure does not appear when the test is written — it appears
+// when the NEXT migration is added, in a test that has nothing to do with it,
+// and it has now happened twice in this file. A version named here means "and
+// everything after it", which stays true.
+func rollBackTo(t *testing.T, ctx context.Context, provider *goose.Provider, version int64) {
+	t.Helper()
+	if _, err := provider.DownTo(ctx, version); err != nil {
+		t.Fatalf("rolling back to %d: %v", version, err)
+	}
+}
+
 func rollBackTheEnglishRename(t *testing.T, ctx context.Context, provider *goose.Provider) {
 	t.Helper()
 	// Everything above 00053 comes off, not only 00054.
@@ -34,10 +50,7 @@ func rollBackTheEnglishRename(t *testing.T, ctx context.Context, provider *goose
 	// happened when 00055 was added — this helper named a fixed version and
 	// silently meant "the newest one". DownTo says what it means and keeps
 	// meaning it after the next migration is written.
-	if _, err := provider.DownTo(ctx, englishRenameBase); err != nil {
-		t.Fatalf("roll back to %d so the German column names exist again: %v",
-			englishRenameBase, err)
-	}
+	rollBackTo(t, ctx, provider, englishRenameBase)
 }
 
 // englishRenameBase is the version just below 00054, the English column names.
@@ -656,9 +669,7 @@ func TestMigration00055DownAndUp(t *testing.T) {
 	}
 
 	// --- down ---------------------------------------------------------------
-	if _, err := provider.ApplyVersion(ctx, 55, false); err != nil {
-		t.Fatalf("rolling 00055 back: %v", err)
-	}
+	rollBackTo(t, ctx, provider, 54)
 
 	var tables int
 	if err := database.Read.QueryRowContext(ctx,
@@ -703,5 +714,72 @@ func TestMigration00055DownAndUp(t *testing.T) {
 	}
 	if indexes != 1 {
 		t.Error("the index did not come back with the table")
+	}
+}
+
+// TestMigration00056DownAndUp drives the backward half of 00056.
+//
+// A one-column migration, and the thing worth checking is not the column: it is
+// that a website switched on keeps everything else when the switch goes away
+// again. SQLite's DROP COLUMN rewrites the table, and a rewrite that lost a row
+// would take every website with it.
+func TestMigration00056DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description, notify_email, confirm_senders)
+		 VALUES ('Hofladen', '', 'betrieb@example.test', 1)`); err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+
+	rollBackTo(t, ctx, provider, 55)
+
+	var columns int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pragma_table_info('websites') WHERE name = 'confirm_senders'`).
+		Scan(&columns); err != nil {
+		t.Fatalf("looking for the column: %v", err)
+	}
+	if columns != 0 {
+		t.Error("confirm_senders survived its own rollback")
+	}
+
+	// The website is still there, with the settings that have nothing to do
+	// with this column.
+	var notify string
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT notify_email FROM websites WHERE name = 'Hofladen'`).Scan(&notify); err != nil {
+		t.Fatalf("the website did not survive the rollback: %v", err)
+	}
+	if notify != "betrieb@example.test" {
+		t.Errorf("notify_email = %q after the rollback", notify)
+	}
+
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	// And it comes back off: a website that had it switched on before the
+	// rollback is switched off afterwards, because the column carried the only
+	// record of it. The default is the safe direction — nothing is sent to
+	// anybody until somebody says so again.
+	var on int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT confirm_senders FROM websites WHERE name = 'Hofladen'`).Scan(&on); err != nil {
+		t.Fatalf("the column did not come back: %v", err)
+	}
+	if on != 0 {
+		t.Errorf("confirm_senders = %d after the trip; the default is the safe direction", on)
 	}
 }

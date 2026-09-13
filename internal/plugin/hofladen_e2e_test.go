@@ -75,9 +75,9 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.WithPages(pages)
-	r.WithNotify(func(_ context.Context, _ int64, a plugin.NotifyArg) (bool, string, error) {
+	r.WithNotify(func(_ context.Context, _ int64, a plugin.NotifyArg) (bool, bool, string, error) {
 		verschickt = append(verschickt, a.Subject+"\n"+a.Body)
-		return true, "", nil
+		return true, false, "", nil
 	})
 	defer r.Close(ctx)
 	if err := r.Load(ctx, m, module); err != nil {

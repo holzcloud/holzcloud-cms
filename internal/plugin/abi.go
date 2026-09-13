@@ -287,6 +287,22 @@ type NotifyArg struct {
 	// visitor who sent an enquiry, say. It is checked by the host and dropped
 	// if it is not an address.
 	ReplyTo string `json:"reply_to,omitempty"`
+	// Confirm asks for one copy to go to ReplyTo as well, so the person who
+	// wrote knows it arrived.
+	//
+	// Deliberately not a second address: the copy goes where the reply would
+	// go, and nowhere else. See PermConfirm for why that bound is the whole
+	// design, and note that the host also needs the operator's own switch —
+	// asking is not the same as being allowed.
+	Confirm bool `json:"confirm,omitempty"`
+	// ConfirmSubject and ConfirmBody are what the sender reads. They are
+	// separate from Subject and Body because the two messages are for two
+	// different people: the operator gets "New enquiry from Anna Beispiel" and
+	// the sender gets their own words back with a sentence saying they arrived.
+	// Empty means the operator's text is copied, which is a poor confirmation
+	// and never what a plugin should send.
+	ConfirmSubject string `json:"confirm_subject,omitempty"`
+	ConfirmBody    string `json:"confirm_body,omitempty"`
 }
 
 // NotifyResult says what happened.
@@ -296,6 +312,11 @@ type NotifyResult struct {
 	// state and not a failure, and a plugin should not treat it as one.
 	Queued bool   `json:"queued"`
 	Reason string `json:"reason,omitempty"`
+	// Confirmed says whether the copy to the sender went out. False with
+	// Queued true is the ordinary state: the plugin asked, and the permission
+	// or the operator's switch said no. A plugin must not turn that into an
+	// error a visitor reads — their message arrived either way.
+	Confirmed bool `json:"confirmed,omitempty"`
 }
 
 // MaxNotifyBytes bounds one notification.

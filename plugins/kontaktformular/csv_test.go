@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -203,5 +204,63 @@ func TestEveryCodeThisProgramProducesHasASentence(t *testing.T) {
 	if len(reasons) != len(produced) {
 		t.Errorf("%d sentences for %d codes — one of the two lists has moved",
 			len(reasons), len(produced))
+	}
+}
+
+// An answer is written back over the message it answers.
+//
+// speichern mints a fresh key and a fresh timestamp, because it is for a
+// message that has just come in. Using it to store an answer would leave the
+// original standing and put a second copy of the enquiry beside it, dated
+// today — two enquiries where there was one, and the operator answering the
+// same person twice.
+func TestAnAnswerDoesNotDuplicateTheMessage(t *testing.T) {
+	// The check is on the shape of the code rather than on a running store:
+	// this plugin's storage is the host's, and a unit test has no host. What
+	// can be asserted here is that reply writes to prefixMessage+key and never
+	// calls speichern.
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	start := strings.Index(body, "func reply(key, text string)")
+	if start < 0 {
+		t.Fatal("reply is gone; this test no longer knows what it is guarding")
+	}
+	end := strings.Index(body[start:], "\n}\n")
+	if end < 0 {
+		t.Fatal("cannot find the end of reply")
+	}
+	fn := body[start : start+end]
+
+	if strings.Contains(fn, "speichern(") {
+		t.Error("reply calls speichern, which mints a new key and duplicates the enquiry")
+	}
+	if !strings.Contains(fn, "plugin.Set(prefixMessage+key") {
+		t.Error("reply does not write back under the message's own key")
+	}
+}
+
+// sweep never removes a message nobody has read.
+//
+// The plugin's own migration 0001 says why: "an enquiry somebody made that
+// nobody reads is a lost enquiry". An unread message is exactly the one that
+// has not been dealt with.
+func TestSweepKeepsWhatNobodyHasRead(t *testing.T) {
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	start := strings.Index(body, "func sweep()")
+	end := strings.Index(body[start:], "\n}\n")
+	fn := body[start : start+end]
+
+	if !strings.Contains(fn, "!n.Read") {
+		t.Error("sweep does not look at whether a message was read")
+	}
+	if !strings.Contains(fn, "kept") {
+		t.Error("sweep does not report what it kept, so an operator cannot see why the store is full")
 	}
 }

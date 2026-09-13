@@ -518,11 +518,16 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 		if len(a.Subject)+len(a.Body) > MaxNotifyBytes {
 			return nil, fmt.Errorf("the notification is larger than %d KB", MaxNotifyBytes>>10)
 		}
-		queued, reason, err := r.notify(ctx, site, a)
+		// The copy to the sender is asked for in the same call and granted by
+		// a SECOND permission, so a plugin with "notify" alone cannot reach a
+		// third party. cc.manifest is the plugin's own declaration, checked at
+		// install; the operator's switch is checked by the host function.
+		a.Confirm = a.Confirm && cc.manifest.Allows(PermConfirm)
+		queued, confirmed, reason, err := r.notify(ctx, site, a)
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(NotifyResult{Queued: queued, Reason: reason})
+		return json.Marshal(NotifyResult{Queued: queued, Reason: reason, Confirmed: confirmed})
 
 	case OpRender:
 		if r.render == nil {
@@ -579,7 +584,10 @@ type RenderFunc func(ctx context.Context, websiteID int64, a RenderArg) (string,
 // It returns whether anything was queued and, if not, why — no mail server, or
 // no notification address on this site. Neither is a failure: both are ordinary
 // states of an installation that has not asked for mail.
-type NotifyFunc func(ctx context.Context, websiteID int64, a NotifyArg) (queued bool, reason string, err error)
+// NotifyFunc sends the operator's notification and, when asked and allowed,
+// one copy to the sender. It reports both separately: a plugin has to be able
+// to tell "it arrived and they were told" from "it arrived".
+type NotifyFunc func(ctx context.Context, websiteID int64, a NotifyArg) (queued, confirmed bool, reason string, err error)
 
 // WithSettings supplies the reader for the settings operation.
 func (r *Runtime) WithSettings(f SettingsFunc) { r.settings = f }

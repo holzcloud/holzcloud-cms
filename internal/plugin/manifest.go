@@ -134,6 +134,26 @@ const (
 	// an address would be a mail relay with a web interface, and the first
 	// thing found on the internet would use it to send someone else's spam.
 	PermNotify = "notify"
+	// PermConfirm allows ONE copy of that notification to go to the person the
+	// message is about, and to nobody else.
+	//
+	// It overturns half of what PermNotify says above, so here is the argument
+	// answered rather than waved past. The danger in letting a plugin name a
+	// recipient is a mail relay: a loop that sends a thousand messages to a
+	// thousand addresses. What this allows is one copy, of the message that was
+	// just sent to the operator, to the single address that message already
+	// carries as its ReplyTo — the person who wrote the enquiry. The plugin
+	// cannot name a second address, cannot send a different body, and cannot
+	// send a copy without also sending the notification.
+	//
+	// And it is switched off until the operator switches it on, per website.
+	// That is the part that matters: the plugin asks, the operator decides, and
+	// an operator who has not thought about it has not enabled it.
+	//
+	// What it is for: a person who writes to a farm shop through a form gets
+	// nothing back today. They do not know whether it arrived, so they write
+	// again, or they telephone, or they assume the shop is shut.
+	PermConfirm = "confirm"
 	// PermRender allows drawing a public page in the website's own theme.
 	//
 	// Its own permission rather than a free operation, because it is the one
@@ -151,7 +171,7 @@ var (
 	knownPermissions = map[string]bool{
 		PermStore: true, PermPagesRead: true, PermPagesWrite: true,
 		PermMediaRead: true, PermSettings: true, PermLog: true,
-		PermRender: true, PermNotify: true,
+		PermRender: true, PermNotify: true, PermConfirm: true,
 	}
 	// reID is deliberately narrower than a slug: it becomes a table prefix and
 	// a path segment, and a name that needs quoting in either is a name that

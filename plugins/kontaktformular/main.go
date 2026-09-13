@@ -105,6 +105,14 @@ type message struct {
 	// Fields are the answers of an assembled form, in the order they were
 	// asked.
 	Fields []answer `json:"felder,omitempty"`
+	// Reply is what the operator wrote back, and when.
+	//
+	// Kept with the message rather than only sent, because the point of
+	// answering from here is that the next person to open the screen can see
+	// that it was answered. A reply that exists only in somebody's sent folder
+	// is a reply the colleague cannot see.
+	Reply     string `json:"antwort,omitempty"`
+	ReplyTime string `json:"antwortzeit,omitempty"`
 }
 
 func init() {
@@ -558,14 +566,16 @@ func notify(n message) {
 	if n.FormName != "" && !strings.Contains(subject, n.FormName) {
 		subject = n.FormName + ": " + subject
 	}
-	from := n.Page
-	if from == "" {
-		from = "Startseite"
-	} else {
-		from = "/" + from
+	from := plugin.T("the home page")
+	if n.Page != "" {
+		from = "/" + n.Page
 	}
 
-	text := fmt.Sprintf(`An enquiry has come in through the form on %s.
+	// One letter, one catalogue entry. Assembling it from six translated lines
+	// would let a language reorder the lines and not the letter, and whoever
+	// translates it would be looking at six fragments with no way to see how
+	// they sit together.
+	text := plugin.Tf(`An enquiry has come in through the form on %s.
 
 From:     %s <%s>
 Subject:  %s
@@ -577,21 +587,41 @@ At:       %s
 Replying to this message goes straight to the sender.
 `, from, n.Name, n.Email, subject, shortDate(n.Time), n.Text)
 
+	// What the person who wrote reads. Their own words come back, because a
+	// receipt that does not say what was received is worth very little — and
+	// because it is the copy they will look for when they want to know what
+	// they actually asked.
+	confirmSubject := plugin.Tf("Your enquiry: %s", subject)
+	confirmText := plugin.Tf(`Thank you — your message has arrived and we will be in touch.
+
+This is what you sent us:
+
+%s
+
+--
+This is an automatic receipt. Replying to it reaches us.
+`, n.Text)
+
 	// The sender's address as the reply address: then replying is one click and
-	// not a switch to the admin, copy, paste.
-	queued, reason, err := plugin.Notify(subject, text, n.Email)
+	// not a switch to the admin, copy, paste. The same address is where the
+	// receipt goes — the host allows one copy and only to that address, which
+	// is what stops this being a mail relay. See PermConfirm.
+	queued, confirmed, reason, err := plugin.NotifyAndConfirm(
+		subject, text, n.Email, confirmSubject, confirmText)
 	switch {
 	case err != nil:
-		plugin.Logf("error", "Benachrichtigung fehlgeschlagen: %v", err)
+		plugin.Logf("error", "notification failed: %v", err)
 	case !queued && reason != "":
 		// Not an error: no mail server or no address is a decision and not a
 		// mishap. Once at debug, so that somebody searching finds it.
-		plugin.Logf("debug", "keine Benachrichtigung verschickt: %s", reason)
+		plugin.Logf("debug", "no notification sent: %s", reason)
+	case queued && !confirmed:
+		// Also not an error, and worth a line: the operator has not switched
+		// receipts on, or the plugin was installed without the permission.
+		plugin.Log("debug", "no receipt sent to the sender")
 	}
 }
 
-// back sends the visitor back to the page and carries the outcome along in the
-// address. Without JavaScript, and a reload does not send twice.
 func back(page, stand string, why refusal) plugin.RequestOut {
 	return backTo(page, "", stand, why)
 }
@@ -809,10 +839,49 @@ func sweep() {
 	}
 	// The key starts with the timestamp, so it sorts chronologically.
 	sort.Strings(keys)
-	for i := 0; i < len(keys)-maxMessages; i++ {
-		_ = plugin.Delete(keys[i])
+
+	// Only what somebody has read.
+	//
+	// This used to delete the oldest, full stop, with nothing but a log line to
+	// say so. This plugin's own migration 0001 writes the reason it must not:
+	// "an enquiry somebody made that nobody reads is a lost enquiry". An unread
+	// message is precisely the one that has not been dealt with, so it is
+	// precisely the one that may not fall.
+	//
+	// The consequence is that the bound can be exceeded, by an operator who
+	// does not read their messages. That is the right way round: a full store
+	// is a problem the operator can see and fix, and a deleted enquiry is one
+	// nobody can.
+	over := len(keys) - maxMessages
+	removed, kept := 0, 0
+	for _, key := range keys {
+		if removed >= over {
+			break
+		}
+		raw, ok, err := plugin.Get(key)
+		if err != nil {
+			continue
+		}
+		if ok {
+			var n message
+			if err := json.Unmarshal([]byte(raw), &n); err == nil && !n.Read {
+				kept++
+				continue
+			}
+		}
+		if err := plugin.Delete(key); err == nil {
+			removed++
+		}
 	}
-	plugin.Logf("info", "%d old messages removed", len(keys)-maxMessages)
+	plugin.Logf("info", "%d old messages removed, %d kept because nobody has read them",
+		removed, kept)
+	if kept > 0 && removed < over {
+		// Said once and loudly: the store is over its bound and staying there
+		// until somebody reads what is in it.
+		plugin.Logf("warn",
+			"%d messages are stored, %d above the limit of %d — %d of the oldest are unread and were not removed",
+			len(keys), len(keys)-maxMessages, maxMessages, kept)
+	}
 }
 
 // --- die Verwaltung ---------------------------------------------------------
@@ -829,6 +898,8 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 		case len(in.Form["ungelesen"]) > 0:
 			mark(in.Form["ungelesen"][0], false)
 			return plugin.AdminOut{Redirect: "."}, nil
+		case len(in.Form["antworten"]) > 0:
+			return reply(in.Form["antworten"][0], firstValue(in.Form, "antwort"))
 		}
 	}
 
@@ -903,6 +974,32 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 			// The text comes from outside. It is printed escaped, and the line
 			// breaks are made by the stylesheet, not by inserted markup.
 			fmt.Fprintf(&b, `<pre class="message-body">%s</pre>`, escape(n.Text))
+		}
+
+		// What was already answered, and when. It stands above the box so that
+		// somebody opening the screen sees the answer before they write a
+		// second one.
+		if n.Reply != "" {
+			fmt.Fprintf(&b, `<div class="card card--reply"><p class="text-muted">%s</p><pre class="message-body">%s</pre></div>`,
+				escape(plugin.Tf("Answered on %s", shortDate(n.ReplyTime))), escape(n.Reply))
+		}
+
+		if n.Email != "" {
+			// A form of its own, because a <form> inside a <form> is invalid
+			// HTML and the browser throws the inner one away — the same reason
+			// the buttons below each carry their own.
+			fmt.Fprintf(&b, `<form method="POST" class="stack">`+
+				`<input type="hidden" name="antworten" value="%s">`+
+				`<label for="a-%s">%s</label>`+
+				`<textarea id="a-%s" name="antwort" rows="4" maxlength="%d" `+
+				`placeholder="%s"></textarea>`+
+				`<p><button type="submit" class="btn btn--sm btn--primary">%s</button></p>`+
+				`</form>`,
+				escape(n.Key), escape(n.Key),
+				escape(plugin.Tf("Answer %s", n.Name)),
+				escape(n.Key), maxText,
+				escape(plugin.T("Your answer goes to the address above.")),
+				escape(plugin.T("Send answer")))
 		}
 
 		b.WriteString(`<p class="table-actions">`)
@@ -980,3 +1077,90 @@ func shortDate(s string) string {
 func escape(s string) string { return html.EscapeString(s) }
 
 func main() {}
+
+// reply answers one enquiry by e-mail and keeps the answer with it.
+//
+// The address is the sender's, and it is the address stored with the message —
+// not one that came in with the form just now. That distinction is the whole
+// safety of this: an operator can answer the person who wrote and nobody else,
+// and a crafted POST cannot turn the reply screen into a way to send mail to a
+// third party.
+func reply(key, text string) (plugin.AdminOut, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return plugin.AdminOut{Redirect: ".",
+			Flash: plugin.T("An empty answer is not sent."), FlashError: true}, nil
+	}
+	if len([]rune(text)) > maxText {
+		return plugin.AdminOut{Redirect: ".",
+			Flash: plugin.T("The answer is too long."), FlashError: true}, nil
+	}
+
+	raw, ok, err := plugin.Get(prefixMessage + key)
+	if err != nil {
+		return plugin.AdminOut{}, err
+	}
+	if !ok {
+		return plugin.AdminOut{Redirect: ".",
+			Flash: plugin.T("This message no longer exists."), FlashError: true}, nil
+	}
+	var n message
+	if err := json.Unmarshal([]byte(raw), &n); err != nil {
+		return plugin.AdminOut{}, err
+	}
+	if n.Email == "" {
+		return plugin.AdminOut{Redirect: ".",
+			Flash: plugin.T("This message carries no address to answer."), FlashError: true}, nil
+	}
+
+	// Notify goes to the operator; the copy goes to the sender. Here the copy
+	// IS the message, and the operator's own goes out as the record that an
+	// answer was sent — which is also what makes this work through one
+	// permitted path instead of a second way to send mail.
+	subject := plugin.Tf("Re: %s", betreffOder(n))
+	body := plugin.Tf(`%s
+
+--
+This is the answer to your enquiry of %s.
+
+> %s
+`, text, shortDate(n.Time), n.Text)
+
+	queued, confirmed, reason, err := plugin.NotifyAndConfirm(
+		plugin.Tf("Answered: %s", betreffOder(n)),
+		plugin.Tf("An answer went to %s <%s>:\n\n%s\n", n.Name, n.Email, text),
+		n.Email, subject, body)
+	if err != nil {
+		return plugin.AdminOut{}, err
+	}
+
+	// Stored whatever the mail did. An answer the operator wrote is a record of
+	// what they said, and losing it because a mail server was down would be the
+	// worse of the two failures.
+	//
+	// Written back under the SAME key, not through speichern: that function
+	// mints a fresh key and a fresh timestamp for a message that has just come
+	// in, and using it here would leave the original standing and put a second
+	// copy of the enquiry beside it, dated today.
+	n.Reply = text
+	n.ReplyTime = time.Now().UTC().Format(time.RFC3339)
+	n.Read = true
+	updated, err := json.Marshal(n)
+	if err != nil {
+		return plugin.AdminOut{}, err
+	}
+	if err := plugin.Set(prefixMessage+key, string(updated)); err != nil {
+		return plugin.AdminOut{}, err
+	}
+
+	switch {
+	case confirmed:
+		return plugin.AdminOut{Redirect: ".", Flash: plugin.T("Answer sent.")}, nil
+	case !queued && reason != "":
+		return plugin.AdminOut{Redirect: ".", FlashError: true,
+			Flash: plugin.T("The answer is stored with the message, and no mail went out: no mail server is set up.")}, nil
+	default:
+		return plugin.AdminOut{Redirect: ".", FlashError: true,
+			Flash: plugin.T("The answer is stored with the message, and no mail went out. Switch “Tell the sender that their message arrived” on in the website settings.")}, nil
+	}
+}
