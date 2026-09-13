@@ -55,6 +55,82 @@
 
 ---
 
+## Milestone: v2.0 — The Codebase Speaks English
+
+**Shipped:** 2026-09-13
+**Phases:** 1 (12) | **Waves:** 10 | **Commits:** 32
+
+### What Was Built
+
+- The template data contract in English, with the eight shipped themes, and a
+  refusal that names the English fields when a 1.x theme is uploaded
+- The MCP surface in English — not planned, found by the gate
+- Migration 00054: 24 columns, 6 indexes, a `Down` half driven by a test
+- The catalogue turned round: the English sentence is the key, `de.json` is a
+  translation, `de-CH` derives from `de.json`
+- ~250 new catalogue entries in four languages, most of them sentences that had
+  never been in any catalogue at all
+- A translation channel for plugins: a host operation, two SDK functions, a
+  third collector root
+- `tools/english`, a gate that parses, blocking in CI
+
+### What Worked
+
+**Writing the rename map by hand.** The phase tried generating it from word
+stems first and produced `Archivee`, `Groupn`, `AlbumTokenr`. The roadmap had
+predicted exactly that. 870 identifiers written out by hand cost an hour and
+were right.
+
+**`go/scanner` instead of `sed`.** The rename tool rewrites only `token.IDENT`,
+which is the whole reason catalogue keys, form field names and stored values
+came through a 870-identifier rename untouched. A textual replace over the same
+map would have rewritten all three and the damage would have been silent.
+
+**Letting the gate find the work.** `tools/english` was built to *hold* the
+result, and it turned out to be the thing that found the work: the MCP surface,
+the four column headings that had broken in the flip, the wrapper functions the
+collector did not know. A gate written early reports on the phase that writes it.
+
+**The browser pass caught four things no test did.** Four column headings
+reading German on an English screen, two page titles assembled with `+`, a
+dropdown with no catalogue path, and a bundle import announcing itself as a
+WordPress import. None of them is the kind of thing a test asserts, and every
+one of them is the kind of thing a person sees immediately.
+
+### What Did Not
+
+**The criterion's own gate could not be written as specified.** Criterion 1 asked
+for `grep -rn '[äöüÄÖÜß]'` to print nothing. With no locale set grep matches
+bytes, and `Ü` shares its second byte with `“` — the gate miscounted in this
+repository's own container. And a comment explaining how umlauts are
+transliterated cannot be written under a literal reading of the rule. The
+criterion was right about the *goal* and wrong about the *instrument*, and that
+was only discoverable by trying it.
+
+**A format string assembled with `+` is invisible even inside `i18n.N`.**
+CLAUDE.md says a sentence built with `fmt.Sprintf` cannot be collected. It does
+not say that a *marked* sentence joined across three lines cannot be either —
+the collector reads a string literal, not an expression. Two sentences were
+added, reported as orphaned, and had to be rewritten as single literals. The
+note is now in the code beside them.
+
+### Lessons for Next Time
+
+1. **A milestone whose product is readability needs a mechanical reader.** Every
+   estimate in this phase was wrong in the same direction until `tools/english`
+   existed; after it existed, the remaining work was a countdown.
+2. **Measure the measurement.** The 828 that sized criterion 9 counted 274
+   strings in `plugins/` that were mostly a visitor's text — outside the
+   milestone entirely. Walking them turned a scheduled carry-over into an
+   afternoon.
+3. **A decision taken mid-phase belongs with the other decisions.** §3c and §3d
+   were written into `12-CONTEXT.md` beside §3a and §3b, not into commit
+   messages. The next reader looks in one place.
+4. **Name the exception in the gate, not in prose.** The public side has no
+   translation channel; that fact now lives in `germanVoice` in
+   `tools/english/main.go`, where somebody meets it while working rather than
+   while reading the archive.
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
