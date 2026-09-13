@@ -33,11 +33,17 @@ import (
 // Field names. They stand in the drawn form and are read again on receipt; as
 // constants, so that the two places do not drift apart.
 const (
-	fieldName     = "name"
-	fieldEmail    = "email"
-	fieldSubject  = "betreff"
-	fieldText     = "nachricht"
-	fieldPage     = "seite"
+	fieldName    = "name"
+	fieldEmail   = "email"
+	fieldSubject = "betreff"
+	fieldText    = "nachricht"
+	fieldPage    = "seite"
+	// fieldPath carries the address the page is served under, which is where a
+	// refusal and a thank-you have to go back to. The slug alone is not it: the
+	// start page's slug is "home" and the start page is at "/", so every
+	// message about a form on the start page went to /home, was redirected to
+	// /, and lost its query — the visitor saw the form again and no answer.
+	fieldPath     = "pfad"
 	fieldTime     = "gestellt"
 	fieldHoneypot = "website"
 	// fieldForm says on receipt which assembled form was submitted. Without it
@@ -211,20 +217,26 @@ func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
 	}
 
 	data := formData(in)
-	// Nothing typed: what a visitor entered is cached nowhere, and sending it
-	// back through the address would mean writing somebody else's text into an
-	// address that lands in the history and in every server log. A refused
-	// submission therefore says what is missing; the browser still has the
-	// entries when they go back.
-	var values url.Values
+	// This program puts nothing a visitor typed back into an address of its own
+	// accord: that would be writing somebody else's text into the history and
+	// into every server log. A refused submission therefore says what is
+	// missing and no more; the browser still has the entries when they go back.
+	//
+	// What IS read back is a query the visitor's own browser wrote, which is
+	// what the Continue button of a two-step form is: formmethod="get" means
+	// exactly this. Reading it is not the same act as writing it.
+	query, err := url.ParseQuery(in.Query)
+	if err != nil {
+		query = nil
+	}
 	// The paragraph first, so that the <p> disappears along with its marker. In
 	// one pass an empty <p></p> would be left behind.
-	out := ersetzen(markerInParagraph, in.HTML, data, values)
-	out = ersetzen(marker, out, data, values)
+	out := ersetzen(markerInParagraph, in.HTML, data, query)
+	out = ersetzen(marker, out, data, query)
 	return plugin.ContentOut{HTML: out, Changed: out != in.HTML}, nil
 }
 
-func ersetzen(re *regexp.Regexp, page string, d data, values url.Values) string {
+func ersetzen(re *regexp.Regexp, page string, d data, query url.Values) string {
 	return re.ReplaceAllStringFunc(page, func(treffer string) string {
 		arg := ""
 		if m := marker.FindStringSubmatch(treffer); m != nil {
@@ -241,9 +253,8 @@ func ersetzen(re *regexp.Regexp, page string, d data, values url.Values) string 
 					// The answer belongs to another form on the same page; this
 					// one shows no foreign message.
 					eigen.Hint, eigen.IsError = "", false
-					values = nil
 				}
-				return zeichnenEigen(f, eigen, values)
+				return zeichnenEigen(f, eigen, answersFromQuery(f, query))
 			}
 		}
 
@@ -264,6 +275,10 @@ func ersetzen(re *regexp.Regexp, page string, d data, values url.Values) string 
 // data is everything the drawn form needs.
 type data struct {
 	Page string
+	// Path is the address the page is served under, which is where a two-step
+	// form points its Continue button. Not "/"+Page: the start page has the
+	// slug "home" and is served at the root.
+	Path string
 	// Form is the key of the form whose submission is being answered. Only that
 	// one shows the message — on a page with two forms it would otherwise stand
 	// twice.
@@ -289,7 +304,7 @@ type data struct {
 }
 
 func formData(in plugin.ContentIn) data {
-	d := data{Page: in.Slug, Timestamp: timestamp(time.Now())}
+	d := data{Page: in.Slug, Path: in.Path, Timestamp: timestamp(time.Now())}
 	if s, err := plugin.Site(); err == nil {
 		d.Kontakt = s.ContactEmail
 	}
@@ -392,6 +407,7 @@ func draw(d data) string {
 	fmt.Fprintf(&b, `<form class="contact-form" method="POST" action="%s"%s>`, submitAddress, enctype)
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldTime, e(d.Timestamp))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPage, e(d.Page))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPath, e(d.Path))
 
 	// The notice above the form is for what is not about one field: a success,
 	// a form that expired, an hour that was too busy. A refusal that names a
@@ -612,6 +628,10 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		return back("", "fehler", refusal{Code: "unreadable"}), nil
 	}
 	page := pageName(form.Get(fieldPage))
+	// Where the answer goes. It comes out of the submission like everything
+	// else here, so it is checked to be an address on this website and nothing
+	// more; anything else falls back to the start page.
+	ziel := pagePath(form.Get(fieldPath))
 
 	// The two traps, in the order that costs least. A filled honeypot and a
 	// form that comes back in under three seconds are both answered exactly
@@ -620,18 +640,18 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if strings.TrimSpace(form.Get(fieldHoneypot)) != "" {
 		plugin.Log("info", "honeypot triggered")
 		quarantine(form, page, "honeypot")
-		return back(page, "gesendet", refusal{}), nil
+		return back(ziel, "gesendet", refusal{}), nil
 	}
 	switch reason := checkTimestamp(form.Get(fieldTime), time.Now()); reason {
 	case "":
 	case "abgelaufen":
 		// Somebody who had a tab open for a day deserves an answer and not
 		// silence — the message is real and still stands in the field.
-		return back(page, "fehler", refusal{Code: "expired"}), nil
+		return back(ziel, "fehler", refusal{Code: "expired"}), nil
 	default:
 		plugin.Logf("info", "submission refused: %s", reason)
 		quarantine(form, page, reason)
-		return back(page, "gesendet", refusal{}), nil
+		return back(ziel, "gesendet", refusal{}), nil
 	}
 
 	// An assembled form says which one it is itself. If the key there no longer
@@ -642,12 +662,12 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if welches != "" {
 		f, ok := formularLaden(welches)
 		if !ok {
-			return backTo(page, welches, "fehler", refusal{Code: "gone"}), nil
+			return backTo(ziel, welches, "fehler", refusal{Code: "gone"}), nil
 		}
 		var problem refusal
 		n, problem = empfangenEigen(f, form, page)
 		if !problem.ok() {
-			return backTo(page, welches, "fehler", problem), nil
+			return backTo(ziel, welches, "fehler", problem), nil
 		}
 	} else {
 		n = message{
@@ -658,7 +678,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 			Page:    page,
 		}
 		if problem := check(n); !problem.ok() {
-			return back(page, "fehler", problem), nil
+			return back(ziel, "fehler", problem), nil
 		}
 	}
 
@@ -670,7 +690,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	// visitor's.
 	if wording := consentText(); wording != "" {
 		if strings.TrimSpace(form.Get(fieldConsent)) == "" {
-			return backTo(page, welches, "fehler",
+			return backTo(ziel, welches, "fehler",
 				refusal{Field: fieldConsent, Code: "consent-missing"}), nil
 		}
 		n.Consent = wording
@@ -683,13 +703,13 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	// an enquiry with half its attachments and nobody the wiser.
 	for _, f := range in.Files {
 		if f.Refused != "" {
-			return backTo(page, welches, "fehler",
+			return backTo(ziel, welches, "fehler",
 				refusal{Field: fieldAttach, Code: "attach-refused", Arg: f.Refused}), nil
 		}
 	}
 
 	if !roomThisHour() {
-		return backTo(page, welches, "fehler", refusal{Code: "too-many"}), nil
+		return backTo(ziel, welches, "fehler", refusal{Code: "too-many"}), nil
 	}
 
 	// Only here. Every trap has been past, the message is real, and this is the
@@ -710,7 +730,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		return plugin.RequestOut{}, err
 	}
 	notify(n)
-	return backTo(page, welches, "gesendet", refusal{}), nil
+	return backTo(ziel, welches, "gesendet", refusal{}), nil
 }
 
 // notify tells the operator when they have set that up.
@@ -786,16 +806,16 @@ This is an automatic receipt. Replying to it reaches us.
 	}
 }
 
-func back(page, stand string, why refusal) plugin.RequestOut {
-	return backTo(page, "", stand, why)
+func back(path, stand string, why refusal) plugin.RequestOut {
+	return backTo(path, "", stand, why)
 }
 
 // backTo is the same but also says which form is meant — on a page with two
 // forms the message would otherwise stand under both.
-func backTo(page, welches, stand string, why refusal) plugin.RequestOut {
-	ziel := "/"
-	if page != "" {
-		ziel = "/" + page
+func backTo(path, welches, stand string, why refusal) plugin.RequestOut {
+	ziel := path
+	if ziel == "" {
+		ziel = "/"
 	}
 	q := url.Values{}
 	q.Set("formular", stand)
@@ -833,6 +853,36 @@ func pageName(raw string) string {
 	for _, r := range raw {
 		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
 			return ""
+		}
+	}
+	return raw
+}
+
+// pagePath cleans the address the form brought along.
+//
+// It comes out of the request and lands in a Location header, so it is checked
+// against what an address on this website can look like and nothing wider: a
+// leading slash, then segments of the same narrow alphabet a slug has, which
+// is also what a language prefix is made of. No scheme, no host, no "//" that
+// a browser reads as a host, no "..", no percent sign, nothing to append a
+// header with. Whatever fails falls back to the start page, which is the same
+// worst outcome pageName already had.
+func pagePath(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > 200 || raw[0] != '/' {
+		return ""
+	}
+	if raw == "/" {
+		return raw
+	}
+	for _, teil := range strings.Split(strings.TrimSuffix(raw[1:], "/"), "/") {
+		if teil == "" {
+			return ""
+		}
+		for _, r := range teil {
+			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+				return ""
+			}
 		}
 	}
 	return raw

@@ -25,6 +25,7 @@ func zeichnenEigen(f formular, d data, values url.Values) string {
 		e(f.Key), submitAddress)
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldTime, e(d.Timestamp))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPage, e(d.Page))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPath, e(d.Path))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldForm, e(f.Key))
 
 	if d.Hint != "" {
@@ -35,7 +36,23 @@ func zeichnenEigen(f formular, d data, values url.Values) string {
 		fmt.Fprintf(&b, `<p class="%s" role="status">%s</p>`, class, e(d.Hint))
 	}
 
+	// What has been answered so far, by key, so a condition can be read.
+	answered := map[string]string{}
 	for _, fe := range f.Fields {
+		answered[fe.Key] = strings.TrimSpace(values.Get(fieldPrefix + fe.Key))
+	}
+	// A field whose condition is not met is not drawn — not hidden. A hidden
+	// field is still in the document, still submitted, and still read out by a
+	// screen reader that ignores the stylesheet; and hiding is what needs
+	// JavaScript to undo.
+	var shown []field
+	for _, fe := range f.Fields {
+		if fe.asked(answered) {
+			shown = append(shown, fe)
+		}
+	}
+
+	for _, fe := range shown {
 		id := "cf-" + f.Key + "-" + fe.Key
 		name := fieldPrefix + fe.Key
 		value := values.Get(name)
@@ -92,6 +109,29 @@ func zeichnenEigen(f formular, d data, values url.Values) string {
 		`<input type="text" id="cf-website-%s" name="%s" tabindex="-1" autocomplete="off"></div>`,
 		e(f.Key), e(plugin.T("Website (please leave empty)")), e(f.Key), fieldHoneypot)
 
+	// Two buttons and no JavaScript. formmethod and formaction are ordinary
+	// HTML: Continue submits the same form as a GET to the page it stands on,
+	// so every answer so far lands in the query string, the page is drawn
+	// again, and the fields whose condition is now met appear. Send posts it
+	// for real.
+	//
+	// Not two steps with the first one locked: every field stays visible and
+	// changeable, so somebody who picked the wrong answer can pick another and
+	// press Continue again. A wizard that will not let you back is worse than
+	// no wizard.
+	if f.HasSteps() {
+		// The page's own address, as the host gave it. Not "/"+Page: the start
+		// page's slug is "home" and the start page is served at the root, so
+		// that guess sent every visitor of a two-step form on the start page
+		// through a redirect that dropped their answers on the way.
+		ziel := d.Path
+		if ziel == "" {
+			ziel = "/"
+		}
+		fmt.Fprintf(&b, `<button type="submit" class="contact-form__more" `+
+			`formmethod="get" formaction="%s">%s</button> `,
+			e(ziel), e(plugin.T("Continue")))
+	}
 	fmt.Fprintf(&b, `<button type="submit" class="contact-form__submit">%s</button>`,
 		e(plugin.T("Send")))
 	if d.Kontakt != "" {
@@ -101,6 +141,37 @@ func zeichnenEigen(f formular, d data, values url.Values) string {
 	}
 	b.WriteString(`</form>`)
 	return b.String()
+}
+
+// answersFromQuery reads back what the Continue button put into the address.
+//
+// Only for the form the Continue belonged to — the hidden field says which —
+// and only for fields this form has. A form with no second step never asks:
+// then nothing this program drew put those values there, and a link somebody
+// else composed could pre-fill a stranger's form with a stranger's words.
+//
+// Everything is bounded here and escaped where it is written. What it does mean
+// is that a two-step form's first answers stand in the server log, the way the
+// query string of every GET does. That is the price of a wizard without
+// JavaScript, and it is why the split is at the first conditional field: a form
+// that asks something which should not be logged should ask it after Continue.
+func answersFromQuery(f formular, query url.Values) url.Values {
+	if !f.HasSteps() || query.Get(fieldForm) != f.Key {
+		return nil
+	}
+	out := url.Values{}
+	for _, fe := range f.Fields {
+		name := fieldPrefix + fe.Key
+		v := strings.TrimSpace(query.Get(name))
+		if v == "" {
+			continue
+		}
+		if r := []rune(v); len(r) > maxText {
+			v = string(r[:maxText])
+		}
+		out.Set(name, v)
+	}
+	return out
 }
 
 // inputKind maps a field kind onto an <input>'s type.
@@ -132,7 +203,19 @@ type answer struct {
 func empfangenEigen(f formular, form url.Values, page string) (message, refusal) {
 	n := message{Page: page, Form: f.Key, FormName: f.Name}
 
+	// The same reading of the conditions the drawing made. A field that was
+	// not asked is not missing: it was never put to this person, and refusing
+	// the submission because it is empty would be refusing them for an answer
+	// nobody wanted.
+	answered := map[string]string{}
 	for _, fe := range f.Fields {
+		answered[fe.Key] = strings.TrimSpace(form.Get(fieldPrefix + fe.Key))
+	}
+
+	for _, fe := range f.Fields {
+		if !fe.asked(answered) {
+			continue
+		}
 		raw := strings.TrimSpace(form.Get(fieldPrefix + fe.Key))
 		if fe.Art == ArtAnkreuz {
 			if raw != "" {

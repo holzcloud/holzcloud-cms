@@ -266,6 +266,7 @@
 "As an administrator you cannot switch it off. If the device is gone and no recovery code is left, this helps on the server:": "Come amministratore non puoi disattivarla. Se il dispositivo è perso e non resta alcun codice di recupero, sul server aiuta questo:",
 "As the browser asks (automatic)": "Come il browser (automatico)",
 "Ask about wool": "Richiedere lana",
+"Ask only when": "Chiedi solo se",
 "Assignment saved.": "Assegnazione salvata.",
 "At least one domain": "Almeno un dominio",
 "At most %d files per message, and only the kinds the media library already takes — checked by their content and not by what the browser claims. They land in this website's media, where you can see and delete them. Off to begin with: switching it on means strangers may put files on this server.": "Al massimo %d file per messaggio, e solo i tipi che la libreria multimediale accetta già — verificati in base al loro contenuto e non a quello che dichiara il browser. Finiscono nei media di questo sito, dove puoi vederli ed eliminarli. All'inizio disattivato: attivarlo significa che degli sconosciuti possono mettere file su questo server.",
@@ -1381,6 +1382,7 @@
 "The uploaded file could not be read": "Il file caricato non è stato letto",
 "The uploaded image is back.": "L'immagine caricata è tornata.",
 "The uploaded image is kept. Every crop starts from it again, not from the previous result — so an image loses no quality even on the fifth attempt.": "L'immagine caricata viene conservata. Ogni ritaglio riparte da essa e non dal risultato precedente — così un'immagine non perde qualità nemmeno al quinto tentativo.",
+"The visitor sees a Continue button and the field appears after it. For a tick box the value is “ja”.": "Il visitatore vede un pulsante Avanti, poi compare il campo. Per una casella il valore è «ja».",
 "The wastebasket is empty.": "Il cestino è vuoto.",
 "The website of this import no longer exists. The import was broken off; nothing was written.": "Il sito di questa importazione non esiste più. L'importazione è stata interrotta; non è stato scritto nulla.",
 "There are more files.": "Ci sono altri file.",
@@ -1621,6 +1623,7 @@
 "album %q: the image %q did not arrive: %v": "Album %q: l’immagine %q non è arrivata: %v",
 "album %q: the image %q is not in the archive.": "Album %q: l’immagine %q non è nell’archivio.",
 "all": "tutti",
+"always": "sempre",
 "an address with two slashes leads to somebody else’s server.": "un indirizzo con due barre porta al server di qualcun altro.",
 "and %d more": "e altre %d",
 "as in the archive": "come nell'archivio",
@@ -1815,6 +1818,7 @@
 "“%s”: “%s” is neither a yes nor a no.": "«%s»: «%s» non è né un sì né un no.",
 "“Create version” copies this page into the other language as a draft — text and address are translated there.": "«Crea la versione» copia questa pagina come bozza nell'altra lingua — testo e indirizzo si traducono lì.",
 "… and %d more": "… e altri %d",
+"…is answered with": "…è compilato con",
 "↑ up": "↑ su",
 "↓ down": "↓ giù"
 }

@@ -266,6 +266,7 @@
 "As an administrator you cannot switch it off. If the device is gone and no recovery code is left, this helps on the server:": "En tant qu'administrateur vous ne pouvez pas la désactiver. Si l'appareil est perdu et qu'il ne reste aucun code de secours, voici la solution sur le serveur :",
 "As the browser asks (automatic)": "Comme le navigateur (automatique)",
 "Ask about wool": "Demander de la laine",
+"Ask only when": "Ne demander que si",
 "Assignment saved.": "Attribution enregistrée.",
 "At least one domain": "Au moins un domaine",
 "At most %d files per message, and only the kinds the media library already takes — checked by their content and not by what the browser claims. They land in this website's media, where you can see and delete them. Off to begin with: switching it on means strangers may put files on this server.": "Au maximum %d fichiers par message, et seulement les types que la médiathèque accepte déjà — vérifiés d'après leur contenu et non d'après ce que prétend le navigateur. Ils arrivent dans les médias de ce site, où vous pouvez les voir et les supprimer. Désactivé au départ : l'activer signifie que des inconnus peuvent déposer des fichiers sur ce serveur.",
@@ -1381,6 +1382,7 @@
 "The uploaded file could not be read": "Le fichier téléversé n'a pas pu être lu",
 "The uploaded image is back.": "L'image téléversée est de retour.",
 "The uploaded image is kept. Every crop starts from it again, not from the previous result — so an image loses no quality even on the fifth attempt.": "L'image téléversée est conservée. Chaque recadrage repart d'elle et non du résultat précédent — ainsi une image ne perd rien en qualité même au cinquième essai.",
+"The visitor sees a Continue button and the field appears after it. For a tick box the value is “ja”.": "Le visiteur voit un bouton Continuer, puis le champ apparaît. Pour une case à cocher, la valeur est « ja ».",
 "The wastebasket is empty.": "La corbeille est vide.",
 "The website of this import no longer exists. The import was broken off; nothing was written.": "Le site de cet import n'existe plus. L'import a été interrompu ; rien n'a été écrit.",
 "There are more files.": "Il y a d'autres fichiers.",
@@ -1621,6 +1623,7 @@
 "album %q: the image %q did not arrive: %v": "Album %q : l’image %q n’est pas arrivée : %v",
 "album %q: the image %q is not in the archive.": "Album %q : l’image %q n’est pas dans l’archive.",
 "all": "tous",
+"always": "toujours",
 "an address with two slashes leads to somebody else’s server.": "une adresse avec deux barres obliques mène au serveur de quelqu’un d’autre.",
 "and %d more": "et %d autres",
 "as in the archive": "comme dans les archives",
@@ -1815,6 +1818,7 @@
 "“%s”: “%s” is neither a yes nor a no.": "« %s » : « %s » n'est ni un oui ni un non.",
 "“Create version” copies this page into the other language as a draft — text and address are translated there.": "« Créer la version » copie cette page en brouillon dans l'autre langue — texte et adresse s'y traduisent.",
 "… and %d more": "… et %d autres",
+"…is answered with": "…est rempli avec",
 "↑ up": "↑ vers le haut",
 "↓ down": "↓ vers le bas"
 }

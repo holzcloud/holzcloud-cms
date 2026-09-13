@@ -80,6 +80,53 @@ type field struct {
 	Required bool     `json:"pflicht,omitempty"`
 	Hint     string   `json:"hinweis,omitempty"`
 	Choices  []string `json:"auswahl,omitempty"`
+	// ShowIf and ShowIfValue make a field conditional: it is asked only when
+	// the field named in ShowIf has been answered with ShowIfValue.
+	//
+	// Both empty on an ordinary field, and that is every field of every form
+	// written before this existed.
+	//
+	// The condition names a field by its KEY, which is the thing that does not
+	// change when the label is reworded — the same reason answers are stored
+	// under the key.
+	ShowIf      string `json:"zeigt_wenn,omitempty"`
+	ShowIfValue string `json:"zeigt_wenn_wert,omitempty"`
+}
+
+// Conditional returns whether this field is asked only sometimes.
+func (f field) Conditional() bool { return f.ShowIf != "" }
+
+// asked reports whether a field is asked, given what has been answered.
+//
+// A field with no condition is always asked. A field whose condition names a
+// field that does not exist is never asked, which is the safe direction: the
+// alternative is a question nobody can answer standing in the form for ever,
+// and the editor shows the condition beside the field so it can be seen.
+func (f field) asked(answers map[string]string) bool {
+	if !f.Conditional() {
+		return true
+	}
+	return answers[f.ShowIf] == f.ShowIfValue
+}
+
+// steps splits a form at its first conditional field.
+//
+// Everything up to it is the first step; the rest is the second. One split and
+// not a chain of them: a form that needs three steps needs three forms, and a
+// visitor who has to press Continue twice has already left.
+func (f formular) steps() (first, second []field) {
+	for i, fe := range f.Fields {
+		if fe.Conditional() {
+			return f.Fields[:i], f.Fields[i:]
+		}
+	}
+	return f.Fields, nil
+}
+
+// HasSteps reports whether this form asks in two goes.
+func (f formular) HasSteps() bool {
+	_, second := f.steps()
+	return len(second) > 0
 }
 
 // formular ist ein zusammengestelltes Formular.
@@ -235,6 +282,23 @@ func (f formular) clean() formular {
 			}
 			fe.Choices = choices
 		}
+		// A condition may only look back. One that named a later field would be
+		// a question whose answer depends on a question that has not been asked
+		// yet — which draws nothing, for ever, with no way for the operator to
+		// see why. Dropping the condition leaves the field always asked, which
+		// is the visible failure rather than the invisible one.
+		fe.ShowIf = strings.TrimSpace(fe.ShowIf)
+		fe.ShowIfValue = strings.TrimSpace(fe.ShowIfValue)
+		if fe.ShowIf == fe.Key || (fe.ShowIf != "" && !belegt[fe.ShowIf]) {
+			fe.ShowIf, fe.ShowIfValue = "", ""
+		}
+		// A condition with no value would be "when that field is empty", which
+		// is not what anybody means by it and is what an operator gets by
+		// choosing a field and forgetting the box.
+		if fe.ShowIfValue == "" {
+			fe.ShowIf = ""
+		}
+
 		fields = append(fields, fe)
 		if len(fields) >= maxFields {
 			break

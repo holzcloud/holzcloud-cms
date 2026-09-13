@@ -192,7 +192,7 @@ func TestEveryCodeThisProgramProducesHasASentence(t *testing.T) {
 	produced := []string{
 		"name-missing", "name-long", "email-missing", "email-shape", "email-long",
 		"subject-long", "text-missing", "text-long", "unreadable", "expired",
-		"gone", "too-many", "form-incomplete",
+		"gone", "too-many", "form-incomplete", "consent-missing", "attach-refused",
 		"field-tick", "field-fill", "field-long", "field-email", "field-digit",
 		"field-date", "field-pick",
 	}
@@ -262,5 +262,117 @@ func TestSweepKeepsWhatNobodyHasRead(t *testing.T) {
 	}
 	if !strings.Contains(fn, "kept") {
 		t.Error("sweep does not report what it kept, so an operator cannot see why the store is full")
+	}
+}
+
+// A conditional field is asked only when its condition is met.
+func TestAConditionalFieldIsAskedOnlyWhenItsConditionIsMet(t *testing.T) {
+	firma := field{Key: "firma", Label: "Firma?", Art: KindChoice, Choices: []string{"ja", "nein"}}
+	uid := field{Key: "uid", Label: "UID", Art: ArtText, ShowIf: "firma", ShowIfValue: "ja"}
+
+	for _, c := range []struct {
+		name   string
+		answer string
+		want   bool
+	}{
+		{"answered the way the condition wants", "ja", true},
+		{"answered otherwise", "nein", false},
+		{"not answered at all", "", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := uid.asked(map[string]string{"firma": c.answer})
+			if got != c.want {
+				t.Errorf("asked = %v, want %v", got, c.want)
+			}
+		})
+	}
+	if !firma.asked(map[string]string{}) {
+		t.Error("a field with no condition must always be asked")
+	}
+	if firma.Conditional() || !uid.Conditional() {
+		t.Error("Conditional does not tell the two apart")
+	}
+}
+
+// A condition that cannot work is dropped when the form is saved.
+//
+// Dropping it leaves the field always asked, which the operator can see. The
+// alternative is a question that draws nothing for ever with no way to find out
+// why — the invisible failure rather than the visible one.
+func TestAnImpossibleConditionIsDroppedOnSave(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		fields []field
+		// wantCond is the condition the SECOND field keeps.
+		wantCond string
+	}{
+		{
+			name: "a condition on an earlier field stands",
+			fields: []field{
+				{Label: "Firma?", Art: KindChoice, Choices: []string{"ja"}},
+				{Label: "UID", Art: ArtText, ShowIf: "firma", ShowIfValue: "ja"},
+			},
+			wantCond: "firma",
+		},
+		{
+			name: "a condition on a LATER field is dropped",
+			fields: []field{
+				{Label: "Firma?", Art: KindChoice, Choices: []string{"ja"}},
+				{Label: "UID", Art: ArtText, ShowIf: "spaeter", ShowIfValue: "ja"},
+				{Label: "Spaeter", Art: ArtText},
+			},
+			wantCond: "",
+		},
+		{
+			name: "a condition on itself is dropped",
+			fields: []field{
+				{Label: "Firma?", Art: KindChoice, Choices: []string{"ja"}},
+				{Label: "UID", Art: ArtText, ShowIf: "uid", ShowIfValue: "ja"},
+			},
+			wantCond: "",
+		},
+		{
+			name: "a condition with no value is dropped",
+			fields: []field{
+				{Label: "Firma?", Art: KindChoice, Choices: []string{"ja"}},
+				{Label: "UID", Art: ArtText, ShowIf: "firma"},
+			},
+			wantCond: "",
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out := formular{Name: "Test", Fields: c.fields}.clean()
+			if len(out.Fields) < 2 {
+				t.Fatalf("%d fields survived", len(out.Fields))
+			}
+			if got := out.Fields[1].ShowIf; got != c.wantCond {
+				t.Errorf("condition = %q, want %q", got, c.wantCond)
+			}
+		})
+	}
+}
+
+// A form splits at its first conditional field, and only there.
+func TestAFormSplitsAtItsFirstConditionalField(t *testing.T) {
+	plain := formular{Fields: []field{{Key: "a"}, {Key: "b"}}}
+	if plain.HasSteps() {
+		t.Error("a form with no condition has no second step")
+	}
+	first, second := plain.steps()
+	if len(first) != 2 || second != nil {
+		t.Errorf("split = %d/%d, want 2/0", len(first), len(second))
+	}
+
+	split := formular{Fields: []field{
+		{Key: "a"}, {Key: "b"},
+		{Key: "c", ShowIf: "a", ShowIfValue: "ja"},
+		{Key: "d", ShowIf: "b", ShowIfValue: "ja"},
+	}}
+	if !split.HasSteps() {
+		t.Error("a form with a condition has a second step")
+	}
+	first, second = split.steps()
+	if len(first) != 2 || len(second) != 2 {
+		t.Errorf("split = %d/%d, want 2/2", len(first), len(second))
 	}
 }

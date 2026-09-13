@@ -266,6 +266,7 @@
 "As an administrator you cannot switch it off. If the device is gone and no recovery code is left, this helps on the server:": "Como administrador no puedes desactivarla. Si el dispositivo se ha perdido y no queda ningún código de recuperación, en el servidor ayuda esto:",
 "As the browser asks (automatic)": "Como el navegador (automático)",
 "Ask about wool": "Consultar por la lana",
+"Ask only when": "Preguntar solo si",
 "Assignment saved.": "Asignación guardada.",
 "At least one domain": "Al menos un dominio",
 "At most %d files per message, and only the kinds the media library already takes — checked by their content and not by what the browser claims. They land in this website's media, where you can see and delete them. Off to begin with: switching it on means strangers may put files on this server.": "Como máximo %d archivos por mensaje, y solo los tipos que la biblioteca de medios ya acepta — comprobados por su contenido y no por lo que afirma el navegador. Llegan a los medios de este sitio, donde puedes verlos y eliminarlos. Desactivado al principio: activarlo significa que desconocidos pueden dejar archivos en este servidor.",
@@ -1381,6 +1382,7 @@
 "The uploaded file could not be read": "No se pudo leer el archivo subido",
 "The uploaded image is back.": "La imagen subida ha vuelto.",
 "The uploaded image is kept. Every crop starts from it again, not from the previous result — so an image loses no quality even on the fifth attempt.": "La imagen subida se conserva. Cada recorte parte de ella y no del resultado anterior — así una imagen no pierde calidad ni al quinto intento.",
+"The visitor sees a Continue button and the field appears after it. For a tick box the value is “ja”.": "El visitante ve un botón Continuar y después aparece el campo. Para una casilla el valor es «ja».",
 "The wastebasket is empty.": "La papelera está vacía.",
 "The website of this import no longer exists. The import was broken off; nothing was written.": "El sitio de esta importación ya no existe. La importación se interrumpió; no se escribió nada.",
 "There are more files.": "Hay más archivos.",
@@ -1621,6 +1623,7 @@
 "album %q: the image %q did not arrive: %v": "Álbum %q: la imagen %q no llegó: %v",
 "album %q: the image %q is not in the archive.": "Álbum %q: la imagen %q no está en el archivo.",
 "all": "todos",
+"always": "siempre",
 "an address with two slashes leads to somebody else’s server.": "una dirección con dos barras lleva al servidor de otra persona.",
 "and %d more": "y %d más",
 "as in the archive": "como en el archivo",
@@ -1815,6 +1818,7 @@
 "“%s”: “%s” is neither a yes nor a no.": "«%s»: «%s» no es ni un sí ni un no.",
 "“Create version” copies this page into the other language as a draft — text and address are translated there.": "«Crear la versión» copia esta página como borrador al otro idioma — el texto y la dirección se traducen allí.",
 "… and %d more": "… y %d más",
+"…is answered with": "…está respondido con",
 "↑ up": "↑ arriba",
 "↓ down": "↓ abajo"
 }
