@@ -441,6 +441,15 @@ public side still has no translation channel at all, and a plugin's
 
 ## Operator Next Steps
 
+- **Der Release-Tag `v2.0` ist noch nicht auf dem Remote.** Er ist angelegt und
+  beschriftet auf `9fe3279` (dem ersten `main`-Commit, der die ganze Phase
+  traegt), aber `git push origin refs/tags/v2.0` wird von GitHub mit 403
+  abgewiesen: der Zugang dieser Ausfuehrungsumgebung darf Branch-Refs schreiben,
+  Tag-Refs nicht. Zweigstellen-Pushes am selben Tag liefen durch, der Proxy
+  meldet keine Stoerung — es ist eine Berechtigung, kein Netzfehler. **Zu tun:**
+  den Tag von einer Arbeitskopie mit vollem Zugang pushen. Bis dahin stempelt
+  `image.yml` (`git describe --tags`) jedes Abbild als `v1.10-31-g9fe3279`
+  statt als `v2.0`.
 - Nothing open in phase 12. The milestone is closed: `12-CONTEXT.md` and
   `12-VERIFICATION.md` are archived under `.planning/milestones/v2.0-phases/`,
   `REQUIREMENTS.md` and `ROADMAP.md` are copied beside them as

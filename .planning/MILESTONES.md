@@ -76,8 +76,11 @@ channel at all, which is the open decision handed to whatever comes next.
 
 ### Tag
 
-`v2.0` — the release built from this milestone (2026-09-13), on the first
-commit of `main` that carries the whole phase. It is the first close under the
+`v2.0` — the release built from this milestone (2026-09-13), on `9fe3279`, the
+first commit of `main` that carries the whole phase. **The tag is written but
+not yet on the remote**: this milestone was closed from an execution
+environment whose GitHub access writes branch refs and not tag refs, and the
+push is refused with 403. `STATE.md` carries it under *Operator Next Steps*. It is the first close under the
 rule the v1.10 entry states: from here a milestone close creates its release
 tag, and milestone and release carry one number. The major number is not a
 courtesy — two public contracts break in this release, the template data
