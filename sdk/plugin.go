@@ -78,6 +78,10 @@ type ContentIn struct {
 	// Query is the current request's query string, so a filter can react to
 	// what came back in the address — the outcome of a form submission, say.
 	Query string `json:"query,omitempty"`
+	// Lang is the language this page is being served in — not the website's
+	// first language, which is what Site().Locale gives: a page in a second
+	// language is served in that one.
+	Lang string `json:"lang,omitempty"`
 	// Path is the address this page is being served under, so a filter can
 	// point back at it. Not the same as Slug: the start page has the slug
 	// "home" and is served at "/", and a page in a second language carries the
@@ -117,6 +121,9 @@ type RequestIn struct {
 	// is real; refuse it and simply do not call, and the files go away with the
 	// request.
 	Files []AttachedFile `json:"files,omitempty"`
+	// Lang is the language this request is answered in, the same question
+	// ContentIn.Lang answers for a page.
+	Lang string `json:"lang,omitempty"`
 }
 
 // AttachedFile is one file that came in with a request.
@@ -294,6 +301,18 @@ type Settings struct {
 	BlogBase    string `json:"blog_base,omitempty"`
 	// ContactEmail is the address the operator publishes.
 	ContactEmail string `json:"contact_email,omitempty"`
+	// Locales are the languages this website publishes in, Locale first. A
+	// plugin that keeps a sentence of the operator's own needs to know how many
+	// times to ask for it: one sentence on a website published in two languages
+	// is a sentence half the visitors cannot read.
+	Locales []Locale `json:"locales,omitempty"`
+}
+
+// Locale is one language a website publishes in: the tag, and the name in that
+// language itself, which is the one an operator recognises at a glance.
+type Locale struct {
+	Tag  string `json:"tag"`
+	Name string `json:"name,omitempty"`
 }
 
 // --- registering hooks ------------------------------------------------------

@@ -131,6 +131,23 @@ func (w Website) Locales() []string { return locale.ParseList(w.ExtraLocales, w.
 // Multilingual reports whether this website has more than one language.
 func (w Website) Multilingual() bool { return len(w.Locales()) > 0 }
 
+// AllLocales are every language this website publishes in, its main one first.
+//
+// Locales() is the EXTRA languages — that is what Multilingual() counts — so
+// whoever wants "all of them" and reaches for it leaves out the language most
+// of the site is written in. That mistake has now been made twice, once on the
+// wording screen and once in the settings a plugin reads, so the right answer
+// lives here rather than being written out a third time.
+func (w Website) AllLocales() []string {
+	out := []string{w.Locale}
+	for _, l := range w.Locales() {
+		if l != w.Locale {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 // HasArchive reports whether this website publishes a post archive.
 func (w Website) HasArchive() bool { return w.BlogBase != "" }
 

@@ -35,6 +35,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/jobs"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
+	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
@@ -338,6 +339,10 @@ func main() {
 				WebsiteID: ws.ID, Name: ws.Name, Description: ws.Description,
 				Locale: ws.Locale, TimeZone: ws.TimeZone, BlogBase: ws.BlogBase,
 				ContactEmail: ws.ContactEmail,
+				// Every language this website publishes in, its main one at
+				// the front. Not Locales(), which is the EXTRA languages and
+				// would leave out the one most of the site is written in.
+				Locales: pluginLocales(ws),
 			}, nil
 		})
 		if m, err := plugin.NewManager(context.Background(), pluginStore, pluginRuntime, cfg.DataDir, slog.Default()); err != nil {
@@ -1291,3 +1296,17 @@ type outboxSender struct{ s *mail.Sender }
 func (a outboxSender) Configured() bool { return a.s != nil && a.s.Enabled() }
 
 func (a outboxSender) Send(_ context.Context, m mail.Message) error { return a.s.Send(m) }
+
+// pluginLocales is the language list a plugin sees: every language this website
+// publishes in, its main one first, each with the name it has in itself.
+//
+// Not ws.Locales(), which is the EXTRA languages and would leave out the one
+// most of the site is written in — the same trap the wording screen fell into.
+func pluginLocales(ws *domain.Website) []plugin.Locale {
+	tags := ws.AllLocales()
+	out := make([]plugin.Locale, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, plugin.Locale{Tag: tag, Name: locale.Native(tag)})
+	}
+	return out
+}

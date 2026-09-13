@@ -51,6 +51,7 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	// --- der Honigtopf ---
 	rec := submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
+		"pfad":      {"/kontakt"},
 		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Ein Roboter"},
 		"email":     {"bot@example.test"},
@@ -69,6 +70,7 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	// --- eine zu schnelle Absendung ---
 	rec = submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
+		"pfad":      {"/kontakt"},
 		"gestellt":  {timeToken(t, database, 0)},
 		"name":      {"Zu schnell"},
 		"email":     {"schnell@example.test"},
@@ -84,6 +86,7 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	// --- an incomplete submission ---
 	rec = submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
+		"pfad":      {"/kontakt"},
 		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {""},
 		"email":     {"eva@example.test"},
@@ -96,6 +99,7 @@ func TestKontaktformularPluginNimmtNachrichtenAn(t *testing.T) {
 	// --- eine echte Absendung ---
 	rec = submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
+		"pfad":      {"/kontakt"},
 		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Eva Muster"},
 		"email":     {"eva@example.test"},
@@ -133,6 +137,7 @@ func TestNachrichtWirdInDerVerwaltungMaskiert(t *testing.T) {
 
 	submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
+		"pfad":      {"/kontakt"},
 		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {`<img src=x onerror="alert(1)">`},
 		"email":     {"boese@example.test"},
@@ -171,6 +176,19 @@ func formularAufbau(t *testing.T) (*Handler, *db.DB, *domain.Website, *plugin.Ma
 
 	h, database := newTestHandler(t)
 	ws := seedWebsite(t, database, "Velowerkstatt")
+	// German with French beside it, because a question this plugin has to
+	// answer — which language does this visitor read — cannot be asked of a
+	// website that has only one.
+	store := domain.NewStore(database)
+	set := domain.Settings{Locale: "de", ExtraLocales: "fr", TimeZone: "Europe/Zurich",
+		OfflineMode: "notfound", PostsPerPage: 10}
+	if err := store.UpdateSettings(context.Background(), ws.ID, set); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	ws, err = store.GetWebsite(context.Background(), ws.ID)
+	if err != nil {
+		t.Fatalf("GetWebsite: %v", err)
+	}
 	manager := loadPlugin(t, h, database, manifest, module, ws.ID)
 	h.SetPlugins(manager)
 
@@ -255,6 +273,7 @@ func TestAnfrageLandetImPostausgang(t *testing.T) {
 
 	submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
+		"pfad":      {"/kontakt"},
 		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Eva Muster"},
 		"email":     {"besucher@example.test"},
@@ -293,6 +312,7 @@ func TestWithoutANotificationAddressNoMail(t *testing.T) {
 
 	rec := submit(t, h, ws, url.Values{
 		"seite":     {"kontakt"},
+		"pfad":      {"/kontakt"},
 		"gestellt":  {timeToken(t, database, -10*time.Second)},
 		"name":      {"Eva Muster"},
 		"email":     {"besucher@example.test"},
@@ -522,6 +542,7 @@ func TestAVisitorIsRefusedInTheLanguageOfThePageAtTheRightField(t *testing.T) {
 
 			form := url.Values{
 				"seite":     {"kontakt"},
+				"pfad":      {"/kontakt"},
 				"gestellt":  {timeToken(t, database, -10*time.Second)},
 				"name":      {"Anna Beispiel"},
 				"email":     {"keine-adresse"}, // what is refused
@@ -707,6 +728,107 @@ func TestTheAnswerToASubmissionGoesToThePagesOwnAddress(t *testing.T) {
 		})
 		if ort := rec.Header().Get("Location"); !strings.HasPrefix(ort, "/?") {
 			t.Errorf("%q became the address %q", boese, ort)
+		}
+	}
+}
+
+// The consent sentence is the operator's own text, and one sentence on a
+// website published in two languages is a sentence half the visitors cannot
+// read. Found in the browser during the milestone's own theme pass: a French
+// page asked, in German, for agreement to store the visitor's details.
+func TestTheConsentIsAskedInTheLanguageOfThePage(t *testing.T) {
+	h, database, ws, manager := formularAufbau(t)
+	ctx := context.Background()
+
+	admin := func(form url.Values) plugin.AdminOut {
+		t.Helper()
+		in := plugin.AdminIn{WebsiteID: ws.ID, Method: "GET"}
+		if form != nil {
+			in.Method = "POST"
+			in.Form = form
+		}
+		out, err := manager.Admin(ctx, "kontaktformular", in)
+		if err != nil {
+			t.Fatalf("Admin: %v", err)
+		}
+		return *out
+	}
+
+	admin(url.Values{
+		"einwilligungstext":    {"Ich bin einverstanden, dass meine Angaben gespeichert werden."},
+		"einwilligungstext:fr": {"J'accepte que mes données soient enregistrées."},
+		"einwilligung_sichern": {"1"},
+	})
+
+	draw := func(lang string) string {
+		return manager.FilterContent(ctx, ws.ID, plugin.ContentIn{
+			WebsiteID: ws.ID, Slug: "kontakt", Title: "Kontakt",
+			HTML: "<p>[[formular]]</p>", Path: "/kontakt", Lang: lang,
+		})
+	}
+
+	// The sentence the sender read is the one recorded with their message, and
+	// the submission goes to /formular, which carries no language of its own —
+	// so the form carries the language it was drawn in.
+	fr0 := draw("fr")
+	if !strings.Contains(fr0, `name="sprache" value="fr"`) {
+		t.Errorf("the form does not say which language it was drawn in:\n%s", fr0)
+	}
+
+	if de := draw("de"); !strings.Contains(de, "Ich bin einverstanden") {
+		t.Errorf("the German page does not carry the German sentence:\n%s", de)
+	}
+	fr := draw("fr")
+	if !strings.Contains(fr, "enregistrées") {
+		t.Errorf("the French page does not carry the French sentence:\n%s", fr)
+	}
+	if strings.Contains(fr, "Ich bin einverstanden") {
+		t.Errorf("the French page still carries the German sentence:\n%s", fr)
+	}
+
+	// A language the operator wrote nothing for falls back rather than losing
+	// the tick box: a form that silently stops asking for consent because a
+	// language was added is the worse failure of the two.
+	if it := draw("it"); !strings.Contains(it, "Ich bin einverstanden") {
+		t.Errorf("a language without its own sentence lost the tick box:\n%s", it)
+	}
+
+	// A submission out of the French form records the French sentence, not the
+	// one the website's first language happens to carry.
+	rec := submit(t, h, ws, url.Values{
+		"seite": {"kontakt"}, "pfad": {"/fr/kontakt"}, "sprache": {"fr"},
+		"gestellt":     {timeToken(t, database, -10*time.Second)},
+		"name":         {"Camille"},
+		"email":        {"camille@example.test"},
+		"nachricht":    {"Avez-vous encore de la laine brune ?"},
+		"einwilligung": {"1"},
+	})
+	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
+		t.Fatalf("the French submission was refused: %q", ort)
+	}
+	if out := admin(nil); !strings.Contains(out.HTML, "enregistrées") {
+		t.Errorf("the German sentence was recorded with a French submission:\n%s", out.HTML)
+	}
+
+	// A language tag out of a submission that this website does not publish in
+	// is a stranger's word and falls back rather than being trusted.
+	rec = submit(t, h, ws, url.Values{
+		"seite": {"kontakt"}, "pfad": {"/kontakt"}, "sprache": {"xx"},
+		"gestellt":     {timeToken(t, database, -10*time.Second)},
+		"name":         {"Eva"},
+		"email":        {"eva@example.test"},
+		"nachricht":    {"Noch eine Frage zur braunen Wolle."},
+		"einwilligung": {"1"},
+	})
+	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
+		t.Errorf("an unknown language tag broke the submission: %q", ort)
+	}
+
+	// Emptying the first box takes the tick box off every language.
+	admin(url.Values{"einwilligungstext": {""}, "einwilligung_sichern": {"1"}})
+	for _, lang := range []string{"de", "fr"} {
+		if s := draw(lang); strings.Contains(s, "einwilligung") {
+			t.Errorf("%s still asks for consent after it was switched off:\n%s", lang, s)
 		}
 	}
 }

@@ -26,6 +26,7 @@ func zeichnenEigen(f formular, d data, values url.Values) string {
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldTime, e(d.Timestamp))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPage, e(d.Page))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPath, e(d.Path))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldLang, e(d.Lang))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldForm, e(f.Key))
 
 	if d.Hint != "" {

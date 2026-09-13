@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 )
 
@@ -108,6 +109,9 @@ func pluginRequest(r *http.Request, websiteID int64) plugin.RequestIn {
 		Path:      r.URL.Path,
 		Query:     r.URL.RawQuery,
 		Headers:   map[string]string{},
+		// The language this request is answered in, so a plugin's answer to a
+		// visitor is in the visitor's language and not the website's first.
+		Lang: i18n.Lang(r.Context()),
 	}
 	for _, name := range forwardedHeaders {
 		if v := r.Header.Get(name); v != "" {

@@ -49,7 +49,7 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 		case len(in.Form["anhang_sichern"]) > 0:
 			return saveAttach(len(in.Form["anhang"]) > 0)
 		case len(in.Form["einwilligung_sichern"]) > 0:
-			return saveConsent(firstValue(in.Form, "einwilligungstext"))
+			return saveConsent(in.Form)
 		case len(in.Form["verwerfen"]) > 0:
 			_ = plugin.Delete(prefixQuarantine + in.Form["verwerfen"][0])
 			return plugin.AdminOut{Redirect: "?ansicht=" + ansichtAbgewiesen,
@@ -517,16 +517,54 @@ func consentScreen() (plugin.AdminOut, error) {
 			"somewhere: if you reword it next year, you can still say what each person "+
 			"actually agreed to.")))
 
-	current := consentText()
-	fmt.Fprintf(&b, `<form method="POST" class="stack">`+
-		`<label for="ew">%s</label>`+
-		`<textarea id="ew" name="einwilligungstext" rows="3" maxlength="%d" placeholder="%s">%s</textarea>`+
-		`<p class="text-muted">%s</p>`+
+	// One box per language the website publishes in. A website with one
+	// language sees exactly the one box it saw before.
+	//
+	// The first language's box is the one that also answers for a language left
+	// empty, so it is not optional and the others are.
+	sprachen := siteLocales()
+	if len(sprachen) == 0 {
+		sprachen = []plugin.Locale{{}}
+	}
+	current := consentTextExact("")
+	if current == "" {
+		current = consentTextExact(sprachen[0].Tag)
+	}
+
+	b.WriteString(`<form method="POST" class="stack">`)
+	for i, l := range sprachen {
+		wort := l.Name
+		if wort == "" {
+			wort = l.Tag
+		}
+		name := "einwilligungstext"
+		wert := current
+		beschriftung := plugin.T("The sentence beside the tick box")
+		if wort != "" {
+			beschriftung = plugin.Tf("The sentence in %s", wort)
+		}
+		if i > 0 {
+			name = "einwilligungstext:" + l.Tag
+			wert = consentTextExact(l.Tag)
+		}
+		id := "ew" + strconv.Itoa(i)
+		fmt.Fprintf(&b, `<label for="%s">%s</label>`+
+			`<textarea id="%s" name="%s" rows="3" maxlength="%d" placeholder="%s">%s</textarea>`,
+			e(id), e(beschriftung), e(id), e(name), maxConsent,
+			e(plugin.T("I agree that my details will be stored in order to answer my enquiry.")),
+			e(wert))
+		if i > 0 && strings.TrimSpace(wert) == "" && strings.TrimSpace(current) != "" {
+			// Said once per language that has none, because the fallback is
+			// silent otherwise: a visitor reading this page in that language
+			// is asked to agree to a sentence in another.
+			fmt.Fprintf(&b, `<p class="text-muted">%s</p>`, e(plugin.Tf(
+				"Empty: a visitor reading the page in %s is shown the first sentence, "+
+					"in a language they may not read.", wort)))
+		}
+	}
+	fmt.Fprintf(&b, `<p class="text-muted">%s</p>`+
 		`<p><button type="submit" name="einwilligung_sichern" value="1" class="btn btn--primary">%s</button></p>`+
 		`</form>`,
-		e(plugin.T("The sentence beside the tick box")), maxConsent,
-		e(plugin.T("I agree that my details will be stored in order to answer my enquiry.")),
-		e(current),
 		plugin.T("A link may stand inside it, written as HTML: "+
 			`&lt;a href="/datenschutz"&gt;Privacy&lt;/a&gt;. `+
 			"Whoever has to follow a link to find out what they are agreeing to has not "+
@@ -561,10 +599,23 @@ func consentScreen() (plugin.AdminOut, error) {
 	return plugin.AdminOut{Title: plugin.T("Consent"), HTML: b.String()}, nil
 }
 
-// saveConsent writes the sentence, or removes the tick box when it is emptied.
-func saveConsent(text string) (plugin.AdminOut, error) {
-	text = clip(text, maxConsent)
+// saveConsent writes the sentences, or removes the tick box when the first one
+// is emptied.
+//
+// The first language's box is the whole switch: emptying it takes the tick box
+// off every form in every language, because a form that still asked in one
+// language after the operator cleared the sentence would be asking for consent
+// to words they have withdrawn. The other languages are cleared with it.
+func saveConsent(form map[string][]string) (plugin.AdminOut, error) {
+	text := clip(firstValue(form, "einwilligungstext"), maxConsent)
+	sprachen := siteLocales()
+
 	if text == "" {
+		for _, l := range sprachen {
+			if err := plugin.Delete(consentKey(l.Tag)); err != nil {
+				return plugin.AdminOut{}, err
+			}
+		}
 		if err := plugin.Delete(keyConsent); err != nil {
 			return plugin.AdminOut{}, err
 		}
@@ -573,6 +624,24 @@ func saveConsent(text string) (plugin.AdminOut, error) {
 	}
 	if err := plugin.Set(keyConsent, text); err != nil {
 		return plugin.AdminOut{}, err
+	}
+	// Every other language the website publishes in. A box left empty deletes
+	// that language's sentence rather than keeping an old one the operator can
+	// no longer see.
+	for i, l := range sprachen {
+		if i == 0 || l.Tag == "" {
+			continue
+		}
+		eigen := clip(firstValue(form, "einwilligungstext:"+l.Tag), maxConsent)
+		if eigen == "" {
+			if err := plugin.Delete(consentKey(l.Tag)); err != nil {
+				return plugin.AdminOut{}, err
+			}
+			continue
+		}
+		if err := plugin.Set(consentKey(l.Tag), eigen); err != nil {
+			return plugin.AdminOut{}, err
+		}
 	}
 	return plugin.AdminOut{Redirect: "?ansicht=" + ansichtEinwilligung,
 		Flash: plugin.T("Saved.")}, nil

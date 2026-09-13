@@ -186,6 +186,23 @@ type SettingsResult struct {
 	// ContactEmail is the address the operator publishes. It is on the site
 	// already, so a plugin that draws a contact form may offer it too.
 	ContactEmail string `json:"contact_email,omitempty"`
+	// Locales are the languages this website publishes in, Locale first.
+	//
+	// A plugin that keeps a sentence of the operator's own — a consent text, a
+	// thank-you — needs to know how many times to ask for it. Without this it
+	// can only keep one, and one sentence on a website published in two
+	// languages is a sentence half the visitors cannot read.
+	Locales []Locale `json:"locales,omitempty"`
+}
+
+// Locale is one language a website publishes in.
+//
+// The tag and the name in that language itself, because an operator picking
+// between boxes recognises "Français" and has to think about "fr" — the same
+// reason the wording screen shows the native name.
+type Locale struct {
+	Tag  string `json:"tag"`
+	Name string `json:"name,omitempty"`
 }
 
 // MaxPagesLimit bounds how many pages one call may return.
@@ -366,6 +383,13 @@ type ContentIn struct {
 	// submission comes back in the address, and without it the plugin would
 	// have to draw the form and the answer to it in two different places.
 	Query string `json:"query,omitempty"`
+	// Lang is the language this page is being served in.
+	//
+	// Not SettingsResult.Locale, which is the website's first language: a page
+	// in the website's second language is served in that second one, and a
+	// plugin that drew the visitor's part of the page from the website's
+	// language would answer half of them in the wrong one.
+	Lang string `json:"lang,omitempty"`
 	// Path is the address this page is being served under.
 	//
 	// Not derivable from Slug: the start page has the slug "home" and lives at
@@ -409,6 +433,9 @@ type RequestIn struct {
 	// KB. What a plugin gets is the name, the kind and the size, which is
 	// everything it needs in order to decide.
 	Files []AttachedFile `json:"files,omitempty"`
+	// Lang is the language this request is answered in, the same question
+	// ContentIn.Lang answers for a page.
+	Lang string `json:"lang,omitempty"`
 }
 
 // AttachedFile is one file the host has taken in and not yet stored.
