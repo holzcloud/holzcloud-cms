@@ -63,6 +63,26 @@ block kinds are CSS classes in all eight themes. Every Go mention of one is now
 a named English constant instead. And the public side still has no translation
 channel at all, which is the open decision handed to whatever comes next.
 
+### Known Gaps
+
+- `WINDOWS.md`: 15 open of 31 at close, none of them this milestone's — every
+  one is inherited from phase 08, 10 or 11. Phase 12 opened no window and
+  closed three it was handed (3, 18, 29).
+- Two things deliberately open, named in `12-VERIFICATION.md`: the public side
+  has no translation channel at all, so a French-language website sells in
+  German; and a plugin's `plugin.json` name and description are not translated.
+- The stored German vocabularies stay German by decision, not by omission —
+  criterion 6 asked for the decision and `12-CONTEXT.md` §3b carries it.
+
+### Tag
+
+`v2.0` — the release built from this milestone (2026-09-13), on the first
+commit of `main` that carries the whole phase. It is the first close under the
+rule the v1.10 entry states: from here a milestone close creates its release
+tag, and milestone and release carry one number. The major number is not a
+courtesy — two public contracts break in this release, the template data
+contract and the MCP tool surface.
+
 ## v1.10 Inhaltsmodell und Zugang (Shipped: 2026-09-11)
 
 *Planned and worked as v1.6, closed on 2026-09-10, renumbered v1.10 when it was released
