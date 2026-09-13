@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: The Codebase Speaks English
 current_phase: 12
 current_phase_name: "The Codebase Speaks English"
-status: in_progress
-stopped_at: "Meilenstein v2.0 eroeffnet (2026-09-11). Phase 12, Welle 12-01 (Bestandsaufnahme und die zwei stehenden Entscheidungen) geschrieben."
-last_updated: "2026-09-11T00:00:00.000Z"
-last_activity: 2026-09-11
+status: complete
+stopped_at: "Phase 12 abgeschlossen und verifiziert (2026-09-13). Alle neun Kriterien erfuellt, Browserdurchgang gefahren, vier Funde behoben. Meilenstein v2.0 bereit zum Tag."
+last_updated: "2026-09-13T00:00:00.000Z"
+last_activity: 2026-09-13
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 10
-  completed_plans: 0
-  percent: 0
+  completed_plans: 10
+  percent: 100
 ---
 
 ## State: Holzcloud CMS
@@ -412,19 +412,44 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 12 — The Codebase Speaks English (milestone v2.0)
-Plan: 12-01 done (measurement + the two standing decisions)
-Status: In progress
-Last activity: 2026-09-11 — v2.0 opened, phase 12 measured against `ef4873a`
+Plan: none open. **Phase 12 is finished and verified.**
+Status: Complete
+Last activity: 2026-09-13 — all nine criteria met, browser pass driven,
+`12-VERIFICATION.md` written
 
-The GSD plugin is not installed in the execution container that opened this
+The GSD plugin is not installed in the execution container that carried this
 milestone (no `/gsd-*` commands, no `gsd-tools` binary) — only the artifacts it
-wrote. The workflow is therefore being carried by hand in the same shape: the
-same artifacts, the same order, the same gates.
+wrote. The workflow was therefore carried by hand in the same shape: the same
+artifacts, the same order, the same gates.
+
+**What the phase did**, in the order the roadmap asked for: the template
+contract with the eight themes (LANG-04), migration 00054 (LANG-05), the
+collectable strings (QUAL-01 / criterion 9), identifiers and comments (LANG-02,
+LANG-03, LANG-01), the catalogue flip (LANG-06), the gates (LANG-07) and the
+browser pass (QUAL-02).
+
+**Three decisions were taken during the phase and written into
+`12-CONTEXT.md`** rather than into a commit message: §3a landed in full (the
+plugin translation channel, smaller than the measurement suggested because most
+of the 274 was a visitor's text), §3c is new (the MCP surface speaks English —
+not foreseen, found because `tools/english` reads string literals as well as
+comments), §3d makes §3b enforceable as the gate's `germanVoice` list.
+
+**Two things are deliberately open** and named in `12-VERIFICATION.md`: the
+public side still has no translation channel at all, and a plugin's
+`plugin.json` name and description are not translated.
 
 ## Operator Next Steps
 
-- Phase 12 is running. Waves and their order are in
-  `.planning/phases/12-codebase-speaks-english/12-CONTEXT.md` §4.
+- Nothing open in phase 12. The milestone is closed: `12-CONTEXT.md` and
+  `12-VERIFICATION.md` are archived under `.planning/milestones/v2.0-phases/`,
+  `REQUIREMENTS.md` and `ROADMAP.md` are copied beside them as
+  `v2.0-REQUIREMENTS.md` / `v2.0-ROADMAP.md`, the audit is
+  `v2.0-MILESTONE-AUDIT.md`, and the active requirements file is removed as it
+  is at every close. Ready to tag as **2.0**.
+- The open decision worth the next milestone's attention: the public side has no
+  translation channel, so a French-language website sells in German. It needs
+  the theme and the handler decided together — a feature, not a cleanup.
 
 ## Deferred Items
 
