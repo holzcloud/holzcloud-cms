@@ -2165,3 +2165,14 @@ main:focus { outline: none; }
 }
 .contact-form__consent input { width: auto; flex: none; margin-block-start: 2px; }
 .contact-form__consent a { color: inherit; }
+
+/* Der Weiter-Knopf eines Formulars mit bedingten Feldern. Zweitrangig
+   neben dem Absenden: er schickt nichts, er zeigt nur mehr. */
+.contact-form__more {
+  align-self: start;
+  padding: 11px var(--hc-space-6);
+  font: inherit; font-size: var(--hc-text-sm); font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink); background: transparent;
+  border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-sm);
+  cursor: pointer;
+}

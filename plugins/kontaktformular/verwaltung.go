@@ -205,6 +205,36 @@ func formulareditor(in plugin.AdminIn, key string) (plugin.AdminOut, error) {
 		fmt.Fprintf(&b, `<label><input type="checkbox" name="%s.pflicht" value="1"%s> `+
 			`%s</label>`, p, an, e(plugin.T("Has to be filled in")))
 
+		// The condition. Only fields that come BEFORE this one can be named:
+		// a condition that looked forward would be a question whose answer
+		// depends on a question that has not been asked yet.
+		earlier := f.Fields[:i]
+		if len(earlier) > 0 {
+			fmt.Fprintf(&b, `<label for="%s-wenn">%s</label>`+
+				`<select id="%s-wenn" name="%s.zeigt_wenn">`,
+				p, e(plugin.T("Ask only when")), p, p)
+			sel := ""
+			if fe.ShowIf == "" {
+				sel = " selected"
+			}
+			fmt.Fprintf(&b, `<option value=""%s>%s</option>`, sel, e(plugin.T("always")))
+			for _, vor := range earlier {
+				sel := ""
+				if vor.Key == fe.ShowIf {
+					sel = " selected"
+				}
+				fmt.Fprintf(&b, `<option value="%s"%s>%s</option>`,
+					e(vor.Key), sel, e(vor.Label))
+			}
+			b.WriteString(`</select>`)
+			fmt.Fprintf(&b, `<label for="%s-wert">%s</label>`+
+				`<input type="text" id="%s-wert" name="%s.zeigt_wenn_wert" value="%s" maxlength="120">`,
+				p, e(plugin.T("…is answered with")), p, p, e(fe.ShowIfValue))
+			fmt.Fprintf(&b, `<p class="text-muted">%s</p>`, e(plugin.T(
+				"The visitor sees a Continue button and the field appears after it. "+
+					"For a tick box the value is “ja”.")))
+		}
+
 		b.WriteString(`<p class="table-actions">`)
 		actionButton(&b, "feldaktion", "hoch:"+strconv.Itoa(i), plugin.T("↑ up"), "")
 		actionButton(&b, "feldaktion", "runter:"+strconv.Itoa(i), plugin.T("↓ down"), "")
@@ -342,6 +372,10 @@ func fieldsFromForm(form map[string][]string) []field {
 			fe.Required = values[0] != ""
 		case "auswahl":
 			fe.Choices = rows(values[0])
+		case "zeigt_wenn":
+			fe.ShowIf = values[0]
+		case "zeigt_wenn_wert":
+			fe.ShowIfValue = values[0]
 		}
 	}
 

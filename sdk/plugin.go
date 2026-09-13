@@ -78,6 +78,11 @@ type ContentIn struct {
 	// Query is the current request's query string, so a filter can react to
 	// what came back in the address — the outcome of a form submission, say.
 	Query string `json:"query,omitempty"`
+	// Path is the address this page is being served under, so a filter can
+	// point back at it. Not the same as Slug: the start page has the slug
+	// "home" and is served at "/", and a page in a second language carries the
+	// language in front of it.
+	Path string `json:"path,omitempty"`
 }
 
 // ContentOut is the page after the plugin looked at it.

@@ -306,6 +306,10 @@ func (h *Handler) filterByPlugins(r *http.Request, websiteID int64, pg *page.Pag
 		// show the outcome of the last submission, which comes back in the
 		// address and nowhere else.
 		Query: r.URL.RawQuery,
+		// And the address itself, which is where a form that submits to itself
+		// has to point. By this point it is the right one: /home has already
+		// been redirected to the root and the language prefix is in it.
+		Path: r.URL.Path,
 	})
 }
 

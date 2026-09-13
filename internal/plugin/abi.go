@@ -366,6 +366,15 @@ type ContentIn struct {
 	// submission comes back in the address, and without it the plugin would
 	// have to draw the form and the answer to it in two different places.
 	Query string `json:"query,omitempty"`
+	// Path is the address this page is being served under.
+	//
+	// Not derivable from Slug: the start page has the slug "home" and lives at
+	// "/", and a page in a language that is not the website's first carries the
+	// language in front of it. A plugin that has to point back at the page it
+	// stands on — a form that submits to itself, a link that keeps the
+	// visitor's place — would otherwise have to guess both rules and would get
+	// the start page wrong every time.
+	Path string `json:"path,omitempty"`
 }
 
 // ContentOut is what it may change.

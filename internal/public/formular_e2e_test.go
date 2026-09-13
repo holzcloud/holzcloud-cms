@@ -20,6 +20,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -578,5 +579,134 @@ func TestAVisitorIsRefusedInTheLanguageOfThePageAtTheRightField(t *testing.T) {
 				t.Error("the refusal also stands above the form, so it is said twice")
 			}
 		})
+	}
+}
+
+// A conditional field is asked in a second go, and the way there is a GET the
+// visitor's own browser sends. Two things had to be true for that to work and
+// neither was: the answers of the first step have to be read back out of the
+// address, and the Continue button has to point at the page's own address.
+func TestAConditionalFieldAppearsOnlyAfterTheAnswerThatAsksForIt(t *testing.T) {
+	h, database, ws, manager := formularAufbau(t)
+	ctx := context.Background()
+
+	admin := func(form url.Values) plugin.AdminOut {
+		t.Helper()
+		in := plugin.AdminIn{WebsiteID: ws.ID, Method: "GET"}
+		if form != nil {
+			in.Method = "POST"
+			in.Form = form
+		}
+		out, err := manager.Admin(ctx, "kontaktformular", in)
+		if err != nil {
+			t.Fatalf("Admin: %v", err)
+		}
+		return *out
+	}
+
+	if out := admin(url.Values{"neues_formular": {"Anfrage"}}); out.FlashError {
+		t.Fatalf("Anlegen fehlgeschlagen: %s", out.Flash)
+	}
+	// A choice, and after it a field that is only asked for one of the answers.
+	admin(url.Values{"kennung": {"anfrage"}, "name": {"Anfrage"},
+		"fe0.beschriftung": {"Worum geht es"}, "fe0.art": {"auswahl"},
+		"fe0.auswahl": {"Wolle\nHofführung"}, "fe0.pflicht": {"1"},
+		"fe1.beschriftung": {"Wie viel Wolle"}, "fe1.art": {"text"},
+		"fe1.zeigt_wenn": {"worum-geht-es"}, "fe1.zeigt_wenn_wert": {"Wolle"},
+		"sichern": {"1"}})
+
+	draw := func(query string) string {
+		return manager.FilterContent(ctx, ws.ID, plugin.ContentIn{
+			WebsiteID: ws.ID, Slug: page.HomeSlug, Title: "Start",
+			HTML:  "<p>[[formular:anfrage]]</p>",
+			Query: query,
+			// What the host gives a filter: the address the page is served
+			// under, which for the start page is the root and not /home.
+			Path: "/",
+		})
+	}
+
+	// --- first step: the condition is not met, so the field is not there ---
+	erst := draw("")
+	if strings.Contains(erst, `name="f_wie-viel-wolle"`) {
+		t.Errorf("the conditional field stands in the first step:\n%s", erst)
+	}
+	if !strings.Contains(erst, `formaction="/"`) {
+		t.Errorf("Continue does not point at the page's own address:\n%s", erst)
+	}
+
+	// --- the wrong answer keeps it away ---
+	andere := draw(url.Values{"formular": {"anfrage"},
+		"f_worum-geht-es": {"Hofführung"}}.Encode())
+	if strings.Contains(andere, `name="f_wie-viel-wolle"`) {
+		t.Errorf("the field appeared for the wrong answer:\n%s", andere)
+	}
+	if !strings.Contains(andere, `value="Hofführung" selected`) {
+		t.Errorf("the answer already given was not kept:\n%s", andere)
+	}
+
+	// --- the deciding answer brings it ---
+	zweit := draw(url.Values{"formular": {"anfrage"},
+		"f_worum-geht-es": {"Wolle"}}.Encode())
+	if !strings.Contains(zweit, `name="f_wie-viel-wolle"`) {
+		t.Errorf("the conditional field is missing in the second step:\n%s", zweit)
+	}
+
+	// --- and nothing is read back for a form the Continue did not belong to ---
+	fremd := draw(url.Values{"formular": {"etwas-anderes"},
+		"f_worum-geht-es": {"Wolle"}}.Encode())
+	if strings.Contains(fremd, `name="f_wie-viel-wolle"`) {
+		t.Errorf("a foreign address pre-filled this form:\n%s", fremd)
+	}
+
+	// --- submitting: the field that was never asked is not missing ---
+	rec := submit(t, h, ws, url.Values{
+		"seite": {page.HomeSlug}, "pfad": {"/"}, "formular": {"anfrage"},
+		"gestellt":        {timeToken(t, database, -10*time.Second)},
+		"f_worum-geht-es": {"Hofführung"},
+	})
+	if ort := rec.Header().Get("Location"); !strings.Contains(ort, "formular=gesendet") {
+		t.Errorf("the submission without the conditional field was refused: %q", ort)
+	}
+	if n := messages(t, database); n != 1 {
+		t.Fatalf("%d Nachrichten gespeichert", n)
+	}
+}
+
+// Every answer to a submission travels in the address. On the start page that
+// address used to be built out of the slug — /home — which the public side
+// redirects to / without its query, so the visitor saw the form again and never
+// the thank-you or the reason.
+func TestTheAnswerToASubmissionGoesToThePagesOwnAddress(t *testing.T) {
+	h, database, ws, _ := formularAufbau(t)
+
+	rec := submit(t, h, ws, url.Values{
+		"seite": {page.HomeSlug}, "pfad": {"/"},
+		"gestellt":  {timeToken(t, database, -10*time.Second)},
+		"name":      {"Eva"},
+		"email":     {"eva@example.test"},
+		"nachricht": {"Guten Tag, ich hätte eine Frage zur Wolle."},
+	})
+	ort := rec.Header().Get("Location")
+	if !strings.HasPrefix(ort, "/?") {
+		t.Errorf("the answer goes to %q instead of the root", ort)
+	}
+	if !strings.Contains(ort, "formular=gesendet") {
+		t.Errorf("Location = %q", ort)
+	}
+
+	// An address out of the submission that would leave this website is not
+	// followed: the worst it can do is send somebody to the start page.
+	for _, boese := range []string{"//evil.test/", "https://evil.test/", "/../etc", "/a\r\nX-Y: z"} {
+		rec := submit(t, h, ws, url.Values{
+			"seite": {"kontakt"}, "pfad": {boese},
+			"gestellt":  {timeToken(t, database, -10*time.Second)},
+			"name":      {"Eva"},
+			"email":     {"eva@example.test"},
+			"nachricht": {"Noch eine Frage zur Wolle, diesmal etwas länger."},
+		})
+		if ort := rec.Header().Get("Location"); !strings.HasPrefix(ort, "/?") {
+			t.Errorf("%q became the address %q", boese, ort)
+		}
 	}
 }

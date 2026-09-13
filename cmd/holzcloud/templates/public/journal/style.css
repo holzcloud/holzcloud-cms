@@ -1792,3 +1792,16 @@ main:focus-visible {
   width: auto;
   margin-block-start: 0.2em;
 }
+
+/* The Continue button of a form with conditional fields. Quieter than Send:
+   it submits nothing, it only shows more. */
+.contact-form__more {
+  font: inherit;
+  justify-self: start;
+  padding: 0.6em 1.4em;
+  border: 1px solid currentColor;
+  border-color: color-mix(in oklch, currentColor 35%, transparent);
+  border-radius: var(--radius, 4px);
+  background: transparent;
+  cursor: pointer;
+}
