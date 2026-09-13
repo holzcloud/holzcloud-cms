@@ -11,7 +11,7 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
-## 2.0 — unveröffentlicht
+## 2.0 — 2026-09-13
 
 ### Geändert — mit Bruch
 
@@ -76,10 +76,55 @@ muss und nicht mit dieser.
 
 ### Hinzugefügt
 
+**Ein Plugin kann jetzt übersetzen.** Das SDK bekommt `T` und `Tf`, der Host
+eine Operation `translate`, und `tools/i18n` liest `plugins/` als dritte Wurzel.
+Ein Plugin schreibt seinen Satz auf Englisch, der Host schlägt ihn im eigenen
+Katalog nach, und der Bildschirm erscheint in der Sprache, die der Betreiber
+gerade liest. Es braucht dafür keine Berechtigung: nach einem Wort zu fragen
+ist nicht, nach den Daten von jemandem zu fragen. Die beiden mitgelieferten
+Plugin-Bildschirme sind umgestellt.
+
 **TEMPLATE-SPEC §2.5 sagt jetzt, dass ein Theme einsprachig ist** — und wie eine
 mehrsprachige Website stattdessen gebaut wird: die Wörter des Rahmens kommen aus
 Textbausteinen, die Felder tragen, nicht aus der Vorlage. Das war vorher wahr
 und stand nirgends.
+
+### Behoben
+
+**Vier Spaltenüberschriften der Seitenliste standen auf einer englischen
+Oberfläche deutsch da** — „Art", „Sprache", „Adresse" und „Veröffentlicht". Sie
+trugen ihr deutsches Wort noch als Katalogschlüssel, und nach der Umstellung der
+Quellsprache fand die Übersetzung sie nicht mehr und fiel auf den Schlüssel
+zurück. Dieselbe Ursache hatten die Beschriftungen der Schriftenliste im Design,
+die Auswahl „Art" im Seitenformular und die Zuschnittformate der Mediathek.
+
+**Das Einlesen eines Holzcloud-Archivs meldete „WordPress-Import
+abgeschlossen".** Beide Wege teilen sich denselben Bericht, und die Überschrift
+ist mitgereist.
+
+**Rund vierzig Sätze, die ein Betreiber liest, standen in keinem Katalog** und
+waren deshalb in keiner Sprache ausser Deutsch zu haben: die Meldungen der
+WordPress-Einfuhr, die Sammelaktion der Seitenliste, die Hinweise beim
+Hochladen eines Bildes, die Kontomails, der Konflikthinweis am Seitenformular
+und die ganzen Verwaltungsbildschirme des Ladens. Sie waren mit `+` oder
+`fmt.Sprintf` zusammengesetzt, und was so entsteht, sieht der Sammler nicht.
+Jetzt sind es 1610 Einträge in de, es, fr und it — 250 mehr als in 1.10.
+
+### Unter der Haube
+
+**Die Quelle dieses Programms ist auf Englisch.** Jeder Kommentar, jeder
+Bezeichner, jeder Testname und jeder Katalogschlüssel — rund 110 000 Zeilen. Der
+Katalog hat die Richtung gewechselt: der englische Satz ist jetzt der Schlüssel,
+und `de.json` ist eine Übersetzung wie `fr.json` auch. Für einen Betreiber ändert
+sich dabei nichts; die Verwaltung spricht weiterhin Deutsch, sobald der Browser
+Deutsch verlangt.
+
+`go run ./tools/english` hält das fest und läuft in CI. Ein deutscher Kommentar
+lässt den Bau scheitern — mit genau vier benannten Ausnahmen, die jede ihren
+Grund an Ort und Stelle tragen: die Kataloge, die Vorrichtung, mit der eine
+hochgeladene Vorlage geprüft wird, die Sätze, die ein *Kunde* liest (Kasse,
+Bestellmails, Monatsnamen), und die Dateien, deren Kommentare von der deutschen
+Sprache handeln und sie deshalb benennen müssen.
 
 ## 1.10 — 2026-09-11
 

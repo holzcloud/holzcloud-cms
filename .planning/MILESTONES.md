@@ -1,5 +1,68 @@
 # Milestones
 
+## v2.0 The Codebase Speaks English (Shipped: 2026-09-13)
+
+**Delivered:** A stranger can read this repository. Every comment, every
+identifier, every test name, every SQL column and every catalogue key is
+English — and so are the two contracts a machine reads: the template data
+contract a theme author types, and the MCP surface an assistant calls. The
+product still speaks German to the person using it; what changed is the language
+of the source, and the catalogue turned round to serve it.
+
+**Phases completed:** 1 phase (12), 10 waves
+**Timeline:** 2026-09-11 → 2026-09-13, `e23ed79` → close, 32 commits
+**Code:** 491 files changed, +18 650 / −14 770 lines since the `v1.10` release;
+112 410 lines of Go in 402 files at close, 1279 test functions
+**Verification:** `phases/12-codebase-speaks-english/12-VERIFICATION.md` — all
+nine criteria met, browser pass driven, four findings fixed in the same pass
+**Closeout:** clean — nothing carried forward, two things deliberately open and
+named
+
+**Key accomplishments:**
+
+1. **Two breaking changes, announced, in one release.** The template data
+   contract (`.Page.Felder` → `.Page.Fields` and six siblings) and the MCP tool
+   surface (`seite_anlegen` → `create_page`, every argument and every answer key
+   with it). Both break loudly: `holzcloud template check` names the English
+   fields a theme should have used, and the server answers
+   `there is no tool "seite_anlegen"` rather than doing something unexpected.
+   All eight shipped themes came along.
+
+2. **The catalogue turned round.** The English sentence is now the key and
+   `de.json` is a translation like `fr.json`. `de-CH` derives from `de.json`
+   rather than from source — it could no longer derive from source, because
+   applying the ß rule to an English sentence yields something that is not
+   German. Nothing changed for an operator: the admin still speaks German the
+   moment the browser asks for it.
+
+3. **Migration 00054.** 24 German column names renamed and 6 indexes rebuilt,
+   through a new migration rather than by editing a released one. Its `Down`
+   half is driven by a test, which is how three older rollback tests were found
+   to break on it.
+
+4. **Criterion 9, which is what makes the translation gate mean anything.** 828
+   strings a person reads were in no catalogue at all — not untranslated,
+   *unreported*, because the collector could not see a sentence built with
+   `fmt.Sprintf` or joined with `+`. The shop's whole admin surface was among
+   them. The catalogue grew from 1360 to 1610 entries in four languages.
+
+5. **A plugin can translate.** The host grew an operation `translate` — the
+   first that needs no permission — the SDK grew `T` and `Tf`, and `tools/i18n`
+   grew `plugins/` as a third root. A plugin writes English and the operator
+   reads their own language.
+
+6. **A gate, not a convention.** `tools/english` parses rather than greps,
+   because a grep with no locale confuses `Ü` with a typographic quotation mark
+   and because a comment explaining how umlauts are transliterated has to be
+   able to name them. It blocks in CI. Its four exception lists each carry their
+   reason at their own site.
+
+**What this milestone deliberately did not do:** the stored German vocabularies
+stay German — they are in every database, they travel in every bundle, and the
+block kinds are CSS classes in all eight themes. Every Go mention of one is now
+a named English constant instead. And the public side still has no translation
+channel at all, which is the open decision handed to whatever comes next.
+
 ## v1.10 Inhaltsmodell und Zugang (Shipped: 2026-09-11)
 
 *Planned and worked as v1.6, closed on 2026-09-10, renumbered v1.10 when it was released

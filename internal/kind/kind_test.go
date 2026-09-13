@@ -53,19 +53,22 @@ func TestPick(t *testing.T) {
 
 func TestNameOf(t *testing.T) {
 	types := []Type{{Key: "produkt", Name: "Produkt", Plural: "Produkte"}}
+	// An own kind's name is what the operator typed and is never translated.
 	if got := NameOf(types, "produkt", true); got != "Produkte" {
-		t.Errorf("Mehrzahl = %q", got)
+		t.Errorf("plural = %q", got)
 	}
 	if got := NameOf(types, "produkt", false); got != "Produkt" {
-		t.Errorf("Einzahl = %q", got)
+		t.Errorf("singular = %q", got)
 	}
-	if got := NameOf(types, Post, true); got != "Beiträge" {
-		t.Errorf("eingebaut = %q", got)
+	// A built-in kind's name is a catalogue KEY — the screens draw it through
+	// {{t .Name}} — so what comes back here is the key and not a German word.
+	if got := NameOf(types, Post, true); got != "Posts" {
+		t.Errorf("built-in = %q", got)
 	}
 	// A deleted kind: the entries still carry it, and they get a name instead of
 	// a blank.
 	if got := NameOf(types, "rezept", false); got != "rezept" {
-		t.Errorf("verschwundene Art = %q", got)
+		t.Errorf("vanished kind = %q", got)
 	}
 }
 
