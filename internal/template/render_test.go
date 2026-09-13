@@ -362,3 +362,96 @@ func TestDatesRenderInTheSiteTimeZone(t *testing.T) {
 		t.Errorf("date rendered as %q, want 2026-07-01 — it was not converted to Europe/Berlin", out)
 	}
 }
+
+// The same page in two languages, through the loader, off disk.
+//
+// This is the whole of PUB-02 in one test: a theme installed the way an upload
+// installs it, carrying its own catalogues, rendered twice. Before this
+// milestone the second render was identical to the first, because the public
+// FuncMap had no t at all.
+func TestAThemeRendersItsOwnWordsInEachLanguage(t *testing.T) {
+	theme := map[string]string{
+		"layout.html": `<html><body><nav>{{t "Cart"}}</nav>{{template "content" .}}` +
+			`<footer>{{tf "Page %d" 7}} · {{th "<em>Search</em>"}}</footer></body></html>`,
+		"page.html":      `{{define "content"}}<article>{{.Page.Title}}</article>{{end}}`,
+		"lang/de.json":   `{"Cart":"Warenkorb","Page %d":"Seite %d","<em>Search</em>":"<em>Suche</em>"}`,
+		"lang/fr.json":   `{"Cart":"Panier","Page %d":"Page %d","<em>Search</em>":"<em>Recherche</em>"}`,
+		"lang/dummy.txt": ``,
+	}
+
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "templates", "zweisprachig")
+	if err := os.MkdirAll(filepath.Join(themeDir, "lang"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range theme {
+		if err := os.WriteFile(filepath.Join(themeDir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	loader := NewLoader(dir, testTemplateFS(), nil, stubResolver{slug: "zweisprachig"})
+
+	render := func(locale string) string {
+		t.Helper()
+		data := testData()
+		data.Site.Locale = locale
+		out, err := loader.RenderPage(context.Background(), 1, "page.html", data)
+		if err != nil {
+			t.Fatalf("render in %s: %v", locale, err)
+		}
+		return string(out)
+	}
+
+	de := render("de")
+	for _, want := range []string{"Warenkorb", "Seite 7", "<em>Suche</em>"} {
+		if !strings.Contains(de, want) {
+			t.Errorf("the German render is missing %q:\n%s", want, de)
+		}
+	}
+
+	fr := render("fr")
+	for _, want := range []string{"Panier", "<em>Recherche</em>"} {
+		if !strings.Contains(fr, want) {
+			t.Errorf("the French render is missing %q:\n%s", want, fr)
+		}
+	}
+	if strings.Contains(fr, "Warenkorb") {
+		t.Errorf("the French page carries a German word — the cache key is not doing its job:\n%s", fr)
+	}
+
+	// A language the theme does not carry shows the author's own words.
+	it := render("it")
+	if !strings.Contains(it, "<nav>Cart</nav>") {
+		t.Errorf("an untranslated language does not fall back to the key:\n%s", it)
+	}
+
+	// th passes its markup through and t does not. A theme's catalogue is part
+	// of the theme, but a word going through t still has to be escaped, or a
+	// translation is a way to write markup that CheckNoScripts never saw.
+	escaped := map[string]string{
+		"layout.html":  `<html><body>{{t "Cart"}}{{template "content" .}}</body></html>`,
+		"page.html":    `{{define "content"}}x{{end}}`,
+		"lang/de.json": `{"Cart":"<script>alert(1)</script>"}`,
+	}
+	dir2 := t.TempDir()
+	themeDir2 := filepath.Join(dir2, "templates", "boese")
+	if err := os.MkdirAll(filepath.Join(themeDir2, "lang"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range escaped {
+		if err := os.WriteFile(filepath.Join(themeDir2, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loader2 := NewLoader(dir2, testTemplateFS(), nil, stubResolver{slug: "boese"})
+	data := testData()
+	data.Site.Locale = "de"
+	out, err := loader2.RenderPage(context.Background(), 1, "page.html", data)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(string(out), "<script>") {
+		t.Errorf("a translation went onto the page as markup through t:\n%s", out)
+	}
+}

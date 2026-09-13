@@ -86,6 +86,15 @@ func Check(theme fs.FS, fallback fs.FS) []Problem {
 
 	problems = append(problems, checkLayoutStructure(string(layout))...)
 
+	// The render below runs against the theme's catalogue for the sample's
+	// language, not against an empty one: a translation is the string that
+	// actually reaches the page, and a catalogue that turns a word into
+	// something with a stray quotation mark in it should fail here rather than
+	// on the site.
+	words := loadCatalog(func(name string) ([]byte, error) {
+		return fs.ReadFile(theme, name)
+	}, SampleData().Site.Locale)
+
 	// The views the archive brings itself, plus — through the fallback — the
 	// ones it leaves to the default theme. Both combinations really occur at
 	// runtime, and both render through *this* layout.
@@ -101,7 +110,7 @@ func Check(theme fs.FS, fallback fs.FS) []Problem {
 		if err != nil {
 			continue
 		}
-		problems = append(problems, checkView(view, string(layout), string(body), own)...)
+		problems = append(problems, checkView(view, string(layout), string(body), own, words)...)
 		if own {
 			problems = append(problems, checkFormContract(view, string(body))...)
 		}
@@ -213,11 +222,11 @@ func checkLayoutStructure(layout string) []Problem {
 }
 
 // checkView parses and renders one view inside the layout.
-func checkView(view, layout, body string, own bool) []Problem {
+func checkView(view, layout, body string, own bool, words Catalog) []Problem {
 	// The same construction the loader uses, so a template that passes here
 	// cannot fail there for a reason this check never saw.
 	sample := SampleData()
-	set := template.New("").Funcs(funcMap(sample.Site.Locale, sample.Site.TimeZone))
+	set := template.New("").Funcs(funcMap(sample.Site.Locale, sample.Site.TimeZone, words))
 
 	for _, f := range []struct{ name, content string }{
 		{layoutFile, layout},
@@ -400,7 +409,7 @@ func ownType(t reflect.Type) bool {
 // HelperNames lists the template helper functions, sorted.
 func HelperNames() []string {
 	var names []string
-	for name := range funcMap("de", "Europe/Berlin") {
+	for name := range funcMap("de", "Europe/Berlin", Catalog{}) {
 		names = append(names, name)
 	}
 	sort.Strings(names)

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplspec"
 )
@@ -65,23 +66,50 @@ func cmdTemplateCheck(args []string) error {
 		return fmt.Errorf("cannot read %s: %w", target, err)
 	}
 
+	// dir is what both checks read. An archive is unpacked once: extracting it
+	// twice would mean judging two trees and reporting on whichever came
+	// second.
+	dir := target
 	var problems []string
 	switch {
 	case info.IsDir():
 		problems = tmplmgr.CheckTemplateDir(target, defaultThemeFS())
 	case strings.EqualFold(filepath.Ext(target), ".zip"):
-		problems, err = checkArchive(target)
-		if err != nil {
-			return err
+		unpacked, cleanup, err := unpackForCheck(target)
+		if cleanup != nil {
+			defer cleanup()
 		}
+		if err != nil {
+			// The archive did not survive extraction. That IS the problem, and
+			// there is no tree to say anything further about.
+			problems = []string{err.Error()}
+			break
+		}
+		dir = unpacked
 	default:
 		return fmt.Errorf("%s is neither a directory nor a .zip archive", target)
 	}
 
+	// The words the theme mints and does not translate. They are reported and
+	// never refused — a half-translated theme works, showing the author's own
+	// English where a translation is missing, and refusing the upload over it
+	// would be worse than the thing being reported. So they are printed on
+	// their own, above, whether or not anything else is wrong.
+	notes := untranslatedWords(dir)
+	for _, n := range notes {
+		fmt.Fprintf(os.Stderr, "  note: %s\n\n", strings.ReplaceAll(n, "\n    ", "\n        "))
+	}
+
 	if len(problems) == 0 {
 		if !*quiet {
-			fmt.Printf("%s: no problems found\n", target)
+			if len(notes) > 0 {
+				fmt.Printf("%s: nothing that stops it working, %d note(s) above\n", target, len(notes))
+			} else {
+				fmt.Printf("%s: no problems found\n", target)
+			}
 		}
+		// A note is not a failure. An author converting a theme one language at
+		// a time has to be able to run this and get on with it.
 		return nil
 	}
 
@@ -98,31 +126,31 @@ func cmdTemplateCheck(args []string) error {
 // checkArchive unpacks into a temporary directory and checks that, so an
 // archive is judged exactly as the upload would judge it — the extraction
 // limits included.
-func checkArchive(path string) ([]string, error) {
+func unpackForCheck(path string) (dir string, cleanup func(), err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	tempDir, err := os.MkdirTemp("", "holzcloud-check-*")
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	defer os.RemoveAll(tempDir)
+	cleanup = func() { os.RemoveAll(tempDir) }
 
 	// ExtractTemplate applies every check itself and reports the first thing
 	// that makes the archive unacceptable.
 	dest := filepath.Join(tempDir, "theme")
 	if err := tmplmgr.ExtractTemplate(f, info.Size(), dest, maxCheckSize, defaultThemeFS()); err != nil {
-		return []string{err.Error()}, nil
+		return "", cleanup, err
 	}
-	return nil, nil
+	return dest, cleanup, nil
 }
 
 // maxCheckSize is the uncompressed budget the check applies.
@@ -146,3 +174,15 @@ func defaultThemeFS() fs.FS {
 // errSilent ends the process with a non-zero status without printing again;
 // everything worth saying has already gone to stderr.
 var errSilent = errors.New("")
+
+// untranslatedWords reports the theme's own words that have no translation.
+//
+// It reads the directory, or the archive unpacked into one, so an author gets
+// the same answer either way — the same reason checkArchive exists.
+func untranslatedWords(dir string) []string {
+	var out []string
+	for _, p := range tmpl.CheckCatalogs(os.DirFS(dir)) {
+		out = append(out, p.String())
+	}
+	return out
+}
