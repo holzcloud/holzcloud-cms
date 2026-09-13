@@ -61,3 +61,7 @@ plugins/*/nicht-gefunden
 # Jeder Worktree ist ein vollstaendiger Checkout mit eigenem .git; einmal
 # versehentlich hinzugefuegt, stuende das halbe Repository doppelt im Index.
 .claude/
+
+# A stray build artifact: `go build` with no -o next to a package named wasm
+# leaves an ELF binary here. Nothing ships it, nothing loads it.
+/wasm
