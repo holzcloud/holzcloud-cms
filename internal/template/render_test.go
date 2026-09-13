@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -453,5 +454,75 @@ func TestAThemeRendersItsOwnWordsInEachLanguage(t *testing.T) {
 	}
 	if strings.Contains(string(out), "<script>") {
 		t.Errorf("a translation went onto the page as markup through t:\n%s", out)
+	}
+}
+
+// Every view of every shipped theme, rendered in French, carries no German of
+// the THEME's own.
+//
+// This is the assertion the browser cannot make cheaply: reaching the cart and
+// the checkout in a browser needs products, an order and a session, and doing
+// that eight times over is a morning. Here the whole surface is rendered in a
+// second, and what is checked is exactly the failure the sweep can leave
+// behind — a word the replacement missed, in a view nobody opens until a
+// customer does.
+//
+// Telling the theme's words from the operator's is the whole difficulty, and a
+// word list cannot do it: SampleData deliberately carries German content
+// ("Versandkostenfrei ab CHF 200.00", "Das Passwort steht in unserem //nolint:german — quotes the fixture this rule is about
+// Anschreiben"), and a theme that printed those in French would be broken in a
+// different way. So the discriminator is a second render: under "en" the theme
+// emits its keys, which are English, and every German word left is the
+// operator's. Anything German in the French render beyond that set is the
+// theme's own and should have gone through {{t}}.
+func TestNoGermanOfTheThemesOwnSurvivesAFrenchRender(t *testing.T) {
+	themes := []string{"default", "schlicht", "magazine", "midnight", "journal",
+		"rudel", "weide", "holzcloud"}
+	// Words that are German and are not also ordinary French or English. A
+	// token like "Menu" or "Total" is both, and a test that flagged those would
+	// report the French render for being French.
+	germanish := regexp.MustCompile(`[A-ZÄÖÜ][a-zäöüß]*(?:ung|heit|keit|schaft|korb|kasse|preis|summe|zahl|versand|beitrag|seite)[a-zäöüß]*|[a-zäöüß]*(?:ä|ö|ü|ß)[a-zäöüß]*`)
+
+	words := func(body string) map[string]bool {
+		out := map[string]bool{}
+		text := regexp.MustCompile(`<[^>]*>`).ReplaceAllString(body, " ")
+		for _, w := range germanish.FindAllString(text, -1) {
+			out[w] = true
+		}
+		return out
+	}
+
+	for _, theme := range themes {
+		dir := filepath.Join("..", "..", "cmd", "holzcloud", "templates", "public", theme)
+		loader := NewLoader(t.TempDir(), os.DirFS(dir), nil, nil)
+		for _, view := range viewFiles {
+			render := func(locale string) string {
+				t.Helper()
+				data := SampleData()
+				data.Site.Locale = locale
+				out, err := loader.RenderPage(context.Background(), 1, view, data)
+				if err != nil {
+					t.Fatalf("%s/%s in %s: %v", theme, view, locale, err)
+				}
+				return string(out)
+			}
+
+			english := render("en")
+			french := render("fr")
+
+			// The French really arrived. Without this the test would pass just
+			// as well on a theme that renders English everywhere.
+			if !strings.Contains(french, "Aller au contenu") {
+				t.Errorf("%s/%s did not render the French skip link", theme, view)
+			}
+
+			fromContent := words(english)
+			for w := range words(french) {
+				if !fromContent[w] {
+					t.Errorf("%s/%s in French says %q, which comes from the theme and not from the content",
+						theme, view, w)
+				}
+			}
+		}
 	}
 }

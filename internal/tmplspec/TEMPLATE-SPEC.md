@@ -114,32 +114,89 @@ cross-site-scripting hole into an application that did not have one.
 ### 2.4 File types
 
 Allowed: `.html` `.css` `.svg` `.png` `.jpg` `.jpeg` `.gif` `.webp` `.ico`
-`.woff` `.woff2` `.ttf`. At most 500 files, 10 MB uncompressed by default.
+`.woff` `.woff2` `.ttf` `.json`. At most 500 files, 10 MB uncompressed by
+default.
 
-### 2.5 A theme is single-language, and the words it mints are its own
+`.json` is for `lang/<tag>.json`, your theme's own catalogue (§2.5). It is read
+by the server and never served to a browser.
 
-There is no translation function in a template. `t`, `th` and `tf` exist in the
-admin and are deliberately absent here, and that is a decision rather than an
-omission: a theme is uploadable content, so its sentences cannot live in this
-program's catalogue — this program does not ship them. A `t` that worked for the
-eight themes we ship and silently returned the key for yours would be worse than
-none, because nothing would report it and a visitor would read the wrong
-language on a page every gate called green.
+### 2.5 A theme carries its own words, in its own catalogue
 
-So every word **you** write into a template — "Cart", "Search", "Page not
-found", a button label, an empty state — is in whatever language you wrote it,
-on every page, in every language the website is published in.
+Every word **you** write into a template — "Cart", "Search", "Page not found", a
+button label, an empty state — goes through `t`:
 
-**That is why a multilingual website puts those words in content, not in the
-template.** A snippet carries fields (§5, `.Site.SnippetFields`); it belongs to
-one website, the operator edits it, and a website published in two languages
-holds one per language. A theme built that way reads its chrome out of
-`.Site.SnippetFields` and works in any language without a translation mechanism
-at all. A theme that hard-codes "Warenkorb" works in exactly one.
+```html
+<a href="{{.Shop.CartURL}}">{{t "Cart"}}</a>
+<h1>{{t "Page not found"}}</h1>
+```
 
-Both are legitimate. A theme written for one site in one language should simply
-say so in its `README`, and a theme meant for other people should take its words
-from snippets.
+and the theme carries a file per language beside its templates:
+
+```
+lang/de.json      {"Cart": "Warenkorb", "Page not found": "Seite nicht gefunden"}
+lang/fr.json      {"Cart": "Panier",    "Page not found": "Page introuvable"}
+```
+
+**The key is the English sentence you wrote.** There are no invented
+identifiers: `{{t "Cart"}}` is the word, and `lang/de.json` says what it is in
+German. A language you ship no file for, or a key a file does not carry, shows
+the key itself — so a theme with no `lang/` at all renders exactly as it would
+have without any of this, in whatever language you typed.
+
+Three helpers, the same three the administration has:
+
+| | |
+|---|---|
+| `{{t "Cart"}}` | one word or sentence, escaped like any other string |
+| `{{th "Read the <em>whole</em> post"}}` | a sentence carrying its own inline markup |
+| `{{tf "Page %d of %d" .Archive.Page .Archive.TotalPages}}` | a sentence with values in it |
+
+Use `tf` and not string concatenation. The **frame** is translated and then
+filled in, so a language that wants the parts the other way round can say so;
+`{{t "Page"}} {{.Archive.Page}} {{t "of"}} {{.Archive.TotalPages}}` cannot be
+translated into anything but English word order, and no gate can tell you so.
+
+**Ask for the whole sentence, not its halves.** `{{t "The cart is empty."}}` is
+one entry a translator can read. `{{t "The cart"}} {{t "is empty."}}` is two
+fragments that no language can reassemble.
+
+`holzcloud template check` names every key your templates ask for and your
+catalogues do not carry, per language. It is a **note**, not a refusal: a
+half-translated theme works, showing your own words where a translation is
+missing, and the upload does not stand between you and your own site.
+
+#### What this replaced, and why
+
+Until 2.1 this section said the opposite: that a theme is single-language, that
+`t` was deliberately absent, and that a multilingual website should put its
+chrome into snippet fields instead. The reasoning was:
+
+> a theme is uploadable content, so its sentences cannot live in this program's
+> catalogue — this program does not ship them. A `t` that worked for the eight
+> themes we ship and silently returned the key for yours would be worse than
+> none, because nothing would report it and a visitor would read the wrong
+> language on a page every gate called green.
+
+Both halves of that are answered rather than waved past. The sentences do not
+live in this program's catalogue — they live in **yours**, shipped inside your
+theme. And nothing is silent: `holzcloud template check` reports every key you
+mint and do not translate, which is the report the old section said did not
+exist.
+
+What made the old answer untenable was not the argument but its consequence:
+all eight shipped themes hard-coded German — "Warenkorb" 48 times, "Kasse" 31,
+"Suche" 25 — so a website published in French had no theme it could use. A rule
+whose effect is "the product does not do this" is a gap wearing a decision's
+clothes.
+
+**Snippet fields still work and are still the right answer for some themes.** A
+theme written for one operator, whose wording they want to edit themselves
+without touching files, reads its chrome out of `.Site.SnippetFields` (§5). That
+is a different mechanism for a different problem: a catalogue is the theme
+author's translation, a snippet is the operator's content. And for a word that
+is translated but that one operator wants to call something else, there is a
+third place — the operator's own wording, in the administration, which wins over
+your catalogue without either of you editing the other's files.
 
 ---
 

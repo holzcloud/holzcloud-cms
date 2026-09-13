@@ -1,0 +1,830 @@
+{
+ "%d hits": {
+  "de": "%d Treffer",
+  "es": "%d resultados",
+  "fr": "%d résultats",
+  "it": "%d risultati"
+ },
+ "%d hits for «%s»": {
+  "de": "%d Treffer für «%s»",
+  "es": "%d resultados para «%s»",
+  "fr": "%d résultats pour « %s »",
+  "it": "%d risultati per «%s»"
+ },
+ "%d hits for “%s”": {
+  "de": "%d Treffer für „%s“",
+  "es": "%d resultados para «%s»",
+  "fr": "%d résultats pour « %s »",
+  "it": "%d risultati per «%s»"
+ },
+ "%d items": {
+  "de": "%d Artikel",
+  "es": "%d artículos",
+  "fr": "%d articles",
+  "it": "%d articoli"
+ },
+ "%d posts": {
+  "de": "%d Beiträge",
+  "es": "%d entradas",
+  "fr": "%d articles",
+  "it": "%d articoli"
+ },
+ "%s each": {
+  "de": "%s je Stück",
+  "es": "%s la unidad",
+  "fr": "%s la pièce",
+  "it": "%s al pezzo"
+ },
+ "&larr; Newer": {
+  "de": "&larr; Neuere",
+  "es": "&larr; Más recientes",
+  "fr": "&larr; Plus récents",
+  "it": "&larr; Più recenti"
+ },
+ "(optional)": {
+  "de": "(freiwillig)",
+  "es": "(opcional)",
+  "fr": "(facultatif)",
+  "it": "(facoltativo)"
+ },
+ "Add to cart": {
+  "de": "In den Warenkorb",
+  "es": "Añadir al carrito",
+  "fr": "Ajouter au panier",
+  "it": "Aggiungi al carrello"
+ },
+ "All": {
+  "de": "Alle",
+  "es": "Todo",
+  "fr": "Tout",
+  "it": "Tutto"
+ },
+ "All posts": {
+  "de": "Alle Beiträge",
+  "es": "Todas las entradas",
+  "fr": "Tous les articles",
+  "it": "Tutti gli articoli"
+ },
+ "All tags": {
+  "de": "Alle Schlagwörter",
+  "es": "Todas las etiquetas",
+  "fr": "Tous les mots-clés",
+  "it": "Tutte le parole chiave"
+ },
+ "Back": {
+  "de": "Zurück",
+  "es": "Volver",
+  "fr": "Retour",
+  "it": "Indietro"
+ },
+ "Back to the archive": {
+  "de": "Zurück zum Archiv",
+  "es": "Volver al archivo",
+  "fr": "Retour aux archives",
+  "it": "Torna all'archivio"
+ },
+ "CHE-123.456.789 MWST": {
+  "de": "CHE-123.456.789 MWST",
+  "es": "CHE-123.456.789 IVA",
+  "fr": "CHE-123.456.789 TVA",
+  "it": "CHE-123.456.789 IVA"
+ },
+ "Cancelled": {
+  "de": "Storniert",
+  "es": "Cancelado",
+  "fr": "Annulée",
+  "it": "Annullato"
+ },
+ "Carry on shopping": {
+  "de": "Weiter einkaufen",
+  "es": "Seguir comprando",
+  "fr": "Continuer mes achats",
+  "it": "Continua gli acquisti"
+ },
+ "Cart": {
+  "de": "Warenkorb",
+  "es": "Carrito",
+  "fr": "Panier",
+  "it": "Carrello"
+ },
+ "Categories": {
+  "de": "Kategorien",
+  "es": "Categorías",
+  "fr": "Catégories",
+  "it": "Categorie"
+ },
+ "Category": {
+  "de": "Kategorie",
+  "es": "Categoría",
+  "fr": "Catégorie",
+  "it": "Categoria"
+ },
+ "Change": {
+  "de": "Ändern",
+  "es": "Cambiar",
+  "fr": "Modifier",
+  "it": "Modifica"
+ },
+ "Change the cart": {
+  "de": "Warenkorb ändern",
+  "es": "Cambiar el carrito",
+  "fr": "Modifier le panier",
+  "it": "Modifica il carrello"
+ },
+ "Checkout": {
+  "de": "Kasse",
+  "es": "Caja",
+  "fr": "Commande",
+  "it": "Cassa"
+ },
+ "Company": {
+  "de": "Firma",
+  "es": "Empresa",
+  "fr": "Entreprise",
+  "it": "Azienda"
+ },
+ "Confirmation to": {
+  "de": "Bestätigung an",
+  "es": "Confirmación a",
+  "fr": "Confirmation à",
+  "it": "Conferma a"
+ },
+ "Contact": {
+  "de": "Kontakt",
+  "es": "Contacto",
+  "fr": "Contact",
+  "it": "Contatto"
+ },
+ "Continue": {
+  "de": "Weiter",
+  "es": "Continuar",
+  "fr": "Continuer",
+  "it": "Avanti"
+ },
+ "Country": {
+  "de": "Land",
+  "es": "País",
+  "fr": "Pays",
+  "it": "Paese"
+ },
+ "Delivery address": {
+  "de": "Lieferadresse",
+  "es": "Dirección de entrega",
+  "fr": "Adresse de livraison",
+  "it": "Indirizzo di consegna"
+ },
+ "Delivery to": {
+  "de": "Lieferung an",
+  "es": "Entrega a",
+  "fr": "Livraison à",
+  "it": "Consegna a"
+ },
+ "Dispatched": {
+  "de": "Versandt",
+  "es": "Enviado",
+  "fr": "Expédiée",
+  "it": "Spedito"
+ },
+ "Down for maintenance": {
+  "de": "Wartungsarbeiten",
+  "es": "En mantenimiento",
+  "fr": "Maintenance en cours",
+  "it": "Lavori di manutenzione"
+ },
+ "E-mail": {
+  "de": "E-Mail",
+  "es": "Correo electrónico",
+  "fr": "E-mail",
+  "it": "E-mail"
+ },
+ "Enter above what you are looking for.": {
+  "de": "Geben Sie oben ein, wonach Sie suchen.",
+  "es": "Indica arriba lo que buscas.",
+  "fr": "Indiquez ci-dessus ce que vous cherchez.",
+  "it": "Indica sopra che cosa cerchi."
+ },
+ "Farm shop": {
+  "de": "Hofladen",
+  "es": "Tienda de la granja",
+  "fr": "Boutique de la ferme",
+  "it": "Bottega agricola"
+ },
+ "Find": {
+  "de": "Suchen",
+  "es": "Buscar",
+  "fr": "Chercher",
+  "it": "Cerca"
+ },
+ "I am placing a paid order.": {
+  "de": "Ich bestelle kostenpflichtig.",
+  "es": "Realizo un pedido con pago.",
+  "fr": "Je passe une commande payante.",
+  "it": "Effettuo un ordine a pagamento."
+ },
+ "Item number": {
+  "de": "Artikelnummer",
+  "es": "Número de artículo",
+  "fr": "Numéro d'article",
+  "it": "Numero articolo"
+ },
+ "Item number %s": {
+  "de": "Artikelnummer %s",
+  "es": "Número de artículo %s",
+  "fr": "Numéro d'article %s",
+  "it": "Numero articolo %s"
+ },
+ "Language": {
+  "de": "Sprache",
+  "es": "Idioma",
+  "fr": "Langue",
+  "it": "Lingua"
+ },
+ "Latest": {
+  "de": "Aktuelles",
+  "es": "Novedades",
+  "fr": "Actualités",
+  "it": "Novità"
+ },
+ "Legal": {
+  "de": "Rechtliches",
+  "es": "Aviso legal",
+  "fr": "Mentions légales",
+  "it": "Note legali"
+ },
+ "Liechtenstein": {
+  "de": "Liechtenstein",
+  "es": "Liechtenstein",
+  "fr": "Liechtenstein",
+  "it": "Liechtenstein"
+ },
+ "Main navigation": {
+  "de": "Hauptnavigation",
+  "es": "Navegación principal",
+  "fr": "Navigation principale",
+  "it": "Navigazione principale"
+ },
+ "Maintenance": {
+  "de": "Wartung",
+  "es": "Mantenimiento",
+  "fr": "Maintenance",
+  "it": "Manutenzione"
+ },
+ "Menu": {
+  "de": "Menü",
+  "es": "Menú",
+  "fr": "Menu",
+  "it": "Menu"
+ },
+ "More posts": {
+  "de": "Weitere Beiträge",
+  "es": "Más entradas",
+  "fr": "Plus d'articles",
+  "it": "Altri articoli"
+ },
+ "Name": {
+  "de": "Name",
+  "es": "Nombre",
+  "fr": "Nom",
+  "it": "Nome"
+ },
+ "Newer": {
+  "de": "Neuere",
+  "es": "Más recientes",
+  "fr": "Plus récents",
+  "it": "Più recenti"
+ },
+ "Newer post": {
+  "de": "Neuerer Beitrag",
+  "es": "Entrada más reciente",
+  "fr": "Article plus récent",
+  "it": "Articolo più recente"
+ },
+ "Newer posts": {
+  "de": "Neuere Beiträge",
+  "es": "Entradas más recientes",
+  "fr": "Articles plus récents",
+  "it": "Articoli più recenti"
+ },
+ "Next post": {
+  "de": "Nächster Beitrag",
+  "es": "Entrada siguiente",
+  "fr": "Article suivant",
+  "it": "Articolo successivo"
+ },
+ "No longer available": {
+  "de": "Nicht mehr verfügbar",
+  "es": "Ya no disponible",
+  "fr": "Plus disponible",
+  "it": "Non più disponibile"
+ },
+ "Not available at the moment.": {
+  "de": "Zurzeit nicht verfügbar.",
+  "es": "No disponible en este momento.",
+  "fr": "Indisponible pour le moment.",
+  "it": "Al momento non disponibile."
+ },
+ "Older": {
+  "de": "Ältere",
+  "es": "Más antiguas",
+  "fr": "Plus anciens",
+  "it": "Più vecchi"
+ },
+ "Older &rarr;": {
+  "de": "Ältere &rarr;",
+  "es": "Más antiguas &rarr;",
+  "fr": "Plus anciens &rarr;",
+  "it": "Più vecchi &rarr;"
+ },
+ "Older post": {
+  "de": "Älterer Beitrag",
+  "es": "Entrada más antigua",
+  "fr": "Article plus ancien",
+  "it": "Articolo più vecchio"
+ },
+ "Older posts": {
+  "de": "Ältere Beiträge",
+  "es": "Entradas más antiguas",
+  "fr": "Articles plus anciens",
+  "it": "Articoli più vecchi"
+ },
+ "Order": {
+  "de": "Bestellung",
+  "es": "Pedido",
+  "fr": "Commande",
+  "it": "Ordine"
+ },
+ "Order %s": {
+  "de": "Bestellung %s",
+  "es": "Pedido %s",
+  "fr": "Commande %s",
+  "it": "Ordine %s"
+ },
+ "Page %d of %d": {
+  "de": "Seite %d von %d",
+  "es": "Página %d de %d",
+  "fr": "Page %d sur %d",
+  "it": "Pagina %d di %d"
+ },
+ "Page not found": {
+  "de": "Seite nicht gefunden",
+  "es": "Página no encontrada",
+  "fr": "Page introuvable",
+  "it": "Pagina non trovata"
+ },
+ "Pages": {
+  "de": "Seiten",
+  "es": "Páginas",
+  "fr": "Pages",
+  "it": "Pagine"
+ },
+ "Pages of the archive": {
+  "de": "Seiten des Archivs",
+  "es": "Páginas del archivo",
+  "fr": "Pages des archives",
+  "it": "Pagine dell'archivio"
+ },
+ "Pages of the catalogue": {
+  "de": "Seiten des Katalogs",
+  "es": "Páginas del catálogo",
+  "fr": "Pages du catalogue",
+  "it": "Pagine del catalogo"
+ },
+ "Paid": {
+  "de": "Bezahlt",
+  "es": "Pagado",
+  "fr": "Payée",
+  "it": "Pagato"
+ },
+ "Password": {
+  "de": "Passwort",
+  "es": "Contraseña",
+  "fr": "Mot de passe",
+  "it": "Password"
+ },
+ "Paw": {
+  "de": "Pfote",
+  "es": "Pata",
+  "fr": "Patte",
+  "it": "Zampa"
+ },
+ "Payment": {
+  "de": "Zahlung",
+  "es": "Pago",
+  "fr": "Paiement",
+  "it": "Pagamento"
+ },
+ "Place a paid order": {
+  "de": "Zahlungspflichtig bestellen",
+  "es": "Pedir con obligación de pago",
+  "fr": "Commander avec obligation de paiement",
+  "it": "Ordina con obbligo di pagamento"
+ },
+ "Post": {
+  "de": "Beitrag",
+  "es": "Entrada",
+  "fr": "Article",
+  "it": "Articolo"
+ },
+ "Postcode": {
+  "de": "PLZ",
+  "es": "Código postal",
+  "fr": "Code postal",
+  "it": "CAP"
+ },
+ "Preview": {
+  "de": "Vorschau",
+  "es": "Vista previa",
+  "fr": "Aperçu",
+  "it": "Anteprima"
+ },
+ "Preview of a draft": {
+  "de": "Vorschau eines Entwurfs",
+  "es": "Vista previa de un borrador",
+  "fr": "Aperçu d'un brouillon",
+  "it": "Anteprima di una bozza"
+ },
+ "Previous post": {
+  "de": "Vorheriger Beitrag",
+  "es": "Entrada anterior",
+  "fr": "Article précédent",
+  "it": "Articolo precedente"
+ },
+ "Price display": {
+  "de": "Preisanzeige",
+  "es": "Visualización de precios",
+  "fr": "Affichage des prix",
+  "it": "Visualizzazione prezzi"
+ },
+ "Protected": {
+  "de": "Geschützt",
+  "es": "Protegida",
+  "fr": "Protégée",
+  "it": "Protetta"
+ },
+ "Quantity": {
+  "de": "Menge",
+  "es": "Cantidad",
+  "fr": "Quantité",
+  "it": "Quantità"
+ },
+ "Quantity of %s": {
+  "de": "Menge für %s",
+  "es": "Cantidad de %s",
+  "fr": "Quantité de %s",
+  "it": "Quantità di %s"
+ },
+ "Received": {
+  "de": "Eingegangen",
+  "es": "Recibido",
+  "fr": "Reçue",
+  "it": "Ricevuto"
+ },
+ "Remark": {
+  "de": "Bemerkung",
+  "es": "Observación",
+  "fr": "Remarque",
+  "it": "Nota"
+ },
+ "Remark on the order": {
+  "de": "Bemerkung zur Bestellung",
+  "es": "Observación sobre el pedido",
+  "fr": "Remarque sur la commande",
+  "it": "Nota sull'ordine"
+ },
+ "Remove": {
+  "de": "Entfernen",
+  "es": "Quitar",
+  "fr": "Retirer",
+  "it": "Rimuovi"
+ },
+ "Search": {
+  "de": "Suche",
+  "es": "Búsqueda",
+  "fr": "Recherche",
+  "it": "Ricerca"
+ },
+ "Search term": {
+  "de": "Suchbegriff",
+  "es": "Término de búsqueda",
+  "fr": "Terme recherché",
+  "it": "Termine di ricerca"
+ },
+ "Sheep": {
+  "de": "Schaf",
+  "es": "Oveja",
+  "fr": "Mouton",
+  "it": "Pecora"
+ },
+ "Shipping": {
+  "de": "Versand",
+  "es": "Envío",
+  "fr": "Livraison",
+  "it": "Spedizione"
+ },
+ "Shop": {
+  "de": "Shop",
+  "es": "Tienda",
+  "fr": "Boutique",
+  "it": "Negozio"
+ },
+ "Show prices": {
+  "de": "Preise anzeigen",
+  "es": "Mostrar los precios",
+  "fr": "Afficher les prix",
+  "it": "Mostra i prezzi"
+ },
+ "Sister site": {
+  "de": "Schwesterseite",
+  "es": "Sitio hermano",
+  "fr": "Site jumeau",
+  "it": "Sito gemello"
+ },
+ "Skip to the content": {
+  "de": "Zum Inhalt springen",
+  "es": "Ir al contenido",
+  "fr": "Aller au contenu",
+  "it": "Vai al contenuto"
+ },
+ "Street and number": {
+  "de": "Strasse und Nummer",
+  "es": "Calle y número",
+  "fr": "Rue et numéro",
+  "it": "Via e numero"
+ },
+ "Subtotal": {
+  "de": "Zwischensumme",
+  "es": "Subtotal",
+  "fr": "Sous-total",
+  "it": "Subtotale"
+ },
+ "Switzerland": {
+  "de": "Schweiz",
+  "es": "Suiza",
+  "fr": "Suisse",
+  "it": "Svizzera"
+ },
+ "Tag": {
+  "de": "Schlagwort",
+  "es": "Etiqueta",
+  "fr": "Mot-clé",
+  "it": "Parola chiave"
+ },
+ "Tag: %s": {
+  "de": "Schlagwort: %s",
+  "es": "Etiqueta: %s",
+  "fr": "Mot-clé : %s",
+  "it": "Parola chiave: %s"
+ },
+ "Tags": {
+  "de": "Schlagwörter",
+  "es": "Etiquetas",
+  "fr": "Mots-clés",
+  "it": "Parole chiave"
+ },
+ "Telephone (optional)": {
+  "de": "Telefon (freiwillig)",
+  "es": "Teléfono (opcional)",
+  "fr": "Téléphone (facultatif)",
+  "it": "Telefono (facoltativo)"
+ },
+ "Thank you": {
+  "de": "Vielen Dank",
+  "es": "Gracias",
+  "fr": "Merci",
+  "it": "Grazie"
+ },
+ "The cart is empty.": {
+  "de": "Der Warenkorb ist leer.",
+  "es": "El carrito está vacío.",
+  "fr": "Le panier est vide.",
+  "it": "Il carrello è vuoto."
+ },
+ "The page you wanted is gone, or has moved.": {
+  "de": "Die gewünschte Seite gibt es nicht (mehr) oder sie ist umgezogen.",
+  "es": "La página solicitada ya no existe o se ha trasladado.",
+  "fr": "La page demandée n'existe plus ou a été déplacée.",
+  "it": "La pagina richiesta non esiste più o è stata spostata."
+ },
+ "The page you wanted is gone.": {
+  "de": "Die gewünschte Seite gibt es nicht (mehr).",
+  "es": "La página solicitada ya no existe.",
+  "fr": "La page demandée n'existe plus.",
+  "it": "La pagina richiesta non esiste più."
+ },
+ "The password is not right.": {
+  "de": "Das Passwort stimmt nicht.",
+  "es": "La contraseña no es correcta.",
+  "fr": "Le mot de passe n'est pas correct.",
+  "it": "La password non è corretta."
+ },
+ "The site is being built right now — do look in again soon.": {
+  "de": "Hier entsteht gerade die Seite — schauen Sie bald wieder vorbei.",
+  "es": "El sitio se está construyendo — vuelve pronto.",
+  "fr": "Le site est en cours de construction — revenez bientôt.",
+  "it": "Il sito è in costruzione — torna presto."
+ },
+ "There is nothing for sale here yet.": {
+  "de": "Hier steht noch nichts zum Verkauf.",
+  "es": "Aquí todavía no hay nada a la venta.",
+  "fr": "Il n'y a encore rien à vendre ici.",
+  "it": "Qui non c'è ancora nulla in vendita."
+ },
+ "There is nothing here yet.": {
+  "de": "Hier steht noch nichts.",
+  "es": "Aquí todavía no hay nada.",
+  "fr": "Il n'y a encore rien ici.",
+  "it": "Qui non c'è ancora nulla."
+ },
+ "There is nothing here.": {
+  "de": "Hier ist nichts.",
+  "es": "Aquí no hay nada.",
+  "fr": "Il n'y a rien ici.",
+  "it": "Qui non c'è nulla."
+ },
+ "This page does not exist. It may have moved, or the address has a typo in it.": {
+  "de": "Diese Seite gibt es nicht. Vielleicht ist sie umgezogen oder die Adresse hat sich vertippt.",
+  "es": "Esta página no existe. Puede que se haya trasladado o que la dirección tenga una errata.",
+  "fr": "Cette page n'existe pas. Elle a peut-être été déplacée, ou l'adresse comporte une faute de frappe.",
+  "it": "Questa pagina non esiste. Forse è stata spostata o l'indirizzo contiene un errore."
+ },
+ "This page is gone.": {
+  "de": "Diese Seite gibt es nicht (mehr).",
+  "es": "Esta página ya no existe.",
+  "fr": "Cette page n'existe plus.",
+  "it": "Questa pagina non esiste più."
+ },
+ "This page is protected by a password.": {
+  "de": "Diese Seite ist mit einem Passwort geschützt.",
+  "es": "Esta página está protegida con una contraseña.",
+  "fr": "Cette page est protégée par un mot de passe.",
+  "it": "Questa pagina è protetta da una password."
+ },
+ "This page is visible through a link, but it is not published.": {
+  "de": "Diese Seite ist über einen Link sichtbar, aber nicht veröffentlicht.",
+  "es": "Esta página es visible mediante un enlace, pero no está publicada.",
+  "fr": "Cette page est visible via un lien, mais elle n'est pas publiée.",
+  "it": "Questa pagina è visibile tramite un link, ma non è pubblicata."
+ },
+ "This website is being worked on and will be back shortly.": {
+  "de": "Diese Website wird gerade überarbeitet und ist in Kürze wieder erreichbar.",
+  "es": "Este sitio web se está revisando y volverá a estar disponible en breve.",
+  "fr": "Ce site est en cours de révision et sera de nouveau accessible sous peu.",
+  "it": "Questo sito è in revisione e sarà di nuovo raggiungibile a breve."
+ },
+ "To the checkout": {
+  "de": "Zur Kasse",
+  "es": "Ir a la caja",
+  "fr": "Passer commande",
+  "it": "Vai alla cassa"
+ },
+ "To the farm shop": {
+  "de": "Zum Hofladen",
+  "es": "A la tienda de la granja",
+  "fr": "Vers la boutique de la ferme",
+  "it": "Alla bottega agricola"
+ },
+ "To the home page": {
+  "de": "Zur Startseite",
+  "es": "A la página de inicio",
+  "fr": "Vers la page d'accueil",
+  "it": "Alla pagina iniziale"
+ },
+ "To the shop": {
+  "de": "Zum Shop",
+  "es": "A la tienda",
+  "fr": "Vers la boutique",
+  "it": "Al negozio"
+ },
+ "Topics": {
+  "de": "Themen",
+  "es": "Temas",
+  "fr": "Thèmes",
+  "it": "Temi"
+ },
+ "Total": {
+  "de": "Gesamt",
+  "es": "Total",
+  "fr": "Total",
+  "it": "Totale"
+ },
+ "Town": {
+  "de": "Ort",
+  "es": "Localidad",
+  "fr": "Localité",
+  "it": "Località"
+ },
+ "Type something to search for above.": {
+  "de": "Gib oben einen Suchbegriff ein.",
+  "es": "Escribe arriba un término de búsqueda.",
+  "fr": "Saisissez ci-dessus un terme à rechercher.",
+  "it": "Inserisci sopra un termine di ricerca."
+ },
+ "VAT number (optional)": {
+  "de": "UID / MWST-Nummer (freiwillig)",
+  "es": "Número de IVA (opcional)",
+  "fr": "Numéro de TVA (facultatif)",
+  "it": "Partita IVA (facoltativa)"
+ },
+ "We are out with the animals just now. The site of %s will be back in a moment.": {
+  "de": "Wir sind gerade draussen bei den Tieren. Die Seite von %s ist gleich wieder da.",
+  "es": "Ahora mismo estamos con los animales. El sitio de %s vuelve enseguida.",
+  "fr": "Nous sommes auprès des animaux en ce moment. Le site de %s revient tout de suite.",
+  "it": "In questo momento siamo dagli animali. Il sito di %s torna subito."
+ },
+ "We are out with the dogs just now. The site of %s will be back in a moment.": {
+  "de": "Wir sind gerade draussen bei den Hunden. Die Seite von %s ist gleich wieder da.",
+  "es": "Ahora mismo estamos con los perros. El sitio de %s vuelve enseguida.",
+  "fr": "Nous sommes avec les chiens en ce moment. Le site de %s revient tout de suite.",
+  "it": "In questo momento siamo con i cani. Il sito di %s torna subito."
+ },
+ "We have received your order.": {
+  "de": "Wir haben Ihre Bestellung erhalten.",
+  "es": "Hemos recibido tu pedido.",
+  "fr": "Nous avons bien reçu votre commande.",
+  "it": "Abbiamo ricevuto il tuo ordine."
+ },
+ "We will be back shortly.": {
+  "de": "Wir sind gleich wieder da.",
+  "es": "Volvemos enseguida.",
+  "fr": "Nous revenons tout de suite.",
+  "it": "Torniamo subito."
+ },
+ "Welcome to %s": {
+  "de": "Willkommen bei %s",
+  "es": "Bienvenido a %s",
+  "fr": "Bienvenue chez %s",
+  "it": "Benvenuti da %s"
+ },
+ "Welcome to %s.": {
+  "de": "Willkommen bei %s.",
+  "es": "Bienvenido a %s.",
+  "fr": "Bienvenue chez %s.",
+  "it": "Benvenuti da %s."
+ },
+ "Welcome to the farm of %s.": {
+  "de": "Willkommen auf dem Hof von %s.",
+  "es": "Bienvenido a la granja de %s.",
+  "fr": "Bienvenue à la ferme de %s.",
+  "it": "Benvenuti alla fattoria di %s."
+ },
+ "What are you looking for?": {
+  "de": "Wonach suchst du?",
+  "es": "¿Qué estás buscando?",
+  "fr": "Que cherchez-vous ?",
+  "it": "Che cosa cerchi?"
+ },
+ "You will then be taken to": {
+  "de": "Danach geht es weiter zu",
+  "es": "Después continuarás hacia",
+  "fr": "Vous serez ensuite redirigé vers",
+  "it": "Poi si prosegue verso"
+ },
+ "Your order": {
+  "de": "Ihre Bestellung",
+  "es": "Tu pedido",
+  "fr": "Votre commande",
+  "it": "Il tuo ordine"
+ },
+ "Your remark": {
+  "de": "Ihre Bemerkung",
+  "es": "Tu observación",
+  "fr": "Votre remarque",
+  "it": "La tua nota"
+ },
+ "excl. VAT": {
+  "de": "exkl. MWST",
+  "es": "sin IVA",
+  "fr": "hors TVA",
+  "it": "IVA esclusa"
+ },
+ "free": {
+  "de": "kostenlos",
+  "es": "gratis",
+  "fr": "offerte",
+  "it": "gratuita"
+ },
+ "incl. VAT": {
+  "de": "inkl. MWST",
+  "es": "IVA incluido",
+  "fr": "TVA incluse",
+  "it": "IVA inclusa"
+ },
+ "nothing was found.": {
+  "de": "wurde nichts gefunden.",
+  "es": "no se encontró nada.",
+  "fr": "rien n'a été trouvé.",
+  "it": "non è stato trovato nulla."
+ },
+ "nothing was found. Try a single word.": {
+  "de": "wurde nichts gefunden. Versuchen Sie es mit einem einzelnen Wort.",
+  "es": "no se encontró nada. Prueba con una sola palabra.",
+  "fr": "rien n'a été trouvé. Essayez avec un seul mot.",
+  "it": "non è stato trovato nulla. Prova con una sola parola."
+ },
+ "this page is visible through a link, but it is not published.": {
+  "de": "diese Seite ist über einen Link sichtbar, aber nicht veröffentlicht.",
+  "es": "esta página es visible mediante un enlace, pero no está publicada.",
+  "fr": "cette page est visible via un lien, mais elle n'est pas publiée.",
+  "it": "questa pagina è visibile tramite un link, ma non è pubblicata."
+ }
+}

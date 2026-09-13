@@ -254,3 +254,51 @@ func TestTheRefusalNamesTheEnglishFieldsSoAThemeCanBeConverted(t *testing.T) {
 		}
 	}
 }
+
+// Every shipped theme translates every word it mints, in every language it
+// offers.
+//
+// This is the promise the eight themes make that an uploaded one does not: they
+// come from us, so an English word standing in the middle of a French page is
+// our defect and not the author's. CheckCatalogs refuses nothing — it reports —
+// so without this test the eight could drift into a half-translated state and
+// only a visitor would find out.
+func TestEveryShippedThemeTranslatesEveryWordItMints(t *testing.T) {
+	root := filepath.Join("..", "..", "cmd", "holzcloud", "templates", "public")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("read shipped themes: %v", err)
+	}
+
+	var themes, words int
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		themes++
+		theme := os.DirFS(filepath.Join(root, e.Name()))
+
+		// A shipped theme mints words. One that has stopped doing so has been
+		// rewritten to hard-code them again, which is what this milestone
+		// undid.
+		used := KeysUsed(theme)
+		if len(used) == 0 {
+			t.Errorf("shipped theme %q asks for no translatable word at all", e.Name())
+			continue
+		}
+		words += len(used)
+
+		offered := LanguagesOffered(theme)
+		if len(offered) < 4 {
+			t.Errorf("shipped theme %q carries %d catalogues (%v), want at least de, fr, it and es",
+				e.Name(), len(offered), offered)
+		}
+		for _, p := range CheckCatalogs(theme) {
+			t.Errorf("shipped theme %q: %s", e.Name(), p)
+		}
+	}
+	if themes != 8 {
+		t.Fatalf("%d shipped themes found, expected 8", themes)
+	}
+	t.Logf("%d themes, %d translatable words in total", themes, words)
+}

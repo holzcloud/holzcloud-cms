@@ -145,6 +145,29 @@ func candidates(locale string) []string {
 // sentence in the catalogue, not in the template.
 var keyCall = regexp.MustCompile(`\{\{-?\s*t(?:h|f)?\s+"((?:[^"\\]|\\.)*)"`)
 
+// MintedByTheProgram are words a theme needs that no template asks for.
+//
+// The titles of the 404 and the maintenance page are filled IN to
+// {{.Page.Title}} by Render404 and RenderMaintenance, so they appear in no
+// template and KeysUsed cannot see them — and a theme that does not translate
+// them serves a French page titled "Seite nicht gefunden", which is the defect //nolint:german — the title this rule removes
+// the whole catalogue exists to remove. So they count as used, and an entry for
+// one of them is not left over.
+//
+// Two, and adding a third means the program has started minting a visitor's
+// sentence somewhere a theme author cannot see it. That is worth noticing
+// rather than adding to a list.
+var MintedByTheProgram = []string{"Down for maintenance", "Page not found"}
+
+func mintedByTheProgram(key string) bool {
+	for _, k := range MintedByTheProgram {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
 // KeysUsed lists every key the theme's own template files ask for, sorted and
 // without repeats.
 func KeysUsed(theme fs.FS) []string {
@@ -254,9 +277,10 @@ func CheckCatalogs(theme fs.FS) []Problem {
 		// refusing: an archive is allowed to carry more than it uses.
 		var spare []string
 		for key := range entries {
-			if !contains(used, key) {
-				spare = append(spare, key)
+			if contains(used, key) || mintedByTheProgram(key) {
+				continue
 			}
+			spare = append(spare, key)
 		}
 		if len(spare) > 0 {
 			sort.Strings(spare)

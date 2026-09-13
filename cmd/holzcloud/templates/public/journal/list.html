@@ -1,6 +1,6 @@
 {{define "content"}}
 <section class="archive">
-  {{if .Archive.Term}}<h1 class="archive-title">Schlagwort: {{.Archive.Term}}</h1>{{else}}<h1 class="archive-title">{{.Page.Title}}</h1>{{end}}
+  {{if .Archive.Term}}<h1 class="archive-title">{{tf "Tag: %s" .Archive.Term}}</h1>{{else}}<h1 class="archive-title">{{.Page.Title}}</h1>{{end}}
 
   {{if .Archive.Entries}}
   <ol class="archive-list">
@@ -12,7 +12,7 @@
       <h2 class="archive-entry__title"><a href="{{.URL}}">{{.Title}}</a></h2>
       {{if .Excerpt}}<p class="archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
       {{if .Terms}}
-      <ul class="term-list" aria-label="Schlagwörter">
+      <ul class="term-list" aria-label="{{t "Tags"}}">
         {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
       </ul>
       {{end}}
@@ -21,14 +21,14 @@
   </ol>
 
   {{if gt .Archive.TotalPages 1}}
-  <nav class="archive-pager" aria-label="Seiten des Archivs">
-    {{if .Archive.PrevURL}}<a href="{{.Archive.PrevURL}}" rel="prev">&larr; Neuere</a>{{end}}
+  <nav class="archive-pager" aria-label="{{t "Pages of the archive"}}">
+    {{if .Archive.PrevURL}}<a href="{{.Archive.PrevURL}}" rel="prev">{{t "&larr; Newer"}}</a>{{end}}
     <span class="archive-pager__position">{{.Archive.Page}} / {{.Archive.TotalPages}}</span>
-    {{if .Archive.NextURL}}<a href="{{.Archive.NextURL}}" rel="next">Ältere &rarr;</a>{{end}}
+    {{if .Archive.NextURL}}<a href="{{.Archive.NextURL}}" rel="next">{{t "Older &rarr;"}}</a>{{end}}
   </nav>
   {{end}}
   {{else}}
-  <p class="archive-empty">Hier steht noch nichts.</p>
+  <p class="archive-empty">{{t "There is nothing here yet."}}</p>
   {{end}}
 </section>
 {{end}}

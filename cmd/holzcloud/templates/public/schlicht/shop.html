@@ -2,28 +2,28 @@
 <section class="shop">
   <header class="page-header">
     {{if .Catalogue.Term}}
-    <p class="page-header__kicker">Kategorie</p>
+    <p class="page-header__kicker">{{t "Category"}}</p>
     <h1 class="page-header__title">{{.Catalogue.Term}}</h1>
     {{else}}
     <h1 class="page-header__title">{{.Page.Title}}</h1>
     {{end}}
-    {{if .Catalogue.Total}}<p class="page-header__meta">{{.Catalogue.Total}} Artikel</p>{{end}}
+    {{if .Catalogue.Total}}<p class="page-header__meta">{{tf "%d items" .Catalogue.Total}}</p>{{end}}
   </header>
 
   {{if .Shop.CanSwitchAudience}}
-  <form class="price-switch" method="POST" action="/preise" aria-label="Preisanzeige">
+  <form class="price-switch" method="POST" action="/preise" aria-label="{{t "Price display"}}">
     <input type="hidden" name="zurueck" value="{{.Shop.URL}}">
     <button type="submit" name="ansicht" value="private"
-            class="price-switch__option{{if eq .Shop.Audience "private"}} is-active{{end}}">inkl. MWST</button>
+            class="price-switch__option{{if eq .Shop.Audience "private"}} is-active{{end}}">{{t "incl. VAT"}}</button>
     <button type="submit" name="ansicht" value="business"
-            class="price-switch__option{{if eq .Shop.Audience "business"}} is-active{{end}}">exkl. MWST</button>
+            class="price-switch__option{{if eq .Shop.Audience "business"}} is-active{{end}}">{{t "excl. VAT"}}</button>
   </form>
   {{end}}
 
   {{if .Shop.Categories}}
-  <nav class="shop-categories" aria-label="Kategorien">
+  <nav class="shop-categories" aria-label="{{t "Categories"}}">
     <ul class="term-list">
-      <li><a class="term" href="{{.Shop.URL}}">Alle</a></li>
+      <li><a class="term" href="{{.Shop.URL}}">{{t "All"}}</a></li>
       {{range .Shop.Categories}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
   </nav>
@@ -55,14 +55,14 @@
   </ol>
 
   {{if gt .Catalogue.TotalPages 1}}
-  <nav class="archive-pager" aria-label="Seiten des Katalogs">
-    {{if .Catalogue.PrevURL}}<a class="button button--quiet" href="{{.Catalogue.PrevURL}}" rel="prev">Zurück</a>{{end}}
-    <span class="archive-pager__position">Seite {{.Catalogue.Page}} von {{.Catalogue.TotalPages}}</span>
-    {{if .Catalogue.NextURL}}<a class="button button--quiet" href="{{.Catalogue.NextURL}}" rel="next">Weiter</a>{{end}}
+  <nav class="archive-pager" aria-label="{{t "Pages of the catalogue"}}">
+    {{if .Catalogue.PrevURL}}<a class="button button--quiet" href="{{.Catalogue.PrevURL}}" rel="prev">{{t "Back"}}</a>{{end}}
+    <span class="archive-pager__position">{{tf "Page %d of %d" .Catalogue.Page .Catalogue.TotalPages}}</span>
+    {{if .Catalogue.NextURL}}<a class="button button--quiet" href="{{.Catalogue.NextURL}}" rel="next">{{t "Continue"}}</a>{{end}}
   </nav>
   {{end}}
   {{else}}
-  <p class="archive-empty">Hier steht noch nichts zum Verkauf.</p>
+  <p class="archive-empty">{{t "There is nothing for sale here yet."}}</p>
   {{end}}
 
   {{if .Shop.ShippingNote}}<p class="shop-note">{{.Shop.ShippingNote}}</p>{{end}}

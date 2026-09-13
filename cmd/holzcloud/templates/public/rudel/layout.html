@@ -60,7 +60,7 @@
 </head>
 <body>
   <!-- Erstes Kind und damit erstes Ziel der Tabulatortaste. -->
-  <a href="#main" class="skip-link">Zum Inhalt springen</a>
+  <a href="#main" class="skip-link">{{t "Skip to the content"}}</a>
 
   <!-- Der Menüschalter ist eine Checkbox und kein Skript: diese Vorlage liefert
        keines aus, und eine Checkbox ist das einzige Aufklappen, das ohne eines
@@ -84,13 +84,13 @@
 
       <label for="nav-open" class="nav-button">
         <span class="nav-button__bars" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span class="nav-button__text">Menü</span>
+        <span class="nav-button__text">{{t "Menu"}}</span>
       </label>
 
-      <nav class="site-menu" aria-label="Hauptnavigation">{{menuFor .Menus "main" .Page.Slug}}</nav>
+      <nav class="site-menu" aria-label="{{t "Main navigation"}}">{{menuFor .Menus "main" .Page.Slug}}</nav>
 
       {{if .Site.Languages}}
-      <nav class="lang-nav" aria-label="Sprache">
+      <nav class="lang-nav" aria-label="{{t "Language"}}">
         <ul>
           {{range .Site.Languages}}
           <li>
@@ -108,14 +108,14 @@
            MinimalData überstehen, wo Shop und Search leer sind — deshalb hängt
            jeder an seiner eigenen Bedingung. -->
       {{if .Shop.Enabled}}
-      <a class="site-cart" href="{{.Cart.URL}}">Warenkorb <span class="site-cart__count">{{.Cart.Count}}</span></a>
+      <a class="site-cart" href="{{.Cart.URL}}">{{t "Cart"}} <span class="site-cart__count">{{.Cart.Count}}</span></a>
       {{end}}
 
       {{if .Site.HasSearch}}
       <form class="site-search" method="GET" action="/suche" role="search">
-        <label class="sr-only" for="bar-q">Suchbegriff</label>
-        <input class="hc-input" type="search" id="bar-q" name="q" value="{{.Search.Query}}" placeholder="Suchen">
-        <button class="hc-btn hc-btn--ghost hc-btn--sm" type="submit">Suchen</button>
+        <label class="sr-only" for="bar-q">{{t "Search term"}}</label>
+        <input class="hc-input" type="search" id="bar-q" name="q" value="{{.Search.Query}}" placeholder="{{t "Find"}}">
+        <button class="hc-btn hc-btn--ghost hc-btn--sm" type="submit">{{t "Find"}}</button>
       </form>
       {{end}}
     </div>
@@ -132,7 +132,7 @@
              nach, nimmt die Textfarbe an und bleibt auf Papier richtig herum.
              Dasselbe Zeichen wie im favicon.svg, damit der Reiter im Browser
              und der Fuss der Seite dasselbe Haus meinen. -->
-        <svg class="site-footer__mark" viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="Pfote" focusable="false">
+        <svg class="site-footer__mark" viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="{{t "Paw"}}" focusable="false">
           <path d="M32 54c-8.6 0-15-4.6-15-11.2 0-5.6 4.6-9.3 8.4-12.6 2.6-2.3 4.3-4.6 6.6-4.6s4 2.3 6.6 4.6c3.8 3.3 8.4 7 8.4 12.6C47 49.4 40.6 54 32 54z"></path>
           <ellipse cx="15.5" cy="30" rx="6" ry="7.6" transform="rotate(-18 15.5 30)"></ellipse>
           <ellipse cx="25.5" cy="19.5" rx="5.8" ry="7.8" transform="rotate(-8 25.5 19.5)"></ellipse>
@@ -150,13 +150,13 @@
            ausdruckt, will meistens genau diese Zeilen. -->
       {{if .Site.Snippets}}{{with index .Site.Snippets "footer-kontakt"}}
       <div class="site-footer__contact">
-        <h2 class="site-footer__heading">Kontakt</h2>
+        <h2 class="site-footer__heading">{{t "Contact"}}</h2>
         {{.}}
       </div>
       {{end}}{{end}}
 
-      <nav class="footer-nav" aria-label="Rechtliches">
-        <h2 class="site-footer__heading">Rechtliches</h2>
+      <nav class="footer-nav" aria-label="{{t "Legal"}}">
+        <h2 class="site-footer__heading">{{t "Legal"}}</h2>
         {{menuFor .Menus "footer" .Page.Slug}}
       </nav>
 
@@ -170,14 +170,14 @@
            nicht als Kleingedrucktes verschwindet. -->
       {{if .Site.Snippets}}{{with index .Site.Snippets "schwesterseite"}}
       <div class="site-footer__sister">
-        <h2 class="site-footer__heading">Schwesterseite</h2>
+        <h2 class="site-footer__heading">{{t "Sister site"}}</h2>
         {{.}}
       </div>
       {{end}}{{end}}
 
       {{if .Site.Terms}}
       <div class="site-footer__terms">
-        <h2 class="site-footer__heading">Schlagwörter</h2>
+        <h2 class="site-footer__heading">{{t "Tags"}}</h2>
         <ul class="term-list">
           {{range .Site.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
         </ul>

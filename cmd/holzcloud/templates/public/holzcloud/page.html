@@ -2,8 +2,8 @@
 <section class="hc-wide page-wrap">
   {{if .Preview.Active}}
   <p class="preview-banner" role="status">
-    <strong>Vorschau{{if ne .Preview.Status "published"}} eines Entwurfs{{end}}.</strong>
-    Diese Seite ist über einen Link sichtbar, aber nicht veröffentlicht.
+    <strong>{{if ne .Preview.Status "published"}}{{t "Preview of a draft"}}{{else}}{{t "Preview"}}{{end}}.</strong>
+    {{t "This page is visible through a link, but it is not published."}}
   </p>
   {{end}}
 
@@ -58,7 +58,7 @@
     {{end}}
 
     {{if .Page.Terms}}
-    <ul class="term-list" aria-label="Schlagwörter">
+    <ul class="term-list" aria-label="{{t "Tags"}}">
       {{range .Page.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
     {{end}}
@@ -67,9 +67,9 @@
     {{/* Prev und Next sind auf dem ältesten und auf dem neuesten Beitrag nil.
          {{with}} bindet den Wert und überspringt den Block, wenn er fehlt —
          {{if .Page.Next}}…{{.Page.Next.URL}} griffe durch nichts hindurch. */}}
-    <nav class="post-nav" aria-label="Weitere Beiträge">
+    <nav class="post-nav" aria-label="{{t "More posts"}}">
       {{with .Page.Prev}}<a class="post-nav__prev" href="{{.URL}}" rel="prev">&larr; {{.Title}}</a>{{end}}
-      {{with .Page.ArchiveURL}}<a class="post-nav__index" href="{{.}}">Alle Beiträge</a>{{end}}
+      {{with .Page.ArchiveURL}}<a class="post-nav__index" href="{{.}}">{{t "All posts"}}</a>{{end}}
       {{with .Page.Next}}<a class="post-nav__next" href="{{.URL}}" rel="next">{{.Title}} &rarr;</a>{{end}}
     </nav>
     {{end}}

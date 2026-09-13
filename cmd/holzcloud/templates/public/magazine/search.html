@@ -1,16 +1,16 @@
 {{define "content"}}
 <section class="page page--search container-narrow">
-  <h1>Suche</h1>
+  <h1>{{t "Search"}}</h1>
 
   <form method="GET" action="/suche" class="search-form" role="search">
-    <label class="sr-only" for="q">Suchbegriff</label>
+    <label class="sr-only" for="q">{{t "Search term"}}</label>
     <input type="search" id="q" name="q" value="{{.Search.Query}}"
-           placeholder="Wonach suchst du?" autofocus>
-    <button type="submit">Suchen</button>
+           placeholder="{{t "What are you looking for?"}}" autofocus>
+    <button type="submit">{{t "Find"}}</button>
   </form>
 
   {{if .Search.Results}}
-  <p class="search-count">{{len .Search.Results}} Treffer</p>
+  <p class="search-count">{{tf "%d hits" (len .Search.Results)}}</p>
   <ol class="search-results">
     {{range .Search.Results}}
     <li class="search-result">
@@ -20,9 +20,9 @@
     {{end}}
   </ol>
   {{else if .Search.Submitted}}
-  <p>Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.</p>
+  <p>Zu <strong>{{.Search.Query}}</strong> {{t "nothing was found."}}</p>
   {{else}}
-  <p>Gib oben einen Suchbegriff ein.</p>
+  <p>{{t "Type something to search for above."}}</p>
   {{end}}
 </section>
 {{end}}

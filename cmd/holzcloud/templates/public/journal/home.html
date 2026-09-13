@@ -6,7 +6,7 @@
     {{.Page.ContentHTML}}
   </div>
   {{else}}
-  <p class="greeting">Willkommen bei {{.Site.Name}}.</p>
+  <p class="greeting">{{tf "Welcome to %s." .Site.Name}}</p>
   {{end}}
 </article>
 {{end}}

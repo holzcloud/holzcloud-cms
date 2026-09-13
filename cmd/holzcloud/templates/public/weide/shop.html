@@ -3,31 +3,31 @@
   <header class="page-header">
     {{/* Ein gefilterter Katalog nennt die Kategorie, nach der er filtert. */}}
     {{if .Catalogue.Term}}
-    <p class="hc-eyebrow">Kategorie</p>
+    <p class="hc-eyebrow">{{t "Category"}}</p>
     <h1>{{.Catalogue.Term}}</h1>
     {{else}}
     <h1>{{.Page.Title}}</h1>
     {{end}}
-    {{if .Catalogue.Total}}<p class="archive-count">{{.Catalogue.Total}} Artikel</p>{{end}}
+    {{if .Catalogue.Total}}<p class="archive-count">{{tf "%d items" .Catalogue.Total}}</p>{{end}}
   </header>
 
   {{/* Der Umschalter erscheint nur, wo der Betrieb wirklich beides bedient.
        Ein Hofladen für Private darf keine Nettopreise anbieten — die
        Preisbekanntgabeverordnung verlangt den Betrag, der zu zahlen ist. */}}
   {{if .Shop.CanSwitchAudience}}
-  <form class="price-switch" method="POST" action="/preise" aria-label="Preisanzeige">
+  <form class="price-switch" method="POST" action="/preise" aria-label="{{t "Price display"}}">
     <input type="hidden" name="zurueck" value="{{.Shop.URL}}">
     <button type="submit" name="ansicht" value="private"
-            class="price-switch__option{{if eq .Shop.Audience "private"}} is-active{{end}}">inkl. MWST</button>
+            class="price-switch__option{{if eq .Shop.Audience "private"}} is-active{{end}}">{{t "incl. VAT"}}</button>
     <button type="submit" name="ansicht" value="business"
-            class="price-switch__option{{if eq .Shop.Audience "business"}} is-active{{end}}">exkl. MWST</button>
+            class="price-switch__option{{if eq .Shop.Audience "business"}} is-active{{end}}">{{t "excl. VAT"}}</button>
   </form>
   {{end}}
 
   {{if .Shop.Categories}}
-  <nav class="shop-categories" aria-label="Kategorien">
+  <nav class="shop-categories" aria-label="{{t "Categories"}}">
     <ul class="term-list">
-      {{with .Shop.URL}}<li><a class="term" href="{{.}}">Alle</a></li>{{end}}
+      {{with .Shop.URL}}<li><a class="term" href="{{.}}">{{t "All"}}</a></li>{{end}}
       {{range .Shop.Categories}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
   </nav>
@@ -54,7 +54,7 @@
         </p>
         {{if not .Available}}<p class="hc-status hc-status--warn product-card__gone">{{.SoldOutLabel}}</p>{{end}}
         {{if .Terms}}
-        <ul class="term-list" aria-label="Kategorien">
+        <ul class="term-list" aria-label="{{t "Categories"}}">
           {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
         </ul>
         {{end}}
@@ -64,14 +64,14 @@
   </ol>
 
   {{if gt .Catalogue.TotalPages 1}}
-  <nav class="archive-pager" aria-label="Seiten des Katalogs">
-    {{with .Catalogue.PrevURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="prev">Zurück</a>{{end}}
-    <span class="archive-pager__position">Seite {{.Catalogue.Page}} von {{.Catalogue.TotalPages}}</span>
-    {{with .Catalogue.NextURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="next">Weiter</a>{{end}}
+  <nav class="archive-pager" aria-label="{{t "Pages of the catalogue"}}">
+    {{with .Catalogue.PrevURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="prev">{{t "Back"}}</a>{{end}}
+    <span class="archive-pager__position">{{tf "Page %d of %d" .Catalogue.Page .Catalogue.TotalPages}}</span>
+    {{with .Catalogue.NextURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="next">{{t "Continue"}}</a>{{end}}
   </nav>
   {{end}}
   {{else}}
-  <p class="archive-empty hc-lede">Hier steht noch nichts zum Verkauf.</p>
+  <p class="archive-empty hc-lede">{{t "There is nothing for sale here yet."}}</p>
   {{end}}
 
   {{with .Shop.ShippingNote}}<p class="shop-note hc-dim">{{.}}</p>{{end}}

@@ -5,12 +5,12 @@
          .Archive.Term ist der einzige Unterschied: ohne diese Weiche stünde
          über /tag/loewchen die Überschrift des Gesamtarchivs. */}}
     {{if .Archive.Term}}
-    <p class="hc-eyebrow">Schlagwort</p>
+    <p class="hc-eyebrow">{{t "Tag"}}</p>
     <h1>{{.Archive.Term}}</h1>
     {{else}}
     <h1>{{.Page.Title}}</h1>
     {{end}}
-    {{if .Archive.Total}}<p class="archive-count">{{.Archive.Total}} Beiträge</p>{{end}}
+    {{if .Archive.Total}}<p class="archive-count">{{tf "%d posts" .Archive.Total}}</p>{{end}}
   </header>
 
   {{if .Archive.Entries}}
@@ -32,7 +32,7 @@
         {{end}}
         {{if .Excerpt}}<p class="archive-entry__excerpt">{{.Excerpt}}</p>{{end}}
         {{if .Terms}}
-        <ul class="term-list" aria-label="Schlagwörter">
+        <ul class="term-list" aria-label="{{t "Tags"}}">
           {{range .Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
         </ul>
         {{end}}
@@ -45,22 +45,22 @@
        zusammengesetzte Links verlieren im Schlagwortarchiv das Schlagwort. An
        den Enden sind sie leer, deshalb {{with}} und nicht {{if}}. */}}
   {{if gt .Archive.TotalPages 1}}
-  <nav class="archive-pager" aria-label="Seiten des Archivs">
-    {{with .Archive.PrevURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="prev">Neuere Beiträge</a>{{end}}
-    <span class="archive-pager__position">Seite {{.Archive.Page}} von {{.Archive.TotalPages}}</span>
-    {{with .Archive.NextURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="next">Ältere Beiträge</a>{{end}}
+  <nav class="archive-pager" aria-label="{{t "Pages of the archive"}}">
+    {{with .Archive.PrevURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="prev">{{t "Newer posts"}}</a>{{end}}
+    <span class="archive-pager__position">{{tf "Page %d of %d" .Archive.Page .Archive.TotalPages}}</span>
+    {{with .Archive.NextURL}}<a class="hc-btn hc-btn--ghost hc-btn--sm" href="{{.}}" rel="next">{{t "Older posts"}}</a>{{end}}
   </nav>
   {{end}}
   {{else}}
   {{/* Ein leeres Schlagwortarchiv ist eine Sackgasse. Der Weg zurück ins
        Gesamtarchiv ist das Einzige, was hier noch hilft. */}}
-  <p class="archive-empty hc-lede">Hier steht noch nichts.
-    {{with .Page.ArchiveURL}}<a href="{{.}}">Zurück zum Archiv</a>{{end}}
+  <p class="archive-empty hc-lede">{{t "There is nothing here yet."}}
+    {{with .Page.ArchiveURL}}<a href="{{.}}">{{t "Back to the archive"}}</a>{{end}}
   </p>
   {{end}}
 
   {{if .Archive.Terms}}
-  <ul class="term-list archive-terms" aria-label="Alle Schlagwörter">
+  <ul class="term-list archive-terms" aria-label="{{t "All tags"}}">
     {{range .Archive.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}{{if .Count}} <span class="hc-dim">{{.Count}}</span>{{end}}</a></li>{{end}}
   </ul>
   {{end}}

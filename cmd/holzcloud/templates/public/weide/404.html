@@ -7,10 +7,10 @@
        ausgegeben, erfährt der Empfänger nie, dass er nur einen neuen Link
        braucht. */}}
   {{with .Meta.Message}}<p class="hc-lede">{{.}}</p>
-  {{else}}<p class="hc-lede">Diese Seite gibt es nicht (mehr).</p>{{end}}
+  {{else}}<p class="hc-lede">{{t "This page is gone."}}</p>{{end}}
   <div class="site-actions">
-    <a class="hc-btn" href="/">Zur Startseite</a>
-    {{if .Site.HasSearch}}<a class="hc-btn hc-btn--ghost" href="/suche">Suchen</a>{{end}}
+    <a class="hc-btn" href="/">{{t "To the home page"}}</a>
+    {{if .Site.HasSearch}}<a class="hc-btn hc-btn--ghost" href="/suche">{{t "Find"}}</a>{{end}}
   </div>
 </section>
 {{end}}

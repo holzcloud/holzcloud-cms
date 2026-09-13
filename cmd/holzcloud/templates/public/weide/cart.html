@@ -1,8 +1,8 @@
 {{define "content"}}
 <section class="hc-wide page-wrap cart">
   <header class="page-header">
-    <h1>Warenkorb</h1>
-    {{if .Cart.Count}}<p class="archive-count">{{.Cart.Count}} Artikel</p>{{end}}
+    <h1>{{t "Cart"}}</h1>
+    {{if .Cart.Count}}<p class="archive-count">{{tf "%d items" .Cart.Count}}</p>{{end}}
   </header>
 
   {{if .Cart.Lines}}
@@ -23,8 +23,8 @@
       <div class="cart-line__text">
         <h2 class="cart-line__title"><a href="{{.URL}}">{{.Title}}</a></h2>
         {{with .Subtitle}}<p class="cart-line__subtitle">{{.}}</p>{{end}}
-        <p class="cart-line__unit">{{.UnitPrice}} je Stück</p>
-        {{if not .Available}}<p class="hc-status hc-status--danger">Nicht mehr verfügbar</p>{{end}}
+        <p class="cart-line__unit">{{tf "%s each" .UnitPrice}}</p>
+        {{if not .Available}}<p class="hc-status hc-status--danger">{{t "No longer available"}}</p>{{end}}
       </div>
 
       <div class="cart-line__actions">
@@ -32,15 +32,15 @@
              benannt, nie über eine Nummer. */}}
         <form class="cart-line__quantity" method="POST" action="{{$.Cart.UpdateURL}}">
           <input type="hidden" name="artikel" value="{{.Slug}}">
-          <label for="menge-{{.Slug}}" class="sr-only">Menge für {{.Title}}</label>
+          <label for="menge-{{.Slug}}" class="sr-only">{{tf "Quantity of %s" .Title}}</label>
           <input class="hc-input" type="number" id="menge-{{.Slug}}" name="menge" value="{{.Quantity}}"
                  min="0" max="99" inputmode="numeric">
-          <button type="submit" class="hc-btn hc-btn--ghost hc-btn--sm">Ändern</button>
+          <button type="submit" class="hc-btn hc-btn--ghost hc-btn--sm">{{t "Change"}}</button>
         </form>
 
         <form class="cart-line__remove" method="POST" action="{{$.Cart.RemoveURL}}">
           <input type="hidden" name="artikel" value="{{.Slug}}">
-          <button type="submit" class="hc-btn hc-btn--danger hc-btn--sm">Entfernen<span class="sr-only"> — {{.Title}}</span></button>
+          <button type="submit" class="hc-btn hc-btn--danger hc-btn--sm">{{t "Remove"}}<span class="sr-only"> — {{.Title}}</span></button>
         </form>
       </div>
 
@@ -51,25 +51,25 @@
 
   <div class="hc-pane hc-pane--pad cart-summary">
     <dl class="cart-totals">
-      <dt>Zwischensumme</dt><dd>{{.Cart.Totals.Items}}</dd>
-      <dt>Versand</dt>
-      <dd>{{if .Cart.Totals.ShippingFree}}kostenlos{{else}}{{.Cart.Totals.Shipping}}{{end}}</dd>
+      <dt>{{t "Subtotal"}}</dt><dd>{{.Cart.Totals.Items}}</dd>
+      <dt>{{t "Shipping"}}</dt>
+      <dd>{{if .Cart.Totals.ShippingFree}}{{t "free"}}{{else}}{{.Cart.Totals.Shipping}}{{end}}</dd>
       {{range .Cart.Totals.TaxLines}}
       <dt class="cart-totals__tax">{{.Label}}</dt><dd class="cart-totals__tax">{{.Tax}}</dd>
       {{end}}
-      <dt class="cart-totals__sum">Gesamt</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
+      <dt class="cart-totals__sum">{{t "Total"}}</dt><dd class="cart-totals__sum">{{.Cart.Totals.Total}}</dd>
     </dl>
     {{with .Cart.Totals.TaxNote}}<p class="cart-totals__note">{{.}}</p>{{end}}
     {{with .Shop.ShippingNote}}<p class="cart-totals__note">{{.}}</p>{{end}}
 
     <div class="cart-actions">
-      {{with .Cart.CheckoutURL}}<a class="hc-btn" href="{{.}}">Zur Kasse</a>{{end}}
-      {{with .Shop.URL}}<a class="hc-btn hc-btn--ghost" href="{{.}}">Weiter einkaufen</a>{{end}}
+      {{with .Cart.CheckoutURL}}<a class="hc-btn" href="{{.}}">{{t "To the checkout"}}</a>{{end}}
+      {{with .Shop.URL}}<a class="hc-btn hc-btn--ghost" href="{{.}}">{{t "Carry on shopping"}}</a>{{end}}
     </div>
   </div>
   {{else}}
-  <p class="cart-empty hc-lede">Der Warenkorb ist leer.</p>
-  {{with .Shop.URL}}<div class="site-actions"><a class="hc-btn" href="{{.}}">Zum Hofladen</a></div>{{end}}
+  <p class="cart-empty hc-lede">{{t "The cart is empty."}}</p>
+  {{with .Shop.URL}}<div class="site-actions"><a class="hc-btn" href="{{.}}">{{t "To the farm shop"}}</a></div>{{end}}
   {{end}}
 </section>
 {{end}}

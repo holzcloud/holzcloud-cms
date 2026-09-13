@@ -13,16 +13,16 @@
        öffentliche Teil hat keine solche Prüfung, und ein Suchergebnis muss eine
        Adresse haben, die man weitergeben kann. */}}
   <form method="GET" action="/suche" class="search-form" role="search">
-    <label class="sr-only" for="q">Suchbegriff</label>
+    <label class="sr-only" for="q">{{t "Search term"}}</label>
     <input class="hc-input" type="search" id="q" name="q" value="{{.Search.Query}}"
-           placeholder="Wonach suchen Sie?" autofocus>
-    <button class="hc-btn" type="submit">Suchen</button>
+           placeholder="{{t "What are you looking for?"}}" autofocus>
+    <button class="hc-btn" type="submit">{{t "Find"}}</button>
   </form>
 
   {{/* Drei Fälle, und der dritte ist der wichtige: „nichts gefunden" und „noch
        nichts eingegeben" sehen gleich leer aus, sagen aber Verschiedenes. */}}
   {{if .Search.Results}}
-  <p class="search-count hc-lbl">{{len .Search.Results}} Treffer für «{{.Search.Query}}»</p>
+  <p class="search-count hc-lbl">{{tf "%d hits for «%s»" (len .Search.Results) .Search.Query}}</p>
   <ol class="search-results">
     {{range .Search.Results}}
     <li class="search-result">
@@ -34,10 +34,9 @@
     {{end}}
   </ol>
   {{else if .Search.Submitted}}
-  <p class="hc-lede">Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.
-     Versuchen Sie es mit einem einzelnen Wort.</p>
+  <p class="hc-lede">Zu <strong>{{.Search.Query}}</strong> {{t "nothing was found. Try a single word."}}</p>
   {{else}}
-  <p class="hc-lede">Geben Sie oben ein, wonach Sie suchen.</p>
+  <p class="hc-lede">{{t "Enter above what you are looking for."}}</p>
   {{end}}
 </section>
 {{end}}

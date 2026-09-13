@@ -1,21 +1,21 @@
 {{define "content"}}
 <section class="hc-wide page-wrap page--search">
   <header class="page-header">
-    <h1>Suche</h1>
+    <h1>{{t "Search"}}</h1>
   </header>
 
   {{/* Ein GET auf /suche mit dem Feld q — die Verabredung steht in
        TEMPLATE-SPEC §6 fest. Ein umbenanntes Feld rendert tadellos und
        schickt nichts, womit der Server etwas anfangen kann. */}}
   <form method="GET" action="/suche" class="search-form" role="search">
-    <label class="sr-only" for="q">Suchbegriff</label>
+    <label class="sr-only" for="q">{{t "Search term"}}</label>
     <input class="hc-input" type="search" id="q" name="q" value="{{.Search.Query}}"
-           placeholder="Wonach suchst du?" autofocus>
-    <button class="hc-btn" type="submit">Suchen</button>
+           placeholder="{{t "What are you looking for?"}}" autofocus>
+    <button class="hc-btn" type="submit">{{t "Find"}}</button>
   </form>
 
   {{if .Search.Results}}
-  <p class="search-count hc-dim">{{len .Search.Results}} Treffer</p>
+  <p class="search-count hc-dim">{{tf "%d hits" (len .Search.Results)}}</p>
   <ol class="search-results">
     {{range .Search.Results}}
     <li class="search-result">
@@ -27,9 +27,9 @@
     {{end}}
   </ol>
   {{else if .Search.Submitted}}
-  <p class="hc-lede">Zu <strong>{{.Search.Query}}</strong> wurde nichts gefunden.</p>
+  <p class="hc-lede">Zu <strong>{{.Search.Query}}</strong> {{t "nothing was found."}}</p>
   {{else}}
-  <p class="hc-lede">Gib oben einen Suchbegriff ein.</p>
+  <p class="hc-lede">{{t "Type something to search for above."}}</p>
   {{end}}
 </section>
 {{end}}

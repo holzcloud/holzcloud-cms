@@ -2,7 +2,7 @@
 <article class="page page--product">
   <header class="page-header">
     {{if .Shop.URL}}
-    <p class="page-header__kicker"><a href="{{.Shop.URL}}">Shop</a></p>
+    <p class="page-header__kicker"><a href="{{.Shop.URL}}">{{t "Shop"}}</a></p>
     {{end}}
     <h1 class="page-header__title">{{.Product.Title}}</h1>
     {{if .Product.Subtitle}}<p class="page-header__meta">{{.Product.Subtitle}}</p>{{end}}
@@ -38,17 +38,17 @@
       <form class="product__form" method="POST" action="{{.Product.AddURL}}">
         <input type="hidden" name="artikel" value="{{.Product.Slug}}">
         <div class="product__quantity">
-          <label for="menge">Menge</label>
+          <label for="menge">{{t "Quantity"}}</label>
           <input type="number" id="menge" name="menge" value="1" min="1" max="99" inputmode="numeric">
         </div>
-        <button type="submit" class="button product__submit">In den Warenkorb</button>
+        <button type="submit" class="button product__submit">{{t "Add to cart"}}</button>
       </form>
       {{else}}
-      <p class="product__sold-out" role="status">Zurzeit nicht verfügbar.</p>
+      <p class="product__sold-out" role="status">{{t "Not available at the moment."}}</p>
       {{end}}
 
       {{if .Shop.ShippingNote}}<p class="product__shipping">{{.Shop.ShippingNote}}</p>{{end}}
-      {{if .Product.SKU}}<p class="product__sku">Artikelnummer {{.Product.SKU}}</p>{{end}}
+      {{if .Product.SKU}}<p class="product__sku">{{tf "Item number %s" .Product.SKU}}</p>{{end}}
     </div>
   </div>
 
@@ -58,8 +58,8 @@
 
   {{if .Product.Terms}}
   <div class="page-terms">
-    <h2 class="page-terms__heading">Kategorien</h2>
-    <ul class="term-list" aria-label="Kategorien">
+    <h2 class="page-terms__heading">{{t "Categories"}}</h2>
+    <ul class="term-list" aria-label="{{t "Categories"}}">
       {{range .Product.Terms}}<li><a class="term" href="{{.URL}}">{{.Name}}</a></li>{{end}}
     </ul>
   </div>

@@ -78,6 +78,13 @@ jobs:
     - name: Verify the committed plugin modules are current
       run: go run ./tools/wasm -check
 
+    # The eight shipped themes mint the same words, so their catalogues are
+    # generated from one source rather than kept eight times by hand. Without
+    # this step a correction to the French for one word lands in words.json and
+    # in none of the eight files a visitor actually reads.
+    - name: Verify the shipped themes' catalogues are current
+      run: go run ./tools/themewords -check
+
     # Twin of "Verify go.mod is tidy" above: what is generated has to keep step
     # with the source, or the catalogue describes a surface that no longer
     # exists. The step does NOT prove that every string is translated — -write

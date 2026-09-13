@@ -13,7 +13,7 @@
     {{.Page.ContentHTML}}
   </div>
   {{else}}
-  <div class="prose"><p>Willkommen bei {{.Site.Name}}.</p></div>
+  <div class="prose"><p>{{tf "Welcome to %s." .Site.Name}}</p></div>
   {{end}}
 </article>
 {{end}}
