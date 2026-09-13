@@ -127,7 +127,7 @@ func (h *Handler) HandleProductList(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	data := ProductListData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Produkte – "+ws.Name),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Products – %s", ws.Name)),
 		FormState:  web.NewFormState(),
 		Products:   products,
 		Currency:   money.CurrencyFor(ws.Currency),
@@ -196,12 +196,12 @@ func (h *Handler) renderProductForm(w http.ResponseWriter, r *http.Request,
 		}{int(r.Rate), r.Label})
 	}
 
-	title := "Neues Produkt"
+	title := web.T(r, "New product")
 	if isEdit {
-		title = "Produkt bearbeiten"
+		title = web.T(r, "Edit product")
 	}
 	data := ProductFormData{
-		LayoutData: web.NewLayoutData(r, h.sm, title+" – "+ws.Name),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "%s – %s", title, ws.Name)),
 		FormState:  state,
 		Values:     values,
 		IsEdit:     isEdit,

@@ -16,6 +16,8 @@ package kind
 import (
 	"strings"
 	"unicode"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // The two built-in kinds. They are not rows in the table: a website without a
@@ -156,17 +158,21 @@ func ValidKey(key string) bool {
 // them; an unknown key comes back as itself, because a kind that was deleted
 // while entries still carry it must not make those entries nameless.
 func NameOf(types []Type, key string, plural bool) string {
+	// The two built-in names are catalogue keys, drawn through {{t .Name}}
+	// wherever they are shown; i18n.N marks them so the collector sees a name
+	// that is only ever translated through a variable. An OWN kind's name is
+	// what an operator typed and is never translated.
 	switch key {
 	case Post:
 		if plural {
-			return "Beiträge"
+			return i18n.N("Posts")
 		}
-		return "Beitrag"
+		return i18n.N("Post")
 	case Page, "":
 		if plural {
-			return "Seiten"
+			return i18n.N("Pages")
 		}
-		return "Seite"
+		return i18n.N("Page")
 	}
 	for _, t := range types {
 		if t.Key == key {

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 )
 
 // Tokens are the values an operator may set.
@@ -36,12 +38,15 @@ type Tokens struct {
 // falls back to something else with no warning, and a name that is a URL would
 // be a way to load a font from another server — which this project forbids
 // outright.
+// The label is a catalogue key — website_design.html draws it through
+// {{t .Label}} — and i18n.N marks it so the collector sees a label that is only
+// ever translated through a variable. The value is STORED and stays as it is.
 var FontStacks = []struct{ Value, Label, Stack string }{
-	{"", "Wie die Vorlage", ""},
-	{"system", "Systemschrift", `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`},
-	{"serif", "Serifenschrift", `Georgia, "Iowan Old Style", "Times New Roman", Times, serif`},
-	{"humanist", "Humanistisch", `Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", source-sans-pro, sans-serif`},
-	{"mono", "Schreibmaschine", `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace`},
+	{"", i18n.N("Like the template"), ""},
+	{"system", i18n.N("System typeface"), `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`},
+	{"serif", i18n.N("Serif"), `Georgia, "Iowan Old Style", "Times New Roman", Times, serif`},
+	{"humanist", i18n.N("Humanist"), `Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", source-sans-pro, sans-serif`},
+	{"mono", i18n.N("Typewriter"), `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace`},
 }
 
 // Measure bounds. Below forty characters a line is a column of single words;
