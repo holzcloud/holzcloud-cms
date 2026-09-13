@@ -104,3 +104,104 @@ func TestMissingFieldsDoNotShiftTheColumns(t *testing.T) {
 		}
 	}
 }
+
+// A refusal names the field it is about, and nothing else may reach the page.
+//
+// The address bar used to carry the finished sentence: escaped, bounded to 160
+// characters, and therefore a way to put a stranger's 160 characters into the
+// operator's own layout with a crafted link. It carries a code now, and a code
+// this program does not know yields the ordinary sentence.
+func TestARefusalCarriesACodeAndNotASentence(t *testing.T) {
+	for _, c := range []struct {
+		name, code, field, word string
+		wantField               string
+		wantGeneric             bool
+	}{
+		{name: "a known code", code: "email-shape", field: fieldEmail, wantField: fieldEmail},
+		{name: "a code nobody wrote", code: "please-send-your-password",
+			wantGeneric: true},
+		{name: "no code at all", wantGeneric: true},
+		{name: "a field this form cannot have", code: "email-shape", field: "../../etc",
+			wantField: ""},
+		{name: "an assembled form's field", code: "field-fill",
+			field: fieldPrefix + "lieblingsfarbe", word: "Lieblingsfarbe",
+			wantField: fieldPrefix + "lieblingsfarbe"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			text, at := refusalText(c.code, c.field, c.word)
+			if at != c.wantField {
+				t.Errorf("field = %q, want %q", at, c.wantField)
+			}
+			generic := text == "The message could not be sent. Please check what you entered."
+			if generic != c.wantGeneric {
+				t.Errorf("generic = %v, want %v (text was %q)", generic, c.wantGeneric, text)
+			}
+			if text == "" {
+				t.Error("a refusal with no sentence at all leaves the visitor with nothing")
+			}
+		})
+	}
+}
+
+// The operator's own label travels, and it is bounded on the way back in.
+func TestALabelFromTheAddressBarIsBounded(t *testing.T) {
+	long := strings.Repeat("ü", maxLabel+40)
+	text, _ := refusalText("field-fill", fieldPrefix+"x", long)
+	if n := len([]rune(text)); n > maxLabel+60 {
+		t.Errorf("the sentence is %d runes long; the label was not cut", n)
+	}
+	if !strings.Contains(text, "ü") {
+		t.Error("the operator's own word did not survive at all")
+	}
+}
+
+// check says which field, not only what.
+func TestCheckNamesTheFieldItIsAbout(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		in    message
+		field string
+		code  string
+	}{
+		{"no name", message{Email: "a@b.test", Text: "x"}, fieldName, "name-missing"},
+		{"no address", message{Name: "A", Text: "x"}, fieldEmail, "email-missing"},
+		{"a bad address", message{Name: "A", Email: "nope", Text: "x"}, fieldEmail, "email-shape"},
+		{"no message", message{Name: "A", Email: "a@b.test"}, fieldText, "text-missing"},
+		{"nothing wrong", message{Name: "A", Email: "a@b.test", Text: "x"}, "", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := check(c.in)
+			if got.Field != c.field || got.Code != c.code {
+				t.Errorf("= {%q %q}, want {%q %q}", got.Field, got.Code, c.field, c.code)
+			}
+			if got.ok() != (c.code == "") {
+				t.Errorf("ok() = %v for code %q", got.ok(), got.Code)
+			}
+		})
+	}
+}
+
+// Every code check can produce has a sentence.
+//
+// A code with no entry falls through to the generic sentence, which is correct
+// for something from the address bar and wrong for something this program
+// produced itself: the visitor would be told "please check what you entered"
+// about an hour that was too busy.
+func TestEveryCodeThisProgramProducesHasASentence(t *testing.T) {
+	produced := []string{
+		"name-missing", "name-long", "email-missing", "email-shape", "email-long",
+		"subject-long", "text-missing", "text-long", "unreadable", "expired",
+		"gone", "too-many", "form-incomplete",
+		"field-tick", "field-fill", "field-long", "field-email", "field-digit",
+		"field-date", "field-pick",
+	}
+	for _, code := range produced {
+		if _, ok := reasons[code]; !ok {
+			t.Errorf("code %q is produced and has no sentence", code)
+		}
+	}
+	if len(reasons) != len(produced) {
+		t.Errorf("%d sentences for %d codes — one of the two lists has moved",
+			len(reasons), len(produced))
+	}
+}

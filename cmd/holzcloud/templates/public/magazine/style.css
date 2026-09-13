@@ -1823,3 +1823,25 @@ main:focus-visible {
   color: var(--color-muted);
   line-height: 1.45;
 }
+
+/* The per-field refusal, the required word and the limit under the
+   message box. They came with the form's rewrite: the message used to
+   stand once above the form, which left the visitor to work out which
+   of four boxes it was about. */
+.contact-form__why {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--danger, #b3261e);
+}
+.contact-form [aria-invalid="true"] {
+  border-color: var(--danger, #b3261e);
+}
+.contact-form__required {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+.contact-form__limit {
+  font-size: 0.8125rem;
+  opacity: 0.7;
+}

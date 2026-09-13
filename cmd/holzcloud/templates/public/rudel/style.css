@@ -2248,3 +2248,75 @@ main:focus { outline: none; }
   h1, h2, h3 { break-after: avoid; }
   img, figure, .hc-karte, tr { break-inside: avoid; }
 }
+
+/* ── Kontaktformular ──────────────────────────────────────────
+   Das Formular kommt aus einem Plugin und bringt eigene Klassen
+   mit. Statt es nachzubauen, werden seine Klassen auf das
+   Feldsystem oben gelegt: eine Aenderung an --hc-pane-edge oder
+   an der Fokusregel erreicht damit auch dieses Formular, was bei
+   einer zweiten Kopie der Regeln nicht der Fall waere.
+
+   Die Meldung steht am Feld und nicht ueber dem Formular. Wer
+   „die E-Mail-Adresse sieht nicht richtig aus" ueber vier Kaesten
+   liest, muss raten, welcher gemeint ist — und ist die einzige
+   Person, die es nicht sehen kann. */
+.contact-form {
+  display: flex; flex-direction: column; gap: var(--hc-space-5);
+  max-width: var(--hc-measure);
+  margin-block: var(--hc-space-6);
+}
+.contact-form__field { display: flex; flex-direction: column; gap: var(--hc-space-2); }
+.contact-form__field label {
+  font-size: var(--hc-text-sm); font-weight: var(--hc-weight-medium);
+  color: var(--hc-ink);
+}
+.contact-form input, .contact-form textarea {
+  width: 100%;
+  padding: 11px var(--hc-space-4);
+  font: inherit; font-size: var(--hc-text-sm);
+  color: var(--hc-ink);
+  background: var(--hc-pane-sunken);
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-r-sm);
+  transition: border-color var(--hc-dur-fast) var(--hc-ease);
+}
+.contact-form input:hover, .contact-form textarea:hover { border-color: var(--hc-wald-soft); }
+.contact-form textarea { min-height: 7lh; resize: vertical; }
+/* Getrieben von genau der Eigenschaft, die die Vorlesesoftware liest. */
+.contact-form [aria-invalid="true"] { border-color: var(--hc-danger); }
+.contact-form__why {
+  margin: 0; font-size: var(--hc-text-xs); color: var(--hc-danger);
+}
+.contact-form__limit { font-size: var(--hc-text-xs); color: var(--hc-ink-3); }
+/* Das Wort steht da, nicht nur ein Stern: ein Stern ist eine
+   Verabredung, die man kennen muss, und wird vorgelesen als
+   „Stern" oder gar nicht. */
+.contact-form__required {
+  font-size: var(--hc-text-xs); font-weight: var(--hc-weight-regular);
+  color: var(--hc-ink-3);
+}
+.contact-form__notice {
+  margin: 0; padding: var(--hc-space-3) var(--hc-space-4);
+  font-size: var(--hc-text-sm);
+  border-radius: var(--hc-r-sm);
+  background: var(--hc-ok-wash); color: var(--hc-ink);
+}
+.contact-form__notice--error { background: var(--hc-danger-wash); }
+.contact-form__submit {
+  align-self: start;
+  padding: 11px var(--hc-space-6);
+  font: inherit; font-size: var(--hc-text-sm); font-weight: var(--hc-weight-semibold);
+  color: var(--hc-on-wald); background: var(--hc-wald);
+  border: 1px solid transparent; border-radius: var(--hc-r-sm);
+  cursor: pointer;
+  transition: background var(--hc-dur-fast) var(--hc-ease);
+}
+.contact-form__submit:hover { background: var(--hc-wald-soft); }
+.contact-form__alternative { font-size: var(--hc-text-sm); color: var(--hc-ink-2); }
+/* Die Falle. Nicht display:none — ein Ausfuellprogramm ueberspringt
+   was nicht da ist, und genau dieses Feld soll es finden. */
+.contact-form__trap {
+  position: absolute; width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+}

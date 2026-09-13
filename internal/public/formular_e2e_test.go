@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
@@ -486,16 +488,17 @@ func TestFormulareditorUeberstehtDenFilterDesHosts(t *testing.T) {
 	}
 }
 
-// A German visitor is refused in German, and a French one in French.
+// A German visitor is refused in German, and a French one in French — at the
+// field the refusal is about.
 //
-// This is PUB-01 end to end, through the real WASM module: the refusal comes
-// out of check() inside the plugin, travels back through the host's translate
-// operation, and arrives in the language of the page. Before this milestone it
-// arrived as "The e-mail address does not look right." in front of every
-// visitor of every language, because no public request carried a language at
-// all and i18n.Lang fell back to the source.
-func TestAVisitorIsRefusedInTheLanguageOfThePage(t *testing.T) {
-	h, database, ws, _ := formularAufbau(t)
+// This is PUB-01 and FORM-01 end to end, through the real WASM module: the
+// refusal comes out of check() inside the plugin as a CODE, travels back in the
+// address bar, and becomes a sentence where the form is drawn — in the language
+// of the page, under the box it concerns. Before v2.1 the sentence itself
+// travelled in ?hinweis= and stood once above the form, in English, whatever
+// language the page was published in.
+func TestAVisitorIsRefusedInTheLanguageOfThePageAtTheRightField(t *testing.T) {
+	h, database, ws, manager := formularAufbau(t)
 
 	store := domain.NewStore(database)
 	for _, c := range []struct {
@@ -531,23 +534,48 @@ func TestAVisitorIsRefusedInTheLanguageOfThePage(t *testing.T) {
 			req = req.WithContext(domain.WebsiteToContext(req.Context(), fresh))
 
 			rec := httptest.NewRecorder()
-			// The whole public chain, in the order cmd/holzcloud/main.go builds
-			// it: the locale middleware first, the plugin behind it.
 			LocaleMiddleware(h.PluginMiddleware(http.HandlerFunc(
 				func(http.ResponseWriter, *http.Request) {
 					t.Error("the submission went past the plugin to the core")
 				}))).ServeHTTP(rec, req)
 
-			where, err := url.QueryUnescape(rec.Header().Get("Location"))
-			if err != nil {
-				t.Fatalf("Location: %v", err)
+			where := rec.Header().Get("Location")
+			if strings.Contains(where, "hinweis=") {
+				t.Errorf("the address bar still carries a finished sentence: %s", where)
 			}
-			if !strings.Contains(where, c.want) {
-				t.Errorf("the refusal is not in %s:\n  got  %s\n  want it to carry %q",
-					c.locale, where, c.want)
+			if !strings.Contains(where, "grund=email-shape") {
+				t.Fatalf("the address bar does not name the reason: %s", where)
 			}
-			if strings.Contains(where, c.notWant) {
-				t.Errorf("the refusal carries the wrong language (%q): %s", c.notWant, where)
+			if !strings.Contains(where, "feld=email") {
+				t.Errorf("the address bar does not name the field: %s", where)
+			}
+
+			// And now the page the visitor actually lands on.
+			_, query, _ := strings.Cut(where, "?")
+			ctx := i18n.WithLang(context.Background(), c.locale)
+			page := manager.FilterContent(ctx, ws.ID, plugin.ContentIn{
+				WebsiteID: ws.ID, Slug: "kontakt", Title: "Kontakt",
+				HTML: "<p>[[formular]]</p>", Query: query,
+			})
+			// Escaped, because the page is: the French sentence carries an
+			// apostrophe and reaches the browser as &#39;.
+			if !strings.Contains(page, html.EscapeString(c.want)) {
+				t.Errorf("the drawn form does not carry the %s refusal %q:\n%s",
+					c.locale, c.want, page)
+			}
+			if strings.Contains(page, c.notWant) {
+				t.Errorf("the drawn form carries the wrong language (%q)", c.notWant)
+			}
+			// Under the field, not above the form: the message is inside the
+			// e-mail field's own box and points at it.
+			if !strings.Contains(page, `id="cf-email-why"`) {
+				t.Errorf("the refusal is not attached to the e-mail field:\n%s", page)
+			}
+			if !strings.Contains(page, `aria-describedby="cf-email-why"`) {
+				t.Error("the input does not point at its own message")
+			}
+			if strings.Contains(page, `class="contact-form__notice contact-form__notice--error"`) {
+				t.Error("the refusal also stands above the form, so it is said twice")
 			}
 		})
 	}
