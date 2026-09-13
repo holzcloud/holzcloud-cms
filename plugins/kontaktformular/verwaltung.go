@@ -46,6 +46,8 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 		switch {
 		case len(in.Form["freigeben"]) > 0:
 			return release(in.Form["freigeben"][0])
+		case len(in.Form["anhang_sichern"]) > 0:
+			return saveAttach(len(in.Form["anhang"]) > 0)
 		case len(in.Form["einwilligung_sichern"]) > 0:
 			return saveConsent(firstValue(in.Form, "einwilligungstext"))
 		case len(in.Form["verwerfen"]) > 0:
@@ -501,6 +503,27 @@ func consentScreen() (plugin.AdminOut, error) {
 		fmt.Fprintf(&b, `<div class="card"><p class="text-muted">%s</p><p>%s</p></div>`,
 			e(plugin.T("This is how it stands beside the box:")), current)
 	}
+
+	// The attachment field lives on this screen and not on one of its own,
+	// because it is the same kind of decision: both let a stranger put
+	// something on the operator's server, and both are off until asked for.
+	an := ""
+	if attachWanted() {
+		an = " checked"
+	}
+	fmt.Fprintf(&b, `<form method="POST" class="stack"><fieldset><legend>%s</legend>`+
+		`<label><input type="checkbox" name="anhang" value="1"%s> %s</label>`+
+		`<p class="text-muted">%s</p>`+
+		`<p><button type="submit" name="anhang_sichern" value="1" class="btn btn--primary">%s</button></p>`+
+		`</fieldset></form>`,
+		e(plugin.T("Attachment")), an,
+		e(plugin.T("Let people attach files")),
+		e(plugin.Tf("At most %d files per message, and only the kinds the media library already takes — "+
+			"checked by their content and not by what the browser claims. They land in this "+
+			"website's media, where you can see and delete them. Off to begin with: switching it "+
+			"on means strangers may put files on this server.", maxAttachments)),
+		e(plugin.T("Save")))
+
 	return plugin.AdminOut{Title: plugin.T("Consent"), HTML: b.String()}, nil
 }
 
@@ -519,4 +542,20 @@ func saveConsent(text string) (plugin.AdminOut, error) {
 	}
 	return plugin.AdminOut{Redirect: "?ansicht=" + ansichtEinwilligung,
 		Flash: plugin.T("Saved.")}, nil
+}
+
+// saveAttach switches the file field on or off.
+func saveAttach(on bool) (plugin.AdminOut, error) {
+	if !on {
+		if err := plugin.Delete(keyAttach); err != nil {
+			return plugin.AdminOut{}, err
+		}
+		return plugin.AdminOut{Redirect: "?ansicht=" + ansichtEinwilligung,
+			Flash: plugin.T("The attachment field is switched off.")}, nil
+	}
+	if err := plugin.Set(keyAttach, "1"); err != nil {
+		return plugin.AdminOut{}, err
+	}
+	return plugin.AdminOut{Redirect: "?ansicht=" + ansichtEinwilligung,
+		Flash: plugin.T("The attachment field is switched on.")}, nil
 }

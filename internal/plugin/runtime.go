@@ -79,6 +79,27 @@ type callCtx struct {
 	pluginID  string
 	manifest  *Manifest
 	websiteID int64
+	// files are the attachments the host is holding for this request, and the
+	// only piece of callCtx that is not just identity.
+	//
+	// Held here rather than on the Runtime because two requests can be inside
+	// two different plugins at the same moment — and because the moment the
+	// call returns, whatever was not kept is gone, which is exactly the
+	// lifetime a caller should have to think about.
+	files FileKeeper
+}
+
+// FileKeeper stores the attachments of one request.
+//
+// An interface so this package keeps knowing nothing about the media store or
+// the disk, the same way TemplateResolver keeps internal/template out of the
+// database. Nil means no file came in, or the plugin has no business with one.
+type FileKeeper interface {
+	// List is what arrived, without the bytes.
+	List() []AttachedFile
+	// Keep writes them and answers with their ids. Called at most once: a
+	// second call answers with the same ids and stores nothing further.
+	Keep(ctx context.Context) ([]KeptFile, error)
 }
 
 type callCtxKey struct{}
@@ -251,8 +272,10 @@ func (r *Runtime) Dispatch(ctx context.Context, id, hook string, websiteID int64
 
 	ctx, cancel := context.WithTimeout(ctx, CallTimeout)
 	defer cancel()
-	ctx = context.WithValue(ctx, callCtxKey{},
-		&callCtx{pluginID: id, manifest: inst.manifest, websiteID: websiteID})
+	ctx = context.WithValue(ctx, callCtxKey{}, &callCtx{
+		pluginID: id, manifest: inst.manifest, websiteID: websiteID,
+		files: keeperFrom(ctx),
+	})
 
 	answer, err := inst.call(ctx, hook, payload)
 	if err != nil {
@@ -497,6 +520,19 @@ func (r *Runtime) runOp(ctx context.Context, cc *callCtx, op string, arg []byte)
 		}
 		return json.Marshal(res)
 
+	case OpKeepFiles:
+		// Nothing was on the disk until this line. A plugin that refuses a
+		// submission simply never gets here, and the files go away with the
+		// request.
+		if cc.files == nil {
+			return json.Marshal(KeepFilesResult{})
+		}
+		kept, err := cc.files.Keep(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(KeepFilesResult{Kept: kept})
+
 	case OpTranslate:
 		// The language comes out of the request's context and not out of the
 		// call: a plugin must not be able to choose which language an operator
@@ -638,4 +674,23 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// keeperFromKey carries the attachments of one request from the caller that
+// parsed them down to the host call that may keep them.
+type keeperFromKey struct{}
+
+// WithFiles gives the attachments of a request to whatever plugin call follows.
+//
+// The caller is the HTTP layer, which is the only place that has a multipart
+// form; this package is the only place that knows a plugin asked for them.
+// Passing them through the context rather than through Dispatch's signature
+// keeps every other hook — content, admin, event — unchanged.
+func WithFiles(ctx context.Context, k FileKeeper) context.Context {
+	return context.WithValue(ctx, keeperFromKey{}, k)
+}
+
+func keeperFrom(ctx context.Context) FileKeeper {
+	k, _ := ctx.Value(keeperFromKey{}).(FileKeeper)
+	return k
 }

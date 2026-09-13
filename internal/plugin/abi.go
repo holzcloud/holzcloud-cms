@@ -79,6 +79,7 @@ const (
 	OpRender      = "render"
 	OpNotify      = "notify"
 	OpTranslate   = "translate"
+	OpKeepFiles   = "files.keep"
 )
 
 // opPermission maps an operation to the permission that unlocks it.
@@ -100,6 +101,30 @@ var opPermission = map[string]string{
 	// data of any website, and a plugin that could not reach it would have to
 	// ship German — which is phase 12's whole subject.
 	OpTranslate: PermNone,
+	OpKeepFiles: PermAttach,
+}
+
+// KeepFilesResult is what the host stored.
+type KeepFilesResult struct {
+	Kept []KeptFile `json:"kept,omitempty"`
+}
+
+// KeptFile is one attachment now on the disk.
+type KeptFile struct {
+	// Field is the form field it arrived in, so a plugin with two file fields
+	// can tell them apart.
+	Field string `json:"field"`
+	// MediaID is the record in this website's media. It is the only handle a
+	// plugin gets: reading the bytes back is not a thing it can do.
+	MediaID int64 `json:"media_id"`
+	// Name is what the sender's computer called it, for showing in a list.
+	Name string `json:"name"`
+	// Filename is the name it has HERE, which is the handle /media/ takes. A
+	// fresh one, so two senders cannot collide and nobody can choose a path.
+	Filename string `json:"filename"`
+	// Existed marks a file that was already stored, byte for byte. The id is
+	// the existing one and nothing was written twice.
+	Existed bool `json:"existed,omitempty"`
 }
 
 // PermNone marks an operation every plugin may call.
@@ -362,7 +387,40 @@ type RequestIn struct {
 	Headers   map[string]string `json:"headers,omitempty"`
 	// Body is present only for a route hook on a POST, and only up to the
 	// host's limit. A plugin cannot ask for more.
+	//
+	// A multipart submission arrives here as an ordinary encoded form: the host
+	// takes the files out and leaves the fields, so a plugin written before
+	// attachments existed reads exactly what it read before.
 	Body string `json:"body,omitempty"`
+	// Files are the attachments the host is holding for this request.
+	//
+	// The BYTES are not here and never will be. A plugin that could pull a
+	// five-megabyte file into its linear memory would be a way to exhaust a
+	// small node with one request — the same reason the body is bounded at 256
+	// KB. What a plugin gets is the name, the kind and the size, which is
+	// everything it needs in order to decide.
+	Files []AttachedFile `json:"files,omitempty"`
+}
+
+// AttachedFile is one file the host has taken in and not yet stored.
+//
+// Checked already — magic bytes, the SVG scanner, the size for its kind — and
+// held in memory. Nothing is on the disk until the plugin says so in its
+// answer, which is what lets a contact form run its spam traps first: a robot
+// with a five-megabyte attachment otherwise fills the disk whatever the traps
+// decide.
+type AttachedFile struct {
+	// Field is the form field it arrived in.
+	Field string `json:"field"`
+	// Name is what the sender's computer called it.
+	Name string `json:"name"`
+	// MimeType is what the bytes say, never what the browser claimed.
+	MimeType string `json:"mime_type"`
+	// Size is the bytes actually read.
+	Size int64 `json:"size"`
+	// Refused says the host would not take this one, and why. The file is not
+	// held: what the plugin has is the reason, to show the sender.
+	Refused string `json:"refused,omitempty"`
 }
 
 // RequestOut is how a plugin answers, or declines to.

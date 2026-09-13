@@ -76,11 +76,17 @@ type Handler struct {
 	// domains and mail back the notification a plugin may send. Either being
 	// nil means nothing is sent, which is the ordinary state of an installation
 	// that has not set up a mail server.
-	domains   *domain.Store
-	mail      *mail.Queue
-	dataDir   string
-	defaultFS fs.FS // embedded default template FS for static assets
-	secure    bool  // site is served over TLS; decides the scheme in absolute URLs
+	domains *domain.Store
+	mail    *mail.Queue
+	dataDir string
+	// maxMediaSize and maxVideoSize bound an attachment on a plugin's form.
+	// They are the operator's own limits, the same two the administration's
+	// upload uses: a file a stranger sends must not be allowed to be larger
+	// than one the operator sends.
+	maxMediaSize int64
+	maxVideoSize int64
+	defaultFS    fs.FS // embedded default template FS for static assets
+	secure       bool  // site is served over TLS; decides the scheme in absolute URLs
 }
 
 // NewHandler creates a public site handler.
@@ -470,3 +476,12 @@ func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []
 
 // SetPlugins supplies the plugin manager, or nil for a site without plugins.
 func (h *Handler) SetPlugins(m *plugin.Manager) { h.plugins = m }
+
+// SetUploadLimits gives the handler the operator's file limits.
+//
+// Separate from NewHandler because the configuration is read after the handler
+// is built, and because a handler without them simply refuses every attachment
+// rather than inventing a limit of its own.
+func (h *Handler) SetUploadLimits(image, video int64) {
+	h.maxMediaSize, h.maxVideoSize = image, video
+}

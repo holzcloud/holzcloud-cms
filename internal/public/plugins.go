@@ -60,9 +60,21 @@ func (h *Handler) PluginMiddleware(next http.Handler) http.Handler {
 		// every page view, and reading a body there would mean buffering every
 		// upload on the way past.
 		if claimed && r.Body != nil && r.Method != http.MethodGet && r.Method != http.MethodHead {
-			body, err := io.ReadAll(io.LimitReader(r.Body, MaxPluginBodyBytes))
-			if err == nil {
-				in.Body = string(body)
+			// A multipart submission for a plugin that may take attachments
+			// goes the other way: the host parses it, keeps the files out of
+			// the plugin's reach, and hands over the fields as an ordinary
+			// encoded form — so a plugin written before attachments existed
+			// reads exactly what it read before.
+			if body, keeper, took := h.takeAttachments(r, website.ID,
+				h.plugins.Allows(owner, plugin.PermAttach)); took {
+				in.Body = body
+				in.Files = keeper.List()
+				ctx = plugin.WithFiles(ctx, keeper)
+			} else {
+				body, err := io.ReadAll(io.LimitReader(r.Body, MaxPluginBodyBytes))
+				if err == nil {
+					in.Body = string(body)
+				}
 			}
 		}
 

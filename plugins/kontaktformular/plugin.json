@@ -2,7 +2,7 @@
   "id": "kontaktformular",
   "abi": 1,
   "name": "Kontaktformular",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Puts a form into the page where [[formular]] stands, takes the messages and collects them in the administration. Forms of your own with your own fields can be assembled and placed with [[formular:key]]. With a notification address stored, an e-mail goes out for every enquiry; with receipts switched on for the website, the sender is told it arrived. Against spam: a honeypot, a signed timestamp and an hourly limit. The messages that came in can be downloaded as a table.",
   "author": "Holzcloud",
   "license": "MIT",
@@ -19,6 +19,7 @@
     "settings",
     "notify",
     "confirm",
+    "attach",
     "log"
   ],
   "admin": {

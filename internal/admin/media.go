@@ -1,19 +1,15 @@
 package admin
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/media"
-	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -108,69 +104,26 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	}
 	defer file.Close()
 
-	// Validate MIME via magic bytes (not Content-Type header) per D-16
-	mimeType, err := media.ValidateMIME(file, header.Filename)
+	// Every check lives in media.Check, so the contact form's attachment goes
+	// through exactly the same ones: magic bytes rather than the browser's
+	// claim, the SVG scanner, the size for the kind. Nothing is written yet.
+	in, err := media.Check(file, header, media.Limits{
+		Image: h.cfg.MaxMediaSize, Video: h.cfg.MaxVideoSize,
+	})
 	if err != nil {
-		return h.uploadFailed(w, r, redirect, web.Titlef(r, "File type not allowed: %s", err))
+		return h.uploadFailed(w, r, redirect, web.MediaRefusal(r, err))
 	}
 
-	// A video may weigh more than an image — but only a video.
-	limit := h.cfg.MaxMediaSize
-	if mimeType == "video/mp4" {
-		limit = h.cfg.MaxVideoSize
-	}
-	if header.Size > limit {
-		return h.uploadFailed(w, r, redirect, web.Titlef(r,
-			"The file is larger than allowed (%d MB)", limit>>20))
-	}
-
-	// An SVG is markup and can pull a stylesheet or an image from another
-	// server, which is exactly what the template upload already refuses. The
-	// same scanner runs here, so the rule holds for every upload path.
-	source, err := h.rejectExternalSVG(file, mimeType)
-	if err != nil {
-		return h.uploadFailed(w, r, redirect, err.Error())
-	}
-
-	// Generate UUID-prefixed filename per D-15
-	filename := media.GenerateFilename(header.Filename)
-
-	// Remove EXIF, XMP and IPTC before anything reaches the disk. A product
-	// photo taken at home otherwise publishes the photographer's address, and
-	// the media route serves the stored bytes verbatim for a year.
-	source, stripErr := media.PrepareUpload(source, mimeType, limit)
-	if stripErr != nil {
-		if source == nil {
-			return h.uploadFailed(w, r, redirect, web.Titlef(r, "Upload failed: %s", stripErr))
-		}
-		logStripFailure(stripErr, header.Filename, mimeType)
-	}
-
-	// Store file on disk
-	destPath := filepath.Join(h.cfg.DataDir, "media", strconv.FormatInt(websiteID, 10), filename)
-	written, hash, err := media.StoreFile(source, destPath, limit)
+	m, existed, err := in.Keep(r.Context(), h.mediaStore, websiteID, h.cfg.DataDir)
 	if err != nil {
 		return h.uploadFailed(w, r, redirect, web.Titlef(r, "Upload failed: %s", err))
 	}
-
-	// The same file twice is almost always an accident. Saying so beats letting
-	// the card fill up with copies nobody can tell apart.
-	if existing, err := h.mediaStore.FindByHash(r.Context(), websiteID, hash); err != nil {
-		os.Remove(destPath)
-		return err
-	} else if existing != nil {
-		os.Remove(destPath)
-		web.SetFlashWarning(h.sm, r.Context(), web.Titlef(r, "This file already exists as “%s” – nothing was uploaded.", existing.OriginalName))
+	if existed {
+		web.SetFlashWarning(h.sm, r.Context(), web.Titlef(r,
+			"This file already exists as “%s” – nothing was uploaded.", m.OriginalName))
 		return h.redirect(w, r, redirect)
 	}
-
-	// Create DB record — record the bytes actually written, not the client-supplied size
-	m, err := h.mediaStore.Create(r.Context(), websiteID, filename, header.Filename, mimeType, written, hash)
-	if err != nil {
-		// Clean up partial file on DB error
-		os.Remove(destPath)
-		return fmt.Errorf("create media record: %w", err)
-	}
+	destPath := media.Path(h.cfg.DataDir, websiteID, m.Filename)
 
 	// Each part is its own catalogue sentence; only the dash between them is
 	// assembled here. A message glued together out of half-sentences is a
@@ -223,30 +176,6 @@ func (h *Handler) makeVariants(r *http.Request, m *media.Media, destDir, sourceP
 func (h *Handler) uploadFailed(w http.ResponseWriter, r *http.Request, redirect, message string) error {
 	web.SetFlashError(h.sm, r.Context(), message)
 	return h.redirect(w, r, redirect)
-}
-
-// rejectExternalSVG runs an uploaded SVG through the same external-subresource
-// scanner that template archives go through, and returns the reader the caller
-// should store from.
-//
-// The scanner needs the whole document, so an SVG is read into memory first —
-// bounded by MaxMediaSize, which the caller has already applied to the body.
-func (h *Handler) rejectExternalSVG(file io.ReadSeeker, mimeType string) (io.Reader, error) {
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("the file could not be read")
-	}
-	if mimeType != "image/svg+xml" {
-		return file, nil
-	}
-
-	content, err := io.ReadAll(io.LimitReader(file, h.cfg.MaxMediaSize+1))
-	if err != nil {
-		return nil, fmt.Errorf("the file could not be read")
-	}
-	if refs := tmplmgr.CheckExternalRefs("upload.svg", string(content)); len(refs) > 0 {
-		return nil, fmt.Errorf("the SVG file loads %s from somebody else's server; that is not allowed", refs[0].URL)
-	}
-	return bytes.NewReader(content), nil
 }
 
 // HandleMediaMeta stores the description and caption of a file.
