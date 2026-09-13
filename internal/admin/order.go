@@ -166,7 +166,7 @@ func (h *Handler) HandleOrderList(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	data := OrderListData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Bestellungen – "+ws.Name),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Orders – %s", ws.Name)),
 		FormState:  web.NewFormState(),
 		Orders:     orders,
 		Currency:   money.CurrencyFor(ws.Currency),
@@ -235,7 +235,7 @@ func (h *Handler) HandleOrderDetail(w http.ResponseWriter, r *http.Request) erro
 
 	currency := money.CurrencyFor(order.Currency)
 	data := OrderDetailData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Bestellung "+order.Number+" – "+ws.Name),
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Order %s – %s", order.Number, ws.Name)),
 		FormState:  web.NewFormState(),
 		Order:      order,
 		Currency:   currency,

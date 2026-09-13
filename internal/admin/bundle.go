@@ -111,7 +111,10 @@ func (h *Handler) HandleWebsiteImport(w http.ResponseWriter, r *http.Request) er
 	h.resolver.InvalidateCache()
 
 	data2 := ImportReportData{
-		LayoutData: web.NewLayoutData(r, h.sm, "WordPress import finished"),
+		// Not "WordPress import finished": this is the CMS's own bundle, and
+		// the wrong heading here was found in the browser pass for v2.0. The
+		// two paths share ImportReportData and the title came along with it.
+		LayoutData: web.NewLayoutData(r, h.sm, "Import finished"),
 		Report:     report,
 	}
 	data2.ActiveNav = "websites"

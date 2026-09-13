@@ -272,8 +272,8 @@ type KindChoice struct {
 // kindChoices is the dropdown: the two built-in kinds and the website's own.
 func kindChoices(types []kind.Type, current string) []KindChoice {
 	out := []KindChoice{
-		{Key: kind.Page, Name: "Seite", Selected: current != kind.Post && !hasKey(types, current)},
-		{Key: kind.Post, Name: "Beitrag", Selected: current == kind.Post},
+		{Key: kind.Page, Name: kind.NameOf(nil, kind.Page, false), Selected: current != kind.Post && !hasKey(types, current)},
+		{Key: kind.Post, Name: kind.NameOf(nil, kind.Post, false), Selected: current == kind.Post},
 	}
 	for _, t := range types {
 		out = append(out, KindChoice{Key: t.Key, Name: t.Name, Selected: current == t.Key})

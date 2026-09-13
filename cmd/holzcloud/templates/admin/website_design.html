@@ -42,7 +42,7 @@
                 <label class="form-label" for="token_font">{{t "Typeface"}}</label>
                 <select id="token_font" name="token_font" class="form-input form-select">
                     {{range $.Fonts}}
-                    <option value="{{.Value}}"{{if eq $.Website.TokenFont .Value}} selected{{end}}>{{.Label}}</option>
+                    <option value="{{.Value}}"{{if eq $.Website.TokenFont .Value}} selected{{end}}>{{t .Label}}</option>
                     {{end}}
                 </select>
                 <p class="form-hint text-muted">
