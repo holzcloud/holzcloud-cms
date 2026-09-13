@@ -24,9 +24,11 @@ import (
 // break either.
 
 const (
-	ansichtNachrichten = ""
-	ansichtFormulare   = "formulare"
-	ansichtFormular    = "formular"
+	ansichtNachrichten  = ""
+	ansichtFormulare    = "formulare"
+	ansichtFormular     = "formular"
+	ansichtAbgewiesen   = "abgewiesen"
+	ansichtEinwilligung = "einwilligung"
 )
 
 // verwaltung verteilt auf die Ansichten.
@@ -37,6 +39,20 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 		if out, behandelt, err := formAction(in, q); behandelt {
 			return out, err
 		}
+		// The quarantine's two actions live here rather than in screen(),
+		// because a POST carrying ?ansicht=abgewiesen never reaches screen() —
+		// the switch below sends it to quarantineScreen, which would draw the
+		// list again and swallow the button.
+		switch {
+		case len(in.Form["freigeben"]) > 0:
+			return release(in.Form["freigeben"][0])
+		case len(in.Form["einwilligung_sichern"]) > 0:
+			return saveConsent(firstValue(in.Form, "einwilligungstext"))
+		case len(in.Form["verwerfen"]) > 0:
+			_ = plugin.Delete(prefixQuarantine + in.Form["verwerfen"][0])
+			return plugin.AdminOut{Redirect: "?ansicht=" + ansichtAbgewiesen,
+				Flash: plugin.T("Discarded.")}, nil
+		}
 	}
 
 	switch q.Get("ansicht") {
@@ -44,6 +60,10 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 		return formularliste()
 	case ansichtFormular:
 		return formulareditor(in, q.Get("kennung"))
+	case ansichtAbgewiesen:
+		return quarantineScreen()
+	case ansichtEinwilligung:
+		return consentScreen()
 	default:
 		return screen(in)
 	}
@@ -65,6 +85,8 @@ func navigation(aktuell string) string {
 	return `<p class="table-actions">` +
 		art(ansichtNachrichten, plugin.T("Messages"), "") +
 		art(ansichtFormulare, plugin.T("Forms"), ansichtFormulare) +
+		art(ansichtAbgewiesen, quarantineLabel(), ansichtAbgewiesen) +
+		art(ansichtEinwilligung, plugin.T("Consent"), ansichtEinwilligung) +
 		`</p>`
 }
 
@@ -378,4 +400,123 @@ func firstValue(form map[string][]string, name string) string {
 		return strings.TrimSpace(v[0])
 	}
 	return ""
+}
+
+// --- die Quarantaene --------------------------------------------------------
+
+// quarantineLabel carries the count, so a false positive is visible from the
+// other two screens. An operator who never opens this screen is exactly the one
+// whose visitor is being turned away, and a tab with no number on it is a tab
+// nobody clicks.
+func quarantineLabel() string {
+	alle, err := plugin.List(prefixQuarantine, 200)
+	if err != nil || len(alle) == 0 {
+		return plugin.T("Turned away")
+	}
+	return plugin.Tf("Turned away (%d)", len(alle))
+}
+
+func quarantineScreen() (plugin.AdminOut, error) {
+	alle, err := plugin.List(prefixQuarantine, 200)
+	if err != nil {
+		return plugin.AdminOut{}, err
+	}
+	liste := lesen(alle)
+	sort.Slice(liste, func(i, j int) bool { return liste[i].Key > liste[j].Key })
+
+	e := html.EscapeString
+	var b strings.Builder
+	b.WriteString(navigation(ansichtAbgewiesen))
+	fmt.Fprintf(&b, `<p class="text-muted">%s</p>`, e(plugin.T(
+		"Submissions the spam traps turned away. They are answered exactly like a "+
+			"success, because a robot that learns it was refused learns how to get past "+
+			"the filter — which means a person refused wrongly never finds out, and "+
+			"neither would you. Almost everything here is a robot. What is not belongs "+
+			"in the messages.")))
+
+	if len(liste) == 0 {
+		fmt.Fprintf(&b, `<p class="empty">%s</p>`,
+			e(plugin.T("Nothing has been turned away.")))
+		return plugin.AdminOut{Title: plugin.T("Turned away"), HTML: b.String()}, nil
+	}
+
+	fmt.Fprintf(&b, `<p class="text-muted">%s</p>`,
+		e(plugin.Tf("The newest %d are kept; older ones fall away.", maxQuarantine)))
+
+	for _, n := range liste {
+		fmt.Fprintf(&b, `<article class="card">`)
+		why := quarantineReasons[n.RefusedFor]
+		if why == "" {
+			why = n.RefusedFor
+		}
+		fmt.Fprintf(&b, `<p class="text-muted"><strong>%s</strong> · %s</p>`,
+			e(plugin.T(why)), e(shortDate(n.Time)))
+		fmt.Fprintf(&b, `<p class="text-muted">%s &lt;%s&gt;</p>`, e(n.Name), e(n.Email))
+		if n.Subject != "" {
+			fmt.Fprintf(&b, `<p><strong>%s</strong></p>`, e(n.Subject))
+		}
+		fmt.Fprintf(&b, `<pre class="message-body">%s</pre>`, e(n.Text))
+		b.WriteString(`<p class="table-actions">`)
+		button(&b, "freigeben", n.Key, plugin.T("This was real — into the messages"), "")
+		button(&b, "verwerfen", n.Key, plugin.T("Discard"), "btn--danger")
+		b.WriteString(`</p></article>`)
+	}
+	return plugin.AdminOut{Title: plugin.T("Turned away"), HTML: b.String()}, nil
+}
+
+// --- die Einwilligung -------------------------------------------------------
+
+func consentScreen() (plugin.AdminOut, error) {
+	e := html.EscapeString
+	var b strings.Builder
+	b.WriteString(navigation(ansichtEinwilligung))
+
+	fmt.Fprintf(&b, `<p>%s</p>`, plugin.T(
+		"A tick box above the send button, with your own sentence beside it. Leave the "+
+			"field empty and the form has no tick box — which is how it was before this "+
+			"existed, and stays for every form that does not need one."))
+	fmt.Fprintf(&b, `<p class="text-muted">%s</p>`, e(plugin.T(
+		"What the person ticked is stored word for word with their message, together "+
+			"with the moment. That is the point of writing it here rather than on a page "+
+			"somewhere: if you reword it next year, you can still say what each person "+
+			"actually agreed to.")))
+
+	current := consentText()
+	fmt.Fprintf(&b, `<form method="POST" class="stack">`+
+		`<label for="ew">%s</label>`+
+		`<textarea id="ew" name="einwilligungstext" rows="3" maxlength="%d" placeholder="%s">%s</textarea>`+
+		`<p class="text-muted">%s</p>`+
+		`<p><button type="submit" name="einwilligung_sichern" value="1" class="btn btn--primary">%s</button></p>`+
+		`</form>`,
+		e(plugin.T("The sentence beside the tick box")), maxConsent,
+		e(plugin.T("I agree that my details will be stored in order to answer my enquiry.")),
+		e(current),
+		plugin.T("A link may stand inside it, written as HTML: "+
+			`&lt;a href="/datenschutz"&gt;Privacy&lt;/a&gt;. `+
+			"Whoever has to follow a link to find out what they are agreeing to has not "+
+			"agreed to it, so the sentence itself has to say it."),
+		e(plugin.T("Save")))
+
+	if current != "" {
+		fmt.Fprintf(&b, `<div class="card"><p class="text-muted">%s</p><p>%s</p></div>`,
+			e(plugin.T("This is how it stands beside the box:")), current)
+	}
+	return plugin.AdminOut{Title: plugin.T("Consent"), HTML: b.String()}, nil
+}
+
+// saveConsent writes the sentence, or removes the tick box when it is emptied.
+func saveConsent(text string) (plugin.AdminOut, error) {
+	text = clip(text, maxConsent)
+	if text == "" {
+		if err := plugin.Delete(keyConsent); err != nil {
+			return plugin.AdminOut{}, err
+		}
+		return plugin.AdminOut{Redirect: "?ansicht=" + ansichtEinwilligung,
+			Flash: plugin.T("The tick box is switched off.")}, nil
+	}
+	if err := plugin.Set(keyConsent, text); err != nil {
+		return plugin.AdminOut{}, err
+	}
+	return plugin.AdminOut{Redirect: "?ansicht=" + ansichtEinwilligung,
+		Flash: plugin.T("Saved.")}, nil
 }

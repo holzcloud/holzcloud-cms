@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -124,5 +127,74 @@ func TestTheRegionalListMatchesWhatIsOnDisk(t *testing.T) {
 				"as a full catalogue and checked for missing keys. That is correct for "+
 				"a translation and wrong for a deviation list — if it is one, add it.", name)
 		}
+	}
+}
+
+// A sentence joined across lines with + is one sentence.
+//
+// It is how a long sentence is written in Go, because lines have a width. Until
+// v2.1 this tool read only a single literal, so every sentence written that way
+// was collected by nothing and stayed in the source language — twelve of them
+// were standing in the tree when somebody finally looked, two of them a year
+// old. Banning the idiom would have been the wrong correction.
+func TestASentenceJoinedAcrossLinesIsOneSentence(t *testing.T) {
+	for _, c := range []struct {
+		name, src string
+		want      string
+	}{
+		{
+			name: "one literal",
+			src:  `plugin.T("Please enter your name.")`,
+			want: "Please enter your name.",
+		},
+		{
+			name: "two joined",
+			src:  `plugin.T("Please enter your name. " + "We cannot answer otherwise.")`,
+			want: "Please enter your name. We cannot answer otherwise.",
+		},
+		{
+			name: "three joined, as gofmt leaves them",
+			src: `plugin.T("A form of your own asks exactly what you want to know. " +
+				"Put it into a page with its marker, " +
+				"the way you would a snippet.")`,
+			want: "A form of your own asks exactly what you want to know. " +
+				"Put it into a page with its marker, the way you would a snippet.",
+		},
+		{
+			name: "parenthesised",
+			src:  `plugin.T(("Saved." + ""))`,
+			want: "Saved.",
+		},
+		{
+			// A sentence with a value glued into it is NOT a sentence with a
+			// value in it: a language that wants the name first cannot say so.
+			// It stays invisible here on purpose, and tools/english reports it.
+			name: "joined with a value",
+			src:  `plugin.T("Hello, " + name)`,
+			want: "",
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "x.go",
+				"package p\nfunc f(name string) { "+c.src+" }", 0)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			var got string
+			ast.Inspect(f, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok || len(call.Args) == 0 {
+					return true
+				}
+				if s, ok := literalText(call.Args[0]); ok {
+					got = s
+				}
+				return true
+			})
+			if got != c.want {
+				t.Errorf("= %q, want %q", got, c.want)
+			}
+		})
 	}
 }

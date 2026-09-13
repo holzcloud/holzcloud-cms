@@ -1916,3 +1916,11 @@ main:focus { outline: none; }
   margin: -1px; padding: 0; border: 0;
   clip-path: inset(50%); overflow: hidden; white-space: nowrap;
 }
+
+.contact-form__consent { display: flex; flex-direction: column; gap: var(--hc-space-2); }
+.contact-form__consent label {
+  display: flex; gap: var(--hc-space-3); align-items: start;
+  font-size: var(--hc-text-sm); color: var(--hc-ink-2);
+}
+.contact-form__consent input { width: auto; flex: none; margin-block-start: 2px; }
+.contact-form__consent a { color: inherit; }
