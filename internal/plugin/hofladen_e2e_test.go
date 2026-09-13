@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
@@ -105,14 +106,34 @@ func TestHofladenLaeuftDurch(t *testing.T) {
 	}
 	for _, wanted := range []string{
 		`name="menge_seife"`, `name="menge_joghurt"`,
-		"Schafmilchseife", "8,50", "Rohwolle", "nicht bestellbar",
+		// The products are the operator's own words and are never translated.
+		"Schafmilchseife", "8,50", "Rohwolle",
+		// The plugin's own word is. This context carries no language, so the
+		// source comes back — the same fallback a page gets before the locale
+		// middleware has said anything.
+		"cannot be ordered",
 	} {
 		if !strings.Contains(out.HTML, wanted) {
 			t.Errorf("%q is missing from the form", wanted)
 		}
 	}
+
+	// The same form under a German page, to show the word really travels.
+	// Without this the test above would pass just as well on a plugin that can
+	// only ever say one language, which is exactly what PUB-01 was.
+	german := plugin.ContentOut{}
+	if err := r.Dispatch(i18n.WithLang(ctx, "de"), m.ID, plugin.HookContent, 1,
+		plugin.ContentIn{WebsiteID: 1, Slug: "bestellen", HTML: "<p>[[bestellung]]</p>"}, &german); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(german.HTML, "nicht bestellbar") {
+		t.Error("under a German page the form does not say \"nicht bestellbar\"")
+	}
+	if strings.Contains(german.HTML, "cannot be ordered") {
+		t.Error("under a German page the form still carries the English word")
+	}
 	if strings.Contains(out.HTML, `name="menge_wolle"`) {
-		t.Error("das vergriffene Produkt hat ein Mengenfeld bekommen")
+		t.Error("the sold-out product was given a quantity field")
 	}
 	// The page "Der Hof" has no price and is therefore no product.
 	if strings.Contains(out.HTML, "Der Hof") {

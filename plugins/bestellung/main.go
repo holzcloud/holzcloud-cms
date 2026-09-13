@@ -92,8 +92,8 @@ func formularEinsetzen(in plugin.ContentIn) (plugin.ContentOut, error) {
 	e := einstellungenLaden()
 	produkte, err := readProducts(e)
 	if err != nil {
-		plugin.Logf("warn", "Produkte nicht lesbar: %v", err)
-		fehltext := `<p>The product list is not available at the moment.</p>`
+		plugin.Logf("warn", "product list not readable: %v", err)
+		fehltext := `<p>` + html.EscapeString(plugin.T("The product list is not available at the moment.")) + `</p>`
 		out := markerInParagraph.ReplaceAllLiteralString(in.HTML, fehltext)
 		return plugin.ContentOut{
 			HTML:    token.ReplaceAllLiteralString(out, fehltext),
@@ -138,7 +138,7 @@ func draw(produkte []product, e settings, page, stand, note string) string {
 	case "fehler":
 		text := note
 		if text == "" {
-			text = "The order could not be accepted."
+			text = plugin.T("The order could not be accepted.")
 		}
 		b.WriteString(`<p class="bestellung__fehler" role="alert">` + html.EscapeString(text) + `</p>`)
 	}
@@ -150,7 +150,7 @@ func draw(produkte []product, e settings, page, stand, note string) string {
 		}
 	}
 	if orderable == 0 {
-		b.WriteString(`<p>There is nothing to order at the moment.</p></div>`)
+		b.WriteString(`<p>` + html.EscapeString(plugin.T("There is nothing to order at the moment.")) + `</p></div>`)
 		return b.String()
 	}
 
@@ -165,10 +165,13 @@ func draw(produkte []product, e settings, page, stand, note string) string {
 	// only, so that a screen reader can skip it and a form filler in the
 	// browser writes nothing into it.
 	b.WriteString(`<p class="bestellung__falle" aria-hidden="true">` +
-		`<label>Website<input type="text" name="` + fieldHoneypot + `" tabindex="-1" autocomplete="off"></label></p>`)
+		`<label>` + html.EscapeString(plugin.T("Website")) +
+		`<input type="text" name="` + fieldHoneypot + `" tabindex="-1" autocomplete="off"></label></p>`)
 
 	b.WriteString(`<table class="bestellung__tabelle"><thead><tr>` +
-		`<th scope="col">Produkt</th><th scope="col">Preis</th><th scope="col">Menge</th>` +
+		fmt.Sprintf(`<th scope="col">%s</th><th scope="col">%s</th><th scope="col">%s</th>`,
+			html.EscapeString(plugin.T("Product")), html.EscapeString(plugin.T("Price")),
+			html.EscapeString(plugin.T("Quantity"))) +
 		`</tr></thead><tbody>`)
 	for _, p := range produkte {
 		b.WriteString(`<tr>`)
@@ -188,13 +191,16 @@ func draw(produkte []product, e settings, page, stand, note string) string {
 		b.WriteString(`<td>`)
 		if p.Orderable {
 			name := quantityPrefix + p.Slug
-			b.WriteString(`<label class="sr-only" for="` + html.EscapeString(name) + `">Menge ` +
-				html.EscapeString(p.Titel) + `</label>`)
+			// The whole sentence in the catalogue, the product name as its argument:
+			// a language that puts the noun first can, and "Menge Apfel" could not.
+			b.WriteString(`<label class="sr-only" for="` + html.EscapeString(name) + `">` +
+				html.EscapeString(plugin.Tf("Quantity of %s", p.Titel)) + `</label>`)
 			b.WriteString(`<input type="number" inputmode="numeric" min="0" max="` +
 				strconv.Itoa(maxQuantity) + `" step="1" value="" id="` + html.EscapeString(name) +
 				`" name="` + html.EscapeString(name) + `">`)
 		} else {
-			b.WriteString(`<span class="bestellung__aus">nicht bestellbar</span>`)
+			b.WriteString(`<span class="bestellung__aus">` +
+				html.EscapeString(plugin.T("cannot be ordered")) + `</span>`)
 		}
 		b.WriteString(`</td></tr>`)
 	}
@@ -222,14 +228,16 @@ func draw(produkte []product, e settings, page, stand, note string) string {
 		b.WriteString(`</p>`)
 	}
 
-	field(fieldName, "Name", "text", true, "")
-	field(fieldEmail, "E-Mail", "email", true, "")
-	field(fieldPhone, "Telefon", "tel", false, "Optional — helps if we have to ask something.")
-	field(fieldAddress, "Adresse", "textarea", false, "Only needed if it is to be delivered.")
-	field(fieldRemark, "Bemerkung", "textarea", false, "")
+	field(fieldName, plugin.T("Name"), "text", true, "")
+	field(fieldEmail, plugin.T("E-mail"), "email", true, "")
+	field(fieldPhone, plugin.T("Telephone"), "tel", false,
+		plugin.T("Optional — helps if we have to ask something."))
+	field(fieldAddress, plugin.T("Address"), "textarea", false,
+		plugin.T("Only needed if it is to be delivered."))
+	field(fieldRemark, plugin.T("Remark"), "textarea", false, "")
 
 	b.WriteString(`<p class="bestellung__abschicken">` +
-		`<button type="submit">Bestellung abschicken</button></p>`)
+		`<button type="submit">` + html.EscapeString(plugin.T("Send order")) + `</button></p>`)
 	b.WriteString(`</form></div>`)
 	return b.String()
 }
@@ -246,7 +254,7 @@ func acceptOrder(in plugin.RequestIn) (plugin.RequestOut, error) {
 
 	form, err := url.ParseQuery(in.Body)
 	if err != nil {
-		return back("", "fehler", "Die Bestellung war nicht lesbar."), nil
+		return back("", "fehler", plugin.T("The order could not be read.")), nil
 	}
 	page := clean(form.Get(fieldPageKey), 200)
 
@@ -259,7 +267,7 @@ func acceptOrder(in plugin.RequestIn) (plugin.RequestOut, error) {
 	}
 	if !timeTokenHolds(form.Get(fieldTime)) {
 		return back(page, "fehler",
-			"The form has expired. Please reload the page and send it again."), nil
+			plugin.T("The form has expired. Please reload the page and send it again.")), nil
 	}
 
 	e := einstellungenLaden()
@@ -284,16 +292,16 @@ func acceptOrder(in plugin.RequestIn) (plugin.RequestOut, error) {
 		Currency:  e.Currency,
 	}
 	if b.Name == "" {
-		return back(page, "fehler", "Bitte trage deinen Namen ein."), nil
+		return back(page, "fehler", plugin.T("Please enter your name.")), nil
 	}
 	if !addressLooksReal(b.Email) {
-		return back(page, "fehler", "Please enter a valid e-mail address."), nil
+		return back(page, "fehler", plugin.T("Please enter a valid e-mail address.")), nil
 	}
 	b.Summe, b.SummeBekannt = total(item)
 
 	if !underTheHourlyLimit() {
 		return back(page, "fehler",
-			"A great many orders are coming in just now. Please try again in an hour."), nil
+			plugin.T("A great many orders are coming in just now. Please try again in an hour.")), nil
 	}
 	if err := speichern(&b); err != nil {
 		return plugin.RequestOut{}, err
@@ -316,27 +324,27 @@ func readItems(form url.Values, produkte []product, e settings) ([]item, string)
 		}
 		quantity, err := strconv.Atoi(raw)
 		if err != nil || quantity < 0 {
-			return nil, "Bei „" + p.Titel + "” there is no number."
+			return nil, plugin.Tf("“%s” does not carry a number.", p.Titel)
 		}
 		if quantity == 0 {
 			continue
 		}
 		if quantity > maxQuantity {
-			return nil, "Bei „" + p.Titel + "“ ist die Menge zu gross. Bitte melde dich direkt bei uns."
+			return nil, plugin.Tf("The quantity for “%s” is too large. Please get in touch with us directly.", p.Titel)
 		}
 		if !p.Orderable {
-			return nil, "„" + p.Titel + "” cannot be ordered at the moment."
+			return nil, plugin.Tf("“%s” cannot be ordered at the moment.", p.Titel)
 		}
 		out = append(out, item{
 			Slug: p.Slug, Titel: p.Titel, Quantity: quantity,
 			Price: p.Price, Einheit: p.Einheit,
 		})
 		if len(out) > maxPosten {
-			return nil, "That is a great many different items. Please get in touch with us directly."
+			return nil, plugin.T("That is a great many different items. Please get in touch with us directly.")
 		}
 	}
 	if len(out) == 0 {
-		return nil, "Please enter a quantity for at least one product."
+		return nil, plugin.T("Please enter a quantity for at least one product.")
 	}
 	_ = e
 	return out, ""
@@ -382,7 +390,12 @@ func back(page, stand, note string) plugin.RequestOut {
 // reach the person ordering.
 func notify(b order) {
 	var t strings.Builder
-	fmt.Fprintf(&t, "Neue Bestellung von %s\n\n", b.Name)
+	// The notification comes in the language of the page the order was placed
+	// on, because that is the only language this request carries. For a shop
+	// that sells in one language it is that language; for one that sells in
+	// several, the operator reads each order in the language the customer
+	// ordered in, which is the more useful of the two wrong answers.
+	t.WriteString(plugin.Tf("New order from %s", b.Name) + "\n\n")
 	for _, p := range b.Posten {
 		fmt.Fprintf(&t, "  %d × %s", p.Quantity, p.Titel)
 		if p.Price != "" {
@@ -395,25 +408,25 @@ func notify(b order) {
 		t.WriteString("\n")
 	}
 	if b.SummeBekannt {
-		fmt.Fprintf(&t, "\nSumme: %s %s\n", b.Currency, amountText(b.Summe))
+		t.WriteString("\n" + plugin.Tf("Total: %s %s", b.Currency, amountText(b.Summe)) + "\n")
 	} else {
-		t.WriteString("\nTotal: could not be worked out – please check.\n")
+		t.WriteString("\n" + plugin.T("Total: could not be worked out – please check.") + "\n")
 	}
-	fmt.Fprintf(&t, "\nE-Mail: %s\n", b.Email)
+	t.WriteString("\n" + plugin.Tf("E-mail: %s", b.Email) + "\n")
 	if b.Telefon != "" {
-		fmt.Fprintf(&t, "Telefon: %s\n", b.Telefon)
+		t.WriteString(plugin.Tf("Telephone: %s", b.Telefon) + "\n")
 	}
 	if b.Address != "" {
-		fmt.Fprintf(&t, "Adresse:\n%s\n", b.Address)
+		fmt.Fprintf(&t, plugin.T("Address:")+"\n%s\n", b.Address)
 	}
 	if b.Bemerkung != "" {
-		fmt.Fprintf(&t, "\nBemerkung:\n%s\n", b.Bemerkung)
+		fmt.Fprintf(&t, "\n"+plugin.T("Remark:")+"\n%s\n", b.Bemerkung)
 	}
-	t.WriteString("\nThe order also stands in the admin under “Orders”.\n")
+	t.WriteString("\n" + plugin.T("The order also stands in the admin under “Orders”.") + "\n")
 
 	// The orderer's address as the reply address: the operator presses reply
 	// and writes to the customer without typing the address out.
-	queued, reason, err := plugin.Notify("Neue Bestellung von "+b.Name, t.String(), b.Email)
+	queued, reason, err := plugin.Notify(plugin.Tf("New order from %s", b.Name), t.String(), b.Email)
 	switch {
 	case err != nil:
 		plugin.Logf("warn", "the notification about the order did not go out: %v", err)

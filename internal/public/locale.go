@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
@@ -28,26 +29,59 @@ type localeKey struct{}
 // next. A prefix the site does not have is left alone and ends up as an
 // ordinary 404 — better than silently serving the main language under an
 // address nobody chose.
+//
+// It also puts that language into the i18n context, and that is a different
+// language from the one the admin middleware sets. The admin asks the browser
+// and the signed-in operator: the right question, because an operator reads in
+// their own language whatever site they are looking at. A visitor is the other
+// way round. A French page says "Panier" to a visitor whose browser is set to
+// German, because the page is French — the language belongs to the page, not to
+// whoever is reading it. Without this, i18n.Lang falls back to i18n.Source on
+// every public request, which is how the contact form came to answer a German
+// visitor in English (PUB-01).
 func LocaleMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		website := domain.WebsiteFromContext(r.Context())
-		if website == nil || !website.Multilingual() {
+		if website == nil {
 			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !website.Multilingual() {
+			next.ServeHTTP(w, r.WithContext(withPageLang(r.Context(), website.Locale)))
 			return
 		}
 
 		tag, rest := locale.Split(r.URL.Path, website.Locales())
 		if tag == "" {
-			next.ServeHTTP(w, r)
+			// The main language of a multilingual site: no prefix to strip, but
+			// it still has a language, and it is not i18n.Source.
+			next.ServeHTTP(w, r.WithContext(withPageLang(r.Context(), website.Locale)))
 			return
 		}
 
 		// The path is rewritten on a copy: the original stays in the access log
 		// and in anything that has already looked at it.
-		r2 := r.Clone(context.WithValue(r.Context(), localeKey{}, tag))
+		ctx := context.WithValue(r.Context(), localeKey{}, tag)
+		r2 := r.Clone(withPageLang(ctx, tag))
 		r2.URL.Path = rest
 		next.ServeHTTP(w, r2)
 	})
+}
+
+// withPageLang tells i18n which language this page is published in.
+//
+// A website's locale can be a tag this build has no catalogue for — a site may
+// be published in Dutch without the admin speaking it. i18n.T answers such a
+// tag with the source string, which is correct, so the tag is passed through
+// unexamined rather than filtered here: filtering would only move the same
+// fallback one function earlier and lose the tag for anything else that wants
+// it.
+func withPageLang(ctx context.Context, tag string) context.Context {
+	if tag == "" {
+		return ctx
+	}
+	return i18n.WithLang(ctx, tag)
 }
 
 // LocaleFrom returns the language of this request, empty for the main one.

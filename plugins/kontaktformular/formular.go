@@ -49,14 +49,14 @@ type fieldKind struct {
 }
 
 var fieldKinds = []fieldKind{
-	{ArtText, "Kurze Antwort"},
-	{ArtLang, "Lange Antwort"},
-	{ArtEmail, "E-Mail-Adresse"},
-	{ArtTelefon, "Telefonnummer"},
-	{ArtZahl, "Zahl"},
-	{ArtDatum, "Datum"},
+	{ArtText, "Short answer"},
+	{ArtLang, "Long answer"},
+	{ArtEmail, "E-mail address"},
+	{ArtTelefon, "Telephone number"},
+	{ArtZahl, "Number"},
+	{ArtDatum, "Date"},
 	{KindChoice, "Choice from a list"},
-	{ArtAnkreuz, "Ankreuzfeld"},
+	{ArtAnkreuz, "Tick box"},
 }
 
 func artName(art string) string {
@@ -186,7 +186,10 @@ func allForms() []formular {
 func (f formular) clean() formular {
 	f.Name = strings.TrimSpace(f.Name)
 	if f.Name == "" {
-		f.Name = "Formular"
+		// A name the operator never typed. It is stored, so it is stored in the
+		// language they were working in and stays that way afterwards — like
+		// any other thing they could have typed here themselves.
+		f.Name = plugin.T("Form")
 	}
 	if len(f.Name) > 80 {
 		f.Name = f.Name[:80]

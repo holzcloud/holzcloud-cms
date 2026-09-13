@@ -136,14 +136,14 @@ func empfangenEigen(f formular, form url.Values, page string) (message, string) 
 			if raw != "" {
 				raw = "ja"
 			} else if fe.Required {
-				return n, "Bitte kreuze „" + fe.Label + "“ an."
+				return n, plugin.Tf("Please tick “%s”.", fe.Label)
 			} else {
 				raw = "nein"
 			}
 		}
 		if raw == "" {
 			if fe.Required {
-				return n, "Please fill in “" + fe.Label + "“ aus."
+				return n, plugin.Tf("Please fill in “%s”.", fe.Label)
 			}
 			continue
 		}
@@ -164,7 +164,7 @@ func empfangenEigen(f formular, form url.Values, page string) (message, string) 
 	}
 
 	if len(n.Fields) == 0 {
-		return n, "Please fill in the form."
+		return n, plugin.T("Please fill in the form.")
 	}
 	n.Subject = f.Subject
 	if n.Subject == "" {
@@ -178,20 +178,27 @@ func empfangenEigen(f formular, form url.Values, page string) (message, string) 
 }
 
 // checkField says what is wrong with an answer.
+//
+// The label travels as %s and is never translated: it is the operator's own
+// word, and a form that asks for "Lieblingsfarbe" must say "Lieblingsfarbe"
+// back. The sentence around it is a whole format string in the catalogue — not
+// pieces joined with +, which is the shape the collector cannot see and which
+// left these five refusals half German and half English, quotation marks and
+// all, until PUB-01.
 func checkField(fe field, value string) string {
 	switch {
 	case len([]rune(value)) > maxText:
-		return "„" + fe.Label + "“ ist zu lang."
+		return plugin.Tf("“%s” is too long.", fe.Label)
 	case fe.Art == ArtEmail && !plausibleAddress(value):
-		return "Die Adresse in „" + fe.Label + "” does not look right."
+		return plugin.Tf("The address in “%s” does not look right.", fe.Label)
 	case fe.Art == ArtZahl && !istZahl(value):
-		return "„" + fe.Label + "” has to be a number."
+		return plugin.Tf("“%s” has to be a number.", fe.Label)
 	case fe.Art == ArtDatum && !istDatum(value):
-		return "„" + fe.Label + "“ muss ein Datum sein."
+		return plugin.Tf("“%s” has to be a date.", fe.Label)
 	case fe.Art == KindChoice && !enthaelt(fe.Choices, value):
 		// The browser allows only the offered values; whoever sends something
 		// else did not use the form but rebuilt it.
-		return "Please choose one of the offered values for “" + fe.Label + "”."
+		return plugin.Tf("Please choose one of the offered values for “%s”.", fe.Label)
 	}
 	return ""
 }
@@ -234,7 +241,5 @@ func hintFor(f formular, gefunden bool) string {
 	if gefunden && f.Dank != "" {
 		return f.Dank
 	}
-	return "Danke, die Nachricht ist angekommen. Wir melden uns."
+	return plugin.T("Thank you, the message has arrived. We will be in touch.")
 }
-
-var _ = plugin.Log

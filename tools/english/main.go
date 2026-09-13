@@ -66,6 +66,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -356,6 +357,7 @@ func check(path string) []finding {
 		}
 		return true
 	})
+	out = append(out, checkPlugins(path, file, fset, waived)...)
 	return out
 }
 
@@ -439,4 +441,119 @@ func allowedName(name string) bool {
 		}
 	}
 	return false
+}
+
+// --- the second half: a sentence nobody can translate --------------------
+
+// sentence matches a string literal a person reads rather than a machine.
+//
+// The test is deliberately narrow: a space, and a full stop, question mark or
+// exclamation mark at the end. A label ("Name", "Subject") slips through, and
+// that is accepted — the cost of a missed label is a word in the wrong
+// language, the cost of a false positive is a gate nobody trusts. Every one of
+// the sentences PUB-01 found is caught by this shape, because a refusal is a
+// sentence and ends like one.
+var sentence = regexp.MustCompile(`^.*\s.*[.?!]$`)
+
+// translatable reports whether a plugin's sentence is inside a call that can
+// translate it.
+//
+// This is the half of the language gate that did not exist, and its absence is
+// what let v2.0 put English refusals in front of German visitors: the other
+// half asks "is this German?", which an English sentence passes, and nothing
+// asked "can this ever be anything but English?" Log lines are exempt — they go
+// into the operator's log file, which is English the way the source is.
+// The value is the argument index the sentence stands at.
+var translatable = map[string]int{
+	"T": 0, "Tf": 0, "Log": 1, "Logf": 1,
+}
+
+// checkPlugins reports the sentences in one plugin file that no language can
+// reach.
+//
+// Only plugins/ and sdk/: inside internal/ the collector (tools/i18n) already
+// reports an untranslated sentence as *offen*, because everything there goes
+// through the catalogue. A plugin's sentence is invisible to it unless it sits
+// in a T or Tf call, so a bare literal is not merely untranslated — it is
+// unreported, which is criterion 9's distinction and the reason this exists.
+func checkPlugins(path string, file *ast.File, fset *token.FileSet, waived map[int]bool) []finding {
+	clean := strings.TrimPrefix(filepath.ToSlash(path), "./")
+	if !strings.HasPrefix(clean, "plugins/") && !strings.HasPrefix(clean, "sdk/") {
+		return nil
+	}
+	if strings.HasSuffix(path, "_test.go") {
+		return nil
+	}
+
+	wrapped := map[token.Pos]bool{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		name := ""
+		switch fun := call.Fun.(type) {
+		case *ast.SelectorExpr:
+			name = fun.Sel.Name
+		case *ast.Ident:
+			name = fun.Name
+		}
+		at, ok := translatable[name]
+		if !ok {
+			return true
+		}
+		// Only the format argument travels; the rest are values. A sentence
+		// handed to a %s is not translated by anybody, which is the trap the
+		// glossary records for Sprintf and which holds here too. Log and Logf
+		// carry the level in front, so their sentence is the second argument —
+		// getting that wrong is how a gate starts reporting "info".
+		if at < len(call.Args) {
+			markWrapped(call.Args[at], wrapped)
+		}
+		return true
+	})
+
+	var out []finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		lit, ok := n.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		line := fset.Position(lit.Pos()).Line
+		if waived[line] || wrapped[lit.Pos()] {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil || !sentence.MatchString(strings.TrimSpace(text)) {
+			return true
+		}
+		// A sentence inside markup is caught by the markup around it, not by
+		// this: the literal is a whole template, and the fix is to pull the
+		// sentence out, which the author sees anyway once the shorter ones are
+		// gone. Reporting it here would name a line nobody can act on in one
+		// step.
+		if strings.Contains(text, "<") && strings.Contains(text, ">") {
+			return true
+		}
+		out = append(out, finding{path, line, lit.Value,
+			"sentence outside T/Tf: no language but the source can ever show it"})
+		return true
+	})
+	return out
+}
+
+// markWrapped records the literals of one argument, following the + that joins
+// a long sentence across lines. A concatenation IS collectable here, unlike in
+// tools/i18n, because the host is handed whatever the expression evaluates to;
+// what the collector cannot see is a different problem, reported by that tool.
+func markWrapped(e ast.Expr, into map[token.Pos]bool) {
+	switch v := e.(type) {
+	case *ast.BasicLit:
+		into[v.Pos()] = true
+	case *ast.BinaryExpr:
+		markWrapped(v.X, into)
+		markWrapped(v.Y, into)
+	case *ast.ParenExpr:
+		markWrapped(v.X, into)
+	}
 }

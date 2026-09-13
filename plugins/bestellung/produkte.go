@@ -45,8 +45,12 @@ func standardEinstellungen() settings {
 		StatusField:  "verfuegbarkeit",
 		SoldOutValue: "vergriffen",
 		Currency:     "CHF",
-		Hint: "We will get in touch after the order and arrange collection " +
-			"or delivery. Payment is on handover or by invoice.",
+		// A default the operator can rewrite. It is stored, so it is stored in
+		// the language they set the shop up in — and until they touch it, it
+		// says the same thing in every language they publish in, because a
+		// sentence assembled here has no key to look up later.
+		Hint: plugin.T("We will get in touch after the order and arrange collection " +
+			"or delivery. Payment is on handover or by invoice."),
 	}
 }
 

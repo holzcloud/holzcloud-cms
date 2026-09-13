@@ -63,8 +63,8 @@ func navigation(aktuell string) string {
 		return fmt.Sprintf(`<a class="%s" href="%s">%s</a> `, class, ziel, label)
 	}
 	return `<p class="table-actions">` +
-		art(ansichtNachrichten, "Nachrichten", "") +
-		art(ansichtFormulare, "Formulare", ansichtFormulare) +
+		art(ansichtNachrichten, plugin.T("Messages"), "") +
+		art(ansichtFormulare, plugin.T("Forms"), ansichtFormulare) +
 		`</p>`
 }
 
@@ -73,40 +73,44 @@ func navigation(aktuell string) string {
 func formularliste() (plugin.AdminOut, error) {
 	var b strings.Builder
 	b.WriteString(navigation(ansichtFormulare))
-	b.WriteString(`<p>Ein eigenes Formular fragt genau das, was du wissen willst. ` +
-		`Put it into a page with its marker, the way you would a snippet.</p>`)
+	fmt.Fprintf(&b, `<p>%s</p>`, plugin.T("A form of your own asks exactly what you want to know. "+
+		"Put it into a page with its marker, the way you would a snippet."))
 
 	liste := allForms()
 	if len(liste) == 0 {
-		b.WriteString(`<p class="empty">No form of your own yet. ` +
-			`The built-in contact form is still available under <code>[[formular]]</code>.</p>`)
+		fmt.Fprintf(&b, `<p class="empty">%s</p>`, plugin.T("No form of your own yet. "+
+			"The built-in contact form is still available under <code>[[formular]]</code>."))
 	} else {
 		b.WriteString(`<table class="table"><thead><tr>` +
-			`<th>Form</th><th>Fields</th><th>Marker for the page</th><th></th>` +
+			fmt.Sprintf(`<th>%s</th><th>%s</th><th>%s</th><th></th>`,
+				plugin.T("Form"), plugin.T("Fields"), plugin.T("Marker for the page")) +
 			`</tr></thead><tbody>`)
 		for _, f := range liste {
 			fmt.Fprintf(&b, `<tr><td>%s</td><td>%d</td><td><code>%s</code></td><td class="table-actions">`,
 				html.EscapeString(f.Name), len(f.Fields), html.EscapeString(markerFor(f.Key)))
-			fmt.Fprintf(&b, `<a class="btn btn--sm" href="?ansicht=formular&amp;kennung=%s">Bearbeiten</a>`,
-				html.EscapeString(f.Key))
+			fmt.Fprintf(&b, `<a class="btn btn--sm" href="?ansicht=formular&amp;kennung=%s">%s</a>`,
+				html.EscapeString(f.Key), html.EscapeString(plugin.T("Edit")))
 			fmt.Fprintf(&b, `<form method="POST" class="inline-form">`+
 				`<input type="hidden" name="loeschen_formular" value="%s">`+
-				`<button type="submit" class="btn btn--sm btn--danger">Delete</button></form>`,
-				html.EscapeString(f.Key))
+				`<button type="submit" class="btn btn--sm btn--danger">%s</button></form>`,
+				html.EscapeString(f.Key), html.EscapeString(plugin.T("Delete")))
 			b.WriteString(`</td></tr>`)
 		}
 		b.WriteString(`</tbody></table>`)
 	}
 
-	b.WriteString(`<form method="POST" class="stack">` +
-		`<fieldset><legend>Neues Formular</legend>` +
-		`<label for="neu-name">Name</label>` +
-		`<input type="text" id="neu-name" name="neues_formular" required maxlength="80" ` +
-		`placeholder="Anmeldung zum Hoffest">` +
-		`<button type="submit" class="btn btn--primary">Anlegen</button>` +
-		`</fieldset></form>`)
+	e := html.EscapeString
+	fmt.Fprintf(&b, `<form method="POST" class="stack">`+
+		`<fieldset><legend>%s</legend>`+
+		`<label for="neu-name">%s</label>`+
+		`<input type="text" id="neu-name" name="neues_formular" required maxlength="80" `+
+		`placeholder="%s">`+
+		`<button type="submit" class="btn btn--primary">%s</button>`+
+		`</fieldset></form>`,
+		e(plugin.T("New form")), e(plugin.T("Name")),
+		e(plugin.T("Signing up for the farm festival")), e(plugin.T("Create")))
 
-	return plugin.AdminOut{Title: "Formulare", HTML: b.String()}, nil
+	return plugin.AdminOut{Title: plugin.T("Forms"), HTML: b.String()}, nil
 }
 
 // --- Editor -----------------------------------------------------------------
@@ -115,26 +119,31 @@ func formulareditor(in plugin.AdminIn, key string) (plugin.AdminOut, error) {
 	f, ok := formularLaden(key)
 	if !ok {
 		return plugin.AdminOut{Redirect: "?ansicht=formulare",
-			Flash: "There is no such form.", FlashError: true}, nil
+			Flash: plugin.T("There is no such form."), FlashError: true}, nil
 	}
 
 	e := html.EscapeString
 	var b strings.Builder
 	b.WriteString(navigation(ansichtFormulare))
-	fmt.Fprintf(&b, `<p>Place it in the page with <code>%s</code>.</p>`, e(markerFor(f.Key)))
+	fmt.Fprintf(&b, `<p>%s</p>`, plugin.Tf("Place it in the page with <code>%s</code>.", e(markerFor(f.Key))))
 
 	b.WriteString(`<form method="POST" class="stack">`)
 	fmt.Fprintf(&b, `<input type="hidden" name="kennung" value="%s">`, e(f.Key))
 
-	b.WriteString(`<fieldset><legend>Formular</legend>`)
-	fmt.Fprintf(&b, `<label for="f-name">Name</label>`+
-		`<input type="text" id="f-name" name="name" value="%s" maxlength="80" required>`, e(f.Name))
-	fmt.Fprintf(&b, `<label for="f-betreff">Betreff der Benachrichtigung</label>`+
+	fmt.Fprintf(&b, `<fieldset><legend>%s</legend>`, e(plugin.T("Form")))
+	fmt.Fprintf(&b, `<label for="f-name">%s</label>`+
+		`<input type="text" id="f-name" name="name" value="%s" maxlength="80" required>`,
+		e(plugin.T("Name")), e(f.Name))
+	fmt.Fprintf(&b, `<label for="f-betreff">%s</label>`+
 		`<input type="text" id="f-betreff" name="betreff" value="%s" maxlength="120" `+
-		`placeholder="Otherwise the name of the form">`, e(f.Subject))
-	fmt.Fprintf(&b, `<label for="f-dank">Sentence after submitting</label>`+
+		`placeholder="%s">`,
+		e(plugin.T("Subject of the notification")), e(f.Subject),
+		e(plugin.T("Otherwise the name of the form")))
+	fmt.Fprintf(&b, `<label for="f-dank">%s</label>`+
 		`<input type="text" id="f-dank" name="dank" value="%s" maxlength="200" `+
-		`placeholder="Danke, die Nachricht ist angekommen. Wir melden uns.">`, e(f.Dank))
+		`placeholder="%s">`,
+		e(plugin.T("Sentence after submitting")), e(f.Dank),
+		e(plugin.T("Thank you, the message has arrived. We will be in touch.")))
 	b.WriteString(`</fieldset>`)
 
 	for i, fe := range f.Fields {
@@ -142,59 +151,60 @@ func formulareditor(in plugin.AdminIn, key string) (plugin.AdminOut, error) {
 		fmt.Fprintf(&b, `<fieldset><legend>%d. %s</legend>`, i+1, e(fe.Label))
 		fmt.Fprintf(&b, `<input type="hidden" name="%s.kennung" value="%s">`, p, e(fe.Key))
 
-		fmt.Fprintf(&b, `<label for="%s-b">Frage</label>`+
+		fmt.Fprintf(&b, `<label for="%s-b">%s</label>`+
 			`<input type="text" id="%s-b" name="%s.beschriftung" value="%s" maxlength="120" required>`,
-			p, p, p, e(fe.Label))
+			p, e(plugin.T("Question")), p, p, e(fe.Label))
 
-		fmt.Fprintf(&b, `<label for="%s-a">Art</label><select id="%s-a" name="%s.art">`, p, p, p)
+		fmt.Fprintf(&b, `<label for="%s-a">%s</label><select id="%s-a" name="%s.art">`,
+			p, e(plugin.T("Kind")), p, p)
 		for _, a := range fieldKinds {
 			aus := ""
 			if a.Art == fe.Art {
 				aus = " selected"
 			}
-			fmt.Fprintf(&b, `<option value="%s"%s>%s</option>`, a.Art, aus, e(a.Name))
+			fmt.Fprintf(&b, `<option value="%s"%s>%s</option>`, a.Art, aus, e(plugin.T(a.Name)))
 		}
 		b.WriteString(`</select>`)
 
-		fmt.Fprintf(&b, `<label for="%s-w">Options (one per line)</label>`+
+		fmt.Fprintf(&b, `<label for="%s-w">%s</label>`+
 			`<textarea id="%s-w" name="%s.auswahl" rows="3">%s</textarea>`,
-			p, p, p, e(strings.Join(fe.Choices, "\n")))
+			p, e(plugin.T("Options (one per line)")), p, p, e(strings.Join(fe.Choices, "\n")))
 
-		fmt.Fprintf(&b, `<label for="%s-h">Hint under the field</label>`+
+		fmt.Fprintf(&b, `<label for="%s-h">%s</label>`+
 			`<input type="text" id="%s-h" name="%s.hinweis" value="%s" maxlength="200">`,
-			p, p, p, e(fe.Hint))
+			p, e(plugin.T("Hint under the field")), p, p, e(fe.Hint))
 
 		an := ""
 		if fe.Required {
 			an = " checked"
 		}
 		fmt.Fprintf(&b, `<label><input type="checkbox" name="%s.pflicht" value="1"%s> `+
-			`Has to be filled in</label>`, p, an)
+			`%s</label>`, p, an, e(plugin.T("Has to be filled in")))
 
 		b.WriteString(`<p class="table-actions">`)
-		actionButton(&b, "feldaktion", "hoch:"+strconv.Itoa(i), "↑ nach oben", "")
-		actionButton(&b, "feldaktion", "runter:"+strconv.Itoa(i), "↓ nach unten", "")
-		actionButton(&b, "feldaktion", "weg:"+strconv.Itoa(i), "Feld entfernen", "btn--danger")
+		actionButton(&b, "feldaktion", "hoch:"+strconv.Itoa(i), plugin.T("↑ up"), "")
+		actionButton(&b, "feldaktion", "runter:"+strconv.Itoa(i), plugin.T("↓ down"), "")
+		actionButton(&b, "feldaktion", "weg:"+strconv.Itoa(i), plugin.T("Remove field"), "btn--danger")
 		b.WriteString(`</p></fieldset>`)
 	}
 
 	if len(f.Fields) == 0 {
-		b.WriteString(`<p class="empty">No field yet. A form with no fields is not shown.</p>`)
+		fmt.Fprintf(&b, `<p class="empty">%s</p>`, e(plugin.T("No field yet. A form with no fields is not shown.")))
 	}
 
 	b.WriteString(`<p class="table-actions">`)
-	actionButton(&b, "feldaktion", "neu", "Add field", "")
+	actionButton(&b, "feldaktion", "neu", plugin.T("Add field"), "")
 	b.WriteString(`</p>`)
-	b.WriteString(`<p><button type="submit" name="sichern" value="1" class="btn btn--primary">` +
-		`Formular speichern</button></p>`)
+	fmt.Fprintf(&b, `<p><button type="submit" name="sichern" value="1" class="btn btn--primary">`+
+		`%s</button></p>`, e(plugin.T("Save form")))
 	b.WriteString(`</form>`)
 
 	if _, hat := f.ersteArt(ArtEmail); !hat && len(f.Fields) > 0 {
-		b.WriteString(`<p class="text-muted">No field for an e-mail address: ` +
-			`an enquiry through this form then cannot be answered by mail.</p>`)
+		fmt.Fprintf(&b, `<p class="text-muted">%s</p>`, e(plugin.T("No field for an e-mail address: "+
+			"an enquiry through this form then cannot be answered by mail.")))
 	}
 
-	return plugin.AdminOut{Title: "Formular: " + f.Name, HTML: b.String()}, nil
+	return plugin.AdminOut{Title: plugin.Tf("Form: %s", f.Name), HTML: b.String()}, nil
 }
 
 // --- Aktionen ---------------------------------------------------------------
@@ -208,19 +218,19 @@ func formAction(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) 
 		key := keyFrom(name)
 		if key == "" {
 			return plugin.AdminOut{Redirect: "?ansicht=formulare",
-				Flash:      "No key can be made from this name. Please use letters.",
+				Flash:      plugin.T("No key can be made from this name. Please use letters."),
 				FlashError: true}, true, nil
 		}
 		if _, da := formularLaden(key); da {
 			return plugin.AdminOut{Redirect: "?ansicht=formulare",
-				Flash: "A form with this key already exists.", FlashError: true}, true, nil
+				Flash: plugin.T("A form with this key already exists."), FlashError: true}, true, nil
 		}
 		f := formular{Key: key, Name: name}
 		if err := save(f.clean()); err != nil {
 			return plugin.AdminOut{}, true, err
 		}
 		return plugin.AdminOut{Redirect: "?ansicht=formular&kennung=" + key,
-			Flash: "Angelegt. Jetzt die Felder festlegen."}, true, nil
+			Flash: plugin.T("Created. Now set the fields.")}, true, nil
 
 	case len(in.Form["loeschen_formular"]) > 0:
 		key := in.Form["loeschen_formular"][0]
@@ -231,7 +241,7 @@ func formAction(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) 
 		// form existed, and disappearing with it would be the opposite of what
 		// somebody expects when tidying up.
 		return plugin.AdminOut{Redirect: "?ansicht=formulare",
-			Flash: "Form deleted. The messages that came in stay."}, true, nil
+			Flash: plugin.T("Form deleted. The messages that came in stay.")}, true, nil
 
 	case len(in.Form["feldaktion"]) > 0, len(in.Form["sichern"]) > 0:
 		return storeForm(in, q)
@@ -249,7 +259,7 @@ func storeForm(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) {
 	f, ok := formularLaden(key)
 	if !ok {
 		return plugin.AdminOut{Redirect: "?ansicht=formulare",
-			Flash: "There is no such form.", FlashError: true}, true, nil
+			Flash: plugin.T("There is no such form."), FlashError: true}, true, nil
 	}
 
 	f.Name = firstValue(in.Form, "name")
@@ -267,7 +277,7 @@ func storeForm(in plugin.AdminIn, q url.Values) (plugin.AdminOut, bool, error) {
 	}
 	out := plugin.AdminOut{Redirect: "?ansicht=formular&kennung=" + f.Key}
 	if firstValue(in.Form, "sichern") != "" {
-		out.Flash = "Formular gespeichert."
+		out.Flash = plugin.T("Form saved.")
 	}
 	return out, true, nil
 }
@@ -331,7 +341,7 @@ func fieldAction(fields []field, aktion string) []field {
 		if len(fields) >= maxFields {
 			return fields
 		}
-		return append(fields, field{Label: "Neue Frage", Art: ArtText})
+		return append(fields, field{Label: plugin.T("New question"), Art: ArtText})
 	}
 	n, err := strconv.Atoi(arg)
 	if err != nil || n < 0 || n >= len(fields) {
