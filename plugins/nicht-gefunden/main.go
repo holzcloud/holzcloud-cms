@@ -115,10 +115,10 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 			for k := range all {
 				_ = plugin.Delete(k)
 			}
-			return plugin.AdminOut{Redirect: ".", Flash: "Liste geleert."}, nil
+			return plugin.AdminOut{Redirect: ".", Flash: plugin.T("List emptied.")}, nil
 		case len(in.Form["loeschen"]) > 0:
 			_ = plugin.Delete(prefix + in.Form["loeschen"][0])
-			return plugin.AdminOut{Redirect: ".", Flash: "Eintrag entfernt."}, nil
+			return plugin.AdminOut{Redirect: ".", Flash: plugin.T("Entry removed.")}, nil
 		}
 	}
 

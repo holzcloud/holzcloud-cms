@@ -20,11 +20,23 @@ import (
 // after that one column for every field that occurred in any message. A message
 // that does not have a field leaves the cell empty rather than shifting the
 // columns.
+// columnMessage is the column the built-in form's free text goes into.
+//
+// It is NOT translated, and that is the stored-value rule: it is matched
+// against the operator's own field labels to see whether a column already
+// exists. Translate it and the same export carries two message columns as soon
+// as the admin language changes — one from this build and one from the last.
+const columnMessage = "Nachricht" //nolint:german — a stored column key, not a sentence
+
 func asCSV(liste []message) ([]byte, error) {
 	columns := fieldColumns(liste)
 
+	// The header row is read by a person, so it is translated. The column
+	// names further along are the operator's own field labels and are not —
+	// same rule as everywhere else: a label travels, a sentence is translated.
 	kopf := append([]string{
-		"Zeit", "Formular", "Name", "E-Mail", "Betreff", "Seite", "Gelesen",
+		plugin.T("Time"), plugin.T("Form"), plugin.T("Name"), plugin.T("E-mail"),
+		plugin.T("Subject"), plugin.T("Page"), plugin.T("Read"),
 	}, columns...)
 
 	var buf bytes.Buffer
@@ -52,10 +64,10 @@ func asCSV(liste []message) ([]byte, error) {
 		for _, a := range n.Fields {
 			values[a.Label] = a.Value
 		}
-		// The free text stands in the "Nachricht" column, so that the built-in
-		// form and an assembled one can stand side by side in the same file.
+		// The free text stands in the message column, so that the built-in form
+		// and an assembled one can stand side by side in the same file.
 		if n.Text != "" {
-			values["Nachricht"] = n.Text
+			values[columnMessage] = n.Text
 		}
 		for _, s := range columns {
 			row = append(row, values[s])
@@ -91,8 +103,8 @@ func fieldColumns(liste []message) []string {
 			hatText = true
 		}
 	}
-	if hatText && !gesehen["Nachricht"] {
-		out = append(out, "Nachricht")
+	if hatText && !gesehen[columnMessage] {
+		out = append(out, columnMessage)
 	}
 	return out
 }

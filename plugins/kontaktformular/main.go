@@ -238,7 +238,7 @@ func formData(in plugin.ContentIn) data {
 func hintText(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || len([]rune(raw)) > 160 {
-		return "The message could not be sent. Please check what you entered."
+		return plugin.T("The message could not be sent. Please check what you entered.")
 	}
 	return raw
 }
@@ -269,27 +269,29 @@ func draw(d data) string {
 			`<input type="%s" id="%s" name="%s" maxlength="%d" value="%s" %s></div>`,
 			id, label, typ, id, name, max, e(value), extra)
 	}
-	field("cf-name", "Name", "text", fieldName, d.Name, maxName, `required autocomplete="name"`)
-	field("cf-email", "E-Mail", "email", fieldEmail, d.Email, maxEmail, `required autocomplete="email"`)
-	field("cf-subject", "Betreff", "text", fieldSubject, d.Subject, maxBetreff, "")
+	field("cf-name", plugin.T("Name"), "text", fieldName, d.Name, maxName, `required autocomplete="name"`)
+	field("cf-email", plugin.T("E-mail"), "email", fieldEmail, d.Email, maxEmail, `required autocomplete="email"`)
+	field("cf-subject", plugin.T("Subject"), "text", fieldSubject, d.Subject, maxBetreff, "")
 
-	fmt.Fprintf(&b, `<div class="contact-form__field"><label for="cf-body">Nachricht</label>`+
+	fmt.Fprintf(&b, `<div class="contact-form__field"><label for="cf-body">%s</label>`+
 		`<textarea id="cf-body" name="%s" rows="8" required maxlength="%d">%s</textarea></div>`,
-		fieldText, maxText, e(d.Text))
+		e(plugin.T("Message")), fieldText, maxText, e(d.Text))
 
 	// No visible field. The stylesheet hides it from people, aria-hidden and
 	// tabindex from screen readers; whoever does not see it either way leaves
 	// it alone. A program that fills in every input it finds fills this one in
 	// too — which is exactly what it is for.
 	fmt.Fprintf(&b, `<div class="contact-form__trap" aria-hidden="true">`+
-		`<label for="cf-website">Website (bitte leer lassen)</label>`+
+		`<label for="cf-website">%s</label>`+
 		`<input type="text" id="cf-website" name="%s" tabindex="-1" autocomplete="off"></div>`,
-		fieldHoneypot)
+		e(plugin.T("Website (please leave empty)")), fieldHoneypot)
 
-	b.WriteString(`<button type="submit" class="contact-form__submit">Nachricht senden</button>`)
+	fmt.Fprintf(&b, `<button type="submit" class="contact-form__submit">%s</button>`,
+		e(plugin.T("Send message")))
 	if d.Kontakt != "" {
-		fmt.Fprintf(&b, `<p class="contact-form__alternative">Lieber direkt schreiben? `+
-			`<a href="mailto:%s">%s</a></p>`, e(d.Kontakt), e(d.Kontakt))
+		fmt.Fprintf(&b, `<p class="contact-form__alternative">%s `+
+			`<a href="mailto:%s">%s</a></p>`,
+			e(plugin.T("Would you rather write directly?")), e(d.Kontakt), e(d.Kontakt))
 	}
 	b.WriteString(`</form>`)
 	return b.String()
@@ -377,11 +379,11 @@ func signaturschluessel() []byte {
 
 func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if in.Method != "POST" {
-		return back("", "fehler", "The form could not be read."), nil
+		return back("", "fehler", plugin.T("The form could not be read.")), nil
 	}
 	form, err := url.ParseQuery(in.Body)
 	if err != nil {
-		return back("", "fehler", "The form could not be read."), nil
+		return back("", "fehler", plugin.T("The form could not be read.")), nil
 	}
 	page := pageName(form.Get(fieldPage))
 
@@ -399,7 +401,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		// Somebody who had a tab open for a day deserves an answer and not
 		// silence — the message is real and still stands in the field.
 		return back(page, "fehler",
-			"The form was open for too long. Please reload the page and send again."), nil
+			plugin.T("The form was open for too long. Please reload the page and send again.")), nil
 	default:
 		plugin.Logf("info", "Absendung abgewiesen: %s", reason)
 		return back(page, "gesendet", ""), nil
@@ -414,7 +416,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 		f, ok := formularLaden(welches)
 		if !ok {
 			return backTo(page, welches, "fehler",
-				"This form no longer exists. Please reload the page."), nil
+				plugin.T("This form no longer exists. Please reload the page.")), nil
 		}
 		var problem string
 		n, problem = empfangenEigen(f, form, page)
@@ -436,7 +438,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 
 	if !roomThisHour() {
 		return backTo(page, welches, "fehler",
-			"A great many messages have just come in. Please try again in an hour."), nil
+			plugin.T("A great many messages have just come in. Please try again in an hour.")), nil
 	}
 	if err := speichern(n); err != nil {
 		return plugin.RequestOut{}, err
@@ -457,7 +459,7 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 func notify(n message) {
 	subject := n.Subject
 	if subject == "" {
-		subject = "Neue Anfrage"
+		subject = plugin.T("New enquiry")
 	}
 	if n.FormName != "" && !strings.Contains(subject, n.FormName) {
 		subject = n.FormName + ": " + subject
@@ -549,21 +551,21 @@ func pageName(raw string) string {
 func check(n message) string {
 	switch {
 	case n.Name == "":
-		return "Bitte trage deinen Namen ein."
+		return plugin.T("Please enter your name.")
 	case len([]rune(n.Name)) > maxName:
-		return "The name is too long."
+		return plugin.T("The name is too long.")
 	case n.Email == "":
-		return "Please enter an e-mail address so that we can answer."
+		return plugin.T("Please enter an e-mail address so that we can answer.")
 	case !plausibleAddress(n.Email):
-		return "The e-mail address does not look right."
+		return plugin.T("The e-mail address does not look right.")
 	case len(n.Email) > maxEmail:
-		return "Die E-Mail-Adresse ist zu lang."
+		return plugin.T("The e-mail address is too long.")
 	case len([]rune(n.Subject)) > maxBetreff:
-		return "The subject is too long."
+		return plugin.T("The subject is too long.")
 	case n.Text == "":
-		return "Please write a message as well."
+		return plugin.T("Please write a message as well.")
 	case len([]rune(n.Text)) > maxText:
-		return "The message is too long. Please keep it a little shorter."
+		return plugin.T("The message is too long. Please keep it a little shorter.")
 	}
 	return ""
 }
@@ -650,7 +652,7 @@ func sweep() {
 	for i := 0; i < len(keys)-maxMessages; i++ {
 		_ = plugin.Delete(keys[i])
 	}
-	plugin.Logf("info", "%d alte Nachrichten entfernt", len(keys)-maxMessages)
+	plugin.Logf("info", "%d old messages removed", len(keys)-maxMessages)
 }
 
 // --- die Verwaltung ---------------------------------------------------------
@@ -660,7 +662,7 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 		switch {
 		case len(in.Form["loeschen"]) > 0:
 			_ = plugin.Delete(prefixMessage + in.Form["loeschen"][0])
-			return plugin.AdminOut{Redirect: ".", Flash: "Message deleted."}, nil
+			return plugin.AdminOut{Redirect: ".", Flash: plugin.T("Message deleted.")}, nil
 		case len(in.Form["gelesen"]) > 0:
 			mark(in.Form["gelesen"][0], true)
 			return plugin.AdminOut{Redirect: "."}, nil
@@ -683,7 +685,7 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 	// has to tell views apart with.
 	if strings.Contains(in.Query, "ansicht=csv") {
 		if len(liste) == 0 {
-			return plugin.AdminOut{Redirect: ".", Flash: "There is nothing to output yet.", FlashError: true}, nil
+			return plugin.AdminOut{Redirect: ".", Flash: plugin.T("There is nothing to output yet."), FlashError: true}, nil
 		}
 		return csvAusgabe(liste)
 	}
@@ -698,14 +700,18 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 	}
 
 	if len(liste) == 0 {
-		b.WriteString(`<p class="empty">No message has come in yet. ` +
-			`Put <code>[[formular]]</code> into a page and the form stands there.</p>`)
-		return plugin.AdminOut{Title: "Nachrichten", HTML: b.String()}, nil
+		fmt.Fprintf(&b, `<p class="empty">%s</p>`, plugin.T("No message has come in yet. "+
+			"Put <code>[[formular]]</code> into a page and the form stands there."))
+		return plugin.AdminOut{Title: plugin.T("Messages"), HTML: b.String()}, nil
 	}
 
-	fmt.Fprintf(&b, `<p>%d Nachrichten, davon %d ungelesen. `+
-		`<a class="btn btn--sm" href="?ansicht=csv">Als Tabelle herunterladen</a></p>`,
-		len(liste), ungelesen)
+	// One whole sentence in the catalogue, both numbers inside it: a language
+	// that counts differently or orders the clauses the other way round can say
+	// so, which it could not if this were pieces joined together.
+	fmt.Fprintf(&b, `<p>%s `+
+		`<a class="btn btn--sm" href="?ansicht=csv">%s</a></p>`,
+		escape(plugin.Tf("%d messages, %d of them unread.", len(liste), ungelesen)),
+		escape(plugin.T("Download as a table")))
 
 	for _, n := range liste {
 		class := "card"
@@ -717,7 +723,7 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 		fmt.Fprintf(&b, `<p class="text-muted">%s &lt;<a href="mailto:%s">%s</a>&gt; · %s`,
 			escape(n.Name), escape(n.Email), escape(n.Email), escape(shortDate(n.Time)))
 		if n.Page != "" {
-			fmt.Fprintf(&b, ` · von <code>/%s</code>`, escape(n.Page))
+			fmt.Fprintf(&b, ` · %s`, plugin.Tf("from <code>/%s</code>", escape(n.Page)))
 		}
 		if n.FormName != "" {
 			fmt.Fprintf(&b, ` · %s`, escape(n.FormName))
@@ -741,15 +747,15 @@ func screen(in plugin.AdminIn) (plugin.AdminOut, error) {
 
 		b.WriteString(`<p class="table-actions">`)
 		if n.Read {
-			button(&b, "ungelesen", n.Key, "Als ungelesen markieren", "")
+			button(&b, "ungelesen", n.Key, plugin.T("Mark as unread"), "")
 		} else {
-			button(&b, "gelesen", n.Key, "Als gelesen markieren", "")
+			button(&b, "gelesen", n.Key, plugin.T("Mark as read"), "")
 		}
-		button(&b, "loeschen", n.Key, "Delete", "btn--danger")
+		button(&b, "loeschen", n.Key, plugin.T("Delete"), "btn--danger")
 		b.WriteString(`</p></article>`)
 	}
 
-	return plugin.AdminOut{Title: "Nachrichten", HTML: b.String()}, nil
+	return plugin.AdminOut{Title: plugin.T("Messages"), HTML: b.String()}, nil
 }
 
 // button draws a form with one button in it. It posts back to the same address;
@@ -800,7 +806,7 @@ func betreffOder(n message) string {
 	if n.Subject != "" {
 		return n.Subject
 	}
-	return "Ohne Betreff"
+	return plugin.T("No subject")
 }
 
 func shortDate(s string) string {

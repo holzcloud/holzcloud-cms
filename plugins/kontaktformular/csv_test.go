@@ -57,22 +57,26 @@ func TestTheTableCarriesTheFixedColumnsAndTheFormsOwn(t *testing.T) {
 
 	raw, err := asCSV(liste)
 	if err != nil {
-		t.Fatalf("alsCSV: %v", err)
+		t.Fatalf("asCSV: %v", err)
 	}
 	out := string(raw)
 
 	if !strings.HasPrefix(out, "\ufeff") {
 		t.Error("without a byte-order mark Excel does not open the file as UTF-8")
 	}
-	for _, column := range []string{"Zeit", "Formular", "Name", "E-Mail", "Kurs", "Personen", "Nachricht"} {
+	// The fixed columns come out in the source language here: there is no host
+	// in a unit test, so plugin.T hands the key straight back. "Kurs" and
+	// "Personen" are the operator's own field labels and are never translated
+	// in any language — that is the point of them standing in this same list.
+	for _, column := range []string{"Time", "Form", "Name", "E-mail", "Kurs", "Personen", columnMessage} {
 		if !strings.Contains(out, column) {
-			t.Errorf("Spalte %q fehlt", column)
+			t.Errorf("column %q missing", column)
 		}
 	}
 	if !strings.Contains(out, "Drechseln") || !strings.Contains(out, "Guten Tag") {
 		t.Error("the answers are not in the table")
 	}
-	// Beide Zeilen und die Kopfzeile.
+	// Both rows and the header row.
 	if n := strings.Count(strings.TrimSpace(out), "\n"); n != 2 {
 		t.Errorf("%d line breaks, expected 2 — header row plus two messages", n)
 	}
@@ -87,7 +91,7 @@ func TestMissingFieldsDoNotShiftTheColumns(t *testing.T) {
 	}
 	raw, err := asCSV(liste)
 	if err != nil {
-		t.Fatalf("alsCSV: %v", err)
+		t.Fatalf("asCSV: %v", err)
 	}
 	rows := strings.Split(strings.TrimSpace(strings.TrimPrefix(string(raw), "\ufeff")), "\n")
 	if len(rows) != 3 {

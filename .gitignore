@@ -62,6 +62,17 @@ plugins/*/nicht-gefunden
 # versehentlich hinzugefuegt, stuende das halbe Repository doppelt im Index.
 .claude/
 
-# A stray build artifact: `go build` with no -o next to a package named wasm
-# leaves an ELF binary here. Nothing ships it, nothing loads it.
+# Stray build artifacts. `go build ./tools/i18n` with no -o drops the binary in
+# the working directory, named after the package — five of them were committed
+# that way before anyone noticed, 19 MB in total. The tools are run with
+# `go run`; nothing here is ever meant to be a file.
 /wasm
+/english
+/flip
+/i18n
+/rename
+/mkbundle
+/totpcode
+/kontaktformular
+/bestellung
+/suche

@@ -485,3 +485,70 @@ func TestFormulareditorUeberstehtDenFilterDesHosts(t *testing.T) {
 		}
 	}
 }
+
+// A German visitor is refused in German, and a French one in French.
+//
+// This is PUB-01 end to end, through the real WASM module: the refusal comes
+// out of check() inside the plugin, travels back through the host's translate
+// operation, and arrives in the language of the page. Before this milestone it
+// arrived as "The e-mail address does not look right." in front of every
+// visitor of every language, because no public request carried a language at
+// all and i18n.Lang fell back to the source.
+func TestAVisitorIsRefusedInTheLanguageOfThePage(t *testing.T) {
+	h, database, ws, _ := formularAufbau(t)
+
+	store := domain.NewStore(database)
+	for _, c := range []struct {
+		locale, want, notWant string
+	}{
+		{"de", "Die E-Mail-Adresse sieht nicht richtig aus.", "does not look right"},
+		{"fr", "L'adresse e-mail ne semble pas correcte.", "does not look right"},
+		{"en", "The e-mail address does not look right.", "sieht nicht richtig aus"},
+	} {
+		t.Run(c.locale, func(t *testing.T) {
+			if err := store.UpdateSettings(context.Background(), ws.ID, domain.Settings{
+				Locale: c.locale, TimeZone: "Europe/Berlin",
+			}); err != nil {
+				t.Fatalf("UpdateSettings: %v", err)
+			}
+			fresh, err := store.GetWebsite(context.Background(), ws.ID)
+			if err != nil || fresh == nil {
+				t.Fatalf("GetWebsite: %v", err)
+			}
+
+			form := url.Values{
+				"seite":     {"kontakt"},
+				"gestellt":  {timeToken(t, database, -10*time.Second)},
+				"name":      {"Anna Beispiel"},
+				"email":     {"keine-adresse"}, // what is refused
+				"nachricht": {"Guten Tag"},
+			}
+			req := httptest.NewRequest("POST", "http://velowerkstatt.test/formular",
+				strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			// A browser asking for something else entirely. The page wins.
+			req.Header.Set("Accept-Language", "it-IT,it;q=0.9")
+			req = req.WithContext(domain.WebsiteToContext(req.Context(), fresh))
+
+			rec := httptest.NewRecorder()
+			// The whole public chain, in the order cmd/holzcloud/main.go builds
+			// it: the locale middleware first, the plugin behind it.
+			LocaleMiddleware(h.PluginMiddleware(http.HandlerFunc(
+				func(http.ResponseWriter, *http.Request) {
+					t.Error("the submission went past the plugin to the core")
+				}))).ServeHTTP(rec, req)
+
+			where, err := url.QueryUnescape(rec.Header().Get("Location"))
+			if err != nil {
+				t.Fatalf("Location: %v", err)
+			}
+			if !strings.Contains(where, c.want) {
+				t.Errorf("the refusal is not in %s:\n  got  %s\n  want it to carry %q",
+					c.locale, where, c.want)
+			}
+			if strings.Contains(where, c.notWant) {
+				t.Errorf("the refusal carries the wrong language (%q): %s", c.notWant, where)
+			}
+		})
+	}
+}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
@@ -214,5 +215,73 @@ func TestCanonicalCarriesTheLanguagePrefix(t *testing.T) {
 	}
 	if site.FeedURL != "/fr/feed.xml" {
 		t.Errorf("Site.FeedURL = %q; want /fr/feed.xml", site.FeedURL)
+	}
+}
+
+// The language a visitor is answered in belongs to the page, not to their
+// browser.
+//
+// This is the regression PUB-01 names. i18n.Middleware sits on the admin
+// routes only, so before this every public request carried no language at all
+// and i18n.Lang fell back to i18n.Source — which is how the contact form came
+// to answer a German visitor "The e-mail address does not look right." The
+// admin's question (what does this operator read?) is the wrong one out here:
+// a French page is French to everybody.
+func TestAPublicRequestCarriesThePagesLanguageAndNotTheBrowsers(t *testing.T) {
+	_, database := newTestHandler(t)
+	ws := multilingualSite(t, database, "fr")
+
+	for _, c := range []struct {
+		name, path, want string
+	}{
+		{"main language of a multilingual site", "/anything", "de"},
+		{"second language behind its prefix", "/fr/anything", "fr"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var got string
+			req := httptest.NewRequest("GET", c.path, nil)
+			req.Host = "demo.test"
+			// A browser that asks for something else entirely. It must not win.
+			req.Header.Set("Accept-Language", "it-IT,it;q=0.9")
+			req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
+			LocaleMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				got = i18n.Lang(r.Context())
+			})).ServeHTTP(httptest.NewRecorder(), req)
+			if got != c.want {
+				t.Fatalf("language of the request = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// A site with one language is the common case and it has a language too.
+//
+// The middleware used to return early here, before it set anything, because
+// there was no prefix to strip. That early return was the whole bug for every
+// single-language site: nothing to strip is not the same as nothing to say.
+func TestASingleLanguageSiteAlsoSaysWhichLanguageItIs(t *testing.T) {
+	_, database := newTestHandler(t)
+	ws := seedWebsite(t, database, "Einsprachig")
+	store := domain.NewStore(database)
+	if err := store.UpdateSettings(context.Background(), ws.ID, domain.Settings{
+		Locale: "de", TimeZone: "Europe/Berlin",
+	}); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	fresh, err := store.GetWebsite(context.Background(), ws.ID)
+	if err != nil || fresh == nil {
+		t.Fatalf("GetWebsite: %v", err)
+	}
+
+	var got string
+	req := httptest.NewRequest("GET", "/hofladen", nil)
+	req.Host = "demo.test"
+	req = req.WithContext(domain.WebsiteToContext(req.Context(), fresh))
+	LocaleMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = i18n.Lang(r.Context())
+	})).ServeHTTP(httptest.NewRecorder(), req)
+
+	if got != "de" {
+		t.Fatalf("language of the request = %q, want \"de\"", got)
 	}
 }
