@@ -51,6 +51,7 @@
 "Street and number": "Strasse und Hausnummer",
 "The address in “%s” does not look right.": "Die Adresse bei «%s» sieht nicht richtig aus.",
 "The address “%s” was already taken. The page got “%s”.": "Die Adresse «%s» war schon vergeben. Die Seite hat «%s» bekommen.",
+"The answer is stored with the message, and no mail went out. Switch “Tell the sender that their message arrived” on in the website settings.": "Die Antwort steht bei der Nachricht, verschickt wurde nichts. Schalte in den Einstellungen der Website «Dem Absender bestätigen, dass die Nachricht angekommen ist\" ein.",
 "The closer in, the fewer pixels are left. On a phone photo there is not much to gain beyond about 2×.": "Je näher, desto weniger Pixel bleiben übrig. Bei einem Natelfoto ist ab etwa 2× nicht mehr viel zu holen.",
 "The field appears in the editor only once the chosen field is filled in — “Special price” only once “On offer” is ticked. As long as it does not appear it is not demanded either, and the theme prints nothing; the value entered once does stay, though.": "Das Feld erscheint im Editor erst, wenn das gewählte Feld ausgefüllt ist — «Sonderpreis» erst, wenn «Im Angebot» angekreuzt ist. Solange es nicht erscheint, wird es auch nicht verlangt und im Theme nicht ausgegeben; der einmal eingetragene Wert bleibt aber stehen.",
 "The field “%s” no longer exists. This column was left without a target.": "Das Feld «%s» gibt es nicht mehr. Diese Spalte blieb ohne Ziel.",

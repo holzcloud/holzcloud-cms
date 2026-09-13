@@ -35,6 +35,14 @@ type Website struct {
 	// with a 301. Off by default: a fresh install reachable only over a bare IP
 	// would otherwise redirect itself somewhere unreachable.
 	CanonicalRedirect bool
+	// ConfirmSenders says whether a person who writes through a form on this
+	// website is told that it arrived.
+	//
+	// Off until the operator switches it on, and the reason is in migration
+	// 00056: switching it on means this website starts sending e-mail to
+	// addresses that visitors type into it, which is a decision and not a
+	// default.
+	ConfirmSenders bool
 
 	// OfflineMode decides what an inactive website answers: "notfound" (404,
 	// the old behaviour) or "maintenance" (503, which keeps the search index).

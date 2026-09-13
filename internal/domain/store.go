@@ -35,7 +35,7 @@ var websiteFields = []string{
 	"token_ink", "token_paper", "token_brand", "token_font", "token_measure", "token_radius",
 	"shop_base", "currency", "shipping_gross", "shipping_free_from", "shipping_tax_bp",
 	"price_display", "vat_exempt", "vat_number", "return_policy",
-	"order_email", "payment_details",
+	"order_email", "payment_details", "confirm_senders",
 }
 
 // websiteColumns renders the projection, optionally qualified with a table
@@ -54,7 +54,7 @@ func websiteColumns(alias string) string {
 
 func scanWebsite(row interface{ Scan(...any) error }) (*Website, error) {
 	var w Website
-	var active, canonicalRedirect int
+	var active, canonicalRedirect, confirmSenders int
 	var createdAt, updatedAt string
 	var faviconID, logoID, shippingFreeFrom sql.NullInt64
 	var vatExempt int
@@ -66,12 +66,13 @@ func scanWebsite(row interface{ Scan(...any) error }) (*Website, error) {
 		&w.TokenInk, &w.TokenPaper, &w.TokenBrand, &w.TokenFont, &w.TokenMeasure, &w.TokenRadius,
 		&w.ShopBase, &w.Currency, &w.ShippingGross, &shippingFreeFrom, &w.ShippingTaxBP,
 		&w.PriceDisplay, &vatExempt, &w.VATNumber, &w.ReturnPolicy,
-		&w.OrderEmail, &w.PaymentDetails)
+		&w.OrderEmail, &w.PaymentDetails, &confirmSenders)
 	if err != nil {
 		return nil, err
 	}
 	w.Active = active == 1
 	w.CanonicalRedirect = canonicalRedirect == 1
+	w.ConfirmSenders = confirmSenders == 1
 	w.VATExempt = vatExempt == 1
 	if shippingFreeFrom.Valid {
 		w.ShippingFreeFrom = &shippingFreeFrom.Int64
@@ -160,19 +161,22 @@ type Settings struct {
 	FaviconMediaID    *int64
 	LogoMediaID       *int64
 	CanonicalRedirect bool
-	OfflineMode       string
-	OfflineMessage    string
-	BlogBase          string
-	PostsPerPage      int
-	ContactEmail      string
-	NotifyEmail       string
-	OrgType           string
-	Street            string
-	PostalCode        string
-	City              string
-	Country           string
-	Phone             string
-	OpeningHours      string
+	// ConfirmSenders is the operator's switch for telling a person who writes
+	// through a form that it arrived. See domain.Website.
+	ConfirmSenders bool
+	OfflineMode    string
+	OfflineMessage string
+	BlogBase       string
+	PostsPerPage   int
+	ContactEmail   string
+	NotifyEmail    string
+	OrgType        string
+	Street         string
+	PostalCode     string
+	City           string
+	Country        string
+	Phone          string
+	OpeningHours   string
 }
 
 // UpdateSettings stores the website options.
@@ -204,14 +208,16 @@ func (s *Store) UpdateSettings(ctx context.Context, id int64, set Settings) erro
 		 notify_email = $12,
 		 org_type = $13, street = $14, postal_code = $15, city = $16,
 		 country = $17, phone = $18, opening_hours = $19, extra_locales = $20,
+		 confirm_senders = $21,
 		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-		 WHERE id = $21`,
+		 WHERE id = $22`,
 		set.Locale, set.TimeZone, set.MetaDescription,
 		nullableID(set.FaviconMediaID), nullableID(set.LogoMediaID),
 		boolToInt(set.CanonicalRedirect), set.OfflineMode, set.OfflineMessage,
 		set.BlogBase, set.PostsPerPage, set.ContactEmail, set.NotifyEmail,
 		set.OrgType, set.Street, set.PostalCode, set.City, set.Country,
-		set.Phone, set.OpeningHours, set.ExtraLocales, id)
+		set.Phone, set.OpeningHours, set.ExtraLocales,
+		boolToInt(set.ConfirmSenders), id)
 	if err != nil {
 		return fmt.Errorf("update website settings: %w", err)
 	}

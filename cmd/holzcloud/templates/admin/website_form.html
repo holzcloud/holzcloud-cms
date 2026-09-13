@@ -206,6 +206,16 @@
         </div>
 
         <div class="form-group">
+            <label class="form-check">
+                <input type="checkbox" name="confirm_senders" {{if .Website.ConfirmSenders}}checked{{end}}>
+                <span class="form-check-label">{{t "Tell the sender that their message arrived"}}</span>
+            </label>
+            <p class="form-hint text-muted">
+                {{t "A copy of the enquiry goes back to the address the person entered, so they know it got through instead of writing again or telephoning. Switched off to begin with, and worth a thought before switching on: this website then sends e-mail to addresses that visitors type into it, and a form filled in by a robot with somebody else's address sends that person a message they did not ask for."}}
+            </p>
+        </div>
+
+        <div class="form-group">
             <label class="form-label" for="blog_base">{{t "Address of the archive"}}</label>
             <input type="text" id="blog_base" name="blog_base" class="form-input"
                    value="{{.Website.BlogBase}}" placeholder="{{t "news"}}">

@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
@@ -268,27 +270,29 @@ func (h *Handler) RenderForPlugin(ctx context.Context, websiteID int64, a plugin
 // website whose operator left the notification field empty, has said what it
 // wants; a plugin that treated that as an error would fill the log with a
 // complaint about a decision somebody made on purpose.
-func (h *Handler) NotifyForPlugin(ctx context.Context, websiteID int64, a plugin.NotifyArg) (bool, string, error) {
+func (h *Handler) NotifyForPlugin(ctx context.Context, websiteID int64, a plugin.NotifyArg) (queued, confirmed bool, reason string, err error) {
 	if h.mail == nil || !h.mail.Enabled() {
-		return false, "no mail server is set up", nil
+		return false, false, "no mail server is set up", nil
 	}
 	if h.domains == nil {
-		return false, "the website is not known", nil
+		return false, false, "the website is not known", nil
 	}
 	ws, err := h.domains.GetWebsite(ctx, websiteID)
 	if err != nil {
-		return false, "", err
+		return false, false, "", err
 	}
 	if ws == nil {
-		return false, "the website is not known", nil
+		return false, false, "the website is not known", nil
 	}
 	if ws.NotifyEmail == "" {
-		return false, "no notification address is stored for this website", nil
+		return false, false, "no notification address is stored for this website", nil
 	}
 
 	subject := strings.TrimSpace(a.Subject)
 	if subject == "" {
-		subject = "Neue Meldung von " + ws.Name
+		// One whole sentence in the catalogue, the site's name inside it. Built
+		// with + until v2.1, which is the shape tools/i18n cannot see.
+		subject = i18n.Tf(i18n.Lang(ctx), "New message from %s", ws.Name)
 	}
 	msg := mail.Message{
 		To: ws.NotifyEmail,
@@ -299,9 +303,66 @@ func (h *Handler) NotifyForPlugin(ctx context.Context, websiteID int64, a plugin
 		ReplyTo: a.ReplyTo,
 	}
 	if err := h.mail.Enqueue(ctx, websiteID, msg); err != nil {
-		return false, "", err
+		return false, false, "", err
 	}
-	return true, "", nil
+
+	// The copy to the person who wrote. Four things have to be true, and the
+	// order they are checked in is the order they are decided in: the plugin
+	// asked, the plugin declared the permission (checked by the runtime before
+	// this is called), the OPERATOR switched it on for this website, and there
+	// is an address to send it to that is not the operator's own.
+	//
+	// The last of those is not pedantry: without it a form whose notification
+	// address is also the sender's address sends the operator two copies of the
+	// same message, one of them addressed as a confirmation of their own
+	// enquiry.
+	if a.Confirm && ws.ConfirmSenders && plausibleRecipient(a.ReplyTo) &&
+		!strings.EqualFold(a.ReplyTo, ws.NotifyEmail) {
+		copySubject := strings.TrimSpace(a.ConfirmSubject)
+		if copySubject == "" {
+			copySubject = subject
+		}
+		copyBody := a.ConfirmBody
+		if strings.TrimSpace(copyBody) == "" {
+			copyBody = a.Body
+		}
+		copyMsg := mail.Message{
+			To: a.ReplyTo,
+			// No "[Site]" prefix here. That prefix exists to sort an operator's
+			// four inboxes; the person who wrote has one, and a bracket in
+			// front of a confirmation reads like machinery.
+			Subject: copySubject,
+			Body:    copyBody,
+			// The operator's own address, so a reply to the confirmation
+			// reaches them and not the queue.
+			ReplyTo: ws.NotifyEmail,
+		}
+		if err := h.mail.Enqueue(ctx, websiteID, copyMsg); err != nil {
+			// The enquiry is already in the queue and already in the admin. A
+			// confirmation that did not go out is worth a log line and is not
+			// worth failing the visitor's request over.
+			slog.Warn("the confirmation to the sender could not be queued",
+				"website_id", websiteID, "error", err)
+		} else {
+			confirmed = true
+		}
+	}
+	return true, confirmed, "", nil
+}
+
+// plausibleRecipient is the same shape check the plugins use, said again here
+// because this is where an address becomes a recipient.
+//
+// Deliberately a check of shape and not of existence: anything stricter refuses
+// real addresses, and what this has to stop is a header, a second recipient or
+// an empty string — not an unusual domain.
+func plausibleRecipient(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" || len(s) > 254 || strings.ContainsAny(s, " \t\r\n,;<>\"") {
+		return false
+	}
+	name, host, ok := strings.Cut(s, "@")
+	return ok && name != "" && host != "" && strings.Contains(host, ".")
 }
 
 // searchData turns a plugin's result list into the theme's.
