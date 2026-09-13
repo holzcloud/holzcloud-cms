@@ -1,0 +1,102 @@
+{{define "content"}}
+{{template "website_wording-content" .}}
+{{end}}
+
+{{define "website_wording-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <h2>{{t "What this website calls things"}}</h2>
+    <p class="text-muted">
+        {{t "A template brings its own words — “Cart”, “Search”, “Page not found” — and a translation for each. Here you say what yours are called instead. Leave a box empty and the template's own word is used, so nothing has to be filled in."}}
+    </p>
+    {{if not .Languages}}
+        <p class="empty">{{t "This template mints no words of its own, so there is nothing to reword."}}</p>
+    {{else}}
+    <form method="POST" action="/admin/websites/{{.Website.ID}}/wording">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+
+        {{range .Languages}}
+        <section style="margin-bottom: var(--space-4);">
+            <h3>{{.Name}} <span class="text-muted">({{.Locale}})</span></h3>
+            <p class="text-muted">
+                {{if .Untranslated}}
+                    {{tf "%d of %d words are not translated by the template in this language. Until one is filled in here, the template's own wording stands on the page." .Untranslated (len .Rows)}}
+                {{else}}
+                    {{tf "The template translates all %d words in this language." (len .Rows)}}
+                {{end}}
+                {{if .Changed}}{{tf "You have reworded %d of them." .Changed}}{{end}}
+            </p>
+
+            <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{t "Word in the template"}}</th>
+                        <th scope="col">{{t "The template says"}}</th>
+                        <th scope="col">{{t "You say"}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{$locale := .Locale}}
+                    {{range .Rows}}
+                    <tr{{if .Untranslated}} class="is-untranslated"{{end}}>
+                        <th scope="row"><code>{{.Key}}</code></th>
+                        <td>
+                            {{if .Untranslated}}
+                                <span class="text-muted">{{t "not translated"}}</span>
+                            {{else}}
+                                {{.Theme}}
+                            {{end}}
+                        </td>
+                        <td>
+                            <label class="sr-only" for="w-{{$locale}}-{{.Key}}">{{tf "Your word for “%s” in %s" .Key $locale}}</label>
+                            <input type="text" class="form-input"
+                                   id="w-{{$locale}}-{{.Key}}"
+                                   name="w:{{$locale}}:{{.Key}}"
+                                   value="{{.Own}}" maxlength="500"
+                                   placeholder="{{if .Untranslated}}{{.Key}}{{else}}{{.Theme}}{{end}}">
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            </div>
+        </section>
+        {{end}}
+
+        <p class="text-muted">{{tf "%d of at most %d words of your own are in use." .Used .Limit}}</p>
+        <p>
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save wording"}}</button>
+        </p>
+    </form>
+    {{end}}
+</div>
+
+{{if .Stray}}
+<div class="card">
+    <h2>{{t "Words from another template"}}</h2>
+    <p class="text-muted">
+        {{t "These you reworded under a template this website no longer uses. They are kept, not deleted, so that they are still there if you go back to it — and until then they do nothing."}}
+    </p>
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Language"}}</th>
+                <th scope="col">{{t "Word in the template"}}</th>
+                <th scope="col">{{t "You say"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Stray}}
+            <tr>
+                <td>{{.Locale}}</td>
+                <th scope="row"><code>{{.Key}}</code></th>
+                <td>{{.Value}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    </div>
+</div>
+{{end}}
+{{end}}

@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -40,6 +42,13 @@ func SafeAssetPath(p string) (string, bool) {
 // The tmplmgr.Store implements this interface via ActiveTemplateSlug.
 type TemplateResolver interface {
 	ActiveTemplateSlug(ctx context.Context, websiteID int64) (string, error)
+}
+
+// WordResolver supplies the operator's own words for a website and language.
+// The wording.Store implements it; an interface rather than the store itself so
+// this package keeps knowing nothing about the database.
+type WordResolver interface {
+	ThemeWords(ctx context.Context, websiteID int64, locale string) (map[string]string, error)
 }
 
 // PageData is the data passed to public templates for rendering.
@@ -549,7 +558,9 @@ type Loader struct {
 	defaultFS fs.FS
 	publicFS  fs.FS // full templates/public FS with all built-in templates
 	resolver  TemplateResolver
-	cache     sync.Map // cacheKey -> *template.Template
+	// wording is the operator's own words, or nil when nobody has set any up.
+	wording WordResolver
+	cache   sync.Map // cacheKey -> *template.Template
 }
 
 // NewLoader creates a template loader.
@@ -699,13 +710,35 @@ func (l *Loader) resolveSource(ctx context.Context, websiteID int64) fileReader 
 
 // words is the catalogue this website renders with.
 //
-// Today that is the theme's own and nothing else. It is a method rather than a
-// call to loadCatalog so that the operator's own wording, which belongs to the
-// website and not to the theme, has one place to be layered in — the
-// precedence being override, then theme, then the key itself.
-func (l *Loader) words(_ context.Context, _ int64, read fileReader, locale string) Catalog {
-	return loadCatalog(read, locale)
+// Precedence is the operator's own wording, then the theme's catalogue, then
+// the key itself. That order is the point of the whole mechanism: the theme
+// author decides what the words are, the operator decides what they call them,
+// and neither can leave the other with a blank page.
+//
+// A failing resolver is not an error here. It would mean rendering the page
+// without the operator's wording, which is the theme's own words — a page. The
+// alternative is a 500 on the public site because a settings table was busy.
+func (l *Loader) words(ctx context.Context, websiteID int64, read fileReader, locale string) Catalog {
+	theme := loadCatalog(read, locale)
+	if l.wording == nil {
+		return theme
+	}
+	own, err := l.wording.ThemeWords(ctx, websiteID, locale)
+	if err != nil {
+		slog.Warn("own wording not readable, the theme's words are used",
+			"website_id", websiteID, "locale", locale, "error", err)
+		return theme
+	}
+	return theme.with(own)
 }
+
+// SetWording gives the loader the operator's own words.
+//
+// Separate from NewLoader because the wording store needs the database and the
+// loader is built before it in main; the same reason the plugin manager arrives
+// through SetPlugins. Passing nil leaves the theme's catalogue alone, which is
+// what every test that does not care about wording gets.
+func (l *Loader) SetWording(w WordResolver) { l.wording = w }
 
 // loadTemplates parses the template set for one view of a website: layout.html
 // plus the view file that provides its "content" block.
@@ -831,6 +864,60 @@ func (l *Loader) InvalidateTemplateCache(websiteID int64) {
 		return true
 	})
 }
+
+// ActiveThemeFS is the theme a website renders with, as a file system.
+//
+// It goes through the same resolution as a render — uploaded theme, built-in
+// theme of that slug, embedded default — so a screen that asks what words the
+// theme has cannot answer about a different theme than the visitor sees. Only
+// the files a theme is made of are reachable; it is a reader over the resolved
+// source, not a directory handle.
+func (l *Loader) ActiveThemeFS(ctx context.Context, websiteID int64) fs.FS {
+	read := l.resolveSource(ctx, websiteID)
+	return readerFS{read: read}
+}
+
+// readerFS turns a fileReader into the io/fs.FS that KeysUsed and CatalogFor
+// take. Open is enough for fs.ReadFile; ReadDir is separate, because a theme's
+// source may be an embedded FS, a directory, or the default, and only the
+// directory case can list lang/.
+type readerFS struct {
+	read fileReader
+}
+
+func (f readerFS) Open(name string) (fs.File, error) {
+	content, err := f.read(name)
+	if err != nil {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
+	}
+	return &byteFile{name: name, data: content}, nil
+}
+
+type byteFile struct {
+	name string
+	data []byte
+	pos  int
+}
+
+func (b *byteFile) Stat() (fs.FileInfo, error) { return byteInfo{b}, nil }
+func (b *byteFile) Close() error               { return nil }
+func (b *byteFile) Read(p []byte) (int, error) {
+	if b.pos >= len(b.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, b.data[b.pos:])
+	b.pos += n
+	return n, nil
+}
+
+type byteInfo struct{ f *byteFile }
+
+func (i byteInfo) Name() string       { return path.Base(i.f.name) }
+func (i byteInfo) Size() int64        { return int64(len(i.f.data)) }
+func (i byteInfo) Mode() fs.FileMode  { return 0o444 }
+func (i byteInfo) ModTime() time.Time { return time.Time{} }
+func (i byteInfo) IsDir() bool        { return false }
+func (i byteInfo) Sys() any           { return nil }
 
 // BuiltinAsset returns the content of a built-in template asset by slug and path.
 // Returns nil if not found.

@@ -26,10 +26,23 @@ import (
 // first — and then test the half they are about.
 func rollBackTheEnglishRename(t *testing.T, ctx context.Context, provider *goose.Provider) {
 	t.Helper()
-	if _, err := provider.ApplyVersion(ctx, 54, false); err != nil {
-		t.Fatalf("roll 00054 back so the German column names exist again: %v", err)
+	// Everything above 00053 comes off, not only 00054.
+	//
+	// Rolling back one migration out of the middle leaves goose with a database
+	// version higher than a version it no longer has, and the next up refuses:
+	// "detected 1 missing (out-of-order) migration". That is exactly what
+	// happened when 00055 was added — this helper named a fixed version and
+	// silently meant "the newest one". DownTo says what it means and keeps
+	// meaning it after the next migration is written.
+	if _, err := provider.DownTo(ctx, englishRenameBase); err != nil {
+		t.Fatalf("roll back to %d so the German column names exist again: %v",
+			englishRenameBase, err)
 	}
 }
+
+// englishRenameBase is the version just below 00054, the English column names.
+// The rollback tests all start from the German shape, which is this one.
+const englishRenameBase = 53
 
 // TestMigration00047DownAndUp drives the backward half of 00047.
 //
@@ -606,5 +619,89 @@ func TestMigration00054DownAndUp(t *testing.T) {
 	}
 	if !strings.Contains(snippetIndex, "parent_id") {
 		t.Errorf("after the trip back up the snippet index = %q, expected 00048's narrower form", snippetIndex)
+	}
+}
+
+// TestMigration00055DownAndUp drives the backward half of 00055.
+//
+// Its Down cannot be lossless — nothing else in the schema can hold an
+// operator's own wording — so what is checked is that it says so by doing
+// exactly that and no more: the table goes, the website stays, and the way up
+// works afterwards.
+func TestMigration00055DownAndUp(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	provider, err := migrationProvider(database.Write)
+	if err != nil {
+		t.Fatalf("migrationProvider: %v", err)
+	}
+
+	res, err := database.Write.ExecContext(ctx,
+		`INSERT INTO websites (name, description) VALUES ('Hofladen', '')`)
+	if err != nil {
+		t.Fatalf("creating a website: %v", err)
+	}
+	websiteID, _ := res.LastInsertId()
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO theme_wording (website_id, locale, key, value, updated_at)
+		 VALUES ($1, 'de', 'Cart', 'Korb', '2026-09-13T00:00:00Z')`, websiteID); err != nil {
+		t.Fatalf("storing a word: %v", err)
+	}
+
+	// --- down ---------------------------------------------------------------
+	if _, err := provider.ApplyVersion(ctx, 55, false); err != nil {
+		t.Fatalf("rolling 00055 back: %v", err)
+	}
+
+	var tables int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='theme_wording'`).
+		Scan(&tables); err != nil {
+		t.Fatalf("looking for the table: %v", err)
+	}
+	if tables != 0 {
+		t.Error("theme_wording survived its own rollback")
+	}
+
+	// The website is not the wording's. Dropping the one must not touch the
+	// other, and a Down that took the site with it would be a catastrophe
+	// nobody would find until they tried it.
+	var websites int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM websites WHERE id = ?`, websiteID).Scan(&websites); err != nil {
+		t.Fatalf("looking for the website: %v", err)
+	}
+	if websites != 1 {
+		t.Fatal("the rollback took the website with it")
+	}
+
+	// --- and up again -------------------------------------------------------
+	if err := RunMigrations(database.Write); err != nil {
+		t.Fatalf("RunMigrations after the trip back up: %v", err)
+	}
+	if _, err := database.Write.ExecContext(ctx,
+		`INSERT INTO theme_wording (website_id, locale, key, value, updated_at)
+		 VALUES ($1, 'de', 'Cart', 'Merkliste', '2026-09-13T00:00:00Z')`, websiteID); err != nil {
+		t.Fatalf("the table does not take a row after the trip back up: %v", err)
+	}
+
+	// The index comes back with it. Without the DROP INDEX in Down the second
+	// up fails on a name that already exists; with it and without the CREATE,
+	// nothing says so until a slow query.
+	var indexes int
+	if err := database.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_theme_wording_website'`).
+		Scan(&indexes); err != nil {
+		t.Fatalf("looking for the index: %v", err)
+	}
+	if indexes != 1 {
+		t.Error("the index did not come back with the table")
 	}
 }

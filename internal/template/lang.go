@@ -57,6 +57,34 @@ func (c Catalog) T(key string) string {
 	return key
 }
 
+// with lays one set of words over this catalogue and returns the result.
+//
+// A copy, because a Catalog is cached inside a parsed template set and two
+// websites on the same theme must not be able to write into each other's. The
+// map is small — 150 keys across all eight shipped themes together — so copying
+// it per template set is not worth a lock.
+//
+// An empty value in the overlay is ignored rather than blanking the word. The
+// store deletes an emptied entry instead of storing "", but a row from an older
+// build or a hand-edited database must not be able to put a blank button on a
+// page.
+func (c Catalog) with(over map[string]string) Catalog {
+	if len(over) == 0 {
+		return c
+	}
+	merged := make(map[string]string, len(c.entries)+len(over))
+	for k, v := range c.entries {
+		merged[k] = v
+	}
+	for k, v := range over {
+		if v == "" {
+			continue
+		}
+		merged[k] = v
+	}
+	return Catalog{entries: merged}
+}
+
 // Has reports whether the catalogue carries a key at all. CheckCatalogs uses it; T does
 // not need it, because its answer to both cases is the same.
 func (c Catalog) Has(key string) bool {
@@ -264,4 +292,20 @@ func quoteAll(in []string) []string {
 func contains(haystack []string, needle string) bool {
 	i := sort.SearchStrings(haystack, needle)
 	return i < len(haystack) && haystack[i] == needle
+}
+
+// CatalogFor is one theme's words in one language, as a plain map.
+//
+// For the admin screen, which has to show what the theme offers beside what the
+// operator made of it. Catalog itself stays unexported in its shape: this hands
+// out a copy, so a screen cannot write into a catalogue that a render is using.
+func CatalogFor(theme fs.FS, locale string) map[string]string {
+	cat := loadCatalog(func(name string) ([]byte, error) {
+		return fs.ReadFile(theme, name)
+	}, locale)
+	out := make(map[string]string, len(cat.entries))
+	for k, v := range cat.entries {
+		out[k] = v
+	}
+	return out
 }
