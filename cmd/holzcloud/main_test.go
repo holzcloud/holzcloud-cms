@@ -478,6 +478,12 @@ var editorOpenRoutes = []route{
 	{pattern: "GET /admin/websites/{id}/preview/{slug}"},
 	{pattern: "GET /admin/websites/{id}/design"},
 	{pattern: "POST /admin/websites/{id}/design/activate"},
+	// Wording is editorial, not structural. It changes a word a visitor reads,
+	// the way a menu entry or a snippet does — both of which stand in this same
+	// list — rather than the shape or the colours of the site, which are next
+	// door under adminOnly.
+	{pattern: "GET /admin/websites/{id}/wording"},
+	{pattern: "POST /admin/websites/{id}/wording"},
 	{pattern: "GET /admin/websites/{id}/produkte"},
 	{pattern: "GET /admin/websites/{id}/produkte/{productID}"},
 	{pattern: "POST /admin/websites/{id}/produkte/{productID}"},

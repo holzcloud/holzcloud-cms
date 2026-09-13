@@ -33,6 +33,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
+	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
 
 // Handler holds dependencies for admin HTTP handlers.
@@ -86,6 +87,8 @@ type Handler struct {
 	cfg           *config.Config
 	loginThrottle *auth.LoginThrottle
 	clientIP      *web.ClientIPResolver
+	// wording is the operator's own words for what a theme calls things.
+	wording *wording.Store
 }
 
 // NewHandler creates an admin handler with the given dependencies.
@@ -255,6 +258,9 @@ func (h *Handler) SetAITokens(s *ai.Store) { h.aiTokens = s }
 // the same tolerance SetProductStore, SetOrderStore, SetOutbox and
 // SetActivityStore already carry.
 func (h *Handler) SetAlbumStore(s *album.Store) { h.albumStore = s }
+
+// SetWording gives the handler the store behind the wording screen.
+func (h *Handler) SetWording(s *wording.Store) { h.wording = s }
 
 // Plugins returns the manager, or nil.
 func (h *Handler) Plugins() *plugin.Manager { return h.plugins }

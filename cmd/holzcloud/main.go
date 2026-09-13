@@ -51,6 +51,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
+	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
 
 //go:embed assets templates
@@ -221,6 +222,10 @@ func main() {
 	tmplStore := tmplmgr.NewStore(database, cfg.DataDir)
 	menuStore := menu.NewStore(database)
 	albumStore := album.NewStore(database)
+	// The operator's own words for what a theme calls things. The loader gets
+	// it too: a render asks for them on every page, and without that the screen
+	// would write words nobody ever sees.
+	wordingStore := wording.NewStore(database)
 	mediaStore := media.NewStore(database)
 	snippetStore := snippet.NewStore(database)
 	termStore := term.NewStore(database)
@@ -247,6 +252,7 @@ func main() {
 		os.Exit(1)
 	}
 	templateLoader := tmpl.NewLoader(cfg.DataDir, publicDefaultFS, publicFS, tmplStore)
+	templateLoader.SetWording(wordingStore)
 
 	// Seed built-in templates into DB (idempotent — marks existing as built-in)
 	for _, bt := range tmpl.BuiltinTemplates {
@@ -275,6 +281,7 @@ func main() {
 	// and already eighteen long, and a new one would edit every call site
 	// including cmd/holzcloud/main_test.go.
 	adminHandler.SetAlbumStore(albumStore)
+	adminHandler.SetWording(wordingStore)
 	adminHandler.SetProductStore(productStore)
 	adminHandler.SetOrderStore(orderStore)
 	adminHandler.SetOutbox(outboxStore)
@@ -935,6 +942,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 
 	// Design/template routes (per-website)
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/design", adminHandler.ErrHandler(adminHandler.HandleWebsiteDesign))
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/wording", adminHandler.ErrHandler(adminHandler.HandleWebsiteWording))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/wording", adminHandler.ErrHandler(adminHandler.HandleWebsiteWordingSave))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/design/activate", adminHandler.ErrHandler(adminHandler.HandleWebsiteDesignActivate))
 
 	// Shop: Produktverwaltung und Einstellungen je Website
