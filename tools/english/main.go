@@ -464,8 +464,22 @@ var sentence = regexp.MustCompile(`^.*\s.*[.?!]$`)
 // asked "can this ever be anything but English?" Log lines are exempt — they go
 // into the operator's log file, which is English the way the source is.
 // The value is the argument index the sentence stands at.
+//
+// N is here and is the weakest of the four. T and Tf translate; Log and Logf go
+// into a file that is English the way the source is. N only MARKS — it hands the
+// string straight back — so a sentence inside it is collectable but not yet
+// translated at the point the gate can see. That is deliberate and necessary:
+// a table of refusals is filled in at start-up, when there is no request and so
+// no language, and T there would translate into whatever the last reader
+// happened to be.
+//
+// What the gate therefore proves for an N is "this sentence reaches the
+// catalogue", not "this sentence reaches the reader translated". The second
+// half is the caller's, and in this repository it is held by a test:
+// TestEveryCodeThisProgramProducesHasASentence names every code, and the
+// end-to-end test renders the same refusal in three languages.
 var translatable = map[string]int{
-	"T": 0, "Tf": 0, "Log": 1, "Logf": 1,
+	"T": 0, "Tf": 0, "N": 0, "Log": 1, "Logf": 1,
 }
 
 // checkPlugins reports the sentences in one plugin file that no language can

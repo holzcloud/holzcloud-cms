@@ -127,7 +127,7 @@ type answer struct {
 }
 
 // empfangenEigen nimmt die Absendung eines zusammengestellten Formulars an.
-func empfangenEigen(f formular, form url.Values, page string) (message, string) {
+func empfangenEigen(f formular, form url.Values, page string) (message, refusal) {
 	n := message{Page: page, Form: f.Key, FormName: f.Name}
 
 	for _, fe := range f.Fields {
@@ -136,18 +136,18 @@ func empfangenEigen(f formular, form url.Values, page string) (message, string) 
 			if raw != "" {
 				raw = "ja"
 			} else if fe.Required {
-				return n, plugin.Tf("Please tick “%s”.", fe.Label)
+				return n, refusal{Field: fieldPrefix + fe.Key, Code: "field-tick", Arg: fe.Label}
 			} else {
 				raw = "nein"
 			}
 		}
 		if raw == "" {
 			if fe.Required {
-				return n, plugin.Tf("Please fill in “%s”.", fe.Label)
+				return n, refusal{Field: fieldPrefix + fe.Key, Code: "field-fill", Arg: fe.Label}
 			}
 			continue
 		}
-		if problem := checkField(fe, raw); problem != "" {
+		if problem := checkField(fe, raw); !problem.ok() {
 			return n, problem
 		}
 		n.Fields = append(n.Fields, answer{Label: fe.Label, Value: raw})
@@ -164,7 +164,7 @@ func empfangenEigen(f formular, form url.Values, page string) (message, string) 
 	}
 
 	if len(n.Fields) == 0 {
-		return n, plugin.T("Please fill in the form.")
+		return n, refusal{Code: "form-incomplete"}
 	}
 	n.Subject = f.Subject
 	if n.Subject == "" {
@@ -174,7 +174,7 @@ func empfangenEigen(f formular, form url.Values, page string) (message, string) 
 		n.Name = "Ohne Namen"
 	}
 	n.Text = asText(n.Fields)
-	return n, ""
+	return n, refusal{}
 }
 
 // checkField says what is wrong with an answer.
@@ -185,22 +185,25 @@ func empfangenEigen(f formular, form url.Values, page string) (message, string) 
 // pieces joined with +, which is the shape the collector cannot see and which
 // left these five refusals half German and half English, quotation marks and
 // all, until PUB-01.
-func checkField(fe field, value string) string {
+func checkField(fe field, value string) refusal {
+	bad := func(code string) refusal {
+		return refusal{Field: fieldPrefix + fe.Key, Code: code, Arg: fe.Label}
+	}
 	switch {
 	case len([]rune(value)) > maxText:
-		return plugin.Tf("“%s” is too long.", fe.Label)
+		return bad("field-long")
 	case fe.Art == ArtEmail && !plausibleAddress(value):
-		return plugin.Tf("The address in “%s” does not look right.", fe.Label)
+		return bad("field-email")
 	case fe.Art == ArtZahl && !istZahl(value):
-		return plugin.Tf("“%s” has to be a number.", fe.Label)
+		return bad("field-digit")
 	case fe.Art == ArtDatum && !istDatum(value):
-		return plugin.Tf("“%s” has to be a date.", fe.Label)
+		return bad("field-date")
 	case fe.Art == KindChoice && !enthaelt(fe.Choices, value):
 		// The browser allows only the offered values; whoever sends something
 		// else did not use the form but rebuilt it.
-		return plugin.Tf("Please choose one of the offered values for “%s”.", fe.Label)
+		return bad("field-pick")
 	}
-	return ""
+	return refusal{}
 }
 
 func istZahl(s string) bool {

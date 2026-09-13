@@ -400,6 +400,19 @@ func T(s string) string {
 	return r.Text
 }
 
+// N marks a sentence for the catalogue without translating it here.
+//
+// For the sentences a plugin builds before it knows the reader — a table of
+// refusals filled in at start-up, a list of field kinds — where T would ask the
+// host at a moment when there is no request and therefore no language. The
+// value comes back unchanged; what it does is be visible to `tools/i18n`, which
+// reads the argument of every N, T and Tf in plugins/ and puts it in the
+// catalogue. Wrap the sentence in T where it is rendered.
+//
+// The twin of i18n.N on the host's side, and the same one-line body for the
+// same reason.
+func N(s string) string { return s }
+
 // Tf is T with a format string. The FRAME is translated and then filled in, so
 // a language that wants the parts the other way round can say so.
 func Tf(format string, args ...any) string { return fmt.Sprintf(T(format), args...) }

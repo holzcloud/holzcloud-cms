@@ -48,6 +48,15 @@ func TestASentenceAPluginCannotTranslateIsReported(t *testing.T) {
 			want: true,
 		},
 		{
+			// N marks without translating, for a table built before there is a
+			// reader. What it proves is that the sentence reaches the
+			// catalogue; that it reaches the reader translated is the caller's,
+			// and a different test's.
+			name: "a table entry marked with N",
+			src:  `var reasons = map[string]string{"x": plugin.N("The name is too long.")}`,
+			want: false,
+		},
+		{
 			name: "a log line, which is English the way the source is",
 			src:  `func f() { plugin.Logf("info", "%d old messages removed.", 3) }`,
 			want: false,

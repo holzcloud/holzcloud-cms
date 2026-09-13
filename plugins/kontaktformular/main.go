@@ -202,10 +202,13 @@ type data struct {
 	Kontakt   string
 	Hint      string
 	IsError   bool
-	Name      string
-	Email     string
-	Subject   string
-	Text      string
+	// ErrorField is the form field the message belongs under, empty when it is
+	// about the submission as a whole.
+	ErrorField string
+	Name       string
+	Email      string
+	Subject    string
+	Text       string
 }
 
 func formData(in plugin.ContentIn) data {
@@ -225,9 +228,52 @@ func formData(in plugin.ContentIn) data {
 		d.Hint = hintFor(f, ok)
 	case "fehler":
 		d.IsError = true
-		d.Hint = hintText(q.Get("hinweis"))
+		d.Hint, d.ErrorField = refusalText(q.Get("grund"), q.Get("feld"), q.Get("wort"))
 	}
 	return d
+}
+
+// refusalText turns what the address bar brought back into a sentence.
+//
+// Everything is checked against what this program knows: an unknown code gives
+// the general sentence, and a field name that is not one of this form's fields
+// is dropped so the message goes above the form instead of being attached to
+// something that is not there. Nothing from the address bar reaches the page as
+// text except the label, which is bounded and escaped where it is written.
+func refusalText(code, field, word string) (text, at string) {
+	frame, known := reasons[code]
+	if !known {
+		return plugin.T("The message could not be sent. Please check what you entered."), ""
+	}
+	if strings.Contains(frame, "%s") {
+		word = strings.TrimSpace(word)
+		if r := []rune(word); len(r) > maxLabel {
+			word = string(r[:maxLabel])
+		}
+		text = plugin.Tf(frame, word)
+	} else {
+		text = plugin.T(frame)
+	}
+	return text, fieldName2(field)
+}
+
+// maxLabel bounds the operator's own word on its way through the address bar.
+// The editor already bounds a label to 120; this is the same number said again
+// where the value comes back from outside.
+const maxLabel = 120
+
+// fieldName2 keeps only a field name this form could actually have.
+func fieldName2(raw string) string {
+	switch raw {
+	case fieldName, fieldEmail, fieldSubject, fieldText:
+		return raw
+	}
+	// An assembled form's field: the prefix plus a key, and a key is the narrow
+	// shape reKey allows.
+	if rest, ok := strings.CutPrefix(raw, fieldPrefix); ok && reKey.MatchString(rest) {
+		return raw
+	}
+	return ""
 }
 
 // hintText bounds what the query string may bring onto the page.
@@ -252,11 +298,21 @@ func hintText(raw string) string {
 func draw(d data) string {
 	e := html.EscapeString
 	var b strings.Builder
+	// No novalidate. The browser catching an empty required field on the spot
+	// is better than a round trip, and it needs no JavaScript; everything it
+	// cannot judge — the shape of an address, a length, an hour that was too
+	// busy — comes back from the server with a sentence in the page's language
+	// under the field it is about.
 	fmt.Fprintf(&b, `<form class="contact-form" method="POST" action="%s">`, submitAddress)
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldTime, e(d.Timestamp))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPage, e(d.Page))
 
-	if d.Hint != "" {
+	// The notice above the form is for what is not about one field: a success,
+	// a form that expired, an hour that was too busy. A refusal that names a
+	// field goes under that field instead — reading "the e-mail address does
+	// not look right" above a form of four boxes leaves the visitor to work out
+	// which box, and they are the one person who cannot see the code.
+	if d.Hint != "" && d.ErrorField == "" {
 		class := "contact-form__notice"
 		if d.IsError {
 			class += " contact-form__notice--error"
@@ -264,18 +320,59 @@ func draw(d data) string {
 		fmt.Fprintf(&b, `<p class="%s" role="status">%s</p>`, class, e(d.Hint))
 	}
 
-	field := func(id, label, typ, name, value string, max int, extra string) {
-		fmt.Fprintf(&b, `<div class="contact-form__field"><label for="%s">%s</label>`+
-			`<input type="%s" id="%s" name="%s" maxlength="%d" value="%s" %s></div>`,
-			id, label, typ, id, name, max, e(value), extra)
-	}
-	field("cf-name", plugin.T("Name"), "text", fieldName, d.Name, maxName, `required autocomplete="name"`)
-	field("cf-email", plugin.T("E-mail"), "email", fieldEmail, d.Email, maxEmail, `required autocomplete="email"`)
-	field("cf-subject", plugin.T("Subject"), "text", fieldSubject, d.Subject, maxBetreff, "")
+	// required is a word and not only a star. A star alone is a convention that
+	// has to be learnt, and it is read out as "star" or skipped entirely.
+	required := ` <span class="contact-form__required">` + e(plugin.T("(required)")) + `</span>`
 
-	fmt.Fprintf(&b, `<div class="contact-form__field"><label for="cf-body">%s</label>`+
-		`<textarea id="cf-body" name="%s" rows="8" required maxlength="%d">%s</textarea></div>`,
-		e(plugin.T("Message")), fieldText, maxText, e(d.Text))
+	field := func(id, label, typ, name, value string, max int, req bool, extra string) {
+		wrong := d.ErrorField == name && d.IsError
+		class := "contact-form__field"
+		if wrong {
+			class += " contact-form__field--wrong"
+			extra += ` aria-invalid="true" aria-describedby="` + id + `-why"`
+		}
+		fmt.Fprintf(&b, `<div class="%s"><label for="%s">%s`, class, id, e(label))
+		if req {
+			b.WriteString(required)
+		}
+		b.WriteString(`</label>`)
+		if wrong {
+			// role="alert" so a screen reader says it on arrival. The visitor
+			// came back to this page BECAUSE of this sentence; it is the reason
+			// the page was loaded.
+			fmt.Fprintf(&b, `<p class="contact-form__why" id="%s-why" role="alert">%s</p>`,
+				id, e(d.Hint))
+		}
+		fmt.Fprintf(&b, `<input type="%s" id="%s" name="%s" maxlength="%d" value="%s" %s></div>`,
+			typ, id, name, max, e(value), extra)
+	}
+	field("cf-name", plugin.T("Name"), "text", fieldName, d.Name, maxName, true,
+		`required autocomplete="name"`)
+	field("cf-email", plugin.T("E-mail"), "email", fieldEmail, d.Email, maxEmail, true,
+		`required autocomplete="email"`)
+	field("cf-subject", plugin.T("Subject"), "text", fieldSubject, d.Subject, maxBetreff, false, "")
+
+	textWrong := d.ErrorField == fieldText && d.IsError
+	textClass := "contact-form__field"
+	textExtra := ""
+	if textWrong {
+		textClass += " contact-form__field--wrong"
+		textExtra = ` aria-invalid="true" aria-describedby="cf-body-why"`
+	}
+	fmt.Fprintf(&b, `<div class="%s"><label for="cf-body">%s%s</label>`,
+		textClass, e(plugin.T("Message")), required)
+	if textWrong {
+		fmt.Fprintf(&b, `<p class="contact-form__why" id="cf-body-why" role="alert">%s</p>`,
+			e(d.Hint))
+	}
+	// The limit is said before it is reached rather than after. Without
+	// JavaScript there is no counter that runs; what there can be is a number
+	// the visitor sees before writing two thousand and one characters and being
+	// sent back.
+	fmt.Fprintf(&b, `<textarea id="cf-body" name="%s" rows="8" required maxlength="%d"%s>%s</textarea>`+
+		`<span class="contact-form__limit">%s</span></div>`,
+		fieldText, maxText, textExtra, e(d.Text),
+		e(plugin.Tf("at most %d characters", maxText)))
 
 	// No visible field. The stylesheet hides it from people, aria-hidden and
 	// tabindex from screen readers; whoever does not see it either way leaves
@@ -379,11 +476,11 @@ func signaturschluessel() []byte {
 
 func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if in.Method != "POST" {
-		return back("", "fehler", plugin.T("The form could not be read.")), nil
+		return back("", "fehler", refusal{Code: "unreadable"}), nil
 	}
 	form, err := url.ParseQuery(in.Body)
 	if err != nil {
-		return back("", "fehler", plugin.T("The form could not be read.")), nil
+		return back("", "fehler", refusal{Code: "unreadable"}), nil
 	}
 	page := pageName(form.Get(fieldPage))
 
@@ -393,18 +490,17 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	// learns how to get past the filter.
 	if strings.TrimSpace(form.Get(fieldHoneypot)) != "" {
 		plugin.Log("info", "honeypot triggered")
-		return back(page, "gesendet", ""), nil
+		return back(page, "gesendet", refusal{}), nil
 	}
 	switch reason := checkTimestamp(form.Get(fieldTime), time.Now()); reason {
 	case "":
 	case "abgelaufen":
 		// Somebody who had a tab open for a day deserves an answer and not
 		// silence — the message is real and still stands in the field.
-		return back(page, "fehler",
-			plugin.T("The form was open for too long. Please reload the page and send again.")), nil
+		return back(page, "fehler", refusal{Code: "expired"}), nil
 	default:
-		plugin.Logf("info", "Absendung abgewiesen: %s", reason)
-		return back(page, "gesendet", ""), nil
+		plugin.Logf("info", "submission refused: %s", reason)
+		return back(page, "gesendet", refusal{}), nil
 	}
 
 	// An assembled form says which one it is itself. If the key there no longer
@@ -415,12 +511,11 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	if welches != "" {
 		f, ok := formularLaden(welches)
 		if !ok {
-			return backTo(page, welches, "fehler",
-				plugin.T("This form no longer exists. Please reload the page.")), nil
+			return backTo(page, welches, "fehler", refusal{Code: "gone"}), nil
 		}
-		var problem string
+		var problem refusal
 		n, problem = empfangenEigen(f, form, page)
-		if problem != "" {
+		if !problem.ok() {
 			return backTo(page, welches, "fehler", problem), nil
 		}
 	} else {
@@ -431,20 +526,19 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 			Text:    strings.TrimSpace(form.Get(fieldText)),
 			Page:    page,
 		}
-		if problem := check(n); problem != "" {
+		if problem := check(n); !problem.ok() {
 			return back(page, "fehler", problem), nil
 		}
 	}
 
 	if !roomThisHour() {
-		return backTo(page, welches, "fehler",
-			plugin.T("A great many messages have just come in. Please try again in an hour.")), nil
+		return backTo(page, welches, "fehler", refusal{Code: "too-many"}), nil
 	}
 	if err := speichern(n); err != nil {
 		return plugin.RequestOut{}, err
 	}
 	notify(n)
-	return backTo(page, welches, "gesendet", ""), nil
+	return backTo(page, welches, "gesendet", refusal{}), nil
 }
 
 // notify tells the operator when they have set that up.
@@ -498,13 +592,13 @@ Replying to this message goes straight to the sender.
 
 // back sends the visitor back to the page and carries the outcome along in the
 // address. Without JavaScript, and a reload does not send twice.
-func back(page, stand, hint string) plugin.RequestOut {
-	return backTo(page, "", stand, hint)
+func back(page, stand string, why refusal) plugin.RequestOut {
+	return backTo(page, "", stand, why)
 }
 
 // backTo is the same but also says which form is meant — on a page with two
 // forms the message would otherwise stand under both.
-func backTo(page, welches, stand, hint string) plugin.RequestOut {
+func backTo(page, welches, stand string, why refusal) plugin.RequestOut {
 	ziel := "/"
 	if page != "" {
 		ziel = "/" + page
@@ -514,8 +608,14 @@ func backTo(page, welches, stand, hint string) plugin.RequestOut {
 	if welches != "" {
 		q.Set("welches", welches)
 	}
-	if hint != "" {
-		q.Set("hinweis", hint)
+	if !why.ok() {
+		q.Set("grund", why.Code)
+		if why.Field != "" {
+			q.Set("feld", why.Field)
+		}
+		if why.Arg != "" {
+			q.Set("wort", why.Arg)
+		}
 	}
 	return plugin.RequestOut{
 		Handled: true,
@@ -544,30 +644,90 @@ func pageName(raw string) string {
 	return raw
 }
 
+// refusal is what a submission was turned away for.
+//
+// A field and a code, never a finished sentence. The sentence is made where the
+// form is drawn, which has three consequences and all three are the point:
+//
+//   - The message can stand AT the field it is about, which one string handed
+//     back through the address bar can never do.
+//   - The set of things the address bar may say is closed. Until now the
+//     sentence itself travelled in ?hinweis=, escaped and bounded to 160
+//     characters — so a crafted link could put a stranger's 160 characters into
+//     the operator's own layout, which is how a contact form becomes a phishing
+//     page. A code the table below does not know now yields the ordinary
+//     "please check what you entered".
+//   - The sentence is translated when the page is drawn, in the language of
+//     that page, rather than at the moment the submission was refused.
+type refusal struct {
+	// Field is the form field the message belongs under, empty when the message
+	// is about the submission as a whole.
+	Field string
+	// Code names the reason. Nobody reads it.
+	Code string
+	// Arg fills the one %s a few of the sentences have. It is the operator's
+	// own field label and never a sentence: what travels is a word they typed
+	// into their own form, bounded by the editor to 120 characters, and the
+	// sentence around it comes from the table.
+	Arg string
+}
+
+// ok reports that there is nothing to say.
+func (r refusal) ok() bool { return r.Code == "" }
+
+// reasons maps a code to the sentence a visitor reads.
+//
+// The closed set. N marks each sentence for the catalogue; T translates it in
+// formData, where the language of the page is known.
+var reasons = map[string]string{
+	"name-missing":    plugin.N("Please enter your name."),
+	"name-long":       plugin.N("The name is too long."),
+	"email-missing":   plugin.N("Please enter an e-mail address so that we can answer."),
+	"email-shape":     plugin.N("The e-mail address does not look right."),
+	"email-long":      plugin.N("The e-mail address is too long."),
+	"subject-long":    plugin.N("The subject is too long."),
+	"text-missing":    plugin.N("Please write a message as well."),
+	"text-long":       plugin.N("The message is too long. Please keep it a little shorter."),
+	"unreadable":      plugin.N("The form could not be read."),
+	"expired":         plugin.N("The form was open for too long. Please reload the page and send again."),
+	"gone":            plugin.N("This form no longer exists. Please reload the page."),
+	"too-many":        plugin.N("A great many messages have just come in. Please try again in an hour."),
+	"form-incomplete": plugin.N("Please fill in the form."),
+	// The five below are about one field of an assembled form and carry its
+	// label in their %s.
+	"field-tick":  plugin.N("Please tick “%s”."),
+	"field-fill":  plugin.N("Please fill in “%s”."),
+	"field-long":  plugin.N("“%s” is too long."),
+	"field-email": plugin.N("The address in “%s” does not look right."),
+	"field-digit": plugin.N("“%s” has to be a number."),
+	"field-date":  plugin.N("“%s” has to be a date."),
+	"field-pick":  plugin.N("Please choose one of the offered values for “%s”."),
+}
+
 // check returns what is missing from a submission first.
 //
 // The sentences are for the visitor, so plain language that says what to do —
 // an enquiry turned away with "validation error" is a lost enquiry.
-func check(n message) string {
+func check(n message) refusal {
 	switch {
 	case n.Name == "":
-		return plugin.T("Please enter your name.")
+		return refusal{Field: fieldName, Code: "name-missing"}
 	case len([]rune(n.Name)) > maxName:
-		return plugin.T("The name is too long.")
+		return refusal{Field: fieldName, Code: "name-long"}
 	case n.Email == "":
-		return plugin.T("Please enter an e-mail address so that we can answer.")
+		return refusal{Field: fieldEmail, Code: "email-missing"}
 	case !plausibleAddress(n.Email):
-		return plugin.T("The e-mail address does not look right.")
+		return refusal{Field: fieldEmail, Code: "email-shape"}
 	case len(n.Email) > maxEmail:
-		return plugin.T("The e-mail address is too long.")
+		return refusal{Field: fieldEmail, Code: "email-long"}
 	case len([]rune(n.Subject)) > maxBetreff:
-		return plugin.T("The subject is too long.")
+		return refusal{Field: fieldSubject, Code: "subject-long"}
 	case n.Text == "":
-		return plugin.T("Please write a message as well.")
+		return refusal{Field: fieldText, Code: "text-missing"}
 	case len([]rune(n.Text)) > maxText:
-		return plugin.T("The message is too long. Please keep it a little shorter.")
+		return refusal{Field: fieldText, Code: "text-long"}
 	}
-	return ""
+	return refusal{}
 }
 
 // plausibleAddress is a check of shape, not a judgement. Stricter would refuse
