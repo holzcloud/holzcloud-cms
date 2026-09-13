@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: "The Public Side Speaks the Visitor's Language"
-current_phase: 13
-current_phase_name: "The public side speaks the visitor's language"
-status: in_progress
-stopped_at: "Meilenstein v2.1 eroeffnet (2026-09-13). Phase 13 gemessen und geplant; PUB-01 ist eine lebende Regression aus v2.0 und geht zuerst."
+current_phase: 14
+current_phase_name: "A contact form worth writing into"
+status: complete
+stopped_at: "Meilenstein v2.1 geschlossen (2026-09-13). 14 von 14 Anforderungen erfuellt, Audit geschrieben, CHANGELOG 2.1 geschrieben. Offen bleibt allein der Release-Tag auf dem Remote (403 auf Tag-Refs) — siehe Operator Next Steps."
 last_updated: "2026-09-13T00:00:00.000Z"
 last_activity: 2026-09-13
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 9
-  completed_plans: 0
-  percent: 0
+  completed_phases: 2
+  total_plans: 10
+  completed_plans: 10
+  percent: 100
 ---
 
 ## State: Holzcloud CMS
@@ -21,7 +21,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **v2.1 „The Public Side Speaks the Visitor's Language“ (Phasen 13–14), eröffnet 2026-09-13** — am selben Tag, an dem v2.0 schloss, und der erste Punkt repariert v2.0: PUB-01 ist eine lebende Regression, englische Ablehnungen vor deutschen Besuchern. Die Entscheidung, auf der alles ruht, steht in `phases/13-public-translation/13-CONTEXT.md` §2 und stürzt `TEMPLATE-SPEC.md` §2.5 um. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`.
+- Current focus: **keiner — v2.1 „The Public Side Speaks the Visitor's Language“ (Phasen 13–14) ist geschlossen (2026-09-13)**. Der nächste Meilenstein ist noch nicht eröffnet. Was v2.1 war und was offen blieb, steht unter `## Current Position`. Vormals: **eröffnet 2026-09-13** — am selben Tag, an dem v2.0 schloss, und der erste Punkt repariert v2.0: PUB-01 ist eine lebende Regression, englische Ablehnungen vor deutschen Besuchern. Die Entscheidung, auf der alles ruht, steht in `milestones/v2.1-phases/13-public-translation/13-CONTEXT.md` §2 und stürzt `TEMPLATE-SPEC.md` §2.5 um. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
@@ -411,6 +411,42 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
+Phase: none open. **Milestone v2.1 is closed** (2026-09-13), 14 of 14
+requirements satisfied, audit in `.planning/milestones/v2.1-MILESTONE-AUDIT.md`.
+Phases 13 and 14 both verified: `13-VERIFICATION.md`, `14-VERIFICATION.md`.
+Status: Complete
+Last activity: 2026-09-13 — the eight themes driven in two languages against the
+running server; CHANGELOG `## 2.1` written
+
+The GSD plugin is still not installed in this execution container (no `/gsd-*`
+commands, no `gsd-tools` binary) — the workflow was carried by hand in the same
+shape, with the same artifacts in the same order.
+
+**What v2.1 did.** Phase 13 built the channel: the page's language reaches a
+plugin's `sdk.T`, a theme carries its own `lang/<tag>.json`, the operator can
+override any key per website and language, the eight shipped themes are
+generated from one vocabulary of 138 keys, and TEMPLATE-SPEC §2.5 now says the
+opposite of what it said three days earlier with the old argument quoted and
+answered. Phase 14 rebuilt the contact form on top of it: per-field refusals in
+all eight themes, a receipt to the sender behind a second permission *and* the
+operator's switch, replies from the admin, consent stored with its wording and
+its moment, a quarantine for what the spam traps refuse, attachments the plugin
+never sees the bytes of, and conditional fields in a second step without
+JavaScript.
+
+**Three bugs that were nobody's feature** were found by building it, not by a
+test. The largest: every answer to a form submission was built from the page's
+slug, so a form on the **start page** redirected to `/home`, which the public
+side redirects to `/` without its query — no visitor of a start page had ever
+seen a thank-you or a reason. `ContentIn.Path` and a hidden field fix it.
+
+**One thing is deliberately open**, carried unchanged from v2.0: a plugin's
+`plugin.json` name and description are not translated.
+
+---
+
+### The milestone before this one (v2.0, closed 2026-09-13)
+
 Phase: 12 — The Codebase Speaks English (milestone v2.0)
 Plan: none open. **Phase 12 is finished and verified.**
 Status: Complete
@@ -441,6 +477,9 @@ public side still has no translation channel at all, and a plugin's
 
 ## Operator Next Steps
 
+- **Die Release-Tags `v2.0` und `v2.1` sind noch nicht auf dem Remote.** Für
+  `v2.1` gilt Wort für Wort dasselbe wie für `v2.0` unten: dieselbe Ursache,
+  dieselbe Abhilfe. Wer den einen pusht, pusht bitte beide.
 - **Der Release-Tag `v2.0` ist noch nicht auf dem Remote.** Er ist angelegt und
   beschriftet auf `9fe3279` (dem ersten `main`-Commit, der die ganze Phase
   traegt), aber `git push origin refs/tags/v2.0` wird von GitHub mit 403

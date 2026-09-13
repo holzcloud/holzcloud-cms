@@ -11,6 +11,81 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.1 — 2026-09-13
+
+### Hinzugefügt
+
+**Die öffentliche Seite spricht die Sprache des Besuchers.** Eine Website, die
+auf Französisch erscheint, liest sich auf Französisch — nicht nur die Seiten,
+sondern auch das Drumherum des Themes und alles, was ein Plugin einem Besucher
+sagt. Bis 2.0 war das nicht so: Wer sich auf einer deutschen Seite bei der
+E-Mail-Adresse vertippte, bekam *"The e-mail address does not look right."* zu
+lesen. Das war ein Fehler von 2.0 und ist der erste Punkt, den diese Fassung
+behebt.
+
+**Ein Theme bringt seine eigenen Wörter mit.** Neben den Vorlagen darf jetzt ein
+Verzeichnis `lang/` stehen, mit `de.json`, `fr.json` und so weiter. In der
+Vorlage holt `{{t "Weiterlesen"}}` das Wort daraus. Die acht mitgelieferten
+Themes bringen je vier Kataloge mit, auf Deutsch, Französisch, Italienisch und
+Spanisch. Was ein Theme nicht übersetzt hat, nennt `holzcloud template check`
+beim Namen; abgewiesen wird deswegen nichts.
+
+**Und der Betreiber hat das letzte Wort.** Unter *Wörter* lässt sich je Website
+und je Sprache überschreiben, wie das Theme etwas nennt. Die Reihenfolge ist:
+das eigene Wort, dann das des Themes, dann der Schlüssel selbst.
+
+TEMPLATE-SPEC §2.5 sagt seit dieser Fassung das Gegenteil von dem, was drei Tage
+vorher darin stand. Die alte Begründung ist zitiert und beantwortet, nicht
+gelöscht.
+
+### Hinzugefügt — das Kontaktformular
+
+Das Formular war schlicht hässlich und konnte wenig. Jetzt:
+
+- **Es sieht in allen acht Themes nach etwas aus.** Drei von ihnen hatten vorher
+  keine einzige Regel dafür und haben es in den Voreinstellungen des Browsers
+  gezeichnet.
+- **Ein Fehler steht an dem Feld, um das es geht** — nicht als ein Satz über dem
+  ganzen Formular.
+- **Wer schreibt, bekommt eine Eingangsbestätigung**, wenn du sie einschaltest.
+  Eine Kopie der eben gesendeten Nachricht, an die Adresse, die ohnehin darin
+  steht, und an keine andere.
+- **Antworten geht aus der Verwaltung**, ohne Wechsel ins Mailprogramm. Die
+  Antwort bleibt bei der Nachricht.
+- **Eine Einwilligung, die du selbst formulierst**, mit einem Satz je Sprache.
+  Was jemand angekreuzt hat, steht Wort für Wort bei seiner Nachricht, mit dem
+  Zeitpunkt — auch in einem Jahr, wenn du den Satz umformuliert hast.
+- **Abgewiesene Absendungen verschwinden nicht mehr.** Honigtopf, Zeitfalle und
+  Stundengrenze legen sie in eine Quarantäne mit dem Grund. Ein Fehlalarm lässt
+  sich dort finden und freigeben.
+- **Keine Anfrage fällt mehr still weg.** Was niemand gelesen hat, wird nicht
+  gelöscht, um Platz zu schaffen.
+- **Dateien dürfen mitkommen**, wenn du es einschaltest. Höchstens drei, geprüft
+  an ihrem Inhalt, und erst auf der Platte, wenn die Spamfallen durch sind.
+- **Ein Feld, das nur manchmal gefragt wird.** Hängt es von einer früheren
+  Antwort ab, erscheint es nach einem Klick auf *Weiter* — ohne JavaScript, wie
+  alles hier.
+
+### Behoben
+
+**Eine Antwort auf ein abgesendetes Formular kam auf der Startseite nie an.**
+Die Adresse wurde aus der Kennung der Seite gebaut, also `/home`, und `/home`
+leitet auf `/` weiter — ohne die Angabe, worum es ging. Wer auf der Startseite
+ein Formular abschickte, sah das Formular wieder und weder ein Danke noch einen
+Grund. Dasselbe verlor bei einer Seite in einer zweiten Sprache deren Vorsatz.
+Das Formular trägt die Adresse jetzt selbst mit.
+
+### Für Entwickler von Erweiterungen
+
+`ContentIn` und `RequestIn` tragen zwei neue Felder: `Path`, die Adresse, unter
+der diese Seite ausgeliefert wird, und `Lang`, die Sprache, in der das
+geschieht. Beides ist nicht aus dem Bisherigen abzuleiten — die Startseite hat
+die Kennung `home` und liegt unter `/`, und eine Seite in der zweiten Sprache
+der Website wird in dieser zweiten ausgeliefert und nicht in der ersten.
+`Site()` beantwortet ausserdem, in welchen Sprachen eine Website erscheint.
+
+---
+
 ## 2.0 — 2026-09-13
 
 ### Geändert — mit Bruch

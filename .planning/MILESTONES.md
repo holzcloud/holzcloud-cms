@@ -1,5 +1,71 @@
 # Milestones
 
+## v2.1 The Public Side Speaks the Visitor's Language (Shipped: 2026-09-13)
+
+**Delivered:** A website published in French reads French — its chrome, its
+forms and everything a plugin says to a visitor, not only its pages. And the
+contact form, which was the plainest thing on the public side, became one worth
+writing into: per-field refusals in all eight themes, a receipt, replies from
+the admin, consent with its wording and its moment, a quarantine for what the
+spam traps refuse, attachments, and a question that is asked only when it
+applies — without a line of JavaScript.
+
+**Phases completed:** 2 phases (13, 14), 10 plans
+**Timeline:** 2026-09-13, one day, `0337fb1` → close, 11 commits
+**Code:** 233 files changed, +12 869 / −1 456 lines since the `v2.0` release;
+118 346 lines of Go in 417 files at close, 1332 test functions, 1824 catalogue
+entries in each of de, es, fr and it
+**Verification:** `milestones/v2.1-phases/13-public-translation/13-VERIFICATION.md` and
+`milestones/v2.1-phases/14-contact-form/14-VERIFICATION.md` — 14 of 14 requirements met, the
+eight themes driven in two languages against a running server
+**Closeout:** clean — nothing carried forward, one thing deliberately open and
+named (`plugin.json`'s name and description, inherited from v2.0)
+
+**Key accomplishments:**
+
+1. **The regression that opened the milestone is closed, and the gate that
+   missed it was widened.** v2.0 translated two plugins' visitor-facing refusals
+   into English while the public side had no channel to turn them back. The
+   channel is the page's language reaching `sdk.T` through the request context;
+   the plugin now produces a reason code and the sentence is made where the form
+   is drawn, which is the only place that knows who is reading. `tools/english`
+   reads `plugins/` and `sdk/` so the next one cannot be invisible.
+
+2. **A theme carries its own words.** `lang/<tag>.json` beside the templates,
+   `t`/`th`/`tf` resolving against it and against nothing else, and above it the
+   operator's own wording per website and language. The eight shipped themes are
+   generated from one vocabulary of 138 keys so they cannot drift; `-check` is a
+   CI step. TEMPLATE-SPEC §2.5 now says the opposite of what it said three days
+   earlier, with the old argument quoted and answered rather than deleted.
+
+3. **The contact form got the six things it was missing** and each of them had
+   to get past a rule that existed for a reason. The receipt had to answer
+   `PermNotify`'s own "a plugin must never choose a recipient" — it does, with
+   one copy to the address the message already carries, behind a second
+   permission and the operator's switch. Attachments had to get past the 256 KB
+   body bound — they do, because the host holds the files and the plugin only
+   ever sees a name, a kind and a size, which is also what lets the spam traps
+   run before anything reaches the disk.
+
+4. **Three bugs that were nobody's feature, all found by building.** The largest
+   had been there for every release: an answer to a form submission was built
+   from the page's slug, so a form on the **start page** redirected to `/home`,
+   which the public side redirects to `/` without its query. Nobody who used a
+   form on a start page had ever seen a thank-you or a reason. The other two:
+   the same redirect lost a second language's prefix, and the consent sentence
+   was stored once per website, so a French visitor was asked in German.
+
+5. **The browser pass earned its place in the gate.** All eight themes in two
+   languages, and it is what found the consent hole — no test caught it, and one
+   language of one page showed it at once.
+
+**Open:** the release tag. `v2.1` and `v2.0` are both still missing from the
+remote; this environment's credential writes branch refs and not tag refs (403),
+and the remedy is a working copy with full access. See `STATE.md` →
+*Operator Next Steps*.
+
+---
+
 ## v2.0 The Codebase Speaks English (Shipped: 2026-09-13)
 
 **Delivered:** A stranger can read this repository. Every comment, every
