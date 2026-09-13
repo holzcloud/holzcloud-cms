@@ -255,12 +255,4 @@ func (h *Handler) themeVocabulary(r *http.Request, ws *domain.Website) ([]string
 // — so a screen that used it alone would leave out the language most of the
 // site is written in. This one was found in the browser: the wording screen
 // offered French and not German on a German website with French beside it.
-func websiteLocales(ws *domain.Website) []string {
-	out := []string{ws.Locale}
-	for _, l := range ws.Locales() {
-		if l != ws.Locale {
-			out = append(out, l)
-		}
-	}
-	return out
-}
+func websiteLocales(ws *domain.Website) []string { return ws.AllLocales() }

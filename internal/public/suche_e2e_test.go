@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/locale"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest"
 )
@@ -137,10 +139,37 @@ func loadPlugin(t *testing.T, h *Handler, database *db.DB, m *plugin.Manifest, m
 	rt.WithPages(h.PagesForPlugin)
 	rt.WithRender(h.RenderForPlugin)
 	rt.WithNotify(h.NotifyForPlugin)
+	// And the settings, which the server wires the same way. Without them
+	// plugin.Site() fails inside the module and every question a plugin asks
+	// about the website — its contact address, the languages it publishes in —
+	// is answered with nothing, which is not what a test should be measuring.
+	domainStore := domain.NewStore(database)
+	rt.WithSettings(func(ctx context.Context, id int64) (plugin.SettingsResult, error) {
+		ws, err := domainStore.GetWebsite(ctx, id)
+		if err != nil || ws == nil {
+			return plugin.SettingsResult{}, fmt.Errorf("website %d not found", id)
+		}
+		return plugin.SettingsResult{
+			WebsiteID: ws.ID, Name: ws.Name, Description: ws.Description,
+			Locale: ws.Locale, TimeZone: ws.TimeZone, BlogBase: ws.BlogBase,
+			ContactEmail: ws.ContactEmail, Locales: pluginLocales(ws),
+		}, nil
+	})
 
 	manager, err := plugin.NewManager(ctx, store, rt, dir, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
 	return manager
+}
+
+// pluginLocales mirrors what the server hands a plugin: every language the
+// website publishes in, its main one first, each with its native name.
+func pluginLocales(ws *domain.Website) []plugin.Locale {
+	tags := ws.AllLocales()
+	out := make([]plugin.Locale, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, plugin.Locale{Tag: tag, Name: locale.Native(tag)})
+	}
+	return out
 }

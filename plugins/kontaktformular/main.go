@@ -43,7 +43,15 @@ const (
 	// start page's slug is "home" and the start page is at "/", so every
 	// message about a form on the start page went to /home, was redirected to
 	// /, and lost its query — the visitor saw the form again and no answer.
-	fieldPath     = "pfad"
+	fieldPath = "pfad"
+	// fieldLang is the language the form was DRAWN in.
+	//
+	// The submission goes to /formular, which carries no language: the host
+	// answers it in the website's first one, and the consent recorded with the
+	// message would then be the sentence in a language the sender never saw.
+	// What has to be stored is the sentence they actually read, and only the
+	// form they read it on knows which that was.
+	fieldLang     = "sprache"
 	fieldTime     = "gestellt"
 	fieldHoneypot = "website"
 	// fieldForm says on receipt which assembled form was submitted. Without it
@@ -279,6 +287,8 @@ type data struct {
 	// form points its Continue button. Not "/"+Page: the start page has the
 	// slug "home" and is served at the root.
 	Path string
+	// Lang is the language the form is drawn in.
+	Lang string
 	// Form is the key of the form whose submission is being answered. Only that
 	// one shows the message — on a page with two forms it would otherwise stand
 	// twice.
@@ -304,11 +314,11 @@ type data struct {
 }
 
 func formData(in plugin.ContentIn) data {
-	d := data{Page: in.Slug, Path: in.Path, Timestamp: timestamp(time.Now())}
+	d := data{Page: in.Slug, Path: in.Path, Lang: in.Lang, Timestamp: timestamp(time.Now())}
 	if s, err := plugin.Site(); err == nil {
 		d.Kontakt = s.ContactEmail
 	}
-	d.Consent = consentText()
+	d.Consent = consentText(in.Lang)
 	d.Attach = attachWanted()
 
 	q, err := url.ParseQuery(in.Query)
@@ -408,6 +418,7 @@ func draw(d data) string {
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldTime, e(d.Timestamp))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPage, e(d.Page))
 	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldPath, e(d.Path))
+	fmt.Fprintf(&b, `<input type="hidden" name="%s" value="%s">`, fieldLang, e(d.Lang))
 
 	// The notice above the form is for what is not about one field: a success,
 	// a form that expired, an hour that was too busy. A refusal that names a
@@ -632,6 +643,11 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	// else here, so it is checked to be an address on this website and nothing
 	// more; anything else falls back to the start page.
 	ziel := pagePath(form.Get(fieldPath))
+	// And the language the sender read the form in, checked against the ones
+	// this website publishes in: a tag out of a submission is a stranger's
+	// word, and one that is not offered here falls back to the first language
+	// rather than reaching for a sentence that does not exist.
+	sprache := knownLocale(form.Get(fieldLang))
 
 	// The two traps, in the order that costs least. A filled honeypot and a
 	// form that comes back in under three seconds are both answered exactly
@@ -688,7 +704,10 @@ func absendungAnnehmen(in plugin.RequestIn) (plugin.RequestOut, error) {
 	// is what the form showed them, and a POST that carries its own sentence
 	// would let anybody write their own consent and have it stored as the
 	// visitor's.
-	if wording := consentText(); wording != "" {
+	// The sentence in the language the form was drawn in, which is the one the
+	// sender actually read. Storing any other with the message would record a
+	// consent to words nobody was shown.
+	if wording := consentText(sprache); wording != "" {
 		if strings.TrimSpace(form.Get(fieldConsent)) == "" {
 			return backTo(ziel, welches, "fehler",
 				refusal{Field: fieldConsent, Code: "consent-missing"}), nil
@@ -1524,12 +1543,75 @@ func release(key string) (plugin.AdminOut, error) {
 }
 
 // consentText is the sentence the operator asks visitors to agree to, or empty.
-func consentText() string {
+// consentText is the sentence a visitor of THIS page has to agree to.
+//
+// The operator writes one per language the website publishes in. A language
+// they left empty falls back to the one they wrote first, which is better than
+// an empty tick box: a form that silently stops asking for consent because a
+// language was added is the failure that costs something.
+//
+// Falling back is not the same as being right, and the admin screen says which
+// languages are still missing.
+func consentText(lang string) string {
+	if lang != "" {
+		if raw, ok, err := plugin.Get(consentKey(lang)); err == nil && ok {
+			if text := clip(raw, maxConsent); text != "" {
+				return text
+			}
+		}
+	}
 	raw, ok, err := plugin.Get(keyConsent)
 	if err != nil || !ok {
 		return ""
 	}
 	return clip(raw, maxConsent)
+}
+
+// knownLocale keeps only a language this website actually publishes in.
+func knownLocale(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > 12 {
+		return ""
+	}
+	for _, l := range siteLocales() {
+		if l.Tag == raw {
+			return raw
+		}
+	}
+	return ""
+}
+
+// consentTextExact reads one language's sentence without the fallback, which is
+// what the admin screen needs: a box that showed the fallback would be saved
+// back as that language's own sentence the next time somebody pressed Save.
+func consentTextExact(lang string) string {
+	raw, ok, err := plugin.Get(consentKey(lang))
+	if err != nil || !ok {
+		return ""
+	}
+	return clip(raw, maxConsent)
+}
+
+// consentKey is where one language's sentence is kept. The bare key stays what
+// it always was, so a website that was set up before this existed loses
+// nothing and needs no migration.
+func consentKey(lang string) string {
+	if lang == "" {
+		return keyConsent
+	}
+	return keyConsent + ":" + lang
+}
+
+// siteLocales are the languages this website publishes in, the first one first.
+//
+// Empty when the settings cannot be read, which is the same as a website with
+// one language: then there is one sentence and no list.
+func siteLocales() []plugin.Locale {
+	s, err := plugin.Site()
+	if err != nil {
+		return nil
+	}
+	return s.Locales
 }
 
 // attachWanted reports whether the operator asked for a file field.

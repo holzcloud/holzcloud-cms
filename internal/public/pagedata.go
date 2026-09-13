@@ -310,6 +310,10 @@ func (h *Handler) filterByPlugins(r *http.Request, websiteID int64, pg *page.Pag
 		// has to point. By this point it is the right one: /home has already
 		// been redirected to the root and the language prefix is in it.
 		Path: r.URL.Path,
+		// And the language the page is in, which is the one a plugin has to
+		// answer this visitor in. Not the website's first language: that is
+		// how v2.0 came to answer German visitors in English.
+		Lang: i18n.Lang(r.Context()),
 	})
 }
 
