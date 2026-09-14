@@ -265,7 +265,7 @@ func RenderPartial(w http.ResponseWriter, pt *PageTemplates, r *http.Request, na
 // language — a row swapped by htmx that comes back in German is the most
 // visible way a translation can fail.
 func RenderPartialFor(w http.ResponseWriter, pt *PageTemplates, lang, name string, data any) error {
-	w.Header().Set("Vary", "HX-Request")
+	AddVary(w, "HX-Request")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	return pt.forLang(lang).partials.ExecuteTemplate(w, name, data)
 }
@@ -282,7 +282,7 @@ func RenderAdmin(w http.ResponseWriter, pt *PageTemplates, r *http.Request, name
 // to be written after the headers and before the body, so a caller that needs a
 // non-200 cannot simply call WriteHeader around RenderAdmin.
 func RenderAdminStatus(w http.ResponseWriter, pt *PageTemplates, r *http.Request, name string, data any, status int) error {
-	w.Header().Set("Vary", "HX-Request")
+	AddVary(w, "HX-Request")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if status != http.StatusOK {
 		w.WriteHeader(status)

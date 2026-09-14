@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 15
+open_count: 14
 waived_count: 2
-fixed_count: 14
-total_count: 31
-last_updated: 2026-09-13T00:00:00.000Z
+fixed_count: 17
+total_count: 33
+last_updated: 2026-09-14T00:00:00.000Z
 ---
 
 # Broken Windows Ledger
@@ -12,6 +12,13 @@ last_updated: 2026-09-13T00:00:00.000Z
 > Cross-phase defect register. With `workflow.windows_enforce` enabled, `/gsd-ship` blocks while `open_count > 0`.
 > Waive with `gsd-tools windows waive <id> "<reason>"` (reason required).
 > Mark fixed with `gsd-tools windows fixed <id>`.
+
+**The table is the record; the JSON block below derives from it.** They had come
+apart: entries 6, 14, 15 and 16 were closed in v2.0 in the table and left open in
+the JSON, and entry 8 carried an unescaped `|` inside a cell, so it rendered with
+an extra column and any reader parsing the table dropped it. Both repaired
+2026-09-14. When you change a row, regenerate the block rather than editing it
+twice — and the counts in the front matter are counts of the table.
 
 | id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at |
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
@@ -22,7 +29,7 @@ last_updated: 2026-09-13T00:00:00.000Z
 | 5 | 08 | deviation | cmd/holzcloud/templates/admin/field_list.html | 16 | field_list.html druckt &#8592; als Text statt als Pfeil (alle drei Rueckwege); Aenderung verwaist drei Katalogschluessel, darum zurueckgestellt — BERICHTIGT: diese Begruendung des Aufschubs ruhte auf einer falschen Annahme darueber, worin der Flick besteht. Sie gilt allein fuer den Flick, den deferred-items.md vorschlaegt (die Entitaet durch das Zeichen ersetzen). Der tatsaechlich gefahrene Flick wechselt an denselben drei Stellen nur die aufrufende Funktion von t auf die HTML-durchlassende Fassung th; die Zeichenkette bleibt byte-gleich, kein Schluessel verwaist, kein Katalog wurde angefasst, und der Zaehler stand vorher wie nachher auf 1158 Zeichenketten mit 0 offen, 0 verwaist fuer en/es/fr/it. Geschlossen im Schnellauftrag 260906-m9z am 2026-09-06. | fixed |  | 2026-09-06T10:55:06.562Z | 2026-09-06T14:14:47.478Z |
 | 6 | 11 | deviation | internal/bundle/import.go |  | Report.Warnings baut jeden Satz mit fmt.Sprintf und rohem Deutsch. CLAUDE.md haelt seit 7e0c834 ausdruecklich fest, dass ein mit fmt.Sprintf gebauter Satz fuer tools/i18n unsichtbar ist. Vorbestehend: rund 30 solche Warnungen standen schon vor Plan 11-06 in dieser Datei; 11-06 hat vier weitere in derselben Form ergaenzt (importAlbums, missingAlbum), weil die Alternative den Locale des Bedieners durch bundle.Import zu faedeln waere und der Bericht sonst in der Sprache der importierten Website erschiene statt in der des Bedieners. Der richtige Flick ist die Form, die .planning/GLOSSARY.md fuer csvimport schon vorschreibt: Code plus Argumente statt fertigem Satz (D-32). Folge: der Zaehler go run ./tools/i18n sieht keine dieser Zeilen. | fixed | Geschlossen in v2.0. bundle.Report traegt jetzt die Sprache des Bedieners und eine Methode warnf: 49 Warnsaetze gehen ueber i18n.N(...) in den Katalog, die Sprache wird an Report.lang gereicht statt durch bundle.Import gefaedelt. Zwei der langen Saetze waren dabei mit + ueber drei Zeilen zusammengesetzt und wurden deshalb auch mit i18n.N nicht gesammelt — der Sammler liest eine Zeichenkette, keinen Ausdruck. Sie stehen jetzt je auf einer Zeile, mit einem Kommentar davor. | 2026-09-07T23:07:58.770Z | 2026-09-13T00:00:00.000Z |
 | 7 | 10 | deviation | internal/admin/forwardauth.go |  | The plan 10-04 verify gate 'grep secret\|password \| grep -c slog.' reads a proxy: gofmt wraps slog.Info across lines, so a secret appended to a continuation line keeps the gate at 0. Held by TestTheProvisioningSecretAppearsInNoLogLine instead. | open |  | 2026-09-08T04:44:33.668Z |  |
-| 8 | 11 | deviation | internal/block/render.go | 212 | Eine Album-Galerie mit Diashow-Darstellung zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch — auf derselben Seite, im selben Durchgang. Im Browser gemessen am 2026-09-08: Website auf Englisch, /: 'Next image \ **v2.0 hat die Gestalt dieses Fensters geaendert, nicht geschlossen.** Beide Woerter gehen jetzt durch dieselbe Funktion (Set.T beziehungsweise der t-Parameter von GalleryItems), aber aus zwei Quellen: der eingebettete Galeriebaustein wird beim Speichern eingefroren und traegt die Sprache des BEDIENERS zu jenem Zeitpunkt, das Album loest beim Ausliefern auf und traegt die Sprache der WEBSITE (pagedata.go:384-399). Solange die beiden gleich sind, faellt nichts auf. | Previous image \| Close large view' neben aria-label="Galerie"; auf Spanisch: 'Imagen siguiente \| Imagen anterior \| Cerrar la vista grande' neben aria-label="Galerie". Ursache: render.go:212 uebersetzt den Regionsnamen mit s.text (block.Set.T, das internal/admin/page_blocks.go NUR beim Speichern setzt), waehrend die Bedienelemente in GalleryItems bei einer Album-Galerie ueber internal/album/expand.go:133 set.t bekommen, den Uebersetzer der Anfrage. Der Kommentar ueber textGallery behauptet, die Wiederverwendung von 'Galerie' koste nichts, weil der Schluessel 'in en, es, fr und it heute uebersetzt ist' — er wird nie uebersetzt gerendert. Genau die Klasse Fehler, die das i18n-Tor nicht sieht: markiert, gesammelt, viermal uebersetzt, 0 offen 0 verwaist, und trotzdem deutsch beim Besucher. Betrifft nur den Vorlese-Namen des Schiebefelds. Die Behebung verschiebt die Grenze zwischen dem, was eine Galerie beim Speichern einfriert, und dem, was sie bei der Anfrage aufloest — eine Architekturfrage (Regel 4), deshalb hier festgehalten und nicht am Phasenende gemacht. | open |  | 2026-09-08T05:10:24.057Z |  |
+| 8 | 11 | deviation | internal/block/render.go | 212 | Eine Album-Galerie mit Diashow-Darstellung zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch — auf derselben Seite, im selben Durchgang. Im Browser gemessen am 2026-09-08: Website auf Englisch, /: 'Next image \ **v2.0 hat die Gestalt dieses Fensters geaendert, nicht geschlossen.** Beide Woerter gehen jetzt durch dieselbe Funktion (Set.T beziehungsweise der t-Parameter von GalleryItems), aber aus zwei Quellen: der eingebettete Galeriebaustein wird beim Speichern eingefroren und traegt die Sprache des BEDIENERS zu jenem Zeitpunkt, das Album loest beim Ausliefern auf und traegt die Sprache der WEBSITE (pagedata.go:384-399). Solange die beiden gleich sind, faellt nichts auf. \|Previous image \| Close large view' neben aria-label="Galerie"; auf Spanisch: 'Imagen siguiente \| Imagen anterior \| Cerrar la vista grande' neben aria-label="Galerie". Ursache: render.go:212 uebersetzt den Regionsnamen mit s.text (block.Set.T, das internal/admin/page_blocks.go NUR beim Speichern setzt), waehrend die Bedienelemente in GalleryItems bei einer Album-Galerie ueber internal/album/expand.go:133 set.t bekommen, den Uebersetzer der Anfrage. Der Kommentar ueber textGallery behauptet, die Wiederverwendung von 'Galerie' koste nichts, weil der Schluessel 'in en, es, fr und it heute uebersetzt ist' — er wird nie uebersetzt gerendert. Genau die Klasse Fehler, die das i18n-Tor nicht sieht: markiert, gesammelt, viermal uebersetzt, 0 offen 0 verwaist, und trotzdem deutsch beim Besucher. Betrifft nur den Vorlese-Namen des Schiebefelds. Die Behebung verschiebt die Grenze zwischen dem, was eine Galerie beim Speichern einfriert, und dem, was sie bei der Anfrage aufloest — eine Architekturfrage (Regel 4), deshalb hier festgehalten und nicht am Phasenende gemacht. | open |  | 2026-09-08T05:10:24.057Z |  |
 | 9 | 10 | deviation | internal/admin/forwardauth.go |  | 10-05: the plan's HasGroup counting gate counts its own explanatory comment (prints 3, wants 1); the corrected gate adds grep -v '//' and prints 1 | open |  | 2026-09-08T05:24:33.848Z |  |
 | 10 | 10 | unmet-truth | cmd/holzcloud/templates/admin/account.html |  | Neue Zeichenkette noch nicht uebersetzt: en/es/fr/it je 2 offen (Kontobildschirm + Benutzerliste). Plan 10-09 schliesst sie mit tools/i18n -write. | fixed |  | 2026-09-08T05:47:40.320Z | 2026-09-08T06:26:25.942Z |
 | 11 | 10 | deviation | .planning/phases/10-authentik/10-08-PLAN.md |  | 10-08: the isTrustedProxy gate excludes '^\./\.planning/', but grep on this machine emits paths without a './' prefix, so the exclusion never fires — the gate reads 14 instead of 0. Corrected form: grep -v '^\(\./\)\?\.planning/', which reads 0. Fifth instance of 'a gate must measure what its name claims' in this phase. | open |  | 2026-09-08T06:09:24.781Z |  |
@@ -38,7 +45,7 @@ last_updated: 2026-09-13T00:00:00.000Z
 | 21 | 10 | deviation | internal/admin/forwardauth.go |  | Eine von Hand im Nutzerformular entzogene Website kehrt bei der naechsten Anfrage der SSO-Sitzung zurueck, solange HOLZCLOUD_SSO_WEBSITE_GROUPS gesetzt ist; kein Bildschirm sagt das. In deploy/DEPLOY.md beschrieben. | open |  | 2026-09-10T18:00:00.000Z |  |
 | 22 | 10 | deviation | internal/admin/forwardauth.go |  | Rechtezeilen der SSO-Abgleichung tragen user_id NULL, wenn sie bei der Bereitstellung entstehen (noch keine Sitzung) und sind ueber den Benutzerfilter des Protokolls nicht auffindbar. Im Browserdurchgang gemessen: in einer laufenden Sitzung traegt die Zeile das Konto (A3/A4), NULL nur bei der Bereitstellung (A5) — der Befund ist enger als im Nachlauf formuliert. | open |  | 2026-09-10T18:00:00.000Z |  |
 | 23 | 10 | deviation | tools/i18n/main.go |  | go run ./tools/i18n -schweiz entfernt einen verwaisten de-CH-Eintrag nicht, auch nicht beim zweiten Lauf. Nicht still: TestFassungKeysExistInTheSource wird rot. Einmal von Hand entfernt (e306eeb). | open |  | 2026-09-10T18:00:00.000Z |  |
-| 24 | 10 | deviation | internal/web/headers.go |  | Verwaltungsantworten tragen 'Vary: Cookie' zweimal (im Browserdurchgang an POST /admin/logout gesehen: 'Cookie, Cookie, HX-Request'). Vorbestehend, harmlos, nicht aus Phase 10. | open |  | 2026-09-10T18:00:00.000Z |  |
+| 24 | 10 | deviation | internal/web/headers.go |  | Verwaltungsantworten tragen 'Vary: Cookie' zweimal (im Browserdurchgang an POST /admin/logout gesehen: 'Cookie, Cookie, HX-Request'). Vorbestehend, harmlos, nicht aus Phase 10. | fixed | Geschlossen 2026-09-14 in Phase 15. Die Ursache war nicht headers.go: die Sitzungsschicht (scs LoadAndSave) und die CSRF-Schicht (gorilla/csrf) setzen 'Vary: Cookie' je einmal, beide zu Recht, keine weiss von der anderen. web.AddVary faltet Doppelte und ist derselbe Helfer, den KEEP-01 gebraucht hat. Am laufenden Binaerprogramm gemessen: vorher zwei Zeilen 'Vary: Cookie', nachher 'Vary: Cookie, HX-Request' auf einer. Gehalten von TestAddVaryKeepsWhatIsAlreadyThereAndSaysItOnce. | 2026-09-10T18:00:00.000Z | 2026-09-14T00:00:00.000Z |
 | 25 | 10 | deviation | internal/i18n/locales/fr-CH.json |  | T-10-52: fr-CH und it-CH werden von Hand gepflegt; eine formgerechte Handaenderung besteht Werkzeug, Tests und CI. Konstruktionsbedingt. | waived | Konstruktionsbedingt: die Regionalkataloge fr-CH und it-CH sind Abweichungslisten, die bewusst von Hand gepflegt werden; ein maschineller Pruefer muesste die Sprache verstehen. Ein Schluessel ohne Gegenstueck im Quelltext wird weiterhin von TestFassungKeysExistInTheSource gefangen. | 2026-09-10T18:00:00.000Z |  |
 | 26 | 10 | deviation | internal/admin/forwardauth.go |  | Eine verweigerte SSO-Identitaet schreibt bei JEDER Anfrage eine auth.login_fail-Zeile, ungebremst (im Browserdurchgang A6: vier Zeilen fuer zwei Laeufe). Ein Proxy, der dieselbe verweigerte Identitaet dauernd behauptet, laesst das Taetigkeitsprotokoll unbegrenzt wachsen. Die Anmeldebremse bewusst nicht zu fuettern (T-10-20, gehalten) schliesst die naheliegende Loesung aus. | open |  | 2026-09-10T18:00:00.000Z |  |
 | 27 | 10 | deviation | internal/admin/forwardauth.go |  | Kein Abbau: ein durch SSO angelegtes Konto ueberlebt die Identitaet, die es erzeugt hat. Nimmt der Ausweisdienst jemanden heraus, bleibt das Konto hier bestehen (erreichbar nur noch ueber ein gesetztes Passwort oder eine neue Verknuepfung). | open |  | 2026-09-10T18:00:00.000Z |  |
@@ -46,6 +53,8 @@ last_updated: 2026-09-13T00:00:00.000Z
 | 29 | audit-v1.6 | deviation | internal/field/field.go | 1093 | Meilenstein-Audit v1.6: field.CheckAll baut die Zeilenmeldung einer Gruppe mit fmt.Sprintf("%s, Zeile %d: %s", def.Label, i+1, reason) an zwei Stellen (field.go:1093 Laengenpruefung verborgener Zeilen, :1113 Check pro Unterfeld). Der Rahmen 'Zeile %d' ist fuer tools/i18n unsichtbar, auch wenn reason selbst eines Tages katalogisiert ist. Dieselbe Klasse wie Eintrag 18, aber eine eigene Stelle, die 18 nicht nennt. Gefunden vom Integrationspruefer, im Code gelesen. Gehoert zu Phase 12 Kriterium 9 (v2.0). | fixed | Geschlossen in Welle 12-04 von v2.0. Der Rahmen ist keine fmt.Sprintf mehr, sondern field.inRow — ein Reason, der einen Reason traegt; Reason.Text loest verschachtelt auf, in einer Sprache. Gehalten von TestTheRowFrameAroundAGroupReasonIsTranslatedToo, Gegenprobe gefahren: Rahmenschluessel geleert -> 'Oeffnungszeiten, Zeile 1: Von has to be a time' wird gemeldet, also genau die halb uebersetzte Zeile, die dieser Eintrag beschreibt. | 2026-09-10T15:24:10.774Z | 2026-09-11T00:00:00.000Z |
 | 30 | 12 | deviation | internal/field/field.go |  | field.SlugifyKey trug eine eigene Transliterationsliste mit vier Eintraegen (ae, oe, ue, ss) und liess jeden anderen Akzentbuchstaben ganz fallen: 'Titulo' mit Akut wurde 'ttulo', 'Etat' wurde 'tat', 'Cafe' mit Akut wurde 'caf'. page.Transliterate kennt den vollen Latin-1-Satz seit jeher, und field.go argumentiert das Prinzip in seinem eigenen KindTerm-Zweig: zwei Niederschriften einer Regel sind zwei Regeln, die auseinanderlaufen. Gefunden am 2026-09-11 beim Uebersetzen der CSV-Beispielkopfzeile und im selben Commit behoben. Nur NEUE Feldkennungen aendern sich; eine Kennung wird einmal gepraegt und steht dann. csvimport.settleHeaderMarks war auf genau diesen Fehler geeicht und faellt damit weg — die zweite Faltung war nie ueber Kopfzeilen, sie war ein Spiegel des Fehlers. | fixed | Im selben Commit behoben, in dem er gefunden wurde. TestFoldHeaderAgreesOnEveryOtherAccent haelt die Eigenschaft weiter und traegt jetzt die richtigen Schluessel statt der verlustbehafteten. | 2026-09-11T00:00:00.000Z | 2026-09-11T00:00:00.000Z |
 | 31 | 12 | deviation | internal/i18n/locales/en.json |  | Der Katalog warf 'Schlagwort'/'Schlagwoerter' und 'Beschriftung' auf dasselbe englische Wort (Label/Labels), ebenso im Spanischen (Etiqueta) und Italienischen (Etichetta). GLOSSARY.md fuehrt das seit 2026-09-06 als vorbestehenden Uebersetzungsfehler, den das Umdrehen der Quellsprache aufdecken wuerde. Aufgedeckt hat ihn etwas anderes: die uebersetzte Kopfzeile der CSV-Beispieldatei traegt 'Labels', und csvimport.fixedSpellings kennt das Wort nicht — die heruntergeladene Datei waere beim Hochladen mit einer unzugeordneten Spalte zurueckgekommen. Behoben: Schlagwort/Schlagwoerter heissen Term/Terms, Termino/Terminos, Termine/Termini; Beschriftung behaelt Label. Franzoesisch hatte die Kollision nicht. | fixed | Im selben Commit behoben. Gehalten von TestEveryTranslatedExampleHeadingIsRecognisedOnTheWayBackIn, Gegenprobe gefahren: 'Labels' wieder eingesetzt -> rot. | 2026-09-11T00:00:00.000Z | 2026-09-11T00:00:00.000Z |
+| 32 | 15 | deviation | internal/public/handler.go |  | KEEP-01: serveCached schrieb Vary mit Set und loeschte damit das 'Vary: Cookie' der Sitzungsschicht; zusammen mit 'Cache-Control: public, max-age=300' ging eine passwortgeschuetzte Seite nach dem Freischalten als teilbar hinaus. Ein vorgelagerter Cache (CDN, Firmenproxy) konnte sie fuenf Minuten lang jedem geben, der das Passwort nie eingegeben hat. Der Kommentar ueber serveGate benennt genau diese Gefahr und schuetzt das Formular davor, nicht die Seite dahinter. Gefunden beim Nachgehen von Eintrag 24. | fixed | Im selben Zug behoben. Drei Antworten statt einer: serveCached (public, fuer alle gleich), servePersonal (private, Preise die einem Cookie folgen) und servePrivate (no-store, hinter Passwort). serveCached ersetzt Vary weiterhin, sagt aber jetzt im Kommentar, dass das eine AUSSAGE ueber den Inhalt ist. Am laufenden Binaerprogramm bewiesen: freigeschaltete Seite 'no-store, private' mit 'Vary: Cookie, HX-Request', gewoehnliche Seite unveraendert teilbar. Gehalten von TestAnUnlockedPageIsNotHandedToAProxy, Rotbeweis gefahren. | 2026-09-14T00:00:00.000Z | 2026-09-14T00:00:00.000Z |
+| 33 | 15 | deviation | internal/public/shop.go |  | KEEP-02: dieselbe Zeile gab einem Laden mit beiden Preismodi 'public, max-age=300' ohne 'Vary: Cookie'. Welche Preise stehen, haengt am Zielgruppen-Cookie (Settings.AudienceFor), also konnte ein geteilter Cache Geschaeftskundenpreise an Privatkunden weitergeben. | fixed | Im selben Zug behoben: servePricedFor waehlt nach Settings.Display. Bei EINEM Preismodus sind die Zahlen fuer alle gleich und der Katalog bleibt teilbar — die stumpfe Behebung haette jede Seite jeder Website uncachebar gemacht. Gehalten von TestShopPricesThatDependOnACookieAreNotShared mit beiden Haelften, Rotbeweis gefahren. | 2026-09-14T00:00:00.000Z | 2026-09-14T00:00:00.000Z |
 
 ````json
 [
@@ -116,10 +125,10 @@ last_updated: 2026-09-13T00:00:00.000Z
     "file": "internal/bundle/import.go",
     "line": null,
     "description": "Report.Warnings baut jeden Satz mit fmt.Sprintf und rohem Deutsch. CLAUDE.md haelt seit 7e0c834 ausdruecklich fest, dass ein mit fmt.Sprintf gebauter Satz fuer tools/i18n unsichtbar ist. Vorbestehend: rund 30 solche Warnungen standen schon vor Plan 11-06 in dieser Datei; 11-06 hat vier weitere in derselben Form ergaenzt (importAlbums, missingAlbum), weil die Alternative den Locale des Bedieners durch bundle.Import zu faedeln waere und der Bericht sonst in der Sprache der importierten Website erschiene statt in der des Bedieners. Der richtige Flick ist die Form, die .planning/GLOSSARY.md fuer csvimport schon vorschreibt: Code plus Argumente statt fertigem Satz (D-32). Folge: der Zaehler go run ./tools/i18n sieht keine dieser Zeilen.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "Geschlossen in v2.0. bundle.Report traegt jetzt die Sprache des Bedieners und eine Methode warnf: 49 Warnsaetze gehen ueber i18n.N(...) in den Katalog, die Sprache wird an Report.lang gereicht statt durch bundle.Import gefaedelt. Zwei der langen Saetze waren dabei mit + ueber drei Zeilen zusammengesetzt und wurden deshalb auch mit i18n.N nicht gesammelt — der Sammler liest eine Zeichenkette, keinen Ausdruck. Sie stehen jetzt je auf einer Zeile, mit einem Kommentar davor.",
     "recorded_at": "2026-09-07T23:07:58.770Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-13T00:00:00.000Z"
   },
   {
     "id": 7,
@@ -139,7 +148,7 @@ last_updated: 2026-09-13T00:00:00.000Z
     "phase": "11",
     "file": "internal/block/render.go",
     "line": 212,
-    "description": "Eine Album-Galerie mit Diashow-Darstellung zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch — auf derselben Seite, im selben Durchgang. Im Browser gemessen am 2026-09-08: Website auf Englisch, /: 'Next image | Previous image | Close large view' neben aria-label=\"Galerie\"; auf Spanisch: 'Imagen siguiente | Imagen anterior | Cerrar la vista grande' neben aria-label=\"Galerie\". Ursache: render.go:212 uebersetzt den Regionsnamen mit s.text (block.Set.T, das internal/admin/page_blocks.go NUR beim Speichern setzt), waehrend die Bedienelemente in GalleryItems bei einer Album-Galerie ueber internal/album/expand.go:133 set.t bekommen, den Uebersetzer der Anfrage. Der Kommentar ueber textGallery behauptet, die Wiederverwendung von 'Galerie' koste nichts, weil der Schluessel 'in en, es, fr und it heute uebersetzt ist' — er wird nie uebersetzt gerendert. Genau die Klasse Fehler, die das i18n-Tor nicht sieht: markiert, gesammelt, viermal uebersetzt, 0 offen 0 verwaist, und trotzdem deutsch beim Besucher. Betrifft nur den Vorlese-Namen des Schiebefelds. Die Behebung verschiebt die Grenze zwischen dem, was eine Galerie beim Speichern einfriert, und dem, was sie bei der Anfrage aufloest — eine Architekturfrage (Regel 4), deshalb hier festgehalten und nicht am Phasenende gemacht.",
+    "description": "Eine Album-Galerie mit Diashow-Darstellung zeigt ihre Lichtkasten-Bedienelemente in der Sprache des Besuchers und den Namen ihres Schiebefelds auf Deutsch — auf derselben Seite, im selben Durchgang. Im Browser gemessen am 2026-09-08: Website auf Englisch, /: 'Next image \\ **v2.0 hat die Gestalt dieses Fensters geaendert, nicht geschlossen.** Beide Woerter gehen jetzt durch dieselbe Funktion (Set.T beziehungsweise der t-Parameter von GalleryItems), aber aus zwei Quellen: der eingebettete Galeriebaustein wird beim Speichern eingefroren und traegt die Sprache des BEDIENERS zu jenem Zeitpunkt, das Album loest beim Ausliefern auf und traegt die Sprache der WEBSITE (pagedata.go:384-399). Solange die beiden gleich sind, faellt nichts auf. |Previous image | Close large view' neben aria-label=\"Galerie\"; auf Spanisch: 'Imagen siguiente | Imagen anterior | Cerrar la vista grande' neben aria-label=\"Galerie\". Ursache: render.go:212 uebersetzt den Regionsnamen mit s.text (block.Set.T, das internal/admin/page_blocks.go NUR beim Speichern setzt), waehrend die Bedienelemente in GalleryItems bei einer Album-Galerie ueber internal/album/expand.go:133 set.t bekommen, den Uebersetzer der Anfrage. Der Kommentar ueber textGallery behauptet, die Wiederverwendung von 'Galerie' koste nichts, weil der Schluessel 'in en, es, fr und it heute uebersetzt ist' — er wird nie uebersetzt gerendert. Genau die Klasse Fehler, die das i18n-Tor nicht sieht: markiert, gesammelt, viermal uebersetzt, 0 offen 0 verwaist, und trotzdem deutsch beim Besucher. Betrifft nur den Vorlese-Namen des Schiebefelds. Die Behebung verschiebt die Grenze zwischen dem, was eine Galerie beim Speichern einfriert, und dem, was sie bei der Anfrage aufloest — eine Architekturfrage (Regel 4), deshalb hier festgehalten und nicht am Phasenende gemacht.",
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T05:10:24.057Z",
@@ -212,10 +221,10 @@ last_updated: 2026-09-13T00:00:00.000Z
     "file": "internal/auth/middleware.go:109",
     "line": null,
     "description": "10-10 browser pass: RequireWebsiteAccess refuses with http.Error(\"Diese Website gehoert nicht zu deinem Zugang.\"), an uncollected German literal. Seen as the 403 body when an SSO editor opened a website outside their access on an English admin. The sibling sentence 'Veroeffentlichen gehoert nicht zu deinem Zugang' IS in all four catalogues.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "Geschlossen in v2.0. RequireWebsiteAccess ruft i18n.T(i18n.Lang(r.Context()), \"This website is not part of your access.\") — der Satz steht in de, es, fr und it.",
     "recorded_at": "2026-09-08T07:27:26.996Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-13T00:00:00.000Z"
   },
   {
     "id": 15,
@@ -224,10 +233,10 @@ last_updated: 2026-09-13T00:00:00.000Z
     "file": "internal/admin/starter.go:181",
     "line": null,
     "description": "10-10 browser pass: starterContentSummary() returns a German sentence built with fmt.Sprintf and never marked; the flash after creating a website reads German on an English admin. Invisible to a German-character gate anchored on 'title=' or 'flash', because it is returned from a helper.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "Geschlossen in v2.0. starterContentSummary nimmt jetzt den Request und baut ueber web.Titlef; der Satz steht im Katalog. Die Starterseiten selbst bleiben deutsch und sind in tools/english als germanVoice benannt: sie sind Inhalt, den eine Redaktorin oeffnet und umschreibt, nicht Oberflaeche.",
     "recorded_at": "2026-09-08T07:27:27.127Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-13T00:00:00.000Z"
   },
   {
     "id": 16,
@@ -236,10 +245,10 @@ last_updated: 2026-09-13T00:00:00.000Z
     "file": "internal/admin/media.go:176",
     "line": null,
     "description": "10-10 browser pass: the media-upload flash is concatenated from three uncollected German fragments (message := \"Datei hochgeladen\" + ' – ' + warning + ' – bitte noch eine Bildbeschreibung eintragen'). Seen in German on an English admin after uploading an image.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "Geschlossen in v2.0. Die Meldung wird nicht mehr aus Bruchstuecken geklebt: drei eigene Katalogsaetze, und nur der Gedankenstrich dazwischen entsteht in Go. Ein Kommentar an Ort sagt warum.",
     "recorded_at": "2026-09-08T07:27:27.260Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-13T00:00:00.000Z"
   },
   {
     "id": 17,
@@ -332,10 +341,10 @@ last_updated: 2026-09-13T00:00:00.000Z
     "file": "internal/web/headers.go",
     "line": null,
     "description": "Verwaltungsantworten tragen 'Vary: Cookie' zweimal (im Browserdurchgang an POST /admin/logout gesehen: 'Cookie, Cookie, HX-Request'). Vorbestehend, harmlos, nicht aus Phase 10.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "Geschlossen 2026-09-14 in Phase 15. Die Ursache war nicht headers.go: die Sitzungsschicht (scs LoadAndSave) und die CSRF-Schicht (gorilla/csrf) setzen 'Vary: Cookie' je einmal, beide zu Recht, keine weiss von der anderen. web.AddVary faltet Doppelte und ist derselbe Helfer, den KEEP-01 gebraucht hat. Am laufenden Binaerprogramm gemessen: vorher zwei Zeilen 'Vary: Cookie', nachher 'Vary: Cookie, HX-Request' auf einer. Gehalten von TestAddVaryKeepsWhatIsAlreadyThereAndSaysItOnce.",
     "recorded_at": "2026-09-10T18:00:00.000Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-14T00:00:00.000Z"
   },
   {
     "id": 25,
@@ -420,6 +429,30 @@ last_updated: 2026-09-13T00:00:00.000Z
     "reason": "Im selben Commit behoben. Gehalten von TestEveryTranslatedExampleHeadingIsRecognisedOnTheWayBackIn, Gegenprobe gefahren: 'Labels' wieder eingesetzt -> rot.",
     "recorded_at": "2026-09-11T00:00:00.000Z",
     "resolved_at": "2026-09-11T00:00:00.000Z"
+  },
+  {
+    "id": 32,
+    "kind": "deviation",
+    "phase": "15",
+    "file": "internal/public/handler.go",
+    "line": null,
+    "description": "KEEP-01: serveCached schrieb Vary mit Set und loeschte damit das 'Vary: Cookie' der Sitzungsschicht; zusammen mit 'Cache-Control: public, max-age=300' ging eine passwortgeschuetzte Seite nach dem Freischalten als teilbar hinaus. Ein vorgelagerter Cache (CDN, Firmenproxy) konnte sie fuenf Minuten lang jedem geben, der das Passwort nie eingegeben hat. Der Kommentar ueber serveGate benennt genau diese Gefahr und schuetzt das Formular davor, nicht die Seite dahinter. Gefunden beim Nachgehen von Eintrag 24.",
+    "status": "fixed",
+    "reason": "Im selben Zug behoben. Drei Antworten statt einer: serveCached (public, fuer alle gleich), servePersonal (private, Preise die einem Cookie folgen) und servePrivate (no-store, hinter Passwort). serveCached ersetzt Vary weiterhin, sagt aber jetzt im Kommentar, dass das eine AUSSAGE ueber den Inhalt ist. Am laufenden Binaerprogramm bewiesen: freigeschaltete Seite 'no-store, private' mit 'Vary: Cookie, HX-Request', gewoehnliche Seite unveraendert teilbar. Gehalten von TestAnUnlockedPageIsNotHandedToAProxy, Rotbeweis gefahren.",
+    "recorded_at": "2026-09-14T00:00:00.000Z",
+    "resolved_at": "2026-09-14T00:00:00.000Z"
+  },
+  {
+    "id": 33,
+    "kind": "deviation",
+    "phase": "15",
+    "file": "internal/public/shop.go",
+    "line": null,
+    "description": "KEEP-02: dieselbe Zeile gab einem Laden mit beiden Preismodi 'public, max-age=300' ohne 'Vary: Cookie'. Welche Preise stehen, haengt am Zielgruppen-Cookie (Settings.AudienceFor), also konnte ein geteilter Cache Geschaeftskundenpreise an Privatkunden weitergeben.",
+    "status": "fixed",
+    "reason": "Im selben Zug behoben: servePricedFor waehlt nach Settings.Display. Bei EINEM Preismodus sind die Zahlen fuer alle gleich und der Katalog bleibt teilbar — die stumpfe Behebung haette jede Seite jeder Website uncachebar gemacht. Gehalten von TestShopPricesThatDependOnACookieAreNotShared mit beiden Haelften, Rotbeweis gefahren.",
+    "recorded_at": "2026-09-14T00:00:00.000Z",
+    "resolved_at": "2026-09-14T00:00:00.000Z"
   }
 ]
 ````

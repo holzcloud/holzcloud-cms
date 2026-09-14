@@ -181,8 +181,21 @@ func (h *Handler) HandleShop(w http.ResponseWriter, r *http.Request, website *do
 	if err != nil {
 		return fmt.Errorf("render shop: %w", err)
 	}
-	h.serveCached(w, r, content, time.Time{})
+	h.servePricedFor(w, r, set, content)
 	return nil
+}
+
+// servePricedFor writes a catalogue page under the rule its prices deserve.
+//
+// With one price mode every visitor sees the same figures and the page is
+// shareable. With both on offer the figures follow a cookie — AudienceFor reads
+// it — so the answer is the visitor's own and a shared cache must not keep it.
+func (h *Handler) servePricedFor(w http.ResponseWriter, r *http.Request, set shop.Settings, content []byte) {
+	if set.Display == shop.DisplayBoth {
+		h.servePersonal(w, content)
+		return
+	}
+	h.serveCached(w, r, content, time.Time{})
 }
 
 // HandleProduct renders one product.
@@ -253,7 +266,7 @@ func (h *Handler) HandleProduct(w http.ResponseWriter, r *http.Request, website 
 	if err != nil {
 		return fmt.Errorf("render product: %w", err)
 	}
-	h.serveCached(w, r, content, time.Time{})
+	h.servePricedFor(w, r, set, content)
 	return nil
 }
 
