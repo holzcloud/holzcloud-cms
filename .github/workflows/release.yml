@@ -94,7 +94,10 @@ jobs:
           echo "::error::$TAG is already on the remote. A published tag is never moved."
           exit 1
         fi
-        git tag -a "$TAG" -m "$TAG"
+        # Lightweight, because this one never leaves the runner: git describe
+        # reads it either way, and an annotated tag would need a committer
+        # identity configured for a tag nobody will ever see.
+        git tag "$TAG"
 
     - name: Set up Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
