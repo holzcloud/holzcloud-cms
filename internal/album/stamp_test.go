@@ -179,5 +179,5 @@ func TestLoadForReportsTheNewestAlbumItNames(t *testing.T) {
 // pageWith is what a saved page carrying one album gallery looks like: the
 // wrapper written at save, and the marker where the pictures go.
 func pageWith(slug string) string {
-	return `<div class="hc-block hc-galerie">` + block.AlbumMarker(slug, 0) + `</div>`
+	return `<div class="hc-block hc-galerie">` + block.AlbumMarker(slug, 0, 0, "") + `</div>`
 }

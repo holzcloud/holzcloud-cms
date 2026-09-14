@@ -30,7 +30,7 @@ func twoPictures() Set {
 // request.
 func TestExpandReplacesTheMarker(t *testing.T) {
 	stored := `<div class="hc-block hc-galerie hc-spalten-3">` +
-		block.AlbumMarker("moebel", 0) + `</div>`
+		block.AlbumMarker("moebel", 0, 0, "") + `</div>`
 
 	got := Expand(stored, twoPictures())
 
@@ -57,7 +57,7 @@ func TestExpandReplacesTheMarker(t *testing.T) {
 // and not the article around it.
 func TestExpandDropsAnUnknownSlug(t *testing.T) {
 	stored := `<p>davor</p><div class="hc-galerie">` +
-		block.AlbumMarker("weg", 1) + `</div><p>danach</p>`
+		block.AlbumMarker("weg", 1, 0, "") + `</div><p>danach</p>`
 
 	got := Expand(stored, twoPictures())
 
@@ -89,8 +89,8 @@ func TestExpandLeavesADocumentWithNoMarkerIdentical(t *testing.T) {
 // "load only what the page names" that a test can hold; the other half is the
 // early return in LoadFor below.
 func TestUsedSlugsDeduplicates(t *testing.T) {
-	doc := block.AlbumMarker("moebel", 0) + "<p>x</p>" +
-		block.AlbumMarker("sommer", 2) + block.AlbumMarker("moebel", 4)
+	doc := block.AlbumMarker("moebel", 0, 0, "") + "<p>x</p>" +
+		block.AlbumMarker("sommer", 2, 0, "") + block.AlbumMarker("moebel", 4, 0, "")
 
 	got := UsedSlugs(doc)
 	want := []string{"moebel", "sommer"}
@@ -112,7 +112,7 @@ func TestUsedSlugsDeduplicates(t *testing.T) {
 // inline gallery at block 0 and an album gallery at block 3 mints two distinct
 // sets and the browser jumps to the picture that was clicked.
 func TestExpandedIdsStartFromTheMarkersPosition(t *testing.T) {
-	got := Expand(block.AlbumMarker("moebel", 3), twoPictures())
+	got := Expand(block.AlbumMarker("moebel", 3, 0, ""), twoPictures())
 
 	if !strings.Contains(got, `id="hc-b4-p1"`) || !strings.Contains(got, `id="hc-b4-p2"`) {
 		t.Errorf("the ids do not start from the marker's position:\n%s", got)
@@ -142,7 +142,7 @@ func TestExpandUsesTheInjectedTranslator(t *testing.T) {
 	set := twoPictures()
 	set.t = strings.ToUpper
 
-	got := Expand(block.AlbumMarker("moebel", 0), set)
+	got := Expand(block.AlbumMarker("moebel", 0, 0, ""), set)
 
 	if !strings.Contains(got, "NEXT IMAGE") {
 		t.Errorf("the controls did not go through the translator:\n%s", got)

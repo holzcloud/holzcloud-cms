@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 )
 
@@ -60,7 +59,7 @@ func TestTheFeedDoesNotShipTheRawAlbumMarker(t *testing.T) {
 
 	// The marker survives the XML escaping unchanged — [[ and ]] are not
 	// special in chardata — so a plain Contains is the honest check.
-	if marker := block.AlbumMarker(a.Slug, 0); strings.Contains(body, marker) {
+	if marker := "[[album:" + a.Slug + ":"; strings.Contains(body, marker) {
 		t.Errorf("the feed carries the raw marker %s; every subscriber's reader shows it, and it leaks the album's address:\n%s",
 			marker, body)
 	}
@@ -87,7 +86,7 @@ func TestTheFeedSurvivesAnUnwiredAlbumStore(t *testing.T) {
 	_ = database
 
 	body := feedOf(t, h, ws)
-	if strings.Contains(body, block.AlbumMarker(a.Slug, 0)) {
+	if strings.Contains(body, "[[album:"+a.Slug+":") {
 		t.Errorf("with no album store the feed printed the raw marker instead of nothing:\n%s", body)
 	}
 }

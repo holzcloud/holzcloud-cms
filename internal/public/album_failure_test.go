@@ -40,7 +40,11 @@ func TestAFailingAlbumQueryLeavesNoMarkerOnThePage(t *testing.T) {
 	h.SetAlbumStore(album.NewStore(brokenDB(t)))
 
 	stored, _ := storedPage(t, database, "galerie")
-	if !strings.Contains(stored, block.AlbumMarker(a.Slug, 0)) {
+	// The prefix, not the whole marker: since the wrapper moved into the
+	// expansion the marker carries a tail with the block's columns and display
+	// class, and what this fixture needs to know is only that a marker is there
+	// at all.
+	if !strings.Contains(stored, "[[album:"+a.Slug+":0") {
 		t.Fatalf("the fixture does not carry the marker, so this test proves nothing:\n%s", stored)
 	}
 

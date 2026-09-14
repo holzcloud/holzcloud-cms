@@ -146,7 +146,7 @@ func TestChangingAnAlbumChangesEveryPageThatCarriesIt(t *testing.T) {
 
 	// 1. what is stored, before.
 	htmlBefore, updatedBefore := storedPage(t, database, "galerie")
-	if !strings.Contains(htmlBefore, "[[album:moebel:0]]") {
+	if !strings.Contains(htmlBefore, "[[album:moebel:0") {
 		t.Fatalf("the stored page does not carry the marker — the pictures were "+
 			"baked in at save and GAL-03 cannot hold:\n%s", htmlBefore)
 	}
