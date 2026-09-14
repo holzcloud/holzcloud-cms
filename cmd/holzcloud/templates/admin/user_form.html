@@ -70,6 +70,15 @@
             <p class="form-hint text-muted">
                 {{t "Whoever gets a selection here sees only those from then on — everywhere, including through a copied address."}}
             </p>
+            {{if .RightsComeFromTheDirectory}}
+            {{/* Window 21: taking a website away here holds until this person's
+                 next request, and then the groups at the identity provider put
+                 it back. That is SSO-06 working as intended; what was missing
+                 was a screen that said so. */}}
+            <p class="form-hint text-muted">
+                {{t "This account signs in through the identity provider, and its websites are re-derived from its groups there on every request. A change made here holds until then. To change it for good, change the groups."}}
+            </p>
+            {{end}}
             {{end}}
         </fieldset>
 

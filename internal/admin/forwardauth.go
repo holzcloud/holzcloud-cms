@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
@@ -34,6 +35,11 @@ import (
 // The reasons a forward-auth sign-in is refused. They are codes for the server
 // log and never sentences on a screen: nobody is shown a refusal here, they are
 // shown the ordinary login form.
+//
+// Since window 28 they reach the protocol as well, in the metadata of the
+// auth.login_fail row. An operator reading /admin/protokoll used to see that
+// somebody had been turned away and nothing about why, and the answer was in a
+// file on the server they may not have.
 const (
 	ssoRefuseNoEmail         = "no_email"
 	ssoRefuseNonASCII        = "non_ascii_email"
@@ -42,6 +48,10 @@ const (
 	ssoRefuseProvisionFailed = "provisioning_failed"
 	ssoRefuseNoWebsiteGroup  = "no_website_group"
 	ssoRefuseSyncFailed      = "rights_sync_failed"
+	// ssoRefuseRenewFailed is the session store refusing to rotate a token.
+	// Not the person's fault and not the proxy's, and until window 28 the only
+	// refusal that reached no protocol row at all.
+	ssoRefuseRenewFailed = "session_renew_failed"
 )
 
 // errSSOEmptyAddress is returned when provisioning is asked to create an
@@ -323,6 +333,14 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 		// sign-in on the old token.
 		if err := h.sm.RenewToken(r.Context()); err != nil {
 			slog.Error("forward auth renew session token", "err", err, "user_id", u.ID)
+			// And in the protocol, which is window 28's second half. This was
+			// the one refusal that reached the file and nothing else: somebody
+			// who could not sign in, and an operator reading the screen with no
+			// sign that anything had happened. It goes through refuseSSO like
+			// every other refusal, so it is throttled like every other refusal
+			// too — a session store that cannot rotate will fail on every
+			// request.
+			h.refuseSSO(r, ident, email, ssoRefuseRenewFailed)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -649,10 +667,15 @@ func (h *Handler) endSSOSession(r *http.Request, reason string) {
 	uid := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
 	slog.Info("forward auth ended a session", "user_id", uid, "reason", reason)
 	h.LogActivity(r, activity.Entry{
+		UserID:     &uid,
 		Action:     activity.ActionAuthLogout,
 		EntityType: "user",
 		EntityID:   uid,
-		Metadata:   map[string]any{"via": "sso", "reason": reason},
+		// The reason is one of a handful of codes — sso_disabled,
+		// rights_refused, identity_changed — and never "by_hand", which is what
+		// the sign-out button writes. Between them the protocol can say whether
+		// somebody left or was shown the door.
+		Metadata: map[string]any{"via": "sso", "reason": reason},
 	})
 	if err := h.sm.Destroy(r.Context()); err != nil {
 		slog.Error("forward auth could not end a session", "err", err, "user_id", uid)
@@ -661,6 +684,22 @@ func (h *Handler) endSSOSession(r *http.Request, reason string) {
 
 // provisionSSOUser creates the account an identity names and gives it the one
 // website it is allowed into, in that order and in the same request.
+//
+// # Nothing takes it away again
+//
+// Window 27, open on purpose. An account made here outlives the identity that
+// made it: remove the person at the identity provider and the row stays, still
+// carrying its rights, reachable by anybody who can set a password on it. That
+// is not a hole a request can close — this code only ever hears about
+// identities that ARRIVE, and an identity that has been deleted arrives never.
+// Knowing it is gone means asking the directory, which means a client, a
+// schedule and a credential, and a wrong answer from any of the three deletes
+// somebody's account.
+//
+// Until that exists the honest shape is the one here: the account is visible
+// under Users like any other, its origin is in the protocol
+// (ActionUserCreate with via=sso), and an operator removes it the way they
+// remove any account. deploy/DEPLOY.md says so where an operator reads it.
 //
 // It returns an error rather than writing anything to the response: every
 // failure here is a refused sign-in that falls through to the password form,
@@ -769,7 +808,18 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 	slog.Info("forward auth provisioned an account",
 		"user_id", id, "email", email, "website_id", h.cfg.SSODefaultWebsite,
 		"username", ident.Username)
+	// UserID is named here rather than left to LogActivity, and that is window
+	// 22. LogActivity fills it from the session; at provisioning there is no
+	// session yet, so the row went in with user_id NULL while every other row
+	// of the same sign-in — the rights rows a moment later — carried the
+	// account. One kind of row, findable through the protocol's user filter
+	// sometimes and not others, which is the worst of the two.
+	//
+	// Whose id it is, is the same answer the rights rows already give: the row
+	// is ABOUT this account, and the actor either way is the identity provider,
+	// which has no account here to name.
 	h.LogActivity(r, activity.Entry{
+		UserID:     &id,
 		ActorEmail: email,
 		Action:     activity.ActionUserCreate,
 		EntityType: "user",
@@ -817,14 +867,84 @@ func (h *Handler) refuseSSO(r *http.Request, ident *web.Identity, email, reason 
 	if h.clientIP != nil {
 		ip = h.clientIP.ClientIP(r)
 	}
+	// The server log keeps every refusal. It is a file that rotates, and an
+	// operator reading it is reading it now.
 	slog.Warn("forward auth sign-in refused",
 		"username", ident.Username, "reason", reason, "ip", ip)
 
+	// The protocol keeps one per identity per quarter of an hour, and this is
+	// window 26.
+	//
+	// A refused identity is refused on EVERY request, because nothing about the
+	// request changes: the proxy asserts the same person, the same rule turns
+	// them away, and the next page they click does it again. One row each meant
+	// a proxy stuck on a denied identity could grow activity_log without bound
+	// — a page view is not an attempt, and the protocol is a database table
+	// that nothing prunes.
+	//
+	// The obvious cure is barred on purpose: T-10-20 says this path must not
+	// feed the sign-in brake, because a proxy asserting a wrong identity would
+	// then lock out the person whose address it names. So the brake is on the
+	// WRITING and not on the refusing. Every request is still refused, still
+	// logged to the file, and still costs the visitor nothing but a password
+	// form.
+	//
+	// The reason travels with it. Until now it went only to the file, so the
+	// protocol said "somebody was turned away" and could not say why — window
+	// 28's first half. The action stays the existing one: entry.go says the
+	// action names are the filter contract and a new name makes older rows
+	// unfindable, while metadata is free.
+	if !h.refusalWorthRecording(ident.Username, reason) {
+		return
+	}
 	h.LogActivity(r, activity.Entry{
 		ActorEmail: email,
 		Action:     activity.ActionAuthLoginFail,
 		EntityType: "user",
+		Metadata:   map[string]any{"via": "sso", "reason": reason},
 	})
+}
+
+// refusalInterval is how often one refused identity may write a protocol row.
+//
+// Long enough that a proxy in a loop writes four rows an hour rather than one
+// per page view; short enough that somebody watching the screen while they
+// debug a misconfigured group sees their own attempt appear.
+const refusalInterval = 15 * time.Minute
+
+// maxRefusalsTracked bounds the memory this brake costs.
+//
+// The key is the identity the PROXY asserted, so a broken or hostile proxy can
+// mint them at will; without a bound the brake against an unbounded table would
+// be an unbounded map. At the cap the table is emptied rather than evicted one
+// by one: the worst that costs is a second row for an identity that was already
+// recorded, which is the safe direction — a refusal is never lost, only
+// occasionally repeated.
+const maxRefusalsTracked = 1024
+
+// refusalWorthRecording reports whether this refusal should reach the protocol,
+// and remembers that it did.
+//
+// In memory and not in the database. It is a limit on writing rather than a
+// security decision: after a restart the first refusal of each identity is
+// written again, which is one extra row and exactly what a reader would want.
+func (h *Handler) refusalWorthRecording(username, reason string) bool {
+	key := username + "\x00" + reason
+	now := time.Now()
+
+	h.refusalMu.Lock()
+	defer h.refusalMu.Unlock()
+	if h.refusalSeen == nil {
+		h.refusalSeen = make(map[string]time.Time)
+	}
+	if last, ok := h.refusalSeen[key]; ok && now.Sub(last) < refusalInterval {
+		return false
+	}
+	if len(h.refusalSeen) >= maxRefusalsTracked {
+		h.refusalSeen = make(map[string]time.Time)
+	}
+	h.refusalSeen[key] = now
+	return true
 }
 
 // isASCII reports whether every byte of s is below 0x80.

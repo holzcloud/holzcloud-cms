@@ -27,41 +27,47 @@ zero — each entry either fixed, or waived with a reason a reader can check.
 - [x] **KEEP-02**: **An answer that depends on a cookie says so.** The same
       `Set` meant a shop offering both price modes served cookie-dependent
       prices as `public`. Trade prices could reach a consumer.
-- [ ] **KEEP-03**: **`docs/security.md` says what is true.** The protected-page
+- [x] **KEEP-03**: **`docs/security.md` says what is true.** The protected-page
       section gains the cache rule, and says plainly what was wrong before.
 
 ## The ledger
 
-- [ ] **WIN-01**: **The eight forward-auth windows are resolved** (19, 20, 21,
+- [x] **WIN-01**: **The eight forward-auth windows are resolved** (19, 20, 21,
       22, 26, 27, 28 and the log gaps they share). Each is fixed, or waived with
       the reason written where a reader meets it and not only in the ledger.
       Entry 26 is the one with teeth: a denied SSO identity writes an
       `auth.login_fail` row on **every** request, unthrottled, so a proxy
       asserting the same denied identity grows the activity log without bound.
-- [ ] **WIN-02**: **The three planning-document windows are corrected** (4, 9,
+- [x] **WIN-02**: **The three planning-document windows are corrected** (4, 9,
       11, 12). They are arithmetic in archived plan documents — a gate that
       counts its own explanatory comment. Small, and they are four of the
       fifteen.
-- [ ] **WIN-03**: **Window 8 is closed**: an album gallery shows its slider's
+- [x] **WIN-03**: **Window 8 is closed**: an album gallery shows its slider's
       region name in the operator's language frozen at save time, beside
       controls in the visitor's language resolved at delivery. v2.1 built
       exactly the machinery this needs — the page's language reaching the
       renderer — so the architecture question the entry defers is now answerable.
-- [ ] **WIN-04**: **Window 23 is closed**: `tools/i18n -schweiz` does not remove
+- [x] **WIN-04**: **Window 23 is closed**: `tools/i18n -schweiz` does not remove
       an orphaned `de-CH` entry, not even on a second run.
-- [ ] **WIN-05**: **Window 24 is closed**: admin answers carried `Vary: Cookie`
+- [x] **WIN-05**: **Window 24 is closed**: admin answers carried `Vary: Cookie`
       twice, because the session library and the CSRF library each add it.
       Closed by `web.AddVary`, which folds duplicates — the same helper KEEP-01
       needed.
-- [ ] **WIN-06**: **The ledger's front matter is true at the close.**
+- [x] **WIN-06**: **The ledger's front matter is true at the close.**
       `open_count` is the number of rows that say `open`, and every row that
       says `waived` carries a reason.
 
 ## Standing gates
 
-- [ ] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
+- [x] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
       catalogue; `go run ./tools/english` and `go run ./tools/themewords -check`
       stay green.
-- [ ] **QUAL-02**: Every screen touched is driven once through the running
+- [x] **QUAL-02**: Every screen touched is driven once through the running
       application. For this milestone the blast radius is the headers on every
-      kind of public answer and the sign-in paths.
+      kind of public answer and the sign-in paths. Driven 2026-09-14: the
+      unlocked page, the ordinary page and the admin answer for their headers;
+      an album gallery for its region name; the user form with single sign-on
+      configured, for the sentence about where a linked account's rights come
+      from; the sign-out of a linked password session, which reaches the
+      outpost; and twelve refused identities in a row, which leave one protocol
+      row carrying its reason.

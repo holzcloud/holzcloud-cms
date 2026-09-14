@@ -360,6 +360,12 @@ about your setup. Both are checks you run once, when you first wire it up.
 
 Named here so they are not discovered in an emergency.
 
+One of them was fixed in 2.2 and has left this list: **signing out** now reaches
+the identity provider for any account it could sign in again, whichever way that
+session began — the button used to leave a password session on an SSO
+installation to be signed straight back in on the next click. A third entry is
+new here, because it was recorded only in the project's own ledger before.
+
 **An account that came in only through single sign-on has no password it knows.**
 Provisioning stores the hash of a random value nobody learns. Five actions ask
 for the password again before they run — deleting a website, deleting a user,
@@ -372,15 +378,18 @@ echo -n 'a new password' | sudo -u holzcloud HOLZCLOUD_DATA_DIR=/opt/holzcloud/d
   /opt/holzcloud/holzcloud user passwd -email ada@example.com
 ```
 
-**Signing out of a password session does not sign anybody out at the identity
-provider.** If the same browser also holds a session there and the person's
-account is linked to it, the next click under `/admin/` signs them in again —
-through single sign-on this time.
+**An account this server created for an identity outlives that identity.**
+Remove the person at the identity provider and the row here stays, with its
+rights, reachable by anybody who can set a password on it. Nothing tells this
+server that an identity is gone — it only ever hears about identities that
+arrive. Delete such an account under *Users* the way you delete any other.
 
-**The next sign-in through the identity provider rewrites a website assignment
-made by hand.** With `HOLZCLOUD_SSO_WEBSITE_GROUPS` set, the groups decide, at
-every request. Taking a website away from such an account in the user form lasts
-until its next click; take the group away at the identity provider instead.
+Still true, and no longer a surprise: **the next sign-in through the identity
+provider rewrites a website assignment made by hand.** With
+`HOLZCLOUD_SSO_WEBSITE_GROUPS` set, the groups decide, at every request. Taking
+a website away from such an account in the user form lasts until its next click;
+take the group away at the identity provider instead. Since 2.2 the user form
+says this on the screen, beside the ticks.
 
 ### The acceptance test, and the answer that is not a pass
 

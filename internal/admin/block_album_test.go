@@ -122,7 +122,7 @@ func TestChoosingAnAlbumIsStoredAndComesBackSelected(t *testing.T) {
 	if blocks[0].AlbumSlug != "moebel" {
 		t.Errorf("the album was not stored: %+v", blocks[0])
 	}
-	if !strings.Contains(p.ContentHTML, "[[album:moebel:0]]") {
+	if !strings.Contains(p.ContentHTML, "[[album:moebel:0") {
 		t.Errorf("content_html does not carry the marker:\n%s", p.ContentHTML)
 	}
 

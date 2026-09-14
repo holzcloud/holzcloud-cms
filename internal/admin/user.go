@@ -65,6 +65,35 @@ type UserFormData struct {
 	// editor limited to no website at all. Without it such an editor is shown
 	// exactly like one nobody limited, and saving the form unchanged widens them.
 	NothingTickedMeansNone bool
+	// RightsComeFromTheDirectory says the ticks below are re-derived from the
+	// identity provider's groups on this account's next sign-in.
+	//
+	// Window 21: taking a website away here works, and then the next request of
+	// that person's single sign-on session puts it back, because
+	// syncRightsFromGroups re-derives the assignment from the groups every time
+	// — which is SSO-06 and is correct. What was missing is that no screen said
+	// so, so an operator watched their own change undo itself with nothing to
+	// read.
+	RightsComeFromTheDirectory bool
+}
+
+// rightsComeFromTheDirectory reports whether this account's website assignment
+// is re-derived on every single sign-on request.
+//
+// Three things have to be true together: single sign-on is on, the operator has
+// named the groups that grant a website, and this account is linked to an
+// identity. Any one of them false and what is ticked here is what stands.
+func (h *Handler) rightsComeFromTheDirectory(r *http.Request, id int64) bool {
+	if h.cfg == nil || !h.cfg.SSOEnabled || len(h.cfg.SSOWebsiteGroups) == 0 || h.users == nil {
+		return false
+	}
+	name, err := h.users.LinkedIdentity(r.Context(), id)
+	if err != nil {
+		// Saying nothing is the safe direction: a wrong warning about where
+		// somebody's rights come from is worse than none.
+		return false
+	}
+	return strings.TrimSpace(name) != ""
 }
 
 // SiteTick is one website in the assignment list.
@@ -288,7 +317,8 @@ func (h *Handler) HandleUserEdit(w http.ResponseWriter, r *http.Request) error {
 		MayPublish: rights.MayPublish,
 		Sites:      h.siteTicks(r, rights),
 		// Limited with no website left: the one state the ticks cannot show.
-		NothingTickedMeansNone: rights.Limited() && len(rights.Websites) == 0,
+		NothingTickedMeansNone:     rights.Limited() && len(rights.Websites) == 0,
+		RightsComeFromTheDirectory: h.rightsComeFromTheDirectory(r, user.ID),
 	}
 	data.ActiveNav = "users"
 	return web.RenderAdmin(w, h.templates, r, "user_form", data)

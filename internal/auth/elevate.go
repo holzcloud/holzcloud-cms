@@ -54,6 +54,28 @@ const ConfirmPath = "/admin/bestaetigen"
 // keeping a form — files and all — in the session, and the honest version is
 // smaller: confirm, land back on the screen you came from, press the button
 // again. It now works, because the confirmation is fresh.
+//
+// # An account that was never given a password cannot pass this
+//
+// Window 19, open on purpose and written here rather than only in the ledger.
+// An account the identity provider provisioned carries an Argon2id hash of a
+// random secret nobody was ever told (forwardauth.go's randomSecret says so at
+// its own site), so the five actions behind this middleware — delete a website,
+// delete a user, mint an AI key, remove a plugin, prune the protocol — are out
+// of reach for it. deploy/DEPLOY.md names this under "Three things single
+// sign-on does not do yet" and gives the way round: `holzcloud user passwd`.
+//
+// The cure is not a smaller version of this one. What should happen is a fresh
+// authentication AT THE IDENTITY PROVIDER — the equivalent of authentik's
+// re-authentication flow — and that is a conversation with the outpost, not a
+// branch here. Nothing in this repository can exercise it: there is no identity
+// provider in the test environment, and a guard that cannot be driven is a
+// guard nobody should trust in front of an irreversible action.
+//
+// What must NOT be done, and is the reason this stays written down rather than
+// quietly improved: exempting a single sign-on session from the confirmation.
+// That would take the one question standing in front of the irreversible and
+// remove it for exactly the accounts an operator did not create by hand.
 func RequireFreshPassword(sm *scs.SessionManager) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

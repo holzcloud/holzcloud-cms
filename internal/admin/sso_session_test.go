@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // A running session sees a demotion at the identity provider.
@@ -152,5 +154,76 @@ func TestARunningSSOSessionIsNotSignedInAgain(t *testing.T) {
 		if c.Name == sm.Cookie.Name && c.Value != cookie.Value {
 			t.Errorf("the session token was rotated on an ordinary request of a running session")
 		}
+	}
+}
+
+// Window 20: a sign-out button that signs nobody out.
+//
+// The middleware leaves a PASSWORD session alone while it lives, so a password
+// session on an installation with single sign-on switched on went to
+// /admin/login. But the button has just destroyed that session: the next click
+// arrives with none, the outpost's cookie is still in the browser, the identity
+// is still linked, and the person is signed straight back in.
+//
+// The question is asked of the request in hand rather than of the account,
+// because SSO-09 has to keep holding: when the proxy is broken an operator
+// signs in with a password to go and fix it, and sending them to an address
+// served by the broken thing is not an improvement. No identity asserted, no
+// diversion.
+func TestSigningOutALinkedAccountReachesTheOutpost(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		ssoEnabled bool
+		linked     bool
+		asserted   bool
+		want       string
+	}{
+		{"the proxy is vouching and the identity is linked", true, true, true, testSignOutPath},
+		{"the proxy is vouching for an identity nobody linked", true, false, true, "/admin/login"},
+		{"the proxy is down, which is when the password path matters most", true, true, false, "/admin/login"},
+		{"single sign-on switched off entirely", false, true, true, "/admin/login"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sm, database := newForwardAuthAdmin(t, tc.ssoEnabled)
+			// SSOSignOutPath is empty in this harness, the way config.Load's
+			// default is not — login_test.go sets it the same way.
+			h.cfg.SSOSignOutPath = testSignOutPath
+			// seedAccount links every account it makes, so the unlinked case
+			// has to take the link away again.
+			id := seedAccount(t, database, "ada@example.com", user.RoleEditor)
+			if !tc.linked {
+				if err := h.users.LinkSSO(context.Background(), id, ""); err != nil {
+					t.Fatalf("unlink: %v", err)
+				}
+			}
+
+			// A password session: signed in, carrying no SSO mark. The
+			// identity, when there is one, arrives the way it really does —
+			// through web.ForwardAuth over a request from a trusted peer — so
+			// this drives the same path a browser does rather than a helper
+			// that fakes the answer.
+			req := fwdRequest("ada", "ada@example.com", nil)
+			req.Method = http.MethodPost
+			req.URL.Path = "/admin/logout"
+
+			var got string
+			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sm.Put(r.Context(), auth.SessionKeyUserID, id)
+				if err := h.HandleLogout(w, r); err != nil {
+					t.Fatalf("HandleLogout: %v", err)
+				}
+				got = w.Header().Get("Location")
+			})
+			chain := web.ForwardAuth(fwdTrusted(), web.ForwardAuthOptions{
+				Enabled: tc.asserted, Secret: fwdSecret,
+			})(sm.LoadAndSave(inner))
+
+			rec := httptest.NewRecorder()
+			chain.ServeHTTP(rec, req)
+
+			if got != tc.want {
+				t.Errorf("sign-out went to %q; want %q", got, tc.want)
+			}
+		})
 	}
 }
