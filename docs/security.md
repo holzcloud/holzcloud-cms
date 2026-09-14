@@ -280,6 +280,17 @@ does guarantee is that the page never appears in a listing, an archive, the
 search, the feed or the sitemap, because the title and the excerpt are exactly
 what the password was meant to hold back.
 
+**And that no cache in front of this server keeps it.** The page a visitor gets
+after entering the password is answered `Cache-Control: no-store, private`, so a
+reverse proxy or a CDN may not hold it and hand it to the next person who asks
+for that address. This was not true before 2.2: the form in front of the page
+said `no-store` and the page behind it said `public, max-age=300`, because the
+line that wrote its `Vary` header replaced the list instead of adding to it and
+so deleted the cookie the access depends on. A shared cache could have served
+the page for five minutes to anybody. The same line did the same to a shop that
+offers both price modes, where trade prices could have reached a consumer; those
+pages are now `private`.
+
 A **preview link** shows an unpublished page to somebody without an account. The
 alternative people otherwise reach for is publishing a draft "just for a minute"
 so a customer can look at it, which is how a half-finished price list ends up in

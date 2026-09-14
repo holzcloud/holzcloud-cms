@@ -1,95 +1,67 @@
-# Requirements: v2.1 — The Public Side Speaks the Visitor's Language
+# Requirements: v2.2 — What the Server Promises, It Keeps
 
-**Closed 2026-09-13**, the same day. 14 of 14 satisfied; the audit is
-`.planning/milestones/v2.1-MILESTONE-AUDIT.md`. FORM-04 grew a second half
-during the browser pass — one sentence per language — which is written up in
-`14-CONTEXT.md` §5.
+Milestone opened 2026-09-14, the day after v2.1 closed.
 
-Milestone opened 2026-09-13, immediately after v2.0 closed. It exists because
-v2.0 named two things deliberately open and one of them turned out to be
-actively broken rather than merely absent — see PUB-01's note.
+It exists because the ledger has carried **fifteen open windows** since v1.10 and
+v2.0, and because the first hour of looking at one of them turned up something
+none of the fifteen names: a password-protected page was being offered to shared
+caches. That is the shape of this milestone — not a feature, but the distance
+between what this program says it does and what it does.
 
-**Milestone goal:** A website published in French reads French — its chrome, its
-plugin refusals and its forms, not only its pages. And the form a visitor
-actually writes into is worth looking at and can do the things a contact form
-has to do.
+**Milestone goal:** Every promise in `docs/security.md` and in the code's own
+comments is one the running binary keeps. The open-window ledger is worked to
+zero — each entry either fixed, or waived with a reason a reader can check.
 
 ---
 
-## The public translation channel
+## What the server hands out
 
-- [x] **PUB-01**: **The visitor-facing strings in `plugins/` speak the visitor's
-      language again.** Measured 2026-09-13 on `main`: `check()` in
-      `plugins/kontaktformular` answers a German visitor with *"Please enter an
-      e-mail address so that we can answer."* — six of its eight refusals are
-      English, two are still German, and the labels beside them are German.
-      `plugins/bestellung` carries 21 English strings against 4 German ones.
-      This is a **regression from v2.0** (`df4ff4c`), whose commit message
-      justifies the change with *"die Texte, die ein Betreiber liest"* — the
-      error being that these are a *visitor's* texts. `sdk.T` was added in the
-      same milestone and is the channel; it is simply not used here.
-- [x] **PUB-02**: **A theme carries its own catalogue.** A theme directory may
-      hold `lang/<tag>.json`. The public FuncMap gains `t`, `th` and `tf`, and
-      they resolve **only** against the catalogue of the theme being rendered —
-      never against the program's. This is what answers the objection recorded
-      in `TEMPLATE-SPEC.md` §2.5: a `t` that silently returned the key for a
-      third-party theme would be worse than none, so a missing key is
-      **reported**, not swallowed.
-- [x] **PUB-03**: **The operator can override any key**, per website and per
-      language, from the admin. Precedence is override → theme catalogue →
-      the key itself. `cacheKey` already carries `websiteID` and `locale`, so a
-      changed override invalidates exactly the sets it must.
-- [x] **PUB-04**: **The eight shipped themes are converted and stay in step.**
-      Measured 2026-09-13: **150 distinct strings, 955 occurrences**, and nearly
-      every one appears in all eight themes — they mint the same vocabulary.
-      They are generated from one shared source by a committed tool so they
-      cannot drift, and shipped in de, en, fr, it and es.
-- [x] **PUB-05**: **`TEMPLATE-SPEC.md` §2.5 is rewritten.** It says today that a
-      theme is single-language and that `t` is deliberately absent. After this
-      milestone it says the opposite. The old reasoning is kept and the section
-      says why it no longer holds — a specification that quietly changes its
-      mind teaches a theme author nothing.
-- [x] **PUB-06**: **A missing translation is countable, not silent.**
-      `holzcloud template check` names the keys a theme mints but does not
-      translate, and the upload path refuses nothing new — CSP, zip-slip and
-      `template.Check` are untouched.
+- [x] **KEEP-01**: **A protected page is never cacheable by a shared proxy.**
+      Measured 2026-09-14 on `32d545d`: `serveCached` wrote `Vary` with `Set`,
+      deleting the `Vary: Cookie` the session middleware had added, and answered
+      `Cache-Control: public, max-age=300`. A password-protected page, once
+      unlocked, went out under those headers — so a reverse proxy or CDN in
+      front of the binary could hold it for five minutes and hand it to anybody
+      who asked for the address. `access.go`'s own comment above `serveGate`
+      names exactly this danger and guards the form rather than the page.
+- [x] **KEEP-02**: **An answer that depends on a cookie says so.** The same
+      `Set` meant a shop offering both price modes served cookie-dependent
+      prices as `public`. Trade prices could reach a consumer.
+- [ ] **KEEP-03**: **`docs/security.md` says what is true.** The protected-page
+      section gains the cache rule, and says plainly what was wrong before.
 
-## The contact form
+## The ledger
 
-- [x] **FORM-01**: **It is worth looking at, in all eight themes.** Measured
-      2026-09-13: `holzcloud`, `rudel` and `weide` carry **zero** CSS rules for
-      `.contact-form`; the other five carry 11–15. Each theme styles it in its
-      own hand. A refusal appears **at the field it concerns** rather than as
-      one sentence above the form, required fields are marked, focus is visible.
-      No JavaScript, as everywhere.
-- [x] **FORM-02**: **The sender learns that it arrived.** Today `notify()` mails
-      the operator and nobody mails the sender. And the operator can answer from
-      the admin instead of switching to a mail client; the answer stays with the
-      message.
-- [x] **FORM-03**: **No enquiry is thrown away silently.** `sweep()` deletes the
-      oldest messages past 500 with nothing but a log line. This plugin's own
-      migration says *"eine Anfrage, die jemand gestellt hat und die niemand
-      liest, ist eine verlorene Anfrage"* — an unread message never falls
-      automatically.
-- [x] **FORM-04**: **Consent is asked for and recorded.** A required tick box
-      with a linked privacy text; the wording shown and the moment it was
-      ticked are stored with the message, because a consent nobody can
-      reconstruct is not one.
-- [x] **FORM-05**: **A refused submission is visible.** Honeypot, time trap and
-      hourly limit currently drop a submission into nothing. They land in a
-      quarantine carrying the reason, so a false positive can be found.
-- [x] **FORM-06**: **Attachments and conditional fields.** Attachments go
-      through the existing media store with a size and type bound and must not
-      breach website isolation. A field that only appears when an earlier answer
-      calls for it, without JavaScript — so in a second step, not a hidden div.
+- [ ] **WIN-01**: **The eight forward-auth windows are resolved** (19, 20, 21,
+      22, 26, 27, 28 and the log gaps they share). Each is fixed, or waived with
+      the reason written where a reader meets it and not only in the ledger.
+      Entry 26 is the one with teeth: a denied SSO identity writes an
+      `auth.login_fail` row on **every** request, unthrottled, so a proxy
+      asserting the same denied identity grows the activity log without bound.
+- [ ] **WIN-02**: **The three planning-document windows are corrected** (4, 9,
+      11, 12). They are arithmetic in archived plan documents — a gate that
+      counts its own explanatory comment. Small, and they are four of the
+      fifteen.
+- [ ] **WIN-03**: **Window 8 is closed**: an album gallery shows its slider's
+      region name in the operator's language frozen at save time, beside
+      controls in the visitor's language resolved at delivery. v2.1 built
+      exactly the machinery this needs — the page's language reaching the
+      renderer — so the architecture question the entry defers is now answerable.
+- [ ] **WIN-04**: **Window 23 is closed**: `tools/i18n -schweiz` does not remove
+      an orphaned `de-CH` entry, not even on a second run.
+- [ ] **WIN-05**: **Window 24 is closed**: admin answers carried `Vary: Cookie`
+      twice, because the session library and the CSRF library each add it.
+      Closed by `web.AddVary`, which folds duplicates — the same helper KEEP-01
+      needed.
+- [ ] **WIN-06**: **The ledger's front matter is true at the close.**
+      `open_count` is the number of rows that say `open`, and every row that
+      says `waived` carries a reason.
 
 ## Standing gates
 
-- [x] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
-      catalogue, and `go run ./tools/english` stays green — **with the gate
-      extended**, because it did not catch PUB-01. Its `germanVoice` list names
-      `internal/` files and no plugin, so a visitor's text in `plugins/` was
-      invisible to exactly the gate built to see it.
-- [x] **QUAL-02**: Every screen a person can see is driven once through the
-      running application in a browser. The blast radius here is every public
-      page of all eight themes, in at least two languages.
+- [ ] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
+      catalogue; `go run ./tools/english` and `go run ./tools/themewords -check`
+      stay green.
+- [ ] **QUAL-02**: Every screen touched is driven once through the running
+      application. For this milestone the blast radius is the headers on every
+      kind of public answer and the sign-in paths.

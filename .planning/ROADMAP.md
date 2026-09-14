@@ -6,6 +6,7 @@
 - ✅ **v1.10 — Inhaltsmodell und Zugang** — Phases 6–11 (closed 2026-09-10, released 2026-09-11; planned as v1.6)
 - ✅ **v2.0 — The Codebase Speaks English** — Phase 12 (closed 2026-09-13, released as 2.0)
 - ✅ **v2.1 — The Public Side Speaks the Visitor's Language** — Phases 13–14 (closed 2026-09-13, released as 2.1)
+- 🚧 **v2.2 — What the Server Promises, It Keeps** — Phase 15 (opened 2026-09-14)
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -209,9 +210,43 @@ without its query.
 
 ---
 
+### 🚧 v2.2 — What the Server Promises, It Keeps (opened 2026-09-14)
+
+Not a feature milestone. The ledger has carried **fifteen open windows** since
+v1.10 and v2.0, and two milestones have closed over the top of them. This one
+works them to zero — each fixed, or waived with a reason a reader can check.
+
+**Requirements:** KEEP-01 … KEEP-03, WIN-01 … WIN-06, plus the standing gates.
+Full text in `.planning/REQUIREMENTS.md`.
+
+**What the first hour found**, which none of the fifteen names: a
+password-protected page was being offered to shared caches. `serveCached` wrote
+`Vary` with `Set`, deleting the `Vary: Cookie` the session middleware adds, and
+answered `public, max-age=300` — so a CDN or company proxy in front of the
+binary could hold an unlocked page for five minutes and hand it to somebody who
+never entered the password. The comment above `serveGate` had named exactly that
+danger and guarded the form in front of the page rather than the page. Written
+up in `15-CONTEXT.md` §1.
+
+### Phase 15: What the server promises, it keeps
+
+**Goal**: Every promise in `docs/security.md` and in the code's own comments is
+one the running binary keeps, and the ledger is worked to zero.
+**Requirements**: KEEP-01 … KEEP-03, WIN-01 … WIN-06, QUAL-01, QUAL-02
+**Depends on**: nothing. v2.1's page-language machinery is what makes window 8
+answerable rather than deferrable, but nothing here waits on new work.
+**Measured before planning** (2026-09-14, against `32d545d`): 15 open ledger
+entries — eight in forward-auth, four in archived plan documents, three
+elsewhere. Two defects found while measuring, neither in the ledger.
+**Planning notes**: the cache defect goes first and alone, because it is the
+only item where a visitor is harmed today. The forward-auth cluster goes last:
+eight entries against one subsystem is one reading of that subsystem, not eight.
+
+---
+
 ## Progress
 
-Phases 13 and 14 are complete and v2.1 is closed. Numbering continues from 14; it never restarts.
+Phases 13 and 14 are complete and v2.1 is closed. Phase 15 is open under v2.2. Numbering continues from 15; it never restarts.
 
 Phase 14 ran five plans rather than the four it was planned with: the browser pass
 of QUAL-02 found that the consent sentence was stored once per website, so a French
@@ -233,6 +268,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 12. The Codebase Speaks English | v2.0 | 10/10 | Complete | 2026-09-13 |
 | 13. The Public Side Speaks the Visitor's Language | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 14. A Contact Form Worth Writing Into | v2.1 | 5/5 | Complete | 2026-09-13 |
+| 15. What the Server Promises, It Keeps | v2.2 | 1/6 | In progress | - |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their

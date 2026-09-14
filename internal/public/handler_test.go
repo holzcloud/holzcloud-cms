@@ -33,6 +33,12 @@ func testFS() fstest.MapFS {
 			`{{define "content"}}<article>{{.Page.Title}}{{.Page.ContentHTML}}</article>{{end}}`)},
 		"404.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<p class="notfound">nichts gefunden</p>{{end}}`)},
+		// The password form in front of a protected page. Shipped themes carry
+		// one; without it here a protected page cannot be asked for at all, and
+		// the rule about what a shared cache may keep could not be tested.
+		"gate.html": &fstest.MapFile{Data: []byte(
+			`{{define "content"}}<form class="gate" method="POST" action="{{.Gate.Path}}">` +
+				`<p>{{.Gate.Hint}}</p><input type="password" name="passwort"></form>{{end}}`)},
 		"search.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="suche">{{range .Search.Results}}` +
 				`<article><a href="{{.URL}}">{{.Title}}</a>{{.Snippet}}</article>{{end}}</section>{{end}}`)},

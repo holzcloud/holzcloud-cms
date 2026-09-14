@@ -303,8 +303,46 @@ func (h *Handler) HandlePage(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("render page: %w", err)
 	}
 
+	if pg.Protected() {
+		h.servePrivate(w, content)
+		return nil
+	}
 	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
 	return nil
+}
+
+// servePrivate writes a page that belongs to whoever unlocked it.
+//
+// No validators and no shared caching. access.go's serveGate already says why,
+// about the form in front of this page: "a shared proxy holding this would hand
+// the form to someone who has already unlocked, or worse, the page to someone
+// who has not." The form was guarded and the page behind it was not — it went
+// out as public, max-age=300, and the Vary that would at least have keyed the
+// cache on the unlock cookie had been overwritten with HX-Request.
+//
+// A reload now costs a re-render. That is the right price for a page whose
+// whole point is that not everyone may read it.
+// servePersonal writes an answer the visitor's own browser may keep and a
+// shared cache may not.
+//
+// For a shop that offers both price modes: which figures stand on the page
+// depends on a cookie, so a shared cache keyed on the address alone would hand
+// trade prices to a consumer. Not no-store — there is nothing secret about a
+// price list, and a visitor paging through a catalogue should not re-render
+// every product — but private, and saying what it turns on.
+func (h *Handler) servePersonal(w http.ResponseWriter, content []byte) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	web.AddVary(w, "Cookie", hxRequest)
+	w.Write(content)
+}
+
+func (h *Handler) servePrivate(w http.ResponseWriter, content []byte) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, private")
+	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+	web.AddVary(w, "Cookie", hxRequest)
+	w.Write(content)
 }
 
 // HandleTemplateAsset serves static files from the template directory (CSS, images).
@@ -420,13 +458,19 @@ func (h *Handler) renderNotFound(w http.ResponseWriter, r *http.Request, website
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Vary", "HX-Request")
+	web.AddVary(w, hxRequest)
 	// A 404 must never be indexed as a page in its own right.
 	w.Header().Set("X-Robots-Tag", "noindex")
 	w.WriteHeader(http.StatusNotFound)
 	w.Write(content)
 	return nil
 }
+
+// hxRequest is named rather than written out, for the same reason
+// internal/admin/page.go names it: tools/i18n collects the second argument of
+// every method called Add as a sentence an operator reads, so a literal there
+// becomes a catalogue key.
+const hxRequest = "HX-Request"
 
 // serveCached writes content with HTTP caching headers (ETag, Last-Modified, Cache-Control).
 // Handles conditional requests (If-None-Match, If-Modified-Since) with 304 responses.
@@ -438,7 +482,21 @@ func (h *Handler) serveCached(w http.ResponseWriter, r *http.Request, content []
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Last-Modified", modTime.UTC().Format(http.TimeFormat))
 	w.Header().Set("Cache-Control", "public, max-age=300")
-	w.Header().Set("Vary", "HX-Request")
+	// Set and not Add, and that is a CLAIM about the content rather than a
+	// convenience: the session middleware names Cookie on every request, and
+	// leaving it here would make each of these answers a separate cache entry
+	// per visitor, which is the same as not caching at all. Replacing it says
+	// "this answer is the same for everybody", so only an answer that really is
+	// may come through here.
+	//
+	// Two kinds are not, and they have their own way out rather than quietly
+	// riding along: a page behind a password (servePrivate) and a shop page
+	// whose prices depend on which price mode the visitor picked
+	// (servePersonal). Until they had one, this line was silently promising
+	// that a protected page could be handed to anybody, and the comment above
+	// serveGate had already named exactly that danger about the form in front
+	// of it.
+	w.Header().Set("Vary", hxRequest)
 
 	// RFC 7232 §3.3: when If-None-Match is present it decides the conditional
 	// request BY ITSELF, and If-Modified-Since must be ignored. This code used
