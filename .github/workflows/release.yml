@@ -3,6 +3,29 @@ name: Release
 on:
   push:
     tags: [ 'v*' ]
+  # And by hand, which is how a tag gets made at all when it cannot be pushed
+  # from a working copy.
+  #
+  # v2.0 and v2.1 were built, closed and recorded, and then sat untagged:
+  # `git push origin refs/tags/v2.0` is answered 403 for the credential the
+  # development environment holds, while branch refs on that same credential go
+  # through. The consequence is not cosmetic — image.yml stamps every image with
+  # `git describe --tags`, so an untagged release ships as "v1.10-31-g9fe3279".
+  #
+  # This path exists for that, and it is the honest shape rather than a trick:
+  # the release is built and published by the same job either way, and the only
+  # difference is who mints the tag. A dispatch can mint one; a push reacts to
+  # one somebody else minted.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to create and release, for example v2.1'
+        required: true
+        type: string
+      commit:
+        description: 'The commit it names. Empty means the head of the default branch.'
+        required: false
+        type: string
 
 # Least privilege by default: the write scope is granted on the one job that
 # publishes, not to the whole file.
@@ -33,6 +56,34 @@ jobs:
         # the binary silently degrades to a bare commit hash again, which is the
         # exact defect the v1.4 tag was created to fix.
         fetch-depth: 0
+        # On a dispatch: the commit the tag is to name. Empty falls back to the
+        # default branch, which is what checkout does with an empty ref anyway.
+        ref: ${{ inputs.commit }}
+
+    # The name this release carries, in one place.
+    #
+    # GITHUB_REF_NAME is the tag on a push and the BRANCH on a dispatch, so
+    # reading it directly would have published a release called "main".
+    - name: Name the release
+      id: name
+      run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+    # Only on a dispatch, and only when the tag does not exist yet: a tag that
+    # is already published is never moved. An annotated tag rather than a light
+    # one, so it carries who made it and when.
+    - name: Create the tag
+      if: github.event_name == 'workflow_dispatch'
+      env:
+        TAG: ${{ steps.name.outputs.tag }}
+      run: |
+        if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+          echo "::error::$TAG is already on the remote. A published tag is never moved."
+          exit 1
+        fi
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -a "$TAG" -m "$TAG"
+        git push origin "refs/tags/$TAG"
 
     - name: Set up Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -60,9 +111,10 @@ jobs:
     - name: Publish the release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ steps.name.outputs.tag }}
       run: |
-        gh release create "${GITHUB_REF_NAME}" \
-          --title "${GITHUB_REF_NAME}" \
+        gh release create "${TAG}" \
+          --title "${TAG}" \
           --generate-notes \
           holzcloud-linux-amd64 \
           holzcloud-linux-amd64.sha256
