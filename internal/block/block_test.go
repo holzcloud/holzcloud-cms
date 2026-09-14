@@ -1188,26 +1188,61 @@ func TestCleanDropsAnAlbumSlugFromABlockThatIsNotAGallery(t *testing.T) {
 	}
 }
 
-// The wrapper is the block's and is written at save; only its contents are
-// late. So the columns class and the display modifier are there exactly as they
-// would be for an inline gallery, and the marker is the only thing inside.
-func TestAlbumBlockRendersTheMarkerInsideTheWrapper(t *testing.T) {
+// The wrapper is late along with the contents, and the marker carries what it
+// needs: the columns and the display modifier.
+//
+// It used to be written at save, on the grounds that both are properties of the
+// block and known then. They are — but the wrapper also carries the region's
+// accessible NAME, which is translated, and the controls inside that region are
+// translated at delivery. One frozen and one live is window 8.
+func TestAlbumBlockRendersTheMarkerCarryingItsWrapper(t *testing.T) {
 	html := Render([]Block{albumBlock()}, Builtin, galleryLook(), markdown)
 
-	const want = `<div class="hc-block hc-galerie hc-spalten-3">[[album:moebel:0]]</div>`
+	const want = `[[album:moebel:0:3:]]`
 	if html != want {
-		t.Errorf("the album block did not render to the wrapper and the marker:\nwant %s\ngot  %s", want, html)
+		t.Errorf("the album block did not render to its marker:\nwant %s\ngot  %s", want, html)
 	}
 
 	show := albumBlock()
 	show.Display = DisplaySlideshow
 	show.Variant = "4"
 	slide := Render([]Block{show}, Builtin, galleryLook(), markdown)
-	if !strings.HasPrefix(slide, `<div class="hc-block hc-galerie hc-spalten-4 hc-galerie--diashow"`) {
+	if slide != `[[album:moebel:0:4:hc-galerie--diashow]]` {
 		t.Errorf("an album gallery lost its columns or its display mode:\n%s", slide)
 	}
-	if !strings.Contains(slide, `[[album:moebel:0]]`) {
-		t.Errorf("the marker is missing from the slideshow wrapper:\n%s", slide)
+	// And nothing of the wrapper is written at save any more, because the one
+	// thing in it that speaks to a reader cannot be.
+	if strings.Contains(slide, "<div") || strings.Contains(slide, "aria-label") {
+		t.Errorf("the wrapper was written at save after all:\n%s", slide)
+	}
+}
+
+// The region's name and the controls beside it come from ONE translation.
+//
+// Window 8, stated as the property it is. The wrapper and the tiles are built
+// by two calls; for an album gallery they used to be translated at two
+// different MOMENTS — the wrapper at save, the tiles at delivery — so a website
+// that changed its language announced the region in the old one and read its
+// controls in the new, until every page carrying a gallery was saved again.
+func TestAGalleryRegionAndItsControlsSpeakTheSameLanguage(t *testing.T) {
+	now := func(word string) string { return "FR:" + word }
+
+	inner := GalleryItems(0, threePictures().Items, galleryLook(), now)
+	out := GalleryWrapper(3, "hc-galerie--diashow", inner, now)
+
+	if !strings.Contains(out, `aria-label="FR:Gallery"`) {
+		t.Errorf("the region was not named through the same translator:\n%s", out)
+	}
+	for _, control := range []string{"FR:Next image", "FR:Close large view"} {
+		if !strings.Contains(out, control) {
+			t.Errorf("%q is missing; the controls and the region disagree:\n%s", control, out)
+		}
+	}
+	// The word is escaped where it is written, whatever a catalogue holds.
+	if bad := GalleryWrapper(3, "hc-galerie--diashow", "x", func(string) string {
+		return `" onfocus="alert(1)`
+	}); strings.Contains(bad, `onfocus=`) && !strings.Contains(bad, "&#34;") {
+		t.Errorf("the region name is not escaped: %s", bad)
 	}
 }
 
@@ -1221,7 +1256,7 @@ func TestAlbumBlockMarkerCarriesTheBlockPosition(t *testing.T) {
 		albumBlock(),
 	}, Builtin, galleryLook(), markdown)
 
-	if !strings.Contains(html, "[[album:moebel:2]]") {
+	if !strings.Contains(html, "[[album:moebel:2:") {
 		t.Errorf("the marker does not carry the block's position:\n%s", html)
 	}
 	if !strings.Contains(html, `id="hc-b2-p1"`) {
@@ -1260,7 +1295,7 @@ func TestAlbumAndItemsTogetherRenderTheAlbum(t *testing.T) {
 
 	html := Render([]Block{both}, Builtin, galleryLook(), markdown)
 
-	if !strings.Contains(html, "[[album:moebel:0]]") {
+	if !strings.Contains(html, "[[album:moebel:0") {
 		t.Errorf("the album did not win:\n%s", html)
 	}
 	if strings.Contains(html, "hc-galerie__bild") {
@@ -1275,17 +1310,26 @@ func TestAlbumAndItemsTogetherRenderTheAlbum(t *testing.T) {
 // than to assume.
 func TestTheAlbumMarkerIsPlainTextInsideAnElement(t *testing.T) {
 	html := Render([]Block{albumBlock()}, Builtin, galleryLook(), markdown)
-	inner := strings.TrimSuffix(strings.SplitN(html, ">", 2)[1], "</div>")
-	if strings.ContainsAny(inner, "<>&\"") {
-		t.Errorf("the marker is not a bare text node: %q", inner)
+	// Since the wrapper moved into the expansion, the marker IS the block's
+	// whole output rather than the text inside a <div> — which makes the
+	// property easier to state, not harder: nothing this renderer wrote around
+	// it can be mistaken for markup, because there is nothing around it.
+	if strings.ContainsAny(html, "<>&\"") {
+		t.Errorf("the marker is not a bare text node: %q", html)
+	}
+	if !strings.HasPrefix(html, "[[album:") || !strings.HasSuffix(html, "]]") {
+		t.Errorf("the album block rendered something other than its marker: %q", html)
 	}
 }
 
 // Round trip through the reader, so a marker written on one save is found again
 // by the expansion on every request.
 func TestAlbumMarkerReaderFindsWhatTheWriterWrote(t *testing.T) {
-	doc := "<p>" + AlbumMarker("moebel", 2) + "</p>" + AlbumMarker("sommer", 5) +
-		AlbumMarker("moebel", 9)
+	// The short form and the long one in the same document: a page saved before
+	// the wrapper moved and one saved after it must both be found.
+	doc := "<p>" + AlbumMarker("moebel", 2, 0, "") + "</p>" +
+		AlbumMarker("sommer", 5, 3, "hc-galerie--diashow") +
+		AlbumMarker("moebel", 9, 0, "")
 
 	if !hasAlbumMarker(doc) {
 		t.Fatal("hasAlbumMarker did not see a marker the writer wrote")
@@ -1305,10 +1349,10 @@ func TestAlbumMarkerReaderFindsWhatTheWriterWrote(t *testing.T) {
 		}
 	}
 
-	out := ReplaceAlbumMarkers(doc, func(slug string, at int) string {
-		return fmt.Sprintf("<%s@%d>", slug, at)
+	out := ReplaceAlbumMarkers(doc, func(slug string, at, columns int, mod string) string {
+		return fmt.Sprintf("<%s@%d/%d/%s>", slug, at, columns, mod)
 	})
-	const wantOut = "<p><moebel@2></p><sommer@5><moebel@9>"
+	const wantOut = "<p><moebel@2/0/></p><sommer@5/3/hc-galerie--diashow><moebel@9/0/>"
 	if out != wantOut {
 		t.Errorf("ReplaceAlbumMarkers:\nwant %s\ngot  %s", wantOut, out)
 	}

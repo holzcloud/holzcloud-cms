@@ -176,17 +176,20 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 		// AND its own items renders the album. The album is the more explicit
 		// choice, and concatenating the two would mint two runs of fragment ids
 		// from one block position — hc-b1-p1 twice on one page.
-		var inner string
 		if slug := strings.TrimSpace(blk.AlbumSlug); slug != "" {
-			// The wrapper is written now and only its contents are late. The
-			// columns and the display are properties of the block and known at
-			// save; only the pictures belong to the album. A marker that had to
-			// carry them would be a second encoding of what the class attribute
-			// below already says.
-			inner = AlbumMarker(slug, at)
-		} else {
-			inner = GalleryItems(at, blk.Items, look, s.text)
+			// The wrapper is late as well, and the marker carries what it needs.
+			//
+			// It used to be written here, with only the pictures left late, on
+			// the grounds that the columns and the display belong to the block
+			// and are known at save. True — but the wrapper also carries the
+			// region's accessible NAME, which is a word this program
+			// translates, and the controls inside the same region are
+			// translated at delivery. Freezing one of the two here is what made
+			// them disagree after a website changed its language (window 8).
+			b.WriteString(AlbumMarker(slug, at, blk.Columns(), blk.DisplayClass()))
+			return
 		}
+		inner := GalleryItems(at, blk.Items, look, s.text)
 		if inner == "" {
 			return
 		}
@@ -196,24 +199,7 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 		// identical in both. That is what makes a display mode one block of CSS
 		// rather than a second renderer, and it is what keeps the lightbox
 		// working in both modes for nothing.
-		if mod := blk.DisplayClass(); mod != "" {
-			// The tab stop is not decoration. A region that scrolls
-			// horizontally and cannot be focused is a slideshow only a pointer
-			// can use, and browsers differ on whether they hand a scroll
-			// container a tab stop of its own — so it is stated rather than
-			// assumed. A focusable region needs a name to be worth entering,
-			// and role="region" is what exposes that name to a screen reader.
-			//
-			// mod comes from DisplayClass, which mints it from the constant, so
-			// nothing an editor or a hand-edited archive holds is concatenated
-			// into this attribute (T-11-18).
-			fmt.Fprintf(b,
-				`<div class="hc-block hc-galerie hc-spalten-%d %s" tabindex="0" role="region" aria-label="%s">%s</div>`,
-				blk.Columns(), mod, html.EscapeString(s.text(textGallery)), inner)
-			return
-		}
-		fmt.Fprintf(b, `<div class="hc-block hc-galerie hc-spalten-%d">%s</div>`,
-			blk.Columns(), inner)
+		b.WriteString(GalleryWrapper(blk.Columns(), blk.DisplayClass(), inner, s.text))
 
 	case TypeCards:
 		var inner strings.Builder
@@ -517,14 +503,44 @@ const albumMarkerPrefix = "[[album:"
 // the block's position in the page, because the fragment ids of the large views
 // are minted from it (D-03) — a page carrying an inline gallery and an album
 // gallery must not mint hc-b1-p1 twice.
-var albumMarkerPattern = regexp.MustCompile(`\[\[album:([a-z0-9][a-z0-9-]*):(\d+)\]\]`)
+//
+// The two fields after that are OPTIONAL, and that is what makes this change
+// need no migration. Written since the fix for window 8, they say that the
+// enclosing <div> is late too: the number of columns, and the display class.
+// A marker stored before then has neither, its wrapper is already in the stored
+// HTML, and it expands exactly as it always did — so every page written by an
+// older version keeps working untouched and heals on its next save.
+var albumMarkerPattern = regexp.MustCompile(`\[\[album:([a-z0-9][a-z0-9-]*):(\d+)(?::(\d+):([a-z0-9-]*))?\]\]`)
 
 // AlbumMarker is what a gallery block naming an album renders to.
 //
 // Built from the prefix above rather than spelled out a second time, so the
 // writer and the reader cannot disagree.
-func AlbumMarker(slug string, at int) string {
-	return albumMarkerPrefix + slug + ":" + strconv.Itoa(at) + "]]"
+//
+// columns and mod are the wrapper the expansion has to build. They are here
+// rather than in the stored HTML because of what the wrapper carries: a
+// role="region" needs an accessible name, and that name is a word this program
+// mints and translates.
+//
+// Written at save it was frozen — in whatever language the website had THEN —
+// while the controls inside the same region are resolved at delivery, in the
+// language the website has NOW. Change a site from German to Spanish and its
+// album galleries answer "Imagen siguiente" beside aria-label="Galerie", and go
+// on doing so until every page carrying one is saved again. That is window 8,
+// and only a screen reader ever said it out loud.
+//
+// So the marker now carries what the wrapper needs, and both halves are built
+// by one call with one translator. The objection recorded above the album arm —
+// that this would be "a second encoding of what the class attribute already
+// says" — was right while both existed; it stops applying once the class
+// attribute is no longer written at save, because then there is only one
+// encoding and this is it.
+func AlbumMarker(slug string, at, columns int, mod string) string {
+	m := albumMarkerPrefix + slug + ":" + strconv.Itoa(at)
+	if columns > 0 {
+		m += ":" + strconv.Itoa(columns) + ":" + mod
+	}
+	return m + "]]"
 }
 
 // hasAlbumMarker reports whether a document contains any album marker at all.
@@ -569,7 +585,7 @@ func AlbumMarkerSlugs(html string) []string {
 //
 // A document with no marker is returned unchanged and untouched, which is what
 // keeps this mechanism free for the pages that do not use it.
-func ReplaceAlbumMarkers(html string, expand func(slug string, at int) string) string {
+func ReplaceAlbumMarkers(html string, expand func(slug string, at, columns int, mod string) string) string {
 	if !hasAlbumMarker(html) {
 		return html
 	}
@@ -579,8 +595,49 @@ func ReplaceAlbumMarkers(html string, expand func(slug string, at int) string) s
 		if err != nil {
 			return ""
 		}
-		return expand(parts[1], at)
+		// Zero columns is the old marker, whose wrapper is already in the
+		// stored HTML around it. The expansion then returns the tiles alone,
+		// exactly as it did before the wrapper moved.
+		columns, _ := strconv.Atoi(parts[3])
+		return expand(parts[1], at, columns, parts[4])
 	})
+}
+
+// GalleryWrapper puts the <div> around a gallery's tiles.
+//
+// One writer for both sources. The inline gallery calls it at save, the album
+// gallery through its marker at delivery, and they must produce the same
+// markup: the display mode is one block of CSS rather than a second renderer
+// precisely because the two are identical.
+//
+// t translates the region's name and is the reason this function exists as a
+// function: whoever calls it decides when that translation happens. An inline
+// gallery calls it at save and freezes every word it writes together; an album
+// gallery calls it at delivery and resolves every word it writes together. What
+// must not happen is one of each in the same region, which is window 8.
+func GalleryWrapper(columns int, mod, inner string, t func(string) string) string {
+	if inner == "" {
+		return ""
+	}
+	if t == nil {
+		t = func(word string) string { return word }
+	}
+	if mod == "" {
+		return fmt.Sprintf(`<div class="hc-block hc-galerie hc-spalten-%d">%s</div>`, columns, inner)
+	}
+	// The tab stop is not decoration. A region that scrolls horizontally and
+	// cannot be focused is a slideshow only a pointer can use, and browsers
+	// differ on whether they hand a scroll container a tab stop of its own — so
+	// it is stated rather than assumed. A focusable region needs a name to be
+	// worth entering, and role="region" is what exposes that name to a screen
+	// reader.
+	//
+	// mod comes from DisplayClass, which mints it from the constant, so nothing
+	// an editor or a hand-edited archive holds is concatenated into this
+	// attribute (T-11-18).
+	return fmt.Sprintf(
+		`<div class="hc-block hc-galerie hc-spalten-%d %s" tabindex="0" role="region" aria-label="%s">%s</div>`,
+		columns, mod, html.EscapeString(t(textGallery)), inner)
 }
 
 // GalleryItems renders one gallery: every tile first, then every large view.

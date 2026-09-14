@@ -198,3 +198,50 @@ func TestASentenceJoinedAcrossLinesIsOneSentence(t *testing.T) {
 		})
 	}
 }
+
+// -schweiz rebuilds de-CH.json, and "rebuild" has to include letting go.
+//
+// Window 23: an entry whose key no longer exists in the source survived every
+// run, including the second, because writeSwiss folded the whole existing file
+// back in to protect the hand-written deviations. It protected the orphans with
+// them. Nothing said so; the first sign was TestFassungKeysExistInTheSource
+// turning red, and the cure was to delete the line by hand (e306eeb).
+//
+// A dropped key is printed rather than dropped quietly. The reason the rest of
+// this tool never deletes an orphan — a translation thrown away is one somebody
+// has to do again — does not hold for this file: de-CH is GENERATED, so every
+// rule-derived line comes back by itself the moment its key does.
+func TestSchweizLetsGoOfAKeyTheSourceNoLongerHas(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "de-CH.json")
+
+	if err := writeCatalog(path, map[string]string{
+		"Save":                "Sichern",           // hand-written, key still live
+		"A mass of grosze":    "Ein Haufen grosze", // a key that has gone away
+		"Delete the website?": "Website löschen?",  // rule-derived, key still live
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	german := map[string]string{
+		"Save":                "Speichern",
+		"Delete the website?": "Website löschen?",
+	}
+	sources := []string{"Delete the website?", "Save"}
+
+	for pass := 1; pass <= 2; pass++ {
+		if err := writeSwiss(path, sources, german); err != nil {
+			t.Fatalf("pass %d: %v", pass, err)
+		}
+		got, err := readCatalog(path)
+		if err != nil {
+			t.Fatalf("pass %d: %v", pass, err)
+		}
+		if _, still := got["A mass of grosze"]; still {
+			t.Errorf("pass %d: the orphan is still there", pass)
+		}
+		if got["Save"] != "Sichern" {
+			t.Errorf("pass %d: the hand-written line was lost: %q", pass, got["Save"])
+		}
+	}
+}

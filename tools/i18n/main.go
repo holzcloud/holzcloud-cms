@@ -393,19 +393,45 @@ func writeSwiss(path string, sources []string, german map[string]string) error {
 			byRule++
 		}
 	}
+	live := make(map[string]bool, len(sources))
+	for _, key := range sources {
+		live[key] = true
+	}
+
 	byHand := 0
-	for german, swiss := range kept {
+	var dropped []string
+	for key, swiss := range kept {
+		// An entry whose key the source no longer has is let go. Everywhere
+		// else in this tool an orphan is reported and kept, because a
+		// translation thrown away is one somebody has to do again — but this
+		// file is GENERATED, so a rule-derived line comes back by itself the
+		// moment its key does. Keeping them was window 23: the loop below
+		// existed to protect the hand-written deviations and protected the
+		// orphans along with them, so a dead entry survived every run,
+		// including the second, and was noticed only when
+		// TestFassungKeysExistInTheSource turned red.
+		if !live[key] {
+			dropped = append(dropped, key)
+			continue
+		}
 		// A hand-written line wins, but the spelling rule is applied to it as
 		// well: somebody adding a Swiss word should not have to remember the ß
 		// too, and the two kinds of change can land in the same sentence.
 		swiss = swissSpelling.Replace(swiss)
-		if out[german] == swiss {
+		if out[key] == swiss {
 			continue
 		}
-		out[german] = swiss
+		out[key] = swiss
 		byHand++
 	}
-	fmt.Printf("de-CH.json  %d by rule, %d by hand\n", byRule, byHand)
+	sort.Strings(dropped)
+	// Named, not quietly removed: a rule-derived line costs nothing to lose,
+	// but a hand-written Swiss word does, and whoever is renaming a sentence
+	// needs to see which deviations went with it.
+	for _, key := range dropped {
+		fmt.Printf("  de-CH.json: let go, no sentence in the source: %q\n", key)
+	}
+	fmt.Printf("de-CH.json  %d by rule, %d by hand, %d let go\n", byRule, byHand, len(dropped))
 	return writeCatalog(path, out)
 }
 

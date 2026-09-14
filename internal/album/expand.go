@@ -125,12 +125,23 @@ func UsedSlugs(html string) []string { return block.AlbumMarkerSlugs(html) }
 // renderer, two sources. Nothing here renders a tile or a large view itself.
 func Expand(html string, set Set) string {
 	look := set.Lookup()
-	return block.ReplaceAlbumMarkers(html, func(slug string, at int) string {
+	return block.ReplaceAlbumMarkers(html, func(slug string, at, columns int, mod string) string {
 		items := set.items[slug]
 		if len(items) == 0 {
 			return ""
 		}
-		return block.GalleryItems(at, items, look, set.t)
+		inner := block.GalleryItems(at, items, look, set.t)
+		if columns == 0 {
+			// A marker written before the wrapper moved. Its <div> is already
+			// in the stored HTML around this marker, so returning the tiles
+			// alone is exactly what it expects — and what it always got.
+			return inner
+		}
+		// The same translator the tiles just used, and that is the whole
+		// point: the region's name and the controls inside it are resolved
+		// together, at delivery, so a website that changes its language cannot
+		// leave one of them behind (window 8).
+		return block.GalleryWrapper(columns, mod, inner, set.t)
 	})
 }
 
