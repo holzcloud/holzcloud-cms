@@ -15,8 +15,13 @@ on:
   #
   # because a run an App dispatched carries that App's scopes and not the
   # repository's, whatever `permissions:` says below. Measured 2026-09-14, run
-  # 12. A tag push by a person, the path this file has always had, is
-  # unaffected.
+  # 12.
+  #
+  # That a run dispatched BY A PERSON gets the repository's own token instead is
+  # how GitHub Actions is documented to behave; it is not measured here, because
+  # the session that wrote this cannot press a button as a person. A tag push,
+  # the path this file has always had, is unaffected either way — v1.8 through
+  # v1.10 were tagged that way, under the operator's account.
   #
   # v2.0 and v2.1 were built, closed and recorded, and then sat untagged:
   # `git push origin refs/tags/v2.0` is answered 403 for the credential the

@@ -5,7 +5,7 @@ milestone_name: "The Public Side Speaks the Visitor's Language"
 current_phase: 14
 current_phase_name: "A contact form worth writing into"
 status: complete
-stopped_at: "Meilenstein v2.1 geschlossen (2026-09-13). 14 von 14 Anforderungen erfuellt, Audit geschrieben, CHANGELOG 2.1 geschrieben. Die Release-Tags werden seit 2026-09-14 von release.yml per workflow_dispatch gepraegt; die alte Diagnose '403 auf Tag-Refs' war falsch — siehe Operator Next Steps."
+stopped_at: "Meilenstein v2.1 geschlossen (2026-09-13). 14 von 14 Anforderungen erfuellt, Audit geschrieben, CHANGELOG 2.1 geschrieben. Die Release-Tags legt der Betreiber an: seit dem 11.09. arbeitet diese Umgebung als App-Integration statt unter seinem Konto, und eine App darf keinen Tag-Ref mit Workflow-Dateien anlegen — siehe Operator Next Steps."
 last_updated: "2026-09-13T00:00:00.000Z"
 last_activity: 2026-09-13
 progress:
@@ -477,11 +477,12 @@ public side still has no translation channel at all, and a plugin's
 
 ## Operator Next Steps
 
-- **Erledigt am 2026-09-14, und die Diagnose davor war falsch.** Zwei
-  Meilensteine lang stand hier, der Zugang dieser Ausfuehrungsumgebung duerfe
-  Branch-Refs schreiben und Tag-Refs nicht. Das war eine Vermutung aus dem
-  blossen Statuscode. Die Antwort steht im Lauf, der es von der anderen Seite
-  versuchte:
+- **Die Release-Tags `v2.0` und `v2.1` legt der Betreiber an, und zwar aus einem
+  Grund, der zweimal falsch aufgeschrieben war.**
+
+  Erste Fassung: "der Zugang darf Branch-Refs schreiben, Tag-Refs nicht." Das
+  war eine Vermutung aus dem blossen Statuscode. Die Antwort steht im Lauf, der
+  es von der anderen Seite versuchte:
 
   ```
   ! [remote rejected] v2.0 -> v2.0 (refusing to allow a GitHub App to create or
@@ -493,11 +494,40 @@ public side still has no translation channel at all, and a plugin's
   `permissions:`-Schluessel kann GITHUB_TOKEN den Bereich geben, der das
   erlaubte. Es ging nie um die Art des Refs.
 
-  **Abhilfe, jetzt im Repository:** `release.yml` kann per `workflow_dispatch`
-  den Tag selbst praegen, mit Tag-Name und Commit als Eingaben. Der Tag entsteht
-  ueber die Releases-API (`gh release create --target`), nicht ueber einen
-  Ref-Push, und faellt damit nicht unter dieselbe Regel. Ein Tag, der schon auf
-  dem Remote steht, wird abgewiesen statt verschoben.
+  Zweite Fassung, auch unvollstaendig: "`release.yml` kann den Tag jetzt per
+  `workflow_dispatch` selbst praegen." Kann es — aber nicht von hier aus. Der
+  Lauf baut und testet sieben Minuten lang und scheitert am letzten Schritt mit
+  `HTTP 403: Resource not accessible by integration`, weil ein Lauf, den eine
+  App ausgeloest hat, deren Rechte traegt und nicht die des Repositorys.
+
+  **Der ganze Grund, gemessen am 2026-09-14:** bis zum 11.09. wurde in dieser
+  Arbeitsumgebung unter dem KONTO DES BETREIBERS gearbeitet — die Commits bis
+  `ef4873a` tragen `holz41289 <6815936+holz41289@users.noreply.github.com>`, und
+  die Tagger von `v1.8`, `v1.9` und `v1.10` ebenso. Seit `5a46c18`, der
+  Eroeffnung von v2.0 am selben Abend, ist es eine App-Integration, und die
+  Commits tragen `Claude <noreply@anthropic.com>`. v2.0 ist genau der erste
+  Meilenstein, dessen Tag sich nicht mehr pushen liess.
+
+  Es ist also nichts kaputtgegangen und keine Regel dazugekommen: ein Mensch
+  darf einen Tag-Ref mit Workflow-Dateien darin anlegen, eine App nicht.
+
+  **Zu tun, unter dem Konto des Betreibers, einer von beiden Wegen:**
+
+  - *Actions → Release → Run workflow*, `tag: v2.0`, `commit: 9fe3279`; danach
+    `tag: v2.1`, `commit: 32d545d`. Dass ein von Hand ausgeloester Lauf das
+    normale Token des Repositorys bekommt, ist das uebliche Verhalten von
+    GitHub Actions — hier nicht nachgemessen, weil diese Sitzung den Knopf
+    nicht als Mensch druecken kann.
+  - Oder aus einer Arbeitskopie:
+
+    ```bash
+    git tag -a v2.0 9fe3279 -m "2.0 — The Codebase Speaks English"
+    git tag -a v2.1 32d545d -m "2.1 — The Public Side Speaks the Visitor's Language"
+    git push origin v2.0 v2.1
+    ```
+
+  Bis dahin stempelt `image.yml` (`git describe --tags`) jedes Abbild als
+  `v1.10-…` statt als `v2.0` oder `v2.1`.
 - Nothing open in phase 12. The milestone is closed: `12-CONTEXT.md` and
   `12-VERIFICATION.md` are archived under `.planning/milestones/v2.0-phases/`,
   `REQUIREMENTS.md` and `ROADMAP.md` are copied beside them as
