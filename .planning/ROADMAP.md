@@ -7,6 +7,7 @@
 - ✅ **v2.0 — The Codebase Speaks English** — Phase 12 (closed 2026-09-13, released as 2.0)
 - ✅ **v2.1 — The Public Side Speaks the Visitor's Language** — Phases 13–14 (closed 2026-09-13, released as 2.1)
 - ✅ **v2.2 — What the Server Promises, It Keeps** — Phase 15 (closed 2026-09-14, released as 2.2)
+- 🚧 **v2.3 — Every Word on a Page Belongs to Whoever Reads It** — Phase 16 (opened 2026-09-14)
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -258,9 +259,41 @@ time an existing test forced it.
 
 ---
 
+### 🚧 v2.3 — Every Word on a Page Belongs to Whoever Reads It (opened 2026-09-14)
+
+Finishes a sentence three milestones have been writing. v2.0 turned the source
+language round; v2.1 gave the public side a channel and made a plugin answer in
+the page's language; v2.2 closed the ledger to one entry — and that entry is the
+same question one level down.
+
+**Requirements:** WORD-01 … WORD-04, WIN-07, WIN-08, plus the standing gates.
+Full text in `.planning/REQUIREMENTS.md`.
+
+**The thing that makes it a milestone rather than a fix:** the words this
+program mints into a page are **frozen at save time**. Block HTML is rendered
+once by `block.Render` and stored in `pages.content_html`, so a gallery's five
+words carry the language the website had when somebody last pressed Save. The
+album half already resolves late, through the marker window 8 gave it; the
+inline half does not, and that asymmetry is exactly why `albumsFor` settled for
+the website's language instead of the page's.
+
+### Phase 16: Every word on a page belongs to whoever reads it
+
+**Goal**: Every word this program writes into a page a visitor reads is resolved
+in the language of that page, at delivery.
+**Requirements**: WORD-01 … WORD-04, WIN-07, WIN-08, QUAL-01, QUAL-02
+**Depends on**: nothing new. v2.1 built the page-language machinery and v2.2's
+optional marker tail showed how a stored format changes without a migration.
+**Planning notes**: WORD-04 goes first and alone — measure before choosing a
+mechanism. A monolingual site is most sites and must not pay for this; a
+mechanism that costs it a marker expansion on every page view is the wrong one,
+however elegant.
+
+---
+
 ## Progress
 
-Phases 13, 14 and 15 are complete; v2.1 and v2.2 are closed. Numbering continues from 15; it never restarts.
+Phases 13, 14 and 15 are complete; v2.1 and v2.2 are closed. Phase 16 is open under v2.3. Numbering continues from 16; it never restarts.
 
 Phase 15 ran four waves against a register rather than a feature: the ledger went from
 **15 open to 1**, and the one that remains was opened during the work.
@@ -286,6 +319,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 13. The Public Side Speaks the Visitor's Language | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 14. A Contact Form Worth Writing Into | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 15. What the Server Promises, It Keeps | v2.2 | 6/6 | Complete | 2026-09-14 |
+| 16. Every Word on a Page Belongs to Whoever Reads It | v2.3 | 0/4 | In progress | - |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their

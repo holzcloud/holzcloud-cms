@@ -1,77 +1,64 @@
-# Requirements: v2.2 — What the Server Promises, It Keeps
+# Requirements: v2.3 — Every Word on a Page Belongs to Whoever Reads It
 
-**Closed 2026-09-14**, the same day. 11 of 11 satisfied; the audit is
-`.planning/milestones/v2.2-MILESTONE-AUDIT.md`. The ledger went from fifteen
-open entries to one, and that one was opened while closing another.
+Milestone opened 2026-09-14, the same day v2.2 closed.
 
-Milestone opened 2026-09-14, the day after v2.1 closed.
+It finishes a sentence three milestones have been writing. v2.0 turned the
+source language round. v2.1 gave the public side a translation channel and made
+a plugin answer in the page's language. v2.2 closed the ledger to one entry —
+and that entry is the same question one level down: an album gallery answers in
+the **website's** language rather than the **page's**.
 
-It exists because the ledger has carried **fifteen open windows** since v1.10 and
-v2.0, and because the first hour of looking at one of them turned up something
-none of the fifteen names: a password-protected page was being offered to shared
-caches. That is the shape of this milestone — not a feature, but the distance
-between what this program says it does and what it does.
+Behind it sits the larger half, which window 8 expected to be the whole of it:
+**the words this program mints into a page are frozen at save time.** Block HTML
+is rendered once and stored, so a gallery's five words carry the language the
+website had when somebody last pressed Save. On a monolingual site nobody
+notices. On a site with a second language, every one of them is wrong for half
+the visitors.
 
-**Milestone goal:** Every promise in `docs/security.md` and in the code's own
-comments is one the running binary keeps. The open-window ledger is worked to
-zero — each entry either fixed, or waived with a reason a reader can check.
+**Milestone goal:** every word this program writes into a page a visitor reads
+is resolved in the language of that page, at the moment it is delivered. And the
+ledger reaches zero.
 
 ---
 
-## What the server hands out
+## The words the renderer mints
 
-- [x] **KEEP-01**: **A protected page is never cacheable by a shared proxy.**
-      Measured 2026-09-14 on `32d545d`: `serveCached` wrote `Vary` with `Set`,
-      deleting the `Vary: Cookie` the session middleware had added, and answered
-      `Cache-Control: public, max-age=300`. A password-protected page, once
-      unlocked, went out under those headers — so a reverse proxy or CDN in
-      front of the binary could hold it for five minutes and hand it to anybody
-      who asked for the address. `access.go`'s own comment above `serveGate`
-      names exactly this danger and guards the form rather than the page.
-- [x] **KEEP-02**: **An answer that depends on a cookie says so.** The same
-      `Set` meant a shop offering both price modes served cookie-dependent
-      prices as `public`. Trade prices could reach a consumer.
-- [x] **KEEP-03**: **`docs/security.md` says what is true.** The protected-page
-      section gains the cache rule, and says plainly what was wrong before.
+- [ ] **WORD-01**: **An album gallery answers in the page's language.** Window
+      34. `internal/public/pagedata.go`'s `albumsFor` builds its translator from
+      `ws.Locale`, so a French page on a German website reads German lightbox
+      controls. Its own comment gives the reason — an inline gallery and an
+      album gallery on one page must not speak two languages — which is true and
+      is solved by WORD-02 rather than by leaving both wrong.
+- [ ] **WORD-02**: **A gallery's words are resolved at delivery, not frozen at
+      save.** Five strings today (`Previous image`, `Next image`, `Close large
+      view`, `Your browser cannot play this video.`, `Gallery`), written into
+      `pages.content_html` by `block.Render` through `admin/page_blocks.go` and
+      `bundle/import.go`. The album half already resolves late through its
+      marker; the inline half does not, and that asymmetry is what forced
+      WORD-01's compromise.
+- [ ] **WORD-03**: **A page written before this milestone keeps working, and
+      heals.** The same rule window 8 followed: no migration, no broken page, no
+      re-save required for a page to render. Whatever mechanism WORD-02 chooses
+      must read old stored HTML unchanged.
+- [ ] **WORD-04**: **The measurement is written down before the mechanism is
+      chosen.** How many stored pages carry frozen words, in how many
+      installations' shapes, and what each candidate mechanism costs a
+      monolingual site — which is most of them, and which must not pay for this.
 
 ## The ledger
 
-- [x] **WIN-01**: **The eight forward-auth windows are resolved** (19, 20, 21,
-      22, 26, 27, 28 and the log gaps they share). Each is fixed, or waived with
-      the reason written where a reader meets it and not only in the ledger.
-      Entry 26 is the one with teeth: a denied SSO identity writes an
-      `auth.login_fail` row on **every** request, unthrottled, so a proxy
-      asserting the same denied identity grows the activity log without bound.
-- [x] **WIN-02**: **The three planning-document windows are corrected** (4, 9,
-      11, 12). They are arithmetic in archived plan documents — a gate that
-      counts its own explanatory comment. Small, and they are four of the
-      fifteen.
-- [x] **WIN-03**: **Window 8 is closed**: an album gallery shows its slider's
-      region name in the operator's language frozen at save time, beside
-      controls in the visitor's language resolved at delivery. v2.1 built
-      exactly the machinery this needs — the page's language reaching the
-      renderer — so the architecture question the entry defers is now answerable.
-- [x] **WIN-04**: **Window 23 is closed**: `tools/i18n -schweiz` does not remove
-      an orphaned `de-CH` entry, not even on a second run.
-- [x] **WIN-05**: **Window 24 is closed**: admin answers carried `Vary: Cookie`
-      twice, because the session library and the CSRF library each add it.
-      Closed by `web.AddVary`, which folds duplicates — the same helper KEEP-01
-      needed.
-- [x] **WIN-06**: **The ledger's front matter is true at the close.**
-      `open_count` is the number of rows that say `open`, and every row that
-      says `waived` carries a reason.
+- [ ] **WIN-07**: **The ledger reaches zero open entries**, or any entry that
+      remains carries a reason a reader can check. It stands at one.
+- [ ] **WIN-08**: **A plugin's `plugin.json` name and description are
+      translated, or the reason they are not is written where a reader meets
+      it.** Carried unchanged through v2.0, v2.1 and v2.2 as "deliberately
+      open", which after three milestones is a decision that should be stated
+      rather than deferred again.
 
 ## Standing gates
 
-- [x] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
-      catalogue; `go run ./tools/english` and `go run ./tools/themewords -check`
-      stay green.
-- [x] **QUAL-02**: Every screen touched is driven once through the running
-      application. For this milestone the blast radius is the headers on every
-      kind of public answer and the sign-in paths. Driven 2026-09-14: the
-      unlocked page, the ordinary page and the admin answer for their headers;
-      an album gallery for its region name; the user form with single sign-on
-      configured, for the sentence about where a linked account's rights come
-      from; the sign-out of a linked password session, which reaches the
-      outpost; and twelve refused identities in a row, which leave one protocol
-      row carrying its reason.
+- [ ] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
+      catalogue; `tools/english` and `tools/themewords -check` stay green.
+- [ ] **QUAL-02**: Every screen touched is driven once through the running
+      application. The blast radius here is a page with both kinds of gallery,
+      in two languages, before and after a re-save.
