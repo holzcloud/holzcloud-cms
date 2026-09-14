@@ -6,6 +6,18 @@ on:
   # And by hand, which is how a tag gets made at all when it cannot be pushed
   # from a working copy.
   #
+  # Press this in the Actions tab, as a person. Triggering it through the API as
+  # an integration gets far enough to build and test and then fails at the last
+  # step with
+  #
+  #   HTTP 403: Resource not accessible by integration
+  #   (https://api.github.com/repos/holzcloud/holzcloud-cms/releases)
+  #
+  # because a run an App dispatched carries that App's scopes and not the
+  # repository's, whatever `permissions:` says below. Measured 2026-09-14, run
+  # 12. A tag push by a person, the path this file has always had, is
+  # unaffected.
+  #
   # v2.0 and v2.1 were built, closed and recorded, and then sat untagged:
   # `git push origin refs/tags/v2.0` is answered 403 for the credential the
   # development environment holds, while branch refs on that same credential go
