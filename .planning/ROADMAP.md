@@ -242,6 +242,12 @@ elsewhere. Two defects found while measuring, neither in the ledger.
 only item where a visitor is harmed today. The forward-auth cluster goes last:
 eight entries against one subsystem is one reading of that subsystem, not eight.
 
+**The plan held.** Reading forward-auth once showed that five of its eight
+entries were one sentence said five ways — the protocol cannot answer the
+question an operator brings to it — and they were fixed together. The ledger
+went from **15 open to 1** across four waves; the one that remains (window 34)
+was opened during the work and is deliberately open with its reason recorded.
+
 ---
 
 ## Progress
@@ -268,7 +274,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 12. The Codebase Speaks English | v2.0 | 10/10 | Complete | 2026-09-13 |
 | 13. The Public Side Speaks the Visitor's Language | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 14. A Contact Form Worth Writing Into | v2.1 | 5/5 | Complete | 2026-09-13 |
-| 15. What the Server Promises, It Keeps | v2.2 | 1/6 | In progress | - |
+| 15. What the Server Promises, It Keeps | v2.2 | 4/6 | In progress | - |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their

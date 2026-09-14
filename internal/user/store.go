@@ -157,6 +157,27 @@ func (s *Store) LinkSSO(ctx context.Context, id int64, username string) error {
 	return nil
 }
 
+// LinkedIdentity returns the identity an account is linked to, or the empty
+// string when it is linked to none.
+//
+// A reader of its own rather than a column on User, and that is deliberate: the
+// identity belongs to the sign-in path, and putting it on the struct would put
+// it into every screen that renders a person — where it is one more thing to
+// leak into a template by accident. Two callers need it and both ask a yes-or-no
+// question: may the identity provider sign this account in again by itself?
+func (s *Store) LinkedIdentity(ctx context.Context, id int64) (string, error) {
+	var name sql.NullString
+	err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT sso_username FROM users WHERE id = $1`, id).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read the linked identity: %w", err)
+	}
+	return name.String, nil
+}
+
 func (s *Store) scanOne(row *sql.Row) (*User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Password, &u.Locale)

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
@@ -89,6 +91,14 @@ type Handler struct {
 	clientIP      *web.ClientIPResolver
 	// wording is the operator's own words for what a theme calls things.
 	wording *wording.Store
+
+	// refusalSeen remembers when a refused single sign-on identity last wrote a
+	// protocol row, so a proxy stuck on one cannot grow activity_log without
+	// bound. See refuseSSO — the brake is on the writing and never on the
+	// refusing, because feeding the sign-in brake from a header a proxy wrote
+	// would let it lock out the person it names (T-10-20).
+	refusalMu   sync.Mutex
+	refusalSeen map[string]time.Time
 }
 
 // NewHandler creates an admin handler with the given dependencies.

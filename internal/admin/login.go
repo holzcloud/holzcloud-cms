@@ -148,13 +148,86 @@ func (h *Handler) completeLogin(r *http.Request, id int64, role, email string) {
 // shape mirrored for the admin policy, wired where web.AdminHeaders is wired,
 // keeping frame-ancestors 'none', X-Frame-Options: DENY and Cache-Control:
 // no-store — cmd/holzcloud/main_test.go asserts those three.
-func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) error {
-	// Before destroying it: afterwards the session no longer knows who left.
-	h.LogActivity(r, activity.Entry{Action: activity.ActionAuthLogout, EntityType: "user"})
+// wouldBeSignedBackIn reports whether destroying this session would be undone
+// by the very next click.
+//
+// Window 20. A PASSWORD session on an installation with single sign-on switched
+// on went to /admin/login, because it was not established through the outpost.
+// The middleware leaves a password session alone while it lives — but this
+// button has just destroyed it, so the next click arrives with no session, the
+// outpost's cookie is still in the browser, the identity is still linked to an
+// account, and the person is signed straight back in. A sign-out button that
+// signs nobody out.
+//
+// # Why this asks about the REQUEST and not about the account
+//
+// The first shape of this check asked whether the account leaving was linked to
+// an identity, and it broke SSO-09 — "nothing about the password path changed;
+// it is the session that decides, not the installation". That rule is not
+// bureaucracy, it is the fallback: when the proxy is broken, an operator signs
+// in with a password to go and fix it. Sending THEM to the outpost's sign-out
+// address lands them on a page served by the thing that is broken.
+//
+// So the question is asked of the request in hand. An identity in the context
+// means the proxy is alive and vouching for somebody right now; that identity
+// resolving to a linked account means the next click really does sign somebody
+// in. Both true, and going through the outpost is the only reading under which
+// the button tells the truth. Either false — proxy down, nobody asserted,
+// nothing linked — and the password path is byte for byte what it always was.
+//
+// Read before Destroy, like everything else here.
+func (h *Handler) wouldBeSignedBackIn(r *http.Request) bool {
+	if h.cfg == nil || !h.cfg.SSOEnabled || h.users == nil {
+		return false
+	}
+	ident, ok := web.IdentityFromContext(r.Context())
+	if !ok || ident == nil || strings.TrimSpace(ident.Username) == "" {
+		return false
+	}
+	u, err := h.users.GetBySSOUsername(r.Context(), ident.Username)
+	if err != nil || u == nil {
+		// A lookup that fails, or an identity nobody linked, is not a reason to
+		// send anybody to the outpost: the worst outcome then is the login
+		// form, which is where they were going anyway.
+		return false
+	}
+	return true
+}
 
-	// Read before Destroy, for the same reason the line above is where it is:
-	// afterwards the session no longer knows how it was established, and the
-	// branch would silently take the password path for everybody.
+// logoutVia names the way a session was established, for the protocol row.
+//
+// The same two words endSSOSession uses, so a filter on "via" finds both kinds
+// of ending rather than only the automatic one.
+func logoutVia(viaSSO bool) string {
+	if viaSSO {
+		return "sso"
+	}
+	return "password"
+}
+
+func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) error {
+	// Read before Destroy, for the same reason the log line below is where it
+	// is: afterwards the session no longer knows how it was established, and
+	// the branch would silently take the password path for everybody.
+	viaSSO := h.viaSSO(r)
+
+	// Before destroying it: afterwards the session no longer knows who left.
+	//
+	// "by_hand" says this was the button and not the automatic end of a session
+	// the identity provider stopped vouching for — endSSOSession writes its own
+	// reason for each of those. Until window 28 the two were one row with
+	// nothing to tell them apart, so an operator reading the protocol could not
+	// say whether somebody had signed out or had been signed out.
+	h.LogActivity(r, activity.Entry{
+		Action:     activity.ActionAuthLogout,
+		EntityType: "user",
+		// The account, so the row reads "user #7" like the one endSSOSession
+		// writes rather than "user #0". Same kind of row, same shape — which is
+		// the lesson window 22 left one screen over.
+		EntityID: h.sm.GetInt64(r.Context(), auth.SessionKeyUserID),
+		Metadata: map[string]any{"via": logoutVia(viaSSO), "reason": "by_hand"},
+	})
+
 	//
 	// Destroying the session is not on its own a sign-out for somebody the
 	// identity provider signed in. The browser still holds authentik's cookie,
@@ -164,7 +237,7 @@ func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	// half. With single sign-on switched off there is no outpost to tell, and a
 	// session carrying the mark across that change is sent to the login form.
 	target := "/admin/login"
-	if h.viaSSO(r) {
+	if viaSSO || h.wouldBeSignedBackIn(r) {
 		// A path on this server, and never an address assembled from r.Host,
 		// X-Forwarded-Host or anything else the request carries: a host taken
 		// from a request and put into a redirect is how an open redirect is
