@@ -5,7 +5,7 @@ milestone_name: "The Public Side Speaks the Visitor's Language"
 current_phase: 14
 current_phase_name: "A contact form worth writing into"
 status: complete
-stopped_at: "Meilenstein v2.1 geschlossen (2026-09-13). 14 von 14 Anforderungen erfuellt, Audit geschrieben, CHANGELOG 2.1 geschrieben. Offen bleibt allein der Release-Tag auf dem Remote (403 auf Tag-Refs) — siehe Operator Next Steps."
+stopped_at: "Meilenstein v2.1 geschlossen (2026-09-13). 14 von 14 Anforderungen erfuellt, Audit geschrieben, CHANGELOG 2.1 geschrieben. Die Release-Tags werden seit 2026-09-14 von release.yml per workflow_dispatch gepraegt; die alte Diagnose '403 auf Tag-Refs' war falsch — siehe Operator Next Steps."
 last_updated: "2026-09-13T00:00:00.000Z"
 last_activity: 2026-09-13
 progress:
@@ -477,18 +477,27 @@ public side still has no translation channel at all, and a plugin's
 
 ## Operator Next Steps
 
-- **Die Release-Tags `v2.0` und `v2.1` sind noch nicht auf dem Remote.** Für
-  `v2.1` gilt Wort für Wort dasselbe wie für `v2.0` unten: dieselbe Ursache,
-  dieselbe Abhilfe. Wer den einen pusht, pusht bitte beide.
-- **Der Release-Tag `v2.0` ist noch nicht auf dem Remote.** Er ist angelegt und
-  beschriftet auf `9fe3279` (dem ersten `main`-Commit, der die ganze Phase
-  traegt), aber `git push origin refs/tags/v2.0` wird von GitHub mit 403
-  abgewiesen: der Zugang dieser Ausfuehrungsumgebung darf Branch-Refs schreiben,
-  Tag-Refs nicht. Zweigstellen-Pushes am selben Tag liefen durch, der Proxy
-  meldet keine Stoerung — es ist eine Berechtigung, kein Netzfehler. **Zu tun:**
-  den Tag von einer Arbeitskopie mit vollem Zugang pushen. Bis dahin stempelt
-  `image.yml` (`git describe --tags`) jedes Abbild als `v1.10-31-g9fe3279`
-  statt als `v2.0`.
+- **Erledigt am 2026-09-14, und die Diagnose davor war falsch.** Zwei
+  Meilensteine lang stand hier, der Zugang dieser Ausfuehrungsumgebung duerfe
+  Branch-Refs schreiben und Tag-Refs nicht. Das war eine Vermutung aus dem
+  blossen Statuscode. Die Antwort steht im Lauf, der es von der anderen Seite
+  versuchte:
+
+  ```
+  ! [remote rejected] v2.0 -> v2.0 (refusing to allow a GitHub App to create or
+    update workflow `.github/workflows/ci.yml` without `workflows` permission)
+  ```
+
+  Ein neuer Tag-Ref hat keine Grundlage, gegen die er verglichen wuerde, also
+  zaehlt jede Workflow-Datei im Baum als neu hinzugefuegt — und kein
+  `permissions:`-Schluessel kann GITHUB_TOKEN den Bereich geben, der das
+  erlaubte. Es ging nie um die Art des Refs.
+
+  **Abhilfe, jetzt im Repository:** `release.yml` kann per `workflow_dispatch`
+  den Tag selbst praegen, mit Tag-Name und Commit als Eingaben. Der Tag entsteht
+  ueber die Releases-API (`gh release create --target`), nicht ueber einen
+  Ref-Push, und faellt damit nicht unter dieselbe Regel. Ein Tag, der schon auf
+  dem Remote steht, wird abgewiesen statt verschoben.
 - Nothing open in phase 12. The milestone is closed: `12-CONTEXT.md` and
   `12-VERIFICATION.md` are archived under `.planning/milestones/v2.0-phases/`,
   `REQUIREMENTS.md` and `ROADMAP.md` are copied beside them as
