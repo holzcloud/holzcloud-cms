@@ -68,10 +68,24 @@ jobs:
       id: name
       run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
-    # Only on a dispatch, and only when the tag does not exist yet: a tag that
-    # is already published is never moved. An annotated tag rather than a light
-    # one, so it carries who made it and when.
-    - name: Create the tag
+    # The tag, locally, so that `git describe --tags` in the build below names
+    # the release rather than degrading to a bare hash. It is NOT pushed from
+    # here, and that is the whole lesson of this file:
+    #
+    #   ! [remote rejected] v2.0 -> v2.0 (refusing to allow a GitHub App to
+    #     create or update workflow `.github/workflows/ci.yml` without
+    #     `workflows` permission)
+    #
+    # A new tag ref has no base to be compared against, so every workflow file
+    # in the tree counts as newly added — and no `permissions:` key can grant
+    # GITHUB_TOKEN the scope that would allow it. The same wall is what answers
+    # a development environment 403 on `git push origin refs/tags/v2.0` while
+    # letting branch pushes through, which was misread for two milestones as
+    # "this credential cannot write tag refs".
+    #
+    # The tag is therefore minted by the Releases API instead, in the publish
+    # step, which takes the commit as --target and is not a ref push.
+    - name: Name the tag locally, for the version in the binary
       if: github.event_name == 'workflow_dispatch'
       env:
         TAG: ${{ steps.name.outputs.tag }}
@@ -80,10 +94,7 @@ jobs:
           echo "::error::$TAG is already on the remote. A published tag is never moved."
           exit 1
         fi
-        git config user.name "github-actions[bot]"
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git tag -a "$TAG" -m "$TAG"
-        git push origin "refs/tags/$TAG"
 
     - name: Set up Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -112,8 +123,14 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG: ${{ steps.name.outputs.tag }}
+        # Empty on a tag push, where the tag already says which commit it is.
+        TARGET: ${{ github.event_name == 'workflow_dispatch' && (inputs.commit || github.sha) || '' }}
       run: |
+        # --target names the commit the tag is to be created at, and creating
+        # it is what this call does when the tag does not exist yet. On a tag
+        # push the tag is already there and the flag is left off.
         gh release create "${TAG}" \
+          ${TARGET:+--target "${TARGET}"} \
           --title "${TAG}" \
           --generate-notes \
           holzcloud-linux-amd64 \
