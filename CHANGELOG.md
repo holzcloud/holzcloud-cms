@@ -11,6 +11,76 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.2 — 2026-09-14
+
+### Behoben — eine geschützte Seite
+
+**Eine passwortgeschützte Seite durfte von einem vorgelagerten Cache
+aufbewahrt werden.** Wer das Passwort eingegeben hatte, bekam die Seite mit
+`Cache-Control: public, max-age=300` — und mit einer `Vary`-Angabe, aus der das
+Cookie verschwunden war, an dem der Zugang hängt. Ein CDN oder ein Firmenproxy
+vor diesem Server konnte sie damit fünf Minuten lang jedem geben, der die
+Adresse kannte. Das Formular *davor* war korrekt geschützt; die Seite dahinter
+nicht.
+
+Dieselbe Zeile gab einem Laden, der beide Preismodi anbietet, öffentliches
+Zwischenspeichern für Preise, die einem Cookie folgen — Geschäftskundenpreise
+konnten so an Privatkunden gehen.
+
+Es gibt jetzt drei Antworten statt einer, und jede sagt, was sie ist: öffentlich
+für das, was für alle gleich ist; privat für Preise, die dem Besucher folgen;
+gar nicht zwischenspeicherbar für eine Seite hinter einem Passwort. Bei nur
+einem Preismodus bleibt der Katalog teilbar — die stumpfe Behebung hätte jede
+Seite jeder Website uncachebar gemacht.
+
+`docs/security.md` sagt die Regel jetzt und sagt auch, was vorher falsch war.
+
+### Behoben — Einmalanmeldung
+
+- **Der Abmelde-Knopf meldete niemanden ab.** Wer sich bei eingeschalteter
+  Einmalanmeldung mit Passwort angemeldet hatte, landete beim Abmelden auf dem
+  Anmeldeformular — und der nächste Klick meldete ihn über den Ausweisdienst
+  sofort wieder an. Er geht jetzt zum Ausweisdienst, wenn dieser gerade für
+  jemanden bürgt. Ist der Proxy kaputt — der Fall, für den die Passwortanmeldung
+  da ist —, bleibt alles, wie es war.
+- **Eine abgewiesene Identität füllte das Tätigkeitsprotokoll.** Jede einzelne
+  Anfrage schrieb eine Zeile; ein Proxy, der dauernd dieselbe abgewiesene
+  Identität behauptet, liess die Tabelle unbegrenzt wachsen. Jetzt höchstens
+  eine Zeile je Identität und Grund alle 15 Minuten. Abgewiesen wird weiterhin
+  jede Anfrage.
+- **Das Protokoll sagt jetzt, warum und auf welchem Weg.** Eine abgewiesene
+  Anmeldung nennt ihren Grund, eine misslungene Sitzungserneuerung hinterlässt
+  überhaupt erst eine Zeile, und eine Abmeldung unterscheidet den Knopf vom
+  automatischen Ende. Zeilen, die bei der Bereitstellung eines Kontos entstehen,
+  tragen jetzt dieses Konto und sind über den Benutzerfilter auffindbar.
+- **Das Benutzerformular sagt, woher die Rechte kommen.** Bei einem verknüpften
+  Konto und eingerichteten Gruppen steht neben den Häkchen, dass eine Änderung
+  hier nur bis zur nächsten Anfrage hält.
+
+### Behoben — Galerie
+
+**Eine Albumgalerie sprach zwei Sprachen auf einmal.** Der Name ihres
+Schiebefelds wurde beim Speichern eingefroren, die Bedienelemente daneben bei
+der Auslieferung aufgelöst. Nach einem Sprachwechsel der Website antwortete sie
+„Imagen siguiente" neben `aria-label="Galerie"`, bis jede Seite mit einer
+Galerie neu gespeichert war. Beides entsteht jetzt in einem Zug. Alte Seiten
+laufen unverändert weiter und heilen beim nächsten Speichern — es braucht keine
+Migration.
+
+### Behoben — Kleinigkeiten
+
+- Verwaltungsantworten trugen `Vary: Cookie` zweimal.
+- `holzcloud`s Übersetzungswerkzeug liess einen verwaisten Schweizer Eintrag
+  stehen, auch beim zweiten Lauf.
+
+### Für Betreiber
+
+`release.yml` kann einen Release-Tag jetzt selbst anlegen: *Actions → Release →
+Run workflow*, mit Tag-Name und Commit. Bisher musste der Tag von Hand gepusht
+werden, bevor der Workflow überhaupt anlief.
+
+---
+
 ## 2.1 — 2026-09-13
 
 ### Hinzugefügt

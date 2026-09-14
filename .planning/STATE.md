@@ -1,18 +1,18 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: "The Public Side Speaks the Visitor's Language"
-current_phase: 14
-current_phase_name: "A contact form worth writing into"
+milestone: v2.2
+milestone_name: "What the Server Promises, It Keeps"
+current_phase: 15
+current_phase_name: "What the server promises, it keeps"
 status: complete
-stopped_at: "Meilenstein v2.1 geschlossen (2026-09-13). 14 von 14 Anforderungen erfuellt, Audit geschrieben, CHANGELOG 2.1 geschrieben. Die Release-Tags legt der Betreiber an: seit dem 11.09. arbeitet diese Umgebung als App-Integration statt unter seinem Konto, und eine App darf keinen Tag-Ref mit Workflow-Dateien anlegen — siehe Operator Next Steps."
-last_updated: "2026-09-13T00:00:00.000Z"
-last_activity: 2026-09-13
+stopped_at: "Meilenstein v2.2 geschlossen (2026-09-14). 11 von 11 Anforderungen erfuellt; das Hauptbuch steht auf 1 offen statt 15. Offen bleibt allein, dass der Betreiber die Release-Tags anlegt — siehe Operator Next Steps."
+last_updated: "2026-09-14T00:00:00.000Z"
+last_activity: 2026-09-14
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -21,7 +21,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **keiner — v2.1 „The Public Side Speaks the Visitor's Language“ (Phasen 13–14) ist geschlossen (2026-09-13)**. Der nächste Meilenstein ist noch nicht eröffnet. Was v2.1 war und was offen blieb, steht unter `## Current Position`. Vormals: **eröffnet 2026-09-13** — am selben Tag, an dem v2.0 schloss, und der erste Punkt repariert v2.0: PUB-01 ist eine lebende Regression, englische Ablehnungen vor deutschen Besuchern. Die Entscheidung, auf der alles ruht, steht in `milestones/v2.1-phases/13-public-translation/13-CONTEXT.md` §2 und stürzt `TEMPLATE-SPEC.md` §2.5 um. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`.
+- Current focus: **keiner — v2.2 „What the Server Promises, It Keeps“ (Phase 15) ist geschlossen (2026-09-14)**, davor v2.1 (Phasen 13–14, geschlossen 2026-09-13). Der nächste Meilenstein ist noch nicht eröffnet. Was v2.1 war und was offen blieb, steht unter `## Current Position`. Vormals: **eröffnet 2026-09-13** — am selben Tag, an dem v2.0 schloss, und der erste Punkt repariert v2.0: PUB-01 ist eine lebende Regression, englische Ablehnungen vor deutschen Besuchern. Die Entscheidung, auf der alles ruht, steht in `milestones/v2.1-phases/13-public-translation/13-CONTEXT.md` §2 und stürzt `TEMPLATE-SPEC.md` §2.5 um. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
@@ -410,6 +410,35 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - 10-08: das isTrustedProxy-Tor des Plans schliesst '^\./\.planning/' aus, grep gibt hier aber Pfade ohne './' aus — es liest 14 statt 0. Korrigierte Form: grep -v '^\(\./\)\?\.planning/'. Die Eigenschaft selbst gilt (0 ausserhalb .planning/). Fuenfter Fall in dieser Phase.
 
 ## Current Position
+
+Phase: none open. **Milestone v2.2 is closed** (2026-09-14), 11 of 11
+requirements satisfied, audit in `.planning/milestones/v2.2-MILESTONE-AUDIT.md`,
+phase record in `milestones/v2.2-phases/15-promises-kept/15-VERIFICATION.md`.
+Status: Complete
+Last activity: 2026-09-14 — the ledger worked from 15 open entries to 1
+
+**What v2.2 did.** Not a feature: it worked the open-window ledger, which had
+carried fifteen entries since v1.10 and v2.0 while two milestones closed over
+the top of them. The first hour found what none of the fifteen named — a
+password-protected page was being offered to shared caches for five minutes at a
+time, because one line wrote `Vary` with `Set` and deleted the cookie the access
+depends on. Eight forward-auth entries were read as one subsystem and five of
+them turned out to be one sentence said five ways. The ledger itself had to be
+repaired before it could be worked: its two representations had drifted, and one
+row was malformed so that every parser dropped it.
+
+**Twice the conservative-looking change was wrong** and had to be narrowed, and
+the second time an existing test forced it. That is the phase's lesson and it is
+written into `15-CONTEXT.md` §8.
+
+**One ledger entry is open**, window 34, opened during the work: an album
+gallery answers in the website's language rather than the page's. Closing it
+means making the inline gallery's frozen words late as well — the architecture
+question window 8 was expected to be.
+
+---
+
+### The milestone before this one (v2.1, closed 2026-09-13)
 
 Phase: none open. **Milestone v2.1 is closed** (2026-09-13), 14 of 14
 requirements satisfied, audit in `.planning/milestones/v2.1-MILESTONE-AUDIT.md`.

@@ -1,5 +1,69 @@
 # Milestones
 
+## v2.2 What the Server Promises, It Keeps (Shipped: 2026-09-14)
+
+**Delivered:** Not a feature. The open-window ledger had carried fifteen entries
+since v1.10 and v2.0, and two milestones closed over the top of them. This one
+worked it to one — and the first hour of doing so found a defect none of the
+fifteen named: a password-protected page was being offered to shared caches for
+five minutes at a time.
+
+**Phases completed:** 1 phase (15), 4 waves
+**Timeline:** 2026-09-14, one day, `32d545d` → close, 8 commits
+**Code:** 39 files changed, +1 635 / −261 since the `v2.1` close; 119 305 lines
+of Go in 420 files at close, 1341 test functions, 1825 catalogue entries in each
+of de, es, fr and it
+**Verification:** `milestones/v2.2-phases/15-promises-kept/15-VERIFICATION.md` —
+11 of 11 requirements met, every fix driven red before it was driven green
+**Closeout:** clean — nothing carried forward; one ledger entry open, opened
+during the work
+
+**Key accomplishments:**
+
+1. **A protected page is no longer cacheable by a shared proxy.** `serveCached`
+   wrote `Vary` with `Set`, which deleted the `Vary: Cookie` the session
+   middleware adds, and answered `public, max-age=300` — for the page behind a
+   password as much as for any other. A CDN or company proxy could hold it and
+   hand it to somebody who never typed the password. `access.go` had written
+   that exact danger down above the gate it guards correctly; the form was
+   protected and the page behind it was not.
+
+2. **The cure was narrowed twice, and both times that was the work.** Adding
+   `Cookie` to every answer would have made every page of every site
+   uncacheable in exchange for nothing, so there are three answers now, each
+   stating what it is. And the sign-out fix first asked whether the *account*
+   was linked, which broke SSO-09 — the fallback an operator uses when the proxy
+   is broken, since sending them to the outpost's address means sending them to
+   the broken thing. An existing test caught it; the question is now asked of
+   the request in hand.
+
+3. **Eight forward-auth entries read as one subsystem, not eight items.** Five
+   of them were the same sentence said five ways: the protocol cannot answer the
+   question an operator brings to it. The one with teeth — a denied identity
+   writing an unthrottled row on every request — could not be cured the obvious
+   way, because T-10-20 forbids feeding the sign-in brake from a header a proxy
+   wrote; the brake sits on the writing instead.
+
+4. **The ledger was repaired before it was worked.** Its markdown table and its
+   JSON block had drifted by four rows, and one row carried an unescaped pipe so
+   that every parser dropped it. A register nobody can parse is a register
+   nobody works. At the close the counts are asserted rather than eyeballed, and
+   every waived row carries a reason.
+
+5. **A wrong diagnosis of this project's own release problem, corrected.** For
+   two milestones `STATE.md` said the development credential "may write branch
+   refs and not tag refs". Measured: until 2026-09-11 this environment worked
+   under the operator's own account, and since then it is an App integration —
+   and an App may not create a tag ref whose tree carries workflow files. The
+   entry now separates what was measured from what is documented behaviour.
+
+**Open:** the release tags. `v2.0`, `v2.1` and `v2.2` are all still missing from
+the remote, and the remedy is the operator's account — either the new
+`workflow_dispatch` path in `release.yml` or four git commands. See `STATE.md` →
+*Operator Next Steps*.
+
+---
+
 ## v2.1 The Public Side Speaks the Visitor's Language (Shipped: 2026-09-13)
 
 **Delivered:** A website published in French reads French — its chrome, its
