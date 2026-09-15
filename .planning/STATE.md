@@ -4,16 +4,16 @@ milestone: v2.3
 milestone_name: "Every Word on a Page Belongs to Whoever Reads It"
 current_phase: 16
 current_phase_name: "Every word on a page belongs to whoever reads it"
-status: in_progress
-stopped_at: "16-00 gefahren: WORD-04 ist gemessen und steht in 16-MEASUREMENT.md, die Zahlen in 16-BENCH.txt, der Messstand in internal/block/frozen_bench_test.go. Ergebnis: Suchen ist umsonst, Neuschreiben kostet - ein bewachter Ein-Pass-Ersatz kostet die haeufige Seite 311 ns und 0 Bytes, unbewacht 37 us und 49 KB, ein erneutes Rendern 124 us und 215 KB. Damit ist D ausgeschieden und C mit Waechter der Kandidat. Was die Messung NICHT entscheidet, steht in 16-MEASUREMENT.md Paragraph 5. Naechstes: WORD-01/02 planen."
+status: complete
+stopped_at: "Meilenstein v2.3 geschlossen (2026-09-15). 8 von 8 Anforderungen erfuellt; das Fensterbuch steht zum ersten Mal auf NULL offen (25 behoben, 9 angenommen, 34 gesamt). Kein Meilenstein ist eroeffnet. Offen bleibt allein eine Ausgabe v2.3, wenn sie verlangt wird - nichts veroeffentlicht von selbst. Nebenher in diesem Durchgang: v2.0, v2.1 und v2.2 sind endlich als Ausgabe erschienen, von CI gebaut und geprueft; die Fassungsnummer in der Seitenleiste fuehrt jetzt zum Changelog; und tools/wasm -check stand zwei Tage rot auf main, ohne dass es jemand gelesen hat."
 last_updated: "2026-09-15T00:00:00.000Z"
 last_activity: 2026-09-15
 progress:
   total_phases: 1
-  completed_phases: 0
-  total_plans: 4
-  completed_plans: 1
-  percent: 25
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+  percent: 100
 ---
 
 ## State: Holzcloud CMS
@@ -21,7 +21,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **v2.3 „Every Word on a Page Belongs to Whoever Reads It“ (Phase 16), eröffnet 2026-09-14, erster Plan 16-00 gefahren 2026-09-15.** Das Thema ist das letzte Zimmer eines Hauses, an dem drei Meilensteine gebaut haben: fünf Wörter, die dieses Programm selbst prägt, stehen seit dem Speichern in `pages.content_html` — in der Sprache, die die Website damals hatte. WORD-04 verlangt, dass zuerst gemessen wird, und das ist geschehen: `.planning/phases/16-every-word/16-MEASUREMENT.md`. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, `.planning/phases/16-every-word/16-CONTEXT.md`. Was v2.2 war und was offen blieb, steht unter `## Current Position`.
+- Current focus: **keiner — v2.3 „Every Word on a Page Belongs to Whoever Reads It“ (Phase 16) ist geschlossen (2026-09-15).** Davor v2.2 (Phase 15, 2026-09-14) und v2.1 (Phasen 13–14, 2026-09-13). Der naechste Meilenstein ist noch nicht eroeffnet; die Nummerierung geht bei Phase 17 weiter. Das Fensterbuch (`.planning/WINDOWS.md`) steht zum ersten Mal auf **null offen** — jeder Eintrag ist behoben oder mit einer nachpruefbaren Begruendung angenommen. Was v2.3 war, steht in `milestones/v2.3-MILESTONE-AUDIT.md` und `milestones/v2.3-phases/16-every-word/16-VERIFICATION.md`; die Messung, auf der die Loesung ruht, in `16-MEASUREMENT.md`. Einstieg fuer den naechsten Meilenstein: `.planning/ROADMAP.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind
