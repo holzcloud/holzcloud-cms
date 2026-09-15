@@ -73,6 +73,16 @@ Aktualisierung aufgeht. Wer wissen will, was neu ist, klickt auf die Nummer.
 Herunterladen**, mit dem fertigen Linux-Programm und seiner Prüfsumme. Sie waren
 im Changelog beschrieben und nie veröffentlicht worden.
 
+**Vier Abhängigkeiten sind aktualisiert**, alle aus der festen Liste, auf der
+dieses Programm steht: der SQLite-Treiber (1.57.0 → 1.58.0), die Migrationen
+(goose 3.27.3 → 3.28.0), der Markdown-Übersetzer (goldmark 1.8.5 → 1.8.6) und
+die Kryptografie, an der die Passwörter hängen (x/crypto 0.55.0 → 0.57.0). Der
+Treiberwechsel ist der einzige, bei dem etwas schiefgehen könnte, und er wurde
+nachgesehen statt angenommen: ein Programm aus diesem Stand hat eine Datenbank
+geöffnet, die eine ältere Fassung geschrieben hatte, meldete Schemastand 56 und
+antwortete auf die Prüfung mit „integrity: ok". **Es ist nichts zu tun**, aber
+es steht hier, weil ein Treiber unter einer Datenbank kein Nebensatz ist.
+
 Eine Warnung, die dabei herauskam und die eine eigene Zeile verdient: die
 mitgelieferten Plugin-Module von 2.1 und 2.2 waren gegen eine ältere Fassung der
 Plugin-Schnittstelle gebaut. Die Prüfung, die genau das findet, lief zwei Tage
