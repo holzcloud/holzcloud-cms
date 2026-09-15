@@ -1,0 +1,148 @@
+name: Backfill the missed releases
+
+# A one-shot. Three milestones were closed without a tag, because the session
+# that closed them cannot write refs/tags through its proxy and a run it
+# DISPATCHES carries its App's scopes and is refused at the publish step. A run
+# started by a PUSH holds the repository's ordinary token and may publish, so
+# this file exists to be pushed once, watched, and deleted together with its
+# branch. It is deliberately not on main: there is nothing here to keep.
+#
+# The branch is not `release`, because a push to that one would start
+# release.yml as well, and release.yml reads the CHANGELOG at the pushed
+# commit — it would try to mint v2.2 at the head of main while the job below
+# was minting it at the commit that actually closed the milestone.
+on:
+  push:
+    branches: [ 'backfill-releases' ]
+
+permissions:
+  contents: read
+
+env:
+  CGO_ENABLED: "0"
+  HOLZCLOUD_TEST_REQUIRE_WASM: "1"
+
+jobs:
+  backfill:
+    name: Publish v2.0, v2.1 and v2.2 at the commits that closed them
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # The whole history, because every commit released below is older than
+        # this branch's head and `git describe` needs the tags besides.
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    # One job and one loop rather than a matrix: the releases have to be made
+    # oldest first, because --generate-notes writes each one's changelog against
+    # the release that existed before it. Out of order, v2.1 would be described
+    # as everything since v1.10.
+    - name: Publish
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+
+        # tag:commit:modules — the commit is the one whose CHANGELOG heading
+        # first named that version, which is to say the one that closed the
+        # milestone, and the last field says whether the plugin modules are
+        # checked against their source.
+        #
+        # Except v2.2, which is tagged at b2356f9 instead: the commit that
+        # closed the milestone carries four plugin modules compiled against the
+        # SDK as it was before the contact-form work, and a release is a claim
+        # that the code in it is good. The tests pass there — they load the
+        # committed module — which is precisely why the module check exists.
+        # b2356f9 has the same CHANGELOG heading, the rebuilt modules and the
+        # release pipeline that publishes this, and is the last commit before
+        # v2.3's work began.
+        #
+        # And except v2.1, whose close commit carries the same four modules and
+        # has nowhere else to be tagged: no later commit still names 2.1. Its
+        # check is off, deliberately and once. The rule it would fail was
+        # adopted on 2026-09-15 and that commit is from 2026-09-13; a tag cannot
+        # be made to satisfy a rule written after the code it names without
+        # rewriting that code, and rewriting a milestone's close commit to make
+        # a late tag look tidy is the worse trade. The difference is an SDK
+        # recompiled, not a source change — measured: same Go version, about
+        # 1.2 KB of linked code those four plugins do not call. The test suite
+        # is still the gate and it runs against the modules actually in that
+        # tree. Written down rather than quietly skipped, which is the only kind
+        # of exemption worth having.
+        for pair in \
+          v2.0:9fe327929bd881339bfcbbdda8971498435f4214:yes \
+          v2.1:32d545daa6fcf995b2a3b9d734045a66ab56b3e9:no \
+          v2.2:b2356f9ac4d01d639171dbe245c430e64a01f006:yes
+        do
+          IFS=: read -r tag commit modules <<<"$pair"
+
+          echo "::group::$tag at $commit"
+
+          # Skipped rather than refused. A published tag is never moved, and
+          # this file is a one-shot that may have to be pushed twice: the first
+          # run made v2.0 and then stopped on v2.1's modules. Failing here would
+          # leave editing the list as the only way to finish the job, and an
+          # edited list is one somebody can get wrong.
+          if gh api "repos/$REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "$tag already exists; leaving it exactly as it is."
+            echo "::endgroup::"
+            continue
+          fi
+
+          # The CHANGELOG at that commit has to name the version being tagged,
+          # or the pair above is wrong and the release would be unexplainable.
+          version=$(git show "$commit:CHANGELOG.md" | grep -m1 -oE '^## [0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/^## //')
+          if [ "v$version" != "$tag" ]; then
+            echo "::error::$commit says $version, not ${tag#v}."
+            exit 1
+          fi
+
+          git checkout --detach "$commit"
+          # Lightweight and local: it never leaves the runner. It exists so the
+          # version baked into the binary is the release and not a bare hash.
+          # The tag that reaches the remote is made by the API call below.
+          git tag -f "$tag"
+
+          # A tag on broken code must not become a published release, even one
+          # made late. The module check is here for the same reason it is in
+          # release.yml: the suite runs the committed .wasm, so a module built
+          # against an older SDK is green in the tests and wrong in the field.
+          # The one tag it is off for says above why, at length.
+          if [ "$modules" = yes ]; then
+            go run ./tools/wasm -check
+          else
+            echo "::warning::$tag: the plugin module check is off for this tag by decision; see the comment in this workflow."
+          fi
+          go test ./...
+
+          GOOS=linux GOARCH=amd64 go build -trimpath \
+            -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" \
+            -o holzcloud-linux-amd64 ./cmd/holzcloud
+          sha256sum holzcloud-linux-amd64 > holzcloud-linux-amd64.sha256
+          cat holzcloud-linux-amd64.sha256
+
+          # --target names the commit the tag is created at. Creating a release
+          # is not a ref push, which is the whole reason this works at all.
+          gh release create "$tag" \
+            --target "$commit" \
+            --title "$tag" \
+            --generate-notes \
+            holzcloud-linux-amd64 \
+            holzcloud-linux-amd64.sha256
+
+          rm -f holzcloud-linux-amd64 holzcloud-linux-amd64.sha256
+          echo "::endgroup::"
+        done
+
+        gh release list --limit 10
