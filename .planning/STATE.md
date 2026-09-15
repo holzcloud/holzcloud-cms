@@ -1,19 +1,19 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.3
-milestone_name: "Every Word on a Page Belongs to Whoever Reads It"
-current_phase: 16
-current_phase_name: "Every word on a page belongs to whoever reads it"
-status: complete
-stopped_at: "Meilenstein v2.3 geschlossen (2026-09-15). 8 von 8 Anforderungen erfuellt; das Fensterbuch steht zum ersten Mal auf NULL offen (25 behoben, 9 angenommen, 34 gesamt). Kein Meilenstein ist eroeffnet. Offen bleibt allein eine Ausgabe v2.3, wenn sie verlangt wird - nichts veroeffentlicht von selbst. Nebenher in diesem Durchgang: v2.0, v2.1 und v2.2 sind endlich als Ausgabe erschienen, von CI gebaut und geprueft; die Fassungsnummer in der Seitenleiste fuehrt jetzt zum Changelog; und tools/wasm -check stand zwei Tage rot auf main, ohne dass es jemand gelesen hat."
+milestone: v2.4
+milestone_name: "What Has Accumulated"
+current_phase: 17
+current_phase_name: "What has accumulated"
+status: in_progress
+stopped_at: "v2.4 eroeffnet 2026-09-15, am selben Tag, an dem v2.3 schloss und als Ausgabe 2.3 erschien. 17-00 gefahren: der Bestand ist gemessen und steht in 17-INVENTORY.md, die Rohzahlen in 17-COVERAGE.txt. Ueberraschung zuoberst - der Baum ist besser in Form, als ein Aufraeum-Meilenstein annimmt: null TODO, null FIXME, null uebersprungene Tests, jede festgeschriebene Zusicherung noch wahr. Vier Dinge hat er trotzdem angesammelt: Abdeckung dort, wo die Verdrahtung liegt (internal/admin 35.9 Prozent ueber 171 Routen), Kommentare, die nicht mehr stimmen (einer nennt eine Zeile, die es nicht gibt), 301 von 1312 exportierten Namen, die ausserhalb ihres Pakets niemand braucht, und zwei festgehaltene Maengel ohne Eintrag im Fensterbuch. Naechstes: 17-01 (DOC), 17-02 (SURF), 17-03 (die zwei Maengel); die Verwaltung unter Test wird Phase 18."
 last_updated: "2026-09-15T00:00:00.000Z"
 last_activity: 2026-09-15
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 2
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 1
+  percent: 25
 ---
 
 ## State: Holzcloud CMS
@@ -21,7 +21,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **keiner — v2.3 „Every Word on a Page Belongs to Whoever Reads It“ (Phase 16) ist geschlossen (2026-09-15).** Davor v2.2 (Phase 15, 2026-09-14) und v2.1 (Phasen 13–14, 2026-09-13). Der naechste Meilenstein ist noch nicht eroeffnet; die Nummerierung geht bei Phase 17 weiter. Das Fensterbuch (`.planning/WINDOWS.md`) steht zum ersten Mal auf **null offen** — jeder Eintrag ist behoben oder mit einer nachpruefbaren Begruendung angenommen. Was v2.3 war, steht in `milestones/v2.3-MILESTONE-AUDIT.md` und `milestones/v2.3-phases/16-every-word/16-VERIFICATION.md`; die Messung, auf der die Loesung ruht, in `16-MEASUREMENT.md`. Einstieg fuer den naechsten Meilenstein: `.planning/ROADMAP.md`.
+- Current focus: **v2.4 „What Has Accumulated“ (Phasen 17–18), eröffnet 2026-09-15.** Kein Funktionsmeilenstein und mit Absicht keiner: drei Meilensteine hintereinander haben geändert, was das Programm sagt — dieser ändert nichts, was ein Betreiber sieht. Er gibt es, weil das Fensterbuch zum ersten Mal leer ist, und ein leeres Fensterbuch ist kein sauberer Baum, sondern einer, in dem nichts mehr steht, das jemand aufgeschrieben hat. Der Bestand ist gemessen: `.planning/phases/17-what-has-accumulated/17-INVENTORY.md`. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, `17-CONTEXT.md`. Was v2.3 war, steht in `milestones/v2.3-MILESTONE-AUDIT.md`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind

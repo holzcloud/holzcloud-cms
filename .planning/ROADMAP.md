@@ -7,7 +7,8 @@
 - ✅ **v2.0 — The Codebase Speaks English** — Phase 12 (closed 2026-09-13, released as 2.0)
 - ✅ **v2.1 — The Public Side Speaks the Visitor's Language** — Phases 13–14 (closed 2026-09-13, released as 2.1)
 - ✅ **v2.2 — What the Server Promises, It Keeps** — Phase 15 (closed 2026-09-14, released as 2.2)
-- ✅ **v2.3 — Every Word on a Page Belongs to Whoever Reads It** — Phase 16 (closed 2026-09-15)
+- ✅ **v2.3 — Every Word on a Page Belongs to Whoever Reads It** — Phase 16 (closed 2026-09-15, released as 2.3)
+- 🚧 **v2.4 — What Has Accumulated** — Phases 17–18 (opened 2026-09-15)
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -291,9 +292,40 @@ however elegant.
 
 ---
 
+### 🚧 v2.4 — What Has Accumulated (opened 2026-09-15)
+
+Not a feature milestone, and deliberately so. Three milestones in a row changed
+what the program says to whoever is reading; this one changes nothing an
+operator can see.
+
+It exists because the window ledger is empty for the first time, and an empty
+ledger is not a clean tree — it is a tree with nothing left that somebody wrote
+down. So the stock-take looked at what the ledger was never watching.
+
+**Requirements:** TEST-01…03, DOC-01…03, SURF-01/02, GAP-01/02, plus the
+standing gates. Full text in `.planning/REQUIREMENTS.md`.
+
+**What the stock-take found, and the surprise is at the top:** the tree is in
+better shape than a cleanup milestone assumes. Zero TODO, zero FIXME, zero
+skipped tests, every documented invariant still true. What it did leave is the
+four things a working tree accumulates without anybody deciding to — coverage
+where the wiring is (`internal/admin` at 35.9 % over 171 routes), comments that
+have stopped being true (one cites a line that cannot exist), 301 exported names
+nobody outside needs, and two recorded limitations with no ledger entry.
+
+**The trap it plans around:** a coverage number is not a goal. The way to move
+35.9 % is to write tests that execute lines, and the way to do that badly is to
+write tests that execute lines. TEST-03 — every new test driven red first — is
+the only thing keeping the phase honest.
+
+**Shape:** phase 17 takes the work that is measurable and finishes (DOC, SURF,
+the two gaps); the administration under test is phase 18.
+
+---
+
 ## Progress
 
-Phases 13 to 16 are complete; v2.1, v2.2 and v2.3 are closed. No milestone is open. Numbering continues from 17; it never restarts.
+Phases 13 to 16 are complete; v2.1, v2.2 and v2.3 are closed and released. **v2.4 is open** with phases 17 and 18. Numbering continues from 17; it never restarts.
 
 Phase 16 ran three plans rather than the four it was planned with, and the missing one is the point: WORD-01, WORD-02 and WORD-03 turned out to be one change and not three, because the mechanism WORD-04 measured for makes all three true at once. It also **closed the ledger**, which had been open since v1.10.
 
@@ -322,6 +354,8 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 14. A Contact Form Worth Writing Into | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 15. What the Server Promises, It Keeps | v2.2 | 6/6 | Complete | 2026-09-14 |
 | 16. Every Word on a Page Belongs to Whoever Reads It | v2.3 | 3/3 | Complete | 2026-09-15 |
+| 17. What Has Accumulated | v2.4 | 1/4 | In progress | - |
+| 18. The Administration Under Test | v2.4 | 0/? | Not started | - |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
