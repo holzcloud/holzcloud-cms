@@ -884,6 +884,16 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/2fa/aus", adminHandler.ErrHandler(adminHandler.HandleTwoFactorDisable))
 	adminProtectedMux.HandleFunc("GET /admin/", adminHandler.ErrHandler(adminHandler.HandleDashboard))
 
+	// What changed, by version. Two addresses for one handler: the bare one is
+	// the newest entry, the one with a number is that entry — a link somebody
+	// can send to a colleague who is still on the older build.
+	//
+	// Signed in and nothing more. What this program changed between two
+	// versions is not a secret from an editor; they are the ones who will
+	// notice the difference.
+	adminProtectedMux.HandleFunc("GET /admin/neuerungen", adminHandler.ErrHandler(adminHandler.HandleChangelog))
+	adminProtectedMux.HandleFunc("GET /admin/neuerungen/{version}", adminHandler.ErrHandler(adminHandler.HandleChangelog))
+
 	// Website routes
 	adminProtectedMux.HandleFunc("GET /admin/websites", adminHandler.ErrHandler(adminHandler.HandleWebsiteList))
 	adminProtectedMux.Handle("GET /admin/websites/new", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteCreate))))
