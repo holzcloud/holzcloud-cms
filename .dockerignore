@@ -12,4 +12,16 @@ sites
 docs
 deploy
 *.md
+
+# Zwei Ausnahmen, und beide sind keine Dokumentation, sondern Bestandteile des
+# Programms:
+#
+#   README.md   liegt im Abbild, damit `docker run --rm <bild> cat /README.md`
+#               beantwortet, was das Ding ist.
+#   CHANGELOG.md wird von changelog.go per go:embed in das Binär gelegt und
+#               steht in der Verwaltung hinter der Fassungsnummer. Ohne diese
+#               Zeile findet der Bau die Datei nicht und bricht mit
+#               "pattern CHANGELOG.md: no matching files found" ab — was er am
+#               2026-09-15 auch getan hat, weil die Zeile fehlte.
 !README.md
+!CHANGELOG.md
