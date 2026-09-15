@@ -73,6 +73,96 @@ type Manifest struct {
 
 	// Admin describes the entry in the admin sidebar, if the plugin has one.
 	Admin *AdminEntry `json:"admin,omitempty"`
+
+	// Lang translates the three strings above that an operator reads: Name,
+	// Description and Admin.Label. Keyed by language tag, then by the source
+	// string — the same scheme a theme's lang/<tag>.json uses, because it is
+	// the same rule: the sentence is the key, there are no invented
+	// identifiers, and a key that is missing falls back to the sentence.
+	//
+	// Inside the manifest rather than in a lang/ directory of its own, and that
+	// is about this case and not about taste. A theme has dozens of words,
+	// written into different templates at different times, and a file per
+	// language is what keeps them readable. A plugin has three, all declared
+	// here already — a second file to hold three lines is a second file to
+	// forget. It is also what the host reads BEFORE the module exists, which is
+	// exactly when these three are needed: the sidebar is drawn whether or not
+	// the plugin has ever been called.
+	//
+	// The operator's language and never the visitor's. sdk.T answers in the
+	// operator's language on an admin request and in the page's on a public
+	// one, because those are different questions; these three strings only ever
+	// appear in the admin, so only one of the two can apply.
+	//
+	// A manifest with no lang at all is exactly the manifest this program
+	// accepted before v2.3.
+	Lang map[string]map[string]string `json:"lang,omitempty"`
+}
+
+// Text translates one of this manifest's own strings into lang.
+//
+// Falls back to the string itself: an unknown language, a language that carries
+// only some of the three, and a plugin with no catalogue all end at the source
+// sentence. That is the theme rule as well — "the operator's word, the theme's,
+// then the key itself" — with the middle step absent here, because a plugin's
+// name is not something a website operator overrides.
+func (m Manifest) Text(lang, s string) string {
+	if s == "" || m.Lang == nil {
+		return s
+	}
+	if out, ok := m.Lang[lang][s]; ok && out != "" {
+		return out
+	}
+	// A regional tag falls back to its base language before it falls back to
+	// the source: de-CH asks de, which is how every other catalogue in this
+	// program behaves and the reason a Swiss operator does not suddenly read
+	// English plugin names.
+	if base, _, ok := strings.Cut(lang, "-"); ok {
+		if out, ok := m.Lang[base][s]; ok && out != "" {
+			return out
+		}
+	}
+	return s
+}
+
+// NameIn, DescriptionIn and AdminLabelIn are the three callers there are.
+//
+// Named rather than left to Text at every call site, so that adding a fourth
+// translatable string is one change here and not a search through the admin.
+func (m Manifest) NameIn(lang string) string { return m.Text(lang, m.Name) }
+
+// DescriptionIn is the sentence under the name on /admin/plugins.
+func (m Manifest) DescriptionIn(lang string) string { return m.Text(lang, m.Description) }
+
+// AdminLabelIn is what the sidebar says, empty for a plugin with no screen.
+func (m Manifest) AdminLabelIn(lang string) string {
+	if m.Admin == nil {
+		return ""
+	}
+	return m.Text(lang, m.Admin.Label)
+}
+
+// TranslatableStrings is the three, in a fixed order, skipping the empty ones.
+//
+// Exported because the check that the shipped plugins carry their four
+// languages has to ask what there is to carry, and a list spelled out a second
+// time in a test is a list that stops matching.
+func (m Manifest) TranslatableStrings() []string {
+	var out []string
+	for _, s := range []string{m.Name, m.Description, m.AdminLabel()} {
+		if strings.TrimSpace(s) != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// AdminLabel is the untranslated label, empty for a plugin with no screen.
+func (m Manifest) AdminLabel() string {
+	if m.Admin == nil {
+		return ""
+	}
+	return m.Admin.Label
 }
 
 // AdminEntry is a plugin's own screen in the admin.

@@ -51,8 +51,11 @@ const sessionLastWebsite = "nav_website"
 // Order of preference: the website named in the address, then the one from the
 // last visit, then simply the first. The last two are conveniences; the address
 // always wins, because that is what the person actually clicked.
-// plugins may be nil, and then there are simply no plugin entries.
-func WithNav(sm *scs.SessionManager, list func(context.Context) ([]domain.Website, error), plugins func(websiteID int64) []NavLink) func(http.Handler) http.Handler {
+// plugins may be nil, and then there are simply no plugin entries. It takes the
+// request's context and not only a website id, because a plugin's menu entry is
+// a string the plugin declared and translated, and the language to resolve it
+// in is the operator's — which lives in the context and nowhere else.
+func WithNav(sm *scs.SessionManager, list func(context.Context) ([]domain.Website, error), plugins func(ctx context.Context, websiteID int64) []NavLink) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if list == nil {
@@ -85,7 +88,7 @@ func WithNav(sm *scs.SessionManager, list func(context.Context) ([]domain.Websit
 				if ws != nil {
 					forSite = ws.ID
 				}
-				ctx = context.WithValue(ctx, keyPluginLinks, plugins(forSite))
+				ctx = context.WithValue(ctx, keyPluginLinks, plugins(ctx, forSite))
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

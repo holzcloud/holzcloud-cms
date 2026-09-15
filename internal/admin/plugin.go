@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -30,6 +31,16 @@ type PluginRow struct {
 	// for without opening the archive.
 	Hooks       []string
 	Permissions []string
+	// DisplayName, DisplayDescription and DisplayLabel are the three strings
+	// the plugin declared, in the operator's language.
+	//
+	// Resolved here rather than in the template, so that the template asks for
+	// a word and never for a language: the one place that knows which language
+	// an admin request is in is the request, and a {{...}} that reached for it
+	// would be the beginning of locale logic in markup.
+	DisplayName        string
+	DisplayDescription string
+	DisplayLabel       string
 }
 
 // PluginScreenData wraps a plugin's own admin screen.
@@ -61,9 +72,14 @@ func (h *Handler) HandlePluginList(w http.ResponseWriter, r *http.Request) error
 		for _, id := range p.Websites {
 			row.OnWebsite[id] = true
 		}
+		row.DisplayName = p.Name
 		if p.Manifest != nil {
 			row.Hooks = p.Manifest.Hooks
 			row.Permissions = p.Manifest.Permissions
+			lang := i18n.Lang(r.Context())
+			row.DisplayName = p.Manifest.NameIn(lang)
+			row.DisplayDescription = p.Manifest.DescriptionIn(lang)
+			row.DisplayLabel = p.Manifest.AdminLabelIn(lang)
 		}
 		rows = append(rows, row)
 	}
@@ -106,7 +122,7 @@ func (h *Handler) HandlePluginUpload(w http.ResponseWriter, r *http.Request) err
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Installing failed: %s", err))
 		return h.redirect(w, r, "/admin/plugins")
 	}
-	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r, "%s %s installed. It is still switched off — switch it on and choose the websites.", m.Name, m.Version))
+	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r, "%s %s installed. It is still switched off — switch it on and choose the websites.", m.NameIn(i18n.Lang(r.Context())), m.Version))
 	return h.redirect(w, r, "/admin/plugins")
 }
 
@@ -266,14 +282,21 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 		return writePluginDownload(w, *d)
 	}
 
+	// The plugin's own name, in the operator's language, for the two places the
+	// screen says it. out.Title is the plugin's own sentence for this view and
+	// it already came back through sdk.T, so it is left alone.
+	name := st.Name
+	if st.Manifest != nil {
+		name = st.Manifest.NameIn(i18n.Lang(r.Context()))
+	}
 	title := out.Title
 	if title == "" {
-		title = st.Name
+		title = name
 	}
 	data := PluginScreenData{
 		LayoutData: web.NewLayoutData(r, h.sm, title),
 		PluginID:   id,
-		PluginName: st.Name,
+		PluginName: name,
 		// Sanitised, not trusted: the same policy as page content, so a plugin
 		// cannot put a script into the admin of the person who installed it.
 		// The session token goes in afterwards, so a plugin's form posts back

@@ -1,12 +1,39 @@
 {
   "id": "nicht-gefunden",
   "abi": 1,
-  "name": "Nicht gefunden",
+  "name": "Not found",
   "version": "1.0.0",
-  "description": "Sammelt die Adressen, die Besucher anfragen und nicht bekommen — und woher sie kamen. Zeigt, welche alte Adresse eine Weiterleitung braucht.",
+  "description": "Collects the addresses visitors ask for and do not get — and where they came from. Shows which old address needs a redirect.",
   "author": "Holzcloud",
   "license": "MIT",
-  "hooks": ["event", "admin"],
-  "permissions": ["store", "log"],
-  "admin": {"label": "Nicht gefunden", "per_website": true}
+  "hooks": [
+    "event",
+    "admin"
+  ],
+  "permissions": [
+    "store",
+    "log"
+  ],
+  "admin": {
+    "label": "Not found",
+    "per_website": true
+  },
+  "lang": {
+    "de": {
+      "Not found": "Nicht gefunden",
+      "Collects the addresses visitors ask for and do not get — and where they came from. Shows which old address needs a redirect.": "Sammelt die Adressen, die Besucher anfragen und nicht bekommen — und woher sie kamen. Zeigt, welche alte Adresse eine Weiterleitung braucht."
+    },
+    "es": {
+      "Not found": "No encontrado",
+      "Collects the addresses visitors ask for and do not get — and where they came from. Shows which old address needs a redirect.": "Reúne las direcciones que los visitantes piden y no obtienen — y de dónde venían. Muestra qué dirección antigua necesita una redirección."
+    },
+    "fr": {
+      "Not found": "Introuvable",
+      "Collects the addresses visitors ask for and do not get — and where they came from. Shows which old address needs a redirect.": "Rassemble les adresses que les visiteurs demandent et n'obtiennent pas — et d'où elles venaient. Montre quelle ancienne adresse a besoin d'une redirection."
+    },
+    "it": {
+      "Not found": "Non trovato",
+      "Collects the addresses visitors ask for and do not get — and where they came from. Shows which old address needs a redirect.": "Raccoglie gli indirizzi che i visitatori chiedono e non ottengono — e da dove venivano. Mostra quale vecchio indirizzo ha bisogno di un reindirizzamento."
+    }
+  }
 }

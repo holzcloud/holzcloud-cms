@@ -70,16 +70,35 @@ ledger reaches zero.
       *Done 2026-09-15:* **0 open, 25 fixed, 9 waived, 34 total** — zero for the
       first time since the ledger was opened. Entry 34 was the one left, and
       WORD-01/02 closed it.
-- [ ] **WIN-08**: **A plugin's `plugin.json` name and description are
+- [x] **WIN-08**: **A plugin's `plugin.json` name and description are
       translated, or the reason they are not is written where a reader meets
       it.** Carried unchanged through v2.0, v2.1 and v2.2 as "deliberately
       open", which after three milestones is a decision that should be stated
       rather than deferred again.
+      *Done 2026-09-15 (16-02):* **translated.** A plugin carries its own
+      catalogue in `plugin.json` under `"lang"`, keyed by tag then by the
+      source sentence — the theme rule, in the manifest because there are three
+      strings and the host reads them before the module exists. The five
+      shipped plugins were rewritten with English sources and de, es, fr and it
+      catalogues; four of them had said their own name in German since v2.0.
+      `sdk/plugin.go` documents it for plugin authors. Driven in the browser:
+      an English operator reads "Year", a German one "Jahreszahl", from one
+      installed package.
 
 ## Standing gates
 
-- [ ] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
+- [x] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
       catalogue; `tools/english` and `tools/themewords -check` stay green.
-- [ ] **QUAL-02**: Every screen touched is driven once through the running
+      *Green 2026-09-15:* 1830 strings, 0 open, 0 orphaned in de, es, fr and it;
+      `tools/english`, `tools/themewords -check` and `tools/wasm -check` all
+      pass — the last of those was red for two days before this milestone
+      noticed.
+- [x] **QUAL-02**: Every screen touched is driven once through the running
       application. The blast radius here is a page with both kinds of gallery,
       in two languages, before and after a re-save.
+      *Done:* the changelog screen, the plugin list and the plugin screen were
+      each driven in a browser against a running binary, the last two in two
+      operator languages. Three faults came out of it that no test had: a
+      heading printed twice on three screens, a CSS custom property this project
+      does not define, and the plugin screen's back link sitting outside the
+      place base.html keeps for it.

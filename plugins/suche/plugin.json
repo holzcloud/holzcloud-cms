@@ -1,12 +1,37 @@
 {
   "id": "suche",
   "abi": 1,
-  "name": "Suche",
+  "name": "Search",
   "version": "1.0.0",
-  "description": "Die Volltextsuche über die veröffentlichten Seiten, unter /suche. Ergebnisse erscheinen in der Ansicht des Themes, mit hervorgehobenen Fundstellen.",
+  "description": "The full-text search across the published pages, at /suche. Results appear in the theme’s own view, with the hits highlighted.",
   "author": "Holzcloud",
   "license": "MIT",
-  "hooks": ["route"],
-  "routes": ["/suche"],
-  "permissions": ["pages:read", "render"]
+  "hooks": [
+    "route"
+  ],
+  "routes": [
+    "/suche"
+  ],
+  "permissions": [
+    "pages:read",
+    "render"
+  ],
+  "lang": {
+    "de": {
+      "Search": "Suche",
+      "The full-text search across the published pages, at /suche. Results appear in the theme’s own view, with the hits highlighted.": "Die Volltextsuche über die veröffentlichten Seiten, unter /suche. Ergebnisse erscheinen in der Ansicht des Themes, mit hervorgehobenen Fundstellen."
+    },
+    "es": {
+      "Search": "Búsqueda",
+      "The full-text search across the published pages, at /suche. Results appear in the theme’s own view, with the hits highlighted.": "La búsqueda de texto completo sobre las páginas publicadas, en /suche. Los resultados aparecen en la vista del propio tema, con las coincidencias resaltadas."
+    },
+    "fr": {
+      "Search": "Recherche",
+      "The full-text search across the published pages, at /suche. Results appear in the theme’s own view, with the hits highlighted.": "La recherche en texte intégral sur les pages publiées, à /suche. Les résultats apparaissent dans la vue du thème, avec les occurrences surlignées."
+    },
+    "it": {
+      "Search": "Ricerca",
+      "The full-text search across the published pages, at /suche. Results appear in the theme’s own view, with the hits highlighted.": "La ricerca a testo pieno sulle pagine pubblicate, su /suche. I risultati compaiono nella vista del tema, con le occorrenze evidenziate."
+    }
+  }
 }
