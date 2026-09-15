@@ -1,0 +1,54 @@
+ok  	github.com/holzcloud/holzcloud-cms	0.008s	coverage: [no statements]
+ok  	github.com/holzcloud/holzcloud-cms/cmd/holzcloud	24.593s	coverage: 32.2% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/activity	4.384s	coverage: 86.5% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/admin	324.174s	coverage: 35.9% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/ai	3.969s	coverage: 66.4% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/album	8.834s	coverage: 75.2% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/auth	1.358s	coverage: 76.6% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/block	0.012s	coverage: 64.3% of statements
+	github.com/holzcloud/holzcloud-cms/internal/branding		coverage: 0.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/bundle	13.694s	coverage: 77.2% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/changelog	0.017s	coverage: 92.5% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/config	0.010s	coverage: 88.5% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/csv	0.036s	coverage: 88.3% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/csvimport	9.578s	coverage: 90.6% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/db	7.596s	coverage: 60.8% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/design	0.034s	coverage: 95.7% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/domain	1.511s	coverage: 59.1% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/field	4.586s	coverage: 85.2% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/i18n	0.107s	coverage: 44.8% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/jobs	0.044s	coverage: 100.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/kind	0.009s	coverage: 28.9% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/locale	0.006s	coverage: 94.8% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/mail	1.785s	coverage: 72.8% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/media	5.591s	coverage: 73.4% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/menu	0.015s	coverage: 36.7% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/money	0.008s	coverage: 92.5% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/outbox	4.236s	coverage: 86.4% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/page	12.597s	coverage: 61.4% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/payrexx	0.043s	coverage: 94.9% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/plugin	47.947s	coverage: 76.1% of statements
+	github.com/holzcloud/holzcloud-cms/internal/plugin/wasmtest		coverage: 0.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/public	56.556s	coverage: 56.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/sharelink	0.005s	coverage: 88.5% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/shop	8.624s	coverage: 70.7% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/snippet	1.325s	coverage: 61.4% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/structured	0.006s	coverage: 95.5% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/template	0.666s	coverage: 79.8% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/term	2.924s	coverage: 70.8% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/textdiff	0.004s	coverage: 95.6% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/tmplmgr	0.143s	coverage: 56.2% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/tmplspec	0.014s	coverage: 100.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/totp	0.004s	coverage: 92.9% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/user	7.429s	coverage: 54.2% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/web	9.415s	coverage: 73.4% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/wording	2.380s	coverage: 84.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/internal/wxr	0.007s	coverage: 92.2% of statements
+ok  	github.com/holzcloud/holzcloud-cms/tools/english	0.009s	coverage: 20.7% of statements
+	github.com/holzcloud/holzcloud-cms/tools/flip		coverage: 0.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/tools/i18n	0.035s	coverage: 29.5% of statements
+ok  	github.com/holzcloud/holzcloud-cms/tools/mkbundle	0.054s	coverage: 71.1% of statements
+	github.com/holzcloud/holzcloud-cms/tools/rename		coverage: 0.0% of statements
+	github.com/holzcloud/holzcloud-cms/tools/themewords		coverage: 0.0% of statements
+	github.com/holzcloud/holzcloud-cms/tools/totpcode		coverage: 0.0% of statements
+ok  	github.com/holzcloud/holzcloud-cms/tools/wasm	0.009s	coverage: 15.0% of statements
