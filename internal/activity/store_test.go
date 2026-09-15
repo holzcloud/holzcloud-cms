@@ -14,7 +14,7 @@ import (
 func newTestStore(t *testing.T) (*activity.Store, *db.DB) {
 	t.Helper()
 	// CRITICAL: file-backed SQLite via t.TempDir(). db.Open verifies WAL pragma
-	// at db.go:42-52, which an in-memory database cannot satisfy.
+	// at db.Open, which an in-memory database cannot satisfy.
 	database, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)

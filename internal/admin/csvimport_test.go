@@ -229,7 +229,7 @@ func TestCSVUploadIntoExistingWebsiteNamesIt(t *testing.T) {
 // The byte cap at the boundary and one step either side.
 //
 // Measured on the REQUEST BODY and not on the file inside it, because that is
-// what http.MaxBytesReader bounds — the same place wordpress.go:25 puts it. A
+// what http.MaxBytesReader bounds — the same place HandleWordPressImport puts it. A
 // file of exactly ten megabytes therefore does not fit: the multipart envelope
 // around it is part of what the cap counts.
 func TestCSVTenMegabyteLimit(t *testing.T) {
@@ -1293,8 +1293,8 @@ func TestCSVProbeAndStartAgreeOnEveryVerdict(t *testing.T) {
 // term.EnsureNames transaction may cover an unbounded number of names.
 //
 // EnsureNames opens ONE transaction around every name it is handed
-// (internal/term/store.go:330) on a pool that admits one connection
-// (internal/db/db.go:42), so the size of one call is the length of the stall it
+// (term.EnsureNames) on a pool that admits one connection
+// (db.Open), so the size of one call is the length of the stall it
 // imposes on every other request on the machine. The batch is what bounds it,
 // and the batch is asserted here rather than argued: the harvest is capped
 // elsewhere, but a cap of 5000 x term.MaxPerPage is still 60 000 names in one

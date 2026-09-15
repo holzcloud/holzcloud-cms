@@ -219,7 +219,7 @@ func TestTermNameBecomesASlug(t *testing.T) {
 }
 
 // TestTermNamesOncePerFile (D-20): the caller runs EnsureNames once, before the
-// row loop, which is internal/bundle/import.go:289-329's order.
+// row loop, which is bundle.safeName's order.
 func TestTermNamesOncePerFile(t *testing.T) {
 	defs := []field.Def{fieldDef(1, 1, "kategorie", "Kategorie", field.KindTerm)}
 	head, rows := reader(t, "Titel,Kategorie,Schlagworte\nApfel,Obst,gruen|rot\nBirne,Obst,gruen\n")
@@ -247,7 +247,7 @@ func TestTermNamesOncePerFile(t *testing.T) {
 // drifted with them.
 //
 // The second half is the second column pointed at the same target: cellFor
-// reads the FIRST column a target has (mapping.go:328), so a row stores nothing
+// reads the FIRST column a target has (fixedSpellings), so a row stores nothing
 // from the second one and the pre-pass must create nothing from it either.
 func TestTermNamesCapsWhatRowTermsCaps(t *testing.T) {
 	defs := []field.Def{fieldDef(1, 1, "kategorie", "Kategorie", field.KindTerm)}

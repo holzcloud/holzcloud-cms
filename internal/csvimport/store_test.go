@@ -6,7 +6,7 @@
 // ON DELETE CASCADE from users — and is checked here against a second user
 // rather than merely believed.
 //
-// The second: two tabs do not destroy each other. user/token.go:59-62 deletes
+// The second: two tabs do not destroy each other. user.IssueToken deletes
 // the previous token of the same user, and there that is right. Here that line
 // was deliberately not copied, and a line that was not copied is invisible —
 // which is why TestTwoTabsSurviveEachOther asserts its absence instead of
@@ -160,7 +160,7 @@ func TestUnknownTokenIsExpired(t *testing.T) {
 	}
 }
 
-// TestTwoTabsSurviveEachOther asserts the absence of user/token.go:59-62.
+// TestTwoTabsSurviveEachOther asserts the absence of user.IssueToken.
 //
 // An admin with two tabs uploads twice. After the second time two rows stand
 // there and the first token still fetches the first file. Had the line from

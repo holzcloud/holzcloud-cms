@@ -38,20 +38,37 @@ with the raw coverage output committed beside it.
 
 ## The comments, which are this project's documentation
 
-- [ ] **DOC-01**: **No comment cites a line that does not exist.** One does
+- [x] **DOC-01**: **No comment cites a line that does not exist.** One does
       today: `internal/admin/csvimport.go:1187` points at `media.go:377`, in a
       file of 322 lines. There are 108 such citations in the tree.
-- [ ] **DOC-02**: **No comment describes a defect as open that has been fixed.**
+      *Done 2026-09-15 (17-01):* **zero.** Not "all 108 resolve" — none is a
+      line number any more. The measurement that decided it: **45 of the 108
+      had already drifted**, onto a blank line, a closing brace or an unrelated
+      comment, while every one of them still read as true. A citation that
+      resolves today is one that rots tomorrow and says nothing while it does,
+      so `tools/cites -check` refuses the form itself and CI runs it.
+- [x] **DOC-02**: **No comment describes a defect as open that has been fixed.**
       At least one does: `internal/csvimport/verdict.go:104` says `field.Check`'s
       reasons are hard-coded German and invisible to `tools/i18n`. They go
       through `i18n.N` and have for some time. A reader who believed that comment
       would re-do work that is done.
-- [ ] **DOC-03**: **The citations are checked mechanically from here on, or the
+      *Done:* four such claims, all in the same family and all corrected rather
+      than deleted — `verdict.go`'s opening cited two strings as proof that a
+      sentence built in Go leaks past the gate, and both had been fixed since,
+      which is evidence the rule worked and worth saying. Also `verdict.go`'s
+      `ReasonNotWritten`, and `mapping.go`'s "German-only", which stopped being
+      the failure mode when v2.0 turned the source language round.
+- [x] **DOC-03**: **The citations are checked mechanically from here on, or the
       reason they cannot be is written down.** A comment that rots silently is
       worse than no comment, and this repository puts its reasoning in comments
       rather than in a wiki. If a tool can hold the file-and-line form, it
       should; if it cannot hold whether a citation still points at what it
       claims, that limit belongs in the tool's own documentation.
+      *Done:* `tools/cites`, with `-fix` to convert and `-check` in CI. The
+      limit is stated in its package comment: it can decide that a citation
+      resolves and it cannot decide that the line still says what the citing
+      comment claims — which is exactly why `-check` refuses the form instead of
+      holding the weaker rule.
 
 ## The exported surface
 

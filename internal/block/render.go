@@ -418,7 +418,7 @@ var (
 	textNoVideo = i18n.N("Your browser cannot play this video.")
 
 	// textGallery names the slideshow's scrolling region. Deliberately the
-	// literal the block kind at block.go:77 already carries, so this mints no
+	// literal the block kind at Kinds already carries, so this mints no
 	// fifth string: it is translated in en, es, fr and it today, and a new one
 	// would cost four translations for a word the catalogue already has.
 	textGallery = i18n.N("Gallery")
@@ -444,7 +444,7 @@ const closeTarget = "hc-zu"
 // no test fails, no line is logged, and the editor simply reloads the page and
 // sees the old pictures. The marker is what makes the expansion late.
 //
-// internal/snippet/store.go:229-264 is the same mechanism for the same reason,
+// snippet.LoadRendered is the same mechanism for the same reason,
 // and internal/public/pagedata.go states it in those words.
 //
 // # Why the spelling lives in this package and not in internal/album

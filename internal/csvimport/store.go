@@ -107,7 +107,7 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // sequential number in a URL invites typing the neighbour's.
 //
 // Note what is *not* here: no previous row of this user is deleted.
-// user/token.go:59-62 does exactly that, and there it is right, because a
+// user.IssueToken does exactly that, and there it is right, because a
 // superseded invitation has to stop working. Copied to this table it would mean
 // an admin with two browser tabs loses the first import the moment they start
 // the second, silently and with the file already gone.
@@ -171,7 +171,7 @@ func (s *Store) Get(ctx context.Context, token string, userID int64) (*Upload, e
 //
 // The write screen calls this BEFORE it writes anything, and only the caller
 // that gets a true goes on to import. The write pool admits a single connection
-// (db.go:28, _txlock=immediate), so of two overlapping commits on one token
+// (db.writeDSNSuffix, _txlock=immediate), so of two overlapping commits on one token
 // exactly one DELETE affects a row; the loser sees false and is answered with
 // the expiry screen, which is the honest answer — somebody else is already
 // reading this file in.
@@ -229,7 +229,7 @@ func (s *Store) Prune(ctx context.Context, olderThan time.Duration) (int64, erro
 }
 
 // hashToken is what gets stored. Comparison happens on the hash, so the token
-// never sits in the database — user/token.go:152-155 derives its own the same
+// never sits in the database — user.hashToken derives its own the same
 // way, and 00012's head comment states the discipline for both.
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))

@@ -35,7 +35,7 @@ var precomposed = map[rune]rune{
 // The rule is: settle the combining marks first, then field.SlugifyKey. Never
 // the other way round, and never SlugifyKey alone.
 //
-// Why the marks have to be settled at all. SlugifyKey (field.go:876) matches
+// Why the marks have to be settled at all. SlugifyKey (field.Check) matches
 // the single rune U+00F6 and writes "oe" for it. A heading typed on macOS, or
 // exported by a tool that normalises to NFD, does not carry that rune: it
 // carries 'o' followed by U+0308. Handed to SlugifyKey unchanged, the mark is
@@ -65,7 +65,7 @@ var precomposed = map[rune]rune{
 // yields one key. The same holds for ñ, ç, å, š and the rest.
 //
 // Header-scoped, and that scope is the point. settleHeaderMarks drops the base
-// because its output is handed to SlugifyKey. foldCell (row.go:37) hands its
+// because its output is handed to SlugifyKey. foldCell (foldCell) hands its
 // output to page.Transliterate instead, which writes é out as "e", so there the
 // two spellings already agree and dropping the base would BREAK that agreement:
 // the decomposed "Café" would fold to "caf" while the composed one folds to
@@ -73,7 +73,7 @@ var precomposed = map[rune]rune{
 // is written against the one it feeds.
 //
 // And no dependency. golang.org/x/text is an indirect entry in go.mod and stays
-// one: internal/template/dates.go:24 records this project deliberately
+// one: template.localeNames records this project deliberately
 // declining it once before, for a job of the same size. unicode is in the
 // standard library and the whole of this is one loop.
 func foldHeader(header string) string {
@@ -160,7 +160,7 @@ const (
 	// TargetStatus is draft or published.
 	TargetStatus = "status"
 	// TargetTerms are the page's own terms, the analogue of what the WordPress
-	// importer does at wordpress.go:147.
+	// importer does at admin.importWordPressItem.
 	TargetTerms = "terms"
 	// TargetField is one of the website's own field definitions, named by Key.
 	TargetField = "field"
@@ -291,8 +291,8 @@ func Mappable(kind string) bool {
 //
 // A code plus its arguments and never a finished sentence, for the same
 // measured reason a row's verdict is one (D-32): a sentence built here would be
-// invisible to tools/i18n, and the mapping screen would be German-only while
-// the translation gate reported green.
+// invisible to tools/i18n, and the mapping screen would stand in the source
+// language for every operator while the translation gate reported green.
 type Note struct {
 	Reason Reason
 	Args   []string

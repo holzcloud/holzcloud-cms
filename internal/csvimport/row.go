@@ -80,7 +80,7 @@ func parseStatus(cell string) (string, bool) {
 //
 // This function exists because field.Check has NO case for the janein kind:
 // any non-empty value passes it. And both readers of a stored boolean —
-// internal/admin/page_fields.go:281 and internal/field/render.go:126 — take
+// admin.groupView and field.Resolve — take
 // truth to be `value != "" && value != "0"`. Put together, a cell reading
 // "nein" would be stored as the four letters n-e-i-n and read back as TRUE, by
 // a validator that reported the row as fine. A whole column of noes would
@@ -112,7 +112,7 @@ func parseBool(cell string) (string, bool) {
 // Every name goes through settleMarks and then term.Normalize, and never
 // through term.Parse. Parse is the reader of the field an editor types: it
 // splits on commas and stops at term.MaxPerPage, which would tear a name with
-// a comma in it in two. internal/bundle/import.go:305-318 writes that reasoning
+// a comma in it in two. bundle.importTypes writes that reasoning
 // out for the same reason and this carries it.
 //
 // Duplicates fold together on the slug, because that is what decides whether
@@ -159,7 +159,7 @@ func RowTerms(row csv.Row, m Mapping) ([]string, bool) {
 // the order the file first mentions each.
 //
 // The caller runs term.EnsureNames with this ONCE, before the row loop, which
-// is internal/bundle/import.go:289-329's order and not an optimisation: a term
+// is bundle.safeName's order and not an optimisation: a term
 // field's stored value is a slug, so the term it names has to exist before the
 // value referring to it is written, or the page would carry an address that
 // resolves to nothing.
@@ -178,7 +178,7 @@ func RowTerms(row csv.Row, m Mapping) ([]string, bool) {
 // again the day the first one moves; a call to RowTerms cannot.
 //
 // A target is harvested ONCE even when two columns are pointed at it, for the
-// same reason: cellFor reads the first column a target has (mapping.go:328), so
+// same reason: cellFor reads the first column a target has (fixedSpellings), so
 // the second one contributes nothing to the row and must contribute nothing
 // here either.
 //
@@ -409,7 +409,7 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 	}
 
 	// The same derivation the caller used to find `existing`, and the one place
-	// it is written. Carrying wordpress.go:113-126's `seen` map into this
+	// it is written. Carrying admin.importWordPressItem's `seen` map into this
 	// importer would hide exactly what criterion 4 asks to be told.
 	slug := RowSlug(row, m)
 	if err := page.ValidateSlug(slug); err != nil {
@@ -423,7 +423,7 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 	}
 
 	// The body is the page's Markdown source and goes through the one render
-	// path — goldmark, then bluemonday — exactly as wordpress.go:128 does it.
+	// path — goldmark, then bluemonday — exactly as admin.importWordPressItem does it.
 	// Never a second pipeline, and no template.HTML cast anywhere on this road.
 	markdown := cellFor(row, m, Target{Kind: TargetBody})
 	html, err := page.RenderMarkdown(markdown)
@@ -494,7 +494,7 @@ func CheckRow(defs []field.Def, row csv.Row, m Mapping, existing *page.Page, col
 			data.Values[d.Key] = field.JoinValues(strings.Split(cell, "|"))
 		case field.KindTerm:
 			// The cell holds a NAME and the slot holds a slug. term.Normalize
-			// then page.Slugify, which is internal/bundle/import.go:573-583
+			// then page.Slugify, which is bundle.importFieldValues
 			// exactly: the two derivations agree by construction and not by
 			// luck, because term.EnsureNames derives its own slug the same way.
 			// EnsureNames itself runs once for the whole file, before the row
@@ -582,7 +582,7 @@ type Writer struct {
 //
 // No transaction is opened here and nothing this calls holds one across two
 // rows. That is the guarantee this phase ships, and it is the one that matters:
-// the write pool admits a single connection (db.go:28, _txlock=immediate), so a
+// the write pool admits a single connection (db.writeDSNSuffix, _txlock=immediate), so a
 // transaction spanning a file would block every other request on the machine,
 // admin and public alike. Between two rows, other requests interleave.
 //
@@ -590,7 +590,7 @@ type Writer struct {
 // an amendment stamp saying so. One imported row already spans two or three
 // transactions inside the ordinary stores — page.CreatePage is a single
 // autocommitted INSERT, page.UpdatePage opens its own, term.SetForPage opens
-// its own at store.go:120 and term.EnsureNames its own at :330 — and merging
+// its own at Stage and term.EnsureNames its own — and merging
 // them would mean threading a *sql.Tx through page.Store and term.Store, which
 // is a second creation path beside the ordinary one and precisely what IMP-02
 // and criterion 4 forbid in as many words.

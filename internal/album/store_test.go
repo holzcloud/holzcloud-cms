@@ -196,7 +196,7 @@ func TestItemMethodsRefuseAnotherWebsitesAlbum(t *testing.T) {
 // TestAddItemRefusesAnotherWebsitesMedia holds T-11-07. The foreign key on
 // media_id proves the file exists, never whose it is, and the id comes out of a
 // form — so the store checks the picture's own website before inserting, the
-// way internal/admin/page_blocks.go:105-115 already does for a block picture.
+// way admin.blockSet already does for a block picture.
 func TestAddItemRefusesAnotherWebsitesMedia(t *testing.T) {
 	s, database, owner, stranger := newTestStore(t)
 	ctx := context.Background()

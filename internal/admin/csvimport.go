@@ -28,14 +28,14 @@ import (
 // admin handler answers one screen. Two half-analogs exist and they disagree,
 // so each contributed one half and neither was copied whole:
 //
-//   - twofactor.go:184-201 is the only POST in this codebase that re-renders a
+//   - confirmTwoFactor is the only POST in this codebase that re-renders a
 //     *different* screen after a rejected submit, with the half-finished state
 //     re-fetched from the store rather than carried in the form. That is what a
 //     rejected mapping does here.
-//   - confirm.go:27-73 is the model for one handler serving both verbs of one
+//   - HandleConfirmPassword is the model for one handler serving both verbs of one
 //     address, with the POST branch first and the GET render last.
 //
-// What is deliberately NOT copied is twofactor.go:154's EnsurePendingSecret,
+// What is deliberately NOT copied is HandleTwoFactorSetup's EnsurePendingSecret,
 // which keys the half-finished state on the **user id**. Keyed that way, a
 // second upload would silently destroy the first: an operator with two browser
 // tabs would lose the file they started with, and nothing would say so. The
@@ -56,11 +56,10 @@ import (
 // the existing GET /admin/websites/{id}/pages both match
 // /admin/websites/import-csv/pages and neither is more specific, so Go 1.22's
 // ServeMux panics in newRouter and the binary never serves a request. Screen 1
-// stays at POST /admin/websites/import-csv, beside its two siblings at
-// main.go:882-883.
+// stays at POST /admin/websites/import-csv, beside its two siblings there.
 //
 // **An import may target an EXISTING website.** That is a deliberate departure
-// from wordpress.go:15-19, which states that an importer here always creates a
+// from HandleWordPressImport, which states that an importer here always creates a
 // new one. That rule's own reason is that every collision needs an answer;
 // here the answer is given twice before anything is written — once on screen 1,
 // where the operator chooses between skipping and updating a row whose address
@@ -98,11 +97,12 @@ const csvMaxUpload = 10 << 20
 // csvTermChunk bounds how many labels one term.EnsureNames transaction covers.
 //
 // **The number is measured and not chosen for looking round.** term.EnsureNames
-// opens one transaction around every name it is handed (term/store.go:330), and
-// the write pool admits one connection (db.go:42), so the length of one call is
+// opens one transaction around every name it is handed (term.EnsureNames), and
+// the write pool admits one connection (db.Open), so the length of one call is
 // the length of the stall it imposes on every other request on the machine —
 // admin pages, the public site, and session writes, which sit on the same pool
-// (main.go:175). One 10 MB file measured 796 000 names in a single transaction:
+// (auth.NewSQLiteStore is handed database.Write). One 10 MB file measured
+// 796 000 names in a single transaction:
 // 12.2 s of import during which a competing write waited 8.1 s.
 //
 // The bound is set against what the row loop already proved acceptable. Five
@@ -321,7 +321,7 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		// A file that is missing or over the cap is not a form-validation
 		// error: there is nothing the operator typed to hand back, so this is a
-		// flash and a redirect rather than a 422 — wordpress.go:28-32.
+		// flash and a redirect rather than a 422 — HandleWordPressImport.
 		web.SetFlashError(h.sm, r.Context(), "File too large or not selected")
 		return h.redirect(w, r, "/admin/websites")
 	}
@@ -403,7 +403,7 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 		upload.WebsiteID = ws.ID
 		upload.WebsiteName = ws.Name
 	} else {
-		// The same cascade wordpress.go:40-46 uses: what was typed, then what
+		// The same cascade HandleWordPressImport uses: what was typed, then what
 		// the file was called, then a name that is at least honest about where
 		// the website came from.
 		upload.WebsiteName = strings.TrimSpace(r.FormValue("name"))
@@ -416,7 +416,7 @@ func (h *Handler) HandleCSVImport(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	// The website is NOT created here, and that is the difference between this
-	// importer and wordpress.go:48, which creates one before it has read a
+	// importer and HandleWordPressImport, which creates one before it has read a
 	// single item. It is created by screen 4, after the dry run, so an operator
 	// who looks at the mapping and walks away does not leave an empty website
 	// behind for somebody else to find and wonder about.
@@ -541,7 +541,7 @@ func (h *Handler) csvUnreadable(w http.ResponseWriter, r *http.Request) error {
 // match. The dry run passes back what the operator submitted when the mapping
 // cannot be run — a mapping with no title column — so the screen comes back
 // with their choices intact rather than thrown away, which is what separates a
-// form error from a flash and a redirect (twofactor.go:184-201).
+// form error from a flash and a redirect (confirmTwoFactor).
 func (h *Handler) csvMappingData(r *http.Request, upload *csvimport.Upload,
 	ws *domain.Website, defs []field.Def, chosen *csvimport.Mapping) (CSVMappingData, error) {
 
@@ -871,7 +871,7 @@ type csvRunResult struct {
 // **No transaction is opened here and none spans two rows** (IMP-10). Every
 // write the loop performs is a store call that opens and closes its own inside
 // one row — CreatePage a single autocommitted INSERT, SetForPage its own at
-// term/store.go:120. The write pool admits one connection (db.go:28,
+// term.SetForPage. The write pool admits one connection (db.writeDSNSuffix,
 // _txlock=immediate), so other requests, admin and public, interleave BETWEEN
 // rows. A transaction held across a file would block every request on the
 // machine, which is the anti-feature IMP-10 exists to forbid.
@@ -900,7 +900,7 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 	// The term names, harvested on BOTH arms.
 	//
 	// The write arm needs them because they have to exist before the first page
-	// that points at one — that is internal/bundle/import.go:289-329's order and
+	// that points at one — that is bundle.safeName's order and
 	// not an optimisation: a term field's stored value is a slug, so the term it
 	// names has to exist before the value referring to it is written, or the
 	// page would carry an address resolving to nothing.
@@ -1004,7 +1004,7 @@ func (h *Handler) csvRun(ctx context.Context, upload *csvimport.Upload, m csvimp
 		if existing == nil && planned[slug] {
 			// The page an earlier row of this same file will create. Only Slug
 			// is read from it — CheckRow names it in the skipped-address reason
-			// (row.go:441) and asks nothing else — and nothing else about a
+			// (csvimport.CheckRow) and asks nothing else — and nothing else about a
 			// page that does not exist yet could be said honestly. The
 			// websiteID == 0 case is deliberately included: a file importing
 			// into a website that screen 4 has not created yet is exactly where
@@ -1057,8 +1057,8 @@ func (h *Handler) csvPrepare(w http.ResponseWriter, r *http.Request) (*csvimport
 		// A mapping with no title column refuses every single row, so it is a
 		// mapping error and not a file error. Re-rendered as a FORM error at
 		// 422 with the operator's choices intact — a flash and a redirect here
-		// would throw the whole mapping away, which is why twofactor.go:184-201
-		// re-renders instead of redirecting and why page_handler_test.go:118-128
+		// would throw the whole mapping away, which is why confirmTwoFactor
+		// re-renders instead of redirecting and why TestRejectedEditKeepsTheSubmittedText
 		// exists.
 		data, err := h.csvMappingData(r, upload, ws, defs, &m)
 		if err != nil {
@@ -1141,14 +1141,14 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 	if upload.Mode == csvModeNew {
 		// HERE, and not on screen 1: an operator who looks at the mapping or at
 		// the dry run and walks away leaves no empty website behind for
-		// somebody else to find and wonder about. wordpress.go:48 creates one
+		// somebody else to find and wonder about. HandleWordPressImport creates one
 		// before it has read a single item; this is the departure from it.
 		created, err := h.domains.CreateWebsite(r.Context(), upload.WebsiteName, "")
 		if err != nil {
 			return err
 		}
 		// A new website changes what the resolver would answer for a host, so
-		// the cache goes, exactly as wordpress.go:91 does it.
+		// the cache goes, exactly as HandleWordPressImport does it.
 		h.resolver.InvalidateCache()
 		websiteID, websiteName = created.ID, created.Name
 		if defs, err = h.fields.List(r.Context(), websiteID); err != nil {
@@ -1184,15 +1184,15 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 // definitions — IMP-07.
 //
 // **A GET**, because all five downloads this tree already has are GETs
-// (media.go:377, bundle.go:48, template.go:361, language.go:74 and :88,
-// plugin.go:374) and a POST that returns a file would be the only one of its
-// kind here (D-34).
+// (HandleMediaServe, HandleWebsiteExport, HandleTemplateSpec,
+// HandleLanguageTemplate, HandleLanguageDownload and writePluginDownload) and a
+// POST that returns a file would be the only one of its kind here (D-34).
 //
 // **Not behind the staging token** (D-37). IMP-07 exists to help the operator
 // *write* the file; hung off the token it could be fetched only once the file it
 // was meant to produce already existed. So this handler never calls staged: the
-// website comes from a form value, which is ai.go:96's idiom and
-// template.go:193's, and is reached from a second small GET form in the same
+// website comes from a form value, which is HandleAIKeyCreate's idiom and
+// HandleTemplateActivate's, and is reached from a second small GET form in the same
 // panel — the shape page_list.html:11, media_list.html:22 and
 // activity_log.html:15 already use.
 //
@@ -1201,11 +1201,11 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 // unmapped, which the mapping screen shows and says.
 func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error {
 	// The website id comes from a form VALUE and not from the path, so
-	// auth.RequireWebsiteAccess (internal/auth/middleware.go:102) does not see
+	// auth.RequireWebsiteAccess (auth.RequireWebsiteAccess) does not see
 	// it: that middleware reads the id out of the URL path, and a route taking
 	// a website from a form escapes it. Harmless today, and only today —
-	// this route is behind requireAdmin, and NewWebsiteAccessLookup
-	// (handler.go:167-169) returns true unconditionally for the role admin,
+	// this route is behind requireAdmin, and NewWebsiteAccessLookup returns
+	// true unconditionally for the role admin,
 	// because user_websites restricts editors only. The day a route of this
 	// shape is opened to editors, that is no longer true and this handler
 	// needs its own check. Four other routes share the shape; that is a
@@ -1261,16 +1261,16 @@ func (h *Handler) HandleCSVExample(w http.ResponseWriter, r *http.Request) error
 
 // csvExampleFilename names the download after the website it came from.
 //
-// page.Slugify and not plugin.go:387's safeDownloadName, and the difference is
+// page.Slugify and not writePluginDownload's safeDownloadName, and the difference is
 // provenance rather than taste: safeDownloadName filters a name a PLUGIN
 // supplied, where filtering is the only option. This name comes from a website
-// in this installation — bundle.go:71-77's case — and Slugify yields [a-z0-9-]
+// in this installation — exportFilename's case — and Slugify yields [a-z0-9-]
 // only, so the result is safe by construction instead of by stripping
 // characters afterwards.
 //
 // The empty name is the new-website case and it is answered FIRST, before
 // Slugify: page.Slugify returns "untitled" for a string it can make nothing of
-// (page/slug.go:118-120), so the old `if slug == ""` guard below it could never
+// (page.Slugify), so the old `if slug == ""` guard below it could never
 // fire and a download with no website named would have arrived as
 // "untitled-vorlage.csv" — a name that reads like a fault. "website-vorlage.csv"
 // says what the file is.

@@ -1,23 +1,31 @@
 // This file mints codes and never sentences, and that is the whole of it.
 //
 // The measurement it rests on: tools/i18n reads {{t}}, {{th}} and {{tf}}
-// literals out of the templates (main.go:47) and the first string argument of
-// exactly eight named Go functions — SetFlashError, SetFlashSuccess,
-// SetFlashWarning, Add, NewLayoutData, Titlef, T and N (main.go:53-65). A
+// literals out of the templates and the first string argument of exactly
+// eight named Go functions — SetFlashError, SetFlashSuccess, SetFlashWarning,
+// Add, NewLayoutData, Titlef, T and N. Its own package comment carries both
+// lists and the two shapes that are invisible even inside them. A
 // string built with fmt.Sprintf and appended to a report is collected by
-// neither. internal/admin/wordpress.go:66-84 is the proof standing in the tree
-// today: those warnings are hard-coded German, and go run ./tools/i18n reports
-// nothing missing and nothing orphaned anyway.
+// neither.
 //
-// This phase's report is entirely such strings — one per row, several hundred
-// of them on a real file. Built in Go they would leave the translation gate
-// green while the largest screen of the feature was German-only, which is the
-// same hole as internal/field's untranslated rejection reasons. Twice is a
-// pattern; a third time would be a decision. So a row's outcome travels as a
-// code plus its arguments, and the sentence a person reads is a {{tf}} literal
-// in the template, where the tool can see it.
+// **The two examples this comment used to cite are both gone, and that is the
+// point rather than a reason to delete the paragraph.** It named
+// admin.HandleWordPressImport's warnings and internal/field's rejection reasons
+// as German strings standing in the tree while the gate reported nothing
+// missing. Both were true when it was written. The warnings go through
+// web.Titlef now, which is one of the eight, and field.Check's reasons through
+// reasonf and i18n.N — so the hole this file was built to avoid was closed
+// twice, in the two places that had fallen into it.
 //
-// What is kept from internal/admin/wordpress.go:107 is the discipline and not
+// What has not changed is the shape of the hole. A sentence assembled in Go is
+// invisible to the gate wherever it stands, and this file's report is entirely
+// such sentences — one per row, several hundred on a real file. Built in Go
+// they would leave the translation gate green while the largest screen of the
+// feature was untranslated. So a row's outcome travels as a code plus its
+// arguments, and the sentence a person reads is a {{tf}} literal in the
+// template, where the tool can see it.
+//
+// What is kept from admin.importWordPressItem is the discipline and not
 // the type: an empty Reason means the row worked.
 package csvimport
 
@@ -47,7 +55,7 @@ const (
 //
 // Lower-case ASCII with no spaces: it is an identifier a template switches on
 // and never a word a translator sees. The empty Reason means the row worked,
-// which is wordpress.go:107's discipline kept.
+// which is admin.importWordPressItem's discipline kept.
 type Reason string
 
 // The reasons one row can carry. Each one names its arguments, because the
@@ -98,12 +106,14 @@ const (
 	// ReasonFieldRejected: field.CheckAll refused a value.
 	// Arguments: the field's label, Check's own reason.
 	//
-	// That second argument is prose, and prose this phase did not write:
-	// field.Check's reasons (field.go:740-800) are hard-coded German and
-	// invisible to tools/i18n today. They are carried here as an argument and
-	// deliberately not fixed — internal/field is on this phase's list of what
-	// must not change — so a later reader does not mistake them for debt this
-	// phase created.
+	// That second argument is prose, and prose this file did not write: it is
+	// whatever field.Check returns. When this was written those reasons were
+	// hard-coded German and invisible to tools/i18n, and they were carried here
+	// as an argument rather than fixed, because internal/field was on that
+	// phase's list of what must not change. They go through reasonf and i18n.N
+	// now. The argument stays an argument for the ordinary reason — the
+	// sentence belongs to whoever refused the value, not to whoever reports
+	// it.
 	ReasonFieldRejected Reason = "field_rejected"
 	// ReasonFieldMissing: the mapping names a field definition that no longer
 	// exists. Argument: the field's key.
@@ -144,8 +154,9 @@ const (
 	// call for opposite next steps. The screen is behind an admin session, the
 	// error can carry the failing statement's own text, and that is an
 	// acceptable thing to show the one person who could read it out of the log
-	// anyway. It is also the only untranslated argument this phase mints; like
-	// field.Check's German rejection reasons it is carried, not written, here.
+	// anyway. It is also the only untranslated argument this file mints, and it
+	// is carried rather than written here — the same rule the reason from
+	// field.Check follows one entry above.
 	ReasonNotWritten Reason = "not_written"
 	// ReasonBodyUnreadable: the Markdown of the body could not be rendered.
 	// Argument: what the renderer said.

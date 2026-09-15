@@ -157,7 +157,7 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// images, because an album's pictures are filenames and mediaByName is
 	// where those become ids. Deliberately not last like the menus, whose
 	// entries point at pages by address and therefore need the pages
-	// (import.go:1087).
+	// (cleanSnippetValues).
 	albumSlugs := importAlbums(ctx, s, websiteID, manifest, mediaByName, report)
 	importPages(ctx, s, websiteID, manifest, mediaByName, albumSlugs, fieldKinds, set, report)
 	importSnippets(ctx, s, websiteID, manifest, report)
@@ -320,7 +320,7 @@ func importTypes(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 //
 // Until now a label was only created as a side effect of a page carrying it, so
 // one reachable solely through a label field arrived nowhere — counted on the
-// way in and not created, exactly as format.go:274-284 says. Every name goes
+// way in and not created, exactly as Term says. Every name goes
 // through term.Normalize first, the same normalisation every other label gets,
 // so whitespace and an over-long name are spelled identically whichever path
 // creates the label.
@@ -363,7 +363,7 @@ func importTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest, re
 // of this package's own. That is not tidiness: Create holds the one call to
 // page.Slugify that derives an album's address, and importBlocks derives the
 // same address from the same name. A second INSERT here would be a second
-// derivation of one key, which internal/term/store.go:318-328 is a long
+// derivation of one key, which term.EnsureNames is a long
 // warning about — and the two would agree until the day one of them changed.
 //
 // A name the store refuses is a warning that names the album and never a

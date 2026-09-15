@@ -9,7 +9,7 @@
 // immediately after the context, so no caller can reach a row without saying
 // whose website it is looking at.
 //
-// That shape is taken from internal/term/store.go:284-311 and deliberately NOT
+// That shape is taken from term.Delete and deliberately NOT
 // from internal/menu/store.go, whose own doc comment at :14-33 records what the
 // bare-primary-key shape cost. On 2026-09-06 four menu item handlers reached
 // another website's navigation — de4a1ce proves it with a failing test,
@@ -32,7 +32,7 @@
 //
 // # The one derivation of a slug
 //
-// internal/term/store.go:318-328 carries a warning at length, and it applies
+// term.EnsureNames carries a warning at length, and it applies
 // here word for word: "the slug is derived with page.Slugify, the same call
 // SetForPage makes. A label created by one function and looked for by the other
 // has to be the same row — if the two derivations ever disagreed, an import
@@ -98,7 +98,7 @@ const nowStamp = `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
 //
 // A handler that has to write strings.Contains(err.Error(), "UNIQUE
 // constraint") to tell a duplicate from a disk failure is coupled to SQLite's
-// wording — internal/admin/menu.go:172 does exactly that today, and it is the
+// wording — admin.HandleMenuCreate does exactly that today, and it is the
 // thing plan 11-03 must not have to copy. The sentence an operator reads is
 // minted in a template; these carry only which of the cases happened.
 var (
@@ -465,7 +465,7 @@ func (s *Store) Items(ctx context.Context, websiteID, albumID int64) ([]block.It
 // come out of a form. The album must belong to this website, and so must the
 // media row: the foreign key on media_id proves only that the file exists, and
 // an editor who types another website's number would otherwise pull a picture
-// out of a library they cannot see. internal/admin/page_blocks.go:105-115 makes
+// out of a library they cannot see. admin.blockSet makes
 // the same check for a block picture and gives the same reason.
 func (s *Store) AddItem(ctx context.Context, websiteID, albumID, mediaID int64, alt, caption string) (int64, error) {
 	if err := s.requireOwnMedia(ctx, websiteID, mediaID); err != nil {
@@ -620,7 +620,7 @@ func (s *Store) DeleteItem(ctx context.Context, websiteID, albumID, itemID int64
 
 // SwapSortOrder exchanges the sort_order of two pictures in one transaction.
 //
-// internal/menu/store.go:196-222 as it stands, with the website scoping the
+// menu.ListItems as it stands, with the website scoping the
 // original lacks: both reads go through the subquery on albums, so a picture of
 // another website's album never even yields a number to cross.
 //
@@ -745,7 +745,7 @@ func (s *Store) requireOwnMedia(ctx context.Context, websiteID, mediaID int64) e
 //
 // # The loading rule, and where it comes from
 //
-// media.LoadImageSets (internal/media/variant_store.go:176) states it: "Only
+// media.LoadImageSets (media.LoadImageSets) states it: "Only
 // the files actually named in the HTML are looked up: a site with a thousand
 // uploads should not pay for all of them to render one page." The same
 // sentence with albums instead of files. So the slugs come out of the document
