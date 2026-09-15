@@ -122,28 +122,20 @@ type Set struct {
 	// in the theme around it must not be spelled two different ways on the
 	// same page.
 	Date func(time.Time) string
-
-	// T translates a word the renderer itself writes.
-	//
-	// A function rather than a language, for the reason Date gives one line
-	// above: the rule lives with the caller. Nil leaves the German source,
-	// which is what block.Builtin and every test want.
-	//
-	// Only the words the renderer mints go through it — the lightbox's three
-	// controls today. An editor's own text is never touched: translating what
-	// somebody typed into a form would be a different program.
-	T func(string) string
 }
 
-// text translates a word this package wrote itself, or returns it unchanged.
+// There is deliberately no translator here.
 //
-// The nil check lives here so no rendering arm has to carry one.
-func (s Set) text(word string) string {
-	if s.T == nil {
-		return word
-	}
-	return s.T(word)
-}
+// There was one until v2.3 — a T func(string) string, built from the website's
+// locale — and it was the wrong shape for a reason that took three milestones to
+// surface. Render runs at SAVE. A word translated here is frozen in whatever
+// language the website had at that moment, and a site that changes its language
+// goes on answering in the old one until every page is saved again.
+//
+// The words the renderer mints are written as markers now and resolved when
+// somebody is reading, in that reader's language. words.go carries the whole
+// argument. A date is not the same case and stays above: a date is formatted,
+// not translated, and a page shows its own site's convention.
 
 // Builtin is the set of a website that has defined none of its own.
 var Builtin = Set{}

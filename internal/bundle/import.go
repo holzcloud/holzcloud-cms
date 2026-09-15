@@ -143,10 +143,11 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	set.Date = func(t time.Time) string {
 		return tmpl.DateText(manifest.Site.Locale, manifest.Site.TimeZone, t)
 	}
-	// The words the renderer writes itself follow the same locale as its dates:
-	// a re-rendered lightbox on an imported page speaks the language of the
-	// site in the manifest, not the language of whoever ran the import.
-	set.T = func(word string) string { return i18n.T(manifest.Site.Locale, word) }
+	// The words the renderer writes itself need no locale here any more. They
+	// are written as markers and resolved when somebody reads the page, in that
+	// page's language — so an imported page is in the same state as a saved one
+	// and neither the importing operator's language nor the manifest's can be
+	// baked into it. See internal/block/words.go.
 	// The terms before the pages: one that only a term field names exists
 	// nowhere else — SetForPage creates only what stands in a page's term
 	// list.

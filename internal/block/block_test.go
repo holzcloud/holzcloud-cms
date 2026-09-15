@@ -984,33 +984,54 @@ func TestGalleryWithNoResolvablePicturesRendersNothing(t *testing.T) {
 	}
 }
 
-// block.Builtin has no translator, and every test and every caller that does
-// not supply one must still get a page.
-func TestSetWithoutTranslatorKeepsTheGermanSource(t *testing.T) {
-	if Builtin.T != nil {
-		t.Fatalf("block.Builtin arrived with a translator")
-	}
+// A caller that resolves nothing must still get a page.
+//
+// This used to say that block.Builtin carries no translator and therefore
+// leaves the source language in the markup. Since v2.3 nothing is translated at
+// save at all, so the assertion moved one step later: what Render writes is a
+// marker, and ResolveWords with no translator gives back the source word — which
+// is the state a page is in when it is rendered by a tool that has no locale to
+// offer.
+func TestResolvingWithoutATranslatorKeepsTheSource(t *testing.T) {
 	html := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+	if !HasWordMarker(html) {
+		t.Fatalf("Render wrote no word marker at all:\n%s", html)
+	}
+	out := ResolveWords(html, nil)
 	for _, want := range []string{textPrevious, textNext, textClose} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the German source %q is missing without a translator:\n%s", want, html)
+		if !strings.Contains(out, want) {
+			t.Errorf("the source %q is missing after resolving with no translator:\n%s", want, out)
 		}
+	}
+	if HasWordMarker(out) {
+		t.Errorf("a marker survived the resolution:\n%s", out)
 	}
 }
 
 // The gate the rest of the i18n work is worthless without.
 //
-// Marking with i18n.N proves only that the string reaches the catalogue.
-// render.go carries no locale of its own, so a string can be marked, collected,
-// translated into four languages and printed in German anyway — with every
-// other gate green. The same gallery is rendered twice: once without a
-// translator, once with one that maps each control name to a token no German
-// sentence contains.
-func TestLightboxControlsGoThroughTheInjectedTranslator(t *testing.T) {
-	german := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
-	for _, want := range []string{textPrevious, textNext, textClose} {
-		if !strings.Contains(german, want) {
-			t.Fatalf("the German source %q is missing before translation:\n%s", want, german)
+// Marking with i18n.N proves only that the string reaches the catalogue. This
+// package carries no locale of its own, so a string can be marked, collected,
+// translated into four languages and printed in the source language anyway —
+// with every other gate green.
+//
+// The shape of the proof changed with the mechanism. It used to render the same
+// gallery twice, once with a translator injected on the Set; now the save writes
+// markers and the resolution carries the translator, so the two halves are
+// Render and ResolveWords. What must hold is the same: a control's word comes
+// out of the catalogue, and the source literal does not survive a translator
+// that maps it away.
+func TestLightboxControlsGoThroughTheTranslatorAtDelivery(t *testing.T) {
+	stored := Render([]Block{threePictures()}, Builtin, galleryLook(), markdown)
+	for _, marker := range []string{Word(wordPrevious), Word(wordNext), Word(wordClose)} {
+		if !strings.Contains(stored, marker) {
+			t.Fatalf("%q is missing from what was stored:\n%s", marker, stored)
+		}
+	}
+	for _, source := range []string{textPrevious, textNext, textClose} {
+		if strings.Contains(stored, source) {
+			t.Fatalf("the source literal %q was frozen into the stored HTML; "+
+				"that is what window 8 was:\n%s", source, stored)
 		}
 	}
 
@@ -1019,22 +1040,20 @@ func TestLightboxControlsGoThroughTheInjectedTranslator(t *testing.T) {
 		textNext:     "QQ-next-QQ",
 		textClose:    "QQ-close-QQ",
 	}
-	set := Set{T: func(s string) string {
+	translated := ResolveWords(stored, func(s string) string {
 		if out, ok := tokens[s]; ok {
 			return out
 		}
 		return s
-	}}
-
-	translated := Render([]Block{threePictures()}, set, galleryLook(), markdown)
+	})
 	for source, token := range tokens {
 		if !strings.Contains(translated, token) {
 			t.Errorf("%q was not translated:\n%s", source, translated)
 		}
 		if strings.Contains(translated, source) {
-			t.Errorf("the German literal %q survived the translator — the string "+
+			t.Errorf("the source literal %q survived the translator — the string "+
 				"is collected and translated in four catalogues and printed in "+
-				"German anyway:\n%s", source, translated)
+				"the source language anyway:\n%s", source, translated)
 		}
 	}
 }
@@ -1098,17 +1117,20 @@ func TestSlideshowAddsOnlyTheModifierAndTheAccessibleName(t *testing.T) {
 }
 
 // The accessible name reuses the catalogue key the block kind already carries,
-// so it costs no fifth string in four languages — and it goes through the
-// translator injected on the Set rather than standing in the markup in German.
+// so it costs no fifth string in four languages — and it is a marker in the
+// stored HTML rather than a word, so it is resolved when somebody reads it.
 func TestSlideshowNameGoesThroughTheTranslator(t *testing.T) {
 	show := threePictures()
 	show.Display = DisplaySlideshow
 
-	loud := Set{T: strings.ToUpper}
-	html := Render([]Block{show}, loud, galleryLook(), markdown)
+	stored := Render([]Block{show}, Builtin, galleryLook(), markdown)
+	if !strings.Contains(stored, `aria-label="`+Word(wordGallery)+`"`) {
+		t.Fatalf("the region was not named with a marker:\n%.300s", stored)
+	}
 
+	html := ResolveWords(stored, strings.ToUpper)
 	if !strings.Contains(html, `aria-label="GALLERY"`) {
-		t.Errorf("the name did not go through Set.T:\n%.300s", html)
+		t.Errorf("the name did not go through the translator:\n%.300s", html)
 	}
 	if strings.Contains(html, `aria-label="Gallery"`) {
 		t.Errorf("the source text survived a translator that maps it away:\n%.300s", html)
@@ -1227,8 +1249,11 @@ func TestAlbumBlockRendersTheMarkerCarryingItsWrapper(t *testing.T) {
 func TestAGalleryRegionAndItsControlsSpeakTheSameLanguage(t *testing.T) {
 	now := func(word string) string { return "FR:" + word }
 
-	inner := GalleryItems(0, threePictures().Items, galleryLook(), now)
-	out := GalleryWrapper(3, "hc-galerie--diashow", inner, now)
+	inner := GalleryItems(0, threePictures().Items, galleryLook())
+	// One pass over the finished region, which is the whole guarantee: the name
+	// and the controls cannot be resolved at two different moments any more,
+	// because there is only one moment.
+	out := ResolveWords(GalleryWrapper(3, "hc-galerie--diashow", inner), now)
 
 	if !strings.Contains(out, `aria-label="FR:Gallery"`) {
 		t.Errorf("the region was not named through the same translator:\n%s", out)
@@ -1238,10 +1263,12 @@ func TestAGalleryRegionAndItsControlsSpeakTheSameLanguage(t *testing.T) {
 			t.Errorf("%q is missing; the controls and the region disagree:\n%s", control, out)
 		}
 	}
-	// The word is escaped where it is written, whatever a catalogue holds.
-	if bad := GalleryWrapper(3, "hc-galerie--diashow", "x", func(string) string {
+	// The word is escaped where it is resolved, whatever a catalogue holds.
+	// Before v2.3 that happened at save; the obligation moved with the word.
+	bad := ResolveWords(GalleryWrapper(3, "hc-galerie--diashow", "x"), func(string) string {
 		return `" onfocus="alert(1)`
-	}); strings.Contains(bad, `onfocus=`) && !strings.Contains(bad, "&#34;") {
+	})
+	if strings.Contains(bad, `onfocus=`) && !strings.Contains(bad, "&#34;") {
 		t.Errorf("the region name is not escaped: %s", bad)
 	}
 }

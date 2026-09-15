@@ -114,7 +114,7 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 			Summary: p.Excerpt,
 			// content_html is already sanitised; encoding/xml escapes it into
 			// the element, which is what type="html" means.
-			Content: atomContent{Type: "html", Body: expandForFeed(p.ContentHTML, snippets, albums)},
+			Content: atomContent{Type: "html", Body: expandForFeed(p.ContentHTML, snippets, albums, pageWords(r.Context()))},
 		}
 		if p.PublishedAt != nil {
 			entry.Published = p.PublishedAt.UTC().Format(time.RFC3339)

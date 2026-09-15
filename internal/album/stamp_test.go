@@ -149,7 +149,7 @@ func TestLoadForReportsTheNewestAlbumItNames(t *testing.T) {
 	empty := mustCreate(t, s, owner, "Leer")
 
 	// A page naming only the old album is served the old album's stamp.
-	set, err := s.LoadFor(ctx, owner, pageWith(old.Slug), nil)
+	set, err := s.LoadFor(ctx, owner, pageWith(old.Slug))
 	if err != nil {
 		t.Fatalf("LoadFor: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestLoadForReportsTheNewestAlbumItNames(t *testing.T) {
 	}
 
 	// A page naming an album with no pictures still learns when it changed.
-	set, err = s.LoadFor(ctx, owner, pageWith(empty.Slug), nil)
+	set, err = s.LoadFor(ctx, owner, pageWith(empty.Slug))
 	if err != nil {
 		t.Fatalf("LoadFor (empty album): %v", err)
 	}
@@ -167,7 +167,7 @@ func TestLoadForReportsTheNewestAlbumItNames(t *testing.T) {
 	}
 
 	// A page naming none pays for nothing.
-	set, err = s.LoadFor(ctx, owner, "<p>nothing here</p>", nil)
+	set, err = s.LoadFor(ctx, owner, "<p>nothing here</p>")
 	if err != nil {
 		t.Fatalf("LoadFor (no marker): %v", err)
 	}

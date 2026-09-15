@@ -774,11 +774,10 @@ func (s *Store) requireOwnMedia(ctx context.Context, websiteID, mediaID int64) e
 // whose it is, and a row could have been written by a repair, by an older
 // build, or before requireOwnMedia existed. The join condition makes the
 // picture's website a fact of this query rather than a property of its history.
-func (s *Store) LoadFor(ctx context.Context, websiteID int64, html string, t func(string) string) (Set, error) {
+func (s *Store) LoadFor(ctx context.Context, websiteID int64, html string) (Set, error) {
 	set := Set{
 		items:  map[string][]block.Item{},
 		images: map[int64]block.Image{},
-		t:      t,
 	}
 
 	slugs := UsedSlugs(html)
