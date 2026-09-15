@@ -155,6 +155,15 @@ jobs:
         go-version-file: go.mod
         cache: true
 
+    # A module in the tree is a promise only if somebody recomputes it. The
+    # test suite runs the committed .wasm, so a module compiled against an
+    # older SDK is green here and wrong in the field — which is how v2.2 nearly
+    # went out with four of its five plugins built before the SDK grew Locales.
+    # CI has had this step since the modules were committed; the release had
+    # not, and the release is the one that ships them.
+    - name: Verify the committed plugin modules are current
+      run: go run ./tools/wasm -check
+
     # A tag on broken code must not become a published release.
     - name: Test
       run: go test ./...
