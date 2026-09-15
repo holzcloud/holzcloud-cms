@@ -15,6 +15,10 @@ const (
 	SessionKeyUserEmail    = "user_email"
 	SessionKeyFlashError   = "flash_error"
 	SessionKeyFlashSuccess = "flash_success"
+	// SessionKeyFlashWarning completes the three. It was missing while
+	// internal/web wrote all three as literals, which is how two sources for
+	// one key stay in step: by nobody using the first one.
+	SessionKeyFlashWarning = "flash_warning"
 
 	// SessionKeyViaSSO records HOW this session was established, not who
 	// established it: true means the sign-in came through forward
