@@ -1,8 +1,10 @@
 {{define "content"}}
-<div class="content-header-row">
-    <h1>{{t "Plugins"}}</h1>
-</div>
+{{template "plugin_list-content" .}}
+{{end}}
 
+<!-- Keine eigene Ueberschrift: base.html setzt sie schon aus .Title, und
+     zweimal „Plugins" untereinander ist genau das, was dabei herauskam. -->
+{{define "plugin_list-content"}}
 <p class="hint">
     {{t "A plugin extends the CMS without anything being rebuilt. It runs walled off: it cannot read the disk, cannot open a connection to the outside, and can reach the database only through the paths it declared in its manifest. If it hangs it is cut off after two seconds and the page is delivered anyway."}}
 </p>
@@ -33,7 +35,7 @@
     <article class="plugin-card{{if .Enabled}} plugin-card--on{{end}}">
         <header class="plugin-card__head">
             <div>
-                <h2 class="plugin-card__name">{{.Name}}</h2>
+                <h2 class="plugin-card__name">{{.DisplayName}}</h2>
                 <p class="plugin-card__meta">
                     <code>{{.ID}}</code> · {{tf "Version %s" .Version}}
                     {{if .Manifest}}{{if .Manifest.Author}} · {{.Manifest.Author}}{{end}}{{end}}
@@ -50,9 +52,9 @@
             </p>
         </header>
 
-        {{if .Manifest}}{{if .Manifest.Description}}
-        <p class="plugin-card__desc">{{.Manifest.Description}}</p>
-        {{end}}{{end}}
+        {{if .DisplayDescription}}
+        <p class="plugin-card__desc">{{.DisplayDescription}}</p>
+        {{end}}
 
         {{if .LastError}}
         <p class="plugin-card__error" role="status"><strong>{{t "Last:"}}</strong> {{.LastError}}</p>
@@ -100,10 +102,10 @@
             {{if .Manifest}}{{if .Manifest.Admin}}{{if .Running}}
               {{if .Manifest.Admin.PerWebsite}}
                 {{range $.Websites}}{{if index $p.OnWebsite .ID}}
-                <a class="btn btn--sm" href="/admin/websites/{{.ID}}/plugins/{{$p.ID}}">{{$p.Manifest.Admin.Label}}: {{.Name}}</a>
+                <a class="btn btn--sm" href="/admin/websites/{{.ID}}/plugins/{{$p.ID}}">{{$p.DisplayLabel}}: {{.Name}}</a>
                 {{end}}{{end}}
               {{else}}
-                <a class="btn btn--sm" href="/admin/plugins/{{.ID}}/bildschirm">{{.Manifest.Admin.Label}}</a>
+                <a class="btn btn--sm" href="/admin/plugins/{{.ID}}/bildschirm">{{.DisplayLabel}}</a>
               {{end}}
             {{end}}{{end}}{{end}}
 

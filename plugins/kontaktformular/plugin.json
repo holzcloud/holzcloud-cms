@@ -1,7 +1,7 @@
 {
   "id": "kontaktformular",
   "abi": 1,
-  "name": "Kontaktformular",
+  "name": "Contact form",
   "version": "1.5.0",
   "description": "Puts a form into the page where [[formular]] stands, takes the messages and collects them in the administration. Forms of your own with your own fields can be assembled and placed with [[formular:key]]. With a notification address stored, an e-mail goes out for every enquiry; with receipts switched on for the website, the sender is told it arrived. Against spam: a honeypot, a signed timestamp and an hourly limit. The messages that came in can be downloaded as a table.",
   "author": "Holzcloud",
@@ -23,7 +23,29 @@
     "log"
   ],
   "admin": {
-    "label": "Formulare & Nachrichten",
+    "label": "Forms & messages",
     "per_website": true
+  },
+  "lang": {
+    "de": {
+      "Contact form": "Kontaktformular",
+      "Puts a form into the page where [[formular]] stands, takes the messages and collects them in the administration. Forms of your own with your own fields can be assembled and placed with [[formular:key]]. With a notification address stored, an e-mail goes out for every enquiry; with receipts switched on for the website, the sender is told it arrived. Against spam: a honeypot, a signed timestamp and an hourly limit. The messages that came in can be downloaded as a table.": "Setzt dort ein Formular in die Seite, wo [[formular]] steht, nimmt die Nachrichten entgegen und sammelt sie in der Verwaltung. Eigene Formulare mit eigenen Feldern lassen sich zusammenstellen und mit [[formular:schlüssel]] setzen. Ist eine Benachrichtigungsadresse hinterlegt, geht zu jeder Anfrage eine E-Mail hinaus; sind Eingangsbestätigungen für die Website eingeschaltet, erfährt auch die absendende Person, dass es angekommen ist. Gegen Spam: ein Honigtopf, ein signierter Zeitstempel und eine Stundengrenze. Die eingegangenen Nachrichten lassen sich als Tabelle herunterladen.",
+      "Forms & messages": "Formulare & Nachrichten"
+    },
+    "es": {
+      "Contact form": "Formulario de contacto",
+      "Puts a form into the page where [[formular]] stands, takes the messages and collects them in the administration. Forms of your own with your own fields can be assembled and placed with [[formular:key]]. With a notification address stored, an e-mail goes out for every enquiry; with receipts switched on for the website, the sender is told it arrived. Against spam: a honeypot, a signed timestamp and an hourly limit. The messages that came in can be downloaded as a table.": "Coloca un formulario en la página donde está [[formular]], recibe los mensajes y los reúne en la administración. Se pueden componer formularios propios con campos propios y colocarlos con [[formular:clave]]. Si hay una dirección de aviso guardada, sale un correo por cada consulta; si los acuses de recibo están activados para el sitio, quien escribe también sabe que ha llegado. Contra el spam: un tarro de miel, una marca de tiempo firmada y un límite por hora. Los mensajes recibidos se pueden descargar como tabla.",
+      "Forms & messages": "Formularios y mensajes"
+    },
+    "fr": {
+      "Contact form": "Formulaire de contact",
+      "Puts a form into the page where [[formular]] stands, takes the messages and collects them in the administration. Forms of your own with your own fields can be assembled and placed with [[formular:key]]. With a notification address stored, an e-mail goes out for every enquiry; with receipts switched on for the website, the sender is told it arrived. Against spam: a honeypot, a signed timestamp and an hourly limit. The messages that came in can be downloaded as a table.": "Place un formulaire dans la page là où se trouve [[formular]], reçoit les messages et les rassemble dans l'administration. Des formulaires à vous, avec vos propres champs, peuvent être composés et placés avec [[formular:clé]]. Si une adresse de notification est enregistrée, un courriel part pour chaque demande ; si les accusés de réception sont activés pour le site, l'expéditeur apprend aussi que c'est arrivé. Contre le pourriel : un pot de miel, un horodatage signé et une limite horaire. Les messages reçus peuvent être téléchargés sous forme de tableau.",
+      "Forms & messages": "Formulaires et messages"
+    },
+    "it": {
+      "Contact form": "Modulo di contatto",
+      "Puts a form into the page where [[formular]] stands, takes the messages and collects them in the administration. Forms of your own with your own fields can be assembled and placed with [[formular:key]]. With a notification address stored, an e-mail goes out for every enquiry; with receipts switched on for the website, the sender is told it arrived. Against spam: a honeypot, a signed timestamp and an hourly limit. The messages that came in can be downloaded as a table.": "Inserisce un modulo nella pagina dove sta [[formular]], riceve i messaggi e li raccoglie nell'amministrazione. Si possono comporre moduli propri con campi propri e collocarli con [[formular:chiave]]. Se è memorizzato un indirizzo di notifica, per ogni richiesta parte un'e-mail; se le conferme di ricezione sono attive per il sito, anche chi scrive sa che è arrivato. Contro lo spam: un vaso di miele, una marca temporale firmata e un limite orario. I messaggi ricevuti si possono scaricare come tabella.",
+      "Forms & messages": "Moduli e messaggi"
+    }
   }
 }

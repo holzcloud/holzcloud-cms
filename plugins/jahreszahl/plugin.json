@@ -1,12 +1,38 @@
 {
   "id": "jahreszahl",
   "abi": 1,
-  "name": "Jahreszahl",
+  "name": "Year",
   "version": "1.0.0",
-  "description": "Ersetzt [[jahr]] im Seitentext durch das laufende Jahr — für eine Fusszeile, die nicht jedes Silvester von Hand nachgezogen werden muss.",
+  "description": "Replaces [[jahr]] in the page text with the current year — for a footer that does not have to be corrected by hand every New Year.",
   "author": "Holzcloud",
   "license": "MIT",
-  "hooks": ["content", "admin"],
-  "permissions": ["store"],
-  "admin": {"label": "Jahreszahl", "per_website": true}
+  "hooks": [
+    "content",
+    "admin"
+  ],
+  "permissions": [
+    "store"
+  ],
+  "admin": {
+    "label": "Year",
+    "per_website": true
+  },
+  "lang": {
+    "de": {
+      "Year": "Jahreszahl",
+      "Replaces [[jahr]] in the page text with the current year — for a footer that does not have to be corrected by hand every New Year.": "Ersetzt [[jahr]] im Seitentext durch das laufende Jahr — für eine Fusszeile, die nicht jedes Silvester von Hand nachgezogen werden muss."
+    },
+    "es": {
+      "Year": "Año",
+      "Replaces [[jahr]] in the page text with the current year — for a footer that does not have to be corrected by hand every New Year.": "Sustituye [[jahr]] en el texto de la página por el año en curso — para un pie de página que no haya que corregir a mano cada Nochevieja."
+    },
+    "fr": {
+      "Year": "Année",
+      "Replaces [[jahr]] in the page text with the current year — for a footer that does not have to be corrected by hand every New Year.": "Remplace [[jahr]] dans le texte de la page par l'année en cours — pour un pied de page qu'il ne faut pas corriger à la main chaque 31 décembre."
+    },
+    "it": {
+      "Year": "Anno",
+      "Replaces [[jahr]] in the page text with the current year — for a footer that does not have to be corrected by hand every New Year.": "Sostituisce [[jahr]] nel testo della pagina con l'anno corrente — per un piè di pagina che non va corretto a mano ogni Capodanno."
+    }
+  }
 }

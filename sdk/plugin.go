@@ -426,6 +426,42 @@ func Log(level, message string) {
 // Logf is Log with a format string.
 func Logf(level, format string, args ...any) { Log(level, fmt.Sprintf(format, args...)) }
 
+// # The three sentences T cannot reach
+//
+// A plugin's name, its description and the label of its admin screen are not
+// written by the module. They stand in plugin.json, and the host reads them
+// before the module exists: the sidebar is drawn whether or not the plugin has
+// ever been called, and the plugin list has to describe a plugin that is
+// switched off.
+//
+// So they carry their own translations, in the manifest, under "lang":
+//
+//	{
+//	  "name": "Guestbook",
+//	  "description": "Takes entries and shows them.",
+//	  "admin": { "label": "Entries" },
+//	  "lang": {
+//	    "fr": {
+//	      "Guestbook": "Livre d'or",
+//	      "Takes entries and shows them.": "Reçoit les entrées et les affiche.",
+//	      "Entries": "Entrées"
+//	    }
+//	  }
+//	}
+//
+// Same rule as everywhere else in this program and in a theme's own
+// lang/<tag>.json: the English sentence is the key, there are no invented
+// identifiers, and a key the catalogue does not have falls back to the sentence.
+// A regional tag asks its base language first, so a Swiss German operator finds
+// the plain German catalogue without the plugin declaring one twice. Leave
+// "lang" out entirely and the manifest is exactly the manifest this host
+// accepted before v2.3 — nothing is required, and nothing is lost except the
+// translation.
+//
+// It is the OPERATOR's language, never the visitor's. These three strings only
+// ever appear in the administration, so unlike T below they have only one
+// question to answer.
+//
 // T is one sentence in the language the operator is reading right now.
 //
 // Write the sentence in English, as the host's own screens do; `go run

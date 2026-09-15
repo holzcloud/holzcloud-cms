@@ -54,10 +54,26 @@ type snapshot struct {
 
 // AdminLink is one plugin's entry in the admin.
 type AdminLink struct {
-	PluginID   string
+	PluginID string
+	// Label is the source string, in the language the plugin declared it in.
+	// LabelIn is what the sidebar actually prints.
 	Label      string
 	PerWebsite bool
 	AdminOnly  bool
+	// lang is the plugin's own catalogue, carried along so that the sidebar can
+	// resolve the label without a second trip to the store. The snapshot is
+	// built once per reload and read on every request; looking the manifest up
+	// again for one string would be a lock per menu entry per page view.
+	lang map[string]map[string]string
+}
+
+// LabelIn is the sidebar entry in the operator's language.
+//
+// The operator's and not the visitor's: this string only ever appears in the
+// admin, so the question sdk.T has to ask both ways round has only one answer
+// here.
+func (l AdminLink) LabelIn(lang string) string {
+	return Manifest{Lang: l.lang}.Text(lang, l.Label)
 }
 
 // NewManager wires the pieces together and loads what is enabled.
@@ -166,6 +182,7 @@ func (m *Manager) rebuild(installed []Installed) {
 				Label:      p.Manifest.Admin.Label,
 				PerWebsite: p.Manifest.Admin.PerWebsite,
 				AdminOnly:  p.Manifest.Admin.AdminOnly,
+				lang:       p.Manifest.Lang,
 			})
 		}
 	}

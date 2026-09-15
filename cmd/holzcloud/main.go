@@ -755,11 +755,16 @@ type routerDeps struct {
 // A plugin screen belongs beside the rest of the menu, not behind the plugin
 // list: whoever reads the enquiries looks for them under content, and the list
 // of installed plugins is a screen for administrators.
-func pluginNavLinks(m *plugin.Manager) func(int64) []web.NavLink {
+func pluginNavLinks(m *plugin.Manager) func(context.Context, int64) []web.NavLink {
 	if m == nil {
 		return nil
 	}
-	return func(websiteID int64) []web.NavLink {
+	return func(ctx context.Context, websiteID int64) []web.NavLink {
+		// The operator's language. A plugin's menu entry is a string the plugin
+		// declared, and it carries its own translations in plugin.json — see
+		// Manifest.Lang. Without this the sidebar said "Bestellungen" to an
+		// operator reading everything else in English.
+		lang := i18n.Lang(ctx)
 		var out []web.NavLink
 		for _, l := range m.AdminLinks() {
 			url := "/admin/plugins/" + l.PluginID + "/bildschirm"
@@ -769,7 +774,7 @@ func pluginNavLinks(m *plugin.Manager) func(int64) []web.NavLink {
 				}
 				url = fmt.Sprintf("/admin/websites/%d/plugins/%s", websiteID, l.PluginID)
 			}
-			out = append(out, web.NavLink{Label: l.Label, URL: url, AdminOnly: l.AdminOnly})
+			out = append(out, web.NavLink{Label: l.LabelIn(lang), URL: url, AdminOnly: l.AdminOnly})
 		}
 		return out
 	}

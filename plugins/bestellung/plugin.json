@@ -1,9 +1,9 @@
 {
   "id": "bestellung",
   "abi": 1,
-  "name": "Hofladen",
+  "name": "Farm shop",
   "version": "1.0.0",
-  "description": "Ein Bestellformular über die eigenen Produkte. Jede Seite, die ein Preisfeld ausgefüllt hat, ist ein Produkt; [[bestellung]] setzt die Liste mit Mengenfeldern in eine Seite, /bestellung nimmt die Bestellung entgegen, und in der Verwaltung liegen die Bestellungen. Bezahlt wird nicht hier: der Betreiber schreibt eine Rechnung oder die Ware wird abgeholt.",
+  "description": "An order form over your own products. Every page that filled in a price field is a product; [[bestellung]] puts the list with quantity fields into a page, /bestellung takes the order, and the orders are in the administration. Nothing is paid here: the operator writes an invoice or the goods are collected.",
   "author": "Holzcloud",
   "license": "MIT",
   "hooks": [
@@ -22,7 +22,29 @@
     "log"
   ],
   "admin": {
-    "label": "Bestellungen",
+    "label": "Orders",
     "per_website": true
+  },
+  "lang": {
+    "de": {
+      "Farm shop": "Hofladen",
+      "An order form over your own products. Every page that filled in a price field is a product; [[bestellung]] puts the list with quantity fields into a page, /bestellung takes the order, and the orders are in the administration. Nothing is paid here: the operator writes an invoice or the goods are collected.": "Ein Bestellformular über die eigenen Produkte. Jede Seite, die ein Preisfeld ausgefüllt hat, ist ein Produkt; [[bestellung]] setzt die Liste mit Mengenfeldern in eine Seite, /bestellung nimmt die Bestellung entgegen, und in der Verwaltung liegen die Bestellungen. Bezahlt wird nicht hier: der Betreiber schreibt eine Rechnung oder die Ware wird abgeholt.",
+      "Orders": "Bestellungen"
+    },
+    "es": {
+      "Farm shop": "Tienda de la granja",
+      "An order form over your own products. Every page that filled in a price field is a product; [[bestellung]] puts the list with quantity fields into a page, /bestellung takes the order, and the orders are in the administration. Nothing is paid here: the operator writes an invoice or the goods are collected.": "Un formulario de pedido sobre tus propios productos. Cada página que ha rellenado un campo de precio es un producto; [[bestellung]] coloca la lista con campos de cantidad en una página, /bestellung recibe el pedido, y los pedidos están en la administración. Aquí no se paga nada: quien gestiona el sitio emite una factura o la mercancía se recoge.",
+      "Orders": "Pedidos"
+    },
+    "fr": {
+      "Farm shop": "Vente à la ferme",
+      "An order form over your own products. Every page that filled in a price field is a product; [[bestellung]] puts the list with quantity fields into a page, /bestellung takes the order, and the orders are in the administration. Nothing is paid here: the operator writes an invoice or the goods are collected.": "Un formulaire de commande sur vos propres produits. Chaque page qui a rempli un champ de prix est un produit ; [[bestellung]] place la liste avec des champs de quantité dans une page, /bestellung reçoit la commande, et les commandes se trouvent dans l'administration. On ne paie rien ici : l'exploitant écrit une facture ou la marchandise est retirée sur place.",
+      "Orders": "Commandes"
+    },
+    "it": {
+      "Farm shop": "Spaccio agricolo",
+      "An order form over your own products. Every page that filled in a price field is a product; [[bestellung]] puts the list with quantity fields into a page, /bestellung takes the order, and the orders are in the administration. Nothing is paid here: the operator writes an invoice or the goods are collected.": "Un modulo d'ordine sui propri prodotti. Ogni pagina che ha compilato un campo prezzo è un prodotto; [[bestellung]] inserisce l'elenco con i campi quantità in una pagina, /bestellung riceve l'ordine, e gli ordini stanno nell'amministrazione. Qui non si paga nulla: chi gestisce il sito scrive una fattura oppure la merce viene ritirata.",
+      "Orders": "Ordini"
+    }
   }
 }
