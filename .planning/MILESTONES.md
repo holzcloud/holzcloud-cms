@@ -1,5 +1,44 @@
 # Milestones
 
+## v2.3 Every Word on a Page Belongs to Whoever Reads It (Shipped: 2026-09-15)
+
+**Delivered:** The last room of a house three milestones had been building. Five
+words this program mints were written into a page at SAVE, in whatever language
+the website had at that moment — so a site that changed its language answered in
+the old one until every page was saved again, and a page published in a second
+language got the website's words instead of its own. Nothing is translated at
+save any more: the renderer writes a marker and one guarded pass at delivery
+resolves it in the language of the page being read. The ledger reached zero.
+
+**Phases completed:** 1 phase (16), 3 plans
+**Timeline:** 2026-09-15, one day, `b2356f9` → close, 5 commits
+**Code:** 65 files changed, +2 608 / −217 since the `v2.2` tag; 120 953 lines of
+Go in 430 files at close, 1 367 test functions, 1 830 catalogue entries in each
+of de, es, fr and it
+**Verification:** `milestones/v2.3-phases/16-every-word/16-VERIFICATION.md` —
+8 of 8 requirements met, the mechanism measured before it was chosen
+**Closeout:** clean — nothing carried forward, and **the ledger stands at zero
+open for the first time since it was opened** (25 fixed, 9 waived, 34 total)
+
+**Measured rather than argued:** re-rendering a page's blocks on every request —
+the obvious answer — costs 124 µs and 215 KB on a 23 KB page and cannot be
+guarded, because the render is the question. The guarded substitution that
+shipped costs a page with no gallery 311 ns and no allocation at all. The
+benchmark is committed (`internal/block/frozen_bench_test.go`) so the next
+person can disagree with evidence.
+
+**Also in this milestone, and not planned:** the version number in the admin
+sidebar became a link to the changelog; `v2.0`, `v2.1` and `v2.2` were finally
+published as releases, built and tested by CI from the code each names; and
+`tools/wasm -check` was found red on `main` — for two days, in the step that
+exists for exactly that — with four plugin modules compiled against an older
+SDK. The release workflow now runs that check as well, so a stale module cannot
+travel inside a tag.
+
+**Open:** a `v2.3` release, when it is asked for. Nothing publishes by itself.
+
+---
+
 ## v2.2 What the Server Promises, It Keeps (Shipped: 2026-09-14)
 
 **Delivered:** Not a feature. The open-window ledger had carried fifteen entries

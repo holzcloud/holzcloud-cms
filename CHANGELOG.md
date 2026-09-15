@@ -11,6 +11,84 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.3 — 2026-09-15
+
+### Behoben — die Sprache einer Seite
+
+**Eine Galerie sprach die Sprache der Website und nicht die der Seite.** Auf
+einer französischen Seite einer deutschen Website las ein Besucher deutsche
+Bedienelemente im Lichtkasten und einen deutschen Vorlese-Namen am Schiebefeld.
+Fünf Wörter, die dieses Programm selbst prägt — *Vorheriges Bild*, *Nächstes
+Bild*, *Große Ansicht schließen*, der Satz zwischen den Video-Marken und der
+Name der Galerie —, wurden beim **Speichern** übersetzt und standen seitdem in
+der Sprache fest, die die Website in jenem Augenblick hatte.
+
+Das hatte zwei Folgen, und beide waren zu sehen: eine Website, die ihre Sprache
+wechselte, antwortete weiter in der alten, bis jede Seite noch einmal
+gespeichert wurde. Und eine Seite in einer zweiten Sprache bekam die Wörter der
+Website statt ihre eigenen.
+
+Beim Speichern wird jetzt gar nichts mehr übersetzt. Die fünf Wörter stehen als
+Marke in der Seite, und ein Durchgang bei der Auslieferung setzt sie in der
+Sprache **der Seite** ein. **Eine vor dieser Fassung gespeicherte Seite wird
+nicht angefasst**: sie trägt die Wörter weiterhin so, wie sie gespeichert
+wurden, und heilt beim nächsten Speichern. Es gibt keine Migration und nichts zu
+tun.
+
+Vorher gemessen statt geraten: eine Seite ohne Galerie kostet das 311
+Nanosekunden und kein einziges Byte zusätzlichen Speichers.
+
+### Behoben — die Namen der Plugins
+
+**Vier der fünf mitgelieferten Plugins nannten sich auf Deutsch, auch auf einer
+englischen Installation.** Name, Beschreibung und der Eintrag in der
+Seitenleiste stehen in der Datei, die ein Plugin über sich selbst mitbringt, und
+wurden nie übersetzt — seit 2.0 die Quellsprache umgestellt hat, war das auf dem
+ersten Bildschirm zu sehen, den jemand aufmacht.
+
+Ein Plugin bringt seine Übersetzungen jetzt selbst mit, und die fünf
+mitgelieferten tun das in Deutsch, Spanisch, Französisch und Italienisch. Wer
+die Verwaltung auf Englisch liest, liest *Year*; wer sie auf Deutsch liest,
+*Jahreszahl*.
+
+### Hinzugefügt — die Fassungsnummer sagt, was sich geändert hat
+
+Die Fassungsnummer unten links in der Verwaltung ist ein Verweis. Dahinter liegt
+diese Datei: jede Ausgabe, die neueste oben, jede unter einer eigenen Adresse,
+die sich weitergeben lässt.
+
+Nichts meldet sich von selbst — kein Abzeichen, kein Fenster, das nach einer
+Aktualisierung aufgeht. Wer wissen will, was neu ist, klickt auf die Nummer.
+
+### Behoben — Kleinigkeiten
+
+- Die Plugin-Liste und der Bildschirm eines Plugins schrieben ihre Überschrift
+  zweimal untereinander.
+- Der Rückweg vom Bildschirm eines Plugins stand neben der Überschrift statt
+  dort, wo er auf jedem anderen Bildschirm steht.
+
+### Für Betreiber
+
+**Die Fassungen 2.0, 2.1 und 2.2 gibt es jetzt auch als Ausgabe zum
+Herunterladen**, mit dem fertigen Linux-Programm und seiner Prüfsumme. Sie waren
+im Changelog beschrieben und nie veröffentlicht worden.
+
+Eine Warnung, die dabei herauskam und die eine eigene Zeile verdient: die
+mitgelieferten Plugin-Module von 2.1 und 2.2 waren gegen eine ältere Fassung der
+Plugin-Schnittstelle gebaut. Die Prüfung, die genau das findet, lief zwei Tage
+lang rot, ohne dass es jemand gelesen hat. Sie läuft jetzt auch beim Erstellen
+einer Ausgabe, damit ein veraltetes Modul nicht in einer Ausgabe mitreist.
+
+### Für Entwickler von Erweiterungen
+
+`plugin.json` kennt ein neues, freiwilliges Feld `lang`: je Sprache eine Tabelle
+von der englischen Fassung eines Satzes auf die Übersetzung, für `name`,
+`description` und `admin.label`. Ohne das Feld verhält sich ein Manifest genau
+wie bisher. Die Regel ist dieselbe wie beim Katalog eines Themes: der englische
+Satz **ist** der Schlüssel, ein fehlender Schlüssel fällt auf den Satz zurück,
+und `de-CH` fragt zuerst `de`. Die Paketbeschreibung von `sdk` sagt es mit
+einem Beispiel.
+
 ## 2.2 — 2026-09-14
 
 ### Behoben — eine geschützte Seite
