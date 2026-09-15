@@ -1,0 +1,33 @@
+goos: linux
+goarch: amd64
+pkg: github.com/holzcloud/holzcloud-cms/internal/block
+cpu: Intel(R) Xeon(R) Processor @ 2.10GHz
+BenchmarkBodySize/small-2k-4        	1000000000	         0.1499 ns/op	         0 aria-labels	      2664 bytes	       0 B/op	       0 allocs/op
+BenchmarkBodySize/small-2k-gallery-4         	1000000000	         0.1473 ns/op	         1.000 aria-labels	      8129 bytes	       0 B/op	       0 allocs/op
+BenchmarkBodySize/medium-20k-4               	1000000000	         0.1241 ns/op	         0 aria-labels	     23643 bytes	       0 B/op	       0 allocs/op
+BenchmarkBodySize/medium-20k-gallery-4       	1000000000	         0.1290 ns/op	         1.000 aria-labels	     29138 bytes	       0 B/op	       0 allocs/op
+BenchmarkBodySize/large-200k-4               	1000000000	         0.1530 ns/op	         0 aria-labels	    235431 bytes	       0 B/op	       0 allocs/op
+BenchmarkBodySize/large-200k-gallery-4       	1000000000	         0.1252 ns/op	         1.000 aria-labels	    240956 bytes	       0 B/op	       0 allocs/op
+BenchmarkCheapQuestion/small-2k-4            	 6922141	        44.68 ns/op	59620.66 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCheapQuestion/medium-20k-4          	 1000000	       358.1 ns/op	66029.17 MB/s	       0 B/op	       0 allocs/op
+BenchmarkCheapQuestion/large-200k-4          	   95017	      3825 ns/op	61545.02 MB/s	       0 B/op	       0 allocs/op
+BenchmarkRegexpOverWholeBody/small-2k-4      	 4113636	       107.7 ns/op	24742.44 MB/s	       0 B/op	       0 allocs/op
+BenchmarkRegexpOverWholeBody/medium-20k-4    	  923462	       408.8 ns/op	57833.70 MB/s	       0 B/op	       0 allocs/op
+BenchmarkRegexpOverWholeBody/large-200k-4    	   90238	      5084 ns/op	46310.04 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSentinelReplace/small-2k-4          	   66499	      4973 ns/op	 535.66 MB/s	    5400 B/op	       3 allocs/op
+BenchmarkSentinelReplace/medium-20k-4        	    9309	     37439 ns/op	 631.51 MB/s	   49176 B/op	       3 allocs/op
+BenchmarkSentinelReplace/large-200k-4        	     950	    373874 ns/op	 629.71 MB/s	  475161 B/op	       3 allocs/op
+BenchmarkSentinelReplaceGuarded/small-2k-4   	 6998302	        52.42 ns/op	50824.35 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSentinelReplaceGuarded/medium-20k-4 	 1000000	       311.1 ns/op	75988.92 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSentinelReplaceGuarded/large-200k-4 	   81891	      4261 ns/op	55251.88 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSentinelReplaceHit/small-2k-4       	   19052	     19547 ns/op	 414.14 MB/s	   28568 B/op	       4 allocs/op
+BenchmarkSentinelReplaceHit/medium-20k-4     	    5853	     64695 ns/op	 449.86 MB/s	  106520 B/op	       4 allocs/op
+BenchmarkSentinelReplaceHit/large-200k-4     	     606	    504592 ns/op	 477.46 MB/s	  794651 B/op	       4 allocs/op
+BenchmarkRenderAgain/small-2k-4              	    8256	     39829 ns/op	 204.10 MB/s	   55426 B/op	     214 allocs/op
+BenchmarkRenderAgain/medium-20k-4            	    2714	    123842 ns/op	 235.28 MB/s	  214657 B/op	     348 allocs/op
+BenchmarkRenderAgain/large-200k-4            	     410	    864040 ns/op	 278.87 MB/s	 1469213 B/op	    1638 allocs/op
+BenchmarkAlbumMarkerExpansion/small-2k-4     	   49780	      6558 ns/op	 412.78 MB/s	   10337 B/op	      10 allocs/op
+BenchmarkAlbumMarkerExpansion/medium-20k-4   	   15128	     23347 ns/op	1014.57 MB/s	   50263 B/op	       9 allocs/op
+BenchmarkAlbumMarkerExpansion/large-200k-4   	    1546	    219331 ns/op	1073.61 MB/s	  482921 B/op	      14 allocs/op
+PASS
+ok  	github.com/holzcloud/holzcloud-cms/internal/block	10.237s
