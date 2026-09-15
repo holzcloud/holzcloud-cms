@@ -1,19 +1,19 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.2
-milestone_name: "What the Server Promises, It Keeps"
-current_phase: 15
-current_phase_name: "What the server promises, it keeps"
-status: complete
-stopped_at: "Meilenstein v2.2 geschlossen (2026-09-14). 11 von 11 Anforderungen erfuellt; das Hauptbuch steht auf 1 offen statt 15. Offen bleibt allein, dass der Betreiber die Release-Tags anlegt — siehe Operator Next Steps."
-last_updated: "2026-09-14T00:00:00.000Z"
-last_activity: 2026-09-14
+milestone: v2.3
+milestone_name: "Every Word on a Page Belongs to Whoever Reads It"
+current_phase: 16
+current_phase_name: "Every word on a page belongs to whoever reads it"
+status: in_progress
+stopped_at: "16-00 gefahren: WORD-04 ist gemessen und steht in 16-MEASUREMENT.md, die Zahlen in 16-BENCH.txt, der Messstand in internal/block/frozen_bench_test.go. Ergebnis: Suchen ist umsonst, Neuschreiben kostet - ein bewachter Ein-Pass-Ersatz kostet die haeufige Seite 311 ns und 0 Bytes, unbewacht 37 us und 49 KB, ein erneutes Rendern 124 us und 215 KB. Damit ist D ausgeschieden und C mit Waechter der Kandidat. Was die Messung NICHT entscheidet, steht in 16-MEASUREMENT.md Paragraph 5. Naechstes: WORD-01/02 planen."
+last_updated: "2026-09-15T00:00:00.000Z"
+last_activity: 2026-09-15
 progress:
   total_phases: 1
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 4
-  completed_plans: 4
-  percent: 100
+  completed_plans: 1
+  percent: 25
 ---
 
 ## State: Holzcloud CMS
@@ -21,7 +21,7 @@ progress:
 ### Project Reference
 
 - Core value: One Go binary runs several websites without dependency soup
-- Current focus: **keiner — v2.2 „What the Server Promises, It Keeps“ (Phase 15) ist geschlossen (2026-09-14)**, davor v2.1 (Phasen 13–14, geschlossen 2026-09-13). Der nächste Meilenstein ist noch nicht eröffnet. Was v2.1 war und was offen blieb, steht unter `## Current Position`. Vormals: **eröffnet 2026-09-13** — am selben Tag, an dem v2.0 schloss, und der erste Punkt repariert v2.0: PUB-01 ist eine lebende Regression, englische Ablehnungen vor deutschen Besuchern. Die Entscheidung, auf der alles ruht, steht in `milestones/v2.1-phases/13-public-translation/13-CONTEXT.md` §2 und stürzt `TEMPLATE-SPEC.md` §2.5 um. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`.
+- Current focus: **v2.3 „Every Word on a Page Belongs to Whoever Reads It“ (Phase 16), eröffnet 2026-09-14, erster Plan 16-00 gefahren 2026-09-15.** Das Thema ist das letzte Zimmer eines Hauses, an dem drei Meilensteine gebaut haben: fünf Wörter, die dieses Programm selbst prägt, stehen seit dem Speichern in `pages.content_html` — in der Sprache, die die Website damals hatte. WORD-04 verlangt, dass zuerst gemessen wird, und das ist geschehen: `.planning/phases/16-every-word/16-MEASUREMENT.md`. Einstieg: `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, `.planning/phases/16-every-word/16-CONTEXT.md`. Was v2.2 war und was offen blieb, steht unter `## Current Position`.
 - Constraints: Go + htmx + plain CSS + SQLite only — no deviations without explicit user approval
 - Stack is a hard mandate: modernc.org/sqlite (pure-Go), html/template, log/slog, embed.FS, gorilla/csrf, alexedwards/scs, pressly/goose, goldmark, bluemonday
 - Nothing loads at runtime: no CDN, no web fonts by URL, no third-party subresource of any kind

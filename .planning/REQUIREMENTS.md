@@ -40,10 +40,19 @@ ledger reaches zero.
       heals.** The same rule window 8 followed: no migration, no broken page, no
       re-save required for a page to render. Whatever mechanism WORD-02 chooses
       must read old stored HTML unchanged.
-- [ ] **WORD-04**: **The measurement is written down before the mechanism is
+- [x] **WORD-04**: **The measurement is written down before the mechanism is
       chosen.** How many stored pages carry frozen words, in how many
       installations' shapes, and what each candidate mechanism costs a
       monolingual site — which is most of them, and which must not pay for this.
+      *Done 2026-09-15:* `phases/16-every-word/16-MEASUREMENT.md`, the raw
+      numbers in `16-BENCH.txt`, the bench itself in
+      `internal/block/frozen_bench_test.go`. Only a page with a gallery or a
+      video carries any of the five words at all. Searching a body is free
+      (358 ns, no allocation on a 23 KB page); building a second one is what
+      costs (37 µs and 49 KB unguarded). Re-rendering the blocks per request —
+      the broad answer — costs 124 µs and 215 KB and cannot be guarded, so it
+      is out on measurement rather than on instinct. A guarded one-pass
+      substitution costs the common case 311 ns and nothing at all.
 
 ## The ledger
 
