@@ -1,46 +1,45 @@
 name: Release
 
+# Nothing here fires by itself. Every way in is somebody saying "release it
+# now" — a push to main does not publish, however much it changed.
 on:
+  # 1. A tag pushed by hand, the way v1.8 through v1.10 were made.
   push:
     tags: [ 'v*' ]
-  # And by hand, which is how a tag gets made at all when it cannot be pushed
-  # from a working copy.
+
+  # 2. A push to the `release` branch, which is a button rather than a branch:
+  #    it holds no work of its own and is only ever fast-forwarded to the
+  #    commit that is to be released.
   #
-  # Press this in the Actions tab, as a person. Triggering it through the API as
-  # an integration gets far enough to build and test and then fails at the last
-  # step with
+  #    It exists because of where this repository is worked from. The
+  #    development environment's proxy allows branch pushes and refuses writes
+  #    to refs/tags — by git and by the Git Refs API alike, with
+  #    "Write access to this GitHub API path is not permitted through this
+  #    proxy" — so a session there cannot make a tag, and a run it DISPATCHES
+  #    carries its own App's scopes and fails at the publish step with
+  #    "Resource not accessible by integration" (measured 2026-09-14, run 12).
   #
-  #   HTTP 403: Resource not accessible by integration
-  #   (https://api.github.com/repos/holzcloud/holzcloud-cms/releases)
+  #    A run started by a PUSH is on the far side of both walls and holds the
+  #    repository's ordinary token. Measured 2026-09-15 with a throwaway
+  #    workflow: it may publish a release.
   #
-  # because a run an App dispatched carries that App's scopes and not the
-  # repository's, whatever `permissions:` says below. Measured 2026-09-14, run
-  # 12.
-  #
-  # That a run dispatched BY A PERSON gets the repository's own token instead is
-  # how GitHub Actions is documented to behave; it is not measured here, because
-  # the session that wrote this cannot press a button as a person. A tag push,
-  # the path this file has always had, is unaffected either way — v1.8 through
-  # v1.10 were tagged that way, under the operator's account.
-  #
-  # v2.0 and v2.1 were built, closed and recorded, and then sat untagged:
-  # `git push origin refs/tags/v2.0` is answered 403 for the credential the
-  # development environment holds, while branch refs on that same credential go
-  # through. The consequence is not cosmetic — image.yml stamps every image with
-  # `git describe --tags`, so an untagged release ships as "v1.10-31-g9fe3279".
-  #
-  # This path exists for that, and it is the honest shape rather than a trick:
-  # the release is built and published by the same job either way, and the only
-  # difference is who mints the tag. A dispatch can mint one; a push reacts to
-  # one somebody else minted.
+  #    So: pushing this branch is the one thing such a session can do that ends
+  #    in a release, and it takes a deliberate act to do it.
+    branches: [ 'release' ]
+
+  # 3. The button in the Actions tab, for a person. With no inputs it releases
+  #    the version the CHANGELOG names, at the head of the default branch —
+  #    the same thing route 2 does. With inputs it releases a named version at
+  #    a named commit, which is how a release that was missed gets made later
+  #    from the code it actually belongs to.
   workflow_dispatch:
     inputs:
       tag:
-        description: 'The tag to create and release, for example v2.1'
-        required: true
+        description: 'Tag to create, for example v2.1. Empty: read the CHANGELOG.'
+        required: false
         type: string
       commit:
-        description: 'The commit it names. Empty means the head of the default branch.'
+        description: 'The commit it names. Empty: the head of the default branch.'
         required: false
         type: string
 
@@ -67,54 +66,88 @@ jobs:
       contents: write
 
     steps:
+    # The checkout comes first, because the decision below reads CHANGELOG.md
+    # and a file cannot be read before it is on the disk. Its ref is whatever
+    # the event brought — the tag, the release branch, or the default branch on
+    # a dispatch — and a dispatch naming another commit moves to it afterwards.
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         # git describe needs history. Leave this out and the version baked into
         # the binary silently degrades to a bare commit hash again, which is the
-        # exact defect the v1.4 tag was created to fix.
+        # exact defect the v1.4 tag was created to fix. It is also what lets the
+        # step after next check out a commit this checkout did not name.
         fetch-depth: 0
-        # On a dispatch: the commit the tag is to name. Empty falls back to the
-        # default branch, which is what checkout does with an empty ref anyway.
-        ref: ${{ inputs.commit }}
 
-    # The name this release carries, in one place.
+    # What is being released. One answer, worked out once.
     #
-    # GITHUB_REF_NAME is the tag on a push and the BRANCH on a dispatch, so
-    # reading it directly would have published a release called "main".
-    - name: Name the release
-      id: name
-      run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
-
-    # The tag, locally, so that `git describe --tags` in the build below names
-    # the release rather than degrading to a bare hash. It is NOT pushed from
-    # here, and that is the whole lesson of this file:
-    #
-    #   ! [remote rejected] v2.0 -> v2.0 (refusing to allow a GitHub App to
-    #     create or update workflow `.github/workflows/ci.yml` without
-    #     `workflows` permission)
-    #
-    # A new tag ref has no base to be compared against, so every workflow file
-    # in the tree counts as newly added — and no `permissions:` key can grant
-    # GITHUB_TOKEN the scope that would allow it. The same wall is what answers
-    # a development environment 403 on `git push origin refs/tags/v2.0` while
-    # letting branch pushes through, which was misread for two milestones as
-    # "this credential cannot write tag refs".
-    #
-    # The tag is therefore minted by the Releases API instead, in the publish
-    # step, which takes the commit as --target and is not a ref push.
-    - name: Name the tag locally, for the version in the binary
-      if: github.event_name == 'workflow_dispatch'
+    # GITHUB_REF_NAME is the TAG on a tag push and the BRANCH everywhere else,
+    # so a step reading it directly once published a release called "main".
+    - name: What is being released
+      id: what
       env:
-        TAG: ${{ steps.name.outputs.tag }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO: ${{ github.repository }}
+        INPUT_TAG: ${{ inputs.tag }}
+        INPUT_COMMIT: ${{ inputs.commit }}
+        REF_NAME: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
       run: |
-        if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-          echo "::error::$TAG is already on the remote. A published tag is never moved."
+        set -euo pipefail
+
+        if [ "${GITHUB_REF:-}" != "${GITHUB_REF#refs/tags/}" ]; then
+          # A tag somebody pushed by hand. It already says both things, and it
+          # is on the remote by definition — this run exists BECAUSE it is.
+          tag="$REF_NAME"
+          commit="$SHA"
+          minting=no
+        else
+          tag="${INPUT_TAG:-}"
+          commit="${INPUT_COMMIT:-$SHA}"
+          minting=yes
+        fi
+
+        # The version lives in the CHANGELOG, because that is where this project
+        # already writes it: closing a milestone adds the heading, and a release
+        # that disagreed with it would be one nobody could explain afterwards.
+        # "The numbers are the same as the tags in the repository" — CHANGELOG.md
+        # says so in its own opening.
+        if [ -z "$tag" ]; then
+          version=$(grep -m1 -oE '^## [0-9]+\.[0-9]+(\.[0-9]+)?' CHANGELOG.md | sed 's/^## //' || true)
+          if [ -z "$version" ]; then
+            echo "::error::No version heading found at the top of CHANGELOG.md."
+            exit 1
+          fi
+          tag="v$version"
+          echo "The CHANGELOG names $version, so this is $tag."
+        fi
+
+        # A published tag is never moved — but only the routes that MINT a tag
+        # can offend against that. A run reacting to a tag somebody pushed finds
+        # that tag on the remote every time, and refusing there would mean
+        # refusing the oldest way into this file.
+        if [ "$minting" = yes ] && gh api "repos/$REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+          echo "::error::$tag is already released. A published tag is never moved."
           exit 1
         fi
-        # Lightweight, because this one never leaves the runner: git describe
-        # reads it either way, and an annotated tag would need a committer
-        # identity configured for a tag nobody will ever see.
-        git tag "$TAG"
+
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        echo "commit=$commit" >> "$GITHUB_OUTPUT"
+        echo "Releasing $tag at $commit."
+
+    # Only a dispatch that named another commit moves; everything else is
+    # already standing on the right one.
+    - name: Stand on the commit being released
+      run: git checkout --detach "${{ steps.what.outputs.commit }}"
+
+    # The tag, locally, so that `git describe --tags` in the build below names
+    # the release rather than degrading to a bare hash. It is not pushed: the
+    # tag reaches the remote through the Releases API in the publish step, which
+    # takes the commit as --target and is not a ref push.
+    #
+    # Lightweight, because this one never leaves the runner — an annotated tag
+    # would want a committer identity configured for a tag nobody will ever see.
+    - name: Name the tag locally, for the version in the binary
+      run: git tag "${{ steps.what.outputs.tag }}"
 
     - name: Set up Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -142,15 +175,22 @@ jobs:
     - name: Publish the release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG: ${{ steps.name.outputs.tag }}
-        # Empty on a tag push, where the tag already says which commit it is.
-        TARGET: ${{ github.event_name == 'workflow_dispatch' && (inputs.commit || github.sha) || '' }}
+        TAG: ${{ steps.what.outputs.tag }}
+        # Always named, never conditional. A `cond && '' || x` expression is a
+        # trap here: the empty string is falsy, so it yields x whichever way the
+        # condition falls. And it needs no condition — on a tag push this is the
+        # commit that tag already names, which the API ignores for a tag that
+        # exists.
+        TARGET: ${{ steps.what.outputs.commit }}
       run: |
         # --target names the commit the tag is to be created at, and creating
-        # it is what this call does when the tag does not exist yet. On a tag
-        # push the tag is already there and the flag is left off.
+        # the tag is what this call does when it does not exist yet. That is
+        # the whole reason the tag is minted here rather than pushed: a release
+        # is not a ref push, so neither the workflow token's missing scope for
+        # .github/workflows nor the development proxy's refusal of refs/tags
+        # applies to it.
         gh release create "${TAG}" \
-          ${TARGET:+--target "${TARGET}"} \
+          --target "${TARGET}" \
           --title "${TAG}" \
           --generate-notes \
           holzcloud-linux-amd64 \

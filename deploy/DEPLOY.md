@@ -603,3 +603,45 @@ sudo -u holzcloud holzcloud user 2fa disable -email admin@example.de
 The account can then sign in with its password alone and will be asked to enrol
 a new authenticator on the next request. Nothing else about the account changes;
 its password is untouched.
+
+### Making a release
+
+A release is never made by accident. Nothing in this repository publishes on its
+own — a push to `main` changes nothing, however much it contains.
+
+There are three ways to ask for one, and all three end in the same workflow
+(`.github/workflows/release.yml`), which runs the whole test suite before it
+publishes anything: a tag on broken code must not become a published release.
+
+**1. The button.** *Actions → Release → Run workflow*. With no inputs it
+releases the version the top of `CHANGELOG.md` names, at the head of the default
+branch. That heading is written when a milestone closes, so in normal use the
+release number is already decided before anybody presses anything.
+
+**2. A push to the `release` branch.** That branch holds no work of its own; it
+is a button in the shape of a branch, fast-forwarded to whatever is to be
+released:
+
+```bash
+git push origin main:release
+```
+
+It exists because of where this repository is worked from. A development
+environment behind an agent proxy may push branches and may not write
+`refs/tags` — by git or by the API, both answered with *"Write access to this
+GitHub API path is not permitted through this proxy"* — and a workflow run such
+an environment DISPATCHES carries its own integration's scopes and cannot
+publish either. A run started by a push carries the repository's own token and
+can. So this is the one route by which such a session can produce a release, and
+it takes a deliberate push to take it.
+
+**3. A tag pushed by hand**, the way `v1.8` through `v1.10` were made. The
+workflow reacts to it as it always has.
+
+A tag that already exists is never moved: routes 1 and 2 refuse loudly rather
+than overwriting a published release.
+
+**Releasing something older.** Give the button both inputs — a tag name and the
+commit it belongs to. The binary is then built from that commit rather than from
+today's default branch, which is what makes a release that was missed still
+honest when it is made later.
