@@ -1,0 +1,40 @@
+{{define "content"}}
+{{template "changelog-content" .}}
+{{end}}
+
+{{define "changelog-content"}}
+<p class="hint">
+    {{t "Every version of this program and what changed in it, written by whoever made the change. The newest is on top."}}
+</p>
+
+{{if not .Releases}}
+<p class="empty">{{t "This build carries no version history."}}</p>
+{{else}}
+
+<!-- Die Fassungen als gewöhnliche Verweise, nicht als Reiter aus Javascript:
+     jede hat eine eigene Adresse, die man kopieren und jemandem schicken kann,
+     der noch auf der älteren Fassung sitzt, und ohne Skript funktioniert die
+     Seite genauso. -->
+<nav class="changelog-versions" aria-label="{{t "Versions"}}">
+    {{range .Releases}}
+    <a href="/admin/neuerungen/{{.Version}}"
+       class="changelog-version{{if eq .Version $.Shown.Version}} is-active{{end}}"
+       {{if eq .Version $.Shown.Version}}aria-current="page"{{end}}>{{.Version}}</a>
+    {{end}}
+</nav>
+
+<article class="changelog-entry">
+    <header class="changelog-entry__head">
+        <h2>{{tf "Version %s" .Shown.Version}}</h2>
+        {{if .Shown.Date}}<p class="changelog-entry__date">{{.Shown.Date}}</p>{{end}}
+        {{if .Running}}
+        <p class="changelog-entry__running">{{t "This is the version running here."}}</p>
+        {{end}}
+    </header>
+    <!-- Durch goldmark und bluemonday gegangen, wie jeder andere Markdown-Text
+         in diesem Programm; internal/changelog sagt, warum es keinen zweiten
+         Weg dorthin gibt. -->
+    <div class="changelog-entry__body prose">{{.Shown.HTML}}</div>
+</article>
+{{end}}
+{{end}}

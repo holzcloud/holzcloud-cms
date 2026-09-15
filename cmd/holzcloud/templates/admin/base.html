@@ -190,7 +190,14 @@
                  wie die Installation sich nennt, die Lizenz meint das
                  Programm. -->
             <p class="sidebar-build">
-                Holzcloud CMS {{.Version}}<br>
+                <!-- Die Fassungsnummer ist der Verweis auf das, was sich
+                     geaendert hat. Wer wissen will, was nach einer
+                     Aktualisierung anders ist, schaut dorthin, wo die Nummer
+                     steht — also fuehrt die Nummer dorthin. Kein Abzeichen,
+                     kein Hinweis, der sich meldet: ein selbst betriebenes
+                     Programm, das seine Bedienerin unterbricht, um ueber sich
+                     selbst zu reden, lernt sie wegzuklicken. -->
+                Holzcloud CMS <a href="/admin/neuerungen" class="sidebar-build__version">{{.Version}}</a><br>
                 {{t "Free software under the AGPL-3.0."}}
                 <a href="{{.SourceURL}}" target="_blank" rel="noopener">{{t "Source code"}}</a>
             </p>

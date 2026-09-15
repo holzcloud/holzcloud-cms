@@ -438,6 +438,10 @@ var editorOpenRoutes = []route{
 	{pattern: "POST /admin/2fa/codes"},
 	{pattern: "POST /admin/2fa/aus"},
 	{pattern: "GET /admin/"},
+	// What changed between two versions is not a site-level secret: an
+	// editor is the one who will notice that a screen behaves differently.
+	{pattern: "GET /admin/neuerungen"},
+	{pattern: "GET /admin/neuerungen/{version}"},
 	{pattern: "GET /admin/websites"},
 	{pattern: "GET /admin/websites/{id}"},
 	{pattern: "POST /admin/websites/{id}"},
