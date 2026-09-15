@@ -392,7 +392,7 @@ func exportFieldDef(d field.Def) Field {
 // not portable — Rename keeps a label's address when its name changes, so the
 // importing machine would derive a different one from the name it is given.
 // The value therefore travels as the name, which is how a page's own Terms
-// list has always spelled a label (format.go:152-159). Same shape as
+// list has always spelled a label (Page.Terms). Same shape as
 // exportMedia: the step that writes the list also hands back the lookup.
 func exportTerms(ctx context.Context, s Stores, websiteID int64, m *Manifest) (map[string]string, error) {
 	nameBySlug := map[string]string{}

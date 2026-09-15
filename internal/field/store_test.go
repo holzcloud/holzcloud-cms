@@ -440,7 +440,7 @@ func TestIsButtonRow(t *testing.T) {
 // theme addresses the field by. validate used to derive it from the label only
 // when none came along — a brought key went through unchecked. The one path on
 // which a brought key comes in is the archive path
-// (internal/bundle/import.go:351), which is to say a file from somebody else's
+// (bundle.importTerms), which is to say a file from somebody else's
 // machine.
 //
 // The second half is the counter-check for the unified upper bound: SlugifyKey
@@ -451,7 +451,7 @@ func TestAFieldKeyIsCheckedForItsShape(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Klammern im Schlüssel werden abgelehnt", func(t *testing.T) {
-		// Literally the shape internal/bundle/import.go:351 hands over.
+		// Literally the shape bundle.importTerms hands over.
 		_, err := store.Create(ctx, Def{
 			WebsiteID: site, Key: "farbe[]", Label: "Farbe", Kind: KindChoice,
 			Choices: []string{"rot", "blau"}})

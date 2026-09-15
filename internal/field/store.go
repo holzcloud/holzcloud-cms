@@ -678,7 +678,7 @@ func validate(d *Def) error {
 	//
 	// A derived key carries only [a-z0-9_] anyway, so nothing from the screen
 	// would catch here. The one path on which a key is BROUGHT rather than
-	// derived is the archive path (internal/bundle/import.go:351) — a file from
+	// derived is the archive path (bundle.importTerms) — a file from
 	// somebody else's machine.
 	if !validKey(d.Key) {
 		return errors.New(i18n.N("a key carries only lower-case letters, digits and underscores"))

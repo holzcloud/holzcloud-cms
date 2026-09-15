@@ -845,7 +845,7 @@ func seedAlbumSite(t *testing.T, s Stores, siteName, albumName string) (websiteI
 }
 
 // An album's pictures travel as file names, never as ids — the sentence
-// blocks.go:11-18 opens with, one level up. And the album itself travels under
+// exportBlocks opens with, one level up. And the album itself travels under
 // its name and without a slug, because the importing machine derives the slug
 // from the name with the one call the album store makes.
 func TestExportWritesAlbumsWithFileNames(t *testing.T) {
@@ -962,7 +962,7 @@ func TestImportCreatesAlbumsBeforePages(t *testing.T) {
 }
 
 // A number a report names should be believable: report.Albums counts what was
-// created and not what the archive claimed (import.go:331-332).
+// created and not what the archive claimed (importTerms).
 func TestImportReportsAlbumsCreatedNotClaimed(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
@@ -1734,7 +1734,7 @@ func TestATermFieldRoundTrip(t *testing.T) {
 		// And the value of the page points at *this* term. The address is a
 		// different one than on the source website — "moebel" there,
 		// "moebelbau" here — and that is not a fault: the format derives the
-		// address of a term from its name (format.go:274-284), so it may move
+		// address of a term from its name (Term), so it may move
 		// across a round trip. What may not move is which term the field
 		// points at.
 		kopien, _, err := s.Pages.ListPages(ctx, report.WebsiteID, page.ListFilter{Page: 1, PerPage: 10})
@@ -1985,7 +1985,7 @@ func TestArchiveValuesGoThroughTheSameCheck(t *testing.T) {
 
 // The archive path is the only one on which a field key is brought along
 // instead of derived: importFields passes Key: f.Key verbatim from the
-// manifest (internal/bundle/import.go:351), and a manifest is a file anyone
+// manifest (importTerms), and a manifest is a file anyone
 // can write by hand.
 //
 // A key like farbe[] would be the form prefix of multi-value disguised as a
@@ -2372,13 +2372,13 @@ func TestValuesWithoutADefinitionAreDiscardedOnBothCarriers(t *testing.T) {
 }
 
 // snippet.Store.Create ends on s.Get(ctx, id), and Get hands out (nil, nil)
-// when the row is not there (internal/snippet/store.go:92-94). Get reads
+// when the row is not there (snippet.Get). Get reads
 // through s.DB.Read — a different pool than the one that wrote.
 //
 // Before 08-05 the return value was thrown away ("if _, err := …"). Since the
 // import pulls the fields of the snippet along, created.ID is read, and
 // (nil, nil) is therefore no longer an empty result but a crash that takes the
-// whole request with it. internal/admin/snippet.go:307-310 watches over the
+// whole request with it. admin.handleSnippetSave watches over the
 // same value — the two call sites disagreed about whether it can be nil.
 //
 // The situation is reproduced over the read pool and not over a mock: the

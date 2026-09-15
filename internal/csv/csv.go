@@ -12,7 +12,7 @@
 // produces one column holding the whole row and says nothing, and the deferred
 // alternative is an explicit choice on the upload screen, never sniffing.
 // Nothing a cell names is fetched from a third party, which is the same refusal
-// internal/admin/wordpress.go:63-71 already makes for a WXR file's pictures.
+// admin.HandleWordPressImport already makes for a WXR file's pictures.
 // And there is no database and no HTTP in this package: the checklist against a
 // hostile file is nine independent defences, and each of them stays provable
 // without db.Open for exactly as long as this package imports nothing but the
@@ -192,8 +192,8 @@ func New(r io.Reader) (*Reader, error) {
 	// Doing it at each later comparison instead is the number one CSV import
 	// bug: Excel writes the mark, the first header arrives as "\ufeffTitel",
 	// matches no mapping, and the title column is silently lost.
-	// plugins/kontaktformular/csv.go:33 writes this mark on purpose, which is
-	// the proof that files carrying it are the normal case here and not the
+	// The kontaktformular plugin's own asCSV writes this mark on purpose, which
+	// is the proof that files carrying it are the normal case here and not the
 	// exception.
 	if head, err := br.Peek(len(bom)); err == nil && bytes.Equal(head, bom) {
 		if _, err := br.Discard(len(bom)); err != nil {

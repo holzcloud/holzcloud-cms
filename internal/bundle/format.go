@@ -291,7 +291,7 @@ type ContentType struct {
 // deliberately no slug here: the importing machine derives it from the name
 // with page.Slugify, which is the same one call album.Store.Create makes, so
 // the two agree by construction rather than by coincidence. Carrying both
-// would be two sources for one key — the shape internal/term/store.go:318-328
+// would be two sources for one key — the shape term.EnsureNames
 // warns about at length — and the derived one would win anyway.
 //
 // The name and not an id, for the reason Page.Terms already gives: a manifest

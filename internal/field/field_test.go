@@ -1165,7 +1165,7 @@ func TestTermCheck(t *testing.T) {
 
 // The byte limit holds where nobody was asked for the value either.
 //
-// Clean deliberately keeps a hidden field's value (field.go:568-573), and since
+// Clean deliberately keeps a hidden field's value (Clean), and since
 // D-13 trimTo truncates nothing — CheckAll is therefore the only place the byte
 // budget still holds at all. If it were bypassed here, the limit would exist
 // nowhere for this class: the browser sends a hidden field's value along, and
@@ -1202,7 +1202,7 @@ func TestAHiddenFieldStaysBoundToTheByteLimit(t *testing.T) {
 
 // The same hole one level down, with MaxRows rows times sub-fields as the
 // lever: validate empties the condition only for a field inside a group or
-// inside a block kind (store.go:521-523), so a top-level group may carry one.
+// inside a block kind (Update), so a top-level group may carry one.
 func TestAHiddenGroupStaysBoundToTheByteLimit(t *testing.T) {
 	schalter := Def{Key: "spezial", Label: "Spezial", Kind: KindBool}
 	notiz := Def{Key: "notiz", Label: "Notiz", Kind: KindLong, Required: true}

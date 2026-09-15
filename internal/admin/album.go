@@ -21,25 +21,25 @@ import (
 // named parent and an ordered child list. Three things of that file are
 // deliberately NOT copied, and each absence is a decision:
 //
-//   - isValidLocationKey and the branch around it (menu.go:113-118). An album
+//   - isValidLocationKey and the branch around it (HandleMenuList). An album
 //     has no location key. Its address is derived from its name by the store's
 //     single call to page.Slugify, and nothing here mints a second one.
 //
-//   - menuOfWebsite's role as the ONLY guard (menu.go:54-77). The album store
+//   - menuOfWebsite's role as the ONLY guard. The album store
 //     puts website_id in the WHERE clause of every statement, so Get already
 //     answers nothing for another website's album and albumFromPath is a second
-//     strap rather than the strap. internal/menu/store.go:14-33 records why that
+//     strap rather than the strap. menu.Store records why that
 //     shape was chosen: on 2026-09-06 four menu item handlers reached another
 //     website's navigation, and the reason was not carelessness in four places —
 //     it was that nothing in a signature made anyone supply the website. Here
 //     every store call takes websiteID, so a handler that forgot could not
 //     compile.
 //
-//   - the substring match on the text of an SQL message (menu.go:167-176).
+//   - the substring match on the text of an SQL message (HandleMenuCreate).
 //     internal/album exports named errors for exactly this, and the branches
 //     below use errors.Is.
 //
-// The picture chooser is ImageFieldView (page_blocks.go:193), the block
+// The picture chooser is ImageFieldView (BlockView), the block
 // editor's own, fed to the block_bild partial unchanged. That reuse is GAL-07
 // in the editor: one picture chooser, not two that agree.
 
@@ -144,7 +144,7 @@ func (h *Handler) albumFromPath(w http.ResponseWriter, r *http.Request) (*domain
 // can act on, or returns "" for an error that is not one of them.
 //
 // errors.Is and not strings.Contains(err.Error(), "UNIQUE constraint"), which is
-// what internal/admin/menu.go:172 still has to do: a string match reads a
+// what HandleMenuCreate still has to do: a string match reads a
 // sentence the driver is free to reword and cannot tell a unique violation from
 // a NOT NULL one that happens to mention the word.
 //
@@ -260,7 +260,7 @@ func (h *Handler) HandleAlbumCreate(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	// menu.go:126-135 verbatim, and it is CLAUDE.md's htmx rule made concrete:
+	// HandleMenuList verbatim, and it is CLAUDE.md's htmx rule made concrete:
 	// htmx acts on the header, a browser with scripting switched off follows
 	// the redirect, and the same button works either way.
 	if r.Header.Get("HX-Request") == "true" {
@@ -389,7 +389,7 @@ func albumPicture(r *http.Request) (mediaID int64, alt, caption string) {
 // this website's.
 //
 // The store checks the ownership too, and both checks are right here for the
-// reason internal/admin/page_blocks.go:107-110 already states: the id comes out
+// reason blockSet already states: the id comes out
 // of a form, and without the check an editor on one site references another
 // site's library by typing its number. The handler's copy is what turns it into
 // a sentence rather than a 500, and it is also what catches a film chosen where

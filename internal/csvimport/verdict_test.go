@@ -10,7 +10,7 @@ package csvimport
 import "testing"
 
 // TestCleanRowCarriesNoReason: the discipline kept from
-// internal/admin/wordpress.go:107.
+// admin.importWordPressItem.
 func TestCleanRowCarriesNoReason(t *testing.T) {
 	v := Verdict{Row: 2, Outcome: OutcomeCreate}
 	if v.Reason != "" {

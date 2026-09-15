@@ -170,12 +170,12 @@ func fieldsFromRequest(r *http.Request) field.Data {
 				// difference this branch exists to keep.
 				//
 				// And here it ends, two calls later: field.Clean
-				// (field.go:575-581) carries forward only what is not empty
+				// carries forward only what is not empty
 				// after trimming, so the present empty key and the missing key
 				// produce the same JSON out of field.Encode. That costs this
 				// handler nothing, because its storage path is a complete
 				// replacement: the whole fields column is written in one UPDATE
-				// (internal/page/store.go:185). A caller that only ever carries
+				// (page.SetTranslation). A caller that only ever carries
 				// part of a page's fields forward has to carry the presence on
 				// its own level and must not try to read it back out of the
 				// store.

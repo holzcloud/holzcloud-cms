@@ -240,7 +240,7 @@ type Block struct {
 	// gallery saved before this field existed.
 	//
 	// The slug and not the id: an id means nothing on the machine a bundle
-	// lands on, which is the sentence internal/bundle/blocks.go:11-18 opens
+	// lands on, which is the sentence bundle.exportBlocks opens
 	// with, and the slug is what page.Slugify derives from the name on both
 	// sides. The pictures are NOT stored here — that is the whole point. A
 	// block naming an album renders to a marker (see AlbumMarker in render.go)

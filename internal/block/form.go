@@ -196,7 +196,7 @@ func setBlockField(b *Block, name string, values []string) {
 		// the marker can carry a quote or an angle bracket.
 		//
 		// The same one call the album store makes, deliberately.
-		// internal/term/store.go:318-328 warns at length what two callers
+		// term.EnsureNames warns at length what two callers
 		// deriving one key two ways cost: an import creates a second row beside
 		// the one it meant to reuse, and both look right in every listing.
 		// Slugify never returns "", so the empty choice is handled before it.

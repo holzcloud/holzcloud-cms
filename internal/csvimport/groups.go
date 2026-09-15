@@ -26,7 +26,7 @@ import "sort"
 // maxNamedRows is how many row numbers one group prints before it counts the
 // rest.
 //
-// Twenty-five, which is what internal/admin/wordpress.go:73 already uses for
+// Twenty-five, which is what admin.HandleWordPressImport already uses for
 // the same reason and on the same kind of list. The cap is reported through
 // Group.More and never silently applied — a truncation nobody is told about is
 // the report lying about the file.

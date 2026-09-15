@@ -78,6 +78,15 @@ jobs:
     - name: Verify the committed plugin modules are current
       run: go run ./tools/wasm -check
 
+    # This repository puts its reasoning in comments rather than in a wiki, and
+    # the comments cite each other. They used to cite a LINE, and a line number
+    # is a fact about a file at one moment: 45 of 108 citations had drifted onto
+    # a blank line, a closing brace or an unrelated comment while every one of
+    # them still read as though it were true. They name a declaration now, and
+    # this step is what stops the old form coming back one comment at a time.
+    - name: No comment cites a line number
+      run: go run ./tools/cites -check
+
     # The eight shipped themes mint the same words, so their catalogues are
     # generated from one source rather than kept eight times by hand. Without
     # this step a correction to the French for one word lands in words.json and

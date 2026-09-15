@@ -13,7 +13,7 @@ import (
 // # Why this cannot happen on save
 //
 // Block HTML is rendered once, on save, and written into pages.content_html —
-// internal/admin/page_blocks.go:74-81 says so in its own comment, and the
+// admin.renderBlocks says so in its own comment, and the
 // public side only rewrites what it reads. So an album expanded at save time
 // would freeze a copy of its pictures into every page carrying it: GAL-03
 // ("changing the album changes every page that carries it, without touching
@@ -21,8 +21,8 @@ import (
 // fails, no line is logged. The editor changes the album, reloads the page and
 // sees the old pictures.
 //
-// internal/public/pagedata.go:22-25 states the same argument for snippets in
-// exactly these words, and internal/snippet/store.go:243-264 is the mechanism
+// public.pageContent states the same argument for snippets in
+// exactly these words, and snippet.LoadRendered is the mechanism
 // this one is modelled on.
 //
 // # What is copied from snippet.Expand and what is deliberately not
@@ -35,7 +35,7 @@ import (
 // NOT copied: the loading strategy. loadSnippets builds a map for the WHOLE
 // website on every request. A website with fifty albums must not load fifty to
 // render one page, so LoadFor reads the slugs out of the HTML first and asks
-// for those — which is media.LoadImageSets' rule (variant_store.go:176: "Only
+// for those — which is media.LoadImageSets' rule (media.LoadImageSets: "Only
 // the files actually named in the HTML are looked up").
 //
 // # Where the marker's spelling lives
