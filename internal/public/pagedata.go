@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
+	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
@@ -63,6 +64,17 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	set := h.albumsFor(r, websiteID, body)
 	albumsAt := set.Latest()
 	body = album.Expand(body, set)
+	// The words this program mints, in the language of THIS PAGE.
+	//
+	// After the albums, because an album gallery's wrapper and controls are
+	// markers this pass has to see. Before the plugins, for the reason their
+	// own comment gives: a filter sees the page as a visitor would, and a
+	// visitor sees words.
+	//
+	// i18n.Lang is the page's language here and not the reader's browser's —
+	// LocaleMiddleware put it there, and its comment says why: "the language
+	// belongs to the page, not to whoever is reading it".
+	body = block.ResolveWords(body, pageWords(r.Context()))
 	// Plugins last: they see the page as a visitor would, with the snippets
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.
@@ -385,20 +397,18 @@ func emptyBlocks() snippet.Rendered {
 // Nil-safe on the store, because a build without albums wired must still serve
 // a page whose HTML was written when they were.
 //
-// The translator is built from the website's locale — the same one
-// internal/admin/page_blocks.go's blockSet uses for the save-time render — so a
-// page carrying an inline gallery and an album gallery does not end up with its
-// two sets of lightbox controls in two languages.
+// No translator any more, and that is window 34 closed by subtraction. It used
+// to build one from the WEBSITE's locale, matching what the save-time render
+// froze, so that an inline gallery and an album gallery on one page could not
+// answer in two languages. They could not — and both answered in the website's
+// language on a page published in another one. Nothing here translates now:
+// every word the renderer mints is a marker, and pageContent resolves all of
+// them together in the page's language. See internal/block/words.go.
 func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album.Set {
 	if h.albumStore == nil {
 		return album.Set{}
 	}
-	var t func(string) string
-	if ws := domain.WebsiteFromContext(r.Context()); ws != nil {
-		locale := ws.Locale
-		t = func(word string) string { return i18n.T(locale, word) }
-	}
-	set, err := h.albumStore.LoadFor(r.Context(), websiteID, body, t)
+	set, err := h.albumStore.LoadFor(r.Context(), websiteID, body)
 	if err != nil {
 		slog.Error("load albums for page", "err", err, "website", websiteID)
 		return album.Set{}
@@ -424,8 +434,11 @@ func (h *Handler) albumsFor(r *http.Request, websiteID int64, body string) album
 // filter or the responsive rewrite. Both predate this phase and neither leaves
 // anything unreadable in the output; a feed picture without a srcset is a
 // picture.
-func expandForFeed(html string, snippets snippet.Rendered, albums album.Set) string {
-	return album.Expand(snippet.Expand(html, snippets.HTML), albums)
+// words is the feed's language, and a feed has exactly one: HandleFeed lists
+// only the pages published in it, because "a reader who subscribed to the
+// French feed did not ask for German articles in among them".
+func expandForFeed(html string, snippets snippet.Rendered, albums album.Set, words func(string) string) string {
+	return block.ResolveWords(album.Expand(snippet.Expand(html, snippets.HTML), albums), words)
 }
 
 // contentModTime is the validator for conditional requests.

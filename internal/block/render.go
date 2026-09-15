@@ -138,7 +138,7 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 		}
 		fmt.Fprintf(b, `><source src="%s" type="video/mp4">%s</video>`,
 			html.EscapeString(film.URL),
-			html.EscapeString(s.text(textNoVideo)))
+			Word(wordNoVideo))
 		if c := strings.TrimSpace(blk.Caption); c != "" {
 			fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(c))
 		}
@@ -189,7 +189,7 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 			b.WriteString(AlbumMarker(slug, at, blk.Columns(), blk.DisplayClass()))
 			return
 		}
-		inner := GalleryItems(at, blk.Items, look, s.text)
+		inner := GalleryItems(at, blk.Items, look)
 		if inner == "" {
 			return
 		}
@@ -199,7 +199,7 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 		// identical in both. That is what makes a display mode one block of CSS
 		// rather than a second renderer, and it is what keeps the lightbox
 		// working in both modes for nothing.
-		b.WriteString(GalleryWrapper(blk.Columns(), blk.DisplayClass(), inner, s.text))
+		b.WriteString(GalleryWrapper(blk.Columns(), blk.DisplayClass(), inner))
 
 	case TypeCards:
 		var inner strings.Builder
@@ -400,10 +400,12 @@ func renderOwn(b *strings.Builder, at int, blk Block, own Own, s Set, look Looku
 // minted instead.
 //
 // i18n.N marks them so `go run ./tools/i18n` collects them; it translates
-// nothing. Marking is only half the job: this file carries no locale, so the
-// words are translated through the function on Set — see Set.T. A string that
-// is marked and never injected is collected, translated into four catalogues
-// and printed in the source language anyway.
+// nothing. Marking is only half the job: this file carries no locale, and since
+// v2.3 it carries no translator either — each of these is written into the page
+// as a marker and resolved when somebody is actually reading, in the language of
+// the page they are reading. words.go is where that happens and why. A string
+// that is marked and never resolved is collected, translated into four
+// catalogues and printed in the source language anyway.
 var (
 	textPrevious = i18n.N("Previous image")
 	textNext     = i18n.N("Next image")
@@ -610,17 +612,15 @@ func ReplaceAlbumMarkers(html string, expand func(slug string, at, columns int, 
 // markup: the display mode is one block of CSS rather than a second renderer
 // precisely because the two are identical.
 //
-// t translates the region's name and is the reason this function exists as a
-// function: whoever calls it decides when that translation happens. An inline
-// gallery calls it at save and freezes every word it writes together; an album
-// gallery calls it at delivery and resolves every word it writes together. What
-// must not happen is one of each in the same region, which is window 8.
-func GalleryWrapper(columns int, mod, inner string, t func(string) string) string {
+// It writes the region's name as a marker, like every other word this package
+// mints, so an inline gallery and an album gallery cannot end up in two
+// languages however far apart in time they were written. That was window 8
+// while both halves were translated here and window 34 while one of them was
+// translated at delivery from the WEBSITE's language; with nothing translated
+// here at all, neither can come back. See words.go.
+func GalleryWrapper(columns int, mod, inner string) string {
 	if inner == "" {
 		return ""
-	}
-	if t == nil {
-		t = func(word string) string { return word }
 	}
 	if mod == "" {
 		return fmt.Sprintf(`<div class="hc-block hc-galerie hc-spalten-%d">%s</div>`, columns, inner)
@@ -637,7 +637,7 @@ func GalleryWrapper(columns int, mod, inner string, t func(string) string) strin
 	// attribute (T-11-18).
 	return fmt.Sprintf(
 		`<div class="hc-block hc-galerie hc-spalten-%d %s" tabindex="0" role="region" aria-label="%s">%s</div>`,
-		columns, mod, html.EscapeString(t(textGallery)), inner)
+		columns, mod, Word(wordGallery), inner)
 }
 
 // GalleryItems renders one gallery: every tile first, then every large view.
@@ -665,13 +665,10 @@ func GalleryWrapper(columns int, mod, inner string, t func(string) string) strin
 // items it loaded. Two renderers would be two places to get the fragment ids
 // and the step links wrong, and the album is the one nobody would notice.
 //
-// at is the block's position in the page, counted from zero. t translates the
-// three control names; nil leaves them in their German source.
-func GalleryItems(at int, items []Item, look Lookup, t func(string) string) string {
-	if t == nil {
-		t = func(s string) string { return s }
-	}
-
+// at is the block's position in the page, counted from zero. The three control
+// names are written as markers and resolved when somebody is reading them; this
+// function therefore takes no translator and cannot freeze a word. See words.go.
+func GalleryItems(at int, items []Item, look Lookup) string {
 	// A picture keeps the number of its own place in the list, so a media id
 	// that no longer resolves does not renumber the pictures after it. The
 	// resolved ones are collected first all the same, because a step link has
@@ -758,14 +755,14 @@ func GalleryItems(at int, items []Item, look Lookup, t func(string) string) stri
 		// surprise, and the browser's own back button is the way out.
 		if k > 0 {
 			fmt.Fprintf(&b, `<a class="hc-galerie__zurueck" href="#%s">%s</a>`,
-				pictures[k-1].id, html.EscapeString(t(textPrevious)))
+				pictures[k-1].id, Word(wordPrevious))
 		}
 		if k < len(pictures)-1 {
 			fmt.Fprintf(&b, `<a class="hc-galerie__weiter" href="#%s">%s</a>`,
-				pictures[k+1].id, html.EscapeString(t(textNext)))
+				pictures[k+1].id, Word(wordNext))
 		}
 		fmt.Fprintf(&b, `<a class="hc-galerie__schliessen" href="#%s">%s</a>`,
-			closeTarget, html.EscapeString(t(textClose)))
+			closeTarget, Word(wordClose))
 		b.WriteString(`</nav></figure>`)
 	}
 	return b.String()

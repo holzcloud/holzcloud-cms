@@ -84,6 +84,24 @@ func withPageLang(ctx context.Context, tag string) context.Context {
 	return i18n.WithLang(ctx, tag)
 }
 
+// pageWords translates a word this program mints into the language of the page
+// being served.
+//
+// One function, so that every route which puts a stored body in front of a
+// reader asks the same question and gets the same answer. The words it resolves
+// are markers written by block.Render at save; words.go carries the reason they
+// are not translated there.
+//
+// i18n.Lang is the PAGE's language on a public request, because
+// LocaleMiddleware above put it there. That is the distinction PUB-01 was filed
+// for: the admin asks the browser and the signed-in operator, and a public
+// route must not, or a French page says "Panier" only to visitors whose browser
+// happens to be French.
+func pageWords(ctx context.Context) func(string) string {
+	lang := i18n.Lang(ctx)
+	return func(word string) string { return i18n.T(lang, word) }
+}
+
 // LocaleFrom returns the language of this request, empty for the main one.
 func LocaleFrom(ctx context.Context) string {
 	tag, _ := ctx.Value(localeKey{}).(string)

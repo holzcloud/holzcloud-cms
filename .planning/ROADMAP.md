@@ -319,7 +319,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 13. The Public Side Speaks the Visitor's Language | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 14. A Contact Form Worth Writing Into | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 15. What the Server Promises, It Keeps | v2.2 | 6/6 | Complete | 2026-09-14 |
-| 16. Every Word on a Page Belongs to Whoever Reads It | v2.3 | 1/4 | In progress | - |
+| 16. Every Word on a Page Belongs to Whoever Reads It | v2.3 | 2/4 | In progress | - |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their

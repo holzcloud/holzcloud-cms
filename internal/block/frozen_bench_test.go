@@ -279,7 +279,7 @@ func BenchmarkAlbumMarkerExpansion(b *testing.B) {
 				b.Fatal("the corpus carries no album marker")
 			}
 			expand := func(slug string, at, columns int, mod string) string {
-				return GalleryWrapper(columns, mod, "<figure></figure>", nil)
+				return GalleryWrapper(columns, mod, "<figure></figure>")
 			}
 			b.SetBytes(int64(len(body)))
 			b.ResetTimer()

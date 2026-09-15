@@ -48,8 +48,15 @@ import (
 // visible on it.
 
 // Set is everything one request needs to expand the markers of one page: the
-// pictures of each album the page names, the images those pictures resolve to,
-// and the translator for the words the renderer writes itself.
+// pictures of each album the page names, and the images those pictures resolve
+// to.
+//
+// It used to carry a translator as well, built from the WEBSITE's locale, so
+// that an album gallery and an inline gallery on the same page could not end up
+// in two languages. That was window 34: the words were consistent and both in
+// the wrong language, because a page has a language of its own. Since v2.3 the
+// renderer writes markers and one pass at delivery resolves them all, so there
+// is nothing here to keep in step and no locale to get wrong.
 //
 // Built by Store.LoadFor and handed straight to Expand. The zero Set expands
 // every marker to nothing, which is what a page whose albums have all been
@@ -64,11 +71,6 @@ type Set struct {
 	// request. The query that filled it already checked the website, which is
 	// why Lookup below can be a map read and not a second trip to the database.
 	images map[int64]block.Image
-	// t is the website's translator, the same one internal/admin's blockSet
-	// builds for the save-time render, so a page carrying an inline gallery and
-	// an album gallery does not end up with its two sets of controls in two
-	// languages.
-	t func(string) string
 	// latest is the newest updated_at among the albums the page names, read by
 	// Latest below. Part of the Set because it is answered by the same load:
 	// the caller that needs it is the one that already asked for the pictures,
@@ -130,18 +132,19 @@ func Expand(html string, set Set) string {
 		if len(items) == 0 {
 			return ""
 		}
-		inner := block.GalleryItems(at, items, look, set.t)
+		inner := block.GalleryItems(at, items, look)
 		if columns == 0 {
 			// A marker written before the wrapper moved. Its <div> is already
 			// in the stored HTML around this marker, so returning the tiles
 			// alone is exactly what it expects — and what it always got.
 			return inner
 		}
-		// The same translator the tiles just used, and that is the whole
-		// point: the region's name and the controls inside it are resolved
-		// together, at delivery, so a website that changes its language cannot
-		// leave one of them behind (window 8).
-		return block.GalleryWrapper(columns, mod, inner, set.t)
+		// The region's name is a marker like the controls inside it, written
+		// by the one wrapper writer and resolved with them in a single pass, so
+		// a website that changes its language cannot leave one of them behind
+		// (window 8) and cannot answer in its own language rather than the
+		// page's (window 34).
+		return block.GalleryWrapper(columns, mod, inner)
 	})
 }
 

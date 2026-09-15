@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
+	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
@@ -267,7 +268,7 @@ func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *pa
 	updated := pg.UpdatedAt
 	return tmpl.PageContent{
 		Title:         pg.Title,
-		ContentHTML:   template.HTML(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML))),
+		ContentHTML:   template.HTML(block.ResolveWords(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML)), previewWords(ws, pg))),
 		Slug:          pg.Slug,
 		PublishedAt:   pg.PublishedAt,
 		UpdatedAt:     &updated,
@@ -290,13 +291,31 @@ func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *pa
 // the same reason, and this is deliberately not a shared helper — internal/admin
 // does not import internal/public, and one small function on each side is
 // cheaper than the dependency.
+// previewWords translates the words the renderer mints for a preview.
+//
+// In the PAGE's language, not the operator's, because a preview answers "what
+// will a visitor see" and a visitor sees the page. A German operator previewing
+// the French version of a page must read "Image suivante" there, or the preview
+// is not one.
+//
+// The page's own locale wins over the website's, which is empty for the main
+// language and is exactly what i18n.T then falls back on.
+func previewWords(ws *domain.Website, pg *page.Page) func(string) string {
+	lang := ""
+	if ws != nil {
+		lang = ws.Locale
+	}
+	if pg != nil && pg.Locale != "" {
+		lang = pg.Locale
+	}
+	return func(word string) string { return i18n.T(lang, word) }
+}
+
 func (h *Handler) previewAlbums(r *http.Request, ws *domain.Website, html string) album.Set {
 	if h.albumStore == nil || ws == nil {
 		return album.Set{}
 	}
-	locale := ws.Locale
-	set, err := h.albumStore.LoadFor(r.Context(), ws.ID, html,
-		func(word string) string { return i18n.T(locale, word) })
+	set, err := h.albumStore.LoadFor(r.Context(), ws.ID, html)
 	if err != nil {
 		slog.Error("load albums for preview", "err", err, "website", ws.ID)
 		return album.Set{}

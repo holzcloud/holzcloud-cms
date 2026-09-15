@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
+	"github.com/holzcloud/holzcloud-cms/internal/block"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
@@ -59,10 +60,15 @@ func (h *Handler) hasSearch(websiteID int64) bool {
 
 // expandForPlugin resolves the markers a plugin must never see.
 //
+// All three kinds: a snippet's, an album's, and the words this program mints.
+// A plugin filters what a visitor will read, so it has to be handed what a
+// visitor would read — a module that received [[w:next]] and searched it, or
+// rewrote around it, would be working on this program's internal syntax.
+//
 // It takes a context rather than a request because that is what the plugin
-// host is handed; the request is fetched back out of it for the website's
-// locale, exactly as RenderForPlugin does, and its absence is survivable — a
-// gallery whose lightbox controls fall back to the default language is a page,
+// host is handed; the request is fetched back out of it for the page's
+// language, exactly as RenderForPlugin does, and its absence is survivable — a
+// gallery whose lightbox controls fall back to the source language is a page,
 // where a raw marker is not.
 func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body string) string {
 	if !strings.Contains(body, "[[") {
@@ -78,10 +84,11 @@ func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body str
 				body = snippet.Expand(body, rendered.HTML)
 			}
 		}
-		return album.Expand(body, album.Set{})
+		return block.ResolveWords(album.Expand(body, album.Set{}), pageWords(ctx))
 	}
 	body = snippet.Expand(body, h.loadSnippets(r, websiteID).HTML)
-	return album.Expand(body, h.albumsFor(r, websiteID, body))
+	body = album.Expand(body, h.albumsFor(r, websiteID, body))
+	return block.ResolveWords(body, pageWords(r.Context()))
 }
 
 // PagesForPlugin answers the page operations.

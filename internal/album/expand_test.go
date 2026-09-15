@@ -126,7 +126,7 @@ func TestExpandedIdsStartFromTheMarkersPosition(t *testing.T) {
 // that has no database: if LoadFor reached for one it would panic, and the only
 // reason it does not is the early return on the slugs the HTML does not carry.
 func TestLoadForIssuesNoQueryWhenTheHTMLNamesNoAlbum(t *testing.T) {
-	set, err := (&Store{}).LoadFor(context.Background(), 1, `<p>keine Galerie</p>`, nil)
+	set, err := (&Store{}).LoadFor(context.Background(), 1, `<p>keine Galerie</p>`)
 	if err != nil {
 		t.Fatalf("LoadFor: %v", err)
 	}
@@ -135,16 +135,26 @@ func TestLoadForIssuesNoQueryWhenTheHTMLNamesNoAlbum(t *testing.T) {
 	}
 }
 
-// The translator reaches the album's controls, so a page carrying an inline
-// gallery and an album gallery does not end up with its two sets of controls in
-// two languages.
-func TestExpandUsesTheInjectedTranslator(t *testing.T) {
+// An album's controls come out of the expansion as markers, not as words.
+//
+// This test used to inject a translator into the Set and watch it reach the
+// controls — the mechanism that kept an inline gallery and an album gallery on
+// one page in the same language, and kept both of them in the WEBSITE's
+// language rather than the page's (window 34). There is no translator here any
+// more; what the expansion owes is that the words it writes are still open, so
+// that whoever resolves the page resolves these with everything else.
+func TestExpandLeavesTheWordsForDelivery(t *testing.T) {
 	set := twoPictures()
-	set.t = strings.ToUpper
 
 	got := Expand(block.AlbumMarker("moebel", 0, 0, ""), set)
 
-	if !strings.Contains(got, "NEXT IMAGE") {
-		t.Errorf("the controls did not go through the translator:\n%s", got)
+	if !block.HasWordMarker(got) {
+		t.Fatalf("the expansion wrote no word marker:\n%s", got)
+	}
+	if strings.Contains(got, "Next image") {
+		t.Errorf("a word was frozen into the expansion:\n%s", got)
+	}
+	if out := block.ResolveWords(got, strings.ToUpper); !strings.Contains(out, "NEXT IMAGE") {
+		t.Errorf("the controls did not go through the translator:\n%s", out)
 	}
 }

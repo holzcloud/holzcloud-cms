@@ -23,23 +23,32 @@ ledger reaches zero.
 
 ## The words the renderer mints
 
-- [ ] **WORD-01**: **An album gallery answers in the page's language.** Window
+- [x] **WORD-01**: **An album gallery answers in the page's language.** Window
       34. `internal/public/pagedata.go`'s `albumsFor` builds its translator from
       `ws.Locale`, so a French page on a German website reads German lightbox
       controls. Its own comment gives the reason — an inline gallery and an
       album gallery on one page must not speak two languages — which is true and
       is solved by WORD-02 rather than by leaving both wrong.
-- [ ] **WORD-02**: **A gallery's words are resolved at delivery, not frozen at
+- [x] **WORD-02**: **A gallery's words are resolved at delivery, not frozen at
       save.** Five strings today (`Previous image`, `Next image`, `Close large
       view`, `Your browser cannot play this video.`, `Gallery`), written into
       `pages.content_html` by `block.Render` through `admin/page_blocks.go` and
       `bundle/import.go`. The album half already resolves late through its
       marker; the inline half does not, and that asymmetry is what forced
       WORD-01's compromise.
-- [ ] **WORD-03**: **A page written before this milestone keeps working, and
+      *Done 2026-09-15 (16-01), all three together:* `internal/block/words.go`.
+      `block.Render` writes `[[w:<key>]]` for all five, and one guarded pass at
+      delivery resolves them in the page's language. `block.Set.T`, the `t`
+      parameters of `GalleryItems` and `GalleryWrapper` and `album.Set`'s
+      translator are gone — where there is no second translator, two cannot
+      disagree, which is what WORD-01's compromise was protecting against.
+- [x] **WORD-03**: **A page written before this milestone keeps working, and
       heals.** The same rule window 8 followed: no migration, no broken page, no
       re-save required for a page to render. Whatever mechanism WORD-02 chooses
       must read old stored HTML unchanged.
+      *Done:* a body written before this milestone carries the words and no
+      marker, the guard skips it and it is returned untouched
+      (`TestAPageStoredBeforeTheMarkersIsServedUnchanged`).
 - [x] **WORD-04**: **The measurement is written down before the mechanism is
       chosen.** How many stored pages carry frozen words, in how many
       installations' shapes, and what each candidate mechanism costs a
@@ -56,8 +65,11 @@ ledger reaches zero.
 
 ## The ledger
 
-- [ ] **WIN-07**: **The ledger reaches zero open entries**, or any entry that
+- [x] **WIN-07**: **The ledger reaches zero open entries**, or any entry that
       remains carries a reason a reader can check. It stands at one.
+      *Done 2026-09-15:* **0 open, 25 fixed, 9 waived, 34 total** — zero for the
+      first time since the ledger was opened. Entry 34 was the one left, and
+      WORD-01/02 closed it.
 - [ ] **WIN-08**: **A plugin's `plugin.json` name and description are
       translated, or the reason they are not is written where a reader meets
       it.** Carried unchanged through v2.0, v2.1 and v2.2 as "deliberately
