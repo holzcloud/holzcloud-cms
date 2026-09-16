@@ -43,6 +43,13 @@ type Entry struct {
 //
 // The names are the filter contract: renaming one makes the rows already in
 // the database unfindable. Adding is free.
+//
+// ActionAuthTokenCreate and ActionAuthTokenConsume are declared and nothing
+// writes them yet. That is deliberate and it is cheap: the filter takes a free
+// text action, so an operator typing one of these gets an empty list rather
+// than an error, and the day the token paths start logging, the name is already
+// the one the rows will carry. Measured in v2.4 by tools/surface, which is the
+// only reason anybody noticed.
 const (
 	ActionAuthLoginSuccess = "auth.login_success"
 	ActionAuthLoginFail    = "auth.login_fail"

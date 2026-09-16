@@ -123,6 +123,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 			"This file already exists as “%s” – nothing was uploaded.", m.OriginalName))
 		return h.redirect(w, r, redirect)
 	}
+	h.emitMediaAdded(websiteID, m)
 	destPath := media.Path(h.cfg.DataDir, websiteID, m.Filename)
 
 	// Each part is its own catalogue sentence; only the dash between them is

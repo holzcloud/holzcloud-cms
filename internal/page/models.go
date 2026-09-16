@@ -100,6 +100,14 @@ type Page struct {
 }
 
 // How a page may be reached.
+//
+// AccessPublic is used nowhere in this program, and it stays. The value is not
+// this package's opinion — migration 00018 writes it as the column's DEFAULT
+// and constrains the column to these two words, so it is a fact about the
+// database that happens to be spelled here as well. Code asks Protected()
+// rather than comparing against it, which is why nothing reaches for the
+// constant; deleting it would leave the pair half-written and the doc comment
+// on Access naming something that no longer exists.
 const (
 	AccessPublic   = "public"
 	AccessPassword = "password"

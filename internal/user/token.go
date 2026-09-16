@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
@@ -155,10 +154,4 @@ func (s *Store) RecordLogin(ctx context.Context, userID int64) error {
 func hashToken(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(sum[:])
-}
-
-// SameToken compares two secrets in constant time. Used where a token is
-// checked against a value the caller already holds.
-func SameToken(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
