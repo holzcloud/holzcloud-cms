@@ -18,57 +18,57 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// WebsiteDesignData extends LayoutData for the website design/template page.
-type WebsiteDesignData struct {
+// websiteDesignData extends LayoutData for the website design/template page.
+type websiteDesignData struct {
 	web.LayoutData
 	Website        *domain.Website
 	Templates      []tmplmgr.Template
 	ActiveTemplate *tmplmgr.Template
 	// Fonts are the typefaces on offer for the design tokens.
-	Fonts []FontChoice
+	Fonts []fontChoice
 	// TokenDefaults fill the colour inputs when nothing has been chosen, so the
 	// picker opens on something sensible rather than black.
 	TokenDefaults design.Tokens
 }
 
-// FontChoice is one entry of the typeface dropdown.
-type FontChoice struct {
+// fontChoice is one entry of the typeface dropdown.
+type fontChoice struct {
 	Value string
 	Label string
 }
 
-func fontChoices() []FontChoice {
-	out := make([]FontChoice, 0, len(design.FontStacks))
+func fontChoices() []fontChoice {
+	out := make([]fontChoice, 0, len(design.FontStacks))
 	for _, f := range design.FontStacks {
-		out = append(out, FontChoice{Value: f.Value, Label: f.Label})
+		out = append(out, fontChoice{Value: f.Value, Label: f.Label})
 	}
 	return out
 }
 
-// WebsiteListData extends LayoutData for the website list page.
-type WebsiteListData struct {
+// websiteListData extends LayoutData for the website list page.
+type websiteListData struct {
 	web.LayoutData
-	Websites []WebsiteWithDomainCount
+	Websites []websiteWithDomainCount
 }
 
-// WebsiteWithDomainCount pairs a website with its domain count and active template.
-type WebsiteWithDomainCount struct {
+// websiteWithDomainCount pairs a website with its domain count and active template.
+type websiteWithDomainCount struct {
 	domain.Website
 	DomainCount  int
 	TemplateName string
 }
 
-// WebsiteFormData extends LayoutData for the website create/edit form.
-type WebsiteFormData struct {
+// websiteFormData extends LayoutData for the website create/edit form.
+type websiteFormData struct {
 	web.LayoutData
 	web.FormState
 	Website    *domain.Website
 	Domains    []domain.Domain
-	DomainList DomainListData
+	DomainList domainListData
 	IsEdit     bool
 
 	// Locales are the choices offered for the site language.
-	Locales []LocaleChoice
+	Locales []localeChoice
 	// TimeZones are the zones offered. A short curated list, not the full IANA
 	// database: a German operator picking between 600 zone names is worse off
 	// than one picking between five.
@@ -76,38 +76,38 @@ type WebsiteFormData struct {
 	// Media is the image pool the favicon and logo are chosen from.
 	Media []media.Media
 	// Checks is the readiness list shown next to the settings.
-	Checks []SiteCheck
+	Checks []siteCheck
 	// OrgTypes are the schema.org types offered for the business block.
-	OrgTypes []OrgTypeChoice
+	OrgTypes []orgTypeChoice
 	// MailConfigured says whether this installation can send at all, so the
 	// notification field can admit that filling it in would do nothing.
 	MailConfigured bool
 }
 
-// OrgTypeChoice is one entry of the business-type dropdown.
-type OrgTypeChoice struct {
+// orgTypeChoice is one entry of the business-type dropdown.
+type orgTypeChoice struct {
 	Value string
 	Label string
 }
 
 // orgTypeChoices adapts the vocabulary list for the template.
-func orgTypeChoices() []OrgTypeChoice {
-	out := make([]OrgTypeChoice, 0, len(structured.OrgTypes))
+func orgTypeChoices() []orgTypeChoice {
+	out := make([]orgTypeChoice, 0, len(structured.OrgTypes))
 	for _, t := range structured.OrgTypes {
-		out = append(out, OrgTypeChoice{Value: t.Value, Label: t.Label})
+		out = append(out, orgTypeChoice{Value: t.Value, Label: t.Label})
 	}
 	return out
 }
 
-// LocaleChoice is one entry of the language dropdown.
-type LocaleChoice struct {
+// localeChoice is one entry of the language dropdown.
+type localeChoice struct {
 	Code string
 	Name string
 }
 
-// DomainListData is the data for the domain_list partial, rendered both inside
+// domainListData is the data for the domain_list partial, rendered both inside
 // the website form and standalone as an htmx swap response.
-type DomainListData struct {
+type domainListData struct {
 	WebsiteID int64
 	Domains   []domain.Domain
 	CSRFToken string
@@ -123,7 +123,7 @@ func (h *Handler) HandleWebsiteList(w http.ResponseWriter, r *http.Request) erro
 	// list but a trap.
 	websites := keepMine(h.rightsOf(r), all)
 
-	var items []WebsiteWithDomainCount
+	var items []websiteWithDomainCount
 	for _, ws := range websites {
 		domains, err := h.domains.ListDomains(r.Context(), ws.ID)
 		if err != nil {
@@ -137,10 +137,10 @@ func (h *Handler) HandleWebsiteList(w http.ResponseWriter, r *http.Request) erro
 				tmplName = t.Name
 			}
 		}
-		items = append(items, WebsiteWithDomainCount{Website: ws, DomainCount: len(domains), TemplateName: tmplName})
+		items = append(items, websiteWithDomainCount{Website: ws, DomainCount: len(domains), TemplateName: tmplName})
 	}
 
-	data := WebsiteListData{
+	data := websiteListData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Websites"),
 		Websites:   items,
 	}
@@ -154,7 +154,7 @@ func (h *Handler) HandleWebsiteCreate(w http.ResponseWriter, r *http.Request) er
 		return h.handleWebsiteCreatePost(w, r)
 	}
 
-	data := WebsiteFormData{
+	data := websiteFormData{
 		LayoutData: web.NewLayoutData(r, h.sm, "New website"),
 	}
 	data.ActiveNav = "websites"
@@ -229,12 +229,12 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	data := WebsiteFormData{
+	data := websiteFormData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Settings – %s", ws.Name)),
 		FormState:  web.NewFormState(),
 		Website:    ws,
 		Domains:    domains,
-		DomainList: DomainListData{WebsiteID: ws.ID, Domains: domains, CSRFToken: web.CSRFTokenFromRequest(r)},
+		DomainList: domainListData{WebsiteID: ws.ID, Domains: domains, CSRFToken: web.CSRFTokenFromRequest(r)},
 		IsEdit:     true,
 		Locales:    localeChoices(),
 		TimeZones:  offeredTimeZones,
@@ -440,7 +440,7 @@ func (h *Handler) renderDomainListPartial(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return err
 	}
-	return web.RenderPartial(w, h.templates, r, "domain_list", DomainListData{
+	return web.RenderPartial(w, h.templates, r, "domain_list", domainListData{
 		WebsiteID: websiteID,
 		Domains:   domains,
 		CSRFToken: web.CSRFTokenFromRequest(r),
@@ -481,7 +481,7 @@ func (h *Handler) HandleWebsiteDesign(w http.ResponseWriter, r *http.Request) er
 		}
 	}
 
-	data := WebsiteDesignData{
+	data := websiteDesignData{
 		LayoutData:     web.NewLayoutData(r, h.sm, web.Titlef(r, "Design – %s", ws.Name)),
 		Website:        ws,
 		Templates:      templates,

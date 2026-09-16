@@ -165,7 +165,7 @@ func TestAGalleryWithNoAlbumStillGetsNoSelect(t *testing.T) {
 // an unnecessary extra option would be a duplicate in the list of every gallery
 // that is working correctly.
 func TestAlbumChoicesForLeavesAKnownAlbumAlone(t *testing.T) {
-	have := []AlbumChoice{{Slug: "moebel", Name: "Möbel"}, {Slug: "werkzeug", Name: "Werkzeug"}}
+	have := []albumChoice{{Slug: "moebel", Name: "Möbel"}, {Slug: "werkzeug", Name: "Werkzeug"}}
 
 	if got := albumChoicesFor(have, ""); len(got) != 2 {
 		t.Errorf("a gallery with its own list got %d options, want the 2 albums", len(got))

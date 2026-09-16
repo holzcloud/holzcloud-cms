@@ -2,7 +2,7 @@
   A single row of the page list. Rendered both inside page_list.html and
   standalone as the htmx swap target for status toggle / inline title edit.
 
-  Expects a PageRowData: .WebsiteID, .Page, .CSRFToken, .Snippet.
+  Expects a pageRowData: .WebsiteID, .Page, .CSRFToken, .Snippet.
 */}}
 {{define "page_row"}}
 <tr id="page-row-{{.Page.ID}}">

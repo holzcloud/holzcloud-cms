@@ -17,19 +17,19 @@ import (
 // changes. A content type has four particulars — sending somebody to a second
 // screen for four particulars is more navigation than the thing is worth.
 
-// KindRow is one kind with the number of entries that carry it.
-type KindRow struct {
+// kindRow is one kind with the number of entries that carry it.
+type kindRow struct {
 	kind.Type
 	Entries int
 	First   bool
 	Last    bool
 }
 
-// KindListData is the "Inhaltsarten" screen.
-type KindListData struct {
+// kindListData is the "Inhaltsarten" screen.
+type kindListData struct {
 	web.LayoutData
 	WebsiteID int64
-	Rows      []KindRow
+	Rows      []kindRow
 	// Edit is the kind being changed, or nil when the form is for a new one.
 	Edit *kind.Type
 	// Pages and Posts are how many entries the two built-in kinds hold, so the
@@ -63,13 +63,13 @@ func (h *Handler) HandleKindList(w http.ResponseWriter, r *http.Request) error {
 	return web.RenderAdmin(w, h.templates, r, "kind_list", data)
 }
 
-func (h *Handler) kindListData(r *http.Request, websiteID int64, websiteName string) (KindListData, error) {
+func (h *Handler) kindListData(r *http.Request, websiteID int64, websiteName string) (kindListData, error) {
 	types, err := h.kinds.List(r.Context(), websiteID)
 	if err != nil {
-		return KindListData{}, err
+		return kindListData{}, err
 	}
 
-	data := KindListData{
+	data := kindListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Content kinds – %s", websiteName)),
 		WebsiteID:  websiteID,
 	}
@@ -77,17 +77,17 @@ func (h *Handler) kindListData(r *http.Request, websiteID int64, websiteName str
 	for i, t := range types {
 		n, err := h.kinds.Count(r.Context(), websiteID, t.Key)
 		if err != nil {
-			return KindListData{}, err
+			return kindListData{}, err
 		}
-		data.Rows = append(data.Rows, KindRow{
+		data.Rows = append(data.Rows, kindRow{
 			Type: t, Entries: n, First: i == 0, Last: i == len(types)-1,
 		})
 	}
 	if data.Pages, err = h.kinds.Count(r.Context(), websiteID, kind.Page); err != nil {
-		return KindListData{}, err
+		return kindListData{}, err
 	}
 	if data.Posts, err = h.kinds.Count(r.Context(), websiteID, kind.Post); err != nil {
-		return KindListData{}, err
+		return kindListData{}, err
 	}
 	return data, nil
 }
@@ -241,7 +241,7 @@ func (h *Handler) kindsOf(r *http.Request, websiteID int64) []kind.Type {
 // — and TypeKey is the own kind or empty. Anything the website does not have
 // becomes a page: a form can be sent with any value in it, and an entry filed
 // under a kind that does not exist would be invisible in every list.
-func (v *PageValues) setKind(types []kind.Type) {
+func (v *pageValues) setKind(types []kind.Type) {
 	switch key := kind.Pick(v.TypeKey, types); key {
 	case kind.Post:
 		v.Kind, v.TypeKey = page.KindPost, ""
@@ -262,27 +262,27 @@ func ownKindName(types []kind.Type, p page.Page) string {
 	return kind.NameOf(types, p.TypeKey, false)
 }
 
-// KindChoice is one entry of the "Art" dropdown in the page editor.
-type KindChoice struct {
+// kindChoice is one entry of the "Art" dropdown in the page editor.
+type kindChoice struct {
 	Key      string
 	Name     string
 	Selected bool
 }
 
 // kindChoices is the dropdown: the two built-in kinds and the website's own.
-func kindChoices(types []kind.Type, current string) []KindChoice {
-	out := []KindChoice{
+func kindChoices(types []kind.Type, current string) []kindChoice {
+	out := []kindChoice{
 		{Key: kind.Page, Name: kind.NameOf(nil, kind.Page, false), Selected: current != kind.Post && !hasKey(types, current)},
 		{Key: kind.Post, Name: kind.NameOf(nil, kind.Post, false), Selected: current == kind.Post},
 	}
 	for _, t := range types {
-		out = append(out, KindChoice{Key: t.Key, Name: t.Name, Selected: current == t.Key})
+		out = append(out, kindChoice{Key: t.Key, Name: t.Name, Selected: current == t.Key})
 	}
 	// A kind that no longer exists but whose entries still carry it: it stands
 	// there with its key, so that an entry does not silently become a page on
 	// saving.
 	if current != "" && current != kind.Page && current != kind.Post && !hasKey(types, current) {
-		out = append(out, KindChoice{Key: current, Name: current, Selected: true})
+		out = append(out, kindChoice{Key: current, Name: current, Selected: true})
 	}
 	return out
 }

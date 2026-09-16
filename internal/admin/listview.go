@@ -49,12 +49,12 @@ var columnNames = []struct{ Key, Name string }{
 // never opens the chooser must not notice that it is there.
 var defaultColumns = []string{"status", "art", "sprache", "veroeffentlicht"}
 
-// ColumnSet is the chosen columns, in the fixed order above.
-type ColumnSet []string
+// columnSet is the chosen columns, in the fixed order above.
+type columnSet []string
 
 // Has reports whether a column is shown. Used by the row template, which gets
 // the set with every row so an htmx swap draws the same cells as the page.
-func (c ColumnSet) Has(key string) bool {
+func (c columnSet) Has(key string) bool {
 	for _, k := range c {
 		if k == key {
 			return true
@@ -65,7 +65,7 @@ func (c ColumnSet) Has(key string) bool {
 
 // parseColumns reads the stored setting. Empty means the default, which is what
 // keeps this invisible for everybody who does not want it.
-func parseColumns(stored string, multilingual bool) ColumnSet {
+func parseColumns(stored string, multilingual bool) columnSet {
 	chosen := map[string]bool{}
 	if strings.TrimSpace(stored) == "" {
 		for _, key := range defaultColumns {
@@ -77,7 +77,7 @@ func parseColumns(stored string, multilingual bool) ColumnSet {
 		}
 	}
 
-	out := make(ColumnSet, 0, len(columnNames))
+	out := make(columnSet, 0, len(columnNames))
 	for _, c := range columnNames {
 		// A language column on a website with one language is a column of empty
 		// cells: it is not offered and not drawn.
@@ -92,7 +92,7 @@ func parseColumns(stored string, multilingual bool) ColumnSet {
 }
 
 // columnChoices is the chooser: every switchable column with its tick.
-func columnChoices(set ColumnSet, multilingual bool) []Column {
+func columnChoices(set columnSet, multilingual bool) []Column {
 	out := make([]Column, 0, len(columnNames))
 	for _, c := range columnNames {
 		if c.Key == "sprache" && !multilingual {
@@ -104,7 +104,7 @@ func columnChoices(set ColumnSet, multilingual bool) []Column {
 }
 
 // pageColumns loads this person's column setting.
-func (h *Handler) pageColumns(r *http.Request, multilingual bool) ColumnSet {
+func (h *Handler) pageColumns(r *http.Request, multilingual bool) columnSet {
 	id := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
 	if id == 0 {
 		return parseColumns("", multilingual)
@@ -159,8 +159,8 @@ func (h *Handler) HandlePageColumns(w http.ResponseWriter, r *http.Request) erro
 	return h.redirect(w, r, listURL(websiteID, r.FormValue("zurueck")))
 }
 
-// SavedView is one remembered filter combination.
-type SavedView struct {
+// savedView is one remembered filter combination.
+type savedView struct {
 	ID    int64
 	Name  string
 	Query string
@@ -170,7 +170,7 @@ type SavedView struct {
 }
 
 // URL is the address of this view.
-func (v SavedView) URL(websiteID int64) string {
+func (v savedView) URL(websiteID int64) string {
 	return listURL(websiteID, v.Query)
 }
 
@@ -186,7 +186,7 @@ func listURL(websiteID int64, query string) string {
 
 // savedViews loads this person's views for a website, marking the one that is
 // currently shown.
-func (h *Handler) savedViews(ctx context.Context, userID, websiteID int64, current string) []SavedView {
+func (h *Handler) savedViews(ctx context.Context, userID, websiteID int64, current string) []savedView {
 	if userID == 0 {
 		return nil
 	}
@@ -198,9 +198,9 @@ func (h *Handler) savedViews(ctx context.Context, userID, websiteID int64, curre
 	}
 	defer rows.Close()
 
-	var out []SavedView
+	var out []savedView
 	for rows.Next() {
-		var v SavedView
+		var v savedView
 		if err := rows.Scan(&v.ID, &v.Name, &v.Query); err != nil {
 			return out
 		}

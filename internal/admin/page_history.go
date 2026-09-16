@@ -11,8 +11,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// PageRevisionsData is the version history of one page.
-type PageRevisionsData struct {
+// pageRevisionsData is the version history of one page.
+type pageRevisionsData struct {
 	web.LayoutData
 	WebsiteID int64
 	Page      *page.Page
@@ -45,7 +45,7 @@ func (h *Handler) HandlePageRevisions(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	data := PageRevisionsData{
+	data := pageRevisionsData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "History – %s", p.Title)),
 		WebsiteID:  websiteID,
 		Page:       p,
@@ -127,8 +127,8 @@ func (h *Handler) HandlePageRevisionRestore(w http.ResponseWriter, r *http.Reque
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID))
 }
 
-// TrashData lists the soft-deleted pages of a website.
-type TrashData struct {
+// trashData lists the soft-deleted pages of a website.
+type trashData struct {
 	web.LayoutData
 	WebsiteID int64
 	Pages     []page.Page
@@ -159,7 +159,7 @@ func (h *Handler) HandleTrash(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	data := TrashData{
+	data := trashData{
 		LayoutData:    web.NewLayoutData(r, h.sm, web.Titlef(r, "Wastebasket – %s", ws.Name)),
 		WebsiteID:     websiteID,
 		Pages:         pages,

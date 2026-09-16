@@ -14,30 +14,30 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// MenuListData extends LayoutData for the menu list page.
-type MenuListData struct {
+// menuListData extends LayoutData for the menu list page.
+type menuListData struct {
 	web.LayoutData
 	WebsiteID int64
 	Menus     []menu.Menu
 	// Languages is the language picker, empty on a website with one language.
 	// A menu belongs to a language: a French page with German menu titles is
 	// not a French page.
-	Languages []LanguageChoice
+	Languages []languageChoice
 	// Website is kept for LanguageName, which has to know the main language to
 	// give the empty tag a name.
 	Website *domain.Website
 }
 
 // LanguageName is the name of a menu's language, for the listing.
-func (d MenuListData) LanguageName(stored string) string {
+func (d menuListData) LanguageName(stored string) string {
 	if name := rowLanguage(d.Website, stored); name != "" {
 		return name
 	}
 	return "–"
 }
 
-// MenuEditData extends LayoutData for the menu edit page.
-type MenuEditData struct {
+// menuEditData extends LayoutData for the menu edit page.
+type menuEditData struct {
 	web.LayoutData
 	WebsiteID int64
 	Menu      *menu.Menu
@@ -123,7 +123,7 @@ func (h *Handler) HandleMenuList(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	data := MenuListData{
+	data := menuListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Menus – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Menus:      menus,
@@ -236,7 +236,7 @@ func (h *Handler) HandleMenuEdit(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	data := MenuEditData{
+	data := menuEditData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Menu %s – %s", m.Name, ws.Name)),
 		WebsiteID:  websiteID,
 		Menu:       m,

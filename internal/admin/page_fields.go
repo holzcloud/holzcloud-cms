@@ -27,13 +27,13 @@ import (
 // JavaScript switched off.
 const GroupAction = "gruppenaktion"
 
-// FieldView is one extra field as the editor's template renders it.
+// fieldView is one extra field as the editor's template renders it.
 //
 // Built in Go rather than assembled in the template: which input a kind needs
 // is a decision with eight branches, and eight branches in a template is where
 // a missing `name` attribute hides until somebody notices their entry never
 // saved.
-type FieldView struct {
+type fieldView struct {
 	Def field.Def
 	// Name is the form field name.
 	Name string
@@ -47,7 +47,7 @@ type FieldView struct {
 	MediaID int64
 	// Pages is the choice of pages for a reference field, empty for every
 	// other kind.
-	Pages []PageChoice
+	Pages []pageChoice
 	// PageID is the referenced page, or 0.
 	PageID int64
 	// Selected are the ticked values of a multi-valued field, nil for every
@@ -56,7 +56,7 @@ type FieldView struct {
 	// Terms is the choice a label field offers: this website's labels, empty
 	// for every other kind. The stored slug is already in Value, so nothing
 	// else is needed to mark the chosen one.
-	Terms []TermChoice
+	Terms []termChoice
 	// RefDraft says the referenced page is not published, so the reference
 	// exists here and is invisible on the website. Better said in the editor
 	// than discovered on the finished page.
@@ -64,44 +64,44 @@ type FieldView struct {
 	// Error is the reason this value was rejected, or empty.
 	Error string
 	// Rows are a group's rows. Nil for every other kind.
-	Rows []FieldRow
+	Rows []fieldRow
 
 	// Dependent are the fields that hang on this one. They are rendered inside
 	// it, because that is the only way the browser can show and hide them
 	// without a script: a stylesheet can reach from a ticked box to a block
 	// beside it, not to one somewhere else on the page.
-	Dependent []FieldView
+	Dependent []fieldView
 	// Switch says which rule hides the dependent fields — "kreuz" for a tick
 	// box, "auswahl" for a dropdown, "text" for anything typed. Empty when
 	// nothing hangs on this field. See .feld-schalter in admin.css.
 	Switch string
 }
 
-// FieldBlock is one part of the field form: a heading and the fields under it.
+// fieldBlock is one part of the field form: a heading and the fields under it.
 //
 // The first block has no heading — the fields somebody defined before they
 // started dividing them up have to go somewhere, and putting them under an
 // invented title would be putting words in their mouth.
-type FieldBlock struct {
+type fieldBlock struct {
 	Title  string
 	Hint   string
-	Fields []FieldView
+	Fields []fieldView
 }
 
-// FieldRow is one filled-in row of a group.
-type FieldRow struct {
+// fieldRow is one filled-in row of a group.
+type fieldRow struct {
 	// Index is the row's position in the form, which is what the buttons act on.
 	Index int
 	// Number is Index + 1, for the heading. A template cannot add.
 	Number int
-	Fields []FieldView
+	Fields []fieldView
 	// First and Last switch the move buttons off at the ends.
 	First bool
 	Last  bool
 }
 
 // Is reports whether this field is of a given kind, for the template.
-func (v FieldView) Is(kind string) bool { return v.Def.Kind == kind }
+func (v fieldView) Is(kind string) bool { return v.Def.Kind == kind }
 
 // Buttons reports whether this choice is drawn as a row of buttons rather
 // than as a drop-down, for the template.
@@ -109,7 +109,7 @@ func (v FieldView) Is(kind string) bool { return v.Def.Kind == kind }
 // It asks a question instead of comparing two strings, and it goes through
 // field.Def.IsButtonRow so a button row is never spelled out as a kind of its
 // own — it is a way of presenting a choice, nothing more.
-func (v FieldView) Buttons() bool { return v.Def.IsButtonRow() }
+func (v fieldView) Buttons() bool { return v.Def.IsButtonRow() }
 
 // Grouped says this field is a group of controls rather than one control.
 //
@@ -121,12 +121,12 @@ func (v FieldView) Buttons() bool { return v.Def.IsButtonRow() }
 // is widened rather than copied: the rule lives here and nowhere else, and a
 // later kind that is also a group adds one condition instead of a branch in
 // the template.
-func (v FieldView) Grouped() bool {
+func (v fieldView) Grouped() bool {
 	return v.Def.Kind == field.KindMulti || v.Buttons()
 }
 
-// PageChoice is one page a reference field may point at.
-type PageChoice struct {
+// pageChoice is one page a reference field may point at.
+type pageChoice struct {
 	ID    int64
 	Title string
 	Slug  string
@@ -135,12 +135,12 @@ type PageChoice struct {
 	Draft bool
 }
 
-// TermChoice is one label a label field may point at.
+// termChoice is one label a label field may point at.
 //
 // The slug is the identity and the name is what is shown — the two halves of
 // what the kind promises. No draft equivalent exists for a label, so it carries
 // nothing more than a page choice needs.
-type TermChoice struct {
+type termChoice struct {
 	Slug string
 	Name string
 }
@@ -153,18 +153,18 @@ type TermChoice struct {
 // again.
 type pool struct {
 	media []media.Media
-	pages []PageChoice
-	terms []TermChoice
+	pages []pageChoice
+	terms []termChoice
 }
 
 // pool gathers the choices this form already loaded.
-func (d PageFormData) pool() pool {
+func (d pageFormData) pool() pool {
 	return pool{media: d.Media, pages: d.RefPages, terms: d.RefTerms}
 }
 
 // fieldViews builds the editor model for one page: the fields divided into
 // blocks by their headings, each dependent field inside the one it hangs on.
-func fieldViews(defs []field.Def, data field.Data, p pool, errs map[string]string) []FieldBlock {
+func fieldViews(defs []field.Def, data field.Data, p pool, errs map[string]string) []fieldBlock {
 	under := field.ControlsOf(defs)
 	hangs := map[string]bool{}
 	for _, list := range under {
@@ -173,10 +173,10 @@ func fieldViews(defs []field.Def, data field.Data, p pool, errs map[string]strin
 		}
 	}
 
-	blocks := []FieldBlock{{}}
+	blocks := []fieldBlock{{}}
 	for _, d := range defs {
 		if d.IsSection() {
-			blocks = append(blocks, FieldBlock{Title: d.Label, Hint: d.Hint})
+			blocks = append(blocks, fieldBlock{Title: d.Label, Hint: d.Hint})
 			continue
 		}
 		// Rendered inside its controller instead, wherever that one stands.
@@ -188,7 +188,7 @@ func fieldViews(defs []field.Def, data field.Data, p pool, errs map[string]strin
 	}
 	// A heading with nothing under it, or the leading block on a website that
 	// starts with one, is not worth a line on the screen.
-	out := make([]FieldBlock, 0, len(blocks))
+	out := make([]fieldBlock, 0, len(blocks))
 	for _, b := range blocks {
 		if len(b.Fields) > 0 {
 			out = append(out, b)
@@ -203,9 +203,9 @@ func fieldViews(defs []field.Def, data field.Data, p pool, errs map[string]strin
 // by an older version could hold one, and an editor that recurses for ever is
 // a worse answer than a field shown once.
 func viewOf(d field.Def, under map[string][]field.Def, seen map[string]bool,
-	data field.Data, p pool, errs map[string]string) FieldView {
+	data field.Data, p pool, errs map[string]string) fieldView {
 
-	var v FieldView
+	var v fieldView
 	if d.IsGroup() {
 		v = groupView(d, data.Rows[d.Key], p, errs)
 	} else {
@@ -275,10 +275,10 @@ const (
 )
 
 // groupView builds one group with its rows.
-func groupView(d field.Def, rows []field.Values, p pool, errs map[string]string) FieldView {
-	v := FieldView{Def: d, Name: d.Key, Error: errs[d.Key]}
+func groupView(d field.Def, rows []field.Values, p pool, errs map[string]string) fieldView {
+	v := fieldView{Def: d, Name: d.Key, Error: errs[d.Key]}
 	for i, row := range rows {
-		r := FieldRow{Index: i, Number: i + 1, First: i == 0, Last: i == len(rows)-1}
+		r := fieldRow{Index: i, Number: i + 1, First: i == 0, Last: i == len(rows)-1}
 		for _, sub := range d.Sub {
 			key := field.RowKey(d.Key, i, sub.Key)
 			// The marker is not written out here either: NameSuffix is the one
@@ -292,8 +292,8 @@ func groupView(d field.Def, rows []field.Values, p pool, errs map[string]string)
 	return v
 }
 
-func oneView(d field.Def, name, value string, p pool, reason string) FieldView {
-	v := FieldView{Def: d, Name: name, Value: value, Error: reason}
+func oneView(d field.Def, name, value string, p pool, reason string) fieldView {
+	v := fieldView{Def: d, Name: name, Value: value, Error: reason}
 	switch d.Kind {
 	case field.KindBool:
 		v.Checked = value != "" && value != "0"
@@ -326,7 +326,7 @@ func oneView(d field.Def, name, value string, p pool, reason string) FieldView {
 // than a number somebody types in. Bounded at 500, which is more pages than a
 // dropdown is usable with anyway; beyond that the field still holds whatever
 // was chosen earlier.
-func (h *Handler) refPages(ctx context.Context, websiteID int64) []PageChoice {
+func (h *Handler) refPages(ctx context.Context, websiteID int64) []pageChoice {
 	if h.pages == nil {
 		return nil
 	}
@@ -336,9 +336,9 @@ func (h *Handler) refPages(ctx context.Context, websiteID int64) []PageChoice {
 	if err != nil {
 		return nil
 	}
-	out := make([]PageChoice, 0, len(list))
+	out := make([]pageChoice, 0, len(list))
 	for _, p := range list {
-		out = append(out, PageChoice{
+		out = append(out, pageChoice{
 			ID: p.ID, Title: p.Title, Slug: p.Slug, Draft: !p.PubliclyVisible(),
 		})
 	}
@@ -353,7 +353,7 @@ func (h *Handler) refPages(ctx context.Context, websiteID int64) []PageChoice {
 // is where that rule lives. Unbounded on purpose: a website's list of labels is
 // not a list of pages, and a label that fell off the end would be a value the
 // editor could no longer see it had.
-func (h *Handler) siteTerms(ctx context.Context, websiteID int64) []TermChoice {
+func (h *Handler) siteTerms(ctx context.Context, websiteID int64) []termChoice {
 	if h.terms == nil {
 		return nil
 	}
@@ -361,9 +361,9 @@ func (h *Handler) siteTerms(ctx context.Context, websiteID int64) []TermChoice {
 	if err != nil {
 		return nil
 	}
-	out := make([]TermChoice, 0, len(list))
+	out := make([]termChoice, 0, len(list))
 	for _, t := range list {
-		out = append(out, TermChoice{Slug: t.Slug, Name: t.Name})
+		out = append(out, termChoice{Slug: t.Slug, Name: t.Name})
 	}
 	return out
 }

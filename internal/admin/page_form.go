@@ -15,12 +15,12 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// PageValues holds exactly what was submitted, so a rejected form can be
+// pageValues holds exactly what was submitted, so a rejected form can be
 // re-rendered with the user's own text rather than the database row.
 //
 // Templates read .Values, never .Page — reading the row is what made a failed
 // save discard a long article and show an empty form with a flash message.
-type PageValues struct {
+type pageValues struct {
 	Title    string
 	Slug     string
 	Markdown string
@@ -83,14 +83,14 @@ type PageValues struct {
 }
 
 // UsesBlocks reports which editor this page opens in.
-func (v PageValues) UsesBlocks() bool { return v.Blocks != nil }
+func (v pageValues) UsesBlocks() bool { return v.Blocks != nil }
 
 // BlockKinds is the menu of block types, for the template: the built-in ones
 // and whatever this website has defined for itself.
-func (v PageValues) BlockKinds() []block.Kind { return v.BlockSet.Menu() }
+func (v pageValues) BlockKinds() []block.Kind { return v.BlockSet.Menu() }
 
 // CanReturnToMarkdown reports whether switching back would lose nothing.
-func (v PageValues) CanReturnToMarkdown() bool {
+func (v pageValues) CanReturnToMarkdown() bool {
 	_, ok := block.ToMarkdown(v.Blocks)
 	return ok
 }
@@ -103,13 +103,13 @@ func (v PageValues) CanReturnToMarkdown() bool {
 // built-in kinds alone, and every block of a kind the website had defined for
 // itself was dropped without a word. Six feature cards came back as prose, and
 // the editor no longer offered the kind that would have restored them.
-func pageValuesFromRequest(r *http.Request, set block.Set) PageValues {
+func pageValuesFromRequest(r *http.Request, set block.Set) pageValues {
 	version, _ := strconv.ParseInt(r.FormValue("version"), 10, 64)
 	status := r.FormValue("status")
 	if status != "published" {
 		status = "draft"
 	}
-	return PageValues{
+	return pageValues{
 		BlockSet:        set,
 		Kind:            page.NormalizeKind(r.FormValue("kind")),
 		TypeKey:         strings.TrimSpace(r.FormValue("kind")),
@@ -262,11 +262,11 @@ func blocksFromRequest(r *http.Request) []block.Block {
 }
 
 // pageValuesFromPage fills the form from a stored page, used for the initial GET.
-func pageValuesFromPage(p *page.Page, set block.Set) PageValues {
+func pageValuesFromPage(p *page.Page, set block.Set) pageValues {
 	if p == nil {
-		return PageValues{Status: "draft", Kind: page.KindPage, BlockSet: set}
+		return pageValues{Status: "draft", Kind: page.KindPage, BlockSet: set}
 	}
-	v := PageValues{
+	v := pageValues{
 		BlockSet:        set,
 		Kind:            page.NormalizeKind(p.Kind),
 		TypeKey:         p.TypeKey,
@@ -333,7 +333,7 @@ func parseLocalInput(raw string) (*time.Time, bool) {
 // schedule turns the submitted values into the store's schedule, reporting a
 // bad date rather than silently dropping it — a page that quietly failed to be
 // scheduled would just never appear.
-func (v PageValues) schedule(errs web.FormErrors) page.PageSchedule {
+func (v pageValues) schedule(errs web.FormErrors) page.PageSchedule {
 	var s page.PageSchedule
 	if t, ok := parseLocalInput(v.PublishAt); ok {
 		s.PublishAt = t
@@ -356,7 +356,7 @@ func (v PageValues) schedule(errs web.FormErrors) page.PageSchedule {
 // An empty excerpt is derived from the Markdown rather than stored empty, so a
 // listing or a meta description always has something to show. An editor who
 // types one keeps it verbatim.
-func (v PageValues) meta() page.PageMeta {
+func (v pageValues) meta() page.PageMeta {
 	excerpt := v.Excerpt
 	if excerpt == "" {
 		excerpt = page.Excerpt(v.Markdown)
@@ -373,7 +373,7 @@ func (v PageValues) meta() page.PageMeta {
 }
 
 // access turns the submitted values into what the store writes.
-func (v PageValues) access() page.AccessUpdate {
+func (v pageValues) access() page.AccessUpdate {
 	return page.AccessUpdate{
 		Protected: v.Protected,
 		Password:  v.PagePassword,
@@ -382,11 +382,11 @@ func (v PageValues) access() page.AccessUpdate {
 }
 
 // IsPost reports whether the form is editing an archive entry.
-func (v PageValues) IsPost() bool { return v.Kind == page.KindPost }
+func (v pageValues) IsPost() bool { return v.Kind == page.KindPost }
 
 // KindValue is what the "Art" dropdown should have selected: the own kind when
 // there is one, otherwise the built-in.
-func (v PageValues) KindValue() string {
+func (v pageValues) KindValue() string {
 	if v.TypeKey != "" {
 		return v.TypeKey
 	}
@@ -394,7 +394,7 @@ func (v PageValues) KindValue() string {
 }
 
 // validate checks the submitted values and normalises the slug.
-func (v *PageValues) validate(errs web.FormErrors) string {
+func (v *pageValues) validate(errs web.FormErrors) string {
 	return v.validateFor(errs, "")
 }
 
@@ -403,7 +403,7 @@ func (v *PageValues) validate(errs web.FormErrors) string {
 // The archive lives at a slug the operator chose, and a page taking the same
 // one would be permanently shadowed by it — the same failure ValidateSlug
 // already prevents for the router's own routes, just per website.
-func (v *PageValues) validateFor(errs web.FormErrors, archiveSlug string) string {
+func (v *pageValues) validateFor(errs web.FormErrors, archiveSlug string) string {
 	return v.validateOn(nil, errs, archiveSlug, nil)
 }
 
@@ -417,7 +417,7 @@ func (v *PageValues) validateFor(errs web.FormErrors, archiveSlug string) string
 // The request is only here for the language: two of the messages have
 // something in them, and a sentence glued together in Go can never be looked up
 // in the catalogue. It may be nil, and then the messages stay German.
-func (v *PageValues) validateOn(r *http.Request, errs web.FormErrors, archiveSlug string, extras []string) string {
+func (v *pageValues) validateOn(r *http.Request, errs web.FormErrors, archiveSlug string, extras []string) string {
 	if v.Title == "" {
 		errs.Add("title", "Please give a title.")
 	}
@@ -465,7 +465,7 @@ func trs(r *http.Request, s string) string {
 }
 
 // translationOf is the page this one belongs to, or zero.
-func (v PageValues) translationOf() int64 {
+func (v pageValues) translationOf() int64 {
 	id, _ := strconv.ParseInt(v.TranslationOf, 10, 64)
 	if id < 0 {
 		return 0

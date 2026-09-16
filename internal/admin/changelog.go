@@ -7,8 +7,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// ChangelogData is the screen behind the version number in the sidebar.
-type ChangelogData struct {
+// changelogData is the screen behind the version number in the sidebar.
+type changelogData struct {
 	web.LayoutData
 	// Releases is every version, newest first. The whole list, because the
 	// question an operator has after an update is rarely about one version: a
@@ -46,7 +46,7 @@ func (h *Handler) HandleChangelog(w http.ResponseWriter, r *http.Request) error 
 		shown, ok = changelog.Latest()
 	}
 
-	data := ChangelogData{
+	data := changelogData{
 		LayoutData: web.NewLayoutData(r, h.sm, "What is new"),
 		Releases:   releases,
 		Shown:      shown,

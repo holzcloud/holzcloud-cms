@@ -9,8 +9,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
-// BrokenLink is an internal link on a page that resolves to nothing.
-type BrokenLink struct {
+// brokenLink is an internal link on a page that resolves to nothing.
+type brokenLink struct {
 	// OnPage is where the link sits, which is the part that makes it fixable.
 	OnPage     string
 	OnPageID   int64
@@ -29,14 +29,14 @@ type BrokenLink struct {
 // visible without a single visitor, and fixing it is editing a page. The 404
 // list is a record of what visitors did, which is exactly the kind of thing an
 // operator should be able to decline to keep.
-func (h *Handler) checkInternalLinks(r *http.Request, websiteID int64) ([]BrokenLink, error) {
+func (h *Handler) checkInternalLinks(r *http.Request, websiteID int64) ([]brokenLink, error) {
 	pages, _, err := h.pages.ListPages(r.Context(), websiteID,
 		page.ListFilter{Page: 1, PerPage: 1000})
 	if err != nil {
 		return nil, err
 	}
 
-	var broken []BrokenLink
+	var broken []brokenLink
 	seen := map[string]bool{}
 	for _, p := range pages {
 		for _, target := range internalLinks(p.ContentHTML) {
@@ -51,7 +51,7 @@ func (h *Handler) checkInternalLinks(r *http.Request, websiteID int64) ([]Broken
 				return nil, err
 			}
 			if !ok {
-				broken = append(broken, BrokenLink{
+				broken = append(broken, brokenLink{
 					OnPage: p.Title, OnPageID: p.ID, OnPageSlug: p.Slug, Target: target,
 				})
 			}

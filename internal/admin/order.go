@@ -17,16 +17,16 @@ import (
 // SetOrderStore attaches the order book.
 func (h *Handler) SetOrderStore(s *shop.OrderStore) { h.orders = s }
 
-// OrderListData backs the order list.
-type OrderListData struct {
+// orderListData backs the order list.
+type orderListData struct {
 	web.LayoutData
 	web.FormState
 	Orders   []*shop.Order
 	Currency money.Currency
 }
 
-// OrderDetailData backs one order.
-type OrderDetailData struct {
+// orderDetailData backs one order.
+type orderDetailData struct {
 	web.LayoutData
 	web.FormState
 	Order    *shop.Order
@@ -42,11 +42,11 @@ type OrderDetailData struct {
 	// Mails is what was written to the outbox for this order, and where each
 	// one stands. Showing "sent" for something that only sits in a queue would
 	// be the one lie this page must not tell.
-	Mails []MailLine
+	Mails []mailLine
 }
 
-// MailLine is one outbox entry as the order page shows it.
-type MailLine struct {
+// mailLine is one outbox entry as the order page shows it.
+type mailLine struct {
 	ID        int64
 	What      string
 	Recipient string
@@ -85,10 +85,10 @@ func mailStateLabel(m outbox.Mail) string {
 }
 
 // mailLines maps the outbox onto the order page.
-func mailLines(mails []outbox.Mail) []MailLine {
-	out := make([]MailLine, 0, len(mails))
+func mailLines(mails []outbox.Mail) []mailLine {
+	out := make([]mailLine, 0, len(mails))
 	for _, m := range mails {
-		line := MailLine{
+		line := mailLine{
 			ID:        m.ID,
 			What:      mailKindLabel(m.Kind),
 			Recipient: m.Recipient,
@@ -165,7 +165,7 @@ func (h *Handler) HandleOrderList(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	data := OrderListData{
+	data := orderListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Orders – %s", ws.Name)),
 		FormState:  web.NewFormState(),
 		Orders:     orders,
@@ -234,7 +234,7 @@ func (h *Handler) HandleOrderDetail(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	currency := money.CurrencyFor(order.Currency)
-	data := OrderDetailData{
+	data := orderDetailData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Order %s – %s", order.Number, ws.Name)),
 		FormState:  web.NewFormState(),
 		Order:      order,

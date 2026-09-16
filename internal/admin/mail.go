@@ -10,8 +10,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// MailStatusData is the outbox screen.
-type MailStatusData struct {
+// mailStatusData is the outbox screen.
+type mailStatusData struct {
 	web.LayoutData
 	Status mail.Status
 	// OwnEmail is where the test message goes: the address of whoever is
@@ -27,7 +27,7 @@ func (h *Handler) HandleMailStatus(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
-	data := MailStatusData{
+	data := mailStatusData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Email"),
 		Status:     st,
 		OwnEmail:   h.sm.GetString(r.Context(), auth.SessionKeyUserEmail),

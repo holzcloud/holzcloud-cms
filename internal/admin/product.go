@@ -18,12 +18,12 @@ import (
 // which is what a build without a shop should do.
 func (h *Handler) SetProductStore(s *shop.Store) { h.products = s }
 
-// ProductValues is one product as the form carries it.
+// productValues is one product as the form carries it.
 //
 // Prices travel as the text the operator typed, not as a number: rejecting
 // "49,50" because the field is an int would be the CMS being pedantic about a
 // notation people use every day. The parsing happens once, in validate.
-type ProductValues struct {
+type productValues struct {
 	ID           int64
 	Slug         string
 	Title        string
@@ -44,8 +44,8 @@ type ProductValues struct {
 	stock *int
 }
 
-// ProductListData backs the product list screen.
-type ProductListData struct {
+// productListData backs the product list screen.
+type productListData struct {
 	web.LayoutData
 	web.FormState
 	Products []*shop.Product
@@ -53,11 +53,11 @@ type ProductListData struct {
 	ShopBase string
 }
 
-// ProductFormData backs the create/edit screen.
-type ProductFormData struct {
+// productFormData backs the create/edit screen.
+type productFormData struct {
 	web.LayoutData
 	web.FormState
-	Values ProductValues
+	Values productValues
 	IsEdit bool
 	Media  []media.Media
 	Rates  []struct {
@@ -67,7 +67,7 @@ type ProductFormData struct {
 	Website *domain.Website
 }
 
-func (v *ProductValues) validate(errs web.FormErrors) {
+func (v *productValues) validate(errs web.FormErrors) {
 	v.Title = strings.TrimSpace(v.Title)
 	v.Slug = strings.TrimSpace(v.Slug)
 
@@ -126,7 +126,7 @@ func (h *Handler) HandleProductList(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	data := ProductListData{
+	data := productListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Products – %s", ws.Name)),
 		FormState:  web.NewFormState(),
 		Products:   products,
@@ -149,7 +149,7 @@ func (h *Handler) HandleProductForm(w http.ResponseWriter, r *http.Request) erro
 		return h.handleProductSave(w, r, ws)
 	}
 
-	values := ProductValues{
+	values := productValues{
 		Status: shop.StatusDraft,
 		TaxBP:  int(money.RateStandard),
 		Price:  "0.00",
@@ -175,7 +175,7 @@ func (h *Handler) HandleProductForm(w http.ResponseWriter, r *http.Request) erro
 }
 
 func (h *Handler) renderProductForm(w http.ResponseWriter, r *http.Request,
-	ws *domain.Website, values ProductValues, isEdit bool, state web.FormState) error {
+	ws *domain.Website, values productValues, isEdit bool, state web.FormState) error {
 
 	// Only images: a PDF cannot be a product picture, and offering one in the
 	// dropdown is an invitation to a broken page.
@@ -200,7 +200,7 @@ func (h *Handler) renderProductForm(w http.ResponseWriter, r *http.Request,
 	if isEdit {
 		title = web.T(r, "Edit product")
 	}
-	data := ProductFormData{
+	data := productFormData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "%s – %s", title, ws.Name)),
 		FormState:  state,
 		Values:     values,
@@ -219,7 +219,7 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 		return err
 	}
 
-	values := ProductValues{
+	values := productValues{
 		Title:        r.FormValue("title"),
 		Slug:         r.FormValue("slug"),
 		Subtitle:     strings.TrimSpace(r.FormValue("subtitle")),
@@ -359,8 +359,8 @@ func (h *Handler) shopWebsite(w http.ResponseWriter, r *http.Request) (*domain.W
 	return ws, true, nil
 }
 
-func productToValues(p *shop.Product) ProductValues {
-	v := ProductValues{
+func productToValues(p *shop.Product) productValues {
+	v := productValues{
 		ID:           p.ID,
 		Slug:         p.Slug,
 		Title:        p.Title,

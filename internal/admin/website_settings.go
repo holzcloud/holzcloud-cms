@@ -29,10 +29,10 @@ var offeredTimeZones = []string{
 	"UTC",
 }
 
-func localeChoices() []LocaleChoice {
-	choices := make([]LocaleChoice, 0, len(tmpl.SupportedLocales))
+func localeChoices() []localeChoice {
+	choices := make([]localeChoice, 0, len(tmpl.SupportedLocales))
 	for _, l := range tmpl.SupportedLocales {
-		choices = append(choices, LocaleChoice{Code: l.Code, Name: l.Name})
+		choices = append(choices, localeChoice{Code: l.Code, Name: l.Name})
 	}
 	return choices
 }
@@ -132,8 +132,8 @@ func optionalID(raw string) *int64 {
 	return &id
 }
 
-// SiteCheck is one readiness item on the settings screen.
-type SiteCheck struct {
+// siteCheck is one readiness item on the settings screen.
+type siteCheck struct {
 	// Label names the thing being checked, in the operator's terms.
 	Label string
 	// OK is whether it passes. A failing check is not an error — a new site
@@ -151,9 +151,9 @@ type SiteCheck struct {
 // It exists because the failure modes are all silent: a site with no domain, no
 // published start page or no imprint answers a plain 404 or a legal warning
 // letter, and nothing in the admin says so.
-func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []domain.Domain) []SiteCheck {
+func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []domain.Domain) []siteCheck {
 	base := fmt.Sprintf("/admin/websites/%d", ws.ID)
-	checks := []SiteCheck{}
+	checks := []siteCheck{}
 
 	primaries := 0
 	for _, d := range domains {
@@ -162,13 +162,13 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 		}
 	}
 	checks = append(checks,
-		SiteCheck{
+		siteCheck{
 			Label: i18n.N("At least one domain"),
 			OK:    len(domains) > 0,
 			Hint:  i18n.N("Without a domain the website cannot be reached."),
 			Link:  base,
 		},
-		SiteCheck{
+		siteCheck{
 			Label: i18n.N("A primary domain has been set"),
 			OK:    primaries == 1,
 			Hint:  i18n.N("The primary domain decides the canonical address in the sitemap and in the page source."),
@@ -177,7 +177,7 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 	)
 
 	home, err := h.pages.GetHomePage(ctx, ws.ID)
-	checks = append(checks, SiteCheck{
+	checks = append(checks, siteCheck{
 		Label: i18n.N("A published start page"),
 		OK:    err == nil && home != nil,
 		Hint:  i18n.N("Without a published start page your own domain answers “page not found”."),
@@ -188,14 +188,14 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 	if h.tmplStore != nil {
 		activeSlug, _ = h.tmplStore.ActiveTemplateSlug(ctx, ws.ID)
 	}
-	checks = append(checks, SiteCheck{
+	checks = append(checks, siteCheck{
 		Label: i18n.N("Template activated"),
 		OK:    activeSlug != "",
 		Hint:  i18n.N("Without an activated template the built-in default template is used."),
 		Link:  base + "/design",
 	})
 
-	checks = append(checks, SiteCheck{
+	checks = append(checks, siteCheck{
 		Label: i18n.N("Imprint linked in the footer menu"),
 		OK:    h.footerLinksImprint(ctx, ws.ID),
 		Hint:  i18n.N("German law (§ 5 DDG) requires an imprint reachable from every page; the footer menu does that."),
@@ -203,13 +203,13 @@ func (h *Handler) siteChecks(ctx context.Context, ws *domain.Website, domains []
 	})
 
 	checks = append(checks,
-		SiteCheck{
+		siteCheck{
 			Label: i18n.N("Description for search engines"),
 			OK:    strings.TrimSpace(ws.MetaDescription) != "" || strings.TrimSpace(ws.Description) != "",
 			Hint:  i18n.N("Without a description Google picks a passage of text itself."),
 			Link:  base,
 		},
-		SiteCheck{
+		siteCheck{
 			Label: i18n.N("Favicon set"),
 			OK:    ws.FaviconMediaID != nil,
 			Hint:  i18n.N("Without a favicon every browser asks for /favicon.ico and gets a 404."),
@@ -270,7 +270,7 @@ func (h *Handler) HandleDomainSetPrimary(w http.ResponseWriter, r *http.Request)
 		return err
 	}
 	if r.Header.Get("HX-Request") == "true" {
-		return web.RenderPartial(w, h.templates, r, "domain_list", DomainListData{
+		return web.RenderPartial(w, h.templates, r, "domain_list", domainListData{
 			WebsiteID: websiteID,
 			Domains:   domains,
 			CSRFToken: web.CSRFTokenFromRequest(r),

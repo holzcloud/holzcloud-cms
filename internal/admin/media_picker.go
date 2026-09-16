@@ -11,8 +11,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// MediaPickerData is the fragment shown inside the editor's picker dialog.
-type MediaPickerData struct {
+// mediaPickerData is the fragment shown inside the editor's picker dialog.
+type mediaPickerData struct {
 	WebsiteID int64
 	PageID    int64
 	Media     []media.Media
@@ -48,7 +48,7 @@ func (h *Handler) HandleMediaPicker(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	return web.RenderPartial(w, h.templates, r, "media_picker", MediaPickerData{
+	return web.RenderPartial(w, h.templates, r, "media_picker", mediaPickerData{
 		WebsiteID: websiteID,
 		PageID:    pageID,
 		Media:     items,

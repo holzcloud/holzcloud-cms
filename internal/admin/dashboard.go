@@ -7,18 +7,18 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// DashboardData extends LayoutData for the admin dashboard.
-type DashboardData struct {
+// dashboardData extends LayoutData for the admin dashboard.
+type dashboardData struct {
 	web.LayoutData
 	WebsiteCount int
 	PageCount    int
 	MediaCount   int
-	Websites     []DashboardWebsite
-	RecentPages  []RecentPage
+	Websites     []dashboardWebsite
+	RecentPages  []recentPage
 }
 
-// DashboardWebsite holds per-website stats for the dashboard.
-type DashboardWebsite struct {
+// dashboardWebsite holds per-website stats for the dashboard.
+type dashboardWebsite struct {
 	ID           int64
 	Name         string
 	PageCount    int
@@ -30,8 +30,8 @@ type DashboardWebsite struct {
 	OpenChecks int
 }
 
-// RecentPage holds data for a recently edited page.
-type RecentPage struct {
+// recentPage holds data for a recently edited page.
+type recentPage struct {
 	ID          int64
 	Title       string
 	UpdatedAt   time.Time
@@ -77,9 +77,9 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) error 
 	}
 	defer rows.Close()
 
-	var websites []DashboardWebsite
+	var websites []dashboardWebsite
 	for rows.Next() {
-		var ws DashboardWebsite
+		var ws dashboardWebsite
 		if err := rows.Scan(&ws.ID, &ws.Name, &ws.PageCount, &ws.MediaCount, &ws.TemplateName); err != nil {
 			return err
 		}
@@ -110,9 +110,9 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) error 
 	}
 	defer actRows.Close()
 
-	var recentPages []RecentPage
+	var recentPages []recentPage
 	for actRows.Next() {
-		var rp RecentPage
+		var rp recentPage
 		var updatedAt string
 		if err := actRows.Scan(&rp.ID, &rp.Title, &updatedAt, &rp.WebsiteName, &rp.WebsiteID); err != nil {
 			return err
@@ -150,7 +150,7 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) error 
 		}
 	}
 
-	data := DashboardData{
+	data := dashboardData{
 		LayoutData:   web.NewLayoutData(r, h.sm, "Overview"),
 		WebsiteCount: websiteCount,
 		PageCount:    pageCount,

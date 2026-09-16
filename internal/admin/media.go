@@ -13,8 +13,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// MediaListData extends LayoutData for the media list page.
-type MediaListData struct {
+// mediaListData extends LayoutData for the media list page.
+type mediaListData struct {
 	web.LayoutData
 	WebsiteID int64
 	Media     []media.Media
@@ -71,11 +71,11 @@ func (h *Handler) HandleMediaList(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	data := MediaListData{
+	data := mediaListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Media – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Media:      items,
-		Pagination: NewPagination(pageNum, media.DefaultPerPage, total).
+		Pagination: newPagination(pageNum, media.DefaultPerPage, total).
 			WithTarget(fmt.Sprintf("/admin/websites/%d/media", websiteID), "#media-list"),
 		Filter:         filter,
 		MissingAltText: missing,

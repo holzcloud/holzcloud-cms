@@ -90,14 +90,14 @@ func NewNavWebsiteList(sm *scs.SessionManager, domains *domain.Store, users *use
 
 // siteTicks is the website list of the rights form: every site with a tick, so
 // what comes back is the complete answer and no difference has to be guessed.
-func (h *Handler) siteTicks(r *http.Request, rights user.Rights) []SiteTick {
+func (h *Handler) siteTicks(r *http.Request, rights user.Rights) []siteTick {
 	all, err := h.domains.ListWebsites(r.Context())
 	if err != nil {
 		return nil
 	}
-	out := make([]SiteTick, 0, len(all))
+	out := make([]siteTick, 0, len(all))
 	for _, ws := range all {
-		out = append(out, SiteTick{ID: ws.ID, Name: ws.Name, Ticks: rights.Limited() && rights.MayUse(ws.ID)})
+		out = append(out, siteTick{ID: ws.ID, Name: ws.Name, Ticks: rights.Limited() && rights.MayUse(ws.ID)})
 	}
 	return out
 }

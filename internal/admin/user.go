@@ -15,8 +15,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// UserRow represents a row from the users table.
-type UserRow struct {
+// userRow represents a row from the users table.
+type userRow struct {
 	ID        int64
 	Name      string
 	Email     string
@@ -38,10 +38,10 @@ type UserRow struct {
 	SiteTotal int
 }
 
-// UserListData extends LayoutData for the user list page.
-type UserListData struct {
+// userListData extends LayoutData for the user list page.
+type userListData struct {
 	web.LayoutData
-	Users         []UserRow
+	Users         []userRow
 	SessionUserID int64
 	// SSOEnabled says this installation accepts sign-ins from the operator's
 	// identity provider. The list says so, because after plan 10-06 whether an
@@ -51,16 +51,16 @@ type UserListData struct {
 	SSOEnabled bool
 }
 
-// UserFormData extends LayoutData for the user create/edit form.
-type UserFormData struct {
+// userFormData extends LayoutData for the user create/edit form.
+type userFormData struct {
 	web.LayoutData
-	User   *UserRow
+	User   *userRow
 	IsEdit bool
 	// MayPublish is the tick for the publishing right.
 	MayPublish bool
 	// Sites are the websites with a tick each, so the form shows the whole
 	// answer and what comes back is complete.
-	Sites []SiteTick
+	Sites []siteTick
 	// NothingTickedMeansNone is the form's answer to what no tick means, for an
 	// editor limited to no website at all. Without it such an editor is shown
 	// exactly like one nobody limited, and saving the form unchanged widens them.
@@ -96,23 +96,23 @@ func (h *Handler) rightsComeFromTheDirectory(r *http.Request, id int64) bool {
 	return strings.TrimSpace(name) != ""
 }
 
-// SiteTick is one website in the assignment list.
-type SiteTick struct {
+// siteTick is one website in the assignment list.
+type siteTick struct {
 	ID    int64
 	Name  string
 	Ticks bool
 }
 
-// UserPasswordData extends LayoutData for the password change form.
-type UserPasswordData struct {
+// userPasswordData extends LayoutData for the password change form.
+type userPasswordData struct {
 	web.LayoutData
-	User   *UserRow
+	User   *userRow
 	IsSelf bool
 }
 
 // --- Data access helpers ---
 
-func (h *Handler) listUsers(ctx context.Context) ([]UserRow, error) {
+func (h *Handler) listUsers(ctx context.Context) ([]userRow, error) {
 	rows, err := h.db.Read.QueryContext(ctx,
 		`SELECT id, name, email, role, created_at, COALESCE(last_login_at, '') FROM users ORDER BY name`)
 	if err != nil {
@@ -120,9 +120,9 @@ func (h *Handler) listUsers(ctx context.Context) ([]UserRow, error) {
 	}
 	defer rows.Close()
 
-	var users []UserRow
+	var users []userRow
 	for rows.Next() {
-		var u UserRow
+		var u userRow
 		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.CreatedAt, &u.LastLogin); err != nil {
 			return nil, err
 		}
@@ -131,8 +131,8 @@ func (h *Handler) listUsers(ctx context.Context) ([]UserRow, error) {
 	return users, rows.Err()
 }
 
-func (h *Handler) getUserByID(ctx context.Context, id int64) (*UserRow, error) {
-	var u UserRow
+func (h *Handler) getUserByID(ctx context.Context, id int64) (*userRow, error) {
+	var u userRow
 	err := h.db.Read.QueryRowContext(ctx,
 		`SELECT id, name, email, role, password FROM users WHERE id = $1`, id).
 		Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Password)
@@ -208,7 +208,7 @@ func (h *Handler) HandleUserList(w http.ResponseWriter, r *http.Request) error {
 		users[i].SiteTotal = total
 	}
 
-	data := UserListData{
+	data := userListData{
 		LayoutData:    web.NewLayoutData(r, h.sm, "Users"),
 		Users:         users,
 		SessionUserID: h.sm.GetInt64(r.Context(), auth.SessionKeyUserID),
@@ -224,7 +224,7 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) error
 		return h.handleUserCreatePost(w, r)
 	}
 
-	data := UserFormData{
+	data := userFormData{
 		LayoutData: web.NewLayoutData(r, h.sm, "New user"),
 		MayPublish: true,
 		Sites:      h.siteTicks(r, usr.Everything()),
@@ -310,7 +310,7 @@ func (h *Handler) HandleUserEdit(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	data := UserFormData{
+	data := userFormData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Edit user"),
 		User:       user,
 		IsEdit:     true,
@@ -466,7 +466,7 @@ func (h *Handler) HandlePasswordChange(w http.ResponseWriter, r *http.Request) e
 		return h.handlePasswordChangePost(w, r, user, isSelf)
 	}
 
-	data := UserPasswordData{
+	data := userPasswordData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Change password"),
 		User:       user,
 		IsSelf:     isSelf,
@@ -475,7 +475,7 @@ func (h *Handler) HandlePasswordChange(w http.ResponseWriter, r *http.Request) e
 	return web.RenderAdmin(w, h.templates, r, "user_password", data)
 }
 
-func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Request, user *UserRow, isSelf bool) error {
+func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Request, user *userRow, isSelf bool) error {
 	if err := r.ParseForm(); err != nil {
 		return err
 	}

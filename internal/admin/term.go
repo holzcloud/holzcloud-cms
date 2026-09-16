@@ -11,8 +11,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// TermListData is the label overview.
-type TermListData struct {
+// termListData is the label overview.
+type termListData struct {
 	web.LayoutData
 	WebsiteID int64
 	Terms     []term.Term
@@ -34,7 +34,7 @@ func (h *Handler) HandleTermList(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	data := TermListData{
+	data := termListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Terms – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Terms:      terms,

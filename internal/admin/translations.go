@@ -9,8 +9,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// TranslationColumn is one language of the overview.
-type TranslationColumn struct {
+// translationColumn is one language of the overview.
+type translationColumn struct {
 	// Code is the stored tag. Empty for the main language, which is how the
 	// column is written in the database.
 	Code string
@@ -23,8 +23,8 @@ type TranslationColumn struct {
 	Missing int
 }
 
-// TranslationCellView is one square of the grid.
-type TranslationCellView struct {
+// translationCellView is one square of the grid.
+type translationCellView struct {
 	Exists bool
 	ID     int64
 	Title  string
@@ -35,19 +35,19 @@ type TranslationCellView struct {
 	EditURL string
 }
 
-// TranslationRowView is one page across all languages.
-type TranslationRowView struct {
+// translationRowView is one page across all languages.
+type translationRowView struct {
 	Title string
 	Slug  string
-	Cells []TranslationCellView
+	Cells []translationCellView
 }
 
-// TranslationsData is the overview of what is translated and what is not.
-type TranslationsData struct {
+// translationsData is the overview of what is translated and what is not.
+type translationsData struct {
 	web.LayoutData
 	WebsiteID int64
-	Columns   []TranslationColumn
-	Rows      []TranslationRowView
+	Columns   []translationColumn
+	Rows      []translationRowView
 	// Complete is true when nothing is missing. Worth saying plainly rather
 	// than leaving the reader to scan a grid for gaps that are not there.
 	Complete bool
@@ -78,19 +78,19 @@ func (h *Handler) HandleTranslations(w http.ResponseWriter, r *http.Request) err
 	}
 
 	columns := translationColumns(*ws)
-	view := make([]TranslationRowView, 0, len(rows))
+	view := make([]translationRowView, 0, len(rows))
 	for _, row := range rows {
-		cells := make([]TranslationCellView, 0, len(columns))
+		cells := make([]translationCellView, 0, len(columns))
 		for i, col := range columns {
 			cell, exists := row.ByLocale[col.Code]
 			if !exists {
 				columns[i].Missing++
-				cells = append(cells, TranslationCellView{
+				cells = append(cells, translationCellView{
 					NewURL: newTranslationURL(websiteID, row.ID, col.Tag),
 				})
 				continue
 			}
-			cells = append(cells, TranslationCellView{
+			cells = append(cells, translationCellView{
 				Exists:  true,
 				ID:      cell.ID,
 				Title:   cell.Title,
@@ -98,7 +98,7 @@ func (h *Handler) HandleTranslations(w http.ResponseWriter, r *http.Request) err
 				EditURL: pageEditURL(websiteID, cell.ID),
 			})
 		}
-		view = append(view, TranslationRowView{Title: row.Title, Slug: row.Slug, Cells: cells})
+		view = append(view, translationRowView{Title: row.Title, Slug: row.Slug, Cells: cells})
 	}
 
 	complete := true
@@ -109,7 +109,7 @@ func (h *Handler) HandleTranslations(w http.ResponseWriter, r *http.Request) err
 		}
 	}
 
-	data := TranslationsData{
+	data := translationsData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Translations"),
 		WebsiteID:  websiteID,
 		Columns:    columns,
@@ -127,17 +127,17 @@ func (h *Handler) HandleTranslations(w http.ResponseWriter, r *http.Request) err
 // Website.Locale and is stored on a page as the empty string. So the first
 // column is built separately, and it is the one column where Code and Tag
 // differ: Code is what to look up, Tag is what to print.
-func translationColumns(ws domain.Website) []TranslationColumn {
+func translationColumns(ws domain.Website) []translationColumn {
 	extras := ws.Locales()
-	columns := make([]TranslationColumn, 0, len(extras)+1)
-	columns = append(columns, TranslationColumn{
+	columns := make([]translationColumn, 0, len(extras)+1)
+	columns = append(columns, translationColumn{
 		Code:    "",
 		Tag:     ws.Locale,
 		Name:    locale.Native(ws.Locale),
 		Primary: true,
 	})
 	for _, tag := range extras {
-		columns = append(columns, TranslationColumn{
+		columns = append(columns, translationColumn{
 			Code: tag,
 			Tag:  tag,
 			Name: locale.Native(tag),

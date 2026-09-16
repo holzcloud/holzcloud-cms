@@ -23,16 +23,16 @@ import (
 // lands on the same form. There is no third path where the editor quietly
 // depends on a script being there.
 
-// SwitchField turns a Markdown page into a block page and back.
-const SwitchField = "editorwechsel"
+// switchField turns a Markdown page into a block page and back.
+const switchField = "editorwechsel"
 
 // blockAction applies a pending structural change, if there is one.
 //
 // It reports whether the request was an editor action rather than a save. The
 // values are updated in place, so the caller re-renders the form it already
 // built and nothing has to be threaded back out.
-func blockAction(r *http.Request, values *PageValues) bool {
-	switch r.FormValue(SwitchField) {
+func blockAction(r *http.Request, values *pageValues) bool {
+	switch r.FormValue(switchField) {
 	case "zu-bausteinen":
 		values.Blocks = block.FromMarkdown(values.Markdown)
 		return true
@@ -61,7 +61,7 @@ func blockAction(r *http.Request, values *PageValues) bool {
 //
 // The full form is rendered for a request without htmx, so the same buttons do
 // the right thing either way — the browser simply reloads the whole editor.
-func (h *Handler) renderBlockList(w http.ResponseWriter, r *http.Request, data PageFormData) error {
+func (h *Handler) renderBlockList(w http.ResponseWriter, r *http.Request, data pageFormData) error {
 	if r.Header.Get("HX-Request") == "true" {
 		return web.RenderPartial(w, h.templates, r, "block_list", data)
 	}
@@ -150,7 +150,7 @@ func (h *Handler) blockImages(ctx context.Context, websiteID int64) block.Lookup
 // the second is true creates a second album beside the fifty they already have
 // — and, until the select learned to carry a value it cannot show, the next
 // save of that page deleted every album-backed gallery on it.
-func (h *Handler) siteAlbums(ctx context.Context, websiteID int64) ([]AlbumChoice, error) {
+func (h *Handler) siteAlbums(ctx context.Context, websiteID int64) ([]albumChoice, error) {
 	if h.albumStore == nil {
 		return nil, nil
 	}
@@ -158,9 +158,9 @@ func (h *Handler) siteAlbums(ctx context.Context, websiteID int64) ([]AlbumChoic
 	if err != nil {
 		return nil, fmt.Errorf("list albums for the block editor: %w", err)
 	}
-	out := make([]AlbumChoice, 0, len(list))
+	out := make([]albumChoice, 0, len(list))
 	for _, a := range list {
-		out = append(out, AlbumChoice{Slug: a.Slug, Name: a.Name})
+		out = append(out, albumChoice{Slug: a.Slug, Name: a.Name})
 	}
 	return out, nil
 }
@@ -172,7 +172,7 @@ func (h *Handler) siteAlbums(ctx context.Context, websiteID int64) ([]AlbumChoic
 // built from. Without the second one a page made of blocks would be invisible
 // to the site's own search — the kind of gap nobody notices until a visitor
 // does.
-func (h *Handler) blockContent(ctx context.Context, websiteID int64, values PageValues) (markdown, html, encoded string, err error) {
+func (h *Handler) blockContent(ctx context.Context, websiteID int64, values pageValues) (markdown, html, encoded string, err error) {
 	if !values.UsesBlocks() {
 		html, err = page.RenderMarkdown(values.Markdown)
 		return values.Markdown, html, "", err
@@ -196,8 +196,8 @@ func (h *Handler) blockContent(ctx context.Context, websiteID int64, values Page
 //
 // So the shapes are built here, in Go, where a rename is a compile error.
 
-// BlockView is one block as the editor draws it.
-type BlockView struct {
+// blockView is one block as the editor draws it.
+type blockView struct {
 	Number int
 	Block  block.Block
 	Kind   block.Kind
@@ -208,7 +208,7 @@ type BlockView struct {
 	// HTML id is needed, which may not contain a dot in a label's "for".
 	Prefix string
 	ID     string
-	Image  ImageFieldView
+	Image  imageFieldView
 	// Videos is the film pool, filled for a video block and empty otherwise.
 	// A separate list because the picture chooser must not offer a film and
 	// the film chooser must not offer a photo.
@@ -217,31 +217,31 @@ type BlockView struct {
 	// gallery and empty for every other type. A card row has items too and must
 	// not be able to name an album — block.Set.Clean drops one that somehow
 	// arrives, and this is the same guard one step earlier, at the control.
-	Albums []AlbumChoice
-	Items  []BlockItemView
+	Albums []albumChoice
+	Items  []blockItemView
 	// Fields are the inputs of a kind the website defined, empty for the
 	// built-in nine.
-	Fields []FieldView
+	Fields []fieldView
 	// Actions carry the index, so the template never builds one itself.
 	Up, Down, Remove, AddItem string
 }
 
-// BlockItemView is one entry inside a gallery or a card row.
-type BlockItemView struct {
+// blockItemView is one entry inside a gallery or a card row.
+type blockItemView struct {
 	Number int
 	Item   block.Item
 	Prefix string
 	ID     string
-	Image  ImageFieldView
+	Image  imageFieldView
 	Remove string
 }
 
-// AlbumChoice is one option of the gallery block's album select.
+// albumChoice is one option of the gallery block's album select.
 //
 // The slug and not the id, because the slug is what block.Block.AlbumSlug
 // stores and what the marker carries: an id means nothing on the machine a
 // bundle lands on.
-type AlbumChoice struct {
+type albumChoice struct {
 	Slug string
 	Name string
 	// Missing marks an option that stands for an album this website does not
@@ -276,7 +276,7 @@ type AlbumChoice struct {
 // Both are answered here rather than in the template, because "is this slug in
 // this list" is a question Go can ask and html/template cannot — and because
 // the second route needs the LIST to become non-empty, which only this can do.
-func albumChoicesFor(albums []AlbumChoice, chosen string) []AlbumChoice {
+func albumChoicesFor(albums []albumChoice, chosen string) []albumChoice {
 	if chosen == "" {
 		return albums
 	}
@@ -285,13 +285,13 @@ func albumChoicesFor(albums []AlbumChoice, chosen string) []AlbumChoice {
 			return albums
 		}
 	}
-	out := make([]AlbumChoice, 0, len(albums)+1)
+	out := make([]albumChoice, 0, len(albums)+1)
 	out = append(out, albums...)
-	return append(out, AlbumChoice{Slug: chosen, Missing: true})
+	return append(out, albumChoice{Slug: chosen, Missing: true})
 }
 
-// ImageFieldView is the shared picture chooser.
-type ImageFieldView struct {
+// imageFieldView is the shared picture chooser.
+type imageFieldView struct {
 	Prefix    string
 	ID        string
 	MediaID   int64
@@ -302,18 +302,18 @@ type ImageFieldView struct {
 }
 
 // IsType reports whether this block is of a given type, for the template.
-func (v BlockView) IsType(t string) bool { return v.Block.Type == t }
+func (v blockView) IsType(t string) bool { return v.Block.Type == t }
 
 // HasItems reports whether this block's editor has a nested list.
-func (v BlockView) HasItems() bool { return v.Kind.HasItems }
+func (v blockView) HasItems() bool { return v.Kind.HasItems }
 
 // blockViews builds the editor's view of a block list.
-func blockViews(set block.Set, blocks []block.Block, items, films []media.Media, albums []AlbumChoice, websiteID int64) []BlockView {
-	out := make([]BlockView, 0, len(blocks))
+func blockViews(set block.Set, blocks []block.Block, items, films []media.Media, albums []albumChoice, websiteID int64) []blockView {
+	out := make([]blockView, 0, len(blocks))
 	for i, b := range blocks {
 		kind, _ := set.KindOf(b.Type)
 		prefix := fmt.Sprintf("b%d", i)
-		v := BlockView{
+		v := blockView{
 			Number: i + 1,
 			Block:  b,
 			Kind:   kind,
@@ -321,7 +321,7 @@ func blockViews(set block.Set, blocks []block.Block, items, films []media.Media,
 			Last:   i == len(blocks)-1,
 			Prefix: prefix,
 			ID:     prefix,
-			Image: ImageFieldView{
+			Image: imageFieldView{
 				Prefix: prefix, ID: prefix, MediaID: b.MediaID,
 				Alt: b.Alt, Caption: b.Caption, Media: items, WebsiteID: websiteID,
 			},
@@ -355,12 +355,12 @@ func blockViews(set block.Set, blocks []block.Block, items, films []media.Media,
 		for j, it := range b.Items {
 			ip := fmt.Sprintf("b%d.e%d", i, j)
 			id := fmt.Sprintf("b%d-e%d", i, j)
-			v.Items = append(v.Items, BlockItemView{
+			v.Items = append(v.Items, blockItemView{
 				Number: j + 1,
 				Item:   it,
 				Prefix: ip,
 				ID:     id,
-				Image: ImageFieldView{
+				Image: imageFieldView{
 					Prefix: ip, ID: id, MediaID: it.MediaID,
 					Alt: it.Alt, Caption: it.Caption, Media: items, WebsiteID: websiteID,
 				},

@@ -17,19 +17,19 @@ import (
 // field list is there for that already, it only has to know whose fields it is
 // showing (see field.go, ?baustein=).
 
-// BlockTypeRow is one kind with how many pages use it.
-type BlockTypeRow struct {
+// blockTypeRow is one kind with how many pages use it.
+type blockTypeRow struct {
 	block.Own
 	Used  int
 	First bool
 	Last  bool
 }
 
-// BlockTypeListData is the "Bausteinarten" screen.
-type BlockTypeListData struct {
+// blockTypeListData is the "Bausteinarten" screen.
+type blockTypeListData struct {
 	web.LayoutData
 	WebsiteID int64
-	Rows      []BlockTypeRow
+	Rows      []blockTypeRow
 	// Edit is the kind being changed, or nil when the form is for a new one.
 	Edit *block.Own
 	// Builtin is the nine that every website has, so the screen shows what is
@@ -49,7 +49,7 @@ func (h *Handler) HandleBlockTypeList(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	data := BlockTypeListData{
+	data := blockTypeListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Block kinds – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Builtin:    block.Kinds,
@@ -60,7 +60,7 @@ func (h *Handler) HandleBlockTypeList(w http.ResponseWriter, r *http.Request) er
 		if err != nil {
 			return err
 		}
-		data.Rows = append(data.Rows, BlockTypeRow{
+		data.Rows = append(data.Rows, blockTypeRow{
 			Own: t, Used: n, First: i == 0, Last: i == len(types)-1,
 		})
 	}

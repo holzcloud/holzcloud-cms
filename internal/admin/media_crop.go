@@ -23,8 +23,8 @@ import (
 // keyboard submits 0,0, which would silently move the subject to the top left
 // corner, so the same values also sit in two number fields that can be typed.
 
-// CropData is the crop screen.
-type CropData struct {
+// cropData is the crop screen.
+type cropData struct {
 	web.LayoutData
 	WebsiteID int64
 	Media     *media.Media
@@ -68,7 +68,7 @@ func (h *Handler) HandleMediaCrop(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	data := CropData{
+	data := cropData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Crop – %s", m.OriginalName)),
 		WebsiteID:  websiteID,
 		Media:      m,

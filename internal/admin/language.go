@@ -22,8 +22,8 @@ import (
 // translation that does not fit its German original is dropped, and whatever is
 // missing falls through to German.
 
-// LanguageData is the "Sprachen" screen.
-type LanguageData struct {
+// languageData is the "Sprachen" screen.
+type languageData struct {
 	web.LayoutData
 	// Stats is every language this installation can show.
 	Stats []i18n.Stat
@@ -36,7 +36,7 @@ type LanguageData struct {
 
 // HandleLanguages shows the languages and what may be done with them.
 func (h *Handler) HandleLanguages(w http.ResponseWriter, r *http.Request) error {
-	data := LanguageData{
+	data := languageData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Languages"),
 		Stats:      i18n.Stats(),
 		Dir:        i18n.Dir(),

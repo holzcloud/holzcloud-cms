@@ -10,8 +10,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// RedirectListData is the redirect overview.
-type RedirectListData struct {
+// redirectListData is the redirect overview.
+type redirectListData struct {
 	web.LayoutData
 	web.FormState
 	WebsiteID int64
@@ -19,7 +19,7 @@ type RedirectListData struct {
 	// Broken are the internal links that point nowhere. They sit on this screen
 	// because a redirect is one of the two ways to fix one, and the other —
 	// editing the page — is one click from here either way.
-	Broken []BrokenLink
+	Broken []brokenLink
 	From   string
 	To     string
 }
@@ -59,8 +59,8 @@ func (h *Handler) HandleRedirectList(w http.ResponseWriter, r *http.Request) err
 	return web.RenderAdmin(w, h.templates, r, "redirect_list", data)
 }
 
-func (h *Handler) redirectListData(r *http.Request, websiteID int64, websiteName string) (RedirectListData, error) {
-	data := RedirectListData{
+func (h *Handler) redirectListData(r *http.Request, websiteID int64, websiteName string) (redirectListData, error) {
+	data := redirectListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Redirects – %s", websiteName)),
 		FormState:  web.NewFormState(),
 		WebsiteID:  websiteID,

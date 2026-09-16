@@ -18,8 +18,8 @@ import (
 // that an afternoon fits on one or two pages.
 const activityPerPage = 50
 
-// ActivityRow is one line of the protocol, ready to print.
-type ActivityRow struct {
+// activityRow is one line of the protocol, ready to print.
+type activityRow struct {
 	ID int64
 	// When is for reading, WhenISO for the datetime attribute. Formatted here
 	// and not in the template: the admin has no date helpers in its FuncMap,
@@ -34,12 +34,12 @@ type ActivityRow struct {
 	Metadata    map[string]any
 }
 
-// ActivityListData is the protocol screen.
-type ActivityListData struct {
+// activityListData is the protocol screen.
+type activityListData struct {
 	web.LayoutData
 	Pagination
 
-	Rows []ActivityRow
+	Rows []activityRow
 
 	// The filters go back into the form so they survive both the pager and a
 	// reload — a protocol one has narrowed down and then lost is worse than
@@ -76,13 +76,13 @@ func (h *Handler) HandleActivityList(w http.ResponseWriter, r *http.Request) err
 		nameByID[ws.ID] = ws.Name
 	}
 
-	rows := make([]ActivityRow, 0, len(entries))
+	rows := make([]activityRow, 0, len(entries))
 	for _, e := range entries {
 		name := ""
 		if e.WebsiteID != nil {
 			name = nameByID[*e.WebsiteID]
 		}
-		rows = append(rows, ActivityRow{
+		rows = append(rows, activityRow{
 			ID:          e.ID,
 			When:        e.CreatedAt.Format("02.01.2006 15:04"),
 			WhenISO:     e.CreatedAt.Format("2006-01-02T15:04:05Z"),
@@ -95,9 +95,9 @@ func (h *Handler) HandleActivityList(w http.ResponseWriter, r *http.Request) err
 		})
 	}
 
-	data := ActivityListData{
+	data := activityListData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Activity log"),
-		Pagination: NewPagination(pageNum, activityPerPage, total).
+		Pagination: newPagination(pageNum, activityPerPage, total).
 			WithFilteredTarget("/admin/protokoll", "#activity-list", activityPagerQuery(q)),
 		Rows:            rows,
 		FilterWebsiteID: q.Get("website_id"),

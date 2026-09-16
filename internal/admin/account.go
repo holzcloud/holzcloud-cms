@@ -14,11 +14,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// AccountLinkData shows a freshly issued one-time link.
+// accountLinkData shows a freshly issued one-time link.
 //
 // It is shown exactly once. The secret is not stored, so there is no second
 // screen that could show it again — which is the point.
-type AccountLinkData struct {
+type accountLinkData struct {
 	web.LayoutData
 	User    *user.User
 	URL     string
@@ -33,8 +33,8 @@ type AccountLinkData struct {
 	SendError string
 }
 
-// SetPasswordData is the public form behind an invite or reset link.
-type SetPasswordData struct {
+// setPasswordData is the public form behind an invite or reset link.
+type setPasswordData struct {
 	web.LayoutData
 	web.FormState
 	Token   string
@@ -87,7 +87,7 @@ func (h *Handler) HandleUserLink(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	link := h.absoluteAdminURL(r, path+secret)
-	data := AccountLinkData{
+	data := accountLinkData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Access link"),
 		User:       u,
 		URL:        link,
@@ -142,7 +142,7 @@ func (h *Handler) HandleSetPassword(purpose string) func(http.ResponseWriter, *h
 			return err
 		}
 
-		data := SetPasswordData{
+		data := setPasswordData{
 			LayoutData: web.NewLayoutData(r, h.sm, linkTitle(purpose)),
 			FormState:  web.NewFormState(),
 			Token:      token,
@@ -202,7 +202,7 @@ func linkTitle(purpose string) string {
 // Unknown, expired and already used are not distinguished: saying which applies
 // would tell a stranger whether the token ever existed.
 func (h *Handler) invalidLink(w http.ResponseWriter, r *http.Request) error {
-	data := SetPasswordData{
+	data := setPasswordData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Link not valid"),
 		FormState:  web.NewFormState(),
 	}
