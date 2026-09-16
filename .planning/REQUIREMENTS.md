@@ -72,15 +72,29 @@ with the raw coverage output committed beside it.
 
 ## The exported surface
 
-- [ ] **SURF-01**: **Every exported identifier in `internal/` is exported
+- [x] **SURF-01**: **Every exported identifier in `internal/` is exported
       because something outside its package needs it.** 301 of 1 312 are used
       nowhere else. That number is an upper bound, not a finding — it cannot see
       a field an `html/template` reads, a test in another package, or a contract
       somebody else writes against — so the work is to look at each one and
       either use it, un-export it, or record why it stays.
-- [ ] **SURF-02**: **The count is reported rather than recounted by hand.**
+      *Done 2026-09-15 (17-02).* First the count itself was wrong: 301 of 1 312
+      came from a regular expression over words, which counted a name as used
+      when it stood in an unrelated sentence and missed a package imported under
+      an alias. Reading the syntax gives **383 of 1 096**, and it ends at
+      **268 of 986**. Three dead helpers deleted; four dead constants turned out
+      to be events the host promised and never sent, and are emitted now; 108 of
+      `internal/admin`'s template data types unexported. Six stayed, each with
+      the reason at its declaration — three because `html/template` cannot reach
+      a promoted field through an unexported embedded field, which would have
+      emptied every pager in the admin **silently**.
+- [x] **SURF-02**: **The count is reported rather than recounted by hand.**
       Whatever the number ends at, the next person should be able to produce it
       in one command instead of writing the script again.
+      *Done:* `go run ./tools/surface`, with `-count`, `-dead` and `-all`. It
+      reports and refuses nothing, and states in its own package comment what it
+      cannot see: a field an `html/template` reads through reflection, which is
+      why types are listed apart from functions and values.
 
 ## The two limitations that are recorded and still true
 

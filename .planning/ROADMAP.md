@@ -354,7 +354,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 14. A Contact Form Worth Writing Into | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 15. What the Server Promises, It Keeps | v2.2 | 6/6 | Complete | 2026-09-14 |
 | 16. Every Word on a Page Belongs to Whoever Reads It | v2.3 | 3/3 | Complete | 2026-09-15 |
-| 17. What Has Accumulated | v2.4 | 2/4 | In progress | - |
+| 17. What Has Accumulated | v2.4 | 3/4 | In progress | - |
 | 18. The Administration Under Test | v2.4 | 0/? | Not started | - |
 
 ---
