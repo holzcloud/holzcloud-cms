@@ -87,7 +87,7 @@ func (h *Handler) HandleWordPressImport(w http.ResponseWriter, r *http.Request) 
 
 	h.resolver.InvalidateCache()
 
-	data := ImportReportData{
+	data := importReportData{
 		LayoutData: web.NewLayoutData(r, h.sm, "WordPress import finished"),
 		Report:     report,
 	}

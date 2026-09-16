@@ -11,8 +11,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// ShopSettingsValues is the shop configuration as the form carries it.
-type ShopSettingsValues struct {
+// shopSettingsValues is the shop configuration as the form carries it.
+type shopSettingsValues struct {
 	ShopBase       string
 	Currency       string
 	ShippingGross  string
@@ -29,18 +29,18 @@ type ShopSettingsValues struct {
 	freeAt   *money.Amount
 }
 
-// ShopSettingsData backs the settings screen.
-type ShopSettingsData struct {
+// shopSettingsData backs the settings screen.
+type shopSettingsData struct {
 	web.LayoutData
 	web.FormState
-	Values ShopSettingsValues
+	Values shopSettingsValues
 	Rates  []struct {
 		Value int
 		Label string
 	}
 }
 
-func (v *ShopSettingsValues) validate(errs web.FormErrors) {
+func (v *shopSettingsValues) validate(errs web.FormErrors) {
 	// The path is a single segment, like blog_base. A slash here would produce
 	// routes nobody can reach.
 	v.ShopBase = strings.Trim(strings.TrimSpace(v.ShopBase), "/")
@@ -98,7 +98,7 @@ func (h *Handler) HandleShopSettings(w http.ResponseWriter, r *http.Request) err
 		return h.handleShopSettingsSave(w, r, ws)
 	}
 
-	values := ShopSettingsValues{
+	values := shopSettingsValues{
 		ShopBase:       ws.ShopBase,
 		Currency:       ws.Currency,
 		ShippingGross:  money.Input(money.Amount(ws.ShippingGross)),
@@ -117,7 +117,7 @@ func (h *Handler) HandleShopSettings(w http.ResponseWriter, r *http.Request) err
 }
 
 func (h *Handler) renderShopSettings(w http.ResponseWriter, r *http.Request,
-	ws *domain.Website, values ShopSettingsValues, state web.FormState) error {
+	ws *domain.Website, values shopSettingsValues, state web.FormState) error {
 
 	rates := make([]struct {
 		Value int
@@ -130,7 +130,7 @@ func (h *Handler) renderShopSettings(w http.ResponseWriter, r *http.Request,
 		}{int(r.Rate), r.Label})
 	}
 
-	data := ShopSettingsData{
+	data := shopSettingsData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Shop – "+ws.Name),
 		FormState:  state,
 		Values:     values,
@@ -146,7 +146,7 @@ func (h *Handler) handleShopSettingsSave(w http.ResponseWriter, r *http.Request,
 		return err
 	}
 
-	values := ShopSettingsValues{
+	values := shopSettingsValues{
 		ShopBase:       r.FormValue("shop_base"),
 		Currency:       strings.ToUpper(strings.TrimSpace(r.FormValue("currency"))),
 		ShippingGross:  r.FormValue("shipping_gross"),

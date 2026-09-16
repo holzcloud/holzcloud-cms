@@ -39,47 +39,47 @@ import (
 //     internal/album exports named errors for exactly this, and the branches
 //     below use errors.Is.
 //
-// The picture chooser is ImageFieldView (BlockView), the block
+// The picture chooser is imageFieldView (blockView), the block
 // editor's own, fed to the block_bild partial unchanged. That reuse is GAL-07
 // in the editor: one picture chooser, not two that agree.
 
-// AlbumListData extends LayoutData for the album list page.
-type AlbumListData struct {
+// albumListData extends LayoutData for the album list page.
+type albumListData struct {
 	web.LayoutData
 	WebsiteID int64
-	Albums    []AlbumRow
+	Albums    []albumRow
 }
 
-// AlbumRow is one album in the list, with how many pictures are in it.
-type AlbumRow struct {
+// albumRow is one album in the list, with how many pictures are in it.
+type albumRow struct {
 	album.Album
 	Pictures int
 }
 
-// AlbumEditData extends LayoutData for one album's screen.
-type AlbumEditData struct {
+// albumEditData extends LayoutData for one album's screen.
+type albumEditData struct {
 	web.LayoutData
 	WebsiteID int64
 	Album     *album.Album
-	Pictures  []AlbumItemView
+	Pictures  []albumItemView
 	// NewPicture is the chooser of the add form at the foot of the screen. It
-	// is the same ImageFieldView every row carries, with an empty selection.
-	NewPicture ImageFieldView
+	// is the same imageFieldView every row carries, with an empty selection.
+	NewPicture imageFieldView
 }
 
-// AlbumItemView is one picture row as the editor draws it.
+// albumItemView is one picture row as the editor draws it.
 //
 // Prefix is "bild" on every row, so the posted names are bild.medium, bild.alt
 // and bild.bildunterschrift and block_bild works unchanged; ID is per row,
 // because two labels on one page may not point at the same element. That split
-// is what ImageFieldView carries the two fields for.
-type AlbumItemView struct {
+// is what imageFieldView carries the two fields for.
+type albumItemView struct {
 	Number int
 	ID     int64
 	// First and Last grey out the arrows at the ends of the list.
 	First bool
 	Last  bool
-	Image ImageFieldView
+	Image imageFieldView
 	// The action addresses, built here so no template does string arithmetic.
 	Up, Down, Remove, Update string
 }
@@ -217,16 +217,16 @@ func (h *Handler) HandleAlbumList(w http.ResponseWriter, r *http.Request) error 
 	// once: albums are hand-made and few, and a picture list is capped at
 	// album.MaxItems. If a website ever has hundreds of albums this is the
 	// first place to look.
-	rows := make([]AlbumRow, 0, len(albums))
+	rows := make([]albumRow, 0, len(albums))
 	for _, a := range albums {
 		pictures, err := h.albumStore.Pictures(r.Context(), ws.ID, a.ID)
 		if err != nil {
 			return err
 		}
-		rows = append(rows, AlbumRow{Album: a, Pictures: len(pictures)})
+		rows = append(rows, albumRow{Album: a, Pictures: len(pictures)})
 	}
 
-	data := AlbumListData{
+	data := albumListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Albums – %s", ws.Name)),
 		WebsiteID:  ws.ID,
 		Albums:     rows,
@@ -284,16 +284,16 @@ func (h *Handler) HandleAlbumEdit(w http.ResponseWriter, r *http.Request) error 
 	}
 	images := h.albumImages(r, ws.ID)
 
-	views := make([]AlbumItemView, 0, len(pictures))
+	views := make([]albumItemView, 0, len(pictures))
 	for i, p := range pictures {
 		rowID := fmt.Sprintf("bild%d", p.ID)
 		base := fmt.Sprintf("/admin/websites/%d/albums/%d/pictures/%d", ws.ID, a.ID, p.ID)
-		views = append(views, AlbumItemView{
+		views = append(views, albumItemView{
 			Number: i + 1,
 			ID:     p.ID,
 			First:  i == 0,
 			Last:   i == len(pictures)-1,
-			Image: ImageFieldView{
+			Image: imageFieldView{
 				Prefix: "bild", ID: rowID, MediaID: p.Item.MediaID,
 				Alt: p.Item.Alt, Caption: p.Item.Caption,
 				Media: images, WebsiteID: ws.ID,
@@ -305,12 +305,12 @@ func (h *Handler) HandleAlbumEdit(w http.ResponseWriter, r *http.Request) error 
 		})
 	}
 
-	data := AlbumEditData{
+	data := albumEditData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Album %s – %s", a.Name, ws.Name)),
 		WebsiteID:  ws.ID,
 		Album:      a,
 		Pictures:   views,
-		NewPicture: ImageFieldView{
+		NewPicture: imageFieldView{
 			Prefix: "bild", ID: "neues-bild", Media: images, WebsiteID: ws.ID,
 		},
 	}

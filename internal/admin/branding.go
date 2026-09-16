@@ -18,8 +18,8 @@ import (
 // to the administration and not to any one website, and somebody looking for it
 // looks under System.
 
-// BrandingData is the "Marke" screen.
-type BrandingData struct {
+// brandingData is the "Marke" screen.
+type brandingData struct {
 	web.LayoutData
 	web.FormState
 	Brand branding.Brand
@@ -33,7 +33,7 @@ func (h *Handler) HandleBranding(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodPost {
 		return h.handleBrandingPost(w, r)
 	}
-	data := BrandingData{
+	data := brandingData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Brand"),
 		FormState:  web.NewFormState(),
 		Brand:      branding.Current(),

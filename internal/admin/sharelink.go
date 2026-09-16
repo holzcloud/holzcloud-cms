@@ -10,8 +10,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// ShareLinkData shows a freshly minted preview link.
-type ShareLinkData struct {
+// shareLinkData shows a freshly minted preview link.
+type shareLinkData struct {
 	web.LayoutData
 	WebsiteID int64
 	PageID    int64
@@ -62,7 +62,7 @@ func (h *Handler) HandlePageShare(w http.ResponseWriter, r *http.Request) error 
 	// a relative path would be useless there.
 	base := h.publicBase(r, ws.ID)
 
-	data := ShareLinkData{
+	data := shareLinkData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Preview link – %s", pg.Title)),
 		WebsiteID:  websiteID,
 		PageID:     pg.ID,

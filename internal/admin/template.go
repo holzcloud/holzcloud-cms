@@ -18,26 +18,26 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// TemplateListData extends LayoutData for the template list page.
-type TemplateListData struct {
+// templateListData extends LayoutData for the template list page.
+type templateListData struct {
 	web.LayoutData
-	Templates []TemplateWithWebsites
+	Templates []templateWithWebsites
 }
 
-// TemplateWithWebsites pairs a template with its active website info.
-type TemplateWithWebsites struct {
+// templateWithWebsites pairs a template with its active website info.
+type templateWithWebsites struct {
 	tmplmgr.Template
-	ActiveWebsites []WebsiteActivation
+	ActiveWebsites []websiteActivation
 }
 
-// WebsiteActivation tracks whether a template is active for a given website.
-type WebsiteActivation struct {
+// websiteActivation tracks whether a template is active for a given website.
+type websiteActivation struct {
 	Website  domain.Website
 	IsActive bool
 }
 
-// TemplateUploadData extends LayoutData for the template upload form.
-type TemplateUploadData struct {
+// templateUploadData extends LayoutData for the template upload form.
+type templateUploadData struct {
 	web.LayoutData
 }
 
@@ -60,11 +60,11 @@ func (h *Handler) HandleTemplateList(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 
-	items := make([]TemplateWithWebsites, 0, len(templates))
+	items := make([]templateWithWebsites, 0, len(templates))
 	for _, t := range templates {
-		tw := TemplateWithWebsites{Template: t}
+		tw := templateWithWebsites{Template: t}
 		for _, ws := range websites {
-			tw.ActiveWebsites = append(tw.ActiveWebsites, WebsiteActivation{
+			tw.ActiveWebsites = append(tw.ActiveWebsites, websiteActivation{
 				Website:  ws,
 				IsActive: activeByWebsite[ws.ID] == t.ID,
 			})
@@ -72,7 +72,7 @@ func (h *Handler) HandleTemplateList(w http.ResponseWriter, r *http.Request) err
 		items = append(items, tw)
 	}
 
-	data := TemplateListData{
+	data := templateListData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Templates"),
 		Templates:  items,
 	}
@@ -86,7 +86,7 @@ func (h *Handler) HandleTemplateUpload(w http.ResponseWriter, r *http.Request) e
 		return h.handleTemplateUploadPost(w, r)
 	}
 
-	data := TemplateUploadData{
+	data := templateUploadData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Upload a template"),
 	}
 	data.ActiveNav = "templates"

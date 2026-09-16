@@ -15,15 +15,15 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// PluginListData is the plugin screen.
-type PluginListData struct {
+// pluginListData is the plugin screen.
+type pluginListData struct {
 	web.LayoutData
-	Plugins  []PluginRow
+	Plugins  []pluginRow
 	Websites []domain.Website
 }
 
-// PluginRow is one plugin with the websites it acts on resolved.
-type PluginRow struct {
+// pluginRow is one plugin with the websites it acts on resolved.
+type pluginRow struct {
 	plugin.Status
 	OnWebsite map[int64]bool
 	// Hooks and Permissions are shown as plain words: an operator installing
@@ -43,8 +43,8 @@ type PluginRow struct {
 	DisplayLabel       string
 }
 
-// PluginScreenData wraps a plugin's own admin screen.
-type PluginScreenData struct {
+// pluginScreenData wraps a plugin's own admin screen.
+type pluginScreenData struct {
 	web.LayoutData
 	PluginID   string
 	PluginName string
@@ -66,9 +66,9 @@ func (h *Handler) HandlePluginList(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	rows := make([]PluginRow, 0, len(list))
+	rows := make([]pluginRow, 0, len(list))
 	for _, p := range list {
-		row := PluginRow{Status: p, OnWebsite: map[int64]bool{}}
+		row := pluginRow{Status: p, OnWebsite: map[int64]bool{}}
 		for _, id := range p.Websites {
 			row.OnWebsite[id] = true
 		}
@@ -84,7 +84,7 @@ func (h *Handler) HandlePluginList(w http.ResponseWriter, r *http.Request) error
 		rows = append(rows, row)
 	}
 
-	data := PluginListData{
+	data := pluginListData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Plugins"),
 		Plugins:    rows,
 		Websites:   websites,
@@ -293,7 +293,7 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 	if title == "" {
 		title = name
 	}
-	data := PluginScreenData{
+	data := pluginScreenData{
 		LayoutData: web.NewLayoutData(r, h.sm, title),
 		PluginID:   id,
 		PluginName: name,

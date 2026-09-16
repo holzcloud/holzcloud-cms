@@ -12,8 +12,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// LanguageChoice is one language in the page form's dropdown.
-type LanguageChoice struct {
+// languageChoice is one language in the page form's dropdown.
+type languageChoice struct {
 	// Code is the stored value: empty for the main language.
 	Code string
 	// Name is what an editor reads: "Deutsch", "Französisch". //nolint:german — the names a German editor sees
@@ -26,8 +26,8 @@ type LanguageChoice struct {
 	Primary bool
 }
 
-// TranslationView is one sibling of a page in the translation panel.
-type TranslationView struct {
+// translationView is one sibling of a page in the translation panel.
+type translationView struct {
 	PageID int64
 	Name   string
 	Title  string
@@ -45,21 +45,21 @@ type TranslationView struct {
 // Draft reports whether this translation is still unpublished, so the panel can
 // say so — a group where only the German is live is the normal state halfway
 // through translating, and it should be visible at a glance.
-func (t TranslationView) Draft() bool { return t.Status == "draft" }
+func (t translationView) Draft() bool { return t.Status == "draft" }
 
 // languageChoices builds the dropdown for one website.
 //
 // Nil when the website has one language: a select with a single option is a
 // control that asks a question with only one answer.
-func languageChoices(ws *domain.Website, current string) []LanguageChoice {
+func languageChoices(ws *domain.Website, current string) []languageChoice {
 	if ws == nil || !ws.Multilingual() {
 		return nil
 	}
-	out := []LanguageChoice{{
+	out := []languageChoice{{
 		Code: "", Name: locale.Name(ws.Locale), Selected: current == "", Primary: true,
 	}}
 	for _, tag := range ws.Locales() {
-		out = append(out, LanguageChoice{Code: tag, Name: locale.Name(tag), Selected: current == tag})
+		out = append(out, languageChoice{Code: tag, Name: locale.Name(tag), Selected: current == tag})
 	}
 	return out
 }
@@ -69,7 +69,7 @@ func languageChoices(ws *domain.Website, current string) []LanguageChoice {
 //
 // The gaps are the point: what an editor needs to see is not which translations
 // exist but which ones are still missing.
-func (h *Handler) translationViews(r *http.Request, ws *domain.Website, pg *page.Page) []TranslationView {
+func (h *Handler) translationViews(r *http.Request, ws *domain.Website, pg *page.Page) []translationView {
 	if ws == nil || pg == nil || !ws.Multilingual() {
 		return nil
 	}
@@ -84,7 +84,7 @@ func (h *Handler) translationViews(r *http.Request, ws *domain.Website, pg *page
 		byLocale[t.Locale] = t
 	}
 
-	var out []TranslationView
+	var out []translationView
 	for _, tag := range append([]string{""}, ws.Locales()...) {
 		name := locale.Name(ws.Locale)
 		if tag != "" {
@@ -92,10 +92,10 @@ func (h *Handler) translationViews(r *http.Request, ws *domain.Website, pg *page
 		}
 		t, exists := byLocale[tag]
 		if !exists {
-			out = append(out, TranslationView{Name: name, Code: tag, Missing: true})
+			out = append(out, translationView{Name: name, Code: tag, Missing: true})
 			continue
 		}
-		out = append(out, TranslationView{
+		out = append(out, translationView{
 			PageID: t.ID, Name: name, Title: t.Title, Status: t.Status,
 			Self: t.ID == pg.ID, Code: tag,
 		})
@@ -109,7 +109,7 @@ func (h *Handler) translationViews(r *http.Request, ws *domain.Website, pg *page
 // whose language is wrong is a page that still saved. A language the website
 // does not have becomes the main one rather than an error — the form cannot
 // offer it, so the only way to send it is by hand.
-func (h *Handler) setLanguage(r *http.Request, ws *domain.Website, pageID int64, values PageValues) {
+func (h *Handler) setLanguage(r *http.Request, ws *domain.Website, pageID int64, values pageValues) {
 	if ws == nil || !ws.Multilingual() {
 		return
 	}

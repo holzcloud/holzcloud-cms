@@ -28,8 +28,8 @@ const (
 	sessionNewKeyName = "ai_new_key_name"
 )
 
-// AIKeysData is the key screen.
-type AIKeysData struct {
+// aIKeysData is the key screen.
+type aIKeysData struct {
 	web.LayoutData
 	Keys     []ai.Token
 	Websites []domain.Website
@@ -43,7 +43,7 @@ type AIKeysData struct {
 }
 
 // WebsiteName resolves a key's website for display.
-func (d AIKeysData) WebsiteName(id int64) string {
+func (d aIKeysData) WebsiteName(id int64) string {
 	for _, w := range d.Websites {
 		if w.ID == id {
 			return w.Name
@@ -72,7 +72,7 @@ func (h *Handler) HandleAIKeys(w http.ResponseWriter, r *http.Request) error {
 		scheme = "http"
 	}
 
-	data := AIKeysData{
+	data := aIKeysData{
 		LayoutData: web.NewLayoutData(r, h.sm, "AI access"),
 		Keys:       keys,
 		Websites:   sites,

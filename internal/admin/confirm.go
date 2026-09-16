@@ -14,8 +14,8 @@ import (
 // would have to bring back — see auth.RequireFreshPassword for why there are so
 // few of them.
 
-// ConfirmData is the confirmation screen.
-type ConfirmData struct {
+// confirmData is the confirmation screen.
+type confirmData struct {
 	web.LayoutData
 	web.FormState
 	// Back is where to return to afterwards: the screen the button was on.
@@ -48,7 +48,7 @@ func (h *Handler) HandleConfirmPassword(w http.ResponseWriter, r *http.Request) 
 			// No hint about which part was wrong, and no throttling here: this
 			// is somebody who is already signed in, and the password is the
 			// same one the login screen already protects.
-			data := ConfirmData{
+			data := confirmData{
 				LayoutData: web.NewLayoutData(r, h.sm, "Please confirm"),
 				FormState:  web.NewFormState(),
 				Back:       back,
@@ -64,7 +64,7 @@ func (h *Handler) HandleConfirmPassword(w http.ResponseWriter, r *http.Request) 
 		return nil
 	}
 
-	data := ConfirmData{
+	data := confirmData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Please confirm"),
 		FormState:  web.NewFormState(),
 		Back:       back,

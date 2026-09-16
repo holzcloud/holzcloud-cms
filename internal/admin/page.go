@@ -22,11 +22,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// PageListData extends LayoutData for the page list.
-type PageListData struct {
+// pageListData extends LayoutData for the page list.
+type pageListData struct {
 	web.LayoutData
 	WebsiteID int64
-	Rows      []PageRowData
+	Rows      []pageRowData
 	Pagination
 	// Filter and Query are echoed back so the controls keep their state and the
 	// pager keeps the filter.
@@ -38,32 +38,32 @@ type PageListData struct {
 	PendingReview int
 	// Languages drives the language filter. Empty on a website with one
 	// language, which hides the control entirely.
-	Languages []LanguageChoice
+	Languages []languageChoice
 	// MayPublish is false for somebody who writes and submits. Then the bulk
 	// menu offers no publishing.
 	MayPublish bool
 	// Types are the website's own content kinds, for the "Art" filter.
 	Types []kind.Type
 	// Columns are the chosen columns, Choices the chooser above the table.
-	Columns ColumnSet
+	Columns columnSet
 	Choices []Column
 	// Views are this person's remembered filter combinations, and Filterpart
 	// is what a new one would remember.
-	Views      []SavedView
+	Views      []savedView
 	Filterpart string
 }
 
-// PageFormData extends LayoutData for the page create/edit form.
+// pageFormData extends LayoutData for the page create/edit form.
 //
 // Values, not Page, is what the template renders. A rejected submit re-renders
 // this struct with the values that were posted, so a long article survives a
 // missing title instead of being replaced by an empty form and a flash message.
-type PageFormData struct {
+type pageFormData struct {
 	web.LayoutData
 	web.FormState
 	WebsiteID int64
 	PageID    int64
-	Values    PageValues
+	Values    pageValues
 	IsEdit    bool
 
 	// PublishedAt is display-only metadata that has no form field.
@@ -78,16 +78,16 @@ type PageFormData struct {
 	Media []media.Media
 	// RefPages is the choice a reference field offers: the pages of this
 	// website.
-	RefPages []PageChoice
+	RefPages []pageChoice
 	// RefTerms is the choice a label field offers: the labels of this website.
-	RefTerms []TermChoice
+	RefTerms []termChoice
 	// Videos is the film pool of the video block.
 	Videos []media.Media
 	// Albums is the choice a gallery block's album select offers.
-	Albums []AlbumChoice
+	Albums []albumChoice
 	// KindChoices is the "Art" dropdown: the two built-in kinds and the
 	// website's own.
-	KindChoices []KindChoice
+	KindChoices []kindChoice
 	// Snippets lists the reusable blocks, so an editor can see which markers
 	// exist without leaving the page.
 	Snippets []snippet.Snippet
@@ -96,7 +96,7 @@ type PageFormData struct {
 
 	// BlockViews is the block editor's markup model, built in Go so a renamed
 	// field is a compile error rather than a surprise in a browser.
-	BlockViews []BlockView
+	BlockViews []blockView
 	// BlockAction is the address the editor's buttons post to. It differs
 	// between creating and editing, and the template should not have to know.
 	BlockAction string
@@ -104,22 +104,22 @@ type PageFormData struct {
 	// FieldViews are the website's own fields, already narrowed to the ones
 	// that apply to this kind of page and divided into blocks by their
 	// headings.
-	FieldViews []FieldBlock
+	FieldViews []fieldBlock
 
 	// Languages is the language dropdown, empty on a website with one
 	// language — which is every website until somebody adds a second.
-	Languages []LanguageChoice
+	Languages []languageChoice
 	// Translations is the page's translation group, missing languages included.
-	Translations []TranslationView
+	Translations []translationView
 	// MayPublish is false for somebody who writes and submits. Then the status
 	// chooser is a plain label and the form says who puts it online.
 	MayPublish bool
 }
 
-// PageRowData holds data for rendering a single page row partial.
+// pageRowData holds data for rendering a single page row partial.
 // It is deliberately flat (not embedding LayoutData) so the same value can be
 // used both inside the page list and as a standalone htmx fragment.
-type PageRowData struct {
+type pageRowData struct {
 	WebsiteID int64
 	Page      page.Page
 	CSRFToken string
@@ -140,7 +140,7 @@ type PageRowData struct {
 	// Columns are the cells this row draws. Carried on every row rather than
 	// read from the page around it, because a row is also an htmx swap target
 	// and has to draw the same cells on its own.
-	Columns ColumnSet
+	Columns columnSet
 }
 
 // HandlePageList renders the paginated page list for a website.
@@ -191,7 +191,7 @@ func (h *Handler) HandlePageList(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	csrfToken := web.CSRFTokenFromRequest(r)
-	data := PageListData{
+	data := pageListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Pages – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Filter:     filter,
@@ -220,7 +220,7 @@ func (h *Handler) HandlePageList(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		for _, res := range results {
-			data.Rows = append(data.Rows, PageRowData{
+			data.Rows = append(data.Rows, pageRowData{
 				MayPublish: darfVeroeffentlichen,
 				Columns:    data.Columns,
 				KindName:   ownKindName(types, res.Page),
@@ -235,7 +235,7 @@ func (h *Handler) HandlePageList(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		for _, p := range pages {
-			data.Rows = append(data.Rows, PageRowData{
+			data.Rows = append(data.Rows, pageRowData{
 				MayPublish: darfVeroeffentlichen,
 				Columns:    data.Columns,
 				KindName:   ownKindName(types, p),
@@ -244,7 +244,7 @@ func (h *Handler) HandlePageList(w http.ResponseWriter, r *http.Request) error {
 			})
 		}
 		data.ResultCount = total
-		data.Pagination = NewPagination(pageNum, perPage, total).
+		data.Pagination = newPagination(pageNum, perPage, total).
 			WithTarget(fmt.Sprintf("/admin/websites/%d/pages", websiteID), "#page-list")
 	}
 
@@ -283,7 +283,7 @@ func (h *Handler) HandlePageCreate(w http.ResponseWriter, r *http.Request) error
 	// From the overview page one arrives with a language and a template in the
 	// address: that is where the gap stands that one wants to close, and the
 	// form should not ask for it a second time.
-	values := PageValues{Status: "draft"}
+	values := pageValues{Status: "draft"}
 	if q := r.URL.Query(); q.Has("sprache") || q.Has("uebersetzung_von") {
 		values.Locale = locale.Pick(q.Get("sprache"), ws.Locales())
 		values.TranslationOf = strings.TrimSpace(q.Get("uebersetzung_von"))
@@ -319,8 +319,8 @@ func (h *Handler) sourcePageFor(r *http.Request, websiteID int64, raw string) (*
 }
 
 // newPageFormData assembles the shared parts of the create and edit form.
-func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string, values PageValues) (PageFormData, error) {
-	data := PageFormData{
+func (h *Handler) newPageFormData(r *http.Request, websiteID int64, title string, values pageValues) (pageFormData, error) {
+	data := pageFormData{
 		LayoutData:  web.NewLayoutData(r, h.sm, title),
 		FormState:   web.NewFormState(),
 		WebsiteID:   websiteID,
@@ -560,7 +560,7 @@ func (h *Handler) HandlePageEdit(w http.ResponseWriter, r *http.Request) error {
 }
 
 // editFormData builds the edit form for a stored page with the given values.
-func (h *Handler) editFormData(r *http.Request, websiteName string, p *page.Page, values PageValues) (PageFormData, error) {
+func (h *Handler) editFormData(r *http.Request, websiteName string, p *page.Page, values pageValues) (pageFormData, error) {
 	data, err := h.newPageFormData(r, p.WebsiteID, web.Titlef(r, "Edit page – %s", websiteName), values)
 	if err != nil {
 		return data, err
@@ -600,7 +600,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 		return err
 	}
 
-	rerender := func(data PageFormData) error {
+	rerender := func(data pageFormData) error {
 		data.CurrentWebsite = ws
 		return web.RenderFormError(w, h.templates, r, "page_form", data)
 	}
@@ -828,7 +828,7 @@ func (h *Handler) HandlePageInlineEditTitle(w http.ResponseWriter, r *http.Reque
 		return nil
 	}
 
-	data := PageRowData{
+	data := pageRowData{
 		MayPublish: h.mayPublish(r),
 		WebsiteID:  websiteID,
 		Page:       *p,
@@ -932,7 +932,7 @@ func (h *Handler) recordTerms(r *http.Request, websiteID, pageID int64, raw stri
 // A failure is a flash rather than a rejected save: the text is already stored,
 // and losing an article because a password was four characters long would be a
 // far worse outcome than a page that is briefly still public.
-func (h *Handler) recordAccess(r *http.Request, pageID int64, values PageValues) string {
+func (h *Handler) recordAccess(r *http.Request, pageID int64, values pageValues) string {
 	err := h.pages.SetAccess(r.Context(), pageID, values.access(), h.argon2Params)
 	switch {
 	case errors.Is(err, page.ErrPagePasswordTooShort):
@@ -972,7 +972,7 @@ func (h *Handler) recordMediaUsage(r *http.Request, websiteID, pageID int64, htm
 // to come back looking exactly like the one it replaced, and a badge that
 // disappears the moment somebody toggles the status is worse than no badge.
 func (h *Handler) renderPageRow(w http.ResponseWriter, r *http.Request, websiteID int64, p page.Page) error {
-	row := PageRowData{
+	row := pageRowData{
 		MayPublish: h.mayPublish(r),
 		WebsiteID:  websiteID,
 		Page:       p,

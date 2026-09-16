@@ -21,7 +21,7 @@ import (
 // The three small kinds in the page editor: zeit, bereich and code.
 //
 // What is checked is the delivered HTML and not the view model. What a
-// FieldView carries is of no use if the branch in field_input.html is missing —
+// fieldView carries is of no use if the branch in field_input.html is missing —
 // and a missing branch is not noticed: the chain ends in an ordinary text field
 // that takes a time of day just as uncomplainingly.
 func TestFieldKindsInThePageEditor(t *testing.T) {

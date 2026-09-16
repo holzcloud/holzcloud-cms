@@ -1374,7 +1374,7 @@ func TestCSVReportNamesEveryRename(t *testing.T) {
 	})
 
 	rec, _ := serveAs(t, h, sm, admin, func(w http.ResponseWriter, r *http.Request) error {
-		return web.RenderAdmin(w, h.templates, r, "csv_report", CSVReportData{
+		return web.RenderAdmin(w, h.templates, r, "csv_report", cSVReportData{
 			LayoutData:  web.NewLayoutData(r, h.sm, "Import finished"),
 			WebsiteID:   ws.ID,
 			WebsiteName: ws.Name,

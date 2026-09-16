@@ -16,8 +16,8 @@ import (
 // little enough that the changes stay close together.
 const diffContext = 3
 
-// RevisionSide is one end of a comparison, named for the reader.
-type RevisionSide struct {
+// revisionSide is one end of a comparison, named for the reader.
+type revisionSide struct {
 	// ID is the revision, or zero for the page as it stands now.
 	ID    int64
 	When  string
@@ -28,14 +28,14 @@ type RevisionSide struct {
 	Current bool
 }
 
-// PageCompareData is the comparison of two versions of a page.
-type PageCompareData struct {
+// pageCompareData is the comparison of two versions of a page.
+type pageCompareData struct {
 	web.LayoutData
 	WebsiteID int64
 	Page      *page.Page
 
-	From RevisionSide
-	To   RevisionSide
+	From revisionSide
+	To   revisionSide
 
 	// TextDiff and BlockDiff are empty where that half did not change, which
 	// is what the screen shows instead of an empty table.
@@ -94,7 +94,7 @@ func (h *Handler) HandlePageRevisionCompare(w http.ResponseWriter, r *http.Reque
 		return err
 	}
 
-	data := PageCompareData{
+	data := pageCompareData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Comparison – %s", p.Title)),
 		WebsiteID:  websiteID,
 		Page:       p,
@@ -139,15 +139,15 @@ func (h *Handler) pickRevision(raw string, revisions []page.Revision, preferOlde
 
 // versionOf returns the text, the blocks and the label of one end. A nil
 // revision means the page as it stands now.
-func versionOf(rev *page.Revision, p *page.Page) (text, blocks string, side RevisionSide) {
+func versionOf(rev *page.Revision, p *page.Page) (text, blocks string, side revisionSide) {
 	if rev == nil {
-		return p.ContentMarkdown, p.Blocks, RevisionSide{
+		return p.ContentMarkdown, p.Blocks, revisionSide{
 			When:    "jetzt",
 			Title:   p.Title,
 			Current: true,
 		}
 	}
-	return rev.ContentMarkdown, rev.Blocks, RevisionSide{
+	return rev.ContentMarkdown, rev.Blocks, revisionSide{
 		ID:    rev.ID,
 		When:  rev.CreatedAt.Format("02.01.2006 15:04"),
 		Who:   rev.UserEmail,

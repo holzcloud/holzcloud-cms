@@ -8,6 +8,11 @@ import (
 
 // PagerTarget tells the shared pager template where its links point and which
 // element htmx should swap.
+//
+// Exported for a different reason from Pagination below: the FIELD that holds
+// one is called PagerTarget too, and pager.html reaches it as .PagerTarget. The
+// field has to stay exported, and a field and its type spelled differently
+// would read worse than either.
 type PagerTarget struct {
 	URL      string
 	Selector string
@@ -30,6 +35,14 @@ func (t PagerTarget) Link(page int) string {
 // Pagination holds the derived numbers a list template needs to render its
 // pager. Embed it in a page's data struct so the fields promote and the
 // templates can use .Page, .HasNext and so on directly.
+//
+// Exported although nothing outside this package names it, and that is the
+// embedding above rather than an oversight: html/template reaches a promoted
+// field through the embedded field's own name, and an UNEXPORTED embedded field
+// hides everything it carries. Lowercase this and every pager in the admin
+// renders empty, silently, because a template that cannot reach a field prints
+// nothing and reports nothing. The same holds for Column and
+// TwoFactorStatusData (v2.4, 17-02).
 type Pagination struct {
 	Page        int
 	PerPage     int
@@ -56,8 +69,8 @@ func (p Pagination) WithFilteredTarget(url, selector, query string) Pagination {
 	return p
 }
 
-// NewPagination derives the pager state for a result set.
-func NewPagination(page, perPage, total int) Pagination {
+// newPagination derives the pager state for a result set.
+func newPagination(page, perPage, total int) Pagination {
 	if perPage <= 0 {
 		perPage = 1
 	}

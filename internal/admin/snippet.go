@@ -15,15 +15,15 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// SnippetListData is the snippet overview.
-type SnippetListData struct {
+// snippetListData is the snippet overview.
+type snippetListData struct {
 	web.LayoutData
 	web.FormState
 	WebsiteID int64
-	Snippets  []SnippetRow
+	Snippets  []snippetRow
 	// Values is the create/edit form, re-rendered with what was submitted when
 	// a save is rejected.
-	Values SnippetValues
+	Values snippetValues
 	IsEdit bool
 
 	// FieldViews are the own fields of this snippet, as the model of the form.
@@ -31,47 +31,47 @@ type SnippetListData struct {
 	// which input a field kind needs is a decision with eight branches, and
 	// eight branches in a template are the place where a missing name attribute
 	// hides.
-	FieldViews []FieldBlock
+	FieldViews []fieldBlock
 	// Media is the image supply of an image field.
 	Media []media.Media
 	// RefPages ist die Auswahl eines Verweisfeldes: die Seiten dieser Website.
-	RefPages []PageChoice
+	RefPages []pageChoice
 	// RefTerms ist die Auswahl eines Bezeichnungsfeldes: die Bezeichnungen
 	// dieser Website.
-	RefTerms []TermChoice
+	RefTerms []termChoice
 }
 
 // pool gathers the choices this form already loaded, exactly as the page form
 // does — one value rather than three parameters, so a fourth kind of chooser
 // does not mean touching every call site again.
-func (d SnippetListData) pool() pool {
+func (d snippetListData) pool() pool {
 	return pool{media: d.Media, pages: d.RefPages, terms: d.RefTerms}
 }
 
-// SnippetRow pairs a snippet with how often it is used.
-type SnippetRow struct {
+// snippetRow pairs a snippet with how often it is used.
+type snippetRow struct {
 	snippet.Snippet
 	// UsedOn is the number of live pages carrying the marker, which is what
 	// makes it safe to know whether deleting one matters.
 	UsedOn int
 }
 
-// SnippetValues is exactly what the form submitted.
-type SnippetValues struct {
+// snippetValues is exactly what the form submitted.
+type snippetValues struct {
 	ID       int64
 	Key      string
 	Name     string
 	Markdown string
 
 	// Fields are the answers to the own fields of this snippet, typed as they
-	// were submitted — the same role PageValues.Fields plays on a page, so that
+	// were submitted — the same role pageValues.Fields plays on a page, so that
 	// a refused form hands back what stood there.
 	Fields field.Data
 }
 
-func snippetValuesFromRequest(r *http.Request) SnippetValues {
+func snippetValuesFromRequest(r *http.Request) snippetValues {
 	id, _ := strconv.ParseInt(r.FormValue("id"), 10, 64)
-	return SnippetValues{
+	return snippetValues{
 		ID:       id,
 		Key:      strings.TrimSpace(strings.ToLower(r.FormValue("key"))),
 		Name:     strings.TrimSpace(r.FormValue("name")),
@@ -106,7 +106,7 @@ func validKey(key string) bool {
 	return true
 }
 
-func (v SnippetValues) validate(errs web.FormErrors) {
+func (v snippetValues) validate(errs web.FormErrors) {
 	if v.Name == "" {
 		errs.Add("name", "Please give a name.")
 	}
@@ -139,7 +139,7 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 	// second screen. It is read before snippetListData and not after, because
 	// the field inputs are built from exactly these values: a form that gets the
 	// values only afterwards shows empty boxes.
-	values := SnippetValues{}
+	values := snippetValues{}
 	isEdit := false
 	if raw := r.URL.Query().Get("edit"); raw != "" {
 		id, _ := strconv.ParseInt(raw, 10, 64)
@@ -148,7 +148,7 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 			return err
 		}
 		if sn != nil {
-			values = SnippetValues{
+			values = snippetValues{
 				ID: sn.ID, Key: sn.Key, Name: sn.Name, Markdown: sn.ContentMarkdown,
 				Fields: field.Decode(sn.Fields),
 			}
@@ -185,8 +185,8 @@ func (h *Handler) snippetFieldDefs(ctx context.Context, websiteID, snippetID int
 	return defs
 }
 
-func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName string, values SnippetValues) (SnippetListData, error) {
-	data := SnippetListData{
+func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName string, values snippetValues) (snippetListData, error) {
+	data := snippetListData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Snippets – %s", websiteName)),
 		FormState:  web.NewFormState(),
 		WebsiteID:  websiteID,
@@ -203,7 +203,7 @@ func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName 
 		if err != nil {
 			return data, err
 		}
-		data.Snippets = append(data.Snippets, SnippetRow{Snippet: sn, UsedOn: used})
+		data.Snippets = append(data.Snippets, snippetRow{Snippet: sn, UsedOn: used})
 	}
 
 	// The same three supplies the page editor loads, with the same guards: an

@@ -17,15 +17,15 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// TwoFactorVerifyData is the code prompt shown between password and admin.
-type TwoFactorVerifyData struct {
+// twoFactorVerifyData is the code prompt shown between password and admin.
+type twoFactorVerifyData struct {
 	web.LayoutData
 	// Recovery switches the form to the printed-code field.
 	Recovery bool
 }
 
-// TwoFactorSetupData is the enrolment screen.
-type TwoFactorSetupData struct {
+// twoFactorSetupData is the enrolment screen.
+type twoFactorSetupData struct {
 	web.LayoutData
 	// SecretGrouped is the shared secret in blocks of four, for typing it in
 	// when the camera will not cooperate.
@@ -38,8 +38,8 @@ type TwoFactorSetupData struct {
 	Error    string
 }
 
-// TwoFactorCodesData shows the recovery codes exactly once.
-type TwoFactorCodesData struct {
+// twoFactorCodesData shows the recovery codes exactly once.
+type twoFactorCodesData struct {
 	web.LayoutData
 	Codes []string
 	// Fresh distinguishes "you just switched it on" from "you asked for a new
@@ -76,7 +76,7 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 
 	recovery := r.URL.Query().Get("wiederherstellung") != ""
 	if r.Method != http.MethodPost {
-		data := TwoFactorVerifyData{
+		data := twoFactorVerifyData{
 			LayoutData: web.NewLayoutData(r, h.sm, "Confirmation"),
 			Recovery:   recovery,
 		}
@@ -170,7 +170,7 @@ func (h *Handler) HandleTwoFactorSetup(w http.ResponseWriter, r *http.Request) e
 	}
 	uri := totp.URI(secret, email, h.issuerName(r))
 
-	data := TwoFactorSetupData{
+	data := twoFactorSetupData{
 		LayoutData:    web.NewLayoutData(r, h.sm, "Set up two-factor"),
 		SecretGrouped: totp.FormatSecret(secret),
 		URI:           uri,
@@ -200,7 +200,7 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 			return h.redirect(w, r, auth.SetupPath)
 		}
 		retryURI := totp.URI(tf.PendingSecret, email, h.issuerName(r))
-		data := TwoFactorSetupData{
+		data := twoFactorSetupData{
 			LayoutData:    web.NewLayoutData(r, h.sm, "Set up two-factor"),
 			SecretGrouped: totp.FormatSecret(tf.PendingSecret),
 			URI:           retryURI,
@@ -258,7 +258,7 @@ func (h *Handler) HandleRecoveryCodes(w http.ResponseWriter, r *http.Request) er
 }
 
 func (h *Handler) showRecoveryCodes(w http.ResponseWriter, r *http.Request, codes []string, fresh bool) error {
-	data := TwoFactorCodesData{
+	data := twoFactorCodesData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Recovery codes"),
 		Codes:      codes,
 		Fresh:      fresh,
@@ -369,8 +369,8 @@ func NewSecondFactorLookup(database *db.DB) auth.SecondFactorLookup {
 	}
 }
 
-// AccountData is the "my account" screen.
-type AccountData struct {
+// accountData is the "my account" screen.
+type accountData struct {
 	web.LayoutData
 	UserID int64
 	Email  string
@@ -410,7 +410,7 @@ func (h *Handler) HandleAccount(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	data := AccountData{
+	data := accountData{
 		LayoutData: web.NewLayoutData(r, h.sm, "My account"),
 		UserID:     *userID,
 		Email:      email,

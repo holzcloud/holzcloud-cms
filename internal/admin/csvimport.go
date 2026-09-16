@@ -158,12 +158,12 @@ func csvEnsureTerms(ctx context.Context, names []string,
 // else, so the value the dry run decides on is still the whole cell.
 const csvSampleBytes = 200
 
-// CSVColumnView is one row of the mapping table.
+// cSVColumnView is one row of the mapping table.
 //
 // The column itself, plus the three things only the server can work out: which
 // target the automatic match proposed, what this column holds in the sample row
 // currently on screen, and why the column was left unmapped if it was.
-type CSVColumnView struct {
+type cSVColumnView struct {
 	csvimport.Column
 	// Selected is the target's form value, so the template can mark exactly one
 	// <option> without knowing how a target is spelled.
@@ -176,8 +176,8 @@ type CSVColumnView struct {
 	Note csvimport.Note
 }
 
-// CSVMappingData is the mapping screen.
-type CSVMappingData struct {
+// cSVMappingData is the mapping screen.
+type cSVMappingData struct {
 	web.LayoutData
 	web.FormState
 	// Token is what every control on this screen carries forward. There is no
@@ -199,7 +199,7 @@ type CSVMappingData struct {
 	// Columns are the file's columns in the FILE'S ORDER, always — the order the
 	// operator sees in their spreadsheet, which is what makes the sample row
 	// beside them readable.
-	Columns []CSVColumnView
+	Columns []cSVColumnView
 	// Fields are the website's own definitions a column may be pointed at.
 	Fields []field.Def
 	// UnmappableFields are the definitions no column can ever fill, listed so
@@ -251,23 +251,23 @@ type CSVMappingData struct {
 	NoTitleTarget bool
 }
 
-// CSVExpiredData is the expiry screen.
-type CSVExpiredData struct {
+// cSVExpiredData is the expiry screen.
+type cSVExpiredData struct {
 	web.LayoutData
 }
 
-// CSVHiddenInput is one name/value pair the dry run re-emits.
+// cSVHiddenInput is one name/value pair the dry run re-emits.
 //
 // The mapping is form state and lives nowhere else, so screen 3 has to carry it
 // forward for screen 4 — and carrying it as the same names screen 2 posted is
 // what makes the commit run the mapping the dry run described.
-type CSVHiddenInput struct {
+type cSVHiddenInput struct {
 	Name  string
 	Value string
 }
 
-// CSVDryRunData is screen 3: what would happen, with nothing written.
-type CSVDryRunData struct {
+// cSVDryRunData is screen 3: what would happen, with nothing written.
+type cSVDryRunData struct {
 	web.LayoutData
 	// Token is what the commit button posts to.
 	Token string
@@ -292,11 +292,11 @@ type CSVDryRunData struct {
 	// on a website that does not exist yet is otherwise unexplainable.
 	Repeated int
 	// Inputs are the mapping as hidden inputs.
-	Inputs []CSVHiddenInput
+	Inputs []cSVHiddenInput
 }
 
-// CSVReportData is screen 4: what happened.
-type CSVReportData struct {
+// cSVReportData is screen 4: what happened.
+type cSVReportData struct {
 	web.LayoutData
 	// WebsiteID is what the link beside the success count points at. "272
 	// Seiten angelegt" is only useful next to the way to go and look at them
@@ -465,7 +465,7 @@ func (h *Handler) staged(w http.ResponseWriter, r *http.Request) (*csvimport.Upl
 // something the operator did wrong, so neither is a 404, and both mean the same
 // thing to them: this file is not here to be read in, start again.
 func (h *Handler) csvExpired(w http.ResponseWriter, r *http.Request) error {
-	data := CSVExpiredData{LayoutData: web.NewLayoutData(r, h.sm, "The upload has expired")}
+	data := cSVExpiredData{LayoutData: web.NewLayoutData(r, h.sm, "The upload has expired")}
 	data.ActiveNav = "websites"
 	return web.RenderAdmin(w, h.templates, r, "csv_expired", data)
 }
@@ -543,9 +543,9 @@ func (h *Handler) csvUnreadable(w http.ResponseWriter, r *http.Request) error {
 // with their choices intact rather than thrown away, which is what separates a
 // form error from a flash and a redirect (confirmTwoFactor).
 func (h *Handler) csvMappingData(r *http.Request, upload *csvimport.Upload,
-	ws *domain.Website, defs []field.Def, chosen *csvimport.Mapping) (CSVMappingData, error) {
+	ws *domain.Website, defs []field.Def, chosen *csvimport.Mapping) (cSVMappingData, error) {
 
-	data := CSVMappingData{
+	data := cSVMappingData{
 		LayoutData:  web.NewLayoutData(r, h.sm, "Map the columns"),
 		FormState:   web.NewFormState(),
 		Token:       r.PathValue("token"),
@@ -643,9 +643,9 @@ func (h *Handler) csvMappingData(r *http.Request, upload *csvimport.Upload,
 		}
 	}
 
-	data.Columns = make([]CSVColumnView, len(columns))
+	data.Columns = make([]cSVColumnView, len(columns))
 	for i, c := range columns {
-		view := CSVColumnView{Column: c, Selected: mapping.Targets[i].String(), Note: mapping.Notes[i]}
+		view := cSVColumnView{Column: c, Selected: mapping.Targets[i].String(), Note: mapping.Notes[i]}
 		if !data.NoRows && i < len(sample.Cells) {
 			view.Sample = csvSample(sample.Cells[i])
 		}
@@ -814,10 +814,10 @@ func csvTargetFromForm(value string) csvimport.Target {
 // Built from the parsed mapping rather than copied out of the request, so what
 // goes forward is what the dry run actually ran — and sorted, so two runs over
 // one file produce the same markup.
-func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
-	out := make([]CSVHiddenInput, 0, len(m.Targets)+len(m.Defaults))
+func csvMappingInputs(m csvimport.Mapping) []cSVHiddenInput {
+	out := make([]cSVHiddenInput, 0, len(m.Targets)+len(m.Defaults))
 	for i, t := range m.Targets {
-		out = append(out, CSVHiddenInput{Name: csvTargetPrefix + strconv.Itoa(i), Value: t.String()})
+		out = append(out, cSVHiddenInput{Name: csvTargetPrefix + strconv.Itoa(i), Value: t.String()})
 	}
 
 	keys := make([]string, 0, len(m.Defaults))
@@ -826,7 +826,7 @@ func csvMappingInputs(m csvimport.Mapping) []CSVHiddenInput {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		out = append(out, CSVHiddenInput{Name: csvDefaultPrefix + key, Value: m.Defaults[key]})
+		out = append(out, cSVHiddenInput{Name: csvDefaultPrefix + key, Value: m.Defaults[key]})
 	}
 	return out
 }
@@ -1091,7 +1091,7 @@ func (h *Handler) HandleCSVDryRun(w http.ResponseWriter, r *http.Request) error 
 	report := csvimport.Summarize(run.Verdicts)
 	report.Truncated = run.Truncated
 
-	data := CSVDryRunData{
+	data := cSVDryRunData{
 		LayoutData:  web.NewLayoutData(r, h.sm, "Dry run"),
 		Token:       r.PathValue("token"),
 		Filename:    upload.Filename,
@@ -1169,7 +1169,7 @@ func (h *Handler) HandleCSVStart(w http.ResponseWriter, r *http.Request) error {
 	report := csvimport.Summarize(run.Verdicts)
 	report.Truncated = run.Truncated
 
-	data := CSVReportData{
+	data := cSVReportData{
 		LayoutData:  web.NewLayoutData(r, h.sm, "Import finished"),
 		WebsiteID:   websiteID,
 		WebsiteName: websiteName,

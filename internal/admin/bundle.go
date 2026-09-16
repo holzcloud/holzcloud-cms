@@ -14,8 +14,8 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
-// ImportReportData shows what an import did.
-type ImportReportData struct {
+// importReportData shows what an import did.
+type importReportData struct {
 	web.LayoutData
 	Report *bundle.Report
 }
@@ -110,10 +110,10 @@ func (h *Handler) HandleWebsiteImport(w http.ResponseWriter, r *http.Request) er
 	// unreachable until one is added, and that is worth saying immediately.
 	h.resolver.InvalidateCache()
 
-	data2 := ImportReportData{
+	data2 := importReportData{
 		// Not "WordPress import finished": this is the CMS's own bundle, and
 		// the wrong heading here was found in the browser pass for v2.0. The
-		// two paths share ImportReportData and the title came along with it.
+		// two paths share importReportData and the title came along with it.
 		LayoutData: web.NewLayoutData(r, h.sm, "Import finished"),
 		Report:     report,
 	}

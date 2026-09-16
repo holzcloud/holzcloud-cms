@@ -20,8 +20,8 @@ import (
 // five properties, and sending someone to another screen for five properties
 // is more navigation than the thing is worth.
 
-// FieldListData is the field screen.
-type FieldListData struct {
+// fieldListData is the field screen.
+type fieldListData struct {
 	web.LayoutData
 	WebsiteID int64
 	Fields    []field.Def
@@ -57,7 +57,7 @@ type FieldListData struct {
 // Falls back to the key: a field can be tied to a kind that was removed later,
 // and "nur produkt" is still more use than an empty cell — it says which kind
 // to define again to see the field.
-func (d FieldListData) TypeName(key string) string {
+func (d fieldListData) TypeName(key string) string {
 	for _, t := range d.Types {
 		if t.Key == key {
 			return t.Plural
@@ -71,7 +71,7 @@ func (d FieldListData) TypeName(key string) string {
 // another. Inside a group, inside a block kind and on a text snippet none of
 // those questions applies: "applies to" names a kind of page, and a snippet is
 // not a page.
-func (d FieldListData) Simple() bool {
+func (d fieldListData) Simple() bool {
 	return d.Group == nil && d.BlockType == nil && d.Snippet == nil
 }
 
@@ -325,7 +325,7 @@ func (h *Handler) HandleFieldMove(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName string,
-	group *field.Def, blockType *block.Own, snip *snippet.Snippet) (FieldListData, error) {
+	group *field.Def, blockType *block.Own, snip *snippet.Snippet) (fieldListData, error) {
 
 	// Through web.Titlef and not by concatenation, which is what this screen
 	// did until 2026-09-08. A concatenated title has no string literal at the
@@ -361,10 +361,10 @@ func (h *Handler) fieldListData(r *http.Request, websiteID int64, websiteName st
 		defs, err = h.fields.List(r.Context(), websiteID)
 	}
 	if err != nil {
-		return FieldListData{}, err
+		return fieldListData{}, err
 	}
 
-	data := FieldListData{
+	data := fieldListData{
 		LayoutData: web.NewLayoutData(r, h.sm, title),
 		WebsiteID:  websiteID,
 		Fields:     defs,

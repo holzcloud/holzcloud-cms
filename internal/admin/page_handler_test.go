@@ -415,7 +415,7 @@ func TestNewWebsiteGetsStarterContent(t *testing.T) {
 	}
 }
 
-func imprintCheck(checks []SiteCheck) bool {
+func imprintCheck(checks []siteCheck) bool {
 	for _, c := range checks {
 		if strings.Contains(c.Label, "Imprint") {
 			return c.OK
@@ -456,7 +456,7 @@ func TestSiteChecksReportWhatIsMissing(t *testing.T) {
 	h, _, database, ws := newTestAdmin(t)
 	ctx := context.Background()
 
-	byLabel := func(checks []SiteCheck) map[string]bool {
+	byLabel := func(checks []siteCheck) map[string]bool {
 		m := map[string]bool{}
 		for _, c := range checks {
 			m[c.Label] = c.OK

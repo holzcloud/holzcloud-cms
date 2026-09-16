@@ -16,13 +16,13 @@ const (
 	docDelivery = "lieferschein"
 )
 
-// OrderDocData backs the printable invoice and delivery note.
+// orderDocData backs the printable invoice and delivery note.
 //
 // A page rather than a PDF. A PDF would mean a library, a font to embed and a
 // second layout engine to keep in step with the one already here; a browser
 // prints to PDF perfectly well and the operator already has one open. What this
 // costs is control over the page break, which for a one-page order is nothing.
-type OrderDocData struct {
+type orderDocData struct {
 	web.LayoutData
 	// Invoice distinguishes the two documents. A delivery note is the same
 	// paper without the money on it — the slip that goes in the box, where a
@@ -41,8 +41,8 @@ type OrderDocData struct {
 	Date string
 	// Lines carry the money already formatted; a template must not do
 	// arithmetic on prices.
-	Lines []DocLine
-	Taxes []DocTax
+	Lines []docLine
+	Taxes []docTax
 
 	ItemsGross string
 	Shipping   string
@@ -68,8 +68,8 @@ type SellerLines struct {
 	Website string
 }
 
-// DocLine is one row of the document.
-type DocLine struct {
+// docLine is one row of the document.
+type docLine struct {
 	Title    string
 	Subtitle string
 	SKU      string
@@ -81,8 +81,8 @@ type DocLine struct {
 	Rate string
 }
 
-// DocTax is one rate's share, as an invoice has to break it out.
-type DocTax struct {
+// docTax is one rate's share, as an invoice has to break it out.
+type docTax struct {
 	Rate  string
 	Net   string
 	Tax   string
@@ -129,13 +129,13 @@ func (h *Handler) HandleOrderDocument(w http.ResponseWriter, r *http.Request) er
 // From the order, not from the products: every line is what was sold, at the
 // price it was sold for. A product renamed or repriced afterwards must not
 // change a document about a sale that already happened.
-func orderDocument(ws *domain.Website, o *shop.Order, invoice bool) OrderDocData {
+func orderDocument(ws *domain.Website, o *shop.Order, invoice bool) orderDocData {
 	c := money.CurrencyFor(o.Currency)
 	if o.Currency == "" {
 		c = money.CurrencyFor(ws.Currency)
 	}
 
-	data := OrderDocData{
+	data := orderDocData{
 		Invoice:  invoice,
 		Order:    o,
 		Currency: c,
@@ -158,7 +158,7 @@ func orderDocument(ws *domain.Website, o *shop.Order, invoice bool) OrderDocData
 	byRate := map[money.TaxRate]*bucket{}
 
 	for _, it := range o.Items {
-		data.Lines = append(data.Lines, DocLine{
+		data.Lines = append(data.Lines, docLine{
 			Title:    it.Title,
 			Subtitle: it.Subtitle,
 			SKU:      it.SKU,
@@ -195,7 +195,7 @@ func orderDocument(ws *domain.Website, o *shop.Order, invoice bool) OrderDocData
 
 	for _, rate := range order {
 		b := byRate[rate]
-		data.Taxes = append(data.Taxes, DocTax{
+		data.Taxes = append(data.Taxes, docTax{
 			Rate:  rate.String(),
 			Net:   c.Format(b.net),
 			Tax:   c.Format(b.tax),

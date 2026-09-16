@@ -21,8 +21,8 @@ import (
 // can be told apart: what the theme offers stands beside what the operator made
 // of it, in every language the website is published in.
 
-// WordRow is one word on the screen.
-type WordRow struct {
+// wordRow is one word on the screen.
+type wordRow struct {
 	// Key is the theme author's own sentence, which is also what stands in the
 	// template. It is shown, because it is the only name the word has.
 	Key string
@@ -36,23 +36,23 @@ type WordRow struct {
 	Untranslated bool
 }
 
-// WordLanguage is one language's worth of rows.
-type WordLanguage struct {
+// wordLanguage is one language's worth of rows.
+type wordLanguage struct {
 	Locale string
 	// Name is the language as it calls itself, for somebody who does not read
 	// tags.
 	Name string
-	Rows []WordRow
+	Rows []wordRow
 	// Changed and Untranslated count the rows worth noticing.
 	Changed      int
 	Untranslated int
 }
 
-// WordingData is the screen.
-type WordingData struct {
+// wordingData is the screen.
+type wordingData struct {
 	web.LayoutData
 	Website   *domain.Website
-	Languages []WordLanguage
+	Languages []wordLanguage
 	// Stray are overrides for words the current theme does not ask for. They
 	// are kept, not deleted: an operator who tries another theme and comes back
 	// must find their words again. Saying so is better than either tidying them
@@ -91,7 +91,7 @@ func (h *Handler) HandleWebsiteWording(w http.ResponseWriter, r *http.Request) e
 		known[k] = true
 	}
 
-	data := WordingData{
+	data := wordingData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Wording – %s", ws.Name)),
 		Website:    ws,
 		Limit:      wording.MaxKeys,
@@ -99,10 +99,10 @@ func (h *Handler) HandleWebsiteWording(w http.ResponseWriter, r *http.Request) e
 	}
 
 	for _, loc := range websiteLocales(ws) {
-		lang := WordLanguage{Locale: loc, Name: locale.Native(loc)}
+		lang := wordLanguage{Locale: loc, Name: locale.Native(loc)}
 		for _, key := range keys {
 			theme, translated := themeWords[loc][key]
-			row := WordRow{Key: key, Theme: theme, Own: ownBy[loc][key]}
+			row := wordRow{Key: key, Theme: theme, Own: ownBy[loc][key]}
 			// The theme translates a key when its catalogue CARRIES it — not
 			// when the translation differs from the key. Plenty of words are
 			// the same in two languages ("Menu", "Page %d"), and calling those
