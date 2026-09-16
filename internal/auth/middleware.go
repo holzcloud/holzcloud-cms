@@ -15,14 +15,6 @@ import (
 // Middleware is a standard HTTP middleware signature.
 type Middleware func(http.Handler) http.Handler
 
-// Chain applies middleware in order (first listed = outermost).
-func Chain(h http.Handler, mw ...Middleware) http.Handler {
-	for i := len(mw) - 1; i >= 0; i-- {
-		h = mw[i](h)
-	}
-	return h
-}
-
 // UserLookup resolves a user ID to its current role. found is false when the
 // user no longer exists. Implemented by the admin package over the users table.
 type UserLookup func(ctx context.Context, id int64) (role string, found bool, err error)

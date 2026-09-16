@@ -17,7 +17,6 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1126,15 +1125,4 @@ func inRow(groupLabel string, index int, inner Reason) Reason {
 // RowKey identifies one field of one row, in the form and in an error map.
 func RowKey(group string, index int, sub string) string {
 	return fmt.Sprintf("%s.%d.%s", group, index, sub)
-}
-
-// Sort orders definitions by position, then by id, so the order in the form is
-// the order in the list and does not wobble between requests.
-func Sort(defs []Def) {
-	sort.SliceStable(defs, func(i, j int) bool {
-		if defs[i].Position != defs[j].Position {
-			return defs[i].Position < defs[j].Position
-		}
-		return defs[i].ID < defs[j].ID
-	})
 }

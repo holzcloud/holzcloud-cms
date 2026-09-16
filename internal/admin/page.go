@@ -499,6 +499,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	if err != nil {
 		return err
 	}
+	h.emitPageSaved(r, websiteID, created, true)
 	h.setLanguage(r, ws, created.ID, values)
 	h.recordMediaUsage(r, websiteID, created.ID, html)
 	h.recordTerms(r, websiteID, created.ID, values.Tags)
@@ -688,6 +689,13 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 		web.SetFlashError(h.sm, r.Context(), msg)
 	}
 
+	// Built from the values that were just written and not from `existing`,
+	// which is the page as it stood BEFORE the save: an editor who changed the
+	// address would otherwise have the old one announced.
+	h.emitPageSaved(r, existing.WebsiteID, &page.Page{
+		ID: existing.ID, Slug: slug, Status: values.Status,
+	}, false)
+
 	h.LogActivity(r, activity.Entry{
 		Action:     activity.ActionPageUpdate,
 		EntityType: "page",
@@ -720,6 +728,7 @@ func (h *Handler) HandlePageDelete(w http.ResponseWriter, r *http.Request) error
 	if err := h.pages.TrashPage(r.Context(), pageID); err != nil && !errors.Is(err, page.ErrNotFound) {
 		return err
 	}
+	h.emitPageDeleted(websiteID, existing)
 
 	h.LogActivity(r, activity.Entry{
 		Action:     activity.ActionPageDelete,
