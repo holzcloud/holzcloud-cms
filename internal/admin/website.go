@@ -420,7 +420,7 @@ func (h *Handler) HandleDomainRemove(w http.ResponseWriter, r *http.Request) err
 		return nil
 	}
 
-	if err := h.domains.RemoveDomain(r.Context(), domainID); err != nil {
+	if err := h.domains.RemoveDomain(r.Context(), id, domainID); err != nil {
 		return err
 	}
 

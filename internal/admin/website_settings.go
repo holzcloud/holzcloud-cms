@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -261,6 +263,14 @@ func (h *Handler) HandleDomainSetPrimary(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.domains.SetPrimaryDomain(r.Context(), websiteID, domainID); err != nil {
+		// A domain that is not this website's is a route that names something
+		// that does not exist here, which is a 404 and not a fault of the
+		// server. The store's transaction has already rolled back, so this
+		// website's own primary flag is untouched.
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return nil
+		}
 		return err
 	}
 	h.resolver.InvalidateCache()
