@@ -1,0 +1,55 @@
+Phone survey, second reading — /admin at 390 x 844, measured 2026-09-17
+
+The same twenty-nine screens, the same instrument, after 19-01 to 19-03.
+The first reading is in v2.5-PHONE-SURVEY.txt; the columns mean what they
+mean there, with three corrections to the ruler that are written up in
+phases/19-on-the-phone/19-01-VERIFICATION.md and 19-02-VERIFICATION.md:
+
+  * wide  now asks whether a SCROLLING ANCESTOR holds the box. A cell in a
+          table that scrolls inside its own card ends past 390 and is
+          perfectly reachable; the first reading counted the cure as the
+          disease.
+  * small now counts a <label> when it is the only handle (the hamburger is
+          one) and not when it is a caption above a field; and it holds a
+          tick box to 24 with its row to 44, rather than to 44 alone.
+  * tiny  no longer lists tick boxes. iOS zooms for a field you type into.
+          The first reading said so in its own closing note and listed them
+          anyway.
+
+Both readings are of the same twenty-nine screens, all answering 200.
+
+screen                    over       wide      small      tiny     (before -> after)
+Overview                  0 ->  0     0 ->  0    13 ->  0     0 ->  0
+Websites                 51 ->  0    11 ->  0    27 ->  0     4 ->  0
+New website               0 ->  0     0 ->  0    12 ->  0     0 ->  0
+Website settings         59 ->  0     2 ->  0    33 ->  0     1 ->  0
+Design                    0 ->  0     0 ->  0    18 ->  0     1 ->  0
+Wording                   0 ->  0     0 ->  0    13 ->  0     0 ->  0
+Pages                   187 ->  0    22 ->  0    27 ->  0     4 ->  0
+New page                  0 ->  0     6 ->  0    23 ->  0     2 ->  0
+Edit page                 0 ->  0     6 ->  0    24 ->  0     2 ->  0
+Media                     0 ->  0     0 ->  0    16 ->  0     1 ->  0
+Menus                    41 ->  0    10 ->  0    15 ->  0     0 ->  0
+Labels                    0 ->  0     0 ->  0    11 ->  0     0 ->  0
+Snippets                  0 ->  0     0 ->  0    13 ->  0     0 ->  0
+Fields                    0 ->  0     0 ->  0    20 ->  0     0 ->  0
+Kinds                     0 ->  0     0 ->  0    13 ->  0     0 ->  0
+Block kinds               0 ->  0     0 ->  0    13 ->  0     0 ->  0
+Albums                    0 ->  0     0 ->  0    13 ->  0     0 ->  0
+Translations              0 ->  0     0 ->  0    10 ->  0     0 ->  0
+Templates                 0 ->  0     0 ->  0    11 ->  0     0 ->  0
+Upload a template         0 ->  0     0 ->  0    14 ->  0     0 ->  0
+Plugins                   0 ->  0     0 ->  0    13 ->  0     0 ->  0
+Email                     0 ->  0     0 ->  0    10 ->  0     0 ->  0
+AI access                 0 ->  0     0 ->  0    15 ->  0     0 ->  0
+Languages                97 ->  0     8 ->  0    14 ->  0     0 ->  0
+Brand                     0 ->  0     0 ->  0    14 ->  0     0 ->  0
+Activity log            338 ->  0     8 ->  0    16 ->  0     0 ->  0
+Users                   275 ->  0    13 ->  0    12 ->  0     0 ->  0
+New user                  0 ->  0     0 ->  0    16 ->  0     1 ->  0
+My account                0 ->  0     0 ->  0    13 ->  0     0 ->  0
+
+all twenty-nine        1048 ->  0    86 ->  0   462 ->  0    16 ->  0
+
+Nothing is left in any of the four columns. The full reading, element by
+element, is phases/19-on-the-phone/19-AFTER.json.

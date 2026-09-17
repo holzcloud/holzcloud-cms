@@ -472,17 +472,10 @@
             position: relative;
         }
 
-        /* In einer scrollenden Karte würde ein aufgeklapptes Menü abgeschnitten.
-           Auf schmalen Bildschirmen klappt es deshalb einfach auf und schiebt
-           die Zeile auseinander — sichtbar schlägt schön. */
-        .rowmenu-menu {
-            position: static;
-            min-width: 0;
-            border: 0;
-            box-shadow: none;
-            background: none;
-            padding: 0;
-        }
+        /* Die Regel, die hier stand, steht jetzt unten in @layer components:
+           siehe „Ein Zeilenmenü in einer scrollenden Karte". Sie hat von hier
+           aus nie gewirkt — @layer components kommt nach @layer layout, und
+           die spätere Schicht gewinnt, egal wie spezifisch die frühere ist. */
     }
 }
 
@@ -2940,12 +2933,21 @@ body.is-fullscreen .content-body {
            Gemessen vorher: Hamburger 32 × 32, Marke 26 × 26, Benutzermenü
            36 × 32, Zeile des Umschalters 31, seine Einträge 35, die
            Navigation 35. */
-        .topbar-hamburger {
-            display: grid;
-            place-items: center;
-            inline-size: 44px;
-            block-size: 44px;
-            padding: 0;
+        /* Zusätzlich an die Breite gebunden, und zwar an genau die, unter der
+           die Leiste den Hamburger überhaupt zeigt. Ohne das zweite Kriterium
+           setzt display: grid hier die Regel darüber ausser Kraft — @layer
+           components gewinnt gegen @layer layout — und ein Laptop mit
+           Berührungsbildschirm bekam bei 1280px einen Hamburger neben einer
+           Seitenleiste, die schon offen dasteht. Beim Durchfahren von Hand
+           gefunden, am selben Tag eingebaut wie gefunden. */
+        @media (max-width: 900px) {
+            .topbar-hamburger {
+                display: grid;
+                place-items: center;
+                inline-size: 44px;
+                block-size: 44px;
+                padding: 0;
+            }
         }
 
         .topbar-brand,
@@ -3029,6 +3031,33 @@ body.is-fullscreen .content-body {
            verbringt. Die Zeichenbreite bleibt fix, nur die Grösse steigt. */
         .form-textarea--tall {
             font-size: 1rem;
+        }
+    }
+}
+
+/* ── Ein Zeilenmenü in einer scrollenden Karte ────────────────────────────
+   Diese Regel stand bis zum 17.09.2026 in @layer layout und hat nie gewirkt:
+   .rowmenu-menu { position: absolute } steht in @layer components, und die
+   spätere Schicht gewinnt gegen die frühere, unabhängig von Spezifität. Die
+   Absicht war richtig aufgeschrieben und der Ort war falsch — genau die Art
+   Fehler, die kein Test sieht, weil nichts fehlschlägt.
+
+   Was sie verhindern soll, ist am Telefon gemessen worden: overflow-x: auto
+   auf der Karte macht auch overflow-y zu auto, und das Menü der letzten Zeile
+   ragte 22px unter den Rand der Karte — es erschien halb abgeschnitten, und
+   darin stehen Veröffentlichen, Duplizieren und Löschen.
+
+   Im Fluss statt darüber: das Menü schiebt die Zeile auseinander, und nichts
+   kann es mehr beschneiden. Sichtbar schlägt schön. */
+@layer components {
+    @container (max-width: 600px) {
+        .rowmenu-menu {
+            position: static;
+            min-width: 0;
+            border: 0;
+            box-shadow: none;
+            background: none;
+            padding: 0;
         }
     }
 }
