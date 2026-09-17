@@ -356,9 +356,25 @@ func (s *Store) PrimaryDomain(ctx context.Context, websiteID int64) (string, err
 	return host, nil
 }
 
-// RemoveDomain deletes a domain by ID.
-func (s *Store) RemoveDomain(ctx context.Context, domainID int64) error {
-	_, err := s.DB.Write.ExecContext(ctx, `DELETE FROM website_domains WHERE id = $1`, domainID)
+// RemoveDomain deletes one website's domain.
+//
+// The website id is part of the statement and not decoration. It used to delete
+// by the domain id alone, which meant the screen of website A could take a
+// domain off website B — a host name is what decides whether a site answers at
+// all, so that is a site off the air while the screen says "Domain removed" and
+// A's own list is unchanged. Its sibling SetPrimaryDomain already named both
+// ids; the two disagreed, and the one that disagreed was the destructive one.
+//
+// Not a privilege hole — both routes are behind requireAdmin and an
+// administrator may enter every website by design — but a mis-click or a stale
+// page was enough.
+//
+// A domain that is not this website's affects no rows and is not an error: the
+// screen it was asked from has nothing to remove either way, and the caller
+// answers the same. sql.ErrNoRows would make a double-click into a failure.
+func (s *Store) RemoveDomain(ctx context.Context, websiteID, domainID int64) error {
+	_, err := s.DB.Write.ExecContext(ctx,
+		`DELETE FROM website_domains WHERE id = $1 AND website_id = $2`, domainID, websiteID)
 	if err != nil {
 		return fmt.Errorf("remove domain: %w", err)
 	}
