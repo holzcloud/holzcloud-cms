@@ -60,12 +60,18 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 	}
 
 	cfg := &config.Config{DataDir: dir}
+	// The template store is the loader's resolver, exactly as main.go wires it.
+	// It used to be nil here, which meant the loader in every admin test could
+	// not see which theme a website runs and always fell back to the shipped
+	// one — so a test could activate a theme and then render the wrong one
+	// without anything noticing.
+	tmplStore := tmplmgr.NewStore(database, dir)
 	h := NewHandler(database, sm, templates, auth.Argon2Params{}, domains,
-		domain.NewResolver(domains), page.NewStore(database), tmplmgr.NewStore(database, dir),
+		domain.NewResolver(domains), page.NewStore(database), tmplStore,
 		menu.NewStore(database), media.NewStore(database), snippet.NewStore(database),
 		term.NewStore(database),
 		sharelink.New([]byte("test")),
-		tmpl.NewLoader(dir, os.DirFS("../../cmd/holzcloud/templates/public/default"), nil, nil),
+		tmpl.NewLoader(dir, os.DirFS("../../cmd/holzcloud/templates/public/default"), nil, tmplStore),
 		cfg, nil, nil)
 
 	return h, sm, database, ws
