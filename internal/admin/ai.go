@@ -2,7 +2,6 @@ package admin
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -33,6 +32,10 @@ type aIKeysData struct {
 	web.LayoutData
 	Keys     []ai.Token
 	Websites []domain.Website
+	// WebsiteLabels is what each key's website is called, worked out where a
+	// request exists. A row whose website is gone gets a stand-in sentence, and
+	// that sentence has to be built with a translator — see WebsiteName.
+	WebsiteLabels map[int64]string
 	// NewKey is set for one page load after a key was created.
 	NewKey     string
 	NewKeyName string
@@ -43,13 +46,40 @@ type aIKeysData struct {
 }
 
 // WebsiteName resolves a key's website for display.
-func (d aIKeysData) WebsiteName(id int64) string {
-	for _, w := range d.Websites {
-		if w.ID == id {
-			return w.Name
-		}
+//
+// It reads a map the handler filled in rather than building anything. It used
+// to end with fmt.Sprintf("Website %d", id) for a key whose website has been
+// deleted, and that sentence was invisible twice over: a method on the template
+// data has no request to translate against, and a sentence assembled in Go is
+// not something the collector can see at all — the gate reported neither open
+// nor orphaned about it.
+func (d aIKeysData) WebsiteName(id int64) string { return d.WebsiteLabels[id] }
+
+// websiteLabels names every website a key points at, in the language of
+// whoever is reading.
+//
+// Built here because here there is a request. A key whose website has been
+// deleted still has to say something, and "Website 7" is a sentence like any
+// other.
+func websiteLabels(r *http.Request, keys []ai.Token, sites []domain.Website) map[int64]string {
+	byID := make(map[int64]string, len(sites))
+	for _, w := range sites {
+		byID[w.ID] = w.Name
 	}
-	return fmt.Sprintf("Website %d", id)
+	out := make(map[int64]string, len(keys))
+	for _, k := range keys {
+		// Zero means "every website", which the template answers on its own.
+		if k.WebsiteID == 0 {
+			continue
+		}
+		id := k.WebsiteID
+		if name, ok := byID[id]; ok {
+			out[id] = name
+			continue
+		}
+		out[id] = web.Titlef(r, "Website %d", id)
+	}
+	return out
 }
 
 // HandleAIKeys lists the keys.
@@ -73,12 +103,13 @@ func (h *Handler) HandleAIKeys(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := aIKeysData{
-		LayoutData: web.NewLayoutData(r, h.sm, "AI access"),
-		Keys:       keys,
-		Websites:   sites,
-		NewKey:     h.sm.PopString(r.Context(), sessionNewKey),
-		NewKeyName: h.sm.PopString(r.Context(), sessionNewKeyName),
-		Endpoint:   scheme + "://" + r.Host + "/ai",
+		LayoutData:    web.NewLayoutData(r, h.sm, "AI access"),
+		Keys:          keys,
+		Websites:      sites,
+		WebsiteLabels: websiteLabels(r, keys, sites),
+		NewKey:        h.sm.PopString(r.Context(), sessionNewKey),
+		NewKeyName:    h.sm.PopString(r.Context(), sessionNewKeyName),
+		Endpoint:      scheme + "://" + r.Host + "/ai",
 	}
 	data.ActiveNav = "ai"
 	return web.RenderAdmin(w, h.templates, r, "ai_keys", data)

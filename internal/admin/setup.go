@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -68,7 +67,7 @@ func (h *Handler) HandleSetup(w http.ResponseWriter, r *http.Request) error {
 	}
 	if len(password) < auth.MinPasswordLength {
 		web.SetFlashError(h.sm, r.Context(),
-			fmt.Sprintf("Password must be at least %d characters", auth.MinPasswordLength))
+			web.Titlef(r, "Password must be at least %d characters", auth.MinPasswordLength))
 		http.Redirect(w, r, "/admin/setup", http.StatusSeeOther)
 		return nil
 	}

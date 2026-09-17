@@ -2,7 +2,6 @@ package admin
 
 import (
 	"database/sql"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -34,7 +33,7 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 		wait := h.loginThrottle.RetryAfter(ip, account)
 		slog.Warn("login rate limited", "ip", ip, "retry_after_s", int(wait.Seconds()))
 		web.SetFlashError(h.sm, r.Context(),
-			fmt.Sprintf("Too many failed attempts. Try again in %d minutes.", int(wait.Minutes())+1))
+			web.Titlef(r, "Too many failed attempts. Try again in %d minutes.", int(wait.Minutes())+1))
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return nil
 	}

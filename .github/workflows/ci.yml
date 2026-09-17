@@ -87,6 +87,13 @@ jobs:
     - name: No comment cites a line number
       run: go run ./tools/cites -check
 
+    # The collector reads call sites, so a sentence handed to a flash as the
+    # RESULT of fmt.Sprintf is not merely untranslated — it is unreported, and
+    # `tools/i18n` goes on saying 0 open about it. Seven of these were in the
+    # tree on 2026-09-17, two of them still German.
+    - name: No operator sentence is assembled in Go
+      run: go run ./tools/assembled -check
+
     # The eight shipped themes mint the same words, so their catalogues are
     # generated from one source rather than kept eight times by hand. Without
     # this step a correction to the French for one word lands in words.json and
