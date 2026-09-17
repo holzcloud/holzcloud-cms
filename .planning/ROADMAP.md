@@ -323,6 +323,29 @@ the two gaps); the administration under test is phase 18.
 
 ---
 
+### 📋 v2.5 — On the Phone (planned 2026-09-17, starts when v2.4 closes)
+
+Asked for in one sentence: **„die webapp soll komplett auch auf dem handy
+nutzbar sein"**. Scope settled the same day with the measurement in hand — all
+of it: no screen wider than the phone, every control at least 44 × 44 pixels,
+every field a person types into at least 16px.
+
+**Requirements:** PHONE-01 … PHONE-05. Full text in
+`.planning/milestones/v2.5-REQUIREMENTS.md`, the reading it starts from in
+`v2.5-PHONE-SURVEY.txt`.
+
+**What the survey found:** twenty-nine admin screens at 390 × 844, all
+answering 200, and seven of them reaching past the edge — six for one reason,
+a table wider than the phone whose card never gets the scroll rule the
+stylesheet already has for it. The tap-target failure is on all twenty-nine and
+comes from five elements of the chrome, so it is five rules and not
+twenty-nine.
+
+**Ordering:** after v2.4. Asked and answered on 2026-09-17 — phase 18 finishes
+first rather than being left half-measured.
+
+---
+
 ## Progress
 
 Phases 13 to 16 are complete; v2.1, v2.2 and v2.3 are closed and released. **v2.4 is open** with phases 17 and 18. Numbering continues from 17; it never restarts.
