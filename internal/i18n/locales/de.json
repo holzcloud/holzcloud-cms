@@ -1750,7 +1750,7 @@
 "snippet %q could not be created: %v": "Textbaustein %q konnte nicht angelegt werden: %v",
 "snippet %q could not be read back after being created.": "Textbaustein %q konnte nach dem Anlegen nicht zurückgelesen werden.",
 "snippet %q: %v": "Textbaustein %q: %v",
-"snippet %q: the values of %s point at ids of the installation the archive came from, and have to be chosen again here.": "Textbaustein %q: die Werte von %s zeigen auf Kennungen der Installation, aus der das Archiv stammt, und müssen hier neu gewählt werden.",
+"snippet %q: the values of %s point at a file or a page that this archive does not carry, and have to be chosen again here.": "Textbaustein %q: die Werte von %s zeigen auf eine Datei oder eine Seite, die dieses Archiv nicht mitbringt, und müssen hier neu gewählt werden.",
 "snippet %q: the values of %s were not taken over, they do not keep the rules of their fields.": "Textbaustein %q: die Werte von %s wurden nicht übernommen, sie halten die Regeln ihrer Felder nicht ein.",
 "stays even when you change the label: otherwise the theme would suddenly face a field that no longer exists.": "bleibt, auch wenn du die Beschriftung änderst: sonst stünde das Theme plötzlich vor einem Feld, das es nicht mehr gibt.",
 "switched on": "eingeschaltet",

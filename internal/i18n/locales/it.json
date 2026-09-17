@@ -1750,7 +1750,7 @@
 "snippet %q could not be created: %v": "Non è stato possibile creare il frammento %q: %v",
 "snippet %q could not be read back after being created.": "Non è stato possibile rileggere il frammento %q dopo la creazione.",
 "snippet %q: %v": "Frammento %q: %v",
-"snippet %q: the values of %s point at ids of the installation the archive came from, and have to be chosen again here.": "Blocco di testo %q: i valori di %s puntano a identificativi dell'installazione da cui proviene l'archivio e vanno scelti di nuovo qui.",
+"snippet %q: the values of %s point at a file or a page that this archive does not carry, and have to be chosen again here.": "Blocco di testo %q: i valori di %s puntano a un file o a una pagina che questo archivio non contiene e vanno scelti di nuovo qui.",
 "snippet %q: the values of %s were not taken over, they do not keep the rules of their fields.": "Frammento %q: i valori di %s non sono stati acquisiti, non rispettano le regole dei loro campi.",
 "stays even when you change the label: otherwise the theme would suddenly face a field that no longer exists.": "resta anche se cambi l'etichetta: altrimenti il tema si troverebbe all'improvviso davanti a un campo che non esiste più.",
 "switched on": "attivata",

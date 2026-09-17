@@ -354,19 +354,21 @@ type MenuItem struct {
 // imports unchanged — a snippet with neither key arrives with its body and no
 // fields, exactly as it always did.
 //
-// What does not travel: the ids inside a value. A picture field holds a media
-// id and a reference field a page id, and on the way out a page turns those
-// into a file name and an address (exportFieldValues). A snippet's values go
-// out as they are stored, so such a value lands on the other machine pointing
-// at nothing — the field arrives, the picture does not. That is a recorded
-// limitation and not an oversight: the lookups a translation needs are built
-// inside the page export and the page import, and reaching them from here is a
-// change to the page path. A text, a number, a date, a choice or a yes/no —
-// which is what a snippet's fields are in practice — travel whole.
+// The ids inside a value travel too, since v2.4. A picture field holds a media
+// id and a reference field a page id, and both turn into a file name and an
+// address on the way out and back into this installation's own ids on the way
+// in — through exportFieldValues and translateIn, the very functions the page
+// path uses.
 //
-// "Recorded" has meant really written down since the review of phase 8, and
-// twice outside this comment: in deferred-items.md, and in the report of every
-// import that brings such a value along (installationBoundValues, import.go).
+// They did not, for three milestones. A snippet's values went out as they were
+// stored, so such a value landed on the other machine pointing at somebody
+// else's row: fieldImages and fieldRefs refused it, and the field arrived while
+// the picture did not, with a line in the report saying the value had to be
+// chosen again. It was recorded rather than fixed because the lookups a
+// translation needs were built inside the page export and the page import and
+// reaching them from here meant changing the page path. It did: exportPages
+// hands back its address map and importPages hands back its index, and the
+// snippets run after both.
 // The screen offers these field kinds on a snippet expressly; a promise broken
 // silently on the way out would be the soundless loss this project avoids
 // everywhere else. The translation itself stays open and belongs in the

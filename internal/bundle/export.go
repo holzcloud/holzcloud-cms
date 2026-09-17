@@ -167,13 +167,17 @@ func buildManifest(ctx context.Context, s Stores, ws *domain.Website, version st
 	if err != nil {
 		return nil, err
 	}
-	if err := exportPages(ctx, s, ws.ID, m, mediaByID, nameBySlug, albumNameBySlug); err != nil {
+	slugByID, err := exportPages(ctx, s, ws.ID, m, mediaByID, nameBySlug, albumNameBySlug)
+	if err != nil {
 		return nil, err
 	}
 	if err := exportMenus(ctx, s, ws.ID, m); err != nil {
 		return nil, err
 	}
-	if err := exportSnippets(ctx, s, ws.ID, m); err != nil {
+	// After the pages, and it has to be: a snippet's own picture, reference and
+	// label fields are ids in exactly the way a page's are, and translating
+	// them takes the same three maps.
+	if err := exportSnippets(ctx, s, ws.ID, m, mediaByID, slugByID, nameBySlug); err != nil {
 		return nil, err
 	}
 	if err := exportFields(ctx, s, ws.ID, m); err != nil {
@@ -207,15 +211,17 @@ func exportMedia(ctx context.Context, s Stores, websiteID int64, m *Manifest) (m
 
 // albumNameBySlug is threaded through to the blocks: a gallery block stores an
 // album's slug and the archive carries the album's name (exportBlocks says why).
+// It returns the page address by id, because a snippet's reference field holds
+// one of those ids too and exportSnippets runs after this.
 func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
-	mediaByID map[int64]string, nameBySlug, albumNameBySlug map[string]string) error {
+	mediaByID map[int64]string, nameBySlug, albumNameBySlug map[string]string) (map[int64]string, error) {
 	// "*" is every language: without it an export of a multilingual site would
 	// quietly carry only the main language and the import would look like it
 	// had worked.
 	pages, _, err := s.Pages.ListPages(ctx, websiteID,
 		page.ListFilter{Locale: "*", Page: 1, PerPage: maxExportPages})
 	if err != nil {
-		return fmt.Errorf("list pages: %w", err)
+		return nil, fmt.Errorf("list pages: %w", err)
 	}
 
 	labels := map[int64][]term.Term{}
@@ -225,7 +231,7 @@ func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			ids[i] = p.ID
 		}
 		if labels, err = s.Terms.ForPages(ctx, ids); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -282,7 +288,7 @@ func exportPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		}
 		m.Pages = append(m.Pages, out)
 	}
-	return nil
+	return slugByID, nil
 }
 
 func exportMenus(ctx context.Context, s Stores, websiteID int64, m *Manifest) error {
@@ -318,7 +324,8 @@ func exportNodes(nodes []menu.MenuNode) []MenuItem {
 	return out
 }
 
-func exportSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest) error {
+func exportSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
+	mediaByID, slugByID map[int64]string, nameBySlug map[string]string) error {
 	if s.Snippets == nil {
 		return nil
 	}
@@ -338,25 +345,31 @@ func exportSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest)
 			for _, d := range defs {
 				out.Fields = append(out.Fields, exportFieldDef(d))
 			}
-			// The values as they are stored. A group's rows travel too,
-			// because a page's do (exportFieldValues) and a snippet carries a
-			// group for the same reason a page does — it has its own form.
-			data := field.Decode(sn.Fields)
-			if len(data.Values) > 0 {
-				out.Values = map[string]string(data.Values)
+			// The values, through the SAME translation a page's go through.
+			//
+			// They used to travel as they were stored, and that was the whole
+			// of GAP-01: a picture field holds a media id and a reference field
+			// a page id, and on the other machine those numbers belong to
+			// somebody else's rows. fieldImages and fieldRefs refused them, and
+			// the field arrived with its picture missing while the report said
+			// the snippet had been created. Fixed in v2.4; the warning that
+			// used to describe the loss is gone with it.
+			//
+			// A group's rows travel too, for the reason a page's do: a snippet
+			// has its own form.
+			kinds := map[string]string{}
+			for _, d := range defs {
+				kinds[d.Key] = d.Kind
+				for _, sub := range d.Sub {
+					kinds[d.Key+"."+sub.Key] = sub.Kind
+				}
 			}
-			for key, rows := range data.Rows {
-				if len(rows) == 0 {
-					continue
-				}
-				if out.ValueGroups == nil {
-					out.ValueGroups = map[string][]map[string]string{}
-				}
-				list := make([]map[string]string, 0, len(rows))
-				for _, row := range rows {
-					list = append(list, map[string]string(row))
-				}
-				out.ValueGroups[key] = list
+			values, groups := exportFieldValues(kinds, sn.Fields, mediaByID, slugByID, nameBySlug)
+			if len(values) > 0 {
+				out.Values = values
+			}
+			if len(groups) > 0 {
+				out.ValueGroups = groups
 			}
 		}
 		m.Snippets = append(m.Snippets, out)
