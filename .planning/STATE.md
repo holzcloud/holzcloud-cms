@@ -5,15 +5,15 @@ milestone_name: "What Has Accumulated"
 current_phase: 17
 current_phase_name: "What has accumulated"
 status: in_progress
-stopped_at: "v2.4 eroeffnet 2026-09-15, am selben Tag, an dem v2.3 schloss und als Ausgabe 2.3 erschien. 17-00 gefahren: der Bestand ist gemessen und steht in 17-INVENTORY.md, die Rohzahlen in 17-COVERAGE.txt. Ueberraschung zuoberst - der Baum ist besser in Form, als ein Aufraeum-Meilenstein annimmt: null TODO, null FIXME, null uebersprungene Tests, jede festgeschriebene Zusicherung noch wahr. Vier Dinge hat er trotzdem angesammelt: Abdeckung dort, wo die Verdrahtung liegt (internal/admin 35.9 Prozent ueber 171 Routen), Kommentare, die nicht mehr stimmen (einer nennt eine Zeile, die es nicht gibt), 301 von 1312 exportierten Namen, die ausserhalb ihres Pakets niemand braucht, und zwei festgehaltene Maengel ohne Eintrag im Fensterbuch. Naechstes: 17-01 (DOC), 17-02 (SURF), 17-03 (die zwei Maengel); die Verwaltung unter Test wird Phase 18."
-last_updated: "2026-09-15T00:00:00.000Z"
-last_activity: 2026-09-15
+stopped_at: "17-01 (DOC), 17-02 (SURF) und 17-03 (die zwei festgehaltenen Maengel) sind gefahren; Phase 17 ist damit inhaltlich fertig. 17-03 hat GAP-01 und GAP-02 geschlossen, beide durch Rot-zuerst gefahrene Tests belegt. GAP-01: die Bildwerte, Verweise und Schlagwoerter eines Textbausteins reisen jetzt durch dieselbe Uebersetzung wie die einer Seite - exportSnippets nach exportPages, importSnippets nach importPages, Gruppenzeilen eingeschlossen, Verweise in der Hauptsprache. Die alte Warnung ist weg, statt ihrer zwei Saetze, weil ein regelwidriger Wert korrigiert und ein ins Leere zeigender neu gewaehlt werden muss. GAP-02: das neue Paket internal/marker entfernt jeden Treffer, der keine Zeichendaten sind, bevor die kontextfreie Ersetzung laeuft - eingehaengt in ReplaceAlbumMarkers und in snippet.Expand, das dasselbe Loch hatte; ResolveWords braucht es nicht, weil es maskiert. UF-1 aus dem Phase-11-Bericht traegt einen datierten Schlussvermerk. Naechstes: Phase 18, die Verwaltung unter Test (TEST-01/02/03), von 35.9 Prozent ueber 171 Routen aus."
+last_updated: "2026-09-16T00:00:00.000Z"
+last_activity: 2026-09-16
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
-  percent: 25
+  completed_plans: 4
+  percent: 50
 ---
 
 ## State: Holzcloud CMS
