@@ -12,6 +12,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/design"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/structured"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
@@ -187,7 +188,14 @@ func (h *Handler) handleWebsiteCreatePost(w http.ResponseWriter, r *http.Request
 
 	// Starter content is on by default and can be switched off — an import or a
 	// clone brings its own pages and would otherwise collide on the "home" slug.
-	message := "Website angelegt"
+	//
+	// i18n.N and not a bare literal: SetFlashSuccess translates its argument,
+	// but the collector reads CALL SITES, and this one hands it a variable. So
+	// the sentence was invisible to the gate — it reported neither open nor
+	// orphaned about it — and an English operator who switched the starter
+	// content off was told "Website angelegt". Exactly the shape CLAUDE.md
+	// warns about for fmt.Sprintf, arrived at by a different road.
+	message := i18n.N("Website created")
 	if r.FormValue("starter_content") != "off" {
 		h.createStarterContent(r.Context(), ws.ID, h.currentUserID(r))
 		message = starterContentSummary(r)

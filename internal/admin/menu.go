@@ -282,6 +282,17 @@ func (h *Handler) HandleMenuUpdate(w http.ResponseWriter, r *http.Request) error
 		return nil
 	}
 
+	// The same rule the create path applies (T-04-09), and it was missing here.
+	// The key is what a theme looks the menu up by, so a key outside the
+	// alphabet is a menu no template can reach: renaming "haupt" to
+	// "Haupt Menü" was accepted, answered "Menu saved", and took the navigation //nolint:german — the example key, which is the point
+	// off the site with nothing anywhere to say why.
+	if !isValidLocationKey(locationKey) {
+		web.SetFlashError(h.sm, r.Context(), "The key may only contain lower-case letters, digits and hyphens")
+		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
+		return nil
+	}
+
 	if err := h.menuStore.UpdateMenu(r.Context(), menuID, name, locationKey); err != nil {
 		return err
 	}
