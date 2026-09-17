@@ -56,6 +56,7 @@
 "%q: the address %q is not allowed": "%q: la dirección %q no está permitida",
 "%s\n\n--\nThis is the answer to your enquiry of %s.\n\n> %s\n": "%s\n\n--\nEsta es la respuesta a su consulta del %s.\n\n> %s\n",
 "%s %s installed. It is still switched off — switch it on and choose the websites.": "%s %s instalado. Todavía está desactivado: actívalo y elige los sitios web.",
+"%s (copy)": "%s (copia)",
 "%s UTC": "%s UTC",
 "%s has to be a date.": "%s tiene que ser una fecha.",
 "%s has to be a number.": "%s tiene que ser un número.",
