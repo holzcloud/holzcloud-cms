@@ -250,7 +250,7 @@ func (h *Handler) handleUserCreatePost(w http.ResponseWriter, r *http.Request) e
 	}
 	if len(password) < auth.MinPasswordLength {
 		web.SetFlashError(h.sm, r.Context(),
-			fmt.Sprintf("Password must be at least %d characters", auth.MinPasswordLength))
+			web.Titlef(r, "Password must be at least %d characters", auth.MinPasswordLength))
 		return h.redirectBack(w, r, "/admin/users/new")
 	}
 	if role != "admin" && role != "editor" {
@@ -500,7 +500,7 @@ func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Reques
 
 	if len(newPassword) < auth.MinPasswordLength {
 		web.SetFlashError(h.sm, r.Context(),
-			fmt.Sprintf("New password must be at least %d characters", auth.MinPasswordLength))
+			web.Titlef(r, "New password must be at least %d characters", auth.MinPasswordLength))
 		return h.redirectBack(w, r, redirect)
 	}
 	if newPassword != confirmPassword {

@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -75,7 +74,7 @@ func (h *Handler) HandleMailRetry(w http.ResponseWriter, r *http.Request) error 
 		web.SetFlashSuccess(h.sm, r.Context(), "Nothing is waiting any more.")
 	} else {
 		web.SetFlashSuccess(h.sm, r.Context(),
-			fmt.Sprintf("%d Nachrichten werden erneut versucht.", n))
+			web.Titlef(r, "%d messages are being tried again.", n))
 	}
 	return h.redirect(w, r, "/admin/mail")
 }

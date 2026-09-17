@@ -121,8 +121,8 @@ func (h *Handler) HandleMediaCropSave(w http.ResponseWriter, r *http.Request) er
 	}
 	h.rebuildVariants(r, m, dir, width, height)
 
-	web.SetFlashSuccess(h.sm, r.Context(), fmt.Sprintf(
-		"Zugeschnitten auf %d × %d Pixel. Das Original bleibt erhalten.", width, height))
+	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r,
+		"Cropped to %d × %d pixels. The original is kept.", width, height))
 	return h.redirect(w, r, back)
 }
 
