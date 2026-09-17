@@ -64,6 +64,12 @@ jetzt in sich; die Beispiele brechen weiterhin nicht mitten im Wort.
 
 ## 2.4 — 2026-09-17
 
+> Zu dieser Fassung gibt es **kein Tag und keine Ausgabe im Ausgabenverzeichnis**.
+> Sie ist auf `main` eingeflossen und in 2.5 enthalten; wer 2.5 installiert, hat
+> sie. Der Eintrag bleibt stehen, weil beschrieben gehört, was sich geändert hat
+> — auch wenn niemand genau diesen Stand herunterladen kann.
+
+
 Ein Meilenstein, der **nichts ändert, was Sie täglich sehen** — und deshalb
 einer, dessen Liste ungewöhnlich aussieht. Er ist entstanden, weil das
 Fensterbuch zum ersten Mal leer war, und ein leeres Fensterbuch ist kein
