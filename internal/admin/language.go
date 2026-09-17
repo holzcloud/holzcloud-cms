@@ -164,7 +164,7 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 		"%s installed: %d translations. It can now be chosen under “My account”.",
 		locale.Name(code), len(msgs)))
 
-	// A fassung of a language nobody installed works, but only its own
+	// A regional version of a language nobody installed works, but only its own
 	// sentences are in that language and the rest comes out German. Said here,
 	// where somebody can still do something about it, rather than left to be
 	// discovered on a half-German screen.
