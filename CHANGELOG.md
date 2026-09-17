@@ -11,6 +11,84 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.4 — 2026-09-17
+
+Ein Meilenstein, der **nichts ändert, was Sie täglich sehen** — und deshalb
+einer, dessen Liste ungewöhnlich aussieht. Er ist entstanden, weil das
+Fensterbuch zum ersten Mal leer war, und ein leeres Fensterbuch ist kein
+sauberer Baum, sondern einer, in dem nichts mehr steht, das jemand aufgeschrieben
+hat. Also wurde nachgesehen, was niemand aufgeschrieben hatte.
+
+Gefunden wurde es fast immer auf dieselbe Weise: **beim Schreiben eines Tests
+für einen Bildschirm, nicht beim Lesen des Codes.** Das ist der eigentliche
+Befund dieses Meilensteins.
+
+### Behoben — was Ihnen hätte weh tun können
+
+**Eine Domain liess sich über den falschen Bildschirm entfernen.** Der Knopf auf
+der Einstellungsseite von Website A gab dem Speicher nur die Kennung der Domain
+mit, und der löschte nach dieser Kennung allein. Ein Verklicken oder eine im
+Browser liegengebliebene alte Seite genügte, um Website B eine Domain zu
+nehmen — also einen Kundenauftritt vom Netz —, während der Bildschirm „Domain
+entfernt" meldete und die eigene Liste unverändert dastand.
+
+**Eine gelöschte Inhaltsart nahm ihre Einträge scheinbar mit.** Die Zählung sah
+in der falschen Spalte nach: ein Eintrag einer eigenen Art ist intern eine Seite
+und trägt den Schlüssel daneben. Drei Produkte zählten deshalb als *null*
+Produkte — und zusätzlich als drei Seiten. Folge: Wer eine Art mit hundert
+Einträgen entfernte, las „Inhaltsart entfernt" und sonst nichts, obwohl die
+Warnung, dass die hundert Einträge bleiben, genau dafür da ist. Und die Zahl
+„Seiten" auf demselben Bildschirm war um jeden Eintrag jeder eigenen Art zu
+hoch.
+
+**Ein Menü konnte sich beim Umbenennen selbst unsichtbar machen.** Der
+Ortsschlüssel — das, wonach ein Theme das Menü sucht — wurde beim Anlegen
+geprüft und beim Ändern nicht. „haupt" zu „Haupt Menü" zu machen wurde
+angenommen, mit „Menü gespeichert" beantwortet, und die Navigation verschwand
+von der Website, ohne dass irgendwo stand warum.
+
+**Ein Logo-SVG wurde zu nachlässig geprüft.** Die Prüfung war eine Liste von
+vier verbotenen Zeichenfolgen; `onerror=`, `onmouseover=`, ein Leerzeichen vor
+dem Gleichheitszeichen und ein als XML-Entität geschriebener Doppelpunkt gingen
+alle daran vorbei. Kein Einfallstor — die Sicherheitsrichtlinie des Browsers
+verbietet Skript im Administrationsbereich ohnehin, und das hat sie die ganze
+Zeit getan —, aber die Prüfung behauptete etwas, das sie nicht tat. Sie liest
+das Dokument jetzt, statt darin zu suchen.
+
+### Behoben — Sätze in der falschen Sprache
+
+Elf Sätze, die ein Betreiber liest, gingen am Übersetzungs-Katalog vorbei. Das
+Tückische daran: sie fehlten dort nicht, sie **existierten** dort nicht — der
+Katalog meldete weder *offen* noch *verwaist*, weil er nichts von ihnen wusste.
+
+Darunter zwei, die auf einer englischsprachigen Anlage deutsch blieben
+(„%d Nachrichten werden erneut versucht.", „Zugeschnitten auf %d × %d Pixel."),
+zwei deutsche Überschriften hinter Einladungs- und Zurücksetz-Links, die Meldung
+nach dem Anlegen einer Website, und — auf jeder Anlage in jeder Sprache — das
+Wort, das an eine Kopie angehängt wird: aus „Kontakt" wurde „Kontakt (Kopie)",
+gleichgültig welche Sprache eingestellt war.
+
+**Der Import-Bericht trug zwei Überschriften**, und die zweite log: Wer ein
+Archiv einspielte, das dieses Programm selbst geschrieben hatte, las darunter
+„WordPress-Import abgeschlossen".
+
+### Neu für Entwickler
+
+`tools/assembled` weist ab sofort jeden Satz ab, der mit `fmt.Sprintf` innerhalb
+eines Aufrufs zusammengebaut wird, der sein Argument einem Betreiber zeigt. Die
+Lücke steht seit jeher in CLAUDE.md; jetzt steht auch ein Tor davor, und die
+Bauprüfung führt es aus.
+
+### Was sonst geschah
+
+Die Verwaltung ist von **35,9 % auf 59,3 %** durch Tests gedeckt, das Paket
+`internal/branding` von 0 % auf 95,7 %. Jeder dieser Tests wurde erst rot
+gefahren, bevor er grün sein durfte — 164 Mutationen, 158 gefangen, die sechs
+übrigen mit Messung als gleichwertig festgehalten. Ausserdem wurden zwei seit
+v2.0 offen festgehaltene Mängel geschlossen: die Bildfelder eines Textbausteins
+überstehen jetzt ein Bündel, und eine Marke im Text wird nur noch dort ersetzt,
+wo sie wirklich Text ist.
+
 ## 2.3 — 2026-09-15
 
 ### Behoben — die Sprache einer Seite
