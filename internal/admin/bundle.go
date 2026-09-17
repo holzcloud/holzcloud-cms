@@ -114,6 +114,12 @@ func (h *Handler) HandleWebsiteImport(w http.ResponseWriter, r *http.Request) er
 		// Not "WordPress import finished": this is the CMS's own bundle, and
 		// the wrong heading here was found in the browser pass for v2.0. The
 		// two paths share importReportData and the title came along with it.
+		//
+		// That fix went into the TITLE and the template went on printing its
+		// own <h1> with the WordPress sentence in it — so the screen carried
+		// two headings, base.html's correct one and a hard-coded lie beneath
+		// it, for two milestones. The template's heading is gone; the title is
+		// the heading, as on every other screen.
 		LayoutData: web.NewLayoutData(r, h.sm, "Import finished"),
 		Report:     report,
 	}
