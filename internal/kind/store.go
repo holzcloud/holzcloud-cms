@@ -156,10 +156,31 @@ func (s *Store) Delete(ctx context.Context, websiteID, id int64) error {
 
 // Count is how many entries carry a kind, so the delete screen can say what is
 // at stake.
+//
+// It matches the EFFECTIVE kind — the own one when there is one, the built-in
+// one otherwise — which is what Page.KindValue means and what every list on
+// these screens shows. The column alone is not that: setKind stores an entry of
+// a website's own kind as `kind = 'page'` with the key in `content_kind`,
+// because an own kind IS a page as far as routing and rendering go.
+//
+// Matching on `kind` alone therefore answered two questions wrongly at once,
+// measured on 2026-09-17 with one page, one post and three products:
+//
+//	Count("produkt") = 0   — three products counted as none
+//	Count("page")    = 4   — the three products counted as pages as well
+//
+// Neither number is cosmetic. The first is what HandleKindDelete uses to decide
+// whether to warn that the entries stay behind, so deleting a kind with a
+// hundred products said "Content kind removed" and nothing else — the exact
+// silent loss the sentence above that branch exists to prevent. The second is
+// the "Pages" figure on the same screen, inflated by every entry of every own
+// kind.
 func (s *Store) Count(ctx context.Context, websiteID int64, key string) (int, error) {
 	var n int
 	err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pages WHERE website_id = $1 AND kind = $2 AND deleted_at IS NULL`,
+		`SELECT COUNT(*) FROM pages
+		 WHERE website_id = $1 AND deleted_at IS NULL
+		   AND CASE WHEN COALESCE(content_kind, '') <> '' THEN content_kind ELSE kind END = $2`,
 		websiteID, key).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count entries: %w", err)
