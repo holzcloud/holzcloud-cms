@@ -1,166 +1,80 @@
-# Requirements: v2.4 — What Has Accumulated
+# Requirements: v2.5 — On the Phone
 
-Milestone opened 2026-09-15, the same day v2.3 closed.
+Opened as a plan on 2026-09-17, to start when v2.4 closes. Asked for in one
+sentence: **„die webapp soll komplett auch auf dem handy nutzbar sein"**.
 
-**Not a feature milestone, and deliberately so.** Three milestones in a row
-changed what the program says; this one changes nothing an operator can see. It
-exists because the stock-take in `17-INVENTORY.md` found four things that a
-working tree accumulates quietly, and because the window ledger is empty for the
-first time — which is exactly the moment to look at what the ledger was never
-watching.
+The scope was settled the same day, with the measurement in hand: **all of it** —
+no screen reaching past the edge of the phone, every control at least 44 × 44
+pixels, every field a person types into at least 16px. Tables stay tables and
+scroll inside their card; turning them into stacked cards was offered and not
+chosen.
 
-What it is **not**: a rewrite, an architecture change, or a hunt for defects that
-nobody has met. Every requirement below names a number that is different at the
-end, or a claim that is true at the end and is not true now.
-
-The measurement it rests on is `phases/17-what-has-accumulated/17-INVENTORY.md`,
-with the raw coverage output committed beside it.
+The measurement is committed beside this file as `v2.5-PHONE-SURVEY.txt`, so
+the next reading is a comparison rather than a fresh opinion.
 
 ---
 
-## The administration under test
+## What was measured, and how
 
-- [x] **TEST-01**: **`internal/admin` is materially better covered than 35.9 %.**
-      It is the largest surface an operator ever touches — 171 routes — and the
-      least covered package that matters. The target is not a number for its own
-      sake: it is that the screens an operator uses every day are driven by a
-      test that would notice if they stopped working. `newTestAdmin` already
-      makes this possible; every test using it today was written for one
-      specific defect rather than for the screen.
-      *Done: **59.3 %**, from 35.9 %. Handlers at zero: 40, from 104.* Eleven
-      defects found by writing the tests rather than by reading the code, and
-      three faults in the test harness itself — a nil template resolver, a zero
-      Argon2Params that made every password path PANIC, and a missing wording
-      resolver. Each had made a whole class of test impossible without anybody
-      noticing. Listed in full in `18-VERIFICATION.md`.
-- [x] **TEST-02**: **`internal/branding` has tests.** It is the only package
-      under `internal/` with no test file at all. It decides what an operator's
-      own installation looks like, which is not nothing.
-      *Done: 0.0 % → 95.7 %.* What is left is a driver fault, a file that
-      disappears between two calls, and a write that fails after MkdirAll
-      succeeded — three races and a hardware failure.
-- [x] **TEST-03**: **Each new test is driven red before it is driven green.**
-      A test written after the code, against code that already works, proves
-      only that it runs. The habit this project already has for fixes applies to
-      coverage work as well, and where a test cannot be driven red, it says so
-      and says why.
-      *Done: 164 mutations, 158 caught.* The six survivors are recorded at their
-      own tests with the measurement that shows each is equivalent. The lesson,
-      which caught this work fourteen times: **a second guard one layer down, or
-      a catch-all arm, makes the first guard's removal invisible.** The fix is
-      always the same — assert the sentence the operator reads or the number
-      they see, never "an error came back".
+Chromium through Playwright at **390 × 844** — an iPhone 14/15, at or below the
+width most people hold — with `isMobile`, `hasTouch`, a threefold pixel ratio
+and an iPhone user agent, signed in as an administrator with a second factor.
+Twenty-nine admin screens, every one answering 200.
 
-## The comments, which are this project's documentation
+The tool is deliberately **not** in this repository. The stack constraint says
+no Node, and a checking script is not an exception somebody should have to argue
+about later; the numbers are committed instead, which is the same thing
+`17-COVERAGE.txt` and `16-BENCH.txt` do.
 
-- [x] **DOC-01**: **No comment cites a line that does not exist.** One does
-      today: `internal/admin/csvimport.go:1187` points at `media.go:377`, in a
-      file of 322 lines. There are 108 such citations in the tree.
-      *Done 2026-09-15 (17-01):* **zero.** Not "all 108 resolve" — none is a
-      line number any more. The measurement that decided it: **45 of the 108
-      had already drifted**, onto a blank line, a closing brace or an unrelated
-      comment, while every one of them still read as true. A citation that
-      resolves today is one that rots tomorrow and says nothing while it does,
-      so `tools/cites -check` refuses the form itself and CI runs it.
-- [x] **DOC-02**: **No comment describes a defect as open that has been fixed.**
-      At least one does: `internal/csvimport/verdict.go:104` says `field.Check`'s
-      reasons are hard-coded German and invisible to `tools/i18n`. They go
-      through `i18n.N` and have for some time. A reader who believed that comment
-      would re-do work that is done.
-      *Done:* four such claims, all in the same family and all corrected rather
-      than deleted — `verdict.go`'s opening cited two strings as proof that a
-      sentence built in Go leaks past the gate, and both had been fixed since,
-      which is evidence the rule worked and worth saying. Also `verdict.go`'s
-      `ReasonNotWritten`, and `mapping.go`'s "German-only", which stopped being
-      the failure mode when v2.0 turned the source language round.
-- [x] **DOC-03**: **The citations are checked mechanically from here on, or the
-      reason they cannot be is written down.** A comment that rots silently is
-      worse than no comment, and this repository puts its reasoning in comments
-      rather than in a wiki. If a tool can hold the file-and-line form, it
-      should; if it cannot hold whether a citation still points at what it
-      claims, that limit belongs in the tool's own documentation.
-      *Done:* `tools/cites`, with `-fix` to convert and `-check` in CI. The
-      limit is stated in its package comment: it can decide that a citation
-      resolves and it cannot decide that the line still says what the citing
-      comment claims — which is exactly why `-check` refuses the form instead of
-      holding the weaker rule.
+**There is already a mobile layer**, and this is not a rewrite: the viewport
+meta tag, a 900px breakpoint with an off-canvas sidebar and a hamburger, and a
+container query meant to make tables scroll inside their card. What the survey
+found is that some of it does not reach.
 
-## The exported surface
+## The requirements
 
-- [x] **SURF-01**: **Every exported identifier in `internal/` is exported
-      because something outside its package needs it.** 301 of 1 312 are used
-      nowhere else. That number is an upper bound, not a finding — it cannot see
-      a field an `html/template` reads, a test in another package, or a contract
-      somebody else writes against — so the work is to look at each one and
-      either use it, un-export it, or record why it stays.
-      *Done 2026-09-15 (17-02).* First the count itself was wrong: 301 of 1 312
-      came from a regular expression over words, which counted a name as used
-      when it stood in an unrelated sentence and missed a package imported under
-      an alias. Reading the syntax gives **383 of 1 096**, and it ends at
-      **268 of 986**. Three dead helpers deleted; four dead constants turned out
-      to be events the host promised and never sent, and are emitted now; 108 of
-      `internal/admin`'s template data types unexported. Six stayed, each with
-      the reason at its declaration — three because `html/template` cannot reach
-      a promoted field through an unexported embedded field, which would have
-      emptied every pager in the admin **silently**.
-- [x] **SURF-02**: **The count is reported rather than recounted by hand.**
-      Whatever the number ends at, the next person should be able to produce it
-      in one command instead of writing the script again.
-      *Done:* `go run ./tools/surface`, with `-count`, `-dead` and `-all`. It
-      reports and refuses nothing, and states in its own package comment what it
-      cannot see: a field an `html/template` reads through reflection, which is
-      why types are listed apart from functions and values.
+- [x] **PHONE-01**: **No admin screen is wider than the phone.** Seven were,
+      and the reading above guessed the cause wrong on six of them. The
+      container query applies; the card scrolls; what ran out of it was a
+      `.sr-only`, which is `position: absolute` and, with no positioned
+      ancestor, sits at its static position far out in the wide part of the
+      table and drags the page out to meet it. `position: relative` beside the
+      `overflow-x: auto` took Users (275), Pages (187), Languages (97),
+      Websites (50) and Menus (41) to 0 in one line. The Activity log (338) was
+      the one real case of the suspected cause: its table lives in
+      `#activity-list`, and the rule listed the containers it knew by name.
+      Website settings (59) was a flex row of a domain and two buttons with no
+      `flex-wrap`. Found while measuring: the Markdown cheat sheet is 24px too
+      wide when open, which is the only state anybody reads it in.
+      *Done: all twenty-nine screens at 0 overflow and 0 unheld boxes. See
+      `phases/19-on-the-phone/19-01-VERIFICATION.md`.*
+- [ ] **PHONE-02**: **Every control is at least 44 × 44 pixels.** That is the
+      figure Apple's guidelines and WCAG 2.2's target-size rule both land on.
+      All twenty-nine screens fail it, and the same handful of elements is
+      responsible on every one: the hamburger (32 × 32), the brand (26 × 26),
+      the user menu (36 × 32), the website switcher's rows (35px) and the
+      navigation items. Fix those five and twenty-nine screens improve at once.
+      The buttons (`.btn`, `.btn--sm`) and the form fields are the second tier.
+- [ ] **PHONE-03**: **Every field a person types into is at least 16px.** Below
+      that iOS zooms the page on focus and does not zoom back, which turns one
+      tap into a pinch and a scroll. The page editor's own textarea is on the
+      list, which is the worst place for it. A radio button or a checkbox is
+      not a typing field and is not covered.
+- [ ] **PHONE-04**: **The measurement is repeated and committed.** The same
+      twenty-nine screens, the same three numbers, beside the first reading. A
+      requirement that says "it is better now" without a second measurement is
+      an opinion.
+- [ ] **PHONE-05**: **What is fixed is driven on a phone-shaped browser once,
+      by hand.** QUAL-02's rule, which has found something in every milestone it
+      has been applied to: a browser finds what a test cannot. Three interface
+      faults came out of it in v2.3 and none of them was subtle.
 
-## The two limitations that were recorded — both now closed
+## What this milestone is not
 
-- [x] **GAP-01**: **A snippet's image, reference and term fields survive a
-      bundle, or the limit is in the ledger and in front of the operator.**
-      Ids were translated on the page path and not on the snippet path, so on
-      the other machine the value was refused and the field arrived with its
-      picture missing. The operator found out by looking.
-      *Done:* they travel through the same translation a page's values do —
-      `exportSnippets` takes the three maps, `importSnippets` runs after the
-      pages and resolves a reference in the main language. Group rows included,
-      because a snippet has its own form. The old warning is gone; what replaces
-      it is two messages rather than one, because a value that breaks its
-      field's rules has to be corrected and a value that names nothing has to be
-      chosen again — different remedies, different sentences. An archive written
-      before v2.4 carries raw ids; they are dropped rather than stored as a
-      foreign id, and the drop is reported.
-      Proven by `TestASnippetsPictureAndReferenceSurviveTheRoundTrip` (which
-      insists on the COPY's ids, not merely on non-empty) and
-      `TestASnippetsRawIdFromAnOldArchiveIsDroppedAndReported`.
-- [x] **GAP-02**: **An album marker is replaced knowing whether it stands in
-      text or in an attribute, or the limit is in the ledger.**
-      *Done:* `internal/marker`. `OnlyInText` drops every match that is not
-      character data — an attribute value, a comment, the content of `<style>` —
-      before the context-free substitution runs, tokenizing rather than parsing
-      so a document with nothing to remove comes back byte for byte. Wired into
-      `ReplaceAlbumMarkers` **and** `snippet.Expand`, which had the identical
-      hole because it is the same idea; `ResolveWords` does not need it and the
-      package says why (its expansion is escaped text).
-      Proven by `TestAnAlbumMarkerInAnAttributeDoesNotBreakTheMarkup`,
-      `TestASnippetMarkerInAnAttributeIsNotExpanded`, and
-      `TestTheTokensAreTheDocument` for the property the mechanism rests on.
+Not a redesign, not a second stylesheet, not a separate mobile application. The
+admin is one set of templates and one stylesheet and stays that way — the
+constraint against build tools has held for five milestones and is not being
+spent on this.
 
-## Standing gates
-
-- [x] **QUAL-01**: `go run ./tools/i18n` reports `0 open, 0 orphaned` on every
-      catalogue; `tools/english`, `tools/themewords -check` and
-      `tools/wasm -check` stay green, and CI and the image build stay green on
-      `main`.
-      *Done, and one gate added:* `tools/assembled` refuses a sentence built
-      with fmt.Sprintf inside a call that shows its argument to an operator —
-      the shape CLAUDE.md names and the catalogue gate cannot see. Seven were in
-      the tree, two of them still German.
-- [x] **QUAL-02**: Every screen touched is driven once through the running
-      application. The blast radius of a coverage milestone is small by design,
-      but a test that passes against a handler nobody ran is the exact thing
-      this requirement exists for.
-      *Done, and nothing found — the first milestone where that is true.* Thirty
-      addressable screens in a real browser, then the four an operator only
-      reaches by doing something, because that is where all three of v2.3's
-      faults were.
-- [x] **QUAL-03**: **The suite does not get slower than it is useful.** It runs
-      in about seven minutes today. Coverage work adds tests by definition, and
-      a suite nobody waits for is a suite nobody runs.
+Not the public themes. A visitor's side of the eight shipped themes is a
+different question with a different audience; this is the administration.
