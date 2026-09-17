@@ -1,0 +1,263 @@
+[
+ {
+  "name": "Overview",
+  "route": "/admin/",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Websites",
+  "route": "/admin/websites",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "New website",
+  "route": "/admin/websites/new",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Website settings",
+  "route": "/admin/websites/1",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Design",
+  "route": "/admin/websites/1/design",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Wording",
+  "route": "/admin/websites/1/woerter",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Pages",
+  "route": "/admin/websites/1/pages",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "New page",
+  "route": "/admin/websites/1/pages/new",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Edit page",
+  "route": "/admin/websites/1/pages/1/edit",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Media",
+  "route": "/admin/websites/1/media",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Menus",
+  "route": "/admin/websites/1/menus",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Labels",
+  "route": "/admin/websites/1/tags",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Snippets",
+  "route": "/admin/websites/1/bausteine",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Fields",
+  "route": "/admin/websites/1/felder",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Kinds",
+  "route": "/admin/websites/1/arten",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Block kinds",
+  "route": "/admin/websites/1/bausteinarten",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Albums",
+  "route": "/admin/websites/1/alben",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Translations",
+  "route": "/admin/websites/1/uebersetzungen",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Templates",
+  "route": "/admin/templates",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Upload a template",
+  "route": "/admin/templates/upload",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Plugins",
+  "route": "/admin/plugins",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Email",
+  "route": "/admin/mail",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "AI access",
+  "route": "/admin/ai",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Languages",
+  "route": "/admin/sprachen",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Brand",
+  "route": "/admin/marke",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Activity log",
+  "route": "/admin/protokoll",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "Users",
+  "route": "/admin/users",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "New user",
+  "route": "/admin/users/new",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ },
+ {
+  "name": "My account",
+  "route": "/admin/konto",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [],
+  "tiny": []
+ }
+]
