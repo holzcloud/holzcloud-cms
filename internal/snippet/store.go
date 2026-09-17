@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/db"
+	"github.com/holzcloud/holzcloud-cms/internal/marker"
 )
 
 const timeLayout = "2006-01-02T15:04:05Z"
@@ -273,6 +274,13 @@ func Expand(html string, snippets map[string]template.HTML) string {
 	if !strings.Contains(html, "[[snippet:") {
 		return html
 	}
+	// First the markers that are not in text, because neither replacement below
+	// can see where it is. An editor may type this marker into a text block and
+	// put it inside an attribute value, where expanding it ends the attribute at
+	// the snippet's first quotation mark and the markup after it is not what
+	// anybody wrote. internal/marker is the whole argument; it is the same hole
+	// the album marker has, in the mechanism the album marker copied.
+	html = marker.OnlyInText(html, paragraphMarker, markerPattern)
 	// A marker on its own line replaces the paragraph around it, so block
 	// content lands at the same level as the rest of the page.
 	html = paragraphMarker.ReplaceAllStringFunc(html, func(match string) string {

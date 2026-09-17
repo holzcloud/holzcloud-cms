@@ -7,6 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	// Aliased: this package already has an identifier `html` in almost
+	// every function, and a test that shadows its own import reads as a
+	// mistake even when it is not.
+	netHTML "golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
+
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 )
 
@@ -1382,5 +1388,77 @@ func TestAlbumMarkerReaderFindsWhatTheWriterWrote(t *testing.T) {
 	const wantOut = "<p><moebel@2/0/></p><sommer@5/3/hc-galerie--diashow><moebel@9/0/>"
 	if out != wantOut {
 		t.Errorf("ReplaceAlbumMarkers:\nwant %s\ngot  %s", wantOut, out)
+	}
+}
+
+// TestAnAlbumMarkerInAnAttributeDoesNotBreakTheMarkup is UF-1, closed.
+//
+// Nothing stops an editor typing the marker into a text block, and nothing in
+// the Markdown pipeline strips it: goldmark passes it through and bluemonday
+// keeps an href that contains no space. So a marker can reach delivery sitting
+// inside an ATTRIBUTE VALUE, where a context-free replacement used to expand it
+// — and the gallery's first quotation mark ended the attribute, leaving markup
+// on the page that nobody wrote.
+//
+// The test reads the result with a real parser rather than matching strings: a
+// substring check would pass on exactly the broken output it is meant to catch,
+// because the gallery's markup IS in the document either way. What distinguishes
+// the two is whether the <a> still has one href and whether the tiles ended up
+// inside the link.
+func TestAnAlbumMarkerInAnAttributeDoesNotBreakTheMarkup(t *testing.T) {
+	doc := `<p><a href="/x?q=` + AlbumMarker("moebel", 1, 3, "") + `">klick</a></p>`
+
+	out := ReplaceAlbumMarkers(doc, func(slug string, at, columns int, mod string) string {
+		// What a real expansion looks like where it matters: it opens an
+		// element and it quotes an attribute.
+		return `<div class="hc-galerie">` + slug + `</div>`
+	})
+
+	if strings.Contains(out, "hc-galerie") {
+		t.Errorf("the marker in the attribute was expanded: %q", out)
+	}
+
+	// And the link is still one link with one address, which is the thing the
+	// operator would otherwise have had to debug.
+	nodes, err := netHTML.ParseFragment(strings.NewReader(out), &netHTML.Node{
+		Type: netHTML.ElementNode, Data: "body", DataAtom: atom.Body,
+	})
+	if err != nil {
+		t.Fatalf("the result is not parseable: %v", err)
+	}
+	var links int
+	var href string
+	var walk func(*netHTML.Node)
+	walk = func(n *netHTML.Node) {
+		if n.Type == netHTML.ElementNode && n.Data == "a" {
+			links++
+			for _, a := range n.Attr {
+				if a.Key == "href" {
+					href = a.Val
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	for _, n := range nodes {
+		walk(n)
+	}
+	if links != 1 {
+		t.Errorf("%d links instead of one — the attribute was broken open: %q", links, out)
+	}
+	if href != "/x?q=" {
+		t.Errorf("href = %q, want %q", href, "/x?q=")
+	}
+
+	// The same marker in text is untouched by any of this: the fix removes what
+	// it must and nothing more.
+	inText := `<p>` + AlbumMarker("moebel", 1, 3, "") + `</p>`
+	got := ReplaceAlbumMarkers(inText, func(slug string, at, columns int, mod string) string {
+		return `<div class="hc-galerie">` + slug + `</div>`
+	})
+	if got != `<p><div class="hc-galerie">moebel</div></p>` {
+		t.Errorf("a marker in text was not expanded: %q", got)
 	}
 }

@@ -73,6 +73,32 @@ func TestExpandLeavesContentWithoutMarkersAlone(t *testing.T) {
 	}
 }
 
+// The snippet marker has the hole the album marker had, because it is the same
+// idea: an editor types [[snippet:…]] into a text block, goldmark passes it
+// through, bluemonday keeps an href with no space in it, and the replacement is
+// a context-free substitution that cannot see where it is. A snippet's HTML is
+// arbitrary — it is the operator's own markup — so expanding it inside an
+// attribute value ends the attribute at the snippet's first quotation mark.
+//
+// internal/marker drops the matches that are not in text, and this is the case.
+func TestASnippetMarkerInAnAttributeIsNotExpanded(t *testing.T) {
+	snippets := map[string]template.HTML{"tel": `<span class="tel">0123</span>`}
+
+	got := Expand(`<p><a href="/x?q=[[snippet:tel]]">klick</a></p>`, snippets)
+	if strings.Contains(got, "class=\"tel\"") {
+		t.Errorf("the marker in the attribute was expanded: %q", got)
+	}
+	if want := `<p><a href="/x?q=">klick</a></p>`; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+
+	// And in text it still expands, which is the whole point of the mechanism.
+	got = Expand(`<p>Wir sind [[snippet:tel]] erreichbar.</p>`, snippets)
+	if want := `<p>Wir sind <span class="tel">0123</span> erreichbar.</p>`; got != want {
+		t.Errorf("a marker in text was not expanded: %q, want %q", got, want)
+	}
+}
+
 func TestUsedKeysFindsEachKeyOnce(t *testing.T) {
 	keys := UsedKeys("[[snippet:a]] und [[snippet:b]] und nochmal [[snippet:a]]")
 	if len(keys) != 2 || keys[0] != "a" || keys[1] != "b" {
