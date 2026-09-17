@@ -1,0 +1,226 @@
+Phone survey — /admin at 390 x 844, measured 2026-09-17
+
+Chromium 1194 through Playwright, isMobile, hasTouch, deviceScaleFactor 3,
+an iPhone user agent, signed in as an administrator with a second factor.
+
+over  = pixels the page reaches past the right edge of the phone
+wide  = distinct elements whose box ends past that edge
+small = controls under 44 CSS px tall (Apple HIG and WCAG 2.2 target size)
+tiny  = text under 12px, or a form field under 16px (iOS zooms and stays zoomed)
+
+screen                  status  over  wide  small  tiny
+Overview                200     0     0     13     0
+Websites                200     51    11    27     4
+New website             200     0     0     12     0
+Website settings        200     59    2     33     1
+Design                  200     0     0     18     1
+Wording                 200     0     0     13     0
+Pages                   200     187   22    27     4
+New page                200     0     6     23     2
+Edit page               200     0     6     24     2
+Media                   200     0     0     16     1
+Menus                   200     41    10    15     0
+Labels                  200     0     0     11     0
+Snippets                200     0     0     13     0
+Fields                  200     0     0     20     0
+Kinds                   200     0     0     13     0
+Block kinds             200     0     0     13     0
+Albums                  200     0     0     13     0
+Translations            200     0     0     10     0
+Templates               200     0     0     11     0
+Upload a template       200     0     0     14     0
+Plugins                 200     0     0     13     0
+Email                   200     0     0     10     0
+AI access               200     0     0     15     0
+Languages               200     97    8     14     0
+Brand                   200     0     0     14     0
+Activity log            200     338   8     16     0
+Users                   200     275   13    12     0
+New user                200     0     0     16     1
+My account              200     0     0     13     0
+
+=== what is actually wide, per screen ===
+
+Websites — 51px past the edge
+   table.table  ends at 629
+   thead  ends at 629
+   tr  ends at 629
+   th  ends at 424
+   tbody  ends at 629
+   td  ends at 424
+   span.badge.badge--published  ends at 407
+   td.table-actions  ends at 629
+
+Website settings — 59px past the edge
+   form  ends at 449
+   button.btn.btn--danger  ends at 449
+
+Pages — 187px past the edge
+   table.table  ends at 677
+   thead  ends at 677
+   tr  ends at 677
+   th  ends at 447
+   tbody  ends at 677
+   tr#page-row-1  ends at 677
+   td  ends at 447
+   span.text-muted  ends at 429
+
+Menus — 41px past the edge
+   table.table  ends at 585
+   thead  ends at 585
+   tr  ends at 585
+   th  ends at 415
+   tbody  ends at 585
+   td.text-muted  ends at 415
+   td.table-actions  ends at 585
+   a.btn.btn--sm  ends at 476
+
+Languages — 97px past the edge
+   table.table  ends at 585
+   thead  ends at 585
+   tr  ends at 585
+   th  ends at 471
+   tbody  ends at 585
+   td.text-muted  ends at 471
+   td.table-actions  ends at 585
+   a.btn.btn--sm  ends at 569
+
+Activity log — 338px past the edge
+   table.table  ends at 728
+   thead  ends at 728
+   tr  ends at 728
+   th  ends at 521
+   tbody  ends at 728
+   td  ends at 521
+   code  ends at 505
+   span.text-muted  ends at 593
+
+Users — 275px past the edge
+   table.table  ends at 934
+   thead  ends at 934
+   tr  ends at 934
+   th  ends at 432
+   tbody  ends at 934
+   tr.table-row--current  ends at 934
+   td  ends at 432
+   span.badge.badge--primary  ends at 416
+
+=== controls under 44px, by how many of the 29 screens carry them ===
+  29  input#sidebar-toggle.sidebar-toggle
+  29  a.topbar-brand
+  29  summary.switcher-current
+  29  a.switcher-item.is-current
+  29  a.switcher-item.switcher-item--all
+  29  summary.topbar-user
+  29  a.switcher-item
+  29  button.switcher-item.switcher-item--danger
+  29  a.nav-item
+  27  a.nav-item.is-active
+  17  button.btn.btn--primary
+   8  a.btn.btn--sm
+   8  button.btn
+   8  input
+   8  a.btn
+   6  input#name.form-input
+   5  a.website-card__name
+   5  a.activity-item__title
+   5  button.btn.btn--sm
+   4  a.btn.btn--primary
+   4  button.btn.btn--danger
+   4  select#kind.form-input.form-select
+   3  summary
+   3  select#status.form-input.form-select
+   2  input#q.form-input
+   2  input#title.form-input
+   2  input#slug.form-input
+   2  input#page_password.form-input
+   2  input#access_hint.form-input
+   2  input#tags.form-input
+   2  select#featured_media_id.form-input.form-select
+   1  input#bundle.form-input
+   1  input#import_name.form-input
+   1  input#wxr.form-input
+   1  input#wp_name.form-input
+   1  input#csv.form-input
+   1  input#csv_target_neu
+   1  input#csv_name.form-input
+   1  input#csv_target_bestehend
+   1  select#csv_website.form-input.form-select
+   1  input#csv_collision_uebergehen
+   1  input#csv_collision_aktualisieren
+   1  select#example_website.form-input.form-select
+   1  select#locale.form-input.form-select
+   1  select#timezone.form-input.form-select
+   1  input#extra_locales.form-input
+   1  select#favicon_media_id.form-input.form-select
+   1  select#logo_media_id.form-input.form-select
+   1  select#org_type.form-input.form-select
+   1  input#street.form-input
+   1  input#postal_code.form-input
+   1  input#city.form-input
+   1  input#country.form-input
+   1  input#phone.form-input
+   1  input#contact_email.form-input
+   1  input#notify_email.form-input
+   1  input#blog_base.form-input
+   1  input#posts_per_page.form-input
+   1  select#offline_mode.form-input.form-select
+   1  input#domain.form-input
+   1  select#token_font.form-input.form-select
+   1  input#token_measure.form-input
+   1  input#token_radius.form-input
+   1  select#sort.form-input.form-select
+   1  summary.btn.btn--sm
+   1  input#select-1
+   1  summary.rowmenu-trigger
+   1  a.rowmenu-item
+   1  button.rowmenu-item
+   1  button.rowmenu-item.rowmenu-item--danger
+   1  input#select-2
+   1  input#select-3
+   1  select#bulk-action.form-input.form-select
+   1  input#media.form-input
+   1  input#location_key.form-input
+   1  input#feld-beschriftung.form-input
+   1  select#feld-art.form-input
+   1  select#feld-darstellung.form-input.form-select
+   1  input#feld-max-werte.form-input
+   1  input#feld-min-wert.form-input
+   1  input#feld-max-wert.form-input
+   1  select#feld-gilt.form-input
+   1  input#feld-hinweis.form-input
+   1  input#art-name.form-input
+   1  input#art-hinweis.form-input
+   1  input#template_file.form-input
+   1  summary.panel__summary
+   1  input#plugin
+   1  input#ai-name.form-input
+   1  select#ai-website.form-input
+   1  select#ai-rechte.form-input
+   1  input#ai-tage.form-input
+   1  input#datei.form-input
+   1  input#kuerzel.form-input
+   1  input#zeichen.form-input
+   1  input#logo.form-input
+   1  select#website_id.form-input.form-select
+   1  input#action.form-input
+   1  input#user_id.form-input
+   1  input#email.form-input
+   1  select#role.form-input
+   1  input#password.form-input
+   1  select#sprache.form-input.form-select
+
+=== fields a phone zooms for ===
+   7  input
+   2  textarea#content_markdown.form-input.form-textarea
+   1  input#csv_target_neu
+   1  input#csv_target_bestehend
+   1  input#csv_collision_uebergehen
+   1  input#csv_collision_aktualisieren
+   1  input#select-1
+   1  input#select-2
+   1  input#select-3
+
+A radio button or a checkbox appears in that last list and should not:
+iOS zooms for a field you type into, not for one you tick. The list is
+left as measured rather than filtered, so the next reading is comparable.
