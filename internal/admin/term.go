@@ -85,8 +85,15 @@ func (h *Handler) HandleTermDelete(w http.ResponseWriter, r *http.Request) error
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/tags", websiteID))
 }
 
-// lookupTerm resolves the route values and checks the label belongs to the
-// website in the path.
+// lookupTerm resolves the route values.
+//
+// It does NOT check that the label belongs to the website — it used to say that
+// it did, and that was simply untrue. The check is real and it is one layer
+// down: every statement in internal/term carries website_id, so a rename or a
+// delete aimed at another website's label affects no rows. The behaviour is
+// held by TestOneSitesLabelRouteChangesNothingOfAnothers, which asserts the
+// outcome rather than the mechanism, so moving the check up here stays possible
+// and losing it does not.
 func (h *Handler) lookupTerm(w http.ResponseWriter, r *http.Request) (websiteID, termID int64, ok bool, err error) {
 	websiteID, _, ok, err = h.lookupWebsite(w, r)
 	if err != nil || !ok {
