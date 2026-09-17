@@ -96,20 +96,37 @@ with the raw coverage output committed beside it.
       cannot see: a field an `html/template` reads through reflection, which is
       why types are listed apart from functions and values.
 
-## The two limitations that are recorded and still true
+## The two limitations that were recorded — both now closed
 
-- [ ] **GAP-01**: **A snippet's image, reference and term fields survive a
+- [x] **GAP-01**: **A snippet's image, reference and term fields survive a
       bundle, or the limit is in the ledger and in front of the operator.**
-      `internal/bundle/import.go:1008`. Ids are translated on the page path and
-      not on the snippet path, so on the other machine the value is refused and
-      the field arrives with its picture missing. Today the operator finds out by
-      looking.
-- [ ] **GAP-02**: **An album marker is replaced knowing whether it stands in
+      Ids were translated on the page path and not on the snippet path, so on
+      the other machine the value was refused and the field arrived with its
+      picture missing. The operator found out by looking.
+      *Done:* they travel through the same translation a page's values do —
+      `exportSnippets` takes the three maps, `importSnippets` runs after the
+      pages and resolves a reference in the main language. Group rows included,
+      because a snippet has its own form. The old warning is gone; what replaces
+      it is two messages rather than one, because a value that breaks its
+      field's rules has to be corrected and a value that names nothing has to be
+      chosen again — different remedies, different sentences. An archive written
+      before v2.4 carries raw ids; they are dropped rather than stored as a
+      foreign id, and the drop is reported.
+      Proven by `TestASnippetsPictureAndReferenceSurviveTheRoundTrip` (which
+      insists on the COPY's ids, not merely on non-empty) and
+      `TestASnippetsRawIdFromAnOldArchiveIsDroppedAndReported`.
+- [x] **GAP-02**: **An album marker is replaced knowing whether it stands in
       text or in an attribute, or the limit is in the ledger.**
-      `internal/block/render.go:494`. Recorded rather than fixed because the fix
-      is a change to the mechanism; reachable only by an authenticated editor on
-      their own website. Either it is fixed or it is an entry with a reason a
-      reader can check — what it must not stay is a comment nobody counts.
+      *Done:* `internal/marker`. `OnlyInText` drops every match that is not
+      character data — an attribute value, a comment, the content of `<style>` —
+      before the context-free substitution runs, tokenizing rather than parsing
+      so a document with nothing to remove comes back byte for byte. Wired into
+      `ReplaceAlbumMarkers` **and** `snippet.Expand`, which had the identical
+      hole because it is the same idea; `ResolveWords` does not need it and the
+      package says why (its expansion is escaped text).
+      Proven by `TestAnAlbumMarkerInAnAttributeDoesNotBreakTheMarkup`,
+      `TestASnippetMarkerInAnAttributeIsNotExpanded`, and
+      `TestTheTokensAreTheDocument` for the property the mechanism rests on.
 
 ## Standing gates
 

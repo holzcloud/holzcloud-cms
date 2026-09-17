@@ -138,6 +138,18 @@ Auszeichnungsschaden auf einer Seite, selbst zugefügt von einem angemeldeten
 Redakteur auf seiner eigenen Website, keine Reichweite über die Websitegrenze.**
 Der Befund ist der Kommentar, nicht der Schaden.
 
+> **Geschlossen am 2026-09-16 (v2.4, GAP-02).** Nicht nur der Kommentar,
+> sondern auch der Schaden. `internal/marker.OnlyInText` entfernt jeden Treffer,
+> der keine Zeichendaten sind — Attributwert, Kommentar, Inhalt von `<style>` —,
+> bevor die kontextfreie Ersetzung läuft; es tokenisiert statt zu parsen, ein
+> Dokument ohne zu Entfernendes kommt Byte für Byte zurück. Eingehängt in
+> `ReplaceAlbumMarkers` **und** in `snippet.Expand`, das dasselbe Loch hatte,
+> weil es dieselbe Idee ist. `ResolveWords` braucht es nicht und das Paket sagt
+> warum: seine Erweiterung ist maskierter Text. Rot gefahren, dann grün:
+> `TestAnAlbumMarkerInAnAttributeDoesNotBreakTheMarkup`,
+> `TestASnippetMarkerInAnAttributeIsNotExpanded`. Damit ruht **T-11-21** nicht
+> mehr auf einem Kommentar, der das Gegenteil des Gemessenen sagt.
+
 **UF-2 — die Zahl *verschiedener* Alben, die eine Seite nennt, ist unbegrenzt.**
 `MaxBlocks = 60` begrenzt Galeriebausteine, aber ein einzelner Textbaustein kann
 beliebig viele verschiedene `[[album:aN:1]]` tragen (oben bewiesen), und ein
