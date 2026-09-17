@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/field"
+	"github.com/holzcloud/holzcloud-cms/internal/marker"
 	// For i18n.N alone, which marks a literal so the collector can see it.
 	// i18n is a leaf with no database and no HTTP, so the purity this
 	// package's own doc comment claims is untouched.
@@ -479,10 +480,10 @@ const closeTarget = "hc-zu"
 //	in : <a href="/x?q=[[album:sommer-2025:1]]">klick</a>
 //	out: <p><a href="/x?q=[[album:sommer-2025:1]]" rel="nofollow">klick</a></p>
 //
-// The second line is the one that matters: an editor writing raw HTML can put
-// the marker inside an ATTRIBUTE VALUE, and the replacement below is a
-// context-free string substitution — so the gallery's first quotation mark
-// ends the attribute and the markup after it is not what anybody wrote.
+// The second line is the one that mattered: an editor writing raw HTML can put
+// the marker inside an ATTRIBUTE VALUE, and a context-free string substitution
+// expands it there — so the gallery's first quotation mark ends the attribute
+// and the markup after it is not what anybody wrote.
 //
 // The audit tried to make that reach further and could not. Everything after
 // the break is renderer-generated, alt text and captions go through
@@ -491,12 +492,14 @@ const closeTarget = "hc-zu"
 // inline script regardless. So: broken markup on one page, done by an
 // authenticated editor to their own website, with no reach across websites.
 //
-// It is written down rather than fixed because the fix is a context-aware
-// replacement — the marker would have to know whether it sits in text or in an
-// attribute — and that is a change to the mechanism, not a correction to it.
-// What is fixed is the claim: this comment was cited by two threat rows as the
-// reason no check was needed, and it asserted the opposite of what the code
-// does.
+// It stood written down rather than fixed, on the grounds that the fix was a
+// context-aware replacement — the marker would have to know whether it sits in
+// text or in an attribute — and that this is a change to the mechanism rather
+// than a correction to it. That was true, and the change is now made:
+// ReplaceAlbumMarkers below drops every match that is not in text before it
+// expands anything. internal/marker is the mechanism, shared with the snippet
+// marker, which had the identical hole because it is the same idea. The case is
+// TestAnAlbumMarkerInAnAttributeDoesNotBreakTheMarkup in block_test.go.
 const albumMarkerPrefix = "[[album:"
 
 // albumMarkerPattern matches the marker albumMarkerPrefix opens.
@@ -591,6 +594,12 @@ func ReplaceAlbumMarkers(html string, expand func(slug string, at, columns int, 
 	if !hasAlbumMarker(html) {
 		return html
 	}
+	// First the markers that are not in text, because the replacement below
+	// cannot see where it is. An editor may type this marker into a text block
+	// and put it inside an attribute value, where expanding it ends the
+	// attribute at the gallery's first quotation mark and the markup after it
+	// is not what anybody wrote. internal/marker is the whole argument.
+	html = marker.OnlyInText(html, albumMarkerPattern)
 	return albumMarkerPattern.ReplaceAllStringFunc(html, func(match string) string {
 		parts := albumMarkerPattern.FindStringSubmatch(match)
 		at, err := strconv.Atoi(parts[2])
