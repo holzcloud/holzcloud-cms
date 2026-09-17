@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -190,11 +191,19 @@ func (h *Handler) HandleSetPassword(purpose string) func(http.ResponseWriter, *h
 	}
 }
 
+// linkTitle is the heading of the screen behind an invite or a reset link.
+//
+// i18n.N and not a bare literal. NewLayoutData translates the title it is
+// given, but the collector reads CALL SITES and this one hands it a function
+// call — so both sentences were invisible to the gate, which reported neither
+// open nor orphaned about them, and both were still German on a program whose
+// source language has been English since v2.0. Marking them here is what puts
+// them in the catalogue; the translation happens where the title is used.
 func linkTitle(purpose string) string {
 	if purpose == user.PurposeInvite {
-		return "Zugang einrichten"
+		return i18n.N("Set up access")
 	}
-	return "Neues Passwort setzen"
+	return i18n.N("Set a new password")
 }
 
 // invalidLink answers every bad token the same way.

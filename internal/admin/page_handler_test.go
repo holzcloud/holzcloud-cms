@@ -14,7 +14,6 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/alexedwards/scs/v2/memstore"
-	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
 	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
@@ -66,7 +65,12 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 	// one — so a test could activate a theme and then render the wrong one
 	// without anything noticing.
 	tmplStore := tmplmgr.NewStore(database, dir)
-	h := NewHandler(database, sm, templates, auth.Argon2Params{}, domains,
+	// cheapHashing and not the zero value: NewHandler builds the user store with
+	// whatever it is given, so a zero Argon2Params made every handler that
+	// hashes a password PANIC — "number of rounds too small" — rather than fail
+	// a test. Cheap rather than real, because a test that spends 64MB and a
+	// tenth of a second per password is a test people stop running.
+	h := NewHandler(database, sm, templates, cheapHashing, domains,
 		domain.NewResolver(domains), page.NewStore(database), tmplStore,
 		menu.NewStore(database), media.NewStore(database), snippet.NewStore(database),
 		term.NewStore(database),
