@@ -143,7 +143,11 @@ func (h *Handler) HandlePageDuplicate(w http.ResponseWriter, r *http.Request) er
 
 	copy, err := h.pages.CreatePage(r.Context(), page.PageCreate{
 		WebsiteID: websiteID,
-		Title:     src.Title + " (Kopie)",
+		// Through the catalogue and not glued on in Go: the suffix is a word
+		// the operator reads and then edits, and a concatenation is invisible
+		// to the collector — it reports neither open nor orphaned about it, so
+		// an English installation went on titling copies "… (Kopie)".
+		Title: web.Titlef(r, "%s (copy)", src.Title),
 		// CreatePage uniquifies the slug, so the copy lands on "kontakt-2"
 		// rather than failing on the constraint.
 		Slug:     src.Slug,
