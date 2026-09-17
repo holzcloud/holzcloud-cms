@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: "What Has Accumulated"
-current_phase: 17
-current_phase_name: "What has accumulated"
-status: in_progress
-stopped_at: "17-01 (DOC), 17-02 (SURF) und 17-03 (die zwei festgehaltenen Maengel) sind gefahren; Phase 17 ist damit inhaltlich fertig. 17-03 hat GAP-01 und GAP-02 geschlossen, beide durch Rot-zuerst gefahrene Tests belegt. GAP-01: die Bildwerte, Verweise und Schlagwoerter eines Textbausteins reisen jetzt durch dieselbe Uebersetzung wie die einer Seite - exportSnippets nach exportPages, importSnippets nach importPages, Gruppenzeilen eingeschlossen, Verweise in der Hauptsprache. Die alte Warnung ist weg, statt ihrer zwei Saetze, weil ein regelwidriger Wert korrigiert und ein ins Leere zeigender neu gewaehlt werden muss. GAP-02: das neue Paket internal/marker entfernt jeden Treffer, der keine Zeichendaten sind, bevor die kontextfreie Ersetzung laeuft - eingehaengt in ReplaceAlbumMarkers und in snippet.Expand, das dasselbe Loch hatte; ResolveWords braucht es nicht, weil es maskiert. UF-1 aus dem Phase-11-Bericht traegt einen datierten Schlussvermerk. Naechstes: Phase 18, die Verwaltung unter Test (TEST-01/02/03), von 35.9 Prozent ueber 171 Routen aus."
-last_updated: "2026-09-16T00:00:00.000Z"
-last_activity: 2026-09-16
+current_phase: 18
+current_phase_name: "The administration under test"
+status: complete
+stopped_at: "v2.4 ist am 2026-09-17 geschlossen: dreizehn Anforderungen, dreizehn erfuellt, keine verschoben. internal/admin von 35.9 auf 59.3 Prozent, internal/branding von 0 auf 95.7. 164 Mutationen gefahren, 158 gefangen, die sechs uebrigen mit Messung als gleichwertig festgehalten. Elf Maengel gefunden - vier davon haetten einem Betreiber weh getan (eine Domain ueber den falschen Bildschirm entfernbar; drei Produkte, die als null zaehlten und die Warnung beim Loeschen verstummen liessen; ein Menue, das sich beim Umbenennen unsichtbar machen konnte; eine SVG-Pruefung, die vier Schreibweisen durchliess), fuenf waren Saetze, die das Uebersetzungstor nicht einmal kannte. Jeder einzelne beim SCHREIBEN eines Tests gefunden, nicht beim Lesen. Dazu drei Fehler in der Testumgebung selbst. Neues Tor: tools/assembled. QUAL-02 zum ersten Mal ohne Befund. Naechstes: Ausgabe 2.4 veroeffentlichen, dann v2.5 'Auf dem Telefon' - geplant und gemessen, siehe v2.5-REQUIREMENTS.md und v2.5-PHONE-SURVEY.txt."
+last_updated: "2026-09-17T00:00:00.000Z"
+last_activity: 2026-09-17
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 4
-  completed_plans: 4
-  percent: 50
+  completed_phases: 2
+  total_plans: 7
+  completed_plans: 7
+  percent: 100
 ---
 
 ## State: Holzcloud CMS
