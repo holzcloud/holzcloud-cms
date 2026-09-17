@@ -1,19 +1,19 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.4
-milestone_name: "What Has Accumulated"
-current_phase: 18
-current_phase_name: "The administration under test"
-status: complete
-stopped_at: "v2.4 ist am 2026-09-17 geschlossen: dreizehn Anforderungen, dreizehn erfuellt, keine verschoben. internal/admin von 35.9 auf 59.3 Prozent, internal/branding von 0 auf 95.7. 164 Mutationen gefahren, 158 gefangen, die sechs uebrigen mit Messung als gleichwertig festgehalten. Elf Maengel gefunden - vier davon haetten einem Betreiber weh getan (eine Domain ueber den falschen Bildschirm entfernbar; drei Produkte, die als null zaehlten und die Warnung beim Loeschen verstummen liessen; ein Menue, das sich beim Umbenennen unsichtbar machen konnte; eine SVG-Pruefung, die vier Schreibweisen durchliess), fuenf waren Saetze, die das Uebersetzungstor nicht einmal kannte. Jeder einzelne beim SCHREIBEN eines Tests gefunden, nicht beim Lesen. Dazu drei Fehler in der Testumgebung selbst. Neues Tor: tools/assembled. QUAL-02 zum ersten Mal ohne Befund. Naechstes: Ausgabe 2.4 veroeffentlichen, dann v2.5 'Auf dem Telefon' - geplant und gemessen, siehe v2.5-REQUIREMENTS.md und v2.5-PHONE-SURVEY.txt."
+milestone: v2.5
+milestone_name: "On the Phone"
+current_phase: 19
+current_phase_name: "On the phone"
+status: in_progress
+stopped_at: "19-01 ist fertig: PHONE-01 geschlossen. Alle 29 Verwaltungsbildschirme messen bei 390x844 jetzt 0 Ueberlauf und 0 nicht gehaltene Kaesten; vorher liefen sieben ueber, bis zu 338px. Die Ursache war NICHT die, die die Vermessung vermutet hatte: die Container-Abfrage greift, die Karte scrollt, und was hinauslief war ein .sr-only - position: absolute ohne positionierten Vorfahren, also an seiner statischen Stelle weit draussen in der breiten Tabelle. Eine Zeile position: relative nahm fuenf Bildschirme auf 0. Das Protokoll war der einzige echte Fall der vermuteten Ursache (Tabelle in #activity-list, das die Regel nicht kannte). Dazu: Domainzeile ohne flex-wrap, und der Markdown-Spickzettel 24px zu breit, wenn er offen ist. Naechstes: 19-02 (PHONE-02, Tippziele 44px). OFFEN und blockiert: Ausgabe 2.4 ist NICHT veroeffentlicht - der Push auf den release-Zweig wurde von der Berechtigungspruefung abgelehnt."
 last_updated: "2026-09-17T00:00:00.000Z"
 last_activity: 2026-09-17
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 1
+  percent: 25
 ---
 
 ## State: Holzcloud CMS

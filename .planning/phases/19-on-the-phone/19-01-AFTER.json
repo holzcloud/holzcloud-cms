@@ -1,0 +1,1929 @@
+[
+ {
+  "name": "Overview",
+  "route": "/admin/",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.website-card__name",
+    "w": 308,
+    "h": 24
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 53,
+    "h": 28
+   },
+   {
+    "el": "a.activity-item__title",
+    "w": 68,
+    "h": 16
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Websites",
+  "route": "/admin/websites",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn.btn--primary",
+    "w": 123,
+    "h": 39
+   },
+   {
+    "el": "summary",
+    "w": 308,
+    "h": 24
+   },
+   {
+    "el": "button.btn.btn--danger",
+    "w": 57,
+    "h": 28
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "New website",
+  "route": "/admin/websites/new",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#name.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 139,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Website settings",
+  "route": "/admin/websites/1",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#name.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#locale.form-input.form-select",
+    "w": 289,
+    "h": 39
+   },
+   {
+    "el": "select#timezone.form-input.form-select",
+    "w": 245,
+    "h": 39
+   },
+   {
+    "el": "input#extra_locales.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#favicon_media_id.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "select#logo_media_id.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "input",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "a.btn",
+    "w": 190,
+    "h": 39
+   },
+   {
+    "el": "select#org_type.form-input.form-select",
+    "w": 304,
+    "h": 39
+   },
+   {
+    "el": "input#street.form-input",
+    "w": 234,
+    "h": 42
+   },
+   {
+    "el": "input#postal_code.form-input",
+    "w": 234,
+    "h": 42
+   },
+   {
+    "el": "input#city.form-input",
+    "w": 234,
+    "h": 42
+   },
+   {
+    "el": "input#country.form-input",
+    "w": 234,
+    "h": 42
+   },
+   {
+    "el": "input#phone.form-input",
+    "w": 304,
+    "h": 42
+   },
+   {
+    "el": "input#contact_email.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#notify_email.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#blog_base.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#posts_per_page.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#offline_mode.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 132,
+    "h": 39
+   },
+   {
+    "el": "button.btn.btn--sm",
+    "w": 198,
+    "h": 28
+   },
+   {
+    "el": "button.btn.btn--danger",
+    "w": 67,
+    "h": 28
+   },
+   {
+    "el": "input#domain.form-input",
+    "w": 74,
+    "h": 42
+   }
+  ],
+  "tiny": [
+   {
+    "el": "input",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   }
+  ]
+ },
+ {
+  "name": "Design",
+  "route": "/admin/websites/1/design",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "select#token_font.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "input#token_measure.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#token_radius.form-input",
+    "w": 233,
+    "h": 42
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 119,
+    "h": 39
+   },
+   {
+    "el": "button.btn",
+    "w": 187,
+    "h": 39
+   },
+   {
+    "el": "a.btn",
+    "w": 67,
+    "h": 39
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 97,
+    "h": 28
+   }
+  ],
+  "tiny": [
+   {
+    "el": "input",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   }
+  ]
+ },
+ {
+  "name": "Wording",
+  "route": "/admin/websites/1/woerter",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.website-card__name",
+    "w": 308,
+    "h": 24
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 53,
+    "h": 28
+   },
+   {
+    "el": "a.activity-item__title",
+    "w": 68,
+    "h": 16
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Pages",
+  "route": "/admin/websites/1/pages",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn.btn--primary",
+    "w": 104,
+    "h": 39
+   },
+   {
+    "el": "input#q.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#status.form-input.form-select",
+    "w": 132,
+    "h": 39
+   },
+   {
+    "el": "select#kind.form-input.form-select",
+    "w": 140,
+    "h": 39
+   },
+   {
+    "el": "select#sort.form-input.form-select",
+    "w": 229,
+    "h": 39
+   },
+   {
+    "el": "button.btn",
+    "w": 74,
+    "h": 39
+   },
+   {
+    "el": "summary.btn.btn--sm",
+    "w": 70,
+    "h": 28
+   },
+   {
+    "el": "input#select-1",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "summary.rowmenu-trigger",
+    "w": 30,
+    "h": 28
+   },
+   {
+    "el": "input#select-2",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "input#select-3",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "select#bulk-action.form-input.form-select",
+    "w": 208,
+    "h": 39
+   }
+  ],
+  "tiny": [
+   {
+    "el": "input#select-1",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   },
+   {
+    "el": "input#select-2",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   },
+   {
+    "el": "input#select-3",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   }
+  ]
+ },
+ {
+  "name": "New page",
+  "route": "/admin/websites/1/pages/new",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#title.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#slug.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "summary",
+    "w": 308,
+    "h": 21
+   },
+   {
+    "el": "button.btn.btn--sm",
+    "w": 134,
+    "h": 28
+   },
+   {
+    "el": "select#kind.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "input#tags.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#status.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 120,
+    "h": 39
+   },
+   {
+    "el": "a.btn",
+    "w": 81,
+    "h": 39
+   }
+  ],
+  "tiny": [
+   {
+    "el": "textarea#content_markdown.form-input.form-textarea",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   }
+  ]
+ },
+ {
+  "name": "Edit page",
+  "route": "/admin/websites/1/pages/1/edit",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#title.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#slug.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "summary",
+    "w": 308,
+    "h": 21
+   },
+   {
+    "el": "button.btn.btn--sm",
+    "w": 134,
+    "h": 28
+   },
+   {
+    "el": "select#kind.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "button.btn",
+    "w": 201,
+    "h": 39
+   },
+   {
+    "el": "input#tags.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#status.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 132,
+    "h": 39
+   },
+   {
+    "el": "a.btn",
+    "w": 81,
+    "h": 39
+   }
+  ],
+  "tiny": [
+   {
+    "el": "textarea#content_markdown.form-input.form-textarea",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   }
+  ]
+ },
+ {
+  "name": "Media",
+  "route": "/admin/websites/1/media",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#media.form-input",
+    "w": 308,
+    "h": 43
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 83,
+    "h": 39
+   },
+   {
+    "el": "input#q.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#kind.form-input.form-select",
+    "w": 146,
+    "h": 39
+   },
+   {
+    "el": "input",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "button.btn",
+    "w": 69,
+    "h": 39
+   }
+  ],
+  "tiny": [
+   {
+    "el": "input",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   }
+  ]
+ },
+ {
+  "name": "Menus",
+  "route": "/admin/websites/1/menus",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 53,
+    "h": 28
+   },
+   {
+    "el": "input#name.form-input",
+    "w": 160,
+    "h": 42
+   },
+   {
+    "el": "input#location_key.form-input",
+    "w": 140,
+    "h": 42
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 81,
+    "h": 39
+   },
+   {
+    "el": "button.btn.btn--danger",
+    "w": 57,
+    "h": 28
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Labels",
+  "route": "/admin/websites/1/tags",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn",
+    "w": 161,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Snippets",
+  "route": "/admin/websites/1/bausteine",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.website-card__name",
+    "w": 308,
+    "h": 24
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 53,
+    "h": 28
+   },
+   {
+    "el": "a.activity-item__title",
+    "w": 68,
+    "h": 16
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Fields",
+  "route": "/admin/websites/1/felder",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#feld-beschriftung.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#feld-art.form-input",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "select#feld-darstellung.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "input#feld-max-werte.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#feld-min-wert.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#feld-max-wert.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#feld-gilt.form-input",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "input#feld-hinweis.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 115,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Kinds",
+  "route": "/admin/websites/1/arten",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.website-card__name",
+    "w": 308,
+    "h": 24
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 53,
+    "h": 28
+   },
+   {
+    "el": "a.activity-item__title",
+    "w": 68,
+    "h": 16
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Block kinds",
+  "route": "/admin/websites/1/bausteinarten",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#art-name.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#art-hinweis.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 156,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Albums",
+  "route": "/admin/websites/1/alben",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.website-card__name",
+    "w": 308,
+    "h": 24
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 53,
+    "h": 28
+   },
+   {
+    "el": "a.activity-item__title",
+    "w": 68,
+    "h": 16
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Translations",
+  "route": "/admin/websites/1/uebersetzungen",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn",
+    "w": 123,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Templates",
+  "route": "/admin/templates",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn.btn--primary",
+    "w": 164,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Upload a template",
+  "route": "/admin/templates/upload",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#name.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#template_file.form-input",
+    "w": 308,
+    "h": 43
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 83,
+    "h": 39
+   },
+   {
+    "el": "a.btn",
+    "w": 81,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Plugins",
+  "route": "/admin/plugins",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "summary.panel__summary",
+    "w": 358,
+    "h": 24
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Email",
+  "route": "/admin/mail",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "AI access",
+  "route": "/admin/ai",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#ai-name.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#ai-website.form-input",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "select#ai-rechte.form-input",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "input#ai-tage.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 112,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Languages",
+  "route": "/admin/sprachen",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "button.btn",
+    "w": 88,
+    "h": 39
+   },
+   {
+    "el": "input#datei.form-input",
+    "w": 308,
+    "h": 43
+   },
+   {
+    "el": "input#kuerzel.form-input",
+    "w": 238,
+    "h": 42
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 83,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Brand",
+  "route": "/admin/marke",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#name.form-input",
+    "w": 234,
+    "h": 42
+   },
+   {
+    "el": "input#zeichen.form-input",
+    "w": 96,
+    "h": 42
+   },
+   {
+    "el": "input#logo.form-input",
+    "w": 308,
+    "h": 43
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 68,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Activity log",
+  "route": "/admin/protokoll",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "select#website_id.form-input.form-select",
+    "w": 190,
+    "h": 39
+   },
+   {
+    "el": "input#action.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#user_id.form-input",
+    "w": 112,
+    "h": 42
+   },
+   {
+    "el": "button.btn",
+    "w": 69,
+    "h": 39
+   },
+   {
+    "el": "a.btn.btn--sm",
+    "w": 52,
+    "h": 28
+   },
+   {
+    "el": "button.btn.btn--danger",
+    "w": 80,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "Users",
+  "route": "/admin/users",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn.btn--primary",
+    "w": 100,
+    "h": 39
+   },
+   {
+    "el": "button.btn.btn--sm",
+    "w": 117,
+    "h": 28
+   }
+  ],
+  "tiny": []
+ },
+ {
+  "name": "New user",
+  "route": "/admin/users/new",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.nav-item.is-active",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "input#name.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "input#email.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "select#role.form-input",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "input",
+    "w": 13,
+    "h": 13
+   },
+   {
+    "el": "input#password.form-input",
+    "w": 308,
+    "h": 42
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 116,
+    "h": 39
+   }
+  ],
+  "tiny": [
+   {
+    "el": "input",
+    "px": 14,
+    "note": "iOS zooms on focus"
+   }
+  ]
+ },
+ {
+  "name": "My account",
+  "route": "/admin/konto",
+  "status": 200,
+  "over": 0,
+  "wide": [],
+  "small": [
+   {
+    "el": "input#sidebar-toggle.sidebar-toggle",
+    "w": 1,
+    "h": 1
+   },
+   {
+    "el": "a.topbar-brand",
+    "w": 26,
+    "h": 26
+   },
+   {
+    "el": "summary.switcher-current",
+    "w": 154,
+    "h": 31
+   },
+   {
+    "el": "summary.topbar-user",
+    "w": 36,
+    "h": 32
+   },
+   {
+    "el": "a.nav-item",
+    "w": 233,
+    "h": 35
+   },
+   {
+    "el": "a.btn",
+    "w": 159,
+    "h": 39
+   },
+   {
+    "el": "select#sprache.form-input.form-select",
+    "w": 308,
+    "h": 39
+   },
+   {
+    "el": "button.btn.btn--primary",
+    "w": 68,
+    "h": 39
+   },
+   {
+    "el": "button.btn",
+    "w": 176,
+    "h": 39
+   }
+  ],
+  "tiny": []
+ }
+]

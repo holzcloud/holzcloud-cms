@@ -431,14 +431,45 @@
 
         /* Eine Tabelle wird auf einem Telefon nicht schmal. Sie darf scrollen —
            aber in ihrer Karte, nicht mit der ganzen Seite: eine Seite, die sich
-           seitwärts schieben lässt, fühlt sich kaputt an. */
-        .card:has(> .table),
-        .card:has(> #page-list) {
+           seitwärts schieben lässt, fühlt sich kaputt an.
+
+           position: relative gehört zu overflow-x und ist nicht dekorativ. Ohne
+           es hielt die Karte die Tabelle zwar fest, aber nicht alles darin: ein
+           .sr-only ist position: absolute, und ohne positionierten Vorfahren
+           ist sein umschliessender Block die Seite. Es landet dann an seiner
+           statischen Stelle — weit draussen im breiten Teil der Tabelle — und
+           schiebt die ganze Seite so weit nach rechts, wie es selbst steht.
+           Gemessen am 17.09.2026 bei 390px: Benutzer 275px, Seiten 187px,
+           Sprachen 97px, Websites 50px, Menüs 41px. Mit dieser einen Zeile:
+           überall 0. Die Tabelle scrollte die ganze Zeit richtig; hinaus lief
+           ein Text, den niemand sieht.
+
+           Nach dem Nachkommen gefragt und nicht nach dem Kind: eine Tabelle
+           liegt mal direkt in der Karte (Websites, Benutzer, Menüs, Sprachen)
+           und mal in einem Behälter, den htmx tauscht (#page-list,
+           #activity-list). Die alte Regel zählte diese Behälter einzeln auf
+           und hatte #activity-list vergessen — das Protokoll lief deshalb als
+           einziger Bildschirm 338px über den Rand, während alle anderen
+           Tabellen schon sauber scrollten. Ein Nachkomme statt einer Liste von
+           Namen kann das nicht noch einmal passieren. */
+        .card:has(.table) {
             overflow-x: auto;
+            position: relative;
         }
 
         .table {
             min-width: 34rem;
+        }
+
+        /* Der Spickzettel ist eine Tabelle mit Code darin, und Code darf nicht
+           mitten im Wort brechen: „![Bild](/media/1/foto.jpg)" ist nur als ein
+           Stück zu gebrauchen. Also scrollt der Zettel in sich, wie die Listen
+           in ihrer Karte. Gemessen am 17.09.2026: aufgeklappt 24px über den
+           Rand, und aufgeklappt ist der einzige Zustand, in dem ihn jemand
+           liest. */
+        .markdown-help {
+            overflow-x: auto;
+            position: relative;
         }
 
         /* In einer scrollenden Karte würde ein aufgeklapptes Menü abgeschnitten.
@@ -1188,8 +1219,14 @@
     }
 
     /* Domain management */
+    /* Eine Zeile aus Domainname, „zur Hauptdomain machen" und „Entfernen"
+       passt auf einem Telefon nicht nebeneinander. Sie bricht um, statt die
+       Seite breiter zu machen: gemessen am 17.09.2026 lief die Einstellungs-
+       seite einer Website dadurch 59px über den Rand hinaus, und der Knopf,
+       der dort hinausragte, war ausgerechnet „Entfernen". */
     .domain-item {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: var(--space-1);
         padding: var(--space-1) 0;
@@ -1200,9 +1237,14 @@
         border-bottom: none;
     }
 
+    /* Ein Domainname hat keine Leerzeichen, an denen er brechen könnte. Ohne
+       overflow-wrap steht er als ein Wort da und macht die Zeile so breit, wie
+       er lang ist — umbrechen dürfen hilft nur dem Rest der Zeile. */
     .domain-name {
         font-size: var(--text-sm);
         font-family: var(--font-mono);
+        overflow-wrap: anywhere;
+        min-width: 0;
     }
 
     .domain-add-row {

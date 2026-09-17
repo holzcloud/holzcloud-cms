@@ -332,7 +332,7 @@ faults in the test harness itself came out with them. Full account in
 
 ---
 
-### 📋 v2.5 — On the Phone (planned 2026-09-17, starts when v2.4 closes)
+### 🔄 v2.5 — On the Phone (opened 2026-09-17)
 
 Asked for in one sentence: **„die webapp soll komplett auch auf dem handy
 nutzbar sein"**. Scope settled the same day with the measurement in hand — all
@@ -355,9 +355,24 @@ first rather than being left half-measured.
 
 ---
 
+### Phase 19: On the phone
+
+- [x] **19-01** — PHONE-01: no admin screen wider than the phone. Twenty-nine
+      screens, all at 0 overflow. The survey's suspected cause was wrong on six
+      of the seven: the container query applies, the card scrolls, and what ran
+      out was a `.sr-only` — `position: absolute` with no positioned ancestor,
+      so it sits at its static position far out in the wide table and drags the
+      page out to meet it. One line. The Activity log was the one real case of
+      the suspected cause. See `19-01-VERIFICATION.md`.
+- [ ] **19-02** — PHONE-02: every control at least 44 × 44.
+- [ ] **19-03** — PHONE-03: every typing field at least 16px.
+- [ ] **19-04** — PHONE-04 and PHONE-05: measure again and drive it by hand.
+
+---
+
 ## Progress
 
-Phases 13 to 18 are complete; v2.1 to v2.4 are closed. **v2.5 „On the Phone" is next**, planned and measured. Numbering continues from 19; it never restarts.
+Phases 13 to 18 are complete; v2.1 to v2.4 are closed. **v2.5 „On the Phone" is running** as Phase 19, one plan of four done. Numbering continues from 19; it never restarts.
 
 Phase 18 is the one to remember: eleven defects, and every one found by writing
 a test for a screen. Not by reading the code, not by a tool, not by the browser
