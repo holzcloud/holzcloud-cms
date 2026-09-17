@@ -48,18 +48,27 @@ found is that some of it does not reach.
       wide when open, which is the only state anybody reads it in.
       *Done: all twenty-nine screens at 0 overflow and 0 unheld boxes. See
       `phases/19-on-the-phone/19-01-VERIFICATION.md`.*
-- [ ] **PHONE-02**: **Every control is at least 44 × 44 pixels.** That is the
+- [x] **PHONE-02**: **Every control is at least 44 × 44 pixels.** That is the
       figure Apple's guidelines and WCAG 2.2's target-size rule both land on.
       All twenty-nine screens fail it, and the same handful of elements is
       responsible on every one: the hamburger (32 × 32), the brand (26 × 26),
       the user menu (36 × 32), the website switcher's rows (35px) and the
       navigation items. Fix those five and twenty-nine screens improve at once.
       The buttons (`.btn`, `.btn--sm`) and the form fields are the second tier.
-- [ ] **PHONE-03**: **Every field a person types into is at least 16px.** Below
+      *Done: 0 on all twenty-nine, from 13–33 each. Hung on `(pointer: coarse)`
+      rather than a width — the number is about fingers, so a phone held
+      sideways gets it and a desk does not. One stated exception: a tick box is
+      24 × 24, the minimum WCAG 2.2 SC 2.5.8 sets, in a 44px row, because a
+      tick box the size of a button is not a tick box. See
+      `phases/19-on-the-phone/19-02-VERIFICATION.md`.*
+- [x] **PHONE-03**: **Every field a person types into is at least 16px.** Below
       that iOS zooms the page on focus and does not zoom back, which turns one
       tap into a pinch and a scroll. The page editor's own textarea is on the
       list, which is the worst place for it. A radio button or a checkbox is
       not a typing field and is not covered.
+      *Done: 0 on all twenty-nine. Once the tick boxes came out of the list —
+      as this requirement's own last sentence already said they should — the
+      page editor's writing box was the only field left. It is 1rem now.*
 - [ ] **PHONE-04**: **The measurement is repeated and committed.** The same
       twenty-nine screens, the same three numbers, beside the first reading. A
       requirement that says "it is better now" without a second measurement is

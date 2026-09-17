@@ -5,15 +5,15 @@ milestone_name: "On the Phone"
 current_phase: 19
 current_phase_name: "On the phone"
 status: in_progress
-stopped_at: "19-01 ist fertig: PHONE-01 geschlossen. Alle 29 Verwaltungsbildschirme messen bei 390x844 jetzt 0 Ueberlauf und 0 nicht gehaltene Kaesten; vorher liefen sieben ueber, bis zu 338px. Die Ursache war NICHT die, die die Vermessung vermutet hatte: die Container-Abfrage greift, die Karte scrollt, und was hinauslief war ein .sr-only - position: absolute ohne positionierten Vorfahren, also an seiner statischen Stelle weit draussen in der breiten Tabelle. Eine Zeile position: relative nahm fuenf Bildschirme auf 0. Das Protokoll war der einzige echte Fall der vermuteten Ursache (Tabelle in #activity-list, das die Regel nicht kannte). Dazu: Domainzeile ohne flex-wrap, und der Markdown-Spickzettel 24px zu breit, wenn er offen ist. Naechstes: 19-02 (PHONE-02, Tippziele 44px). OFFEN und blockiert: Ausgabe 2.4 ist NICHT veroeffentlicht - der Push auf den release-Zweig wurde von der Berechtigungspruefung abgelehnt."
+stopped_at: "19-01 bis 19-03 sind fertig: PHONE-01, PHONE-02 und PHONE-03 geschlossen. Alle 29 Verwaltungsbildschirme messen bei 390x844 jetzt 0 Ueberlauf, 0 zu kleine Bedienelemente, 0 zu kleine Tippfelder - vorher sieben ueberlaufende Bildschirme (bis 338px) und 13 bis 33 zu kleine Elemente je Bildschirm. PHONE-01: die Ursache war nicht die vermutete - die Container-Abfrage greift, hinaus lief ein .sr-only (position: absolute ohne positionierten Vorfahren). PHONE-02 haengt an (pointer: coarse), nicht an einer Breite, und setzt nur Mindestmasse; ein Ankreuzfeld ist die festgehaltene Ausnahme bei 24x24 in einer 44px-Zeile. PHONE-03 war am Ende ein einziges Feld: das grosse Schreibfeld des Seiteneditors bei 14px. Drei Fehler am Messgeraet selbst gefunden und behoben. Naechstes: 19-04 (PHONE-04 Messung einchecken, PHONE-05 von Hand durchfahren). OFFEN und blockiert: Ausgabe 2.4 ist NICHT veroeffentlicht - der Push auf den release-Zweig wurde von der Berechtigungspruefung abgelehnt."
 last_updated: "2026-09-17T00:00:00.000Z"
 last_activity: 2026-09-17
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
-  percent: 25
+  completed_plans: 3
+  percent: 75
 ---
 
 ## State: Holzcloud CMS

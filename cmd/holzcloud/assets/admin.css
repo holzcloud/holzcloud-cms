@@ -2919,3 +2919,116 @@ body.is-fullscreen .content-body {
         margin-block-start: var(--space-3);
     }
 }
+
+/* ── Was ein Finger trifft ────────────────────────────────────────────────
+   44 × 44 CSS-Pixel: die Zahl, auf die Apples Richtlinien und WCAG 2.2 (SC
+   2.5.5) unabhängig voneinander kommen. Darunter trifft eine Fingerkuppe das
+   Nachbarelement.
+
+   An (pointer: coarse) gehängt und nicht an eine Breite, weil die Zahl von
+   Fingern handelt und nicht von Bildschirmen: ein Telefon quer ist 926px breit
+   und braucht sie trotzdem, eine Maus auf 390px braucht sie nicht. Am
+   17.09.2026 gemessen: in der Vermessung wie auf einem Telefon trifft
+   (pointer: coarse) zu, am Schreibtisch nicht — die Verwaltung bleibt dort so
+   dicht, wie sie ist.
+
+   Nur Mindestmaße. Keine Regel hier ändert etwas, das schon groß genug ist,
+   und keine setzt eine Farbe, einen Abstand oder eine Schrift. */
+@layer components {
+    @media (pointer: coarse) {
+        /* Die Rahmung: fünf Elemente, die auf ALLEN 29 Bildschirmen stehen.
+           Gemessen vorher: Hamburger 32 × 32, Marke 26 × 26, Benutzermenü
+           36 × 32, Zeile des Umschalters 31, seine Einträge 35, die
+           Navigation 35. */
+        .topbar-hamburger {
+            display: grid;
+            place-items: center;
+            inline-size: 44px;
+            block-size: 44px;
+            padding: 0;
+        }
+
+        .topbar-brand,
+        .topbar-user {
+            min-inline-size: 44px;
+            min-block-size: 44px;
+        }
+
+        .switcher-current,
+        .switcher-item,
+        .nav-item,
+        .rowmenu-trigger,
+        .rowmenu-item {
+            min-block-size: 44px;
+        }
+
+        /* Zweite Stufe: Knöpfe und Felder. .btn deckt auch --sm, --danger,
+           --primary und ein <summary class="btn"> ab; .form-input deckt Text-,
+           Zahlen-, Datums- und Dateifelder und die Klapplisten ab. */
+        .btn,
+        .form-input {
+            min-block-size: 44px;
+        }
+
+        /* Überschriften, die in Wahrheit Links sind: in der Website-Karte und
+           im Protokoll. 24px und 16px hoch — als Text gesetzt, obwohl sie das
+           Ziel sind, das jemand antippt. */
+        .website-card__name,
+        .activity-item__title {
+            display: inline-flex;
+            align-items: center;
+            min-block-size: 44px;
+        }
+
+        /* Jedes <summary> ist ein Bedienelement, auch wenn es wie eine
+           Zwischenüberschrift aussieht. */
+        summary {
+            min-block-size: 44px;
+        }
+
+        /* Ein Dateifeld ohne .form-input — auf dem Plugin-Bildschirm steht
+           eines. Nach dem Typ gefragt statt nach der Klasse, damit das nächste
+           nicht wieder durchrutscht. */
+        input[type="file"] {
+            min-block-size: 44px;
+        }
+
+        /* Ankreuzfelder und Auswahlknöpfe sind der eine Fall, in dem 44 die
+           falsche Zahl ist: ein Häkchen so groß wie ein Knopf ist kein Häkchen
+           mehr. Also beides — das Kästchen auf 24 × 24, die Zahl, die WCAG 2.2
+           (SC 2.5.8) als Mindestmaß setzt und die gegenüber den gemessenen
+           13 × 13 fast die vierfache Fläche ist; und die Zeile, in der es mit
+           seiner Beschriftung steht, auf 44, weil ein Tippen auf die
+           Beschriftung dasselbe tut wie eines auf das Kästchen.
+
+           Zwei bleiben bei 24: die Auswahlkästchen der Seitenliste, deren
+           Beschriftung .sr-only ist. Sie haben keine Zeile, die mit ihnen
+           schaltet. Festgehalten in 19-02-VERIFICATION.md, nicht stillgelegt. */
+        input[type="checkbox"],
+        input[type="radio"] {
+            inline-size: 24px;
+            block-size: 24px;
+            /* Ein Kästchen in einer inline-flex-Zeile ist ein Flex-Element und
+               schrumpft. Ohne diese Zeile stand das gesetzte Maß da und das
+               gemessene war 14px breit — ein Mindestmaß, das der Umbruch still
+               wieder wegnimmt, ist keins. */
+            flex: none;
+        }
+
+        .form-check,
+        .form-check-label {
+            display: inline-flex;
+            align-items: center;
+            min-block-size: 44px;
+        }
+
+        /* PHONE-03. Unter 16px zoomt iOS beim Hineintippen und zoomt nicht
+           zurück: aus einem Tippen wird ein Zwei-Finger-Zug. --text-sm ist
+           14px, und das grosse Schreibfeld des Seiteneditors hatte es — von
+           allen Feldern ausgerechnet das, in dem jemand einen Nachmittag
+           verbringt. Die Zeichenbreite bleibt fix, nur die Grösse steigt. */
+        .form-textarea--tall {
+            font-size: 1rem;
+        }
+    }
+}

@@ -364,15 +364,21 @@ first rather than being left half-measured.
       so it sits at its static position far out in the wide table and drags the
       page out to meet it. One line. The Activity log was the one real case of
       the suspected cause. See `19-01-VERIFICATION.md`.
-- [ ] **19-02** — PHONE-02: every control at least 44 × 44.
-- [ ] **19-03** — PHONE-03: every typing field at least 16px.
+- [x] **19-02** — PHONE-02: every control at least 44 × 44. Hung on
+      `(pointer: coarse)`, not a width: the number is about fingers. Minimums
+      only, thirteen rules, one template line. 0 on all twenty-nine, from 13–33
+      each. A tick box is the stated exception at 24 × 24 in a 44px row.
+- [x] **19-03** — PHONE-03: every typing field at least 16px. Once the tick
+      boxes were out of the list — as the requirement itself said they should
+      be — the page editor's own writing box was the only field left, at 14px.
+      See `19-02-VERIFICATION.md`.
 - [ ] **19-04** — PHONE-04 and PHONE-05: measure again and drive it by hand.
 
 ---
 
 ## Progress
 
-Phases 13 to 18 are complete; v2.1 to v2.4 are closed. **v2.5 „On the Phone" is running** as Phase 19, one plan of four done. Numbering continues from 19; it never restarts.
+Phases 13 to 18 are complete; v2.1 to v2.4 are closed. **v2.5 „On the Phone" is running** as Phase 19, three plans of four done. Numbering continues from 19; it never restarts.
 
 Phase 18 is the one to remember: eleven defects, and every one found by writing
 a test for a screen. Not by reading the code, not by a tool, not by the browser
