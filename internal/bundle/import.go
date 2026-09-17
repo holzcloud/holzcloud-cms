@@ -159,8 +159,10 @@ func Import(ctx context.Context, s Stores, r io.ReaderAt, size int64, name strin
 	// entries point at pages by address and therefore need the pages
 	// (cleanSnippetValues).
 	albumSlugs := importAlbums(ctx, s, websiteID, manifest, mediaByName, report)
-	importPages(ctx, s, websiteID, manifest, mediaByName, albumSlugs, fieldKinds, set, report)
-	importSnippets(ctx, s, websiteID, manifest, report)
+	pages := importPages(ctx, s, websiteID, manifest, mediaByName, albumSlugs, fieldKinds, set, report)
+	// After the pages, and it has to be: a snippet's reference field names a
+	// page of this same bundle, and only now does every address have an id.
+	importSnippets(ctx, s, websiteID, manifest, mediaByName, pages, report)
 	importMenus(ctx, s, websiteID, manifest, report)
 
 	return report, nil
@@ -522,9 +524,6 @@ func importBlockTypes(ctx context.Context, s Stores, websiteID int64, m *Manifes
 	}
 }
 
-// importFieldValues turns a bundle's values back into what is stored: a
-// picture's file name becomes the id it has on this machine, and a reference's
-// address the id of the page that now carries it.
 // addressLookup finds a page of this bundle by its address, in one language.
 type addressLookup func(slug string) (int64, bool)
 
@@ -691,9 +690,12 @@ func translateIn(kinds map[string]string, values map[string]string, mediaByName 
 	return out
 }
 
+// It returns the address index it built, because a snippet's reference field
+// holds a page id in exactly the way a page's does and importSnippets runs
+// after this.
 func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 	mediaByName map[string]int64, albumSlugs map[string]string,
-	fieldKinds map[string]string, set block.Set, report *Report) {
+	fieldKinds map[string]string, set block.Set, report *Report) pageIndex {
 
 	// One lookup for the whole import, so a picture used on twenty pages is
 	// read once.
@@ -869,9 +871,11 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 		}
 	}
 
+	return pages
 }
 
-func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
+func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
+	mediaByName map[string]int64, pages pageIndex, report *Report) {
 	if s.Snippets == nil {
 		return
 	}
@@ -902,7 +906,7 @@ func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 			continue
 		}
 		report.Snippets++
-		importSnippetFields(ctx, s, websiteID, created.ID, sn, report)
+		importSnippetFields(ctx, s, websiteID, created.ID, sn, mediaByName, pages, report)
 	}
 }
 
@@ -928,7 +932,7 @@ func importSnippets(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 // validate empties the condition of every snippet field (08-02), so there would
 // be nothing to hang on afterwards even if the manifest named one.
 func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int64,
-	sn Snippet, report *Report) {
+	sn Snippet, mediaByName map[string]int64, pages pageIndex, report *Report) {
 
 	if s.Fields == nil {
 		if len(sn.Fields) > 0 {
@@ -976,7 +980,11 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 		report.warnf(i18n.N("the values of snippet %q could not be taken over: %v"), sn.Key, err)
 		return
 	}
-	raw, verworfen, err := cleanSnippetValues(defs, sn)
+	// The main language: a snippet is not per-language, so a reference in one
+	// names the page as the main language spells it. Stated rather than left to
+	// be discovered, because pageIndex.in takes a language and this is the one
+	// call site where the answer is not obvious.
+	raw, verworfen, unauffindbar, err := cleanSnippetValues(defs, sn, mediaByName, pages.in(""))
 	if err != nil {
 		report.warnf(i18n.N("the values of snippet %q could not be taken over: %v"), sn.Key, err)
 		return
@@ -985,67 +993,24 @@ func importSnippetFields(ctx context.Context, s Stores, websiteID, snippetID int
 		report.warnf(i18n.N("snippet %q: the values of %s were not taken over, they do not keep the rules of their fields."),
 			sn.Key, strings.Join(verworfen, ", "))
 	}
-	if bound := installationBoundValues(defs, raw); len(bound) > 0 {
-		report.warnf(i18n.N("snippet %q: the values of %s point at ids of the installation "+
-			"the archive came from, and have to be chosen again here."),
-			sn.Key, strings.Join(bound, ", "))
+	// A second message and not the first, because the remedy is a different
+	// one: what breaks a rule has to be corrected, what points into nothing has
+	// to be chosen again here.
+	if len(unauffindbar) > 0 {
+		report.warnf(i18n.N("snippet %q: the values of %s point at a file or a page that this archive does not carry, and have to be chosen again here."),
+			sn.Key, strings.Join(unauffindbar, ", "))
 	}
 	if err := s.Snippets.SetFields(ctx, websiteID, snippetID, raw); err != nil {
 		report.warnf(i18n.N("the values of snippet %q could not be stored: %v"), sn.Key, err)
 	}
 }
 
-// installationBoundValues names the fields whose value is an id of the
-// installation the archive came from.
-//
-// The value of an image, reference or term field is not a string that means the
-// same thing everywhere — it is an id. On the page path such ids are translated
-// into a filename and an address on the way out and back on the way in
-// (exportFieldValues/translateIn); a snippet's values go out raw and come in
-// raw. On the other side the id belongs to a different website, fieldImages and
-// fieldRefs refuse it, and the field arrives while the picture is missing.
-//
-// That stays so for now — the translation sits on the page path, and prising it
-// out of there is work of its own (deferred-items.md). What stands here is the
-// volume: the admin screen offers these field kinds explicitly and promises
-// them to the operator, so the promise must not break silently. The value
-// travels along regardless, so that nothing disappears and the choice only has
-// to be repeated on the other side.
-func installationBoundValues(defs []field.Def, raw string) []string {
-	data := field.Decode(raw)
-	ortsgebunden := func(kind string) bool {
-		switch kind {
-		case field.KindImage, field.KindRef, field.KindTerm:
-			return true
-		}
-		return false
-	}
-
-	var out []string
-	for _, d := range defs {
-		if d.IsGroup() {
-			for _, sub := range d.Sub {
-				if !ortsgebunden(sub.Kind) {
-					continue
-				}
-				for i, row := range data.Rows[d.Key] {
-					if row[sub.Key] != "" {
-						out = append(out, field.RowKey(d.Key, i, sub.Key))
-					}
-				}
-			}
-			continue
-		}
-		if ortsgebunden(d.Kind) && data.Values[d.Key] != "" {
-			out = append(out, d.Key)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
 // cleanSnippetValues turns a manifest's snippet values into what is stored, and
-// returns the keys it had to drop on the way.
+// returns the keys it had to drop on the way — in two lists, because they need
+// two different things of the operator. `dropped` is a value that breaks the
+// rules of its field and has to be corrected; `unresolved` is a picture or a
+// reference naming something this archive does not carry, and has to be chosen
+// again here.
 //
 // The same two guards importFieldValues applies to a page, and for the same
 // reason: nothing in a manifest has been through the form that every other
@@ -1059,10 +1024,41 @@ func installationBoundValues(defs []field.Def, raw string) []string {
 // decision: `if len(defs) > 0` let through exactly the manifest that brings
 // values without definitions — the shape that is written entirely by hand. The
 // sentence above therefore named a hole that stood open underneath it.
-func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) {
-	data := field.Data{Values: field.Values{}, Rows: map[string][]field.Values{}}
-	for key, val := range sn.Values {
-		data.Values[key] = val
+func cleanSnippetValues(defs []field.Def, sn Snippet,
+	mediaByName map[string]int64, byAddress addressLookup) (raw string, dropped, unresolved []string, err error) {
+
+	// The kinds first: which values are a picture, a reference or a label has
+	// to be known before they are read, exactly as on the page path.
+	kinds := map[string]string{}
+	for _, d := range defs {
+		kinds[d.Key] = d.Kind
+		for _, sub := range d.Sub {
+			kinds[d.Key+"."+sub.Key] = sub.Kind
+		}
+	}
+
+	// Through the SAME translation a page's values go through. A file name
+	// becomes the media id of THIS installation, an address becomes the id of
+	// the page this same bundle has just created. Until v2.4 the values were
+	// taken as they stood, which meant a number belonging to somebody else's
+	// rows — refused by fieldImages and fieldRefs, so the field arrived with
+	// its picture missing while the report said the snippet was created.
+	data := field.Data{Values: translateIn(kinds, sn.Values, mediaByName, byAddress), Rows: map[string][]field.Values{}}
+	if data.Values == nil {
+		data.Values = field.Values{}
+	}
+
+	// What the translation could not place is named rather than dropped in
+	// silence, and a snippet needs this where a page does not: the page path
+	// runs twice and a reference missing on the first pass is normal, while a
+	// snippet is written once. This is also what an archive from before v2.4
+	// runs into — its snippet values are raw ids, so the file name is not found
+	// and the value cannot be taken over. Losing it is right; losing it quietly
+	// is not.
+	for key := range sn.Values {
+		if _, ok := data.Values[key]; !ok {
+			unresolved = append(unresolved, key)
+		}
 	}
 	for key, rows := range sn.ValueGroups {
 		out := make([]field.Values, 0, len(rows))
@@ -1070,9 +1066,17 @@ func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) 
 			if len(row) == 0 {
 				continue
 			}
-			values := field.Values{}
-			for k, v := range row {
-				values[k] = v
+			values := translateIn(subKinds(kinds, key), row, mediaByName, byAddress)
+			if values == nil {
+				values = field.Values{}
+			}
+			// len(out) and not the index in rows: an empty row is skipped, so
+			// the row's number here is the one it will carry when stored, and
+			// the key the operator is shown is the key they can find.
+			for sub := range row {
+				if _, ok := values[sub]; !ok {
+					unresolved = append(unresolved, field.RowKey(key, len(out), sub))
+				}
 			}
 			out = append(out, values)
 		}
@@ -1080,8 +1084,8 @@ func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) 
 			data.Rows[key] = out
 		}
 	}
+	sort.Strings(unresolved)
 
-	var dropped []string
 	data = field.Clean(defs, data)
 	for key := range field.CheckAll(defs, data) {
 		// A required field left empty is reported here too, and there is
@@ -1103,11 +1107,11 @@ func cleanSnippetValues(defs []field.Def, sn Snippet) (string, []string, error) 
 	}
 	sort.Strings(dropped)
 
-	raw, err := field.Encode(data)
+	raw, err = field.Encode(data)
 	if err != nil {
-		return "", dropped, err
+		return "", dropped, unresolved, err
 	}
-	return raw, dropped, nil
+	return raw, dropped, unresolved, nil
 }
 
 // mediaPathPattern matches the /media/<website id>/<file name> links that a

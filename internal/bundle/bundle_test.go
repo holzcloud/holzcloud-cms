@@ -648,6 +648,18 @@ func manifestOf(t *testing.T, archive []byte) string {
 	return string(data)
 }
 
+// decodedManifest is manifestOf when the test wants to look at a field rather
+// than at the text: a raw substring match would pass on a value that merely
+// appears somewhere in the file.
+func decodedManifest(t *testing.T, archive []byte) Manifest {
+	t.Helper()
+	var m Manifest
+	if err := json.Unmarshal([]byte(manifestOf(t, archive)), &m); err != nil {
+		t.Fatalf("the manifest is not readable: %v", err)
+	}
+	return m
+}
+
 // A page built from blocks travelled this far as plain text: the blocks were
 // never in the archive. This test is the promise that they are — together with
 // their own block kind and with the image inside, which travels as a file name
@@ -2421,23 +2433,175 @@ func TestASnippetThatCannotBeReadBackDoesNotCrash(t *testing.T) {
 	}
 }
 
-// An image field on a snippet does not survive the archive journey, and the
-// report says so now.
+// TestASnippetsPictureAndReferenceSurviveTheRoundTrip is GAP-01.
 //
-// The value of an image, reference or term field is a number of *this*
-// installation. On the page path such numbers are translated into a file name
-// and an address on the way out and back again on the way in
-// (exportFieldValues/translateIn); the values of a snippet go out raw and come
-// in raw. Over there the number belongs to a different website, and
-// fieldImages/fieldRefs refuse it — the field arrives, the image does not.
+// A snippet's picture field holds a media id and its reference field a page id,
+// and those numbers mean nothing on the other machine. Until v2.4 they travelled
+// as they stood: the import wrote somebody else's ids, fieldImages and fieldRefs
+// refused them when the snippet was rendered, and the field arrived with its
+// picture missing while the report said the snippet had been created. The
+// operator found out by looking.
 //
-// That stays so for now: the translation sits in the page path and prising it
-// loose from there is a piece of work of its own (deferred-items.md). What
-// changes here is the volume. The admin screen offers these field kinds
-// explicitly and field_list.html promises them to the operator; a promise
-// broken silently on the way out is the silent data loss this project avoids
-// everywhere else.
-func TestASnippetsImageValueIsReportedOnImport(t *testing.T) {
+// The test insists on the new ids specifically, not merely on "not empty": a
+// version that copied the number across would keep a value that happens to
+// point at the wrong row, and that is the bug, not the fix.
+func TestASnippetsPictureAndReferenceSurviveTheRoundTrip(t *testing.T) {
+	s := newStores(t)
+	ctx := context.Background()
+	ws := seedSite(t, s)
+
+	bild, err := s.Media.GetByFilename(ctx, ws, "abc-werkstatt.jpg")
+	if err != nil || bild == nil {
+		t.Fatalf("seedSite's picture is missing: %v", err)
+	}
+	ueberUns, err := s.Pages.GetPageBySlug(ctx, ws, "ueber-uns")
+	if err != nil || ueberUns == nil {
+		t.Fatalf("seedSite's page is missing: %v", err)
+	}
+
+	sn, err := s.Snippets.Create(ctx, ws, "footer-kontakt", "Kontakt",
+		"Ruf an.", "<p>Ruf an.</p>")
+	if err != nil {
+		t.Fatalf("create snippet: %v", err)
+	}
+	for _, d := range []field.Def{
+		{WebsiteID: ws, SnippetID: sn.ID, Key: "logo", Label: "Logo", Kind: field.KindImage},
+		{WebsiteID: ws, SnippetID: sn.ID, Key: "mehr", Label: "Mehr dazu", Kind: field.KindRef},
+		{WebsiteID: ws, SnippetID: sn.ID, Key: "telefon", Label: "Telefon", Kind: field.KindText},
+	} {
+		if _, err := s.Fields.Create(ctx, d); err != nil {
+			t.Fatalf("create field %q: %v", d.Key, err)
+		}
+	}
+	// And the same three kinds inside a group, because a snippet has its own
+	// form and a group is a row of it — the translation has to reach in there
+	// as well, and a fix that only handled the flat values would pass without
+	// this half.
+	gruppe, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws, SnippetID: sn.ID, Key: "team", Label: "Team", Kind: field.KindGroup,
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if _, err := s.Fields.Create(ctx, field.Def{
+		WebsiteID: ws, SnippetID: sn.ID, ParentID: gruppe.ID,
+		Key: "portrait", Label: "Portrait", Kind: field.KindImage,
+	}); err != nil {
+		t.Fatalf("create sub field: %v", err)
+	}
+
+	alteBildID := strconv.FormatInt(bild.ID, 10)
+	alteSeitenID := strconv.FormatInt(ueberUns.ID, 10)
+	raw, err := field.Encode(field.Data{
+		Values: field.Values{
+			"logo": alteBildID, "mehr": alteSeitenID, "telefon": "07721 123456",
+		},
+		Rows: map[string][]field.Values{
+			"team": {{"portrait": alteBildID}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if err := s.Snippets.SetFields(ctx, ws, sn.ID, raw); err != nil {
+		t.Fatalf("SetFields: %v", err)
+	}
+
+	// What the archive carries is a name and an address, not a number: if the
+	// ids went out raw, the import could not do better than guess.
+	archive := exportTo(t, s, ws)
+	m := decodedManifest(t, archive)
+	var exported *Snippet
+	for i := range m.Snippets {
+		if m.Snippets[i].Key == "footer-kontakt" {
+			exported = &m.Snippets[i]
+		}
+	}
+	if exported == nil {
+		t.Fatalf("the snippet is not in the archive: %+v", m.Snippets)
+	}
+	if exported.Values["logo"] != "abc-werkstatt.jpg" {
+		t.Errorf("the archive carries the picture as %q, not as its file name",
+			exported.Values["logo"])
+	}
+	if exported.Values["mehr"] != "ueber-uns" {
+		t.Errorf("the archive carries the reference as %q, not as an address",
+			exported.Values["mehr"])
+	}
+	if len(exported.ValueGroups["team"]) != 1 ||
+		exported.ValueGroups["team"][0]["portrait"] != "abc-werkstatt.jpg" {
+		t.Errorf("the group's picture did not travel as a file name: %v",
+			exported.ValueGroups["team"])
+	}
+
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "Kopie")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if len(report.Warnings) != 0 {
+		t.Errorf("a clean round trip warned: %v", report.Warnings)
+	}
+
+	neuesBild, err := s.Media.GetByFilename(ctx, report.WebsiteID, "abc-werkstatt.jpg")
+	if err != nil || neuesBild == nil {
+		t.Fatalf("the copy's picture is missing: %v", err)
+	}
+	neueSeite, err := s.Pages.GetPageBySlug(ctx, report.WebsiteID, "ueber-uns")
+	if err != nil || neueSeite == nil {
+		t.Fatalf("the copy's page is missing: %v", err)
+	}
+	// The premise of the whole test: the copy's rows are different rows. Were
+	// the numbers to coincide, keeping the old id would look like success.
+	if neuesBild.ID == bild.ID || neueSeite.ID == ueberUns.ID {
+		t.Fatalf("copy and original share an id (%d/%d, %d/%d) — this test proves nothing",
+			neuesBild.ID, bild.ID, neueSeite.ID, ueberUns.ID)
+	}
+
+	kopien, err := s.Snippets.List(ctx, report.WebsiteID)
+	if err != nil {
+		t.Fatalf("List snippets: %v", err)
+	}
+	var kopie *snippet.Snippet
+	for i := range kopien {
+		if kopien[i].Key == "footer-kontakt" {
+			kopie = &kopien[i]
+		}
+	}
+	if kopie == nil {
+		t.Fatalf("the snippet did not arrive: %+v", kopien)
+	}
+	data := field.Decode(kopie.Fields)
+	for _, c := range []struct{ key, got, want string }{
+		{"logo", data.Values["logo"], strconv.FormatInt(neuesBild.ID, 10)},
+		{"mehr", data.Values["mehr"], strconv.FormatInt(neueSeite.ID, 10)},
+		{"telefon", data.Values["telefon"], "07721 123456"},
+	} {
+		if c.got != c.want {
+			t.Errorf("%s = %q, want %q", c.key, c.got, c.want)
+		}
+	}
+	if len(data.Rows["team"]) != 1 {
+		t.Fatalf("the group's row did not arrive: %v", data.Rows["team"])
+	}
+	if got, want := data.Rows["team"][0]["portrait"], strconv.FormatInt(neuesBild.ID, 10); got != want {
+		t.Errorf("the group's picture = %q, want %q", got, want)
+	}
+}
+
+// An archive written before v2.4 carries a snippet's picture as a raw id, and
+// the id is dropped rather than stored — with the drop in the report.
+//
+// Until v2.4 a snippet's values travelled exactly as they were stored, so an
+// archive from that time says `"logo": "42"` where one written today says
+// `"logo": "werkstatt.jpg"`. Forty-two is a row of the machine the archive left,
+// and writing it here would produce a field that looks filled in and renders
+// nothing — fieldImages refuses an id that belongs to another website. So the
+// value is thrown away, which is the only honest outcome, and the report names
+// the field so the operator knows which picture to pick again.
+//
+// The neighbouring test, TestASnippetsPictureAndReferenceSurviveTheRoundTrip,
+// is the other half: what an archive written today carries, and that it arrives.
+func TestASnippetsRawIdFromAnOldArchiveIsDroppedAndReported(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
 
@@ -2459,8 +2623,25 @@ func TestASnippetsImageValueIsReportedOnImport(t *testing.T) {
 		t.Fatalf("Import: %v", err)
 	}
 	if !warned(report, "logo") {
-		t.Errorf("der Bericht schweigt über das Bildfeld, dessen Wert hier ins Leere "+
-			"zeigt: %v", report.Warnings)
+		t.Errorf("the report is silent about the picture field whose value points "+
+			"into nothing here: %v", report.Warnings)
+	}
+	// Named as unfindable and not as rule-breaking: "42" keeps every rule an
+	// image field has, it simply names nothing here, and the two messages ask
+	// different things of the operator.
+	if !warned(report, "chosen again here") {
+		t.Errorf("the report calls the loss something other than a value that "+
+			"cannot be found: %v", report.Warnings)
+	}
+
+	// The value is gone rather than stored: a snippet carrying a foreign id
+	// would render an empty picture and look filled in.
+	kopien0, err := s.Snippets.List(ctx, report.WebsiteID)
+	if err != nil || len(kopien0) != 1 {
+		t.Fatalf("List snippets: %v (%d)", err, len(kopien0))
+	}
+	if got := field.Decode(kopien0[0].Fields).Values["logo"]; got != "" {
+		t.Errorf("the foreign id was kept as %q", got)
 	}
 
 	// And the rest arrives intact: the message replaces no value and throws
