@@ -26,6 +26,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
+	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
 
 // newTestAdmin builds a handler over a real migrated database and the real
@@ -65,6 +66,13 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 	// one — so a test could activate a theme and then render the wrong one
 	// without anything noticing.
 	tmplStore := tmplmgr.NewStore(database, dir)
+	// The loader resolves the operator's own words through this, exactly as
+	// main.go wires it. Without it a word saved on the wording screen is stored
+	// and never reaches a rendered page, so a test of that screen could only
+	// ever check the database.
+	wordingStore := wording.NewStore(database)
+	loader := tmpl.NewLoader(dir, os.DirFS("../../cmd/holzcloud/templates/public/default"), nil, tmplStore)
+	loader.SetWording(wordingStore)
 	// cheapHashing and not the zero value: NewHandler builds the user store with
 	// whatever it is given, so a zero Argon2Params made every handler that
 	// hashes a password PANIC — "number of rounds too small" — rather than fail
@@ -75,8 +83,9 @@ func newTestAdmin(t *testing.T) (*Handler, *scs.SessionManager, *db.DB, *domain.
 		menu.NewStore(database), media.NewStore(database), snippet.NewStore(database),
 		term.NewStore(database),
 		sharelink.New([]byte("test")),
-		tmpl.NewLoader(dir, os.DirFS("../../cmd/holzcloud/templates/public/default"), nil, tmplStore),
+		loader,
 		cfg, nil, nil)
+	h.SetWording(wordingStore)
 
 	return h, sm, database, ws
 }
