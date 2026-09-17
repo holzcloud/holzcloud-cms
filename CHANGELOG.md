@@ -11,6 +11,57 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.5 — 2026-09-17
+
+**Die Verwaltung ist auf dem Telefon benutzbar.** Nicht „geht auch irgendwie",
+sondern gemessen: alle 29 Bildschirme auf einem 390 Pixel breiten Telefon, und
+danach von Hand durchgefahren.
+
+### Geändert
+
+Vorher lief ein Drittel der Bildschirme über den Rand hinaus — das
+Aktivitätsprotokoll um 338 Pixel, die Benutzerliste um 275, die Seitenliste um
+187. Eine Seite, die man seitwärts schieben muss, um an einen Knopf zu kommen,
+fühlt sich kaputt an, auch wenn der Knopf funktioniert. Jetzt läuft keine mehr
+über. Die Listen bleiben Tabellen und scrollen in ihrer Karte, nicht mit der
+ganzen Seite.
+
+**Jedes Bedienelement ist mindestens 44 × 44 Pixel gross.** Das ist die Zahl,
+auf die Apples Richtlinien und die Barrierefreiheitsregel WCAG 2.2 unabhängig
+voneinander kommen; darunter trifft eine Fingerkuppe das Nachbarelement. Vorher
+war auf jedem Bildschirm ein Dutzend bis drei Dutzend Elemente zu klein — das
+Menüsymbol mass 32 × 32, das Benutzermenü 36 × 32, jede Zeile der Navigation 35
+Pixel hoch. Jetzt keines mehr. Ein Ankreuzfeld ist die eine bewusste Ausnahme:
+es ist 24 × 24 statt 13 × 13 und steht in einer 44 Pixel hohen Zeile, in der
+auch die Beschriftung schaltet — ein Häkchen so gross wie ein Knopf wäre keins
+mehr.
+
+**Das grosse Schreibfeld des Seiteneditors ist nicht mehr zu klein beschriftet.**
+Unter 16 Pixel zoomt ein iPhone die Seite beim Hineintippen und zoomt nicht
+zurück: aus einem Tippen wird ein Zwei-Finger-Zug. Von allen Feldern ausgerechnet
+das, in dem jemand einen Nachmittag verbringt, hatte 14.
+
+Am Schreibtisch ändert sich nichts. Die grösseren Masse hängen daran, ob das
+Gerät mit dem Finger bedient wird, nicht daran, wie breit der Bildschirm ist —
+ein Telefon quer ist 926 Pixel breit und braucht sie trotzdem, eine Maus auf
+einem schmalen Fenster braucht sie nicht. Ein Laptop mit Berührungsbildschirm
+bekommt sie ebenfalls, und das ist beabsichtigt.
+
+### Behoben
+
+Das **Zeilenmenü einer Seite** — darin stehen Veröffentlichen, Duplizieren und
+Löschen — erschien auf dem Telefon in der letzten Zeile einer Liste halb
+abgeschnitten. Die Regel, die das verhindern sollte, stand seit ihrer
+Niederschrift an einer Stelle, an der sie nie wirken konnte.
+
+Die **Einstellungsseite einer Website** schob sich um 59 Pixel nach rechts
+hinaus, sobald eine Domain einen längeren Namen hatte; der Knopf, der dabei
+über den Rand ragte, war ausgerechnet „Entfernen".
+
+Der **Markdown-Spickzettel** im Editor war 24 Pixel zu breit, sobald man ihn
+aufklappte — also in dem einzigen Zustand, in dem ihn jemand liest. Er scrollt
+jetzt in sich; die Beispiele brechen weiterhin nicht mitten im Wort.
+
 ## 2.4 — 2026-09-17
 
 Ein Meilenstein, der **nichts ändert, was Sie täglich sehen** — und deshalb

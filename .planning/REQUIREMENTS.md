@@ -47,7 +47,7 @@ found is that some of it does not reach.
       `flex-wrap`. Found while measuring: the Markdown cheat sheet is 24px too
       wide when open, which is the only state anybody reads it in.
       *Done: all twenty-nine screens at 0 overflow and 0 unheld boxes. See
-      `phases/19-on-the-phone/19-01-VERIFICATION.md`.*
+      `milestones/v2.5-phases/19-on-the-phone/19-01-VERIFICATION.md`.*
 - [x] **PHONE-02**: **Every control is at least 44 × 44 pixels.** That is the
       figure Apple's guidelines and WCAG 2.2's target-size rule both land on.
       All twenty-nine screens fail it, and the same handful of elements is
@@ -60,7 +60,7 @@ found is that some of it does not reach.
       sideways gets it and a desk does not. One stated exception: a tick box is
       24 × 24, the minimum WCAG 2.2 SC 2.5.8 sets, in a 44px row, because a
       tick box the size of a button is not a tick box. See
-      `phases/19-on-the-phone/19-02-VERIFICATION.md`.*
+      `milestones/v2.5-phases/19-on-the-phone/19-02-VERIFICATION.md`.*
 - [x] **PHONE-03**: **Every field a person types into is at least 16px.** Below
       that iOS zooms the page on focus and does not zoom back, which turns one
       tap into a pinch and a scroll. The page editor's own textarea is on the
@@ -69,14 +69,27 @@ found is that some of it does not reach.
       *Done: 0 on all twenty-nine. Once the tick boxes came out of the list —
       as this requirement's own last sentence already said they should — the
       page editor's writing box was the only field left. It is 1rem now.*
-- [ ] **PHONE-04**: **The measurement is repeated and committed.** The same
+- [x] **PHONE-04**: **The measurement is repeated and committed.** The same
       twenty-nine screens, the same three numbers, beside the first reading. A
       requirement that says "it is better now" without a second measurement is
       an opinion.
-- [ ] **PHONE-05**: **What is fixed is driven on a phone-shaped browser once,
+      *Done: `v2.5-PHONE-SURVEY-AFTER.txt` beside `v2.5-PHONE-SURVEY.txt`, with
+      the full reading in `milestones/v2.5-phases/19-on-the-phone/19-AFTER.json`. 1048 pixels
+      past the edge → 0; 86 unheld boxes → 0; 462 controls under the minimum →
+      0; 16 fields a phone zooms for → 0. The ruler was corrected three times
+      while this ran, and the second reading says what its columns now mean.*
+- [x] **PHONE-05**: **What is fixed is driven on a phone-shaped browser once,
       by hand.** QUAL-02's rule, which has found something in every milestone it
       has been applied to: a browser finds what a test cannot. Three interface
       faults came out of it in v2.3 and none of them was subtle.
+      *Done, and it held: two found. A `position: static` written for the row
+      menu in a scrolling card had never once run — it sat in `@layer layout`
+      against a `position: absolute` in `@layer components`, and the later
+      layer wins — so the last row's menu, which holds publish, duplicate and
+      delete, was cut off 22px below its card. And a `display: grid` this phase
+      itself had added an hour earlier put a drawer handle beside an already
+      open drawer on a touch laptop. Both fixed; the pass now runs on a touch
+      laptop too. See `milestones/v2.5-phases/19-on-the-phone/19-04-VERIFICATION.md`.*
 
 ## What this milestone is not
 

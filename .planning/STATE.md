@@ -4,16 +4,16 @@ milestone: v2.5
 milestone_name: "On the Phone"
 current_phase: 19
 current_phase_name: "On the phone"
-status: in_progress
-stopped_at: "19-01 bis 19-03 sind fertig: PHONE-01, PHONE-02 und PHONE-03 geschlossen. Alle 29 Verwaltungsbildschirme messen bei 390x844 jetzt 0 Ueberlauf, 0 zu kleine Bedienelemente, 0 zu kleine Tippfelder - vorher sieben ueberlaufende Bildschirme (bis 338px) und 13 bis 33 zu kleine Elemente je Bildschirm. PHONE-01: die Ursache war nicht die vermutete - die Container-Abfrage greift, hinaus lief ein .sr-only (position: absolute ohne positionierten Vorfahren). PHONE-02 haengt an (pointer: coarse), nicht an einer Breite, und setzt nur Mindestmasse; ein Ankreuzfeld ist die festgehaltene Ausnahme bei 24x24 in einer 44px-Zeile. PHONE-03 war am Ende ein einziges Feld: das grosse Schreibfeld des Seiteneditors bei 14px. Drei Fehler am Messgeraet selbst gefunden und behoben. Naechstes: 19-04 (PHONE-04 Messung einchecken, PHONE-05 von Hand durchfahren). OFFEN und blockiert: Ausgabe 2.4 ist NICHT veroeffentlicht - der Push auf den release-Zweig wurde von der Berechtigungspruefung abgelehnt."
+status: complete
+stopped_at: "v2.5 ist am 2026-09-17 geschlossen: fuenf Anforderungen, fuenf erfuellt, keine verschoben. Alle 29 Verwaltungsbildschirme bei 390x844: 1048 Pixel ueber den Rand -> 0, 86 nicht gehaltene Kaesten -> 0, 462 zu kleine Bedienelemente -> 0, 16 Felder, fuer die ein Telefon zoomt -> 0. Kosten: ein Stylesheet, eine Vorlagenzeile. Der Punkt des Meilensteins: JEDER Mangel steckte in einer Regel, die in der Datei richtig aussah - keiner war eine fehlende Regel. Die Regel fuer das Zeilenmenue in einer scrollenden Karte hatte seit ihrer Niederschrift NIE gewirkt (@layer components schlaegt @layer layout), weshalb das Menue der letzten Zeile 22px unter der Karte abgeschnitten war; der Container-Regel war #activity-list nie genannt worden; ein .sr-only lief aus der Karte, weil es position: absolute ohne positionierten Vorfahren ist; ein Mindestmass nahm eine Flex-Zeile still wieder weg; und eine Regel, die diese Phase selbst eine Stunde vorher gebaut hatte, setzte einen Hamburger neben eine offene Seitenleiste. Nichts davon faellt in einem Test auf. Der Browser-Durchgang von Hand fand die zwei wichtigsten - nach v2.4, wo er zum ersten Mal nichts fand. Am Messgeraet fuenf Fehler gefunden und behoben. Naechstes: Ausgabe 2.5 veroeffentlichen. OFFEN und blockiert: WEDER 2.4 NOCH 2.5 ist veroeffentlicht - der Push auf den release-Zweig wurde von der Berechtigungspruefung abgelehnt (Create Public Surface). Der Weg ist bekannt und gemessen: den release-Zweig auf den Stand von main vorspulen, dann veroeffentlicht der Workflow. Ausserdem weiterhin offen: die verwaisten Fernzweige backfill-releases, release und claude/task-phases-milestones-open-mt1qz0 loeschen - der Proxy lehnt jede Ref-Loeschung mit 403 ab, ein Klick in der GitHub-Oberflaeche erledigt jeden."
 last_updated: "2026-09-17T00:00:00.000Z"
 last_activity: 2026-09-17
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 75
+  completed_plans: 4
+  percent: 100
 ---
 
 ## State: Holzcloud CMS
