@@ -406,3 +406,13 @@ func (s *OrderStore) SetPayment(ctx context.Context, orderID int64, state, refer
 		 WHERE id = $4`, state, reference, now, orderID)
 	return err
 }
+
+// CountByStatus reports how many orders of one website stand in one state.
+// The bar in the admin shows the new ones; the shop overview shows all four.
+func (s *OrderStore) CountByStatus(ctx context.Context, websiteID int64, status string) (int, error) {
+	var n int
+	err := s.carts.DB.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM orders WHERE website_id = $1 AND status = $2`,
+		websiteID, status).Scan(&n)
+	return n, err
+}

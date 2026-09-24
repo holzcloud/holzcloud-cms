@@ -372,7 +372,7 @@ func TestAlbumScreensRenderInsideTheBaseLayout(t *testing.T) {
 			if !strings.Contains(body, "hx-headers") {
 				t.Error("no hx-headers on the body: every htmx POST from this screen would fail CSRF")
 			}
-			if !strings.Contains(body, `class="nav-item`) {
+			if !strings.Contains(body, `class="rail-item`) {
 				t.Error("no navigation: the screen rendered outside the base layout")
 			}
 			if !strings.Contains(body, f.albumA.Name) {

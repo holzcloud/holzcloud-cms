@@ -1,0 +1,68 @@
+{{define "actions"}}
+<a href="/admin/websites/{{.CurrentWebsite.ID}}/produkte/neu" class="btn btn--primary">{{t "New product"}}</a>
+{{end}}
+
+{{define "content"}}
+<!-- Vier Zahlen, was zu tun ist, und wie die Wochen liefen. Alles wird aus den
+     Bestellungen und Produkten gerechnet, die es schon gibt. -->
+<div class="kpis">
+    <div class="kpi">
+        <span class="kpi__label">{{t "Revenue this month"}}</span>
+        <span class="kpi__value">{{.Revenue}}</span>
+        <span class="kpi__note">{{if .HasPrevious}}{{tf "%+d %% compared with last month" .RevenueChange}}{{else}}{{t "paid and dispatched orders"}}{{end}}</span>
+    </div>
+    <div class="kpi">
+        <span class="kpi__label">{{t "Open orders"}}</span>
+        <span class="kpi__value">{{.OpenOrders}}</span>
+        <span class="kpi__note">{{tf "%d waiting for payment" .AwaitPayment}}</span>
+    </div>
+    <div class="kpi{{if .LowStock}} kpi--warn{{end}}">
+        <span class="kpi__label">{{t "Nearly sold out"}}</span>
+        <span class="kpi__value">{{.LowStock}}</span>
+        <span class="kpi__note">{{t "fewer than three left"}}</span>
+    </div>
+    <div class="kpi">
+        <span class="kpi__label">{{t "Products online"}}</span>
+        <span class="kpi__value">{{.ProductsOnline}}</span>
+        <span class="kpi__note">{{tf "%d drafts" .ProductDrafts}}</span>
+    </div>
+</div>
+
+<div class="shop-overview">
+    <section class="card shop-tasks" aria-labelledby="shop-tasks-title">
+        <h2 id="shop-tasks-title" class="card-title">{{t "To do"}}</h2>
+        {{if .Tasks}}
+        <ul class="shop-tasks__list">
+            {{range .Tasks}}
+            <li class="shop-task">
+                <span class="badge{{if .Warn}} badge--warning{{else}} badge--primary{{end}}">{{.Kind}}</span>
+                <span class="shop-task__text">{{.Text}}</span>
+                <a href="{{.URL}}" class="btn btn--sm">{{.Action}}</a>
+            </li>
+            {{end}}
+        </ul>
+        {{else}}
+        <p class="text-muted">{{t "Nothing waiting. Every order is dealt with and nothing is running out."}}</p>
+        {{end}}
+    </section>
+
+    <section class="card shop-chart" aria-labelledby="shop-chart-title">
+        <h2 id="shop-chart-title" class="card-title">{{t "Revenue per week"}}</h2>
+        {{if .HasOrders}}
+        <!-- Säulen aus CSS: die Höhe ist ein Anteil der besten Woche. Die Zahl
+             steht in jeder Säule als Text, für wen die Höhe nichts sagt. -->
+        <ol class="bars">
+            {{range .Weeks}}
+            <li class="bars__col{{if .Last}} is-current{{end}}">
+                <span class="bars__bar" style="--h: {{.Percent}}%"><span class="sr-only">{{.Amount}}</span></span>
+                <span class="bars__label">{{.Label}}</span>
+            </li>
+            {{end}}
+        </ol>
+        {{with .BestWeek}}<p class="text-muted shop-chart__note">{{.}}</p>{{end}}
+        {{else}}
+        <p class="text-muted">{{t "No orders yet."}}</p>
+        {{end}}
+    </section>
+</div>
+{{end}}

@@ -60,6 +60,10 @@ type LayoutData struct {
 	// a web application.
 	Version   string
 	SourceURL string
+
+	// Counts are the badges on the bar. Only filled for a whole page: an htmx
+	// answer replaces a piece of the page and never the bar.
+	Counts NavCounts
 }
 
 // The build stamps these; SetBuild is called once at startup. Package-level
@@ -116,7 +120,12 @@ func CSRFTokenFromRequest(r *http.Request) string {
 // NewLayoutData creates a LayoutData populated from the request context and session.
 func NewLayoutData(r *http.Request, sm *scs.SessionManager, title string) LayoutData {
 	ctx := r.Context()
+	var counts NavCounts
+	if ws := NavWebsiteFrom(ctx); ws != nil && navCounter != nil && r.Header.Get("HX-Request") != "true" {
+		counts = navCounter(ctx, ws.ID)
+	}
 	return LayoutData{
+		Counts: counts,
 		// The title is translated here rather than at the caller, so a handler
 		// writes the German words and nothing else. A title with something in
 		// it — "Seiten – Velowerkstatt" — goes through Titlef instead, which
