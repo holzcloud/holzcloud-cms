@@ -1,0 +1,86 @@
+{{/*
+  Die Liste links in den Einstellungen. Sie steht auf jedem Bildschirm, den die
+  Leiste unter „Einstellungen“ führt, damit man von einem zum nächsten springt,
+  ohne zurückzugehen. Welche Bildschirme das sind, entscheidet NavSection in
+  internal/web/navsection.go — hier steht nur, wie sie heissen und wohin sie
+  führen.
+
+  Was nur Admins öffnen dürfen, steht nur bei Admins. Der Server prüft das auf
+  jeder Route noch einmal; hier geht es darum, keinen Eintrag zu zeigen, der mit
+  einer Absage antwortet.
+*/}}
+{{define "settings_nav"}}
+<nav class="settings-nav" aria-label="{{t "Settings"}}">
+    {{if .NavWebsite}}
+    <p class="settings-nav__group">{{.NavWebsite.Name}}</p>
+    {{$id := .NavWebsite.ID}}
+        <a href="/admin/websites/{{$id}}" class="settings-nav__item{{if eq .ActiveNav "website-settings"}} is-active{{end}}"{{if eq .ActiveNav "website-settings"}} aria-current="page"{{end}}>{{template "icon-settings"}}<span>{{t "General"}}</span></a>
+        <a href="/admin/websites/{{$id}}/menus" class="settings-nav__item{{if eq .ActiveNav "menus"}} is-active{{end}}"{{if eq .ActiveNav "menus"}} aria-current="page"{{end}}>{{template "icon-menus"}}<span>{{t "Menus"}}</span></a>
+        <a href="/admin/websites/{{$id}}/tags" class="settings-nav__item{{if eq .ActiveNav "terms"}} is-active{{end}}"{{if eq .ActiveNav "terms"}} aria-current="page"{{end}}>{{template "icon-tag"}}<span>{{t "Terms"}}</span></a>
+        <a href="/admin/websites/{{$id}}/snippets" class="settings-nav__item{{if eq .ActiveNav "snippets"}} is-active{{end}}"{{if eq .ActiveNav "snippets"}} aria-current="page"{{end}}>{{template "icon-snippet"}}<span>{{t "Snippets"}}</span></a>
+        <a href="/admin/websites/{{$id}}/redirects" class="settings-nav__item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>{{template "icon-redirect"}}<span>{{t "Redirects"}}</span></a>
+    {{if $.IsAdmin}}
+        <a href="/admin/websites/{{$id}}/inhaltsarten" class="settings-nav__item{{if eq .ActiveNav "kinds"}} is-active{{end}}"{{if eq .ActiveNav "kinds"}} aria-current="page"{{end}}>{{template "icon-pages"}}<span>{{t "Content kinds"}}</span></a>
+    {{end}}
+    {{if $.IsAdmin}}
+        <a href="/admin/websites/{{$id}}/felder" class="settings-nav__item{{if eq .ActiveNav "fields"}} is-active{{end}}"{{if eq .ActiveNav "fields"}} aria-current="page"{{end}}>{{template "icon-fields"}}<span>{{t "Fields"}}</span></a>
+    {{end}}
+    {{if $.IsAdmin}}
+        <a href="/admin/websites/{{$id}}/bausteinarten" class="settings-nav__item{{if eq .ActiveNav "blocktypes"}} is-active{{end}}"{{if eq .ActiveNav "blocktypes"}} aria-current="page"{{end}}>{{template "icon-blocks"}}<span>{{t "Block kinds"}}</span></a>
+    {{end}}
+    {{end}}
+    <p class="settings-nav__group">{{t "Installation"}}</p>
+        <a href="/admin/websites" class="settings-nav__item{{if eq .ActiveNav "websites"}} is-active{{end}}"{{if eq .ActiveNav "websites"}} aria-current="page"{{end}}>{{template "icon-websites"}}<span>{{t "Websites"}}</span></a>
+        <a href="/admin/templates" class="settings-nav__item{{if eq .ActiveNav "templates"}} is-active{{end}}"{{if eq .ActiveNav "templates"}} aria-current="page"{{end}}>{{template "icon-template"}}<span>{{t "Templates"}}</span></a>
+    {{if .IsAdmin}}
+        <a href="/admin/plugins" class="settings-nav__item{{if eq .ActiveNav "plugins"}} is-active{{end}}"{{if eq .ActiveNav "plugins"}} aria-current="page"{{end}}>{{template "icon-plugin"}}<span>{{t "Plugins"}}</span></a>
+    {{end}}
+    {{if .IsAdmin}}
+        <a href="/admin/mail" class="settings-nav__item{{if eq .ActiveNav "mail"}} is-active{{end}}"{{if eq .ActiveNav "mail"}} aria-current="page"{{end}}>{{template "icon-mail"}}<span>{{t "Email"}}</span></a>
+    {{end}}
+    {{if .IsAdmin}}
+        <a href="/admin/ai" class="settings-nav__item{{if eq .ActiveNav "ai"}} is-active{{end}}"{{if eq .ActiveNav "ai"}} aria-current="page"{{end}}>{{template "icon-ai"}}<span>{{t "AI access"}}</span></a>
+    {{end}}
+    {{if .IsAdmin}}
+        <a href="/admin/sprachen" class="settings-nav__item{{if eq .ActiveNav "languages"}} is-active{{end}}"{{if eq .ActiveNav "languages"}} aria-current="page"{{end}}>{{template "icon-language"}}<span>{{t "Languages"}}</span></a>
+    {{end}}
+    {{if .IsAdmin}}
+        <a href="/admin/marke" class="settings-nav__item{{if eq .ActiveNav "branding"}} is-active{{end}}"{{if eq .ActiveNav "branding"}} aria-current="page"{{end}}>{{template "icon-design"}}<span>{{t "Brand"}}</span></a>
+    {{end}}
+    {{if .IsAdmin}}
+        <a href="/admin/protokoll" class="settings-nav__item{{if eq .ActiveNav "activity"}} is-active{{end}}"{{if eq .ActiveNav "activity"}} aria-current="page"{{end}}>{{template "icon-activity"}}<span>{{t "Activity log"}}</span></a>
+    {{end}}
+    {{if .IsAdmin}}
+        <a href="/admin/users" class="settings-nav__item{{if eq .ActiveNav "users"}} is-active{{end}}"{{if eq .ActiveNav "users"}} aria-current="page"{{end}}>{{template "icon-users"}}<span>{{t "Users"}}</span></a>
+    {{end}}
+</nav>
+{{end}}
+
+{{/*
+  Die Reiter eines Ortes, unter dem Titel. Seiten und Shop haben mehr als einen
+  Bildschirm, und die gehören zusammen: der Papierkorb ist ein Teil der Seiten,
+  nicht ein eigener Ort in der Leiste.
+*/}}
+{{define "section_tabs"}}
+{{$sec := .NavSection}}
+{{if and .NavWebsite (eq $sec "pages")}}
+<nav class="section-tabs" aria-label="{{t "Pages"}}">
+    {{$id := .NavWebsite.ID}}
+    <a href="/admin/websites/{{$id}}/pages" class="section-tab{{if eq .ActiveNav "pages"}} is-active{{end}}"{{if eq .ActiveNav "pages"}} aria-current="page"{{end}}>{{t "Pages"}}</a>
+    {{if .NavWebsite.Locales}}
+    <a href="/admin/websites/{{$id}}/uebersetzungen" class="section-tab{{if eq .ActiveNav "translations"}} is-active{{end}}"{{if eq .ActiveNav "translations"}} aria-current="page"{{end}}>{{t "Translations"}}</a>
+    {{end}}
+    <a href="/admin/websites/{{$id}}/trash" class="section-tab{{if eq .ActiveNav "trash"}} is-active{{end}}"{{if eq .ActiveNav "trash"}} aria-current="page"{{end}}>{{t "Wastebasket"}}</a>
+</nav>
+{{else if and .NavWebsite (eq $sec "shop")}}
+<nav class="section-tabs" aria-label="{{t "Shop"}}">
+    {{$id := .NavWebsite.ID}}
+    <a href="/admin/websites/{{$id}}/shop/uebersicht" class="section-tab{{if eq .ActiveNav "shop"}} is-active{{end}}"{{if eq .ActiveNav "shop"}} aria-current="page"{{end}}>{{t "Overview"}}</a>
+    <a href="/admin/websites/{{$id}}/bestellungen" class="section-tab{{if eq .ActiveNav "orders"}} is-active{{end}}"{{if eq .ActiveNav "orders"}} aria-current="page"{{end}}>{{t "Orders"}}{{if .Counts.NewOrders}} <span class="section-tab__count">{{.Counts.NewOrders}}</span>{{end}}</a>
+    <a href="/admin/websites/{{$id}}/produkte" class="section-tab{{if eq .ActiveNav "products"}} is-active{{end}}"{{if eq .ActiveNav "products"}} aria-current="page"{{end}}>{{t "Products"}}</a>
+    {{if .IsAdmin}}
+    <a href="/admin/websites/{{$id}}/shop" class="section-tab{{if eq .ActiveNav "shop-settings"}} is-active{{end}}"{{if eq .ActiveNav "shop-settings"}} aria-current="page"{{end}}>{{t "Shop settings"}}</a>
+    {{end}}
+</nav>
+{{end}}
+{{end}}

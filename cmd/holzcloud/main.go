@@ -233,6 +233,15 @@ func main() {
 	productStore := shop.NewStore(database)
 	cartStore := shop.NewCartStore(productStore)
 	orderStore := shop.NewOrderStore(cartStore)
+	// The numbers on the bar: what is waiting in each place. Three counts per
+	// page view, each an indexed COUNT on one website.
+	web.SetNavCounter(func(ctx context.Context, websiteID int64) web.NavCounts {
+		var c web.NavCounts
+		c.Review, _ = pageStore.CountPendingReview(ctx, websiteID)
+		c.MissingAlt, _ = mediaStore.CountMissingAltText(ctx, websiteID)
+		c.NewOrders, _ = orderStore.CountByStatus(ctx, websiteID, shop.OrderNew)
+		return c
+	})
 	// The outbox for the order confirmations. Its mail account is the core's
 	// (see mailSender further down); with no account configured the outbox
 	// stays put and the shop keeps working, only nobody hears about an order.
@@ -974,6 +983,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/design/activate", adminHandler.ErrHandler(adminHandler.HandleWebsiteDesignActivate))
 
 	// Shop: Produktverwaltung und Einstellungen je Website
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/shop/uebersicht", adminHandler.ErrHandler(adminHandler.HandleShopOverview))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/produkte", adminHandler.ErrHandler(adminHandler.HandleProductList))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/produkte/{productID}", adminHandler.ErrHandler(adminHandler.HandleProductForm))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/produkte/{productID}", adminHandler.ErrHandler(adminHandler.HandleProductForm))

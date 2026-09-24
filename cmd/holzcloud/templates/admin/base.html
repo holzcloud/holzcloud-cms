@@ -13,17 +13,8 @@
     <a href="#main-content" class="skip-link">{{t "Skip to content"}}</a>
     <div class="global-progress" aria-hidden="true"></div>
 
-    <!-- The checkbox drives the mobile sidebar in pure CSS. It is focusable,
-         so it must not be aria-hidden: a keyboard user would land on an
-         element the screen reader refuses to announce. -->
-    <input type="checkbox" id="sidebar-toggle" class="sidebar-toggle">
-
     <div class="admin-layout">
         <header class="topbar">
-            <label for="sidebar-toggle" class="topbar-hamburger">
-                {{template "icon-menu"}}<span class="sr-only">{{t "Show or hide the menu"}}</span>
-            </label>
-
             <a href="/admin/" class="topbar-brand">
                 {{if .Brand.LogoURL}}
                 <img class="topbar-logo" src="{{.Brand.LogoURL}}" alt="">
@@ -75,111 +66,50 @@
             </div>
         </header>
 
-        <aside class="sidebar">
-            <nav class="sidebar-nav">
-                <a href="/admin/" class="nav-item{{if eq .ActiveNav "dashboard"}} is-active{{end}}"{{if eq .ActiveNav "dashboard"}} aria-current="page"{{end}}>
-                    {{template "icon-home"}}<span>{{t "Overview"}}</span>
+        {{$sec := .NavSection}}
+        <!-- Sechs Orte statt siebenundzwanzig Einträge. Jeder Bildschirm nennt
+             weiter seinen eigenen ActiveNav; NavSection faltet ihn auf den Ort,
+             den die Leiste markiert. Die Zahl an einem Ort sagt, was dort
+             wartet — keine Zahl, wenn nichts wartet. -->
+        <aside class="sidebar rail">
+            <nav class="rail-nav" aria-label="{{t "Main menu"}}">
+                <a href="/admin/" class="rail-item{{if eq $sec "start"}} is-active{{end}}"{{if eq $sec "start"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-home"}}</span><span class="rail-label">{{t "Start"}}</span>
                 </a>
-
                 {{if .NavWebsite}}
-                <p class="nav-group">{{t "Content"}}</p>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/pages" class="nav-item{{if eq .ActiveNav "pages"}} is-active{{end}}"{{if eq .ActiveNav "pages"}} aria-current="page"{{end}}>
-                    {{template "icon-pages"}}<span>{{t "Pages"}}</span>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/pages" class="rail-item{{if eq $sec "pages"}} is-active{{end}}"{{if eq $sec "pages"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-pages"}}{{if .Counts.Review}}<span class="rail-badge" title="{{t "Awaiting review"}}">{{.Counts.Review}}<span class="sr-only"> {{t "awaiting review"}}</span></span>{{end}}</span><span class="rail-label">{{t "Pages"}}</span>
                 </a>
-                {{/* Nur bei mehr als einer Sprache: sonst ist es eine
-                     Spalte und beantwortet nichts. Locales sind die
-                     zusätzlichen Sprachen — eine davon genügt. */}}
-                {{if .NavWebsite.Locales}}
-                <a href="/admin/websites/{{.NavWebsite.ID}}/uebersetzungen" class="nav-item{{if eq .ActiveNav "translations"}} is-active{{end}}"{{if eq .ActiveNav "translations"}} aria-current="page"{{end}}>
-                    {{template "icon-translations"}}<span>{{t "Translations"}}</span>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/media" class="rail-item{{if eq $sec "media"}} is-active{{end}}"{{if eq $sec "media"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-media"}}{{if .Counts.MissingAlt}}<span class="rail-badge rail-badge--warn" title="{{t "Images without a description"}}">{{.Counts.MissingAlt}}<span class="sr-only"> {{t "images without a description"}}</span></span>{{end}}</span><span class="rail-label">{{t "Media"}}</span>
+                </a>
+                {{if .NavWebsite.HasShop}}
+                <a href="/admin/websites/{{.NavWebsite.ID}}/shop/uebersicht" class="rail-item{{if eq $sec "shop"}} is-active{{end}}"{{if eq $sec "shop"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-shop"}}{{if .Counts.NewOrders}}<span class="rail-badge" title="{{t "New orders"}}">{{.Counts.NewOrders}}<span class="sr-only"> {{t "new orders"}}</span></span>{{end}}</span><span class="rail-label">{{t "Shop"}}</span>
                 </a>
                 {{end}}
-                <a href="/admin/websites/{{.NavWebsite.ID}}/media" class="nav-item{{if eq .ActiveNav "media"}} is-active{{end}}"{{if eq .ActiveNav "media"}} aria-current="page"{{end}}>
-                    {{template "icon-media"}}<span>{{t "Media"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/albums" class="nav-item{{if eq .ActiveNav "albums"}} is-active{{end}}"{{if eq .ActiveNav "albums"}} aria-current="page"{{end}}>
-                    {{template "icon-album"}}<span>{{t "Albums"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/menus" class="nav-item{{if eq .ActiveNav "menus"}} is-active{{end}}"{{if eq .ActiveNav "menus"}} aria-current="page"{{end}}>
-                    {{template "icon-menus"}}<span>{{t "Menus"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/tags" class="nav-item{{if eq .ActiveNav "terms"}} is-active{{end}}"{{if eq .ActiveNav "terms"}} aria-current="page"{{end}}>
-                    {{template "icon-tag"}}<span>{{t "Terms"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/snippets" class="nav-item{{if eq .ActiveNav "snippets"}} is-active{{end}}"{{if eq .ActiveNav "snippets"}} aria-current="page"{{end}}>
-                    {{template "icon-snippet"}}<span>{{t "Snippets"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/produkte" class="nav-item{{if eq .ActiveNav "products"}} is-active{{end}}"{{if eq .ActiveNav "products"}} aria-current="page"{{end}}>
-                    {{template "icon-product"}}<span>{{t "Products"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/bestellungen" class="nav-item{{if eq .ActiveNav "orders"}} is-active{{end}}"{{if eq .ActiveNav "orders"}} aria-current="page"{{end}}>
-                    {{template "icon-orders"}}<span>{{t "Orders"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/trash" class="nav-item{{if eq .ActiveNav "trash"}} is-active{{end}}"{{if eq .ActiveNav "trash"}} aria-current="page"{{end}}>
-                    {{template "icon-trash"}}<span>{{t "Wastebasket"}}</span>
-                </a>
-                {{/* Was ein Plugin mitbringt, steht hier zwischen dem Übrigen und
-                     nicht in einer eigenen Schublade: wer Anfragen liest, sucht
-                     sie beim Inhalt und nicht unter „Plugins“. */}}
+                {{/* Was ein Plugin mitbringt, steht in der Leiste neben dem
+                     Übrigen: wer Anfragen liest, sucht sie beim Inhalt und
+                     nicht unter „Plugins“. */}}
                 {{range .PluginScreens}}{{if or (not .AdminOnly) $.IsAdmin}}
-                <a href="{{.URL}}" class="nav-item{{if eq $.ActiveNav (print "plugin:" .URL)}} is-active{{end}}">
-                    {{template "icon-plugin"}}<span>{{.Label}}</span>
+                <a href="{{.URL}}" class="rail-item{{if eq $.ActiveNav (print "plugin:" .URL)}} is-active{{end}}">
+                    <span class="rail-pill">{{template "icon-plugin"}}</span><span class="rail-label">{{.Label}}</span>
                 </a>
                 {{end}}{{end}}
-
-                <p class="nav-group">{{t "Website"}}</p>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/design" class="nav-item{{if eq .ActiveNav "website-design"}} is-active{{end}}"{{if eq .ActiveNav "website-design"}} aria-current="page"{{end}}>
-                    {{template "icon-design"}}<span>{{t "Design"}}</span>
+                <a href="/admin/websites/{{.NavWebsite.ID}}/design" class="rail-item{{if eq $sec "design"}} is-active{{end}}"{{if eq $sec "design"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-design"}}</span><span class="rail-label">{{t "Design"}}</span>
                 </a>
-                {{if .IsAdmin}}
-                <a href="/admin/websites/{{.NavWebsite.ID}}/inhaltsarten" class="nav-item{{if eq .ActiveNav "kinds"}} is-active{{end}}"{{if eq .ActiveNav "kinds"}} aria-current="page"{{end}}>
-                    {{template "icon-pages"}}<span>{{t "Content kinds"}}</span>
+                <a href="/admin/websites/{{.NavWebsite.ID}}" class="rail-item{{if eq $sec "settings"}} is-active{{end}}"{{if eq $sec "settings"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-settings"}}</span><span class="rail-label">{{t "Settings"}}</span>
                 </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/felder" class="nav-item{{if eq .ActiveNav "fields"}} is-active{{end}}"{{if eq .ActiveNav "fields"}} aria-current="page"{{end}}>
-                    {{template "icon-fields"}}<span>{{t "Fields"}}</span>
-                </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}/bausteinarten" class="nav-item{{if eq .ActiveNav "blocktypes"}} is-active{{end}}"{{if eq .ActiveNav "blocktypes"}} aria-current="page"{{end}}>
-                    {{template "icon-blocks"}}<span>{{t "Block kinds"}}</span>
+                {{else}}
+                <a href="/admin/websites" class="rail-item{{if eq $sec "settings"}} is-active{{end}}"{{if eq $sec "settings"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-settings"}}</span><span class="rail-label">{{t "Settings"}}</span>
                 </a>
                 {{end}}
-                <a href="/admin/websites/{{.NavWebsite.ID}}/redirects" class="nav-item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>
-                    {{template "icon-redirect"}}<span>{{t "Redirects"}}</span>
+                <a href="/admin/konto" class="rail-item rail-item--end{{if eq $sec "account"}} is-active{{end}}"{{if eq $sec "account"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-account"}}</span><span class="rail-label">{{t "Account"}}</span>
                 </a>
-                <a href="/admin/websites/{{.NavWebsite.ID}}" class="nav-item{{if eq .ActiveNav "website-settings"}} is-active{{end}}"{{if eq .ActiveNav "website-settings"}} aria-current="page"{{end}}>
-                    {{template "icon-settings"}}<span>{{t "Settings"}}</span>
-                </a>
-                {{end}}
-
-                <p class="nav-group">{{t "System"}}</p>
-                <a href="/admin/websites" class="nav-item{{if eq .ActiveNav "websites"}} is-active{{end}}"{{if eq .ActiveNav "websites"}} aria-current="page"{{end}}>
-                    {{template "icon-websites"}}<span>{{t "Websites"}}</span>
-                </a>
-                <a href="/admin/templates" class="nav-item{{if eq .ActiveNav "templates"}} is-active{{end}}"{{if eq .ActiveNav "templates"}} aria-current="page"{{end}}>
-                    {{template "icon-template"}}<span>{{t "Templates"}}</span>
-                </a>
-                {{if .IsAdmin}}
-                <a href="/admin/plugins" class="nav-item{{if eq .ActiveNav "plugins"}} is-active{{end}}"{{if eq .ActiveNav "plugins"}} aria-current="page"{{end}}>
-                    {{template "icon-plugin"}}<span>{{t "Plugins"}}</span>
-                </a>
-                <a href="/admin/mail" class="nav-item{{if eq .ActiveNav "mail"}} is-active{{end}}"{{if eq .ActiveNav "mail"}} aria-current="page"{{end}}>
-                    {{template "icon-mail"}}<span>{{t "Email"}}</span>
-                </a>
-                <a href="/admin/ai" class="nav-item{{if eq .ActiveNav "ai"}} is-active{{end}}"{{if eq .ActiveNav "ai"}} aria-current="page"{{end}}>
-                    {{template "icon-ai"}}<span>{{t "AI access"}}</span>
-                </a>
-                <a href="/admin/sprachen" class="nav-item{{if eq .ActiveNav "languages"}} is-active{{end}}"{{if eq .ActiveNav "languages"}} aria-current="page"{{end}}>
-                    {{template "icon-language"}}<span>{{t "Languages"}}</span>
-                </a>
-                <a href="/admin/marke" class="nav-item{{if eq .ActiveNav "branding"}} is-active{{end}}"{{if eq .ActiveNav "branding"}} aria-current="page"{{end}}>
-                    {{template "icon-design"}}<span>{{t "Brand"}}</span>
-                </a>
-                <a href="/admin/protokoll" class="nav-item{{if eq .ActiveNav "activity"}} is-active{{end}}"{{if eq .ActiveNav "activity"}} aria-current="page"{{end}}>
-                    {{template "icon-activity"}}<span>{{t "Activity log"}}</span>
-                </a>
-                <a href="/admin/users" class="nav-item{{if eq .ActiveNav "users"}} is-active{{end}}"{{if eq .ActiveNav "users"}} aria-current="page"{{end}}>
-                    {{template "icon-users"}}<span>{{t "Users"}}</span>
-                </a>
-                {{end}}
             </nav>
 
             <!-- Programm, Fassung, Lizenz und Quelle. Abschnitt 13 der AGPL
@@ -188,26 +118,23 @@
                  der ohnehin dasteht, erledigt das von selbst. „Holzcloud CMS“
                  steht hier wörtlich und nicht als .Brand.Name: die Marke ist,
                  wie die Installation sich nennt, die Lizenz meint das
-                 Programm. -->
+                 Programm. In der schmalen Leiste bleibt davon die Fassung,
+                 die zu den Neuerungen führt; Lizenz und Quelle stehen im Titel
+                 des Verweises und ausgeschrieben in der Einstellungsliste. -->
             <p class="sidebar-build">
-                <!-- Die Fassungsnummer ist der Verweis auf das, was sich
-                     geaendert hat. Wer wissen will, was nach einer
-                     Aktualisierung anders ist, schaut dorthin, wo die Nummer
-                     steht — also fuehrt die Nummer dorthin. Kein Abzeichen,
-                     kein Hinweis, der sich meldet: ein selbst betriebenes
-                     Programm, das seine Bedienerin unterbricht, um ueber sich
-                     selbst zu reden, lernt sie wegzuklicken. -->
-                Holzcloud CMS <a href="/admin/neuerungen" class="sidebar-build__version">{{.Version}}</a><br>
-                {{t "Free software under the AGPL-3.0."}}
-                <a href="{{.SourceURL}}" target="_blank" rel="noopener">{{t "Source code"}}</a>
+                <a href="/admin/neuerungen" class="sidebar-build__version" title="Holzcloud CMS {{.Version}}">{{.Version}}</a>
+                <a href="{{.SourceURL}}" target="_blank" rel="noopener" title="{{t "Free software under the AGPL-3.0."}} {{t "Source code"}}">AGPL</a>
             </p>
         </aside>
 
-        <main class="main-content" id="main-content" tabindex="-1">
+        <main class="main-content{{if eq $sec "settings"}} has-settings-nav{{end}}" id="main-content" tabindex="-1">
+            {{if eq $sec "settings"}}{{template "settings_nav" .}}{{end}}
+            <div class="main-column">
             <header class="content-header">
                 <h1>{{.Title}}</h1>
                 <div class="content-header-actions">{{block "actions" .}}{{end}}</div>
             </header>
+            {{template "section_tabs" .}}
             <!-- Flashes are announced rather than only shown: after an htmx swap
                  nothing else tells a screen-reader user the save succeeded. -->
             <div id="flash-area" role="status" aria-live="polite">
@@ -217,6 +144,7 @@
             </div>
             <div class="content-body">
                 {{block "content" .}}{{end}}
+            </div>
             </div>
         </main>
     </div>

@@ -3061,3 +3061,482 @@ body.is-fullscreen .content-body {
         }
     }
 }
+
+/* ── Die schmale Leiste (v2.6) ──
+   Sechs Orte statt siebenundzwanzig Einträgen, jeder als Symbol über einem
+   kurzen Wort. Der aktive Ort liegt in einer Pille; eine Zahl daran sagt, was
+   dort wartet. In @layer components und nicht in layout, weil sie die
+   Spaltenbreite der Seitenleiste aus layout ersetzt — eine Regel in layout
+   hätte gegen nichts gewonnen, was hier steht. */
+@layer components {
+    .admin-layout {
+        --rail-width: 88px;
+        grid-template-columns: var(--rail-width) 1fr;
+    }
+
+    .rail {
+        align-items: center;
+        padding-block: var(--space-2);
+        view-transition-name: sidebar;
+    }
+
+    .rail-nav {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        inline-size: 100%;
+    }
+
+    .rail-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        inline-size: 80px;
+        padding: 6px 2px;
+        border-radius: var(--radius-lg);
+        color: var(--color-text-muted);
+        font-size: var(--text-xs);
+        font-weight: 500;
+        line-height: 1.2;
+        text-align: center;
+        text-decoration: none;
+    }
+
+    .rail-item:hover {
+        color: var(--color-text);
+    }
+
+    .rail-item:hover .rail-pill {
+        background: var(--color-hover);
+    }
+
+    .rail-item:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
+    }
+
+    .rail-pill {
+        position: relative;
+        display: grid;
+        place-items: center;
+        inline-size: 52px;
+        block-size: 32px;
+        border-radius: 999px;
+        transition: background 0.1s;
+    }
+
+    .rail-item.is-active {
+        color: var(--color-accent);
+        font-weight: 700;
+    }
+
+    .rail-item.is-active .rail-pill {
+        background: var(--color-accent-subtle);
+    }
+
+    .rail-label {
+        max-inline-size: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .rail-item--end {
+        margin-block-start: auto;
+    }
+
+    /* Die Zahl. Farbe allein trägt keine Bedeutung: die Zahl steht da, und
+       für einen Screenreader sagt ein versteckter Text, was sie zählt. */
+    .rail-badge {
+        position: absolute;
+        inset-block-start: -5px;
+        inset-inline-end: -2px;
+        display: grid;
+        place-items: center;
+        min-inline-size: 20px;
+        block-size: 20px;
+        padding-inline: 5px;
+        border-radius: 999px;
+        border: 2px solid var(--color-surface);
+        background: var(--color-accent);
+        color: oklch(1 0 0);
+        font-size: 11px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+    }
+
+    .rail-badge--warn {
+        background: var(--color-warning);
+    }
+
+    .rail .sidebar-build {
+        display: grid;
+        gap: 2px;
+        justify-items: center;
+        padding: var(--space-1) 0 0;
+        text-align: center;
+    }
+
+    /* Auf dem Telefon wird die Leiste zur Leiste unten am Rand, wie in jeder
+       App: fünf, sechs Orte passen nebeneinander, und der Daumen erreicht sie.
+       Der Hamburger von früher ist damit weg — ein Menü, das man erst
+       aufklappen muss, um zu sehen, wo man ist, hat nie gut funktioniert. */
+    @media (max-width: 900px) {
+        .admin-layout {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+                "topbar"
+                "main";
+            padding-block-end: calc(64px + env(safe-area-inset-bottom, 0px));
+        }
+
+        .rail {
+            position: fixed;
+            inset-inline: 0;
+            inset-block: auto 0;
+            inline-size: 100%;
+            block-size: auto;
+            transform: none;
+            z-index: 45;
+            flex-direction: row;
+            padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+            border-right: 0;
+            border-top: 1px solid var(--color-border);
+            overflow-x: auto;
+        }
+
+        .rail-nav {
+            flex-direction: row;
+            justify-content: space-around;
+        }
+
+        .rail-item {
+            inline-size: auto;
+            min-inline-size: 0;
+            flex: 1 1 0;
+            padding-inline: 0;
+            font-size: 10.5px;
+        }
+
+        .rail-pill {
+            inline-size: 44px;
+        }
+
+        .rail-label {
+            max-inline-size: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow-wrap: normal;
+        }
+
+        .rail-item--end {
+            margin-block-start: 0;
+        }
+
+        .rail .sidebar-build {
+            display: none;
+        }
+    }
+
+    /* ── Einstellungen: Liste links, Bildschirm rechts ── */
+    .main-content.has-settings-nav {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    .main-column {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-inline-size: 0;
+    }
+
+    .settings-nav {
+        position: sticky;
+        inset-block-start: var(--topbar-height);
+        flex: none;
+        inline-size: 220px;
+        max-block-size: calc(100dvh - var(--topbar-height));
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        padding: var(--space-3) var(--space-1);
+        border-right: 1px solid var(--color-border);
+        background: var(--color-surface);
+        align-self: stretch;
+    }
+
+    .settings-nav__group {
+        margin: var(--space-2) var(--space-1) 4px;
+        font-size: var(--text-xs);
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--color-text-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .settings-nav__group:first-child {
+        margin-block-start: 0;
+    }
+
+    .settings-nav__item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px var(--space-1);
+        border-radius: var(--radius-md);
+        color: var(--color-text-muted);
+        font-size: var(--text-sm);
+        text-decoration: none;
+    }
+
+    .settings-nav__item .icon {
+        inline-size: 18px;
+        block-size: 18px;
+    }
+
+    .settings-nav__item:hover {
+        color: var(--color-text);
+        background: var(--color-hover);
+    }
+
+    .settings-nav__item.is-active {
+        color: var(--color-accent);
+        background: var(--color-accent-subtle);
+        font-weight: 600;
+    }
+
+    /* Auf dem Telefon steht die Liste über dem Bildschirm und scrollt
+       seitwärts: eine zweite Spalte hätte keinen Platz, und eine Klappliste
+       verstecke, wo man ist. */
+    @media (max-width: 900px) {
+        .main-content.has-settings-nav {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .settings-nav {
+            position: static;
+            inline-size: auto;
+            max-block-size: none;
+            flex-direction: row;
+            align-items: center;
+            overflow-x: auto;
+            padding: var(--space-1);
+            border-right: 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .settings-nav__group {
+            display: none;
+        }
+
+        .settings-nav__item {
+            flex: none;
+            white-space: nowrap;
+        }
+    }
+
+    @media (pointer: coarse) {
+        .rail-item,
+        .settings-nav__item {
+            min-block-size: 44px;
+        }
+    }
+}
+
+/* Die Reiter eines Ortes (Seiten, Shop). */
+@layer components {
+    .section-tabs {
+        display: flex;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-4) 0;
+        border-bottom: 1px solid var(--color-border);
+        overflow-x: auto;
+    }
+
+    .section-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: var(--space-1) 0;
+        color: var(--color-text-muted);
+        font-size: var(--text-sm);
+        font-weight: 500;
+        text-decoration: none;
+        white-space: nowrap;
+        border-bottom: 2px solid transparent;
+        margin-block-end: -1px;
+    }
+
+    .section-tab:hover {
+        color: var(--color-text);
+    }
+
+    .section-tab.is-active {
+        color: var(--color-text);
+        font-weight: 600;
+        border-bottom-color: var(--color-accent);
+    }
+
+    .section-tab__count {
+        min-inline-size: 18px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: var(--color-accent);
+        color: oklch(1 0 0);
+        font-size: 11px;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    @media (max-width: 900px) {
+        .section-tabs {
+            padding-inline: var(--space-2);
+        }
+    }
+
+    @media (pointer: coarse) {
+        .section-tab {
+            min-block-size: 44px;
+        }
+    }
+}
+
+/* Die Shop-Übersicht: Kennzahlen, Aufgaben, Umsatz pro Woche. */
+@layer components {
+    .badge--warning {
+        background: var(--color-warning-subtle);
+        color: var(--color-warning);
+    }
+
+    .kpis {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+        gap: var(--space-2);
+        margin-block-end: var(--space-3);
+    }
+
+    .kpi {
+        display: grid;
+        gap: 2px;
+        padding: var(--space-2);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        background: var(--color-surface);
+    }
+
+    .kpi__label,
+    .kpi__note {
+        font-size: var(--text-xs);
+        color: var(--color-text-muted);
+    }
+
+    .kpi__value {
+        font-size: var(--text-2xl);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+    }
+
+    .kpi--warn {
+        border-color: var(--color-warning);
+    }
+
+    .kpi--warn .kpi__value {
+        color: var(--color-warning);
+    }
+
+    .shop-overview {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+        gap: var(--space-3);
+        align-items: start;
+    }
+
+    @container (max-width: 760px) {
+        .shop-overview {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .shop-tasks__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .shop-task {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding-block: var(--space-1);
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .shop-task:last-child {
+        border-bottom: 0;
+    }
+
+    .shop-task__text {
+        flex: 1;
+        min-inline-size: 0;
+    }
+
+    .bars {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 6px;
+        align-items: end;
+        block-size: 160px;
+        border-bottom: 1px solid var(--color-border);
+        background: repeating-linear-gradient(to top, transparent 0 39px, var(--color-sunken) 39px 40px);
+    }
+
+    .bars__col {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        block-size: 100%;
+        position: relative;
+    }
+
+    .bars__bar {
+        display: block;
+        block-size: var(--h);
+        min-block-size: 2px;
+        border-radius: 4px 4px 0 0;
+        background: var(--color-accent);
+        opacity: 0.7;
+    }
+
+    .bars__col.is-current .bars__bar {
+        opacity: 1;
+    }
+
+    .bars__label {
+        position: absolute;
+        inset-block-start: calc(100% + 4px);
+        inset-inline: 0;
+        font-size: 10.5px;
+        color: var(--color-text-muted);
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .shop-chart__note {
+        margin-block-start: calc(var(--space-3) + 4px);
+        font-size: var(--text-sm);
+    }
+}
