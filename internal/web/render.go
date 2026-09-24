@@ -32,6 +32,8 @@ var partialFiles = []string{
 	"icons.html",
 	// The list on the left of every settings screen, beside the bar.
 	"settings_nav.html",
+	// The collections beside media and albums.
+	"library_nav.html",
 	// One input field of the website — once in the field list, once per row
 	// einer Gruppe.
 	"field_input.html",

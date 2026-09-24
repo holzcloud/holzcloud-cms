@@ -48,6 +48,7 @@ type albumListData struct {
 	web.LayoutData
 	WebsiteID int64
 	Albums    []albumRow
+	Library   libraryNav
 }
 
 // albumRow is one album in the list, with how many pictures are in it.
@@ -65,6 +66,7 @@ type albumEditData struct {
 	// NewPicture is the chooser of the add form at the foot of the screen. It
 	// is the same imageFieldView every row carries, with an empty selection.
 	NewPicture imageFieldView
+	Library    libraryNav
 }
 
 // albumItemView is one picture row as the editor draws it.
@@ -230,6 +232,7 @@ func (h *Handler) HandleAlbumList(w http.ResponseWriter, r *http.Request) error 
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Albums – %s", ws.Name)),
 		WebsiteID:  ws.ID,
 		Albums:     rows,
+		Library:    h.libraryNavFor(r.Context(), ws.ID, "albums"),
 	}
 	data.ActiveNav = "albums"
 	data.CurrentWebsite = ws
@@ -313,6 +316,7 @@ func (h *Handler) HandleAlbumEdit(w http.ResponseWriter, r *http.Request) error 
 		NewPicture: imageFieldView{
 			Prefix: "bild", ID: "neues-bild", Media: images, WebsiteID: ws.ID,
 		},
+		Library: h.libraryNavFor(r.Context(), ws.ID, "album:"+strconv.FormatInt(a.ID, 10)),
 	}
 	data.ActiveNav = "albums"
 	data.CurrentWebsite = ws

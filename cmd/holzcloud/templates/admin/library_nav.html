@@ -1,0 +1,29 @@
+{{/*
+  Die Sammlungen der Medienbibliothek, links neben Medien und Alben. Erwartet
+  eine libraryNav. Die Dateien sind die Bibliothek; ein Album ist eine Auswahl
+  daraus, und eine Datei kann in mehreren liegen.
+*/}}
+{{define "library_nav"}}
+<nav class="library-nav" aria-label="{{t "Media library"}}">
+    {{$base := printf "/admin/websites/%d/media" .WebsiteID}}
+    <p class="library-nav__group">{{t "Library"}}</p>
+    <a href="{{$base}}" class="library-nav__item{{if eq .Active "all"}} is-active{{end}}"{{if eq .Active "all"}} aria-current="page"{{end}}><span>{{t "All media"}}</span><span class="library-nav__count">{{.Counts.All}}</span></a>
+    <a href="{{$base}}?kind=image" class="library-nav__item{{if eq .Active "images"}} is-active{{end}}"{{if eq .Active "images"}} aria-current="page"{{end}}><span>{{t "Images"}}</span><span class="library-nav__count">{{.Counts.Images}}</span></a>
+    {{if .Counts.Videos}}
+    <a href="{{$base}}?kind=video" class="library-nav__item{{if eq .Active "videos"}} is-active{{end}}"{{if eq .Active "videos"}} aria-current="page"{{end}}><span>{{t "Videos"}}</span><span class="library-nav__count">{{.Counts.Videos}}</span></a>
+    {{end}}
+    <a href="{{$base}}?kind=document" class="library-nav__item{{if eq .Active "documents"}} is-active{{end}}"{{if eq .Active "documents"}} aria-current="page"{{end}}><span>{{t "Documents"}}</span><span class="library-nav__count">{{.Counts.Documents}}</span></a>
+    <a href="{{$base}}?unused=1" class="library-nav__item{{if eq .Active "unused"}} is-active{{end}}"{{if eq .Active "unused"}} aria-current="page"{{end}}><span>{{t "Unused"}}</span><span class="library-nav__count">{{.Counts.Unused}}</span></a>
+    <a href="{{$base}}?ohne_beschreibung=1" class="library-nav__item{{if eq .Active "noalt"}} is-active{{end}}{{if .Counts.NoAlt}} is-warn{{end}}"{{if eq .Active "noalt"}} aria-current="page"{{end}}><span>{{t "Without a description"}}</span><span class="library-nav__count">{{.Counts.NoAlt}}</span></a>
+
+    <p class="library-nav__group">
+        <a href="/admin/websites/{{.WebsiteID}}/albums" class="library-nav__group-link{{if eq .Active "albums"}} is-active{{end}}">{{t "Albums"}}</a>
+    </p>
+    {{$active := .Active}}
+    {{range .Albums}}
+    {{$key := printf "album:%d" .ID}}
+    <a href="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}" class="library-nav__item{{if eq $active $key}} is-active{{end}}"{{if eq $active $key}} aria-current="page"{{end}}><span>{{.Name}}</span><span class="library-nav__count">{{.Count}}</span></a>
+    {{end}}
+    <a href="/admin/websites/{{.WebsiteID}}/albums" class="library-nav__item library-nav__item--add"><span>{{t "+ New album"}}</span></a>
+</nav>
+{{end}}

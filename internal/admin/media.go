@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -25,6 +26,8 @@ type mediaListData struct {
 	// MissingAltText counts images with no description — an accessibility gap
 	// the operator can otherwise not see.
 	MissingAltText int
+	// Library is the collection list on the left.
+	Library libraryNav
 }
 
 // mediaFilterFromRequest reads the list controls.
@@ -32,12 +35,15 @@ func mediaFilterFromRequest(r *http.Request) media.Filter {
 	f := media.Filter{
 		Query:  strings.TrimSpace(r.URL.Query().Get("q")),
 		Unused: r.URL.Query().Get("unused") != "",
+		NoAlt:  r.URL.Query().Get("ohne_beschreibung") != "",
 	}
 	switch r.URL.Query().Get("kind") {
 	case "image":
 		f.MimePrefix = "image/"
 	case "document":
 		f.MimePrefix = "application/"
+	case "video":
+		f.MimePrefix = "video/"
 	}
 	return f
 }
@@ -79,6 +85,7 @@ func (h *Handler) HandleMediaList(w http.ResponseWriter, r *http.Request) error 
 			WithTarget(fmt.Sprintf("/admin/websites/%d/media", websiteID), "#media-list"),
 		Filter:         filter,
 		MissingAltText: missing,
+		Library:        h.libraryNavFor(r.Context(), websiteID, activeCollection(filter)),
 	}
 	data.ActiveNav = "media"
 	data.CurrentWebsite = ws
@@ -94,13 +101,93 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/media", websiteID)
 
-	// The outer limit is the larger of the two, because the kind of the file is
-	// settled only after reading. The actual limit stands below.
-	r.Body = http.MaxBytesReader(w, r.Body, max(h.cfg.MaxMediaSize, h.cfg.MaxVideoSize))
-
-	file, header, err := r.FormFile("media")
-	if err != nil {
+	// Several files at once, up to maxUploadFiles. The outer limit therefore
+	// allows that many images, or one video, whichever is larger; each file is
+	// then held to the limit for its own kind by media.Check below.
+	r.Body = http.MaxBytesReader(w, r.Body, max(h.cfg.MaxMediaSize*maxUploadFiles, h.cfg.MaxVideoSize))
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		return h.uploadFailed(w, r, redirect, web.T(r, "File too large or not selected"))
+	}
+	defer r.MultipartForm.RemoveAll()
+	headers := r.MultipartForm.File["media"]
+	if len(headers) == 0 {
+		return h.uploadFailed(w, r, redirect, web.T(r, "File too large or not selected"))
+	}
+	if len(headers) > maxUploadFiles {
+		return h.uploadFailed(w, r, redirect, web.Titlef(r, "At most %d files at once.", maxUploadFiles))
+	}
+
+	// One file answers exactly as it always did: its own sentence, its own
+	// warning. Several are summed up, and every refusal is still named — a
+	// batch that silently drops the one file that failed is worse than no
+	// batch at all.
+	if len(headers) == 1 {
+		res := h.uploadOne(r, websiteID, headers[0])
+		switch res.kind {
+		case uploadRefused:
+			web.SetFlashError(h.sm, r.Context(), res.message)
+		case uploadExisted:
+			web.SetFlashWarning(h.sm, r.Context(), res.message)
+		default:
+			web.SetFlashSuccess(h.sm, r.Context(), res.message)
+		}
+		return h.redirect(w, r, redirect)
+	}
+
+	var kept, noAlt int
+	var problems []string
+	for _, fh := range headers {
+		res := h.uploadOne(r, websiteID, fh)
+		switch res.kind {
+		case uploadKept:
+			kept++
+			if res.needsAlt {
+				noAlt++
+			}
+		default:
+			problems = append(problems, fh.Filename+": "+res.message)
+		}
+	}
+	if kept > 0 {
+		msg := web.Titlef(r, "%d files uploaded", kept)
+		if noAlt > 0 {
+			msg += " – " + web.Titlef(r, "%d of them still need an image description", noAlt)
+		}
+		web.SetFlashSuccess(h.sm, r.Context(), msg)
+	}
+	if len(problems) > 0 {
+		web.SetFlashWarning(h.sm, r.Context(), strings.Join(problems, " · "))
+	}
+	// Straight to the images that still need words: describing them right
+	// after the upload is the one moment nobody has forgotten what they show.
+	if noAlt > 0 {
+		redirect += "?ohne_beschreibung=1"
+	}
+	return h.redirect(w, r, redirect)
+}
+
+// maxUploadFiles is how many files one upload may carry.
+const maxUploadFiles = 20
+
+type uploadKind int
+
+const (
+	uploadKept uploadKind = iota
+	uploadExisted
+	uploadRefused
+)
+
+type uploadResult struct {
+	kind     uploadKind
+	message  string
+	needsAlt bool
+}
+
+// uploadOne checks, stores and scales one file of an upload.
+func (h *Handler) uploadOne(r *http.Request, websiteID int64, header *multipart.FileHeader) uploadResult {
+	file, err := header.Open()
+	if err != nil {
+		return uploadResult{kind: uploadRefused, message: web.T(r, "File too large or not selected")}
 	}
 	defer file.Close()
 
@@ -111,17 +198,16 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 		Image: h.cfg.MaxMediaSize, Video: h.cfg.MaxVideoSize,
 	})
 	if err != nil {
-		return h.uploadFailed(w, r, redirect, web.MediaRefusal(r, err))
+		return uploadResult{kind: uploadRefused, message: web.MediaRefusal(r, err)}
 	}
 
 	m, existed, err := in.Keep(r.Context(), h.mediaStore, websiteID, h.cfg.DataDir)
 	if err != nil {
-		return h.uploadFailed(w, r, redirect, web.Titlef(r, "Upload failed: %s", err))
+		return uploadResult{kind: uploadRefused, message: web.Titlef(r, "Upload failed: %s", err)}
 	}
 	if existed {
-		web.SetFlashWarning(h.sm, r.Context(), web.Titlef(r,
-			"This file already exists as “%s” – nothing was uploaded.", m.OriginalName))
-		return h.redirect(w, r, redirect)
+		return uploadResult{kind: uploadExisted, message: web.Titlef(r,
+			"This file already exists as “%s” – nothing was uploaded.", m.OriginalName)}
 	}
 	h.emitMediaAdded(websiteID, m)
 	destPath := media.Path(h.cfg.DataDir, websiteID, m.Filename)
@@ -136,9 +222,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	if m.NeedsAltText() {
 		parts = append(parts, web.T(r, "please still enter an image description"))
 	}
-	message := strings.Join(parts, " – ")
-	web.SetFlashSuccess(h.sm, r.Context(), message)
-	return h.redirect(w, r, redirect)
+	return uploadResult{kind: uploadKept, message: strings.Join(parts, " – "), needsAlt: m.NeedsAltText()}
 }
 
 // makeVariants generates the scaled copies of an uploaded image and returns a

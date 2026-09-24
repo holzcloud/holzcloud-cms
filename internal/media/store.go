@@ -142,6 +142,9 @@ type Filter struct {
 	// Unused restricts the list to files no live page refers to — the view that
 	// actually reclaims space on the card.
 	Unused bool
+	// NoAlt restricts the list to images without a description — the ones
+	// that are invisible to a screen reader and to a search engine.
+	NoAlt bool
 }
 
 // List returns one page of media for a website, newest first, together with the
@@ -172,6 +175,9 @@ func (s *Store) List(ctx context.Context, websiteID int64, f Filter, page, perPa
 	}
 	if f.Unused {
 		where += ` AND NOT EXISTS (SELECT 1 FROM media_usage u WHERE u.media_id = m.id)`
+	}
+	if f.NoAlt {
+		where += ` AND m.alt_text = '' AND m.mime_type LIKE 'image/%'`
 	}
 
 	var total int
@@ -246,4 +252,28 @@ func (s *Store) SaveFocus(ctx context.Context, id, x, y int64) error {
 		return fmt.Errorf("store focus: %w", err)
 	}
 	return nil
+}
+
+// LibraryCounts are the numbers beside the collections of the media library.
+type LibraryCounts struct {
+	All, Images, Videos, Documents, Unused, NoAlt int
+}
+
+// Counts reports how many files of one website fall into each collection, in
+// one pass over the table.
+func (s *Store) Counts(ctx context.Context, websiteID int64) (LibraryCounts, error) {
+	var c LibraryCounts
+	err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT COUNT(*),
+		        COALESCE(SUM(m.mime_type LIKE 'image/%'), 0),
+		        COALESCE(SUM(m.mime_type LIKE 'video/%'), 0),
+		        COALESCE(SUM(m.mime_type LIKE 'application/%'), 0),
+		        COALESCE(SUM(NOT EXISTS (SELECT 1 FROM media_usage u WHERE u.media_id = m.id)), 0),
+		        COALESCE(SUM(m.alt_text = '' AND m.mime_type LIKE 'image/%'), 0)
+		   FROM media m WHERE m.website_id = $1`,
+		websiteID).Scan(&c.All, &c.Images, &c.Videos, &c.Documents, &c.Unused, &c.NoAlt)
+	if err != nil {
+		return c, fmt.Errorf("count library: %w", err)
+	}
+	return c, nil
 }

@@ -10,7 +10,10 @@
 {{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/media" class="btn btn--sm">{{t "media library"}}</a>{{end}}
 
 {{define "content"}}
-{{template "album_list-content" .}}
+<div class="library">
+{{template "library_nav" .Library}}
+<div class="library__main">{{template "album_list-content" .}}</div>
+</div>
 {{end}}
 
 {{define "album_list-content"}}

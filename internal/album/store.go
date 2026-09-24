@@ -840,3 +840,26 @@ func (s *Store) LoadFor(ctx context.Context, websiteID int64, html string) (Set,
 	}
 	return set, nil
 }
+
+// ItemCounts reports how many pictures each album of one website holds, for
+// the collection list beside the media library.
+func (s *Store) ItemCounts(ctx context.Context, websiteID int64) (map[int64]int, error) {
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT a.id, COUNT(i.id) FROM albums a
+		   LEFT JOIN album_items i ON i.album_id = a.id
+		  WHERE a.website_id = $1 GROUP BY a.id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("count album items: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64]int{}
+	for rows.Next() {
+		var id int64
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}
