@@ -1,6 +1,9 @@
 package web
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 // adminCSP locks the admin UI down to same-origin resources.
 //
@@ -103,4 +106,14 @@ func AdminHeaders(next http.Handler) http.Handler {
 		h.Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
+}
+
+// AllowSameOriginFrame lets this one response be shown inside a frame of the
+// admin itself — the design screen shows the website beside its settings. Only
+// the admin's own origin may frame it; every other admin response keeps
+// frame-ancestors 'none'.
+func AllowSameOriginFrame(w http.ResponseWriter) {
+	h := w.Header()
+	h.Set("Content-Security-Policy", strings.Replace(adminCSP, "frame-ancestors 'none'", "frame-ancestors 'self'", 1))
+	h.Set("X-Frame-Options", "SAMEORIGIN")
 }

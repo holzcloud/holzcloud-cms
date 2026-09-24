@@ -3,13 +3,26 @@
 {{end}}
 
 {{define "website_design-content"}}
-<div class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{t "Custom colours and typeface"}}</h2>
-    <p class="text-muted">
+<!-- Links die Werte, rechts die Website. „In der Vorschau zeigen“ schickt das
+     Formular an die Vorschau statt ans Speichern, in den Rahmen daneben — ohne
+     eine Zeile Skript, und mit genau den Werten, die Speichern ablegen würde. -->
+<div class="design-studio">
+<section class="card design-panel" aria-labelledby="design-panel-title">
+    <div class="design-current">
+        <div class="design-current__info">
+            <span class="design-current__label">{{t "Active template"}}</span>
+            <span class="design-current__name">{{if .ActiveTemplate}}{{.ActiveTemplate.Name}}{{else}}{{t "Default"}}{{end}}</span>
+            {{if and .ActiveTemplate .ActiveTemplate.IsBuiltin}}<span class="badge badge--primary">{{t "built in"}}</span>{{end}}
+        </div>
+        <a href="#templates" class="btn btn--sm">{{t "Change"}}</a>
+    </div>
+
+    <h2 id="design-panel-title">{{t "Custom colours and typeface"}}</h2>
+    <p class="text-muted design-panel__hint">
         {{t "Between “pick one of four templates” and “maintain a template of your own” sits exactly this: a handful of values every template picks up. None of them has to be set — empty means the template decides."}}
     </p>
 
-    <form method="POST" action="/admin/websites/{{.Website.ID}}/design/tokens">
+    <form method="POST" action="/admin/websites/{{.Website.ID}}/design/tokens" class="design-form">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
 
         <div class="form-group">
@@ -19,37 +32,37 @@
             </label>
         </div>
 
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label" for="token_ink">{{t "Text colour"}}</label>
-                <input type="color" id="token_ink" name="token_ink" class="form-input form-input--color"
-                       value="{{if .Website.TokenInk}}{{.Website.TokenInk}}{{else}}{{.TokenDefaults.Ink}}{{end}}">
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="token_paper">{{t "Background"}}</label>
-                <input type="color" id="token_paper" name="token_paper" class="form-input form-input--color"
-                       value="{{if .Website.TokenPaper}}{{.Website.TokenPaper}}{{else}}{{.TokenDefaults.Paper}}{{end}}">
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="token_brand">{{t "Links and accents"}}</label>
-                <input type="color" id="token_brand" name="token_brand" class="form-input form-input--color"
-                       value="{{if .Website.TokenBrand}}{{.Website.TokenBrand}}{{else}}{{.TokenDefaults.Brand}}{{end}}">
-            </div>
+        <div class="design-swatch">
+            <input type="color" id="token_paper" name="token_paper" class="form-input form-input--color"
+                   value="{{if .Website.TokenPaper}}{{.Website.TokenPaper}}{{else}}{{.TokenDefaults.Paper}}{{end}}">
+            <label class="design-swatch__label" for="token_paper">{{t "Background"}}</label>
+        </div>
+        <div class="design-swatch">
+            <input type="color" id="token_ink" name="token_ink" class="form-input form-input--color"
+                   value="{{if .Website.TokenInk}}{{.Website.TokenInk}}{{else}}{{.TokenDefaults.Ink}}{{end}}">
+            <label class="design-swatch__label" for="token_ink">{{t "Text colour"}}</label>
+            {{with .TextContrast.Ratio}}<span class="contrast{{if $.TextContrast.OK}} contrast--ok{{else}} contrast--low{{end}}" title="{{t "Contrast against the background. From 4.5:1 text is readable for most people."}}">{{if $.TextContrast.OK}}✓{{else}}!{{end}} {{.}}</span>{{end}}
+        </div>
+        <div class="design-swatch">
+            <input type="color" id="token_brand" name="token_brand" class="form-input form-input--color"
+                   value="{{if .Website.TokenBrand}}{{.Website.TokenBrand}}{{else}}{{.TokenDefaults.Brand}}{{end}}">
+            <label class="design-swatch__label" for="token_brand">{{t "Links and accents"}}</label>
+            {{with .LinkContrast.Ratio}}<span class="contrast{{if $.LinkContrast.OK}} contrast--ok{{else}} contrast--low{{end}}" title="{{t "Contrast against the background. From 4.5:1 text is readable for most people."}}">{{if $.LinkContrast.OK}}✓{{else}}!{{end}} {{.}}</span>{{end}}
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="token_font">{{t "Typeface"}}</label>
+            <select id="token_font" name="token_font" class="form-input form-select">
+                {{range $.Fonts}}
+                <option value="{{.Value}}"{{if eq $.Website.TokenFont .Value}} selected{{end}}>{{t .Label}}</option>
+                {{end}}
+            </select>
+            <p class="form-hint text-muted">
+                {{t "Built-in typefaces only — one typed in by hand would either not be installed or would have to be loaded from somebody else's server."}}
+            </p>
         </div>
 
         <div class="form-row">
-            <div class="form-group">
-                <label class="form-label" for="token_font">{{t "Typeface"}}</label>
-                <select id="token_font" name="token_font" class="form-input form-select">
-                    {{range $.Fonts}}
-                    <option value="{{.Value}}"{{if eq $.Website.TokenFont .Value}} selected{{end}}>{{t .Label}}</option>
-                    {{end}}
-                </select>
-                <p class="form-hint text-muted">
-                    {{t "Built-in typefaces only — one typed in by hand would either not be installed or would have to be loaded from somebody else's server."}}
-                </p>
-            </div>
-
             <div class="form-group">
                 <label class="form-label" for="token_measure">{{t "Text width"}}</label>
                 <input type="number" id="token_measure" name="token_measure" class="form-input"
@@ -68,32 +81,34 @@
         </div>
 
         <div class="form-actions">
+            <button type="submit" class="btn" name="probe" value="1"
+                    formaction="/admin/websites/{{.Website.ID}}/preview" formmethod="get"
+                    formtarget="design-preview" formnovalidate>{{t "Show in the preview"}}</button>
             <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save design"}}</button>
             <button type="submit" name="reset" value="1" class="btn" formnovalidate
                     hx-disabled-elt="this">{{t "Reset to the template"}}</button>
-            <a href="/admin/websites/{{.Website.ID}}/preview" target="_blank" rel="noopener" class="btn">{{t "View"}}</a>
         </div>
     </form>
-</div>
+</section>
 
-{{if .ActiveTemplate}}
-<div class="card" style="margin-bottom: var(--space-3);">
-    <div class="design-current">
-        <div class="design-current__info">
-            <span class="design-current__label">{{t "Active template"}}</span>
-            <span class="design-current__name">{{.ActiveTemplate.Name}}</span>
-            {{if .ActiveTemplate.IsBuiltin}}<span class="badge badge--primary">{{t "built in"}}</span>{{end}}
-        </div>
-        <a href="/admin/websites/{{.Website.ID}}/preview" target="_blank" rel="noopener" class="btn btn--sm">{{t "View website"}}</a>
+<section class="design-preview" aria-label="{{t "Preview"}}">
+    <!-- Breite umschalten ohne Skript: zwei Auswahlknöpfe ausserhalb des
+         Formulars, CSS liest, welcher gewählt ist. -->
+    <div class="design-preview__bar">
+        <span class="design-preview__label">{{t "Preview"}}</span>
+        <input type="radio" name="preview_width" id="pw-desktop" class="sr-only" checked>
+        <label for="pw-desktop" class="design-preview__width">{{t "Desktop"}}</label>
+        <input type="radio" name="preview_width" id="pw-phone" class="sr-only">
+        <label for="pw-phone" class="design-preview__width">{{t "Phone"}}</label>
+        <a href="/admin/websites/{{.Website.ID}}/preview" target="_blank" rel="noopener" class="btn btn--sm">{{t "Open in a new tab"}}</a>
     </div>
+    <div class="design-preview__frame">
+        <iframe name="design-preview" src="/admin/websites/{{.Website.ID}}/preview" title="{{t "Preview of the website"}}" loading="lazy"></iframe>
+    </div>
+</section>
 </div>
-{{else}}
-<div class="card" style="margin-bottom: var(--space-3);">
-    <p class="text-muted">{{t "No template active — the built-in default template is used. Choose one below."}}</p>
-</div>
-{{end}}
 
-<h2 style="margin-bottom: var(--space-2);">{{t "Available templates"}}</h2>
+<h2 id="templates" style="margin-block: var(--space-4) var(--space-2);">{{t "Available templates"}}</h2>
 <div class="template-grid">
     {{range .Templates}}
     <div class="template-card{{if and $.ActiveTemplate (eq $.ActiveTemplate.ID .ID)}} is-active{{end}}">
