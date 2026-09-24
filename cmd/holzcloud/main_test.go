@@ -519,6 +519,7 @@ var editorOpenRoutes = []route{
 	{pattern: "POST /admin/websites/{id}/tags/{termID}/rename"},
 	{pattern: "POST /admin/websites/{id}/tags/{termID}/delete"},
 	{pattern: "GET /admin/websites/{id}/media"},
+	{pattern: "POST /admin/websites/{id}/media/in-album"},
 	{pattern: "POST /admin/websites/{id}/media/upload"},
 	{pattern: "POST /admin/websites/{id}/media/{mediaID}/delete"},
 	{pattern: "POST /admin/websites/{id}/media/{mediaID}/meta"},

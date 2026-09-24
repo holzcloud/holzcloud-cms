@@ -9,7 +9,10 @@
 {{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/albums" class="btn btn--sm">{{t "Back to the albums"}}</a>{{end}}
 
 {{define "content"}}
-{{template "album_edit-content" .}}
+<div class="library">
+{{template "library_nav" .Library}}
+<div class="library__main">{{template "album_edit-content" .}}</div>
+</div>
 {{end}}
 
 {{define "album_edit-content"}}
