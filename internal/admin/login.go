@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
@@ -114,6 +115,14 @@ func (h *Handler) completeLogin(r *http.Request, id int64, role, email string) {
 	h.sm.Put(r.Context(), auth.SessionKeyUserID, id)
 	h.sm.Put(r.Context(), auth.SessionKeyUserRole, role)
 	h.sm.Put(r.Context(), auth.SessionKeyUserEmail, email)
+	// Where and when, for the list of devices on the account screen. The
+	// browser's description is cut short: it is a label, not evidence.
+	device := r.UserAgent()
+	if len(device) > 300 {
+		device = device[:300]
+	}
+	h.sm.Put(r.Context(), auth.SessionKeyDevice, device)
+	h.sm.Put(r.Context(), auth.SessionKeySignedInAt, time.Now().Unix())
 
 	// Recording the last login is what makes a forgotten account visible in the
 	// user list. It must not be able to fail a successful sign-in.

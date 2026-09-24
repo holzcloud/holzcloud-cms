@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"crypto/sha256"
+	"encoding/hex"
 	"github.com/alexedwards/scs/v2"
+	"sort"
 )
 
 // Session key constants used throughout the application.
@@ -82,4 +85,74 @@ func NewSessionManager(store *SQLiteStore, secure bool) *scs.SessionManager {
 	sm.Cookie.SameSite = http.SameSiteLaxMode
 	sm.Cookie.Secure = secure
 	return sm
+}
+
+// SessionKeyDevice is the browser's own description of itself at sign-in, and
+// SessionKeySignedInAt the moment, as Unix seconds. Both exist for the account
+// screen, which lists where a person is signed in so that a lost phone can be
+// signed out from the desk. Neither decides anything.
+const (
+	SessionKeyDevice     = "device"
+	SessionKeySignedInAt = "signed_in_at"
+)
+
+// UserSession is one place a person is signed in.
+type UserSession struct {
+	// ID names the session without being it: a hash of the token, so the
+	// account screen can offer "sign out there" without ever putting a
+	// session token into a page.
+	ID         string
+	Device     string
+	SignedInAt time.Time
+	Current    bool
+}
+
+// SessionID is the public name of a session token.
+func SessionID(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:8])
+}
+
+// ListUserSessions reports every stored session of one account, the current
+// one first and the rest newest first.
+func ListUserSessions(ctx context.Context, sm *scs.SessionManager, userID int64, currentToken string) ([]UserSession, error) {
+	var out []UserSession
+	err := sm.Iterate(ctx, func(sessionCtx context.Context) error {
+		if sm.GetInt64(sessionCtx, SessionKeyUserID) != userID {
+			return nil
+		}
+		token := sm.Token(sessionCtx)
+		s := UserSession{
+			ID:      SessionID(token),
+			Device:  sm.GetString(sessionCtx, SessionKeyDevice),
+			Current: token == currentToken,
+		}
+		if at := sm.GetInt64(sessionCtx, SessionKeySignedInAt); at > 0 {
+			s.SignedInAt = time.Unix(at, 0)
+		}
+		out = append(out, s)
+		return nil
+	})
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Current != out[j].Current {
+			return out[i].Current
+		}
+		return out[i].SignedInAt.After(out[j].SignedInAt)
+	})
+	return out, err
+}
+
+// DestroyUserSession ends one session of one account, named by its SessionID.
+// The account is part of the question: a hash a person copied from their own
+// screen cannot end anybody else's session.
+func DestroyUserSession(ctx context.Context, sm *scs.SessionManager, userID int64, id string) (bool, error) {
+	found := false
+	err := sm.Iterate(ctx, func(sessionCtx context.Context) error {
+		if sm.GetInt64(sessionCtx, SessionKeyUserID) != userID || SessionID(sm.Token(sessionCtx)) != id {
+			return nil
+		}
+		found = true
+		return sm.Destroy(sessionCtx)
+	})
+	return found, err
 }

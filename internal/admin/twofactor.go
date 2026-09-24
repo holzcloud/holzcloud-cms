@@ -388,6 +388,19 @@ type accountData struct {
 	// this person — the same fact MustHaveSecondFactor decides, read from the
 	// same session key, so what is shown and what is enforced cannot drift.
 	ViaSSO bool
+	// Name is the display name; Websites says what this account may enter.
+	Name     string
+	Websites string
+	// Sessions are the places this person is signed in, current one first.
+	Sessions []sessionView
+}
+
+// sessionView is one device on the account screen.
+type sessionView struct {
+	ID         string
+	Device     string
+	SignedInAt string
+	Current    bool
 }
 
 // HandleAccount shows the signed-in account and its second factor.
@@ -427,6 +440,19 @@ func (h *Handler) HandleAccount(w http.ResponseWriter, r *http.Request) error {
 	data.Languages = i18n.Languages()
 	if u, err := h.users.GetByID(r.Context(), *userID); err == nil && u != nil {
 		data.Chosen = u.Locale
+		data.Name = u.Name
+	}
+	data.Websites = h.accountWebsites(r, *userID, role)
+	sessions, err := auth.ListUserSessions(r.Context(), h.sm, *userID, h.sm.Token(r.Context()))
+	if err != nil {
+		slog.Warn("list sessions", "err", err)
+	}
+	for _, s := range sessions {
+		v := sessionView{ID: s.ID, Device: deviceLabel(r, s.Device), Current: s.Current}
+		if !s.SignedInAt.IsZero() {
+			v.SignedInAt = s.SignedInAt.Format("02.01.2006, 15:04")
+		}
+		data.Sessions = append(data.Sessions, v)
 	}
 	data.ActiveNav = "account"
 	return web.RenderAdmin(w, h.templates, r, "account", data)
