@@ -4184,6 +4184,14 @@ body.is-fullscreen .content-body {
         font-weight: 600;
     }
 
+    /* Auf dem Telefon steht unten die Leiste der Orte; die Speicherleiste
+       hält darüber an und nicht dahinter. */
+    @media (max-width: 900px) {
+        .editor-actions {
+            inset-block-end: calc(64px + env(safe-area-inset-bottom, 0px));
+        }
+    }
+
     @container (max-width: 980px) {
         .editor {
             grid-template-columns: 1fr;

@@ -13,12 +13,63 @@ The numbers are the same as the tags in the repository.
 
 ## 2.6 — 2026-09-24
 
+**Die Verwaltung ist neu geordnet.** Statt siebenundzwanzig Einträgen in der
+Seitenleiste gibt es sechs Orte — Start, Seiten, Medien, Shop, Design,
+Einstellungen — und unten das Konto. Jeder Ort ist ein Symbol über einem kurzen
+Wort, auf dem Telefon eine Leiste am unteren Rand wie in jeder App. Eine Zahl an
+einem Ort sagt, was dort wartet: Seiten zur Prüfung, Bilder ohne Beschreibung
+(gelb), neue Bestellungen. Nichts ist weggefallen; es steht nur dort, wo man es
+sucht.
+
+### Geändert
+
+**Einstellungen** sind eine Liste links und der gewählte Bereich rechts, wie die
+Systemeinstellungen eines Rechners. Oben steht, was für diese Website gilt —
+Allgemein, Menüs, Schlagworte, Textbausteine, Weiterleitungen, Inhaltsarten,
+Felder, Bausteinarten —, darunter, was für die ganze Installation gilt. Man
+springt von einem Bereich zum nächsten, ohne zurückzugehen.
+
+**Der Seiteneditor** hat zwei Spalten: links wird geschrieben, rechts stehen
+Vorschau, Einstellungen und Versionen als Reiter. Wer den Reiter wechselt,
+verliert nichts, weil alles ein Formular bleibt. Unter dem Text steht
+„+ Element“: Bild, Galerie, Karten, Zitat, Aufruf, Video und die eigenen
+Bausteinarten der Website. Der Text bis dahin wird der erste Abschnitt, das
+Element folgt ihm — ein Schritt statt zwei. Zwischen zwei Abschnitten steht
+jederzeit ein weiteres „+ Element“, das genau dort einfügt und nicht am Ende.
+Enter in einem Feld speichert, statt einen Baustein-Knopf auszulösen.
+
+**Medien und Alben sind eine Bibliothek.** Links stehen die Sammlungen — alle
+Medien, Bilder, Videos, Dokumente, unbenutzte, Bilder ohne Beschreibung — und
+darunter die Alben, jeweils mit ihrer Anzahl. Es lassen sich bis zu zwanzig
+Dateien auf einmal hochladen; wer Bilder ohne Beschreibung hochlädt, landet
+danach gleich bei genau diesen. Bilder werden angekreuzt und mit einem Klick in
+ein Album gelegt.
+
+**Design** zeigt die Website neben ihren Werten. „In der Vorschau zeigen“ setzt
+Farben, Schrift, Textbreite und Ecken in der Vorschau ein, ohne zu speichern,
+und die Vorschau lässt sich auf Telefonbreite schalten. Neben Text- und
+Akzentfarbe steht der Kontrast zum Hintergrund, grün ab 4,5:1. Die Vorschau im
+Admin zeigt dabei zum ersten Mal die eigenen Farben der Website — bisher zeigte
+sie das Theme, wie es ausgeliefert wird.
+
+**Der Shop hat eine Übersicht**: Umsatz des Monats, offene Bestellungen, was fast
+ausverkauft ist, Produkte online; darunter, was zu tun ist — eine Vorauskasse,
+die seit Tagen offen ist, eine bezahlte Bestellung, die auf den Versand wartet,
+ein Artikel, von dem noch zwei da sind —, und daneben der Umsatz der letzten
+acht Wochen. Bestellungen, Produkte und Shop-Einstellungen sind Reiter darüber.
+
+**Das Konto** zeigt auf einen Blick, wie sicher es steht: Zwei-Schritt-Anmeldung,
+übrige Ersatzcodes, auf wie vielen Geräten man angemeldet ist. Die Geräte stehen
+darunter, jedes mit „Abmelden“ — ein verlorenes Telefon meldet man vom
+Schreibtisch aus ab. Geräte, auf denen man sich vor diesem Update angemeldet
+hat, heissen dort „Eine frühere Anmeldung“.
+
+### Neu
+
 **Eine Website lässt sich als statische Dateien ausgeben.** `holzcloud export
 -website <id|domain> <verzeichnis>` schreibt sie so, wie der Server sie
 ausliefert, in ein leeres Verzeichnis — bereit für jeden Host, der nur Dateien
 kann.
-
-### Neu
 
 Der Export ist kein zweiter Renderer, sondern fragt denselben Router, den der
 Server betreibt, und schreibt die Antworten auf. Eine Seite sieht darum im
