@@ -136,7 +136,7 @@ func (h *Handler) renderShopSettings(w http.ResponseWriter, r *http.Request,
 		Values:     values,
 		Rates:      rates,
 	}
-	data.ActiveNav = "products"
+	data.ActiveNav = "shop-settings"
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "shop_settings", data)
 }
