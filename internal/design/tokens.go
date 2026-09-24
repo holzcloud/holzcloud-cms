@@ -9,6 +9,8 @@ package design
 import (
 	"fmt"
 	"html/template"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
@@ -169,4 +171,50 @@ func fontStack(value string) string {
 		}
 	}
 	return ""
+}
+
+// Contrast is the WCAG contrast ratio between two colours given as #rrggbb,
+// from 1 (the same) to 21 (black on white). Zero when either is not a colour
+// this package accepts.
+//
+// It is shown beside the colour pickers because a colour that looks fine on
+// the monitor of the person choosing it can be unreadable for everybody else,
+// and 4.5 is the line WCAG draws for running text.
+func Contrast(a, b string) float64 {
+	la, ok1 := luminance(hexColour(a))
+	lb, ok2 := luminance(hexColour(b))
+	if !ok1 || !ok2 {
+		return 0
+	}
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+func luminance(hex string) (float64, bool) {
+	switch len(hex) {
+	case 4: // #rgb
+		hex = "#" + strings.Repeat(hex[1:2], 2) + strings.Repeat(hex[2:3], 2) + strings.Repeat(hex[3:4], 2)
+	case 9: // #rrggbbaa — the alpha is ignored, the colour behind it is not known
+		hex = hex[:7]
+	}
+	if len(hex) != 7 {
+		return 0, false
+	}
+	var rgb [3]float64
+	for i := range 3 {
+		v, err := strconv.ParseUint(hex[1+2*i:3+2*i], 16, 8)
+		if err != nil {
+			return 0, false
+		}
+		c := float64(v) / 255
+		if c <= 0.03928 {
+			c /= 12.92
+		} else {
+			c = math.Pow((c+0.055)/1.055, 2.4)
+		}
+		rgb[i] = c
+	}
+	return 0.2126*rgb[0] + 0.7152*rgb[1] + 0.0722*rgb[2], true
 }

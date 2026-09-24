@@ -143,3 +143,23 @@ func TestCSSCannotBeMadeToEscapeItsRule(t *testing.T) {
 		t.Errorf("the one valid value was lost:\n%s", css)
 	}
 }
+
+func TestContrastFollowsWCAG(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want float64
+	}{
+		{"#000000", "#ffffff", 21},
+		{"#fff", "#000", 21},
+		{"#777777", "#777777", 1},
+		{"#767676", "#ffffff", 4.54},
+	} {
+		got := Contrast(c.a, c.b)
+		if got < c.want-0.01 || got > c.want+0.01 {
+			t.Errorf("Contrast(%s, %s) = %.2f, want %.2f", c.a, c.b, got, c.want)
+		}
+	}
+	if Contrast("red", "#fff") != 0 {
+		t.Error("a colour the package refuses has a contrast")
+	}
+}

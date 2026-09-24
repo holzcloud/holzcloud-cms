@@ -30,6 +30,25 @@ type websiteDesignData struct {
 	// TokenDefaults fill the colour inputs when nothing has been chosen, so the
 	// picker opens on something sensible rather than black.
 	TokenDefaults design.Tokens
+	// Contrast of text and of links against the background, for the colours
+	// in force. Empty when the template's own colours apply: those are the
+	// theme author's to answer for, and the page cannot know them.
+	TextContrast, LinkContrast contrastView
+}
+
+// contrastView is one contrast ratio as the design screen shows it.
+type contrastView struct {
+	Ratio string
+	// OK is 4.5:1 or more, the WCAG line for running text.
+	OK bool
+}
+
+func contrastOf(a, b string) contrastView {
+	r := design.Contrast(a, b)
+	if r == 0 {
+		return contrastView{}
+	}
+	return contrastView{Ratio: strconv.FormatFloat(r, 'f', 1, 64) + ":1", OK: r >= 4.5}
 }
 
 // fontChoice is one entry of the typeface dropdown.
@@ -497,6 +516,10 @@ func (h *Handler) HandleWebsiteDesign(w http.ResponseWriter, r *http.Request) er
 		Fonts:          fontChoices(),
 		TokenDefaults:  design.Tokens{Ink: "#1a1a1a", Paper: "#fafafa", Brand: "#1a6dd4"},
 	}
+	if ws.TokenInk != "" && ws.TokenPaper != "" {
+		data.TextContrast = contrastOf(ws.TokenInk, ws.TokenPaper)
+		data.LinkContrast = contrastOf(ws.TokenBrand, ws.TokenPaper)
+	}
 	data.ActiveNav = "website-design"
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "website_design", data)
@@ -565,19 +588,7 @@ func (h *Handler) HandleWebsiteTokens(w http.ResponseWriter, r *http.Request) er
 
 	// Sanitize drops anything the CSS could not use, so a mistyped value falls
 	// back to the theme instead of losing the settings that were right.
-	tokens := design.Sanitize(design.Tokens{
-		Ink:     r.FormValue("token_ink"),
-		Paper:   r.FormValue("token_paper"),
-		Brand:   r.FormValue("token_brand"),
-		Font:    r.FormValue("token_font"),
-		Measure: atoiOr(r.FormValue("token_measure"), 0),
-		Radius:  atoiOr(r.FormValue("token_radius"), -1),
-	})
-	// An unticked checkbox sends nothing, which is how "use the theme's colours"
-	// is expressed without asking the operator to clear three colour pickers.
-	if r.FormValue("use_colours") == "" {
-		tokens.Ink, tokens.Paper, tokens.Brand = "", "", ""
-	}
+	tokens := tokensFromForm(r.FormValue)
 
 	if err := h.domains.UpdateDesignTokens(r.Context(), websiteID, domain.DesignTokens{
 		Ink: tokens.Ink, Paper: tokens.Paper, Brand: tokens.Brand,
@@ -615,4 +626,23 @@ func atoiOr(raw string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// tokensFromForm reads the design form. The save handler and the preview both
+// read it, so what the preview shows is exactly what saving would store.
+func tokensFromForm(get func(string) string) design.Tokens {
+	tokens := design.Sanitize(design.Tokens{
+		Ink:     get("token_ink"),
+		Paper:   get("token_paper"),
+		Brand:   get("token_brand"),
+		Font:    get("token_font"),
+		Measure: atoiOr(get("token_measure"), 0),
+		Radius:  atoiOr(get("token_radius"), -1),
+	})
+	// An unticked checkbox sends nothing, which is how "use the theme's colours"
+	// is expressed without asking the operator to clear three colour pickers.
+	if get("use_colours") == "" {
+		tokens.Ink, tokens.Paper, tokens.Brand = "", "", ""
+	}
+	return tokens
 }
