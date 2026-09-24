@@ -68,7 +68,17 @@ holzcloud thumbnails              generate the scaled copies of older images
 holzcloud check                   run an integrity check
 holzcloud template check <path>   check a template directory or .zip
 holzcloud template spec           print the template authoring specification
+holzcloud export -website <id|domain> <dir>
+                                  write a website as plain HTML files
 ```
+
+`holzcloud export` asks the server's own router for every address the website
+links to — pages, lists, feed, sitemap, theme files, media — and writes the
+answers into an empty directory, ready for any static host. A list's second
+page, `/blog?seite=2`, becomes `/blog/seite/2/`, a redirect becomes a page that
+forwards without a script, and the site's 404 page is `404.html`. What only a
+running server can do is left out and named in the report: search, forms,
+protected pages, the shop's cart and checkout.
 
 Passwords are read from stdin, so they never reach the shell history:
 
