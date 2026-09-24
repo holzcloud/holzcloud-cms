@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/block"
@@ -32,11 +33,18 @@ const switchField = "editorwechsel"
 // values are updated in place, so the caller re-renders the form it already
 // built and nothing has to be threaded back out.
 func blockAction(r *http.Request, values *pageValues) bool {
-	switch r.FormValue(switchField) {
-	case "zu-bausteinen":
+	switch sw := r.FormValue(switchField); {
+	case sw == "zu-bausteinen":
 		values.Blocks = block.FromMarkdown(values.Markdown)
 		return true
-	case "zu-markdown":
+	case strings.HasPrefix(sw, "zu-bausteinen:"):
+		// "+ Element" under the Markdown editor: the text becomes the first
+		// block and the chosen element follows it, in one step. Before v2.6
+		// this took two — switch, then add — and nobody guessed the first.
+		values.Blocks = block.FromMarkdown(values.Markdown)
+		values.Blocks = block.Apply(values.Blocks, block.ActionAdd+":"+strings.TrimPrefix(sw, "zu-bausteinen:"), values.BlockSet)
+		return true
+	case sw == "zu-markdown":
 		md, ok := block.ToMarkdown(values.Blocks)
 		if !ok {
 			// Refused rather than done with a warning: the button is only
@@ -224,6 +232,8 @@ type blockView struct {
 	Fields []fieldView
 	// Actions carry the index, so the template never builds one itself.
 	Up, Down, Remove, AddItem string
+	// InsertAt is the position a "+ Element" above this block inserts at.
+	InsertAt int
 }
 
 // blockItemView is one entry inside a gallery or a card row.
@@ -325,10 +335,11 @@ func blockViews(set block.Set, blocks []block.Block, items, films []media.Media,
 				Prefix: prefix, ID: prefix, MediaID: b.MediaID,
 				Alt: b.Alt, Caption: b.Caption, Media: items, WebsiteID: websiteID,
 			},
-			Up:      fmt.Sprintf("%s:%d", block.ActionUp, i),
-			Down:    fmt.Sprintf("%s:%d", block.ActionDown, i),
-			Remove:  fmt.Sprintf("%s:%d", block.ActionDelete, i),
-			AddItem: fmt.Sprintf("%s:%d", block.ActionAddItem, i),
+			InsertAt: i,
+			Up:       fmt.Sprintf("%s:%d", block.ActionUp, i),
+			Down:     fmt.Sprintf("%s:%d", block.ActionDown, i),
+			Remove:   fmt.Sprintf("%s:%d", block.ActionDelete, i),
+			AddItem:  fmt.Sprintf("%s:%d", block.ActionAddItem, i),
 		}
 		if b.Type == block.TypeVideo {
 			v.Videos = films

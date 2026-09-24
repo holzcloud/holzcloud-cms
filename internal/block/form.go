@@ -245,15 +245,29 @@ func Apply(blocks []Block, action string, s Set) []Block {
 	name, arg, _ := strings.Cut(action, ":")
 	switch name {
 	case ActionAdd:
-		if _, ok := s.KindOf(arg); !ok || len(blocks) >= MaxBlocks {
+		// neu:<typ> appends; neu:<typ>@<n> inserts before block n (from 0) —
+		// the "+ Element" between two blocks, which puts the new one where the
+		// editor asked instead of at the end, from where it would have to be
+		// walked up one button press at a time.
+		typ, at, hasAt := strings.Cut(arg, "@")
+		if _, ok := s.KindOf(typ); !ok || len(blocks) >= MaxBlocks {
 			return blocks
 		}
-		nb := Block{Type: arg}
+		nb := Block{Type: typ}
 		// A gallery or a card row starts with one empty entry: an editor who
 		// adds one and sees nothing to fill in has to find a second button
 		// before the block does anything at all.
-		if k, _ := s.KindOf(arg); k.HasItems {
+		if k, _ := s.KindOf(typ); k.HasItems {
 			nb.Items = []Item{{}}
+		}
+		if hasAt {
+			n, err := strconv.Atoi(at)
+			if err == nil && n >= 0 && n < len(blocks) {
+				out := make([]Block, 0, len(blocks)+1)
+				out = append(out, blocks[:n]...)
+				out = append(out, nb)
+				return append(out, blocks[n:]...)
+			}
 		}
 		return append(blocks, nb)
 
