@@ -898,6 +898,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/bestaetigen", adminHandler.ErrHandler(adminHandler.HandleConfirmPassword))
 	adminProtectedMux.HandleFunc("GET /admin/konto", adminHandler.ErrHandler(adminHandler.HandleAccount))
 	adminProtectedMux.HandleFunc("POST /admin/konto/sprache", adminHandler.ErrHandler(adminHandler.HandleAccountLanguage))
+	adminProtectedMux.HandleFunc("POST /admin/konto/geraete/{session}/abmelden", adminHandler.ErrHandler(adminHandler.HandleAccountSessionEnd))
+	adminProtectedMux.HandleFunc("POST /admin/konto/geraete/abmelden", adminHandler.ErrHandler(adminHandler.HandleAccountSessionsEnd))
 	adminProtectedMux.HandleFunc("GET /admin/2fa/einrichten", adminHandler.ErrHandler(adminHandler.HandleTwoFactorSetup))
 	adminProtectedMux.HandleFunc("POST /admin/2fa/einrichten", adminHandler.ErrHandler(adminHandler.HandleTwoFactorSetup))
 	adminProtectedMux.HandleFunc("POST /admin/2fa/einrichten/neu", adminHandler.ErrHandler(adminHandler.HandleTwoFactorRestart))

@@ -1,33 +1,83 @@
 {{define "content"}}
-<div class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{t "Sign-in details"}}</h2>
-    <dl class="detail-list">
-        <dt>{{t "Email"}}</dt>
-        <dd>{{.Email}}</dd>
-        <dt>{{t "Role"}}</dt>
-        <dd>{{if eq .Role "admin"}}{{t "Administrator"}}{{else}}{{t "Editor"}}{{end}}</dd>
-    </dl>
-    <a href="/admin/users/{{.UserID}}/password" class="btn">{{t "Change password"}}</a>
-</div>
-
-<div class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{t "Language of the administration"}}</h2>
-    <p class="text-muted">
-        {{t "Applies to you only and to this administration only — the languages of your websites live in their own settings."}}
-    </p>
-    <form method="POST" action="/admin/konto/sprache" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
-        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <div class="form-group" style="margin-bottom:0;min-width:200px">
-            <label class="form-label" for="sprache">{{t "Language"}}</label>
-            <select id="sprache" name="sprache" class="form-input form-select">
-                <option value="">{{t "As the browser asks (automatic)"}}</option>
-                {{range .Languages}}
-                <option value="{{.Code}}"{{if eq $.Chosen .Code}} selected{{end}}>{{.Name}}</option>
-                {{end}}
-            </select>
+<!-- Wer man ist, wie sicher das Konto steht, wo man angemeldet ist, und was nur
+     für einen selbst gilt. Gelb heisst: hier ist bald etwas zu tun. -->
+<section class="card account-head">
+    <div class="account-profile">
+        <span class="account-avatar" aria-hidden="true">{{.UserInitial}}</span>
+        <div class="account-profile__text">
+            <strong class="account-profile__name">{{if .Name}}{{.Name}}{{else}}{{.Email}}{{end}}</strong>
+            <span class="text-muted">{{.Email}} · {{if eq .Role "admin"}}{{t "Administrator"}}{{else}}{{t "Editor"}}{{end}} · {{.Websites}}</span>
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
-    </form>
+        <a href="/admin/users/{{.UserID}}/password" class="btn">{{t "Change password"}}</a>
+    </div>
+
+    <ul class="security-bar" aria-label="{{t "Security of this account"}}">
+        <li class="security-tile{{if .Enabled}} security-tile--ok{{else if .ViaSSO}} security-tile--ok{{else}} security-tile--warn{{end}}">
+            <strong>{{if .Enabled}}✓ {{t "Two-step verification on"}}{{else if .ViaSSO}}✓ {{t "Signed in through your organisation"}}{{else}}! {{t "Two-step verification off"}}{{end}}</strong>
+            <span>{{if .Enabled}}{{t "authenticator app"}}{{else if .ViaSSO}}{{t "the second step is asked there"}}{{else}}{{t "a guessed password is enough"}}{{end}}</span>
+        </li>
+        {{if .Enabled}}
+        <li class="security-tile{{if lt .RecoveryLeft 3}} security-tile--warn{{else}} security-tile--ok{{end}}">
+            <strong>{{if lt .RecoveryLeft 3}}!{{else}}✓{{end}} {{tf "%d recovery codes left" .RecoveryLeft}}</strong>
+            <span>{{if lt .RecoveryLeft 3}}{{t "fetch a new list"}}{{else}}{{t "for a lost phone"}}{{end}}</span>
+        </li>
+        {{end}}
+        <li class="security-tile security-tile--neutral">
+            <strong>{{tf "Signed in on %d devices" (len .Sessions)}}</strong>
+            <span>{{t "listed below"}}</span>
+        </li>
+    </ul>
+</section>
+
+<div class="account-grid">
+    <section class="card" aria-labelledby="devices-title">
+        <h2 id="devices-title">{{t "Signed in on"}}</h2>
+        <ul class="device-list">
+            {{range .Sessions}}
+            <li class="device">
+                <span class="device__text">
+                    <strong>{{.Device}}</strong>
+                    <span class="text-muted">{{if .Current}}{{t "this device"}}{{if .SignedInAt}} · {{end}}{{end}}{{with .SignedInAt}}{{tf "since %s" .}}{{end}}</span>
+                </span>
+                {{if .Current}}
+                <span class="badge badge--published">{{t "now"}}</span>
+                {{else}}
+                <form method="POST" action="/admin/konto/geraete/{{.ID}}/abmelden">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                    <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Sign out"}}</button>
+                </form>
+                {{end}}
+            </li>
+            {{end}}
+        </ul>
+        {{if gt (len .Sessions) 1}}
+        <form method="POST" action="/admin/konto/geraete/abmelden" class="device-list__all">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Sign out on every other device"}}</button>
+        </form>
+        {{end}}
+        <p class="form-hint text-muted">{{t "A lost phone is signed out here, from any other device."}}</p>
+    </section>
+
+    <section class="card" aria-labelledby="personal-title">
+        <h2 id="personal-title">{{t "For me"}}</h2>
+        <p class="text-muted">
+            {{t "Applies to you only and to this administration only — the languages of your websites live in their own settings."}}
+        </p>
+        <form method="POST" action="/admin/konto/sprache" class="account-language">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+            <div class="form-group">
+                <label class="form-label" for="sprache">{{t "Language of the administration"}}</label>
+                <select id="sprache" name="sprache" class="form-input form-select">
+                    <option value="">{{t "As the browser asks (automatic)"}}</option>
+                    {{range .Languages}}
+                    <option value="{{.Code}}"{{if eq $.Chosen .Code}} selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+        </form>
+    </section>
 </div>
 
 <div class="card">

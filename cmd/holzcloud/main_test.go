@@ -432,6 +432,8 @@ var editorOpenRoutes = []route{
 	{pattern: "POST /admin/bestaetigen"},
 	{pattern: "GET /admin/konto"},
 	{pattern: "POST /admin/konto/sprache"},
+	{pattern: "POST /admin/konto/geraete/{session}/abmelden"},
+	{pattern: "POST /admin/konto/geraete/abmelden"},
 	{pattern: "GET /admin/2fa/einrichten"},
 	{pattern: "POST /admin/2fa/einrichten"},
 	{pattern: "POST /admin/2fa/einrichten/neu"},
