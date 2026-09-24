@@ -25,6 +25,22 @@
     {{end}}
 
     {{range .BlockViews}}
+    {{if not .First}}
+    <!-- „+ Element“ zwischen zwei Blöcken fügt genau hier ein und nicht am
+         Ende, von wo man es Knopf für Knopf hochtragen müsste. -->
+    <details class="element-insert">
+        <summary class="element-insert__summary"><span>{{t "+ Element"}}</span></summary>
+        <div class="element-insert__menu">
+            {{$at := .InsertAt}}
+            {{range $.Values.BlockKinds}}
+            <button type="submit" class="btn btn--sm" name="bausteinaktion" value="neu:{{.Type}}@{{$at}}"
+                    title="{{t .Hint}}"
+                    hx-post="{{$.BlockAction}}" hx-target="#bausteine" hx-swap="outerHTML"
+                    hx-disabled-elt="this">{{t .Name}}</button>
+            {{end}}
+        </div>
+    </details>
+    {{end}}
     <fieldset class="block-edit block-edit--{{.Block.Type}}">
         <legend class="block-edit__legend">{{.Number}}. {{t .Kind.Name}}</legend>
         <input type="hidden" name="{{.Prefix}}.typ" value="{{.Block.Type}}">
@@ -287,7 +303,7 @@
     {{end}}
 
     <div class="block-add">
-        <span class="block-add__label">{{t "Add a block:"}}</span>
+        <span class="block-add__label">{{t "+ Element"}}</span>
         {{range .Values.BlockKinds}}
         <button type="submit" class="btn btn--sm" name="bausteinaktion" value="neu:{{.Type}}"
                 title="{{t .Hint}}"
@@ -339,3 +355,4 @@
     </div>
 </div>
 {{end}}
+

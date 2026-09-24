@@ -3,7 +3,11 @@
 {{end}}
 
 {{define "page_form-content"}}
-<div class="card">
+<!-- Der Editor in zwei Spalten: links wird geschrieben, rechts stehen Vorschau,
+     Einstellungen und Versionen als Reiter. Die Reiter sind Auswahlknöpfe und
+     CSS, kein Skript; sie gehören zu einem leeren Formular ausserhalb, damit sie
+     beim Speichern nicht mitgeschickt werden. Alles Übrige ist ein einziges
+     Formular — wer den Reiter wechselt, verliert nichts. -->
     {{if .Conflict}}
     <div class="alert alert--warning" role="alert">
         <p>{{.Conflict}}</p>
@@ -16,9 +20,36 @@
     </div>
     {{end}}
 
+
+<form id="editor-panels" class="sr-only" aria-hidden="true"></form>
+{{if .IsEdit}}
+<!-- Die Freigabe hat ihr eigenes Formular, ausserhalb des Speicherformulars:
+     sie darf den ungespeicherten Text nicht mitnehmen, und ein Formular in
+     einem Formular ist kein HTML. Ihr Knopf steht rechts unter „Versionen“ und
+     gehört über sein form-Attribut hierher. -->
+<form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/review" id="review-form">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    {{if .ReviewPending}}<input type="hidden" name="clear" value="1">{{end}}
+</form>
+{{end}}
+
+<form method="POST"
+      action="{{.BlockAction}}{{if .Fullscreen}}?vollbild=1{{end}}" class="editor">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    {{if .IsEdit}}<input type="hidden" name="version" value="{{.Values.Version}}">{{end}}
+    <!-- Enter in einem Feld schickt das Formular mit dem ERSTEN Absende-Knopf
+         ab. Ohne diesen hier wäre das ein „+ Element“ oder ein Pfeil des
+         Baustein-Editors, und Enter im Titel verwandelte die Seite. -->
+    <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">{{if .IsEdit}}{{t "Save changes"}}{{else}}{{t "Create page"}}{{end}}</button>
+
+    <div class="editor-main card">
+        <div class="editor-toolbar">
+            {{if eq .Values.Status "published"}}<span class="badge badge--published">{{t "Published"}}</span>{{else}}<span class="badge badge--draft">{{t "Draft"}}</span>{{end}}
+            {{if .ReviewPending}}<span class="badge badge--warning">{{t "awaiting review"}}</span>{{end}}
+            <span class="editor-toolbar__spacer"></span>
     {{/* Vollbild ist eine Adresse, keine Einstellung: es gilt, solange man auf
          diesem Bildschirm ist. Ein Link, kein Schalter — und kein JavaScript. */}}
-    <p class="fullscreen-toggle">
+            <p class="fullscreen-toggle">
         {{if .Fullscreen}}
         <a href="{{.BlockAction}}" class="btn btn--sm">{{t "Leave full screen"}}</a>
         {{else}}
@@ -26,10 +57,7 @@
         {{end}}
     </p>
 
-    <form method="POST"
-          action="{{.BlockAction}}{{if .Fullscreen}}?vollbild=1{{end}}">
-        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        {{if .IsEdit}}<input type="hidden" name="version" value="{{.Values.Version}}">{{end}}
+        </div>
 
         <div class="form-group">
             <label class="form-label" for="title">{{t "Title"}}</label>
@@ -39,6 +67,137 @@
                    {{with .Errors.title}}aria-invalid="true" aria-describedby="title-error"{{end}}>
             {{with .Errors.title}}<p class="form-error" id="title-error">{{t .}}</p>{{end}}
         </div>
+
+        {{if .Values.UsesBlocks}}
+        <!-- Der Baustein-Editor. Die Liste wird von htmx an Ort und Stelle
+             ersetzt; ohne htmx lädt der Browser das ganze Formular neu. -->
+        <div class="form-group">
+            <span class="form-label">{{t "Content"}}</span>
+            {{template "block_list" .}}
+        </div>
+        {{else}}
+        <div class="form-group">
+            <label class="form-label" for="content_markdown">{{t "Content (Markdown)"}}</label>
+            <!-- Die Vorschau steht rechts im Reiter „Vorschau“. Ohne htmx bleibt
+                 sie auf ihrem ersten Stand; der Editor arbeitet trotzdem. -->
+            <textarea id="content_markdown" name="content_markdown"
+                      class="form-input form-textarea form-textarea--tall"
+                      rows="22" placeholder="{{t "Write the content in Markdown …"}}"
+                      hx-post="/admin/websites/{{.WebsiteID}}/pages/preview"
+                      hx-trigger="input changed delay:600ms"
+                      hx-target="#preview-pane"
+                      hx-swap="innerHTML">{{.Values.Markdown}}</textarea>
+
+            <!-- „+ Element“: ein Bild, eine Galerie, ein Formular, Karten … Der
+                 Text bis hierher wird der erste Abschnitt, das Element folgt
+                 ihm. Bewusst ohne htmx: das ganze Formular wird neu gezeichnet,
+                 nicht ein Ausschnitt davon. -->
+            <details class="element-insert element-insert--open-below">
+                <summary class="element-insert__summary"><span>{{t "+ Element"}}</span></summary>
+                <div class="element-insert__menu">
+                    {{range .Values.BlockKinds}}{{if ne .Type "text"}}
+                    <button type="submit" class="btn btn--sm" name="editorwechsel" value="zu-bausteinen:{{.Type}}"
+                            title="{{t .Hint}}">{{t .Name}}</button>
+                    {{end}}{{end}}
+                </div>
+                <p class="form-hint text-muted">{{t "Your text so far becomes the first section and the element follows it. Below it you write on, and between any two parts another element can go."}}</p>
+            </details>
+
+            {{template "markdown_help" .}}
+            {{if .Snippets}}
+            <details class="snippet-help">
+                <summary>{{t "Insert a snippet"}}</summary>
+                <ul class="snippet-help__list">
+                    {{range .Snippets}}
+                    <li><code>[[snippet:{{.Key}}]]</code> — {{.Name}}</li>
+                    {{end}}
+                </ul>
+                <p class="form-hint text-muted">
+                    <a href="/admin/websites/{{.WebsiteID}}/snippets">{{t "Manage snippets"}}</a>
+                </p>
+            </details>
+            {{end}}
+        </div>
+        {{end}}
+        {{if .FieldViews}}
+        {{/* Die eigenen Felder dieser Website. Sie stehen offen da und nicht in
+             einem Aufklapper: sie gehören zum Inhalt, nicht zu den Einstellungen.
+             Eine Überschrift teilt sie in Abschnitte; der erste hat keine, weil
+             die Felder von vor der Einteilung irgendwo stehen müssen. */}}
+        <fieldset class="own-fields">
+            <legend>{{t "Details about this page"}}</legend>
+            {{range .FieldViews}}
+            {{if .Title}}
+            <h3 class="own-fields__abschnitt">{{.Title}}</h3>
+            {{if .Hint}}<p class="form-hint text-muted">{{.Hint}}</p>{{end}}
+            {{end}}
+            {{range .Fields}}{{template "field_top" .}}{{end}}
+            {{end}}
+        </fieldset>
+        {{end}}
+
+
+        <div class="editor-actions">
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
+                {{if .IsEdit}}{{t "Save changes"}}{{else}}{{t "Create page"}}{{end}}
+            </button>
+            <a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Cancel"}}</a>
+        </div>
+    </div>
+
+    {{$settingsFirst := or .Errors.slug .Errors.publish_at .Errors.unpublish_at}}
+    <aside class="editor-side" aria-label="{{t "About this page"}}">
+        <div class="editor-tabs">
+            <input type="radio" name="panel" id="panel-preview" form="editor-panels" class="sr-only"{{if not $settingsFirst}} checked{{end}}>
+            <label for="panel-preview" class="editor-tab">{{t "Preview"}}</label>
+            <input type="radio" name="panel" id="panel-settings" form="editor-panels" class="sr-only"{{if $settingsFirst}} checked{{end}}>
+            <label for="panel-settings" class="editor-tab">{{t "Settings"}}</label>
+            <input type="radio" name="panel" id="panel-versions" form="editor-panels" class="sr-only">
+            <label for="panel-versions" class="editor-tab">{{t "Versions"}}{{if .RevisionCount}} <span class="editor-tab__count">{{.RevisionCount}}</span>{{end}}</label>
+        </div>
+
+        <section class="editor-panel editor-panel--preview" aria-label="{{t "Preview"}}">
+            {{if .Values.UsesBlocks}}
+            {{if .IsEdit}}
+            <p class="form-hint text-muted">{{t "Shows the saved version. Save to see your latest changes here."}}</p>
+            <iframe class="editor-preview-frame" src="/admin/websites/{{.WebsiteID}}/preview/{{.Values.Slug}}" title="{{t "Preview of the page"}}" loading="lazy"></iframe>
+            {{else}}
+            <p class="text-muted">{{t "Save the page once and it appears here."}}</p>
+            {{end}}
+            {{else}}
+            <div id="preview-pane" class="editor-preview__body prose" aria-live="polite">
+                {{template "preview_pane" .PreviewHTML}}
+            </div>
+            {{end}}
+            {{if .IsEdit}}
+            <p><a href="/admin/websites/{{.WebsiteID}}/preview/{{.Values.Slug}}" target="_blank" rel="noopener" class="btn btn--sm">{{t "Open the preview in a new tab"}}</a></p>
+            {{end}}
+        </section>
+
+        <section class="editor-panel editor-panel--settings" aria-label="{{t "Settings"}}">
+        <div class="form-group">
+            <label class="form-label" for="status">{{t "Status"}}</label>
+            {{if .MayPublish}}
+            <select id="status" name="status" class="form-input form-select">
+                <option value="draft" {{if eq .Values.Status "draft"}}selected{{end}}>{{t "Draft"}}</option>
+                <option value="published" {{if eq .Values.Status "published"}}selected{{end}}>{{t "Published"}}</option>
+            </select>
+            {{else}}
+            <p>
+                <span class="badge">{{if eq .Values.Status "published"}}{{t "Published"}}{{else}}{{t "Draft"}}{{end}}</span>
+            </p>
+            <p class="form-hint text-muted">
+                {{t "Publishing is not part of your account. Save and submit the page for review — somebody with the right will put it online."}}
+            </p>
+            {{end}}
+        </div>
+
+        {{if .PublishedAt}}
+        <div class="form-group">
+            <span class="form-label">{{t "Published on"}}</span>
+            <span class="text-muted">{{.PublishedAt.Format "02.01.2006 15:04"}}</span>
+        </div>
+        {{end}}
 
         <div class="form-group">
             <label class="form-label" for="slug">{{t "Address"}}</label>
@@ -54,59 +213,26 @@
             </p>
         </div>
 
-        {{if .Values.UsesBlocks}}
-        <!-- Der Baustein-Editor. Die Liste wird von htmx an Ort und Stelle
-             ersetzt; ohne htmx lädt der Browser das ganze Formular neu. -->
         <div class="form-group">
-            <span class="form-label">{{t "Content"}}</span>
-            {{template "block_list" .}}
-        </div>
-        {{else}}
-        <div class="form-group">
-            <label class="form-label" for="content_markdown">{{t "Content (Markdown)"}}</label>
-            <div class="editor-split">
-                <textarea id="content_markdown" name="content_markdown"
-                          class="form-input form-textarea form-textarea--tall"
-                          rows="20" placeholder="{{t "Write the content in Markdown …"}}"
-                          hx-post="/admin/websites/{{.WebsiteID}}/pages/preview"
-                          hx-trigger="input changed delay:600ms"
-                          hx-target="#preview-pane"
-                          hx-swap="innerHTML">{{.Values.Markdown}}</textarea>
-                <!-- Without htmx this section simply stays on its initial content;
-                     the editor keeps working, the pane just does not follow along. -->
-                <section class="editor-preview" aria-label="{{t "Preview"}}">
-                    <h2 class="editor-preview__title">{{t "Preview"}}</h2>
-                    <div id="preview-pane" class="editor-preview__body prose" aria-live="polite">
-                        {{template "preview_pane" .PreviewHTML}}
-                    </div>
-                </section>
-            </div>
-            {{template "markdown_help" .}}
-            {{if .Snippets}}
-            <details class="snippet-help">
-                <summary>{{t "Insert a snippet"}}</summary>
-                <ul class="snippet-help__list">
-                    {{range .Snippets}}
-                    <li><code>[[snippet:{{.Key}}]]</code> — {{.Name}}</li>
-                    {{end}}
-                </ul>
-                <p class="form-hint text-muted">
-                    <a href="/admin/websites/{{.WebsiteID}}/snippets">{{t "Manage snippets"}}</a>
-                </p>
-            </details>
-            {{end}}
-            <p class="block-switch">
-                <!-- Bewusst ohne htmx: hier wird das ganze Formular neu
-                     gezeichnet, nicht ein Ausschnitt davon. -->
-                <button type="submit" class="btn btn--sm" name="editorwechsel" value="zu-bausteinen">
-                    {{t "Build it from blocks"}}
-                </button>
-                <span class="form-hint text-muted">
-                    {{t "Image beside text, galleries, cards. The text you have becomes the first block, and as long as it holds nothing but text you can switch back at any time."}}
-                </span>
+            <label class="form-label" for="kind">{{t "Kind"}}</label>
+            <select id="kind" name="kind" class="form-input form-select">
+                {{range .KindChoices}}
+                <option value="{{.Key}}"{{if .Selected}} selected{{end}}>{{t .Name}}</option>
+                {{end}}
+            </select>
+            <p class="form-hint text-muted">
+                {{t "A post also appears in the archive, sorted by date. A page stands on its own and usually belongs in a menu. You create your own kinds under “Content kinds”."}}
             </p>
         </div>
-        {{end}}
+
+        <div class="form-group">
+            <label class="form-label" for="tags">{{t "Terms"}}</label>
+            <input type="text" id="tags" name="tags" class="form-input"
+                   value="{{.Values.Tags}}" placeholder="{{t "furniture, oak, workshop"}}">
+            <p class="form-hint text-muted">
+                {{th "Separated by commas. Every term gets its own overview page under <code>/tag/…</code>. At most twelve per entry."}}
+            </p>
+        </div>
 
         {{if .Languages}}
         <input type="hidden" name="uebersetzung_von" value="{{.Values.TranslationOf}}">
@@ -152,46 +278,30 @@
         </div>
         {{end}}
 
-        <div class="form-group">
-            <label class="form-label" for="kind">{{t "Kind"}}</label>
-            <select id="kind" name="kind" class="form-input form-select">
-                {{range .KindChoices}}
-                <option value="{{.Key}}"{{if .Selected}} selected{{end}}>{{t .Name}}</option>
-                {{end}}
-            </select>
+        <details class="schedule-fields"{{if or .Values.PublishAt .Values.UnpublishAt}} open{{end}}>
+            <summary>{{t "Scheduling"}}</summary>
             <p class="form-hint text-muted">
-                {{t "A post also appears in the archive, sorted by date. A page stands on its own and usually belongs in a menu. You create your own kinds under “Content kinds”."}}
+                {{t "All times in UTC. A page with a start time stays invisible until then, even when it is set to “Published” — nothing has to run in the background and no moment can be missed."}}
             </p>
-        </div>
 
-        {{if .IsEdit}}
-        <div class="form-group">
-            <span class="form-label">{{t "Preview link"}}</span>
-            <p class="form-hint text-muted">
-                {{t "Shows the page to somebody without an account — even as a draft. So nothing has to be published “briefly” for a client to take a look."}}
-            </p>
-            <button type="submit" class="btn" hx-disabled-elt="this"
-                    formmethod="POST" formaction="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/share"
-                    formnovalidate>{{t "Generate a preview link"}}</button>
-        </div>
-        {{end}}
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="publish_at">{{t "Visible from"}}</label>
+                    <input type="datetime-local" id="publish_at" name="publish_at" class="form-input"
+                           value="{{.Values.PublishAt}}"
+                           {{with .Errors.publish_at}}aria-invalid="true" aria-describedby="publish-at-error"{{end}}>
+                    {{with .Errors.publish_at}}<p class="form-error" id="publish-at-error">{{t .}}</p>{{end}}
+                </div>
 
-        {{if .FieldViews}}
-        {{/* Die eigenen Felder dieser Website. Sie stehen offen da und nicht in
-             einem Aufklapper: sie gehören zum Inhalt, nicht zu den Einstellungen.
-             Eine Überschrift teilt sie in Abschnitte; der erste hat keine, weil
-             die Felder von vor der Einteilung irgendwo stehen müssen. */}}
-        <fieldset class="own-fields">
-            <legend>{{t "Details about this page"}}</legend>
-            {{range .FieldViews}}
-            {{if .Title}}
-            <h3 class="own-fields__abschnitt">{{.Title}}</h3>
-            {{if .Hint}}<p class="form-hint text-muted">{{.Hint}}</p>{{end}}
-            {{end}}
-            {{range .Fields}}{{template "field_top" .}}{{end}}
-            {{end}}
-        </fieldset>
-        {{end}}
+                <div class="form-group">
+                    <label class="form-label" for="unpublish_at">{{t "Visible until"}}</label>
+                    <input type="datetime-local" id="unpublish_at" name="unpublish_at" class="form-input"
+                           value="{{.Values.UnpublishAt}}"
+                           {{with .Errors.unpublish_at}}aria-invalid="true" aria-describedby="unpublish-at-error"{{end}}>
+                    {{with .Errors.unpublish_at}}<p class="form-error" id="unpublish-at-error">{{t .}}</p>{{end}}
+                </div>
+            </div>
+        </details>
 
         <details class="access-fields"{{if .Values.Protected}} open{{end}}>
             <summary>{{t "Access protection"}}</summary>
@@ -224,64 +334,6 @@
                 <input type="text" id="access_hint" name="access_hint" class="form-input"
                        value="{{.Values.AccessHint}}"
                        placeholder="{{t "The password is in our letter."}}">
-            </div>
-        </details>
-
-        <div class="form-group">
-            <label class="form-label" for="tags">{{t "Terms"}}</label>
-            <input type="text" id="tags" name="tags" class="form-input"
-                   value="{{.Values.Tags}}" placeholder="{{t "furniture, oak, workshop"}}">
-            <p class="form-hint text-muted">
-                {{th "Separated by commas. Every term gets its own overview page under <code>/tag/…</code>. At most twelve per entry."}}
-            </p>
-        </div>
-
-        <div class="form-group">
-            <label class="form-label" for="status">{{t "Status"}}</label>
-            {{if .MayPublish}}
-            <select id="status" name="status" class="form-input form-select">
-                <option value="draft" {{if eq .Values.Status "draft"}}selected{{end}}>{{t "Draft"}}</option>
-                <option value="published" {{if eq .Values.Status "published"}}selected{{end}}>{{t "Published"}}</option>
-            </select>
-            {{else}}
-            <p>
-                <span class="badge">{{if eq .Values.Status "published"}}{{t "Published"}}{{else}}{{t "Draft"}}{{end}}</span>
-            </p>
-            <p class="form-hint text-muted">
-                {{t "Publishing is not part of your account. Save and submit the page for review — somebody with the right will put it online."}}
-            </p>
-            {{end}}
-        </div>
-
-        {{if .PublishedAt}}
-        <div class="form-group">
-            <span class="form-label">{{t "Published on"}}</span>
-            <span class="text-muted">{{.PublishedAt.Format "02.01.2006 15:04"}}</span>
-        </div>
-        {{end}}
-
-        <details class="schedule-fields"{{if or .Values.PublishAt .Values.UnpublishAt}} open{{end}}>
-            <summary>{{t "Scheduling"}}</summary>
-            <p class="form-hint text-muted">
-                {{t "All times in UTC. A page with a start time stays invisible until then, even when it is set to “Published” — nothing has to run in the background and no moment can be missed."}}
-            </p>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label" for="publish_at">{{t "Visible from"}}</label>
-                    <input type="datetime-local" id="publish_at" name="publish_at" class="form-input"
-                           value="{{.Values.PublishAt}}"
-                           {{with .Errors.publish_at}}aria-invalid="true" aria-describedby="publish-at-error"{{end}}>
-                    {{with .Errors.publish_at}}<p class="form-error" id="publish-at-error">{{t .}}</p>{{end}}
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="unpublish_at">{{t "Visible until"}}</label>
-                    <input type="datetime-local" id="unpublish_at" name="unpublish_at" class="form-input"
-                           value="{{.Values.UnpublishAt}}"
-                           {{with .Errors.unpublish_at}}aria-invalid="true" aria-describedby="unpublish-at-error"{{end}}>
-                    {{with .Errors.unpublish_at}}<p class="form-error" id="unpublish-at-error">{{t .}}</p>{{end}}
-                </div>
             </div>
         </details>
 
@@ -323,18 +375,41 @@
             </div>
         </details>
 
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
-            {{if .IsEdit}}{{t "Save changes"}}{{else}}{{t "Create page"}}{{end}}
-        </button>
-        <a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Cancel"}}</a>
-        {{if .IsEdit}}
-        <a href="/admin/websites/{{.WebsiteID}}/preview/{{.Values.Slug}}" target="_blank" rel="noopener" class="btn">{{t "Preview"}}</a>
-        {{if .RevisionCount}}
-        <a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" class="btn">{{tf "History (%d)" .RevisionCount}}</a>
-        {{end}}
-        {{end}}
-    </form>
-</div>
+        </section>
+
+        <section class="editor-panel editor-panel--versions" aria-label="{{t "Versions"}}">
+            {{if .IsEdit}}
+            {{if .RevisionCount}}
+            <p><a href="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/revisions" class="btn">{{tf "History (%d)" .RevisionCount}}</a></p>
+            <p class="form-hint text-muted">{{t "Every save keeps the previous state. Compare two versions or bring an older one back."}}</p>
+            {{else}}
+            <p class="text-muted">{{t "No earlier version yet. Every save keeps the previous state from now on."}}</p>
+            {{end}}
+
+            <div class="form-group">
+                <span class="form-label">{{t "Review"}}</span>
+                <button type="submit" form="review-form" class="btn btn--sm" hx-disabled-elt="this">
+                    {{if .ReviewPending}}{{t "Remove the review mark"}}{{else}}{{t "Submit for review"}}{{end}}
+                </button>
+                <p class="form-hint text-muted">
+                    {{if .ReviewPending}}{{t "This page is marked “awaiting review”."}}{{else}}{{t "Marks the page as awaiting review in the page list."}}{{end}}
+                </p>
+            </div>
+        <div class="form-group">
+            <span class="form-label">{{t "Preview link"}}</span>
+            <p class="form-hint text-muted">
+                {{t "Shows the page to somebody without an account — even as a draft. So nothing has to be published “briefly” for a client to take a look."}}
+            </p>
+            <button type="submit" class="btn" hx-disabled-elt="this"
+                    formmethod="POST" formaction="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/share"
+                    formnovalidate>{{t "Generate a preview link"}}</button>
+        </div>
+                    {{else}}
+            <p class="text-muted">{{t "Versions start with the first save."}}</p>
+            {{end}}
+        </section>
+    </aside>
+</form>
 
 {{if .IsEdit}}
 <!-- A <details>, not a <dialog>: opening a dialog needs showModal(), which from
@@ -343,7 +418,7 @@
      content on the toggle event.
 
      It sits outside the save form because each tile is its own form post. -->
-<details class="card media-picker" style="margin-top: var(--space-3);"
+<details class="card media-picker"
          hx-get="/admin/websites/{{.WebsiteID}}/media/picker?page_id={{.PageID}}"
          hx-target="#media-picker-body" hx-swap="innerHTML"
          hx-trigger="toggle once">
@@ -357,19 +432,5 @@
     </div>
 </details>
 
-<!-- Its own form, outside the save form: a review request must not carry the
-     unsaved editor content with it, and a form inside a form is invalid HTML. -->
-<div class="card" style="margin-top: var(--space-3);">
-    <form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/{{.PageID}}/review" class="review-form">
-        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        {{if .ReviewPending}}<input type="hidden" name="clear" value="1">{{end}}
-        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">
-            {{if .ReviewPending}}{{t "Remove the review mark"}}{{else}}{{t "Submit for review"}}{{end}}
-        </button>
-        <span class="form-hint text-muted">
-            {{if .ReviewPending}}{{t "This page is marked “awaiting review”."}}{{else}}{{t "Marks the page as awaiting review in the page list."}}{{end}}
-        </span>
-    </form>
-</div>
 {{end}}
 {{end}}
