@@ -1070,6 +1070,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/tags/{termID}/delete", adminHandler.ErrHandler(adminHandler.HandleTermDelete))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/media", adminHandler.ErrHandler(adminHandler.HandleMediaList))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/upload", adminHandler.ErrHandler(adminHandler.HandleMediaUpload))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/in-album", adminHandler.ErrHandler(adminHandler.HandleMediaToAlbum))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/{mediaID}/delete", adminHandler.ErrHandler(adminHandler.HandleMediaDelete))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/{mediaID}/meta", adminHandler.ErrHandler(adminHandler.HandleMediaMeta))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/media/{mediaID}/zuschnitt", adminHandler.ErrHandler(adminHandler.HandleMediaCrop))

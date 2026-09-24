@@ -5,12 +5,15 @@
 {{end}}
 
 {{define "media_list-content"}}
+<div class="library">
+{{template "library_nav" .Library}}
+<div class="library__main">
 <div class="card">
-    <h3>{{t "Upload a file"}}</h3>
+    <h3>{{t "Upload files"}}</h3>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/media/upload" enctype="multipart/form-data" class="form-row">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <label class="sr-only" for="media">{{t "File"}}</label>
-        <input type="file" id="media" name="media" accept="image/*,application/pdf,video/mp4" required class="form-input">
+        <input type="file" id="media" name="media" accept="image/*,application/pdf,video/mp4" required multiple class="form-input">
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Upload"}}</button>
     </form>
     <p class="text-muted" style="margin-top: var(--space-2)">
@@ -29,12 +32,14 @@
         <select id="kind" name="kind" class="form-input form-select">
             <option value="">{{t "All kinds"}}</option>
             <option value="image"{{if eq .Filter.MimePrefix "image/"}} selected{{end}}>{{t "Images"}}</option>
+            <option value="video"{{if eq .Filter.MimePrefix "video/"}} selected{{end}}>{{t "Videos"}}</option>
             <option value="document"{{if eq .Filter.MimePrefix "application/"}} selected{{end}}>{{t "Documents"}}</option>
         </select>
         <label class="form-check">
             <input type="checkbox" name="unused" value="1" {{if .Filter.Unused}}checked{{end}}>
             <span class="form-check-label">{{t "Unused only"}}</span>
         </label>
+        {{if .Filter.NoAlt}}<input type="hidden" name="ohne_beschreibung" value="1">{{end}}
         <button type="submit" class="btn" hx-disabled-elt="this">{{t "Filter"}}</button>
     </form>
 
@@ -51,6 +56,12 @@
     <div class="media-grid">
         {{range .Media}}
         <div class="media-card">
+            {{if and .IsImage $.Library.Albums}}
+            <label class="media-card__pick">
+                <input type="checkbox" name="media_id" value="{{.ID}}" form="library-bulk">
+                <span class="sr-only">{{tf "Select %s" .OriginalName}}</span>
+            </label>
+            {{end}}
             {{if .IsImage}}
             <img src="{{.ThumbURL}}" alt="{{if .AltText}}{{.AltText}}{{else}}{{.OriginalName}}{{end}}" loading="lazy">
             {{else}}
@@ -104,10 +115,27 @@
         {{end}}
     </div>
 
+    {{if .Library.Albums}}
+    <!-- Die Ankreuzfelder oben gehören über ihr form-Attribut zu diesem
+         Formular: jede Kachel trägt schon eigene Formulare, und ein Formular
+         in einem Formular gibt es in HTML nicht. -->
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/media/in-album" id="library-bulk" class="library-bulk">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <span class="library-bulk__label">{{t "Put the ticked images into"}}</span>
+        <label class="sr-only" for="bulk-album">{{t "Album"}}</label>
+        <select id="bulk-album" name="album_id" class="form-input form-select">
+            {{range .Library.Albums}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+        <button type="submit" class="btn btn--primary btn--sm" hx-disabled-elt="this">{{t "Put into album"}}</button>
+    </form>
+    {{end}}
+
     {{template "pager" .}}
     {{else}}
     <p class="text-muted">{{t "No files found."}}</p>
     {{end}}
     </div>
+</div>
+</div>
 </div>
 {{end}}
