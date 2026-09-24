@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"fmt"
+	"github.com/holzcloud/holzcloud-cms/internal/design"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -45,6 +46,15 @@ func (h *Handler) HandlePreview(w http.ResponseWriter, r *http.Request) error {
 		return h.renderPreview404(w, r, ws)
 	}
 
+	// The design screen asks with its unsaved values: "probe" carries the
+	// whole design form, read by the same function saving uses.
+	if r.URL.Query().Get("probe") == "1" {
+		t := tokensFromForm(r.URL.Query().Get)
+		probe := *ws
+		probe.TokenInk, probe.TokenPaper, probe.TokenBrand = t.Ink, t.Paper, t.Brand
+		probe.TokenFont, probe.TokenMeasure, probe.TokenRadius = t.Font, t.Measure, t.Radius
+		ws = &probe
+	}
 	site := previewSiteData(ws)
 	data := tmpl.PageData{
 		Site:  site,
@@ -59,6 +69,7 @@ func (h *Handler) HandlePreview(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	base := fmt.Sprintf("/admin/websites/%d/preview", id)
+	web.AllowSameOriginFrame(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Write(rewritePreviewURLs(content, base))
@@ -110,6 +121,7 @@ func (h *Handler) HandlePreviewPage(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	base := fmt.Sprintf("/admin/websites/%d/preview", id)
+	web.AllowSameOriginFrame(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Write(rewritePreviewURLs(content, base))
@@ -227,6 +239,12 @@ func previewSiteData(ws *domain.Website) tmpl.SiteData {
 		MetaDescription: ws.MetaDescription,
 		Locale:          ws.Locale,
 		TimeZone:        ws.TimeZone,
+		// The website's own colours. The preview used to leave them out, and
+		// so showed the theme as it ships rather than the website it is.
+		Design: design.Tokens{
+			Ink: ws.TokenInk, Paper: ws.TokenPaper, Brand: ws.TokenBrand,
+			Font: ws.TokenFont, Measure: ws.TokenMeasure, Radius: ws.TokenRadius,
+		}.CSS(),
 	}
 	if site.Locale == "" {
 		site.Locale = tmpl.DefaultLocale
@@ -355,6 +373,7 @@ func (h *Handler) renderPreview404(w http.ResponseWriter, r *http.Request, ws *d
 		return nil
 	}
 	base := fmt.Sprintf("/admin/websites/%d/preview", websiteID)
+	web.AllowSameOriginFrame(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusNotFound)
