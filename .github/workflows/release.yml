@@ -64,6 +64,8 @@ jobs:
 
     permissions:
       contents: write
+      # For the last step: starting image.yml on the tag this job mints.
+      actions: write
 
     steps:
     # The checkout comes first, because the decision below reads CHANGELOG.md
@@ -132,6 +134,7 @@ jobs:
 
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
         echo "commit=$commit" >> "$GITHUB_OUTPUT"
+        echo "minting=$minting" >> "$GITHUB_OUTPUT"
         echo "Releasing $tag at $commit."
 
     # Only a dispatch that named another commit moves; everything else is
@@ -204,3 +207,21 @@ jobs:
           --generate-notes \
           holzcloud-linux-amd64 \
           holzcloud-linux-amd64.sha256
+
+    # The image comes from image.yml, which listens for tag pushes. A tag this
+    # job mints is not one: the Releases API creates it with this workflow's
+    # own token, and GitHub starts no workflow from an event that token
+    # caused. So from v2.0 to v2.6 not one release reached GHCR as an image -
+    # the newest tag there stayed v1.10, holzkube-infra stayed on it, and
+    # Renovate, which follows the tags, had nothing newer to offer.
+    #
+    # workflow_dispatch is the documented exception to that rule. A tag pushed
+    # by hand (route 1) already starts image.yml by itself, so only the routes
+    # that mint one dispatch it - a second run on the same ref would only
+    # cancel the first through image.yml's concurrency group.
+    - name: Build the image for this tag
+      if: steps.what.outputs.minting == 'yes'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ steps.what.outputs.tag }}
+      run: gh workflow run image.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
