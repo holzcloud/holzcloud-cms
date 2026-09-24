@@ -40,6 +40,8 @@ Usage:
   holzcloud check                   run an integrity check
   holzcloud template check <path>   check a template directory or .zip
   holzcloud template spec           print the template authoring specification
+  holzcloud export -website <id|domain> <dir>
+                                    write a website as plain HTML files
 
 Passwords are read from stdin so they never reach the shell history:
   echo -n 'new password' | holzcloud user passwd -email admin@example.com
@@ -79,6 +81,8 @@ func runCLI(args []string) (handled bool, err error) {
 		return true, cmdCheck(args[2:])
 	case "template":
 		return true, cmdTemplate(args[2:])
+	case "export":
+		return true, cmdExport(args[2:])
 	default:
 		if strings.HasPrefix(args[1], "-") {
 			// A bare flag is meant for the server, not a subcommand.

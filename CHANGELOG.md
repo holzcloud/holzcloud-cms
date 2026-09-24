@@ -11,6 +11,33 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.6 — 2026-09-24
+
+**Eine Website lässt sich als statische Dateien ausgeben.** `holzcloud export
+-website <id|domain> <verzeichnis>` schreibt sie so, wie der Server sie
+ausliefert, in ein leeres Verzeichnis — bereit für jeden Host, der nur Dateien
+kann.
+
+### Neu
+
+Der Export ist kein zweiter Renderer, sondern fragt denselben Router, den der
+Server betreibt, und schreibt die Antworten auf. Eine Seite sieht darum im
+Export genau so aus wie im Browser, und ein Theme muss nichts davon wissen. Er
+beginnt bei der Startseite, der Sitemap, `robots.txt` und dem Feed und folgt
+jedem Link, Stylesheet, Bild und `srcset`, das auf der Website bleibt. Die
+zweite Seite einer Liste, `/blog?seite=2`, wird zu `/blog/seite/2/`, weil ein
+statischer Host die Abfrage nicht ansieht, und die Links darauf werden
+umgeschrieben. Eine Weiterleitung wird zu einer Seite, die ohne Skript
+weiterleitet, und die 404-Seite der Website zu `404.html`.
+
+Was nur ein laufender Server kann, fehlt mit Absicht und steht im Bericht, den
+der Befehl ausgibt: die Suche, Formulare, geschützte Seiten sowie Warenkorb,
+Kasse und Zahlung des Shops. Seiten, die ein Formular tragen, werden
+geschrieben und einzeln genannt — das Formular steht darin und tut nichts.
+
+Das Zielverzeichnis muss leer sein. Ein Export über einen alten hinweg würde
+Seiten behalten, die inzwischen gelöscht sind.
+
 ## 2.5 — 2026-09-17
 
 **Die Verwaltung ist auf dem Telefon benutzbar.** Nicht „geht auch irgendwie",

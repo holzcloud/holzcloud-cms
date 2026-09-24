@@ -330,21 +330,7 @@ func main() {
 		// A plugin may read a website's settings if it has the permission.
 		// Handed in as a function, so that the plugin package does not depend
 		// on the domain package and the two stay separately testable.
-		pluginRuntime.WithSettings(func(ctx context.Context, websiteID int64) (plugin.SettingsResult, error) {
-			ws, err := domainStore.GetWebsite(ctx, websiteID)
-			if err != nil || ws == nil {
-				return plugin.SettingsResult{}, fmt.Errorf("website %d not found", websiteID)
-			}
-			return plugin.SettingsResult{
-				WebsiteID: ws.ID, Name: ws.Name, Description: ws.Description,
-				Locale: ws.Locale, TimeZone: ws.TimeZone, BlogBase: ws.BlogBase,
-				ContactEmail: ws.ContactEmail,
-				// Every language this website publishes in, its main one at
-				// the front. Not Locales(), which is the EXTRA languages and
-				// would leave out the one most of the site is written in.
-				Locales: pluginLocales(ws),
-			}, nil
-		})
+		pluginRuntime.WithSettings(pluginSettings(domainStore))
 		if m, err := plugin.NewManager(context.Background(), pluginStore, pluginRuntime, cfg.DataDir, slog.Default()); err != nil {
 			slog.Error("plugin manager unavailable", "err", err)
 			pluginRuntime.Close(context.Background())
@@ -641,6 +627,27 @@ func main() {
 		slog.Error("shutdown error", "err", err)
 	}
 	slog.Info("shutdown complete")
+}
+
+// pluginSettings answers a plugin that may read a website's settings. Handed in
+// as a function, so that the plugin package does not depend on the domain
+// package and the two stay separately testable.
+func pluginSettings(domainStore *domain.Store) func(context.Context, int64) (plugin.SettingsResult, error) {
+	return func(ctx context.Context, websiteID int64) (plugin.SettingsResult, error) {
+		ws, err := domainStore.GetWebsite(ctx, websiteID)
+		if err != nil || ws == nil {
+			return plugin.SettingsResult{}, fmt.Errorf("website %d not found", websiteID)
+		}
+		return plugin.SettingsResult{
+			WebsiteID: ws.ID, Name: ws.Name, Description: ws.Description,
+			Locale: ws.Locale, TimeZone: ws.TimeZone, BlogBase: ws.BlogBase,
+			ContactEmail: ws.ContactEmail,
+			// Every language this website publishes in, its main one at
+			// the front. Not Locales(), which is the EXTRA languages and
+			// would leave out the one most of the site is written in.
+			Locales: pluginLocales(ws),
+		}, nil
+	}
 }
 
 // websiteLookup is the one thing checkSSOWebsites needs from the domain
