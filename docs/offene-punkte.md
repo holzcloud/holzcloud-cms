@@ -12,6 +12,10 @@ website now decides its own content model — its own fields, groups, content
 kinds, sections, conditions and block kinds. What is here is individual work, not
 a change of construction.
 
+**Since the end of September 2026 every point on this list is built** — the
+static export was the last. What remains is the section on what is deliberately
+not being built.
+
 ---
 
 ## 1. Choice as a button row and as multiple choice — built
@@ -104,16 +108,21 @@ pages to drafts with no line in the report.
 the page form, one page at a time, where the person doing it can see what they
 are emptying.
 
-## 5. Static export
+## 5. Static export — built
 
-**Missing:** a website as plain HTML files.
+**Built:** September 2026, as `holzcloud export -website <id|domain> <dir>`
+(`internal/export`, wiring in `cmd/holzcloud/cli_export.go`). It is the reduced
+output this entry asked for, and it says so: it is not a second renderer but a
+crawler over the router the server runs, so a page looks in the export exactly
+as it is served. It starts at `/`, the sitemap, `robots.txt` and the feed and
+follows every link, stylesheet, image and `srcset` that stays on the website.
+A list's `?seite=N` becomes `/…/seite/N/` and the links are rewritten to it; a
+redirect becomes a meta-refresh page; the 404 page becomes `404.html`. Search,
+forms, protected pages (they answer 401) and the shop's cart, checkout and
+payment are not exported and are named in the report. The directory must be
+empty, so an export never keeps a page that has been deleted since.
 
-**Where:** a new command beside the others in `runCLI`, running the public handler
-against a directory.
-
-**Size:** a day for pages, archive, feed, sitemap and media. **Think first:** it is
-a second mode of operation beside the one that works — it cannot do forms, search
-or protected pages. If at all, then as an explicitly reduced output.
+**Was missing:** a website as plain HTML files.
 
 ## 6. Field types missing individually — built
 
