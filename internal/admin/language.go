@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -120,16 +121,6 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 	if code == "" {
 		code = locale.Normalise(strings.TrimSuffix(header.Filename, filepath.Ext(header.Filename)))
 	}
-	if !locale.Valid(code) {
-		web.SetFlashError(h.sm, r.Context(),
-			"That is not a language tag: two or three letters such as fr are expected, optionally with a region such as fr-CH")
-		return h.redirect(w, r, "/admin/sprachen")
-	}
-	if code == i18n.Source {
-		// Allowed on purpose: a de.json corrects our own wording. Said out loud
-		// so nobody is surprised that the German changed.
-		slog.Info("German wording is being overridden from disk")
-	}
 
 	// Read bounded, then check before anything is written: a file that would be
 	// refused at load time must not sit in the folder looking installed.
@@ -138,31 +129,25 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 		web.SetFlashError(h.sm, r.Context(), "The file could not be read")
 		return h.redirect(w, r, "/admin/sprachen")
 	}
-	if len(data) > i18n.MaxFileBytes {
+	count, err := h.installLanguage(code, data)
+	var refused languageRefused
+	switch {
+	case errors.Is(err, errLanguageTag):
+		web.SetFlashError(h.sm, r.Context(),
+			"That is not a language tag: two or three letters such as fr are expected, optionally with a region such as fr-CH")
+		return h.redirect(w, r, "/admin/sprachen")
+	case errors.Is(err, errLanguageTooLarge):
 		web.SetFlashError(h.sm, r.Context(), "The file is too large")
 		return h.redirect(w, r, "/admin/sprachen")
-	}
-	msgs, err := i18n.Parse(data)
-	if err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The language file was refused: %s", err))
+	case errors.As(err, &refused):
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The language file was refused: %s", refused.err))
 		return h.redirect(w, r, "/admin/sprachen")
-	}
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(dir, code+".json"), data, 0o600); err != nil {
-		return err
-	}
-
-	i18n.Reload()
-	if err := h.templates.Reload(); err != nil {
-		slog.Error("re-parse admin templates", "err", err)
+	case err != nil:
 		return err
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r,
 		"%s installed: %d translations. It can now be chosen under “My account”.",
-		locale.Name(code), len(msgs)))
+		locale.Name(code), count))
 
 	// A regional version of a language nobody installed works, but only its own
 	// sentences are in that language and the rest comes out German. Said here,
@@ -176,24 +161,99 @@ func (h *Handler) HandleLanguageUpload(w http.ResponseWriter, r *http.Request) e
 	return h.redirect(w, r, "/admin/sprachen")
 }
 
+// The reasons installLanguage refuses a file, for the screen to put into words.
+var (
+	errLanguageNoFolder = errors.New("no folder is set up for language files")
+	errLanguageTag      = errors.New("not a language tag: two or three letters such as fr, optionally with a region such as fr-CH")
+	errLanguageTooLarge = errors.New("the language file is too large")
+)
+
+// languageRefused is a file whose content did not pass i18n.Parse.
+type languageRefused struct{ err error }
+
+func (e languageRefused) Error() string { return "the language file was refused: " + e.err.Error() }
+
+// installLanguage checks a language file and puts it in the folder, then makes
+// every screen read it. It returns how many translations it carries.
+//
+// The upload form and the AI tool both come through here, so a file refused by
+// one is refused by the other. Everything is checked before the file is
+// written: a file that would be refused at load time must not sit in the folder
+// looking installed.
+func (h *Handler) installLanguage(code string, data []byte) (int, error) {
+	dir := i18n.Dir()
+	if dir == "" {
+		return 0, errLanguageNoFolder
+	}
+	if !locale.Valid(code) {
+		return 0, errLanguageTag
+	}
+	if code == i18n.Source {
+		// Allowed on purpose: a de.json corrects our own wording. Said out loud
+		// so nobody is surprised that the German changed.
+		slog.Info("German wording is being overridden from disk")
+	}
+	if len(data) > i18n.MaxFileBytes {
+		return 0, errLanguageTooLarge
+	}
+	msgs, err := i18n.Parse(data)
+	if err != nil {
+		return 0, languageRefused{err}
+	}
+
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return 0, err
+	}
+	if err := os.WriteFile(filepath.Join(dir, code+".json"), data, 0o600); err != nil {
+		return 0, err
+	}
+	if err := h.reloadLanguages(); err != nil {
+		return 0, err
+	}
+	return len(msgs), nil
+}
+
+// reloadLanguages reads the folder again and rebuilds the screens, because the
+// translation function is baked into the admin templates at parse time.
+func (h *Handler) reloadLanguages() error {
+	i18n.Reload()
+	if h.templates == nil {
+		return nil
+	}
+	if err := h.templates.Reload(); err != nil {
+		slog.Error("re-parse admin templates", "err", err)
+		return err
+	}
+	return nil
+}
+
+// removeLanguage deletes a language file from the folder. A language compiled
+// into the binary is not a file and cannot be removed.
+func (h *Handler) removeLanguage(code string) error {
+	dir := i18n.Dir()
+	if dir == "" || !i18n.FromDisk(code) {
+		return errLanguageBuiltIn
+	}
+	if err := os.Remove(filepath.Join(dir, code+".json")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return h.reloadLanguages()
+}
+
+// errLanguageBuiltIn refuses to remove a language that belongs to the program.
+var errLanguageBuiltIn = errors.New("this language belongs to the program and cannot be removed")
+
 // HandleLanguageDelete removes a language file from the folder.
 //
 // Only a file: a language compiled into the binary is not deletable here, and
 // saying so is better than a button that does nothing.
 func (h *Handler) HandleLanguageDelete(w http.ResponseWriter, r *http.Request) error {
 	code := locale.Normalise(r.PathValue("code"))
-	dir := i18n.Dir()
-	if dir == "" || !i18n.FromDisk(code) {
-		web.SetFlashError(h.sm, r.Context(), "This language belongs to the program and cannot be removed")
-		return h.redirect(w, r, "/admin/sprachen")
-	}
-
-	if err := os.Remove(filepath.Join(dir, code+".json")); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	i18n.Reload()
-	if err := h.templates.Reload(); err != nil {
-		slog.Error("re-parse admin templates", "err", err)
+	if err := h.removeLanguage(code); err != nil {
+		if errors.Is(err, errLanguageBuiltIn) {
+			web.SetFlashError(h.sm, r.Context(), "This language belongs to the program and cannot be removed")
+			return h.redirect(w, r, "/admin/sprachen")
+		}
 		return err
 	}
 

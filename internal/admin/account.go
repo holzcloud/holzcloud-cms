@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -62,7 +63,9 @@ func (h *Handler) HandleUserLink(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	u, err := h.users.GetByID(r.Context(), id)
-	if errors.Is(err, user.ErrNotFound) {
+	// GetByID answers an unknown id with nil and no error; ErrNotFound is kept
+	// for the day it does not.
+	if errors.Is(err, user.ErrNotFound) || (err == nil && u == nil) {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -70,15 +73,49 @@ func (h *Handler) HandleUserLink(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	secret, expires, err := h.users.IssueToken(r.Context(), id, purpose)
+	link, err := h.issueAccessLink(r.Context(), r.Host, i18n.Lang(r.Context()), u, purpose)
 	if err != nil {
 		return err
+	}
+	data := accountLinkData{
+		LayoutData: web.NewLayoutData(r, h.sm, "Access link"),
+		User:       u,
+		URL:        link.URL,
+		Expires:    link.Expires,
+		Purpose:    purpose,
+		Sent:       link.Sent,
+		SendError:  link.SendError,
+	}
+	data.ActiveNav = "users"
+	return web.RenderAdmin(w, h.templates, r, "user_link", data)
+}
+
+// accessLink is a freshly issued one-time link and what became of its mail.
+type accessLink struct {
+	URL     string
+	Expires time.Time
+	// Sent says the mail was queued; SendError why it could not be.
+	Sent      bool
+	SendError string
+}
+
+// issueAccessLink makes an invitation or reset link for an account, ends the
+// account's sessions for a reset, and queues the mail when mail is set up.
+//
+// Shared by the screen and by the AI tools, so that a link issued through
+// either is the same link with the same consequences. host is the address the
+// admin is reached at and lang the language the mail is written in — the
+// screen passes its request's, a tool the ones it was given.
+func (h *Handler) issueAccessLink(ctx context.Context, host, lang string, u *user.User, purpose string) (accessLink, error) {
+	secret, expires, err := h.users.IssueToken(ctx, u.ID, purpose)
+	if err != nil {
+		return accessLink{}, err
 	}
 	// A reset means the current password is no longer trusted, so any session
 	// still holding it goes too.
 	if purpose == user.PurposeReset {
-		if err := auth.DestroyUserSessions(r.Context(), h.sm, id, ""); err != nil {
-			slog.Error("destroy sessions after issuing a reset link", "err", err, "user_id", id)
+		if err := auth.DestroyUserSessions(ctx, h.sm, u.ID, ""); err != nil {
+			slog.Error("destroy sessions after issuing a reset link", "err", err, "user_id", u.ID)
 		}
 	}
 
@@ -86,30 +123,19 @@ func (h *Handler) HandleUserLink(w http.ResponseWriter, r *http.Request) error {
 	if purpose == user.PurposeInvite {
 		path = "/admin/activate/"
 	}
-
-	link := h.absoluteAdminURL(r, path+secret)
-	data := accountLinkData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Access link"),
-		User:       u,
-		URL:        link,
-		Expires:    expires,
-		Purpose:    purpose,
-	}
+	out := accessLink{URL: h.absoluteAdminURL(host, path+secret), Expires: expires}
 	if h.mail.Enabled() {
 		// Queued, not sent: an SMTP server that takes twenty seconds to answer
 		// would be twenty seconds the admin stares at a spinner, and one that
 		// is down would turn issuing a link into an error page.
-		err := h.mail.Enqueue(r.Context(), 0, accessMail(r, u, link, expires, purpose))
-		switch {
-		case err != nil:
-			data.SendError = err.Error()
-			slog.Error("cannot queue access mail", "err", err, "user_id", id)
-		default:
-			data.Sent = true
+		if err := h.mail.Enqueue(ctx, 0, accessMail(lang, u, out.URL, expires, purpose)); err != nil {
+			out.SendError = err.Error()
+			slog.Error("cannot queue access mail", "err", err, "user_id", u.ID)
+		} else {
+			out.Sent = true
 		}
 	}
-	data.ActiveNav = "users"
-	return web.RenderAdmin(w, h.templates, r, "user_link", data)
+	return out, nil
 }
 
 // absoluteAdminURL builds the link an admin copies out of the screen.
@@ -118,12 +144,12 @@ func (h *Handler) HandleUserLink(w http.ResponseWriter, r *http.Request) error {
 // already looking at, and the scheme from configuration for the same reason the
 // sitemap uses it: a forwarded header must not decide what gets handed to a
 // colleague.
-func (h *Handler) absoluteAdminURL(r *http.Request, path string) string {
+func (h *Handler) absoluteAdminURL(host, path string) string {
 	scheme := "http"
 	if h.cfg != nil && h.cfg.Secure {
 		scheme = "https"
 	}
-	return scheme + "://" + r.Host + path
+	return scheme + "://" + host + path
 }
 
 // HandleSetPassword serves and accepts the form behind an invite or reset link.
@@ -245,7 +271,7 @@ func (h *Handler) HandleUserSessions(w http.ResponseWriter, r *http.Request) err
 // only honest choice: somebody who has never signed in has told this server no
 // language, and guessing one from an e-mail address would be worse than
 // following the person who is looking at the screen right now.
-func accessMail(r *http.Request, u *user.User, link string, expires time.Time, purpose string) mail.Message {
+func accessMail(lang string, u *user.User, link string, expires time.Time, purpose string) mail.Message {
 	name := u.Name
 	if name == "" {
 		name = u.Email
@@ -253,13 +279,13 @@ func accessMail(r *http.Request, u *user.User, link string, expires time.Time, p
 	if purpose == user.PurposeInvite {
 		return mail.Message{
 			To:      u.Email,
-			Subject: web.T(r, "Your access to Holzcloud"),
-			Body:    web.Titlef(r, "Hello %s\n\nan account for the admin has been created for you. The following link is where you set your password:\n\n%s\n\nThe link is valid until %s and can be used only once.\nAfter that you sign in normally with your e-mail address.\n\nIf this means nothing to you, simply ignore this message — without the link nothing happens.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
+			Subject: i18n.T(lang, "Your access to Holzcloud"),
+			Body:    i18n.Tf(lang, "Hello %s\n\nan account for the admin has been created for you. The following link is where you set your password:\n\n%s\n\nThe link is valid until %s and can be used only once.\nAfter that you sign in normally with your e-mail address.\n\nIf this means nothing to you, simply ignore this message — without the link nothing happens.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
 		}
 	}
 	return mail.Message{
 		To:      u.Email,
-		Subject: web.T(r, "Reset your password"),
-		Body:    web.Titlef(r, "Hello %s\n\na link to reset the password has been created for your account:\n\n%s\n\nThe link is valid until %s and can be used only once.\nEvery open session of your account has already been ended.\n\nIf you did not ask for this, tell whoever looks after the server — somebody with access to the admin created this link.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
+		Subject: i18n.T(lang, "Reset your password"),
+		Body:    i18n.Tf(lang, "Hello %s\n\na link to reset the password has been created for your account:\n\n%s\n\nThe link is valid until %s and can be used only once.\nEvery open session of your account has already been ended.\n\nIf you did not ask for this, tell whoever looks after the server — somebody with access to the admin created this link.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
 	}
 }

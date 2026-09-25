@@ -47,6 +47,11 @@ type Deps struct {
 
 	// Limits are the installation's upload limits and data directory.
 	Limits Limits
+
+	// Tokens are the AI keys themselves, for the tools that list, issue and
+	// revoke them and for key_info. Nil means those tools say they are not
+	// available.
+	Tokens *Store
 }
 
 // Limits are the numbers a file upload has to respect.

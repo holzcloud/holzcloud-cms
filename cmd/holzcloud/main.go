@@ -332,6 +332,7 @@ func main() {
 			DataDir: cfg.DataDir, MaxMediaSize: cfg.MaxMediaSize,
 			MaxVideoSize: cfg.MaxVideoSize, MaxMegapixels: cfg.MaxMegapixels,
 		},
+		Tokens: aiTokens,
 	}))
 	aiServer.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize))
 
