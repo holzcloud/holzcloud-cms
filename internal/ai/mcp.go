@@ -272,6 +272,7 @@ func (s *Server) dispatch(r *http.Request, scope Scope, req rpcRequest) rpcRespo
 
 		out, err := tool.Run(Call{
 			Ctx: r.Context(), Scope: scope, Args: params.Arguments, Log: s.log,
+			Host: r.Host,
 		})
 		if err != nil {
 			// A failing tool answers inside the result rather than as a
@@ -292,6 +293,11 @@ type Call struct {
 	Scope Scope
 	Args  json.RawMessage
 	Log   *slog.Logger
+	// Host is the address the assistant reached this server at. The admin is
+	// served on the same hosts as /ai, so it is the host a link into the admin
+	// — an invitation, a password reset — is built with, exactly as the screen
+	// builds it from the address the operator is looking at.
+	Host string
 }
 
 // Into unmarshals the arguments, or says plainly what was wrong.
