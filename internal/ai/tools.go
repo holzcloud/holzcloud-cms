@@ -1,11 +1,13 @@
 package ai
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
@@ -35,11 +37,54 @@ type Deps struct {
 	// Fields are the website's own page fields. Nil means an assistant sees
 	// none, which is right for a build without them.
 	Fields *field.Store
+
+	// Ops is the admin handler. Where a screen does more than one store call
+	// — clear caches, write the activity log, handle a file — the tool goes
+	// through it, so the two paths are one. Each area declares the few
+	// methods it needs as an interface in its own file and asserts Ops to it;
+	// a missing method is a tool that says so, never a panic.
+	Ops any
+
+	// Limits are the installation's upload limits and data directory.
+	Limits Limits
+}
+
+// Limits are the numbers a file upload has to respect.
+type Limits struct {
+	DataDir       string
+	MaxMediaSize  int64
+	MaxVideoSize  int64
+	MaxMegapixels int
+}
+
+// baseOps are the two steps every write needs.
+type baseOps interface {
+	OpLog(ctx context.Context, actor string, e activity.Entry)
+	OpChanged(websiteID int64)
+}
+
+// actor names an AI key in the activity log.
+func actor(c Call) string { return "KI: " + c.Scope.Name }
+
+// changed records a write the way a screen does: the activity log, and the
+// caches of the website thrown away.
+func changed(d Deps, c Call, websiteID int64, e activity.Entry) {
+	ops, ok := d.Ops.(baseOps)
+	if !ok {
+		return
+	}
+	if websiteID > 0 && e.WebsiteID == nil {
+		e.WebsiteID = &websiteID
+	}
+	ops.OpLog(c.Ctx, actor(c), e)
+	if websiteID > 0 {
+		ops.OpChanged(websiteID)
+	}
 }
 
 // Tools builds the tool list.
 func Tools(d Deps) []Tool {
-	return []Tool{
+	tools := []Tool{
 		listWebsites(d),
 		listPages(d),
 		readPage(d),
@@ -50,6 +95,13 @@ func Tools(d Deps) []Tool {
 		changePage(d),
 		publishPage(d),
 	}
+	for _, area := range [][]Tool{
+		pagesTools(d), mediaTools(d), structureTools(d),
+		siteTools(d), shopTools(d), adminTools(d),
+	} {
+		tools = append(tools, area...)
+	}
+	return tools
 }
 
 // --- reading ----------------------------------------------------------------

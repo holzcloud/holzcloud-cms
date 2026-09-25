@@ -78,8 +78,11 @@ type Tool struct {
 	// Writes marks a tool that changes something. It is not part of the
 	// protocol; it is what the read-only key is checked against, in one place,
 	// so no tool can forget to ask.
-	Writes bool                        `json:"-"`
-	Run    func(ctx Call) (any, error) `json:"-"`
+	Writes bool `json:"-"`
+	// Admin marks a tool that manages the installation — users, plugins,
+	// keys. Only an admin key is offered it or may call it.
+	Admin bool                        `json:"-"`
+	Run   func(ctx Call) (any, error) `json:"-"`
 }
 
 // Schema is a small JSON Schema — enough for what these tools take.
@@ -94,6 +97,12 @@ type Property struct {
 	Type        string   `json:"type"`
 	Description string   `json:"description,omitempty"`
 	Enum        []string `json:"enum,omitempty"`
+	// Items describes the elements of an array; Properties and Required the
+	// fields of an object. They exist for the block list of a page and the
+	// entries of a menu, which are lists of small objects.
+	Items      *Property           `json:"items,omitempty"`
+	Properties map[string]Property `json:"properties,omitempty"`
+	Required   []string            `json:"required,omitempty"`
 }
 
 // Server answers MCP over HTTP.
@@ -103,6 +112,20 @@ type Server struct {
 	log    *slog.Logger
 	// name is what the assistant shows the operator as the connection's name.
 	name string
+	// maxBytes bounds one request; MaxRequestBytes unless SetMaxRequestBytes
+	// raised it for uploads.
+	maxBytes int64
+}
+
+// SetMaxRequestBytes lets a request carry a file. A file travels as base64,
+// which is a third larger than the file, so the caller passes the largest
+// upload the installation accepts and this adds the room around it. The key is
+// checked before a byte of the body is read, so only a key holder can send
+// that much.
+func (s *Server) SetMaxRequestBytes(largestFile int64) {
+	if n := largestFile*4/3 + (1 << 20); n > s.maxBytes {
+		s.maxBytes = n
+	}
 }
 
 // NewServer wires the tools up.
@@ -114,7 +137,7 @@ func NewServer(tokens *Store, name string, log *slog.Logger, tools []Tool) *Serv
 	for _, t := range tools {
 		byName[t.Name] = t
 	}
-	return &Server{tokens: tokens, tools: byName, log: log, name: name}
+	return &Server{tokens: tokens, tools: byName, log: log, name: name, maxBytes: MaxRequestBytes}
 }
 
 // ServeHTTP handles one JSON-RPC message.
@@ -140,7 +163,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, MaxRequestBytes))
+	body, err := io.ReadAll(io.LimitReader(r.Body, s.maxBytes))
 	if err != nil {
 		writeRPC(w, rpcResponse{JSONRPC: "2.0", Error: &rpcError{codeParse, "the request cannot be read"}})
 		return
@@ -217,6 +240,9 @@ func (s *Server) dispatch(r *http.Request, scope Scope, req rpcRequest) rpcRespo
 			if t.Writes && !scope.CanWrite {
 				continue
 			}
+			if t.Admin && !scope.Admin {
+				continue
+			}
 			list = append(list, t)
 		}
 		return answer(map[string]any{"tools": list})
@@ -235,6 +261,11 @@ func (s *Server) dispatch(r *http.Request, scope Scope, req rpcRequest) rpcRespo
 		}
 		if tool.Writes {
 			if err := scope.MayWrite(); err != nil {
+				return answer(toolError(err.Error()))
+			}
+		}
+		if tool.Admin {
+			if err := scope.MayAdmin(); err != nil {
 				return answer(toolError(err.Error()))
 			}
 		}
