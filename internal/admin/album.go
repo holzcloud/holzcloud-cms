@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -401,14 +402,14 @@ func albumPicture(r *http.Request) (mediaID int64, alt, caption string) {
 // The two sentences below are marked with i18n.N for the reason albumSaid
 // gives at length: they are returned from here and passed to SetFlashError at
 // the call site, where the collector looks for a literal and finds a variable.
-func (h *Handler) requireOwnPicture(r *http.Request, websiteID, mediaID int64) string {
+func (h *Handler) requireOwnPicture(ctx context.Context, websiteID, mediaID int64) string {
 	if mediaID <= 0 {
 		return i18n.N("Please choose an image")
 	}
 	if h.mediaStore == nil {
 		return i18n.N("This image does not belong to this website’s media library")
 	}
-	m, err := h.mediaStore.GetByID(r.Context(), mediaID)
+	m, err := h.mediaStore.GetByID(ctx, mediaID)
 	if err != nil || m == nil || m.WebsiteID != websiteID || !m.IsImage() {
 		return i18n.N("This image does not belong to this website’s media library")
 	}
@@ -427,7 +428,7 @@ func (h *Handler) HandleAlbumItemCreate(w http.ResponseWriter, r *http.Request) 
 	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
 
 	mediaID, alt, caption := albumPicture(r)
-	if refused := h.requireOwnPicture(r, ws.ID, mediaID); refused != "" {
+	if refused := h.requireOwnPicture(r.Context(), ws.ID, mediaID); refused != "" {
 		web.SetFlashError(h.sm, r.Context(), refused)
 	} else {
 		_, err = h.albumStore.AddItem(r.Context(), ws.ID, a.ID, mediaID, alt, caption)
@@ -467,7 +468,7 @@ func (h *Handler) HandleAlbumItemUpdate(w http.ResponseWriter, r *http.Request) 
 	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
 
 	mediaID, alt, caption := albumPicture(r)
-	if refused := h.requireOwnPicture(r, ws.ID, mediaID); refused != "" {
+	if refused := h.requireOwnPicture(r.Context(), ws.ID, mediaID); refused != "" {
 		web.SetFlashError(h.sm, r.Context(), refused)
 	} else {
 		err = h.albumStore.UpdateItem(r.Context(), ws.ID, a.ID, itemID, mediaID, alt, caption)
@@ -541,10 +542,42 @@ func (h *Handler) HandleAlbumItemReorder(w http.ResponseWriter, r *http.Request)
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
 
-	direction := r.URL.Query().Get("direction")
-	pictures, err := h.albumStore.Pictures(r.Context(), ws.ID, a.ID)
-	if err != nil {
+	moved, err := h.moveAlbumPicture(r.Context(), ws.ID, a.ID, itemID, r.URL.Query().Get("direction"))
+	switch {
+	case errors.Is(err, errBadDirection):
+		web.SetFlashError(h.sm, r.Context(), "Invalid direction")
+	case err == nil && !moved:
+		web.SetFlashSuccess(h.sm, r.Context(), "The order already stands that way")
+	case err == nil:
+		web.SetFlashSuccess(h.sm, r.Context(), "Order changed")
+	case albumSaid(err) != "":
+		web.SetFlashError(h.sm, r.Context(), albumSaid(err))
+	default:
 		return err
+	}
+
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", redirect)
+		return nil
+	}
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
+	return nil
+}
+
+// errBadDirection is a move that is neither up nor down.
+var errBadDirection = errors.New("the direction is up or down")
+
+// moveAlbumPicture swaps one picture with its neighbour in the order as it now
+// stands, for the arrows on the album screen and for an AI key alike. It
+// reports false, and no error, when there is no neighbour that way: see
+// HandleAlbumItemReorder for why that is not a failure.
+func (h *Handler) moveAlbumPicture(ctx context.Context, websiteID, albumID, itemID int64, direction string) (bool, error) {
+	if direction != "up" && direction != "down" {
+		return false, errBadDirection
+	}
+	pictures, err := h.albumStore.Pictures(ctx, websiteID, albumID)
+	if err != nil {
+		return false, err
 	}
 
 	// The neighbour in the order as it stands, or 0 when there is none.
@@ -561,28 +594,11 @@ func (h *Handler) HandleAlbumItemReorder(w http.ResponseWriter, r *http.Request)
 		}
 		break
 	}
-
-	switch {
-	case direction != "up" && direction != "down":
-		web.SetFlashError(h.sm, r.Context(), "Invalid direction")
-	case neighbour == 0:
-		web.SetFlashSuccess(h.sm, r.Context(), "The order already stands that way")
-	default:
-		err = h.albumStore.SwapSortOrder(r.Context(), ws.ID, a.ID, itemID, neighbour)
-		switch {
-		case err == nil:
-			web.SetFlashSuccess(h.sm, r.Context(), "Order changed")
-		case albumSaid(err) != "":
-			web.SetFlashError(h.sm, r.Context(), albumSaid(err))
-		default:
-			return err
-		}
+	if neighbour == 0 {
+		return false, nil
 	}
-
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", redirect)
-		return nil
+	if err := h.albumStore.SwapSortOrder(ctx, websiteID, albumID, itemID, neighbour); err != nil {
+		return false, err
 	}
-	http.Redirect(w, r, redirect, http.StatusSeeOther)
-	return nil
+	return true, nil
 }
