@@ -107,35 +107,20 @@ func (h *Handler) HandleKindSave(w http.ResponseWriter, r *http.Request) error {
 		WebsiteID: websiteID,
 		Name:      r.FormValue("name"),
 		Plural:    r.FormValue("mehrzahl"),
-		Archive:   page.Slugify(r.FormValue("archiv")),
+		Archive:   archiveSlug(r.FormValue("archiv")),
 		Sort:      r.FormValue("sortierung"),
-	}
-
-	// The address of the overview is reserved like that of the archive: a page
-	// with the same address would never get its turn, because the overview is
-	// checked first. Better to refuse here than to win silently there.
-	if t.Archive != "" {
-		if t.Archive == ws.BlogBase {
-			web.SetFlashError(h.sm, r.Context(), "This address already belongs to the archive of posts")
-			return h.redirect(w, r, back)
-		}
-		if existing, err := h.pages.GetPageBySlug(r.Context(), websiteID, t.Archive); err == nil && existing != nil {
-			web.SetFlashError(h.sm, r.Context(),
-				"There is already a page at this address. Choose another one, otherwise one of the two would be unreachable.")
-			return h.redirect(w, r, back)
-		}
 	}
 
 	if id, cerr := strconv.ParseInt(r.FormValue("id"), 10, 64); cerr == nil && id > 0 {
 		t.ID = id
-		if err := h.kinds.Update(r.Context(), t); err != nil {
+		if _, err := h.saveKind(r.Context(), ws, t); err != nil {
 			return h.kindFailed(w, r, back, err)
 		}
 		web.SetFlashSuccess(h.sm, r.Context(), "Content kind saved")
 		return h.redirect(w, r, back)
 	}
 
-	created, err := h.kinds.Create(r.Context(), t)
+	created, err := h.saveKind(r.Context(), ws, t)
 	if err != nil {
 		return h.kindFailed(w, r, back, err)
 	}
@@ -147,6 +132,8 @@ func (h *Handler) HandleKindSave(w http.ResponseWriter, r *http.Request) error {
 // kindFailed turns a store error into a sentence for the person at the form.
 func (h *Handler) kindFailed(w http.ResponseWriter, r *http.Request, back string, err error) error {
 	switch {
+	case isRefusal(err):
+		web.SetFlashError(h.sm, r.Context(), err.Error())
 	case errors.Is(err, kind.ErrDuplicate):
 		web.SetFlashError(h.sm, r.Context(), "This content kind already exists")
 	case errors.Is(err, kind.ErrTooMany):

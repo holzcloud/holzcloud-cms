@@ -54,6 +54,7 @@ New website**, where you give the site a domain.
 - **Users** with admin and editor roles, per-person website and publishing
   rights, Argon2id hashing and compulsory two-factor for administrators
 - **An MCP endpoint** so you can point your own AI assistant at the running CMS
+  and do everything the admin can, without ever signing in to the web interface
 - **Plugins** as separate Go modules — contact form, farm-shop orders, search,
   404 log, year token
 

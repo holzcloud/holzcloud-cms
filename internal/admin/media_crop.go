@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -99,16 +100,11 @@ func (h *Handler) HandleMediaCropSave(w http.ResponseWriter, r *http.Request) er
 	if r.FormValue("zuruecksetzen") != "" {
 		return h.restoreMedia(w, r, websiteID, mediaID, m, back)
 	}
-	if !media.CanMakeVariants(m.MimeType) {
+	width, height, err := h.cropMedia(r.Context(), websiteID, m, cropFromForm(r, m))
+	switch {
+	case errors.Is(err, media.ErrNotCroppable):
 		web.SetFlashError(h.sm, r.Context(), "This format cannot be cropped.")
 		return h.redirect(w, r, back)
-	}
-
-	crop := cropFromForm(r, m)
-
-	dir := media.WebsiteDir(h.cfg.DataDir, websiteID)
-	width, height, err := media.ApplyCrop(dir, m.Filename, m.MimeType, crop, h.cfg.MaxMegapixels)
-	switch {
 	case errors.Is(err, media.ErrTooManyPixels):
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The image is too large to crop (limit: %d megapixels).", h.cfg.MaxMegapixels))
 		return h.redirect(w, r, back)
@@ -116,14 +112,30 @@ func (h *Handler) HandleMediaCropSave(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	if err := h.mediaStore.SaveCrop(r.Context(), mediaID, crop, width, height); err != nil {
-		return err
-	}
-	h.rebuildVariants(r, m, dir, width, height)
-
 	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r,
 		"Cropped to %d × %d pixels. The original is kept.", width, height))
 	return h.redirect(w, r, back)
+}
+
+// cropMedia applies a crop to the served file, records it and rebuilds the
+// scaled copies — the crop screen's save, and an AI key's, as one function.
+// It answers media.ErrNotCroppable for a format the pipeline cannot decode and
+// media.ErrTooManyPixels for a picture beyond the installation's limit.
+func (h *Handler) cropMedia(ctx context.Context, websiteID int64, m *media.Media, crop media.Crop) (int, int, error) {
+	if !media.CanMakeVariants(m.MimeType) {
+		return 0, 0, media.ErrNotCroppable
+	}
+	crop = crop.Normalise()
+	dir := media.WebsiteDir(h.cfg.DataDir, websiteID)
+	width, height, err := media.ApplyCrop(dir, m.Filename, m.MimeType, crop, h.cfg.MaxMegapixels)
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := h.mediaStore.SaveCrop(ctx, m.ID, crop, width, height); err != nil {
+		return 0, 0, err
+	}
+	h.rebuildVariants(ctx, m, dir, width, height)
+	return width, height, nil
 }
 
 // cropFromForm reads the chosen frame.
@@ -161,6 +173,16 @@ func cropFromForm(r *http.Request, m *media.Media) media.Crop {
 
 // restoreMedia puts the uploaded picture back.
 func (h *Handler) restoreMedia(w http.ResponseWriter, r *http.Request, websiteID, mediaID int64, m *media.Media, back string) error {
+	if err := h.restoreOriginal(r.Context(), websiteID, m); err != nil {
+		return err
+	}
+	web.SetFlashSuccess(h.sm, r.Context(), "The uploaded image is back.")
+	return h.redirect(w, r, back)
+}
+
+// restoreOriginal undoes every crop of a picture, for the screen and for an AI
+// key alike.
+func (h *Handler) restoreOriginal(ctx context.Context, websiteID int64, m *media.Media) error {
 	dir := media.WebsiteDir(h.cfg.DataDir, websiteID)
 	width, height, err := media.RestoreOriginal(dir, m.Filename)
 	if err != nil {
@@ -168,14 +190,12 @@ func (h *Handler) restoreMedia(w http.ResponseWriter, r *http.Request, websiteID
 	}
 	// The focus point survives: it says where the subject is, which is still
 	// true of the uncropped picture and is what a theme uses to frame it.
-	if err := h.mediaStore.SaveCrop(r.Context(), mediaID,
+	if err := h.mediaStore.SaveCrop(ctx, m.ID,
 		media.Crop{FocusX: m.Crop.FocusX, FocusY: m.Crop.FocusY}, width, height); err != nil {
 		return err
 	}
-	h.rebuildVariants(r, m, dir, width, height)
-
-	web.SetFlashSuccess(h.sm, r.Context(), "The uploaded image is back.")
-	return h.redirect(w, r, back)
+	h.rebuildVariants(ctx, m, dir, width, height)
+	return nil
 }
 
 // rebuildVariants regenerates the scaled copies after the served file changed.
@@ -183,7 +203,7 @@ func (h *Handler) restoreMedia(w http.ResponseWriter, r *http.Request, websiteID
 // Without this the srcset would keep offering copies of the picture as it was
 // before the crop — a browser would pick one and show the old framing, which is
 // the sort of thing that looks like the crop simply did not work.
-func (h *Handler) rebuildVariants(r *http.Request, m *media.Media, dir string, width, height int) {
+func (h *Handler) rebuildVariants(ctx context.Context, m *media.Media, dir string, width, height int) {
 	if !media.CanMakeVariants(m.MimeType) {
 		return
 	}
@@ -193,7 +213,7 @@ func (h *Handler) rebuildVariants(r *http.Request, m *media.Media, dir string, w
 		slog.Warn("could not rebuild variants after crop", "err", err, "media", m.ID)
 		return
 	}
-	if err := h.mediaStore.SaveVariants(r.Context(), m.ID, width, height, variants); err != nil {
+	if err := h.mediaStore.SaveVariants(ctx, m.ID, width, height, variants); err != nil {
 		slog.Error("could not store variants after crop", "err", err, "media", m.ID)
 	}
 }

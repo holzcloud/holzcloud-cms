@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,17 +14,9 @@ import (
 
 // shopSettingsValues is the shop configuration as the form carries it.
 type shopSettingsValues struct {
-	ShopBase       string
-	Currency       string
-	ShippingGross  string
-	ShippingFreeAt string
-	ShippingTaxBP  int
-	PriceDisplay   string
-	VATExempt      bool
-	VATNumber      string
-	ReturnPolicy   string
-	OrderEmail     string
-	PaymentDetails string
+	// SettingsInput is the typed text, shared with OpSaveShopSettings so the
+	// assistant's tool is held to the same validation as this form.
+	shop.SettingsInput
 
 	shipping money.Amount
 	freeAt   *money.Amount
@@ -41,6 +34,14 @@ type shopSettingsData struct {
 }
 
 func (v *shopSettingsValues) validate(errs web.FormErrors) {
+	// The form trims these as it reads them; an assistant's tool call does
+	// not, so the same tidying happens here once for both.
+	v.Currency = strings.ToUpper(strings.TrimSpace(v.Currency))
+	v.VATNumber = strings.TrimSpace(v.VATNumber)
+	v.ReturnPolicy = strings.TrimSpace(v.ReturnPolicy)
+	v.OrderEmail = strings.TrimSpace(v.OrderEmail)
+	v.PaymentDetails = strings.TrimSpace(v.PaymentDetails)
+
 	// The path is a single segment, like blog_base. A slash here would produce
 	// routes nobody can reach.
 	v.ShopBase = strings.Trim(strings.TrimSpace(v.ShopBase), "/")
@@ -98,7 +99,14 @@ func (h *Handler) HandleShopSettings(w http.ResponseWriter, r *http.Request) err
 		return h.handleShopSettingsSave(w, r, ws)
 	}
 
-	values := shopSettingsValues{
+	values := shopSettingsValuesOf(ws)
+	return h.renderShopSettings(w, r, ws, values, web.NewFormState())
+}
+
+// shopSettingsValuesOf is a website's stored shop configuration as the form
+// shows it.
+func shopSettingsValuesOf(ws *domain.Website) shopSettingsValues {
+	values := shopSettingsValues{SettingsInput: shop.SettingsInput{
 		ShopBase:       ws.ShopBase,
 		Currency:       ws.Currency,
 		ShippingGross:  money.Input(money.Amount(ws.ShippingGross)),
@@ -109,11 +117,11 @@ func (h *Handler) HandleShopSettings(w http.ResponseWriter, r *http.Request) err
 		ReturnPolicy:   ws.ReturnPolicy,
 		OrderEmail:     ws.OrderEmail,
 		PaymentDetails: ws.PaymentDetails,
-	}
+	}}
 	if ws.ShippingFreeFrom != nil {
 		values.ShippingFreeAt = money.Input(money.Amount(*ws.ShippingFreeFrom))
 	}
-	return h.renderShopSettings(w, r, ws, values, web.NewFormState())
+	return values
 }
 
 func (h *Handler) renderShopSettings(w http.ResponseWriter, r *http.Request,
@@ -146,7 +154,7 @@ func (h *Handler) handleShopSettingsSave(w http.ResponseWriter, r *http.Request,
 		return err
 	}
 
-	values := shopSettingsValues{
+	values := shopSettingsValues{SettingsInput: shop.SettingsInput{
 		ShopBase:       r.FormValue("shop_base"),
 		Currency:       strings.ToUpper(strings.TrimSpace(r.FormValue("currency"))),
 		ShippingGross:  r.FormValue("shipping_gross"),
@@ -157,13 +165,28 @@ func (h *Handler) handleShopSettingsSave(w http.ResponseWriter, r *http.Request,
 		ReturnPolicy:   strings.TrimSpace(r.FormValue("return_policy")),
 		OrderEmail:     strings.TrimSpace(r.FormValue("order_email")),
 		PaymentDetails: strings.TrimSpace(r.FormValue("payment_details")),
-	}
+	}}
 	values.ShippingTaxBP, _ = strconv.Atoi(r.FormValue("shipping_tax_bp"))
 
 	state := web.NewFormState()
-	values.validate(state.Errors)
+	if err := h.saveShopSettings(r.Context(), ws.ID, &values, state.Errors); err != nil {
+		return err
+	}
 	if state.Errors.Any() {
 		return h.renderShopSettings(w, r, ws, values, state)
+	}
+
+	web.SetFlashSuccess(h.sm, r.Context(), "Shop settings saved")
+	return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/shop")
+}
+
+// saveShopSettings validates and stores a website's shop configuration. The
+// form and OpSaveShopSettings both come through here. A problem with what was
+// typed lands in errs and stores nothing.
+func (h *Handler) saveShopSettings(ctx context.Context, websiteID int64, values *shopSettingsValues, errs web.FormErrors) error {
+	values.validate(errs)
+	if errs.Any() {
+		return nil
 	}
 
 	var freeFrom any
@@ -175,22 +198,20 @@ func (h *Handler) handleShopSettingsSave(w http.ResponseWriter, r *http.Request,
 		exempt = 1
 	}
 
-	if _, err := h.db.Write.ExecContext(r.Context(),
+	if _, err := h.db.Write.ExecContext(ctx,
 		`UPDATE websites SET shop_base=$1, currency=$2, shipping_gross=$3,
 		 shipping_free_from=$4, shipping_tax_bp=$5, price_display=$6,
 		 vat_exempt=$7, vat_number=$8, return_policy=$9,
 		 order_email=$10, payment_details=$11 WHERE id=$12`,
 		values.ShopBase, values.Currency, int64(values.shipping), freeFrom,
 		values.ShippingTaxBP, values.PriceDisplay, exempt, values.VATNumber,
-		values.ReturnPolicy, values.OrderEmail, values.PaymentDetails, ws.ID); err != nil {
+		values.ReturnPolicy, values.OrderEmail, values.PaymentDetails, websiteID); err != nil {
 		return err
 	}
 
 	// The resolver caches the whole website row and the loader caches the
 	// parsed theme. Without both, a changed shop path stays invisible until a
 	// restart — the same trap the design tokens fell into.
-	h.invalidateWebsiteCaches(ws.ID)
-
-	web.SetFlashSuccess(h.sm, r.Context(), "Shop settings saved")
-	return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/shop")
+	h.invalidateWebsiteCaches(websiteID)
+	return nil
 }

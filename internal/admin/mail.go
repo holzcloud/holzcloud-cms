@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/mail"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -48,11 +49,7 @@ func (h *Handler) HandleMailTest(w http.ResponseWriter, r *http.Request) error {
 		return h.redirect(w, r, "/admin/mail")
 	}
 
-	err := h.mail.Enqueue(r.Context(), 0, mail.Message{
-		To:      to,
-		Subject: web.T(r, "Test message from Holzcloud"),
-		Body:    web.Titlef(r, "This message confirms that sending is set up.\n\nSent on %s.\n\nIf it has arrived, then invitations, password links and notifications about new enquiries work too.\n", time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
-	})
+	err := h.mail.Enqueue(r.Context(), 0, testMail(i18n.Lang(r.Context()), to))
 	if err != nil {
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Queueing failed: %s", err))
 		return h.redirect(w, r, "/admin/mail")
@@ -62,6 +59,16 @@ func (h *Handler) HandleMailTest(w http.ResponseWriter, r *http.Request) error {
 	// what the screen below reports afterwards.
 	web.SetFlashSuccess(h.sm, r.Context(), web.Titlef(r, "Test message to %s queued. It goes out in the next few seconds.", to))
 	return h.redirect(w, r, "/admin/mail")
+}
+
+// testMail is the message that proves sending works, in a given language. The
+// screen and the AI tool send the same one.
+func testMail(lang, to string) mail.Message {
+	return mail.Message{
+		To:      to,
+		Subject: i18n.T(lang, "Test message from Holzcloud"),
+		Body:    i18n.Tf(lang, "This message confirms that sending is set up.\n\nSent on %s.\n\nIf it has arrived, then invitations, password links and notifications about new enquiries work too.\n", time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
+	}
 }
 
 // HandleMailRetry puts everything that was given up on back in the queue.

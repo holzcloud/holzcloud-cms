@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -191,6 +192,58 @@ func (h *Handler) uploadOne(r *http.Request, websiteID int64, header *multipart.
 	}
 	defer file.Close()
 
+	up, err := h.keepUpload(r.Context(), websiteID, file, header)
+	var refusal media.Refusal
+	switch {
+	case errors.As(err, &refusal):
+		return uploadResult{kind: uploadRefused, message: web.MediaRefusal(r, err)}
+	case err != nil:
+		return uploadResult{kind: uploadRefused, message: web.Titlef(r, "Upload failed: %s", err)}
+	case up.Existed:
+		return uploadResult{kind: uploadExisted, message: web.Titlef(r,
+			"This file already exists as “%s” – nothing was uploaded.", up.Media.OriginalName)}
+	}
+
+	// Each part is its own catalogue sentence; only the dash between them is
+	// assembled here. A message glued together out of half-sentences is a
+	// message the collector never sees.
+	parts := []string{web.T(r, "File uploaded")}
+	if warning := h.variantWarning(r, up.Variants); warning != "" {
+		parts = append(parts, warning)
+	}
+	if up.Media.NeedsAltText() {
+		parts = append(parts, web.T(r, "please still enter an image description"))
+	}
+	return uploadResult{kind: uploadKept, message: strings.Join(parts, " – "), needsAlt: up.Media.NeedsAltText()}
+}
+
+// mediaUpload is what became of one file that was taken in.
+type mediaUpload struct {
+	// Media is the stored file — or, when Existed, the one that already held
+	// the same bytes.
+	Media *media.Media
+	// Existed says nothing was stored because the bytes were already there.
+	Existed bool
+	// Variants is why the scaled copies are missing: nil when they were made
+	// or the format has none, media.ErrTooManyPixels, errVariantsNotMade or
+	// errVariantsNotStored.
+	Variants error
+}
+
+// The two ways the scaled copies can fail besides too many pixels.
+var (
+	errVariantsNotMade   = errors.New("the scaled copies could not be created")
+	errVariantsNotStored = errors.New("the scaled copies could not be stored")
+)
+
+// keepUpload is the whole intake of one file, for the upload screen and for an
+// AI key alike: media.Check, Keep, the scaled copies and the plugin event. It
+// knows no request, because the second caller has none — and a second copy of
+// these steps is exactly how one path would come to skip the SVG scanner.
+//
+// A refusal by media.Check comes back as a media.Refusal, so each caller can
+// put it into words for its own reader.
+func (h *Handler) keepUpload(ctx context.Context, websiteID int64, file multipart.File, header *multipart.FileHeader) (mediaUpload, error) {
 	// Every check lives in media.Check, so the contact form's attachment goes
 	// through exactly the same ones: magic bytes rather than the browser's
 	// claim, the SVG scanner, the size for the kind. Nothing is written yet.
@@ -198,63 +251,71 @@ func (h *Handler) uploadOne(r *http.Request, websiteID int64, header *multipart.
 		Image: h.cfg.MaxMediaSize, Video: h.cfg.MaxVideoSize,
 	})
 	if err != nil {
-		return uploadResult{kind: uploadRefused, message: web.MediaRefusal(r, err)}
+		return mediaUpload{}, err
 	}
 
-	m, existed, err := in.Keep(r.Context(), h.mediaStore, websiteID, h.cfg.DataDir)
+	m, existed, err := in.Keep(ctx, h.mediaStore, websiteID, h.cfg.DataDir)
 	if err != nil {
-		return uploadResult{kind: uploadRefused, message: web.Titlef(r, "Upload failed: %s", err)}
+		return mediaUpload{}, err
 	}
 	if existed {
-		return uploadResult{kind: uploadExisted, message: web.Titlef(r,
-			"This file already exists as “%s” – nothing was uploaded.", m.OriginalName)}
+		return mediaUpload{Media: m, Existed: true}, nil
 	}
 	h.emitMediaAdded(websiteID, m)
 	destPath := media.Path(h.cfg.DataDir, websiteID, m.Filename)
+	variants := h.makeVariants(ctx, m, filepath.Dir(destPath), destPath)
 
-	// Each part is its own catalogue sentence; only the dash between them is
-	// assembled here. A message glued together out of half-sentences is a
-	// message the collector never sees.
-	parts := []string{web.T(r, "File uploaded")}
-	if warning := h.makeVariants(r, m, filepath.Dir(destPath), destPath); warning != "" {
-		parts = append(parts, warning)
+	// Re-read, so the caller sees the dimensions the variants recorded.
+	if fresh, err := h.mediaStore.GetByID(ctx, m.ID); err == nil && fresh != nil {
+		m = fresh
 	}
-	if m.NeedsAltText() {
-		parts = append(parts, web.T(r, "please still enter an image description"))
-	}
-	return uploadResult{kind: uploadKept, message: strings.Join(parts, " – "), needsAlt: m.NeedsAltText()}
+	return mediaUpload{Media: m, Variants: variants}, nil
 }
 
-// makeVariants generates the scaled copies of an uploaded image and returns a
-// note for the operator when it could not.
+// makeVariants generates the scaled copies of an uploaded image and returns
+// why it could not.
 //
 // A failure here never fails the upload: the original is stored and usable, it
 // just has no smaller siblings. What it must not do is stay silent, because an
 // image that quietly skipped the pipeline is one nobody will notice is heavy.
-func (h *Handler) makeVariants(r *http.Request, m *media.Media, destDir, sourcePath string) string {
+func (h *Handler) makeVariants(ctx context.Context, m *media.Media, destDir, sourcePath string) error {
 	if !media.CanMakeVariants(m.MimeType) {
-		return ""
+		return nil
 	}
 
 	variants, err := media.MakeVariantsThrottled(sourcePath, destDir, m.Filename, m.MimeType, h.cfg.MaxMegapixels)
 	if err != nil {
 		if errors.Is(err, media.ErrTooManyPixels) {
-			return web.Titlef(r, "the image is too large for scaled copies (limit: %d megapixels)", h.cfg.MaxMegapixels)
+			return media.ErrTooManyPixels
 		}
 		slog.Warn("could not create image variants", "err", err, "media", m.ID)
-		return web.T(r, "the scaled copies could not be created")
+		return errVariantsNotMade
 	}
 
 	width, height, err := media.Dimensions(sourcePath)
 	if err != nil {
 		slog.Warn("could not read image dimensions", "err", err, "media", m.ID)
-		return ""
+		return nil
 	}
-	if err := h.mediaStore.SaveVariants(r.Context(), m.ID, width, height, variants); err != nil {
+	if err := h.mediaStore.SaveVariants(ctx, m.ID, width, height, variants); err != nil {
 		slog.Error("could not store image variants", "err", err, "media", m.ID)
-		return web.T(r, "the scaled copies could not be stored")
+		return errVariantsNotStored
 	}
-	return ""
+	return nil
+}
+
+// variantWarning is the note for the operator when makeVariants failed.
+func (h *Handler) variantWarning(r *http.Request, err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, media.ErrTooManyPixels):
+		return web.Titlef(r, "the image is too large for scaled copies (limit: %d megapixels)", h.cfg.MaxMegapixels)
+	case errors.Is(err, errVariantsNotStored):
+		return web.T(r, "the scaled copies could not be stored")
+	default:
+		return web.T(r, "the scaled copies could not be created")
+	}
 }
 
 // uploadFailed reports a rejected upload without failing the request.

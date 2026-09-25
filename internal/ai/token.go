@@ -45,6 +45,7 @@ var (
 	ErrExpired   = errors.New("the access key has expired")
 	ErrReadOnly  = errors.New("this access key may only read")
 	ErrNotForYou = errors.New("this access key is for another website")
+	ErrNotAdmin  = errors.New("this access key may not manage the installation; an admin key is created on the server with: holzcloud ai key create -level admin")
 )
 
 // ErrNameMissing is the one refusal an operator reads rather than a machine.
@@ -58,8 +59,11 @@ type Token struct {
 	ID   int64
 	Name string
 	// WebsiteID is 0 for a key that may reach every website.
-	WebsiteID  int64
-	CanWrite   bool
+	WebsiteID int64
+	CanWrite  bool
+	// Admin keys may also manage users, plugins and further keys. They reach
+	// every website and are only ever created on the server's command line.
+	Admin      bool
 	LastUsedAt *time.Time
 	ExpiresAt  *time.Time
 	CreatedAt  time.Time
@@ -73,6 +77,59 @@ type Scope struct {
 	Name      string
 	WebsiteID int64
 	CanWrite  bool
+	Admin     bool
+}
+
+// MayAdmin returns nil when this key may manage the installation.
+func (s Scope) MayAdmin() error {
+	if !s.Admin {
+		return ErrNotAdmin
+	}
+	return nil
+}
+
+// Level is what a key may do, from least to most.
+type Level int
+
+const (
+	LevelRead Level = iota
+	LevelContent
+	LevelAdmin
+)
+
+// ParseLevel reads a level from the command line: read, content or admin.
+func ParseLevel(s string) (Level, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "read":
+		return LevelRead, nil
+	case "content", "write", "":
+		return LevelContent, nil
+	case "admin":
+		return LevelAdmin, nil
+	}
+	return 0, fmt.Errorf("unknown level %q: read, content or admin", s)
+}
+
+// String names the level as the command line and the admin screen show it.
+func (l Level) String() string {
+	switch l {
+	case LevelRead:
+		return "read"
+	case LevelAdmin:
+		return "admin"
+	}
+	return "content"
+}
+
+// LevelOf reports the level of a stored key.
+func (t Token) LevelOf() Level {
+	switch {
+	case t.Admin:
+		return LevelAdmin
+	case t.CanWrite:
+		return LevelContent
+	}
+	return LevelRead
 }
 
 // MayWrite returns nil when this key may change something.
@@ -103,6 +160,24 @@ func NewStore(database *db.DB) *Store { return &Store{DB: database} }
 // not an oversight: a key that stops working on a Tuesday morning, in a config
 // file on somebody else's machine, is a key whose failure nobody can explain.
 func (s *Store) Issue(ctx context.Context, name string, websiteID int64, canWrite bool, lifetime time.Duration) (string, *Token, error) {
+	level := LevelRead
+	if canWrite {
+		level = LevelContent
+	}
+	return s.IssueLevel(ctx, name, websiteID, level, lifetime)
+}
+
+// ErrAdminNeedsAll refuses an admin key limited to one website: users and
+// plugins belong to the installation, so such a key would promise something it
+// cannot keep.
+var ErrAdminNeedsAll = errors.New("an admin key reaches every website; leave the website out")
+
+// IssueLevel creates a key of a given level and returns the secret, once.
+func (s *Store) IssueLevel(ctx context.Context, name string, websiteID int64, level Level, lifetime time.Duration) (string, *Token, error) {
+	if level == LevelAdmin && websiteID > 0 {
+		return "", nil, ErrAdminNeedsAll
+	}
+	canWrite := level >= LevelContent
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", nil, ErrNameMissing
@@ -127,9 +202,9 @@ func (s *Store) Issue(ctx context.Context, name string, websiteID int64, canWrit
 	}
 
 	res, err := s.DB.Write.ExecContext(ctx,
-		`INSERT INTO ai_tokens (name, token_hash, website_id, can_write, expires_at)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		name, hash(secret), site, boolToInt(canWrite), expires)
+		`INSERT INTO ai_tokens (name, token_hash, website_id, can_write, is_admin, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		name, hash(secret), site, boolToInt(canWrite), boolToInt(level == LevelAdmin), expires)
 	if err != nil {
 		return "", nil, fmt.Errorf("store key: %w", err)
 	}
@@ -157,11 +232,12 @@ func (s *Store) Verify(ctx context.Context, secret string) (Scope, error) {
 		name      string
 		websiteID *int64
 		canWrite  int
+		isAdmin   int
 		expires   *string
 	)
 	err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT id, name, website_id, can_write, expires_at FROM ai_tokens WHERE token_hash = $1`,
-		hash(secret)).Scan(&id, &name, &websiteID, &canWrite, &expires)
+		`SELECT id, name, website_id, can_write, is_admin, expires_at FROM ai_tokens WHERE token_hash = $1`,
+		hash(secret)).Scan(&id, &name, &websiteID, &canWrite, &isAdmin, &expires)
 	if err != nil {
 		return Scope{}, ErrBadToken
 	}
@@ -171,7 +247,7 @@ func (s *Store) Verify(ctx context.Context, secret string) (Scope, error) {
 		}
 	}
 
-	scope := Scope{TokenID: id, Name: name, CanWrite: canWrite == 1}
+	scope := Scope{TokenID: id, Name: name, CanWrite: canWrite == 1 || isAdmin == 1, Admin: isAdmin == 1}
 	if websiteID != nil {
 		scope.WebsiteID = *websiteID
 	}
@@ -192,7 +268,7 @@ func (s *Store) Touch(ctx context.Context, id int64) {
 // List returns the keys, newest first.
 func (s *Store) List(ctx context.Context) ([]Token, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, name, website_id, can_write, last_used_at, expires_at, created_at
+		`SELECT id, name, website_id, can_write, is_admin, last_used_at, expires_at, created_at
 		 FROM ai_tokens ORDER BY id DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("read key: %w", err)
@@ -213,7 +289,7 @@ func (s *Store) List(ctx context.Context) ([]Token, error) {
 // Get returns one key.
 func (s *Store) Get(ctx context.Context, id int64) (*Token, error) {
 	row := s.DB.Read.QueryRowContext(ctx,
-		`SELECT id, name, website_id, can_write, last_used_at, expires_at, created_at
+		`SELECT id, name, website_id, can_write, is_admin, last_used_at, expires_at, created_at
 		 FROM ai_tokens WHERE id = $1`, id)
 	t, err := scanToken(row)
 	if err != nil {
@@ -236,17 +312,19 @@ func scanToken(row interface{ Scan(...any) error }) (Token, error) {
 		t         Token
 		websiteID *int64
 		canWrite  int
+		isAdmin   int
 		lastUsed  *string
 		expires   *string
 		created   string
 	)
-	if err := row.Scan(&t.ID, &t.Name, &websiteID, &canWrite, &lastUsed, &expires, &created); err != nil {
+	if err := row.Scan(&t.ID, &t.Name, &websiteID, &canWrite, &isAdmin, &lastUsed, &expires, &created); err != nil {
 		return Token{}, err
 	}
 	if websiteID != nil {
 		t.WebsiteID = *websiteID
 	}
-	t.CanWrite = canWrite == 1
+	t.CanWrite = canWrite == 1 || isAdmin == 1
+	t.Admin = isAdmin == 1
 	t.LastUsedAt = parseTime(lastUsed)
 	t.ExpiresAt = parseTime(expires)
 	t.CreatedAt, _ = time.Parse(timeLayout, created)

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/branding"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -78,22 +79,33 @@ func (h *Handler) handleBrandingPost(w http.ResponseWriter, r *http.Request) err
 	return h.redirect(w, r, "/admin/marke")
 }
 
-// storeLogo checks and writes the picture, or says in German why not.
-//
-// The check is on the bytes and not on the file name: a file called logo.png
-// that is something else would be served as a PNG that no browser can draw,
-// and — the case that matters — an SVG is a document that can carry script, so
-// what claims to be one has to actually look like one.
+// storeLogo checks and writes the picture, or says in the reader's language why
+// not.
 func (h *Handler) storeLogo(r *http.Request, file io.Reader, filename string) string {
 	data, err := io.ReadAll(io.LimitReader(file, branding.MaxLogoBytes+1))
 	if err != nil {
 		return web.T(r, "The file could not be read")
 	}
+	if reason := saveLogo(filename, data); reason != "" {
+		return web.T(r, reason)
+	}
+	return ""
+}
+
+// saveLogo checks and writes the picture, or returns why not — a catalogue
+// key, translated by whoever shows it. The screen and the AI tool both come
+// through here.
+//
+// The check is on the bytes and not on the file name: a file called logo.png
+// that is something else would be served as a PNG that no browser can draw,
+// and — the case that matters — an SVG is a document that can carry script, so
+// what claims to be one has to actually look like one.
+func saveLogo(filename string, data []byte) string {
 	if len(data) > branding.MaxLogoBytes {
-		return web.T(r, "The logo is larger than 512 KB")
+		return i18n.N("The logo is larger than 512 KB")
 	}
 	if len(data) == 0 {
-		return web.T(r, "The file is empty")
+		return i18n.N("The file is empty")
 	}
 
 	ext := strings.ToLower(filepath.Ext(filename))
@@ -102,11 +114,11 @@ func (h *Handler) storeLogo(r *http.Request, file io.Reader, filename string) st
 	case ext == ".webp" && bytes.HasPrefix(data, []byte("RIFF")) && bytes.Contains(data[:min(64, len(data))], []byte("WEBP")):
 	case ext == ".svg" && looksLikeSVG(data):
 	default:
-		return web.T(r, "PNG, WebP and SVG are allowed — and the file has to really be one of them")
+		return i18n.N("PNG, WebP and SVG are allowed — and the file has to really be one of them")
 	}
 
 	if err := branding.WriteLogo(ext, data); err != nil {
-		return web.T(r, "The logo could not be saved")
+		return i18n.N("The logo could not be saved")
 	}
 	return ""
 }

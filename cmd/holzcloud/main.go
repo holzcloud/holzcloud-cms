@@ -323,9 +323,18 @@ func main() {
 	// The activity log. It hangs off nothing but the database, which is why it
 	// stands here and not further down among the services that need each other.
 	adminHandler.SetActivityStore(activity.NewStore(database))
+	// The assistant's tools go through the same handler the screens use,
+	// wherever a screen does more than one store call — see internal/admin/ops.go.
 	aiServer := ai.NewServer(aiTokens, "Holzcloud CMS", slog.Default(), ai.Tools(ai.Deps{
 		Domains: domainStore, Pages: pageStore, Media: mediaStore, Fields: field.NewStore(database),
+		Ops: adminHandler,
+		Limits: ai.Limits{
+			DataDir: cfg.DataDir, MaxMediaSize: cfg.MaxMediaSize,
+			MaxVideoSize: cfg.MaxVideoSize, MaxMegapixels: cfg.MaxMegapixels,
+		},
+		Tokens: aiTokens,
 	}))
+	aiServer.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize, cfg.MaxTemplateSize))
 
 	pluginStore := plugin.NewStore(database)
 	var pluginManager *plugin.Manager

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -24,20 +25,9 @@ func (h *Handler) SetProductStore(s *shop.Store) { h.products = s }
 // "49,50" because the field is an int would be the CMS being pedantic about a
 // notation people use every day. The parsing happens once, in validate.
 type productValues struct {
-	ID           int64
-	Slug         string
-	Title        string
-	Subtitle     string
-	Markdown     string
-	SKU          string
-	Price        string
-	TaxBP        int
-	StockText    string
-	WeightGrams  int
-	DeliveryNote string
-	Status       string
-	FeaturedID   int64
-	Terms        string
+	// ProductInput is the typed text. It is shared with OpSaveProduct, so the
+	// assistant's tools and this form are validated by the same code below.
+	shop.ProductInput
 
 	// parsed results, filled by validate
 	price money.Amount
@@ -70,6 +60,11 @@ type productFormData struct {
 func (v *productValues) validate(errs web.FormErrors) {
 	v.Title = strings.TrimSpace(v.Title)
 	v.Slug = strings.TrimSpace(v.Slug)
+	// The form trims these as it reads them; an assistant's tool call does
+	// not, so the same tidying happens here once for both.
+	v.Subtitle = strings.TrimSpace(v.Subtitle)
+	v.SKU = strings.TrimSpace(v.SKU)
+	v.DeliveryNote = strings.TrimSpace(v.DeliveryNote)
 
 	if v.Title == "" {
 		errs.Add("title", "Please give a title.")
@@ -149,11 +144,11 @@ func (h *Handler) HandleProductForm(w http.ResponseWriter, r *http.Request) erro
 		return h.handleProductSave(w, r, ws)
 	}
 
-	values := productValues{
+	values := productValues{ProductInput: shop.ProductInput{
 		Status: shop.StatusDraft,
 		TaxBP:  int(money.RateStandard),
 		Price:  "0.00",
-	}
+	}}
 	isEdit := false
 
 	if raw := r.PathValue("productID"); raw != "" && raw != "neu" {
@@ -167,7 +162,7 @@ func (h *Handler) HandleProductForm(w http.ResponseWriter, r *http.Request) erro
 			return nil
 		}
 		values = productToValues(p)
-		values.Terms = h.productTermNames(r, ws.ID, p.ID)
+		values.Terms = h.productTermNames(r.Context(), ws.ID, p.ID)
 		isEdit = true
 	}
 
@@ -219,7 +214,7 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 		return err
 	}
 
-	values := productValues{
+	values := productValues{ProductInput: shop.ProductInput{
 		Title:        r.FormValue("title"),
 		Slug:         r.FormValue("slug"),
 		Subtitle:     strings.TrimSpace(r.FormValue("subtitle")),
@@ -230,7 +225,7 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 		DeliveryNote: strings.TrimSpace(r.FormValue("delivery_note")),
 		Status:       r.FormValue("status"),
 		Terms:        r.FormValue("terms"),
-	}
+	}}
 	values.TaxBP, _ = strconv.Atoi(r.FormValue("tax_bp"))
 	values.WeightGrams, _ = strconv.Atoi(r.FormValue("weight_grams"))
 	values.FeaturedID, _ = strconv.ParseInt(r.FormValue("featured_media_id"), 10, 64)
@@ -239,9 +234,32 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 	}
 
 	state := web.NewFormState()
-	values.validate(state.Errors)
+	_, err := h.saveProduct(r.Context(), ws.ID, &values, state.Errors)
 	if state.Errors.Any() {
 		return h.renderProductForm(w, r, ws, values, values.ID != 0, state)
+	}
+	// The address named this website and the product id named another one. The
+	// same answer the edit screen already gives for the same disagreement.
+	if errors.Is(err, shop.ErrNotFound) {
+		http.NotFound(w, r)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	web.SetFlashSuccess(h.sm, r.Context(), "Product saved")
+	return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/produkte")
+}
+
+// saveProduct validates and stores one product, creating it when values.ID is
+// zero. The form and OpSaveProduct both come through here. A problem with what
+// was typed lands in errs and stores nothing; err is for everything else, and
+// shop.ErrNotFound means the product id belongs to another website.
+func (h *Handler) saveProduct(ctx context.Context, websiteID int64, values *productValues, errs web.FormErrors) (int64, error) {
+	values.validate(errs)
+	if errs.Any() {
+		return 0, nil
 	}
 
 	// The description goes through the same markdown-then-sanitise pipeline as
@@ -249,12 +267,12 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 	// editor's HTML reaches a visitor unchecked.
 	html, err := page.RenderMarkdown(values.Markdown)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	p := &shop.Product{
 		ID:                  values.ID,
-		WebsiteID:           ws.ID,
+		WebsiteID:           websiteID,
 		Slug:                values.Slug,
 		Title:               values.Title,
 		Subtitle:            values.Subtitle,
@@ -275,34 +293,27 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 
 	var saveErr error
 	if p.ID == 0 {
-		p.ID, saveErr = h.products.Create(r.Context(), p)
+		p.ID, saveErr = h.products.Create(ctx, p)
 	} else {
-		// ws.ID rather than p.WebsiteID: the store has to be told which website
-		// was authorised, not which one this form claims to be about.
-		saveErr = h.products.Update(r.Context(), ws.ID, p)
+		// websiteID rather than p.WebsiteID read back from anywhere: the store
+		// has to be told which website was authorised, not which one the
+		// request claims to be about.
+		saveErr = h.products.Update(ctx, websiteID, p)
 	}
 	if saveErr == shop.ErrSlugTaken {
-		state.Errors.Add("slug", "That address is already taken.")
-		return h.renderProductForm(w, r, ws, values, values.ID != 0, state)
+		errs.Add("slug", "That address is already taken.")
+		return 0, nil
 	}
-	// The address named this website and the product id named another one. The
-	// same answer the edit screen already gives for the same disagreement, and
-	// it comes before setProductTerms, so the foreign product keeps its
-	// categories as well as its price.
-	if errors.Is(saveErr, shop.ErrNotFound) {
-		http.NotFound(w, r)
-		return nil
-	}
+	// A foreign product (shop.ErrNotFound) returns here, before
+	// setProductTerms, so it keeps its categories as well as its price.
 	if saveErr != nil {
-		return saveErr
+		return 0, saveErr
 	}
 
-	if err := h.setProductTerms(r, ws.ID, p.ID, values.Terms); err != nil {
-		return err
+	if err := h.setProductTerms(ctx, websiteID, p.ID, values.Terms); err != nil {
+		return p.ID, err
 	}
-
-	web.SetFlashSuccess(h.sm, r.Context(), "Product saved")
-	return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/produkte")
+	return p.ID, nil
 }
 
 // HandleProductDelete removes a product.
@@ -360,7 +371,7 @@ func (h *Handler) shopWebsite(w http.ResponseWriter, r *http.Request) (*domain.W
 }
 
 func productToValues(p *shop.Product) productValues {
-	v := productValues{
+	v := productValues{ProductInput: shop.ProductInput{
 		ID:           p.ID,
 		Slug:         p.Slug,
 		Title:        p.Title,
@@ -372,7 +383,7 @@ func productToValues(p *shop.Product) productValues {
 		WeightGrams:  p.WeightGrams,
 		DeliveryNote: p.DeliveryNote,
 		Status:       p.Status,
-	}
+	}}
 	if p.Stock != nil {
 		v.StockText = strconv.Itoa(*p.Stock)
 	}
@@ -384,15 +395,15 @@ func productToValues(p *shop.Product) productValues {
 
 // productTermNames renders a product's categories as the comma-separated text
 // the form edits — the same shape the page editor uses for labels.
-func (h *Handler) productTermNames(r *http.Request, websiteID, productID int64) string {
+func (h *Handler) productTermNames(ctx context.Context, websiteID, productID int64) string {
 	if h.terms == nil {
 		return ""
 	}
-	ids, err := h.products.TermIDs(r.Context(), productID)
+	ids, err := h.products.TermIDs(ctx, productID)
 	if err != nil || len(ids) == 0 {
 		return ""
 	}
-	all, err := h.terms.ListAll(r.Context(), websiteID)
+	all, err := h.terms.ListAll(ctx, websiteID)
 	if err != nil {
 		return ""
 	}
@@ -412,7 +423,7 @@ func (h *Handler) productTermNames(r *http.Request, websiteID, productID int64) 
 // setProductTerms turns the typed names into label rows, creating the ones that
 // do not exist yet — the same behaviour the page editor has, so a shop and a
 // blog share one vocabulary instead of drifting into two.
-func (h *Handler) setProductTerms(r *http.Request, websiteID, productID int64, raw string) error {
+func (h *Handler) setProductTerms(ctx context.Context, websiteID, productID int64, raw string) error {
 	if h.terms == nil {
 		return nil
 	}
@@ -423,5 +434,5 @@ func (h *Handler) setProductTerms(r *http.Request, websiteID, productID int64, r
 		}
 	}
 
-	return h.terms.SetForProduct(r.Context(), websiteID, productID, names)
+	return h.terms.SetForProduct(ctx, websiteID, productID, names)
 }

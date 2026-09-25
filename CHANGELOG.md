@@ -11,6 +11,46 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.7 — 2026-09-25
+
+**Alles, was die Verwaltung kann, geht jetzt auch über die KI-Verbindung.** Wer
+einen eigenen Assistenten an `/ai` anschliesst, muss sich nie mehr in die
+Web-Oberfläche einloggen: Websites anlegen, Seiten und Bausteine schreiben,
+Bilder hochladen, Menüs, Design, Shop, Benutzer — rund 140 Werkzeuge statt
+bisher neun.
+
+### Neu
+
+**Schlüssel ohne Web-Oberfläche.** `holzcloud ai key create -name "…" -level
+admin` erzeugt auf dem Server einen Schlüssel, `list` zeigt sie, `revoke` zieht
+einen zurück. Damit beginnt eine Installation ohne einen einzigen Klick im
+Browser.
+
+**Drei Stufen.** Ein Schlüssel liest (`read`), schreibt Inhalte (`content`) oder
+verwaltet zusätzlich die Installation (`admin`): Benutzer, weitere Schlüssel,
+Plugins, Sprachen, Marke. Einen Admin-Schlüssel gibt es nur auf dem Server, nie
+über die Verbindung selbst und nie auf einem Bildschirm. Die Schlüsselseite im
+Admin zeigt Admin-Schlüssel an und sagt, wie man einen erstellt.
+
+**Derselbe Weg wie die Bildschirme.** Wo ein Bildschirm mehr tut als eine Zeile
+speichern — Cache leeren, Dateien prüfen und verkleinern, Protokoll schreiben,
+Mails verschicken —, ruft das Werkzeug dieselbe Funktion auf wie der Bildschirm.
+Jede Änderung steht im Protokoll unter „KI: Name des Schlüssels“. Löschen
+verlangt ein ausdrückliches `confirm: true`, und ein falsch geschriebener
+Parameter wird mit seinem Namen abgelehnt statt still übergangen. Dateien kommen
+als base64 mit; der Server holt nie selbst etwas aus dem Netz.
+
+### Behoben
+
+Beim Zusammenlegen der Wege sind drei Fehler der Web-Oberfläche aufgefallen:
+**Eine frühere Fassung wiederherzustellen** hat Auszug, Beschreibung,
+Vorschaubild, Zeitplan und die eigenen Felder geleert und eine Baustein-Seite in
+reinen Text verwandelt — jetzt bleibt alles erhalten. **Eine Seite zu
+duplizieren** hat bei einer Baustein-Seite nur den Text kopiert — jetzt auch die
+Bausteine und Felder. **Eine Inhaltsart ohne Übersichtsadresse** landete unter
+`/untitled`. Und der Link eines Benutzers mit unbekannter Nummer brachte einen
+Fehler statt „nicht gefunden“.
+
 ## 2.6 — 2026-09-24
 
 **Die Verwaltung ist neu geordnet.** Statt siebenundzwanzig Einträgen in der

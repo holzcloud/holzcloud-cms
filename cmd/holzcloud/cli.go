@@ -40,6 +40,8 @@ Usage:
   holzcloud check                   run an integrity check
   holzcloud template check <path>   check a template directory or .zip
   holzcloud template spec           print the template authoring specification
+  holzcloud ai key create           create a key for an AI assistant (-name, -level read|content|admin)
+  holzcloud ai key list|revoke <id> show or withdraw the keys
   holzcloud export -website <id|domain> <dir>
                                     write a website as plain HTML files
 
@@ -81,6 +83,8 @@ func runCLI(args []string) (handled bool, err error) {
 		return true, cmdCheck(args[2:])
 	case "template":
 		return true, cmdTemplate(args[2:])
+	case "ai":
+		return true, cmdAI(args[2:])
 	case "export":
 		return true, cmdExport(args[2:])
 	default:
