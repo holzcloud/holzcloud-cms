@@ -66,6 +66,7 @@
             </select>
             <p class="form-hint text-muted">
                 {{t "Start with “read only”. A key that cannot change anything never even sees the tools for changing things."}}
+                {{th "A key that may also manage users, plugins and further keys is only created on the server: <code>holzcloud ai key create -level admin</code>."}}
             </p>
         </div>
 
@@ -97,7 +98,7 @@
             <tr>
                 <td>{{.Name}}</td>
                 <td>{{if .WebsiteID}}{{$data.WebsiteName .WebsiteID}}{{else}}<span class="text-muted">{{t "all"}}</span>{{end}}</td>
-                <td>{{if .CanWrite}}<span class="badge badge--primary">{{t "read and write"}}</span>{{else}}<span class="badge badge--draft">{{t "read only"}}</span>{{end}}</td>
+                <td>{{if .Admin}}<span class="badge badge--warning">{{t "Admin"}}</span>{{else if .CanWrite}}<span class="badge badge--primary">{{t "read and write"}}</span>{{else}}<span class="badge badge--draft">{{t "read only"}}</span>{{end}}</td>
                 <td>{{if .LastUsedAt}}{{.LastUsedAt.Format "02.01.2006 15:04"}}{{else}}<span class="text-muted">{{t "never"}}</span>{{end}}</td>
                 <td>{{if .ExpiresAt}}{{.ExpiresAt.Format "02.01.2006"}}{{else}}<span class="text-muted">–</span>{{end}}</td>
                 <td class="table-actions">
