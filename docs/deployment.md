@@ -68,6 +68,8 @@ holzcloud thumbnails              generate the scaled copies of older images
 holzcloud check                   run an integrity check
 holzcloud template check <path>   check a template directory or .zip
 holzcloud template spec           print the template authoring specification
+holzcloud ai key create           create a key for an AI assistant (-name, -level read|content|admin)
+holzcloud ai key list|revoke <id> show or withdraw the keys
 holzcloud export -website <id|domain> <dir>
                                   write a website as plain HTML files
 ```
