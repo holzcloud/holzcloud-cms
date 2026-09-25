@@ -24,13 +24,13 @@ func TestStructureToolsFollowTheScreensPermissionSplit(t *testing.T) {
 	admin := map[string]bool{
 		"list_kinds": true, "create_kind": true, "update_kind": true, "delete_kind": true, "move_kind": true,
 		"create_field": true, "update_field": true, "delete_field": true, "move_field": true,
-		"list_block_kinds": true, "create_block_kind": true, "update_block_kind": true,
+		"manage_block_kinds": true, "create_block_kind": true, "update_block_kind": true,
 		"delete_block_kind": true, "move_block_kind": true,
 	}
 	reads := map[string]bool{
 		"list_menus": true, "get_menu": true, "list_terms": true, "list_snippets": true,
 		"get_snippet": true, "list_redirects": true, "check_links": true,
-		"list_kinds": true, "list_block_kinds": true,
+		"list_kinds": true, "manage_block_kinds": true,
 	}
 	seen := 0
 	for _, tool := range structureTools(Deps{}) {

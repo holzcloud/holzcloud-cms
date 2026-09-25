@@ -133,14 +133,14 @@ func structureTools(d Deps) []Tool {
 		listRedirects(d), createRedirect(d), deleteRedirect(d), checkLinks(d),
 		listKinds(d), createKind(d), updateKind(d), deleteKind(d), moveKind(d),
 		createField(d), updateField(d), deleteField(d), moveField(d),
-		listBlockKinds(d), createBlockKind(d), updateBlockKind(d), deleteBlockKind(d), moveBlockKind(d),
+		manageBlockKinds(d), createBlockKind(d), updateBlockKind(d), deleteBlockKind(d), moveBlockKind(d),
 	}
 }
 
 // --- shared -----------------------------------------------------------------
 
 var (
-	websiteProp = Property{Type: "integer", Description: "id of the website"}
+	structWebsiteProp = Property{Type: "integer", Description: "id of the website"}
 	confirmProp = Property{Type: "boolean", Description: "must be true: this cannot be undone, " +
 		"so ask the person before you set it"}
 	directionProp = Property{Type: "string", Description: "up or down, one place",
@@ -264,7 +264,7 @@ func listMenus(d Deps) Tool {
 		Description: "Lists the menus of a website: id, name, the key a theme places it by " +
 			"(main, footer, …) and, on a multilingual website, its language.",
 		InputSchema: Schema{Type: "object",
-			Properties: map[string]Property{"website": websiteProp}, Required: []string{"website"}},
+			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64 `json:"website"`
@@ -295,7 +295,7 @@ func getMenu(d Deps) Tool {
 		Description: "Fetches one menu with all its entries as a tree.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"menu":    {Type: "integer", Description: "id of the menu"},
 			}, Required: []string{"website", "menu"}},
 		Run: func(c Call) (any, error) {
@@ -332,7 +332,7 @@ func createMenu(d Deps) Tool {
 			"the menu by — usually main or footer; lower-case letters, digits and hyphens.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":  websiteProp,
+				"website":  structWebsiteProp,
 				"name":     {Type: "string", Description: "name of the menu, for the admin"},
 				"key":      {Type: "string", Description: "where the theme shows it, such as main or footer"},
 				"language": {Type: "string", Description: "a language tag such as fr on a multilingual website; empty means the main language"},
@@ -397,7 +397,7 @@ func updateMenu(d Deps) Tool {
 			"back with your change in it. Without items the entries stay as they are.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"menu":    {Type: "integer", Description: "id of the menu"},
 				"name":    {Type: "string", Description: "new name; without one the old stays"},
 				"key":     {Type: "string", Description: "new key; without one the old stays"},
@@ -466,7 +466,7 @@ func deleteMenu(d Deps) Tool {
 			"Requires confirm: true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"menu":    {Type: "integer", Description: "id of the menu"},
 				"confirm": confirmProp,
 			}, Required: []string{"website", "menu", "confirm"}},
@@ -504,7 +504,7 @@ func listTerms(d Deps) Tool {
 			"entries each is used, drafts included. Useful to find two spellings of one term. " +
 			"A term comes into being by tagging a page; there is no separate way to create one.",
 		InputSchema: Schema{Type: "object",
-			Properties: map[string]Property{"website": websiteProp}, Required: []string{"website"}},
+			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64 `json:"website"`
@@ -538,7 +538,7 @@ func renameTerm(d Deps) Tool {
 		Description: "Renames a term. Its address stays as it was, so existing links keep working.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"term":    {Type: "integer", Description: "id of the term"},
 				"name":    {Type: "string", Description: "the new name"},
 			}, Required: []string{"website", "term", "name"}},
@@ -573,7 +573,7 @@ func deleteTerm(d Deps) Tool {
 			"themselves stay. Requires confirm: true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"term":    {Type: "integer", Description: "id of the term"},
 				"confirm": confirmProp,
 			}, Required: []string{"website", "term", "confirm"}},
@@ -620,7 +620,7 @@ func listSnippets(d Deps) Tool {
 		Description: "Lists the snippets of a website: reusable pieces of text placed into a page " +
 			"with their marker, such as [[snippet:opening-hours]]. With how many live pages use each.",
 		InputSchema: Schema{Type: "object",
-			Properties: map[string]Property{"website": websiteProp}, Required: []string{"website"}},
+			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64 `json:"website"`
@@ -654,7 +654,7 @@ func getSnippet(d Deps) Tool {
 			"the definitions of those fields.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"snippet": {Type: "integer", Description: "id of the snippet"},
 			}, Required: []string{"website", "snippet"}},
 		Run: func(c Call) (any, error) {
@@ -700,7 +700,7 @@ func createSnippet(d Deps) Tool {
 			"adds them with create_field and the snippet's id.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":  websiteProp,
+				"website":  structWebsiteProp,
 				"key":      {Type: "string", Description: "the key, such as opening-hours"},
 				"name":     {Type: "string", Description: "name of the snippet, for the admin"},
 				"markdown": {Type: "string", Description: "the text in markdown"},
@@ -737,7 +737,7 @@ func updateSnippet(d Deps) Tool {
 			"What is not given stays. Changing the key breaks every marker that uses the old one.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":  websiteProp,
+				"website":  structWebsiteProp,
 				"snippet":  {Type: "integer", Description: "id of the snippet"},
 				"key":      {Type: "string", Description: "new key"},
 				"name":     {Type: "string", Description: "new name"},
@@ -813,7 +813,7 @@ func deleteSnippet(d Deps) Tool {
 			"Requires confirm: true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"snippet": {Type: "integer", Description: "id of the snippet"},
 				"confirm": confirmProp,
 			}, Required: []string{"website", "snippet", "confirm"}},
@@ -850,7 +850,7 @@ func listRedirects(d Deps) Tool {
 		Description: "Lists the redirects of a website: old address, target, code (301 permanent, " +
 			"302 temporary), whether a rename wrote it or a person, and how often it was followed.",
 		InputSchema: Schema{Type: "object",
-			Properties: map[string]Property{"website": websiteProp}, Required: []string{"website"}},
+			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64 `json:"website"`
@@ -887,7 +887,7 @@ func createRedirect(d Deps) Tool {
 			"unless temporary is true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":   websiteProp,
+				"website":   structWebsiteProp,
 				"from":      {Type: "string", Description: "the old address, such as /kontakt.html"},
 				"to":        {Type: "string", Description: "where it should lead, such as /contact"},
 				"temporary": {Type: "boolean", Description: "true for a temporary redirect (302)"},
@@ -928,7 +928,7 @@ func deleteRedirect(d Deps) Tool {
 		Description: "Deletes a redirect; its old address answers 404 again. Requires confirm: true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":  websiteProp,
+				"website":  structWebsiteProp,
 				"redirect": {Type: "integer", Description: "id of the redirect"},
 				"confirm":  confirmProp,
 			}, Required: []string{"website", "redirect", "confirm"}},
@@ -963,7 +963,7 @@ func checkLinks(d Deps) Tool {
 		Description: "Reports the internal links on a website's pages that lead nowhere: which page " +
 			"carries the link and where it points. Fix one by changing the page or with create_redirect.",
 		InputSchema: Schema{Type: "object",
-			Properties: map[string]Property{"website": websiteProp}, Required: []string{"website"}},
+			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64 `json:"website"`
@@ -1045,7 +1045,7 @@ func listKinds(d Deps) Tool {
 			"as products or events, with how many entries each holds. The key is what list_pages " +
 			"reports as the type.",
 		InputSchema: Schema{Type: "object",
-			Properties: map[string]Property{"website": websiteProp}, Required: []string{"website"}},
+			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64 `json:"website"`
@@ -1078,7 +1078,7 @@ func createKind(d Deps) Tool {
 		Description: "Creates a content kind of its own, such as products. Its key is made from the " +
 			"name and cannot change afterwards.",
 		InputSchema: Schema{Type: "object",
-			Properties: withProps(kindProps, map[string]Property{"website": websiteProp}),
+			Properties: withProps(kindProps, map[string]Property{"website": structWebsiteProp}),
 			Required:   []string{"website", "name", "plural"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
@@ -1116,7 +1116,7 @@ func updateKind(d Deps) Tool {
 		Description: "Changes a content kind's name, plural, overview address or order. The key stays.",
 		InputSchema: Schema{Type: "object",
 			Properties: withProps(kindProps, map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"kind":    {Type: "integer", Description: "id of the content kind"},
 			}),
 			Required: []string{"website", "kind"}},
@@ -1180,7 +1180,7 @@ func deleteKind(d Deps) Tool {
 			"to another kind, or the kind created again. Requires confirm: true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"kind":    {Type: "integer", Description: "id of the content kind"},
 				"confirm": confirmProp,
 			}, Required: []string{"website", "kind", "confirm"}},
@@ -1224,7 +1224,7 @@ func moveKind(d Deps) Tool {
 		Description: "Moves a content kind one place up or down in the order the admin offers them.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":   websiteProp,
+				"website":   structWebsiteProp,
 				"kind":      {Type: "integer", Description: "id of the content kind"},
 				"direction": directionProp,
 			}, Required: []string{"website", "kind", "direction"}},
@@ -1395,7 +1395,7 @@ func createField(d Deps) Tool {
 			"create it first, then its subfields with group set to its id. Kinds: " + fieldKindsText() + ".",
 		InputSchema: Schema{Type: "object",
 			Properties: withProps(fieldProps, map[string]Property{
-				"website":    websiteProp,
+				"website":    structWebsiteProp,
 				"kind":       {Type: "string", Description: "the kind of input", Enum: fieldKindEnum()},
 				"group":      {Type: "integer", Description: "id of the group this field goes into"},
 				"block_kind": {Type: "integer", Description: "id of the own block kind this field belongs to"},
@@ -1448,7 +1448,7 @@ func updateField(d Deps) Tool {
 			"stays. The key never changes, and a group cannot become a plain field or back.",
 		InputSchema: Schema{Type: "object",
 			Properties: withProps(fieldProps, map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"field":   {Type: "integer", Description: "id of the field"},
 				"kind":    {Type: "string", Description: "the kind of input", Enum: fieldKindEnum()},
 			}),
@@ -1492,7 +1492,7 @@ func deleteField(d Deps) Tool {
 			"them back until then. Requires confirm: true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"field":   {Type: "integer", Description: "id of the field"},
 				"confirm": confirmProp,
 			}, Required: []string{"website", "field", "confirm"}},
@@ -1530,7 +1530,7 @@ func moveField(d Deps) Tool {
 			"one group, one block kind or one snippet. Call it again to move further.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":   websiteProp,
+				"website":   structWebsiteProp,
 				"field":     {Type: "integer", Description: "id of the field"},
 				"direction": directionProp,
 			}, Required: []string{"website", "field", "direction"}},
@@ -1567,14 +1567,14 @@ func blockKindOut(t block.Own, used int) map[string]any {
 	return out
 }
 
-func listBlockKinds(d Deps) Tool {
+func manageBlockKinds(d Deps) Tool {
 	return Tool{
-		Name:  "list_block_kinds",
+		Name:  "manage_block_kinds",
 		Admin: true,
-		Description: "Lists the block kinds a page can be built from: the built-in ones by key, and " +
+		Description: "For managing block kinds (admin): the built-in ones by key, and " +
 			"the website's own with their fields and on how many pages each is used.",
 		InputSchema: Schema{Type: "object",
-			Properties: map[string]Property{"website": websiteProp}, Required: []string{"website"}},
+			Properties: map[string]Property{"website": structWebsiteProp}, Required: []string{"website"}},
 		Run: func(c Call) (any, error) {
 			var a struct {
 				Website int64 `json:"website"`
@@ -1613,7 +1613,7 @@ func createBlockKind(d Deps) Tool {
 			"set to the id this returns.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website": websiteProp,
+				"website": structWebsiteProp,
 				"name":    {Type: "string", Description: "the name shown in the editor"},
 				"hint":    {Type: "string", Description: "a line saying what the block is for"},
 			}, Required: []string{"website", "name"}},
@@ -1651,7 +1651,7 @@ func updateBlockKind(d Deps) Tool {
 		Description: "Changes an own block kind's name or hint. The key stays.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":    websiteProp,
+				"website":    structWebsiteProp,
 				"block_kind": {Type: "integer", Description: "id of the block kind"},
 				"name":       {Type: "string", Description: "new name; without one the old stays"},
 				"hint":       {Type: "string", Description: "new hint; without one the old stays"},
@@ -1709,7 +1709,7 @@ func deleteBlockKind(d Deps) Tool {
 			"each page the next time it is saved. Requires confirm: true.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":    websiteProp,
+				"website":    structWebsiteProp,
 				"block_kind": {Type: "integer", Description: "id of the block kind"},
 				"confirm":    confirmProp,
 			}, Required: []string{"website", "block_kind", "confirm"}},
@@ -1746,7 +1746,7 @@ func moveBlockKind(d Deps) Tool {
 		Description: "Moves an own block kind one place up or down in the editor's menu.",
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
-				"website":    websiteProp,
+				"website":    structWebsiteProp,
 				"block_kind": {Type: "integer", Description: "id of the block kind"},
 				"direction":  directionProp,
 			}, Required: []string{"website", "block_kind", "direction"}},

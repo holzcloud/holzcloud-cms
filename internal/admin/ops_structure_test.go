@@ -364,7 +364,7 @@ func TestBlockKindsThroughTheTools(t *testing.T) {
 	r.refused(r.admin, "create_block_kind", map[string]any{"website": r.site, "name": "Text"})
 
 	r.must(r.admin, "update_block_kind", map[string]any{"website": r.site, "block_kind": typeID, "name": "Schritt"})
-	list := r.must(r.admin, "list_block_kinds", map[string]any{"website": r.site})
+	list := r.must(r.admin, "manage_block_kinds", map[string]any{"website": r.site})
 	own := list["own"].([]any)
 	if len(own) != 1 {
 		t.Fatalf("own = %v", own)
@@ -379,7 +379,7 @@ func TestBlockKindsThroughTheTools(t *testing.T) {
 
 	r.refused(r.admin, "delete_block_kind", map[string]any{"website": r.other, "block_kind": typeID, "confirm": true})
 	r.must(r.admin, "delete_block_kind", map[string]any{"website": r.site, "block_kind": typeID, "confirm": true})
-	if own := r.must(r.admin, "list_block_kinds", map[string]any{"website": r.site})["own"].([]any); len(own) != 0 {
+	if own := r.must(r.admin, "manage_block_kinds", map[string]any{"website": r.site})["own"].([]any); len(own) != 0 {
 		t.Errorf("own after delete = %v", own)
 	}
 }

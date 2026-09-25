@@ -76,3 +76,15 @@ func TestParseLevel(t *testing.T) {
 		t.Error("an unknown level was accepted")
 	}
 }
+
+// Six areas were written side by side. Two tools of one name would leave one of
+// them silently unreachable — the map keeps the last — so the names are checked.
+func TestToolNamesAreUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for _, tool := range Tools(Deps{}) {
+		if seen[tool.Name] {
+			t.Errorf("two tools are called %q", tool.Name)
+		}
+		seen[tool.Name] = true
+	}
+}
