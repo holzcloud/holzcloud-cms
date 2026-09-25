@@ -182,40 +182,8 @@ func (h *Handler) HandlePageTranslate(w http.ResponseWriter, r *http.Request) er
 		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID))
 	}
 
-	// The middle of the star: translating a translation still belongs to the
-	// same group, not to a chain hanging off it.
-	mitte := original.ID
-	if original.TranslationOf != 0 {
-		mitte = original.TranslationOf
-	}
-
-	created, err := h.pages.CreatePage(r.Context(), page.PageCreate{
-		WebsiteID: websiteID,
-		Title:     original.Title,
-		// Addresses are unique per website across all languages, so the copy
-		// cannot keep the original's. The tag is appended as a placeholder the
-		// translator replaces with the real one — "kontakt-fr" becomes
-		// "contact" as soon as somebody looks at the page.
-		Slug:     translationSlug(original.Slug, tag),
-		Markdown: original.ContentMarkdown,
-		HTML:     original.ContentHTML,
-		Blocks:   original.Blocks,
-		Fields:   original.Fields,
-		Status:   "draft",
-		Meta: page.PageMeta{
-			Excerpt:         original.Excerpt,
-			MetaDescription: original.MetaDescription,
-			FeaturedMediaID: original.FeaturedMediaID,
-			NoIndex:         original.NoIndex,
-		},
-		Kind:    original.Kind,
-		TypeKey: original.TypeKey,
-		UserID:  h.currentUserID(r),
-	})
+	created, err := h.translatePage(r.Context(), ws, original, tag, h.currentUserID(r))
 	if err != nil {
-		return err
-	}
-	if err := h.pages.SetTranslation(r.Context(), websiteID, created.ID, tag, mitte); err != nil {
 		return err
 	}
 

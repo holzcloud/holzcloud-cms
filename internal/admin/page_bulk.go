@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
-	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -68,7 +67,9 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 		case "unpublish":
 			err = h.pages.SetPageStatus(r.Context(), id, "draft", userID)
 		case "trash":
-			err = h.pages.TrashPage(r.Context(), id)
+			// The delete button's path, plugin event included: a page that
+			// leaves through the bulk menu is just as gone for an index.
+			err = h.trashPage(r.Context(), websiteID, p)
 		default:
 			web.SetFlashError(h.sm, r.Context(), "Unknown action")
 			return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
@@ -141,32 +142,7 @@ func (h *Handler) HandlePageDuplicate(w http.ResponseWriter, r *http.Request) er
 		return nil
 	}
 
-	copy, err := h.pages.CreatePage(r.Context(), page.PageCreate{
-		WebsiteID: websiteID,
-		// Through the catalogue and not glued on in Go: the suffix is a word
-		// the operator reads and then edits, and a concatenation is invisible
-		// to the collector — it reports neither open nor orphaned about it, so
-		// an English installation went on titling copies "… (Kopie)".
-		Title: web.Titlef(r, "%s (copy)", src.Title),
-		// CreatePage uniquifies the slug, so the copy lands on "kontakt-2"
-		// rather than failing on the constraint.
-		Slug:     src.Slug,
-		Markdown: src.ContentMarkdown,
-		HTML:     src.ContentHTML,
-		Status:   "draft",
-		Meta: page.PageMeta{
-			Excerpt:         src.Excerpt,
-			MetaDescription: src.MetaDescription,
-			FeaturedMediaID: src.FeaturedMediaID,
-			NoIndex:         src.NoIndex,
-		},
-		// A copy of a product is a product. Leaving these out would file the
-		// duplicate under "Seiten", where the person who just duplicated a
-		// product would not go looking for it.
-		Kind:    src.Kind,
-		TypeKey: src.TypeKey,
-		UserID:  h.currentUserID(r),
-	})
+	copy, err := h.duplicatePage(r.Context(), src, h.currentUserID(r))
 	if err != nil {
 		return err
 	}
