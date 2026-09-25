@@ -365,7 +365,8 @@ func listFields(d Deps) Tool {
 			out := make([]map[string]any, 0, len(defs))
 			for _, def := range defs {
 				e := map[string]any{
-					"key": def.Key, "label": def.Label,
+					// The id is what update_field and delete_field take.
+					"id": def.ID, "key": def.Key, "label": def.Label,
 					"kind": def.Kind, "required": def.Required, "applies_to": def.AppliesTo,
 				}
 				if def.Hint != "" {
@@ -384,7 +385,7 @@ func listFields(d Deps) Tool {
 					sub := make([]map[string]any, 0, len(def.Sub))
 					for _, s := range def.Sub {
 						se := map[string]any{
-							"key": s.Key, "label": s.Label,
+							"id": s.ID, "key": s.Key, "label": s.Label,
 							"kind": s.Kind, "required": s.Required,
 						}
 						if len(s.Choices) > 0 {

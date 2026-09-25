@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"net/http"
+	"context"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -29,8 +29,8 @@ type brokenLink struct {
 // visible without a single visitor, and fixing it is editing a page. The 404
 // list is a record of what visitors did, which is exactly the kind of thing an
 // operator should be able to decline to keep.
-func (h *Handler) checkInternalLinks(r *http.Request, websiteID int64) ([]brokenLink, error) {
-	pages, _, err := h.pages.ListPages(r.Context(), websiteID,
+func (h *Handler) checkInternalLinks(ctx context.Context, websiteID int64) ([]brokenLink, error) {
+	pages, _, err := h.pages.ListPages(ctx, websiteID,
 		page.ListFilter{Page: 1, PerPage: 1000})
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (h *Handler) checkInternalLinks(r *http.Request, websiteID int64) ([]broken
 			}
 			seen[key] = true
 
-			ok, err := h.linkResolves(r, websiteID, target)
+			ok, err := h.linkResolves(ctx, websiteID, target)
 			if err != nil {
 				return nil, err
 			}
@@ -61,7 +61,7 @@ func (h *Handler) checkInternalLinks(r *http.Request, websiteID int64) ([]broken
 }
 
 // linkResolves reports whether an internal path leads somewhere.
-func (h *Handler) linkResolves(r *http.Request, websiteID int64, target string) (bool, error) {
+func (h *Handler) linkResolves(ctx context.Context, websiteID int64, target string) (bool, error) {
 	// The home page and the built-in routes always exist.
 	switch target {
 	case "/", "/sitemap.xml", "/robots.txt", "/feed.xml":
@@ -81,7 +81,7 @@ func (h *Handler) linkResolves(r *http.Request, websiteID int64, target string) 
 	}
 
 	slug := strings.TrimPrefix(target, "/")
-	pg, err := h.pages.GetPageBySlug(r.Context(), websiteID, slug)
+	pg, err := h.pages.GetPageBySlug(ctx, websiteID, slug)
 	if err != nil {
 		return false, err
 	}
@@ -89,7 +89,7 @@ func (h *Handler) linkResolves(r *http.Request, websiteID int64, target string) 
 		return true, nil
 	}
 	// A redirect is a working link too.
-	redirect, err := h.pages.LookupRedirect(r.Context(), websiteID, target)
+	redirect, err := h.pages.LookupRedirect(ctx, websiteID, target)
 	if err != nil {
 		return false, err
 	}

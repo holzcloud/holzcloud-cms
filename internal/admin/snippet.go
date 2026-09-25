@@ -280,51 +280,16 @@ func (h *Handler) handleSnippetSave(w http.ResponseWriter, r *http.Request, webs
 		return web.RenderFormError(w, h.templates, r, "snippet_list", data)
 	}
 
-	// The same selection as in CheckAll one line above: it is checked and
-	// cleaned against the same definitions, or a value nobody checked would be
-	// left lying unchecked.
-	storedFields, err := field.Encode(field.Clean(defs, values.Fields))
-	if err != nil {
-		return err
-	}
-
-	// The same pipeline page content goes through, so the stored HTML carries
-	// the same guarantee and can be cast in a template.
-	html, err := page.RenderMarkdown(values.Markdown)
-	if err != nil {
-		return err
-	}
-
-	id := values.ID
-	if values.ID == 0 {
-		var created *snippet.Snippet
-		created, err = h.snippets.Create(r.Context(), websiteID, values.Key, values.Name, values.Markdown, html)
-		if created != nil {
-			id = created.ID
-		}
-	} else {
-		existing, getErr := h.snippets.Get(r.Context(), websiteID, values.ID)
-		if getErr != nil {
-			return getErr
-		}
-		if existing == nil {
-			http.NotFound(w, r)
-			return nil
-		}
-		err = h.snippets.Update(r.Context(), websiteID, values.ID, values.Key, values.Name, values.Markdown, html)
+	_, err = h.storeSnippet(r.Context(), websiteID, values, defs)
+	if errors.Is(err, snippet.ErrNotFound) {
+		http.NotFound(w, r)
+		return nil
 	}
 	if errors.Is(err, snippet.ErrKeyTaken) {
 		data.Errors.Add("key", "That key is already used by another snippet.")
 		return web.RenderFormError(w, h.templates, r, "snippet_list", data)
 	}
 	if err != nil {
-		return err
-	}
-
-	// Only now, because a new snippet does not have its number until here. The
-	// column is written whole and not merged — that is the promise the parser
-	// above rests on.
-	if err := h.snippets.SetFields(r.Context(), websiteID, id, storedFields); err != nil {
 		return err
 	}
 
@@ -359,4 +324,56 @@ func (h *Handler) HandleSnippetDelete(w http.ResponseWriter, r *http.Request) er
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), "Snippet deleted")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/snippets", websiteID))
+}
+
+// storeSnippet writes a snippet whose values have been checked: the markdown
+// rendered, the row created or changed, and its own fields stored. The screen
+// and the assistant connection both save through it, so the two cannot drift.
+//
+// It answers snippet.ErrNotFound for an id that is not this website's, and
+// snippet.ErrKeyTaken for a key another snippet already carries.
+func (h *Handler) storeSnippet(ctx context.Context, websiteID int64, values snippetValues, defs []field.Def) (int64, error) {
+	// The same definitions the caller handed to CheckAll: a value is checked
+	// and cleaned against the same set, or a value nobody checked would be
+	// left lying unchecked.
+	storedFields, err := field.Encode(field.Clean(defs, values.Fields))
+	if err != nil {
+		return 0, err
+	}
+
+	// The same pipeline page content goes through, so the stored HTML carries
+	// the same guarantee and can be cast in a template.
+	html, err := page.RenderMarkdown(values.Markdown)
+	if err != nil {
+		return 0, err
+	}
+
+	id := values.ID
+	if values.ID == 0 {
+		var created *snippet.Snippet
+		created, err = h.snippets.Create(ctx, websiteID, values.Key, values.Name, values.Markdown, html)
+		if created != nil {
+			id = created.ID
+		}
+	} else {
+		existing, getErr := h.snippets.Get(ctx, websiteID, values.ID)
+		if getErr != nil {
+			return 0, getErr
+		}
+		if existing == nil {
+			return 0, snippet.ErrNotFound
+		}
+		err = h.snippets.Update(ctx, websiteID, values.ID, values.Key, values.Name, values.Markdown, html)
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	// Only now, because a new snippet does not have its number until here. The
+	// column is written whole and not merged — that is the promise the parser
+	// above rests on.
+	if err := h.snippets.SetFields(ctx, websiteID, id, storedFields); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
