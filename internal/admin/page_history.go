@@ -91,23 +91,9 @@ func (h *Handler) HandlePageRevisionRestore(w http.ResponseWriter, r *http.Reque
 		return nil
 	}
 
-	html, err := page.RenderMarkdown(rev.ContentMarkdown)
-	if err != nil {
-		return err
-	}
-
-	// The revision keeps the slug it had, but the address may have been taken
-	// over since. Restoring the text must not fail because of that, so the
-	// current address is kept and only the content moves back.
-	err = h.pages.UpdatePage(r.Context(), pageID, page.PageUpdate{
-		Title:           rev.Title,
-		Slug:            p.Slug,
-		Markdown:        rev.ContentMarkdown,
-		HTML:            html,
-		Status:          p.Status,
-		ExpectedVersion: p.Version,
-		UserID:          h.currentUserID(r),
-	})
+	// The restore is an ordinary edit, shared with the MCP tools: see
+	// restoreRevision for what moves back and what stays.
+	err = h.restoreRevision(r.Context(), p, rev, h.currentUserID(r))
 	switch {
 	case errors.Is(err, page.ErrConflict):
 		web.SetFlashError(h.sm, r.Context(), "The page has just been changed. Please reload the history and try again.")
