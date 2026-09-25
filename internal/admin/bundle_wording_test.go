@@ -263,7 +263,7 @@ func TestTheOperatorsOwnWordWinsAndCanBeGivenBack(t *testing.T) {
 	h.SetWording(store)
 
 	site := websiteOf(t, database, ws.ID)
-	keys, _ := h.themeVocabulary(httptest.NewRequest(http.MethodGet, "/x", nil), site)
+	keys, _ := h.themeVocabulary(context.Background(), site)
 	if len(keys) == 0 {
 		t.Fatal("the shipped theme asks for no words, so this screen would be empty")
 	}
@@ -307,7 +307,7 @@ func TestAnOwnWordReachesTheRenderedPageAtOnce(t *testing.T) {
 	site := websiteOf(t, database, ws.ID)
 	main := site.AllLocales()[0]
 
-	keys, _ := h.themeVocabulary(httptest.NewRequest(http.MethodGet, "/x", nil), site)
+	keys, _ := h.themeVocabulary(context.Background(), site)
 	if len(keys) == 0 {
 		t.Fatal("the shipped theme asks for no words")
 	}
@@ -376,7 +376,7 @@ func TestAWordNobodyAskedForIsNotStored(t *testing.T) {
 	h.SetWording(store)
 
 	site := websiteOf(t, database, ws.ID)
-	keys, _ := h.themeVocabulary(httptest.NewRequest(http.MethodGet, "/x", nil), site)
+	keys, _ := h.themeVocabulary(context.Background(), site)
 	if len(keys) == 0 {
 		t.Fatal("the shipped theme asks for no words")
 	}

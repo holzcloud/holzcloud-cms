@@ -40,19 +40,25 @@ func localeChoices() []localeChoice {
 }
 
 // settingsFromRequest reads the settings half of the website form.
+func settingsFromRequest(r *http.Request) domain.Settings { return settingsFrom(r.FormValue) }
+
+// settingsFrom reads the settings from anything shaped like the form: the
+// request on the screen, or the stored values with an assistant's changes laid
+// over them (OpUpdateWebsite). One reader, so an AI key meets exactly the rules
+// the form does.
 //
 // Everything is validated here rather than in the store: an unknown language or
 // a mistyped zone falls back to the default instead of being written and then
 // silently rendering the wrong thing.
-func settingsFromRequest(r *http.Request) domain.Settings {
+func settingsFrom(get func(string) string) domain.Settings {
 	set := domain.Settings{
-		Locale:            strings.TrimSpace(r.FormValue("locale")),
-		TimeZone:          strings.TrimSpace(r.FormValue("timezone")),
-		MetaDescription:   strings.TrimSpace(r.FormValue("meta_description")),
-		CanonicalRedirect: r.FormValue("canonical_redirect") != "",
-		ConfirmSenders:    r.FormValue("confirm_senders") != "",
-		OfflineMode:       r.FormValue("offline_mode"),
-		OfflineMessage:    strings.TrimSpace(r.FormValue("offline_message")),
+		Locale:            strings.TrimSpace(get("locale")),
+		TimeZone:          strings.TrimSpace(get("timezone")),
+		MetaDescription:   strings.TrimSpace(get("meta_description")),
+		CanonicalRedirect: get("canonical_redirect") != "",
+		ConfirmSenders:    get("confirm_senders") != "",
+		OfflineMode:       get("offline_mode"),
+		OfflineMessage:    strings.TrimSpace(get("offline_message")),
 	}
 	if !tmpl.KnownLocale(set.Locale) {
 		set.Locale = tmpl.DefaultLocale
@@ -60,31 +66,31 @@ func settingsFromRequest(r *http.Request) domain.Settings {
 	if !knownTimeZone(set.TimeZone) {
 		set.TimeZone = tmpl.DefaultTimeZone
 	}
-	set.FaviconMediaID = optionalID(r.FormValue("favicon_media_id"))
-	set.LogoMediaID = optionalID(r.FormValue("logo_media_id"))
-	set.ContactEmail = strings.TrimSpace(r.FormValue("contact_email"))
-	set.NotifyEmail = strings.TrimSpace(r.FormValue("notify_email"))
-	set.OrgType = strings.TrimSpace(r.FormValue("org_type"))
+	set.FaviconMediaID = optionalID(get("favicon_media_id"))
+	set.LogoMediaID = optionalID(get("logo_media_id"))
+	set.ContactEmail = strings.TrimSpace(get("contact_email"))
+	set.NotifyEmail = strings.TrimSpace(get("notify_email"))
+	set.OrgType = strings.TrimSpace(get("org_type"))
 	if !structured.KnownOrgType(set.OrgType) {
 		// An unknown type produces structured data a search engine discards
 		// silently, which is worse than emitting none at all.
 		set.OrgType = ""
 	}
-	set.Street = strings.TrimSpace(r.FormValue("street"))
-	set.PostalCode = strings.TrimSpace(r.FormValue("postal_code"))
-	set.City = strings.TrimSpace(r.FormValue("city"))
-	set.Country = strings.ToUpper(strings.TrimSpace(r.FormValue("country")))
+	set.Street = strings.TrimSpace(get("street"))
+	set.PostalCode = strings.TrimSpace(get("postal_code"))
+	set.City = strings.TrimSpace(get("city"))
+	set.Country = strings.ToUpper(strings.TrimSpace(get("country")))
 	if set.Country == "" {
 		set.Country = "DE"
 	}
-	set.Phone = strings.TrimSpace(r.FormValue("phone"))
-	set.OpeningHours = strings.TrimSpace(r.FormValue("opening_hours"))
-	set.BlogBase = archiveSlug(r.FormValue("blog_base"))
-	set.PostsPerPage = postsPerPage(r.FormValue("posts_per_page"))
+	set.Phone = strings.TrimSpace(get("phone"))
+	set.OpeningHours = strings.TrimSpace(get("opening_hours"))
+	set.BlogBase = archiveSlug(get("blog_base"))
+	set.PostsPerPage = postsPerPage(get("posts_per_page"))
 	// The further languages are cleaned in the store — a tag that is not a tag,
 	// a repeat and the main language itself all drop out there, so the same
 	// rules hold for a bundle import as for this form.
-	set.ExtraLocales = r.FormValue("extra_locales")
+	set.ExtraLocales = get("extra_locales")
 	return set
 }
 

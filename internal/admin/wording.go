@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strconv"
@@ -73,10 +74,33 @@ func (h *Handler) HandleWebsiteWording(w http.ResponseWriter, r *http.Request) e
 		return nil
 	}
 
-	keys, themeWords := h.themeVocabulary(r, ws)
-	own, err := h.wording.All(r.Context(), ws.ID)
+	languages, stray, used, err := h.wordingOf(r.Context(), ws)
 	if err != nil {
 		return err
+	}
+	data := wordingData{
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Wording – %s", ws.Name)),
+		Website:    ws,
+		Languages:  languages,
+		Stray:      stray,
+		Limit:      wording.MaxKeys,
+		Used:       used,
+	}
+
+	data.ActiveNav = "website-design"
+	data.CurrentWebsite = ws
+	return web.RenderAdmin(w, h.templates, r, "website_wording", data)
+}
+
+// wordingOf is what the wording screen shows: every word the theme mints, in
+// every language of the website, beside the operator's own; and the operator's
+// words the theme no longer asks for. The screen and the AI tool read it from
+// here, so the two cannot disagree about what counts as untranslated.
+func (h *Handler) wordingOf(ctx context.Context, ws *domain.Website) ([]wordLanguage, []wording.Entry, int, error) {
+	keys, themeWords := h.themeVocabulary(ctx, ws)
+	own, err := h.wording.All(ctx, ws.ID)
+	if err != nil {
+		return nil, nil, 0, err
 	}
 	ownBy := map[string]map[string]string{}
 	for _, e := range own {
@@ -91,13 +115,7 @@ func (h *Handler) HandleWebsiteWording(w http.ResponseWriter, r *http.Request) e
 		known[k] = true
 	}
 
-	data := wordingData{
-		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Wording – %s", ws.Name)),
-		Website:    ws,
-		Limit:      wording.MaxKeys,
-		Used:       len(own),
-	}
-
+	var languages []wordLanguage
 	for _, loc := range websiteLocales(ws) {
 		lang := wordLanguage{Locale: loc, Name: locale.Native(loc)}
 		for _, key := range keys {
@@ -116,18 +134,16 @@ func (h *Handler) HandleWebsiteWording(w http.ResponseWriter, r *http.Request) e
 			}
 			lang.Rows = append(lang.Rows, row)
 		}
-		data.Languages = append(data.Languages, lang)
+		languages = append(languages, lang)
 	}
 
+	var stray []wording.Entry
 	for _, e := range own {
 		if !known[e.Key] {
-			data.Stray = append(data.Stray, e)
+			stray = append(stray, e)
 		}
 	}
-
-	data.ActiveNav = "website-design"
-	data.CurrentWebsite = ws
-	return web.RenderAdmin(w, h.templates, r, "website_wording", data)
+	return languages, stray, len(own), nil
 }
 
 // HandleWebsiteWordingSave takes the screen's form.
@@ -150,7 +166,49 @@ func (h *Handler) HandleWebsiteWordingSave(w http.ResponseWriter, r *http.Reques
 		return h.redirectToWording(w, r, ws.ID)
 	}
 
-	keys, _ := h.themeVocabulary(r, ws)
+	var words []wordInput
+	for name, values := range r.Form {
+		locale, key, ok := splitWordField(name)
+		if !ok {
+			continue
+		}
+		words = append(words, wordInput{Locale: locale, Key: key, Value: values[0]})
+	}
+	res, err := h.saveWords(r.Context(), ws, words)
+	if err != nil {
+		return err
+	}
+
+	if res.Full {
+		web.SetFlashError(h.sm, r.Context(), web.Titlef(r,
+			"Not everything was saved: a website may have at most %d words of its own.",
+			wording.MaxKeys))
+	} else {
+		web.SetFlashSuccess(h.sm, r.Context(), "Wording saved.")
+	}
+	return h.redirectToWording(w, r, ws.ID)
+}
+
+// wordInput is one word as a form box or an assistant hands it in. An empty
+// value gives the word back to the theme.
+type wordInput struct {
+	Locale, Key, Value string
+}
+
+// wordsSaved is what came of saveWords.
+type wordsSaved struct {
+	Saved int
+	// Skipped are the words for a language the website does not publish in,
+	// or that the theme does not ask for.
+	Skipped []wordInput
+	// Full is set when the website reached wording.MaxKeys and a word was
+	// refused for it.
+	Full bool
+}
+
+// saveWords writes the operator's words, for the screen and for the AI tool.
+func (h *Handler) saveWords(ctx context.Context, ws *domain.Website, words []wordInput) (wordsSaved, error) {
+	keys, _ := h.themeVocabulary(ctx, ws)
 	known := map[string]bool{}
 	for _, k := range keys {
 		known[k] = true
@@ -160,26 +218,25 @@ func (h *Handler) HandleWebsiteWordingSave(w http.ResponseWriter, r *http.Reques
 		allowed[l] = true
 	}
 
-	full := false
-	saved := 0
-	for name, values := range r.Form {
-		locale, key, ok := splitWordField(name)
-		// A field for a language the website does not publish in, or for a word
+	var res wordsSaved
+	for _, in := range words {
+		// A word for a language the website does not publish in, or for a word
 		// the theme does not ask for, is not saved. Both mean the form was
 		// built against a different state than the one being saved into —
 		// another tab, another theme — and guessing which would write words
 		// nobody chose.
-		if !ok || !allowed[locale] || !known[key] {
+		if !allowed[in.Locale] || !known[in.Key] {
+			res.Skipped = append(res.Skipped, in)
 			continue
 		}
-		err := h.wording.Set(r.Context(), ws.ID, locale, key, values[0])
+		err := h.wording.Set(ctx, ws.ID, in.Locale, in.Key, in.Value)
 		switch {
 		case err == wording.ErrTooMany:
-			full = true
+			res.Full = true
 		case err != nil:
-			return err
+			return res, err
 		default:
-			saved++
+			res.Saved++
 		}
 	}
 
@@ -187,16 +244,7 @@ func (h *Handler) HandleWebsiteWordingSave(w http.ResponseWriter, r *http.Reques
 	// baked into its FuncMap. Without this the operator saves, reloads the
 	// site, and sees the old word.
 	h.loader.InvalidateTemplateCache(ws.ID)
-
-	if full {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r,
-			"Not everything was saved: a website may have at most %d words of its own.",
-			wording.MaxKeys))
-	} else {
-		web.SetFlashSuccess(h.sm, r.Context(), "Wording saved.")
-	}
-	_ = saved
-	return h.redirectToWording(w, r, ws.ID)
+	return res, nil
 }
 
 func (h *Handler) redirectToWording(w http.ResponseWriter, r *http.Request, id int64) error {
@@ -233,8 +281,8 @@ func splitWordField(name string) (locale, key string, ok bool) {
 
 // themeVocabulary is the words the website's theme mints, and what its own
 // catalogues make of them in each language the site is published in.
-func (h *Handler) themeVocabulary(r *http.Request, ws *domain.Website) ([]string, map[string]map[string]string) {
-	themeFS := h.loader.ActiveThemeFS(r.Context(), ws.ID)
+func (h *Handler) themeVocabulary(ctx context.Context, ws *domain.Website) ([]string, map[string]map[string]string) {
+	themeFS := h.loader.ActiveThemeFS(ctx, ws.ID)
 	if themeFS == nil {
 		return nil, nil
 	}

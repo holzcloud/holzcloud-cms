@@ -187,39 +187,12 @@ func (h *Handler) HandleFieldSave(w http.ResponseWriter, r *http.Request) error 
 	// bent into shape here.
 	def.MaxValues, _ = strconv.Atoi(r.FormValue("max_werte"))
 
-	// A subfield inherits its carrier from the group it stands in, and not from
-	// the form. The group screen is one level down and knows of no snippet —
-	// without these lines the subfield of a group on a snippet would get
-	// snippet_id NULL, and OfSnippet, which asks "WHERE snippet_id = $2", would
-	// hand the group out without its subfields: a group that draws not a single
-	// row on the snippet's form. Pinned from what is stored and not read out of
-	// the body, for the same reason Update pins its carrier — what does not come
-	// out of the form cannot be forged either.
-	if def.ParentID > 0 {
-		parent, gerr := h.fields.Get(r.Context(), websiteID, def.ParentID)
-		if gerr != nil || parent == nil || !parent.IsGroup() {
-			http.NotFound(w, r)
-			return nil
-		}
-		def.SnippetID = parent.SnippetID
-		def.BlockTypeID = parent.BlockTypeID
-	}
-
-	// The hidden input is a courtesy; the body is not. A snippet id that names
-	// another website's snippet must never reach the store, so it is refused
-	// here — before anything is written.
-	if def.SnippetID > 0 && h.snippetOf(r.Context(), websiteID, def.SnippetID) == nil {
+	id, _ := strconv.ParseInt(r.FormValue("id"), 10, 64)
+	_, err = h.saveField(r.Context(), websiteID, id, def)
+	switch {
+	case errors.Is(err, errNoCarrier):
 		http.NotFound(w, r)
 		return nil
-	}
-
-	id, _ := strconv.ParseInt(r.FormValue("id"), 10, 64)
-	if id > 0 {
-		err = h.fields.Update(r.Context(), websiteID, id, def)
-	} else {
-		_, err = h.fields.Create(r.Context(), def)
-	}
-	switch {
 	case errors.Is(err, field.ErrNested):
 		web.SetFlashError(h.sm, r.Context(),
 			"There is no group inside a group — one level, so somebody can still find their way around the form.")
@@ -401,4 +374,47 @@ func fieldPath(websiteID, parentID, blockTypeID, snippetID int64) string {
 		path += "?gruppe=" + strconv.FormatInt(parentID, 10)
 	}
 	return path
+}
+
+// errNoCarrier is a group or a snippet named by a new field that does not
+// exist on this website. The screen answers it with a 404, as it answers every
+// id out of an address that is not the caller's.
+var errNoCarrier = errors.New("there is no such group or snippet on this website")
+
+// saveField creates a field (id 0) or changes one. The screen and the
+// assistant connection both save through it.
+func (h *Handler) saveField(ctx context.Context, websiteID, id int64, def field.Def) (*field.Def, error) {
+	def.WebsiteID = websiteID
+
+	// A subfield inherits its carrier from the group it stands in, and not from
+	// the form. The group screen is one level down and knows of no snippet —
+	// without these lines the subfield of a group on a snippet would get
+	// snippet_id NULL, and OfSnippet, which asks "WHERE snippet_id = $2", would
+	// hand the group out without its subfields: a group that draws not a single
+	// row on the snippet's form. Pinned from what is stored and not read out of
+	// the body, for the same reason Update pins its carrier — what does not come
+	// out of the form cannot be forged either.
+	if def.ParentID > 0 {
+		parent, gerr := h.fields.Get(ctx, websiteID, def.ParentID)
+		if gerr != nil || parent == nil || !parent.IsGroup() {
+			return nil, errNoCarrier
+		}
+		def.SnippetID = parent.SnippetID
+		def.BlockTypeID = parent.BlockTypeID
+	}
+
+	// The hidden input is a courtesy; the body is not. A snippet id that names
+	// another website's snippet must never reach the store, so it is refused
+	// here — before anything is written.
+	if def.SnippetID > 0 && h.snippetOf(ctx, websiteID, def.SnippetID) == nil {
+		return nil, errNoCarrier
+	}
+
+	if id > 0 {
+		if err := h.fields.Update(ctx, websiteID, id, def); err != nil {
+			return nil, err
+		}
+		return h.fields.Get(ctx, websiteID, id)
+	}
+	return h.fields.Create(ctx, def)
 }

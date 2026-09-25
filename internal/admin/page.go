@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -725,10 +726,9 @@ func (h *Handler) HandlePageDelete(w http.ResponseWriter, r *http.Request) error
 		return nil
 	}
 
-	if err := h.pages.TrashPage(r.Context(), pageID); err != nil && !errors.Is(err, page.ErrNotFound) {
+	if err := h.trashPage(r.Context(), websiteID, existing); err != nil {
 		return err
 	}
-	h.emitPageDeleted(websiteID, existing)
 
 	h.LogActivity(r, activity.Entry{
 		Action:     activity.ActionPageDelete,
@@ -953,15 +953,21 @@ func (h *Handler) recordAccess(r *http.Request, pageID int64, values pageValues)
 // refusing the request would tell the editor their work was lost when it was
 // not. The bookkeeping is rebuilt on the next save.
 func (h *Handler) recordMediaUsage(r *http.Request, websiteID, pageID int64, html string) {
+	h.recordMediaUsageCtx(r.Context(), websiteID, pageID, html)
+}
+
+// recordMediaUsageCtx is recordMediaUsage for a caller without a request — the
+// MCP tools, which save pages through the same bookkeeping.
+func (h *Handler) recordMediaUsageCtx(ctx context.Context, websiteID, pageID int64, html string) {
 	if h.mediaStore == nil {
 		return
 	}
-	ids, err := media.ExtractRefs(r.Context(), h.mediaStore, websiteID, html)
+	ids, err := media.ExtractRefs(ctx, h.mediaStore, websiteID, html)
 	if err != nil {
 		slog.Error("extract media references", "err", err, "page", pageID)
 		return
 	}
-	if err := h.mediaStore.ReplaceUsage(r.Context(), pageID, ids); err != nil {
+	if err := h.mediaStore.ReplaceUsage(ctx, pageID, ids); err != nil {
 		slog.Error("record media usage", "err", err, "page", pageID)
 	}
 }
