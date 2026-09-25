@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -73,7 +74,7 @@ func (h *Handler) redirectListData(r *http.Request, websiteID int64, websiteName
 	}
 	data.Redirects = list
 
-	broken, err := h.checkInternalLinks(r, websiteID)
+	broken, err := h.checkInternalLinks(r.Context(), websiteID)
 	if err != nil {
 		return data, err
 	}
@@ -131,15 +132,8 @@ func (h *Handler) handleRedirectAdd(w http.ResponseWriter, r *http.Request, webs
 	}
 	data.CurrentWebsite = ws
 
-	if from == "" || from == "/" {
-		data.Errors.Add("from_path", "Please give the old address.")
-	}
-	if to == "" {
-		data.Errors.Add("to_path", "Please give the target.")
-	}
-	if from != "" && from == to {
-		// Otherwise the browser follows the redirect back to itself forever.
-		data.Errors.Add("to_path", "Target and source must not be the same.")
+	for _, p := range redirectProblems(from, to) {
+		data.Errors.Add(p.field, p.message)
 	}
 	if data.Errors.Any() {
 		return web.RenderFormError(w, h.templates, r, "redirect_list", data)
@@ -155,6 +149,27 @@ func (h *Handler) handleRedirectAdd(w http.ResponseWriter, r *http.Request, webs
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Redirect saved")
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/redirects", websiteID))
+}
+
+// redirectProblem is one reason a redirect is refused, with the form field it
+// belongs to.
+type redirectProblem struct{ field, message string }
+
+// redirectProblems checks two normalised addresses. The screen and the
+// assistant connection both ask it, so the two refuse the same things.
+func redirectProblems(from, to string) []redirectProblem {
+	var out []redirectProblem
+	if from == "" || from == "/" {
+		out = append(out, redirectProblem{"from_path", i18n.N("Please give the old address.")})
+	}
+	if to == "" {
+		out = append(out, redirectProblem{"to_path", i18n.N("Please give the target.")})
+	}
+	if from != "" && from == to {
+		// Otherwise the browser follows the redirect back to itself forever.
+		out = append(out, redirectProblem{"to_path", i18n.N("Target and source must not be the same.")})
+	}
+	return out
 }
 
 // HandleRedirectDelete removes one redirect.
