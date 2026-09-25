@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -305,7 +306,17 @@ func (c Call) Into(v any) error {
 	if len(c.Args) == 0 {
 		return nil
 	}
-	if err := json.Unmarshal(c.Args, v); err != nil {
+	// Strict: a name the tool does not know is refused rather than dropped.
+	// An assistant that writes "media" where the schema says "media_id" used
+	// to get a block without its picture and a success, and had no way to
+	// find its own mistake. The error names the field, and the schema in
+	// tools/list says what it should have been.
+	dec := json.NewDecoder(bytes.NewReader(c.Args))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		if name, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
+			return fmt.Errorf("this tool has no parameter %s; tools/list shows its schema", name)
+		}
 		return fmt.Errorf("the details are not readable: %w", err)
 	}
 	return nil
