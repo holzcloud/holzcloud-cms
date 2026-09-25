@@ -334,7 +334,7 @@ func main() {
 		},
 		Tokens: aiTokens,
 	}))
-	aiServer.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize))
+	aiServer.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize, cfg.MaxTemplateSize))
 
 	pluginStore := plugin.NewStore(database)
 	var pluginManager *plugin.Manager

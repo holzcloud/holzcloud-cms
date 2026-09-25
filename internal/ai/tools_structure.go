@@ -141,7 +141,7 @@ func structureTools(d Deps) []Tool {
 
 var (
 	structWebsiteProp = Property{Type: "integer", Description: "id of the website"}
-	confirmProp = Property{Type: "boolean", Description: "must be true: this cannot be undone, " +
+	confirmProp       = Property{Type: "boolean", Description: "must be true: this cannot be undone, " +
 		"so ask the person before you set it"}
 	directionProp = Property{Type: "string", Description: "up or down, one place",
 		Enum: []string{"up", "down"}}
