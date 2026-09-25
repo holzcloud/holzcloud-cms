@@ -5,8 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -132,40 +130,18 @@ func (h *Handler) handleTemplateUploadPost(w http.ResponseWriter, r *http.Reques
 		return nil
 	}
 
-	slug := slugify(name)
-	// A name with no usable characters would yield an empty slug, making destDir
-	// the templates root — ExtractTemplate would then RemoveAll every installed
-	// template before renaming its temp dir into place.
-	if slug == "" {
-		web.SetFlashError(h.sm, r.Context(), "The template name must contain letters or digits")
+	if _, err := h.installTemplate(r.Context(), name, buf.Bytes()); err != nil {
+		var no templateRefusal
+		if !errors.As(err, &no) {
+			return err
+		}
+		if no.detail != nil {
+			web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Invalid template: %s", no.detail))
+		} else {
+			web.SetFlashError(h.sm, r.Context(), no.key)
+		}
 		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
 		return nil
-	}
-
-	// Check if slug already exists
-	existing, err := h.tmplStore.GetBySlug(r.Context(), slug)
-	if err != nil {
-		return err
-	}
-	if existing != nil {
-		web.SetFlashError(h.sm, r.Context(), "A template with that name already exists")
-		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
-		return nil
-	}
-
-	destDir := filepath.Join(h.cfg.DataDir, "templates", slug)
-	reader := bytes.NewReader(buf.Bytes())
-
-	if err := tmplmgr.ExtractTemplate(reader, int64(buf.Len()), destDir, h.cfg.MaxTemplateSize, h.loader.DefaultFS()); err != nil {
-		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "Invalid template: %s", err))
-		http.Redirect(w, r, "/admin/templates/upload", http.StatusSeeOther)
-		return nil
-	}
-
-	if _, err := h.tmplStore.Create(r.Context(), name, slug); err != nil {
-		// Clean up disk on DB failure
-		_ = os.RemoveAll(destDir)
-		return err
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Template uploaded")
@@ -203,12 +179,9 @@ func (h *Handler) HandleTemplateActivate(w http.ResponseWriter, r *http.Request)
 		return nil
 	}
 
-	if err := h.tmplStore.ActivateForWebsite(r.Context(), websiteID, id); err != nil {
+	if err := h.activateTemplate(r.Context(), websiteID, id); err != nil {
 		return err
 	}
-
-	// Invalidate template cache for this website
-	h.loader.InvalidateTemplateCache(websiteID)
 
 	h.LogActivity(r, activity.Entry{
 		Action:     activity.ActionTemplateActivate,
@@ -269,34 +242,18 @@ func (h *Handler) HandleTemplateDelete(w http.ResponseWriter, r *http.Request) e
 		return nil
 	}
 
-	// Block deletion of built-in templates
-	t, err := h.tmplStore.GetByID(r.Context(), id)
-	if err != nil {
-		return err
-	}
-	if t == nil {
-		http.NotFound(w, r)
-		return nil
-	}
-	if t.IsBuiltin {
-		web.SetFlashError(h.sm, r.Context(), "Built-in templates cannot be deleted.")
+	if err := h.deleteTemplate(r.Context(), id); err != nil {
+		if errors.Is(err, errNoSuchTemplate) {
+			http.NotFound(w, r)
+			return nil
+		}
+		var no templateRefusal
+		if !errors.As(err, &no) {
+			return err
+		}
+		web.SetFlashError(h.sm, r.Context(), no.key)
 		http.Redirect(w, r, "/admin/templates", http.StatusSeeOther)
 		return nil
-	}
-
-	// Check if active anywhere (T-04-08)
-	active, err := h.tmplStore.IsActiveAnywhere(r.Context(), id)
-	if err != nil {
-		return err
-	}
-	if active {
-		web.SetFlashError(h.sm, r.Context(), "A template that is active on a website cannot be deleted. Please activate a different template there first.")
-		http.Redirect(w, r, "/admin/templates", http.StatusSeeOther)
-		return nil
-	}
-
-	if err := h.tmplStore.Delete(r.Context(), id); err != nil {
-		return err
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Template deleted")

@@ -2,10 +2,7 @@ package admin
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -194,20 +191,14 @@ func (h *Handler) handleWebsiteCreatePost(w http.ResponseWriter, r *http.Request
 	}
 
 	description := strings.TrimSpace(r.FormValue("description"))
-	ws, err := h.domains.CreateWebsite(r.Context(), name, description)
+	// Starter content is on by default and can be switched off — an import or a
+	// clone brings its own pages and would otherwise collide on the "home" slug.
+	starter := r.FormValue("starter_content") != "off"
+	ws, err := h.createWebsite(r.Context(), name, description, starter, h.currentUserID(r))
 	if err != nil {
 		return err
 	}
 
-	// Auto-activate default template for new website
-	defaultTmpl, err := h.tmplStore.GetBySlug(r.Context(), "default")
-	if err == nil && defaultTmpl != nil {
-		_ = h.tmplStore.ActivateForWebsite(r.Context(), ws.ID, defaultTmpl.ID)
-	}
-
-	// Starter content is on by default and can be switched off — an import or a
-	// clone brings its own pages and would otherwise collide on the "home" slug.
-	//
 	// i18n.N and not a bare literal: SetFlashSuccess translates its argument,
 	// but the collector reads CALL SITES, and this one hands it a variable. So
 	// the sentence was invisible to the gate — it reported neither open nor
@@ -215,8 +206,7 @@ func (h *Handler) handleWebsiteCreatePost(w http.ResponseWriter, r *http.Request
 	// content off was told "Website angelegt". Exactly the shape CLAUDE.md
 	// warns about for fmt.Sprintf, arrived at by a different road.
 	message := i18n.N("Website created")
-	if r.FormValue("starter_content") != "off" {
-		h.createStarterContent(r.Context(), ws.ID, h.currentUserID(r))
+	if starter {
 		message = starterContentSummary(r)
 	}
 
@@ -297,22 +287,9 @@ func (h *Handler) handleWebsiteEditPost(w http.ResponseWriter, r *http.Request, 
 		return nil
 	}
 
-	description := strings.TrimSpace(r.FormValue("description"))
-	active := r.FormValue("active") == "on" || r.FormValue("active") == "1"
-
-	if err := h.domains.UpdateWebsite(r.Context(), id, name, description, active); err != nil {
+	if err := h.saveWebsite(r.Context(), id, r.FormValue); err != nil {
 		return err
 	}
-	if err := h.domains.UpdateSettings(r.Context(), id, settingsFromRequest(r)); err != nil {
-		return err
-	}
-	// The resolver caches the whole Website struct per host, including its
-	// active flag and name. Without this, deactivating or renaming a site has no
-	// effect on the public site until the process restarts.
-	h.resolver.InvalidateCache()
-	// The date helpers are baked into the parsed template set, so a language or
-	// time-zone change has to drop it too.
-	h.loader.InvalidateTemplateCache(id)
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Website saved")
 	redirect := fmt.Sprintf("/admin/websites/%d", id)
@@ -332,19 +309,8 @@ func (h *Handler) HandleWebsiteDelete(w http.ResponseWriter, r *http.Request) er
 		return nil
 	}
 
-	if err := h.domains.DeleteWebsite(r.Context(), id); err != nil {
+	if err := h.deleteWebsite(r.Context(), id); err != nil {
 		return err
-	}
-	h.resolver.InvalidateCache()
-
-	// The media rows go with the website through ON DELETE CASCADE, but the
-	// files behind them do not. Without this the uploads of every deleted site
-	// stay on the SD card forever, unreachable and uncountable.
-	mediaDir := filepath.Join(h.cfg.DataDir, "media", strconv.FormatInt(id, 10))
-	if err := os.RemoveAll(mediaDir); err != nil {
-		// The website is already gone; failing the request now would suggest it
-		// was not deleted. Log it so the leftover can be cleaned up by hand.
-		slog.Error("remove media directory of deleted website", "err", err, "dir", mediaDir)
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Website deleted")
@@ -544,11 +510,9 @@ func (h *Handler) HandleWebsiteDesignActivate(w http.ResponseWriter, r *http.Req
 		return nil
 	}
 
-	if err := h.tmplStore.ActivateForWebsite(r.Context(), id, templateID); err != nil {
+	if err := h.activateTemplate(r.Context(), id, templateID); err != nil {
 		return err
 	}
-
-	h.loader.InvalidateTemplateCache(id)
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Template activated")
 	redirect := fmt.Sprintf("/admin/websites/%d/design", id)
@@ -578,25 +542,16 @@ func (h *Handler) HandleWebsiteTokens(w http.ResponseWriter, r *http.Request) er
 	// "Reset" is its own button rather than six emptied fields: clearing
 	// a colour input is something browsers make surprisingly hard.
 	if r.FormValue("reset") != "" {
-		if err := h.domains.UpdateDesignTokens(r.Context(), websiteID, domain.DesignTokens{Radius: -1}); err != nil {
+		if err := h.resetDesign(r.Context(), websiteID); err != nil {
 			return err
 		}
-		h.invalidateWebsiteCaches(websiteID)
 		web.SetFlashSuccess(h.sm, r.Context(), "Custom colours removed — the template applies again")
 		return h.redirect(w, r, redirect)
 	}
 
-	// Sanitize drops anything the CSS could not use, so a mistyped value falls
-	// back to the theme instead of losing the settings that were right.
-	tokens := tokensFromForm(r.FormValue)
-
-	if err := h.domains.UpdateDesignTokens(r.Context(), websiteID, domain.DesignTokens{
-		Ink: tokens.Ink, Paper: tokens.Paper, Brand: tokens.Brand,
-		Font: tokens.Font, Measure: tokens.Measure, Radius: tokens.Radius,
-	}); err != nil {
+	if _, err := h.saveDesign(r.Context(), websiteID, r.FormValue); err != nil {
 		return err
 	}
-	h.invalidateWebsiteCaches(websiteID)
 
 	h.LogActivity(r, activity.Entry{
 		Action:     activity.ActionDesignSave,

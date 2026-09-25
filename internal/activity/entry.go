@@ -79,3 +79,17 @@ const (
 
 	ActionActivityPurge = "activity.purge"
 )
+
+// The website-level changes an AI key can make (v2.7). The screens that make
+// the same changes did not log them before; a key has no face in the admin, so
+// for it the log is the only trace.
+const (
+	ActionWebsiteCreate  = "website.create"
+	ActionWebsiteUpdate  = "website.update"
+	ActionWebsiteDelete  = "website.delete"
+	ActionDomainPrimary  = "domain.primary"
+	ActionTemplateUpload = "template.upload"
+	ActionTemplateDelete = "template.delete"
+	ActionDesignReset    = "design.reset"
+	ActionWordingSave    = "wording.save"
+)
