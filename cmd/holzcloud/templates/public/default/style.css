@@ -589,6 +589,16 @@
     padding-block-end: var(--space-3);
   }
 
+  /* Der Kopf klebt oben. Ein aufgeklapptes Menü, das höher ist als der
+     Bildschirm, liess sich sonst nicht zu Ende sehen: ein Wischen scrollte
+     die Seite dahinter. Offen wird der Kopf darum selbst zum
+     Bildlaufbereich, nie höher als der sichtbare Bildschirm. */
+  .nav-switch:checked + .site-header {
+    max-block-size: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .site-nav ul {
     list-style: none;
     padding: 0;
@@ -658,6 +668,13 @@
       display: block;
       flex: none;
       padding-block-end: 0;
+    }
+
+    /* Breit steht das Menü offen in der Leiste; Untermenüs schweben dort
+       und dürfen nicht abgeschnitten werden. */
+    .nav-switch:checked + .site-header {
+      max-block-size: none;
+      overflow: visible;
     }
 
     .site-nav > ul {
