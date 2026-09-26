@@ -64,6 +64,13 @@ und nennt die fehlende Variable. Die Anleitung für Authentik steht in
 Datei ersetzt werden; bis dahin wird die Anmeldung über den Anbieter abgelehnt,
 das Passwort funktioniert weiter. Keine Datenbankänderung.
 
+## 2.8.4 — 2026-09-26
+
+**Bild und Text läuft im Theme *holzcloud* über die ganze Breite.** Seit 2.8.3
+bekommt das Bild drei Fünftel des Bausteins, aber der Baustein selbst stand
+noch in der Textspalte von 78 Zeichen, und rechts davon blieb ein Drittel der
+Seite leer. Jetzt reicht er wie eine Galerie bis an den rechten Rand.
+
 ## 2.8.3 — 2026-09-26
 
 **Die Themes *holzcloud* und *weide* zeigen wieder ihr eigenes Favicon.** Beide

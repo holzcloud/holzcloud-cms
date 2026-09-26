@@ -1231,7 +1231,10 @@ main:focus { outline: none; }
  * ein Bildschirmfoto ist in der Hälfte zu klein, um etwas darauf zu erkennen.
  * Das Bild bekommt deshalb drei Fünftel, der Text den Rest, und die Zeilen
  * stehen mit Luft untereinander, damit jede als eigene Vorstellung liest. */
-.page-content > .hc-bildtext { margin-block: var(--hc-space-8); }
+.page-content > .hc-bildtext {
+  grid-column: text-start / breit-ende;
+  margin-block: var(--hc-space-8);
+}
 @media (min-width: 45em) {
   .hc-bildtext { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: clamp(var(--hc-space-5), 4vw, var(--hc-space-8)); }
   .hc-bildtext--rechts { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
