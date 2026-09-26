@@ -438,6 +438,107 @@ passkey stage in front of the Holzcloud application in Authentik. The same
 dependency is stated inside the admin, on *My account* and on the user list, so
 whoever administers the installation reads it there without opening this file.
 
+## Single sign-on (OpenID Connect)
+
+The second way to sign in through an identity provider, beside forward
+authentication above, and the simpler one to set up: no outpost, no Caddy
+configuration, no shared secret. The sign-in form gets a second button,
+*Sign in with Authentik* (or whatever `HOLZCLOUD_OIDC_NAME` says), and the
+password form stays exactly as it is — it is the way back in when the provider
+is down.
+
+It works with Authentik, Keycloak, Zitadel and any other provider that speaks
+OpenID Connect, with one condition that is this program's and not the
+provider's: **this server never talks to the provider.** Not at sign-in, not to
+fetch keys, not ever. The provider hands the browser a signed ID token and the
+browser posts it back (`response_type=id_token`, `response_mode=form_post`);
+the server checks the signature with a key you put on disk once. So the
+provider has to allow that flow for the application — most do by default — and
+when it rotates its signing key, you replace the file. Until you do, sign-ins
+through the provider are refused and the password form still works.
+
+### Authentik, step by step
+
+1. **Applications → Providers → Create → OAuth2/OpenID Provider.**
+   Client type *Confidential*. Redirect URI, strict:
+   `https://cms.example.org/admin/oidc/callback`. **Signing key:** pick a
+   certificate (the self-signed one Authentik ships is fine). That makes the
+   tokens RS256, which is what you want.
+2. **Applications → Applications → Create**, with that provider. Bind the users
+   or groups that may enter.
+3. **Download the signing key once**, from your own machine:
+
+   ```bash
+   curl -fsS https://auth.example.org/application/o/<slug>/jwks/ \
+     | sudo tee /opt/holzcloud/oidc-keys.json >/dev/null
+   sudo chown holzcloud: /opt/holzcloud/oidc-keys.json
+   ```
+
+   This is the step that replaces a runtime request: the file is read when
+   the process starts, and nothing is fetched afterwards.
+4. **The environment**, in the systemd unit or its environment file:
+
+   ```bash
+   HOLZCLOUD_OIDC_ENABLED=true
+   HOLZCLOUD_OIDC_NAME=Authentik
+   HOLZCLOUD_OIDC_ISSUER=https://auth.example.org/application/o/<slug>/
+   HOLZCLOUD_OIDC_AUTHORIZE_URL=https://auth.example.org/application/o/authorize/
+   HOLZCLOUD_OIDC_CLIENT_ID=<the client ID Authentik shows>
+   HOLZCLOUD_OIDC_KEY_FILE=/opt/holzcloud/oidc-keys.json
+   HOLZCLOUD_OIDC_REDIRECT_URL=https://cms.example.org/admin/oidc/callback
+   ```
+
+   The issuer is compared character for character, trailing slash included —
+   copy it from the provider's overview page (*OpenID Configuration Issuer*).
+5. Restart. The start-up log names `oidc_enabled`, the issuer and the number
+   of keys it read; a key file it cannot use stops the process with the reason.
+
+If you left the signing key empty in step 1, Authentik signs with the client
+secret instead (HS256). That works too — set `HOLZCLOUD_OIDC_CLIENT_SECRET`
+instead of `HOLZCLOUD_OIDC_KEY_FILE`, never both — but whoever knows that
+secret can then sign in as anybody, so it has to be treated like a password,
+and it is compared nowhere but in this process's environment.
+
+### Groups, roles and new accounts
+
+The same four settings forward authentication uses, meaning the same thing:
+`HOLZCLOUD_SSO_ADMIN_GROUP`, `HOLZCLOUD_SSO_WEBSITE_GROUPS`,
+`HOLZCLOUD_SSO_PROVISION` and `HOLZCLOUD_SSO_DEFAULT_WEBSITE`. They describe what
+your provider's groups mean here, and that does not depend on how the groups
+arrived. The groups come from the `groups` claim, which Authentik sends in the
+`profile` scope; `HOLZCLOUD_OIDC_GROUPS_CLAIM` names another.
+
+An account is linked by the `preferred_username` claim — the Authentik
+username — and not by `sub`, for the reason the forward-auth section gives for
+`X-authentik-username`. So an account already linked for forward
+authentication (`holzcloud user sso`) is the same account here, and switching
+from one way to the other changes nobody. `HOLZCLOUD_OIDC_USERNAME_CLAIM` names
+another claim for a provider that has no usernames.
+
+### What is different from forward authentication
+
+- **Rights are read at the sign-in, not on every click.** A forward-auth
+  session is re-checked against the provider on every request; an OpenID
+  Connect session has nothing arriving on later requests to re-check. A group
+  removed at the provider takes effect at the person's next sign-in, and a
+  session lasts at most a day (four hours idle). To take somebody's access away
+  at once, end their sessions under *Users*.
+- **Signing out here does not sign out at the provider.** The next click on
+  *Sign in with Authentik* signs the person straight back in, without a
+  password, while their Authentik session lasts.
+- **The second factor is the provider's**, exactly as for forward
+  authentication: see the section above. Put an authenticator or passkey stage
+  in front of the application in Authentik.
+- **Switching it off ends every session it made**, for the same reason.
+
+### How it was tested
+
+Against a stand-in provider on another origin, in a real browser — the post
+back is cross-site, which is the part a unit test cannot show — and with the
+token checks covered on their own (`internal/oidc`). What a stand-in cannot
+prove is your Authentik's configuration: sign in once with a test account
+before you rely on it.
+
 ## First Run
 
 1. Ensure the service is running: `sudo systemctl status holzcloud`

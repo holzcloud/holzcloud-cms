@@ -51,6 +51,19 @@ const (
 	// request vouched for the same identity has its rights re-applied, so a
 	// demotion at the identity provider reaches a session that is still open.
 	SessionKeySSOUsername = "sso_username"
+
+	// SessionKeyViaOIDC records that the session was established through
+	// OpenID Connect: the identity provider signed a token for this person and
+	// the browser brought it here. It is the counterpart of SessionKeyViaSSO
+	// for the second way in, set in one place (admin's OIDC callback, after
+	// completeLogin), removed by completeLogin on every other sign-in, and
+	// read together with its own switch — the second factor is not asked for
+	// again, and switching OpenID Connect off ends every session it made.
+	//
+	// Unlike a forward-auth session it is not re-checked on every request:
+	// nothing arrives on later requests to re-check it against. Its rights are
+	// the ones the groups gave at the sign-in, until the session ends.
+	SessionKeyViaOIDC = "via_oidc"
 )
 
 // DestroyUserSessions ends every stored session belonging to userID, except the

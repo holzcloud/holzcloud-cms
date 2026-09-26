@@ -61,6 +61,10 @@ New website**, where you give the site a domain.
   WXR importer, and `holzcloud export` for a static copy any web host can serve
 - **Users** with admin and editor roles, per-person website and publishing
   rights, Argon2id hashing and compulsory two-factor for administrators
+- **Sign-in through your organisation** — Authentik by forward auth, or any
+  OpenID Connect provider (Authentik, Keycloak, Zitadel …) without the server
+  ever contacting it; groups decide who is an administrator and which websites
+  an editor may enter
 - **An MCP endpoint** so you can point your own AI assistant at the running CMS
   and do everything the admin can, without ever signing in to the web interface —
   with a key of one of three levels (`read`, `content`, `admin`), or by simply

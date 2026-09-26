@@ -26,6 +26,12 @@
             </div>
             <button type="submit" class="btn btn--primary btn--full" hx-disabled-elt="this">{{t "Sign in"}}</button>
         </form>
+        {{if .OIDCName}}
+        <!-- A link and not a form: the CSP says form-action 'self', and the
+             answer to this request is a redirect to the identity provider. -->
+        <p class="login-or"><span>{{t "or"}}</span></p>
+        <a href="/admin/oidc/start" class="btn btn--full">{{tf "Sign in with %s" .OIDCName}}</a>
+        {{end}}
     </div>
 </body>
 </html>{{end}}

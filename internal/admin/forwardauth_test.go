@@ -502,33 +502,33 @@ func TestIsASCII(t *testing.T) {
 // and the property — that a token fixed before the sign-in is not the token
 // after it — is gone. A test that reads the source is the only kind that fails.
 
-// forwardAuthSignInBody parses this package and returns the function under
-// test together with the file set positions belong to.
-func forwardAuthSignInBody(t *testing.T) (*ast.FuncDecl, *token.FileSet) {
+// funcBody parses one file of this package and returns the named function
+// together with the file set positions belong to.
+func funcBody(t *testing.T, file, name string) (*ast.FuncDecl, *token.FileSet) {
 	t.Helper()
 	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "forwardauth.go", nil, 0)
+	f, err := parser.ParseFile(fset, file, nil, 0)
 	if err != nil {
-		t.Fatalf("parse forwardauth.go: %v", err)
+		t.Fatalf("parse %s: %v", file, err)
 	}
-	for _, decl := range file.Decls {
+	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
-		if ok && fn.Name.Name == "ForwardAuthSignIn" {
+		if ok && fn.Name.Name == name {
 			return fn, fset
 		}
 	}
-	t.Fatal("ForwardAuthSignIn not found in forwardauth.go")
+	t.Fatalf("%s not found in %s", name, file)
 	return nil, nil
 }
 
-func TestForwardAuthRotatesTheTokenBeforeItWritesAnything(t *testing.T) {
-	fn, fset := forwardAuthSignInBody(t)
+type callPos struct {
+	name string
+	pos  token.Pos
+}
 
-	var renew []token.Pos
-	var writes []struct {
-		name string
-		pos  token.Pos
-	}
+// callsIn lists the method calls named in names, in source order.
+func callsIn(fn *ast.FuncDecl, names ...string) []callPos {
+	var out []callPos
 	ast.Inspect(fn, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
@@ -538,20 +538,33 @@ func TestForwardAuthRotatesTheTokenBeforeItWritesAnything(t *testing.T) {
 		if !ok {
 			return true
 		}
-		switch sel.Sel.Name {
-		case "RenewToken":
-			renew = append(renew, sel.Sel.Pos())
-		case "Put", "completeLogin":
-			writes = append(writes, struct {
-				name string
-				pos  token.Pos
-			}{sel.Sel.Name, sel.Sel.Pos()})
+		for _, want := range names {
+			if sel.Sel.Name == want {
+				out = append(out, callPos{want, sel.Sel.Pos()})
+			}
 		}
 		return true
 	})
+	return out
+}
 
+// The rotation lives in signInIdentity since OpenID Connect became its second
+// caller, so the property is asserted twice: inside signInIdentity the token is
+// rotated before anything is written, and in each caller nothing is put into
+// the session before signInIdentity has run.
+func TestForwardAuthRotatesTheTokenBeforeItWritesAnything(t *testing.T) {
+	fn, fset := funcBody(t, "forwardauth.go", "signInIdentity")
+	var renew []token.Pos
+	var writes []callPos
+	for _, c := range callsIn(fn, "RenewToken", "Put", "completeLogin") {
+		if c.name == "RenewToken" {
+			renew = append(renew, c.pos)
+		} else {
+			writes = append(writes, c)
+		}
+	}
 	if len(renew) != 1 {
-		t.Fatalf("RenewToken is called %d times in ForwardAuthSignIn; want exactly 1", len(renew))
+		t.Fatalf("RenewToken is called %d times in signInIdentity; want exactly 1", len(renew))
 	}
 	if len(writes) == 0 {
 		t.Fatal("nothing is written to the session at all; the sign-in cannot be happening")
@@ -562,6 +575,34 @@ func TestForwardAuthRotatesTheTokenBeforeItWritesAnything(t *testing.T) {
 				"the token must be rotated before anything goes into the session, or whoever fixed "+
 				"the session id before the sign-in still owns it after",
 				w.name, fset.Position(w.pos), fset.Position(renew[0]))
+		}
+	}
+
+	for _, caller := range []struct{ file, name string }{
+		{"forwardauth.go", "ForwardAuthSignIn"},
+		{"oidc.go", "HandleOIDCCallback"},
+	} {
+		fn, fset := funcBody(t, caller.file, caller.name)
+		var signIn token.Pos
+		var puts []callPos
+		for _, c := range callsIn(fn, "signInIdentity", "Put", "RenewToken", "completeLogin") {
+			switch c.name {
+			case "signInIdentity":
+				signIn = c.pos
+			case "RenewToken", "completeLogin":
+				t.Errorf("%s calls %s itself; the sign-in goes through signInIdentity", caller.name, c.name)
+			default:
+				puts = append(puts, c)
+			}
+		}
+		if signIn == token.NoPos {
+			t.Fatalf("%s does not call signInIdentity", caller.name)
+		}
+		for _, p := range puts {
+			if p.pos < signIn {
+				t.Errorf("%s puts into the session at %s, before signInIdentity rotated the token",
+					caller.name, fset.Position(p.pos))
+			}
 		}
 	}
 }

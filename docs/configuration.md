@@ -45,6 +45,30 @@ is a refusal and not a warning, and which minimum version of Caddy the
 arrangement needs — is in [`deploy/DEPLOY.md`](../deploy/DEPLOY.md), and is not repeated
 here.
 
+### OpenID Connect
+
+The second way in through an identity provider, off unless
+`HOLZCLOUD_OIDC_ENABLED` is true. The server never contacts the provider; the
+provider's public key is read from a file at start-up.
+
+| Variable | Default | Description |
+|---|---|---|
+| `HOLZCLOUD_OIDC_ENABLED` | `false` | Master switch |
+| `HOLZCLOUD_OIDC_NAME` | `OpenID Connect` | What the button on the sign-in form names |
+| `HOLZCLOUD_OIDC_ISSUER` | — | Compared exactly with the token's `iss` |
+| `HOLZCLOUD_OIDC_AUTHORIZE_URL` | — | The provider's authorization endpoint (https) |
+| `HOLZCLOUD_OIDC_CLIENT_ID` | — | Compared with the token's audience |
+| `HOLZCLOUD_OIDC_KEY_FILE` | — | The provider's JWKS document or PEM public key (RS256, ES256) |
+| `HOLZCLOUD_OIDC_CLIENT_SECRET` | — | Instead of the key file, for HS256; at least 32 characters |
+| `HOLZCLOUD_OIDC_REDIRECT_URL` | — | `https://<host>/admin/oidc/callback`, as registered at the provider |
+| `HOLZCLOUD_OIDC_SCOPES` | `openid email profile` | Must contain `openid` |
+| `HOLZCLOUD_OIDC_USERNAME_CLAIM` | `preferred_username` | The claim an account is linked by |
+| `HOLZCLOUD_OIDC_GROUPS_CLAIM` | `groups` | The claim the groups are read from |
+
+The group, role and provisioning settings of the section above apply to it as
+well. Setting it up with Authentik, and what it does differently from forward
+authentication, is in [`deploy/DEPLOY.md`](../deploy/DEPLOY.md#single-sign-on-openid-connect).
+
 ## E-mail
 
 Sending is off as long as `HOLZCLOUD_SMTP_HOST` and `HOLZCLOUD_SMTP_FROM` are

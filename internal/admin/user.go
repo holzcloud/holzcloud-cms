@@ -75,6 +75,9 @@ type userFormData struct {
 	// so, so an operator watched their own change undo itself with nothing to
 	// read.
 	RightsComeFromTheDirectory bool
+	// RightsOnlyAtSignIn says the groups are re-read at a sign-in and not on
+	// every request: OpenID Connect without forward authentication.
+	RightsOnlyAtSignIn bool
 }
 
 // rightsComeFromTheDirectory reports whether this account's website assignment
@@ -84,7 +87,7 @@ type userFormData struct {
 // named the groups that grant a website, and this account is linked to an
 // identity. Any one of them false and what is ticked here is what stands.
 func (h *Handler) rightsComeFromTheDirectory(r *http.Request, id int64) bool {
-	if h.cfg == nil || !h.cfg.SSOEnabled || len(h.cfg.SSOWebsiteGroups) == 0 || h.users == nil {
+	if h.cfg == nil || (!h.cfg.SSOEnabled && !h.cfg.OIDCEnabled) || len(h.cfg.SSOWebsiteGroups) == 0 || h.users == nil {
 		return false
 	}
 	name, err := h.users.LinkedIdentity(r.Context(), id)
@@ -212,7 +215,7 @@ func (h *Handler) HandleUserList(w http.ResponseWriter, r *http.Request) error {
 		LayoutData:    web.NewLayoutData(r, h.sm, "Users"),
 		Users:         users,
 		SessionUserID: h.sm.GetInt64(r.Context(), auth.SessionKeyUserID),
-		SSOEnabled:    h.cfg != nil && h.cfg.SSOEnabled,
+		SSOEnabled:    h.cfg != nil && (h.cfg.SSOEnabled || h.cfg.OIDCEnabled),
 	}
 	data.ActiveNav = "users"
 	return web.RenderAdmin(w, h.templates, r, "user_list", data)
@@ -319,6 +322,10 @@ func (h *Handler) HandleUserEdit(w http.ResponseWriter, r *http.Request) error {
 		// Limited with no website left: the one state the ticks cannot show.
 		NothingTickedMeansNone:     rights.Limited() && len(rights.Websites) == 0,
 		RightsComeFromTheDirectory: h.rightsComeFromTheDirectory(r, user.ID),
+		// With forward authentication the groups are re-read on every request;
+		// through OpenID Connect only at a sign-in, and the hint has to say
+		// which of the two it is.
+		RightsOnlyAtSignIn: h.cfg != nil && !h.cfg.SSOEnabled && h.cfg.OIDCEnabled,
 	}
 	data.ActiveNav = "users"
 	return web.RenderAdmin(w, h.templates, r, "user_form", data)

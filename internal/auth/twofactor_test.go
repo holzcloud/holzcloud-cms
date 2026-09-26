@@ -44,7 +44,7 @@ func serveSecondFactorWith(t *testing.T, sm *scs.SessionManager, lookup SecondFa
 		if viaSSO {
 			sm.Put(r.Context(), SessionKeyViaSSO, true)
 		}
-		RequireSecondFactor(sm, lookup, ssoEnabled)(inner).ServeHTTP(w, r)
+		RequireSecondFactor(sm, lookup, ssoEnabled, false)(inner).ServeHTTP(w, r)
 	}))
 
 	req := httptest.NewRequest("GET", path, nil)
@@ -227,4 +227,28 @@ func TestRequireSecondFactorIgnoresARequestWithNoSession(t *testing.T) {
 			t.Errorf("status = %d, reached = %v; want 200 and true — RequireSecondFactor sits inside RequireAuth and decides nothing on its own", rec.Code, *reached)
 		}
 	})
+}
+
+// An OpenID Connect session is the second way in through the identity
+// provider, and it is asked with its own switch: through while OpenID Connect
+// is on, to the setup page once it is off.
+func TestRequireSecondFactorTreatsAnOIDCSessionByItsOwnSwitch(t *testing.T) {
+	for _, tc := range []struct {
+		oidcEnabled bool
+		want        bool
+	}{{true, true}, {false, false}} {
+		sm := testSessionManager()
+		reached := false
+		inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached = true })
+		chain := sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sm.Put(r.Context(), SessionKeyUserID, int64(7))
+			sm.Put(r.Context(), SessionKeyViaOIDC, true)
+			RequireSecondFactor(sm, lookupSecondFactor("admin", false), false, tc.oidcEnabled)(inner).ServeHTTP(w, r)
+		}))
+		rec := httptest.NewRecorder()
+		chain.ServeHTTP(rec, httptest.NewRequest("GET", "/admin/", nil))
+		if reached != tc.want {
+			t.Errorf("oidc switch %v: reached %v (%d %s)", tc.oidcEnabled, reached, rec.Code, rec.Header().Get("Location"))
+		}
+	}
 }
