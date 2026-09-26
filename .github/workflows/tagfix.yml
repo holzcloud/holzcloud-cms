@@ -1,0 +1,35 @@
+# One-off: points every release tag at its rewritten commit after the history
+# rewrite, then deletes this branch. Pushes made with GITHUB_TOKEN start no
+# other workflow, so no image is rebuilt.
+name: tagfix
+on:
+  push:
+    branches: [ tagfix ]
+permissions:
+  contents: write
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Recreate tags
+        run: |
+          set -eu
+          git fetch --force origin '+refs/heads/*:refs/remotes/origin/*'
+          refs=()
+          while read -r name sha kind email date tz who; do
+            git cat-file -e "$sha^{commit}"
+            if [ "$kind" = tag ]; then
+              GIT_COMMITTER_NAME="$who" GIT_COMMITTER_EMAIL="$email" GIT_COMMITTER_DATE="$date $tz" \
+                git tag -f -a --cleanup=verbatim -F ".tagfix/$name.msg" "$name" "$sha"
+            else
+              git tag -f "$name" "$sha"
+            fi
+            refs+=("+refs/tags/$name:refs/tags/$name")
+          done < .tagfix/list.txt
+          git push origin "${refs[@]}"
+          git ls-remote --tags origin
+      - name: Delete this branch
+        run: git push origin --delete tagfix
