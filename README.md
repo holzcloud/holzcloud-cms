@@ -4,8 +4,8 @@
 
 A self-hosted CMS for a small server: **one Go binary, one SQLite file, many
 websites**. Requests are routed to a site by their `Host` header, content is
-written in Markdown or in a block editor, and pages are served by
-server-rendered Go templates.
+written in Markdown with images, galleries and forms dropped in between, and
+pages are served by server-rendered Go templates.
 
 Nothing is loaded from a third party while the application runs — no CDN, no web
 fonts, no analytics, no embeds. That is what makes a `default-src 'self'`
@@ -32,8 +32,11 @@ New website**, where you give the site a domain.
 
 - **Multiple websites, multiple domains** — one instance, routed by `Host`
 - **Pages and posts in Markdown**, rendered with goldmark and sanitised with bluemonday
-- **A block editor** — nine built-in kinds (text, image, image-and-text, gallery,
-  cards, quotation, call to action, video, rule), and any number of your own
+- **Elements between the text** — **+ Element** drops an image, a gallery, cards,
+  a quotation, a call to action, a video or a block kind of your own into the
+  page; nine are built in, and any number of your own can be added
+- **A live preview beside the editor**, with settings and versions in tabs
+  next to it
 - **Fields of your own** — sixteen kinds of input, including repeatable groups,
   sections, conditions and references to other pages of the same site
 - **Content kinds of your own** — beyond *page* and *post*: product, event,
@@ -44,33 +47,59 @@ New website**, where you give the site a domain.
   language lives under its prefix (`/fr/contact`), with `hreflang` and a language picker
 - **A translated admin** — German, English, French, Italian, Spanish, plus Swiss
   variants; a further language is a JSON file in a directory, no rebuild
-- **Media** with magic-byte validation, cropping and **camera data stripped on upload**
+- **One media library with albums** — upload several files at once, filter
+  what is unused or has no description, crop, set a focal point; **camera data
+  is stripped on upload** and every file is checked by its magic bytes
+- **A shop** — products with stock, orders with invoice or payment in advance
+  (Payrexx optional), and an overview that says what is waiting: a payment
+  overdue, an order to send, a product running out
 - **Search, snippets, scheduling, redirects** and a record of the addresses
   visitors asked for and did not find
 - **SEO** — `sitemap.xml`, `robots.txt` and schema.org JSON-LD with address,
   opening hours and telephone number
-- **Export and import** — a whole website as one readable archive, plus a
-  WordPress WXR importer
+- **Export and import** — a whole website as one readable archive, a WordPress
+  WXR importer, and `holzcloud export` for a static copy any web host can serve
 - **Users** with admin and editor roles, per-person website and publishing
   rights, Argon2id hashing and compulsory two-factor for administrators
 - **An MCP endpoint** so you can point your own AI assistant at the running CMS
-  and do everything the admin can, without ever signing in to the web interface
+  and do everything the admin can, without ever signing in to the web interface —
+  with a key of one of three levels (`read`, `content`, `admin`), or by simply
+  adding the address in Claude or ChatGPT and agreeing to it once (OAuth)
 - **Plugins** as separate Go modules — contact form, farm-shop orders, search,
   404 log, year token
 
 ## In the admin
 
-htmx is progressive enhancement here, not a requirement: every state-changing
-action is an ordinary form, and the whole admin works with JavaScript switched
-off.
+Six places in a slim rail — start, pages, media, shop, design, settings — each
+with a number when something there waits for you: pages awaiting review, orders
+not yet dealt with, images without a description. htmx is progressive
+enhancement, not a requirement: every state-changing action is an ordinary
+form, and the whole admin works with JavaScript switched off.
 
 ![The page list](docs/screenshots/admin-pages.png)
 
-A page can be written in Markdown or built from blocks. Besides the nine
-built-in block kinds, each website defines its own — here a *Repair step* with a
-heading, instructions, a photograph and a switch the theme reads as a CSS class.
+A page is written in Markdown, with a preview of the real theme beside it.
+**+ Element** puts an image, a gallery, cards or one of the website's own block
+kinds — here a *Repair step* — between two paragraphs; the text so far becomes
+the first section and the element follows it.
 
-![The block editor](docs/screenshots/block-editor.png)
+![The editor](docs/screenshots/editor.png)
+
+All files of a website are in one library. Albums are collections in it, not a
+second place to keep pictures: an image can be in several, and a gallery can
+show an album instead of a hand-picked list.
+
+![The media library](docs/screenshots/media-library.png)
+
+Design sits between "pick one of eight templates" and "maintain a template of
+your own": a handful of validated values that every built-in template picks up,
+set beside a live preview that switches between desktop and phone.
+
+![Design beside its preview](docs/screenshots/design.png)
+
+The shop opens on what is to be done, not on a list of orders.
+
+![The shop overview](docs/screenshots/shop-overview.png)
 
 Whatever else belongs on a page of *this* website is defined under **Fields**. A
 field applies to pages, to posts, to both, or to exactly one of your own content
@@ -79,11 +108,6 @@ filled in as many times as there are rows; a reference points at another page of
 the site and follows it when it is renamed.
 
 ![Fields of a website](docs/screenshots/custom-fields.png)
-
-Design sits between "pick one of eight templates" and "maintain a template of
-your own": a handful of validated values that every built-in template picks up.
-
-![Design and templates](docs/screenshots/design-templates.png)
 
 ## Configuration
 
@@ -131,11 +155,14 @@ internal/
   block/  field/          The block editor and the websites' own fields
   admin/  public/         Admin handlers and the public site
   template/  tmplmgr/     Template loading and template-archive upload
-  media/  menu/  bundle/  Media, menus, export and import
+  media/  album/  menu/    Media library, albums, menus
+  shop/  payrexx/         Products, orders, payment
+  bundle/  export/  wxr/  Website archives, static export, WordPress import
+  ai/                     The MCP endpoint, keys and OAuth
   i18n/                   Admin translations, on disk and embedded
 plugins/                  Bundled plugins, each its own Go module
 sites/                    Complete example websites as readable source
-tools/                    mkbundle, i18n
+tools/                    mkbundle, i18n and the other checks CI runs
 ```
 
 | Component | Choice | Why |
@@ -159,7 +186,7 @@ tools/                    mkbundle, i18n
 | [Multilingual](docs/multilingual.md) | Site languages, admin languages, regional variants |
 | [Security](docs/security.md) | The threat model, two-factor, rights, why there is no cookie banner |
 | [Import and export](docs/import-export.md) | Website bundles, the WordPress importer |
-| [AI access](docs/ai-access.md) | The MCP endpoint and its tools |
+| [AI access](docs/ai-access.md) | The MCP endpoint, key levels and its tools |
 | [Deployment](docs/deployment.md) | Building, running, backing up, versioning |
 | [The mark](docs/brand/README.md) | The logo, its variants and the rules for using it |
 
