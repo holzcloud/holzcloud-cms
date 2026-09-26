@@ -52,6 +52,45 @@ website, `-days <n>` lets it expire.
 Issuing a key in the admin is one of the actions that ask for the password again
 — see [security](security.md#the-password-again-before-the-irreversible).
 
+## Claude and ChatGPT: signing in with OAuth
+
+The hosted assistants — Claude in the browser and the app, ChatGPT — do not
+take a pasted key. They connect to an MCP server only through OAuth, and since
+2.8 this server speaks it:
+
+1. In the assistant, add a custom connector with the address `https://<host>/ai`.
+   Leave *OAuth Client ID* and *OAuth Client Secret* empty.
+2. The assistant is refused once, reads `/.well-known/oauth-protected-resource`
+   and `/.well-known/oauth-authorization-server`, registers itself at
+   `/oauth/register` and opens `/oauth/authorize` in the browser.
+3. That address leads to the consent page, `/admin/ai/verbinden`. Sign in if
+   needed (the page is remembered through password and second factor), confirm
+   the password, and choose the website and the rights. *Connect* sends the
+   browser back to the assistant.
+4. The assistant exchanges the code at `/oauth/token` for a `content` or
+   `read` key and uses it like any other.
+
+What it receives is a row in the key list like a key issued by hand, marked
+*signed in itself*. The key lasts an hour and the assistant renews it with a
+refresh secret that is replaced on every use; revoking the row ends both.
+A connection unused for ninety days no longer renews.
+
+Only what these clients need is implemented: dynamic client registration
+(RFC 7591), the authorization code grant with PKCE — `S256` only — refresh
+tokens, and the metadata documents (RFC 8414, RFC 9728). There is no implicit,
+password or client-credentials grant: each of them would be a way to a key
+without an administrator saying yes on a screen. An `admin` key is never issued
+this way.
+
+Registration is open, which is what dynamic registration means. A registered
+client can do nothing until somebody agrees; registrations that never led to a
+key are removed after a day, and at most 200 may wait at once. A redirect
+address must be `https`, or `http` on the loopback interface for a desktop
+client, and is compared as a whole string.
+
+The consent page names the host the browser returns to, and that is what to
+check: the client's name is whatever it chose to call itself.
+
 ## Tools
 
 Since 2.7 the connection can do everything the admin can — about 140 tools. An

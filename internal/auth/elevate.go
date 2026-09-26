@@ -128,3 +128,37 @@ func SafeReturn(raw string) string {
 	}
 	return out
 }
+
+// SessionKeyReturnTo is the admin address somebody asked for before they were
+// signed in, so that signing in leads there rather than to the start page.
+//
+// It matters most for the OAuth consent page: an assistant sends the operator
+// to it with a dozen parameters, and a sign-in that forgets them ends the
+// connection attempt without saying why.
+const SessionKeyReturnTo = "return_to"
+
+// RememberReturn records where a signed-out GET request wanted to go. Only a
+// page is worth returning to; a POST cannot be repeated from its address.
+func RememberReturn(sm *scs.SessionManager, r *http.Request) {
+	if r.Method != http.MethodGet {
+		return
+	}
+	target := SafeReturn(r.URL.RequestURI())
+	if target == "/admin/" {
+		return
+	}
+	sm.Put(r.Context(), SessionKeyReturnTo, target)
+}
+
+// PopReturn is where a completed sign-in goes: the remembered address, once,
+// or the start page.
+func PopReturn(sm *scs.SessionManager, ctx context.Context) string {
+	return SafeReturn(sm.PopString(ctx, SessionKeyReturnTo))
+}
+
+// ReturnPending reports whether the remembered address begins with prefix,
+// without using it up.
+func ReturnPending(sm *scs.SessionManager, ctx context.Context, prefix string) bool {
+	v := sm.GetString(ctx, SessionKeyReturnTo)
+	return v != "" && len(v) >= len(prefix) && v[:len(prefix)] == prefix
+}

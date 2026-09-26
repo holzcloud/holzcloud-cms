@@ -335,6 +335,12 @@ func main() {
 		Tokens: aiTokens,
 	}))
 	aiServer.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize, cfg.MaxTemplateSize))
+	// OAuth, for the assistants that do not take a pasted key — Claude and
+	// ChatGPT in the browser. They receive the same kind of key, on a consent
+	// page in the admin.
+	aiOAuth := &ai.OAuth{Store: aiTokens, Secure: cfg.Secure}
+	aiServer.SetOAuth(aiOAuth)
+	adminHandler.SetOAuth(aiOAuth)
 
 	pluginStore := plugin.NewStore(database)
 	var pluginManager *plugin.Manager
@@ -442,6 +448,7 @@ func main() {
 		pluginRT:        pluginRT,
 		mailQueue:       mailQueue,
 		aiServer:        aiServer,
+		aiOAuth:         aiOAuth,
 		templateLoader:  templateLoader,
 		publicDefaultFS: publicDefaultFS,
 		readiness:       readiness,
@@ -773,6 +780,9 @@ type routerDeps struct {
 	// aiServer answers MCP under /ai. Nil would mean no connection for an
 	// assistant, and then the address does not exist.
 	aiServer *ai.Server
+	// aiOAuth signs assistants in that do not take a pasted key. Nil leaves
+	// the OAuth addresses out.
+	aiOAuth *ai.OAuth
 }
 
 // pluginNavLinks turns the manager's entries into what the sidebar shows.
@@ -876,6 +886,23 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// hole CSRF otherwise protects against does not exist here.
 	if d.aiServer != nil {
 		mux.Handle("/ai", d.aiServer)
+	}
+	// Signing an assistant in with OAuth. The same reasoning as for /ai: no
+	// session and no CSRF, because nothing here acts on a browser's cookie. The
+	// one step that does — the operator saying yes — is the consent page in
+	// the admin, behind everything the admin is behind.
+	//
+	// Two addresses for each metadata document: clients differ in whether they
+	// append the resource's path, and a 404 on the one they try ends the
+	// sign-in without a word.
+	if o := d.aiOAuth; o != nil {
+		mux.HandleFunc("GET /.well-known/oauth-protected-resource", o.HandleResourceMetadata)
+		mux.HandleFunc("GET /.well-known/oauth-protected-resource/ai", o.HandleResourceMetadata)
+		mux.HandleFunc("GET /.well-known/oauth-authorization-server", o.HandleServerMetadata)
+		mux.HandleFunc("GET /.well-known/oauth-authorization-server/ai", o.HandleServerMetadata)
+		mux.HandleFunc("GET /oauth/authorize", o.HandleAuthorize)
+		mux.HandleFunc("POST /oauth/register", o.HandleRegister)
+		mux.HandleFunc("POST /oauth/token", o.HandleToken)
 	}
 
 	// Admin routes — public (CSRF but no auth)
@@ -1116,6 +1143,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// and not an editorial decision.
 	adminProtectedMux.Handle("GET /admin/ai", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIKeys))))
 	adminProtectedMux.Handle("POST /admin/ai/keys", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIKeyCreate)))))
+	// Where an assistant that signs itself in asks for a key. Admins only, and
+	// the answer behind the password prompt, like issuing a key by hand.
+	adminProtectedMux.Handle("GET /admin/ai/verbinden", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIConnect))))
+	adminProtectedMux.Handle("POST /admin/ai/verbinden", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIConnect)))))
 	adminProtectedMux.Handle("POST /admin/ai/keys/{id}/revoke", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIKeyRevoke))))
 	adminProtectedMux.Handle("GET /admin/plugins", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginList))))
 	adminProtectedMux.Handle("POST /admin/plugins/upload", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginUpload))))
@@ -1318,7 +1349,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	if cfg.PayrexxInstance != "" && cfg.PayrexxSecret != "" {
 		paymentOrigins = append(paymentOrigins, web.PaymentFormAction)
 	}
-	handler := web.SecureHeadersWith(web.PublicCSP(paymentOrigins...))(sm.LoadAndSave(mux))
+	handler := web.SecureHeadersWith(web.PublicCSP(paymentOrigins...))(sm.LoadAndSave(admin.OAuthWindow(sm)(mux)))
 	handler = web.Recoverer(handler)
 	handler = web.AccessLog(d.clientIP)(handler)
 	handler = web.RequestID(d.clientIP)(handler)

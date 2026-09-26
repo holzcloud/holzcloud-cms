@@ -19,6 +19,7 @@ import (
 	"github.com/alexedwards/scs/v2/memstore"
 
 	"github.com/holzcloud/holzcloud-cms/internal/admin"
+	"github.com/holzcloud/holzcloud-cms/internal/ai"
 	"github.com/holzcloud/holzcloud-cms/internal/album"
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/config"
@@ -55,6 +56,8 @@ type routerTweaks struct {
 	// recorder here: setupGuard sits inside every middleware newRouter wraps
 	// around the mux, so what it observes is the far side of the chain.
 	setupGuard func(http.Handler) http.Handler
+	// oauth wires the AI keys and the OAuth endpoints, as main does.
+	oauth bool
 }
 
 func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionManager, *db.DB) {
@@ -111,6 +114,14 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	// on a 404 that has nothing to do with who may enter.
 	adminHandler.SetAlbumStore(album.NewStore(database))
 
+	var aiOAuth *ai.OAuth
+	if tw.oauth {
+		tokens := ai.NewStore(database)
+		adminHandler.SetAITokens(tokens)
+		aiOAuth = &ai.OAuth{Store: tokens}
+		adminHandler.SetOAuth(aiOAuth)
+	}
+
 	passthrough := func(next http.Handler) http.Handler { return next }
 	guard := tw.setupGuard
 	if guard == nil {
@@ -133,6 +144,7 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 		unlockSigner:    sharelink.New([]byte("unlock")),
 		templateLoader:  loader,
 		publicDefaultFS: publicDefaultFS,
+		aiOAuth:         aiOAuth,
 	})
 	if err != nil {
 		t.Fatalf("newRouter: %v", err)
@@ -400,6 +412,8 @@ var adminOnlyRoutes = []route{
 	{pattern: "GET /admin/ai"},
 	{pattern: "POST /admin/ai/keys"},
 	{pattern: "POST /admin/ai/keys/{id}/revoke"},
+	{pattern: "GET /admin/ai/verbinden"},
+	{pattern: "POST /admin/ai/verbinden"},
 	{pattern: "GET /admin/plugins"},
 	{pattern: "POST /admin/plugins/upload"},
 	{pattern: "POST /admin/plugins/{id}/enable"},

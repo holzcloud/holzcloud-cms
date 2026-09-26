@@ -117,3 +117,29 @@ func AllowSameOriginFrame(w http.ResponseWriter) {
 	h.Set("Content-Security-Policy", strings.Replace(adminCSP, "frame-ancestors 'none'", "frame-ancestors 'self'", 1))
 	h.Set("X-Frame-Options", "SAMEORIGIN")
 }
+
+// AllowFormActionTo lets the form on this one response be answered with a
+// redirect to origin. The OAuth consent page needs it: agreeing sends the
+// browser back to the assistant that asked, and browsers check a redirect
+// after a form submission against form-action — without this the operator
+// presses "Connect" and nothing visible happens.
+//
+// Only the one origin, only on the one page, and only an origin the client
+// registered beforehand.
+func AllowFormActionTo(w http.ResponseWriter, origin string) {
+	if origin == "" || strings.ContainsAny(origin, " ;,'\"") {
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Security-Policy", strings.Replace(h.Get("Content-Security-Policy"),
+		"form-action 'self'", "form-action 'self' "+origin, 1))
+}
+
+// AllowOpener keeps the window that opened this page able to hear back from
+// it. An assistant's web app opens its sign-in in a new window and waits for
+// that window to come back; Cross-Origin-Opener-Policy: same-origin cuts the
+// connection the moment a page with it is shown, and the app then waits
+// forever. Set on the pages of the OAuth sign-in and nowhere else.
+func AllowOpener(w http.ResponseWriter) {
+	w.Header().Set("Cross-Origin-Opener-Policy", "unsafe-none")
+}
