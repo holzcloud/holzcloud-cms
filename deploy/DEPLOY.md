@@ -714,6 +714,13 @@ There are three ways to ask for one, and all three end in the same workflow
 (`.github/workflows/release.yml`), which runs the whole test suite before it
 publishes anything: a tag on broken code must not become a published release.
 
+The release page says what is new: its text is the `CHANGELOG.md` section for
+that version, with GitHub's list of commits below it. So the changelog entry is
+written before the release is asked for, not after. A push to the `release`
+branch at a version that is already out publishes nothing and moves no tag; it
+only rewrites that release's text from the changelog, which is how a corrected
+entry reaches the page.
+
 **1. The button.** *Actions → Release → Run workflow*. With no inputs it
 releases the version the top of `CHANGELOG.md` names, at the head of the default
 branch. That heading is written when a milestone closes, so in normal use the
