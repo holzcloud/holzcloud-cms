@@ -11,6 +11,53 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.8 — 2026-09-26
+
+**Claude und ChatGPT verbinden sich jetzt selbst.** Wer das CMS in Claude (im
+Browser oder in der App) oder in ChatGPT als MCP-Server einträgt, gibt nur noch
+die Adresse `https://…/ai` an — Client-ID und Secret bleiben leer. Der Assistent
+meldet sich über OAuth an, der Browser landet auf einer Seite der Verwaltung,
+und dort wird zugestimmt. Bisher verlangten diese Assistenten eine Client-ID,
+schickten dann auf eine Anmeldeseite, und die gab es nicht: 404.
+
+### Neu
+
+**Die Zustimmungsseite** unter *KI-Zugang* nennt, welcher Assistent fragt und
+wohin der Browser danach zurückgeht, und lässt wählen, für welche Website die
+Verbindung gilt und ob sie nur lesen oder auch schreiben darf. Sie ist nur für
+Administratoren, und die Zustimmung verlangt das Passwort noch einmal — wie das
+Ausstellen eines Schlüssels von Hand. Verwalten (Benutzer, Plugins, Schlüssel)
+wird auf diesem Weg nie vergeben.
+
+**Die Verbindung ist ein gewöhnlicher Schlüssel.** Sie steht in der Liste unter
+*KI-Zugang*, gekennzeichnet als „selbst angemeldet“, und endet, wenn man sie
+dort zurückzieht. Der Schlüssel selbst gilt eine Stunde und wird vom
+Assistenten erneuert; jedes Erneuern ersetzt auch das Erneuerungsgeheimnis, so
+dass eine Kopie davon genau einmal funktioniert. Eine Verbindung, die neunzig
+Tage lang nicht benutzt wurde, erneuert sich nicht mehr.
+
+**Nach der Anmeldung geht es dorthin, wohin man wollte.** Wer eine Adresse der
+Verwaltung aufruft, ohne angemeldet zu sein, landet nach Passwort und zweitem
+Faktor wieder dort und nicht auf der Startseite. Für die Zustimmungsseite ist
+das nötig — sie trägt die ganze Anfrage des Assistenten in ihrer Adresse —, und
+für jeden Link auf eine Seite der Verwaltung angenehm.
+
+### Für Betreiber
+
+Umgesetzt ist, was diese Assistenten brauchen, und nicht mehr: dynamische
+Registrierung (RFC 7591), der Autorisierungscode mit PKCE (nur S256),
+Erneuerung mit wechselndem Geheimnis und die beiden Metadaten-Dokumente unter
+`/.well-known/` (RFC 8414, RFC 9728). Kein Weg führt an der Zustimmungsseite
+vorbei. Registrieren kann sich jeder Client, das ist der Sinn der Sache; ohne
+Zustimmung kann er nichts, und Registrierungen ohne Schlüssel verfallen nach
+einem Tag. Die Adresse für die Rückkehr muss `https` sein (oder `http` auf
+`localhost`) und wird ganz verglichen, nie als Anfang.
+
+Wanderung 00058 legt zwei Tabellen an und ergänzt `ai_tokens` um drei Spalten;
+sie ist umkehrbar. Wer sich nur über den Ausweisdienst anmeldet und kein
+Passwort hat, kommt wie beim Ausstellen eines Schlüssels nicht über die
+Passwortabfrage — der Weg darum herum steht in `deploy/DEPLOY.md`.
+
 ## 2.7 — 2026-09-25
 
 **Alles, was die Verwaltung kann, geht jetzt auch über die KI-Verbindung.** Wer

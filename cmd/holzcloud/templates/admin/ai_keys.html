@@ -29,6 +29,9 @@
         <dt>{{t "Authentication"}}</dt><dd><code>Authorization: Bearer &lt;Schlüssel&gt;</code></dd>
     </dl>
     <p class="text-muted">
+        {{t "Claude and ChatGPT in the browser or the app need no key from here: enter only the address, leave client ID and secret empty, and they sign in themselves. You then agree on a page of this administration and choose what the connection may do."}}
+    </p>
+    <p class="text-muted">
         {{t "New pages always start as drafts. Nothing is published unless you ask for it explicitly — and everything the assistant writes goes through the same checks as text written in the administration: the same address rules, the same versions, editable and revertible by hand afterwards."}}
     </p>
 </div>
@@ -96,11 +99,11 @@
             {{$data := .}}
             {{range .Keys}}
             <tr>
-                <td>{{.Name}}</td>
+                <td>{{.Name}}{{if .ViaOAuth}} <span class="badge badge--draft">{{t "signed in itself"}}</span>{{end}}</td>
                 <td>{{if .WebsiteID}}{{$data.WebsiteName .WebsiteID}}{{else}}<span class="text-muted">{{t "all"}}</span>{{end}}</td>
                 <td>{{if .Admin}}<span class="badge badge--warning">{{t "Admin"}}</span>{{else if .CanWrite}}<span class="badge badge--primary">{{t "read and write"}}</span>{{else}}<span class="badge badge--draft">{{t "read only"}}</span>{{end}}</td>
                 <td>{{if .LastUsedAt}}{{.LastUsedAt.Format "02.01.2006 15:04"}}{{else}}<span class="text-muted">{{t "never"}}</span>{{end}}</td>
-                <td>{{if .ExpiresAt}}{{.ExpiresAt.Format "02.01.2006"}}{{else}}<span class="text-muted">–</span>{{end}}</td>
+                <td>{{if .ViaOAuth}}<span class="text-muted">{{t "renews itself"}}</span>{{else if .ExpiresAt}}{{.ExpiresAt.Format "02.01.2006"}}{{else}}<span class="text-muted">–</span>{{end}}</td>
                 <td class="table-actions">
                     <form method="POST" action="/admin/ai/keys/{{.ID}}/revoke">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$data.CSRFToken}}">

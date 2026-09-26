@@ -116,7 +116,13 @@ type Server struct {
 	// maxBytes bounds one request; MaxRequestBytes unless SetMaxRequestBytes
 	// raised it for uploads.
 	maxBytes int64
+	// oauth, when set, is named in every refusal, so that a client which knows
+	// only this address can find out how to sign in.
+	oauth *OAuth
 }
+
+// SetOAuth points refused clients at the OAuth metadata.
+func (s *Server) SetOAuth(o *OAuth) { s.oauth = o }
 
 // SetMaxRequestBytes lets a request carry a file. A file travels as base64,
 // which is a third larger than the file, so the caller passes the largest
@@ -148,19 +154,27 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// that a form cannot set.
 	w.Header().Set("Cache-Control", "no-store")
 
-	if r.Method != http.MethodPost {
-		// GET is what a client tries when it expects a server-sent-event
-		// stream. Saying so beats a 404 that looks like a wrong address.
-		http.Error(w, "Diese Adresse nimmt nur POST mit JSON-RPC entgegen.", http.StatusMethodNotAllowed)
-		return
-	}
-
+	// The key first, whatever the method: a client that opens with GET and no
+	// key must learn where to sign in, not that GET is the wrong verb.
 	scope, err := s.authenticate(r)
 	if err != nil {
 		// The same answer for a missing and for a wrong key: telling the
 		// difference is telling someone whether they guessed a real one.
-		w.Header().Set("WWW-Authenticate", `Bearer realm="Holzcloud"`)
+		challenge := `Bearer realm="Holzcloud"`
+		if s.oauth != nil {
+			// RFC 9728 §5.1: where a client learns who issues keys for this
+			// address. Claude and ChatGPT start their sign-in from here.
+			challenge += `, resource_metadata="` + s.oauth.ResourceMetadataURL(r) + `"`
+		}
+		w.Header().Set("WWW-Authenticate", challenge)
 		http.Error(w, "Zugang verweigert", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		// GET is what a client tries when it expects a server-sent-event
+		// stream. Saying so beats a 404 that looks like a wrong address.
+		http.Error(w, "Diese Adresse nimmt nur POST mit JSON-RPC entgegen.", http.StatusMethodNotAllowed)
 		return
 	}
 

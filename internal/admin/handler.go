@@ -69,6 +69,9 @@ type Handler struct {
 	// the screen does not exist, which is what a build without it should look
 	// like from the outside.
 	aiTokens *ai.Store
+	// oauth hands keys to assistants that sign in themselves. Nil means the
+	// consent page does not exist.
+	oauth *ai.OAuth
 	// activityStore is the record of what was done here. Nil means nothing is
 	// recorded and the screen is not there — see LogActivity.
 	activityStore *activity.Store
