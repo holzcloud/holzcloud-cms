@@ -127,10 +127,23 @@ jobs:
         # can offend against that. A run reacting to a tag somebody pushed finds
         # that tag on the remote every time, and refusing there would mean
         # refusing the oldest way into this file.
+        #
+        # A push to the release branch at a version that is already out is not
+        # a mistake worth a red run, though: it is how a change to this file,
+        # or to the changelog text, reaches the release page. That run moves
+        # nothing and builds nothing; it only rewrites the page's text from
+        # the CHANGELOG. A dispatch or a named tag still refuses.
+        existing=no
         if [ "$minting" = yes ] && gh api "repos/$REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
-          echo "::error::$tag is already released. A published tag is never moved."
-          exit 1
+          if [ "${GITHUB_EVENT_NAME}" = push ] && [ -z "${INPUT_TAG:-}" ]; then
+            existing=yes
+            echo "::notice::$tag is already released; only its notes are refreshed from the CHANGELOG."
+          else
+            echo "::error::$tag is already released. A published tag is never moved."
+            exit 1
+          fi
         fi
+        echo "existing=$existing" >> "$GITHUB_OUTPUT"
 
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
         echo "commit=$commit" >> "$GITHUB_OUTPUT"
@@ -140,6 +153,7 @@ jobs:
     # Only a dispatch that named another commit moves; everything else is
     # already standing on the right one.
     - name: Stand on the commit being released
+      if: steps.what.outputs.existing != 'yes'
       run: git checkout --detach "${{ steps.what.outputs.commit }}"
 
     # The tag, locally, so that `git describe --tags` in the build below names
@@ -150,9 +164,11 @@ jobs:
     # Lightweight, because this one never leaves the runner — an annotated tag
     # would want a committer identity configured for a tag nobody will ever see.
     - name: Name the tag locally, for the version in the binary
+      if: steps.what.outputs.existing != 'yes'
       run: git tag "${{ steps.what.outputs.tag }}"
 
     - name: Set up Go
+      if: steps.what.outputs.existing != 'yes'
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version-file: go.mod
@@ -165,13 +181,16 @@ jobs:
     # CI has had this step since the modules were committed; the release had
     # not, and the release is the one that ships them.
     - name: Verify the committed plugin modules are current
+      if: steps.what.outputs.existing != 'yes'
       run: go run ./tools/wasm -check
 
     # A tag on broken code must not become a published release.
     - name: Test
+      if: steps.what.outputs.existing != 'yes'
       run: go test ./...
 
     - name: Build linux/amd64
+      if: steps.what.outputs.existing != 'yes'
       env:
         GOOS: linux
         GOARCH: amd64
@@ -182,9 +201,30 @@ jobs:
         sha256sum holzcloud-linux-amd64 > holzcloud-linux-amd64.sha256
         cat holzcloud-linux-amd64.sha256
 
+    # What is new, for the release page: the CHANGELOG's own section for this
+    # version, from its heading to the next one. Until v2.9 the page carried
+    # only GitHub's generated "Full Changelog" link, which says which commits
+    # and nothing about what they changed; the sentences an operator needs are
+    # already written, one file over.
+    - name: Write the release notes from the CHANGELOG
+      env:
+        TAG: ${{ steps.what.outputs.tag }}
+      run: |
+        set -euo pipefail
+        version="${TAG#v}"
+        awk -v v="$version" '
+          /^## / { if (found) exit; if ($2 == v) { found = 1; next } }
+          found { print }
+        ' CHANGELOG.md > release-notes.md
+        if [ ! -s release-notes.md ]; then
+          echo "::warning::CHANGELOG.md has no section for $version; the release page will carry only the generated notes."
+        fi
+        cat release-notes.md
+
     # The runner's preinstalled gh CLI, not a third-party release action: one
     # less unpinned stranger in the publishing path.
     - name: Publish the release
+      if: steps.what.outputs.existing != 'yes'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG: ${{ steps.what.outputs.tag }}
@@ -204,9 +244,24 @@ jobs:
         gh release create "${TAG}" \
           --target "${TARGET}" \
           --title "${TAG}" \
+          --notes-file release-notes.md \
           --generate-notes \
           holzcloud-linux-amd64 \
           holzcloud-linux-amd64.sha256
+
+    # The version is out already: its page gets the CHANGELOG's text and
+    # nothing else changes — not the tag, not the files attached to it.
+    - name: Refresh the notes of a release that is already out
+      if: steps.what.outputs.existing == 'yes'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ steps.what.outputs.tag }}
+      run: |
+        if [ ! -s release-notes.md ]; then
+          echo "::error::CHANGELOG.md has no section for $TAG; the notes were left as they are."
+          exit 1
+        fi
+        gh release edit "$TAG" --notes-file release-notes.md
 
     # The image comes from image.yml, which listens for tag pushes. A tag this
     # job mints is not one: the Releases API creates it with this workflow's
@@ -220,7 +275,7 @@ jobs:
     # that mint one dispatch it - a second run on the same ref would only
     # cancel the first through image.yml's concurrency group.
     - name: Build the image for this tag
-      if: steps.what.outputs.minting == 'yes'
+      if: steps.what.outputs.minting == 'yes' && steps.what.outputs.existing != 'yes'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG: ${{ steps.what.outputs.tag }}
