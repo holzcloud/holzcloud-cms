@@ -11,6 +11,13 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.9.1 — 2026-09-26
+
+**Bild und Text läuft im Theme *holzcloud* über die ganze Breite.** Seit 2.8.3
+bekommt das Bild drei Fünftel des Bausteins, aber der Baustein selbst stand
+noch in der Textspalte von 78 Zeichen, und rechts davon blieb ein Drittel der
+Seite leer. Jetzt reicht er wie eine Galerie bis an den rechten Rand.
+
 ## 2.9 — 2026-09-26
 
 **Anmelden über OpenID Connect.** Neben der Anmeldung über Authentik mit
@@ -63,13 +70,6 @@ und nennt die fehlende Variable. Die Anleitung für Authentik steht in
 `docs/security.md`. Wechselt der Anbieter seinen Signaturschlüssel, muss die
 Datei ersetzt werden; bis dahin wird die Anmeldung über den Anbieter abgelehnt,
 das Passwort funktioniert weiter. Keine Datenbankänderung.
-
-## 2.8.4 — 2026-09-26
-
-**Bild und Text läuft im Theme *holzcloud* über die ganze Breite.** Seit 2.8.3
-bekommt das Bild drei Fünftel des Bausteins, aber der Baustein selbst stand
-noch in der Textspalte von 78 Zeichen, und rechts davon blieb ein Drittel der
-Seite leer. Jetzt reicht er wie eine Galerie bis an den rechten Rand.
 
 ## 2.8.3 — 2026-09-26
 
