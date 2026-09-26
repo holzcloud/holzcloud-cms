@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/holzcloud/holzcloud-cms/internal/oidc"
 )
 
 type Config struct {
@@ -164,7 +167,68 @@ type Config struct {
 	// open redirect out of the administration, and a same-origin path is also
 	// what keeps adminCSP's `form-action 'self'` sufficient.
 	SSOSignOutPath string
+
+	// Single sign-on through OpenID Connect, the second way in beside the
+	// forward-auth proxy above. Every field below is inert while OIDCEnabled is
+	// false.
+	//
+	// The flow is the one that asks nobody: the provider hands the browser a
+	// signed ID token, the browser posts it back, and this program checks the
+	// signature against a key it already has (internal/oidc says why). So there
+	// is no discovery document, no token endpoint and no JWKS address here —
+	// only the address the browser is sent to, and the key.
+	//
+	// The group settings above — SSOAdminGroup, SSOWebsiteGroups,
+	// SSOProvision, SSODefaultWebsite — apply to this way in as well. They
+	// describe what the identity provider's groups mean in this installation,
+	// and that does not depend on how the groups arrived.
+	OIDCEnabled bool
+	// OIDCName is what the button on the sign-in form names, such as Authentik.
+	OIDCName string
+	// OIDCIssuer is compared with the token's iss claim, character for
+	// character.
+	OIDCIssuer string
+	// OIDCAuthorizeURL is the provider's authorization endpoint, where the
+	// browser is sent.
+	OIDCAuthorizeURL string
+	// OIDCClientID is compared with the token's audience.
+	OIDCClientID string
+	// OIDCClientSecret checks a token the provider signed with the client
+	// secret (HS256). Environment only, like every other secret here.
+	OIDCClientSecret string
+	// OIDCKeys are the provider's public keys, read at start-up from the file
+	// HOLZCLOUD_OIDC_KEY_FILE names: a JWKS document or PEM. Exactly one of
+	// OIDCKeys and OIDCClientSecret is set.
+	OIDCKeys []oidc.Key
+	// OIDCKeyFile is where OIDCKeys came from, for the startup log.
+	OIDCKeyFile string
+	// OIDCRedirectURL is where the provider sends the browser back. It is
+	// registered at the provider and has to match there exactly, so it is
+	// named rather than assembled from a request's Host header.
+	OIDCRedirectURL string
+	// OIDCScopes are asked for; groups usually travel in profile.
+	OIDCScopes string
+	// OIDCUsernameClaim is the claim the account is linked by.
+	//
+	// preferred_username by default and deliberately not sub, for the reason
+	// forward authentication already gives for X-authentik-username over
+	// X-authentik-uid: the subject's shape depends on the provider's subject
+	// mode, and a changed mode would silently make every person a stranger. It
+	// also means an account linked for forward authentication is the same
+	// account here.
+	OIDCUsernameClaim string
+	// OIDCGroupsClaim is the claim the groups are read from.
+	OIDCGroupsClaim string
 }
+
+// OIDCCallbackPath is the path the provider returns to. OIDCRedirectURL has to
+// end in it.
+const OIDCCallbackPath = "/admin/oidc/callback"
+
+// minOIDCSecretLength is the shortest client secret an HS256 token is checked
+// with. Whoever knows the secret can mint any identity, so a short one is a
+// short way into the administration.
+const minOIDCSecretLength = 32
 
 // defaultTrustedProxies covers the documented deployment, where Caddy
 // terminates TLS on the same host and proxies to localhost.
@@ -196,6 +260,18 @@ const (
 	envSSOProvision      = "HOLZCLOUD_SSO_PROVISION"
 	envSSODefaultWebsite = "HOLZCLOUD_SSO_DEFAULT_WEBSITE"
 	envSSOSignOutPath    = "HOLZCLOUD_SSO_SIGN_OUT_PATH"
+
+	envOIDCEnabled       = "HOLZCLOUD_OIDC_ENABLED"
+	envOIDCName          = "HOLZCLOUD_OIDC_NAME"
+	envOIDCIssuer        = "HOLZCLOUD_OIDC_ISSUER"
+	envOIDCAuthorizeURL  = "HOLZCLOUD_OIDC_AUTHORIZE_URL"
+	envOIDCClientID      = "HOLZCLOUD_OIDC_CLIENT_ID"
+	envOIDCClientSecret  = "HOLZCLOUD_OIDC_CLIENT_SECRET"
+	envOIDCKeyFile       = "HOLZCLOUD_OIDC_KEY_FILE"
+	envOIDCRedirectURL   = "HOLZCLOUD_OIDC_REDIRECT_URL"
+	envOIDCScopes        = "HOLZCLOUD_OIDC_SCOPES"
+	envOIDCUsernameClaim = "HOLZCLOUD_OIDC_USERNAME_CLAIM"
+	envOIDCGroupsClaim   = "HOLZCLOUD_OIDC_GROUPS_CLAIM"
 )
 
 // Load reads the configuration from the environment.
@@ -339,10 +415,12 @@ func Load() (Config, error) {
 				envSSOSecret, len(cfg.SSOSecret), minSSOSecretLength))
 		}
 	}
-	if cfg.SSOProvision && !cfg.SSOEnabled {
+	loadOIDC(&cfg, &errs)
+
+	if cfg.SSOProvision && !cfg.SSOEnabled && !cfg.OIDCEnabled {
 		errs = append(errs, fmt.Errorf(
-			"%s is on but %s is off: creating accounts with no way to sign in is a setting nobody meant",
-			envSSOProvision, envSSOEnabled))
+			"%s is on but %s and %s are off: creating accounts with no way to sign in is a setting nobody meant",
+			envSSOProvision, envSSOEnabled, envOIDCEnabled))
 	}
 	// The refusal the whole block exists for. A provisioned account has no rows
 	// in user_websites by construction, and NewWebsiteAccessLookup reads "no
@@ -364,6 +442,108 @@ func Load() (Config, error) {
 	// legitimate one and must keep loading.
 
 	return cfg, errors.Join(errs...)
+}
+
+// loadOIDC reads and checks the OpenID Connect block. Every refusal appends,
+// like the rest of Load.
+func loadOIDC(cfg *Config, errs *[]error) {
+	cfg.OIDCEnabled = envBool(envOIDCEnabled, false, errs)
+	cfg.OIDCName = strings.TrimSpace(getEnv(envOIDCName, "OpenID Connect"))
+	cfg.OIDCIssuer = strings.TrimSpace(getEnv(envOIDCIssuer, ""))
+	cfg.OIDCAuthorizeURL = strings.TrimSpace(getEnv(envOIDCAuthorizeURL, ""))
+	cfg.OIDCClientID = strings.TrimSpace(getEnv(envOIDCClientID, ""))
+	cfg.OIDCClientSecret = strings.TrimSpace(getEnv(envOIDCClientSecret, ""))
+	cfg.OIDCKeyFile = strings.TrimSpace(getEnv(envOIDCKeyFile, ""))
+	cfg.OIDCRedirectURL = strings.TrimSpace(getEnv(envOIDCRedirectURL, ""))
+	cfg.OIDCScopes = strings.Join(strings.Fields(getEnv(envOIDCScopes, "openid email profile")), " ")
+	cfg.OIDCUsernameClaim = strings.TrimSpace(getEnv(envOIDCUsernameClaim, "preferred_username"))
+	cfg.OIDCGroupsClaim = strings.TrimSpace(getEnv(envOIDCGroupsClaim, "groups"))
+	if !cfg.OIDCEnabled {
+		return
+	}
+
+	for _, req := range []struct{ name, value string }{
+		{envOIDCIssuer, cfg.OIDCIssuer},
+		{envOIDCAuthorizeURL, cfg.OIDCAuthorizeURL},
+		{envOIDCClientID, cfg.OIDCClientID},
+		{envOIDCRedirectURL, cfg.OIDCRedirectURL},
+		{envOIDCUsernameClaim, cfg.OIDCUsernameClaim},
+		{envOIDCGroupsClaim, cfg.OIDCGroupsClaim},
+	} {
+		if req.value == "" {
+			*errs = append(*errs, fmt.Errorf("%s is on but %s is empty", envOIDCEnabled, req.name))
+		}
+	}
+	if cfg.OIDCName == "" {
+		cfg.OIDCName = "OpenID Connect"
+	}
+	if !strings.Contains(" "+cfg.OIDCScopes+" ", " openid ") {
+		*errs = append(*errs, fmt.Errorf("%s: %q lacks openid, without which there is no ID token",
+			envOIDCScopes, cfg.OIDCScopes))
+	}
+	if cfg.OIDCAuthorizeURL != "" && !secureURL(cfg.OIDCAuthorizeURL) {
+		*errs = append(*errs, fmt.Errorf(
+			"%s: %q must be an https address (http only on localhost)", envOIDCAuthorizeURL, cfg.OIDCAuthorizeURL))
+	}
+	if cfg.OIDCRedirectURL != "" {
+		u, err := url.Parse(cfg.OIDCRedirectURL)
+		if err != nil || !secureURL(cfg.OIDCRedirectURL) || u.Path != OIDCCallbackPath || u.RawQuery != "" || u.Fragment != "" {
+			*errs = append(*errs, fmt.Errorf(
+				"%s: %q must be an https address ending in %s, with no query (http only on localhost)",
+				envOIDCRedirectURL, cfg.OIDCRedirectURL, OIDCCallbackPath))
+		}
+	}
+
+	// One way of checking the signature, never two. A public key and a
+	// secret side by side is how HS256 comes to be checked with the public key
+	// as its secret — internal/oidc refuses that on its own, and this refuses
+	// the configuration that would invite it.
+	switch {
+	case cfg.OIDCKeyFile != "" && cfg.OIDCClientSecret != "":
+		*errs = append(*errs, fmt.Errorf(
+			"%s and %s are both set: name the provider's public key or its client secret, not both",
+			envOIDCKeyFile, envOIDCClientSecret))
+	case cfg.OIDCKeyFile == "" && cfg.OIDCClientSecret == "":
+		*errs = append(*errs, fmt.Errorf(
+			"%s is on but neither %s nor %s is set: without a key no token can be checked",
+			envOIDCEnabled, envOIDCKeyFile, envOIDCClientSecret))
+	case cfg.OIDCKeyFile != "":
+		data, err := os.ReadFile(cfg.OIDCKeyFile)
+		if err != nil {
+			*errs = append(*errs, fmt.Errorf("%s: %w", envOIDCKeyFile, err))
+			break
+		}
+		keys, err := oidc.ParseKeys(data)
+		if err != nil {
+			*errs = append(*errs, fmt.Errorf("%s: %w", envOIDCKeyFile, err))
+			break
+		}
+		cfg.OIDCKeys = keys
+	default:
+		if len(cfg.OIDCClientSecret) < minOIDCSecretLength {
+			*errs = append(*errs, fmt.Errorf(
+				"%s has %d characters; at least %d are required, because whoever knows it can sign any identity",
+				envOIDCClientSecret, len(cfg.OIDCClientSecret), minOIDCSecretLength))
+		}
+	}
+}
+
+// secureURL reports whether raw is an absolute https address, or http on the
+// local machine — which a browser treats as secure too, and which is how the
+// sign-in is tried out before it goes live.
+func secureURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || u.User != nil {
+		return false
+	}
+	switch u.Scheme {
+	case "https":
+		return true
+	case "http":
+		h := u.Hostname()
+		return h == "localhost" || h == "127.0.0.1" || h == "::1"
+	}
+	return false
 }
 
 // isLocalPath reports whether p is a path on this server.
@@ -481,6 +661,13 @@ func (c Config) LogValue() slog.Value {
 		slog.Int64("sso_default_website", c.SSODefaultWebsite),
 		slog.Int("sso_website_groups", len(c.SSOWebsiteGroups)),
 		slog.String("sso_sign_out_path", c.SSOSignOutPath),
+		// The client secret is absent for the reason the shared secret is.
+		slog.Bool("oidc_enabled", c.OIDCEnabled),
+		slog.String("oidc_issuer", c.OIDCIssuer),
+		slog.String("oidc_client_id", c.OIDCClientID),
+		slog.String("oidc_redirect_url", c.OIDCRedirectURL),
+		slog.Int("oidc_keys", len(c.OIDCKeys)),
+		slog.Bool("oidc_client_secret_set", c.OIDCClientSecret != ""),
 		// The password is deliberately absent: the startup log is the first
 		// thing anyone pastes into a bug report.
 		slog.String("smtp", smtpSummary(c)),

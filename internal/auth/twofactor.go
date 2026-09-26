@@ -65,7 +65,7 @@ func MustHaveSecondFactor(role string, viaSSO bool) bool {
 // page, and lets everything else through.
 //
 // It sits inside RequireAuth, so by the time it runs the session has a user.
-func RequireSecondFactor(sm *scs.SessionManager, lookup SecondFactorLookup, ssoEnabled bool) Middleware {
+func RequireSecondFactor(sm *scs.SessionManager, lookup SecondFactorLookup, ssoEnabled, oidcEnabled bool) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if lookup == nil || isSecondFactorPath(r.URL.Path) {
@@ -89,7 +89,11 @@ func RequireSecondFactor(sm *scs.SessionManager, lookup SecondFactorLookup, ssoE
 			// reached by password takes no new branch here at all. The switch
 			// is part of the question: with single sign-on off, a mark that
 			// outlived it exempts nobody.
-			viaSSO := ssoEnabled && sm.GetBool(r.Context(), SessionKeyViaSSO)
+			// Either way in through the identity provider, each asked together
+			// with its own switch — a mark that outlives its switch must not
+			// keep its exemption (Phase 10 code review WR-04).
+			viaSSO := (ssoEnabled && sm.GetBool(r.Context(), SessionKeyViaSSO)) ||
+				(oidcEnabled && sm.GetBool(r.Context(), SessionKeyViaOIDC))
 			if MustHaveSecondFactor(state.Role, viaSSO) && !state.Enabled {
 				http.Redirect(w, r, SetupPath, http.StatusSeeOther)
 				return

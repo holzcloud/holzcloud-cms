@@ -195,6 +195,37 @@ switched account creation on — and then only into a website named in advance.
 `deploy/DEPLOY.md` has the settings and the one command an operator can use to
 check their own installation from the outside.
 
+### The second way in: OpenID Connect
+
+Since 2.9 an installation may instead — or as well — accept a sign-in through
+OpenID Connect. This one believes a **signature**, not a header: the provider
+signs an ID token, the browser posts it back, and this program checks it
+against the provider's public key before it reads a single claim. Issuer,
+audience, expiry and a nonce made for this one sign-in are all checked, `none`
+and every algorithm nobody configured are refused, and a secret-signed token
+(HS256) is only accepted where no public key is configured — the other way
+round is the textbook confusion of using a public key as a secret.
+
+It keeps the rule at the top of this document to the letter. The usual flow
+trades a code for a token at the provider and fetches the provider's keys from
+it, which is a request to another server while the program runs. This one asks
+for the token directly and has the operator put the key on disk once; nothing
+is fetched, ever. The price is manual: when the provider rotates its key, the
+file has to be replaced.
+
+The post back is the one form in the administration that is not under CSRF
+protection, because it comes from the provider's page and cannot carry this
+installation's token. What stands in its place is the state: a random value
+made at the start of the sign-in and kept in a cookie only this origin can set
+(`__Host-`), compared in constant time, and good for one answer. Everything
+after the token — which account, which rights, whether a new account may be
+created — goes through the same code as forward authentication, and writes the
+same rows in the activity log, marked `via: oidc`. What it cannot do is re-read
+the groups on every request: nothing arrives on later requests to re-read. A
+change at the provider takes effect at the next sign-in, and a session lasts at
+most a day. [`deploy/DEPLOY.md`](../deploy/DEPLOY.md#single-sign-on-openid-connect)
+has the settings.
+
 ## Rights per person
 
 Two roles remain, because two are right: **administrator** runs the installation,

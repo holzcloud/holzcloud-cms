@@ -175,180 +175,13 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 			h.endSSOSession(r, "identity_changed")
 		}
 
-		// 4. The address rule.
-		//
-		// The identity is X-authentik-username, and the account is the one
-		// linked to it (users.sso_username, step 5). The address is still
-		// needed, twice: a provisioned account is created with it, and an
-		// address that already belongs to an account turns into a refusal
-		// rather than into a second account. Until migration 00053 the address
-		// was the account key itself, because the users schema stood on this
-		// phase's deliberately-unchanged list and the address was its only
-		// unique key — and whoever could make the identity provider emit an
-		// administrator's address became that administrator (CR-01).
-		//
-		// That column is declared UNIQUE COLLATE NOCASE, and SQLite's NOCASE
-		// folds ASCII only. Go's strings.ToLower folds all of Unicode. Where
-		// the two disagree the database considers Müller@example.com and //nolint:german — the pair of addresses is the example
-		// müller@example.com to be two distinct rows — two accounts, and in the //nolint:german — the pair of addresses is the example
-		// worst case two administrators — while a Go-side match would happily //nolint:german — the pair of addresses is the example
-		// pick one of them. So an address carrying any byte above 0x7F is
-		// refused with a named reason instead of matched. Folding it by hand
-		// would be a second definition of identity standing beside the
-		// database's own, which is exactly the disagreement being avoided.
-		email := strings.ToLower(strings.TrimSpace(ident.Email))
-		if email == "" {
-			h.refuseSSO(r, ident, email, ssoRefuseNoEmail)
+		// 4.–8. Everything that turns an identity into a signed-in account, in
+		// the order described above. It is shared with the OpenID Connect
+		// sign-in (oidc.go), which reaches the same question by another road.
+		if !h.signInIdentity(r, ident) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !isASCII(email) {
-			h.refuseSSO(r, ident, email, ssoRefuseNonASCII)
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// 5. The account linked to this identity, and never the one that
-		// merely carries the address the identity arrived with. The lookup
-		// itself creates nothing; whether the absence of a row becomes a
-		// refusal or a new account is decided by the branch below it, and by
-		// one setting that is off by default.
-		u, err := h.users.GetBySSOUsername(r.Context(), ident.Username)
-		if err != nil {
-			// A database that cannot answer must not turn into a sign-in. No
-			// protocol row is attempted here: the store that would write it
-			// sits on the same database that just failed to answer.
-			slog.Error("forward auth account lookup", "err", err, "username", ident.Username)
-			next.ServeHTTP(w, r)
-			return
-		}
-		if u == nil {
-			// 5a. An address that belongs to an account is not an invitation.
-			//
-			// Either the account was made by hand and nobody linked it — an
-			// operator does that on purpose, with `holzcloud user sso` —, or it
-			// is linked to another identity. Both are refusals, and provisioning
-			// must not run for either: linking an account to the first identity
-			// that arrives with its address would let whoever is quicker on the
-			// day single sign-on is switched on decide the link.
-			taken, err := h.users.GetByEmail(r.Context(), email)
-			if err != nil {
-				slog.Error("forward auth address lookup", "err", err, "username", ident.Username)
-				next.ServeHTTP(w, r)
-				return
-			}
-			if taken != nil {
-				h.refuseSSO(r, ident, email, ssoRefuseNotLinked)
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			// 5b. Provisioning, and the one seam this whole plan exists for.
-			//
-			// NewWebsiteAccessLookup (internal/admin/handler.go) ends with
-			//
-			//     return assigned == 0 || mine > 0
-			//
-			// "no assignment means every website". That is deliberate and it is
-			// right: internal/user/rights.go says in its package comment that
-			// anything else would have made the migration which introduced
-			// website assignment lock everybody out, and it is why an
-			// installation that never uses the feature never has to know it
-			// exists. It is correct for every account an operator creates by
-			// hand.
-			//
-			// It inverts the moment accounts are created automatically,
-			// because a freshly created account has zero rows in user_websites
-			// *by construction*. Without an assignment written for it, the
-			// first stranger the identity provider authenticates becomes an
-			// editor of every website in the installation.
-			//
-			// NewWebsiteAccessLookup is not changed to fix this. Changing it
-			// would lock out every existing editor, which is the same failure
-			// arriving from the other side. Three things stand in its place:
-			// provisioning is off unless the operator switched it on; with it
-			// on, the process refuses to start without a default website that
-			// exists; and the account is given that website in the same
-			// function that creates it.
-			//
-			// That last one is why the assignment is written here rather than
-			// left to the group synchronisation of plan 10-05. Between a
-			// created account and its first assignment there must be no
-			// request, no error path and no later plan — an account that
-			// exists with zero rows in user_websites is the vulnerability
-			// itself, for however long it exists. The two lines cannot be
-			// separated, which is what provisionSSOUser is for.
-			if !h.cfg.SSOProvision {
-				h.refuseSSO(r, ident, email, ssoRefuseNoAccount)
-				next.ServeHTTP(w, r)
-				return
-			}
-			u, err = h.provisionSSOUser(r, ident, email)
-			if err != nil {
-				// A refusal, not a status, and not a half-made account: see
-				// the compensation in provisionSSOUser.
-				//
-				// This branch does write a protocol row, unlike the lookup
-				// failure above it. The commonest way to arrive here is not a
-				// database that has stopped answering but a
-				// HOLZCLOUD_SSO_DEFAULT_WEBSITE naming a website that has since
-				// been deleted — the database is healthy and the operator needs
-				// to see that somebody was turned away. Store.Log never returns
-				// an error by design, so even in the other case this cannot
-				// turn a refusal into a 500.
-				slog.Error("forward auth provisioning", "err", err, "username", ident.Username)
-				h.refuseSSO(r, ident, email, ssoRefuseProvisionFailed)
-				next.ServeHTTP(w, r)
-				return
-			}
-		}
-
-		// 6. The rights, from the groups, every time.
-		//
-		// Before the rotation and before the funnel, because completeLogin is
-		// handed a role and that role has to be the synchronised one: a session
-		// carrying the role the account had *before* this request would let a
-		// demotion at the identity provider take effect one sign-in late, which
-		// is precisely what SSO-06 asks not to happen.
-		role, err := h.syncRightsFromGroups(r.Context(), r, u, ident)
-		if err != nil {
-			// A refused sign-in, not a server error and not a status. The
-			// commonest way to arrive here is an editor whose last website
-			// group was removed at the identity provider — the operator meant
-			// to take their access away, and the refusal is what that looks
-			// like from here.
-			reason := ssoRefuseSyncFailed
-			if errors.Is(err, errSSONoWebsiteGroup) {
-				reason = ssoRefuseNoWebsiteGroup
-			}
-			slog.Warn("forward auth rights synchronisation refused the sign-in",
-				"err", err, "reason", reason, "user_id", u.ID, "username", ident.Username)
-			h.refuseSSO(r, ident, email, reason)
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// 7. Rotate session ID BEFORE setting values (prevents session
-		// fixation). A failed rotation is a refused sign-in and never a
-		// sign-in on the old token.
-		if err := h.sm.RenewToken(r.Context()); err != nil {
-			slog.Error("forward auth renew session token", "err", err, "user_id", u.ID)
-			// And in the protocol, which is window 28's second half. This was
-			// the one refusal that reached the file and nothing else: somebody
-			// who could not sign in, and an operator reading the screen with no
-			// sign that anything had happened. It goes through refuseSSO like
-			// every other refusal, so it is throttled like every other refusal
-			// too — a session store that cannot rotate will fail on every
-			// request.
-			h.refuseSSO(r, ident, email, ssoRefuseRenewFailed)
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// 8. The mark, then the funnel. The synchronised role and the stored
-		// address, not the header's: the session and the protocol row must name
-		// the account, and the header only claimed to.
-		h.completeLogin(r, u.ID, role, u.Email)
 		// After the funnel, which removes both marks from every sign-in it
 		// completes.
 		h.sm.Put(r.Context(), auth.SessionKeyViaSSO, true)
@@ -360,6 +193,184 @@ func (h *Handler) ForwardAuthSignIn(next http.Handler) http.Handler {
 		// person lands on the page they asked for.
 		next.ServeHTTP(w, r)
 	})
+}
+
+// signInIdentity is steps 4 to 8 of ForwardAuthSignIn: the address rule, the
+// account, the rights from the groups, the token rotation and the funnel. It
+// reports whether the session is now signed in; every refusal has been logged
+// and recorded by the time it returns false, and nothing is written to the
+// response on any path.
+//
+// Two callers, and the same answer for both: the forward-auth middleware, and
+// the OpenID Connect callback. Which of the two it was travels in the request
+// context (viaOf) and reaches every protocol row as "via".
+func (h *Handler) signInIdentity(r *http.Request, ident *web.Identity) bool {
+	// 4. The address rule.
+	//
+	// The identity is X-authentik-username, and the account is the one
+	// linked to it (users.sso_username, step 5). The address is still
+	// needed, twice: a provisioned account is created with it, and an
+	// address that already belongs to an account turns into a refusal
+	// rather than into a second account. Until migration 00053 the address
+	// was the account key itself, because the users schema stood on this
+	// phase's deliberately-unchanged list and the address was its only
+	// unique key — and whoever could make the identity provider emit an
+	// administrator's address became that administrator (CR-01).
+	//
+	// That column is declared UNIQUE COLLATE NOCASE, and SQLite's NOCASE
+	// folds ASCII only. Go's strings.ToLower folds all of Unicode. Where
+	// the two disagree the database considers Müller@example.com and //nolint:german — the pair of addresses is the example
+	// müller@example.com to be two distinct rows — two accounts, and in the //nolint:german — the pair of addresses is the example
+	// worst case two administrators — while a Go-side match would happily //nolint:german — the pair of addresses is the example
+	// pick one of them. So an address carrying any byte above 0x7F is
+	// refused with a named reason instead of matched. Folding it by hand
+	// would be a second definition of identity standing beside the
+	// database's own, which is exactly the disagreement being avoided.
+	email := strings.ToLower(strings.TrimSpace(ident.Email))
+	if email == "" {
+		h.refuseSSO(r, ident, email, ssoRefuseNoEmail)
+		return false
+	}
+	if !isASCII(email) {
+		h.refuseSSO(r, ident, email, ssoRefuseNonASCII)
+		return false
+	}
+
+	// 5. The account linked to this identity, and never the one that
+	// merely carries the address the identity arrived with. The lookup
+	// itself creates nothing; whether the absence of a row becomes a
+	// refusal or a new account is decided by the branch below it, and by
+	// one setting that is off by default.
+	u, err := h.users.GetBySSOUsername(r.Context(), ident.Username)
+	if err != nil {
+		// A database that cannot answer must not turn into a sign-in. No
+		// protocol row is attempted here: the store that would write it
+		// sits on the same database that just failed to answer.
+		slog.Error("single sign-on account lookup", "via", viaOf(r), "err", err, "username", ident.Username)
+		return false
+	}
+	if u == nil {
+		// 5a. An address that belongs to an account is not an invitation.
+		//
+		// Either the account was made by hand and nobody linked it — an
+		// operator does that on purpose, with `holzcloud user sso` —, or it
+		// is linked to another identity. Both are refusals, and provisioning
+		// must not run for either: linking an account to the first identity
+		// that arrives with its address would let whoever is quicker on the
+		// day single sign-on is switched on decide the link.
+		taken, err := h.users.GetByEmail(r.Context(), email)
+		if err != nil {
+			slog.Error("single sign-on address lookup", "via", viaOf(r), "err", err, "username", ident.Username)
+			return false
+		}
+		if taken != nil {
+			h.refuseSSO(r, ident, email, ssoRefuseNotLinked)
+			return false
+		}
+
+		// 5b. Provisioning, and the one seam this whole plan exists for.
+		//
+		// NewWebsiteAccessLookup (internal/admin/handler.go) ends with
+		//
+		//     return assigned == 0 || mine > 0
+		//
+		// "no assignment means every website". That is deliberate and it is
+		// right: internal/user/rights.go says in its package comment that
+		// anything else would have made the migration which introduced
+		// website assignment lock everybody out, and it is why an
+		// installation that never uses the feature never has to know it
+		// exists. It is correct for every account an operator creates by
+		// hand.
+		//
+		// It inverts the moment accounts are created automatically,
+		// because a freshly created account has zero rows in user_websites
+		// *by construction*. Without an assignment written for it, the
+		// first stranger the identity provider authenticates becomes an
+		// editor of every website in the installation.
+		//
+		// NewWebsiteAccessLookup is not changed to fix this. Changing it
+		// would lock out every existing editor, which is the same failure
+		// arriving from the other side. Three things stand in its place:
+		// provisioning is off unless the operator switched it on; with it
+		// on, the process refuses to start without a default website that
+		// exists; and the account is given that website in the same
+		// function that creates it.
+		//
+		// That last one is why the assignment is written here rather than
+		// left to the group synchronisation of plan 10-05. Between a
+		// created account and its first assignment there must be no
+		// request, no error path and no later plan — an account that
+		// exists with zero rows in user_websites is the vulnerability
+		// itself, for however long it exists. The two lines cannot be
+		// separated, which is what provisionSSOUser is for.
+		if !h.cfg.SSOProvision {
+			h.refuseSSO(r, ident, email, ssoRefuseNoAccount)
+			return false
+		}
+		u, err = h.provisionSSOUser(r, ident, email)
+		if err != nil {
+			// A refusal, not a status, and not a half-made account: see
+			// the compensation in provisionSSOUser.
+			//
+			// This branch does write a protocol row, unlike the lookup
+			// failure above it. The commonest way to arrive here is not a
+			// database that has stopped answering but a
+			// HOLZCLOUD_SSO_DEFAULT_WEBSITE naming a website that has since
+			// been deleted — the database is healthy and the operator needs
+			// to see that somebody was turned away. Store.Log never returns
+			// an error by design, so even in the other case this cannot
+			// turn a refusal into a 500.
+			slog.Error("single sign-on provisioning", "via", viaOf(r), "err", err, "username", ident.Username)
+			h.refuseSSO(r, ident, email, ssoRefuseProvisionFailed)
+			return false
+		}
+	}
+
+	// 6. The rights, from the groups, every time.
+	//
+	// Before the rotation and before the funnel, because completeLogin is
+	// handed a role and that role has to be the synchronised one: a session
+	// carrying the role the account had *before* this request would let a
+	// demotion at the identity provider take effect one sign-in late, which
+	// is precisely what SSO-06 asks not to happen.
+	role, err := h.syncRightsFromGroups(r.Context(), r, u, ident)
+	if err != nil {
+		// A refused sign-in, not a server error and not a status. The
+		// commonest way to arrive here is an editor whose last website
+		// group was removed at the identity provider — the operator meant
+		// to take their access away, and the refusal is what that looks
+		// like from here.
+		reason := ssoRefuseSyncFailed
+		if errors.Is(err, errSSONoWebsiteGroup) {
+			reason = ssoRefuseNoWebsiteGroup
+		}
+		slog.Warn("single sign-on rights synchronisation refused the sign-in", "via", viaOf(r),
+			"err", err, "reason", reason, "user_id", u.ID, "username", ident.Username)
+		h.refuseSSO(r, ident, email, reason)
+		return false
+	}
+
+	// 7. Rotate session ID BEFORE setting values (prevents session
+	// fixation). A failed rotation is a refused sign-in and never a
+	// sign-in on the old token.
+	if err := h.sm.RenewToken(r.Context()); err != nil {
+		slog.Error("single sign-on renew session token", "via", viaOf(r), "err", err, "user_id", u.ID)
+		// And in the protocol, which is window 28's second half. This was
+		// the one refusal that reached the file and nothing else: somebody
+		// who could not sign in, and an operator reading the screen with no
+		// sign that anything had happened. It goes through refuseSSO like
+		// every other refusal, so it is throttled like every other refusal
+		// too — a session store that cannot rotate will fail on every
+		// request.
+		h.refuseSSO(r, ident, email, ssoRefuseRenewFailed)
+		return false
+	}
+
+	// 8. The mark, then the funnel. The synchronised role and the stored
+	// address, not the header's: the session and the protocol row must name
+	// the account, and the header only claimed to.
+	h.completeLogin(r, u.ID, role, u.Email)
+	return true
 }
 
 // syncRightsFromGroups re-derives what a person may do from the groups the
@@ -412,7 +423,7 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 	// refusal in Update stays as the backstop for the race in between.
 	if want == user.RoleEditor && u.Role == user.RoleAdmin {
 		if n, err := h.countAdmins(ctx); err == nil && n <= 1 {
-			slog.Warn("forward auth cannot apply a demotion: this is the last administrator",
+			slog.Warn("single sign-on cannot apply a demotion: this is the last administrator", "via", viaOf(r),
 				"user_id", u.ID, "email", u.Email, "username", ident.Username,
 				"role", u.Role, "requested_role", want)
 			want = u.Role
@@ -450,7 +461,7 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 			// that lags one sign-in behind, so the sign-in continues with the
 			// role the account still has — loudly, because nothing else would
 			// ever say so.
-			slog.Warn("forward auth cannot apply a demotion: this is the last administrator",
+			slog.Warn("single sign-on cannot apply a demotion: this is the last administrator", "via", viaOf(r),
 				"user_id", u.ID, "email", u.Email, "username", ident.Username,
 				"role", u.Role, "requested_role", want)
 			want = u.Role
@@ -467,7 +478,7 @@ func (h *Handler) syncRightsFromGroups(ctx context.Context, r *http.Request,
 				EntityType: "user",
 				EntityID:   u.ID,
 				Metadata: map[string]any{
-					"field": "role", "from": u.Role, "to": want, "via": "sso",
+					"field": "role", "from": u.Role, "to": want, "via": viaOf(r),
 				},
 			})
 		}
@@ -579,7 +590,7 @@ func (h *Handler) syncWebsites(ctx context.Context, r *http.Request, u *user.Use
 				EntityID:   u.ID,
 				Metadata: map[string]any{
 					"field": "websites", "from": current.Websites, "to": []int64{},
-					"limited": true, "via": "sso",
+					"limited": true, "via": viaOf(r),
 				},
 			})
 		}
@@ -604,7 +615,7 @@ func (h *Handler) syncWebsites(ctx context.Context, r *http.Request, u *user.Use
 			EntityType: "user",
 			EntityID:   u.ID,
 			Metadata: map[string]any{
-				"field": "websites", "from": current.Websites, "to": ids, "via": "sso",
+				"field": "websites", "from": current.Websites, "to": ids, "via": viaOf(r),
 			},
 		})
 	}
@@ -640,7 +651,7 @@ func (h *Handler) refreshSSOSession(r *http.Request, uid int64, ident *web.Ident
 	ctx := r.Context()
 	u, err := h.users.GetBySSOUsername(ctx, ident.Username)
 	if err != nil {
-		slog.Error("forward auth session refresh lookup", "err", err, "user_id", uid)
+		slog.Error("single sign-on session refresh lookup", "via", viaOf(r), "err", err, "user_id", uid)
 		return false
 	}
 	if u == nil || u.ID != uid {
@@ -665,7 +676,7 @@ func (h *Handler) refreshSSOSession(r *http.Request, uid int64, ident *web.Ident
 // protocol before the session forgets who it belonged to.
 func (h *Handler) endSSOSession(r *http.Request, reason string) {
 	uid := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
-	slog.Info("forward auth ended a session", "user_id", uid, "reason", reason)
+	slog.Info("single sign-on ended a session", "via", viaOf(r), "user_id", uid, "reason", reason)
 	h.LogActivity(r, activity.Entry{
 		UserID:     &uid,
 		Action:     activity.ActionAuthLogout,
@@ -675,10 +686,10 @@ func (h *Handler) endSSOSession(r *http.Request, reason string) {
 		// rights_refused, identity_changed — and never "by_hand", which is what
 		// the sign-out button writes. Between them the protocol can say whether
 		// somebody left or was shown the door.
-		Metadata: map[string]any{"via": "sso", "reason": reason},
+		Metadata: map[string]any{"via": viaOf(r), "reason": reason},
 	})
 	if err := h.sm.Destroy(r.Context()); err != nil {
-		slog.Error("forward auth could not end a session", "err", err, "user_id", uid)
+		slog.Error("single sign-on could not end a session", "via", viaOf(r), "err", err, "user_id", uid)
 	}
 }
 
@@ -778,7 +789,7 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 			// The one case an operator has to repair by hand, so the line names
 			// the row: an account with no website assignment may enter every
 			// website there is.
-			slog.Error("forward auth could not remove a half-provisioned account",
+			slog.Error("single sign-on could not remove a half-provisioned account", "via", viaOf(r),
 				"err", delErr, "user_id", id, "username", ident.Username)
 		}
 		return nil, fmt.Errorf("provision: assign the default website: %w", err)
@@ -793,7 +804,7 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 	// removes the account like a failed assignment does.
 	if err := h.users.LinkSSO(ctx, id, ident.Username); err != nil {
 		if delErr := h.users.Delete(ctx, id); delErr != nil {
-			slog.Error("forward auth could not remove an unlinked provisioned account",
+			slog.Error("single sign-on could not remove an unlinked provisioned account", "via", viaOf(r),
 				"err", delErr, "user_id", id, "username", ident.Username)
 		}
 		return nil, fmt.Errorf("provision: link the identity: %w", err)
@@ -805,7 +816,7 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 	// metadata says where it came from: entry.go's comment says the action
 	// names are the filter contract and that a new one makes older rows
 	// unfindable, while metadata is free.
-	slog.Info("forward auth provisioned an account",
+	slog.Info("single sign-on provisioned an account", "via", viaOf(r),
 		"user_id", id, "email", email, "website_id", h.cfg.SSODefaultWebsite,
 		"username", ident.Username)
 	// UserID is named here rather than left to LogActivity, and that is window
@@ -824,7 +835,7 @@ func (h *Handler) provisionSSOUser(r *http.Request, ident *web.Identity, email s
 		Action:     activity.ActionUserCreate,
 		EntityType: "user",
 		EntityID:   id,
-		Metadata:   map[string]any{"via": "sso"},
+		Metadata:   map[string]any{"via": viaOf(r)},
 	})
 
 	u, err := h.users.GetByID(ctx, id)
@@ -869,7 +880,7 @@ func (h *Handler) refuseSSO(r *http.Request, ident *web.Identity, email, reason 
 	}
 	// The server log keeps every refusal. It is a file that rotates, and an
 	// operator reading it is reading it now.
-	slog.Warn("forward auth sign-in refused",
+	slog.Warn("single sign-on sign-in refused", "via", viaOf(r),
 		"username", ident.Username, "reason", reason, "ip", ip)
 
 	// The protocol keeps one per identity per quarter of an hour, and this is
@@ -901,7 +912,7 @@ func (h *Handler) refuseSSO(r *http.Request, ident *web.Identity, email, reason 
 		ActorEmail: email,
 		Action:     activity.ActionAuthLoginFail,
 		EntityType: "user",
-		Metadata:   map[string]any{"via": "sso", "reason": reason},
+		Metadata:   map[string]any{"via": viaOf(r), "reason": reason},
 	})
 }
 

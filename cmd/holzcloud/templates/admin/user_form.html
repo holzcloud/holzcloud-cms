@@ -76,7 +76,7 @@
                  it back. That is SSO-06 working as intended; what was missing
                  was a screen that said so. */}}
             <p class="form-hint text-muted">
-                {{t "This account signs in through the identity provider, and its websites are re-derived from its groups there on every request. A change made here holds until then. To change it for good, change the groups."}}
+                {{if .RightsOnlyAtSignIn}}{{t "This account signs in through the identity provider, and its websites are re-derived from its groups there at every sign-in. A change made here holds until then. To change it for good, change the groups."}}{{else}}{{t "This account signs in through the identity provider, and its websites are re-derived from its groups there on every request. A change made here holds until then. To change it for good, change the groups."}}{{end}}
             </p>
             {{end}}
             {{end}}

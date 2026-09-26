@@ -175,7 +175,7 @@ func (h *Handler) HandleTwoFactorSetup(w http.ResponseWriter, r *http.Request) e
 		SecretGrouped: totp.FormatSecret(secret),
 		URI:           uri,
 		QR:            qrOrNothing(r, uri),
-		Required:      auth.MustHaveSecondFactor(role, h.viaSSO(r)),
+		Required:      auth.MustHaveSecondFactor(role, h.viaIdentityProvider(r)),
 	}
 	data.ActiveNav = "account"
 	return web.RenderAdmin(w, h.templates, r, "two_factor_setup", data)
@@ -205,7 +205,7 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 			SecretGrouped: totp.FormatSecret(tf.PendingSecret),
 			URI:           retryURI,
 			QR:            qrOrNothing(r, retryURI),
-			Required:      auth.MustHaveSecondFactor(role, h.viaSSO(r)),
+			Required:      auth.MustHaveSecondFactor(role, h.viaIdentityProvider(r)),
 			Error:         web.T(r, "The code is wrong. Check that the device's clock is right."),
 		}
 		data.ActiveNav = "account"
@@ -282,7 +282,7 @@ func (h *Handler) HandleTwoFactorDisable(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return err
 	}
-	if auth.MustHaveSecondFactor(role, h.viaSSO(r)) {
+	if auth.MustHaveSecondFactor(role, h.viaIdentityProvider(r)) {
 		// One literal and not three joined with +: the collector reads only a
 		// literal at this argument, and a refusal it cannot see is a refusal
 		// every administration reads in German (WINDOWS.md entry 17).
@@ -429,9 +429,9 @@ func (h *Handler) HandleAccount(w http.ResponseWriter, r *http.Request) error {
 		Email:      email,
 		Role:       role,
 		TwoFactorStatusData: TwoFactorStatusData{
-			Required: auth.MustHaveSecondFactor(role, h.viaSSO(r)),
+			Required: auth.MustHaveSecondFactor(role, h.viaIdentityProvider(r)),
 		},
-		ViaSSO: h.viaSSO(r),
+		ViaSSO: h.viaIdentityProvider(r),
 	}
 	if tf != nil {
 		data.Enabled = tf.Enabled()

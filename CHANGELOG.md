@@ -11,6 +11,59 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.9 — 2026-09-26
+
+**Anmelden über OpenID Connect.** Neben der Anmeldung über Authentik mit
+Forward-Auth gibt es jetzt einen zweiten Weg über den eigenen
+Identitätsanbieter: Das Anmeldeformular bekommt einen Knopf „Mit Authentik
+anmelden“ (der Name ist einstellbar), und es funktioniert mit Authentik,
+Keycloak, Zitadel und jedem anderen Anbieter, der OpenID Connect spricht. Ein
+Reverse-Proxy mit Outpost und gemeinsamem Geheimnis ist dafür nicht nötig.
+
+### Neu
+
+**Der Server fragt den Anbieter nie.** Der übliche Weg tauscht einen Code beim
+Anbieter gegen ein Token und holt dessen Schlüssel ab — beides Anfragen an einen
+fremden Server zur Laufzeit, und genau das tut dieses Programm nicht. Stattdessen
+schickt der Anbieter dem Browser ein signiertes ID-Token, der Browser bringt es
+zurück (`response_type=id_token`, `response_mode=form_post`), und der Server
+prüft die Signatur mit einem Schlüssel, den der Betreiber einmal ablegt: das
+JWKS-Dokument oder ein PEM-Schlüssel des Anbieters (RS256, ES256), oder das
+Client-Secret für einen Anbieter, der damit signiert (HS256). Geprüft werden
+Aussteller, Empfänger, Ablauf und eine Nonce, die nur für diese eine Anmeldung
+gilt; `none` und nicht eingestellte Verfahren werden abgelehnt. Die Prüfung ist
+eigener Code mit der Standardbibliothek, ohne neue Abhängigkeit.
+
+**Dieselben Regeln wie bei Forward-Auth.** Welches Konto, welche Rolle, welche
+Websites und ob ein neues Konto angelegt werden darf, entscheidet derselbe Code
+mit denselben Einstellungen (`HOLZCLOUD_SSO_ADMIN_GROUP`,
+`HOLZCLOUD_SSO_WEBSITE_GROUPS`, `HOLZCLOUD_SSO_PROVISION`,
+`HOLZCLOUD_SSO_DEFAULT_WEBSITE`). Verknüpft wird über den Benutzernamen
+(`preferred_username`), also ist ein Konto, das schon für Forward-Auth verknüpft
+war, auch hier dasselbe. Das Protokoll schreibt dieselben Zeilen, gekennzeichnet
+mit `via: oidc`. Der zweite Faktor ist, wie bei Forward-Auth, der des Anbieters.
+
+**Nach der Anmeldung geht es dorthin, wohin man wollte**, auch über den Umweg
+zum Anbieter.
+
+### Anders als Forward-Auth
+
+Die Rechte werden bei der Anmeldung gelesen und nicht bei jedem Klick — bei
+späteren Anfragen kommt nichts an, woran sie sich prüfen liessen. Eine Änderung
+der Gruppen beim Anbieter wirkt ab der nächsten Anmeldung; eine Sitzung hält
+höchstens einen Tag. Abmelden hier meldet beim Anbieter nicht ab. Schaltet man
+OpenID Connect aus, enden alle Sitzungen, die darüber zustande kamen.
+
+### Für Betreiber
+
+Elf Einstellungen `HOLZCLOUD_OIDC_*`, alle wirkungslos, solange
+`HOLZCLOUD_OIDC_ENABLED` aus ist; eine halbe Konfiguration verhindert den Start
+und nennt die fehlende Variable. Die Anleitung für Authentik steht in
+`deploy/DEPLOY.md`, die Liste in `docs/configuration.md`, die Begründung in
+`docs/security.md`. Wechselt der Anbieter seinen Signaturschlüssel, muss die
+Datei ersetzt werden; bis dahin wird die Anmeldung über den Anbieter abgelehnt,
+das Passwort funktioniert weiter. Keine Datenbankänderung.
+
 ## 2.8.3 — 2026-09-26
 
 **Die Themes *holzcloud* und *weide* zeigen wieder ihr eigenes Favicon.** Beide

@@ -14,8 +14,18 @@ import (
 
 // HandleLoginForm renders the login page.
 func (h *Handler) HandleLoginForm(w http.ResponseWriter, r *http.Request) error {
-	data := web.NewLayoutData(r, h.sm, "Sign in")
+	data := loginData{
+		LayoutData: web.NewLayoutData(r, h.sm, "Sign in"),
+		OIDCName:   OIDCButton(h.cfg),
+	}
 	return web.RenderAdmin(w, h.templates, r, "login", data)
+}
+
+// loginData is the sign-in form. OIDCName is empty unless OpenID Connect is
+// switched on, and then names the provider on the second button.
+type loginData struct {
+	web.LayoutData
+	OIDCName string
 }
 
 // HandleLogin processes the login form submission.
@@ -112,6 +122,7 @@ func (h *Handler) completeLogin(r *http.Request, id int64, role, email string) {
 	// password sign-in, as whichever account signed in.
 	h.sm.Remove(r.Context(), auth.SessionKeyViaSSO)
 	h.sm.Remove(r.Context(), auth.SessionKeySSOUsername)
+	h.sm.Remove(r.Context(), auth.SessionKeyViaOIDC)
 	h.sm.Put(r.Context(), auth.SessionKeyUserID, id)
 	h.sm.Put(r.Context(), auth.SessionKeyUserRole, role)
 	h.sm.Put(r.Context(), auth.SessionKeyUserEmail, email)
@@ -206,9 +217,12 @@ func (h *Handler) wouldBeSignedBackIn(r *http.Request) bool {
 //
 // The same two words endSSOSession uses, so a filter on "via" finds both kinds
 // of ending rather than only the automatic one.
-func logoutVia(viaSSO bool) string {
+func (h *Handler) logoutVia(r *http.Request, viaSSO bool) string {
 	if viaSSO {
 		return "sso"
+	}
+	if h.viaOIDC(r) {
+		return "oidc"
 	}
 	return "password"
 }
@@ -233,7 +247,7 @@ func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 		// writes rather than "user #0". Same kind of row, same shape — which is
 		// the lesson window 22 left one screen over.
 		EntityID: h.sm.GetInt64(r.Context(), auth.SessionKeyUserID),
-		Metadata: map[string]any{"via": logoutVia(viaSSO), "reason": "by_hand"},
+		Metadata: map[string]any{"via": h.logoutVia(r, viaSSO), "reason": "by_hand"},
 	})
 
 	//

@@ -707,7 +707,7 @@ func checkSSOWebsites(ctx context.Context, cfg config.Config, websites websiteLo
 				cfg.SSODefaultWebsite)
 		}
 	}
-	if !cfg.SSOEnabled || len(cfg.SSOWebsiteGroups) == 0 {
+	if (!cfg.SSOEnabled && !cfg.OIDCEnabled) || len(cfg.SSOWebsiteGroups) == 0 {
 		return nil
 	}
 
@@ -844,7 +844,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// Runs inside RequireAuth: by then the session has a user, and an account
 	// that owes a second factor is sent to the setup page before it reaches
 	// anything else.
-	requireSecondFactor := auth.RequireSecondFactor(sm, admin.NewSecondFactorLookup(database), cfg.SSOEnabled)
+	requireSecondFactor := auth.RequireSecondFactor(sm, admin.NewSecondFactorLookup(database), cfg.SSOEnabled, cfg.OIDCEnabled)
 	// Site-level and template administration is admin-only; editors keep full
 	// access to content (pages, menus, media).
 	requireAdmin := auth.RequireAdmin(sm)
@@ -924,6 +924,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 		adminPublicMux.HandleFunc("GET "+purpose.path, handler)
 		adminPublicMux.HandleFunc("POST "+purpose.path, handler)
 	}
+	// OpenID Connect: the start is an ordinary public admin page. The callback
+	// is registered on its own mux below, outside the CSRF middleware — see
+	// internal/admin/oidc.go for what stands in its place.
+	adminPublicMux.HandleFunc("GET /admin/oidc/start", adminHandler.ErrHandler(adminHandler.HandleOIDCStart))
 	adminPublicMux.HandleFunc("GET /admin/setup", adminHandler.ErrHandler(adminHandler.HandleSetupForm))
 	adminPublicMux.HandleFunc("POST /admin/setup", adminHandler.ErrHandler(adminHandler.HandleSetup))
 
@@ -1203,6 +1207,15 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	mux.Handle("/admin/reset/", adminPublic)
 	mux.Handle("/admin/setup", adminPublic)
 	mux.Handle("/admin/setup/", adminPublic)
+	mux.Handle("/admin/oidc/start", adminPublic)
+	// The provider's page posts here, cross-site, and cannot carry this
+	// installation's CSRF token. The state in a __Host- cookie is what binds
+	// the post to the browser that started the sign-in; everything else about
+	// the chain — headers, the first-run guard, the language — is the one the
+	// other public pages have.
+	oidcCallbackMux := http.NewServeMux()
+	oidcCallbackMux.HandleFunc("POST "+config.OIDCCallbackPath, adminHandler.ErrHandler(adminHandler.HandleOIDCCallback))
+	mux.Handle(config.OIDCCallbackPath, i18n.Middleware(nil)(web.AdminHeaders(setupGuard(oidcCallbackMux))))
 	// The navigation needs the same two things on every screen: which websites
 	// there are and which one is being worked on. Fetched here once rather than
 	// in thirty handlers — otherwise the sidebar shows a website's sections
@@ -1235,7 +1248,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// RequireAuth, RequireSecondFactor, RequireWebsiteAccess — runs exactly as
 	// it did before it existed, and removing this one call is how the whole
 	// feature is switched off in an emergency.
-	mux.Handle("/admin/", web.AdminHeaders(csrfMiddleware(setupGuard(adminHandler.ForwardAuthSignIn(requireAuth(requireSecondFactor(withLang(requireWebsite(withNav(adminProtectedMux))))))))))
+	mux.Handle("/admin/", web.AdminHeaders(csrfMiddleware(setupGuard(adminHandler.OIDCGuard(adminHandler.ForwardAuthSignIn(requireAuth(requireSecondFactor(withLang(requireWebsite(withNav(adminProtectedMux)))))))))))
 
 	// The installation's logo. Public like the assets: it stands on the sign-in
 	// screen too, and whoever sees that may see the picture on it.
