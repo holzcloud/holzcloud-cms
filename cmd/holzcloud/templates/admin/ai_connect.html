@@ -1,0 +1,50 @@
+{{define "content"}}
+{{template "ai_connect-content" .}}
+{{end}}
+
+{{define "ai_connect-content"}}
+<div class="card" style="max-width:40rem">
+    {{if .Problem}}
+    <h2>{{t "This connection request cannot be answered"}}</h2>
+    <p>{{t "The assistant sent a request this server does not accept, so nothing was connected and the browser was not sent anywhere."}}</p>
+    <p class="text-muted"><code>{{.Problem}}</code></p>
+    <p><a href="/admin/ai" class="btn">{{t "To AI access"}}</a></p>
+    {{else}}
+    <h2>{{tf "Connect “%s” to this CMS?" .Request.Client.Name}}</h2>
+    <p>
+        {{thf "The assistant asks for a key. Afterwards the browser goes back to <strong>%s</strong> — only agree if that is where you started the connection." .Request.RedirectHost}}
+    </p>
+    <p class="text-muted">
+        {{t "The name was chosen by the assistant itself and proves nothing. The address it returns to does: it was registered beforehand and cannot be changed now."}}
+    </p>
+
+    <form method="POST" action="/admin/ai/verbinden">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        {{range $name, $values := .Params}}<input type="hidden" name="{{$name}}" value="{{index $values 0}}">
+        {{end}}
+
+        <div class="form-group">
+            <label class="form-label" for="connect-website">{{t "Website"}}</label>
+            <select id="connect-website" name="website" class="form-input">
+                <option value="0">{{t "every website"}}</option>
+                {{range .Websites}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="connect-rechte">{{t "Rights"}}</label>
+            <select id="connect-rechte" name="rechte" class="form-input">
+                <option value="lesen">{{t "read only"}}</option>
+                <option value="schreiben">{{t "read and write"}}</option>
+            </select>
+            <p class="form-hint text-muted">
+                {{t "The connection appears under AI access like any key, and ends when you revoke it there. Managing users, plugins and keys is never granted this way."}}
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Connect"}}</button>
+        <a href="{{.Request.DenyURL}}" class="btn">{{t "Refuse"}}</a>
+    </form>
+    {{end}}
+</div>
+{{end}}

@@ -29,6 +29,7 @@ func RequireAuth(sm *scs.SessionManager, lookup UserLookup) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userID := sm.GetInt64(r.Context(), SessionKeyUserID)
 			if userID == 0 {
+				RememberReturn(sm, r)
 				http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 				return
 			}

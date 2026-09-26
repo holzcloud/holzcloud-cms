@@ -134,7 +134,7 @@ func (h *Handler) HandleTwoFactorVerify(w http.ResponseWriter, r *http.Request) 
 		web.SetFlashSuccess(h.sm, r.Context(),
 			"Recovery code used up. Check under “My account” how many are left.")
 	}
-	http.Redirect(w, r, "/admin/", http.StatusSeeOther)
+	http.Redirect(w, r, auth.PopReturn(h.sm, r.Context()), http.StatusSeeOther)
 	return nil
 }
 

@@ -18,6 +18,7 @@
 "Between “pick one of four templates” and “maintain a template of your own” sits exactly this: a handful of values every template picks up. None of them has to be set — empty means the template decides.": "Zwischen «eine von vier Vorlagen aussuchen» und «eine eigene Vorlage pflegen» liegt genau das hier: ein paar Werte, die jede Vorlage übernimmt. Nichts davon muss gesetzt werden – leer heisst, die Vorlage entscheidet.",
 "Block “%s” – %s": "Baustein «%s» – %s",
 "Change the field “%s”": "Feld «%s» ändern",
+"Connect “%s” to this CMS?": "«%s» mit diesem CMS verbinden?",
 "Content kind removed. The %d entries are still there and still carry the key “%s” — switch them to another kind in the editor, or create the kind again.": "Inhaltsart entfernt. Die %d Einträge sind noch da und tragen weiter die Kennung «%s» — stelle sie im Editor auf eine andere Art um oder lege die Art wieder an.",
 "Content kind “%s” created. It is available in the editor from now on.": "Inhaltsart «%s» angelegt. Sie steht ab sofort im Editor zur Wahl.",
 "File too large or not selected": "Datei zu gross oder nicht ausgewählt",

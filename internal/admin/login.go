@@ -95,7 +95,7 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	h.completeLogin(r, id, role, storedEmail)
-	http.Redirect(w, r, "/admin/", http.StatusSeeOther)
+	http.Redirect(w, r, auth.PopReturn(h.sm, r.Context()), http.StatusSeeOther)
 	return nil
 }
 

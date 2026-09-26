@@ -67,7 +67,14 @@ type Token struct {
 	LastUsedAt *time.Time
 	ExpiresAt  *time.Time
 	CreatedAt  time.Time
+	// ClientID is set for a key an assistant received through OAuth. Its
+	// ExpiresAt is then the hour the current key lasts, not the end of the
+	// connection: the client renews it on its own.
+	ClientID string
 }
+
+// ViaOAuth reports whether an assistant signed in for this key itself.
+func (t Token) ViaOAuth() bool { return t.ClientID != "" }
 
 // Scope is what a verified key is allowed to do. It travels with a request
 // instead of being looked up again in each tool, so there is one place that
@@ -268,7 +275,7 @@ func (s *Store) Touch(ctx context.Context, id int64) {
 // List returns the keys, newest first.
 func (s *Store) List(ctx context.Context) ([]Token, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, name, website_id, can_write, is_admin, last_used_at, expires_at, created_at
+		`SELECT id, name, website_id, can_write, is_admin, last_used_at, expires_at, created_at, client_id
 		 FROM ai_tokens ORDER BY id DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("read key: %w", err)
@@ -289,7 +296,7 @@ func (s *Store) List(ctx context.Context) ([]Token, error) {
 // Get returns one key.
 func (s *Store) Get(ctx context.Context, id int64) (*Token, error) {
 	row := s.DB.Read.QueryRowContext(ctx,
-		`SELECT id, name, website_id, can_write, is_admin, last_used_at, expires_at, created_at
+		`SELECT id, name, website_id, can_write, is_admin, last_used_at, expires_at, created_at, client_id
 		 FROM ai_tokens WHERE id = $1`, id)
 	t, err := scanToken(row)
 	if err != nil {
@@ -316,9 +323,13 @@ func scanToken(row interface{ Scan(...any) error }) (Token, error) {
 		lastUsed  *string
 		expires   *string
 		created   string
+		clientID  *string
 	)
-	if err := row.Scan(&t.ID, &t.Name, &websiteID, &canWrite, &isAdmin, &lastUsed, &expires, &created); err != nil {
+	if err := row.Scan(&t.ID, &t.Name, &websiteID, &canWrite, &isAdmin, &lastUsed, &expires, &created, &clientID); err != nil {
 		return Token{}, err
+	}
+	if clientID != nil {
+		t.ClientID = *clientID
 	}
 	if websiteID != nil {
 		t.WebsiteID = *websiteID
