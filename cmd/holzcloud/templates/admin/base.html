@@ -123,6 +123,7 @@
                  des Verweises und ausgeschrieben in der Einstellungsliste. -->
             <p class="sidebar-build">
                 <a href="/admin/neuerungen" class="sidebar-build__version" title="Holzcloud CMS {{.Version}}">{{.Version}}</a>
+                {{if .Alpha}}<span class="alpha-tag" title="{{t "Alpha software: updates can still bring breaking changes."}}">{{t "alpha"}}</span>{{end}}
                 <a href="{{.SourceURL}}" target="_blank" rel="noopener" title="{{t "Free software under the AGPL-3.0."}} {{t "Source code"}}">AGPL</a>
             </p>
         </aside>

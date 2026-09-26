@@ -133,11 +133,16 @@ Authentik without a second factor is a Holzcloud without one.
 
 ## Versioning
 
-This repository starts at **`v1.4`**. That is its first tag, and the single commit
-below it is the beginning of the public record, not the beginning of the project:
-it was developed in a private repository beforehand, and what is here is the state
-from which it continues in public. If you were wondering how a finished-looking
-project consists of one commit — that is why, and there is nothing more to it.
+Holzcloud CMS is **alpha**, and the tags count from **`v0.0.1`**. Until 1.0 a
+release may break what the one before it did: back up before every update and
+read the changelog first. Every 0.x release is published as a pre-release.
+
+The code is older than the count. It was released as `v1.4` to `v2.9.1` first;
+those releases and tags were deleted when the count started again, and their
+entries remain in `CHANGELOG.md`, below 0.0.1. The repository's own history
+begins further back still: it was developed in a private repository before
+`v1.4`, and the single commit at the bottom is the beginning of the public
+record, not of the project.
 
 That a tag has to be there at all has a practical reason. The version is written
 into the binary at build time:
@@ -148,7 +153,7 @@ into the binary at build time:
 
 `git describe` only finds tags reachable from `HEAD`. With none there, `--always`
 takes over and a bare commit hash ends up in the binary instead of a version. With
-`v1.4` there is one.
+`v0.0.1` there is one.
 
 What a running binary thinks of itself, ask it directly:
 

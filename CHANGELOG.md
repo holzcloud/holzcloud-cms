@@ -9,7 +9,39 @@ deliberate: every other document in this project explains the why as well, and a
 list of clipped half-sentences would read as though somebody else had written it.
 Whoever writes the next entry, please join in.
 
-The numbers are the same as the tags in the repository.
+The numbers are the same as the tags in the repository, from 0.0.1 on. The
+entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
+releases and their tags were deleted when the count started again, and the
+entries stay here because they are still the history of this code.
+
+## 0.0.1 — 2026-09-26
+
+**Die Zählung beginnt neu, und die Software heisst jetzt ehrlich Alpha.**
+Holzcloud CMS wird noch stark weiterentwickelt. Ein Update kann Funktionen,
+Einstellungen, die Schnittstelle für Vorlagen und die KI-Werkzeuge ohne
+Übergangsfrist ändern oder entfernen. Die bisherigen Nummern 1.4 bis 2.9.1
+versprachen eine Reife, die es nicht gibt; ihre Releases und Tags sind
+gelöscht. Der Code ist derselbe wie in 2.9.1 — dieses Release ändert nur, wie
+er heisst und was er über sich sagt.
+
+### Neu
+
+**Die Verwaltung sagt es selbst.** Neben der Versionsnummer in der
+Seitenleiste steht „Alpha“, unter dem Anmeldeformular eine Zeile dazu, und die
+Startseite erklärt, was das heisst: vor jedem Update sichern und zuerst lesen,
+was sich geändert hat. Die Hinweise hängen an der Versionsnummer und
+verschwinden mit 1.0 von selbst.
+
+**Die Release-Seiten auf GitHub** tragen den Text dieses Abschnitts und sind
+als Vorabversion (Pre-release) gekennzeichnet, solange die Nummer mit 0
+beginnt.
+
+### Für Betreiber
+
+Wer v2.x betreibt, stellt einmal von Hand auf 0.0.1 um: Werkzeuge, die nach
+Versionsnummern aktualisieren (Renovate, Image-Tags), halten 0.0.1 für älter
+als 2.9.1 und würden von selbst nicht wechseln. Die Datenbank bleibt wie sie
+ist; keine Migration.
 
 ## 2.9.1 — 2026-09-26
 

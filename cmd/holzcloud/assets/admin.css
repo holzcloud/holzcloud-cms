@@ -747,6 +747,45 @@
         color: var(--color-warning);
     }
 
+    /* Alpha: the notice on the start page, the tag beside the version and the
+       line under the sign-in form. Warning colours, because an update can
+       break things, and nothing louder, because it is said on every visit. */
+    .alpha-notice {
+        margin-bottom: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-md);
+        background: var(--color-warning-subtle);
+        color: var(--color-warning);
+    }
+
+    .alpha-notice p {
+        margin: var(--space-1) 0 0;
+    }
+
+    .alpha-notice a {
+        color: inherit;
+        text-decoration: underline;
+        font-weight: 600;
+    }
+
+    .alpha-tag {
+        margin-inline-start: 4px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: var(--color-warning-subtle);
+        color: var(--color-warning);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .login-alpha {
+        margin: var(--space-3) 0 0;
+        font-size: 0.8125rem;
+        text-align: center;
+        color: var(--color-warning);
+    }
+
     /* Global progress bar */
     .global-progress {
         position: fixed;
@@ -1781,7 +1820,7 @@
 
     .media-card {
         border: 1px solid var(--color-border);
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--radius-md);
         overflow: hidden;
         background: var(--color-surface);
         display: flex;

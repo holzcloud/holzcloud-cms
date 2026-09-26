@@ -585,6 +585,11 @@ they contain the database, which includes password hashes, and the CSRF key.
 
 ## Updating
 
+Holzcloud CMS is alpha software: until 1.0, an update may change or remove
+features, settings and the template contract without a transition period.
+**Back up first** (see *Backups* above) and read the release's entry in
+`CHANGELOG.md` before you replace the binary.
+
 ```bash
 # Build new binary on dev machine
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" ./cmd/holzcloud
@@ -714,7 +719,8 @@ There are three ways to ask for one, and all three end in the same workflow
 (`.github/workflows/release.yml`), which runs the whole test suite before it
 publishes anything: a tag on broken code must not become a published release.
 
-The release page says what is new: its text is the `CHANGELOG.md` section for
+Every release before 1.0 is published as a pre-release. The release page says
+what is new: its text is the `CHANGELOG.md` section for
 that version, with GitHub's list of commits below it. So the changelog entry is
 written before the release is asked for, not after. A push to the `release`
 branch at a version that is already out publishes nothing and moves no tag; it
