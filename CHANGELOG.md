@@ -11,6 +11,21 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.8.3 — 2026-09-26
+
+**Die Themes *holzcloud* und *weide* zeigen wieder ihr eigenes Favicon.** Beide
+Dateien trugen einen Kommentar, in dem `--` stand, und das ist in einem
+XML-Kommentar nicht erlaubt. Der Browser verwarf das Bild ohne ein Wort; eine
+Website auf diesen Themes hatte kein Zeichen im Tab, und wo die Verwaltung unter
+derselben Domain läuft, erschien stattdessen deren Wolke. Ein Test parst jetzt
+jedes eingebettete SVG. Wer ein eigenes Favicon hochlädt, war nie betroffen.
+
+**Bild und Text taugt im Theme *holzcloud* für Bildschirmfotos.** Das Bild
+bekommt drei Fünftel der Breite statt der Hälfte, eine grössere Rundung und
+einen Schatten in der Akzentfarbe, und die Zeilen stehen mit mehr Luft
+untereinander. Ein Bild in einer Karte trägt die Rundung der Karte und ist im
+Seitenverhältnis 16:10 von oben links angeschnitten, wie ein Bildschirmfoto.
+
 ## 2.8.2 — 2026-09-26
 
 **Ein langes Menü lässt sich am Telefon wieder ganz durchblättern.** In den
