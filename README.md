@@ -28,6 +28,64 @@ administrator account; administrators must then set up a second factor (any TOTP
 app). After that you are in the dashboard, and the next step is **Websites →
 New website**, where you give the site a domain.
 
+## Working through an AI assistant
+
+Everything the admin can do can also be done by your own AI assistant over MCP —
+without ever signing in to the web interface. The server never calls an AI; the
+assistant connects to it.
+
+**1. Create a key on the server.** It is printed exactly once:
+
+```bash
+$ holzcloud ai key create -name "Claude on my laptop" -level admin
+key 1 created: Claude on my laptop, level admin
+
+hc_3kP9vXq2LmR7tYw8ZsN4cJ6bHd1FgA5eUo0iKy_example
+
+This is the only time the key is shown. Connect an assistant to /ai on this
+server with the header:  Authorization: Bearer <the key above>
+```
+
+Run it with the same `HOLZCLOUD_*` environment as the server. On an installation
+set up with [`deploy/DEPLOY.md`](deploy/DEPLOY.md):
+
+```bash
+sudo -u holzcloud HOLZCLOUD_DATA_DIR=/opt/holzcloud/data \
+  /opt/holzcloud/holzcloud ai key create -name "Claude on my laptop" -level admin
+```
+
+| `-level` | The key may |
+|---|---|
+| `read` | read everything |
+| `content` (default) | also write: pages, media, menus, design, shop … |
+| `admin` | also manage users, keys, plugins, languages and the brand — only ever created here, on the server |
+
+`-website 3` limits a `read` or `content` key to one website, `-days 90` lets it
+expire. `holzcloud ai key list` shows all keys, `holzcloud ai key revoke 1`
+withdraws one.
+
+**2. Connect the assistant.** The endpoint is `https://<your domain>/ai`, the
+key goes in the `Authorization` header. For example with Claude Code:
+
+```bash
+claude mcp add --transport http holzcloud https://www.example.org/ai \
+  --header "Authorization: Bearer hc_3kP9vXq2LmR7tYw8ZsN4cJ6bHd1FgA5eUo0iKy_example"
+```
+
+Any MCP client that speaks HTTP works the same way. To check the key by hand:
+
+```bash
+curl -s https://www.example.org/ai \
+  -H "Authorization: Bearer hc_…" -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"key_info","arguments":{}}}'
+```
+
+Then just ask: *"Create a website 'Velowerkstatt Bern' with the domain
+velo.example.org, a page 'Occasionen' with this photo, and put it in the main
+menu."* New pages are always drafts until you ask for them to be published.
+Every change appears in the activity log under the key's name. All tools and
+rules: [`docs/ai-access.md`](docs/ai-access.md).
+
 ## What it does
 
 - **Multiple websites, multiple domains** — one instance, routed by `Host`
