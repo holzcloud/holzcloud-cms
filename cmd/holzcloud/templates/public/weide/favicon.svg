@@ -7,7 +7,7 @@
 
      currentColor gibt es hier nicht: ein Favicon wird ausserhalb des
      Dokuments gezeichnet und erbt nichts. Die beiden Werte stehen deshalb als
-     einzige Stelle dieser Vorlage fest — es sind --hc-ground und --hc-erde
+     einzige Stelle dieser Vorlage fest — es sind hc-ground und hc-erde
      aus der Schicht weide.tokens. Wer sie dort ändert, ändert sie auch hier.
 
      Kein prefers-color-scheme: diese Vorlage hat genau eine Stimmung, und sie
