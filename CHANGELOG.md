@@ -11,6 +11,16 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.8.1 — 2026-09-26
+
+**Ein langer Website-Name bricht die Kopfleiste am Telefon nicht mehr.** Im
+Theme *weide* rutschte der Menüknopf in eine eigene Zeile, sobald der Name nicht
+mehr ganz neben ihn passte — bei „Kinderbauernhof Seehof“ schon auf einem
+gewöhnlichen Telefon. Jetzt steht der Knopf immer rechts neben dem Namen; unter
+600 px Breite ist der Name eine Stufe kleiner und bleibt so bis etwa 340 px auf
+einer Zeile. Reicht der Platz auch dann nicht, bricht der Name in sich um, nicht
+die Leiste.
+
 ## 2.8 — 2026-09-26
 
 **Claude und ChatGPT verbinden sich jetzt selbst.** Wer das CMS in Claude (im
