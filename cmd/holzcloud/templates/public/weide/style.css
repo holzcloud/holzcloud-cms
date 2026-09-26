@@ -1316,6 +1316,14 @@ main:focus { outline: none; }
 @media (max-width: 1000px) {
   .hc-bar__inner { flex-wrap: wrap; gap: 10px 18px; padding-block: var(--hc-space-3); }
 
+  /* Die Wortmarke geht mit Basis 0 in den Zeilenumbruch der Leiste. Mit
+     flex: 0 1 auto zählte ihre volle Textbreite: ein langer Name
+     („Kinderbauernhof Seehof") passte nicht mehr neben den Menüknopf, und
+     der Knopf rutschte in eine eigene Zeile. So steht der Knopf immer
+     rechts neben dem Namen, und reicht der Platz trotzdem nicht, bricht
+     der Name in sich um statt die Leiste. */
+  .site-mark { flex: 1 1 0; }
+
   /* Für die Tastatur erreichbar, für das Auge unsichtbar. Hier NICHT
      display: none — das nähme der Checkbox den Fokus und damit die
      Bedienbarkeit ohne Maus. Oben, wo es den Schalter nicht geben
@@ -1391,6 +1399,9 @@ main:focus { outline: none; }
    an derselben Checkbox. Ganz wegzunehmen hiesse, dass ein Telefon
    die Suche der Website nur noch über die 404-Seite findet. */
 @media (max-width: 600px) {
+  /* Eine Stufe kleiner: ein Name von gut zwanzig Zeichen bleibt so bei
+     390 px auf einer Zeile neben dem Menüknopf. */
+  .site-mark { font-size: var(--hc-text-base); }
   .site-search { display: none; }
   .nav-switch:checked + .hc-bar .site-search { display: flex; }
 }
