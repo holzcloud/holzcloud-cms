@@ -1224,6 +1224,38 @@ main:focus { outline: none; }
 .hc-eigen__text > * + *,
 .hc-bildtext__text > * + * { margin-block-start: var(--hc-space-5); }
 
+/* Bild und Text als Vorstellung einer Funktion.
+ *
+ * Auf holzcloud.ch steht dieser Baustein Zeile um Zeile: ein Bildschirmfoto,
+ * daneben eine Überschrift und zwei Sätze. Die Kernregel teilt 1fr 1fr, und
+ * ein Bildschirmfoto ist in der Hälfte zu klein, um etwas darauf zu erkennen.
+ * Das Bild bekommt deshalb drei Fünftel, der Text den Rest, und die Zeilen
+ * stehen mit Luft untereinander, damit jede als eigene Vorstellung liest. */
+.page-content > .hc-bildtext { margin-block: var(--hc-space-8); }
+@media (min-width: 45em) {
+  .hc-bildtext { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: clamp(var(--hc-space-5), 4vw, var(--hc-space-8)); }
+  .hc-bildtext--rechts { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+}
+.hc-bildtext__bild img {
+  display: block; height: auto;
+  border-radius: var(--hc-r-lg);
+  border: 1px solid var(--hc-pane-edge);
+  box-shadow: 0 32px 90px -36px color-mix(in oklch, var(--hc-brass) 55%, transparent),
+              var(--hc-shadow-pane);
+}
+.hc-bildtext__text :where(h2, h3) { margin-block-start: 0; }
+.hc-bildtext__text :where(h3) { font-size: var(--hc-text-xl); letter-spacing: var(--hc-track-snug); }
+.hc-bildtext__text :where(p) { color: var(--hc-ink-2); }
+
+/* Karten mit Bild — die Übersicht der Programme auf der Startseite. Das Bild
+ * sitzt oben in der Karte und trägt deren Rundung. */
+.hc-karte img {
+  display: block; width: 100%; height: auto;
+  aspect-ratio: 16 / 10; object-position: top left;
+  border-radius: calc(var(--hc-r) - 4px);
+  border: 1px solid var(--hc-hairline);
+}
+
 /* Eigene Bausteinart — die Felder als Faktenzeilen, wie .hc-defs. */
 .hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
 
