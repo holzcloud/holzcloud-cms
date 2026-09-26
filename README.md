@@ -2,6 +2,13 @@
 
 # Holzcloud CMS
 
+> [!WARNING]
+> **Alpha software, in heavy development.** Features, settings, the template
+> contract and the AI tools can change or disappear from one release to the
+> next, without a transition period. Back up before every update and read the
+> [changelog](CHANGELOG.md) first. Not yet recommended for sites you cannot
+> afford to fix by hand.
+
 A self-hosted CMS for a small server: **one Go binary, one SQLite file, many
 websites**. Requests are routed to a site by their `Host` header, content is
 written in Markdown with images, galleries and forms dropped in between, and
@@ -201,10 +208,14 @@ it. The screenshots above show a fictional example site; its source is in
 
 ## Versioning
 
-The public record starts at **`v1.4`** — the point from which the project
-continues in the open, not the point at which it began; it was developed in a
-private repository before that. Releases have run on from there, and the
-milestones under `.planning/` share the numbering.
+Holzcloud CMS is **alpha**, and its numbers say so: the count starts at
+**`v0.0.1`**. Until 1.0, any release may break what the one before it did —
+read the [changelog](CHANGELOG.md) before every update, and back up first.
+
+The code has a longer history than the numbers. It was released as 1.4 to 2.9.1
+before the count started again; those releases and tags were deleted, and
+their entries are still in the changelog, below 0.0.1. The milestones under
+`.planning/` carry the old numbers.
 
 The version is written into the binary at build time from `git describe`, so a
 tag has to be reachable from `HEAD` — without one, `--always` puts a bare commit

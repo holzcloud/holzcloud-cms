@@ -241,9 +241,14 @@ jobs:
         # is not a ref push, so neither the workflow token's missing scope for
         # .github/workflows nor the development proxy's refusal of refs/tags
         # applies to it.
+        # Before 1.0 every release is a pre-release: the software is alpha,
+        # and the page says so where people look first.
+        prerelease=()
+        case "${TAG}" in v0.*) prerelease=(--prerelease) ;; esac
         gh release create "${TAG}" \
           --target "${TARGET}" \
           --title "${TAG}" \
+          "${prerelease[@]}" \
           --notes-file release-notes.md \
           --generate-notes \
           holzcloud-linux-amd64 \

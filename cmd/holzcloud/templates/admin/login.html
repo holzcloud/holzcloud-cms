@@ -32,6 +32,7 @@
         <p class="login-or"><span>{{t "or"}}</span></p>
         <a href="/admin/oidc/start" class="btn btn--full">{{tf "Sign in with %s" .OIDCName}}</a>
         {{end}}
+        {{if .Alpha}}<p class="login-alpha">{{t "Alpha software: updates can still bring breaking changes."}}</p>{{end}}
     </div>
 </body>
 </html>{{end}}

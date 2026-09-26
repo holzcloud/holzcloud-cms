@@ -70,8 +70,9 @@ review of a single person. You should read that here rather than have to work it
 out.
 
 It cannot be counted here. The commits carrying the agent as author are in the
-private repository this one was published from; in public the record begins at
-`v1.4` — the "Versioning" section in the README says why. So what stands here is
+private repository this one was published from; in public the record begins
+with the commit that was first released as `v1.4` — the "Versioning" section in
+the README says why. So what stands here is
 the statement and no evidence for it. That is exactly why it stands here at all.
 
 It changes nothing about the standard. What is written two sections above holds:

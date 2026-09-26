@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/alexedwards/scs/v2"
@@ -60,6 +61,10 @@ type LayoutData struct {
 	// a web application.
 	Version   string
 	SourceURL string
+	// Alpha says this build is not yet a 1.0: the sidebar, the sign-in form
+	// and the start page say so, because an update may still break things.
+	// It follows the version number, so it goes away by itself at 1.0.
+	Alpha bool
 
 	// Counts are the badges on the bar. Only filled for a whole page: an htmx
 	// answer replaces a piece of the page and never the bar.
@@ -148,5 +153,22 @@ func NewLayoutData(r *http.Request, sm *scs.SessionManager, title string) Layout
 		Brand:      branding.Current(),
 		Version:    buildVersion,
 		SourceURL:  buildSource,
+		Alpha:      IsAlpha(buildVersion),
 	}
+}
+
+// IsAlpha reports whether a build is still before 1.0.
+//
+// A version whose major number is 0 is, and so is anything that is not a
+// version number at all — "dev", or the bare commit hash git describe falls
+// back to without a tag. Only a build that can prove it is 1.0 or later goes
+// without the notice.
+func IsAlpha(version string) bool {
+	v := strings.TrimPrefix(strings.TrimSpace(version), "v")
+	major, _, _ := strings.Cut(v, ".")
+	n, err := strconv.Atoi(major)
+	if err != nil || !strings.Contains(v, ".") {
+		return true
+	}
+	return n < 1
 }
