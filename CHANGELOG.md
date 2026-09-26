@@ -11,6 +11,15 @@ Whoever writes the next entry, please join in.
 
 The numbers are the same as the tags in the repository.
 
+## 2.8.2 — 2026-09-26
+
+**Ein langes Menü lässt sich am Telefon wieder ganz durchblättern.** In den
+Themes *rudel*, *weide* und *default* klebt die Kopfleiste oben. Klappte man
+auf einem Telefon ein Menü auf, das höher war als der Bildschirm, scrollte ein
+Wischen die Seite dahinter — die unteren Punkte blieben unerreichbar. Jetzt
+wird die offene Leiste selbst zum Bildlaufbereich, höchstens so hoch wie der
+sichtbare Bildschirm, und der Bildlauf geht nicht an die Seite weiter.
+
 ## 2.8.1 — 2026-09-26
 
 **Ein langer Website-Name bricht die Kopfleiste am Telefon nicht mehr.** Im
