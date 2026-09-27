@@ -14,6 +14,13 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.4 — 2026-09-27
+
+**Die Seitenfarben sind die der Programme.** Die Seite über holzcloud-cms steht
+jetzt in Mint auf dunklem Grün statt im Indigo der Verwaltung, die über
+hauscloud in Blau auf Nachtblau, jeweils wie die Banner der Programme auf GitHub.
+Neu ist, dass auch der Seitengrund mitgeht und nicht nur die Akzentfarbe.
+
 ## 0.0.3 — 2026-09-27
 
 **Die Vorlage „holzcloud“ kennt einen Auftakt.** Folgen auf einer Seite der

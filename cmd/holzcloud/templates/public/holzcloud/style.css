@@ -1312,18 +1312,23 @@ main:focus { outline: none; }
 
 /* Die Farbe des Programms, von dem eine Seite erzählt.
  *
- * Die Seite über holzcloud-cms steht im Indigo seiner Verwaltung, die über
- * hauscloud in dessen Blau; holzkube-manager trägt schon das Messing dieser
- * Vorlage. Die Farbe hängt am Adressnamen der Seite, den das Layout als
- * data-seite auf <body> schreibt — er ist in allen Sprachen derselbe.
+ * Jede Programmseite steht in den Farben, die das Programm auf GitHub trägt:
+ * holzcloud-cms in Mint auf dunklem Grün, hauscloud in Blau auf Nachtblau;
+ * holzkube-manager trägt schon das Messing dieser Vorlage und bleibt, wie er
+ * ist. Die Farbe hängt am Adressnamen der Seite, den das Layout als data-seite
+ * auf <body> schreibt — er ist in allen Sprachen derselbe.
  *
- * Alles, was :root aus dem Messing ableitet, wird hier noch einmal abgeleitet:
- * ein eigener Wert in einer Eigenschaft wird dort aufgelöst, wo er steht, und
- * <body> erbt sonst das fertige Messing. Deshalb steht auch --hc-ground-image
- * noch einmal da, obwohl sich an seiner Formel nichts ändert. */
-body[data-seite="holzcloud-cms"] { --hc-app: oklch(0.72 0.15 279); }
-body[data-seite="hauscloud"]     { --hc-app: #8298ff; }
+ * Alles, was :root aus Messing und Grund ableitet, wird hier noch einmal
+ * abgeleitet: ein eigener Wert in einer Eigenschaft wird dort aufgelöst, wo er
+ * steht, und <body> erbt sonst das fertige Messing. Deshalb steht auch
+ * --hc-ground-image noch einmal da, obwohl sich an seiner Formel nichts ändert. */
+body[data-seite="holzcloud-cms"] { --hc-app: #8fd0ba; --hc-app-grund: #0b1411; }
+body[data-seite="hauscloud"]     { --hc-app: #8298ff; --hc-app-grund: #0c0e1a; }
 body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"]) {
+  --hc-ground:          var(--hc-app-grund);
+  --paper:              var(--hc-app-grund);
+  --hc-pane-bar:        color-mix(in srgb, var(--hc-ground) 55%, transparent);
+  --hc-pane-bar-solid:  color-mix(in srgb, var(--hc-ground) 97%, transparent);
   --hc-brass:           var(--hc-app);
   --hc-brass-soft:      color-mix(in srgb, var(--hc-app) 40%, transparent);
   --hc-brass-wash:      color-mix(in srgb, var(--hc-app) 10%, transparent);
@@ -1331,7 +1336,7 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"]) {
   --hc-pane-lift:       color-mix(in srgb, var(--hc-app) 40%, transparent);
   --hc-focus:           var(--hc-app);
   --brand:              var(--hc-app);
-  --hc-wash-warm:       color-mix(in srgb, var(--hc-app) 22%, transparent);
+  --hc-wash-warm:       color-mix(in srgb, var(--hc-app) 18%, transparent);
   --hc-wash-brass:      color-mix(in srgb, var(--hc-app) 24%, transparent);
   --hc-ground-2:        color-mix(in srgb, var(--hc-ground) 96%, var(--hc-app) 4%);
   --hc-pane-solid:      color-mix(in srgb, var(--hc-ground) 90%, var(--hc-app) 10%);
@@ -1356,7 +1361,9 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"]) {
   body[data-seite] { --hc-ground-image: none; }
 }
 @media print {
-  body[data-seite] { --hc-ground-image: none; --hc-ground-2: #fff; }
+  body[data-seite] {
+    --hc-ground-image: none; --hc-ground: #fff; --hc-ground-2: #fff; --paper: #fff;
+  }
 }
 @media (max-width: 30em) {
   .hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__text { font-size: var(--hc-text-xs); }
