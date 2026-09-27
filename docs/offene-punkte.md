@@ -166,7 +166,7 @@ So that it does not come round again:
 
 ## When carrying on
 
-- **Migrations** run to `00048`. For a new migration that changes an existing
+- **Migrations** run to `00058`. For a new migration that changes an existing
   table, read `internal/db/migrations/00029` and `00031` first: a CHECK constraint
   at the head of a table can only be relaxed in SQLite by rebuilding the table
   completely, and `pages` has foreign-key children. An index of your own, on the
