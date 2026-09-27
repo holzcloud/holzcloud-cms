@@ -53,7 +53,7 @@
   <style>{{.Site.Design}}</style>
   {{end}}
 </head>
-<body>
+<body data-seite="{{.Page.Slug}}">
   <!-- Die Würfeltextur gehört als erstes Kind hierher: motif.css hebt mit
        .hc-cubes ~ * alles danach über sie und gibt der Leiste mit
        .hc-cubes ~ .hc-bar ihr sticky zurück. Beides sind Geschwisterregeln,

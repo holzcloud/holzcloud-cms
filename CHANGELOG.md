@@ -14,6 +14,20 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.3 — 2026-09-27
+
+**Die Vorlage „holzcloud“ kennt einen Auftakt.** Folgen auf einer Seite der
+Vorspann, ein Bild und Karten ohne Bild direkt aufeinander, steht das Bild über
+die ganze Breite in einem Fensterrahmen, und die Karten stehen darunter als eine
+Reihe kurzer Stärken. Einen neuen Baustein braucht das nicht, und dieselben
+Bausteine an anderer Stelle sehen aus wie bisher.
+
+**Eine Seite kann die Farbe ihres Themas tragen.** Das Layout der Vorlage
+schreibt den Adressnamen der Seite als `data-seite` auf `<body>`. Das Stylesheet
+färbt damit die Seiten `holzcloud-cms` und `hauscloud` in der Farbe der
+jeweiligen Verwaltung ein, den Hintergrund eingeschlossen. Druck und „weniger
+Transparenz“ bleiben dabei, wie sie waren.
+
 ## 0.0.2 — 2026-09-27
 
 **Zwei Sätze in der Verwaltung stimmen wieder.** Die Shop-Übersicht schrieb bei

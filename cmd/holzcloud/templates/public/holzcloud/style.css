@@ -1259,6 +1259,109 @@ main:focus { outline: none; }
   border: 1px solid var(--hc-hairline);
 }
 
+/* Der Auftakt einer Vorstellungsseite.
+ *
+ * Auf holzcloud.ch beginnt jede Programmseite mit einem Bild und den
+ * wichtigsten Stärken, nicht mit Text. Einen eigenen Baustein braucht das
+ * nicht: Die Folge Vorspann, Bild, Karten ist der Auftakt. Das Bild steht
+ * dann über die ganze Breite in einem Fensterrahmen, die Karten ohne Bild
+ * darunter als Reihe kurzer Stärken. Dieselben Bausteine an anderer Stelle
+ * bleiben, wie sie sind, weil nur diese Nachbarschaft getroffen wird. */
+.page-content > .hc-eigen--vorspann + .hc-bild {
+  grid-column: text-start / breit-ende;
+  /* Die Kernregel für ein breites Bild zieht es mit negativem Rand über den
+   * Textblock hinaus; hier hat es die ganze Rasterbreite schon. */
+  inline-size: auto; margin-inline: 0;
+  margin-block-start: var(--hc-space-5);
+  padding: 34px 8px 8px;
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-r-lg);
+  background:
+    radial-gradient(circle at 18px 17px, var(--hc-ink-3) 4.5px, transparent 5px),
+    radial-gradient(circle at 36px 17px, var(--hc-ink-3) 4.5px, transparent 5px),
+    radial-gradient(circle at 54px 17px, var(--hc-brass) 4.5px, transparent 5px),
+    var(--hc-pane);
+  background-repeat: no-repeat;
+  box-shadow: 0 40px 110px -40px color-mix(in oklch, var(--hc-brass) 60%, transparent),
+              var(--hc-shadow-pane);
+}
+.page-content > .hc-eigen--vorspann + .hc-bild img {
+  display: block; width: 100%; height: auto;
+  /* Oben bündig beschnitten, damit die Stärken darunter noch im ersten
+   * Bildschirm stehen. Ein Bildschirmfoto liest sich von oben links. */
+  max-block-size: min(44vh, 30rem);
+  object-fit: cover; object-position: top left;
+  border-radius: calc(var(--hc-r-lg) - 6px);
+}
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-karten {
+  grid-column: text-start / breit-ende;
+  /* Zwei nebeneinander schon auf dem Telefon: vier Sätze untereinander
+   * wären wieder die Textwand, die der Auftakt vermeiden soll. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: var(--hc-space-3);
+  margin-block: var(--hc-space-5) var(--hc-space-7);
+}
+.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte {
+  gap: var(--hc-space-2); padding: var(--hc-space-4);
+  border-block-start: 2px solid var(--hc-brass);
+}
+.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__titel {
+  margin: 0; font-size: var(--hc-text-base); color: var(--hc-brass);
+}
+.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__text > :where(p) { margin: 0; }
+
+/* Die Farbe des Programms, von dem eine Seite erzählt.
+ *
+ * Die Seite über holzcloud-cms steht im Indigo seiner Verwaltung, die über
+ * hauscloud in dessen Blau; holzkube-manager trägt schon das Messing dieser
+ * Vorlage. Die Farbe hängt am Adressnamen der Seite, den das Layout als
+ * data-seite auf <body> schreibt — er ist in allen Sprachen derselbe.
+ *
+ * Alles, was :root aus dem Messing ableitet, wird hier noch einmal abgeleitet:
+ * ein eigener Wert in einer Eigenschaft wird dort aufgelöst, wo er steht, und
+ * <body> erbt sonst das fertige Messing. Deshalb steht auch --hc-ground-image
+ * noch einmal da, obwohl sich an seiner Formel nichts ändert. */
+body[data-seite="holzcloud-cms"] { --hc-app: oklch(0.72 0.15 279); }
+body[data-seite="hauscloud"]     { --hc-app: #8298ff; }
+body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"]) {
+  --hc-brass:           var(--hc-app);
+  --hc-brass-soft:      color-mix(in srgb, var(--hc-app) 40%, transparent);
+  --hc-brass-wash:      color-mix(in srgb, var(--hc-app) 10%, transparent);
+  --hc-brass-pulse:     color-mix(in srgb, var(--hc-app) 50%, transparent);
+  --hc-pane-lift:       color-mix(in srgb, var(--hc-app) 40%, transparent);
+  --hc-focus:           var(--hc-app);
+  --brand:              var(--hc-app);
+  --hc-wash-warm:       color-mix(in srgb, var(--hc-app) 22%, transparent);
+  --hc-wash-brass:      color-mix(in srgb, var(--hc-app) 24%, transparent);
+  --hc-ground-2:        color-mix(in srgb, var(--hc-ground) 96%, var(--hc-app) 4%);
+  --hc-pane-solid:      color-mix(in srgb, var(--hc-ground) 90%, var(--hc-app) 10%);
+  --hc-iso-top:         color-mix(in srgb, var(--hc-app) 13%, transparent);
+  --hc-iso-line:        color-mix(in srgb, var(--hc-app) 40%, transparent);
+  --hc-iso-line-dim:    color-mix(in srgb, var(--hc-app) 26%, transparent);
+  --hc-iso-lit-top:     color-mix(in srgb, var(--hc-app) 28%, transparent);
+  --hc-iso-lit-side:    color-mix(in srgb, var(--hc-app) 8%, transparent);
+  --hc-iso-lit-line:    var(--hc-app);
+  --hc-iso-lit-dim:     color-mix(in srgb, var(--hc-app) 60%, transparent);
+  --hc-iso-faint:       color-mix(in srgb, var(--hc-app) 13%, transparent);
+  --hc-rail-line:       color-mix(in srgb, var(--hc-app) 26%, transparent);
+  --hc-ground-image:
+    radial-gradient(60% 50% at 20% 16%, var(--hc-wash-warm)   0%, transparent 100%),
+    radial-gradient(46% 40% at 84% 26%, var(--hc-wash-brass)  0%, transparent 100%),
+    radial-gradient(55% 48% at 60% 95%, var(--hc-wash-violet) 0%, transparent 100%),
+    linear-gradient(160deg, var(--hc-ground-2) 0%, var(--hc-ground) 100%);
+}
+/* Was :root für wenig Transparenz und für den Druck zurücknimmt, muss hier
+ * auch zurückgenommen werden, sonst brächte die Regel oben den Verlauf wieder. */
+@media (prefers-reduced-transparency: reduce) {
+  body[data-seite] { --hc-ground-image: none; }
+}
+@media print {
+  body[data-seite] { --hc-ground-image: none; --hc-ground-2: #fff; }
+}
+@media (max-width: 30em) {
+  .hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__text { font-size: var(--hc-text-xs); }
+}
+
 /* Eigene Bausteinart — die Felder als Faktenzeilen, wie .hc-defs. */
 .hc-eigen__zeile, .hc-eigen__datum, .hc-eigen__link { color: var(--hc-ink-2); }
 
