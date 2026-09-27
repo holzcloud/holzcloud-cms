@@ -1,39 +1,38 @@
-<img src="docs/brand/holzcloud-mark.svg" alt="" width="80" align="right">
+<p align="center">
+  <img src="docs/brand/banner.png" alt="Holzcloud CMS — a self-hosted CMS for a small server: one Go binary, one SQLite file, many websites">
+</p>
 
-# Holzcloud CMS
+<p align="center">
+  <img src="https://img.shields.io/badge/status-alpha-e3a36b?style=flat-square&labelColor=14201c" alt="Status: alpha">
+  <a href="https://github.com/holzcloud/holzcloud-cms/releases"><img src="https://img.shields.io/github/v/release/holzcloud/holzcloud-cms?include_prereleases&style=flat-square&color=8fd0ba&labelColor=14201c" alt="Latest release"></a>
+  <a href="https://github.com/holzcloud/holzcloud-cms/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/holzcloud/holzcloud-cms/ci.yml?branch=main&style=flat-square&labelColor=14201c&label=CI" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Go-1.26-8fd0ba?style=flat-square&labelColor=14201c" alt="Go 1.26">
+  <img src="https://img.shields.io/badge/linux-amd64-8fd0ba?style=flat-square&labelColor=14201c" alt="linux amd64">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/holzcloud/holzcloud-cms?style=flat-square&color=8fd0ba&labelColor=14201c" alt="AGPL-3.0"></a>
+</p>
+
+<p align="center">
+  <b><a href="https://holzcloud.ch/holzcloud-cms">Project page</a></b> ·
+  <a href="deploy/DEPLOY.md">Deploying</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="https://github.com/holzcloud/holzcloud-cms/releases">Releases</a>
+</p>
+
+**Holzcloud CMS** is a self-hosted CMS for a small server: **one Go binary, one
+SQLite file, many websites**. Requests reach a site by their `Host` header,
+pages are written in Markdown with images, galleries and forms dropped in
+between, and they are served by server-rendered Go templates. Nothing is loaded
+from a third party while it runs — no CDN, no web fonts, no analytics, no
+embeds — which is what makes a `default-src 'self'` content security policy
+possible, and why a Holzcloud site needs no cookie banner.
 
 > [!WARNING]
-> **Alpha software, in heavy development.** Features, settings, the template
-> contract and the AI tools can change or disappear from one release to the
-> next, without a transition period. Back up before every update and read the
-> [changelog](CHANGELOG.md) first. Not yet recommended for sites you cannot
-> afford to fix by hand.
+> **Holzcloud CMS is alpha software under heavy development.** Features,
+> settings, the template contract and the AI tools can change or disappear from
+> one release to the next, without a transition period. Back up the data
+> directory before every update and read the [changelog](CHANGELOG.md) first.
 
-A self-hosted CMS for a small server: **one Go binary, one SQLite file, many
-websites**. Requests are routed to a site by their `Host` header, content is
-written in Markdown with images, galleries and forms dropped in between, and
-pages are served by server-rendered Go templates.
-
-Nothing is loaded from a third party while the application runs — no CDN, no web
-fonts, no analytics, no embeds. That is what makes a `default-src 'self'`
-content security policy possible, and it is why a Holzcloud site needs no cookie
-banner.
-
-**Project page: <https://holzcloud.ch/holzcloud-cms>**
-
-![A website served by Holzcloud](docs/screenshots/public-site.jpg)
-
-## Quick start
-
-```bash
-go build ./cmd/holzcloud
-./holzcloud
-```
-
-Open <http://localhost:8080/admin>. The first visit asks you to create the
-administrator account; administrators must then set up a second factor (any TOTP
-app). After that you are in the dashboard, and the next step is **Websites →
-New website**, where you give the site a domain.
+![The editor: Markdown with elements between the text, the preview beside it](docs/screenshots/editor.png)
 
 ## What it does
 
@@ -79,7 +78,7 @@ New website**, where you give the site a domain.
 - **Plugins** as separate Go modules — contact form, farm-shop orders, search,
   404 log, year token
 
-## In the admin
+## A look around
 
 Six places in a slim rail — start, pages, media, shop, design, settings — each
 with a number when something there waits for you: pages awaiting review, orders
@@ -120,121 +119,65 @@ the site and follows it when it is renamed.
 
 ![Fields of a website](docs/screenshots/custom-fields.png)
 
-## Configuration
+**The public side.** Eight built-in templates, set here to *Weide*, and every
+subresource from the site's own origin: no CDN, no web font service, no
+analytics, and so no cookie banner.
 
-Everything is set through environment variables prefixed `HOLZCLOUD_`. The ones
-you are most likely to need:
+![A website served by Holzcloud](docs/screenshots/public-site.jpg)
 
-| Variable | Default | Description |
-|---|---|---|
-| `HOLZCLOUD_PORT` | `8080` | HTTP listen port |
-| `HOLZCLOUD_DATA_DIR` | `data` | SQLite database, media and uploaded templates |
-| `HOLZCLOUD_SECURE` | `false` | Set `true` behind TLS — enables Secure cookies |
-| `HOLZCLOUD_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARN`, `ERROR` |
-| `HOLZCLOUD_SMTP_HOST` | — | Mail server; empty means no mail is sent at all |
+## Quick start
 
-The full list — upload limits, Argon2 cost, the remaining SMTP settings — is in
-[`docs/configuration.md`](docs/configuration.md).
+Download `holzcloud-linux-amd64` from the
+[newest release](https://github.com/holzcloud/holzcloud-cms/releases) and
+compare it with the `.sha256` file beside it, then:
 
-## Build and deploy
-
-```bash
-# Local
-go build ./cmd/holzcloud
-
-# Production (linux/amd64), ~23 MB, fully self-contained
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-  go build -trimpath -ldflags="-s -w" -o holzcloud ./cmd/holzcloud
+```sh
+chmod +x holzcloud-linux-amd64
+./holzcloud-linux-amd64
 ```
 
-Templates, assets and migrations are embedded with `embed.FS`; there are no
-external files to ship. `deploy/` holds a hardened systemd unit, a Caddyfile for
-automatic HTTPS and a WAL-safe backup script — see
-[`deploy/DEPLOY.md`](deploy/DEPLOY.md) and
-[`docs/deployment.md`](docs/deployment.md).
+Open <http://localhost:8080/admin> and create the first account; an
+administrator sets up a second factor (any TOTP app) right after. The next step
+is **Websites → New website**, where the site gets its domain.
 
-## Architecture
+Prefer a container? The image is `ghcr.io/holzcloud/holzcloud-cms`, built from
+the [`Dockerfile`](Dockerfile) in this repository. To build from source you
+need Go 1.26 and nothing else:
 
-```
-cmd/holzcloud/            Entry point, route wiring, middleware, embedded assets
-internal/
-  config/                 Environment-based configuration
-  db/                     SQLite dual pool (single writer), WAL, goose migrations
-  auth/                   Argon2id, SCS sessions, CSRF, TOTP, middleware
-  domain/                 Websites, domains, host resolver
-  page/                   Pages, Markdown pipeline, slugs, versions
-  block/  field/          The block editor and the websites' own fields
-  admin/  public/         Admin handlers and the public site
-  template/  tmplmgr/     Template loading and template-archive upload
-  media/  album/  menu/    Media library, albums, menus
-  shop/  payrexx/         Products, orders, payment
-  bundle/  export/  wxr/  Website archives, static export, WordPress import
-  ai/                     The MCP endpoint, keys and OAuth
-  i18n/                   Admin translations, on disk and embedded
-plugins/                  Bundled plugins, each its own Go module
-sites/                    Complete example websites as readable source
-tools/                    mkbundle, i18n and the other checks CI runs
+```sh
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o holzcloud ./cmd/holzcloud
 ```
 
-| Component | Choice | Why |
-|---|---|---|
-| Language | Go 1.26 | Single binary, standard library first |
-| Database | SQLite via `modernc.org/sqlite` | Pure Go — a static binary with no C toolchain |
-| Sessions | `alexedwards/scs/v2` | Server-side sessions in SQLite |
-| CSRF | `gorilla/csrf` | Middleware, integrated with htmx headers |
-| Migrations | `pressly/goose/v3` | Embedded SQL, run at startup |
-| Markdown | `yuin/goldmark` | CommonMark compliant |
-| Sanitiser | `microcosm-cc/bluemonday` | Prevents XSS from user content |
-| Frontend | htmx 2.0 and plain CSS | No build step, no npm, no bundler |
+Templates, assets and migrations are embedded, so the one file is the whole
+application. Everything is configured through `HOLZCLOUD_*` variables
+([configuration](docs/configuration.md)); a hardened systemd unit, a Caddyfile
+for automatic HTTPS and a WAL-safe backup script are in [`deploy/`](deploy/DEPLOY.md).
 
 ## Documentation
 
-| Document | What is in it |
-|---|---|
-| [Configuration](docs/configuration.md) | Every environment variable, e-mail, the data directory |
-| [Content model](docs/content-model.md) | Fields, content kinds, block kinds, snippets |
-| [Publishing](docs/publishing.md) | Pages, menus, media, templates, design, SEO, plugins |
-| [Multilingual](docs/multilingual.md) | Site languages, admin languages, regional variants |
-| [Security](docs/security.md) | The threat model, two-factor, rights, why there is no cookie banner |
-| [Import and export](docs/import-export.md) | Website bundles, the WordPress importer |
-| [AI access](docs/ai-access.md) | The MCP endpoint, key levels and its tools |
-| [Deployment](docs/deployment.md) | Building, running, backing up, versioning |
-| [The mark](docs/brand/README.md) | The logo, its variants and the rules for using it |
+- [Deploying](deploy/DEPLOY.md) — systemd, Caddy, backups, single sign-on, releases
+- [Configuration](docs/configuration.md) — every environment variable, e-mail, the data directory
+- [Content model](docs/content-model.md) — fields, content kinds, block kinds, snippets
+- [Publishing](docs/publishing.md) — pages, menus, media, templates, design, SEO, plugins
+- [Multilingual](docs/multilingual.md) — site languages, admin languages, regional variants
+- [Security](docs/security.md) — the threat model, two-factor, rights, why there is no cookie banner
+- [Import and export](docs/import-export.md) — website bundles, the WordPress importer, the static export
+- [AI access](docs/ai-access.md) — the MCP endpoint, key levels and its tools
+- [Deployment and versioning](docs/deployment.md) — building, running, what the version numbers mean
+- [Architecture](docs/architecture.md) — how the code is laid out and what it is built from
+- [The mark](docs/brand/README.md) — the logo, the banner and the rules for using them
+- [Changelog](CHANGELOG.md), [contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
 
-`CHANGELOG.md` records what changed; `CONTRIBUTING.md` describes how to work on
-it. The screenshots above show a fictional example site; its source is in
-[`sites/`](sites/README.md). The project page is at
-<https://holzcloud.ch/holzcloud-cms>.
-
-## Versioning
-
-Holzcloud CMS is **alpha**, and its numbers say so: the count starts at
-**`v0.0.1`**. Until 1.0, any release may break what the one before it did —
-read the [changelog](CHANGELOG.md) before every update, and back up first.
-
-The code has a longer history than the numbers. It was released as 1.4 to 2.9.1
-before the count started again; those releases and tags were deleted, and
-their entries are still in the changelog, below 0.0.1. The milestones under
-`.planning/` carry the old numbers.
-
-The version is written into the binary at build time from `git describe`, so a
-tag has to be reachable from `HEAD` — without one, `--always` puts a bare commit
-hash there instead. Ask a running binary what it thinks it is:
-
-```bash
-./holzcloud version
-```
+The screenshots show a fictional example site; a complete one to import is in
+[`sites/`](sites/README.md).
 
 ## Licence
 
-**[GNU Affero General Public License v3.0](LICENSE)** — the full text is in
-[`LICENSE`](LICENSE).
-
-Free software: you may use, study, change and share it. The condition is
-reciprocity, and the *Affero* part is the one that matters for a CMS — running a
-modified version as a service counts as distribution, so anyone you serve it to
-has a right to that version's source. Self-hosting it unchanged, for yourself or
-for clients, obliges you to nothing beyond keeping the notices.
+Holzcloud CMS is free software under the
+[GNU Affero General Public License v3](LICENSE). Running it for yourself or for
+clients obliges you to nothing beyond keeping the notices; if you offer a
+modified version to other people over a network, they are entitled to your
+changes.
 
 The bundled fonts carry their own licences — Manrope and JetBrains Mono under the
 SIL Open Font License 1.1; provenance and checksums are recorded in
