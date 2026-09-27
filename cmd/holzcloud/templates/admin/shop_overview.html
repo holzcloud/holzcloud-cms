@@ -24,7 +24,7 @@
     <div class="kpi">
         <span class="kpi__label">{{t "Products online"}}</span>
         <span class="kpi__value">{{.ProductsOnline}}</span>
-        <span class="kpi__note">{{tf "%d drafts" .ProductDrafts}}</span>
+        <span class="kpi__note">{{if eq .ProductDrafts 1}}{{t "one draft"}}{{else}}{{tf "%d drafts" .ProductDrafts}}{{end}}</span>
     </div>
 </div>
 

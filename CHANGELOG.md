@@ -14,6 +14,14 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.2 — 2026-09-27
+
+**Zwei Sätze in der Verwaltung stimmen wieder.** Die Shop-Übersicht schrieb bei
+einem einzigen Produktentwurf „1 Entwürfe“; jetzt heisst es „ein Entwurf“. Und
+die Design-Seite sprach von „einer von vier Vorlagen“, obwohl acht mitgeliefert
+werden; sie sagt jetzt „eine der mitgelieferten Vorlagen“, damit die Zahl nicht
+wieder veraltet.
+
 ## 0.0.1 — 2026-09-26
 
 **Die Zählung beginnt neu, und die Software heisst jetzt ehrlich Alpha.**
