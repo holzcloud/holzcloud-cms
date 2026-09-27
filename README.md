@@ -1,5 +1,10 @@
 <p align="center">
-  <img src="docs/brand/banner.png" alt="Holzcloud CMS — a self-hosted CMS for a small server: one Go binary, one SQLite file, many websites">
+  <img src="docs/brand/banner.png" alt="Holzcloud CMS — a self-hosted CMS that needs no JavaScript and loads nothing from anywhere else">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/JavaScript-none-8fd0ba?style=for-the-badge&labelColor=14201c" alt="JavaScript: none">
+  <img src="https://img.shields.io/badge/external%20dependencies-none-8fd0ba?style=for-the-badge&labelColor=14201c" alt="External dependencies: none">
 </p>
 
 <p align="center">
@@ -18,13 +23,37 @@
   <a href="https://github.com/holzcloud/holzcloud-cms/releases">Releases</a>
 </p>
 
-**Holzcloud CMS** is a self-hosted CMS for a small server: **one Go binary, one
-SQLite file, many websites**. Requests reach a site by their `Host` header,
-pages are written in Markdown with images, galleries and forms dropped in
-between, and they are served by server-rendered Go templates. Nothing is loaded
-from a third party while it runs — no CDN, no web fonts, no analytics, no
-embeds — which is what makes a `default-src 'self'` content security policy
-possible, and why a Holzcloud site needs no cookie banner.
+**Holzcloud CMS** is a self-hosted CMS for a small server that **needs no
+JavaScript and loads nothing from anywhere else**. One Go binary, one SQLite
+file, many websites: requests reach a site by their `Host` header, pages are
+written in Markdown with images, galleries and forms dropped in between, and
+they are served by server-rendered Go templates.
+
+## No JavaScript. Nothing from elsewhere.
+
+That is the point of it, and it holds everywhere, not just by default:
+
+- **The websites ship no JavaScript at all.** Not the eight built-in templates,
+  and not one somebody uploads: an archive carrying a script, an `onclick` or a
+  `javascript:` link is refused at upload. What a visitor gets is HTML and CSS.
+- **The admin works with JavaScript switched off.** Every action is an ordinary
+  form; htmx, served from this server, only makes it quicker, and a test holds
+  every htmx action to the plain form that does the same thing.
+- **Nothing is fetched from a third party while it runs** — no CDN, no web
+  fonts, no analytics, no embeds, no update check. Fonts are compiled into the
+  binary. A `default-src 'self'` content security policy is sent with every
+  page, and an uploaded template that references anything external is refused
+  before it can break a site. The only connections out are the ones you
+  configure yourself: your mail server, and Payrexx if the shop takes payment
+  online.
+- **Nothing else to install.** No database server, no PHP, no Node, no build
+  step: one static binary with the templates, assets and migrations inside it.
+  Even signing in through your identity provider (OpenID Connect) happens
+  without this server contacting it.
+
+What follows from it: a Holzcloud site is fast on any phone, keeps working when
+somebody else's service is down, leaks no visitor to anybody, and needs no
+cookie banner.
 
 > [!WARNING]
 > **Holzcloud CMS is alpha software under heavy development.** Features,
