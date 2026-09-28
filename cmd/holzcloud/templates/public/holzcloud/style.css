@@ -1293,7 +1293,8 @@ main:focus { outline: none; }
   object-fit: cover; object-position: top left;
   border-radius: calc(var(--hc-r-lg) - 6px);
 }
-.page-content > .hc-eigen--vorspann + .hc-bild + .hc-karten {
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-karten,
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild + .hc-karten {
   grid-column: text-start / breit-ende;
   /* Zwei nebeneinander schon auf dem Telefon: vier Sätze untereinander
    * wären wieder die Textwand, die der Auftakt vermeiden soll. */
@@ -1301,14 +1302,73 @@ main:focus { outline: none; }
   gap: var(--hc-space-3);
   margin-block: var(--hc-space-5) var(--hc-space-7);
 }
-.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte {
+.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte,
+.hc-eigen--vorspann + .hc-bild + .hc-bild + .hc-karten .hc-karte {
   gap: var(--hc-space-2); padding: var(--hc-space-4);
   border-block-start: 2px solid var(--hc-brass);
 }
-.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__titel {
+.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__titel,
+.hc-eigen--vorspann + .hc-bild + .hc-bild + .hc-karten .hc-karte__titel {
   margin: 0; font-size: var(--hc-text-base); color: var(--hc-brass);
 }
-.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__text > :where(p) { margin: 0; }
+.hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__text > :where(p),
+.hc-eigen--vorspann + .hc-bild + .hc-bild + .hc-karten .hc-karte__text > :where(p) { margin: 0; }
+
+/* Das Telefon vor dem Fenster.
+ *
+ * Folgt auf das Bild im Fensterrahmen gleich ein zweites, zeigt es dasselbe
+ * Programm auf dem Telefon: ein Bildschirmfoto im Hochformat. Es steht dann in
+ * einem Gehäuse, das unten rechts über dem Fenster liegt, als hielte jemand
+ * das Telefon vor den Bildschirm. Die Karten rücken darunter und bleiben, wie
+ * sie im Auftakt sind. Ohne zweites Bild trifft keine dieser Regeln, weil jede
+ * die Folge Bild, Bild verlangt.
+ *
+ * Breite, Einzug und wie weit das Telefon ins Fenster hinaufreicht, stehen in
+ * Prozent: sie beziehen sich auf die Breite des Rasterbereichs, also auf das
+ * Fenster darüber, und passen so auf dem Telefon wie am grossen Bildschirm.
+ * Das Hinaufziehen ist zusätzlich an die Höhe des Bildschirms gebunden, weil
+ * das Bild im Fenster höchstens 44vh hoch ist.
+ *
+ * Das Gehäuse hat keinen eigenen Farbwert. Der Rahmen ist der Grund, mit
+ * --hc-pane-sunken abgedunkelt, und folgt damit der Farbe der Programmseite
+ * und dem Papier, das die Verwaltung einstellt. Das Bildschirmfoto behält
+ * seine Form; erst eines, das höher ist als 1 zu 2,3, wird unten abgeschnitten.
+ * Die Bildunterschrift ist für Screenreader noch da, sehen soll man nur das
+ * Telefon. Eine Kamerainsel oben in der Mitte fehlt mit Absicht: Die
+ * Bildschirmfotos auf holzcloud.ch haben keine Statusleiste, und die Insel
+ * läge über dem Kopf des Programms. */
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild {
+  --hc-handy-breite: clamp(7rem, 21%, 18rem);
+  --hc-handy-rahmen: clamp(var(--hc-space-1), .8vw, var(--hc-space-2));
+  --hc-handy-rund:   clamp(1rem, 2.4vw, 2.25rem);
+  grid-column: text-start / breit-ende;
+  justify-self: end;
+  /* Setzt auch die Breite und den negativen Rand zurück, die die Kernregel
+   * einem breiten oder vollen Bild gibt. */
+  inline-size: var(--hc-handy-breite);
+  margin-inline: 0 clamp(var(--hc-space-3), 4%, var(--hc-space-7));
+  margin-block: calc(-1 * min(24vh, 16rem, 28%)) 0;
+  position: relative; z-index: 1;
+  container-type: inline-size;
+  padding: var(--hc-handy-rahmen);
+  border: 1px solid var(--hc-pane-edge);
+  border-radius: var(--hc-handy-rund);
+  background:
+    linear-gradient(var(--hc-pane-sunken), var(--hc-pane-sunken)),
+    var(--hc-ground);
+  box-shadow: 0 30px 80px -30px color-mix(in oklch, var(--hc-brass) 60%, transparent),
+              var(--hc-shadow-lift);
+}
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild img {
+  display: block; inline-size: 100%; block-size: auto;
+  max-block-size: calc(100cqi * 2.3);
+  object-fit: cover; object-position: top;
+  border-radius: calc(var(--hc-handy-rund) - var(--hc-handy-rahmen));
+}
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild figcaption {
+  position: absolute; inline-size: 1px; block-size: 1px; margin: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
 
 /* Die Farbe des Programms, von dem eine Seite erzählt.
  *
@@ -1366,7 +1426,8 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"]) {
   }
 }
 @media (max-width: 30em) {
-  .hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__text { font-size: var(--hc-text-xs); }
+  .hc-eigen--vorspann + .hc-bild + .hc-karten .hc-karte__text,
+  .hc-eigen--vorspann + .hc-bild + .hc-bild + .hc-karten .hc-karte__text { font-size: var(--hc-text-xs); }
 }
 
 /* Eigene Bausteinart — die Felder als Faktenzeilen, wie .hc-defs. */
