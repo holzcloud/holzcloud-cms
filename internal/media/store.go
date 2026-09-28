@@ -23,9 +23,23 @@ func NewStore(database *db.DB) *Store {
 	return &Store{DB: database}
 }
 
-// columns is the single source of the media projection, so a field added to the
-// model cannot be forgotten in one query and silently scan as its zero value.
+// columns are the media table's own columns in the order scan reads them.
+// Queries do not use it directly but through projection, which is the single
+// source of what scan reads, so a field added to the model cannot be forgotten
+// in one query and silently scan as its zero value.
 const columns = `id, website_id, filename, original_name, mime_type, size_bytes, created_at, alt_text, caption, content_hash, width, height, crop_ratio, crop_zoom, crop_rotation, focus_x, focus_y, version`
+
+// projection is what every media read selects: the table's columns, qualified,
+// and the stored name of the thumbnail.
+//
+// The thumbnail name rides in the same row so a grid of forty cards costs one
+// query, not forty-one. The qualifier on the correlated id is not optional: an
+// unqualified id inside the subquery would bind to media_variants.id. The
+// unique (media_id, label) index makes the lookup a point read.
+func projection(table string) string {
+	return prefixed(table) + `, COALESCE((SELECT v.filename FROM media_variants v
+		WHERE v.media_id = ` + table + `.id AND v.label = 'thumb'), '')`
+}
 
 func scan(row interface{ Scan(...any) error }) (*Media, error) {
 	var m Media
@@ -34,7 +48,7 @@ func scan(row interface{ Scan(...any) error }) (*Media, error) {
 		&m.SizeBytes, &createdAt, &m.AltText, &m.Caption, &m.ContentHash,
 		&m.Width, &m.Height,
 		&m.Crop.Ratio, &m.Crop.Zoom, &m.Crop.Rotation, &m.Crop.FocusX, &m.Crop.FocusY,
-		&m.Version); err != nil {
+		&m.Version, &m.ThumbFilename); err != nil {
 		return nil, err
 	}
 	m.CreatedAt, _ = time.Parse(timeLayout, createdAt)
@@ -76,7 +90,7 @@ func (s *Store) FindByHash(ctx context.Context, websiteID int64, hash string) (*
 		return nil, nil
 	}
 	m, err := scan(s.DB.Read.QueryRowContext(ctx,
-		`SELECT `+columns+` FROM media WHERE website_id = $1 AND content_hash = $2 LIMIT 1`,
+		`SELECT `+projection("media")+` FROM media WHERE website_id = $1 AND content_hash = $2 LIMIT 1`,
 		websiteID, hash))
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -102,7 +116,7 @@ func (s *Store) CountMissingAltText(ctx context.Context, websiteID int64) (int, 
 
 // GetByID returns a media record by ID, or nil when it does not exist.
 func (s *Store) GetByID(ctx context.Context, id int64) (*Media, error) {
-	m, err := scan(s.DB.Read.QueryRowContext(ctx, `SELECT `+columns+` FROM media WHERE id = $1`, id))
+	m, err := scan(s.DB.Read.QueryRowContext(ctx, `SELECT `+projection("media")+` FROM media WHERE id = $1`, id))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -115,7 +129,7 @@ func (s *Store) GetByID(ctx context.Context, id int64) (*Media, error) {
 // GetByFilename returns a media record by website ID and filename.
 func (s *Store) GetByFilename(ctx context.Context, websiteID int64, filename string) (*Media, error) {
 	m, err := scan(s.DB.Read.QueryRowContext(ctx,
-		`SELECT `+columns+` FROM media WHERE website_id = $1 AND filename = $2`, websiteID, filename))
+		`SELECT `+projection("media")+` FROM media WHERE website_id = $1 AND filename = $2`, websiteID, filename))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -186,7 +200,7 @@ func (s *Store) List(ctx context.Context, websiteID int64, f Filter, page, perPa
 		return nil, 0, fmt.Errorf("count media: %w", err)
 	}
 
-	query := `SELECT ` + prefixed("m") + ` FROM media m` + where +
+	query := `SELECT ` + projection("m") + ` FROM media m` + where +
 		fmt.Sprintf(` ORDER BY m.created_at DESC, m.id DESC LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
 	args = append(args, perPage, offset)
 

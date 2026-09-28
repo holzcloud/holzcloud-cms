@@ -15,14 +15,22 @@ import (
 )
 
 // writeTestImage puts a real encoded image on disk and returns its path.
+//
+// transparent means a PNG that really is transparent: its top quarter has
+// alpha 0. The format of the scaled copies is decided from the pixels, so a
+// PNG that merely could be transparent would not exercise that path.
 func writeTestImage(t *testing.T, dir, name string, w, h int, transparent bool) string {
 	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			// A gradient rather than a flat fill: a single colour compresses to
 			// almost nothing and would not exercise the encoder honestly.
-			img.Set(x, y, color.RGBA{uint8(x % 256), uint8(y % 256), 120, 255})
+			a := uint8(255)
+			if transparent && y < h/4 {
+				a = 0
+			}
+			img.Set(x, y, color.NRGBA{uint8(x % 256), uint8(y % 256), 120, a})
 		}
 	}
 
@@ -39,6 +47,56 @@ func writeTestImage(t *testing.T, dir, name string, w, h int, transparent bool) 
 
 	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	return path
+}
+
+// writeOpaquePNG puts a PNG on disk in which every pixel is fully opaque — a
+// screenshot, as far as the pipeline can tell.
+func writeOpaquePNG(t *testing.T, dir, name string, w, h int) string {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{uint8(x % 256), uint8(y % 256), 120, 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode fixture: %v", err)
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	return path
+}
+
+// copyFixture copies one of the WebP files in testdata into dir under a new
+// name and returns its path.
+//
+// The three fixtures were made once with Python's Pillow, and all are 1000x560:
+//   - opaque-lossy.webp is photo-like: per pixel a red, green and blue made of
+//     slow sine and cosine waves, plus one random offset between -10 and 10 on
+//     all three channels (random seed 1), saved as lossy WebP at quality 80,
+//     method 6. It exists because it is the case that was broken: its 800px PNG
+//     copy is several times larger than the original and was dropped, its 800px
+//     JPEG copy is about half the original's size.
+//   - opaque-lossless.webp is screenshot-like: a light grey background, a dark
+//     blue bar over the top 48 pixels and a dark grey bar of varying length
+//     every 28 pixels, saved as lossless WebP. It decodes to an *image.NRGBA in
+//     which every pixel happens to be opaque.
+//   - transparent.webp is a red ellipse on a fully transparent background,
+//     saved as lossless WebP.
+func copyFixture(t *testing.T, fixture, dir, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", fixture))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
 	return path
@@ -75,7 +133,7 @@ func TestMakeVariantsProducesSmallerCopies(t *testing.T) {
 			t.Errorf("%s: recorded %d bytes, file has %d", v.Label, v.SizeBytes, info.Size())
 		}
 		// A copy that is not smaller costs disk and makes the page heavier, so
-		// only the thumbnail — which the admin grid addresses by name — is
+		// only the thumbnail — which the admin grid shows for every card — is
 		// allowed to be one.
 		if v.Label != "thumb" && info.Size() >= orig.Size() {
 			t.Errorf("%s is not smaller than the original", v.Label)
@@ -306,20 +364,333 @@ func TestDeleteRemovesVariantFiles(t *testing.T) {
 }
 
 func TestThumbURLFallsBackToOriginal(t *testing.T) {
-	big := Media{WebsiteID: 1, Filename: "abc.jpg", MimeType: "image/jpeg", Width: 2000}
+	big := Media{WebsiteID: 1, Filename: "abc.png", MimeType: "image/png", Width: 2000,
+		ThumbFilename: "abc-thumb.jpg"}
 	if got, want := big.ThumbURL(), "/media/1/abc-thumb.jpg"; got != want {
 		t.Errorf("ThumbURL() = %q, want %q", got, want)
 	}
 
-	// Below the smallest width nothing was generated, and a grid pointing at a
-	// file that does not exist shows a broken image on every card.
-	small := Media{WebsiteID: 1, Filename: "logo.jpg", MimeType: "image/jpeg", Width: 200}
-	if got, want := small.ThumbURL(), "/media/1/logo.jpg"; got != want {
-		t.Errorf("small ThumbURL() = %q, want %q", got, want)
+	// A wide picture without a stored thumbnail — its variants failed while
+	// its size was still recorded — must not point at a file that was never
+	// written: a grid pointing at nothing shows a broken image on the card.
+	wide := Media{WebsiteID: 1, Filename: "wide.jpg", MimeType: "image/jpeg", Width: 2000}
+	if got, want := wide.ThumbURL(), "/media/1/wide.jpg"; got != want {
+		t.Errorf("wide ThumbURL() = %q, want %q", got, want)
+	}
+	if wide.HasThumb() {
+		t.Error("HasThumb() is true without a stored thumbnail")
 	}
 
 	vector := Media{WebsiteID: 1, Filename: "logo.svg", MimeType: "image/svg+xml", Width: 0}
 	if got, want := vector.ThumbURL(), "/media/1/logo.svg"; got != want {
 		t.Errorf("svg ThumbURL() = %q, want %q", got, want)
+	}
+}
+
+// onlyColorModel is an image with nothing but the three methods of
+// image.Image, so hasTransparency has to take its fallback scan.
+type onlyColorModel struct {
+	img image.Image
+}
+
+func (o onlyColorModel) ColorModel() color.Model { return o.img.ColorModel() }
+func (o onlyColorModel) Bounds() image.Rectangle { return o.img.Bounds() }
+func (o onlyColorModel) At(x, y int) color.Color { return o.img.At(x, y) }
+
+func TestHasTransparency(t *testing.T) {
+	r := image.Rect(0, 0, 4, 3)
+
+	opaqueRGBA := image.NewRGBA(r)
+	for i := 3; i < len(opaqueRGBA.Pix); i += 4 {
+		opaqueRGBA.Pix[i] = 0xff
+	}
+
+	opaqueNRGBA := image.NewNRGBA(r)
+	for i := 3; i < len(opaqueNRGBA.Pix); i += 4 {
+		opaqueNRGBA.Pix[i] = 0xff
+	}
+	holeNRGBA := image.NewNRGBA(r)
+	copy(holeNRGBA.Pix, opaqueNRGBA.Pix)
+	holeNRGBA.SetNRGBA(2, 1, color.NRGBA{10, 20, 30, 0})
+
+	ycbcr := image.NewYCbCr(r, image.YCbCrSubsampleRatio420)
+
+	nycbcra := image.NewNYCbCrA(r, image.YCbCrSubsampleRatio420)
+	for i := range nycbcra.A {
+		nycbcra.A[i] = 0xff
+	}
+	nycbcraHole := image.NewNYCbCrA(r, image.YCbCrSubsampleRatio420)
+	for i := range nycbcraHole.A {
+		nycbcraHole.A[i] = 0xff
+	}
+	nycbcraHole.A[5] = 0x80
+
+	palette := color.Palette{color.NRGBA{0, 0, 0, 0}, color.NRGBA{200, 40, 40, 255}}
+	palUsed := image.NewPaletted(r, palette) // every index 0: the transparent entry
+	palUnused := image.NewPaletted(r, palette)
+	for i := range palUnused.Pix {
+		palUnused.Pix[i] = 1
+	}
+
+	for _, tc := range []struct {
+		name string
+		img  image.Image
+		want bool
+	}{
+		{"opaque RGBA", opaqueRGBA, false},
+		{"opaque NRGBA, what a lossless WebP decodes to", opaqueNRGBA, false},
+		{"NRGBA with one transparent pixel", holeNRGBA, true},
+		{"YCbCr has no alpha at all", ycbcr, false},
+		{"opaque NYCbCrA", nycbcra, false},
+		{"NYCbCrA with one half-transparent pixel", nycbcraHole, true},
+		{"paletted, transparent entry used", palUsed, true},
+		{"paletted, transparent entry unused", palUnused, false},
+		{"no Opaque method, opaque", onlyColorModel{opaqueNRGBA}, false},
+		{"no Opaque method, one hole", onlyColorModel{holeNRGBA}, true},
+	} {
+		if got := hasTransparency(tc.img); got != tc.want {
+			t.Errorf("%s: hasTransparency = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// assertFormats checks that every variant carries the extension and has the
+// encoding the pipeline promised.
+func assertFormats(t *testing.T, dir string, variants []Variant, ext, format string) {
+	t.Helper()
+	if len(variants) == 0 {
+		t.Fatal("no variants at all")
+	}
+	for _, v := range variants {
+		if !strings.HasSuffix(v.Filename, ext) {
+			t.Errorf("%s was written as %s, want %s", v.Label, v.Filename, ext)
+		}
+		f, err := os.Open(filepath.Join(dir, v.Filename))
+		if err != nil {
+			t.Fatalf("variant %s not on disk: %v", v.Label, err)
+		}
+		_, got, err := image.DecodeConfig(f)
+		f.Close()
+		if err != nil {
+			t.Fatalf("read %s: %v", v.Filename, err)
+		}
+		if got != format {
+			t.Errorf("%s is encoded as %s, want %s", v.Filename, got, format)
+		}
+	}
+}
+
+func TestOpaqueLossyWebPGetsJPEGCopies(t *testing.T) {
+	dir := t.TempDir()
+	src := copyFixture(t, "opaque-lossy.webp", dir, "shot.webp")
+
+	variants, err := MakeVariants(src, dir, "shot.webp", "image/webp", 24)
+	if err != nil {
+		t.Fatalf("MakeVariants: %v", err)
+	}
+	assertFormats(t, dir, variants, ".jpg", "jpeg")
+
+	byLabel := map[string]Variant{}
+	for _, v := range variants {
+		byLabel[v.Label] = v
+	}
+	if got := byLabel["thumb"].Filename; got != "shot-thumb.jpg" {
+		t.Errorf("thumbnail is %q, want shot-thumb.jpg", got)
+	}
+	// The point of the change: the 800px copy is what a phone asks for, and as
+	// a PNG it was larger than the original and got dropped.
+	medium, ok := byLabel["medium"]
+	if !ok {
+		t.Fatalf("no medium copy of an opaque WebP; got %v", variants)
+	}
+	if medium.Filename != "shot-medium.jpg" {
+		t.Errorf("medium copy is %q, want shot-medium.jpg", medium.Filename)
+	}
+	orig, _ := os.Stat(src)
+	if medium.SizeBytes >= orig.Size() {
+		t.Errorf("medium copy is %d bytes, original %d", medium.SizeBytes, orig.Size())
+	}
+	t.Logf("original %d bytes, medium JPEG %d bytes", orig.Size(), medium.SizeBytes)
+}
+
+func TestOpaqueLosslessWebPGetsJPEGCopies(t *testing.T) {
+	dir := t.TempDir()
+	src := copyFixture(t, "opaque-lossless.webp", dir, "screen.webp")
+
+	variants, err := MakeVariants(src, dir, "screen.webp", "image/webp", 24)
+	if err != nil {
+		t.Fatalf("MakeVariants: %v", err)
+	}
+	// A lossless WebP decodes to NRGBA — a type that can carry transparency.
+	// Whether it does is a question for the pixels, not for the type.
+	assertFormats(t, dir, variants, ".jpg", "jpeg")
+	if variants[0].Filename != "screen-thumb.jpg" {
+		t.Errorf("thumbnail is %q, want screen-thumb.jpg", variants[0].Filename)
+	}
+}
+
+func TestTransparentWebPKeepsPNGCopies(t *testing.T) {
+	dir := t.TempDir()
+	src := copyFixture(t, "transparent.webp", dir, "badge.webp")
+
+	variants, err := MakeVariants(src, dir, "badge.webp", "image/webp", 24)
+	if err != nil {
+		t.Fatalf("MakeVariants: %v", err)
+	}
+	assertFormats(t, dir, variants, ".png", "png")
+
+	f, err := os.Open(filepath.Join(dir, variants[0].Filename))
+	if err != nil {
+		t.Fatalf("open thumbnail: %v", err)
+	}
+	defer f.Close()
+	thumb, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatalf("decode thumbnail: %v", err)
+	}
+	// JPEG would have turned the background black; the PNG copy must still
+	// let the page show through.
+	b := thumb.Bounds()
+	found := false
+	for y := b.Min.Y; y < b.Max.Y && !found; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if _, _, _, a := thumb.At(x, y).RGBA(); a != 0xffff {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		t.Error("the thumbnail of a transparent WebP has no transparent pixel left")
+	}
+}
+
+func TestOpaquePNGGetsJPEGCopies(t *testing.T) {
+	dir := t.TempDir()
+	src := writeOpaquePNG(t, dir, "screen.png", 1200, 600)
+
+	variants, err := MakeVariants(src, dir, "screen.png", "image/png", 24)
+	if err != nil {
+		t.Fatalf("MakeVariants: %v", err)
+	}
+	assertFormats(t, dir, variants, ".jpg", "jpeg")
+}
+
+func TestMakeVariantsRefusesAnimation(t *testing.T) {
+	dir := t.TempDir()
+	src := writeOpaquePNG(t, dir, "anim.gif", 1200, 600)
+
+	// Whatever the bytes are, a GIF is never flattened to its first frame,
+	// even by a caller that forgot to ask CanMakeVariants.
+	if _, err := MakeVariants(src, dir, "anim.gif", "image/gif", 24); err == nil {
+		t.Fatal("MakeVariants accepted image/gif")
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 {
+		t.Errorf("%d files in the directory, want only the original", len(entries))
+	}
+}
+
+func TestOpaqueWebPSrcSetOffersTheMediumCopy(t *testing.T) {
+	store, websiteID := newTestStore(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	src := copyFixture(t, "opaque-lossy.webp", dir, "shot.webp")
+	info, _ := os.Stat(src)
+
+	m, err := store.Create(ctx, websiteID, "shot.webp", "shot.webp", "image/webp", info.Size(), "hash-webp")
+	if err != nil {
+		t.Fatalf("create media: %v", err)
+	}
+	variants, err := MakeVariants(src, dir, "shot.webp", "image/webp", 24)
+	if err != nil {
+		t.Fatalf("MakeVariants: %v", err)
+	}
+	if err := store.SaveVariants(ctx, m.ID, 1000, 560, variants); err != nil {
+		t.Fatalf("SaveVariants: %v", err)
+	}
+
+	body := `<p><img src="/media/` + strconv.FormatInt(websiteID, 10) + `/shot.webp" alt="Bildschirm"></p>`
+	idx, err := store.LoadImageSets(ctx, websiteID, body)
+	if err != nil {
+		t.Fatalf("LoadImageSets: %v", err)
+	}
+	out := MakeResponsive(body, idx)
+	for _, want := range []string{"shot-thumb.jpg 400w", "shot-medium.jpg 800w", "shot.webp 1000w"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestEveryStoreReadCarriesTheStoredThumbName(t *testing.T) {
+	store, websiteID := newTestStore(t)
+	ctx := context.Background()
+
+	m, err := store.Create(ctx, websiteID, "shot.webp", "shot.webp", "image/webp", 900, "hash-thumb")
+	if err != nil {
+		t.Fatalf("create media: %v", err)
+	}
+	if m.ThumbURL() != "/media/1/shot.webp" {
+		t.Errorf("before any variant, ThumbURL() = %q, want the original", m.ThumbURL())
+	}
+
+	reads := func(want string) {
+		t.Helper()
+		byID, err := store.GetByID(ctx, m.ID)
+		if err != nil || byID == nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		byName, err := store.GetByFilename(ctx, websiteID, "shot.webp")
+		if err != nil || byName == nil {
+			t.Fatalf("GetByFilename: %v", err)
+		}
+		byHash, err := store.FindByHash(ctx, websiteID, "hash-thumb")
+		if err != nil || byHash == nil {
+			t.Fatalf("FindByHash: %v", err)
+		}
+		list, _, err := store.List(ctx, websiteID, Filter{}, 1, 10)
+		if err != nil || len(list) != 1 {
+			t.Fatalf("List: %d rows, %v", len(list), err)
+		}
+		for name, got := range map[string]Media{
+			"GetByID": *byID, "GetByFilename": *byName, "FindByHash": *byHash, "List": list[0],
+		} {
+			if got.ThumbURL() != want {
+				t.Errorf("%s: ThumbURL() = %q, want %q", name, got.ThumbURL(), want)
+			}
+		}
+	}
+
+	// An install from before the change: its thumbnail is a PNG and stays
+	// addressable as one.
+	if err := store.SaveVariants(ctx, m.ID, 2000, 1120,
+		[]Variant{{Label: "thumb", Filename: "shot-thumb.png", Width: 400, Height: 224}}); err != nil {
+		t.Fatalf("SaveVariants: %v", err)
+	}
+	reads("/media/1/shot-thumb.png")
+
+	if err := store.SaveVariants(ctx, m.ID, 2000, 1120,
+		[]Variant{{Label: "thumb", Filename: "shot-thumb.jpg", Width: 400, Height: 224}}); err != nil {
+		t.Fatalf("SaveVariants: %v", err)
+	}
+	reads("/media/1/shot-thumb.jpg")
+
+	if err := store.SaveCrop(ctx, m.ID, Crop{FocusX: 50, FocusY: 50}, 2000, 1120); err != nil {
+		t.Fatalf("SaveCrop: %v", err)
+	}
+	reads("/media/1/shot-thumb.jpg?v=1")
+
+	// Measured, wide, but no thumbnail row: the original, never a guess.
+	bare, err := store.Create(ctx, websiteID, "bare.png", "bare.png", "image/png", 900, "hash-bare")
+	if err != nil {
+		t.Fatalf("create media: %v", err)
+	}
+	if err := store.SaveVariants(ctx, bare.ID, 2000, 1000, nil); err != nil {
+		t.Fatalf("SaveVariants: %v", err)
+	}
+	got, _ := store.GetByID(ctx, bare.ID)
+	if got.Width != 2000 || got.ThumbURL() != "/media/1/bare.png" {
+		t.Errorf("wide picture without a thumb row: width %d, ThumbURL() = %q", got.Width, got.ThumbURL())
 	}
 }
