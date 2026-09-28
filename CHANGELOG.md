@@ -14,6 +14,35 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.6 — 2026-09-28
+
+**Bildschirmfotos und Bilder im Format WebP oder PNG bekommen wieder kleine
+Kopien.** Bisher bekam jedes WebP und jedes PNG verkleinerte Kopien im Format
+PNG, weil beide Formate durchsichtige Stellen haben können. Bei einem
+Bildschirmfoto oder einem Foto sind solche Kopien aber grösser als das Original
+(ein WebP mit 2400 Pixeln und 125 KB hatte eine Kopie mit 800 Pixeln von 159 KB
+und eine mit 1600 Pixeln von 452 KB). Die Regel, die eine Kopie verwirft, wenn
+sie nichts spart, hat sie deshalb verworfen, und ein Telefon hat das ganze
+Original geladen. Jetzt entscheidet das Bild selbst: Hat es keinen einzigen
+durchsichtigen Pixel, sind die Kopien JPEG (die Kopie mit 800 Pixeln jenes WebP
+wiegt etwa 40 bis 50 KB); ein Bild mit echter Transparenz behält wie bisher
+PNG-Kopien.
+
+**Die Mediathek zeigt das Vorschaubild, das es wirklich gibt.** Sie liest
+seinen gespeicherten Namen, statt ihn aus dem Dateityp zu erraten. Das ist
+nötig, weil das Format der Kopie jetzt von den Pixeln abhängt; ein Bild ohne
+Vorschaubild zeigt wie bisher das Original.
+
+**Nach dem Update einmal `holzcloud thumbnails -force` ausführen** (in einem
+Container: mit `kubectl exec` in den Pod und dort `/holzcloud thumbnails
+-force`). Der Befehl ersetzt die alten PNG-Kopien undurchsichtiger Bilder durch
+JPEG-Kopien, löscht die alten Dateien und räumt auch Kopien weg, die ein
+Zuschnitt überflüssig gemacht hatte. Ohne ihn behalten bestehende Bilder ihre
+alten Kopien; die funktionieren weiter und sind nur schwerer. Neue Uploads
+bekommen die neuen Kopien sofort. Eine Seite, die ein Browser in den letzten
+fünf Minuten zwischengespeichert hat, kann kurz noch eine gelöschte alte Kopie
+anfragen; neu laden behebt das.
+
 ## 0.0.5 — 2026-09-28
 
 **Ein KI-Assistent kann Bilder in voller Grösse hochladen.** Bisher musste er
