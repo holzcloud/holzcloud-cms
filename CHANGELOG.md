@@ -33,6 +33,20 @@ seinen gespeicherten Namen, statt ihn aus dem Dateityp zu erraten. Das ist
 nötig, weil das Format der Kopie jetzt von den Pixeln abhängt; ein Bild ohne
 Vorschaubild zeigt wie bisher das Original.
 
+**Die Vorlage „holzcloud“ zeigt ein zweites Bild im Auftakt als Telefon.**
+Folgt auf das Bild im Fensterrahmen direkt ein zweites Bild, erscheint dieses
+als Bildschirmfoto in einem Telefonrahmen, der unten rechts über dem Fenster
+liegt. Die Karten stehen wie bisher darunter. Das Bildschirmfoto wird nicht
+beschnitten, und der Rahmen nimmt die Farbe der Programmseite an. Ohne zweites
+Bild sieht der Auftakt aus wie bisher.
+
+**In der Vorlage „holzcloud“ steht die Überschrift eines „Bild und
+Text“-Bausteins über Bild und Text.** Beginnt der Text mit einer Überschrift,
+steht sie jetzt über die ganze Breite über dem Bild. Darunter stehen Bild und
+Text nebeneinander, auf einem schmalen Bildschirm untereinander. Das HTML des
+Bausteins ist unverändert, andere und hochgeladene Vorlagen sehen aus wie
+bisher, und nach dem Update ist dafür nichts zu tun.
+
 **Nach dem Update einmal `holzcloud thumbnails -force` ausführen** (in einem
 Container: mit `kubectl exec` in den Pod und dort `/holzcloud thumbnails
 -force`). Der Befehl ersetzt die alten PNG-Kopien undurchsichtiger Bilder durch
