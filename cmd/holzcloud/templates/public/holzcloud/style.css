@@ -1250,6 +1250,57 @@ main:focus { outline: none; }
 .hc-bildtext__text :where(h3) { font-size: var(--hc-text-xl); letter-spacing: var(--hc-track-snug); }
 .hc-bildtext__text :where(p) { color: var(--hc-ink-2); }
 
+/* Die Überschrift über Bild und Text.
+ *
+ * Beginnt der Text mit einer Überschrift, steht sie über die ganze Breite
+ * über dem Bild; darunter stehen Bild und Text nebeneinander, auf dem Telefon
+ * untereinander. So liest jede Zeile auf holzcloud.ch zuerst, wovon sie
+ * handelt, auch dort, wo das Bild sonst vor der Überschrift käme.
+ *
+ * Das ist CSS und nicht render.go, aus zwei Gründen. Das HTML eines Bausteins
+ * wird beim Speichern in pages.content_html geschrieben: eine Änderung dort
+ * erreichte keine bestehende Seite, bevor jede neu gespeichert ist. Und es ist
+ * ein Vertrag, den alle Vorlagen teilen, auch hochgeladene, die hier niemand
+ * sieht. Also bleibt die Überschrift im Text, und .hc-bildtext__text wird mit
+ * display: contents aufgelöst: die Überschrift und jeder Absatz werden selbst
+ * Teil des Rasters. Die Reihenfolge im Quelltext bleibt Bild, Überschrift,
+ * Text — so liest ein Vorleseprogramm, wie bei --rechts.
+ *
+ * Nebeneinander reicht das Bild über alle Textzeilen und dazu über eine letzte
+ * Zeile mit 1fr. Ist das Bild höher als der Text, nimmt diese Zeile den Rest
+ * auf, und die Absätze bleiben beisammen, statt auseinanderzurücken. Fünfzehn
+ * Textzeilen sind vorgesehen; ein sechzehnter Absatz steht trotzdem in der
+ * Textspalte, nur unter dem Bild statt daneben.
+ *
+ * Die Regel greift nur, wenn es ein Bild gibt und der Text mit h2 oder h3
+ * beginnt. Alles andere, und ein Browser ohne :has(), bleibt beim Bisherigen. */
+.hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) {
+  /* Jeder Absatz ist jetzt ein Rasterelement; ein Zeilenabstand käme zu den
+   * Rändern der Absätze noch hinzu. */
+  row-gap: 0;
+}
+.hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text { display: contents; }
+.hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child {
+  grid-row: 1;
+  margin-block-end: var(--hc-space-5);
+}
+@media (min-width: 45em) {
+  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) {
+    grid-template-columns: [bild-start] minmax(0, 3fr) [bild-end lauf-start] minmax(0, 2fr) [lauf-end];
+    grid-template-rows: auto repeat(15, auto) 1fr;
+    /* Beide Spalten hängen an der Überschrift darüber. Mittig ausgerichtet
+     * bliebe unter ihr ein Loch über dem kürzeren Teil. */
+    align-items: start;
+  }
+  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child).hc-bildtext--rechts {
+    grid-template-columns: [lauf-start] minmax(0, 2fr) [lauf-end bild-start] minmax(0, 3fr) [bild-end];
+  }
+  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child { grid-column: 1 / -1; }
+  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__bild { grid-column: bild; grid-row: 2 / -1; }
+  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :not(:first-child) { grid-column: lauf; }
+  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child + * { margin-block-start: 0; }
+}
+
 /* Karten mit Bild — die Übersicht der Programme auf der Startseite. Das Bild
  * sitzt oben in der Karte und trägt deren Rundung. */
 .hc-karte img {
