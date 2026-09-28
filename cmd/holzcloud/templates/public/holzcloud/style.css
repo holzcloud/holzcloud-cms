@@ -1370,9 +1370,10 @@ main:focus { outline: none; }
  * Folgt auf das Bild im Fensterrahmen gleich ein zweites, zeigt es dasselbe
  * Programm auf dem Telefon: ein Bildschirmfoto im Hochformat. Es steht dann in
  * einem Gehäuse, das unten rechts über dem Fenster liegt, als hielte jemand
- * das Telefon vor den Bildschirm. Die Karten rücken darunter und bleiben, wie
- * sie im Auftakt sind. Ohne zweites Bild trifft keine dieser Regeln, weil jede
- * die Folge Bild, Bild verlangt.
+ * das Telefon vor den Bildschirm. Die Karten bleiben, wie sie im Auftakt
+ * sind: ab 60em stehen sie neben dem Teil des Telefons, der unter dem Fenster
+ * hängt, auf schmalerem Bildschirm wie bisher darunter. Ohne zweites Bild
+ * trifft keine dieser Regeln, weil jede die Folge Bild, Bild verlangt.
  *
  * Breite, Einzug und wie weit das Telefon ins Fenster hinaufreicht, stehen in
  * Prozent: sie beziehen sich auf die Breite des Rasterbereichs, also auf das
@@ -1388,8 +1389,17 @@ main:focus { outline: none; }
  * Telefon. Eine Kamerainsel oben in der Mitte fehlt mit Absicht: Die
  * Bildschirmfotos auf holzcloud.ch haben keine Statusleiste, und die Insel
  * läge über dem Kopf des Programms. */
-.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild {
+/* Breite und Einzug des Telefons braucht auch die Karte daneben, damit sie
+ * genau so viel Platz frei lässt, wie das Telefon einnimmt. Eine eigene
+ * Eigenschaft wird erst dort aufgelöst, wo sie gebraucht wird; die Prozente
+ * beziehen sich also bei beiden auf ihren eigenen Rasterbereich, und der ist
+ * bei beiden derselbe, text-start bis breit-ende. */
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild,
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild + .hc-karten {
   --hc-handy-breite: clamp(7rem, 21%, 18rem);
+  --hc-handy-einzug: clamp(var(--hc-space-3), 4%, var(--hc-space-7));
+}
+.page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild {
   --hc-handy-rahmen: clamp(var(--hc-space-1), .8vw, var(--hc-space-2));
   --hc-handy-rund:   clamp(1rem, 2.4vw, 2.25rem);
   grid-column: text-start / breit-ende;
@@ -1397,7 +1407,7 @@ main:focus { outline: none; }
   /* Setzt auch die Breite und den negativen Rand zurück, die die Kernregel
    * einem breiten oder vollen Bild gibt. */
   inline-size: var(--hc-handy-breite);
-  margin-inline: 0 clamp(var(--hc-space-3), 4%, var(--hc-space-7));
+  margin-inline: 0 var(--hc-handy-einzug);
   margin-block: calc(-1 * min(24vh, 16rem, 28%)) 0;
   position: relative; z-index: 1;
   container-type: inline-size;
@@ -1419,6 +1429,33 @@ main:focus { outline: none; }
 .page-content > .hc-eigen--vorspann + .hc-bild + .hc-bild figcaption {
   position: absolute; inline-size: 1px; block-size: 1px; margin: 0;
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+/* Ab 60em stehen die Karten neben dem Telefon, gleich unter dem Fenster.
+ *
+ * Telefon und Karten teilen sich eine Zeile des Rasters. Eine Zeile ist so
+ * hoch wie ihr höchster Inhalt, also beginnt, was folgt, unter dem, was tiefer
+ * endet: dem Telefon oder den Karten. Wie hoch das Bildschirmfoto ist, muss
+ * dafür niemand wissen, und CSS kann es auch nicht wissen.
+ *
+ * Die Zeile steht ausdrücklich da, weil das Raster von sich aus nie zwei
+ * Bausteine in dieselbe Zelle legt und beim Verteilen nur vorwärts geht. Die
+ * Drei stimmt nur, wenn der Vorspann die Seite eröffnet: Vorspann in Zeile
+ * eins, Fenster in Zeile zwei. Steht etwas davor, trifft keine dieser Regeln,
+ * und alles bleibt untereinander wie bisher. Rechts lassen die Karten so viel
+ * frei, wie das Telefon mit Einzug und einem Abstand braucht. Unter 60em
+ * passen daneben keine zwei Karten mehr. */
+@media (min-width: 60em) {
+  .page-content > .hc-eigen--vorspann:first-child + .hc-bild + .hc-bild {
+    grid-row: 3;
+    align-self: start;
+    /* Derselbe Abstand zum nächsten Baustein wie unter den Karten. */
+    margin-block-end: var(--hc-space-7);
+  }
+  .page-content > .hc-eigen--vorspann:first-child + .hc-bild + .hc-bild + .hc-karten {
+    grid-row: 3;
+    align-self: start;
+    margin-inline-end: calc(var(--hc-handy-breite) + var(--hc-handy-einzug) + var(--hc-space-5));
+  }
 }
 
 /* Die Farbe des Programms, von dem eine Seite erzählt.
