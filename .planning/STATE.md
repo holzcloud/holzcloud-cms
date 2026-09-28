@@ -4,10 +4,10 @@ milestone: v2.5
 current_phase_name: On the phone
 status: complete
 stopped_at: "v2.5 ist am 2026-09-17 geschlossen: fuenf Anforderungen, fuenf erfuellt, keine verschoben. Alle 29 Verwaltungsbildschirme bei 390x844: 1048 Pixel ueber den Rand -> 0, 86 nicht gehaltene Kaesten -> 0, 462 zu kleine Bedienelemente -> 0, 16 Felder, fuer die ein Telefon zoomt -> 0. Kosten: ein Stylesheet, eine Vorlagenzeile. Der Punkt des Meilensteins: JEDER Mangel steckte in einer Regel, die in der Datei richtig aussah - keiner war eine fehlende Regel. Die Regel fuer das Zeilenmenue in einer scrollenden Karte hatte seit ihrer Niederschrift NIE gewirkt (@layer components schlaegt @layer layout), weshalb das Menue der letzten Zeile 22px unter der Karte abgeschnitten war; der Container-Regel war #activity-list nie genannt worden; ein .sr-only lief aus der Karte, weil es position: absolute ohne positionierten Vorfahren ist; ein Mindestmass nahm eine Flex-Zeile still wieder weg; und eine Regel, die diese Phase selbst eine Stunde vorher gebaut hatte, setzte einen Hamburger neben eine offene Seitenleiste. Nichts davon faellt in einem Test auf. Der Browser-Durchgang von Hand fand die zwei wichtigsten - nach v2.4, wo er zum ersten Mal nichts fand. Am Messgeraet fuenf Fehler gefunden und behoben. Ausgabe 2.5 ist am 2026-09-17 VEROEFFENTLICHT: Tag v2.5 auf 2a977ee, mit holzcloud-linux-amd64 und der Pruefsumme. Ausgabe 2.4 wurde BEWUSST UEBERSPRUNGEN - der Changelog-Eintrag 2.4 bleibt stehen und traegt den Hinweis, dass es dazu kein Tag gibt und 2.5 ihn enthaelt. Der release-Zweig BLEIBT bestehen - er ist kein Ueberbleibsel, sondern der Knopf, ueber den veroeffentlicht wird: ihn auf main vorzuspulen ist der einzige Weg, der aus einer Sitzung heraus in einer Ausgabe endet (ein hier ANGESTOSSENER Lauf traegt die Rechte der App und scheitert mit 'Resource not accessible by integration', und der Proxy lehnt jeden direkten Schreibzugriff auf refs/tags mit 403 ab). Offen, aber nicht von hier aus machbar: die verwaisten Fernzweige backfill-releases und claude/task-phases-milestones-open-mt1qz0 loeschen - der Proxy lehnt jede Ref-Loeschung mit 403 ab, ein Klick in der GitHub-Oberflaeche erledigt jeden."
-last_updated: "2026-09-28T13:31:12.860Z"
+last_updated: "2026-09-28T14:19:11.835Z"
 last_activity: 2026-09-28
 last_activity_desc: "Completed quick task 260928-f2n: MCP-Upload-Link für grosse Mediendateien (create_upload_link)"
-state_head: 24099fec2ed15e2887cef153837fd5bc4902202c
+state_head: 2216bbedb33286eb79c63df2f7c934425e815487
 milestone_name: On the Phone
 current_phase: 19
 progress:
@@ -118,7 +118,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-09-28 - Completed quick task 260928-klh: Undurchsichtige WebP/PNG bekommen JPEG-Zwischengrössen
+Last activity: 2026-09-28 - Completed quick task 260928-l3g: Theme holzcloud – Handy im Auftakt, Überschrift über Bild und Text
 
 ### Milestone Map
 
@@ -247,6 +247,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 18 | Datum: 2026-09-03 · Aufgabe: vorlage-rudel-neu-gestalten · Ergebnis: Die Vorlage `rudel` als gruene Schwester der hellen `weide`: Papier #F7F6F0, Waldgruen #325737, Manrope, Rundung 10 px und Textmass 66 ch nach dem Manifest der Website statt nach dem Entwurf. Kontrast selbst nachgerechnet (Tinte 15.16, schwaechste Stufe 64 % = 4.80, Marke 7.59 auf Papier und 7.72 auf einer Karte). Alle vier Befunde aus der Sichtpruefung von `weide` sind hier im ersten Wurf drin statt nachtraeglich geerbt: Ueberschriften in Bausteinen, Breit-Regel fuer `.hc-karten` und `.hc-bildtext`, Hoehengrenze im Bildtext, kein Hochrechnen kleiner Bilder. Dazu eine Besonderheit dieser Website: ihr Markdown enthaelt handgeschriebenes HTML — `<div><section>` als Kartenreihe, `<aside>` als Aufruf —, das bluemonday durchlaesst; die Vorlage kleidet diese Uebergangsform mit, damit die Startseite nach der Neugestaltung nicht schlechter aussieht als vorher. Zwoelf der zwanzig Seiten sind Tierportraets, deshalb ist die Hoehengrenze hier die tragende Regel und nicht die Vorsichtsmassnahme | — | — | — | — |
 | 260928-f2n | MCP-Upload-Link für grosse Mediendateien (create_upload_link) | 2026-09-28 | d83c2ad | — | [260928-f2n-mcp-upload-link-for-large-media-files-cr](./quick/260928-f2n-mcp-upload-link-for-large-media-files-cr/) |
 | 260928-klh | Undurchsichtige WebP/PNG bekommen JPEG-Zwischengrössen | 2026-09-28 | 24099fe | — | [260928-klh-opaque-webp-uploads-get-jpeg-size-varian](./quick/260928-klh-opaque-webp-uploads-get-jpeg-size-varian/) |
+| 260928-l3g | Theme holzcloud: Handy im Auftakt, Überschrift über Bild und Text | 2026-09-28 | 2216bbe | — | [260928-l3g-holzcloud-theme-phone-frame-after-hero-b](./quick/260928-l3g-holzcloud-theme-phone-frame-after-hero-b/) |
 
 ### Performance Metrics
 
