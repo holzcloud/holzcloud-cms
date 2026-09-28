@@ -10,36 +10,92 @@ import (
 	"strings"
 )
 
-// SaveVariants records the scaled copies of an image and the original's size.
+// SaveVariants makes the stored scaled copies of an image exactly the given
+// set, records the original's size, and removes the files the old set named
+// that the new one does not.
+//
+// dir is the website's media directory (WebsiteDir). It is a required argument
+// so no caller can replace the rows and forget the files.
 //
 // One transaction, because a half-written set would make a theme emit a srcset
-// pointing at a width that does not exist.
-func (s *Store) SaveVariants(ctx context.Context, mediaID int64, width, height int, variants []Variant) error {
+// pointing at a width that does not exist. The whole set is replaced rather
+// than upserted per label: a regeneration may change a copy's format (an opaque
+// PNG's -thumb.png becomes -thumb.jpg) or drop a label altogether (a medium copy
+// that is no longer smaller, or one a crop made obsolete — a picture cropped
+// narrower than 800px used to keep its old medium row and file). An upsert
+// would leave both behind.
+//
+// Rows first, files second: the stale files are removed only after the commit,
+// so a crash in between leaves an orphaned file — a leak — and never a row
+// pointing at nothing, which would be a 404 in a srcset. Only a bare name is
+// removed, inside dir, and never the original or its untouched crop source,
+// whatever a row says.
+func (s *Store) SaveVariants(ctx context.Context, dir string, mediaID int64, width, height int, variants []Variant) error {
 	tx, err := s.DB.Write.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin save variants: %w", err)
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE media SET width = $1, height = $2 WHERE id = $3`, width, height, mediaID); err != nil {
-		return fmt.Errorf("store image dimensions: %w", err)
+	var original string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT filename FROM media WHERE id = $1`, mediaID).Scan(&original); err != nil {
+		return fmt.Errorf("read media %d: %w", mediaID, err)
 	}
 
+	rows, err := tx.QueryContext(ctx,
+		`SELECT filename FROM media_variants WHERE media_id = $1`, mediaID)
+	if err != nil {
+		return fmt.Errorf("list old variants: %w", err)
+	}
+	var old []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan old variant: %w", err)
+		}
+		old = append(old, name)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("list old variants: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM media_variants WHERE media_id = $1`, mediaID); err != nil {
+		return fmt.Errorf("delete old variants: %w", err)
+	}
 	for _, v := range variants {
-		// A re-run replaces what is there: regenerating the set after a change
-		// to the widths must not collide with the old rows.
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO media_variants (media_id, label, filename, width, height, size_bytes)
-			 VALUES ($1, $2, $3, $4, $5, $6)
-			 ON CONFLICT (media_id, label) DO UPDATE SET
-			     filename = excluded.filename, width = excluded.width,
-			     height = excluded.height, size_bytes = excluded.size_bytes`,
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
 			mediaID, v.Label, v.Filename, v.Width, v.Height, v.SizeBytes); err != nil {
 			return fmt.Errorf("insert variant %q: %w", v.Label, err)
 		}
 	}
-	return tx.Commit()
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE media SET width = $1, height = $2 WHERE id = $3`, width, height, mediaID); err != nil {
+		return fmt.Errorf("store image dimensions: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	kept := make(map[string]bool, len(variants))
+	for _, v := range variants {
+		kept[v.Filename] = true
+	}
+	for _, name := range old {
+		if kept[name] || name == "" || name != filepath.Base(name) ||
+			name == original || name == SourceName(original) {
+			continue
+		}
+		// A file that is already gone is what the caller wanted anyway.
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+	return nil
 }
 
 // VariantsFor returns the scaled copies of one image, narrowest first.

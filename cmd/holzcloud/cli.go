@@ -508,9 +508,17 @@ func cmdUserTwoFactor(ctx context.Context, store *user.Store, args []string, sso
 //
 // Without it, an upgrade leaves every existing photo full-size forever: the
 // variants are made once, at upload, and nothing else ever revisits a file.
+//
+// With -force it rebuilds the copies of every image, which is also how an
+// install replaces copies made in an older format: an opaque PNG or WebP got
+// PNG copies before 0.0.6 and gets JPEG ones now. Each image's stored set is
+// replaced as a whole and the files the old set named are deleted, so no row is
+// left pointing at a missing file and no old copy stays on the disk. An image
+// that fails keeps its old set, which is still valid.
 func cmdThumbnails(args []string) error {
 	fs := flag.NewFlagSet("thumbnails", flag.ContinueOnError)
-	force := fs.Bool("force", false, "also regenerate images that already have copies")
+	force := fs.Bool("force", false,
+		"also regenerate images that already have copies, replacing copies made in an older format")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -574,7 +582,7 @@ func cmdThumbnails(args []string) error {
 			failed++
 			continue
 		}
-		if err := store.SaveVariants(ctx, it.id, width, height, variants); err != nil {
+		if err := store.SaveVariants(ctx, dir, it.id, width, height, variants); err != nil {
 			return fmt.Errorf("save variants for %s: %w", it.filename, err)
 		}
 		done++

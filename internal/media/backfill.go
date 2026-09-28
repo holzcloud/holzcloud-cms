@@ -95,7 +95,7 @@ func Backfill(ctx context.Context, store *Store, dataDir string, maxMegapixels, 
 				"err", verr, "media", it.id, "file", it.filename)
 			variants = nil
 		}
-		if err := store.SaveVariants(ctx, it.id, width, height, variants); err != nil {
+		if err := store.SaveVariants(ctx, dir, it.id, width, height, variants); err != nil {
 			slog.Warn("media backfill: could not store dimensions",
 				"err", err, "media", it.id)
 			failed++

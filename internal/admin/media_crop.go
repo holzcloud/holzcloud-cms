@@ -213,7 +213,7 @@ func (h *Handler) rebuildVariants(ctx context.Context, m *media.Media, dir strin
 		slog.Warn("could not rebuild variants after crop", "err", err, "media", m.ID)
 		return
 	}
-	if err := h.mediaStore.SaveVariants(ctx, m.ID, width, height, variants); err != nil {
+	if err := h.mediaStore.SaveVariants(ctx, dir, m.ID, width, height, variants); err != nil {
 		slog.Error("could not store variants after crop", "err", err, "media", m.ID)
 	}
 }

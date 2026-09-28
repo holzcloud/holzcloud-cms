@@ -260,7 +260,7 @@ func TestSaveAndLoadImageSets(t *testing.T) {
 		{Label: "thumb", Filename: "abc-photo-thumb.jpg", Width: 400, Height: 200, SizeBytes: 10},
 		{Label: "medium", Filename: "abc-photo-medium.jpg", Width: 800, Height: 400, SizeBytes: 20},
 	}
-	if err := store.SaveVariants(ctx, m.ID, 2000, 1000, variants); err != nil {
+	if err := store.SaveVariants(ctx, t.TempDir(), m.ID, 2000, 1000, variants); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
 
@@ -286,7 +286,7 @@ func TestSaveAndLoadImageSets(t *testing.T) {
 	}
 
 	// Re-running the pipeline replaces rather than duplicates.
-	if err := store.SaveVariants(ctx, m.ID, 2000, 1000, variants); err != nil {
+	if err := store.SaveVariants(ctx, t.TempDir(), m.ID, 2000, 1000, variants); err != nil {
 		t.Fatalf("second SaveVariants: %v", err)
 	}
 	again, _ := store.VariantsFor(ctx, m.ID)
@@ -303,7 +303,7 @@ func TestResolveServedFindsVariants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create media: %v", err)
 	}
-	if err := store.SaveVariants(ctx, m.ID, 1200, 600,
+	if err := store.SaveVariants(ctx, t.TempDir(), m.ID, 1200, 600,
 		[]Variant{{Label: "thumb", Filename: "abc-sign-thumb.png", Width: 400, Height: 200}}); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestDeleteRemovesVariantFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create media: %v", err)
 	}
-	if err := store.SaveVariants(ctx, m.ID, 1000, 500,
+	if err := store.SaveVariants(ctx, dir, m.ID, 1000, 500,
 		[]Variant{{Label: "thumb", Filename: "abc-thumb.jpg", Width: 400, Height: 200}}); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
@@ -606,7 +606,7 @@ func TestOpaqueWebPSrcSetOffersTheMediumCopy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MakeVariants: %v", err)
 	}
-	if err := store.SaveVariants(ctx, m.ID, 1000, 560, variants); err != nil {
+	if err := store.SaveVariants(ctx, dir, m.ID, 1000, 560, variants); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
 
@@ -664,13 +664,13 @@ func TestEveryStoreReadCarriesTheStoredThumbName(t *testing.T) {
 
 	// An install from before the change: its thumbnail is a PNG and stays
 	// addressable as one.
-	if err := store.SaveVariants(ctx, m.ID, 2000, 1120,
+	if err := store.SaveVariants(ctx, t.TempDir(), m.ID, 2000, 1120,
 		[]Variant{{Label: "thumb", Filename: "shot-thumb.png", Width: 400, Height: 224}}); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
 	reads("/media/1/shot-thumb.png")
 
-	if err := store.SaveVariants(ctx, m.ID, 2000, 1120,
+	if err := store.SaveVariants(ctx, t.TempDir(), m.ID, 2000, 1120,
 		[]Variant{{Label: "thumb", Filename: "shot-thumb.jpg", Width: 400, Height: 224}}); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
@@ -686,11 +686,151 @@ func TestEveryStoreReadCarriesTheStoredThumbName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create media: %v", err)
 	}
-	if err := store.SaveVariants(ctx, bare.ID, 2000, 1000, nil); err != nil {
+	if err := store.SaveVariants(ctx, t.TempDir(), bare.ID, 2000, 1000, nil); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
 	got, _ := store.GetByID(ctx, bare.ID)
 	if got.Width != 2000 || got.ThumbURL() != "/media/1/bare.png" {
 		t.Errorf("wide picture without a thumb row: width %d, ThumbURL() = %q", got.Width, got.ThumbURL())
+	}
+}
+
+// assertNothingDangles checks the two promises a regeneration has to keep for
+// one website directory: every stored row names a file that is there, and every
+// file there is an original, the untouched source of a cropped one, or named by
+// a row.
+func assertNothingDangles(t *testing.T, s *Store, websiteID int64, dir string) {
+	t.Helper()
+	rows, err := s.DB.Read.Query(
+		`SELECT m.filename, COALESCE(v.filename, '') FROM media m
+		 LEFT JOIN media_variants v ON v.media_id = m.id WHERE m.website_id = $1`, websiteID)
+	if err != nil {
+		t.Fatalf("list rows: %v", err)
+	}
+	defer rows.Close()
+	known := map[string]bool{}
+	var named []string
+	for rows.Next() {
+		var original, variant string
+		if err := rows.Scan(&original, &variant); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		known[original], known[SourceName(original)] = true, true
+		if variant != "" {
+			known[variant] = true
+			named = append(named, variant)
+		}
+	}
+	for _, name := range named {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("row names %s, which is not on disk", name)
+		}
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if !known[e.Name()] {
+			t.Errorf("%s is on disk, but no row names it", e.Name())
+		}
+	}
+}
+
+func TestRegenerationReplacesTheWholeSet(t *testing.T) {
+	store, websiteID := newTestStore(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	src := copyFixture(t, "opaque-lossy.webp", dir, "shot.webp")
+	info, _ := os.Stat(src)
+
+	m, err := store.Create(ctx, websiteID, "shot.webp", "shot.webp", "image/webp", info.Size(), "hash-swap")
+	if err != nil {
+		t.Fatalf("create media: %v", err)
+	}
+	// The state an install is in before the change: PNG copies, and a label
+	// the new run will not produce at all.
+	for _, name := range []string{"shot-thumb.png", "shot-large.png"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("old"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	if err := store.SaveVariants(ctx, dir, m.ID, 1000, 560, []Variant{
+		{Label: "thumb", Filename: "shot-thumb.png", Width: 400, Height: 224},
+		{Label: "large", Filename: "shot-large.png", Width: 1600, Height: 896},
+	}); err != nil {
+		t.Fatalf("seed SaveVariants: %v", err)
+	}
+
+	for run := 1; run <= 2; run++ {
+		variants, err := MakeVariants(src, dir, "shot.webp", "image/webp", 24)
+		if err != nil {
+			t.Fatalf("run %d: MakeVariants: %v", run, err)
+		}
+		if err := store.SaveVariants(ctx, dir, m.ID, 1000, 560, variants); err != nil {
+			t.Fatalf("run %d: SaveVariants: %v", run, err)
+		}
+
+		rows, _ := store.VariantsFor(ctx, m.ID)
+		got := map[string]string{}
+		for _, v := range rows {
+			got[v.Label] = v.Filename
+		}
+		want := map[string]string{"thumb": "shot-thumb.jpg", "medium": "shot-medium.jpg"}
+		if len(got) != len(want) || got["thumb"] != want["thumb"] || got["medium"] != want["medium"] {
+			t.Errorf("run %d: rows are %v, want exactly %v", run, got, want)
+		}
+		for _, gone := range []string{"shot-thumb.png", "shot-large.png"} {
+			if _, err := os.Stat(filepath.Join(dir, gone)); !os.IsNotExist(err) {
+				t.Errorf("run %d: %s is still on disk", run, gone)
+			}
+		}
+		if _, err := os.Stat(src); err != nil {
+			t.Fatalf("run %d: the original is gone: %v", run, err)
+		}
+		entries, _ := os.ReadDir(dir)
+		if len(entries) != 3 {
+			t.Errorf("run %d: %d files in the directory, want the original and two copies", run, len(entries))
+		}
+		assertNothingDangles(t, store, websiteID, dir)
+	}
+}
+
+func TestRegenerationDeletesNothingItShouldNot(t *testing.T) {
+	store, websiteID := newTestStore(t)
+	ctx := context.Background()
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "1")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	outside := filepath.Join(parent, "escape.png")
+	for _, path := range []string{outside, filepath.Join(dir, "sign.png"), filepath.Join(dir, SourceName("sign.png"))} {
+		if err := os.WriteFile(path, []byte("keep"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+
+	m, err := store.Create(ctx, websiteID, "sign.png", "sign.png", "image/png", 4, "hash-safe")
+	if err != nil {
+		t.Fatalf("create media: %v", err)
+	}
+	// Rows that a damaged or hostile database could hold: a name reaching out
+	// of the directory, the original's own name, and its crop source.
+	if err := store.SaveVariants(ctx, dir, m.ID, 1000, 500, []Variant{
+		{Label: "thumb", Filename: "../escape.png", Width: 400, Height: 200},
+		{Label: "medium", Filename: "sign.png", Width: 800, Height: 400},
+		{Label: "large", Filename: SourceName("sign.png"), Width: 1600, Height: 800},
+	}); err != nil {
+		t.Fatalf("seed SaveVariants: %v", err)
+	}
+
+	if err := store.SaveVariants(ctx, dir, m.ID, 1000, 500, nil); err != nil {
+		t.Fatalf("SaveVariants: %v", err)
+	}
+	if rows, _ := store.VariantsFor(ctx, m.ID); len(rows) != 0 {
+		t.Errorf("%d rows left, want none", len(rows))
+	}
+	for _, path := range []string{outside, filepath.Join(dir, "sign.png"), filepath.Join(dir, SourceName("sign.png"))} {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("%s was deleted: %v", path, err)
+		}
 	}
 }
