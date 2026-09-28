@@ -52,6 +52,12 @@ type Deps struct {
 	// revoke them and for key_info. Nil means those tools say they are not
 	// available.
 	Tokens *Store
+
+	// Uploads are the open upload links: create_upload_link hands them out and
+	// UploadHandler receives the files sent to them. Tool and handler have to
+	// be built from the same Deps value, or a link is issued that no handler
+	// knows. Nil means the tool says uploading by link is not available.
+	Uploads *Uploads
 }
 
 // Limits are the numbers a file upload has to respect.

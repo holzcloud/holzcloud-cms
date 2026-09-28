@@ -58,6 +58,9 @@ type routerTweaks struct {
 	setupGuard func(http.Handler) http.Handler
 	// oauth wires the AI keys and the OAuth endpoints, as main does.
 	oauth bool
+	// mcp wires /ai and its upload links as main does, with the admin handler
+	// behind the tools.
+	mcp bool
 }
 
 func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionManager, *db.DB) {
@@ -114,12 +117,28 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	// on a 404 that has nothing to do with who may enter.
 	adminHandler.SetAlbumStore(album.NewStore(database))
 
+	var tokens *ai.Store
+	if tw.oauth || tw.mcp {
+		tokens = ai.NewStore(database)
+		adminHandler.SetAITokens(tokens)
+	}
 	var aiOAuth *ai.OAuth
 	if tw.oauth {
-		tokens := ai.NewStore(database)
-		adminHandler.SetAITokens(tokens)
 		aiOAuth = &ai.OAuth{Store: tokens}
 		adminHandler.SetOAuth(aiOAuth)
+	}
+	var aiServer *ai.Server
+	var aiUpload http.Handler
+	if tw.mcp {
+		aiServer, aiUpload = aiConnection(cfg, ai.Deps{
+			Domains: domainStore, Pages: page.NewStore(database), Media: media.NewStore(database),
+			Ops: adminHandler,
+			Limits: ai.Limits{
+				DataDir: dir, MaxMediaSize: cfg.MaxMediaSize,
+				MaxVideoSize: cfg.MaxVideoSize, MaxMegapixels: cfg.MaxMegapixels,
+			},
+			Tokens: tokens,
+		})
 	}
 
 	passthrough := func(next http.Handler) http.Handler { return next }
@@ -144,6 +163,8 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 		unlockSigner:    sharelink.New([]byte("unlock")),
 		templateLoader:  loader,
 		publicDefaultFS: publicDefaultFS,
+		aiServer:        aiServer,
+		aiUpload:        aiUpload,
 		aiOAuth:         aiOAuth,
 	})
 	if err != nil {

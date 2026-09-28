@@ -63,6 +63,7 @@ func mediaTools(d Deps) []Tool {
 		listMediaCollection(d),
 		getMedia(d),
 		uploadMedia(d),
+		createUploadLink(d),
 		updateMedia(d),
 		setMediaFocus(d),
 		cropMedia(d),
@@ -347,7 +348,10 @@ func uploadMedia(d Deps) Tool {
 			"checks as an upload on the admin side: the kind is read from the bytes, the size " +
 			"is limited, location data is removed from photographs, and a file that is " +
 			"already in the library is not stored a second time. Give every picture a " +
-			"description (alt_text) of what it shows.",
+			"description (alt_text) of what it shows. For anything larger than a few " +
+			"kilobytes, such as a screenshot or a photograph, use create_upload_link instead: " +
+			"its bytes then do not pass through this call, and the picture does not have to " +
+			"be made smaller to fit.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -376,64 +380,73 @@ func uploadMedia(d Deps) Tool {
 			if err := c.Scope.MaySee(a.Website); err != nil {
 				return nil, err
 			}
-			ops, ok := d.Ops.(mediaOps)
-			if !ok {
+			if _, ok := d.Ops.(mediaOps); !ok {
 				return nil, errNoMediaOps
 			}
 			content, err := decodeBase64(a.Content)
 			if err != nil {
 				return nil, err
 			}
-
-			m, existed, variants, err := ops.OpUploadMedia(c.Ctx, a.Website, a.Name, content)
-			var ref media.Refusal
-			switch {
-			case errors.As(err, &ref):
-				return nil, errors.New(refusalText(err))
-			case err != nil:
-				return nil, err
-			case existed:
-				out := mediaEntry(*m)
-				out["note"] = "This file already exists in the library as \"" +
-					m.OriginalName + "\" — nothing was uploaded. Use this one."
-				return out, nil
-			}
-
-			alt, caption := strings.TrimSpace(a.Alt), strings.TrimSpace(a.Caption)
-			if alt != "" || caption != "" {
-				if err := d.Media.UpdateMeta(c.Ctx, m.ID, alt, caption); err != nil {
-					return nil, err
-				}
-				m.AltText, m.Caption = alt, caption
-			}
-			changed(d, c, a.Website, activity.Entry{
-				Action: activity.ActionMediaUpload, EntityType: "media", EntityID: m.ID,
-				Metadata: map[string]any{"file": m.OriginalName},
-			})
-			c.Log.Info("ai uploaded media", "key", c.Scope.Name, "media", m.ID, "website", a.Website)
-
-			out := mediaEntry(*m)
-			var notes []string
-			switch {
-			case variants == nil:
-			case errors.Is(variants, media.ErrTooManyPixels):
-				notes = append(notes, fmt.Sprintf("The image is too large for scaled copies "+
-					"(limit: %d megapixels); it is stored and usable, but heavy.", d.Limits.MaxMegapixels))
-			default:
-				notes = append(notes, "The scaled copies could not be made; the file is stored "+
-					"and usable, but heavy.")
-			}
-			if m.NeedsAltText() {
-				notes = append(notes, "This image has no description yet; update_media stores one.")
-			}
-			if len(notes) > 0 {
-				out["note"] = strings.Join(notes, " ")
-			} else {
-				delete(out, "note")
-			}
-			return out, nil
+			return storeUpload(d, c, a.Website, a.Name, content, a.Alt, a.Caption)
 		},
 	}
+}
+
+// storeUpload takes a file in for an assistant, whichever way its bytes came:
+// inside the call as base64, or through an upload link. One function, so the
+// two ways cannot drift apart in what they check, log or tell the assistant.
+func storeUpload(d Deps, c Call, website int64, name string, content []byte, alt, caption string) (map[string]any, error) {
+	ops, ok := d.Ops.(mediaOps)
+	if !ok {
+		return nil, errNoMediaOps
+	}
+	m, existed, variants, err := ops.OpUploadMedia(c.Ctx, website, name, content)
+	var ref media.Refusal
+	switch {
+	case errors.As(err, &ref):
+		return nil, errors.New(refusalText(err))
+	case err != nil:
+		return nil, err
+	case existed:
+		out := mediaEntry(*m)
+		out["note"] = "This file already exists in the library as \"" +
+			m.OriginalName + "\" — nothing was uploaded. Use this one."
+		return out, nil
+	}
+
+	alt, caption = strings.TrimSpace(alt), strings.TrimSpace(caption)
+	if alt != "" || caption != "" {
+		if err := d.Media.UpdateMeta(c.Ctx, m.ID, alt, caption); err != nil {
+			return nil, err
+		}
+		m.AltText, m.Caption = alt, caption
+	}
+	changed(d, c, website, activity.Entry{
+		Action: activity.ActionMediaUpload, EntityType: "media", EntityID: m.ID,
+		Metadata: map[string]any{"file": m.OriginalName},
+	})
+	c.Log.Info("ai uploaded media", "key", c.Scope.Name, "media", m.ID, "website", website)
+
+	out := mediaEntry(*m)
+	var notes []string
+	switch {
+	case variants == nil:
+	case errors.Is(variants, media.ErrTooManyPixels):
+		notes = append(notes, fmt.Sprintf("The image is too large for scaled copies "+
+			"(limit: %d megapixels); it is stored and usable, but heavy.", d.Limits.MaxMegapixels))
+	default:
+		notes = append(notes, "The scaled copies could not be made; the file is stored "+
+			"and usable, but heavy.")
+	}
+	if m.NeedsAltText() {
+		notes = append(notes, "This image has no description yet; update_media stores one.")
+	}
+	if len(notes) > 0 {
+		out["note"] = strings.Join(notes, " ")
+	} else {
+		delete(out, "note")
+	}
+	return out, nil
 }
 
 // decodeBase64 reads the content of an upload. Standard and URL alphabets, with
