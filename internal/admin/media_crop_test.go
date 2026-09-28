@@ -44,7 +44,7 @@ func seedImage(t *testing.T, h *Handler, websiteID int64, name string, w, hgt in
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := h.mediaStore.SaveVariants(context.Background(), m.ID, w, hgt, nil); err != nil {
+	if err := h.mediaStore.SaveVariants(context.Background(), dir, m.ID, w, hgt, nil); err != nil {
 		t.Fatalf("SaveVariants: %v", err)
 	}
 	m, _ = h.mediaStore.GetByID(context.Background(), m.ID)

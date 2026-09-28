@@ -64,7 +64,7 @@ holzcloud backup <dir>            write a verified database snapshot
 holzcloud migrate status|up       show or apply pending migrations
 holzcloud compact                 rebuild the database file (VACUUM)
 holzcloud rerender                re-render every page from its Markdown
-holzcloud thumbnails              generate the scaled copies of older images
+holzcloud thumbnails [-force]     generate the scaled copies of older images; -force rebuilds them for every image
 holzcloud check                   run an integrity check
 holzcloud template check <path>   check a template directory or .zip
 holzcloud template spec           print the template authoring specification

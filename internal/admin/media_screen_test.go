@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -407,6 +410,73 @@ func TestTheMediaListFiltersAndCounts(t *testing.T) {
 		got := mediaFilterFromRequest(httptest.NewRequest(http.MethodGet, "/x"+c.query, nil))
 		if got != c.want {
 			t.Errorf("%q: filter = %+v, want %+v", c.query, got, c.want)
+		}
+	}
+}
+
+// The grid shows the thumbnail that is on the disk. Since the format of the
+// scaled copies follows the pixels, an opaque PNG has a -thumb.jpg and a
+// transparent one a -thumb.png; a name derived from the MIME type would be
+// wrong for the first and show a broken image on its card.
+func TestTheGridShowsTheThumbnailThatExists(t *testing.T) {
+	h, sm, database, ws := mediaAdmin(t)
+	ctx := context.Background()
+
+	encode := func(transparent bool) []byte {
+		img := image.NewNRGBA(image.Rect(0, 0, 640, 360))
+		for y := 0; y < 360; y++ {
+			for x := 0; x < 640; x++ {
+				a := uint8(255)
+				if transparent && y < 90 {
+					a = 0
+				}
+				img.SetNRGBA(x, y, color.NRGBA{uint8(x % 256), uint8(y % 256), 120, a})
+			}
+		}
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, img); err != nil {
+			t.Fatal(err)
+		}
+		return buf.Bytes()
+	}
+	for name, transparent := range map[string]bool{"bildschirm.png": false, "schild.png": true} {
+		rec := serve(t, h, sm, h.HandleMediaUpload, mediaUploadRequest(t, ws.ID, name, encode(transparent)))
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("upload %s: status %d", name, rec.Code)
+		}
+	}
+
+	items, _, err := media.NewStore(database).List(ctx, ws.ID, media.Filter{}, 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("%d files stored, want 2", len(items))
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/media", nil)
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	rec := serve(t, h, sm, h.HandleMediaList, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: status %d", rec.Code)
+	}
+	body := rec.Body.String()
+
+	dir := media.WebsiteDir(h.cfg.DataDir, ws.ID)
+	for _, m := range items {
+		want := "-thumb.jpg"
+		if m.OriginalName == "schild.png" {
+			want = "-thumb.png"
+		}
+		if !strings.HasSuffix(m.ThumbFilename, want) {
+			t.Errorf("%s: thumbnail %q, want a name ending in %s", m.OriginalName, m.ThumbFilename, want)
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, m.ThumbFilename)); err != nil {
+			t.Errorf("%s: the thumbnail is not on disk: %v", m.OriginalName, err)
+		}
+		if !strings.Contains(body, `src="`+m.ThumbURL()+`"`) {
+			t.Errorf("%s: the grid does not load %s", m.OriginalName, m.ThumbURL())
 		}
 	}
 }

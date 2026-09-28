@@ -39,6 +39,10 @@ type Media struct {
 	// URL, because a media address is cached for a year as immutable and that
 	// is only true as long as the bytes stay put — cropping made it untrue.
 	Version int
+
+	// ThumbFilename is the stored name of the 400px copy from media_variants,
+	// empty when there is none. Every store read fills it.
+	ThumbFilename string
 }
 
 // versionQuery is what makes a changed picture a different address.
@@ -106,20 +110,22 @@ func (m Media) Path() string {
 
 // ThumbURL is what the admin grid and the media picker load.
 //
-// The name is derived rather than looked up: the variant file name is a pure
-// function of the original's, so showing forty thumbnails costs no extra query.
-// Anything without a generated thumbnail — an SVG, a small logo, a file from
-// before the pipeline existed — falls back to the original, which is correct
-// and only as slow as it was before.
+// The name is looked up, not derived: whether the copy is a JPEG or a PNG
+// depends on the picture's pixels, which the file name and the MIME type do not
+// tell. The lookup rides in the same query as the row, so showing forty
+// thumbnails still costs one query. A picture without a thumbnail row — an SVG,
+// a small logo, a file never measured, or one whose variants failed while its
+// size was still recorded — falls back to the original, which is correct and
+// only as slow as it was before. The old derivation pointed that last case at a
+// file that did not exist.
 func (m Media) ThumbURL() string {
 	if !m.HasThumb() {
 		return m.URL()
 	}
-	name := variantFilename(m.Filename, "thumb", m.MimeType != "image/jpeg")
-	return "/media/" + strconv.FormatInt(m.WebsiteID, 10) + "/" + name + m.versionQuery()
+	return "/media/" + strconv.FormatInt(m.WebsiteID, 10) + "/" + m.ThumbFilename + m.versionQuery()
 }
 
 // HasThumb reports whether a scaled-down copy was generated for this file.
 func (m Media) HasThumb() bool {
-	return CanMakeVariants(m.MimeType) && m.Width > variantSpecs[0].Width
+	return m.ThumbFilename != ""
 }

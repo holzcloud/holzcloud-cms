@@ -102,10 +102,25 @@ func MakeVariantsThrottled(sourcePath, destDir, baseName, mimeType string, maxMe
 // Only smaller sizes are produced: upscaling a small logo to 1600 pixels wastes
 // disk and produces a blurrier file than the original.
 //
-// The output is JPEG for photographs and PNG for anything with transparency,
-// because re-encoding a transparent PNG as JPEG turns the transparent parts
-// black.
+// The copies are JPEG unless the decoded picture actually has a pixel that is
+// not fully opaque; then they are PNG, because re-encoding a transparent
+// picture as JPEG turns the transparent parts black.
+//
+// The pixels decide, not the MIME type. Until 0.0.6 every PNG and WebP got PNG
+// copies because either format can carry transparency — but a screenshot or a
+// photo saved as WebP is opaque, and its PNG copies were larger than the
+// original (a 2400px WebP of 125 KB had an 800px PNG copy of 159 KB and a
+// 1600px one of 452 KB). The rule below that drops a copy which saves nothing
+// then dropped both, and the srcset offered only the thumbnail and the full
+// original, so a phone downloaded the original.
+//
+// The MIME type still says whether the pipeline may touch the file at all.
 func MakeVariants(sourcePath, destDir, baseName, mimeType string, maxMegapixels int) ([]Variant, error) {
+	// A caller that forgot to ask would otherwise flatten an animated GIF to
+	// its first frame.
+	if !CanMakeVariants(mimeType) {
+		return nil, fmt.Errorf("no scaled copies for %s", mimeType)
+	}
 	if maxMegapixels <= 0 {
 		maxMegapixels = DefaultMaxMegapixels
 	}
@@ -140,7 +155,7 @@ func MakeVariants(sourcePath, destDir, baseName, mimeType string, maxMegapixels 
 		return nil, fmt.Errorf("decode image: %w", err)
 	}
 
-	transparent := mimeType == "image/png" || mimeType == "image/webp"
+	transparent := hasTransparency(src)
 	var out []Variant
 	for _, spec := range variantSpecs {
 		if spec.Width >= width {
@@ -175,9 +190,12 @@ func MakeVariants(sourcePath, destDir, baseName, mimeType string, maxMegapixels 
 		// saves. Dropping it leaves the srcset one candidate shorter, which is
 		// exactly right — there is nothing better than the original to offer.
 		//
-		// The thumbnail is exempt: the admin grid addresses it by its derived
-		// name without a query, so it has to exist whenever the original is
-		// wider than it. Its few hundred bytes are not what this rule is about.
+		// The thumbnail is exempt: the admin grid and the media picker show it
+		// for every card, so it has to exist whenever the original is wider
+		// than it. They read its name from media_variants rather than derive
+		// it, which is what keeps an install with -thumb.png copies and one
+		// with -thumb.jpg copies both working. Its few hundred bytes are not
+		// what this rule is about.
 		if spec.Label != "thumb" && originalSize > 0 && size >= originalSize {
 			os.Remove(filepath.Join(destDir, name))
 			continue
@@ -189,6 +207,30 @@ func MakeVariants(sourcePath, destDir, baseName, mimeType string, maxMegapixels 
 		})
 	}
 	return out, nil
+}
+
+// hasTransparency reports whether any pixel of a decoded picture is not fully
+// opaque.
+//
+// Every type the standard library and x/image decoders return has an Opaque
+// method, which stops at the first pixel that is not opaque, so the usual answer
+// costs one pass at most and nothing extra for a JPEG. A lossless WebP decodes
+// to NRGBA whether or not it uses its alpha channel, which is exactly why the
+// type alone cannot answer. The scan below is for an image type without the
+// method.
+func hasTransparency(img image.Image) bool {
+	if o, ok := img.(interface{ Opaque() bool }); ok {
+		return !o.Opaque()
+	}
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if _, _, _, a := img.At(x, y).RGBA(); a < 0xffff {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // variantFilename derives the name of a scaled copy from the original's.

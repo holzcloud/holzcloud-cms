@@ -62,7 +62,7 @@ func seedPicture(t *testing.T, database *db.DB, websiteID int64, filename string
 	if err != nil {
 		t.Fatalf("media.Create %s: %v", filename, err)
 	}
-	if err := store.SaveVariants(ctx, m.ID, 1600, 1200, []media.Variant{
+	if err := store.SaveVariants(ctx, t.TempDir(), m.ID, 1600, 1200, []media.Variant{
 		{Label: "medium", Filename: strings.TrimSuffix(filename, ".jpg") + "-medium.jpg",
 			Width: 800, Height: 600, SizeBytes: 2048},
 	}); err != nil {

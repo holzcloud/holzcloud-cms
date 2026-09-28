@@ -297,7 +297,7 @@ func (h *Handler) makeVariants(ctx context.Context, m *media.Media, destDir, sou
 		slog.Warn("could not read image dimensions", "err", err, "media", m.ID)
 		return nil
 	}
-	if err := h.mediaStore.SaveVariants(ctx, m.ID, width, height, variants); err != nil {
+	if err := h.mediaStore.SaveVariants(ctx, destDir, m.ID, width, height, variants); err != nil {
 		slog.Error("could not store image variants", "err", err, "media", m.ID)
 		return errVariantsNotStored
 	}
