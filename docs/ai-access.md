@@ -113,14 +113,17 @@ top:
   without it.
 - **Unknown parameters are refused.** A misspelt argument is an error that names
   it, never a silently ignored value.
-- **Files arrive as base64** in the call (`upload_media`, `upload_template`,
-  `install_plugin`, a logo). The server never fetches a URL.
+- **Files arrive as bytes, never as an address to fetch.** Small ones come as
+  base64 in the call (`upload_media`, `upload_template`, `install_plugin`, a
+  logo); anything larger than a few kilobytes goes into the media library
+  through `create_upload_link`, which the assistant's machine sends the file to
+  directly. The server never fetches a URL.
 
 | Area | Tools |
 |---|---|
 | Websites & design | `list_websites` `get_website` `update_website` `create_website`\* `delete_website`\* `add_domain`\* `remove_domain`\* `set_primary_domain`\* `launch_checklist` `translation_matrix` `list_templates` `activate_template` `upload_template`\* `delete_template`\* `get_template_spec` `get_design` `set_design`\* `reset_design`\* `get_wording` `set_wording` |
 | Pages | `list_pages` `read_page` `search_pages` `create_page` `update_page` `publish_page` `get_page_settings` `set_page_slug` `set_page_kind` `set_page_terms` `set_page_seo` `set_page_schedule` `set_page_protection` `list_block_kinds` `get_page_blocks` `set_page_blocks` `insert_block` `list_revisions` `read_revision` `restore_revision` `label_revision` `duplicate_page` `list_translations` `create_translation` `create_share_link` `set_review` `bulk_pages` `list_trash` `trash_page` `restore_page` `purge_page`\* |
-| Media & albums | `list_media` `get_media_library` `list_media_collection` `get_media` `upload_media` `update_media` `set_media_focus` `crop_media` `restore_media_original` `delete_media` `list_albums` `get_album` `create_album` `rename_album` `delete_album` `add_album_images` `update_album_image` `remove_album_image` `move_album_image` |
+| Media & albums | `list_media` `get_media_library` `list_media_collection` `get_media` `upload_media` `create_upload_link` `update_media` `set_media_focus` `crop_media` `restore_media_original` `delete_media` `list_albums` `get_album` `create_album` `rename_album` `delete_album` `add_album_images` `update_album_image` `remove_album_image` `move_album_image` |
 | Structure | `list_menus` `get_menu` `create_menu` `update_menu` `delete_menu` `list_terms` `rename_term` `delete_term` `list_snippets` `get_snippet` `create_snippet` `update_snippet` `delete_snippet` `list_redirects` `create_redirect` `delete_redirect` `check_links` `list_fields` `create_field`\* `update_field`\* `delete_field`\* `move_field`\* `list_kinds`\* `create_kind`\* `update_kind`\* `delete_kind`\* `move_kind`\* `manage_block_kinds`\* `create_block_kind`\* `update_block_kind`\* `delete_block_kind`\* `move_block_kind`\* |
 | Shop | `shop_overview` `list_products` `get_product` `create_product` `update_product` `delete_product` `list_orders` `get_order` `set_order_status` `recheck_payment` `resend_order_mail` `get_shop_settings`\* `update_shop_settings`\* |
 | Installation | `key_info` and, admin keys only: `list_users` `get_user` `invite_user` `update_user` `create_password_reset_link` `create_invitation_link` `end_user_sessions` `disable_user_two_factor` `delete_user` `list_ai_keys` `create_ai_key` `revoke_ai_key` `list_plugins` `install_plugin` `enable_plugin` `disable_plugin` `set_plugin_websites` `remove_plugin` `get_mail_status` `retry_mail` `send_test_mail` `list_languages` `install_language` `remove_language` `get_branding` `update_branding` `read_activity_log` |
@@ -131,6 +134,41 @@ administrators.
 `create_ai_key` issues `read` and `content` keys only; `revoke_ai_key` refuses
 the key that calls it, so an assistant cannot cut its own connection halfway
 through a task.
+
+### Large files: upload links
+
+A file inside a tool call is text the model has to write out: a 200 KB
+screenshot is 270 000 characters of base64. In practice an assistant then
+shrinks the picture until it fits, and the website gets blurry images nobody
+chose. `create_upload_link` avoids that.
+
+It takes `website`, `file_name` and, optionally, `alt_text` and `caption`, and
+answers `upload_url`, `method`, `expires_at`, `max_bytes` and a ready `example`
+line for curl:
+
+```
+curl --fail --upload-file 'hof.png' 'https://admin.example.ch/ai/upload/<secret>'
+```
+
+The file is sent raw with `PUT` (`POST` is accepted too) to
+`/ai/upload/<secret>`. Like `/ai`, that address sits outside CSRF protection and
+outside the session; the secret in it is the only credential. It is 256 random
+bits, kept only as a hash and only in memory, valid once and for 15 minutes; at
+most 200 links are open at a time, and a restart forgets them — the assistant
+simply asks for a new one. The key that opened the link is read again when the
+file arrives. The file then goes through the same intake as `upload_media`: the
+same checks, the same activity entry, the same answer.
+
+| Answer | When |
+|---|---|
+| 201 | the file is stored; the body is the stored file, as `upload_media` answers |
+| 403 | the key was revoked, made read-only or narrowed to another website since the link was opened |
+| 404 | the link is unknown, was used or has expired — one answer for all three |
+| 405 | another method than `PUT` or `POST`; the link stays valid |
+| 413 | the body is larger than the larger of the media and video limits |
+
+An operator behind a reverse proxy has to let `PUT` and bodies of that size
+through to `/ai/upload/`, as the proxy already does for the admin's upload form.
 
 ## The vocabulary changed in 2.0
 
