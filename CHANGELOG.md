@@ -14,6 +14,29 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.5 — 2026-09-28
+
+**Ein KI-Assistent kann Bilder in voller Grösse hochladen.** Bisher musste er
+die Datei als Base64 in den Werkzeugaufruf schreiben; bei einem Bildschirmfoto
+sind das Hunderttausende Zeichen, also verkleinerte der Assistent das Bild in
+der Praxis, bis es passte, und die Website bekam unscharfe Bilder, die niemand
+so gewählt hatte. Das neue Werkzeug `create_upload_link` antwortet stattdessen
+mit einer einmaligen Adresse, und der Rechner des Assistenten schickt die Datei
+direkt dorthin (`curl --upload-file`). Die Datei durchläuft dieselben Prüfungen
+wie bei `upload_media`, steht genauso im Aktivitätsprotokoll, und die Antwort
+ist dieselbe.
+
+**Die Adresse ist wenig wert für jemanden, der sie sieht.** Sie ist zufällig,
+gilt einmal und für 15 Minuten und ist an den Schlüssel, die Website und den
+Dateinamen gebunden. Der Schlüssel wird beim Eintreffen der Datei noch einmal
+geprüft: Wer ihn widerruft oder auf „nur lesen“ stellt, beendet damit auch seine
+offenen Adressen. Ein Neustart vergisst offene Adressen, und der Assistent holt
+sich einfach eine neue.
+
+Nach dem Update ist nichts zu tun, solange der Reverse-Proxy `/ai/upload/` mit
+PUT und Dateien bis zur Upload-Grenze so durchlässt, wie er es für das
+Upload-Formular der Verwaltung schon tut.
+
 ## 0.0.4 — 2026-09-27
 
 **Die Seitenfarben sind die der Programme.** Die Seite über holzcloud-cms steht

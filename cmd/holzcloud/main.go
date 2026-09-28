@@ -325,7 +325,7 @@ func main() {
 	adminHandler.SetActivityStore(activity.NewStore(database))
 	// The assistant's tools go through the same handler the screens use,
 	// wherever a screen does more than one store call — see internal/admin/ops.go.
-	aiServer := ai.NewServer(aiTokens, "Holzcloud CMS", slog.Default(), ai.Tools(ai.Deps{
+	aiServer, aiUpload := aiConnection(cfg, ai.Deps{
 		Domains: domainStore, Pages: pageStore, Media: mediaStore, Fields: field.NewStore(database),
 		Ops: adminHandler,
 		Limits: ai.Limits{
@@ -333,8 +333,7 @@ func main() {
 			MaxVideoSize: cfg.MaxVideoSize, MaxMegapixels: cfg.MaxMegapixels,
 		},
 		Tokens: aiTokens,
-	}))
-	aiServer.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize, cfg.MaxTemplateSize))
+	})
 	// OAuth, for the assistants that do not take a pasted key — Claude and
 	// ChatGPT in the browser. They receive the same kind of key, on a consent
 	// page in the admin.
@@ -448,6 +447,7 @@ func main() {
 		pluginRT:        pluginRT,
 		mailQueue:       mailQueue,
 		aiServer:        aiServer,
+		aiUpload:        aiUpload,
 		aiOAuth:         aiOAuth,
 		templateLoader:  templateLoader,
 		publicDefaultFS: publicDefaultFS,
@@ -780,6 +780,9 @@ type routerDeps struct {
 	// aiServer answers MCP under /ai. Nil would mean no connection for an
 	// assistant, and then the address does not exist.
 	aiServer *ai.Server
+	// aiUpload receives the files sent to upload links under ai.UploadPath.
+	// Nil leaves the address out.
+	aiUpload http.Handler
 	// aiOAuth signs assistants in that do not take a pasted key. Nil leaves
 	// the OAuth addresses out.
 	aiOAuth *ai.OAuth
@@ -886,6 +889,16 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// hole CSRF otherwise protects against does not exist here.
 	if d.aiServer != nil {
 		mux.Handle("/ai", d.aiServer)
+	}
+	// Where an assistant's machine sends a file it was given an upload link
+	// for. The same reasoning as for /ai: no session and no CSRF, because
+	// nothing here acts on a browser's cookie — the secret in the address is
+	// the only credential. Registered without a method on purpose: the handler
+	// answers a wrong method with 405 itself, whereas a "PUT /ai/upload/"
+	// pattern would hand a GET to the public site's catch-all and answer with
+	// its 404 page.
+	if d.aiUpload != nil {
+		mux.Handle(ai.UploadPath, d.aiUpload)
 	}
 	// Signing an assistant in with OAuth. The same reasoning as for /ai: no
 	// session and no CSRF, because nothing here acts on a browser's cookie. The
@@ -1384,6 +1397,17 @@ type outboxSender struct{ s *mail.Sender }
 func (a outboxSender) Configured() bool { return a.s != nil && a.s.Enabled() }
 
 func (a outboxSender) Send(_ context.Context, m mail.Message) error { return a.s.Send(m) }
+
+// aiConnection builds the MCP server under /ai and the handler for its upload
+// links from one Deps value. It has to be one: the links live in Deps.Uploads,
+// and built twice, the tool would issue links the receiving handler never
+// heard of.
+func aiConnection(cfg config.Config, deps ai.Deps) (*ai.Server, http.Handler) {
+	deps.Uploads = ai.NewUploads(cfg.Secure)
+	server := ai.NewServer(deps.Tokens, "Holzcloud CMS", slog.Default(), ai.Tools(deps))
+	server.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize, cfg.MaxTemplateSize))
+	return server, ai.UploadHandler(deps, slog.Default())
+}
 
 // pluginLocales is the language list a plugin sees: every language this website
 // publishes in, its main one first, each with the name it has in itself.
