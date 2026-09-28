@@ -14,6 +14,18 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.7 — 2026-09-28
+
+**In der Vorlage „holzcloud“ stehen die Karten im Auftakt jetzt neben dem
+Telefon.** Auf einem breiten Bildschirm rücken sie gleich unter das Fenster
+hinauf und stehen links neben dem Teil des Telefons, der unter dem Fenster
+hängt; damit sind sie wieder im ersten Bildschirm. Das Telefon behält seine
+Grösse und seinen Platz über dem Fenster, und was auf die Karten folgt, beginnt
+unter dem Telefon. Auf einem schmalen Bildschirm stehen die Karten wie bisher
+unter dem Telefon. Das gilt nur, wenn der Vorspann der erste Baustein der Seite
+ist; sonst und auf Seiten ohne zweites Bild bleibt alles, wie es war. Nach dem
+Update ist dafür nichts zu tun.
+
 ## 0.0.6 — 2026-09-28
 
 **Bildschirmfotos und Bilder im Format WebP oder PNG bekommen wieder kleine
