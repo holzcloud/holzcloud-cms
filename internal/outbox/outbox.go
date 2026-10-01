@@ -282,9 +282,14 @@ func (s *Store) Prune(ctx context.Context, olderThan time.Duration) (int64, erro
 // over and make sending fail on demand. That matters more here than anywhere
 // else in this package: the interesting behaviour is what happens when sending
 // does not work.
+//
+// The website id picks the account: a website with its own sends through it,
+// every other through the installation's. ErrNotConfigured from Send means
+// neither exists for this message, and it waits rather than counting as a
+// failed attempt.
 type Sender interface {
-	Configured() bool
-	Send(context.Context, mail.Message) error
+	Configured(context.Context) bool
+	Send(ctx context.Context, websiteID int64, m mail.Message) error
 }
 
 // Dispatcher carries the outbox out over SMTP.
@@ -307,7 +312,7 @@ func (d *Dispatcher) Run(ctx context.Context) error {
 	}
 	// Not an error: a shop without mail configured is a working shop. Saying so
 	// once a minute in the log would be noise.
-	if d.Sender == nil || !d.Sender.Configured() {
+	if d.Sender == nil || !d.Sender.Configured(ctx) {
 		return nil
 	}
 
@@ -325,13 +330,16 @@ func (d *Dispatcher) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		err := d.Sender.Send(ctx, mail.Message{
+		err := d.Sender.Send(ctx, m.WebsiteID, mail.Message{
 			To:       m.Recipient,
 			ReplyTo:  m.ReplyTo,
 			Subject:  m.Subject,
 			Body:     m.Body,
 			FromName: m.FromName,
 		})
+		if errors.Is(err, mail.ErrNotConfigured) {
+			continue
+		}
 		if err != nil {
 			slog.Warn("mail not sent", "id", m.ID, "kind", m.Kind,
 				"attempt", m.Attempts+1, "err", err)

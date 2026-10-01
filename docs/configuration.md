@@ -27,6 +27,7 @@ no configuration file: a process with the right environment is the whole setup.
 | `HOLZCLOUD_SMTP_FROM` | — | Sender address. To be set together with `_HOST` |
 | `HOLZCLOUD_SMTP_FROM_NAME` | — | Display name of the sender |
 | `HOLZCLOUD_SMTP_TLS` | `starttls` | `starttls`, `tls` or `none` |
+| `HOLZCLOUD_SECRET_KEY` | — | Encrypts the passwords of the websites' own mail accounts. At least 32 characters (`openssl rand -base64 32`), environment only. Changing it makes the stored passwords unreadable; they have to be entered again |
 | `HOLZCLOUD_SSO_ENABLED` | `false` | Accept a sign-in forwarded by a reverse proxy from an identity provider. Off means the whole path is dead code |
 | `HOLZCLOUD_SSO_SECRET` | — | The shared secret the proxy sends. Required when SSO is on, at least 32 characters (`openssl rand -hex 32`), environment only, never logged |
 | `HOLZCLOUD_SSO_ADMIN_GROUP` | — | The provider group that grants administration. No default on purpose; empty means no group does |
@@ -88,6 +89,29 @@ remotely loaded images have as little business in a mailbox as on a page.
 
 The state is shown in the admin under *E-mail*, together with a test send to your
 own address.
+
+### A mail account per website
+
+The account above belongs to the installation. A website can have one of its
+own, entered in the admin under its settings, *Sending*: server, port,
+encryption, login, password, sender address and name. Everything that website
+sends — enquiry notifications, the copy to the sender, the shop's order mails —
+then goes out through its own account and under its own address, which is what
+receivers checking SPF, DKIM and DMARC for the website's domain want to see. A
+website without one keeps using the installation's account. Invitations and
+password links belong to no website and always use the installation's.
+
+A website's account works even when the installation has none; the
+installation's own messages then simply wait.
+
+The password is typed into the admin and therefore has to live in the database.
+What lands there is AES-GCM ciphertext, bound to its website; the key is derived
+from `HOLZCLOUD_SECRET_KEY`, which stays in the environment like every other
+secret here. A backup of the data directory alone opens nothing. Without the
+variable a website's account can only be a relay that needs no password, and
+the form says so. Change the key and the stored passwords no longer open:
+sending through those accounts stops with a message saying exactly that until
+the password is entered again.
 
 ## The data directory
 

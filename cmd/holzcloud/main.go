@@ -314,6 +314,10 @@ func main() {
 		From: cfg.SMTPFrom, FromName: cfg.SMTPFromName, TLS: cfg.SMTPTLS,
 	})
 	mailQueue := mail.NewQueue(database, mailSender, slog.Default())
+	// A website may send through an account of its own; its password is
+	// encrypted under HOLZCLOUD_SECRET_KEY.
+	mailAccounts := mail.NewAccounts(database, cfg.SecretKey, mailSender)
+	mailQueue.SetAccounts(mailAccounts)
 	adminHandler.SetMail(mailQueue)
 
 	// The connection for an AI assistant. It comes in from outside, with a key
@@ -539,7 +543,7 @@ func main() {
 			// the customer is still at the screen, but a mail server does not
 			// need to be knocked on every second.
 			Every: time.Minute,
-			Fn:    (&outbox.Dispatcher{Store: outboxStore, Sender: outboxSender{mailSender}}).Run,
+			Fn:    (&outbox.Dispatcher{Store: outboxStore, Sender: outboxSender{mailAccounts}}).Run,
 		},
 		jobs.Job{
 			Name:  "outbox-prune",
@@ -1051,6 +1055,12 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/bestellungen/{number}/{kind}", adminHandler.ErrHandler(adminHandler.HandleOrderDocument))
 	adminProtectedMux.Handle("GET /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
 	adminProtectedMux.Handle("POST /admin/websites/{id}/shop", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleShopSettings))))
+	// A website's own mail account. Admins only: it holds a password, and
+	// whoever can change the server can read everything the website sends.
+	adminProtectedMux.Handle("GET /admin/websites/{id}/versand", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteMail))))
+	adminProtectedMux.Handle("POST /admin/websites/{id}/versand", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteMail))))
+	adminProtectedMux.Handle("POST /admin/websites/{id}/versand/test", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteMailTest))))
+	adminProtectedMux.Handle("POST /admin/websites/{id}/versand/entfernen", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteMailDelete))))
 
 	// Menu routes
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/menus", adminHandler.ErrHandler(adminHandler.HandleMenuList))
@@ -1392,11 +1402,23 @@ func newRouter(d routerDeps) (http.Handler, error) {
 // wants a context and calls the question "Configured", the sender takes no
 // context and calls it "Enabled". Rather than bend either package to the other,
 // the three lines that reconcile them live here, where both are already known.
-type outboxSender struct{ s *mail.Sender }
+//
+// Which account a message goes through is the mail package's decision — the
+// website's own or the installation's — so the outbox and the mail queue can
+// never disagree about it.
+type outboxSender struct{ a *mail.Accounts }
 
-func (a outboxSender) Configured() bool { return a.s != nil && a.s.Enabled() }
+func (o outboxSender) Configured(ctx context.Context) bool {
+	return o.a.Fallback().Enabled() || o.a.Any(ctx)
+}
 
-func (a outboxSender) Send(_ context.Context, m mail.Message) error { return a.s.Send(m) }
+func (o outboxSender) Send(ctx context.Context, websiteID int64, m mail.Message) error {
+	s, err := o.a.SenderFor(ctx, websiteID)
+	if err != nil {
+		return err
+	}
+	return s.Send(m)
+}
 
 // aiConnection builds the MCP server under /ai and the handler for its upload
 // links from one Deps value. It has to be one: the links live in Deps.Uploads,

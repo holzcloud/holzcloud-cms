@@ -39,6 +39,19 @@
 </div>
 
 <div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Websites with their own account"}}</h2>
+    {{if .Own}}
+    <dl class="facts">
+        {{range .Own}}
+        <dt><a href="/admin/websites/{{.WebsiteID}}/versand">{{.Website}}</a></dt><dd><code>{{.From}}</code> {{t "via"}} <code>{{.Host}}</code></dd>
+        {{end}}
+    </dl>
+    {{else}}
+    <p class="text-muted">{{t "None yet. Every website sends through the account above. A website gets its own under its settings, “Sending”."}}</p>
+    {{end}}
+</div>
+
+<div class="card" style="margin-top: var(--space-3);">
     <h2>{{t "Outbox"}}</h2>
     <dl class="facts">
         <dt>{{t "Waiting"}}</dt><dd>{{.Status.Pending}}</dd>

@@ -44,8 +44,8 @@ That is the point of it, and it holds everywhere, not just by default:
   binary. A `default-src 'self'` content security policy is sent with every
   page, and an uploaded template that references anything external is refused
   before it can break a site. The only connections out are the ones you
-  configure yourself: your mail server, and Payrexx if the shop takes payment
-  online.
+  configure yourself: your mail server — one for the installation, and one
+  per website if you like — and Payrexx if the shop takes payment online.
 - **Nothing else to install.** No database server, no PHP, no Node, no build
   step: one static binary with the templates, assets and migrations inside it.
   Even signing in through your identity provider (OpenID Connect) happens
@@ -88,6 +88,9 @@ cookie banner.
 - **A shop** — products with stock, orders with invoice or payment in advance
   (Payrexx optional), and an overview that says what is waiting: a payment
   overdue, an order to send, a product running out
+- **E-mail per website** — notifications, confirmations and order mails go
+  out in plain text through the installation's mail server or through each
+  website's own account, its password stored encrypted
 - **Search, snippets, scheduling, redirects** and a record of the addresses
   visitors asked for and did not find
 - **SEO** — `sitemap.xml`, `robots.txt` and schema.org JSON-LD with address,

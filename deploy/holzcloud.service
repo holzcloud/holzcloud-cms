@@ -47,6 +47,11 @@ Environment=HOLZCLOUD_TRUSTED_PROXIES=127.0.0.1/32,::1/128
 #Environment=HOLZCLOUD_SMTP_PASSWORD=
 #Environment=HOLZCLOUD_SMTP_FROM=shop@example.ch
 #
+# Schlüssel für die Passwörter der Mailkonten einzelner Websites (Einstellungen
+# einer Website, „Versand“). Ebenfalls in die EnvironmentFile, nie in die
+# Datenbank: openssl rand -base64 32
+#HOLZCLOUD_SECRET_KEY=…  (in der EnvironmentFile)
+#
 # Anmeldung über den Ausweisdienst: das gemeinsame Geheimnis gehört ebenfalls in
 # eine EnvironmentFile mit Rechten 0600 — und dieselbe Datei braucht Caddy.
 # deploy/DEPLOY.md, "The shared secret lives in two environments".
