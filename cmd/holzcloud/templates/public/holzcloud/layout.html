@@ -93,6 +93,31 @@
       </nav>
       {{end}}
 
+      <!-- Auf einem schmalen Bildschirm ersetzt dieses Klappmenü Menü und
+           Sprachen der Leiste. Ein <details>, kein Skript: es öffnet sich
+           mit dem Finger oder der Tastatur und ist nach dem nächsten
+           Seitenaufruf wieder zu. Menü und Sprachen stehen darum zweimal
+           im Dokument; die Leistenfassung ist dann display:none, also
+           liest ein Screenreader nur eine von beiden. -->
+      <details class="site-burger">
+        <summary>{{t "Menu"}}</summary>
+        <div class="site-burger__panel">
+          <nav class="site-menu" aria-label="{{t "Main navigation"}}">{{menuFor .Menus "main" .Page.Slug}}</nav>
+          {{if .Site.Languages}}
+          <nav class="site-langs" aria-label="{{t "Language"}}">
+            <ul>
+              {{range .Site.Languages}}
+              <li>
+                {{if .Active}}<span aria-current="true" lang="{{.Code}}">{{.Code}}</span>
+                {{else}}<a href="{{.URL}}" lang="{{.Code}}" hreflang="{{.Code}}" title="{{.Name}}">{{.Code}}</a>{{end}}
+              </li>
+              {{end}}
+            </ul>
+          </nav>
+          {{end}}
+        </div>
+      </details>
+
       {{if .Shop.Enabled}}
       <a class="site-cart" href="{{.Cart.URL}}">{{t "Cart"}} <span class="site-cart__count">{{.Cart.Count}}</span></a>
       {{end}}

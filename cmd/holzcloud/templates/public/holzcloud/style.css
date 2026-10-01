@@ -1719,17 +1719,56 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
 .post-nav__next { margin-inline-start: auto; text-align: end; }
 
 /* ── Schmalere Fenster ────────────────────────────────────────
-   Kein Javascript und kein Umschalter: die Leiste bricht um, und
-   das Menü nimmt die zweite Zeile. Ein Klappmenü wäre hier ein
-   <details>, kein Skript — aber es wird nicht gebraucht, solange
-   Umbrechen reicht. */
+   Kein Javascript: Menü und Sprachen wandern in ein <details>, das
+   die Leiste auf eine Zeile hält (Logo und Knopf). Vorher brach das
+   Menü in eine zweite und dritte Zeile um, und weil die Leiste klebt,
+   nahm sie auf dem Telefon gut ein Viertel des Bildschirms. */
+.site-burger { display: none; }
 @media (max-width: 1000px) {
   .hc-bar__inner { flex-wrap: wrap; gap: 10px 18px; padding-block: var(--hc-space-3); }
-  .site-menu { margin-inline-start: 0; order: 3; width: 100%; }
-  .site-langs { margin-inline-start: auto; }
+  .hc-bar__inner > .site-menu, .hc-bar__inner > .site-langs { display: none; }
+  .site-burger { display: block; margin-inline-start: auto; }
+  .site-burger > summary {
+    list-style: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 16px; border-radius: var(--hc-r-pill);
+    border: 1px solid var(--hc-pane-edge); background: var(--hc-pane);
+    color: var(--hc-ink); font-size: 14px; font-weight: var(--hc-weight-medium);
+  }
+  .site-burger > summary::-webkit-details-marker { display: none; }
+  /* Drei Striche, die zu einem Kreuz werden, ohne dass ein Zeichen
+     aus einer Schrift gebraucht wird, die Manrope nicht mitbringt. */
+  .site-burger > summary::before {
+    content: ""; width: 14px; height: 10px; flex: none;
+    background:
+      linear-gradient(currentColor, currentColor) 0 0 / 100% 2px no-repeat,
+      linear-gradient(currentColor, currentColor) 0 50% / 100% 2px no-repeat,
+      linear-gradient(currentColor, currentColor) 0 100% / 100% 2px no-repeat;
+  }
+  .site-burger[open] > summary { border-color: var(--hc-brass-soft); color: var(--hc-brass); }
+  .site-burger[open] > summary::before {
+    background:
+      linear-gradient(45deg, transparent 43%, currentColor 43% 57%, transparent 57%),
+      linear-gradient(-45deg, transparent 43%, currentColor 43% 57%, transparent 57%);
+  }
+  .site-burger__panel {
+    position: absolute; inset-inline: 0; inset-block-start: 100%; z-index: 40;
+    padding: var(--hc-space-2) var(--hc-space-4) var(--hc-space-4);
+    background: var(--hc-pane-solid);
+    border-block-end: 1px solid var(--hc-pane-edge);
+    box-shadow: 0 30px 40px -20px rgb(0 0 0 / .6);
+    max-height: calc(100svh - 70px); overflow-y: auto;
+  }
+  .site-burger .site-menu { margin: 0; width: 100%; }
+  .site-burger .site-menu ul { flex-direction: column; align-items: stretch; gap: 0; }
+  .site-burger .site-menu a {
+    display: block; font-size: 17px; padding-block: 14px;
+    border-block-end: 1px solid var(--hc-hairline);
+  }
+  .site-burger .site-langs { margin-block-start: var(--hc-space-3); }
   .site-search { order: 4; width: 100%; }
   .site-search .hc-input { width: 100%; }
-  /* Umgebrochen ist kein Platz mehr für ein schwebendes Untermenü:
+  /* Im Klappmenü ist kein Platz für ein schwebendes Untermenü:
      es steht eingerückt in der Liste, immer sichtbar. */
   .site-menu li > ul {
     position: static; visibility: visible; opacity: 1;

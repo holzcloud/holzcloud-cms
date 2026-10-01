@@ -14,6 +14,18 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.9 — 2026-10-01
+
+**Die Vorlage „holzcloud“ hat auf dem Telefon ein Klappmenü.** Bis 1000 Pixel
+Breite stehen in der Leiste nur noch das Logo und ein Knopf „Menu“; das Menü und
+die Sprachen klappen darunter als Liste auf. Vorher brach das Menü in eine
+zweite und dritte Zeile um, und weil die Leiste klebt, nahm sie gut ein Viertel
+des Bildschirms ein. Das Klappmenü ist ein `<details>` und braucht kein
+JavaScript. Auf breiten Bildschirmen bleibt alles, wie es war. Wer eine eigene
+Kopie dieser Vorlage pflegt, findet das Neue im `layout.html` (ein
+`<details class="site-burger">`) und in der `style.css`. Nach dem Update ist
+sonst nichts zu tun.
+
 ## 0.0.8 — 2026-10-01
 
 **Die Vorlage „holzcloud“ färbt auch die Seite `holzice` ein.** Eine Seite mit
