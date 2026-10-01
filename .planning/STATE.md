@@ -250,6 +250,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 260928-l3g | Theme holzcloud: Handy im Auftakt, Überschrift über Bild und Text | 2026-09-28 | 2216bbe | — | [260928-l3g-holzcloud-theme-phone-frame-after-hero-b](./quick/260928-l3g-holzcloud-theme-phone-frame-after-hero-b/) |
 | 260928-n6m | Theme holzcloud: Karten neben dem Handy im Auftakt | 2026-09-28 | 15b0910 | — | [260928-n6m-holzcloud-theme-hero-cards-beside-the-ov](./quick/260928-n6m-holzcloud-theme-hero-cards-beside-the-ov/) |
 | 261001-l3t | Eigenes Mailkonto pro Website (0.0.11) | 2026-10-01 | 6353e3d | — | [261001-l3t-eigenes-mailkonto-pro-website](./quick/261001-l3t-eigenes-mailkonto-pro-website/) |
+| fast | Sponsor-Knopf: .github/FUNDING.yml und Sponsor-Badge im README | 2026-10-01 | — | — | — |
 
 ### Performance Metrics
 
