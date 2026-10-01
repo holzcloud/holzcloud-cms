@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/Go-1.26-8fd0ba?style=flat-square&labelColor=14201c" alt="Go 1.26">
   <img src="https://img.shields.io/badge/linux-amd64-8fd0ba?style=flat-square&labelColor=14201c" alt="linux amd64">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/holzcloud/holzcloud-cms?style=flat-square&color=8fd0ba&labelColor=14201c" alt="AGPL-3.0"></a>
+  <a href="https://github.com/sponsors/holzcloud"><img src="https://img.shields.io/badge/sponsor-%E2%99%A5-8fd0ba?style=flat-square&labelColor=14201c&logo=githubsponsors&logoColor=ea4aaa" alt="Sponsor"></a>
 </p>
 
 <p align="center">
