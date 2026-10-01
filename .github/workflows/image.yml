@@ -48,7 +48,7 @@ jobs:
       # cannot export a cache: "Cache export is not supported for the docker
       # driver". The build breaks off before the first line of the Dockerfile
       # has been read.
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Bei GHCR anmelden
         if: github.event_name != 'pull_request'
