@@ -14,6 +14,16 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.10 — 2026-10-01
+
+**Ein neues Stylesheet der Vorlage „holzcloud“ erreicht den Browser sofort.**
+Die Vorlage bindet `style.css` jetzt als `/t/style.css?v=<Prüfsumme>` ein. Ändert
+sich die Datei, ändert sich die Adresse, und der Browser lädt sie neu; bleibt sie
+gleich, darf er sie ein Jahr behalten. Vorher galt eine Stunde, und genau das
+hat das Klappmenü aus 0.0.9 auf dem Telefon zerlegt: Die neue Seite kam an, das
+Stylesheet blieb das alte, und Knopf und altes Menü standen übereinander. Ein
+Test hält die Prüfsumme und die Datei zusammen.
+
 ## 0.0.9 — 2026-10-01
 
 **Die Vorlage „holzcloud“ hat auf dem Telefon ein Klappmenü.** Bis 1000 Pixel
