@@ -127,7 +127,10 @@ jobs:
         cat holzcloud-linux-amd64.sha256
 
     - name: Test
-      run: go test ./...
+      # internal/admin alone takes about ten minutes on a hosted runner, which
+      # is exactly go test's default limit; on 2026-10-01 it ran out at 600 s
+      # with every test passing. The race run in security.yml already allows 30.
+      run: go test -timeout 20m ./...
 
     # Without this the job built the binary and threw it away, so there was
     # nothing to roll back to when an upgrade went wrong.
