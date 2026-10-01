@@ -39,6 +39,7 @@
 "Leave it empty when there is no threshold. A <strong>0</strong> would mean “always free shipping”.": "Leer lassen, wenn es keine Grenze gibt. Eine <strong>0</strong> hiesse «immer versandkostenfrei».",
 "No column points at the title. Without a title every row is rejected — choose “Title” for one column and start the dry run again.": "Keine Spalte zeigt auf den Titel. Ohne Titel wird jede Zeile abgewiesen – wähle bei einer Spalte «Titel» und starte den Probelauf noch einmal.",
 "No page found for “%s”.": "Keine Seite gefunden für «%s».",
+"None yet. Every website sends through the account above. A website gets its own under its settings, “Sending”.": "Noch keine. Jede Website verschickt über das Konto oben. Ein eigenes bekommt eine Website in ihren Einstellungen unter «Versand».",
 "Optional. Stands after the price: “per kilo”.": "Freiwillig. Steht hinter dem Preis: «je Kilo».",
 "Please choose one of the offered values for “%s”.": "Bitte wähle bei «%s» einen der angebotenen Werte.",
 "Please fill in “%s”.": "Bitte fülle «%s» aus.",

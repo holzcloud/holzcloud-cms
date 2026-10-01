@@ -19,6 +19,8 @@ type mailStatusData struct {
 	// to any address is a form somebody will eventually use to send spam, and
 	// the one person a test needs to reach is the one running the test.
 	OwnEmail string
+	// Own lists the websites that send through an account of their own.
+	Own []mail.Own
 }
 
 // HandleMailStatus shows what the outbox is doing.
@@ -27,10 +29,15 @@ func (h *Handler) HandleMailStatus(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
+	own, err := h.mail.Accounts().List(r.Context())
+	if err != nil {
+		return err
+	}
 	data := mailStatusData{
 		LayoutData: web.NewLayoutData(r, h.sm, "Email"),
 		Status:     st,
 		OwnEmail:   h.sm.GetString(r.Context(), auth.SessionKeyUserEmail),
+		Own:        own,
 	}
 	data.ActiveNav = "mail"
 	return web.RenderAdmin(w, h.templates, r, "mail_status", data)

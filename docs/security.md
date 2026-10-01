@@ -52,7 +52,9 @@ Only two things may be downloaded **at build time**:
    `embed.FS` and served from `/assets/`. A font is never referenced by URL.
 
 The single exception at runtime is SMTP, and only if you configure it: see
-[configuration](configuration.md#e-mail).
+[configuration](configuration.md#e-mail). That includes the mail accounts a
+website can have of its own; their passwords are stored encrypted under
+`HOLZCLOUD_SECRET_KEY`, which never enters the database.
 
 ## Why a Holzcloud site needs no cookie banner
 

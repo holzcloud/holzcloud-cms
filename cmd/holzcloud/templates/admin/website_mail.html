@@ -1,0 +1,128 @@
+{{define "content"}}
+{{template "website_mail-content" .}}
+{{end}}
+
+{{/*
+  Das eigene Mailkonto einer Website. Ohne Eintrag geht alles über das Konto
+  der Installation, wie bisher. Das Passwort wird nie angezeigt, nur ob eines
+  gespeichert ist.
+*/}}
+{{define "website_mail-content"}}
+{{$path := printf "/admin/websites/%d/versand" .Website.ID}}
+<div class="card" style="max-width:720px; margin-bottom: var(--space-3);">
+    <p class="text-muted">
+        {{t "Everything this website sends — notifications about enquiries, the copy to the sender, the shop's order mails — goes out through the account entered here, under its own address. Receivers check whether a server may send for a domain; with the website's own account that check passes."}}
+    </p>
+    {{if .Account}}
+    <p><span class="badge badge--ok">{{t "own account"}}</span> <code>{{.Account.From}}</code> {{t "via"}} <code>{{.Account.Host}}</code></p>
+    {{else if .Fallback}}
+    <p><span class="badge">{{t "installation's account"}}</span> {{tf "Until an account is entered here, this website sends as %s." .Fallback}}</p>
+    {{else}}
+    <p><span class="badge">{{t "off"}}</span> {{t "This website has no account, and the installation has none either: nothing is sent."}}</p>
+    {{end}}
+</div>
+
+<form method="POST" action="{{$path}}" class="card" style="max-width:720px">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    <h2>{{t "Mail account of this website"}}</h2>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label" for="host">{{t "Mail server"}}</label>
+            <input type="text" id="host" name="host" class="form-input" required
+                   value="{{.Values.Host}}" placeholder="mail.example.com" autocomplete="off">
+            {{with .Errors.host}}<p class="form-error">{{.}}</p>{{end}}
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="port">{{t "Port"}}</label>
+            <input type="number" id="port" name="port" class="form-input" min="1" max="65535"
+                   value="{{if .Values.Port}}{{.Values.Port}}{{else}}587{{end}}">
+            {{with .Errors.port}}<p class="form-error">{{.}}</p>{{end}}
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="tls">{{t "Encryption"}}</label>
+        <select id="tls" name="tls" class="form-input form-select">
+            <option value="starttls"{{if eq .Values.TLS "starttls"}} selected{{end}}>{{t "STARTTLS (usually port 587)"}}</option>
+            <option value="tls"{{if eq .Values.TLS "tls"}} selected{{end}}>{{t "TLS from the start (usually port 465)"}}</option>
+            <option value="none"{{if eq .Values.TLS "none"}} selected{{end}}>{{t "None — only for a server on this machine"}}</option>
+        </select>
+        {{with .Errors.tls}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="username">{{t "Login name"}}</label>
+        <input type="text" id="username" name="username" class="form-input"
+               value="{{.Values.User}}" autocomplete="off">
+        <p class="form-hint text-muted">{{t "Empty for a relay that recognises this server by its address."}}</p>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label" for="password">{{t "Password"}}</label>
+        {{if .CanStorePasswords}}
+        <input type="password" id="password" name="password" class="form-input" autocomplete="new-password"
+               {{if .Values.HasPassword}}placeholder="{{t "stored — leave empty to keep it"}}"{{end}}>
+        <p class="form-hint text-muted">
+            {{t "Stored encrypted. The key is not in the database but in HOLZCLOUD_SECRET_KEY, so a copy of the database alone does not give the password away. It is never shown again."}}
+        </p>
+        {{if .Values.HasPassword}}
+        <label class="form-check">
+            <input type="checkbox" name="clear_password">
+            <span class="form-check-label">{{t "Remove the stored password"}}</span>
+        </label>
+        {{end}}
+        {{else}}
+        <p class="form-hint">
+            {{th "A password can only be stored once <code>HOLZCLOUD_SECRET_KEY</code> is set — at least 32 characters, for example from <code>openssl rand -base64 32</code>. It encrypts the password; without it an account here can only be a relay that needs no password."}}
+        </p>
+        {{end}}
+        {{with .Errors.password}}<p class="form-error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label" for="from">{{t "Sender address"}}</label>
+            <input type="email" id="from" name="from" class="form-input" required
+                   value="{{.Values.From}}" placeholder="{{t "info@example.com"}}">
+            {{with .Errors.from}}<p class="form-error">{{.}}</p>{{end}}
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="from_name">{{t "Sender name"}}</label>
+            <input type="text" id="from_name" name="from_name" class="form-input"
+                   value="{{.Values.FromName}}">
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save mail account"}}</button>
+</form>
+
+{{if or .Account .Fallback}}
+<div class="card" style="max-width:720px; margin-top: var(--space-3);">
+    <h2>{{t "Test and state"}}</h2>
+    <dl class="facts">
+        <dt>{{t "Waiting"}}</dt><dd>{{.Pending}}</dd>
+        <dt>{{t "Given up"}}</dt><dd>{{.Failed}}</dd>
+    </dl>
+    {{if .LastError}}
+    <div class="alert alert--warning" role="alert">
+        <p><strong>{{t "Last failure:"}}</strong> {{.LastError}}</p>
+    </div>
+    {{end}}
+    {{if .OwnEmail}}
+    <form method="POST" action="{{$path}}/test">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <button type="submit" class="btn" hx-disabled-elt="this">{{tf "Send a test message to %s" .OwnEmail}}</button>
+    </form>
+    {{end}}
+</div>
+{{end}}
+
+{{if .Account}}
+<form method="POST" action="{{$path}}/entfernen" class="card" style="max-width:720px; margin-top: var(--space-3);">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    <p class="text-muted">{{t "Without its own account this website sends through the installation's account again. The stored password is deleted."}}</p>
+    <button type="submit" class="btn btn--sm btn--danger" hx-disabled-elt="this">{{t "Remove own mail account"}}</button>
+</form>
+{{end}}
+{{end}}

@@ -278,7 +278,7 @@ func (h *Handler) RenderForPlugin(ctx context.Context, websiteID int64, a plugin
 // wants; a plugin that treated that as an error would fill the log with a
 // complaint about a decision somebody made on purpose.
 func (h *Handler) NotifyForPlugin(ctx context.Context, websiteID int64, a plugin.NotifyArg) (queued, confirmed bool, reason string, err error) {
-	if h.mail == nil || !h.mail.Enabled() {
+	if h.mail == nil || !h.mail.EnabledFor(ctx, websiteID) {
 		return false, false, "no mail server is set up", nil
 	}
 	if h.domains == nil {

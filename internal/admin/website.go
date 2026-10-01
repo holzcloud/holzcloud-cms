@@ -258,7 +258,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		OrgTypes:   orgTypeChoices(),
 		Checks:     h.siteChecks(r.Context(), ws, domains),
 
-		MailConfigured: h.mail.Enabled(),
+		MailConfigured: h.mail.EnabledFor(r.Context(), ws.ID),
 	}
 	if h.mediaStore != nil {
 		// Only images make sense as a favicon or logo, and the list is short

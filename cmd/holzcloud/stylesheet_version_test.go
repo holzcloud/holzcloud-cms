@@ -15,7 +15,7 @@ import (
 // browser keeps it for a year. That is the point: before the version, the
 // stylesheet was kept for an hour, and the release that turned the phone menu
 // into a <details> reached visitors as new HTML on top of the old stylesheet —
-// a "Menü" toggle and the whole wrapped menu below it at once. But a version
+// a menu toggle and the whole wrapped menu below it at once. But a version
 // that does not change with the file would be worse than none, because the old
 // stylesheet would then stay for a year. So this test fails the moment
 // style.css changes without the link: rebuild the value with

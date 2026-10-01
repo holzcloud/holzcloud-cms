@@ -28,6 +28,9 @@
     {{if $.IsAdmin}}
         <a href="/admin/websites/{{$id}}/bausteinarten" class="settings-nav__item{{if eq .ActiveNav "blocktypes"}} is-active{{end}}"{{if eq .ActiveNav "blocktypes"}} aria-current="page"{{end}}>{{template "icon-blocks"}}<span>{{t "Block kinds"}}</span></a>
     {{end}}
+    {{if $.IsAdmin}}
+        <a href="/admin/websites/{{$id}}/versand" class="settings-nav__item{{if eq .ActiveNav "website-mail"}} is-active{{end}}"{{if eq .ActiveNav "website-mail"}} aria-current="page"{{end}}>{{template "icon-mail"}}<span>{{t "Sending"}}</span></a>
+    {{end}}
     {{end}}
     <p class="settings-nav__group">{{t "Installation"}}</p>
         <a href="/admin/websites" class="settings-nav__item{{if eq .ActiveNav "websites"}} is-active{{end}}"{{if eq .ActiveNav "websites"}} aria-current="page"{{end}}>{{template "icon-websites"}}<span>{{t "Websites"}}</span></a>

@@ -14,6 +14,30 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.11 — 2026-10-01
+
+**Jede Website kann ihr eigenes Mailkonto haben.** In den Einstellungen einer
+Website gibt es neu den Punkt „Versand“: Mailserver, Port, Verschlüsselung,
+Anmeldename, Passwort, Absenderadresse und -name. Alles, was diese Website
+verschickt – Benachrichtigungen zu Anfragen, die Kopie an den Absender, die
+Bestellmails des Shops –, geht dann über dieses Konto und unter ihrer eigenen
+Adresse hinaus. So kommt die Bestellbestätigung von `info@velowerkstatt.ch` und
+nicht von der Adresse der Installation, und die Prüfungen der Empfänger (SPF,
+DKIM, DMARC) gehen durch. Eine Website ohne eigenes Konto verschickt wie bisher
+über das Konto der Installation; Einladungen und Passwort-Links tun das immer.
+Auf der Seite „E-Mail“ steht, welche Websites ein eigenes Konto haben, und auf
+„Versand“ gibt es einen Testversand an die eigene Adresse.
+
+**Neue Umgebungsvariable `HOLZCLOUD_SECRET_KEY`.** Das Passwort eines
+Website-Kontos wird in der Verwaltung eingegeben und liegt deshalb in der
+Datenbank – aber nur verschlüsselt (AES-GCM). Der Schlüssel kommt aus
+`HOLZCLOUD_SECRET_KEY` (mindestens 32 Zeichen, z. B. `openssl rand -base64 32`)
+und gehört wie die übrigen Geheimnisse in die Service-Unit, nie in die
+Datenbank. Eine Sicherung des Datenverzeichnisses allein verrät also kein
+Passwort. Ohne die Variable kann ein Website-Konto nur ein Relay ohne Passwort
+sein. Wer sie ändert, muss die Passwörter neu eingeben. Wer kein eigenes Konto
+pro Website braucht, muss nach dem Update nichts tun.
+
 ## 0.0.10 — 2026-10-01
 
 **Ein neues Stylesheet der Vorlage „holzcloud“ erreicht den Browser sofort.**

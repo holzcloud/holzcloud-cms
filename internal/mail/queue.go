@@ -30,9 +30,10 @@ const KeepSent = 7 * 24 * time.Hour
 
 // Queue is the outbox. Enqueue is what request handlers use; Flush is the job.
 type Queue struct {
-	db     *db.DB
-	sender *Sender
-	log    *slog.Logger
+	db       *db.DB
+	sender   *Sender
+	accounts *Accounts
+	log      *slog.Logger
 }
 
 // NewQueue creates the outbox. A nil sender means messages are still queued but
@@ -45,8 +46,45 @@ func NewQueue(database *db.DB, sender *Sender, log *slog.Logger) *Queue {
 	return &Queue{db: database, sender: sender, log: log}
 }
 
-// Enabled reports whether anything will actually be delivered.
+// SetAccounts attaches the websites' own accounts. Without them every message
+// goes through the installation's sender.
+func (q *Queue) SetAccounts(a *Accounts) {
+	if q != nil {
+		q.accounts = a
+	}
+}
+
+// Accounts returns the websites' own accounts, or nil.
+func (q *Queue) Accounts() *Accounts {
+	if q == nil {
+		return nil
+	}
+	return q.accounts
+}
+
+// Enabled reports whether the installation's own account is set up — the one
+// invitations and password links go through.
 func (q *Queue) Enabled() bool { return q != nil && q.sender.Enabled() }
+
+// EnabledFor reports whether a message about this website would be delivered,
+// through its own account or the installation's.
+func (q *Queue) EnabledFor(ctx context.Context, websiteID int64) bool {
+	if q == nil {
+		return false
+	}
+	if q.accounts != nil {
+		return q.accounts.EnabledFor(ctx, websiteID)
+	}
+	return q.sender.Enabled()
+}
+
+// senderFor picks the account a message goes out through.
+func (q *Queue) senderFor(ctx context.Context, websiteID int64) (*Sender, error) {
+	if q.accounts != nil {
+		return q.accounts.SenderFor(ctx, websiteID)
+	}
+	return q.sender, nil
+}
 
 // Enqueue puts a message in the outbox. It never connects to anything.
 //
@@ -81,13 +119,13 @@ func (q *Queue) Enqueue(ctx context.Context, websiteID int64, m Message) error {
 // connections at once from a small site is a mail server that starts
 // throttling.
 func (q *Queue) Flush(ctx context.Context) error {
-	if q == nil || !q.sender.Enabled() {
+	if q == nil || (!q.sender.Enabled() && !q.accounts.Any(ctx)) {
 		return nil
 	}
 	now := time.Now().UTC()
 
 	rows, err := q.db.Read.QueryContext(ctx,
-		`SELECT id, recipient, subject, body, reply_to, attempts
+		`SELECT id, COALESCE(website_id, 0), recipient, subject, body, reply_to, attempts
 		 FROM mail_outbox
 		 WHERE sent_at IS NULL AND next_try <= $1
 		 ORDER BY id LIMIT 20`,
@@ -98,13 +136,14 @@ func (q *Queue) Flush(ctx context.Context) error {
 
 	type pending struct {
 		id       int64
+		site     int64
 		msg      Message
 		attempts int
 	}
 	var batch []pending
 	for rows.Next() {
 		var p pending
-		if err := rows.Scan(&p.id, &p.msg.To, &p.msg.Subject, &p.msg.Body,
+		if err := rows.Scan(&p.id, &p.site, &p.msg.To, &p.msg.Subject, &p.msg.Body,
 			&p.msg.ReplyTo, &p.attempts); err != nil {
 			rows.Close()
 			return fmt.Errorf("read row: %w", err)
@@ -122,7 +161,17 @@ func (q *Queue) Flush(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := q.sender.Send(p.msg); err != nil {
+		sender, err := q.senderFor(ctx, p.site)
+		if err == nil {
+			err = sender.Send(p.msg)
+		}
+		if errors.Is(err, ErrNotConfigured) {
+			// Neither the website nor the installation has an account. Not a
+			// failure of this message: it waits, as every message did before
+			// sending was set up, and goes out once someone sets it up.
+			continue
+		}
+		if err != nil {
 			q.failed(ctx, p.id, p.attempts, err)
 			continue
 		}
@@ -234,6 +283,34 @@ func (q *Queue) Status(ctx context.Context) (Status, error) {
 			st.LastSent = &t
 		}
 	}
+	return st, nil
+}
+
+// SiteStatus is one website's part of the outbox: what waits, what was given
+// up on, and the latest reason — the screen of the website's own account shows
+// it beside the account, where a wrong password is fixed.
+func (q *Queue) SiteStatus(ctx context.Context, websiteID int64) (Status, error) {
+	st := Status{}
+	if q == nil {
+		return st, nil
+	}
+	err := q.db.Read.QueryRowContext(ctx,
+		`SELECT
+		   COUNT(*) FILTER (WHERE sent_at IS NULL AND attempts < $1),
+		   COUNT(*) FILTER (WHERE sent_at IS NULL AND attempts >= $1)
+		 FROM mail_outbox WHERE website_id = $2`, MaxAttempts, websiteID).Scan(&st.Pending, &st.Failed)
+	if err != nil {
+		return st, fmt.Errorf("count outbox: %w", err)
+	}
+	var last sql.NullString
+	err = q.db.Read.QueryRowContext(ctx,
+		`SELECT last_error FROM mail_outbox
+		 WHERE website_id = $1 AND sent_at IS NULL AND last_error != ''
+		 ORDER BY id DESC LIMIT 1`, websiteID).Scan(&last)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return st, err
+	}
+	st.LastError = last.String
 	return st, nil
 }
 

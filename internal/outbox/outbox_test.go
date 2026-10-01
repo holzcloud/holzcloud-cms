@@ -287,9 +287,9 @@ type fakeSender struct {
 	configured bool
 }
 
-func (f *fakeSender) Configured() bool { return f.configured }
+func (f *fakeSender) Configured(context.Context) bool { return f.configured }
 
-func (f *fakeSender) Send(_ context.Context, m mail.Message) error {
+func (f *fakeSender) Send(_ context.Context, _ int64, m mail.Message) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.fail != nil {

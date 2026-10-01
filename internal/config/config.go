@@ -108,6 +108,17 @@ type Config struct {
 	// SMTPTLS is "starttls" (default), "tls", or "none".
 	SMTPTLS string // HOLZCLOUD_SMTP_TLS
 
+	// SecretKey encrypts the passwords of the mail accounts a website can have
+	// of its own. HOLZCLOUD_SECRET_KEY, at least 32 characters.
+	//
+	// Those passwords are typed into the administration and therefore live in
+	// the database, which is what goes into a backup. What goes into the
+	// database is only ciphertext; the key stays here, in the environment, for
+	// the reason written above PayrexxSecret. A backup without the service unit
+	// is a backup of locked boxes. Empty means a website's own account can only
+	// be a relay that needs no password.
+	SecretKey string
+
 	// Single sign-on through a forward-auth proxy. Every field below is inert
 	// while SSOEnabled is false: with the master switch off, not one line of
 	// the new path executes and the password login is exactly what it was.
@@ -229,6 +240,10 @@ const OIDCCallbackPath = "/admin/oidc/callback"
 // with. Whoever knows the secret can mint any identity, so a short one is a
 // short way into the administration.
 const minOIDCSecretLength = 32
+
+// minSecretKeyLength is the shortest HOLZCLOUD_SECRET_KEY accepted. The key is
+// hashed into the AES key, so any 32 characters of openssl output will do.
+const minSecretKeyLength = 32
 
 // defaultTrustedProxies covers the documented deployment, where Caddy
 // terminates TLS on the same host and proxies to localhost.
@@ -362,6 +377,13 @@ func Load() (Config, error) {
 		errs = append(errs, errors.New(
 			"HOLZCLOUD_SMTP_HOST and HOLZCLOUD_SMTP_FROM belong together: "+
 				"entweder beide setzen oder keines"))
+	}
+
+	cfg.SecretKey = os.Getenv("HOLZCLOUD_SECRET_KEY")
+	if cfg.SecretKey != "" && len(cfg.SecretKey) < minSecretKeyLength {
+		errs = append(errs, fmt.Errorf(
+			"HOLZCLOUD_SECRET_KEY is too short: at least %d characters, e.g. from openssl rand -base64 32",
+			minSecretKeyLength))
 	}
 
 	cfg.Listen = strings.TrimSpace(getEnv(envListen, defaultListen))
@@ -671,6 +693,7 @@ func (c Config) LogValue() slog.Value {
 		// The password is deliberately absent: the startup log is the first
 		// thing anyone pastes into a bug report.
 		slog.String("smtp", smtpSummary(c)),
+		slog.Bool("secret_key_set", c.SecretKey != ""),
 	)
 }
 
