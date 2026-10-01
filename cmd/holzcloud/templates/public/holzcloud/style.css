@@ -1461,8 +1461,8 @@ main:focus { outline: none; }
 /* Die Farbe des Programms, von dem eine Seite erzählt.
  *
  * Jede Programmseite steht in den Farben, die das Programm auf GitHub trägt:
- * holzcloud-cms in Mint auf dunklem Grün, hauscloud in Blau auf Nachtblau;
- * holzkube-manager trägt schon das Messing dieser Vorlage und bleibt, wie er
+ * holzcloud-cms in Mint auf dunklem Grün, hauscloud in Blau auf Nachtblau,
+ * holzice in Eisblau auf dunklem Marineblau; holzkube-manager trägt schon das Messing dieser Vorlage und bleibt, wie er
  * ist. Die Farbe hängt am Adressnamen der Seite, den das Layout als data-seite
  * auf <body> schreibt — er ist in allen Sprachen derselbe.
  *
@@ -1472,7 +1472,8 @@ main:focus { outline: none; }
  * --hc-ground-image noch einmal da, obwohl sich an seiner Formel nichts ändert. */
 body[data-seite="holzcloud-cms"] { --hc-app: #8fd0ba; --hc-app-grund: #0b1411; }
 body[data-seite="hauscloud"]     { --hc-app: #8298ff; --hc-app-grund: #0c0e1a; }
-body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"]) {
+body[data-seite="holzice"]       { --hc-app: #5ec8f2; --hc-app-grund: #0a1426; }
+body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzice"]) {
   --hc-ground:          var(--hc-app-grund);
   --paper:              var(--hc-app-grund);
   --hc-pane-bar:        color-mix(in srgb, var(--hc-ground) 55%, transparent);

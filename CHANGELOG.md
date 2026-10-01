@@ -14,6 +14,13 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.8 — 2026-10-01
+
+**Die Vorlage „holzcloud“ färbt auch die Seite `holzice` ein.** Eine Seite mit
+dem Adressnamen `holzice` steht jetzt in Eisblau auf dunklem Marineblau, wie
+das Banner des Programms auf GitHub. Alle anderen Seiten bleiben, wie sie
+waren. Nach dem Update ist dafür nichts zu tun.
+
 ## 0.0.7 — 2026-09-28
 
 **In der Vorlage „holzcloud“ stehen die Karten im Auftakt jetzt neben dem
