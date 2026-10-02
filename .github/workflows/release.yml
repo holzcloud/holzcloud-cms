@@ -62,6 +62,10 @@ jobs:
     name: Build and publish the release binary
     runs-on: ubuntu-latest
 
+    # The tag, for the job after this one.
+    outputs:
+      tag: ${{ steps.what.outputs.tag }}
+
     permissions:
       contents: write
       # For the last step: starting image.yml on the tag this job mints.
@@ -288,3 +292,27 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG: ${{ steps.what.outputs.tag }}
       run: gh workflow run image.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
+
+  # holzcloud.ch shows the released version on the holzcloud-CMS page in five
+  # languages. This writes it there through the CMS itself, after the release
+  # exists, and reads it back. .github/cms-version.py is a copy of
+  # holzcloud-design's tools/cms-version.py, where its tests live (that
+  # repository is private, so its reusable workflow cannot be called from
+  # here). Without the CMS_TOKEN secret it prints a notice and succeeds; a
+  # failure here leaves the release itself untouched.
+  holzcloud-ch:
+    name: Show the version on holzcloud.ch
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        sparse-checkout: .github/cms-version.py
+        sparse-checkout-cone-mode: false
+    - name: Write the version into the project pages and read it back
+      env:
+        CMS_TOKEN: ${{ secrets.CMS_TOKEN }}
+        TAG: ${{ needs.release.outputs.tag }}
+      run: python3 .github/cms-version.py --project holzcloud-cms --version "$TAG"
