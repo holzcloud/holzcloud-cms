@@ -28,7 +28,7 @@ MIN_FREE_MB="${MIN_FREE_MB:-1024}"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 BACKUP_DIR="${BACKUP_ROOT}/${TIMESTAMP}"
 
-echo "=== Holzcloud backup: ${TIMESTAMP} ==="
+echo "=== holzcloud-CMS backup: ${TIMESTAMP} ==="
 
 mkdir -p "${BACKUP_ROOT}"
 

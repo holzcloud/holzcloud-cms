@@ -52,7 +52,7 @@ That is the point of it, and it holds everywhere, not just by default:
   Even signing in through your identity provider (OpenID Connect) happens
   without this server contacting it.
 
-What follows from it: a Holzcloud site is fast on any phone, keeps working when
+What follows from it: a holzcloud-CMS site is fast on any phone, keeps working when
 somebody else's service is down, leaks no visitor to anybody, and needs no
 cookie banner.
 
@@ -156,7 +156,7 @@ the site and follows it when it is renamed.
 subresource from the site's own origin: no CDN, no web font service, no
 analytics, and so no cookie banner.
 
-![A website served by Holzcloud](docs/screenshots/public-site.jpg)
+![A website served by holzcloud-CMS](docs/screenshots/public-site.jpg)
 
 ## Quick start
 

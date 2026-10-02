@@ -2,7 +2,7 @@
 
 - [The measures](#the-measures)
 - [No runtime dependencies on third parties](#no-runtime-dependencies-on-third-parties)
-- [Why a Holzcloud site needs no cookie banner](#why-a-holzcloud-site-needs-no-cookie-banner)
+- [Why a holzcloud-CMS site needs no cookie banner](#why-a-holzcloud-cms-site-needs-no-cookie-banner)
 - [Two-factor authentication](#two-factor-authentication)
 - [Signing in through an identity provider](#signing-in-through-an-identity-provider)
 - [Rights per person](#rights-per-person)
@@ -56,7 +56,7 @@ The single exception at runtime is SMTP, and only if you configure it: see
 website can have of its own; their passwords are stored encrypted under
 `HOLZCLOUD_SECRET_KEY`, which never enters the database.
 
-## Why a Holzcloud site needs no cookie banner
+## Why a holzcloud-CMS site needs no cookie banner
 
 This follows from the rule above and is worth stating plainly. The public side
 sets **no cookies at all**: the session manager is only ever touched by admin
@@ -65,7 +65,7 @@ nothing from a third party, so there is no embedded service that could set one o
 your behalf and nothing to obtain consent for under § 25 TDDDG.
 
 Consent is about storing or reading information on the visitor's device and about
-passing data to third parties. A Holzcloud site does neither, so the banner has
+passing data to third parties. A holzcloud-CMS site does neither, so the banner has
 nothing to ask about. You still need an imprint (§ 5 DDG) and a privacy notice
 (Art. 13 GDPR) — a new website is created with both as drafts, linked from the
 footer menu, ready to fill in.
@@ -90,7 +90,7 @@ What that does and does not change:
   under Art. 6(1)(b)/(f) GDPR. The sender's IP address and user agent are
   deliberately *not* stored.
 - Your privacy notice therefore has to mention the form: what is collected, why,
-  and for how long you keep it. Nothing else in Holzcloud needs an entry there.
+  and for how long you keep it. Nothing else in holzcloud-CMS needs an entry there.
 
 Delete answered enquiries when you no longer need them; nothing expires them
 automatically, because how long an enquiry stays relevant is a decision only the
