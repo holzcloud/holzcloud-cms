@@ -118,7 +118,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-01 - Completed quick task 261001-l3t: eigenes Mailkonto pro Website
+Last activity: 2026-10-02 - Completed quick task 261002-izq: holzcloud-CMS überall
 
 ### Milestone Map
 
@@ -251,6 +251,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 260928-n6m | Theme holzcloud: Karten neben dem Handy im Auftakt | 2026-09-28 | 15b0910 | — | [260928-n6m-holzcloud-theme-hero-cards-beside-the-ov](./quick/260928-n6m-holzcloud-theme-hero-cards-beside-the-ov/) |
 | 261001-l3t | Eigenes Mailkonto pro Website (0.0.11) | 2026-10-01 | 6353e3d | — | [261001-l3t-eigenes-mailkonto-pro-website](./quick/261001-l3t-eigenes-mailkonto-pro-website/) |
 | fast | Sponsor-Knopf: .github/FUNDING.yml und Sponsor-Badge im README | 2026-10-01 | — | — | — |
+| 261002-izq | Programmname überall holzcloud-CMS, neue Screenshots (0.0.17) | 2026-10-02 | c109e47 | — | [261002-izq-holzcloud-cms-umbenennung](./quick/261002-izq-holzcloud-cms-umbenennung/) |
 
 ### Performance Metrics
 
