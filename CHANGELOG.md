@@ -14,6 +14,16 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.18 — 2026-10-02
+
+**Die Vorlage „holzcloud“ färbt auch die Seite `holzbar` ein.** holzIce heisst
+jetzt holzBar, und seine Seite bekommt den Adressnamen `holzbar`. Sie steht wie
+bisher in Eisblau auf dunklem Marineblau, im hellen Modus in Blau auf einem
+Hauch Eisblau. Eine Seite mit dem alten Adressnamen `holzice` behält dieselben
+Farben, damit eine Installation, die ihre Seite noch nicht umbenannt hat, nichts
+verliert. Nach dem Update ist dafür nichts zu tun; die neue `style.css` erreicht
+die Besucher sofort, weil ihr Link eine neue Version trägt.
+
 ## 0.0.17 — 2026-10-02
 
 **Der Rest des Programms heisst jetzt auch holzcloud-CMS.** Was 0.0.16 noch
