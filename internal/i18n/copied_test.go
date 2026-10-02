@@ -9,7 +9,7 @@ import (
 // sentence pasted as its own translation counts as translated: the gate says
 // 0 offen, and the screen says it in the wrong language. Plan 10-09 scanned for
 // it once; nothing held it afterwards. Short identical values are left alone on
-// purpose — a product name or "Holzcloud" is the same in every language.
+// purpose — a product name or "holzcloud-CMS" is the same in every language.
 //
 // The list is de, es, fr, it since v2.0: the source is English, so en.json is
 // gone and de.json is new. German is the one most at risk of this, because it

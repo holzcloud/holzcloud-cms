@@ -333,17 +333,17 @@ func (h *Handler) emailFor(r *http.Request, userID int64) string {
 
 // issuerName is what the authenticator app lists the account under.
 //
-// The host, so someone administering three Holzcloud sites sees three distinct
-// entries rather than three lines all reading "Holzcloud".
+// The host, so someone administering three holzcloud-CMS sites sees three distinct
+// entries rather than three lines all reading "holzcloud-CMS".
 func (h *Handler) issuerName(r *http.Request) string {
 	host := r.Host
 	if i := strings.IndexByte(host, ':'); i >= 0 {
 		host = host[:i]
 	}
 	if host == "" {
-		return "Holzcloud"
+		return "holzcloud-CMS"
 	}
-	return "Holzcloud (" + host + ")"
+	return "holzcloud-CMS (" + host + ")"
 }
 
 // NewSecondFactorLookup adapts the users table to the enforcement middleware.

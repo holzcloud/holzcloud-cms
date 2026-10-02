@@ -126,12 +126,12 @@ func TestGenerateSecretIsUsableByAnApp(t *testing.T) {
 }
 
 func TestURICarriesWhatAnAppNeeds(t *testing.T) {
-	uri := URI("JBSWY3DPEHPK3PXP", "erika@example.de", "Holzcloud (example.de)")
+	uri := URI("JBSWY3DPEHPK3PXP", "erika@example.de", "holzcloud-CMS (example.de)")
 
 	for _, want := range []string{
 		"otpauth://totp/",
 		"secret=JBSWY3DPEHPK3PXP",
-		"issuer=Holzcloud",
+		"issuer=holzcloud-CMS",
 		"digits=6",
 		"period=30",
 		"algorithm=SHA1",
@@ -148,7 +148,7 @@ func TestURICarriesWhatAnAppNeeds(t *testing.T) {
 }
 
 func TestQRCodeIsSelfContainedSVG(t *testing.T) {
-	svg, err := QRCode(URI("JBSWY3DPEHPK3PXP", "erika@example.de", "Holzcloud"), "QR code for the authenticator app")
+	svg, err := QRCode(URI("JBSWY3DPEHPK3PXP", "erika@example.de", "holzcloud-CMS"), "QR code for the authenticator app")
 	if err != nil {
 		t.Fatalf("QRCode: %v", err)
 	}

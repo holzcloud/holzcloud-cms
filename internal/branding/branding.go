@@ -1,7 +1,7 @@
 // Package branding is the name and the mark this administration carries.
 //
 // Somebody who looks after five websites for a club, an association and two
-// neighbours does not run "Holzcloud" — they run the thing they told those
+// neighbours does not run "holzcloud-CMS" — they run the thing they told those
 // people about. The word in the corner is not decoration; it is the difference
 // between a tool that looks borrowed and one that looks like theirs.
 //
@@ -31,8 +31,12 @@ const MaxLogoBytes = 512 << 10
 
 // Defaults, which are what an installation that never opens the screen shows.
 const (
-	DefaultName = "Holzcloud"
-	DefaultMark = "H"
+	DefaultName = "holzcloud-CMS"
+
+	// legacyDefaultName is what DefaultName was before 0.0.17. Saving the screen
+	// with an empty field stored it, so such an installation still carries it.
+	legacyDefaultName = "Holzcloud"
+	DefaultMark       = "H"
 )
 
 // Brand is what the administration calls itself.
@@ -87,7 +91,7 @@ func Current() Brand {
 // Load reads the stored settings. Called at start-up and after every change.
 //
 // A failure leaves the defaults in place: an administration that says
-// "Holzcloud" because a query failed is a working administration.
+// "holzcloud-CMS" because a query failed is a working administration.
 func Load(ctx context.Context, db *sql.DB) {
 	brand := Brand{Name: DefaultName, Mark: DefaultMark}
 
@@ -102,7 +106,11 @@ func Load(ctx context.Context, db *sql.DB) {
 			}
 			switch key {
 			case "brand_name":
-				if v := strings.TrimSpace(value); v != "" {
+				if v := strings.TrimSpace(value); v == legacyDefaultName {
+					// The old default, stored by a save that left the field
+					// empty: it is still the default, so the program's mark stays.
+					brand.Name = DefaultName
+				} else if v != "" {
 					brand.Name = v
 				}
 			case "brand_mark":
