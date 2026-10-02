@@ -14,6 +14,18 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.12 — 2026-10-02
+
+**Die Vorlage „holzcloud“ hat ein neues Zeichen und einen hellen Modus.**
+Der Würfel ist dem Wolkenbaum gewichen, einer Wolke als Krone auf einem Stamm:
+in der Leiste, im Favicon und gross auf der Startseite, dort über Jahresringen.
+Auch die Textur im Hintergrund trägt jetzt Jahresringe statt Würfel. Neu ist ein
+heller Modus, der gilt, wenn das Gerät hell eingestellt ist: Papier mit Waldgrün,
+das Zeichen und die Ringe in Holzbraun, Überschriften in einer Serifenschrift
+des Systems. Dunkel bleibt es Messing auf Nacht. Die Programmseiten haben in
+beiden Modi ihre eigene Farbe, hell in einer kräftigeren Fassung. Geladen wird
+dafür nichts von anderswo, und nach dem Update ist nichts zu tun.
+
 ## 0.0.11 — 2026-10-01
 
 **Jede Website kann ihr eigenes Mailkonto haben.** In den Einstellungen einer
@@ -37,18 +49,6 @@ Datenbank. Eine Sicherung des Datenverzeichnisses allein verrät also kein
 Passwort. Ohne die Variable kann ein Website-Konto nur ein Relay ohne Passwort
 sein. Wer sie ändert, muss die Passwörter neu eingeben. Wer kein eigenes Konto
 pro Website braucht, muss nach dem Update nichts tun.
-
-## 0.0.11 — 2026-10-02
-
-**Die Vorlage „holzcloud“ hat ein neues Zeichen und einen hellen Modus.**
-Der Würfel ist dem Wolkenbaum gewichen, einer Wolke als Krone auf einem Stamm:
-in der Leiste, im Favicon und gross auf der Startseite, dort über Jahresringen.
-Auch die Textur im Hintergrund trägt jetzt Jahresringe statt Würfel. Neu ist ein
-heller Modus, der gilt, wenn das Gerät hell eingestellt ist: Papier mit Waldgrün,
-das Zeichen und die Ringe in Holzbraun, Überschriften in einer Serifenschrift
-des Systems. Dunkel bleibt es Messing auf Nacht. Die Programmseiten haben in
-beiden Modi ihre eigene Farbe, hell in einer kräftigeren Fassung. Geladen wird
-dafür nichts von anderswo, und nach dem Update ist nichts zu tun.
 
 ## 0.0.10 — 2026-10-01
 
