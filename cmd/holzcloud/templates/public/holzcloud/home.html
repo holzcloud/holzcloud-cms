@@ -32,35 +32,16 @@
       </div>
     </div>
 
-    {{/* Der Würfel der Marke, aus dem Vokabular von motif.css. Rein
-         schmückend, deshalb aria-hidden und ohne eigene Farbwerte. */}}
+    {{/* Der Wolkenbaum der Marke, gross. Rein schmückend, deshalb
+         aria-hidden; die Farbe kommt als currentColor aus .site-art. Unter
+         dem Stamm liegen Jahresringe, flach wie eine Baumscheibe im Gras. */}}
     <div class="site-art" aria-hidden="true">
-      <svg viewBox="20 80 520 360" fill="none" role="presentation" focusable="false">
-        <g class="hc-iso-faint">
-          <path d="M60 300 L280 414 L500 300" />
-          <path d="M60 220 L280 334 L500 220" />
-        </g>
-        <g class="hc-iso">
-          <path class="hc-f-top"   d="M280 120 L342 151 L280 182 L218 151 Z" />
-          <path class="hc-f-left"  d="M218 151 L280 182 L280 234 L218 203 Z" />
-          <path class="hc-f-right" d="M342 151 L280 182 L280 234 L342 203 Z" />
-        </g>
-        <g class="hc-iso">
-          <path class="hc-f-top"   d="M218 151 L280 182 L218 213 L156 182 Z" />
-          <path class="hc-f-left"  d="M156 182 L218 213 L218 265 L156 234 Z" />
-          <path class="hc-f-right" d="M280 182 L218 213 L218 265 L280 234 Z" />
-        </g>
-        <g class="hc-iso">
-          <path class="hc-f-top"   d="M342 151 L404 182 L342 213 L280 182 Z" />
-          <path class="hc-f-left"  d="M280 182 L342 213 L342 265 L280 234 Z" />
-          <path class="hc-f-right" d="M404 182 L342 213 L342 265 L404 234 Z" />
-        </g>
-        <g class="hc-iso hc-iso--lit">
-          <path class="hc-f-top"   d="M280 182 L342 213 L280 244 L218 213 Z" />
-          <path class="hc-f-left"  d="M218 213 L280 244 L280 296 L218 265 Z" />
-          <path class="hc-f-right" d="M342 213 L280 244 L280 296 L342 265 Z" />
-        </g>
-        <circle class="hc-dot" cx="280" cy="213" r="4" />
+      <svg viewBox="-10 20 220 190" fill="none" role="presentation" focusable="false">
+        <g class="site-art__rings" stroke="currentColor" stroke-width="1.2"><ellipse cx="100" cy="186" rx="30" ry="8.4"/><ellipse cx="100" cy="186" rx="48" ry="13.4"/><ellipse cx="100" cy="186" rx="66" ry="18.5"/><ellipse cx="100" cy="186" rx="84" ry="23.5"/><ellipse cx="100" cy="186" rx="102" ry="28.6"/></g>
+        <path d="M52 140 C30 140 18 124 22 108 C26 92 42 84 56 88 C60 64 80 50 102 52 C124 54 138 70 140 88 C156 82 176 92 178 110 C180 128 166 140 150 140 Z" transform="translate(0 -10)" fill="currentColor"/>
+        <path d="M100 128 L100 182" stroke="currentColor" stroke-width="12" stroke-linecap="round"/>
+        <path d="M100 152 L82 134 M100 142 L116 128" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+        <g class="site-art__grain" stroke-width="3" stroke-linecap="round"><path d="M60 112 C80 106 120 106 150 112"/><path d="M78 92 C92 87 112 87 126 92"/><path d="M48 128 C70 124 96 124 118 128"/></g>
       </svg>
     </div>
   </div>

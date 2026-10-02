@@ -278,9 +278,15 @@
        Kachelfuge zwei halbe Würfel ohne Gegenstück. Jeder der beiden
        hat jetzt eine Kopie um genau eine Kachelbreite verschoben, bei
        −36 und bei 314; damit setzt sich über die Fuge hinweg fort, was
-       am Rand abgeschnitten wird. */
-    --hc-cubes-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='320' viewBox='0 0 280 320'><g fill='none' stroke='white' stroke-width='1.1'><path d='M64 44 L114 69 L114 111.1 L64 86.1 Z'/><path d='M164 44 L114 69 L114 111.1 L164 86.1 Z'/><path d='M64 44 L114 19 L164 44 L114 69 Z'/><path d='M204 188 L244 208 L244 241.7 L204 221.7 Z'/><path d='M284 188 L244 208 L244 241.7 L284 221.7 Z'/><path d='M204 188 L244 168 L284 188 L244 208 Z'/><path d='M-76 188 L-36 208 L-36 241.7 L-76 221.7 Z'/><path d='M4 188 L-36 208 L-36 241.7 L4 221.7 Z'/><path d='M-76 188 L-36 168 L4 188 L-36 208 Z'/><path d='M-6 208 L34 228 L34 261.7 L-6 241.7 Z'/><path d='M74 208 L34 228 L34 261.7 L74 241.7 Z'/><path d='M-6 208 L34 188 L74 208 L34 228 Z'/><path d='M274 208 L314 228 L314 261.7 L274 241.7 Z'/><path d='M354 208 L314 228 L314 261.7 L354 241.7 Z'/><path d='M274 208 L314 188 L354 208 L314 228 Z'/></g></svg>");
-    --hc-cubes-size:    280px 320px;
+       am Rand abgeschnitten wird.
+
+       Seit dem Wolkenbaum als Zeichen trägt die Textur Jahresringe statt
+       Würfeln: ein Ringsatz in der Mitte der Kachel und je ein Viertel in
+       den vier Ecken. Die Ecken ergänzen sich über die Fuge zu ganzen
+       Ringsätzen, also kachelt auch sie nahtlos. Der Name --hc-cubes
+       bleibt, weil Layout und Regeln an ihm hängen. */
+    --hc-cubes-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><g fill='none' stroke='white' stroke-width='1.1'><ellipse cx='160' cy='160' rx='14' ry='11.2'/><ellipse cx='160' cy='160' rx='28' ry='22.4'/><ellipse cx='160' cy='160' rx='42' ry='33.6'/><ellipse cx='160' cy='160' rx='56' ry='44.8'/><ellipse cx='160' cy='160' rx='70' ry='56.0'/><ellipse cx='160' cy='160' rx='84' ry='67.2'/><ellipse cx='160' cy='160' rx='98' ry='78.4'/><ellipse cx='160' cy='160' rx='112' ry='89.6'/><ellipse cx='0' cy='0' rx='14' ry='11.2'/><ellipse cx='0' cy='0' rx='28' ry='22.4'/><ellipse cx='0' cy='0' rx='42' ry='33.6'/><ellipse cx='0' cy='0' rx='56' ry='44.8'/><ellipse cx='0' cy='0' rx='70' ry='56.0'/><ellipse cx='0' cy='0' rx='84' ry='67.2'/><ellipse cx='0' cy='0' rx='98' ry='78.4'/><ellipse cx='0' cy='0' rx='112' ry='89.6'/><ellipse cx='0' cy='320' rx='14' ry='11.2'/><ellipse cx='0' cy='320' rx='28' ry='22.4'/><ellipse cx='0' cy='320' rx='42' ry='33.6'/><ellipse cx='0' cy='320' rx='56' ry='44.8'/><ellipse cx='0' cy='320' rx='70' ry='56.0'/><ellipse cx='0' cy='320' rx='84' ry='67.2'/><ellipse cx='0' cy='320' rx='98' ry='78.4'/><ellipse cx='0' cy='320' rx='112' ry='89.6'/><ellipse cx='320' cy='0' rx='14' ry='11.2'/><ellipse cx='320' cy='0' rx='28' ry='22.4'/><ellipse cx='320' cy='0' rx='42' ry='33.6'/><ellipse cx='320' cy='0' rx='56' ry='44.8'/><ellipse cx='320' cy='0' rx='70' ry='56.0'/><ellipse cx='320' cy='0' rx='84' ry='67.2'/><ellipse cx='320' cy='0' rx='98' ry='78.4'/><ellipse cx='320' cy='0' rx='112' ry='89.6'/><ellipse cx='320' cy='320' rx='14' ry='11.2'/><ellipse cx='320' cy='320' rx='28' ry='22.4'/><ellipse cx='320' cy='320' rx='42' ry='33.6'/><ellipse cx='320' cy='320' rx='56' ry='44.8'/><ellipse cx='320' cy='320' rx='70' ry='56.0'/><ellipse cx='320' cy='320' rx='84' ry='67.2'/><ellipse cx='320' cy='320' rx='98' ry='78.4'/><ellipse cx='320' cy='320' rx='112' ry='89.6'/></g></svg>");
+    --hc-cubes-size:    320px 320px;
     --hc-cubes-opacity: .085;
 
     /* Drei Flächen, drei Helligkeiten — mehr braucht ein Würfel nicht,
@@ -954,7 +960,7 @@ html { scroll-padding-top: var(--hc-space-9); }
    ihr das wieder weg. */
 .site-mark { display: inline-flex; align-items: center; flex: none; }
 .site-mark-glyph {
-  width: 26px; height: 26px; flex: none;
+  width: 32px; height: 27px; flex: none;
   color: var(--hc-brass);
   overflow: visible;
   /* Der Abstand hängt an der Glyphe, nicht als gap am Behälter:
@@ -962,6 +968,7 @@ html { scroll-padding-top: var(--hc-space-9); }
      zwei Teilen des Namens. */
   margin-inline-end: var(--hc-space-2);
 }
+.site-mark-grain { stroke: var(--hc-ground); opacity: .5; }
 .site-logo {
   width: auto; height: 30px; flex: none;
   margin-inline-end: var(--hc-space-3);
@@ -1473,7 +1480,8 @@ main:focus { outline: none; }
 body[data-seite="holzcloud-cms"] { --hc-app: #8fd0ba; --hc-app-grund: #0b1411; }
 body[data-seite="hauscloud"]     { --hc-app: #8298ff; --hc-app-grund: #0c0e1a; }
 body[data-seite="holzice"]       { --hc-app: #5ec8f2; --hc-app-grund: #0a1426; }
-body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzice"]) {
+body[data-seite="holzkube-manager"] { --hc-app: #F0AE5F; --hc-app-grund: #0A0705; }
+body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzice"], [data-seite="holzkube-manager"]) {
   --hc-ground:          var(--hc-app-grund);
   --paper:              var(--hc-app-grund);
   --hc-pane-bar:        color-mix(in srgb, var(--hc-ground) 55%, transparent);
@@ -1795,6 +1803,10 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
 .site-hero .hc-display { margin-block-start: var(--hc-space-4); }
 .site-hero .hc-claim   { margin-block-start: var(--hc-space-4); }
 .site-hero .hc-lede    { margin-block-start: var(--hc-space-5); }
+.site-art { color: var(--hc-brass); }
+.site-art svg { display: block; width: 100%; height: auto; }
+.site-art__rings { opacity: .35; }
+.site-art__grain { stroke: var(--hc-ground); opacity: .5; }
 .site-actions {
   display: flex; flex-wrap: wrap; gap: var(--hc-space-3);
   margin-block-start: var(--hc-space-6);
@@ -1802,7 +1814,7 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
 /* Bleibt auf einer nackten Website nichts übrig, das irgendwohin
    zeigt, soll auch kein Abstand übrig bleiben. */
 .site-actions:empty { display: none; }
-.site-art { justify-self: end; width: 100%; max-width: 620px; }
+.site-art { justify-self: end; width: 100%; max-width: 400px; }
 .site-art svg { width: 100%; height: auto; display: block; }
 
 /* ══ Das Archiv ═══════════════════════════════════════════════ */
@@ -1899,7 +1911,7 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
 
 @media (max-width: 1080px) {
   .site-hero-grid { grid-template-columns: minmax(0, 1fr); }
-  .site-art { justify-self: start; max-width: 520px; margin-block-start: var(--hc-space-5); }
+  .site-art { justify-self: start; max-width: 260px; margin-block-start: var(--hc-space-5); }
 }
 @media (max-width: 700px) {
   .archive-entry { grid-template-columns: minmax(0, 1fr); }
@@ -2268,4 +2280,66 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
   color: var(--hc-ink); background: transparent;
   border: 1px solid var(--hc-pane-edge); border-radius: var(--hc-r-sm);
   cursor: pointer;
+}
+
+/* ── Heller Modus ────────────────────────────────────────────────
+   Die Vorlage hatte genau eine Stimmung, die dunkle. Seit dem Wolkenbaum
+   hat sie zwei, und welche gilt, entscheidet das Gerät über
+   prefers-color-scheme, ohne Schalter und ohne Skript: dunkel bleibt
+   Messing auf Nacht, hell ist Papier mit Waldgrün, die Jahresringe in
+   gedämpftem Messing. Überschriften stehen hell in einer Serifenschrift
+   des Systems; geladen wird dafür nichts.
+
+   Alles hier überschreibt nur Werte. Was aus ihnen abgeleitet ist
+   (--hc-ink-2, die Wäschen, --hc-pane-solid, die Leiste), folgt von
+   selbst, weil die Brücke oben es aus --hc-ground, --hc-ink und
+   --hc-brass rechnet. Eine Farbe, die der Betrieb in den
+   Designeinstellungen setzt, gewinnt auch hier. */
+@media screen and (prefers-color-scheme: light) {
+  :root {
+    --hc-ink:          #1D2A1F;
+    --hc-brass:        var(--hc-brand, #2F5D3A);
+    --hc-ground:       var(--hc-paper, #F5EFE4);
+    --hc-on-brass:     #F5EFE4;
+    --hc-wood:         #B8752F;
+    --hc-wash-warm:    rgb(184 117 47 / .14);
+    --hc-wash-brass:   color-mix(in srgb, var(--hc-brass) 8%, transparent);
+    --hc-wash-violet:  rgb(184 117 47 / .06);
+    --hc-ground-2:     color-mix(in srgb, var(--hc-ground) 92%, #fff 8%);
+    --hc-pane:         rgb(255 252 246 / .72);
+    --hc-pane-solid:   #FFFAF2;
+    --hc-pane-edge:    rgb(70 50 25 / .14);
+    --hc-pane-sunken:  rgb(70 50 25 / .05);
+    --hc-hairline:     rgb(70 50 25 / .12);
+    --hc-shadow-pane:  inset 0 1px 0 rgb(255 255 255 / .7), 0 14px 34px rgb(70 45 20 / .10);
+    --hc-shadow-lift:  inset 0 1px 0 rgb(255 255 255 / .8), 0 20px 48px rgb(70 45 20 / .16);
+    --hc-ok:           #3F7D3A;
+    --hc-warn:         #946200;
+    --hc-danger:       #B23B2B;
+    --hc-info:         #2F6690;
+    --hc-cubes-opacity: .16;
+  }
+  .hc-cubes { background-color: var(--hc-wood); }
+  .site-mark-glyph, .site-art { color: var(--hc-wood); }
+  /* Die dünnste Schnitt der Manrope trägt auf Papier nicht: was dunkel
+     als feine Linie leuchtet, wird hell grau und blass. */
+  :root { --hc-weight-thin: 350; }
+  :where(h1, h2) {
+    font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    font-weight: 400; letter-spacing: 0;
+  }
+
+  /* Die Programmseiten in hellen Fassungen ihrer Farben: dieselben
+     Töne, dunkel genug für Text auf Papier, und ein Grund mit einem
+     Hauch der Farbe. */
+  body[data-seite="holzcloud-cms"]    { --hc-app: #2E7D66; --hc-app-grund: #EEF5F1; }
+  body[data-seite="hauscloud"]        { --hc-app: #3A51D4; --hc-app-grund: #EEF0FA; }
+  body[data-seite="holzice"]          { --hc-app: #1C78AE; --hc-app-grund: #EAF3F9; }
+  body[data-seite="holzkube-manager"] { --hc-app: #A8641F; --hc-app-grund: #F7EFE3; }
+  body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzice"], [data-seite="holzkube-manager"]) { --hc-wood: var(--hc-app); }
+
+  /* Wer weniger Transparenz will, bekommt deckende Flächen, wie dunkel. */
+  @media (prefers-reduced-transparency: reduce) {
+    :root { --hc-pane: var(--hc-pane-solid); }
+  }
 }

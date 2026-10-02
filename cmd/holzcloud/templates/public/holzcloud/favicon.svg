@@ -1,34 +1,18 @@
 <!-- Ein Rückfall-Favicon, damit ein Betrieb, der noch keines hochgeladen hat,
-     nicht bei jedem Seitenaufruf einen 404 auf /favicon.ico erzeugt: den
-     fordert der Browser von sich aus an, sobald die Seite keines nennt.
+     nicht bei jedem Seitenaufruf einen 404 auf /favicon.ico erzeugt.
 
-     Dasselbe Zeichen wie in der Leiste — der isometrische Würfel mit den
-     Jahrringen im Anschnitt, gegen dieselbe 64er viewBox gezeichnet, nur um
-     die Mitte etwas eingerückt, damit er nicht an der Ecke des Grundes klebt.
-
-     currentColor gibt es hier nicht: ein Favicon wird ausserhalb des
-     Dokuments gezeichnet und erbt nichts. Die beiden Werte stehen deshalb als
-     einzige Stelle dieser Vorlage fest — es sind hc-ground und hc-brass
-     aus tokens.css. Wer sie dort ändert, ändert sie auch hier.
-
-     Kein prefers-color-scheme: diese Vorlage hat genau eine Stimmung, und sie
-     bringt ihren eigenen dunklen Grund mit. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="">
-  <rect width="64" height="64" rx="12" fill="#0A0705"/>
-  <defs>
-    <clipPath id="deck"><path d="M32 8 L58 21 L32 34 L6 21 Z"/></clipPath>
-  </defs>
-  <g transform="translate(32 32) scale(.82) translate(-32 -32)" fill="none" stroke="#F0AE5F">
-    <g stroke-width="2.8" stroke-linejoin="round">
-      <path d="M32 8 L58 21 L32 34 L6 21 Z"/>
-      <path d="M6 21 L32 34 L32 56 L6 43 Z"/>
-      <path d="M58 21 L32 34 L32 56 L58 43 Z"/>
-    </g>
-    <g clip-path="url(#deck)" stroke-width="2.2" opacity=".75">
-      <ellipse cx="25" cy="18" rx="6" ry="3"/>
-      <ellipse cx="25" cy="18" rx="12" ry="6"/>
-      <ellipse cx="25" cy="18" rx="19" ry="9.5"/>
-      <ellipse cx="25" cy="18" rx="27" ry="13.5"/>
-    </g>
+     Dasselbe Zeichen wie in der Leiste: der Wolkenbaum, eine Wolke als
+     Krone auf einem Stamm, darin zwei Linien Maserung. currentColor gibt es
+     hier nicht, ein Favicon erbt nichts; die beiden Farben sind hc-ground
+     und hc-brass aus tokens.css. Die dunkle Kachel trägt das Zeichen auf
+     hellen wie auf dunklen Tab-Leisten. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="">
+  <rect width="200" height="200" rx="40" fill="#0A0705"/>
+  <path d="M52 140 C30 140 18 124 22 108 C26 92 42 84 56 88 C60 64 80 50 102 52 C124 54 138 70 140 88 C156 82 176 92 178 110 C180 128 166 140 150 140 Z" transform="translate(0 -10)" fill="#F0AE5F"/>
+  <path d="M100 128 L100 176" stroke="#F0AE5F" stroke-width="12" stroke-linecap="round"/>
+  <path d="M100 150 L84 134 M100 142 L114 130" stroke="#F0AE5F" stroke-width="7" stroke-linecap="round"/>
+  <g fill="none" stroke="#0A0705" stroke-width="3.5" stroke-linecap="round" opacity=".5">
+    <path d="M60 112 C80 106 120 106 150 112"/>
+    <path d="M78 92 C92 87 112 87 126 92"/>
   </g>
 </svg>

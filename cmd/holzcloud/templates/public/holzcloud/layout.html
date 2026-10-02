@@ -10,7 +10,7 @@
   <!-- Diese Vorlage hat genau eine Stimmung, und sie ist dunkel. Ohne diese
        Zeile zeichnet der Browser Formularfelder und Bildlaufleisten hell in
        eine dunkle Seite. -->
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
   {{if .Site.FaviconURL}}<link rel="icon" href="{{.Site.FaviconURL}}">
   {{else}}
   <!-- Ohne diese Zeile fragt der Browser von sich aus /favicon.ico an und
@@ -46,7 +46,7 @@
        JetBrains Mono liegen als woff2 in fonts/ und kommen über /t/fonts/
        vom eigenen Server. Es verlässt nichts diesen Ursprung. -->
   <link rel="stylesheet" href="/assets/bausteine.css">
-  <link rel="stylesheet" href="/t/style.css?v=162927bbd99d">
+  <link rel="stylesheet" href="/t/style.css?v=db383e3ddc92">
   {{if .Site.Design}}
   <!-- The website's own tokens, after the stylesheet so they win. Every value
        has been validated to a shape the CSS can read only one way. -->
@@ -73,10 +73,10 @@
       <a class="hc-mark site-mark" href="/">
         {{if .Site.LogoURL}}<img class="site-logo" src="{{.Site.LogoURL}}" alt="">
         {{else}}
-        <!-- Der Würfel der Marke, inline und nicht als <img>: so zeichnet er in
-             currentColor und folgt der Farbe der Leiste. Ein <img> könnte das
+        <!-- Der Wolkenbaum der Marke, inline und nicht als <img>: so zeichnet er
+             in currentColor und folgt der Farbe der Leiste. Ein <img> könnte das
              nicht — deshalb trägt allein favicon.svg eine feste Farbe. -->
-        <svg class="site-mark-glyph" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false"><defs><clipPath id="hkm-top"><path d="M32 8 L58 21 L32 34 L6 21 Z"/></clipPath></defs><g stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M32 8 L58 21 L32 34 L6 21 Z"/><path d="M6 21 L32 34 L32 56 L6 43 Z"/><path d="M58 21 L32 34 L32 56 L58 43 Z"/></g><g clip-path="url(#hkm-top)" stroke="currentColor" stroke-width="1.6" opacity=".75"><ellipse cx="25" cy="18" rx="6" ry="3"/><ellipse cx="25" cy="18" rx="12" ry="6"/><ellipse cx="25" cy="18" rx="19" ry="9.5"/><ellipse cx="25" cy="18" rx="27" ry="13.5"/></g></svg>{{end}}<b>{{.Site.Name}}</b></a>
+        <svg class="site-mark-glyph" viewBox="10 30 180 152" fill="none" aria-hidden="true" focusable="false"><path d="M52 140 C30 140 18 124 22 108 C26 92 42 84 56 88 C60 64 80 50 102 52 C124 54 138 70 140 88 C156 82 176 92 178 110 C180 128 166 140 150 140 Z" transform="translate(0 -10)" fill="currentColor"/><path d="M100 128 L100 176" stroke="currentColor" stroke-width="12" stroke-linecap="round"/><path d="M100 150 L84 134 M100 142 L114 130" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><g class="site-mark-grain" stroke-width="3.5" stroke-linecap="round"><path d="M60 112 C80 106 120 106 150 112"/><path d="M78 92 C92 87 112 87 126 92"/></g></svg>{{end}}<b>{{.Site.Name}}</b></a>
 
       <nav class="site-menu" aria-label="{{t "Main navigation"}}">{{menuFor .Menus "main" .Page.Slug}}</nav>
 
