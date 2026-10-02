@@ -2,17 +2,13 @@
      nicht bei jedem Seitenaufruf einen 404 auf /favicon.ico erzeugt.
 
      Dasselbe Zeichen wie in der Leiste: der Wolkenbaum, eine Wolke als
-     Krone auf einem Stamm, darin zwei Linien Maserung. currentColor gibt es
-     hier nicht, ein Favicon erbt nichts; die beiden Farben sind hc-ground
-     und hc-brass aus tokens.css. Die dunkle Kachel trägt das Zeichen auf
-     hellen wie auf dunklen Tab-Leisten. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="">
-  <rect width="200" height="200" rx="40" fill="#0A0705"/>
-  <path d="M52 140 C30 140 18 124 22 108 C26 92 42 84 56 88 C60 64 80 50 102 52 C124 54 138 70 140 88 C156 82 176 92 178 110 C180 128 166 140 150 140 Z" transform="translate(0 -10)" fill="#F0AE5F"/>
-  <path d="M100 128 L100 176" stroke="#F0AE5F" stroke-width="12" stroke-linecap="round"/>
-  <path d="M100 150 L84 134 M100 142 L114 130" stroke="#F0AE5F" stroke-width="7" stroke-linecap="round"/>
-  <g fill="none" stroke="#0A0705" stroke-width="3.5" stroke-linecap="round" opacity=".5">
-    <path d="M60 112 C80 106 120 106 150 112"/>
-    <path d="M78 92 C92 87 112 87 126 92"/>
-  </g>
+     Krone auf einem Stamm, darin zwei Linien Maserung, und darunter das
+     Brett aus Holz, das die ganze Familie trägt. currentColor gibt es hier
+     nicht, ein Favicon erbt nichts; Baum und Grund sind hc-brass und
+     hc-ground aus tokens.css. Die dunkle Kachel trägt das Zeichen auf hellen
+     wie auf dunklen Tab-Leisten. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="">
+<rect width="200" height="200" rx="44" fill="#0A0705"/>
+<g transform="translate(100 0) scale(.82) translate(-100 0)"><path d="M52 140 C30 140 18 124 22 108 C26 92 42 84 56 88 C60 64 80 50 102 52 C124 54 138 70 140 88 C156 82 176 92 178 110 C180 128 166 140 150 140 Z" transform="translate(0 -18)" fill="#F0AE5F"/><g fill="none" stroke="#0A0705" stroke-width="3" stroke-linecap="round" opacity=".45"><path d="M60 94 C80 88 120 88 150 94"/><path d="M78 74 C92 69 112 69 126 74"/></g></g><path d="M100 104 L100 148" stroke="#F0AE5F" stroke-width="11" stroke-linecap="round"/><path d="M100 128 L86 114 M100 120 L113 109" stroke="#F0AE5F" stroke-width="6.5" stroke-linecap="round"/>
+<rect x="26" y="146" width="148" height="26" rx="9" fill="#C98B4F"/><rect x="26" y="146" width="148" height="6" rx="3" fill="#E0A869" opacity=".7"/><path d="M40 160 C70 156 108 165 160 159" stroke="#9B6534" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M58 166 C84 163 118 168 140 165" stroke="#9B6534" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/><ellipse cx="120" cy="158" rx="6" ry="3" stroke="#9B6534" stroke-width="2" fill="none"/>
 </svg>

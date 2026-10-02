@@ -960,7 +960,7 @@ html { scroll-padding-top: var(--hc-space-9); }
    ihr das wieder weg. */
 .site-mark { display: inline-flex; align-items: center; flex: none; }
 .site-mark-glyph {
-  width: 32px; height: 27px; flex: none;
+  width: 32px; height: 30px; flex: none;
   color: var(--hc-brass);
   overflow: visible;
   /* Der Abstand hängt an der Glyphe, nicht als gap am Behälter:
@@ -1469,8 +1469,9 @@ main:focus { outline: none; }
  *
  * Jede Programmseite steht in den Farben, die das Programm auf GitHub trägt:
  * holzcloud-cms in Mint auf dunklem Grün, hauscloud in Blau auf Nachtblau,
- * holzice in Eisblau auf dunklem Marineblau; holzkube-manager trägt schon das Messing dieser Vorlage und bleibt, wie er
- * ist. Die Farbe hängt am Adressnamen der Seite, den das Layout als data-seite
+ * holzice in Eisblau auf dunklem Marineblau, holzkube-manager in Glut auf
+ * fast schwarzem Rot. Das Messing dieser Vorlage gehört seither holzcloud
+ * allein; holzkube-manager teilt es nicht mehr. Die Farbe hängt am Adressnamen der Seite, den das Layout als data-seite
  * auf <body> schreibt — er ist in allen Sprachen derselbe.
  *
  * Alles, was :root aus Messing und Grund ableitet, wird hier noch einmal
@@ -1480,7 +1481,7 @@ main:focus { outline: none; }
 body[data-seite="holzcloud-cms"] { --hc-app: #8fd0ba; --hc-app-grund: #0b1411; }
 body[data-seite="hauscloud"]     { --hc-app: #8298ff; --hc-app-grund: #0c0e1a; }
 body[data-seite="holzice"]       { --hc-app: #5ec8f2; --hc-app-grund: #0a1426; }
-body[data-seite="holzkube-manager"] { --hc-app: #F0AE5F; --hc-app-grund: #0A0705; }
+body[data-seite="holzkube-manager"] { --hc-app: #EF7A4D; --hc-app-grund: #140806; }
 body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzice"], [data-seite="holzkube-manager"]) {
   --hc-ground:          var(--hc-app-grund);
   --paper:              var(--hc-app-grund);
@@ -1805,7 +1806,6 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
 .site-hero .hc-lede    { margin-block-start: var(--hc-space-5); }
 .site-art { color: var(--hc-brass); }
 .site-art svg { display: block; width: 100%; height: auto; }
-.site-art__rings { opacity: .35; }
 .site-art__grain { stroke: var(--hc-ground); opacity: .5; }
 .site-actions {
   display: flex; flex-wrap: wrap; gap: var(--hc-space-3);
@@ -2320,7 +2320,10 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
     --hc-cubes-opacity: .16;
   }
   .hc-cubes { background-color: var(--hc-wood); }
-  .site-mark-glyph, .site-art { color: var(--hc-wood); }
+  /* Der Wolkenbaum steht hell in Waldgrün, nicht in Holzbraun: unter ihm
+     liegt jetzt das Brett in seinen eigenen Holzfarben, und ein brauner Baum
+     auf braunem Brett verliefe zu einer Fläche. */
+  .site-mark-glyph, .site-art { color: var(--hc-brass); }
   /* Die dünnste Schnitt der Manrope trägt auf Papier nicht: was dunkel
      als feine Linie leuchtet, wird hell grau und blass. */
   :root { --hc-weight-thin: 350; }
@@ -2335,7 +2338,7 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
   body[data-seite="holzcloud-cms"]    { --hc-app: #2E7D66; --hc-app-grund: #EEF5F1; }
   body[data-seite="hauscloud"]        { --hc-app: #3A51D4; --hc-app-grund: #EEF0FA; }
   body[data-seite="holzice"]          { --hc-app: #1C78AE; --hc-app-grund: #EAF3F9; }
-  body[data-seite="holzkube-manager"] { --hc-app: #A8641F; --hc-app-grund: #F7EFE3; }
+  body[data-seite="holzkube-manager"] { --hc-app: #C2502A; --hc-app-grund: #FBEFE9; }
   body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzice"], [data-seite="holzkube-manager"]) { --hc-wood: var(--hc-app); }
 
   /* Wer weniger Transparenz will, bekommt deckende Flächen, wie dunkel. */

@@ -1,18 +1,8 @@
-<!-- Das Zeichen des CMS: die Ringwolke — Jahresringe, in eine Wolke
-     geschnitten. Ein SVG und keine .ico-Datei: eine Datei, jede Grösse.
-
-     Zwei Ringe und nicht drei, anders als beim freistehenden Zeichen in
-     docs/brand/. Ein Reiter ist 16 Pixel breit; der dritte Ring wäre dort
-     kein Ring mehr, sondern Grau. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Holzcloud">
-  <rect width="64" height="64" rx="14" fill="#1F4F42"/>
-  <defs><clipPath id="hc-cloud"><path d="M15 44a11 11 0 0 1 1.4-21.9A16 16 0 0 1 46 20.5 11.5 11.5 0 0 1 49 44z"/></clipPath></defs>
-  <g transform="translate(32 32) scale(.88) translate(-32 -32)">
-    <g clip-path="url(#hc-cloud)">
-      <rect width="64" height="64" fill="#F7F4EE"/>
-      <g fill="none" stroke="#1F4F42" stroke-width="4.6">
-        <circle cx="31" cy="34" r="6.4"/><circle cx="31" cy="34" r="16.4"/>
-      </g>
-    </g>
-  </g>
+<!-- Das Zeichen des CMS: die Wolke mit Jahresringen auf dem Brett, im
+     abgerundeten Quadrat auf Tinte. Ein SVG und keine .ico-Datei: eine Datei,
+     jede Grösse. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Holzcloud CMS">
+<rect width="200" height="200" rx="44" fill="#0b1411"/>
+<defs><clipPath id="holzcloudcmscl"><path d="M52 140 C30 140 18 124 22 108 C26 92 42 84 56 88 C60 64 80 50 102 52 C124 54 138 70 140 88 C156 82 176 92 178 110 C180 128 166 140 150 140 Z" transform="translate(100 0) scale(.86) translate(-100 8)"/></clipPath></defs><path d="M52 140 C30 140 18 124 22 108 C26 92 42 84 56 88 C60 64 80 50 102 52 C124 54 138 70 140 88 C156 82 176 92 178 110 C180 128 166 140 150 140 Z" transform="translate(100 0) scale(.86) translate(-100 8)" fill="#8fd0ba"/><g clip-path="url(#holzcloudcmscl)" fill="none" stroke="#0b1411" stroke-width="5" opacity=".55"><ellipse cx="98" cy="104" rx="10" ry="8"/><ellipse cx="98" cy="104" rx="22" ry="17"/><ellipse cx="98" cy="104" rx="36" ry="28"/></g>
+<rect x="26" y="146" width="148" height="26" rx="9" fill="#C98B4F"/><rect x="26" y="146" width="148" height="6" rx="3" fill="#E0A869" opacity=".7"/><path d="M40 160 C70 156 108 165 160 159" stroke="#9B6534" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M58 166 C84 163 118 168 140 165" stroke="#9B6534" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/><ellipse cx="120" cy="158" rx="6" ry="3" stroke="#9B6534" stroke-width="2" fill="none"/>
 </svg>

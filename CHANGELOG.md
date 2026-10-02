@@ -14,6 +14,19 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.13 — 2026-10-02
+
+**Holz plus Element: neue Zeichen für das CMS und die Vorlage „holzcloud“.**
+Die Projekte von holzcloud teilen sich jetzt ein Brett aus Holz, und darauf
+steht, was jedes Projekt ausmacht. Beim CMS ist es die Wolke in Mint mit
+Jahresringen; sie steht im Favicon des Admins, im Banner und in der Karte, die
+GitHub beim Teilen zeigt. In der Vorlage „holzcloud“ steht der Wolkenbaum auf
+dem Brett, in der Leiste, im Favicon und gross auf der Startseite, wo das Brett
+die Jahresringe darunter ersetzt. Im hellen Modus ist der Baum nun waldgrün
+statt holzbraun, damit er sich vom Brett abhebt. Die Seite über
+holzkube-manager trägt dessen neue Farbe Glut statt des Messings, dunkel wie
+hell. Nach dem Update ist nichts zu tun.
+
 ## 0.0.12 — 2026-10-02
 
 **Die Vorlage „holzcloud“ hat ein neues Zeichen und einen hellen Modus.**
