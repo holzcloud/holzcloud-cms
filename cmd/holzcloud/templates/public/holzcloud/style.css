@@ -1463,6 +1463,56 @@ main:focus { outline: none; }
     align-self: start;
     margin-inline-end: calc(var(--hc-handy-breite) + var(--hc-handy-einzug) + var(--hc-space-5));
   }
+  /* Dieselbe Anordnung, wenn ein Banner mit seinen Abzeichen die Seite
+     eröffnet (siehe unten): Banner, Abzeichen und Vorspann nehmen dann die
+     Zeilen eins bis drei, Fenster vier, Telefon und Karten fünf. */
+  .page-content > .hc-bild--voll:first-child + .hc-eigen--technik + .hc-eigen--vorspann + .hc-bild + .hc-bild {
+    grid-row: 5; align-self: start; margin-block-end: var(--hc-space-7);
+  }
+  .page-content > .hc-bild--voll:first-child + .hc-eigen--technik + .hc-eigen--vorspann + .hc-bild + .hc-bild + .hc-karten {
+    grid-row: 5; align-self: start;
+    margin-inline-end: calc(var(--hc-handy-breite) + var(--hc-handy-einzug) + var(--hc-space-5));
+  }
+}
+
+/* Das Banner einer Programmseite.
+ *
+ * Eröffnet ein Bild über die volle Breite die Seite, ist es das Banner des
+ * Programms, wie auf GitHub: Logo, Name und eine Zeile in einem Bild. Es tritt
+ * an die Stelle des Seitentitels; die <h1> bleibt für Screenreader und
+ * Suchmaschinen im Dokument, gezeichnet wird nur das Banner. Folgt ihm ein
+ * Baustein „Technik“, stehen dessen Stichworte als Abzeichen direkt darunter,
+ * wieder wie auf GitHub. Ein volles Bild weiter unten bleibt, was es war. */
+.page:has(> .page-content > .hc-bild--voll:first-child) > .page-header {
+  position: absolute; inline-size: 1px; block-size: 1px; margin: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.page-content > .hc-bild--voll:first-child {
+  grid-column: text-start / breit-ende;
+  inline-size: auto; margin: 0;
+}
+.page-content > .hc-bild--voll:first-child img {
+  display: block; inline-size: 100%; block-size: auto;
+  border-radius: var(--hc-r-lg);
+  border: 1px solid var(--hc-pane-edge);
+  box-shadow: 0 30px 80px -40px color-mix(in oklch, var(--hc-brass) 55%, transparent),
+              var(--hc-shadow-pane);
+}
+.page-content > .hc-bild--voll:first-child + .hc-eigen--technik {
+  grid-column: text-start / breit-ende;
+  margin-block-start: var(--hc-space-4);
+}
+/* Unter dem Banner sind die Stichworte Abzeichen: in der Farbe des
+   Programms, etwas grösser, das erste gefüllt wie der Status auf GitHub. */
+.page-content > .hc-bild--voll:first-child + .hc-eigen--technik .hc-eigen__zeile {
+  color: var(--hc-brass); border-color: var(--hc-brass-soft);
+  background: var(--hc-brass-wash);
+}
+.page-content > .hc-bild--voll:first-child + .hc-eigen--technik .hc-eigen__zeile:first-child {
+  color: var(--hc-on-brass, var(--hc-ground)); background: var(--hc-brass); border-color: var(--hc-brass);
+}
+.page-content > .hc-bild--voll:first-child + .hc-eigen--technik + .hc-eigen--vorspann {
+  margin-block-start: var(--hc-space-6);
 }
 
 /* Die Farbe des Programms, von dem eine Seite erzählt.

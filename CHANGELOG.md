@@ -14,6 +14,17 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.14 — 2026-10-02
+
+**Programmseiten können mit einem Banner beginnen.** Eröffnet in der Vorlage
+„holzcloud“ ein Bild über die volle Breite die Seite, steht es an der Stelle des
+Seitentitels, wie das Banner eines Programms auf GitHub. Der Titel bleibt für
+Screenreader und Suchmaschinen im Dokument. Folgt dem Banner ein Baustein
+„Technik“, erscheinen dessen Stichworte direkt darunter als Abzeichen in der
+Farbe des Programms, das erste gefüllt. Der Auftakt aus Vorspann, Fenster und
+Karten funktioniert dahinter wie bisher. Seiten ohne ein solches Bild sehen aus
+wie vorher, und nach dem Update ist nichts zu tun.
+
 ## 0.0.13 — 2026-10-02
 
 **Holz plus Element: neue Zeichen für das CMS und die Vorlage „holzcloud“.**
