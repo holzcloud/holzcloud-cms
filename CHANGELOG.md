@@ -14,6 +14,17 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.19 — 2026-10-02
+
+**Eine Weiterleitung behält die Sprache.** Wer eine Seite umbenennt, bekommt
+eine Weiterleitung von der alten auf die neue Adresse, und weil eine Seite in
+allen Sprachen denselben Adressnamen trägt, gilt sie für alle. Bisher führte sie
+aber jeden Besucher in die Hauptsprache: `/fr/ancien` landete auf `/nouveau`
+statt auf `/fr/nouveau`. Jetzt bleibt die Sprache erhalten. Eine Weiterleitung,
+die für die Adresse mit Sprachkürzel eingetragen ist (`/fr/ancien`), geht der
+allgemeinen vor; bisher wurde sie gar nie gefunden. Ziele ausserhalb der Website
+bleiben, wie sie sind. Nach dem Update ist dafür nichts zu tun.
+
 ## 0.0.18 — 2026-10-02
 
 **Die Vorlage „holzcloud“ färbt auch die Seite `holzbar` ein.** holzIce heisst

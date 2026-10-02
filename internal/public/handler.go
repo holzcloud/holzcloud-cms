@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/album"
@@ -410,16 +411,62 @@ func assetCacheControl(r *http.Request) string {
 	return "public, max-age=3600, must-revalidate"
 }
 
+// lookupRedirect finds where an address that matched nothing has gone.
+//
+// LocaleMiddleware has already taken the language prefix off r.URL.Path, so a
+// request for /fr/ancien arrives here as /ancien. Two things follow from that.
+// A redirect the operator wrote for the prefixed address (/fr/ancien) is looked
+// up first, under the address the visitor actually asked for. And a redirect
+// for the bare address (/ancien, which is what a rename writes, because a slug
+// is the same in every language) keeps the visitor in their language: its
+// target gets the prefix back. Without that, renaming a page sent every
+// visitor of /fr/ancien to the main language's /nouveau.
+func (h *Handler) lookupRedirect(r *http.Request, website *domain.Website) (string, int, bool) {
+	tag := LocaleFrom(r.Context())
+	if tag != "" {
+		prefixed := "/" + tag + r.URL.Path
+		if redirect, err := h.pageStore.LookupRedirect(r.Context(), website.ID, prefixed); err != nil {
+			slog.Error("redirect lookup failed", "err", err, "path", prefixed)
+		} else if redirect != nil && redirect.ToPath != prefixed {
+			return redirect.ToPath, redirect.Code, true
+		}
+	}
+
+	redirect, err := h.pageStore.LookupRedirect(r.Context(), website.ID, r.URL.Path)
+	if err != nil {
+		slog.Error("redirect lookup failed", "err", err, "path", r.URL.Path)
+		return "", 0, false
+	}
+	if redirect == nil || redirect.ToPath == r.URL.Path {
+		return "", 0, false
+	}
+	return withLanguagePrefix(tag, redirect.ToPath), redirect.Code, true
+}
+
+// withLanguagePrefix puts a language prefix in front of an address on this
+// site. A full URL, a protocol-relative one and an address that already
+// carries the prefix are left as they are.
+func withLanguagePrefix(tag, to string) string {
+	if tag == "" || !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") {
+		return to
+	}
+	if to == "/"+tag || strings.HasPrefix(to, "/"+tag+"/") {
+		return to
+	}
+	if to == "/" {
+		return "/" + tag
+	}
+	return "/" + tag + to
+}
+
 // serve404 renders the styled 404 page using the site's template.
 //
 // Before giving up it checks the redirect table. The lookup only runs once
 // nothing else matched, so it costs nothing on the hot path and turns what
 // would be a dead link into a 301.
 func (h *Handler) serve404(w http.ResponseWriter, r *http.Request, website *domain.Website) error {
-	if redirect, err := h.pageStore.LookupRedirect(r.Context(), website.ID, r.URL.Path); err != nil {
-		slog.Error("redirect lookup failed", "err", err, "path", r.URL.Path)
-	} else if redirect != nil && redirect.ToPath != r.URL.Path {
-		http.Redirect(w, r, redirect.ToPath, redirect.Code)
+	if to, code, ok := h.lookupRedirect(r, website); ok {
+		http.Redirect(w, r, to, code)
 		return nil
 	}
 

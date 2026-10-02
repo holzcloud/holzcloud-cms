@@ -24,6 +24,12 @@ No existing link breaks, no redirect becomes necessary, and a website with one
 language notices nothing of the whole business — no prefix, no language picker,
 no extra field in the form.
 
+**Redirects keep the language.** Renaming a page writes a redirect from the old
+address to the new one, without a prefix (`/ancien` → `/nouveau`). A visitor
+who asks for `/fr/ancien` is sent to `/fr/nouveau`, not to the main language.
+A redirect entered for the prefixed address itself (`/fr/ancien`) is found
+first and wins; a target outside the site is left as it is.
+
 **Creating a version.** The page form has a section *Versions in other
 languages* showing which languages this page already exists in and which are
 missing. *Create version* copies the page as a **draft** into the other language —
