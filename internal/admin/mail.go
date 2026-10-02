@@ -73,7 +73,7 @@ func (h *Handler) HandleMailTest(w http.ResponseWriter, r *http.Request) error {
 func testMail(lang, to string) mail.Message {
 	return mail.Message{
 		To:      to,
-		Subject: i18n.T(lang, "Test message from Holzcloud"),
+		Subject: i18n.T(lang, "Test message from holzcloud-CMS"),
 		Body:    i18n.Tf(lang, "This message confirms that sending is set up.\n\nSent on %s.\n\nIf it has arrived, then invitations, password links and notifications about new enquiries work too.\n", time.Now().UTC().Format("02.01.2006 15:04")+" UTC"),
 	}
 }

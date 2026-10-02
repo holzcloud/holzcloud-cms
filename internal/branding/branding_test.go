@@ -70,7 +70,7 @@ func newDB(t *testing.T) *db.DB {
 	return database
 }
 
-// An installation that never opens the screen shows "Holzcloud" and an H. That
+// An installation that never opens the screen shows "holzcloud-CMS" and an H. That
 // is the state most installations are in and the one no test would otherwise
 // exercise, because it is the state before anything happens.
 func TestAnInstallationThatSavedNothingCarriesTheDefaults(t *testing.T) {
@@ -89,7 +89,7 @@ func TestAnInstallationThatSavedNothingCarriesTheDefaults(t *testing.T) {
 }
 
 // The sentence in Load's doc comment, held: "an administration that says
-// Holzcloud because a query failed is a working administration". A database
+// holzcloud-CMS because a query failed is a working administration". A database
 // without the table is the cheapest way to make the query fail for real.
 func TestAFailedQueryLeavesTheDefaultsStanding(t *testing.T) {
 	reset(t)
@@ -150,10 +150,10 @@ func TestCleanIsWhatMayBeStored(t *testing.T) {
 		max                   int
 		want                  string
 	}{
-		{"nothing at all falls back", "", "Holzcloud", 40, "Holzcloud"},
-		{"whitespace is nothing", " \t\n ", "Holzcloud", 40, "Holzcloud"},
-		{"the surrounding whitespace goes", "  Holzbau  ", "Holzcloud", 40, "Holzbau"},
-		{"the inner whitespace stays", "Holzbau Schmidt", "Holzcloud", 40, "Holzbau Schmidt"},
+		{"nothing at all falls back", "", "holzcloud-CMS", 40, "holzcloud-CMS"},
+		{"whitespace is nothing", " \t\n ", "holzcloud-CMS", 40, "holzcloud-CMS"},
+		{"the surrounding whitespace goes", "  Holzbau  ", "holzcloud-CMS", 40, "Holzbau"},
+		{"the inner whitespace stays", "Holzbau Schmidt", "holzcloud-CMS", 40, "Holzbau Schmidt"},
 		{"a value at the bound is untouched", strings.Repeat("a", 40), "H", 40, strings.Repeat("a", 40)},
 		{"a longer one is cut to it", strings.Repeat("a", 45), "H", 40, strings.Repeat("a", 40)},
 		// The case a byte count gets wrong: three umlauts are six bytes and
@@ -423,7 +423,7 @@ func TestTheFailuresAreReported(t *testing.T) {
 }
 
 // The program's mark, the cloud on the plank, belongs to an installation that
-// still calls itself Holzcloud. Renaming it or choosing another letter puts the
+// still calls itself holzcloud-CMS. Renaming it or choosing another letter puts the
 // letter square back.
 func TestIsDefaultOnlyForTheProgramsOwnNameAndLetter(t *testing.T) {
 	cases := []struct {
@@ -439,5 +439,26 @@ func TestIsDefaultOnlyForTheProgramsOwnNameAndLetter(t *testing.T) {
 		if got := c.brand.IsDefault(); got != c.want {
 			t.Errorf("%+v.IsDefault() = %v, want %v", c.brand, got, c.want)
 		}
+	}
+}
+
+// Before 0.0.17 the default name was "Holzcloud", and a save with an empty field
+// wrote it down. Such an installation must still count as the default, or its
+// corner turns from the program's mark into a letter square on upgrade.
+func TestTheOldStoredDefaultNameStillCountsAsTheDefault(t *testing.T) {
+	reset(t)
+	database := newDB(t)
+	for k, v := range map[string]string{"brand_name": "Holzcloud", "brand_mark": "H"} {
+		if _, err := database.Write.Exec(
+			`INSERT INTO app_settings (key, value) VALUES ($1, $2)`, k, v); err != nil {
+			t.Fatalf("insert %s: %v", k, err)
+		}
+	}
+
+	Load(context.Background(), database.Read)
+
+	got := Current()
+	if got.Name != DefaultName || !got.IsDefault() {
+		t.Errorf("Current() = %+v, want the default %q", got, DefaultName)
 	}
 }

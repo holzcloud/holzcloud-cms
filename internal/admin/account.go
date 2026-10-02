@@ -279,7 +279,7 @@ func accessMail(lang string, u *user.User, link string, expires time.Time, purpo
 	if purpose == user.PurposeInvite {
 		return mail.Message{
 			To:      u.Email,
-			Subject: i18n.T(lang, "Your access to Holzcloud"),
+			Subject: i18n.T(lang, "Your access to holzcloud-CMS"),
 			Body:    i18n.Tf(lang, "Hello %s\n\nan account for the admin has been created for you. The following link is where you set your password:\n\n%s\n\nThe link is valid until %s and can be used only once.\nAfter that you sign in normally with your e-mail address.\n\nIf this means nothing to you, simply ignore this message — without the link nothing happens.\n", name, link, expires.Format("02.01.2006 15:04")+" UTC"),
 		}
 	}
