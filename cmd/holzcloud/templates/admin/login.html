@@ -10,7 +10,7 @@
 </head>
 <body class="login-page" hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>
     <div class="login-card">
-        <p class="login-mark" aria-hidden="true">H</p>
+        {{template "login-mark" .Brand}}
         <h1 class="login-title">{{.Brand.Name}}</h1>
         <p class="login-subtitle">{{t "Please sign in"}}</p>
         {{if .Flash.Error}}<div class="flash flash--error">{{.Flash.Error}}</div>{{end}}
@@ -39,7 +39,7 @@
 
 {{define "login-content"}}
 <div class="login-card">
-    <p class="login-mark" aria-hidden="true">H</p>
+    {{template "login-mark" .Brand}}
     <h1 class="login-title">{{.Brand.Name}}</h1>
     <p class="login-subtitle">{{t "Please sign in"}}</p>
     {{if .Flash.Error}}<div class="flash flash--error">{{.Flash.Error}}</div>{{end}}

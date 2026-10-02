@@ -14,6 +14,20 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.15 — 2026-10-02
+
+**Der Admin trägt die Farbe des CMS.** Der Akzent der Verwaltung war bisher ein
+Indigo; jetzt ist er das Mint aus dem Zeichen des CMS. Im dunklen Modus steht
+es unverändert (#8fd0ba), und auf mintfarbenen Knöpfen steht dunkle Schrift
+statt weisser. Im hellen Modus ist es zu #1f6f5a abgedunkelt, damit Links und
+Knöpfe auf Weiss gut lesbar bleiben (Kontrast 6 : 1). Auch die Grautöne und die
+Kopfleiste haben einen Hauch desselben Grüns statt des bläulichen Stichs. Oben
+links steht statt des violetten „H“ das Zeichen des CMS, die Wolke auf dem
+Brett, und auf der Anmeldung dasselbe im dunklen Quadrat wie im Favicon. Wer
+unter *Marke* einen eigenen Namen oder Buchstaben gesetzt hat, sieht weiterhin
+seinen Buchstaben, jetzt auf Mint; ein hochgeladenes Logo bleibt, wie es war.
+Nach dem Update ist nichts zu tun.
+
 ## 0.0.14 — 2026-10-02
 
 **Programmseiten können mit einem Banner beginnen.** Eröffnet in der Vorlage

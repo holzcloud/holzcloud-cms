@@ -10,7 +10,7 @@
 </head>
 <body class="login-page" hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>
     <div class="login-card">
-        <p class="login-mark" aria-hidden="true">H</p>
+        {{template "login-mark" .Brand}}
         <h1 class="login-title">{{.Brand.Name}}</h1>
         <p class="login-subtitle">
             {{if .Recovery}}{{t "Enter a recovery code"}}{{else}}{{t "Two-step verification"}}{{end}}

@@ -421,3 +421,23 @@ func TestTheFailuresAreReported(t *testing.T) {
 		t.Error("WriteLogo reported success although the folder could not be made")
 	}
 }
+
+// The program's mark, the cloud on the plank, belongs to an installation that
+// still calls itself Holzcloud. Renaming it or choosing another letter puts the
+// letter square back.
+func TestIsDefaultOnlyForTheProgramsOwnNameAndLetter(t *testing.T) {
+	cases := []struct {
+		brand Brand
+		want  bool
+	}{
+		{Brand{Name: DefaultName, Mark: DefaultMark}, true},
+		{Brand{Name: DefaultName, Mark: DefaultMark, LogoURL: "/admin/marke/logo?v=1"}, true},
+		{Brand{Name: "Holzbau Schmidt", Mark: DefaultMark}, false},
+		{Brand{Name: DefaultName, Mark: "HS"}, false},
+	}
+	for _, c := range cases {
+		if got := c.brand.IsDefault(); got != c.want {
+			t.Errorf("%+v.IsDefault() = %v, want %v", c.brand, got, c.want)
+		}
+	}
+}

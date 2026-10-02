@@ -47,6 +47,14 @@ type Brand struct {
 	LogoURL string
 }
 
+// IsDefault reports whether the installation still carries the program's own
+// name and letter. Only then does the administration show the program's mark,
+// the cloud on the plank: an installation that calls itself something else
+// should not wear somebody else's sign beside its own name.
+func (b Brand) IsDefault() bool {
+	return b.Name == DefaultName && b.Mark == DefaultMark
+}
+
 var (
 	mu      sync.RWMutex
 	current = Brand{Name: DefaultName, Mark: DefaultMark}

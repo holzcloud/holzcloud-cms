@@ -18,6 +18,8 @@
             <a href="/admin/" class="topbar-brand">
                 {{if .Brand.LogoURL}}
                 <img class="topbar-logo" src="{{.Brand.LogoURL}}" alt="">
+                {{else if .Brand.IsDefault}}
+                {{template "brand-mark"}}
                 {{else}}
                 <span class="topbar-mark" aria-hidden="true">{{.Brand.Mark}}</span>
                 {{end}}

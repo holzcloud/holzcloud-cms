@@ -44,6 +44,8 @@ var partialFiles = []string{
 	// the same reason has to read the same on both screens, and two copies of it
 	// would drift apart.
 	"csv_reason.html",
+	// The program's own mark, in the bar and on the sign-in screens.
+	"brand_mark.html",
 }
 
 // standalonePages are full HTML documents with no base layout: they are what a
@@ -187,7 +189,7 @@ func parseFor(fsys fs.FS, lang string) (*langSet, error) {
 	set.partials = partials
 
 	for _, name := range standalonePages {
-		t, err := template.New(name).Funcs(funcs).ParseFS(fsys, name+".html")
+		t, err := template.New(name).Funcs(funcs).ParseFS(fsys, name+".html", "brand_mark.html")
 		if err != nil {
 			return nil, fmt.Errorf("parse %s: %w", name, err)
 		}

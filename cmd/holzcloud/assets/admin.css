@@ -30,21 +30,33 @@
            Die Oberfläche ist grau, nicht weiss: Karten sollen auf etwas liegen,
            sonst schwimmen sie. Weiss bleibt der Karte vorbehalten, und damit
            heisst weiss überall dasselbe — hier steht Inhalt. */
-        --color-bg: oklch(0.972 0.002 265);
+        --color-bg: oklch(0.972 0.002 171);
         --color-surface: oklch(1 0 0);
-        --color-sunken: oklch(0.955 0.003 265);
-        --color-hover: oklch(0.955 0.003 265);
-        --color-border: oklch(0.905 0.004 265);
-        --color-border-strong: oklch(0.84 0.006 265);
-        --color-text: oklch(0.22 0.008 265);
-        --color-text-muted: oklch(0.53 0.012 265);
+        --color-sunken: oklch(0.955 0.003 171);
+        --color-hover: oklch(0.955 0.003 171);
+        --color-border: oklch(0.905 0.004 171);
+        --color-border-strong: oklch(0.84 0.006 171);
+        --color-text: oklch(0.22 0.008 171);
+        --color-text-muted: oklch(0.53 0.012 171);
 
         /* Der Akzent ist sparsam gemeint: ein Knopf pro Bildschirm, der sagt,
-           was man hier tut. Wo alles bunt ist, führt nichts mehr. */
-        --color-accent: oklch(0.51 0.21 279);
-        --color-accent-hover: oklch(0.45 0.21 279);
-        --color-accent-subtle: oklch(0.955 0.025 279);
-        --color-accent-ring: oklch(0.51 0.21 279 / 0.25);
+           was man hier tut. Wo alles bunt ist, führt nichts mehr.
+
+           Er ist das Mint der Marke (#8fd0ba auf Tinte #0b1411, die Wolke im
+           Zeichen), im hellen Modus abgedunkelt zu #1f6f5a, damit er als
+           Schrift auf Weiss und als Fläche unter weisser Schrift trägt.
+           Kontrast nach WCAG 2.x, nachgerechnet:
+             #1f6f5a auf Weiss / Weiss auf #1f6f5a      6.0 : 1  (AA ≥ 4.5)
+             #1f6f5a auf --color-bg (#f4f6f5)           5.6 : 1
+             #1f6f5a auf --color-accent-subtle          5.3 : 1
+             Weiss auf --color-accent-hover (#125a48)   8.1 : 1
+           Die Neutralen tragen denselben Farbton (171) mit einem Hauch
+           Sättigung, damit Grau und Akzent aus einer Familie sind. */
+        --color-accent: oklch(0.488 0.083 171.5);
+        --color-accent-hover: oklch(0.42 0.075 171);
+        --color-accent-subtle: oklch(0.955 0.025 171);
+        --color-accent-ring: oklch(0.488 0.083 171.5 / 0.25);
+        --color-on-accent: oklch(1 0 0);
 
         --color-danger: oklch(0.58 0.21 25);
         --color-danger-subtle: oklch(0.96 0.03 25);
@@ -56,16 +68,16 @@
         /* Die Kopfleiste ist dunkel und bleibt es auch im hellen Modus: sie
            trennt „wo bin ich“ von „woran arbeite ich“, und das soll man sehen,
            ohne hinzuschauen. */
-        --color-topbar: oklch(0.21 0.008 275);
-        --color-topbar-text: oklch(0.97 0.002 275);
-        --color-topbar-muted: oklch(0.72 0.008 275);
-        --color-topbar-hover: oklch(0.28 0.01 275);
+        --color-topbar: oklch(0.21 0.008 171);
+        --color-topbar-text: oklch(0.97 0.002 171);
+        --color-topbar-muted: oklch(0.72 0.008 171);
+        --color-topbar-hover: oklch(0.28 0.01 171);
 
         /* Schatten statt Rahmen, wo etwas obenauf liegt. Sehr weich: ein
            harter Schatten sieht nach Knopf aus, auch wenn es keiner ist. */
-        --shadow-sm: 0 1px 2px oklch(0.2 0.01 265 / 0.06);
-        --shadow-md: 0 1px 3px oklch(0.2 0.01 265 / 0.08), 0 4px 12px oklch(0.2 0.01 265 / 0.05);
-        --shadow-lg: 0 4px 16px oklch(0.2 0.01 265 / 0.1), 0 12px 32px oklch(0.2 0.01 265 / 0.08);
+        --shadow-sm: 0 1px 2px oklch(0.2 0.01 171 / 0.06);
+        --shadow-md: 0 1px 3px oklch(0.2 0.01 171 / 0.08), 0 4px 12px oklch(0.2 0.01 171 / 0.05);
+        --shadow-lg: 0 4px 16px oklch(0.2 0.01 171 / 0.1), 0 12px 32px oklch(0.2 0.01 171 / 0.08);
 
         /* Spacing — 8px scale */
         --space-1: 0.5rem;
@@ -102,19 +114,27 @@
        Fassungen über kurz oder lang auseinander. */
     @media (prefers-color-scheme: dark) {
         :root {
-            --color-bg: oklch(0.17 0.006 275);
-            --color-surface: oklch(0.215 0.007 275);
-            --color-sunken: oklch(0.19 0.006 275);
-            --color-hover: oklch(0.26 0.008 275);
-            --color-border: oklch(0.31 0.009 275);
-            --color-border-strong: oklch(0.4 0.01 275);
-            --color-text: oklch(0.95 0.003 275);
-            --color-text-muted: oklch(0.68 0.01 275);
+            --color-bg: oklch(0.17 0.006 171);
+            --color-surface: oklch(0.215 0.007 171);
+            --color-sunken: oklch(0.19 0.006 171);
+            --color-hover: oklch(0.26 0.008 171);
+            --color-border: oklch(0.31 0.009 171);
+            --color-border-strong: oklch(0.4 0.01 171);
+            --color-text: oklch(0.95 0.003 171);
+            --color-text-muted: oklch(0.68 0.01 171);
 
-            --color-accent: oklch(0.62 0.19 279);
-            --color-accent-hover: oklch(0.68 0.19 279);
-            --color-accent-subtle: oklch(0.3 0.08 279);
-            --color-accent-ring: oklch(0.62 0.19 279 / 0.35);
+            /* Im Dunkeln steht das Mint der Marke unverändert, #8fd0ba. Es ist
+               hell, also steht auf seinen Flächen Tinte und nicht Weiss:
+                 #8fd0ba auf --color-surface (#161b19)      9.9 : 1
+                 #8fd0ba auf --color-bg                    10.8 : 1
+                 #8fd0ba auf --color-accent-subtle          7.6 : 1
+                 Tinte #0b1411 auf #8fd0ba                 10.6 : 1
+                 Tinte auf --color-accent-hover (#a2e0cb)  12.6 : 1 */
+            --color-accent: oklch(0.8075 0.0733 171.3);
+            --color-accent-hover: oklch(0.86 0.07 171);
+            --color-accent-subtle: oklch(0.3 0.05 171);
+            --color-accent-ring: oklch(0.8075 0.0733 171.3 / 0.35);
+            --color-on-accent: oklch(0.181 0.0148 172);
 
             --color-danger: oklch(0.68 0.19 25);
             --color-danger-subtle: oklch(0.3 0.08 25);
@@ -123,8 +143,8 @@
             --color-warning: oklch(0.76 0.13 80);
             --color-warning-subtle: oklch(0.3 0.06 80);
 
-            --color-topbar: oklch(0.13 0.005 275);
-            --color-topbar-hover: oklch(0.22 0.008 275);
+            --color-topbar: oklch(0.13 0.005 171);
+            --color-topbar-hover: oklch(0.22 0.008 171);
 
             --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
             --shadow-md: 0 1px 3px oklch(0 0 0 / 0.4), 0 4px 12px oklch(0 0 0 / 0.3);
@@ -215,9 +235,18 @@
         height: 26px;
         border-radius: var(--radius-md);
         background: var(--color-accent);
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
         font-size: var(--text-sm);
         font-weight: 700;
+    }
+
+    /* Das Zeichen des Programms, so hoch wie das Quadrat mit dem Buchstaben.
+       Die Kopfleiste ist in beiden Modi dunkel, also steht es frei auf ihr. */
+    .brand-mark {
+        display: block;
+        flex: none;
+        width: 31px;
+        height: 26px;
     }
 
     .topbar-sep {
@@ -895,12 +924,12 @@
 
     .btn--primary {
         background: var(--color-accent);
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
         border-color: var(--color-accent);
     }
 
     .btn--primary:hover {
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
     }
 
     .btn--primary:hover {
@@ -971,6 +1000,20 @@
         background: var(--color-bg);
     }
 
+    /* Auf der Anmeldung steht die Karte hell oder dunkel; das Zeichen bringt
+       darum sein eigenes Quadrat aus Tinte mit, wie das Reitersymbol. */
+    .login-mark.login-mark--cms {
+        width: 48px;
+        height: 48px;
+        background: none;
+    }
+
+    .brand-tile {
+        display: block;
+        width: 48px;
+        height: 48px;
+    }
+
     .login-card {
         width: 100%;
         max-width: 380px;
@@ -988,7 +1031,7 @@
         margin-bottom: var(--space-2);
         border-radius: var(--radius-lg);
         background: var(--color-accent);
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
         font-size: var(--text-lg);
         font-weight: 700;
     }
@@ -2956,7 +2999,7 @@ body.is-fullscreen .content-body {
         padding: 0.1rem var(--space-1);
         border-radius: var(--radius-sm);
         background: var(--color-accent);
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
         font-size: var(--text-xs);
     }
 
@@ -3216,7 +3259,7 @@ body.is-fullscreen .content-body {
         border-radius: 999px;
         border: 2px solid var(--color-surface);
         background: var(--color-accent);
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
         font-size: 11px;
         font-weight: 700;
         font-variant-numeric: tabular-nums;
@@ -3447,7 +3490,7 @@ body.is-fullscreen .content-body {
         padding: 0 6px;
         border-radius: 999px;
         background: var(--color-accent);
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
         font-size: 11px;
         font-weight: 700;
         text-align: center;
@@ -3941,7 +3984,7 @@ body.is-fullscreen .content-body {
         block-size: 48px;
         border-radius: 999px;
         background: var(--color-accent);
-        color: oklch(1 0 0);
+        color: var(--color-on-accent);
         font-size: var(--text-lg);
         font-weight: 700;
         flex: none;
