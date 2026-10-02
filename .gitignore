@@ -76,3 +76,6 @@ plugins/*/nicht-gefunden
 /kontaktformular
 /bestellung
 /suche
+
+# The binary that `go build ./cmd/holzcloud` leaves in the repository root.
+/holzcloud
