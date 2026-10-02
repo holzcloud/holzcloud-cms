@@ -1,7 +1,7 @@
-# Holzcloud beside Statamic
+# holzcloud-CMS beside Statamic
 
 Statamic is a full-grown CMS with over ten years of development, a team behind it
-and a market for extensions. Holzcloud is a single Go file on a small server. The
+and a market for extensions. holzcloud-CMS is a single Go file on a small server. The
 comparison is useful all the same — not in order to catch up, but to see which
 gaps **hurt** and which are deliberate decisions.
 
@@ -14,12 +14,12 @@ been carried forward.
 
 When this paper was written, the difference in construction stood here:
 
-> **Statamic lets the operator determine their own content model. Holzcloud has a
+> **Statamic lets the operator determine their own content model. holzcloud-CMS has a
 > fixed one.**
 
 In Statamic you create *blueprints*: "A product has a name, a price, an image, an
 availability and three variants." Over 40 field types are available for that. In
-Holzcloud a page had a title, an address, content, an excerpt, a preview image,
+holzcloud-CMS a page had a title, an address, content, an excerpt, a preview image,
 labels and an access setting — and anyone who needed a field "price" needed a new
 Go version.
 
@@ -80,7 +80,7 @@ Ordered by usefulness to this project, not by Statamic's order:
 
 ### What we have
 
-| Statamic | Holzcloud |
+| Statamic | holzcloud-CMS |
 |---|---|
 | Revisions & content history | ✅ versions with restore |
 | Asset manager | ✅ media per website, with a required alt-text check |

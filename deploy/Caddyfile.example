@@ -35,7 +35,7 @@
 	}
 }
 
-# Shared settings for every site served by Holzcloud.
+# Shared settings for every site served by holzcloud-CMS.
 (holzcloud) {
 	reverse_proxy localhost:8080
 
@@ -96,7 +96,7 @@
 # 			#    the underscore lines below are load-bearing even on a
 # 			#    Caddy that carries the fix.
 # 			#
-# 			#    Holzcloud deletes all of these again itself, on every
+# 			#    holzcloud-CMS deletes all of these again itself, on every
 # 			#    path (internal/web/forwardauth.go) — but only after it
 # 			#    has read them. A visitor's value that this proxy forwards
 # 			#    under the right name arrives with the right secret and
@@ -153,14 +153,14 @@ example.com {
 	import holzcloud
 }
 
-# Additional domain — Holzcloud resolves the website by Host header.
+# Additional domain — holzcloud-CMS resolves the website by Host header.
 # Uncomment and change the domain to add more sites.
 #
 # another-site.com {
 # 	import holzcloud
 # }
 
-# Caddy sets X-Forwarded-For automatically. Holzcloud only believes that header
+# Caddy sets X-Forwarded-For automatically. holzcloud-CMS only believes that header
 # when the request came from a trusted peer — by default loopback, which is
 # exactly this proxy — so the login throttle keys on the real visitor instead of
 # lumping the whole internet into one bucket. Do not remove the header, and do

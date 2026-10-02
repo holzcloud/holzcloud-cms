@@ -13,7 +13,7 @@ On the **server**, you need:
 On your **development machine**, you need:
 
 - Go 1.22 or later
-- The Holzcloud source code
+- The holzcloud-CMS source code
 
 **Note:** Go is NOT needed on the server. The binary is built on the development machine and is fully self-contained — all templates, assets, and migrations are embedded.
 
@@ -164,7 +164,7 @@ sudo cp /tmp/deploy/Caddyfile.example /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
-For multiple websites, add one domain block per site in the Caddyfile. Holzcloud resolves the correct website by the incoming `Host` header.
+For multiple websites, add one domain block per site in the Caddyfile. holzcloud-CMS resolves the correct website by the incoming `Host` header.
 
 **If you intend to use single sign-on, Caddy must be 2.11.2 or newer.**
 `caddy version` says which you have, and
@@ -184,7 +184,7 @@ Whoever your Authentik has already signed in reaches `/admin` without a second
 sign-in. Caddy asks the Authentik outpost who the visitor is, copies the answer
 onto the forwarded request as a handful of `X-authentik-…` headers, and adds a
 shared secret that says the request really came through your own proxy.
-Holzcloud believes that claim only from a trusted peer, only with the right
+holzcloud-CMS believes that claim only from a trusted peer, only with the right
 secret, and it deletes every inbound identity header itself — on every path,
 whoever the peer was — before any handler runs. A visitor who writes those
 headers by hand is refused, and gets the ordinary login form.
@@ -224,7 +224,7 @@ everything.
 
 **`HOLZCLOUD_SSO_PROVISION` and `HOLZCLOUD_SSO_DEFAULT_WEBSITE` belong together,
 and the service refuses to start with the first set and the second missing.**
-This is the most important paragraph in this section. Holzcloud expresses "this
+This is the most important paragraph in this section. holzcloud-CMS expresses "this
 person may enter every website" as *no website assignment at all* — see
 [Rights per person](../docs/security.md#rights-per-person). That reading is
 correct for an account you created by hand, and it inverts under provisioning: a
@@ -292,7 +292,7 @@ fix's own delete covers only the canonical hyphenated name (measured against
 Caddy 2.11.4 with `caddy adapt`). That is the companion advisory
 GHSA-f59h-q822-g45g / CVE-2026-52845.
 
-Holzcloud strips all of these again itself regardless — and it matters to be
+holzcloud-CMS strips all of these again itself regardless — and it matters to be
 exact about what that does and does not cover. It keeps every identity header
 away from a visitor who reaches this service directly, and away from any
 spelling Caddy did not canonicalise. It does **not** protect against a Caddy that
@@ -307,7 +307,7 @@ background.
 
 ### The shared secret lives in two environments
 
-The same value has to reach two processes: Holzcloud reads it as
+The same value has to reach two processes: holzcloud-CMS reads it as
 `HOLZCLOUD_SSO_SECRET`, and Caddy sends it as `{env.HOLZCLOUD_SSO_SECRET}`.
 Neither the Caddyfile nor a unit file is the place for it — both are files people
 copy, paste and commit. Put it in one file only root can read, and hand that file
@@ -324,7 +324,7 @@ sudo systemctl restart holzcloud caddy
 systemd reads an `EnvironmentFile` itself, before it starts the service as its
 own user, so the file can stay `0600 root:root`. The environment of a running
 process does not change: after changing the secret, restart **both** services.
-Holzcloud refuses to start with a secret shorter than 32 characters.
+holzcloud-CMS refuses to start with a secret shorter than 32 characters.
 
 ### Two things you verify once, against your own instance
 
@@ -428,13 +428,13 @@ An Authentik session satisfies this installation's two-step requirement
 unconditionally. **So this installation's second factor is the one your identity
 provider asks for.** If your Authentik is satisfied by a password alone, then
 every administrator who signs in through it has a single factor, and the
-compulsory TOTP that Holzcloud requires of administrators on the password path
+compulsory TOTP that holzcloud-CMS requires of administrators on the password path
 does not apply to them.
 
 That is a deliberate decision and not an oversight — asking for a second factor
 twice is how people are trained to click past them — but it moves the guarantee
 onto your identity provider, and it is your job to put an authenticator or a
-passkey stage in front of the Holzcloud application in Authentik. The same
+passkey stage in front of the holzcloud-CMS application in Authentik. The same
 dependency is stated inside the admin, on *My account* and on the user list, so
 whoever administers the installation reads it there without opening this file.
 
@@ -623,7 +623,7 @@ sudo journalctl -u holzcloud --since today # Today's logs
 
 **Database locked errors:**
 
-- Holzcloud uses WAL mode and a single-writer pool — this should be rare
+- holzcloud-CMS uses WAL mode and a single-writer pool — this should be rare
 - Check if another process has the database open: `sudo fuser /opt/holzcloud/data/holzcloud.sqlite`
 
 **Caddy not serving HTTPS:**
@@ -634,7 +634,7 @@ sudo journalctl -u holzcloud --since today # Today's logs
 
 **High memory usage:**
 
-- Holzcloud is designed for a modest server and should use well under 100 MB at rest; 1 GB of RAM is enough for a small site
+- holzcloud-CMS is designed for a modest server and should use well under 100 MB at rest; 1 GB of RAM is enough for a small site
 - If memory grows, check for connection leaks in logs
 
 
