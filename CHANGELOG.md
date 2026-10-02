@@ -14,6 +14,29 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.17 — 2026-10-02
+
+**Der Rest des Programms heisst jetzt auch holzcloud-CMS.** Was 0.0.16 noch
+übrig liess, ist nachgezogen: die Begrüssung auf dem Dashboard, der Mailstatus
+und der Markenbildschirm, der Standardname der Verwaltung, die README, die
+Dokumente und die Dateien unter `deploy/`. Die Mails heissen jetzt „Dein Zugang
+zu holzcloud-CMS“ und „Testnachricht von holzcloud-CMS“.
+
+**Authenticator-Apps zeigen den neuen Namen.** Wer die Zwei-Faktor-Anmeldung
+neu einrichtet, sieht in seiner App „holzcloud-CMS“ mit dem Host dahinter.
+Bestehende Einträge behalten ihre alte Beschriftung; sie bleiben gültig und
+müssen nicht neu eingerichtet werden.
+
+**Der Markenbildschirm behält das Zeichen des CMS.** Eine Installation, die den
+Bildschirm einmal mit leerem Namensfeld gespeichert hat, trug den alten
+Standardnamen „Holzcloud“ in der Datenbank. Sie gilt weiter als Standard und
+zeigt deshalb nach dem Update das Zeichen des CMS und nicht einen Buchstaben im
+Quadrat.
+
+Unverändert bleiben die technischen Namen: die Variablen `HOLZCLOUD_*`, der
+Header `X-Holzcloud-Proxy-Secret`, der Befehl `holzcloud` und die Vorlage
+„holzcloud“.
+
 ## 0.0.16 — 2026-10-02
 
 **Das CMS heisst holzcloud-CMS, und seine Ringe sind rund.** Wo die
