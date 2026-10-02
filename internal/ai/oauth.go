@@ -135,7 +135,7 @@ func (o *OAuth) HandleResourceMetadata(w http.ResponseWriter, r *http.Request) {
 		"resource":                 base + "/ai",
 		"authorization_servers":    []string{base},
 		"bearer_methods_supported": []string{"header"},
-		"resource_name":            "Holzcloud CMS",
+		"resource_name":            "holzcloud-CMS",
 	})
 }
 

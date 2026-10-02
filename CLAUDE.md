@@ -1,6 +1,6 @@
 ## Project
 
-**Holzcloud CMS** — A minimal, self-hosted CMS for a small linux/amd64 server. Single Go binary. Manages multiple websites with multiple domains. Admin UI via htmx. Public site via server-rendered templates. SQLite storage.
+**holzcloud-CMS** — A minimal, self-hosted CMS for a small linux/amd64 server. Single Go binary. Manages multiple websites with multiple domains. Admin UI via htmx. Public site via server-rendered templates. SQLite storage.
 
 ### Hard Stack Constraints
 

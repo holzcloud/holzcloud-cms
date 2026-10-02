@@ -1,4 +1,4 @@
-# Writing a template for Holzcloud CMS
+# Writing a template for holzcloud-CMS
 
 This document is the complete contract for a public site template. It is
 written to be handed to an AI agent as-is: everything needed to produce a

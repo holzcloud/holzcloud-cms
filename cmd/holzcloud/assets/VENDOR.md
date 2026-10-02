@@ -151,7 +151,7 @@ Danach die beiden Tabellen oben nachführen und `go test ./...` laufen lassen.
 ## Lizenzen der Fremdbestandteile
 
 htmx steht unter der BSD-2-Clause-Lizenz und ist damit mit der AGPL, unter der
-Holzcloud CMS steht, verträglich. Manrope und JetBrains Mono stehen unter der
+holzcloud-CMS steht, verträglich. Manrope und JetBrains Mono stehen unter der
 SIL Open Font License 1.1, die ebenfalls mit der AGPL verträglich ist: sie
 bindet nur die Schriftdateien selbst und stellt an das Programm, das sie
 ausliefert, keine Bedingung ausser der, dass sie nicht einzeln verkauft werden. Die Lizenztexte der Go-Module stehen im

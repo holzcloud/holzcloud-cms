@@ -53,7 +53,7 @@ type LayoutData struct {
 	// Announcing an English administration as German is the difference between
 	// a screen reader reading it and mangling it.
 	Lang string
-	// Version and SourceURL sit in the sidebar. Not decoration: Holzcloud CMS
+	// Version and SourceURL sit in the sidebar. Not decoration: holzcloud-CMS
 	// is under the AGPL, and section 13 obliges whoever runs a *modified*
 	// version as a network service to offer its source to the people using it.
 	// A link that is already there makes that the default rather than something

@@ -1,4 +1,4 @@
-# Holzcloud CMS — Caddy reverse proxy configuration
+# holzcloud-CMS — Caddy reverse proxy configuration
 #
 # Caddy automatically obtains and renews TLS certificates via Let's Encrypt.
 # Just replace the domain names below with your actual domains.

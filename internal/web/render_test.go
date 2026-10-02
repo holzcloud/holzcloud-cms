@@ -263,7 +263,7 @@ func TestSidebarFooterShowsBuildAndLicence(t *testing.T) {
 	body := rec.Body.String()
 
 	// 1 — die Fassung erreicht die Seite.
-	if !strings.Contains(body, "Holzcloud CMS") {
+	if !strings.Contains(body, "holzcloud-CMS") {
 		t.Error("the footer does not name the program")
 	}
 	if !strings.Contains(body, "v9.9.9-test") {

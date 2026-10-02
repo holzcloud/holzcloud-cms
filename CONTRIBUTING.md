@@ -1,6 +1,6 @@
 # Contributing
 
-Holzcloud CMS is a CMS for a small server on a shelf or in a cluster. What is
+holzcloud-CMS is a CMS for a small server on a shelf or in a cluster. What is
 built here should run smoothly on the cheapest node and keep going for years
 without attention. That is not a limitation mentioned in passing — it is the
 decision most of the others follow from.

@@ -1,6 +1,6 @@
-# Deploying Holzcloud CMS on a linux/amd64 server
+# Deploying holzcloud-CMS on a linux/amd64 server
 
-This guide covers building, installing, and running Holzcloud CMS on a fresh Debian or Ubuntu server (x86-64). Nothing here assumes a particular host: a small VPS, a bare-metal box, or a node in a cluster all work the same way.
+This guide covers building, installing, and running holzcloud-CMS on a fresh Debian or Ubuntu server (x86-64). Nothing here assumes a particular host: a small VPS, a bare-metal box, or a node in a cluster all work the same way.
 
 ## Prerequisites
 
@@ -585,7 +585,7 @@ they contain the database, which includes password hashes, and the CSRF key.
 
 ## Updating
 
-Holzcloud CMS is alpha software: until 1.0, an update may change or remove
+holzcloud-CMS is alpha software: until 1.0, an update may change or remove
 features, settings and the template contract without a transition period.
 **Back up first** (see *Backups* above) and read the release's entry in
 `CHANGELOG.md` before you replace the binary.

@@ -27,7 +27,7 @@
 # Database
 *.sqlite
 
-# Holzcloud CMS minimal runtime data
+# holzcloud-CMS minimal runtime data
 /data/
 
 # Logs

@@ -232,7 +232,7 @@ func (s *Server) dispatch(r *http.Request, scope Scope, req rpcRequest) rpcRespo
 			"serverInfo":      map[string]any{"name": s.name, "version": "1"},
 			// Shown by some clients before the first call. It is the place to
 			// say the one thing an assistant should know before it starts.
-			"instructions": "This is a Holzcloud CMS. New pages are born drafts; publish " +
+			"instructions": "This is a holzcloud-CMS. New pages are born drafts; publish " +
 				"only when you were expressly asked to.",
 		})
 

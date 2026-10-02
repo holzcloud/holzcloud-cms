@@ -1,5 +1,5 @@
 [Unit]
-Description=Holzcloud CMS backup
+Description=holzcloud-CMS backup
 Documentation=file:///opt/holzcloud/deploy/DEPLOY.md
 After=holzcloud.service
 

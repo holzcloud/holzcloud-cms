@@ -12,7 +12,7 @@
      1. vier @layer weide.*  — tokens, base, components, motif.
         Alles, was das Aussehen entscheidet.
      2. die CMS-Schicht      — ganz unten, bewusst OHNE @layer.
-        Sie kleidet den Datenvertrag von Holzcloud CMS und gewinnt
+        Sie kleidet den Datenvertrag von holzcloud-CMS und gewinnt
         damit gegen alle vier oben, ohne Spezifitätsspiele.
      3. .Site.Design         — im <style> nach diesem Stylesheet,
         ebenfalls ausserhalb jeder Schicht, und gewinnt dadurch
@@ -665,7 +665,7 @@
 }
 /* ══ CMS-Schicht ══════════════════════════════════════════════
    Was oben steht, kleidet ein Gestaltungssystem. Was hier steht,
-   kleidet den Datenvertrag von Holzcloud CMS: die Kopfleiste aus
+   kleidet den Datenvertrag von holzcloud-CMS: die Kopfleiste aus
    .Menus, den Inhalt aus .Page, die Bausteine, die der Kern
    schreibt, und die zwölf Ansichten.
 

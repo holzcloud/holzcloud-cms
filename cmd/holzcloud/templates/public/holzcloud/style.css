@@ -832,7 +832,7 @@
    CMS-Schicht
 
    Was oben steht, kleidet ein Gestaltungssystem. Was hier steht,
-   kleidet den Datenvertrag von Holzcloud CMS: die Kopfleiste aus
+   kleidet den Datenvertrag von holzcloud-CMS: die Kopfleiste aus
    .Menus, den Inhalt aus .Page, die Bausteine, die der Kern
    schreibt, und die zwölf Ansichten.
 
@@ -1087,6 +1087,12 @@ main:focus { outline: none; }
 .page-content > :is(.hc-galerie, .hc-video, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
 }
+/* Karten und Aufruf nehmen die ganze Inhaltsbreite: in der Textspalte
+ * allein wurden vier Karten zu schmalen Streifen, und ein Aufruf stand
+ * neben einer leeren Rinne, als gehöre er zum Lauftext davor. */
+.page-content > :is(.hc-karten, .hc-aufruf) {
+  grid-column: text-start / breit-ende;
+}
 .page-content > * + * { margin-block-start: var(--hc-space-5); }
 .page-content :where(h2) { margin-block-start: var(--hc-space-8); font-size: var(--hc-text-2xl); }
 .page-content :where(h3) { margin-block-start: var(--hc-space-7); font-size: var(--hc-text-xl); }
@@ -1165,6 +1171,18 @@ main:focus { outline: none; }
   border-color: var(--hc-pane-lift);
   box-shadow: var(--hc-shadow-lift);
 }
+/* Jede Karte im Inhalt so knapp wie die Stärken im Auftakt: Titel oben,
+ * Text gleich darunter, die Messingkante als oberer Rand. Ohne
+ * justify-content verteilte eine Karte neben einer längeren ihren Leerraum
+ * zwischen Titel und Text. Karten mit Bild und verlinkte Karten behalten
+ * Bild und Hover, sie bekommen nur denselben Rand. */
+.page-content > .hc-karten .hc-karte {
+  justify-content: flex-start;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-5);
+  border-block-start: 2px solid var(--hc-brass);
+}
+.hc-karte__titel { margin: 0; }
 
 /* Zitat — die Marke trägt der Balken, nicht die Schriftfarbe. */
 .hc-zitat blockquote {
@@ -1190,6 +1208,11 @@ main:focus { outline: none; }
 .hc-aufruf__titel { font-weight: var(--hc-weight-thin); letter-spacing: var(--hc-track-snug); }
 .hc-aufruf__text { color: var(--hc-ink-2); }
 .hc-aufruf__knopf { margin-block-start: var(--hc-space-5); }
+/* Der Aufruf ist zentriert gesetzt, aber `:where(p)` aus der Grundschicht
+ * begrenzt jeden Absatz auf --hc-measure und lässt ihn links stehen. Der
+ * Knopf sass darum neben der Mitte. Ohne Begrenzung und mit automatischem
+ * Rand steht jedes Kind des Aufrufs auf der Mittelachse. */
+.hc-aufruf > * { max-inline-size: none; margin-inline: auto; }
 
 /* Knopf — die Pillenform des Systems. Messingfläche mit dunkler
    Schrift: das ist bereits, was bausteine.css aus --brand und

@@ -1426,7 +1426,7 @@ func (o outboxSender) Send(ctx context.Context, websiteID int64, m mail.Message)
 // heard of.
 func aiConnection(cfg config.Config, deps ai.Deps) (*ai.Server, http.Handler) {
 	deps.Uploads = ai.NewUploads(cfg.Secure)
-	server := ai.NewServer(deps.Tokens, "Holzcloud CMS", slog.Default(), ai.Tools(deps))
+	server := ai.NewServer(deps.Tokens, "holzcloud-CMS", slog.Default(), ai.Tools(deps))
 	server.SetMaxRequestBytes(max(cfg.MaxMediaSize, cfg.MaxVideoSize, cfg.MaxTemplateSize))
 	return server, ai.UploadHandler(deps, slog.Default())
 }

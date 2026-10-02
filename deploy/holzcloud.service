@@ -1,5 +1,5 @@
 [Unit]
-Description=Holzcloud CMS
+Description=holzcloud-CMS
 Documentation=https://github.com/holz/holzcloud
 After=network.target
 # Refuse to start on an unmounted data disk rather than creating an empty one.

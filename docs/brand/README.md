@@ -2,7 +2,7 @@
 
 **Wood plus element.** A wooden plank carries each project's element: the
 holzcloud projects share the plank and differ in what stands on it. For this
-CMS it is a mint cloud with annual rings cut into it, the cloud and the wood
+CMS it is a mint cloud with round annual rings cut into it, the cloud and the wood
 of the name in one figure, standing on the plank that ties it to its siblings
 (the cloud-crowned tree of holzcloud itself, the cube of holzkube-manager).
 
@@ -11,7 +11,7 @@ of the name in one figure, standing on the plank that ties it to its siblings
 | `holzcloud-mark.svg` | the standalone mark, mint cloud on the plank, for a dark ground: README, project page, anywhere it stands on its own |
 | `holzcloud-mark-indigo.svg` | the same mark with the cloud in indigo and the rings in paper, from before the admin took the mint; kept for material that already uses it |
 | `holzcloud-tile.svg` | the mark inside a rounded square on ink: app icons, avatars |
-| `banner.png` | the banner at the top of the repository's README, 2560×640 |
+| `banner.png` | the banner at the top of the repository's README, 3200×800: mark, name, the row of what it is, and the editor on a slightly turned screen |
 | `holzcloud-social.png` | the card GitHub shows when the repository is shared (Settings → Social preview), 2560×1280 |
 
 The admin's own tab icon is `cmd/holzcloud/assets/favicon.svg`, which is the
@@ -31,8 +31,11 @@ the tokens in `admin.css`.
 - **The plank is the same in every project.** Its colours are fixed:
   `#C98B4F` for the board, `#E0A869` for the lit top edge, `#9B6534` for the
   grain and the knot. Only the element above it changes colour.
-- **Three rings and no fourth.** The rings are drawn in the ground colour on top
-  of the cloud and clipped to it; a fourth closes the gaps at small sizes.
+- **Four round rings, low in the cloud.** The rings are circles drawn in the
+  ground colour on top of the cloud and clipped to it, centred below the
+  cloud's middle so that the outer two run out at its edge like the rings of a
+  sawn log. They were three flattened ellipses until 0.0.16; round ones read as
+  growth rings at every size, where the ellipses read as a target.
 - **Do not outline the cloud or the plank.** A stroke around either doubles the
   edge and thickens at small sizes.
 - **Clear space** of half the mark's height on every side.

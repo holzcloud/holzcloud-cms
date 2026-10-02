@@ -1,5 +1,5 @@
 [Unit]
-Description=Nightly Holzcloud CMS backup
+Description=Nightly holzcloud-CMS backup
 Documentation=file:///opt/holzcloud/deploy/DEPLOY.md
 
 [Timer]

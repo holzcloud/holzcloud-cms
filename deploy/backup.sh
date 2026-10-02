@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Holzcloud CMS backup
+# holzcloud-CMS backup
 #
 # The database snapshot is taken by the binary itself (VACUUM INTO through the
 # pure-Go driver) and verified with an integrity check before this script counts

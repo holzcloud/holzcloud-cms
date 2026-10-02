@@ -14,6 +14,24 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.16 — 2026-10-02
+
+**Das CMS heisst holzcloud-CMS, und seine Ringe sind rund.** Wo die
+Verwaltung, die Dokumentation und die Schnittstelle für KI-Assistenten den
+Namen des Programms nennen, steht jetzt „holzcloud-CMS“ statt „Holzcloud CMS“;
+Binary, Modul, Repository und Adressen heissen weiter wie bisher. Im Zeichen
+des CMS stehen statt drei flacher Ellipsen vier runde Jahresringe, etwas tiefer
+in der Wolke, wie im Querschnitt eines Stamms: oben links in der Verwaltung, auf
+der Anmeldung, im Favicon und in Banner und Karte des Repositorys.
+
+**Karten und Aufrufe in der Vorlage „holzcloud“ nutzen die ganze Breite.**
+Karten und Aufruf-Kästen stehen auf jeder Seite über die volle Inhaltsbreite
+statt nur in der Textspalte. Jede Karte hat jetzt die knappe Form der Stärken im
+Auftakt einer Programmseite: Titel oben, Text gleich darunter, eine Kante in der
+Farbe der Seite als oberer Rand. Der Knopf im Aufruf steht wieder in der Mitte;
+eine Breitenbegrenzung für Absätze hatte ihn nach links geschoben. Nach dem
+Update ist nichts zu tun.
+
 ## 0.0.15 — 2026-10-02
 
 **Der Admin trägt die Farbe des CMS.** Der Akzent der Verwaltung war bisher ein

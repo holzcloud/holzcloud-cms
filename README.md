@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/brand/banner.png" alt="Holzcloud CMS — a self-hosted CMS that needs no JavaScript and loads nothing from anywhere else">
+  <img src="docs/brand/banner.png" alt="holzcloud-CMS — a self-hosted CMS that needs no JavaScript and loads nothing from anywhere else">
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
   <a href="https://github.com/holzcloud/holzcloud-cms/releases">Releases</a>
 </p>
 
-**Holzcloud CMS** is a self-hosted CMS for a small server that **needs no
+**holzcloud-CMS** is a self-hosted CMS for a small server that **needs no
 JavaScript and loads nothing from anywhere else**. One Go binary, one SQLite
 file, many websites: requests reach a site by their `Host` header, pages are
 written in Markdown with images, galleries and forms dropped in between, and
@@ -57,7 +57,7 @@ somebody else's service is down, leaks no visitor to anybody, and needs no
 cookie banner.
 
 > [!WARNING]
-> **Holzcloud CMS is alpha software under heavy development.** Features,
+> **holzcloud-CMS is alpha software under heavy development.** Features,
 > settings, the template contract and the AI tools can change or disappear from
 > one release to the next, without a transition period. Back up the data
 > directory before every update and read the [changelog](CHANGELOG.md) first.
@@ -206,7 +206,7 @@ The screenshots show a fictional example site; a complete one to import is in
 
 ## Licence
 
-Holzcloud CMS is free software under the
+holzcloud-CMS is free software under the
 [GNU Affero General Public License v3](LICENSE). Running it for yourself or for
 clients obliges you to nothing beyond keeping the notices; if you offer a
 modified version to other people over a network, they are entitled to your

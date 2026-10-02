@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Holzcloud CMS restore
+# holzcloud-CMS restore
 #
 # The counterpart that was missing: DEPLOY.md had a backup section and no
 # restore section, so the backups had never been proven to be restorable.
