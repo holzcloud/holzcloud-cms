@@ -118,7 +118,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-02 - Completed quick task 261002-izq: holzcloud-CMS überall
+Last activity: 2026-10-03 - Completed quick task 261003-lk9: Repo für Public aufgeräumt
 
 ### Milestone Map
 
@@ -253,6 +253,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | fast | Sponsor-Knopf: .github/FUNDING.yml und Sponsor-Badge im README | 2026-10-01 | — | — | — |
 | 261002-izq | Programmname überall holzcloud-CMS, neue Screenshots (0.0.17) | 2026-10-02 | c109e47 | — | [261002-izq-holzcloud-cms-umbenennung](./quick/261002-izq-holzcloud-cms-umbenennung/) |
 | fast | Versehentlich eingechecktes Binary holzcloud entfernt, in .gitignore | 2026-10-02 | — | — | — |
+| 261003-lk9 | Repo für Public: Kundennamen neutral, pyc entfernt, private Repo-Namen in Kommentaren neutral | 2026-10-03 | 040c599 | — | [261003-lk9-repo-f-r-public-aufr-umen-kundennamen-py](./quick/261003-lk9-repo-f-r-public-aufr-umen-kundennamen-py/) |
 
 ### Performance Metrics
 
