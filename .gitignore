@@ -79,3 +79,7 @@ plugins/*/nicht-gefunden
 
 # The binary that `go build ./cmd/holzcloud` leaves in the repository root.
 /holzcloud
+
+# Python
+__pycache__/
+*.pyc

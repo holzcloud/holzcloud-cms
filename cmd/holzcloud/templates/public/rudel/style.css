@@ -803,7 +803,7 @@ html { scroll-padding-top: var(--hc-space-9); }
    .hc-bar bringt Kleben, Papierdeckung und Kante mit; was hier
    steht, ist der Inhalt darin. */
 /* flex: 0 1 auto statt none, dazu min-width: 0 — ein Betrieb mit
-   einem langen Namen („Hundezucht Delnahida") sprengte die Leiste
+   einem langen Namen („Hundezucht Beispiel") sprengte die Leiste
    sonst auf einem Telefon nach rechts hinaus, weil ein
    flex: none-Element auf seiner max-content-Breite besteht. */
 .site-mark { display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; }
@@ -840,7 +840,7 @@ html { scroll-padding-top: var(--hc-space-9); }
    Zeiger. Geschaltet wird über Sichtbarkeit und Deckkraft und nicht
    über display, damit der Übergang etwas zu animieren hat.
 
-   Delnahida hat sechs Hauptpunkte, zwei davon mit Untermenü. */
+   Die Hundezucht Beispiel hat sechs Hauptpunkte, zwei davon mit Untermenü. */
 .site-menu li > ul {
   position: absolute; inset-inline-start: 0; inset-block-start: 100%;
   z-index: 40;
@@ -882,7 +882,7 @@ html { scroll-padding-top: var(--hc-space-9); }
  * 1265 px Inhaltsbreite eine scrollWidth von 1319, also 54 px Überlauf; mit
  * diesen Regeln 1280 zu 1280.
  *
- * Für Delnahida schlägt es heute NICHT durch — nachgemessen, nicht vermutet:
+ * Für die Hundezucht Beispiel schlägt es heute NICHT durch — nachgemessen, nicht vermutet:
  * die Untermenüs hängen am zweiten und vierten von sechs Punkten und enden bei
  * 1016 px (Fenster 1280) und 851 px (Fenster 1100). Die Regeln stehen
  * trotzdem hier: welcher Punkt am rechten Rand steht, entscheidet der Inhalt
@@ -1408,7 +1408,7 @@ main:focus { outline: none; }
    column. Wer das eines Tages „aufräumt", holt das Treppenmuster
    zurück.
 
-   Ausserdem die Menge: Delnahida hat SECHS Hauptpunkte, zwei davon
+   Ausserdem die Menge: die Hundezucht Beispiel hat SECHS Hauptpunkte, zwei davon
    mit Untermenü. Das sind rund 320 px Leiste, bevor auf einem
    Telefon der erste Inhalt kommt — auf jeder Seite. Deshalb
    zugeklappt statt umgebrochen. */
