@@ -319,7 +319,7 @@ Checked before anything was driven. `git log --oneline` shows the review-fix com
 
 ### The instrument
 
-Chrome 152 headless, driven over the DevTools Protocol through a WebSocket client written in Python stdlib only (no npm, no Node in the loop). Scratch installation: `HOLZCLOUD_DATA_DIR` under the session scratch path, migrations 0 → 51, two archives seeded (`seehof-seewen.zip` on `weide`, `delnahida.zip` on `rudel`), one admin account, sign-in with the compulsory TOTP. **No real data directory was used and the scratch one was removed at the end** (`data dir gone: yes`, `port 8099: free`).
+Chrome 152 headless, driven over the DevTools Protocol through a WebSocket client written in Python stdlib only (no npm, no Node in the loop). Scratch installation: `HOLZCLOUD_DATA_DIR` under the session scratch path, migrations 0 → 51, two archives seeded (`beispielhof-hof.zip` on `weide`, `beispiel-zucht.zip` on `rudel`), one admin account, sign-in with the compulsory TOTP. **No real data directory was used and the scratch one was removed at the end** (`data dir gone: yes`, `port 8099: free`).
 
 Screenshots were captured for each step into the session scratch directory. They are **not** the evidence: `.playwright-mcp/` and the scratch path are both outside the repository, so every claim below is a number or a string that can be re-measured. That is deliberate and answers this project's standing criticism of browser gates.
 
@@ -333,7 +333,7 @@ Reached from the navigation: `a.nav-item[href$='/albums']`, labelled `Albums`, s
 
 ```
 URL      /admin/websites/1/albums
-h1       Albums – Milchschäferei Seehof
+h1       Albums – Milchschäferei Beispielhof
 nav-item anchors      25
 active nav item       Albums
 <body hx-headers>     {"X-CSRF-Token": "1jLxBgw…"}
@@ -350,7 +350,7 @@ first picture's ↑ button  disabled: True
 last  picture's ↓ button  disabled: True     (still true AFTER reordering)
 ```
 
-Renamed to `Sommer 2026 am Seehof`; flash `Album saved`; and the address held: *"The album’s address stays sommer-2026. Pages carrying it do not lose it when it is renamed."* — which is my own new translation of a sentence the template splits around a `<code>` element, rendering correctly.
+Renamed to `Sommer 2026 am Hof`; flash `Album saved`; and the address held: *"The album’s address stays sommer-2026. Pages carrying it do not lose it when it is renamed."* — which is my own new translation of a sentence the template splits around a `<code>` element, rendering correctly.
 
 ### Step 2 — the edit screen's layout, as its own observation
 
@@ -358,7 +358,7 @@ The second of the two `layoutPageNames` entries, and the failure mode is silent,
 
 ```
 URL      /admin/websites/1/albums/1
-title    Album Sommer 2026 am Seehof – Milchschäferei Seehof — Holzcloud
+title    Album Sommer 2026 am Hof – Milchschäferei Beispielhof — Holzcloud
 nav-item anchors      25
 active nav item       Albums
 <body hx-headers>     present
@@ -374,7 +374,7 @@ Both screens render inside the base layout. Confirmed by eye in the screenshots 
 
 ```
 "Sommer 2026"           -> "An album with this name already exists"   (refused)
-"Sommer 2026 am Seehof" -> "Album created"                            ← two albums, one name
+"Sommer 2026 am Hof" -> "Album created"                            ← two albums, one name
 ```
 
 The second is exactly the state `internal/bundle/album_collision_test.go` exists to forbid. CR-02 had closed `Rename` and its comment justified leaving `Create` alone: *"Create refuses a duplicate through the UNIQUE constraint on the slug."* That sentence stops being true at the first rename — the slug deliberately does not move (GAL-04), so the **old name** is free again under a **different** slug and the `INSERT` walks past the constraint. Fixed in `a3a5fe8`; see *Deviations* below.
@@ -382,10 +382,10 @@ The second is exactly the state `internal/bundle/album_collision_test.go` exists
 Re-driven after the fix:
 
 ```
-"Sommer 2026 am Seehof" -> "An album with this name already exists"
+"Sommer 2026 am Hof" -> "An album with this name already exists"
 "Sommer 2026"           -> "Another album already has the address this name produces"
 "Herbst 2026"           -> "Album created"
-rows afterwards: Herbst 2026 | Sommer 2026 am Seehof
+rows afterwards: Herbst 2026 | Sommer 2026 am Hof
 SQL / UNIQUE / constraint text anywhere on the page: none
 ```
 
@@ -592,7 +592,7 @@ htmx swaps a fragment; without it the same POST round-trips the whole page. Enha
 ### Step 10 — a second website
 
 ```
-/admin/websites/2/albums   h1 "Albums – Delnahida"   rows 0
+/admin/websites/2/albums   h1 "Albums – Beispiel-Zucht"   rows 0
                            "No albums yet. Create the first one above."
 any of website 1's album names visible:  False
 ```
@@ -605,7 +605,7 @@ POST /admin/websites/2/albums/1/update       -> 404, leaks nothing
 POST /admin/websites/2/albums/1/delete       -> 404, leaks nothing
 POST /admin/websites/2/albums/1/pictures     -> 404, leaks nothing
 POST without a CSRF token                    -> 403 ("CSRF token not found in request")
-album 1 afterwards: name "Sommer 2026 am Seehof", 6 pictures — untouched
+album 1 afterwards: name "Sommer 2026 am Hof", 6 pictures — untouched
 ```
 
 GAL-05, seen: the store's WHERE clauses, the handler's checks and the route authorisation exercised together in one browser for the only time.
@@ -657,15 +657,15 @@ See *Deviations → not fixed* below.
 Exported through the UI link *Download the website*:
 
 ```
-attachment; filename="milchschaeferei-seehof-2026-09-08.holzcloud.zip"   6 880 104 bytes, 15 entries
+attachment; filename="milchschaeferei-beispielhof-2026-09-08.holzcloud.zip"   6 880 104 bytes, 15 entries
 manifest albums:
   [{"name":"Herbst 2026"}, {"name":"Ohne Skript 2026"},
-   {"name":"Sommer 2026 am Seehof","items":[
+   {"name":"Sommer 2026 am Hof","items":[
      {"media":"baechlein-01.jpg","alt":"Ein Bach im Sommer","caption":"Der Bach hinter dem Hof"},
      {"media":"kontakt-01.jpg","alt":"Kleines Bild ohne Varianten"},
      {"media":"milchschafe-04.jpg","alt":"Milchschafe auf der Weide"},
      {"media":"haus-01.jpg","alt":"Das Hofhaus","caption":"Das Hofhaus von vorn"},
-     {"media":"seehof-02.jpg","alt":"Ohne Skript hinzugefuegt"},
+     {"media":"beispielhof-02.jpg","alt":"Ohne Skript hinzugefuegt"},
      {"media":"huehner-02.jpg","alt":"Huehner, im Album ergaenzt","caption":"Nachtraeglich hinzugefuegt"}]}]
 ```
 
@@ -677,12 +677,12 @@ Import finished — 9 pages and posts, 14 files, 1 menus, 2 snippets, 3 albums
 warnings: none
 ```
 
-The imported album carried its pictures, and the address was **re-derived** rather than copied — which is the design (`sommer-2026` on the source, whose name had moved; `sommer-2026-am-seehof` on the target, derived from the travelling name):
+The imported album carried its pictures, and the address was **re-derived** rather than copied — which is the design (`sommer-2026` on the source, whose name had moved; `sommer-2026-am-hof` on the target, derived from the travelling name):
 
 ```
 album 7 on website 3, 6 items, in order, with alt texts and captions intact
-markers on the imported pages:  page 31 home        [[album:sommer-2026-am-seehof:9]]
-                                page 32 milchschafe [[album:sommer-2026-am-seehof:7]]
+markers on the imported pages:  page 31 home        [[album:sommer-2026-am-hof:9]]
+                                page 32 milchschafe [[album:sommer-2026-am-hof:7]]
 ```
 
 Both public pages of the new website:
@@ -723,7 +723,7 @@ The five images reading `naturalWidth == 0` on the home page carry `loading="laz
 **1. [Rule 1 — Bug] `album.Store.Create` minted a second album with an existing name after a rename**
 
 - **Found during:** Task 2, browser step 3.
-- **Issue:** CR-02 closed `Rename` and justified leaving `Create` alone with *"Create refuses a duplicate through the UNIQUE constraint on the slug"*. That holds only while a name still derives its album's slug. The slug deliberately does not move on rename (GAL-04 needs the address to stand still), so the old name becomes free again under a different slug and the `INSERT` passes the constraint. Driven: rename `Sommer 2026` → `Sommer 2026 am Seehof`, create `Sommer 2026 am Seehof`, and the list shows the name twice. That is the state `internal/bundle/album_collision_test.go` exists to forbid — two indistinguishable manifest entries, one album's pictures lost on import, every gallery bound to the survivor.
+- **Issue:** CR-02 closed `Rename` and justified leaving `Create` alone with *"Create refuses a duplicate through the UNIQUE constraint on the slug"*. That holds only while a name still derives its album's slug. The slug deliberately does not move on rename (GAL-04 needs the address to stand still), so the old name becomes free again under a different slug and the `INSERT` passes the constraint. Driven: rename `Sommer 2026` → `Sommer 2026 am Hof`, create `Sommer 2026 am Hof`, and the list shows the name twice. That is the state `internal/bundle/album_collision_test.go` exists to forbid — two indistinguishable manifest entries, one album's pictures lost on import, every gallery bound to the survivor.
 - **Fix:** `Create` now checks the name in the same write transaction as its insert, for `Rename`'s reason (the read pool is a different WAL snapshot). `ErrDuplicateSlug` split off from `ErrDuplicateName` so an address collision keeps its own sentence. `Rename`'s comment corrected where it asserted the false thing.
 - **Files modified:** `internal/album/store.go`, `internal/admin/album.go`, `internal/bundle/album_collision_test.go`, the four catalogues.
 - **Verification:** `TestCreateRefusesANameARenamedAlbumAlreadyHas`, with two mutation probes driven red and each restored:

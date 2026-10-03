@@ -23,7 +23,7 @@ jeder nachfahren.
 
     Album "Sommer 2026" (Kennung sommer-2026), drei Bilder mit Alt und Unterschrift
     Galerie-Baustein auf Seite 1, der das Album benennt — b9.album=sommer-2026
-    Seite veröffentlicht, Theme weide, Host seehof.localhost
+    Seite veröffentlicht, Theme weide, Host beispielhof.localhost
 
 ## 1. Der Baustein überlebt das Speichern, das ihn anlegt
 
@@ -138,7 +138,7 @@ Phase 7, 8 und 9 haben je nach einem abgezeichneten Durchgang noch sichtbare
 ```bash
 go build -o /tmp/holzcloud ./cmd/holzcloud
 HOLZCLOUD_DATA_DIR=/tmp/hcdata go run ./build/devseed \
-    build/pakete/seehof-seewen.zip:weide:seehof.localhost
+    build/pakete/beispielhof-hof.zip:weide:beispielhof.localhost
 printf 'ein sicheres passwort' | HOLZCLOUD_DATA_DIR=/tmp/hcdata \
     /tmp/holzcloud user create -email admin@test.local -name Admin -role admin
 HOLZCLOUD_DATA_DIR=/tmp/hcdata HOLZCLOUD_PORT=8099 HOLZCLOUD_SECURE=false /tmp/holzcloud

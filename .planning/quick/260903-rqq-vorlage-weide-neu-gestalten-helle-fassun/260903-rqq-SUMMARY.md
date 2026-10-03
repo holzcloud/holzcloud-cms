@@ -195,7 +195,7 @@ erdbrauner Text auf erdbrauner Fläche stünde.
 - **Gefunden bei:** Aufgabe 3, bei der Durchsicht gegen 390 px
 - **Problem:** `.site-mark` stand nach dem Muster von `holzcloud` auf
   `flex: none`. Dort trägt die Marke einen kurzen Namen; hier heisst ein Betrieb
-  „Milchschäferei Seehof", und ein `flex: none`-Element besteht auf seiner
+  „Milchschäferei Beispielhof", und ein `flex: none`-Element besteht auf seiner
   `max-content`-Breite — die Leiste lief auf einem Telefon nach rechts hinaus.
 - **Fix:** `flex: 0 1 auto` mit `min-width: 0`, dazu `overflow-wrap: break-word`
   am Namen.
@@ -257,7 +257,7 @@ bei `holzcloud` den einen Fehler, den keine der obigen Prüfungen sah.
 ## Nach der Sichtprüfung
 
 Der Orchestrator hat die Vorlage im Browser gegen die echte Website der
-Milchschäferei Seehof geprüft. Aufmacher, Schrift, Farbwelt und Textkörper
+Milchschäferei Beispielhof geprüft. Aufmacher, Schrift, Farbwelt und Textkörper
 trugen; zwei Befunde kamen zurück und sind in denselben Quick-Task geflossen.
 
 ### Befund 1 — Die Navigation unter 1000 px war eine Treppe (Commit 5df88df)

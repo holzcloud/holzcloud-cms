@@ -127,7 +127,7 @@ var (
 	// Distinct from ErrDuplicateName since the name check above went in, and
 	// the distinction is the whole point of having two: after a rename the two
 	// collisions are different events with different remedies. "Sommer 2026"
-	// against an album called "Sommer 2026 am Seehof" whose address is still
+	// against an album called "Sommer 2026 am Hof" whose address is still
 	// sommer-2026 is a SLUG collision, and answering it with "an album with
 	// this name already exists" sends an operator to a list in which no such
 	// name appears — the one answer that cannot be acted on, which is the
@@ -201,8 +201,8 @@ func isDuplicate(err error) bool {
 // through the UNIQUE constraint on the slug, and this refuses the case the
 // slug cannot see" — which is sound only while every album's name still
 // derives its slug. It stops being sound at the first rename, because the slug
-// deliberately does not move: an album named "Sommer 2026 am Seehof" whose
-// address is still sommer-2026 leaves the name "Sommer 2026 am Seehof" free
+// deliberately does not move: an album named "Sommer 2026 am Hof" whose
+// address is still sommer-2026 leaves the name "Sommer 2026 am Hof" free
 // under a DIFFERENT slug, and a second Create takes it with no constraint in
 // the way. Driven through the running application on 2026-09-08 rather than
 // argued: rename, create, and the list shows one name twice.

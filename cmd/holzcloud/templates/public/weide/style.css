@@ -762,7 +762,7 @@ html { scroll-padding-top: var(--hc-space-9); }
    .hc-bar bringt Kleben, Papierdeckung und Kante mit; was hier
    steht, ist der Inhalt darin. */
 /* flex: 0 1 auto statt none, dazu min-width: 0 — ein Betrieb mit einem langen
-   Namen („Milchschäferei Seehof") sprengte die Leiste sonst auf einem
+   Namen („Milchschäferei Beispielhof") sprengte die Leiste sonst auf einem
    Telefon nach rechts hinaus, weil ein flex: none-Element auf seiner
    max-content-Breite besteht. */
 .site-mark { display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; }
@@ -1318,7 +1318,7 @@ main:focus { outline: none; }
 
   /* Die Wortmarke geht mit Basis 0 in den Zeilenumbruch der Leiste. Mit
      flex: 0 1 auto zählte ihre volle Textbreite: ein langer Name
-     („Kinderbauernhof Seehof") passte nicht mehr neben den Menüknopf, und
+     („Kinderbauernhof Beispielhof") passte nicht mehr neben den Menüknopf, und
      der Knopf rutschte in eine eigene Zeile. So steht der Knopf immer
      rechts neben dem Namen, und reicht der Platz trotzdem nicht, bricht
      der Name in sich um statt die Leiste. */

@@ -81,7 +81,7 @@ actuals:
 Die mitgelieferte öffentliche Vorlage `rudel` trägt jetzt dieselbe Architektur
 wie die soeben abgenommene Schwestervorlage `weide`, ins Waldgrüne übersetzt:
 gebrochenes Weiss mit kühlerem Zug statt warmem Creme, Waldgrün statt Erdbraun,
-Manrope statt System-Serifen. Sie kleidet die Website der Hundezucht Delnahida,
+Manrope statt System-Serifen. Sie kleidet die Website der Hundezucht Beispiel,
 und alles, was diese Website besonders macht — 85 Bilder, viele im Hochformat,
 zwölf Tierporträts, sechs Menüpunkte, handgeschriebenes HTML im Markdown —,
 steht als Begründung in den Kommentaren.
@@ -285,7 +285,7 @@ selbst. `weide` wird getrennt nachgebessert.
   Milchschäferei gemessen: `clientWidth` 1265, `scrollWidth` 1271, also eine
   waagrechte Bildlaufleiste auf **jeder** Seite, ohne das Menü je zu öffnen;
   geöffnet wäre der rechte Rand abgeschnitten.
-- **Für Delnahida nachgemessen, nicht angenommen:** es schlägt hier **nicht**
+- **Für die Hundezucht Beispiel nachgemessen, nicht angenommen:** es schlägt hier **nicht**
   durch. Die Untermenüs hängen am zweiten und vierten von sechs Punkten und
   enden bei 1016 px (Fenster 1280) und 851 px (Fenster 1100) — rund 250 px
   Luft. Die Regel steht trotzdem, denn welcher Punkt am rechten Rand steht,
