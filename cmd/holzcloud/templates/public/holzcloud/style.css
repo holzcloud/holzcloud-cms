@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════
    Holzcloud — die Gestaltung von holzcloud.ch als Vorlage
 
-   Zusammengesetzt am 2026-09-03 aus holzcloud-design v1.0.0.
+   Zusammengesetzt am 2026-09-03 aus dem privaten Design-Repository v1.0.0.
 
    Fünf Dateien lagen im Original. Vier davon sind das gemeinsame
    Gestaltungssystem und stehen unten unverändert:
@@ -75,7 +75,7 @@
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
-/* ==== holzcloud-design v1.0.0 — verbatim begin ==== */
+/* ==== design repository v1.0.0 — verbatim begin ==== */
 /* ══════════════════════════════════════════════════════════════
    holzcloud design tokens
 
@@ -826,7 +826,7 @@
   .hc-draw-bar--mid   { stroke: var(--hc-iso-bar-2); }
   .hc-draw-bar--short { stroke: var(--hc-iso-bar-3); }
 }
-/* ==== holzcloud-design v1.0.0 — verbatim end ==== */
+/* ==== design repository v1.0.0 — verbatim end ==== */
 
 /* ══════════════════════════════════════════════════════════════
    CMS-Schicht

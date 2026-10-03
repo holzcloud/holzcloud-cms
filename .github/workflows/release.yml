@@ -279,7 +279,7 @@ jobs:
     # job mints is not one: the Releases API creates it with this workflow's
     # own token, and GitHub starts no workflow from an event that token
     # caused. So from v2.0 to v2.6 not one release reached GHCR as an image -
-    # the newest tag there stayed v1.10, holzkube-infra stayed on it, and
+    # the newest tag there stayed v1.10, the infrastructure repository stayed on it, and
     # Renovate, which follows the tags, had nothing newer to offer.
     #
     # workflow_dispatch is the documented exception to that rule. A tag pushed
@@ -296,7 +296,7 @@ jobs:
   # holzcloud.ch shows the released version on the holzcloud-CMS page in five
   # languages. This writes it there through the CMS itself, after the release
   # exists, and reads it back. .github/cms-version.py is a copy of
-  # holzcloud-design's tools/cms-version.py, where its tests live (that
+  # the private design repository's tools/cms-version.py, where its tests live (that
   # repository is private, so its reusable workflow cannot be called from
   # here). Without the CMS_TOKEN secret it prints a notice and succeeds; a
   # failure here leaves the release itself untouched.
