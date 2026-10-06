@@ -101,6 +101,29 @@ jetzt, was das Programm tut und prüft: Weiterleitung statt Kartendaten, keine
 Benachrichtigung wird geglaubt, sondern der Anbieter wird gefragt, und Betrag,
 Währung und Zahlungsseite müssen zur Bestellung passen.
 
+**Go-Version, Bibliotheken und htmx sind auf dem neuesten Stand.** Das Programm
+wird mit Go 1.26.8 gebaut (auch das Container-Image und die mitgelieferten
+Plugin-Module). Aktualisiert sind `golang.org/x/net`, `golang.org/x/image` und
+die SQLite-Bibliothek `modernc.org/sqlite` samt ihrer Laufzeit. Die Prüfung mit
+`govulncheck` findet keine Lücke, die das Programm erreicht. Zwei Meldungen
+betreffen Teile, die das Programm nicht aufruft, und hatten noch keine
+korrigierte Fassung. Dazu kommt htmx 2.0.11, dessen Prüfsumme gegen die
+Angabe der Paketquelle verglichen wurde. Die Schritte zum Bauen des Images
+laufen in GitHub Actions jetzt auf festen, geprüften Versionen statt auf
+beweglichen Marken. Nach dem Update ist nichts zu tun.
+
+**Der Dienst darf unter systemd weniger.** Die mitgelieferte Datei
+`holzcloud.service` erlaubt dem Prozess nur noch IPv4, IPv6 und lokale Sockets,
+sperrt privilegierte Systemaufrufe und Eingriffe in Ressourcen, verzichtet auf
+alle Capabilities (Port 8080 braucht keine), verbirgt fremde Prozesse und
+schützt Uhr, Hostnamen und Kernel-Log. Neue Dateien sind nur für den
+Dienstbenutzer lesbar. Auf einem bestehenden Server wirkt das erst mit der
+neuen Datei: kopieren, `sudo systemctl daemon-reload && sudo systemctl restart holzcloud`,
+danach `journalctl -u holzcloud` ansehen und mit
+`systemd-analyze security holzcloud` prüfen. Liegt das Datenverzeichnis nicht
+unter `/opt/holzcloud/data`, muss `ReadWritePaths` angepasst werden; ein Port
+unter 1024 braucht `CAP_NET_BIND_SERVICE`.
+
 ## 0.0.20 — 2026-10-06
 
 **Der SEO-Check sagt, was an einer Seite besser sein könnte.** Im Editor gibt es
