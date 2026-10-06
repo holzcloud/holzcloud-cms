@@ -487,6 +487,7 @@ var editorOpenRoutes = []route{
 	{pattern: "GET /admin/websites/{id}"},
 	{pattern: "POST /admin/websites/{id}"},
 	{pattern: "GET /admin/websites/{id}/pages"},
+	{pattern: "GET /admin/websites/{id}/seo"},
 	{pattern: "GET /admin/websites/{id}/uebersetzungen"},
 	{pattern: "GET /admin/websites/{id}/pages/new"},
 	{pattern: "POST /admin/websites/{id}/pages/new"},

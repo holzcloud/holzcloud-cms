@@ -1,0 +1,76 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Back to the pages"}}</a>{{end}}
+
+{{define "content"}}
+{{template "seo_report-content" .}}
+{{end}}
+
+{{define "seo_report-content"}}
+<div class="card" style="margin-bottom: var(--space-3);">
+    <p class="text-muted">
+        {{t "Every page of this website, checked as it is saved: titles, descriptions, headings, images, links and addresses. Open a page to fix what is listed; the SEO tab beside the editor shows the same hints."}}
+    </p>
+    <ul class="seo-summary">
+        <li class="seo-summary__item"><span class="seo-summary__number">{{.Checked}}</span><span class="text-muted">{{t "Pages checked"}}</span></li>
+        <li class="seo-summary__item"><span class="seo-summary__number">{{.Affected}}</span><span class="text-muted">{{t "Pages with hints"}}</span></li>
+        <li class="seo-summary__item"><span class="seo-summary__number">{{.Errors}}</span><span class="text-muted">{{t "Errors"}}</span></li>
+        <li class="seo-summary__item"><span class="seo-summary__number">{{.Warnings}}</span><span class="text-muted">{{t "Warnings"}}</span></li>
+        <li class="seo-summary__item"><span class="seo-summary__number">{{.Notes}}</span><span class="text-muted">{{t "Notes"}}</span></li>
+    </ul>
+
+    {{if .Codes}}
+    <form method="get" action="/admin/websites/{{.WebsiteID}}/seo" class="seo-filter">
+        <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="seo-code">{{t "Show only"}}</label>
+            <select id="seo-code" name="code" class="form-input form-select">
+                <option value="">{{t "All hints"}}</option>
+                {{range .Codes}}
+                <option value="{{.Code}}"{{if .Selected}} selected{{end}}>{{template "seo_label" .}} ({{.Pages}})</option>
+                {{end}}
+            </select>
+        </div>
+        <button type="submit" class="btn">{{t "Filter"}}</button>
+        {{if .Code}}<a href="/admin/websites/{{.WebsiteID}}/seo" class="btn">{{t "Reset"}}</a>{{end}}
+    </form>
+    {{end}}
+</div>
+
+<div class="card">
+    {{if .Rows}}
+    <table class="table seo-table">
+        <thead>
+            <tr>
+                <th scope="col">{{t "Page"}}</th>
+                {{if (index .Rows 0).Language}}<th scope="col">{{t "Language"}}</th>{{end}}
+                <th scope="col">{{t "Most serious"}}</th>
+                <th scope="col">{{t "Hints"}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Rows}}
+            <tr>
+                <td><a href="/admin/websites/{{$.WebsiteID}}/pages/{{.Page.ID}}/edit">{{if .Page.Title}}{{.Page.Title}}{{else}}/{{.Page.Slug}}{{end}}</a></td>
+                {{if .Language}}<td class="text-muted">{{.Language}}</td>{{end}}
+                <td><span class="seo-worst seo-worst--{{.Worst}}">{{if eq .Worst "error"}}{{t "Error"}}{{else if eq .Worst "warn"}}{{t "Warning"}}{{else}}{{t "Note"}}{{end}}</span></td>
+                <td>
+                    <ul class="seo-chips">
+                        {{range .Findings}}<li class="seo-chip seo-chip--{{.Severity}}">{{template "seo_label" .}}</li>{{end}}
+                    </ul>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{if or .HasPrev .HasNext}}
+    <nav class="seo-report-pager" aria-label="{{t "Pagination"}}">
+        {{if .HasPrev}}<a class="btn btn--sm" href="{{.PrevURL}}">{{t "Back"}}</a>{{end}}
+        <span class="text-muted">{{tf "Page %d of %d (%d entries)" .Page .TotalPages .Total}}</span>
+        {{if .HasNext}}<a class="btn btn--sm" href="{{.NextURL}}">{{t "Continue"}}</a>{{end}}
+    </nav>
+    {{end}}
+    {{else if .Affected}}
+    <p class="text-muted">{{t "No page has this hint."}}</p>
+    {{else}}
+    <p class="text-muted">{{t "Nothing to improve: no page has a hint."}}</p>
+    {{end}}
+</div>
+{{end}}

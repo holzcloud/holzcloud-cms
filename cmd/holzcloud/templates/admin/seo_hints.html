@@ -1,0 +1,32 @@
+{{/*
+  What a finding says, in words. A finding is a code and a number; the sentences
+  are here, one explicit branch per code, so every one of them is a literal the
+  translation catalogue collects. Nothing is assembled in Go and nothing is
+  built from Detail.
+
+  seo_label is the short name (filter, chips in the report), seo_hint the full
+  sentence with what to do (editor tab). Both take a seo.Finding.
+*/}}
+{{define "seo_label"}}{{if eq .Code "title-missing"}}{{t "No title"}}{{else if eq .Code "title-short"}}{{t "Title too short"}}{{else if eq .Code "title-long"}}{{t "Title too long"}}{{else if eq .Code "description-missing"}}{{t "No description"}}{{else if eq .Code "description-fallback"}}{{t "Description from the website"}}{{else if eq .Code "description-short"}}{{t "Description too short"}}{{else if eq .Code "description-long"}}{{t "Description too long"}}{{else if eq .Code "duplicate-title"}}{{t "Title used twice"}}{{else if eq .Code "duplicate-description"}}{{t "Description used twice"}}{{else if eq .Code "h1-in-body"}}{{t "Heading level 1 in the text"}}{{else if eq .Code "heading-skip"}}{{t "Heading level skipped"}}{{else if eq .Code "images-no-alt"}}{{t "Images without a description"}}{{else if eq .Code "thin-text"}}{{t "Little text"}}{{else if eq .Code "no-internal-links"}}{{t "No links to your own pages"}}{{else if eq .Code "slug-long"}}{{t "Address too long"}}{{else if eq .Code "slug-noise"}}{{t "Filler words in the address"}}{{else if eq .Code "noindex"}}{{t "Hidden from search engines"}}{{else if eq .Code "protected"}}{{t "Password protected"}}{{else if eq .Code "draft"}}{{t "Not published"}}{{else if eq .Code "no-featured-image"}}{{t "No preview image"}}{{else}}{{.Code}}{{end}}{{end}}
+
+{{define "seo_hint"}}{{if eq .Code "title-missing"}}{{t "The page has no title. The title is what search results show as the link, so give it one."}}
+{{else if eq .Code "title-short"}}{{tf "The title is only %d characters long. Between 20 and 60 characters usually says enough to earn the click." .Count}}
+{{else if eq .Code "title-long"}}{{tf "The title is %d characters long. Search results cut it off at about 60, so the end will not be seen." .Count}}
+{{else if eq .Code "description-missing"}}{{t "There is no description for search engines, and the website has none to fall back on. Write one of 70 to 160 characters under “Description for search engines” in the settings."}}
+{{else if eq .Code "description-fallback"}}{{t "This page has no description of its own, so the one of the website is used. A description that fits this page gets more clicks."}}
+{{else if eq .Code "description-short"}}{{tf "The description is only %d characters long. Between 70 and 160 characters fill the space in the search result." .Count}}
+{{else if eq .Code "description-long"}}{{tf "The description is %d characters long. Search results show about 160, so the end will be cut off." .Count}}
+{{else if eq .Code "duplicate-title"}}{{tf "%d other published pages in this language have the same title. Give each page its own, so search engines can tell them apart." .Count}}
+{{else if eq .Code "duplicate-description"}}{{tf "%d other published pages in this language have the same description. Write one that fits only this page." .Count}}
+{{else if eq .Code "h1-in-body"}}{{t "The text contains a heading of level 1. The theme already uses the title as the page heading; start the text with level 2."}}
+{{else if eq .Code "heading-skip"}}{{t "A heading skips a level, for example level 2 followed directly by level 4. Go down one level at a time."}}
+{{else if eq .Code "images-no-alt"}}{{tf "%d images have no description. Add one in the media library or beside the image, for people who cannot see it and for image search." .Count}}
+{{else if eq .Code "thin-text"}}{{tf "The page has only %d words. Pages with under 150 words rarely rank for anything; add what a visitor would ask." .Count}}
+{{else if eq .Code "no-internal-links"}}{{t "The text links to none of your own pages. A link to a related page helps visitors and search engines find it."}}
+{{else if eq .Code "slug-long"}}{{tf "The address is %d characters long. Addresses over 75 characters are cut off in search results." .Count}}
+{{else if eq .Code "slug-noise"}}{{t "The address contains filler words such as “and” or “the”. A shorter address is easier to read and to share."}}
+{{else if eq .Code "noindex"}}{{t "The page is hidden from search engines. That is right for a thank-you page, and not for a page that should be found."}}
+{{else if eq .Code "protected"}}{{t "The page is protected by a password, so search engines cannot read it."}}
+{{else if eq .Code "draft"}}{{t "The page is not published, so nobody can find it yet."}}
+{{else if eq .Code "no-featured-image"}}{{t "The page has no preview image. Links shared on social networks show a plain card without one."}}
+{{else}}{{.Code}}{{end}}{{end}}
