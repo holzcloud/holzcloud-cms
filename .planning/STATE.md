@@ -118,7 +118,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-03 - Completed quick task 261003-lk9: Repo für Public aufgeräumt
+Last activity: 2026-10-06 - Completed quick tasks 261006-741 and 261006-742: SEO
 
 ### Milestone Map
 
@@ -254,6 +254,8 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 261002-izq | Programmname überall holzcloud-CMS, neue Screenshots (0.0.17) | 2026-10-02 | c109e47 | — | [261002-izq-holzcloud-cms-umbenennung](./quick/261002-izq-holzcloud-cms-umbenennung/) |
 | fast | Versehentlich eingechecktes Binary holzcloud entfernt, in .gitignore | 2026-10-02 | — | — | — |
 | 261003-lk9 | Repo für Public: Kundennamen neutral, pyc entfernt, private Repo-Namen in Kommentaren neutral | 2026-10-03 | 040c599 | — | [261003-lk9-repo-f-r-public-aufr-umen-kundennamen-py](./quick/261003-lk9-repo-f-r-public-aufr-umen-kundennamen-py/) |
+| 261006-741 | SEO-Ausgabe: llms.txt, Bild-Sitemap, BlogPosting/Product-JSON-LD (0.0.20) | 2026-10-06 | 37b06f9 | — | [261006-741-seo-ausgabe-llms-txt-bild-sitemap-strukt](./quick/261006-741-seo-ausgabe-llms-txt-bild-sitemap-strukt/) |
+| 261006-742 | SEO-Check im Editor und SEO-Bericht pro Website (0.0.20) | 2026-10-06 | fbd23f8 | — | [261006-742-seo-check-im-editor-und-seo-bericht-pro-](./quick/261006-742-seo-check-im-editor-und-seo-bericht-pro-/) |
 
 ### Performance Metrics
 

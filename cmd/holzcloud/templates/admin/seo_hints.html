@@ -21,7 +21,7 @@
 {{else if eq .Code "h1-in-body"}}{{t "The text contains a heading of level 1. The theme already uses the title as the page heading; start the text with level 2."}}
 {{else if eq .Code "heading-skip"}}{{t "A heading skips a level, for example level 2 followed directly by level 4. Go down one level at a time."}}
 {{else if eq .Code "images-no-alt"}}{{tf "%d images have no description. Add one in the media library or beside the image, for people who cannot see it and for image search." .Count}}
-{{else if eq .Code "thin-text"}}{{tf "The page has only %d words. Pages with under 150 words rarely rank for anything; add what a visitor would ask." .Count}}
+{{else if eq .Code "thin-text"}}{{if eq .Count 1}}{{t "The page has only one word. Pages with under 150 words rarely rank for anything; add what a visitor would ask."}}{{else}}{{tf "The page has only %d words. Pages with under 150 words rarely rank for anything; add what a visitor would ask." .Count}}{{end}}
 {{else if eq .Code "no-internal-links"}}{{t "The text links to none of your own pages. A link to a related page helps visitors and search engines find it."}}
 {{else if eq .Code "slug-long"}}{{tf "The address is %d characters long. Addresses over 75 characters are cut off in search results." .Count}}
 {{else if eq .Code "slug-noise"}}{{t "The address contains filler words such as “and” or “the”. A shorter address is easier to read and to share."}}

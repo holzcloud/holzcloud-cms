@@ -163,9 +163,15 @@ or a URL, which would load a font from another server.
 
 Every website automatically serves, under each of its domains:
 
-- `/sitemap.xml` — the homepage plus every published page with a `lastmod` date.
-  Drafts are excluded by the query, so an unpublished page is not disclosed here
-  either.
+- `/sitemap.xml` — the homepage plus every published page with a `lastmod` date,
+  and under each page the images it shows (`image:image`, at most 1000 per page,
+  only pictures of this website). Drafts, scheduled pages, pages set to
+  *noindex* and password-protected pages are excluded by the query, so none of
+  them is disclosed here either.
+- `/llms.txt` — the same list as a Markdown file for AI search and assistants: the
+  site's name and description, then one section per language with
+  `[title](address): description` for each page. It reads the very selection the
+  sitemap reads, so the two cannot disagree.
 - `/robots.txt` — allows the public site, disallows `/admin/`, points at the
   sitemap.
 
@@ -174,7 +180,9 @@ Absolute URLs use the request's `Host` and the scheme implied by
 go to search engines, so a client must not be able to influence them.
 
 Every page carries a schema.org graph as JSON-LD: the organisation behind the
-site, the page or article itself, and a breadcrumb trail. That is the difference
+site, the page or article itself (a post is a `BlogPosting`), and a breadcrumb
+trail. A shop product also carries a `Product` with its `Offer` — price,
+currency and whether it is in stock. That is the difference
 between a search result with an address, opening hours and a telephone number and
 one with a blue link. The fields are the ones that belong in the imprint anyway;
 the settings screen only asks for them in a form a search engine understands
@@ -184,6 +192,17 @@ block at all, because a personal blog should not claim to be a shop.
 It is built in Go rather than left to the template. A template author who gets one
 field wrong produces a result that looks perfectly fine and is silently ignored,
 and there is nothing on the site itself to show it.
+
+### The SEO check
+
+In the page editor the **SEO** tab says what could be better on the saved
+version of the page: title and description missing, too short or too long
+(counted in characters, not bytes), the same title or description on another page
+of the website, a second H1 in the text, skipped heading levels, images without a
+description, very little text, no link to another page, a long or noisy address,
+and no picture for sharing. Each finding says what to change; nothing is blocked.
+**SEO** in the settings list shows the same for the whole website, filterable by
+finding, and the AI connection has it as the read-only tool `seo_report`.
 
 ## Plugins
 
