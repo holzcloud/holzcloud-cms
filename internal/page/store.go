@@ -1162,15 +1162,19 @@ func (s *Store) GetPageBySlug(ctx context.Context, websiteID int64, slug string)
 	return p, nil
 }
 
-// ListPublishedForSitemap returns every published page of a website, oldest
-// first, with only the fields a sitemap needs.
+// ListPublishedForSitemap returns every published page of a website that may be
+// advertised, oldest first.
 //
-// It is a separate query from ListPages because a sitemap must not be paginated
-// and does not need the page bodies, which are the bulk of a row.
+// It is a separate query from ListPages because a sitemap must not be paginated.
+// Pages marked noindex are excluded: a page that asks not to be indexed must not
+// be advertised in the sitemap or in llms.txt, which share this selection.
 func (s *Store) ListPublishedForSitemap(ctx context.Context, websiteID int64) ([]SitemapEntry, error) {
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT slug, updated_at, locale FROM pages
-		 WHERE website_id = $1`+ListablePredicate+`
+		`SELECT slug, updated_at, locale, title,
+		        COALESCE(NULLIF(meta_description, ''), excerpt, ''),
+		        featured_media_id, blocks, content_html
+		 FROM pages
+		 WHERE website_id = $1`+ListablePredicate+` AND noindex = 0
 		 ORDER BY created_at ASC`,
 		websiteID)
 	if err != nil {
@@ -1182,8 +1186,13 @@ func (s *Store) ListPublishedForSitemap(ctx context.Context, websiteID int64) ([
 	for rows.Next() {
 		var e SitemapEntry
 		var updatedAt string
-		if err := rows.Scan(&e.Slug, &updatedAt, &e.Locale); err != nil {
+		var featured sql.NullInt64
+		if err := rows.Scan(&e.Slug, &updatedAt, &e.Locale, &e.Title, &e.Description,
+			&featured, &e.Blocks, &e.ContentHTML); err != nil {
 			return nil, fmt.Errorf("scan sitemap entry: %w", err)
+		}
+		if featured.Valid {
+			e.FeaturedMediaID = &featured.Int64
 		}
 		e.UpdatedAt, _ = time.Parse(timeLayout, updatedAt)
 		entries = append(entries, e)

@@ -10,6 +10,15 @@ type SitemapEntry struct {
 	// sitemap needs it to write the prefix: without it every language of a page
 	// would be listed under the same address.
 	Locale string
+	// Title and Description feed llms.txt. Description is the meta description,
+	// falling back to the excerpt.
+	Title       string
+	Description string
+	// FeaturedMediaID, Blocks and ContentHTML are what the image sitemap reads
+	// to find the pictures a page shows.
+	FeaturedMediaID *int64
+	Blocks          string
+	ContentHTML     string
 }
 
 // Page represents a content page within a website.

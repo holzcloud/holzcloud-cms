@@ -45,6 +45,7 @@ var reservedSlugs = map[string]bool{
 	"readyz":      true,
 	"sitemap.xml": true,
 	"robots.txt":  true,
+	"llms.txt":    true,
 	"feed.xml":    true,
 	"search":      true,
 	"tag":         true,
