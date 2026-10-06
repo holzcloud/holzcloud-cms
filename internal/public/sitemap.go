@@ -11,17 +11,31 @@ import (
 
 // urlset and sitemapURL model the sitemaps.org 0.9 schema.
 type urlset struct {
-	XMLName xml.Name     `xml:"urlset"`
-	Xmlns   string       `xml:"xmlns,attr"`
-	URLs    []sitemapURL `xml:"url"`
+	XMLName xml.Name `xml:"urlset"`
+	Xmlns   string   `xml:"xmlns,attr"`
+	// XmlnsImage declares the image extension; encoding/xml writes the attribute
+	// name literally, which is what the prefixed element names below rely on.
+	XmlnsImage string       `xml:"xmlns:image,attr"`
+	URLs       []sitemapURL `xml:"url"`
 }
 
 type sitemapURL struct {
-	Loc     string `xml:"loc"`
-	LastMod string `xml:"lastmod,omitempty"`
+	Loc     string         `xml:"loc"`
+	LastMod string         `xml:"lastmod,omitempty"`
+	Images  []sitemapImage `xml:"image:image,omitempty"`
 }
 
-const sitemapNS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+// sitemapImage is one picture of a page in the Google image sitemap extension.
+type sitemapImage struct {
+	Loc     string `xml:"image:loc"`
+	Caption string `xml:"image:caption,omitempty"`
+	Title   string `xml:"image:title,omitempty"`
+}
+
+const (
+	sitemapNS      = "http://www.sitemaps.org/schemas/sitemap/0.9"
+	sitemapImageNS = "http://www.google.com/schemas/sitemap-image/1.1"
+)
 
 // HandleSitemap serves /sitemap.xml for the resolved website, listing the
 // homepage plus every published page. Draft pages are excluded by the query, so
@@ -38,9 +52,13 @@ func (h *Handler) HandleSitemap(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	doc := urlset{Xmlns: sitemapNS, URLs: make([]sitemapURL, 0, len(items))}
+	doc := urlset{Xmlns: sitemapNS, XmlnsImage: sitemapImageNS, URLs: make([]sitemapURL, 0, len(items))}
+	base := h.baseURL(r)
 	for _, it := range items {
-		doc.URLs = append(doc.URLs, sitemapURL{Loc: it.Loc, LastMod: it.LastMod})
+		doc.URLs = append(doc.URLs, sitemapURL{
+			Loc: it.Loc, LastMod: it.LastMod,
+			Images: h.pageImages(r.Context(), website, base, it.Entry),
+		})
 	}
 
 	body, err := xml.MarshalIndent(doc, "", "  ")

@@ -198,3 +198,10 @@ func (s *Store) Delete(ctx context.Context, id int64, dataDir string, force bool
 	_ = os.Remove(diskPath)
 	return nil
 }
+
+// FilenamesIn lists the file names of this website's media that a document
+// refers to, in order of appearance and without repeats. It is the parser
+// ExtractRefs uses, for callers that want the names rather than the ids.
+func FilenamesIn(websiteID int64, pageHTML string) []string {
+	return extractFilenames(websiteID, pageHTML)
+}
