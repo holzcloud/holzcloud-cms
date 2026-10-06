@@ -9,6 +9,7 @@ package bundle
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -31,9 +32,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/kind"
 	"github.com/holzcloud/holzcloud-cms/internal/locale"
+	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 )
 
 // Report says what an import did, in the words the operator needs.
@@ -255,13 +258,29 @@ func importMedia(ctx context.Context, s Stores, websiteID int64, zr *zip.Reader,
 			continue
 		}
 
+		// What the archive says a file is counts for nothing: the bytes decide,
+		// by the same check an upload in the admin goes through. A file that is
+		// a page, a script or XML under a picture's name would otherwise be
+		// served from this server's own origin.
+		mimeType, err := media.ValidateMIME(bytes.NewReader(data), name)
+		if err != nil {
+			report.warnf(i18n.N("file %q is not a picture, video or PDF and was skipped"), entry.Filename)
+			continue
+		}
+		if mimeType == "image/svg+xml" {
+			if refs := tmplmgr.CheckExternalRefs("import.svg", string(data)); len(refs) > 0 {
+				report.warnf(i18n.N("file %q loads something from another server and was skipped"), entry.Filename)
+				continue
+			}
+		}
+
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
 			report.warnf(i18n.N("file %q could not be stored: %v"), entry.Filename, err)
 			continue
 		}
 
 		created, err := s.Media.Create(ctx, websiteID, name, entry.OriginalName,
-			entry.MimeType, int64(len(data)), hashBytes(data))
+			mimeType, int64(len(data)), hashBytes(data))
 		if err != nil {
 			report.warnf(i18n.N("file %q could not be recorded: %v"), entry.Filename, err)
 			continue

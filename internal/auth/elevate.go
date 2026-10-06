@@ -60,9 +60,11 @@ const ConfirmPath = "/admin/bestaetigen"
 // Window 19, open on purpose and written here rather than only in the ledger.
 // An account the identity provider provisioned carries an Argon2id hash of a
 // random secret nobody was ever told (forwardauth.go's randomSecret says so at
-// its own site), so the five actions behind this middleware — delete a website,
-// delete a user, mint an AI key, remove a plugin, prune the protocol — are out
-// of reach for it. deploy/DEPLOY.md names this under "Three things single
+// its own site), so the actions behind this middleware — delete a website,
+// delete a user, mint an AI key, remove a plugin, prune the protocol, and since
+// 0.0.21 also switch a second factor off or renew recovery codes, upload or
+// enable a plugin or template, change a user, import a website — are out of
+// reach for it. deploy/DEPLOY.md names this under "Three things single
 // sign-on does not do yet" and gives the way round: `holzcloud user passwd`.
 //
 // The cure is not a smaller version of this one. What should happen is a fresh

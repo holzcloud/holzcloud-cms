@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -325,6 +326,18 @@ func (h *Handler) HandlePluginAsset(w http.ResponseWriter, r *http.Request) erro
 	// Long-lived: a plugin's assets change only when the plugin is replaced,
 	// and a replacement writes a new directory.
 	w.Header().Set("Cache-Control", "public, max-age=3600")
+	// A plugin's files come out of an uploaded archive and are served from the
+	// administration's own origin. Opened as a page, an .html or .svg would run
+	// there with the operator's session. So: no sniffing a type out of the
+	// bytes, a sandbox for anything that is navigated to, and a download for
+	// the kinds that are documents. Scripts and stylesheets stay usable as
+	// subresources of the plugin's own screen, which is what they are for.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".html", ".htm", ".xhtml", ".svg", ".xml":
+		w.Header().Set("Content-Disposition", "attachment")
+	}
 	http.ServeFile(w, r, path)
 	return nil
 }
