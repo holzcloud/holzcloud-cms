@@ -47,6 +47,12 @@ crontab -e
 | `backup.sh` | WAL-safe SQLite backup plus an rsync of media and templates |
 | `DEPLOY.md` | step-by-step setup for a Debian/Ubuntu amd64 server |
 
+The unit also limits socket families, system calls and capabilities and sets
+`UMask=0077`. `ReadWritePaths` lists `/opt/holzcloud/data`; a data directory
+elsewhere means editing that line. An existing installation copies the new unit,
+runs `sudo systemctl daemon-reload && sudo systemctl restart holzcloud`, then
+checks `journalctl -u holzcloud` and `systemd-analyze security holzcloud`.
+
 Behind TLS, set `HOLZCLOUD_SECURE=true` so cookies are marked Secure. See
 [configuration](configuration.md).
 

@@ -110,6 +110,17 @@ sudo systemctl status holzcloud
 
 The service is hardened with security flags (see `holzcloud.service`): the process cannot escalate privileges, cannot write outside its data directory, and runs with restricted system call access.
 
+Beyond that the unit now also restricts the process to IPv4, IPv6 and local sockets (`RestrictAddressFamilies`), filters system calls to `@system-service` minus `@privileged` and `@resources`, drops every capability (port 8080 needs none), hides other processes in `/proc`, protects clock, hostname and kernel log, and creates new files readable by the service user only (`UMask=0077`). `ReadWritePaths` names `/opt/holzcloud/data`: if `HOLZCLOUD_DATA_DIR` points elsewhere, edit that line, or the service cannot write. A port below 1024 needs `CAP_NET_BIND_SERVICE` in `CapabilityBoundingSet` and `AmbientCapabilities`.
+
+An existing installation picks this up only with the new unit file:
+
+```bash
+sudo cp /tmp/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
+sudo systemctl daemon-reload && sudo systemctl restart holzcloud
+journalctl -u holzcloud -n 50      # a blocked call shows up here as a start failure
+systemd-analyze security holzcloud # the exposure score should have dropped
+```
+
 ## Environment Variables
 
 Configure by editing the service file (`sudo systemctl edit holzcloud`) or adding a drop-in:

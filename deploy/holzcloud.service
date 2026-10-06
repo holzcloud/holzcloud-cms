@@ -73,6 +73,28 @@ MemoryDenyWriteExecute=true
 LockPersonality=true
 RestrictRealtime=true
 PrivateDevices=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+# The process sees only its own entries in /proc, and only the process part of it.
+ProtectProc=invisible
+ProcSubset=pid
+# Only TCP/UDP and local sockets. The service listens on an unprivileged port
+# (HOLZCLOUD_PORT, default 8080) and talks out over IPv4/IPv6 only (mail, payment,
+# sign-in); it needs no raw or packet sockets, no netlink.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# A Go program with SQLite and an embedded WebAssembly runtime stays inside
+# @system-service. Privileged calls (setuid, chown, mount ...) and resource
+# tuning are cut off; a call outside the list ends the process.
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# No capabilities at all: port 8080 needs none. If you move HOLZCLOUD_PORT below
+# 1024, put CAP_NET_BIND_SERVICE into both lines below (or keep the proxy in front).
+CapabilityBoundingSet=
+AmbientCapabilities=
+# Files the service creates (media, database, templates) are readable by the
+# service user only. Caddy talks to the port and never reads the data directory.
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target
