@@ -257,6 +257,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 261006-741 | SEO-Ausgabe: llms.txt, Bild-Sitemap, BlogPosting/Product-JSON-LD (0.0.20) | 2026-10-06 | 37b06f9 | — | [261006-741-seo-ausgabe-llms-txt-bild-sitemap-strukt](./quick/261006-741-seo-ausgabe-llms-txt-bild-sitemap-strukt/) |
 | 261006-742 | SEO-Check im Editor und SEO-Bericht pro Website (0.0.20) | 2026-10-06 | fbd23f8 | — | [261006-742-seo-check-im-editor-und-seo-bericht-pro-](./quick/261006-742-seo-check-im-editor-und-seo-bericht-pro-/) |
 | 261006-98s | Sicherheits-Audit 0.0.21, Gruppe 1: Bestellbestätigung per Token, Startseite, Mailpasswort, Zahlung, Host-Cache, Betragsüberlauf | 2026-10-06 | 6adb26b | — | [261006-98s-sicherheits-audit-0-0-21-gruppe-1-bestel](./quick/261006-98s-sicherheits-audit-0-0-21-gruppe-1-bestel/) |
+| 261006-9b2 | Sicherheits-Audit 0.0.21, Gruppe 2+3: Plugin-Migrationen, Medien/Assets, requireFresh, SMTP-Frist, SECURITY.md | 2026-10-06 | ecfdfeb | — | [261006-9b2-sicherheits-audit-0-0-21-gruppe-2-und-3](./quick/261006-9b2-sicherheits-audit-0-0-21-gruppe-2-und-3/) |
 
 ### Performance Metrics
 
