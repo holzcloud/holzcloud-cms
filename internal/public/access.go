@@ -35,14 +35,21 @@ func unlockCookieName(pageID int64) string {
 //
 // The value is a signed token rather than a flag: a cookie reading "yes" is one
 // any visitor can write themselves.
-func (h *Handler) grantAccess(w http.ResponseWriter, r *http.Request, pg *page.Page) {
+func (h *Handler) grantAccess(w http.ResponseWriter, r *http.Request, pg *page.Page, isHome bool) {
 	if h.unlock == nil {
 		return
+	}
+	// The home page is served at "/", and a cookie scoped to "/home" is never
+	// sent there: the visitor would type the right password and meet the gate
+	// again. The name carries the page id, so the wider path opens nothing else.
+	path := "/" + pg.Slug
+	if isHome {
+		path = "/"
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     unlockCookieName(pg.ID),
 		Value:    h.unlock.Token(pg.ID, time.Now().Add(unlockLifetime)),
-		Path:     "/" + pg.Slug,
+		Path:     path,
 		MaxAge:   int(unlockLifetime / time.Second),
 		HttpOnly: true,
 		Secure:   h.secure,
@@ -138,9 +145,20 @@ func (h *Handler) HandleUnlock(w http.ResponseWriter, r *http.Request) error {
 		return h.serveGate(w, r, website, pg, true)
 	}
 
-	h.grantAccess(w, r, pg)
+	home, err := h.pageStore.GetHomePageIn(r.Context(), website.ID, pg.Locale)
+	if err != nil {
+		return fmt.Errorf("get home page for unlock: %w", err)
+	}
+	isHome := home != nil && home.ID == pg.ID
+
+	h.grantAccess(w, r, pg, isHome)
+	target := "/" + pg.Slug
+	if isHome {
+		// "/home" would only be redirected to "/" anyway.
+		target = h.localePath(r, website, "/")
+	}
 	// 303, so a reload does not repost the password.
-	http.Redirect(w, r, "/"+pg.Slug, http.StatusSeeOther)
+	http.Redirect(w, r, target, http.StatusSeeOther)
 	return nil
 }
 

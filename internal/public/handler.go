@@ -198,6 +198,12 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 		return h.serve404(w, r, website)
 	}
 
+	// The home page can be protected like any other. HandlePage has always
+	// asked; this handler did not, and served the whole page to anyone.
+	if pg.Protected() && !h.hasAccess(r, pg) {
+		return h.serveGate(w, r, website, pg, false)
+	}
+
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
@@ -217,6 +223,10 @@ func (h *Handler) HandleHome(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("render home: %w", err)
 	}
 
+	if pg.Protected() {
+		h.servePrivate(w, content)
+		return nil
+	}
 	h.serveCached(w, r, content, contentModTime(pg, snippets, albumsAt))
 	return nil
 }

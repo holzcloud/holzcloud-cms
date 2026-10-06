@@ -217,6 +217,24 @@ func (h *Handler) settlePayment(ctx context.Context, order *shop.Order) error {
 
 // applyGateway writes a provider's verdict onto an order.
 func (h *Handler) applyGateway(ctx context.Context, order *shop.Order, gw *payrexx.Gateway) error {
+	// Only an order that is still waiting for money, or whose attempt failed
+	// and may be retried, takes a verdict. A refund recorded by hand, or a
+	// payment already settled, must not be rewritten by a late or replayed
+	// notification.
+	if order.PaymentStatus != shop.PaymentOpen && order.PaymentStatus != shop.PaymentFailed {
+		slog.Warn("payment verdict for an order that is not awaiting payment",
+			"order", order.Number, "status", order.PaymentStatus)
+		return nil
+	}
+	// The gateway must be the one this order was sent to. The webhook finds the
+	// order by the reference the gateway carries, and anyone who can create a
+	// gateway on their own account can put any order number there.
+	if strconv.FormatInt(gw.ID, 10) != order.PaymentReference {
+		slog.Error("payment gateway is not the one recorded for the order",
+			"order", order.Number, "gateway", gw.ID, "recorded", order.PaymentReference)
+		return nil
+	}
+
 	switch {
 	case gw.Paid():
 		// The amount is checked, not assumed. A gateway confirmed over one
