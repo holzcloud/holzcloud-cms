@@ -10,12 +10,12 @@ here; the two typefaces are the exception and live in the theme that uses them
 
 | | |
 |---|---|
-| Version | 2.0.10 |
-| Source | `https://registry.npmjs.org/htmx.org/-/htmx.org-2.0.10.tgz`, path `package/dist/htmx.min.js` |
-| Size | 51238 bytes |
-| SHA-256 | `71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de` |
+| Version | 2.0.11 |
+| Source | `https://registry.npmjs.org/htmx.org/-/htmx.org-2.0.11.tgz`, path `package/dist/htmx.min.js` |
+| Size | 52182 bytes |
+| SHA-256 | `d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717` |
 | Lizenz | BSD-2-Clause (`Zero-Clause` für die Dokumentation), siehe das Paket |
-| Tarball SHA-512 | `kdeJe7ZVwaS6QMz/ebBIVtZdpwen6L0OQ5GOhPV9MKBb196TCZeZu4yA7ZIQsaLKv7EpXz+So7KSXNuHXhj7Cw==` |
+| Tarball SHA-512 | `Thx/WtpeOQqSrqBCw/A1cwGJGg4UrVa3+sW0GmrM3p4gJgO89ecH4qtbnyzDDWFvBTqjnIMCgELTNt636dtamA==` |
 
 The tarball hash above is the `dist.integrity` value published in the npm
 registry metadata — the same check `npm install` performs. It was verified
