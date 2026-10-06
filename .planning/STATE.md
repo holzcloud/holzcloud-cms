@@ -256,6 +256,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 261003-lk9 | Repo für Public: Kundennamen neutral, pyc entfernt, private Repo-Namen in Kommentaren neutral | 2026-10-03 | 040c599 | — | [261003-lk9-repo-f-r-public-aufr-umen-kundennamen-py](./quick/261003-lk9-repo-f-r-public-aufr-umen-kundennamen-py/) |
 | 261006-741 | SEO-Ausgabe: llms.txt, Bild-Sitemap, BlogPosting/Product-JSON-LD (0.0.20) | 2026-10-06 | 37b06f9 | — | [261006-741-seo-ausgabe-llms-txt-bild-sitemap-strukt](./quick/261006-741-seo-ausgabe-llms-txt-bild-sitemap-strukt/) |
 | 261006-742 | SEO-Check im Editor und SEO-Bericht pro Website (0.0.20) | 2026-10-06 | fbd23f8 | — | [261006-742-seo-check-im-editor-und-seo-bericht-pro-](./quick/261006-742-seo-check-im-editor-und-seo-bericht-pro-/) |
+| 261006-98s | Sicherheits-Audit 0.0.21, Gruppe 1: Bestellbestätigung per Token, Startseite, Mailpasswort, Zahlung, Host-Cache, Betragsüberlauf | 2026-10-06 | 6adb26b | — | [261006-98s-sicherheits-audit-0-0-21-gruppe-1-bestel](./quick/261006-98s-sicherheits-audit-0-0-21-gruppe-1-bestel/) |
 
 ### Performance Metrics
 
