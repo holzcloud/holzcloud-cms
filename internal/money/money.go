@@ -267,6 +267,9 @@ func (c Currency) Format(a Amount) string {
 
 // ParseAmount reads what an operator typed into a price field.
 //
+// maxWhole is the largest whole part ParseAmount accepts.
+const maxWhole = 1_000_000_000
+
 // Both separators are accepted in either role, because the same person writes
 // 1'234.50, 1234.5 and 1234,50 on different days and all three mean the same
 // thing. An apostrophe or a space is always a grouping mark; the last dot or
@@ -330,9 +333,17 @@ func ParseAmount(input string) (Amount, error) {
 		return 0, fmt.Errorf("mehr als zwei Nachkommastellen: %q", input)
 	}
 
+	// A billion is far beyond any price and keeps w*100 well inside int64: an
+	// absurd figure must be an error, not a wrapped-around small amount.
+	if len(whole) > 10 {
+		return 0, fmt.Errorf("Betrag zu gross: %q", input)
+	}
 	w, err := strconv.ParseInt(whole, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("not a number: %q", input)
+	}
+	if w > maxWhole {
+		return 0, fmt.Errorf("Betrag zu gross: %q", input)
 	}
 	f, err := strconv.ParseInt(frac, 10, 64)
 	if err != nil {

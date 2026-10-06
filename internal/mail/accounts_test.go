@@ -50,12 +50,13 @@ func TestKontoPasswortVerschluesselt(t *testing.T) {
 	}
 
 	// Saving with keepPassword leaves the stored password alone.
-	acc.Host = "smtp.velo.test"
+	acc.FromName = "Velo"
+	acc.Host = "MAIL.velo.test" // case alone is not a change of server
 	if err := a.Save(ctx, acc, "", true); err != nil {
 		t.Fatalf("Save keep: %v", err)
 	}
 	s, _ = a.SenderFor(ctx, site)
-	if s.Config().Password != "geheim-123" || s.Config().Host != "smtp.velo.test" {
+	if s.Config().Password != "geheim-123" || s.Config().FromName != "Velo" {
 		t.Errorf("after keep: %+v", s.Config())
 	}
 
@@ -196,5 +197,46 @@ func TestFlushNurMitKontoDerWebsite(t *testing.T) {
 	st, _ := q.Status(ctx)
 	if st.Pending != 1 || st.Failed != 0 || st.LastError != "" {
 		t.Errorf("installation message should wait untouched: %+v", st)
+	}
+}
+
+// A stored password is not carried to another server, port or user: that
+// would hand a secret to a destination it was never typed for.
+func TestKontoPasswortBleibtNichtBeiAnderemZiel(t *testing.T) {
+	database := newTestDB(t)
+	ctx := context.Background()
+	a := NewAccounts(database, testSecret, NewSender(Config{}))
+	site := newWebsite(t, a, "Velowerkstatt")
+
+	acc := Account{WebsiteID: site, Host: "mail.velo.test", Port: 587, User: "info", From: "info@velo.test"}
+	if err := a.Save(ctx, acc, "geheim-123", false); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	for name, change := range map[string]func(*Account){
+		"host": func(x *Account) { x.Host = "evil.example.com" },
+		"port": func(x *Account) { x.Port = 25 },
+		"user": func(x *Account) { x.User = "root" },
+	} {
+		changed := acc
+		change(&changed)
+		if err := a.Save(ctx, changed, "", true); !errors.Is(err, ErrAccountPasswordNeeded) {
+			t.Errorf("%s: err = %v, want ErrAccountPasswordNeeded", name, err)
+		}
+	}
+	got, err := a.Get(ctx, site)
+	if err != nil || got.Host != "mail.velo.test" || got.Port != 587 || got.User != "info" {
+		t.Fatalf("a refused save changed the row: %+v, %v", got, err)
+	}
+
+	// With a new password the move is fine.
+	changed := acc
+	changed.Host = "smtp.velo.test"
+	if err := a.Save(ctx, changed, "neu-456", false); err != nil {
+		t.Fatalf("Save with new password: %v", err)
+	}
+	s, _ := a.SenderFor(ctx, site)
+	if s.Config().Password != "neu-456" || s.Config().Host != "smtp.velo.test" {
+		t.Errorf("after move: %+v", s.Config())
 	}
 }

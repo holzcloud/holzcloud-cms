@@ -116,6 +116,8 @@ func (h *Handler) HandleWebsiteMail(w http.ResponseWriter, r *http.Request) erro
 		state.Errors.Add("port", "The port must lie between 1 and 65535.")
 	case errors.Is(err, mail.ErrAccountTLS):
 		state.Errors.Add("tls", "Please choose one of the offered kinds of encryption.")
+	case errors.Is(err, mail.ErrAccountPasswordNeeded):
+		state.Errors.Add("password", "The server, port or user name was changed — please enter the password again.")
 	case errors.Is(err, mail.ErrNoSecretKey):
 		state.Errors.Add("password", "A password can only be stored once HOLZCLOUD_SECRET_KEY is set.")
 	default:

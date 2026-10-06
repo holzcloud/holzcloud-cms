@@ -551,7 +551,7 @@ func TestOrderConfirmationNeedsTheTokenNotTheNumber(t *testing.T) {
 		t.Fatalf("token: Status = %d, erwartet 200", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), order.Number) {
-		t.Errorf("die Nummer fehlt auf der Bestätigung")
+		t.Errorf("the order number is missing from the confirmation")
 	}
 
 	rec = requestWithPath(t, h.HandleOrderConfirmation, ws, "GET",

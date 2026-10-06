@@ -203,7 +203,16 @@ func TestParseAcceptsWhatPeopleType(t *testing.T) {
 		}
 	}
 
-	for _, bad := range []string{"abc", "49.505", "1..2"} {
+	// A billion still parses; nothing above it does, in either sign.
+	for input, want := range map[string]Amount{"1000000000": 100000000000, "-1000000000": -100000000000, "1'000'000'000.50": 100000000050} {
+		got, err := ParseAmount(input)
+		if err != nil || got != want {
+			t.Errorf("ParseAmount(%q) = %d, %v; want %d", input, got, err, want)
+		}
+	}
+
+	for _, bad := range []string{"abc", "49.505", "1..2", "1000000001", "1000000001.50", "-1000000001",
+		"99999999999", "92233720368547758", "9223372036854775807"} {
 		if _, err := ParseAmount(bad); err == nil {
 			t.Errorf("ParseAmount(%q) was accepted", bad)
 		}

@@ -14,6 +14,50 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.21 — 2026-10-06
+
+Sicherheitsprüfung, erste Gruppe. Eine Migration (00060) kommt mit, sie läuft
+beim Start von selbst.
+
+**Die Bestätigungsseite einer Bestellung ist nur noch über einen privaten Link
+erreichbar.** Bisher lag sie unter `/bestellung/2026-0001`, und die Nummer zählt
+hoch: Wer eine Nummer kannte, konnte alle anderen durchprobieren und Namen,
+Adressen und Bestelltes lesen. Der Link enthält jetzt eine zufällige Kennung aus
+32 Zeichen, die sich nicht erraten lässt. Die Bestellnummer steht weiter auf der
+Seite und in den Mails, öffnet aber nichts mehr. Die Mails, die Weiterleitung
+nach dem Absenden und die Rückkehr von der Zahlungsseite führen auf den neuen
+Link. Ein alter Link mit der Nummer zeigt eine 404-Seite; schon verschickte
+Bestätigungsmails sind davon betroffen, und wer sie noch einmal öffnen will,
+bekommt den neuen Link vom Betreiber. Bestehende Bestellungen erhalten bei der
+Migration ihre Kennung automatisch.
+
+**Eine geschützte Startseite fragt jetzt nach dem Passwort.** Alle anderen Seiten
+taten das schon, die Startseite lieferte ihren Inhalt an jeden aus. Nach der
+Eingabe führt der Weg wieder auf die Startseite zurück, und der Inhalt wird wie
+bei jeder geschützten Seite nicht von gemeinsamen Zwischenspeichern aufbewahrt.
+
+**Das Passwort eines Versandkontos wandert nicht mehr mit zu einem anderen
+Server.** Wer unter „Versand“ einer Website Server, Port oder Benutzernamen
+ändert und das Passwortfeld leer lässt, bekommt jetzt die Meldung, das Passwort
+erneut einzugeben, statt dass das gespeicherte Passwort an den neuen Server
+geschickt wird. Bleiben alle drei gleich, bleibt das Passwort wie bisher
+erhalten.
+
+**Eine Zahlungsbestätigung kann eine abgeschlossene Bestellung nicht mehr
+überschreiben.** Eine Bestellung wird nur noch als bezahlt oder fehlgeschlagen
+vermerkt, solange sie offen ist oder ein früherer Versuch fehlgeschlagen war,
+und nur, wenn die Zahlungsseite diejenige ist, die zu dieser Bestellung gehört.
+Eine von Hand erfasste Rückerstattung bleibt also stehen.
+
+**Unterschiedlich geschriebene Hostnamen belegen keinen Platz mehr im
+Zwischenspeicher.** „Example.COM“, „example.com.“ und „example.com“ sind
+dieselbe Adresse und werden einmal gespeichert, und der Speicher hat eine
+Obergrenze.
+
+**Unsinnig hohe Preise werden abgelehnt.** Ein Betrag über einer Milliarde ist
+jetzt ein Fehler in der Eingabe, statt in einen kleinen oder negativen Betrag
+umzuschlagen.
+
 ## 0.0.20 — 2026-10-06
 
 **Der SEO-Check sagt, was an einer Seite besser sein könnte.** Im Editor gibt es
