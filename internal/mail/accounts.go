@@ -40,6 +40,14 @@ var ErrNoSecretKey = errors.New("HOLZCLOUD_SECRET_KEY is not set")
 // website. Sending stops until the password is entered again.
 var ErrPasswordUnreadable = errors.New("the stored mail password cannot be decrypted with HOLZCLOUD_SECRET_KEY")
 
+// ErrAccountPasswordNeeded is returned when the server, port or user of an
+// account with a stored password is changed without a new password.
+//
+// Keeping the old password in that case would send a secret that was typed for
+// one server to whichever server the form now names — and an operator, or
+// anyone with a session, can name any.
+var ErrAccountPasswordNeeded = errors.New("the stored mail password cannot move to another server or user; enter it again")
+
 // Account is what the administration shows and edits. The password never
 // leaves this package in the clear; HasPassword is all a screen learns.
 type Account struct {
@@ -136,7 +144,17 @@ func (a *Accounts) Save(ctx context.Context, acc Account, password string, keepP
 		}
 	}
 	if keepPassword {
-		_, err := a.db.Write.ExecContext(ctx,
+		// Enforced here and not only in the form: no caller may carry a stored
+		// secret over to a destination it was not entered for.
+		old, sealedOld, err := a.load(ctx, acc.WebsiteID)
+		if err != nil {
+			return err
+		}
+		if old != nil && sealedOld != "" &&
+			(!strings.EqualFold(old.Host, acc.Host) || old.Port != acc.Port || old.User != acc.User) {
+			return ErrAccountPasswordNeeded
+		}
+		_, err = a.db.Write.ExecContext(ctx,
 			`INSERT INTO website_mail (website_id, host, port, username, from_addr, from_name, tls)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7)
 			 ON CONFLICT (website_id) DO UPDATE SET

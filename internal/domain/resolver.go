@@ -12,8 +12,13 @@ import (
 // Resolver resolves incoming HTTP requests to a Website via Host header lookup.
 // It uses a sync.Map cache to avoid database queries on every request.
 type Resolver struct {
-	cache sync.Map // domain string -> resolved
+	cache sync.Map // normalised host string -> resolved
 	store *Store
+
+	// mu guards cached, the number of entries in cache, so that growth can be
+	// bounded; sync.Map has no length of its own.
+	mu     sync.Mutex
+	cached int
 
 	// Secure decides the scheme of a canonical redirect. It mirrors the
 	// deployment setting rather than X-Forwarded-Proto, for the same reason the
@@ -25,6 +30,19 @@ type Resolver struct {
 	// configured for it. It is supplied by the public package, because a themed
 	// response cannot be built here. A nil handler falls back to 404.
 	Offline http.Handler
+}
+
+// maxCacheEntries bounds the cache. Only hosts that belong to a website are
+// ever cached (an unknown one is not), so the bound is far above anything an
+// installation has; it is there so that no input can make the map grow without
+// limit. Past it a lookup simply goes to the database.
+const maxCacheEntries = 1024
+
+// normalizeHost makes the spellings of one host one key: case does not matter
+// in a host name, and "example.com." with the trailing dot of a fully
+// qualified name is the same host as "example.com".
+func normalizeHost(host string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
 }
 
 // resolved is one cache entry: the website plus the canonical host, which is a
@@ -47,7 +65,7 @@ func NewResolver(store *Store) *Resolver {
 // gone for good, which is the wrong thing to say during a week of rebuilding.
 func (res *Resolver) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host := stripPort(r.Host)
+		host := normalizeHost(stripPort(r.Host))
 
 		entry, ok := res.lookup(r.Context(), host)
 		if !ok {
@@ -77,6 +95,7 @@ func (res *Resolver) Middleware(next http.Handler) http.Handler {
 
 // lookup returns the cached or freshly queried entry for a host.
 func (res *Resolver) lookup(ctx context.Context, host string) (resolved, bool) {
+	host = normalizeHost(host)
 	if cached, ok := res.cache.Load(host); ok {
 		if entry, ok := cached.(resolved); ok {
 			return entry, true
@@ -99,7 +118,13 @@ func (res *Resolver) lookup(ctx context.Context, host string) (resolved, bool) {
 	}
 
 	entry := resolved{website: website, primary: primary}
-	res.cache.Store(host, entry)
+	res.mu.Lock()
+	if res.cached < maxCacheEntries {
+		if _, loaded := res.cache.LoadOrStore(host, entry); !loaded {
+			res.cached++
+		}
+	}
+	res.mu.Unlock()
 	return entry, true
 }
 
@@ -136,10 +161,13 @@ func (res *Resolver) CanonicalBase(ctx context.Context, website *Website, reques
 // deactivated or reconfigured: the whole Website struct is cached, so a stale
 // entry keeps serving the old settings until the process restarts.
 func (res *Resolver) InvalidateCache() {
+	res.mu.Lock()
+	defer res.mu.Unlock()
 	res.cache.Range(func(key, value any) bool {
 		res.cache.Delete(key)
 		return true
 	})
+	res.cached = 0
 }
 
 // stripPort removes the port from a host:port string.

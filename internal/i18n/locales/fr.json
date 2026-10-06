@@ -1524,6 +1524,7 @@
 "The same list, but as many of them as you like — as checkboxes.": "La même liste, mais autant d'options que voulu — sous forme de cases à cocher.",
 "The sentence beside the tick box": "La phrase à côté de la case",
 "The sentence in %s": "La phrase en %s",
+"The server, port or user name was changed — please enter the password again.": "Le serveur, le port ou le nom d’utilisateur a changé – veuillez saisir à nouveau le mot de passe.",
 "The setup has expired. Please start again.": "La configuration a expiré. Veuillez recommencer.",
 "The shipping notification could not be stored.": "L'avis d'expédition n'a pas pu être enregistré.",
 "The shop is not switched on for this website yet. Enter an address under": "La boutique n'est pas encore activée pour ce site. Saisis une adresse sous",

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -194,5 +195,52 @@ func TestNoRedirectWhenTheOptionIsOff(t *testing.T) {
 
 	if !served {
 		t.Errorf("alias was redirected although the option is off (status %d)", rec.Code)
+	}
+}
+
+// One host, one cache entry, however it is spelled — and the cache is bounded.
+func TestResolverCacheKeyIsNormalisedAndBounded(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	ws, err := s.CreateWebsite(ctx, "Site", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddDomain(ctx, ws.ID, "example.com", true); err != nil {
+		t.Fatal(err)
+	}
+	res := NewResolver(s)
+
+	for _, h := range []string{"Example.COM", "example.com.", "example.com", " EXAMPLE.com. "} {
+		if _, ok := res.lookup(ctx, h); !ok {
+			t.Fatalf("lookup(%q) found nothing", h)
+		}
+	}
+	n := 0
+	res.cache.Range(func(k, _ any) bool {
+		n++
+		if k != "example.com" {
+			t.Errorf("cache key %q, want the normalised host", k)
+		}
+		return true
+	})
+	if n != 1 {
+		t.Errorf("%d cache entries for one host, want 1", n)
+	}
+
+	// Filling past the cap stops caching instead of growing.
+	res.InvalidateCache()
+	res.mu.Lock()
+	res.cached = maxCacheEntries
+	res.mu.Unlock()
+	if _, ok := res.lookup(ctx, "example.com"); !ok {
+		t.Fatal("a full cache must still resolve from the database")
+	}
+	if _, ok := res.cache.Load("example.com"); ok {
+		t.Error("an entry was cached past maxCacheEntries")
+	}
+	res.InvalidateCache()
+	if res.cached != 0 {
+		t.Errorf("counter = %d after InvalidateCache, want 0", res.cached)
 	}
 }
