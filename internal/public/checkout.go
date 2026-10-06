@@ -195,7 +195,7 @@ func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request, website *do
 
 	// Redirect rather than render, so a reload does not look like a second
 	// order — and the number is in the address, which is what people bookmark.
-	http.Redirect(w, r, thanksPath+"/"+order.Number, http.StatusSeeOther)
+	http.Redirect(w, r, thanksPath+"/"+order.Token, http.StatusSeeOther)
 	return nil
 }
 
@@ -305,17 +305,18 @@ func (h *Handler) paymentMethods() []tmpl.PaymentMethod {
 
 // HandleOrderConfirmation shows a placed order.
 //
-// Reachable by its number alone, with no login. The number is sequential and
-// therefore guessable, so nothing here may be worth guessing: the page shows
-// what was ordered and where it goes, which the person who placed it already
-// knows — and no payment details, because there are none to show.
+// Reachable by a private token alone, with no login. The token is 128 random
+// bits, so the page cannot be found by counting; the order number is shown on
+// it but opens nothing. It shows what was ordered and where it goes, which the
+// person who placed it already knows — and no payment details, because there
+// are none to show.
 func (h *Handler) HandleOrderConfirmation(w http.ResponseWriter, r *http.Request) error {
 	website, set, ok := h.shopRequest(w, r)
 	if !ok || h.orders == nil {
 		return nil
 	}
 
-	order, err := h.orders.ByNumber(r.Context(), website.ID, r.PathValue("number"))
+	order, err := h.orders.ByToken(r.Context(), website.ID, r.PathValue("token"))
 	if err != nil {
 		return err
 	}
@@ -332,7 +333,7 @@ func (h *Handler) HandleOrderConfirmation(w http.ResponseWriter, r *http.Request
 	}
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &data.Site, website.ID, snippets)
-	data.Meta = metaData(data.Site, nil, thanksPath+"/"+order.Number)
+	data.Meta = metaData(data.Site, nil, thanksPath+"/"+order.Token)
 	data.Meta.NoIndex = true
 
 	content, err := h.loader.RenderPage(r.Context(), website.ID, "order.html", data)

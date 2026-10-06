@@ -379,7 +379,7 @@ func TestDispatcherWithoutStore(t *testing.T) {
 
 func testOrder() *shop.Order {
 	return &shop.Order{
-		ID: 7, WebsiteID: 1, Number: "2026-0007", Currency: "CHF",
+		ID: 7, WebsiteID: 1, Number: "2026-0007", Token: "0123456789abcdef0123456789abcdef", Currency: "CHF",
 		Audience: shop.Private,
 		Customer: shop.Customer{
 			Email: "anna@example.ch", Name: "Anna Meier",
@@ -447,8 +447,8 @@ func TestCustomerMailSaysWhatMatters(t *testing.T) {
 		"Seestrasse 4",       // die Lieferadresse
 		"Bitte vormittags",   // her remark
 		"Rechnung liegt der", // what is expected of her
-		"https://example.ch/bestellung/2026-0007", // where she can look it up
-		"CHE-123.456.789 MWST",                    // the VAT number in the footer
+		"https://example.ch/bestellung/0123456789abcdef0123456789abcdef", // where she can look it up
+		"CHE-123.456.789 MWST", // the VAT number in the footer
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the confirmation is missing %q:\n%s", want, body)
@@ -456,6 +456,9 @@ func TestCustomerMailSaysWhatMatters(t *testing.T) {
 	}
 	if strings.Contains(mails[0].Subject, "\n") {
 		t.Error("the subject contains a line break")
+	}
+	if strings.Contains(body, "/bestellung/2026-0007") {
+		t.Error("the mail links to the guessable order number")
 	}
 }
 

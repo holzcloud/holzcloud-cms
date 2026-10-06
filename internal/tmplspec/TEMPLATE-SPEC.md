@@ -565,7 +565,9 @@ The form fields are fixed, like the other form contracts in §6: `email` `name`
 
 ### `.Order` — only in `order.html`
 
-The confirmation of a placed order.
+The confirmation of a placed order. Its address carries a random token, not the
+order number, so the number is for display only and cannot be used to open the
+page.
 
 | Field | Type | Notes |
 |---|---|---|

@@ -1344,8 +1344,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	publicMux.HandleFunc("POST /warenkorb/entfernen", publicHandler.ErrHandler(publicHandler.HandleCartRemove))
 	publicMux.HandleFunc("GET /kasse", publicHandler.ErrHandler(publicHandler.HandleCheckout))
 	publicMux.HandleFunc("POST /kasse", publicHandler.ErrHandler(publicHandler.HandleCheckout))
-	publicMux.HandleFunc("GET /bestellung/{number}", publicHandler.ErrHandler(publicHandler.HandleOrderConfirmation))
-	publicMux.HandleFunc("GET /zahlung/zurueck/{number}", publicHandler.ErrHandler(publicHandler.HandlePaymentReturn))
+	publicMux.HandleFunc("GET /bestellung/{token}", publicHandler.ErrHandler(publicHandler.HandleOrderConfirmation))
+	publicMux.HandleFunc("GET /zahlung/zurueck/{token}", publicHandler.ErrHandler(publicHandler.HandlePaymentReturn))
 	// The provider's notification. No CSRF token — it comes from Payrexx, not
 	// from a browser, and nothing in its body is believed anyway.
 	publicMux.HandleFunc("POST /zahlung/payrexx", publicHandler.ErrHandler(publicHandler.HandlePaymentHook))
