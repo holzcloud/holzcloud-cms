@@ -59,8 +59,26 @@ So you can judge what has already been dealt with:
   configures `HOLZCLOUD_SMTP_TLS=none`, and header values are stripped of line
   breaks
 
-There is no payment processing in this program: the farm-shop plugin takes an
-order and nothing else, and money changes hands outside it. So there is no
-payment provider, no callback and no notification to be forged.
+Payment is optional and goes through one provider, Payrexx, and only when
+`HOLZCLOUD_PAYREXX_INSTANCE` and `HOLZCLOUD_PAYREXX_SECRET` are both set; without
+them the shop offers invoice and prepayment, and the two payment routes answer
+404. This is what the program does with it, and what it does not:
+
+- The customer is redirected to Payrexx's own page and comes back. Card and
+  account data never reach this server. The API key lives in the environment,
+  not in the database or its backups.
+- The return address (`/zahlung/zurueck/<token>`) carries the order's private
+  token, not its number. The notification address (`/zahlung/payrexx`) is open
+  to the internet and has no shared secret, so **nothing in a notification is
+  believed**: the one thing read from it is the gateway id, and the provider is
+  then asked directly over the API. A forged notification can cause one lookup.
+- A verdict is written to an order only if it is still open or its earlier attempt
+  failed, only if the gateway is the one recorded for that order, and for "paid"
+  only if amount and currency match the order. A payment already settled or a
+  refund entered by hand is not overwritten by a late or replayed message.
+- What is not verified: the program does not check a signature on the
+  notification itself (it asks the provider instead), and the API signature
+  scheme is written against the published description and tested against a
+  stand-in, not against the live service.
 
 A way around any of these is exactly what I would like to hear about.

@@ -16,7 +16,7 @@ entries stay here because they are still the history of this code.
 
 ## 0.0.21 — 2026-10-06
 
-Sicherheitsprüfung, erste Gruppe. Eine Migration (00060) kommt mit, sie läuft
+Sicherheitsprüfung, alle Gruppen. Eine Migration (00060) kommt mit, sie läuft
 beim Start von selbst.
 
 **Die Bestätigungsseite einer Bestellung ist nur noch über einen privaten Link
@@ -57,6 +57,49 @@ Obergrenze.
 **Unsinnig hohe Preise werden abgelehnt.** Ein Betrag über einer Milliarde ist
 jetzt ein Fehler in der Eingabe, statt in einen kleinen oder negativen Betrag
 umzuschlagen.
+
+**Plugin-Migrationen dürfen nur noch eigene Tabellen anlegen.** Das SQL, das ein
+Plugin mitbringt, lief bisher mit allen Rechten auf der ganzen Datenbank. Jetzt
+darf es nur Tabellen und Indizes mit dem eigenen Präfix `plugin_<Kennung>_`
+anlegen, ändern und löschen und in sie schreiben; in `plugin_store` darf es nur
+schreiben, wenn es die eigene Kennung nennt. Lesen darf es Seiten, Websites,
+Domains und die alten Formularnachrichten, mehr nicht. `ATTACH`, `PRAGMA`,
+`VACUUM`, Trigger, Views und jede Berührung der Tabellen des Kerns werden
+abgelehnt, bevor etwas ausgeführt wird, mit einer Meldung, die Migration und
+Plugin nennt. Das mitgelieferte Kontaktformular ist davon nicht betroffen.
+
+**Dateien aus einem Import und Plugin-Dateien werden nicht mehr als Seite
+ausgeliefert.** Beim Import einer Website zählt, was in der Datei steckt, nicht
+was das Archiv behauptet: Es gelten dieselben Typen wie beim Hochladen im
+Admin (Bilder, PDF, Video). HTML, Skripte und XML unter einem Bildnamen werden
+mit einem Hinweis im Bericht übersprungen, ebenso ein SVG, das etwas von einem
+anderen Server lädt; gespeichert wird der erkannte Typ. Dateien, die ein Plugin
+unter `/plugin-assets/` mitbringt, kommen mit `nosniff` und einer
+Sandbox-Richtlinie heraus, und `.html`, `.svg` und `.xml` werden zum Herunterladen
+angeboten statt im Browser geöffnet. Skripte und Stylesheets bleiben für die
+Bildschirme des Plugins nutzbar.
+
+**Bei weiteren heiklen Aktionen wird das Passwort erneut verlangt.** Wie schon
+beim Löschen gilt das jetzt auch für: Zwei-Faktor ausschalten, neue
+Wiederherstellungscodes, Plugin hochladen, Plugin einschalten, Vorlage
+hochladen, Benutzer ändern (etwa die Rolle) und Website importieren. Ist die
+Bestätigung älter als 15 Minuten, führt der Knopf zur Bestätigungsseite und von
+dort zurück; hochgeladene Dateien müssen danach noch einmal ausgewählt werden.
+Konten, die nur über Single Sign-on angelegt wurden und nie ein Passwort
+bekommen haben, kommen an diesen Stellen wie beim Löschen nicht weiter, bis
+der Betreiber mit `holzcloud user passwd` eines setzt.
+
+**Ein hängender Mailserver blockiert den Postausgang nicht mehr.** Bisher galt
+die Wartezeit nur für den Verbindungsaufbau; ein Server, der die Verbindung
+annahm und dann schwieg, hielt den Versand beliebig lange fest. Jetzt hat die
+ganze Sitzung (Begrüßung, Verschlüsselung, Anmeldung, Nachricht) eine
+gemeinsame Frist von dem Dreifachen der eingestellten Wartezeit.
+
+**SECURITY.md beschreibt die Zahlung richtig.** Dort stand, das Programm kenne
+keine Zahlung. Das stimmt seit dem Laden mit Payrexx nicht mehr. Der Text sagt
+jetzt, was das Programm tut und prüft: Weiterleitung statt Kartendaten, keine
+Benachrichtigung wird geglaubt, sondern der Anbieter wird gefragt, und Betrag,
+Währung und Zahlungsseite müssen zur Bestellung passen.
 
 ## 0.0.20 — 2026-10-06
 
