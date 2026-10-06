@@ -113,7 +113,7 @@ func TestNoBusinessTypeMeansNoBusinessBlock(t *testing.T) {
 	}
 }
 
-func TestAPostBecomesAnArticleWithItsDates(t *testing.T) {
+func TestAPostBecomesABlogPostingWithItsDates(t *testing.T) {
 	published := time.Date(2026, 3, 14, 9, 0, 0, 0, time.UTC)
 	updated := time.Date(2026, 4, 1, 11, 30, 0, 0, time.UTC)
 
@@ -124,9 +124,9 @@ func TestAPostBecomesAnArticleWithItsDates(t *testing.T) {
 	}, nil)
 
 	byType := nodes(t, decode(t, string(js)))
-	article, ok := byType["Article"]
+	article, ok := byType["BlogPosting"]
 	if !ok {
-		t.Fatalf("a post did not become an Article: %v", byType)
+		t.Fatalf("a post did not become a BlogPosting: %v", byType)
 	}
 	// headline is what an article is indexed by; name alone is ignored.
 	if article["headline"] != "Neue Werkbank" {
@@ -145,13 +145,13 @@ func TestAPostBecomesAnArticleWithItsDates(t *testing.T) {
 	}
 }
 
-func TestAPageIsAWebPageNotAnArticle(t *testing.T) {
+func TestAPageIsAWebPageNotABlogPosting(t *testing.T) {
 	js := Build(fullBusiness(), Page{
 		Title: "Über uns", URL: "https://example.de/ueber-uns",
 	}, nil)
 	byType := nodes(t, decode(t, string(js)))
-	if _, ok := byType["Article"]; ok {
-		t.Error("a plain page was declared an Article")
+	if _, ok := byType["BlogPosting"]; ok {
+		t.Error("a plain page was declared a BlogPosting")
 	}
 	if _, ok := byType["WebPage"]; !ok {
 		t.Errorf("no WebPage node: %v", byType)
@@ -227,4 +227,73 @@ func TestKnownOrgTypeGuardsTheDropdown(t *testing.T) {
 	if KnownOrgType("Weltraumbahnhof") {
 		t.Error("an invented type was accepted")
 	}
+}
+
+func TestProductNodeCarriesOffer(t *testing.T) {
+	prod := Product{
+		Name: "Tisch", URL: "https://example.de/shop/tisch", Description: "Eiche",
+		SKU: "T-1", ImageURLs: []string{"/media/1/tisch.jpg", "", "https://cdn.example/x.jpg"},
+		Price: "12.50", Currency: "CHF", InStock: true,
+	}
+	page := Page{Title: "Tisch", URL: prod.URL}
+	node := nodes(t, decode(t, string(BuildProduct(fullBusiness(), page, prod, nil))))["Product"]
+	if node == nil {
+		t.Fatal("no Product node")
+	}
+	if node["sku"] != "T-1" {
+		t.Errorf("sku = %v", node["sku"])
+	}
+	imgs := node["image"].([]any)
+	if len(imgs) != 2 || imgs[0] != "https://example.de/media/1/tisch.jpg" {
+		t.Errorf("image = %v", imgs)
+	}
+	offer := node["offers"].(map[string]any)
+	if offer["@type"] != "Offer" || offer["price"] != "12.50" || offer["priceCurrency"] != "CHF" ||
+		offer["availability"] != "https://schema.org/InStock" || offer["url"] != prod.URL {
+		t.Errorf("offer = %v", offer)
+	}
+
+	prod.InStock, prod.SKU, prod.ImageURLs = false, "", nil
+	node = nodes(t, decode(t, string(BuildProduct(fullBusiness(), page, prod, nil))))["Product"]
+	if _, ok := node["sku"]; ok {
+		t.Error("empty sku was emitted")
+	}
+	if _, ok := node["image"]; ok {
+		t.Error("empty image list was emitted")
+	}
+	if node["offers"].(map[string]any)["availability"] != "https://schema.org/OutOfStock" {
+		t.Errorf("offer = %v", node["offers"])
+	}
+}
+
+func TestHostileTextStaysInsideTheScriptElement(t *testing.T) {
+	const evil = `x </script><script>alert(1)</script>`
+	b := fullBusiness()
+	cases := map[string]string{
+		"page": string(Build(b, Page{Title: evil, URL: "https://example.de/a", Description: evil}, nil)),
+		"post": string(Build(b, Page{Title: evil, URL: "https://example.de/a", Description: evil, IsPost: true}, nil)),
+		"product": string(BuildProduct(b, Page{Title: evil, URL: "https://example.de/a"},
+			Product{Name: evil, URL: "https://example.de/a", Description: evil, SKU: evil, Price: "1.00", Currency: "CHF"}, nil)),
+	}
+	for name, js := range cases {
+		if strings.Contains(js, "</script>") || strings.Contains(js, "<script") {
+			t.Errorf("%s: a script tag survived:\n%s", name, js)
+		}
+		if !strings.Contains(string(decodeRaw(t, js)), evil) {
+			t.Errorf("%s: text did not round-trip verbatim", name)
+		}
+	}
+}
+
+// decodeRaw re-marshals the decoded document unescaped, so a verbatim round
+// trip can be checked as a substring.
+func decodeRaw(t *testing.T, js string) []byte {
+	t.Helper()
+	var buf strings.Builder
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(decode(t, js)); err != nil {
+		t.Fatal(err)
+	}
+	return []byte(buf.String())
 }

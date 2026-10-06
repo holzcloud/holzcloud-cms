@@ -39,7 +39,7 @@ type Page struct {
 	ImageURL    string
 	PublishedAt *time.Time
 	UpdatedAt   *time.Time
-	// IsPost switches the type from WebPage to Article.
+	// IsPost switches the type from WebPage to BlogPosting.
 	IsPost bool
 	// SiteName is the site the page belongs to.
 	SiteName string
@@ -60,6 +60,30 @@ type Crumb struct {
 // address, and a consumer that reads only one block still gets a coherent
 // picture.
 func Build(b Business, p Page, crumbs []Crumb) template.JS {
+	return assemble(b, p, crumbs, nil)
+}
+
+// Product is what a shop product page adds to the graph.
+type Product struct {
+	Name        string
+	URL         string
+	Description string
+	SKU         string
+	ImageURLs   []string
+	// Price is a ready decimal string such as "12.50", Currency the ISO code.
+	// Both empty leaves the offer without a price.
+	Price    string
+	Currency string
+	InStock  bool
+}
+
+// BuildProduct is Build for a product page: the same graph plus a Product node
+// carrying an Offer.
+func BuildProduct(b Business, p Page, prod Product, crumbs []Crumb) template.JS {
+	return assemble(b, p, crumbs, productNode(b, prod))
+}
+
+func assemble(b Business, p Page, crumbs []Crumb, extra map[string]any) template.JS {
 	var nodes []any
 
 	if node := businessNode(b); node != nil {
@@ -67,6 +91,9 @@ func Build(b Business, p Page, crumbs []Crumb) template.JS {
 	}
 	if node := pageNode(b, p); node != nil {
 		nodes = append(nodes, node)
+	}
+	if extra != nil {
+		nodes = append(nodes, extra)
 	}
 	if node := breadcrumbNode(crumbs); node != nil {
 		nodes = append(nodes, node)
@@ -165,7 +192,7 @@ func pageNode(b Business, p Page) map[string]any {
 
 	kind := "WebPage"
 	if p.IsPost {
-		kind = "Article"
+		kind = "BlogPosting"
 	}
 	node := map[string]any{
 		"@type": kind,
@@ -205,6 +232,47 @@ func pageNode(b Business, p Page) map[string]any {
 				author = b.Name
 			}
 			node["author"] = map[string]any{"@type": "Organization", "name": author}
+		}
+	}
+	return node
+}
+
+func productNode(b Business, prod Product) map[string]any {
+	if prod.Name == "" || prod.URL == "" {
+		return nil
+	}
+	node := map[string]any{
+		"@type": "Product",
+		"@id":   prod.URL + "#produkt",
+		"name":  prod.Name,
+		"url":   prod.URL,
+	}
+	if prod.Description != "" {
+		node["description"] = prod.Description
+	}
+	if prod.SKU != "" {
+		node["sku"] = prod.SKU
+	}
+	var images []string
+	for _, ref := range prod.ImageURLs {
+		if ref != "" {
+			images = append(images, absolute(b.URL, ref))
+		}
+	}
+	if len(images) > 0 {
+		node["image"] = images
+	}
+	if prod.Price != "" && prod.Currency != "" {
+		availability := "https://schema.org/OutOfStock"
+		if prod.InStock {
+			availability = "https://schema.org/InStock"
+		}
+		node["offers"] = map[string]any{
+			"@type":         "Offer",
+			"price":         prod.Price,
+			"priceCurrency": prod.Currency,
+			"availability":  availability,
+			"url":           prod.URL,
 		}
 	}
 	return node
