@@ -108,7 +108,7 @@ const (
 )
 
 // slugStopWords add length to an address and no meaning. Whole hyphen-separated
-// tokens only, so "und" does not match inside "gründung".
+// tokens only, so a stop word does not match inside a longer word.
 var slugStopWords = map[string]bool{
 	"und": true, "der": true, "die": true, "das": true,
 	"the": true, "and": true, "of": true, "a": true,

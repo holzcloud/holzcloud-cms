@@ -64,7 +64,7 @@ func siteTools(d Deps) []Tool {
 	return []Tool{
 		getWebsite(d), updateWebsite(d), createWebsite(d), deleteWebsite(d),
 		addDomain(d), removeDomain(d), setPrimaryDomain(d),
-		launchChecklist(d), translationMatrix(d),
+		launchChecklist(d), translationMatrix(d), seoReport(d),
 		listTemplates(d), activateTemplate(d), uploadTemplate(d), deleteTemplate(d),
 		getTemplateSpec(),
 		getDesign(d), setDesign(d), resetDesign(d),
