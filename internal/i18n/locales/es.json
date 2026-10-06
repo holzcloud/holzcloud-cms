@@ -1872,6 +1872,8 @@
 "file %q could not be stored: %v": "No se pudo guardar el archivo %q: %v",
 "file %q has a name that is not allowed and was skipped": "El archivo %q tiene un nombre no permitido y se omitió",
 "file %q is corrupt and was skipped": "El archivo %q está dañado y se omitió",
+"file %q is not a picture, video or PDF and was skipped": "El archivo %q no es una imagen, un vídeo ni un PDF y se omitió",
+"file %q loads something from another server and was skipped": "El archivo %q carga algo de otro servidor y se omitió",
 "for %s": "para %s",
 "for a lost phone": "para un teléfono perdido",
 "fr, it": "fr, it",

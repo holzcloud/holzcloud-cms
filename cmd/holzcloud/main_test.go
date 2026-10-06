@@ -1172,3 +1172,49 @@ func TestSingleSignOnRefusesToStartWithAWebsiteGroupForNoWebsite(t *testing.T) {
 		}
 	})
 }
+
+// The routes that change who may get in, or run code or markup of somebody
+// else's, ask for the password again. A session left open on a laptop reaches
+// the screens; it does not reach these.
+//
+// Two checks. The two-factor routes are driven for real. The others sit behind
+// the second-factor gate, which a fixture admin without a second factor never
+// gets past, so for them the registration in main.go is read: the line must
+// carry requireFresh.
+func TestSensitiveRoutesAskForThePasswordAgain(t *testing.T) {
+	handler, sm, database := testRouter(t)
+	admin := seedUser(t, handler, sm, database, "admin-fresh@test", "admin")
+
+	for _, path := range []string{"/admin/2fa/aus", "/admin/2fa/codes"} {
+		rec := do(handler, "POST", path, admin)
+		loc := rec.Header().Get("Location")
+		if rec.Code != http.StatusSeeOther || !strings.HasPrefix(loc, auth.ConfirmPath) {
+			t.Errorf("POST %s: got %d to %q, want a redirect to %s", path, rec.Code, loc, auth.ConfirmPath)
+		}
+	}
+
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(src), "\n")
+	for _, pattern := range []string{
+		"POST /admin/2fa/aus", "POST /admin/2fa/codes",
+		"POST /admin/plugins/upload", "POST /admin/plugins/{id}/enable",
+		"POST /admin/templates/upload", "POST /admin/users/{id}/edit",
+		"POST /admin/websites/import",
+	} {
+		found := false
+		for _, l := range lines {
+			if strings.Contains(l, `adminProtectedMux.Handle("`+pattern+`",`) {
+				found = true
+				if !strings.Contains(l, "requireFresh(") {
+					t.Errorf("%s is registered without requireFresh", pattern)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s is not registered; the list in this test is stale", pattern)
+		}
+	}
+}

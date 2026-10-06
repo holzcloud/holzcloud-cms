@@ -82,7 +82,7 @@ func seedSite(t *testing.T, s Stores) int64 {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	photo := []byte("nicht wirklich ein foto, aber eindeutige bytes")
+	photo := pngBytes("nicht wirklich ein foto, aber eindeutige bytes")
 	if err := os.WriteFile(filepath.Join(dir, "abc-werkstatt.jpg"), photo, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -466,7 +466,7 @@ func TestImportPointsPicturesAtTheNewWebsite(t *testing.T) {
 	// produces, and the whole point of the test.
 	seedSite(t, s)
 
-	photo := []byte("noch ein foto")
+	photo := pngBytes("noch ein foto")
 	archive := archiveWithFile(t, Manifest{
 		Version: Version,
 		Site:    Site{Name: "Umgezogen"},
@@ -674,7 +674,7 @@ func TestRoundTripKeepsBlocks(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	foto := []byte("ein foto")
+	foto := pngBytes("ein foto")
 	if err := os.WriteFile(filepath.Join(dir, "teig.jpg"), foto, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -837,7 +837,7 @@ func seedAlbumSite(t *testing.T, s Stores, siteName, albumName string) (websiteI
 	}
 	// The checksum has to match the bytes: an import throws away a file whose
 	// sum does not, and that would not be a fault of the album here.
-	photo := []byte("die bytes von " + siteName)
+	photo := pngBytes("die bytes von " + siteName)
 	if err := os.WriteFile(filepath.Join(dir, "hobel.jpg"), photo, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -918,7 +918,7 @@ func TestImportCreatesAlbumsBeforePages(t *testing.T) {
 	s := newStores(t)
 	ctx := context.Background()
 
-	photo := []byte("ein hobel")
+	photo := pngBytes("ein hobel")
 	archive := archiveWithFile(t, Manifest{
 		Version: Version,
 		Site:    Site{Name: "Ankunft"},
@@ -2653,5 +2653,66 @@ func TestASnippetsRawIdFromAnOldArchiveIsDroppedAndReported(t *testing.T) {
 	values := field.Decode(kopien[0].Fields).Values
 	if values["telefon"] != "07721 123456" {
 		t.Errorf("the valid value did not arrive: %q", values["telefon"])
+	}
+}
+
+// pngBytes is a stand-in for a picture: the import now looks at the bytes, and
+// the signature is all http.DetectContentType needs.
+func pngBytes(rest string) []byte { return append([]byte("\x89PNG\r\n\x1a\n"), rest...) }
+
+func TestImportSkipsActiveContentWhateverTheArchiveClaims(t *testing.T) {
+	cases := map[string]string{
+		"seite.html": "<!DOCTYPE html><script>alert(1)</script>",
+		"bild.jpg":   "<html><body onload=alert(1)>",
+		"skript.js":  "alert(document.cookie)",
+		"daten.xml":  "<?xml version='1.0'?><a/>",
+		"bild.svg":   "<html><script>alert(1)</script></html>",
+		"extern.svg": `<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/x.png"/></svg>`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := newStores(t)
+			data := []byte(body)
+			archive := archiveWithFile(t, Manifest{
+				Version: Version, Site: Site{Name: "Aktiv"},
+				Media: []Media{{Filename: name, OriginalName: name,
+					MimeType: "image/jpeg", SHA256: hashBytes(data)}},
+			}, name, data)
+			report, err := Import(context.Background(), s, bytes.NewReader(archive), int64(len(archive)), "")
+			if err != nil {
+				t.Fatalf("Import: %v", err)
+			}
+			if report.Media != 0 {
+				t.Fatal("active content was imported")
+			}
+			if !warned(report, "skipped") {
+				t.Errorf("the import did not say so: %v", report.Warnings)
+			}
+			dir := filepath.Join(s.DataDir, "media", fmt.Sprint(report.WebsiteID), name)
+			if _, err := os.Stat(dir); err == nil {
+				t.Error("the file was written to disk")
+			}
+		})
+	}
+}
+
+func TestImportStoresTheSniffedTypeNotTheClaimedOne(t *testing.T) {
+	s := newStores(t)
+	data := pngBytes("ein bild")
+	archive := archiveWithFile(t, Manifest{
+		Version: Version, Site: Site{Name: "Typ"},
+		Media: []Media{{Filename: "b.png", OriginalName: "b.png",
+			MimeType: "text/html", SHA256: hashBytes(data)}},
+	}, "b.png", data)
+	report, err := Import(context.Background(), s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil || report.Media != 1 {
+		t.Fatalf("Import: %v %+v", err, report)
+	}
+	got, err := s.Media.GetByFilename(context.Background(), report.WebsiteID, "b.png")
+	if err != nil || got == nil {
+		t.Fatalf("lookup: %v", err)
+	}
+	if got.MimeType != "image/png" {
+		t.Errorf("stored type %q, want image/png", got.MimeType)
 	}
 }

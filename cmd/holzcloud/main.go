@@ -960,8 +960,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("GET /admin/2fa/einrichten", adminHandler.ErrHandler(adminHandler.HandleTwoFactorSetup))
 	adminProtectedMux.HandleFunc("POST /admin/2fa/einrichten", adminHandler.ErrHandler(adminHandler.HandleTwoFactorSetup))
 	adminProtectedMux.HandleFunc("POST /admin/2fa/einrichten/neu", adminHandler.ErrHandler(adminHandler.HandleTwoFactorRestart))
-	adminProtectedMux.HandleFunc("POST /admin/2fa/codes", adminHandler.ErrHandler(adminHandler.HandleRecoveryCodes))
-	adminProtectedMux.HandleFunc("POST /admin/2fa/aus", adminHandler.ErrHandler(adminHandler.HandleTwoFactorDisable))
+	adminProtectedMux.Handle("POST /admin/2fa/codes", requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleRecoveryCodes))))
+	adminProtectedMux.Handle("POST /admin/2fa/aus", requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleTwoFactorDisable))))
 	adminProtectedMux.HandleFunc("GET /admin/", adminHandler.ErrHandler(adminHandler.HandleDashboard))
 
 	// What changed, by version. Two addresses for one handler: the bare one is
@@ -1096,7 +1096,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 
 	// Media routes
 	adminProtectedMux.Handle("GET /admin/websites/{id}/export", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteExport))))
-	adminProtectedMux.Handle("POST /admin/websites/import", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteImport))))
+	adminProtectedMux.Handle("POST /admin/websites/import", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWebsiteImport)))))
 	adminProtectedMux.Handle("POST /admin/websites/import-wordpress", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleWordPressImport))))
 	// The CSV import. Screen 1 stands here beside its two siblings; every
 	// screen with a token lies under /admin/csv-import/{token}, because
@@ -1148,7 +1148,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.Handle("GET /admin/users/new", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserCreate))))
 	adminProtectedMux.Handle("POST /admin/users/new", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserCreate))))
 	adminProtectedMux.Handle("GET /admin/users/{id}/edit", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserEdit))))
-	adminProtectedMux.Handle("POST /admin/users/{id}/edit", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserEdit))))
+	adminProtectedMux.Handle("POST /admin/users/{id}/edit", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserEdit)))))
 	adminProtectedMux.Handle("POST /admin/users/{id}/delete", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserDelete)))))
 	adminProtectedMux.Handle("POST /admin/users/{id}/link", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserLink))))
 	adminProtectedMux.Handle("POST /admin/users/{id}/sessions/revoke", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleUserSessions))))
@@ -1177,8 +1177,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.Handle("POST /admin/ai/verbinden", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIConnect)))))
 	adminProtectedMux.Handle("POST /admin/ai/keys/{id}/revoke", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleAIKeyRevoke))))
 	adminProtectedMux.Handle("GET /admin/plugins", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginList))))
-	adminProtectedMux.Handle("POST /admin/plugins/upload", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginUpload))))
-	adminProtectedMux.Handle("POST /admin/plugins/{id}/enable", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginEnable))))
+	adminProtectedMux.Handle("POST /admin/plugins/upload", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginUpload)))))
+	adminProtectedMux.Handle("POST /admin/plugins/{id}/enable", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginEnable)))))
 	adminProtectedMux.Handle("POST /admin/plugins/{id}/websites", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginWebsites))))
 	adminProtectedMux.Handle("POST /admin/plugins/{id}/remove", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandlePluginRemove)))))
 	// A plugin's own screen is open to editors too, unless the manifest says
@@ -1190,7 +1190,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 
 	adminProtectedMux.HandleFunc("GET /admin/templates", adminHandler.ErrHandler(adminHandler.HandleTemplateList))
 	adminProtectedMux.Handle("GET /admin/templates/upload", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleTemplateUpload))))
-	adminProtectedMux.Handle("POST /admin/templates/upload", requireAdmin(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleTemplateUpload))))
+	adminProtectedMux.Handle("POST /admin/templates/upload", requireAdmin(requireFresh(http.HandlerFunc(adminHandler.ErrHandler(adminHandler.HandleTemplateUpload)))))
 	// The authoring specification as plain text, so an admin can hand the whole
 	// contract to an AI agent by copying one page rather than by finding the
 	// project's source.
