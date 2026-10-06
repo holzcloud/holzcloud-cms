@@ -8,7 +8,7 @@
 #
 # It is built for linux/amd64, like the rest of the project since 1.4.
 
-FROM golang:1.26 AS build
+FROM golang:1.26.8 AS build
 
 WORKDIR /src
 

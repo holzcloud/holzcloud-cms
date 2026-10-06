@@ -95,11 +95,11 @@ import (
 // refuses to load a module declaring a higher minimum than the running
 // toolchain, and internal/plugin/testdata/echo lives in the root module, so
 // this must be greater than or equal to the `go` directive in ./go.mod
-// (go 1.26.6 today). bodenPruefen enforces that at startup.
+// (go 1.26.8 today). bodenPruefen enforces that at startup.
 //
-// Bare, never "go1.26.6+auto" — the +auto form selects a newer toolchain when
+// Bare, never "go1.26.8+auto" — the +auto form selects a newer toolchain when
 // one is needed, which is the pin defeating itself.
-const goToolchain = "go1.26.6"
+const goToolchain = "go1.26.8"
 
 // ziel is one committed guest module: where it is built and where the built
 // file belongs in the repository.
@@ -324,7 +324,7 @@ func checkFloor(root string) error {
 }
 
 // kleiner compares two dotted version numbers component by component. A missing
-// component counts as zero, so "1.26" is below "1.26.6".
+// component counts as zero, so "1.26" is below "1.26.8".
 func lessThan(a, b string) bool {
 	az, bz := zahlen(a), zahlen(b)
 	for i := 0; i < len(az) || i < len(bz); i++ {
