@@ -560,3 +560,50 @@ func TestOrderConfirmationNeedsTheTokenNotTheNumber(t *testing.T) {
 		t.Errorf("number: Status = %d, erwartet 404", rec.Code)
 	}
 }
+
+// A verdict is applied only to an order that awaits money, and only from the
+// gateway the order was sent to.
+func TestApplyGatewayGuards(t *testing.T) {
+	ctx := context.Background()
+	paid := func(order *shop.Order, id int64) *payrexx.Gateway {
+		return &payrexx.Gateway{ID: id, Status: payrexx.StatusConfirmed, ReferenceID: order.Number,
+			Amount: int64(order.Totals.TotalGross), Currency: order.Currency}
+	}
+
+	for _, c := range []struct {
+		name   string
+		state  string
+		gwID   int64
+		settle bool
+	}{
+		{"open, same gateway", shop.PaymentOpen, 4711, true},
+		{"failed attempt may be retried", shop.PaymentFailed, 4711, true},
+		{"already paid", shop.PaymentPaid, 4711, false},
+		{"refunded by hand", shop.PaymentRefunded, 4711, false},
+		{"foreign gateway", shop.PaymentOpen, 9999, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, database := newTestHandler(t)
+			ws := seedWebsite(t, database, "Laden")
+			shopSite(t, h, database, ws)
+			order := placeTestOrder(t, h, database, ws)
+			if c.state != shop.PaymentOpen {
+				if err := h.orders.SetPayment(ctx, order.ID, c.state, "4711"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			order = reload(t, h, ws, order.Number)
+
+			if err := h.applyGateway(ctx, order, paid(order, c.gwID)); err != nil {
+				t.Fatalf("applyGateway: %v", err)
+			}
+			got := reload(t, h, ws, order.Number).PaymentStatus
+			if c.settle && got != shop.PaymentPaid {
+				t.Errorf("payment status = %q, want paid", got)
+			}
+			if !c.settle && got != c.state {
+				t.Errorf("payment status = %q, want it untouched (%q)", got, c.state)
+			}
+		})
+	}
+}
