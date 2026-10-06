@@ -334,3 +334,43 @@ func TestOrderTotalsMatchTheBasket(t *testing.T) {
 		t.Errorf("the lines sum to %d, the order says %d", lines, got.Totals.ItemsGross)
 	}
 }
+
+// The confirmation link must not be countable: the token is random and the
+// number opens nothing.
+func TestOrderTokenIsUniqueAndTheNumberIsNotAToken(t *testing.T) {
+	orders, carts, products, ws := newOrders(t)
+	ctx := context.Background()
+	p := seedProduct(t, products, ws, "hocker", StatusPublished, nil)
+
+	a, err := orders.Place(ctx, ws, settings(), Private, filled(t, carts, ws, p, 1), customer(), PayInvoice)
+	if err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	b, err := orders.Place(ctx, ws, settings(), Private, filled(t, carts, ws, p, 1), customer(), PayInvoice)
+	if err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	if !validToken(a.Token) || !validToken(b.Token) {
+		t.Fatalf("tokens %q, %q are not 32 hex characters", a.Token, b.Token)
+	}
+	if a.Token == b.Token {
+		t.Error("two orders share a token")
+	}
+
+	got, err := orders.ByToken(ctx, ws, a.Token)
+	if err != nil || got == nil || got.Number != a.Number || got.Token != a.Token {
+		t.Fatalf("ByToken = %+v, %v", got, err)
+	}
+	if len(got.Items) != 1 {
+		t.Errorf("%d lines, want 1", len(got.Items))
+	}
+
+	for _, bad := range []string{a.Number, "", strings.ToUpper(a.Token), a.Token + "0", "0123456789abcdef0123456789abcdef"} {
+		if o, err := orders.ByToken(ctx, ws, bad); err != nil || o != nil {
+			t.Errorf("ByToken(%q) = %v, %v; want nil", bad, o, err)
+		}
+	}
+	if o, _ := orders.ByToken(ctx, ws+1000, a.Token); o != nil {
+		t.Error("a token opened an order of another website")
+	}
+}

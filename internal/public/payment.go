@@ -47,7 +47,7 @@ func (h *Handler) startPayment(w http.ResponseWriter, r *http.Request,
 	website *domain.Website, order *shop.Order) error {
 
 	base := h.canonicalBase(r, website)
-	back := base + paymentReturnPath + "/" + order.Number
+	back := base + paymentReturnPath + "/" + order.Token
 
 	gw, err := h.payments.CreateGateway(r.Context(), payrexx.GatewayRequest{
 		Amount:      int64(order.Totals.TotalGross),
@@ -75,7 +75,7 @@ func (h *Handler) startPayment(w http.ResponseWriter, r *http.Request,
 		// payment still open beats an error page: the goods are reserved, the
 		// operator sees an unpaid order, and nobody has lost anything.
 		slog.Error("payrexx gateway not created", "order", order.Number, "err", err)
-		http.Redirect(w, r, thanksPath+"/"+order.Number, http.StatusSeeOther)
+		http.Redirect(w, r, thanksPath+"/"+order.Token, http.StatusSeeOther)
 		return nil
 	}
 
@@ -89,7 +89,7 @@ func (h *Handler) startPayment(w http.ResponseWriter, r *http.Request,
 
 	if gw.Link == "" {
 		slog.Error("payrexx gateway without a link", "order", order.Number, "gateway", gw.ID)
-		http.Redirect(w, r, thanksPath+"/"+order.Number, http.StatusSeeOther)
+		http.Redirect(w, r, thanksPath+"/"+order.Token, http.StatusSeeOther)
 		return nil
 	}
 
@@ -99,8 +99,8 @@ func (h *Handler) startPayment(w http.ResponseWriter, r *http.Request,
 
 // HandlePaymentReturn takes the customer back from the payment page.
 //
-// The address is guessable — it carries an order number and nothing else — so
-// it must not do anything a stranger should not be able to do. It does not: it
+// The address carries the order's private token, not its number. Even so it
+// must not do anything a stranger should not be able to do. It does not: it
 // asks Payrexx what the state of that order's payment is and writes down the
 // answer. Someone who guesses a number causes one API call and learns nothing.
 func (h *Handler) HandlePaymentReturn(w http.ResponseWriter, r *http.Request) error {
@@ -112,7 +112,7 @@ func (h *Handler) HandlePaymentReturn(w http.ResponseWriter, r *http.Request) er
 		return h.serve404(w, r, website)
 	}
 
-	order, err := h.orders.ByNumber(r.Context(), website.ID, r.PathValue("number"))
+	order, err := h.orders.ByToken(r.Context(), website.ID, r.PathValue("token"))
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (h *Handler) HandlePaymentReturn(w http.ResponseWriter, r *http.Request) er
 		slog.Error("payment could not be checked", "order", order.Number, "err", err)
 	}
 
-	http.Redirect(w, r, thanksPath+"/"+order.Number, http.StatusSeeOther)
+	http.Redirect(w, r, thanksPath+"/"+order.Token, http.StatusSeeOther)
 	return nil
 }
 

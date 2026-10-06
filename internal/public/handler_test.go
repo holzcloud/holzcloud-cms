@@ -42,6 +42,8 @@ func testFS() fstest.MapFS {
 		"search.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<section class="suche">{{range .Search.Results}}` +
 				`<article><a href="{{.URL}}">{{.Title}}</a>{{.Snippet}}</article>{{end}}</section>{{end}}`)},
+		"order.html": &fstest.MapFile{Data: []byte(
+			`{{define "content"}}<p class="order">{{.Order.Number}}</p>{{end}}`)},
 		"style.css": &fstest.MapFile{Data: []byte(`body{color:red}`)},
 	}
 }

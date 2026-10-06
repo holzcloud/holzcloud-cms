@@ -2,7 +2,9 @@ package shop
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -60,9 +62,12 @@ type Order struct {
 	ID        int64
 	WebsiteID int64
 	Number    string
-	Audience  Audience
-	Currency  string
-	Customer  Customer
+	// Token is what the confirmation link carries. Unlike Number it cannot
+	// be counted up to.
+	Token    string
+	Audience Audience
+	Currency string
+	Customer Customer
 
 	Totals    Totals
 	VATExempt bool
@@ -160,12 +165,17 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 		return nil, err
 	}
 
+	token, err := newOrderToken()
+	if err != nil {
+		return nil, err
+	}
+
 	exempt := 0
 	if set.VATExempt {
 		exempt = 1
 	}
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO orders (website_id, number, audience, currency,
+		`INSERT INTO orders (website_id, number, token, audience, currency,
 			email, name, company, vat_number, phone,
 			street, postal_code, city, country, note,
 			items_net, items_tax, items_gross,
@@ -174,8 +184,8 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 			status, payment_method, payment_status, return_policy,
 			created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-		         $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
-		websiteID, number, string(audience), set.Currency.Code,
+		         $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
+		websiteID, number, token, string(audience), set.Currency.Code,
 		customer.Email, customer.Name, customer.Company, customer.VATNumber, customer.Phone,
 		customer.Street, customer.PostalCode, customer.City, customer.Country, customer.Note,
 		int64(totals.ItemsNet), int64(totals.ItemsTax), int64(totals.ItemsGross),
@@ -189,7 +199,7 @@ func (s *OrderStore) Place(ctx context.Context, websiteID int64, set Settings,
 	orderID, _ := res.LastInsertId()
 
 	order := &Order{
-		ID: orderID, WebsiteID: websiteID, Number: number,
+		ID: orderID, WebsiteID: websiteID, Number: number, Token: token,
 		Audience: audience, Currency: set.Currency.Code, Customer: customer,
 		Totals: totals, VATExempt: set.VATExempt,
 		Status: OrderNew, PaymentMethod: method, PaymentStatus: PaymentOpen,
@@ -263,7 +273,7 @@ func parseInt(s string) (int, error) {
 }
 
 // orderColumns is the projection every order scan expects.
-const orderColumns = `id, website_id, number, audience, currency,
+const orderColumns = `id, website_id, number, token, audience, currency,
 	email, name, company, vat_number, phone,
 	street, postal_code, city, country, note,
 	items_net, items_tax, items_gross,
@@ -278,7 +288,7 @@ func scanOrder(row interface{ Scan(...any) error }) (*Order, error) {
 	var exempt int
 	var createdAt, updatedAt string
 
-	err := row.Scan(&o.ID, &o.WebsiteID, &o.Number, &audience, &o.Currency,
+	err := row.Scan(&o.ID, &o.WebsiteID, &o.Number, &o.Token, &audience, &o.Currency,
 		&o.Customer.Email, &o.Customer.Name, &o.Customer.Company,
 		&o.Customer.VATNumber, &o.Customer.Phone,
 		&o.Customer.Street, &o.Customer.PostalCode, &o.Customer.City,
@@ -298,11 +308,48 @@ func scanOrder(row interface{ Scan(...any) error }) (*Order, error) {
 	return &o, nil
 }
 
+// newOrderToken returns 16 random bytes as 32 lower-case hex characters.
+func newOrderToken() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("order token: %w", err)
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+// validToken reports whether s has the shape newOrderToken produces.
+func validToken(s string) bool {
+	if len(s) != 32 {
+		return false
+	}
+	for _, r := range s {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// ByToken reads one order by the private token of its confirmation link.
+//
+// Anything that is not shaped like a token — an order number above all — is
+// refused before the database is asked, and the lookup is per website so a
+// token from another shop opens nothing.
+func (s *OrderStore) ByToken(ctx context.Context, websiteID int64, token string) (*Order, error) {
+	if !validToken(token) {
+		return nil, nil
+	}
+	return s.one(ctx, `website_id = $1 AND token = $2`, websiteID, token)
+}
+
 // ByNumber reads one order with its lines.
 func (s *OrderStore) ByNumber(ctx context.Context, websiteID int64, number string) (*Order, error) {
+	return s.one(ctx, `website_id = $1 AND number = $2`, websiteID, number)
+}
+
+func (s *OrderStore) one(ctx context.Context, where string, args ...any) (*Order, error) {
 	o, err := scanOrder(s.carts.DB.Read.QueryRowContext(ctx,
-		`SELECT `+orderColumns+` FROM orders WHERE website_id = $1 AND number = $2`,
-		websiteID, number))
+		`SELECT `+orderColumns+` FROM orders WHERE `+where, args...))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

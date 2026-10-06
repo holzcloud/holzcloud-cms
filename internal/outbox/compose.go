@@ -116,7 +116,7 @@ func customerBody(s Shop, o *shop.Order) string {
 		b.WriteString("\nRückgabe\n" + o.ReturnPolicy + "\n")
 	}
 	if s.URL != "" {
-		b.WriteString("\nIhre Bestellung online:\n" + s.URL + "/bestellung/" + o.Number + "\n")
+		b.WriteString("\nIhre Bestellung online:\n" + s.URL + "/bestellung/" + o.Token + "\n")
 	}
 
 	b.WriteString(signature(s))

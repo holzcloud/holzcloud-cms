@@ -133,12 +133,12 @@ func TestPaymentReturnSettlesAConfirmedPayment(t *testing.T) {
 	h.SetPayments(fake.client(t))
 
 	rec := requestWithPath(t, h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number})
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token})
 
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("Status = %d, erwartet 303", rec.Code)
 	}
-	if got := rec.Header().Get("Location"); got != thanksPath+"/"+order.Number {
+	if got := rec.Header().Get("Location"); got != thanksPath+"/"+order.Token {
 		t.Errorf("Weiterleitung = %q", got)
 	}
 
@@ -164,7 +164,7 @@ func TestPaymentForTheWrongAmountIsRefused(t *testing.T) {
 	h.SetPayments(fake.client(t))
 
 	if _, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number}); err != nil {
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token}); err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
 
@@ -189,7 +189,7 @@ func TestPaymentInTheWrongCurrencyIsRefused(t *testing.T) {
 	h.SetPayments(fake.client(t))
 
 	if _, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number}); err != nil {
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token}); err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
 
@@ -209,7 +209,7 @@ func TestFailedPaymentIsRecordedAndTheOrderStays(t *testing.T) {
 	h.SetPayments(fake.client(t))
 
 	if _, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number}); err != nil {
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token}); err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
 
@@ -236,7 +236,7 @@ func TestAuthorizedIsNotPaid(t *testing.T) {
 	h.SetPayments(fake.client(t))
 
 	if _, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number}); err != nil {
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token}); err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
 
@@ -263,7 +263,7 @@ func TestSettledPaymentIsNotAskedAboutAgain(t *testing.T) {
 	h.SetPayments(fake.client(t))
 
 	if _, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number}); err != nil {
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token}); err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
 
@@ -287,7 +287,7 @@ func TestUnreachableProviderStillShowsTheOrder(t *testing.T) {
 	h.SetPayments(fake.client(t))
 
 	rec, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number})
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token})
 	if err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestPaymentReturnForAnUnknownOrder(t *testing.T) {
 	h.SetPayments((&fakePayrexx{status: "confirmed"}).client(t))
 
 	rec, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/2099-9999", map[string]string{"number": "2099-9999"})
+		paymentReturnPath+"/2099-9999", map[string]string{"token": "2099-9999"})
 	if err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestPaymentRoutesAreClosedWithoutKeys(t *testing.T) {
 	h.SetPayments(&payrexx.Client{})
 
 	rec, err := requestWithPathErr(h.HandlePaymentReturn, ws, "GET",
-		paymentReturnPath+"/"+order.Number, map[string]string{"number": order.Number})
+		paymentReturnPath+"/"+order.Token, map[string]string{"token": order.Token})
 	if err != nil {
 		t.Fatalf("HandlePaymentReturn: %v", err)
 	}
@@ -535,4 +535,28 @@ func postHook(h *Handler, ws *domain.Website, body string) (*httptest.ResponseRe
 	req = req.WithContext(domain.WebsiteToContext(req.Context(), ws))
 	rec := httptest.NewRecorder()
 	return rec, h.HandlePaymentHook(rec, req)
+}
+
+// The confirmation page opens for the private token and for nothing else: the
+// order number, which counts up, must answer 404.
+func TestOrderConfirmationNeedsTheTokenNotTheNumber(t *testing.T) {
+	h, database := newTestHandler(t)
+	ws := seedWebsite(t, database, "Laden")
+	shopSite(t, h, database, ws)
+	order := placeTestOrder(t, h, database, ws)
+
+	rec := requestWithPath(t, h.HandleOrderConfirmation, ws, "GET",
+		thanksPath+"/"+order.Token, map[string]string{"token": order.Token})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("token: Status = %d, erwartet 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), order.Number) {
+		t.Errorf("die Nummer fehlt auf der Bestätigung")
+	}
+
+	rec = requestWithPath(t, h.HandleOrderConfirmation, ws, "GET",
+		thanksPath+"/"+order.Number, map[string]string{"token": order.Number})
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("number: Status = %d, erwartet 404", rec.Code)
+	}
 }
