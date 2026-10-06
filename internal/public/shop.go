@@ -236,6 +236,11 @@ func (h *Handler) HandleProduct(w http.ResponseWriter, r *http.Request, website 
 	meta := metaData(site, nil, productURL)
 	meta.Description = firstNonEmpty(p.Excerpt, p.Subtitle, site.MetaDescription)
 
+	imageURL := h.mediaURL(r.Context(), website.ID, p.FeaturedMediaID)
+	gallery := h.galleryURLs(r, website.ID, p.ID)
+	meta.StructuredData = h.productStructuredData(website, site, meta, set, p, price, productURL,
+		append([]string{imageURL}, gallery...))
+
 	data := tmpl.PageData{
 		Site:  site,
 		Page:  tmpl.PageContent{Title: p.Title, Slug: p.Slug},
@@ -252,8 +257,8 @@ func (h *Handler) HandleProduct(w http.ResponseWriter, r *http.Request, website 
 			Price:           price.Main,
 			PriceNote:       price.Note,
 			PriceOther:      other,
-			ImageURL:        h.mediaURL(r.Context(), website.ID, p.FeaturedMediaID),
-			Gallery:         h.galleryURLs(r, website.ID, p.ID),
+			ImageURL:        imageURL,
+			Gallery:         gallery,
 			Available:       p.Orderable(),
 			StockNote:       stockNote(p),
 			DeliveryNote:    p.DeliveryNote,
