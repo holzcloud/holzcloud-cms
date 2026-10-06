@@ -115,6 +115,10 @@ type pageFormData struct {
 	// MayPublish is false for somebody who writes and submits. Then the status
 	// chooser is a plain label and the form says who puts it online.
 	MayPublish bool
+
+	// SEO is the check of the page as it is SAVED, shown in the editor's SEO
+	// tab. Nil on a new page, and when the check could not be made.
+	SEO *seoPanel
 }
 
 // pageRowData holds data for rendering a single page row partial.
@@ -577,6 +581,9 @@ func (h *Handler) editFormData(r *http.Request, websiteName string, p *page.Page
 		return data, err
 	}
 	data.RevisionCount = len(revisions)
+	// The saved page, not the posted values: the tab says so, and a rejected
+	// save must not make it describe text that was never stored.
+	data.SEO = h.seoPanelFor(r, p)
 	return data, nil
 }
 

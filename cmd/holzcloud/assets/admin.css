@@ -4191,6 +4191,7 @@ body.is-fullscreen .content-body {
 
     .editor-side:has(#panel-preview:checked) .editor-panel:not(.editor-panel--preview),
     .editor-side:has(#panel-settings:checked) .editor-panel:not(.editor-panel--settings),
+    .editor-side:has(#panel-seo:checked) .editor-panel:not(.editor-panel--seo),
     .editor-side:has(#panel-versions:checked) .editor-panel:not(.editor-panel--versions) {
         display: none;
     }
@@ -4305,4 +4306,184 @@ body.is-fullscreen .content-body {
 
 body.is-fullscreen .editor {
     grid-template-columns: minmax(0, 1fr) minmax(20rem, 38%);
+}
+
+/* Die SEO-Prüfung: ein Reiter im Editor und eine Übersicht je Website. Der
+   Zustand steht immer auch als Wort da; die Farbe verstärkt ihn nur. */
+@layer components {
+    .editor-tabs {
+        flex-wrap: wrap;
+    }
+
+    .seo-status {
+        display: flex;
+        align-items: center;
+        gap: var(--space-1);
+        margin: 0 0 var(--space-1);
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-md, 8px);
+        font-weight: 600;
+        background: var(--color-success-subtle);
+        color: var(--color-text);
+        border-inline-start: 4px solid var(--color-success);
+    }
+
+    .seo-status--warn {
+        background: var(--color-warning-subtle);
+        border-inline-start-color: var(--color-warning);
+    }
+
+    .seo-status--error {
+        background: var(--color-danger-subtle);
+        border-inline-start-color: var(--color-danger);
+    }
+
+    .seo-status__mark {
+        display: inline-grid;
+        place-items: center;
+        inline-size: 1.5rem;
+        block-size: 1.5rem;
+        flex: none;
+    }
+
+    .seo-findings {
+        list-style: none;
+        margin: var(--space-2) 0;
+        padding: 0;
+        display: grid;
+        gap: var(--space-1);
+    }
+
+    .seo-finding {
+        display: grid;
+        gap: 2px;
+        padding: var(--space-1) var(--space-2);
+        border: 1px solid var(--color-border);
+        border-inline-start-width: 4px;
+        border-radius: var(--radius-md, 8px);
+        font-size: var(--text-sm);
+        overflow-wrap: anywhere;
+    }
+
+    .seo-finding--error {
+        border-inline-start-color: var(--color-danger);
+    }
+
+    .seo-finding--warn {
+        border-inline-start-color: var(--color-warning);
+    }
+
+    .seo-finding--info {
+        border-inline-start-color: var(--color-border);
+    }
+
+    .seo-finding__hint {
+        color: var(--color-text-muted);
+    }
+
+    /* Die Übersicht. */
+    .seo-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1) var(--space-3);
+        margin: 0 0 var(--space-2);
+        padding: 0;
+        list-style: none;
+    }
+
+    .seo-summary__item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .seo-summary__number {
+        font-size: 1.5rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .seo-filter {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: var(--space-1);
+        margin-block: var(--space-2);
+    }
+
+    .seo-filter .form-select {
+        min-block-size: 44px;
+        max-inline-size: 100%;
+    }
+
+    .seo-filter .btn,
+    .seo-report-pager .btn {
+        min-block-size: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .seo-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .seo-chip {
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--color-border);
+        font-size: 0.8125rem;
+    }
+
+    .seo-chip--error {
+        border-color: var(--color-danger);
+    }
+
+    .seo-chip--warn {
+        border-color: var(--color-warning);
+    }
+
+    .seo-worst {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .seo-report-pager {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2);
+        margin-block-start: var(--space-2);
+    }
+
+    /* Auf dem Telefon wird aus der Tabelle eine Liste von Karten. */
+    @container (max-width: 640px) {
+        .seo-table thead {
+            position: absolute;
+            inline-size: 1px;
+            block-size: 1px;
+            overflow: hidden;
+        }
+
+        .seo-table,
+        .seo-table tbody,
+        .seo-table tr,
+        .seo-table td {
+            display: block;
+            inline-size: 100%;
+        }
+
+        .seo-table tr {
+            padding-block: var(--space-1);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .seo-table td {
+            border: 0;
+            padding-block: 2px;
+        }
+    }
 }

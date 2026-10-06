@@ -152,6 +152,10 @@
             <label for="panel-preview" class="editor-tab">{{t "Preview"}}</label>
             <input type="radio" name="panel" id="panel-settings" form="editor-panels" class="sr-only"{{if $settingsFirst}} checked{{end}}>
             <label for="panel-settings" class="editor-tab">{{t "Settings"}}</label>
+            {{if .IsEdit}}
+            <input type="radio" name="panel" id="panel-seo" form="editor-panels" class="sr-only">
+            <label for="panel-seo" class="editor-tab">{{t "SEO"}}</label>
+            {{end}}
             <input type="radio" name="panel" id="panel-versions" form="editor-panels" class="sr-only">
             <label for="panel-versions" class="editor-tab">{{t "Versions"}}{{if .RevisionCount}} <span class="editor-tab__count">{{.RevisionCount}}</span>{{end}}</label>
         </div>
@@ -376,6 +380,31 @@
         </details>
 
         </section>
+
+        {{if .IsEdit}}
+        <section class="editor-panel editor-panel--seo" aria-label="{{t "SEO"}}">
+            {{with .SEO}}
+            <p class="seo-status seo-status--{{.Status}}">
+                <span class="seo-status__mark" aria-hidden="true">{{if eq .Status "ok"}}&#10003;{{else if eq .Status "warn"}}!{{else}}&times;{{end}}</span>
+                <span>{{if eq .Status "ok"}}{{t "Nothing to fix"}}{{else if eq .Status "warn"}}{{t "Could be better"}}{{else}}{{t "Needs attention"}}{{end}}</span>
+            </p>
+            <p class="form-hint text-muted">{{t "This checks the saved version of the page. Save first to check what you have just written."}}</p>
+            {{if .Findings}}
+            <ul class="seo-findings">
+                {{range .Findings}}
+                <li class="seo-finding seo-finding--{{.Severity}}">
+                    <strong class="seo-finding__label">{{template "seo_label" .}}</strong>
+                    <span class="seo-finding__hint">{{template "seo_hint" .}}</span>
+                </li>
+                {{end}}
+            </ul>
+            {{end}}
+            {{else}}
+            <p class="text-muted">{{t "The check could not be made right now."}}</p>
+            {{end}}
+            <p><a href="/admin/websites/{{.WebsiteID}}/seo" class="btn btn--sm">{{t "SEO report of the website"}}</a></p>
+        </section>
+        {{end}}
 
         <section class="editor-panel editor-panel--versions" aria-label="{{t "Versions"}}">
             {{if .IsEdit}}

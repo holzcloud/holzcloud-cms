@@ -987,6 +987,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 
 	// Page routes
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages", adminHandler.ErrHandler(adminHandler.HandlePageList))
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/seo", adminHandler.ErrHandler(adminHandler.HandleSEOReport))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/uebersetzungen", adminHandler.ErrHandler(adminHandler.HandleTranslations))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/pages/new", adminHandler.ErrHandler(adminHandler.HandlePageCreate))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/pages/new", adminHandler.ErrHandler(adminHandler.HandlePageCreate))

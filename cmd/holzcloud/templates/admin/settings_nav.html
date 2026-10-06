@@ -19,6 +19,7 @@
         <a href="/admin/websites/{{$id}}/tags" class="settings-nav__item{{if eq .ActiveNav "terms"}} is-active{{end}}"{{if eq .ActiveNav "terms"}} aria-current="page"{{end}}>{{template "icon-tag"}}<span>{{t "Terms"}}</span></a>
         <a href="/admin/websites/{{$id}}/snippets" class="settings-nav__item{{if eq .ActiveNav "snippets"}} is-active{{end}}"{{if eq .ActiveNav "snippets"}} aria-current="page"{{end}}>{{template "icon-snippet"}}<span>{{t "Snippets"}}</span></a>
         <a href="/admin/websites/{{$id}}/redirects" class="settings-nav__item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>{{template "icon-redirect"}}<span>{{t "Redirects"}}</span></a>
+        <a href="/admin/websites/{{$id}}/seo" class="settings-nav__item{{if eq .ActiveNav "seo"}} is-active{{end}}"{{if eq .ActiveNav "seo"}} aria-current="page"{{end}}>{{template "icon-seo"}}<span>{{t "SEO"}}</span></a>
     {{if $.IsAdmin}}
         <a href="/admin/websites/{{$id}}/inhaltsarten" class="settings-nav__item{{if eq .ActiveNav "kinds"}} is-active{{end}}"{{if eq .ActiveNav "kinds"}} aria-current="page"{{end}}>{{template "icon-pages"}}<span>{{t "Content kinds"}}</span></a>
     {{end}}
