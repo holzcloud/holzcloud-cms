@@ -399,6 +399,10 @@ func (s *Store) ApplyMigrations(ctx context.Context, id string, ms []Migration) 
 			return fmt.Errorf("plugin migration lookup: %w", err)
 		}
 
+		if err := s.checkMigration(ctx, id, m.SQL); err != nil {
+			return fmt.Errorf("migration %q of plugin %q refused: %w", m.Name, id, err)
+		}
+
 		tx, err := s.DB.Write.BeginTx(ctx, nil)
 		if err != nil {
 			return err

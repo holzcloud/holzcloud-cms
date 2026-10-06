@@ -1,8 +1,10 @@
 package mail
 
 import (
+	"net"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testSender() *Sender {
@@ -167,5 +169,38 @@ func TestAddressesAreChecked(t *testing.T) {
 		if err := validAddress(gut); err != nil {
 			t.Errorf("%q wurde abgelehnt: %v", gut, err)
 		}
+	}
+}
+
+func TestAStalledServerCannotHoldTheSession(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer c.Close() // accepted, never answered
+		}
+	}()
+	addr := ln.Addr().(*net.TCPAddr)
+	s := NewSender(Config{Host: "127.0.0.1", Port: addr.Port, TLS: "none",
+		From: "a@example.org", Timeout: 200 * time.Millisecond})
+	if !s.Enabled() {
+		t.Fatal("sender not enabled in the test setup")
+	}
+	done := make(chan error, 1)
+	go func() { done <- s.Send(Message{To: "b@example.org", Subject: "x", Body: "y"}) }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a silent server was reported as success")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Send hung on a silent server")
 	}
 }

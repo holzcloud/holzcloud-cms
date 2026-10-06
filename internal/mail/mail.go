@@ -159,7 +159,25 @@ func (s *Sender) Send(m Message) error {
 	return client.Quit()
 }
 
+// sessionFactor is how many times cfg.Timeout a whole delivery may take.
+// cfg.Timeout bounds the connect; the conversation after it (greeting,
+// STARTTLS, login, DATA) has several round trips and each of them can stall, so
+// the whole session gets one deadline of a few timeouts rather than one per
+// step. Without it a server that answers the connect and then falls silent
+// holds the outbox's worker for as long as it likes.
+const sessionFactor = 3
+
 func (s *Sender) dial() (net.Conn, error) {
+	conn, err := s.dialRaw()
+	if err != nil {
+		return nil, err
+	}
+	// Set on the underlying connection, so it survives the STARTTLS upgrade.
+	_ = conn.SetDeadline(time.Now().Add(sessionFactor * s.cfg.Timeout))
+	return conn, nil
+}
+
+func (s *Sender) dialRaw() (net.Conn, error) {
 	d := &net.Dialer{Timeout: s.cfg.Timeout}
 	if s.cfg.TLS == "tls" {
 		conn, err := tls.DialWithDialer(d, "tcp", s.cfg.Addr(), &tls.Config{ServerName: s.cfg.Host})
