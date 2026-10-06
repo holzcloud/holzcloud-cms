@@ -94,8 +94,9 @@ cookie banner.
   website's own account, its password stored encrypted
 - **Search, snippets, scheduling, redirects** and a record of the addresses
   visitors asked for and did not find
-- **SEO** — `sitemap.xml`, `robots.txt` and schema.org JSON-LD with address,
-  opening hours and telephone number
+- **SEO** — `sitemap.xml` with images, `robots.txt`, `llms.txt` and schema.org
+  JSON-LD (address, opening hours, articles, shop products), plus an **SEO check**
+  in the editor and an **SEO report** for the whole website
 - **Export and import** — a whole website as one readable archive, a WordPress
   WXR importer, and `holzcloud export` for a static copy any web host can serve
 - **Users** with admin and editor roles, per-person website and publishing

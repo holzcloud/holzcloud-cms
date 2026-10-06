@@ -14,6 +14,34 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.20 — 2026-10-06
+
+**Der SEO-Check sagt, was an einer Seite besser sein könnte.** Im Editor gibt es
+neben „Vorschau“, „Einstellungen“ und „Versionen“ den Reiter „SEO“. Er prüft die
+gespeicherte Fassung der Seite und sagt zu jedem Punkt, was zu ändern ist: Titel
+und Beschreibung fehlen oder sind zu kurz oder zu lang, derselbe Titel oder
+dieselbe Beschreibung steht auf einer anderen Seite, im Text steht noch eine
+zweite H1, Überschriftenstufen sind übersprungen, Bilder haben keine
+Beschreibung, der Text ist sehr kurz, die Seite verlinkt auf keine andere, die
+Adresse ist lang oder voller Füllwörter, oder zum Teilen fehlt ein Bild. Gesperrt
+wird nichts. Unter „SEO“ in der Liste der Einstellungen steht dasselbe für die
+ganze Website, nach Befund filterbar, und der KI-Zugang kennt es als lesendes
+Werkzeug `seo_report`. Nach dem Update ist nichts zu tun.
+
+**Neu: `/llms.txt`, Bilder in der Sitemap und mehr strukturierte Daten.** Jede
+Website liefert unter `/llms.txt` eine Markdown-Übersicht für KI-Suche und
+Assistenten: Name und Beschreibung, dann je Sprache die Seiten mit Titel,
+Adresse und Beschreibung. Die Sitemap nennt jetzt unter jeder Seite die Bilder,
+die sie zeigt. Beiträge tragen `BlogPosting` statt `Article`, und Produkte im
+Laden tragen `Product` mit `Offer` (Preis, Währung, auf Lager oder nicht) und
+einen Brotkrumenpfad.
+
+**Die Sitemap führt Seiten mit „noindex“ nicht mehr auf.** Bisher stand dort auch
+eine Seite, die man den Suchmaschinen ausdrücklich verbot; das widersprach sich.
+`/llms.txt` und die Sitemap lesen jetzt dieselbe Auswahl, sodass sie nicht
+auseinanderlaufen. Entwürfe, geplante, gesperrte und fremde Seiten stehen in
+keiner von beiden.
+
 ## 0.0.19 — 2026-10-02
 
 **Eine Weiterleitung behält die Sprache.** Wer eine Seite umbenennt, bekommt
