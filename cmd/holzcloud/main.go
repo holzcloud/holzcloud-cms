@@ -1331,6 +1331,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	publicMux.HandleFunc("GET /t/{path...}", publicHandler.ErrHandler(publicHandler.HandleTemplateAsset))
 	publicMux.HandleFunc("GET /sitemap.xml", publicHandler.ErrHandler(publicHandler.HandleSitemap))
 	publicMux.HandleFunc("GET /robots.txt", publicHandler.ErrHandler(publicHandler.HandleRobots))
+	publicMux.HandleFunc("GET /llms.txt", publicHandler.ErrHandler(publicHandler.HandleLLMS))
 	publicMux.HandleFunc("GET /feed.xml", publicHandler.ErrHandler(publicHandler.HandleFeed))
 	publicMux.HandleFunc("GET /tag/{slug}", publicHandler.ErrHandler(publicHandler.HandleTag))
 	publicMux.HandleFunc("POST /freischalten", publicHandler.ErrHandler(publicHandler.HandleUnlock))

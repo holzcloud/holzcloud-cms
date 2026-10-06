@@ -4,12 +4,9 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
-	"github.com/holzcloud/holzcloud-cms/internal/locale"
-	"github.com/holzcloud/holzcloud-cms/internal/page"
 )
 
 // urlset and sitemapURL model the sitemaps.org 0.9 schema.
@@ -36,43 +33,14 @@ func (h *Handler) HandleSitemap(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 
-	entries, err := h.pageStore.ListPublishedForSitemap(r.Context(), website.ID)
+	items, err := h.listing(r, website)
 	if err != nil {
-		return fmt.Errorf("list sitemap entries: %w", err)
+		return err
 	}
 
-	base := h.baseURL(r)
-	doc := urlset{Xmlns: sitemapNS, URLs: make([]sitemapURL, 0, len(entries)+1)}
-	doc.URLs = append(doc.URLs, sitemapURL{Loc: base + "/"})
-	// Every language's start page. They are not page rows in their own right,
-	// and a crawler that cannot find /fr finds nothing behind it either.
-	for _, tag := range website.Locales() {
-		doc.URLs = append(doc.URLs, sitemapURL{Loc: base + locale.Path(tag, website.Locale, "/")})
-	}
-	// The archive is not a page row, so nothing else would ever list it — and an
-	// unlisted archive is the one address a crawler most needs to find the
-	// entries behind it.
-	if website.HasArchive() {
-		doc.URLs = append(doc.URLs, sitemapURL{Loc: base + "/" + url.PathEscape(website.BlogBase)})
-	}
-	// And for the same reason the overview of every content type of its own.
-	for _, t := range h.typesOf(r, website.ID) {
-		if t.HasArchive() {
-			doc.URLs = append(doc.URLs, sitemapURL{Loc: base + "/" + url.PathEscape(t.Archive)})
-		}
-	}
-	for _, e := range entries {
-		// The start page already stands above, under the root of its language.
-		// Listing it here a second time under /home would mean naming a search
-		// engine two addresses for the same text — and since the redirect the
-		// address /home answers with a 301 anyway.
-		if e.Slug == page.HomeSlug {
-			continue
-		}
-		doc.URLs = append(doc.URLs, sitemapURL{
-			Loc:     base + locale.Path(e.Locale, website.Locale, "/"+url.PathEscape(e.Slug)),
-			LastMod: e.UpdatedAt.UTC().Format("2006-01-02"),
-		})
+	doc := urlset{Xmlns: sitemapNS, URLs: make([]sitemapURL, 0, len(items))}
+	for _, it := range items {
+		doc.URLs = append(doc.URLs, sitemapURL{Loc: it.Loc, LastMod: it.LastMod})
 	}
 
 	body, err := xml.MarshalIndent(doc, "", "  ")

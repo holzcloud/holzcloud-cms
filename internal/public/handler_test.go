@@ -195,6 +195,7 @@ func TestHandlersRefuseUnresolvedHost(t *testing.T) {
 		"page":    h.HandlePage,
 		"sitemap": h.HandleSitemap,
 		"robots":  h.HandleRobots,
+		"llms":    h.HandleLLMS,
 	} {
 		rec, err := request(fn, nil, "GET", "/")
 		if err != nil {
