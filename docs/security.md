@@ -58,9 +58,11 @@ website can have of its own; their passwords are stored encrypted under
 
 ## Why a holzcloud-CMS site needs no cookie banner
 
-This follows from the rule above and is worth stating plainly. The public side
-sets **no cookies at all**: the session manager is only ever touched by admin
-handlers, and the CSRF cookie is scoped to `Path("/admin")`. It also loads
+This follows from the rule above and is worth stating plainly. A site without a
+shop or a protected page sets **no cookies at all** on the public side: the
+session manager is only ever touched by admin handlers, and the CSRF cookie is
+scoped to `Path("/admin")`. The two exceptions are described below, and neither
+needs consent. The site also loads
 nothing from a third party, so there is no embedded service that could set one on
 your behalf and nothing to obtain consent for under § 25 TDDDG.
 
@@ -101,7 +103,15 @@ remembers that the visitor entered the password, is scoped to that page's path,
 lasts twelve hours and contains a signed token rather than anything about the
 person. It is strictly necessary for a service the visitor explicitly asked for —
 seeing the page they just unlocked — and therefore consent-exempt under
-§ 25(2) TDDDG. A site with no protected page still sets no cookie at all.
+§ 25(2) TDDDG.
+
+**A shop sets one cookie too**, `hc_warenkorb`, and only once a visitor puts
+something in the basket. It holds a random token that points to the basket in the
+site's own database, is `HttpOnly` and `SameSite=Lax`, is valid for the whole
+site, lasts 30 days and is deleted when the order is placed. The basket cannot
+work without it, so it is strictly necessary for what the visitor asked for and
+consent-exempt under § 25(2) TDDDG. Browsing the shop without adding anything
+sets no cookie. A site with no shop and no protected page sets none at all.
 
 ## Two-factor authentication
 
