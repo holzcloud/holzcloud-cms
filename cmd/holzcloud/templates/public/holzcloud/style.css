@@ -1106,6 +1106,57 @@ main:focus { outline: none; }
   text-align: start; padding: var(--hc-space-3) var(--hc-space-4);
   border-block-end: 1px solid var(--hc-hairline);
 }
+/* Tabellen auf dem Handy. Eine Vergleichstabelle mit vier Spalten ist
+ * breiter als der Bildschirm und schob bisher die ganze Seite zur Seite.
+ * Jetzt scrollt sie in ihrem eigenen Kasten (display: block; der Inhalt
+ * bleibt eine Tabelle), die erste Spalte bleibt stehen, und ein Schatten
+ * am Rand zeigt, dass es weitergeht (Scroll-Schatten: die "local"-Deckflächen
+ * wandern mit dem Inhalt und verdecken den Schatten, sobald der Rand erreicht
+ * ist). Nur @media screen: gedruckt bleibt die Tabelle, wie sie ist.
+ * Der Kasten lässt sich ohne tabindex nicht per Tastatur scrollen; ein
+ * tabindex ginge nur im Inhalt, nicht im Stylesheet.
+ * Das Raster darüber ändert sich nicht, ab 40em gilt nichts von hier. */
+@media screen and (max-width: 40em) {
+  .page-content :where(table) {
+    display: block; max-width: 100%; overflow-x: auto;
+    overscroll-behavior-x: contain;
+    /* Getrennte Ränder, weil eine Zelle mit position: sticky ihren
+     * Rand im "collapse"-Modus beim Scrollen zurücklässt. */
+    border-collapse: separate; border-spacing: 0;
+    --hc-tabelle-schatten: color-mix(in srgb, var(--hc-ink) 20%, transparent);
+    background:
+      linear-gradient(to right, var(--hc-ground), var(--hc-ground)) left center / 1.5rem 100% local no-repeat,
+      linear-gradient(to left, var(--hc-ground), var(--hc-ground)) right center / 1.5rem 100% local no-repeat,
+      linear-gradient(to right, var(--hc-tabelle-schatten), transparent) left center / 1rem 100% scroll no-repeat,
+      linear-gradient(to left, var(--hc-tabelle-schatten), transparent) right center / 1rem 100% scroll no-repeat;
+  }
+  .page-content :where(th, td) { min-width: 6rem; }
+  .page-content :where(thead th) { white-space: nowrap; }
+  /* Die erste Spalte steht still. Der Hintergrund ist deckend, sonst
+   * liefe der Text der anderen Spalten darunter hindurch. */
+  .page-content :where(th:first-child, td:first-child) {
+    position: sticky; inset-inline-start: 0; z-index: 1;
+    min-width: 6.5rem; max-width: 8rem;
+    background: var(--hc-ground);
+    box-shadow: inset -1px 0 0 var(--hc-hairline);
+  }
+  /* Zwei Spalten (Begriff | Text) brauchen keinen Kasten: Sie brechen um
+   * und passen in die Breite. Die erste Spalte wird schmaler, damit die
+   * Textspalte nicht zusammengedrückt wird. */
+  .page-content :where(table:not(:has(tr > :nth-child(3)))) {
+    display: table; width: 100%; overflow: visible; background: none;
+  }
+  .page-content :where(table:not(:has(tr > :nth-child(3))) th, table:not(:has(tr > :nth-child(3))) td) {
+    min-width: 0; overflow-wrap: anywhere; padding-inline: var(--hc-space-3);
+  }
+  .page-content :where(table:not(:has(tr > :nth-child(3))) th:first-child, table:not(:has(tr > :nth-child(3))) td:first-child) {
+    position: static; width: 38%; max-width: none; background: none; box-shadow: none;
+  }
+  /* Ein langer Befehl im Lauftext (Inline-Code ohne Leerzeichen) war breiter
+   * als der Bildschirm und schob die Seite seitwärts. In <pre> scrollt er
+   * weiter für sich; im Fliesstext darf er umbrechen. */
+  .page-content :where(:not(pre) > code) { overflow-wrap: anywhere; }
+}
 .page-content :where(pre) {
   padding: var(--hc-space-4); overflow-x: auto;
   background: var(--hc-pane-sunken);
