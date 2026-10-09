@@ -14,6 +14,19 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.22 — 2026-10-09
+
+Vergleichstabellen auf dem Handy, im Theme holzcloud.
+
+**Breite Tabellen schieben die Seite nicht mehr zur Seite.** Auf Telefonen bis
+40em Breite scrollt eine Tabelle mit drei oder mehr Spalten in ihrem eigenen
+Kasten; die erste Spalte bleibt dabei stehen, und ein Schatten am Rand zeigt,
+dass es weitergeht. Tabellen mit zwei Spalten brechen um und bekommen eine
+schmalere erste Spalte. Ebenso bricht ein langer Befehl im Lauftext jetzt um,
+statt die Seite zu verbreitern. Tablet, Desktop und Druck bleiben unverändert.
+Der Kasten lässt sich nicht mit der Tastatur scrollen, weil das ein `tabindex`
+im Inhalt bräuchte, den ein Stylesheet nicht setzen kann.
+
 ## 0.0.21 — 2026-10-06
 
 Sicherheitsprüfung, alle Gruppen. Eine Migration (00060) kommt mit, sie läuft
