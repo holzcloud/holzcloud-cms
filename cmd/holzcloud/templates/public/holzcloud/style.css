@@ -1594,7 +1594,7 @@ main:focus { outline: none; }
  * Jede Programmseite steht in den Farben, die das Programm auf GitHub trägt:
  * holzcloud-cms in Mint auf dunklem Grün, hauscloud in Blau auf Nachtblau,
  * holzbar (früher holzice) in Eisblau auf dunklem Marineblau, holzkube-manager in Glut auf
- * fast schwarzem Rot. Das Messing dieser Vorlage gehört seither holzcloud
+ * fast schwarzem Rot, holzWave in Rosé auf dunklem Aubergine. Das Messing dieser Vorlage gehört seither holzcloud
  * allein; holzkube-manager teilt es nicht mehr. Die Farbe hängt am Adressnamen der Seite, den das Layout als data-seite
  * auf <body> schreibt — er ist in allen Sprachen derselbe.
  *
@@ -1606,7 +1606,11 @@ body[data-seite="holzcloud-cms"] { --hc-app: #8fd0ba; --hc-app-grund: #0b1411; }
 body[data-seite="hauscloud"]     { --hc-app: #8298ff; --hc-app-grund: #0c0e1a; }
 body:is([data-seite="holzbar"], [data-seite="holzice"]) { --hc-app: #5ec8f2; --hc-app-grund: #0a1426; }
 body[data-seite="holzkube-manager"] { --hc-app: #EF7A4D; --hc-app-grund: #140806; }
-body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzbar"], [data-seite="holzice"], [data-seite="holzkube-manager"]) {
+/* holzWave: das Rosé und der Aubergine-Grund aus dem Banner des Programms
+ * (#FF8FB8 auf #14091A). Rosé auf diesem Grund: 9,1 : 1, auf der abgeleiteten
+ * Fläche --hc-pane-solid 7,9 : 1. */
+body[data-seite="holzwave"] { --hc-app: #FF8FB8; --hc-app-grund: #14091A; }
+body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzbar"], [data-seite="holzice"], [data-seite="holzkube-manager"], [data-seite="holzwave"]) {
   --hc-ground:          var(--hc-app-grund);
   --paper:              var(--hc-app-grund);
   --hc-pane-bar:        color-mix(in srgb, var(--hc-ground) 55%, transparent);
@@ -2463,7 +2467,12 @@ body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="hol
   body[data-seite="hauscloud"]        { --hc-app: #3A51D4; --hc-app-grund: #EEF0FA; }
   body:is([data-seite="holzbar"], [data-seite="holzice"]) { --hc-app: #1C78AE; --hc-app-grund: #EAF3F9; }
   body[data-seite="holzkube-manager"] { --hc-app: #C2502A; --hc-app-grund: #FBEFE9; }
-  body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzbar"], [data-seite="holzice"], [data-seite="holzkube-manager"]) { --hc-wood: var(--hc-app); }
+  /* holzWave hell: das dunklere Rosé, das das Programm selbst für Flächen auf
+     hellem Grund nimmt, noch ein Stück tiefer gezogen — #C23B72 trüge nur
+     4,4 : 1. #A82E5E auf #FBEEF3 sind 5,8 : 1, auf der mit zehn Prozent
+     Rosé eingefärbten Fläche 5,0 : 1. */
+  body[data-seite="holzwave"]         { --hc-app: #A82E5E; --hc-app-grund: #FBEEF3; }
+  body:is([data-seite="holzcloud-cms"], [data-seite="hauscloud"], [data-seite="holzbar"], [data-seite="holzice"], [data-seite="holzkube-manager"], [data-seite="holzwave"]) { --hc-wood: var(--hc-app); }
 
   /* Wer weniger Transparenz will, bekommt deckende Flächen, wie dunkel. */
   @media (prefers-reduced-transparency: reduce) {

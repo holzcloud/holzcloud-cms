@@ -14,6 +14,15 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.23 — 2026-10-10
+
+Farben für die Programmseite holzWave, im Theme holzcloud.
+
+**holzWave bekommt seine eigenen Farben.** Eine Seite mit dem Adressnamen
+`holzwave` steht in Rosé auf dunklem Aubergine, wie das Programm selbst:
+dunkel `#FF8FB8` auf `#14091A` (9,1 : 1), hell ein tieferes Rosé `#A82E5E` auf
+`#FBEEF3` (5,8 : 1). Alle anderen Programmseiten bleiben unverändert.
+
 ## 0.0.22 — 2026-10-09
 
 Vergleichstabellen auf dem Handy, im Theme holzcloud.
