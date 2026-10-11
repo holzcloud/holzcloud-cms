@@ -10,9 +10,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/holzcloud/holzcloud-cms/internal/activity"
+	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // The menu and label screens. Nine handlers between them and no test on any of
@@ -427,4 +430,128 @@ func TestTheMenuAndLabelListsShowWhatIsThere(t *testing.T) {
 		}
 	}
 	_ = fmt.Sprint()
+}
+
+func menuActivity(t *testing.T, database *db.DB, action string) []activity.Entry {
+	t.Helper()
+	got, _, err := activity.NewStore(database).List(context.Background(), activity.Filter{Action: action}, 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
+// Renaming is findable: the list carries a rename form per menu that posts to
+// the update address, and the bar has a Menus entry that is marked here.
+func TestTheMenuListRenamesInPlaceAndTheBarHasMenus(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	if _, err := menu.NewStore(database).CreateMenu(context.Background(), ws.ID, "Hauptmenü", "haupt", ""); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/menus", nil)
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	// The bar's website links come from the middleware, not from the handler.
+	rec := httptest.NewRecorder()
+	var herr error
+	sm.LoadAndSave(web.WithNav(sm, func(context.Context) ([]domain.Website, error) {
+		return []domain.Website{*ws}, nil
+	}, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		herr = h.HandleMenuList(w, r)
+	}))).ServeHTTP(rec, req)
+	if herr != nil {
+		t.Fatal(herr)
+	}
+	body := rec.Body.String()
+
+	form := `method="POST" action="/admin/websites/` + strconv.FormatInt(ws.ID, 10) + `/menus/1/update"`
+	if !strings.Contains(body, form) {
+		t.Error("no rename form in the list")
+	}
+	if strings.Contains(body, `hx-post="/admin/websites/`+strconv.FormatInt(ws.ID, 10)+`/menus/1/update"`) {
+		t.Error("the rename form carries an hx-post; it must work without one")
+	}
+	if !strings.Contains(body, `name="back" value="list"`) {
+		t.Error("the rename form does not return to the list")
+	}
+	bar := `href="/admin/websites/` + strconv.FormatInt(ws.ID, 10) + `/menus" class="rail-item is-active"`
+	if !strings.Contains(body, bar) {
+		t.Error("the bar has no marked Menus entry on the menu list")
+	}
+}
+
+// The list posts the name alone. The key must survive that, and the person goes
+// back to the list. Every outcome is logged exactly when it succeeded.
+func TestRenamingAMenuFromTheListKeepsTheKeyAndIsLogged(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	h.SetActivityStore(activity.NewStore(database))
+	ctx := context.Background()
+	m, err := menu.NewStore(database).CreateMenu(ctx, ws.ID, "Hauptmenü", "haupt", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := websiteRoute(ws.ID, "menuID", strconv.FormatInt(m.ID, 10))
+	listURL := "/admin/websites/" + strconv.FormatInt(ws.ID, 10) + "/menus"
+
+	rec, bad, good := albumFlash(t, h, sm, h.HandleMenuUpdate, postForm("/x",
+		url.Values{"name": {"  Kopfmenü "}, "back": {"list"}}, route))
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != listURL {
+		t.Fatalf("status %d, location %q", rec.Code, rec.Header().Get("Location"))
+	}
+	if bad != "" || good == "" {
+		t.Errorf("flash: error %q, success %q", bad, good)
+	}
+	stored, _ := menu.NewStore(database).GetMenu(ctx, m.ID)
+	if stored == nil || stored.Name != "Kopfmenü" || stored.LocationKey != "haupt" {
+		t.Fatalf("stored %+v", stored)
+	}
+	if n := len(menuActivity(t, database, activity.ActionMenuUpdate)); n != 1 {
+		t.Errorf("%d activity entries after the rename, want 1", n)
+	}
+
+	// Without back=list the editor is the destination, as before.
+	rec = serve(t, h, sm, h.HandleMenuUpdate, postForm("/x",
+		url.Values{"name": {"Kopf"}, "location_key": {"haupt"}}, route))
+	if loc := rec.Header().Get("Location"); loc != listURL+"/1" {
+		t.Errorf("editor post went to %q", loc)
+	}
+
+	// Failures: empty name, a key field that is present but empty, and another
+	// website's menu. Nothing changes and nothing is logged.
+	before := len(menuActivity(t, database, activity.ActionMenuUpdate))
+	for _, v := range []url.Values{
+		{"name": {"  "}, "back": {"list"}},
+		{"name": {"X"}, "location_key": {""}},
+	} {
+		rec, bad, _ := albumFlash(t, h, sm, h.HandleMenuUpdate, postForm("/x", v, route))
+		if rec.Code != http.StatusSeeOther || bad == "" {
+			t.Errorf("%v: status %d, error %q", v, rec.Code, bad)
+		}
+	}
+	other := websiteRoute(ws.ID+99, "menuID", strconv.FormatInt(m.ID, 10))
+	if rec := serve(t, h, sm, h.HandleMenuUpdate, postForm("/x", url.Values{"name": {"Z"}}, other)); rec.Code != http.StatusNotFound {
+		t.Errorf("another website's menu: status %d", rec.Code)
+	}
+	stored, _ = menu.NewStore(database).GetMenu(ctx, m.ID)
+	if stored.Name != "Kopf" || stored.LocationKey != "haupt" {
+		t.Errorf("a refused update changed the menu: %+v", stored)
+	}
+	if n := len(menuActivity(t, database, activity.ActionMenuUpdate)); n != before {
+		t.Errorf("refused updates were logged: %d -> %d", before, n)
+	}
+}
+
+func TestMenuCreateAndDeleteAreLogged(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	h.SetActivityStore(activity.NewStore(database))
+	serve(t, h, sm, h.HandleMenuCreate, postForm("/x",
+		url.Values{"name": {"Fuss"}, "location_key": {"fuss"}}, websiteRoute(ws.ID)))
+	if n := len(menuActivity(t, database, activity.ActionMenuCreate)); n != 1 {
+		t.Fatalf("%d create entries", n)
+	}
+	menus, _ := menu.NewStore(database).ListMenus(context.Background(), ws.ID)
+	serve(t, h, sm, h.HandleMenuDelete, postForm("/x", nil,
+		websiteRoute(ws.ID, "menuID", strconv.FormatInt(menus[0].ID, 10))))
+	if n := len(menuActivity(t, database, activity.ActionMenuDelete)); n != 1 {
+		t.Errorf("%d delete entries", n)
+	}
 }

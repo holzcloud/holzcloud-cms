@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
@@ -146,7 +147,8 @@ func (h *Handler) HandleMenuCreate(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	if _, err := h.createMenu(r.Context(), websiteID, r.FormValue("name"), r.FormValue("location_key"), r.FormValue("sprache")); err != nil {
+	created, err := h.createMenu(r.Context(), websiteID, r.FormValue("name"), r.FormValue("location_key"), r.FormValue("sprache"))
+	if err != nil {
 		if isRefusal(err) {
 			web.SetFlashError(h.sm, r.Context(), err.Error())
 			http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID), http.StatusSeeOther)
@@ -155,6 +157,10 @@ func (h *Handler) HandleMenuCreate(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
+	h.LogActivity(r, activity.Entry{
+		Action: activity.ActionMenuCreate, EntityType: "menu", EntityID: created.ID, WebsiteID: &websiteID,
+		Metadata: map[string]any{"name": created.Name, "key": created.LocationKey},
+	})
 	web.SetFlashSuccess(h.sm, r.Context(), "Menu created")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus", websiteID)
 	if r.Header.Get("HX-Request") == "true" {
@@ -251,22 +257,41 @@ func (h *Handler) HandleMenuUpdate(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	if err := h.updateMenu(r.Context(), menuID, r.FormValue("name"), r.FormValue("location_key")); err != nil {
+	// The list renames in place and posts the name alone; a post without a key
+	// field keeps the key, because the key is what a theme looks the menu up
+	// by and blanking it would take the navigation off the site. A field that
+	// is present but empty is still refused by checkMenu.
+	key := m.LocationKey
+	if _, ok := r.Form["location_key"]; ok {
+		key = r.FormValue("location_key")
+	}
+	back := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
+	if r.FormValue("back") == "list" {
+		back = fmt.Sprintf("/admin/websites/%d/menus", websiteID)
+	}
+
+	if err := h.updateMenu(r.Context(), menuID, r.FormValue("name"), key); err != nil {
 		if isRefusal(err) {
 			web.SetFlashError(h.sm, r.Context(), err.Error())
-			http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
+			http.Redirect(w, r, back, http.StatusSeeOther)
 			return nil
 		}
 		return err
 	}
 
+	h.LogActivity(r, activity.Entry{
+		Action:     activity.ActionMenuUpdate,
+		EntityType: "menu",
+		EntityID:   menuID,
+		WebsiteID:  &websiteID,
+		Metadata:   map[string]any{"name": strings.TrimSpace(r.FormValue("name")), "key": strings.TrimSpace(key)},
+	})
 	web.SetFlashSuccess(h.sm, r.Context(), "Menu saved")
-	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
 	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", redirect)
+		w.Header().Set("HX-Redirect", back)
 		return nil
 	}
-	http.Redirect(w, r, redirect, http.StatusSeeOther)
+	http.Redirect(w, r, back, http.StatusSeeOther)
 	return nil
 }
 
@@ -296,6 +321,10 @@ func (h *Handler) HandleMenuDelete(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
+	h.LogActivity(r, activity.Entry{
+		Action: activity.ActionMenuDelete, EntityType: "menu", EntityID: menuID, WebsiteID: &websiteID,
+		Metadata: map[string]any{"name": m.Name, "key": m.LocationKey},
+	})
 	web.SetFlashSuccess(h.sm, r.Context(), "Menu deleted")
 	redirect := fmt.Sprintf("/admin/websites/%d/menus", websiteID)
 	if r.Header.Get("HX-Request") == "true" {
