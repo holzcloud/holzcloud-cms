@@ -260,6 +260,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 261006-9b2 | Sicherheits-Audit 0.0.21, Gruppe 2+3: Plugin-Migrationen, Medien/Assets, requireFresh, SMTP-Frist, SECURITY.md | 2026-10-06 | ecfdfeb | — | [261006-9b2-sicherheits-audit-0-0-21-gruppe-2-und-3](./quick/261006-9b2-sicherheits-audit-0-0-21-gruppe-2-und-3/) |
 | 261006-9c4 | Sicherheits-Audit 0.0.21, Gruppe 4: Go 1.26.8, Module, htmx 2.0.11, Action-SHAs, systemd-Härtung | 2026-10-06 | HEAD | — | [261006-9c4-sicherheits-audit-0-0-21-gruppe-4-update](./quick/261006-9c4-sicherheits-audit-0-0-21-gruppe-4-update/) |
 | 261011-ls7 | Menüs als eigener Hauptmenüpunkt, Name in der Liste änderbar, Protokoll (0.0.24) | 2026-10-11 | 6de6cdd | — | [261011-ls7-men-s-eigener-hauptmen-punkt-und-titel-b](./quick/261011-ls7-men-s-eigener-hauptmen-punkt-und-titel-b/) |
+| 261011-o5v | Menüeinträge bearbeiten, Handy-Layout der Eintragsliste (0.0.25) | 2026-10-11 | b543b8b | — | [261011-o5v-men-eintr-ge-bearbeiten-und-handy-layout](./quick/261011-o5v-men-eintr-ge-bearbeiten-und-handy-layout/) |
 
 ### Performance Metrics
 
