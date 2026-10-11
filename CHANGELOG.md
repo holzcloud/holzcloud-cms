@@ -14,6 +14,24 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.24 — 2026-10-11
+
+Menüs haben einen eigenen Platz in der Leiste, und ihr Name lässt sich direkt in der Liste ändern.
+
+**Menüs stehen im Hauptmenü.** In der schmalen Leiste links gibt es neben Seiten
+und Medien jetzt einen eigenen Eintrag „Menüs“; unter den Einstellungen taucht er
+nicht mehr auf. Menüs sind tägliche Arbeit am Inhalt, keine Einstellung. Die
+Adressen bleiben dieselben, gespeicherte Lesezeichen funktionieren weiter.
+
+**Der Name ist direkt in der Liste änderbar.** Jede Zeile der Menüliste hat ein
+Feld mit dem Namen und die Schaltfläche „Umbenennen“, auch ohne JavaScript. Der
+Schlüssel bleibt dabei unberührt, damit das Menü auf der Seite nicht verschwindet.
+Wer den Schlüssel ändern will, tut das weiter im Menüeditor.
+
+**Umbenennen steht im Aktivitätsprotokoll.** Anlegen, Ändern und Löschen eines
+Menüs im Admin werden jetzt wie bei der KI-Schnittstelle unter `menu.create`,
+`menu.update` und `menu.delete` festgehalten.
+
 ## 0.0.23 — 2026-10-10
 
 Farben für die Programmseite holzWave, im Theme holzcloud.
