@@ -36,4 +36,6 @@ const (
 	ActionMenuCreate = "menu.create"
 	ActionMenuUpdate = "menu.update"
 	ActionMenuDelete = "menu.delete"
+	// ActionMenuItemUpdate is one entry of a menu edited from the screen.
+	ActionMenuItemUpdate = "menu.item_update"
 )

@@ -1070,6 +1070,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/update", adminHandler.ErrHandler(adminHandler.HandleMenuUpdate))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/delete", adminHandler.ErrHandler(adminHandler.HandleMenuDelete))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/items", adminHandler.ErrHandler(adminHandler.HandleMenuItemCreate))
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/menus/{menuID}/items/{itemID}/edit", adminHandler.ErrHandler(adminHandler.HandleMenuItemEditForm))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/update", adminHandler.ErrHandler(adminHandler.HandleMenuItemUpdate))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/delete", adminHandler.ErrHandler(adminHandler.HandleMenuItemDelete))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/reorder", adminHandler.ErrHandler(adminHandler.HandleMenuItemReorder))

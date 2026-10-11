@@ -31,12 +31,13 @@
                 <span class="menu-item-title">{{.Title}}</span>
                 <span class="item-type-badge item-type-badge--{{.ItemType}}">{{.ItemType}}</span>
                 {{if eq .ItemType "url"}}
-                <span class="text-muted" style="font-size:var(--text-xs)">{{.URL}}</span>
+                <span class="text-muted menu-item-path">{{.URL}}</span>
                 {{else if eq .ItemType "page"}}
-                <span class="text-muted" style="font-size:var(--text-xs)">/{{.PageSlug}}</span>
+                <span class="text-muted menu-item-path">/{{.PageSlug}}</span>
                 {{end}}
             </div>
             <div class="menu-item-actions">
+                <a href="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/edit" class="btn btn--sm">{{t "Edit"}}</a>
                 <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=up" style="display:inline">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                     <button type="submit" class="reorder-btn" hx-post="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=up" hx-disabled-elt="this"><span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Move up"}}</span></button>
