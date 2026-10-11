@@ -14,6 +14,26 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.0.25 — 2026-10-11
+
+Menüeinträge lassen sich bearbeiten, und die Eintragsliste ist auf dem Handy lesbar.
+
+**Einträge bearbeiten statt löschen und neu anlegen.** Jeder Eintrag im Menüeditor
+hat jetzt die Schaltfläche „Bearbeiten“. Auf der Seite dahinter ändert man Titel,
+Art, Adresse, Seite und übergeordneten Eintrag. Ein Eintrag lässt sich nicht unter
+sich selbst oder unter einen seiner eigenen Untereinträge schieben, und eine Seite
+einer anderen Website wird abgewiesen. Schlägt eine Prüfung fehl, bleibt alles
+unverändert.
+
+**Die Änderung steht im Aktivitätsprotokoll.** Jede gespeicherte Änderung eines
+Eintrags wird als `menu.item_update` festgehalten, mit dem Menü, dem Eintrag und
+dem neuen Titel.
+
+**Die Liste ist auf dem Handy lesbar.** Titel, Art und Adresse brechen jetzt in
+ihrer eigenen Zeile um, statt sich mit den Schaltflächen zu überlagern. Auf
+schmalen Bildschirmen stehen die Schaltflächen unter dem Text und sind groß genug
+für den Daumen.
+
 ## 0.0.24 — 2026-10-11
 
 Menüs haben einen eigenen Platz in der Leiste, und ihr Name lässt sich direkt in der Liste ändern.
