@@ -69,7 +69,7 @@
         </header>
 
         {{$sec := .NavSection}}
-        <!-- Sechs Orte statt siebenundzwanzig Einträge. Jeder Bildschirm nennt
+        <!-- Sieben Orte statt siebenundzwanzig Einträge. Jeder Bildschirm nennt
              weiter seinen eigenen ActiveNav; NavSection faltet ihn auf den Ort,
              den die Leiste markiert. Die Zahl an einem Ort sagt, was dort
              wartet — keine Zahl, wenn nichts wartet. -->
@@ -98,6 +98,9 @@
                     <span class="rail-pill">{{template "icon-plugin"}}</span><span class="rail-label">{{.Label}}</span>
                 </a>
                 {{end}}{{end}}
+                <a href="/admin/websites/{{.NavWebsite.ID}}/menus" class="rail-item{{if eq $sec "menus"}} is-active{{end}}"{{if eq $sec "menus"}} aria-current="page"{{end}}>
+                    <span class="rail-pill">{{template "icon-menus"}}</span><span class="rail-label">{{t "Menus"}}</span>
+                </a>
                 <a href="/admin/websites/{{.NavWebsite.ID}}/design" class="rail-item{{if eq $sec "design"}} is-active{{end}}"{{if eq $sec "design"}} aria-current="page"{{end}}>
                     <span class="rail-pill">{{template "icon-design"}}</span><span class="rail-label">{{t "Design"}}</span>
                 </a>

@@ -5,10 +5,13 @@ import (
 	"strings"
 )
 
-// The narrow bar on the left holds six places, not twenty-seven. Every screen
+// The narrow bar on the left holds seven places, not twenty-seven. Every screen
 // still has its own ActiveNav; NavSection folds those into the place the bar
 // marks, so a handler keeps naming its screen and nothing else has to change
 // when a screen moves from one place to another.
+//
+// Menus have their own place: they are daily content work, not a setting.
+// Only the place in the bar moved; no address changed, so nothing redirects.
 //
 // A screen missing from the list lands in settings. That is deliberate: a new
 // screen is far more often a setting than a new kind of daily work, and a
@@ -18,6 +21,7 @@ var navSections = map[string]string{
 	"pages":          "pages",
 	"translations":   "pages",
 	"trash":          "pages",
+	"menus":          "menus",
 	"media":          "media",
 	"albums":         "media",
 	"products":       "shop",
