@@ -1457,6 +1457,7 @@
 
     .menu-item-row {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
         gap: var(--space-2);
@@ -1475,6 +1476,8 @@
 
     .menu-item-info {
         display: flex;
+        flex: 1 1 14rem;
+        flex-wrap: wrap;
         align-items: center;
         gap: var(--space-1);
         min-width: 0;
@@ -1482,13 +1485,47 @@
 
     .menu-item-title {
         font-weight: 500;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .menu-item-info .item-type-badge {
+        flex-shrink: 0;
+    }
+
+    /* The address or slug gets its own line and wraps there, so a long one
+       cannot push the title or the buttons out of the row. */
+    .menu-item-path {
+        flex-basis: 100%;
+        min-width: 0;
+        font-size: var(--text-xs);
+        overflow-wrap: anywhere;
     }
 
     .menu-item-actions {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: calc(var(--space-1) * 0.5);
-        flex-shrink: 0;
+    }
+
+    /* On a phone the buttons sit on their own line below the text and are
+       tall enough for a thumb. */
+    @media (max-width: 40rem) {
+        .menu-item-actions {
+            flex-basis: 100%;
+        }
+
+        .menu-item-actions .reorder-btn {
+            width: 44px;
+            height: 44px;
+        }
+
+        .menu-item-actions .btn {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+        }
     }
 
     /* Reorder buttons */
