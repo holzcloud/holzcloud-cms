@@ -545,6 +545,7 @@ var editorOpenRoutes = []route{
 	{pattern: "POST /admin/websites/{id}/menus/{menuID}/update"},
 	{pattern: "POST /admin/websites/{id}/menus/{menuID}/delete"},
 	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items"},
+	{pattern: "GET /admin/websites/{id}/menus/{menuID}/items/{itemID}/edit"},
 	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/update"},
 	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/delete"},
 	{pattern: "POST /admin/websites/{id}/menus/{menuID}/items/{itemID}/reorder"},

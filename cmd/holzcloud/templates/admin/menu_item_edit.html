@@ -1,0 +1,54 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}" class="btn btn--sm">{{t "Back to the menu"}}</a>{{end}}
+
+{{define "content"}}
+{{template "menu_item_edit-content" .}}
+{{end}}
+
+{{define "menu_item_edit-content"}}
+<div class="card">
+    <h2 style="margin-bottom:var(--space-2)">{{t "Edit entry"}}</h2>
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}/items/{{.Item.ID}}/update">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-2)">
+            <div class="form-group">
+                <label class="form-label" for="item-title">{{t "Title"}}</label>
+                <input type="text" id="item-title" name="title" class="form-input" value="{{.Item.Title}}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-type">{{t "Kind"}}</label>
+                <select id="item-type" name="item_type" class="form-input form-select">
+                    <option value="page"{{if eq .Item.ItemType "page"}} selected{{end}}>{{t "Link to a page"}}</option>
+                    <option value="url"{{if eq .Item.ItemType "url"}} selected{{end}}>{{t "External address"}}</option>
+                    <option value="custom"{{if eq .Item.ItemType "custom"}} selected{{end}}>{{t "Text only (no link)"}}</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-url">{{t "Address"}} <span class="text-muted">{{t "(for “External address”)"}}</span></label>
+                <input type="text" id="item-url" name="url" class="form-input" value="{{.Item.URL}}" placeholder="{{t "https://..."}}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-page">{{t "Page"}} <span class="text-muted">{{t "(for “Link to a page”)"}}</span></label>
+                <select id="item-page" name="page_id" class="form-input form-select">
+                    <option value="">{{t "– Choose a page –"}}</option>
+                    {{range .Pages}}
+                    <option value="{{.ID}}"{{if eq .ID $.SelectedPage}} selected{{end}}>{{.Title}} (/{{.Slug}})</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="item-parent">{{t "Parent"}}</label>
+                <select id="item-parent" name="parent_id" class="form-input form-select">
+                    <option value="">{{t "– Top level –"}}</option>
+                    {{range .Parents}}
+                    <option value="{{.ID}}"{{if eq .ID $.SelectedParent}} selected{{end}}>{{.Label}}</option>
+                    {{end}}
+                </select>
+            </div>
+        </div>
+        <div style="display:flex;gap:var(--space-1);flex-wrap:wrap;margin-top:var(--space-1)">
+            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+            <a href="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}" class="btn">{{t "Cancel"}}</a>
+        </div>
+    </form>
+</div>
+{{end}}

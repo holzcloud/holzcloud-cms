@@ -9,6 +9,7 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -426,7 +427,225 @@ func (h *Handler) HandleMenuItemCreate(w http.ResponseWriter, r *http.Request) e
 	return nil
 }
 
-// HandleMenuItemUpdate updates a menu item.
+// menuItemEditData extends LayoutData for the page that edits one entry.
+type menuItemEditData struct {
+	web.LayoutData
+	WebsiteID int64
+	Menu      *menu.Menu
+	Item      *menu.MenuItem
+	Pages     []page.Page
+	// Parents are the entries the item may hang below: every entry of the menu
+	// except itself and what hangs below it.
+	Parents []menuParentChoice
+	// SelectedPage and SelectedParent are the ids to mark as chosen, 0 for none.
+	SelectedPage, SelectedParent int64
+}
+
+// menuParentChoice is one line of the parent dropdown, indented by depth.
+type menuParentChoice struct {
+	ID    int64
+	Label string
+}
+
+// descendantIDs returns the id of the item and of everything that hangs below
+// it, however deep. It walks the parent links over the flat list and survives a
+// stored loop, which the public tree code also has to.
+func descendantIDs(items []menu.MenuItem, id int64) map[int64]bool {
+	out := map[int64]bool{id: true}
+	for changed := true; changed; {
+		changed = false
+		for _, it := range items {
+			if it.ParentID != nil && out[*it.ParentID] && !out[it.ID] {
+				out[it.ID] = true
+				changed = true
+			}
+		}
+	}
+	return out
+}
+
+// parentCreatesCycle reports whether hanging item id below parentID would make
+// it its own ancestor: the parent is the item itself or lies below it.
+func parentCreatesCycle(items []menu.MenuItem, id, parentID int64) bool {
+	return descendantIDs(items, id)[parentID]
+}
+
+// menuItemInput is what the edit form asks for, cleaned up.
+type menuItemInput struct {
+	Title    string
+	ItemType string
+	URL      string
+	PageID   *int64
+	ParentID *int64
+}
+
+// checkMenuItem validates one edited entry against the menu it lives in and
+// returns the cleaned values. A turned-down input comes back as a refusal whose
+// message is a catalogue key.
+func (h *Handler) checkMenuItem(ctx context.Context, websiteID int64, m *menu.Menu, item *menu.MenuItem, items []menu.MenuItem, form func(string) string) (menuItemInput, error) {
+	in := menuItemInput{
+		Title:    strings.TrimSpace(form("title")),
+		ItemType: form("item_type"),
+		URL:      strings.TrimSpace(form("url")),
+	}
+	if in.Title == "" {
+		return in, refuse(i18n.N("Please give the entry a title"))
+	}
+
+	switch in.ItemType {
+	case "page":
+		in.URL = ""
+		pid, err := strconv.ParseInt(form("page_id"), 10, 64)
+		if err != nil || pid <= 0 {
+			return in, refuse(i18n.N("Please choose a page for the entry"))
+		}
+		p, err := h.pages.GetPage(ctx, pid)
+		if err != nil {
+			return in, err
+		}
+		if p == nil || p.WebsiteID != websiteID || p.DeletedAt != nil {
+			return in, refuse(i18n.N("That page does not belong to this website"))
+		}
+		// The dropdown offers published pages in the menu's language. A page
+		// the entry already points at stays acceptable, so that renaming an
+		// entry does not fail because its page went back to draft meanwhile.
+		unchanged := item.PageID != nil && *item.PageID == pid
+		if !unchanged && (p.Status != "published" || p.Locale != m.Locale) {
+			return in, refuse(i18n.N("That page cannot be used in this menu"))
+		}
+		in.PageID = &pid
+	case "url":
+		if in.URL == "" {
+			return in, refuse(i18n.N("Please give the address for the entry"))
+		}
+	case "custom":
+		in.URL = ""
+	default:
+		return in, refuse(i18n.N("Invalid kind of menu entry"))
+	}
+
+	if raw := form("parent_id"); raw != "" {
+		pid, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || pid < 0 {
+			return in, refuse(i18n.N("That parent entry is not part of this menu"))
+		}
+		if pid > 0 {
+			if parentCreatesCycle(items, item.ID, pid) {
+				return in, refuse(i18n.N("An entry cannot be moved below itself"))
+			}
+			found := false
+			for _, it := range items {
+				if it.ID == pid {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return in, refuse(i18n.N("That parent entry is not part of this menu"))
+			}
+			in.ParentID = &pid
+		}
+	}
+	return in, nil
+}
+
+// HandleMenuItemEditForm shows the form that edits one menu entry.
+func (h *Handler) HandleMenuItemEditForm(w http.ResponseWriter, r *http.Request) error {
+	websiteID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	menuID, err := strconv.ParseInt(r.PathValue("menuID"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	itemID, err := strconv.ParseInt(r.PathValue("itemID"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return nil
+	}
+
+	ws, err := h.domains.GetWebsite(r.Context(), websiteID)
+	if err != nil {
+		return err
+	}
+	if ws == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	item, err := h.itemOfWebsite(r.Context(), websiteID, menuID, itemID)
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	m, err := h.menuOfWebsite(r.Context(), websiteID, menuID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		http.NotFound(w, r)
+		return nil
+	}
+
+	items, err := h.menuStore.ListItems(r.Context(), menuID)
+	if err != nil {
+		return err
+	}
+	excluded := descendantIDs(items, itemID)
+	var parents []menuParentChoice
+	for _, n := range buildFlatTree(items) {
+		if !excluded[n.ID] {
+			parents = append(parents, menuParentChoice{ID: n.ID, Label: strings.Repeat("— ", n.Depth) + n.Title})
+		}
+	}
+
+	pages, _, err := h.pages.ListPages(r.Context(), websiteID,
+		page.ListFilter{Status: "published", Locale: m.Locale, Sort: "title", Page: 1, PerPage: 500})
+	if err != nil {
+		return err
+	}
+	// An entry's own page stays selectable even when it is not published.
+	if item.PageID != nil {
+		listed := false
+		for _, p := range pages {
+			if p.ID == *item.PageID {
+				listed = true
+				break
+			}
+		}
+		if !listed {
+			if p, err := h.pages.GetPage(r.Context(), *item.PageID); err == nil && p != nil && p.WebsiteID == websiteID {
+				pages = append(pages, *p)
+			}
+		}
+	}
+
+	data := menuItemEditData{
+		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Edit entry %s – %s", item.Title, m.Name)),
+		WebsiteID:  websiteID,
+		Menu:       m,
+		Item:       item,
+		Pages:      pages,
+		Parents:    parents,
+	}
+	if item.PageID != nil {
+		data.SelectedPage = *item.PageID
+	}
+	if item.ParentID != nil {
+		data.SelectedParent = *item.ParentID
+	}
+	data.ActiveNav = "menus"
+	data.CurrentWebsite = ws
+	return web.RenderAdmin(w, h.templates, r, "menu_item_edit", data)
+}
+
+// HandleMenuItemUpdate saves the edited entry: title, kind, address, page and
+// parent. Nothing is written, and nothing logged, unless every field passes.
 func (h *Handler) HandleMenuItemUpdate(w http.ResponseWriter, r *http.Request) error {
 	websiteID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -452,39 +671,72 @@ func (h *Handler) HandleMenuItemUpdate(w http.ResponseWriter, r *http.Request) e
 		http.NotFound(w, r)
 		return nil
 	}
+	m, err := h.menuOfWebsite(r.Context(), websiteID, menuID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		http.NotFound(w, r)
+		return nil
+	}
 
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
-	itemType := r.FormValue("item_type")
-	if itemType != "page" && itemType != "url" && itemType != "custom" {
-		itemType = item.ItemType
+	back := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
+	leave := func(to string) {
+		if r.Header.Get("HX-Request") == "true" {
+			w.Header().Set("HX-Redirect", to)
+			return
+		}
+		http.Redirect(w, r, to, http.StatusSeeOther)
 	}
-	url := strings.TrimSpace(r.FormValue("url"))
-	var pageID *int64
-	if itemType == "page" {
-		if pid := r.FormValue("page_id"); pid != "" {
-			p, err := strconv.ParseInt(pid, 10, 64)
-			if err == nil {
-				pageID = &p
+
+	items, err := h.menuStore.ListItems(r.Context(), menuID)
+	if err != nil {
+		return err
+	}
+	in, err := h.checkMenuItem(r.Context(), websiteID, m, item, items, r.FormValue)
+	if err != nil {
+		if isRefusal(err) {
+			web.SetFlashError(h.sm, r.Context(), err.Error())
+			leave(fmt.Sprintf("%s/items/%d/edit", back, itemID))
+			return nil
+		}
+		return err
+	}
+
+	// An entry that stays where it is keeps its place; one that moves goes to
+	// the end of its new group, as a new entry does.
+	sortOrder := item.SortOrder
+	sameParent := (in.ParentID == nil && item.ParentID == nil) ||
+		(in.ParentID != nil && item.ParentID != nil && *in.ParentID == *item.ParentID)
+	if !sameParent {
+		sortOrder = 0
+		for _, it := range items {
+			if it.ID == itemID {
+				continue
+			}
+			if (in.ParentID == nil && it.ParentID == nil) ||
+				(in.ParentID != nil && it.ParentID != nil && *in.ParentID == *it.ParentID) {
+				if it.SortOrder >= sortOrder {
+					sortOrder = it.SortOrder + 1
+				}
 			}
 		}
 	}
 
-	if err := h.menuStore.UpdateItem(r.Context(), itemID, title, itemType, url, pageID); err != nil {
+	if err := h.menuStore.UpdateItemFull(r.Context(), itemID, in.ParentID, in.Title, in.ItemType, in.URL, in.PageID, sortOrder); err != nil {
 		return err
 	}
 
+	h.LogActivity(r, activity.Entry{
+		Action: activity.ActionMenuItemUpdate, EntityType: "menu_item", EntityID: itemID, WebsiteID: &websiteID,
+		Metadata: map[string]any{"menu_id": menuID, "item_id": itemID, "title": in.Title},
+	})
 	web.SetFlashSuccess(h.sm, r.Context(), "Entry saved")
-	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
-	_ = menuID // used in redirect
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", redirect)
-		return nil
-	}
-	http.Redirect(w, r, redirect, http.StatusSeeOther)
+	leave(back)
 	return nil
 }
 

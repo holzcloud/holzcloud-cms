@@ -155,11 +155,15 @@ func (s *Store) GetItem(ctx context.Context, id int64) (*MenuItem, error) {
 	return &mi, nil
 }
 
-// UpdateItem updates a menu item.
-func (s *Store) UpdateItem(ctx context.Context, id int64, title, itemType, url string, pageID *int64) error {
+// UpdateItemFull changes everything an operator can edit on one entry: where
+// it hangs, what it is called, what it points at and where it stands among its
+// siblings. The caller has validated the combination; like the rest of this
+// store it does not check the website.
+func (s *Store) UpdateItemFull(ctx context.Context, id int64, parentID *int64, title, itemType, url string, pageID *int64, sortOrder int) error {
 	_, err := s.DB.Write.ExecContext(ctx,
-		`UPDATE menu_items SET title = $1, item_type = $2, url = $3, page_id = $4 WHERE id = $5`,
-		title, itemType, url, pageID, id)
+		`UPDATE menu_items SET parent_id = $1, title = $2, item_type = $3, url = $4, page_id = $5, sort_order = $6
+		 WHERE id = $7`,
+		parentID, title, itemType, url, pageID, sortOrder, id)
 	if err != nil {
 		return fmt.Errorf("update menu item: %w", err)
 	}
