@@ -30,4 +30,10 @@ const (
 	ActionLanguageRemove  = "language.remove"
 
 	ActionBrandSave = "brand.save"
+
+	// The menus, from the screen and from the AI tools alike: the same strings,
+	// so one filter finds both.
+	ActionMenuCreate = "menu.create"
+	ActionMenuUpdate = "menu.update"
+	ActionMenuDelete = "menu.delete"
 )

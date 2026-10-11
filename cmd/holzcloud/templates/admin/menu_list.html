@@ -47,8 +47,13 @@
         <tbody>
             {{range .Menus}}
             <tr>
-                <td style="font-weight:500">
-                    <a href="/admin/websites/{{$.WebsiteID}}/menus/{{.ID}}">{{.Name}}</a>
+                <td>
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{.ID}}/update" style="display:flex;gap:var(--space-1);align-items:center">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                        <input type="hidden" name="back" value="list">
+                        <input type="text" name="name" class="form-input" value="{{.Name}}" required aria-label="{{t "Name"}}: {{.Name}}" style="min-width:140px">
+                        <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Rename"}}</button>
+                    </form>
                 </td>
                 <td>
                     <code style="font-size:var(--text-xs);background:var(--color-bg);padding:2px 6px;border-radius:var(--radius-sm)">{{.LocationKey}}</code>
