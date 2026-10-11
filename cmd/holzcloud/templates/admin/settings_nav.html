@@ -15,7 +15,6 @@
     <p class="settings-nav__group">{{.NavWebsite.Name}}</p>
     {{$id := .NavWebsite.ID}}
         <a href="/admin/websites/{{$id}}" class="settings-nav__item{{if eq .ActiveNav "website-settings"}} is-active{{end}}"{{if eq .ActiveNav "website-settings"}} aria-current="page"{{end}}>{{template "icon-settings"}}<span>{{t "General"}}</span></a>
-        <a href="/admin/websites/{{$id}}/menus" class="settings-nav__item{{if eq .ActiveNav "menus"}} is-active{{end}}"{{if eq .ActiveNav "menus"}} aria-current="page"{{end}}>{{template "icon-menus"}}<span>{{t "Menus"}}</span></a>
         <a href="/admin/websites/{{$id}}/tags" class="settings-nav__item{{if eq .ActiveNav "terms"}} is-active{{end}}"{{if eq .ActiveNav "terms"}} aria-current="page"{{end}}>{{template "icon-tag"}}<span>{{t "Terms"}}</span></a>
         <a href="/admin/websites/{{$id}}/snippets" class="settings-nav__item{{if eq .ActiveNav "snippets"}} is-active{{end}}"{{if eq .ActiveNav "snippets"}} aria-current="page"{{end}}>{{template "icon-snippet"}}<span>{{t "Snippets"}}</span></a>
         <a href="/admin/websites/{{$id}}/redirects" class="settings-nav__item{{if eq .ActiveNav "redirects"}} is-active{{end}}"{{if eq .ActiveNav "redirects"}} aria-current="page"{{end}}>{{template "icon-redirect"}}<span>{{t "Redirects"}}</span></a>
