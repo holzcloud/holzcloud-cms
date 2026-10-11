@@ -83,6 +83,10 @@ Publicly at `/suche`, in the admin through the search box on the page list.
 Menus have their own entry in the left bar. A menu's name can be changed right in
 the menu list; its key is changed in the menu's editor. Both are logged.
 
+An entry is edited with its Edit button in the menu's editor: title, kind,
+address, page and parent can all be changed, and an entry cannot be moved below
+itself. The change is logged too.
+
 Menus render as nested `<ul>` lists in the public template. With more than one
 language, each language has its own menus; a missing one falls back to the main
 language, per location.
