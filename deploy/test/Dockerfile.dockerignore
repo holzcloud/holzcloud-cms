@@ -1,0 +1,21 @@
+# Build-context filter for deploy/test/Dockerfile. BuildKit prefers this file
+# over the root .dockerignore, which excludes deploy/ and would hide the unit.
+#
+# data and .git keep runtime databases and the repository history out of the
+# image layers (threat T-20-03); .planning, .claude and docs are noise.
+.git
+.github
+.planning
+.gsd
+.claude
+.playwright-mcp
+data
+sites
+docs
+deploy/test/out
+*.md
+
+# Components of the program, not documentation (see the root .dockerignore):
+# README.md is shipped, CHANGELOG.md is embedded by changelog.go.
+!README.md
+!CHANGELOG.md

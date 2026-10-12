@@ -29,6 +29,8 @@
 
 # holzcloud-CMS minimal runtime data
 /data/
+# Scratch output of deploy/test/run.sh, never committed
+/deploy/test/out/
 
 # Logs
 *.log
