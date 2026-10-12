@@ -646,20 +646,77 @@ features, settings and the template contract without a transition period.
 **Back up first** (see *Backups* above) and read the release's entry in
 `CHANGELOG.md` before you replace the binary.
 
+Three steps, in this order.
+
+**1. Keep what you have, and back up with the OLD binary.** The update overwrites
+`/opt/holzcloud/holzcloud`, the only copy of the version that is running, so copy
+it aside first as `/opt/holzcloud/holzcloud.prev` and write down its version. Take
+the backup now, while the OLD binary is still in place:
+
 ```bash
-# Build new binary on dev machine
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" ./cmd/holzcloud
+sudo cp -p /opt/holzcloud/holzcloud /opt/holzcloud/holzcloud.prev
+/opt/holzcloud/holzcloud version
+sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups
+```
 
-# Transfer to the server
+The order matters. Every `holzcloud` subcommand that opens the database (`user list`,
+`check`, `backup`, `migrate status`) applies pending migrations on the way and takes
+no snapshot, so a backup made by the new binary is made after the schema has
+already changed.
+
+**2. Replace: build, transfer, stop, copy, start.** The first two lines run on
+your development machine, the last three on the server:
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" ./cmd/holzcloud
 scp holzcloud user@your-server:/tmp/holzcloud
-
-# On the server: stop, replace, start
 sudo systemctl stop holzcloud
 sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
 sudo systemctl start holzcloud
 ```
 
-Migrations run automatically on startup — the new binary applies any pending schema changes.
+**3. Check.** The first line waits for the start by itself and shows the version
+and commit that now run; the second reads the journal since that start:
+
+```bash
+curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/readyz | jq '{status, version, commit, integrity}'
+sudo journalctl -u holzcloud --since "$(systemctl show -p ActiveEnterTimestamp --value holzcloud)" -o cat | grep -E 'pre-upgrade snapshot written|migration applied'
+```
+
+`version` and `commit` must be the new build's, and `status` and `integrity` must
+read `ok`. While the first line waits, `curl` prints `Failed to connect` for each
+attempt that finds nothing listening yet; those are the retries, not a failure.
+Migrations run automatically on startup: the new binary applies any
+pending schema changes. When there are any, the journal shows one line
+`pre-upgrade snapshot written`, with the `path` of the file, and then one line
+`migration applied` per migration. An update across two migrations showed exactly
+that: the snapshot line, then `migration applied` for version 59 and for 60, and
+the schema went from 58 to 60. No such lines means that no migration was
+pending, and in that case there is no snapshot either.
+
+What the service does before it migrates, as observed:
+
+- The snapshot is a file in the data directory named
+  `pre-upgrade-VERSION-TIMESTAMP.sqlite`, for example
+  `/opt/holzcloud/data/pre-upgrade-v0.0.25-32-g292526d-20261012-121457.sqlite`.
+  VERSION is the version of the **new** binary, the one that wrote it. This is why
+  the *Build* line stamps the version: a binary built without it calls itself
+  `dev`, and so does the file.
+- It holds the **old** schema, because it is written before the first migration
+  runs, and it is verified before the migrations start.
+- It is written only when migrations are pending. It covers the database only: media
+  and templates are not in it, which is one more reason for the backup of step 1.
+- Only the newest five are kept; older ones are removed at the next update that
+  writes one. Copy one out of the data directory if you want to keep it longer.
+- It is readable by the service user only (mode `600`, owner `holzcloud`). It holds
+  password hashes, like the database itself.
+- Use the `path` of the journal line, not a name you guessed.
+
+The unit file may change between releases: see the paragraph under *systemd
+Service* and read `CHANGELOG.md`. A service that does not come up after the
+replacement is restarted by systemd every five seconds, and it stops trying after
+`StartLimitBurst` (five starts within 300 seconds); read the journal and see
+*Recovery*.
 
 ## Troubleshooting
 
