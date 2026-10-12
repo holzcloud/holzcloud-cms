@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 20
 current_phase_name: Hardened unit under real systemd
 status: executing
-stopped_at: Completed 20-02-PLAN.md
-last_updated: "2026-10-12T10:39:21.252Z"
+stopped_at: Completed 20-03-PLAN.md
+last_updated: "2026-10-12T10:47:49.341Z"
 last_activity: 2026-10-12
-state_head: dd38a10da5e09f3825e204cd3e7dfb9abd78c7c9
+state_head: 783027b4c2330506afa07b5a5d1df6694bffe59c
 progress:
   total_phases: 0
   completed_phases: 0
@@ -327,6 +327,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P10 | 55 min | 3 tasks | 2 files |
 | Phase 20 P01 | 55min | 2 tasks | 6 files |
 | Phase 20 P02 | 25min | 3 tasks | 2 files |
+| Phase 20 P03 | 45min | 3 tasks | 3 files |
 
 ### Session Continuity
 
@@ -355,8 +356,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T10:39:21.236Z
-**Stopped at:** Completed 20-02-PLAN.md
+**Last session:** 2026-10-12T10:47:49.324Z
+**Stopped at:** Completed 20-03-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -439,6 +440,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 20]: 20-01: Dockerfile ARG TARGETARCH/TARGETOS carry no default (a default overrides --platform)
 - [Phase 20]: 20-01: amd64 under Rosetta installs no seccomp filter; canary exit 3 voids any MDWE verdict there, arm64 native is the MDWE evidence
 - [Phase 20]: MemoryDenyWriteExecute=true stays: on native arm64 (seccomp enforced) all five plugins run on wazero's interpreter fallback; amd64/Rosetta verdict is VOID (Seccomp 0). Unit gains comment lines only.
+- [Phase 20]: 20-03: No target value imposed on the systemd-analyze security score; measured 1.3 online / 1.4 offline on systemd 252 and 1.3 / 1.3 on 257, raw in deploy/SECURITY-SCORE.md
 
 ## Accumulated Context
 
