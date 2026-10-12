@@ -14,6 +14,7 @@
 # Phase 21 plays deploy/DEPLOY.md literally in a container started from
 # TARGET=systemd-base (the commands are read out of the document itself):
 #   deploy/test/run.sh build up install        TARGET=systemd-base, then DEPLOY.md's install blocks
+#   deploy/test/run.sh firstrun caddy postinstall   on the container `install` left behind
 #
 # The subcommand names, the environment variables below, the exit codes and the
 # file names under OUT_DIR are an interface: later plans and phases 21 and 22
@@ -236,6 +237,7 @@ doc_cmd() {
   case "$line" in
     scp\ *) kind=scp ;;
     *"go build"*) kind=skip ;;
+    *"systemctl reload caddy"*) kind=caddy ;;
     *"apt install"*)
       # No -y: the operator answers apt's question. stdin is the script, which
       # has ended, so the answer has to come from somewhere else.
@@ -287,6 +289,10 @@ doc_cmd() {
       # image, so a sudo line runs as it is written. dxi has its own stdin, so
       # a loop that feeds doc_cmd is not read from.
       printf '%s\n' "$line" | dxi bash -s 2>&1 | tee -a "$outf" || rc=$?
+      ;;
+    caddy)
+      deviation "DEVIATION[caddy]: '$line' was replaced by 'caddy validate --config /etc/caddy/Caddyfile': the container has no public domain, no DNS and no ACME, and a real reload would start certificate issuance for example.com"
+      printf '%s\n' "caddy validate --config /etc/caddy/Caddyfile" | dxi bash -s 2>&1 | tee -a "$outf" || rc=$?
       ;;
     prompt)
       deviation "DEVIATION[prompt]: '$line' asks apt for a confirmation and nobody types one here; the answer y is supplied on stdin"
@@ -349,6 +355,9 @@ usage() {
   say "  exit 3 means: ran, but this platform cannot give the evidence (canary or verdict VOID)"
   say "  bins                             build the binaries of NEW_REF (and OLD_TAG with WITH_OLD=1) by the Build line of the document"
   say "  install                          play the document's Build, Transfer, Install and systemd Service blocks from TARGET=systemd-base"
+  say "  firstrun                         the document's First Run over curl: setup, login, compulsory two-factor redirect"
+  say "  caddy                            the document's Caddy block; reload replaced by caddy validate; exit 3 without a network"
+  say "  postinstall                      the document's Backups block, then every deploy path it names must exist"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -1157,6 +1166,267 @@ cmd_install() {
   say "INSTALL OK"
 }
 
+# ---------------------------------------------------------------------------
+# First Run, Caddy and the Backups block, played on the container `install`
+# left behind (D-03, D-04). Nothing here installs anything of its own.
+# ---------------------------------------------------------------------------
+
+# Runs INSIDE the container (docker exec -i NAME bash -s -- ARGS...); the shell
+# text is on stdin. It is the headless form of the browser steps of First Run:
+#   get  PATH JAR                           GET with the cookie jar
+#   post PATH EMAIL PASSFILE JAR [confirm]  GET the form into JAR, take the hidden
+#                                           CSRF field, POST email and password
+#                                           (and password_confirm with a sixth word)
+# The jar is created under umask 077. The password is read from PASSFILE, a
+# root-only file in the container, and neither it nor the token nor a cookie is
+# ever printed: the only output is one line "HTTP STATUS REDIRECT-PATH" (T-21-01).
+# The unit sets HOLZCLOUD_SECURE=true, so a form over plain http is only
+# accepted with a Referer that carries the https origin. html/template writes
+# plus, equals and slash of the token as entities; they are undone before the post.
+read -r -d '' FORM_SH <<'FORM_EOF' || true
+set -eu
+umask 077
+base=http://127.0.0.1:8080
+mode=$1
+path=$2
+case "$mode" in
+  get)
+    jar=$3
+    res=$(curl -s -o /dev/null --max-time 60 -w '%{http_code} %{redirect_url}' -c "$jar" -b "$jar" "$base$path")
+    ;;
+  post)
+    email=$3
+    passfile=$4
+    jar=$5
+    confirm=${6:-}
+    page=$(curl -s --max-time 60 -c "$jar" -b "$jar" "$base$path")
+    tok=$(printf '%s' "$page" | grep -o 'name="gorilla.csrf.Token" value="[^"]*"' | head -n 1 \
+      | sed 's/.*value="//; s/"$//; s/&#43;/+/g; s/&#61;/=/g; s/&#47;/\//g')
+    if [ -z "$tok" ]; then
+      echo "HTTP none no-csrf-field"
+      exit 0
+    fi
+    pass=$(cat "$passfile")
+    if [ -n "$confirm" ]; then
+      res=$(curl -s -o /dev/null --max-time 120 -w '%{http_code} %{redirect_url}' -c "$jar" -b "$jar" \
+        -H "Referer: https://127.0.0.1:8080$path" \
+        --data-urlencode "gorilla.csrf.Token=$tok" --data-urlencode "email=$email" \
+        --data-urlencode "password=$pass" --data-urlencode "password_confirm=$pass" "$base$path")
+    else
+      res=$(curl -s -o /dev/null --max-time 120 -w '%{http_code} %{redirect_url}' -c "$jar" -b "$jar" \
+        -H "Referer: https://127.0.0.1:8080$path" \
+        --data-urlencode "gorilla.csrf.Token=$tok" --data-urlencode "email=$email" \
+        --data-urlencode "password=$pass" "$base$path")
+    fi
+    ;;
+  *)
+    echo "HTTP none bad-mode"
+    exit 0
+    ;;
+esac
+code=${res%% *}
+loc=${res#* }
+loc=${loc#$base}
+echo "HTTP $code ${loc:--}"
+FORM_EOF
+
+# form ARGS...: FORM_SH in the container; prints "HTTP STATUS REDIRECT-PATH".
+form() { printf '%s\n' "$FORM_SH" | dxi bash -s -- "$@"; }
+
+# leak_check: no secret of this container, and nothing shaped like an AI key,
+# may occur in a file under OUT_DIR. Called at the end of every subcommand that
+# touches a credential (T-21-01).
+leak_check() {
+  local f secret hit=0
+  mkdir -p "$OUT_DIR"
+  for f in /root/.hc-admin-pass /root/.hc-login-pass /root/.hc-key; do
+    secret=$(dx cat "$f" 2>/dev/null) || continue
+    # A value this short would match unrelated text and prove nothing.
+    [ "${#secret}" -ge 8 ] || continue
+    if grep -rqF -- "$secret" "$OUT_DIR"; then
+      say "LEAK: the contents of $f occur in a file under $OUT_DIR"
+      hit=1
+    fi
+  done
+  if grep -rEq 'hc_[A-Za-z0-9_-]{20,}' "$OUT_DIR"; then
+    say "LEAK: a string shaped like an AI key occurs in a file under $OUT_DIR"
+    hit=1
+  fi
+  [ "$hit" -eq 0 ] || exit 1
+  say "LEAK-CHECK OK"
+}
+
+# firstrun: the First Run section of the document. Its browser steps are played
+# with curl (DEVIATION[browser]); what counts as success is D-04's list.
+cmd_firstrun() {
+  local nb out
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh install' first"
+  if dx test -e /root/.hc-admin-pass; then
+    die "this container has been through First Run already (/root/.hc-admin-pass exists); run 'run.sh down' and start again"
+  fi
+  mkdir -p "$OUT_DIR"
+  nb=$(doc_blocks "First Run") || exit 1
+  if [ "$nb" -gt 0 ]; then
+    doc_play "First Run" || true
+  fi
+  deviation "DEVIATION[browser]: the document's First Run is played with curl and not in a browser. The shipped unit sets HOLZCLOUD_SECURE=true, so the form is only accepted as if it came through the TLS proxy: a post over plain http needs a Referer header that carries the https origin, and the hidden CSRF field is read out of the page"
+
+  # The password is made inside the container and read only there (T-21-01).
+  dx bash -c 'umask 077; openssl rand -hex 12 > /root/.hc-admin-pass; test -s /root/.hc-admin-pass' \
+    || die "could not create the administrator password file"
+
+  CHECK_OUT="$OUT_DIR/firstrun.txt"
+  CHECK_BADS=0
+  : > "$CHECK_OUT"
+
+  # (1) Until an account exists, whoever reaches the form first becomes the
+  # administrator (T-21-02).
+  out=$(form get /admin/setup /root/.hc-jar-probe) || out="HTTP error"
+  if [ "$out" = "HTTP 200 -" ]; then
+    check_pass "setup form open before any account: GET /admin/setup answers 200"
+  else
+    check_bad "setup form before any account: GET /admin/setup expected 'HTTP 200 -', got '$out'"
+  fi
+
+  # (2)
+  out=$(form post /admin/setup admin@example.test /root/.hc-admin-pass /root/.hc-jar-setup confirm) || out="HTTP error"
+  if [ "$out" = "HTTP 303 /admin/" ]; then
+    check_pass "setup POST creates the account: 303 to /admin/"
+  else
+    check_bad "setup POST expected 'HTTP 303 /admin/', got '$out'"
+  fi
+
+  # (3) The form is closed once an account exists.
+  out=$(form get /admin/setup /root/.hc-jar-probe2) || out="HTTP error"
+  if [ "$out" = "HTTP 404 -" ]; then
+    check_pass "setup form closed afterwards: GET /admin/setup answers 404"
+  else
+    check_bad "setup form afterwards: GET /admin/setup expected 'HTTP 404 -', got '$out'"
+  fi
+
+  # (4) One login, with a fresh jar. Ten failures from one address would block
+  # it for fifteen minutes.
+  out=$(form post /admin/login admin@example.test /root/.hc-admin-pass /root/.hc-jar-login) || out="HTTP error"
+  if [ "$out" = "HTTP 303 /admin/" ]; then
+    check_pass "login POST: 303 to /admin/"
+  else
+    check_bad "login POST expected 'HTTP 303 /admin/', got '$out'"
+  fi
+
+  # (5) Two-factor enrolment is compulsory for administrators.
+  out=$(form get /admin/ /root/.hc-jar-login) || out="HTTP error"
+  if [ "$out" = "HTTP 303 /admin/2fa/einrichten" ]; then
+    check_pass "first request after the login: 303 to /admin/2fa/einrichten (compulsory two-factor enrolment)"
+  else
+    check_bad "GET /admin/ with the session expected 'HTTP 303 /admin/2fa/einrichten', got '$out'"
+  fi
+
+  # The jars hold session and CSRF cookies; the password file stays for later steps.
+  dx bash -c 'rm -f /root/.hc-jar-*' || true
+  leak_check
+  if [ "$CHECK_BADS" -gt 0 ]; then
+    say "run.sh: FIRSTRUN FAILED, $CHECK_BADS assertion(s), see BAD lines"
+    exit 1
+  fi
+  say "FIRSTRUN OK"
+}
+
+# caddy: the Caddy block of the document. Exit 0 when the configuration was
+# validated, 3 when only the network or a missing prerequisite stopped that, 1
+# when Caddy was there and rejected the file.
+cmd_caddy() {
+  local n0 last i f reason
+  dx true >/dev/null 2>&1 || die "container $NAME does not answer; run 'run.sh build up install' first"
+  mkdir -p "$OUT_DIR"
+  n0=$(steps_count)
+  doc_play "Caddy (Reverse Proxy + HTTPS)" 1 || true
+  last=$(steps_count)
+
+  : > "$OUT_DIR/caddy.txt"
+  i=$((n0 + 1))
+  while [ "$i" -le "$last" ]; do
+    f=$(printf '%s/step-%02d.txt' "$OUT_DIR" "$i")
+    {
+      echo "== step $i =="
+      cat "$f"
+      grep "^STEP $(printf '%02d' "$i") " "$(steps_file)" || true
+      echo
+    } >> "$OUT_DIR/caddy.txt"
+    i=$((i + 1))
+  done
+
+  if [ -n "$(awk -v n="$n0" '$1 == "STEP" && ($2 + 0) > n && index($0, "systemctl reload caddy") > 0 && $3 == "rc=0"' "$(steps_file)")" ]; then
+    echo "CADDY: validated" | tee -a "$OUT_DIR/caddy.txt"
+    return 0
+  fi
+  if grep -q 'DEVIATION\[network\]' "$OUT_DIR/deviations.txt" 2>/dev/null; then
+    reason="no route to the package repository"
+  elif ! dx bash -c 'command -v caddy' >/dev/null 2>&1; then
+    reason="caddy is not installed after the document's own steps; see the failed steps above"
+  else
+    echo "CADDY: failed (caddy is installed and did not validate the Caddyfile; see the step output above)" | tee -a "$OUT_DIR/caddy.txt"
+    exit 1
+  fi
+  echo "CADDY: not run ($reason)" | tee -a "$OUT_DIR/caddy.txt"
+  exit 3
+}
+
+# postinstall: the Backups block, then the audit of the document against the
+# installed system (paths.txt): every deploy path the document names must exist.
+cmd_postinstall() {
+  local n0 failed p tool
+  dx test -e /opt/holzcloud/holzcloud || die "nothing is installed in container $NAME; run 'run.sh build up install' first"
+  mkdir -p "$OUT_DIR"
+  n0=$(steps_count)
+  doc_play "Backups" 1 || true
+  failed=$(steps_failed_since "$n0")
+
+  CHECK_OUT="$OUT_DIR/paths.txt"
+  CHECK_BADS=0
+  : > "$CHECK_OUT"
+  local all paths
+  all=$(doc_awk "" 0) || die "reading $DEPLOY_DOC failed"
+  # Paths of the form /opt/holzcloud/deploy/NAME in any bash block; a value the
+  # reader fills in, or a pattern, is no path.
+  paths=$(grep -Eo '/opt/holzcloud/deploy/[^][:space:]"'"'"'|;&)(]*' <<< "$all" | grep -v '[<*$]' | sort -u || true)
+  for p in /opt/holzcloud/holzcloud /opt/holzcloud/data /opt/holzcloud/backups $paths; do
+    if dx test -e "$p"; then
+      printf 'PASS exists %s\n' "$p" | tee -a "$CHECK_OUT"
+      case "$p" in
+        *.sh)
+          if ! dx test -x "$p"; then
+            printf 'BAD not executable %s\n' "$p" | tee -a "$CHECK_OUT"
+            CHECK_BADS=$((CHECK_BADS + 1))
+          fi
+          ;;
+      esac
+    else
+      printf 'BAD missing %s\n' "$p" | tee -a "$CHECK_OUT"
+      CHECK_BADS=$((CHECK_BADS + 1))
+    fi
+  done
+  # Informational: which tools the install had at hand. Never fails the run.
+  {
+    for tool in rsync gpg fuser curl jq sqlite3 openssl; do
+      if dx bash -c 'command -v "$1" >/dev/null' _ "$tool"; then
+        echo "TOOL $tool present"
+      else
+        echo "TOOL $tool absent"
+      fi
+    done
+  } | tee -a "$CHECK_OUT"
+
+  if [ -n "$failed" ]; then
+    say "run.sh: counted steps of the Backups block that failed:"
+    printf '%s\n' "$failed" >&2
+  fi
+  if [ "$CHECK_BADS" -gt 0 ] || [ -n "$failed" ]; then
+    say "run.sh: POSTINSTALL FAILED, $CHECK_BADS path problem(s) and $(printf '%s\n' "$failed" | grep -c . || true) failed step(s)"
+    exit 1
+  fi
+  say "POSTINSTALL OK"
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -1168,7 +1438,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall)
       "cmd_$sub"
       ;;
     mdwe-control)
