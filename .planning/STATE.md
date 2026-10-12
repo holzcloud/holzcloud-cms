@@ -5,17 +5,16 @@ milestone_name: Betrieb härten
 current_phase: 21
 current_phase_name: Backup and restore, measured
 status: planning
-stopped_at: Completed 21-06-PLAN.md
-last_updated: "2026-10-12T13:06:22.026Z"
+stopped_at: Phase 22 context gathered
+last_updated: "2026-10-12T13:19:07.556Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 21 complete, transitioned to Phase 22
-state_head: ba4e31166547f86a25e52f566c9c4c2dbb29c1d3
+state_head: a850b1e1e2a3faad8c116913e85bf91bb6f2f178
 progress:
   total_phases: 0
   completed_phases: 21
   total_plans: 6
   completed_plans: 0
-  percent: 91
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -364,9 +363,9 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T12:53:59.840Z
-**Stopped at:** Completed 21-06-PLAN.md
-**Resume file:** None
+**Last session:** 2026-10-12T13:19:07.523Z
+**Stopped at:** Phase 22 context gathered
+**Resume file:** .planning/phases/22-backup-and-restore-measured/22-CONTEXT.md
 
 ## Decisions
 
