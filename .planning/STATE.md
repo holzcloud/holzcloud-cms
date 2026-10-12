@@ -2,9 +2,13 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
+current_phase_name: defining requirements
 status: planning
-last_updated: "2026-10-12T07:08:37.746Z"
+stopped_at: Phase 20 context gathered
+last_updated: "2026-10-12T07:19:50.976Z"
 last_activity: 2026-10-12
+last_activity_desc: "Completed quick tasks 261006-741 and 261006-742: SEO"
+state_head: 7f1b436efce490108c97f030e06ba083b733b827
 progress:
   total_phases: 0
   completed_phases: 0
@@ -350,9 +354,9 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-09-08T07:34:21.604Z
-**Stopped at:** Completed 10-10-PLAN.md — Phase 10 and milestone v1.6 complete
-**Resume file:** None
+**Last session:** 2026-10-12T07:19:50.953Z
+**Stopped at:** Phase 20 context gathered
+**Resume file:** .planning/phases/20-hardened-unit-under-real-systemd/20-CONTEXT.md
 
 ## Decisions
 
