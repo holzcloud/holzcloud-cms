@@ -418,7 +418,7 @@ Plans:
   2. An update across at least one migration keeps all data.
   3. A rollback is played and documented, with the migration limit stated.
 
-**Plans**: 4/6 plans executed in 6 waves
+**Plans**: 5/6 plans executed in 6 waves
 
 Plans:
 **Wave 1**
@@ -434,7 +434,7 @@ Plans:
 - [x] 21-04-PLAN.md — DEP-03: snapshot rollback played, negative case (old binary on migrated database), "Rolling back" section with the migration limit first, Recovery text cross-linked
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 21-05-PLAN.md — DEP-03: no-migration hop (v0.0.21 to HEAD), final Rolling back text and DEP-03 record; chains `fresh` and `lifecycle` and the fresh evidence set
+- [x] 21-05-PLAN.md — DEP-03: no-migration hop (v0.0.21 to HEAD), final Rolling back text and DEP-03 record; chains `fresh` and `lifecycle` and the fresh evidence set
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 21-06-PLAN.md — `deploy/DEPLOY-RUN.md` completed with the raw appendix, `deploy/test/README.md` hand-over for phases 22 and 23, `docs/deployment.md` aligned, repository gates (DEP-01, DEP-02, DEP-03)
@@ -510,7 +510,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 18. The Administration Under Test | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
 | 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
-| 21. Deploy, update, rollback | v0.1.0 | 4/6 | In Progress | — |
+| 21. Deploy, update, rollback | v0.1.0 | 5/6 | In Progress | — |
 | 22. Backup and restore, measured | v0.1.0 | 0/? | Not started | — |
 | 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
 

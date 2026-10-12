@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 21
 current_phase_name: Deploy, update, rollback
 status: executing
-stopped_at: Completed 21-04-PLAN.md
-last_updated: "2026-10-12T12:32:13.263Z"
+stopped_at: Completed 21-05-PLAN.md
+last_updated: "2026-10-12T12:44:17.527Z"
 last_activity: 2026-10-12
-state_head: dd1988231019ea7f1e4f68c63f2503b1aa828c57
+state_head: 2a40bd3e064a42607bda404a7559de329fdd66e5
 progress:
   total_phases: 0
   completed_phases: 20
@@ -332,6 +332,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 21 P02 | 10 min | 2 tasks | 3 files |
 | Phase 21 P03 | 12 min | 2 tasks | 3 files |
 | Phase 21 P04 | 25 min | 2 tasks | 3 files |
+| Phase 21 P05 | 35min | 2 tasks | 4 files |
 
 ### Session Continuity
 
@@ -360,8 +361,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T12:32:13.243Z
-**Stopped at:** Completed 21-04-PLAN.md
+**Last session:** 2026-10-12T12:44:17.505Z
+**Stopped at:** Completed 21-05-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -453,6 +454,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 21]: 21-03: the Updating section keeps the old binary as holzcloud.prev and takes the backup with the OLD binary, because every subcommand of a new binary migrates silently without a snapshot (read in openForCLI, not played); the pre-upgrade snapshot (new version in its name, old schema, only with pending migrations, database only, newest five, mode 600) is verified independently by ATTACH against S0 and the live tables
 - [Phase 21]: 21-04: the migration limit leads the Rolling back section and rests on the played negative case: the old binary (v0.0.10) does not refuse the migrated schema, answers /healthz and /readyz ok, logs nothing, and fails at the second order insert (UNIQUE constraint failed: orders.token); the snapshot route is the only documented rollback, goose Down is one developer-note sentence
 - [Phase 21]: 21-04: SCENARIO (scenario.txt) is the harness vocabulary for a step the document must not contain, beside DEVIATION; the document does not claim a restart clears restored sessions, because sessions are database rows
+- [Phase 21]: Rolling back block 2 claims only what was played (v0.0.21 to HEAD, same schema); equal schema says nothing about row meaning
+- [Phase 21]: update accepts pending=0 as a no-snapshot pass (PASS no snapshot in attach-s1.txt); rollback MODE binary played
+- [Phase 21]: Chains fresh and lifecycle fix the summary vocabulary (DEP-01 PASS, DEP-02 PASS or not applicable, DEP-03 PASS, LEAK-CHECK OK) and require TARGET=systemd-base
 
 ## Accumulated Context
 
@@ -470,7 +474,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 21 (Deploy, update, rollback) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Executing Phase 21
 Last activity: 2026-10-12 — Phase 21 execution started
 
