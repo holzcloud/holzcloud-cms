@@ -5,17 +5,16 @@ milestone_name: Betrieb härten
 current_phase: 20
 current_phase_name: Deploy, update, rollback
 status: planning
-stopped_at: Completed 20-03-PLAN.md
-last_updated: "2026-10-12T10:49:45.054Z"
+stopped_at: Phase 21 context gathered
+last_updated: "2026-10-12T10:52:44.146Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 20 complete, transitioned to Phase 21
-state_head: c99e198fc7810eda9f96f7d369c22b5b24dbc445
+state_head: 74eccd5a4b4b074b42f9aafcceb8f2e6ffbdcc8b
 progress:
   total_phases: 0
   completed_phases: 20
   total_plans: 3
   completed_plans: 0
-  percent: 87
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -358,9 +357,9 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T10:47:49.324Z
-**Stopped at:** Completed 20-03-PLAN.md
-**Resume file:** None
+**Last session:** 2026-10-12T10:52:44.118Z
+**Stopped at:** Phase 21 context gathered
+**Resume file:** .planning/phases/21-deploy-update-rollback/21-CONTEXT.md
 
 ## Decisions
 
