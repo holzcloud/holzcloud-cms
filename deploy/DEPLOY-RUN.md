@@ -16,6 +16,7 @@ Findings.
 |-------------|--------|----------|--------------|
 | DEP-01: a fresh install by the document alone | PASS after repair. The first pass found ten defects in the document. All are fixed in `deploy/DEPLOY.md`. The second pass, from a fresh container, installs, sets up, audits and validates Caddy, and shows only the named deviations. | linux/amd64 (emulated on an arm64 host), Debian 12, systemd 252 | 2026-10-12, 58ae902 with the repair of plan 21-02 |
 | DEP-02: an update across migrations | PASS after repair. v0.0.10 (58 migrations) updated to the current build (60) through the Updating section: 46 content tables with equal row counts, equal page and media hashes, login, public page, five running plugins and a filled order token, and an independent comparison against the service's own pre-upgrade snapshot, with no BAD line. The as-shipped section was silent in five places. All are fixed, and the second play from a fresh container shows the old binary kept, a backup taken and the snapshot recorded. | linux/amd64 (emulated on an arm64 host), Debian 12, systemd 252 | 2026-10-12, b7a6c8d with the repair of plan 21-03 |
+| DEP-03: rolling back, and the migration limit | PASS in both situations a real update produces. With a snapshot (v0.0.10 to the current build, schema 58 to 60): the old version runs again, the data of before the update is back (52 PASS, no BAD against the pre-update state), the page written after the update is gone, the migrated database is kept as `holzcloud.sqlite.after-update`, and the restart migrates nothing. Without a snapshot (v0.0.21 to the current build, the same schema 60): the old binary alone is a complete rollback, it undoes nothing and loses nothing (53 PASS, no BAD against the state after the update). The limit, that an older binary must not be started against a migrated database, leads the section and was observed: the old binary starts, answers ok and fails at the second order. The Updating check line was found to end with a failure status when nothing migrates, and was fixed. | linux/amd64 (emulated on an arm64 host), Debian 12, systemd 252 | 2026-10-12, e249f08 with the changes of plans 21-04 and 21-05 |
 
 ## How this was run
 
@@ -89,6 +90,11 @@ new binary put back afterwards so that the chain can go on (`SCENARIO[restore-ne
 never to `deviations.txt`, and the result of the first is `negative.txt`, which decides what DEPLOY.md may say about
 that case.
 
+| Scenario step | What it is | Why it is not in the document |
+|---------------|------------|-------------------------------|
+| SCENARIO[negative] | After an update that migrated, the old binary (`holzcloud.prev`) is copied over the live binary and started against the migrated database, with no snapshot restored. Then two orders are inserted in the statement shape of the old code. The result is `negative.txt` (`NEGATIVE-RESULT: starts` or `refuses`). | It is the thing *Rolling back* says not to do. It is played once so that the document states what happens and does not assume it. It cannot run when the update wrote no snapshot, because no migration lies between the builds, and the chain `lifecycle` then says so and skips it. |
+| SCENARIO[restore-new] | The new binary is put back (`docker cp` to `/tmp/holzcloud`, stop, copy, start), and `/readyz` must report the new version again, so that the rollback that follows starts from the real post-update state. | It undoes the scenario above; an operator who never runs the scenario has nothing to undo. |
+
 ## Findings
 
 One row per defect that pass 1 showed. The text in backticks in the fourth column is the decisive output, quoted
@@ -112,6 +118,11 @@ logs). Later plans add their own rows.
 | DEP-02 | Updating | Carries its own copy of the build line, without the version flags that the Build section got in plan 21-02. | `STEP 20 rc=0 SKIP[dev-machine] CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" ./cmd/holzcloud` | Step 2 carries the stamped line of the Build section. Without the stamp the new binary calls itself `dev`, and the pre-upgrade snapshot is named after `dev`. |
 | DEP-02 | Updating | Says that migrations run automatically, and nothing about the snapshot the service takes before them or where it lies. | The journal holds it, and nothing in the section said to look: `"msg":"pre-upgrade snapshot written","path":"/opt/holzcloud/data/pre-upgrade-v0.0.25-30-gb5b0393-20261012-120647.sqlite"` | Step 3 greps the journal since the start for the two lines. The text states what was observed about the snapshot: name with the version of the new binary, old schema, only when migrations are pending, database only, newest five kept, mode 600 for the service user, and that the path is the one in the journal line. |
 | DEP-02 | Updating | Ends at `systemctl start`, with no check that the service came up or that it is the new build. | The last step of the section returns at once, long before the service is ready: `STEP 24 rc=0 sudo systemctl start holzcloud` | Step 3 starts with `/readyz` through `curl --retry 30 --retry-connrefused --retry-delay 1` reduced with `jq` to status, version, commit and integrity, so the line waits for the start itself. The text names `StartLimitBurst` and sends a failed start to Recovery. |
+| DEP-03 | Updating (as shipped before plan 21-03) | Ended at the sentence that migrations run automatically, and said nothing about going back: not that the old binary is needed, not that a snapshot exists, not what a rollback loses. | Inferred from the source file as it stood before plan 21-03, not from run output. The last step the play could take was the start of the service, the procedure ended there (the DEP-02 row on `STEP 24 rc=0 sudo systemctl start holzcloud`), and an operator whose update went wrong had no instruction. | A section *Rolling back* (plan 21-04), linked from *Updating* and from *Recovery*, with the limit as its first sentence. |
+| DEP-03 | Rolling back | Not written. The assumption of the research was that a newer schema stops an older binary. | `NEGATIVE-RESULT: starts`, then `readyz: {"status":"ok","version":"v0.0.10","commit":"ec365d6","integrity":"ok"}`, `journal: none`, and at the second order `insert-2: Runtime error near line 2: UNIQUE constraint failed: orders.token (19)`. The old binary does not refuse a database that is two migrations ahead, and it says nothing about it. | The limit is the first paragraph of the section, and states this behaviour as observed, with the pair of versions it was seen with. |
+| DEP-03 | Recovery, A failed migration | Quoted the command that the program prints when a migration fails, and left it at that. | Inferred from the source file cmd/holzcloud/main.go, not from run output: the program logs restore with: systemctl stop holzcloud && cp PATH DBPATH && systemctl start holzcloud, with the snapshot path and the database path filled in. It restores data only, runs under the NEW binary that has just failed, leaves the write-ahead files of the replaced database in place and ignores the start limit. | The text keeps the printed command as quoted, says that it restores data only, sends the reader to *Rolling back* from its first block (old binary first), and names `reset-failed` and `StartLimitBurst`. The program is unchanged: the message is incomplete, not wrong. |
+| DEP-03 | Rolling back, restore | Not written. A plain copy of the snapshot over `holzcloud.sqlite` is the obvious restore. | Inferred from how the database is opened (write-ahead mode, see the pragmas in internal/db), not from run output: a write-ahead or shared-memory file that belongs to the replaced database stays next to the restored file, and SQLite reads a restored file together with a log that is not its own. The play removes them before the restore, and every restored database passed its check afterwards: `PASS integrity ok`. | Block 1 stops the service and then runs `sudo rm -f /opt/holzcloud/data/holzcloud.sqlite-wal /opt/holzcloud/data/holzcloud.sqlite-shm` before the move and the restore, and the text says why. |
+| DEP-03 | Updating, check | The last line of step 3, the journal grep, as the check that a migration ran. | In the no-migration update (v0.0.21 to the current build) the line ends with a failure status, because grep finds nothing: `STEP 29 rc=1 sudo journalctl -u holzcloud --since` (hop pass 1, scratch directory deploy/test/out/amd64-hop-pass1). The update itself had worked. A script, or an operator who chains the steps with the shell AND operator, would stop on a healthy update. | The line ends with an `echo` fallback, `no migration, no snapshot`, joined with the shell's OR operator, as the last line of *Rolling back* block 1 already did, and the text says what the line prints when nothing migrated. |
 
 ### Changed without a failing line in pass 1
 
@@ -255,3 +266,106 @@ subcommand of the new binary against the old database.
 **What this does not show.** That the way back works (plan 21-04 plays it, starting from the marker page `after-update` that `update`
 writes after the comparison and captures as state `s1m`), how long a larger database takes to migrate, and that the real server's
 clock, disk and mounts behave like the container's (DEVIATION[mount] stands for the mount).
+
+## DEP-03: rolling back, and the migration limit
+
+**What was played, in this order**, on the container that the update left behind:
+
+1. The Updating section (as in DEP-02), then a marker page `after-update` written through the new binary and captured as state `s1m`.
+2. With a snapshot: `SCENARIO[negative]` (the old binary against the migrated database, once), `SCENARIO[restore-new]` (the new binary put
+   back), then block 1 of *Rolling back*, exactly as it stands in `deploy/DEPLOY.md`.
+3. Without a snapshot: block 2 of *Rolling back* straight after the update. The harness chooses the block by the journal of the update: a
+   `SNAPSHOT:` path in `update.txt` means block 1, `SNAPSHOT: none` means block 2.
+
+```text
+PLATFORM=linux/amd64 TARGET=systemd-base INSTALL_FROM=old OLD_TAG=v0.0.10 NAME=holzcloud-rollback-pass1b OUT_DIR=deploy/test/out/amd64-rollback-pass1b ./deploy/test/run.sh build up install baseline update negative rollback
+PLATFORM=linux/amd64 TARGET=systemd-base INSTALL_FROM=old OLD_TAG=v0.0.21 NAME=holzcloud-hop OUT_DIR=deploy/test/out/amd64-hop ./deploy/test/run.sh build up install baseline update rollback
+```
+
+**The rollback with a snapshot** (v0.0.10 to the current build, schema 58 to 60, `deploy/test/out/amd64-rollback-pass1b`). The state after the
+rollback (`s2`) is compared with the state before the update (`s0`), with the same comparison as for DEP-02:
+
+| Check | Result |
+|-------|--------|
+| The old version runs again | `PASS version old v0.0.10` |
+| The schema is the old one | `PASS schema 58` |
+| The page written after the update is gone | `PASS marker gone (GET /after-update 404)` |
+| The order is as it was before the migration | `PASS no token column (the order of the old schema, as it was)` |
+| A page that existed before the update is served | `PASS pre-update page (GET /plugintest 200)` |
+| The restored database belongs to the service user, mode 600 | `PASS owner and mode holzcloud 600` |
+| The migrated database is kept and can be put back | `PASS set-aside copy holzcloud.sqlite.after-update at schema 60` |
+| The restart migrates nothing and writes no snapshot | `PASS no migration on restart` |
+| The service reports the database sound | `PASS integrity ok` |
+| Everything of the update comparison, against `s0` | `compare-s0-s2.txt`: 52 PASS, no BAD |
+
+**The negative case, verbatim** (`negative.txt` of the same run): the old binary was started against the database that the new one had
+migrated, no snapshot restored.
+
+```text
+NEGATIVE-RESULT: starts
+readyz: {"status":"ok","version":"v0.0.10","commit":"ec365d6","integrity":"ok"}
+schema: 60 
+journal: none
+insert-1: ok
+insert-2: Runtime error near line 2: UNIQUE constraint failed: orders.token (19)
+orders: 2 
+RESTORE: ok
+```
+
+It starts, says it is healthy and logs nothing about the schema. It fails at the second order, because migration 00060 made `orders.token` unique
+and the old code does not write it. The inserts were direct, in the statement shape of the old code; the shop flow was not played. The result
+is for this pair of versions. The document says so, and states the limit as a rule, because another pair can fail somewhere else, or nowhere
+visible. This is why the limit is the first paragraph of *Rolling back*.
+
+**The rollback without a snapshot** (v0.0.21 to the current build, `deploy/test/out/amd64-hop`). Both builds have 60 migration files, so
+`update.txt` says `MIGRATIONS: old=60 new=60 pending=0`, `APPLIED: 0` and `SNAPSHOT: none`, and `attach-s1.txt` holds four PASS lines instead of the
+ATTACH comparison, which needs a snapshot: no snapshot line in the journal since the start, no new pre-upgrade file in the data directory, no
+migration applied, schema 60 before and after. The comparison of the update against the baseline has 53 PASS and no BAD. Then block 2 of
+*Rolling back*, and `rollback.txt` with `MODE: binary`:
+
+| Check | Result |
+|-------|--------|
+| The old version runs again | `PASS version old v0.0.21` |
+| The schema is unchanged | `PASS schema 60` |
+| The page written after the update is still there | `PASS marker kept (GET /after-update 200)` |
+| The order token is as the update left it | `PASS token kept (0 characters, as after the update)` |
+| The restart migrates nothing, and the database is sound | `PASS no migration on restart`, `PASS integrity ok` |
+| Everything, against the state after the update (`s1m`) | `compare-s1m-s2.txt`: 53 PASS, no BAD |
+
+So, with no migration between the builds, putting the old binary back alone undoes nothing and loses nothing; this is what assumption A5 of
+the research claimed, and it is now observed for one pair of builds and no further. Two things the play cannot show: that the old code
+reads rows that the newer code wrote in a new shape (the schema is the same, the meaning of a row need not be), and an update with more than
+one release between the builds. The document says the first. The token length is 0 in that run, not 32: v0.0.21 already has the column, so the
+seeded order was written by the old code without a token, and the check compares with the state after the update instead of expecting 32. An
+earlier version of the harness expected 32 and reported that as BAD (`deploy/test/out/amd64-hop-pass1b`); that was a wrong expectation in the
+check, not a defect of the document, and it is the only check that changed.
+
+**What a rollback by snapshot undoes, and does not cover.** It brings back users, sessions and API keys as the snapshot had them: a password
+changed since the update is the old password again, a revoked session or key is valid again. The counts of the restored state are in
+`rollback.txt` (`INFO credentials`), and no credential is written to any output file (`LEAK-CHECK OK`). Sessions are rows of the database, so a
+restart does not clear them; the document tells the operator to re-apply revocations in the admin. It does not cover files: media and
+templates added after the update stay on disk and the restored database does not know them; files removed after the update are not brought
+back, and the backup of step 1 of *Updating* is the source for those.
+
+**Why the snapshot route and not `goose down`** (D-10). Every migration file has a `Down` section (60 of 60, counted with grep), but
+`holzcloud migrate` offers `status` and `up` only: no command runs them. A rollback that the program cannot do is not offered. A `Down` that
+nobody has run against production data is a second, untested way to lose data, while the snapshot is the program's own verified copy of the
+state before the first migration. The document carries one developer-note sentence about the `Down` sections and no more.
+
+**A trap that the play showed.** The first start of a fresh install writes a snapshot of an empty database (`pre-upgrade-v0.0.10-...sqlite`,
+about 12 KB). The restore line of block 1 takes the newest snapshot by modification time, so after an update that wrote none it would restore
+that empty one, or an older update's. The text says to run the first line of block 1 on its own and read it, and what the name and the size of
+the right file look like.
+
+**What differs from a real server, and matters to a rollback:**
+
+- The container is a privileged systemd container; a server runs the unit under the host's own systemd. The commands of the section are the
+  same. The start limit and `reset-failed` were exercised as the unit sets them (`StartLimitBurst`), but no run drove the service into the limit,
+  so that a restart after a limit has been hit works is read from the unit and not observed.
+- Under amd64 emulation the unit needs a container-only drop-in (DEVIATION[dropin]), and a start takes about ten seconds. The document's check line waits for the start itself, so this does not change the text, but the timing in the runs is not a server's.
+- The data directory is a plain directory (DEVIATION[mount]), not a mount. Whether the restore, with a service stopped before a volume is
+  touched, holds on a separate volume is not shown here.
+- The journal of a fresh container holds everything since its start. A server may have rotated the line `pre-upgrade snapshot written` away
+  by the time somebody rolls back; the file in the data directory, named after the version it was written for, is the second source, and the
+  text names both.
+- The database is small (test data only). How long a snapshot of a large database takes to write and to restore is not measured.

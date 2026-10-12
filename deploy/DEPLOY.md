@@ -680,7 +680,7 @@ and commit that now run; the second reads the journal since that start:
 
 ```bash
 curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/readyz | jq '{status, version, commit, integrity}'
-sudo journalctl -u holzcloud --since "$(systemctl show -p ActiveEnterTimestamp --value holzcloud)" -o cat | grep -E 'pre-upgrade snapshot written|migration applied'
+sudo journalctl -u holzcloud --since "$(systemctl show -p ActiveEnterTimestamp --value holzcloud)" -o cat | grep -E 'pre-upgrade snapshot written|migration applied' || echo 'no migration, no snapshot'
 ```
 
 `version` and `commit` must be the new build's, and `status` and `integrity` must
@@ -692,7 +692,9 @@ pending schema changes. When there are any, the journal shows one line
 `migration applied` per migration. An update across two migrations showed exactly
 that: the snapshot line, then `migration applied` for version 59 and for 60, and
 the schema went from 58 to 60. No such lines means that no migration was
-pending, and in that case there is no snapshot either.
+pending, and in that case there is no snapshot either: the line then prints
+`no migration, no snapshot` (without that, `grep` finds nothing and the line ends
+with a failure status, which is not a failure of the update).
 
 What the service does before it migrates, as observed:
 
@@ -775,8 +777,11 @@ by root, and the service could not open it). `reset-failed` clears the start lim
 (`StartLimitBurst` in the unit stops the restarts after five starts in five minutes);
 without it a service that has hit that limit refuses to start.
 
-**2. The update wrote no snapshot**, because no migration was pending. The database
-is as the old version left it, so only the binary goes back:
+**2. The update wrote no snapshot**, because no migration was pending: the two
+builds have the same schema. The database is as the old version could read it, and
+the old binary alone is a complete rollback. It undoes nothing and loses nothing: the
+data stays as the new version left it, edits made since the update included, and only
+the binary goes back:
 
 ```bash
 sudo systemctl stop holzcloud
@@ -785,6 +790,15 @@ sudo systemctl reset-failed holzcloud
 sudo systemctl start holzcloud
 curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/readyz | jq '{status, version, commit, integrity}'
 ```
+
+This case was played too, with v0.0.21 and the build of this release, which have the
+same schema (60 migrations each). The update wrote no snapshot and applied no
+migration. After block 2, `/readyz` showed v0.0.21 with `integrity` `ok`, the schema
+was still 60, a page written after the update was still served, the order and all
+other row counts, the page and the media file were equal to what they had been before
+the binary went back, and the restart applied nothing and wrote nothing. Equal schema
+says nothing about what the newer code wrote into the rows; read the release's entry
+in `CHANGELOG.md` before you rely on this for another pair of versions.
 
 What a rollback by snapshot does, as played:
 

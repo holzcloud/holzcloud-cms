@@ -1847,6 +1847,46 @@ attach_check() {
   [ "$CMP_BADS" -eq 0 ]
 }
 
+# snapshot_count: the pre-upgrade snapshot files in the data directory.
+snapshot_count() {
+  dx bash -c 'ls -1 /opt/holzcloud/data/pre-upgrade-*.sqlite 2>/dev/null | wc -l' | tr -d ' \r'
+}
+
+# nomigration_check PRE_N SNAP APPLIED SA SB: the update of two builds with the same
+# schema. Nothing migrates, so nothing may be written: no snapshot path in the
+# journal, no new snapshot file, no 'migration applied' line, the schema unchanged.
+# The result goes to attach-s1.txt, where the ATTACH comparison stands when a
+# snapshot exists.
+nomigration_check() {
+  local pre_n=$1 snap=$2 applied=$3 sa=$4 sb=$5 post_n out
+  out="$OUT_DIR/attach-s1.txt"
+  : > "$out"
+  CMP_OUT=$out
+  CMP_BADS=0
+  post_n=$(snapshot_count)
+  if [ -z "$snap" ] || [ "$snap" = none ]; then
+    cmp_pass "no snapshot (the journal has no 'pre-upgrade snapshot written' line since the start of the update)"
+  else
+    cmp_bad "no snapshot: the journal names $snap although no migration was pending"
+  fi
+  if [ "$post_n" = "$pre_n" ]; then
+    cmp_pass "no new pre-upgrade file in the data directory ($pre_n before, $post_n after)"
+  else
+    cmp_bad "pre-upgrade files: $pre_n before the update, $post_n after"
+  fi
+  if [ "${applied:-0}" = 0 ]; then
+    cmp_pass "no migration applied in the journal"
+  else
+    cmp_bad "$applied 'migration applied' lines although no migration was pending"
+  fi
+  if [ -n "$sa" ] && [ "$sa" = "$sb" ]; then
+    cmp_pass "schema unchanged ($sa -> $sb)"
+  else
+    cmp_bad "schema ${sa:-?} -> ${sb:-?}, expected no change"
+  fi
+  [ "$CMP_BADS" -eq 0 ]
+}
+
 # update_marker: a page written after the update, through the new binary. The
 # rollback of plan 21-04 must make it disappear again.
 update_marker() {
@@ -1920,7 +1960,7 @@ cmd_baseline() {
 # against the service's own pre-upgrade snapshot, and a marker page that the
 # rollback of plan 21-04 has to remove again.
 cmd_update() {
-  local o_ver o_com n_ver n_com start n0 failed mo mn pend snap sa sb prev bk applied jl crc=0 arc=0 mrc=0 marker cpass cbad apass abad
+  local o_ver o_com n_ver n_com start n0 failed mo mn pend snap sa sb prev bk applied jl crc=0 arc=0 mrc=0 marker cpass cbad apass abad pre_n
   dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh install baseline' first"
   [ -f "$OUT_DIR/state-s0.txt" ] || die "no $OUT_DIR/state-s0.txt; run 'run.sh baseline' first"
   WITH_OLD=1
@@ -1939,6 +1979,7 @@ cmd_update() {
 
   # The container's clock, in the zone journalctl reads --since in.
   start=$(dx date '+%Y-%m-%d %H:%M:%S')
+  pre_n=$(snapshot_count)
   n0=$(steps_count)
   doc_play "Updating" || true
   failed=$(steps_failed_since "$n0")
@@ -1960,7 +2001,11 @@ cmd_update() {
   cpass=$(grep -c '^PASS' "$OUT_DIR/compare-s0-s1.txt" || true)
   cbad=$(grep -c '^BAD' "$OUT_DIR/compare-s0-s1.txt" || true)
   compare_selftest "$OUT_DIR/state-s0.txt" "$OUT_DIR/state-s1.txt"
-  attach_check "$snap" || arc=1
+  if [ "$pend" -eq 0 ]; then
+    nomigration_check "$pre_n" "$snap" "$applied" "$sa" "$sb" || arc=1
+  else
+    attach_check "$snap" || arc=1
+  fi
   apass=$(grep -c '^PASS' "$OUT_DIR/attach-s1.txt" || true)
   abad=$(grep -c '^BAD' "$OUT_DIR/attach-s1.txt" || true)
 
@@ -1995,7 +2040,12 @@ cmd_update() {
     exit 1
   fi
   [ "$o_ver" != "$n_ver" ] || { say "run.sh: UPDATE FAILED, /readyz reports the same version ($n_ver) before and after"; exit 1; }
-  if ! [ "${sb:-0}" -gt "${sa:-0}" ] 2>/dev/null; then
+  if [ "$pend" -eq 0 ]; then
+    if [ "${sb:-x}" != "${sa:-y}" ]; then
+      say "run.sh: UPDATE FAILED, no migration lies between these builds and the schema moved (${sa:-?} -> ${sb:-?})"
+      exit 1
+    fi
+  elif ! [ "${sb:-0}" -gt "${sa:-0}" ] 2>/dev/null; then
     say "run.sh: UPDATE FAILED, the schema did not move forward (${sa:-?} -> ${sb:-?})"
     exit 1
   fi
@@ -2039,7 +2089,7 @@ aside_schema() {
 # wait to the play: the document's own verification line waits for the start.
 cmd_rollback() {
   local snap mode nb n0 failed old_ver s2_ver sch_want sch_now code owner aside tok
-  local cmpfile since inv jl crc=0 f
+  local cmpfile since inv jl crc=0 f tk1
   dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh update' first"
   [ -f "$OUT_DIR/update.txt" ] && grep -q '^MARKER: ok' "$OUT_DIR/update.txt" \
     || die "no $OUT_DIR/update.txt with 'MARKER: ok'; run 'run.sh update' first"
@@ -2111,11 +2161,15 @@ cmd_rollback() {
     fi
   else
     if [ "$code" = 200 ]; then check_pass "marker kept (GET /after-update 200)"; else check_bad "marker kept: GET /after-update answered $code, expected 200"; fi
+    # The order token is whatever the update left: 32 characters when the
+    # migration backfilled it, 0 when the old build already ran at the new schema
+    # and wrote the order itself. Putting the binary back must not change it.
     tok=$(st_get "$OUT_DIR/state-s2.txt" order)
-    if [ "${tok##* }" = 32 ]; then
-      check_pass "token kept (32 characters)"
+    tk1=$(st_get "$OUT_DIR/state-s1m.txt" order)
+    if [ -n "$tok" ] && [ "${tok##* }" = "${tk1##* }" ] && [ "${tok##* }" != no-token-column ]; then
+      check_pass "token kept (${tok##* } characters, as after the update)"
     else
-      check_bad "token kept: the order line of state-s2 is '$tok'"
+      check_bad "token kept: the order line of state-s2 is '$tok', after the update it was '$tk1'"
     fi
   fi
   code=$(http_code /plugintest) || code=error
