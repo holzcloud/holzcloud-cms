@@ -2,6 +2,7 @@
 # Drives the systemd test container for deploy/holzcloud.service.
 #
 #   deploy/test/run.sh smoke                  build, up, start, check /healthz and /readyz
+#   deploy/test/run.sh build up start canary  and learn whether seccomp is enforced here
 #   deploy/test/run.sh build up start         the same steps one by one
 #   deploy/test/run.sh exec -- systemctl status holzcloud
 #   deploy/test/run.sh down
@@ -56,7 +57,7 @@ dxi() { docker exec -i "$NAME" "$@"; }
 
 usage() {
   say "usage: run.sh SUBCOMMAND [SUBCOMMAND...]"
-  say "  build up start wait down smoke   steps, may be combined: run.sh build up start"
+  say "  build up start wait canary down smoke   steps, may be combined: run.sh build up start"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -204,6 +205,80 @@ cmd_start() {
   say "unit started; evidence in $OUT_DIR/unit-start.txt"
 }
 
+# Runs the enforcement probe under the unit's own sandbox properties, once with
+# MemoryDenyWriteExecute=yes and once with =no as a control, and says whether
+# this platform enforces seccomp. This is how the emulation caveat of D-01 is
+# measured rather than asserted. The probe sits in /usr/local/bin because
+# PrivateTmp=true hides /tmp from the transient unit.
+canary_run() {
+  # $1 is the MemoryDenyWriteExecute value; $PROC_SUBSET is set by cmd_canary.
+  dx systemd-run --wait --pipe --quiet \
+    -p User=holzcloud \
+    -p NoNewPrivileges=true \
+    -p ProtectSystem=strict \
+    -p ReadWritePaths=/opt/holzcloud/data \
+    -p PrivateTmp=true \
+    -p PrivateDevices=true \
+    -p ProtectProc=invisible \
+    -p "ProcSubset=$PROC_SUBSET" \
+    -p RestrictNamespaces=true \
+    -p "RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX" \
+    -p LockPersonality=true \
+    -p CapabilityBoundingSet= \
+    -p SystemCallFilter=@system-service \
+    -p "SystemCallFilter=~@privileged @resources" \
+    -p "MemoryDenyWriteExecute=$1" \
+    /usr/local/bin/hc-canary
+}
+
+cmd_canary() {
+  dx systemctl is-active --quiet holzcloud \
+    || die "holzcloud is not active; run 'run.sh start' first (start decides whether the ProcSubset drop-in exists)"
+
+  # The same ProcSubset the unit actually runs with: the drop-in exists only
+  # after the known Rosetta crash.
+  PROC_SUBSET=pid
+  if dx test -e /etc/systemd/system/holzcloud.service.d/container.conf; then
+    PROC_SUBSET=all
+  fi
+
+  local yes no
+  yes=$(canary_run yes) || die "systemd-run failed for the MemoryDenyWriteExecute=yes probe"
+  no=$(canary_run no) || die "systemd-run failed for the MemoryDenyWriteExecute=no control"
+  {
+    echo "== MemoryDenyWriteExecute=yes =="
+    echo "$yes"
+    echo
+    echo "== MemoryDenyWriteExecute=no (control) =="
+    echo "$no"
+  } > "$OUT_DIR/canary.txt"
+  cat "$OUT_DIR/canary.txt"
+
+  # (1) The control must allow both operations, or the probe is invalid: it
+  # would be denied for some reason other than the seccomp filter.
+  if ! { printf '%s\n' "$no" | grep -Eq '^mprotect RW->RX +ALLOWED$' \
+      && printf '%s\n' "$no" | grep -Eq '^mmap RWX +ALLOWED$'; }; then
+    say "CANARY INVALID - the MemoryDenyWriteExecute=no control did not allow mprotect RW->RX and mmap RWX"
+    exit 1
+  fi
+
+  # Mount-namespace directives work without seccomp; report them either way.
+  say "mount-namespace probes denied under the unit's properties:"
+  printf '%s\n' "$yes" | grep -E '^(stat /proc/sys|stat /dev/kmsg|write /etc) +denied' >&2 \
+    || say "  none"
+
+  # (2) Under yes, either operation still ALLOWED means no filter is installed.
+  if printf '%s\n' "$yes" | grep -Eq '^(mprotect RW->RX|mmap RWX) +ALLOWED$'; then
+    echo not-enforced > "$OUT_DIR/canary.verdict"
+    say "SECCOMP NOT ENFORCED - MDWE verdict is void on this platform"
+    exit 3
+  fi
+
+  # (3)
+  echo enforced > "$OUT_DIR/canary.verdict"
+  say "SECCOMP ENFORCED"
+}
+
 cmd_wait() { wait_ready; }
 
 cmd_exec() {
@@ -247,7 +322,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | down | smoke)
+    build | up | start | wait | canary | down | smoke)
       "cmd_$sub"
       ;;
     *) usage ;;

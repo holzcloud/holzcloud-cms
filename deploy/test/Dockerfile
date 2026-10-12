@@ -39,6 +39,20 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build -
 # Only the archives travel on (about 5 MB), not the 24 MB plugin tree.
 RUN mkdir /plugin-zips && cp plugins/*/*.zip /plugin-zips/
 
+# Stage canary: the enforcement probe (deploy/test/canary, stdlib only, its own
+# module). A static binary per architecture; run.sh starts it under the unit's
+# sandbox properties to learn whether this platform enforces seccomp at all.
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION} AS canary
+
+# Filled in by BuildKit from --platform, without defaults (see stage build).
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /canary
+COPY deploy/test/canary/ ./
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build -trimpath \
+    -ldflags="-s -w" -o /hc-canary .
+
 # Stage systemd-base: Debian with systemd as PID 1 and the tools the checks use.
 # sudo is there so the commands in deploy/DEPLOY.md can be pasted unchanged.
 FROM ${BASE_IMAGE} AS systemd-base
@@ -66,6 +80,10 @@ RUN useradd -r -s /usr/sbin/nologin holzcloud \
 COPY --from=build --chmod=755 /holzcloud /opt/holzcloud/holzcloud
 COPY deploy/holzcloud.service /etc/systemd/system/holzcloud.service
 COPY --from=build /plugin-zips /opt/holzcloud/plugin-zips
+
+# Under /usr/local/bin, not /tmp: PrivateTmp=true hides /tmp from the transient
+# unit that runs the probe (status 203/EXEC).
+COPY --from=canary --chmod=755 /hc-canary /usr/local/bin/hc-canary
 
 # The unit is deliberately NOT enabled here: run.sh starts it, so the first
 # journal lines are captured. The unit sets no HOLZCLOUD_LISTEN, so the service
