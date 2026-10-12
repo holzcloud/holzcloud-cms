@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 20
 current_phase_name: Hardened unit under real systemd
 status: executing
-stopped_at: Completed 20-01-PLAN.md
-last_updated: "2026-10-12T10:32:25.207Z"
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-10-12T10:39:21.252Z"
 last_activity: 2026-10-12
-state_head: f46ec35bf513104b5932600eaf56950417d8d593
+state_head: dd38a10da5e09f3825e204cd3e7dfb9abd78c7c9
 progress:
   total_phases: 0
   completed_phases: 0
@@ -326,6 +326,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P09 | 15 min | 2 tasks | 5 files |
 | Phase 10 P10 | 55 min | 3 tasks | 2 files |
 | Phase 20 P01 | 55min | 2 tasks | 6 files |
+| Phase 20 P02 | 25min | 3 tasks | 2 files |
 
 ### Session Continuity
 
@@ -354,8 +355,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T10:32:25.192Z
-**Stopped at:** Completed 20-01-PLAN.md
+**Last session:** 2026-10-12T10:39:21.236Z
+**Stopped at:** Completed 20-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -437,6 +438,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 11]: 10-09: Sechste und siebte Instanz von 'ein Tor misst etwas anderes als sein Name' in Phase 10 — completeLogin zaehlt eine Erwaehnung mitten in einem Kommentar (druckt 5, Aufrufstellen sind 4), MustHaveSecondFactor zaehlt Doku-Kommentar, Deklaration und einen neuen Prosa-Kommentar (druckt 8, Aufrufstellen 5 vorher wie nachher).
 - [Phase 20]: 20-01: Dockerfile ARG TARGETARCH/TARGETOS carry no default (a default overrides --platform)
 - [Phase 20]: 20-01: amd64 under Rosetta installs no seccomp filter; canary exit 3 voids any MDWE verdict there, arm64 native is the MDWE evidence
+- [Phase 20]: MemoryDenyWriteExecute=true stays: on native arm64 (seccomp enforced) all five plugins run on wazero's interpreter fallback; amd64/Rosetta verdict is VOID (Seccomp 0). Unit gains comment lines only.
 
 ## Accumulated Context
 
