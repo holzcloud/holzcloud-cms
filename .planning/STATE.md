@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 21
 current_phase_name: Deploy, update, rollback
 status: executing
-stopped_at: Completed 21-03-PLAN.md
-last_updated: "2026-10-12T12:21:26.367Z"
+stopped_at: Completed 21-04-PLAN.md
+last_updated: "2026-10-12T12:32:13.263Z"
 last_activity: 2026-10-12
-state_head: bfdaf6e685ed3395f0008499ef96890b3dbd321b
+state_head: dd1988231019ea7f1e4f68c63f2503b1aa828c57
 progress:
   total_phases: 0
   completed_phases: 20
@@ -331,6 +331,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 21 P01 | 8 min | 2 tasks | 1 files |
 | Phase 21 P02 | 10 min | 2 tasks | 3 files |
 | Phase 21 P03 | 12 min | 2 tasks | 3 files |
+| Phase 21 P04 | 25 min | 2 tasks | 3 files |
 
 ### Session Continuity
 
@@ -359,8 +360,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T12:21:26.347Z
-**Stopped at:** Completed 21-03-PLAN.md
+**Last session:** 2026-10-12T12:32:13.243Z
+**Stopped at:** Completed 21-04-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -450,6 +451,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 21]: 21-02: DEVIATION[preinstalled] is emitted only for an image tool the Prerequisites block does not name; baseline and update read the database only through sqlite3 -readonly as the service user (counts only), never a holzcloud subcommand
 - [Phase 21]: 21-03: VOLATILE tables (sessions, activity_log, mail_outbox, outbox, plugin_store, goose_db_version, oauth_codes) are not compared for equality, each with its reason; a difference in any other table is a BAD and an investigation. The comparison is proven able to fail by compare_selftest on an altered copy
 - [Phase 21]: 21-03: the Updating section keeps the old binary as holzcloud.prev and takes the backup with the OLD binary, because every subcommand of a new binary migrates silently without a snapshot (read in openForCLI, not played); the pre-upgrade snapshot (new version in its name, old schema, only with pending migrations, database only, newest five, mode 600) is verified independently by ATTACH against S0 and the live tables
+- [Phase 21]: 21-04: the migration limit leads the Rolling back section and rests on the played negative case: the old binary (v0.0.10) does not refuse the migrated schema, answers /healthz and /readyz ok, logs nothing, and fails at the second order insert (UNIQUE constraint failed: orders.token); the snapshot route is the only documented rollback, goose Down is one developer-note sentence
+- [Phase 21]: 21-04: SCENARIO (scenario.txt) is the harness vocabulary for a step the document must not contain, beside DEVIATION; the document does not claim a restart clears restored sessions, because sessions are database rows
 
 ## Accumulated Context
 
