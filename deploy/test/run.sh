@@ -16,7 +16,10 @@
 #   deploy/test/run.sh build up install        TARGET=systemd-base, then DEPLOY.md's install blocks
 #   deploy/test/run.sh firstrun caddy postinstall   on the container `install` left behind
 #   INSTALL_FROM=old deploy/test/run.sh build up install baseline update   the old release installed and seeded,
-#                                              then the Updating section played as shipped (OUT_DIR/update.txt)
+#                                              then the Updating section played (OUT_DIR/update.txt), state s1 compared
+#                                              with s0 (compare-s0-s1.txt) and with the service's own pre-upgrade
+#                                              snapshot (attach-s1.txt), and a marker page written (state s1m)
+#   deploy/test/run.sh compare state-s0.txt state-s1.txt   the comparison alone, on two state files
 #
 # The subcommand names, the environment variables below, the exit codes and the
 # file names under OUT_DIR are an interface: later plans and phases 21 and 22
@@ -361,7 +364,8 @@ usage() {
   say "  caddy                            the document's Caddy block; reload replaced by caddy validate; exit 3 without a network"
   say "  postinstall                      the document's Backups block, then every deploy path it names must exist"
   say "  baseline                         INSTALL_FROM=old: seed the old install, a login user and an order row, capture state s0"
-  say "  update                           play the document's Updating section as it stands, then capture state s1 and write update.txt"
+  say "  update                           play the document's Updating section as it stands, capture s1, compare with s0 and the pre-upgrade snapshot, write the marker page"
+  say "  compare A B [OUTFILE]            compare two state files (state-LABEL.txt) without a container; exit 1 on a BAD line"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -1500,37 +1504,358 @@ insert_old_order() {
     || die "insert_old_order: the INSERT failed"
 }
 
-# Runs INSIDE the container as the service user (runuser -u holzcloud -- bash -s):
-# counts only, and only through a read-only connection. No row of any table is
-# selected, the users, sessions and key tables included (T-21-07), and no holzcloud
-# subcommand is started, because every one of them migrates silently (T-21-08).
+# Runs INSIDE the container as the service user (runuser -u holzcloud -- bash -s -- ORDER SOURCE):
+# counts and content hashes only, and only through a read-only connection. No row
+# of any table is selected, the users, sessions and key tables included (T-21-07,
+# T-21-09), and no holzcloud subcommand is started, because every one of them
+# migrates silently (T-21-08). The only values read out of a content table are
+# the page text and the stored media file name, and they leave this script as
+# sha256 digests and a length.
 read -r -d '' STATE_SH <<'STATE_EOF' || true
 set -eu
 db=/opt/holzcloud/data/holzcloud.sqlite
+order=${1:-}
+src=${2:-/tmp/hc-upload.jpg}
+case "$order" in *[!0-9A-Za-z-]*) order="" ;; esac
 q() { sqlite3 -readonly "$db" ".timeout 5000" "$1"; }
+sha() { sha256sum | cut -d' ' -f1; }
 echo "schema: $(q "select coalesce(max(version_id), 0) from goose_db_version where is_applied = 1")"
 q "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name" | while IFS= read -r t; do
   n=$(q "select count(*) from \"$t\"" 2>/dev/null) || n="?"
   echo "table $t $n"
 done
+# The page: the stored Markdown and the stored HTML of the slug plugintest.
+if [ "$(q "select count(*) from pages where slug = 'plugintest'")" = 1 ]; then
+  pmd=$(q "select content_markdown from pages where slug = 'plugintest'" | sha)
+  phtml=$(q "select content_html from pages where slug = 'plugintest'" | sha)
+  echo "page: $pmd $phtml"
+else
+  echo "page: none"
+fi
+# The media file: the original that the upload stored, next to the file that
+# seed staged. The scaled variants are not hashed.
+mrow=$(q "select website_id || '/' || filename from media order by id limit 1")
+mh=none
+if [ -n "$mrow" ] && [ -f "/opt/holzcloud/data/media/$mrow" ]; then
+  mh=$(sha < "/opt/holzcloud/data/media/$mrow")
+fi
+sh=""
+if [ -r "$src" ]; then sh=$(sha < "$src"); fi
+echo "media: $mh source ${sh:-none}"
+# The order: whether the schema has the token column, and the stored length.
+if [ "$(q "select count(*) from pragma_table_info('orders') where name = 'token'")" = 1 ]; then
+  len=$(q "select length(token) from orders where number = '$order'")
+  echo "order: ${order:-none} ${len:-missing}"
+else
+  echo "order: ${order:-none} no-token-column"
+fi
+echo "owner: $(stat -c '%U %a' "$db")"
 STATE_EOF
 
+# order_number: the order the baseline inserted, from the variable or baseline.txt.
+ORDER_NO=${ORDER_NO:-}
+order_number() {
+  if [ -n "$ORDER_NO" ]; then
+    printf '%s\n' "$ORDER_NO"
+  else
+    sed -n 's/^ORDER: \([0-9A-Za-z-]*\).*/\1/p' "$OUT_DIR/baseline.txt" 2>/dev/null | head -n 1
+  fi
+}
+
 # capture_state LABEL: OUT_DIR/state-LABEL.txt as KEY: value lines. identity is
-# the /readyz answer reduced to status, version, commit and integrity; schema the
-# highest applied goose version; then one "table NAME N" line per table of
-# sqlite_master, nothing hand-listed. First version: plan 21-03 completes it.
+# the /readyz answer reduced to status, version, commit and integrity; binary the
+# `holzcloud version` line (it opens no database); schema the highest applied
+# goose version; one "table NAME N" line per table of sqlite_master, nothing
+# hand-listed; page, media, order and owner from STATE_SH; public the status of
+# /plugintest and / for test.local and whether the page title is in the body;
+# plugins the number of plugins that list_plugins shows running with an empty
+# last_error; login the result of one login for login@example.test, status and
+# redirect path only. Counts and content hashes, never a row of a credential
+# table (T-21-09).
 capture_state() {
-  local label=$1 f ident
+  local label=$1 f ident ver c1 c2 title body pl np lg
   f="$OUT_DIR/state-$label.txt"
   mkdir -p "$OUT_DIR"
   ident=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz | dxi jq -c '{status,version,commit,integrity}') \
     || die "capture_state $label: /readyz did not answer"
+  ver=$(dx /opt/holzcloud/holzcloud version) || die "capture_state $label: holzcloud version failed"
   {
     echo "identity: $ident"
-    printf '%s\n' "$STATE_SH" | dxi runuser -u holzcloud -- bash -s
+    echo "binary: $ver"
+    printf '%s\n' "$STATE_SH" | dxi runuser -u holzcloud -- bash -s -- "$(order_number)" /tmp/hc-upload.jpg
   } > "$f" || die "capture_state $label: reading the database failed"
   grep -q '^table ' "$f" || die "capture_state $label: no table line in $f"
+
+  c1=$(http_code /plugintest) || c1=error
+  c2=$(http_code /) || c2=error
+  # The body goes into a variable first: grep -q ends early and under pipefail
+  # the curl in front of it would then count as a failure.
+  body=$(http_body /plugintest) || body=""
+  title=no
+  if grep -q '<title>Plugintest' <<< "$body"; then title=yes; fi
+  pl=$(mcp list_plugins '{}') || pl=""
+  np=$(printf '%s' "$pl" | dxi jq '[.plugins[] | select(.running == true and .last_error == "")] | length' 2>/dev/null) || np=0
+  lg=$(form post /admin/login login@example.test /root/.hc-login-pass /root/.hc-jar-state) || lg="HTTP error"
+  dx rm -f /root/.hc-jar-state || true
+  {
+    echo "public: plugintest=$c1 root=$c2 title=$title"
+    echo "plugins: ${np:-0}"
+    echo "login: $lg"
+  } >> "$f"
   say "state $label captured in $f ($(grep -c '^table ' "$f") tables)"
+}
+
+# ---------------------------------------------------------------------------
+# The comparison (D-06). A comparison that cannot fail proves nothing, so
+# compare_selftest alters a copy of a state file and requires a BAD.
+# ---------------------------------------------------------------------------
+
+# Tables whose rows move with traffic or with the update itself. Each entry has
+# its reason beside it; a difference in a table that is not listed here is a BAD
+# and an investigation, never a new entry.
+is_volatile() {
+  case "$1" in
+    sessions) return 0 ;;          # one row per login, deleted at expiry: the capture itself logs in
+    activity_log) return 0 ;;      # the audit trail, one row per admin action; logging in and the marker page add rows
+    mail_outbox) return 0 ;;       # the mail queue: a background run drains it and the rows stay only for a while
+    outbox) return 0 ;;            # the shop's queue of messages, drained by a background run
+    plugin_store) return 0 ;;      # written by the plugins at run time (the 404 hook stores the missing path)
+    goose_db_version) return 0 ;;  # one row per applied migration, so it grows by exactly the migrations of the update
+    oauth_codes) return 0 ;;       # an authorisation code lives for minutes and is used once
+  esac
+  return 1
+}
+
+# st_get FILE KEY: the text after "KEY: " on the first such line.
+st_get() { sed -n "s/^$2: //p" "$1" | head -n 1; }
+# st_count FILE TABLE: the count on the "table TABLE N" line, empty when there is none.
+st_count() { awk -v t="$2" '$1 == "table" && $2 == t { print $3; exit }' "$1"; }
+
+CMP_OUT=""
+CMP_BADS=0
+cmp_pass() { printf 'PASS %s\n' "$*" | tee -a "$CMP_OUT" >&2; }
+cmp_info() { printf 'INFO %s\n' "$*" | tee -a "$CMP_OUT" >&2; }
+cmp_bad() { printf 'BAD %s\n' "$*" | tee -a "$CMP_OUT" >&2; CMP_BADS=$((CMP_BADS + 1)); }
+
+# compare_states A B OUTFILE: A and B are state files. PASS and BAD lines go to
+# OUTFILE and to the screen; the exit status is 1 when any BAD.
+compare_states() {
+  local a=$1 b=$2 t na nb va vb ma mb mha msrc la lb pa pb ta tb oa ob tla tlb bina binb
+  [ -f "$a" ] && [ -f "$b" ] || die "compare_states: $a and $b must both be state files"
+  CMP_OUT=$3
+  CMP_BADS=0
+  mkdir -p "$(dirname "$CMP_OUT")"
+  : > "$CMP_OUT"
+  printf '%s\n' "# compare-states A=$a B=$b" >> "$CMP_OUT"
+
+  while IFS=' ' read -r _ t na; do
+    [ -n "$t" ] || continue
+    nb=$(st_count "$b" "$t")
+    if [ -z "$nb" ]; then
+      cmp_info "a-only $t a=$na"
+    elif is_volatile "$t"; then
+      cmp_info "volatile $t a=$na b=$nb"
+    elif [ "$na" = "?" ] || [ "$nb" = "?" ]; then
+      cmp_bad "rows $t a=$na b=$nb (a count could not be read)"
+    elif [ "$na" = "$nb" ]; then
+      cmp_pass "rows $t"
+    else
+      cmp_bad "rows $t a=$na b=$nb"
+    fi
+  done <<< "$(grep '^table ' "$a" || true)"
+  while IFS=' ' read -r _ t nb; do
+    [ -n "$t" ] || continue
+    [ -n "$(st_count "$a" "$t")" ] || cmp_info "new-only $t b=$nb"
+  done <<< "$(grep '^table ' "$b" || true)"
+
+  pa=$(st_get "$a" page)
+  pb=$(st_get "$b" page)
+  if [ -n "$pa" ] && [ "$pa" != none ] && [ "$pa" = "$pb" ]; then
+    cmp_pass "page sha256"
+  else
+    cmp_bad "page sha256 a='$pa' b='$pb'"
+  fi
+
+  ma=$(st_get "$a" media)
+  mb=$(st_get "$b" media)
+  mha=${ma%% *}
+  msrc=${ma##* }
+  if [ -n "$ma" ] && [ "$mha" != none ] && [ "$ma" = "$mb" ] && [ "$mha" = "$msrc" ]; then
+    cmp_pass "media sha256"
+  else
+    cmp_bad "media sha256 a='$ma' b='$mb' (the stored file must equal the staged source)"
+  fi
+
+  la=$(st_get "$a" login)
+  lb=$(st_get "$b" login)
+  if [ "$la" = "HTTP 303 /admin/" ] && [ "$lb" = "HTTP 303 /admin/" ]; then
+    cmp_pass "login"
+  else
+    cmp_bad "login a='$la' b='$lb' (expected 'HTTP 303 /admin/' twice)"
+  fi
+
+  va=$(st_get "$a" public)
+  vb=$(st_get "$b" public)
+  if [ "$va" = "plugintest=200 root=200 title=yes" ] && [ "$vb" = "$va" ]; then
+    cmp_pass "public page"
+  else
+    cmp_bad "public page a='$va' b='$vb'"
+  fi
+
+  ta=$(st_get "$a" plugins)
+  tb=$(st_get "$b" plugins)
+  if [ "$ta" = 5 ] && [ "$tb" = 5 ]; then
+    cmp_pass "plugins running 5/5"
+  else
+    cmp_bad "plugins running a=${ta:-?} b=${tb:-?} (5 expected)"
+  fi
+
+  oa=$(st_get "$a" order)
+  ob=$(st_get "$b" order)
+  tla=${oa##* }
+  tlb=${ob##* }
+  if [ -z "$oa" ] || [ -z "$ob" ]; then
+    cmp_bad "order token: no order line (a='$oa' b='$ob')"
+  elif [ "$tla" = no-token-column ] && [ "$tlb" = no-token-column ]; then
+    cmp_pass "order token (no token column in either schema, nothing migrated)"
+  elif [ "$tla" = no-token-column ] && [ "$tlb" = 32 ]; then
+    cmp_pass "order token (the migration backfilled a 32-character token)"
+  elif [ "$tla" != no-token-column ] && [ "$tla" = "$tlb" ]; then
+    cmp_pass "order token (length $tla in both, as it was)"
+  else
+    cmp_bad "order token a='$oa' b='$ob'"
+  fi
+
+  bina=$(st_get "$a" binary)
+  binb=$(st_get "$b" binary)
+  cmp_info "binary a='$bina' b='$binb'"
+  cmp_info "schema a=$(st_get "$a" schema) b=$(st_get "$b" schema)"
+
+  [ "$CMP_BADS" -eq 0 ]
+}
+
+# compare_selftest A B: alters a copy of B (one table count, the page hash) and
+# demands that compare_states says BAD for both, so a clean result means something.
+compare_selftest() {
+  local a=$1 b=$2 tmp out
+  tmp="$OUT_DIR/.state-tampered.txt"
+  out="$OUT_DIR/compare-selftest.txt"
+  awk '$1 == "table" && $2 == "pages" { $3 = $3 + 1 } $1 == "page:" { $2 = "0000" $2 } { print }' "$b" > "$tmp"
+  if compare_states "$a" "$tmp" "$out" 2>/dev/null; then
+    rm -f "$tmp"
+    die "compare_selftest: an altered state file was NOT reported; the comparison cannot fail"
+  fi
+  rm -f "$tmp"
+  grep -q '^BAD rows pages' "$out" && grep -q '^BAD page sha256' "$out" \
+    || die "compare_selftest: the altered copy did not produce both expected BAD lines, see $out"
+  printf '%s\n' "# SELFTEST OK: the BAD lines above come from a deliberately altered copy of $(basename "$b"); the real comparison is in the other file" >> "$out"
+  say "compare self-test: an altered state file is reported ($CMP_BADS BAD)"
+}
+
+# Runs INSIDE the container as the service user, on the live database with the
+# pre-upgrade snapshot attached, read only: the goose version of both, the file
+# mode and owner of the snapshot, and the row counts of every table that both
+# have. Counts only (T-21-09).
+read -r -d '' ATTACH_SH <<'ATTACH_EOF' || true
+set -eu
+live=/opt/holzcloud/data/holzcloud.sqlite
+snap=$1
+tables=$(sqlite3 -readonly "$live" ".timeout 5000" "ATTACH '$snap' AS old; select m.name from main.sqlite_master m join old.sqlite_master o on o.name = m.name and o.type = 'table' where m.type = 'table' and m.name not like 'sqlite_%' order by m.name")
+{
+  echo ".timeout 5000"
+  echo "ATTACH '$snap' AS old;"
+  echo "select 'snapschema ' || coalesce(max(version_id), 0) from old.goose_db_version where is_applied = 1;"
+  echo "select 'liveschema ' || coalesce(max(version_id), 0) from main.goose_db_version where is_applied = 1;"
+  for t in $tables; do
+    echo "select 'snaprow $t ' || (select count(*) from old.\"$t\") || ' ' || (select count(*) from main.\"$t\");"
+  done
+} | sqlite3 -readonly "$live"
+echo "snapfile $(stat -c '%U %a' "$snap")"
+ATTACH_EOF
+
+# attach_check SNAPSHOT: the independent proof. The snapshot is the service's own
+# verified copy of the old state; its counts must equal S0 and the live counts
+# of every non-volatile table both have.
+attach_check() {
+  local snap=$1 out raw line t sn ln n0 bk bkm sschema lschema s0schema s1schema owner
+  out="$OUT_DIR/attach-s1.txt"
+  : > "$out"
+  CMP_OUT=$out
+  CMP_BADS=0
+  if [ -z "$snap" ] || [ "$snap" = none ]; then
+    cmp_bad "snapshot: the journal names no 'pre-upgrade snapshot written' path"
+    return 1
+  fi
+  raw=$(printf '%s\n' "$ATTACH_SH" | dxi runuser -u holzcloud -- bash -s -- "$snap") \
+    || { cmp_bad "snapshot: the ATTACH session failed for $snap"; return 1; }
+  s0schema=$(st_get "$OUT_DIR/state-s0.txt" schema)
+  s1schema=$(st_get "$OUT_DIR/state-s1.txt" schema)
+  sschema=$(printf '%s\n' "$raw" | sed -n 's/^snapschema //p')
+  lschema=$(printf '%s\n' "$raw" | sed -n 's/^liveschema //p')
+  if [ -n "$sschema" ] && [ "$sschema" = "$s0schema" ]; then
+    cmp_pass "snapshot schema $sschema (the old schema, as captured in S0)"
+  else
+    cmp_bad "snapshot schema ${sschema:-?}, S0 had ${s0schema:-?}"
+  fi
+  if [ -n "$lschema" ] && [ "$lschema" = "$s1schema" ] && [ "$lschema" -gt "${sschema:-0}" ]; then
+    cmp_pass "live schema $lschema (the new schema, ahead of the snapshot)"
+  else
+    cmp_bad "live schema ${lschema:-?}, S1 had ${s1schema:-?}, snapshot ${sschema:-?}"
+  fi
+  owner=$(printf '%s\n' "$raw" | sed -n 's/^snapfile //p')
+  if [ "$owner" = "holzcloud 600" ]; then
+    cmp_pass "snapshot mode $owner (user and octal mode, T-21-10)"
+  else
+    cmp_bad "snapshot mode '$owner', expected 'holzcloud 600'"
+  fi
+  while IFS=' ' read -r line t sn ln; do
+    [ "$line" = snaprow ] || continue
+    if is_volatile "$t"; then
+      cmp_info "snapshot volatile $t snapshot=$sn live=$ln"
+      continue
+    fi
+    n0=$(st_count "$OUT_DIR/state-s0.txt" "$t")
+    if [ -n "$n0" ] && [ "$sn" = "$n0" ] && [ "$ln" = "$sn" ]; then
+      cmp_pass "snapshot rows $t"
+    else
+      cmp_bad "snapshot rows $t snapshot=$sn s0=${n0:-none} live=$ln"
+    fi
+  done <<< "$raw"
+
+  bk=$(dx bash -c 'ls -1 /opt/holzcloud/backups 2>/dev/null | sort | tail -n 1' || true)
+  if [ -z "$bk" ]; then
+    cmp_info "no backup: /opt/holzcloud/backups holds none"
+  else
+    bkm=$(dx stat -c '%U %a' "/opt/holzcloud/backups/$bk") || bkm="?"
+    if [ "$bkm" = "holzcloud 700" ]; then
+      cmp_pass "backup mode $bkm ($bk)"
+    else
+      cmp_bad "backup mode '$bkm' for $bk, expected 'holzcloud 700'"
+    fi
+  fi
+  [ "$CMP_BADS" -eq 0 ]
+}
+
+# update_marker: a page written after the update, through the new binary. The
+# rollback of plan 21-04 must make it disappear again.
+update_marker() {
+  local wid args ans pid code
+  wid=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select id from websites where name = 'Test'") || return 1
+  [ -n "$wid" ] || return 1
+  args=$(dx jq -n --argjson w "$wid" '{website:$w,title:"After update",slug:"after-update",markdown:"Written after the update. A rollback to the old version must take this page away again."}') || return 1
+  ans=$(mcp create_page "$args") || return 1
+  pid=$(printf '%s' "$ans" | dxi jq -e '.id') || return 1
+  mcp publish_page "{\"id\":$pid,\"status\":\"published\"}" >/dev/null || return 1
+  code=$(http_code /after-update)
+  [ "$code" = 200 ] || { say "GET /after-update answered $code, expected 200"; return 1; }
+  return 0
+}
+
+# compare A B [OUTFILE]: the comparison on two state files, for a rerun without
+# the container (exit 1 when any BAD).
+cmd_compare() {
+  [ "$#" -ge 2 ] || usage
+  compare_states "$1" "$2" "${3:-$OUT_DIR/compare.txt}"
 }
 
 # baseline: state S0 on the OLD binary, under the unit the repaired document
@@ -1557,6 +1882,7 @@ cmd_baseline() {
     || die "holzcloud user create failed on the old binary"
 
   order="$(dx date +%Y)-9001"
+  ORDER_NO=$order
   insert_old_order "$order"
   say "the order $order is a direct INSERT into the database (the shop flow would need a browser)"
 
@@ -1578,9 +1904,12 @@ cmd_baseline() {
 }
 
 # update: the Updating section of the document, played exactly as it stands
-# (D-07). Both binaries exist; the new one is what the scp line carries.
+# (D-07). Both binaries exist; the new one is what the scp line carries. Then
+# the proof that nothing was lost (D-06): state s1 against s0, the comparison
+# against the service's own pre-upgrade snapshot, and a marker page that the
+# rollback of plan 21-04 has to remove again.
 cmd_update() {
-  local o_ver o_com n_ver n_com start n0 failed mo mn pend snap sa sb prev bk applied jl
+  local o_ver o_com n_ver n_com start n0 failed mo mn pend snap sa sb prev bk applied jl crc=0 arc=0 mrc=0 marker cpass cbad apass abad
   dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh install baseline' first"
   [ -f "$OUT_DIR/state-s0.txt" ] || die "no $OUT_DIR/state-s0.txt; run 'run.sh baseline' first"
   WITH_OLD=1
@@ -1615,6 +1944,21 @@ cmd_update() {
 
   capture_state s1
   sb=$(sed -n 's/^schema: //p' "$OUT_DIR/state-s1.txt")
+
+  compare_states "$OUT_DIR/state-s0.txt" "$OUT_DIR/state-s1.txt" "$OUT_DIR/compare-s0-s1.txt" || crc=1
+  cpass=$(grep -c '^PASS' "$OUT_DIR/compare-s0-s1.txt" || true)
+  cbad=$(grep -c '^BAD' "$OUT_DIR/compare-s0-s1.txt" || true)
+  compare_selftest "$OUT_DIR/state-s0.txt" "$OUT_DIR/state-s1.txt"
+  attach_check "$snap" || arc=1
+  apass=$(grep -c '^PASS' "$OUT_DIR/attach-s1.txt" || true)
+  abad=$(grep -c '^BAD' "$OUT_DIR/attach-s1.txt" || true)
+
+  # The marker: written through the new binary after the comparison, so the
+  # comparison is of the update alone.
+  marker=failed
+  if update_marker; then marker=ok; else mrc=1; fi
+  capture_state s1m
+
   {
     echo "OLD: $o_ver $o_com"
     echo "NEW: $n_ver $n_com"
@@ -1624,9 +1968,12 @@ cmd_update() {
     echo "SCHEMA: ${sa:-?} -> ${sb:-?}"
     echo "PREV: $prev"
     echo "BACKUP: ${bk:-none}"
+    echo "COMPARE: pass=${cpass:-0} bad=${cbad:-0}"
+    echo "ATTACH: pass=${apass:-0} bad=${abad:-0}"
     printf '%s\n' "$jl" | while IFS= read -r l; do
       [ -z "$l" ] || echo "JOURNAL: $l"
     done
+    echo "MARKER: $marker"
   } > "$OUT_DIR/update.txt"
   cat "$OUT_DIR/update.txt"
 
@@ -1641,6 +1988,10 @@ cmd_update() {
     say "run.sh: UPDATE FAILED, the schema did not move forward (${sa:-?} -> ${sb:-?})"
     exit 1
   fi
+  if [ "$crc" -ne 0 ] || [ "$arc" -ne 0 ] || [ "$mrc" -ne 0 ]; then
+    say "run.sh: UPDATE FAILED: comparison s0/s1 bad=${cbad:-0}, attach bad=${abad:-0}, marker $marker; see compare-s0-s1.txt and attach-s1.txt"
+    exit 1
+  fi
   say "UPDATE OK"
 }
 
@@ -1651,7 +2002,7 @@ while [ "$#" -gt 0 ]; do
   sub=$1
   shift
   case "$sub" in
-    exec | logs)
+    exec | logs | compare)
       "cmd_$sub" "$@"
       exit $?
       ;;
