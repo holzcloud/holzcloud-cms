@@ -395,6 +395,12 @@ first rather than being left half-measured.
   2. Every shipped wasm plugin loads under the unit; the `MemoryDenyWriteExecute` vs. wazero question is settled with evidence and the unit adjusted if needed.
   3. `systemd-analyze security` score is measured and committed; container-vs-server differences are named.
 **Note**: Hand the test container recipe to later phases; 21 and 22 reuse it.
+**Plans**: 3 plans in 3 waves
+
+Plans:
+- [ ] 20-01-PLAN.md — Container recipe in `deploy/test/` and UNIT-01: the unchanged unit starts under real systemd and `/healthz` answers; enforcement canary tells whether seccomp is real
+- [ ] 20-02-PLAN.md — UNIT-02: seed five plugins through `/ai`, check loaded/running/invoked and the wazero engine, `MemoryDenyWriteExecute=no` control, verdict, comment in the unit; one narrow native arm64 run (named deviation from D-01)
+- [ ] 20-03-PLAN.md — UNIT-03: raw `systemd-analyze security` score, `deploy/SECURITY-SCORE.md` with container-vs-server differences, `deploy/test/README.md` hand-over to phases 21 and 22
 
 ### Phase 21: Deploy, update, rollback
 
@@ -476,7 +482,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 17. What Has Accumulated | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 18. The Administration Under Test | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
-| 20. Hardened unit under real systemd | v0.1.0 | 0/? | Not started | — |
+| 20. Hardened unit under real systemd | v0.1.0 | 0/3 | Planned | — |
 | 21. Deploy, update, rollback | v0.1.0 | 0/? | Not started | — |
 | 22. Backup and restore, measured | v0.1.0 | 0/? | Not started | — |
 | 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
