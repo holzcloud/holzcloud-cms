@@ -6,6 +6,8 @@
 #   deploy/test/run.sh build up start         the same steps one by one
 #   deploy/test/run.sh build up start seed check    plugins: install, load, invoke (UNIT-02)
 #   deploy/test/run.sh mdwe                   the narrow MemoryDenyWriteExecute run
+#   deploy/test/run.sh all                    the whole recipe, in the order that keeps the score clean
+#   deploy/test/run.sh build up score         systemd-analyze security for the unit as shipped
 #   deploy/test/run.sh exec -- systemctl status holzcloud
 #   deploy/test/run.sh down
 #
@@ -83,6 +85,9 @@ usage() {
   say "  mdwe-control                     the same checks with MemoryDenyWriteExecute=no, then restore"
   say "  verdict                          MDWE verdict from canary.verdict, check.txt, mdwe-control.txt"
   say "  mdwe                             build up start canary seed check mdwe-control verdict"
+  say "  score                            systemd-analyze security, online and offline, raw (run before start)"
+  say "  all                              build up score start canary seed check mdwe-control verdict, then a summary"
+  say "                                   exits 0 when nothing really failed, even if canary or verdict said 3"
   say "  exit 3 means: ran, but this platform cannot give the evidence (canary or verdict VOID)"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
@@ -317,13 +322,9 @@ cmd_logs() { dx journalctl -u holzcloud --no-pager "$@"; }
 
 cmd_down() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 
-cmd_smoke() {
-  # The container goes away on exit unless KEEP=1 (on_exit).
-  CLEANUP_DOWN=1
-  cmd_build
-  cmd_up
-  cmd_start
-
+# The UNIT-01 assertions, shared by smoke and all: /healthz and /readyz answer
+# and say what they should. Writes $OUT_DIR/http.txt, prints nothing.
+assert_http() {
   local health ready
   health=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/healthz) || die "/healthz failed"
   ready=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz) || die "/readyz failed"
@@ -336,6 +337,15 @@ cmd_smoke() {
   [ "$health" = '{"status":"ok"}' ] || die "/healthz body was '$health'"
   printf '%s' "$ready" | dxi jq -e '.status=="ok" and .integrity=="ok"' >/dev/null \
     || die "/readyz is not status ok and integrity ok: $ready"
+}
+
+cmd_smoke() {
+  # The container goes away on exit unless KEEP=1 (on_exit).
+  CLEANUP_DOWN=1
+  cmd_build
+  cmd_up
+  cmd_start
+  assert_http
   say "UNIT-01 PASS"
 }
 
@@ -711,6 +721,57 @@ cmd_mdwe() {
   ( cmd_verdict ) || exit $?
 }
 
+# UNIT-03: the score of the unit exactly as shipped. Run it before `start`: a
+# failed first start under Rosetta adds a container-only drop-in, and the
+# measurement must not include it. The files hold the tool's output and nothing
+# else; raw is the evidence. No pager and no terminal, so no colour codes.
+cmd_score() {
+  dx test -e /etc/systemd/system/holzcloud.service \
+    || die "no unit in the container; run 'run.sh build up' first"
+  mkdir -p "$OUT_DIR"
+  # A non-zero exit of the tool must not hide the output; the check below
+  # decides whether anything was measured.
+  dx systemd-analyze security holzcloud --no-pager > "$OUT_DIR/score-online.txt" || true
+  dx systemd-analyze security --offline=true --no-pager /etc/systemd/system/holzcloud.service \
+    > "$OUT_DIR/score-offline.txt" || true
+  dx systemctl cat holzcloud > "$OUT_DIR/score-unit.txt" || true
+
+  local f
+  for f in score-online.txt score-offline.txt; do
+    grep -q 'Overall exposure level for' "$OUT_DIR/$f" \
+      || die "$OUT_DIR/$f has no 'Overall exposure level for' line: nothing was measured"
+  done
+  say "online:  $(grep 'Overall exposure level for' "$OUT_DIR/score-online.txt")"
+  say "offline: $(grep 'Overall exposure level for' "$OUT_DIR/score-offline.txt")"
+}
+
+# The whole recipe. The order matters: score before start, so the measurement is
+# of the unit as shipped. A canary or verdict that says 3 (VOID) does not fail
+# the run; any other failure does.
+cmd_all() {
+  CLEANUP_DOWN=1
+  local crc=0 vrc=0
+  cmd_build
+  cmd_up
+  cmd_score
+  cmd_start
+  assert_http
+  ( cmd_canary ) || crc=$?
+  case "$crc" in 0 | 3) ;; *) die "the canary failed (exit $crc)" ;; esac
+  cmd_seed
+  cmd_check
+  cmd_mdwe_control
+  ( cmd_verdict ) || vrc=$?
+  case "$vrc" in 0 | 3) ;; *) die "the MDWE verdict failed (exit $vrc)" ;; esac
+
+  say "---- summary ($PLATFORM) ----"
+  say "UNIT-01 PASS"
+  say "CANARY: $(cat "$OUT_DIR/canary.verdict")"
+  say "$(cat "$OUT_DIR/verdict.txt")"
+  say "UNIT-03 online:  $(grep 'Overall exposure level for' "$OUT_DIR/score-online.txt")"
+  say "UNIT-03 offline: $(grep 'Overall exposure level for' "$OUT_DIR/score-offline.txt")"
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -722,7 +783,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all)
       "cmd_$sub"
       ;;
     mdwe-control)
