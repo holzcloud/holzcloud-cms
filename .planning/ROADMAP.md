@@ -8,7 +8,9 @@
 - ✅ **v2.1 — The Public Side Speaks the Visitor's Language** — Phases 13–14 (closed 2026-09-13, released as 2.1)
 - ✅ **v2.2 — What the Server Promises, It Keeps** — Phase 15 (closed 2026-09-14, released as 2.2)
 - ✅ **v2.3 — Every Word on a Page Belongs to Whoever Reads It** — Phase 16 (closed 2026-09-15, released as 2.3)
-- 🚧 **v2.4 — What Has Accumulated** — Phases 17–18 (opened 2026-09-15)
+- ✅ **v2.4 — What Has Accumulated** — Phases 17–18 (closed 2026-09-17)
+- ✅ **v2.5 — On the Phone** — Phase 19 (closed 2026-09-17, released as 2.5)
+- 🔁 **Since 0.0.1 (2026-09-26): no milestone open.** The count started again at 0.0.1 and the software calls itself alpha. Work since then runs as quick tasks (`.planning/quick/`), releases 0.0.1–0.0.25, last on 2026-10-11. The next milestone starts with `/gsd-new-milestone`.
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -427,8 +429,9 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 14. A Contact Form Worth Writing Into | v2.1 | 5/5 | Complete | 2026-09-13 |
 | 15. What the Server Promises, It Keeps | v2.2 | 6/6 | Complete | 2026-09-14 |
 | 16. Every Word on a Page Belongs to Whoever Reads It | v2.3 | 3/3 | Complete | 2026-09-15 |
-| 17. What Has Accumulated | v2.4 | 3/4 | In progress | - |
-| 18. The Administration Under Test | v2.4 | 0/? | Not started | - |
+| 17. What Has Accumulated | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
+| 18. The Administration Under Test | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
+| 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
