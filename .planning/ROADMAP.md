@@ -396,7 +396,7 @@ first rather than being left half-measured.
   3. `systemd-analyze security` score is measured and committed; container-vs-server differences are named.
 
 **Note**: Hand the test container recipe to later phases; 21 and 22 reuse it.
-**Plans**: 3/3 plans executed in 3 waves
+**Plans**: 3/3 plans complete in 3 waves
 
 Plans:
 **Wave 1**
@@ -488,7 +488,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 17. What Has Accumulated | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 18. The Administration Under Test | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
-| 20. Hardened unit under real systemd | v0.1.0 | 3/3 | In Progress | — |
+| 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
 | 21. Deploy, update, rollback | v0.1.0 | 0/? | Not started | — |
 | 22. Backup and restore, measured | v0.1.0 | 0/? | Not started | — |
 | 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |

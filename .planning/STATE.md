@@ -3,17 +3,19 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
 current_phase: 20
-current_phase_name: Hardened unit under real systemd
-status: executing
+current_phase_name: Deploy, update, rollback
+status: planning
 stopped_at: Completed 20-03-PLAN.md
-last_updated: "2026-10-12T10:47:49.341Z"
+last_updated: "2026-10-12T10:49:45.054Z"
 last_activity: 2026-10-12
-state_head: 783027b4c2330506afa07b5a5d1df6694bffe59c
+last_activity_desc: Phase 20 complete, transitioned to Phase 21
+state_head: c99e198fc7810eda9f96f7d369c22b5b24dbc445
 progress:
   total_phases: 0
-  completed_phases: 0
+  completed_phases: 20
   total_plans: 3
   completed_plans: 0
+  percent: 87
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -51,7 +53,7 @@ close and are history, not status.
 
 ### Current Position (v1.10, geschrieben beim Abschluss von Phase 10 — die geltende steht unter `## Current Position`)
 
-Phase: 10 — Authentik Forward-Auth (**10/10 Pläne ausgeführt**), zugleich die
+Phase: 21 — Deploy, update, rollback
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
 ihre Pläne gefahren: 42 von 42.
 
@@ -84,7 +86,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Executing Phase 20
+Status: Ready to plan
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -139,7 +141,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-12
+Last activity: 2026-10-12 — Phase 20 complete, transitioned to Phase 21
 
 ### Milestone Map
 
@@ -458,7 +460,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 20 (Hardened unit under real systemd) — EXECUTING
-Plan: 1 of 3
+Plan: Not started
 Status: Executing Phase 20
 Last activity: 2026-10-12 — Phase 20 execution started
 
