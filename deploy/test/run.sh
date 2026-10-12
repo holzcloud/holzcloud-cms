@@ -4,6 +4,7 @@
 #   deploy/test/run.sh smoke                  build, up, start, check /healthz and /readyz
 #   deploy/test/run.sh build up start canary  and learn whether seccomp is enforced here
 #   deploy/test/run.sh build up start         the same steps one by one
+#   deploy/test/run.sh build up start seed    plugins: install, enable, a page and an image (UNIT-02)
 #   deploy/test/run.sh exec -- systemctl status holzcloud
 #   deploy/test/run.sh down
 #
@@ -55,9 +56,22 @@ die() { say "run.sh: $*"; exit 1; }
 dx() { docker exec "$NAME" "$@"; }
 dxi() { docker exec -i "$NAME" "$@"; }
 
+# One EXIT handler for the whole script. smoke and mdwe set CLEANUP_DOWN so the
+# container goes away unless KEEP=1.
+CLEANUP_DOWN=0
+on_exit() {
+  local rc=$?
+  trap - EXIT
+  if [ "$CLEANUP_DOWN" = 1 ] && [ "$KEEP" != 1 ]; then
+    cmd_down
+  fi
+  exit "$rc"
+}
+
 usage() {
   say "usage: run.sh SUBCOMMAND [SUBCOMMAND...]"
   say "  build up start wait canary down smoke   steps, may be combined: run.sh build up start"
+  say "  seed                             test website, five plugins, a page and an image through /ai"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -292,8 +306,8 @@ cmd_logs() { dx journalctl -u holzcloud --no-pager "$@"; }
 cmd_down() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 
 cmd_smoke() {
-  # The container goes away on exit unless KEEP=1.
-  trap 'rc=$?; [ "$KEEP" = 1 ] || cmd_down; exit $rc' EXIT
+  # The container goes away on exit unless KEEP=1 (on_exit).
+  CLEANUP_DOWN=1
   cmd_build
   cmd_up
   cmd_start
@@ -313,6 +327,128 @@ cmd_smoke() {
   say "UNIT-01 PASS"
 }
 
+# ---------------------------------------------------------------------------
+# UNIT-02: plugins under the hardened unit, and MemoryDenyWriteExecute.
+# ---------------------------------------------------------------------------
+
+# Runs INSIDE the container (docker exec -i bash -c "$MCP_SH"): stdin is one
+# JSON-RPC request body. The bearer key is read from the root-only key file
+# there and never leaves the container (T-20-05). A failing tool answers HTTP
+# 200 with result.isError (toolError in internal/ai/mcp.go), a protocol failure
+# with .error; both end in a non-zero exit and the text on stderr. Success
+# prints result.content[0].text, which is a JSON document.
+MCP_SH='set -eu
+resp=$(curl -sS --max-time 120 -X POST http://127.0.0.1:8080/ai -H "Authorization: Bearer $(cat /root/.hc-key)" -H "Content-Type: application/json" --data-binary @-)
+if printf "%s" "$resp" | jq -e "(.error == null) and ((.result.isError // false) | not)" >/dev/null 2>&1; then
+  printf "%s\n" "$resp" | jq -r ".result.content[0].text"
+else
+  printf "%s\n" "$resp" | jq -r ".error.message // .result.content[0].text" >&2 || printf "%s\n" "$resp" >&2
+  exit 1
+fi'
+
+# mcp TOOL ARGUMENTS_JSON: one tools/call. The body is built with jq, never by
+# concatenating JSON.
+mcp() {
+  dx jq -n --arg n "$1" --argjson a "$2" \
+    '{jsonrpc:"2.0",id:1,method:"tools/call",params:{name:$n,arguments:$a}}' \
+    | dxi bash -c "$MCP_SH"
+}
+
+# mcp_install PLUGIN_ID: the archive is about 1 MB. It goes through a pipe, never
+# through jq --arg or a command line (Argument list too long, and the tool then
+# reports an empty file).
+mcp_install() {
+  dx bash -c 'base64 -w0 "/opt/holzcloud/plugin-zips/$1.zip" | jq -Rs "{jsonrpc:\"2.0\",id:1,method:\"tools/call\",params:{name:\"install_plugin\",arguments:{archive_base64:.}}}"' _ "$1" \
+    | dxi bash -c "$MCP_SH"
+}
+
+seed_log() { # $1 tool, $2 answer text
+  {
+    echo "== $1 =="
+    echo "$2"
+    echo
+  } >> "$OUT_DIR/seed.txt"
+}
+
+cmd_seed() {
+  dx systemctl is-active --quiet holzcloud \
+    || die "holzcloud is not active; run 'run.sh start' first"
+  if dx test -e /root/.hc-key; then
+    die "this container is already seeded (key file exists); run 'run.sh down' and 'run.sh up' for a fresh one"
+  fi
+  mkdir -p "$OUT_DIR"
+  : > "$OUT_DIR/seed.txt"
+
+  # The key is created and kept inside the container only. The CLI prints the
+  # secret on a line of its own that starts with ai.TokenPrefix ("hc_"); only
+  # that line is selected, inside the container, and written to a file created
+  # under umask 077. Nothing of it reaches this shell. Run as the service user
+  # with the unit's data directory, so the database files stay owned by
+  # holzcloud.
+  dx bash -c 'set +x; umask 077
+    out=$(runuser -u holzcloud -- env HOLZCLOUD_DATA_DIR=/opt/holzcloud/data /opt/holzcloud/holzcloud ai key create -name hc-unit-test -level admin) || { echo "ai key create failed" >&2; exit 1; }
+    printf "%s\n" "$out" | grep -m1 "^hc_" > /root/.hc-key
+    test -s /root/.hc-key' || die "could not create the admin key"
+
+  local ans wid pid id
+  ans=$(mcp create_website '{"name":"Test"}') || die "create_website failed: $ans"
+  seed_log create_website "$ans"
+  wid=$(printf '%s' "$ans" | dxi jq -e '.id') || die "create_website gave no id"
+
+  ans=$(mcp add_domain "{\"website\":$wid,\"domain\":\"test.local\",\"primary\":true}") || die "add_domain failed: $ans"
+  seed_log add_domain "$ans"
+
+  # Per plugin, in this order: the foreign key of set_plugin_websites needs the
+  # plugin to exist, and enable_plugin loads it for those websites.
+  for id in bestellung jahreszahl kontaktformular nicht-gefunden suche; do
+    ans=$(mcp_install "$id") || die "install_plugin $id failed: $ans"
+    seed_log "install_plugin $id" "$ans"
+    ans=$(mcp set_plugin_websites "{\"id\":\"$id\",\"websites\":[$wid]}") || die "set_plugin_websites $id failed: $ans"
+    seed_log "set_plugin_websites $id" "$ans"
+    ans=$(mcp enable_plugin "{\"id\":\"$id\"}") || die "enable_plugin $id failed: $ans"
+    seed_log "enable_plugin $id" "$ans"
+  done
+
+  local md args
+  md=$(printf 'Plugintest page\n\nJahr: [[jahr]]\n\n[[formular]]\n\n[[bestellung]]\n')
+  args=$(dx jq -n --argjson w "$wid" --arg md "$md" \
+    '{website:$w,title:"Plugintest",slug:"plugintest",markdown:$md}') || die "could not build the create_page arguments"
+  ans=$(mcp create_page "$args") || die "create_page failed: $ans"
+  seed_log create_page "$ans"
+  pid=$(printf '%s' "$ans" | dxi jq -e '.id') || die "create_page gave no id"
+  ans=$(mcp publish_page "{\"id\":$pid,\"status\":\"published\"}") || die "publish_page failed: $ans"
+  seed_log publish_page "$ans"
+
+  # One image, so that more than /healthz runs under the syscall filter
+  # (Pitfall 7). The build context excludes sites/, so it comes in by docker cp.
+  docker cp "$ROOT/sites/beispiel/media/velo-01.jpg" "$NAME:/tmp/hc-upload.jpg" || die "docker cp of the test image failed"
+  ans=$(mcp create_upload_link "{\"website\":$wid,\"file_name\":\"velo-01.jpg\",\"alt_text\":\"Testbild fuer den Unit-Test\"}") \
+    || die "create_upload_link failed: $ans"
+  # The link is a one-time secret; keep it out of seed.txt.
+  seed_log create_upload_link "$(printf '%s' "$ans" | dxi jq 'del(.upload_url, .example)')"
+  local url
+  url=$(printf '%s' "$ans" | dxi jq -er '.upload_url') || die "create_upload_link gave no upload_url"
+  # HOLZCLOUD_SECURE=true makes the link https even over plain HTTP.
+  url="http:${url#https:}"
+  ans=$(dx curl --fail -sS --max-time 120 --upload-file /tmp/hc-upload.jpg "$url") || die "uploading the image failed: $ans"
+  seed_log upload "$ans"
+
+  # The thumbnail variant (width 400) is always kept, internal/media/variants.go.
+  local i=1 thumbs=""
+  while [ "$i" -le 20 ]; do
+    thumbs=$(dx find /opt/holzcloud/data -name '*-thumb*' 2>/dev/null || true)
+    [ -z "$thumbs" ] || break
+    sleep 1
+    i=$((i + 1))
+  done
+  [ -n "$thumbs" ] || die "no thumbnail variant appeared under /opt/holzcloud/data"
+  seed_log "thumbnail" "$thumbs"
+  say "SEED OK website=$wid page=$pid"
+}
+
+
+trap on_exit EXIT
+
 [ "$#" -gt 0 ] || usage
 while [ "$#" -gt 0 ]; do
   sub=$1
@@ -322,7 +458,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke)
+    build | up | start | wait | canary | down | smoke | seed)
       "cmd_$sub"
       ;;
     *) usage ;;
