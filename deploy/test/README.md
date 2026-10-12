@@ -136,6 +136,14 @@ Phase 21 plays through a fresh install by `deploy/DEPLOY.md` alone, an update ac
 - **Starting the unit.** If a step starts the unit itself under amd64 emulation, it needs the same container-only drop-in that `start` applies
   (`ProcSubset=all`), or it should call `start`. Without it the first start crashes, see Pitfalls.
 - `start` needs the unit and the binary to exist, so on `systemd-base` it fails until the install steps are done.
+- **Two chains replay the whole proof** (plan 21-05), both from `TARGET=systemd-base` and both refusing to start from anything else. Each removes its
+  container at the end (`KEEP=1` keeps it) and writes `OUT_DIR/summary.txt`; give each run its own `NAME` and `OUT_DIR`:
+  - `fresh` (DEP-01): `build up install firstrun postinstall caddy`. The summary has `DEP-01 PASS`, the `CADDY:` verdict, `STEPS: N played, F failed`,
+    `DEVIATIONS:` and `LEAK-CHECK OK`.
+  - `lifecycle` (DEP-02, DEP-03): `build up install baseline update`, then `negative` when `update.txt` says `pending=` one or more (otherwise the
+    scenario is recorded as skipped), then `rollback`. Needs `OLD_TAG`. The summary has `OLD:`, `NEW:`, `MIGRATIONS:`, `SNAPSHOT:`, `MODE:`,
+    `NEGATIVE-RESULT:` (when played), `DEP-02 PASS` or `DEP-02 not applicable (no migration between these builds)`, `DEP-03 PASS` and `LEAK-CHECK OK`.
+    `OLD_TAG=v0.0.10` crosses migrations 59 and 60 (MODE snapshot); `OLD_TAG=v0.0.21` has the same schema as HEAD (MODE binary, no snapshot).
 
 ## Hand-over to phase 22
 

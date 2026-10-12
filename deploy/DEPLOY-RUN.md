@@ -59,6 +59,19 @@ still the shipped section) added the complete comparison to the harness and prov
 The old and the new binary are built by the document's own Build line, in a clone of the repository at the old tag and at
 HEAD, and are cached by ref.
 
+The whole proof replays from one command per chain (plan 21-05), each from a fresh container started from the bare image, each with its own `NAME`
+and `OUT_DIR`, and each ending in `summary.txt` and a `LEAK-CHECK OK`:
+
+```text
+PLATFORM=linux/amd64 TARGET=systemd-base NAME=holzcloud-fresh OUT_DIR=deploy/test/out/amd64-fresh ./deploy/test/run.sh fresh
+PLATFORM=linux/amd64 TARGET=systemd-base OLD_TAG=v0.0.10 NAME=holzcloud-lifecycle OUT_DIR=deploy/test/out/amd64-lifecycle ./deploy/test/run.sh lifecycle
+PLATFORM=linux/amd64 TARGET=systemd-base OLD_TAG=v0.0.21 NAME=holzcloud-lifecycle-hop OUT_DIR=deploy/test/out/amd64-lifecycle-hop ./deploy/test/run.sh lifecycle
+```
+
+These three runs are the evidence set of the record. They were made once, against the final `deploy/DEPLOY.md` (which was not edited afterwards), and
+`fresh` ends in `DEP-01 PASS`, `lifecycle` with v0.0.10 in `DEP-02 PASS` and `DEP-03 PASS` (mode snapshot), and `lifecycle` with v0.0.21 in `DEP-02 not
+applicable` and `DEP-03 PASS` (mode binary, no snapshot).
+
 | | Value |
 |---|---|
 | Host architecture | aarch64 |

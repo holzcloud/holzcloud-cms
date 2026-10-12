@@ -24,6 +24,8 @@
 #                                              negative.txt), then the Rolling back section played (rollback.txt,
 #                                              compare-s0-s2.txt), the old version and the pre-update data back
 #   deploy/test/run.sh compare state-s0.txt state-s1.txt   the comparison alone, on two state files
+#   TARGET=systemd-base deploy/test/run.sh fresh        the whole of DEP-01 in one command, OUT_DIR/summary.txt
+#   TARGET=systemd-base [OLD_TAG=v0.0.21] deploy/test/run.sh lifecycle   DEP-02 and DEP-03 in one command, OUT_DIR/summary.txt
 #
 # The subcommand names, the environment variables below, the exit codes and the
 # file names under OUT_DIR are an interface: later plans and phases 21 and 22
@@ -371,6 +373,8 @@ usage() {
   say "  update                           play the document's Updating section as it stands, capture s1, compare with s0 and the pre-upgrade snapshot, write the marker page"
   say "  negative                         after update: the OLD binary against the migrated database, once, recorded in negative.txt; the new binary comes back"
   say "  rollback                         after update: play the document's Rolling back section, capture s2, compare with s0 (or s1m), rollback.txt"
+  say "  fresh                            DEP-01 from a bare image: build up install firstrun postinstall caddy, then summary.txt (needs TARGET=systemd-base)"
+  say "  lifecycle                        DEP-02 and DEP-03: install OLD_TAG, baseline, update, negative case (when a migration lies between), rollback, summary.txt (needs TARGET=systemd-base)"
   say "  compare A B [OUTFILE]            compare two state files (state-LABEL.txt) without a container; exit 1 on a BAD line"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
@@ -2330,6 +2334,119 @@ cmd_negative() {
   say "NEGATIVE OK (the old binary $result)"
 }
 
+# ---------------------------------------------------------------------------
+# Phase 21: the two chains (D-12). Each replays a whole proof from one command and
+# writes OUT_DIR/summary.txt. The words of the summary (DEP-01 PASS, DEP-02 PASS,
+# DEP-02 not applicable, DEP-03 PASS, LEAK-CHECK OK) are what phase 22 and the beta
+# criteria grep: extend, do not rename.
+# ---------------------------------------------------------------------------
+
+# chain_need_base NAME: the proof starts from a bare systemd image, nothing else.
+chain_need_base() {
+  [ "$TARGET" = systemd-base ] \
+    || die "$1: the proof starts from a bare systemd image; run it with TARGET=systemd-base (the document is played onto a machine with nothing but systemd)"
+}
+
+# steps_summary: "STEPS: N played, F failed", counted from steps.txt the way the
+# harness counts everywhere (systemctl status never counts, a SKIP is rc=0).
+steps_summary() {
+  local played failed
+  played=$(grep -c '^STEP ' "$(steps_file)" 2>/dev/null || true)
+  failed=$(steps_failed_since 0 | grep -c '^STEP ' || true)
+  printf 'STEPS: %s played, %s failed\n' "${played:-0}" "${failed:-0}"
+}
+
+# deviation_kinds: the distinct DEVIATION kinds of deviations.txt, on one line.
+deviation_kinds() {
+  local k
+  k=$(sed -n 's/^DEVIATION\[\([a-z]*\)\].*/\1/p' "$OUT_DIR/deviations.txt" 2>/dev/null | sort -u | tr '\n' ' ' | sed 's/ $//')
+  printf '%s\n' "${k:-none}"
+}
+
+# fresh: DEP-01. Install, First Run, the audit of the document against the
+# installed system, and Caddy. Caddy may only be unreachable (exit 3), never
+# rejected.
+cmd_fresh() {
+  chain_need_base fresh
+  CLEANUP_DOWN=1
+  local crc=0 steps
+  cmd_build
+  cmd_up
+  cmd_install
+  cmd_firstrun
+  cmd_postinstall
+  ( cmd_caddy ) || crc=$?
+  case "$crc" in 0 | 3) ;; *) die "the Caddy block failed (exit $crc)" ;; esac
+
+  leak_check
+  steps=$(steps_summary)
+  {
+    echo "---- summary ($PLATFORM) ----"
+    echo "DEP-01 PASS"
+    grep '^CADDY: ' "$OUT_DIR/caddy.txt" | tail -n 1
+    echo "$steps"
+    echo "DEVIATIONS: $(deviation_kinds)"
+    echo "LEAK-CHECK OK"
+  } > "$OUT_DIR/summary.txt"
+  cat "$OUT_DIR/summary.txt"
+}
+
+# lifecycle: DEP-02 and DEP-03. The old release installed and seeded, the update,
+# the negative case when a migration lies between the builds, the rollback.
+cmd_lifecycle() {
+  chain_need_base lifecycle
+  CLEANUP_DOWN=1
+  INSTALL_FROM=old
+  local pend dep2=fail dep3=fail cmpfile mode
+  cmd_build
+  cmd_up
+  cmd_install
+  cmd_baseline
+  cmd_update
+  pend=$(sed -n 's/^MIGRATIONS:.*pending=\([0-9]*\).*/\1/p' "$OUT_DIR/update.txt" | head -n 1)
+  [ -n "$pend" ] || die "update.txt has no 'MIGRATIONS: ... pending=N' line"
+  if [ "$pend" -ge 1 ]; then
+    cmd_negative
+  else
+    scenario "SCENARIO[negative]: skipped, no migration lies between these builds (pending=0), so there is no migrated schema for the old binary to meet"
+  fi
+  cmd_rollback
+
+  mode=$(sed -n 's/^MODE: //p' "$OUT_DIR/rollback.txt" | head -n 1)
+  if [ "$mode" = snapshot ]; then cmpfile="$OUT_DIR/compare-s0-s2.txt"; else cmpfile="$OUT_DIR/compare-s1m-s2.txt"; fi
+  if [ "$pend" -ge 1 ] && grep -q '^MARKER: ok' "$OUT_DIR/update.txt" \
+    && ! grep -q '^SNAPSHOT: none' "$OUT_DIR/update.txt" \
+    && ! grep -q '^BAD' "$OUT_DIR/compare-s0-s1.txt" "$OUT_DIR/attach-s1.txt"; then
+    dep2=pass
+  fi
+  if [ -n "$mode" ] && [ -f "$cmpfile" ] && ! grep -q '^BAD' "$OUT_DIR/rollback.txt" "$cmpfile"; then
+    dep3=pass
+  fi
+
+  leak_check
+  {
+    echo "---- summary ($PLATFORM) ----"
+    sed -n '/^OLD: /p;/^NEW: /p;/^MIGRATIONS: /p;/^SNAPSHOT: /p' "$OUT_DIR/update.txt"
+    echo "MODE: $mode"
+    if [ -f "$OUT_DIR/negative.txt" ]; then
+      grep '^NEGATIVE-RESULT: ' "$OUT_DIR/negative.txt" | head -n 1
+    fi
+    if [ "$pend" -eq 0 ]; then
+      echo "DEP-02 not applicable (no migration between these builds)"
+    elif [ "$dep2" = pass ]; then
+      echo "DEP-02 PASS"
+    else
+      echo "DEP-02 FAIL"
+    fi
+    if [ "$dep3" = pass ]; then echo "DEP-03 PASS"; else echo "DEP-03 FAIL"; fi
+    echo "LEAK-CHECK OK"
+  } > "$OUT_DIR/summary.txt"
+  cat "$OUT_DIR/summary.txt"
+  if [ "$dep3" != pass ] || { [ "$pend" -ge 1 ] && [ "$dep2" != pass ]; }; then
+    die "lifecycle: a requirement did not pass, see summary.txt"
+  fi
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -2341,7 +2458,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update | negative | rollback)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update | negative | rollback | fresh | lifecycle)
       "cmd_$sub"
       ;;
     mdwe-control)
