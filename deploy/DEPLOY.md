@@ -716,17 +716,43 @@ The unit file may change between releases: see the paragraph under *systemd
 Service* and read `CHANGELOG.md`. A service that does not come up after the
 replacement is restarted by systemd every five seconds, and it stops trying after
 `StartLimitBurst` (five starts within 300 seconds); read the journal and see
-*Recovery*.
+*Recovery*. If the new version does not come up, or the data is not what you
+expect, go back as described in [Rolling back](#rolling-back).
 
 ## Rolling back
 
-Which block to use depends on whether the update wrote a snapshot. The journal line
-`pre-upgrade snapshot written` and a file named `pre-upgrade-VERSION-TIMESTAMP.sqlite`
-in the data directory are the sign. Run the first line of the first block on its own:
-if it lists no snapshot, use the second block.
+**An older binary must not be started against a database that a newer binary has
+migrated.** After an update that changed the schema, going back means restoring the
+snapshot the service took before it migrated, binary and data together, and
+**losing everything written since the update**: edits, new pages, orders, form
+messages, and every change to users, sessions and API keys.
 
-The update wrote a snapshot. Stop the service, put the old binary back, set the
-migrated database aside, restore the newest snapshot as the service user, start:
+Nothing in the program enforces that. It was played once, with the older binary
+(v0.0.10) started against the database of an update that had applied the migrations
+59 and 60, and it does not refuse a newer schema. It started, `/healthz` and
+`/readyz` answered `ok` with `integrity` `ok`, the journal said nothing about the
+schema, and the schema stayed at 60. It fails later, at the first write that it does
+not know about: the older code stores an order without naming the column `token`,
+which migration 60 added with a unique index. The first such order is stored with an
+empty token, the second is refused with `UNIQUE constraint failed: orders.token`
+(played as a direct insert in the statement shape of the older code, not through
+the shop). Nothing shows that beforehand, so the limit is yours to keep. Another
+pair of versions can break in another place.
+
+Which of the two blocks below to use depends on whether **this** update wrote a
+snapshot. The sign is the journal line `pre-upgrade snapshot written` at the update
+and a file named `pre-upgrade-VERSION-TIMESTAMP.sqlite` in the data directory, with
+the version you updated to in its name and the time of that journal line. Run the
+first line of the first block on its own and read it before you go on: if it lists
+no such file, use the second block. The restore line takes the newest snapshot by
+modification time, which is wrong when this update wrote none: an older file then
+belongs to an older update, and one a few kilobytes in size is the snapshot of a
+first start, an empty database.
+
+**1. The update wrote a snapshot.** Stop the service, put the old binary back,
+remove the write-ahead files (`-wal` and `-shm`) that belong to the database being
+replaced, set the migrated database aside, restore the snapshot as the service user,
+reset the start counter and start:
 
 ```bash
 ls -l /opt/holzcloud/data/pre-upgrade-*.sqlite
@@ -741,8 +767,16 @@ curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/r
 sudo journalctl -u holzcloud --since "$(systemctl show -p ActiveEnterTimestamp --value holzcloud)" -o cat | grep -E 'pre-upgrade snapshot written|migration applied' || echo 'no migration, no snapshot'
 ```
 
-The update wrote no snapshot, because no migration was pending. The database is
-as the old version left it, so only the binary goes back:
+`version` must be the old build's, `status` and `integrity` must read `ok`, and the
+last line must print `no migration, no snapshot`: the old binary found nothing to
+migrate and wrote nothing. The service must be stopped before the files change, and
+the restore must run as `holzcloud` (a plain `sudo cp` would leave the database owned
+by root, and the service could not open it). `reset-failed` clears the start limit
+(`StartLimitBurst` in the unit stops the restarts after five starts in five minutes);
+without it a service that has hit that limit refuses to start.
+
+**2. The update wrote no snapshot**, because no migration was pending. The database
+is as the old version left it, so only the binary goes back:
 
 ```bash
 sudo systemctl stop holzcloud
@@ -751,6 +785,32 @@ sudo systemctl reset-failed holzcloud
 sudo systemctl start holzcloud
 curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/readyz | jq '{status, version, commit, integrity}'
 ```
+
+What a rollback by snapshot does, as played:
+
+- **It can be undone.** The migrated database stays in the data directory as
+  `holzcloud.sqlite.after-update`, owned by `holzcloud` with mode `600`. To undo the
+  rollback, stop the service, remove the `-wal` and `-shm` files, move that file back
+  over `holzcloud.sqlite`, put the new binary back and start. Delete the file once
+  you no longer need it: it holds password hashes, like the database itself.
+- **Ownership is kept.** The restored database is owned by the service user with
+  mode `600`, and after the restart `/readyz` shows `integrity` `ok`.
+- **It also undoes credential changes.** Users, sessions and API keys come back as
+  the snapshot had them. A password changed since the update is the old password
+  again, a session revoked since is valid again, and an API key revoked since works
+  again. Sessions are rows of the database, so a restart does not clear them. Re-apply
+  the changes in the admin once the service is up.
+- **Files are not covered.** The snapshot holds the database only. Media and
+  templates added after the update stay on disk, and the restored database knows
+  nothing of them. A rollback does not bring back files that were removed after the
+  update; take those from the backup of step 1 of *Updating*.
+- **Only the newest five snapshots are kept**, and a new one is written at every
+  update that migrates. If more updates may happen before you roll back, copy the
+  snapshot out of the data directory first.
+
+For developers: every migration file carries a goose `Down` section (60 of 60), but
+`holzcloud migrate` offers only `status` and `up`, no command runs them, and they
+are not a rollback route.
 
 ## Troubleshooting
 
@@ -830,6 +890,14 @@ exact restore command if they fail:
 systemctl stop holzcloud && cp /opt/holzcloud/data/pre-upgrade-<version>-<ts>.sqlite \
   /opt/holzcloud/data/holzcloud.sqlite && systemctl start holzcloud
 ```
+
+That command restores the data only, and after a failed migration the binary that
+runs is the NEW one, so the restarted service meets the same migration again. Go
+back through [Rolling back](#rolling-back) instead, from its first block: the old
+binary first (`holzcloud.prev`), then the data, with the `-wal` and `-shm` files
+removed. Run `sudo systemctl reset-failed holzcloud` before the start: systemd stops
+restarting the unit after five starts in five minutes (`StartLimitBurst` in the
+unit), and a unit in that state refuses `systemctl start`.
 
 ### Health checks
 

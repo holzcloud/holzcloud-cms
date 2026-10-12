@@ -82,6 +82,13 @@ These are the things the container cannot do the way a server does. They are nam
 | DEVIATION[fixture] | The plugin archives, the test image, the login user and the order row stand in for work an operator does in the admin and in the shop, not for steps of the document. The archives and the image are copied in from the working tree, the login user is created by the old binary's `holzcloud user create` with a password generated in the container, and the order row is written straight into the database in the statement shape of the old code, because the shop flow needs a browser. | The operator installs plugins, uploads images, creates users and receives orders in the admin and on the site |
 | DEVIATION[network] | Printed only when a step fails because no package repository or download host can be reached. The run then exits 3 ("ran, but this platform cannot give the evidence") and not 1. It did not occur in either pass. | The server has a network |
 
+A second word sits beside DEVIATION: **SCENARIO**. A deviation replaces a line of the document that the container
+cannot play. A scenario is a step the harness performs that the document must not contain, because it plays what
+the document tells nobody to do: the older binary started against a migrated database (`SCENARIO[negative]`), and the
+new binary put back afterwards so that the chain can go on (`SCENARIO[restore-new]`). Scenarios go to `scenario.txt`,
+never to `deviations.txt`, and the result of the first is `negative.txt`, which decides what DEPLOY.md may say about
+that case.
+
 ## Findings
 
 One row per defect that pass 1 showed. The text in backticks in the fourth column is the decisive output, quoted
