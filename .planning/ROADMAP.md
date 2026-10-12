@@ -418,7 +418,7 @@ Plans:
   2. An update across at least one migration keeps all data.
   3. A rollback is played and documented, with the migration limit stated.
 
-**Plans**: 6/6 plans executed in 6 waves
+**Plans**: 6/6 plans complete in 6 waves
 
 Plans:
 **Wave 1**
@@ -510,7 +510,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 18. The Administration Under Test | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
 | 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
-| 21. Deploy, update, rollback | v0.1.0 | 6/6 | In Progress | — |
+| 21. Deploy, update, rollback | v0.1.0 | 6/6 | Complete    | 2026-10-12 |
 | 22. Backup and restore, measured | v0.1.0 | 0/? | Not started | — |
 | 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
 

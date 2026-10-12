@@ -3,17 +3,19 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
 current_phase: 21
-current_phase_name: Deploy, update, rollback
-status: executing
+current_phase_name: Backup and restore, measured
+status: planning
 stopped_at: Completed 21-06-PLAN.md
-last_updated: "2026-10-12T12:53:59.860Z"
+last_updated: "2026-10-12T13:06:22.026Z"
 last_activity: 2026-10-12
-state_head: 855fb27f4a568975242f3937159b5054bd06e936
+last_activity_desc: Phase 21 complete, transitioned to Phase 22
+state_head: ba4e31166547f86a25e52f566c9c4c2dbb29c1d3
 progress:
   total_phases: 0
-  completed_phases: 20
+  completed_phases: 21
   total_plans: 6
   completed_plans: 0
+  percent: 91
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -51,7 +53,7 @@ close and are history, not status.
 
 ### Current Position (v1.10, geschrieben beim Abschluss von Phase 10 — die geltende steht unter `## Current Position`)
 
-Phase: 21 — Deploy, update, rollback
+Phase: 22 — Backup and restore, measured
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
 ihre Pläne gefahren: 42 von 42.
 
@@ -84,7 +86,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Executing Phase 21
+Status: Ready to plan
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -139,7 +141,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-12
+Last activity: 2026-10-12 — Phase 21 complete, transitioned to Phase 22
 
 ### Milestone Map
 
@@ -477,7 +479,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 21 (Deploy, update, rollback) — EXECUTING
-Plan: 6 of 6
+Plan: Not started
 Status: All six plans executed; the phase awaits verification and completion by the orchestrator
 Last activity: 2026-10-12 — Plan 21-06 complete (the record, README hand-over, docs/deployment.md)
 
