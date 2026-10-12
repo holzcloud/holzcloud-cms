@@ -3,13 +3,12 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
 current_phase: 21
-current_phase_name: deploy-update-rollback
+current_phase_name: Deploy, update, rollback
 status: executing
-stopped_at: Phase 21 context gathered
-last_updated: "2026-10-12T11:41:34.336Z"
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-10-12T11:57:06.582Z"
 last_activity: 2026-10-12
-last_activity_desc: Phase 20 complete, transitioned to Phase 21
-state_head: 499eb07b7b67c1fb8fc75894363e96a116aa7c9e
+state_head: 43a62afa874f89404f85843ef1e4b255832fab62
 progress:
   total_phases: 0
   completed_phases: 20
@@ -85,7 +84,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Ready to execute
+Status: Executing Phase 21
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -140,7 +139,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-12 — Phase 20 complete, transitioned to Phase 21
+Last activity: 2026-10-12
 
 ### Milestone Map
 
@@ -329,6 +328,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 20 P01 | 55min | 2 tasks | 6 files |
 | Phase 20 P02 | 25min | 3 tasks | 2 files |
 | Phase 20 P03 | 45min | 3 tasks | 3 files |
+| Phase 21 P01 | 8 min | 2 tasks | 1 files |
 
 ### Session Continuity
 
@@ -357,9 +357,9 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T10:52:44.118Z
-**Stopped at:** Phase 21 context gathered
-**Resume file:** .planning/phases/21-deploy-update-rollback/21-CONTEXT.md
+**Last session:** 2026-10-12T11:57:06.560Z
+**Stopped at:** Completed 21-01-PLAN.md
+**Resume file:** None
 
 ## Decisions
 
@@ -442,6 +442,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 20]: 20-01: amd64 under Rosetta installs no seccomp filter; canary exit 3 voids any MDWE verdict there, arm64 native is the MDWE evidence
 - [Phase 20]: MemoryDenyWriteExecute=true stays: on native arm64 (seccomp enforced) all five plugins run on wazero's interpreter fallback; amd64/Rosetta verdict is VOID (Seccomp 0). Unit gains comment lines only.
 - [Phase 20]: 20-03: No target value imposed on the systemd-analyze security score; measured 1.3 online / 1.4 offline on systemd 252 and 1.3 / 1.3 on 257, raw in deploy/SECURITY-SCORE.md
+- [Phase 21]: 21-01: the install harness reads every played command out of DEPLOY.md and refuses a line the document lacks; named DEVIATION[...] lines carry what the container cannot do (scp, dropin, browser, caddy, mount, network, prompt, preinstalled)
+- [Phase 21]: 21-01: Debian curl 7.88.1 sends the Secure CSRF cookie to http loopback, so headless First Run needs only a Referer carrying the https origin (assumption A1 settled)
 
 ## Accumulated Context
 
@@ -458,10 +460,10 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: 21 (deploy-update-rollback) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-12 — Phase 20 execution started
+Phase: 21 (Deploy, update, rollback) — EXECUTING
+Plan: 1 of 6
+Status: Executing Phase 21
+Last activity: 2026-10-12 — Phase 21 execution started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
 
