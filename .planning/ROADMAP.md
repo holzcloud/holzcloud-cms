@@ -418,6 +418,27 @@ Plans:
   2. An update across at least one migration keeps all data.
   3. A rollback is played and documented, with the migration limit stated.
 
+**Plans**: 6 plans in 6 waves
+
+Plans:
+**Wave 1**
+- [ ] 21-01-PLAN.md — Harness core (`doc_play` reads the commands out of DEPLOY.md and refuses a line it does not contain) and the unedited document played from `systemd-base`: install, First Run over curl, Caddy validation, Backups block; raw pass-1 evidence (DEP-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 21-02-PLAN.md — DEP-01 repaired from the evidence (Prerequisites, Build stamping, Install paths, First Run, Caddy), `deploy/DEPLOY-RUN.md` created, pass 2 clean; old-version install seeded (v0.0.10) and the Updating section played as shipped (DEP-01, DEP-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 21-03-PLAN.md — DEP-02: no-data-loss proof (state before/after, content hashes, ATTACH against the pre-upgrade snapshot), Updating section rewritten (back-up first, kept old binary, snapshot facts, journal check) and replayed
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 21-04-PLAN.md — DEP-03: snapshot rollback played, negative case (old binary on migrated database), "Rolling back" section with the migration limit first, Recovery text cross-linked
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 21-05-PLAN.md — DEP-03: no-migration hop (v0.0.21 to HEAD), final Rolling back text and DEP-03 record; chains `fresh` and `lifecycle` and the fresh evidence set
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 21-06-PLAN.md — `deploy/DEPLOY-RUN.md` completed with the raw appendix, `deploy/test/README.md` hand-over for phases 22 and 23, `docs/deployment.md` aligned, repository gates (DEP-01, DEP-02, DEP-03)
+
 ### Phase 22: Backup and restore, measured
 
 **Goal**: A backup that has been restored is the only backup; prove it.
