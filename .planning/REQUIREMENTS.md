@@ -9,7 +9,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 
 ## Gehärtete systemd-Unit
 
-- [ ] **UNIT-01**: Die Unit `deploy/holzcloud.service` läuft unter echtem systemd, der Dienst startet und antwortet auf HTTP.
+- [x] **UNIT-01**: Die Unit `deploy/holzcloud.service` läuft unter echtem systemd, der Dienst startet und antwortet auf HTTP.
 - [ ] **UNIT-02**: Alle Plugins (wazero) laden unter der gehärteten Unit. Der Verdacht `MemoryDenyWriteExecute=true` ist belegt entschieden, die Unit bei Bedarf angepasst.
 - [ ] **UNIT-03**: Der Wert von `systemd-analyze security` ist gemessen und im Repo festgehalten.
 
@@ -48,7 +48,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UNIT-01 | Phase 20 | Pending |
+| UNIT-01 | Phase 20 | Complete |
 | UNIT-02 | Phase 20 | Pending |
 | UNIT-03 | Phase 20 | Pending |
 | DEP-01 | Phase 21 | Pending |

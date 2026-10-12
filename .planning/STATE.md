@@ -3,13 +3,12 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
 current_phase: 20
-current_phase_name: hardened-unit-under-real-systemd
-status: planning
-stopped_at: Phase 20 context gathered
-last_updated: "2026-10-12T08:00:24.526Z"
+current_phase_name: Hardened unit under real systemd
+status: executing
+stopped_at: Completed 20-01-PLAN.md
+last_updated: "2026-10-12T10:32:25.207Z"
 last_activity: 2026-10-12
-last_activity_desc: "Completed quick tasks 261006-741 and 261006-742: SEO"
-state_head: e68df37ea0119a5b458af34ac62ea157c97d3ca9
+state_head: f46ec35bf513104b5932600eaf56950417d8d593
 progress:
   total_phases: 0
   completed_phases: 0
@@ -85,7 +84,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: **Der Meilenstein v1.6 ist abgeschlossen (2026-09-10)** — gebaut, verifiziert,
+Status: Executing Phase 20
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -140,7 +139,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-06 - Completed quick tasks 261006-741 and 261006-742: SEO
+Last activity: 2026-10-12
 
 ### Milestone Map
 
@@ -326,6 +325,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 10 P08 | 41min | 3 tasks | 5 files |
 | Phase 10 P09 | 15 min | 2 tasks | 5 files |
 | Phase 10 P10 | 55 min | 3 tasks | 2 files |
+| Phase 20 P01 | 55min | 2 tasks | 6 files |
 
 ### Session Continuity
 
@@ -354,9 +354,9 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T07:19:50.953Z
-**Stopped at:** Phase 20 context gathered
-**Resume file:** .planning/phases/20-hardened-unit-under-real-systemd/20-CONTEXT.md
+**Last session:** 2026-10-12T10:32:25.192Z
+**Stopped at:** Completed 20-01-PLAN.md
+**Resume file:** None
 
 ## Decisions
 
@@ -435,6 +435,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 11]: 10-09: Ein Zaehl-Tor, das eine Absolutzahl prueft, wird von jeder Phase bewegt, die sich denselben Baum teilt. Das ehrliche Tor vergleicht die Schluesselmenge gegen einen benannten Commit und nennt zu jedem neuen Schluessel den Commit: 10 hinzu seit cdcfbab, 8 davon Phase 11, 2 davon 10-06.
 - [Phase 11]: 10-09: Die Anrede wurde am Katalog gemessen und nicht aus dem Deutschen uebernommen — es und it duzen, fr siezt, in 40 bestehenden Eintraegen. Das deutsche du nach Franzoesisch zu kopieren waere ein Fehler gewesen, den kein Tor dieses Projekts sieht.
 - [Phase 11]: 10-09: Sechste und siebte Instanz von 'ein Tor misst etwas anderes als sein Name' in Phase 10 — completeLogin zaehlt eine Erwaehnung mitten in einem Kommentar (druckt 5, Aufrufstellen sind 4), MustHaveSecondFactor zaehlt Doku-Kommentar, Deklaration und einen neuen Prosa-Kommentar (druckt 8, Aufrufstellen 5 vorher wie nachher).
+- [Phase 20]: 20-01: Dockerfile ARG TARGETARCH/TARGETOS carry no default (a default overrides --platform)
+- [Phase 20]: 20-01: amd64 under Rosetta installs no seccomp filter; canary exit 3 voids any MDWE verdict there, arm64 native is the MDWE evidence
 
 ## Accumulated Context
 
@@ -451,10 +453,10 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: 20 (hardened-unit-under-real-systemd) — READY TO EXECUTE
-Plan: —
-Status: Ready to execute
-Last activity: 2026-10-12 — Milestone v0.1.0 started
+Phase: 20 (Hardened unit under real systemd) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 20
+Last activity: 2026-10-12 — Phase 20 execution started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
 
