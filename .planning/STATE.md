@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
-current_phase_name: defining requirements
+current_phase: 20
+current_phase_name: hardened-unit-under-real-systemd
 status: planning
 stopped_at: Phase 20 context gathered
-last_updated: "2026-10-12T07:19:50.976Z"
+last_updated: "2026-10-12T08:00:24.526Z"
 last_activity: 2026-10-12
 last_activity_desc: "Completed quick tasks 261006-741 and 261006-742: SEO"
-state_head: 7f1b436efce490108c97f030e06ba083b733b827
+state_head: e68df37ea0119a5b458af34ac62ea157c97d3ca9
 progress:
   total_phases: 0
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
-  percent: 0
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -451,9 +451,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 20 (hardened-unit-under-real-systemd) — READY TO EXECUTE
 Plan: —
-Status: Defining requirements
+Status: Ready to execute
 Last activity: 2026-10-12 — Milestone v0.1.0 started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)

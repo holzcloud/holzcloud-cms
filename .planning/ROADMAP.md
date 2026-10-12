@@ -394,12 +394,18 @@ first rather than being left half-measured.
   1. The unit starts in a systemd container and the site answers HTTP.
   2. Every shipped wasm plugin loads under the unit; the `MemoryDenyWriteExecute` vs. wazero question is settled with evidence and the unit adjusted if needed.
   3. `systemd-analyze security` score is measured and committed; container-vs-server differences are named.
+
 **Note**: Hand the test container recipe to later phases; 21 and 22 reuse it.
 **Plans**: 3 plans in 3 waves
 
 Plans:
+**Wave 1**
 - [ ] 20-01-PLAN.md — Container recipe in `deploy/test/` and UNIT-01: the unchanged unit starts under real systemd and `/healthz` answers; enforcement canary tells whether seccomp is real
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 20-02-PLAN.md — UNIT-02: seed five plugins through `/ai`, check loaded/running/invoked and the wazero engine, `MemoryDenyWriteExecute=no` control, verdict, comment in the unit; one narrow native arm64 run (named deviation from D-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 20-03-PLAN.md — UNIT-03: raw `systemd-analyze security` score, `deploy/SECURITY-SCORE.md` with container-vs-server differences, `deploy/test/README.md` hand-over to phases 21 and 22
 
 ### Phase 21: Deploy, update, rollback
