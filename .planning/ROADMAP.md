@@ -10,7 +10,8 @@
 - ✅ **v2.3 — Every Word on a Page Belongs to Whoever Reads It** — Phase 16 (closed 2026-09-15, released as 2.3)
 - ✅ **v2.4 — What Has Accumulated** — Phases 17–18 (closed 2026-09-17)
 - ✅ **v2.5 — On the Phone** — Phase 19 (closed 2026-09-17, released as 2.5)
-- 🔁 **Since 0.0.1 (2026-09-26): no milestone open.** The count started again at 0.0.1 and the software calls itself alpha. Work since then runs as quick tasks (`.planning/quick/`), releases 0.0.1–0.0.25, last on 2026-10-11. The next milestone starts with `/gsd-new-milestone`.
+- 🚧 **v0.1.0 — Betrieb härten** — Phases 20–23 (opened 2026-10-12, closes as release 0.1.0, the first beta)
+- 🔁 **Since 0.0.1 (2026-09-26):** The count started again at 0.0.1 and the software calls itself alpha. Work since then runs as quick tasks (`.planning/quick/`), releases 0.0.1–0.0.25, last on 2026-10-11. v0.1.0 is the first milestone under the restarted count.
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
 milestone planned and worked as **v1.6** was renumbered **v1.10** when it was released:
@@ -385,6 +386,49 @@ first rather than being left half-measured.
 
 ---
 
+### Phase 20: Hardened unit under real systemd
+
+**Goal**: The hardened `holzcloud.service` is proven to run, plugins included, under a real systemd.
+**Requirements**: UNIT-01, UNIT-02, UNIT-03
+**Success Criteria**:
+  1. The unit starts in a systemd container and the site answers HTTP.
+  2. Every shipped wasm plugin loads under the unit; the `MemoryDenyWriteExecute` vs. wazero question is settled with evidence and the unit adjusted if needed.
+  3. `systemd-analyze security` score is measured and committed; container-vs-server differences are named.
+**Note**: Hand the test container recipe to later phases; 21 and 22 reuse it.
+
+### Phase 21: Deploy, update, rollback
+
+**Goal**: Install, update and rollback are played through and the docs match what happened.
+**Requirements**: DEP-01, DEP-02, DEP-03
+**Depends on**: Phase 20
+**Success Criteria**:
+  1. A fresh install by `deploy/DEPLOY.md` alone works; every deviation found is fixed in the doc.
+  2. An update across at least one migration keeps all data.
+  3. A rollback is played and documented, with the migration limit stated.
+
+### Phase 22: Backup and restore, measured
+
+**Goal**: A backup that has been restored is the only backup; prove it.
+**Requirements**: BAK-01, BAK-02, BAK-03
+**Depends on**: Phase 20
+**Success Criteria**:
+  1. `backup.sh` output passes its integrity check and contains database and media.
+  2. `restore.sh` onto an empty system yields working pages, media and login; time and size recorded.
+  3. One run through `holzcloud-backup.timer` is observed.
+
+### Phase 23: Repository tidy and beta criteria
+
+**Goal**: 0.1.0 says what it promises and the repository carries nothing stray.
+**Requirements**: REPO-01, REPO-02, REPO-03, QUAL-01
+**Depends on**: Phases 20–22
+**Success Criteria**:
+  1. Beta criteria are written down.
+  2. CHANGELOG and release notes for 0.1.0 exist and the tag is set.
+  3. Orphan branches are listed with GitHub-UI deletion steps.
+  4. `go run ./tools/i18n` reports `0 open, 0 orphaned`.
+
+---
+
 ## Progress
 
 Phases 13 to 19 are complete; v2.1 to v2.5 are closed. Numbering continues from 20; it never restarts.
@@ -432,6 +476,10 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 17. What Has Accumulated | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 18. The Administration Under Test | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
+| 20. Hardened unit under real systemd | v0.1.0 | 0/? | Not started | — |
+| 21. Deploy, update, rollback | v0.1.0 | 0/? | Not started | — |
+| 22. Backup and restore, measured | v0.1.0 | 0/? | Not started | — |
+| 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their

@@ -1,102 +1,68 @@
-# Requirements: v2.5 — On the Phone
+# Requirements: v0.1.0 — Betrieb härten
 
-Opened as a plan on 2026-09-17, to start when v2.4 closes. Asked for in one
-sentence: **„die webapp soll komplett auch auf dem handy nutzbar sein"**.
+**Defined:** 2026-10-12
+**Core Value:** One small binary runs several websites without dependency soup.
 
-The scope was settled the same day, with the measurement in hand: **all of it** —
-no screen reaching past the edge of the phone, every control at least 44 × 44
-pixels, every field a person types into at least 16px. Tables stay tables and
-scroll inside their card; turning them into stacked cards was offered and not
-chosen.
+Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Release 0.1.0, die erste Beta.
 
-The measurement is committed beside this file as `v2.5-PHONE-SURVEY.txt`, so
-the next reading is a comparison rather than a fresh opinion.
+**Testumgebung (entschieden 2026-10-12):** kein echter Server, sondern ein Linux-Container mit systemd (Docker). Jede Abweichung von einem echten Server (Kernel, cgroups, Sandbox-Direktiven, die ein Container nicht erzwingt) wird bei der Messung ausdrücklich genannt, nie verschwiegen.
+
+## Gehärtete systemd-Unit
+
+- [ ] **UNIT-01**: Die Unit `deploy/holzcloud.service` läuft unter echtem systemd, der Dienst startet und antwortet auf HTTP.
+- [ ] **UNIT-02**: Alle Plugins (wazero) laden unter der gehärteten Unit. Der Verdacht `MemoryDenyWriteExecute=true` ist belegt entschieden, die Unit bei Bedarf angepasst.
+- [ ] **UNIT-03**: Der Wert von `systemd-analyze security` ist gemessen und im Repo festgehalten.
+
+## Deploy, Update, Rollback
+
+- [ ] **DEP-01**: Eine frische Installation nach `deploy/DEPLOY.md` gelingt Schritt für Schritt; gefundene Abweichungen sind in der Doku korrigiert.
+- [ ] **DEP-02**: Ein Update auf eine neue Version samt Migrationen gelingt ohne Datenverlust.
+- [ ] **DEP-03**: Ein Rollback auf die Vorversion (Binär und Datenbank) ist gespielt und dokumentiert, einschließlich der Grenze bei Migrationen.
+
+## Backup und Restore
+
+- [ ] **BAK-01**: `backup.sh` erzeugt eine verifizierte Sicherung von SQLite und Medien.
+- [ ] **BAK-02**: `restore.sh` stellt auf einem leeren System her; Seiten, Medien und Login funktionieren. Dauer und Größe sind gemessen.
+- [ ] **BAK-03**: Ein Lauf über `holzcloud-backup.timer` ist einmal real durchgespielt.
+
+## Repository und Beta
+
+- [ ] **REPO-01**: Die Beta-Kriterien stehen schriftlich: was „0.1.0" verspricht und was nicht.
+- [ ] **REPO-02**: CHANGELOG-Eintrag und Release Notes für 0.1.0, Tag `v0.1.0`.
+- [ ] **REPO-03**: Die verwaisten Remote-Branches sind aufgelistet, mit Anleitung zum Löschen in der GitHub-Oberfläche. Gelöscht wird dort von Hand (der Proxy antwortet 403).
+
+## Standing Gate
+
+- [ ] **QUAL-01**: `go run ./tools/i18n` meldet `0 open, 0 orphaned`; jede neue Operator-Zeile läuft durch den Katalog.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Neue Funktionen in Verwaltung oder Themes | Dieser Meilenstein härtet den Betrieb, er baut nichts, was ein Betreiber im Menü sieht |
+| Test auf einem echten Server | Keiner vorhanden; Container-Ersatz mit benannten Abweichungen |
+| Automatisches Löschen der Orphan-Branches | Proxy lehnt Ref-Löschung ab, nur GitHub-UI |
+| Hochverfügbarkeit, Replikation, Off-Site-Backup-Dienst | Single-Binary-Ziel; `backup.sh` nennt rsync als Betreiberentscheid |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| UNIT-01 | Phase 20 | Pending |
+| UNIT-02 | Phase 20 | Pending |
+| UNIT-03 | Phase 20 | Pending |
+| DEP-01 | Phase 21 | Pending |
+| DEP-02 | Phase 21 | Pending |
+| DEP-03 | Phase 21 | Pending |
+| BAK-01 | Phase 22 | Pending |
+| BAK-02 | Phase 22 | Pending |
+| BAK-03 | Phase 22 | Pending |
+| REPO-01 | Phase 23 | Pending |
+| REPO-02 | Phase 23 | Pending |
+| REPO-03 | Phase 23 | Pending |
+| QUAL-01 | Phase 23 | Pending |
+
+**Coverage:** 13 total, 13 mapped, 0 unmapped.
 
 ---
-
-## What was measured, and how
-
-Chromium through Playwright at **390 × 844** — an iPhone 14/15, at or below the
-width most people hold — with `isMobile`, `hasTouch`, a threefold pixel ratio
-and an iPhone user agent, signed in as an administrator with a second factor.
-Twenty-nine admin screens, every one answering 200.
-
-The tool is deliberately **not** in this repository. The stack constraint says
-no Node, and a checking script is not an exception somebody should have to argue
-about later; the numbers are committed instead, which is the same thing
-`17-COVERAGE.txt` and `16-BENCH.txt` do.
-
-**There is already a mobile layer**, and this is not a rewrite: the viewport
-meta tag, a 900px breakpoint with an off-canvas sidebar and a hamburger, and a
-container query meant to make tables scroll inside their card. What the survey
-found is that some of it does not reach.
-
-## The requirements
-
-- [x] **PHONE-01**: **No admin screen is wider than the phone.** Seven were,
-      and the reading above guessed the cause wrong on six of them. The
-      container query applies; the card scrolls; what ran out of it was a
-      `.sr-only`, which is `position: absolute` and, with no positioned
-      ancestor, sits at its static position far out in the wide part of the
-      table and drags the page out to meet it. `position: relative` beside the
-      `overflow-x: auto` took Users (275), Pages (187), Languages (97),
-      Websites (50) and Menus (41) to 0 in one line. The Activity log (338) was
-      the one real case of the suspected cause: its table lives in
-      `#activity-list`, and the rule listed the containers it knew by name.
-      Website settings (59) was a flex row of a domain and two buttons with no
-      `flex-wrap`. Found while measuring: the Markdown cheat sheet is 24px too
-      wide when open, which is the only state anybody reads it in.
-      *Done: all twenty-nine screens at 0 overflow and 0 unheld boxes. See
-      `milestones/v2.5-phases/19-on-the-phone/19-01-VERIFICATION.md`.*
-- [x] **PHONE-02**: **Every control is at least 44 × 44 pixels.** That is the
-      figure Apple's guidelines and WCAG 2.2's target-size rule both land on.
-      All twenty-nine screens fail it, and the same handful of elements is
-      responsible on every one: the hamburger (32 × 32), the brand (26 × 26),
-      the user menu (36 × 32), the website switcher's rows (35px) and the
-      navigation items. Fix those five and twenty-nine screens improve at once.
-      The buttons (`.btn`, `.btn--sm`) and the form fields are the second tier.
-      *Done: 0 on all twenty-nine, from 13–33 each. Hung on `(pointer: coarse)`
-      rather than a width — the number is about fingers, so a phone held
-      sideways gets it and a desk does not. One stated exception: a tick box is
-      24 × 24, the minimum WCAG 2.2 SC 2.5.8 sets, in a 44px row, because a
-      tick box the size of a button is not a tick box. See
-      `milestones/v2.5-phases/19-on-the-phone/19-02-VERIFICATION.md`.*
-- [x] **PHONE-03**: **Every field a person types into is at least 16px.** Below
-      that iOS zooms the page on focus and does not zoom back, which turns one
-      tap into a pinch and a scroll. The page editor's own textarea is on the
-      list, which is the worst place for it. A radio button or a checkbox is
-      not a typing field and is not covered.
-      *Done: 0 on all twenty-nine. Once the tick boxes came out of the list —
-      as this requirement's own last sentence already said they should — the
-      page editor's writing box was the only field left. It is 1rem now.*
-- [x] **PHONE-04**: **The measurement is repeated and committed.** The same
-      twenty-nine screens, the same three numbers, beside the first reading. A
-      requirement that says "it is better now" without a second measurement is
-      an opinion.
-      *Done: `v2.5-PHONE-SURVEY-AFTER.txt` beside `v2.5-PHONE-SURVEY.txt`, with
-      the full reading in `milestones/v2.5-phases/19-on-the-phone/19-AFTER.json`. 1048 pixels
-      past the edge → 0; 86 unheld boxes → 0; 462 controls under the minimum →
-      0; 16 fields a phone zooms for → 0. The ruler was corrected three times
-      while this ran, and the second reading says what its columns now mean.*
-- [x] **PHONE-05**: **What is fixed is driven on a phone-shaped browser once,
-      by hand.** QUAL-02's rule, which has found something in every milestone it
-      has been applied to: a browser finds what a test cannot. Three interface
-      faults came out of it in v2.3 and none of them was subtle.
-      *Done, and it held: two found. A `position: static` written for the row
-      menu in a scrolling card had never once run — it sat in `@layer layout`
-      against a `position: absolute` in `@layer components`, and the later
-      layer wins — so the last row's menu, which holds publish, duplicate and
-      delete, was cut off 22px below its card. And a `display: grid` this phase
-      itself had added an hour earlier put a drawer handle beside an already
-      open drawer on a touch laptop. Both fixed; the pass now runs on a touch
-      laptop too. See `milestones/v2.5-phases/19-on-the-phone/19-04-VERIFICATION.md`.*
-
-## What this milestone is not
-
-Not a redesign, not a second stylesheet, not a separate mobile application. The
-admin is one set of templates and one stylesheet and stays that way — the
-constraint against build tools has held for five milestones and is not being
-spent on this.
-
-Not the public themes. A visitor's side of the eight shipped themes is a
-different question with a different audience; this is the administration.
+*Requirements defined: 2026-10-12*
