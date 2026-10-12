@@ -1,21 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: none
-current_phase_name: none
-status: complete
-stopped_at: "v2.5 ist am 2026-09-17 geschlossen: fuenf Anforderungen, fuenf erfuellt, keine verschoben. Alle 29 Verwaltungsbildschirme bei 390x844: 1048 Pixel ueber den Rand -> 0, 86 nicht gehaltene Kaesten -> 0, 462 zu kleine Bedienelemente -> 0, 16 Felder, fuer die ein Telefon zoomt -> 0. Kosten: ein Stylesheet, eine Vorlagenzeile. Der Punkt des Meilensteins: JEDER Mangel steckte in einer Regel, die in der Datei richtig aussah - keiner war eine fehlende Regel. Die Regel fuer das Zeilenmenue in einer scrollenden Karte hatte seit ihrer Niederschrift NIE gewirkt (@layer components schlaegt @layer layout), weshalb das Menue der letzten Zeile 22px unter der Karte abgeschnitten war; der Container-Regel war #activity-list nie genannt worden; ein .sr-only lief aus der Karte, weil es position: absolute ohne positionierten Vorfahren ist; ein Mindestmass nahm eine Flex-Zeile still wieder weg; und eine Regel, die diese Phase selbst eine Stunde vorher gebaut hatte, setzte einen Hamburger neben eine offene Seitenleiste. Nichts davon faellt in einem Test auf. Der Browser-Durchgang von Hand fand die zwei wichtigsten - nach v2.4, wo er zum ersten Mal nichts fand. Am Messgeraet fuenf Fehler gefunden und behoben. Ausgabe 2.5 ist am 2026-09-17 VEROEFFENTLICHT: Tag v2.5 auf 2a977ee, mit holzcloud-linux-amd64 und der Pruefsumme. Ausgabe 2.4 wurde BEWUSST UEBERSPRUNGEN - der Changelog-Eintrag 2.4 bleibt stehen und traegt den Hinweis, dass es dazu kein Tag gibt und 2.5 ihn enthaelt. Der release-Zweig BLEIBT bestehen - er ist kein Ueberbleibsel, sondern der Knopf, ueber den veroeffentlicht wird: ihn auf main vorzuspulen ist der einzige Weg, der aus einer Sitzung heraus in einer Ausgabe endet (ein hier ANGESTOSSENER Lauf traegt die Rechte der App und scheitert mit 'Resource not accessible by integration', und der Proxy lehnt jeden direkten Schreibzugriff auf refs/tags mit 403 ab). Offen, aber nicht von hier aus machbar: die verwaisten Fernzweige backfill-releases und claude/task-phases-milestones-open-mt1qz0 loeschen - der Proxy lehnt jede Ref-Loeschung mit 403 ab, ein Klick in der GitHub-Oberflaeche erledigt jeden."
-last_updated: "2026-10-12T00:00:00.000Z"
-last_activity: 2026-10-11
-last_activity_desc: "Quick 261011-o5v: Menüeinträge bearbeiten, Handy-Layout (Release 0.0.25)"
-state_head: 15b09103f76d3e10ea3088e037c7d255be9e5484
-milestone_name: On the Phone
-current_phase: 19
+milestone: v0.1.0
+milestone_name: Betrieb härten
+status: planning
+last_updated: "2026-10-12T07:08:37.746Z"
+last_activity: 2026-10-12
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -452,32 +447,10 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: none open. **Milestone v2.2 is closed** (2026-09-14), 11 of 11
-requirements satisfied, audit in `.planning/milestones/v2.2-MILESTONE-AUDIT.md`,
-phase record in `milestones/v2.2-phases/15-promises-kept/15-VERIFICATION.md`.
-Status: Complete
-Last activity: 2026-09-28 - Completed quick task 260928-f2n: MCP-Upload-Link für grosse Mediendateien (create_upload_link)
-
-**What v2.2 did.** Not a feature: it worked the open-window ledger, which had
-carried fifteen entries since v1.10 and v2.0 while two milestones closed over
-the top of them. The first hour found what none of the fifteen named — a
-password-protected page was being offered to shared caches for five minutes at a
-time, because one line wrote `Vary` with `Set` and deleted the cookie the access
-depends on. Eight forward-auth entries were read as one subsystem and five of
-them turned out to be one sentence said five ways. The ledger itself had to be
-repaired before it could be worked: its two representations had drifted, and one
-row was malformed so that every parser dropped it.
-
-**Twice the conservative-looking change was wrong** and had to be narrowed, and
-the second time an existing test forced it. That is the phase's lesson and it is
-written into `15-CONTEXT.md` §8.
-
-**One ledger entry is open**, window 34, opened during the work: an album
-gallery answers in the website's language rather than the page's. Closing it
-means making the inline gallery's frozen words late as well — the architecture
-question window 8 was expected to be.
-
----
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-10-12 — Milestone v0.1.0 started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
 

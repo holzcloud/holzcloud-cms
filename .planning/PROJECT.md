@@ -2,8 +2,18 @@
 
 **Created:** 2026-04-13 (autonomous initialization after technical pivot)
 **Status:** v1.0 shipped 2026-04-14; v1.10 "Inhaltsmodell und Zugang" (planned as v1.6) completed 2026-09-10 and released as 1.10 on 2026-09-11. A milestone and its release carry one number.
-**Current milestone:** none active — next is v2.0 "The Codebase Speaks English" (Phase 12, not planned; opened with `/gsd-new-milestone`)
+**Current milestone:** v0.1.0 "Betrieb härten" (opened 2026-10-12). Milestones v2.0–v2.5 closed in September 2026; since 2026-09-26 the release count restarted and runs as 0.0.x (alpha, latest 0.0.25). **Version numbers always have three parts** (decided 2026-10-12): 0.1.0, not 0.1.
 **Stack (HARD MANDATE):** Go + htmx + CSS + SQLite
+
+## Current Milestone: v0.1.0 Betrieb härten
+
+**Goal:** holzcloud-cms runs demonstrably safely in operation — the hardened systemd unit really tested, install/update/rollback and backup/restore played through on a real server, the repository tidied — and closes as release 0.1.0, the first beta.
+
+**Target features:**
+- The hardened systemd unit run under real systemd; the `MemoryDenyWriteExecute=true` vs. wazero suspicion settled (quick 261006-9c4)
+- Deploy / update / rollback path played through on a real server and documented
+- Backup and restore of SQLite and media, proven by a measured restore
+- Repository tidy-up: orphan remote branches (GitHub UI only, the proxy answers 403), written beta criteria and release notes
 
 ## Vision
 
@@ -235,4 +245,4 @@ whole time.
 *Stack is mandated by the user. Every phase, research note, and plan must respect it. If a requirement seems to need something outside the stack, flag and propose a stack-compatible alternative.*
 
 ---
-*Last updated: 2026-09-11 — milestone renumbered v1.10 and released as 1.10*
+*Last updated: 2026-10-12 — milestone v0.1.0 Betrieb härten started*
