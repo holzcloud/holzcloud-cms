@@ -15,7 +15,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 
 ## Deploy, Update, Rollback
 
-- [ ] **DEP-01**: Eine frische Installation nach `deploy/DEPLOY.md` gelingt Schritt für Schritt; gefundene Abweichungen sind in der Doku korrigiert.
+- [x] **DEP-01**: Eine frische Installation nach `deploy/DEPLOY.md` gelingt Schritt für Schritt; gefundene Abweichungen sind in der Doku korrigiert.
 - [x] **DEP-02**: Ein Update auf eine neue Version samt Migrationen gelingt ohne Datenverlust.
 - [x] **DEP-03**: Ein Rollback auf die Vorversion (Binär und Datenbank) ist gespielt und dokumentiert, einschließlich der Grenze bei Migrationen.
 
@@ -51,7 +51,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 | UNIT-01 | Phase 20 | Complete |
 | UNIT-02 | Phase 20 | Complete |
 | UNIT-03 | Phase 20 | Complete |
-| DEP-01 | Phase 21 | Pending |
+| DEP-01 | Phase 21 | Complete |
 | DEP-02 | Phase 21 | Complete |
 | DEP-03 | Phase 21 | Complete |
 | BAK-01 | Phase 22 | Pending |

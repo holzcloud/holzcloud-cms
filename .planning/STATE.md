@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 21
 current_phase_name: Deploy, update, rollback
 status: executing
-stopped_at: Completed 21-05-PLAN.md
-last_updated: "2026-10-12T12:44:17.527Z"
+stopped_at: Completed 21-06-PLAN.md
+last_updated: "2026-10-12T12:53:59.860Z"
 last_activity: 2026-10-12
-state_head: 2a40bd3e064a42607bda404a7559de329fdd66e5
+state_head: 855fb27f4a568975242f3937159b5054bd06e936
 progress:
   total_phases: 0
   completed_phases: 20
@@ -333,6 +333,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 21 P03 | 12 min | 2 tasks | 3 files |
 | Phase 21 P04 | 25 min | 2 tasks | 3 files |
 | Phase 21 P05 | 35min | 2 tasks | 4 files |
+| Phase 21 P06 | 8 min | 2 tasks | 3 files |
 
 ### Session Continuity
 
@@ -361,8 +362,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T12:44:17.505Z
-**Stopped at:** Completed 21-05-PLAN.md
+**Last session:** 2026-10-12T12:53:59.840Z
+**Stopped at:** Completed 21-06-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -457,6 +458,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 21]: Rolling back block 2 claims only what was played (v0.0.21 to HEAD, same schema); equal schema says nothing about row meaning
 - [Phase 21]: update accepts pending=0 as a no-snapshot pass (PASS no snapshot in attach-s1.txt); rollback MODE binary played
 - [Phase 21]: Chains fresh and lifecycle fix the summary vocabulary (DEP-01 PASS, DEP-02 PASS or not applicable, DEP-03 PASS, LEAK-CHECK OK) and require TARGET=systemd-base
+- [Phase 21]: 21-06: the record's Summary names the build under test (2a11eeb) as its commit, not the HEAD of the record; DEP-02/DEP-03 prose uses the final set's run directories, Findings keep the earlier passes' quotes
+- [Phase 21]: 21-06: Container vs. server status is measured (observed, no difference in kind), inferred (read or reasoned), assumed (nothing in the runs speaks for it); a raw appendix is pasted with newline='' because dpkg progress lines carry carriage returns
 
 ## Accumulated Context
 
@@ -474,9 +477,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 21 (Deploy, update, rollback) — EXECUTING
-Plan: 5 of 6
-Status: Executing Phase 21
-Last activity: 2026-10-12 — Phase 21 execution started
+Plan: 6 of 6
+Status: All six plans executed; the phase awaits verification and completion by the orchestrator
+Last activity: 2026-10-12 — Plan 21-06 complete (the record, README hand-over, docs/deployment.md)
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
 
