@@ -7,13 +7,29 @@ This guide covers building, installing, and running holzcloud-CMS on a fresh Deb
 On the **server**, you need:
 
 - Debian or Ubuntu (x86-64); any systemd-based Linux works
-- `sqlite3` CLI (for backups): `sudo apt install sqlite3`
+- A user that may run `sudo`
 - A domain name pointed at the server's public IP
+
+Install the tools the steps below use. `apt update` comes first because a fresh
+server has no package list yet:
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl jq sqlite3 rsync psmisc gnupg openssl
+```
+
+- `ca-certificates` and `curl`: the Caddy repository and its key are fetched over HTTPS, and the health checks use `curl`
+- `jq`: reads the `/readyz` answer in *First Run* and *Health checks*
+- `sqlite3`: for looking into the database by hand while recovering
+- `rsync`: `backup.sh` and `restore.sh` copy media and templates with it
+- `psmisc`: *Troubleshooting* calls `fuser`, which a minimal image does not have
+- `gnupg`: the Caddy repository key is unpacked with `gpg`
+- `openssl`: generates the shared secret in the single sign-on section
 
 On your **development machine**, you need:
 
-- Go 1.22 or later
-- The holzcloud-CMS source code
+- Go 1.26.8 or later (the `go` line of `go.mod` names the version)
+- `git` and the holzcloud-CMS source code as a git checkout, because the build takes the version from it
 
 **Note:** Go is NOT needed on the server. The binary is built on the development machine and is fully self-contained — all templates, assets, and migrations are embedded.
 
@@ -26,10 +42,13 @@ SQLite in WAL mode wants a disk whose fsync is honest. Any ordinary SSD-backed v
 On your development machine:
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" ./cmd/holzcloud
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" ./cmd/holzcloud
 ```
 
 This produces a single `holzcloud` binary (typically 15-25 MB) for linux/amd64.
+The two `-X` flags stamp the version and the commit into it. Without them the
+binary calls itself `dev`, `/readyz` cannot tell two builds apart, and the
+snapshot the service takes before a migration would be named after `dev`.
 
 ## The container image
 
@@ -85,13 +104,18 @@ sudo mkdir -p /opt/holzcloud/backups
 sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
 sudo chmod 755 /opt/holzcloud/holzcloud
 
-# Copy deploy files
-sudo cp /tmp/deploy/backup.sh /opt/holzcloud/backup.sh
-sudo chmod 755 /opt/holzcloud/backup.sh
+# Copy the whole deploy directory (scripts, units, Caddyfile example)
+sudo cp -r /tmp/deploy /opt/holzcloud/deploy
+sudo chmod 755 /opt/holzcloud/deploy/backup.sh /opt/holzcloud/deploy/restore.sh
 
-# Set ownership
-sudo chown -R holzcloud:holzcloud /opt/holzcloud/data
+# Set ownership: the service writes the data directory, and the backup unit,
+# which runs as the same user, writes the backups directory
+sudo chown -R holzcloud:holzcloud /opt/holzcloud/data /opt/holzcloud/backups
+sudo chmod 700 /opt/holzcloud/backups
 ```
+
+Everything the later sections run lives under `/opt/holzcloud/deploy`: the backup
+and restore scripts, the backup unit and timer, and `Caddyfile.example`.
 
 ## systemd Service
 
@@ -162,11 +186,13 @@ sudo systemctl restart holzcloud
 Caddy automatically obtains and renews TLS certificates via Let's Encrypt.
 
 ```bash
-# Install Caddy
-sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+# Install Caddy (apt update first: a fresh server has no package list, and
+# gnupg is what unpacks the repository key)
+sudo apt update
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https gnupg curl
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt update && sudo apt install caddy
+sudo apt update && sudo apt install -y caddy
 
 # Configure
 sudo cp /tmp/deploy/Caddyfile.example /etc/caddy/Caddyfile
@@ -552,10 +578,29 @@ before you rely on it.
 
 ## First Run
 
-1. Ensure the service is running: `sudo systemctl status holzcloud`
-2. Visit `https://your-domain/admin` in your browser
-3. Create your initial admin account through the setup form
-4. Start adding websites, pages, and content
+1. Ensure the service is running and healthy. The `curl` waits by itself for the
+   start (`--retry-connrefused`), and the answer should read `"status": "ok"` and
+   `"integrity": "ok"`, with the version and commit you built:
+
+   ```bash
+   sudo systemctl status holzcloud
+   curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/readyz | jq '{status, version, commit, integrity}'
+   ```
+
+2. Visit `https://your-domain/admin` in your browser, and go through the TLS
+   proxy from the *Caddy* section. The shipped unit sets `HOLZCLOUD_SECURE=true`,
+   which makes the session cookie Secure and has the forms accept a post only as
+   if it had arrived over TLS: a form posted to port 8080 over plain HTTP is
+   answered `403 Forbidden - CSRF validation failed`, so the admin does not work
+   that way.
+3. Create your initial admin account through the setup form. **The setup form is
+   open to whoever reaches it first, until an account exists**, so do this
+   before you let anyone know the domain. Afterwards `/admin/setup` answers 404.
+4. Your first request after the login leads to the two-factor enrolment
+   (`/admin/2fa/einrichten`). It is compulsory for administrators: scan the code
+   with an authenticator app and keep the recovery codes. If you lose both, see
+   [Locked out of an administrator account](#locked-out-of-an-administrator-account).
+5. Start adding websites, pages, and content
 
 ## Backups
 
@@ -570,7 +615,7 @@ Enable the timer instead of a cron entry, so `systemctl list-timers` shows
 whether backups are actually running:
 
 ```bash
-sudo cp deploy/holzcloud-backup.{service,timer} /etc/systemd/system/
+sudo cp /opt/holzcloud/deploy/holzcloud-backup.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now holzcloud-backup.timer
 systemctl list-timers holzcloud-backup.timer
@@ -635,7 +680,7 @@ sudo journalctl -u holzcloud --since today # Today's logs
 **Database locked errors:**
 
 - holzcloud-CMS uses WAL mode and a single-writer pool — this should be rare
-- Check if another process has the database open: `sudo fuser /opt/holzcloud/data/holzcloud.sqlite`
+- Check if another process has the database open: `sudo fuser /opt/holzcloud/data/holzcloud.sqlite` (`fuser` is in the package `psmisc`, see *Prerequisites*)
 
 **Caddy not serving HTTPS:**
 

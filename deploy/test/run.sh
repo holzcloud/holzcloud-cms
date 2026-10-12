@@ -1121,7 +1121,24 @@ cmd_install() {
   mkdir -p "$OUT_DIR"
   local n0 failed unit ready bin
   n0=$(steps_count)
-  deviation "DEVIATION[preinstalled]: the systemd-base image already holds sudo, curl, ca-certificates, jq, procps, sqlite3 and openssl; the document's Prerequisites name only sqlite3, so a step that needs another tool works here without the document saying so"
+  # The image already holds sudo, curl, ca-certificates, jq, procps, sqlite3 and
+  # openssl. The Prerequisites block is played first, as an operator would; a
+  # tool of the image that the document does not name is the one thing that makes
+  # a later step work here without the document saying why (DEVIATION[preinstalled]).
+  local nbp plines pre_missing="" t
+  nbp=$(doc_blocks "Prerequisites") || exit 1
+  if [ "$nbp" -gt 0 ]; then
+    doc_play "Prerequisites" || true
+    plines=$(doc_lines "Prerequisites")
+  else
+    plines=""
+  fi
+  for t in ca-certificates curl jq sqlite3 openssl; do
+    grep -qw -- "$t" <<< "$plines" || pre_missing="$pre_missing $t"
+  done
+  if [ -n "$pre_missing" ]; then
+    deviation "DEVIATION[preinstalled]: the systemd-base image already holds$pre_missing, which the document's Prerequisites do not name, so a step that needs one of them works here without the document saying so"
+  fi
 
   doc_play "Build" || true
   doc_play "Transfer to the server" || true
@@ -1389,6 +1406,17 @@ cmd_postinstall() {
   # Paths of the form /opt/holzcloud/deploy/NAME in any bash block; a value the
   # reader fills in, or a pattern, is no path.
   paths=$(grep -Eo '/opt/holzcloud/deploy/[^][:space:]"'"'"'|;&)(]*' <<< "$all" | grep -v '[<*$]' | sort -u || true)
+  # A name in braces (holzcloud-backup.{service,timer}) is two files; expand it
+  # the way the shell that plays the line does, but only for the plain shape.
+  local expanded="" q
+  for q in $paths; do
+    if printf '%s' "$q" | grep -Eq '^[A-Za-z0-9/._-]*\{[A-Za-z0-9._,-]+\}[A-Za-z0-9/._-]*$'; then
+      expanded="$expanded $(bash -c "printf '%s ' $q")"
+    else
+      expanded="$expanded $q"
+    fi
+  done
+  paths=$expanded
   for p in /opt/holzcloud/holzcloud /opt/holzcloud/data /opt/holzcloud/backups $paths; do
     if dx test -e "$p"; then
       printf 'PASS exists %s\n' "$p" | tee -a "$CHECK_OUT"
