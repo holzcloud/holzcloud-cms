@@ -69,6 +69,13 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictNamespaces=true
 SystemCallArchitectures=native
+# wazero, the plugin runtime, probes at start whether it may map memory executable.
+# Under this directive the probe fails and wazero silently falls back to its
+# interpreter: every plugin still loads and runs (measured, see deploy/SECURITY-SCORE.md),
+# slower than the compiler but far inside the per-call budget (CallTimeout).
+# Tripwire: pinning the runtime to the compiler only (NewRuntimeConfigCompiler in
+# internal/plugin/runtime.go) would make plugins fail under this line; it would then
+# have to become MemoryDenyWriteExecute=false.
 MemoryDenyWriteExecute=true
 LockPersonality=true
 RestrictRealtime=true

@@ -5,6 +5,7 @@
 #   deploy/test/run.sh build up start canary  and learn whether seccomp is enforced here
 #   deploy/test/run.sh build up start         the same steps one by one
 #   deploy/test/run.sh build up start seed check    plugins: install, load, invoke (UNIT-02)
+#   deploy/test/run.sh mdwe                   the narrow MemoryDenyWriteExecute run
 #   deploy/test/run.sh exec -- systemctl status holzcloud
 #   deploy/test/run.sh down
 #
@@ -57,11 +58,17 @@ dx() { docker exec "$NAME" "$@"; }
 dxi() { docker exec -i "$NAME" "$@"; }
 
 # One EXIT handler for the whole script. smoke and mdwe set CLEANUP_DOWN so the
-# container goes away unless KEEP=1.
+# container goes away unless KEEP=1; mdwe-control sets MDWE_DROPIN while its
+# weakening drop-in exists, so a failure or an interrupt still restores the unit
+# (T-20-06).
 CLEANUP_DOWN=0
+MDWE_DROPIN=0
 on_exit() {
   local rc=$?
   trap - EXIT
+  if [ "$MDWE_DROPIN" = 1 ]; then
+    mdwe_restore || rc=1
+  fi
   if [ "$CLEANUP_DOWN" = 1 ] && [ "$KEEP" != 1 ]; then
     cmd_down
   fi
@@ -73,6 +80,10 @@ usage() {
   say "  build up start wait canary down smoke   steps, may be combined: run.sh build up start"
   say "  seed                             test website, five plugins, a page and an image through /ai"
   say "  check                            restart the unit, 17 assertions on the plugins, engine, latency"
+  say "  mdwe-control                     the same checks with MemoryDenyWriteExecute=no, then restore"
+  say "  verdict                          MDWE verdict from canary.verdict, check.txt, mdwe-control.txt"
+  say "  mdwe                             build up start canary seed check mdwe-control verdict"
+  say "  exit 3 means: ran, but this platform cannot give the evidence (canary or verdict VOID)"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -604,6 +615,101 @@ cmd_check() {
   say "CHECK OK"
 }
 
+# The drop-in is the only thing this command changes, and only inside the
+# container. mdwe_restore is what on_exit calls too, so a failed control run
+# cannot leave the unit weakened (T-20-06).
+MDWE_DROPIN_FILE=/etc/systemd/system/holzcloud.service.d/mdwe-control.conf
+
+mdwe_restore() {
+  dx rm -f "$MDWE_DROPIN_FILE" || return 1
+  dx systemctl daemon-reload || return 1
+  dx systemctl reset-failed holzcloud || true
+  dx systemctl restart holzcloud || return 1
+  wait_ready || return 1
+  local v
+  v=$(dx systemctl show -p MemoryDenyWriteExecute --value holzcloud)
+  if [ "$v" != yes ]; then
+    say "run.sh: MemoryDenyWriteExecute is '$v' after the restore, expected yes"
+    return 1
+  fi
+  MDWE_DROPIN=0
+  say "RESTORED"
+}
+
+cmd_mdwe_control() {
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh start' first"
+  dx test -e /root/.hc-key || die "the container is not seeded; run 'run.sh seed' first"
+
+  MDWE_DROPIN=1
+  local rc=0
+  dx sh -c "mkdir -p /etc/systemd/system/holzcloud.service.d && printf '[Service]\nMemoryDenyWriteExecute=no\n' > $MDWE_DROPIN_FILE" || rc=1
+  if [ "$rc" -eq 0 ]; then
+    dx systemctl daemon-reload || rc=1
+    dx systemctl reset-failed holzcloud || true
+    dx systemctl restart holzcloud || rc=1
+    wait_ready || rc=1
+  fi
+  if [ "$rc" -eq 0 ]; then
+    say "control: MemoryDenyWriteExecute=no is $(dx systemctl show -p MemoryDenyWriteExecute --value holzcloud) in the manager"
+    run_checks "$OUT_DIR/mdwe-control.txt" || rc=1
+    say "MDWE-CONTROL: engine=$(sed -n 's/^engine: \([a-z]*\).*/\1/p' "$OUT_DIR/mdwe-control.txt" 2>/dev/null)"
+  fi
+
+  # Restore on the normal path; on_exit does the same if this shell dies first.
+  mdwe_restore || exit 1
+  [ "$rc" -eq 0 ] || exit 1
+}
+
+count_pass() { grep -c '^PASS' "$1" 2>/dev/null || true; }
+engine_of() { sed -n 's/^engine: \([a-z]*\).*/\1/p' "$1" 2>/dev/null | head -n 1; }
+
+# The MDWE verdict. It is SETTLED only where the canary showed that seccomp is
+# enforced; anywhere else it is VOID and the exit code is 3, so a Rosetta run can
+# never be quoted as MDWE evidence (T-20-07).
+cmd_verdict() {
+  [ -f "$OUT_DIR/canary.verdict" ] || die "no $OUT_DIR/canary.verdict; run 'run.sh canary' first"
+  local canary yes_n ctl_n yes_engine ctl_engine msg rc
+  canary=$(cat "$OUT_DIR/canary.verdict")
+  yes_n=$(count_pass "$OUT_DIR/check.txt")
+  ctl_n=$(count_pass "$OUT_DIR/mdwe-control.txt")
+  yes_engine=$(engine_of "$OUT_DIR/check.txt")
+  ctl_engine=$(engine_of "$OUT_DIR/mdwe-control.txt")
+  yes_n=${yes_n:-0}
+  ctl_n=${ctl_n:-0}
+
+  if [ "$canary" != enforced ]; then
+    msg="MDWE VERDICT: VOID - seccomp is not enforced on this platform ($PLATFORM), so the plugin results prove nothing about MemoryDenyWriteExecute; ${yes_n}/17 assertions passed, engine under the shipped unit: ${yes_engine:-unknown}"
+    rc=3
+  elif [ "$yes_n" -lt 17 ]; then
+    msg="MDWE VERDICT: FAILS - seccomp is enforced and only ${yes_n}/17 assertions passed under MemoryDenyWriteExecute=true: the plugins do not load under the shipped unit"
+    rc=1
+  elif [ "$yes_engine" != interpreter ] || [ "$ctl_n" -lt 17 ]; then
+    msg="MDWE VERDICT: INCONSISTENT - seccomp is enforced, but the engine under MemoryDenyWriteExecute=true is '${yes_engine:-unknown}' (interpreter expected) and the control passed ${ctl_n}/17: the probe or the harness is unreliable"
+    rc=1
+  else
+    msg="MDWE VERDICT: SETTLED - MemoryDenyWriteExecute=true is enforced here (canary: enforced), all five plugins loaded and ran on wazero's interpreter fallback (${yes_n}/17 assertions), the control with the directive off ran on the ${ctl_engine:-unknown} engine (${ctl_n}/17), and the unit stays unchanged"
+    rc=0
+  fi
+  echo "$msg" > "$OUT_DIR/verdict.txt"
+  echo "$msg"
+  exit "$rc"
+}
+
+# The narrow run. The canary may end in 3 (not enforced) without stopping it:
+# the verdict then says VOID and carries the exit code 3.
+cmd_mdwe() {
+  CLEANUP_DOWN=1
+  local crc=0
+  cmd_build
+  cmd_up
+  cmd_start
+  ( cmd_canary ) || crc=$?
+  case "$crc" in 0 | 3) ;; *) die "the canary failed (exit $crc)" ;; esac
+  cmd_seed
+  cmd_check
+  cmd_mdwe_control
+  ( cmd_verdict ) || exit $?
+}
 
 trap on_exit EXIT
 
@@ -616,8 +722,11 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe)
       "cmd_$sub"
+      ;;
+    mdwe-control)
+      cmd_mdwe_control
       ;;
     *) usage ;;
   esac
