@@ -470,7 +470,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 21 (Deploy, update, rollback) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Executing Phase 21
 Last activity: 2026-10-12 — Phase 21 execution started
 
