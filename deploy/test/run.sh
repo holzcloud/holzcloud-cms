@@ -4,7 +4,7 @@
 #   deploy/test/run.sh smoke                  build, up, start, check /healthz and /readyz
 #   deploy/test/run.sh build up start canary  and learn whether seccomp is enforced here
 #   deploy/test/run.sh build up start         the same steps one by one
-#   deploy/test/run.sh build up start seed    plugins: install, enable, a page and an image (UNIT-02)
+#   deploy/test/run.sh build up start seed check    plugins: install, load, invoke (UNIT-02)
 #   deploy/test/run.sh exec -- systemctl status holzcloud
 #   deploy/test/run.sh down
 #
@@ -72,6 +72,7 @@ usage() {
   say "usage: run.sh SUBCOMMAND [SUBCOMMAND...]"
   say "  build up start wait canary down smoke   steps, may be combined: run.sh build up start"
   say "  seed                             test website, five plugins, a page and an image through /ai"
+  say "  check                            restart the unit, 17 assertions on the plugins, engine, latency"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -446,6 +447,163 @@ cmd_seed() {
   say "SEED OK website=$wid page=$pid"
 }
 
+# Reads the unit's journal since the current start, so the first, crashed start
+# of a Rosetta run stays out of the stability check.
+journal_since() { dx journalctl -u holzcloud --since "$1" -o cat --no-pager; }
+
+# The same, narrowed to this one invocation of the service. --since has a
+# resolution of one second and lets in a line of the previous invocation when
+# the restart happened inside that second; for "plugin loaded" that would be a
+# false pass.
+journal_invocation() {
+  dx journalctl "_SYSTEMD_INVOCATION_ID=$2" --since "$1" -o cat --no-pager
+}
+
+check_pass() { printf 'PASS %s\n' "$*" | tee -a "$CHECK_OUT"; }
+check_bad() { printf 'BAD  %s\n' "$*" | tee -a "$CHECK_OUT"; CHECK_BADS=$((CHECK_BADS + 1)); }
+
+# http_code PATH [QUERY]: status code for test.local.
+http_code() { dx curl -s -o /dev/null -w '%{http_code}' -H 'Host: test.local' "http://127.0.0.1:8080$1"; }
+http_body() { dx curl -s -H 'Host: test.local' "http://127.0.0.1:8080$1"; }
+
+# run_checks OUTFILE: the unit has just been (re)started and is ready. Prints
+# every result to the screen and to OUTFILE; fails after printing all of them.
+run_checks() {
+  CHECK_OUT=$1
+  CHECK_BADS=0
+  : > "$CHECK_OUT"
+
+  local since jlog id plugins year page search code
+  since=$(dx systemctl show -p ActiveEnterTimestamp --value holzcloud)
+  [ -n "$since" ] || die "no ActiveEnterTimestamp: the unit is not active"
+  jlog=$(journal_invocation "$since" "$(dx systemctl show -p InvocationID --value holzcloud)")
+  local jload=$jlog
+
+  # 1-5: loaded, 6: nothing failed to load.
+  for id in bestellung jahreszahl kontaktformular nicht-gefunden suche; do
+    if grep 'plugin loaded' <<< "$jlog" | grep -q "\"plugin\":\"$id\""; then
+      check_pass "loaded $id"
+    else
+      check_bad "loaded $id: no 'plugin loaded' line for it since $since"
+    fi
+  done
+  if grep -q 'plugin not loaded' <<< "$jlog"; then
+    check_bad "no-load-failures: $(grep 'plugin not loaded' <<< "$jlog" | head -n 3)"
+  else
+    check_pass "no-load-failures"
+  fi
+
+  # 7-11: running, no error.
+  plugins=$(mcp list_plugins '{}') || plugins=""
+  for id in bestellung jahreszahl kontaktformular nicht-gefunden suche; do
+    if printf '%s' "$plugins" | dxi jq -e --arg id "$id" \
+        '.plugins[] | select(.id == $id) | (.running == true) and (.last_error == "")' >/dev/null 2>&1; then
+      check_pass "running $id"
+    else
+      check_bad "running $id: list_plugins does not show it running with an empty last_error"
+    fi
+  done
+
+  # 12-15: invoked over HTTP.
+  year=$(dx date +%Y)
+  page=$(http_body /plugintest)
+  if grep -q "Jahr: $year" <<< "$page" && ! grep -q '\[\[jahr\]\]' <<< "$page"; then
+    check_pass "invoke jahreszahl"
+  else
+    check_bad "invoke jahreszahl: 'Jahr: $year' missing from /plugintest or the shortcode is still there"
+  fi
+  code=$(http_code /formular)
+  if grep -q 'contact-form' <<< "$page" && [ "$code" = 303 ]; then
+    check_pass "invoke kontaktformular"
+  else
+    check_bad "invoke kontaktformular: contact-form on the page and GET /formular 303 expected, got $code"
+  fi
+  code=$(http_code /bestellung)
+  if grep -q 'class="bestellung"' <<< "$page" && [ "$code" = 303 ]; then
+    check_pass "invoke bestellung"
+  else
+    check_bad "invoke bestellung: class=\"bestellung\" on the page and GET /bestellung 303 expected, got $code"
+  fi
+  search=$(http_body '/suche?q=Plugintest')
+  if grep -q 'href="/plugintest"' <<< "$search"; then
+    check_pass "invoke suche"
+  else
+    check_bad "invoke suche: no result link to /plugintest"
+  fi
+
+  # 16: the 404 hook stores a row.
+  code=$(http_code /gibts-nicht)
+  local i=1 rows=0
+  if [ "$code" = 404 ]; then
+    while [ "$i" -le 10 ]; do
+      rows=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite \
+        "select count(*) from plugin_store where plugin_id='nicht-gefunden' and key like 'pfad:/gibts-nicht%'" 2>/dev/null || echo 0)
+      [ "${rows:-0}" -le 0 ] || break
+      sleep 1
+      i=$((i + 1))
+    done
+  fi
+  if [ "$code" = 404 ] && [ "${rows:-0}" -gt 0 ]; then
+    check_pass "invoke nicht-gefunden"
+  else
+    check_bad "invoke nicht-gefunden: GET /gibts-nicht gave $code (404 expected), plugin_store rows: ${rows:-0}"
+  fi
+
+  # 17: nothing was restarted or killed. A container has no auditd, so these
+  # are the substitute for the seccomp kill a server would log (Pitfall 7).
+  local restarts result
+  restarts=$(dx systemctl show -p NRestarts --value holzcloud)
+  result=$(dx systemctl show -p Result --value holzcloud)
+  jlog=$(journal_since "$since")
+  # (the unit's journal since the start, systemd's own lines about it included)
+  if [ "$restarts" = 0 ] && [ "$result" = success ] \
+      && ! grep -Eq 'code=killed|status=31|SIGSYS' <<< "$jlog"; then
+    check_pass "stable"
+  else
+    check_bad "stable: NRestarts=$restarts Result=$result, or a kill signature in the journal"
+  fi
+
+  # Informational lines: they never start with PASS and never fail the run.
+  local mainpid n
+  mainpid=$(dx systemctl show -p MainPID --value holzcloud)
+  # Anonymous executable mappings: field 2 has x, field 6 is empty or a name the
+  # Go runtime gave its own mapping ([anon:...] on newer kernels). wazero's
+  # compiler leaves such mappings, its interpreter none. No code change needed.
+  n=$(dx awk '$2 ~ /x/ && ($6 == "" || $6 ~ /^\[anon/) { c++ } END { print c + 0 }' "/proc/$mainpid/maps")
+  {
+    if [ "$n" -eq 0 ]; then
+      echo "engine: interpreter (0 anonymous executable mappings)"
+    else
+      echo "engine: compiler ($n anonymous executable mappings)"
+    fi
+    # The hook budget is CallTimeout = 2 * time.Second in internal/plugin/runtime.go.
+    echo "# hook budget CallTimeout is 2 s (internal/plugin/runtime.go); the medians are of ten requests"
+    local p med
+    for p in /plugintest '/suche?q=Plugintest' /formular /bestellung; do
+      med=$(dx bash -c 'for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null -w "%{time_total}\n" -H "Host: test.local" "http://127.0.0.1:8080$1"; done | sort -n | sed -n 5p' _ "$p")
+      echo "LATENCY $p median_s=$med n=10"
+    done
+    dx grep '^Seccomp' "/proc/$mainpid/status" || true
+    echo "NRestarts=$restarts"
+    echo "Result=$result"
+    grep 'plugin loaded' <<< "$jload" || true
+  } | tee -a "$CHECK_OUT"
+
+  if [ "$CHECK_BADS" -gt 0 ]; then
+    say "run.sh: $CHECK_BADS assertion(s) failed, see BAD lines"
+    return 1
+  fi
+  return 0
+}
+
+cmd_check() {
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh start' first"
+  dx systemctl restart holzcloud
+  wait_ready || exit 1
+  run_checks "$OUT_DIR/check.txt" || exit 1
+  say "CHECK OK"
+}
+
 
 trap on_exit EXIT
 
@@ -458,7 +616,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed)
+    build | up | start | wait | canary | down | smoke | seed | check)
       "cmd_$sub"
       ;;
     *) usage ;;
