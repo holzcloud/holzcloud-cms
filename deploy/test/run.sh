@@ -19,6 +19,10 @@
 #                                              then the Updating section played (OUT_DIR/update.txt), state s1 compared
 #                                              with s0 (compare-s0-s1.txt) and with the service's own pre-upgrade
 #                                              snapshot (attach-s1.txt), and a marker page written (state s1m)
+#   deploy/test/run.sh negative rollback        after update: the old binary against the migrated database (a step the
+#                                              document says not to take: SCENARIO lines in scenario.txt, result in
+#                                              negative.txt), then the Rolling back section played (rollback.txt,
+#                                              compare-s0-s2.txt), the old version and the pre-update data back
 #   deploy/test/run.sh compare state-s0.txt state-s1.txt   the comparison alone, on two state files
 #
 # The subcommand names, the environment variables below, the exit codes and the
@@ -365,6 +369,8 @@ usage() {
   say "  postinstall                      the document's Backups block, then every deploy path it names must exist"
   say "  baseline                         INSTALL_FROM=old: seed the old install, a login user and an order row, capture state s0"
   say "  update                           play the document's Updating section as it stands, capture s1, compare with s0 and the pre-upgrade snapshot, write the marker page"
+  say "  negative                         after update: the OLD binary against the migrated database, once, recorded in negative.txt; the new binary comes back"
+  say "  rollback                         after update: play the document's Rolling back section, capture s2, compare with s0 (or s1m), rollback.txt"
   say "  compare A B [OUTFILE]            compare two state files (state-LABEL.txt) without a container; exit 1 on a BAD line"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
@@ -1491,7 +1497,9 @@ stage_fixtures() {
 # not name the token column, which does not exist at schema 58; at a tag whose
 # schema already has the column the omission leaves it empty. Amounts are in the
 # smallest unit of the currency (CHF 100.00 with 8.1 percent tax inside).
-insert_old_order() {
+# old_order_run NUMBER leaves the outcome to the caller (the negative case wants the
+# error text); insert_old_order NUMBER dies when the INSERT fails.
+old_order_run() {
   local number=$1 wid
   case "$number" in *[!0-9A-Za-z-]* | "") die "insert_old_order: odd order number '$number'" ;; esac
   wid=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite \
@@ -1500,8 +1508,11 @@ insert_old_order() {
   printf '%s\n' \
     ".timeout 5000" \
     "INSERT INTO orders (website_id, number, audience, currency, email, name, company, vat_number, phone, street, postal_code, city, country, note, items_net, items_tax, items_gross, shipping_net, shipping_tax, shipping_gross, total_net, total_tax, total_gross, vat_exempt, status, payment_method, payment_status, return_policy, created_at, updated_at) VALUES ($wid, '$number', 'private', 'CHF', 'kunde@example.test', 'Test Kunde', '', '', '', 'Teststrasse 1', '8000', 'Zuerich', 'CH', '', 9250, 750, 10000, 0, 0, 0, 9250, 750, 10000, 0, 'new', 'invoice', 'open', '', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));" \
-    | dxi runuser -u holzcloud -- sqlite3 /opt/holzcloud/data/holzcloud.sqlite \
-    || die "insert_old_order: the INSERT failed"
+    | dxi runuser -u holzcloud -- sqlite3 /opt/holzcloud/data/holzcloud.sqlite
+}
+
+insert_old_order() {
+  old_order_run "$1" || die "insert_old_order: the INSERT failed"
 }
 
 # Runs INSIDE the container as the service user (runuser -u holzcloud -- bash -s -- ORDER SOURCE):
@@ -1995,6 +2006,276 @@ cmd_update() {
   say "UPDATE OK"
 }
 
+# ---------------------------------------------------------------------------
+# Phase 21: going back (DEP-03). `rollback` plays the document's Rolling back
+# section after the update; `negative` plays, once, what the document says not to
+# do, so that the document can state what happens instead of assuming it (D-09).
+# ---------------------------------------------------------------------------
+
+# scenario TEXT: a step the harness performs that the document must not contain
+# (the vocabulary next to DEVIATION: a deviation replaces a document line the
+# container cannot play; a scenario is a line that is in no document on purpose).
+scenario() {
+  mkdir -p "$OUT_DIR"
+  say "$*"
+  printf '%s\n' "$*" >> "$OUT_DIR/scenario.txt"
+}
+
+# readyz_line: the /readyz answer reduced to status, version, commit, integrity.
+readyz_line() {
+  dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz | dxi jq -c '{status,version,commit,integrity}'
+}
+
+# aside_schema: the highest applied goose version of the set-aside copy, read
+# immutable so that no -wal or -shm file appears next to it.
+aside_schema() {
+  dx runuser -u holzcloud -- sqlite3 'file:/opt/holzcloud/data/holzcloud.sqlite.after-update?immutable=1' \
+    "select coalesce(max(version_id), 0) from goose_db_version where is_applied = 1"
+}
+
+# rollback: the Rolling back section of the document, played as it stands, on the
+# container `update` left behind. The update's journal decides which of its two
+# blocks is played: a snapshot path (block 1) or none (block 2). The harness adds no
+# wait to the play: the document's own verification line waits for the start.
+cmd_rollback() {
+  local snap mode nb n0 failed old_ver s2_ver sch_want sch_now code owner aside tok
+  local cmpfile since inv jl crc=0 f
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh update' first"
+  [ -f "$OUT_DIR/update.txt" ] && grep -q '^MARKER: ok' "$OUT_DIR/update.txt" \
+    || die "no $OUT_DIR/update.txt with 'MARKER: ok'; run 'run.sh update' first"
+  for f in state-s0.txt state-s1.txt state-s1m.txt; do
+    [ -f "$OUT_DIR/$f" ] || die "no $OUT_DIR/$f; run 'run.sh baseline update' first"
+  done
+  dx test -e /opt/holzcloud/holzcloud.prev || die "/opt/holzcloud/holzcloud.prev does not exist: there is no old binary to put back"
+  nb=$(doc_blocks "Rolling back") || exit 1
+  [ "$nb" -ge 2 ] || die "$DEPLOY_DOC: the section 'Rolling back' has $nb bash blocks, two are needed (snapshot written, none written)"
+
+  snap=$(sed -n 's/^SNAPSHOT: //p' "$OUT_DIR/update.txt" | head -n 1)
+  case "$snap" in
+    none | "") mode=binary ;;
+    /*) mode=snapshot ;;
+    *) die "update.txt names a SNAPSHOT that is neither a path nor 'none': '$snap'" ;;
+  esac
+  say "rollback mode: $mode"
+  mkdir -p "$OUT_DIR"
+
+  n0=$(steps_count)
+  if [ "$mode" = snapshot ]; then
+    doc_play "Rolling back" 1 || true
+  else
+    doc_play "Rolling back" 2 || true
+  fi
+  failed=$(steps_failed_since "$n0")
+  wait_ready || { printf 'MODE: %s\nREADY: no\n' "$mode" > "$OUT_DIR/rollback.txt"; exit 1; }
+
+  capture_state s2
+  if [ "$mode" = snapshot ]; then
+    cmpfile="$OUT_DIR/compare-s0-s2.txt"
+    compare_states "$OUT_DIR/state-s0.txt" "$OUT_DIR/state-s2.txt" "$cmpfile" || crc=1
+  else
+    cmpfile="$OUT_DIR/compare-s1m-s2.txt"
+    compare_states "$OUT_DIR/state-s1m.txt" "$OUT_DIR/state-s2.txt" "$cmpfile" || crc=1
+  fi
+
+  CHECK_OUT="$OUT_DIR/rollback.txt"
+  CHECK_BADS=0
+  printf 'MODE: %s\n' "$mode" > "$CHECK_OUT"
+
+  # The old version runs again.
+  old_ver=$(sed -n 's/^identity: //p' "$OUT_DIR/state-s0.txt" | dxi jq -r '.version')
+  s2_ver=$(sed -n 's/^identity: //p' "$OUT_DIR/state-s2.txt" | dxi jq -r '.version')
+  if [ -n "$old_ver" ] && [ "$old_ver" = "$s2_ver" ]; then
+    check_pass "version old $s2_ver"
+  else
+    check_bad "version old: /readyz says '$s2_ver', the baseline had '$old_ver'"
+  fi
+
+  # The schema is the old one (snapshot) or still the new one (binary only).
+  if [ "$mode" = snapshot ]; then sch_want=$(st_get "$OUT_DIR/state-s0.txt" schema); else sch_want=$(st_get "$OUT_DIR/state-s1.txt" schema); fi
+  sch_now=$(st_get "$OUT_DIR/state-s2.txt" schema)
+  if [ -n "$sch_want" ] && [ "$sch_want" = "$sch_now" ]; then
+    check_pass "schema $sch_now"
+  else
+    check_bad "schema: now '$sch_now', expected '$sch_want'"
+  fi
+
+  # The marker page of the update: gone with the snapshot, kept with the binary alone.
+  code=$(http_code /after-update) || code=error
+  if [ "$mode" = snapshot ]; then
+    if [ "$code" = 404 ]; then check_pass "marker gone (GET /after-update 404)"; else check_bad "marker gone: GET /after-update answered $code, expected 404"; fi
+    tok=$(st_get "$OUT_DIR/state-s2.txt" order)
+    if [ "${tok##* }" = no-token-column ]; then
+      check_pass "no token column (the order of the old schema, as it was)"
+    else
+      check_bad "no token column: the order line of state-s2 is '$tok'"
+    fi
+  else
+    if [ "$code" = 200 ]; then check_pass "marker kept (GET /after-update 200)"; else check_bad "marker kept: GET /after-update answered $code, expected 200"; fi
+    tok=$(st_get "$OUT_DIR/state-s2.txt" order)
+    if [ "${tok##* }" = 32 ]; then
+      check_pass "token kept (32 characters)"
+    else
+      check_bad "token kept: the order line of state-s2 is '$tok'"
+    fi
+  fi
+  code=$(http_code /plugintest) || code=error
+  if [ "$code" = 200 ]; then check_pass "pre-update page (GET /plugintest 200)"; else check_bad "pre-update page: GET /plugintest answered $code"; fi
+
+  # Ownership and mode of the live database (T-21-16).
+  owner=$(st_get "$OUT_DIR/state-s2.txt" owner)
+  if [ "$owner" = "holzcloud 600" ]; then
+    check_pass "owner and mode $owner"
+  else
+    check_bad "owner and mode: '$owner', expected 'holzcloud 600'"
+  fi
+
+  # The migrated database stays on disk, so the rollback can be undone (T-21-13).
+  if [ "$mode" = snapshot ]; then
+    aside=$(aside_schema) || aside=""
+    if [ -n "$aside" ] && [ "$aside" = "$(st_get "$OUT_DIR/state-s1.txt" schema)" ]; then
+      check_pass "set-aside copy holzcloud.sqlite.after-update at schema $aside"
+    else
+      check_bad "set-aside copy: schema '${aside:-unreadable}', expected the new one ($(st_get "$OUT_DIR/state-s1.txt" schema))"
+    fi
+  fi
+
+  # The restart migrated nothing and took no snapshot.
+  since=$(dx systemctl show -p ActiveEnterTimestamp --value holzcloud)
+  inv=$(dx systemctl show -p InvocationID --value holzcloud)
+  jl=$(journal_invocation "$since" "$inv" | grep -E 'migration applied|pre-upgrade snapshot written' || true)
+  if [ -z "$jl" ]; then
+    check_pass "no migration on restart"
+  else
+    check_bad "no migration on restart: $(printf '%s' "$jl" | head -n 2)"
+  fi
+
+  # The service reports the database sound.
+  if sed -n 's/^identity: //p' "$OUT_DIR/state-s2.txt" | dxi jq -e '.status == "ok" and .integrity == "ok"' >/dev/null 2>&1; then
+    check_pass "integrity ok"
+  else
+    check_bad "integrity: /readyz is not status ok and integrity ok"
+  fi
+
+  # Informational: what a snapshot brings back (T-21-15). Counts only.
+  {
+    echo "INFO credentials users=$(st_count "$OUT_DIR/state-s2.txt" users) sessions=$(st_count "$OUT_DIR/state-s2.txt" sessions) ai_tokens=$(st_count "$OUT_DIR/state-s2.txt" ai_tokens) user_tokens=$(st_count "$OUT_DIR/state-s2.txt" user_tokens) (counts in the restored state; state-s0 had users=$(st_count "$OUT_DIR/state-s0.txt" users) ai_tokens=$(st_count "$OUT_DIR/state-s0.txt" ai_tokens))"
+    echo "INFO compare $cmpfile pass=$(grep -c '^PASS' "$cmpfile" || true) bad=$(grep -c '^BAD' "$cmpfile" || true)"
+  } | tee -a "$CHECK_OUT"
+
+  leak_check
+  if [ -n "$failed" ]; then
+    say "run.sh: ROLLBACK FAILED, counted steps with a non-zero status:"
+    printf '%s\n' "$failed" >&2
+    exit 1
+  fi
+  if [ "$CHECK_BADS" -gt 0 ] || [ "$crc" -ne 0 ]; then
+    say "run.sh: ROLLBACK FAILED, $CHECK_BADS check(s) and comparison status $crc; see rollback.txt and $(basename "$cmpfile")"
+    exit 1
+  fi
+  say "ROLLBACK OK"
+}
+
+# negative: the OLD binary against the migrated database, on the container
+# `update` left behind. The document says not to do this, so nothing is read from
+# it: the case is a scenario. The result, whichever it is, is the evidence (D-09);
+# the case ends with the new binary running again.
+cmd_negative() {
+  local snap start i healthy=0 active restarts result out new_ver new_bin nv
+  local ready schema jl ins1 ins2 yr n_after
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh update' first"
+  [ -f "$OUT_DIR/update.txt" ] && grep -q '^MARKER: ok' "$OUT_DIR/update.txt" \
+    || die "no $OUT_DIR/update.txt with 'MARKER: ok'; run 'run.sh update' first"
+  snap=$(sed -n 's/^SNAPSHOT: //p' "$OUT_DIR/update.txt" | head -n 1)
+  case "$snap" in
+    none | "") die "the update wrote no snapshot: no migration lies between these builds, and the negative case needs a migrated schema" ;;
+  esac
+  dx test -e /opt/holzcloud/holzcloud.prev || die "/opt/holzcloud/holzcloud.prev does not exist: there is no old binary to start"
+  new_bin=$(bin_path new) || exit 1
+  [ -f "$new_bin" ] || die "the new binary $new_bin does not exist; run 'run.sh update' first"
+  new_ver=$(sed -n 's/^NEW: \([^ ]*\) .*/\1/p' "$OUT_DIR/update.txt" | head -n 1)
+  [ -n "$new_ver" ] || die "update.txt has no NEW line"
+  yr=$(dx date +%Y)
+
+  scenario "SCENARIO[negative]: the OLD binary (holzcloud.prev) is started against the database the NEW binary migrated, with no snapshot restored. The document tells nobody to do this; it is played once to find out what happens"
+  dx systemctl stop holzcloud
+  dx cp -p /opt/holzcloud/holzcloud.prev /opt/holzcloud/holzcloud
+  start=$(dx date '+%Y-%m-%d %H:%M:%S')
+  dx systemctl start holzcloud || true
+
+  i=1
+  while [ "$i" -le "$READY_TIMEOUT" ]; do
+    if dx curl -fsS --max-time 2 http://127.0.0.1:8080/healthz >/dev/null 2>&1; then
+      healthy=1
+      break
+    fi
+    active=$(dx systemctl show -p ActiveState --value holzcloud 2>/dev/null || true)
+    restarts=$(dx systemctl show -p NRestarts --value holzcloud 2>/dev/null || echo 0)
+    [ "$active" != failed ] || break
+    [ "${restarts:-0}" -le 0 ] || break
+    sleep 1
+    i=$((i + 1))
+  done
+
+  mkdir -p "$OUT_DIR"
+  : > "$OUT_DIR/negative.txt"
+  if [ "$healthy" -eq 1 ]; then
+    result=starts
+    echo "NEGATIVE-RESULT: starts" >> "$OUT_DIR/negative.txt"
+    ready=$(readyz_line) || ready="unavailable"
+    echo "readyz: $ready" >> "$OUT_DIR/negative.txt"
+  else
+    result=refuses
+    echo "NEGATIVE-RESULT: refuses" >> "$OUT_DIR/negative.txt"
+    echo "readyz: unavailable" >> "$OUT_DIR/negative.txt"
+  fi
+  schema=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite \
+    "select coalesce(max(version_id), 0) from goose_db_version where is_applied = 1" 2>&1 | tr '\n' ' ') || schema="unreadable"
+  echo "schema: $schema" >> "$OUT_DIR/negative.txt"
+  jl=$(dx bash -c 'journalctl -u holzcloud --since "$1" -o cat --no-pager | grep -i "migrat" || true' _ "$start")
+  if [ -z "$jl" ]; then
+    echo "journal: none" >> "$OUT_DIR/negative.txt"
+  else
+    printf '%s\n' "$jl" | while IFS= read -r l; do echo "journal: $l"; done >> "$OUT_DIR/negative.txt"
+  fi
+
+  if [ "$result" = starts ]; then
+    # The old code's statement shape: it does not name orders.token, which
+    # migration 00060 made NOT NULL DEFAULT '' with a unique index.
+    ins1=ok
+    out=$(old_order_run "$yr-9002" 2>&1) || ins1=$(printf '%s' "$out" | tr '\n' ' ')
+    ins2=ok
+    out=$(old_order_run "$yr-9003" 2>&1) || ins2=$(printf '%s' "$out" | tr '\n' ' ')
+    echo "insert-1: $ins1" >> "$OUT_DIR/negative.txt"
+    echo "insert-2: $ins2" >> "$OUT_DIR/negative.txt"
+    n_after=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select count(*) from orders" 2>&1 | tr '\n' ' ') || n_after="unreadable"
+    echo "orders: $n_after" >> "$OUT_DIR/negative.txt"
+  else
+    dx bash -c 'journalctl -u holzcloud --since "$1" -o cat --no-pager | grep "^{" | tail -n 4 || true' _ "$start" \
+      | while IFS= read -r l; do echo "refusal: $l"; done >> "$OUT_DIR/negative.txt"
+    echo "insert-1: skipped" >> "$OUT_DIR/negative.txt"
+    echo "insert-2: skipped" >> "$OUT_DIR/negative.txt"
+  fi
+
+  # Back to the new binary, so the chain goes on from the real post-update state.
+  scenario "SCENARIO[restore-new]: the NEW binary is put back (docker cp to /tmp/holzcloud, stop, copy, start), so the update state is as the update left it, plus the order rows the old code wrote"
+  dx systemctl stop holzcloud
+  dx systemctl reset-failed holzcloud || true
+  docker cp "$new_bin" "$NAME:/tmp/holzcloud" || die "docker cp of the new binary failed"
+  dx cp /tmp/holzcloud /opt/holzcloud/holzcloud
+  dx systemctl start holzcloud || true
+  wait_ready || exit 1
+  nv=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz | dxi jq -r '.version')
+  if [ "$nv" != "$new_ver" ]; then
+    echo "RESTORE: bad (/readyz says '$nv', expected '$new_ver')" >> "$OUT_DIR/negative.txt"
+    leak_check
+    die "the new binary did not come back: /readyz says '$nv', expected '$new_ver'"
+  fi
+  echo "RESTORE: ok" >> "$OUT_DIR/negative.txt"
+  cat "$OUT_DIR/negative.txt"
+  leak_check
+  say "NEGATIVE OK (the old binary $result)"
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -2006,7 +2287,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update | negative | rollback)
       "cmd_$sub"
       ;;
     mdwe-control)

@@ -718,6 +718,40 @@ replacement is restarted by systemd every five seconds, and it stops trying afte
 `StartLimitBurst` (five starts within 300 seconds); read the journal and see
 *Recovery*.
 
+## Rolling back
+
+Which block to use depends on whether the update wrote a snapshot. The journal line
+`pre-upgrade snapshot written` and a file named `pre-upgrade-VERSION-TIMESTAMP.sqlite`
+in the data directory are the sign. Run the first line of the first block on its own:
+if it lists no snapshot, use the second block.
+
+The update wrote a snapshot. Stop the service, put the old binary back, set the
+migrated database aside, restore the newest snapshot as the service user, start:
+
+```bash
+ls -l /opt/holzcloud/data/pre-upgrade-*.sqlite
+sudo systemctl stop holzcloud
+sudo cp -p /opt/holzcloud/holzcloud.prev /opt/holzcloud/holzcloud
+sudo rm -f /opt/holzcloud/data/holzcloud.sqlite-wal /opt/holzcloud/data/holzcloud.sqlite-shm
+sudo mv /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/holzcloud.sqlite.after-update
+sudo -u holzcloud cp "$(ls -t /opt/holzcloud/data/pre-upgrade-*.sqlite | head -n 1)" /opt/holzcloud/data/holzcloud.sqlite
+sudo systemctl reset-failed holzcloud
+sudo systemctl start holzcloud
+curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/readyz | jq '{status, version, commit, integrity}'
+sudo journalctl -u holzcloud --since "$(systemctl show -p ActiveEnterTimestamp --value holzcloud)" -o cat | grep -E 'pre-upgrade snapshot written|migration applied' || echo 'no migration, no snapshot'
+```
+
+The update wrote no snapshot, because no migration was pending. The database is
+as the old version left it, so only the binary goes back:
+
+```bash
+sudo systemctl stop holzcloud
+sudo cp -p /opt/holzcloud/holzcloud.prev /opt/holzcloud/holzcloud
+sudo systemctl reset-failed holzcloud
+sudo systemctl start holzcloud
+curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/readyz | jq '{status, version, commit, integrity}'
+```
+
 ## Troubleshooting
 
 **View logs:**
