@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
-current_phase: 20
-current_phase_name: Deploy, update, rollback
-status: planning
+current_phase: 21
+current_phase_name: deploy-update-rollback
+status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-10-12T10:52:44.146Z"
+last_updated: "2026-10-12T11:41:34.336Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 20 complete, transitioned to Phase 21
-state_head: 74eccd5a4b4b074b42f9aafcceb8f2e6ffbdcc8b
+state_head: 499eb07b7b67c1fb8fc75894363e96a116aa7c9e
 progress:
   total_phases: 0
   completed_phases: 20
-  total_plans: 3
+  total_plans: 6
   completed_plans: 0
 ---
 
@@ -85,7 +85,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Ready to plan
+Status: Ready to execute
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -458,9 +458,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: 20 (Hardened unit under real systemd) — EXECUTING
+Phase: 21 (deploy-update-rollback) — READY TO EXECUTE
 Plan: Not started
-Status: Executing Phase 20
+Status: Ready to execute
 Last activity: 2026-10-12 — Phase 20 execution started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
