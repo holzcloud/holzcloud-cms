@@ -15,6 +15,8 @@
 # TARGET=systemd-base (the commands are read out of the document itself):
 #   deploy/test/run.sh build up install        TARGET=systemd-base, then DEPLOY.md's install blocks
 #   deploy/test/run.sh firstrun caddy postinstall   on the container `install` left behind
+#   INSTALL_FROM=old deploy/test/run.sh build up install baseline update   the old release installed and seeded,
+#                                              then the Updating section played as shipped (OUT_DIR/update.txt)
 #
 # The subcommand names, the environment variables below, the exit codes and the
 # file names under OUT_DIR are an interface: later plans and phases 21 and 22
@@ -358,6 +360,8 @@ usage() {
   say "  firstrun                         the document's First Run over curl: setup, login, compulsory two-factor redirect"
   say "  caddy                            the document's Caddy block; reload replaced by caddy validate; exit 3 without a network"
   say "  postinstall                      the document's Backups block, then every deploy path it names must exist"
+  say "  baseline                         INSTALL_FROM=old: seed the old install, a login user and an order row, capture state s0"
+  say "  update                           play the document's Updating section as it stands, then capture state s1 and write update.txt"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -1455,6 +1459,191 @@ cmd_postinstall() {
   say "POSTINSTALL OK"
 }
 
+# ---------------------------------------------------------------------------
+# Phase 21: an installation of the old version, then the Updating section
+# played exactly as it stands (DEP-02). `baseline` and `update` are separable
+# (D-12); the chain is: run.sh build up install baseline update, with
+# INSTALL_FROM=old so the old install is itself played out of the document.
+# ---------------------------------------------------------------------------
+
+# stage_fixtures: seed reads the plugin archives from /opt/holzcloud/plugin-zips,
+# a directory the systemd-base image does not have. They, the test image, the
+# login user and the order row stand in for operator work in the admin and are
+# no steps of the document.
+stage_fixtures() {
+  local id
+  deviation "DEVIATION[fixture]: the plugin archives, the test image, the login user and the order row are test fixtures that stand in for operator work in the admin, not steps of the document"
+  dx mkdir -p /opt/holzcloud/plugin-zips || die "could not create /opt/holzcloud/plugin-zips in the container"
+  for id in bestellung jahreszahl kontaktformular nicht-gefunden suche; do
+    [ -f "$ROOT/plugins/$id/$id.zip" ] || die "plugins/$id/$id.zip is missing in the working tree"
+    docker cp "$ROOT/plugins/$id/$id.zip" "$NAME:/opt/holzcloud/plugin-zips/$id.zip" \
+      || die "docker cp of plugins/$id/$id.zip failed"
+  done
+}
+
+# insert_old_order NUMBER: one order row, written straight into the database.
+# The statement names the columns of the INSERT in internal/shop/order.go at
+# v0.0.10 (the shop flow itself would need a browser) and, like that code, does
+# not name the token column, which does not exist at schema 58; at a tag whose
+# schema already has the column the omission leaves it empty. Amounts are in the
+# smallest unit of the currency (CHF 100.00 with 8.1 percent tax inside).
+insert_old_order() {
+  local number=$1 wid
+  case "$number" in *[!0-9A-Za-z-]* | "") die "insert_old_order: odd order number '$number'" ;; esac
+  wid=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite \
+    "select id from websites order by id limit 1") || die "insert_old_order: could not read the website id"
+  [ -n "$wid" ] || die "insert_old_order: there is no website to attach the order to"
+  printf '%s\n' \
+    ".timeout 5000" \
+    "INSERT INTO orders (website_id, number, audience, currency, email, name, company, vat_number, phone, street, postal_code, city, country, note, items_net, items_tax, items_gross, shipping_net, shipping_tax, shipping_gross, total_net, total_tax, total_gross, vat_exempt, status, payment_method, payment_status, return_policy, created_at, updated_at) VALUES ($wid, '$number', 'private', 'CHF', 'kunde@example.test', 'Test Kunde', '', '', '', 'Teststrasse 1', '8000', 'Zuerich', 'CH', '', 9250, 750, 10000, 0, 0, 0, 9250, 750, 10000, 0, 'new', 'invoice', 'open', '', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));" \
+    | dxi runuser -u holzcloud -- sqlite3 /opt/holzcloud/data/holzcloud.sqlite \
+    || die "insert_old_order: the INSERT failed"
+}
+
+# Runs INSIDE the container as the service user (runuser -u holzcloud -- bash -s):
+# counts only, and only through a read-only connection. No row of any table is
+# selected, the users, sessions and key tables included (T-21-07), and no holzcloud
+# subcommand is started, because every one of them migrates silently (T-21-08).
+read -r -d '' STATE_SH <<'STATE_EOF' || true
+set -eu
+db=/opt/holzcloud/data/holzcloud.sqlite
+q() { sqlite3 -readonly "$db" ".timeout 5000" "$1"; }
+echo "schema: $(q "select coalesce(max(version_id), 0) from goose_db_version where is_applied = 1")"
+q "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name" | while IFS= read -r t; do
+  n=$(q "select count(*) from \"$t\"" 2>/dev/null) || n="?"
+  echo "table $t $n"
+done
+STATE_EOF
+
+# capture_state LABEL: OUT_DIR/state-LABEL.txt as KEY: value lines. identity is
+# the /readyz answer reduced to status, version, commit and integrity; schema the
+# highest applied goose version; then one "table NAME N" line per table of
+# sqlite_master, nothing hand-listed. First version: plan 21-03 completes it.
+capture_state() {
+  local label=$1 f ident
+  f="$OUT_DIR/state-$label.txt"
+  mkdir -p "$OUT_DIR"
+  ident=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz | dxi jq -c '{status,version,commit,integrity}') \
+    || die "capture_state $label: /readyz did not answer"
+  {
+    echo "identity: $ident"
+    printf '%s\n' "$STATE_SH" | dxi runuser -u holzcloud -- bash -s
+  } > "$f" || die "capture_state $label: reading the database failed"
+  grep -q '^table ' "$f" || die "capture_state $label: no table line in $f"
+  say "state $label captured in $f ($(grep -c '^table ' "$f") tables)"
+}
+
+# baseline: state S0 on the OLD binary, under the unit the repaired document
+# installed (D-06).
+cmd_baseline() {
+  local ver wid pid order
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh install' with INSTALL_FROM=old first"
+  ver=$(dx /opt/holzcloud/holzcloud version) || die "holzcloud version failed"
+  case "$ver" in
+    *"$OLD_TAG"*) ;;
+    *) die "baseline needs the OLD binary installed (INSTALL_FROM=old, OLD_TAG=$OLD_TAG); 'holzcloud version' says '$ver'" ;;
+  esac
+  mkdir -p "$OUT_DIR"
+  stage_fixtures
+  cmd_seed
+
+  # The login user: the password is made inside the container, kept in a
+  # root-only file and handed to the command on stdin, so it is in no argument
+  # list and in no output file (T-21-07). The old binary runs the command, which
+  # is the only CLI call besides `ai key create` that baseline makes.
+  dx bash -c 'umask 077; openssl rand -hex 12 > /root/.hc-login-pass; test -s /root/.hc-login-pass' \
+    || die "could not create the login password file"
+  dx bash -c 'runuser -u holzcloud -- env HOLZCLOUD_DATA_DIR=/opt/holzcloud/data /opt/holzcloud/holzcloud user create -email login@example.test -role admin < /root/.hc-login-pass' \
+    || die "holzcloud user create failed on the old binary"
+
+  order="$(dx date +%Y)-9001"
+  insert_old_order "$order"
+  say "the order $order is a direct INSERT into the database (the shop flow would need a browser)"
+
+  wid=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select id from websites where name = 'Test'") || wid=""
+  pid=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select id from pages where slug = 'plugintest'") || pid=""
+  capture_state s0
+  {
+    echo "OLD_TAG: $OLD_TAG"
+    echo "VERSION: $ver"
+    echo "WEBSITE: ${wid:-?}"
+    echo "DOMAIN: test.local"
+    echo "PAGE: ${pid:-?} plugintest (published)"
+    echo "PLUGINS: bestellung jahreszahl kontaktformular nicht-gefunden suche"
+    echo "USER: login@example.test (admin, created with holzcloud user create on the old binary)"
+    echo "ORDER: $order (a direct INSERT in the statement shape of the old code, not the shop flow)"
+  } > "$OUT_DIR/baseline.txt"
+  leak_check
+  say "BASELINE OK"
+}
+
+# update: the Updating section of the document, played exactly as it stands
+# (D-07). Both binaries exist; the new one is what the scp line carries.
+cmd_update() {
+  local o_ver o_com n_ver n_com start n0 failed mo mn pend snap sa sb prev bk applied jl
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active; run 'run.sh install baseline' first"
+  [ -f "$OUT_DIR/state-s0.txt" ] || die "no $OUT_DIR/state-s0.txt; run 'run.sh baseline' first"
+  WITH_OLD=1
+  cmd_bins
+  STAGE_BIN=$(bin_path new) || exit 1
+  [ -f "$STAGE_BIN" ] || die "the new binary $STAGE_BIN does not exist"
+  mo=$(sed -n 's/^migrations: *//p' "$(bin_path old).info" | head -n 1)
+  mn=$(sed -n 's/^migrations: *//p' "$STAGE_BIN.info" | head -n 1)
+  [ -n "$mo" ] && [ -n "$mn" ] || die "no migration file counts in $(bin_path old).info and $STAGE_BIN.info"
+  pend=$((mn - mo))
+  say "migration files: old=$mo new=$mn pending=$pend"
+
+  o_ver=$(sed -n 's/^identity: //p' "$OUT_DIR/state-s0.txt" | dxi jq -r '.version')
+  o_com=$(sed -n 's/^identity: //p' "$OUT_DIR/state-s0.txt" | dxi jq -r '.commit')
+  sa=$(sed -n 's/^schema: //p' "$OUT_DIR/state-s0.txt")
+
+  # The container's clock, in the zone journalctl reads --since in.
+  start=$(dx date '+%Y-%m-%d %H:%M:%S')
+  n0=$(steps_count)
+  doc_play "Updating" || true
+  failed=$(steps_failed_since "$n0")
+  wait_ready || { printf 'READY: no\n' > "$OUT_DIR/update.txt"; exit 1; }
+
+  n_ver=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz | dxi jq -r '.version')
+  n_com=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz | dxi jq -r '.commit')
+  jl=$(dx bash -c 'journalctl -u holzcloud --since "$1" -o cat --no-pager | grep -E "pre-upgrade snapshot written|migration applied" || true' _ "$start")
+  snap=$(printf '%s\n' "$jl" | grep 'pre-upgrade snapshot written' | head -n 1 | dxi jq -r '.path // empty' 2>/dev/null || true)
+  applied=$(printf '%s\n' "$jl" | grep -c 'migration applied' || true)
+  prev=absent
+  if dx test -e /opt/holzcloud/holzcloud.prev; then prev=present; fi
+  bk=$(dx bash -c 'ls -1 /opt/holzcloud/backups 2>/dev/null | sort | tail -n 1' || true)
+
+  capture_state s1
+  sb=$(sed -n 's/^schema: //p' "$OUT_DIR/state-s1.txt")
+  {
+    echo "OLD: $o_ver $o_com"
+    echo "NEW: $n_ver $n_com"
+    echo "MIGRATIONS: old=$mo new=$mn pending=$pend"
+    echo "APPLIED: $applied"
+    echo "SNAPSHOT: ${snap:-none}"
+    echo "SCHEMA: ${sa:-?} -> ${sb:-?}"
+    echo "PREV: $prev"
+    echo "BACKUP: ${bk:-none}"
+    printf '%s\n' "$jl" | while IFS= read -r l; do
+      [ -z "$l" ] || echo "JOURNAL: $l"
+    done
+  } > "$OUT_DIR/update.txt"
+  cat "$OUT_DIR/update.txt"
+
+  leak_check
+  if [ -n "$failed" ]; then
+    say "run.sh: UPDATE FAILED, counted steps with a non-zero status:"
+    printf '%s\n' "$failed" >&2
+    exit 1
+  fi
+  [ "$o_ver" != "$n_ver" ] || { say "run.sh: UPDATE FAILED, /readyz reports the same version ($n_ver) before and after"; exit 1; }
+  if ! [ "${sb:-0}" -gt "${sa:-0}" ] 2>/dev/null; then
+    say "run.sh: UPDATE FAILED, the schema did not move forward (${sa:-?} -> ${sb:-?})"
+    exit 1
+  fi
+  say "UPDATE OK"
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -1466,7 +1655,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update)
       "cmd_$sub"
       ;;
     mdwe-control)
