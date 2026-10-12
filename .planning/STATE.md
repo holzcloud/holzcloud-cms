@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 21
 current_phase_name: Deploy, update, rollback
 status: executing
-stopped_at: Completed 21-01-PLAN.md
-last_updated: "2026-10-12T11:57:06.582Z"
+stopped_at: Completed 21-02-PLAN.md
+last_updated: "2026-10-12T12:08:30.749Z"
 last_activity: 2026-10-12
-state_head: 43a62afa874f89404f85843ef1e4b255832fab62
+state_head: 6bb12e475ec0ba6f37e11a3181e889e23d93b76b
 progress:
   total_phases: 0
   completed_phases: 20
@@ -329,6 +329,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 20 P02 | 25min | 3 tasks | 2 files |
 | Phase 20 P03 | 45min | 3 tasks | 3 files |
 | Phase 21 P01 | 8 min | 2 tasks | 1 files |
+| Phase 21 P02 | 10 min | 2 tasks | 3 files |
 
 ### Session Continuity
 
@@ -357,8 +358,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T11:57:06.560Z
-**Stopped at:** Completed 21-01-PLAN.md
+**Last session:** 2026-10-12T12:08:30.729Z
+**Stopped at:** Completed 21-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -444,6 +445,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 20]: 20-03: No target value imposed on the systemd-analyze security score; measured 1.3 online / 1.4 offline on systemd 252 and 1.3 / 1.3 on 257, raw in deploy/SECURITY-SCORE.md
 - [Phase 21]: 21-01: the install harness reads every played command out of DEPLOY.md and refuses a line the document lacks; named DEVIATION[...] lines carry what the container cannot do (scp, dropin, browser, caddy, mount, network, prompt, preinstalled)
 - [Phase 21]: 21-01: Debian curl 7.88.1 sends the Secure CSRF cookie to http loopback, so headless First Run needs only a Referer carrying the https origin (assumption A1 settled)
+- [Phase 21]: 21-02: Install copies the whole transferred deploy directory to /opt/holzcloud/deploy (the path Backups, the backup unit and restore already used); the Build line stamps -X main.Version and -X main.Commit so two builds are told apart in /readyz and in the pre-upgrade snapshot name
+- [Phase 21]: 21-02: DEVIATION[preinstalled] is emitted only for an image tool the Prerequisites block does not name; baseline and update read the database only through sqlite3 -readonly as the service user (counts only), never a holzcloud subcommand
 
 ## Accumulated Context
 
@@ -461,7 +464,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 21 (Deploy, update, rollback) — EXECUTING
-Plan: 1 of 6
+Plan: 2 of 6
 Status: Executing Phase 21
 Last activity: 2026-10-12 — Phase 21 execution started
 

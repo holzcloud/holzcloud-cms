@@ -418,14 +418,14 @@ Plans:
   2. An update across at least one migration keeps all data.
   3. A rollback is played and documented, with the migration limit stated.
 
-**Plans**: 1/6 plans executed in 6 waves
+**Plans**: 2/6 plans executed in 6 waves
 
 Plans:
 **Wave 1**
 - [x] 21-01-PLAN.md — Harness core (`doc_play` reads the commands out of DEPLOY.md and refuses a line it does not contain) and the unedited document played from `systemd-base`: install, First Run over curl, Caddy validation, Backups block; raw pass-1 evidence (DEP-01)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 21-02-PLAN.md — DEP-01 repaired from the evidence (Prerequisites, Build stamping, Install paths, First Run, Caddy), `deploy/DEPLOY-RUN.md` created, pass 2 clean; old-version install seeded (v0.0.10) and the Updating section played as shipped (DEP-01, DEP-02)
+- [x] 21-02-PLAN.md — DEP-01 repaired from the evidence (Prerequisites, Build stamping, Install paths, First Run, Caddy), `deploy/DEPLOY-RUN.md` created, pass 2 clean; old-version install seeded (v0.0.10) and the Updating section played as shipped (DEP-01, DEP-02)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 21-03-PLAN.md — DEP-02: no-data-loss proof (state before/after, content hashes, ATTACH against the pre-upgrade snapshot), Updating section rewritten (back-up first, kept old binary, snapshot facts, journal check) and replayed
@@ -510,7 +510,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 18. The Administration Under Test | v2.4 | — | Complete (v2.4 closed) | 2026-09-17 |
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
 | 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
-| 21. Deploy, update, rollback | v0.1.0 | 1/6 | In Progress | — |
+| 21. Deploy, update, rollback | v0.1.0 | 2/6 | In Progress | — |
 | 22. Backup and restore, measured | v0.1.0 | 0/? | Not started | — |
 | 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
 
