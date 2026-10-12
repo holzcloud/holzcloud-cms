@@ -11,6 +11,10 @@
 #   deploy/test/run.sh exec -- systemctl status holzcloud
 #   deploy/test/run.sh down
 #
+# Phase 21 plays deploy/DEPLOY.md literally in a container started from
+# TARGET=systemd-base (the commands are read out of the document itself):
+#   deploy/test/run.sh build up install        TARGET=systemd-base, then DEPLOY.md's install blocks
+#
 # The subcommand names, the environment variables below, the exit codes and the
 # file names under OUT_DIR are an interface: later plans and phases 21 and 22
 # script against them. Extend, do not rename.
@@ -26,6 +30,12 @@
 #   READY_TIMEOUT    seconds `wait` polls /healthz, default 120
 #   DOCKER_RUN_ARGS  extra `docker run` flags, split at spaces on purpose
 #   VERSION, COMMIT  passed to the build when set
+#   DEPLOY_DOC       the document the install steps are read from, default deploy/DEPLOY.md
+#   OLD_TAG          the older release, default v0.0.10 (built by `bins` with WITH_OLD=1)
+#   NEW_REF          the ref installed by default, default HEAD
+#   BIN_DIR          built binaries, default deploy/test/out/bin (outside OUT_DIR on purpose)
+#   INSTALL_FROM     which binary `install` stages: new (default) or old
+#   WITH_OLD=1       `bins` builds the old binary too; REBUILD=1 rebuilds an existing one
 #
 # Exit codes: 0 ok, 1 failure, 2 usage, 3 "ran, but this platform cannot give
 # the evidence".
@@ -53,11 +63,255 @@ if [ -z "${IMAGE:-}" ]; then
   [ "$TARGET" = unit-test ] || IMAGE=$IMAGE-$TARGET
 fi
 OUT_DIR=${OUT_DIR:-deploy/test/out/$ARCH}
+OLD_TAG=${OLD_TAG:-v0.0.10}
+NEW_REF=${NEW_REF:-HEAD}
+BIN_DIR=${BIN_DIR:-deploy/test/out/bin}
+INSTALL_FROM=${INSTALL_FROM:-new}
+DEPLOY_DOC=${DEPLOY_DOC:-deploy/DEPLOY.md}
+WITH_OLD=${WITH_OLD:-0}
+REBUILD=${REBUILD:-0}
+STAGE_BIN=${STAGE_BIN:-}
 
 say() { printf '%s\n' "$*" >&2; }
 die() { say "run.sh: $*"; exit 1; }
 dx() { docker exec "$NAME" "$@"; }
 dxi() { docker exec -i "$NAME" "$@"; }
+
+# ---------------------------------------------------------------------------
+# The document is the only source of knowledge (D-01, D-12). Every command the
+# install steps run is READ out of DEPLOY_DOC, and doc_cmd refuses a line that
+# is not in it, so this script can mirror the document and never drift from it.
+# ---------------------------------------------------------------------------
+
+# doc_awk HEADING N: the logical command lines of the fenced bash blocks of the
+# section whose ## or ### heading line is exactly HEADING (a plain string
+# comparison: Caddy (Reverse Proxy + HTTPS) holds pattern characters). N is the
+# Nth bash block, 0 all of them, -1 prints the number of bash blocks instead.
+# An empty HEADING means the whole document. Backslash-continued lines are
+# joined; blank lines and lines that start with # are dropped. The section ends
+# at the next heading of the same or a higher level. Exit 3: no such heading,
+# 4: fewer bash blocks than asked for. POSIX awk only.
+doc_awk() {
+  H=$1 N=$2 awk '
+    function ltrim(s) { sub(/^[ \t]+/, "", s); return s }
+    BEGIN {
+      h = ENVIRON["H"]; want = ENVIRON["N"] + 0
+      all = (h == ""); insec = all; found = all; seclvl = 0
+      nb = 0; inf = 0; isbash = 0; take = 0; cont = ""; hascont = 0
+    }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      t = ltrim(line)
+      if (inf) {
+        if (t ~ /^```[ \t]*$/) {
+          if (hascont) { print cont; hascont = 0; cont = "" }
+          inf = 0
+          next
+        }
+        if (!(isbash && insec && take)) next
+        s = t
+        if (hascont) {
+          s = cont " " s; hascont = 0; cont = ""
+        } else if (s == "" || s ~ /^#/) {
+          next
+        }
+        if (s ~ /\\$/) {
+          sub(/[ \t]*\\$/, "", s)
+          cont = s; hascont = 1
+          next
+        }
+        sub(/[ \t]+$/, "", s)
+        if (s == "" || s ~ /^#/) next
+        print s
+        next
+      }
+      if (t ~ /^```/) {
+        inf = 1
+        lang = t
+        sub(/^`+[ \t]*/, "", lang)
+        sub(/[ \t].*$/, "", lang)
+        isbash = (lang == "bash")
+        take = 0
+        if (isbash && insec) { nb++; take = (want == 0 || nb == want) }
+        next
+      }
+      if (match(line, /^#+ /)) {
+        lvl = RLENGTH - 1
+        txt = substr(line, RLENGTH + 1)
+        sub(/[ \t]+$/, "", txt)
+        if (!all) {
+          if (insec && lvl <= seclvl) insec = 0
+          if (!found && (txt "") == (h "") && (lvl == 2 || lvl == 3)) {
+            insec = 1; found = 1; seclvl = lvl
+          }
+        }
+        next
+      }
+    }
+    END {
+      if (!found) exit 3
+      if (want < 0) { print nb; exit 0 }
+      if (want > 0 && nb < want) exit 4
+      if (want == 0 && !all && nb == 0) exit 4
+    }' "$DEPLOY_DOC"
+}
+
+# doc_lines HEADING [N]: see doc_awk. Dies, naming DEPLOY_DOC, when the heading
+# or the block does not exist. Call it as `x=$(doc_lines ...) || exit 1`: a die
+# inside a command substitution only ends the substitution.
+doc_lines() {
+  local out rc=0
+  [ -f "$DEPLOY_DOC" ] || die "the document $DEPLOY_DOC does not exist"
+  out=$(doc_awk "$1" "${2:-0}") || rc=$?
+  case "$rc" in
+    0) ;;
+    3) die "$DEPLOY_DOC has no section '$1' (a ## or ### heading with exactly that text)" ;;
+    4) die "$DEPLOY_DOC: the section '$1' has fewer than ${2:-1} bash blocks" ;;
+    *) die "reading $DEPLOY_DOC failed (awk exit $rc)" ;;
+  esac
+  [ -z "$out" ] || printf '%s\n' "$out"
+}
+
+# doc_blocks HEADING: how many bash blocks the section has.
+doc_blocks() {
+  local out rc=0
+  [ -f "$DEPLOY_DOC" ] || die "the document $DEPLOY_DOC does not exist"
+  out=$(doc_awk "$1" -1) || rc=$?
+  [ "$rc" -eq 0 ] || die "$DEPLOY_DOC has no section '$1' (a ## or ### heading with exactly that text)"
+  printf '%s\n' "$out"
+}
+
+# Every section `install` plays must exist before docker is touched.
+doc_preflight() {
+  doc_lines "Build" 1 >/dev/null
+  doc_lines "Transfer to the server" 1 >/dev/null
+  doc_lines "Install" 1 >/dev/null
+  doc_lines "systemd Service" 1 >/dev/null
+}
+
+steps_file() { printf '%s/steps.txt' "$OUT_DIR"; }
+steps_count() {
+  local n
+  n=$(grep -c '^STEP ' "$(steps_file)" 2>/dev/null || true)
+  printf '%s\n' "${n:-0}"
+}
+
+# steps_failed_since N: the counted steps after number N that ended non-zero.
+# `systemctl status` reports the unit state through its exit code, so it never
+# counts; neither does a SKIP.
+steps_failed_since() {
+  [ -f "$(steps_file)" ] || return 0
+  awk -v n="$1" '$1 == "STEP" && ($2 + 0) > n && $3 != "rc=0" && index($0, "systemctl status") == 0' "$(steps_file)"
+}
+
+# deviation TEXT: a named deviation goes to the screen and to deviations.txt.
+deviation() {
+  mkdir -p "$OUT_DIR"
+  say "$*"
+  printf '%s\n' "$*" >> "$OUT_DIR/deviations.txt"
+}
+
+# doc_cmd LINE: the single place where a command is played. LINE must be a
+# logical line of a bash block of the document, and must be pasteable as it
+# stands. A step that fails is recorded, never hidden; its status is returned.
+doc_cmd() {
+  local line=$1 all n nn rc=0 outf kind=run
+  [ -n "$line" ] || die "doc_cmd: an empty command line"
+  [ -f "$DEPLOY_DOC" ] || die "the document $DEPLOY_DOC does not exist"
+  all=$(doc_awk "" 0) || die "reading $DEPLOY_DOC failed"
+  grep -Fxq -- "$line" <<< "$all" \
+    || die "the document and the script have drifted apart: $DEPLOY_DOC has no command line '$line'"
+  if grep -Eq '<[A-Za-z][A-Za-z0-9_.-]*>' <<< "$line"; then
+    die "refusing '$line': it holds an angle-bracket placeholder, and a played block must be pasteable as it stands (D-01)"
+  fi
+
+  mkdir -p "$OUT_DIR"
+  n=$(steps_count)
+  n=$((n + 1))
+  nn=$(printf '%02d' "$n")
+  outf="$OUT_DIR/step-$nn.txt"
+  printf '$ %s\n' "$line" > "$outf"
+
+  case "$line" in
+    scp\ *) kind=scp ;;
+    *"go build"*) kind=skip ;;
+    *"apt install"*)
+      # No -y: the operator answers apt's question. stdin is the script, which
+      # has ended, so the answer has to come from somewhere else.
+      case "$line" in *" -y"*) kind=run ;; *) kind=prompt ;; esac
+      ;;
+    *) kind=run ;;
+  esac
+
+  say ">>> step $nn: $line"
+  case "$kind" in
+    scp)
+      local dest parent
+      set -f
+      # shellcheck disable=SC2086
+      set -- $line
+      set +f
+      if [ "$#" -eq 3 ] && [ "$2" = holzcloud ] && [ "${3#*:}" != "$3" ]; then
+        [ -f "$STAGE_BIN" ] || die "STAGE_BIN '$STAGE_BIN' is not a file: nothing to put where the scp line sends the binary"
+        dest=${3#*:}
+        deviation "DEVIATION[scp]: '$line' was played as docker cp of $STAGE_BIN to $dest in the container (there is no ssh and no second machine here)"
+        docker cp "$STAGE_BIN" "$NAME:$dest" > "$outf.tmp" 2>&1 || rc=$?
+      elif [ "$#" -eq 4 ] && [ "$2" = -r ] && [ "$3" = deploy/ ] && [ "${4#*:}" != "$4" ]; then
+        dest=${4#*:}
+        dest=${dest%/}
+        parent=$(dirname "$dest")
+        [ "$(basename "$dest")" = deploy ] \
+          || die "no translation for this scp line: the target directory must be named deploy: $line"
+        deviation "DEVIATION[scp]: '$line' was played as a tar stream of the working tree's deploy directory (without deploy/test/out) into $parent in the container, by docker cp -"
+        # macOS bsdtar: COPYFILE_DISABLE and --no-mac-metadata keep ._ files out, and
+        # --no-xattrs the com.apple.provenance attribute, which the daemon cannot set
+        # in the container ("lsetxattr ... operation not supported").
+        COPYFILE_DISABLE=1 tar -C "$ROOT" --no-xattrs --no-acls --no-mac-metadata \
+          --exclude deploy/test/out --exclude .DS_Store -cf - deploy \
+          | docker cp - "$NAME:$parent" > "$outf.tmp" 2>&1 || rc=$?
+      else
+        die "no translation for this scp line: $line"
+      fi
+      cat "$outf.tmp" >> "$outf"
+      cat "$outf.tmp" >&2
+      rm -f "$outf.tmp"
+      ;;
+    skip)
+      printf '%s\n' "STEP $nn rc=0 SKIP[dev-machine] $line" | tee -a "$(steps_file)"
+      say "SKIP[dev-machine]: the Build line runs on the development machine; bins already played it from this same line"
+      return 0
+      ;;
+    run)
+      # The line is the whole script on stdin, run as root: sudo exists in the
+      # image, so a sudo line runs as it is written. dxi has its own stdin, so
+      # a loop that feeds doc_cmd is not read from.
+      printf '%s\n' "$line" | dxi bash -s 2>&1 | tee -a "$outf" || rc=$?
+      ;;
+    prompt)
+      deviation "DEVIATION[prompt]: '$line' asks apt for a confirmation and nobody types one here; the answer y is supplied on stdin"
+      { yes || true; } | dxi bash -c "$line" 2>&1 | tee -a "$outf" || rc=$?
+      ;;
+  esac
+  if [ "$rc" -ne 0 ] && grep -Eqi 'could not resolve|temporary failure resolving|network is unreachable|failed to connect|connection timed out|name or service not known' "$outf"; then
+    deviation "DEVIATION[network]: step $nn failed with no route to a package repository or download host: $line"
+  fi
+  printf '%s\n' "STEP $nn rc=$rc $line" | tee -a "$(steps_file)"
+  return "$rc"
+}
+
+# doc_play HEADING [N]: every logical line of the section (or its Nth bash
+# block) through doc_cmd. It goes on after a failing step, so one run shows
+# every finding, and returns non-zero if any counted step failed.
+doc_play() {
+  local lines line n0
+  lines=$(doc_lines "$@") || exit 1
+  n0=$(steps_count)
+  while IFS= read -r line; do
+    doc_cmd "$line" || true
+  done <<< "$lines"
+  [ -z "$(steps_failed_since "$n0")" ]
+}
 
 # One EXIT handler for the whole script. smoke and mdwe set CLEANUP_DOWN so the
 # container goes away unless KEEP=1; mdwe-control sets MDWE_DROPIN while its
@@ -65,9 +319,13 @@ dxi() { docker exec -i "$NAME" "$@"; }
 # (T-20-06).
 CLEANUP_DOWN=0
 MDWE_DROPIN=0
+BINS_TMP=""
 on_exit() {
   local rc=$?
   trap - EXIT
+  if [ -n "$BINS_TMP" ]; then
+    rm -rf "${BINS_TMP:?}"
+  fi
   if [ "$MDWE_DROPIN" = 1 ]; then
     mdwe_restore || rc=1
   fi
@@ -89,6 +347,8 @@ usage() {
   say "  all                              build up score start canary seed check mdwe-control verdict, then a summary"
   say "                                   exits 0 when nothing really failed, even if canary or verdict said 3"
   say "  exit 3 means: ran, but this platform cannot give the evidence (canary or verdict VOID)"
+  say "  bins                             build the binaries of NEW_REF (and OLD_TAG with WITH_OLD=1) by the Build line of the document"
+  say "  install                          play the document's Build, Transfer, Install and systemd Service blocks from TARGET=systemd-base"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -772,6 +1032,131 @@ cmd_all() {
   say "UNIT-03 offline: $(grep 'Overall exposure level for' "$OUT_DIR/score-offline.txt")"
 }
 
+# ---------------------------------------------------------------------------
+# Phase 21: the document played literally (DEP-01).
+# ---------------------------------------------------------------------------
+
+# bin_path old|new: the file for a ref. Named by ref, so a changed OLD_TAG or a
+# new HEAD never reuses a stale file.
+bin_path() {
+  local sha
+  case "$1" in
+    old) printf '%s/holzcloud-old-%s\n' "$BIN_DIR" "$OLD_TAG" ;;
+    new)
+      sha=$(git rev-parse --short "${NEW_REF}^{commit}") || die "NEW_REF '$NEW_REF' is not a commit of this repository"
+      printf '%s/holzcloud-new-%s\n' "$BIN_DIR" "$sha"
+      ;;
+    *) die "bin_path: old or new, not '$1'" ;;
+  esac
+}
+
+# bins_build WHICH REF: a clone at REF (a clone only reads this repository; a
+# git worktree would write into .git), and then the Build line of the document,
+# played from the clone's directory the way an operator plays it on a dev
+# machine.
+bins_build() {
+  local which=$1 ref=$2 dest sha line info
+  dest=$(bin_path "$which") || exit 1
+  mkdir -p "$BIN_DIR"
+  if [ -f "$dest" ] && [ "$REBUILD" != 1 ]; then
+    say "reusing $dest (REBUILD=1 builds it again)"
+    [ ! -f "$dest.info" ] || cat "$dest.info" >&2
+    return 0
+  fi
+  sha=$(git rev-parse --verify --quiet "${ref}^{commit}") || die "bins: '$ref' is not a commit of this repository"
+  line=$(doc_lines "Build" 1) || exit 1
+
+  BINS_TMP=$(mktemp -d "${TMPDIR:-/tmp}/holzcloud-bins.XXXXXX") || die "bins: no temporary directory"
+  git clone -q --no-checkout "$ROOT" "$BINS_TMP/src" || die "bins: git clone failed"
+  git -C "$BINS_TMP/src" checkout -q -f --detach "$sha" || die "bins: git checkout of $sha failed"
+  say "building the $which binary ($ref) with the Build line of $DEPLOY_DOC: $line"
+  ( cd "$BINS_TMP/src" && bash -c "$line" ) || die "bins: the Build line failed for $ref"
+  [ -f "$BINS_TMP/src/holzcloud" ] || die "bins: the Build line produced no holzcloud file for $ref"
+  mv "$BINS_TMP/src/holzcloud" "$dest"
+
+  info="$dest.info"
+  {
+    echo "== $which: $ref =="
+    echo "file:       $dest"
+    echo "describe:   $(git -C "$BINS_TMP/src" describe --tags --always)"
+    echo "commit:     $(git -C "$BINS_TMP/src" rev-parse --short HEAD)"
+    echo "sha256:     $(shasum -a 256 "$dest" | awk '{ print $1 }')"
+    echo "migrations: $(find "$BINS_TMP/src/internal/db/migrations" -name '*.sql' | wc -l | tr -d ' ')"
+  } > "$info"
+  cat "$info" >> "$BIN_DIR/bins.txt"
+  cat "$info" >&2
+  rm -rf "${BINS_TMP:?}"
+  BINS_TMP=""
+}
+
+cmd_bins() {
+  case "$INSTALL_FROM" in new | old) ;; *) die "INSTALL_FROM is '$INSTALL_FROM', expected new or old" ;; esac
+  doc_lines "Build" 1 >/dev/null
+  bins_build new "$NEW_REF"
+  if [ "$INSTALL_FROM" = old ] || [ "$WITH_OLD" = 1 ]; then
+    bins_build old "$OLD_TAG"
+  fi
+}
+
+# install: the document's own blocks, from a container that has no user, no
+# directory, no binary and no unit (TARGET=systemd-base).
+cmd_install() {
+  doc_preflight
+  dx true >/dev/null 2>&1 || die "container $NAME does not answer; run 'run.sh build up' with TARGET=systemd-base first"
+  if dx test -e /opt/holzcloud/holzcloud; then
+    die "/opt/holzcloud/holzcloud exists: this is not a fresh target; TARGET=systemd-base is the starting point"
+  fi
+  cmd_bins
+  STAGE_BIN=$(bin_path "$INSTALL_FROM") || exit 1
+
+  mkdir -p "$OUT_DIR"
+  local n0 failed unit ready bin
+  n0=$(steps_count)
+  deviation "DEVIATION[preinstalled]: the systemd-base image already holds sudo, curl, ca-certificates, jq, procps, sqlite3 and openssl; the document's Prerequisites name only sqlite3, so a step that needs another tool works here without the document saying so"
+
+  doc_play "Build" || true
+  doc_play "Transfer to the server" || true
+  doc_play "Install" || true
+  # The block holds the literal systemctl start. Under amd64 emulation it ends
+  # in the known crash (Type=simple returns before the process dies), and
+  # cmd_start then re-issues it, recognises the signature and applies the
+  # container-only drop-in (D-03, D-13).
+  doc_play "systemd Service" 1 || true
+  failed=$(steps_failed_since "$n0")
+  if [ -n "$failed" ]; then
+    say "run.sh: counted steps that failed so far:"
+    printf '%s\n' "$failed" >&2
+  fi
+
+  cmd_start
+  if dx test -e /etc/systemd/system/holzcloud.service.d/container.conf; then
+    printf '%s\n' "DEVIATION[dropin]: /etc/systemd/system/holzcloud.service.d/container.conf sets ProcSubset=all (container only; the document's unchanged start crashed, see unit-start-unchanged.txt)" >> "$OUT_DIR/deviations.txt"
+  fi
+  unit=$(dx systemctl is-active holzcloud || true)
+  [ "$unit" = active ] || die "the unit is '$unit', expected active"
+  assert_http
+
+  ready=$(dx curl -fsS --max-time 5 http://127.0.0.1:8080/readyz | dxi jq -c '{status,version,commit,integrity}') \
+    || die "/readyz did not answer for install.txt"
+  bin=$(dx /opt/holzcloud/holzcloud version) || die "holzcloud version failed"
+  {
+    echo "readyz: $ready"
+    echo "binary: $bin"
+    echo "unit: $unit"
+  } > "$OUT_DIR/install.txt"
+  cat "$OUT_DIR/install.txt"
+
+  deviation "DEVIATION[mount]: the unit's RequiresMountsFor names /opt/holzcloud/data, a plain directory on the container's root filesystem; no separate mount exists here, so that line was not exercised"
+
+  failed=$(steps_failed_since "$n0")
+  if [ -n "$failed" ]; then
+    say "run.sh: INSTALL FAILED, counted steps with a non-zero status:"
+    printf '%s\n' "$failed" >&2
+    exit 1
+  fi
+  say "INSTALL OK"
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -783,7 +1168,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install)
       "cmd_$sub"
       ;;
     mdwe-control)
