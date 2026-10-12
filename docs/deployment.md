@@ -22,29 +22,48 @@ are no external files to ship.
 
 ## Installing
 
+The exact commands, with the permissions and the checks after each step, are in
+[`deploy/DEPLOY.md`](../deploy/DEPLOY.md); that the document works as written, played
+command by command in a bare systemd container, is recorded in
+[`deploy/DEPLOY-RUN.md`](../deploy/DEPLOY-RUN.md). The shape of it:
+
 ```bash
-# 1. Copy the binary to the server
-scp holzcloud user@your-server:/opt/holzcloud/
+# 1. Copy the binary and the deploy directory to the server, through /tmp
+scp holzcloud user@your-server:/tmp/holzcloud
+scp -r deploy/ user@your-server:/tmp/deploy/
 
-# 2. Install the systemd service
-sudo cp deploy/holzcloud.service /etc/systemd/system/
-sudo systemctl enable --now holzcloud
+# 2. On the server: the service user first, then the directories, the binary
+#    and the whole deploy directory
+sudo useradd -r -s /usr/sbin/nologin holzcloud
+sudo mkdir -p /opt/holzcloud/data /opt/holzcloud/backups
+sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
+sudo cp -r /tmp/deploy /opt/holzcloud/deploy
+sudo chown -R holzcloud:holzcloud /opt/holzcloud/data /opt/holzcloud/backups
 
-# 3. Caddy for HTTPS (optional)
-sudo cp deploy/Caddyfile.example /etc/caddy/Caddyfile
+# 3. Install the systemd service
+sudo cp /tmp/deploy/holzcloud.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now holzcloud
+
+# 4. Caddy for HTTPS (optional)
+sudo cp /opt/holzcloud/deploy/Caddyfile.example /etc/caddy/Caddyfile
 # edit the domains, then: sudo systemctl reload caddy
 
-# 4. Backups
-sudo cp deploy/backup.sh /opt/holzcloud/
-crontab -e
-# 0 3 * * * /opt/holzcloud/backup.sh
+# 5. Backups: the script lives in the deploy directory, the timer runs it
+sudo cp /opt/holzcloud/deploy/holzcloud-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now holzcloud-backup.timer
 ```
+
+Updating and going back are in the same document (*Updating* and *Rolling back*):
+an update keeps the old binary as `/opt/holzcloud/holzcloud.prev` and takes a
+backup first, and a rollback after a migration restores the snapshot the service
+wrote before it migrated.
 
 | File in `deploy/` | Purpose |
 |---|---|
 | `holzcloud.service` | systemd unit with hardening (`ProtectSystem`, `NoNewPrivileges`, …) |
 | `Caddyfile.example` | Caddy reverse proxy with automatic HTTPS |
-| `backup.sh` | WAL-safe SQLite backup plus an rsync of media and templates |
+| `backup.sh`, `restore.sh` | WAL-safe SQLite backup plus an rsync of media and templates, and the way back; installed to `/opt/holzcloud/deploy` |
+| `holzcloud-backup.{service,timer}` | the unit and the daily timer that run `backup.sh` |
 | `DEPLOY.md` | step-by-step setup for a Debian/Ubuntu amd64 server |
 
 The unit also limits socket families, system calls and capabilities and sets
@@ -96,7 +115,7 @@ echo -n 'new password' | holzcloud user passwd -email admin@example.com
 
 ## Backups
 
-Back up the whole data directory; `deploy/backup.sh` does it WAL-safely. Beyond
+Back up the whole data directory; `/opt/holzcloud/deploy/backup.sh` does it WAL-safely. Beyond
 that, each website can be downloaded as a readable archive — see
 [import and export](import-export.md). The two are not the same thing: the
 database file is a backup of the installation, a bundle is one website in a form
