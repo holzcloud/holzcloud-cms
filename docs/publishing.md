@@ -26,6 +26,39 @@ having it explained.
   do is close when you click beside them. That is the price of not having a line
   of JavaScript for menus.
 
+## The admin at a glance
+
+Six places in a slim rail: start, pages, media, shop, design and settings. Each
+carries a number when something there waits for you: pages awaiting review,
+orders not yet dealt with, images without a description.
+
+**The editor.** A page is written in Markdown, with a preview of the real theme
+beside it. **+ Element** puts an image, a gallery, cards or one of the website's
+own block kinds between two paragraphs; the text so far becomes the first section
+and the element follows it.
+
+![The editor](screenshots/editor.png)
+
+**The media library.** All files of a website are in one library. Albums are
+collections in it, not a second place to keep pictures: an image can be in
+several, and a gallery can show an album instead of a hand-picked list.
+
+![The media library](screenshots/media-library.png)
+
+**Fields.** Whatever else belongs on a page of this website is defined under
+**Fields**. A field applies to pages, to posts, to both, or to exactly one of
+your own content kinds. A condition reveals a field only once another is filled
+in; a group is filled in as many times as there are rows; a reference points at
+another page of the site and follows it when it is renamed.
+
+![Fields of a website](screenshots/custom-fields.png)
+
+**Design.** It sits between "pick one of eight templates" and "maintain a
+template of your own": a handful of validated values that every built-in template
+picks up, set beside a live preview that switches between desktop and phone.
+
+**The shop** opens on what is to be done, not on a list of orders.
+
 ## Websites and domains
 
 1. **Websites** in the sidebar → create a website (name and description)
