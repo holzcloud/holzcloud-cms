@@ -20,6 +20,65 @@ Dieses Release bringt keine neue Funktion, sondern Belege und Reparaturen für d
 
 **Was 0.1.0 verspricht und was nicht.** Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) hält schriftlich fest, was dieses Release zusagt, mit dem Beleg zu jeder Zusage, und was es ausdrücklich nicht zusagt. Beta heißt hier: mit Sicherungen betreibbar, aber der Funktionsumfang ist nicht eingefroren.
 
+**Das Programm selbst ist unverändert.** Gegenüber 0.0.25 hat sich am Programm
+nichts geändert: kein Go-Code, keine Vorlage, keine Migration. Die Datenbank steht
+weiter bei Migration 60. Die Programmdatei auszutauschen ändert kein Verhalten und
+migriert nichts; es stellt nur die Versionsnummer richtig.
+
+**Was nach dem Aktualisieren von 0.0.25 zu tun ist.** Die Skripte und Units liegen
+nicht im Programm, sondern auf dem Server unter `/opt/holzcloud/deploy`. Das
+Installationskapitel von 0.0.25 hat nur `backup.sh` kopiert, nach
+`/opt/holzcloud/backup.sh`, während die Backup-Unit
+`/opt/holzcloud/deploy/backup.sh` aufruft, und `restore.sh` wurde nie installiert.
+Kopieren Sie deshalb das ganze Verzeichnis `deploy` dieses Releases nach
+`/opt/holzcloud/deploy`, machen Sie `backup.sh` und `restore.sh` ausführbar und
+stellen Sie sicher, dass `rsync` installiert ist, denn beide Skripte rufen es auf.
+Die genauen Befehle stehen in
+[deploy/DEPLOY.md](https://github.com/holzcloud/holzcloud-cms/blob/main/deploy/DEPLOY.md),
+im Kapitel „Install“ und im Kapitel „Backups“; sie werden hier nicht noch einmal
+abgetippt. Machen Sie danach einmal von Hand eine Sicherung und spielen Sie sie
+einmal an einer anderen Stelle als in der Produktion zurück.
+
+**Der Dienst läuft unter echtem systemd.** Die gehärtete Unit wurde unter systemd 252
+gestartet, und die Website antwortete; auf der emulierten amd64-Plattform brauchte
+der erste Start ein Drop-in, das es nur im Container gibt. `MemoryDenyWriteExecute=true`
+bleibt in der Unit: Die fünf Plugins laufen darunter auf dem Interpreter von wazero,
+gemessen allerdings nur auf nativem arm64 und nicht auf amd64. Die Unit hat sieben
+Kommentarzeilen mehr und keine geänderte Anweisung.
+
+**Installieren, Aktualisieren und Zurückrollen sind durchgespielt.** `deploy/DEPLOY.md`
+wurde Befehl für Befehl in einem systemd-Container gespielt (Debian 12, amd64
+emuliert): eine frische Installation, ein Update über zwei Migrationen und das
+Zurückrollen mit und ohne Sicherung der Datenbank. Dabei wurden zehn Fehler im
+Dokument gefunden, und alle sind behoben. Das Zurückrollen ist neu beschrieben,
+und seine Grenze steht am Anfang des Abschnitts: Ein älteres Programm darf nicht
+gegen eine Datenbank gestartet werden, die schon migriert wurde.
+
+**Sichern und Wiederherstellen sind gemessen, und die Skripte sind repariert.** Eine
+Sicherung, die der Dienst des nächtlichen Timers angelegt hatte, wurde mit
+`restore.sh` in einen anderen, leeren Container zurückgespielt: Seiten, Medien,
+Anmeldung und Plugins waren wieder da. Das Spiel zeigte, dass die Sicherung
+unvollständig gewesen war: `backup.sh` aus 0.0.25 kopierte nur die Datenbank, den
+CSRF-Schlüssel, `media` und `templates`; jetzt gehören auch `plugins`, `sprachen`
+und `marke` dazu. `restore.sh` verweigert ein Verzeichnis ohne `MANIFEST` und setzt
+auf der zurückgespielten Datenbank den Modus 600. Die Zeiten (etwa eine Sekunde zum
+Sichern, etwa acht Sekunden zum Wiederherstellen) stammen aus der Emulation und sind
+kein Versprechen für einen Server. Was keine Sicherung enthält, das Sie von Hand
+wieder aufbauen müssen, steht in
+[docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md):
+die Unit-Datei mit ihren Drop-ins, die Umgebungsdateien, `HOLZCLOUD_SECRET_KEY` mit
+den Zugangsdaten für Zahlung und Mail, die Proxy-Konfiguration samt Zertifikatsstand
+und die Sicherungen vor dem Update im Datenverzeichnis.
+
+**Was nicht gezeigt wurde.** Nicht gezeigt wurden das echte Zeitfenster um 03:15,
+`Persistent=true` mit der zufälligen Verzögerung, die Kopie an ein anderes Ziel
+über `REMOTE_TARGET`, das Aufräumen alter Sicherungen, ein gleichzeitig
+gezogener, stimmiger Stand von Datenbank und Dateien, eine Wiederherstellung auf
+einem echten Server, Zeiten auf nativem amd64, eine Sicherung eines älteren
+Programms, die von einem neueren zurückgespielt wird, und der Schutz vor
+Bitfäulnis in einer vollständigen Sicherung. Die ganze Liste steht auf der Seite
+[docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md).
+
 ## 0.0.25 — 2026-10-11
 
 Menüeinträge lassen sich bearbeiten, und die Eintragsliste ist auf dem Handy lesbar.
