@@ -3,17 +3,19 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
 current_phase: 22
-current_phase_name: Backup and restore, measured
-status: executing
+current_phase_name: Repository tidy and beta criteria
+status: planning
 stopped_at: Completed 22-05-PLAN.md
-last_updated: "2026-10-14T11:13:05.910Z"
+last_updated: "2026-10-14T11:20:03.822Z"
 last_activity: 2026-10-14
-state_head: cc2dae6489f1cca7dfdf17bd8f7248422528b628
+last_activity_desc: Phase 22 complete, transitioned to Phase 23
+state_head: d642e7f671e9a14d5083cf02fbca5142ef23de98
 progress:
   total_phases: 0
-  completed_phases: 21
+  completed_phases: 22
   total_plans: 5
   completed_plans: 0
+  percent: 96
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -51,7 +53,7 @@ close and are history, not status.
 
 ### Current Position (v1.10, geschrieben beim Abschluss von Phase 10 — die geltende steht unter `## Current Position`)
 
-Phase: 22 — Backup and restore, measured
+Phase: 23 — Repository tidy and beta criteria
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
 ihre Pläne gefahren: 42 von 42.
 
@@ -84,7 +86,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Executing Phase 22
+Status: Ready to plan
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -139,7 +141,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-14
+Last activity: 2026-10-14 — Phase 22 complete, transitioned to Phase 23
 
 ### Milestone Map
 
@@ -491,7 +493,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: 22 (Backup and restore, measured) — EXECUTING
-Plan: 1 of 5
+Plan: Not started
 Status: Executing Phase 22
 Last activity: 2026-10-14 — Phase 22 execution started
 

@@ -449,7 +449,7 @@ Plans:
   2. `restore.sh` onto an empty system yields working pages, media and login; time and size recorded.
   3. One run through `holzcloud-backup.timer` is observed.
 
-**Plans**: 5/5 plans executed in 5 waves
+**Plans**: 5/5 plans complete in 5 waves
 
 Plans:
 **Wave 1**
@@ -529,7 +529,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
 | 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
 | 21. Deploy, update, rollback | v0.1.0 | 6/6 | Complete    | 2026-10-12 |
-| 22. Backup and restore, measured | v0.1.0 | 5/5 | In Progress | — |
+| 22. Backup and restore, measured | v0.1.0 | 5/5 | Complete    | 2026-10-14 |
 | 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
 
 ---
