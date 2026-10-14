@@ -14,6 +14,12 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.1.0 — 2026-10-14
+
+Dieses Release bringt keine neue Funktion, sondern Belege und Reparaturen für den Betrieb: Dienst, Aktualisieren, Zurückrollen, Sichern und Wiederherstellen sind durchgespielt, und die Beta-Kriterien stehen schriftlich.
+
+**Was 0.1.0 verspricht und was nicht.** Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) hält schriftlich fest, was dieses Release zusagt, mit dem Beleg zu jeder Zusage, und was es ausdrücklich nicht zusagt. Beta heißt hier: mit Sicherungen betreibbar, aber der Funktionsumfang ist nicht eingefroren.
+
 ## 0.0.25 — 2026-10-11
 
 Menüeinträge lassen sich bearbeiten, und die Eintragsliste ist auf dem Handy lesbar.
