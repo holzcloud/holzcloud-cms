@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 22
 current_phase_name: Backup and restore, measured
 status: executing
-stopped_at: Completed 22-02-PLAN.md
-last_updated: "2026-10-14T10:30:49.256Z"
+stopped_at: Completed 22-03-PLAN.md
+last_updated: "2026-10-14T10:46:14.822Z"
 last_activity: 2026-10-14
-state_head: 9e5683fd329a7ec020fea73b4726c58c54ca00d2
+state_head: 02364738dcd1dba4e8ac3838c39bd7478f1b1154
 progress:
   total_phases: 0
   completed_phases: 21
@@ -336,6 +336,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 21 P06 | 8 min | 2 tasks | 3 files |
 | Phase 22 P01 | 22 min | 2 tasks | 1 files |
 | Phase 22 P02 | 13 min | 3 tasks | 2 files |
+| Phase 22 P03 | 14 min | 2 tasks | 1 files |
 
 ### Session Continuity
 
@@ -364,8 +365,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-14T10:30:49.232Z
-**Stopped at:** Completed 22-02-PLAN.md
+**Last session:** 2026-10-14T10:46:14.796Z
+**Stopped at:** Completed 22-03-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -466,6 +467,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 22]: 22-01: restore.sh leaves holzcloud.sqlite mode 644 (live file is 600) inside a 700 data directory; recorded as INFO, a finding for 22-04
 - [Phase 22]: 22-02: backup-timer is judged from timer.txt alone (BAK-03); a BAD in the timer's own backup is a separate finding and exits 1
 - [Phase 22]: 22-02: the bulk data point reuses the source container in OUT_DIR-bulk with a second fresh target; on_exit removes an explicit list of container names so a die inside on_target cannot leave the source behind
+- [Phase 22]: D-10: no new MANIFEST field or checksum file; restore.sh refuses a directory without MANIFEST (written last by backup.sh), which covers an interrupted backup and not bit rot in a complete one
+- [Phase 22]: Pass 1 on the unchanged scripts: eleven findings in 22-FINDINGS.md; backup.sh and restore.sh lose plugins/, sprachen/ and marke/; a second kept chain (amd64-bak-inv3) answered A2, A3, D-10 and stale wal/shm without touching the pass-1 directories
 
 ## Accumulated Context
 
