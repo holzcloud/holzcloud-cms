@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
-current_phase: 22
-current_phase_name: Repository tidy and beta criteria
-status: planning
+current_phase: 23
+current_phase_name: repository-tidy-and-beta-criteria
+status: executing
 stopped_at: Phase 23 context gathered
-last_updated: "2026-10-14T11:22:34.019Z"
+last_updated: "2026-10-14T12:00:44.721Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 22 complete, transitioned to Phase 23
-state_head: 16cf80f2ec1f0b12835caa700ffae82f2f32d3fd
+state_head: bfccd0f68fe35d6e107dff852199bb7e9e4494fe
 progress:
   total_phases: 0
   completed_phases: 22
-  total_plans: 5
+  total_plans: 4
   completed_plans: 0
 ---
 
@@ -85,7 +85,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Ready to plan
+Status: Ready to execute
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -491,9 +491,9 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: 22 (Backup and restore, measured) — EXECUTING
+Phase: 23 (repository-tidy-and-beta-criteria) — READY TO EXECUTE
 Plan: Not started
-Status: Executing Phase 22
+Status: Ready to execute
 Last activity: 2026-10-14 — Phase 22 execution started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
