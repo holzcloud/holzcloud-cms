@@ -65,3 +65,18 @@ Pages on holzcloud.ch outside this repository may still say Alpha in their statu
 ## What this phase did not do
 
 No tag, no push, no deletion of any branch, no change to a workflow, to the product's strings or to the Phase 22 evidence set.
+
+## State at the end of the phase
+
+Run on 2026-10-14 against the final state of `main`.
+
+- `go run ./tools/i18n`: `0 open, 0 orphaned` for de, es, fr and it (2056 strings each); `internal/i18n/locales` is byte-unchanged.
+- `go run ./tools/themewords -check`: every shipped theme's catalogue matches tools/themewords/words.json.
+- `go run ./tools/english`: no German in the Go source outside the catalogues.
+- `go build ./cmd/holzcloud`, the changelog tests (`.` and `internal/changelog`), the admin changelog tests and the deploy-document tests (`cmd/holzcloud`): pass.
+- `go test -timeout 20m ./... -count=1`: every package passes, no FAIL, no panic.
+- The six evidence-set files (`deploy/backup.sh`, `deploy/restore.sh`, `deploy/DEPLOY.md`, `deploy/holzcloud-backup.service`, `deploy/holzcloud-backup.timer`, `deploy/test/run.sh`) equal commit bf74496.
+- No Go file, `go.mod`, `go.sum`, catalogue or workflow differs from commit 9db196b; nothing outside .planning, deploy, docs, CHANGELOG.md, README.md and .gitignore differs from v0.0.25.
+- release.yml's two snippets, run on the final `CHANGELOG.md`, yield version 0.1.0 and a non-empty notes section with the upgrade note, `/opt/holzcloud/deploy`, `rsync` and both absolute links.
+- `docs/beta.md`: every cited word is found byte for byte in its record. `docs/branches.md`: equals git after `git fetch origin --prune` (10 rows, tips, counts and verdicts).
+- The tag v0.1.0 exists neither locally nor on the remote, and nothing was pushed by this phase.
