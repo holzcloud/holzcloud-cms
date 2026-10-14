@@ -401,6 +401,7 @@ doc_play() {
 CLEANUP_DOWN=0
 MDWE_DROPIN=0
 BINS_TMP=""
+PHASE22_RC=0
 on_exit() {
   local rc=$?
   trap - EXIT
@@ -2556,6 +2557,212 @@ on_target() {
 # key_line TEXT: a KEY: value line of a result file, to CHECK_OUT and the screen.
 key_line() { printf '%s\n' "$*" | tee -a "$CHECK_OUT"; }
 
+check_info() { printf 'INFO %s\n' "$*" | tee -a "$CHECK_OUT"; }
+
+# What the whole-directory comparison leaves out, in ONE place: PATTERN|REASON.
+# An exclusion is a decision with a reason, never a convenience; every entry is
+# written to the verify file as an INFO line. Anything else that is in the data
+# directory and not in the backup is a finding (a BAD line), which is the point of
+# comparing the whole directory and not only the directories the script copies:
+# a comparison limited to those would pass while the restore is broken (D-07).
+# (No readiness probe file is excluded: /readyz asks statfs and writes nothing
+# into the data directory, so such a file would be a finding too.)
+TREE_EXCLUDES='holzcloud.sqlite*|the SQLite family: the database is compared by integrity and by row counts, because a snapshot is a different file from the live one by design, and the -wal and -shm files are working files of the live one
+pre-upgrade-*.sqlite*|old-schema copies the service writes before a migration, deliberately not part of a backup
+MANIFEST|only a backup has one; it names the version and the host that made it'
+
+# tree_excluded_info: the exclusions as INFO lines of CHECK_OUT.
+tree_excluded_info() {
+  local pat reason
+  while IFS='|' read -r pat reason; do
+    if [ -n "$pat" ]; then check_info "EXCLUDED $pat: $reason"; fi
+  done <<< "$TREE_EXCLUDES"
+}
+
+# tree_hash DIR: one line per regular file below DIR, "sha256  ./relative/path",
+# sorted by path, as root in the current container (GNU find, sort -z and xargs
+# -0); the output is for a host file. The exclusions are TREE_EXCLUDES.
+tree_hash() {
+  local dir=$1 args="" pat
+  while IFS='|' read -r pat _; do
+    if [ -n "$pat" ]; then args="$args ! -name '$pat'"; fi
+  done <<< "$TREE_EXCLUDES"
+  dx bash -c "cd \"\$1\" && find . -type f$args -print0 | sort -z | xargs -0 -r sha256sum" _ "$dir"
+}
+
+# tree_compare LISTA LISTB LABEL: two tree_hash files on the host, compared with
+# POSIX awk and sort only. PASS "tree LABEL: N files equal" or one BAD per path.
+# The first list is the reference: it must not be empty and must hold a path below
+# ./media/, because an empty media directory would pass a listing (D-07, T-22-03).
+tree_compare() {
+  local a=$1 b=$2 label=$3 res n d line
+  if [ ! -s "$a" ]; then
+    check_bad "tree $label: the reference list $(basename "$a") is empty, which proves nothing"
+  elif ! grep -q ' \./media/' "$a"; then
+    check_bad "tree $label: the reference list $(basename "$a") has no file below ./media/, so an empty media directory would pass"
+  fi
+  res=$(awk -v fa="$a" '
+    FILENAME == fa { A[substr($0, 67)] = substr($0, 1, 64); next }
+    { B[substr($0, 67)] = substr($0, 1, 64) }
+    END {
+      for (p in A) {
+        if (!(p in B)) print "D only in A: " p
+        else if (A[p] != B[p]) print "D differs: " p
+        else n++
+      }
+      for (p in B) if (!(p in A)) print "D only in B: " p
+      print "N " n + 0
+    }' "$a" "$b")
+  n=$(printf '%s\n' "$res" | sed -n 's/^N //p')
+  d=$(printf '%s\n' "$res" | sed -n 's/^D //p' | sort)
+  if [ -n "$d" ]; then
+    while IFS= read -r line; do
+      check_bad "tree $label: $line"
+    done <<< "$d"
+  elif [ -s "$a" ]; then
+    check_pass "tree $label: ${n:-0} files equal"
+  fi
+}
+
+# tree_selftest LIST: a comparison that cannot fail proves nothing (T-22-03). A
+# copy of the list loses a line and has one hash changed, and an empty list is
+# compared too, and so is a list with nothing below ./media/; each must produce
+# its BAD line. The expected BAD lines go to
+# OUT_DIR/selftest-tree.txt, never to the verify file, and the file ends with
+# SELFTEST OK. Dies when a tampered input was accepted.
+tree_selftest() {
+  local list=$1 st="$OUT_DIR/selftest-tree.txt" tampered="$OUT_DIR/.tree-tampered.txt" empty="$OUT_DIR/.tree-empty.txt" nomedia="$OUT_DIR/.tree-nomedia.txt"
+  local keep_out=$CHECK_OUT keep_bads=$CHECK_BADS n b0
+  n=$(awk 'END { print NR }' "$list")
+  [ "${n:-0}" -ge 2 ] || die "tree_selftest: $list has ${n:-0} line(s); at least two are needed to alter one"
+  awk -v n="$n" 'NR == 1 { next } NR == n { $0 = "0000" substr($0, 5) } { print }' "$list" > "$tampered"
+  : > "$empty"
+  printf '%s\n' "# The BAD lines below come from deliberately altered copies of $(basename "$list"); they are expected and are no findings" > "$st"
+  CHECK_OUT=$st
+  b0=$CHECK_BADS
+  tree_compare "$list" "$tampered" selftest-altered > /dev/null
+  if [ "$CHECK_BADS" -le "$b0" ] || ! grep -q '^BAD .*only in A' "$st" || ! grep -q '^BAD .*differs' "$st"; then
+    CHECK_OUT=$keep_out
+    die "tree_selftest: a list with a missing line and a changed hash was NOT reported as only-in-A and differs; the comparison cannot fail, see $st"
+  fi
+  tree_compare "$empty" "$list" selftest-empty > /dev/null
+  if ! grep -q 'selftest-empty: the reference list .* is empty' "$st"; then
+    CHECK_OUT=$keep_out
+    die "tree_selftest: an empty reference list was NOT reported, see $st"
+  fi
+  # The reference list of an empty media directory: no path below ./media/.
+  grep -v ' \./media/' "$list" > "$nomedia" || true
+  tree_compare "$nomedia" "$list" selftest-nomedia > /dev/null
+  if ! grep -q 'selftest-nomedia: the reference list .* has no file below ./media/' "$st"; then
+    CHECK_OUT=$keep_out
+    die "tree_selftest: a reference list without any file below ./media/ was NOT reported, see $st"
+  fi
+  echo "SELFTEST OK" >> "$st"
+  rm -f "$tampered" "$empty" "$nomedia"
+  CHECK_OUT=$keep_out
+  CHECK_BADS=$keep_bads
+  say "tree self-test: an altered list and an empty list are reported (selftest-tree.txt)"
+}
+
+# Runs INSIDE the container as root, one argument: a database file. One line per
+# table of sqlite_master, "table NAME N": counts only, never a row of any table,
+# the users, sessions and key tables included. The file is opened through the URI
+# with immutable=1: the VACUUM INTO file is WAL-mode and must not grow -wal and
+# -shm files next to it.
+read -r -d '' ROWS_SH <<'ROWS_EOF' || true
+set -u
+u="file:$1?immutable=1"
+sqlite3 "$u" "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name" | while IFS= read -r t; do
+  n=$(sqlite3 "$u" "select count(*) from \"$t\"" 2>/dev/null) || n="?"
+  echo "table $t $n"
+done
+ROWS_EOF
+
+# rows_compare DB STATEFILE LABEL: the row counts of the database DB (in the
+# current container) against the "table NAME N" lines of a state file. PASS "rows
+# T", INFO for the volatile tables of is_volatile, BAD for a difference and for a
+# table that exists on one side only. The raw counts go to OUT_DIR/rows-LABEL.txt.
+rows_compare() {
+  local db=$1 sf=$2 label=$3 rf="$OUT_DIR/rows-$3.txt" t n sn
+  printf '%s\n' "$ROWS_SH" | dxi bash -s -- "$db" > "$rf" || check_bad "rows: counting the tables of $db failed"
+  if ! grep -q '^table ' "$rf"; then
+    check_bad "rows: no table line for $db, see $rf"
+    return 0
+  fi
+  while IFS=' ' read -r _ t n; do
+    [ -n "$t" ] || continue
+    sn=$(st_count "$sf" "$t")
+    if [ -z "$sn" ]; then
+      check_bad "rows $t: the table exists in $label ($n rows) and not in $(basename "$sf")"
+    elif is_volatile "$t"; then
+      check_info "volatile $t $label=$n source=$sn"
+    elif [ "$n" = "?" ] || [ "$sn" = "?" ]; then
+      check_bad "rows $t: a count could not be read ($label=$n source=$sn)"
+    elif [ "$n" = "$sn" ]; then
+      check_pass "rows $t"
+    else
+      check_bad "rows $t: $label=$n source=$sn"
+    fi
+  done < "$rf"
+  while IFS=' ' read -r _ t sn; do
+    [ -n "$t" ] || continue
+    if ! grep -q "^table $t " "$rf"; then
+      check_bad "rows $t: the table exists in $(basename "$sf") ($sn rows) and not in $label"
+    fi
+  done <<< "$(grep '^table ' "$sf" || true)"
+}
+
+# Runs INSIDE the container as root, one argument: a directory. Raw numbers for
+# dir_sizes. du -sb counts apparent bytes and each directory as 4096; the media
+# figure is the sum of the sizes of the regular files below media/, so that a
+# directory entry does not count as data.
+read -r -d '' SIZES_SH <<'SIZES_EOF' || true
+d=$1
+echo "total $(du -sb "$d" | cut -f1)"
+echo "human $(du -sh "$d" | cut -f1)"
+echo "db $(stat -c %s "$d/holzcloud.sqlite" 2>/dev/null || echo 0)"
+if [ -d "$d/media" ]; then
+  echo "media $(find "$d/media" -type f -printf '%s\n' | awk '{ s += $1 } END { print s + 0 }')"
+  echo "mediafiles $(find "$d/media" -type f | wc -l)"
+else
+  echo "media 0"
+  echo "mediafiles 0"
+fi
+echo "files $(find "$d" -type f | wc -l)"
+SIZES_EOF
+
+# dir_sizes DIR TOTALKEY SIZEKEY: KEY: value lines on stdout for a directory of the
+# current container: TOTALKEY (du -sb), SIZEKEY (du -sh, skipped when empty),
+# DB-BYTES, MEDIA-BYTES, FILES and MEDIA-FILES; then HOST-ARCH (docker info) and
+# CONTAINER-ARCH (uname -m), so that a record can say these are emulation numbers
+# (D-14, D-15).
+dir_sizes() {
+  local d=$1 tk=$2 sk=$3 raw
+  raw=$(printf '%s\n' "$SIZES_SH" | dxi bash -s -- "$d") || raw=""
+  printf '%s: %s\n' "$tk" "$(sed -n 's/^total //p' <<< "$raw")"
+  if [ -n "$sk" ]; then printf '%s: %s\n' "$sk" "$(sed -n 's/^human //p' <<< "$raw")"; fi
+  printf 'DB-BYTES: %s\n' "$(sed -n 's/^db //p' <<< "$raw")"
+  printf 'MEDIA-BYTES: %s\n' "$(sed -n 's/^media //p' <<< "$raw")"
+  printf 'FILES: %s\n' "$(sed -n 's/^files //p' <<< "$raw")"
+  printf 'MEDIA-FILES: %s\n' "$(sed -n 's/^mediafiles //p' <<< "$raw")"
+  printf 'HOST-ARCH: %s\n' "$(docker info --format '{{.Architecture}}')"
+  printf 'CONTAINER-ARCH: %s\n' "$(dx uname -m | tr -d '\r')"
+}
+
+# media_served: the status and the sha256 of the media file the first row of the
+# media table names (the row STATE_SH reads), fetched over HTTP as test.local. For
+# comparison before and after a restore, not an assertion by itself.
+media_served() {
+  local row
+  row=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite \
+    "select website_id || '/' || filename from media order by id limit 1") || return 1
+  if [ -z "$row" ]; then
+    echo "none"
+    return 0
+  fi
+  dx bash -c 'f=$(mktemp); c=$(curl -s -o "$f" -w "%{http_code}" -H "Host: test.local" "http://127.0.0.1:8080/media/$1"); echo "HTTP $c $(sha256sum < "$f" | cut -d" " -f1)"; rm -f "$f"' _ "$row"
+}
+
 # backup_verify DIR LABEL: what is asserted about a backup directory, in the
 # current container. Results go to OUT_DIR/verify-LABEL.txt as PASS, INFO and BAD
 # lines; the function returns 1 when any BAD line was written, after all were.
@@ -2602,6 +2809,56 @@ exit "$rc"' _ "$dir") && crc=0 || crc=$?
     check_pass "integrity sqlite3 integrity_check: ok"
   else
     check_bad "integrity sqlite3 integrity_check: '$(printf '%s' "$got" | tr '\n' ' ')'"
+  fi
+
+  # The MANIFEST names what the backup came from.
+  local manifest k v kf="$OUT_DIR/$label.txt" om ms
+  manifest=$(dx cat "$dir/MANIFEST" 2>/dev/null || true)
+  for k in timestamp version data_dir host; do
+    v=$(printf '%s\n' "$manifest" | sed -n "s/^$k=//p" | head -n 1)
+    if [ -n "$v" ]; then
+      check_pass "MANIFEST $k=$v"
+    else
+      check_bad "MANIFEST has no $k= line"
+    fi
+  done
+
+  # The directory holds password hashes and the CSRF key.
+  om=$(dx stat -c '%U %a' "$dir" | tr -d '\r') || om="?"
+  echo "DIR-OWNER-MODE: $om" >> "$kf"
+  if [ "$om" = "holzcloud 700" ]; then
+    check_pass "owner and mode of the backup directory: $om"
+  else
+    check_bad "owner and mode of the backup directory: '$om', expected 'holzcloud 700' (it holds password hashes and the CSRF key)"
+  fi
+
+  # Content, by comparison and not by listing: the sha256 of every file of the
+  # source data directory against the backup directory.
+  tree_excluded_info
+  tree_hash /opt/holzcloud/data > "$OUT_DIR/tree-src-$label.txt" || check_bad "tree: hashing /opt/holzcloud/data failed"
+  tree_hash "$dir" > "$OUT_DIR/tree-$label.txt" || check_bad "tree: hashing $dir failed"
+  tree_compare "$OUT_DIR/tree-src-$label.txt" "$OUT_DIR/tree-$label.txt" "src-$label"
+
+  # Rows: every table of the backup database against the source state captured
+  # just before the backup.
+  if [ -f "$OUT_DIR/state-src.txt" ]; then
+    rows_compare "$dir/holzcloud.sqlite" "$OUT_DIR/state-src.txt" "$label"
+  else
+    check_bad "rows: no $OUT_DIR/state-src.txt to compare the backup database with"
+  fi
+
+  tree_selftest "$OUT_DIR/tree-src-$label.txt"
+
+  # Sizes, counts and the architecture, for the record.
+  dir_sizes "$dir" BYTES SIZE >> "$kf"
+  ms=$(media_served) || ms="error"
+  echo "MEDIA-SERVED: $ms" >> "$kf"
+  if [ "${ms#HTTP 200 }" = "$ms" ]; then
+    check_info "MEDIA-SERVED is '$ms': the source does not serve its media file"
+  elif [ "${ms#HTTP 200 }" = "$(dx sha256sum /tmp/hc-upload.jpg 2>/dev/null | cut -d' ' -f1)" ]; then
+    check_info "MEDIA-SERVED equals the staged source image (/tmp/hc-upload.jpg)"
+  else
+    check_info "MEDIA-SERVED differs from the staged source image (/tmp/hc-upload.jpg)"
   fi
 
   [ "$CHECK_BADS" -eq 0 ]
@@ -2805,12 +3062,183 @@ restore_into() {
     check_bad "setup form after the restore: expected 'HTTP 404 -', got '$after'"
   fi
 
+  restore_proof "$dir"
+
   leak_check
   if [ "$CHECK_BADS" -gt 0 ]; then
     say "run.sh: RESTORE FAILED, $CHECK_BADS assertion(s), see restore.txt"
     return 1
   fi
   say "RESTORE OK"
+}
+
+# perm_check PATH WANT: the owner:group and, when WANT has a second word, the octal
+# mode of PATH in the current container, as a PASS or a BAD line of CHECK_OUT.
+perm_check() {
+  local path=$1 want=$2 got cmp
+  got=$(dx stat -c '%U:%G %a' "$path" 2>/dev/null | tr -d '\r') || got="?"
+  cmp=$got
+  case "$want" in *" "*) ;; *) cmp=${got%% *} ;; esac
+  if [ "$cmp" = "$want" ]; then
+    check_pass "owner and mode of $path: $got"
+  else
+    check_bad "owner and mode of $path: '$got', expected '$want'"
+  fi
+}
+
+# restore_proof BACKUP_DIR: everything after the restore that makes it a proof and
+# not a path, in the target's context (on_target): the measurements, the set-aside
+# directory, ownership, the whole-directory comparison, the media file over HTTP,
+# the marker page, the state of the source against the state of the target, and
+# last of all `check`, which restarts the unit. Every failure is a BAD line.
+restore_proof() {
+  local dir=$1 tl kv asides na ac media_row ms want mcode mbody np crc=0 p c b
+  local back made hr f unitf dropins envf mf
+
+  # --- time: the split from the per-line timestamps of restore-run.txt, the
+  # container's own clock (D-14, D-15).
+  tl=$(awk '
+    $2 == "Verifying" && $3 == "snapshot..." { v = $1 }
+    $2 == "Stopping" { s = $1 }
+    $2 == "Starting" { t = $1 }
+    $2 == "===" && $3 == "Restore" && $4 == "complete" { c = $1 }
+    $1 == "WALL" { w0 = $2; w1 = $3 }
+    END {
+      if (v != "" && s != "") printf "VERIFY-S: %.3f\n", s - v; else print "VERIFY-S: ?"
+      if (s != "" && t != "") printf "STOP-MOVE-COPY-S: %.3f\n", t - s; else print "STOP-MOVE-COPY-S: ?"
+      if (t != "" && c != "") printf "START-READY-S: %.3f\n", c - t; else print "START-READY-S: ?"
+      if (w0 != "" && w1 != "") printf "WALL-S: %.3f\n", w1 - w0; else print "WALL-S: ?"
+    }' "$OUT_DIR/restore-run.txt" 2>/dev/null) || tl=""
+  while IFS= read -r kv; do
+    [ -z "$kv" ] || key_line "$kv"
+  done <<< "$tl"
+  check_info "the readiness loop of restore.sh polls once a second, so START-READY-S has a resolution of about one second; the times come from the amd64 emulation named in HOST-ARCH and CONTAINER-ARCH, not from a real server"
+
+  # --- size: the restored data directory and the backup it came from.
+  while IFS= read -r kv; do
+    [ -z "$kv" ] || key_line "$kv"
+  done <<< "$(dir_sizes /opt/holzcloud/data DATA-BYTES "")"
+  key_line "BACKUP-BYTES: $(dx du -sb "$dir" | cut -f1)"
+
+  # --- the set-aside directory: the empty database of the first start.
+  asides=$(dx bash -c 'ls -1d /opt/holzcloud/data.before-restore-* 2>/dev/null' | tr -d '\r' || true)
+  na=$(printf '%s\n' "$asides" | grep -c . || true)
+  if [ "$na" -eq 1 ]; then
+    check_pass "set-aside: exactly one $asides"
+    ac=$(dx sqlite3 "file:$asides/holzcloud.sqlite?immutable=1" "select count(*) from users" 2>&1) || ac="unreadable"
+    if [ "$ac" = 0 ]; then
+      check_pass "set-aside database is the empty one of the first start (users: 0)"
+    else
+      check_bad "set-aside database: users count '$ac', the empty first-start database has 0"
+    fi
+  else
+    check_bad "set-aside: $na directories match /opt/holzcloud/data.before-restore-*, exactly one is expected"
+  fi
+  check_info "restore.sh moves the whole data directory aside, so the -wal and -shm files of the replaced database went with it; none can reach the restored file, and the proof is that the restored database passes the row comparison and the integrity verdict"
+
+  # --- owner and mode of what was restored.
+  perm_check /opt/holzcloud/data "holzcloud:holzcloud 700"
+  perm_check /opt/holzcloud/data/holzcloud.sqlite "holzcloud:holzcloud"
+  perm_check /opt/holzcloud/data/csrf.key "holzcloud:holzcloud 600"
+  mf=$(dx bash -c 'find /opt/holzcloud/data/media -type f | head -n 1' | tr -d '\r') || mf=""
+  if [ -n "$mf" ]; then
+    perm_check "$mf" "holzcloud:holzcloud"
+  else
+    check_bad "no media file below /opt/holzcloud/data/media after the restore"
+  fi
+
+  # --- content: the whole restored data directory against the source's and the
+  # backup's lists (made in the source container by `backup`).
+  tree_excluded_info
+  tree_hash /opt/holzcloud/data > "$OUT_DIR/tree-restored.txt" || check_bad "tree: hashing the restored /opt/holzcloud/data failed"
+  if [ -f "$SRC_OUT_DIR/tree-src-backup.txt" ]; then
+    tree_compare "$SRC_OUT_DIR/tree-src-backup.txt" "$OUT_DIR/tree-restored.txt" src-restored
+  else
+    check_bad "tree: $SRC_OUT_DIR/tree-src-backup.txt is missing; run 'run.sh backup' in the source first"
+  fi
+  if [ -f "$SRC_OUT_DIR/tree-backup.txt" ]; then
+    tree_compare "$SRC_OUT_DIR/tree-backup.txt" "$OUT_DIR/tree-restored.txt" backup-restored
+  else
+    check_bad "tree: $SRC_OUT_DIR/tree-backup.txt is missing; run 'run.sh backup' in the source first"
+  fi
+
+  # --- the media file over HTTP has the hash it had before the backup.
+  ms=$(media_served) || ms="error"
+  key_line "MEDIA-SERVED: $ms"
+  want=$(sed -n 's/^MEDIA-SERVED: //p' "$SRC_OUT_DIR/backup.txt" 2>/dev/null | head -n 1)
+  if [ -n "$want" ] && [ "$ms" = "$want" ] && [ "${ms#HTTP 200 }" != "$ms" ]; then
+    check_pass "media served over HTTP: same status and sha256 as in the source ($ms)"
+  else
+    check_bad "media served over HTTP: '$ms' in the target, '$want' in the source"
+  fi
+
+  # --- the marker page, written after the update and carried by the backup.
+  mcode=$(http_code /after-update) || mcode=error
+  mbody=$(http_body /after-update) || mbody=""
+  if [ "$mcode" = 200 ] && grep -q 'Written after the update' <<< "$mbody"; then
+    check_pass "marker page: GET /after-update answers 200 with its sentence"
+  else
+    check_bad "marker page: GET /after-update answered $mcode (200 with the sentence 'Written after the update' expected)"
+  fi
+
+  # --- state of the source against state of the target, and the proof that the
+  # comparison fails when it is altered.
+  capture_state tgt
+  if [ -f "$SRC_OUT_DIR/state-src.txt" ]; then
+    compare_states "$SRC_OUT_DIR/state-src.txt" "$OUT_DIR/state-tgt.txt" "$OUT_DIR/compare-src-tgt.txt" || crc=1
+    p=$(grep -c '^PASS' "$OUT_DIR/compare-src-tgt.txt" || true)
+    b=$(grep -c '^BAD' "$OUT_DIR/compare-src-tgt.txt" || true)
+    if [ "$crc" -eq 0 ]; then
+      check_pass "state comparison source against target: $p pass, $b bad (compare-src-tgt.txt)"
+    else
+      check_bad "state comparison source against target: $p pass, $b bad, see compare-src-tgt.txt; the BAD lines are: $(grep '^BAD' "$OUT_DIR/compare-src-tgt.txt" | sed 's/^BAD *//' | tr '\n' ';' | cut -c1-400)"
+    fi
+    compare_selftest "$SRC_OUT_DIR/state-src.txt" "$OUT_DIR/state-tgt.txt"
+    # restore.sh copies the database as root under its own umask, so the mode may
+    # differ from the 600 the service gave the live file; the 700 data directory
+    # is what keeps it private. Recorded, not asserted (a finding for the script).
+    check_info "owner and mode of holzcloud.sqlite: source '$(st_get "$SRC_OUT_DIR/state-src.txt" owner)', restored '$(st_get "$OUT_DIR/state-tgt.txt" owner)' (the data directory is $(dx stat -c '%a' /opt/holzcloud/data | tr -d '\r'))"
+  else
+    check_bad "state: $SRC_OUT_DIR/state-src.txt is missing; run 'run.sh backup' in the source first"
+  fi
+
+  # --- what comes back from the backup and what the box got from elsewhere,
+  # derived from the machine, not typed.
+  back=$(dx bash -c 'for e in $(ls -1A "$1"); do if [ -e "$2/$e" ]; then echo "$e"; fi; done' _ "$dir" /opt/holzcloud/data | tr '\r\n' '  ' | sed 's/ *$//')
+  made=$(dx bash -c 'for e in $(ls -1A "$2"); do if [ ! -e "$1/$e" ]; then echo "$e"; fi; done' _ "$dir" /opt/holzcloud/data | tr '\r\n' '  ' | sed 's/ *$//')
+  key_line "COMES-BACK: $back (the top-level entries of the backup directory that are in the restored data directory)"
+  check_info "in the restored data directory and not from the backup, made by the service's own start: ${made:-nothing}"
+  unitf=$(dx systemctl show -p FragmentPath --value holzcloud | tr -d '\r') || unitf=""
+  dropins=$(dx systemctl show -p DropInPaths --value holzcloud | tr -d '\r') || dropins=""
+  envf=$(dx systemctl show -p EnvironmentFiles --value holzcloud | tr -d '\r') || envf=""
+  key_line "HAND-REBUILT: the unit file ${unitf:-?} (written by the install, no backup holds it)"
+  if [ -n "$dropins" ]; then
+    key_line "HAND-REBUILT: the drop-ins $dropins (written by the install or the harness, no backup holds them)"
+  else
+    key_line "HAND-REBUILT: no drop-ins on the unit"
+  fi
+  if [ -n "$envf" ]; then
+    key_line "HAND-REBUILT: the environment files $envf (no backup holds them; HOLZCLOUD_SECRET_KEY and payment or mail credentials live there, never in the data directory)"
+  else
+    key_line "HAND-REBUILT: no environment file is configured on this unit; on a real server HOLZCLOUD_SECRET_KEY and payment or mail credentials live in one, never in the data directory, so no backup holds them"
+  fi
+  for f in /root/.hc-login-pass /root/.hc-key /tmp/hc-upload.jpg; do
+    if dx test -e "$f"; then
+      key_line "HAND-REBUILT: $f (a test fixture carried from the source by exec-pipe; it stands in for what the operator remembers, no backup holds it)"
+    fi
+  done
+
+  # --- last: `check` through cmd_check in a subshell, so that its exit becomes
+  # a BAD line and not the end of this subcommand. It restarts the unit, which is
+  # why it runs after everything above.
+  ( cmd_check ) || ccrc=$?
+  np=0
+  if [ -f "$OUT_DIR/check.txt" ]; then np=$(grep -c '^PASS' "$OUT_DIR/check.txt" || true); fi
+  if [ "$ccrc" -eq 0 ] && [ "${np:-0}" -eq 17 ]; then
+    check_pass "check: 17 of 17 assertions passed (check.txt)"
+  else
+    check_bad "check: ${np:-0} of 17 assertions passed (exit status $ccrc), see check.txt; the first BAD line is: $(grep -m1 '^BAD' "$OUT_DIR/check.txt" 2>/dev/null | sed 's/^BAD *//' | cut -c1-200)"
+  fi
 }
 
 # restore: BAK-02, on the target, through on_target only.
@@ -2831,12 +3259,20 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update | negative | rollback | fresh | lifecycle | backup | transfer | restore)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update | negative | rollback | fresh | lifecycle)
       "cmd_$sub"
       ;;
     mdwe-control)
       cmd_mdwe_control
       ;;
+    backup | transfer | restore)
+      # A BAD line makes the subcommand return 1 after it has written every file
+      # it owns. The chain `backup transfer restore` goes on, so that one run
+      # shows every finding of all three, and ends with 1 (die still ends it at
+      # once: a missing precondition is no finding).
+      "cmd_$sub" || PHASE22_RC=1
+      ;;
     *) usage ;;
   esac
 done
+exit "${PHASE22_RC:-0}"
