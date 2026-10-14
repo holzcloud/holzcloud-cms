@@ -124,11 +124,16 @@ data/
   csrf.key                  CSRF encryption key (32 bytes, generated on first run)
   media/{website_id}/       uploaded media
   templates/{slug}/         uploaded template archives, extracted
+  plugins/{name}/           installed plugin modules (plugin.json, plugin.wasm)
   sprachen/                 admin translations added at runtime (optional)
+  marke/                    the logo
 ```
 
-Back up this whole directory and you have everything. `deploy/backup.sh` does it
-WAL-safely; see [deployment](deployment.md).
+`deploy/backup.sh` carries the database (WAL-safely), `csrf.key`, `media/`,
+`templates/`, `plugins/`, `sprachen/` and `marke/`; see [deployment](deployment.md).
+It leaves out the pre-upgrade snapshots and everything that is not in this
+directory: environment settings and `HOLZCLOUD_SECRET_KEY` live in the service's
+environment, not here, so keep them with your other server configuration.
 
 Two directories follow the same rule: **what is on disk wins over what is in the
 binary.** A template extracted under `templates/` replaces the built-in one of

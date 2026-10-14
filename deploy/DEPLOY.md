@@ -21,7 +21,7 @@ sudo apt install -y ca-certificates curl jq sqlite3 rsync psmisc gnupg openssl
 - `ca-certificates` and `curl`: the Caddy repository and its key are fetched over HTTPS, and the health checks use `curl`
 - `jq`: reads the `/readyz` answer in *First Run* and *Health checks*
 - `sqlite3`: for looking into the database by hand while recovering
-- `rsync`: `backup.sh` and `restore.sh` copy media and templates with it
+- `rsync`: `backup.sh` and `restore.sh` copy the data directories (media, templates, plugins, language files, logo) with it
 - `psmisc`: *Troubleshooting* calls `fuser`, which a minimal image does not have
 - `gnupg`: the Caddy repository key is unpacked with `gpg`
 - `openssl`: generates the shared secret in the single sign-on section
@@ -604,12 +604,45 @@ before you rely on it.
 
 ## Backups
 
-`backup.sh` writes a timestamped directory containing the database, the CSRF
-key, media and user templates, plus a `MANIFEST` naming the version it came
-from. The database snapshot is taken by the binary itself via `VACUUM INTO` and
-**verified with an integrity check** before it counts as a backup — an
-unverified copy is how a corrupted database quietly replaces every good
-snapshot you have.
+`backup.sh` writes a timestamped directory containing:
+
+- the database (`holzcloud.sqlite`), a consistent snapshot taken by the binary
+  itself via `VACUUM INTO` and **verified with an integrity check** before it
+  counts as a backup — an unverified copy is how a corrupted database quietly
+  replaces every good snapshot you have;
+- `csrf.key`;
+- `media`, the uploaded files;
+- `templates`, the uploaded templates;
+- `plugins`, the installed plugin modules and files (the database keeps only
+  their manifest and hash, so without this directory every plugin comes back
+  enabled and not running);
+- `sprachen`, the language files you added;
+- `marke`, the logo;
+- a `MANIFEST` naming the version and the host it came from. It is written
+  last, so a directory without one is a backup that was interrupted, and
+  `restore.sh` refuses it.
+
+**What a backup does not hold.** The pre-upgrade snapshots in the data directory
+(old-schema copies, see *Updating*) and everything outside the data directory,
+which you keep where you keep your other server configuration: the unit file and
+its drop-ins in `/etc/systemd/system`, environment files, `HOLZCLOUD_SECRET_KEY`
+if you set it (without it the stored mail-account passwords of the websites
+cannot be opened after a restore, see `docs/configuration.md`), the `Caddyfile`
+and the proxy's certificate state.
+
+**The pair is not atomic.** The database snapshot is taken first and the files
+are copied afterwards, with the site running. A file uploaded in between is in
+the backup although the database does not know it yet, which is harmless. A file
+deleted in between can leave a database row whose file the backup lacks. Back up
+when the site is quiet if that matters.
+
+`backup.sh` refuses to start when less than `MIN_FREE_MB` (default 1024) is free
+at the backup directory. That floor does not grow with your data: set
+`MIN_FREE_MB` to more than the data directory holds, or a backup can run out of
+space halfway.
+
+The timer's hardened service has been run through its timer; what that does and
+does not show is in the record `deploy/BACKUP-RUN.md`.
 
 Enable the timer instead of a cron entry, so `systemctl list-timers` shows
 whether backups are actually running:
@@ -706,8 +739,9 @@ What the service does before it migrates, as observed:
   `dev`, and so does the file.
 - It holds the **old** schema, because it is written before the first migration
   runs, and it is verified before the migrations start.
-- It is written only when migrations are pending. It covers the database only: media
-  and templates are not in it, which is one more reason for the backup of step 1.
+- It is written only when migrations are pending. It covers the database only: media,
+  templates, plugins, language files and the logo are not in it, which is one more
+  reason for the backup of step 1.
 - Only the newest five are kept; older ones are removed at the next update that
   writes one. Copy one out of the data directory if you want to keep it longer.
 - It is readable by the service user only (mode `600`, owner `holzcloud`). It holds
@@ -814,10 +848,11 @@ What a rollback by snapshot does, as played:
   again, a session revoked since is valid again, and an API key revoked since works
   again. Sessions are rows of the database, so a restart does not clear them. Re-apply
   the changes in the admin once the service is up.
-- **Files are not covered.** The snapshot holds the database only. Media and
-  templates added after the update stay on disk, and the restored database knows
-  nothing of them. A rollback does not bring back files that were removed after the
-  update; take those from the backup of step 1 of *Updating*.
+- **Files are not covered.** The snapshot holds the database only. Media,
+  templates, plugins, language files and the logo added after the update stay on
+  disk, and the restored database knows nothing of them. A rollback does not bring
+  back files that were removed after the update; take those from the backup of
+  step 1 of *Updating*.
 - **Only the newest five snapshots are kept**, and a new one is written at every
   update that migrates. If more updates may happen before you roll back, copy the
   snapshot out of the data directory first.
@@ -882,18 +917,61 @@ Restarting the service clears the throttle, since it is held in memory.
 
 ### Restore from a backup
 
+Use it when the data directory is gone or wrong: a failed disk, a deleted
+website, a change you want undone. On a **rebuilt server**, install first (the
+*Install* and *systemd Service* sections), then copy the backup directory into
+`/opt/holzcloud/backups`, for example with `sudo rsync -a` or `scp -r` from the
+machine that holds it (`rsync -a` keeps the directory mode `700`). Do **not**
+create an account in the setup form of the fresh box. It is open until an
+account exists, anyone who reaches it first becomes the administrator, and the
+restore replaces the database anyway: afterwards `/admin/setup` answers 404
+again and you log in with the account the backup holds.
+
 ```bash
+sudo ls -1 /opt/holzcloud/backups
 sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/20260802-031500
 ```
 
-The script verifies the snapshot's integrity **before** touching live data,
-moves the current data directory aside instead of deleting it, restores
-database, CSRF key, media and templates, and waits for `/readyz`. If the wrong
-snapshot was picked, the previous state is still in
-`/opt/holzcloud/data.before-restore-<timestamp>`.
+The first line lists the backups; the sample name in the second is one of them.
+In order, the script:
 
-Restore is only proven if you have run it. Do it once on a test directory
-before you need it.
+1. verifies a copy of the snapshot's integrity **before** it touches anything,
+   and refuses a directory without a `holzcloud.sqlite` or a `MANIFEST`, or whose
+   snapshot fails its check, before it stops anything;
+2. asks `Stop holzcloud and replace /opt/holzcloud/data? [yes/NO]` and goes on
+   only if you type `yes`; anything else prints `aborted` and exits 1;
+3. stops the service;
+4. moves the current data directory aside as `data.before-restore-` and a
+   timestamp, never deleting it;
+5. restores the database, `csrf.key` and the five directories (`media`,
+   `templates`, `plugins`, `sprachen`, `marke`; a directory the backup lacks is
+   skipped), sets owner and mode, starts the service and waits up to 30 seconds
+   for `/readyz`.
+
+The set-aside directory is never removed. It holds the replaced site, media
+included, so two restores leave two more copies of it. Delete it by hand, once
+you have looked at the restored site and accepted it.
+
+**What comes back** is the list under *Backups*: the database, the CSRF key,
+media, templates, plugins, language files and the logo. **What you rebuild by
+hand**, item by item: the unit file and its drop-ins in `/etc/systemd/system`
+(the install writes them), environment files, `HOLZCLOUD_SECRET_KEY` (without it
+the stored mail-account passwords of the websites cannot be opened), the
+`Caddyfile` and the proxy's certificate state. None of them is in the data
+directory, so no backup holds them.
+
+**How long it takes**, as an order of magnitude and not a promise: a restore of a
+small site (under a megabyte) took about two seconds, most of it the service
+starting, and 300 MiB of synthetic media added about a quarter of a second, so
+roughly one second per GiB of media. That was measured in a container under amd64
+emulation on an arm host, with a warm cache; a real server's disk and CPU will
+differ. A backup of the same sites took under a second.
+
+The restore was played from a backup the timer made into a fresh, empty container
+(the record is `deploy/BACKUP-RUN.md`). Restore stops the production unit and
+polls the production `/readyz` whatever `DATA_DIR` says, so a restore pointed at
+a test directory proves nothing: run it once on a spare machine before you need
+it.
 
 ### A failed migration
 

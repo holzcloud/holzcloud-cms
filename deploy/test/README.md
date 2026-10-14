@@ -170,7 +170,7 @@ phase 20 is `deploy/SECURITY-SCORE.md`, and that of phase 21 is `deploy/DEPLOY-R
 | `verdict.txt` | `verdict` | The one-line MDWE verdict. |
 | `steps.txt` | `install`, `firstrun`, `caddy`, `postinstall`, `update`, `rollback` | One line `STEP nn rc=R command` per played command of the document. A `systemctl status` line never counts as failed: its status reports the unit state. |
 | `step-NN.txt` | the same | The output of step NN. Not committed anywhere. |
-| `deviations.txt` | the same | One `DEVIATION[name]` line for each thing the container cannot do the way a server does. A name outside the documented set fails the run. |
+| `deviations.txt` | the same | One `DEVIATION[name]` line for each thing the container cannot do the way a server does. The harness does not check the names: the chain's `summary.txt` lists the distinct kinds on its `DEVIATIONS:` line, and whoever reads the evidence compares that list with the documented set. |
 | `scenario.txt` | `negative`, `lifecycle` | The `SCENARIO[...]` lines: steps the harness performs that the document must not contain, or the line saying the negative case was skipped. |
 | `install.txt` | `install` | `/readyz` after the install, the binary's `version` line, and whether the unit is active. |
 | `firstrun.txt` | `firstrun` | The five PASS lines of First Run. The generated password is never written. |

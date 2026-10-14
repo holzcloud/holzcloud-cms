@@ -62,7 +62,7 @@ wrote before it migrated.
 |---|---|
 | `holzcloud.service` | systemd unit with hardening (`ProtectSystem`, `NoNewPrivileges`, …) |
 | `Caddyfile.example` | Caddy reverse proxy with automatic HTTPS |
-| `backup.sh`, `restore.sh` | WAL-safe SQLite backup plus an rsync of media and templates, and the way back; installed to `/opt/holzcloud/deploy` |
+| `backup.sh`, `restore.sh` | WAL-safe SQLite backup plus an rsync of the data directories (media, templates, plugins, language files, logo), and the way back; installed to `/opt/holzcloud/deploy` |
 | `holzcloud-backup.{service,timer}` | the unit and the daily timer that run `backup.sh` |
 | `DEPLOY.md` | step-by-step setup for a Debian/Ubuntu amd64 server |
 
@@ -115,8 +115,15 @@ echo -n 'new password' | holzcloud user passwd -email admin@example.com
 
 ## Backups
 
-Back up the whole data directory; `/opt/holzcloud/deploy/backup.sh` does it WAL-safely. Beyond
-that, each website can be downloaded as a readable archive — see
+`/opt/holzcloud/deploy/backup.sh` writes a WAL-safe snapshot of the database and
+copies `csrf.key` and the directories `media`, `templates`, `plugins`, `sprachen`
+and `marke` (uploads, uploaded templates, installed plugin modules, language files
+and the logo). It does not hold the pre-upgrade snapshots, and nothing outside the
+data directory: the unit file, environment files, `HOLZCLOUD_SECRET_KEY` and the
+proxy configuration. The database and the files are taken one after the other, not
+at one instant. `deploy/DEPLOY.md` has the details and the restore procedure.
+
+Beyond the backup, each website can be downloaded as a readable archive — see
 [import and export](import-export.md). The two are not the same thing: the
 database file is a backup of the installation, a bundle is one website in a form
 that survives the installation.
