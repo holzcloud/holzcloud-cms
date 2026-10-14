@@ -5,14 +5,14 @@
 A Debian container with systemd as PID 1 that runs the unit under test, `deploy/holzcloud.service`, unchanged. `deploy/test/run.sh`
 builds the image, starts a privileged and throwaway container from it, and drives the checks through `docker exec`. It was built in
 phase 20 to answer three questions (UNIT-01, UNIT-02, UNIT-03); the answers are in `deploy/SECURITY-SCORE.md`. Phase 21 (install, update, rollback) used the same recipe with
-other steps and recorded its results in `deploy/DEPLOY-RUN.md`; phases 22 (backup and restore) and 23 reuse it too, so the interface below is stable: extend it, do not rename it.
+other steps and recorded its results in `deploy/DEPLOY-RUN.md`; phase 22 (backup and restore) did the same and recorded its results in `deploy/BACKUP-RUN.md`, and phase 23 reuses the harness too, so the interface below is stable: extend it, do not rename it.
 
 Files:
 
 - `deploy/test/run.sh`: the driver.
 - `deploy/test/Dockerfile`, `deploy/test/Dockerfile.dockerignore`: the image and its build-context filter.
 - `deploy/test/canary/`: a stdlib-only probe, its own Go module, that asks whether this platform enforces seccomp.
-- `deploy/test/out/`: scratch output, gitignored. The committed records are `deploy/SECURITY-SCORE.md` (phase 20) and `deploy/DEPLOY-RUN.md` (phase 21), which paste these files unchanged.
+- `deploy/test/out/`: scratch output, gitignored. The committed records are `deploy/SECURITY-SCORE.md` (phase 20), `deploy/DEPLOY-RUN.md` (phase 21) and `deploy/BACKUP-RUN.md` (phase 22), which paste these files unchanged.
 
 ## Quick start
 
@@ -151,7 +151,7 @@ The image tag carries the base, so bookworm and trixie images do not overwrite e
 ## Output files
 
 All under `OUT_DIR` (default `deploy/test/out/ARCH`), except `bins.txt`, which lives in `BIN_DIR`. The directory is gitignored and is reset by `up`. A `backup-chain` run writes four such directories: `OUT_DIR` (the source, seed data point) with `summary.txt`, `TGT_OUT_DIR` (the first target), `OUT_DIR-bulk` (the same source with synthetic media; only `baseline.txt`, `bulk.txt`, `backup.txt`, `verify-backup.txt` and their lists) and `TGT_OUT_DIR-bulk` (the second target). The committed record of
-phase 20 is `deploy/SECURITY-SCORE.md`, and that of phase 21 is `deploy/DEPLOY-RUN.md`; both paste these files unchanged, and the second proves that with a line-by-line `grep -F`.
+phase 20 is `deploy/SECURITY-SCORE.md`, that of phase 21 is `deploy/DEPLOY-RUN.md` and that of phase 22 is `deploy/BACKUP-RUN.md`; all three paste these files unchanged. The second proves that with a line-by-line `grep -F`, the third with a block-by-block byte comparison of every appendix block against the scratch file named in its heading (the command is under *Phase 22: backup, timer and restore*).
 
 | File | Written by | Content |
 |---|---|---|
@@ -259,7 +259,51 @@ The record is `deploy/BACKUP-RUN.md`; this section says how to repeat the proof.
 - **Hand-over facts that still hold.** `postinstall` plays the Backups block of the document (the units copied from `/opt/holzcloud/deploy`, the timer enabled, one manual backup as the service user) and checks the paths; DEPLOY.md installs the deploy directory to `/opt/holzcloud/deploy`, makes the data and backups directories belong to the service user (the backups directory has mode 700) and names `rsync` in Prerequisites.
   `check` (17 assertions) reads the key file `/root/.hc-key`, which is outside the data directory and so in no backup; the key itself lives in the database. `seed` reads the plugin archives from `/opt/holzcloud/plugin-zips`, which `baseline` stages (`DEVIATION[fixture]`).
   Login: `holzcloud user create -email ... -role admin`, run as the service user with `HOLZCLOUD_DATA_DIR` set and the password on stdin; `seed` alone creates an API key and no login user.
-- **Do not edit `deploy/DEPLOY.md`, `backup.sh` or `restore.sh` between the final chains and the record.** The evidence set is made against one text of each; an edit means the set is made again.
+- **A document number that is wrong by more than a factor of two against the final set is corrected and the whole set is made again, never patched.** The first complete final set measured a restore of about seven seconds against the two seconds `DEPLOY.md` still quoted from pass 1, because the five plugin modules had joined the backup (20 MB, not under one) and the service loads each plugin at start, about a second each under emulation. The set was thrown away, the paragraph corrected and the chain run again; the record pastes only the set of the evidence commit. Do not paste from a discarded set.
+- **The plugins dominate the seed point.** A restore is about eight seconds at both data points because `START-READY-S` is about 7.4 seconds either way; 300 MiB of media added a fraction of a second to the copy. Read `START-READY-S` and `STOP-MOVE-COPY-S` separately before quoting a rate, and say that the rate rests on two single readings.
+- **`set -u` and a status that is only set on failure.** `restore_into` set `ccrc` only in its `|| ccrc=$?` branch, so the first restore whose `check` passed ended on `ccrc: unbound variable`, exit 1, with a right result behind it. Pass 1 never reached it because `check` failed there. A variable that a green path reads must be initialised.
+- **Proof of the record, one command.** The appendix of `deploy/BACKUP-RUN.md` has one level-four heading per file, exactly `#### DIRECTORY/FILE` with `DIRECTORY` the scratch directory below `deploy/test/out`, and one fenced block of the file under it. The comparison extracts every block and compares it with its scratch file, byte for byte (a missing final newline is normalised); it prints the number of blocks it checked and names every block that differs:
+
+  ```bash
+  R=deploy/BACKUP-RUN.md; E=deploy/test/out; T=$(mktemp -d); : > $T/index
+  awk -v d="$T" '/^## Appendix: raw output$/{app=1;next} !app{next} /^#### /{name=$2;want=1;next} want && /^```/{ if(!inb){inb=1;n++;f=d "/" n;print n " " name >> (d "/index");printf "" > f;next} else {inb=0;want=0;close(f);next} } inb{print >> f}' $R
+  bad=0; while read -r n name; do test -f "$E/$name" || { echo "no scratch file for $name" >&2; bad=1; continue; }; awk 1 "$T/$n" > "$T/$n.a"; awk 1 "$E/$name" > "$T/$n.b"; cmp -s "$T/$n.a" "$T/$n.b" || { echo "block differs from the scratch file: $name" >&2; bad=1; }; done < $T/index
+  test "$bad" -eq 0 && echo "$(wc -l < $T/index | tr -d ' ') blocks match their scratch files"
+  ```
+
+  It needs the scratch directories, so it can be run only where the chain was run. A scratch file with a line that begins with three backticks, with `#### ` or with `## ` cannot be pasted unchanged (the comparison and the heading list would misread it): check that first. Never paste a `step-NN.txt`, `seed.txt`, a `.log` file, a cookie jar or a password file.
+- **Do not edit `deploy/DEPLOY.md`, `backup.sh` or `restore.sh` between the final chains and the record.** The evidence set is made against one text of each; an edit means the set is made again. The record names the evidence commit on a line of its own (`Evidence commit: SHA`) and `deploy/test/out/amd64-bak-evidence-commit.txt` holds the same sha; `git diff --quiet SHA HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh` exits 0 while that holds.
+- **`sed -i` with a line address differs on macOS (BSD sed).** Edit a file with the editor tool or a scripted rewrite, not with `sed -i` and a line address, on the development machine.
+
+## Hand-over to phase 23
+
+The beta criteria may cite `deploy/BACKUP-RUN.md`, and only the following of it:
+
+- **The Summary table** (BAK-01, BAK-02 and BAK-03, each PASS) and the line `Evidence commit` that names the commit the evidence set was made on, which is the commit whose `deploy/backup.sh`, `deploy/restore.sh`, `deploy/DEPLOY.md`, units and `deploy/test/run.sh` the record describes.
+- **The words of `summary.txt`** of that set: `BAK-01 PASS`, `BAK-02 PASS`, `BAK-03 PASS`, `RESTORE-NEGATIVE PASS`, `STEPS: 78 played, 0 failed`, `LEAK-CHECK OK`, and the two `POINT` lines with the numbers in *Measurements*, which are emulation numbers: a restore of about eight seconds, a backup of about a second, both at 20 MB and at 320 MB.
+- **What the record states as shown**: a backup made by the timer's service restores by `restore.sh` into a different, empty system with working pages, media, login and plugins; the four refusals leave the live data untouched; the scripts carry and return media, templates, plugins, language files and the logo; and the list of what no backup holds (`HAND-REBUILT`).
+
+How to rerun, from nothing but the image (names as in the final set; give the same `NAME`, `OUT_DIR`, `TGT_NAME` and `TGT_OUT_DIR` so the evidence lands where the record expects it, or other names and a new record):
+
+```text
+PLATFORM=linux/amd64 TARGET=systemd-base NEW_REF=$(git rev-parse --short HEAD) \
+  NAME=holzcloud-bak-src OUT_DIR=deploy/test/out/amd64-bak-src \
+  TGT_NAME=holzcloud-bak-tgt TGT_OUT_DIR=deploy/test/out/amd64-bak-tgt \
+  ./deploy/test/run.sh backup-chain      # BULK_MB left at the chain's default of 300
+```
+
+They must not claim, copied from the record's *Not tested*:
+
+- The real 03:15 window: the timer was moved a minute ahead by a container-only drop-in.
+- `Persistent=true` after a missed run, and `RandomizedDelaySec` (set to 0 by the drop-in).
+- The off-site `REMOTE_TARGET` copy, and retention pruning (no directory was older than the retention).
+- An atomic database-plus-media snapshot: the pair is taken one after the other with the site running, and the window was not provoked.
+- A backup older than the binary that restores it, in the final set.
+- A restore on a real server, with a separate data volume, a cold cache and a real network copy.
+- Native amd64 timing: every number is an emulation number on an aarch64 host, and the extrapolation in the record is an estimate, not a measurement.
+- Protection against bit rot in a complete backup: a flipped byte inside a data page passes both integrity readers.
+
+If a beta criterion needs one of these, it needs its own run; none of them follows from the record. A change to `deploy/DEPLOY.md`, `backup.sh`, `restore.sh`, the units or `run.sh` after the evidence commit means the set is made again before the record is cited for the changed text.
 
 ## Pitfalls
 
