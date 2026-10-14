@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
-current_phase: 21
-current_phase_name: Backup and restore, measured
-status: planning
+current_phase: 22
+current_phase_name: backup-and-restore-measured
+status: executing
 stopped_at: Phase 22 context gathered
-last_updated: "2026-10-12T13:19:07.556Z"
+last_updated: "2026-10-14T07:44:30.860Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 21 complete, transitioned to Phase 22
-state_head: a850b1e1e2a3faad8c116913e85bf91bb6f2f178
+state_head: e3da2218c0e966dfb493280531d749d964b1c402
 progress:
   total_phases: 0
   completed_phases: 21
-  total_plans: 6
+  total_plans: 5
   completed_plans: 0
 ---
 
@@ -85,7 +85,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Ready to plan
+Status: Ready to execute
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -477,7 +477,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: 21 (Deploy, update, rollback) — EXECUTING
+Phase: 22 (backup-and-restore-measured) — READY TO EXECUTE
 Plan: Not started
 Status: All six plans executed; the phase awaits verification and completion by the orchestrator
 Last activity: 2026-10-12 — Plan 21-06 complete (the record, README hand-over, docs/deployment.md)
