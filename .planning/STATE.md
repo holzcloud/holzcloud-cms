@@ -5,17 +5,16 @@ milestone_name: Betrieb härten
 current_phase: 22
 current_phase_name: Repository tidy and beta criteria
 status: planning
-stopped_at: Completed 22-05-PLAN.md
-last_updated: "2026-10-14T11:20:03.822Z"
+stopped_at: Phase 23 context gathered
+last_updated: "2026-10-14T11:22:34.019Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 22 complete, transitioned to Phase 23
-state_head: d642e7f671e9a14d5083cf02fbca5142ef23de98
+state_head: 16cf80f2ec1f0b12835caa700ffae82f2f32d3fd
 progress:
   total_phases: 0
   completed_phases: 22
   total_plans: 5
   completed_plans: 0
-  percent: 96
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -369,9 +368,9 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-14T11:13:05.885Z
-**Stopped at:** Completed 22-05-PLAN.md
-**Resume file:** None
+**Last session:** 2026-10-14T11:22:33.987Z
+**Stopped at:** Phase 23 context gathered
+**Resume file:** .planning/phases/23-repository-tidy-and-beta-criteria/23-CONTEXT.md
 
 ## Decisions
 
