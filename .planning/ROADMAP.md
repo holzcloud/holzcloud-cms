@@ -449,6 +449,24 @@ Plans:
   2. `restore.sh` onto an empty system yields working pages, media and login; time and size recorded.
   3. One run through `holzcloud-backup.timer` is observed.
 
+**Plans**: 5 plans in 5 waves
+
+Plans:
+**Wave 1**
+- [ ] 22-01-PLAN.md — Harness tracer and proof (two containers, `backup`, `transfer`, `restore`): the document's backup line, a tar stream, the document's restore line answered `yes`, a login; then two integrity readers, whole-directory content comparison, cross-container state comparison, timing and size, each able to fail (BAK-01, BAK-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 22-02-PLAN.md — `backup-timer` (container-only drop-in, one observed run of the hardened service), `restore-negative`, `backup-fixture` (planted directories, 300 MiB bulk media), `backup-chain` with a fixed summary vocabulary, README (BAK-01, BAK-02, BAK-03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 22-03-PLAN.md — Pass 1: the unchanged scripts and document played end to end at two data points; `22-FINDINGS.md` with every difference, the D-16 candidates, settled assumptions and the numbers (BAK-01, BAK-02, BAK-03)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 22-04-PLAN.md — Repair from the findings (`backup.sh` and `restore.sh` carry plugins, language files and logo), DEPLOY.md Backups and Restore corrected, the two docs aligned, the final evidence set from fresh containers (BAK-01, BAK-02, BAK-03)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 22-05-PLAN.md — `deploy/BACKUP-RUN.md` from the final set with a byte-for-byte proof of the appendix, README hand-over to phase 23, repository gates (BAK-01, BAK-02, BAK-03)
+
 ### Phase 23: Repository tidy and beta criteria
 
 **Goal**: 0.1.0 says what it promises and the repository carries nothing stray.
