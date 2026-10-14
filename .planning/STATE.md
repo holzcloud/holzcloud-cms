@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 22
 current_phase_name: Backup and restore, measured
 status: executing
-stopped_at: Completed 22-01-PLAN.md
-last_updated: "2026-10-14T10:14:45.364Z"
+stopped_at: Completed 22-02-PLAN.md
+last_updated: "2026-10-14T10:30:49.256Z"
 last_activity: 2026-10-14
-state_head: 28d7df2655d1a6508da20ef07eb62e867fe1a21f
+state_head: 9e5683fd329a7ec020fea73b4726c58c54ca00d2
 progress:
   total_phases: 0
   completed_phases: 21
@@ -335,6 +335,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 21 P05 | 35min | 2 tasks | 4 files |
 | Phase 21 P06 | 8 min | 2 tasks | 3 files |
 | Phase 22 P01 | 22 min | 2 tasks | 1 files |
+| Phase 22 P02 | 13 min | 3 tasks | 2 files |
 
 ### Session Continuity
 
@@ -363,8 +364,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-14T10:14:45.339Z
-**Stopped at:** Completed 22-01-PLAN.md
+**Last session:** 2026-10-14T10:30:49.232Z
+**Stopped at:** Completed 22-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -463,6 +464,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 21]: 21-06: Container vs. server status is measured (observed, no difference in kind), inferred (read or reasoned), assumed (nothing in the runs speaks for it); a raw appendix is pasted with newline='' because dpkg progress lines carry carriage returns
 - [Phase 22]: 22-01: backup, transfer and restore chain on after a BAD line (|| PHASE22_RC=1) so one run shows every finding; the whole data directory is hashed, which exposes that backup.sh does not copy plugins/
 - [Phase 22]: 22-01: restore.sh leaves holzcloud.sqlite mode 644 (live file is 600) inside a 700 data directory; recorded as INFO, a finding for 22-04
+- [Phase 22]: 22-02: backup-timer is judged from timer.txt alone (BAK-03); a BAD in the timer's own backup is a separate finding and exits 1
+- [Phase 22]: 22-02: the bulk data point reuses the source container in OUT_DIR-bulk with a second fresh target; on_exit removes an explicit list of container names so a die inside on_target cannot leave the source behind
 
 ## Accumulated Context
 
