@@ -33,7 +33,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 
 ## Standing Gate
 
-- [ ] **QUAL-01**: `go run ./tools/i18n` meldet `0 open, 0 orphaned`; jede neue Operator-Zeile läuft durch den Katalog.
+- [x] **QUAL-01**: `go run ./tools/i18n` meldet `0 open, 0 orphaned`; jede neue Operator-Zeile läuft durch den Katalog.
 
 ## Out of Scope
 
@@ -60,7 +60,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 | REPO-01 | Phase 23 | Complete |
 | REPO-02 | Phase 23 | Complete |
 | REPO-03 | Phase 23 | Complete |
-| QUAL-01 | Phase 23 | Pending |
+| QUAL-01 | Phase 23 | Complete |
 
 **Coverage:** 13 total, 13 mapped, 0 unmapped.
 
