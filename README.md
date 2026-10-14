@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-alpha-e3a36b?style=flat-square&labelColor=14201c" alt="Status: alpha">
+  <img src="https://img.shields.io/badge/status-beta-e3a36b?style=flat-square&labelColor=14201c" alt="Status: beta">
   <a href="https://github.com/holzcloud/holzcloud-cms/releases"><img src="https://img.shields.io/github/v/release/holzcloud/holzcloud-cms?include_prereleases&style=flat-square&color=8fd0ba&labelColor=14201c" alt="Latest release"></a>
   <a href="https://github.com/holzcloud/holzcloud-cms/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/holzcloud/holzcloud-cms/ci.yml?branch=main&style=flat-square&labelColor=14201c&label=CI" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/holzcloud/holzcloud-cms?style=flat-square&color=8fd0ba&labelColor=14201c" alt="AGPL-3.0"></a>
@@ -19,9 +19,13 @@ Switzerland, free software under the AGPL-3.0.
 [Documentation](#documentation)
 
 > [!WARNING]
-> **Alpha software under heavy development.** Features, settings, the template
-> contract and the AI tools can change from one release to the next. Back up the
-> data directory before every update and read the [changelog](CHANGELOG.md).
+> **Beta: safe to run with backups, not feature-frozen.** Features, settings, the
+> template contract and the AI tools can still change from one release to the
+> next, and the database schema is not promised stable. Back up the data
+> directory before every update and read the [changelog](CHANGELOG.md). What
+> 0.1.0 promises and what it does not is written in
+> [docs/beta.md](docs/beta.md); the admin screen still labels every 0.x build
+> alpha until 1.0.
 
 ![The page editor: Markdown with elements between the text, the live preview beside it](docs/screenshots/editor.png)
 
@@ -98,6 +102,7 @@ Caddyfile for automatic HTTPS and a WAL-safe backup script are in
 ## Documentation
 
 - [Deploying](deploy/DEPLOY.md): systemd, Caddy, backups, single sign-on
+- [Beta criteria](docs/beta.md): what 0.1.0 promises and what it does not
 - [Configuration](docs/configuration.md): every environment variable, e-mail
 - [Content model](docs/content-model.md): fields, content kinds, block kinds
 - [Publishing](docs/publishing.md): pages, menus, media, templates, design, SEO, plugins
