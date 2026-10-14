@@ -83,6 +83,21 @@ DEPLOY_DOC=${DEPLOY_DOC:-deploy/DEPLOY.md}
 WITH_OLD=${WITH_OLD:-0}
 REBUILD=${REBUILD:-0}
 STAGE_BIN=${STAGE_BIN:-}
+# Phase 22: two containers. NAME and OUT_DIR keep meaning the SOURCE, the
+# container that is backed up; the TARGET is a second, fresh container that the
+# restore is played onto (on_target switches the globals). RESTORE_DIR is the
+# backup directory inside the target that the document's restore line is given,
+# RESTORE_ANSWER what is typed at its question, BACKUP_DIR_PATH an explicit
+# source directory for `transfer`.
+TGT_NAME=${TGT_NAME:-$NAME-tgt}
+TGT_OUT_DIR=${TGT_OUT_DIR:-$OUT_DIR-tgt}
+RESTORE_DIR=${RESTORE_DIR:-}
+RESTORE_ANSWER=${RESTORE_ANSWER:-yes}
+BACKUP_DIR_PATH=${BACKUP_DIR_PATH:-}
+SRC_NAME=""
+SRC_OUT_DIR=""
+# A caller sets DOC_TIMED=1 around one doc_cmd call to have the line timed.
+DOC_TIMED=0
 
 say() { printf '%s\n' "$*" >&2; }
 die() { say "run.sh: $*"; exit 1; }
@@ -224,6 +239,27 @@ deviation() {
   printf '%s\n' "$*" >> "$OUT_DIR/deviations.txt"
 }
 
+# Run INSIDE the container. TIMED_RUN_SH: the line is the script on stdin; two
+# readings of the container's clock around it, and its own exit status.
+TIMED_RUN_SH='t0=$(date +%s.%N)
+rc=0
+bash -s || rc=$?
+t1=$(date +%s.%N)
+echo "WALL $t0 $t1"
+exit "$rc"'
+
+# RESTORE_RUN_SH: $1 is the restore line, stdin the answer. Every output line of
+# the script is prefixed with the container's clock, so the restore can be split
+# into its steps from the transcript; the exit status is the script's own
+# (PIPESTATUS), not that of the loop that stamps the lines.
+RESTORE_RUN_SH='set -o pipefail
+t0=$(date +%s.%N)
+bash -c "$1" 2>&1 | while IFS= read -r l; do printf "%s %s\n" "$(date +%s.%N)" "$l"; done
+rc=${PIPESTATUS[0]}
+t1=$(date +%s.%N)
+echo "WALL $t0 $t1"
+exit "$rc"'
+
 # doc_cmd LINE: the single place where a command is played. LINE must be a
 # logical line of a bash block of the document, and must be pasteable as it
 # stands. A step that fails is recorded, never hidden; its status is returned.
@@ -254,6 +290,7 @@ doc_cmd() {
       # has ended, so the answer has to come from somewhere else.
       case "$line" in *" -y"*) kind=run ;; *) kind=prompt ;; esac
       ;;
+    *"/restore.sh "*) kind=restore ;;
     *) kind=run ;;
   esac
 
@@ -299,7 +336,34 @@ doc_cmd() {
       # The line is the whole script on stdin, run as root: sudo exists in the
       # image, so a sudo line runs as it is written. dxi has its own stdin, so
       # a loop that feeds doc_cmd is not read from.
-      printf '%s\n' "$line" | dxi bash -s 2>&1 | tee -a "$outf" || rc=$?
+      if [ "${DOC_TIMED:-0}" = 1 ]; then
+        # A caller that wants the wall time of this one line (the backup) sets
+        # DOC_TIMED=1 around the call. The readings are the container's own GNU
+        # date, never `time` of a pipeline and never the host's date (D-14).
+        : > "$OUT_DIR/backup-run.txt"
+        printf '%s\n' "$line" | dxi bash -c "$TIMED_RUN_SH" 2>&1 | tee -a "$outf" "$OUT_DIR/backup-run.txt" || rc=$?
+      else
+        printf '%s\n' "$line" | dxi bash -s 2>&1 | tee -a "$outf" || rc=$?
+      fi
+      ;;
+    restore)
+      # The document's restore line carries a sample timestamp, because the
+      # document cannot know the name of the directory a backup made. The last
+      # word of the line is replaced by RESTORE_DIR; everything else is the
+      # line as written (D-05). The answer comes from stdin; the script text is
+      # an argument of bash -c, so it does not share that stdin and restore.sh's
+      # read is not fed the script. Note that `read -p` prints no prompt when
+      # stdin is not a terminal, so the [yes/NO] question never appears in the
+      # transcript.
+      local rlast rline
+      [ -n "$RESTORE_DIR" ] || die "doc_cmd: '$line' runs restore.sh with a backup directory; set RESTORE_DIR to that directory inside the container"
+      rlast=${line##* }
+      rline="${line%"$rlast"}$RESTORE_DIR"
+      deviation "DEVIATION[backup-name]: the document's sample timestamp ($rlast) was replaced by the directory $RESTORE_DIR, because the document cannot know the name a backup was given; the rest of the line is as written and the answer '$RESTORE_ANSWER' is typed on stdin"
+      printf '%s\n' "$RESTORE_ANSWER" | docker exec -i "$NAME" bash -c "$RESTORE_RUN_SH" _ "$rline" 2>&1 | tee "$outf.tmp" || rc=$?
+      cat "$outf.tmp" >> "$outf"
+      cp "$outf.tmp" "$OUT_DIR/restore-run.txt"
+      rm -f "$outf.tmp"
       ;;
     caddy)
       deviation "DEVIATION[caddy]: '$line' was replaced by 'caddy validate --config /etc/caddy/Caddyfile': the container has no public domain, no DNS and no ACME, and a real reload would start certificate issuance for example.com"
@@ -376,6 +440,9 @@ usage() {
   say "  fresh                            DEP-01 from a bare image: build up install firstrun postinstall caddy, then summary.txt (needs TARGET=systemd-base)"
   say "  lifecycle                        DEP-02 and DEP-03: install OLD_TAG, baseline, update, negative case (when a migration lies between), rollback, summary.txt (needs TARGET=systemd-base)"
   say "  compare A B [OUTFILE]            compare two state files (state-LABEL.txt) without a container; exit 1 on a BAD line"
+  say "  backup                           the document's manual backup line in the source container, timed, then two integrity readers on the backup (OUT_DIR/backup.txt, verify-backup.txt)"
+  say "  transfer                         the backup as a tar stream into the target container TGT_NAME, plus the fixture files by exec-pipe (TGT_OUT_DIR/transfer.txt)"
+  say "  restore                          in the target: the document's restore line answered yes, then setup form, readyz and login (TGT_OUT_DIR/restore.txt)"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -2447,6 +2514,312 @@ cmd_lifecycle() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Phase 22: a backup, carried to a second container and restored there (BAK-01,
+# BAK-02). The source is the populated site that
+#   INSTALL_FROM=old run.sh build up install baseline update postinstall
+# leaves; the target is a fresh TARGET=systemd-base container brought up with
+# `build up install` under its own NAME and OUT_DIR (TGT_NAME, TGT_OUT_DIR).
+#   run.sh backup transfer restore     NAME=source TGT_NAME=target
+# The names of the subcommands, of the variables above and of the files and KEY
+# lines below are an interface that later plans and phase 23 script against.
+# A failing assertion is a BAD line, never an early exit: each subcommand writes
+# every file it owns and only then exits 1.
+# ---------------------------------------------------------------------------
+
+# on_target FUNCTION [ARGS]: run FUNCTION with NAME, OUT_DIR, INSTALL_FROM and
+# WITH_OLD switched to the target container, and put them back afterwards, even
+# when FUNCTION returns non-zero. SRC_NAME and SRC_OUT_DIR name the source while
+# it runs. A restore must never be pointed at the container that was backed up
+# (T-22-04).
+on_target() {
+  local fn=$1 rc=0 keep_from keep_old
+  shift
+  [ "$TGT_NAME" != "$NAME" ] \
+    || die "TGT_NAME equals NAME ($NAME): a restore must never be pointed at the container that was backed up; give the target its own TGT_NAME"
+  SRC_NAME=$NAME
+  SRC_OUT_DIR=$OUT_DIR
+  keep_from=$INSTALL_FROM
+  keep_old=$WITH_OLD
+  NAME=$TGT_NAME
+  OUT_DIR=$TGT_OUT_DIR
+  INSTALL_FROM=new
+  WITH_OLD=0
+  "$fn" "$@" || rc=$?
+  NAME=$SRC_NAME
+  OUT_DIR=$SRC_OUT_DIR
+  INSTALL_FROM=$keep_from
+  WITH_OLD=$keep_old
+  return "$rc"
+}
+
+# key_line TEXT: a KEY: value line of a result file, to CHECK_OUT and the screen.
+key_line() { printf '%s\n' "$*" | tee -a "$CHECK_OUT"; }
+
+# backup_verify DIR LABEL: what is asserted about a backup directory, in the
+# current container. Results go to OUT_DIR/verify-LABEL.txt as PASS, INFO and BAD
+# lines; the function returns 1 when any BAD line was written, after all were.
+backup_verify() {
+  local dir=$1 label=$2 out crc=0 got
+  CHECK_OUT="$OUT_DIR/verify-$label.txt"
+  CHECK_BADS=0
+  : > "$CHECK_OUT"
+
+  if dx test -f "$dir/holzcloud.sqlite"; then
+    check_pass "file $dir/holzcloud.sqlite exists"
+  else
+    check_bad "file $dir/holzcloud.sqlite is missing"
+  fi
+  if dx test -f "$dir/MANIFEST"; then
+    check_pass "file $dir/MANIFEST exists"
+  else
+    check_bad "file $dir/MANIFEST is missing"
+  fi
+
+  # Reader one: the binary's own check, on a COPY in a directory of its own,
+  # exactly the way restore.sh does it. Never against the backup directory: the
+  # binary opens the database read-write and would leave -wal and -shm files in
+  # the backup.
+  out=$(dx bash -c 't=$(mktemp -d) || exit 97
+cp "$1/holzcloud.sqlite" "$t/holzcloud.sqlite" || { rm -rf "$t"; exit 98; }
+rc=0
+HOLZCLOUD_DATA_DIR="$t" /opt/holzcloud/holzcloud check 2>&1 || rc=$?
+rm -rf "$t"
+exit "$rc"' _ "$dir") && crc=0 || crc=$?
+  if [ "$crc" -eq 0 ] && grep -q 'integrity: ok' <<< "$out"; then
+    check_pass "integrity holzcloud-check: ok"
+  else
+    check_bad "integrity holzcloud-check: exit $crc, output '$(printf '%s' "$out" | tr '\n' ' ')'"
+  fi
+
+  # Reader two, independent of the binary: the C sqlite3 CLI and a stronger
+  # pragma (the binary's check is quick_check). The VACUUM INTO file is itself
+  # WAL-mode, and a plain read-only open of it failed on a newer sqlite, so the
+  # file is opened through the URI with immutable=1, which also never creates a
+  # -wal or -shm file next to the backup.
+  got=$(dx sqlite3 "file:$dir/holzcloud.sqlite?immutable=1" "PRAGMA integrity_check;" 2>&1) || got="exit $?: $got"
+  if [ "$got" = ok ]; then
+    check_pass "integrity sqlite3 integrity_check: ok"
+  else
+    check_bad "integrity sqlite3 integrity_check: '$(printf '%s' "$got" | tr '\n' ' ')'"
+  fi
+
+  [ "$CHECK_BADS" -eq 0 ]
+}
+
+# backup: BAK-01. The document's own manual-run line of the Backups section,
+# timed, then the verification of the directory it made.
+cmd_backup() {
+  local lines line nl n nn outf dir wall free rc=0 vrc=0
+  dx true >/dev/null 2>&1 \
+    || die "container $NAME does not answer; run 'run.sh build up install baseline update postinstall' with INSTALL_FROM=old first"
+  dx test -e /etc/systemd/system/holzcloud-backup.timer \
+    || die "no holzcloud-backup.timer in $NAME; run 'run.sh postinstall' first (the document's Backups block installs the units)"
+  grep -q '^ORDER:' "$OUT_DIR/baseline.txt" 2>/dev/null \
+    || die "no ORDER: line in $OUT_DIR/baseline.txt; run 'run.sh baseline' first"
+  mkdir -p "$OUT_DIR"
+
+  # The source as it is before the backup (compared with the target later).
+  capture_state src
+
+  lines=$(doc_lines "Backups" 1) || exit 1
+  line=$(grep -F -- '/backup.sh' <<< "$lines" || true)
+  nl=$(printf '%s\n' "$line" | grep -c . || true)
+  [ "$nl" -eq 1 ] \
+    || die "$DEPLOY_DOC: bash block 1 of the section 'Backups' has $nl lines naming /backup.sh, exactly one (the manual run) is expected"
+  free=$(dx df -Pm /opt/holzcloud/backups | awk 'NR == 2 { print $4 }') || free="?"
+
+  DOC_TIMED=1
+  doc_cmd "$line" || rc=$?
+  DOC_TIMED=0
+  n=$(steps_count)
+  nn=$(printf '%02d' "$n")
+  outf="$OUT_DIR/step-$nn.txt"
+  dir=$(sed -n 's/^=== Backup complete: \(.*\) ===$/\1/p' "$outf" | tail -n 1)
+  wall=$(awk '$1 == "WALL" { printf "%.3f", $3 - $2 }' "$outf")
+  {
+    echo "DIR: ${dir:-none}"
+    echo "WALL-S: ${wall:-?}"
+    # The script's own threshold is MIN_FREE_MB 1024; this is informational.
+    echo "FREE-MB: ${free:-?}"
+  } > "$OUT_DIR/backup.txt"
+
+  if [ "$rc" -ne 0 ] || [ -z "$dir" ]; then
+    CHECK_OUT="$OUT_DIR/verify-backup.txt"
+    CHECK_BADS=0
+    : > "$CHECK_OUT"
+    check_bad "backup: the document's line ended with status $rc and named no '=== Backup complete: DIR ===' line (step $nn)"
+    vrc=1
+  else
+    backup_verify "$dir" backup || vrc=1
+  fi
+
+  leak_check
+  if [ "$vrc" -ne 0 ]; then
+    say "run.sh: BACKUP FAILED, see the BAD lines of verify-backup.txt"
+    return 1
+  fi
+  say "BACKUP OK"
+}
+
+# transfer_into SRC_DIR: runs in the target's context (on_target).
+transfer_into() {
+  local src_dir=$1 base sl tl nfiles f tf rc=0
+  base=$(basename "$src_dir")
+  mkdir -p "$OUT_DIR"
+  tf="$OUT_DIR/transfer.txt"
+  : > "$tf"
+  deviation "DEVIATION[transfer]: the backup travels as a tar stream through the host (docker cp SOURCE:dir - into docker cp - TARGET:/opt/holzcloud/backups); on two real machines it would be rsync or scp, which the document leaves to the operator. Proof of a lossless transfer is the sha256 of every file on both sides"
+  deviation "DEVIATION[fixture]: the login password file, the AI key file and the test image are fixtures that stand in for what an operator remembers; none of them is part of any backup, and they cross from container to container by exec-pipe, never through a host file"
+
+  docker exec "$SRC_NAME" test -d "$src_dir" || die "the source $SRC_NAME has no directory $src_dir"
+  docker exec "$SRC_NAME" test -f "$src_dir/holzcloud.sqlite" || die "$src_dir of $SRC_NAME holds no holzcloud.sqlite"
+  dx mkdir -p /opt/holzcloud/backups || die "could not create /opt/holzcloud/backups in $NAME"
+
+  if ! docker cp "$SRC_NAME:$src_dir" - | docker cp - "$NAME:/opt/holzcloud/backups"; then
+    echo "BAD transfer: the tar stream from $SRC_NAME:$src_dir to $NAME:/opt/holzcloud/backups failed" | tee -a "$tf"
+    return 1
+  fi
+
+  # The fixtures. The two secrets are written under umask 077; the test image is
+  # no secret and the service user has to read it (capture_state hashes it as
+  # that user), so it keeps the mode a docker cp gave it in the source.
+  for f in /root/.hc-login-pass /root/.hc-key; do
+    docker exec "$SRC_NAME" cat "$f" \
+      | docker exec -i "$NAME" bash -c 'umask 077; cat > "$1"; test -s "$1"' _ "$f" \
+      || { echo "BAD transfer: $f could not be carried from $SRC_NAME to $NAME" | tee -a "$tf"; rc=1; }
+  done
+  docker exec "$SRC_NAME" cat /tmp/hc-upload.jpg \
+    | docker exec -i "$NAME" bash -c 'umask 022; cat > "$1"; test -s "$1"' _ /tmp/hc-upload.jpg \
+    || { echo "BAD transfer: /tmp/hc-upload.jpg could not be carried from $SRC_NAME to $NAME" | tee -a "$tf"; rc=1; }
+
+  # The order number (an order number, no secret) so capture_state finds it here.
+  grep -m1 '^ORDER:' "$SRC_OUT_DIR/baseline.txt" > "$OUT_DIR/baseline.txt" \
+    || { echo "BAD transfer: $SRC_OUT_DIR/baseline.txt has no ORDER: line" | tee -a "$tf"; rc=1; }
+
+  sl=$(docker exec "$SRC_NAME" bash -c 'cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum' _ "$src_dir") || sl=""
+  tl=$(dx bash -c 'cd "/opt/holzcloud/backups/$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum' _ "$base") || tl=""
+  nfiles=$(printf '%s\n' "$sl" | grep -c . || true)
+  {
+    echo "DIR: /opt/holzcloud/backups/$base"
+    echo "SOURCE: $SRC_NAME:$src_dir"
+    echo "FILES: $nfiles"
+  } >> "$tf"
+  if [ "$nfiles" -gt 0 ] && [ "$sl" = "$tl" ]; then
+    echo "TRANSFER: equal" | tee -a "$tf"
+  else
+    echo "BAD transfer: the sha256 lists of $src_dir in $SRC_NAME and of /opt/holzcloud/backups/$base in $NAME differ or are empty ($nfiles files in the source)" | tee -a "$tf"
+    rc=1
+  fi
+  [ "$rc" -eq 0 ]
+}
+
+# transfer: D-04. The source directory is BACKUP_DIR_PATH when set; else the
+# backup the timer made (OUT_DIR/timer.txt, plan 22-02: that is the one that gets
+# restored); else the manual one (OUT_DIR/backup.txt).
+cmd_transfer() {
+  local src_dir=$BACKUP_DIR_PATH
+  if [ -z "$src_dir" ] && [ -f "$OUT_DIR/timer.txt" ]; then
+    src_dir=$(sed -n 's/^DIR: //p' "$OUT_DIR/timer.txt" | head -n 1)
+  fi
+  if [ -z "$src_dir" ] && [ -f "$OUT_DIR/backup.txt" ]; then
+    src_dir=$(sed -n 's/^DIR: //p' "$OUT_DIR/backup.txt" | head -n 1)
+  fi
+  case "$src_dir" in
+    "" | none) die "no backup directory known: run 'run.sh backup' first, or set BACKUP_DIR_PATH" ;;
+  esac
+  dx true >/dev/null 2>&1 || die "the source container $NAME does not answer"
+  docker exec "$TGT_NAME" true >/dev/null 2>&1 \
+    || die "the target container $TGT_NAME does not answer; bring it up with 'run.sh build up install' under NAME=$TGT_NAME OUT_DIR=$TGT_OUT_DIR"
+  on_target transfer_into "$src_dir" || { say "run.sh: TRANSFER FAILED, see $TGT_OUT_DIR/transfer.txt"; return 1; }
+  say "TRANSFER OK"
+}
+
+# restore_into: runs in the target's context (on_target). The document's restore
+# line, played with the answer on stdin, then the first assertions: the setup form
+# open before (the empty database of the first start), the restored database live
+# afterwards (login with the old password, the setup form closed).
+restore_into() {
+  local dir out f ready lg before after n0 failed rrc=0
+  dx test -x /opt/holzcloud/holzcloud \
+    || die "no /opt/holzcloud/holzcloud in $NAME; bring the target up with 'run.sh build up install' first"
+  [ -f "$OUT_DIR/transfer.txt" ] && grep -q '^TRANSFER: equal' "$OUT_DIR/transfer.txt" \
+    || die "no $OUT_DIR/transfer.txt with 'TRANSFER: equal'; run 'run.sh transfer' first"
+  dir=$(sed -n 's/^DIR: //p' "$OUT_DIR/transfer.txt" | head -n 1)
+  dx test -f "$dir/holzcloud.sqlite" || die "the target $NAME has no $dir/holzcloud.sqlite; run 'run.sh transfer' first"
+  for f in /root/.hc-login-pass /root/.hc-key /tmp/hc-upload.jpg; do
+    dx test -s "$f" || die "the target $NAME has no $f; run 'run.sh transfer' first (it carries the fixtures)"
+  done
+
+  CHECK_OUT="$OUT_DIR/restore.txt"
+  CHECK_BADS=0
+  : > "$CHECK_OUT"
+  key_line "DIR: $dir"
+
+  before=$(form get /admin/setup /root/.hc-jar-probe) || before="HTTP error"
+  dx rm -f /root/.hc-jar-probe || true
+  key_line "SETUP-BEFORE: $before"
+  if [ "$before" = "HTTP 200 -" ]; then
+    check_pass "setup form open before the restore (the empty database of the first start)"
+  else
+    check_bad "setup form before the restore: expected 'HTTP 200 -', got '$before'"
+  fi
+
+  RESTORE_DIR=$dir
+  n0=$(steps_count)
+  doc_play "Restore from a backup" 1 || rrc=$?
+  RESTORE_DIR=""
+  failed=$(steps_failed_since "$n0")
+  if [ -n "$failed" ]; then
+    check_bad "restore: a counted step of the document's restore block ended non-zero: $(printf '%s' "$failed" | tr '\n' ' ')"
+  else
+    check_pass "restore: the document's restore block ran without a failing step"
+  fi
+
+  if ! wait_ready; then
+    check_bad "restore: /healthz did not answer within ${READY_TIMEOUT}s after the restore"
+  fi
+  ready=$(readyz_line) || ready="unavailable"
+  key_line "READYZ: $ready"
+  if printf '%s' "$ready" | dxi jq -e '.status == "ok" and .integrity == "ok"' >/dev/null 2>&1; then
+    check_pass "readyz status ok, integrity ok"
+  else
+    check_bad "readyz: not status ok and integrity ok: $ready"
+  fi
+
+  lg=$(form post /admin/login login@example.test /root/.hc-login-pass /root/.hc-jar-restore) || lg="HTTP error"
+  dx rm -f /root/.hc-jar-restore || true
+  key_line "LOGIN: $lg"
+  if [ "$lg" = "HTTP 303 /admin/" ]; then
+    check_pass "login with the password the user had before: 303 to /admin/"
+  else
+    check_bad "login: expected 'HTTP 303 /admin/', got '$lg'"
+  fi
+
+  after=$(form get /admin/setup /root/.hc-jar-probe) || after="HTTP error"
+  dx rm -f /root/.hc-jar-probe || true
+  key_line "SETUP-AFTER: $after"
+  if [ "$after" = "HTTP 404 -" ]; then
+    check_pass "setup form closed after the restore (the restored database has users)"
+  else
+    check_bad "setup form after the restore: expected 'HTTP 404 -', got '$after'"
+  fi
+
+  leak_check
+  if [ "$CHECK_BADS" -gt 0 ]; then
+    say "run.sh: RESTORE FAILED, $CHECK_BADS assertion(s), see restore.txt"
+    return 1
+  fi
+  say "RESTORE OK"
+}
+
+# restore: BAK-02, on the target, through on_target only.
+cmd_restore() {
+  docker exec "$TGT_NAME" true >/dev/null 2>&1 \
+    || die "the target container $TGT_NAME does not answer; bring it up with 'run.sh build up install' under NAME=$TGT_NAME OUT_DIR=$TGT_OUT_DIR"
+  on_target restore_into
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -2458,7 +2831,7 @@ while [ "$#" -gt 0 ]; do
       "cmd_$sub" "$@"
       exit $?
       ;;
-    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update | negative | rollback | fresh | lifecycle)
+    build | up | start | wait | canary | down | smoke | seed | check | verdict | mdwe | score | all | bins | install | firstrun | caddy | postinstall | baseline | update | negative | rollback | fresh | lifecycle | backup | transfer | restore)
       "cmd_$sub"
       ;;
     mdwe-control)
