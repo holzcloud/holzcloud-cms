@@ -94,6 +94,14 @@ TGT_OUT_DIR=${TGT_OUT_DIR:-$OUT_DIR-tgt}
 RESTORE_DIR=${RESTORE_DIR:-}
 RESTORE_ANSWER=${RESTORE_ANSWER:-yes}
 BACKUP_DIR_PATH=${BACKUP_DIR_PATH:-}
+# Phase 22, the timer and the bulk point: TIMER_OFFSET seconds ahead of the
+# container's clock is when the container-only drop-in makes the timer fire,
+# TIMER_WAIT seconds is how long `backup-timer` polls for the run, BULK_MB the
+# megabytes of synthetic media `backup-fixture` writes (0: none; the chain uses
+# 300 for its second data point).
+TIMER_OFFSET=${TIMER_OFFSET:-60}
+TIMER_WAIT=${TIMER_WAIT:-$((TIMER_OFFSET + 180))}
+BULK_MB=${BULK_MB:-}
 SRC_NAME=""
 SRC_OUT_DIR=""
 # A caller sets DOC_TIMED=1 around one doc_cmd call to have the line timed.
@@ -444,6 +452,7 @@ usage() {
   say "  backup                           the document's manual backup line in the source container, timed, then two integrity readers on the backup (OUT_DIR/backup.txt, verify-backup.txt)"
   say "  transfer                         the backup as a tar stream into the target container TGT_NAME, plus the fixture files by exec-pipe (TGT_OUT_DIR/transfer.txt)"
   say "  restore                          in the target: the document's restore line answered yes, then setup form, readyz and login (TGT_OUT_DIR/restore.txt)"
+  say "  backup-timer                     in the source: a container-only drop-in brings holzcloud-backup.timer TIMER_OFFSET seconds ahead, one run of the hardened service is observed (OUT_DIR/timer.txt)"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -2825,7 +2834,8 @@ exit "$rc"' _ "$dir") && crc=0 || crc=$?
 
   # The directory holds password hashes and the CSRF key.
   om=$(dx stat -c '%U %a' "$dir" | tr -d '\r') || om="?"
-  echo "DIR-OWNER-MODE: $om" >> "$kf"
+  # backup-timer has written the KEY line already; it is not written twice.
+  grep -q '^DIR-OWNER-MODE: ' "$kf" 2>/dev/null || echo "DIR-OWNER-MODE: $om" >> "$kf"
   if [ "$om" = "holzcloud 700" ]; then
     check_pass "owner and mode of the backup directory: $om"
   else
@@ -3248,6 +3258,187 @@ cmd_restore() {
   on_target restore_into
 }
 
+# backup-timer: BAK-03. The timer has never fired in any run, because its real
+# schedule is 03:15. A drop-in that exists in this container only (D-11) puts the
+# next run TIMER_OFFSET seconds ahead of the container's clock; the shipped units
+# in deploy/ and in /etc/systemd/system are untouched and the clock is not
+# changed (it would also move the journal, the -mtime retention and the stamp of
+# Persistent=true). Only daemon-reload is run: restarting the timer would stamp
+# LAST with the restart time and make "LAST moved" mean nothing. "Observed" is
+# three raw files (timer-before.txt, timer-after.txt, timer-journal.txt) and the
+# proof of who started the service (TriggeredBy, Result, ExecMainStatus). The
+# directory is the one the journal names, never "the newest": the backups
+# directory already holds the postinstall and the Updating backups.
+cmd_backup_timer() {
+  local dropin_dir=/etc/systemd/system/holzcloud-backup.timer.d
+  local dropin=/etc/systemd/system/holzcloud-backup.timer.d/container.conf
+  local enabled started both clock when now2 target left i act st tf dtxt jl dir om
+  local trig res es t0 t1 nb na lb la bads=0 vrc=0 timer_bads=0
+  case "$TIMER_OFFSET" in "" | *[!0-9]*) die "TIMER_OFFSET '$TIMER_OFFSET' is not a number of seconds" ;; esac
+  case "$TIMER_WAIT" in "" | *[!0-9]*) die "TIMER_WAIT '$TIMER_WAIT' is not a number of seconds" ;; esac
+  [ "$TIMER_OFFSET" -ge 10 ] || die "TIMER_OFFSET $TIMER_OFFSET is too short: daemon-reload and the first reading take several seconds under emulation, use 10 or more"
+  dx true >/dev/null 2>&1 \
+    || die "container $NAME does not answer; run 'run.sh build up install baseline update postinstall' with INSTALL_FROM=old first"
+  enabled=$(dx systemctl is-enabled holzcloud-backup.timer 2>/dev/null | tr -d '\r') || enabled=""
+  [ "$enabled" = enabled ] \
+    || die "holzcloud-backup.timer is '${enabled:-not installed}' in $NAME, not enabled; run 'run.sh postinstall' first (the document's Backups block enables it)"
+  started=$(dx systemctl show holzcloud-backup.service -p ExecMainStartTimestamp --value | tr -d '\r') || started="?"
+  [ -z "$started" ] \
+    || die "holzcloud-backup.service has run in $NAME already (ExecMainStartTimestamp '$started'): only the timer's own first run counts, and a manual backup does not start the unit; use a fresh container"
+  grep -q '^DIR: ' "$OUT_DIR/backup.txt" 2>/dev/null \
+    || die "no DIR: line in $OUT_DIR/backup.txt; run 'run.sh backup' first, so that the manual run is known and the timer's directory can be told apart from it"
+  mkdir -p "$OUT_DIR"
+
+  # The drop-in (D-11): the empty OnCalendar= first, because OnCalendar is a
+  # list and only the empty assignment resets it (else 03:15 stays active).
+  both=$(dx bash -c 'now=$(date -u +%s); echo "$(date -u -d "@$now" "+%Y-%m-%d %H:%M:%S") UTC $(date -u -d "@$((now + $1))" +%H:%M:%S) $((now + $1))"' _ "$TIMER_OFFSET" | tr -d '\r') \
+    || die "could not read the clock of $NAME"
+  clock=$(printf '%s' "$both" | cut -d' ' -f1-3)
+  when=$(printf '%s' "$both" | cut -d' ' -f4)
+  target=$(printf '%s' "$both" | cut -d' ' -f5)
+  dtxt=$(printf '[Timer]\nOnCalendar=\nOnCalendar=*-*-* %s\nRandomizedDelaySec=0\nAccuracySec=1s\n' "$when")
+  printf '%s\n' "$dtxt" > "$OUT_DIR/timer-dropin.txt"
+  printf '%s\n' "$dtxt" | dxi bash -c 'mkdir -p "$1" && cat > "$2"' _ "$dropin_dir" "$dropin" \
+    || die "could not write $dropin in $NAME"
+  deviation "DEVIATION[timer]: the container-only drop-in $dropin sets OnCalendar to an empty value (which resets the list) and then to *-*-* $when (TIMER_OFFSET=$TIMER_OFFSET seconds after the container's clock read $clock), RandomizedDelaySec=0 and AccuracySec=1s; the shipped holzcloud-backup.timer (OnCalendar=*-*-* 03:15:00, Persistent=true, RandomizedDelaySec=300) and its service are untouched, the clock is not changed, and only systemctl daemon-reload was run, no restart of the timer. It exists because the real schedule is 03:15 and a test cannot wait for it. What it cannot show, and what is therefore NOT TESTED: the real 03:15 window, Persistent=true after a missed run, and RandomizedDelaySec"
+  dx systemctl daemon-reload || die "systemctl daemon-reload failed in $NAME"
+
+  now2=$(dx date -u +%s | tr -d '\r') || now2=0
+  left=$((target - now2))
+  if [ "$left" -lt 3 ]; then
+    die "only $left second(s) were left before the drop-in's time $when after daemon-reload: the next run is tomorrow; run again with a larger TIMER_OFFSET (now $TIMER_OFFSET)"
+  fi
+
+  # Before the fire.
+  dx systemctl list-timers holzcloud-backup.timer --no-pager > "$OUT_DIR/timer-before.txt" 2>&1 || true
+  nb=$(dx systemctl show holzcloud-backup.timer -p NextElapseUSecRealtime --value | tr -d '\r') || nb=""
+  lb=$(dx systemctl show holzcloud-backup.timer -p LastTriggerUSec --value | tr -d '\r') || lb=""
+
+  # Poll once a second, never one long sleep: the oneshot is finished when its
+  # start timestamp is set and its state is no longer activating or active.
+  i=0
+  st=""
+  while [ "$i" -le "$TIMER_WAIT" ]; do
+    st=$(dx systemctl show holzcloud-backup.service -p ExecMainStartTimestamp --value | tr -d '\r') || st=""
+    act=$(dx systemctl show holzcloud-backup.service -p ActiveState --value | tr -d '\r') || act=""
+    if [ -n "$st" ]; then
+      case "$act" in activating | active | reloading) ;; *) break ;; esac
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  if [ -z "$st" ] || [ "$i" -gt "$TIMER_WAIT" ]; then
+    say "run.sh: holzcloud-backup.service did not run within ${TIMER_WAIT}s of the drop-in (time $when); its journal and the timer:"
+    dx journalctl -u holzcloud-backup.service --no-pager -n 40 >&2 || true
+    dx systemctl list-timers holzcloud-backup.timer --no-pager >&2 || true
+    die "the timer did not fire; the drop-in stays in $NAME for a look (systemctl cat holzcloud-backup.timer)"
+  fi
+
+  # After the fire.
+  dx systemctl list-timers holzcloud-backup.timer --no-pager > "$OUT_DIR/timer-after.txt" 2>&1 || true
+  dx journalctl -u holzcloud-backup.service --no-pager -o short-precise > "$OUT_DIR/timer-journal.txt" 2>&1 || true
+  na=$(dx systemctl show holzcloud-backup.timer -p NextElapseUSecRealtime --value | tr -d '\r') || na=""
+  la=$(dx systemctl show holzcloud-backup.timer -p LastTriggerUSec --value | tr -d '\r') || la=""
+  trig=$(dx systemctl show holzcloud-backup.service -p TriggeredBy --value | tr -d '\r') || trig=""
+  res=$(dx systemctl show holzcloud-backup.service -p Result --value | tr -d '\r') || res=""
+  es=$(dx systemctl show holzcloud-backup.service -p ExecMainStatus --value | tr -d '\r') || es=""
+  t0=$st
+  t1=$(dx systemctl show holzcloud-backup.service -p ExecMainExitTimestamp --value | tr -d '\r') || t1=""
+  dir=$(sed -n 's/.*=== Backup complete: \(.*\) ===$/\1/p' "$OUT_DIR/timer-journal.txt" | tail -n 1)
+  om="?"
+  if [ -n "$dir" ]; then om=$(dx stat -c '%U %a' "$dir" 2>/dev/null | tr -d '\r') || om="?"; fi
+
+  tf="$OUT_DIR/timer.txt"
+  CHECK_OUT=$tf
+  CHECK_BADS=0
+  : > "$tf"
+  key_line "TRIGGERED-BY: $trig"
+  key_line "RESULT: $res"
+  key_line "EXIT-STATUS: $es"
+  key_line "START: $t0"
+  key_line "END: $t1"
+  key_line "DROPIN-TIME: $when"
+  key_line "CLOCK: $clock"
+  key_line "NEXT-BEFORE: ${nb:-n/a}"
+  key_line "NEXT-AFTER: ${na:-n/a}"
+  key_line "LAST-BEFORE: ${lb:-n/a}"
+  key_line "LAST-AFTER: ${la:-n/a}"
+  key_line "DIR: ${dir:-none}"
+  key_line "DIR-OWNER-MODE: $om"
+  key_line "HOST-ARCH: $(docker info --format '{{.Architecture}}')"
+  key_line "CONTAINER-ARCH: $(dx uname -m | tr -d '\r')"
+
+  # The assertions.
+  if [ "$trig" = holzcloud-backup.timer ]; then
+    check_pass "the service was started by holzcloud-backup.timer (TriggeredBy), not by hand"
+  else
+    check_bad "TriggeredBy is '$trig', expected holzcloud-backup.timer"
+  fi
+  if [ "$res" = success ] && [ "$es" = 0 ]; then
+    check_pass "Result success and ExecMainStatus 0"
+  else
+    check_bad "Result '$res' and ExecMainStatus '$es', expected success and 0"
+  fi
+  if [ -n "$dir" ] && grep -q '=== Backup complete' "$OUT_DIR/timer-journal.txt"; then
+    check_pass "the journal of the unit holds the script's '=== Backup complete: $dir ===' line"
+  else
+    check_bad "the journal of the unit holds no '=== Backup complete: DIR ===' line (timer-journal.txt)"
+  fi
+  if [ -n "$dir" ] && dx test -d "$dir"; then
+    check_pass "the directory the journal names exists: $dir"
+  else
+    check_bad "the directory the journal names ('${dir:-none}') does not exist"
+  fi
+  if [ "$om" = "holzcloud 700" ]; then
+    check_pass "owner and mode of the timer's backup directory: $om (the hardened unit runs as the service user)"
+  else
+    check_bad "owner and mode of the timer's backup directory: '$om', expected 'holzcloud 700' (it holds password hashes and the CSRF key)"
+  fi
+  case "${lb:-n/a}" in
+    n/a | "" | "0") check_pass "LAST before the run was empty (n/a): the timer had never fired" ;;
+    *) check_bad "LAST before the run was '$lb', the timer had fired before (or was restarted)" ;;
+  esac
+  case "${la:-n/a}" in
+    n/a | "" | "0") check_bad "LAST after the run is empty: the timer's LAST did not move" ;;
+    *) check_pass "LAST after the run is set: $la" ;;
+  esac
+  if [ -n "$na" ] && [ "$na" != "$nb" ]; then
+    check_pass "NEXT moved from '$nb' to '$na'"
+  else
+    check_bad "NEXT did not move: before '$nb', after '$na'"
+  fi
+  if [ -n "$dir" ] && [ "$dir" != "$(sed -n 's/^DIR: //p' "$OUT_DIR/backup.txt" | head -n 1)" ]; then
+    check_pass "the timer made its own directory, not the manual run's ($(sed -n 's/^DIR: //p' "$OUT_DIR/backup.txt" | head -n 1))"
+  else
+    check_bad "the timer's directory '${dir:-none}' equals the manual run's"
+  fi
+  timer_bads=$CHECK_BADS
+
+  # The backup that is going to be restored gets the same proof as the manual
+  # one: two integrity readers, the whole-directory comparison, row counts.
+  if [ -n "$dir" ] && dx test -f "$dir/holzcloud.sqlite"; then
+    backup_verify "$dir" timer || vrc=1
+  else
+    CHECK_OUT="$OUT_DIR/verify-timer.txt"
+    CHECK_BADS=0
+    : > "$CHECK_OUT"
+    check_bad "backup-timer: the timer's directory '${dir:-none}' holds no holzcloud.sqlite to verify"
+    vrc=1
+  fi
+
+  leak_check
+  bads=$timer_bads
+  if [ "$bads" -gt 0 ]; then
+    say "run.sh: BACKUP-TIMER FAILED, $bads assertion(s) of timer.txt are BAD"
+    return 1
+  fi
+  if [ "$vrc" -ne 0 ]; then
+    say "run.sh: BACKUP-TIMER FAILED: the timer behaved, but its backup has BAD lines, see verify-timer.txt"
+    return 1
+  fi
+  say "BACKUP-TIMER OK"
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -3271,6 +3462,9 @@ while [ "$#" -gt 0 ]; do
       # shows every finding of all three, and ends with 1 (die still ends it at
       # once: a missing precondition is no finding).
       "cmd_$sub" || PHASE22_RC=1
+      ;;
+    backup-timer)
+      cmd_backup_timer || PHASE22_RC=1
       ;;
     *) usage ;;
   esac
