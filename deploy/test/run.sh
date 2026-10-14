@@ -453,6 +453,8 @@ usage() {
   say "  transfer                         the backup as a tar stream into the target container TGT_NAME, plus the fixture files by exec-pipe (TGT_OUT_DIR/transfer.txt)"
   say "  restore                          in the target: the document's restore line answered yes, then setup form, readyz and login (TGT_OUT_DIR/restore.txt)"
   say "  backup-timer                     in the source: a container-only drop-in brings holzcloud-backup.timer TIMER_OFFSET seconds ahead, one run of the hardened service is observed (OUT_DIR/timer.txt)"
+  say "  restore-negative                 in the target, after restore: a damaged backup, one without a database, the answer no and a backup with no free space are refused, the live data unchanged (TGT_OUT_DIR/restore-negative.txt)"
+  say "  backup-fixture                   in the source: a language file and a logo are planted, and BULK_MB of synthetic media are written (OUT_DIR/bulk.txt)"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -3439,6 +3441,243 @@ cmd_backup_timer() {
   say "BACKUP-TIMER OK"
 }
 
+# ---------------------------------------------------------------------------
+# Phase 22, plan 02: the refusals of restore.sh and backup.sh, played once with
+# the live data shown untouched (D-09), and the fixture of the second data point.
+# ---------------------------------------------------------------------------
+
+# neg_inv: the invariants of the LIVE data in the current container, one "KEY
+# value" line each. The tree is the whole data directory by the same exclusions as
+# every other comparison (the SQLite family is out: the running service writes to
+# it, so a byte hash of it is no invariant); the database is asked for its
+# integrity through the immutable URI instead.
+neg_inv() {
+  local th
+  th=$(tree_hash /opt/holzcloud/data | dxi sha256sum | cut -d' ' -f1) || th="?"
+  dx bash -c 'd=/opt/holzcloud/data
+echo "inode $(stat -c %i "$d")"
+echo "invocation $(systemctl show holzcloud -p InvocationID --value)"
+echo "activeenter $(systemctl show holzcloud -p ActiveEnterTimestamp --value)"
+echo "asides $(ls -1d /opt/holzcloud/data.before-restore-* 2>/dev/null | wc -l)"
+echo "active $(systemctl is-active holzcloud)"
+echo "readyz $(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/readyz)"
+echo "integrity $(sqlite3 "file:$d/holzcloud.sqlite?immutable=1" "PRAGMA integrity_check;" 2>&1 | tr "\n" " ")"' | tr -d '\r'
+  printf 'tree %s\n' "$th"
+}
+
+# neg_finish LETTER NAME BEFORE OUTPUT EXIT PATTERN DESCRIPTION: the assertions of
+# one case. The exit status must be 1, the output must match PATTERN, and every
+# invariant of the live data must be equal to what it was before the case. A
+# case that holds on all counts is `NEGATIVE-RESULT: refused`: it was refused and
+# the live data was not touched.
+neg_finish() {
+  local l=$1 name=$2 before=$3 out=$4 ec=$5 pat=$6 desc=$7 after k b a b0 line n=0
+  after=$(neg_inv)
+  key_line "CASE $l $name: exit=$ec"
+  b0=$CHECK_BADS
+  while IFS= read -r line; do
+    n=$((n + 1))
+    [ "$n" -le 25 ] || break
+    check_info "case $l output: $line"
+  done <<< "$out"
+  if [ "$ec" = 1 ]; then
+    check_pass "case $l: exit status 1"
+  else
+    check_bad "case $l: exit status '$ec', expected 1"
+  fi
+  if printf '%s\n' "$out" | grep -Eq -- "$pat"; then
+    check_pass "case $l: the output $desc"
+  else
+    check_bad "case $l: the output does not $desc"
+  fi
+  for k in inode tree invocation activeenter asides active readyz integrity; do
+    b=$(printf '%s\n' "$before" | sed -n "s/^$k //p" | head -n 1)
+    a=$(printf '%s\n' "$after" | sed -n "s/^$k //p" | head -n 1)
+    if [ -n "$b" ] && [ "$a" = "$b" ]; then
+      check_pass "case $l: invariant $k unchanged ($b)"
+    else
+      check_bad "case $l: invariant $k changed or unreadable: before '$b', after '$a'"
+    fi
+  done
+  if [ "$CHECK_BADS" -eq "$b0" ]; then
+    key_line "NEGATIVE-RESULT: refused"
+  fi
+}
+
+# neg_restore DIR ANSWER: restore.sh on DIR with ANSWER on stdin, as root like the
+# document's `sudo`; prints its output and, last, "EXIT n". The answer comes from
+# stdin on purpose, so that a restore that passed its check would go on.
+neg_restore() {
+  printf '%s\n' "$2" | dxi bash -c 'cd /; /opt/holzcloud/deploy/restore.sh "$1" 2>&1; echo "EXIT $?"' _ "$1" | tr -d '\r'
+}
+
+# restore_negative_into: runs in the target's context (on_target), after a
+# successful restore: the live data are the restored ones.
+restore_negative_into() {
+  local dir out ec before bdir ndir0 ndir1 proof asz
+  dx test -x /opt/holzcloud/deploy/restore.sh || die "no /opt/holzcloud/deploy/restore.sh in $NAME; bring the target up with 'run.sh build up install' first"
+  [ -f "$OUT_DIR/restore.txt" ] && grep -q '^DIR: ' "$OUT_DIR/restore.txt" && grep -q '^SETUP-AFTER: HTTP 404 -$' "$OUT_DIR/restore.txt" \
+    || die "no $OUT_DIR/restore.txt with a DIR: line and 'SETUP-AFTER: HTTP 404 -': the restore did not complete; run 'run.sh restore' first"
+  dir=$(sed -n 's/^DIR: //p' "$OUT_DIR/restore.txt" | head -n 1)
+  dx test -f "$dir/holzcloud.sqlite" || die "the target $NAME has no $dir/holzcloud.sqlite"
+  dx systemctl is-active --quiet holzcloud || die "holzcloud is not active in $NAME: the invariants are taken from the running restored site"
+
+  CHECK_OUT="$OUT_DIR/restore-negative.txt"
+  CHECK_BADS=0
+  : > "$CHECK_OUT"
+  key_line "DIR: $dir"
+  check_info "the live data are the restored site; before and after every case the inode of /opt/holzcloud/data, the sha256 of every file below it except the SQLite family and MANIFEST, the service's InvocationID and ActiveEnterTimestamp, the number of /opt/holzcloud/data.before-restore-* directories, systemctl is-active, the /readyz status and PRAGMA integrity_check of the live database (immutable URI: the running service writes to the file, so a byte hash of it is no invariant) are taken and must be equal"
+
+  # (a) a backup whose database is damaged.
+  scenario "SCENARIO[restore-damaged]: restore.sh is run on a copy of the transferred backup whose holzcloud.sqlite is truncated to half its size (or, when the check accepts that, has 4 KB overwritten in the middle), with 'yes' on stdin on purpose, to see that it is refused before the live data is touched. The document names the script, not this directory or this damage"
+  bdir=/opt/holzcloud/backups/negcase-damaged
+  dx rm -rf "$bdir"
+  dx cp -a "$dir" "$bdir" || die "could not copy $dir to $bdir in $NAME"
+  proof=$(dx bash -c 'set -u
+b=$1; orig=$2
+f=$b/holzcloud.sqlite
+size=$(stat -c %s "$orig/holzcloud.sqlite")
+try() {
+  t=$(mktemp -d)
+  cp "$f" "$t/holzcloud.sqlite"
+  rc=0
+  HOLZCLOUD_DATA_DIR="$t" /opt/holzcloud/holzcloud check > "$t/out.txt" 2>&1 || rc=$?
+  echo "check exit status $rc: $(tr "\n" " " < "$t/out.txt" | cut -c1-200)"
+  rm -rf "$t"
+  return "$rc"
+}
+cp -p "$orig/holzcloud.sqlite" "$f"
+truncate -s $((size / 2)) "$f"
+echo "damage: holzcloud.sqlite truncated from $size to $((size / 2)) bytes"
+if ! try; then echo "DAMAGE-PROVEN truncated"; exit 0; fi
+cp -p "$orig/holzcloud.sqlite" "$f"
+dd if=/dev/urandom of="$f" bs=4096 count=1 seek=$((size / 2 / 4096)) conv=notrunc 2>/dev/null
+echo "damage: 4 KB overwritten at offset $((size / 2 / 4096 * 4096)) of $size bytes"
+if ! try; then echo "DAMAGE-PROVEN overwritten"; exit 0; fi
+echo "DAMAGE-NOT-PROVEN"' _ "$bdir" "$dir" | tr -d '\r') || proof="DAMAGE-NOT-PROVEN"
+  while IFS= read -r asz; do
+    [ -z "$asz" ] || check_info "case a: $asz"
+  done <<< "$proof"
+  if printf '%s\n' "$proof" | grep -q '^DAMAGE-PROVEN '; then
+    check_pass "case a: the damage is real: the binary's check, run the way restore.sh runs it on a copy, refused the damaged file ($(printf '%s\n' "$proof" | sed -n 's/^DAMAGE-PROVEN //p'))"
+  else
+    check_bad "case a: the damage was NOT proven real: the binary's check accepted the damaged file, so the refusal below would prove nothing"
+  fi
+  before=$(neg_inv)
+  out=$(neg_restore "$bdir" yes)
+  ec=$(printf '%s\n' "$out" | sed -n 's/^EXIT //p' | tail -n 1)
+  neg_finish a restore-damaged "$before" "$out" "$ec" 'fails its integrity check' "names the integrity refusal ('the snapshot fails its integrity check')"
+
+  # (b) a backup directory without a database.
+  scenario "SCENARIO[restore-no-sqlite]: restore.sh is run on a directory that holds only a copy of MANIFEST, with 'yes' on stdin, to see that it is refused"
+  ndir0=/opt/holzcloud/backups/negcase-empty
+  dx rm -rf "$ndir0"
+  dx mkdir "$ndir0" || die "could not create $ndir0 in $NAME"
+  dx cp -p "$dir/MANIFEST" "$ndir0/MANIFEST" || die "no MANIFEST to copy from $dir"
+  before=$(neg_inv)
+  out=$(neg_restore "$ndir0" yes)
+  ec=$(printf '%s\n' "$out" | sed -n 's/^EXIT //p' | tail -n 1)
+  neg_finish b restore-no-sqlite "$before" "$out" "$ec" 'holzcloud\.sqlite not found' "names the missing holzcloud.sqlite"
+
+  # (c) the intact backup, the answer is no.
+  scenario "SCENARIO[restore-answer-no]: restore.sh is run on the intact transferred backup with 'no' on stdin, to see that it aborts before the service is stopped"
+  before=$(neg_inv)
+  out=$(neg_restore "$dir" no)
+  ec=$(printf '%s\n' "$out" | sed -n 's/^EXIT //p' | tail -n 1)
+  neg_finish c restore-answer-no "$before" "$out" "$ec" '^aborted' "says 'aborted'"
+
+  dx rm -rf "$bdir" "$ndir0"
+
+  # (d) backup.sh with a free-space threshold no disk has: refused before it
+  # makes a directory.
+  scenario "SCENARIO[backup-low-disk]: backup.sh is run as the service user with MIN_FREE_MB=99999999, a threshold no disk has, to see that it exits 1 and makes no directory. The document names the script and its default; the value is new"
+  ndir1=$(dx bash -c 'ls -1d /opt/holzcloud/backups/*/ 2>/dev/null | wc -l' | tr -d '\r')
+  before=$(neg_inv)
+  out=$(rc=0; dx runuser -u holzcloud -- env MIN_FREE_MB=99999999 /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups 2>&1 || rc=$?; echo "EXIT $rc")
+  out=$(printf '%s\n' "$out" | tr -d '\r')
+  ec=$(printf '%s\n' "$out" | sed -n 's/^EXIT //p' | tail -n 1)
+  neg_finish d backup-low-disk "$before" "$out" "$ec" 'only [0-9]+ MB free' "names the free space ('only N MB free ... need 99999999 MB')"
+  asz=$(dx bash -c 'ls -1d /opt/holzcloud/backups/*/ 2>/dev/null | wc -l' | tr -d '\r')
+  if [ "$asz" = "$ndir1" ]; then
+    check_pass "case d: the number of directories under /opt/holzcloud/backups is unchanged ($asz): no directory was made"
+  else
+    check_bad "case d: the number of directories under /opt/holzcloud/backups changed from $ndir1 to $asz"
+  fi
+
+  leak_check
+  if [ "$CHECK_BADS" -gt 0 ]; then
+    key_line "RESTORE-NEGATIVE FAILED: $CHECK_BADS assertion(s) are BAD"
+    return 1
+  fi
+  key_line "RESTORE-NEGATIVE OK"
+}
+
+# restore-negative: D-09, on the target, after `restore`, through on_target only.
+cmd_restore_negative() {
+  docker exec "$TGT_NAME" true >/dev/null 2>&1 \
+    || die "the target container $TGT_NAME does not answer; bring it up with 'run.sh build up install' under NAME=$TGT_NAME OUT_DIR=$TGT_OUT_DIR, then 'run.sh restore'"
+  on_target restore_negative_into
+}
+
+# backup-fixture: D-14 and D-02, in the source container as the service user. The
+# seed site has no operator language file and no logo, so a backup of it could not
+# show whether those directories are carried: one small valid file is planted in
+# each, always. With BULK_MB above zero the second data point's load is written
+# too: synthetic media, incompressible, outside the database (no row refers to
+# it), so the time of a copy is not dominated by the start of the service.
+cmd_backup_fixture() {
+  local mb=${BULK_MB:-0} wid n free need bulk bytes mbytes
+  case "$mb" in "" | *[!0-9]*) die "BULK_MB '$mb' is not a number of megabytes" ;; esac
+  dx true >/dev/null 2>&1 \
+    || die "container $NAME does not answer; run 'run.sh build up install baseline update postinstall' with INSTALL_FROM=old first"
+  dx test -e /opt/holzcloud/data/holzcloud.sqlite \
+    || die "no /opt/holzcloud/data/holzcloud.sqlite in $NAME; run 'run.sh install' first"
+  mkdir -p "$OUT_DIR"
+  deviation "DEVIATION[fixture]: a language file (data/sprachen/nl.json), a logo (data/marke/logo.svg) and, with BULK_MB above zero, synthetic media (data/media/WEBSITE/bulk, random bytes outside the database) stand in for operator work; none of them is a step of the document. They make the data directory hold every directory a backup must carry, and a load whose copy time can be read"
+
+  # The flat JSON object of text pairs that internal/i18n Parse accepts; the file
+  # name is the language tag. Written by the service user, as the admin would.
+  printf '%s\n' '{"Speichern": "Opslaan", "Abbrechen": "Annuleren"}' \
+    | dxi runuser -u holzcloud -- bash -c 'umask 077; mkdir -p /opt/holzcloud/data/sprachen && cat > /opt/holzcloud/data/sprachen/nl.json' \
+    || die "could not plant /opt/holzcloud/data/sprachen/nl.json"
+  # internal/branding LogoPath looks for logo.svg, logo.png, logo.webp in the folder.
+  printf '%s\n' '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="#325737"/></svg>' \
+    | dxi runuser -u holzcloud -- bash -c 'umask 077; mkdir -p /opt/holzcloud/data/marke && cat > /opt/holzcloud/data/marke/logo.svg' \
+    || die "could not plant /opt/holzcloud/data/marke/logo.svg"
+  say "planted data/sprachen/nl.json and data/marke/logo.svg"
+
+  if [ "$mb" -gt 0 ]; then
+    n=$((mb / 5))
+    [ "$n" -ge 1 ] || die "BULK_MB $mb is less than one 5 MiB file"
+    free=$(dx df -Pm /opt/holzcloud/data | awk 'NR == 2 { print $4 }' | tr -d '\r') || free=0
+    need=$((mb * 4 + 1024))
+    if [ "${free:-0}" -lt "$need" ]; then
+      die "BULK_MB=$mb needs $need MB free (the files, their copy in a backup and in a restore, and the 1024 MB MIN_FREE_MB that backup.sh refuses to start below), $NAME has $free MB"
+    fi
+    wid=$(dx runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select id from websites order by id limit 1" | tr -d '\r') \
+      || die "backup-fixture: could not read the website id"
+    [ -n "$wid" ] || die "backup-fixture: there is no website to attach media to"
+    bulk=/opt/holzcloud/data/media/$wid/bulk
+    dx runuser -u holzcloud -- bash -c 'umask 077; d=$1; n=$2
+rm -rf "$d"; mkdir -p "$d"
+i=1
+while [ "$i" -le "$n" ]; do
+  head -c 5242880 /dev/urandom > "$d/bulk-$i.bin"
+  i=$((i + 1))
+done' _ "$bulk" "$n" || die "could not write the bulk media below $bulk"
+    bytes=$(dx du -sb "$bulk" | cut -f1 | tr -d '\r')
+    mbytes=$(dx du -sb /opt/holzcloud/data/media | cut -f1 | tr -d '\r')
+    {
+      echo "BULK-MB: $mb"
+      echo "FILES: $(dx bash -c 'find "$1" -type f | wc -l' _ "$bulk" | tr -d '\r')"
+      echo "BYTES: $bytes"
+      echo "MEDIA-BYTES: $mbytes"
+    } > "$OUT_DIR/bulk.txt"
+    cat "$OUT_DIR/bulk.txt"
+  fi
+  say "BACKUP-FIXTURE OK"
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -3465,6 +3704,12 @@ while [ "$#" -gt 0 ]; do
       ;;
     backup-timer)
       cmd_backup_timer || PHASE22_RC=1
+      ;;
+    restore-negative)
+      cmd_restore_negative || PHASE22_RC=1
+      ;;
+    backup-fixture)
+      cmd_backup_fixture || PHASE22_RC=1
       ;;
     *) usage ;;
   esac
