@@ -960,12 +960,15 @@ the stored mail-account passwords of the websites cannot be opened), the
 `Caddyfile` and the proxy's certificate state. None of them is in the data
 directory, so no backup holds them.
 
-**How long it takes**, as an order of magnitude and not a promise: a restore of a
-small site (under a megabyte) took about two seconds, most of it the service
-starting, and 300 MiB of synthetic media added about a quarter of a second, so
-roughly one second per GiB of media. That was measured in a container under amd64
-emulation on an arm host, with a warm cache; a real server's disk and CPU will
-differ. A backup of the same sites took under a second.
+**How long it takes**, as an order of magnitude and not a promise: a small site
+with five plugins (a backup of about 20 MB, nearly all of it the plugin modules)
+was backed up in under a second and restored in about seven seconds, nearly all
+of it the service starting, which loads every installed plugin (about a second
+each here). 300 MiB of synthetic media added about a quarter of a second to the
+copy, so roughly one second per GiB of media; the wait for `/readyz` varied by
+about a second between the two readings. That was measured in a container under
+amd64 emulation on an arm host, with a warm cache; a real server's disk and CPU
+will differ, and a site with more plugins starts more slowly.
 
 The restore was played from a backup the timer made into a fresh, empty container
 (the record is `deploy/BACKUP-RUN.md`). Restore stops the production unit and
