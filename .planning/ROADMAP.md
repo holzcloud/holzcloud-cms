@@ -449,11 +449,11 @@ Plans:
   2. `restore.sh` onto an empty system yields working pages, media and login; time and size recorded.
   3. One run through `holzcloud-backup.timer` is observed.
 
-**Plans**: 5 plans in 5 waves
+**Plans**: 1/5 plans executed in 5 waves
 
 Plans:
 **Wave 1**
-- [ ] 22-01-PLAN.md — Harness tracer and proof (two containers, `backup`, `transfer`, `restore`): the document's backup line, a tar stream, the document's restore line answered `yes`, a login; then two integrity readers, whole-directory content comparison, cross-container state comparison, timing and size, each able to fail (BAK-01, BAK-02)
+- [x] 22-01-PLAN.md — Harness tracer and proof (two containers, `backup`, `transfer`, `restore`): the document's backup line, a tar stream, the document's restore line answered `yes`, a login; then two integrity readers, whole-directory content comparison, cross-container state comparison, timing and size, each able to fail (BAK-01, BAK-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 22-02-PLAN.md — `backup-timer` (container-only drop-in, one observed run of the hardened service), `restore-negative`, `backup-fixture` (planted directories, 300 MiB bulk media), `backup-chain` with a fixed summary vocabulary, README (BAK-01, BAK-02, BAK-03)
@@ -529,7 +529,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 19. On the Phone | v2.5 | 4/4 | Complete | 2026-09-17 |
 | 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
 | 21. Deploy, update, rollback | v0.1.0 | 6/6 | Complete    | 2026-10-12 |
-| 22. Backup and restore, measured | v0.1.0 | 0/? | Not started | — |
+| 22. Backup and restore, measured | v0.1.0 | 1/5 | In Progress | — |
 | 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
 
 ---

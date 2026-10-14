@@ -3,13 +3,12 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 milestone_name: Betrieb härten
 current_phase: 22
-current_phase_name: backup-and-restore-measured
+current_phase_name: Backup and restore, measured
 status: executing
-stopped_at: Phase 22 context gathered
-last_updated: "2026-10-14T07:44:30.860Z"
-last_activity: 2026-10-12
-last_activity_desc: Phase 21 complete, transitioned to Phase 22
-state_head: e3da2218c0e966dfb493280531d749d964b1c402
+stopped_at: Completed 22-01-PLAN.md
+last_updated: "2026-10-14T10:14:45.364Z"
+last_activity: 2026-10-14
+state_head: 28d7df2655d1a6508da20ef07eb62e867fe1a21f
 progress:
   total_phases: 0
   completed_phases: 21
@@ -85,7 +84,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Ready to execute
+Status: Executing Phase 22
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -140,7 +139,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-12 — Phase 21 complete, transitioned to Phase 22
+Last activity: 2026-10-14
 
 ### Milestone Map
 
@@ -335,6 +334,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 21 P04 | 25 min | 2 tasks | 3 files |
 | Phase 21 P05 | 35min | 2 tasks | 4 files |
 | Phase 21 P06 | 8 min | 2 tasks | 3 files |
+| Phase 22 P01 | 22 min | 2 tasks | 1 files |
 
 ### Session Continuity
 
@@ -363,9 +363,9 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-12T13:19:07.523Z
-**Stopped at:** Phase 22 context gathered
-**Resume file:** .planning/phases/22-backup-and-restore-measured/22-CONTEXT.md
+**Last session:** 2026-10-14T10:14:45.339Z
+**Stopped at:** Completed 22-01-PLAN.md
+**Resume file:** None
 
 ## Decisions
 
@@ -461,6 +461,8 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 21]: Chains fresh and lifecycle fix the summary vocabulary (DEP-01 PASS, DEP-02 PASS or not applicable, DEP-03 PASS, LEAK-CHECK OK) and require TARGET=systemd-base
 - [Phase 21]: 21-06: the record's Summary names the build under test (2a11eeb) as its commit, not the HEAD of the record; DEP-02/DEP-03 prose uses the final set's run directories, Findings keep the earlier passes' quotes
 - [Phase 21]: 21-06: Container vs. server status is measured (observed, no difference in kind), inferred (read or reasoned), assumed (nothing in the runs speaks for it); a raw appendix is pasted with newline='' because dpkg progress lines carry carriage returns
+- [Phase 22]: 22-01: backup, transfer and restore chain on after a BAD line (|| PHASE22_RC=1) so one run shows every finding; the whole data directory is hashed, which exposes that backup.sh does not copy plugins/
+- [Phase 22]: 22-01: restore.sh leaves holzcloud.sqlite mode 644 (live file is 600) inside a 700 data directory; recorded as INFO, a finding for 22-04
 
 ## Accumulated Context
 
@@ -477,10 +479,10 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: 22 (backup-and-restore-measured) — READY TO EXECUTE
-Plan: Not started
-Status: All six plans executed; the phase awaits verification and completion by the orchestrator
-Last activity: 2026-10-12 — Plan 21-06 complete (the record, README hand-over, docs/deployment.md)
+Phase: 22 (Backup and restore, measured) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 22
+Last activity: 2026-10-14 — Phase 22 execution started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
 
