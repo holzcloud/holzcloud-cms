@@ -7,7 +7,28 @@ set -euo pipefail
 # restore section, so the backups had never been proven to be restorable.
 #
 # The live data directory is moved aside rather than deleted. If the restore
-# turns out to be the wrong snapshot, the previous state is still on disk.
+# turns out to be the wrong snapshot, the previous state is still on disk. The
+# directory is never removed by this script; it holds the media of the replaced
+# site and is deleted by hand once the restored site is accepted.
+#
+# What a restore brings back: the database, csrf.key and the five directories
+# media, templates, plugins, sprachen and marke, each only if the backup has it
+# (a backup made before plugins, sprachen and marke were carried restores as it
+# always did, without them). A directory without a MANIFEST is refused: backup.sh
+# writes it last, so a backup without one was interrupted.
+#
+# What it does not bring back: the pre-upgrade snapshots in the replaced data
+# directory (they stay in the set-aside copy), the service's readiness probe
+# file, and everything outside the data directory: the unit file and its
+# drop-ins, environment files, the secret key (HOLZCLOUD_SECRET_KEY) and the
+# proxy configuration. Those are rebuilt by hand.
+#
+# Order, which a refused backup depends on: verify a copy of the snapshot, ask,
+# stop the service, move the data aside, copy, chown, chmod, start, wait for
+# /readyz. Nothing is stopped or moved before the snapshot has passed.
+#
+# Another directory joining the data directory has to be added to the list
+# below, here and in backup.sh.
 #
 # Usage:
 #   sudo ./restore.sh /opt/holzcloud/backups/20260802-031500
@@ -34,9 +55,15 @@ if [ ! -f "${BACKUP_DIR}/holzcloud.sqlite" ]; then
     echo "ERROR: ${BACKUP_DIR}/holzcloud.sqlite not found" >&2
     exit 1
 fi
+# backup.sh writes the MANIFEST last, after the database and every directory,
+# so a directory without one is a backup that was interrupted.
+if [ ! -f "${BACKUP_DIR}/MANIFEST" ]; then
+    echo "ERROR: ${BACKUP_DIR}/MANIFEST not found — the backup is incomplete, do not restore it" >&2
+    exit 1
+fi
 
 echo "=== Restoring from ${BACKUP_DIR} ==="
-[ -f "${BACKUP_DIR}/MANIFEST" ] && cat "${BACKUP_DIR}/MANIFEST"
+cat "${BACKUP_DIR}/MANIFEST"
 
 # Verify the snapshot BEFORE touching the live data. Restoring a corrupt file
 # over a working one turns a recoverable problem into an unrecoverable one.
@@ -65,19 +92,18 @@ mkdir -p "${DATA_DIR}"
 
 echo "Restoring database..."
 cp "${BACKUP_DIR}/holzcloud.sqlite" "${DATA_DIR}/holzcloud.sqlite"
+chmod 600 "${DATA_DIR}/holzcloud.sqlite"
 
 if [ -f "${BACKUP_DIR}/csrf.key" ]; then
     echo "Restoring CSRF key..."
     cp -p "${BACKUP_DIR}/csrf.key" "${DATA_DIR}/csrf.key"
 fi
-if [ -d "${BACKUP_DIR}/media" ]; then
-    echo "Restoring media..."
-    rsync -a "${BACKUP_DIR}/media/" "${DATA_DIR}/media/"
-fi
-if [ -d "${BACKUP_DIR}/templates" ]; then
-    echo "Restoring templates..."
-    rsync -a "${BACKUP_DIR}/templates/" "${DATA_DIR}/templates/"
-fi
+for name in media templates plugins sprachen marke; do
+    if [ -d "${BACKUP_DIR}/${name}" ]; then
+        echo "Restoring ${name}..."
+        rsync -a "${BACKUP_DIR}/${name}/" "${DATA_DIR}/${name}/"
+    fi
+done
 
 chown -R "${OWNER}" "${DATA_DIR}"
 chmod 700 "${DATA_DIR}"

@@ -3127,7 +3127,7 @@ perm_check() {
 # the marker page, the state of the source against the state of the target, and
 # last of all `check`, which restarts the unit. Every failure is a BAD line.
 restore_proof() {
-  local dir=$1 tl kv asides na ac media_row ms want mcode mbody np crc=0 p c b
+  local dir=$1 tl kv asides na ac media_row ms want mcode mbody np crc=0 ccrc=0 p c b
   local back made hr f unitf dropins envf mf
 
   # --- time: the split from the per-line timestamps of restore-run.txt, the
@@ -3229,9 +3229,10 @@ restore_proof() {
       check_bad "state comparison source against target: $p pass, $b bad, see compare-src-tgt.txt; the BAD lines are: $(grep '^BAD' "$OUT_DIR/compare-src-tgt.txt" | sed 's/^BAD *//' | tr '\n' ';' | cut -c1-400)"
     fi
     compare_selftest "$SRC_OUT_DIR/state-src.txt" "$OUT_DIR/state-tgt.txt"
-    # restore.sh copies the database as root under its own umask, so the mode may
-    # differ from the 600 the service gave the live file; the 700 data directory
-    # is what keeps it private. Recorded, not asserted (a finding for the script).
+    # restore.sh copies the database as root and sets it to 600 like the file the
+    # service made (pass 1 found 644 here, F-08); the 700 data directory is what
+    # keeps it private either way. Recorded here, asserted by the owner and mode
+    # lines of restore.txt.
     check_info "owner and mode of holzcloud.sqlite: source '$(st_get "$SRC_OUT_DIR/state-src.txt" owner)', restored '$(st_get "$OUT_DIR/state-tgt.txt" owner)' (the data directory is $(dx stat -c '%a' /opt/holzcloud/data | tr -d '\r'))"
   else
     check_bad "state: $SRC_OUT_DIR/state-src.txt is missing; run 'run.sh backup' in the source first"

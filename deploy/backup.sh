@@ -10,6 +10,27 @@ set -euo pipefail
 # corrupted database would be faithfully copied over the last good snapshot
 # until every retained copy was broken.
 #
+# What a backup holds: the database snapshot, csrf.key and five directories of
+# the data directory: media, templates, plugins (the installed plugin modules;
+# the database keeps only the manifest and the hash of a plugin, the module
+# files are here), sprachen (the operator's language files) and marke (the
+# logo), plus a MANIFEST that is written last.
+#
+# What it deliberately does not hold: the pre-upgrade snapshots the service
+# keeps in the data directory (old-schema copies, they would not open under the
+# running binary), the service's readiness probe file, and everything outside
+# the data directory: the unit file and its drop-ins, environment files, the
+# secret key (HOLZCLOUD_SECRET_KEY) and the proxy configuration.
+#
+# The pair is not atomic. The database snapshot is taken first and the files
+# are copied afterwards, with the site running. A file added in between is in
+# the backup without a row, which is harmless; a file deleted in between can
+# leave a row whose file the backup lacks. Back up when the site is quiet if
+# that matters.
+#
+# Another directory joining the data directory has to be added to the list in
+# step 3, here and in restore.sh.
+#
 # Usage:
 #   ./backup.sh [backup_dir]
 #
@@ -54,19 +75,18 @@ if [ -f "${DATA_DIR}/csrf.key" ]; then
     cp -p "${DATA_DIR}/csrf.key" "${BACKUP_DIR}/csrf.key"
 fi
 
-# 3. Media files
-if [ -d "${DATA_DIR}/media" ]; then
-    echo "Backing up media..."
-    rsync -a "${DATA_DIR}/media/" "${BACKUP_DIR}/media/"
-fi
+# 3. The directories of the data directory that matter. A name that is not a
+#    directory is skipped silently.
+for name in media templates plugins sprachen marke; do
+    if [ -d "${DATA_DIR}/${name}" ]; then
+        echo "Backing up ${name}..."
+        rsync -a "${DATA_DIR}/${name}/" "${BACKUP_DIR}/${name}/"
+    fi
+done
 
-# 4. User-uploaded templates
-if [ -d "${DATA_DIR}/templates" ]; then
-    echo "Backing up templates..."
-    rsync -a "${DATA_DIR}/templates/" "${BACKUP_DIR}/templates/"
-fi
-
-# 5. A manifest, so a restore can tell what it is looking at.
+# 4. A manifest, so a restore can tell what it is looking at. It is written
+#    last: a restore takes its presence as the proof that every step before it
+#    finished.
 {
     echo "timestamp=${TIMESTAMP}"
     echo "version=$(HOLZCLOUD_DATA_DIR=${DATA_DIR} ${HOLZCLOUD_BIN} version 2>/dev/null || echo unknown)"
@@ -74,14 +94,14 @@ fi
     echo "host=$(hostname)"
 } > "${BACKUP_DIR}/MANIFEST"
 
-# 6. Retention. Without this the disk fills up and takes the site with it.
+# 5. Retention. Without this the disk fills up and takes the site with it.
 if [ "${RETENTION_DAYS}" -gt 0 ]; then
     echo "Pruning backups older than ${RETENTION_DAYS} days..."
     find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" \
         -exec rm -rf {} + 2>/dev/null || true
 fi
 
-# 7. Off-box copy. A backup on the same disk does not survive the failure it is
+# 6. Off-box copy. A backup on the same disk does not survive the failure it is
 #    meant to protect against — which DEPLOY.md itself calls likely.
 if [ -n "${REMOTE_TARGET:-}" ]; then
     echo "Copying to ${REMOTE_TARGET}..."
