@@ -48,6 +48,17 @@
 #   BIN_DIR          built binaries, default deploy/test/out/bin (outside OUT_DIR on purpose)
 #   INSTALL_FROM     which binary `install` stages: new (default) or old
 #   WITH_OLD=1       `bins` builds the old binary too; REBUILD=1 rebuilds an existing one
+#   TGT_NAME, TGT_OUT_DIR   phase 22: the second, fresh container a backup is restored onto, and its directory of
+#                    evidence (defaults NAME-tgt and OUT_DIR-tgt); NAME and OUT_DIR stay the source
+#   RESTORE_DIR, RESTORE_ANSWER, BACKUP_DIR_PATH   the directory restore.sh is given, what is typed at its question
+#                    (default yes), an explicit directory for `transfer`
+#   TIMER_OFFSET, TIMER_WAIT   seconds ahead of the container clock the timer drop-in fires (60), seconds
+#                    `backup-timer` polls for the run (TIMER_OFFSET + 180)
+#   BULK_MB          megabytes of synthetic media `backup-fixture` writes (0); `backup-chain` uses 300
+#
+# Phase 22 plays a backup, its timer and its restore:
+#   deploy/test/run.sh backup backup-timer transfer restore restore-negative   on a source and a target container
+#   TARGET=systemd-base deploy/test/run.sh backup-chain   the whole of BAK-01, BAK-02 and BAK-03, OUT_DIR/summary.txt
 #
 # Exit codes: 0 ok, 1 failure, 2 usage, 3 "ran, but this platform cannot give
 # the evidence".
@@ -410,6 +421,12 @@ CLEANUP_DOWN=0
 MDWE_DROPIN=0
 BINS_TMP=""
 PHASE22_RC=0
+# backup-chain starts three more containers than `down` knows of: unless KEEP=1
+# the handler removes every name in CLEANUP_TARGET_LIST (the source and both
+# targets, TGT_NAME and TGT_NAME-bulk), also when a die or an interrupt ends the
+# chain while NAME points at a target.
+CLEANUP_TARGETS=0
+CLEANUP_TARGET_LIST=""
 on_exit() {
   local rc=$?
   trap - EXIT
@@ -421,6 +438,11 @@ on_exit() {
   fi
   if [ "$CLEANUP_DOWN" = 1 ] && [ "$KEEP" != 1 ]; then
     cmd_down
+  fi
+  if [ "$CLEANUP_TARGETS" = 1 ] && [ "$KEEP" != 1 ]; then
+    for _n in $CLEANUP_TARGET_LIST; do
+      docker rm -f "$_n" >/dev/null 2>&1 || true
+    done
   fi
   exit "$rc"
 }
@@ -455,6 +477,7 @@ usage() {
   say "  backup-timer                     in the source: a container-only drop-in brings holzcloud-backup.timer TIMER_OFFSET seconds ahead, one run of the hardened service is observed (OUT_DIR/timer.txt)"
   say "  restore-negative                 in the target, after restore: a damaged backup, one without a database, the answer no and a backup with no free space are refused, the live data unchanged (TGT_OUT_DIR/restore-negative.txt)"
   say "  backup-fixture                   in the source: a language file and a logo are planted, and BULK_MB of synthetic media are written (OUT_DIR/bulk.txt)"
+  say "  backup-chain                     BAK-01, BAK-02, BAK-03 and the refusals from fresh containers, two data points, OUT_DIR/summary.txt (needs TARGET=systemd-base)"
   say "  exec [--] COMMAND...             run a command in the container (takes the rest)"
   say "  logs [ARGS...]                   journalctl -u holzcloud (takes the rest)"
   exit 2
@@ -2438,7 +2461,7 @@ steps_summary() {
 # deviation_kinds: the distinct DEVIATION kinds of deviations.txt, on one line.
 deviation_kinds() {
   local k
-  k=$(sed -n 's/^DEVIATION\[\([a-z]*\)\].*/\1/p' "$OUT_DIR/deviations.txt" 2>/dev/null | sort -u | tr '\n' ' ' | sed 's/ $//')
+  k=$(sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$OUT_DIR/deviations.txt" 2>/dev/null | sort -u | tr '\n' ' ' | sed 's/ $//')
   printf '%s\n' "${k:-none}"
 }
 
@@ -3678,6 +3701,163 @@ done' _ "$bulk" "$n" || die "could not write the bulk media below $bulk"
   say "BACKUP-FIXTURE OK"
 }
 
+# ---------------------------------------------------------------------------
+# Phase 22, plan 02: the chain. One command plays the whole proof from fresh
+# containers and writes OUT_DIR/summary.txt in a fixed vocabulary (BAK-01, BAK-02,
+# BAK-03, RESTORE-NEGATIVE, POINT, TIMER, STEPS, DEVIATIONS, LEAK-CHECK OK) that
+# plans 22-03, 22-04, 22-05 and phase 23 grep: extend, do not rename. The stages
+# stay separable subcommands; here each runs in a subshell and keeps its status,
+# so one failure does not hide the findings of the rest.
+# ---------------------------------------------------------------------------
+
+# file_clean FILE: the file exists, is not empty and holds no BAD line. A file that
+# was never written (its stage died) is not clean: it proves nothing.
+file_clean() {
+  [ -s "$1" ] && ! grep -q '^BAD' "$1"
+}
+
+# kv FILE KEY: the text after "KEY: " on the first such line, "?" when there is none.
+kv() {
+  local v
+  v=$(sed -n "s/^$2: //p" "$1" 2>/dev/null | head -n 1)
+  printf '%s\n' "${v:-?}"
+}
+
+# steps_of DIR: "played failed" from DIR/steps.txt, counted the way the harness
+# counts everywhere (a systemctl status line never counts as failed).
+steps_of() {
+  local f="$1/steps.txt" p fl
+  if [ -f "$f" ]; then
+    p=$(grep -c '^STEP ' "$f" || true)
+    fl=$(awk '$1 == "STEP" && $3 != "rc=0" && index($0, "systemctl status") == 0' "$f" | grep -c . || true)
+  fi
+  printf '%s %s\n' "${p:-0}" "${fl:-0}"
+}
+
+# point_line LABEL SRCDIR TGTDIR: the POINT line of a data point, read from the KEY
+# lines of the files that the stages wrote.
+point_line() {
+  printf 'POINT %s: BACKUP-BYTES=%s BACKUP-WALL-S=%s RESTORE-WALL-S=%s VERIFY-S=%s STOP-MOVE-COPY-S=%s START-READY-S=%s\n' "$1" \
+    "$(kv "$3/restore.txt" BACKUP-BYTES)" "$(kv "$2/backup.txt" WALL-S)" "$(kv "$3/restore.txt" WALL-S)" \
+    "$(kv "$3/restore.txt" VERIFY-S)" "$(kv "$3/restore.txt" STOP-MOVE-COPY-S)" "$(kv "$3/restore.txt" START-READY-S)"
+}
+
+# backup-chain: BAK-01, BAK-02, BAK-03 and the negative cases, from three fresh
+# containers, then a fourth for the second data point. Needs TARGET=systemd-base.
+cmd_backup_chain() {
+  chain_need_base backup-chain
+  CLEANUP_DOWN=1
+  CLEANUP_TARGETS=1
+  INSTALL_FROM=old
+  local mb=${BULK_MB:-300} sc_backup=0 sc_timer=0 sc_transfer=0 sc_restore=0 sc_neg=0 sc_bbackup=0 sc_btransfer=0 sc_brestore=0
+  local seed_out=$OUT_DIR seed_tgt=$TGT_NAME seed_tgt_out=$TGT_OUT_DIR
+  local bulk_out bulk_tgt bulk_tgt_out v1 v2 v3 t1 t2 t3 tm sp sf bp bf
+  local bak01=FAIL bak02=FAIL bak03=FAIL neg=FAIL kinds d
+  # The binary of both containers is the same, even if a commit lands mid-run.
+  NEW_REF=$(git rev-parse --short "${NEW_REF}^{commit}") || die "NEW_REF '$NEW_REF' is not a commit of this repository"
+  bulk_out="$seed_out-bulk"
+  bulk_tgt="$seed_tgt-bulk"
+  bulk_tgt_out="$seed_tgt_out-bulk"
+  CLEANUP_TARGET_LIST="$NAME $seed_tgt $bulk_tgt"
+  case "${bulk_out:?}" in
+    / | . | .. | ./ | "$ROOT" | "$ROOT"/) die "refusing OUT_DIR '$bulk_out'" ;;
+  esac
+  say "backup-chain: NEW_REF pinned to $NEW_REF; source $NAME ($seed_out), target $seed_tgt ($seed_tgt_out), second point source directory $bulk_out and target $bulk_tgt ($bulk_tgt_out), BULK_MB=$mb"
+
+  # The source: the populated, updated site with the backup units installed.
+  cmd_build
+  cmd_up
+  cmd_install
+  cmd_baseline
+  cmd_update
+  cmd_postinstall
+  BULK_MB=0
+  cmd_backup_fixture
+
+  # Target one, a different fresh container (D-01).
+  on_target cmd_up
+  on_target cmd_install
+
+  # The seed point.
+  ( cmd_backup ) || sc_backup=$?
+  ( cmd_backup_timer ) || sc_timer=$?
+  ( cmd_transfer ) || sc_transfer=$?
+  ( cmd_restore ) || sc_restore=$?
+  ( cmd_restore_negative ) || sc_neg=$?
+
+  # The bulk point: the same source container, synthetic media added, its own
+  # directory of evidence (it receives the baseline, which `backup` and `transfer`
+  # read the order number from), and a second fresh target. The timer is played
+  # once, in the seed point (D-13), so the manual backup is the one that travels.
+  rm -rf "${bulk_out:?}"
+  mkdir -p "$bulk_out"
+  cp "$seed_out/baseline.txt" "$bulk_out/baseline.txt" || die "no $seed_out/baseline.txt to start the second data point from"
+  OUT_DIR=$bulk_out
+  TGT_NAME=$bulk_tgt
+  TGT_OUT_DIR=$bulk_tgt_out
+  BULK_MB=$mb
+  cmd_backup_fixture
+  ( cmd_backup ) || sc_bbackup=$?
+  on_target cmd_up
+  on_target cmd_install
+  ( cmd_transfer ) || sc_btransfer=$?
+  ( cmd_restore ) || sc_brestore=$?
+  OUT_DIR=$seed_out
+  TGT_NAME=$seed_tgt
+  TGT_OUT_DIR=$seed_tgt_out
+
+  # The verdicts, from the files the stages wrote.
+  if file_clean "$seed_out/verify-backup.txt" && file_clean "$seed_out/verify-timer.txt" && file_clean "$bulk_out/verify-backup.txt"; then
+    bak01=PASS
+  fi
+  if [ "$sc_restore" -eq 0 ] && [ "$sc_brestore" -eq 0 ] \
+    && file_clean "$seed_tgt_out/restore.txt" && file_clean "$seed_tgt_out/compare-src-tgt.txt" && file_clean "$seed_tgt_out/check.txt" \
+    && file_clean "$bulk_tgt_out/restore.txt" && file_clean "$bulk_tgt_out/compare-src-tgt.txt" && file_clean "$bulk_tgt_out/check.txt"; then
+    bak02=PASS
+  fi
+  if file_clean "$seed_out/timer.txt" && grep -q '^TRIGGERED-BY: ' "$seed_out/timer.txt"; then
+    bak03=PASS
+  fi
+  if file_clean "$seed_tgt_out/restore-negative.txt" && grep -q '^RESTORE-NEGATIVE OK' "$seed_tgt_out/restore-negative.txt"; then
+    neg=PASS
+  fi
+
+  # No secret of any of the three containers in any of the four directories.
+  leak_check
+  ( OUT_DIR=$bulk_out; leak_check ) || die "a secret of $NAME occurs in a file under $bulk_out"
+  ( on_target leak_check ) || die "a secret of $seed_tgt occurs in a file under $seed_tgt_out"
+  ( TGT_NAME=$bulk_tgt; TGT_OUT_DIR=$bulk_tgt_out; on_target leak_check ) || die "a secret of $bulk_tgt occurs in a file under $bulk_tgt_out"
+
+  sp=0
+  sf=0
+  for d in "$seed_out" "$seed_tgt_out" "$bulk_out" "$bulk_tgt_out"; do
+    bp=$(steps_of "$d")
+    sp=$((sp + ${bp% *}))
+    sf=$((sf + ${bp#* }))
+  done
+  kinds=$(for d in "$seed_out" "$seed_tgt_out" "$bulk_out" "$bulk_tgt_out"; do
+    sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$d/deviations.txt" 2>/dev/null
+  done | sort -u | tr '\n' ' ' | sed 's/ $//')
+  {
+    echo "---- summary ($PLATFORM) ----"
+    echo "BAK-01 $bak01"
+    echo "BAK-02 $bak02"
+    echo "BAK-03 $bak03"
+    echo "RESTORE-NEGATIVE $neg"
+    point_line seed "$seed_out" "$seed_tgt_out"
+    point_line bulk "$bulk_out" "$bulk_tgt_out"
+    echo "TIMER: TRIGGERED-BY=$(kv "$seed_out/timer.txt" TRIGGERED-BY) RESULT=$(kv "$seed_out/timer.txt" RESULT)"
+    echo "STEPS: $sp played, $sf failed"
+    echo "DEVIATIONS: ${kinds:-none}"
+    echo "LEAK-CHECK OK"
+  } > "$seed_out/summary.txt"
+  cat "$seed_out/summary.txt"
+  say "backup-chain: stage statuses (1 is a BAD line or a refusal, see the files): backup=$sc_backup backup-timer=$sc_timer transfer=$sc_transfer restore=$sc_restore restore-negative=$sc_neg | bulk: backup=$sc_bbackup transfer=$sc_btransfer restore=$sc_brestore"
+  if [ "$bak01" != PASS ] || [ "$bak02" != PASS ] || [ "$bak03" != PASS ] || [ "$neg" != PASS ]; then
+    die "backup-chain: a requirement did not pass, see summary.txt"
+  fi
+}
+
 trap on_exit EXIT
 
 [ "$#" -gt 0 ] || usage
@@ -3707,6 +3887,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     restore-negative)
       cmd_restore_negative || PHASE22_RC=1
+      ;;
+    backup-chain)
+      cmd_backup_chain
       ;;
     backup-fixture)
       cmd_backup_fixture || PHASE22_RC=1

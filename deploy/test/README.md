@@ -29,6 +29,9 @@ PLATFORM=linux/arm64 ./deploy/test/run.sh mdwe
 PLATFORM=linux/amd64 TARGET=systemd-base NAME=holzcloud-fresh OUT_DIR=deploy/test/out/amd64-fresh ./deploy/test/run.sh fresh
 PLATFORM=linux/amd64 TARGET=systemd-base OLD_TAG=v0.0.10 NAME=holzcloud-lifecycle OUT_DIR=deploy/test/out/amd64-lifecycle ./deploy/test/run.sh lifecycle
 
+# Phase 22: the whole backup and restore proof from fresh containers (a source, two targets), one command, ending in OUT_DIR/summary.txt (see Phase 22: backup, timer and restore).
+PLATFORM=linux/amd64 TARGET=systemd-base NAME=holzcloud-bak OUT_DIR=deploy/test/out/amd64-bak TGT_NAME=holzcloud-bak-tgt TGT_OUT_DIR=deploy/test/out/amd64-bak-tgt ./deploy/test/run.sh backup-chain
+
 # A stepwise session that keeps the container for your own commands.
 KEEP=1 ./deploy/test/run.sh build up start
 ./deploy/test/run.sh exec -- systemctl status holzcloud
@@ -36,7 +39,7 @@ KEEP=1 ./deploy/test/run.sh build up start
 ./deploy/test/run.sh down
 ```
 
-`all`, `mdwe`, `fresh` and `lifecycle` remove the container when they end, unless `KEEP=1`. `build`, `up`, `start` and the single phase 21 steps never do; `down` does.
+`all`, `mdwe`, `fresh`, `lifecycle` and `backup-chain` remove the container when they end (`backup-chain` all three or four of them: the source and both targets), unless `KEEP=1`. `build`, `up`, `start` and the single phase 21 and phase 22 steps never do; `down` does.
 
 ## Subcommands
 
@@ -71,6 +74,13 @@ command line and end the call.
 | `negative` | After `update`: starts the old binary against the migrated database once, which the document tells nobody to do, and records what happens in `negative.txt` (`NEGATIVE-RESULT: starts` or `refuses`); the new binary is put back. Needs `update` with a snapshot, and refuses when none was written. Writes `scenario.txt`; prints `NEGATIVE OK`. |
 | `rollback` | After `update`: plays the document's Rolling back section (block 1 when `update.txt` names a snapshot, block 2 when it says `SNAPSHOT: none`), captures `s2`, and compares it with `s0` or with `s1m`. Needs `update`. Writes `rollback.txt`, `compare-s0-s2.txt` or `compare-s1m-s2.txt`; prints `ROLLBACK OK`. |
 | `compare` | `run.sh compare state-A.txt state-B.txt [OUTFILE]`: the comparison alone, on two state files, without a container. Exit 1 when a line is BAD. |
+| `backup` | Phase 22, in the source container (`NAME`): captures the state `src`, plays the one line of the document's Backups block that names `/backup.sh`, timed with the container's clock, and reads the directory from `=== Backup complete: DIR ===`. Then `backup_verify`: `holzcloud check` on a copy and `sqlite3` `PRAGMA integrity_check` on an immutable URI, the MANIFEST keys, owner and mode `holzcloud 700`, the sha256 of the whole data directory against the backup, the row count of every table against the state `src`, and a self-test that an altered list is reported. Needs `postinstall` and `baseline` (`INSTALL_FROM=old`). Writes `backup.txt`, `backup-run.txt`, `verify-backup.txt`, `tree-src-backup.txt`, `tree-backup.txt`, `rows-backup.txt`, `selftest-tree.txt`, `state-src.txt`; prints `BACKUP OK`, or `BACKUP FAILED` with exit 1 after every file is written. |
+| `transfer` | Phase 22: the backup as a tar stream from the source into `/opt/holzcloud/backups` of the target `TGT_NAME` (`docker cp SOURCE:dir - \| docker cp - TARGET:dir`), plus the fixture files (`/root/.hc-login-pass`, `/root/.hc-key`, `/tmp/hc-upload.jpg`) by exec-pipe and a sha256 of every file on both sides. The directory is `BACKUP_DIR_PATH`, else the `DIR:` of `timer.txt` (the backup the timer made), else that of `backup.txt`. Needs `backup` and a target brought up with `up install`. Writes `TGT_OUT_DIR/transfer.txt`; prints `TRANSFER OK`. |
+| `restore` | Phase 22, in the target: the setup form must answer 200 (the empty database of the first start), the document's restore line is played with the answer `RESTORE_ANSWER` on stdin and every output line stamped with the container's clock, then `/readyz`, the login with the old password (303), the setup form (404), the time split, size, set-aside directory, owner and mode, the whole-directory comparison, the media file over HTTP, the marker page, the state comparison with the source and `check`. Needs `transfer`. Writes `TGT_OUT_DIR/restore.txt`, `restore-run.txt`, `tree-restored.txt`, `state-tgt.txt`, `compare-src-tgt.txt`, `compare-selftest.txt`, `check.txt`; prints `RESTORE OK`, or `RESTORE FAILED` with exit 1. |
+| `backup-timer` | Phase 22, in the source: adds a container-only drop-in to `holzcloud-backup.timer` that fires `TIMER_OFFSET` seconds ahead of the container clock, runs `systemctl daemon-reload` and nothing else, polls until the hardened service has run, and writes the raw evidence (`timer-before.txt`, `timer-after.txt`, `timer-journal.txt`, `timer-dropin.txt`) and `timer.txt` with `TRIGGERED-BY`, `RESULT`, `EXIT-STATUS` and the directory the journal names. Then `backup_verify` on that directory (`verify-timer.txt` and the `-timer` lists), which is the backup `transfer` carries. Needs `postinstall` and `backup`, and a unit that has never run. Prints `BACKUP-TIMER OK` or `BACKUP-TIMER FAILED` (exit 1). |
+| `restore-negative` | Phase 22, in the target after `restore`: plays four refusals once, with the live data's invariants taken before and after each (inode of the data directory, whole-tree hash without the SQLite family, the service's InvocationID and ActiveEnterTimestamp, the number of `data.before-restore-*` directories, `is-active`, the `/readyz` status, `integrity_check` of the live database): a truncated database (after proving the damage real), a directory without `holzcloud.sqlite`, the answer `no`, and `backup.sh` with a `MIN_FREE_MB` no disk has. Needs `restore`. Writes `TGT_OUT_DIR/restore-negative.txt` and `scenario.txt`; ends `RESTORE-NEGATIVE OK` or `RESTORE-NEGATIVE FAILED` (exit 1). |
+| `backup-fixture` | Phase 22, in the source as the service user: plants one small valid language file (`data/sprachen/nl.json`) and one SVG logo (`data/marke/logo.svg`), so the data directory holds every directory a backup must carry; with `BULK_MB` above zero also `BULK_MB / 5` files of 5 MiB from `/dev/urandom` under `data/media/WEBSITE/bulk`, outside the database. Dies when `BULK_MB * 4 + 1024` megabytes are not free. Writes `bulk.txt` when `BULK_MB` is above zero. |
+| `backup-chain` | BAK-01, BAK-02 and BAK-03 in one command: pins `NEW_REF` to a sha, then the source (`build up install baseline update postinstall backup-fixture`), a first target (`up install`), `backup`, `backup-timer`, `transfer`, `restore`, `restore-negative`, and a second data point (the source with `BULK_MB` of synthetic media, its own directory `OUT_DIR-bulk`, a second fresh target `TGT_NAME-bulk`: `backup-fixture`, `backup`, `transfer`, `restore`). Every stage keeps its status, so one failure does not hide the rest. Writes `OUT_DIR/summary.txt`, then ends with exit 1 when a verdict is FAIL. Needs `TARGET=systemd-base` (exit 1 before any docker call otherwise) and removes all its containers unless `KEEP=1`. |
 | `fresh` | DEP-01 in one command: `build`, `up`, `install`, `firstrun`, `postinstall`, `caddy`, then `summary.txt`. Needs `TARGET=systemd-base` and refuses any other target. Tolerates exit 3 of `caddy`, never exit 1. Removes the container unless `KEEP=1`. |
 | `lifecycle` | DEP-02 and DEP-03 in one command: `build`, `up`, `install` with the old release, `baseline`, `update`, `negative` when a migration lies between the builds, `rollback`, then `summary.txt`. Needs `TARGET=systemd-base` and `OLD_TAG`. Removes the container unless `KEEP=1`. |
 
@@ -98,6 +108,14 @@ All are optional.
 | `DEPLOY_DOC` | `deploy/DEPLOY.md`. The document every played command is read out of. |
 | `WITH_OLD` | `0`. `1` makes `bins` build the old binary as well. `update` sets it itself. |
 | `REBUILD` | `0`. `1` makes `bins` build a binary again although a file for that ref exists. |
+| `TGT_NAME` | `NAME-tgt`. Phase 22: the second, fresh container a backup is restored onto. `NAME` and `OUT_DIR` keep meaning the source; `on_target` switches them to the target for one step and refuses a `TGT_NAME` equal to `NAME`. |
+| `TGT_OUT_DIR` | `OUT_DIR-tgt`. The target's directory of evidence (`transfer.txt`, `restore.txt`, `restore-negative.txt`, ...). |
+| `RESTORE_DIR` | Not set. The backup directory inside the target that the document's restore line is given; `restore` sets it from `transfer.txt`. |
+| `RESTORE_ANSWER` | `yes`. What is typed at restore.sh's question. |
+| `BACKUP_DIR_PATH` | Not set. An explicit backup directory in the source for `transfer`; without it the `DIR:` of `timer.txt`, then of `backup.txt`. |
+| `TIMER_OFFSET` | `60`. Seconds ahead of the container's clock at which the timer drop-in makes the timer fire (10 or more). |
+| `TIMER_WAIT` | `TIMER_OFFSET` plus 180. Seconds `backup-timer` polls for the run before it dies and prints the unit's journal. |
+| `BULK_MB` | `0` for `backup-fixture`, `300` in `backup-chain` (60 files of 5 MiB). Megabytes of synthetic media in the second data point. |
 
 ## Exit codes
 
@@ -124,7 +142,7 @@ The Dockerfile has four stages; the last, `unit-test`, is the default target.
 | `unit-test` | `systemd-base` plus the `holzcloud` user (the line from `deploy/DEPLOY.md`), `/opt/holzcloud/data` owned by that user, the binary `/opt/holzcloud/holzcloud` built from this tree, the unit in `/etc/systemd/system/` (copied unchanged, not enabled), the five plugin archives in `/opt/holzcloud/plugin-zips`, and the probe `/usr/local/bin/hc-canary`. |
 
 Fresh install, update and rollback start from `systemd-base` and play the document through `install`: they never start from `unit-test`, whose user, directory, binary and unit would hide what
-the document leaves out, and `fresh` and `lifecycle` refuse any other target. The `unit-test` image stays the starting point of phase 22's populated site. The old binary is not in either
+the document leaves out, and `fresh`, `lifecycle` and `backup-chain` refuse any other target. Phase 22 starts from `systemd-base` too: the populated source is `INSTALL_FROM=old run.sh build up install baseline update postinstall`, and the restore target is a second fresh `systemd-base` container brought up with `up install` (a second one for the bulk data point). The old binary is not in either
 image: `bins` builds it from a clone of the tag with the Build line of `deploy/DEPLOY.md`, and `install` copies it in.
 
 `BASE_IMAGE=debian:trixie-slim` switches the base of either target to Debian 13 and systemd 257; the apt list is the same.
@@ -132,7 +150,7 @@ The image tag carries the base, so bookworm and trixie images do not overwrite e
 
 ## Output files
 
-All under `OUT_DIR` (default `deploy/test/out/ARCH`), except `bins.txt`, which lives in `BIN_DIR`. The directory is gitignored and is reset by `up`. The committed record of
+All under `OUT_DIR` (default `deploy/test/out/ARCH`), except `bins.txt`, which lives in `BIN_DIR`. The directory is gitignored and is reset by `up`. A `backup-chain` run writes four such directories: `OUT_DIR` (the source, seed data point) with `summary.txt`, `TGT_OUT_DIR` (the first target), `OUT_DIR-bulk` (the same source with synthetic media; only `baseline.txt`, `bulk.txt`, `backup.txt`, `verify-backup.txt` and their lists) and `TGT_OUT_DIR-bulk` (the second target). The committed record of
 phase 20 is `deploy/SECURITY-SCORE.md`, and that of phase 21 is `deploy/DEPLOY-RUN.md`; both paste these files unchanged, and the second proves that with a line-by-line `grep -F`.
 
 | File | Written by | Content |
@@ -166,6 +184,23 @@ phase 20 is `deploy/SECURITY-SCORE.md`, and that of phase 21 is `deploy/DEPLOY-R
 | `negative.txt` | `negative` | `NEGATIVE-RESULT: starts` or `refuses`, with the answers of the old binary against the migrated database. |
 | `rollback.txt` | `rollback` | `MODE: snapshot` or `binary` and the PASS lines of the rollback checks. |
 | `summary.txt` | `fresh`, `lifecycle` | The verdict lines of a chain in a fixed vocabulary: `DEP-01 PASS`, `DEP-02 PASS` or `DEP-02 not applicable`, `DEP-03 PASS`, `MODE:`, `NEGATIVE-RESULT:`, `LEAK-CHECK OK`. |
+| `backup.txt` | `backup` | `DIR:`, `WALL-S:`, `FREE-MB:`, `DIR-OWNER-MODE:`, `BYTES:`, `SIZE:`, `DB-BYTES:`, `MEDIA-BYTES:`, `FILES:`, `MEDIA-FILES:`, `HOST-ARCH:`, `CONTAINER-ARCH:`, `MEDIA-SERVED:`: the KEY lines of the manual backup. Source directory. |
+| `backup-run.txt` | `backup` | The raw output of the document's backup line with the container's `WALL t0 t1` line. |
+| `verify-backup.txt`, `verify-timer.txt` | `backup`, `backup-timer` | `PASS`, `INFO` and `BAD` lines about a backup: two integrity readers, MANIFEST keys, owner and mode, the whole-directory comparison, the row counts. |
+| `tree-src-backup.txt`, `tree-backup.txt`, `tree-src-timer.txt`, `tree-timer.txt` | `backup`, `backup-timer` | `sha256  ./path` for every file of the source data directory and of the backup, except the SQLite family, `pre-upgrade-*.sqlite*` and `MANIFEST`. |
+| `rows-backup.txt`, `rows-timer.txt` | `backup`, `backup-timer` | `table NAME N`: the row count of every table of the backup database. Counts only. |
+| `selftest-tree.txt` | `backup` | The BAD lines an altered, an empty and a media-less list produce, and `SELFTEST OK`. Never read for BAD. |
+| `state-src.txt`, `state-tgt.txt` | `backup`, `restore` | The captured state of the source just before the backup and of the restored target. |
+| `transfer.txt` | `transfer` | `DIR:`, `SOURCE:`, `FILES:` and `TRANSFER: equal`. Target directory. |
+| `restore.txt` | `restore` | `DIR:`, `SETUP-BEFORE:`, `READYZ:`, `LOGIN:`, `SETUP-AFTER:`, `VERIFY-S:`, `STOP-MOVE-COPY-S:`, `START-READY-S:`, `WALL-S:`, `DATA-BYTES:`, `BACKUP-BYTES:`, `MEDIA-SERVED:`, `COMES-BACK:`, `HAND-REBUILT:` and the `PASS`, `INFO`, `BAD` lines. Target directory. |
+| `restore-run.txt` | `restore` | The raw output of the document's restore line, every line stamped with the container's clock, and the `WALL t0 t1` line. The `[yes/NO]` question is not in it. |
+| `tree-restored.txt` | `restore` | The tree list of the restored data directory. |
+| `compare-src-tgt.txt`, `compare-selftest.txt` | `restore` | The comparison of source and target state, and the proof that it fails when it should. |
+| `timer.txt` | `backup-timer` | `TRIGGERED-BY:`, `RESULT:`, `EXIT-STATUS:`, `START:`, `END:`, `DROPIN-TIME:`, `CLOCK:`, `NEXT-BEFORE:`, `NEXT-AFTER:`, `LAST-BEFORE:`, `LAST-AFTER:`, `DIR:`, `DIR-OWNER-MODE:`, `HOST-ARCH:`, `CONTAINER-ARCH:`, the assertions, then the KEY lines of `backup_verify`. |
+| `timer-before.txt`, `timer-after.txt`, `timer-journal.txt`, `timer-dropin.txt` | `backup-timer` | `systemctl list-timers holzcloud-backup.timer` before and after the run, `journalctl -u holzcloud-backup.service` (`-o short-precise`) of the one invocation, and the text of the drop-in. Raw. |
+| `restore-negative.txt` | `restore-negative` | Per case `CASE x NAME: exit=N`, the output of the script, `PASS` and `BAD` lines for the exit status, the output and each invariant, `NEGATIVE-RESULT: refused`, and `RESTORE-NEGATIVE OK`. Target directory. |
+| `bulk.txt` | `backup-fixture` | `BULK-MB:`, `FILES:`, `BYTES:` (`du -sb`, a directory counts 4096) and `MEDIA-BYTES:` of the synthetic media. |
+| `summary.txt` | `backup-chain` | `BAK-01`, `BAK-02`, `BAK-03` and `RESTORE-NEGATIVE` each `PASS` or `FAIL`, `POINT seed:` and `POINT bulk:` with sizes, wall seconds and the restore split, `TIMER:`, `STEPS:`, `DEVIATIONS:`, `LEAK-CHECK OK`. |
 | `bins.txt`, `holzcloud-*` | `bins` | In `BIN_DIR`: the built binaries and a description of each (version, commit, sha256, number of migration files). `up` resets `OUT_DIR` and not `BIN_DIR`. |
 
 ## Phase 21: install, update, rollback
@@ -188,23 +223,43 @@ server are in `deploy/DEPLOY-RUN.md`.
 - **A played block must wait for the service itself.** The harness adds no wait after a step: the check lines use `curl --retry 30 --retry-connrefused --retry-delay 1`.
 - **Do not edit `deploy/DEPLOY.md` between the chains and the record.** The evidence set is made against one text of the document; an edit means the set is made again.
 
-## Hand-over to phase 22
+## Phase 22: backup, timer and restore
 
-Phase 22 proves that a backup can be restored. DEPLOY.md now installs what it needs; the earlier text of this section, which listed what the image and the document lacked, no longer applies.
+Phase 22 proved that a backup made by `deploy/backup.sh` restores onto an empty system with `deploy/restore.sh`, that the nightly timer starts the hardened backup service, and what the restore costs.
+The record is `deploy/BACKUP-RUN.md`; this section says how to repeat the proof.
 
-- **Where to start.** `postinstall` already plays the Backups block of the document (the units copied from `/opt/holzcloud/deploy`, the timer enabled, one manual backup run as the service user) and checks the paths, so phase 22
-  starts from a container that `build up install postinstall` leaves behind and proves what is still open: integrity, content and the restore itself. `INSTALL_FROM=old ... build up install baseline update` leaves a populated and updated site (a website, a published page, five
-  plugins, an image, a login user, an order, a marker page and a pre-upgrade snapshot), which is something worth backing up; `lifecycle` with `KEEP=1` leaves the same site after the rollback as well.
-- **The paths and packages are fixed.** DEPLOY.md installs the whole deploy directory to `/opt/holzcloud/deploy` (`backup.sh`, `restore.sh`, the two backup units, `Caddyfile.example`), makes the data and backups directories
-  belong to the service user (the backups directory has mode 700), and names `rsync` among the packages in Prerequisites. The unit's `ExecStart` for the backup is `/opt/holzcloud/deploy/backup.sh`, the same path as the manual run.
-  Do not fix these texts a second time; read them in `deploy/DEPLOY.md` and `deploy/DEPLOY-RUN.md` first.
-- **`restore.sh` is interactive.** It asks `[yes/NO]` before it stops the service and replaces the data directory, and the rollback of phase 21 did not use it: the rollback restores the pre-upgrade snapshot by hand with the commands of *Rolling back*.
-  A restore proof needs the answer `yes` on stdin, and has to handle the `-wal` and `-shm` files of the replaced database (see Pitfalls).
-- **`check` as an after-restore assertion.** `check` (17 checks on the plugins and the page) restarts the unit and reads the key file `/root/.hc-key`, which is outside the data directory and so not part of a backup; after a restore into a new container
-  the key file has to be there again, and the key itself lives in the database. `seed` reads the plugin archives from `/opt/holzcloud/plugin-zips`: the `unit-test` image has them, and on a `systemd-base` install `baseline` stages them first
-  (DEVIATION[fixture]). A container that `lifecycle` or `baseline` has seeded is refused by a second `seed`.
-- **The timer.** Real systemd runs timers inside the container, and `postinstall` enables `holzcloud-backup.timer`; it never fired in a run of phase 21 (`OnCalendar=*-*-* 03:15:00`, `Persistent=true`, `RandomizedDelaySec=300`). How to bring the schedule into reach (a drop-in with a nearer time, or a changed clock) is phase 22's decision and must be named there as a deviation.
-- **Login.** `baseline` shows the route for a login user: `holzcloud user create -email ... -role admin`, run as the service user with `HOLZCLOUD_DATA_DIR` set and the password on stdin. `seed` alone creates an API key and no login user.
+- **Rerun the proof.** One command, from nothing but the image, ending in `OUT_DIR/summary.txt`:
+
+  ```text
+  PLATFORM=linux/amd64 TARGET=systemd-base NAME=holzcloud-bak OUT_DIR=deploy/test/out/amd64-bak \
+    TGT_NAME=holzcloud-bak-tgt TGT_OUT_DIR=deploy/test/out/amd64-bak-tgt BULK_MB=300 ./deploy/test/run.sh backup-chain
+  ```
+
+  It pins `NEW_REF` to a sha at its start, so the source and both targets get the byte-identical binary. The summary has `BAK-01`, `BAK-02`, `BAK-03` and `RESTORE-NEGATIVE`, one `POINT` line per data point (the seed site as it is, and the same site with `BULK_MB` of synthetic media),
+  `TIMER:`, `STEPS:`, `DEVIATIONS:` and `LEAK-CHECK OK`. A FAIL ends the run with exit 1 after the summary is written. Four directories of evidence are made: `OUT_DIR`, `TGT_OUT_DIR`, `OUT_DIR-bulk` and `TGT_OUT_DIR-bulk`.
+- **The separable steps, in order.** On a source `INSTALL_FROM=old run.sh build up install baseline update postinstall` (the populated site with the backup units installed), on a target `run.sh up install` under its own `NAME` and `OUT_DIR`; then, with `NAME`, `OUT_DIR`, `TGT_NAME` and `TGT_OUT_DIR` given on every call:
+  `backup-fixture`, `backup`, `backup-timer`, `transfer`, `restore`, `restore-negative`. A BAD line makes a step exit 1 after it has written every file it owns; the calls can be chained (`run.sh backup backup-timer transfer restore`), which goes on after a 1 and ends with 1.
+  `backup-timer` needs a service that has never run, so it is played once per source container, and `transfer` then carries the backup the timer made, not the manual one.
+- **The document is still the source of the commands.** The manual backup line and the restore line are read out of `deploy/DEPLOY.md` (the sections *Backups* and *Restore from a backup*) and played through `doc_cmd`. The restore line carries a sample timestamp; its last word is replaced by the transferred directory and the replacement is named `DEVIATION[backup-name]`.
+  The scripts `backup.sh` and `restore.sh`, the two backup units and `DEPLOY.md` are not edited by the harness, and the harness never hides a step that fails.
+- **Where the proof is carried by something else than the document.** `DEVIATION[transfer]`: the backup crosses as a tar stream through the host instead of `rsync` or `scp`. `DEVIATION[timer]`: the container-only drop-in on the timer, and what it cannot show (the real 03:15 window, `Persistent=true` after a missed run, `RandomizedDelaySec`).
+  `DEVIATION[fixture]` covers the plugin archives, the image, the login user and the order row of phase 21, and now also the language file, the logo and the synthetic media, and the secrets that cross from container to container by exec-pipe.
+  `DEVIATION[backup-name]`: the sample timestamp of the restore line.
+- **Scenario names**, in `scenario.txt` of the target: `SCENARIO[restore-damaged]` (a truncated database, the damage proven real first), `SCENARIO[restore-no-sqlite]` (a directory with a MANIFEST and no database), `SCENARIO[restore-answer-no]` (the answer `no`) and `SCENARIO[backup-low-disk]` (`backup.sh` with `MIN_FREE_MB=99999999`). The script path is the document's, the arguments are new.
+- **What the recipe taught** (read these before extending it):
+  - `read -p` prints no prompt without a terminal, so the `[yes/NO]` line is absent from a piped transcript (`restore-run.txt`); the wording about the prompt comes from the script, not from the transcript.
+  - The file `VACUUM INTO` writes is itself WAL-mode, and a plain `sqlite3 -readonly` of it failed on a newer sqlite. For an independent reader open it as `file:PATH?immutable=1`, which also never creates `-wal` and `-shm` files next to a backup. The binary's `check` opens the database read-write, so it runs on a copy, the way `restore.sh` does it,
+    and it is `quick_check`; the second reader runs the stronger `integrity_check`.
+  - Restarting the timer after adding the drop-in stamps `LAST` with the restart time and hides the evidence. `daemon-reload` is enough to move `NEXT`; the proof of a run is `TriggeredBy=holzcloud-backup.timer` on the service and the journal, and the drop-in starts with an empty `OnCalendar=`, because the option is a list and only the empty value resets it.
+    The directory a timer run made is the one the journal's `=== Backup complete: DIR ===` names, never the newest: the backups directory already holds the `postinstall` and the Updating backups.
+  - The backup crosses between containers as a tar stream (`docker cp SOURCE:dir - | docker cp - TARGET:dir`), not through a host directory: the host filesystem is case-insensitive, and 300 MiB of media should not land on the host disk. Modes, times and names survive.
+  - `du -sb` counts apparent bytes and each directory as 4096, so a size of a tree with directories is a little more than the sum of its files; `bulk.txt` and the `*-BYTES:` lines say which is meant.
+  - The fixture secrets (`/root/.hc-login-pass`, `/root/.hc-key`) cross by exec-pipe between two `docker exec` calls and are never written to a host file; `leak_check` runs on all four directories.
+  - A comparison limited to `media/`, `templates/` and `csrf.key` would pass while the restore is broken: the comparison hashes the whole data directory and must find a file below `./media/` in its reference list, or it fails.
+- **Hand-over facts that still hold.** `postinstall` plays the Backups block of the document (the units copied from `/opt/holzcloud/deploy`, the timer enabled, one manual backup as the service user) and checks the paths; DEPLOY.md installs the deploy directory to `/opt/holzcloud/deploy`, makes the data and backups directories belong to the service user (the backups directory has mode 700) and names `rsync` in Prerequisites.
+  `check` (17 assertions) reads the key file `/root/.hc-key`, which is outside the data directory and so in no backup; the key itself lives in the database. `seed` reads the plugin archives from `/opt/holzcloud/plugin-zips`, which `baseline` stages (`DEVIATION[fixture]`).
+  Login: `holzcloud user create -email ... -role admin`, run as the service user with `HOLZCLOUD_DATA_DIR` set and the password on stdin; `seed` alone creates an API key and no login user.
+- **Do not edit `deploy/DEPLOY.md`, `backup.sh` or `restore.sh` between the final chains and the record.** The evidence set is made against one text of each; an edit means the set is made again.
 
 ## Pitfalls
 
@@ -230,7 +285,7 @@ Phase 22 proves that a backup can be restored. DEPLOY.md now installs what it ne
 
 ## Safety
 
-- The container is privileged and throwaway. `down` removes it; `run.sh` removes it on exit for `smoke`, `mdwe` and `all`.
+- The container is privileged and throwaway. `down` removes it; `run.sh` removes it on exit for `smoke`, `mdwe`, `all`, `fresh`, `lifecycle` and `backup-chain` (the last one all of its containers, the targets too).
 - No host path is mounted and no port is published. The one file that goes in is the test image, through `docker cp`.
 - The admin API key is created inside the container and stays in a root-only file there. It never reaches the host or any output file.
 - `up` removes and recreates `OUT_DIR` and refuses `/`, `.`, `..` and the repository root.
@@ -247,4 +302,7 @@ Phase 20's are recorded with their evidence in `deploy/SECURITY-SCORE.md`, phase
 - Phase 21, named in the output of every run (`deviations.txt`): `DEVIATION[scp]` (the two `scp` lines played as `docker cp`), `DEVIATION[browser]` (First Run played with `curl` and a Referer), `DEVIATION[caddy]` (the reload replaced by `caddy validate`),
   `DEVIATION[mount]` (a plain directory where the unit's `RequiresMountsFor` expects a mount), `DEVIATION[fixture]` (the plugin archives, image, login user and order row), and `DEVIATION[network]`, printed only when a step fails for want of a network and then ending the call with exit 3.
   The harness also knows `DEVIATION[prompt]` (an `apt` question answered on stdin) and `DEVIATION[preinstalled]` (a tool of the image that the document does not name); neither occurred in the final runs.
+- Phase 22, named in the output of every run (`deviations.txt`): `DEVIATION[transfer]` (the backup crosses as a tar stream through the host, not by `rsync` or `scp`), `DEVIATION[timer]` (the container-only drop-in `holzcloud-backup.timer.d/container.conf`: an empty `OnCalendar=`, a time `TIMER_OFFSET` seconds ahead, `RandomizedDelaySec=0`, `AccuracySec=1s`; the real 03:15 window, `Persistent=true` after a missed run and `RandomizedDelaySec` are not tested),
+  `DEVIATION[backup-name]` (the sample timestamp of the document's restore line replaced by the transferred directory, the answer typed on stdin), and `DEVIATION[fixture]`, which now also covers the planted language file and logo, the synthetic bulk media and the secrets carried by exec-pipe.
+  Phase 22 scenario steps (`scenario.txt` of the target): `SCENARIO[restore-damaged]`, `SCENARIO[restore-no-sqlite]`, `SCENARIO[restore-answer-no]` and `SCENARIO[backup-low-disk]`.
 - Phase 21 scenario steps, which the document must not contain and which go to `scenario.txt`: `SCENARIO[negative]` (the old binary against the migrated database) and `SCENARIO[restore-new]` (the new binary put back afterwards).
