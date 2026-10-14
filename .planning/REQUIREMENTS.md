@@ -28,7 +28,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 ## Repository und Beta
 
 - [x] **REPO-01**: Die Beta-Kriterien stehen schriftlich: was „0.1.0" verspricht und was nicht.
-- [ ] **REPO-02**: CHANGELOG-Eintrag und Release Notes für 0.1.0, Tag `v0.1.0`.
+- [x] **REPO-02**: CHANGELOG-Eintrag und Release Notes für 0.1.0, Tag `v0.1.0`.
 - [ ] **REPO-03**: Die verwaisten Remote-Branches sind aufgelistet, mit Anleitung zum Löschen in der GitHub-Oberfläche. Gelöscht wird dort von Hand (der Proxy antwortet 403).
 
 ## Standing Gate
@@ -58,7 +58,7 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 | BAK-02 | Phase 22 | Complete |
 | BAK-03 | Phase 22 | Complete |
 | REPO-01 | Phase 23 | Complete |
-| REPO-02 | Phase 23 | Pending |
+| REPO-02 | Phase 23 | Complete |
 | REPO-03 | Phase 23 | Pending |
 | QUAL-01 | Phase 23 | Pending |
 

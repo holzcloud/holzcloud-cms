@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 23
 current_phase_name: Repository tidy and beta criteria
 status: executing
-stopped_at: Completed 23-01-PLAN.md
-last_updated: "2026-10-14T12:09:22.310Z"
+stopped_at: Completed 23-02-PLAN.md
+last_updated: "2026-10-14T12:15:56.415Z"
 last_activity: 2026-10-14
-state_head: 828c4fab1c3f40640fb2f8dc84dcba6446981264
+state_head: 0aac0e5b2cd4c609843179b6c370dd4624df5883
 progress:
   total_phases: 0
   completed_phases: 22
@@ -340,6 +340,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 22 P04 | 17 min | 3 tasks | 7 files |
 | Phase 22 P05 | 8 min | 2 tasks | 2 files |
 | Phase 23 P01 | 35min | 2 tasks | 2 files |
+| Phase 23 P02 | 15min | 2 tasks | 3 files |
 
 ### Session Continuity
 
@@ -368,8 +369,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-14T12:09:22.279Z
-**Stopped at:** Completed 23-01-PLAN.md
+**Last session:** 2026-10-14T12:15:56.193Z
+**Stopped at:** Completed 23-02-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -477,6 +478,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 22]: 22-05: the appendix of BACKUP-RUN.md is appended by a script that copies the scratch files, and proven by a block-by-block byte comparison (40 blocks); the extrapolation is an estimate with its assumption
 - [Phase 23]: Phase 23-01: the product's alpha label and the alpha sentence in deploy/DEPLOY.md stay unchanged in 0.1.0; docs/beta.md says where the word appears and why (owner may veto in 23-04)
 - [Phase 23]: Phase 23-01: beta means safe to run for real with backups, not feature-frozen; schema and migrations not promised stable
+- [Phase 23]: Upgrade note for 0.0.25 operators lives in the CHANGELOG 0.1.0 entry only (release page body); README notice mirrors docs/beta.md
 
 ## Accumulated Context
 
