@@ -5,10 +5,10 @@ milestone_name: Betrieb härten
 current_phase: 22
 current_phase_name: Backup and restore, measured
 status: executing
-stopped_at: Completed 22-04-PLAN.md
-last_updated: "2026-10-14T11:04:44.118Z"
+stopped_at: Completed 22-05-PLAN.md
+last_updated: "2026-10-14T11:13:05.910Z"
 last_activity: 2026-10-14
-state_head: 335e5d882a171208d3d00fb3f52169009830b8d0
+state_head: cc2dae6489f1cca7dfdf17bd8f7248422528b628
 progress:
   total_phases: 0
   completed_phases: 21
@@ -338,6 +338,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | Phase 22 P02 | 13 min | 3 tasks | 2 files |
 | Phase 22 P03 | 14 min | 2 tasks | 1 files |
 | Phase 22 P04 | 17 min | 3 tasks | 7 files |
+| Phase 22 P05 | 8 min | 2 tasks | 2 files |
 
 ### Session Continuity
 
@@ -366,8 +367,8 @@ Entwicklers. Weiterhin offen und unabhängig davon: `/gsd-verify-work 6` für di
 Browserhälfte des stehenden Tors und `/gsd-verify-work 7` für die eine
 ungefahrene Zeile (`code` im Block, öffentlich)
 
-**Last session:** 2026-10-14T11:04:44.093Z
-**Stopped at:** Completed 22-04-PLAN.md
+**Last session:** 2026-10-14T11:13:05.885Z
+**Stopped at:** Completed 22-05-PLAN.md
 **Resume file:** None
 
 ## Decisions
@@ -472,6 +473,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 - [Phase 22]: Pass 1 on the unchanged scripts: eleven findings in 22-FINDINGS.md; backup.sh and restore.sh lose plugins/, sprachen/ and marke/; a second kept chain (amd64-bak-inv3) answered A2, A3, D-10 and stale wal/shm without touching the pass-1 directories
 - [Phase 22]: 22-04: backup.sh and restore.sh carry media, templates, plugins, sprachen and marke by one loop each; restore refuses a directory without MANIFEST (D-10, no new field or digest file) and sets the restored database to mode 600
 - [Phase 22]: 22-04: the restore time in DEPLOY.md follows the final set (about seven seconds with five plugins, one second per GiB of media, amd64 emulation named); a number wrong by more than a factor of two means the whole evidence set is made again
+- [Phase 22]: 22-05: the appendix of BACKUP-RUN.md is appended by a script that copies the scratch files, and proven by a block-by-block byte comparison (40 blocks); the extrapolation is an estimate with its assumption
 
 ## Accumulated Context
 

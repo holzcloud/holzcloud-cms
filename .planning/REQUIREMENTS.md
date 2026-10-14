@@ -21,9 +21,9 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 
 ## Backup und Restore
 
-- [ ] **BAK-01**: `backup.sh` erzeugt eine verifizierte Sicherung von SQLite und Medien.
-- [ ] **BAK-02**: `restore.sh` stellt auf einem leeren System her; Seiten, Medien und Login funktionieren. Dauer und Größe sind gemessen.
-- [ ] **BAK-03**: Ein Lauf über `holzcloud-backup.timer` ist einmal real durchgespielt.
+- [x] **BAK-01**: `backup.sh` erzeugt eine verifizierte Sicherung von SQLite und Medien.
+- [x] **BAK-02**: `restore.sh` stellt auf einem leeren System her; Seiten, Medien und Login funktionieren. Dauer und Größe sind gemessen.
+- [x] **BAK-03**: Ein Lauf über `holzcloud-backup.timer` ist einmal real durchgespielt.
 
 ## Repository und Beta
 
@@ -54,9 +54,9 @@ Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Rele
 | DEP-01 | Phase 21 | Complete |
 | DEP-02 | Phase 21 | Complete |
 | DEP-03 | Phase 21 | Complete |
-| BAK-01 | Phase 22 | Pending |
-| BAK-02 | Phase 22 | Pending |
-| BAK-03 | Phase 22 | Pending |
+| BAK-01 | Phase 22 | Complete |
+| BAK-02 | Phase 22 | Complete |
+| BAK-03 | Phase 22 | Complete |
 | REPO-01 | Phase 23 | Pending |
 | REPO-02 | Phase 23 | Pending |
 | REPO-03 | Phase 23 | Pending |
