@@ -478,6 +478,19 @@ Plans:
   3. Orphan branches are listed with GitHub-UI deletion steps.
   4. `go run ./tools/i18n` reports `0 open, 0 orphaned`.
 
+**Plans**: 4 plans in 3 waves
+
+Plans:
+**Wave 1**
+- [ ] 23-01-PLAN.md — Tracer and beta criteria: level with origin/main, i18n baseline, one promise from its record to release.yml's input (heading `## 0.1.0`), then `docs/beta.md` complete: ten cited promises, the non-promises, the evidence binding, the note on the word alpha (REPO-01, REPO-02, QUAL-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 23-02-PLAN.md — The 0.1.0 CHANGELOG entry in German with the upgrade note for operators on 0.0.25, README badge and notice, the Versioning section of `docs/deployment.md` (REPO-02, REPO-01)
+- [ ] 23-03-PLAN.md — `docs/branches.md`: the remote branches generated from git with evidence-based verdicts, GitHub-UI deletion steps, restore routes, the two branches that carry push-triggered workflows (REPO-03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 23-04-PLAN.md — The owner's steps (push `main`, push `main:release`, tidy the branches) with the veto points, and every gate run once more on the end state (REPO-02, REPO-03, QUAL-01)
+
 ---
 
 ## Progress
@@ -530,7 +543,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
 | 21. Deploy, update, rollback | v0.1.0 | 6/6 | Complete    | 2026-10-12 |
 | 22. Backup and restore, measured | v0.1.0 | 5/5 | Complete    | 2026-10-14 |
-| 23. Repository tidy and beta criteria | v0.1.0 | 0/? | Not started | — |
+| 23. Repository tidy and beta criteria | v0.1.0 | 0/4 | Planned | — |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
