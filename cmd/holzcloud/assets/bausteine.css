@@ -47,12 +47,19 @@
 
 .hc-bild { margin-inline: 0; }
 
+/* Kein `inline-size: 100%`: das rechnete ein kleines Bild auf die Breite des
+ * Textblocks hoch (eine 235 px breite Bildmarke wurde 2,4-fach gezogen). Die
+ * Obergrenze setzt `.hc-block img` mit max-inline-size. */
 .hc-bild img {
-    inline-size: 100%;
     border-radius: var(--hc-rund);
 }
 
-/* Breiter und ganz breit gehen über den Textblock hinaus, aber nie über den
+/* Prozentwerte beziehen sich auf den Block, nicht auf die Seite: in einem
+ * Raster ergeben 115 % von einer Spalte 810 statt 1163 px. Eine Vorlage mit
+ * Raster setzt deshalb --hc-breit und --hc-breit-rand selbst; ohne beide gilt
+ * der Prozentwert, der für Vorlagen ohne Raster gedacht ist.
+ *
+ * Breiter und ganz breit gehen über den Textblock hinaus, aber nie über den
  * Bildschirm: 100vw wäre auf einer Seite mit sichtbarer Bildlaufleiste einen
  * Balken zu breit. */
 .hc-bild--breit,
@@ -62,8 +69,8 @@
 
 @media (min-width: 60em) {
     .hc-bild--breit {
-        inline-size: min(115%, 100vw);
-        margin-inline: -7.5%;
+        inline-size: var(--hc-breit, min(115%, 100vw));
+        margin-inline: var(--hc-breit-rand, -7.5%);
     }
     .hc-bild--voll {
         inline-size: 100vw;
@@ -85,7 +92,9 @@
 @media (min-width: 45em) {
     .hc-bildtext {
         grid-template-columns: 1fr 1fr;
-        align-items: center;
+        /* oben, nicht mittig: neben einem hohen Bild schwebte sonst ein kurzer
+         * Text in der Mitte. */
+        align-items: start;
     }
     /* Die Reihenfolge im Quelltext bleibt Bild, dann Text — auch wenn das Bild
      * rechts steht. Das ist die Reihenfolge, in der ein Vorleseprogramm liest,
@@ -94,7 +103,6 @@
 }
 
 .hc-bildtext__bild img {
-    inline-size: 100%;
     border-radius: var(--hc-rund);
 }
 
@@ -286,6 +294,11 @@
     background: color-mix(in oklch, var(--hc-akzent) 8%, var(--hc-grund));
     text-align: center;
 }
+
+/* Ein Satz und ein Knopf stehen mittig. Mehrere Absätze oder eine Liste sind
+ * eine Mitteilung, und die zentriert zu setzen liest sich nicht. */
+.hc-aufruf:has(.hc-aufruf__text > :nth-child(2)),
+.hc-aufruf:has(.hc-aufruf__text :is(ul, ol)) { text-align: start; }
 
 .hc-aufruf__titel {
     margin-block-start: 0;
