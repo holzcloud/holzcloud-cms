@@ -67,20 +67,30 @@ only together with the record that proves it. No feature is built.
 
 ## Traceability
 
-Filled when the roadmap is made.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BKP-01 … BKP-05 | — | Pending |
-| CON-01 … CON-03 | — | Pending |
-| SRV-01 … SRV-03 | — | Pending |
-| DOC-01, DOC-02 | — | Pending |
-| TIDY-01 … TIDY-04 | — | Pending |
+| BKP-01 | Phase 24 | Pending |
+| BKP-02 | Phase 24 | Pending |
+| BKP-03 | Phase 24 | Pending |
+| BKP-04 | Phase 24 | Pending |
+| BKP-05 | Phase 24 | Pending |
+| CON-01 | Phase 25 | Pending |
+| CON-02 | Phase 25 | Pending |
+| CON-03 | Phase 25 | Pending |
+| SRV-01 | Phase 26 | Pending |
+| SRV-02 | Phase 26 | Pending |
+| SRV-03 | Phase 26 | Pending |
+| TIDY-01 | Phase 27 | Pending |
+| TIDY-02 | Phase 27 | Pending |
+| TIDY-03 | Phase 27 | Pending |
+| TIDY-04 | Phase 27 | Pending |
+| DOC-01 | Phase 28 | Pending |
+| DOC-02 | Phase 28 | Pending |
 
 **Coverage:**
 - v0.1.1 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-20*

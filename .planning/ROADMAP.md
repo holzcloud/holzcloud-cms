@@ -11,6 +11,7 @@
 - ✅ **v2.4 — What Has Accumulated** — Phases 17–18 (closed 2026-09-17)
 - ✅ **v2.5 — On the Phone** — Phase 19 (closed 2026-09-17, released as 2.5)
 - ✅ **v0.1.0 — Betrieb härten** — Phases 20–23 (opened 2026-10-12, released 2026-10-18 as 0.1.0, the first beta; not yet archived under `milestones/`)
+- 🚧 **v0.1.1 — Beta belegt** — Phases 24–28 (opened 2026-10-20, closes as release 0.1.1)
 - 🔁 **Since 0.0.1 (2026-09-26):** The count started again at 0.0.1 and the software calls itself alpha. Work since then runs as quick tasks (`.planning/quick/`), releases 0.0.1–0.0.25, last on 2026-10-11. v0.1.0 is the first milestone under the restarted count.
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
@@ -493,6 +494,73 @@ Plans:
 
 ---
 
+### 🚧 v0.1.1 — Beta belegt (opened 2026-10-20)
+
+**Goal**: What `docs/beta.md` lists under *What 0.1.0 does not promise* is played and measured where it can be; what only a real server can show is handed over as numbered owner steps; the repository is tidied. A line moves to *promises* only together with its record. No feature is built. Numbering continues from 24.
+
+### Phase 24: The backup timer as shipped
+
+**Goal**: The timer, the delay, the catch-up, the off-site copy and the pruning are each seen working exactly as shipped, not as a container drop-in.
+**Requirements**: BKP-01, BKP-02, BKP-03, BKP-04, BKP-05
+**Depends on**: Nothing (builds on the phase 22 harness in `deploy/test/`)
+**Success Criteria**:
+  1. The unit starts from the shipped `OnCalendar` entry without a drop-in, and the backup it made passes the integrity check.
+  2. A run missed while the host is down happens after it comes up, and a run with the shipped 300 seconds of delay starts inside that window.
+  3. With `REMOTE_TARGET` set, the copy arrives on a second host and a restore from that copy gives back pages, media and login.
+  4. A directory older than the retention is deleted and a younger one stays, both in the same run.
+
+**Plans**: TBD
+
+### Phase 25: Consistent and compatible backups
+
+**Goal**: A backup made while the site is being written is either consistent or its window is named; a backup of the previous release restores.
+**Requirements**: CON-01, CON-02, CON-03
+**Depends on**: Phase 24 (same harness)
+**Success Criteria**:
+  1. A backup taken while pages are saved and media is uploaded is restored; database and media agree, or the disagreement is reproduced and its window written down.
+  2. A 0.1.0 backup restored by this release gives the same pages, the same login and the migration level the record states.
+  3. A disk that is nearly full but above `MIN_FREE_MB` produces a recorded outcome, not a guess.
+
+**Plans**: TBD
+
+### Phase 26: Native amd64 and the real server
+
+**Goal**: The seccomp-dependent directives and the timings are measured on native amd64; restore and reboot on a real server are either recorded or handed over precisely.
+**Requirements**: SRV-01, SRV-02, SRV-03
+**Depends on**: Phases 24 and 25
+**Success Criteria**:
+  1. The five plugins run under `MemoryDenyWriteExecute=true` on native amd64, and native backup and restore times are recorded next to the emulation figures.
+  2. The owner steps for a restore on a real server and for a reboot with the units enabled exist, each with the output to expect, and the results are recorded once the owner has made them.
+
+**Plans**: TBD
+
+### Phase 27: Repository tidy
+
+**Goal**: No stray branch, one current position in STATE.md, v0.1.0 archived.
+**Requirements**: TIDY-01, TIDY-02, TIDY-03, TIDY-04
+**Depends on**: Nothing
+**Success Criteria**:
+  1. Every row of `docs/branches.md` has a recorded decision and the remote list matches it.
+  2. `state.advance-plan` no longer refuses with `ambiguous_position_phase`.
+  3. `milestones/v0.1.0-ROADMAP.md`, `-REQUIREMENTS.md` and its audit exist, and ROADMAP.md carries one line for v0.1.0.
+  4. The backup branch and the stray branch in the shared checkout are gone.
+
+**Plans**: TBD
+
+### Phase 28: The promise in writing
+
+**Goal**: `docs/beta.md` says exactly what 0.1.1 has proven, and the owner knows exactly what is still theirs to do.
+**Requirements**: DOC-01, DOC-02
+**Depends on**: Phases 24, 25, 26
+**Success Criteria**:
+  1. Every line moved to *promises* cites a sentence of a record, checked byte for byte; every line left under *does not promise* still names its reason.
+  2. `OWNER-STEPS` lists each real-server and GitHub-UI step with command, expected output and the meaning of a different output.
+  3. CHANGELOG has a 0.1.1 entry that release.yml's own extraction reads.
+
+**Plans**: TBD
+
+---
+
 ## Progress
 
 Phases 13 to 19 are complete; v2.1 to v2.5 are closed. Numbering continues from 20; it never restarts.
@@ -544,6 +612,11 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 21. Deploy, update, rollback | v0.1.0 | 6/6 | Complete    | 2026-10-12 |
 | 22. Backup and restore, measured | v0.1.0 | 5/5 | Complete    | 2026-10-14 |
 | 23. Repository tidy and beta criteria | v0.1.0 | 4/4 | Complete | 2026-10-20 |
+| 24. The backup timer as shipped | v0.1.1 | 0/? | Not started | — |
+| 25. Consistent and compatible backups | v0.1.1 | 0/? | Not started | — |
+| 26. Native amd64 and the real server | v0.1.1 | 0/? | Not started | — |
+| 27. Repository tidy | v0.1.1 | 0/? | Not started | — |
+| 28. The promise in writing | v0.1.1 | 0/? | Not started | — |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
