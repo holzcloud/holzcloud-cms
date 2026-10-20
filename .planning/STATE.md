@@ -1,19 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v0.1.0
-milestone_name: Betrieb härten
-current_phase: 23
-current_phase_name: Repository tidy and beta criteria
-status: complete
-stopped_at: Phase 23 verified and UAT passed 2026-10-20
-last_updated: "2026-10-14T12:24:58.036Z"
-last_activity: 2026-10-14
-state_head: 61709e66f90146d510b4c2886e66747717b70f79
+milestone: v0.1.1
+milestone_name: Beta belegt
+status: planning
+last_updated: "2026-10-20T09:06:15.367Z"
+last_activity: 2026-10-20
 progress:
   total_phases: 0
-  completed_phases: 22
-  total_plans: 4
+  completed_phases: 0
+  total_plans: 0
   completed_plans: 0
+  percent: 0
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -498,10 +495,10 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 
 ## Current Position
 
-Phase: 23 (Repository tidy and beta criteria) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 23
-Last activity: 2026-10-14 — Phase 23 execution started
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-10-20 — Milestone v0.1.1 started
 
 ### The milestone before this one (v2.1, closed 2026-09-13)
 

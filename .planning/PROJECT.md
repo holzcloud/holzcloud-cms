@@ -2,18 +2,19 @@
 
 **Created:** 2026-04-13 (autonomous initialization after technical pivot)
 **Status:** v1.0 shipped 2026-04-14; v1.10 "Inhaltsmodell und Zugang" (planned as v1.6) completed 2026-09-10 and released as 1.10 on 2026-09-11. A milestone and its release carry one number.
-**Current milestone:** v0.1.0 "Betrieb härten" (opened 2026-10-12). Milestones v2.0–v2.5 closed in September 2026; since 2026-09-26 the release count restarted and runs as 0.0.x (alpha, latest 0.0.25). **Version numbers always have three parts** (decided 2026-10-12): 0.1.0, not 0.1.
+**Current milestone:** v0.1.1 "Beta belegt" (opened 2026-10-20); v0.1.0 "Betrieb härten" was released 2026-10-18 as the first beta. Milestones v2.0–v2.5 closed in September 2026; since 2026-09-26 the release count restarted and runs as 0.0.x (alpha, latest before the beta 0.0.25, now 0.1.0). **Version numbers always have three parts** (decided 2026-10-12): 0.1.0, not 0.1.
 **Stack (HARD MANDATE):** Go + htmx + CSS + SQLite
 
-## Current Milestone: v0.1.0 Betrieb härten
+## Current Milestone: v0.1.1 Beta belegt
 
-**Goal:** holzcloud-cms runs demonstrably safely in operation — the hardened systemd unit really tested, install/update/rollback and backup/restore played through on a real server, the repository tidied — and closes as release 0.1.0, the first beta.
+**Goal:** What `docs/beta.md` lists under *What 0.1.0 does not promise* is played and measured where it can be, and what only a real server can show is written down as the owner's own steps — and the repository carries no stray branch, no stale block in STATE.md, and v0.1.0 is archived. Closes as release 0.1.1.
 
 **Target features:**
-- The hardened systemd unit run under real systemd; the `MemoryDenyWriteExecute=true` vs. wazero suspicion settled (quick 261006-9c4)
-- Deploy / update / rollback path played through on a real server and documented
-- Backup and restore of SQLite and media, proven by a measured restore
-- Repository tidy-up: orphan remote branches (GitHub UI only, the proxy answers 403), written beta criteria and release notes
+- The backup timer exercised as shipped: the real 03:15 calendar entry, `Persistent=true` after a missed run, `RandomizedDelaySec`, the off-site copy through `REMOTE_TARGET`, retention pruning that really deletes
+- A backup and restore made consistent under write load (database plus media), and a backup of an older binary restored by a newer one
+- A restore and a native amd64 run on a real server: plugins under `MemoryDenyWriteExecute=true`, native timings, a reboot with the units enabled — each either done or handed over as a numbered owner step with the expected output
+- `docs/beta.md` updated so that every line moved from *does not promise* to *promises* carries its record
+- Repository tidy-up: orphan remote branches decided and removed (GitHub UI), STATE.md history blocks collapsed so the plan counter can advance, v0.1.0 archived under `.planning/milestones/`, the local backup branch retired
 
 ## Vision
 
@@ -245,4 +246,4 @@ whole time.
 *Stack is mandated by the user. Every phase, research note, and plan must respect it. If a requirement seems to need something outside the stack, flag and propose a stack-compatible alternative.*
 
 ---
-*Last updated: 2026-10-12 — milestone v0.1.0 Betrieb härten started*
+*Last updated: 2026-10-20 — milestone v0.1.1 Beta belegt started*
