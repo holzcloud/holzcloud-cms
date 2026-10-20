@@ -1,8 +1,8 @@
 ---
 phase: 23-repository-tidy-and-beta-criteria
 verified: 2026-10-14T14:40:00Z
-status: human_needed
-score: 3/4 must-haves verified
+status: passed
+score: 4/4 must-haves verified
 covered_files:
   - .planning/phases/23-repository-tidy-and-beta-criteria/23-01-PLAN.md
   - .planning/phases/23-repository-tidy-and-beta-criteria/23-01-SUMMARY.md
@@ -30,7 +30,7 @@ human_verification:
 
 **Phase Goal:** 0.1.0 says what it promises and the repository carries nothing stray.
 **Verified:** 2026-10-14
-**Status:** human_needed
+**Status:** passed (re-checked 2026-10-20: tag and release page confirmed on origin)
 **Re-verification:** No, initial verification
 
 ## Goal Achievement
@@ -40,7 +40,7 @@ human_verification:
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
 | 1 | Beta criteria are written down | VERIFIED | `docs/beta.md` (93 lines) has exactly the five required level-two headings in order. Ten promise rows P-1..P-10: I re-ran a byte-exact check of every backticked cited word against the single record named in each row (SECURITY-SCORE / DEPLOY-RUN / BACKUP-RUN); 0 missing. Non-promises name 03:15, Persistent=true, RandomizedDelaySec, REMOTE_TARGET, retention, atomic snapshot, older-than-binary, real server, native amd64, bit rot, seccomp, Not measured. States the schema is not promised stable and that an older binary must not run against a migrated database. Binds to f1428d2 / 2a11eeb / bf74496. Notes where the word alpha remains (`IsAlpha`). |
-| 2 | CHANGELOG and release notes for 0.1.0 exist and the tag is set | PARTIAL: content VERIFIED, tag is a human step | CHANGELOG first version heading is `## 0.1.0 — 2026-10-14` above 0.0.25. release.yml's own grep and awk, run locally, give version 0.1.0 and a 4676-byte notes section containing the absolute link to docs/beta.md and to deploy/DEPLOY.md, with no second `##` heading, no raw HTML and no relative link. The upgrade note for operators on 0.0.25 is in the entry. README badge is `status-beta`, the notice links docs/beta.md, and a Documentation bullet exists. docs/deployment.md Versioning says beta. Facts in the entry hold: last migration is 00060, no file outside planning/deploy/docs/CHANGELOG/README/.gitignore differs from v0.0.25, deploy/holzcloud.service changed in comment lines only. **The tag `v0.1.0` does not exist locally or on origin.** D-09 deliberately leaves this to the owner, since the proxy refuses tags. |
+| 2 | CHANGELOG and release notes for 0.1.0 exist and the tag is set | VERIFIED (tag confirmed 2026-10-20) | CHANGELOG first version heading is `## 0.1.0 — 2026-10-14` above 0.0.25. release.yml's own grep and awk, run locally, give version 0.1.0 and a 4676-byte notes section containing the absolute link to docs/beta.md and to deploy/DEPLOY.md, with no second `##` heading, no raw HTML and no relative link. The upgrade note for operators on 0.0.25 is in the entry. README badge is `status-beta`, the notice links docs/beta.md, and a Documentation bullet exists. docs/deployment.md Versioning says beta. Facts in the entry hold: last migration is 00060, no file outside planning/deploy/docs/CHANGELOG/README/.gitignore differs from v0.0.25, deploy/holzcloud.service changed in comment lines only. **The tag `v0.1.0` does not exist locally or on origin.** D-09 deliberately leaves this to the owner, since the proxy refuses tags. |
 | 3 | Orphan branches are listed with GitHub-UI deletion steps | VERIFIED | `docs/branches.md` lists all 10 remote branches. I recomputed against the live remote: tip SHA, only-in-main/only-in-branch counts and git cherry evidence match every row. Verdicts follow the stated rule: `release` is Keep (route 2 of release.yml), `backfill-releases` and `tagfix` are Review first (cherry `+`), the other seven are Safe to delete (ancestor or all `-`). It has the UI steps (branch dropdown, View all branches, trash icon; PR Delete branch route), the proxy-403 note, the restore routes with route B marked unverified, and the push-triggered workflow facts for the two Review first branches. |
 | 4 | `go run ./tools/i18n` reports `0 open, 0 orphaned` | VERIFIED | Run now: de, es, fr, it all `2056 translated, 0 open, 0 orphaned`. `tools/themewords -check` and `tools/english` exit 0. `go test ./...` has no failures. |
 
