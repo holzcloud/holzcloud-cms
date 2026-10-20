@@ -4,8 +4,8 @@ milestone: v0.1.0
 milestone_name: Betrieb härten
 current_phase: 23
 current_phase_name: Repository tidy and beta criteria
-status: executing
-stopped_at: Completed 23-04-PLAN.md
+status: complete
+stopped_at: Phase 23 verified and UAT passed 2026-10-20
 last_updated: "2026-10-14T12:24:58.036Z"
 last_activity: 2026-10-14
 state_head: 61709e66f90146d510b4c2886e66747717b70f79
@@ -22,17 +22,16 @@ progress:
 "Current Position" for v2.2, "Current focus: v2.4") were written at their own milestone
 close and are history, not status.
 
-- **Release:** 0.0.25 (tag `v0.0.25`, 2026-10-11). The count started again at 0.0.1 on
+- **Release:** 0.1.0 (tag `v0.1.0`, release page published 2026-10-18, first beta); before it 0.0.25 (2026-10-11). The count started again at 0.0.1 on
   2026-09-26; the software calls itself alpha.
-- **Milestone:** none open. v2.4 and v2.5 are closed (2026-09-17). Since the restart, work
+- **Milestone:** v0.1.0 is released and its phases 20–23 are complete and verified; it is not yet archived under `.planning/milestones/` (the CLI finds no phases for it in ROADMAP.md). v2.4 and v2.5 are closed (2026-09-17). Since the restart, work
   runs as quick tasks (`.planning/quick/`, 31 directories), not as phases.
 - **Latest work:** 0.0.20 SEO check/report, `llms.txt` · 0.0.21 security audit in four groups
   (order token, plugin/SMTP hardening, Go 1.26.8, pinned actions, hardened systemd unit) ·
   0.0.22/0.0.23 theme holzcloud (phone tables, holzWave colours) · 0.0.24/0.0.25 menus
   (own rail entry, rename, edit entries, phone list).
 - **Open, needs a human:**
-  - The hardened systemd unit has never run under real systemd. First suspect if plugins
-    fail: `MemoryDenyWriteExecute=true` with wazero (see quick 261006-9c4 SUMMARY).
+  - The hardened unit ran under systemd 252 in a container (phase 20, release notes of 0.1.0); not on a real server, and the plugins were measured on native arm64 only, not amd64.
   - Orphan remote branches (`backfill-releases`, `claude/*`, `feat/holzwave-farben`,
     `fix/tables-mobile`, `holzbar-colours`, `redirects-keep-language`, `tagfix`) can only be
     deleted in the GitHub UI; the proxy answers 403 to ref deletion.

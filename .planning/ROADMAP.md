@@ -10,7 +10,7 @@
 - ✅ **v2.3 — Every Word on a Page Belongs to Whoever Reads It** — Phase 16 (closed 2026-09-15, released as 2.3)
 - ✅ **v2.4 — What Has Accumulated** — Phases 17–18 (closed 2026-09-17)
 - ✅ **v2.5 — On the Phone** — Phase 19 (closed 2026-09-17, released as 2.5)
-- 🚧 **v0.1.0 — Betrieb härten** — Phases 20–23 (opened 2026-10-12, closes as release 0.1.0, the first beta)
+- ✅ **v0.1.0 — Betrieb härten** — Phases 20–23 (opened 2026-10-12, released 2026-10-18 as 0.1.0, the first beta; not yet archived under `milestones/`)
 - 🔁 **Since 0.0.1 (2026-09-26):** The count started again at 0.0.1 and the software calls itself alpha. Work since then runs as quick tasks (`.planning/quick/`), releases 0.0.1–0.0.25, last on 2026-10-11. v0.1.0 is the first milestone under the restarted count.
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
@@ -543,7 +543,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 20. Hardened unit under real systemd | v0.1.0 | 3/3 | Complete    | 2026-10-12 |
 | 21. Deploy, update, rollback | v0.1.0 | 6/6 | Complete    | 2026-10-12 |
 | 22. Backup and restore, measured | v0.1.0 | 5/5 | Complete    | 2026-10-14 |
-| 23. Repository tidy and beta criteria | v0.1.0 | 4/4 | In Progress | — |
+| 23. Repository tidy and beta criteria | v0.1.0 | 4/4 | Complete | 2026-10-20 |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
