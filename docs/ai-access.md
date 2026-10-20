@@ -172,6 +172,8 @@ through to `/ai/upload/`, as the proxy already does for the admin's upload form.
 
 ## The vocabulary changed in 2.0
 
+*Version numbers such as 1.x, 2.0 and 2.7 on this page belong to the earlier count. The numbering started again at 0.0.1; see the [changelog](../CHANGELOG.md).*
+
 Up to 1.x every tool name, every argument and every answer key was German:
 `seite_anlegen`, `"titel"`, `"zustand": "entwurf"`. Since 2.0 they are English —
 `create_page`, `"title"`, `"status": "draft"` — for the same reason the template
