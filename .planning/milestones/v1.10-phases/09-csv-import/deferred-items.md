@@ -83,6 +83,7 @@ architecture makes vanishingly rare. That is the right design; it just means the
 group is not something a person can produce on purpose.
 
 ---
+  status: acknowledged
 
 ## 4. The dry run's counters and the report's counters can legitimately differ
 
@@ -140,3 +141,4 @@ SELECT term_id FROM product_terms ...)` — is a migration, and a destructive on
 a label an editor made by hand and has not used yet looks exactly like an orphan.
 **Deliberately not written in a gap round.** If it is taken up it belongs as an
 admin action a person confirms, not as a migration that runs at deploy.
+  status: acknowledged
