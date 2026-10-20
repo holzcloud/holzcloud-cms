@@ -5,6 +5,7 @@ date: 2026-09-15
 source: Wunsch des Betreibers, im Lauf angemeldet
 mode: direkt
 commits: [fc702f6]
+status: complete
 ---
 
 # Quick 260915-w1n — die Fassungsnummer in der Seitenleiste führt zu dem, was sich geändert hat

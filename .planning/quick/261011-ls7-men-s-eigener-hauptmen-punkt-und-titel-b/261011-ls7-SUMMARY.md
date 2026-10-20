@@ -1,3 +1,7 @@
+---
+status: complete
+---
+
 # Quick 261011-ls7: Menus as own rail entry, rename in list, activity log
 
 Menus now have their own icon-rail entry, the name is editable inline in the menu list, and menu create/update/delete are written to the activity log.

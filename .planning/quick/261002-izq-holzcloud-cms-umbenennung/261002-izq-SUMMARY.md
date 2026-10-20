@@ -3,6 +3,7 @@ phase: quick-261002-izq
 plan: 01
 requirements-completed: [RENAME-01]
 completed: 2026-10-02
+status: complete
 ---
 
 # Quick 261002-izq: Rename remainder to holzcloud-CMS

@@ -1,3 +1,7 @@
+---
+status: complete
+---
+
 # Quick 261003-lk9: Public-readiness tidy Summary
 
 Customer names replaced by neutral examples, committed pyc removed and ignored, private repo names neutral in comments.

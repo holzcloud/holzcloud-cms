@@ -1,3 +1,7 @@
+---
+status: complete
+---
+
 # Quick 261011-o5v: Menu entries editable, phone layout (0.0.25)
 
 **One-liner:** Menu entries get an edit page (title, kind, address, page, parent) with validation, cycle check and `menu.item_update` logging, and the entry list wraps cleanly at 390px.
