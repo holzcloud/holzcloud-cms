@@ -1,6 +1,6 @@
 # What is still missing
 
-As of August 2026, after the website's own block kinds; carried forward in
+Last updated 2026-10-20. As of August 2026, after the website's own block kinds; carried forward in
 September 2026, after the field kinds. A working list, not a wish list: every
 point says **what is missing**, **where it belongs** and **how big it is**. What
 is deliberately not being built is right at the bottom — so that nobody proposes
