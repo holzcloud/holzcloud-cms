@@ -1,68 +1,87 @@
-# Requirements: v0.1.0 — Betrieb härten
+# Requirements: v0.1.1 — Beta belegt
 
-**Defined:** 2026-10-12
+**Defined:** 2026-10-20
 **Core Value:** One small binary runs several websites without dependency soup.
 
-Ziel: holzcloud-cms läuft nachweislich sicher im Betrieb und schließt als Release 0.1.0, die erste Beta.
+Opened on 2026-10-20 after v0.1.0 (released 2026-10-18, the first beta). 0.1.0 wrote
+down what it does **not** promise, each limit named, in `docs/beta.md`. This
+milestone takes that list and plays what can be played, measures what can be
+measured, and hands over what only a real server can show as numbered owner steps
+with the output to expect. A line may move from *does not promise* to *promises*
+only together with the record that proves it. No feature is built.
 
-**Testumgebung (entschieden 2026-10-12):** kein echter Server, sondern ein Linux-Container mit systemd (Docker). Jede Abweichung von einem echten Server (Kernel, cgroups, Sandbox-Direktiven, die ein Container nicht erzwingt) wird bei der Messung ausdrücklich genannt, nie verschwiegen.
+---
 
-## Gehärtete systemd-Unit
+## v0.1.1 Requirements
 
-- [x] **UNIT-01**: Die Unit `deploy/holzcloud.service` läuft unter echtem systemd, der Dienst startet und antwortet auf HTTP.
-- [x] **UNIT-02**: Alle Plugins (wazero) laden unter der gehärteten Unit. Der Verdacht `MemoryDenyWriteExecute=true` ist belegt entschieden, die Unit bei Bedarf angepasst.
-- [x] **UNIT-03**: Der Wert von `systemd-analyze security` ist gemessen und im Repo festgehalten.
+### Backup timer (BKP)
 
-## Deploy, Update, Rollback
+- [ ] **BKP-01**: The backup timer fires from the **shipped** calendar entry (03:15), with no drop-in that moves it; a record shows the unit starting by itself and the backup it made.
+- [ ] **BKP-02**: After a missed run (host off at 03:15), `Persistent=true` makes the backup run when the host comes up; a record shows it.
+- [ ] **BKP-03**: `RandomizedDelaySec` is played with its shipped 300 seconds, not 0; a record shows the delay inside that window.
+- [ ] **BKP-04**: With `REMOTE_TARGET` set, the copy to a second host runs, and a restore from that copy brings the site back.
+- [ ] **BKP-05**: Retention pruning deletes backups older than the retention and keeps younger ones; a record shows both kinds.
 
-- [x] **DEP-01**: Eine frische Installation nach `deploy/DEPLOY.md` gelingt Schritt für Schritt; gefundene Abweichungen sind in der Doku korrigiert.
-- [x] **DEP-02**: Ein Update auf eine neue Version samt Migrationen gelingt ohne Datenverlust.
-- [x] **DEP-03**: Ein Rollback auf die Vorversion (Binär und Datenbank) ist gespielt und dokumentiert, einschließlich der Grenze bei Migrationen.
+### Consistency and compatibility (CON)
 
-## Backup und Restore
+- [ ] **CON-01**: A backup taken while pages are written and media is added gives a database and a media directory that agree, or `docs/beta.md` names the exact window in which they may not, with the run that provoked it.
+- [ ] **CON-02**: A backup made by the previous release (0.1.0) is restored by this one; a record shows the pages, the login and the migration level afterwards.
+- [ ] **CON-03**: A disk that is nearly full but above `MIN_FREE_MB` is provoked, and the record says what the backup does.
 
-- [x] **BAK-01**: `backup.sh` erzeugt eine verifizierte Sicherung von SQLite und Medien.
-- [x] **BAK-02**: `restore.sh` stellt auf einem leeren System her; Seiten, Medien und Login funktionieren. Dauer und Größe sind gemessen.
-- [x] **BAK-03**: Ein Lauf über `holzcloud-backup.timer` ist einmal real durchgespielt.
+### Real server (SRV)
 
-## Repository und Beta
+- [ ] **SRV-01**: The five plugins run under `MemoryDenyWriteExecute=true` on **native amd64** (a GitHub-hosted runner counts), and native backup and restore timings replace the emulation figures.
+- [ ] **SRV-02**: A restore on a real server, from a backup made there, to a different path, is handed over as owner steps and the result is recorded when the owner has made it.
+- [ ] **SRV-03**: A reboot with the service and timer units enabled brings the site back; same hand-over and recording as SRV-02.
 
-- [x] **REPO-01**: Die Beta-Kriterien stehen schriftlich: was „0.1.0" verspricht und was nicht.
-- [x] **REPO-02**: CHANGELOG-Eintrag und Release Notes für 0.1.0, Tag `v0.1.0`.
-- [x] **REPO-03**: Die verwaisten Remote-Branches sind aufgelistet, mit Anleitung zum Löschen in der GitHub-Oberfläche. Gelöscht wird dort von Hand (der Proxy antwortet 403).
+### The promise in writing (DOC)
 
-## Standing Gate
+- [ ] **DOC-01**: Every line of `docs/beta.md` that moves from *does not promise* to *promises* carries a sentence of a record, checked byte for byte as 0.1.0 did; every line that stays is still named with its reason.
+- [ ] **DOC-02**: `OWNER-STEPS` for this milestone lists each step that needs a real server or the GitHub UI: the command, the output to expect, and what a different output means.
 
-- [x] **QUAL-01**: `go run ./tools/i18n` meldet `0 open, 0 orphaned`; jede neue Operator-Zeile läuft durch den Katalog.
+### Repository (TIDY)
+
+- [ ] **TIDY-01**: Each remote branch in `docs/branches.md` is decided: the seven Safe-to-delete and the two Review-first branches are removed or kept on purpose, with the decision written down.
+- [ ] **TIDY-02**: STATE.md carries one current position; the history blocks are collapsed so `state.advance-plan` no longer refuses with `ambiguous_position_phase`.
+- [ ] **TIDY-03**: v0.1.0 is archived: `milestones/v0.1.0-ROADMAP.md`, `-REQUIREMENTS.md`, its audit, and a one-line entry in ROADMAP.md as for v2.5.
+- [ ] **TIDY-04**: The local backup branch from 2026-10-20 and the stray branch in the shared checkout are retired.
+
+---
+
+## Future Requirements
+
+- **FUT-01**: A checksum file inside a backup, so bit rot in a complete backup is caught. A feature, not a measurement.
+- **FUT-02**: A database-plus-media snapshot that is atomic. Becomes a requirement only if CON-01 shows the window cannot be named and lived with.
+- **FUT-03**: Certificate issuance, DNS and the proxy in front of the service played on a real domain.
+- **FUT-04**: The single sign-on paths (Authentik forward authentication, OpenID Connect) played.
+- **FUT-05**: Systemd versions other than 252 and 257 measured (Ubuntu 24.04 ships 255).
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Neue Funktionen in Verwaltung oder Themes | Dieser Meilenstein härtet den Betrieb, er baut nichts, was ein Betreiber im Menü sieht |
-| Test auf einem echten Server | Keiner vorhanden; Container-Ersatz mit benannten Abweichungen |
-| Automatisches Löschen der Orphan-Branches | Proxy lehnt Ref-Löschung ab, nur GitHub-UI |
-| Hochverfügbarkeit, Replikation, Off-Site-Backup-Dienst | Single-Binary-Ziel; `backup.sh` nennt rsync als Betreiberentscheid |
+| New CMS functions | This milestone proves what 0.1.0 said; it adds nothing a person sees. |
+| Changing the shipped `backup.sh` timer calendar or retention to make a run easier | The point is to play what ships. A change is a finding, written as one. |
+| Tuning the unit for a better `systemd-analyze security` score | 0.1.0 states "measured, not tuned"; that stays. |
+| Merging the archived parallel lineage | It is a second implementation of the same product; features are ported one by one if ever. |
 
 ## Traceability
 
+Filled when the roadmap is made.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UNIT-01 | Phase 20 | Complete |
-| UNIT-02 | Phase 20 | Complete |
-| UNIT-03 | Phase 20 | Complete |
-| DEP-01 | Phase 21 | Complete |
-| DEP-02 | Phase 21 | Complete |
-| DEP-03 | Phase 21 | Complete |
-| BAK-01 | Phase 22 | Complete |
-| BAK-02 | Phase 22 | Complete |
-| BAK-03 | Phase 22 | Complete |
-| REPO-01 | Phase 23 | Complete |
-| REPO-02 | Phase 23 | Complete |
-| REPO-03 | Phase 23 | Complete |
-| QUAL-01 | Phase 23 | Complete |
+| BKP-01 … BKP-05 | — | Pending |
+| CON-01 … CON-03 | — | Pending |
+| SRV-01 … SRV-03 | — | Pending |
+| DOC-01, DOC-02 | — | Pending |
+| TIDY-01 … TIDY-04 | — | Pending |
 
-**Coverage:** 13 total, 13 mapped, 0 unmapped.
+**Coverage:**
+- v0.1.1 requirements: 17 total
+- Mapped to phases: 0
+- Unmapped: 17 ⚠️
 
 ---
-*Requirements defined: 2026-10-12*
+*Requirements defined: 2026-10-20*
+*Last updated: 2026-10-20 after milestone v0.1.1 started*
