@@ -24,9 +24,9 @@ only together with the record that proves it. No feature is built.
 
 ### Consistency and compatibility (CON)
 
-- [ ] **CON-01**: A backup taken while pages are written and media is added gives a database and a media directory that agree, or `docs/beta.md` names the exact window in which they may not, with the run that provoked it.
-- [ ] **CON-02**: A backup made by the previous release (0.1.0) is restored by this one; a record shows the pages, the login and the migration level afterwards.
-- [ ] **CON-03**: A disk that is nearly full but above `MIN_FREE_MB` is provoked, and the record says what the backup does.
+- [x] **CON-01**: A backup taken while pages are written and media is added gives a database and a media directory that agree, or `docs/beta.md` names the exact window in which they may not, with the run that provoked it.
+- [x] **CON-02**: A backup made by the previous release (0.1.0) is restored by this one; a record shows the pages, the login and the migration level afterwards.
+- [x] **CON-03**: A disk that is nearly full but above `MIN_FREE_MB` is provoked, and the record says what the backup does.
 
 ### Real server (SRV)
 
@@ -74,9 +74,9 @@ only together with the record that proves it. No feature is built.
 | BKP-03 | Phase 24 | Complete |
 | BKP-04 | Phase 24 | Complete |
 | BKP-05 | Phase 24 | Complete |
-| CON-01 | Phase 25 | Pending |
-| CON-02 | Phase 25 | Pending |
-| CON-03 | Phase 25 | Pending |
+| CON-01 | Phase 25 | Complete |
+| CON-02 | Phase 25 | Complete |
+| CON-03 | Phase 25 | Complete |
 | SRV-01 | Phase 26 | Pending |
 | SRV-02 | Phase 26 | Pending |
 | SRV-03 | Phase 26 | Pending |
