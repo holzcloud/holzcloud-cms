@@ -6,7 +6,7 @@ Beta here means that you can run 0.1.1 for real as long as you keep backups, and
 
 ## What 0.1.1 promises
 
-Every row below was shown in a Debian 12 container with systemd as PID 1, amd64 under emulation on an arm64 host, except where a row says otherwise; no row is about a real server. Each row names the record it rests on and the words it quotes from it, and the words can be found in that record with `grep -F`.
+Every row below was shown in a Debian 12 container with systemd as PID 1, amd64 under emulation on an arm64 host, except where a row says otherwise; no row is about a real server. The rows P-11 onward rest on `deploy/BACKUP-TIMER-RUN.md` and `deploy/BACKUP-CONSISTENCY-RUN.md`. Each row names the record it rests on and the words it quotes from it, and the words can be found in that record with `grep -F`.
 
 | ID | Promise | Record | Cited words |
 |----|---------|--------|-------------|
@@ -24,7 +24,7 @@ Every row below was shown in a Debian 12 container with systemd as PID 1, amd64 
 
 ## What 0.1.1 does not promise
 
-These are the limits, each one named. They come from the *Not tested* and *Not measured* lists of the three records and from the hand-over in `deploy/test/README.md`, and none is softened here. If a use of 0.1.0 needs one of them, it needs a run of its own first.
+These are the limits, each one named. They come from the *Not tested* lists of the records, from the hand-over of each record, from the limits of 0.1.0 that stay, and from the findings of the later phases, and none is softened here. If a use of 0.1.1 needs one of them, it needs a run of its own first.
 
 ### The nightly backup and a restore
 
@@ -99,4 +99,4 @@ git diff --quiet bf74496 HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLO
 
 The admin screen still labels every 0.x build alpha: a tag in the sidebar, a line on the login page and a notice on the dashboard. The label is derived from the version number, not written by hand: `web.IsAlpha` in `internal/web/layoutdata.go` is true for every build below 1.0, and it goes away with 1.0. The *Updating* section of `deploy/DEPLOY.md` also still calls the software alpha software.
 
-Neither was reworded for 0.1.0. Changing the label would orphan catalogue keys in four languages, and an edit of `deploy/DEPLOY.md` belongs to the evidence set and would force it to be made again. The substance of both sentences, that an update may change or remove features, settings and the template contract, is what beta means on this page, so only the label differs.
+Neither was reworded for 0.1.1. Changing the label would orphan catalogue keys in four languages, and an edit of `deploy/DEPLOY.md` belongs to the evidence set and would force it to be made again. The substance of both sentences, that an update may change or remove features, settings and the template contract, is what beta means on this page, so only the label differs.
