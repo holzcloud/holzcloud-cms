@@ -19,6 +19,9 @@
 #   nightly.sh offsite-restore   BKP-04: the document's restore line, played on the second host from that copy
 #   nightly.sh chain        all of the above from fresh containers, one command; ends in OUT_DIR/summary.txt
 #   nightly.sh record-check the proof of deploy/BACKUP-TIMER-RUN.md against the scratch files (R and E)
+#   nightly.sh prep         phase 25: the editor account the churn runs as, and the admin's two-factor wall in front of the page form
+#   nightly.sh consist      CON-01: backup.sh under page saves, uploads and deletes, restored by restore.sh and compared in both directions
+#   nightly.sh window       CON-01: a forced window (the shipped backup.sh paused between its two copies), three controls
 #   nightly.sh down         remove the source and the second host
 #
 # Subcommands can be chained in one call and run in order. A failing one ends the
@@ -48,6 +51,16 @@
 #   DELAY_SAMPLES  12 re-armings `delay` takes
 #   CATCHUP_LEAD   150 seconds before 03:15:00 local at which `catchup` sets the zone
 #   CATCHUP_WAIT   480 seconds `catchup` waits for the run after the start
+#   Phase 25 (CON-01); prep, consist and window default NAME, OUT_DIR, TGT_NAME and TGT_OUT_DIR to
+#   holzcloud-t25-src, deploy/test/out/amd64-t25-src, holzcloud-t25-tgt, deploy/test/out/amd64-t25-tgt
+#   when the caller gave none of them (any other call keeps the t24 names above):
+#   BULK_MB        megabytes of synthetic media `source` writes through run.sh backup-fixture (0; the plan's runs use 100)
+#   CONSIST_RUNS   40 runs per stage (stage adds: page saves and uploads; stage deletes: the same plus deletes)
+#   CONSIST_MIN_RUNS   30, the floor under which no stage verdict is ok (a trace prints MIN-RUNS: 1)
+#   CONSIST_STAGES     "adds deletes"
+#   CONSIST_RESTORE_EVERY   1, every run is restored; N restores runs 1, N+1, ...; the others are compared on the backup itself
+#   CHURN_WORKERS  2 uploaders, one page saver, in stage deletes one deleter
+#   CHURN_PAUSE    0.05 seconds each worker waits between two requests
 #
 # Written for bash 3.2 (macOS): no arrays, no mapfile, no case conversion.
 # Anything that needs GNU tools (date -d, stat -c, sha256sum, zic) runs inside
@@ -57,6 +70,29 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
+
+# Phase 25: whether the caller gave NAME, OUT_DIR, TGT_NAME and TGT_OUT_DIR is
+# recorded here, before any default below is applied. A call that names a phase 25
+# subcommand (prep, consist, window) and gave none of them gets the t25 containers
+# and evidence directories; every other call keeps the t24 defaults, unchanged.
+GIVEN_NAME=no
+GIVEN_OUT_DIR=no
+GIVEN_TGT_NAME=no
+GIVEN_TGT_OUT_DIR=no
+[ -z "${NAME:-}" ] || GIVEN_NAME=yes
+[ -z "${OUT_DIR:-}" ] || GIVEN_OUT_DIR=yes
+[ -z "${TGT_NAME:-}" ] || GIVEN_TGT_NAME=yes
+[ -z "${TGT_OUT_DIR:-}" ] || GIVEN_TGT_OUT_DIR=yes
+P25_CALL=no
+for p25_arg in "$@"; do
+  case "$p25_arg" in prep | consist | window) P25_CALL=yes ;; esac
+done
+if [ "$P25_CALL" = yes ]; then
+  [ "$GIVEN_NAME" = yes ] || NAME=holzcloud-t25-src
+  [ "$GIVEN_OUT_DIR" = yes ] || OUT_DIR=deploy/test/out/amd64-t25-src
+  [ "$GIVEN_TGT_NAME" = yes ] || TGT_NAME=holzcloud-t25-tgt
+  [ "$GIVEN_TGT_OUT_DIR" = yes ] || TGT_OUT_DIR=deploy/test/out/amd64-t25-tgt
+fi
 
 PLATFORM=${PLATFORM:-linux/amd64}
 TARGET=${TARGET:-systemd-base}
@@ -71,6 +107,14 @@ FIRE_WAIT=${FIRE_WAIT:-540}
 DELAY_SAMPLES=${DELAY_SAMPLES:-12}
 CATCHUP_LEAD=${CATCHUP_LEAD:-150}
 CATCHUP_WAIT=${CATCHUP_WAIT:-480}
+
+# Phase 25 (CON-01), all optional; see the header.
+CONSIST_RUNS=${CONSIST_RUNS:-40}
+CONSIST_MIN_RUNS=${CONSIST_MIN_RUNS:-30}
+CONSIST_STAGES=${CONSIST_STAGES:-adds deletes}
+CONSIST_RESTORE_EVERY=${CONSIST_RESTORE_EVERY:-1}
+CHURN_WORKERS=${CHURN_WORKERS:-2}
+CHURN_PAUSE=${CHURN_PAUSE:-0.05}
 
 # Allowances, named here and written next to the verdict as KEY lines. Both are
 # for whole-second timestamps and exec latency; the second is larger because the
@@ -873,6 +917,7 @@ cmd_selftest() {
   selftest_restore
   selftest_verdict
   selftest_record
+  selftest_consist
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -2672,6 +2717,1012 @@ cmd_offsite_restore() {
   key_line "OFFSITE-RESTORE OK"
 }
 
+
+# st_lists DIR ROWS FILES: DIR/rows and DIR/files from two "\n" separated texts.
+st_lists() {
+  printf '%s\n' "$2" > "$1/rows"
+  printf '%s\n' "$3" > "$1/files"
+}
+
+selftest_consist() {
+  local t nl=$'\n' r l_rows l_files
+  t=$(mktemp -d)
+  l_rows=$'1/aa.jpg\n1/aa-thumb.jpg\n1/bb.jpg\n2/cc.jpg'
+
+  # media_agree: "ROWS FILES MISSING ORPHAN CLASS".
+  st_lists "$t" "$l_rows" "$l_rows"
+  st_eq "media_agree identical lists" "4 4 0 0 AGREE" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  st_lists "$t" "$l_rows" "$l_rows${nl}1/extra.jpg"
+  st_eq "media_agree one extra file" "4 5 0 1 ORPHAN-ONLY" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  st_lists "$t" "$l_rows" $'1/aa.jpg\n1/aa-thumb.jpg\n2/cc.jpg'
+  st_eq "media_agree one missing file" "4 3 1 0 ROW-WITHOUT-FILE" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  st_lists "$t" "$l_rows" $'1/aa.jpg\n1/aa-thumb.jpg\n2/cc.jpg\n1/extra.jpg'
+  st_eq "media_agree both at once: the harmful direction dominates" "4 4 1 1 ROW-WITHOUT-FILE" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  st_lists "$t" "$l_rows" "$l_rows${nl}1/bulk/bulk-1.bin${nl}1/bulk/bulk-2.bin"
+  st_eq "media_agree a file below bulk/ is excluded" "4 4 0 0 AGREE" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  st_eq "media_agree the same without the exclusion" "4 6 0 2 ORPHAN-ONLY" "$(media_agree "$t/rows" "$t/files" '')"
+  st_lists "$t" "$l_rows${nl}1/bulk/x.bin" "$l_rows"
+  st_eq "media_agree a row below bulk/ is excluded too" "4 4 0 0 AGREE" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  st_lists "$t" "$l_rows" "$l_rows${nl}1/mybulk/x.bin"
+  st_eq "media_agree bulk/ is a directory name, not a suffix" "4 5 0 1 ORPHAN-ONLY" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  printf '%s\n%s\n%s\n' "1/bb.jpg" "1/aa.jpg" "1/bb.jpg" > "$t/rows"
+  printf '%s\n%s\n' "1/aa.jpg" "1/bb.jpg" > "$t/files"
+  st_eq "media_agree order and duplicates do not matter" "2 2 0 0 AGREE" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  : > "$t/rows"
+  : > "$t/files"
+  st_eq "media_agree two empty lists" "0 0 0 0 AGREE" "$(media_agree "$t/rows" "$t/files" '*/bulk/')"
+  st_fail "media_agree a missing file" media_agree "$t/none" "$t/files" ''
+  st_lists "$t" "$l_rows" "$l_rows${nl}1/extra.jpg"
+  media_agree "$t/rows" "$t/files" '*/bulk/' "$t/m.out" "$t/o.out" > /dev/null
+  st_eq "media_agree writes the orphan list" "1/extra.jpg" "$(cat "$t/o.out")"
+  st_eq "media_agree writes an empty missing list" "0" "$(grep -c . "$t/m.out" || true)"
+  st_lists "$t" "$l_rows" $'1/aa.jpg\n1/aa-thumb.jpg\n2/cc.jpg'
+  media_agree "$t/rows" "$t/files" '*/bulk/' "$t/m.out" "$t/o.out" > /dev/null
+  st_eq "media_agree writes the missing list" "1/bb.jpg" "$(cat "$t/m.out")"
+
+  # run_class BACKUP_RC MANIFEST RESTORE_RC AGREE_CLASS
+  st_eq "run_class agree" "AGREE" "$(run_class 0 yes 0 AGREE)"
+  st_eq "run_class orphan-only" "ORPHAN-ONLY" "$(run_class 0 yes 0 ORPHAN-ONLY)"
+  st_eq "run_class row-without-file" "ROW-WITHOUT-FILE" "$(run_class 0 yes 0 ROW-WITHOUT-FILE)"
+  st_eq "run_class backup exit 24, no MANIFEST, lists say agree" "BACKUP-REFUSED" "$(run_class 24 no - AGREE)"
+  st_eq "run_class backup exit 24, no MANIFEST, no class at all" "BACKUP-REFUSED" "$(run_class 24 no - -)"
+  st_eq "run_class backup exit 1, no MANIFEST, lists say row-without-file" "BACKUP-REFUSED" "$(run_class 1 no 0 ROW-WITHOUT-FILE)"
+  st_eq "run_class restore exit 1" "RESTORE-FAILED" "$(run_class 0 yes 1 AGREE)"
+  st_eq "run_class restore exit 255 beats the lists" "RESTORE-FAILED" "$(run_class 0 yes 255 ROW-WITHOUT-FILE)"
+  st_eq "run_class not restored (-)" "ORPHAN-ONLY" "$(run_class 0 yes - ORPHAN-ONLY)"
+  st_eq "run_class a late failure with a MANIFEST keeps the lists' class" "AGREE" "$(run_class 1 yes 0 AGREE)"
+  st_fail "run_class exit 0 without a MANIFEST is not a backup" run_class 0 no 0 AGREE
+  st_fail "run_class an unknown class" run_class 0 yes 0 MAYBE
+  st_fail "run_class a non-number backup status" run_class x yes 0 AGREE
+  st_fail "run_class a non-number restore status" run_class 0 yes x AGREE
+  st_fail "run_class MANIFEST answer not yes or no" run_class 0 maybe 0 AGREE
+  st_eq "run_class prints nothing when it refuses" "" "$(run_class 0 yes 0 MAYBE || true)"
+
+  # window_hits DB_END MEDIA_END, events "START END" on stdin: "BEFORE WINDOW AFTER".
+  st_eq "window_hits no events" "0 0 0" "$(printf '' | window_hits 1000 2000)"
+  st_eq "window_hits an event that ended exactly at the end of the database step is before" "1 0 0" "$(printf '900 1000\n' | window_hits 1000 2000)"
+  st_eq "window_hits an event one millisecond after the database step is in the window" "0 1 0" "$(printf '900 1001\n' | window_hits 1000 2000)"
+  st_eq "window_hits an event one millisecond before the end of the media step is in" "0 1 0" "$(printf '1500 1999\n' | window_hits 1000 2000)"
+  st_eq "window_hits an event that ended exactly at the end of the media step is after" "0 0 1" "$(printf '1500 2000\n' | window_hits 1000 2000)"
+  st_eq "window_hits several" "2 3 1" "$(printf '1 10\n5 999\n1100 1200\n1200 1300\n1900 1950\n1990 2500\n' | window_hits 1000 2000)"
+  st_eq "window_hits an event that began before the snapshot and ended in the window counts as ended in it" "0 1 0" "$(printf '800 1500\n' | window_hits 1000 2000)"
+
+  # step_span TRANSCRIPT TEXT: the timestamp of a line and of the next step line (the
+  # binary's own lines in between do not end the database step).
+  printf '%s\n' '1000 === holzcloud-CMS backup: 20261026-100000 ===' '1010 Backing up database...' '1100 2026/10/26 11:47:01 INFO sqlite opened journal_mode=wal path=/x' '1200 backup written and verified: /x' '1450 Backing up CSRF key...' '1460 Backing up media...' '2100 Backing up templates...' '2200 === Backup complete: /x ===' 'WALL 990 2300' 'RC 0' > "$t/tr"
+  st_eq "step_span database ends at the next step line, not at the binary's output" "1010 1450" "$(step_span "$t/tr" 'Backing up database...')"
+  st_eq "step_span media" "1460 2100" "$(step_span "$t/tr" 'Backing up media...')"
+  st_eq "step_span the last step ends at the complete line" "2100 2200" "$(step_span "$t/tr" 'Backing up templates...')"
+  st_fail "step_span a step the transcript lacks" step_span "$t/tr" 'Backing up marke...'
+  st_fail "step_span the last line has no next step line" step_span "$t/tr" 'RC 0'
+  st_fail "step_span the complete line is followed by no step line" step_span "$t/tr" '=== Backup complete: /x ==='
+  r=$(step_span "$t/tr" 'Backing up media...')
+  st_eq "step_span feeds window_hits" "0 1 1" "$(printf '1500 1900\n1900 2200\n' | window_hits "${r% *}" "${r#* }")"
+  rm -rf "${t:?}"
+}
+# ---------------------------------------------------------------------------
+# Phase 25, plan 01: CON-01. The pair of a backup, the database snapshot and the
+# media copy, is not atomic. backup.sh and DEPLOY.md say so and it was never
+# provoked: an editor saves pages and uploads and deletes media while the shipped
+# backup.sh runs, each backup is restored on a second container by the shipped
+# restore.sh, and database and media are compared in both directions.
+# ---------------------------------------------------------------------------
+
+# usage again: the header of this file is longer than it was in phase 24, and the
+# first usage() above prints a fixed range of lines. A later definition wins.
+usage() {
+  awk 'NR == 1 { next } /^#/ { print; next } { exit }' "${BASH_SOURCE[0]}" >&2
+  exit 2
+}
+
+# ---- pure functions (no Docker, no clock; tables in selftest_consist) ----------
+
+# media_filter FILE EXCLUDE_PATTERNS: the sorted, unique, non-empty lines of FILE
+# that do not begin with an excluded glob (EXCLUDE_PATTERNS is a space separated
+# list of globs, each matched against the whole line as a prefix: `*/bulk/` drops
+# every file below a directory called bulk).
+media_filter() {
+  local p pat keep
+  [ -f "$1" ] || return 1
+  set -f
+  LC_ALL=C sort -u "$1" | while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    keep=yes
+    for pat in ${2:-}; do
+      case "$p" in $pat*) keep=no ;; esac
+    done
+    if [ "$keep" = yes ]; then printf '%s\n' "$p"; fi
+  done
+  set +f
+}
+
+# media_agree ROWS_FILE FILES_FILE EXCLUDE_PATTERNS [MISSING_OUT [ORPHAN_OUT]]:
+# ROWS_FILE lists WEBSITE/FILENAME of every media row and every variant row,
+# FILES_FILE the files below data/media, relative to it. Prints
+# "ROWS FILES MISSING ORPHAN CLASS": the numbers after the exclusion, MISSING the
+# rows without a file, ORPHAN the files without a row, and the class AGREE,
+# ORPHAN-ONLY (the direction backup.sh calls harmless) or ROW-WITHOUT-FILE (the
+# direction it says is possible). The harmful direction dominates when both occur.
+# The two lists of names are written to MISSING_OUT and ORPHAN_OUT when given.
+media_agree() {
+  local rows=$1 files=$2 excl=${3:-} mout=${4:-} oout=${5:-} t nr nf nm no cls
+  [ -f "$rows" ] && [ -f "$files" ] || return 1
+  t=$(mktemp -d) || return 1
+  media_filter "$rows" "$excl" > "$t/r" || true
+  media_filter "$files" "$excl" > "$t/f" || true
+  LC_ALL=C comm -23 "$t/r" "$t/f" > "$t/m"
+  LC_ALL=C comm -13 "$t/r" "$t/f" > "$t/o"
+  nr=$(grep -c . "$t/r" || true)
+  nf=$(grep -c . "$t/f" || true)
+  nm=$(grep -c . "$t/m" || true)
+  no=$(grep -c . "$t/o" || true)
+  if [ "$nm" -gt 0 ]; then
+    cls=ROW-WITHOUT-FILE
+  elif [ "$no" -gt 0 ]; then
+    cls=ORPHAN-ONLY
+  else
+    cls=AGREE
+  fi
+  if [ -n "$mout" ]; then cp "$t/m" "$mout"; fi
+  if [ -n "$oout" ]; then cp "$t/o" "$oout"; fi
+  rm -rf "${t:?}"
+  printf '%s %s %s %s %s\n' "$nr" "$nf" "$nm" "$no" "$cls"
+}
+
+# run_class BACKUP_RC MANIFEST_PRESENT RESTORE_RC AGREE_CLASS: the class of one run.
+# BACKUP-REFUSED: backup.sh ended non-zero and wrote no MANIFEST (whatever the
+# lists say: there is no backup to compare). RESTORE-FAILED: restore.sh ended
+# non-zero (RESTORE_RC "-" means the run was not restored). Otherwise the class
+# the lists gave. Anything else (a non-number, an unknown class, a zero exit
+# without a MANIFEST) is refused, status 1, nothing printed.
+run_class() {
+  local brc=$1 man=$2 rrc=$3 cls=$4
+  case "$brc" in "" | *[!0-9]*) return 1 ;; esac
+  case "$man" in yes | no) ;; *) return 1 ;; esac
+  if [ "$brc" -ne 0 ] && [ "$man" = no ]; then
+    echo BACKUP-REFUSED
+    return 0
+  fi
+  if [ "$brc" -eq 0 ] && [ "$man" = no ]; then return 1; fi
+  case "$rrc" in
+    - | "") ;;
+    *[!0-9]*) return 1 ;;
+    *)
+      if [ "$rrc" -ne 0 ]; then
+        echo RESTORE-FAILED
+        return 0
+      fi
+      ;;
+  esac
+  case "$cls" in
+    AGREE | ORPHAN-ONLY | ROW-WITHOUT-FILE) echo "$cls" ;;
+    *) return 1 ;;
+  esac
+}
+
+# window_hits DB_END MEDIA_END: reads lines "START END" (milliseconds) on stdin and
+# prints "BEFORE WINDOW AFTER", the number of events by the interval they ended in:
+# BEFORE at or before the end of the database step, WINDOW strictly after it and
+# strictly before the end of the media step, AFTER at or after the end of the media
+# step. Only the end counts here (the start is for window_name).
+window_hits() {
+  awk -v de="$1" -v me="$2" '
+    NF >= 2 {
+      e = $2 + 0
+      if (e <= de + 0) b++
+      else if (e < me + 0) w++
+      else a++
+    }
+    END { printf "%d %d %d\n", b, w, a }'
+}
+
+# step_span TRANSCRIPT TEXT: the transcript of a timestamped script ("MS TEXT" per
+# line). Prints "T0 T1": the timestamp of the first line whose text is TEXT and the
+# timestamp of the NEXT STEP LINE after it: the next line that begins "Backing up ",
+# "Pruning backups" or "=== ". The binary prints lines of its own in the database
+# step (sqlite opened, backup verified), which are not the end of it; the plan's
+# wording "the next line" would have ended the step 0.1 s early. Status 1 and
+# nothing printed when either line is missing.
+step_span() {
+  local out
+  out=$(awk -v want="$2" '
+    {
+      ts = $1
+      $1 = ""
+      sub(/^ /, "")
+      if (hit) {
+        if ($0 ~ /^(Backing up |Pruning backups|=== )/) { print t0, ts; found = 1; exit }
+        next
+      }
+      if ($0 == want) { t0 = ts; hit = 1 }
+    }
+    END { if (!found) exit 1 }' "$1") || return 1
+  printf '%s\n' "$out"
+}
+
+# ---- the document's lines --------------------------------------------------------
+
+# doc_backup_line / doc_restore_line: the two commands of the document, read from
+# deploy/DEPLOY.md. Printed as "LINENUMBER:TEXT". The restore line has the sample
+# timestamp of the document in its last word; the caller replaces it.
+doc_backup_line() {
+  grep -n -m1 -x -F -- 'sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups' deploy/DEPLOY.md
+}
+doc_restore_line() {
+  grep -n -m1 '^sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/[0-9-]*$' deploy/DEPLOY.md
+}
+
+# ---- scripts shipped to the containers ----------------------------------------
+
+# The editor's session, headless. The password is read from a root-only file in the
+# container and neither it nor a cookie nor a token is ever printed; the only
+# output is one line "HTTP CODE REDIRECT-PATH". The token comes from the form page
+# of the route the request is about to post to. The unit sets HOLZCLOUD_SECURE=true,
+# so a post over plain http needs a Referer that carries the https origin.
+read -r -d '' P25_SESS_SH <<'SESS_EOF' || true
+#!/bin/bash
+# hc-sess.sh MODE ARGS: login EMAIL PASSFILE JAR | get PATH JAR | page WID JAR SLUG TITLE MEDIAPATH
+#                       | upload WID JAR FILE ORIGINALNAME | delete WID JAR MEDIAID
+set -u
+umask 077
+base=http://127.0.0.1:8080
+origin=https://127.0.0.1:8080
+mode=${1:-}
+shift || true
+tmp=$(mktemp /root/.hc-sess.XXXXXX)
+trap 'rm -f "$tmp"' EXIT
+
+token_of() {
+  grep -o 'name="gorilla.csrf.Token" value="[^"]*"' "$1" | head -n 1 \
+    | sed 's/.*value="//; s/"$//; s/&#43;/+/g; s/&#61;/=/g; s/&#47;/\//g'
+}
+result() {
+  local code=${1%% *} loc=${1#* }
+  loc=${loc#$base}
+  echo "HTTP $code ${loc:--}"
+}
+fetch_token() {
+  curl -s --max-time 60 -o "$tmp" -c "$2" -b "$2" "$base$1" || true
+  token_of "$tmp"
+}
+notoken() { echo "HTTP none no-csrf-field"; exit 0; }
+fmt='%{http_code} %{redirect_url}'
+
+case "$mode" in
+  login)
+    email=$1; passfile=$2; jar=$3
+    tok=$(fetch_token /admin/login "$jar")
+    [ -n "$tok" ] || notoken
+    pass=$(cat "$passfile")
+    res=$(curl -s -o /dev/null --max-time 120 -w "$fmt" -c "$jar" -b "$jar" \
+      -H "Referer: $origin/admin/login" \
+      --data-urlencode "gorilla.csrf.Token=$tok" --data-urlencode "email=$email" \
+      --data-urlencode "password=$pass" "$base/admin/login")
+    result "$res"
+    ;;
+  get)
+    res=$(curl -s -o /dev/null --max-time 60 -w "$fmt" -c "$2" -b "$2" "$base$1")
+    result "$res"
+    ;;
+  page)
+    wid=$1; jar=$2; slug=$3; title=$4; ref=$5
+    path=/admin/websites/$wid/pages/new
+    tok=$(fetch_token "$path" "$jar")
+    [ -n "$tok" ] || notoken
+    res=$(curl -s -o /dev/null --max-time 120 -w "$fmt" -c "$jar" -b "$jar" \
+      -H "Referer: $origin$path" -H "X-CSRF-Token: $tok" \
+      --data-urlencode "gorilla.csrf.Token=$tok" --data-urlencode "title=$title" \
+      --data-urlencode "slug=$slug" --data-urlencode "status=draft" \
+      --data-urlencode "content_markdown=Page $slug ![churn]($ref)" "$base$path")
+    result "$res"
+    ;;
+  upload)
+    wid=$1; jar=$2; file=$3; name=$4
+    path=/admin/websites/$wid/media
+    tok=$(fetch_token "$path" "$jar")
+    [ -n "$tok" ] || notoken
+    res=$(curl -s -o /dev/null --max-time 120 -w "$fmt" -c "$jar" -b "$jar" \
+      -H "Referer: $origin$path" -H "X-CSRF-Token: $tok" \
+      -F "media=@$file;filename=$name;type=image/jpeg" "$base$path/upload")
+    if [ "${res%% *}" = 403 ]; then
+      res=$(curl -s -o /dev/null --max-time 120 -w "$fmt" -c "$jar" -b "$jar" \
+        -H "Referer: $origin$path" -F "gorilla.csrf.Token=$tok" \
+        -F "media=@$file;filename=$name;type=image/jpeg" "$base$path/upload")
+    fi
+    result "$res"
+    ;;
+  delete)
+    wid=$1; jar=$2; id=$3
+    path=/admin/websites/$wid/media
+    tok=$(fetch_token "$path" "$jar")
+    [ -n "$tok" ] || notoken
+    res=$(curl -s -o /dev/null --max-time 120 -w "$fmt" -c "$jar" -b "$jar" \
+      -H "Referer: $origin$path" -H "X-CSRF-Token: $tok" \
+      --data-urlencode "gorilla.csrf.Token=$tok" -X POST "$base$path/$id/delete")
+    result "$res"
+    ;;
+  *)
+    echo "HTTP none bad-mode"
+    ;;
+esac
+SESS_EOF
+
+# The churn generator. Runs in the container in the background; each worker loops
+# until /root/hc-churn.stop exists and appends one line per finished request to
+# /root/hc-churn.log: END START KIND CODE ID, the times in milliseconds of the
+# container's clock. KIND is upload, page or delete. ID is the original name of an
+# upload, the slug of a page, and for a delete MEDIAID:WEBSITE/STEM (the stem is the
+# stored name up to the first dot, which the original and its variants share). The
+# deleter takes the oldest churn upload (original name churn-*) that is left,
+# never a baseline file.
+read -r -d '' P25_CHURN_SH <<'CHURN_EOF' || true
+#!/bin/bash
+# hc-churn.sh MODE WORKERS TAG WID BASEREF PAUSE   (MODE adds | deletes)
+mode=$1; workers=$2; tag=$3; wid=$4; baseref=$5; pause=${6:-0.3}
+LOG=/root/hc-churn.log
+STOP=/root/hc-churn.stop
+SESS=/root/hc-sess.sh
+IMG=/root/hc-base.jpg
+DB=/opt/holzcloud/data/holzcloud.sqlite
+umask 077
+ms() { date +%s%3N; }
+logline() { printf '%s\n' "$*" >> "$LOG"; }
+code_of() { local r=$1; set -- $r; echo "${2:-none}"; }
+ensure_login() {
+  local r
+  r=$(bash "$SESS" get /admin/ "$1")
+  [ "$r" = "HTTP 200 -" ] || bash "$SESS" login churn@example.test /root/.hc-login-pass "$1" > /dev/null
+}
+uploader() {
+  local w=$1 jar=/root/.hc-jar-churn-u$1 n=0 f name s e res
+  ensure_login "$jar"
+  while [ ! -e "$STOP" ]; do
+    n=$((n + 1))
+    name="churn-$tag-w$w-$n.jpg"
+    f=/root/.hc-churn-up-$w.jpg
+    cat "$IMG" > "$f"
+    printf 'trailer %s %s %s %s' "$tag" "$w" "$n" "$(date +%s%N)" >> "$f"
+    s=$(ms); res=$(bash "$SESS" upload "$wid" "$jar" "$f" "$name"); e=$(ms)
+    logline "$e $s upload $(code_of "$res") $name"
+    rm -f "$f"
+    sleep "$pause"
+  done
+}
+pager() {
+  local jar=/root/.hc-jar-churn-p n=0 slug s e res
+  ensure_login "$jar"
+  while [ ! -e "$STOP" ]; do
+    n=$((n + 1))
+    slug="churn-$tag-p$n"
+    s=$(ms); res=$(bash "$SESS" page "$wid" "$jar" "$slug" "Churn $tag $n" "$baseref"); e=$(ms)
+    logline "$e $s page $(code_of "$res") $slug"
+    sleep "$pause"
+  done
+}
+deleter() {
+  local jar=/root/.hc-jar-churn-d last=0 row id fn stem s e res
+  ensure_login "$jar"
+  while [ ! -e "$STOP" ]; do
+    row=$(runuser -u holzcloud -- sqlite3 -readonly "$DB" "select id || '|' || filename from media where original_name like 'churn-%' and id > $last order by id limit 1" 2> /dev/null)
+    if [ -z "$row" ]; then
+      sleep 0.2
+      continue
+    fi
+    id=${row%%|*}; fn=${row#*|}; stem=${fn%%.*}
+    s=$(ms); res=$(bash "$SESS" delete "$wid" "$jar" "$id"); e=$(ms)
+    logline "$e $s delete $(code_of "$res") $id:$wid/$stem"
+    last=$id
+    sleep "$pause"
+  done
+}
+w=1
+while [ "$w" -le "$workers" ]; do
+  uploader "$w" &
+  w=$((w + 1))
+done
+pager &
+if [ "$mode" = deletes ]; then deleter & fi
+wait
+CHURN_EOF
+
+# Run in the container: the command of $1 with a millisecond timestamp in front of
+# every line of its output, its own exit status in the RC line. stdin reaches the
+# command (the restore's answer). The status is the command's (PIPESTATUS), not the
+# loop's that stamps the lines.
+read -r -d '' P25_STAMP_SH <<'STAMP_EOF' || true
+set -o pipefail
+t0=$(date +%s%3N)
+bash -c "$1" 2>&1 | while IFS= read -r l; do printf '%s %s\n' "$(date +%s%3N)" "$l"; done
+rc=${PIPESTATUS[0]}
+echo "WALL $t0 $(date +%s%3N)"
+echo "RC $rc"
+exit 0
+STAMP_EOF
+
+# The comparator, run in the container that holds the backup (mode backup) or the
+# restored site (mode restored; live is the same without the tree). Arguments:
+# MODE DATABASE MEDIADIR BACKUPDIR DATADIR. It works on a consistent COPY of the
+# database and prints sections, "@@NAME" lines between them; the judgement is made
+# by the driver. No file is created next to the backup.
+read -r -d '' P25_COMPARE_SH <<'CMP_EOF' || true
+set -u
+mode=$1; db=$2; media=$3; bk=$4; data=$5
+t=$(mktemp -d /root/.hc-cmp.XXXXXX) || exit 97
+trap 'rm -rf "$t"' EXIT
+if [ "$mode" = backup ]; then
+  cp "$db" "$t/holzcloud.sqlite"
+else
+  sqlite3 -readonly "$db" ".backup '$t/holzcloud.sqlite'"
+fi
+q="select website_id || '/' || filename from media union select m.website_id || '/' || v.filename from media_variants v join media m on m.id = v.media_id order by 1"
+echo '@@ROWS'
+sqlite3 "$t/holzcloud.sqlite" "$q"
+echo '@@FILES'
+( cd "$media" && find . -type f | sed 's|^\./||' | LC_ALL=C sort )
+echo '@@REFS'
+sqlite3 "$t/holzcloud.sqlite" "select content_html from pages" | grep -o '/media/[0-9]*/[A-Za-z0-9._-]*' | sed 's|^/media/||' | LC_ALL=C sort -u
+echo '@@CHECK'
+out=$(HOLZCLOUD_DATA_DIR="$t" /opt/holzcloud/holzcloud check 2>&1); rc=$?
+echo "CHECK-RC: $rc"
+echo "CHECK-OUT: $(printf '%s' "$out" | tr '\n' ' ')"
+echo "INTEGRITY: $(sqlite3 "$t/holzcloud.sqlite" 'PRAGMA integrity_check' | tr '\n' ' ')"
+echo "FKCHECK: $(sqlite3 "$t/holzcloud.sqlite" 'PRAGMA foreign_key_check' | wc -l | tr -d ' ')"
+echo "ROWS-MEDIA: $(sqlite3 "$t/holzcloud.sqlite" 'select count(*) from media')"
+echo "ROWS-VARIANTS: $(sqlite3 "$t/holzcloud.sqlite" 'select count(*) from media_variants')"
+echo "ROWS-PAGES: $(sqlite3 "$t/holzcloud.sqlite" 'select count(*) from pages')"
+if [ "$mode" = restored ]; then
+  tree() { ( cd "$1" && find . -type f ! -name 'holzcloud.sqlite*' ! -name 'pre-upgrade-*.sqlite*' ! -name MANIFEST -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum ); }
+  echo '@@TREE-RESTORED'
+  tree "$data"
+  echo '@@TREE-BACKUP'
+  tree "$bk"
+fi
+echo '@@END'
+CMP_EOF
+
+# ---- helpers ---------------------------------------------------------------
+
+# p25_ship: the three shell texts and the base image into the source container.
+p25_ship() {
+  printf '%s\n' "$P25_SESS_SH" | dxi bash -c 'umask 077; cat > /root/hc-sess.sh && chmod 700 /root/hc-sess.sh' \
+    || die "could not ship the session helper into $NAME"
+  printf '%s\n' "$P25_CHURN_SH" | dxi bash -c 'umask 077; cat > /root/hc-churn.sh && chmod 700 /root/hc-churn.sh' \
+    || die "could not ship the churn generator into $NAME"
+  dx bash -c 'umask 077; [ -s /root/hc-base.jpg ] || cp /tmp/hc-upload.jpg /root/hc-base.jpg; test -s /root/hc-base.jpg' \
+    || die "there is no /root/hc-base.jpg and no /tmp/hc-upload.jpg in $NAME to make it from; run 'bash deploy/test/nightly.sh source' first"
+}
+
+# sess ARGS...: the session helper in the source container; prints "HTTP CODE REDIRECT".
+sess() { dxo bash /root/hc-sess.sh "$@"; }
+
+# p25_wid / p25_baseref: the website called Test and the media path of its first file.
+p25_wid() {
+  dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select id from websites where name = 'Test'" | head -n 1
+}
+p25_baseref() {
+  dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select '/media/' || website_id || '/' || filename from media order by id limit 1" | head -n 1
+}
+
+# run_prefix STAGE N: the stem of the raw files of a run. Stage adds keeps the plain
+# name of the plan; stage deletes puts its name in front so the two never collide.
+run_prefix() {
+  if [ "$1" = adds ]; then
+    printf 'consist-run-%s\n' "$2"
+  else
+    printf 'consist-%s-run-%s\n' "$1" "$2"
+  fi
+}
+
+# split_sections FILE DIR: the "@@NAME" sections of the comparator output as DIR/NAME.
+split_sections() {
+  awk -v d="$2" '/^@@/ { f = d "/" substr($0, 3); printf "" > f; next } f != "" { print >> f }' "$1"
+}
+
+# ---- prep ---------------------------------------------------------------------
+
+cmd_prep() {
+  local o=$OUT_DIR/prep.txt wid setup adm wall ed created n m i rc=0 slug epoch pg mrows fn
+  need_container
+  mkdir -p "$OUT_DIR"
+  BADS=0
+  res_begin "$o"
+  p25_ship
+  wid=$(p25_wid) || wid=""
+  key_line "WEBSITE: ${wid:-?}"
+  if [ -n "$wid" ]; then
+    check_pass "the website called Test has id $wid"
+  else
+    check_bad "no website called Test in $NAME"
+  fi
+
+  # (b) The baseline admin cannot be the editor: the compulsory two-factor setup
+  # stands in front of every admin URL. Recorded, not assumed.
+  setup=$(sed -n 's/^const SetupPath = "\(.*\)"$/\1/p' internal/auth/twofactor.go)
+  key_line "SETUP-PATH: ${setup:-?} (internal/auth/twofactor.go, SetupPath)"
+  adm=$(sess login login@example.test /root/.hc-login-pass /root/.hc-jar-prep-admin) || adm="HTTP none error"
+  key_line "ADMIN-LOGIN: $adm"
+  wall=$(sess get "/admin/websites/${wid:-1}/pages/new" /root/.hc-jar-prep-admin) || wall="HTTP none error"
+  key_line "ADMIN-SESSION: $wall"
+  if [ "$adm" != "HTTP 303 /admin/" ]; then
+    check_bad "the baseline admin could not log in: '$adm'"
+  elif [ "$wall" = "HTTP 303 $setup" ]; then
+    check_pass "the admin session on the page form is answered with a redirect to $setup: auth.MustHaveSecondFactor makes the two-factor setup compulsory for an admin"
+  else
+    check_info "the admin session on the page form got '$wall' (not a redirect to $setup); the editor session below is used all the same"
+  fi
+
+  # (c) The editor, created by the new binary as the service user; the password is
+  # the baseline login password, read from its root-only file on stdin, so that no
+  # new secret exists and leak_check already covers it.
+  ed=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select role from users where email = 'churn@example.test'") || ed=""
+  if [ -n "$ed" ]; then
+    check_info "churn@example.test exists already (role $ed); it is not created again"
+  else
+    created=$(dx bash -c 'runuser -u holzcloud -- env HOLZCLOUD_DATA_DIR=/opt/holzcloud/data /opt/holzcloud/holzcloud user create -email churn@example.test -role editor < /root/.hc-login-pass 2>&1' | tr -d '\r') || rc=$?
+    key_line "EDITOR-CREATE: $(printf '%s' "$created" | tail -n 1)"
+    if [ "$rc" -ne 0 ]; then check_bad "holzcloud user create -role editor ended with status $rc"; fi
+    ed=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select role from users where email = 'churn@example.test'") || ed=""
+  fi
+  if [ "$ed" = editor ]; then
+    check_pass "churn@example.test is an account with the role editor"
+  else
+    check_bad "churn@example.test has the role '${ed:-none}', expected editor"
+  fi
+
+  # (d) The editor logs in.
+  adm=$(sess login churn@example.test /root/.hc-login-pass /root/.hc-jar-prep-editor) || adm="HTTP none error"
+  key_line "EDITOR-LOGIN: $adm"
+  if [ "$adm" = "HTTP 303 /admin/" ]; then
+    check_pass "the editor logs in: $adm"
+  else
+    check_bad "the editor login answered '$adm', expected 'HTTP 303 /admin/'"
+  fi
+
+  # (e) Both write paths once, and the proof that two uploads give two rows.
+  epoch=$(date +%s)
+  slug=churn-prep-$epoch
+  pg=$(sess page "${wid:-1}" /root/.hc-jar-prep-editor "$slug" "Churn prep $epoch" "$(p25_baseref)") || pg="HTTP none error"
+  key_line "PAGE-SAVE: $pg"
+  for i in 1 2; do
+    dx bash -c 'umask 077; cat /root/hc-base.jpg > "$1"; printf "trailer prep %s %s" "$2" "$(date +%s%N)" >> "$1"' _ "/root/.hc-prep-up-$i.jpg" "$i" || check_bad "could not make the upload file $i"
+    m=$(sess upload "${wid:-1}" /root/.hc-jar-prep-editor "/root/.hc-prep-up-$i.jpg" "churn-prep-$epoch-$i.jpg") || m="HTTP none error"
+    key_line "UPLOAD-$i: $m"
+    dx rm -f "/root/.hc-prep-up-$i.jpg" || true
+  done
+  sleep 1
+  n=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select count(*) from pages where slug = '$slug' and status = 'draft'") || n="?"
+  if [ "$n" = 1 ]; then
+    check_pass "the page row $slug exists (a draft: what an editor can make)"
+  else
+    check_bad "the page row $slug: $n rows, expected 1"
+  fi
+  mrows=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select count(*) from media where original_name like 'churn-prep-$epoch-%'") || mrows="?"
+  key_line "UPLOAD-ROWS: $mrows"
+  if [ "$mrows" = 2 ]; then
+    check_pass "two uploads that differ in their trailing bytes gave two media rows (the strip step keeps the difference)"
+  else
+    check_bad "two uploads gave $mrows media rows, expected 2 (a hash already exists answer, or a refusal)"
+  fi
+  fn=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select website_id || '/' || filename from media where original_name = 'churn-prep-$epoch-1.jpg'") || fn=""
+  if [ -n "$fn" ] && dx test -f "/opt/holzcloud/data/media/$fn"; then
+    check_pass "the file of the first upload is below data/media: $fn"
+  else
+    check_bad "the file of the first upload is not below data/media ('$fn')"
+  fi
+  n=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select count(*) from media_usage u join pages p on p.id = u.page_id where p.slug = '$slug'") || n="?"
+  if [ "$n" = 1 ]; then
+    check_pass "the page references an uploaded media file: media_usage has its row"
+  else
+    check_bad "media_usage has $n rows for the page $slug, expected 1"
+  fi
+  dx rm -f /root/.hc-jar-prep-admin /root/.hc-jar-prep-editor || true
+
+  # (f) What this load is and is not.
+  deviation "DEVIATION[editor-session]: the load is an EDITOR's session, not the administrator's. auth.MustHaveSecondFactor(role, viaSSO) is true for an admin, so every admin URL answers an admin session with a redirect to the compulsory two-factor setup (ADMIN-SESSION above) and no admin session reaches a page form. The account churn@example.test, role editor, was created for it with the new binary and the baseline login password (no new secret exists)"
+  deviation "DEVIATION[churn]: the load is curl run inside the container against 127.0.0.1:8080 with the CSRF token of each form, not browsers; the pace is set by CHURN_PAUSE and CHURN_WORKERS, not by people"
+
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "PREP FAILED"
+    say "nightly.sh: PREP FAILED, $BADS BAD line(s); see $o"
+    exit 1
+  fi
+  key_line "PREP OK"
+}
+
+# ---- consist --------------------------------------------------------------------
+
+# churn_wait_ready: until the log shows two finished requests, at most 90 seconds.
+churn_wait_ready() {
+  local i=0 n
+  while [ "$i" -lt 90 ]; do
+    n=$(dxo bash -c 'grep -c . /root/hc-churn.log 2>/dev/null || true') || n=0
+    if [ "${n:-0}" -ge 2 ]; then return 0; fi
+    sleep 1
+    i=$((i + 1))
+  done
+  say "churn: the log shows no two finished requests after 90 s; its contents:"
+  dx bash -c 'cat /root/hc-churn.log 2>/dev/null; pgrep -af hc-churn.sh' >&2 || true
+  return 1
+}
+
+# churn_stop: write the stop file, wait up to 30 s for the generator to end and the
+# log to stop growing; kill what is left and say so.
+churn_stop() {
+  local i=0 a b
+  dx touch /root/hc-churn.stop || true
+  while [ "$i" -lt 30 ]; do
+    if ! dx pgrep -f 'hc-churn.sh' > /dev/null 2>&1; then
+      a=$(dxo bash -c 'grep -c . /root/hc-churn.log 2>/dev/null || true') || a=0
+      sleep 1
+      b=$(dxo bash -c 'grep -c . /root/hc-churn.log 2>/dev/null || true') || b=0
+      if [ "$a" = "$b" ]; then return 0; fi
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  say "churn: the generator is still running 30 s after the stop file; it is killed"
+  dx pkill -f 'hc-churn.sh' > /dev/null 2>&1 || true
+  return 1
+}
+
+# churn_count FILE KIND: the successful (HTTP 303) lines of that kind.
+churn_count() {
+  awk -v k="$2" '$3 == k && $4 == 303 { n++ } END { print n + 0 }' "$1"
+}
+
+# consist_run STAGE N RESTORE: one run. RESTORE is yes (restored by restore.sh on the
+# second container and compared there) or no (compared on the backup itself).
+# Results in the globals R_*; the run's line is appended to consist-runs.txt by the
+# caller. Returns 1 when the harness itself failed (a BAD line says why).
+consist_run() {
+  local stage=$1 n=$2 restore=$3 pfx w tag brc man dir bdir ts rrc=- rsync_st line
+  local db0 db1 me0 me1 span tdir agree keep_out nbad0 rows files miss orph
+  local ref_count dang tr_a tr_b res wr
+  pfx=$(run_prefix "$stage" "$n")
+  w=$OUT_DIR/.work-$pfx
+  rm -rf "$w"
+  mkdir -p "$w"
+  tag=$stage$n
+  R_CLASS=? R_BRC=? R_RRC=- R_MISSING=? R_ORPHAN=? R_WU=? R_WP=? R_WD=? R_U=? R_P=? R_D=? R_BS=? R_DIR=? R_RESTORED=$restore R_RSYNC=- R_BADRUN=no
+  keep_out=$CHECK_OUT
+
+  # (1) The load, and a wait until it is running.
+  dx rm -f /root/hc-churn.stop /root/hc-churn.log || true
+  dx bash -c ': > /root/hc-churn.log' || true
+  if ! docker exec -d "$NAME" bash /root/hc-churn.sh "$stage" "$CHURN_WORKERS" "$tag" "$WID" "$BASEREF" "$CHURN_PAUSE"; then
+    check_bad "run $stage $n: the churn generator could not be started"
+    return 1
+  fi
+  if ! churn_wait_ready; then
+    churn_stop || true
+    check_bad "run $stage $n: the load did not start (no two finished requests within 90 s)"
+    return 1
+  fi
+
+  # (2) The document's manual line, with a timestamp on every output line.
+  docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$BACKUP_LINE" > "$w/backup.txt" 2>&1 || true
+  churn_stop || check_bad "run $stage $n: the churn generator did not stop in time"
+  dx cat /root/hc-churn.log > "$w/churn.txt" 2> /dev/null || true
+  brc=$(sed -n 's/^RC //p' "$w/backup.txt" | tail -n 1)
+  if [ -z "$brc" ]; then
+    check_bad "run $stage $n: backup.txt holds no RC line; the transcript ends: $(tail -n 3 "$w/backup.txt" | tr '\n' '|')"
+    cp "$w/backup.txt" "$OUT_DIR/$pfx-backup.txt" 2> /dev/null || true
+    return 1
+  fi
+  R_BRC=$brc
+  dir=$(sed -n 's/^[0-9]* === Backup complete: \(.*\) ===$/\1/p' "$w/backup.txt" | tail -n 1)
+  ts=$(sed -n 's/^[0-9]* === holzcloud-CMS backup: \(.*\) ===$/\1/p' "$w/backup.txt" | head -n 1)
+  bdir=$dir
+  [ -n "$bdir" ] || bdir=/opt/holzcloud/backups/$ts
+  man=no
+  if [ -n "$ts" ] && dx test -f "$bdir/MANIFEST"; then man=yes; fi
+  R_DIR=$bdir
+  R_BS=$(awk '$1 == "WALL" { printf "%.1f", ($3 - $2) / 1000 }' "$w/backup.txt")
+  rsync_st=$(sed -n 's/.*rsync \(error\|warning\): .*(code \([0-9]*\)).*/\2/p' "$w/backup.txt" | head -n 1)
+  R_RSYNC=${rsync_st:--}
+
+  # (3) The window: events of the churn log held against the backup's own lines.
+  span=$(step_span "$w/backup.txt" "Backing up database...") || span=""
+  db0=${span% *}; db1=${span#* }
+  span=$(step_span "$w/backup.txt" "Backing up media...") || span=""
+  me0=${span% *}; me1=${span#* }
+  if [ -z "$span" ] && [ "$brc" -ne 0 ]; then
+    # backup.sh died inside the media step (set -e): the step ended with the script.
+    me0=$(awk '{ ts = $1; $1 = ""; sub(/^ /, ""); if ($0 == "Backing up media...") print ts }' "$w/backup.txt" | head -n 1)
+    me1=$(awk '$1 == "WALL" { print $3 }' "$w/backup.txt")
+    [ -n "$me0" ] || me1=""
+  fi
+  R_U=$(churn_count "$w/churn.txt" upload)
+  R_P=$(churn_count "$w/churn.txt" page)
+  R_D=$(churn_count "$w/churn.txt" delete)
+  if [ -n "$db1" ] && [ -n "$me1" ]; then
+    R_WU=$(awk '$3 == "upload" && $4 == 303 { print $2, $1 }' "$w/churn.txt" | window_hits "$db1" "$me1" | awk '{ print $2 }')
+    R_WP=$(awk '$3 == "page" && $4 == 303 { print $2, $1 }' "$w/churn.txt" | window_hits "$db1" "$me1" | awk '{ print $2 }')
+    R_WD=$(awk '$3 == "delete" && $4 == 303 { print $2, $1 }' "$w/churn.txt" | window_hits "$db1" "$me1" | awk '{ print $2 }')
+    { echo "DB-STEP-MS: $db0 $db1"; echo "MEDIA-STEP-MS: $me0 $me1"; } > "$w/steps.txt"
+  fi
+
+  # (4) Refused: backup.sh ended non-zero with no MANIFEST. There is nothing to compare.
+  if [ "$brc" -ne 0 ] && [ "$man" = no ]; then
+    R_CLASS=$(run_class "$brc" "$man" - -) || R_CLASS=?
+    consist_finish "$stage" "$n" "$w" "$pfx"
+    return 0
+  fi
+  if [ "$brc" -ne 0 ]; then
+    check_bad "run $stage $n: backup.sh ended with status $brc although the MANIFEST exists ($bdir)"
+  fi
+  if [ -z "$dir" ] || [ "$man" != yes ]; then
+    check_bad "run $stage $n: backup.sh ended 0 and named no '=== Backup complete: DIR ===' line or wrote no MANIFEST ($bdir)"
+    cp "$w/backup.txt" "$OUT_DIR/$pfx-backup.txt" 2> /dev/null || true
+    return 1
+  fi
+
+  # (5) Ship the directory to the second container and restore it there, or compare in place.
+  if [ "$restore" = yes ]; then
+    dxt bash -c 'rm -rf /opt/holzcloud/data.before-restore-* /opt/holzcloud/backups/*' || true
+    # The shipped unit has StartLimitBurst=5 within StartLimitIntervalSec=300 and
+    # restore.sh stops and starts it, so the sixth restore within five minutes ends
+    # in "start-limit-hit" (measured: amd64-t25-trace-startlimit). That is the
+    # unit doing what it says, not a finding about the pair; the counter is cleared
+    # between runs (DEVIATION[start-limit]) and nothing is changed in the unit.
+    dxt systemctl reset-failed holzcloud || true
+    if ! docker cp "$NAME:$dir" - | docker cp - "$TGT_NAME:/opt/holzcloud/backups"; then
+      check_bad "run $stage $n: the tar stream of $dir to $TGT_NAME failed"
+      return 1
+    fi
+    tdir=/opt/holzcloud/backups/$(basename "$dir")
+    wr=$(printf '%s' "$RESTORE_LINE_SAMPLE" | sed "s|/opt/holzcloud/backups/[0-9-]*\$|$tdir|")
+    printf 'yes\n' | docker exec -i "$TGT_NAME" bash -c "$P25_STAMP_SH" _ "$wr" > "$w/restore.txt" 2>&1 || true
+    rrc=$(sed -n 's/^RC //p' "$w/restore.txt" | tail -n 1)
+    if [ -z "$rrc" ]; then
+      check_bad "run $stage $n: restore.txt holds no RC line; the transcript ends: $(tail -n 3 "$w/restore.txt" | tr '\n' '|')"
+      cp "$w/restore.txt" "$OUT_DIR/$pfx-restore.txt" 2> /dev/null || true
+      return 1
+    fi
+    R_RRC=$rrc
+    if [ "$rrc" -ne 0 ]; then
+      R_CLASS=$(run_class "$brc" "$man" "$rrc" -) || R_CLASS=?
+      check_bad "run $stage $n: restore.sh ended with status $rrc on a complete backup; the last lines: $(tail -n 4 "$w/restore.txt" | tr '\n' '|')"
+      consist_finish "$stage" "$n" "$w" "$pfx"
+      return 0
+    fi
+    printf '%s\n' "$P25_COMPARE_SH" | docker exec -i "$TGT_NAME" bash -s -- restored /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/media "$tdir" /opt/holzcloud/data > "$w/cmp.out" 2> "$w/cmp.err" || true
+  else
+    printf '%s\n' "$P25_COMPARE_SH" | dxi bash -s -- backup "$dir/holzcloud.sqlite" "$dir/media" "$dir" "" > "$w/cmp.out" 2> "$w/cmp.err" || true
+  fi
+  split_sections "$w/cmp.out" "$w"
+  if [ ! -s "$w/ROWS" ] || ! grep -q . "$w/FILES" 2> /dev/null; then
+    check_bad "run $stage $n: the comparator returned no rows or no files (cmp.err: $(head -c 300 "$w/cmp.err" | tr '\n' '|'))"
+    cp "$w/cmp.out" "$OUT_DIR/$pfx-compare-raw.txt" 2> /dev/null || true
+    return 1
+  fi
+
+  # (6) The comparison, both directions, and everything else asserted of the site.
+  res=$(media_agree "$w/ROWS" "$w/FILES" '*/bulk/' "$w/MISSING" "$w/ORPHAN") || res=""
+  if [ -z "$res" ]; then
+    check_bad "run $stage $n: media_agree failed on the lists of the comparator"
+    return 1
+  fi
+  set -- $res
+  rows=$1; files=$2; miss=$3; orph=$4; agree=$5
+  R_MISSING=$miss
+  R_ORPHAN=$orph
+  R_CLASS=$(run_class "$brc" "$man" "$rrc" "$agree") || R_CLASS=?
+  {
+    echo "RUN: $stage $n restored=$restore"
+    echo "BACKUP-DIR: $bdir"
+    echo "ROWS: $rows"
+    echo "FILES: $files"
+    echo "MISSING: $miss"
+    echo "ORPHAN: $orph"
+    echo "EXCLUDED: */bulk/ (the fixture directory of run.sh backup-fixture has files by design and no rows)"
+    echo "CLASS: $R_CLASS"
+  } > "$w/compare.txt"
+  CHECK_OUT=$w/compare.txt
+  nbad0=$BADS
+  if [ "$R_CLASS" = AGREE ]; then
+    check_pass "media and database agree in both directions ($rows rows, $files files)"
+  else
+    check_info "disagreement: $miss rows without a file, $orph files without a row (class $R_CLASS)"
+    if [ "$miss" -gt 0 ]; then
+      sed 's/^/KEY MISSING-FILE: /' "$w/MISSING" | head -n 20 | tee -a "$CHECK_OUT" > /dev/null
+    fi
+    if [ "$orph" -gt 0 ]; then
+      sed 's/^/KEY ORPHAN-FILE: /' "$w/ORPHAN" | head -n 20 | tee -a "$CHECK_OUT" > /dev/null
+    fi
+  fi
+  if [ "$(sed -n 's/^CHECK-RC: //p' "$w/CHECK")" = 0 ]; then
+    check_pass "holzcloud check on a copy: $(sed -n 's/^CHECK-OUT: //p' "$w/CHECK" | cut -c1-120)"
+  else
+    check_bad "holzcloud check on a copy ended non-zero: $(sed -n 's/^CHECK-OUT: //p' "$w/CHECK" | cut -c1-200)"
+  fi
+  if [ "$(sed -n 's/^INTEGRITY: //p' "$w/CHECK" | tr -d ' ')" = ok ]; then
+    check_pass "PRAGMA integrity_check: ok"
+  else
+    check_bad "PRAGMA integrity_check: $(sed -n 's/^INTEGRITY: //p' "$w/CHECK" | cut -c1-200)"
+  fi
+  if [ "$(sed -n 's/^FKCHECK: //p' "$w/CHECK")" = 0 ]; then
+    check_pass "PRAGMA foreign_key_check: no violation"
+  else
+    check_bad "PRAGMA foreign_key_check: $(sed -n 's/^FKCHECK: //p' "$w/CHECK") violation(s)"
+  fi
+  : > "$w/ROWS.all"
+  LC_ALL=C sort -u "$w/ROWS" > "$w/ROWS.all"
+  LC_ALL=C sort -u "$w/FILES" > "$w/FILES.all"
+  ref_count=$(grep -c . "$w/REFS" || true)
+  dang=$({ LC_ALL=C comm -23 "$w/REFS" "$w/ROWS.all"; LC_ALL=C comm -23 "$w/REFS" "$w/FILES.all"; } | LC_ALL=C sort -u | grep -c . || true)
+  check_info "PAGE-REFS: $ref_count media files named by page HTML"
+  if [ "${dang:-0}" -eq 0 ]; then
+    check_pass "PAGE-REFS-DANGLING: 0"
+  else
+    check_bad "PAGE-REFS-DANGLING: $dang media file(s) named by a page have no row or no file"
+  fi
+  if [ "$restore" = yes ]; then
+    tr_a=$(grep -c . "$w/TREE-RESTORED" || true)
+    tr_b=$(grep -c . "$w/TREE-BACKUP" || true)
+    if [ "$tr_a" -gt 0 ] && cmp -s "$w/TREE-RESTORED" "$w/TREE-BACKUP"; then
+      check_pass "the sha256 list of the restored tree ($tr_a files) equals that of the backup directory it came from"
+    else
+      check_bad "the sha256 list of the restored tree ($tr_a files) differs from that of the backup directory ($tr_b files)"
+      diff "$w/TREE-RESTORED" "$w/TREE-BACKUP" | head -n 10 | sed 's/^/KEY TREE-DIFF: /' | tee -a "$CHECK_OUT" > /dev/null || true
+    fi
+  fi
+  CHECK_OUT=$keep_out
+  if [ "$BADS" -gt "$nbad0" ]; then
+    R_BADRUN=yes
+    grep '^BAD' "$w/compare.txt" | while IFS= read -r line; do printf 'BAD  run %s %s: %s\n' "$stage" "$n" "${line#BAD  }" | tee -a "$CHECK_OUT"; done
+  fi
+  consist_finish "$stage" "$n" "$w" "$pfx"
+  return 0
+}
+
+# consist_finish STAGE N W PFX: the line of consist-runs.txt, the raw files of a run
+# that is kept (run 1 and every run that is not AGREE; every run with
+# CONSIST_KEEP_RAW=1), and the cleanup of the backup directories of the others.
+consist_finish() {
+  local stage=$1 n=$2 w=$3 pfx=$4 keep=no f
+  printf 'RUN %s %s CLASS=%s BACKUP-RC=%s RESTORE-RC=%s MISSING=%s ORPHAN=%s WINDOW-UPLOADS=%s WINDOW-PAGES=%s WINDOW-DELETES=%s UPLOADS=%s PAGES=%s DELETES=%s BACKUP-S=%s RESTORED=%s RSYNC-STATUS=%s DIR=%s\n' \
+    "$n" "$stage" "$R_CLASS" "$R_BRC" "$R_RRC" "$R_MISSING" "$R_ORPHAN" "$R_WU" "$R_WP" "$R_WD" "$R_U" "$R_P" "$R_D" "$R_BS" "$R_RESTORED" "$R_RSYNC" "$R_DIR" >> "$OUT_DIR/consist-runs.txt"
+  if [ "$n" = 1 ] || [ "$R_CLASS" != AGREE ] || [ "$R_BADRUN" = yes ]; then keep=yes; fi
+  if [ "$keep" = yes ] || [ "${CONSIST_KEEP_RAW:-0}" = 1 ]; then
+    for f in backup restore compare churn steps; do
+      if [ -f "$w/$f.txt" ]; then cp "$w/$f.txt" "$OUT_DIR/$pfx-$f.txt"; fi
+    done
+  fi
+  if [ "$keep" != yes ]; then
+    if [ -n "$R_DIR" ] && [ "$R_DIR" != "?" ]; then dx rm -rf "$R_DIR" || true; fi
+  fi
+  rm -rf "${w:?}"
+}
+
+# comparator_selftest ROWS FILES: the comparison can fail. A copy of the genuine
+# lists is changed four ways and each must be detected, in the right direction: a
+# row removed and a file added are files without a row (ORPHAN-ONLY), a row added
+# and a file removed are rows without a file (ROW-WITHOUT-FILE).
+comparator_selftest() {
+  local rows=$1 files=$2 t r
+  t=$(mktemp -d) || return 1
+  r=$(media_agree "$rows" "$files" '*/bulk/')
+  check_info "COMPARATOR-SELFTEST genuine lists: $r"
+  set -- $r
+  if [ "$5" != AGREE ]; then
+    check_bad "the comparator's own lists do not agree before they are tampered with ($r)"
+    rm -rf "${t:?}"
+    return 1
+  fi
+  # a row removed
+  media_filter "$rows" '*/bulk/' | sed '1d' > "$t/rows1"
+  r=$(media_agree "$t/rows1" "$files" '*/bulk/')
+  if [ "${r##* }" = ORPHAN-ONLY ]; then check_pass "comparator selftest: a row removed is detected as a file without a row ($r)"; else check_bad "comparator selftest: a row removed gave '$r', expected ORPHAN-ONLY"; fi
+  # a file added
+  { cat "$files"; echo "1/tampered-extra-file.jpg"; } > "$t/files1"
+  r=$(media_agree "$rows" "$t/files1" '*/bulk/')
+  if [ "${r##* }" = ORPHAN-ONLY ]; then check_pass "comparator selftest: a file added is detected as a file without a row ($r)"; else check_bad "comparator selftest: a file added gave '$r', expected ORPHAN-ONLY"; fi
+  # a row added
+  { cat "$rows"; echo "1/tampered-extra-row.jpg"; } > "$t/rows2"
+  r=$(media_agree "$t/rows2" "$files" '*/bulk/')
+  if [ "${r##* }" = ROW-WITHOUT-FILE ]; then check_pass "comparator selftest: a row added is detected as a row without a file ($r)"; else check_bad "comparator selftest: a row added gave '$r', expected ROW-WITHOUT-FILE"; fi
+  # a file removed
+  media_filter "$files" '*/bulk/' | sed '1d' > "$t/files2"
+  r=$(media_agree "$rows" "$t/files2" '*/bulk/')
+  if [ "${r##* }" = ROW-WITHOUT-FILE ]; then check_pass "comparator selftest: a file removed is detected as a row without a file ($r)"; else check_bad "comparator selftest: a file removed gave '$r', expected ROW-WITHOUT-FILE"; fi
+  rm -rf "${t:?}"
+}
+
+cmd_consist() {
+  local o=$OUT_DIR/consist.txt ro=$OUT_DIR/consist-runs.txt stage n restore line ver t0 t1 first_s tl
+  local nclass_a nclass_o nclass_m nclass_r bl rl last
+  need_container
+  dxt true > /dev/null 2>&1 \
+    || die "container $TGT_NAME does not answer; bring the second host up with: bash deploy/test/nightly.sh target (TGT_NAME=$TGT_NAME)"
+  [ "$(tail -n 1 "$OUT_DIR/prep.txt" 2> /dev/null)" = "PREP OK" ] \
+    || die "$OUT_DIR/prep.txt does not end with PREP OK; run 'bash deploy/test/nightly.sh prep' first"
+  case "$CONSIST_RUNS" in "" | *[!0-9]* | 0) die "CONSIST_RUNS '$CONSIST_RUNS' is not a positive number" ;; esac
+  case "$CONSIST_MIN_RUNS" in "" | *[!0-9]* | 0) die "CONSIST_MIN_RUNS '$CONSIST_MIN_RUNS' is not a positive number" ;; esac
+  case "$CONSIST_RESTORE_EVERY" in "" | *[!0-9]* | 0) die "CONSIST_RESTORE_EVERY '$CONSIST_RESTORE_EVERY' is not a positive number" ;; esac
+  mkdir -p "$OUT_DIR"
+  BADS=0
+  res_begin "$o"
+  : > "$ro"
+  p25_ship
+  WID=$(p25_wid)
+  BASEREF=$(p25_baseref)
+  [ -n "$WID" ] && [ -n "$BASEREF" ] || die "no website called Test or no media file in $NAME"
+  bl=$(doc_backup_line) || die "deploy/DEPLOY.md has no line 'sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups' (the document and the script have drifted apart)"
+  rl=$(doc_restore_line) || die "deploy/DEPLOY.md has no restore line 'sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/TIMESTAMP'"
+  BACKUP_LINE=${bl#*:}
+  RESTORE_LINE_SAMPLE=${rl#*:}
+  key_line "MIN-RUNS: $CONSIST_MIN_RUNS"
+  key_line "CONSIST-RUNS: $CONSIST_RUNS"
+  key_line "CONSIST-STAGES: $CONSIST_STAGES"
+  key_line "CONSIST-RESTORE-EVERY: $CONSIST_RESTORE_EVERY"
+  key_line "CHURN-WORKERS: $CHURN_WORKERS uploaders, one page saver, in stage deletes one deleter"
+  key_line "CHURN-PAUSE-S: $CHURN_PAUSE"
+  key_line "BACKUP-LINE: deploy/DEPLOY.md:${bl%%:*}: $BACKUP_LINE"
+  key_line "RESTORE-LINE: deploy/DEPLOY.md:${rl%%:*}: $RESTORE_LINE_SAMPLE (the sample timestamp is replaced by the directory of the run; yes is typed on stdin)"
+  key_line "WEBSITE: $WID"
+  key_line "BASE-MEDIA: $BASEREF"
+  ver=$(dxo /opt/holzcloud/holzcloud version) || ver="?"
+  key_line "BINARY: $ver"
+  if [ -f "$OUT_DIR/bulk.txt" ]; then
+    key_line "BULK: $(tr '\n' ' ' < "$OUT_DIR/bulk.txt")"
+  else
+    key_line "BULK: none (no $OUT_DIR/bulk.txt: BULK_MB was not given to source)"
+  fi
+  key_line "HOST-ARCH: $(docker info --format '{{.Architecture}}')"
+  key_line "CONTAINER-ARCH: $(dxo uname -m)"
+  key_line "START-LIMIT: $(dxto systemctl show holzcloud -p StartLimitIntervalUSec -p StartLimitBurst | tr '\n' ' ')(shipped unit, read from $TGT_NAME)"
+  deviation "DEVIATION[start-limit]: the shipped holzcloud.service allows 5 starts within 300 s and restore.sh stops and starts it, so a sixth restore within five minutes on one host ends in 'start-limit-hit' (measured, amd64-t25-trace-startlimit). Runs follow each other faster than that, so 'systemctl reset-failed holzcloud' is run on the second container before every restore; the unit is not changed and no sandbox directive is touched"
+
+  # The comparison can fail: proven on the genuine lists of the quiet source first.
+  printf '%s\n' "$P25_COMPARE_SH" | dxi bash -s -- live /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/media "" "" > "$OUT_DIR/.cmp-live.out" 2> /dev/null || true
+  mkdir -p "$OUT_DIR/.cmp-live"
+  split_sections "$OUT_DIR/.cmp-live.out" "$OUT_DIR/.cmp-live"
+  comparator_selftest "$OUT_DIR/.cmp-live/ROWS" "$OUT_DIR/.cmp-live/FILES" || true
+  rm -rf "$OUT_DIR/.cmp-live" "$OUT_DIR/.cmp-live.out"
+
+  t0=$SECONDS
+  for stage in $CONSIST_STAGES; do
+    case "$stage" in adds | deletes) ;; *) die "CONSIST_STAGES holds '$stage', expected adds or deletes" ;; esac
+    n=1
+    while [ "$n" -le "$CONSIST_RUNS" ]; do
+      restore=no
+      if [ $(((n - 1) % CONSIST_RESTORE_EVERY)) -eq 0 ]; then restore=yes; fi
+      t1=$SECONDS
+      if consist_run "$stage" "$n" "$restore"; then
+        say "consist: run $stage $n: $(tail -n 1 "$ro" | cut -d' ' -f4-8) in $((SECONDS - t1)) s"
+      else
+        say "consist: run $stage $n: the harness failed (BAD line above)"
+        printf 'RUN %s %s CLASS=HARNESS-FAILED BACKUP-RC=%s RESTORE-RC=%s\n' "$n" "$stage" "${R_BRC:-?}" "${R_RRC:--}" >> "$ro"
+      fi
+      if [ "$stage" = "${CONSIST_STAGES%% *}" ] && [ "$n" = 1 ]; then
+        first_s=$((SECONDS - t1))
+        key_line "RUN-1-SECONDS: $first_s"
+      fi
+      n=$((n + 1))
+    done
+  done
+  key_line "WALL-MINUTES: $(((SECONDS - t0) / 60))"
+  dx bash -c 'rm -f /root/.hc-jar-churn-*' || true
+  for stage in $CONSIST_STAGES; do
+    nclass_a=$(grep -c "^RUN [0-9]* $stage CLASS=AGREE " "$ro" || true)
+    nclass_o=$(grep -c "^RUN [0-9]* $stage CLASS=ORPHAN-ONLY " "$ro" || true)
+    nclass_m=$(grep -c "^RUN [0-9]* $stage CLASS=ROW-WITHOUT-FILE " "$ro" || true)
+    nclass_r=$(grep -c "^RUN [0-9]* $stage CLASS=BACKUP-REFUSED " "$ro" || true)
+    key_line "CLASS-COUNTS-STAGE-$stage: AGREE=$nclass_a ORPHAN-ONLY=$nclass_o ROW-WITHOUT-FILE=$nclass_m BACKUP-REFUSED=$nclass_r"
+  done
+  leak_check
+  last=CONSIST-OK
+  if [ "$BADS" -gt 0 ]; then last=CONSIST-FAILED; fi
+  if [ "$last" = CONSIST-FAILED ]; then
+    key_line "CONSIST FAILED"
+    say "nightly.sh: CONSIST FAILED, $BADS BAD line(s); see $o"
+    exit 1
+  fi
+  key_line "CONSIST OK"
+}
+
 # ---------------------------------------------------------------------------
 # down, chain and record-check
 # ---------------------------------------------------------------------------
@@ -2815,6 +3866,7 @@ while [ "$#" -gt 0 ]; do
     selftest | source | target | fire | delay | catchup | prune | offsite | chain | down) "cmd_$sub" ;;
     offsite-restore) cmd_offsite_restore ;;
     record-check) cmd_record_check ;;
+    prep | consist | window) "cmd_$sub" ;;
     *) usage ;;
   esac
 done
