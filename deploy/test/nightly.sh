@@ -4594,137 +4594,6 @@ cmd_window() {
 }
 
 # ---------------------------------------------------------------------------
-# down, chain and record-check
-# ---------------------------------------------------------------------------
-
-# down: remove the source and the second host. Safe when either is absent.
-cmd_down() {
-  local c
-  for c in "$NAME" "$TGT_NAME"; do
-    if docker container inspect "$c" > /dev/null 2>&1; then
-      docker rm -f "$c" > /dev/null 2>&1 || say "down: could not remove $c"
-    fi
-  done
-  say "down: $NAME and $TGT_NAME are gone"
-}
-
-CHAIN_KEEP=0
-chain_cleanup() {
-  [ "$CHAIN_KEEP" != 1 ] || return 0
-  cmd_down || true
-}
-
-# chain_stage SUB: one stage as a child process of this script, so that `set -e`
-# stays in force inside it (a function called from the left of `||` runs with `-e`
-# off, and a stage that goes on after a failed command would hide the failure).
-# The child inherits the environment that `chain` exported.
-chain_stage() {
-  say "chain: ---- stage $1 started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  bash "$ROOT/deploy/test/nightly.sh" "$1"
-}
-
-# chain: the whole proof of phase 24 from nothing but the image, in one command.
-# Every stage's status is kept, so one failure hides nothing; the verdict of each
-# requirement comes from the files the stages wrote.
-cmd_chain() {
-  local sc_fire=0 sc_delay=0 sc_catchup=0 sc_prune=0 sc_backup=0 sc_offsite=0 sc_restore=0
-  local ref d v1 v2 v3 v4 v4b v5 sp=0 sf=0 bp kinds leak s fails=0 sum=$OUT_DIR/summary.txt
-
-  [ "$TARGET" = systemd-base ] \
-    || die "chain needs TARGET=systemd-base (got '$TARGET'): the proof starts from a bare systemd image, nothing else"
-  for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
-    case "$d" in
-      / | . | .. | ./ | "$ROOT" | "$ROOT"/) die "chain: refusing the evidence directory '$d'" ;;
-    esac
-  done
-  [ "$NAME" != "$TGT_NAME" ] || die "chain: TGT_NAME equals NAME ($NAME)"
-  [ "$OUT_DIR" != "$TGT_OUT_DIR" ] || die "chain: TGT_OUT_DIR equals OUT_DIR ($OUT_DIR)"
-  for d in "$NAME" "$TGT_NAME"; do
-    if docker container inspect "$d" > /dev/null 2>&1; then
-      die "chain: the container $d exists already; the chain starts from fresh containers, remove it with: NAME=$NAME TGT_NAME=$TGT_NAME bash deploy/test/nightly.sh down"
-    fi
-  done
-  # The binary of both containers is the same, even if a commit lands mid-run.
-  ref=$(pin_ref)
-  NEW_REF=$ref
-  CHAIN_KEEP=$KEEP
-  trap chain_cleanup EXIT
-  # The children never remove a container; the trap above does, unless KEEP=1 was given.
-  export PLATFORM TARGET NAME OUT_DIR TGT_NAME TGT_OUT_DIR NEW_REF ZONE_LEAD FIRE_WAIT DELAY_SAMPLES CATCHUP_LEAD CATCHUP_WAIT
-  export KEEP=1
-  say "chain: NEW_REF pinned to $ref; source $NAME ($OUT_DIR), second host $TGT_NAME ($TGT_OUT_DIR), started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-  # Without these two there is nothing to measure.
-  chain_stage source || die "chain: the source could not be built (status $?)"
-  chain_stage target || die "chain: the second host could not be built (status $?)"
-
-  chain_stage fire || sc_fire=$?
-  chain_stage delay || sc_delay=$?
-  chain_stage catchup || sc_catchup=$?
-  chain_stage prune || sc_prune=$?
-  say "chain: ---- stage run.sh backup started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  bash "$ROOT/deploy/test/run.sh" backup || sc_backup=$?
-  chain_stage offsite || sc_offsite=$?
-  chain_stage offsite-restore || sc_restore=$?
-
-  # The verdicts, from the files the stages wrote.
-  v1=$(req_verdict "$sc_fire" "$OUT_DIR/fire.txt" "FIRE OK" "$OUT_DIR/verify-fire.txt")
-  v2=$(req_verdict "$sc_catchup" "$OUT_DIR/catchup.txt" "CATCHUP OK" "$OUT_DIR/verify-catchup.txt")
-  v3=$(req_verdict "$sc_delay" "$OUT_DIR/delay.txt" "DELAY OK")
-  v4=$(req_verdict "$sc_offsite" "$OUT_DIR/offsite.txt" "OFFSITE OK")
-  v4b=$(req_verdict "$sc_restore" "$OUT_DIR/offsite-restore.txt" "OFFSITE-RESTORE OK")
-  [ "$v4" != PASS ] || v4=$v4b
-  v5=$(req_verdict "$sc_prune" "$OUT_DIR/prune.txt" "PRUNE OK")
-
-  # No secret of either container in either directory.
-  if ( leak_check ); then leak=OK; else leak=FAILED; fi
-
-  for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
-    bp=$(steps_of "$d")
-    sp=$((sp + ${bp% *}))
-    sf=$((sf + ${bp#* }))
-  done
-  kinds=$(for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
-    sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$d/deviations.txt" 2> /dev/null
-  done | sort -u | tr '\n' ' ' | sed 's/ $//')
-
-  {
-    echo "---- summary ($PLATFORM) ----"
-    echo "BKP-01 $v1"
-    echo "BKP-02 $v2"
-    echo "BKP-03 $v3"
-    echo "BKP-04 $v4"
-    echo "BKP-05 $v5"
-    echo "TIMER: TRIGGERED-BY=$(kvq "$OUT_DIR/fire.txt" TRIGGERED-BY) RESULT=$(kvq "$OUT_DIR/fire.txt" RESULT) START-LOCAL=$(kvq "$OUT_DIR/fire.txt" START-LOCAL)"
-    echo "DELAY: USED-S=$(kvq "$OUT_DIR/delay.txt" DELAY-USED-S) SAMPLES=$(kvq "$OUT_DIR/delay.txt" DELAY-SAMPLES) MIN-S=$(kvq "$OUT_DIR/delay.txt" D-MIN) MAX-S=$(kvq "$OUT_DIR/delay.txt" D-MAX)"
-    echo "CATCHUP: TRIGGERED-BY=$(kvq "$OUT_DIR/catchup.txt" TRIGGERED-BY) AFTER-BOOT-S=$(kvq "$OUT_DIR/catchup.txt" DELAY-AFTER-BOOT-S) CONTROL-RAN=$(kvq "$OUT_DIR/catchup.txt" CONTROL-RAN)"
-    echo "PRUNE: PLANTED=$(grep -c '^PLANTED ' "$OUT_DIR/prune.txt" 2> /dev/null || true) DELETED=$(grep -c '^OBSERVED .* gone$' "$OUT_DIR/prune.txt" 2> /dev/null || true) KEPT=$(grep -c '^OBSERVED .* present$' "$OUT_DIR/prune.txt" 2> /dev/null || true)"
-    echo "OFFSITE: WORKING-CREDENTIALS=$(kvq "$OUT_DIR/offsite.txt" WORKING-CREDENTIALS) FILES-COMPARED=$(kvq "$OUT_DIR/offsite.txt" FILES-COMPARED) UNIT-DIFF-LINES=$(kvq "$OUT_DIR/offsite.txt" UNIT-DIFF-LINES)"
-    echo "RESTORE: LOGIN=$(kvq "$OUT_DIR/offsite-restore.txt" LOGIN) MEDIA-SERVED=$(kvq "$OUT_DIR/offsite-restore.txt" MEDIA-SERVED) WALL-S=$(kvq "$OUT_DIR/offsite-restore.txt" RESTORE-WALL)"
-    echo "STEPS: $sp played, $sf failed"
-    echo "DEVIATIONS: ${kinds:-none}"
-    if [ "$leak" = OK ]; then echo "LEAK-CHECK OK"; else echo "LEAK-CHECK FAILED"; fi
-  } > "$sum"
-  cat "$sum"
-  say "chain: stage statuses (1 is a BAD line or a refusal, 3 is a platform that could not give the evidence): fire=$sc_fire delay=$sc_delay catchup=$sc_catchup prune=$sc_prune run.sh-backup=$sc_backup offsite=$sc_offsite offsite-restore=$sc_restore"
-  say "chain: finished $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  for s in "$v1" "$v2" "$v3" "$v4" "$v5"; do
-    [ "$s" = PASS ] || fails=$((fails + 1))
-  done
-  [ "$leak" = OK ] || fails=$((fails + 1))
-  if [ "$fails" -ne 0 ]; then
-    say "chain: $fails requirement(s) or checks did not pass, see $sum"
-    exit 1
-  fi
-}
-
-# record-check: the proof of deploy/BACKUP-TIMER-RUN.md against the scratch files.
-cmd_record_check() {
-  local r=${R:-deploy/BACKUP-TIMER-RUN.md} e=${E:-deploy/test/out}
-  record_check "$r" "$e" "$(basename "$OUT_DIR") $(basename "$TGT_OUT_DIR")" || exit 1
-}
-
-# ---------------------------------------------------------------------------
 # Phase 25, plan 02: CON-02. A backup made by the release before this one, with
 # that release's own backup.sh, restored by this release's restore.sh on a fresh
 # box. compat-source builds the previous release from its tag and populates it;
@@ -4865,6 +4734,39 @@ selftest_compat() {
   st_fail "compat_fixture_ok one upload" compat_fixture_ok 3 2 1
   st_fail "compat_fixture_ok a non-number" compat_fixture_ok 3 x 2
 
+  # CON-03: capfull_size_mb FLOOR MARGIN; capfull_data_ok DATA_MB FS_MB FLOOR;
+  # capfull_complete_p SRC_BYTES SRC_FILES BK_BYTES BK_FILES; capfull_classify GUARD RC
+  # MANIFEST PARTIAL_DIR COMPLETE.
+  st_eq "capfull_size_mb 1024 and 40 give 1064" 1064 "$(capfull_size_mb 1024 40)"
+  st_eq "capfull_size_mb 1024 and 0 give 1024" 1024 "$(capfull_size_mb 1024 0)"
+  st_fail "capfull_size_mb a non-number floor" capfull_size_mb x 40
+  st_fail "capfull_size_mb an empty margin" capfull_size_mb 1024 ""
+  st_ok "capfull_data_ok 1175, 1064, 1024 is the construction that is asked for" capfull_data_ok 1175 1064 1024
+  st_fail "capfull_data_ok 500, 1064, 1024: the copy would fit" capfull_data_ok 500 1064 1024
+  st_fail "capfull_data_ok 1064, 1064, 1024: the copy would just fit" capfull_data_ok 1064 1064 1024
+  st_fail "capfull_data_ok 1175, 900, 1024: the guard would refuse" capfull_data_ok 1175 900 1024
+  st_ok "capfull_data_ok the guard at exactly the floor passes" capfull_data_ok 1175 1024 1024
+  st_fail "capfull_data_ok a non-number data size" capfull_data_ok x 1064 1024
+  st_fail "capfull_data_ok an empty filesystem size" capfull_data_ok 1175 "" 1024
+  st_ok "capfull_complete_p equal bytes and files" capfull_complete_p 1205862400 241 1205862400 241
+  st_fail "capfull_complete_p fewer bytes" capfull_complete_p 1205862400 241 1100000000 241
+  st_fail "capfull_complete_p fewer files" capfull_complete_p 1205862400 241 1205862400 200
+  st_fail "capfull_complete_p a non-number" capfull_complete_p 1205862400 x 1205862400 241
+  st_eq "capfull_classify complete" COMPLETE "$(capfull_classify passed 0 yes yes yes)"
+  st_eq "capfull_classify the guard refused" GUARD-REFUSED "$(capfull_classify refused 1 no no no)"
+  st_eq "capfull_classify failed, a directory left" FAILED-PARTIAL-DIR-LEFT "$(capfull_classify passed 11 no yes no)"
+  st_eq "capfull_classify failed, no directory" FAILED-NO-DIR "$(capfull_classify passed 1 no no no)"
+  st_eq "capfull_classify exit 0 and a MANIFEST, but smaller than the source" FALSE-COMPLETE "$(capfull_classify passed 0 yes yes no)"
+  st_fail "capfull_classify exit 0 without a MANIFEST is no class" capfull_classify passed 0 no yes yes
+  st_fail "capfull_classify exit 0 without a directory is no class" capfull_classify passed 0 no no no
+  st_fail "capfull_classify a refusal that exited 0" capfull_classify refused 0 no no no
+  st_fail "capfull_classify a refusal that left a directory" capfull_classify refused 1 no yes no
+  st_fail "capfull_classify a failure with a MANIFEST" capfull_classify passed 11 yes yes no
+  st_fail "capfull_classify a failure that calls itself complete" capfull_classify passed 11 no yes yes
+  st_fail "capfull_classify an unknown guard" capfull_classify maybe 0 yes yes yes
+  st_fail "capfull_classify a non-number status" capfull_classify passed x no yes no
+  st_fail "capfull_classify an answer that is not yes or no" capfull_classify passed 0 maybe yes yes
+  st_eq "capfull_classify prints nothing when it refuses the numbers" "" "$(capfull_classify passed 0 no yes yes || true)"
 }
 
 # compat_names: the previous release is the "source" of the shared helpers (NAME,
@@ -5464,8 +5366,521 @@ cmd_down_con() {
   say "down-con: $OLD_NAME and $NEW_NAME are gone"
 }
 
-# capfull is added in task 3 of plan 02.
-cmd_capfull() { die "capfull is not written yet"; }
+# ---------------------------------------------------------------------------
+# Phase 25, plan 02: CON-03. backup.sh refuses to start below MIN_FREE_MB (default
+# 1024), and the document says that floor does not grow with the data: "or a backup can
+# run out of space halfway". Nobody played it. capfull mounts a filesystem over the
+# backup root that is above the floor and smaller than the backup needs, and records
+# what the script, the shipped unit, the next night and restore.sh make of it.
+# ---------------------------------------------------------------------------
+
+# capfull_size_mb FLOOR MARGIN: the size of the nearly full filesystem, the floor plus
+# a margin, so that the free space at the guard is above the floor.
+capfull_size_mb() {
+  is_num "$1" "$2" || return 1
+  echo $(($1 + $2))
+}
+
+# capfull_data_ok DATA_MB FS_MB FLOOR: the construction that is asked for and nothing
+# else: the filesystem is at least the floor (the guard passes) and the data is larger
+# than the filesystem (the copy cannot fit).
+capfull_data_ok() {
+  is_num "$1" "$2" "$3" || return 1
+  [ "$2" -ge "$3" ] && [ "$1" -gt "$2" ]
+}
+
+# capfull_complete_p SRC_BYTES SRC_FILES BK_BYTES BK_FILES: the copy holds as many files
+# and as many bytes as the source it was taken from. Fewer of either is not complete.
+capfull_complete_p() {
+  is_num "$1" "$2" "$3" "$4" || return 1
+  [ "$3" -ge "$1" ] && [ "$4" -ge "$2" ]
+}
+
+# capfull_classify GUARD RC MANIFEST PARTIAL_DIR COMPLETE: the outcome class of one run of
+# backup.sh from numbers that were recorded. GUARD is passed or refused (the script's own
+# message), RC the exit status, MANIFEST whether the directory this run made holds one,
+# PARTIAL_DIR whether this run made a directory at all, COMPLETE whether that directory
+# holds all of the source. Prints one of
+#   COMPLETE                  passed, 0, a MANIFEST, a directory, all of the source
+#   GUARD-REFUSED             refused, non-zero, nothing made
+#   FAILED-PARTIAL-DIR-LEFT   passed, non-zero, no MANIFEST, a directory left
+#   FAILED-NO-DIR             passed, non-zero, no MANIFEST, no directory
+#   FALSE-COMPLETE            passed, 0, a MANIFEST, a directory, less than the source
+# and refuses (status 1, nothing printed) every other combination, a non-number and an
+# answer that is not yes or no.
+capfull_classify() {
+  local g=$1 rc=$2 m=$3 p=$4 c=$5 x
+  case "$g" in passed | refused) ;; *) return 1 ;; esac
+  is_num "$rc" || return 1
+  for x in "$m" "$p" "$c"; do
+    case "$x" in yes | no) ;; *) return 1 ;; esac
+  done
+  if [ "$g" = refused ]; then
+    [ "$rc" -ne 0 ] && [ "$m" = no ] && [ "$p" = no ] && [ "$c" = no ] || return 1
+    echo GUARD-REFUSED
+    return 0
+  fi
+  if [ "$rc" -eq 0 ]; then
+    [ "$m" = yes ] && [ "$p" = yes ] || return 1
+    if [ "$c" = yes ]; then echo COMPLETE; else echo FALSE-COMPLETE; fi
+    return 0
+  fi
+  [ "$m" = no ] && [ "$c" = no ] || return 1
+  if [ "$p" = yes ]; then echo FAILED-PARTIAL-DIR-LEFT; else echo FAILED-NO-DIR; fi
+}
+
+CF_ROOT=/opt/holzcloud/backups
+
+# cf_free: the free megabytes at the backup root, read the way backup.sh reads them.
+cf_free() { dxo bash -c 'df -Pm "$1" | awk "NR==2 {print \$4}"' _ "$CF_ROOT"; }
+# cf_ls: the names of the directories directly below the backup root, sorted.
+cf_ls() { dxo bash -c 'find "$1" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | LC_ALL=C sort' _ "$CF_ROOT"; }
+# cf_df LABEL: df -Pm and the mount line of the backup root, into capfull-df.txt.
+cf_df() {
+  {
+    echo "== $1 ($(dxo date -u +%Y-%m-%dT%H:%M:%SZ)) =="
+    dxo df -Pm "$CF_ROOT"
+    dxo bash -c 'grep " /opt/holzcloud/backups " /proc/mounts || echo "(not a mount point)"'
+  } >> "$OUT_DIR/capfull-df.txt"
+}
+# cf_mount SIZE_MB: a fresh tmpfs over the backup root, owned by the service user.
+cf_mount() {
+  dx mount -t tmpfs -o "size=${1}m,mode=0700,uid=$CF_UID,gid=$CF_GID" tmpfs "$CF_ROOT" \
+    || die "could not mount a $1 MB tmpfs over $CF_ROOT in $NAME"
+}
+# cf_umount: take the filesystem away again (lazily if it is busy); the backups beneath are back.
+cf_umount() {
+  if dx bash -c 'grep -q " /opt/holzcloud/backups tmpfs " /proc/mounts'; then
+    dx umount "$CF_ROOT" || dx umount -l "$CF_ROOT" || true
+  fi
+}
+# capfull_cleanup: on every exit path.
+capfull_cleanup() {
+  docker exec "$NAME" bash -c 'if grep -q " /opt/holzcloud/backups tmpfs " /proc/mounts; then umount /opt/holzcloud/backups || umount -l /opt/holzcloud/backups; fi; rm -rf /root/cf-db-check' > /dev/null 2>&1 || true
+}
+# cf_stats DIR: "BYTES FILES" of the five directories a backup carries below DIR.
+cf_stats() {
+  dxo bash -c 'for n in media templates plugins sprachen marke; do if [ -d "$1/$n" ]; then find "$1/$n" -type f -printf "%s\n"; fi; done | awk "{ b += \$1; n++ } END { print b + 0, n + 0 }"' _ "$1"
+}
+# cf_sentinel: a directory named as yesterday's backup, with one file of known sha256,
+# owned like a backup.
+cf_sentinel() {
+  local name
+  name=$(dxo date -d yesterday +%Y%m%d-%H%M%S)
+  CF_SENT=$CF_ROOT/$name
+  dx bash -c 'set -e; mkdir "$1"; printf "the backup of an earlier night %s\n" "$2" > "$1/sentinel.txt"; chown -R holzcloud:holzcloud "$1"; chmod 700 "$1"; chmod 600 "$1/sentinel.txt"' _ "$CF_SENT" "$name" \
+    || die "could not plant the sentinel directory $CF_SENT"
+  CF_SENT_SHA=$(dxo sha256sum "$CF_SENT/sentinel.txt" | awk '{ print $1 }')
+}
+# cf_sentinel_intact: yes when the sentinel directory still holds the file with its sha256.
+cf_sentinel_intact() {
+  local now
+  if [ -z "${CF_SENT:-}" ]; then
+    echo none-planted
+    return 0
+  fi
+  now=$(dxo sha256sum "$CF_SENT/sentinel.txt" 2> /dev/null | awk '{ print $1 }') || now=""
+  if [ -n "$now" ] && [ "$now" = "$CF_SENT_SHA" ]; then echo yes; else echo no; fi
+}
+# cf_dbcheck DIR: the snapshot below DIR, copied away and judged: "present CHECK-RC INTEGRITY".
+cf_dbcheck() {
+  local out
+  if ! dx test -f "$1/holzcloud.sqlite"; then
+    echo "absent - -"
+    return 0
+  fi
+  out=$(dxo bash -c 'rm -rf /root/cf-db-check; mkdir -p /root/cf-db-check; cp "$1/holzcloud.sqlite" /root/cf-db-check/holzcloud.sqlite; HOLZCLOUD_DATA_DIR=/root/cf-db-check /opt/holzcloud/holzcloud check > /root/cf-db-check/out 2>&1; echo "CHECK-RC $?"; echo "INTEGRITY $(sqlite3 /root/cf-db-check/holzcloud.sqlite "PRAGMA integrity_check" 2>&1 | tr "\n" " ")"; rm -rf /root/cf-db-check' _ "$1") || out=""
+  echo "present $(printf '%s\n' "$out" | sed -n 's/^CHECK-RC //p') $(printf '%s\n' "$out" | sed -n 's/^INTEGRITY //p' | tr -d ' ')"
+}
+
+# cf_judge LABEL TRANSCRIPT RC BEFORE_LIST: what one run left. Reads the guard from the
+# script's own message in TRANSCRIPT, the directory this run made from the listing before
+# and after, and sets CF_GUARD CF_RC CF_NEW CF_MAN CF_PART CF_COMPLETE CF_DIRBYTES
+# CF_DIRFILES CF_DB CF_RSYNC CF_CLASS; the facts go to the file as KEY lines of LABEL.
+cf_judge() {
+  local label=$1 f=$2 rc=$3 before=$4 after nd d st sb sf
+  after=$(cf_ls)
+  nd=$(comm -13 <(printf '%s\n' "$before" | LC_ALL=C sort) <(printf '%s\n' "$after" | LC_ALL=C sort) | head -n 1)
+  if grep -q 'ERROR: only' "$f"; then CF_GUARD=refused; else CF_GUARD=passed; fi
+  CF_RC=$rc
+  CF_NEW=${nd:-none}
+  CF_MAN=no
+  CF_PART=no
+  CF_COMPLETE=no
+  CF_DIRBYTES=0
+  CF_DIRFILES=0
+  CF_DB="absent - -"
+  CF_RSYNC=$(sed -n -E 's/.*rsync (error|warning): .*\(code ([0-9]+)\).*/\2/p' "$f" | head -n 1)
+  CF_RSYNC=${CF_RSYNC:--}
+  if [ -n "$nd" ]; then
+    CF_PART=yes
+    d=$CF_ROOT/$nd
+    if dx test -f "$d/MANIFEST"; then CF_MAN=yes; fi
+    CF_DIRBYTES=$(dxo du -sb "$d" | cut -f1)
+    CF_DIRFILES=$(dxo bash -c 'find "$1" -type f | wc -l' _ "$d")
+    st=$(cf_stats "$d")
+    sb=${st% *}
+    sf=${st#* }
+    if [ "$CF_MAN" = yes ] && capfull_complete_p "$CF_SRC_BYTES" "$CF_SRC_FILES" "$sb" "$sf"; then CF_COMPLETE=yes; fi
+    CF_DB=$(cf_dbcheck "$d")
+    key_line "$label-PARTIAL-DIR-TREES: bytes $sb files $sf in the five directories, the source holds $CF_SRC_BYTES bytes in $CF_SRC_FILES files"
+  fi
+  CF_CLASS=$(capfull_classify "$CF_GUARD" "$rc" "$CF_MAN" "$CF_PART" "$CF_COMPLETE") || CF_CLASS=UNCLASSIFIED
+  key_line "$label-GUARD: $CF_GUARD"
+  key_line "$label-BACKUP-RC: $rc"
+  key_line "$label-RSYNC-STATUS: $CF_RSYNC"
+  key_line "$label-NO-SPACE-LINES: $(grep -c 'No space left on device' "$f" || true)"
+  key_line "$label-DIRECTORY-MADE: $CF_NEW"
+  key_line "$label-DIRECTORY-BYTES: $CF_DIRBYTES"
+  key_line "$label-DIRECTORY-FILES: $CF_DIRFILES"
+  key_line "$label-MANIFEST: $CF_MAN"
+  key_line "$label-DATABASE-SNAPSHOT: $CF_DB (present, holzcloud check status, integrity_check)"
+  key_line "$label-SENTINEL-INTACT: $(cf_sentinel_intact)"
+  key_line "$label-CLASS: $CF_CLASS"
+  if [ "$CF_CLASS" = UNCLASSIFIED ]; then
+    check_bad "$label: capfull_classify refused the recorded numbers (guard $CF_GUARD, status $rc, MANIFEST $CF_MAN, directory $CF_PART, complete $CF_COMPLETE)"
+  fi
+  tail -n 10 "$f" | sed "s/^/$label-LAST-LINES: /" | tee -a "$CHECK_OUT" > /dev/null
+}
+
+cmd_capfull() { (
+  trap capfull_cleanup EXIT
+  capfull_run
+); }
+
+capfull_run() {
+  local o=$OUT_DIR/capfull.txt shipped ref bl rl data_bytes need_bytes data_mb fs_mb ctl_mb st
+  local before w=$OUT_DIR/.work-capfull rrc ans ia aside inv0 inv res em trig i state ls_before ls_after
+  [ "$TARGET" = systemd-base ] || die "capfull needs TARGET=systemd-base (got '$TARGET')"
+  need_container
+  mkdir -p "$OUT_DIR"
+  rm -rf "$w"
+  mkdir -p "$w"
+  : > "$OUT_DIR/capfull-df.txt"
+  BADS=0
+  res_begin "$o"
+  bl=$(doc_backup_line) || die "deploy/DEPLOY.md has no line 'sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups'"
+  rl=$(doc_restore_line) || die "deploy/DEPLOY.md has no restore line 'sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/TIMESTAMP'"
+  bl=${bl#*:}
+  rl=${rl#*:}
+  CF_UID=$(dxo id -u holzcloud)
+  CF_GID=$(dxo id -g holzcloud)
+  [ -n "$CF_UID" ] && [ -n "$CF_GID" ] || die "no service user holzcloud in $NAME"
+
+  # The floor is the shipped one, read from the installed script, and not passed on.
+  shipped=$(dxo sed -n 's/^MIN_FREE_MB="${MIN_FREE_MB:-\([0-9]*\)}"$/\1/p' /opt/holzcloud/deploy/backup.sh)
+  key_line "SHIPPED-MIN-FREE-MB: ${shipped:-?} (read from /opt/holzcloud/deploy/backup.sh)"
+  [ "$shipped" = "$CAPFULL_FLOOR_MB" ] \
+    || die "CAPFULL_FLOOR_MB=$CAPFULL_FLOOR_MB is not the shipped default ($shipped): the faithful case is the one to try first; a lowered floor needs MIN_FREE_MB passed to backup.sh and DEVIATION[floor], which this driver does not do"
+  key_line "MIN-FREE-MB-IN-ENVIRONMENT: '$(docker exec "$NAME" printenv MIN_FREE_MB 2> /dev/null | tr -d '\r' || true)' (empty: backup.sh runs with its default); unit Environment: $(dxo systemctl show holzcloud-backup.service -p Environment --value)"
+  st=$(show_v holzcloud-backup.service DropInPaths)
+  key_line "UNIT-DROPINS: '$st' (empty: the shipped unit as it is)"
+  if [ -n "$st" ]; then check_bad "holzcloud-backup.service has a drop-in ($st): capfull judges the shipped unit"; fi
+  key_line "BACKUP-LINE: $bl"
+  key_line "BINARY: $(dxo /opt/holzcloud/holzcloud version)"
+  key_line "HOST-ARCH: $(docker info --format '{{.Architecture}}')"
+  key_line "CONTAINER-ARCH: $(dxo uname -m)"
+  ls_before=$(cf_ls)
+  key_line "EARLIER-BACKUPS-BEFORE: $(printf '%s\n' "$ls_before" | grep -c . || true) ($(printf '%s' "$ls_before" | tr '\n' ' '))"
+
+  # The data: bulk media so that the whole backup is larger than the free space at the guard.
+  PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR BULK_MB=$CAPFULL_DATA_MB KEEP=1 \
+    bash deploy/test/run.sh backup-fixture > "$OUT_DIR/capfull-fixture.log" 2>&1 \
+    || die "run.sh backup-fixture with BULK_MB=$CAPFULL_DATA_MB failed; see $OUT_DIR/capfull-fixture.log"
+  key_line "BULK: $(tr '\n' ' ' < "$OUT_DIR/bulk.txt")"
+  st=$(cf_stats /opt/holzcloud/data)
+  CF_SRC_BYTES=${st% *}
+  CF_SRC_FILES=${st#* }
+  data_bytes=$(dxo du -sb /opt/holzcloud/data | cut -f1)
+  need_bytes=$((CF_SRC_BYTES + $(dxo stat -c %s /opt/holzcloud/data/holzcloud.sqlite) + $(dxo bash -c 'stat -c %s /opt/holzcloud/data/csrf.key 2>/dev/null || echo 0')))
+  data_mb=$(((need_bytes + 1048575) / 1048576))
+  fs_mb=$(capfull_size_mb "$CAPFULL_FLOOR_MB" "$CAPFULL_MARGIN_MB") || die "capfull_size_mb refused FLOOR=$CAPFULL_FLOOR_MB MARGIN=$CAPFULL_MARGIN_MB"
+  key_line "FLOOR-MB: $CAPFULL_FLOOR_MB"
+  key_line "DATA-DIR-BYTES: $data_bytes (everything below /opt/holzcloud/data, the pre-upgrade snapshots included, which a backup does not carry)"
+  key_line "SOURCE-TREES: bytes $CF_SRC_BYTES files $CF_SRC_FILES (media, templates, plugins, sprachen, marke)"
+  key_line "DATA-MB: $data_mb (what a backup has to write: those trees, the database file and csrf.key)"
+  key_line "FS-SIZE-MB: $fs_mb"
+  capfull_data_ok "$data_mb" "$fs_mb" "$CAPFULL_FLOOR_MB" \
+    || die "the construction fails before it starts: DATA-MB $data_mb, FS-SIZE-MB $fs_mb, FLOOR-MB $CAPFULL_FLOOR_MB (the filesystem must be at least the floor and smaller than the data); raise CAPFULL_DATA_MB or lower CAPFULL_MARGIN_MB"
+  check_pass "capfull_data_ok: the filesystem of $fs_mb MB is at least the floor ($CAPFULL_FLOOR_MB MB) and smaller than the $data_mb MB a backup has to write"
+  deviation "DEVIATION[fs]: the nearly full filesystem is a tmpfs, not a disk. It has no blocks reserved for root, no fragmentation and no journal, it lives in memory, and the data directory is on another filesystem than the backup root, whereas on a real server the two usually share one disk and a full disk stops the site's own writes as well. The error delivered to rsync is the same errno (ENOSPC, No space left on device)"
+  deviation "DEVIATION[emulation]: the container is linux/amd64 emulated on an arm64 host; copy times say nothing about a server"
+
+  # (1) The control: a roomy filesystem, the document's manual line.
+  ctl_mb=$((data_mb + CAPFULL_FLOOR_MB + 400))
+  cf_mount "$ctl_mb"
+  cf_df "control before ($ctl_mb MB)"
+  key_line "CONTROL-FS-SIZE-MB: $ctl_mb"
+  key_line "CONTROL-FREE-AT-GUARD-MB: $(cf_free)"
+  before=$(cf_ls)
+  docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$bl" > "$OUT_DIR/capfull-control.txt" 2>&1 || true
+  cf_df "control after"
+  rrc=$(sed -n 's/^RC //p' "$OUT_DIR/capfull-control.txt" | tail -n 1)
+  cf_judge CONTROL "$OUT_DIR/capfull-control.txt" "${rrc:-255}" "$before"
+  CF_CONTROL_CLASS=$CF_CLASS
+  if [ "$CF_CONTROL_CLASS" = COMPLETE ] && grep -q '=== Backup complete: ' "$OUT_DIR/capfull-control.txt"; then
+    check_pass "the control completes on a roomy filesystem: exit 0, '=== Backup complete ===', all of the source"
+  else
+    check_bad "the control did not complete on a roomy filesystem (class $CF_CONTROL_CLASS); the stage would not be failing for the reason under test"
+  fi
+  key_line "CONTROL-CLASS: $CF_CONTROL_CLASS"
+  cf_umount
+
+  # (2) By hand on the nearly full filesystem.
+  cf_mount "$fs_mb"
+  cf_sentinel
+  key_line "SENTINEL: $CF_SENT sha256 $CF_SENT_SHA"
+  cf_df "hand before ($fs_mb MB)"
+  CF_FREE=$(cf_free)
+  key_line "FREE-AT-GUARD-MB: $CF_FREE (df -Pm at the backup root just before the run, the way backup.sh reads it; the floor is $CAPFULL_FLOOR_MB)"
+  before=$(cf_ls)
+  docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$bl" > "$OUT_DIR/capfull-hand.txt" 2>&1 || true
+  cf_df "hand after"
+  rrc=$(sed -n 's/^RC //p' "$OUT_DIR/capfull-hand.txt" | tail -n 1)
+  cf_judge HAND "$OUT_DIR/capfull-hand.txt" "${rrc:-255}" "$before"
+  CF_HAND_CLASS=$CF_CLASS
+  CF_HAND_DIR=$CF_NEW
+  key_line "GUARD: $CF_GUARD"
+  key_line "BACKUP-RC: $CF_RC"
+  key_line "PARTIAL-DIR: $CF_NEW"
+  key_line "PARTIAL-DIR-BYTES: $CF_DIRBYTES"
+  key_line "MANIFEST-IN-PARTIAL: $CF_MAN"
+  key_line "SENTINEL-INTACT: $(cf_sentinel_intact)"
+  key_line "HAND-CLASS: $CF_HAND_CLASS"
+  if [ "$CF_GUARD" != passed ]; then
+    check_bad "the guard refused on the nearly full filesystem (free $CF_FREE MB against a floor of $CAPFULL_FLOOR_MB): the stage did not get past the guard"
+  fi
+  case "$CF_HAND_CLASS" in
+    COMPLETE) check_bad "the backup completed on the nearly full filesystem: the stage did not provoke the failure it is built for" ;;
+    FALSE-COMPLETE) check_info "FALSE-COMPLETE: backup.sh ended 0 with a MANIFEST and less than the source; this is a defect candidate for plan 03 (class 4)" ;;
+    *) check_info "backup.sh on the nearly full filesystem: $CF_HAND_CLASS (a measured property of the shipped script)" ;;
+  esac
+
+  # (3) The next night on the same filesystem, unchanged.
+  cf_df "again before"
+  key_line "AGAIN-FREE-AT-GUARD-MB: $(cf_free)"
+  before=$(cf_ls)
+  docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$bl" > "$OUT_DIR/capfull-again.txt" 2>&1 || true
+  cf_df "again after"
+  rrc=$(sed -n 's/^RC //p' "$OUT_DIR/capfull-again.txt" | tail -n 1)
+  cf_judge AGAIN "$OUT_DIR/capfull-again.txt" "${rrc:-255}" "$before"
+  key_line "AGAIN-CLASS: $CF_CLASS"
+
+  # (4) restore.sh pointed at the partial directory, with no on stdin.
+  if [ "$CF_HAND_DIR" != none ]; then
+    ans=$(printf '%s' "$rl" | sed "s|/opt/holzcloud/backups/[0-9-]*\$|$CF_ROOT/$CF_HAND_DIR|")
+    key_line "RESTORE-PARTIAL-LINE: $ans (no is typed on stdin)"
+    printf 'no\n' | docker exec -i "$NAME" bash -c "$P25_STAMP_SH" _ "$ans" > "$OUT_DIR/capfull-restore-partial.txt" 2>&1 || true
+    rrc=$(sed -n 's/^RC //p' "$OUT_DIR/capfull-restore-partial.txt" | tail -n 1)
+    ia=$(dxo systemctl is-active holzcloud || true)
+    aside=$(dxo bash -c 'ls -1d /opt/holzcloud/data.before-restore-* 2>/dev/null | wc -l')
+    key_line "RESTORE-PARTIAL-EXIT: ${rrc:-none}"
+    key_line "RESTORE-PARTIAL-ANSWER: $(grep -v '^WALL \|^RC ' "$OUT_DIR/capfull-restore-partial.txt" | tail -n 3 | sed 's/^[0-9]* //' | tr '\n' '|')"
+    key_line "SERVICE-ACTIVE-AFTER-RESTORE-PARTIAL: $ia"
+    key_line "DATA-BEFORE-RESTORE-DIRECTORIES: $aside"
+    if [ "$ia" = active ] && [ "$aside" = 0 ]; then
+      check_pass "restore.sh on the partial directory with no on stdin replaced nothing: the service stayed active and no data.before-restore directory appeared"
+    else
+      check_bad "restore.sh on the partial directory: service $ia, $aside data.before-restore director(ies)"
+    fi
+  else
+    key_line "RESTORE-PARTIAL-EXIT: not-run (the run by hand left no directory)"
+  fi
+  cf_umount
+
+  # (5) The shipped unit on a fresh nearly full filesystem of the same size.
+  cf_mount "$fs_mb"
+  cf_sentinel
+  cf_df "unit before ($fs_mb MB)"
+  key_line "UNIT-FREE-AT-GUARD-MB: $(cf_free)"
+  before=$(cf_ls)
+  inv0=$(show_v holzcloud-backup.service InvocationID)
+  dx systemctl reset-failed holzcloud-backup.service || true
+  dx systemctl start --no-block holzcloud-backup.service || die "systemctl start holzcloud-backup.service failed"
+  i=0
+  inv=$inv0
+  while [ "$i" -lt 30 ] && [ "$inv" = "$inv0" ]; do
+    sleep 1
+    inv=$(show_v holzcloud-backup.service InvocationID)
+    i=$((i + 1))
+  done
+  i=0
+  state=activating
+  while [ "$i" -lt 180 ]; do
+    state=$(show_v holzcloud-backup.service ActiveState)
+    case "$state" in inactive | failed) break ;; esac
+    sleep 5
+    i=$((i + 1))
+  done
+  res=$(show_v holzcloud-backup.service Result)
+  em=$(show_v holzcloud-backup.service ExecMainStatus)
+  trig=$(show_v holzcloud-backup.service TriggeredBy)
+  dxo journalctl "_SYSTEMD_INVOCATION_ID=$inv" --no-pager -o short-iso > "$OUT_DIR/capfull-unit.txt" 2>&1 || true
+  cf_df "unit after"
+  key_line "UNIT-INVOCATION: $inv (started by systemctl start, previous invocation '${inv0:-none}')"
+  key_line "UNIT-ACTIVE-STATE: $state"
+  key_line "UNIT-RESULT: $res"
+  key_line "UNIT-EXECMAINSTATUS: $em"
+  key_line "UNIT-TRIGGEREDBY: '${trig}'"
+  key_line "UNIT-JOURNAL-LINES: $(grep -c . "$OUT_DIR/capfull-unit.txt" || true)"
+  cf_judge UNIT "$OUT_DIR/capfull-unit.txt" "${em:-255}" "$before"
+  key_line "UNIT-CLASS: $CF_CLASS"
+  case "$state" in inactive | failed) ;; *) check_bad "the unit was still '$state' after the bounded poll" ;; esac
+  cf_umount
+
+  # (6) What the script did to the order of things, read and not assumed.
+  check_info "backup.sh runs set -e and its retention step (find -mtime +RETENTION_DAYS) comes after the copies, so a run that ends in the copy never reaches it; that is a reading of the script. What is on disk is in the lines above: the sentinel of an earlier night, which is inside the retention window, shows nothing about deletion"
+  ls_after=$(cf_ls)
+  key_line "EARLIER-BACKUPS-AFTER: $(printf '%s\n' "$ls_after" | grep -c . || true) ($(printf '%s' "$ls_after" | tr '\n' ' '))"
+  if [ "$ls_before" = "$ls_after" ]; then
+    check_pass "the filesystem is unmounted and the earlier backups are back, the same directories as before"
+  else
+    check_bad "the backup root after the stage differs from before: '$(printf '%s' "$ls_before" | tr '\n' ' ')' and '$(printf '%s' "$ls_after" | tr '\n' ' ')'"
+  fi
+  if dx bash -c 'grep -q " /opt/holzcloud/backups " /proc/mounts'; then
+    check_bad "something is still mounted at /opt/holzcloud/backups"
+  fi
+
+  rm -rf "${w:?}"
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "CAPFULL FAILED"
+    say "nightly.sh: CAPFULL FAILED, $BADS BAD line(s); see $o"
+    exit 1
+  fi
+  key_line "CAPFULL OK"
+}
+
+# ---------------------------------------------------------------------------
+# down, chain and record-check
+# ---------------------------------------------------------------------------
+
+# down: remove the source and the second host. Safe when either is absent.
+cmd_down() {
+  local c
+  for c in "$NAME" "$TGT_NAME"; do
+    if docker container inspect "$c" > /dev/null 2>&1; then
+      docker rm -f "$c" > /dev/null 2>&1 || say "down: could not remove $c"
+    fi
+  done
+  say "down: $NAME and $TGT_NAME are gone"
+}
+
+CHAIN_KEEP=0
+chain_cleanup() {
+  [ "$CHAIN_KEEP" != 1 ] || return 0
+  cmd_down || true
+}
+
+# chain_stage SUB: one stage as a child process of this script, so that `set -e`
+# stays in force inside it (a function called from the left of `||` runs with `-e`
+# off, and a stage that goes on after a failed command would hide the failure).
+# The child inherits the environment that `chain` exported.
+chain_stage() {
+  say "chain: ---- stage $1 started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  bash "$ROOT/deploy/test/nightly.sh" "$1"
+}
+
+# chain: the whole proof of phase 24 from nothing but the image, in one command.
+# Every stage's status is kept, so one failure hides nothing; the verdict of each
+# requirement comes from the files the stages wrote.
+cmd_chain() {
+  local sc_fire=0 sc_delay=0 sc_catchup=0 sc_prune=0 sc_backup=0 sc_offsite=0 sc_restore=0
+  local ref d v1 v2 v3 v4 v4b v5 sp=0 sf=0 bp kinds leak s fails=0 sum=$OUT_DIR/summary.txt
+
+  [ "$TARGET" = systemd-base ] \
+    || die "chain needs TARGET=systemd-base (got '$TARGET'): the proof starts from a bare systemd image, nothing else"
+  for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+    case "$d" in
+      / | . | .. | ./ | "$ROOT" | "$ROOT"/) die "chain: refusing the evidence directory '$d'" ;;
+    esac
+  done
+  [ "$NAME" != "$TGT_NAME" ] || die "chain: TGT_NAME equals NAME ($NAME)"
+  [ "$OUT_DIR" != "$TGT_OUT_DIR" ] || die "chain: TGT_OUT_DIR equals OUT_DIR ($OUT_DIR)"
+  for d in "$NAME" "$TGT_NAME"; do
+    if docker container inspect "$d" > /dev/null 2>&1; then
+      die "chain: the container $d exists already; the chain starts from fresh containers, remove it with: NAME=$NAME TGT_NAME=$TGT_NAME bash deploy/test/nightly.sh down"
+    fi
+  done
+  # The binary of both containers is the same, even if a commit lands mid-run.
+  ref=$(pin_ref)
+  NEW_REF=$ref
+  CHAIN_KEEP=$KEEP
+  trap chain_cleanup EXIT
+  # The children never remove a container; the trap above does, unless KEEP=1 was given.
+  export PLATFORM TARGET NAME OUT_DIR TGT_NAME TGT_OUT_DIR NEW_REF ZONE_LEAD FIRE_WAIT DELAY_SAMPLES CATCHUP_LEAD CATCHUP_WAIT
+  export KEEP=1
+  say "chain: NEW_REF pinned to $ref; source $NAME ($OUT_DIR), second host $TGT_NAME ($TGT_OUT_DIR), started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # Without these two there is nothing to measure.
+  chain_stage source || die "chain: the source could not be built (status $?)"
+  chain_stage target || die "chain: the second host could not be built (status $?)"
+
+  chain_stage fire || sc_fire=$?
+  chain_stage delay || sc_delay=$?
+  chain_stage catchup || sc_catchup=$?
+  chain_stage prune || sc_prune=$?
+  say "chain: ---- stage run.sh backup started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  bash "$ROOT/deploy/test/run.sh" backup || sc_backup=$?
+  chain_stage offsite || sc_offsite=$?
+  chain_stage offsite-restore || sc_restore=$?
+
+  # The verdicts, from the files the stages wrote.
+  v1=$(req_verdict "$sc_fire" "$OUT_DIR/fire.txt" "FIRE OK" "$OUT_DIR/verify-fire.txt")
+  v2=$(req_verdict "$sc_catchup" "$OUT_DIR/catchup.txt" "CATCHUP OK" "$OUT_DIR/verify-catchup.txt")
+  v3=$(req_verdict "$sc_delay" "$OUT_DIR/delay.txt" "DELAY OK")
+  v4=$(req_verdict "$sc_offsite" "$OUT_DIR/offsite.txt" "OFFSITE OK")
+  v4b=$(req_verdict "$sc_restore" "$OUT_DIR/offsite-restore.txt" "OFFSITE-RESTORE OK")
+  [ "$v4" != PASS ] || v4=$v4b
+  v5=$(req_verdict "$sc_prune" "$OUT_DIR/prune.txt" "PRUNE OK")
+
+  # No secret of either container in either directory.
+  if ( leak_check ); then leak=OK; else leak=FAILED; fi
+
+  for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+    bp=$(steps_of "$d")
+    sp=$((sp + ${bp% *}))
+    sf=$((sf + ${bp#* }))
+  done
+  kinds=$(for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+    sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$d/deviations.txt" 2> /dev/null
+  done | sort -u | tr '\n' ' ' | sed 's/ $//')
+
+  {
+    echo "---- summary ($PLATFORM) ----"
+    echo "BKP-01 $v1"
+    echo "BKP-02 $v2"
+    echo "BKP-03 $v3"
+    echo "BKP-04 $v4"
+    echo "BKP-05 $v5"
+    echo "TIMER: TRIGGERED-BY=$(kvq "$OUT_DIR/fire.txt" TRIGGERED-BY) RESULT=$(kvq "$OUT_DIR/fire.txt" RESULT) START-LOCAL=$(kvq "$OUT_DIR/fire.txt" START-LOCAL)"
+    echo "DELAY: USED-S=$(kvq "$OUT_DIR/delay.txt" DELAY-USED-S) SAMPLES=$(kvq "$OUT_DIR/delay.txt" DELAY-SAMPLES) MIN-S=$(kvq "$OUT_DIR/delay.txt" D-MIN) MAX-S=$(kvq "$OUT_DIR/delay.txt" D-MAX)"
+    echo "CATCHUP: TRIGGERED-BY=$(kvq "$OUT_DIR/catchup.txt" TRIGGERED-BY) AFTER-BOOT-S=$(kvq "$OUT_DIR/catchup.txt" DELAY-AFTER-BOOT-S) CONTROL-RAN=$(kvq "$OUT_DIR/catchup.txt" CONTROL-RAN)"
+    echo "PRUNE: PLANTED=$(grep -c '^PLANTED ' "$OUT_DIR/prune.txt" 2> /dev/null || true) DELETED=$(grep -c '^OBSERVED .* gone$' "$OUT_DIR/prune.txt" 2> /dev/null || true) KEPT=$(grep -c '^OBSERVED .* present$' "$OUT_DIR/prune.txt" 2> /dev/null || true)"
+    echo "OFFSITE: WORKING-CREDENTIALS=$(kvq "$OUT_DIR/offsite.txt" WORKING-CREDENTIALS) FILES-COMPARED=$(kvq "$OUT_DIR/offsite.txt" FILES-COMPARED) UNIT-DIFF-LINES=$(kvq "$OUT_DIR/offsite.txt" UNIT-DIFF-LINES)"
+    echo "RESTORE: LOGIN=$(kvq "$OUT_DIR/offsite-restore.txt" LOGIN) MEDIA-SERVED=$(kvq "$OUT_DIR/offsite-restore.txt" MEDIA-SERVED) WALL-S=$(kvq "$OUT_DIR/offsite-restore.txt" RESTORE-WALL)"
+    echo "STEPS: $sp played, $sf failed"
+    echo "DEVIATIONS: ${kinds:-none}"
+    if [ "$leak" = OK ]; then echo "LEAK-CHECK OK"; else echo "LEAK-CHECK FAILED"; fi
+  } > "$sum"
+  cat "$sum"
+  say "chain: stage statuses (1 is a BAD line or a refusal, 3 is a platform that could not give the evidence): fire=$sc_fire delay=$sc_delay catchup=$sc_catchup prune=$sc_prune run.sh-backup=$sc_backup offsite=$sc_offsite offsite-restore=$sc_restore"
+  say "chain: finished $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  for s in "$v1" "$v2" "$v3" "$v4" "$v5"; do
+    [ "$s" = PASS ] || fails=$((fails + 1))
+  done
+  [ "$leak" = OK ] || fails=$((fails + 1))
+  if [ "$fails" -ne 0 ]; then
+    say "chain: $fails requirement(s) or checks did not pass, see $sum"
+    exit 1
+  fi
+}
+
+# record-check: the proof of deploy/BACKUP-TIMER-RUN.md against the scratch files.
+cmd_record_check() {
+  local r=${R:-deploy/BACKUP-TIMER-RUN.md} e=${E:-deploy/test/out}
+  record_check "$r" "$e" "$(basename "$OUT_DIR") $(basename "$TGT_OUT_DIR")" || exit 1
+}
 
 # ---------------------------------------------------------------------------
 # Dispatch
