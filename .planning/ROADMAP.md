@@ -577,7 +577,23 @@ Plans:
   3. `milestones/v0.1.0-ROADMAP.md`, `-REQUIREMENTS.md` and its audit exist, and ROADMAP.md carries one line for v0.1.0.
   4. The backup branch and the stray branch in the shared checkout are gone.
 
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
+
+Plans:
+**Wave 1**
+- [ ] 27-01-PLAN.md — Tracer and TIDY-01 as a record: `holzbar-colours` end to end (git evidence, evidence row, Decisions row with the full tip and subject, a lease-guarded owner command), then `docs/branches.md` regenerated against the current `origin/main` with one recorded decision per branch, `27-OWNER-STEPS.md` (the nine deletions with expected output, the GitHub-UI path, the two local retirements with the bundle first), and TIDY-01 and TIDY-04 held at `Pending owner`; read-only, no push (TIDY-01, TIDY-04)
+- [ ] 27-02-PLAN.md — v0.1.0 archived: `milestones/v0.1.0-ROADMAP.md` by extraction (phase 20 to 23 detail and Progress rows 1 to 23 byte for byte), one line for v0.1.0 in ROADMAP.md and a Progress table of the open milestone, and the retrospective `v0.1.0-MILESTONE-AUDIT.md` that says it was written after the release (TIDY-03)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 27-03-PLAN.md — STATE.md with one current position: history blocks moved verbatim to `milestones/STATE-HISTORY.md`, Decisions, Operator Next Steps and Deferred Items kept, counters 3 of 5 phases, `state.advance-plan` no longer refuses (TIDY-02)
+
+**Wave 3** *(blocked on Wave 2 completion; needs the owner's go at that moment)*
+- [ ] 27-04-PLAN.md — The remote deletions behind a human gate: a `checkpoint:decision` that asks whether to delete the nine branches now with the owner's credentials, then lease-guarded deletes one at a time, `holzbar-colours` first, each recorded as `deleted DATE`; a no completes the plan and changes nothing (TIDY-01)
+
+**Wave 4** *(blocked on Wave 3 completion; needs the owner's go at that moment)*
+- [ ] 27-05-PLAN.md — The local retirements behind a human gate, last in the phase: the backup branch is bundled, verified and restored into a throwaway repository before `git branch -D`, the stray branch goes with `git branch -d`; a no completes the plan and changes nothing (TIDY-04)
+
+**Owner-gated**: no remote branch is deleted, nothing is pushed and neither local branch is deleted unless the owner answers the gate of plan 27-04 or 27-05 with a delete option at that moment. `.planning/REQUIREMENTS.md` reads `Pending owner` for TIDY-01 and TIDY-04 until the deletions are recorded; `bash .planning/phases/27-repository-tidy/27-check.sh requirements` holds it to `docs/branches.md` and to git. `fix/bausteine-befunde` (remote and local) belongs to another session and is not touched (D-04).
 
 ### Phase 28: The promise in writing
 
