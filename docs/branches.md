@@ -18,12 +18,18 @@ The verdicts hold for that commit. If `main` has moved since, regenerate the tab
 | `claude/task-phases-milestones-open-mt1qz0` | 2026-09-14 | `044d51c1d9` | 165 / 0 | none ahead | none | Safe to delete | An ancestor of main: it has no commit that main lacks. A session may still be working on it, so check before deleting. |
 | `feat/holzwave-farben` | 2026-10-10 | `88e9450a9d` | 11 / 1 | 1 - | #40 merged | Safe to delete | Its one commit is patch-equivalent to a commit in main; pull request #40 is merged. |
 | `fix/tables-mobile` | 2026-10-09 | `40c9422fd9` | 12 / 1 | 1 - | #39 merged | Safe to delete | Its one commit is patch-equivalent to a commit in main; pull request #39 is merged. |
-| `holzbar-colours` | 2026-10-02 | `dce6ed2029` | 40 / 0 | none ahead | #33 merged | Safe to delete | An ancestor of main; pull request #33 is merged. |
+| `holzbar-colours` | 2026-10-02 | `dce6ed2029` | 152 / 0 | none ahead | #33 merged | Safe to delete | An ancestor of main; pull request #33 is merged. |
 | `redirects-keep-language` | 2026-10-02 | `42c4c20da6` | 38 / 0 | none ahead | #34 merged | Safe to delete | An ancestor of main; pull request #34 is merged. |
 | `release` | 2026-10-11 | `7878f57ff0` | 2 / 0 | none ahead | none | Keep | The button of route 2 in `.github/workflows/release.yml`: a push to this branch starts a release. It holds no work of its own and is an ancestor of main by design, so it is not an orphan. Do not delete it. |
 | `tagfix` | 2026-09-26 | `98791fbc4b` | 107 / 1 | 1 + | none | **Review first** | One commit of its own that is not in main: "ci: one-off tagfix to point tags at the rewritten history". It adds a push-triggered workflow with write access; the facts are under "Branches to look at first". |
 
 The cherry check was repeated against the local `main`, which is ahead of origin/main by planning commits that have not been pushed. It gave the same result for every branch.
+
+## Decisions
+
+| Branch | Verdict | Decision | Tip | Subject of the tip | Result |
+|---|---|---|---|---|---|
+| `holzbar-colours` | Safe to delete | Delete | `dce6ed2029263d627398bf237fd40ec6b080fc06` | holzcloud theme: the holzbar page keeps the ice colours (0.0.18) | pending |
 
 ## How the table was made
 
