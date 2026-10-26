@@ -564,6 +564,8 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 26-03-PLAN.md — Honest status and the sweep: the README section by insertion only, REQUIREMENTS.md at `Pending owner` held to the record by `status-check`, the closing-order guard against automatic completion, and the measured sweep of every number that must not move (SRV-01 to SRV-03)
 
+**Owner-pending**: SRV-01 to SRV-03 are handed over, not verified. The phase closes on the hand-over (the instrument, the owner steps and the record in the pending form), not on a native amd64 run or a run on a real server, and none exists. `.planning/REQUIREMENTS.md` reads `Pending owner` for the three, with the boxes unchecked, until `deploy/NATIVE-AMD64-RUN.md` records the owner's results; `bash deploy/test/native-amd64.sh status-check` holds the two files together.
+
 ### Phase 27: Repository tidy
 
 **Goal**: No stray branch, one current position in STATE.md, v0.1.0 archived.
