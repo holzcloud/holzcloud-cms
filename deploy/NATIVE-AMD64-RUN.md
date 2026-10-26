@@ -2,6 +2,112 @@
 
 This document is the record of phase 26. It hands over three requirements that this machine cannot play: SRV-01 (the five plugins under `MemoryDenyWriteExecute=true` and the backup timings, on native amd64), SRV-02 (a restore on a real server, from a backup made there, to a different path) and SRV-03 (a reboot with the service and timer units enabled). It is not a result: until the owner's output is pasted and `bash deploy/test/native-amd64.sh record-check` accepts the `recorded` form, nothing in it is evidence for any of the three.
 
+What exists is the instrument and the steps. The instrument is a button, `.github/workflows/native-amd64.yml` (manual dispatch only, a read-only token, no secret, the three official actions `ci.yml` already pins), the verdict rules and the checker in `deploy/test/native-amd64.sh`, and the harness `deploy/test/run.sh`, unchanged. The steps are O-1 to O-3 below; the expected output of O-2 and O-3 was observed in a container rehearsal and is quoted there as such. What does not exist is any native amd64 figure and any result from a real server. This record says what was prepared, what was seen while preparing it, and what is not claimed.
+
+`deploy/SECURITY-SCORE.md` says "No native amd64 run was made and none is planned (user decision)". The milestone that opened on 2026-10-20 reversed that decision (SRV-01). The sentence, and the matching lines of `docs/beta.md`, stay as they are written: `docs/beta.md` is phase 28's, and `deploy/SECURITY-SCORE.md` is cited byte for byte by it. The hand-over is at the end of this record.
+
+Every requirement is in one of two states, `pending owner` or `recorded`. `bash deploy/test/native-amd64.sh record-check` accepts the first without a claim and refuses the second unless the evidence for it is in the record; `bash deploy/test/native-amd64.sh status-check` holds `.planning/REQUIREMENTS.md` to the record. The state of this record is `pending owner` for all three.
+
+## Summary
+
+| Requirement | Result | Platform | Date, commit |
+|-------------|--------|----------|--------------|
+| SRV-01 | PENDING OWNER. The button and the verdict rules exist and were exercised as far as an arm64 machine allows: the guard that keeps an arm64 run from reading as amd64 evidence ended `SRV-01 NOT-NATIVE` with exit 3 in the rehearsal of this plan. No native amd64 run has been made, no native figure replaces the emulation figures, and the plugins have not been seen under `MemoryDenyWriteExecute=true` on amd64. Outstanding: the owner presses the button (O-1) and the result is recorded | GitHub-hosted runner, linux/amd64, a privileged container with systemd 252 (not yet run) | not run |
+| SRV-02 | PENDING OWNER. Owner step O-2 exists, with its expected output observed once in a container rehearsal. No restore has been made on a real server. Outstanding: the owner runs O-2 and the result is recorded | The owner's server (not yet run) | not run |
+| SRV-03 | PENDING OWNER. Owner step O-3 exists, with its expected output observed once in a container rehearsal, where a container restart stood in for the reboot. No real server has been rebooted. Outstanding: the owner runs O-3 and the result is recorded | The owner's server (not yet run) | not run |
+
+Evidence commit: none (pending owner)
+
+The line above is the only one of its kind outside the appendix. It becomes the sha of the run's commit (the `COMMIT:` line of the pasted summary) in the commit that records SRV-01 as `recorded`, and in no other.
+
+## How this was prepared
+
+Three files exist because of this phase: `.github/workflows/native-amd64.yml`, `deploy/test/native-amd64.sh` (subcommands `selftest`, `run`, `summarize`, `down`, `record-check`, `status-check` and `appendix`) and this record. The commands below were run on 2026-10-26 on the development machine (an arm64 Mac, Docker Desktop 29.3.1) and nowhere else.
+
+- `bash deploy/test/native-amd64.sh selftest` ends `SELFTEST OK (862 cases)`: the verdict functions on the real R1 and R2 texts of `deploy/SECURITY-SCORE.md` and the real chain summary of `deploy/BACKUP-RUN.md`, the summary writer, the evidence bundle with its refusals, and (this plan) `summary_check`, `record-check` in every refusal and in the recorded form of all three requirements, `status-check` and `appendix`. The summaries that the new cases need are made by `summarize` over a synthetic native set (the R2 texts with `aarch64` turned into `x86_64`), labelled synthetic in the code; no such set exists outside the temporary directory of the selftest.
+- `bash deploy/test/nightly.sh selftest` still ends `SELFTEST OK (542 cases)`, and `record-check` and `record-check-con` of that file still end `RECORD-CHECK OK 29 blocks` and `RECORD-CHECK OK 27 blocks` (against the scratch files of phases 24 and 25). The file is not edited by this phase.
+- `bash -n deploy/test/native-amd64.sh` is clean. `yq` reads the workflow as: one trigger, `workflow_dispatch`; `permissions: contents: read`; `runs-on: ubuntu-latest`; `timeout-minutes: 90`; three `uses:` lines, the same three pins as `ci.yml`. `actionlint` is not installed here and the workflow has not been run on GitHub.
+- The arm64 rehearsal of the guard, `PLATFORM=linux/arm64 NATIVE_PREFIX=rehearsal-arm64-native NATIVE_STAGES=mdwe bash deploy/test/native-amd64.sh run`, from 16:11:44 to 16:12:22 CET on the host clock: `run.sh mdwe` ended with status 0 and `MDWE-WORD: SETTLED` on an aarch64 host and container with the canary enforcing, and `native-summary.txt` read `SRV-01-MDWE NOT-NATIVE`, `SRV-01-TIMING NOT-RUN`, `SRV-01 NOT-NATIVE`, ending `NATIVE-AMD64 DONE`. The script exited 3, the bundle held nine files, `down` left no container. An arm64 `SETTLED` did not read as amd64 evidence. The timing stage was not played there.
+- The container rehearsal of O-2 and O-3 (quoted in the Owner steps): a `fresh`-style install without the proxy in a Debian 12 container with systemd 252 (`PLATFORM=linux/amd64 TARGET=systemd-base ... run.sh build up install firstrun postinstall`, from 15:57:27 to 15:58:02 CET), with the production unit enabled, the backup timer enabled by `postinstall`, one manual backup and an administrator account from `firstrun`. O-2 was played at 15:00:21Z and again as the refused variant at 15:01:52Z; O-3 was played at 15:01:27Z and again, with the output saved to files as the step now says, at 15:12:37Z. Deviations: amd64 under emulation on an aarch64 host; the container-only drop-in `ProcSubset=all` on the production unit and, for O-2, on the throwaway unit; a container restart for a reboot, with the start time of PID 1 compared instead of the boot id; the restore question read through `script(1)`; a few fixture files in `media`, `templates` and `sprachen`. One command block had to be corrected while rehearsing: the first O-3 draft kept its output only on the terminal, which does not survive a reboot, so the blocks now `tee` into the owner's home (the first draft was played at 15:01:27Z, the final text at 15:12:37Z). Every other command ran as first written.
+- The frozen files are unchanged: `git diff --quiet 05fc076 -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud.service deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh` exited 0, and the same command for the earlier records `deploy/SECURITY-SCORE.md deploy/DEPLOY-RUN.md deploy/BACKUP-RUN.md deploy/BACKUP-TIMER-RUN.md deploy/BACKUP-CONSISTENCY-RUN.md` exited 0.
+- Nothing was pushed, nothing was dispatched on GitHub, nothing was run on a server, and the rehearsal container is removed.
+
+## SRV-01: the five plugins under MemoryDenyWriteExecute=true on native amd64, and native backup timings
+
+**What it will show.** Whether the five shipped plugins (`kontaktformular`, `bestellung`, `nicht-gefunden`, `suche`, `jahreszahl`) load and run under the shipped `holzcloud.service` with `MemoryDenyWriteExecute=true` on a native x86_64 kernel that enforces seccomp, and which wazero engine runs them (`ENGINE-SHIPPED`); and what `backup.sh` and `restore.sh` cost on native amd64, as two data points (the seed site, and the same site with 300 MB of synthetic media), set against the emulation figures below. The work is done by the existing harness: `run.sh mdwe` (build, up, start, canary, seed, check, mdwe-control, verdict) and `run.sh backup-chain` with `BULK_MB=300`, the recipe that made the emulation figures. The new rule is on top: `deploy/test/native-amd64.sh` decides the word.
+
+**What it does not show.** The runner's own systemd (Ubuntu 24.04, systemd 255) is not exercised; the work is done in a container with Debian's systemd 252, the recipe already proven on native arm64 (R2 of `deploy/SECURITY-SCORE.md`). A runner is a virtual machine on shared hardware with a cold cache, not the owner's server, and two readings are two readings, not a rate. Only two directives were probed on arm64 and only the plugin runtime is exercised here, not the whole of `systemd-analyze security`.
+
+The figures the native ones are set against, from the `POINT` lines of `deploy/BACKUP-RUN.md` (amd64 under emulation on an aarch64 host):
+
+| Figure | Emulation, seed point | Native (pending owner) | Emulation, bulk point (300 MB) | Native (pending owner) |
+|--------|-----------------------|------------------------|--------------------------------|------------------------|
+| `BACKUP-WALL-S` | 0.692 | | 1.015 | |
+| `RESTORE-WALL-S` | 8.126 | | 8.296 | |
+| `START-READY-S` | 7.397 | | 7.379 | |
+
+```text
+POINT seed: BACKUP-BYTES=20548955 BACKUP-WALL-S=0.692 RESTORE-WALL-S=8.126 VERIFY-S=0.083 STOP-MOVE-COPY-S=0.455 START-READY-S=7.397
+POINT bulk: BACKUP-BYTES=335125851 BACKUP-WALL-S=1.015 RESTORE-WALL-S=8.296 VERIFY-S=0.088 STOP-MOVE-COPY-S=0.631 START-READY-S=7.379
+```
+
+The verdict rule, as the script applies it and as `record-check` recomputes it from the lines of the pasted summary: PASS only when the Docker host and the container are x86_64, `run.sh`'s own word is SETTLED (the canary says the directive is enforced, all assertions hold under the shipped unit, and the control with the directive off runs on the compiler), and the chain summary has `BAK-01`, `BAK-02`, `BAK-03` and `RESTORE-NEGATIVE` as PASS, `LEAK-CHECK OK` and numeric `POINT seed:` and `POINT bulk:` lines. A PASS says that the five plugins run on wazero's interpreter fallback under the shipped unit, which is what the unit's comment says. The other words: VOID (the canary reports `Seccomp: 0`, so the plugin run proves nothing about the directive, and the requirement stays open; exit 3), NOT-NATIVE (the Docker host or the container is not x86_64, decided first so that an arm64 SETTLED never reads as amd64 evidence; exit 3), FAIL (the plugins do not load under the shipped unit, or a chain line is missing; exit 1) and NOT-RUN (a stage was not played; exit 1). Only PASS can be recorded.
+
+Status: pending owner
+Result (owner): pending
+
+```text
+(nothing pasted yet)
+```
+
+## SRV-02: a restore on a real server, from a backup made there, to a different path
+
+**What it will show.** That a backup made on the owner's server by the shipped `backup.sh`, restored by the shipped `restore.sh` to a path other than the production data directory, starts as a service of its own (a second unit with its own data path and port), answers `/readyz` with `"integrity":"ok"`, and holds the same trees as the backup (`media`, `templates`, `plugins`, `sprachen`, `marke`, each if the backup has it). The copy is a second unit on the same server, not a spare machine. That is the strongest thing the shipped `restore.sh` allows without being edited: it stops and starts the unit named in `SERVICE`, replaces `DATA_DIR`, and polls the production `/readyz` on port 8080 whatever `DATA_DIR` says. `deploy/DEPLOY.md` warns that a restore pointed at a test directory proves nothing; O-2 answers that by checking the copy on its own port and its own tree, which the script's closing line does not do.
+
+**What it does not show.** A spare machine, a real network copy, a cold cache, a data directory on its own mount, the proxy and the certificates in front of the copy, and the timing of a restore on the production port. The throwaway unit has no payment, mail or secret-key lines, so what the copy can do outside the machine is not played either.
+
+Status: pending owner
+Result (owner): pending
+
+```text
+(nothing pasted yet)
+```
+
+## SRV-03: a reboot with the service and timer units enabled
+
+**What it will show.** That on the owner's server, with `holzcloud.service` and `holzcloud-backup.timer` enabled, a reboot brings the site back without a hand on it: PID 1 has a new start time, both units are active, `holzcloud.service` has not been restarted on the way (`NRestarts=0`, `Result=success`), `/readyz` answers `"integrity":"ok"`, the timer is armed with a next run, and the plugins that are installed are loaded in the journal of this boot.
+
+**What it does not show.** A reboot here is a clean one (`systemctl reboot`), not a power loss; the catch-up of a missed 03:15 run after a power cycle is not played (it needs the clock to pass 03:15); the proxy, the certificate and DNS after the boot are shown only by the optional last line; the ordering of the network, the clock and the mount against the service is what the machine did, not something measured.
+
+Status: pending owner
+Result (owner): pending
+
+```text
+(nothing pasted yet)
+```
+
+## Container vs. server
+
+| Aspect | In the container or on the runner | On the owner's server | Measured or assumed |
+|--------|-----------------------------------|-----------------------|---------------------|
+| The platform of SRV-01 | A GitHub-hosted runner: an Azure virtual machine with an Ubuntu image, its own systemd 255 not exercised; the work is done in a privileged container with Debian 12 and systemd 252 | The owner's server, Debian or Ubuntu with its own systemd | Not measured; the runner path is assumed to boot systemd in a privileged container with the default flags (the `docker_run_args` input is the hook if it does not) |
+| A privileged container | `--privileged`, a cgroup namespace the runner's Docker decides, no published port | A plain host | Measured on arm64 (R2), assumed on the runner |
+| Emulation against native | The rehearsals here ran amd64 under emulation on aarch64; the native run has x86_64 hardware and a kernel that enforces seccomp | The same hardware class as the runner or better | The emulation figures are measured (`deploy/BACKUP-RUN.md`); the native ones are pending owner |
+| The second unit against a spare machine | O-2 runs the copy as a second unit on the same host, on port 8081, with its own data path | The same: the copy lives next to production for the length of the step | Measured in the container rehearsal; on the server pending owner |
+| A container restart against a reboot | `docker restart`: the Docker VM's kernel stays, `uptime -s` and the boot id do not change, `journalctl -b` does not separate the starts | A new kernel, a new boot id, the unit started by the boot target | Measured in the rehearsal as a restart (PID 1's start time changed); a reboot is pending owner |
+| Journal and boot ordering | Whatever the container's journal holds; no network target, mount or clock synchronisation to wait for | The machine's own | Assumed |
+| Warm cache | A container started minutes before its backup, the data in the page cache | A cold cache after a reboot, and a restore from a backup that may be days old | Not measured |
+| The unit drop-in | `ProcSubset=all` on the units in the emulated rehearsals (the crash it answers is an emulation crash); the runner path starts the unit as shipped unless the harness meets the same crash | The unit as shipped | Measured on emulation; native pending owner |
+
+## Not tested
+
+- A spare machine across a real network, and the pull of an off-site copy back to a rebuilt server (O-3 and O-4 of `deploy/BACKUP-TIMER-RUN.md` as they stand).
+- A power loss and the catch-up of a missed 03:15 backup after it (O-2 of `deploy/BACKUP-TIMER-RUN.md`); the reboot of SRV-03 is a clean one.
+- Ubuntu 24.04 with systemd 255 on the host itself, outside a container, and systemd versions other than 252 (FUT-05).
+- The proxy and the certificates after the reboot (FUT-03), and sign-in through the identity service (FUT-04).
+- A cold cache, and a data directory on its own mount.
+- Whether a backup made by a server with its payment, mail and secret-key lines restores into a copy that has none of them: the copy is meant to run without them, and nothing here sends anything.
+
 ## Owner steps
 
 Each step is for the owner, with the commands in fenced blocks, the output to expect, what a different output means, and where the result is pasted. `deploy/BACKUP-TIMER-RUN.md` says that phase 26 takes its O-2 (the catch-up after a real power cycle) and its O-4 (the restore on a rebuilt box) into its own owner steps. O-3 below covers the part of that O-2 that does not need the clock to pass 03:15, a reboot with the timer enabled and armed afterwards, and O-2 below covers the restore on the real server; the catch-up of a missed 03:15 run and the pull of an off-site copy stay named in *Not tested*. The expected output of O-2 and O-3 was observed once in a **container rehearsal** (a Debian 12 container with systemd 252, amd64 under emulation on an aarch64 host, the `fresh` install path without the proxy); it is quoted below as *Container rehearsal, not a result*, with the deviations named next to it. A rehearsal shows what the commands print when everything works, nothing more.
@@ -237,3 +343,29 @@ A different output means: `SRV-03 UNITS ENABLED` missing before the reboot means
 Paste the output of the last `cat` (before and after together) into the `Result (owner)` block of SRV-03 in this record. The lines `SRV-03 UNITS ENABLED`, `SRV-03 BOOT CHANGED`, `SRV-03 UNITS ACTIVE`, `SRV-03 SITE READY` and `SRV-03 TIMER ARMED` have to be in it; the checker looks for them at the beginning of a line.
 
 **Recording a result.** One commit records one result, and it changes: the pasted block, `Status:` and `Result (owner):` of that requirement (both read `recorded` and the paste block holds the result instead of `(nothing pasted yet)`), the Summary row of that requirement (no longer `PENDING OWNER`), for SRV-01 only the `Evidence commit:` line (the sha of the run's `COMMIT:` line, at least 7 characters, a commit this repository knows) and the appendix (`bash deploy/test/native-amd64.sh appendix`, with the artifact unpacked under `deploy/test/out`, appended below the appendix heading), and the requirement in `.planning/REQUIREMENTS.md` (the box `[x]` and the traceability cell `Complete`). Then `bash deploy/test/native-amd64.sh record-check` and `bash deploy/test/native-amd64.sh status-check` must both end `OK`; whoever cannot make them end OK has not recorded a result. A run that ended `VOID`, `FAIL`, `NOT-NATIVE` or `NOT-RUN` is a finding, written down as one, and leaves the status at `pending owner`.
+
+## Hand-over to phase 28
+
+Phase 28 (DOC-01, DOC-02) cites this record. `docs/beta.md` is not edited by this phase: `git diff --quiet f1ba5a2 -- docs/beta.md` exited 0. These are the five lines of that file that this record bears on, each as it stands:
+
+```text
+- A restore on a real server was not made: every restore went into a throwaway container, with no separate data volume, a warm cache and no real network copy.
+- Native amd64 timing was not measured: every number is an emulation number on an aarch64 host, and the extrapolation in the record is an estimate.
+- A reboot with the units enabled was not made.
+- No native amd64 run was made and none is planned (a user decision); the assumption stated for `MemoryDenyWriteExecute` on amd64 stays an assumption.
+- Seccomp enforcement was observed on native arm64 only, and only `MemoryDenyWriteExecute` and the address-family directive were probed there, while the target platform is linux/amd64.
+```
+
+| Line | Answered by | What phase 28 may do with it |
+|------|-------------|------------------------------|
+| A restore on a real server was not made | SRV-02 (O-2) | Move it when the `Status:` of SRV-02 is `recorded` |
+| Native amd64 timing was not measured | SRV-01 (O-1), the timing half | Move it when the `Status:` of SRV-01 is `recorded`; the figures to quote are the `POINT` lines of the pasted summary |
+| A reboot with the units enabled was not made | SRV-03 (O-3) | Move it when the `Status:` of SRV-03 is `recorded` |
+| No native amd64 run was made and none is planned | SRV-01 (O-1) | The milestone reversed the decision (see the opening of this record); reword it when SRV-01 is `recorded`, and keep it while it is `pending owner`, because it is true until then |
+| Seccomp enforcement was observed on native arm64 only | SRV-01 (O-1), the plugin half | Only the part about `MemoryDenyWriteExecute` on amd64 can change, and only when SRV-01 is `recorded`; the address-family directive was not probed by this phase |
+
+The rule is the same for all five: a line moves only when the matching `Status:` is `recorded` and `bash deploy/test/native-amd64.sh record-check` ends `OK` (and `status-check` with it). While any of O-1, O-2 and O-3 is `pending owner`, DOC-02's OWNER-STEPS lists it, with the steps of this record. The sentence of `deploy/SECURITY-SCORE.md` that says no native amd64 run is planned (user decision) is superseded by SRV-01 and is not edited: `docs/beta.md` cites that file byte for byte, so phase 28 decides whether and how the citation changes.
+
+## Appendix: raw output
+
+This appendix is empty until SRV-01 is recorded. It is assembled with `bash deploy/test/native-amd64.sh appendix`: a fixed list of thirteen files, each as a level-four heading `DIRECTORY/FILE` and a text block that holds the file unchanged, taken from the evidence artifact unpacked under `deploy/test/out`. It is pasted below this paragraph in the commit that records SRV-01. `record-check` then compares every block with its file byte for byte (a missing final newline is normalised) and the block of `amd64-native/native-summary.txt` with the `Result (owner)` block of SRV-01. The files that are never pasted are `step-NN.txt`, `seed.txt`, logs, cookie jars and key files; the evidence bundle drops them before the artifact is made.
