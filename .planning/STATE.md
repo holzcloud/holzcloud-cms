@@ -2,18 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v0.1.1
 milestone_name: Beta belegt
-current_phase_name: defining requirements
+current_phase_name: Consistent and compatible backups
 status: planning
 stopped_at: Completed 23-04-PLAN.md
-last_updated: "2026-10-26T08:06:46.497Z"
-last_activity: 2026-10-20
-state_head: 165966e0f21813623111a5a6724f74b076cf185b
+last_updated: "2026-10-26T11:01:00.228Z"
+last_activity: 2026-10-26
+last_activity_desc: Phase 24 complete, transitioned to Phase 25
+state_head: 42b4910c9b7a2f1d04c2f981d8f3330a7a39a4a2
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 5
+  completed_phases: 24
+  total_plans: 3
+  completed_plans: 3
+  percent: 86
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -50,7 +51,7 @@ close and are history, not status.
 
 ### Current Position (v1.10, geschrieben beim Abschluss von Phase 10 — die geltende steht unter `## Current Position`)
 
-Phase: 23 — Repository tidy and beta criteria
+Phase: 25 — Consistent and compatible backups
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
 ihre Pläne gefahren: 42 von 42.
 
@@ -83,7 +84,7 @@ berichtigt); ein zsh-Probenskript, das nichts sicherte und „byte-gleich" über
 leere Prüfsummen meldete; ein Commit ohne i18n-Tor; eine Probe, die einen
 Buildfehler als rot zählte.
 
-Status: Executing Phase 23
+Status: Ready to plan
 mit einer benannten Übergabe an Phase 12 (v2.0), und archiviert. Die frühere Zeile
 „gebaut, aber nicht abgeschlossen" galt vom 2026-09-09 bis zur Fixrunde.
 
@@ -138,7 +139,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-14
+Last activity: 2026-10-26 — Phase 24 complete, transitioned to Phase 25
 
 ### Milestone Map
 
@@ -500,7 +501,7 @@ ungefahrene Zeile (`code` im Block, öffentlich)
 ## Current Position
 
 Phase: Not started (defining requirements)
-Plan: —
+Plan: Not started
 Status: Defining requirements
 Last activity: 2026-10-20 — Milestone v0.1.1 started
 

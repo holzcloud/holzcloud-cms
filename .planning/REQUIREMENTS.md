@@ -16,11 +16,11 @@ only together with the record that proves it. No feature is built.
 
 ### Backup timer (BKP)
 
-- [ ] **BKP-01**: The backup timer fires from the **shipped** calendar entry (03:15), with no drop-in that moves it; a record shows the unit starting by itself and the backup it made.
-- [ ] **BKP-02**: After a missed run (host off at 03:15), `Persistent=true` makes the backup run when the host comes up; a record shows it.
-- [ ] **BKP-03**: `RandomizedDelaySec` is played with its shipped 300 seconds, not 0; a record shows the delay inside that window.
-- [ ] **BKP-04**: With `REMOTE_TARGET` set, the copy to a second host runs, and a restore from that copy brings the site back.
-- [ ] **BKP-05**: Retention pruning deletes backups older than the retention and keeps younger ones; a record shows both kinds.
+- [x] **BKP-01**: The backup timer fires from the **shipped** calendar entry (03:15), with no drop-in that moves it; a record shows the unit starting by itself and the backup it made.
+- [x] **BKP-02**: After a missed run (host off at 03:15), `Persistent=true` makes the backup run when the host comes up; a record shows it.
+- [x] **BKP-03**: `RandomizedDelaySec` is played with its shipped 300 seconds, not 0; a record shows the delay inside that window.
+- [x] **BKP-04**: With `REMOTE_TARGET` set, the copy to a second host runs, and a restore from that copy brings the site back.
+- [x] **BKP-05**: Retention pruning deletes backups older than the retention and keeps younger ones; a record shows both kinds.
 
 ### Consistency and compatibility (CON)
 
@@ -69,11 +69,11 @@ only together with the record that proves it. No feature is built.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BKP-01 | Phase 24 | Pending |
-| BKP-02 | Phase 24 | Pending |
-| BKP-03 | Phase 24 | Pending |
-| BKP-04 | Phase 24 | Pending |
-| BKP-05 | Phase 24 | Pending |
+| BKP-01 | Phase 24 | Complete |
+| BKP-02 | Phase 24 | Complete |
+| BKP-03 | Phase 24 | Complete |
+| BKP-04 | Phase 24 | Complete |
+| BKP-05 | Phase 24 | Complete |
 | CON-01 | Phase 25 | Pending |
 | CON-02 | Phase 25 | Pending |
 | CON-03 | Phase 25 | Pending |
