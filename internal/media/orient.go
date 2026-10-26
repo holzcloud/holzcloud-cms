@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"hash/crc32"
 	"image"
 	"os"
 )
@@ -271,6 +272,26 @@ func orientationAPP1(o int) []byte {
 	b := []byte{markerPrefix, markerAPP1}
 	b = binary.BigEndian.AppendUint16(b, uint16(2+len(exifHeader)+len(block)))
 	b = append(b, exifHeader...)
+	return append(b, block...)
+}
+
+// orientationChunkPNG is the stub as a PNG eXIf chunk: length, type, the bare
+// TIFF block and a CRC-32 over type and data. 38 bytes.
+func orientationChunkPNG(o int) []byte {
+	block := orientationTIFF(o)
+	b := binary.BigEndian.AppendUint32(nil, uint32(len(block)))
+	b = append(b, "eXIf"...)
+	b = append(b, block...)
+	return binary.BigEndian.AppendUint32(b, crc32.ChecksumIEEE(b[4:]))
+}
+
+// orientationChunkWebP is the stub as a WebP EXIF chunk: type, little-endian
+// size and the bare TIFF block, without the "Exif" prefix, as the container
+// specification has it. 26 bytes is even, so there is no pad byte. 34 bytes.
+func orientationChunkWebP(o int) []byte {
+	block := orientationTIFF(o)
+	b := append([]byte("EXIF"), 0, 0, 0, 0)
+	binary.LittleEndian.PutUint32(b[4:], uint32(len(block)))
 	return append(b, block...)
 }
 

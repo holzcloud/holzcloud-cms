@@ -3,9 +3,11 @@ package media
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
@@ -561,5 +563,282 @@ func TestStripJPEGHostileInput(t *testing.T) {
 	hostileStrip(t, "image/jpeg", valid, map[string][]byte{
 		"stacked": withSegmentsAfterSOI(clean, stacked...),
 		"long":    long,
+	})
+}
+
+// wantPNGChunk, wantWebPChunk are the stub chunks spelled out, the CRC computed
+// here and not by the code under test.
+func wantPNGChunk(o int) []byte {
+	b := append([]byte{0, 0, 0, 26}, "eXIf"...)
+	b = append(b, wantTIFF(o)...)
+	return binary.BigEndian.AppendUint32(b, crc32.ChecksumIEEE(b[4:]))
+}
+
+func wantWebPChunk(o int) []byte {
+	return append([]byte("EXIF\x1a\x00\x00\x00"), wantTIFF(o)...)
+}
+
+func TestOrientationChunkBytes(t *testing.T) {
+	for o := 2; o <= 8; o++ {
+		if got := orientationChunkPNG(o); !bytes.Equal(got, wantPNGChunk(o)) || len(got) != 38 {
+			t.Errorf("orientationChunkPNG(%d) = % x", o, got)
+		}
+		if got := orientationChunkWebP(o); !bytes.Equal(got, wantWebPChunk(o)) || len(got) != 34 {
+			t.Errorf("orientationChunkWebP(%d) = % x", o, got)
+		}
+	}
+}
+
+// pngAfterIHDR is the offset behind the IHDR chunk of a PNG.
+const pngAfterIHDR = 8 + 8 + 13 + 4
+
+func TestStripKeepsOnlyTheOrientationPNG(t *testing.T) {
+	clean := pngBytes(t, quadrants(40, 30))
+	plain, err := png.Decode(bytes.NewReader(clean))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, order := range orders {
+		for o := 2; o <= 8; o++ {
+			src := clean
+			src = pngWithChunk(t, src, "tIME", []byte{7, 232, 1, 2, 3, 4, 5}, false)
+			src = pngWithChunk(t, src, "iTXt", []byte("XML:com.adobe.xmp\x00\x00\x00\x00\x00<x:xmpmeta>XMP-GEHEIM</x:xmpmeta>"), false)
+			src = pngWithChunk(t, src, "tEXt", []byte("Author\x00KOMMENTAR-GEHEIM"), false)
+			src = pngWithChunk(t, src, "eXIf", richEXIF(order, o), false)
+			out, err := StripMetadata(src, "image/png")
+			if err != nil {
+				t.Fatalf("%v %d: %v", order, o, err)
+			}
+			want := append(append(append([]byte{}, clean[:pngAfterIHDR]...), wantPNGChunk(o)...), clean[pngAfterIHDR:]...)
+			if !bytes.Equal(out, want) {
+				t.Errorf("%v %d: the output is not the clean PNG plus the stub", order, o)
+			}
+			for _, m := range append(richMarkers, "XMP-GEHEIM", "KOMMENTAR-GEHEIM", "tIME", "iTXt", "tEXt") {
+				if bytes.Contains(out, []byte(m)) {
+					t.Errorf("%v %d: %q survived", order, o, m)
+				}
+			}
+			got, err := png.Decode(bytes.NewReader(out))
+			if err != nil || got.Bounds() != plain.Bounds() {
+				t.Fatalf("%v %d: decode %v, bounds %v", order, o, err, got.Bounds())
+			}
+			if orientationOf("image/png", out) != o {
+				t.Errorf("%v %d: reads %d", order, o, orientationOf("image/png", out))
+			}
+		}
+	}
+
+	// The chunk stands where the source had it: behind the pixel data.
+	late := pngWithChunk(t, clean, "eXIf", richEXIF(binary.BigEndian, 6), true)
+	out, err := StripMetadata(late, "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := pngWithChunk(t, clean, "eXIf", wantTIFF(6), true); !bytes.Equal(out, want) {
+		t.Error("an eXIf chunk behind the IDAT run should be replaced there")
+	}
+
+	// Two chunks: the first is claimed.
+	two := pngWithChunk(t, clean, "eXIf", tiffBlock(binary.BigEndian, 3), false)
+	two = pngWithChunk(t, two, "eXIf", tiffBlock(binary.BigEndian, 6), false)
+	out, err = StripMetadata(two, "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := pngWithChunk(t, clean, "eXIf", wantTIFF(6), false); !bytes.Equal(out, want) {
+		t.Error("two eXIf chunks (6, then 3) should give one stub of 6")
+	}
+}
+
+// vp8lOf takes the lossless image chunk out of the testdata WebP and returns it
+// with the bounds its header declares.
+func vp8lOf(t *testing.T) (payload []byte, w, h int) {
+	t.Helper()
+	body, err := os.ReadFile("testdata/opaque-lossless.webp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body[12:16]) != "VP8L" {
+		t.Fatalf("the chunk at offset 12 is %q, not VP8L", body[12:16])
+	}
+	size := int(binary.LittleEndian.Uint32(body[16:20]))
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body[20 : 20+size], cfg.Width, cfg.Height
+}
+
+func vp8xPayload(flags byte, w, h int) []byte {
+	b := []byte{flags, 0, 0, 0}
+	b = append(b, byte(w-1), byte((w-1)>>8), byte((w-1)>>16))
+	return append(b, byte(h-1), byte((h-1)>>8), byte((h-1)>>16))
+}
+
+func TestStripKeepsOnlyTheOrientationWebP(t *testing.T) {
+	vp8l, w, h := vp8lOf(t)
+	for _, order := range orders {
+		for _, prefix := range []bool{false, true} {
+			for _, flags := range []byte{0x00, 0x08} {
+				for o := 2; o <= 8; o++ {
+					exif := richEXIF(order, o)
+					if prefix {
+						exif = append([]byte("Exif\x00\x00"), exif...)
+					}
+					src := webpContainer(
+						[]byte("VP8X"), vp8xPayload(flags, w, h),
+						[]byte("VP8L"), vp8l,
+						[]byte("EXIF"), exif,
+						[]byte("XMP "), []byte("<x:xmpmeta>XMP-GEHEIM</x:xmpmeta>"),
+					)
+					out, err := StripMetadata(src, "image/webp")
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := webpContainer(
+						[]byte("VP8X"), vp8xPayload(0x08, w, h),
+						[]byte("VP8L"), vp8l,
+						[]byte("EXIF"), wantTIFF(o),
+					)
+					if !bytes.Equal(out, want) {
+						t.Errorf("%v prefix %v flags %#x o %d: the output is not the clean container plus the stub", order, prefix, flags, o)
+						continue
+					}
+					if got := binary.LittleEndian.Uint32(out[4:8]); int(got) != len(out)-8 {
+						t.Errorf("RIFF size %d, want %d", got, len(out)-8)
+					}
+					for _, m := range append(richMarkers, "XMP-GEHEIM") {
+						if bytes.Contains(out, []byte(m)) {
+							t.Errorf("%q survived", m)
+						}
+					}
+					cfg, _, err := image.DecodeConfig(bytes.NewReader(out))
+					if err != nil || cfg.Width != w || cfg.Height != h {
+						t.Errorf("DecodeConfig %v %v", cfg, err)
+					}
+					if _, _, err := image.Decode(bytes.NewReader(out)); err != nil {
+						t.Errorf("Decode: %v", err)
+					}
+					if got := orientationOf("image/webp", out); got != o {
+						t.Errorf("reads %d, want %d", got, o)
+					}
+				}
+			}
+		}
+	}
+}
+
+// Characterization: passes against the strip as it was before the stub.
+func TestStripLeavesNoStubPNGWebP(t *testing.T) {
+	clean := pngBytes(t, quadrants(40, 30))
+	vp8l, w, h := vp8lOf(t)
+	for _, order := range orders {
+		cases := map[string][]byte{
+			"orientation 1":        tiffBlock(order, 1),
+			"rich, no orientation": richEXIF(order, -1),
+			"orientation 9":        tiffBlock(order, 9),
+			"text only":            []byte("GPSLatitude 48.137"),
+			"truncated TIFF":       tiffBlock(order, 6)[:12],
+		}
+		for name, tiff := range cases {
+			src := pngWithChunk(t, pngWithChunk(t, clean, "tEXt", []byte("a\x00b"), false), "eXIf", tiff, false)
+			out, err := StripMetadata(src, "image/png")
+			if err != nil || !bytes.Equal(out, clean) {
+				t.Errorf("png %v %s: err %v, equal %v", order, name, err, bytes.Equal(out, clean))
+			}
+
+			src = webpContainer(
+				[]byte("VP8X"), vp8xPayload(0x10, w, h),
+				[]byte("VP8L"), vp8l,
+				[]byte("EXIF"), tiff,
+				[]byte("XMP "), []byte("<x:xmpmeta/>"),
+			)
+			out, err = StripMetadata(src, "image/webp")
+			want := webpContainer([]byte("VP8X"), vp8xPayload(0x10, w, h), []byte("VP8L"), vp8l)
+			if err != nil || !bytes.Equal(out, want) {
+				t.Errorf("webp %v %s: err %v, equal %v", order, name, err, bytes.Equal(out, want))
+			}
+		}
+	}
+
+	// A simple container has no VP8X to announce an EXIF chunk: a stub there
+	// would make the file invalid.
+	simple := webpContainer([]byte("VP8L"), vp8l, []byte("EXIF"), tiffBlock(binary.BigEndian, 6))
+	out, err := StripMetadata(simple, "image/webp")
+	if want := webpContainer([]byte("VP8L"), vp8l); err != nil || !bytes.Equal(out, want) {
+		t.Errorf("simple container: err %v, equal %v", err, bytes.Equal(out, want))
+	}
+}
+
+func TestVariantsStandUprightPNG(t *testing.T) {
+	src := pngWithChunk(t, pngBytes(t, quadrants(1000, 500)), "eXIf", tiffBlock(binary.BigEndian, 8), false)
+	path := writeTemp(t, "hoch.png", src)
+	if w, h, err := Dimensions(path); err != nil || w != 500 || h != 1000 {
+		t.Errorf("Dimensions = %d x %d, %v; want 500 x 1000", w, h, err)
+	}
+	dir := t.TempDir()
+	vs, err := MakeVariants(path, dir, "hoch.png", "image/png", 0)
+	if err != nil || len(vs) == 0 {
+		t.Fatalf("variants: %v, %v", vs, err)
+	}
+	thumb := vs[0]
+	if thumb.Width != 400 || thumb.Height != 800 {
+		t.Errorf("thumb records %d x %d, want 400 x 800", thumb.Width, thumb.Height)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, thumb.Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("eXIf")) || bytes.Contains(data, []byte("Exif")) {
+		t.Error("the thumbnail carries a tag")
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stored AB over CD, orientation 8: BD over AC.
+	for i, want := range []color.RGBA{colB, colD, colA, colC} {
+		if got := quadrantsAt(img, thumb.Width, thumb.Height)[i]; !near(got, want, 14) {
+			t.Errorf("quadrant %d: %v, want about %v", i, got, want)
+		}
+	}
+}
+
+func TestStripHostileInputPNGWebP(t *testing.T) {
+	clean := pngBytes(t, quadrants(16, 16))
+	valid := pngWithChunk(t, clean, "eXIf", richEXIF(binary.LittleEndian, 6), false)
+	if orientationOf("image/png", valid) != 6 {
+		t.Fatal("the PNG fixture does not read 6")
+	}
+	stacked := clean
+	for i := 0; i < 40; i++ {
+		stacked = pngWithChunk(t, stacked, "eXIf", tiffBlock(binary.BigEndian, 6), false)
+	}
+	long := append([]byte{}, valid...)
+	binary.BigEndian.PutUint32(long[pngAfterIHDR:], 0xFFFFFFF0)
+	hostileStrip(t, "image/png", valid, map[string][]byte{"stacked": stacked, "long": long})
+
+	vp8l, w, h := vp8lOf(t)
+	webp := webpContainer(
+		[]byte("VP8X"), vp8xPayload(0, w, h),
+		[]byte("VP8L"), vp8l,
+		[]byte("EXIF"), richEXIF(binary.LittleEndian, 6),
+	)
+	if orientationOf("image/webp", webp) != 6 {
+		t.Fatal("the WebP fixture does not read 6")
+	}
+	var chunks [][]byte
+	chunks = append(chunks, []byte("VP8X"), vp8xPayload(0, w, h))
+	for i := 0; i < 40; i++ {
+		chunks = append(chunks, []byte("EXIF"), tiffBlock(binary.BigEndian, 6))
+	}
+	riffLie := append([]byte{}, webp...)
+	binary.LittleEndian.PutUint32(riffLie[4:], 0x7FFFFFFF)
+	chunkLie := append([]byte{}, webp...)
+	binary.LittleEndian.PutUint32(chunkLie[bytes.LastIndex(chunkLie, []byte("EXIF"))+4:], 0x00FFFFFF)
+	hostileStrip(t, "image/webp", webp, map[string][]byte{
+		"stacked":   webpContainer(chunks...),
+		"riff lies": riffLie,
+		"size lies": chunkLie,
 	})
 }
