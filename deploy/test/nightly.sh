@@ -26,6 +26,8 @@
 #   nightly.sh compat       CON-02: its own backup.sh makes a backup, this release's restore.sh restores it on a fresh box, the data is compared
 #   nightly.sh capfull      CON-03: a filesystem nearly full but above MIN_FREE_MB under the backup root; by hand, by the shipped unit, the next night
 #   nightly.sh down-con     remove the two containers of compat-source and compat (OLD_NAME and NEW_NAME), and only those
+#   nightly.sh con-chain    phase 25, plan 03: the whole evidence set (CON-01, CON-02, CON-03) from nothing but the image, one command; ends in OUT_DIR/summary.txt
+#   nightly.sh record-check-con   the proof of deploy/BACKUP-CONSISTENCY-RUN.md against the scratch files (R and E), and its Owner steps section
 #   nightly.sh down         remove the source and the second host
 #
 # Subcommands can be chained in one call and run in order. A failing one ends the
@@ -73,6 +75,8 @@
 #   CAPFULL_MARGIN_MB  40, free megabytes of the nearly full filesystem above the floor
 #   CAPFULL_DATA_MB    1150, the bulk media backup-fixture writes so that the data directory is larger than that free space
 #   capfull defaults NAME and OUT_DIR to the t25 source names like prep, consist and window when the caller gave none
+#   Phase 25, plan 03: con-chain and record-check-con take the t25 names of all four containers and evidence directories
+#   RC_REQ_PREFIX, RC_REQ_IDS   BKP-0 and "1 2 3 4 5", the requirement headings record_check asks for (record-check-con sets CON-0 and "1 2 3")
 #
 # Written for bash 3.2 (macOS): no arrays, no mapfile, no case conversion.
 # Anything that needs GNU tools (date -d, stat -c, sha256sum, zic) runs inside
@@ -110,6 +114,15 @@ for p25_arg in "$@"; do
   if [ "$p25_arg" = capfull ]; then
     [ "$GIVEN_NAME" = yes ] || NAME=holzcloud-t25-src
     [ "$GIVEN_OUT_DIR" = yes ] || OUT_DIR=deploy/test/out/amd64-t25-src
+  fi
+done
+# Plan 03: con-chain and record-check-con work on all four t25 containers and directories.
+for p25_arg in "$@"; do
+  if [ "$p25_arg" = con-chain ] || [ "$p25_arg" = record-check-con ]; then
+    [ "$GIVEN_NAME" = yes ] || NAME=holzcloud-t25-src
+    [ "$GIVEN_OUT_DIR" = yes ] || OUT_DIR=deploy/test/out/amd64-t25-src
+    [ "$GIVEN_TGT_NAME" = yes ] || TGT_NAME=holzcloud-t25-tgt
+    [ "$GIVEN_TGT_OUT_DIR" = yes ] || TGT_OUT_DIR=deploy/test/out/amd64-t25-tgt
   fi
 done
 
@@ -530,9 +543,9 @@ record_check() {
       bad=$((bad + 1))
     fi
   done <<< "$RC_HEADINGS"
-  for i in 1 2 3 4 5; do
-    if ! grep -q "^## BKP-0$i" "$r"; then
-      echo "RECORD-CHECK BAD: no heading beginning '## BKP-0$i'"
+  for i in ${RC_REQ_IDS:-1 2 3 4 5}; do
+    if ! grep -q "^## ${RC_REQ_PREFIX:-BKP-0}$i" "$r"; then
+      echo "RECORD-CHECK BAD: no heading beginning '## ${RC_REQ_PREFIX:-BKP-0}$i'"
       bad=$((bad + 1))
     fi
   done
@@ -950,6 +963,7 @@ cmd_selftest() {
   selftest_outcome
   selftest_hold
   selftest_compat
+  selftest_con
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -5752,6 +5766,505 @@ capfull_run() {
 }
 
 # ---------------------------------------------------------------------------
+# Phase 25, plan 03: the whole evidence set in one command (con-chain), the verdicts
+# it computes from the files, and the proof of the record (record-check-con).
+# ---------------------------------------------------------------------------
+
+# fut02_verdict ADDS DELETES: what the two stage outcomes of CON-01 say about FUT-02
+# (an atomic snapshot). PROMOTE when either stage has a disagreement whose window could
+# not be named (UNNAMED); NOT-NEEDED when both are a named outcome (AGREE-ALL,
+# ORPHAN-ONLY-NAMED, ROW-WITHOUT-FILE-NAMED, or REFUSED-NAMED, a refused backup named by
+# its rsync status); UNDECIDED otherwise (INCONCLUSIVE, RESTORE-FAILED, INCOMPLETE, empty
+# or unknown: a stage that did not finish decides nothing about FUT-02).
+fut02_verdict() {
+  local o
+  for o in "${1:-}" "${2:-}"; do
+    if [ "$o" = UNNAMED ]; then
+      echo PROMOTE
+      return 0
+    fi
+  done
+  for o in "${1:-}" "${2:-}"; do
+    case "$o" in
+      AGREE-ALL | ORPHAN-ONLY-NAMED | ROW-WITHOUT-FILE-NAMED | REFUSED-NAMED) ;;
+      *)
+        echo UNDECIDED
+        return 0
+        ;;
+    esac
+  done
+  echo NOT-NEEDED
+}
+
+# fut02_line ADDS DELETES: the FUT-02 line of the summary, with the reason in terms of
+# the outcomes.
+fut02_line() {
+  case "$(fut02_verdict "$1" "$2")" in
+    PROMOTE) echo "FUT-02: PROMOTE (adds $1, deletes $2: a disagreement was seen whose window could not be named, so an atomic snapshot is a candidate requirement)" ;;
+    NOT-NEEDED) echo "FUT-02: not needed (adds $1, deletes $2: every disagreement that occurred was reproduced and its window named, and a stage without one rests on the runs counted in consist.txt)" ;;
+    *) echo "FUT-02: undecided (adds ${1:-?}, deletes ${2:-?}: a stage that did not finish with a verdict decides nothing about FUT-02)" ;;
+  esac
+}
+
+# owner_steps_ok FILE: the section `## Owner steps` of a record holds a numbered line
+# (`1. ` or `O-1`) or a line that begins `None` followed by a reason. A section that is
+# empty, one that holds only the word None, and a record without the heading fail.
+# Prints ok, or the reason (status 1).
+owner_steps_ok() {
+  local f=$1 sec line rest
+  if [ ! -f "$f" ]; then
+    echo "owner steps: $f does not exist"
+    return 1
+  fi
+  if ! grep -qx '## Owner steps' "$f"; then
+    echo "owner steps: the record has no heading '## Owner steps'"
+    return 1
+  fi
+  sec=$(awk '/^## Owner steps$/ { s = 1; next } s && /^## / { exit } s { print }' "$f")
+  while IFS= read -r line; do
+    case "$line" in
+      [0-9].\ * | [0-9][0-9].\ * | O-[0-9]*)
+        echo ok
+        return 0
+        ;;
+      None[!A-Za-z0-9]*)
+        rest=$(printf '%s' "${line#None}" | tr -cd '[:alnum:]')
+        if [ "${#rest}" -ge 8 ]; then
+          echo ok
+          return 0
+        fi
+        ;;
+    esac
+  done <<< "$sec"
+  echo "owner steps: the section holds neither a numbered step nor a line 'None' with a reason"
+  return 1
+}
+
+# con01_verdict SC_PREP PREP SC_CONSIST CONSIST SC_WINDOW WINDOW [FLOOR]: PASS, or FAIL
+# with the reason. PASS needs prep, consist and window to have ended 0 with their ok
+# lines and no BAD line; MIN-RUNS in consist.txt at least FLOOR (30); the runs of each
+# stage at least MIN-RUNS; and the runs of each stage that were actually restored and
+# compared after the restore at least restore_required (RESTORED-RUNS-STAGE-x). A
+# trace can therefore never pass for the set.
+con01_verdict() {
+  local scp=$1 fp=$2 scc=$3 fc=$4 scw=$5 fw=$6 floor=${7:-30} v min st runs rs req
+  v=$(req_verdict "$scp" "$fp" "PREP OK")
+  if [ "$v" != PASS ]; then
+    echo "FAIL (prep: ${v#FAIL (}"
+    return 0
+  fi
+  v=$(req_verdict "$scc" "$fc" "CONSIST OK")
+  if [ "$v" != PASS ]; then
+    echo "FAIL (consist: ${v#FAIL (}"
+    return 0
+  fi
+  v=$(req_verdict "$scw" "$fw" "WINDOW OK")
+  if [ "$v" != PASS ]; then
+    echo "FAIL (window: ${v#FAIL (}"
+    return 0
+  fi
+  min=$(kvq "$fc" MIN-RUNS)
+  if ! is_num "$min" || [ "$min" -lt "$floor" ]; then
+    echo "FAIL (MIN-RUNS in $fc is '$min', the evidence set needs $floor or more: a trace is not the set)"
+    return 0
+  fi
+  for st in adds deletes; do
+    runs=$(kvq "$fc" "CONSIST-RUNS-STAGE-$st")
+    if ! is_num "$runs" || [ "$runs" -lt "$min" ]; then
+      echo "FAIL (stage $st had '$runs' runs, fewer than MIN-RUNS $min)"
+      return 0
+    fi
+    rs=$(kvq "$fc" "RESTORED-RUNS-STAGE-$st")
+    req=$(restore_required "$runs" "$min")
+    if ! is_num "$rs" || [ "$rs" -lt "$req" ]; then
+      echo "FAIL (stage $st: '$rs' runs were restored and compared after the restore, the floor is $req)"
+      return 0
+    fi
+  done
+  echo PASS
+}
+
+# con_distinct A B C D: the four values are not empty and pairwise different. Prints the
+# reason and returns 1 otherwise.
+con_distinct() {
+  local x
+  if [ "$#" -ne 4 ]; then
+    echo "con_distinct wants four values"
+    return 1
+  fi
+  for x in "$@"; do
+    if [ -z "$x" ]; then
+      echo "one of the four is empty"
+      return 1
+    fi
+  done
+  if [ "$1" = "$2" ] || [ "$1" = "$3" ] || [ "$1" = "$4" ] || [ "$2" = "$3" ] || [ "$2" = "$4" ] || [ "$3" = "$4" ]; then
+    echo "two of '$1' '$2' '$3' '$4' are the same"
+    return 1
+  fi
+}
+
+# con_dir_safe DIR [ROOT]: DIR is something the chain may fill and a person may remove:
+# not empty, not / . .., not the repository root.
+con_dir_safe() {
+  local root=${2:-$ROOT}
+  case "$1" in
+    "" | / | . | .. | ./ | ../ | "$root" | "$root"/) return 1 ;;
+  esac
+}
+
+# con_dir_empty DIR: DIR does not exist or holds nothing.
+con_dir_empty() {
+  [ ! -d "$1" ] || [ -z "$(ls -A "$1")" ]
+}
+
+# con_field LINE KEY: the value of "KEY: value" inside a line made of such pairs.
+con_field() {
+  printf ' %s' "$1" | sed -n "s/.* $2: \([^ ]*\).*/\1/p" | tail -n 1
+}
+
+# con_class FILE C: the CLASS= of the control line "CONTROL C ..." of window.txt.
+con_class() {
+  local v
+  v=$(sed -n "s/^CONTROL $2 .* CLASS=\([A-Z-]*\) EXPECTED=.*/\1/p" "$1" 2> /dev/null | tail -n 1)
+  printf '%s\n' "${v:-?}"
+}
+
+# con_classify RUNSFILE: one CLASSIFY line per stage and class other than AGREE in the
+# runs file, with the numbers of those runs.
+con_classify() {
+  awk '
+    $1 == "RUN" && $4 ~ /^CLASS=/ && $4 != "CLASS=AGREE" {
+      k = $3 " " substr($4, 7)
+      if (!(k in cnt)) order[++no] = k
+      cnt[k]++
+      nums[k] = nums[k] (nums[k] == "" ? "" : " ") $2
+    }
+    END { for (i = 1; i <= no; i++) { k = order[i]; split(k, a, " "); printf "CLASSIFY: consist stage %s: %d run(s) with CLASS=%s (runs %s)\n", a[1], cnt[k], a[2], nums[k] } }' "$1" 2> /dev/null
+}
+
+# con_classify_capfull FILE: one CLASSIFY line for every capfull class of FILE that is not
+# COMPLETE (the control must be COMPLETE; the others are what is to be classified), a
+# FALSE-COMPLETE spelled out as a defect candidate. (A function of its own: bash 3.2
+# cannot parse a case pattern inside a command substitution.)
+con_classify_capfull() {
+  local k v
+  for k in CONTROL-CLASS HAND-CLASS AGAIN-CLASS UNIT-CLASS; do
+    v=$(kvq "$1" "$k")
+    case "$v" in
+      COMPLETE) ;;
+      "?") echo "CLASSIFY: capfull $k is missing from $1" ;;
+      FALSE-COMPLETE) echo "CLASSIFY: capfull $k is FALSE-COMPLETE: backup.sh ended 0 with a MANIFEST and less than the source; a defect candidate (class 4), to be read in capfull.txt before anything else" ;;
+      *) echo "CLASSIFY: capfull $k is $v (see capfull.txt)" ;;
+    esac
+  done
+}
+
+selftest_con() {
+  local t f c out rc
+  t=$(mktemp -d)
+
+  # fut02_verdict
+  st_eq "fut02 both agree" NOT-NEEDED "$(fut02_verdict AGREE-ALL AGREE-ALL)"
+  st_eq "fut02 orphan and row" NOT-NEEDED "$(fut02_verdict ORPHAN-ONLY-NAMED ROW-WITHOUT-FILE-NAMED)"
+  st_eq "fut02 row and agree" NOT-NEEDED "$(fut02_verdict ROW-WITHOUT-FILE-NAMED AGREE-ALL)"
+  st_eq "fut02 refused is named" NOT-NEEDED "$(fut02_verdict REFUSED-NAMED AGREE-ALL)"
+  st_eq "fut02 adds unnamed" PROMOTE "$(fut02_verdict UNNAMED AGREE-ALL)"
+  st_eq "fut02 deletes unnamed" PROMOTE "$(fut02_verdict ORPHAN-ONLY-NAMED UNNAMED)"
+  st_eq "fut02 unnamed beats inconclusive" PROMOTE "$(fut02_verdict INCONCLUSIVE UNNAMED)"
+  st_eq "fut02 inconclusive" UNDECIDED "$(fut02_verdict INCONCLUSIVE AGREE-ALL)"
+  st_eq "fut02 restore failed" UNDECIDED "$(fut02_verdict AGREE-ALL RESTORE-FAILED)"
+  st_eq "fut02 incomplete" UNDECIDED "$(fut02_verdict INCOMPLETE INCOMPLETE)"
+  st_eq "fut02 empty" UNDECIDED "$(fut02_verdict "" AGREE-ALL)"
+  st_eq "fut02 unknown word" UNDECIDED "$(fut02_verdict AGREE-ALL "?")"
+  st_eq "fut02 none given" UNDECIDED "$(fut02_verdict)"
+  st_eq "fut02 line promote" "FUT-02: PROMOTE (adds UNNAMED, deletes AGREE-ALL: a disagreement was seen whose window could not be named, so an atomic snapshot is a candidate requirement)" "$(fut02_line UNNAMED AGREE-ALL)"
+  st_eq "fut02 line begins" "FUT-02: not needed" "$(fut02_line AGREE-ALL AGREE-ALL | cut -c1-18)"
+  st_eq "fut02 line undecided begins" "FUT-02: undecided" "$(fut02_line "?" "?" | cut -c1-17)"
+
+  # owner_steps_ok
+  f=$t/o.md
+  printf '# R\n\n## Owner steps\n\n1. Do the thing on a real server.\n\n## Next\n' > "$f"
+  st_ok "owner numbered" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n\nO-1 Do it.\n' > "$f"
+  st_ok "owner O-1" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n\nNone, every measurement ran on the container.\n\n## Next\n' > "$f"
+  st_ok "owner None with a reason" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n\nNone: nothing here needs a server.\n' > "$f"
+  st_ok "owner None colon reason" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n\nNone\n\n## Next\n' > "$f"
+  st_fail "owner only None" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n\nNone.\n\n## Next\n' > "$f"
+  st_fail "owner None with a full stop" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n\n## Next\n\n1. A numbered line in the next section.\n' > "$f"
+  st_fail "owner empty section" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n' > "$f"
+  st_fail "owner empty section at the end" owner_steps_ok "$f"
+  printf '# R\n\n## Not tested\n\n1. Something.\n' > "$f"
+  st_fail "owner no heading" owner_steps_ok "$f"
+  printf '# R\n\n## Owner steps\n\nNonetheless, there is more to say about it.\n' > "$f"
+  st_fail "owner Nonetheless is not None" owner_steps_ok "$f"
+  st_fail "owner missing file" owner_steps_ok "$t/none.md"
+
+  # con01_verdict
+  printf 'PREP OK\n' > "$t/prep.txt"
+  printf 'MIN-RUNS: 30\nCONSIST-RUNS-STAGE-adds: 40\nRESTORED-RUNS-STAGE-adds: 40\nCONSIST-RUNS-STAGE-deletes: 40\nRESTORED-RUNS-STAGE-deletes: 38\nCONSIST OK\n' > "$t/consist.txt"
+  printf 'WINDOW OK\n' > "$t/window.txt"
+  st_eq "con01 all green" PASS "$(con01_verdict 0 "$t/prep.txt" 0 "$t/consist.txt" 0 "$t/window.txt")"
+  st_eq "con01 prep failed" "FAIL (prep: the stage ended with status 1)" "$(con01_verdict 1 "$t/prep.txt" 3 "$t/consist.txt" 3 "$t/window.txt")"
+  st_eq "con01 consist status" "FAIL (consist: the stage ended with status 1)" "$(con01_verdict 0 "$t/prep.txt" 1 "$t/consist.txt" 0 "$t/window.txt")"
+  st_eq "con01 window status" "FAIL (window: the stage ended with status 1)" "$(con01_verdict 0 "$t/prep.txt" 0 "$t/consist.txt" 1 "$t/window.txt")"
+  st_eq "con01 window not played" "FAIL (window: the platform could not give the evidence: the stage ended with status 3)" "$(con01_verdict 0 "$t/prep.txt" 0 "$t/consist.txt" 3 "$t/window.txt")"
+  printf 'MIN-RUNS: 29\nCONSIST-RUNS-STAGE-adds: 40\nRESTORED-RUNS-STAGE-adds: 40\nCONSIST-RUNS-STAGE-deletes: 40\nRESTORED-RUNS-STAGE-deletes: 40\nCONSIST OK\n' > "$t/c2.txt"
+  st_eq "con01 MIN-RUNS 29" "FAIL (MIN-RUNS in $t/c2.txt is '29', the evidence set needs 30 or more: a trace is not the set)" "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c2.txt" 0 "$t/window.txt")"
+  printf 'MIN-RUNS: 1\nCONSIST-RUNS-STAGE-adds: 6\nRESTORED-RUNS-STAGE-adds: 6\nCONSIST-RUNS-STAGE-deletes: 6\nRESTORED-RUNS-STAGE-deletes: 6\nCONSIST OK\n' > "$t/c3.txt"
+  st_fail "con01 a trace is not the set" test "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c3.txt" 0 "$t/window.txt")" = PASS
+  printf 'CONSIST-RUNS-STAGE-adds: 40\nRESTORED-RUNS-STAGE-adds: 40\nCONSIST-RUNS-STAGE-deletes: 40\nRESTORED-RUNS-STAGE-deletes: 40\nCONSIST OK\n' > "$t/c4.txt"
+  st_fail "con01 no MIN-RUNS line" test "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c4.txt" 0 "$t/window.txt")" = PASS
+  printf 'MIN-RUNS: 30\nCONSIST-RUNS-STAGE-adds: 40\nRESTORED-RUNS-STAGE-adds: 40\nCONSIST-RUNS-STAGE-deletes: 29\nRESTORED-RUNS-STAGE-deletes: 29\nCONSIST OK\n' > "$t/c5.txt"
+  st_eq "con01 a stage under MIN-RUNS" "FAIL (stage deletes had '29' runs, fewer than MIN-RUNS 30)" "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c5.txt" 0 "$t/window.txt")"
+  printf 'MIN-RUNS: 30\nCONSIST-RUNS-STAGE-adds: 40\nRESTORED-RUNS-STAGE-adds: 14\nCONSIST-RUNS-STAGE-deletes: 40\nRESTORED-RUNS-STAGE-deletes: 40\nCONSIST OK\n' > "$t/c6.txt"
+  st_eq "con01 restored below the floor" "FAIL (stage adds: '14' runs were restored and compared after the restore, the floor is 15)" "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c6.txt" 0 "$t/window.txt")"
+  printf 'MIN-RUNS: 30\nCONSIST-RUNS-STAGE-adds: 40\nRESTORED-RUNS-STAGE-adds: 15\nCONSIST-RUNS-STAGE-deletes: 40\nRESTORED-RUNS-STAGE-deletes: 15\nCONSIST OK\n' > "$t/c7.txt"
+  st_eq "con01 restored at the floor" PASS "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c7.txt" 0 "$t/window.txt")"
+  printf 'MIN-RUNS: 30\nCONSIST-RUNS-STAGE-adds: 40\nCONSIST-RUNS-STAGE-deletes: 40\nRESTORED-RUNS-STAGE-deletes: 40\nCONSIST OK\n' > "$t/c8.txt"
+  st_fail "con01 no restored line" test "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c8.txt" 0 "$t/window.txt")" = PASS
+  printf 'MIN-RUNS: 30\nBAD  x\nCONSIST-RUNS-STAGE-adds: 40\nRESTORED-RUNS-STAGE-adds: 40\nCONSIST-RUNS-STAGE-deletes: 40\nRESTORED-RUNS-STAGE-deletes: 40\nCONSIST OK\n' > "$t/c9.txt"
+  st_fail "con01 a BAD line" test "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c9.txt" 0 "$t/window.txt")" = PASS
+  printf 'WINDOW FAILED\n' > "$t/w2.txt"
+  st_fail "con01 window not ok" test "$(con01_verdict 0 "$t/prep.txt" 0 "$t/consist.txt" 0 "$t/w2.txt")" = PASS
+  st_fail "con01 missing prep file" test "$(con01_verdict 0 "$t/none.txt" 0 "$t/consist.txt" 0 "$t/window.txt")" = PASS
+  st_eq "con01 floor argument" PASS "$(con01_verdict 0 "$t/prep.txt" 0 "$t/c3.txt" 0 "$t/window.txt" 1)"
+
+  # the refusals of con-chain
+  st_ok "con_distinct four names" con_distinct a b c d
+  st_fail "con_distinct first two" con_distinct a a c d
+  st_fail "con_distinct last two" con_distinct a b c c
+  st_fail "con_distinct first and last" con_distinct a b c a
+  st_fail "con_distinct empty" con_distinct a b "" d
+  st_fail "con_distinct three values" con_distinct a b c
+  st_ok "con_dir_safe a directory" con_dir_safe deploy/test/out/amd64-t25-src /repo
+  st_fail "con_dir_safe slash" con_dir_safe / /repo
+  st_fail "con_dir_safe dot" con_dir_safe . /repo
+  st_fail "con_dir_safe dot dot" con_dir_safe .. /repo
+  st_fail "con_dir_safe empty" con_dir_safe "" /repo
+  st_fail "con_dir_safe root" con_dir_safe /repo /repo
+  st_fail "con_dir_safe root with slash" con_dir_safe /repo/ /repo
+  mkdir -p "$t/empty" "$t/full"
+  : > "$t/full/x"
+  st_ok "con_dir_empty absent" con_dir_empty "$t/absent"
+  st_ok "con_dir_empty empty" con_dir_empty "$t/empty"
+  st_fail "con_dir_empty holds a file" con_dir_empty "$t/full"
+
+  # con_field, con_class, con_classify
+  st_eq "con_field" 8 "$(con_field 'LEVEL: 60 GOOSE-ROWS: 61 PAGES-COUNT: 8 USERS-COUNT: 2' PAGES-COUNT)"
+  st_eq "con_field first" 60 "$(con_field 'LEVEL: 60 GOOSE-ROWS: 61' LEVEL)"
+  st_eq "con_field absent" "" "$(con_field 'LEVEL: 60' USERS-COUNT)"
+  printf 'CONTROL C0 ACTION=none HOLD-REACHED=yes HOLD-RELEASED-IN-S=0 MISSING=0 ORPHAN=0 CLASS=AGREE EXPECTED=AGREE\nCONTROL C1 ACTION=upload HOLD-REACHED=yes HOLD-RELEASED-IN-S=1 MISSING=0 ORPHAN=3 CLASS=ORPHAN-ONLY EXPECTED=ORPHAN-ONLY\n' > "$t/w.txt"
+  st_eq "con_class C0" AGREE "$(con_class "$t/w.txt" C0)"
+  st_eq "con_class C1" ORPHAN-ONLY "$(con_class "$t/w.txt" C1)"
+  st_eq "con_class C2 absent" "?" "$(con_class "$t/w.txt" C2)"
+  printf 'RUN 1 adds CLASS=AGREE X=1\nRUN 2 adds CLASS=ORPHAN-ONLY X=1\nRUN 3 adds CLASS=ORPHAN-ONLY X=1\nRUN 1 deletes CLASS=ROW-WITHOUT-FILE X=1\nRUN 2 deletes CLASS=BACKUP-REFUSED X=1\n' > "$t/runs.txt"
+  out=$(con_classify "$t/runs.txt")
+  st_eq "con_classify lines" 3 "$(printf '%s\n' "$out" | grep -c '^CLASSIFY: ')"
+  st_eq "con_classify groups the runs" "CLASSIFY: consist stage adds: 2 run(s) with CLASS=ORPHAN-ONLY (runs 2 3)" "$(printf '%s\n' "$out" | sed -n 1p)"
+  st_eq "con_classify one row" "CLASSIFY: consist stage deletes: 1 run(s) with CLASS=ROW-WITHOUT-FILE (runs 1)" "$(printf '%s\n' "$out" | sed -n 2p)"
+  printf 'RUN 1 adds CLASS=AGREE X=1\n' > "$t/runs2.txt"
+  st_eq "con_classify all agree" "" "$(con_classify "$t/runs2.txt")"
+  printf 'CONTROL-CLASS: COMPLETE\nHAND-CLASS: FAILED-PARTIAL-DIR-LEFT\nAGAIN-CLASS: GUARD-REFUSED\nUNIT-CLASS: FALSE-COMPLETE\n' > "$t/cf.txt"
+  out=$(con_classify_capfull "$t/cf.txt")
+  st_eq "con_classify_capfull lines" 3 "$(printf '%s\n' "$out" | grep -c '^CLASSIFY: ')"
+  st_eq "con_classify_capfull hand" "CLASSIFY: capfull HAND-CLASS is FAILED-PARTIAL-DIR-LEFT (see capfull.txt)" "$(printf '%s\n' "$out" | sed -n 1p)"
+  st_eq "con_classify_capfull false complete is a defect candidate" 1 "$(printf '%s\n' "$out" | grep -c 'UNIT-CLASS is FALSE-COMPLETE.*defect candidate (class 4)')"
+  st_eq "con_classify_capfull a missing file names every class" 4 "$(con_classify_capfull "$t/none.txt" | grep -c 'is missing from')"
+
+  # record_check with the CON headings, and with none set it keeps its answers
+  st_record_make "$t/r" "$(git rev-parse --short HEAD)"
+  sed 's/^## BKP-0\([1-5]\)/## CON-0\1/' "$t/r/rec.md" > "$t/r/con.md"
+  grep -v '^## CON-02' "$t/r/con.md" > "$t/r/con-no2.md"
+  out=$(RC_REQ_PREFIX=CON-0 RC_REQ_IDS="1 2 3" record_check "$t/r/con.md" "$t/r/out" "amd64-t24-src" 2>&1) || true
+  st_eq "record-check CON record with CON headings" "RECORD-CHECK OK 1 blocks" "$out"
+  out=$(RC_REQ_PREFIX=CON-0 RC_REQ_IDS="1 2 3" record_check "$t/r/con-no2.md" "$t/r/out" "amd64-t24-src" 2>&1) && rc=0 || rc=$?
+  st_eq "record-check CON record without CON-02 exit" 1 "$rc"
+  st_eq "record-check CON record without CON-02 names it" 1 "$(printf '%s\n' "$out" | grep -c "no heading beginning '## CON-02'")"
+  out=$(record_check "$t/r/con.md" "$t/r/out" "amd64-t24-src" 2>&1) && rc=0 || rc=$?
+  st_eq "record-check CON record, no variables, exit" 1 "$rc"
+  st_eq "record-check CON record, no variables, fails on BKP-01" 1 "$(printf '%s\n' "$out" | grep -c "no heading beginning '## BKP-01'")"
+  out=$(RC_REQ_PREFIX=CON-0 RC_REQ_IDS="1 2 3" record_check "$t/r/rec.md" "$t/r/out" "amd64-t24-src" 2>&1) && rc=0 || rc=$?
+  st_eq "record-check BKP record with CON headings asked, exit" 1 "$rc"
+  st_eq "record-check BKP record with CON headings asked, names CON-01" 1 "$(printf '%s\n' "$out" | grep -c "no heading beginning '## CON-01'")"
+  out=$(record_check "$t/r/rec.md" "$t/r/out" "amd64-t24-src" 2>&1) || true
+  st_eq "record-check BKP record, no variables, unchanged" "RECORD-CHECK OK 1 blocks" "$out"
+  out=$(RC_REQ_PREFIX=CON-0 RC_REQ_IDS="1 2 3 4 5" record_check "$t/r/con.md" "$t/r/out" "amd64-t24-src" 2>&1) || true
+  st_eq "record-check five CON ids on a record with five" "RECORD-CHECK OK 1 blocks" "$out"
+  rm -rf "${t:?}"
+}
+
+CON_KEEP=0
+con_chain_cleanup() {
+  [ "$CON_KEEP" != 1 ] || return 0
+  cmd_down || true
+  cmd_down_con || true
+}
+
+# con-chain: the whole proof of phase 25 from nothing but the image, in one command.
+# Source and second host, the editor (prep), CON-01 (consist, window), CON-03 (capfull)
+# and then the previous release's pair (compat-source, compat) for CON-02. Every stage is
+# a child process of this script with its status kept (a function on the left of `||`
+# runs with set -e off), and every verdict comes from the files the stages wrote.
+cmd_con_chain() {
+  local ref d c why s v1 v2 v3 fut fut_a fut_d leak kinds bp sp=0 sf=0 fails=0 st f k v
+  local sc_prep=0 sc_consist=0 sc_window=0 sc_capfull=0 sc_csrc=0 sc_compat=0
+  local sum=$OUT_DIR/summary.txt cl
+
+  [ "$TARGET" = systemd-base ] \
+    || die "con-chain needs TARGET=systemd-base (got '$TARGET'): the proof starts from a bare systemd image, nothing else; run it as: TARGET=systemd-base bash deploy/test/nightly.sh con-chain"
+  why=$(con_distinct "$NAME" "$TGT_NAME" "$OLD_NAME" "$NEW_NAME") \
+    || die "con-chain: the four container names must be different ($why); set NAME, TGT_NAME, OLD_NAME and NEW_NAME apart"
+  why=$(con_distinct "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR") \
+    || die "con-chain: the four evidence directories must be different ($why); set OUT_DIR, TGT_OUT_DIR, OLD_OUT_DIR and NEW_OUT_DIR apart"
+  for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
+    con_dir_safe "$d" || die "con-chain: refusing the evidence directory '$d'"
+  done
+  for c in "$NAME" "$TGT_NAME" "$OLD_NAME" "$NEW_NAME"; do
+    if docker container inspect "$c" > /dev/null 2>&1; then
+      die "con-chain: the container $c exists already; the chain starts from fresh containers, remove them with: NAME=$NAME TGT_NAME=$TGT_NAME OLD_NAME=$OLD_NAME NEW_NAME=$NEW_NAME bash deploy/test/nightly.sh down down-con"
+    fi
+  done
+  for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
+    con_dir_empty "$d" \
+      || die "con-chain: $d holds the files of an earlier pass (a stage overwrites only what it writes, and an old file would be pasted into the record as if it belonged to this pass); remove it with: rm -rf $d"
+  done
+
+  # One binary for every container of this release, even if a commit lands mid-run.
+  ref=$(pin_ref)
+  NEW_REF=$ref
+  BULK_MB=${BULK_MB:-100}
+  CON_KEEP=$KEEP
+  trap con_chain_cleanup EXIT
+  export PLATFORM TARGET NAME OUT_DIR TGT_NAME TGT_OUT_DIR OLD_NAME OLD_OUT_DIR NEW_NAME NEW_OUT_DIR NEW_REF BULK_MB
+  export CONSIST_RUNS CONSIST_MIN_RUNS CONSIST_STAGES CONSIST_RESTORE_EVERY CHURN_WORKERS CHURN_PAUSE
+  export CAPFULL_FLOOR_MB CAPFULL_MARGIN_MB CAPFULL_DATA_MB COMPAT_TAG
+  export KEEP=1
+  say "con-chain: NEW_REF pinned to $ref; source $NAME ($OUT_DIR), second host $TGT_NAME ($TGT_OUT_DIR), previous release $OLD_NAME ($OLD_OUT_DIR), fresh box $NEW_NAME ($NEW_OUT_DIR); CONSIST_RUNS=$CONSIST_RUNS CONSIST_MIN_RUNS=$CONSIST_MIN_RUNS CONSIST_RESTORE_EVERY=$CONSIST_RESTORE_EVERY BULK_MB=$BULK_MB; started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # Without these two nothing can be measured.
+  chain_stage source || die "con-chain: the source could not be built (status $?)"
+  chain_stage target || die "con-chain: the second host could not be built (status $?)"
+
+  chain_stage prep || sc_prep=$?
+  if [ "$sc_prep" -eq 0 ]; then
+    chain_stage consist || sc_consist=$?
+    chain_stage window || sc_window=$?
+  else
+    sc_consist=3
+    sc_window=3
+    say "con-chain: prep ended with status $sc_prep: consist and window are not played (nothing was measured), their status is recorded as 3"
+  fi
+  # capfull replaces the bulk directory of the source and mounts over its backup root,
+  # so it comes after the stages that read that data; the previous release's pair is
+  # brought up last, so that the Docker VM's memory is not shared with it while a 1.1 GB
+  # filesystem is filled.
+  chain_stage capfull || sc_capfull=$?
+  chain_stage compat-source || sc_csrc=$?
+  if [ "$sc_csrc" -eq 0 ]; then
+    chain_stage compat || sc_compat=$?
+  else
+    sc_compat=3
+    say "con-chain: compat-source ended with status $sc_csrc: compat is not played, its status is recorded as 3"
+  fi
+
+  # The verdicts, from the files the stages wrote.
+  v1=$(con01_verdict "$sc_prep" "$OUT_DIR/prep.txt" "$sc_consist" "$OUT_DIR/consist.txt" "$sc_window" "$OUT_DIR/window.txt" 30)
+  if [ "$sc_csrc" -ne 0 ]; then
+    v2="FAIL (compat-source ended with status $sc_csrc: the previous release was not brought up and compat was not played)"
+  elif [ ! -s "$OLD_OUT_DIR/compat-binary.txt" ]; then
+    v2="FAIL ($OLD_OUT_DIR/compat-binary.txt is missing: nothing says which binary the previous release was)"
+  else
+    v2=$(req_verdict "$sc_compat" "$OLD_OUT_DIR/compat.txt" "COMPAT OK")
+  fi
+  v3=$(req_verdict "$sc_capfull" "$OUT_DIR/capfull.txt" "CAPFULL OK")
+  fut_a=$(kvq "$OUT_DIR/consist.txt" OUTCOME-STAGE-adds)
+  fut_d=$(kvq "$OUT_DIR/consist.txt" OUTCOME-STAGE-deletes)
+  fut=$(fut02_line "$fut_a" "$fut_d")
+
+  # No secret of any container in any of the four directories.
+  leak=OK
+  ( leak_check ) || leak=FAILED
+  ( NAME=$OLD_NAME OUT_DIR=$OLD_OUT_DIR TGT_NAME=$NEW_NAME TGT_OUT_DIR=$NEW_OUT_DIR leak_check ) || leak=FAILED
+
+  for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
+    bp=$(steps_of "$d")
+    sp=$((sp + ${bp% *}))
+    sf=$((sf + ${bp#* }))
+  done
+  kinds=$(for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
+    sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$d/deviations.txt" 2> /dev/null
+  done | sort -u | tr '\n' ' ' | sed 's/ $//')
+
+  # What the person running the chain has to classify (1 harness bug, 2 container limit,
+  # 3 measured property of the shipped scripts, 4 defect in a shipped file).
+  cl=$(
+    con_classify "$OUT_DIR/consist-runs.txt"
+    for f in "$OUT_DIR/prep.txt" "$OUT_DIR/consist.txt" "$OUT_DIR/window.txt" "$OUT_DIR/capfull.txt" "$OLD_OUT_DIR/compat.txt"; do
+      grep '^BAD' "$f" 2> /dev/null | cut -c1-300 | sed "s|^|CLASSIFY: BAD line in $f: |" || true
+    done
+    con_classify_capfull "$OUT_DIR/capfull.txt"
+  )
+
+  {
+    echo "---- summary ($PLATFORM) ----"
+    echo "CON-01 $v1"
+    echo "CON-02 $v2"
+    echo "CON-03 $v3"
+    for st in adds deletes; do
+      echo "CONSIST: stage $st $(kvq "$OUT_DIR/consist.txt" "CONSIST-SUMMARY-STAGE-$st")"
+      echo "CONSIST: stage $st window writes: uploads $(kvq "$OUT_DIR/consist.txt" "UPLOADS-IN-WINDOW-STAGE-$st"), page saves $(kvq "$OUT_DIR/consist.txt" "PAGES-IN-WINDOW-STAGE-$st"), deletes $(kvq "$OUT_DIR/consist.txt" "DELETES-IN-WINDOW-STAGE-$st"); backup status histogram $(kvq "$OUT_DIR/consist.txt" "BACKUP-RC-HISTOGRAM-STAGE-$st")"
+    done
+    echo "CONSIST: MIN-RUNS $(kvq "$OUT_DIR/consist.txt" MIN-RUNS), restored-run floor $(kvq "$OUT_DIR/consist.txt" RESTORED-RUNS-FLOOR)"
+    echo "WINDOW: C0 (nothing written) $(con_class "$OUT_DIR/window.txt" C0), C1 (upload in the window) $(con_class "$OUT_DIR/window.txt" C1), C2 (delete in the window) $(con_class "$OUT_DIR/window.txt" C2)"
+    echo "COMPAT: TAG=$(kvq "$OLD_OUT_DIR/compat.txt" COMPAT-TAG) LEVEL-BEFORE=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-BEFORE) LEVEL-AFTER=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-AFTER) LOGIN-ADMIN=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-ADMIN) LOGIN-EDITOR=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-EDITOR) PAGES-SOURCE=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-SOURCE)" PAGES-COUNT) PAGES-RESTORED=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-RESTORED)" PAGES-COUNT) MEDIA-SERVED=$(kvq "$OLD_OUT_DIR/compat.txt" MEDIA-SERVED-EQUAL) CHECK=$(kvq "$OLD_OUT_DIR/compat.txt" CHECK)"
+    v=$(kvq "$OUT_DIR/capfull.txt" FREE-AT-GUARD-MB)
+    echo "CAPFULL: FLOOR-MB=$(kvq "$OUT_DIR/capfull.txt" FLOOR-MB) FREE-AT-GUARD-MB=${v%% *} DATA-MB=$(kvq "$OUT_DIR/capfull.txt" DATA-MB | cut -d' ' -f1) FS-SIZE-MB=$(kvq "$OUT_DIR/capfull.txt" FS-SIZE-MB) CONTROL-CLASS=$(kvq "$OUT_DIR/capfull.txt" CONTROL-CLASS) HAND-CLASS=$(kvq "$OUT_DIR/capfull.txt" HAND-CLASS) AGAIN-CLASS=$(kvq "$OUT_DIR/capfull.txt" AGAIN-CLASS) UNIT-CLASS=$(kvq "$OUT_DIR/capfull.txt" UNIT-CLASS) UNIT-RESULT=$(kvq "$OUT_DIR/capfull.txt" UNIT-RESULT) UNIT-EXECMAINSTATUS=$(kvq "$OUT_DIR/capfull.txt" UNIT-EXECMAINSTATUS) RESTORE-PARTIAL-EXIT=$(kvq "$OUT_DIR/capfull.txt" RESTORE-PARTIAL-EXIT)"
+    echo "$fut"
+    if [ -n "$cl" ]; then printf '%s\n' "$cl"; else echo "CLASSIFY: none"; fi
+    echo "STEPS: $sp played, $sf failed"
+    echo "DEVIATIONS: ${kinds:-none}"
+    if [ "$leak" = OK ]; then echo "LEAK-CHECK OK"; else echo "LEAK-CHECK FAILED"; fi
+  } > "$sum"
+  cat "$sum"
+  say "con-chain: stage statuses (1 is a BAD line or a refusal, 3 is not played or the platform could not give the evidence): prep=$sc_prep consist=$sc_consist window=$sc_window capfull=$sc_capfull compat-source=$sc_csrc compat=$sc_compat"
+  say "con-chain: finished $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  for s in "$v1" "$v2" "$v3"; do
+    [ "$s" = PASS ] || fails=$((fails + 1))
+  done
+  [ "$leak" = OK ] || fails=$((fails + 1))
+  if [ "$fails" -ne 0 ]; then
+    say "con-chain: $fails requirement(s) or checks did not pass, see $sum"
+    exit 1
+  fi
+}
+
+# record-check-con: the proof of deploy/BACKUP-CONSISTENCY-RUN.md against the scratch
+# files: record_check with the CON headings and the ledger of the four evidence
+# directories, and then the Owner steps section. The last line is the answer.
+cmd_record_check_con() {
+  local r=${R:-deploy/BACKUP-CONSISTENCY-RUN.md} e=${E:-deploy/test/out} out rc=0 why orc=0
+  out=$(RC_REQ_PREFIX=CON-0 RC_REQ_IDS="1 2 3" record_check "$r" "$e" "$(basename "$OUT_DIR") $(basename "$TGT_OUT_DIR") $(basename "$OLD_OUT_DIR") $(basename "$NEW_OUT_DIR")" 2>&1) || rc=$?
+  why=$(owner_steps_ok "$r") || orc=1
+  if [ "$orc" -eq 0 ]; then
+    printf '%s\n' "$out"
+    [ "$rc" -eq 0 ] || exit 1
+    return 0
+  fi
+  if [ "$rc" -eq 0 ]; then out=$(printf '%s\n' "$out" | sed '$d'); fi
+  [ -z "$out" ] || printf '%s\n' "$out"
+  echo "RECORD-CHECK BAD: $why"
+  echo "RECORD-CHECK FAILED: the Owner steps section"
+  exit 1
+}
+
+# ---------------------------------------------------------------------------
 # down, chain and record-check
 # ---------------------------------------------------------------------------
 
@@ -5899,6 +6412,8 @@ while [ "$#" -gt 0 ]; do
     compat) cmd_compat ;;
     capfull) cmd_capfull ;;
     down-con) cmd_down_con ;;
+    con-chain) cmd_con_chain ;;
+    record-check-con) cmd_record_check_con ;;
     *) usage ;;
   esac
 done
