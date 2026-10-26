@@ -113,7 +113,7 @@ CONSIST_RUNS=${CONSIST_RUNS:-40}
 CONSIST_MIN_RUNS=${CONSIST_MIN_RUNS:-30}
 CONSIST_STAGES=${CONSIST_STAGES:-adds deletes}
 CONSIST_RESTORE_EVERY=${CONSIST_RESTORE_EVERY:-1}
-CHURN_WORKERS=${CHURN_WORKERS:-2}
+CHURN_WORKERS=${CHURN_WORKERS:-4}
 CHURN_PAUSE=${CHURN_PAUSE:-0.05}
 
 # Allowances, named here and written next to the verdict as KEY lines. Both are
@@ -918,6 +918,7 @@ cmd_selftest() {
   selftest_verdict
   selftest_record
   selftest_consist
+  selftest_outcome
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -3067,6 +3068,10 @@ DB=/opt/holzcloud/data/holzcloud.sqlite
 umask 077
 ms() { date +%s%3N; }
 logline() { printf '%s\n' "$*" >> "$LOG"; }
+# The pause plus up to 0.29 s of jitter: workers that start together and wait the same
+# time stay together, and then every backup meets the same phase of the load (measured:
+# the same count of uploads inside the window in run after run).
+nap() { sleep "$pause"; sleep "0.$((RANDOM % 3))$((RANDOM % 10))"; }
 code_of() { local r=$1; set -- $r; echo "${2:-none}"; }
 ensure_login() {
   local r
@@ -3085,7 +3090,7 @@ uploader() {
     s=$(ms); res=$(bash "$SESS" upload "$wid" "$jar" "$f" "$name"); e=$(ms)
     logline "$e $s upload $(code_of "$res") $name"
     rm -f "$f"
-    sleep "$pause"
+    nap
   done
 }
 pager() {
@@ -3096,7 +3101,7 @@ pager() {
     slug="churn-$tag-p$n"
     s=$(ms); res=$(bash "$SESS" page "$wid" "$jar" "$slug" "Churn $tag $n" "$baseref"); e=$(ms)
     logline "$e $s page $(code_of "$res") $slug"
-    sleep "$pause"
+    nap
   done
 }
 deleter() {
@@ -3112,7 +3117,7 @@ deleter() {
     s=$(ms); res=$(bash "$SESS" delete "$wid" "$jar" "$id"); e=$(ms)
     logline "$e $s delete $(code_of "$res") $id:$wid/$stem"
     last=$id
-    sleep "$pause"
+    nap
   done
 }
 w=1
@@ -3384,7 +3389,7 @@ consist_run() {
   rm -rf "$w"
   mkdir -p "$w"
   tag=$stage$n
-  R_CLASS=? R_BRC=? R_RRC=- R_MISSING=? R_ORPHAN=? R_WU=? R_WP=? R_WD=? R_U=? R_P=? R_D=? R_BS=? R_DIR=? R_RESTORED=$restore R_RSYNC=- R_BADRUN=no
+  R_CLASS=? R_BRC=? R_RRC=- R_MISSING=? R_ORPHAN=? R_WU=? R_WP=? R_WD=? R_U=? R_P=? R_D=? R_BS=? R_DIR=? R_RESTORED=$restore R_RSYNC=- R_BADRUN=no R_NAMED=- R_WNAME=- R_RS=0
   keep_out=$CHECK_OUT
 
   # (1) The load, and a wait until it is running.
@@ -3400,7 +3405,10 @@ consist_run() {
     return 1
   fi
 
-  # (2) The document's manual line, with a timestamp on every output line.
+  # (2) The document's manual line, with a timestamp on every output line. It starts
+  # a random fraction of a second after the load is running, so that the runs do not
+  # all meet the same phase of it.
+  sleep "0.$(printf '%03d' $((RANDOM % 1000)))"
   docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$BACKUP_LINE" > "$w/backup.txt" 2>&1 || true
   churn_stop || check_bad "run $stage $n: the churn generator did not stop in time"
   dx cat /root/hc-churn.log > "$w/churn.txt" 2> /dev/null || true
@@ -3419,7 +3427,7 @@ consist_run() {
   if [ -n "$ts" ] && dx test -f "$bdir/MANIFEST"; then man=yes; fi
   R_DIR=$bdir
   R_BS=$(awk '$1 == "WALL" { printf "%.1f", ($3 - $2) / 1000 }' "$w/backup.txt")
-  rsync_st=$(sed -n 's/.*rsync \(error\|warning\): .*(code \([0-9]*\)).*/\2/p' "$w/backup.txt" | head -n 1)
+  rsync_st=$(sed -n -E 's/.*rsync (error|warning): .*\(code ([0-9]+)\).*/\2/p' "$w/backup.txt" | head -n 1)
   R_RSYNC=${rsync_st:--}
 
   # (3) The window: events of the churn log held against the backup's own lines.
@@ -3446,6 +3454,8 @@ consist_run() {
   # (4) Refused: backup.sh ended non-zero with no MANIFEST. There is nothing to compare.
   if [ "$brc" -ne 0 ] && [ "$man" = no ]; then
     R_CLASS=$(run_class "$brc" "$man" - -) || R_CLASS=?
+    R_RESTORED=no
+    consist_name_run "$stage" "$n" "$w" "$db0" "$db1" "$me1"
     consist_finish "$stage" "$n" "$w" "$pfx"
     return 0
   fi
@@ -3481,8 +3491,10 @@ consist_run() {
       return 1
     fi
     R_RRC=$rrc
+    R_RS=$(awk '$1 == "WALL" { printf "%d", ($3 - $2) / 1000 }' "$w/restore.txt")
     if [ "$rrc" -ne 0 ]; then
       R_CLASS=$(run_class "$brc" "$man" "$rrc" -) || R_CLASS=?
+      R_RESTORED=failed
       check_bad "run $stage $n: restore.sh ended with status $rrc on a complete backup; the last lines: $(tail -n 4 "$w/restore.txt" | tr '\n' '|')"
       consist_finish "$stage" "$n" "$w" "$pfx"
       return 0
@@ -3509,6 +3521,7 @@ consist_run() {
   R_MISSING=$miss
   R_ORPHAN=$orph
   R_CLASS=$(run_class "$brc" "$man" "$rrc" "$agree") || R_CLASS=?
+  if [ "$R_CLASS" != AGREE ]; then consist_name_run "$stage" "$n" "$w" "$db0" "$db1" "$me1"; fi
   {
     echo "RUN: $stage $n restored=$restore"
     echo "BACKUP-DIR: $bdir"
@@ -3518,6 +3531,7 @@ consist_run() {
     echo "ORPHAN: $orph"
     echo "EXCLUDED: */bulk/ (the fixture directory of run.sh backup-fixture has files by design and no rows)"
     echo "CLASS: $R_CLASS"
+    cat "$w/names.txt" 2> /dev/null || true
   } > "$w/compare.txt"
   CHECK_OUT=$w/compare.txt
   nbad0=$BADS
@@ -3582,11 +3596,12 @@ consist_run() {
 # CONSIST_KEEP_RAW=1), and the cleanup of the backup directories of the others.
 consist_finish() {
   local stage=$1 n=$2 w=$3 pfx=$4 keep=no f
-  printf 'RUN %s %s CLASS=%s BACKUP-RC=%s RESTORE-RC=%s MISSING=%s ORPHAN=%s WINDOW-UPLOADS=%s WINDOW-PAGES=%s WINDOW-DELETES=%s UPLOADS=%s PAGES=%s DELETES=%s BACKUP-S=%s RESTORED=%s RSYNC-STATUS=%s DIR=%s\n' \
-    "$n" "$stage" "$R_CLASS" "$R_BRC" "$R_RRC" "$R_MISSING" "$R_ORPHAN" "$R_WU" "$R_WP" "$R_WD" "$R_U" "$R_P" "$R_D" "$R_BS" "$R_RESTORED" "$R_RSYNC" "$R_DIR" >> "$OUT_DIR/consist-runs.txt"
+  printf 'RUN %s %s CLASS=%s BACKUP-RC=%s RESTORE-RC=%s MISSING=%s ORPHAN=%s WINDOW-UPLOADS=%s WINDOW-PAGES=%s WINDOW-DELETES=%s UPLOADS=%s PAGES=%s DELETES=%s BACKUP-S=%s RESTORED=%s NAMED=%s WINDOW-NAME=%s RSYNC-STATUS=%s DIR=%s\n' \
+    "$n" "$stage" "$R_CLASS" "$R_BRC" "$R_RRC" "$R_MISSING" "$R_ORPHAN" "$R_WU" "$R_WP" "$R_WD" "$R_U" "$R_P" "$R_D" "$R_BS" "$R_RESTORED" "$R_NAMED" "$R_WNAME" "$R_RSYNC" "$R_DIR" >> "$OUT_DIR/consist-runs.txt"
+  if [ -s "$w/names.txt" ]; then cat "$w/names.txt" >> "$OUT_DIR/consist-names.txt"; fi
   if [ "$n" = 1 ] || [ "$R_CLASS" != AGREE ] || [ "$R_BADRUN" = yes ]; then keep=yes; fi
   if [ "$keep" = yes ] || [ "${CONSIST_KEEP_RAW:-0}" = 1 ]; then
-    for f in backup restore compare churn steps; do
+    for f in backup restore compare churn steps names; do
       if [ -f "$w/$f.txt" ]; then cp "$w/$f.txt" "$OUT_DIR/$pfx-$f.txt"; fi
     done
   fi
@@ -3632,7 +3647,7 @@ comparator_selftest() {
 
 cmd_consist() {
   local o=$OUT_DIR/consist.txt ro=$OUT_DIR/consist-runs.txt stage n restore line ver t0 t1 first_s tl
-  local nclass_a nclass_o nclass_m nclass_r bl rl last
+  local nclass_a nclass_o nclass_m nclass_r bl rl last nst why pick pe_every pe_status pe_secs
   need_container
   dxt true > /dev/null 2>&1 \
     || die "container $TGT_NAME does not answer; bring the second host up with: bash deploy/test/nightly.sh target (TGT_NAME=$TGT_NAME)"
@@ -3641,10 +3656,18 @@ cmd_consist() {
   case "$CONSIST_RUNS" in "" | *[!0-9]* | 0) die "CONSIST_RUNS '$CONSIST_RUNS' is not a positive number" ;; esac
   case "$CONSIST_MIN_RUNS" in "" | *[!0-9]* | 0) die "CONSIST_MIN_RUNS '$CONSIST_MIN_RUNS' is not a positive number" ;; esac
   case "$CONSIST_RESTORE_EVERY" in "" | *[!0-9]* | 0) die "CONSIST_RESTORE_EVERY '$CONSIST_RESTORE_EVERY' is not a positive number" ;; esac
+  nst=0
+  for stage in $CONSIST_STAGES; do
+    case "$stage" in adds | deletes) nst=$((nst + 1)) ;; *) die "CONSIST_STAGES holds '$stage', expected adds or deletes" ;; esac
+  done
+  [ "$nst" -gt 0 ] || die "CONSIST_STAGES is empty"
+  why=$(restore_every_ok "$CONSIST_RUNS" "$CONSIST_MIN_RUNS" "$CONSIST_RESTORE_EVERY") \
+    || die "CONSIST_RESTORE_EVERY=$CONSIST_RESTORE_EVERY: $why. A verdict rests on restored runs: use CONSIST_RESTORE_EVERY=$(restore_every_max "$CONSIST_RUNS" "$CONSIST_MIN_RUNS") or less"
   mkdir -p "$OUT_DIR"
   BADS=0
   res_begin "$o"
   : > "$ro"
+  : > "$OUT_DIR/consist-names.txt"
   p25_ship
   WID=$(p25_wid)
   BASEREF=$(p25_baseref)
@@ -3657,6 +3680,7 @@ cmd_consist() {
   key_line "CONSIST-RUNS: $CONSIST_RUNS"
   key_line "CONSIST-STAGES: $CONSIST_STAGES"
   key_line "CONSIST-RESTORE-EVERY: $CONSIST_RESTORE_EVERY"
+  key_line "RESTORED-RUNS-FLOOR: $(restore_required "$CONSIST_RUNS" "$CONSIST_MIN_RUNS") per stage (at least half of MIN-RUNS and never fewer than 10, never more than the stage has runs)"
   key_line "CHURN-WORKERS: $CHURN_WORKERS uploaders, one page saver, in stage deletes one deleter"
   key_line "CHURN-PAUSE-S: $CHURN_PAUSE"
   key_line "BACKUP-LINE: deploy/DEPLOY.md:${bl%%:*}: $BACKUP_LINE"
@@ -3699,18 +3723,34 @@ cmd_consist() {
       if [ "$stage" = "${CONSIST_STAGES%% *}" ] && [ "$n" = 1 ]; then
         first_s=$((SECONDS - t1))
         key_line "RUN-1-SECONDS: $first_s"
+        key_line "RUN-1-RESTORE-SECONDS: ${R_RS:-0}"
+        # 90 minutes is the budget for all runs; a longer projection raises
+        # CONSIST_RESTORE_EVERY (never lowers N), within what the restore floor allows.
+        pick=$(consist_pick_every "$CONSIST_RUNS" "$CONSIST_MIN_RUNS" "$nst" "$first_s" "${R_RS:-0}" "$CONSIST_RESTORE_EVERY") || pick="$CONSIST_RESTORE_EVERY ok 0"
+        read -r pe_every pe_status pe_secs <<< "$pick"
+        key_line "PROJECTED-MINUTES: $((pe_secs / 60)) at CONSIST_RESTORE_EVERY=$pe_every ($nst stage(s) of $CONSIST_RUNS runs)"
+        if [ "$pe_every" != "$CONSIST_RESTORE_EVERY" ]; then
+          deviation "DEVIATION[restore-every]: the first run took $first_s s, so $nst stage(s) of $CONSIST_RUNS runs would exceed 90 minutes; CONSIST_RESTORE_EVERY is raised from $CONSIST_RESTORE_EVERY to $pe_every (the number of runs is not lowered, the floor of restored runs still holds)"
+          key_line "RESTORE-EVERY-RAISED: $CONSIST_RESTORE_EVERY -> $pe_every"
+          CONSIST_RESTORE_EVERY=$pe_every
+        fi
+        if [ "$pe_status" = over ]; then
+          key_line "PROJECTION-OVER-90-MIN: even with CONSIST_RESTORE_EVERY=$pe_every the projection is $((pe_secs / 60)) minutes; the runs are not reduced"
+        fi
       fi
       n=$((n + 1))
     done
   done
   key_line "WALL-MINUTES: $(((SECONDS - t0) / 60))"
   dx bash -c 'rm -f /root/.hc-jar-churn-*' || true
+  while IFS= read -r line; do key_line "$line"; done < "$OUT_DIR/consist-names.txt"
   for stage in $CONSIST_STAGES; do
     nclass_a=$(grep -c "^RUN [0-9]* $stage CLASS=AGREE " "$ro" || true)
     nclass_o=$(grep -c "^RUN [0-9]* $stage CLASS=ORPHAN-ONLY " "$ro" || true)
     nclass_m=$(grep -c "^RUN [0-9]* $stage CLASS=ROW-WITHOUT-FILE " "$ro" || true)
     nclass_r=$(grep -c "^RUN [0-9]* $stage CLASS=BACKUP-REFUSED " "$ro" || true)
     key_line "CLASS-COUNTS-STAGE-$stage: AGREE=$nclass_a ORPHAN-ONLY=$nclass_o ROW-WITHOUT-FILE=$nclass_m BACKUP-REFUSED=$nclass_r"
+    consist_stage_report "$stage" "$ro" "$CONSIST_MIN_RUNS"
   done
   leak_check
   last=CONSIST-OK
@@ -3721,6 +3761,464 @@ cmd_consist() {
     exit 1
   fi
   key_line "CONSIST OK"
+}
+
+
+selftest_outcome() {
+  local t
+  t=$(mktemp -d) || return 1
+  # window_name KIND START END DB_START DB_END MEDIA_END; database step 1000..1300, media step ends 2000.
+  st_eq "window_name before the database step" before "$(window_name upload 100 900 1000 1300 2000)"
+  st_eq "window_name ended exactly at the start of the database step" before "$(window_name upload 100 1000 1000 1300 2000)"
+  st_eq "window_name ended one millisecond into the database step" overlaps-snapshot-step "$(window_name upload 100 1001 1000 1300 2000)"
+  st_eq "window_name inside the database step" overlaps-snapshot-step "$(window_name delete 1100 1200 1000 1300 2000)"
+  st_eq "window_name began before and ended after the whole database step" overlaps-snapshot-step "$(window_name delete 900 1400 1000 1300 2000)"
+  st_eq "window_name began inside the database step and ended in the window" overlaps-snapshot-step "$(window_name upload 1299 1500 1000 1300 2000)"
+  st_eq "window_name began exactly at the end of the database step" after-snapshot "$(window_name upload 1300 1500 1000 1300 2000)"
+  st_eq "window_name ended one millisecond before the end of the media step" after-snapshot "$(window_name upload 1500 1999 1000 1300 2000)"
+  st_eq "window_name ended exactly at the end of the media step" straddles-media-end "$(window_name delete 1500 2000 1000 1300 2000)"
+  st_eq "window_name ended after the media step" straddles-media-end "$(window_name page 1900 2500 1000 1300 2000)"
+  st_eq "window_name began exactly at the end of the media step" after "$(window_name upload 2000 2100 1000 1300 2000)"
+  st_eq "window_name long after" after "$(window_name upload 5000 5100 1000 1300 2000)"
+  st_fail "window_name unknown kind" window_name copy 1500 1600 1000 1300 2000
+  st_fail "window_name a non-number" window_name upload x 1600 1000 1300 2000
+  st_fail "window_name an event that ends before it starts" window_name upload 1600 1500 1000 1300 2000
+  st_fail "window_name steps out of order" window_name upload 1500 1600 1300 1000 2000
+  st_fail "window_name media step ends before the database step" window_name upload 1500 1600 1000 1300 1200
+  st_eq "window_name prints nothing when it refuses" "" "$(window_name copy 1500 1600 1000 1300 2000 || true)"
+
+  # exposure_ok N MIN_RUNS EXPOSED
+  st_ok "exposure 40 runs, 20 exposed" exposure_ok 40 30 20
+  st_fail "exposure 40 runs, 19 exposed" exposure_ok 40 30 19
+  st_ok "exposure 40 runs, 40 exposed" exposure_ok 40 30 40
+  st_fail "exposure 29 runs with a floor of 30, all exposed" exposure_ok 29 30 29
+  st_ok "exposure 30 runs with a floor of 30, 15 exposed" exposure_ok 30 30 15
+  st_fail "exposure 30 runs, 14 exposed" exposure_ok 30 30 14
+  st_ok "exposure a trace of one run with a floor of one" exposure_ok 1 1 1
+  st_fail "exposure one run against the default floor of 30" exposure_ok 1 30 1
+  st_fail "exposure one run, none exposed" exposure_ok 1 1 0
+  st_ok "exposure 3 runs, 2 exposed (half rounds up)" exposure_ok 3 1 2
+  st_fail "exposure 3 runs, 1 exposed" exposure_ok 3 1 1
+  st_fail "exposure no runs" exposure_ok 0 0 0
+  st_fail "exposure a non-number" exposure_ok x 30 5
+  st_eq "exposure_ok says ok" ok "$(exposure_ok 40 30 20)"
+
+  # rule_of_three N: 3/N as a percent, one decimal
+  st_eq "rule_of_three 40" "7.5" "$(rule_of_three 40)"
+  st_eq "rule_of_three 30" "10.0" "$(rule_of_three 30)"
+  st_eq "rule_of_three 1" "300.0" "$(rule_of_three 1)"
+  st_eq "rule_of_three 7 (rounds half up)" "42.9" "$(rule_of_three 7)"
+  st_eq "rule_of_three 80" "3.8" "$(rule_of_three 80)"
+  st_eq "rule_of_three 300" "1.0" "$(rule_of_three 300)"
+  st_fail "rule_of_three 0" rule_of_three 0
+  st_fail "rule_of_three x" rule_of_three x
+
+  # con01_outcome AGREE ORPHAN-ONLY ROW-WITHOUT-FILE REFUSED RESTORE-FAILED N MIN_RUNS EXPOSED NAMED
+  st_eq "outcome all agree, exposure ok" AGREE-ALL "$(con01_outcome 40 0 0 0 0 40 30 40 0)"
+  st_eq "outcome all agree, 19 of 40 exposed" INCONCLUSIVE "$(con01_outcome 40 0 0 0 0 40 30 19 0)"
+  st_eq "outcome all agree, 29 runs against a floor of 30" INCONCLUSIVE "$(con01_outcome 29 0 0 0 0 29 30 29 0)"
+  st_eq "outcome orphans only, all named" ORPHAN-ONLY-NAMED "$(con01_outcome 0 40 0 0 0 40 30 40 40)"
+  st_eq "outcome some orphans, the rest agree" ORPHAN-ONLY-NAMED "$(con01_outcome 30 10 0 0 0 40 30 40 10)"
+  st_eq "outcome a row without a file, every window named" ROW-WITHOUT-FILE-NAMED "$(con01_outcome 20 10 10 0 0 40 30 40 20)"
+  st_eq "outcome a row without a file, one window not named" UNNAMED "$(con01_outcome 20 10 10 0 0 40 30 40 19)"
+  st_eq "outcome an orphan whose window is not named" UNNAMED "$(con01_outcome 39 1 0 0 0 40 30 40 0)"
+  st_eq "outcome unnamed beats inconclusive" UNNAMED "$(con01_outcome 30 10 0 0 0 40 30 5 9)"
+  st_eq "outcome a refused backup named by its rsync status" REFUSED-NAMED "$(con01_outcome 39 0 0 1 0 40 30 40 1)"
+  st_eq "outcome a refused backup without a name" UNNAMED "$(con01_outcome 39 0 0 1 0 40 30 40 0)"
+  st_eq "outcome refused beside orphans reports the orphans" ORPHAN-ONLY-NAMED "$(con01_outcome 30 8 0 2 0 40 30 40 10)"
+  st_eq "outcome a failed restore" RESTORE-FAILED "$(con01_outcome 39 0 0 0 1 40 30 40 0)"
+  st_eq "outcome counts that do not add up" INCOMPLETE "$(con01_outcome 35 0 0 0 0 40 30 40 0)"
+  st_eq "outcome a trace of one run, exposed" AGREE-ALL "$(con01_outcome 1 0 0 0 0 1 1 1 0)"
+  st_eq "outcome a trace of one run, not exposed" INCONCLUSIVE "$(con01_outcome 1 0 0 0 0 1 1 0 0)"
+  st_eq "outcome a trace can never be the evidence set" INCONCLUSIVE "$(con01_outcome 1 0 0 0 0 1 30 1 0)"
+  st_fail "outcome a non-number" con01_outcome x 0 0 0 0 1 1 1 0
+
+  # restore_required N MIN_RUNS and the floor of restored runs
+  st_eq "restore_required 40 runs, floor 30" 15 "$(restore_required 40 30)"
+  st_eq "restore_required 40 runs, floor 10" 10 "$(restore_required 40 10)"
+  st_eq "restore_required never fewer than 10" 10 "$(restore_required 40 1)"
+  st_eq "restore_required a trace of 6 runs: every run" 6 "$(restore_required 6 1)"
+  st_eq "restore_required 100 runs, floor 100" 50 "$(restore_required 100 100)"
+  st_eq "restore_required a floor of 31 rounds up" 16 "$(restore_required 40 31)"
+  st_ok "restore floor 40 of 40" restore_floor_ok 40 40 30
+  st_ok "restore floor exactly 15" restore_floor_ok 40 15 30
+  st_fail "restore floor 14 of 40" restore_floor_ok 40 14 30
+  st_fail "restore floor 9 of 40 with a floor of 1" restore_floor_ok 40 9 1
+  st_ok "restore floor 6 of 6" restore_floor_ok 6 6 1
+  st_fail "restore floor 5 of 6" restore_floor_ok 6 5 1
+  st_ok "restore floor 5 of 6 when one was refused (a trace)" restore_floor_ok 6 5 1 1
+  st_fail "restore floor 4 of 6 when one was refused (a trace)" restore_floor_ok 6 4 1 1
+  st_fail "restore floor none restored, all refused (a trace)" restore_floor_ok 6 0 1 6
+  st_fail "restore floor 14 of 40 with 5 refused (an evidence set keeps its floor)" restore_floor_ok 40 14 30 5
+  st_ok "restore floor 15 of 40 with 5 refused" restore_floor_ok 40 15 30 5
+  st_ok "restore_every 1" restore_every_ok 40 30 1
+  st_ok "restore_every 2 restores 20" restore_every_ok 40 30 2
+  st_ok "restore_every 2 with an odd count restores 21" restore_every_ok 41 30 2
+  st_fail "restore_every 3 restores 14" restore_every_ok 40 30 3
+  st_fail "restore_every 4 restores 10" restore_every_ok 40 30 4
+  st_eq "restore_every_ok says why" "only 14 of 40 runs would be restored and compared after the restore, the floor is 15" "$(restore_every_ok 40 30 3 || true)"
+  st_eq "restore_every_max 40 runs floor 30" 2 "$(restore_every_max 40 30)"
+  st_eq "restore_every_max a trace" 1 "$(restore_every_max 6 1)"
+  st_eq "restore_every_max 80 runs floor 30" 5 "$(restore_every_max 80 30)"
+
+  # consist_stage_counts: N AGREE ORPHAN ROWMISS REFUSED RESTFAIL EXPOSED NAMED RESTORED UPIN PGIN DELIN
+  printf '%s\n' \
+    'RUN 1 adds CLASS=AGREE BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=0 WINDOW-UPLOADS=2 WINDOW-PAGES=1 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=yes NAMED=- RSYNC-STATUS=- DIR=/x' \
+    'RUN 2 adds CLASS=ORPHAN-ONLY BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=3 WINDOW-UPLOADS=1 WINDOW-PAGES=0 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=yes NAMED=yes RSYNC-STATUS=- DIR=/x' \
+    'RUN 3 adds CLASS=ROW-WITHOUT-FILE BACKUP-RC=0 RESTORE-RC=- MISSING=1 ORPHAN=0 WINDOW-UPLOADS=0 WINDOW-PAGES=1 WINDOW-DELETES=2 UPLOADS=9 PAGES=3 DELETES=5 BACKUP-S=1.3 RESTORED=no NAMED=yes RSYNC-STATUS=- DIR=/x' \
+    'RUN 4 adds CLASS=BACKUP-REFUSED BACKUP-RC=24 RESTORE-RC=- MISSING=? ORPHAN=? WINDOW-UPLOADS=? WINDOW-PAGES=? WINDOW-DELETES=? UPLOADS=9 PAGES=3 DELETES=5 BACKUP-S=1.0 RESTORED=yes NAMED=yes RSYNC-STATUS=24 DIR=/x' \
+    'RUN 5 adds CLASS=RESTORE-FAILED BACKUP-RC=0 RESTORE-RC=1 MISSING=? ORPHAN=? WINDOW-UPLOADS=1 WINDOW-PAGES=0 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=yes NAMED=- RSYNC-STATUS=- DIR=/x' \
+    'RUN 1 deletes CLASS=AGREE BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=0 WINDOW-UPLOADS=7 WINDOW-PAGES=0 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=yes NAMED=- RSYNC-STATUS=- DIR=/x' \
+    > "$t/runs.txt"
+  st_eq "counts of stage adds" "5 1 1 1 1 1 3 3 2 4 2 2" "$(consist_stage_counts "$t/runs.txt" adds)"
+  st_eq "counts of stage deletes" "1 1 0 0 0 0 1 0 1 7 0 0" "$(consist_stage_counts "$t/runs.txt" deletes)"
+  st_eq "counts of a stage that has no runs" "0 0 0 0 0 0 0 0 0 0 0 0" "$(consist_stage_counts "$t/runs.txt" nothing)"
+  st_eq "restored run numbers of stage adds" "1 2" "$(consist_restored_numbers "$t/runs.txt" adds)"
+  st_eq "backup status histogram of stage adds" "0=4 24=1" "$(consist_rc_histogram "$t/runs.txt" adds)"
+
+  # consist_pick_every N MIN_RUNS STAGES FIRST_S RESTORE_S CURRENT
+  st_eq "pick_every 40 runs fit as they are" "1 ok 1680" "$(consist_pick_every 40 30 2 21 10 1)"
+  st_eq "pick_every 200 runs raise the interval to 4" "4 ok 5400" "$(consist_pick_every 200 30 2 21 10 1)"
+  st_eq "pick_every 400 runs do not fit at any interval" "26 over 9120" "$(consist_pick_every 400 30 2 21 10 1)"
+  st_eq "pick_every never lowers a given interval" "3 ok 1160" "$(consist_pick_every 40 30 2 21 10 3)"
+  st_fail "pick_every a non-number" consist_pick_every x 30 2 21 10 1
+  rm -rf "${t:?}"
+}
+# ---------------------------------------------------------------------------
+# Phase 25, plan 01, task 2: N runs in two stages, the exposure guard, the window
+# named, the verdict with its rule of three. All of it is computed from the file
+# consist-runs.txt, so it can be judged again offline.
+# ---------------------------------------------------------------------------
+
+# is_num V...: every argument is a non-empty string of digits.
+is_num() {
+  local v
+  for v in "$@"; do
+    case "$v" in "" | *[!0-9]*) return 1 ;; esac
+  done
+  return 0
+}
+
+# window_name KIND START END DB_START DB_END MEDIA_END: where an event stands against
+# the two copies of one backup, all in milliseconds. One of
+#   before                 it ended at or before the start of the database step
+#   overlaps-snapshot-step it overlapped the database step (the snapshot instant lies
+#                          somewhere inside it: the CLI process opens the database,
+#                          checks migrations, runs VACUUM INTO and reopens the file,
+#                          so an event that overlaps cannot be ordered against it)
+#   after-snapshot         it began at or after the end of the database step and
+#                          ended before the end of the media step
+#   straddles-media-end    it began in the window and ended at or after the end of
+#                          the media step
+#   after                  it began at or after the end of the media step
+# Refuses (status 1, nothing printed) a kind other than upload, page, delete, a
+# non-number, an event that ends before it starts, or steps out of order.
+window_name() {
+  local kind=$1 s=$2 e=$3 ds=$4 de=$5 me=$6
+  case "$kind" in upload | page | delete) ;; *) return 1 ;; esac
+  is_num "$s" "$e" "$ds" "$de" "$me" || return 1
+  [ "$s" -le "$e" ] && [ "$ds" -le "$de" ] && [ "$de" -le "$me" ] || return 1
+  if [ "$e" -le "$ds" ]; then
+    echo before
+  elif [ "$s" -lt "$de" ]; then
+    echo overlaps-snapshot-step
+  elif [ "$s" -ge "$me" ]; then
+    echo after
+  elif [ "$e" -lt "$me" ]; then
+    echo after-snapshot
+  else
+    echo straddles-media-end
+  fi
+}
+
+# exposure_ok N MIN_RUNS EXPOSED: a stage proves something about the window only if
+# it had at least MIN_RUNS runs and at least half of them (rounded up) had an upload
+# in the window. Prints ok, or the reason; status 1 for the reason.
+exposure_ok() {
+  local n=$1 min=$2 ex=$3
+  is_num "$n" "$min" "$ex" || { echo "not numbers"; return 1; }
+  if [ "$n" -lt 1 ]; then
+    echo "no runs"
+    return 1
+  fi
+  if [ "$n" -lt "$min" ]; then
+    echo "$n runs are fewer than the floor of $min"
+    return 1
+  fi
+  if [ $((ex * 2)) -lt "$n" ]; then
+    echo "only $ex of $n runs had an upload in the window, fewer than half"
+    return 1
+  fi
+  echo ok
+}
+
+# rule_of_three N: the upper 95 percent bound of a per-run rate after N runs with no
+# event, 3/N as a percent with one decimal (half rounds up).
+rule_of_three() {
+  is_num "$1" || return 1
+  [ "$1" -ge 1 ] || return 1
+  local t=$(((6000 + $1) / (2 * $1)))
+  printf '%d.%d\n' $((t / 10)) $((t % 10))
+}
+
+# con01_outcome AGREE ORPHAN-ONLY ROW-WITHOUT-FILE BACKUP-REFUSED RESTORE-FAILED N MIN_RUNS EXPOSED NAMED:
+# the class counts of one stage, its number of runs, the floor, the runs with an
+# upload in the window and the number of disagreeing runs (orphan, row without
+# file, refused) whose window was named (a refused backup is named by its rsync
+# status). One of INCOMPLETE (the counts do not add up to N: a run failed in the
+# harness), UNNAMED (a disagreement whose window cannot be named: FUT-02 candidate),
+# RESTORE-FAILED, INCONCLUSIVE (exposure_ok fails), ROW-WITHOUT-FILE-NAMED,
+# ORPHAN-ONLY-NAMED, REFUSED-NAMED, AGREE-ALL. The harmful direction dominates.
+con01_outcome() {
+  local a=$1 o=$2 m=$3 r=$4 x=$5 n=$6 min=$7 ex=$8 nm=$9 dis
+  is_num "$a" "$o" "$m" "$r" "$x" "$n" "$min" "$ex" "$nm" || return 1
+  if [ $((a + o + m + r + x)) -ne "$n" ]; then
+    echo INCOMPLETE
+    return 0
+  fi
+  dis=$((o + m + r))
+  if [ "$nm" -lt "$dis" ]; then
+    echo UNNAMED
+  elif [ "$x" -gt 0 ]; then
+    echo RESTORE-FAILED
+  elif ! exposure_ok "$n" "$min" "$ex" > /dev/null; then
+    echo INCONCLUSIVE
+  elif [ "$m" -gt 0 ]; then
+    echo ROW-WITHOUT-FILE-NAMED
+  elif [ "$o" -gt 0 ]; then
+    echo ORPHAN-ONLY-NAMED
+  elif [ "$r" -gt 0 ]; then
+    echo REFUSED-NAMED
+  else
+    echo AGREE-ALL
+  fi
+}
+
+# restore_required N MIN_RUNS: how many runs of a stage must have been restored by
+# restore.sh and compared after the restore for the stage to be a verdict: at least
+# half of MIN_RUNS (rounded up) and never fewer than 10, and never more than the
+# stage has runs (a trace of fewer than 10 runs must restore every run).
+restore_required() {
+  local n=$1 min=$2 req
+  req=$(((min + 1) / 2))
+  if [ "$req" -lt 10 ]; then req=10; fi
+  if [ "$req" -gt "$n" ]; then req=$n; fi
+  echo "$req"
+}
+
+# restore_floor_ok N RESTORED MIN_RUNS [REFUSED]: ok, or the reason (status 1). A
+# backup that backup.sh refused has no MANIFEST and nothing to restore; in a trace
+# (MIN_RUNS below 10, where the floor is every run) those runs are not asked for, but
+# at least one run must have been restored. An evidence set (MIN_RUNS of 10 or more)
+# keeps its floor whatever was refused.
+restore_floor_ok() {
+  local req ref=${4:-0}
+  req=$(restore_required "$1" "$3")
+  if [ "$3" -lt 10 ] && [ $(($1 - ref)) -lt "$req" ]; then
+    req=$(($1 - ref))
+    if [ "$req" -lt 1 ]; then req=1; fi
+  fi
+  if [ "$2" -ge "$req" ]; then
+    echo ok
+    return 0
+  fi
+  echo "only $2 of $1 runs were restored and compared after the restore, the floor is $req"
+  return 1
+}
+
+# restore_every_ok N MIN_RUNS EVERY: what CONSIST_RESTORE_EVERY=EVERY gives: runs 1,
+# 1+EVERY, ... are restored, which is ceil(N / EVERY) of them.
+restore_every_ok() {
+  local req cnt=$((($1 + $3 - 1) / $3))
+  req=$(restore_required "$1" "$2")
+  if [ "$cnt" -ge "$req" ]; then
+    echo ok
+    return 0
+  fi
+  echo "only $cnt of $1 runs would be restored and compared after the restore, the floor is $req"
+  return 1
+}
+
+# restore_every_max N MIN_RUNS: the largest EVERY that still restores the required number.
+restore_every_max() {
+  local req
+  req=$(restore_required "$1" "$2")
+  echo $(($1 / req))
+}
+
+# consist_stage_counts RUNSFILE STAGE: "N AGREE ORPHAN ROWMISS REFUSED RESTFAIL
+# EXPOSED NAMED RESTORED UPIN PGIN DELIN" from the RUN lines of one stage: the runs
+# and the classes, the runs with an upload in the window, the runs whose window was
+# named, the runs that were restored and compared after the restore (a failed
+# restore and a refused backup are not), and the writes that ended in the window.
+consist_stage_counts() {
+  awk -v st="$2" '
+    $1 == "RUN" && $3 == st {
+      n++
+      split("", v)
+      for (i = 4; i <= NF; i++) { k = index($i, "="); if (k > 0) v[substr($i, 1, k - 1)] = substr($i, k + 1) }
+      c = v["CLASS"]
+      if (c == "AGREE") a++
+      else if (c == "ORPHAN-ONLY") o++
+      else if (c == "ROW-WITHOUT-FILE") m++
+      else if (c == "BACKUP-REFUSED") r++
+      else if (c == "RESTORE-FAILED") x++
+      if (v["WINDOW-UPLOADS"] ~ /^[0-9]+$/) { up += v["WINDOW-UPLOADS"]; if (v["WINDOW-UPLOADS"] + 0 > 0) e++ }
+      if (v["WINDOW-PAGES"] ~ /^[0-9]+$/) pg += v["WINDOW-PAGES"]
+      if (v["WINDOW-DELETES"] ~ /^[0-9]+$/) dl += v["WINDOW-DELETES"]
+      if (v["NAMED"] == "yes") nm++
+      if (v["RESTORED"] == "yes" && (c == "AGREE" || c == "ORPHAN-ONLY" || c == "ROW-WITHOUT-FILE")) rs++
+    }
+    END { printf "%d %d %d %d %d %d %d %d %d %d %d %d\n", n, a, o, m, r, x, e, nm, rs, up, pg, dl }' "$1"
+}
+
+# consist_restored_numbers RUNSFILE STAGE: the numbers of the runs counted as restored.
+consist_restored_numbers() {
+  awk -v st="$2" '
+    $1 == "RUN" && $3 == st && $0 ~ / RESTORED=yes / && ($4 == "CLASS=AGREE" || $4 == "CLASS=ORPHAN-ONLY" || $4 == "CLASS=ROW-WITHOUT-FILE") { printf "%s%s", sep, $2; sep = " " }
+    END { printf "\n" }' "$1"
+}
+
+# consist_rc_histogram RUNSFILE STAGE: "RC=COUNT RC=COUNT" of BACKUP-RC, ascending.
+consist_rc_histogram() {
+  awk -v st="$2" '
+    $1 == "RUN" && $3 == st { for (i = 4; i <= NF; i++) if ($i ~ /^BACKUP-RC=/) c[substr($i, 11)]++ }
+    END { for (k in c) print k "=" c[k] }' "$1" | sort -n | tr '\n' ' ' | sed 's/ $//'
+}
+
+# consist_name_run STAGE N W DB0 DB1 ME1: the window of every file that accounts for a
+# run's disagreement. The files are the rows without a file, the files without a row
+# and, for a refused backup, the files rsync says vanished. A delete is found in the
+# churn log by the stem of the stored name (the part before the first dot or dash),
+# an upload by the original name that the live database gives that stem. Sets R_NAMED
+# (yes when every file has a name; for a refused backup yes when rsync gave a status)
+# and R_WNAME (the distinct names, comma separated), appends one WINDOW-NAME line per
+# file to W/names.txt.
+consist_name_run() {
+  local stage=$1 n=$2 w=$3 db0=$4 db1=$5 me1=$6 f stem line kind s e id orig name nres=0 nun=0 names=""
+  : > "$w/names.txt"
+  awk '$3 == "delete" && $4 == 303 { split($5, a, ":"); print a[2], $2, $1, $5 }' "$w/churn.txt" > "$w/ev-delete.txt"
+  awk '$3 == "upload" && $4 == 303 { print $5, $2, $1 }' "$w/churn.txt" > "$w/ev-upload.txt"
+  dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite \
+    "select website_id || '/' || filename || '|' || original_name from media where original_name like 'churn-%'" > "$w/map.txt" 2> /dev/null || true
+  { cat "$w/MISSING" "$w/ORPHAN" 2> /dev/null || true
+    sed -n 's|.*file has vanished: "/opt/holzcloud/data/media/\(.*\)".*|\1|p' "$w/backup.txt"
+  } | LC_ALL=C sort -u | head -n 40 > "$w/names-files.txt"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    stem=$(printf '%s' "$f" | sed 's|^\([0-9]*/[0-9a-f]*\).*|\1|')
+    kind=""; s=""; e=""; id=""; name=""
+    line=$(awk -v k="$stem" '$1 == k { print $2, $3, $4; exit }' "$w/ev-delete.txt")
+    if [ -n "$line" ]; then
+      kind=delete
+      set -- $line
+      s=$1; e=$2; id=$3
+    else
+      orig=$(awk -F'|' -v k="$stem" 'index($1, k ".") == 1 { print $2; exit }' "$w/map.txt")
+      if [ -n "$orig" ]; then
+        line=$(awk -v k="$orig" '$1 == k { print $2, $3; exit }' "$w/ev-upload.txt")
+        if [ -n "$line" ]; then
+          kind=upload
+          set -- $line
+          s=$1; e=$2; id=$orig
+        fi
+      fi
+    fi
+    if [ -n "$kind" ] && is_num "$db0" "$db1" "$me1"; then
+      name=$(window_name "$kind" "$s" "$e" "$db0" "$db1" "$me1") || name=""
+    fi
+    if [ -n "$name" ]; then
+      printf 'WINDOW-NAME run %s %s: %s (%s %s %s %s) file %s\n' "$stage" "$n" "$name" "$kind" "$id" "$s" "$e" "$f" >> "$w/names.txt"
+      nres=$((nres + 1))
+      case ",$names," in *",$name,"*) ;; *) names=${names:+$names,}$name ;; esac
+    else
+      printf 'WINDOW-NAME run %s %s: UNRESOLVED file %s (no event of the churn log accounts for it)\n' "$stage" "$n" "$f" >> "$w/names.txt"
+      nun=$((nun + 1))
+    fi
+  done < "$w/names-files.txt"
+  R_NAMED=no
+  if [ "$nres" -gt 0 ] && [ "$nun" -eq 0 ]; then R_NAMED=yes; fi
+  if [ "$R_CLASS" = BACKUP-REFUSED ]; then
+    if [ "$R_RSYNC" != - ]; then R_NAMED=yes; names=${names:+$names,}rsync-$R_RSYNC; fi
+  fi
+  R_WNAME=${names:--}
+}
+
+# consist_pick_every N MIN_RUNS STAGES FIRST_S RESTORE_S CURRENT: after the first run,
+# the smallest CONSIST_RESTORE_EVERY (not below CURRENT) at which STAGES stages of N
+# runs fit in 90 minutes, given that a run costs FIRST_S seconds of which RESTORE_S
+# are the restore; it never goes past what the restore floor allows. Prints
+# "EVERY ok|over PROJECTED_SECONDS"; over means even the largest allowed EVERY does
+# not fit (the runs are not reduced for that).
+consist_pick_every() {
+  local n=$1 min=$2 st=$3 first=$4 rs=$5 cur=$6 b e max t
+  is_num "$n" "$min" "$st" "$first" "$rs" "$cur" || return 1
+  b=$((first - rs))
+  if [ "$b" -lt 0 ]; then b=0; fi
+  max=$(restore_every_max "$n" "$min")
+  if [ "$cur" -gt "$max" ]; then max=$cur; fi
+  e=$cur
+  while :; do
+    t=$((st * (n * b + ((n + e - 1) / e) * rs)))
+    if [ "$t" -le 5400 ]; then
+      echo "$e ok $t"
+      return 0
+    fi
+    if [ "$e" -ge "$max" ]; then
+      echo "$e over $t"
+      return 0
+    fi
+    e=$((e + 1))
+  done
+}
+
+# consist_stage_report STAGE RUNSFILE MIN_RUNS: the KEY lines of one stage and its
+# outcome, from the RUN lines alone, with a BAD line per cause when the stage is no
+# verdict. Returns the outcome in STAGE_OUTCOME.
+consist_stage_report() {
+  local stage=$1 f=$2 min=$3 n a o m r x e nm rs up pg dl out why rt
+  read -r n a o m r x e nm rs up pg dl <<< "$(consist_stage_counts "$f" "$stage")"
+  out=$(con01_outcome "$a" "$o" "$m" "$r" "$x" "$n" "$min" "$e" "$nm") || out=INCOMPLETE
+  STAGE_OUTCOME=$out
+  key_line "CONSIST-RUNS-STAGE-$stage: $n"
+  key_line "RESTORED-RUNS-STAGE-$stage: $rs"
+  key_line "RESTORED-RUN-NUMBERS-STAGE-$stage: $(consist_restored_numbers "$f" "$stage")"
+  key_line "CLASS-AGREE-STAGE-$stage: $a"
+  key_line "CLASS-ORPHAN-ONLY-STAGE-$stage: $o"
+  key_line "CLASS-ROW-WITHOUT-FILE-STAGE-$stage: $m"
+  key_line "CLASS-BACKUP-REFUSED-STAGE-$stage: $r"
+  key_line "CLASS-RESTORE-FAILED-STAGE-$stage: $x"
+  key_line "EXPOSED-RUNS-STAGE-$stage: $e"
+  key_line "UPLOADS-IN-WINDOW-STAGE-$stage: $up"
+  key_line "PAGES-IN-WINDOW-STAGE-$stage: $pg"
+  key_line "DELETES-IN-WINDOW-STAGE-$stage: $dl"
+  key_line "BACKUP-RC-HISTOGRAM-STAGE-$stage: $(consist_rc_histogram "$f" "$stage")"
+  key_line "OUTCOME-STAGE-$stage: $out"
+  key_line "CONSIST-SUMMARY-STAGE-$stage: RUNS=$n RESTORED=$rs AGREE=$a ORPHAN-ONLY=$o ROW-WITHOUT-FILE=$m BACKUP-REFUSED=$r RESTORE-FAILED=$x EXPOSED=$e UPLOADS-IN-WINDOW=$up OUTCOME=$out"
+  if [ "$out" = AGREE-ALL ]; then
+    rt=$(rule_of_three "$n")
+    key_line "NO-DISAGREEMENT-STAGE-$stage: 0 disagreements in $n runs, $rs of them restored and compared after the restore, $e with at least one upload inside the window"
+    key_line "RULE-OF-THREE-STAGE-$stage: $rt percent per run at 95 percent confidence, under this load, in this container"
+  fi
+  if [ "$n" -lt "$min" ]; then
+    check_bad "stage $stage: $n runs are fewer than the floor of $min (CONSIST_MIN_RUNS)"
+  fi
+  why=$(restore_floor_ok "$n" "$rs" "$min" "$r") || check_bad "stage $stage: $why"
+  case "$out" in
+    INCONCLUSIVE)
+      why=$(exposure_ok "$n" "$min" "$e") || true
+      check_bad "stage $stage is INCONCLUSIVE: $why. The load did not reach the window often enough: raise BULK_MB, which widens the media copy, or CHURN_WORKERS, and run again"
+      ;;
+    UNNAMED)
+      check_bad "stage $stage has a disagreement whose window cannot be named (UNNAMED, see the WINDOW-NAME lines of consist-runs): FUT-02, an atomic snapshot, is a candidate requirement"
+      ;;
+    RESTORE-FAILED)
+      check_bad "stage $stage: restore.sh failed on a complete backup in $x run(s)"
+      ;;
+    INCOMPLETE)
+      check_bad "stage $stage: the class counts do not add up to the $n runs; a run failed in the harness"
+      ;;
+  esac
 }
 
 # ---------------------------------------------------------------------------
