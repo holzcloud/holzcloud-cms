@@ -113,6 +113,17 @@ zone_stdoff() {
   printf '%s%d:%02d:%02d\n' "$sign" $((s / 3600)) $((s % 3600 / 60)) $((s % 60))
 }
 
+# zone_day_shift OFFSET: the same time of day on another calendar day. A whole
+# day is added to a negative offset and taken from a non-negative one, so the
+# result stays inside (-86400, 86400), which zic accepts.
+zone_day_shift() {
+  if [ "$1" -ge 0 ]; then
+    printf '%s\n' $(($1 - 86400))
+  else
+    printf '%s\n' $(($1 + 86400))
+  fi
+}
+
 # hms_s HH:MM:SS: seconds since midnight.
 hms_s() {
   local h m s
@@ -207,6 +218,40 @@ sample_stats_ok() {
   echo "$min $max $distinct ok"
 }
 
+
+# catchup_ok M D U A S R C L T, whole epoch seconds. M the missed instant, D when
+# the container went down, U when it was up again, A when the shipped timer was
+# activated after that boot, S when the run started, R the random delay, C the
+# accuracy, L the named allowance, T the mtime of the stamp before the stop.
+# The run must be a catch-up of a window that really was missed, and it must start
+# no earlier than the activation and no later than max(M, A) + R + C + L.
+catchup_ok() {
+  local m=$1 d=$2 u=$3 a=$4 s=$5 r=$6 c=$7 l=$8 t=$9 hi
+  if [ "$t" -ge "$m" ]; then
+    echo "the stamp ($t) is not older than the missed instant ($m)"
+    return 1
+  fi
+  if [ "$d" -ge "$m" ]; then
+    echo "the container was still up at the missed instant (down at $d, missed $m)"
+    return 1
+  fi
+  if [ "$m" -ge "$u" ]; then
+    echo "nothing was missed: the container was up again at $u, the instant was $m"
+    return 1
+  fi
+  if [ "$s" -lt "$a" ]; then
+    echo "the run started at $s, before the timer's activation at $a"
+    return 1
+  fi
+  if [ "$a" -gt "$m" ]; then hi=$a; else hi=$m; fi
+  hi=$((hi + r + c + l))
+  if [ "$s" -gt "$hi" ]; then
+    echo "the run started at $s, $((s - hi)) s after the latest allowed $hi (max(missed, activation) + $r + $c + $l)"
+    return 1
+  fi
+  echo "ok"
+}
+
 # ---------------------------------------------------------------------------
 # selftest
 # ---------------------------------------------------------------------------
@@ -256,6 +301,19 @@ selftest_zone() {
     st_eq "local time of day, lead 150, epoch $e" 11550 "$(((e + off) % 86400))"
     st_ok "offset range, epoch $e" in_range "$off" -43200 43199
   done
+  # A day apart: the same time of day, another calendar day, inside what zic reads.
+  st_eq "day shift of 11610" -74790 "$(zone_day_shift 11610)"
+  st_eq "day shift of -19825" 66575 "$(zone_day_shift -19825)"
+  st_eq "day shift of 0" -86400 "$(zone_day_shift 0)"
+  st_eq "day shift of -1" 86399 "$(zone_day_shift -1)"
+  for e in 1728000000 1728012345 1793071153; do
+    for off in 11610 -19825 0 -43200 43199; do
+      sh=$(zone_day_shift "$off")
+      st_eq "same time of day after the day shift, epoch $e offset $off" "$(((e + off) % 86400))" "$(((e + sh) % 86400))"
+      st_eq "another date after the day shift, epoch $e offset $off" 1 "$((((e + off) / 86400 - (e + sh) / 86400) * (off >= 0 ? 1 : -1)))"
+    done
+  done
+  st_eq "stdoff of a shifted offset" "18:01:08" "$(zone_stdoff 64868)"
   st_eq "stdoff zero" "0:00:00" "$(zone_stdoff 0)"
   st_eq "stdoff 3661" "1:01:01" "$(zone_stdoff 3661)"
   st_eq "stdoff -19800" "-5:30:00" "$(zone_stdoff -19800)"
@@ -315,6 +373,30 @@ selftest_samples() {
   st_fail "start before 03:15:00" tod_in_window 03:14:59 03:15:00 "$(s_hms $((11700 + 300 + 60)))"
 }
 
+
+selftest_catchup() {
+  # catchup_ok M D U A S R C L T, base case: stamp 500, down 900, missed 1000,
+  # up 1100, timer active 1105, run 1110, delay 300, accuracy 60, allowance 30.
+  st_ok "a clean catch-up" catchup_ok 1000 900 1100 1105 1110 300 60 30 500
+  st_ok "run at the activation" catchup_ok 1000 900 1100 1105 1105 300 60 30 500
+  st_ok "run at the latest allowed second" catchup_ok 1000 900 1100 1105 1495 300 60 30 500
+  st_fail "run one second past the allowance" catchup_ok 1000 900 1100 1105 1496 300 60 30 500
+  st_fail "run before the activation" catchup_ok 1000 900 1100 1105 1104 300 60 30 500
+  st_fail "stamp not older than the missed instant" catchup_ok 1000 900 1100 1105 1110 300 60 30 1000
+  st_fail "stamp newer than the missed instant" catchup_ok 1000 900 1100 1105 1110 300 60 30 1001
+  st_ok "stamp one second older" catchup_ok 1000 900 1100 1105 1110 300 60 30 999
+  st_fail "container still up at the missed instant" catchup_ok 1000 1000 1100 1105 1110 300 60 30 500
+  st_fail "container went down after the missed instant" catchup_ok 1000 1001 1100 1105 1110 300 60 30 500
+  st_fail "nothing was missed" catchup_ok 1000 900 1000 1105 1110 300 60 30 500
+  st_fail "up before the missed instant" catchup_ok 1000 900 999 1105 1110 300 60 30 500
+  # max(missed, activation): with an activation before the missed instant the
+  # bound counts from the missed instant.
+  st_ok "activation before the missed instant, latest second" catchup_ok 1000 900 1100 950 1390 300 60 30 500
+  st_fail "activation before the missed instant, one second later" catchup_ok 1000 900 1100 950 1391 300 60 30 500
+  # The zone for the missed window: a lead of 150 puts the time of day at 03:12:30.
+  st_eq "lead 150 time of day" "03:12:30" "$(s_hms "$(((1728012345 + $(zone_offset_seconds 1728012345 150)) % 86400))")"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -322,6 +404,7 @@ cmd_selftest() {
   selftest_tod
   selftest_window
   selftest_samples
+  selftest_catchup
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -487,9 +570,10 @@ cmd_target() {
 # The original link target is kept in ZONE_ORIG_FILE the first time only, so that
 # a second move can still put the original back. Prints the readback time.
 move_zone() {
-  local lead=$1 label=$2 now off std zname got want diff
+  local lead=$1 label=$2 dayshift=${3:-0} now off std zname got want diff
   now=$(cont_epoch)
   off=$(zone_offset_seconds "$now" "$lead")
+  [ "$dayshift" = 0 ] || off=$(zone_day_shift "$off")
   std=$(zone_stdoff "$off")
   zname="Nightly/$label"
   printf 'Zone %s %s - P24\n' "$zname" "$std" \
@@ -788,10 +872,8 @@ cmd_fire() {
   dx systemctl list-timers holzcloud-backup.timer --no-pager > "$OUT_DIR/fire-after.txt" 2>&1 || true
   id=$(show_v holzcloud-backup.service InvocationID) || id=""
   dx journalctl -u holzcloud-backup.service -o short-precise --no-pager "_SYSTEMD_INVOCATION_ID=$id" > "$OUT_DIR/fire-journal.txt" 2>&1 || true
-  if ! grep -q 'Backup complete' "$OUT_DIR/fire-journal.txt"; then
-    check_info "the journal narrowed to the invocation $id holds no completion line; the unit's whole journal is written instead"
-    dx journalctl -u holzcloud-backup.service -o short-precise --no-pager > "$OUT_DIR/fire-journal.txt" 2>&1 || true
-  fi
+  # The directory is read from this invocation's journal and from nowhere else: a
+  # wider journal would hand over the completion line of an earlier run.
   start_us=$(bus_us holzcloud-backup.service Service ExecMainStartTimestamp) || start_us=0
   start=$((start_us / 1000000))
   endx=$(bus_s holzcloud-backup.service Service ExecMainExitTimestamp) || endx=0
@@ -1055,6 +1137,321 @@ cmd_delay() {
 }
 
 # ---------------------------------------------------------------------------
+# catchup: BKP-02. Needs the container of `fire`.
+# A window missed while the host is down is run after it comes up, by the shipped
+# Persistent=true. The zone is moved so that 03:15 falls CATCHUP_LEAD seconds
+# ahead, the container is stopped before that instant and started after it, and a
+# control timer with the same calendar and Persistent=false must NOT run.
+# ---------------------------------------------------------------------------
+
+CATCHUP_ARMED=0
+CATCHUP_RESTORED=0
+
+# wait_running: poll up to 120 s for the container's systemd to be running or degraded.
+wait_running() {
+  local end=$((SECONDS + 120)) state=""
+  while [ "$SECONDS" -lt "$end" ]; do
+    state=$(dx systemctl is-system-running 2> /dev/null | tr -d '\r' || true)
+    case "$state" in running | degraded) return 0 ;; esac
+    sleep 1
+  done
+  return 1
+}
+
+# catchup_restore: remove the control units and put the zone back. Idempotent; it
+# runs on the normal path and from the EXIT trap, so the control timer and the
+# moved zone never outlive the subcommand (T-24-05).
+catchup_restore() {
+  local orig end base n rnd step restored=no
+  [ "$CATCHUP_ARMED" = 1 ] && [ "$CATCHUP_RESTORED" = 0 ] || return 0
+  CATCHUP_RESTORED=1
+  if [ "$(docker inspect -f '{{.State.Running}}' "$NAME" 2> /dev/null)" != true ]; then
+    docker start "$NAME" > /dev/null 2>&1 || true
+    wait_running || true
+  fi
+  dx systemctl disable --now p24-control.timer > /dev/null 2>&1 || true
+  dx rm -f /etc/systemd/system/p24-control.timer /etc/systemd/system/p24-control.service \
+    /etc/systemd/system/timers.target.wants/p24-control.timer > /dev/null 2>&1 || true
+  dx systemctl daemon-reload > /dev/null 2>&1 || true
+  dx systemctl reset-failed p24-control.service p24-control.timer > /dev/null 2>&1 || true
+  orig=$(dxo cat "$ZONE_ORIG_FILE" 2> /dev/null) || orig=""
+  if [ -n "$orig" ]; then
+    if [ "$orig" = none ]; then
+      dx rm -f /etc/localtime || true
+    else
+      dx ln -sfn "$orig" /etc/localtime || true
+    fi
+    rnd=$(bus_s holzcloud-backup.timer Timer RandomizedDelayUSec) || rnd=300
+    base=$(base_epoch) || base=0
+    for step in wait daemon-reload daemon-reexec; do
+      [ "$step" = wait ] || dx systemctl "$step" > /dev/null 2>&1 || true
+      end=$((SECONDS + 30))
+      while [ "$SECONDS" -lt "$end" ]; do
+        n=$(bus_s holzcloud-backup.timer Timer NextElapseUSecRealtime) || n=0
+        if [ "$n" -ge "$base" ] && [ "$n" -le $((base + rnd)) ]; then
+          restored=yes
+          break
+        fi
+        sleep 1
+      done
+      [ "$restored" = yes ] && break
+    done
+  fi
+  printf 'ZONE-RESTORED: %s (/etc/localtime -> %s, now %s)\n' "$restored" "${orig:-unknown}" "$(dxo date +%Z 2> /dev/null || echo '?')" | tee -a "$OUT_DIR/catchup.txt" > /dev/null
+  say "catchup: zone restored: $restored; control units removed"
+}
+
+catchup_trap() {
+  local rc=$?
+  trap - EXIT
+  catchup_restore
+  exit "$rc"
+}
+
+cmd_catchup() {
+  local c=$OUT_DIR/catchup.txt enabled active i end st act
+  local stamp_t skew0 skew1 acc rnd before_s m now c0 t_stop wait_s fin_raw up_raw fin_e up_e cont_now
+  local timer_active start id dir trig res es stamp_after cran cpers cstart cnext verdict rc after_boot
+
+  need_container
+  [ "$(tail -n 1 "$OUT_DIR/fire.txt" 2> /dev/null)" = "FIRE OK" ] \
+    || die "$OUT_DIR/fire.txt does not end FIRE OK; run 'bash deploy/test/nightly.sh fire' first"
+  enabled=$(dxo systemctl is-enabled holzcloud-backup.timer 2> /dev/null) || enabled=""
+  active=$(dxo systemctl is-active holzcloud-backup.timer 2> /dev/null) || active=""
+  [ "$enabled" = enabled ] && [ "$active" = active ] \
+    || die "holzcloud-backup.timer is '$enabled' and '$active' in $NAME, expected enabled and active"
+  dx test -f "$STAMP" || die "the stamp $STAMP does not exist in $NAME; run 'bash deploy/test/nightly.sh fire' first"
+
+  BADS=0
+  res_begin "$c"
+  trap catchup_trap EXIT
+  CATCHUP_ARMED=1
+
+  # (1) The evidence before the stop.
+  skew0=$(clock_skew)
+  acc=$(bus_s holzcloud-backup.timer Timer AccuracyUSec) || die "could not read AccuracyUSec"
+  rnd=$(bus_s holzcloud-backup.timer Timer RandomizedDelayUSec) || die "could not read RandomizedDelayUSec"
+  stamp_t=$(dxo stat -c '%Y' "$STAMP") || die "could not stat the stamp"
+  {
+    echo "---- list-timers before the zone moves ----"
+    dx systemctl list-timers holzcloud-backup.timer --no-pager
+    echo "---- the stamp ----"
+    dx stat -c '%n %Y %y' "$STAMP"
+    echo "---- systemctl show holzcloud-backup.timer ----"
+    dx systemctl show holzcloud-backup.timer -p Persistent -p RandomizedDelayUSec -p AccuracyUSec -p TimersCalendar -p ActiveEnterTimestamp -p LastTriggerUSec -p DropInPaths
+  } > "$OUT_DIR/catchup-before.txt" 2>&1 || true
+  key_line "CLOCK-SKEW-S-BEFORE: $skew0"
+  key_line "RANDOM-DELAY-S: $rnd"
+  key_line "ACCURACY-S: $acc"
+  key_line "SLACK-S: $SLACK_CATCHUP"
+
+  # (2) The control, in new files: the same calendar and delay, Persistent=false,
+  # its own service. Never a drop-in on a shipped unit.
+  printf '[Unit]\nDescription=phase 24 control: the shipped calendar without Persistent=\n\n[Service]\nType=oneshot\nExecStart=/bin/echo p24-control ran\n' \
+    | dxi bash -c 'cat > /etc/systemd/system/p24-control.service' || die "could not write p24-control.service"
+  printf '[Unit]\nDescription=phase 24 control timer: OnCalendar and RandomizedDelaySec of the shipped timer, Persistent=false\n\n[Timer]\nOnCalendar=*-*-* 03:15:00\nRandomizedDelaySec=300\nPersistent=false\n\n[Install]\nWantedBy=timers.target\n' \
+    | dxi bash -c 'cat > /etc/systemd/system/p24-control.timer' || die "could not write p24-control.timer"
+  dx systemctl daemon-reload || die "daemon-reload failed"
+  dx systemctl enable --now p24-control.timer > /dev/null 2>&1 || die "could not enable the control timer"
+  deviation "DEVIATION[control-timer]: a container-only control, p24-control.timer with the calendar and delay of the shipped timer (OnCalendar=*-*-* 03:15:00, RandomizedDelaySec=300) and Persistent=false, aimed at its own p24-control.service (/bin/echo p24-control ran). New files, not a drop-in on a shipped unit; removed at the end. It is the evidence that the catch-up belongs to the shipped Persistent=true"
+  deviation "DEVIATION[restart]: a container stop and start replaces a power cycle. PID 1 and every unit restart, and the writable layer, where the stamp lives, survives; no kernel boots, no firmware runs, no network comes up from cold, and the machine is not really off. The catch-up logic that is observed is systemd's own, reading the stamp at the timer's start; whether a real boot orders it the same way is an owner step, not a claim"
+
+  # (3) The zone: 03:15 falls CATCHUP_LEAD seconds ahead.
+  before_s=$(bus_s holzcloud-backup.timer Timer NextElapseUSecRealtime) || before_s=0
+  # A day apart from the zone of `fire`: backup.sh names a backup after the local
+  # date and time to the second, and a first attempt landed on the very second of
+  # the fire run's directory ("refusing to overwrite existing file", exit 1) because
+  # both zones read 03:16:16 on the same local date. A real catch-up is on a later
+  # day; the shifted offset keeps the time of day and changes the date.
+  move_zone "$CATCHUP_LEAD" Catchup 1
+  deviation "DEVIATION[zone]: for the missed window the zone was moved a second time, to $ZONE_NAME (STDOFF $ZONE_STD, offset $ZONE_OFF s, a whole day away from the zone of the first run so that the local date differs and backup.sh cannot name two backups alike), by files only; the local time read $ZONE_READ. No command sets a clock"
+  follow_zone "$CATCHUP_LEAD" "$before_s" || {
+    check_bad "systemd did not follow the zone change: the shipped timer is not armed for the new 03:15:00"
+    key_line "CATCHUP FAILED"
+    exit 1
+  }
+  m=$(base_epoch)
+  now=$(cont_epoch)
+  cnext=$(bus_s p24-control.timer Timer NextElapseUSecRealtime) || cnext=0
+  key_line "ZONE: $ZONE_NAME STDOFF $ZONE_STD OFFSET-S $ZONE_OFF READ $ZONE_READ LEAD-S $CATCHUP_LEAD"
+  key_line "STAMP-BEFORE-STOP: $stamp_t"
+  key_line "MISSED-EPOCH: $m"
+  key_line "MISSED-LOCAL: $(dxo date -d "@$m" +%H:%M:%S)"
+  key_line "CONTROL-NEXT-EPOCH: $cnext"
+  if [ $((m - now)) -lt 90 ]; then
+    check_bad "only $((m - now)) s were left before the missed instant after the zone had followed (needed 90)"
+    key_line "CATCHUP FAILED"
+    exit 1
+  fi
+  if [ "$cnext" -ge "$m" ] && [ "$cnext" -le $((m + rnd + acc)) ]; then
+    check_pass "the control timer is armed for the same missed instant (next $cnext, missed $m)"
+  else
+    check_bad "the control timer is not armed for the missed instant (next $cnext, missed $m): its silence would prove nothing"
+  fi
+  {
+    echo "---- list-timers after the zone moved, before the stop ----"
+    dx systemctl list-timers holzcloud-backup.timer p24-control.timer --no-pager
+  } >> "$OUT_DIR/catchup-before.txt" 2>&1 || true
+
+  # (4) The stop: a clean systemd shutdown. Everything needed from before it was
+  # saved above and in fire-journal.txt; /run is a tmpfs here, so the unit states
+  # (and with them ExecMainStartTimestamp) start again from nothing.
+  c0=$(cont_epoch)
+  t_stop=$SECONDS
+  docker stop -t 60 "$NAME" > /dev/null || die "docker stop failed"
+  fin_raw=$(docker inspect -f '{{.State.FinishedAt}}' "$NAME")
+
+  # (5) Down until the missed instant has passed with margin: a duration on the
+  # host's SECONDS counter, not a reading of the host date.
+  wait_s=$((m - c0 + 40))
+  say "catchup: container down; waiting $wait_s s (counted from the stop) so that $m has passed"
+  while [ $((SECONDS - t_stop)) -lt "$wait_s" ]; do sleep 1; done
+
+  # (6) The start.
+  docker start "$NAME" > /dev/null || die "docker start failed"
+  up_raw=$(docker inspect -f '{{.State.StartedAt}}' "$NAME")
+  wait_running || {
+    check_bad "systemd was not running or degraded within 120 s of the start"
+    key_line "CATCHUP FAILED"
+    exit 1
+  }
+  cont_now=$(cont_epoch)
+  fin_e=$(dxo date -u -d "$fin_raw" +%s)
+  up_e=$(dxo date -u -d "$up_raw" +%s)
+  {
+    echo "container clock before the stop: $c0"
+    echo "docker FinishedAt: $fin_raw ($fin_e)"
+    echo "docker StartedAt:  $up_raw ($up_e)"
+    echo "container clock after the start: $cont_now"
+    echo "missed instant: $m"
+  } > "$OUT_DIR/catchup-docker.txt"
+  key_line "CLOCK-BEFORE-STOP: $c0"
+  key_line "FINISHED-AT-RAW: $fin_raw"
+  key_line "STARTED-AT-RAW: $up_raw"
+  key_line "DOWN-FROM: $fin_e"
+  key_line "UP-AT: $up_e"
+  key_line "CLOCK-AFTER-START: $cont_now"
+
+  # (7) Wait for the run, bounded; then 30 s more, so that a control that was
+  # going to run would have run.
+  end=$((SECONDS + CATCHUP_WAIT))
+  st=0
+  while [ "$SECONDS" -lt "$end" ]; do
+    st=$(bus_us holzcloud-backup.service Service ExecMainStartTimestamp) || st=0
+    act=$(show_v holzcloud-backup.service ActiveState) || act=""
+    if [ "${st:-0}" -gt 0 ]; then
+      case "$act" in activating | active | reloading) ;; *) break ;; esac
+    fi
+    sleep 1
+    st=0
+  done
+  if [ "${st:-0}" -le 0 ]; then
+    say "nightly.sh: holzcloud-backup.service did not run within ${CATCHUP_WAIT}s of the start; the timer and the unit journal:"
+    dx systemctl list-timers holzcloud-backup.timer --no-pager >&2 || true
+    dx journalctl -u holzcloud-backup.service --no-pager -n 40 >&2 || true
+    check_bad "the shipped timer did not start the service within ${CATCHUP_WAIT} s of the start (the missed window was not run)"
+    key_line "CATCHUP FAILED"
+    exit 1
+  fi
+  sleep 30
+
+  # (8) Collect.
+  dx systemctl list-timers holzcloud-backup.timer p24-control.timer --no-pager > "$OUT_DIR/catchup-after.txt" 2>&1 || true
+  id=$(show_v holzcloud-backup.service InvocationID) || id=""
+  # The journal of this invocation only. The journal here survives the restart
+  # (/var/log/journal exists) and the kernel's boot id is the Docker VM's, so it
+  # is the same for both starts: -b would not separate the runs, the invocation
+  # does. The directory is read from nowhere else.
+  dx journalctl -u holzcloud-backup.service -o short-precise --no-pager "_SYSTEMD_INVOCATION_ID=$id" > "$OUT_DIR/catchup-journal.txt" 2>&1 || true
+  timer_active=$(bus_s holzcloud-backup.timer Unit ActiveEnterTimestamp) || timer_active=0
+  start=$(bus_s holzcloud-backup.service Service ExecMainStartTimestamp) || start=0
+  trig=$(show_v holzcloud-backup.service TriggeredBy) || trig=""
+  res=$(show_v holzcloud-backup.service Result) || res=""
+  es=$(show_v holzcloud-backup.service ExecMainStatus) || es=""
+  dir=$(sed -n 's/.*=== Backup complete: \(.*\) ===$/\1/p' "$OUT_DIR/catchup-journal.txt" | tail -n 1 | tr -d '\r')
+  stamp_after=$(dxo stat -c '%Y %y' "$STAMP" 2> /dev/null) || stamp_after="missing"
+  cstart=$(bus_s p24-control.service Service ExecMainStartTimestamp) || cstart=0
+  cpers=$(show_v p24-control.timer Persistent) || cpers="?"
+  if [ "${cstart:-0}" -gt 0 ] || dx journalctl -u p24-control.service --no-pager 2> /dev/null | grep -q 'p24-control ran'; then
+    cran=yes
+  else
+    cran=no
+  fi
+  skew1=$(clock_skew)
+  key_line "TIMER-ACTIVE-EPOCH: $timer_active"
+  key_line "START-EPOCH: $start"
+  key_line "START-LOCAL: $(dxo date -d "@$start" +%H:%M:%S)"
+  key_line "TRIGGERED-BY: $trig"
+  key_line "RESULT: $res"
+  key_line "EXIT-STATUS: $es"
+  key_line "INVOCATION-ID: $id"
+  key_line "DIR: ${dir:-none}"
+  key_line "DELAY-AFTER-BOOT-S: $((start - timer_active))"
+  key_line "STAMP-AFTER: $stamp_after"
+  key_line "CONTROL-RAN: $cran"
+  key_line "CONTROL-PERSISTENT: $cpers"
+  key_line "CLOCK-SKEW-S-AFTER: $skew1"
+
+  # (9) Judgement.
+  verdict=$(catchup_ok "$m" "$fin_e" "$up_e" "$timer_active" "$start" "$rnd" "$acc" "$SLACK_CATCHUP" "$stamp_t") && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    after_boot=$((start - timer_active))
+    check_pass "a missed window was run after the boot: stamp $stamp_t < missed $m, down at $fin_e, up at $up_e, timer active at $timer_active, run at $start ($after_boot s after the activation; limit max(missed, activation) + $rnd + $acc + $SLACK_CATCHUP)"
+  else
+    check_bad "catch-up: $verdict"
+  fi
+  if verdict_eq "$trig" holzcloud-backup.timer; then
+    check_pass "the service was started by holzcloud-backup.timer (TriggeredBy), not by hand"
+  else
+    check_bad "TriggeredBy is '$trig', expected holzcloud-backup.timer"
+  fi
+  if verdict_eq "$res $es" "success 0"; then
+    check_pass "Result success and ExecMainStatus 0"
+  else
+    check_bad "Result '$res' and ExecMainStatus '$es', expected success and 0"
+  fi
+  if [ -n "$dir" ] && dx test -d "$dir"; then
+    check_pass "the directory the journal names exists: $dir"
+  else
+    check_bad "the directory the journal names ('${dir:-none}') does not exist"
+  fi
+  if verdict_eq "$cran$cpers" "nono"; then
+    check_pass "the control timer (same calendar, Persistent=$cpers) did not run after the same stop and start: the catch-up belongs to the shipped Persistent=true"
+  else
+    check_bad "control: ran '$cran', Persistent '$cpers' (expected: not run, Persistent no)"
+  fi
+  if in_range "$skew0" -120 120 && in_range "$skew1" -120 120; then
+    check_pass "the container clock stayed within 120 s of the host's (before $skew0 s, after $skew1 s)"
+  else
+    check_bad "the container clock is off the host's by $skew0 s before and $skew1 s after (limit 120 s): the clock was moved"
+  fi
+  if [ -n "$dir" ] && dx test -f "$dir/holzcloud.sqlite"; then
+    verify_dir "$dir" catchup
+  else
+    res_begin "$OUT_DIR/verify-catchup.txt"
+    check_bad "the directory '${dir:-none}' holds no holzcloud.sqlite to verify"
+  fi
+  CHECK_OUT=$c
+
+  # (10) Clean up: control units out, original zone back.
+  catchup_restore
+  CHECK_OUT=$c
+  trap - EXIT
+  if grep -q '^ZONE-RESTORED: yes' "$c"; then
+    check_pass "the zone is restored and the shipped timer followed"
+  else
+    check_bad "the original zone was not restored or the timer did not follow (ZONE-RESTORED)"
+  fi
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "CATCHUP FAILED"
+    say "nightly.sh: CATCHUP FAILED, $BADS BAD line(s); see $c and verify-catchup.txt"
+    exit 1
+  fi
+  key_line "CATCHUP OK"
+}
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -1063,7 +1460,7 @@ while [ "$#" -gt 0 ]; do
   sub=$1
   shift
   case "$sub" in
-    selftest | source | target | fire | delay) "cmd_$sub" ;;
+    selftest | source | target | fire | delay | catchup) "cmd_$sub" ;;
     *) usage ;;
   esac
 done
