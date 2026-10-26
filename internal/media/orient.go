@@ -7,6 +7,8 @@ import (
 	"hash/crc32"
 	"image"
 	"os"
+
+	xdraw "golang.org/x/image/draw"
 )
 
 // EXIF orientation, the one piece of camera data a scaled copy still needs.
@@ -308,6 +310,24 @@ func look(path string) (width, height, o int, err error) {
 		return 0, 0, 1, fmt.Errorf("read image header: %w", err)
 	}
 	return cfg.Width, cfg.Height, orientationOf("image/"+format, data), nil
+}
+
+// uprightImage turns a decoded picture so that it stands upright for
+// orientation o. For 1, and for anything outside 2 to 8, it returns src itself.
+//
+// The tagged case holds the decoded picture, one RGBA copy of it and the turned
+// result at the same time. The size is bounded by the megapixel budget that
+// ApplyCrop checks before it decodes, and the turn of a large picture is a
+// deliberate, rare and interactive cost; an untagged picture costs what it
+// always cost.
+func uprightImage(src image.Image, o int) image.Image {
+	if o < 2 || o > 8 {
+		return src
+	}
+	b := src.Bounds()
+	rgba := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	xdraw.Draw(rgba, rgba.Bounds(), src, b.Min, xdraw.Src)
+	return orientRGBA(rgba, o)
 }
 
 // uprightSize is the size this picture has when it is looked at: the stored

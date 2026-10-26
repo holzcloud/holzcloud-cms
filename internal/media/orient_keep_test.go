@@ -842,3 +842,142 @@ func TestStripHostileInputPNGWebP(t *testing.T) {
 		"size lies": chunkLie,
 	})
 }
+
+// quadrantLetters are the rows of the upright picture per orientation, for a
+// picture stored as A B over C D.
+var quadrantLetters = map[int][2]string{
+	1: {"AB", "CD"}, 2: {"BA", "DC"}, 3: {"DC", "BA"}, 4: {"CD", "AB"},
+	5: {"AC", "BD"}, 6: {"CA", "DB"}, 7: {"DB", "CA"}, 8: {"BD", "AC"},
+}
+
+var letterColour = map[byte]color.RGBA{'A': colA, 'B': colB, 'C': colC, 'D': colD}
+
+// checkQuadrants samples the middle of each quadrant of img against rows.
+func checkQuadrants(t *testing.T, label string, img image.Image, rows [2]string) {
+	t.Helper()
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	for row := 0; row < 2; row++ {
+		for col := 0; col < 2; col++ {
+			x, y := b.Min.X+w/4+col*w/2, b.Min.Y+h/4+row*h/2
+			if got := img.At(x, y); !near(got, letterColour[rows[row][col]], 14) {
+				t.Errorf("%s quadrant %d,%d: %v, want about %c", label, row, col, got, rows[row][col])
+			}
+		}
+	}
+}
+
+func TestCropStandsUpright(t *testing.T) {
+	dir := t.TempDir()
+	served := filepath.Join(dir, "hoch.jpg")
+	if err := os.WriteFile(served, withOrientation(quadrantJPEG(t, 1000, 500), 6), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read := func() (image.Image, []byte) {
+		data, err := os.ReadFile(served)
+		if err != nil {
+			t.Fatal(err)
+		}
+		img, err := jpeg.Decode(bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return img, data
+	}
+
+	w, h, err := ApplyCrop(dir, "hoch.jpg", "image/jpeg", Crop{}, 0)
+	if err != nil || w != 500 || h != 1000 {
+		t.Fatalf("zero crop: %d x %d, %v; want 500 x 1000", w, h, err)
+	}
+	img, data := read()
+	if b := img.Bounds(); b.Dx() != 500 || b.Dy() != 1000 {
+		t.Errorf("served file is %d x %d", b.Dx(), b.Dy())
+	}
+	checkQuadrants(t, "zero crop", img, quadrantLetters[6])
+	if bytes.Contains(data, []byte("Exif")) || orientationOf("image/jpeg", data) != 1 {
+		t.Error("the cropped picture carries a tag")
+	}
+
+	// The editor's turn is applied on top of the upright picture: C A over D B
+	// turned a quarter clockwise is D C over B A.
+	w, h, err = ApplyCrop(dir, "hoch.jpg", "image/jpeg", Crop{Rotation: 90}, 0)
+	if err != nil || w != 1000 || h != 500 {
+		t.Fatalf("rotation 90: %d x %d, %v; want 1000 x 500", w, h, err)
+	}
+	img, _ = read()
+	checkQuadrants(t, "rotation 90", img, [2]string{"DC", "BA"})
+
+	w, h, err = ApplyCrop(dir, "hoch.jpg", "image/jpeg", Crop{Ratio: "1-1"}, 0)
+	if err != nil || w != 500 || h != 500 {
+		t.Errorf("square crop: %d x %d, %v; want 500 x 500", w, h, err)
+	}
+}
+
+func TestOriginalKeepsTheTagAndRestores(t *testing.T) {
+	dir := t.TempDir()
+	upload := withOrientation(quadrantJPEG(t, 1000, 500), 6)
+	served := filepath.Join(dir, "hoch.jpg")
+	if err := os.WriteFile(served, upload, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ApplyCrop(dir, "hoch.jpg", "image/jpeg", Crop{Ratio: "1-1"}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if !HasOriginal(dir, "hoch.jpg") {
+		t.Fatal("no original after the crop")
+	}
+	orig, err := os.ReadFile(filepath.Join(dir, SourceName("hoch.jpg")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if orientationOf("image/jpeg", orig) != 6 {
+		t.Error("the original lost its tag")
+	}
+	w, h, err := RestoreOriginal(dir, "hoch.jpg")
+	if err != nil || w != 500 || h != 1000 {
+		t.Errorf("restore: %d x %d, %v; want 500 x 1000", w, h, err)
+	}
+	if got, err := os.ReadFile(served); err != nil || !bytes.Equal(got, upload) {
+		t.Errorf("the restored file is not the upload (err %v)", err)
+	}
+}
+
+func TestUprightImage(t *testing.T) {
+	stored := quadrants(64, 32)
+	nrgba := image.NewNRGBA(stored.Bounds())
+	for y := 0; y < 32; y++ {
+		for x := 0; x < 64; x++ {
+			c := stored.RGBAAt(x, y)
+			nrgba.SetNRGBA(x, y, color.NRGBA{c.R, c.G, c.B, 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, stored, &jpeg.Options{Quality: 95}); err != nil {
+		t.Fatal(err)
+	}
+	ycc, err := jpeg.Decode(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ycc.(*image.YCbCr); !ok {
+		t.Fatalf("the JPEG decoded to %T", ycc)
+	}
+	sources := map[string]image.Image{"YCbCr": ycc, "NRGBA": nrgba, "RGBA": stored}
+
+	for name, src := range sources {
+		for _, o := range []int{0, 1, 9, -3} {
+			if got := uprightImage(src, o); got != src {
+				t.Errorf("%s orientation %d should return the same image", name, o)
+			}
+		}
+		for o := 2; o <= 8; o++ {
+			got := uprightImage(src, o)
+			wantW, wantH := uprightOf(64, 32, o)
+			if b := got.Bounds(); b.Dx() != wantW || b.Dy() != wantH {
+				t.Errorf("%s %d: %d x %d, want %d x %d", name, o, b.Dx(), b.Dy(), wantW, wantH)
+				continue
+			}
+			checkQuadrants(t, name+" "+string(rune('0'+o)), got, quadrantLetters[o])
+		}
+	}
+}

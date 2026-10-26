@@ -203,6 +203,9 @@ var ErrNotCroppable = errors.New("this format cannot be cropped")
 // ApplyCrop writes the cropped picture over the served filename, keeping the
 // upload beside it.
 //
+// The upload's orientation tag, if it has one, is honoured: the result is made
+// from the upright picture and carries no tag. The copy beside it keeps its tag.
+//
 // It returns the new dimensions. Reading the source, decoding, transforming and
 // encoding all happen here so the caller — a request handler — deals only in
 // paths and numbers.
@@ -228,7 +231,7 @@ func ApplyCrop(dir, filename, mimeType string, c Crop, maxMegapixels int) (int, 
 		return 0, 0, err
 	}
 
-	width, height, err := Dimensions(source)
+	width, height, o, err := look(source)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -248,6 +251,10 @@ func ApplyCrop(dir, filename, mimeType string, c Crop, maxMegapixels int) (int, 
 	}
 
 	c = c.Normalise()
+	// A phone photo is a landscape bitmap with a tag, and the editor is looking
+	// at the upright picture. The tag is applied first, so the rotation, the
+	// focus point and the rectangle are all measured on what the editor sees.
+	src = uprightImage(src, o)
 	src = rotate(src, c.Rotation)
 	rect := c.Rect(src.Bounds().Dx(), src.Bounds().Dy())
 
