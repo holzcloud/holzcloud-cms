@@ -80,14 +80,16 @@ only together with the record that proves it. No feature is built.
 | SRV-01 | Phase 26 | Pending owner |
 | SRV-02 | Phase 26 | Pending owner |
 | SRV-03 | Phase 26 | Pending owner |
-| TIDY-01 | Phase 27 | Pending |
+| TIDY-01 | Phase 27 | Pending owner |
 | TIDY-02 | Phase 27 | Pending |
 | TIDY-03 | Phase 27 | Pending |
-| TIDY-04 | Phase 27 | Pending |
+| TIDY-04 | Phase 27 | Pending owner |
 | DOC-01 | Phase 28 | Pending |
 | DOC-02 | Phase 28 | Pending |
 
 `Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
+
+TIDY-01 and TIDY-04 read `Pending owner` for a different reason than SRV-01 to SRV-03: what is left is the deletion of remote branches and of the old local branch, which needs the owner's credentials and explicit go at that moment (plans 27-04 and 27-05; the steps are in `.planning/phases/27-repository-tidy/27-OWNER-STEPS.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the deletions. `bash .planning/phases/27-repository-tidy/27-check.sh requirements` holds the file to `docs/branches.md` and to git.
 
 **Coverage:**
 - v0.1.1 requirements: 17 total
