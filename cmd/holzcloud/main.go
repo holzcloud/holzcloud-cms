@@ -569,6 +569,22 @@ func main() {
 			},
 		},
 		jobs.Job{
+			// Pictures held back between an upload and the answer to "scale
+			// down?". They live on disk and survive a restart, so unlike the
+			// csv job this one sweeps at start too: what is stale then is
+			// stale, and a staging younger than the retention is kept.
+			Name:       "media-staging-prune",
+			Every:      15 * time.Minute,
+			RunAtStart: true,
+			Fn: func(ctx context.Context) error {
+				n, err := media.NewStaging(cfg.DataDir).Prune(media.StagingRetention)
+				if n > 0 {
+					slog.Info("media staging pruned", "entfernt", n)
+				}
+				return err
+			},
+		},
+		jobs.Job{
 			Name:  "csv-import-prune",
 			Every: 6 * time.Hour,
 			Fn: func(ctx context.Context) error {
@@ -1137,6 +1153,11 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/tags/{termID}/delete", adminHandler.ErrHandler(adminHandler.HandleTermDelete))
 	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/media", adminHandler.ErrHandler(adminHandler.HandleMediaList))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/upload", adminHandler.ErrHandler(adminHandler.HandleMediaUpload))
+	// The question after an upload of a very large picture. Two literal
+	// segments, the token in the query and the form: Go's mux refuses a pattern
+	// like media/scale/{token} beside media/{mediaID}/delete.
+	adminProtectedMux.HandleFunc("GET /admin/websites/{id}/media/scale", adminHandler.ErrHandler(adminHandler.HandleMediaScaleForm))
+	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/scale", adminHandler.ErrHandler(adminHandler.HandleMediaScale))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/in-album", adminHandler.ErrHandler(adminHandler.HandleMediaToAlbum))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/{mediaID}/delete", adminHandler.ErrHandler(adminHandler.HandleMediaDelete))
 	adminProtectedMux.HandleFunc("POST /admin/websites/{id}/media/{mediaID}/meta", adminHandler.ErrHandler(adminHandler.HandleMediaMeta))

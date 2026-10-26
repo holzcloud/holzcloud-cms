@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -118,12 +119,47 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 		return h.uploadFailed(w, r, redirect, web.Titlef(r, "At most %d files at once.", maxUploadFiles))
 	}
 
-	// One file answers exactly as it always did: its own sentence, its own
-	// warning. Several are summed up, and every refusal is still named — a
-	// batch that silently drops the one file that failed is worse than no
-	// batch at all.
-	if len(headers) == 1 {
-		res := h.uploadOne(r, websiteID, headers[0])
+	// Every file is checked and, unless it is a raster picture over
+	// media.MaxSide, stored at once. Those that are over the side are held back
+	// and asked about together on one page: one decision for the whole upload,
+	// and the others of the same upload are not made to wait for it.
+	var names []string
+	var results []uploadResult
+	var asked []*media.Intake
+	for _, fh := range headers {
+		res, held := h.uploadOne(r, websiteID, fh)
+		if held != nil {
+			asked = append(asked, held)
+			continue
+		}
+		names = append(names, fh.Filename)
+		results = append(results, res)
+	}
+	if len(asked) == 0 {
+		return h.redirect(w, r, h.reportUploads(r, redirect, names, results))
+	}
+
+	if len(results) > 0 {
+		h.reportUploads(r, redirect, names, results)
+	}
+	userID := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
+	token, err := h.mediaStaging.Put(websiteID, userID, asked)
+	if err != nil {
+		slog.Error("could not stage an upload", "err", err, "website", websiteID)
+		return h.uploadFailed(w, r, redirect, web.Titlef(r, "Upload failed: %s", err))
+	}
+	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/media/scale?token=%s", websiteID, token))
+}
+
+// reportUploads puts what became of the stored files into flash messages and
+// returns where to go next.
+//
+// One file answers with its own sentence and its own warning. Several are
+// summed up, and every refusal is still named — a batch that silently drops the
+// one file that failed is worse than no batch at all.
+func (h *Handler) reportUploads(r *http.Request, redirect string, names []string, results []uploadResult) string {
+	if len(results) == 1 {
+		res := results[0]
 		switch res.kind {
 		case uploadRefused:
 			web.SetFlashError(h.sm, r.Context(), res.message)
@@ -132,13 +168,12 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 		default:
 			web.SetFlashSuccess(h.sm, r.Context(), res.message)
 		}
-		return h.redirect(w, r, redirect)
+		return redirect
 	}
 
 	var kept, noAlt int
 	var problems []string
-	for _, fh := range headers {
-		res := h.uploadOne(r, websiteID, fh)
+	for i, res := range results {
 		switch res.kind {
 		case uploadKept:
 			kept++
@@ -146,7 +181,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 				noAlt++
 			}
 		default:
-			problems = append(problems, fh.Filename+": "+res.message)
+			problems = append(problems, names[i]+": "+res.message)
 		}
 	}
 	if kept > 0 {
@@ -164,7 +199,7 @@ func (h *Handler) HandleMediaUpload(w http.ResponseWriter, r *http.Request) erro
 	if noAlt > 0 {
 		redirect += "?ohne_beschreibung=1"
 	}
-	return h.redirect(w, r, redirect)
+	return redirect
 }
 
 // maxUploadFiles is how many files one upload may carry.
@@ -184,15 +219,34 @@ type uploadResult struct {
 	needsAlt bool
 }
 
-// uploadOne checks, stores and scales one file of an upload.
-func (h *Handler) uploadOne(r *http.Request, websiteID int64, header *multipart.FileHeader) uploadResult {
+// uploadOne checks one file of an upload and stores and scales it.
+//
+// The exception is a raster picture whose longest side is over media.MaxSide:
+// that one is not stored. It comes back as the second result, checked and
+// still in memory, for the caller to hold until the operator has answered.
+func (h *Handler) uploadOne(r *http.Request, websiteID int64, header *multipart.FileHeader) (uploadResult, *media.Intake) {
 	file, err := header.Open()
 	if err != nil {
-		return uploadResult{kind: uploadRefused, message: web.T(r, "File too large or not selected")}
+		return uploadResult{kind: uploadRefused, message: web.T(r, "File too large or not selected")}, nil
 	}
 	defer file.Close()
 
-	up, err := h.keepUpload(r.Context(), websiteID, file, header)
+	in, err := h.checkUpload(file, header)
+	if err != nil {
+		return h.uploadResultOf(r, mediaUpload{}, err, ""), nil
+	}
+	if _, _, over := in.Oversize(h.cfg.MaxMegapixels); over {
+		return uploadResult{}, in
+	}
+	up, err := h.keepChecked(r.Context(), websiteID, in)
+	return h.uploadResultOf(r, up, err, ""), nil
+}
+
+// uploadResultOf turns what keepChecked answered into the result a screen
+// reports. A note is one more part of the dash-joined message, for what the
+// upload went through on the way (a scale-down), and is already a finished
+// catalogue sentence.
+func (h *Handler) uploadResultOf(r *http.Request, up mediaUpload, err error, note string) uploadResult {
 	var refusal media.Refusal
 	switch {
 	case errors.As(err, &refusal):
@@ -208,6 +262,9 @@ func (h *Handler) uploadOne(r *http.Request, websiteID int64, header *multipart.
 	// assembled here. A message glued together out of half-sentences is a
 	// message the collector never sees.
 	parts := []string{web.T(r, "File uploaded")}
+	if note != "" {
+		parts = append(parts, note)
+	}
 	if warning := h.variantWarning(r, up.Variants); warning != "" {
 		parts = append(parts, warning)
 	}
@@ -236,24 +293,37 @@ var (
 	errVariantsNotStored = errors.New("the scaled copies could not be stored")
 )
 
-// keepUpload is the whole intake of one file, for the upload screen and for an
-// AI key alike: media.Check, Keep, the scaled copies and the plugin event. It
-// knows no request, because the second caller has none — and a second copy of
-// these steps is exactly how one path would come to skip the SVG scanner.
+// keepUpload is the whole intake of one file for an AI key: media.Check, Keep,
+// the scaled copies and the plugin event. It knows no request, because its
+// caller has none — and a second copy of these steps is exactly how one path
+// would come to skip the SVG scanner. It never asks about the size of a
+// picture: the question belongs to the upload screen, which has an operator to
+// ask.
 //
 // A refusal by media.Check comes back as a media.Refusal, so each caller can
 // put it into words for its own reader.
 func (h *Handler) keepUpload(ctx context.Context, websiteID int64, file multipart.File, header *multipart.FileHeader) (mediaUpload, error) {
-	// Every check lives in media.Check, so the contact form's attachment goes
-	// through exactly the same ones: magic bytes rather than the browser's
-	// claim, the SVG scanner, the size for the kind. Nothing is written yet.
-	in, err := media.Check(file, header, media.Limits{
-		Image: h.cfg.MaxMediaSize, Video: h.cfg.MaxVideoSize,
-	})
+	in, err := h.checkUpload(file, header)
 	if err != nil {
 		return mediaUpload{}, err
 	}
+	return h.keepChecked(ctx, websiteID, in)
+}
 
+// checkUpload is media.Check with the installation's limits. Every check lives
+// in media.Check, so the contact form's attachment goes through exactly the
+// same ones: magic bytes rather than the browser's claim, the SVG scanner, the
+// size for the kind. Nothing is written yet.
+func (h *Handler) checkUpload(file multipart.File, header *multipart.FileHeader) (*media.Intake, error) {
+	return media.Check(file, header, media.Limits{
+		Image: h.cfg.MaxMediaSize, Video: h.cfg.MaxVideoSize,
+	})
+}
+
+// keepChecked stores a file media.Check has passed, makes its scaled copies and
+// tells the plugins. A *media.Intake can only come from Check or from
+// Intake.Scaled, so nothing that gets here has skipped the checks.
+func (h *Handler) keepChecked(ctx context.Context, websiteID int64, in *media.Intake) (mediaUpload, error) {
 	m, existed, err := in.Keep(ctx, h.mediaStore, websiteID, h.cfg.DataDir)
 	if err != nil {
 		return mediaUpload{}, err

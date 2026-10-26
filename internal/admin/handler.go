@@ -51,6 +51,10 @@ type Handler struct {
 	plugins      *plugin.Manager
 	menuStore    *menu.Store
 	mediaStore   *media.Store
+	// mediaStaging holds the pictures an upload is waiting to hear about: the
+	// ones over media.MaxSide, until the operator has answered the question
+	// whether to scale them down.
+	mediaStaging *media.Staging
 	snippets     *snippet.Store
 	terms        *term.Store
 	// fields are the website's own page fields.
@@ -121,6 +125,7 @@ func NewHandler(database *db.DB, sm *scs.SessionManager, templates *web.PageTemp
 		tmplStore:    tmplStore,
 		menuStore:    menuStore,
 		mediaStore:   mediaStore,
+		mediaStaging: media.NewStaging(cfg.DataDir),
 		snippets:     snippets,
 		terms:        terms,
 		fields:       fields,

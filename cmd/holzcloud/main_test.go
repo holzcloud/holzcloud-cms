@@ -564,6 +564,8 @@ var editorOpenRoutes = []route{
 	{pattern: "GET /admin/websites/{id}/media"},
 	{pattern: "POST /admin/websites/{id}/media/in-album"},
 	{pattern: "POST /admin/websites/{id}/media/upload"},
+	{pattern: "GET /admin/websites/{id}/media/scale"},
+	{pattern: "POST /admin/websites/{id}/media/scale"},
 	{pattern: "POST /admin/websites/{id}/media/{mediaID}/delete"},
 	{pattern: "POST /admin/websites/{id}/media/{mediaID}/meta"},
 	{pattern: "GET /admin/websites/{id}/media/{mediaID}/zuschnitt"},
