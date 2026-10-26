@@ -1,13 +1,11 @@
 package media
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -60,7 +58,9 @@ type stagedManifest struct {
 	Files     []StagedFile `json:"files"`
 }
 
-// StagedFile describes one held image.
+// StagedFile describes one held image. Width and Height are the size the
+// picture has when it is looked at (the EXIF orientation applied), which is what
+// the question page prints and what the scaled copy is sized from.
 type StagedFile struct {
 	Name   string `json:"name"`
 	Width  int    `json:"width"`
@@ -94,7 +94,7 @@ func (s *Staging) Put(websiteID, userID int64, intakes []*Intake) (string, error
 
 	m := stagedManifest{WebsiteID: websiteID, UserID: userID, Created: time.Now().UTC()}
 	for i, in := range intakes {
-		cfg, _, err := image.DecodeConfig(bytes.NewReader(in.content))
+		uw, uh, err := in.uprightSize()
 		if err != nil {
 			return fail(err)
 		}
@@ -102,7 +102,7 @@ func (s *Staging) Put(websiteID, userID int64, intakes []*Intake) (string, error
 			return fail(err)
 		}
 		m.Files = append(m.Files, StagedFile{
-			Name: in.OriginalName, Width: cfg.Width, Height: cfg.Height, Size: int64(len(in.content)),
+			Name: in.OriginalName, Width: uw, Height: uh, Size: int64(len(in.content)),
 		})
 	}
 	body, err := json.Marshal(m)

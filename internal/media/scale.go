@@ -54,6 +54,12 @@ func ScaledSize(width, height int) (int, int) {
 // Oversize reports whether this picture should be offered for scaling down, and
 // how big it is.
 //
+// The size is the upright size: a photo stored as a landscape bitmap with the
+// EXIF orientation of a portrait is reported as the portrait it is, so what the
+// question prints is what a visitor will see. The verdict itself does not
+// depend on the orientation - the longest side and the pixel count do not
+// change under a quarter turn.
+//
 // Only a JPEG, a PNG, a WebP and a GIF of one frame are asked about. An SVG
 // scales itself, a PDF and an MP4 are not pictures this code touches, and an
 // animated GIF would lose its animation. A picture over the megapixel budget is
@@ -68,17 +74,17 @@ func (in *Intake) Oversize(maxMegapixels int) (width, height int, ok bool) {
 	default:
 		return 0, 0, false
 	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(in.content))
-	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+	uw, uh, err := in.uprightSize()
+	if err != nil || uw <= 0 || uh <= 0 {
 		return 0, 0, false
 	}
-	if max(cfg.Width, cfg.Height) <= MaxSide {
+	if max(uw, uh) <= MaxSide {
 		return 0, 0, false
 	}
 	if maxMegapixels <= 0 {
 		maxMegapixels = DefaultMaxMegapixels
 	}
-	if cfg.Width*cfg.Height > maxMegapixels*1_000_000 {
+	if uw*uh > maxMegapixels*1_000_000 {
 		return 0, 0, false
 	}
 	if in.MimeType == "image/gif" {
@@ -89,7 +95,7 @@ func (in *Intake) Oversize(maxMegapixels int) (width, height int, ok bool) {
 			return 0, 0, false
 		}
 	}
-	return cfg.Width, cfg.Height, true
+	return uw, uh, true
 }
 
 // Scaled returns a new Intake holding this picture with its longest side at
@@ -99,9 +105,12 @@ func (in *Intake) Oversize(maxMegapixels int) (width, height int, ok bool) {
 // and a PNG when any pixel is not, because the standard library has no WebP
 // encoder and a JPEG would turn transparency black. A still GIF becomes a PNG.
 //
-// Re-encoding with the standard encoders writes no EXIF, XMP, comment or
-// colour profile, so no camera data survives; the profile is not carried over,
-// as with the scaled copies. Keep still runs PrepareUpload on the result.
+// An EXIF orientation of 2 to 8 is applied to the pixels: the copy stands
+// upright and the longest side is counted on that upright picture. The encoders
+// write no orientation tag, and no EXIF, XMP, comment or colour profile at all,
+// so no camera data survives and a browser has nothing to turn a second time.
+// The colour profile is not carried over yet. Keep still runs PrepareUpload on
+// the result.
 //
 // ErrNotScalable (wrapping the cause) when the picture does not decode, is not
 // one of the four formats, is over the megapixel budget, or the scaled bytes
@@ -132,9 +141,19 @@ func (in *Intake) Scaled(maxMegapixels int) (*Intake, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrNotScalable, err)
 	}
-	w, h := ScaledSize(cfg.Width, cfg.Height)
+	// Scale first, in the geometry the bitmap is stored in, then turn the result:
+	// the turn is a permutation of at most MaxSide x MaxSide pixels, so the
+	// resampling is exactly what it is without an orientation. ScaledSize is
+	// symmetric under swapping the sides, so the stored-geometry size is the
+	// upright size swapped back.
+	o := orientationOf(in.MimeType, in.content)
+	w, h := ScaledSize(uprightOf(cfg.Width, cfg.Height, o))
+	if swapsAxes(o) {
+		w, h = h, w
+	}
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
+	dst = orientRGBA(dst, o)
 
 	mimeType, ext := scaledFormat(in.MimeType, hasTransparency(src))
 	var buf bytes.Buffer

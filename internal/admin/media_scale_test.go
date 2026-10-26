@@ -424,3 +424,68 @@ func TestTheAIUploadNeverAsks(t *testing.T) {
 		t.Errorf("the AI path staged %d uploads", n)
 	}
 }
+
+// portraitPhoto is photo with a real EXIF orientation block in front of the
+// text-only one: the bitmap is w x h as stored, the tag says how it is turned.
+func portraitPhoto(t *testing.T, w, h, orientation int) []byte {
+	t.Helper()
+	jpg := photo(t, w, h)
+	tiff := []byte{
+		'M', 'M', 0, 42, 0, 0, 0, 8, // header, IFD0 at 8
+		0, 1, // one entry
+		0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, byte(orientation), 0, 0, // orientation, SHORT, count 1
+		0, 0, 0, 0, // no next IFD
+	}
+	payload := append([]byte("Exif\x00\x00"), tiff...)
+	n := len(payload) + 2
+	out := append([]byte{}, jpg[:2]...)
+	out = append(out, 0xFF, 0xE1, byte(n>>8), byte(n))
+	out = append(out, payload...)
+	return append(out, jpg[2:]...)
+}
+
+// A phone photo is stored as a landscape bitmap and carries the turn as a tag.
+// The question says what the visitor will see, and Yes stores exactly that.
+func TestScaleQuestionUsesTheUprightPicture(t *testing.T) {
+	h, sm, _, ws := mediaAdmin(t)
+	rec, _ := serveUser(t, h, sm, 1, h.HandleMediaUpload, mediaUploadRequest(t, ws.ID, "hoch.jpg", portraitPhoto(t, 3000, 1500, 6)))
+	token := tokenOf(t, rec, ws.ID)
+
+	page, _ := serveUser(t, h, sm, 1, h.HandleMediaScaleForm, scaleGet(ws.ID, token))
+	body := page.Body.String()
+	if !strings.Contains(body, "1500 × 3000 px, becomes 1280 × 2560 px") {
+		t.Errorf("the question does not announce the upright size:\n%s", body)
+	}
+	if strings.Contains(body, "3000 × 1500") {
+		t.Error("the question prints the stored size of the bitmap")
+	}
+
+	serveUser(t, h, sm, 1, h.HandleMediaScale, scalePost(ws.ID, token, "scale"))
+	items := libraryOf(t, h, ws.ID)
+	if len(items) != 1 {
+		t.Fatalf("%d files, want 1", len(items))
+	}
+	if w, hgt := sizeOnDisk(t, h, ws.ID, items[0]); w != 1280 || hgt != 2560 {
+		t.Errorf("stored %d x %d, want 1280 x 2560", w, hgt)
+	}
+	raw, err := os.ReadFile(media.Path(h.cfg.DataDir, ws.ID, items[0].Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte("Exif")) || bytes.Contains(raw, []byte("Bauernhof")) {
+		t.Error("the stored copy carries camera data")
+	}
+
+	// Answered No, the original is stored as it came: the unchanged path.
+	h, sm, _, ws = mediaAdmin(t)
+	rec, _ = serveUser(t, h, sm, 1, h.HandleMediaUpload, mediaUploadRequest(t, ws.ID, "hoch.jpg", portraitPhoto(t, 3000, 1500, 6)))
+	token = tokenOf(t, rec, ws.ID)
+	serveUser(t, h, sm, 1, h.HandleMediaScale, scalePost(ws.ID, token, "keep"))
+	items = libraryOf(t, h, ws.ID)
+	if len(items) != 1 {
+		t.Fatalf("%d files after No, want 1", len(items))
+	}
+	if w, hgt := sizeOnDisk(t, h, ws.ID, items[0]); w != 3000 || hgt != 1500 {
+		t.Errorf("after No stored %d x %d, want the original 3000 x 1500", w, hgt)
+	}
+}
