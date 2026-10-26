@@ -17,6 +17,9 @@
 #   nightly.sh prune        BKP-05: directories older than RETENTION_DAYS are deleted by one run of the service
 #   nightly.sh offsite      BKP-04: with REMOTE_TARGET set the copy arrives on a second host (needs run.sh backup)
 #   nightly.sh offsite-restore   BKP-04: the document's restore line, played on the second host from that copy
+#   nightly.sh chain        all of the above from fresh containers, one command; ends in OUT_DIR/summary.txt
+#   nightly.sh record-check the proof of deploy/BACKUP-TIMER-RUN.md against the scratch files (R and E)
+#   nightly.sh down         remove the source and the second host
 #
 # Subcommands can be chained in one call and run in order. A failing one ends the
 # call with its status.
@@ -35,7 +38,8 @@
 # Environment (all optional):
 #   PLATFORM       linux/amd64
 #   TARGET         systemd-base (the only target `source` and `target` accept)
-#   KEEP           0; 1 keeps containers (nightly.sh never removes one itself)
+#   KEEP           0; 1 keeps containers (only `chain` and `down` ever remove one)
+#   R, E           deploy/BACKUP-TIMER-RUN.md and deploy/test/out, the record and the scratch root of record-check
 #   NAME, OUT_DIR  holzcloud-t24-src, deploy/test/out/amd64-t24-src (the source)
 #   TGT_NAME, TGT_OUT_DIR   holzcloud-t24-host2, deploy/test/out/amd64-t24-host2
 #   NEW_REF        HEAD, pinned to a sha by `source` and `target`
@@ -81,7 +85,7 @@ ZONE_ORIG_FILE=/root/.nightly-zone-orig
 say() { printf '%s\n' "$*" >&2; }
 die() { say "nightly.sh: $*"; exit 1; }
 usage() {
-  sed -n '2,22p' "${BASH_SOURCE[0]}" >&2
+  sed -n '2,25p' "${BASH_SOURCE[0]}" >&2
   exit 2
 }
 dx() { docker exec "$NAME" "$@"; }
@@ -306,6 +310,190 @@ restore_lines_ok() {
   return 0
 }
 
+# file_clean FILE: the file exists, is not empty and holds no line beginning with
+# BAD. A file that was never written (its stage died) proves nothing, so it fails.
+file_clean() {
+  [ -s "$1" ] || return 1
+  if grep -q '^BAD' "$1"; then return 1; fi
+  return 0
+}
+
+# verdict_of FILE OKLINE: prints PASS and returns 0 when the file exists, its last
+# line equals OKLINE and no line begins with BAD; prints FAIL and returns 1 for a
+# missing or empty file, a wrong last line, or any BAD line. The only input is the
+# file: nothing the stage said about itself counts.
+verdict_of() {
+  local f=$1 ok=$2 last
+  if [ ! -s "$f" ]; then
+    echo FAIL
+    return 1
+  fi
+  last=$(tail -n 1 "$f")
+  if [ "$last" != "$ok" ]; then
+    echo FAIL
+    return 1
+  fi
+  if grep -q '^BAD' "$f"; then
+    echo FAIL
+    return 1
+  fi
+  echo PASS
+}
+
+# kvq FILE KEY: the value of the last "KEY: value" line, "?" when there is none.
+kvq() {
+  local v
+  v=$(sed -n "s/^$2: //p" "$1" 2> /dev/null | tail -n 1)
+  printf '%s\n' "${v:-?}"
+}
+
+# steps_of DIR: "played failed" from DIR/steps.txt, counted the way run.sh counts
+# everywhere: a systemctl status line never counts as failed.
+steps_of() {
+  local f="$1/steps.txt" p fl
+  if [ -f "$f" ]; then
+    p=$(grep -c '^STEP ' "$f" || true)
+    fl=$(awk '$1 == "STEP" && $3 != "rc=0" && index($0, "systemctl status") == 0' "$f" | grep -c . || true)
+  fi
+  printf '%s %s\n' "${p:-0}" "${fl:-0}"
+}
+
+# req_verdict STATUS FILE OKLINE [CLEANFILE]: PASS, or FAIL with the reason, for
+# one stage. Status 3 is the platform not giving the evidence: that is never a
+# PASS, and the reason says so.
+req_verdict() {
+  local sc=$1 f=$2 ok=$3 clean=${4:-}
+  if [ "$sc" -eq 3 ]; then
+    echo "FAIL (the platform could not give the evidence: the stage ended with status 3)"
+    return 0
+  fi
+  if [ "$sc" -ne 0 ]; then
+    echo "FAIL (the stage ended with status $sc)"
+    return 0
+  fi
+  if [ "$(verdict_of "$f" "$ok" || true)" != PASS ]; then
+    echo "FAIL ($f does not end with '$ok', is missing, or holds a BAD line)"
+    return 0
+  fi
+  if [ -n "$clean" ] && ! file_clean "$clean"; then
+    echo "FAIL ($clean is missing, empty or holds a BAD line)"
+    return 0
+  fi
+  echo PASS
+}
+
+# RC_HEADINGS: the headings a record must carry as lines of their own. The five
+# requirement sections are checked by prefix because their titles are free.
+RC_HEADINGS='## Summary
+## How this was run
+## Deviations named
+## Findings
+## Not tested
+## Owner steps
+## Hand-over to phase 28
+## Appendix: raw output'
+
+# record_check R E LEDGER_DIRS: the proof of a record. It never relies on `set -e`
+# (it is called in a context where that is off) and prints one line per problem,
+# then RECORD-CHECK OK N blocks, or RECORD-CHECK FAILED and returns 1.
+#   (a) every `#### DIRECTORY/FILE` block after `## Appendix: raw output` equals
+#       $E/DIRECTORY/FILE byte for byte (a missing final newline is normalised);
+#   (b) every token DIR/FILE of a ledger directory outside the appendix has a block;
+#   (c) the required headings; (d) exactly one valid, known `Evidence commit: SHA`;
+#   (e) no private key marker.
+record_check() {
+  local r=$1 e=$2 ledger=$3 t n name bad=0 h i sha ld tok nblocks nheads
+
+  if [ ! -f "$r" ]; then
+    echo "RECORD-CHECK BAD: the record $r does not exist"
+    echo "RECORD-CHECK FAILED: 1 problem"
+    return 1
+  fi
+  t=$(mktemp -d) || return 1
+  : > "$t/index"
+  : > "$t/heads"
+
+  # (a) The appendix, extracted the way deploy/test/README.md describes it.
+  awk -v d="$t" '/^## Appendix: raw output$/{app=1;next} !app{next} /^#### /{name=$2;want=1;next} want && /^```/{ if(!inb){inb=1;n++;f=d "/" n;print n " " name >> (d "/index");printf "" > f;next} else {inb=0;want=0;close(f);next} } inb{print >> f}' "$r"
+  awk '/^## Appendix: raw output$/{a=1;next} a && /^#### /{print $2}' "$r" > "$t/heads"
+  nheads=$(grep -c . "$t/heads" || true)
+  nblocks=$(grep -c . "$t/index" || true)
+  if [ "$nheads" -ne "$nblocks" ]; then
+    echo "RECORD-CHECK BAD: the appendix has $nheads '#### ' headings and $nblocks fenced blocks: a heading has no block, or a block is not closed"
+    bad=$((bad + 1))
+  fi
+  while read -r n name; do
+    [ -n "$n" ] || continue
+    if [ ! -f "$e/$name" ]; then
+      echo "RECORD-CHECK BAD: no scratch file for the appendix block $name (looked for $e/$name)"
+      bad=$((bad + 1))
+      continue
+    fi
+    awk 1 "$t/$n" > "$t/$n.a"
+    awk 1 "$e/$name" > "$t/$n.b"
+    if ! cmp -s "$t/$n.a" "$t/$n.b"; then
+      echo "RECORD-CHECK BAD: the block differs from the scratch file: $name"
+      bad=$((bad + 1))
+    fi
+  done < "$t/index"
+
+  # The body: everything before the appendix.
+  awk '/^## Appendix: raw output$/{exit} {print}' "$r" > "$t/body"
+
+  # (b) The ledger: no sentence cites output that is not pasted.
+  for ld in $ledger; do
+    for tok in $( (grep -oE "$ld/[A-Za-z0-9._-]+" "$t/body" || true) | sed 's/[.]*$//' | sort -u); do
+      if ! grep -qxF "$tok" "$t/heads"; then
+        echo "RECORD-CHECK BAD: the record cites $tok outside the appendix, and the appendix has no block for it"
+        bad=$((bad + 1))
+      fi
+    done
+  done
+
+  # (c) The headings.
+  while IFS= read -r h; do
+    if ! grep -qxF -- "$h" "$r"; then
+      echo "RECORD-CHECK BAD: the heading '$h' is missing"
+      bad=$((bad + 1))
+    fi
+  done <<< "$RC_HEADINGS"
+  for i in 1 2 3 4 5; do
+    if ! grep -q "^## BKP-0$i" "$r"; then
+      echo "RECORD-CHECK BAD: no heading beginning '## BKP-0$i'"
+      bad=$((bad + 1))
+    fi
+  done
+
+  # (d) The evidence commit.
+  n=$(grep -c '^Evidence commit: ' "$t/body" || true)
+  if [ "$n" -ne 1 ]; then
+    echo "RECORD-CHECK BAD: the record has $n 'Evidence commit: ' lines outside the appendix, exactly one is required"
+    bad=$((bad + 1))
+  else
+    sha=$(sed -n 's/^Evidence commit: //p' "$t/body")
+    if ! printf '%s\n' "$sha" | grep -qE '^[0-9a-f]{7,40}$'; then
+      echo "RECORD-CHECK BAD: the Evidence commit line is malformed: '$sha' is not 7 to 40 hex characters"
+      bad=$((bad + 1))
+    elif ! git cat-file -e "${sha}^{commit}" 2> /dev/null; then
+      echo "RECORD-CHECK BAD: the Evidence commit $sha is unknown to this repository"
+      bad=$((bad + 1))
+    fi
+  fi
+
+  # (e) No private key.
+  if grep -q 'PRIVATE KEY' "$r"; then
+    echo "RECORD-CHECK BAD: a private key marker occurs in the record"
+    bad=$((bad + 1))
+  fi
+
+  rm -rf "${t:?}"
+  if [ "$bad" -ne 0 ]; then
+    echo "RECORD-CHECK FAILED: $bad problem(s)"
+    return 1
+  fi
+  echo "RECORD-CHECK OK $nblocks blocks"
+}
+
 # ---------------------------------------------------------------------------
 # selftest
 # ---------------------------------------------------------------------------
@@ -527,6 +715,151 @@ selftest_restore() {
   st_fail "empty text" restore_lines_ok ""
 }
 
+selftest_verdict() {
+  local t f
+  t=$(mktemp -d)
+  f=$t/stage.txt
+  printf 'KEY: 1\nPASS a\nFIRE OK\n' > "$f"
+  st_eq "verdict ok" PASS "$(verdict_of "$f" "FIRE OK" || true)"
+  st_ok "verdict ok returns 0" verdict_of "$f" "FIRE OK"
+  st_eq "verdict wrong last line" FAIL "$(verdict_of "$f" "DELAY OK" || true)"
+  st_fail "verdict wrong last line returns 1" verdict_of "$f" "DELAY OK"
+  printf 'KEY: 1\nBAD  x\nFIRE OK\n' > "$f"
+  st_eq "verdict BAD line before the ok line" FAIL "$(verdict_of "$f" "FIRE OK" || true)"
+  printf 'BAD  x\nFIRE FAILED\n' > "$f"
+  st_eq "verdict failed stage" FAIL "$(verdict_of "$f" "FIRE OK" || true)"
+  printf 'FIRE OK\nINFO later\n' > "$f"
+  st_eq "verdict ok line not last" FAIL "$(verdict_of "$f" "FIRE OK" || true)"
+  printf ' BAD indented\nFIRE OK\n' > "$f"
+  st_eq "verdict a BAD that does not begin the line" PASS "$(verdict_of "$f" "FIRE OK" || true)"
+  : > "$f"
+  st_eq "verdict empty file" FAIL "$(verdict_of "$f" "FIRE OK" || true)"
+  st_eq "verdict missing file" FAIL "$(verdict_of "$t/none.txt" "FIRE OK" || true)"
+  printf 'FIRE OK' > "$f"
+  st_eq "verdict last line without newline" PASS "$(verdict_of "$f" "FIRE OK" || true)"
+
+  printf 'PASS a\nINFO b\n' > "$f"
+  st_ok "file_clean no BAD" file_clean "$f"
+  printf 'PASS a\nBAD  b\n' > "$f"
+  st_fail "file_clean BAD" file_clean "$f"
+  : > "$f"
+  st_fail "file_clean empty" file_clean "$f"
+  st_fail "file_clean missing" file_clean "$t/none.txt"
+
+  printf 'FIRE OK\n' > "$f"
+  printf 'PASS a\n' > "$t/clean.txt"
+  printf 'BAD  a\n' > "$t/dirty.txt"
+  st_eq "req_verdict all green" PASS "$(req_verdict 0 "$f" "FIRE OK" "$t/clean.txt")"
+  st_eq "req_verdict green without clean file" PASS "$(req_verdict 0 "$f" "FIRE OK")"
+  st_eq "req_verdict status 3" "FAIL (the platform could not give the evidence: the stage ended with status 3)" "$(req_verdict 3 "$f" "FIRE OK" "$t/clean.txt")"
+  st_eq "req_verdict status 1" "FAIL (the stage ended with status 1)" "$(req_verdict 1 "$f" "FIRE OK" "$t/clean.txt")"
+  st_eq "req_verdict dirty verify file" "FAIL ($t/dirty.txt is missing, empty or holds a BAD line)" "$(req_verdict 0 "$f" "FIRE OK" "$t/dirty.txt")"
+  st_eq "req_verdict missing verify file" "FAIL ($t/none.txt is missing, empty or holds a BAD line)" "$(req_verdict 0 "$f" "FIRE OK" "$t/none.txt")"
+  st_eq "req_verdict wrong ok line" "FAIL ($f does not end with 'DELAY OK', is missing, or holds a BAD line)" "$(req_verdict 0 "$f" "DELAY OK")"
+
+  printf 'A: 1\nB: two\nA: 3\n' > "$f"
+  st_eq "kvq last value" 3 "$(kvq "$f" A)"
+  st_eq "kvq other key" two "$(kvq "$f" B)"
+  st_eq "kvq absent key" "?" "$(kvq "$f" C)"
+  st_eq "kvq missing file" "?" "$(kvq "$t/none.txt" A)"
+
+  mkdir -p "$t/d"
+  st_eq "steps_of no file" "0 0" "$(steps_of "$t/d")"
+  printf 'STEP 01 rc=0 a\nSTEP 02 rc=1 b\nSTEP 03 rc=1 systemctl status holzcloud\nSTEP 04 rc=0 c\n' > "$t/d/steps.txt"
+  st_eq "steps_of counts" "4 1" "$(steps_of "$t/d")"
+  rm -rf "${t:?}"
+}
+
+# st_record_make DIR SHA: DIR/rec.md is a record that record_check accepts, with
+# one appendix block, and DIR/out/amd64-t24-src/a.txt is its scratch file.
+st_record_make() {
+  local d=$1 sha=$2 f='```'
+  mkdir -p "$d/out/amd64-t24-src"
+  printf 'line one\nline two\n' > "$d/out/amd64-t24-src/a.txt"
+  {
+    printf '# Record\n\n## Summary\n\nEvidence commit: %s\n\nThe figure is in `amd64-t24-src/a.txt`.\n\n' "$sha"
+    printf '## How this was run\n\n## Deviations named\n\n## Findings\n\n'
+    printf '## BKP-01: one\n\n## BKP-02: two\n\n## BKP-03: three\n\n## BKP-04: four\n\n## BKP-05: five\n\n'
+    printf '## Not tested\n\n## Owner steps\n\n## Hand-over to phase 28\n\n## Appendix: raw output\n\n### R1 source\n\n'
+    printf '#### amd64-t24-src/a.txt\n\n%s\nline one\nline two\n%s\n' "$f" "$f"
+  } > "$d/rec.md"
+}
+
+# st_rc_case NAME WANT R E: record_check must fail and its output must contain WANT.
+st_rc_case() {
+  local out rc=0
+  out=$(record_check "$3" "$4" "amd64-t24-src" 2>&1) || rc=$?
+  st_eq "record-check $1 exit" 1 "$rc"
+  if ! grep -qF -- "$2" <<< "$out"; then
+    ST_N=$((ST_N + 1))
+    ST_BAD=$((ST_BAD + 1))
+    say "SELFTEST BAD record-check $1: the output does not name '$2': $out"
+  else
+    ST_N=$((ST_N + 1))
+  fi
+}
+
+selftest_record() {
+  local t sha out rc=0
+  t=$(mktemp -d)
+  sha=$(git rev-parse --short HEAD)
+  st_record_make "$t" "$sha"
+  out=$(record_check "$t/rec.md" "$t/out" "amd64-t24-src" 2>&1) || rc=$?
+  st_eq "record-check good record exit" 0 "$rc"
+  st_eq "record-check good record output" "RECORD-CHECK OK 1 blocks" "$out"
+
+  # An altered scratch file.
+  cp -R "$t/out" "$t/out-altered"
+  echo "changed" >> "$t/out-altered/amd64-t24-src/a.txt"
+  st_rc_case "altered scratch file" "the block differs from the scratch file: amd64-t24-src/a.txt" "$t/rec.md" "$t/out-altered"
+
+  # A missing final newline in the scratch file is normalised, not a difference.
+  cp -R "$t/out" "$t/out-nonl"
+  printf 'line one\nline two' > "$t/out-nonl/amd64-t24-src/a.txt"
+  out=$(record_check "$t/rec.md" "$t/out-nonl" "amd64-t24-src" 2>&1) || rc=$?
+  st_eq "record-check missing final newline" "RECORD-CHECK OK 1 blocks" "$out"
+
+  # A cited file without a block.
+  awk '{print} /^## Summary$/{print "See amd64-t24-src/ghost.txt for it."}' "$t/rec.md" > "$t/cite.md"
+  st_rc_case "cited file without a block" "cites amd64-t24-src/ghost.txt" "$t/cite.md" "$t/out"
+
+  # A citation at the end of a sentence still counts.
+  awk '{print} /^## Summary$/{print "It is in amd64-t24-src/ghost.txt."}' "$t/rec.md" > "$t/cite2.md"
+  st_rc_case "cited file at a full stop" "cites amd64-t24-src/ghost.txt " "$t/cite2.md" "$t/out"
+
+  # A required heading missing.
+  grep -vx '## Not tested' "$t/rec.md" > "$t/nohead.md"
+  st_rc_case "missing heading" "the heading '## Not tested' is missing" "$t/nohead.md" "$t/out"
+  grep -v '^## BKP-03' "$t/rec.md" > "$t/nobkp.md"
+  st_rc_case "missing requirement heading" "no heading beginning '## BKP-03'" "$t/nobkp.md" "$t/out"
+
+  # The evidence commit: malformed, unknown, absent, doubled.
+  sed 's/^Evidence commit: .*/Evidence commit: xyz/' "$t/rec.md" > "$t/malformed.md"
+  st_rc_case "malformed Evidence commit" "the Evidence commit line is malformed" "$t/malformed.md" "$t/out"
+  sed 's/^Evidence commit: .*/Evidence commit: 0123456789abcdef/' "$t/rec.md" > "$t/unknown.md"
+  st_rc_case "unknown Evidence commit" "is unknown to this repository" "$t/unknown.md" "$t/out"
+  grep -v '^Evidence commit: ' "$t/rec.md" > "$t/nocommit.md"
+  st_rc_case "no Evidence commit" "has 0 'Evidence commit: ' lines" "$t/nocommit.md" "$t/out"
+  awk '{print} /^## Summary$/{print "Evidence commit: '"$sha"'"}' "$t/rec.md" > "$t/twice.md"
+  st_rc_case "two Evidence commit lines" "has 2 'Evidence commit: ' lines" "$t/twice.md" "$t/out"
+
+  # A private key marker.
+  awk '{print} /^## Summary$/{print "-----BEGIN OPENSSH PRIVATE KEY-----"}' "$t/rec.md" > "$t/key.md"
+  st_rc_case "private key marker" "a private key marker occurs in the record" "$t/key.md" "$t/out"
+
+  # A heading without a scratch file.
+  sed 's|^#### amd64-t24-src/a.txt|#### amd64-t24-src/b.txt|' "$t/rec.md" > "$t/nofile.md"
+  st_rc_case "heading without a scratch file" "no scratch file for the appendix block amd64-t24-src/b.txt" "$t/nofile.md" "$t/out"
+
+  # A heading without a block.
+  { cat "$t/rec.md"; printf '\n#### amd64-t24-src/a.txt\n'; } > "$t/noblock.md"
+  st_rc_case "heading without a block" "has 2 '#### ' headings and 1 fenced blocks" "$t/noblock.md" "$t/out"
+
+  # A record that does not exist.
+  st_rc_case "missing record" "does not exist" "$t/none.md" "$t/out"
+  rm -rf "${t:?}"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -538,6 +871,8 @@ cmd_selftest() {
   selftest_prune
   selftest_offsite
   selftest_restore
+  selftest_verdict
+  selftest_record
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -2316,6 +2651,137 @@ cmd_offsite_restore() {
 }
 
 # ---------------------------------------------------------------------------
+# down, chain and record-check
+# ---------------------------------------------------------------------------
+
+# down: remove the source and the second host. Safe when either is absent.
+cmd_down() {
+  local c
+  for c in "$NAME" "$TGT_NAME"; do
+    if docker container inspect "$c" > /dev/null 2>&1; then
+      docker rm -f "$c" > /dev/null 2>&1 || say "down: could not remove $c"
+    fi
+  done
+  say "down: $NAME and $TGT_NAME are gone"
+}
+
+CHAIN_KEEP=0
+chain_cleanup() {
+  [ "$CHAIN_KEEP" != 1 ] || return 0
+  cmd_down || true
+}
+
+# chain_stage SUB: one stage as a child process of this script, so that `set -e`
+# stays in force inside it (a function called from the left of `||` runs with `-e`
+# off, and a stage that goes on after a failed command would hide the failure).
+# The child inherits the environment that `chain` exported.
+chain_stage() {
+  say "chain: ---- stage $1 started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  bash "$ROOT/deploy/test/nightly.sh" "$1"
+}
+
+# chain: the whole proof of phase 24 from nothing but the image, in one command.
+# Every stage's status is kept, so one failure hides nothing; the verdict of each
+# requirement comes from the files the stages wrote.
+cmd_chain() {
+  local sc_fire=0 sc_delay=0 sc_catchup=0 sc_prune=0 sc_backup=0 sc_offsite=0 sc_restore=0
+  local ref d v1 v2 v3 v4 v4b v5 sp=0 sf=0 bp kinds leak s fails=0 sum=$OUT_DIR/summary.txt
+
+  [ "$TARGET" = systemd-base ] \
+    || die "chain needs TARGET=systemd-base (got '$TARGET'): the proof starts from a bare systemd image, nothing else"
+  for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+    case "$d" in
+      / | . | .. | ./ | "$ROOT" | "$ROOT"/) die "chain: refusing the evidence directory '$d'" ;;
+    esac
+  done
+  [ "$NAME" != "$TGT_NAME" ] || die "chain: TGT_NAME equals NAME ($NAME)"
+  [ "$OUT_DIR" != "$TGT_OUT_DIR" ] || die "chain: TGT_OUT_DIR equals OUT_DIR ($OUT_DIR)"
+  for d in "$NAME" "$TGT_NAME"; do
+    if docker container inspect "$d" > /dev/null 2>&1; then
+      die "chain: the container $d exists already; the chain starts from fresh containers, remove it with: NAME=$NAME TGT_NAME=$TGT_NAME bash deploy/test/nightly.sh down"
+    fi
+  done
+  # The binary of both containers is the same, even if a commit lands mid-run.
+  ref=$(pin_ref)
+  NEW_REF=$ref
+  CHAIN_KEEP=$KEEP
+  trap chain_cleanup EXIT
+  # The children never remove a container; the trap above does, unless KEEP=1 was given.
+  export PLATFORM TARGET NAME OUT_DIR TGT_NAME TGT_OUT_DIR NEW_REF ZONE_LEAD FIRE_WAIT DELAY_SAMPLES CATCHUP_LEAD CATCHUP_WAIT
+  export KEEP=1
+  say "chain: NEW_REF pinned to $ref; source $NAME ($OUT_DIR), second host $TGT_NAME ($TGT_OUT_DIR), started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # Without these two there is nothing to measure.
+  chain_stage source || die "chain: the source could not be built (status $?)"
+  chain_stage target || die "chain: the second host could not be built (status $?)"
+
+  chain_stage fire || sc_fire=$?
+  chain_stage delay || sc_delay=$?
+  chain_stage catchup || sc_catchup=$?
+  chain_stage prune || sc_prune=$?
+  say "chain: ---- stage run.sh backup started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  bash "$ROOT/deploy/test/run.sh" backup || sc_backup=$?
+  chain_stage offsite || sc_offsite=$?
+  chain_stage offsite-restore || sc_restore=$?
+
+  # The verdicts, from the files the stages wrote.
+  v1=$(req_verdict "$sc_fire" "$OUT_DIR/fire.txt" "FIRE OK" "$OUT_DIR/verify-fire.txt")
+  v2=$(req_verdict "$sc_catchup" "$OUT_DIR/catchup.txt" "CATCHUP OK" "$OUT_DIR/verify-catchup.txt")
+  v3=$(req_verdict "$sc_delay" "$OUT_DIR/delay.txt" "DELAY OK")
+  v4=$(req_verdict "$sc_offsite" "$OUT_DIR/offsite.txt" "OFFSITE OK")
+  v4b=$(req_verdict "$sc_restore" "$OUT_DIR/offsite-restore.txt" "OFFSITE-RESTORE OK")
+  [ "$v4" != PASS ] || v4=$v4b
+  v5=$(req_verdict "$sc_prune" "$OUT_DIR/prune.txt" "PRUNE OK")
+
+  # No secret of either container in either directory.
+  if ( leak_check ); then leak=OK; else leak=FAILED; fi
+
+  for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+    bp=$(steps_of "$d")
+    sp=$((sp + ${bp% *}))
+    sf=$((sf + ${bp#* }))
+  done
+  kinds=$(for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+    sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$d/deviations.txt" 2> /dev/null
+  done | sort -u | tr '\n' ' ' | sed 's/ $//')
+
+  {
+    echo "---- summary ($PLATFORM) ----"
+    echo "BKP-01 $v1"
+    echo "BKP-02 $v2"
+    echo "BKP-03 $v3"
+    echo "BKP-04 $v4"
+    echo "BKP-05 $v5"
+    echo "TIMER: TRIGGERED-BY=$(kvq "$OUT_DIR/fire.txt" TRIGGERED-BY) RESULT=$(kvq "$OUT_DIR/fire.txt" RESULT) START-LOCAL=$(kvq "$OUT_DIR/fire.txt" START-LOCAL)"
+    echo "DELAY: USED-S=$(kvq "$OUT_DIR/delay.txt" DELAY-USED-S) SAMPLES=$(kvq "$OUT_DIR/delay.txt" DELAY-SAMPLES) MIN-S=$(kvq "$OUT_DIR/delay.txt" D-MIN) MAX-S=$(kvq "$OUT_DIR/delay.txt" D-MAX)"
+    echo "CATCHUP: TRIGGERED-BY=$(kvq "$OUT_DIR/catchup.txt" TRIGGERED-BY) AFTER-BOOT-S=$(kvq "$OUT_DIR/catchup.txt" DELAY-AFTER-BOOT-S) CONTROL-RAN=$(kvq "$OUT_DIR/catchup.txt" CONTROL-RAN)"
+    echo "PRUNE: PLANTED=$(grep -c '^PLANTED ' "$OUT_DIR/prune.txt" 2> /dev/null || true) DELETED=$(grep -c '^OBSERVED .* gone$' "$OUT_DIR/prune.txt" 2> /dev/null || true) KEPT=$(grep -c '^OBSERVED .* present$' "$OUT_DIR/prune.txt" 2> /dev/null || true)"
+    echo "OFFSITE: WORKING-CREDENTIALS=$(kvq "$OUT_DIR/offsite.txt" WORKING-CREDENTIALS) FILES-COMPARED=$(kvq "$OUT_DIR/offsite.txt" FILES-COMPARED) UNIT-DIFF-LINES=$(kvq "$OUT_DIR/offsite.txt" UNIT-DIFF-LINES)"
+    echo "RESTORE: LOGIN=$(kvq "$OUT_DIR/offsite-restore.txt" LOGIN) MEDIA-SERVED=$(kvq "$OUT_DIR/offsite-restore.txt" MEDIA-SERVED) WALL-S=$(kvq "$OUT_DIR/offsite-restore.txt" RESTORE-WALL)"
+    echo "STEPS: $sp played, $sf failed"
+    echo "DEVIATIONS: ${kinds:-none}"
+    if [ "$leak" = OK ]; then echo "LEAK-CHECK OK"; else echo "LEAK-CHECK FAILED"; fi
+  } > "$sum"
+  cat "$sum"
+  say "chain: stage statuses (1 is a BAD line or a refusal, 3 is a platform that could not give the evidence): fire=$sc_fire delay=$sc_delay catchup=$sc_catchup prune=$sc_prune run.sh-backup=$sc_backup offsite=$sc_offsite offsite-restore=$sc_restore"
+  say "chain: finished $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  for s in "$v1" "$v2" "$v3" "$v4" "$v5"; do
+    [ "$s" = PASS ] || fails=$((fails + 1))
+  done
+  [ "$leak" = OK ] || fails=$((fails + 1))
+  if [ "$fails" -ne 0 ]; then
+    say "chain: $fails requirement(s) or checks did not pass, see $sum"
+    exit 1
+  fi
+}
+
+# record-check: the proof of deploy/BACKUP-TIMER-RUN.md against the scratch files.
+cmd_record_check() {
+  local r=${R:-deploy/BACKUP-TIMER-RUN.md} e=${E:-deploy/test/out}
+  record_check "$r" "$e" "$(basename "$OUT_DIR") $(basename "$TGT_OUT_DIR")" || exit 1
+}
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -2324,8 +2790,9 @@ while [ "$#" -gt 0 ]; do
   sub=$1
   shift
   case "$sub" in
-    selftest | source | target | fire | delay | catchup | prune | offsite) "cmd_$sub" ;;
+    selftest | source | target | fire | delay | catchup | prune | offsite | chain | down) "cmd_$sub" ;;
     offsite-restore) cmd_offsite_restore ;;
+    record-check) cmd_record_check ;;
     *) usage ;;
   esac
 done
