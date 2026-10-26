@@ -140,6 +140,16 @@ the image stays bit-for-bit the same. Colour profile (ICC), pixel density (JFIF)
 and colour transform (Adobe) are kept, because losing them would visibly change
 the image.
 
+**Very large images are offered for scaling down.** When the longest side of a
+JPEG, PNG, WebP or still GIF is over 2560 px, the upload stops at a page asking
+whether to scale it down to fit within 2560 px. Yes stores a re-encoded copy —
+a JPEG stays a JPEG, a PNG stays a PNG, a WebP becomes a JPEG or a PNG, a GIF
+becomes a PNG; the colour profile is not carried over and the original is not
+kept. No stores the original. One decision covers all the large files of one
+upload; the others of that upload are stored at once. SVG, PDF, MP4, animated
+GIFs, images beyond the megapixel limit and uploads by AI key or upload link are
+never asked.
+
 The same applies to video. An MP4 refers to itself by absolute byte positions, so
 nothing is cut out — the box holding the recording location is renamed `free` and
 filled with zeroes. Same length, same offsets, no coordinates.

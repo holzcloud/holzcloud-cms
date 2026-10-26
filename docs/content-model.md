@@ -187,7 +187,9 @@ Export, import and AI access all carry the kind.
 ## Block kinds
 
 The block editor comes with nine kinds — text, image, image and text, gallery,
-cards, quotation, call to action, video, rule. A tenth used to mean a new
+cards, quotation, call to action, video, rule. Image and text can place the
+image to the left or right of the text (left by default) or above or below it;
+on a narrow screen left and right become above. A tenth used to mean a new
 version of the program. Under **Block kinds** each website creates its own:
 
 1. **Create the kind** — a name ("Repair step") and a hint. The key comes from
