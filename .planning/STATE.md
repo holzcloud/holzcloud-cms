@@ -2,9 +2,12 @@
 gsd_state_version: "1.0"
 milestone: v0.1.1
 milestone_name: Beta belegt
+current_phase_name: defining requirements
 status: planning
-last_updated: "2026-10-20T09:06:15.367Z"
+stopped_at: Completed 23-04-PLAN.md
+last_updated: "2026-10-26T08:06:46.497Z"
 last_activity: 2026-10-20
+state_head: 165966e0f21813623111a5a6724f74b076cf185b
 progress:
   total_phases: 0
   completed_phases: 0
@@ -278,6 +281,7 @@ Coverage: 56 / 56 requirements mapped. Orphans 0, duplicates 0.
 | 261006-9c4 | Sicherheits-Audit 0.0.21, Gruppe 4: Go 1.26.8, Module, htmx 2.0.11, Action-SHAs, systemd-Härtung | 2026-10-06 | HEAD | — | [261006-9c4-sicherheits-audit-0-0-21-gruppe-4-update](./quick/261006-9c4-sicherheits-audit-0-0-21-gruppe-4-update/) |
 | 261011-ls7 | Menüs als eigener Hauptmenüpunkt, Name in der Liste änderbar, Protokoll (0.0.24) | 2026-10-11 | 6de6cdd | — | [261011-ls7-men-s-eigener-hauptmen-punkt-und-titel-b](./quick/261011-ls7-men-s-eigener-hauptmen-punkt-und-titel-b/) |
 | 261011-o5v | Menüeinträge bearbeiten, Handy-Layout der Eintragsliste (0.0.25) | 2026-10-11 | b543b8b | — | [261011-o5v-men-eintr-ge-bearbeiten-und-handy-layout](./quick/261011-o5v-men-eintr-ge-bearbeiten-und-handy-layout/) |
+| 261026-bon | Block Bild und Text: Bildlage; Upload: Rückfrage Verkleinern über 2560 px | 2026-10-26 | 165966e | — | [261026-bon-block-bild-und-text-bildlage-links-recht](./quick/261026-bon-block-bild-und-text-bildlage-links-recht/) |
 
 ### Performance Metrics
 
