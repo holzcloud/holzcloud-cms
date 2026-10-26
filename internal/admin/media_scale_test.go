@@ -485,7 +485,146 @@ func TestScaleQuestionUsesTheUprightPicture(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("%d files after No, want 1", len(items))
 	}
-	if w, hgt := sizeOnDisk(t, h, ws.ID, items[0]); w != 3000 || hgt != 1500 {
-		t.Errorf("after No stored %d x %d, want the original 3000 x 1500", w, hgt)
+	// The bitmap is the original's own 3000 x 1500; the tag it keeps says it is
+	// looked at as 1500 x 3000, which is what media.Dimensions answers.
+	stored := media.Path(h.cfg.DataDir, ws.ID, items[0].Filename)
+	f, err := os.Open(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err := image.DecodeConfig(f)
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Width != 3000 || cfg.Height != 1500 {
+		t.Errorf("after No the stored bitmap is %d x %d, want the original 3000 x 1500", cfg.Width, cfg.Height)
+	}
+	if w, hgt := sizeOnDisk(t, h, ws.ID, items[0]); w != 1500 || hgt != 3000 {
+		t.Errorf("after No the stored picture is looked at as %d x %d, want 1500 x 3000", w, hgt)
+	}
+}
+
+// orientationStub6 is the whole of what the strip leaves of a photo's EXIF block
+// when the photo says it has to be turned: an APP1 segment with one entry.
+var orientationStub6 = []byte{
+	0xFF, 0xE1, 0x00, 0x22, 'E', 'x', 'i', 'f', 0, 0,
+	'I', 'I', 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00,
+	0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00,
+}
+
+// A phone photo under the limit is stored as it is, bar the camera block, and a
+// browser must still show it upright: the orientation number stays, nothing else.
+func TestAPhotoUnderTheLimitKeepsOnlyItsOrientation(t *testing.T) {
+	h, sm, _, ws := mediaAdmin(t)
+	serveUser(t, h, sm, 1, h.HandleMediaUpload, mediaUploadRequest(t, ws.ID, "hoch.jpg", portraitPhoto(t, 1200, 800, 6)))
+
+	items := libraryOf(t, h, ws.ID)
+	if len(items) != 1 {
+		t.Fatalf("%d files, want 1", len(items))
+	}
+	m := items[0]
+	path := media.Path(h.cfg.DataDir, ws.ID, m.Filename)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, orientationStub6) {
+		t.Error("the stored file does not carry the orientation stub")
+	}
+	if bytes.Count(raw, []byte("Exif")) != 1 {
+		t.Errorf("%d Exif markers in the stored file, want 1", bytes.Count(raw, []byte("Exif")))
+	}
+	for _, secret := range []string{"Bauernhof", "GPS"} {
+		if bytes.Contains(raw, []byte(secret)) {
+			t.Errorf("%q survived in the stored file", secret)
+		}
+	}
+	if w, hgt, err := media.Dimensions(path); err != nil || w != 800 || hgt != 1200 {
+		t.Errorf("Dimensions = %d x %d, %v; want 800 x 1200", w, hgt, err)
+	}
+	if m.Width != 800 || m.Height != 1200 {
+		t.Errorf("the row records %d x %d, want 800 x 1200", m.Width, m.Height)
+	}
+
+	variants, err := h.mediaStore.VariantsFor(context.Background(), m.ID)
+	if err != nil || len(variants) == 0 {
+		t.Fatalf("variants: %v, %v", variants, err)
+	}
+	thumb := variants[0]
+	if thumb.Height <= thumb.Width {
+		t.Errorf("the thumbnail is %d x %d, want portrait", thumb.Width, thumb.Height)
+	}
+	vraw, err := os.ReadFile(media.Path(h.cfg.DataDir, ws.ID, thumb.Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(vraw, []byte("Exif")) {
+		t.Error("the thumbnail carries a tag")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/media/x/y", nil)
+	req.SetPathValue("websiteID", strconv.FormatInt(ws.ID, 10))
+	req.SetPathValue("filename", m.Filename)
+	rec := serve(t, h, sm, h.HandleMediaServe, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("serve: status %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "image/jpeg" {
+		t.Errorf("Content-Type %q", got)
+	}
+	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "immutable") {
+		t.Errorf("Cache-Control %q", got)
+	}
+	if !bytes.Equal(rec.Body.Bytes(), raw) {
+		t.Error("the serve route did not answer the stored bytes verbatim")
+	}
+}
+
+func TestScaleAnswersAndTheOrientationTag(t *testing.T) {
+	// Yes: turned in the pixels, once, and no tag.
+	h, sm, _, ws := mediaAdmin(t)
+	rec, _ := serveUser(t, h, sm, 1, h.HandleMediaUpload, mediaUploadRequest(t, ws.ID, "hoch.jpg", portraitPhoto(t, 3000, 1500, 6)))
+	token := tokenOf(t, rec, ws.ID)
+	serveUser(t, h, sm, 1, h.HandleMediaScale, scalePost(ws.ID, token, "scale"))
+	items := libraryOf(t, h, ws.ID)
+	if len(items) != 1 {
+		t.Fatalf("%d files after Yes, want 1", len(items))
+	}
+	path := media.Path(h.cfg.DataDir, ws.ID, items[0].Filename)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte("Exif")) {
+		t.Error("Yes: the scaled copy carries an Exif segment")
+	}
+	if w, hgt, err := media.Dimensions(path); err != nil || w != 1280 || hgt != 2560 {
+		t.Errorf("Yes: %d x %d, %v; want 1280 x 2560", w, hgt, err)
+	}
+
+	// No: the bitmap as it came, with the stub and nothing else.
+	h, sm, _, ws = mediaAdmin(t)
+	rec, _ = serveUser(t, h, sm, 1, h.HandleMediaUpload, mediaUploadRequest(t, ws.ID, "hoch.jpg", portraitPhoto(t, 3000, 1500, 6)))
+	token = tokenOf(t, rec, ws.ID)
+	serveUser(t, h, sm, 1, h.HandleMediaScale, scalePost(ws.ID, token, "keep"))
+	items = libraryOf(t, h, ws.ID)
+	if len(items) != 1 {
+		t.Fatalf("%d files after No, want 1", len(items))
+	}
+	raw, err = os.ReadFile(media.Path(h.cfg.DataDir, ws.ID, items[0].Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, orientationStub6) {
+		t.Error("No: the stored original does not carry the orientation stub")
+	}
+	if bytes.Contains(raw, []byte("Bauernhof")) {
+		t.Error("No: the camera block survived")
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil || cfg.Width != 3000 || cfg.Height != 1500 {
+		t.Errorf("No: bitmap %d x %d, %v; want 3000 x 1500", cfg.Width, cfg.Height, err)
 	}
 }

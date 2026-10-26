@@ -3,7 +3,9 @@ package media
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"image"
+	"os"
 )
 
 // EXIF orientation, the one piece of camera data a scaled copy still needs.
@@ -17,6 +19,10 @@ import (
 // Every reader here returns 1 ("as stored") for what it cannot read. Nothing in
 // this file returns an error and nothing may panic on the bytes of a stranger:
 // every length and offset is checked against the slice before it is used.
+
+// exifHeader opens the payload of a JPEG APP1 segment that holds Exif: the four
+// letters and two zero bytes. The reader and the writer share this one value.
+var exifHeader = []byte("Exif\x00\x00")
 
 // orientationOf is the EXIF orientation, 1 to 8, of an image file; 1 for a
 // format without EXIF and for anything that cannot be read.
@@ -90,10 +96,10 @@ func webpOrientation(data []byte) int {
 func jpegOrientation(data []byte) int {
 	o := 1
 	walkJPEG(data, func(marker byte, payload []byte) bool {
-		if marker != markerAPP1 || !bytes.HasPrefix(payload, []byte("Exif\x00\x00")) {
+		if marker != markerAPP1 || !bytes.HasPrefix(payload, exifHeader) {
 			return true
 		}
-		o = tiffOrientation(payload[6:])
+		o = tiffOrientation(payload[len(exifHeader):])
 		return false
 	})
 	return o
@@ -232,6 +238,55 @@ func orientRGBA(src *image.RGBA, o int) *image.RGBA {
 		}
 	}
 	return dst
+}
+
+// The stub. When a picture is stored without being turned in its pixels, the
+// strip keeps one thing out of its EXIF block: the orientation number, written
+// fresh. These functions take the number 2 to 8 that the reader returned and
+// nothing else, so no byte of the source block can reach the output through
+// them. The caller has restricted o already; they do not clamp.
+
+// orientationTIFF is the smallest TIFF block that carries an orientation: 26
+// bytes, little-endian, with exactly one entry in IFD0 and no next IFD.
+func orientationTIFF(o int) []byte {
+	le := binary.LittleEndian
+	b := make([]byte, 0, 26)
+	b = append(b, 'I', 'I')           // byte order
+	b = le.AppendUint16(b, 42)        // magic
+	b = le.AppendUint32(b, 8)         // offset of IFD0
+	b = le.AppendUint16(b, 1)         // entry count
+	b = le.AppendUint16(b, 0x0112)    // tag: Orientation
+	b = le.AppendUint16(b, 3)         // type: SHORT
+	b = le.AppendUint32(b, 1)         // count
+	b = le.AppendUint16(b, uint16(o)) // value, in the low two bytes of the field
+	b = append(b, 0, 0)               // rest of the value field
+	b = le.AppendUint32(b, 0)         // offset of the next IFD: none
+	return b
+}
+
+// orientationAPP1 is the JPEG segment around the block: marker, length, the
+// Exif header and the block. 36 bytes.
+func orientationAPP1(o int) []byte {
+	block := orientationTIFF(o)
+	b := []byte{markerPrefix, markerAPP1}
+	b = binary.BigEndian.AppendUint16(b, uint16(2+len(exifHeader)+len(block)))
+	b = append(b, exifHeader...)
+	return append(b, block...)
+}
+
+// look reads a stored picture's header and its orientation. The whole file is
+// read, not only the header: the EXIF chunk of a PNG or a WebP may follow the
+// pixels, so only the whole file can say how the picture is turned.
+func look(path string) (width, height, o int, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0, 1, fmt.Errorf("open image: %w", err)
+	}
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0, 1, fmt.Errorf("read image header: %w", err)
+	}
+	return cfg.Width, cfg.Height, orientationOf("image/"+format, data), nil
 }
 
 // uprightSize is the size this picture has when it is looked at: the stored

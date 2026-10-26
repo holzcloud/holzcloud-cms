@@ -19,6 +19,16 @@ import (
 // for. Segments are dropped or copied verbatim, so the pixel data comes out
 // bit-identical.
 //
+// It keeps exactly one thing out of the EXIF block: the orientation number, when
+// it is 2 to 8, written fresh into a 26-byte block of its own (see
+// orientationTIFF). A phone stores a portrait photo as a landscape bitmap and
+// says in that number how to turn it; a stored file that lost the number is
+// shown on its side by every browser. The stub is built from the integer alone,
+// no byte of the source block is copied, so GPS, device, time, thumbnail and
+// maker note stay out. The scaled copy (Intake.Scaled) is turned in its pixels
+// and written by encoders that write no EXIF, so there is nothing here for the
+// strip to turn into a stub: it never carries a tag, and is never turned twice.
+//
 // An unknown or unhandled format is returned unchanged rather than refused —
 // stripping is a safeguard, and failing an upload over it would be worse than
 // the metadata.
@@ -62,6 +72,7 @@ func stripJPEG(data []byte) ([]byte, error) {
 	out.Write(data[:2])
 
 	i := 2
+	exifSeen := false
 	for i+3 < len(data) {
 		if data[i] != markerPrefix {
 			// Fill bytes are legal between segments; skip them.
@@ -90,6 +101,16 @@ func stripJPEG(data []byte) ([]byte, error) {
 		}
 		segment := data[i : i+2+length]
 		payload := segment[4:]
+
+		// The first Exif segment is the one the reader reads, so it is the one
+		// that is claimed, whatever it says. Its place is taken by the stub
+		// when it says the picture has to be turned; it is dropped either way.
+		if marker == markerAPP1 && !exifSeen && bytes.HasPrefix(payload, exifHeader) {
+			exifSeen = true
+			if o := tiffOrientation(payload[len(exifHeader):]); o >= 2 && o <= 8 {
+				out.Write(orientationAPP1(o))
+			}
+		}
 
 		if keepJPEGSegment(marker, payload) {
 			out.Write(segment)
