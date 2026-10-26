@@ -552,17 +552,17 @@ Plans:
   1. The five plugins run under `MemoryDenyWriteExecute=true` on native amd64, and native backup and restore times are recorded next to the emulation figures.
   2. The owner steps for a restore on a real server and for a reboot with the units enabled exist, each with the output to expect, and the results are recorded once the owner has made them.
 
-**Plans**: 0/3 plans executed in 3 waves
+**Plans**: 3/3 plans executed in 3 waves
 
 Plans:
 **Wave 1**
-- [ ] 26-01-PLAN.md — Tracer and SRV-01 as a button: the `native-amd64` workflow (`workflow_dispatch` only, `ubuntu-latest`, the three pinned actions of `ci.yml`, no secret) and `deploy/test/native-amd64.sh` with the verdict rules (PASS only native and enforced, VOID and NOT-NATIVE exit 3) proven against the real R1 and R2 outputs, the evidence bundle with its leak scan, and the guard rehearsed from this arm64 machine (SRV-01)
+- [x] 26-01-PLAN.md — Tracer and SRV-01 as a button: the `native-amd64` workflow (`workflow_dispatch` only, `ubuntu-latest`, the three pinned actions of `ci.yml`, no secret) and `deploy/test/native-amd64.sh` with the verdict rules (PASS only native and enforced, VOID and NOT-NATIVE exit 3) proven against the real R1 and R2 outputs, the evidence bundle with its leak scan, and the guard rehearsed from this arm64 machine (SRV-01)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 26-02-PLAN.md — The record and its checker: `record-check`, `status-check` and `appendix` (pending owner accepted without a claimed pass, recorded refused without evidence), the owner steps O-1 to O-3 with the output observed in a container rehearsal, and `deploy/NATIVE-AMD64-RUN.md` in the pending form with the hand-over to phase 28 (SRV-01 to SRV-03)
+- [x] 26-02-PLAN.md — The record and its checker: `record-check`, `status-check` and `appendix` (pending owner accepted without a claimed pass, recorded refused without evidence), the owner steps O-1 to O-3 with the output observed in a container rehearsal, and `deploy/NATIVE-AMD64-RUN.md` in the pending form with the hand-over to phase 28 (SRV-01 to SRV-03)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 26-03-PLAN.md — Honest status and the sweep: the README section by insertion only, REQUIREMENTS.md at `Pending owner` held to the record by `status-check`, the closing-order guard against automatic completion, and the measured sweep of every number that must not move (SRV-01 to SRV-03)
+- [x] 26-03-PLAN.md — Honest status and the sweep: the README section by insertion only, REQUIREMENTS.md at `Pending owner` held to the record by `status-check`, the closing-order guard against automatic completion, and the measured sweep of every number that must not move (SRV-01 to SRV-03)
 
 **Owner-pending**: SRV-01 to SRV-03 are handed over, not verified. The phase closes on the hand-over (the instrument, the owner steps and the record in the pending form), not on a native amd64 run or a run on a real server, and none exists. `.planning/REQUIREMENTS.md` reads `Pending owner` for the three, with the boxes unchecked, until `deploy/NATIVE-AMD64-RUN.md` records the owner's results; `bash deploy/test/native-amd64.sh status-check` holds the two files together.
 
@@ -646,7 +646,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 23. Repository tidy and beta criteria | v0.1.0 | 4/4 | Complete | 2026-10-20 |
 | 24. The backup timer as shipped | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
 | 25. Consistent and compatible backups | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
-| 26. Native amd64 and the real server | v0.1.1 | 0/3 | Not started | — |
+| 26. Native amd64 and the real server | v0.1.1 | 3/3 | In Progress | — |
 | 27. Repository tidy | v0.1.1 | 0/? | Not started | — |
 | 28. The promise in writing | v0.1.1 | 0/? | Not started | — |
 
