@@ -136,9 +136,12 @@ files per page and can be filtered by name, description, kind and "unused".
 coordinates of where it was taken in its EXIF block; the file is served publicly
 and unchanged, so a product photo taken at home would publish a private address.
 EXIF, XMP, IPTC and comments are removed — by byte surgery, not by re-encoding:
-the image stays bit-for-bit the same. Colour profile (ICC), pixel density (JFIF)
-and colour transform (Adobe) are kept, because losing them would visibly change
-the image.
+the image stays bit-for-bit the same. One number is kept: the orientation, when
+the photo says it has to be turned (2 to 8). A minimal note that holds only this
+number stays in the file, and no coordinates, device, time or thumbnail, because
+without it every browser shows a portrait phone photo on its side. Colour
+profile (ICC), pixel density (JFIF) and colour transform (Adobe) are kept,
+because losing them would visibly change the image.
 
 **Very large images are offered for scaling down.** When the longest side of a
 JPEG, PNG, WebP or still GIF is over 2560 px, the upload stops at a page asking
@@ -156,12 +159,18 @@ no browser turns it a second time; the 2560 px are counted on the upright
 picture, and the sizes the question shows — before and after — are those of the
 upright picture. An RGB colour profile (ICC) is carried into the copy; a profile
 for another colour model, such as CMYK or greyscale, is not, because the copy is
-always RGB. Everything else in the metadata stays removed. Two limits remain: the
-smaller copies made for different screen widths are still made without a
-profile, and a picture that is stored without being scaled (the answer No, or
-one that is not over the limit) goes through the metadata strip described above,
-which removes the orientation tag together with the rest of the EXIF block — such
-a photo shows in the orientation of its bitmap.
+always RGB. Everything else in the metadata stays removed.
+
+A picture that is stored without being scaled (the answer No, a picture that is
+not over the limit, or one uploaded by AI key or upload link) keeps that one
+orientation note and nothing else of its EXIF block, so it stands upright too.
+The scaled copy carries no note, because it is turned in its pixels. The smaller
+copies made for different screen widths, the cropped picture and the recorded
+width and height are made from the upright picture and carry no note either, so
+the thumbnail, the candidates a browser chooses from and the original all stand
+the same way. One limit remains: the smaller copies are made without a colour
+profile. Pictures uploaded before this change were stored without the note and
+stay as they are.
 
 The same applies to video. An MP4 refers to itself by absolute byte positions, so
 nothing is cut out — the box holding the recording location is renamed `free` and
