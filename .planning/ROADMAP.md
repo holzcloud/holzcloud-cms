@@ -552,7 +552,7 @@ Plans:
   1. The five plugins run under `MemoryDenyWriteExecute=true` on native amd64, and native backup and restore times are recorded next to the emulation figures.
   2. The owner steps for a restore on a real server and for a reboot with the units enabled exist, each with the output to expect, and the results are recorded once the owner has made them.
 
-**Plans**: 3/3 plans executed in 3 waves
+**Plans**: 3/3 plans complete in 3 waves
 
 Plans:
 **Wave 1**
@@ -646,7 +646,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 23. Repository tidy and beta criteria | v0.1.0 | 4/4 | Complete | 2026-10-20 |
 | 24. The backup timer as shipped | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
 | 25. Consistent and compatible backups | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
-| 26. Native amd64 and the real server | v0.1.1 | 3/3 | In Progress | — |
+| 26. Native amd64 and the real server | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
 | 27. Repository tidy | v0.1.1 | 0/? | Not started | — |
 | 28. The promise in writing | v0.1.1 | 0/? | Not started | — |
 

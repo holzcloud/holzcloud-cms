@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v0.1.1
 milestone_name: Beta belegt
-current_phase_name: Native amd64 and the real server
+current_phase_name: Repository tidy
 status: planning
 stopped_at: Completed 26-03-PLAN.md
-last_updated: "2026-10-26T15:41:20.762Z"
+last_updated: "2026-10-26T15:47:38.539Z"
 last_activity: 2026-10-26
-last_activity_desc: Phase 25 complete, transitioned to Phase 26
-state_head: 7d8e43d65d0f1d4357de2522f4e9c88810e34adb
+last_activity_desc: Phase 26 complete, transitioned to Phase 27
+state_head: 007c09ceb400ef14f9ff07ebc3fa63eeee4fb5d4
 progress:
   total_phases: 5
-  completed_phases: 25
+  completed_phases: 26
   total_plans: 9
   completed_plans: 9
-  percent: 100
+  percent: 93
 ---
 
 ## Where we are (corrected 2026-10-12)
@@ -51,7 +51,7 @@ close and are history, not status.
 
 ### Current Position (v1.10, geschrieben beim Abschluss von Phase 10 — die geltende steht unter `## Current Position`)
 
-Phase: 26 — Native amd64 and the real server
+Phase: 27 — Repository tidy
 letzte offene Phase des Meilensteins. Alle sechs Phasen von v1.6 (6–11) haben
 ihre Pläne gefahren: 42 von 42.
 
@@ -139,7 +139,7 @@ erschienen bei englischer Oberfläche auf Deutsch — vorbestehend, gegen
 `60ff5b2` geprüft, in `.planning/WINDOWS.md` eingetragen. Der Umfang dieses
 Fensters ist inzwischen gemessen und ist grösser als drei Sätze: siehe
 `.planning/audits/v1.6-I18N-828.md`
-Last activity: 2026-10-26 — Phase 25 complete, transitioned to Phase 26
+Last activity: 2026-10-26 — Phase 26 complete, transitioned to Phase 27
 
 ### Milestone Map
 
