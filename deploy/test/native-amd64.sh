@@ -22,6 +22,10 @@
 #   native-amd64.sh summarize   native-summary.txt and runner.txt from what the directories hold
 #                               (MDWE_RC and TIMING_RC name a stage status; absent means not played)
 #   native-amd64.sh down        remove the containers of a run, and only those
+#   native-amd64.sh record-check   the proof of deploy/NATIVE-AMD64-RUN.md (R, E): pending owner without a
+#                               claim, recorded only with the matching evidence (plan 26-02)
+#   native-amd64.sh status-check   the record held to .planning/REQUIREMENTS.md (R, REQS)
+#   native-amd64.sh appendix    the appendix blocks of the fixed paste list, from the files below E
 #
 # Subcommands can be chained in one call and run in order. A failing one ends the
 # call with its status; `run` always ends it with the exit code of the verdict.
@@ -49,6 +53,8 @@
 #                   because the stage not played reads NOT-RUN
 #   NEW_REF         HEAD, pinned to its short sha when `run` starts
 #   DOCKER_RUN_ARGS extra `docker run` flags, handed to run.sh untouched (it splits them on purpose)
+#   R, E, REQS      deploy/NATIVE-AMD64-RUN.md, deploy/test/out and .planning/REQUIREMENTS.md: the record, the
+#                   scratch root and the requirements file of record-check, status-check and appendix
 # Derived, below BASE_OUT: NATIVE_PREFIX (this file's own files: runner.txt and native-summary.txt),
 #   NATIVE_PREFIX-mdwe (run.sh mdwe), NATIVE_PREFIX-bak-src and NATIVE_PREFIX-bak-tgt (run.sh
 #   backup-chain, which adds -bulk to each for the second point); the containers are named
@@ -79,7 +85,7 @@ die() {
   exit 1
 }
 usage() {
-  sed -n '2,50p' "${BASH_SOURCE[0]}" >&2
+  sed -n '2,61p' "${BASH_SOURCE[0]}" >&2
   exit 2
 }
 
@@ -553,6 +559,584 @@ cmd_down() {
     docker rm -f "$n" > /dev/null 2>&1 || true
   done
   say "native-amd64: containers of $NATIVE_PREFIX removed"
+}
+
+# ---------------------------------------------------------------------------
+# The record (plan 26-02): summary_check, srv_record_check, status_check, appendix.
+#
+# deploy/NATIVE-AMD64-RUN.md has two honest states. "pending owner" claims nothing:
+# no result, no sha, no appendix, and no pass word anywhere outside a fenced block.
+# "recorded" is accepted only with the matching evidence. These functions never rely
+# on `set -e` (they are called from the left of `||`), print one line per problem and
+# end on an answer line. The awk programs are POSIX; a fence is a line that begins
+# with three backticks.
+# ---------------------------------------------------------------------------
+
+# native_paste_list: DIRECTORY/FILE of the appendix, in order. A list, never a glob:
+# step-NN.txt, seed.txt, logs and cookie jars are not on it and are never pasted.
+native_paste_list() {
+  printf '%s\n' \
+    amd64-native/native-summary.txt \
+    amd64-native/runner.txt \
+    amd64-native-mdwe/versions.txt \
+    amd64-native-mdwe/canary.txt \
+    amd64-native-mdwe/check.txt \
+    amd64-native-mdwe/mdwe-control.txt \
+    amd64-native-mdwe/verdict.txt \
+    amd64-native-bak-src/summary.txt \
+    amd64-native-bak-src/backup.txt \
+    amd64-native-bak-src/versions.txt \
+    amd64-native-bak-tgt/restore.txt \
+    amd64-native-bak-src-bulk/backup.txt \
+    amd64-native-bak-tgt-bulk/restore.txt
+}
+
+# native_markers REQ: the strings a recorded result of REQ has to hold, one per line
+# (CONTEXT.md, Specifics: the single source). The owner steps echo them, so that the
+# owner's paste contains them. For SRV-01 the first is a line of the summary and the
+# second its last line; summary_check proves the rest.
+native_markers() {
+  case "${1:-}" in
+    SRV-01) printf '%s\n' 'SRV-01 PASS' 'NATIVE-AMD64 DONE' ;;
+    SRV-02) printf '%s\n' '=== Backup complete: ' '=== Restore complete ===' 'SRV-02 INSTANCE READY' 'SRV-02 TREES EQUAL' ;;
+    SRV-03) printf '%s\n' 'SRV-03 UNITS ENABLED' 'SRV-03 BOOT CHANGED' 'SRV-03 UNITS ACTIVE' 'SRV-03 SITE READY' 'SRV-03 TIMER ARMED' ;;
+  esac
+}
+
+# claimed_word FILE NAME: the first word after "NAME " on the first such line; empty when absent.
+claimed_word() {
+  local v=""
+  v=$(sed -n "s/^$2 //p" "$1" 2> /dev/null | head -n 1) || true
+  printf '%s\n' "${v%% *}"
+}
+
+# summary_check FILE: FILE is a native summary as `summarize` writes it, and its claimed
+# verdicts are the ones its own lines give. One `SUMMARY BAD:` line per problem, then
+# `SUMMARY OK: SRV-01 WORD` (return 0) or `SUMMARY FAILED: N problem(s)` (return 1).
+summary_check() {
+  local f=${1:-} bad=0 key n first last host cont word mst tst mv tv ov canary c
+  if [ -z "$f" ] || [ ! -s "$f" ]; then
+    echo "SUMMARY BAD: there is no summary text"
+    echo "SUMMARY FAILED: 1 problem(s)"
+    return 1
+  fi
+  first=$(head -n 1 "$f")
+  if [ "$first" != "---- native amd64 summary ----" ]; then
+    echo "SUMMARY BAD: the first line is '$first', not '---- native amd64 summary ----'"
+    bad=$((bad + 1))
+  fi
+  last=$(tail -n 1 "$f")
+  if [ "$last" != "NATIVE-AMD64 DONE" ]; then
+    echo "SUMMARY BAD: the last line is '$last', not 'NATIVE-AMD64 DONE'"
+    bad=$((bad + 1))
+  fi
+  for key in COMMIT HOST-ARCH CONTAINER-ARCH CANARY MDWE-WORD MDWE-STATUS TIMING-STATUS; do
+    n=$(grep -c "^$key: " "$f" || true)
+    if [ "$n" -ne 1 ]; then
+      echo "SUMMARY BAD: $n '$key: ' lines, exactly one is required"
+      bad=$((bad + 1))
+    fi
+  done
+  for key in SRV-01-MDWE SRV-01-TIMING SRV-01; do
+    n=$(grep -c "^$key " "$f" || true)
+    if [ "$n" -ne 1 ]; then
+      echo "SUMMARY BAD: $n '$key ' verdict lines, exactly one is required"
+      bad=$((bad + 1))
+    fi
+  done
+  if [ "$bad" -ne 0 ]; then
+    echo "SUMMARY FAILED: $bad problem(s)"
+    return 1
+  fi
+
+  # The verdicts are recomputed from the lines the summary displays, with the functions
+  # that wrote them; a claim that differs from the recomputation is a forgery or a typo.
+  host=$(file_value "$f" HOST-ARCH)
+  cont=$(file_value "$f" CONTAINER-ARCH)
+  canary=$(file_value "$f" CANARY)
+  word=$(file_value "$f" MDWE-WORD)
+  mst=$(file_value "$f" MDWE-STATUS)
+  tst=$(file_value "$f" TIMING-STATUS)
+  if [ "$mst" = notrun ]; then
+    mv=NOT-RUN
+  else
+    mv=$(srv01_mdwe "$host" "$cont" "$word")
+  fi
+  if [ "$tst" = notrun ]; then
+    tv=NOT-RUN
+  else
+    tv=$(srv01_timing "$f")
+  fi
+  mv=${mv%% *}
+  tv=${tv%% *}
+  ov=$(srv01_overall "$mv" "$tv")
+  c=$(claimed_word "$f" SRV-01-MDWE)
+  if [ "$c" != "$mv" ]; then
+    echo "SUMMARY BAD: SRV-01-MDWE is claimed '$c', the lines of the summary give '$mv'"
+    bad=$((bad + 1))
+  fi
+  c=$(claimed_word "$f" SRV-01-TIMING)
+  if [ "$c" != "$tv" ]; then
+    echo "SUMMARY BAD: SRV-01-TIMING is claimed '$c', the lines of the summary give '$tv'"
+    bad=$((bad + 1))
+  fi
+  c=$(claimed_word "$f" SRV-01)
+  if [ "$c" != "$ov" ]; then
+    echo "SUMMARY BAD: SRV-01 is claimed '$c', the lines of the summary give '$ov'"
+    bad=$((bad + 1))
+  fi
+  if [ "$mv" = PASS ] && [ "$canary" != enforced ]; then
+    echo "SUMMARY BAD: SRV-01-MDWE is PASS but CANARY is '$canary', only 'enforced' makes the plugin run count"
+    bad=$((bad + 1))
+  fi
+  if [ "$bad" -ne 0 ]; then
+    echo "SUMMARY FAILED: $bad problem(s)"
+    return 1
+  fi
+  echo "SUMMARY OK: SRV-01 $ov"
+}
+
+# rc_section FILE HEADING: the lines below the heading line that begins with HEADING (a
+# "## ..." text) up to the next "## " line outside a fence; the heading is not printed.
+rc_section() {
+  awk -v p="$2" '
+    { isf = (substr($0, 1, 3) == "```") }
+    !fence && !isf && substr($0, 1, 3) == "## " {
+      if (insec) exit
+      if (index($0, p) == 1) { insec = 1; next }
+    }
+    insec { print }
+    isf { fence = !fence }
+  ' "$1"
+}
+
+# rc_prose: stdin without its fenced blocks and without the fence lines.
+rc_prose() {
+  awk '{ if (substr($0, 1, 3) == "```") { fence = !fence; next } if (!fence) print }'
+}
+
+# rc_result_block: stdin is a requirement section; prints the inside of the first fenced
+# block after its "Result (owner): " line (fences before that line are skipped).
+# Status 0 when such a block was found and closed, 1 otherwise.
+rc_result_block() {
+  awk '
+    { isf = (substr($0, 1, 3) == "```") }
+    state == 0 { if (isf) { fence = !fence } else if (!fence && index($0, "Result (owner): ") == 1) { state = 1 } next }
+    state == 1 { if (isf) { state = 2 } next }
+    state == 2 { if (isf) { closed = 1; exit } print }
+    END { exit (closed ? 0 : 1) }
+  '
+}
+
+# rc_step N: stdin is the Owner steps section; prints step N, from its "**O-N. " line to
+# the next step line or the "**Recording a result" paragraph.
+rc_step() {
+  awk -v n="$1" '
+    index($0, "**O-" n ". ") == 1 { cur = 1; print; next }
+    /^\*\*O-[0-9]+\. / || /^\*\*Recording a result/ { cur = 0 }
+    cur { print }
+  '
+}
+
+# rc_status_of RECORD ID: "pending owner" or "recorded" when the section has exactly one
+# valid Status line, nothing otherwise.
+rc_status_of() {
+  local prose n v=""
+  prose=$(rc_section "$1" "## $2" | rc_prose)
+  n=$(printf '%s\n' "$prose" | grep -c '^Status: ' || true)
+  if [ "$n" -eq 1 ]; then
+    v=$(printf '%s\n' "$prose" | sed -n 's/^Status: //p' | sed 's/[[:space:]]*$//')
+    case "$v" in
+      'pending owner' | recorded) ;;
+      *) v="" ;;
+    esac
+  fi
+  printf '%s\n' "$v"
+}
+
+RC_BAD=0
+rc_bad() {
+  echo "RECORD-CHECK BAD: $*"
+  RC_BAD=$((RC_BAD + 1))
+}
+
+# rc_same A B: the two files are equal once a missing final newline is normalised.
+rc_same() {
+  local a b
+  a=$(mktemp) || return 1
+  b=$(mktemp) || return 1
+  awk 1 "$1" > "$a"
+  awk 1 "$2" > "$b"
+  if cmp -s "$a" "$b"; then
+    rm -f "$a" "$b"
+    return 0
+  fi
+  rm -f "$a" "$b"
+  return 1
+}
+
+# srv_record_check R E: the proof of the record. Ends `RECORD-CHECK OK N blocks; recorded:
+# LIST; pending owner: LIST` or `RECORD-CHECK FAILED: N problem(s)`.
+srv_record_check() {
+  local r=${1:-deploy/NATIVE-AMD64-RUN.md} e=${2:-deploy/test/out}
+  local t id sec prose ns nr st rv want have n h m name sha bcommit out bads ln os stext
+  local sv1="" nblocks=0 nheads=0 recorded="" pending="" sumprose rows row k
+  RC_BAD=0
+  if [ ! -f "$r" ]; then
+    echo "RECORD-CHECK BAD: the record $r does not exist"
+    echo "RECORD-CHECK FAILED: 1 problem(s)"
+    return 1
+  fi
+  t=$(mktemp -d) || return 1
+  awk '/^## Appendix: raw output$/{exit} {print}' "$r" > "$t/body"
+
+  # The headings, each alone on its line; the requirement sections by prefix.
+  while IFS= read -r h; do
+    if ! grep -qxF -- "$h" "$r"; then
+      rc_bad "the heading '$h' is missing"
+    fi
+  done << 'EOF'
+## Summary
+## How this was prepared
+## Container vs. server
+## Not tested
+## Owner steps
+## Hand-over to phase 28
+## Appendix: raw output
+EOF
+  for id in SRV-01 SRV-02 SRV-03; do
+    if ! grep -q "^## $id" "$r"; then
+      rc_bad "no heading beginning '## $id'"
+    fi
+  done
+
+  if grep -q 'PRIVATE KEY' "$r"; then
+    rc_bad "a private key marker occurs in the record"
+  fi
+
+  sumprose=$(rc_section "$r" "## Summary" | rc_prose)
+  rc_prose < "$r" > "$t/prose"
+
+  # One requirement at a time: its status, its result slot, its paste block, its Summary row.
+  for id in SRV-01 SRV-02 SRV-03; do
+    sec=$(rc_section "$r" "## $id")
+    prose=$(printf '%s\n' "$sec" | rc_prose)
+    ns=$(printf '%s\n' "$prose" | grep -c '^Status: ' || true)
+    nr=$(printf '%s\n' "$prose" | grep -c '^Result (owner): ' || true)
+    st=""
+    rv=""
+    if [ "$ns" -ne 1 ]; then
+      rc_bad "$id has $ns 'Status: ' lines, exactly one is required"
+    else
+      st=$(printf '%s\n' "$prose" | sed -n 's/^Status: //p' | sed 's/[[:space:]]*$//')
+      case "$st" in
+        'pending owner' | recorded) ;;
+        *)
+          rc_bad "$id has the unknown status '$st' (the values are 'pending owner' and 'recorded')"
+          st=""
+          ;;
+      esac
+    fi
+    if [ "$nr" -ne 1 ]; then
+      rc_bad "$id has $nr 'Result (owner): ' lines, exactly one is required"
+    else
+      rv=$(printf '%s\n' "$prose" | sed -n 's/^Result (owner): //p' | sed 's/[[:space:]]*$//')
+      case "$rv" in
+        pending | recorded) ;;
+        *)
+          rc_bad "$id has the unknown 'Result (owner): $rv' (the values are 'pending' and 'recorded')"
+          rv=""
+          ;;
+      esac
+    fi
+    if [ -n "$st" ] && [ -n "$rv" ]; then
+      want=pending
+      if [ "$st" = recorded ]; then want=recorded; fi
+      if [ "$rv" != "$want" ]; then
+        rc_bad "$id: 'Result (owner): $rv' does not match 'Status: $st'"
+      fi
+    fi
+    if [ "$id" = SRV-01 ]; then sv1=$st; fi
+
+    have=1
+    if ! printf '%s\n' "$sec" | rc_result_block > "$t/paste-$id"; then
+      have=0
+      : > "$t/paste-$id"
+      rc_bad "$id has no closed fenced paste block after its 'Result (owner): ' line"
+    fi
+
+    # The Summary row.
+    rows=$(printf '%s\n' "$sumprose" | grep "^| $id |" || true)
+    n=$(printf '%s\n' "$rows" | grep -c . || true)
+    if [ "$n" -ne 1 ]; then
+      rc_bad "the Summary table has $n rows beginning '| $id |', exactly one is required"
+      row=""
+    else
+      row=$rows
+    fi
+
+    if [ "$st" = "pending owner" ]; then
+      pending="$pending $id"
+      if [ "$have" -eq 1 ]; then
+        n=$(awk 'NF && $0 != "(nothing pasted yet)" { n++ } END { print n + 0 }' "$t/paste-$id")
+        if [ "$n" -ne 0 ]; then
+          rc_bad "$id is pending owner but its paste block holds text; a result is pasted together with Status: recorded"
+        fi
+      fi
+      if [ -n "$row" ]; then
+        if ! printf '%s\n' "$row" | grep -q 'PENDING OWNER'; then
+          rc_bad "the Summary row of $id is pending owner but does not say PENDING OWNER"
+        fi
+        if printf '%s\n' "$row" | grep -Eiwq 'pass|passed|passes'; then
+          rc_bad "the Summary row of $id is pending owner and holds a pass word"
+        fi
+      fi
+      if grep -Eq "^[[:space:]>*-]*$id PASS[[:space:]]*\$" "$t/prose"; then
+        rc_bad "a line '$id PASS' stands outside a fenced block while $id is pending owner"
+      fi
+    elif [ "$st" = recorded ]; then
+      recorded="$recorded $id"
+      if [ -n "$row" ] && printf '%s\n' "$row" | grep -q 'PENDING OWNER'; then
+        rc_bad "the Summary row of $id is recorded but still says PENDING OWNER"
+      fi
+      if [ "$id" = SRV-01 ]; then
+        out=$(summary_check "$t/paste-$id" 2>&1) || true
+        if ! printf '%s\n' "$out" | grep -q '^SUMMARY OK: SRV-01 PASS$'; then
+          bads=$(printf '%s\n' "$out" | grep '^SUMMARY BAD:' || true)
+          if [ -n "$bads" ]; then
+            while IFS= read -r ln; do
+              rc_bad "SRV-01 recorded: ${ln#SUMMARY BAD: }"
+            done << EOF
+$bads
+EOF
+          else
+            ln=$(printf '%s\n' "$out" | sed -n 's/^SUMMARY OK: SRV-01 //p')
+            rc_bad "SRV-01 recorded: the verdict of the summary is ${ln:-unreadable}; only PASS can be recorded (a run that did not satisfy the requirement is a finding and leaves the status pending)"
+          fi
+        fi
+      elif [ "$have" -eq 1 ]; then
+        while IFS= read -r m; do
+          if ! awk -v m="$m" 'index($0, m) == 1 { f = 1 } END { exit (f ? 0 : 1) }' "$t/paste-$id"; then
+            rc_bad "$id recorded: the result block has no line that begins '$m'"
+          fi
+        done << EOF
+$(native_markers "$id")
+EOF
+      fi
+    fi
+  done
+
+  # The evidence commit: one line, none while SRV-01 is pending, a sha git knows while it is recorded.
+  n=$(grep -c '^Evidence commit: ' "$t/body" || true)
+  if [ "$n" -ne 1 ]; then
+    rc_bad "the record has $n 'Evidence commit: ' lines outside the appendix, exactly one is required"
+  else
+    sha=$(sed -n 's/^Evidence commit: //p' "$t/body" | sed 's/[[:space:]]*$//')
+    if [ "$sha" = "none (pending owner)" ]; then
+      if [ "$sv1" = recorded ]; then
+        rc_bad "the Evidence commit line says 'none (pending owner)' while SRV-01 is recorded"
+      fi
+    elif ! printf '%s\n' "$sha" | grep -qE '^[0-9a-f]{7,40}$'; then
+      rc_bad "the Evidence commit line is malformed: '$sha' is neither 'none (pending owner)' nor 7 to 40 hex characters"
+    elif [ "$sv1" = "pending owner" ]; then
+      rc_bad "the Evidence commit line holds the sha $sha while SRV-01 is pending owner"
+    elif [ "$sv1" = recorded ]; then
+      if ! git cat-file -e "${sha}^{commit}" 2> /dev/null; then
+        rc_bad "the Evidence commit $sha is unknown to this repository"
+      else
+        bcommit=$(file_value "$t/paste-SRV-01" COMMIT)
+        case "$bcommit" in
+          "$sha"*) ;;
+          *) rc_bad "the Evidence commit $sha is not a prefix of the COMMIT of the pasted summary ($bcommit)" ;;
+        esac
+      fi
+    fi
+  fi
+
+  # The appendix, extracted the way deploy/test/README.md describes it.
+  awk -v d="$t" '/^## Appendix: raw output$/{app=1;next} !app{next} /^#### /{name=$2;want=1;next} want && /^```/{ if(!inb){inb=1;n++;f=d "/b" n;print n " " name >> (d "/index");printf "" > f;next} else {inb=0;want=0;close(f);next} } inb{print >> f}' "$r"
+  : >> "$t/index"
+  awk '/^## Appendix: raw output$/{a=1;next} a && /^#### /{print $2}' "$r" > "$t/heads"
+  nheads=$(grep -c . "$t/heads" || true)
+  nblocks=$(grep -c . "$t/index" || true)
+  n=$(awk '/^## Appendix: raw output$/{a=1;next} a && (/^#### / || /^```/){c++} END{print c+0}' "$r")
+  if [ "$sv1" = "pending owner" ]; then
+    if [ "$n" -ne 0 ]; then
+      rc_bad "the appendix has a '#### ' heading or a fenced block while SRV-01 is pending owner; it stays empty until SRV-01 is recorded"
+    fi
+  elif [ "$sv1" = recorded ]; then
+    if [ "$nheads" -ne "$nblocks" ]; then
+      rc_bad "the appendix has $nheads '#### ' headings and $nblocks fenced blocks: a heading has no block, or a block is not closed"
+    fi
+    if [ "$nblocks" -eq 0 ]; then
+      rc_bad "SRV-01 is recorded and the appendix is empty; the files of the pasted list are the evidence"
+    fi
+    while read -r k name; do
+      [ -n "$k" ] || continue
+      if ! native_paste_list | grep -qxF -- "$name"; then
+        rc_bad "the appendix block $name is not on the fixed paste list (bash deploy/test/native-amd64.sh appendix prints the list)"
+        continue
+      fi
+      if [ ! -f "$e/$name" ]; then
+        rc_bad "no scratch file for the appendix block $name (looked for $e/$name)"
+        continue
+      fi
+      if ! rc_same "$t/b$k" "$e/$name"; then
+        rc_bad "the block differs from the scratch file: $name"
+      fi
+      if [ "$name" = "amd64-native/native-summary.txt" ] && ! rc_same "$t/b$k" "$t/paste-SRV-01"; then
+        rc_bad "the native-summary.txt block differs from the Result (owner) block of SRV-01"
+      fi
+    done < "$t/index"
+    if ! grep -qxF "amd64-native/native-summary.txt" "$t/heads"; then
+      rc_bad "the appendix has no block for amd64-native/native-summary.txt"
+    fi
+    n=$(sort "$t/heads" | uniq -d | head -n 1)
+    if [ -n "$n" ]; then
+      rc_bad "the appendix has two blocks for $n"
+    fi
+  fi
+
+  # The Owner steps: O-1 to O-3, each complete, each holding the markers it has to produce.
+  os=$(rc_section "$r" "## Owner steps")
+  for k in 1 2 3; do
+    stext=$(printf '%s\n' "$os" | rc_step "$k")
+    if [ -z "$stext" ]; then
+      rc_bad "the Owner steps have no step beginning '**O-$k. '"
+      continue
+    fi
+    if ! printf '%s\n' "$stext" | grep -q '^```'; then
+      rc_bad "step O-$k has no fenced command block"
+    fi
+    if ! printf '%s\n' "$stext" | grep -q 'Expect'; then
+      rc_bad "step O-$k has no 'Expect' paragraph"
+    fi
+    if ! printf '%s\n' "$stext" | grep -q 'different output'; then
+      rc_bad "step O-$k does not say what a different output means (the words 'different output')"
+    fi
+    if ! printf '%s\n' "$stext" | grep -q 'Paste'; then
+      rc_bad "step O-$k does not say where the result is pasted (the word 'Paste')"
+    fi
+    while IFS= read -r m; do
+      if ! printf '%s\n' "$stext" | grep -qF -- "$m"; then
+        rc_bad "step O-$k does not hold the marker '$m' that a recorded SRV-0$k result has to contain"
+      fi
+    done << EOF
+$(native_markers "SRV-0$k")
+EOF
+  done
+
+  rm -rf "${t:?}"
+  if [ "$RC_BAD" -ne 0 ]; then
+    echo "RECORD-CHECK FAILED: $RC_BAD problem(s)"
+    return 1
+  fi
+  pending=${pending# }
+  recorded=${recorded# }
+  echo "RECORD-CHECK OK $nblocks blocks; recorded: ${recorded:-none}; pending owner: ${pending:-none}"
+}
+
+# status_check R REQS: REQUIREMENTS.md says what the record says.
+#   pending owner: the line "- [ ] **SRV-0N**" and a traceability cell "Pending owner"
+#   recorded:      the line "- [x] **SRV-0N**" and the cell "Complete"
+status_check() {
+  local r=${1:-deploy/NATIVE-AMD64-RUN.md} q=${2:-.planning/REQUIREMENTS.md} bad=0 id st want_box want_cell line box row cell
+  if [ ! -f "$r" ]; then
+    echo "STATUS-CHECK BAD: the record $r does not exist"
+    echo "STATUS-CHECK FAILED: 1 problem(s)"
+    return 1
+  fi
+  if [ ! -f "$q" ]; then
+    echo "STATUS-CHECK BAD: the requirements file $q does not exist"
+    echo "STATUS-CHECK FAILED: 1 problem(s)"
+    return 1
+  fi
+  for id in SRV-01 SRV-02 SRV-03; do
+    st=$(rc_status_of "$r" "$id")
+    case "$st" in
+      "pending owner")
+        want_box=' '
+        want_cell="Pending owner"
+        ;;
+      recorded)
+        want_box=x
+        want_cell=Complete
+        ;;
+      *)
+        echo "STATUS-CHECK BAD: $id has no readable Status in the record (exactly one 'Status: pending owner' or 'Status: recorded' line)"
+        bad=$((bad + 1))
+        continue
+        ;;
+    esac
+    line=$(grep "^- \[.\] \*\*$id\*\*" "$q" | head -n 1 || true)
+    if [ -z "$line" ]; then
+      echo "STATUS-CHECK BAD: $id is $st in the record and REQUIREMENTS has no line '- [ ] **$id**'"
+      bad=$((bad + 1))
+    else
+      box=$(printf '%s\n' "$line" | sed 's/^- \[\(.\)\].*/\1/')
+      if [ "$box" != "$want_box" ]; then
+        echo "STATUS-CHECK BAD: $id is $st in the record and the box in REQUIREMENTS is [$box], expected [$want_box]"
+        bad=$((bad + 1))
+      fi
+    fi
+    row=$(grep "^| $id |" "$q" | head -n 1 || true)
+    if [ -z "$row" ]; then
+      echo "STATUS-CHECK BAD: $id is $st in the record and REQUIREMENTS has no traceability row '| $id |'"
+      bad=$((bad + 1))
+    else
+      cell=$(printf '%s\n' "$row" | awk -F'|' '{ c = $4; gsub(/^[ \t]+|[ \t]+$/, "", c); print c }')
+      if [ "$cell" != "$want_cell" ]; then
+        echo "STATUS-CHECK BAD: $id is $st in the record and its traceability cell reads '$cell', expected '$want_cell'"
+        bad=$((bad + 1))
+      fi
+    fi
+  done
+  if [ "$bad" -ne 0 ]; then
+    echo "STATUS-CHECK FAILED: $bad problem(s)"
+    return 1
+  fi
+  echo "STATUS-CHECK OK: SRV-01 SRV-02 SRV-03 agree with the record"
+}
+
+# appendix_print E: for each path of the fixed list, a heading and a text block holding the
+# file unchanged. Exit status 1, with nothing printed to stdout, when a file is missing or
+# holds a line that would be misread inside the record.
+appendix_print() {
+  local e=${1:-deploy/test/out} p bad=0
+  for p in $(native_paste_list); do
+    if [ ! -f "$e/$p" ]; then
+      say "native-amd64.sh: appendix: no scratch file $e/$p"
+      bad=$((bad + 1))
+    elif grep -Eq '^(```|#### |## )' "$e/$p"; then
+      say "native-amd64.sh: appendix: $e/$p has a line that begins with three backticks, with '#### ' or with '## '; it cannot be pasted unchanged"
+      bad=$((bad + 1))
+    fi
+  done
+  if [ "$bad" -ne 0 ]; then
+    return 1
+  fi
+  for p in $(native_paste_list); do
+    printf '#### %s\n\n' "$p"
+    printf '%s\n' '```text'
+    awk 1 "$e/$p"
+    printf '%s\n\n' '```'
+  done
+}
+
+cmd_record_check() {
+  local rc=0
+  srv_record_check "${R:-deploy/NATIVE-AMD64-RUN.md}" "${E:-deploy/test/out}" || rc=$?
+  return "$rc"
+}
+cmd_status_check() {
+  local rc=0
+  status_check "${R:-deploy/NATIVE-AMD64-RUN.md}" "${REQS:-.planning/REQUIREMENTS.md}" || rc=$?
+  return "$rc"
+}
+cmd_appendix() {
+  local rc=0
+  appendix_print "${E:-deploy/test/out}" || rc=$?
+  return "$rc"
 }
 
 # ---------------------------------------------------------------------------
@@ -1343,6 +1927,655 @@ selftest_bundle() {
   st_eq "no subcommand is a usage error" 2 "$rc"
 }
 
+# ---------------------------------------------------------------------------
+# selftest of the record (plan 26-02). The summaries are made by `summarize` over
+# SYNTHETIC native sets (R2 turned into x86_64, the real chain summary); no native
+# amd64 run exists. The records are minimal ones in the shape srv_record_check reads.
+# ---------------------------------------------------------------------------
+
+# fx_summary NAME KIND: $ST_TMP/sm-NAME.txt, a native summary of KIND:
+# pass (synthetic native, both stages), notiming (timing not played), void, fail,
+# notnative (the real R2 on arm64), notrun (mdwe played, timing not played is "notiming";
+# this one plays neither). COMMIT is the HEAD of this repository, not a GITHUB_SHA.
+fx_summary() {
+  local b=$ST_TMP/fxs-$1 mst=0 tst=0
+  rm -rf "${b:?}"
+  mkdir -p "$b/p-bak-src"
+  fx_chain "$b/p-bak-src/summary.txt"
+  case "$2" in
+    pass) fx_mdwe_synthetic "$b/p-mdwe" ;;
+    notiming)
+      fx_mdwe_synthetic "$b/p-mdwe"
+      tst=notrun
+      ;;
+    void)
+      fx_mdwe_synthetic "$b/p-mdwe"
+      echo not-enforced > "$b/p-mdwe/canary.verdict"
+      fx_verdict_r1 "$b/p-mdwe/verdict.txt"
+      mst=3
+      ;;
+    fail)
+      fx_mdwe_synthetic "$b/p-mdwe"
+      fx_verdict_fails "$b/p-mdwe/verdict.txt"
+      mst=1
+      ;;
+    notnative) fx_mdwe_r2 "$b/p-mdwe" ;;
+    notrun)
+      mst=notrun
+      tst=notrun
+      ;;
+  esac
+  (
+    unset GITHUB_SHA GITHUB_RUN_ID
+    st_summarize "$b" "$mst" "$tst" > /dev/null
+  )
+  cp "$b/p/native-summary.txt" "$ST_TMP/sm-$1.txt"
+}
+
+# fx_scratch E SUMMARY: a scratch root with every file of the fixed paste list; the
+# native summary is SUMMARY, the others are one-line texts.
+fx_scratch() {
+  local e=$1 p
+  rm -rf "${e:?}"
+  for p in $(native_paste_list); do
+    mkdir -p "$e/$(dirname "$p")"
+    printf 'content of %s\n' "$p" > "$e/$p"
+  done
+  cp "$2" "$e/amd64-native/native-summary.txt"
+}
+
+fx_steps() {
+  local k m
+  for k in 1 2 3; do
+    printf '**O-%s. Step %s.**\n\n' "$k" "$k"
+    printf '%s\n' '```bash'
+    for m in $(native_markers "SRV-0$k" | tr ' ' '~'); do
+      printf 'echo "%s"\n' "$(printf '%s' "$m" | tr '~' ' ')"
+    done
+    printf '%s\n\n' '```'
+    printf 'Expect text.\n\nA different output means a finding.\n\nPaste the result into the block.\n\n'
+  done
+  printf '**Recording a result.** Text.\n\n'
+}
+
+# fx_rec FILE EVID S1 S2 S3: a record; each S is pending or recorded. The blocks of the
+# recorded requirements are $RB/SRV-0N, the appendix of a recorded SRV-01 is $RB/appendix.
+fx_rec() {
+  local f=$1 ev=$2 id s i
+  {
+    printf '# Record\n\n## Summary\n\n| Requirement | Result | Platform | Date, commit |\n|---|---|---|---|\n'
+    i=0
+    for s in "$3" "$4" "$5"; do
+      i=$((i + 1))
+      if [ "$s" = recorded ]; then
+        printf '| SRV-0%s | Recorded from the result of the owner. | server | date |\n' "$i"
+      else
+        printf '| SRV-0%s | PENDING OWNER. The steps exist. | server | not run |\n' "$i"
+      fi
+    done
+    printf '\nEvidence commit: %s\n\n## How this was prepared\n\nText.\n\n' "$ev"
+    i=0
+    for s in "$3" "$4" "$5"; do
+      i=$((i + 1))
+      id=SRV-0$i
+      printf '## %s: title\n\nWhat it will show.\n\n' "$id"
+      if [ "$s" = recorded ]; then
+        printf 'Status: recorded\nResult (owner): recorded\n\n'
+        printf '%s\n' '```text'
+        cat "$RB/$id"
+        printf '%s\n\n' '```'
+      else
+        printf 'Status: pending owner\nResult (owner): pending\n\n'
+        printf '%s\n(nothing pasted yet)\n%s\n\n' '```text' '```'
+      fi
+    done
+    printf '## Container vs. server\n\nText.\n\n## Not tested\n\nText.\n\n## Owner steps\n\n'
+    fx_steps
+    printf '## Hand-over to phase 28\n\nText.\n\n## Appendix: raw output\n\n'
+    if [ "$3" = recorded ]; then cat "$RB/appendix"; fi
+  } > "$f"
+}
+
+# fx_blocks: the paste blocks of SRV-02 and SRV-03, as the owner steps print them.
+fx_blocks() {
+  mkdir -p "$RB"
+  printf '%s\n' '=== Backup complete: /opt/holzcloud/backups/20261026-100000 ===' '=== Restore complete ===' \
+    'SRV-02 INSTANCE READY' 'SRV-02 TREES EQUAL' > "$RB/SRV-02"
+  printf '%s\n' 'SRV-03 UNITS ENABLED' 'SRV-03 BOOT CHANGED' 'SRV-03 UNITS ACTIVE' 'SRV-03 SITE READY' \
+    'SRV-03 TIMER ARMED' > "$RB/SRV-03"
+}
+
+# fx_rb1 SUMMARYFILE: $RB/SRV-01 and the scratch root $RB/E for a recorded SRV-01.
+fx_rb1() {
+  cp "$1" "$RB/SRV-01"
+  fx_scratch "$RB/E" "$1"
+  appendix_print "$RB/E" > "$RB/appendix"
+}
+
+# st_rc NAME WANT FILE E: srv_record_check fails, names WANT and ends RECORD-CHECK FAILED.
+st_rc() {
+  local out rc=0
+  out=$(srv_record_check "$3" "$4" 2>&1) || rc=$?
+  st_eq "record-check $1: exit" 1 "$rc"
+  st_has "record-check $1: names the problem" "$2" "$out"
+  st_has "record-check $1: ends FAILED" "RECORD-CHECK FAILED: " "$(printf '%s\n' "$out" | tail -n 1)"
+}
+
+# st_rok NAME WANT FILE E: srv_record_check ends with the line WANT and exit 0.
+st_rok() {
+  local out rc=0
+  out=$(srv_record_check "$3" "$4" 2>&1) || rc=$?
+  st_eq "record-check $1: exit" 0 "$rc"
+  st_eq "record-check $1: last line" "$2" "$(printf '%s\n' "$out" | tail -n 1)"
+  st_eq "record-check $1: no BAD line" 0 "$(printf '%s\n' "$out" | grep -c 'RECORD-CHECK BAD' || true)"
+}
+
+selftest_summary_check() {
+  local t=$ST_TMP f out rc key
+
+  fx_summary pass pass
+  fx_summary notiming notiming
+  fx_summary void void
+  fx_summary fail fail
+  fx_summary notnative notnative
+  fx_summary notrun notrun
+
+  rc=0
+  out=$(summary_check "$t/sm-pass.txt" 2>&1) || rc=$?
+  st_eq "summary_check: the synthetic native set" 0 "$rc"
+  st_eq "summary_check: the synthetic native set, answer" "SUMMARY OK: SRV-01 PASS" "$out"
+  rc=0
+  out=$(summary_check "$t/sm-notiming.txt" 2>&1) || rc=$?
+  st_eq "summary_check: timing stage not played" 0 "$rc"
+  st_eq "summary_check: timing stage not played, answer" "SUMMARY OK: SRV-01 NOT-RUN" "$out"
+  st_eq "summary_check: timing stage not played has no chain line" 0 "$(grep -c '^\(BAK-0\|POINT \)' "$t/sm-notiming.txt" || true)"
+  st_eq "summary_check: timing stage not played says NOT-RUN" "NOT-RUN" "$(sum_word "$t/sm-notiming.txt" SRV-01-TIMING)"
+  for key in void fail notnative notrun; do
+    rc=0
+    out=$(summary_check "$t/sm-$key.txt" 2>&1) || rc=$?
+    st_eq "summary_check: a consistent $key summary is valid" 0 "$rc"
+  done
+  st_eq "summary_check: void" "SUMMARY OK: SRV-01 VOID" "$(summary_check "$t/sm-void.txt")"
+  st_eq "summary_check: fail" "SUMMARY OK: SRV-01 FAIL" "$(summary_check "$t/sm-fail.txt")"
+  st_eq "summary_check: not native" "SUMMARY OK: SRV-01 NOT-NATIVE" "$(summary_check "$t/sm-notnative.txt")"
+  st_eq "summary_check: not run" "SUMMARY OK: SRV-01 NOT-RUN" "$(summary_check "$t/sm-notrun.txt")"
+
+  st_sc() { # NAME WANT FILE: the summary is refused with a SUMMARY BAD line naming WANT
+    local o r=0
+    o=$(summary_check "$3" 2>&1) || r=$?
+    st_eq "summary_check $1: exit" 1 "$r"
+    st_has "summary_check $1: names the problem" "SUMMARY BAD: $2" "$o"
+    st_has "summary_check $1: ends FAILED" "SUMMARY FAILED: " "$(printf '%s\n' "$o" | tail -n 1)"
+  }
+  f=$t/sm-bad.txt
+  sed '$d' "$t/sm-pass.txt" > "$f"
+  st_sc "no last line" "the last line is 'SRV-01 PASS'" "$f"
+  { cat "$t/sm-pass.txt"; echo "SRV-01 PASS"; } > "$f"
+  st_sc "last line is not DONE" "the last line is 'SRV-01 PASS', not 'NATIVE-AMD64 DONE'" "$f"
+  sed '1s/.*/---- something else ----/' "$t/sm-pass.txt" > "$f"
+  st_sc "first line" "the first line is '---- something else ----'" "$f"
+  for key in COMMIT HOST-ARCH CONTAINER-ARCH MDWE-WORD CANARY MDWE-STATUS TIMING-STATUS; do
+    grep -v "^$key: " "$t/sm-pass.txt" > "$f" || true
+    st_sc "missing $key" "0 '$key: ' lines" "$f"
+    awk -v k="$key: " '{print} index($0, k) == 1 {print}' "$t/sm-pass.txt" > "$f"
+    st_sc "duplicated $key" "2 '$key: ' lines" "$f"
+  done
+  for key in SRV-01-MDWE SRV-01-TIMING SRV-01; do
+    grep -v "^$key " "$t/sm-pass.txt" > "$f" || true
+    st_sc "missing $key" "0 '$key ' verdict lines" "$f"
+  done
+  sed 's/^HOST-ARCH: .*/HOST-ARCH: aarch64/' "$t/sm-pass.txt" > "$f"
+  st_sc "SRV-01 PASS claimed on an aarch64 host" "SRV-01-MDWE is claimed 'PASS', the lines of the summary give 'NOT-NATIVE'" "$f"
+  st_has "summary_check: an aarch64 host forges the overall verdict too" "SRV-01 is claimed 'PASS', the lines of the summary give 'NOT-NATIVE'" "$(summary_check "$f" 2>&1 || true)"
+  sed 's/^CONTAINER-ARCH: .*/CONTAINER-ARCH: aarch64/' "$t/sm-pass.txt" > "$f"
+  st_sc "SRV-01 PASS claimed on an aarch64 container" "SRV-01-MDWE is claimed 'PASS', the lines of the summary give 'NOT-NATIVE'" "$f"
+  grep -vx 'BAK-02 PASS' "$t/sm-pass.txt" > "$f" || true
+  st_sc "SRV-01-TIMING PASS claimed without BAK-02 PASS" "SRV-01-TIMING is claimed 'PASS', the lines of the summary give 'FAIL'" "$f"
+  sed 's/^LEAK-CHECK OK$/LEAK-CHECK BAD/' "$t/sm-pass.txt" > "$f"
+  st_sc "SRV-01-TIMING PASS claimed without LEAK-CHECK OK" "SRV-01-TIMING is claimed 'PASS'" "$f"
+  grep -v '^POINT bulk:' "$t/sm-pass.txt" > "$f" || true
+  st_sc "SRV-01-TIMING PASS claimed without a bulk point" "SRV-01-TIMING is claimed 'PASS'" "$f"
+  sed 's/^MDWE-WORD: .*/MDWE-WORD: VOID/' "$t/sm-pass.txt" > "$f"
+  st_sc "SRV-01-MDWE PASS claimed over MDWE-WORD: VOID" "SRV-01-MDWE is claimed 'PASS', the lines of the summary give 'VOID'" "$f"
+  sed 's/^MDWE-WORD: .*/MDWE-WORD: FAILS/' "$t/sm-pass.txt" > "$f"
+  st_sc "SRV-01-MDWE PASS claimed over MDWE-WORD: FAILS" "SRV-01-MDWE is claimed 'PASS', the lines of the summary give 'FAIL'" "$f"
+  sed 's/^CANARY: .*/CANARY: not-enforced/' "$t/sm-pass.txt" > "$f"
+  st_sc "PASS over a canary that is not enforced" "SRV-01-MDWE is PASS but CANARY is 'not-enforced'" "$f"
+  sed 's/^SRV-01 PASS$/SRV-01 FAIL/' "$t/sm-pass.txt" > "$f"
+  st_sc "overall verdict understated" "SRV-01 is claimed 'FAIL', the lines of the summary give 'PASS'" "$f"
+  sed 's/^SRV-01-TIMING PASS$/SRV-01-TIMING NOT-RUN/' "$t/sm-pass.txt" > "$f"
+  st_sc "timing verdict does not follow TIMING-STATUS" "SRV-01-TIMING is claimed 'NOT-RUN', the lines of the summary give 'PASS'" "$f"
+  sed 's/^TIMING-STATUS: 0$/TIMING-STATUS: notrun/' "$t/sm-pass.txt" > "$f"
+  st_sc "timing claimed PASS but TIMING-STATUS says notrun" "SRV-01-TIMING is claimed 'PASS', the lines of the summary give 'NOT-RUN'" "$f"
+  st_sc "no summary text" "there is no summary text" "$t/none.txt"
+  : > "$f"
+  st_sc "empty summary" "there is no summary text" "$f"
+  st_eq "summary_check: the claimed word may carry a reason" "SUMMARY OK: SRV-01 FAIL" \
+    "$(sed 's/^SRV-01-TIMING PASS$/SRV-01-TIMING FAIL (no chain summary)/; s/^SRV-01 PASS$/SRV-01 FAIL/; s/^BAK-01 PASS$/BAK-01 X/' "$t/sm-pass.txt" > "$f"; summary_check "$f")"
+}
+
+selftest_record() {
+  local t=$ST_TMP f g e out rc head1 root1 id k
+
+  head1=$(git rev-parse HEAD 2> /dev/null) || head1=""
+  root1=$(git rev-list --max-parents=0 HEAD 2> /dev/null | tail -n 1) || root1=""
+  RB=$t/rb
+  rm -rf "${RB:?}"
+  fx_blocks
+  fx_summary pass pass
+  fx_rb1 "$t/sm-pass.txt"
+  e=$RB/E
+  f=$t/rec-pending.md
+  g=$t/rec-mut.md
+  fx_rec "$f" "none (pending owner)" pending pending pending
+
+  st_eq "native_paste_list: thirteen paths" 13 "$(native_paste_list | wc -l | tr -d ' ')"
+  st_eq "native_paste_list: first" amd64-native/native-summary.txt "$(native_paste_list | head -n 1)"
+  st_eq "native_paste_list: last" amd64-native-bak-tgt-bulk/restore.txt "$(native_paste_list | tail -n 1)"
+  st_eq "native_paste_list: no duplicates" 0 "$(native_paste_list | sort | uniq -d | wc -l | tr -d ' ')"
+  st_eq "native_markers SRV-01" 2 "$(native_markers SRV-01 | wc -l | tr -d ' ')"
+  st_eq "native_markers SRV-02" 4 "$(native_markers SRV-02 | wc -l | tr -d ' ')"
+  st_eq "native_markers SRV-03" 5 "$(native_markers SRV-03 | wc -l | tr -d ' ')"
+  st_eq "native_markers SRV-02 keeps its trailing space" "=== Backup complete: " "$(native_markers SRV-02 | head -n 1)"
+  st_eq "native_markers unknown" 0 "$(native_markers SRV-09 | wc -l | tr -d ' ')"
+
+  # --- the pending form
+  st_rok "pending form" "RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03" "$f" "$e"
+  st_rc "no record" "does not exist" "$t/none.md" "$e"
+
+  # --- structure
+  for k in "## Summary" "## How this was prepared" "## Container vs. server" "## Not tested" "## Owner steps" \
+    "## Hand-over to phase 28" "## Appendix: raw output"; do
+    grep -vxF -- "$k" "$f" > "$g" || true
+    st_rc "missing heading '$k'" "the heading '$k' is missing" "$g" "$e"
+  done
+  for id in SRV-01 SRV-02 SRV-03; do
+    sed "s/^## $id/## Other $id/" "$f" > "$g"
+    st_rc "missing $id heading" "no heading beginning '## $id'" "$g" "$e"
+  done
+
+  # --- status and result
+  sed '/^## SRV-02/,/^## SRV-03/{/^Status: /d;}' "$f" > "$g"
+  st_rc "no Status line" "SRV-02 has 0 'Status: ' lines" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/{/^Status: /p;}' "$f" > "$g"
+  st_rc "two Status lines" "SRV-02 has 2 'Status: ' lines" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/s/^Status: pending owner/Status: done/' "$f" > "$g"
+  st_rc "unknown Status" "SRV-02 has the unknown status 'done'" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/s/^Status: pending owner/Status: pending/' "$f" > "$g"
+  st_rc "Status pending (without owner)" "unknown status 'pending'" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/{/^Result (owner): /d;}' "$f" > "$g"
+  st_rc "no Result line" "SRV-02 has 0 'Result (owner): ' lines" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/{/^Result (owner): /p;}' "$f" > "$g"
+  st_rc "two Result lines" "SRV-02 has 2 'Result (owner): ' lines" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/s/^Result (owner): pending/Result (owner): recorded/' "$f" > "$g"
+  st_rc "Result recorded under Status pending owner" "'Result (owner): recorded' does not match 'Status: pending owner'" "$g" "$e"
+  sed '/^## SRV-03/,/^## Container/s/^Status: pending owner/Status: recorded/' "$f" > "$g"
+  st_rc "Status recorded over Result pending" "'Result (owner): pending' does not match 'Status: recorded'" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/s/^Result (owner): pending/Result (owner): maybe/' "$f" > "$g"
+  st_rc "unknown Result" "unknown 'Result (owner): maybe'" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/s/^(nothing pasted yet)$/hello/' "$f" > "$g"
+  st_rc "pending with a pasted line" "SRV-02 is pending owner but its paste block holds text" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/s/^(nothing pasted yet)$/(nothing pasted yet)\
+SRV-02 TREES EQUAL/' "$f" > "$g"
+  st_rc "pending with a marker pasted" "SRV-02 is pending owner but its paste block holds text" "$g" "$e"
+  sed '/^## SRV-02/,/^## SRV-03/s/^(nothing pasted yet)$//' "$f" > "$g"
+  st_rok "pending with a blank paste block" "RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03" "$g" "$e"
+  awk '/^## SRV-02/{s=1} s && /^```/{n++; if (n==1) next; if (n==2) {s=0; next}} {print}' "$f" > "$g"
+  st_rc "no paste block" "SRV-02 has no closed fenced paste block" "$g" "$e"
+
+  # --- the Summary table
+  grep -v '^| SRV-03 |' "$f" > "$g" || true
+  st_rc "no Summary row" "0 rows beginning '| SRV-03 |'" "$g" "$e"
+  sed 's/^| SRV-02 | PENDING OWNER\./| SRV-02 | Waiting./' "$f" > "$g"
+  st_rc "pending row without PENDING OWNER" "the Summary row of SRV-02 is pending owner but does not say PENDING OWNER" "$g" "$e"
+  sed 's/^| SRV-02 | PENDING OWNER\./| SRV-02 | PENDING OWNER. This will PASS./' "$f" > "$g"
+  st_rc "pending row with PASS" "the Summary row of SRV-02 is pending owner and holds a pass word" "$g" "$e"
+  sed 's/^| SRV-02 | PENDING OWNER\./| SRV-02 | PENDING OWNER. It passed./' "$f" > "$g"
+  st_rc "pending row with passed" "holds a pass word" "$g" "$e"
+  sed 's/^| SRV-02 | PENDING OWNER\./| SRV-02 | PENDING OWNER. A password is needed./' "$f" > "$g"
+  st_rok "pending row with the word password is fine" "RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03" "$g" "$e"
+
+  # --- the evidence commit line
+  grep -v '^Evidence commit: ' "$f" > "$g" || true
+  st_rc "no Evidence commit line" "the record has 0 'Evidence commit: ' lines" "$g" "$e"
+  awk '{print} /^## How this was prepared$/{print ""; print "Evidence commit: none (pending owner)"}' "$f" > "$g"
+  st_rc "two Evidence commit lines" "the record has 2 'Evidence commit: ' lines" "$g" "$e"
+  sed 's/^Evidence commit: .*/Evidence commit: xyz/' "$f" > "$g"
+  st_rc "malformed Evidence commit" "the Evidence commit line is malformed: 'xyz'" "$g" "$e"
+  sed 's/^Evidence commit: .*/Evidence commit: None (pending owner)/' "$f" > "$g"
+  st_rc "Evidence commit with another capital" "malformed" "$g" "$e"
+  if [ -n "$head1" ]; then
+    sed "s/^Evidence commit: .*/Evidence commit: $head1/" "$f" > "$g"
+    st_rc "a sha while SRV-01 is pending" "holds the sha $head1 while SRV-01 is pending owner" "$g" "$e"
+  fi
+
+  # --- the appendix while SRV-01 is pending
+  { cat "$f"; printf '#### amd64-native/runner.txt\n\n```text\nx\n```\n'; } > "$g"
+  st_rc "an appendix block while SRV-01 is pending" "the appendix has a '#### ' heading or a fenced block while SRV-01 is pending owner" "$g" "$e"
+  { cat "$f"; printf '#### amd64-native/runner.txt\n'; } > "$g"
+  st_rc "an appendix heading while SRV-01 is pending" "while SRV-01 is pending owner" "$g" "$e"
+  { cat "$f"; printf '```text\nx\n```\n'; } > "$g"
+  st_rc "an appendix fence while SRV-01 is pending" "while SRV-01 is pending owner" "$g" "$e"
+  { cat "$f"; printf 'A paragraph of prose about the appendix.\n'; } > "$g"
+  st_rok "appendix prose while SRV-01 is pending" "RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03" "$g" "$e"
+
+  # --- a pass word outside a fence
+  for id in SRV-01 SRV-02 SRV-03; do
+    awk -v l="$id PASS" '{print} /^## How this was prepared$/{print ""; print l}' "$f" > "$g"
+    st_rc "$id PASS outside a fence while pending" "a line '$id PASS' stands outside a fenced block while $id is pending owner" "$g" "$e"
+    awk -v l="$id PASS" '{print} /^## How this was prepared$/{print ""; print "```text"; print l; print "```"}' "$f" > "$g"
+    st_rok "$id PASS inside a fence while pending" "RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03" "$g" "$e"
+    awk -v l="$id PASS" '{print} /^## How this was prepared$/{print ""; print "The line " l " is what a run prints."}' "$f" > "$g"
+    st_rok "$id PASS inline in prose while pending" "RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03" "$g" "$e"
+  done
+  awk '{print} /^## How this was prepared$/{print ""; print "- SRV-02 PASS"}' "$f" > "$g"
+  st_rc "a bulleted pass line while pending" "a line 'SRV-02 PASS' stands outside a fenced block" "$g" "$e"
+  awk '{print} /^## How this was prepared$/{print ""; print "SRV-01 PASS"}' "$f" > "$g"
+  st_has "the pass line is refused for SRV-01 only, not for the others" "SRV-01 is pending owner" "$(srv_record_check "$g" "$e" 2>&1 || true)"
+
+  # --- a private key
+  awk '{print} /^## How this was prepared$/{print ""; print "```text"; print "-----BEGIN OPENSSH PRIVATE KEY-----"; print "```"}' "$f" > "$g"
+  st_rc "a private key marker" "a private key marker occurs in the record" "$g" "$e"
+
+  # --- the owner steps
+  sed 's/^\*\*O-3\. /**Q-3. /' "$f" > "$g"
+  st_rc "no O-3" "the Owner steps have no step beginning '**O-3. '" "$g" "$e"
+  sed 's/^\*\*O-1\. /**Q-1. /' "$f" > "$g"
+  st_rc "no O-1" "the Owner steps have no step beginning '**O-1. '" "$g" "$e"
+  sed 's/^\*\*O-2\. /**Q-2. /' "$f" > "$g"
+  st_rc "no O-2" "the Owner steps have no step beginning '**O-2. '" "$g" "$e"
+  for k in 1 2 3; do
+    case $k in
+      1) rng='/^\*\*O-1\. /,/^\*\*O-2\. /' ;;
+      2) rng='/^\*\*O-2\. /,/^\*\*O-3\. /' ;;
+      3) rng='/^\*\*O-3\. /,/^\*\*Recording/' ;;
+    esac
+    sed "$rng"'{/^```/d;}' "$f" > "$g"
+    st_rc "O-$k without a command block" "step O-$k has no fenced command block" "$g" "$e"
+    sed "$rng"'s/Expect/Wait for/' "$f" > "$g"
+    st_rc "O-$k without Expect" "step O-$k has no 'Expect' paragraph" "$g" "$e"
+    sed "$rng"'s/different output/other thing/' "$f" > "$g"
+    st_rc "O-$k without different output" "step O-$k does not say what a different output means" "$g" "$e"
+    sed "$rng"'s/Paste/Send/' "$f" > "$g"
+    st_rc "O-$k without Paste" "step O-$k does not say where the result is pasted" "$g" "$e"
+  done
+  sed '/^\*\*O-1\. /,/^\*\*O-2\. /s/NATIVE-AMD64 DONE/NATIVE DONE/' "$f" > "$g"
+  st_rc "O-1 without its DONE marker" "step O-1 does not hold the marker 'NATIVE-AMD64 DONE'" "$g" "$e"
+  sed '/^\*\*O-1\. /,/^\*\*O-2\. /s/SRV-01 PASS/SRV-01 OK/' "$f" > "$g"
+  st_rc "O-1 without its PASS marker" "step O-1 does not hold the marker 'SRV-01 PASS'" "$g" "$e"
+  for k in '=== Backup complete: ' '=== Restore complete ===' 'SRV-02 INSTANCE READY' 'SRV-02 TREES EQUAL'; do
+    sed "/^\*\*O-2\. /,/^\*\*O-3\. /s/$k/XX/" "$f" > "$g"
+    st_rc "O-2 without the marker '$k'" "step O-2 does not hold the marker '$k'" "$g" "$e"
+  done
+  for k in 'SRV-03 UNITS ENABLED' 'SRV-03 BOOT CHANGED' 'SRV-03 UNITS ACTIVE' 'SRV-03 SITE READY' 'SRV-03 TIMER ARMED'; do
+    sed "/^\*\*O-3\. /,/^\*\*Recording/s/$k/XX/" "$f" > "$g"
+    st_rc "O-3 without the marker '$k'" "step O-3 does not hold the marker '$k'" "$g" "$e"
+  done
+  # a marker that stands only in another step does not count for this one
+  sed '/^\*\*O-3\. /,/^\*\*Recording/s/SRV-03 SITE READY/SRV-02 TREES EQUAL/' "$f" > "$g"
+  st_rc "a marker of another step" "step O-3 does not hold the marker 'SRV-03 SITE READY'" "$g" "$e"
+  # the Recording paragraph is not part of O-3
+  sed '/^\*\*O-3\. /,/^\*\*Recording/s/SRV-03 TIMER ARMED/XX/' "$f" | awk '{print} /^\*\*Recording a result/{print "echo SRV-03 TIMER ARMED"}' > "$g"
+  st_has "the fixture of the Recording paragraph test holds the marker after the Recording line" \
+    "echo SRV-03 TIMER ARMED" "$(awk '/^\*\*Recording a result/{p=1} p' "$g")"
+  st_rc "a marker in the Recording paragraph does not count for O-3" "step O-3 does not hold the marker 'SRV-03 TIMER ARMED'" "$g" "$e"
+
+  # --- SRV-02 and SRV-03 recorded
+  fx_rec "$g" "none (pending owner)" pending recorded pending
+  st_rok "SRV-02 recorded" "RECORD-CHECK OK 0 blocks; recorded: SRV-02; pending owner: SRV-01 SRV-03" "$g" "$e"
+  fx_rec "$g" "none (pending owner)" pending pending recorded
+  st_rok "SRV-03 recorded" "RECORD-CHECK OK 0 blocks; recorded: SRV-03; pending owner: SRV-01 SRV-02" "$g" "$e"
+  fx_rec "$g" "none (pending owner)" pending recorded recorded
+  st_rok "SRV-02 and SRV-03 recorded" "RECORD-CHECK OK 0 blocks; recorded: SRV-02 SRV-03; pending owner: SRV-01" "$g" "$e"
+
+  local gg=$t/rec-r2.md
+  fx_rec "$gg" "none (pending owner)" pending recorded pending
+  sed 's/^| SRV-02 | Recorded from the result of the owner\./| SRV-02 | PENDING OWNER./' "$gg" > "$g"
+  st_rc "recorded row still says PENDING OWNER" "the Summary row of SRV-02 is recorded but still says PENDING OWNER" "$g" "$e"
+  for k in '=== Backup complete: ' '=== Restore complete ===' 'SRV-02 INSTANCE READY' 'SRV-02 TREES EQUAL'; do
+    grep -vF -- "$k" "$RB/SRV-02" > "$t/rb-block" || true
+    cp "$RB/SRV-02" "$t/rb-keep"
+    cp "$t/rb-block" "$RB/SRV-02"
+    fx_rec "$g" "none (pending owner)" pending recorded pending
+    cp "$t/rb-keep" "$RB/SRV-02"
+    st_rc "SRV-02 recorded without '$k'" "SRV-02 recorded: the result block has no line that begins '$k'" "$g" "$e"
+  done
+  cp "$RB/SRV-02" "$t/rb-keep"
+  printf '%s\n' '$ echo "=== Backup complete: "' '$ echo "=== Restore complete ==="' '$ echo "SRV-02 INSTANCE READY"' '$ echo "SRV-02 TREES EQUAL"' > "$RB/SRV-02"
+  fx_rec "$g" "none (pending owner)" pending recorded pending
+  cp "$t/rb-keep" "$RB/SRV-02"
+  st_rc "SRV-02 recorded with the commands but not their output" "SRV-02 recorded: the result block has no line that begins '=== Backup complete: '" "$g" "$e"
+  : > "$RB/SRV-02"
+  fx_rec "$g" "none (pending owner)" pending recorded pending
+  cp "$t/rb-keep" "$RB/SRV-02"
+  st_rc "SRV-02 recorded with an empty block" "SRV-02 recorded: the result block has no line that begins" "$g" "$e"
+  for k in 'SRV-03 UNITS ENABLED' 'SRV-03 BOOT CHANGED' 'SRV-03 UNITS ACTIVE' 'SRV-03 SITE READY' 'SRV-03 TIMER ARMED'; do
+    cp "$RB/SRV-03" "$t/rb-keep"
+    grep -vF -- "$k" "$t/rb-keep" > "$RB/SRV-03" || true
+    fx_rec "$g" "none (pending owner)" pending pending recorded
+    cp "$t/rb-keep" "$RB/SRV-03"
+    st_rc "SRV-03 recorded without '$k'" "SRV-03 recorded: the result block has no line that begins '$k'" "$g" "$e"
+  done
+
+  # --- SRV-01 recorded
+  if [ -n "$head1" ] && [ -n "$root1" ]; then
+    fx_rec "$g" "$head1" recorded pending pending
+    st_rok "SRV-01 recorded" "RECORD-CHECK OK 13 blocks; recorded: SRV-01; pending owner: SRV-02 SRV-03" "$g" "$e"
+    fx_rec "$g" "$(printf '%s' "$head1" | cut -c1-12)" recorded pending pending
+    st_rok "SRV-01 recorded with a 12 character sha" "RECORD-CHECK OK 13 blocks; recorded: SRV-01; pending owner: SRV-02 SRV-03" "$g" "$e"
+    fx_rec "$g" "$(printf '%s' "$head1" | cut -c1-7)" recorded pending pending
+    st_rok "SRV-01 recorded with a 7 character sha" "RECORD-CHECK OK 13 blocks; recorded: SRV-01; pending owner: SRV-02 SRV-03" "$g" "$e"
+    fx_rec "$g" "$head1" recorded recorded recorded
+    st_rok "all three recorded" "RECORD-CHECK OK 13 blocks; recorded: SRV-01 SRV-02 SRV-03; pending owner: none" "$g" "$e"
+
+    fx_rec "$gg" "$head1" recorded pending pending
+    sed 's/^| SRV-01 | Recorded from the result of the owner\./| SRV-01 | PENDING OWNER./' "$gg" > "$g"
+    st_rc "SRV-01 recorded row still says PENDING OWNER" "the Summary row of SRV-01 is recorded but still says PENDING OWNER" "$g" "$e"
+    sed 's/^Evidence commit: .*/Evidence commit: none (pending owner)/' "$gg" > "$g"
+    st_rc "none (pending owner) while SRV-01 is recorded" "says 'none (pending owner)' while SRV-01 is recorded" "$g" "$e"
+    sed 's/^Evidence commit: .*/Evidence commit: 0123456789abcdef/' "$gg" > "$g"
+    st_rc "an unknown Evidence commit" "the Evidence commit 0123456789abcdef is unknown to this repository" "$g" "$e"
+    sed "s/^Evidence commit: .*/Evidence commit: $root1/" "$gg" > "$g"
+    st_rc "an Evidence commit that is not the COMMIT of the summary" "is not a prefix of the COMMIT of the pasted summary" "$g" "$e"
+    sed 's/^Evidence commit: .*/Evidence commit: xyz/' "$gg" > "$g"
+    st_rc "a malformed Evidence commit while recorded" "the Evidence commit line is malformed" "$g" "$e"
+
+    # appendix rules
+    sed 's/^#### amd64-native\/runner.txt$/#### amd64-native\/step-01.txt/' "$gg" > "$g"
+    st_rc "an appendix path off the list" "the appendix block amd64-native/step-01.txt is not on the fixed paste list" "$g" "$e"
+    awk '/^#### amd64-native\/native-summary.txt$/{skip=1; next} skip && /^#### /{skip=0} !skip{print}' "$gg" > "$g"
+    st_rc "no native-summary block" "the appendix has no block for amd64-native/native-summary.txt" "$g" "$e"
+    awk '/^## Appendix: raw output$/{print; a=1; next} !a{print}' "$gg" > "$g"
+    st_rc "recorded SRV-01 with an empty appendix" "the appendix is empty" "$g" "$e"
+    awk '{print} /^#### amd64-native\/runner.txt$/{r=1} r && /^```$/ && ++c==2 {print "#### amd64-native/runner.txt"; print ""; print "```text"; print "content of amd64-native/runner.txt"; print "```"; r=0}' "$gg" > "$g"
+    st_rc "a block twice" "the appendix has two blocks for amd64-native/runner.txt" "$g" "$e"
+    awk '/^#### amd64-native\/runner.txt$/{print; getline; print; getline; print; getline; print "changed"; next} {print}' "$gg" > "$g"
+    st_rc "a block that differs from its file" "the block differs from the scratch file: amd64-native/runner.txt" "$g" "$e"
+    mv "$e/amd64-native/runner.txt" "$e/amd64-native/runner.txt.gone"
+    st_rc "a block without its scratch file" "no scratch file for the appendix block amd64-native/runner.txt" "$gg" "$e"
+    mv "$e/amd64-native/runner.txt.gone" "$e/amd64-native/runner.txt"
+    printf 'content of amd64-native/runner.txt' > "$e/amd64-native/runner.txt"
+    st_rok "a scratch file without a final newline is normalised" "RECORD-CHECK OK 13 blocks; recorded: SRV-01; pending owner: SRV-02 SRV-03" "$gg" "$e"
+    printf 'content of amd64-native/runner.txt\n' > "$e/amd64-native/runner.txt"
+    awk '/^## Appendix: raw output$/{print; a=1; next} a && /^#### amd64-native-bak-tgt-bulk\/restore.txt$/{skip=1} !skip{print}' "$gg" > "$g"
+    st_rok "the appendix may hold a subset of the list, as long as the native summary is in it" "RECORD-CHECK OK 12 blocks; recorded: SRV-01; pending owner: SRV-02 SRV-03" "$g" "$e"
+    # the Result (owner) block must equal the native-summary block
+    sed 's/^RUN: local$/RUN: locally/' "$RB/SRV-01" > "$t/rb-sum"
+    cp "$RB/SRV-01" "$t/rb-keep"
+    cp "$t/rb-sum" "$RB/SRV-01"
+    fx_rec "$g" "$head1" recorded pending pending
+    cp "$t/rb-keep" "$RB/SRV-01"
+    st_rc "the Result block differs from the native-summary block" "the native-summary.txt block differs from the Result (owner) block of SRV-01" "$g" "$e"
+
+    # summaries that are valid and not PASS can never be recorded
+    for k in void fail notnative notrun notiming; do
+      fx_summary "r-$k" "$k"
+      RB1=$t/rb1-$k
+      mkdir -p "$RB1"
+      cp "$RB/SRV-02" "$RB1/SRV-02"
+      cp "$RB/SRV-03" "$RB1/SRV-03"
+      out=$(RB=$RB1 fx_rb1 "$t/sm-r-$k.txt"; RB=$RB1 fx_rec "$RB1/rec.md" "$head1" recorded pending pending; printf '%s\n' "$RB1/rec.md")
+      st_rc "SRV-01 recorded over a $k summary" "SRV-01 recorded: the verdict of the summary is" "$out" "$RB1/E"
+    done
+    # a forged summary: PASS claimed over an aarch64 host
+    sed 's/^HOST-ARCH: .*/HOST-ARCH: aarch64/' "$t/sm-pass.txt" > "$t/sm-forged.txt"
+    RB1=$t/rb1-forged
+    mkdir -p "$RB1"
+    cp "$RB/SRV-02" "$RB1/SRV-02"
+    cp "$RB/SRV-03" "$RB1/SRV-03"
+    out=$(RB=$RB1 fx_rb1 "$t/sm-forged.txt"; RB=$RB1 fx_rec "$RB1/rec.md" "$head1" recorded pending pending; printf '%s\n' "$RB1/rec.md")
+    st_rc "SRV-01 recorded over a forged summary" "SRV-01 recorded: SRV-01-MDWE is claimed 'PASS', the lines of the summary give 'NOT-NATIVE'" "$out" "$RB1/E"
+    # the block is not a summary at all
+    printf 'SRV-01 PASS\nNATIVE-AMD64 DONE\n' > "$t/sm-two.txt"
+    RB1=$t/rb1-two
+    mkdir -p "$RB1"
+    cp "$RB/SRV-02" "$RB1/SRV-02"
+    cp "$RB/SRV-03" "$RB1/SRV-03"
+    out=$(RB=$RB1 fx_rb1 "$t/sm-two.txt"; RB=$RB1 fx_rec "$RB1/rec.md" "$head1" recorded pending pending; printf '%s\n' "$RB1/rec.md")
+    st_rc "SRV-01 recorded over the two marker lines alone" "SRV-01 recorded: the first line is" "$out" "$RB1/E"
+  fi
+
+  # --- the command line
+  rc=0
+  out=$(R=$f E=$e /bin/bash "${BASH_SOURCE[0]}" record-check 2>&1) || rc=$?
+  st_eq "record-check on the command line: exit" 0 "$rc"
+  st_eq "record-check on the command line: answer" "RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03" "$(printf '%s\n' "$out" | tail -n 1)"
+  sed 's/^Status: pending owner/Status: done/' "$f" > "$g"
+  rc=0
+  out=$(R=$g E=$e /bin/bash "${BASH_SOURCE[0]}" record-check 2>&1) || rc=$?
+  st_eq "record-check on the command line: a bad record exits 1" 1 "$rc"
+}
+
+selftest_status_check() {
+  local t=$ST_TMP f g q out rc
+
+  RB=$t/rbs
+  rm -rf "${RB:?}"
+  fx_blocks
+  q=$t/reqs.md
+  g=$t/reqs-mut.md
+  printf '%s\n' '# Requirements' '' \
+    '- [ ] **SRV-01**: text.' '- [ ] **SRV-02**: text.' '- [ ] **SRV-03**: text.' '' \
+    '| Requirement | Phase | Status |' '|-------------|-------|--------|' \
+    '| SRV-01 | Phase 26 | Pending owner |' '| SRV-02 | Phase 26 | Pending owner |' '| SRV-03 | Phase 26 | Pending owner |' > "$q"
+  f=$t/rec-s.md
+  fx_rec "$f" "none (pending owner)" pending pending pending
+
+  st_sk() { # NAME WANT RECORD REQS
+    local o r=0
+    o=$(status_check "$3" "$4" 2>&1) || r=$?
+    st_eq "status-check $1: exit" 1 "$r"
+    st_has "status-check $1: names the problem" "$2" "$o"
+    st_has "status-check $1: ends FAILED" "STATUS-CHECK FAILED: " "$(printf '%s\n' "$o" | tail -n 1)"
+  }
+
+  out=$(status_check "$f" "$q" 2>&1) || true
+  st_eq "status-check: all pending" "STATUS-CHECK OK: SRV-01 SRV-02 SRV-03 agree with the record" "$out"
+  rc=0
+  out=$(R=$f REQS=$q /bin/bash "${BASH_SOURCE[0]}" status-check 2>&1) || rc=$?
+  st_eq "status-check on the command line: exit" 0 "$rc"
+  st_eq "status-check on the command line: answer" "STATUS-CHECK OK: SRV-01 SRV-02 SRV-03 agree with the record" "$out"
+
+  sed 's/^- \[ \] \*\*SRV-02\*\*/- [x] **SRV-02**/' "$q" > "$g"
+  st_sk "pending record, box checked" "SRV-02 is pending owner in the record and the box in REQUIREMENTS is [x], expected [ ]" "$f" "$g"
+  sed 's/^| SRV-03 | Phase 26 | Pending owner |/| SRV-03 | Phase 26 | Pending |/' "$q" > "$g"
+  st_sk "pending record, cell Pending" "SRV-03 is pending owner in the record and its traceability cell reads 'Pending', expected 'Pending owner'" "$f" "$g"
+  sed 's/^| SRV-01 | Phase 26 | Pending owner |/| SRV-01 | Phase 26 | Complete |/' "$q" > "$g"
+  st_sk "pending record, cell Complete" "SRV-01 is pending owner in the record and its traceability cell reads 'Complete'" "$f" "$g"
+  grep -v '^- \[ \] \*\*SRV-03\*\*' "$q" > "$g" || true
+  st_sk "missing requirement line" "SRV-03 is pending owner in the record and REQUIREMENTS has no line '- [ ] **SRV-03**'" "$f" "$g"
+  grep -v '^| SRV-02 |' "$q" > "$g" || true
+  st_sk "missing traceability row" "SRV-02 is pending owner in the record and REQUIREMENTS has no traceability row '| SRV-02 |'" "$f" "$g"
+  sed 's/^| SRV-02 | Phase 26 | Pending owner |/| SRV-02 | Phase 26 | pending owner |/' "$q" > "$g"
+  st_sk "cell in another case" "its traceability cell reads 'pending owner', expected 'Pending owner'" "$f" "$g"
+  st_sk "no record" "the record $t/none.md does not exist" "$t/none.md" "$q"
+  st_sk "no requirements file" "the requirements file $t/none.md does not exist" "$f" "$t/none.md"
+  sed 's/^Status: pending owner/Status: done/' "$f" > "$g.rec"
+  st_sk "record without a readable status" "SRV-01 has no readable Status in the record" "$g.rec" "$q"
+
+  fx_rec "$f" "none (pending owner)" pending recorded pending
+  sed 's/^- \[ \] \*\*SRV-02\*\*/- [x] **SRV-02**/; s/^| SRV-02 | Phase 26 | Pending owner |/| SRV-02 | Phase 26 | Complete |/' "$q" > "$g"
+  out=$(status_check "$f" "$g" 2>&1) || true
+  st_eq "status-check: SRV-02 recorded, both files say so" "STATUS-CHECK OK: SRV-01 SRV-02 SRV-03 agree with the record" "$out"
+  st_sk "recorded record, box open and cell Pending owner" "SRV-02 is recorded in the record and the box in REQUIREMENTS is [ ], expected [x]" "$f" "$q"
+  st_has "recorded record, cell Pending owner" "SRV-02 is recorded in the record and its traceability cell reads 'Pending owner', expected 'Complete'" "$(status_check "$f" "$q" 2>&1 || true)"
+  sed 's/^| SRV-02 | Phase 26 | Complete |/| SRV-02 | Phase 26 | Pending |/' "$g" > "$g.2"
+  st_sk "recorded record, cell Pending" "its traceability cell reads 'Pending', expected 'Complete'" "$f" "$g.2"
+  sed 's/^- \[x\] \*\*SRV-02\*\*/- [ ] **SRV-02**/' "$g" > "$g.3"
+  st_sk "recorded record, box open and cell Complete" "the box in REQUIREMENTS is [ ], expected [x]" "$f" "$g.3"
+}
+
+selftest_appendix() {
+  local t=$ST_TMP e out rc p n
+
+  fx_summary pass pass
+  e=$t/ap-e
+  fx_scratch "$e" "$t/sm-pass.txt"
+  rc=0
+  out=$(appendix_print "$e" 2> /dev/null) || rc=$?
+  st_eq "appendix: all files present" 0 "$rc"
+  st_eq "appendix: thirteen headings" 13 "$(printf '%s\n' "$out" | grep -c '^#### ' || true)"
+  st_eq "appendix: twenty-six fence lines" 26 "$(printf '%s\n' "$out" | grep -c '^```' || true)"
+  st_eq "appendix: the headings are the list, in order" "$(native_paste_list)" "$(printf '%s\n' "$out" | sed -n 's/^#### //p')"
+  st_eq "appendix: the first block is the native summary" "---- native amd64 summary ----" \
+    "$(printf '%s\n' "$out" | sed -n '4p')"
+  st_eq "appendix: a block opens as text" '```text' "$(printf '%s\n' "$out" | sed -n '3p')"
+  rc=0
+  out=$(R=/nonexistent E=$e /bin/bash "${BASH_SOURCE[0]}" appendix 2> /dev/null) || rc=$?
+  st_eq "appendix on the command line: exit" 0 "$rc"
+  st_eq "appendix on the command line: thirteen headings" 13 "$(printf '%s\n' "$out" | grep -c '^#### ' || true)"
+
+  # a file without a final newline is printed with one and closed properly
+  printf 'no newline at the end' > "$e/amd64-native/runner.txt"
+  out=$(appendix_print "$e" 2> /dev/null)
+  st_has "appendix: a file without a final newline" 'no newline at the end
+```' "$out"
+  printf 'content of amd64-native/runner.txt\n' > "$e/amd64-native/runner.txt"
+
+  # a missing file: exit 1, nothing on stdout, the first missing file named
+  n=0
+  for p in $(native_paste_list); do
+    n=$((n + 1))
+    mv "$e/$p" "$e/$p.gone"
+    rc=0
+    out=$(appendix_print "$e" 2> "$t/ap-err") || rc=$?
+    st_eq "appendix: missing $p exits 1" 1 "$rc"
+    st_eq "appendix: missing $p prints nothing on stdout" "" "$out"
+    st_has "appendix: missing $p is named" "no scratch file $e/$p" "$(cat "$t/ap-err")"
+    mv "$e/$p.gone" "$e/$p"
+  done
+  mv "$e/amd64-native/native-summary.txt" "$e/amd64-native/native-summary.txt.gone"
+  mv "$e/amd64-native/runner.txt" "$e/amd64-native/runner.txt.gone"
+  appendix_print "$e" > /dev/null 2> "$t/ap-err" || true
+  st_eq "appendix: two missing files are both named" 2 "$(grep -c 'no scratch file' "$t/ap-err" || true)"
+  st_eq "appendix: the first missing file is named first" "native-amd64.sh: appendix: no scratch file $e/amd64-native/native-summary.txt" "$(head -n 1 "$t/ap-err")"
+  mv "$e/amd64-native/native-summary.txt.gone" "$e/amd64-native/native-summary.txt"
+  mv "$e/amd64-native/runner.txt.gone" "$e/amd64-native/runner.txt"
+
+  # lines that cannot be pasted unchanged
+  for p in '```text' '```' '#### heading' '## heading'; do
+    { cat "$e/amd64-native/runner.txt"; printf '%s\n' "$p"; } > "$t/ap-bad"
+    cp "$e/amd64-native/runner.txt" "$t/ap-keep"
+    cp "$t/ap-bad" "$e/amd64-native/runner.txt"
+    rc=0
+    out=$(appendix_print "$e" 2> "$t/ap-err") || rc=$?
+    st_eq "appendix: a line '$p' exits 1" 1 "$rc"
+    st_eq "appendix: a line '$p' prints nothing on stdout" "" "$out"
+    st_has "appendix: a line '$p' names the file" "$e/amd64-native/runner.txt has a line that begins" "$(cat "$t/ap-err")"
+    cp "$t/ap-keep" "$e/amd64-native/runner.txt"
+  done
+  { cat "$e/amd64-native/runner.txt"; printf 'a ```inline``` fence is fine\ntext #### not at the start is fine\n'; } > "$t/ap-ok"
+  cp "$e/amd64-native/runner.txt" "$t/ap-keep"
+  cp "$t/ap-ok" "$e/amd64-native/runner.txt"
+  rc=0
+  appendix_print "$e" > /dev/null 2>&1 || rc=$?
+  st_eq "appendix: backticks and hashes inside a line are fine" 0 "$rc"
+  cp "$t/ap-keep" "$e/amd64-native/runner.txt"
+  rc=0
+  E=$t/none /bin/bash "${BASH_SOURCE[0]}" appendix > /dev/null 2>&1 || rc=$?
+  st_eq "appendix on the command line without scratch files exits 1" 1 "$rc"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -1352,6 +2585,10 @@ cmd_selftest() {
   selftest_summarize
   selftest_stages
   selftest_bundle
+  selftest_summary_check
+  selftest_record
+  selftest_status_check
+  selftest_appendix
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -1368,6 +2605,9 @@ while [ "$#" -gt 0 ]; do
     summarize) cmd_summarize ;;
     run) cmd_run ;;
     down) cmd_down ;;
+    record-check) cmd_record_check ;;
+    status-check) cmd_status_check ;;
+    appendix) cmd_appendix ;;
     *) usage ;;
   esac
 done
