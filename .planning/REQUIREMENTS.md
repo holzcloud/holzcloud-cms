@@ -36,8 +36,8 @@ only together with the record that proves it. No feature is built.
 
 ### The promise in writing (DOC)
 
-- [ ] **DOC-01**: Every line of `docs/beta.md` that moves from *does not promise* to *promises* carries a sentence of a record, checked byte for byte as 0.1.0 did; every line that stays is still named with its reason.
-- [ ] **DOC-02**: `OWNER-STEPS` for this milestone lists each step that needs a real server or the GitHub UI: the command, the output to expect, and what a different output means.
+- [x] **DOC-01**: Every line of `docs/beta.md` that moves from *does not promise* to *promises* carries a sentence of a record, checked byte for byte as 0.1.0 did; every line that stays is still named with its reason.
+- [x] **DOC-02**: `OWNER-STEPS` for this milestone lists each step that needs a real server or the GitHub UI: the command, the output to expect, and what a different output means.
 
 ### Repository (TIDY)
 
@@ -84,8 +84,8 @@ only together with the record that proves it. No feature is built.
 | TIDY-02 | Phase 27 | Complete |
 | TIDY-03 | Phase 27 | Complete |
 | TIDY-04 | Phase 27 | Complete |
-| DOC-01 | Phase 28 | Pending |
-| DOC-02 | Phase 28 | Pending |
+| DOC-01 | Phase 28 | Complete |
+| DOC-02 | Phase 28 | Complete |
 
 `Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
 

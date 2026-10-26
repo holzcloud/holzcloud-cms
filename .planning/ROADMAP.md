@@ -498,17 +498,17 @@ Plans:
   2. `OWNER-STEPS` lists each real-server and GitHub-UI step with command, expected output and the meaning of a different output.
   3. CHANGELOG has a 0.1.1 entry that release.yml's own extraction reads.
 
-**Plans**: 0/3 plans complete in 3 waves
+**Plans**: 3/3 plans complete in 3 waves
 
 Plans:
 **Wave 1**
-- [ ] 28-01-PLAN.md — Tracer: the 03:15 line (BKP-01) moved end to end, with the page retitled 0.1.1, P-11 quoting one whole sentence of the timer record, one ledger row, the narrowed limit, OS-6 copied from the record by `28-check.sh extract`, and the CHANGELOG 0.1.1 heading that release.yml's own lines read; then the rest of the page's prose brought to 0.1.1
+- [x] 28-01-PLAN.md — Tracer: the 03:15 line (BKP-01) moved end to end, with the page retitled 0.1.1, P-11 quoting one whole sentence of the timer record, one ledger row, the narrowed limit, OS-6 copied from the record by `28-check.sh extract`, and the CHANGELOG 0.1.1 heading that release.yml's own lines read; then the rest of the page's prose brought to 0.1.1
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 28-02-PLAN.md — `28-OWNER-STEPS.md` complete (19 steps: the three records' steps verbatim, the push of `main` under the ruleset, the button, CI, the release, the bundle, each with command, expected output and the meaning of a different output) and the complete German 0.1.1 CHANGELOG entry, checked with release.yml's own version line and notes step
+- [x] 28-02-PLAN.md — `28-OWNER-STEPS.md` complete (19 steps: the three records' steps verbatim, the push of `main` under the ruleset, the button, CI, the release, the bundle, each with command, expected output and the meaning of a different output) and the complete German 0.1.1 CHANGELOG entry, checked with release.yml's own version line and notes step
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 28-03-PLAN.md — `docs/beta.md` complete: P-12 to P-18 and the ledger for the other seven moved lines, E-4 and E-5 with five evidence commands the checker runs, the 22 limits that stay with their reasons, the findings of phases 24 and 25 stated as limits, and SRV-01 to SRV-03 kept pending the owner; `28-check.sh all` and the earlier checkers pass
+- [x] 28-03-PLAN.md — `docs/beta.md` complete: P-12 to P-18 and the ledger for the other seven moved lines, E-4 and E-5 with five evidence commands the checker runs, the 22 limits that stay with their reasons, the findings of phases 24 and 25 stated as limits, and SRV-01 to SRV-03 kept pending the owner; `28-check.sh all` and the earlier checkers pass
 
 **Checker**: `.planning/phases/28-the-promise-in-writing/28-check.sh` (committed with the plans; selftest 59 cases) holds every rule above; run `bash .planning/phases/28-the-promise-in-writing/28-check.sh all` for the whole phase.
 
@@ -548,7 +548,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 25. Consistent and compatible backups | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
 | 26. Native amd64 and the real server | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
 | 27. Repository tidy | v0.1.1 | 5/5 | Complete    | 2026-10-26 |
-| 28. The promise in writing | v0.1.1 | 0/? | Not started | — |
+| 28. The promise in writing | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
