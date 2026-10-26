@@ -14,6 +14,9 @@
 #   nightly.sh fire         BKP-01: the shipped 03:15 entry starts the hardened service by itself
 #   nightly.sh delay        BKP-03: the shipped 300 second delay, sampled and judged against the real run
 #   nightly.sh catchup      BKP-02: a window missed while the host was down runs after it is up again
+#   nightly.sh prune        BKP-05: directories older than RETENTION_DAYS are deleted by one run of the service
+#   nightly.sh offsite      BKP-04: with REMOTE_TARGET set the copy arrives on a second host (needs run.sh backup)
+#   nightly.sh offsite-restore   BKP-04: the document's restore line, played on the second host from that copy
 #
 # Subcommands can be chained in one call and run in order. A failing one ends the
 # call with its status.
@@ -78,7 +81,7 @@ ZONE_ORIG_FILE=/root/.nightly-zone-orig
 say() { printf '%s\n' "$*" >&2; }
 die() { say "nightly.sh: $*"; exit 1; }
 usage() {
-  sed -n '2,19p' "${BASH_SOURCE[0]}" >&2
+  sed -n '2,22p' "${BASH_SOURCE[0]}" >&2
   exit 2
 }
 dx() { docker exec "$NAME" "$@"; }
@@ -268,6 +271,25 @@ prune_expect() {
   fi
 }
 
+# list_equal LISTA LISTB: two sha256 listings (lines of "HASH  PATH") are equal,
+# line for line and in the same order, and not empty. Two empty listings are
+# equal and prove nothing, so they fail.
+list_equal() {
+  [ "$(printf '%s\n' "$1" | grep -c . || true)" -gt 0 ] || return 1
+  [ "$1" = "$2" ]
+}
+
+# unit_diff_lines TEXTA TEXTB: the number of changed lines between two unit
+# files, read from diff (normal format): the larger of the '<' and the '>' lines,
+# so a replaced line counts once, an added or a removed line counts once.
+unit_diff_lines() {
+  local d lt gt
+  d=$(diff <(printf '%s\n' "$1") <(printf '%s\n' "$2") || true)
+  lt=$(printf '%s\n' "$d" | grep -c '^<' || true)
+  gt=$(printf '%s\n' "$d" | grep -c '^>' || true)
+  if [ "$lt" -ge "$gt" ]; then echo "$lt"; else echo "$gt"; fi
+}
+
 # ---------------------------------------------------------------------------
 # selftest
 # ---------------------------------------------------------------------------
@@ -432,6 +454,37 @@ selftest_prune() {
   st_eq "1 day, retention 1" KEEP "$(prune_expect "$d" 1)"
 }
 
+selftest_offsite() {
+  local a b unit_repo unit_one unit_two unit_add
+  # list_equal LISTA LISTB: two sha256 listings, equal and not empty.
+  a=$'aaaa  ./20261026-1/holzcloud.sqlite\nbbbb  ./20261026-1/MANIFEST\ncccc  ./20261026-2/csrf.key'
+  st_ok "equal listings" list_equal "$a" "$a"
+  b=$'aaaa  ./20261026-1/holzcloud.sqlite\nbbbX  ./20261026-1/MANIFEST\ncccc  ./20261026-2/csrf.key'
+  st_fail "one altered hash" list_equal "$a" "$b"
+  b=$'aaaa  ./20261026-1/holzcloud.sqlite\nbbbb  ./20261026-1/MANIFEST\ncccc  ./20261026-2/csrf.key\ndddd  ./20261026-2/MANIFEST'
+  st_fail "one extra line" list_equal "$a" "$b"
+  st_fail "one extra line, other side" list_equal "$b" "$a"
+  b=$'aaaa  ./20261026-1/holzcloud.sqlite\ncccc  ./20261026-2/csrf.key'
+  st_fail "one missing line" list_equal "$a" "$b"
+  b=$'bbbb  ./20261026-1/MANIFEST\naaaa  ./20261026-1/holzcloud.sqlite\ncccc  ./20261026-2/csrf.key'
+  st_fail "same lines, other order" list_equal "$a" "$b"
+  st_fail "two empty listings" list_equal "" ""
+  st_fail "two blank listings" list_equal $'\n\n' $'\n\n'
+  st_fail "empty against full" list_equal "" "$a"
+  st_fail "full against empty" list_equal "$a" ""
+  # unit_diff_lines REPOTEXT INSTALLEDTEXT: the number of changed lines, read from diff.
+  unit_repo=$'[Service]\nEnvironment=RETENTION_DAYS=30\n# Uncomment to copy off the box\n# Environment=REMOTE_TARGET=user@nas:/backups/holzcloud\nNoNewPrivileges=true'
+  st_eq "identical units" 0 "$(unit_diff_lines "$unit_repo" "$unit_repo")"
+  unit_one=$'[Service]\nEnvironment=RETENTION_DAYS=30\n# Uncomment to copy off the box\nEnvironment=REMOTE_TARGET=offsite@nas:/backups/holzcloud\nNoNewPrivileges=true'
+  st_eq "only the REMOTE_TARGET line uncommented" 1 "$(unit_diff_lines "$unit_repo" "$unit_one")"
+  unit_two=$'[Service]\nEnvironment=RETENTION_DAYS=7\n# Uncomment to copy off the box\nEnvironment=REMOTE_TARGET=offsite@nas:/backups/holzcloud\nNoNewPrivileges=true'
+  st_eq "two lines changed" 2 "$(unit_diff_lines "$unit_repo" "$unit_two")"
+  unit_add=$'[Service]\nEnvironment=RETENTION_DAYS=30\n# Uncomment to copy off the box\n# Environment=REMOTE_TARGET=user@nas:/backups/holzcloud\nNoNewPrivileges=true\nProtectHome=false'
+  st_eq "one line added" 1 "$(unit_diff_lines "$unit_repo" "$unit_add")"
+  st_eq "one line removed" 1 "$(unit_diff_lines "$unit_add" "$unit_repo")"
+  st_eq "the uncommenting plus an added line" 2 "$(unit_diff_lines "$unit_repo" "$unit_one"$'\nProtectHome=false')"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -441,6 +494,7 @@ cmd_selftest() {
   selftest_samples
   selftest_catchup
   selftest_prune
+  selftest_offsite
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -1699,6 +1753,383 @@ INNER
     exit 1
   fi
   key_line "PRUNE OK"
+}
+
+# ---------------------------------------------------------------------------
+# offsite: BKP-04, the copy. The shipped service, changed only by the one line
+# its own comment says to uncomment, copies the backup root to a second host.
+# Which way the credentials reach it under the shipped sandbox is MEASURED:
+# the document and the unit name none.
+# ---------------------------------------------------------------------------
+
+NAT_FILE=/dev/null
+NAT_RC=0
+NAT_OUT=""
+OFFA_RC=0
+OFFA_RES=""
+OFFA_ES=""
+OFFA_DIR=""
+OFFA_ON=no
+OFFA_STRAY_BEFORE=no
+OFFA_STRAY_AFTER=no
+
+nat_note() { printf '%s\n' "$*" >> "$NAT_FILE"; }
+
+# nat_run TITLE CMD...: run a command, keep its raw output and status in
+# offsite-natural.txt (the record of the credential experiments) and in NAT_*.
+nat_run() {
+  local t=$1 rc=0 out
+  shift
+  out=$("$@" 2>&1) || rc=$?
+  {
+    printf '==== %s\n$ %s\n' "$t" "$*"
+    [ -z "$out" ] || printf '%s\n' "$out"
+    printf '[exit %s]\n\n' "$rc"
+  } >> "$NAT_FILE"
+  NAT_RC=$rc
+  NAT_OUT=$out
+}
+
+# apt_in CONTAINER PACKAGE OUTFILE: install one package; a missing network is
+# DEVIATION[network] and exit 3, as run.sh does.
+apt_in() {
+  local c=$1 pkg=$2 out=$3 rc=0
+  {
+    echo "---- apt-get update and install $pkg in $c"
+    docker exec -e DEBIAN_FRONTEND=noninteractive "$c" bash -c "apt-get update -qq && apt-get install -y --no-install-recommends $pkg"
+  } >> "$out" 2>&1 || rc=$?
+  if [ "$rc" -ne 0 ] && grep -Eqi 'could not resolve|temporary failure resolving|network is unreachable|failed to connect|connection timed out|name or service not known|unable to locate package' "$out"; then
+    deviation "DEVIATION[network]: apt-get install $pkg in $c failed with no route to the package archive (see $out)"
+    exit 3
+  fi
+  [ "$rc" -eq 0 ] || die "apt-get install $pkg in $c failed (see $out)"
+}
+
+# list_backup_names: the directory names directly below the backup root, sorted.
+list_backup_names() { dxo bash -c 'find /opt/holzcloud/backups -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort'; }
+
+# sha_list_in CONTAINER ROOT: the sha256 of every file below ROOT, sorted, as root.
+sha_list_in() {
+  docker exec "$1" bash -c 'cd "$1" && find . -type f -print0 | sort -z | xargs -0 --no-run-if-empty sha256sum' _ "$2" | tr -d '\r'
+}
+
+plant_stray() {
+  dxt bash -c 'rm -rf /backups/holzcloud/stray-not-in-source
+runuser -u offsite -- bash -c "mkdir -m 700 /backups/holzcloud/stray-not-in-source && echo stray > /backups/holzcloud/stray-not-in-source/file.txt"'
+}
+
+# authorize_pub PUBFILE: only the public key crosses to the second host, by exec-pipe.
+authorize_pub() {
+  dx cat "$1" | dxti bash -c 'rm -f /home/offsite/.ssh/authorized_keys; install -d -o offsite -g offsite -m 700 /home/offsite/.ssh
+cat > /home/offsite/.ssh/authorized_keys
+chown offsite:offsite /home/offsite/.ssh/authorized_keys; chmod 600 /home/offsite/.ssh/authorized_keys'
+}
+
+# offsite_attempt LABEL JOURNALFILE: one start of the shipped service, judged by
+# its own result and by whether its directory is on the second host.
+offsite_attempt() {
+  local jf=$2 before after id nm
+  plant_stray
+  if dxt test -d /backups/holzcloud/stray-not-in-source; then OFFA_STRAY_BEFORE=yes; else OFFA_STRAY_BEFORE=no; fi
+  before=$(list_backup_names)
+  OFFA_RC=0
+  dx systemctl start holzcloud-backup.service > "$OUT_DIR/offsite-start-$1.txt" 2>&1 || OFFA_RC=$?
+  id=$(show_v holzcloud-backup.service InvocationID) || id=""
+  OFFA_RES=$(show_v holzcloud-backup.service Result) || OFFA_RES=""
+  OFFA_ES=$(show_v holzcloud-backup.service ExecMainStatus) || OFFA_ES=""
+  dx journalctl -u holzcloud-backup.service -o short-precise --no-pager "_SYSTEMD_INVOCATION_ID=$id" > "$jf" 2>&1 || true
+  after=$(list_backup_names)
+  # The script prints its complete line only after the copy, so a failed copy names
+  # no directory: the new one is the one present after and not before.
+  nm=$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after") | tail -n 1)
+  OFFA_DIR=$nm
+  if [ -n "$nm" ] && dxt test -d "/backups/holzcloud/$nm"; then OFFA_ON=yes; else OFFA_ON=no; fi
+  if dxt test -d /backups/holzcloud/stray-not-in-source; then OFFA_STRAY_AFTER=yes; else OFFA_STRAY_AFTER=no; fi
+}
+
+# leak_ssh: the private keys and the known_hosts content of the experiments are
+# not in any output file. A key body line and the key blob of a host are looked
+# up as fixed strings.
+leak_ssh() {
+  local f line d hit=0 ssh_home=$1
+  for f in "$ssh_home/.ssh/id_ed25519" /opt/holzcloud/offsite-ssh/id_ed25519; do
+    dx test -f "$f" || continue
+    line=$(dxo sed -n 2p "$f")
+    [ "${#line}" -ge 16 ] || continue
+    for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+      if grep -rqF -- "$line" "$d"; then
+        say "LEAK: a line of the private key $f occurs in a file under $d"
+        hit=1
+      fi
+    done
+  done
+  for f in "$ssh_home/.ssh/known_hosts" /opt/holzcloud/offsite-ssh/known_hosts; do
+    dx test -f "$f" || continue
+    line=$(dxo awk '!/^#/ && NF >= 3 { print $3; exit }' "$f")
+    [ "${#line}" -ge 16 ] || continue
+    for d in "$OUT_DIR" "$TGT_OUT_DIR"; do
+      if grep -rqF -- "$line" "$d"; then
+        say "LEAK: the host key in $f occurs in a file under $d"
+        hit=1
+      fi
+    done
+  done
+  [ "$hit" -eq 0 ] || exit 1
+  say "SSH-LEAK-CHECK OK"
+}
+
+cmd_offsite() {
+  local o=$OUT_DIR/offsite.txt h2=$TGT_OUT_DIR/offsite-host2.txt nat=$OUT_DIR/offsite-natural.txt
+  local want=offsite@nas:/backups/holzcloud unitf=/etc/systemd/system/holzcloud-backup.service
+  local repo_unit=/opt/holzcloud/deploy/holzcloud-backup.service f ip home_dir home_existed hs cs ulines tenv drop
+  local ssh_src_before ssh_h2_before before_a3 after_a3 a3_dir a3_on a3_rc
+  local a4_rc a4_res a4_es a4_dir a4_on b_rc b_res b_es b_dir b_on
+  local working=none fin_dir fin_rc fin_res fin_es fin_stray_before fin_stray_after
+  local sl tl nfiles dirs_src dirs_h2 bad_modes line
+
+  need_container
+  dxt true > /dev/null 2>&1 \
+    || die "the second host $TGT_NAME does not answer; bring it up with: PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR bash deploy/test/nightly.sh target"
+  [ "$NAME" != "$TGT_NAME" ] || die "TGT_NAME equals NAME ($NAME)"
+  for f in tree-src-backup.txt tree-backup.txt backup.txt state-src.txt; do
+    [ -f "$OUT_DIR/$f" ] \
+      || die "$OUT_DIR/$f is missing; run: PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR bash deploy/test/run.sh backup"
+  done
+  mkdir -p "$OUT_DIR" "$TGT_OUT_DIR"
+  ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$TGT_NAME")
+  [ -n "$ip" ] || die "the second host $TGT_NAME has no IP address"
+
+  BADS=0
+  res_begin "$o"
+  : > "$h2"
+  : > "$nat"
+  NAT_FILE=$nat
+  key_line "HOST2: $TGT_NAME at $ip"
+
+  # The state of the two hosts before anything is installed.
+  if dx bash -c 'command -v ssh > /dev/null'; then ssh_src_before=present; else ssh_src_before=absent; fi
+  if dxt bash -c 'command -v sshd > /dev/null'; then ssh_h2_before=present; else ssh_h2_before=absent; fi
+  key_line "SSH-CLIENT-ON-SOURCE-BEFORE: $ssh_src_before"
+  key_line "SSH-SERVER-ON-SECOND-HOST-BEFORE: $ssh_h2_before"
+
+  # Preparation. DEVIATION[ssh-packages], DEVIATION[hosts], DEVIATION[offsite-host].
+  deviation "DEVIATION[ssh-packages]: the document's Prerequisites install rsync, whose package only suggests an ssh client and an ssh server (ssh on the source: $ssh_src_before before, sshd on the second host: $ssh_h2_before before); openssh-client was installed in the source and openssh-server in the second host with apt-get install --no-install-recommends. A real off-site target already runs sshd, and an operator's machine has an ssh client; the document does not say so"
+  deviation "DEVIATION[offsite-host]: the second host is a second fresh container on the same bridge network ($TGT_NAME at $ip), not another machine on another network. What it cannot show: a real network path, a real NAS, a firewall, a different distribution on the receiving side"
+  deviation "DEVIATION[hosts]: the second host is reached as nas by an /etc/hosts line in the source ($ip nas), appended with an append redirection because Docker bind-mounts that file; there is no DNS for it"
+  apt_in "$NAME" openssh-client "$OUT_DIR/offsite-apt.txt"
+  apt_in "$TGT_NAME" openssh-server "$h2"
+  dxt bash -c 'command -v rsync' > /dev/null || die "rsync is not installed in $TGT_NAME: the document's Prerequisites install it, and a receiving rsync is needed"
+  dxt bash -c 'id offsite > /dev/null 2>&1 || useradd -m -s /bin/bash offsite
+usermod -p "*" offsite
+mkdir -p /backups/holzcloud; chown offsite:offsite /backups/holzcloud; chmod 700 /backups/holzcloud
+systemctl enable --now ssh' >> "$h2" 2>&1 || die "could not prepare the account and the ssh service in $TGT_NAME (see $h2)"
+  f=0
+  while [ "$f" -lt 30 ]; do
+    [ "$(dxto systemctl is-active ssh 2> /dev/null || true)" = active ] && break
+    f=$((f + 1))
+    sleep 1
+  done
+  [ "$(dxto systemctl is-active ssh 2> /dev/null || true)" = active ] || die "sshd is not active in $TGT_NAME after 30 s (see $h2)"
+  {
+    echo "---- the second host after the preparation"
+    dxt ls -ld /backups /backups/holzcloud
+    dxt getent passwd offsite
+    dxt rsync --version | head -n 1
+    dxt dpkg-query -W openssh-server
+  } >> "$h2" 2>&1 || true
+  dx bash -c 'grep -qE "^$1 +nas\$" /etc/hosts || echo "$1 nas" >> /etc/hosts' _ "$ip" || die "could not map nas in /etc/hosts of $NAME"
+  [ "$(dxo getent hosts nas | awk '{print $1}')" = "$ip" ] || die "nas does not resolve to $ip in $NAME"
+  key_line "RSYNC-SOURCE: $(dxo rsync --version | head -n 1)"
+  key_line "RSYNC-HOST2: $(dxto rsync --version | head -n 1)"
+  key_line "SSH-CLIENT: $(dx ssh -V 2>&1 | tr -d '\r')"
+  key_line "SSH-SERVER: $(dxto dpkg-query -W openssh-server)"
+
+  # The one changed line. DEVIATION[remote-target].
+  cs=$(dxo sha256sum "$repo_unit" | cut -d' ' -f1)
+  hs=$(shasum -a 256 deploy/holzcloud-backup.service | cut -d' ' -f1)
+  [ "$cs" = "$hs" ] || die "$repo_unit of $NAME differs from deploy/holzcloud-backup.service"
+  if ! dx cmp -s "$repo_unit" "$unitf"; then
+    nat_note "the installed unit differed from the repository copy before the line was set; it was put back first (cp $repo_unit $unitf)"
+    dx cp "$repo_unit" "$unitf" || die "could not put the unit back"
+  fi
+  dx grep -Fxq -- '# Environment=REMOTE_TARGET=user@nas:/backups/holzcloud' "$unitf" \
+    || die "the exact comment line '# Environment=REMOTE_TARGET=user@nas:/backups/holzcloud' is not in $unitf of $NAME"
+  dx sed -i "s|^# Environment=REMOTE_TARGET=user@nas:/backups/holzcloud\$|Environment=REMOTE_TARGET=$want|" "$unitf" || die "could not set the REMOTE_TARGET line"
+  dx systemctl daemon-reload || die "daemon-reload failed"
+  deviation "DEVIATION[remote-target]: the only change to the shipped service is the line its own comment says to uncomment, on the installed copy $unitf: '# Environment=REMOTE_TARGET=user@nas:/backups/holzcloud' became 'Environment=REMOTE_TARGET=$want'; the repository file is untouched"
+  ulines=$(unit_diff_lines "$(dxo cat "$repo_unit")" "$(dxo cat "$unitf")")
+  diff <(dxo cat "$repo_unit") <(dxo cat "$unitf") > "$OUT_DIR/offsite-unit-diff.txt" || true
+  key_line "UNIT-DIFF-LINES: $ulines"
+  while IFS= read -r line; do key_line "UNIT-DIFF $line"; done < "$OUT_DIR/offsite-unit-diff.txt"
+  tenv=$(show_v holzcloud-backup.service Environment) || tenv=""
+  drop=$(show_v holzcloud-backup.service DropInPaths) || drop="?"
+  key_line "REMOTE-TARGET: $(printf '%s\n' "$tenv" | tr ' ' '\n' | sed -n 's/^REMOTE_TARGET=//p')"
+  if [ "$ulines" = 1 ]; then
+    check_pass "the installed service differs from the repository file in exactly one line"
+  else
+    check_bad "the installed service differs from the repository file in $ulines lines, expected 1 (offsite-unit-diff.txt)"
+  fi
+  if [ -z "$drop" ]; then
+    check_pass "holzcloud-backup.service has no drop-in"
+  else
+    check_bad "holzcloud-backup.service has drop-ins: $drop"
+  fi
+
+  # Experiment A, the key where an operator would first put it.
+  home_dir=$(dxo getent passwd holzcloud | cut -d: -f6)
+  nat_note "Experiment A: credentials where an operator first puts them, in the service user's home"
+  nat_run "A1 getent passwd holzcloud" dx getent passwd holzcloud
+  if dx test -d "$home_dir"; then home_existed=yes; else home_existed=no; fi
+  nat_note "the home directory field is $home_dir, it exists before the experiment: $home_existed"
+  key_line "SERVICE-USER-HOME: $home_dir (exists by default: $home_existed)"
+  nat_run "A1 ssh-keygen -t ed25519 -N '' as holzcloud, stdin closed (the operator's first try)" dx runuser -u holzcloud -- ssh-keygen -t ed25519 -N ''
+  dx rm -rf "$home_dir/.ssh"
+  if [ "$home_existed" = no ]; then
+    nat_note "A2: the operator creates the home directory $home_dir (holzcloud, 750) and $home_dir/.ssh (700)"
+    dx mkdir -p "$home_dir" && dx chown holzcloud:holzcloud "$home_dir" && dx chmod 750 "$home_dir" || die "could not create $home_dir"
+  fi
+  dx install -d -o holzcloud -g holzcloud -m 700 "$home_dir/.ssh" || die "could not create $home_dir/.ssh"
+  nat_run "A2 ssh-keygen -f $home_dir/.ssh/id_ed25519 as holzcloud" dx runuser -u holzcloud -- ssh-keygen -q -t ed25519 -N '' -f "$home_dir/.ssh/id_ed25519" -C holzcloud-backup
+  [ "$NAT_RC" -eq 0 ] || die "the key could not be generated (see $nat)"
+  nat_run "A2 ssh-keyscan -t ed25519 nas into known_hosts (first use, DEVIATION[credentials])" dx runuser -u holzcloud -- bash -c 'ssh-keyscan -t ed25519 nas > "$1"; test -s "$1"' _ "$home_dir/.ssh/known_hosts"
+  [ "$NAT_RC" -eq 0 ] || die "ssh-keyscan of nas gave nothing (see $nat)"
+  authorize_pub "$home_dir/.ssh/id_ed25519.pub" || die "could not authorize the public key on $TGT_NAME"
+  deviation "DEVIATION[credentials]: the document and the unit name no credential. The private key lives only in the source ($home_dir/.ssh/id_ed25519 in experiment A, /opt/holzcloud/offsite-ssh/id_ed25519 in experiment B), only the public key crossed to $TGT_NAME by exec-pipe, and the host key was taken by ssh-keyscan on first use (T-24-08: a real operator compares the fingerprint by hand)"
+
+  # A3, the control outside the sandbox.
+  before_a3=$(list_backup_names)
+  nat_run "A3 the same backup.sh once as holzcloud OUTSIDE the sandbox, REMOTE_TARGET=$want" dx runuser -u holzcloud -- env DATA_DIR=/opt/holzcloud/data HOLZCLOUD_BIN=/opt/holzcloud/holzcloud RETENTION_DAYS=30 "REMOTE_TARGET=$want" /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups
+  a3_rc=$NAT_RC
+  after_a3=$(list_backup_names)
+  a3_dir=$(comm -13 <(printf '%s\n' "$before_a3") <(printf '%s\n' "$after_a3") | tail -n 1)
+  if [ -n "$a3_dir" ] && dxt test -d "/backups/holzcloud/$a3_dir"; then a3_on=yes; else a3_on=no; fi
+  key_line "A-OUTSIDE-EXIT: $a3_rc"
+  key_line "A-OUTSIDE-DIR: ${a3_dir:-none} (on the second host: $a3_on)"
+
+  # A4, inside the shipped sandbox.
+  nat_note "A4: the shipped service, ProtectHome=true, ProtectSystem=strict, started by hand (the timer was proven in plan 01)"
+  offsite_attempt a "$OUT_DIR/offsite-journal.txt"
+  a4_rc=$OFFA_RC
+  a4_res=$OFFA_RES
+  a4_es=$OFFA_ES
+  a4_dir=$OFFA_DIR
+  a4_on=$OFFA_ON
+  key_line "A-SANDBOX-RESULT: start-rc $a4_rc Result $a4_res ExecMainStatus $a4_es directory ${a4_dir:-none} on the second host: $a4_on"
+  if [ "$a4_rc" -eq 0 ] && [ "$a4_res $a4_es" = "success 0" ] && [ "$a4_on" = yes ]; then
+    working=home
+    fin_dir=$a4_dir
+    fin_rc=$a4_rc
+    fin_res=$a4_res
+    fin_es=$a4_es
+    fin_stray_before=$OFFA_STRAY_BEFORE
+    fin_stray_after=$OFFA_STRAY_AFTER
+    nat_note "A4 succeeded: the key in the service user's home works under the shipped sandbox; experiment B is skipped"
+  else
+    key_line "FINDING: the key in $home_dir/.ssh does not work under the shipped sandbox: start-rc $a4_rc, Result '$a4_res', ExecMainStatus '$a4_es', directory on the second host: $a4_on (offsite-journal.txt); outside the sandbox the same script ended with status $a3_rc and the directory arrived: $a3_on (offsite-natural.txt, A3)"
+    nat_note "A4 failed. Isolating the cause with two transient units, as the service user, with the unit's own properties:"
+    nat_run "A5 transient unit WITH ProtectHome=true, ProtectSystem=strict, NoNewPrivileges, PrivateTmp, ReadWritePaths: ls -la $home_dir/.ssh" \
+      dx systemd-run --wait --pipe --quiet -p User=holzcloud -p Group=holzcloud -p ProtectHome=true -p ProtectSystem=strict -p NoNewPrivileges=true -p PrivateTmp=true -p "ReadWritePaths=/opt/holzcloud/data /opt/holzcloud/backups" ls -la "$home_dir/.ssh"
+    nat_run "A5 transient unit WITHOUT ProtectHome (the rest as above): ls -la $home_dir/.ssh" \
+      dx systemd-run --wait --pipe --quiet -p User=holzcloud -p Group=holzcloud -p ProtectSystem=strict -p NoNewPrivileges=true -p PrivateTmp=true -p "ReadWritePaths=/opt/holzcloud/data /opt/holzcloud/backups" ls -la "$home_dir/.ssh"
+    nat_run "A5 transient unit WITH the shipped sandbox: ssh -o BatchMode=yes offsite@nas true" \
+      dx systemd-run --wait --pipe --quiet -p User=holzcloud -p Group=holzcloud -p ProtectHome=true -p ProtectSystem=strict -p NoNewPrivileges=true -p PrivateTmp=true -p "ReadWritePaths=/opt/holzcloud/data /opt/holzcloud/backups" ssh -o BatchMode=yes offsite@nas true
+    nat_run "A5 transient unit WITHOUT ProtectHome: ssh -o BatchMode=yes offsite@nas true" \
+      dx systemd-run --wait --pipe --quiet -p User=holzcloud -p Group=holzcloud -p ProtectSystem=strict -p NoNewPrivileges=true -p PrivateTmp=true -p "ReadWritePaths=/opt/holzcloud/data /opt/holzcloud/backups" ssh -o BatchMode=yes offsite@nas true
+
+    # Experiment B, key and known_hosts outside /home, named by a system ssh config.
+    nat_note "Experiment B: key and known_hosts under /opt/holzcloud/offsite-ssh, named in /etc/ssh/ssh_config.d/holzcloud-backup.conf; the unit keeps its one changed line"
+    dx rm -rf /opt/holzcloud/offsite-ssh
+    dx install -d -o holzcloud -g holzcloud -m 700 /opt/holzcloud/offsite-ssh || die "could not create /opt/holzcloud/offsite-ssh"
+    nat_run "B1 ssh-keygen -f /opt/holzcloud/offsite-ssh/id_ed25519 as holzcloud" dx runuser -u holzcloud -- ssh-keygen -q -t ed25519 -N '' -f /opt/holzcloud/offsite-ssh/id_ed25519 -C holzcloud-backup
+    [ "$NAT_RC" -eq 0 ] || die "the key of experiment B could not be generated (see $nat)"
+    nat_run "B1 ssh-keyscan -t ed25519 nas into /opt/holzcloud/offsite-ssh/known_hosts" dx runuser -u holzcloud -- bash -c 'ssh-keyscan -t ed25519 nas > "$1"; test -s "$1"' _ /opt/holzcloud/offsite-ssh/known_hosts
+    [ "$NAT_RC" -eq 0 ] || die "ssh-keyscan of nas gave nothing (see $nat)"
+    authorize_pub /opt/holzcloud/offsite-ssh/id_ed25519.pub || die "could not authorize the key of experiment B on $TGT_NAME"
+    printf 'Host nas\n    User offsite\n    IdentityFile /opt/holzcloud/offsite-ssh/id_ed25519\n    UserKnownHostsFile /opt/holzcloud/offsite-ssh/known_hosts\n    IdentitiesOnly yes\n    StrictHostKeyChecking yes\n    BatchMode yes\n' \
+      | dxi bash -c 'mkdir -p /etc/ssh/ssh_config.d; cat > /etc/ssh/ssh_config.d/holzcloud-backup.conf; chmod 644 /etc/ssh/ssh_config.d/holzcloud-backup.conf' || die "could not write the ssh config"
+    nat_run "B2 /etc/ssh/ssh_config.d/holzcloud-backup.conf and the directory" dx bash -c 'cat /etc/ssh/ssh_config.d/holzcloud-backup.conf; ls -la /opt/holzcloud/offsite-ssh'
+    offsite_attempt b "$OUT_DIR/offsite-journal-b.txt"
+    b_rc=$OFFA_RC
+    b_res=$OFFA_RES
+    b_es=$OFFA_ES
+    b_dir=$OFFA_DIR
+    b_on=$OFFA_ON
+    key_line "B-RESULT: start-rc $b_rc Result $b_res ExecMainStatus $b_es directory ${b_dir:-none} on the second host: $b_on"
+    if [ "$b_rc" -eq 0 ] && [ "$b_res $b_es" = "success 0" ] && [ "$b_on" = yes ]; then
+      working=offsite-ssh
+      fin_dir=$b_dir
+      fin_rc=$b_rc
+      fin_res=$b_res
+      fin_es=$b_es
+      fin_stray_before=$OFFA_STRAY_BEFORE
+      fin_stray_after=$OFFA_STRAY_AFTER
+    else
+      key_line "FINDING: experiment B (key and known_hosts under /opt/holzcloud/offsite-ssh, a system ssh config) did not give a copy either: start-rc $b_rc, Result '$b_res', ExecMainStatus '$b_es' (offsite-journal-b.txt)"
+      fin_dir=$b_dir
+      fin_rc=$b_rc
+      fin_res=$b_res
+      fin_es=$b_es
+      fin_stray_before=$OFFA_STRAY_BEFORE
+      fin_stray_after=$OFFA_STRAY_AFTER
+    fi
+  fi
+
+  # Judgement.
+  key_line "WORKING-CREDENTIALS: $working"
+  key_line "RESULT: ${fin_res:-none}"
+  key_line "EXIT-STATUS: ${fin_es:-none}"
+  key_line "COPY-DIR: ${fin_dir:+/backups/holzcloud/$fin_dir}"
+  if [ "$working" = none ]; then
+    check_bad "no configuration produced a copy on the second host (see offsite-natural.txt and the journals)"
+  else
+    check_pass "credentials '$working': the shipped service copied $fin_dir to $TGT_NAME (Result $fin_res, ExecMainStatus $fin_es)"
+  fi
+  if [ "$fin_rc" -eq 0 ] && [ "$fin_res $fin_es" = "success 0" ]; then
+    check_pass "the final run of the service: Result success, ExecMainStatus 0"
+  else
+    check_bad "the final run of the service: start-rc $fin_rc, Result '$fin_res', ExecMainStatus '$fin_es'"
+  fi
+
+  sl=$(sha_list_in "$NAME" /opt/holzcloud/backups) || sl=""
+  tl=$(sha_list_in "$TGT_NAME" /backups/holzcloud) || tl=""
+  printf '%s\n' "$sl" > "$OUT_DIR/offsite-sha-source.txt"
+  printf '%s\n' "$tl" > "$TGT_OUT_DIR/offsite-sha-host2.txt"
+  nfiles=$(printf '%s\n' "$sl" | grep -c . || true)
+  key_line "FILES-COMPARED: $nfiles"
+  if list_equal "$sl" "$tl"; then
+    check_pass "the sha256 of every file under /opt/holzcloud/backups of the source ($nfiles files) equals that of /backups/holzcloud on the second host"
+  else
+    check_bad "the sha256 lists of /opt/holzcloud/backups (source, $nfiles files) and /backups/holzcloud (second host, $(printf '%s\n' "$tl" | grep -c . || true) files) differ or are empty (offsite-sha-source.txt, offsite-sha-host2.txt)"
+  fi
+  dirs_src=$(list_backup_names)
+  dirs_h2=$(dxto find /backups/holzcloud -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+  if [ -n "$dirs_src" ] && [ "$dirs_src" = "$dirs_h2" ]; then
+    check_pass "the same $(printf '%s\n' "$dirs_src" | grep -c .) backup directories on both hosts"
+  else
+    check_bad "the backup directories differ: source '$(printf '%s' "$dirs_src" | tr '\n' ' ')', second host '$(printf '%s' "$dirs_h2" | tr '\n' ' ')'"
+  fi
+  bad_modes=$(dxto find /backups/holzcloud -mindepth 1 -maxdepth 1 -type d -exec stat -c '%n %U %a' {} + | grep -v ' offsite 700$' || true)
+  dxto find /backups/holzcloud -mindepth 1 -maxdepth 1 -type d -exec stat -c '%n %U %a' {} + > "$TGT_OUT_DIR/offsite-modes.txt" || true
+  if [ -z "$bad_modes" ] && [ -s "$TGT_OUT_DIR/offsite-modes.txt" ]; then
+    check_pass "every copied directory on the second host is owned by offsite with mode 700 (offsite-modes.txt)"
+  else
+    check_bad "copied directories that are not 'offsite 700' (they hold password hashes and the CSRF key): ${bad_modes:-none listed}"
+  fi
+  if [ "$fin_stray_before" = yes ] && [ "$fin_stray_after" = no ]; then
+    check_info "MIRROR: a stray directory planted on the second host before the final run is gone after it: rsync --delete makes the off-site copy a mirror of the backup root, so what the source prunes or loses is lost off-site too"
+  else
+    check_info "MIRROR: the stray directory on the second host was there before the final run: $fin_stray_before, and after it: $fin_stray_after"
+  fi
+  check_info "NOT PLAYED: the pull by rsync -a that the document describes for a rebuilt server; offsite-restore restores on the second host itself"
+
+  leak_ssh "$home_dir"
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "OFFSITE FAILED"
+    say "nightly.sh: OFFSITE FAILED, $BADS BAD line(s); see $o, $nat"
+    exit 1
+  fi
+  key_line "OFFSITE OK"
 }
 
 # ---------------------------------------------------------------------------
