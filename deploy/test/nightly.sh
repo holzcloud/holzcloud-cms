@@ -252,6 +252,22 @@ catchup_ok() {
   echo "ok"
 }
 
+# prune_expect AGE_SECONDS RETENTION_DAYS: what backup.sh step 5 does to a
+# directory of that age. `find -mtime +N` counts the age in whole 24 hour units,
+# rounded down, and matches when that count is greater than N; so the directory is
+# deleted once floor(age / 86400) > N, and a retention of 0 switches pruning off
+# (the script skips the step). Prints DELETE or KEEP.
+prune_expect() {
+  local age=$1 ret=$2
+  if [ "$ret" -le 0 ]; then
+    echo KEEP
+  elif [ $((age / 86400)) -gt "$ret" ]; then
+    echo DELETE
+  else
+    echo KEEP
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # selftest
 # ---------------------------------------------------------------------------
@@ -397,6 +413,25 @@ selftest_catchup() {
   st_eq "lead 150 time of day" "03:12:30" "$(s_hms "$(((1728012345 + $(zone_offset_seconds 1728012345 150)) % 86400))")"
 }
 
+selftest_prune() {
+  local d=86400 h=3600
+  # prune_expect AGE_SECONDS RETENTION_DAYS: find -mtime +N deletes when the age in
+  # whole 24 hour units is greater than N.
+  st_eq "45 days, retention 30" DELETE "$(prune_expect $((45 * d)) 30)"
+  st_eq "31 days 1 hour, retention 30" DELETE "$(prune_expect $((31 * d + h)) 30)"
+  st_eq "exactly 31 days, retention 30" DELETE "$(prune_expect $((31 * d)) 30)"
+  st_eq "31 days less a second, retention 30" KEEP "$(prune_expect $((31 * d - 1)) 30)"
+  st_eq "30 days 12 hours, retention 30" KEEP "$(prune_expect $((30 * d + 12 * h)) 30)"
+  st_eq "exactly 30 days, retention 30" KEEP "$(prune_expect $((30 * d)) 30)"
+  st_eq "29 days, retention 30" KEEP "$(prune_expect $((29 * d)) 30)"
+  st_eq "1 day, retention 30" KEEP "$(prune_expect "$d" 30)"
+  st_eq "no age, retention 30" KEEP "$(prune_expect 0 30)"
+  st_eq "any age, retention 0" KEEP "$(prune_expect $((400 * d)) 0)"
+  st_eq "2 days, retention 1" DELETE "$(prune_expect $((2 * d)) 1)"
+  st_eq "1 day 1 hour, retention 1" KEEP "$(prune_expect $((d + h)) 1)"
+  st_eq "1 day, retention 1" KEEP "$(prune_expect "$d" 1)"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -405,6 +440,7 @@ cmd_selftest() {
   selftest_window
   selftest_samples
   selftest_catchup
+  selftest_prune
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -1452,6 +1488,220 @@ cmd_catchup() {
 }
 
 # ---------------------------------------------------------------------------
+# The second host (plan 02). TGT_NAME is the container that receives the copy of
+# `offsite` and is restored onto by `offsite-restore`.
+# ---------------------------------------------------------------------------
+
+dxt() { docker exec "$TGT_NAME" "$@"; }
+dxti() { docker exec -i "$TGT_NAME" "$@"; }
+dxto() { docker exec "$TGT_NAME" "$@" | tr -d '\r'; }
+
+# age_dh SECONDS: "31 d 1 h" for a number of seconds.
+age_dh() { printf '%d d %d h\n' $(($1 / 86400)) $(($1 % 86400 / 3600)); }
+
+# units_shipped: 0 when both installed units are byte-equal to deploy/, else 1.
+units_shipped() {
+  local f hs cs rc=0
+  for f in holzcloud-backup.service holzcloud-backup.timer; do
+    hs=$(shasum -a 256 "deploy/$f" | cut -d' ' -f1)
+    cs=$(dxo sha256sum "/etc/systemd/system/$f" | cut -d' ' -f1) || cs="?"
+    [ "$hs" = "$cs" ] || rc=1
+  done
+  return "$rc"
+}
+
+# ---------------------------------------------------------------------------
+# prune: BKP-05. Directories of a known age are planted next to the real backups
+# and ONE run of the shipped service shows which of them the script removed.
+# ---------------------------------------------------------------------------
+
+cmd_prune() {
+  local p=$OUT_DIR/prune.txt b=/opt/holzcloud/backups
+  local envs ret now before_names planted age e nm expect obs
+  local id0 id res es rc dir om dmt dage gone_min kept_max after_names m
+  local n_gone n_kept cleaned st31 st30 age31=$((31 * 86400 + 3600)) age30=$((30 * 86400 + 12 * 3600))
+
+  need_container
+  mkdir -p "$OUT_DIR"
+  units_shipped \
+    || die "the installed holzcloud-backup units differ from deploy/ in $NAME: prune is played against the shipped units, before 'offsite' changes the REMOTE_TARGET line; put them back with: docker exec $NAME cp /opt/holzcloud/deploy/holzcloud-backup.service /opt/holzcloud/deploy/holzcloud-backup.timer /etc/systemd/system/"
+  envs=$(show_v holzcloud-backup.service Environment) || envs=""
+  ret=$(printf '%s\n' "$envs" | tr ' ' '\n' | sed -n 's/^RETENTION_DAYS=//p' | tail -n 1)
+  case "$ret" in "" | *[!0-9]*) die "the service of $NAME names no numeric RETENTION_DAYS (Environment: $envs)" ;; esac
+  case " $envs " in
+    *" REMOTE_TARGET="*) die "the service of $NAME already sets REMOTE_TARGET: prune is played with it unset; put the unit back (see above)" ;;
+  esac
+  before_names=$(dxo bash -c 'find "$1" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort' _ "$b") || before_names=""
+  [ -n "$before_names" ] \
+    || die "$b of $NAME holds no directory: run 'bash deploy/test/run.sh backup' (or 'source') first"
+
+  BADS=0
+  res_begin "$p"
+  key_line "RETENTION-DAYS-FROM-UNIT: $ret"
+  key_line "ENVIRONMENT-OF-UNIT: $envs"
+  check_pass "the installed units are byte-equal to deploy/, RETENTION_DAYS=$ret is read from the unit and REMOTE_TARGET is not set"
+
+  # Step 1: the record before.
+  now=$(cont_epoch)
+  {
+    echo "---- container clock (epoch): $now"
+    echo "---- ls -l --time-style=full-iso $b"
+    dx ls -l --time-style=full-iso "$b"
+    echo "---- stat -c '%n %Y' $b"
+    dx stat -c '%n %Y' "$b"
+    echo "---- directories that exist before the planting (the must-stay set)"
+    printf '%s\n' "$before_names"
+  } > "$OUT_DIR/prune-before.txt" 2>&1 || true
+  key_line "MUST-STAY: $(printf '%s' "$before_names" | tr '\n' ' ')"
+
+  # Step 2: plant five directories as the service user, the mtime set last.
+  planted=$(dxi bash -s -- "$((45 * 86400))" "$age31" "$age30" "$((29 * 86400))" "$((1 * 86400))" << 'INNER' | tr -d '\r'
+now=$(date +%s)
+for age in "$@"; do
+  e=$((now - age))
+  nm=$(date -d "@$e" +%Y%m%d-%H%M%S)
+  runuser -u holzcloud -- bash -c 'set -e; d=/opt/holzcloud/backups/$1
+    mkdir -m 700 "$d"; echo planted > "$d/holzcloud.sqlite"
+    mkdir -m 700 "$d/media"; echo planted > "$d/media/file.txt"
+    touch -d "@$2" "$d/media" "$d"' _ "$nm" "$e" || exit 1
+  echo "$nm $age $e"
+done
+INNER
+  ) || die "the planting in $NAME failed"
+  [ "$(printf '%s\n' "$planted" | grep -c .)" -eq 5 ] || die "expected five planted directories, got: $planted"
+  while read -r nm age e; do
+    expect=$(prune_expect "$age" "$ret")
+    key_line "PLANTED $nm $age $expect"
+    key_line "PLANTED-DETAIL $nm $(age_dh "$age") old, owner and mode $(dxo stat -c '%U %a' "$b/$nm"), holds $(dxo bash -c 'find "$1" -type f | wc -l' _ "$b/$nm") files, one of them in a subdirectory"
+  done <<< "$planted"
+
+  # Step 3: one run of the shipped service, by hand (the timer was proven in plan 01).
+  key_line "START-BY: systemctl start holzcloud-backup.service by hand, the oneshot returns when the script is done; the shipped timer was proven in plan 01"
+  id0=$(show_v holzcloud-backup.service InvocationID) || id0=""
+  rc=0
+  dx systemctl start holzcloud-backup.service > "$OUT_DIR/prune-start.txt" 2>&1 || rc=$?
+  id=$(show_v holzcloud-backup.service InvocationID) || id=""
+  res=$(show_v holzcloud-backup.service Result) || res=""
+  es=$(show_v holzcloud-backup.service ExecMainStatus) || es=""
+  dx journalctl -u holzcloud-backup.service -o short-precise --no-pager "_SYSTEMD_INVOCATION_ID=$id" > "$OUT_DIR/prune-journal.txt" 2>&1 || true
+  dir=$(sed -n 's/.*=== Backup complete: \(.*\) ===$/\1/p' "$OUT_DIR/prune-journal.txt" | tail -n 1 | tr -d '\r')
+  key_line "START-RC: $rc"
+  key_line "RESULT: $res"
+  key_line "EXIT-STATUS: $es"
+  key_line "INVOCATION-ID: $id"
+  key_line "DIR: ${dir:-none}"
+  if [ -n "$id" ] && [ "$id" != "$id0" ]; then
+    check_pass "the run is a new invocation of the service ($id)"
+  else
+    check_bad "the invocation did not change ($id0 before, $id after)"
+  fi
+  if [ "$rc" -eq 0 ] && [ "$res $es" = "success 0" ]; then
+    check_pass "Result success and ExecMainStatus 0"
+  else
+    check_bad "start rc $rc, Result '$res', ExecMainStatus '$es', expected 0, success and 0 (prune-start.txt, prune-journal.txt)"
+  fi
+  if grep -q "Pruning backups older than $ret days" "$OUT_DIR/prune-journal.txt"; then
+    check_pass "the journal of the invocation holds the script's 'Pruning backups older than $ret days...' line"
+  else
+    check_bad "the journal of the invocation holds no 'Pruning backups older than $ret days' line (prune-journal.txt)"
+  fi
+  if [ -n "$dir" ]; then
+    check_pass "the journal holds the script's '=== Backup complete: $dir ===' line"
+  else
+    check_bad "the journal holds no '=== Backup complete: DIR ===' line (prune-journal.txt)"
+  fi
+
+  # Step 4: the record after, and every planted directory against its expectation.
+  {
+    echo "---- container clock (epoch): $(cont_epoch)"
+    echo "---- ls -l --time-style=full-iso $b"
+    dx ls -l --time-style=full-iso "$b"
+    echo "---- stat -c '%n %Y' $b"
+    dx stat -c '%n %Y' "$b"
+  } > "$OUT_DIR/prune-after.txt" 2>&1 || true
+  gone_min=0
+  kept_max=0
+  n_gone=0
+  n_kept=0
+  st31=?
+  st30=?
+  while read -r nm age e; do
+    expect=$(prune_expect "$age" "$ret")
+    if dx test -d "$b/$nm"; then obs=present; else obs=gone; fi
+    key_line "OBSERVED $nm $obs"
+    [ "$age" -ne "$age31" ] || st31=$obs
+    [ "$age" -ne "$age30" ] || st30=$obs
+    if [ "$obs" = gone ]; then
+      n_gone=$((n_gone + 1))
+      if [ "$gone_min" -eq 0 ] || [ "$age" -lt "$gone_min" ]; then gone_min=$age; fi
+    else
+      n_kept=$((n_kept + 1))
+      if [ "$age" -gt "$kept_max" ]; then kept_max=$age; fi
+    fi
+    if { [ "$expect" = DELETE ] && [ "$obs" = gone ]; } || { [ "$expect" = KEEP ] && [ "$obs" = present ]; }; then
+      check_pass "planted $nm ($(age_dh "$age") old, retention $ret d): expected $expect, observed $obs"
+    else
+      check_bad "planted $nm ($(age_dh "$age") old, retention $ret d): expected $expect, observed $obs (prune-after.txt)"
+    fi
+  done <<< "$planted"
+  after_names=$(dxo bash -c 'find "$1" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort' _ "$b") || after_names=""
+  m=0
+  while read -r nm; do
+    [ -n "$nm" ] || continue
+    if printf '%s\n' "$after_names" | grep -qx "$nm"; then
+      m=$((m + 1))
+    else
+      check_bad "the earlier backup $nm is gone after the run"
+    fi
+  done <<< "$before_names"
+  if [ "$m" -eq "$(printf '%s\n' "$before_names" | grep -c .)" ]; then
+    check_pass "every directory that existed before the planting is still there ($m)"
+  fi
+  if [ -n "$dir" ] && dx test -d "$dir"; then
+    om=$(dxo stat -c '%U %a' "$dir") || om="?"
+    dmt=$(dxo stat -c '%Y' "$dir") || dmt=0
+    dage=$(($(cont_epoch) - dmt))
+    key_line "DIR-OWNER-MODE: $om"
+    key_line "DIR-AGE-S: $dage"
+    if [ "$om" = "holzcloud 700" ] && [ "$dage" -ge 0 ] && [ "$dage" -lt 3600 ]; then
+      check_pass "the new backup $dir exists, is $om and $dage s old"
+    else
+      check_bad "the new backup $dir: '$om', age $dage s (expected 'holzcloud 700' and under one hour)"
+    fi
+  else
+    check_bad "the new backup directory '${dir:-none}' does not exist"
+  fi
+
+  # Step 5: the boundary, stated only when it was observed.
+  if [ "$n_gone" -gt 0 ] && [ "$n_kept" -gt 0 ]; then
+    key_line "OBSERVED-BOUNDARY: the youngest planted directory that was deleted was $(age_dh "$gone_min") old, the oldest that was kept was $(age_dh "$kept_max") old (retention $ret days)"
+  fi
+  if [ "$st31" = gone ] && [ "$st30" = present ]; then
+    check_info "OBSERVED RULE: a directory is deleted once floor(age / 24 h) exceeds RETENTION_DAYS, which is from $((ret + 1)) days of age; the 30 day 12 hour directory, older than 30 days by less than a day, was kept; by the same rule it becomes eligible 12 hours later (a later run was not played). This is a measured fact; whether it is a defect is plan 03's rule"
+  fi
+
+  # Step 6: the recorded cleanup of what survived.
+  cleaned=0
+  while read -r nm age e; do
+    if dx test -d "$b/$nm"; then
+      dx rm -rf "$b/$nm"
+      echo "CLEANUP removed $nm" | tee -a "$p"
+      cleaned=$((cleaned + 1))
+    fi
+  done <<< "$planted"
+  key_line "CLEANUP-COUNT: $cleaned"
+  dx ls -l --time-style=full-iso "$b" > "$OUT_DIR/prune-final.txt" 2>&1 || true
+
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "PRUNE FAILED"
+    say "nightly.sh: PRUNE FAILED, $BADS BAD line(s); see $p, prune-before.txt, prune-after.txt, prune-journal.txt"
+    exit 1
+  fi
+  key_line "PRUNE OK"
+}
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -1460,7 +1710,8 @@ while [ "$#" -gt 0 ]; do
   sub=$1
   shift
   case "$sub" in
-    selftest | source | target | fire | delay | catchup) "cmd_$sub" ;;
+    selftest | source | target | fire | delay | catchup | prune | offsite) "cmd_$sub" ;;
+    offsite-restore) cmd_offsite_restore ;;
     *) usage ;;
   esac
 done
