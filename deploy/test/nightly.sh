@@ -919,6 +919,7 @@ cmd_selftest() {
   selftest_record
   selftest_consist
   selftest_outcome
+  selftest_hold
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -3213,6 +3214,8 @@ p25_baseref() {
 run_prefix() {
   if [ "$1" = adds ]; then
     printf 'consist-run-%s\n' "$2"
+  elif [ "$1" = C0 ] || [ "$1" = C1 ] || [ "$1" = C2 ]; then
+    printf 'window-%s\n' "$1"
   else
     printf 'consist-%s-run-%s\n' "$1" "$2"
   fi
@@ -3392,6 +3395,11 @@ consist_run() {
   R_CLASS=? R_BRC=? R_RRC=- R_MISSING=? R_ORPHAN=? R_WU=? R_WP=? R_WD=? R_U=? R_P=? R_D=? R_BS=? R_DIR=? R_RESTORED=$restore R_RSYNC=- R_BADRUN=no R_NAMED=- R_WNAME=- R_RS=0
   keep_out=$CHECK_OUT
 
+  if [ -n "${P25_HOLD:-}" ]; then
+    # A control of cmd_window: no load; the stand-in pauses backup.sh and one write is made.
+    : > "$w/churn.txt"
+    hold_backup "$w" "$P25_HOLD" || return 1
+  else
   # (1) The load, and a wait until it is running.
   dx rm -f /root/hc-churn.stop /root/hc-churn.log || true
   dx bash -c ': > /root/hc-churn.log' || true
@@ -3412,6 +3420,7 @@ consist_run() {
   docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$BACKUP_LINE" > "$w/backup.txt" 2>&1 || true
   churn_stop || check_bad "run $stage $n: the churn generator did not stop in time"
   dx cat /root/hc-churn.log > "$w/churn.txt" 2> /dev/null || true
+  fi
   brc=$(sed -n 's/^RC //p' "$w/backup.txt" | tail -n 1)
   if [ -z "$brc" ]; then
     check_bad "run $stage $n: backup.txt holds no RC line; the transcript ends: $(tail -n 3 "$w/backup.txt" | tr '\n' '|')"
@@ -3455,7 +3464,7 @@ consist_run() {
   if [ "$brc" -ne 0 ] && [ "$man" = no ]; then
     R_CLASS=$(run_class "$brc" "$man" - -) || R_CLASS=?
     R_RESTORED=no
-    consist_name_run "$stage" "$n" "$w" "$db0" "$db1" "$me1"
+    if [ -z "${P25_HOLD:-}" ]; then consist_name_run "$stage" "$n" "$w" "$db0" "$db1" "$me1"; fi
     consist_finish "$stage" "$n" "$w" "$pfx"
     return 0
   fi
@@ -3521,7 +3530,7 @@ consist_run() {
   R_MISSING=$miss
   R_ORPHAN=$orph
   R_CLASS=$(run_class "$brc" "$man" "$rrc" "$agree") || R_CLASS=?
-  if [ "$R_CLASS" != AGREE ]; then consist_name_run "$stage" "$n" "$w" "$db0" "$db1" "$me1"; fi
+  if [ "$R_CLASS" != AGREE ] && [ -z "${P25_HOLD:-}" ]; then consist_name_run "$stage" "$n" "$w" "$db0" "$db1" "$me1"; fi
   {
     echo "RUN: $stage $n restored=$restore"
     echo "BACKUP-DIR: $bdir"
@@ -3597,9 +3606,10 @@ consist_run() {
 consist_finish() {
   local stage=$1 n=$2 w=$3 pfx=$4 keep=no f
   printf 'RUN %s %s CLASS=%s BACKUP-RC=%s RESTORE-RC=%s MISSING=%s ORPHAN=%s WINDOW-UPLOADS=%s WINDOW-PAGES=%s WINDOW-DELETES=%s UPLOADS=%s PAGES=%s DELETES=%s BACKUP-S=%s RESTORED=%s NAMED=%s WINDOW-NAME=%s RSYNC-STATUS=%s DIR=%s\n' \
-    "$n" "$stage" "$R_CLASS" "$R_BRC" "$R_RRC" "$R_MISSING" "$R_ORPHAN" "$R_WU" "$R_WP" "$R_WD" "$R_U" "$R_P" "$R_D" "$R_BS" "$R_RESTORED" "$R_NAMED" "$R_WNAME" "$R_RSYNC" "$R_DIR" >> "$OUT_DIR/consist-runs.txt"
+    "$n" "$stage" "$R_CLASS" "$R_BRC" "$R_RRC" "$R_MISSING" "$R_ORPHAN" "$R_WU" "$R_WP" "$R_WD" "$R_U" "$R_P" "$R_D" "$R_BS" "$R_RESTORED" "$R_NAMED" "$R_WNAME" "$R_RSYNC" "$R_DIR" >> "${P25_RUNS_FILE:-$OUT_DIR/consist-runs.txt}"
   if [ -s "$w/names.txt" ]; then cat "$w/names.txt" >> "$OUT_DIR/consist-names.txt"; fi
   if [ "$n" = 1 ] || [ "$R_CLASS" != AGREE ] || [ "$R_BADRUN" = yes ]; then keep=yes; fi
+  if [ -n "${P25_HOLD:-}" ]; then keep=yes; fi
   if [ "$keep" = yes ] || [ "${CONSIST_KEEP_RAW:-0}" = 1 ]; then
     for f in backup restore compare churn steps names; do
       if [ -f "$w/$f.txt" ]; then cp "$w/$f.txt" "$OUT_DIR/$pfx-$f.txt"; fi
@@ -4219,6 +4229,338 @@ consist_stage_report() {
       check_bad "stage $stage: the class counts do not add up to the $n runs; a run failed in the harness"
       ;;
   esac
+}
+
+# ---------------------------------------------------------------------------
+# Phase 25, plan 01, task 3: the window made on purpose. The shipped backup.sh is
+# paused, through the HOLZCLOUD_BIN variable it documents, between its database
+# snapshot and its copy of the media; one write is made in the pause; the directory
+# is restored by the shipped restore.sh and compared. Three controls: nothing written
+# (the comparator must say AGREE), a file uploaded (ORPHAN-ONLY), a file deleted
+# (ROW-WITHOUT-FILE).
+# ---------------------------------------------------------------------------
+
+# hold_expect ACTION: the class a control must produce. Any other action returns
+# non-zero and prints nothing.
+hold_expect() {
+  case "$1" in
+    none) echo AGREE ;;
+    upload) echo ORPHAN-ONLY ;;
+    delete) echo ROW-WITHOUT-FILE ;;
+    *) return 1 ;;
+  esac
+}
+
+selftest_hold() {
+  st_eq "hold_expect none" AGREE "$(hold_expect none)"
+  st_eq "hold_expect upload" ORPHAN-ONLY "$(hold_expect upload)"
+  st_eq "hold_expect delete" ROW-WITHOUT-FILE "$(hold_expect delete)"
+  st_fail "hold_expect page" hold_expect page
+  st_fail "hold_expect empty" hold_expect ""
+  st_fail "hold_expect upper case" hold_expect UPLOAD
+  st_eq "hold_expect prints nothing for an unknown action" "" "$(hold_expect page || true)"
+  st_eq "hold_expect none is the class run_class gives for agreeing lists" "$(hold_expect none)" "$(run_class 0 yes 0 AGREE)"
+  st_eq "hold_expect upload is the class run_class gives for a file without a row" "$(hold_expect upload)" "$(run_class 0 yes 0 ORPHAN-ONLY)"
+  st_eq "hold_expect delete is the class run_class gives for a row without a file" "$(hold_expect delete)" "$(run_class 0 yes 0 ROW-WITHOUT-FILE)"
+}
+
+HOLD_BIN=/opt/holzcloud/hc-hold-bin
+HOLD_FLAG=/tmp/hc-hold.flag
+HOLD_BOUND=/tmp/hc-hold.bound
+
+# The stand-in for the binary. It is the real binary with the same arguments and the
+# same status; only after a `backup` that succeeded it creates the flag and waits,
+# at most 90 seconds, for the driver to remove it.
+read -r -d '' P25_HOLD_SH <<'HOLD_EOF' || true
+#!/bin/bash
+REAL=/opt/holzcloud/holzcloud
+FLAG=/tmp/hc-hold.flag
+BOUND=/tmp/hc-hold.bound
+"$REAL" "$@"
+rc=$?
+if [ "${1:-}" = backup ] && [ "$rc" -eq 0 ]; then
+  : > "$FLAG"
+  i=0
+  while [ -e "$FLAG" ] && [ "$i" -lt 900 ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  if [ -e "$FLAG" ]; then : > "$BOUND"; fi
+fi
+exit "$rc"
+HOLD_EOF
+
+# hold_backup W ACTION: the document's manual line with the stand-in as the binary,
+# the write of ACTION made while it waits, and the release. Sets H_REACHED (yes/no),
+# H_SECS (the seconds the pause lasted), H_BOUND (yes when the 90 s bound was reached),
+# H_EFFECT (what the database and the disk showed after the write) and H_FILE (the
+# media path a delete removed). A failure of the harness is a BAD line and status 1.
+hold_backup() {
+  local w=$1 action=$2 line pid i=0 t_hold name res row id fn stem n f
+  H_REACHED=no H_SECS=0 H_BOUND=no H_EFFECT=- H_FILE=-
+  case "$BACKUP_LINE" in
+    "sudo -u holzcloud /opt/holzcloud/deploy/backup.sh "*) ;;
+    *)
+      check_bad "the manual backup line of the document is not 'sudo -u holzcloud /opt/holzcloud/deploy/backup.sh DIR' ($BACKUP_LINE); the stand-in cannot be put in front of it"
+      return 1
+      ;;
+  esac
+  line="sudo -u holzcloud env HOLZCLOUD_BIN=$HOLD_BIN ${BACKUP_LINE#sudo -u holzcloud }"
+  if ! printf '%s\n' "$P25_HOLD_SH" | dxi bash -c "cat > $HOLD_BIN && chown root:root $HOLD_BIN && chmod 755 $HOLD_BIN"; then
+    check_bad "could not install the stand-in $HOLD_BIN in $NAME"
+    return 1
+  fi
+  dx rm -f "$HOLD_FLAG" "$HOLD_BOUND" || true
+  docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$line" > "$w/backup.txt" 2>&1 &
+  pid=$!
+  while [ "$i" -lt 300 ]; do
+    if dx test -e "$HOLD_FLAG"; then
+      H_REACHED=yes
+      break
+    fi
+    if ! kill -0 "$pid" 2> /dev/null; then break; fi
+    sleep 0.2
+    i=$((i + 1))
+  done
+  if [ "$H_REACHED" = yes ]; then
+    t_hold=$SECONDS
+    case "$action" in
+      none)
+        H_EFFECT="nothing written"
+        ;;
+      upload)
+        name=window-c1-$(date +%s).jpg
+        dx bash -c 'umask 077; cat /root/hc-base.jpg > "$1"; printf "trailer window %s" "$(date +%s%N)" >> "$1"' _ /root/.hc-win-up.jpg || true
+        res=$(sess upload "$WID" /root/.hc-jar-window /root/.hc-win-up.jpg "$name") || res="HTTP none error"
+        dx rm -f /root/.hc-win-up.jpg || true
+        row=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select website_id || '/' || filename from media where original_name = '$name'") || row=""
+        H_FILE=$row
+        if [ "${res%% /*}" = "HTTP 303" ] && [ -n "$row" ] && dx test -f "/opt/holzcloud/data/media/$row"; then
+          H_EFFECT="uploaded $name: $res, row and file $row in the live site"
+        else
+          check_bad "control upload: the write in the pause did not take effect (answer '$res', row '$row')"
+        fi
+        ;;
+      delete)
+        row=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select id || '|' || website_id || '/' || filename from media where original_name like 'churn-%' order by id limit 1") || row=""
+        if [ -z "$row" ]; then
+          check_bad "control delete: no earlier churn upload exists to delete"
+        else
+          id=${row%%|*}; fn=${row#*|}; stem=${fn%%.*}
+          res=$(sess delete "$WID" /root/.hc-jar-window "$id") || res="HTTP none error"
+          n=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select count(*) from media where id = $id") || n="?"
+          f=$(dxo bash -c "ls /opt/holzcloud/data/media/${stem}* 2> /dev/null | wc -l" | tr -d ' ') || f="?"
+          H_FILE=$fn
+          if [ "${res%% /*}" = "HTTP 303" ] && [ "$n" = 0 ] && [ "$f" = 0 ]; then
+            H_EFFECT="deleted media $id ($fn): $res, row gone, $f files of it left in the live site"
+          else
+            check_bad "control delete: the write in the pause did not take effect (answer '$res', rows left $n, files left $f)"
+          fi
+        fi
+        ;;
+    esac
+    dx rm -f "$HOLD_FLAG" || true
+    H_SECS=$((SECONDS - t_hold))
+  fi
+  wait "$pid" || true
+  if dx test -e "$HOLD_BOUND"; then H_BOUND=yes; fi
+  dx rm -f "$HOLD_FLAG" "$HOLD_BOUND" || true
+  if [ "$H_REACHED" != yes ]; then
+    check_bad "control $action: the pause was never reached (no $HOLD_FLAG within 60 s); the transcript ends: $(tail -n 3 "$w/backup.txt" | tr '\n' '|')"
+  fi
+  if [ "$H_BOUND" = yes ]; then
+    check_bad "control $action: the 90 s bound of the pause was reached; the driver was too slow"
+  fi
+  return 0
+}
+
+# window_cleanup: nothing of the controls stays in either container.
+window_cleanup() {
+  dx rm -f "$HOLD_BIN" "$HOLD_FLAG" "$HOLD_BOUND" /root/.hc-win-up.jpg /root/.hc-jar-window || true
+  dxt rm -f /root/.hc-jar-window-tgt /root/hc-sess.sh || true
+  if [ "${WIN_TGT_PASS:-}" = made ]; then dxt rm -f /root/.hc-login-pass || true; fi
+}
+
+# src_line FILE PATTERN: the number of the first line of FILE that holds PATTERN
+# (fixed string), or nothing.
+src_line() {
+  grep -n -F -m 1 -- "$2" "$1" | cut -d: -f1
+}
+
+# window_mechanisms: what the code says, as INFO lines with the line they were read from.
+window_mechanisms() {
+  local a b c
+  a=$(src_line internal/media/intake.go 'StoreFile(source, destPath, in.limit)')
+  b=$(src_line internal/media/intake.go 'store.Create(ctx, websiteID, in.Filename')
+  if [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]; then
+    check_info "MECHANISM (read from the code, not measured): an upload writes the file (internal/media/intake.go:$a) before it inserts the row (internal/media/intake.go:$b)"
+  else
+    check_bad "internal/media/intake.go no longer writes the file before the row (lines '$a' '$b'); the reading of the mechanism is out of date"
+  fi
+  a=$(src_line internal/media/upload.go 'os.Create(destPath)')
+  if [ -n "$a" ]; then
+    check_info "MECHANISM (read from the code, not measured): the file is created straight under its final name (internal/media/upload.go:$a), no temporary name and no rename, so a copy that meets it half written holds a partial file for which there is no row yet"
+  else
+    check_bad "internal/media/upload.go no longer creates the file at its final name; the reading of the mechanism is out of date"
+  fi
+  a=$(src_line internal/media/usage.go 's.removeVariantFiles(ctx, id, websiteID, dataDir)')
+  b=$(src_line internal/media/usage.go 'DELETE FROM media WHERE id = $1')
+  c=$(src_line internal/media/usage.go 'os.Remove(diskPath)')
+  if [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ "$a" -lt "$b" ] && [ "$b" -lt "$c" ]; then
+    check_info "MECHANISM (read from the code, not measured): a delete removes the variant files (internal/media/usage.go:$a), then the row (internal/media/usage.go:$b), then the original (internal/media/usage.go:$c); a snapshot taken after the first step has the row, a copy taken after the last step has no file"
+  else
+    check_bad "internal/media/usage.go no longer deletes variants, row and original in that order (lines '$a' '$b' '$c'); the reading of the mechanism is out of date"
+  fi
+  a=$(src_line internal/db/maintain.go "VACUUM INTO '")
+  b=$(src_line cmd/holzcloud/cli.go 'db.Backup(context.Background(), database, fs.Arg(0))')
+  if [ -n "$a" ] && [ -n "$b" ]; then
+    check_info "MECHANISM (read from the code, not measured): the snapshot is VACUUM INTO (internal/db/maintain.go:$a) run by the command line process 'holzcloud backup' (cmd/holzcloud/cli.go:$b), not by the service; it is a consistent database file at one instant, taken before the media are copied"
+  else
+    check_bad "the snapshot is no longer taken by 'holzcloud backup' through VACUUM INTO (lines '$a' '$b'); the reading of the mechanism is out of date"
+  fi
+  a=$(src_line deploy/backup.sh 'set -euo pipefail')
+  b=$(src_line deploy/backup.sh 'rsync -a "${DATA_DIR}/${name}/"')
+  c=$(src_line deploy/backup.sh 'echo "timestamp=${TIMESTAMP}"')
+  if [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ]; then
+    check_info "MECHANISM (read from the code, not measured): backup.sh runs with set -e (deploy/backup.sh:$a) and copies the media with rsync -a (deploy/backup.sh:$b); an rsync status of 24, a file vanished during the copy, ends the script before the MANIFEST is written (deploy/backup.sh:$c), and restore.sh refuses a directory without one"
+  else
+    check_bad "deploy/backup.sh no longer has set -e, rsync -a and the MANIFEST as read (lines '$a' '$b' '$c'); the reading of the mechanism is out of date"
+  fi
+}
+
+# window_consequences: what an operator sees on the restored site after C2. Raw output,
+# no value is asserted.
+window_consequences() {
+  local cf=$OUT_DIR/window-C2-compare.txt rf=$OUT_DIR/window-C2-restore.txt mf pf st d lr last made=no
+  mf=$(sed -n 's/^KEY MISSING-FILE: //p' "$cf" | grep -v -e '-thumb\.' -e '-medium\.' | head -n 1)
+  if [ -z "$mf" ]; then mf=$(sed -n 's/^KEY MISSING-FILE: //p' "$cf" | head -n 1); fi
+  pf=${BASEREF#/media/}
+  if [ -z "$mf" ]; then
+    check_bad "C2: the comparison named no file that the backup lacks; the consequences cannot be read"
+    return 0
+  fi
+  st=$(dxto curl -s --max-time 30 -o /dev/null -w '%{http_code} %{size_download}' -H 'Host: test.local' "http://127.0.0.1:8080/media/$mf") || st="curl failed"
+  key_line "C2-CONSEQUENCE media route, file the backup lacks (GET /media/$mf, Host test.local): HTTP status and body length: $st"
+  st=$(dxto curl -s --max-time 30 -o /dev/null -w '%{http_code} %{size_download}' -H 'Host: test.local' "http://127.0.0.1:8080/media/$pf") || st="curl failed"
+  key_line "C2-CONSEQUENCE media route, file the backup has (GET /media/$pf, Host test.local): HTTP status and body length: $st"
+  d=$(mktemp -d) || return 0
+  printf '%s\n' "$P25_COMPARE_SH" | dxti bash -s -- live /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/media "" "" > "$d/live.out" 2> /dev/null || true
+  split_sections "$d/live.out" "$d"
+  key_line "C2-CONSEQUENCE holzcloud check on a copy of the restored database: exit status $(sed -n 's/^CHECK-RC: //p' "$d/CHECK") and output: $(sed -n 's/^CHECK-OUT: //p' "$d/CHECK" | cut -c1-300)"
+  rm -rf "${d:?}"
+  lr=$(sed -n 's/^RC //p' "$rf" | tail -n 1)
+  last=$(grep -v -e '^WALL ' -e '^RC ' "$rf" | sed 's/^[0-9]* //' | grep -v '^$' | tail -n 1 | cut -c1-300)
+  key_line "C2-CONSEQUENCE restore.sh exit status $lr, its last line (empty lines skipped): $last"
+  if ! dxt test -s /root/.hc-login-pass; then
+    if dxo cat /root/.hc-login-pass | dxti bash -c 'umask 077; cat > /root/.hc-login-pass'; then WIN_TGT_PASS=made; made=yes; fi
+  fi
+  printf '%s\n' "$P25_SESS_SH" | dxti bash -c 'umask 077; cat > /root/hc-sess.sh && chmod 700 /root/hc-sess.sh' || true
+  st=$(dxto bash /root/hc-sess.sh login churn@example.test /root/.hc-login-pass /root/.hc-jar-window-tgt) || st="HTTP none error"
+  key_line "C2-CONSEQUENCE editor login on the restored site: $st"
+  st=$(dxto bash /root/hc-sess.sh get "/admin/websites/$WID/media" /root/.hc-jar-window-tgt) || st="HTTP none error"
+  key_line "C2-CONSEQUENCE media list of the admin (editor session, GET /admin/websites/$WID/media): $st"
+  grep -h 'PAGE-REFS' "$cf" | sed 's/^/C2-CONSEQUENCE restored site: /' | tee -a "$CHECK_OUT" || true
+  if [ "$made" = yes ]; then dxt rm -f /root/.hc-login-pass || true; WIN_TGT_PASS=; fi
+}
+
+cmd_window() {
+  local o=$OUT_DIR/window.txt c action exp bl rl epoch res nrows k rc=0 miss orph f
+  need_container
+  dxt true > /dev/null 2>&1 \
+    || die "container $TGT_NAME does not answer; bring the second host up with: bash deploy/test/nightly.sh target (TGT_NAME=$TGT_NAME)"
+  [ "$(tail -n 1 "$OUT_DIR/prep.txt" 2> /dev/null)" = "PREP OK" ] \
+    || die "$OUT_DIR/prep.txt does not end with PREP OK; run 'bash deploy/test/nightly.sh prep' first"
+  mkdir -p "$OUT_DIR"
+  BADS=0
+  res_begin "$o"
+  : > "$OUT_DIR/window-runs.txt"
+  P25_RUNS_FILE=$OUT_DIR/window-runs.txt
+  WIN_TGT_PASS=
+  trap window_cleanup EXIT
+  p25_ship
+  WID=$(p25_wid)
+  BASEREF=$(p25_baseref)
+  [ -n "$WID" ] && [ -n "$BASEREF" ] || die "no website called Test or no media file in $NAME"
+  bl=$(doc_backup_line) || die "deploy/DEPLOY.md has no line 'sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups'"
+  rl=$(doc_restore_line) || die "deploy/DEPLOY.md has no restore line 'sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/TIMESTAMP'"
+  BACKUP_LINE=${bl#*:}
+  RESTORE_LINE_SAMPLE=${rl#*:}
+  key_line "BACKUP-LINE: deploy/DEPLOY.md:${bl%%:*}: $BACKUP_LINE (HOLZCLOUD_BIN=$HOLD_BIN is put in front of the script through env, as backup.sh documents)"
+  key_line "RESTORE-LINE: deploy/DEPLOY.md:${rl%%:*}: $RESTORE_LINE_SAMPLE (yes on stdin)"
+  key_line "WEBSITE: $WID"
+  key_line "HOLD-BOUND-S: 90 (a bounded wait in the stand-in; the driver removes the flag as soon as its write is done)"
+  deviation "DEVIATION[hold]: the pause is the container's addition. $HOLD_BIN is a root-owned 755 stand-in for the binary: the real binary with the same arguments and status, and after a successful 'backup' it creates $HOLD_FLAG and waits (at most 90 s) until the driver removes it. backup.sh is untouched and is given the stand-in through the HOLZCLOUD_BIN variable it documents. The window it opens, between the snapshot and the copy of the media, is the one in backup.sh's own comment; only its length is the container's"
+  window_mechanisms
+
+  # The editor's session for the writes in the pauses.
+  res=$(sess login churn@example.test /root/.hc-login-pass /root/.hc-jar-window) || res="HTTP none error"
+  if [ "$res" = "HTTP 303 /admin/" ]; then
+    check_pass "the editor logs in for the controls: $res"
+  else
+    check_bad "the editor login answered '$res', expected 'HTTP 303 /admin/'"
+  fi
+  # C2 needs an earlier churn upload to delete; without one a seed is uploaded before the pause.
+  nrows=$(dxo runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select count(*) from media where original_name like 'churn-%'") || nrows=0
+  if [ "${nrows:-0}" -lt 1 ]; then
+    epoch=$(date +%s)
+    dx bash -c 'umask 077; cat /root/hc-base.jpg > /root/.hc-win-up.jpg; printf "trailer seed %s" "$(date +%s%N)" >> /root/.hc-win-up.jpg' || true
+    res=$(sess upload "$WID" /root/.hc-jar-window /root/.hc-win-up.jpg "churn-window-seed-$epoch.jpg") || res="HTTP none error"
+    dx rm -f /root/.hc-win-up.jpg || true
+    key_line "SEED-UPLOAD: $res (no churn upload existed for control C2 to delete)"
+  else
+    key_line "SEED-UPLOAD: not needed, $nrows churn uploads exist for control C2 to delete"
+  fi
+
+  k=0
+  for action in none upload delete; do
+    c=C$k
+    k=$((k + 1))
+    exp=$(hold_expect "$action") || { check_bad "no expectation for the action $action"; continue; }
+    P25_HOLD=$action
+    H_REACHED=no H_SECS=0 H_BOUND=no H_EFFECT=- H_FILE=-
+    if consist_run "$c" 1 yes; then
+      :
+    else
+      check_bad "control $c: the harness failed (BAD line above)"
+      P25_HOLD=
+      continue
+    fi
+    P25_HOLD=
+    key_line "CONTROL $c ACTION=$action HOLD-REACHED=$H_REACHED HOLD-RELEASED-IN-S=$H_SECS MISSING=$R_MISSING ORPHAN=$R_ORPHAN CLASS=$R_CLASS EXPECTED=$exp"
+    key_line "CONTROL-$c-BACKUP-RC: $R_BRC RESTORE-RC: $R_RRC HOLD-BOUND-REACHED: $H_BOUND"
+    key_line "CONTROL-$c-WRITE: $H_EFFECT"
+    sed -n 's/^KEY MISSING-FILE: /MISSING-FILE-'"$c"': /p' "$OUT_DIR/window-$c-compare.txt" 2> /dev/null | tee -a "$CHECK_OUT" || true
+    sed -n 's/^KEY ORPHAN-FILE: /ORPHAN-FILE-'"$c"': /p' "$OUT_DIR/window-$c-compare.txt" 2> /dev/null | tee -a "$CHECK_OUT" || true
+    if [ "$H_REACHED" != yes ]; then
+      check_bad "control $c: the pause was not reached, so the class says nothing about the window"
+    elif [ "$R_CLASS" = "$exp" ]; then
+      check_pass "control $c ($action): class $R_CLASS, as expected"
+    else
+      check_bad "control $c ($action): class $R_CLASS, expected $exp"
+    fi
+    if [ "$c" = C2 ]; then window_consequences; fi
+  done
+  P25_RUNS_FILE=
+
+  window_cleanup
+  trap - EXIT
+  if dx test ! -e "$HOLD_BIN" && dx test ! -e "$HOLD_FLAG" && dx test ! -e "$HOLD_BOUND"; then
+    check_pass "the stand-in, the flag and the bound marker are gone from $NAME"
+  else
+    check_bad "the stand-in or its flag is still in $NAME"
+  fi
+  if dx bash -c "pgrep -f '[h]c-hold-bin' > /dev/null"; then
+    check_bad "a process of the stand-in is still running in $NAME"
+  else
+    check_pass "no process of the stand-in is left in $NAME"
+  fi
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "WINDOW FAILED"
+    say "nightly.sh: WINDOW FAILED, $BADS BAD line(s); see $o"
+    exit 1
+  fi
+  key_line "WINDOW OK"
 }
 
 # ---------------------------------------------------------------------------
