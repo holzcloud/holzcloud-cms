@@ -338,3 +338,16 @@ git fetch ~/holzcloud-backup/backup-lokal-vor-origin-abgleich.bundle refs/heads/
 ```
 
 Expected: `From PATH`, then ` * [new branch]      backup/lokal-vor-origin-abgleich -> backup/lokal-vor-origin-abgleich`, and the branch points at `ef4873ad07e30ac27b02e5829ff0f1a20307ca9f` again. (Seen on 2026-10-26 in a fresh throwaway repository.) The old lineage is never merged into `main`: single features are ported, not the branch.
+
+## Done in plan 27-05
+
+Date: 2026-10-26. The owner's answer at the gate: `retire-both` (nothing is missing from the backup branch, and `docs/refresh-2026-10-20` is the stray branch; the owner confirmed that reading).
+
+Retired, in this order:
+
+- `docs/refresh-2026-10-20`, tip `cfdeb691992a9fa2ccbfde7552c2fc9c9e2d54a0` (an ancestor of `main`): `git worktree prune`, then `git branch -d` printed `Deleted branch docs/refresh-2026-10-20 (was cfdeb69).`
+- `backup/lokal-vor-origin-abgleich`, tip `ef4873ad07e30ac27b02e5829ff0f1a20307ca9f`, 489 commits: bundled, verified (`The bundle records a complete history.`), restored into a throwaway repository (same tip, 489 commits), then `git branch -D` printed `Deleted branch backup/lokal-vor-origin-abgleich (was ef4873a).`
+
+Bundle: /Users/holz/holzcloud-cms-lokal-vor-origin-abgleich-ef4873ad07.bundle sha256 bdcd2fd9ff164b1d1cd59e6ed68a36f7509e5dba00155ea07ead512cfa5b2924 (489 commits, 26349797 bytes)
+
+Keep the bundle: it is the only copy of the old lineage. E-5 above brings the branch back from it.
