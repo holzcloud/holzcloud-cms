@@ -290,6 +290,22 @@ unit_diff_lines() {
   if [ "$lt" -ge "$gt" ]; then echo "$lt"; else echo "$gt"; fi
 }
 
+# restore_lines_ok TEXT: the text of a restore.txt written by run.sh restore
+# describes a restore that worked: the old password logs in (303 to /admin/), the
+# setup form was open before (200) and closed after (404), the media file is
+# served (200 and a hash), the marker page and check 17 of 17 passed, and no line
+# begins with BAD. The text is the only input.
+restore_lines_ok() {
+  grep -q '^LOGIN: HTTP 303 /admin/$' <<< "$1" || return 1
+  grep -q '^SETUP-BEFORE: HTTP 200 -$' <<< "$1" || return 1
+  grep -q '^SETUP-AFTER: HTTP 404 -$' <<< "$1" || return 1
+  grep -q '^MEDIA-SERVED: HTTP 200 ' <<< "$1" || return 1
+  grep -q '^PASS marker page' <<< "$1" || return 1
+  grep -q '^PASS check: 17 of 17' <<< "$1" || return 1
+  if grep -q '^BAD' <<< "$1"; then return 1; fi
+  return 0
+}
+
 # ---------------------------------------------------------------------------
 # selftest
 # ---------------------------------------------------------------------------
@@ -485,6 +501,32 @@ selftest_offsite() {
   st_eq "the uncommenting plus an added line" 2 "$(unit_diff_lines "$unit_repo" "$unit_one"$'\nProtectHome=false')"
 }
 
+selftest_restore() {
+  local nl=$'\n' dir setb login seta media marker chk base
+  dir='DIR: /backups/holzcloud/20261026-095025'
+  setb='SETUP-BEFORE: HTTP 200 -'
+  login='LOGIN: HTTP 303 /admin/'
+  seta='SETUP-AFTER: HTTP 404 -'
+  media='MEDIA-SERVED: HTTP 200 3f2a0c'
+  marker='PASS marker page: GET /after-update answers 200 with its sentence'
+  chk='PASS check: 17 of 17 assertions passed (check.txt)'
+  base="$dir$nl$setb$nl$login$nl$seta$nl$media$nl$marker$nl$chk"
+  st_ok "a restore that worked" restore_lines_ok "$base"
+  st_ok "a restore that worked, with PASS lines around" restore_lines_ok "PASS setup form open before the restore$nl$base${nl}INFO nothing"
+  st_fail "no login line" restore_lines_ok "$dir$nl$setb$nl$seta$nl$media$nl$marker$nl$chk"
+  st_fail "a login line with another status" restore_lines_ok "$dir$nl$setb${nl}LOGIN: HTTP 200 -$nl$seta$nl$media$nl$marker$nl$chk"
+  st_fail "a login that answers 303 elsewhere" restore_lines_ok "$dir$nl$setb${nl}LOGIN: HTTP 303 /admin/setup$nl$seta$nl$media$nl$marker$nl$chk"
+  st_fail "a BAD line at the end" restore_lines_ok "$base${nl}BAD  tree: one file differs"
+  st_fail "a BAD line in the middle" restore_lines_ok "$dir$nl$setb${nl}BAD  readyz: not ok$nl$login$nl$seta$nl$media$nl$marker$nl$chk"
+  st_fail "a setup form that stayed open" restore_lines_ok "$dir$nl$setb$nl$login${nl}SETUP-AFTER: HTTP 200 -$nl$media$nl$marker$nl$chk"
+  st_fail "a setup form that was not open before" restore_lines_ok "$dir${nl}SETUP-BEFORE: HTTP 404 -$nl$login$nl$seta$nl$media$nl$marker$nl$chk"
+  st_fail "media not served" restore_lines_ok "$dir$nl$setb$nl$login$nl$seta${nl}MEDIA-SERVED: HTTP 404 -$nl$marker$nl$chk"
+  st_fail "no marker page line" restore_lines_ok "$dir$nl$setb$nl$login$nl$seta$nl$media$nl$chk"
+  st_fail "check 16 of 17" restore_lines_ok "$dir$nl$setb$nl$login$nl$seta$nl$media$nl$marker${nl}BAD  check: 16 of 17 assertions passed"
+  st_fail "check line missing" restore_lines_ok "$dir$nl$setb$nl$login$nl$seta$nl$media$nl$marker"
+  st_fail "empty text" restore_lines_ok ""
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -495,6 +537,7 @@ cmd_selftest() {
   selftest_catchup
   selftest_prune
   selftest_offsite
+  selftest_restore
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -2130,6 +2173,146 @@ systemctl enable --now ssh' >> "$h2" 2>&1 || die "could not prepare the account 
     exit 1
   fi
   key_line "OFFSITE OK"
+}
+
+# ---------------------------------------------------------------------------
+# offsite-restore: BKP-04, the restore from the copy the unit made. The document's
+# own restore line is played on the second host against /backups/holzcloud/TS, the
+# directory rsync put there, and not against a docker cp copy.
+# ---------------------------------------------------------------------------
+
+cmd_offsite_restore() {
+  local o=$OUT_DIR/offsite-restore.txt r=$TGT_OUT_DIR/restore.txt rr=$TGT_OUT_DIR/restore-run.txt tf=$TGT_OUT_DIR/transfer.txt
+  local copy copy_name f sl tl nfiles rc=0 pre post fx_ok=yes restored mline cline
+
+  need_container
+  dxt true > /dev/null 2>&1 \
+    || die "the second host $TGT_NAME does not answer; bring it up with: PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR bash deploy/test/nightly.sh target"
+  [ "$NAME" != "$TGT_NAME" ] || die "TGT_NAME equals NAME ($NAME)"
+  [ "$(tail -n 1 "$OUT_DIR/offsite.txt" 2> /dev/null)" = "OFFSITE OK" ] \
+    || die "$OUT_DIR/offsite.txt does not end OFFSITE OK; run: PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR bash deploy/test/nightly.sh offsite"
+  copy=$(kv "$OUT_DIR/offsite.txt" COPY-DIR)
+  case "$copy" in
+    /backups/holzcloud/?*) ;;
+    *) die "$OUT_DIR/offsite.txt names no COPY-DIR below /backups/holzcloud (got '$copy')" ;;
+  esac
+  for f in tree-src-backup.txt tree-backup.txt backup.txt state-src.txt baseline.txt; do
+    [ -f "$OUT_DIR/$f" ] \
+      || die "$OUT_DIR/$f is missing; run: PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR bash deploy/test/run.sh backup"
+  done
+  dxt test -x /opt/holzcloud/holzcloud \
+    || die "no runnable /opt/holzcloud/holzcloud in $TGT_NAME; bring the second host up with: PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR bash deploy/test/nightly.sh target"
+  dxt test -f "$copy/holzcloud.sqlite" \
+    || die "$TGT_NAME has no $copy/holzcloud.sqlite; run 'nightly.sh offsite' again"
+  mkdir -p "$OUT_DIR" "$TGT_OUT_DIR"
+  copy_name=${copy##*/}
+
+  BADS=0
+  res_begin "$o"
+  key_line "RESTORED-FROM: $copy"
+
+  # (1) Independence: nothing in the second host's own backup root.
+  pre=$(dxto ls -A /opt/holzcloud/backups) || pre="?"
+  key_line "BACKUPS-OF-HOST2-BEFORE: ${pre:-empty}"
+  if [ -z "$pre" ]; then
+    check_pass "/opt/holzcloud/backups of $TGT_NAME is empty before the restore: the restore can only come from $copy"
+  else
+    check_bad "/opt/holzcloud/backups of $TGT_NAME is not empty before the restore ($pre): the copy of the unit would not be the only source"
+  fi
+
+  # (2) The fixtures, by exec-pipe, as run.sh transfer_into does it.
+  deviation "DEVIATION[fixture]: the login password file, the AI key file and the test image are fixtures that stand in for what an operator remembers; none of them is part of any backup, and they crossed from container to container by exec-pipe, never through a host file, exactly as run.sh transfer does it; the ORDER line of the source's baseline.txt went to $TGT_OUT_DIR/baseline.txt"
+  for f in /root/.hc-login-pass /root/.hc-key; do
+    if ! dx cat "$f" | dxti bash -c 'umask 077; cat > "$1"; test -s "$1"' _ "$f"; then
+      check_bad "$f could not be carried from $NAME to $TGT_NAME"
+      fx_ok=no
+    fi
+  done
+  if ! dx cat /tmp/hc-upload.jpg | dxti bash -c 'umask 022; cat > "$1"; test -s "$1"' _ /tmp/hc-upload.jpg; then
+    check_bad "/tmp/hc-upload.jpg could not be carried from $NAME to $TGT_NAME"
+    fx_ok=no
+  fi
+  if ! grep -m1 '^ORDER:' "$OUT_DIR/baseline.txt" > "$TGT_OUT_DIR/baseline.txt"; then
+    check_bad "$OUT_DIR/baseline.txt has no ORDER: line"
+    fx_ok=no
+  fi
+
+  # (3) The copy against the source, and the one file run.sh restore reads.
+  sl=$(sha_list_in "$NAME" "/opt/holzcloud/backups/$copy_name") || sl=""
+  tl=$(sha_list_in "$TGT_NAME" "$copy") || tl=""
+  nfiles=$(printf '%s\n' "$sl" | grep -c . || true)
+  {
+    echo "DIR: $copy"
+    echo "SOURCE: copy made by holzcloud-backup.service through REMOTE_TARGET"
+    echo "FILES: $nfiles"
+    echo "VIA: rsync by the shipped unit, no docker cp of the backup"
+  } > "$tf"
+  if list_equal "$sl" "$tl"; then
+    echo "TRANSFER: equal" >> "$tf"
+    check_pass "the sha256 of every file of $copy on $TGT_NAME ($nfiles files) equals that of /opt/holzcloud/backups/$copy_name on the source"
+  else
+    check_bad "the sha256 lists of $copy ($TGT_NAME) and /opt/holzcloud/backups/$copy_name ($NAME) differ or are empty"
+  fi
+
+  # (4) run.sh restore, unchanged.
+  if [ "$BADS" -eq 0 ] && [ "$fx_ok" = yes ]; then
+    PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR KEEP=1 \
+      bash deploy/test/run.sh restore > "$OUT_DIR/offsite-restore-run.log" 2>&1 || rc=$?
+    key_line "RUN-SH-RESTORE-EXIT: $rc"
+    cp "$rr" "$OUT_DIR/offsite-restore-run.txt" 2> /dev/null || true
+
+    # (5) The judgement, from restore.txt of the second host.
+    if [ "$rc" -eq 0 ]; then
+      check_pass "run.sh restore ended with status 0"
+    else
+      check_bad "run.sh restore ended with status $rc (offsite-restore-run.log, $r)"
+    fi
+    if [ -f "$r" ] && restore_lines_ok "$(cat "$r")"; then
+      check_pass "restore.txt: login 303 to /admin/, setup form 200 before and 404 after, media served 200, marker page, check 17 of 17, and no BAD line"
+    else
+      check_bad "restore.txt does not hold the lines of a restore that worked (see $r)"
+    fi
+    if [ -f "$rr" ] && grep -qF "=== Restoring from $copy ===" "$rr"; then
+      check_pass "restore-run.txt holds '=== Restoring from $copy ===': the document's restore line was played against the copy of the unit"
+    else
+      check_bad "restore-run.txt holds no '=== Restoring from $copy ===' line"
+    fi
+    restored=$(kv "$r" DIR)
+    if [ "$restored" = "$copy" ]; then
+      check_pass "the DIR line of restore.txt equals the copy path ($restored)"
+    else
+      check_bad "the DIR line of restore.txt is '$restored', expected '$copy'"
+    fi
+    post=$(dxto ls -A /opt/holzcloud/backups) || post="?"
+    if [ -z "$post" ]; then
+      check_pass "/opt/holzcloud/backups of $TGT_NAME is still empty after the restore"
+    else
+      check_bad "/opt/holzcloud/backups of $TGT_NAME holds '$post' after the restore"
+    fi
+
+    # (6) The key lines.
+    mline=$(grep -m1 '^PASS marker page' "$r" 2> /dev/null || true)
+    cline=$(grep -m1 '^PASS check: 17 of 17' "$r" 2> /dev/null || true)
+    key_line "SETUP-BEFORE: $(kv "$r" SETUP-BEFORE)"
+    key_line "LOGIN: $(kv "$r" LOGIN)"
+    key_line "SETUP-AFTER: $(kv "$r" SETUP-AFTER)"
+    key_line "MEDIA-SERVED: $(kv "$r" MEDIA-SERVED)"
+    key_line "MARKER-PAGE: ${mline#PASS }"
+    key_line "CHECK: ${cline#PASS }"
+    key_line "RESTORE-WALL: $(kv "$r" WALL-S)"
+    { grep -E '^(PASS|BAD)' "$r" 2> /dev/null || true; } | sed 's/^/RESTORE-TXT /' | tee -a "$o" > /dev/null
+  else
+    check_bad "run.sh restore was not played: the independence, the fixtures or the copy comparison failed above"
+  fi
+  check_info "NOT PLAYED: the pull by rsync -a that the document describes for a rebuilt server; the restore ran on the second host itself, from the copy path"
+
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "OFFSITE-RESTORE FAILED"
+    say "nightly.sh: OFFSITE-RESTORE FAILED, $BADS BAD line(s); see $o, $r"
+    exit 1
+  fi
+  key_line "OFFSITE-RESTORE OK"
 }
 
 # ---------------------------------------------------------------------------
