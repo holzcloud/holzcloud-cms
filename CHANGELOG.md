@@ -14,6 +14,10 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.1.1 — 2026-10-26
+
+**Was 0.1.1 bisher belegt.** Der mitgelieferte Sicherungs-Timer `holzcloud-backup.timer` startet den mitgelieferten, gehärteten Dienst `holzcloud-backup.service` mit seinem eigenen Eintrag um 03:15, ohne Drop-in und ohne dass jemand etwas anstößt, und die Sicherung, die dabei entsteht, ist vollständig. Gezeigt wurde das in einem Container, dessen Zeitzone so verschoben war, dass 03:15 innerhalb von zwei Minuten kam. Die Zeitzone und die Uhr eines echten Servers sind damit nicht gezeigt; das bleibt Sache des Betreibers, und der Schritt dafür steht in den Schritten für den Betreiber. Den Beleg und die Grenzen findest du auf der Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md), die Aufzeichnung selbst in `deploy/BACKUP-TIMER-RUN.md`.
+
 ## 0.1.0 — 2026-10-14
 
 Dieses Release bringt keine neue Funktion, sondern Belege und Reparaturen für den Betrieb: Dienst, Aktualisieren, Zurückrollen, Sichern und Wiederherstellen sind durchgespielt, und die Beta-Kriterien stehen schriftlich.

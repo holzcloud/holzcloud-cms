@@ -1,10 +1,10 @@
-# What 0.1.0 promises, and what it does not
+# What 0.1.1 promises, and what it does not
 
 ## What beta means here
 
-Beta here means that you can run 0.1.0 for real as long as you keep backups, and that it is not feature-frozen: features, settings and the template contract may still change or go away from one release to the next. The schema and the migrations are not promised stable either: an update may add migrations, and an older binary must not be started against a migrated database, which is the limit that leads the *Rolling back* section of `deploy/DEPLOY.md` and was observed (see P-5). The tables below are the whole promise, and each promise is a sentence of a recorded proof; anything that is not in them is not promised. A restore you have tried somewhere other than production is worth more than any sentence here, so try one before you need it.
+Beta here means that you can run 0.1.1 for real as long as you keep backups, and that it is not feature-frozen: features, settings and the template contract may still change or go away from one release to the next. The schema and the migrations are not promised stable either: an update may add migrations, and an older binary must not be started against a migrated database, which is the limit that leads the *Rolling back* section of `deploy/DEPLOY.md` and was observed (see P-5). The tables below are the whole promise, and each promise is a sentence of a recorded proof; anything that is not in them is not promised. A restore you have tried somewhere other than production is worth more than any sentence here, so try one before you need it.
 
-## What 0.1.0 promises
+## What 0.1.1 promises
 
 Every row below was shown in a Debian 12 container with systemd as PID 1, amd64 under emulation on an arm64 host, except where a row says otherwise; no row is about a real server. Each row names the record it rests on and the words it quotes from it, and the words can be found in that record with `grep -F`.
 
@@ -20,14 +20,15 @@ Every row below was shown in a Debian 12 container with systemd as PID 1, amd64 
 | P-8 | One backup run was started by `holzcloud-backup.timer` through the hardened service and succeeded. | `deploy/BACKUP-RUN.md` | `BAK-03 PASS`, `TriggeredBy=holzcloud-backup.timer`, `Result=success`, `=== Backup complete ===` |
 | P-9 | On an emulated amd64 container a backup took about a second and a restore about eight seconds, at 20 MB and at 320 MB of backup. These are emulation figures and not a promise of speed. | `deploy/BACKUP-RUN.md` | `BACKUP-WALL-S=0.692`, `BACKUP-WALL-S=1.015`, `RESTORE-WALL-S=8.126`, `RESTORE-WALL-S=8.296`, `every number is an emulation number on an aarch64 host` |
 | P-10 | The documents say what no backup holds, so that you rebuild it by hand: the unit file and its drop-ins, environment files, `HOLZCLOUD_SECRET_KEY` with the payment and mail credentials, the proxy configuration and the certificate state, and the pre-upgrade snapshots in the data directory. | `deploy/BACKUP-RUN.md` | `HAND-REBUILT`, `the payment and mail credentials that live in an environment file`, `the proxy configuration and the certificate state, and the pre-upgrade snapshots in the data directory` |
+| P-11 | BKP-01: the shipped `holzcloud-backup.timer` starts the shipped, hardened `holzcloud-backup.service` at its own 03:15 entry, with no drop-in and no person, and the backup it leaves is whole. To make 03:15 arrive within two minutes the time zone of the container was moved; the zone of a real server is not shown. | `deploy/BACKUP-TIMER-RUN.md` | "The shipped entry fires the shipped, hardened service without a person, a drop-in or a manual start, and the backup it leaves is whole.", `OnCalendar=*-*-* 03:15:00`, `START-LOCAL: 03:15:19` |
 
-## What 0.1.0 does not promise
+## What 0.1.1 does not promise
 
 These are the limits, each one named. They come from the *Not tested* and *Not measured* lists of the three records and from the hand-over in `deploy/test/README.md`, and none is softened here. If a use of 0.1.0 needs one of them, it needs a run of its own first.
 
 ### The nightly backup and a restore
 
-- The real 03:15 window was not exercised: the timer was moved a minute ahead by a container-only drop-in, so the shipped calendar entry never fired.
+- The clock and the zone of a real server were not in play: the zone of the container was moved so that 03:15 arrived within two minutes, and daylight saving was not tested. Why: the record lists the real wall-clock 03:15 on a server's own zone as not tested. Record: deploy/BACKUP-TIMER-RUN.md "The real wall-clock 03:15 on a server's own zone, and daylight saving." Owner step OS-6.
 - `Persistent=true` after a missed run was not exercised: the timer had never fired before the one observed run, and nothing was powered off.
 - `RandomizedDelaySec` was not exercised: the drop-in set it to 0, so the shipped 300 seconds of random delay were never in play.
 - The off-site `REMOTE_TARGET` copy did not run: the variable was not set.
@@ -67,6 +68,14 @@ These are the limits, each one named. They come from the *Not tested* and *Not m
 
 - Features, settings and the template contract may change or be removed between releases without a transition period.
 - The schema and the migrations are not promised stable, and an older binary must not be started against a migrated database.
+
+## What changed since 0.1.0
+
+A limit of 0.1.0 that a record now answers is listed here, with what 0.1.1 says and the promise rows that answer it. Every other limit of 0.1.0 stays above, with its reason.
+
+| 0.1.0 said | 0.1.1 says | Promise rows |
+|------------|------------|--------------|
+| The real 03:15 window was not exercised: the timer was moved a minute ahead by a container-only drop-in, so the shipped calendar entry never fired. | The shipped calendar entry fired the shipped service without a drop-in and without a person, in a container whose zone was moved so that 03:15 arrived within two minutes. A real server's own zone and clock are still not shown. | P-11 |
 
 ## What the evidence is bound to
 
