@@ -77,15 +77,17 @@ only together with the record that proves it. No feature is built.
 | CON-01 | Phase 25 | Complete |
 | CON-02 | Phase 25 | Complete |
 | CON-03 | Phase 25 | Complete |
-| SRV-01 | Phase 26 | Pending |
-| SRV-02 | Phase 26 | Pending |
-| SRV-03 | Phase 26 | Pending |
+| SRV-01 | Phase 26 | Pending owner |
+| SRV-02 | Phase 26 | Pending owner |
+| SRV-03 | Phase 26 | Pending owner |
 | TIDY-01 | Phase 27 | Pending |
 | TIDY-02 | Phase 27 | Pending |
 | TIDY-03 | Phase 27 | Pending |
 | TIDY-04 | Phase 27 | Pending |
 | DOC-01 | Phase 28 | Pending |
 | DOC-02 | Phase 28 | Pending |
+
+`Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
 
 **Coverage:**
 - v0.1.1 requirements: 17 total
@@ -94,4 +96,4 @@ only together with the record that proves it. No feature is built.
 
 ---
 *Requirements defined: 2026-10-20*
-*Last updated: 2026-10-20 after milestone v0.1.1 started*
+*Last updated: 2026-10-26 after the phase 26 hand-over, SRV-01 to SRV-03 pending owner*
