@@ -1763,7 +1763,17 @@ cmd_catchup() {
 
   # (4) The stop: a clean systemd shutdown. Everything needed from before it was
   # saved above and in fire-journal.txt; /run is a tmpfs here, so the unit states
-  # (and with them ExecMainStartTimestamp) start again from nothing.
+  # (and with them ExecMainStartTimestamp) start again from nothing. /tmp is one
+  # too (Debian trixie mounts it as a tmpfs), so the staged test image of
+  # run.sh baseline would be gone after the start; later stages (the restore on
+  # the second host, run.sh backup's state capture) read it. It is kept under /root
+  # for the stop and put back at the start, and both facts are written down.
+  if dx test -f /tmp/hc-upload.jpg; then
+    dx install -m 600 /tmp/hc-upload.jpg /root/.nightly-hc-upload.jpg || die "could not keep /tmp/hc-upload.jpg under /root for the stop"
+    key_line "TEST-IMAGE-KEPT-FOR-THE-STOP: $(dxo sha256sum /tmp/hc-upload.jpg | cut -d' ' -f1)"
+  else
+    key_line "TEST-IMAGE-KEPT-FOR-THE-STOP: none (/tmp/hc-upload.jpg is absent before the stop)"
+  fi
   c0=$(cont_epoch)
   t_stop=$SECONDS
   docker stop -t 60 "$NAME" > /dev/null || die "docker stop failed"
@@ -1783,6 +1793,15 @@ cmd_catchup() {
     key_line "CATCHUP FAILED"
     exit 1
   }
+  if dx test -f /root/.nightly-hc-upload.jpg; then
+    if dx test -f /tmp/hc-upload.jpg; then
+      key_line "TEST-IMAGE-AFTER-THE-START: still in /tmp"
+    else
+      dx install -m 644 /root/.nightly-hc-upload.jpg /tmp/hc-upload.jpg || die "could not put /tmp/hc-upload.jpg back"
+      key_line "TEST-IMAGE-AFTER-THE-START: gone from /tmp with the restart, put back from /root: $(dxo sha256sum /tmp/hc-upload.jpg | cut -d' ' -f1)"
+    fi
+    dx rm -f /root/.nightly-hc-upload.jpg || true
+  fi
   cont_now=$(cont_epoch)
   fin_e=$(dxo date -u -d "$fin_raw" +%s)
   up_e=$(dxo date -u -d "$up_raw" +%s)
