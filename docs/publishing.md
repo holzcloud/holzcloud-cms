@@ -144,11 +144,24 @@ the image.
 JPEG, PNG, WebP or still GIF is over 2560 px, the upload stops at a page asking
 whether to scale it down to fit within 2560 px. Yes stores a re-encoded copy —
 a JPEG stays a JPEG, a PNG stays a PNG, a WebP becomes a JPEG or a PNG, a GIF
-becomes a PNG; the colour profile is not carried over and the original is not
-kept. No stores the original. One decision covers all the large files of one
-upload; the others of that upload are stored at once. SVG, PDF, MP4, animated
-GIFs, images beyond the megapixel limit and uploads by AI key or upload link are
-never asked.
+becomes a PNG; the original is not kept. No stores the original. One decision
+covers all the large files of one upload; the others of that upload are stored
+at once. SVG, PDF, MP4, animated GIFs, images beyond the megapixel limit and
+uploads by AI key or upload link are never asked.
+
+What the copy keeps and what it does not. A photo that carries an EXIF
+orientation (a phone photo taken upright is stored as a landscape bitmap with a
+note to turn it) is turned upright, and the copy carries no orientation tag, so
+no browser turns it a second time; the 2560 px are counted on the upright
+picture, and the sizes the question shows — before and after — are those of the
+upright picture. An RGB colour profile (ICC) is carried into the copy; a profile
+for another colour model, such as CMYK or greyscale, is not, because the copy is
+always RGB. Everything else in the metadata stays removed. Two limits remain: the
+smaller copies made for different screen widths are still made without a
+profile, and a picture that is stored without being scaled (the answer No, or
+one that is not over the limit) goes through the metadata strip described above,
+which removes the orientation tag together with the rest of the EXIF block — such
+a photo shows in the orientation of its bitmap.
 
 The same applies to video. An MP4 refers to itself by absolute byte positions, so
 nothing is cut out — the box holding the recording location is renamed `free` and
