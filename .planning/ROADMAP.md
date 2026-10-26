@@ -509,7 +509,17 @@ Plans:
   3. With `REMOTE_TARGET` set, the copy arrives on a second host and a restore from that copy gives back pages, media and login.
   4. A directory older than the retention is deleted and a younger one stays, both in the same run.
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+
+Plans:
+**Wave 1**
+- [ ] 24-01-PLAN.md — Tracer and the shipped timer: `deploy/test/nightly.sh` (sibling of `run.sh`, which stays bound to bf74496); the shipped 03:15 entry starts the hardened service by itself with the time zone moved and never the clock (BKP-01), the shipped 300 second delay sampled and judged against the real run (BKP-03), a missed window caught up after a container stop and start with a non-persistent control (BKP-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 24-02-PLAN.md — Pruning and the off-site copy: planted directories of known age pruned in one run of the shipped service (BKP-05), `REMOTE_TARGET` set on the one commented line with the credential path measured under the shipped sandbox, a copy on a second host, and the document's restore played from that copy (BKP-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 24-03-PLAN.md — One chain and the record: `nightly.sh chain` and `record-check`, the evidence set made once against committed text with every failure classified, `deploy/BACKUP-TIMER-RUN.md` with numbered owner steps and a byte-proven appendix, the README section (BKP-01 to BKP-05)
 
 ### Phase 25: Consistent and compatible backups
 
