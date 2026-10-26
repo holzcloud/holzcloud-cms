@@ -531,7 +531,17 @@ Plans:
   2. A 0.1.0 backup restored by this release gives the same pages, the same login and the migration level the record states.
   3. A disk that is nearly full but above `MIN_FREE_MB` produces a recorded outcome, not a guess.
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+
+Plans:
+**Wave 1**
+- [ ] 25-01-PLAN.md — Tracer and CON-01: an editor session saves pages and uploads media while the shipped `backup.sh` runs, the backup is restored on a second host and compared in both directions (one run end to end, then N runs in two stages with the writes inside the window counted, the window named and the rule of three when nothing disagrees), and a forced window by pausing the shipped script through `HOLZCLOUD_BIN` with three controls (CON-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 25-02-PLAN.md — Compatibility and the full disk: a backup made by 0.1.0 (built from its tag, with its own `backup.sh`) restored by this release with pages, users, media, logins and the migration level compared (CON-02), and a disk nearly full but above `MIN_FREE_MB` provoked on a small filesystem with the outcome of the script, the shipped unit, the next night and `restore.sh` recorded (CON-03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 25-03-PLAN.md — One chain and the record: `nightly.sh con-chain` and `record-check-con`, the evidence set made once with every finding classified and a shipped file fixed only for a proven defect, `deploy/BACKUP-CONSISTENCY-RUN.md` with a byte-proven appendix and the hand-over to phase 28, the README section (CON-01 to CON-03)
 
 ### Phase 26: Native amd64 and the real server
 
