@@ -10,9 +10,10 @@ other steps and recorded its results in `deploy/DEPLOY-RUN.md`; phase 22 (backup
 Files:
 
 - `deploy/test/run.sh`: the driver.
+- `deploy/test/nightly.sh`: the phase 24 driver, a sibling that leaves `run.sh` untouched and reaches it only through its public subcommands (see Phase 24: the nightly run as shipped).
 - `deploy/test/Dockerfile`, `deploy/test/Dockerfile.dockerignore`: the image and its build-context filter.
 - `deploy/test/canary/`: a stdlib-only probe, its own Go module, that asks whether this platform enforces seccomp.
-- `deploy/test/out/`: scratch output, gitignored. The committed records are `deploy/SECURITY-SCORE.md` (phase 20), `deploy/DEPLOY-RUN.md` (phase 21) and `deploy/BACKUP-RUN.md` (phase 22), which paste these files unchanged.
+- `deploy/test/out/`: scratch output, gitignored. The committed records are `deploy/SECURITY-SCORE.md` (phase 20), `deploy/DEPLOY-RUN.md` (phase 21), `deploy/BACKUP-RUN.md` (phase 22) and `deploy/BACKUP-TIMER-RUN.md` (phase 24), which paste these files unchanged.
 
 ## Quick start
 
@@ -304,6 +305,63 @@ They must not claim, copied from the record's *Not tested*:
 - Protection against bit rot in a complete backup: a flipped byte inside a data page passes both integrity readers.
 
 If a beta criterion needs one of these, it needs its own run; none of them follows from the record. A change to `deploy/DEPLOY.md`, `backup.sh`, `restore.sh`, the units or `run.sh` after the evidence commit means the set is made again before the record is cited for the changed text.
+
+## Phase 24: the nightly run as shipped
+
+Phase 22 moved the backup timer a minute ahead with a container-only drop-in. Phase 24 played the shipped `holzcloud-backup.timer` and `holzcloud-backup.service` with no drop-in on either: the 03:15 entry, the 300 second random delay, the catch-up of a missed window, the pruning of old directories, the off-site copy to a second host and a restore from that copy
+(BKP-01 to BKP-05). The record is `deploy/BACKUP-TIMER-RUN.md`; this section says how to repeat the proof. `nightly.sh` is a sibling of `run.sh` on purpose: `docs/beta.md` binds `run.sh` to its evidence commit, so `run.sh` is not edited, and `nightly.sh` reaches the harness through `run.sh`'s public subcommands only.
+
+- **Rerun the proof.** One command, from nothing but the image, ending in `OUT_DIR/summary.txt` (about 15 minutes with the image and the Go build cached):
+
+  ```text
+  PLATFORM=linux/amd64 TARGET=systemd-base NEW_REF=$(git rev-parse --short HEAD) bash deploy/test/nightly.sh chain
+  ```
+
+  It refuses to start when `TARGET` is not `systemd-base` or when either container exists, pins `NEW_REF` to a sha so the source and the second host get the byte-identical binary, and plays source, second host, `fire`, `delay`, `catchup`, `prune`, `run.sh backup`, `offsite` and `offsite-restore`. Each stage is a child process of its own and its status is kept, so one failure hides nothing
+  (a function called from the left of `||` runs with `set -e` off, which is why the stages are processes). The verdict of each requirement comes from the files the stage wrote: `BKP-01` to `BKP-05` are `PASS` only when the stage ended 0, the file ends with its ok line and no line begins with `BAD`; a stage that ended with 3 (the platform could not give the evidence) is `FAIL` with the reason on the line.
+  The summary then has one `KEY:` line each for `TIMER`, `DELAY`, `CATCHUP`, `PRUNE`, `OFFSITE` and `RESTORE`, `STEPS: N played, F failed`, `DEVIATIONS:` and `LEAK-CHECK OK`. A FAIL ends the run with exit 1 after the summary. The containers are removed at the end unless `KEEP=1`.
+- **The subcommands**, which can be called one by one on kept containers (`KEEP=1`) and chained in one call:
+
+  | Subcommand | What it does | Result file |
+  |---|---|---|
+  | `selftest` | the pure functions (zone arithmetic, window and sample judgements, catch-up, prune expectation, list equality, restore lines, `verdict_of`, `record_check`) against a table of cases, failing cases included; no Docker | `SELFTEST OK` |
+  | `source` | `run.sh build up install baseline update postinstall backup-fixture`: the populated site whose postinstall enables the shipped timer | the files of phase 22 |
+  | `target` | `run.sh up install` for the second, fresh container | the files of phase 22 |
+  | `fire` | BKP-01: the zone is moved so that the shipped 03:15 entry comes due in about 90 seconds; the unit starts by itself | `fire.txt`, `verify-fire.txt`, `units-shipped.txt` |
+  | `delay` | BKP-03: the shipped 300 second delay, 12 re-armings sampled, and the draw of the real run | `delay.txt` |
+  | `catchup` | BKP-02: the container is stopped across the missed 03:15 and started again; a control timer with `Persistent=false` shows the run is the catch-up | `catchup.txt`, `verify-catchup.txt` |
+  | `prune` | BKP-05: five directories at 45 d, 31 d 1 h, 30 d 12 h, 29 d and 1 d are planted, one run of the shipped service | `prune.txt` |
+  | `offsite` | BKP-04: `REMOTE_TARGET` uncommented, the copy to the second host; credentials in the home (experiment A) and outside it (experiment B) | `offsite.txt`, `offsite-natural.txt` |
+  | `offsite-restore` | BKP-04: the document's restore line, played on the second host against the copy the unit made | `offsite-restore.txt`; host 2: `restore.txt` |
+  | `chain` | everything above from fresh containers | `summary.txt` |
+  | `record-check` | the proof of the record against the scratch files (below) | `RECORD-CHECK OK N blocks` |
+  | `down` | removes the source and the second host; safe when either is absent | |
+
+- **Variables**, all optional: `NAME`, `OUT_DIR` (default `holzcloud-t24-src`, `deploy/test/out/amd64-t24-src`); `TGT_NAME`, `TGT_OUT_DIR` (`holzcloud-t24-host2`, `deploy/test/out/amd64-t24-host2`); `ZONE_LEAD` (90 s before 03:15:00 local at which `fire` sets the zone, 60 to 150); `FIRE_WAIT` (540 s that `fire` waits for the run);
+  `DELAY_SAMPLES` (12); `CATCHUP_LEAD` (150 s) and `CATCHUP_WAIT` (480 s, after the start); `KEEP` (1 keeps the containers of `chain`); `NEW_REF`; and for `record-check` `R` (`deploy/BACKUP-TIMER-RUN.md`) and `E` (`deploy/test/out`).
+- **Output files** (`OUT_DIR` is the source, `TGT_OUT_DIR` the second host): `summary.txt`, `versions.txt`, `deviations.txt`; `units-shipped.txt` (sha256 of the installed units against `deploy/`, and that no drop-in exists); `fire.txt`, `fire-before.txt`, `fire-after.txt`, `fire-journal.txt`, `fire-armed-log.txt` (PID 1's debug lines about the timer), `verify-fire.txt`;
+  `delay.txt`; `catchup.txt`, `catchup-before.txt`, `catchup-after.txt`, `catchup-docker.txt`, `catchup-journal.txt`, `verify-catchup.txt`; `prune.txt`, `prune-before.txt`, `prune-after.txt`, `prune-journal.txt`; `offsite.txt`, `offsite-natural.txt` (the credential experiments, raw), `offsite-journal.txt`, `offsite-journal-b.txt`, `offsite-unit-diff.txt`, `offsite-sha-source.txt`; `offsite-restore.txt`;
+  on the second host `offsite-host2.txt`, `offsite-sha-host2.txt`, `offsite-modes.txt`, `transfer.txt`, `restore.txt`, `restore-run.txt`, `check.txt`. `selftest-tree.txt` and `compare-selftest.txt` carry `BAD` lines on purpose (run.sh's proof that its comparison fails when it should); they are not read for `BAD` and are not pasted.
+- **Deviation names**, in `deviations.txt`: `zone` (the time zone is moved, never the clock), `restart` (a container stop and start for a power cycle), `control-timer` (the `Persistent=false` control, new files and no drop-in), `ssh-packages` (the document installs `rsync`, which only suggests an ssh client and server), `offsite-host` (the second host is a container on the same bridge),
+  `hosts` (`nas` is an `/etc/hosts` line), `remote-target` (the one line the unit's own comment says to uncomment), `credentials` (the key lives in the source only, the host key was taken on first use), `fixture` (the logins and the test image carried by exec-pipe), `backup-name` (the sample timestamp of the restore line), and from phase 21 `scp`, `dropin` (`ProcSubset=all` on `holzcloud.service` only) and `mount`.
+  Neither backup unit has a drop-in; `units-shipped.txt` shows it.
+- **What the recipe taught** (read these before extending it):
+  - Move the time zone, never the clock. The container shares the kernel clock of the Docker VM, so a clock setter would move every container on the daemon; a fixed-offset zone compiled with `zic` and copied to `/etc/localtime` changes what 03:15 means and nothing else. The catch-up zone is a whole calendar day away from the first, or `backup.sh` names two backups alike (it names them by local date and second).
+  - The stamp file `/var/lib/systemd/timers/stamp-holzcloud-backup.timer` is what `Persistent=true` reads. systemd may create it when the timer is started, so a catch-up test needs an older stamp than the missed instant, and the stage reads it before and after.
+  - A timer is re-armed, with a new random draw, whenever the realtime clock steps (the Docker VM steps it about every 30 seconds). The armed time of a run is therefore the last draw PID 1 logged before the start, read from its debug log, not a polled `NextElapseUSecRealtime`.
+  - The journal survives `docker stop` in this image (`/var/log/journal` exists) and the kernel boot id is the VM's, so `journalctl -b` does not separate the two starts; a run's own lines are found by `_SYSTEMD_INVOCATION_ID`. Unit states, including `ExecMainStartTimestamp`, do start from nothing, because `/run` is a tmpfs. Evidence is saved before the stop anyway.
+  - `AccuracySec` of the shipped timer is systemd's default of 1 minute, inside the 300 second window; the allowances in the verdicts are named in the script and written to the file as `SLACK-S`.
+  - `find -mtime +N` counts whole 24 hour units, rounded down, so `backup.sh` deletes a directory from `RETENTION_DAYS + 1` days of age; a directory 30 days and 12 hours old stays. `prune_expect` encodes that and the stage plants a directory on each side of the boundary.
+  - `rsync` only suggests an ssh client, and `rsync -a --delete` makes the off-site copy a mirror of the backup root: what the box prunes, the copy loses.
+  - `ProtectHome=true` hides `/home` from the service, and the service user `holzcloud` has no home directory. A key and `known_hosts` in `~holzcloud/.ssh` fail in the unit (`Host key verification failed`, status 255) and work outside the sandbox. A key under `/opt/holzcloud/offsite-ssh` named by `/etc/ssh/ssh_config.d/holzcloud-backup.conf` works with the unit unchanged; `deploy/DEPLOY.md` now says so.
+  - `/tmp` is emptied at every boot (the tmpfiles.d rule `D /tmp 1777 root root -`; it has no mount of its own), so the test image that `run.sh baseline` stages in `/tmp/hc-upload.jpg` is gone after the `catchup` restart. `catchup` keeps it under `/root` for the stop and puts it back, and says so in `catchup.txt` (`TEST-IMAGE-*`, `TMP-AT-BOOT`); the restore on the second host reads it.
+  - A shell function called from the left of `||` runs with `set -e` off for its whole body. `chain` runs its stages as child processes for that reason.
+  - The chain takes about 15 minutes, longer than a foreground shell command may run on some machines: start it in the background (a small wrapper script that writes the host date before and after into a log) and read only `summary.txt` and the stage files it names when it ends.
+- **Proof of the record, one command.** `bash deploy/test/nightly.sh record-check` reproduces the appendix proof of `deploy/BACKUP-RUN.md` (every `#### DIRECTORY/FILE` block after `## Appendix: raw output` equals `deploy/test/out/DIRECTORY/FILE` byte for byte, a missing final newline normalised) and adds four checks: every token `amd64-t24-src/FILE` or `amd64-t24-host2/FILE` outside the appendix has a block
+  (no sentence cites output that is not pasted), the required headings exist, there is exactly one line `Evidence commit: SHA` that `git cat-file` resolves, and no private key marker occurs. It prints `RECORD-CHECK OK N blocks` or names every failure and exits 1. It needs the scratch directories, so it can be run only where the chain was run. The appendix is assembled by script, not by hand;
+  a scratch file with a line that begins with three backticks, with `#### ` or with `## ` cannot be pasted unchanged. Never paste a `step-NN.txt`, `seed.txt`, a `.log` file, a cookie jar or a key file.
+- **The evidence set is made again after any edit of a bound file.** The bound files are `deploy/backup.sh`, `deploy/restore.sh`, `deploy/DEPLOY.md`, the two backup units, `deploy/test/run.sh` and `deploy/test/nightly.sh`. The record names the evidence commit on a line of its own, `deploy/test/out/amd64-t24-evidence-commit.txt` holds the same sha, and
+  `git diff --quiet SHA HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh` exits 0 while that holds. The README and the record are not bound files.
 
 ## Pitfalls
 
