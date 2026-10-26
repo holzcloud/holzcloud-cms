@@ -405,10 +405,86 @@ stages_valid() {
   [ "$n" -gt 0 ]
 }
 
-# run_publish: the call point after the summary is written. The evidence bundle
-# and the job summary page are added here.
-run_publish() {
+# bundle: the evidence below BASE_OUT copied to EVIDENCE_DIR, minus everything that
+# must never be handed over, and refused (exit 1, nothing left behind) when what
+# remains looks like a secret. The layout is DIRECTORY/FILE, so that unpacking the
+# bundle into deploy/test/out puts every file where the record expects it.
+#
+# Never kept: step-NN.txt, seed.txt, *.log, cookie jars, id_*, *.pem, *.key. The
+# scan for what remains is a floor, not a promise: a private key marker and an
+# AI-key-shaped string, the same two things run.sh's leak_check looks for. The
+# harness's own LEAK-CHECK OK in the chain summary is the first line of defence
+# and is copied into native-summary.txt.
+#
+# The copy is made in a temporary sibling and renamed into place only when the
+# scan has passed, so a refused bundle leaves nothing.
+bundle() {
+  local ev=${EVIDENCE_DIR%/} tmp d found=0 hit kept
+  guard_dir "$ev"
+  tmp=$ev.tmp.$$
+  rm -rf "${tmp:?}"
+  mkdir -p "$tmp"
+  for d in $(dir_names); do
+    if [ -d "$BASE_OUT/$d" ]; then
+      cp -R "$BASE_OUT/$d" "$tmp/$d"
+      found=$((found + 1))
+    fi
+  done
+  if [ "$found" -eq 0 ]; then
+    rm -rf "${tmp:?}" "${ev:?}"
+    say "native-amd64.sh: bundle: none of the evidence directories exists below $BASE_OUT; an empty artifact is not evidence"
+    return 1
+  fi
+  find "$tmp" -type f \( -name 'step-*.txt' -o -name 'seed.txt' -o -name '*.log' -o -iname '*cookie*' \
+    -o -name 'id_*' -o -name '*.pem' -o -name '*.key' \) -exec rm -f {} +
+  # A link would be followed by the upload; only plain files and directories travel.
+  find "$tmp" ! -type f ! -type d -exec rm -f {} +
+  hit=$(grep -rlE 'PRIVATE KEY' "$tmp" | head -n 1) || true
+  if [ -n "$hit" ]; then
+    rm -rf "${tmp:?}" "${ev:?}"
+    say "native-amd64.sh: bundle refused: ${hit#"$tmp"/} contains a private key marker; no bundle was left"
+    return 1
+  fi
+  hit=$(grep -rlE 'hc_[A-Za-z0-9_-]{20,}' "$tmp" | head -n 1) || true
+  if [ -n "$hit" ]; then
+    rm -rf "${tmp:?}" "${ev:?}"
+    say "native-amd64.sh: bundle refused: ${hit#"$tmp"/} contains a string shaped like an AI key; no bundle was left"
+    return 1
+  fi
+  kept=$(find "$tmp" -type f | wc -l | tr -d ' ')
+  if [ "$kept" -eq 0 ]; then
+    rm -rf "${tmp:?}" "${ev:?}"
+    say "native-amd64.sh: bundle: nothing is left after the exclusions; an empty artifact is not evidence"
+    return 1
+  fi
+  rm -rf "${ev:?}"
+  mv "$tmp" "$ev"
+  echo "BUNDLE: $kept files kept in $ev"
+}
+
+# write_job_summary: the native summary as a fenced text block on the job summary
+# page, when GITHUB_STEP_SUMMARY names a file that can be appended to. Elsewhere it
+# does nothing, and a page that cannot be written is a warning, not a failure.
+write_job_summary() {
+  local f=${GITHUB_STEP_SUMMARY:-} s
+  [ -n "$f" ] || return 0
+  s=$(d_self)/native-summary.txt
+  [ -f "$s" ] || return 0
+  {
+    printf '%s\n' '```text'
+    cat "$s"
+    printf '%s\n' '```'
+  } 2> /dev/null >> "$f" || say "native-amd64.sh: the job summary page $f could not be written"
   return 0
+}
+
+# run_publish: after the summary is written, the job summary page and the evidence
+# bundle. A refused bundle is a failure the caller turns into exit 1.
+run_publish() {
+  local rc=0
+  write_job_summary
+  bundle || rc=1
+  return "$rc"
 }
 
 cmd_run() {
@@ -459,9 +535,12 @@ cmd_run() {
   sum=$(d_self)/native-summary.txt
   ov=$(overall_of "$sum")
   rc=$(srv01_exit "$ov")
-  run_publish || {
-    [ "$rc" -ne 0 ] || rc=1
-  }
+  if ! run_publish; then
+    if [ "$rc" -eq 0 ]; then
+      rc=1
+      say "native-amd64: the verdict is PASS, but the evidence bundle was refused or could not be made: the job is red"
+    fi
+  fi
   say "native-amd64: SRV-01 $ov, exit $rc"
   exit "$rc"
 }
@@ -1045,6 +1124,225 @@ selftest_stages() {
   NATIVE_STAGES="mdwe timing"
 }
 
+# fx_bundle_tree BASE: a source tree of the shape `run` leaves behind, with files
+# that must travel and files that must not. SYNTHETIC: R2's mdwe texts stand in for a run.
+fx_bundle_tree() {
+  local b=$1
+  rm -rf "${b:?}"
+  mkdir -p "$b/p" "$b/p-bak-src" "$b/p-bak-src-bulk" "$b/p-bak-tgt"
+  fx_mdwe_r2 "$b/p-mdwe"
+  printf 'UNAME: Linux\n' > "$b/p/runner.txt"
+  printf '%s\n' '---- native amd64 summary ----' 'NATIVE-AMD64 DONE' > "$b/p/native-summary.txt"
+  fx_chain "$b/p-bak-src/summary.txt"
+  printf 'STEP 1 rc=0 true\n' > "$b/p-bak-src/steps.txt"
+  printf 'BACKUP-BYTES=1\n' > "$b/p-bak-src-bulk/backup.txt"
+  printf 'RESTORE-WALL-S=1\n' > "$b/p-bak-tgt/restore.txt"
+  # never handed over
+  printf 'step\n' > "$b/p-mdwe/step-01.txt"
+  printf 'step\n' > "$b/p-bak-src/step-12.txt"
+  printf -- '-----BEGIN OPENSSH PRIVATE KEY-----\n' > "$b/p-mdwe/seed.txt"
+  printf 'journal\n' > "$b/p-mdwe/holzcloud.log"
+  printf 'jar\n' > "$b/p-bak-src/cookies.txt"
+  printf 'jar\n' > "$b/p-bak-src/AdminCookieJar"
+  printf 'k\n' > "$b/p-bak-tgt/id_ed25519"
+  printf 'k\n' > "$b/p-bak-tgt/server.pem"
+  printf 'k\n' > "$b/p-bak-tgt/site.key"
+  ln -s "$b/p/runner.txt" "$b/p-bak-tgt/link-to-host"
+}
+
+# exists_any PATH: a file, a directory or a link (even a dangling one).
+exists_any() { [ -e "$1" ] || [ -L "$1" ]; }
+
+# st_bundle BASE: bundle with BASE as BASE_OUT and BASE/ev as EVIDENCE_DIR; prints
+# the exit status on the first line and the output after it.
+st_bundle() {
+  local rc=0 out
+  out=$(
+    (
+      BASE_OUT=$1
+      NATIVE_PREFIX=p
+      EVIDENCE_DIR=${2-$1/ev}
+      bundle
+    ) 2>&1
+  ) || rc=$?
+  printf '%s\n%s\n' "$rc" "$out"
+}
+
+selftest_bundle() {
+  local t=$ST_TMP rc out f b=$ST_TMP/bn
+
+  # The happy path: exclusions, layout, count, no leftovers.
+  fx_bundle_tree "$b"
+  out=$(st_bundle "$b")
+  st_eq "bundle: succeeds" 0 "$(printf '%s\n' "$out" | head -n 1)"
+  st_has "bundle: prints the number of files kept" "BUNDLE: 11 files kept in $b/ev" "$out"
+  st_eq "bundle: file count is what is on disk" 11 "$(find "$b/ev" -type f | wc -l | tr -d ' ')"
+  for f in p-mdwe/step-01.txt p-mdwe/seed.txt p-mdwe/holzcloud.log p-bak-src/step-12.txt p-bak-src/cookies.txt \
+    p-bak-src/AdminCookieJar p-bak-tgt/id_ed25519 p-bak-tgt/server.pem p-bak-tgt/site.key p-bak-tgt/link-to-host; do
+    st_fail "bundle: $f is not kept" exists_any "$b/ev/$f"
+  done
+  for f in p/runner.txt p/native-summary.txt p-mdwe/verdict.txt p-mdwe/check.txt p-mdwe/versions.txt \
+    p-mdwe/canary.verdict p-mdwe/mdwe-control.txt p-bak-src/summary.txt p-bak-src/steps.txt \
+    p-bak-src-bulk/backup.txt p-bak-tgt/restore.txt; do
+    st_ok "bundle: $f is kept, byte for byte" cmp -s "$b/$f" "$b/ev/$f"
+  done
+  st_eq "bundle: no temporary sibling is left" 0 "$(find "$b" -maxdepth 1 -name 'ev.tmp.*' | wc -l | tr -d ' ')"
+  st_ok "bundle: the fixture's seed file does hold a key marker (the exclusion is what saves it)" \
+    grep -q 'PRIVATE KEY' "$b/p-mdwe/seed.txt"
+
+  # A stale bundle directory is replaced, not merged.
+  printf 'stale\n' > "$b/ev/stale.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle: a second bundle succeeds" 0 "$(printf '%s\n' "$out" | head -n 1)"
+  st_fail "bundle: a stale file of an earlier bundle is gone" test -e "$b/ev/stale.txt"
+
+  # Refusals. Each leaves no bundle directory and no temporary sibling, and names the file.
+  fx_bundle_tree "$b"
+  mkdir -p "$b/ev"
+  printf 'old bundle\n' > "$b/ev/old.txt"
+  printf -- '-----BEGIN RSA PRIVATE KEY-----\nMIIB\n' > "$b/p-mdwe/extra.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle refuses a private key marker: exit 1" 1 "$(printf '%s\n' "$out" | head -n 1)"
+  st_has "bundle refuses a private key marker: names the file" "p-mdwe/extra.txt" "$out"
+  st_has "bundle refuses a private key marker: names the reason" "private key marker" "$out"
+  st_fail "bundle refuses a private key marker: no bundle left" test -e "$b/ev"
+  st_eq "bundle refuses a private key marker: no temporary sibling" 0 "$(find "$b" -maxdepth 1 -name 'ev.tmp.*' | wc -l | tr -d ' ')"
+
+  fx_bundle_tree "$b"
+  printf 'token hc_%s end\n' "ABCDEFGHIJKLMNOPQRSTUVWX" > "$b/p-bak-src/leak.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle refuses a key-shaped string: exit 1" 1 "$(printf '%s\n' "$out" | head -n 1)"
+  st_has "bundle refuses a key-shaped string: names the file" "p-bak-src/leak.txt" "$out"
+  st_has "bundle refuses a key-shaped string: names the reason" "AI key" "$out"
+  st_fail "bundle refuses a key-shaped string: no bundle left" test -e "$b/ev"
+  st_eq "bundle refuses a key-shaped string: no temporary sibling" 0 "$(find "$b" -maxdepth 1 -name 'ev.tmp.*' | wc -l | tr -d ' ')"
+
+  # The boundary of the shape: 19 characters after hc_ is not a key, 20 is.
+  fx_bundle_tree "$b"
+  printf 'hc_%s\n' "ABCDEFGHIJKLMNOPQRS" > "$b/p-bak-src/short.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle: hc_ and 19 characters is not a key" 0 "$(printf '%s\n' "$out" | head -n 1)"
+  fx_bundle_tree "$b"
+  printf 'hc_%s\n' "ABCDEFGHIJKLMNOPQRST" > "$b/p-bak-src/edge.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle: hc_ and 20 characters is a key" 1 "$(printf '%s\n' "$out" | head -n 1)"
+  st_fail "bundle: hc_ and 20 characters leaves no bundle" test -e "$b/ev"
+
+  # A key-shaped string in a file that is excluded anyway does not refuse the bundle.
+  fx_bundle_tree "$b"
+  printf 'hc_%s\n' "ABCDEFGHIJKLMNOPQRSTUVWX" > "$b/p-mdwe/step-02.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle: a key in step-02.txt is removed before the scan" 0 "$(printf '%s\n' "$out" | head -n 1)"
+  st_fail "bundle: step-02.txt is not in the bundle" test -e "$b/ev/p-mdwe/step-02.txt"
+
+  # A tree with none of the directories: failure, nothing left.
+  rm -rf "${b:?}"
+  mkdir -p "$b/elsewhere"
+  printf 'x\n' > "$b/elsewhere/a.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle on a tree without the directories: exit 1" 1 "$(printf '%s\n' "$out" | head -n 1)"
+  st_has "bundle on a tree without the directories: says why" "an empty artifact is not evidence" "$out"
+  st_fail "bundle on a tree without the directories: no bundle left" test -e "$b/ev"
+  st_eq "bundle on a tree without the directories: no temporary sibling" 0 "$(find "$b" -maxdepth 1 -name 'ev.tmp.*' | wc -l | tr -d ' ')"
+
+  # A tree with only a step-01.txt: everything is excluded, so nothing is evidence.
+  rm -rf "${b:?}"
+  mkdir -p "$b/p-mdwe"
+  printf 'step\n' > "$b/p-mdwe/step-01.txt"
+  out=$(st_bundle "$b")
+  st_eq "bundle on a tree with only step-01.txt: exit 1" 1 "$(printf '%s\n' "$out" | head -n 1)"
+  st_has "bundle on a tree with only step-01.txt: says why" "nothing is left after the exclusions" "$out"
+  st_fail "bundle on a tree with only step-01.txt: no bundle left" test -e "$b/ev"
+
+  # The bundle refuses to remove what is not its own.
+  fx_bundle_tree "$b"
+  for f in "" / . .. "$b" "$ROOT"; do
+    out=$(st_bundle "$b" "$f")
+    st_eq "bundle: EVIDENCE_DIR '$f' is refused" 1 "$(printf '%s\n' "$out" | head -n 1)"
+  done
+  st_ok "bundle: a refused EVIDENCE_DIR left the tree alone" test -f "$b/p-mdwe/verdict.txt"
+
+  # The job summary page.
+  rm -f "$t/page.md"
+  rc=0
+  (
+    BASE_OUT=$b NATIVE_PREFIX=p GITHUB_STEP_SUMMARY=$t/page.md
+    write_job_summary
+  ) > /dev/null 2>&1 || rc=$?
+  st_eq "write_job_summary: succeeds" 0 "$rc"
+  st_eq "write_job_summary: opens the fence" '```text' "$(head -n 1 "$t/page.md")"
+  st_eq "write_job_summary: closes the fence" '```' "$(tail -n 1 "$t/page.md")"
+  st_eq "write_job_summary: carries the summary" 1 "$(grep -c '^NATIVE-AMD64 DONE$' "$t/page.md" || true)"
+  (
+    BASE_OUT=$b NATIVE_PREFIX=p GITHUB_STEP_SUMMARY=$t/page.md
+    write_job_summary
+  ) > /dev/null 2>&1
+  st_eq "write_job_summary: appends, a second call makes two blocks" 2 "$(grep -c '^```text$' "$t/page.md" || true)"
+  rc=0
+  (
+    unset GITHUB_STEP_SUMMARY
+    BASE_OUT=$b NATIVE_PREFIX=p
+    write_job_summary
+  ) > /dev/null 2>&1 || rc=$?
+  st_eq "write_job_summary: unset is a no-op, exit 0" 0 "$rc"
+  rc=0
+  out=$(
+    (
+      BASE_OUT=$b NATIVE_PREFIX=p GITHUB_STEP_SUMMARY=$t/no-such-dir/page.md
+      write_job_summary
+    ) 2>&1
+  ) || rc=$?
+  st_eq "write_job_summary: an unwritable page is a warning, exit 0" 0 "$rc"
+  st_has "write_job_summary: an unwritable page is named" "could not be written" "$out"
+  rc=0
+  (
+    BASE_OUT=$t/none NATIVE_PREFIX=p GITHUB_STEP_SUMMARY=$t/page3.md
+    write_job_summary
+  ) > /dev/null 2>&1 || rc=$?
+  st_eq "write_job_summary: no summary file is a no-op, exit 0" 0 "$rc"
+  st_fail "write_job_summary: no summary file writes no page" test -e "$t/page3.md"
+
+  # run_publish: the page, then the bundle; a refused bundle is a failure.
+  fx_bundle_tree "$b"
+  rm -f "$t/page4.md"
+  rc=0
+  (
+    BASE_OUT=$b NATIVE_PREFIX=p EVIDENCE_DIR=$b/ev GITHUB_STEP_SUMMARY=$t/page4.md
+    run_publish
+  ) > /dev/null 2>&1 || rc=$?
+  st_eq "run_publish: ok" 0 "$rc"
+  st_ok "run_publish: the page exists" test -s "$t/page4.md"
+  st_ok "run_publish: the bundle exists" test -d "$b/ev"
+  printf 'hc_%s\n' "ABCDEFGHIJKLMNOPQRSTUVWX" > "$b/p-bak-tgt/leak.txt"
+  rc=0
+  (
+    BASE_OUT=$b NATIVE_PREFIX=p EVIDENCE_DIR=$b/ev
+    run_publish
+  ) > /dev/null 2>&1 || rc=$?
+  st_eq "run_publish: a refused bundle fails" 1 "$rc"
+  st_fail "run_publish: a refused bundle leaves nothing" test -e "$b/ev"
+
+  # run refuses before it touches Docker or anything else.
+  rc=0
+  (NATIVE_STAGES=bogus cmd_run) > /dev/null 2>&1 || rc=$?
+  st_eq "run: an unknown stage is a usage error" 2 "$rc"
+  rc=0
+  (NATIVE_STAGES="" cmd_run) > /dev/null 2>&1 || rc=$?
+  st_eq "run: no stage is a usage error" 2 "$rc"
+  rc=0
+  (NATIVE_PREFIX=a/b cmd_run) > /dev/null 2>&1 || rc=$?
+  st_eq "run: a prefix with a slash is refused" 1 "$rc"
+  rc=0
+  (NATIVE_PREFIX="" cmd_run) > /dev/null 2>&1 || rc=$?
+  st_eq "run: an empty prefix is refused" 1 "$rc"
+  rc=0
+  /bin/bash "${BASH_SOURCE[0]}" bogus > /dev/null 2>&1 || rc=$?
+  st_eq "an unknown subcommand is a usage error" 2 "$rc"
+  rc=0
+  /bin/bash "${BASH_SOURCE[0]}" > /dev/null 2>&1 || rc=$?
+  st_eq "no subcommand is a usage error" 2 "$rc"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -1053,6 +1351,7 @@ cmd_selftest() {
   selftest_pure
   selftest_summarize
   selftest_stages
+  selftest_bundle
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
