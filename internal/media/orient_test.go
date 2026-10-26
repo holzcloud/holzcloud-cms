@@ -3,11 +3,13 @@ package media
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"testing"
 
 	xdraw "golang.org/x/image/draw"
@@ -402,5 +404,237 @@ func TestScaledSizeIsSymmetric(t *testing.T) {
 				t.Errorf("ScaledSize(%d, %d) = %d x %d but ScaledSize(%d, %d) = %d x %d", w, h, aw, ah, h, w, bw, bh)
 			}
 		}
+	}
+}
+
+// pngWithChunk inserts a chunk (correct CRC) after IHDR, or after the last IDAT.
+func pngWithChunk(t *testing.T, data []byte, typ string, payload []byte, afterIDAT bool) []byte {
+	t.Helper()
+	chunk := make([]byte, 8, 12+len(payload))
+	binary.BigEndian.PutUint32(chunk, uint32(len(payload)))
+	copy(chunk[4:], typ)
+	chunk = append(chunk, payload...)
+	chunk = binary.BigEndian.AppendUint32(chunk, crc32.ChecksumIEEE(chunk[4:]))
+
+	at := len(pngSignature) + 8 + 13 + 4 // after IHDR
+	if afterIDAT {
+		at = 0
+		i := len(pngSignature)
+		for i+8 <= len(data) {
+			n := int(binary.BigEndian.Uint32(data[i:]))
+			i += 12 + n
+			if string(data[i-n-8:i-n-4]) == "IDAT" {
+				at = i
+			}
+		}
+		if at == 0 {
+			t.Fatal("no IDAT chunk")
+		}
+	}
+	out := append([]byte{}, data[:at]...)
+	out = append(out, chunk...)
+	return append(out, data[at:]...)
+}
+
+// webpContainer assembles RIFF, WEBP and the chunks, padding each to even.
+func webpContainer(chunks ...[]byte) []byte {
+	body := []byte("WEBP")
+	for i := 0; i+1 < len(chunks); i += 2 {
+		typ, payload := chunks[i], chunks[i+1]
+		body = append(body, typ...)
+		body = binary.LittleEndian.AppendUint32(body, uint32(len(payload)))
+		body = append(body, payload...)
+		if len(payload)%2 == 1 {
+			body = append(body, 0)
+		}
+	}
+	out := []byte("RIFF")
+	out = binary.LittleEndian.AppendUint32(out, uint32(len(body)))
+	return append(out, body...)
+}
+
+func TestOrientationFromPNG(t *testing.T) {
+	base := pngBytes(t, gradient(40, 30))
+	tiff := tiffBlock(binary.BigEndian, 6)
+
+	if got := orientationOf("image/png", pngWithChunk(t, base, "eXIf", tiff, false)); got != 6 {
+		t.Errorf("eXIf after IHDR: %d, want 6", got)
+	}
+	if got := orientationOf("image/png", pngWithChunk(t, base, "eXIf", tiff, true)); got != 6 {
+		t.Errorf("eXIf after IDAT: %d, want 6", got)
+	}
+	if got := orientationOf("image/png", base); got != 1 {
+		t.Errorf("no eXIf: %d, want 1", got)
+	}
+
+	// The CRC is not the reader's business.
+	badCRC := pngWithChunk(t, base, "eXIf", tiff, false)
+	at := len(pngSignature) + 8 + 13 + 4 + 8 + len(tiff)
+	badCRC[at] ^= 0xFF
+	if got := orientationOf("image/png", badCRC); got != 6 {
+		t.Errorf("wrong CRC: %d, want 6", got)
+	}
+
+	// A chunk length that runs past the end.
+	long := pngWithChunk(t, base, "eXIf", tiff, false)
+	binary.BigEndian.PutUint32(long[len(pngSignature)+8+13+4:], 0xFFFFFFF0)
+	if got := orientationOf("image/png", long); got != 1 {
+		t.Errorf("length past the end: %d, want 1", got)
+	}
+	// Signature missing.
+	noSig := pngWithChunk(t, base, "eXIf", tiff, false)
+	noSig[1] = 'X'
+	if got := orientationOf("image/png", noSig); got != 1 {
+		t.Errorf("no signature: %d, want 1", got)
+	}
+}
+
+func TestOrientationFromWebP(t *testing.T) {
+	tiff := tiffBlock(binary.LittleEndian, 3)
+	vp8l := []byte("VP8L")
+	pixels := []byte{1, 2, 3, 4, 5}
+
+	if got := orientationOf("image/webp", webpContainer(vp8l, pixels, []byte("EXIF"), tiff)); got != 3 {
+		t.Errorf("EXIF chunk: %d, want 3", got)
+	}
+	prefixed := append([]byte("Exif\x00\x00"), tiff...)
+	if got := orientationOf("image/webp", webpContainer(vp8l, pixels, []byte("EXIF"), prefixed)); got != 3 {
+		t.Errorf("EXIF chunk with the Exif prefix: %d, want 3", got)
+	}
+	// An odd-sized chunk before it is padded to even.
+	if got := orientationOf("image/webp", webpContainer(vp8l, []byte{1, 2, 3}, []byte("EXIF"), tiff)); got != 3 {
+		t.Errorf("after an odd chunk: %d, want 3", got)
+	}
+	if got := orientationOf("image/webp", webpContainer(vp8l, pixels)); got != 1 {
+		t.Errorf("no EXIF: %d, want 1", got)
+	}
+
+	// A chunk size that lies, a RIFF size that lies, not RIFF at all.
+	lie := webpContainer(vp8l, pixels, []byte("EXIF"), tiff)
+	binary.LittleEndian.PutUint32(lie[12+8+len(pixels)+1+4:], 0x00FFFFFF)
+	if got := orientationOf("image/webp", lie); got != 1 {
+		t.Errorf("chunk size past the end: %d, want 1", got)
+	}
+	riff := webpContainer(vp8l, pixels, []byte("EXIF"), tiff)
+	binary.LittleEndian.PutUint32(riff[4:], 0x7FFFFFFF)
+	if got := orientationOf("image/webp", riff); got != 1 {
+		t.Errorf("RIFF size past the end: %d, want 1", got)
+	}
+	if got := orientationOf("image/webp", []byte("RIFX....WEBP")); got != 1 {
+		t.Errorf("not RIFF: %d, want 1", got)
+	}
+
+	// One real round trip, if the decoder takes the container with the chunk.
+	body, err := os.ReadFile("testdata/opaque-lossless.webp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	withEXIF := append(append([]byte{}, body...), []byte("EXIF")...)
+	withEXIF = binary.LittleEndian.AppendUint32(withEXIF, uint32(len(tiff)))
+	withEXIF = append(withEXIF, tiffBlock(binary.LittleEndian, 6)...)
+	if len(tiff)%2 == 1 {
+		withEXIF = append(withEXIF, 0)
+	}
+	binary.LittleEndian.PutUint32(withEXIF[4:], uint32(len(withEXIF)-8))
+	if got := orientationOf("image/webp", withEXIF); got != 6 {
+		t.Fatalf("testdata WebP with an added EXIF chunk: %d, want 6", got)
+	}
+	if _, _, err := image.Decode(bytes.NewReader(withEXIF)); err != nil {
+		t.Skipf("the decoder does not take the added chunk, the reader test stands alone: %v", err)
+	}
+	out, err := intakeOf("image/webp", "a.webp", withEXIF).Scaled(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := dimensionsOf(t, out.content); w != cfg.Height || h != cfg.Width {
+		t.Errorf("WebP orientation 6: %d x %d, want %d x %d", w, h, cfg.Height, cfg.Width)
+	}
+}
+
+func TestScaledAppliesEveryOrientation(t *testing.T) {
+	base := pngBytes(t, quadrants(3000, 1500))
+	// Stored A B over C D; the rows of the upright picture per orientation.
+	want := map[int][2]string{
+		1: {"AB", "CD"}, 2: {"BA", "DC"}, 3: {"DC", "BA"}, 4: {"CD", "AB"},
+		5: {"AC", "BD"}, 6: {"CA", "DB"}, 7: {"DB", "CA"}, 8: {"BD", "AC"},
+	}
+	cols := map[byte]color.RGBA{'A': colA, 'B': colB, 'C': colC, 'D': colD}
+	for o := 1; o <= 8; o++ {
+		src := pngWithChunk(t, base, "eXIf", tiffBlock(binary.BigEndian, uint16(o)), false)
+		out, err := intakeOf("image/png", "a.png", src).Scaled(0)
+		if err != nil {
+			t.Fatalf("orientation %d: %v", o, err)
+		}
+		wantW, wantH := ScaledSize(uprightOf(3000, 1500, o))
+		if w, h := dimensionsOf(t, out.content); w != wantW || h != wantH {
+			t.Errorf("orientation %d: %d x %d, want %d x %d", o, w, h, wantW, wantH)
+			continue
+		}
+		img, err := png.Decode(bytes.NewReader(out.content))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for row, letters := range want[o] {
+			for col := range letters {
+				x, y := wantW/4+col*wantW/2, wantH/4+row*wantH/2
+				if got := color.RGBAModel.Convert(img.At(x, y)); got != cols[letters[col]] {
+					t.Errorf("orientation %d quadrant %d,%d: %v, want %c", o, row, col, got, letters[col])
+				}
+			}
+		}
+		if bytes.Contains(out.content, []byte("eXIf")) {
+			t.Errorf("orientation %d: the copy carries an eXIf chunk", o)
+		}
+		if got := orientationOf(out.MimeType, out.content); got != 1 {
+			t.Errorf("orientation %d: the copy carries orientation %d", o, got)
+		}
+	}
+}
+
+func TestOrientationNeverPanics(t *testing.T) {
+	tiff := tiffBlock(binary.BigEndian, 6)
+	body, err := os.ReadFile("testdata/opaque-lossless.webp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	webp := append(append([]byte{}, body...), []byte("EXIF")...)
+	webp = binary.LittleEndian.AppendUint32(webp, uint32(len(tiff)))
+	webp = append(webp, tiff...)
+	binary.LittleEndian.PutUint32(webp[4:], uint32(len(webp)-8))
+
+	for mimeType, valid := range map[string][]byte{
+		"image/jpeg": withOrientation(jpegBytes(t, 16, 16), 6),
+		"image/png":  pngWithChunk(t, pngBytes(t, gradient(16, 16)), "eXIf", tiff, false),
+		"image/webp": webp,
+	} {
+		check := func(label string, data []byte) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("%s %s: panic %v", mimeType, label, r)
+				}
+			}()
+			if o := orientationOf(mimeType, data); o < 1 || o > 8 {
+				t.Fatalf("%s %s: orientation %d", mimeType, label, o)
+			}
+		}
+		if got := orientationOf(mimeType, valid); got != 6 {
+			t.Fatalf("%s: the valid input reads %d, want 6", mimeType, got)
+		}
+		for n := 0; n <= len(valid); n++ {
+			check("prefix", valid[:n])
+		}
+		for i := 0; i < len(valid) && i < 400; i++ {
+			for _, v := range []byte{0x00, 0xFF} {
+				m := append([]byte{}, valid...)
+				m[i] = v
+				check("overwrite", m)
+			}
+		}
+		check("nil", nil)
+		check("empty", []byte{})
 	}
 }

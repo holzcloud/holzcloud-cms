@@ -24,6 +24,63 @@ func orientationOf(mimeType string, data []byte) int {
 	switch mimeType {
 	case "image/jpeg":
 		return jpegOrientation(data)
+	case "image/png":
+		return pngOrientation(data)
+	case "image/webp":
+		return webpOrientation(data)
+	}
+	// GIF carries no EXIF.
+	return 1
+}
+
+// pngOrientation reads the first eXIf chunk, which holds a bare TIFF block. The
+// specification allows it anywhere between IHDR and IEND outside the IDAT run,
+// so the whole chunk chain is walked. The CRC is not checked: the decoder has
+// accepted the file already, and a reader that refused a chunk over its CRC
+// would skip a tag every browser reads.
+func pngOrientation(data []byte) int {
+	if !bytes.HasPrefix(data, pngSignature) {
+		return 1
+	}
+	i := len(pngSignature)
+	for i+8 <= len(data) {
+		length := uint64(binary.BigEndian.Uint32(data[i : i+4]))
+		if uint64(i)+12+length > uint64(len(data)) {
+			return 1
+		}
+		payload := data[i+8 : i+8+int(length)]
+		switch string(data[i+4 : i+8]) {
+		case "eXIf":
+			return tiffOrientation(payload)
+		case "IEND":
+			return 1
+		}
+		i += 12 + int(length)
+	}
+	return 1
+}
+
+// webpOrientation reads the first EXIF chunk of a RIFF/WEBP container. Some
+// writers put the six bytes "Exif" and two zeros in front of the TIFF block;
+// that is tolerated.
+func webpOrientation(data []byte) int {
+	if len(data) < 12 || string(data[:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		return 1
+	}
+	if uint64(binary.LittleEndian.Uint32(data[4:8]))+8 > uint64(len(data)) {
+		return 1
+	}
+	i := 12
+	for i+8 <= len(data) {
+		size := uint64(binary.LittleEndian.Uint32(data[i+4 : i+8]))
+		if uint64(i)+8+size > uint64(len(data)) {
+			return 1
+		}
+		if string(data[i:i+4]) == "EXIF" {
+			payload := bytes.TrimPrefix(data[i+8:i+8+int(size)], []byte("Exif\x00\x00"))
+			return tiffOrientation(payload)
+		}
+		i += 8 + int(size) + int(size%2)
 	}
 	return 1
 }
