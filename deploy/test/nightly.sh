@@ -135,6 +135,78 @@ in_range() { [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]; }
 # verdict_eq GOT WANT: equal strings.
 verdict_eq() { [ "$1" = "$2" ]; }
 
+# s_hms SECONDS: HH:MM:SS of a number of seconds since midnight.
+s_hms() {
+  printf '%02d:%02d:%02d\n' $(($1 / 3600)) $(($1 % 3600 / 60)) $(($1 % 60))
+}
+
+# fire_window_ok START ARMED BASE RANDOM ACCURACY [SLACK [DRAWN]]: whole epoch seconds.
+# The timer drew a delay and so armed itself for ARMED, which must lie inside
+# [BASE, BASE + RANDOM] (BASE is 03:15:00 local, computed independently of
+# systemd), and the real run started at START, inside [ARMED, ARMED + ACCURACY +
+# SLACK]. SLACK is the named allowance for whole-second timestamps and exec
+# latency, 5 seconds by default. DRAWN is the second at which that delay was drawn
+# (0 when unknown): a draw made after its own elapse time had passed makes the
+# timer elapse at once, so the run may then start up to ACCURACY + SLACK after the
+# draw instead. Prints the reason on failure, "ok" otherwise.
+fire_window_ok() {
+  local start=$1 armed=$2 base=$3 rnd=$4 acc=$5 slack=${6:-5} drawn=${7:-0} from
+  if [ "$armed" -lt "$base" ]; then
+    echo "the armed time $armed lies before the base $base (03:15:00 local)"
+    return 1
+  fi
+  if [ "$armed" -gt $((base + rnd)) ]; then
+    echo "the armed time $armed lies $((armed - base)) s after the base $base, more than the random delay of $rnd s"
+    return 1
+  fi
+  if [ "$start" -lt "$armed" ]; then
+    echo "the run started at $start, before the armed time $armed"
+    return 1
+  fi
+  from=$armed
+  [ "$drawn" -le "$from" ] || from=$drawn
+  if [ "$start" -gt $((from + acc + slack)) ]; then
+    echo "the run started at $start, $((start - from)) s after $from (the armed time $armed, drawn at $drawn); allowed: accuracy $acc s plus $slack s"
+    return 1
+  fi
+  echo "ok"
+}
+
+# sample_stats_ok "D1 D2 ..." RANDOM: the delays of the samples, in seconds, and
+# the random delay the timer reports. Prints "MIN MAX DISTINCT VERDICT", where
+# the verdict is ok or BAD: and a reason. A delay of 0 in every sample means the
+# measurement cannot see the delay, which is a failure to report and not a
+# conclusion about the delay.
+sample_stats_ok() {
+  local list=$1 rnd=$2 sorted min max distinct n
+  sorted=$(printf '%s\n' $list | sort -n)
+  n=$(printf '%s\n' $sorted | grep -c . || true)
+  if [ "$n" -eq 0 ]; then
+    echo "0 0 0 BAD: no samples"
+    return 1
+  fi
+  min=$(printf '%s\n' "$sorted" | head -n 1)
+  max=$(printf '%s\n' "$sorted" | tail -n 1)
+  distinct=$(printf '%s\n' "$sorted" | sort -n -u | grep -c . || true)
+  if [ "$min" -lt 0 ]; then
+    echo "$min $max $distinct BAD: a sample is negative ($min)"
+    return 1
+  fi
+  if [ "$max" -gt "$rnd" ]; then
+    echo "$min $max $distinct BAD: a sample ($max) exceeds the random delay of $rnd s"
+    return 1
+  fi
+  if [ "$max" -eq 0 ]; then
+    echo "$min $max $distinct BAD: every sample is 0, the delay looks like 0 or the measurement cannot see it"
+    return 1
+  fi
+  if [ "$distinct" -lt 3 ]; then
+    echo "$min $max $distinct BAD: fewer than three distinct values ($distinct)"
+    return 1
+  fi
+  echo "$min $max $distinct ok"
+}
+
 # ---------------------------------------------------------------------------
 # selftest
 # ---------------------------------------------------------------------------
@@ -200,11 +272,56 @@ selftest_tod() {
   st_eq "hms_s 08:09:07" 29347 "$(hms_s 08:09:07)"
 }
 
+selftest_window() {
+  # fire_window_ok START ARMED BASE RANDOM ACCURACY [SLACK 5]
+  st_ok "start equal to armed" fire_window_ok 1000 1000 900 300 60
+  st_ok "start at armed + accuracy + allowance" fire_window_ok 1065 1000 900 300 60
+  st_fail "one second later" fire_window_ok 1066 1000 900 300 60
+  st_fail "start before armed" fire_window_ok 999 1000 900 300 60
+  st_fail "armed before the base" fire_window_ok 900 899 900 300 60
+  st_ok "armed at the base" fire_window_ok 900 900 900 300 60
+  st_ok "armed at base + delay" fire_window_ok 1200 1200 900 300 60
+  st_fail "armed more than the delay after the base" fire_window_ok 1201 1201 900 300 60
+  st_ok "a named allowance of 30" fire_window_ok 1090 1000 900 300 60 30
+  st_fail "a named allowance of 30, one second later" fire_window_ok 1091 1000 900 300 60 30
+  st_eq "ok is the whole answer" "ok" "$(fire_window_ok 1000 1000 900 300 60)"
+  # A delay drawn after its own elapse time had passed: the timer elapses at once.
+  st_ok "drawn late, start at the draw" fire_window_ok 1040 1000 900 300 60 5 1040
+  st_ok "drawn late, start at the latest second" fire_window_ok 1105 1000 900 300 60 5 1040
+  st_fail "drawn late, one second later" fire_window_ok 1106 1000 900 300 60 5 1040
+  st_fail "drawn late, but start before the armed time" fire_window_ok 999 1000 900 300 60 5 1040
+  st_ok "drawn before the armed time changes nothing" fire_window_ok 1065 1000 900 300 60 5 950
+  st_fail "drawn before the armed time, one second later" fire_window_ok 1066 1000 900 300 60 5 950
+}
+
+selftest_samples() {
+  st_ok "3 120 299" sample_stats_ok "3 120 299" 300
+  st_eq "3 120 299 stats" "3 299 3 ok" "$(sample_stats_ok "3 120 299" 300)"
+  st_fail "all zeros" sample_stats_ok "0 0 0 0 0 0 0 0 0 0 0 0" 300
+  st_fail "a sample of 301" sample_stats_ok "3 120 301" 300
+  st_ok "a sample of 300" sample_stats_ok "3 120 300" 300
+  st_fail "a negative sample" sample_stats_ok "-1 120 299" 300
+  st_fail "two distinct values" sample_stats_ok "5 5 5 7 7" 300
+  st_fail "one value" sample_stats_ok "42 42 42" 300
+  st_fail "no samples" sample_stats_ok "" 300
+  st_ok "twelve samples" sample_stats_ok "17 203 88 4 299 150 61 77 12 254 130 99" 300
+  st_eq "twelve distinct" "4 299 12 ok" "$(sample_stats_ok "17 203 88 4 299 150 61 77 12 254 130 99" 300)"
+  # The window of the real run, recomputed from the recorded properties.
+  st_eq "s_hms 03:15:00" "03:15:00" "$(s_hms 11700)"
+  st_eq "s_hms 03:21:05" "03:21:05" "$(s_hms $((11700 + 300 + 60 + 5)))"
+  st_ok "start inside the recomputed window" tod_in_window 03:19:48 03:15:00 "$(s_hms $((11700 + 300 + 60)))"
+  st_ok "start at the recomputed upper edge" tod_in_window 03:21:00 03:15:00 "$(s_hms $((11700 + 300 + 60)))"
+  st_fail "start one second past the recomputed upper edge" tod_in_window 03:21:01 03:15:00 "$(s_hms $((11700 + 300 + 60)))"
+  st_fail "start before 03:15:00" tod_in_window 03:14:59 03:15:00 "$(s_hms $((11700 + 300 + 60)))"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
   selftest_zone
   selftest_tod
+  selftest_window
+  selftest_samples
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -780,6 +897,164 @@ cmd_fire() {
 }
 
 # ---------------------------------------------------------------------------
+# delay: BKP-03. Needs the container of `fire`, after fire.
+# The judgement is split from the capture on purpose: the window assertions read
+# only the KEY lines of fire.txt, so they can be re-evaluated offline from the
+# recorded file. fire.txt is read and never modified.
+# ---------------------------------------------------------------------------
+
+cmd_delay() {
+  local f=$OUT_DIR/fire.txt d=$OUT_DIR/delay.txt
+  local rnd acc fixed pers inst i base next dlt list stats rc smin smax sdist
+  local s0 s1 start armed drawn fbase facc frnd hi_s sl prev rerolls end n logged
+
+  need_container
+  [ "$(tail -n 1 "$f" 2> /dev/null)" = "FIRE OK" ] \
+    || die "$f does not end FIRE OK; run 'bash deploy/test/nightly.sh fire' first"
+  BADS=0
+  res_begin "$d"
+
+  # The properties, as systemd reports them. AccuracyUSec is read, never typed.
+  rnd=$(bus_s holzcloud-backup.timer Timer RandomizedDelayUSec) || rnd=-1
+  acc=$(bus_s holzcloud-backup.timer Timer AccuracyUSec) || acc=-1
+  fixed=$(show_v holzcloud-backup.timer FixedRandomDelay) || fixed="?"
+  pers=$(show_v holzcloud-backup.timer Persistent) || pers="?"
+  key_line "RANDOM-DELAY-S: $rnd"
+  key_line "ACCURACY-S: $acc"
+  key_line "FIXED-RANDOM-DELAY: $fixed"
+  key_line "PERSISTENT: $pers"
+  if dx grep -qx 'RandomizedDelaySec=300' /etc/systemd/system/holzcloud-backup.timer; then
+    inst="RandomizedDelaySec=300"
+    check_pass "the installed holzcloud-backup.timer holds the line RandomizedDelaySec=300"
+  else
+    inst="absent"
+    check_bad "the installed holzcloud-backup.timer holds no RandomizedDelaySec=300 line"
+  fi
+  key_line "INSTALLED-LINE: $inst"
+  if verdict_eq "$rnd" 300; then
+    check_pass "the running timer reports RandomizedDelayUSec of 300 s"
+  else
+    check_bad "RandomizedDelayUSec is $rnd s, expected 300 s"
+  fi
+  if verdict_eq "$pers" yes; then
+    check_pass "Persistent is yes"
+  else
+    check_bad "Persistent is '$pers', expected yes"
+  fi
+
+  # Sampling: restart the shipped timer, read when systemd armed it, subtract the
+  # independently computed 03:15:00. A restart must not look like a run: the
+  # stamp must not move.
+  s0=$(dxo stat -c '%Y' "$STAMP" 2> /dev/null) || s0="missing"
+  list=""
+  i=1
+  while [ "$i" -le "$DELAY_SAMPLES" ]; do
+    # The start rate limit (five starts in ten seconds) refuses a sixth restart: pace
+    # the samples, and clear the counter once if it was reached all the same.
+    if ! dx systemctl restart holzcloud-backup.timer; then
+      dx systemctl reset-failed holzcloud-backup.timer || true
+      sleep 11
+      dx systemctl restart holzcloud-backup.timer || die "could not restart holzcloud-backup.timer for sample $i"
+    fi
+    base=$(base_epoch)
+    next=$(bus_s holzcloud-backup.timer Timer NextElapseUSecRealtime) || next=0
+    dlt=$((next - base))
+    key_line "SAMPLE $i $base $next $dlt"
+    list="$list $dlt"
+    i=$((i + 1))
+    sleep 3
+  done
+  s1=$(dxo stat -c '%Y' "$STAMP" 2> /dev/null) || s1="missing"
+  list=${list# }
+  stats=$(sample_stats_ok "$list" "$rnd") && rc=0 || rc=$?
+  smin=$(printf '%s' "$stats" | cut -d' ' -f1)
+  smax=$(printf '%s' "$stats" | cut -d' ' -f2)
+  sdist=$(printf '%s' "$stats" | cut -d' ' -f3)
+  key_line "D-MIN: $smin"
+  key_line "D-MAX: $smax"
+  key_line "D-DISTINCT: $sdist"
+  key_line "DELAY-SAMPLES: $DELAY_SAMPLES"
+  if [ "$rc" -eq 0 ]; then
+    check_pass "$DELAY_SAMPLES re-armings gave delays between $smin and $smax s, $sdist distinct values, all inside [0, $rnd] s"
+  else
+    check_bad "the $DELAY_SAMPLES samples ($list): ${stats#* * * }"
+  fi
+  key_line "STAMP-MTIME-BEFORE-SAMPLES: $s0"
+  key_line "STAMP-MTIME-AFTER-SAMPLES: $s1"
+  if verdict_eq "$s1" "$s0"; then
+    check_pass "the stamp's mtime did not move during the restarts ($s0)"
+  else
+    check_bad "the stamp's mtime moved during the restarts ($s0 to $s1): a restart looked like a run"
+  fi
+
+  # The raw state next to the samples, so that a measurement that cannot see the
+  # delay can say what was observed.
+  {
+    echo "---- systemctl show holzcloud-backup.timer ----"
+    dx systemctl show holzcloud-backup.timer
+    echo "---- systemctl list-timers holzcloud-backup.timer ----"
+    dx systemctl list-timers holzcloud-backup.timer --no-pager
+  } >> "$d" 2>&1 || true
+
+  # The Docker VM steps the realtime clock every 20 to 30 seconds; each step makes
+  # systemd recalculate the calendar timers and draw a new random delay. Watch the
+  # shipped timer for OBSERVE_S seconds without touching it, so that the record
+  # can say how often the armed time moved by itself. PID 1 logs at debug level
+  # only for this window, and the level is put back.
+  OBSERVE_S=${OBSERVE_S:-75}
+  dx systemd-analyze log-level debug > /dev/null 2>&1 || true
+  prev=""
+  rerolls=0
+  end=$((SECONDS + OBSERVE_S))
+  while [ "$SECONDS" -lt "$end" ]; do
+    n=$(bus_us holzcloud-backup.timer Timer NextElapseUSecRealtime) || n=""
+    if [ -n "$prev" ] && [ "$n" != "$prev" ]; then rerolls=$((rerolls + 1)); fi
+    prev=$n
+    sleep 2
+  done
+  dx systemd-analyze log-level info > /dev/null 2>&1 || true
+  logged=$(dxo bash -c 'journalctl _PID=1 --since "-$1s" --no-pager -o short-precise 2>/dev/null | grep -cE "Time has been changed"' _ $((OBSERVE_S + 10))) || logged=0
+  key_line "OBSERVE-S: $OBSERVE_S"
+  key_line "REROLLS-WITHOUT-RESTART: $rerolls"
+  key_line "TIME-CHANGED-LOGGED: ${logged:-0}"
+  dxo bash -c 'journalctl _PID=1 --since "-$1s" --no-pager -o short-precise 2>/dev/null | grep -E "Time has been changed|holzcloud-backup.timer: (Time change|Adding|Realtime timer elapses)" | sed "s/^/PID1 /"' _ $((OBSERVE_S + 10)) >> "$d" 2>&1 || true
+  check_info "the shipped timer re-armed itself $rerolls time(s) in $OBSERVE_S s without a restart; systemd logged 'Time has been changed' ${logged:-0} time(s): the Docker VM steps the realtime clock and every step draws a new random delay (the armed time in fire.txt is the draw PID 1 logged last before the run, see fire-armed-log.txt)"
+
+  # The real run of `fire`, judged from its KEY lines only.
+  start=$(kv "$f" START-EPOCH)
+  armed=$(kv "$f" LAST-ARMED-EPOCH)
+  drawn=$(kv "$f" LAST-DRAWN-EPOCH)
+  fbase=$(kv "$f" BASE-EPOCH)
+  facc=$(kv "$f" ACCURACY-S)
+  frnd=$(kv "$f" RANDOM-DELAY-S)
+  sl=$(kv "$f" START-LOCAL)
+  key_line "SLACK-S: $SLACK_FIRE"
+  key_line "DELAY-USED-S: $((armed - fbase))"
+  key_line "START-AFTER-ARMED-S: $((start - armed))"
+  key_line "DRAWN-AFTER-ARMED-S: $((drawn - armed))"
+  stats=$(fire_window_ok "$start" "$armed" "$fbase" "$frnd" "$facc" "$SLACK_FIRE" "${drawn:-0}") && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    check_pass "the real run: armed $((armed - fbase)) s after 03:15:00 (inside [0, $frnd]), started $((start - armed)) s after the armed time, the draw made $((drawn - armed)) s after it (inside [0, accuracy $facc + slack $SLACK_FIRE] of whichever is later)"
+  else
+    check_bad "the real run: $stats"
+  fi
+  hi_s=$((11700 + frnd + facc + SLACK_FIRE))
+  if tod_in_window "$sl" 03:15:00 "$(s_hms "$hi_s")"; then
+    check_pass "the real run started at $sl local, inside [03:15:00, $(s_hms "$hi_s")] (03:15:00 + $frnd s delay + $facc s accuracy + $SLACK_FIRE s allowance)"
+  else
+    check_bad "the real run started at $sl local, outside [03:15:00, $(s_hms "$hi_s")]"
+  fi
+
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "DELAY FAILED"
+    say "nightly.sh: DELAY FAILED, $BADS BAD line(s); see $d"
+    exit 1
+  fi
+  key_line "DELAY OK"
+}
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -788,7 +1063,7 @@ while [ "$#" -gt 0 ]; do
   sub=$1
   shift
   case "$sub" in
-    selftest | source | target | fire) "cmd_$sub" ;;
+    selftest | source | target | fire | delay) "cmd_$sub" ;;
     *) usage ;;
   esac
 done
