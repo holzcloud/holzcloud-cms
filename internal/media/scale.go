@@ -107,10 +107,14 @@ func (in *Intake) Oversize(maxMegapixels int) (width, height int, ok bool) {
 //
 // An EXIF orientation of 2 to 8 is applied to the pixels: the copy stands
 // upright and the longest side is counted on that upright picture. The encoders
-// write no orientation tag, and no EXIF, XMP, comment or colour profile at all,
-// so no camera data survives and a browser has nothing to turn a second time.
-// The colour profile is not carried over yet. Keep still runs PrepareUpload on
-// the result.
+// write no orientation tag, and no EXIF, XMP, IPTC or comment at all, so no
+// camera data survives and a browser has nothing to turn a second time.
+//
+// What is carried is the ICC colour profile, when the source has one that is for
+// RGB and well formed (see profileOf): the copy would otherwise be read as sRGB
+// and come out dull. A profile for another colour model, or a damaged one, is
+// left off, as before. Keep still runs PrepareUpload on the result, which keeps
+// the profile.
 //
 // ErrNotScalable (wrapping the cause) when the picture does not decode, is not
 // one of the four formats, is over the megapixel budget, or the scaled bytes
@@ -166,8 +170,15 @@ func (in *Intake) Scaled(maxMegapixels int) (*Intake, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrNotScalable, err)
 	}
-	if int64(buf.Len()) > in.limit {
-		return nil, fmt.Errorf("%w: the scaled image is %d bytes", ErrNotScalable, buf.Len())
+	// The profile goes in before the limit is measured, so the check sees the
+	// bytes that would be stored. Nil when the source has none or it is not
+	// one that is carried; the encoded bytes are then exactly what they were.
+	encoded := buf.Bytes()
+	if profile := profileOf(in.MimeType, in.content); profile != nil {
+		encoded = withProfile(mimeType, encoded, profile)
+	}
+	if int64(len(encoded)) > in.limit {
+		return nil, fmt.Errorf("%w: the scaled image is %d bytes", ErrNotScalable, len(encoded))
 	}
 
 	name := in.OriginalName
@@ -178,8 +189,8 @@ func (in *Intake) Scaled(maxMegapixels int) (*Intake, error) {
 		MimeType:     mimeType,
 		OriginalName: name,
 		Filename:     GenerateFilename(name),
-		Size:         int64(buf.Len()),
-		content:      buf.Bytes(),
+		Size:         int64(len(encoded)),
+		content:      encoded,
 		limit:        in.limit,
 	}, nil
 }
