@@ -1312,13 +1312,19 @@ main:focus { outline: none; }
  * ein Bildschirmfoto ist in der Hälfte zu klein, um etwas darauf zu erkennen.
  * Das Bild bekommt deshalb drei Fünftel, der Text den Rest, und die Zeilen
  * stehen mit Luft untereinander, damit jede als eigene Vorstellung liest. */
-.page-content > .hc-bildtext {
+.page-content > .hc-bildtext { margin-block: var(--hc-space-8); }
+/* Den breiten Platz bekommt nur ein Bild-neben-Text. Steht das Bild OBEN oder
+ * UNTEN, ist der Baustein eine Spalte aus Bild und Text und bleibt in der
+ * normalen Textspalte: über 1178 px Breite wäre der Absatz nicht zu lesen.
+ * :where(:not(…)) hält die Spezifität bei der Regel von vorher. */
+.page-content > .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)) {
   grid-column: text-start / breit-ende;
-  margin-block: var(--hc-space-8);
 }
 @media (min-width: 45em) {
   .hc-bildtext { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: clamp(var(--hc-space-5), 4vw, var(--hc-space-8)); }
   .hc-bildtext--rechts { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+  /* Nach der rechts-Regel, damit sie gewinnt: eine Spalte, nicht 3fr 2fr. */
+  .hc-bildtext--oben, .hc-bildtext--unten { grid-template-columns: minmax(0, 1fr); align-items: start; }
 }
 .hc-bildtext__bild img {
   display: block; height: auto;
@@ -1354,32 +1360,35 @@ main:focus { outline: none; }
  * Textspalte, nur unter dem Bild statt daneben.
  *
  * Die Regel greift nur, wenn es ein Bild gibt und der Text mit h2 oder h3
- * beginnt. Alles andere, und ein Browser ohne :has(), bleibt beim Bisherigen. */
-.hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) {
+ * beginnt, und nicht, wenn das Bild OBEN oder UNTEN steht: dann ist der
+ * Baustein eine Spalte, und die Überschrift hat über dem Bild keinen Platz
+ * zu gewinnen. Die Ausnahme steht in jedem Selektor als :where(:not(…)), damit
+ * sich ihre Spezifität nicht ändert. Alles andere, und ein Browser ohne :has(), bleibt beim Bisherigen. */
+.hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) {
   /* Jeder Absatz ist jetzt ein Rasterelement; ein Zeilenabstand käme zu den
    * Rändern der Absätze noch hinzu. */
   row-gap: 0;
 }
-.hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text { display: contents; }
-.hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child {
+.hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text { display: contents; }
+.hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child {
   grid-row: 1;
   margin-block-end: var(--hc-space-5);
 }
 @media (min-width: 45em) {
-  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) {
+  .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) {
     grid-template-columns: [bild-start] minmax(0, 3fr) [bild-end lauf-start] minmax(0, 2fr) [lauf-end];
     grid-template-rows: auto repeat(15, auto) 1fr;
     /* Beide Spalten hängen an der Überschrift darüber. Mittig ausgerichtet
      * bliebe unter ihr ein Loch über dem kürzeren Teil. */
     align-items: start;
   }
-  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child).hc-bildtext--rechts {
+  .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child).hc-bildtext--rechts {
     grid-template-columns: [lauf-start] minmax(0, 2fr) [lauf-end bild-start] minmax(0, 3fr) [bild-end];
   }
-  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child { grid-column: 1 / -1; }
-  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__bild { grid-column: bild; grid-row: 2 / -1; }
-  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :not(:first-child) { grid-column: lauf; }
-  .hc-bildtext:has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child + * { margin-block-start: 0; }
+  .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child { grid-column: 1 / -1; }
+  .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__bild { grid-column: bild; grid-row: 2 / -1; }
+  .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :not(:first-child) { grid-column: lauf; }
+  .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)):has(> .hc-bildtext__bild + .hc-bildtext__text > :is(h2, h3):first-child) > .hc-bildtext__text > :first-child + * { margin-block-start: 0; }
 }
 
 /* Karten mit Bild — die Übersicht der Programme auf der Startseite. Das Bild

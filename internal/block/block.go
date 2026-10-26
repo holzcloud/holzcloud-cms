@@ -204,8 +204,10 @@ type Block struct {
 	Caption string `json:"bildunterschrift,omitempty"`
 
 	// Variant is the layout choice, and what it means depends on the type:
-	// "voll"/"breit"/"normal" for a picture, "links"/"rechts" for the side the
-	// picture sits on, "2"/"3"/"4" for how many columns a grid has.
+	// "voll"/"breit"/"normal" for a picture, "2"/"3"/"4" for how many columns a
+	// grid has. For an image-text block it is the position of the image:
+	// "rechts", "oben" or "unten", and empty means left — which is why every
+	// block stored before the position existed renders as it always did.
 	Variant string `json:"variante,omitempty"`
 
 	// Display is how a gallery is laid out: a grid, or a slideshow that snaps.
@@ -340,6 +342,38 @@ func (b Block) DisplayClass() string {
 	return ""
 }
 
+// The positions an image-text block can give its image, besides the left one
+// that empty stands for. Stored in Block.Variant.
+//
+// English identifiers with German values, for the reason DisplaySlideshow
+// gives: the strings stand in the blocks column of every page that uses them
+// and in every archive ever exported, and .planning/GLOSSARY.md's closing rule
+// says a German word standing in the database is a value and not an identifier.
+const (
+	ImageRight = "rechts"
+	ImageAbove = "oben"
+	ImageBelow = "unten"
+)
+
+// ImagePositionClass is the modifier class an image-text block's image
+// position adds to its wrapper, or the empty string for the left position that
+// has no modifier.
+//
+// Minted from the constants by equality and never concatenated out of the
+// stored value, exactly as DisplayClass is: a Variant that arrives as a quote
+// followed by an attribute adds no class at all.
+func (b Block) ImagePositionClass() string {
+	switch b.Variant {
+	case ImageRight:
+		return "hc-bildtext--rechts"
+	case ImageAbove:
+		return "hc-bildtext--oben"
+	case ImageBelow:
+		return "hc-bildtext--unten"
+	}
+	return ""
+}
+
 // Columns is how many columns a grid block asks for, clamped to what a layout
 // can actually do.
 func (b Block) Columns() int {
@@ -446,6 +480,14 @@ func (s Set) Clean(blocks []Block) []Block {
 		// taught this codebase six times.
 		if b.Type != TypeGallery || b.Display != DisplaySlideshow {
 			b.Display = ""
+		}
+		// The image position of an image-text block is a closed vocabulary
+		// too, and the same one-check-where-every-writer-meets rule applies:
+		// the form, the AI tool and the archive all end up here. Left is the
+		// empty value, so "links" and anything unknown become empty. Other
+		// block types keep the Variant they have ("voll", "4", ...).
+		if b.Type == TypeImageText && b.ImagePositionClass() == "" {
+			b.Variant = ""
 		}
 		out = append(out, b)
 		if len(out) >= MaxBlocks {

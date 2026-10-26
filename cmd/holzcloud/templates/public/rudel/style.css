@@ -1016,7 +1016,11 @@ main:focus { outline: none; }
  * Für diese Website sind beide der wichtigere Teil: die Startseite besteht in
  * weiten Teilen aus Kartenreihen, und die zwölf Tierporträts sind alle
  * Bild-neben-Text. */
-.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video,
+/* Ein bildtext mit dem Bild OBEN oder UNTEN ist nicht zwei Spalten, sondern
+ * eine: Bild, dann Text, untereinander. Er bleibt in der Textspalte, weil eine
+ * Zeile Fliesstext über 1178 px nicht lesbar ist. Die Ausnahme steht als
+ * :where(:not(…)), damit die Spezifität der Regel dieselbe bleibt. */
+.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)), .hc-video,
                     .hc-bild--breit, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
 }

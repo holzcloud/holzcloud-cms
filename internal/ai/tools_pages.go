@@ -673,7 +673,7 @@ var blockSchema = Property{
 var builtinUses = map[string]string{
 	block.TypeText:      "markdown",
 	block.TypeImage:     "media_id (an image), alt, caption, variant: normal, breit or voll",
-	block.TypeImageText: "media_id (an image), alt, caption, markdown, variant: links or rechts (side of the image)",
+	block.TypeImageText: "media_id (an image), alt, caption, markdown, variant: links (the default), rechts, oben or unten (position of the image relative to the text)",
 	block.TypeGallery: "items [{media_id, alt, caption}] or album (slug of an album), variant: 2, 3 or 4 " +
 		"columns, display: empty or diashow",
 	block.TypeCards:   "items [{media_id, alt, title, markdown, link_url}], variant: 2, 3 or 4 columns",
