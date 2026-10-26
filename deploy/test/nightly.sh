@@ -22,6 +22,10 @@
 #   nightly.sh prep         phase 25: the editor account the churn runs as, and the admin's two-factor wall in front of the page form
 #   nightly.sh consist      CON-01: backup.sh under page saves, uploads and deletes, restored by restore.sh and compared in both directions
 #   nightly.sh window       CON-01: a forced window (the shipped backup.sh paused between its two copies), three controls
+#   nightly.sh compat-source   phase 25: CON-02, the previous release (COMPAT_TAG) built from its tag, installed from the document, populated
+#   nightly.sh compat       CON-02: its own backup.sh makes a backup, this release's restore.sh restores it on a fresh box, the data is compared
+#   nightly.sh capfull      CON-03: a filesystem nearly full but above MIN_FREE_MB under the backup root; by hand, by the shipped unit, the next night
+#   nightly.sh down-con     remove the two containers of compat-source and compat (OLD_NAME and NEW_NAME), and only those
 #   nightly.sh down         remove the source and the second host
 #
 # Subcommands can be chained in one call and run in order. A failing one ends the
@@ -61,6 +65,14 @@
 #   CONSIST_RESTORE_EVERY   1, every run is restored; N restores runs 1, N+1, ...; the others are compared on the backup itself
 #   CHURN_WORKERS  2 uploaders, one page saver, in stage deletes one deleter
 #   CHURN_PAUSE    0.05 seconds each worker waits between two requests
+#   Phase 25, plan 02 (CON-02 and CON-03), all optional:
+#   COMPAT_TAG     v0.1.0, the previous release; compat-source builds it from this tag
+#   OLD_NAME, OLD_OUT_DIR   holzcloud-t25-old, deploy/test/out/amd64-t25-old (the previous release, its evidence and compat.txt)
+#   NEW_NAME, NEW_OUT_DIR   holzcloud-t25-new, deploy/test/out/amd64-t25-new (the fresh box with this release)
+#   CAPFULL_FLOOR_MB   1024, the shipped MIN_FREE_MB (never passed to backup.sh unless it is lowered, and then DEVIATION[floor])
+#   CAPFULL_MARGIN_MB  40, free megabytes of the nearly full filesystem above the floor
+#   CAPFULL_DATA_MB    1150, the bulk media backup-fixture writes so that the data directory is larger than that free space
+#   capfull defaults NAME and OUT_DIR to the t25 source names like prep, consist and window when the caller gave none
 #
 # Written for bash 3.2 (macOS): no arrays, no mapfile, no case conversion.
 # Anything that needs GNU tools (date -d, stat -c, sha256sum, zic) runs inside
@@ -93,6 +105,13 @@ if [ "$P25_CALL" = yes ]; then
   [ "$GIVEN_TGT_NAME" = yes ] || TGT_NAME=holzcloud-t25-tgt
   [ "$GIVEN_TGT_OUT_DIR" = yes ] || TGT_OUT_DIR=deploy/test/out/amd64-t25-tgt
 fi
+# Plan 02: capfull works on the source container alone and takes the same t25 names.
+for p25_arg in "$@"; do
+  if [ "$p25_arg" = capfull ]; then
+    [ "$GIVEN_NAME" = yes ] || NAME=holzcloud-t25-src
+    [ "$GIVEN_OUT_DIR" = yes ] || OUT_DIR=deploy/test/out/amd64-t25-src
+  fi
+done
 
 PLATFORM=${PLATFORM:-linux/amd64}
 TARGET=${TARGET:-systemd-base}
@@ -115,6 +134,16 @@ CONSIST_STAGES=${CONSIST_STAGES:-adds deletes}
 CONSIST_RESTORE_EVERY=${CONSIST_RESTORE_EVERY:-1}
 CHURN_WORKERS=${CHURN_WORKERS:-4}
 CHURN_PAUSE=${CHURN_PAUSE:-0.05}
+
+# Phase 25, plan 02 (CON-02, CON-03), all optional; see the header.
+COMPAT_TAG=${COMPAT_TAG:-v0.1.0}
+OLD_NAME=${OLD_NAME:-holzcloud-t25-old}
+OLD_OUT_DIR=${OLD_OUT_DIR:-deploy/test/out/amd64-t25-old}
+NEW_NAME=${NEW_NAME:-holzcloud-t25-new}
+NEW_OUT_DIR=${NEW_OUT_DIR:-deploy/test/out/amd64-t25-new}
+CAPFULL_FLOOR_MB=${CAPFULL_FLOOR_MB:-1024}
+CAPFULL_MARGIN_MB=${CAPFULL_MARGIN_MB:-40}
+CAPFULL_DATA_MB=${CAPFULL_DATA_MB:-1150}
 
 # Allowances, named here and written next to the verdict as KEY lines. Both are
 # for whole-second timestamps and exec latency; the second is larger because the
@@ -920,6 +949,7 @@ cmd_selftest() {
   selftest_consist
   selftest_outcome
   selftest_hold
+  selftest_compat
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -4695,6 +4725,514 @@ cmd_record_check() {
 }
 
 # ---------------------------------------------------------------------------
+# Phase 25, plan 02: CON-02. A backup made by the release before this one, with
+# that release's own backup.sh, restored by this release's restore.sh on a fresh
+# box. compat-source builds the previous release from its tag and populates it;
+# compat plays backup, transfer and restore and compares what is on the far side.
+# ---------------------------------------------------------------------------
+
+# version_is_tag LINE TAG: LINE, the output of `holzcloud version`, names exactly the
+# tag: "holzcloud TAG (HEX)". A build that is some commits past the tag
+# ("holzcloud v0.1.0-35-gf087dca (f087dca)"), a "dev" build, another tag and an empty
+# line are not that tag.
+version_is_tag() {
+  local line=$1 tag=$2 rest
+  [ -n "$line" ] && [ -n "$tag" ] || return 1
+  case "$line" in "holzcloud $tag ("*")") ;; *) return 1 ;; esac
+  rest=${line#"holzcloud $tag ("}
+  rest=${rest%")"}
+  case "$rest" in "" | *[!0-9a-f]*) return 1 ;; esac
+  return 0
+}
+
+# migration_ok BEFORE AFTER HIGHEST_AT_NEW: the migration level read from the backup's
+# own database (BEFORE) and from the restored one after the service started (AFTER),
+# against the highest migration file of the release that restored it. Passes when the
+# restored database stands at that highest migration and did not go down. A level
+# below the highest means a pending migration was not applied; a level above the
+# highest means the restoring release is older than the database; either is no pass.
+migration_ok() {
+  is_num "$1" "$2" "$3" || return 1
+  [ "$2" -eq "$3" ] && [ "$2" -ge "$1" ]
+}
+
+# migration_sentence BEFORE AFTER: the sentence the file carries about the migrations,
+# computed from the two levels and not typed. Refuses a non-number and a level that
+# went down.
+migration_sentence() {
+  is_num "$1" "$2" || return 1
+  [ "$2" -ge "$1" ] || return 1
+  if [ "$1" -eq "$2" ]; then
+    echo "No migration separates the two releases: the backup is at level $1, the restored database is at level $2, the restore ran none."
+  else
+    echo "$(($2 - $1)) migration(s) separate the two releases: the backup is at level $1, the restored database is at level $2, they were applied."
+  fi
+}
+
+# compat_volatile TABLE: prints the reason and returns 0 for a table whose row count moves
+# with traffic or with the restore itself; returns 1 for every other table. The list is
+# the one of run.sh's is_volatile (deploy/test/run.sh), the only place a difference in a
+# count may be excused, and each entry carries its reason. A difference in a table that
+# is not listed here is a BAD and an investigation, never a new entry.
+compat_volatile() {
+  case "$1" in
+    sessions) echo "one row per login, deleted at expiry: the comparison itself logs in" ;;
+    activity_log) echo "the audit trail, one row per admin action; logging in and saving a page add rows" ;;
+    mail_outbox) echo "the mail queue: a background run drains it and the rows stay only for a while" ;;
+    outbox) echo "the shop's queue of messages, drained by a background run" ;;
+    plugin_store) echo "written by the plugins at run time (the 404 hook stores the missing path)" ;;
+    goose_db_version) echo "one row per applied migration; compared as a list of its own, not as a count" ;;
+    oauth_codes) echo "an authorisation code lives for minutes and is used once" ;;
+    *) return 1 ;;
+  esac
+}
+
+# compat_tables_filtered TEXT: the "table NAME COUNT" lines of TEXT that are not about a
+# volatile table, sorted.
+compat_tables_filtered() {
+  local l n
+  printf '%s\n' "$1" | while IFS= read -r l; do
+    set -- $l
+    n=${2:-}
+    [ -n "$n" ] || continue
+    compat_volatile "$n" > /dev/null || printf '%s\n' "$l"
+  done | LC_ALL=C sort
+}
+
+# compat_fixture_ok PAGES USERS UPLOADS: the staged site is not trivial: at least three
+# pages, two users and two uploaded media rows. A comparison of two empty sites is equal
+# and proves nothing.
+compat_fixture_ok() {
+  is_num "$1" "$2" "$3" || return 1
+  [ "$1" -ge 3 ] && [ "$2" -ge 2 ] && [ "$3" -ge 2 ]
+}
+
+selftest_compat() {
+  st_ok "version_is_tag the tag itself" version_is_tag 'holzcloud v0.1.0 (4d238b9)' v0.1.0
+  st_ok "version_is_tag a full length commit" version_is_tag 'holzcloud v0.1.0 (4d238b97d104296469a480e3b701d7a1f8a1c712)' v0.1.0
+  st_fail "version_is_tag some commits past the tag" version_is_tag 'holzcloud v0.1.0-35-gf087dca (f087dca)' v0.1.0
+  st_fail "version_is_tag a dev build" version_is_tag 'holzcloud dev (unknown)' v0.1.0
+  st_fail "version_is_tag another tag" version_is_tag 'holzcloud v0.0.21 (abcdef1)' v0.1.0
+  st_fail "version_is_tag a tag that only starts like the wanted one" version_is_tag 'holzcloud v0.1.01 (abcdef1)' v0.1.0
+  st_fail "version_is_tag an empty line" version_is_tag '' v0.1.0
+  st_fail "version_is_tag an empty tag" version_is_tag 'holzcloud v0.1.0 (4d238b9)' ''
+  st_fail "version_is_tag no commit in the brackets" version_is_tag 'holzcloud v0.1.0 ()' v0.1.0
+  st_fail "version_is_tag a commit that is not hex" version_is_tag 'holzcloud v0.1.0 (unknown)' v0.1.0
+  st_fail "version_is_tag text after the brackets" version_is_tag 'holzcloud v0.1.0 (4d238b9) extra' v0.1.0
+  st_ok "migration_ok no migration crossed" migration_ok 60 60 60
+  st_ok "migration_ok a pending migration applied (58 to 60)" migration_ok 58 60 60
+  st_fail "migration_ok the level went down" migration_ok 60 59 60
+  st_fail "migration_ok a migration was pending and not applied" migration_ok 60 60 61
+  st_fail "migration_ok the database is above the restoring release" migration_ok 61 61 60
+  st_fail "migration_ok a non-number before" migration_ok x 60 60
+  st_fail "migration_ok a non-number after" migration_ok 60 '' 60
+  st_fail "migration_ok a non-number highest" migration_ok 60 60 x
+  st_eq "migration_sentence no migration" "No migration separates the two releases: the backup is at level 60, the restored database is at level 60, the restore ran none." "$(migration_sentence 60 60)"
+  st_eq "migration_sentence two migrations" "2 migration(s) separate the two releases: the backup is at level 58, the restored database is at level 60, they were applied." "$(migration_sentence 58 60)"
+  st_fail "migration_sentence the level went down" migration_sentence 60 58
+  st_fail "migration_sentence a non-number" migration_sentence 60 x
+  st_ok "migration_ok 58, 60, 60 passes" migration_ok 58 60 60
+  st_fail "migration_ok 0, 0, 60 fails: nothing applied" migration_ok 0 0 60
+  st_fail "migration_ok 60, 60, empty fails" migration_ok 60 60 ""
+
+  # The lists of the comparison. list_equal is the judge; these cases show how the
+  # lists are built: a page list that differs in one HTML hash, a user list that
+  # differs in one role, a table list that differs only in a volatile table.
+  local pa pb ua ub ta tb tc
+  pa=$'1|gruesse||draft|Gr|m1|h1\n1|liste||published|Li|m2|h2'
+  pb=$'1|gruesse||draft|Gr|m1|h1\n1|liste||published|Li|m2|hX'
+  ua=$'churn@example.test|editor\nlogin@example.test|admin'
+  ub=$'churn@example.test|editor\nlogin@example.test|editor'
+  ta=$'table pages 5\ntable sessions 3\ntable users 2\ntable activity_log 9'
+  tb=$'table pages 5\ntable sessions 7\ntable users 2\ntable activity_log 14'
+  tc=$'table pages 6\ntable sessions 3\ntable users 2\ntable activity_log 9'
+  st_ok "list_equal two identical page lists" list_equal "$pa" "$pa"
+  st_fail "list_equal page lists that differ in one HTML hash" list_equal "$pa" "$pb"
+  st_ok "list_equal two identical user lists" list_equal "$ua" "$ua"
+  st_fail "list_equal user lists that differ in one role" list_equal "$ua" "$ub"
+  st_fail "list_equal two empty page lists prove nothing" list_equal "" ""
+  st_eq "compat_tables_filtered drops the volatile tables and sorts" $'table pages 5\ntable users 2' "$(compat_tables_filtered "$ta")"
+  st_ok "tables that differ only in volatile tables are equal after the exclusions" list_equal "$(compat_tables_filtered "$ta")" "$(compat_tables_filtered "$tb")"
+  st_fail "tables that differ in a non-volatile table are not equal" list_equal "$(compat_tables_filtered "$ta")" "$(compat_tables_filtered "$tc")"
+  st_ok "compat_volatile sessions" compat_volatile sessions
+  st_ok "compat_volatile goose_db_version" compat_volatile goose_db_version
+  st_fail "compat_volatile pages" compat_volatile pages
+  st_fail "compat_volatile users" compat_volatile users
+  st_fail "compat_volatile media" compat_volatile media
+  st_ok "compat_fixture_ok three pages, two users, two uploads" compat_fixture_ok 3 2 2
+  st_fail "compat_fixture_ok two pages" compat_fixture_ok 2 2 2
+  st_fail "compat_fixture_ok one user" compat_fixture_ok 3 1 2
+  st_fail "compat_fixture_ok one upload" compat_fixture_ok 3 2 1
+  st_fail "compat_fixture_ok a non-number" compat_fixture_ok 3 x 2
+}
+
+# compat_names: the previous release is the "source" of the shared helpers (NAME,
+# OUT_DIR, dx...), the fresh box with this release their "second host" (TGT_NAME,
+# TGT_OUT_DIR, dxt...). Called inside a subshell by the subcommands, so that a later
+# subcommand of the same call (capfull) keeps the names it was given.
+compat_names() {
+  local d
+  [ "$OLD_NAME" != "$NEW_NAME" ] || die "OLD_NAME equals NEW_NAME ($OLD_NAME)"
+  [ "$OLD_OUT_DIR" != "$NEW_OUT_DIR" ] || die "OLD_OUT_DIR equals NEW_OUT_DIR ($OLD_OUT_DIR)"
+  for d in "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
+    case "$d" in
+      / | . | .. | ./ | "$ROOT" | "$ROOT"/) die "refusing the evidence directory '$d'" ;;
+    esac
+  done
+  NAME=$OLD_NAME
+  OUT_DIR=$OLD_OUT_DIR
+  TGT_NAME=$NEW_NAME
+  TGT_OUT_DIR=$NEW_OUT_DIR
+}
+
+# The state of one database, counts and hashes and nothing that opens a credential:
+# the highest applied goose version and its rows, one "table NAME COUNT" line per table
+# of sqlite_master, one line per page "website|slug|locale|status|title|sha256 of the
+# Markdown|sha256 of the HTML", one per user "email|role" (never a hash, a token or a
+# cookie), one per media row and per media_variants row "website/filename|sha256 of the
+# file", MISSING for a file that is not there. Arguments: MODE DATABASE MEDIADIR. MODE
+# file opens the database on the immutable URI (a backup's file, which has no WAL);
+# MODE live reads the running site's database read-only as the service user.
+read -r -d '' P25_STATE_SH <<'STATE_EOF' || true
+set -u
+mode=$1; db=$2; media=$3
+if [ "$mode" = file ]; then
+  q() { sqlite3 "file:$db?immutable=1" "$1"; }
+else
+  q() { runuser -u holzcloud -- sqlite3 -readonly "$db" ".timeout 5000" "$1"; }
+fi
+sha() { sha256sum | cut -d' ' -f1; }
+echo '@@KEYS'
+echo "LEVEL: $(q "select coalesce(max(version_id), 0) from goose_db_version where is_applied = 1")"
+echo "GOOSE-ROWS: $(q "select count(*) from goose_db_version")"
+echo "PAGES-COUNT: $(q "select count(*) from pages")"
+echo "USERS-COUNT: $(q "select count(*) from users")"
+echo "MEDIA-ROWS: $(q "select count(*) from media")"
+echo "UPLOADED-MEDIA: $(q "select count(*) from media where original_name like 'churn-%'")"
+echo '@@GOOSE'
+q "select version_id || '|' || is_applied from goose_db_version order by id"
+echo '@@TABLES'
+q "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name" | while IFS= read -r t; do
+  n=$(q "select count(*) from \"$t\"" 2> /dev/null) || n="?"
+  echo "table $t $n"
+done
+echo '@@PAGES'
+q "select id from pages order by website_id, locale, slug" | while IFS= read -r id; do
+  meta=$(q "select website_id || '|' || slug || '|' || locale || '|' || status || '|' || title from pages where id = $id")
+  md=$(q "select content_markdown from pages where id = $id" | sha)
+  ht=$(q "select content_html from pages where id = $id" | sha)
+  echo "$meta|$md|$ht"
+done
+echo '@@USERS'
+q "select email || '|' || role from users order by email"
+echo '@@MEDIA'
+q "select website_id || '/' || filename from media union select m.website_id || '/' || v.filename from media_variants v join media m on m.id = v.media_id order by 1" | while IFS= read -r p; do
+  if [ -f "$media/$p" ]; then echo "$p|$(sha < "$media/$p")"; else echo "$p|MISSING"; fi
+done
+echo '@@MEDIAORIG'
+q "select website_id || '/' || filename from media order by 1" | while IFS= read -r p; do
+  if [ -f "$media/$p" ]; then echo "$p|$(sha < "$media/$p")"; else echo "$p|MISSING"; fi
+done
+echo '@@END'
+STATE_EOF
+
+# compat_state CONTAINER MODE DATABASE MEDIADIR OUTFILE: P25_STATE_SH run in CONTAINER.
+# Status 1 when the transcript does not end in its @@END line.
+compat_state() {
+  local c=$1
+  printf '%s\n' "$P25_STATE_SH" | docker exec -i "$c" bash -s -- "$2" "$3" "$4" > "$5" 2> "$5.err" || return 1
+  grep -q '^@@END$' "$5" || return 1
+  rm -f "$5.err"
+}
+
+# compat_compare LABEL STATE_A STATE_B: the pages, the users and every media row with
+# its file, as lists, judged by list_equal (a list that is empty on both sides proves
+# nothing and fails). PASS and BAD lines go to CHECK_OUT.
+compat_compare() {
+  local label=$1 t s n
+  t=$(mktemp -d) || die "mktemp failed"
+  mkdir -p "$t/a" "$t/b"
+  split_sections "$2" "$t/a"
+  split_sections "$3" "$t/b"
+  for s in PAGES USERS MEDIA; do
+    n=$(grep -c . "$t/a/$s" 2> /dev/null || true)
+    if list_equal "$(cat "$t/a/$s" 2> /dev/null)" "$(cat "$t/b/$s" 2> /dev/null)"; then
+      check_pass "COMPARE $label $s: equal ($n lines)"
+    else
+      check_bad "COMPARE $label $s: the lists differ or are empty ($n lines on the left, $(grep -c . "$t/b/$s" 2> /dev/null || true) on the right)"
+      diff "$t/a/$s" "$t/b/$s" 2> /dev/null | head -n 6 | sed "s/^/KEY DIFF-$label-$s: /" | tee -a "$CHECK_OUT" > /dev/null || true
+    fi
+  done
+  rm -rf "${t:?}"
+}
+
+# git_migrations REF: "COUNT HIGHEST", the migration files of REF and the highest number
+# among them, from git ls-tree and nothing else.
+git_migrations() {
+  git ls-tree --name-only "$1" internal/db/migrations/ \
+    | sed -n -E 's|^internal/db/migrations/0*([0-9]+)_.*\.sql$|\1|p' | LC_ALL=C sort -n \
+    | awk '{ n++; h = $1 } END { print n + 0, h + 0 }'
+}
+
+# compat_ship_sess CONTAINER: the session helper of plan 01 into a container.
+compat_ship_sess() {
+  printf '%s\n' "$P25_SESS_SH" | docker exec -i "$1" bash -c 'umask 077; cat > /root/hc-sess.sh && chmod 700 /root/hc-sess.sh' \
+    || die "could not ship the session helper into $1"
+}
+# tsess ARGS...: the session helper in the second container; prints "HTTP CODE REDIRECT".
+tsess() { docker exec "$TGT_NAME" bash /root/hc-sess.sh "$@" | tr -d '\r'; }
+
+cmd_compat_source() { (
+  compat_names
+  compat_source_run
+); }
+
+compat_source_run() {
+  local ref ver info bd=${BIN_DIR:-deploy/test/out/bin}
+  [ "$TARGET" = systemd-base ] \
+    || die "compat-source needs TARGET=systemd-base (got '$TARGET'): the install is played out of the document into a bare systemd image"
+  git rev-parse --verify --quiet "${COMPAT_TAG}^{commit}" > /dev/null \
+    || die "COMPAT_TAG '$COMPAT_TAG' is not a tag or commit of this repository"
+  ref=$(pin_ref)
+  say "compat-source: the previous release $COMPAT_TAG is built from its tag, installed in $NAME and populated; this release is NEW_REF $ref; evidence in $OUT_DIR"
+  # No update step: a source that was updated runs the new binary and answers nothing.
+  PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR INSTALL_FROM=old OLD_TAG=$COMPAT_TAG NEW_REF=$ref BULK_MB=0 KEEP=1 \
+    bash deploy/test/run.sh build up install baseline postinstall backup-fixture
+  ver=$(dxo /opt/holzcloud/holzcloud version) || die "holzcloud version failed in $NAME"
+  version_is_tag "$ver" "$COMPAT_TAG" \
+    || die "$NAME runs '$ver', which is not exactly the tag $COMPAT_TAG (version_is_tag): the previous release was not built from the tag"
+  info=$bd/holzcloud-old-$COMPAT_TAG.info
+  [ -f "$info" ] || die "$info does not exist: bins_build writes it next to the binary"
+  {
+    cat "$info"
+    echo "container-version: $ver"
+  } > "$OUT_DIR/compat-binary.txt"
+  say "compat-source: $ver, binary details in $OUT_DIR/compat-binary.txt"
+  say "COMPAT-SOURCE OK"
+}
+
+cmd_compat() { (
+  compat_names
+  compat_run
+); }
+
+# compat: CON-02, played on the containers compat-source and the fresh box leave.
+compat_run() {
+  local o=$OUT_DIR/compat.txt w=$OUT_DIR/.work-compat ref ver bl rl dir man mver brc rrc tdir wr n
+  local tag_sha new_sha inst_sha bsh setup_b setup_a lv_b lv_a hi_new hi_tag n_new n_tag adm ed code f ms mp msha ssha mrow
+  [ "$TARGET" = systemd-base ] || die "compat needs TARGET=systemd-base (got '$TARGET')"
+  need_container
+  ref=$(pin_ref)
+  ver=$(dxo /opt/holzcloud/holzcloud version) || die "holzcloud version failed in $NAME"
+  version_is_tag "$ver" "$COMPAT_TAG" \
+    || die "$NAME runs '$ver', not exactly the tag $COMPAT_TAG; play compat-source first (T-25-05)"
+  if docker container inspect "$TGT_NAME" > /dev/null 2>&1; then
+    n=$(dxto runuser -u holzcloud -- sqlite3 -readonly /opt/holzcloud/data/holzcloud.sqlite "select count(*) from users" 2> /dev/null) || n="?"
+    [ "$n" = 0 ] || die "$TGT_NAME exists and holds users ('$n'): a restore leaves the box restored, so compat needs a fresh one. Bring one up with: docker rm -f $TGT_NAME; PLATFORM=$PLATFORM TARGET=$TARGET NAME=$TGT_NAME OUT_DIR=$TGT_OUT_DIR INSTALL_FROM=new NEW_REF=$ref KEEP=1 bash deploy/test/run.sh build up install"
+  fi
+  bl=$(doc_backup_line) || die "deploy/DEPLOY.md has no line 'sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups'"
+  rl=$(doc_restore_line) || die "deploy/DEPLOY.md has no restore line 'sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/TIMESTAMP'"
+  bl=${bl#*:}
+  rl=${rl#*:}
+
+  # (1) The site holds something a person made: the editor of plan 01's prep makes a
+  # page and two uploads through the previous release's own admin forms.
+  cmd_prep
+  [ "$(tail -n 1 "$OUT_DIR/prep.txt" 2> /dev/null)" = "PREP OK" ] || die "$OUT_DIR/prep.txt does not end with PREP OK"
+  BADS=0
+  res_begin "$o"
+  rm -rf "$w"
+  mkdir -p "$w"
+  key_line "COMPAT-TAG: $COMPAT_TAG ($(git rev-parse "${COMPAT_TAG}^{commit}"))"
+  key_line "NEW-REF: $ref"
+  key_line "OLD-BINARY: $ver"
+  check_pass "version_is_tag: the source container runs exactly the tag $COMPAT_TAG"
+  key_line "HOST-ARCH: $(docker info --format '{{.Architecture}}')"
+  key_line "CONTAINER-ARCH: $(dxo uname -m)"
+  compat_state "$NAME" live /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/media "$OUT_DIR/compat-state-source.txt" \
+    || { check_bad "STATE-SOURCE could not be read from $NAME"; }
+  key_line "STATE-SOURCE: $(sed -n '/^@@KEYS$/,/^@@GOOSE$/p' "$OUT_DIR/compat-state-source.txt" | grep -v '^@@' | tr '\n' ' ')"
+
+  # (2) Whose backup.sh: the blob at the tag against the installed file and this release's.
+  tag_sha=$(git show "$COMPAT_TAG:deploy/backup.sh" | shasum -a 256 | awk '{ print $1 }')
+  new_sha=$(git show "$ref:deploy/backup.sh" | shasum -a 256 | awk '{ print $1 }')
+  inst_sha=$(dxo sha256sum /opt/holzcloud/deploy/backup.sh | awk '{ print $1 }')
+  key_line "BACKUP-SH-SHA256-TAG: $tag_sha"
+  key_line "BACKUP-SH-SHA256-NEW-REF: $new_sha"
+  key_line "BACKUP-SH-SHA256-INSTALLED: $inst_sha"
+  if [ "$inst_sha" = "$tag_sha" ]; then
+    bsh=identical
+  else
+    git show "$COMPAT_TAG:deploy/backup.sh" | dxi bash -c 'cat > /opt/holzcloud/deploy/backup.sh && chmod 755 /opt/holzcloud/deploy/backup.sh' \
+      || die "could not install the tag's backup.sh into $NAME"
+    inst_sha=$(dxo sha256sum /opt/holzcloud/deploy/backup.sh | awk '{ print $1 }')
+    [ "$inst_sha" = "$tag_sha" ] || die "the installed backup.sh still differs from the tag's after the replacement"
+    bsh=replaced
+  fi
+  key_line "BACKUP-SH: $bsh"
+  if [ "$tag_sha" = "$new_sha" ]; then
+    key_line "BACKUP-SH-TAG-EQUALS-NEW-REF: yes"
+  else
+    key_line "BACKUP-SH-TAG-EQUALS-NEW-REF: no"
+  fi
+
+  # (3) The document's manual backup line, as the service user, by the previous release.
+  key_line "BACKUP-LINE: $bl"
+  docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$bl" > "$w/backup.txt" 2>&1 || true
+  cp "$w/backup.txt" "$OUT_DIR/compat-backup.txt"
+  brc=$(sed -n 's/^RC //p' "$w/backup.txt" | tail -n 1)
+  dir=$(sed -n 's/^[0-9]* === Backup complete: \(.*\) ===$/\1/p' "$w/backup.txt" | tail -n 1)
+  key_line "BACKUP-RC: ${brc:-none}"
+  key_line "BACKUP-DIR: ${dir:-none}"
+  if [ "$brc" != 0 ] || [ -z "$dir" ] || ! dx test -f "$dir/MANIFEST"; then
+    check_bad "the previous release's backup.sh did not complete (status ${brc:-none}, directory '${dir:-none}'); the transcript ends: $(tail -n 4 "$w/backup.txt" | tr '\n' '|')"
+    key_line "COMPAT FAILED"
+    exit 1
+  fi
+  man=$(dxo cat "$dir/MANIFEST")
+  key_line "MANIFEST: $(printf '%s' "$man" | tr '\n' ' ')"
+  mver=$(printf '%s\n' "$man" | sed -n 's/^version=//p')
+  if version_is_tag "$mver" "$COMPAT_TAG"; then
+    check_pass "the MANIFEST of the backup names the tag: version=$mver"
+  else
+    check_bad "the MANIFEST of the backup says version=$mver, not the tag $COMPAT_TAG"
+  fi
+  compat_state "$NAME" file "$dir/holzcloud.sqlite" "$dir/media" "$OUT_DIR/compat-state-backup.txt" \
+    || { check_bad "STATE-BACKUP could not be read from $dir"; }
+
+  # (4) The fresh box with this release, if it is not there yet.
+  if ! docker container inspect "$TGT_NAME" > /dev/null 2>&1; then
+    say "compat: bringing up the fresh box $TGT_NAME with this release ($ref)"
+    PLATFORM=$PLATFORM TARGET=$TARGET NAME=$TGT_NAME OUT_DIR=$TGT_OUT_DIR INSTALL_FROM=new NEW_REF=$ref KEEP=1 \
+      bash deploy/test/run.sh build up install > "$OUT_DIR/compat-new-up.log" 2>&1 \
+      || die "the fresh box $TGT_NAME could not be brought up; see $OUT_DIR/compat-new-up.log"
+  fi
+  key_line "NEW-BINARY: $(dxto /opt/holzcloud/holzcloud version)"
+  compat_ship_sess "$TGT_NAME"
+  setup_b=$(tsess get /admin/setup /root/.hc-jar-compat-probe) || setup_b="HTTP none error"
+  dxt rm -f /root/.hc-jar-compat-probe || true
+  key_line "SETUP-BEFORE: $setup_b"
+  if [ "$setup_b" = "HTTP 200 -" ]; then
+    check_pass "the setup form answers 200 on the fresh box before the restore"
+  else
+    check_bad "the setup form on the fresh box before the restore: '$setup_b', expected 'HTTP 200 -'"
+  fi
+
+  # (5) The backup directory to the fresh box: run.sh's public transfer.
+  PLATFORM=$PLATFORM TARGET=$TARGET NAME=$NAME OUT_DIR=$OUT_DIR TGT_NAME=$TGT_NAME TGT_OUT_DIR=$TGT_OUT_DIR BACKUP_DIR_PATH=$dir KEEP=1 \
+    bash deploy/test/run.sh transfer > "$OUT_DIR/compat-transfer.log" 2>&1 || true
+  if grep -q '^TRANSFER: equal' "$TGT_OUT_DIR/transfer.txt" 2> /dev/null; then
+    check_pass "transfer: $(grep '^FILES:' "$TGT_OUT_DIR/transfer.txt" | head -n 1) files, sha256 equal on both sides"
+  else
+    check_bad "transfer did not end TRANSFER: equal; see $OUT_DIR/compat-transfer.log"
+    key_line "COMPAT FAILED"
+    exit 1
+  fi
+
+  # (6) This release's restore.sh, the document's restore line, yes on stdin.
+  tdir=/opt/holzcloud/backups/$(basename "$dir")
+  wr=$(printf '%s' "$rl" | sed "s|/opt/holzcloud/backups/[0-9-]*\$|$tdir|")
+  key_line "RESTORE-LINE: $wr"
+  deviation "DEVIATION[start-limit]: the shipped holzcloud.service allows 5 starts within 300 s; the fresh box was started by its install and is started again by the restore and by run.sh check, so 'systemctl reset-failed holzcloud' is run on it before each. The unit is not changed and no sandbox directive is touched"
+  dxt systemctl reset-failed holzcloud || true
+  printf 'yes\n' | docker exec -i "$TGT_NAME" bash -c "$P25_STAMP_SH" _ "$wr" > "$w/restore.txt" 2>&1 || true
+  cp "$w/restore.txt" "$OUT_DIR/compat-restore.txt"
+  rrc=$(sed -n 's/^RC //p' "$w/restore.txt" | tail -n 1)
+  key_line "RESTORE-RC: ${rrc:-none}"
+  key_line "RESTORE-WALL-S: $(awk '$1 == "WALL" { printf "%.1f", ($3 - $2) / 1000 }' "$w/restore.txt")"
+  if [ "$rrc" = 0 ] && grep -q '=== Restore complete ===' "$w/restore.txt"; then
+    check_pass "restore.sh of this release ended 0 with '=== Restore complete ===' on the previous release's backup"
+  else
+    check_bad "restore.sh of this release ended ${rrc:-none} on the previous release's backup; the transcript ends: $(tail -n 4 "$w/restore.txt" | tr '\n' '|')"
+    key_line "COMPAT FAILED"
+    exit 1
+  fi
+
+  # (7) The far side.
+  compat_state "$TGT_NAME" live /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/media "$OUT_DIR/compat-state-restored.txt" \
+    || { check_bad "STATE-RESTORED could not be read from $TGT_NAME"; }
+  key_line "STATE-RESTORED: $(sed -n '/^@@KEYS$/,/^@@GOOSE$/p' "$OUT_DIR/compat-state-restored.txt" | grep -v '^@@' | tr '\n' ' ')"
+  compat_compare source-restored "$OUT_DIR/compat-state-source.txt" "$OUT_DIR/compat-state-restored.txt"
+  compat_compare backup-restored "$OUT_DIR/compat-state-backup.txt" "$OUT_DIR/compat-state-restored.txt"
+  setup_a=$(tsess get /admin/setup /root/.hc-jar-compat-probe) || setup_a="HTTP none error"
+  key_line "SETUP-AFTER: $setup_a"
+  if [ "$setup_a" = "HTTP 404 -" ]; then
+    check_pass "the setup form answers 404 after the restore (the restored database has users)"
+  else
+    check_bad "the setup form after the restore: '$setup_a', expected 'HTTP 404 -'"
+  fi
+  adm=$(tsess login login@example.test /root/.hc-login-pass /root/.hc-jar-compat-a) || adm="HTTP none error"
+  ed=$(tsess login churn@example.test /root/.hc-login-pass /root/.hc-jar-compat-e) || ed="HTTP none error"
+  dxt rm -f /root/.hc-jar-compat-probe /root/.hc-jar-compat-a /root/.hc-jar-compat-e || true
+  key_line "LOGIN-ADMIN: $adm"
+  key_line "LOGIN-EDITOR: $ed"
+  if [ "$adm" = "HTTP 303 /admin/" ] && [ "$ed" = "HTTP 303 /admin/" ]; then
+    check_pass "both accounts of the previous release log in on the restored box: HTTP 303 /admin/"
+  else
+    check_bad "logins on the restored box: admin '$adm', editor '$ed', expected 'HTTP 303 /admin/' for both"
+  fi
+  code=$(dxto curl -s -o /dev/null -w '%{http_code}' --max-time 30 -H 'Host: test.local' http://127.0.0.1:8080/plugintest) || code=error
+  key_line "PLUGINTEST: HTTP $code"
+  if [ "$code" = 200 ]; then check_pass "/plugintest answers 200 for test.local on the restored box"; else check_bad "/plugintest answered $code on the restored box"; fi
+  mrow=$(sed -n '/^@@MEDIAORIG$/,/^@@END$/p' "$OUT_DIR/compat-state-source.txt" | grep -v '^@@' | head -n 1)
+  mp=${mrow%%|*}
+  ssha=${mrow#*|}
+  msha=$(dxt bash -c 'curl -s --max-time 30 -H "Host: test.local" "http://127.0.0.1:8080/media/$1" | sha256sum | cut -d" " -f1' _ "$mp" | tr -d '\r') || msha=error
+  key_line "MEDIA-SERVED: $mp source=$ssha served=$msha"
+  if [ -n "$mp" ] && [ "$ssha" = "$msha" ]; then
+    check_pass "a media original is served over HTTP with the sha256 of the source's file"
+  else
+    check_bad "the media original $mp: served sha256 '$msha', the source's file '$ssha'"
+  fi
+
+  # The migration level, read twice.
+  lv_b=$(kv "$OUT_DIR/compat-state-backup.txt" LEVEL)
+  lv_a=$(kv "$OUT_DIR/compat-state-restored.txt" LEVEL)
+  set -- $(git_migrations "$ref")
+  n_new=$1
+  hi_new=$2
+  set -- $(git_migrations "${COMPAT_TAG}^{commit}")
+  n_tag=$1
+  hi_tag=$2
+  key_line "MIGRATIONS-AT-TAG: $n_tag"
+  key_line "MIGRATIONS-HIGHEST-AT-TAG: $hi_tag"
+  key_line "MIGRATIONS-AT-NEW-REF: $n_new"
+  key_line "MIGRATIONS-HIGHEST-AT-NEW-REF: $hi_new"
+  key_line "LEVEL-BEFORE: $lv_b"
+  key_line "LEVEL-AFTER: $lv_a"
+  if migration_ok "$lv_b" "$lv_a" "$hi_new"; then
+    check_pass "migration_ok: before $lv_b, after $lv_a, highest at $ref $hi_new"
+    key_line "MIGRATION-SENTENCE: $(migration_sentence "$lv_b" "$lv_a")"
+  else
+    check_bad "migration_ok failed: before '$lv_b', after '$lv_a', highest at $ref '$hi_new'"
+  fi
+
+  rm -rf "${w:?}"
+  leak_check
+  if [ "$BADS" -gt 0 ]; then
+    key_line "COMPAT FAILED"
+    say "nightly.sh: COMPAT FAILED, $BADS BAD line(s); see $o"
+    exit 1
+  fi
+  key_line "COMPAT OK"
+}
+
+# down-con: remove the two containers of compat-source and compat. Safe when either is
+# absent; it never touches NAME or TGT_NAME (the existing `down` does).
+cmd_down_con() {
+  local c
+  for c in "$OLD_NAME" "$NEW_NAME"; do
+    if docker container inspect "$c" > /dev/null 2>&1; then
+      docker rm -f "$c" > /dev/null 2>&1 || say "down-con: could not remove $c"
+    fi
+  done
+  say "down-con: $OLD_NAME and $NEW_NAME are gone"
+}
+
+# capfull is added in task 3 of plan 02.
+cmd_capfull() { die "capfull is not written yet"; }
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -4707,6 +5245,10 @@ while [ "$#" -gt 0 ]; do
     offsite-restore) cmd_offsite_restore ;;
     record-check) cmd_record_check ;;
     prep | consist | window) "cmd_$sub" ;;
+    compat-source) cmd_compat_source ;;
+    compat) cmd_compat ;;
+    capfull) cmd_capfull ;;
+    down-con) cmd_down_con ;;
     *) usage ;;
   esac
 done
