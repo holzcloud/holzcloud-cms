@@ -2,19 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v0.1.1
 milestone_name: Beta belegt
-current_phase_name: Repository tidy
+current_phase: 28
+current_phase_name: The promise in writing
 status: planning
-stopped_at: Completed 26-03-PLAN.md
-last_updated: "2026-10-26T15:47:38.539Z"
+stopped_at: Phase 27 complete, ready to plan Phase 28
+last_updated: "2026-10-26T16:53:43.348Z"
 last_activity: 2026-10-26
-last_activity_desc: Phase 26 complete, transitioned to Phase 27
-state_head: 007c09ceb400ef14f9ff07ebc3fa63eeee4fb5d4
+last_activity_desc: Phase 27 complete, transitioned to Phase 28
+state_head: 5bcd007790ec6f59cda5d4fae74de58c113acef5
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  percent: 93
+  completed_phases: 4
+  total_plans: 14
+  completed_plans: 14
+  percent: 80
 ---
 
 ## Where we are (2026-10-26)
@@ -201,18 +202,17 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 - [Phase 23]: 23-03: release is Keep; backfill-releases and tagfix are Review first (push-triggered workflows with contents: write, owner decides); seven other remote branches Safe to delete by patch-equivalence in main
 - [Phase 23]: Phase 23-04: git push origin main precedes git push origin main:release; the owner file contains no tag command and records four veto points with the cost of overriding each
 
-
 ## Current Position
 
-Phase: 27 (Repository tidy) — EXECUTING
-Plan: 3 of 5
-Status: Executing Phase 27
-Last activity: 2026-10-26 — plan 27-03 collapsed this file to one current position, history moved to milestones/STATE-HISTORY.md
+Phase: 28 — The promise in writing
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-26 — Phase 27 complete, transitioned to Phase 28
 
 ## Session Continuity
 
 **Last session:** 2026-10-26T15:41:20.623Z
-**Stopped at:** Completed 26-03-PLAN.md
+**Stopped at:** Phase 27 complete, ready to plan Phase 28
 **Resume file:** None
 
 ## Operator Next Steps

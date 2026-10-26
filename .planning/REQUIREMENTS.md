@@ -42,8 +42,8 @@ only together with the record that proves it. No feature is built.
 ### Repository (TIDY)
 
 - [x] **TIDY-01**: Each remote branch in `docs/branches.md` is decided: the seven Safe-to-delete and the two Review-first branches are removed or kept on purpose, with the decision written down.
-- [ ] **TIDY-02**: STATE.md carries one current position; the history blocks are collapsed so `state.advance-plan` no longer refuses with `ambiguous_position_phase`.
-- [ ] **TIDY-03**: v0.1.0 is archived: `milestones/v0.1.0-ROADMAP.md`, `-REQUIREMENTS.md`, its audit, and a one-line entry in ROADMAP.md as for v2.5.
+- [x] **TIDY-02**: STATE.md carries one current position; the history blocks are collapsed so `state.advance-plan` no longer refuses with `ambiguous_position_phase`.
+- [x] **TIDY-03**: v0.1.0 is archived: `milestones/v0.1.0-ROADMAP.md`, `-REQUIREMENTS.md`, its audit, and a one-line entry in ROADMAP.md as for v2.5.
 - [x] **TIDY-04**: The local backup branch from 2026-10-20 and the stray branch in the shared checkout are retired.
 
 ---
@@ -81,8 +81,8 @@ only together with the record that proves it. No feature is built.
 | SRV-02 | Phase 26 | Pending owner |
 | SRV-03 | Phase 26 | Pending owner |
 | TIDY-01 | Phase 27 | Complete |
-| TIDY-02 | Phase 27 | Pending |
-| TIDY-03 | Phase 27 | Pending |
+| TIDY-02 | Phase 27 | Complete |
+| TIDY-03 | Phase 27 | Complete |
 | TIDY-04 | Phase 27 | Complete |
 | DOC-01 | Phase 28 | Pending |
 | DOC-02 | Phase 28 | Pending |
