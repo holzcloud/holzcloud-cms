@@ -5801,7 +5801,7 @@ fut02_verdict() {
 fut02_line() {
   case "$(fut02_verdict "$1" "$2")" in
     PROMOTE) echo "FUT-02: PROMOTE (adds $1, deletes $2: a disagreement was seen whose window could not be named, so an atomic snapshot is a candidate requirement)" ;;
-    NOT-NEEDED) echo "FUT-02: not needed (adds $1, deletes $2: every disagreement that occurred was reproduced and its window named, and a stage without one rests on the runs counted in consist.txt)" ;;
+    NOT-NEEDED) echo "FUT-02: not needed (adds $1, deletes $2: every disagreement that occurred was reproduced and its window named)" ;;
     *) echo "FUT-02: undecided (adds ${1:-?}, deletes ${2:-?}: a stage that did not finish with a verdict decides nothing about FUT-02)" ;;
   esac
 }
@@ -6078,6 +6078,51 @@ selftest_con() {
   st_eq "con_classify_capfull false complete is a defect candidate" 1 "$(printf '%s\n' "$out" | grep -c 'UNIT-CLASS is FALSE-COMPLETE.*defect candidate (class 4)')"
   st_eq "con_classify_capfull a missing file names every class" 4 "$(con_classify_capfull "$t/none.txt" | grep -c 'is missing from')"
 
+  # con_summarize on a fixture that has the shape of the real files
+  mkdir -p "$t/s/src" "$t/s/tgt" "$t/s/old" "$t/s/new"
+  printf 'PREP OK\n' > "$t/s/src/prep.txt"
+  {
+    printf 'MIN-RUNS: 30\nRESTORED-RUNS-FLOOR: 15 per stage\n'
+    for c in adds deletes; do
+      printf 'CONSIST-RUNS-STAGE-%s: 40\nRESTORED-RUNS-STAGE-%s: 40\nUPLOADS-IN-WINDOW-STAGE-%s: 90\nPAGES-IN-WINDOW-STAGE-%s: 20\nDELETES-IN-WINDOW-STAGE-%s: 3\n' "$c" "$c" "$c" "$c" "$c"
+      printf 'BACKUP-RC-HISTOGRAM-STAGE-%s: 0=39 24=1\nOUTCOME-STAGE-%s: ORPHAN-ONLY-NAMED\n' "$c" "$c"
+      printf 'CONSIST-SUMMARY-STAGE-%s: RUNS=40 RESTORED=40 AGREE=10 ORPHAN-ONLY=29 OUTCOME=ORPHAN-ONLY-NAMED\n' "$c"
+    done
+    printf 'CONSIST OK\n'
+  } > "$t/s/src/consist.txt"
+  printf 'RUN 1 adds CLASS=AGREE X=1\nRUN 2 adds CLASS=ORPHAN-ONLY X=1\n' > "$t/s/src/consist-runs.txt"
+  printf 'CONTROL C0 ACTION=none HOLD-REACHED=yes HOLD-RELEASED-IN-S=0 MISSING=0 ORPHAN=0 CLASS=AGREE EXPECTED=AGREE\nCONTROL C1 ACTION=upload HOLD-REACHED=yes HOLD-RELEASED-IN-S=1 MISSING=0 ORPHAN=3 CLASS=ORPHAN-ONLY EXPECTED=ORPHAN-ONLY\nCONTROL C2 ACTION=delete HOLD-REACHED=yes HOLD-RELEASED-IN-S=1 MISSING=3 ORPHAN=0 CLASS=ROW-WITHOUT-FILE EXPECTED=ROW-WITHOUT-FILE\nWINDOW OK\n' > "$t/s/src/window.txt"
+  printf 'FLOOR-MB: 1024\nDATA-MB: 1170 (what a backup has to write)\nFS-SIZE-MB: 1064\nFREE-AT-GUARD-MB: 1064 (df -Pm)\nCONTROL-CLASS: COMPLETE\nHAND-CLASS: FAILED-PARTIAL-DIR-LEFT\nAGAIN-CLASS: GUARD-REFUSED\nUNIT-CLASS: FAILED-PARTIAL-DIR-LEFT\nUNIT-RESULT: exit-code\nUNIT-EXECMAINSTATUS: 11\nRESTORE-PARTIAL-EXIT: 1\nCAPFULL OK\n' > "$t/s/src/capfull.txt"
+  printf 'COMPAT-TAG: v0.1.0 (4d238b9)\nSTATE-SOURCE: LEVEL: 60 PAGES-COUNT: 8 USERS-COUNT: 2 \nSTATE-RESTORED: LEVEL: 60 PAGES-COUNT: 8 USERS-COUNT: 2 \nLEVEL-BEFORE: 60\nLEVEL-AFTER: 60\nLOGIN-ADMIN: HTTP 303 /admin/\nLOGIN-EDITOR: HTTP 303 /admin/\nMEDIA-SERVED-EQUAL: 4 of 4\nCHECK: 17 of 17\nCOMPAT OK\n' > "$t/s/old/compat.txt"
+  printf 'details\n' > "$t/s/old/compat-binary.txt"
+  printf 'STEP 01 rc=0 a\nSTEP 02 rc=1 b\n' > "$t/s/src/steps.txt"
+  printf 'STEP 01 rc=0 a\n' > "$t/s/old/steps.txt"
+  printf 'DEVIATION[churn]: x\nDEVIATION[fs]: y\n' > "$t/s/src/deviations.txt"
+  printf 'DEVIATION[churn]: x\nDEVIATION[hold]: z\n' > "$t/s/tgt/deviations.txt"
+  out=$(set -e; OUT_DIR=$t/s/src TGT_OUT_DIR=$t/s/tgt OLD_OUT_DIR=$t/s/old NEW_OUT_DIR=$t/s/new PLATFORM=linux/amd64 con_summarize 0 0 0 0 0 0 OK 2>&1; echo "FAILS=$CON_FAILS")
+  st_eq "con_summarize CON-01" 1 "$(printf '%s\n' "$out" | grep -c '^CON-01 PASS$')"
+  st_eq "con_summarize CON-02" 1 "$(printf '%s\n' "$out" | grep -c '^CON-02 PASS$')"
+  st_eq "con_summarize CON-03" 1 "$(printf '%s\n' "$out" | grep -c '^CON-03 PASS$')"
+  st_eq "con_summarize leak line" 1 "$(printf '%s\n' "$out" | grep -c '^LEAK-CHECK OK$')"
+  st_eq "con_summarize FUT-02 line" 1 "$(printf '%s\n' "$out" | grep -c '^FUT-02: not needed (adds ORPHAN-ONLY-NAMED, deletes ORPHAN-ONLY-NAMED')"
+  st_eq "con_summarize STEPS" 1 "$(printf '%s\n' "$out" | grep -c '^STEPS: 3 played, 1 failed$')"
+  st_eq "con_summarize DEVIATIONS" 1 "$(printf '%s\n' "$out" | grep -c '^DEVIATIONS: churn fs hold$')"
+  st_eq "con_summarize WINDOW" 1 "$(printf '%s\n' "$out" | grep -c '^WINDOW: C0 (nothing written) AGREE, C1 (upload in the window) ORPHAN-ONLY, C2 (delete in the window) ROW-WITHOUT-FILE$')"
+  st_eq "con_summarize COMPAT" 1 "$(printf '%s\n' "$out" | grep -c '^COMPAT: TAG=v0.1.0 (4d238b9) LEVEL-BEFORE=60 LEVEL-AFTER=60 LOGIN-ADMIN=HTTP 303 /admin/ LOGIN-EDITOR=HTTP 303 /admin/ PAGES-SOURCE=8 PAGES-RESTORED=8 MEDIA-SERVED=4 of 4 CHECK=17 of 17$')"
+  st_eq "con_summarize CAPFULL" 1 "$(printf '%s\n' "$out" | grep -c '^CAPFULL: FLOOR-MB=1024 FREE-AT-GUARD-MB=1064 DATA-MB=1170 FS-SIZE-MB=1064 CONTROL-CLASS=COMPLETE HAND-CLASS=FAILED-PARTIAL-DIR-LEFT AGAIN-CLASS=GUARD-REFUSED UNIT-CLASS=FAILED-PARTIAL-DIR-LEFT UNIT-RESULT=exit-code UNIT-EXECMAINSTATUS=11 RESTORE-PARTIAL-EXIT=1$')"
+  st_eq "con_summarize CLASSIFY lines" 1 "$(printf '%s\n' "$out" | grep -c '^CLASSIFY: consist stage adds: 1 run(s) with CLASS=ORPHAN-ONLY (runs 2)$')"
+  st_eq "con_summarize CLASSIFY capfull" 1 "$(printf '%s\n' "$out" | grep -c '^CLASSIFY: capfull HAND-CLASS is FAILED-PARTIAL-DIR-LEFT')"
+  st_eq "con_summarize no failures" "FAILS=0" "$(printf '%s\n' "$out" | tail -n 1)"
+  st_eq "con_summarize writes summary.txt" 1 "$(grep -c '^CON-03 PASS$' "$t/s/src/summary.txt")"
+  out=$(set -e; OUT_DIR=$t/s/src TGT_OUT_DIR=$t/s/tgt OLD_OUT_DIR=$t/s/old NEW_OUT_DIR=$t/s/new PLATFORM=linux/amd64 con_summarize 0 3 3 0 0 0 FAILED 2>&1; echo "FAILS=$CON_FAILS")
+  st_eq "con_summarize a failed leak check and a broken CON-01" "FAILS=2" "$(printf '%s\n' "$out" | tail -n 1)"
+  st_eq "con_summarize says LEAK-CHECK FAILED" 1 "$(printf '%s\n' "$out" | grep -c '^LEAK-CHECK FAILED$')"
+  out=$(set -e; OUT_DIR=$t/s/src TGT_OUT_DIR=$t/s/tgt OLD_OUT_DIR=$t/s/old NEW_OUT_DIR=$t/s/new PLATFORM=linux/amd64 con_summarize 0 0 0 0 1 3 OK 2>&1; echo "FAILS=$CON_FAILS")
+  st_eq "con_summarize compat-source failed is CON-02 FAIL" 1 "$(printf '%s\n' "$out" | grep -c '^CON-02 FAIL (compat-source ended with status 1')"
+  rm -f "$t/s/old/compat-binary.txt"
+  out=$(set -e; OUT_DIR=$t/s/src TGT_OUT_DIR=$t/s/tgt OLD_OUT_DIR=$t/s/old NEW_OUT_DIR=$t/s/new PLATFORM=linux/amd64 con_summarize 0 0 0 0 0 0 OK 2>&1; echo "FAILS=$CON_FAILS")
+  st_eq "con_summarize without compat-binary.txt is CON-02 FAIL" 1 "$(printf '%s\n' "$out" | grep -c '^CON-02 FAIL (.*compat-binary.txt is missing')"
+
   # record_check with the CON headings, and with none set it keeps its answers
   st_record_make "$t/r" "$(git rev-parse --short HEAD)"
   sed 's/^## BKP-0\([1-5]\)/## CON-0\1/' "$t/r/rec.md" > "$t/r/con.md"
@@ -6105,6 +6150,76 @@ con_chain_cleanup() {
   [ "$CON_KEEP" != 1 ] || return 0
   cmd_down || true
   cmd_down_con || true
+}
+
+# con_summarize SC_PREP SC_CONSIST SC_WINDOW SC_CAPFULL SC_CSRC SC_COMPAT LEAK: the
+# verdicts of the three requirements, from the stage statuses and the files the stages
+# wrote, and the summary block (to OUT_DIR/summary.txt, printed). It sets CON_FAILS to
+# the number of requirements and checks that did not pass. It looks at files only.
+CON_FAILS=0
+con_summarize() {
+  local sc_prep=$1 sc_consist=$2 sc_window=$3 sc_capfull=$4 sc_csrc=$5 sc_compat=$6 leak=$7
+  local v1 v2 v3 v fut fut_a fut_d kinds bp sp=0 sf=0 st d f cl s sum=$OUT_DIR/summary.txt
+  CON_FAILS=0
+  v1=$(con01_verdict "$sc_prep" "$OUT_DIR/prep.txt" "$sc_consist" "$OUT_DIR/consist.txt" "$sc_window" "$OUT_DIR/window.txt" 30)
+  if [ "$sc_csrc" -ne 0 ]; then
+    v2="FAIL (compat-source ended with status $sc_csrc: the previous release was not brought up and compat was not played)"
+  elif [ ! -s "$OLD_OUT_DIR/compat-binary.txt" ]; then
+    v2="FAIL ($OLD_OUT_DIR/compat-binary.txt is missing: nothing says which binary the previous release was)"
+  else
+    v2=$(req_verdict "$sc_compat" "$OLD_OUT_DIR/compat.txt" "COMPAT OK")
+  fi
+  v3=$(req_verdict "$sc_capfull" "$OUT_DIR/capfull.txt" "CAPFULL OK")
+  fut_a=$(kvq "$OUT_DIR/consist.txt" OUTCOME-STAGE-adds)
+  fut_d=$(kvq "$OUT_DIR/consist.txt" OUTCOME-STAGE-deletes)
+  fut=$(fut02_line "$fut_a" "$fut_d")
+
+  for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
+    bp=$(steps_of "$d")
+    sp=$((sp + ${bp% *}))
+    sf=$((sf + ${bp#* }))
+  done
+  # a directory without deviations.txt (the fresh box, the second host) is no failure:
+  # the pipeline runs under pipefail, and a failed assignment would end the chain here
+  kinds=$(for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
+    sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$d/deviations.txt" 2> /dev/null || true
+  done | sort -u | tr '\n' ' ' | sed 's/ $//') || kinds=""
+
+  # What the person running the chain has to classify (1 harness bug, 2 container limit,
+  # 3 measured property of the shipped scripts, 4 defect in a shipped file).
+  cl=$(
+    con_classify "$OUT_DIR/consist-runs.txt"
+    for f in "$OUT_DIR/prep.txt" "$OUT_DIR/consist.txt" "$OUT_DIR/window.txt" "$OUT_DIR/capfull.txt" "$OLD_OUT_DIR/compat.txt"; do
+      grep '^BAD' "$f" 2> /dev/null | cut -c1-300 | sed "s|^|CLASSIFY: BAD line in $f: |" || true
+    done
+    con_classify_capfull "$OUT_DIR/capfull.txt"
+  ) || cl=""
+
+  {
+    echo "---- summary ($PLATFORM) ----"
+    echo "CON-01 $v1"
+    echo "CON-02 $v2"
+    echo "CON-03 $v3"
+    for st in adds deletes; do
+      echo "CONSIST: stage $st $(kvq "$OUT_DIR/consist.txt" "CONSIST-SUMMARY-STAGE-$st")"
+      echo "CONSIST: stage $st window writes: uploads $(kvq "$OUT_DIR/consist.txt" "UPLOADS-IN-WINDOW-STAGE-$st"), page saves $(kvq "$OUT_DIR/consist.txt" "PAGES-IN-WINDOW-STAGE-$st"), deletes $(kvq "$OUT_DIR/consist.txt" "DELETES-IN-WINDOW-STAGE-$st"); backup status histogram $(kvq "$OUT_DIR/consist.txt" "BACKUP-RC-HISTOGRAM-STAGE-$st")"
+    done
+    echo "CONSIST: MIN-RUNS $(kvq "$OUT_DIR/consist.txt" MIN-RUNS), restored-run floor $(kvq "$OUT_DIR/consist.txt" RESTORED-RUNS-FLOOR)"
+    echo "WINDOW: C0 (nothing written) $(con_class "$OUT_DIR/window.txt" C0), C1 (upload in the window) $(con_class "$OUT_DIR/window.txt" C1), C2 (delete in the window) $(con_class "$OUT_DIR/window.txt" C2)"
+    echo "COMPAT: TAG=$(kvq "$OLD_OUT_DIR/compat.txt" COMPAT-TAG) LEVEL-BEFORE=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-BEFORE) LEVEL-AFTER=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-AFTER) LOGIN-ADMIN=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-ADMIN) LOGIN-EDITOR=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-EDITOR) PAGES-SOURCE=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-SOURCE)" PAGES-COUNT) PAGES-RESTORED=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-RESTORED)" PAGES-COUNT) MEDIA-SERVED=$(kvq "$OLD_OUT_DIR/compat.txt" MEDIA-SERVED-EQUAL) CHECK=$(kvq "$OLD_OUT_DIR/compat.txt" CHECK)"
+    v=$(kvq "$OUT_DIR/capfull.txt" FREE-AT-GUARD-MB)
+    echo "CAPFULL: FLOOR-MB=$(kvq "$OUT_DIR/capfull.txt" FLOOR-MB) FREE-AT-GUARD-MB=${v%% *} DATA-MB=$(kvq "$OUT_DIR/capfull.txt" DATA-MB | cut -d' ' -f1) FS-SIZE-MB=$(kvq "$OUT_DIR/capfull.txt" FS-SIZE-MB) CONTROL-CLASS=$(kvq "$OUT_DIR/capfull.txt" CONTROL-CLASS) HAND-CLASS=$(kvq "$OUT_DIR/capfull.txt" HAND-CLASS) AGAIN-CLASS=$(kvq "$OUT_DIR/capfull.txt" AGAIN-CLASS) UNIT-CLASS=$(kvq "$OUT_DIR/capfull.txt" UNIT-CLASS) UNIT-RESULT=$(kvq "$OUT_DIR/capfull.txt" UNIT-RESULT) UNIT-EXECMAINSTATUS=$(kvq "$OUT_DIR/capfull.txt" UNIT-EXECMAINSTATUS) RESTORE-PARTIAL-EXIT=$(kvq "$OUT_DIR/capfull.txt" RESTORE-PARTIAL-EXIT)"
+    echo "$fut"
+    if [ -n "$cl" ]; then printf '%s\n' "$cl"; else echo "CLASSIFY: none"; fi
+    echo "STEPS: $sp played, $sf failed"
+    echo "DEVIATIONS: ${kinds:-none}"
+    if [ "$leak" = OK ]; then echo "LEAK-CHECK OK"; else echo "LEAK-CHECK FAILED"; fi
+  } > "$sum"
+  cat "$sum"
+  for s in "$v1" "$v2" "$v3"; do
+    [ "$s" = PASS ] || CON_FAILS=$((CON_FAILS + 1))
+  done
+  [ "$leak" = OK ] || CON_FAILS=$((CON_FAILS + 1))
 }
 
 # con-chain: the whole proof of phase 25 from nothing but the image, in one command.
@@ -6175,72 +6290,19 @@ cmd_con_chain() {
   fi
 
   # The verdicts, from the files the stages wrote.
-  v1=$(con01_verdict "$sc_prep" "$OUT_DIR/prep.txt" "$sc_consist" "$OUT_DIR/consist.txt" "$sc_window" "$OUT_DIR/window.txt" 30)
-  if [ "$sc_csrc" -ne 0 ]; then
-    v2="FAIL (compat-source ended with status $sc_csrc: the previous release was not brought up and compat was not played)"
-  elif [ ! -s "$OLD_OUT_DIR/compat-binary.txt" ]; then
-    v2="FAIL ($OLD_OUT_DIR/compat-binary.txt is missing: nothing says which binary the previous release was)"
-  else
-    v2=$(req_verdict "$sc_compat" "$OLD_OUT_DIR/compat.txt" "COMPAT OK")
-  fi
-  v3=$(req_verdict "$sc_capfull" "$OUT_DIR/capfull.txt" "CAPFULL OK")
-  fut_a=$(kvq "$OUT_DIR/consist.txt" OUTCOME-STAGE-adds)
-  fut_d=$(kvq "$OUT_DIR/consist.txt" OUTCOME-STAGE-deletes)
-  fut=$(fut02_line "$fut_a" "$fut_d")
+  # The statuses are kept as a file of their own: and the record pastes it.
+  printf 'prep=%s consist=%s window=%s capfull=%s compat-source=%s compat=%s\n' "$sc_prep" "$sc_consist" "$sc_window" "$sc_capfull" "$sc_csrc" "$sc_compat" > "$OUT_DIR/chain-statuses.txt"
 
   # No secret of any container in any of the four directories.
   leak=OK
   ( leak_check ) || leak=FAILED
   ( NAME=$OLD_NAME OUT_DIR=$OLD_OUT_DIR TGT_NAME=$NEW_NAME TGT_OUT_DIR=$NEW_OUT_DIR leak_check ) || leak=FAILED
 
-  for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
-    bp=$(steps_of "$d")
-    sp=$((sp + ${bp% *}))
-    sf=$((sf + ${bp#* }))
-  done
-  kinds=$(for d in "$OUT_DIR" "$TGT_OUT_DIR" "$OLD_OUT_DIR" "$NEW_OUT_DIR"; do
-    sed -n 's/^DEVIATION\[\([a-z-]*\)\].*/\1/p' "$d/deviations.txt" 2> /dev/null
-  done | sort -u | tr '\n' ' ' | sed 's/ $//')
-
-  # What the person running the chain has to classify (1 harness bug, 2 container limit,
-  # 3 measured property of the shipped scripts, 4 defect in a shipped file).
-  cl=$(
-    con_classify "$OUT_DIR/consist-runs.txt"
-    for f in "$OUT_DIR/prep.txt" "$OUT_DIR/consist.txt" "$OUT_DIR/window.txt" "$OUT_DIR/capfull.txt" "$OLD_OUT_DIR/compat.txt"; do
-      grep '^BAD' "$f" 2> /dev/null | cut -c1-300 | sed "s|^|CLASSIFY: BAD line in $f: |" || true
-    done
-    con_classify_capfull "$OUT_DIR/capfull.txt"
-  )
-
-  {
-    echo "---- summary ($PLATFORM) ----"
-    echo "CON-01 $v1"
-    echo "CON-02 $v2"
-    echo "CON-03 $v3"
-    for st in adds deletes; do
-      echo "CONSIST: stage $st $(kvq "$OUT_DIR/consist.txt" "CONSIST-SUMMARY-STAGE-$st")"
-      echo "CONSIST: stage $st window writes: uploads $(kvq "$OUT_DIR/consist.txt" "UPLOADS-IN-WINDOW-STAGE-$st"), page saves $(kvq "$OUT_DIR/consist.txt" "PAGES-IN-WINDOW-STAGE-$st"), deletes $(kvq "$OUT_DIR/consist.txt" "DELETES-IN-WINDOW-STAGE-$st"); backup status histogram $(kvq "$OUT_DIR/consist.txt" "BACKUP-RC-HISTOGRAM-STAGE-$st")"
-    done
-    echo "CONSIST: MIN-RUNS $(kvq "$OUT_DIR/consist.txt" MIN-RUNS), restored-run floor $(kvq "$OUT_DIR/consist.txt" RESTORED-RUNS-FLOOR)"
-    echo "WINDOW: C0 (nothing written) $(con_class "$OUT_DIR/window.txt" C0), C1 (upload in the window) $(con_class "$OUT_DIR/window.txt" C1), C2 (delete in the window) $(con_class "$OUT_DIR/window.txt" C2)"
-    echo "COMPAT: TAG=$(kvq "$OLD_OUT_DIR/compat.txt" COMPAT-TAG) LEVEL-BEFORE=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-BEFORE) LEVEL-AFTER=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-AFTER) LOGIN-ADMIN=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-ADMIN) LOGIN-EDITOR=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-EDITOR) PAGES-SOURCE=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-SOURCE)" PAGES-COUNT) PAGES-RESTORED=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-RESTORED)" PAGES-COUNT) MEDIA-SERVED=$(kvq "$OLD_OUT_DIR/compat.txt" MEDIA-SERVED-EQUAL) CHECK=$(kvq "$OLD_OUT_DIR/compat.txt" CHECK)"
-    v=$(kvq "$OUT_DIR/capfull.txt" FREE-AT-GUARD-MB)
-    echo "CAPFULL: FLOOR-MB=$(kvq "$OUT_DIR/capfull.txt" FLOOR-MB) FREE-AT-GUARD-MB=${v%% *} DATA-MB=$(kvq "$OUT_DIR/capfull.txt" DATA-MB | cut -d' ' -f1) FS-SIZE-MB=$(kvq "$OUT_DIR/capfull.txt" FS-SIZE-MB) CONTROL-CLASS=$(kvq "$OUT_DIR/capfull.txt" CONTROL-CLASS) HAND-CLASS=$(kvq "$OUT_DIR/capfull.txt" HAND-CLASS) AGAIN-CLASS=$(kvq "$OUT_DIR/capfull.txt" AGAIN-CLASS) UNIT-CLASS=$(kvq "$OUT_DIR/capfull.txt" UNIT-CLASS) UNIT-RESULT=$(kvq "$OUT_DIR/capfull.txt" UNIT-RESULT) UNIT-EXECMAINSTATUS=$(kvq "$OUT_DIR/capfull.txt" UNIT-EXECMAINSTATUS) RESTORE-PARTIAL-EXIT=$(kvq "$OUT_DIR/capfull.txt" RESTORE-PARTIAL-EXIT)"
-    echo "$fut"
-    if [ -n "$cl" ]; then printf '%s\n' "$cl"; else echo "CLASSIFY: none"; fi
-    echo "STEPS: $sp played, $sf failed"
-    echo "DEVIATIONS: ${kinds:-none}"
-    if [ "$leak" = OK ]; then echo "LEAK-CHECK OK"; else echo "LEAK-CHECK FAILED"; fi
-  } > "$sum"
-  cat "$sum"
+  con_summarize "$sc_prep" "$sc_consist" "$sc_window" "$sc_capfull" "$sc_csrc" "$sc_compat" "$leak"
   say "con-chain: stage statuses (1 is a BAD line or a refusal, 3 is not played or the platform could not give the evidence): prep=$sc_prep consist=$sc_consist window=$sc_window capfull=$sc_capfull compat-source=$sc_csrc compat=$sc_compat"
   say "con-chain: finished $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  for s in "$v1" "$v2" "$v3"; do
-    [ "$s" = PASS ] || fails=$((fails + 1))
-  done
-  [ "$leak" = OK ] || fails=$((fails + 1))
-  if [ "$fails" -ne 0 ]; then
-    say "con-chain: $fails requirement(s) or checks did not pass, see $sum"
+  if [ "$CON_FAILS" -ne 0 ]; then
+    say "con-chain: $CON_FAILS requirement(s) or checks did not pass, see $OUT_DIR/summary.txt"
     exit 1
   fi
 }
