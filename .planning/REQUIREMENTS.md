@@ -41,7 +41,7 @@ only together with the record that proves it. No feature is built.
 
 ### Repository (TIDY)
 
-- [ ] **TIDY-01**: Each remote branch in `docs/branches.md` is decided: the seven Safe-to-delete and the two Review-first branches are removed or kept on purpose, with the decision written down.
+- [x] **TIDY-01**: Each remote branch in `docs/branches.md` is decided: the seven Safe-to-delete and the two Review-first branches are removed or kept on purpose, with the decision written down.
 - [ ] **TIDY-02**: STATE.md carries one current position; the history blocks are collapsed so `state.advance-plan` no longer refuses with `ambiguous_position_phase`.
 - [ ] **TIDY-03**: v0.1.0 is archived: `milestones/v0.1.0-ROADMAP.md`, `-REQUIREMENTS.md`, its audit, and a one-line entry in ROADMAP.md as for v2.5.
 - [ ] **TIDY-04**: The local backup branch from 2026-10-20 and the stray branch in the shared checkout are retired.
@@ -80,7 +80,7 @@ only together with the record that proves it. No feature is built.
 | SRV-01 | Phase 26 | Pending owner |
 | SRV-02 | Phase 26 | Pending owner |
 | SRV-03 | Phase 26 | Pending owner |
-| TIDY-01 | Phase 27 | Pending owner |
+| TIDY-01 | Phase 27 | Complete |
 | TIDY-02 | Phase 27 | Pending |
 | TIDY-03 | Phase 27 | Pending |
 | TIDY-04 | Phase 27 | Pending owner |
@@ -89,7 +89,7 @@ only together with the record that proves it. No feature is built.
 
 `Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
 
-TIDY-01 and TIDY-04 read `Pending owner` for a different reason than SRV-01 to SRV-03: what is left is the deletion of remote branches and of the old local branch, which needs the owner's credentials and explicit go at that moment (plans 27-04 and 27-05; the steps are in `.planning/phases/27-repository-tidy/27-OWNER-STEPS.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the deletions. `bash .planning/phases/27-repository-tidy/27-check.sh requirements` holds the file to `docs/branches.md` and to git.
+TIDY-01 and TIDY-04 read `Pending owner` for a different reason than SRV-01 to SRV-03: what is left is the deletion of remote branches and of the old local branch, which needs the owner's credentials and explicit go at that moment (plans 27-04 and 27-05; the steps are in `.planning/phases/27-repository-tidy/27-OWNER-STEPS.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the deletions. `bash .planning/phases/27-repository-tidy/27-check.sh requirements` holds the file to `docs/branches.md` and to git. TIDY-01 became `Complete` on 2026-10-26, when the nine remote branches of the Decisions table were deleted with the owner's go (plan 27-04); TIDY-04 is the one that still reads `Pending owner`.
 
 **Coverage:**
 - v0.1.1 requirements: 17 total

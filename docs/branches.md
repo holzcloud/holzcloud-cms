@@ -30,19 +30,19 @@ The cherry check was repeated against the local `main`. The local `main` is ahea
 
 | Branch | Verdict | Decision | Tip | Subject of the tip | Result |
 |---|---|---|---|---|---|
-| `backfill-releases` | Review first | Delete | `4b14672344539906609fa9030c19d9b4f2ef9bb6` | One-shot, second push: finish v2.1 and v2.2 | pending |
-| `claude/holzcloud-projects-update-0t9epb` | Safe to delete | Delete | `9cc7bcb7bddfaac551c74fb39306632e79170eac` | docs: slim the README, put four screenshots in it, move the admin tour to publishing.md | pending |
-| `claude/project-open-tasks-lwuj02` | Safe to delete | Delete | `58b0963a49c7f7a91791c8b277d556a99f082436` | docs(quick-261011-o5v): Menüeinträge bearbeiten, Handy-Layout | pending |
-| `claude/task-phases-milestones-open-mt1qz0` | Safe to delete | Delete | `044d51c1d9d92dc933155cbf3113631e742043f2` | Open milestone v2.3: every word on a page belongs to whoever reads it | pending |
-| `feat/holzwave-farben` | Safe to delete | Delete | `88e9450a9da4a2093490c866f7ea39e0d53d1032` | Theme holzcloud: Farben für die Programmseite holzWave | pending |
+| `backfill-releases` | Review first | Delete | `4b14672344539906609fa9030c19d9b4f2ef9bb6` | One-shot, second push: finish v2.1 and v2.2 | deleted 2026-10-26 |
+| `claude/holzcloud-projects-update-0t9epb` | Safe to delete | Delete | `9cc7bcb7bddfaac551c74fb39306632e79170eac` | docs: slim the README, put four screenshots in it, move the admin tour to publishing.md | deleted 2026-10-26 |
+| `claude/project-open-tasks-lwuj02` | Safe to delete | Delete | `58b0963a49c7f7a91791c8b277d556a99f082436` | docs(quick-261011-o5v): Menüeinträge bearbeiten, Handy-Layout | deleted 2026-10-26 |
+| `claude/task-phases-milestones-open-mt1qz0` | Safe to delete | Delete | `044d51c1d9d92dc933155cbf3113631e742043f2` | Open milestone v2.3: every word on a page belongs to whoever reads it | deleted 2026-10-26 |
+| `feat/holzwave-farben` | Safe to delete | Delete | `88e9450a9da4a2093490c866f7ea39e0d53d1032` | Theme holzcloud: Farben für die Programmseite holzWave | deleted 2026-10-26 |
 | `fix/bausteine-befunde` | In use by a session | In use by a session | `fa696f6368dc64911c16ebae3bed396802e6cdf2` | refactor(weide): die Aufruf-Regel steht jetzt im Kern | in use by a session |
-| `fix/tables-mobile` | Safe to delete | Delete | `40c9422fd9480f95867d3a1fbc4c10685432963a` | Theme holzcloud: Tabellen auf dem Handy scrollen im eigenen Kasten | pending |
-| `holzbar-colours` | Safe to delete | Delete | `dce6ed2029263d627398bf237fd40ec6b080fc06` | holzcloud theme: the holzbar page keeps the ice colours (0.0.18) | pending |
-| `redirects-keep-language` | Safe to delete | Delete | `42c4c20da6364584fd5863ff45b1255a3c942610` | Redirects keep the visitor's language (0.0.19) | pending |
+| `fix/tables-mobile` | Safe to delete | Delete | `40c9422fd9480f95867d3a1fbc4c10685432963a` | Theme holzcloud: Tabellen auf dem Handy scrollen im eigenen Kasten | deleted 2026-10-26 |
+| `holzbar-colours` | Safe to delete | Delete | `dce6ed2029263d627398bf237fd40ec6b080fc06` | holzcloud theme: the holzbar page keeps the ice colours (0.0.18) | deleted 2026-10-26 |
+| `redirects-keep-language` | Safe to delete | Delete | `42c4c20da6364584fd5863ff45b1255a3c942610` | Redirects keep the visitor's language (0.0.19) | deleted 2026-10-26 |
 | `release` | Keep | Keep | `4d238b97d104296469a480e3b701d7a1f8a1c712` | docs(phase-23): add security threat verification | kept |
-| `tagfix` | Review first | Delete | `98791fbc4b6e8eef72773f0dfdfb8bcce56d7081` | ci: one-off tagfix to point tags at the rewritten history | pending |
+| `tagfix` | Review first | Delete | `98791fbc4b6e8eef72773f0dfdfb8bcce56d7081` | ci: one-off tagfix to point tags at the rewritten history | deleted 2026-10-26 |
 
-The Decision column holds one of three values: `Delete`, `Keep`, and `In use by a session`. The Result column holds one of four: `pending` (decided, not yet done), `kept`, `in use by a session`, and `deleted` followed by a date. A date in Result is the day the deletion was recorded here, not necessarily the day it happened. The Tip column is the full commit the branch pointed at when the decision was written, which is what makes a restore possible; the subject is the first line of that commit.
+The Decision column holds one of three values: `Delete`, `Keep`, and `In use by a session`. The Result column holds one of four: `pending` (decided, not yet done), `kept`, `in use by a session`, and `deleted` followed by a date. A date in Result is the day the deletion was recorded here, not necessarily the day it happened. The Tip column is the full commit the branch pointed at when the decision was written, which is what makes a restore possible; the subject is the first line of that commit. Rows marked deleted keep the evidence row as it was measured on the day of the table.
 
 The two Review first branches are decided: the owner chose to delete `backfill-releases` and `tagfix`, both one-off repairs that are done. `fix/bausteine-befunde` is not touched until the session that uses it is finished.
 
