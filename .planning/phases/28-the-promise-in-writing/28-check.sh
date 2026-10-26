@@ -838,7 +838,12 @@ EOF
 }
 
 fx_changelog() { # OUTFILE : the real changelog with a small 0.1.1 entry on top
-  local out="$1" pre; pre=$(grep -n -m1 '^## ' "$CHANGELOG" | cut -d: -f1)
+  # The preamble is everything above the first '## ' heading; the old entries start at the first
+  # '## 0.1.0' heading. An entry for 0.1.1 that the real file already carries lies between the two
+  # and is left out, so the fixture has exactly one 0.1.1 heading whether the file has one or not.
+  local out="$1" pre post; pre=$(grep -n -m1 '^## ' "$CHANGELOG" | cut -d: -f1)
+  post=$(grep -n -m1 '^## 0\.1\.0 ' "$CHANGELOG" | cut -d: -f1)
+  [ -n "$post" ] || post="$pre"
   {
     head -n $((pre - 1)) "$CHANGELOG"
     echo '## 0.1.1 — 2026-10-26'; echo
@@ -846,7 +851,7 @@ fx_changelog() { # OUTFILE : the real changelog with a small 0.1.1 entry on top
     echo
     echo '**Zweiter Absatz.** Auch dieser Absatz ist lang genug, damit der Auszug der Release-Notizen nicht kürzer als vierhundert Byte wird und der Test, der darauf achtet, den Eintrag als Eintrag erkennt.'
     echo
-    tail -n +"$pre" "$CHANGELOG"
+    tail -n +"$post" "$CHANGELOG"
   } > "$out"
 }
 
