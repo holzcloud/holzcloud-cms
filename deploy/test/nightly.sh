@@ -4864,6 +4864,7 @@ selftest_compat() {
   st_fail "compat_fixture_ok one user" compat_fixture_ok 3 1 2
   st_fail "compat_fixture_ok one upload" compat_fixture_ok 3 2 1
   st_fail "compat_fixture_ok a non-number" compat_fixture_ok 3 x 2
+
 }
 
 # compat_names: the previous release is the "source" of the shared helpers (NAME,
@@ -4947,13 +4948,46 @@ compat_state() {
 
 # compat_compare LABEL STATE_A STATE_B: the pages, the users and every media row with
 # its file, as lists, judged by list_equal (a list that is empty on both sides proves
-# nothing and fails). PASS and BAD lines go to CHECK_OUT.
+# nothing and fails); the table counts outside the volatile list (each volatile table is
+# named as an INFO line with its reason); and, when both databases stand at the same
+# migration level, the goose rows. PASS and BAD lines go to CHECK_OUT.
 compat_compare() {
-  local label=$1 t s n
+  local label=$1 sa=$2 sb=$3 t s n ta tb l tn r va vb la lb
   t=$(mktemp -d) || die "mktemp failed"
   mkdir -p "$t/a" "$t/b"
-  split_sections "$2" "$t/a"
-  split_sections "$3" "$t/b"
+  split_sections "$sa" "$t/a"
+  split_sections "$sb" "$t/b"
+  ta=$(grep '^table ' "$t/a/TABLES" 2> /dev/null || true)
+  tb=$(grep '^table ' "$t/b/TABLES" 2> /dev/null || true)
+  while IFS= read -r l; do
+    [ -n "$l" ] || continue
+    set -- $l
+    tn=${2:-}
+    if r=$(compat_volatile "$tn"); then
+      va=${3:-?}
+      vb=$(printf '%s\n' "$tb" | awk -v n="$tn" '$2 == n { print $3 }')
+      check_info "COMPARE $label TABLES volatile $tn: left $va, right ${vb:-absent} ($r)"
+    fi
+  done <<< "$ta"
+  if list_equal "$(compat_tables_filtered "$ta")" "$(compat_tables_filtered "$tb")"; then
+    n=$(compat_tables_filtered "$ta" | grep -c . || true)
+    check_pass "COMPARE $label TABLES: the row counts of $n tables outside the volatile list are equal"
+  else
+    check_bad "COMPARE $label TABLES: a table outside the volatile list differs"
+    diff <(compat_tables_filtered "$ta") <(compat_tables_filtered "$tb") 2> /dev/null | head -n 10 | sed "s/^/KEY DIFF-$label-TABLES: /" | tee -a "$CHECK_OUT" > /dev/null || true
+  fi
+  la=$(kv "$sa" LEVEL)
+  lb=$(kv "$sb" LEVEL)
+  if [ -n "$la" ] && [ "$la" = "$lb" ]; then
+    if list_equal "$(cat "$t/a/GOOSE" 2> /dev/null)" "$(cat "$t/b/GOOSE" 2> /dev/null)"; then
+      check_pass "COMPARE $label GOOSE: the levels are equal ($la) and so are the goose rows ($(grep -c . "$t/a/GOOSE" || true))"
+    else
+      check_bad "COMPARE $label GOOSE: the levels are equal ($la) but the goose rows differ"
+      diff "$t/a/GOOSE" "$t/b/GOOSE" 2> /dev/null | head -n 6 | sed "s/^/KEY DIFF-$label-GOOSE: /" | tee -a "$CHECK_OUT" > /dev/null || true
+    fi
+  else
+    check_info "COMPARE $label GOOSE: the levels differ (${la:-?} and ${lb:-?}); the goose rows are not compared"
+  fi
   for s in PAGES USERS MEDIA; do
     n=$(grep -c . "$t/a/$s" 2> /dev/null || true)
     if list_equal "$(cat "$t/a/$s" 2> /dev/null)" "$(cat "$t/b/$s" 2> /dev/null)"; then
@@ -4966,12 +5000,127 @@ compat_compare() {
   rm -rf "${t:?}"
 }
 
+# compat_tamper_control SOURCE_STATE RESTORED_STATE WORKDIR: the comparison can fail. A copy
+# of the restored state with one page's HTML hash changed and one user's role changed is
+# compared with the source's state, and both differences must be detected. The BAD lines of
+# the tampered comparison go to a file of their own and are not counted as findings.
+compat_tamper_control() {
+  local src=$1 rest=$2 w=$3 keep=$CHECK_OUT nb=$BADS out=$3/tamper.txt hp hu
+  awk '
+    /^@@/ { sect = substr($0, 3); print; next }
+    sect == "PAGES" && !p { print $0 "x"; p = 1; next }
+    sect == "USERS" && !u { print $0 "-tampered"; u = 1; next }
+    { print }' "$rest" > "$w/state-tampered.txt"
+  CHECK_OUT=$out
+  : > "$out"
+  compat_compare tampered "$src" "$w/state-tampered.txt" > /dev/null
+  CHECK_OUT=$keep
+  BADS=$nb
+  hp=$(grep -c '^BAD  COMPARE tampered PAGES' "$out" || true)
+  hu=$(grep -c '^BAD  COMPARE tampered USERS' "$out" || true)
+  key_line "TAMPER-CONTROL: page hash changed -> $hp BAD line(s) for PAGES, user role changed -> $hu BAD line(s) for USERS"
+  if [ "$hp" = 1 ] && [ "$hu" = 1 ]; then
+    check_pass "the comparison fails when altered: a changed page hash and a changed user role are both detected"
+  else
+    check_bad "the comparison did not detect the altered copy (PAGES $hp, USERS $hu)"
+  fi
+}
+
 # git_migrations REF: "COUNT HIGHEST", the migration files of REF and the highest number
 # among them, from git ls-tree and nothing else.
 git_migrations() {
   git ls-tree --name-only "$1" internal/db/migrations/ \
     | sed -n -E 's|^internal/db/migrations/0*([0-9]+)_.*\.sql$|\1|p' | LC_ALL=C sort -n \
     | awk '{ n++; h = $1 } END { print n + 0, h + 0 }'
+}
+
+# The second session helper: a page saved with Markdown read from a file (the helper of
+# plan 01 writes one fixed sentence). Same rules: the password and the cookie are never
+# printed, the only output is "HTTP CODE REDIRECT-PATH".
+read -r -d '' P25_SESS2_SH <<'SESS2_EOF' || true
+#!/bin/bash
+# hc-sess2.sh pagemd WID JAR SLUG TITLE STATUS MDFILE
+set -u
+umask 077
+base=http://127.0.0.1:8080
+origin=https://127.0.0.1:8080
+mode=${1:-}
+shift || true
+tmp=$(mktemp /root/.hc-sess2.XXXXXX)
+trap 'rm -f "$tmp"' EXIT
+token_of() {
+  grep -o 'name="gorilla.csrf.Token" value="[^"]*"' "$1" | head -n 1 \
+    | sed 's/.*value="//; s/"$//; s/&#43;/+/g; s/&#61;/=/g; s/&#47;/\//g'
+}
+case "$mode" in
+  pagemd)
+    wid=$1; jar=$2; slug=$3; title=$4; status=$5; md=$6
+    path=/admin/websites/$wid/pages/new
+    curl -s --max-time 60 -o "$tmp" -c "$jar" -b "$jar" "$base$path" || true
+    tok=$(token_of "$tmp")
+    if [ -z "$tok" ]; then echo "HTTP none no-csrf-field"; exit 0; fi
+    res=$(curl -s -o /dev/null --max-time 120 -w '%{http_code} %{redirect_url}' -c "$jar" -b "$jar" \
+      -H "Referer: $origin$path" -H "X-CSRF-Token: $tok" \
+      --data-urlencode "gorilla.csrf.Token=$tok" --data-urlencode "title=$title" \
+      --data-urlencode "slug=$slug" --data-urlencode "status=$status" \
+      --data-urlencode "content_markdown@$md" "$base$path")
+    code=${res%% *}
+    loc=${res#* }
+    loc=${loc#$base}
+    echo "HTTP $code ${loc:--}"
+    ;;
+  *)
+    echo "HTTP none bad-mode"
+    ;;
+esac
+SESS2_EOF
+
+# compat_fixture WID: what a person made on the previous release, through its own admin
+# forms as the editor of plan 01's prep and nothing else: three pages with distinct
+# Markdown (non-ASCII text, an outbound link, an inner link, a picture that is one of the
+# uploads; the third is requested as published, and what the editor may do is read back
+# from the database) and one more upload. Every answer is a KEY line.
+compat_fixture() {
+  local wid=$1 jar=/root/.hc-jar-compat-fx db=/opt/holzcloud/data/holzcloud.sqlite r ref t1 t2 t3 st n
+  printf '%s\n' "$P25_SESS2_SH" | dxi bash -c 'umask 077; cat > /root/hc-sess2.sh && chmod 700 /root/hc-sess2.sh' \
+    || die "could not ship the second session helper into $NAME"
+  r=$(sess login churn@example.test /root/.hc-login-pass "$jar") || r="HTTP none error"
+  key_line "FIXTURE-LOGIN: $r"
+  ref=$(dxo runuser -u holzcloud -- sqlite3 -readonly "$db" "select '/media/' || website_id || '/' || filename from media where original_name like 'churn-prep-%' order by id limit 1" | head -n 1)
+  [ -n "$ref" ] || die "no upload of prep in $NAME to put on a page"
+  # Octal escapes, so that the bytes are UTF-8 whatever the locale of this shell is.
+  t1=$(printf 'Gr\303\274\303\237e aus Z\303\274rich')
+  t2=$(printf 'Ein Bild und ein Link')
+  t3=$(printf 'Liste \342\200\223 ver\303\266ffentlicht?')
+  printf '# Gr\303\274\303\237e aus Z\303\274rich\n\n\303\204pfel, \303\226l, \303\234bung: gr\303\266\303\237er, sch\303\266ner \342\200\223 und [holzcloud](https://holzcloud.ch/).\n' \
+    | dxi bash -c 'umask 077; cat > /root/.hc-md-1.md'
+  printf 'Ein Bild: ![Beschreibung](%s)\n\nUnd ein [innerer Link](/compat-gruesse) mit Umlaut: K\303\244se.\n' "$ref" \
+    | dxi bash -c 'umask 077; cat > /root/.hc-md-2.md'
+  printf '## Liste\n\n- eins\n- zwei \303\244\n- drei\n\n`code` und **fett**, Preis: 5 \342\202\254 & mehr.\n' \
+    | dxi bash -c 'umask 077; cat > /root/.hc-md-3.md'
+  r=$(dxo bash /root/hc-sess2.sh pagemd "$wid" "$jar" compat-gruesse "$t1" draft /root/.hc-md-1.md) || r="HTTP none error"
+  key_line "FIXTURE-PAGE-1: compat-gruesse $r"
+  r=$(dxo bash /root/hc-sess2.sh pagemd "$wid" "$jar" compat-bild "$t2" draft /root/.hc-md-2.md) || r="HTTP none error"
+  key_line "FIXTURE-PAGE-2: compat-bild $r"
+  r=$(dxo bash /root/hc-sess2.sh pagemd "$wid" "$jar" compat-liste "$t3" published /root/.hc-md-3.md) || r="HTTP none error"
+  key_line "FIXTURE-PAGE-3: compat-liste (published requested) $r"
+  dx rm -f /root/.hc-md-1.md /root/.hc-md-2.md /root/.hc-md-3.md || true
+  dx bash -c 'umask 077; cat /root/hc-base.jpg > /root/.hc-compat-up.jpg; printf "trailer compat %s" "$(date +%s%N)" >> /root/.hc-compat-up.jpg'
+  r=$(sess upload "$wid" "$jar" /root/.hc-compat-up.jpg churn-compat-extra.jpg) || r="HTTP none error"
+  dx rm -f /root/.hc-compat-up.jpg "$jar" || true
+  key_line "FIXTURE-UPLOAD: churn-compat-extra.jpg $r"
+  sleep 1
+  n=$(dxo runuser -u holzcloud -- sqlite3 -readonly "$db" "select count(*) from pages where slug like 'compat-%'") || n="?"
+  key_line "FIXTURE-PAGES-SAVED: $n"
+  if [ "$n" = 3 ]; then check_pass "the three fixture pages exist on the previous release"; else check_bad "the fixture pages: $n rows with a slug compat-%, expected 3"; fi
+  st=$(dxo runuser -u holzcloud -- sqlite3 -readonly "$db" "select status from pages where slug = 'compat-liste'") || st="?"
+  key_line "FIXTURE-STATUS-compat-liste: ${st:-none} (requested: published; an editor may or may not publish, this is what the database says)"
+  n=$(dxo runuser -u holzcloud -- sqlite3 -readonly "$db" "select count(*) from media where original_name = 'churn-compat-extra.jpg'") || n="?"
+  if [ "$n" = 1 ]; then check_pass "the extra upload has its media row"; else check_bad "the extra upload: $n media rows, expected 1"; fi
+  n=$(dxo runuser -u holzcloud -- sqlite3 -readonly "$db" "select count(*) from media_usage u join pages p on p.id = u.page_id where p.slug = 'compat-bild'") || n="?"
+  key_line "FIXTURE-MEDIA-USAGE-ROWS-compat-bild: $n"
+  n=$(dxo runuser -u holzcloud -- sqlite3 -readonly "$db" "select count(*) from pages where slug like 'compat-%' and content_html like '%holzcloud.ch%'") || n="?"
+  key_line "FIXTURE-PAGES-WITH-OUTBOUND-LINK: $n"
 }
 
 # compat_ship_sess CONTAINER: the session helper of plan 01 into a container.
@@ -5020,6 +5169,7 @@ cmd_compat() { (
 compat_run() {
   local o=$OUT_DIR/compat.txt w=$OUT_DIR/.work-compat ref ver bl rl dir man mver brc rrc tdir wr n
   local tag_sha new_sha inst_sha bsh setup_b setup_a lv_b lv_a hi_new hi_tag n_new n_tag adm ed code f ms mp msha ssha mrow
+  local mok mtot res aside au pu np nb
   [ "$TARGET" = systemd-base ] || die "compat needs TARGET=systemd-base (got '$TARGET')"
   need_container
   ref=$(pin_ref)
@@ -5049,9 +5199,15 @@ compat_run() {
   check_pass "version_is_tag: the source container runs exactly the tag $COMPAT_TAG"
   key_line "HOST-ARCH: $(docker info --format '{{.Architecture}}')"
   key_line "CONTAINER-ARCH: $(dxo uname -m)"
+  compat_fixture "$(p25_wid)"
   compat_state "$NAME" live /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/media "$OUT_DIR/compat-state-source.txt" \
     || { check_bad "STATE-SOURCE could not be read from $NAME"; }
   key_line "STATE-SOURCE: $(sed -n '/^@@KEYS$/,/^@@GOOSE$/p' "$OUT_DIR/compat-state-source.txt" | grep -v '^@@' | tr '\n' ' ')"
+  if compat_fixture_ok "$(kv "$OUT_DIR/compat-state-source.txt" PAGES-COUNT)" "$(kv "$OUT_DIR/compat-state-source.txt" USERS-COUNT)" "$(kv "$OUT_DIR/compat-state-source.txt" UPLOADED-MEDIA)"; then
+    check_pass "the staged site is not trivial: at least three pages, two users and two uploaded media rows"
+  else
+    check_bad "the staged site is trivial (pages $(kv "$OUT_DIR/compat-state-source.txt" PAGES-COUNT), users $(kv "$OUT_DIR/compat-state-source.txt" USERS-COUNT), uploaded media rows $(kv "$OUT_DIR/compat-state-source.txt" UPLOADED-MEDIA)): a comparison of two nearly empty sites proves nothing"
+  fi
 
   # (2) Whose backup.sh: the blob at the tag against the installed file and this release's.
   tag_sha=$(git show "$COMPAT_TAG:deploy/backup.sh" | shasum -a 256 | awk '{ print $1 }')
@@ -5154,6 +5310,43 @@ compat_run() {
   key_line "STATE-RESTORED: $(sed -n '/^@@KEYS$/,/^@@GOOSE$/p' "$OUT_DIR/compat-state-restored.txt" | grep -v '^@@' | tr '\n' ' ')"
   compat_compare source-restored "$OUT_DIR/compat-state-source.txt" "$OUT_DIR/compat-state-restored.txt"
   compat_compare backup-restored "$OUT_DIR/compat-state-backup.txt" "$OUT_DIR/compat-state-restored.txt"
+  compat_tamper_control "$OUT_DIR/compat-state-source.txt" "$OUT_DIR/compat-state-restored.txt" "$w"
+
+  # The restored data directory against the backup directory it came from, and the
+  # database and media of the restored site in both directions (plan 01's comparator).
+  printf '%s\n' "$P25_COMPARE_SH" | docker exec -i "$TGT_NAME" bash -s -- restored /opt/holzcloud/data/holzcloud.sqlite /opt/holzcloud/data/media "$tdir" /opt/holzcloud/data > "$w/cmp.out" 2> "$w/cmp.err" || true
+  mkdir -p "$w/cmp"
+  split_sections "$w/cmp.out" "$w/cmp"
+  cp "$w/cmp.out" "$OUT_DIR/compat-compare-raw.txt"
+  if [ -s "$w/cmp/ROWS" ] && grep -q . "$w/cmp/FILES" 2> /dev/null; then
+    res=$(media_agree "$w/cmp/ROWS" "$w/cmp/FILES" '*/bulk/') || res="0 0 0 0 ?"
+    set -- $res
+    key_line "RESTORED-MEDIA: rows $1 files $2 rows-without-file $3 files-without-row $4 class $5"
+    if [ "$5" = AGREE ]; then check_pass "media rows and media files of the restored box agree in both directions"; else check_bad "media rows and files of the restored box: class $5"; fi
+  else
+    check_bad "the comparator returned no rows or no files for the restored box (cmp.err: $(head -c 300 "$w/cmp.err" | tr '\n' '|'))"
+  fi
+  if [ "$(sed -n 's/^CHECK-RC: //p' "$w/cmp/CHECK")" = 0 ]; then check_pass "holzcloud check on a copy of the restored database: exit 0"; else check_bad "holzcloud check on a copy of the restored database: $(sed -n 's/^CHECK-OUT: //p' "$w/cmp/CHECK" | cut -c1-200)"; fi
+  if [ "$(sed -n 's/^INTEGRITY: //p' "$w/cmp/CHECK" | tr -d ' ')" = ok ]; then check_pass "PRAGMA integrity_check on the restored database: ok"; else check_bad "PRAGMA integrity_check on the restored database: $(sed -n 's/^INTEGRITY: //p' "$w/cmp/CHECK" | cut -c1-200)"; fi
+  if [ "$(sed -n 's/^FKCHECK: //p' "$w/cmp/CHECK")" = 0 ]; then check_pass "PRAGMA foreign_key_check on the restored database: no violation"; else check_bad "PRAGMA foreign_key_check on the restored database: $(sed -n 's/^FKCHECK: //p' "$w/cmp/CHECK") violation(s)"; fi
+  if [ "$(grep -c . "$w/cmp/TREE-RESTORED" || true)" -gt 0 ] && cmp -s "$w/cmp/TREE-RESTORED" "$w/cmp/TREE-BACKUP"; then
+    check_pass "the sha256 list of the restored data directory ($(grep -c . "$w/cmp/TREE-RESTORED" || true) files) equals that of the backup directory it came from"
+  else
+    check_bad "the sha256 list of the restored data directory differs from that of the backup directory ($(grep -c . "$w/cmp/TREE-RESTORED" || true) and $(grep -c . "$w/cmp/TREE-BACKUP" || true) files)"
+    diff "$w/cmp/TREE-RESTORED" "$w/cmp/TREE-BACKUP" 2> /dev/null | head -n 10 | sed 's/^/KEY TREE-DIFF: /' | tee -a "$CHECK_OUT" > /dev/null || true
+  fi
+  # The box was fresh: the set-aside directory is the empty database of the first start.
+  aside=$(dxto bash -c 'ls -1d /opt/holzcloud/data.before-restore-* 2>/dev/null | head -n 1') || aside=""
+  au=$(dxt sqlite3 "file:$aside/holzcloud.sqlite?immutable=1" "select count(*) from users" 2>&1 | tr -d '\r') || au="unreadable"
+  key_line "SET-ASIDE: ${aside:-none} users $au"
+  if [ -n "$aside" ] && [ "$au" = 0 ] && [ "$setup_b" = "HTTP 200 -" ]; then
+    check_pass "the restored box was fresh: the setup form was 200 and the set-aside database is the empty one of the first start (users 0)"
+  else
+    check_bad "the restored box was not fresh: set-aside '${aside:-none}' users '$au', setup form before '$setup_b'"
+  fi
+  pu=$(dxto bash -c 'find /opt/holzcloud/data -maxdepth 1 -name "pre-upgrade-*" | wc -l') || pu="?"
+  key_line "PRE-UPGRADE-SNAPSHOT-AFTER: $pu"
+  check_info "a pre-upgrade snapshot appears in the data directory when the service finds a migration pending at its start; this pair may have none pending, so the number says nothing about how a restore handles one"
   setup_a=$(tsess get /admin/setup /root/.hc-jar-compat-probe) || setup_a="HTTP none error"
   key_line "SETUP-AFTER: $setup_a"
   if [ "$setup_a" = "HTTP 404 -" ]; then
@@ -5174,15 +5367,26 @@ compat_run() {
   code=$(dxto curl -s -o /dev/null -w '%{http_code}' --max-time 30 -H 'Host: test.local' http://127.0.0.1:8080/plugintest) || code=error
   key_line "PLUGINTEST: HTTP $code"
   if [ "$code" = 200 ]; then check_pass "/plugintest answers 200 for test.local on the restored box"; else check_bad "/plugintest answered $code on the restored box"; fi
-  mrow=$(sed -n '/^@@MEDIAORIG$/,/^@@END$/p' "$OUT_DIR/compat-state-source.txt" | grep -v '^@@' | head -n 1)
-  mp=${mrow%%|*}
-  ssha=${mrow#*|}
-  msha=$(dxt bash -c 'curl -s --max-time 30 -H "Host: test.local" "http://127.0.0.1:8080/media/$1" | sha256sum | cut -d" " -f1' _ "$mp" | tr -d '\r') || msha=error
-  key_line "MEDIA-SERVED: $mp source=$ssha served=$msha"
-  if [ -n "$mp" ] && [ "$ssha" = "$msha" ]; then
-    check_pass "a media original is served over HTTP with the sha256 of the source's file"
+  mok=0
+  mtot=0
+  while IFS= read -r mrow; do
+    [ -n "$mrow" ] || continue
+    mtot=$((mtot + 1))
+    mp=${mrow%%|*}
+    ssha=${mrow#*|}
+    msha=$(dxt bash -c 'curl -s --max-time 30 -H "Host: test.local" "http://127.0.0.1:8080/media/$1" | sha256sum | cut -d" " -f1' _ "$mp" | tr -d '\r') || msha=error
+    key_line "MEDIA-SERVED: $mp source=$ssha served=$msha"
+    if [ "$ssha" != MISSING ] && [ "$ssha" = "$msha" ]; then
+      mok=$((mok + 1))
+    else
+      check_bad "the media original $mp: served sha256 '$msha', the source's file '$ssha'"
+    fi
+  done < <(sed -n '/^@@MEDIAORIG$/,/^@@END$/p' "$OUT_DIR/compat-state-source.txt" | grep -v '^@@')
+  key_line "MEDIA-SERVED-EQUAL: $mok of $mtot"
+  if [ "$mtot" -ge 1 ] && [ "$mok" = "$mtot" ]; then
+    check_pass "every media original is served over HTTP with the sha256 of the source's file ($mok of $mtot)"
   else
-    check_bad "the media original $mp: served sha256 '$msha', the source's file '$ssha'"
+    check_bad "media originals served with the source's sha256: $mok of $mtot"
   fi
 
   # The migration level, read twice.
@@ -5205,6 +5409,37 @@ compat_run() {
     key_line "MIGRATION-SENTENCE: $(migration_sentence "$lv_b" "$lv_a")"
   else
     check_bad "migration_ok failed: before '$lv_b', after '$lv_a', highest at $ref '$hi_new'"
+  fi
+  key_line "GOOSE-ROWS-BEFORE: $(kv "$OUT_DIR/compat-state-backup.txt" GOOSE-ROWS)"
+  key_line "GOOSE-ROWS-AFTER: $(kv "$OUT_DIR/compat-state-restored.txt" GOOSE-ROWS)"
+  check_info "this pair crosses $((hi_new - lv_b)) migration(s) by the levels read; a pair with no pending migration does not show how a restore handles one, that stays on the Not tested list of the record and migration_ok's table is what keeps the judgement right when a later release does cross one"
+
+  # What changed between the two releases in code that handles data, listed and not summarised.
+  key_line "COMPAT-DIFF-COMMAND: git diff --stat=200 $COMPAT_TAG $ref -- go.mod go.sum internal/db internal/media cmd"
+  git diff --stat=200 "$COMPAT_TAG" "$ref" -- go.mod go.sum internal/db internal/media cmd | sed 's/^/COMPAT-DIFF /' | tee -a "$CHECK_OUT"
+  for f in deploy/backup.sh deploy/restore.sh deploy/holzcloud-backup.service deploy/holzcloud-backup.timer; do
+    tag_sha=$(git show "$COMPAT_TAG:$f" | shasum -a 256 | awk '{ print $1 }')
+    new_sha=$(git show "$ref:$f" | shasum -a 256 | awk '{ print $1 }')
+    if [ "$tag_sha" = "$new_sha" ]; then
+      key_line "SCRIPTS-IDENTICAL: $f yes $tag_sha"
+    else
+      key_line "SCRIPTS-IDENTICAL: $f no tag=$tag_sha new-ref=$new_sha"
+    fi
+  done
+
+  # The 17 assertions of run.sh check, last, because it restarts the service.
+  dxt systemctl reset-failed holzcloud || true
+  PLATFORM=$PLATFORM TARGET=$TARGET NAME=$TGT_NAME OUT_DIR=$TGT_OUT_DIR KEEP=1 \
+    bash deploy/test/run.sh check > "$OUT_DIR/compat-check.log" 2>&1 || true
+  cp "$TGT_OUT_DIR/check.txt" "$OUT_DIR/compat-check.txt" 2> /dev/null || true
+  np=$(grep -c '^PASS' "$TGT_OUT_DIR/check.txt" 2> /dev/null || true)
+  nb=$(grep -c '^BAD' "$TGT_OUT_DIR/check.txt" 2> /dev/null || true)
+  key_line "CHECK: $np of 17"
+  key_line "CHECK-BAD-LINES: $nb"
+  if [ "${np:-0}" = 17 ] && [ "${nb:-0}" = 0 ]; then
+    check_pass "run.sh check on the restored box: 17 of 17 assertions, the five plugins loaded, running and invoked"
+  else
+    check_bad "run.sh check on the restored box: ${np:-0} of 17 passed, ${nb:-0} BAD line(s); see $TGT_OUT_DIR/check.txt"
   fi
 
   rm -rf "${w:?}"
