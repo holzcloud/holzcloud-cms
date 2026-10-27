@@ -65,6 +65,11 @@ only together with the record that proves it. No feature is built.
 | Tuning the unit for a better `systemd-analyze security` score | 0.1.0 states "measured, not tuned"; that stays. |
 | Merging the archived parallel lineage | It is a second implementation of the same product; features are ported one by one if ever. |
 
+**Note, 2026-10-27.** The row "New CMS functions" held for the requirements of 0.1.1. In the same session the owner nevertheless asked for three small product changes. They are not requirements of this milestone and are named openly in the CHANGELOG 0.1.1 entry:
+the image position option of the "Bild und Text" block (Bildlage); the scale-down question for pictures over 2560 px on upload (quick tasks 261026-bon, 261026-rrh for EXIF orientation and ICC profile on scale-down, 261026-sxy for the orientation stub kept by `StripMetadata`); and the layout fixes of PR 47.
+
+The owner also decided on 2026-10-26 to change the shipped `backup.sh`: retry rsync status 24 once, then fail loudly; a failed night removes its own directory, so none is left without a MANIFEST. This touches the row about changing the shipped `backup.sh` and will be a new phase with a new evidence set. The row stands as the milestone's default; this decision is the recorded exception.
+
 ## Traceability
 
 | Requirement | Phase | Status |
