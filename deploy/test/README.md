@@ -446,6 +446,36 @@ Phase 26 is a hand-over, and this section says so first. SRV-01 asks for the fiv
 - **Recording a result**, in one commit per result and in this order: paste the owner's output into the `Result (owner)` block of the requirement in `deploy/NATIVE-AMD64-RUN.md`; set `Status: recorded`; change the requirement's Summary row; for SRV-01 only, set the `Evidence commit:` line (the sha of the run's `COMMIT:` line) and append the output of `bash deploy/test/native-amd64.sh appendix` after the appendix heading, with the artifact unpacked below `deploy/test/out`; then check the box `[x]` and set the cell `Complete` in `.planning/REQUIREMENTS.md`. `bash deploy/test/native-amd64.sh record-check` and `bash deploy/test/native-amd64.sh status-check` must both end `OK`; whoever cannot make them end OK has not recorded a result. A run that ended `VOID`, `FAIL`, `NOT-NATIVE` or `NOT-RUN` leaves the status at `pending owner` and is written down as a finding. The value `Pending owner` is deliberate: the workflow tools that mark requirements complete refuse it, so no automatic step turns a hand-over into a result.
 - **What this phase did not touch.** `deploy/backup.sh`, `deploy/restore.sh`, `deploy/DEPLOY.md`, `deploy/holzcloud.service`, both backup units, `deploy/test/run.sh`, `deploy/test/nightly.sh`, `docs/beta.md` and the earlier records `deploy/SECURITY-SCORE.md`, `deploy/DEPLOY-RUN.md`, `deploy/BACKUP-RUN.md`, `deploy/BACKUP-TIMER-RUN.md` and `deploy/BACKUP-CONSISTENCY-RUN.md` are byte-identical to the commit before the phase. `git diff --quiet 05fc076 -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud.service deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh docs/beta.md` exits 0 while that holds, and so do the five records in the same call; this README grew by insertion only. `nightly.sh` therefore still ends `SELFTEST OK (542 cases)` (its count goes to stderr), `record-check` still ends `RECORD-CHECK OK 29 blocks` and `record-check-con` `RECORD-CHECK OK 27 blocks`. A run of this harness on a changed bound file means the evidence set is made again: the figures and the verdict belong to the commit named in the `COMMIT:` line.
 
+## Phase 29: a backup that cleans up after itself
+
+`deploy/test/backup-robust.sh` plays what `deploy/backup.sh` does when a night goes wrong (ROB-01, ROB-02). It needs no Docker and no root and runs in seconds: it builds a temporary directory with a data directory, a fake `rsync`, a fake `holzcloud` binary and a fake `date`, runs the real script against them and removes everything when it ends.
+
+```text
+bash deploy/test/backup-robust.sh
+/bin/bash deploy/test/backup-robust.sh    # bash 3.2 on macOS
+```
+
+The last line is `BACKUP-ROBUST OK (N cases)` (exit 0) or `BACKUP-ROBUST FAILED (K of N cases)` (exit 1); N counts assertions. The script under test runs under the same interpreter as the test.
+
+- **Tests 1 and 2.** The success path is unchanged (stdout lines, MANIFEST keys in order, no `MANIFEST.partial`, mode 700). An `rsync` that ends 11 ends the night with 11, removes the directory of this run and leaves an earlier night byte-identical.
+- **Tests 3 to 6.** Status 24 in the copy of a directory is repeated once. Success on the second call completes the night with one warning line. A second 24 ends the night with 24, names the directory (`media`, then `templates` after `media` succeeded) and removes the directory. Statuses 23 and 11 are never repeated.
+- **Tests 7 to 9.** The same for the off-site copy: 24 once completes, 24 twice ends with 24, 23 ends with 23, and in all three the directory keeps its MANIFEST and is not removed, because the backup itself is whole.
+- **Tests 10 to 13.** The edges of the cleanup: the free-space guard refuses and makes nothing; a directory that already carries the name of this run makes the script refuse and removes nothing; a failed first step removes the directory; a failed rename of the MANIFEST removes the directory although `MANIFEST.partial` was in it (the rule is the absence of `MANIFEST`).
+- **Test 14.** SIGTERM during a copy, sent to the script and to the fake `rsync` as systemd does: the directory is gone, the status is above 128, the earlier night is intact. Both bash 3.2.57 and bash 5.3 end with 143.
+- **Tests 15 and 16.** The script text that `nightly.sh` reads is unchanged (the `MIN_FREE_MB` default line and the seven literal lines), and a failing retention step still cannot fail the night.
+
+The contract strings, all on stderr and fixed by plan 29-01 (`nightly.sh` greps them):
+
+- `WARNING: rsync exited 24 (files vanished) while copying WHAT; repeating it once`
+- `ERROR: rsync exited 24 again while copying WHAT; giving up` (then exit 24)
+- `ERROR: backup did not finish; removed DIR, which had no MANIFEST`
+- `ERROR: backup did not finish and DIR could not be removed; it has no MANIFEST and restore.sh refuses it, remove it by hand`
+- `ERROR: DIR exists already; refusing to start so that no earlier backup is touched` (then exit 1)
+
+Named limit: SIGKILL (including the kernel's out-of-memory kill) and a power loss cannot be trapped; a directory without MANIFEST can still remain after them, and `restore.sh` still refuses it.
+
+`backup-robust.sh` is not part of the evidence set: it is not a bound file and its output is not pasted into a record. The evidence for the shipped behaviour in a container is made by `nightly.sh con-chain` (plans 29-02 to 29-04).
+
 ## Pitfalls
 
 - `ProcSubset=pid` crashes the amd64 emulation at process start: `status=5/TRAP` and `Unable to open /proc/sys/vm/mmap_min_addr`. The drop-in `ProcSubset=all` is the named container-only answer (see `deploy/SECURITY-SCORE.md`); `start` applies it. On native arm64 the unit starts without it.

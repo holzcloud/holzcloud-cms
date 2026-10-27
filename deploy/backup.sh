@@ -28,6 +28,22 @@ set -euo pipefail
 # leave a row whose file the backup lacks. Back up when the site is quiet if
 # that matters.
 #
+# A file that vanishes while it is copied ends rsync with status 24. The copy is
+# repeated once; a second 24 ends the night with status 24 and a message that
+# names what was being copied. Any other rsync status is never repeated.
+#
+# A night that fails before its MANIFEST exists removes the directory it made,
+# so a half-written directory does not sit on the disk and make the free-space
+# guard refuse every later night. An earlier backup is never touched: the
+# script refuses to start when the directory of this run exists already, and
+# the cleanup removes only the directory this run made itself. A directory that
+# holds a MANIFEST is never removed, whatever fails afterwards (retention, the
+# off-site copy). The MANIFEST is written under another name and renamed, so it
+# is never there half written and "no MANIFEST" means "the night did not
+# finish". Limit: SIGKILL (including the kernel's out-of-memory kill) and a
+# power loss cannot be trapped, so a directory without MANIFEST can still
+# remain after them; restore.sh still refuses it.
+#
 # Another directory joining the data directory has to be added to the list in
 # step 3, here and in restore.sh.
 #

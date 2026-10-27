@@ -355,6 +355,119 @@ bt_eq "9 the night keeps its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
 bt_not "9 no cleanup line" "$T/err" "backup did not finish"
 
 # ---------------------------------------------------------------------------
+section "Test 10: the free-space guard refuses, nothing is made, nothing is removed"
+reset_case
+run_backup MIN_FREE_MB=999999999999
+bt_eq "10 exit status 1" 1 "$RC"
+bt_has "10 stderr holds the guard's message" "$T/err" "ERROR: only "
+bt_eq "10 no new directory in the root" no "$(exists "$NIGHT")"
+bt_not "10 no cleanup line" "$T/err" "backup did not finish"
+bt_eq "10 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+section "Test 11: a directory under the name of this run makes the script refuse"
+reset_case
+mkdir -p "$NIGHT"
+echo "mine" > "$NIGHT/keep.txt"
+KEEP_SHA=$(sha "$NIGHT/keep.txt")
+run_backup
+bt_eq "11 exit status 1" 1 "$RC"
+bt_has "11 the refusal line is on stderr" "$T/err" "ERROR: $NIGHT exists already; refusing to start so that no earlier backup is touched"
+bt_eq "11 the directory still exists" yes "$(exists "$NIGHT")"
+bt_eq "11 its file is unchanged" "$KEEP_SHA" "$(sha "$NIGHT/keep.txt")"
+bt_eq "11 nothing was added to it" 1 "$(ls -A "$NIGHT" | wc -l | tr -d ' ')"
+bt_not "11 no cleanup line" "$T/err" "backup did not finish"
+bt_eq "11 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+section "Test 12: step 1 fails"
+reset_case
+run_backup FAKE_HC_FAIL=1
+bt_eq "12 exit status 1" 1 "$RC"
+bt_eq "12 the directory is removed" no "$(exists "$NIGHT")"
+bt_has "12 the cleanup line is printed" "$T/err" "$CLEANUP_LINE"
+bt_eq "12 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+section "Test 13: the rename of the MANIFEST fails"
+reset_case
+PATH_PREFIX="$T/fake-mv:" run_backup
+bt_eq "13 exit status 1" 1 "$RC"
+bt_has "13 the fake mv was asked for MANIFEST.partial" "$T/mv.log" "MANIFEST.partial"
+bt_eq "13 the directory is removed although MANIFEST.partial was in it" no "$(exists "$NIGHT")"
+bt_has "13 the cleanup line is printed" "$T/err" "$CLEANUP_LINE"
+bt_eq "13 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+section "Test 14: SIGTERM during a copy"
+# What both bash 3.2 and bash 5 guarantee, and all that is asserted: the
+# directory is gone and the status is above 128. The exact number (143 from the
+# script's own signal, or the fake rsync's 143 passed on) depends on which of
+# the two is seen first and is not asserted.
+reset_case
+(
+    cd "$REPO" || exit 99
+    exec env PATH="$T/bin:$PATH" DATA_DIR="$T/data" HOLZCLOUD_BIN="$T/bin/holzcloud" \
+        MIN_FREE_MB=1 RETENTION_DAYS=30 REMOTE_TARGET= \
+        FAKE_RSYNC_LOG="$T/rsync.log" FAKE_RSYNC_PLAN="$T/plan" \
+        FAKE_RSYNC_PIDFILE="$T/rsync.pid" \
+        "$BASH" "$REPO/deploy/backup.sh" "$T/root"
+) > "$T/out" 2> "$T/err" &
+SPID=$!
+i=0
+while [ ! -s "$T/rsync.pid" ] && [ "$i" -lt 100 ]; do
+    sleep 0.1
+    i=$((i + 1))
+done
+RPID=$(cat "$T/rsync.pid" 2>/dev/null || echo 0)
+bt_eq "14 the fake rsync started" yes "$(if [ "$RPID" -gt 0 ]; then echo yes; else echo no; fi)"
+# bash 3.2 reports a job killed by a signal on its stderr; this one was.
+{
+    if [ "$RPID" -gt 0 ]; then
+        kill -TERM "$SPID" "$RPID" 2>/dev/null
+    else
+        kill -TERM "$SPID" 2>/dev/null
+    fi
+    i=0
+    while kill -0 "$SPID" 2>/dev/null && [ "$i" -lt 100 ]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+    ENDED=yes
+    if kill -0 "$SPID" 2>/dev/null; then
+        ENDED=no
+        kill -KILL "$SPID" "$RPID" 2>/dev/null
+    fi
+    { wait "$SPID"; RC=$?; } 2>/dev/null
+} 2>/dev/null
+bt_eq "14 the script ended within 10 seconds" yes "$ENDED"
+bt_eq "14 the status is above 128" yes "$(if [ "$RC" -gt 128 ]; then echo yes; else echo no; fi)"
+bt_eq "14 the directory is gone" no "$(exists "$NIGHT")"
+bt_eq "14 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+section "Test 15: the script text the harness depends on"
+bt_eq "15 MIN_FREE_MB default read by sed" 1024 "$(sed -n 's/^MIN_FREE_MB="${MIN_FREE_MB:-\([0-9]*\)}"$/\1/p' "$REPO/deploy/backup.sh")"
+for lit in \
+    '=== holzcloud-CMS backup: ' \
+    'Backing up database...' \
+    'Backing up CSRF key...' \
+    'Backing up ${name}...' \
+    'Pruning backups older than' \
+    'Copying to ' \
+    '=== Backup complete: '; do
+    bt_has "15 backup.sh holds: $lit" "$REPO/deploy/backup.sh" "$lit"
+done
+
+# ---------------------------------------------------------------------------
+section "Test 16: retention cannot fail the night"
+reset_case
+PATH_PREFIX="$T/fake-find:" run_backup
+bt_eq "16 exit status 0 although find fails" 0 "$RC"
+bt_eq "16 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_has "16 the complete line is printed" "$T/out" "=== Backup complete: $NIGHT ==="
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "BACKUP-ROBUST OK ($N cases)"
     exit 0
