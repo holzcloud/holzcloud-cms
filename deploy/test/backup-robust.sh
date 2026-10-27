@@ -262,6 +262,99 @@ bt_eq "2 the backup root still has the earlier night" yes "$(exists "$EARLIER_DI
 bt_has "2 stderr names the removed directory" "$T/err" "ERROR: backup did not finish; removed $NIGHT, which had no MANIFEST"
 
 # ---------------------------------------------------------------------------
+REPEAT_MEDIA="WARNING: rsync exited 24 (files vanished) while copying media; repeating it once"
+REPEAT_OFFSITE="WARNING: rsync exited 24 (files vanished) while copying the off-site copy; repeating it once"
+CLEANUP_LINE="ERROR: backup did not finish; removed $NIGHT, which had no MANIFEST"
+
+section "Test 3: 24 once in the media step, then success"
+reset_case
+write_plan 24
+run_backup
+bt_eq "3 exit status 0" 0 "$RC"
+bt_eq "3 the repeat line is on stderr once" 1 "$(cnt "$T/err" "$REPEAT_MEDIA")"
+bt_not "3 no recurrence line" "$T/err" "again while copying"
+bt_eq "3 two calls for media/" 2 "$(calls_to /media/)"
+bt_eq "3 one call for templates/" 1 "$(calls_to /templates/)"
+bt_eq "3 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_not "3 no cleanup line" "$T/err" "backup did not finish"
+
+# ---------------------------------------------------------------------------
+section "Test 4: 24 twice in the media step ends the night with 24"
+reset_case
+write_plan 24 24
+run_backup
+bt_eq "4 exit status 24" 24 "$RC"
+bt_eq "4 the repeat line is on stderr once" 1 "$(cnt "$T/err" "$REPEAT_MEDIA")"
+bt_has "4 the recurrence line names media" "$T/err" "ERROR: rsync exited 24 again while copying media; giving up"
+bt_eq "4 exactly two calls for media/" 2 "$(calls_to /media/)"
+bt_eq "4 no call for templates/" 0 "$(calls_to /templates/)"
+bt_eq "4 the directory is removed" no "$(exists "$NIGHT")"
+bt_eq "4 the earlier night is intact" yes "$(earlier_intact)"
+bt_has "4 the cleanup line is on stderr" "$T/err" "$CLEANUP_LINE"
+
+# ---------------------------------------------------------------------------
+section "Test 5: status 23 and status 11 are never repeated"
+reset_case
+write_plan 23
+run_backup
+bt_eq "5 exit status 23" 23 "$RC"
+bt_eq "5 one call only (23)" 1 "$(wc -l < "$T/rsync.log" | tr -d ' ')"
+bt_not "5 no repeat line (23)" "$T/err" "rsync exited 24"
+bt_eq "5 the directory is removed (23)" no "$(exists "$NIGHT")"
+reset_case
+write_plan 11
+run_backup
+bt_eq "5 exit status 11" 11 "$RC"
+bt_eq "5 one call only (11)" 1 "$(wc -l < "$T/rsync.log" | tr -d ' ')"
+bt_not "5 no repeat line (11)" "$T/err" "rsync exited 24"
+bt_eq "5 the directory is removed (11)" no "$(exists "$NIGHT")"
+
+# ---------------------------------------------------------------------------
+section "Test 6: 24 twice in the second directory of the loop"
+reset_case
+write_plan 0 24 24
+run_backup
+bt_eq "6 exit status 24" 24 "$RC"
+bt_eq "6 media/ was copied once" 1 "$(calls_to /media/)"
+bt_eq "6 templates/ was tried twice" 2 "$(calls_to /templates/)"
+bt_has "6 the recurrence line names templates" "$T/err" "ERROR: rsync exited 24 again while copying templates; giving up"
+bt_eq "6 the directory, which held media/, is removed" no "$(exists "$NIGHT")"
+bt_eq "6 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+section "Test 7: the off-site copy, 24 once"
+reset_case
+write_plan 0 0 24
+run_backup REMOTE_TARGET="$T/remote"
+bt_eq "7 exit status 0" 0 "$RC"
+bt_eq "7 the repeat line names the off-site copy" 1 "$(cnt "$T/err" "$REPEAT_OFFSITE")"
+bt_eq "7 two off-site calls" 2 "$(calls_to /remote/)"
+bt_eq "7 the night keeps its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_not "7 no cleanup line" "$T/err" "backup did not finish"
+
+# ---------------------------------------------------------------------------
+section "Test 8: the off-site copy, 24 twice"
+reset_case
+write_plan 0 0 24 24
+run_backup REMOTE_TARGET="$T/remote"
+bt_eq "8 exit status 24" 24 "$RC"
+bt_has "8 the recurrence line names the off-site copy" "$T/err" "ERROR: rsync exited 24 again while copying the off-site copy; giving up"
+bt_eq "8 two off-site calls" 2 "$(calls_to /remote/)"
+bt_eq "8 the night keeps its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_not "8 no cleanup line, the backup itself is whole" "$T/err" "backup did not finish"
+
+# ---------------------------------------------------------------------------
+section "Test 9: the off-site copy, status 23"
+reset_case
+write_plan 0 0 23
+run_backup REMOTE_TARGET="$T/remote"
+bt_eq "9 exit status 23" 23 "$RC"
+bt_eq "9 one off-site call" 1 "$(calls_to /remote/)"
+bt_not "9 no repeat line" "$T/err" "rsync exited 24"
+bt_eq "9 the night keeps its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_not "9 no cleanup line" "$T/err" "backup did not finish"
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "BACKUP-ROBUST OK ($N cases)"
     exit 0

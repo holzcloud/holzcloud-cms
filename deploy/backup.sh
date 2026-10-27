@@ -77,6 +77,33 @@ cleanup_failed_night() {
     return 0
 }
 
+# run_rsync WHAT RSYNC_ARGS...: the only place that starts rsync. A file that
+# vanishes during the copy ends rsync with status 24; that is repeated once.
+# A second 24 ends the night with status 24, any other status ends it with that
+# status and is never repeated. WHAT names the copy in the messages.
+run_rsync() {
+    local what="$1"
+    local rc=0
+    shift
+    rsync "$@" || rc=$?
+    if [ "${rc}" -eq 0 ]; then
+        return 0
+    fi
+    if [ "${rc}" -ne 24 ]; then
+        exit "${rc}"
+    fi
+    echo "WARNING: rsync exited 24 (files vanished) while copying ${what}; repeating it once" >&2
+    rc=0
+    rsync "$@" || rc=$?
+    if [ "${rc}" -eq 0 ]; then
+        return 0
+    fi
+    if [ "${rc}" -eq 24 ]; then
+        echo "ERROR: rsync exited 24 again while copying ${what}; giving up" >&2
+    fi
+    exit "${rc}"
+}
+
 echo "=== holzcloud-CMS backup: ${TIMESTAMP} ==="
 
 mkdir -p "${BACKUP_ROOT}"
@@ -119,7 +146,7 @@ fi
 for name in media templates plugins sprachen marke; do
     if [ -d "${DATA_DIR}/${name}" ]; then
         echo "Backing up ${name}..."
-        rsync -a "${DATA_DIR}/${name}/" "${BACKUP_DIR}/${name}/"
+        run_rsync "${name}" -a "${DATA_DIR}/${name}/" "${BACKUP_DIR}/${name}/"
     fi
 done
 
@@ -146,7 +173,7 @@ fi
 #    meant to protect against — which DEPLOY.md itself calls likely.
 if [ -n "${REMOTE_TARGET:-}" ]; then
     echo "Copying to ${REMOTE_TARGET}..."
-    rsync -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/"
+    run_rsync "the off-site copy" -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/"
 fi
 
 echo "=== Backup complete: ${BACKUP_DIR} ==="
