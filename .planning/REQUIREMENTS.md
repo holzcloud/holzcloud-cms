@@ -46,6 +46,16 @@ only together with the record that proves it. No feature is built.
 - [x] **TIDY-03**: v0.1.0 is archived: `milestones/v0.1.0-ROADMAP.md`, `-REQUIREMENTS.md`, its audit, and a one-line entry in ROADMAP.md as for v2.5.
 - [x] **TIDY-04**: The local backup branch from 2026-10-20 and the stray branch in the shared checkout are retired.
 
+### Robust backup (ROB)
+
+Added on 2026-10-27 for phase 29, from the owner's decision of 2026-10-26 (see the note under Out of Scope). The shipped `deploy/backup.sh` is changed for the first time in this milestone, so the evidence set that bound it is made again and the page is re-pinned to the new one.
+
+- [ ] **ROB-01**: `deploy/backup.sh` repeats an `rsync` that ends with status 24 (files vanished) once, and ends the night loudly with status 24 if it recurs. Every other `rsync` status is not repeated.
+- [ ] **ROB-02**: A night that fails before its `MANIFEST` is written removes the directory it made, so no directory without a `MANIFEST` is left to hold space on a nearly full filesystem and the guard of the next night is not blocked by it. A directory that holds a `MANIFEST`, and any earlier backup, is never removed by this.
+- [ ] **ROB-03**: A new evidence set made on the changed script (`nightly.sh con-chain` on a clean tree, an evidence commit named in a new record, `deploy/BACKUP-ROBUST-RUN.md`) shows both behaviours and keeps CON-01 to CON-03 green; `nightly.sh record-check-con` proves the record byte for byte.
+- [ ] **ROB-04**: `docs/beta.md` quotes the new record byte for byte for what the changed script now promises, drops the sentences of the old record that are no longer true, keeps what the new record does not show as a named limit, and the 0.1.1 entry of `CHANGELOG.md` says the same in German.
+- [ ] **ROB-05**: The `frozen` gate and the evidence commands of `28-check.sh` are re-pinned to the new evidence commit, and its other checks still pass; each rule that is changed has a case in the checker's selftest that fails when the rule is broken.
+
 ---
 
 ## Future Requirements
@@ -91,16 +101,21 @@ The owner also decided on 2026-10-26 to change the shipped `backup.sh`: retry rs
 | TIDY-04 | Phase 27 | Complete |
 | DOC-01 | Phase 28 | Complete |
 | DOC-02 | Phase 28 | Complete |
+| ROB-01 | Phase 29 | Pending |
+| ROB-02 | Phase 29 | Pending |
+| ROB-03 | Phase 29 | Pending |
+| ROB-04 | Phase 29 | Pending |
+| ROB-05 | Phase 29 | Pending |
 
 `Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
 
 TIDY-01 and TIDY-04 read `Pending owner` for a different reason than SRV-01 to SRV-03: what is left is the deletion of remote branches and of the old local branch, which needs the owner's credentials and explicit go at that moment (plans 27-04 and 27-05; the steps are in `.planning/phases/27-repository-tidy/27-OWNER-STEPS.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the deletions. `bash .planning/phases/27-repository-tidy/27-check.sh requirements` holds the file to `docs/branches.md` and to git. TIDY-01 became `Complete` on 2026-10-26, when the nine remote branches of the Decisions table were deleted with the owner's go (plan 27-04); TIDY-04 became `Complete` on 2026-10-26, when the two local branches were retired with the owner's go (plan 27-05; the old lineage lives on only in the verified bundle recorded in the owner steps).
 
 **Coverage:**
-- v0.1.1 requirements: 17 total
-- Mapped to phases: 17
+- v0.1.1 requirements: 22 total
+- Mapped to phases: 22
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-20*
-*Last updated: 2026-10-26 after the phase 26 hand-over, SRV-01 to SRV-03 pending owner*
+*Last updated: 2026-10-27 after phase 29 was planned, ROB-01 to ROB-05 added*

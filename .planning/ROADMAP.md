@@ -553,12 +553,19 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 ### Phase 29: Sicherung robust
 
 **Goal:** `backup.sh` repeats an rsync exit status 24 once and aborts loudly if it recurs; a failed night removes its own directory when it has no MANIFEST (trap), so a half-written directory can no longer block later nights on a nearly full filesystem. Then a new evidence set (con-chain/nightly), new quotations in `docs/beta.md`, and the `frozen` gate of `28-check.sh` re-pinned or replaced.
-**Requirements**: TBD
+**Requirements**: ROB-01, ROB-02, ROB-03, ROB-04, ROB-05
 **Depends on:** Phase 28
-**Plans:** 0 plans
+**Plans:** 8 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 29 to break down)
+- [ ] 29-01-PLAN.md — backup.sh: one repeat of rsync status 24, loud abort when it recurs, a failed night removes its own MANIFEST-less directory (trap); hermetic test deploy/test/backup-robust.sh (wave 1)
+- [ ] 29-02-PLAN.md — nightly.sh harness: capfull robustness assertions, retry/left-directory counters in consist, RC_HANDOVER knob of record_check (wave 2)
+- [ ] 29-03-PLAN.md — nightly.sh capfull: four VANISH scenarios (by hand and under the shipped unit) with an rsync stand-in (wave 3)
+- [ ] 29-04-PLAN.md — the new evidence set: nightly.sh con-chain on a clean tree, judged and frozen as the evidence commit (wave 4)
+- [ ] 29-05-PLAN.md — the record deploy/BACKUP-ROBUST-RUN.md, proved by record-check-con (wave 5)
+- [ ] 29-06-PLAN.md — owner steps OS-20/OS-21 from the record, 28-check.sh knows the record, CHANGELOG 0.1.1 rewritten (wave 6)
+- [ ] 29-07-PLAN.md — docs/beta.md: new quotations P-16..P-22, rewritten limits, evidence row E-6, evidence commands re-pinned (wave 7)
+- [ ] 29-08-PLAN.md — frozen gate re-pinned and played in the selftest, regression pins, phase closure (wave 8)
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
