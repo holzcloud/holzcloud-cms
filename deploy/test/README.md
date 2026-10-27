@@ -476,6 +476,18 @@ Named limit: SIGKILL (including the kernel's out-of-memory kill) and a power los
 
 `backup-robust.sh` is not part of the evidence set: it is not a bound file and its output is not pasted into a record. The evidence for the shipped behaviour in a container is made by `nightly.sh con-chain` (plans 29-02 to 29-04).
 
+### What `nightly.sh` asserts since plan 29-02
+
+The harness now fails a set in which a failed night leaves a directory, in which the night after it is refused by the free-space guard, or in which the backup of an earlier night is touched. Before, `capfull` only observed what a failed night left and called it a measured property of the script. New lines are added; no key line, PASS line or file name that `deploy/BACKUP-CONSISTENCY-RUN.md` or `28-check.sh` reads was renamed or removed.
+
+- **`capfull`, per run (`CONTROL`, `HAND`, `AGAIN`, `UNIT`).** `LABEL-REMOVAL-LINE: yes|no`: the transcript holds the line `removed DIR, which had no MANIFEST`.
+- **`HAND-ROBUST`, `AGAIN-ROBUST`, `UNIT-ROBUST`.** `PASS`, or `FAIL` and the first broken property. The verdict is `capfull_robust_verdict CLASS DIR_MADE REMOVAL_LINE SENTINEL_INTACT`, a pure function: PASS only for class `FAILED-NO-DIR`, no directory made, the removal line present and the sentinel directory of the earlier night intact. A class `FAILED-PARTIAL-DIR-LEFT` is now a BAD line of its own as well.
+- **`AGAIN-NEXT-NIGHT`.** `capfull_next_night_verdict GUARD CLASS`: PASS only when the guard let the next night through and that night failed again without leaving a directory. A refusal reads `the guard refused the next night: something still holds the space`.
+- **`consist`, per RUN line.** The tokens `RETRIES=n` (lines of the transcript with `WARNING: rsync exited 24`) and `LEFT=m` (directories below the backup root without a `MANIFEST` once the night is over) stand between `RSYNC-STATUS=` and `DIR=`, so `DIR=` is still the last token. A line without the tokens, an older file or a `HARNESS-FAILED` line counts as 0 for both.
+- **`consist`, per stage.** `RETRIED-RUNS-STAGE-x` (nights repeated after status 24), `RETRY-COMPLETED-RUNS-STAGE-x` (of those, how many ended 0), `ABORTED-24-RUNS-STAGE-x` (nights that ended with status 24 after the repeat) and `MANIFEST-LESS-DIRS-STAGE-x` (the sum of `LEFT`). A value above 0 in the last is a BAD line. `summary.txt` carries one `CONSIST: stage x retries: ...` line per stage and the `CAPFULL:` line ends with `HAND-ROBUST=`, `AGAIN-NEXT-NIGHT=` and `UNIT-ROBUST=`.
+- **`window`.** Its reading of `backup.sh` names `run_rsync`, the repeat after status 24, the second 24 that ends the script before the `MANIFEST` and the cleanup that removes the directory, each with its line number.
+- **`RC_HANDOVER`.** `record_check` asks for the hand-over heading in this variable and, when it is unset or empty, for `## Hand-over to phase 28` exactly as before, so `record-check` and `record-check-con` still end `RECORD-CHECK OK 29 blocks` and `RECORD-CHECK OK 27 blocks` on the earlier records. A record with another hand-over heading names it: `RC_HANDOVER='## Hand-over to docs/beta.md' bash deploy/test/nightly.sh record-check`.
+
 ## Pitfalls
 
 - `ProcSubset=pid` crashes the amd64 emulation at process start: `status=5/TRAP` and `Unable to open /proc/sys/vm/mmap_min_addr`. The drop-in `ProcSubset=all` is the named container-only answer (see `deploy/SECURITY-SCORE.md`); `start` applies it. On native arm64 the unit starts without it.

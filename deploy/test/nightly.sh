@@ -77,6 +77,7 @@
 #   capfull defaults NAME and OUT_DIR to the t25 source names like prep, consist and window when the caller gave none
 #   Phase 25, plan 03: con-chain and record-check-con take the t25 names of all four containers and evidence directories
 #   RC_REQ_PREFIX, RC_REQ_IDS   BKP-0 and "1 2 3 4 5", the requirement headings record_check asks for (record-check-con sets CON-0 and "1 2 3")
+#   RC_HANDOVER    "## Hand-over to phase 28", the hand-over heading record_check asks for; a record that carries another one names it here, exactly (unset or empty: the heading asked for before)
 #
 # Written for bash 3.2 (macOS): no arrays, no mapfile, no case conversion.
 # Anything that needs GNU tools (date -d, stat -c, sha256sum, zic) runs inside
@@ -538,6 +539,9 @@ record_check() {
 
   # (c) The headings.
   while IFS= read -r h; do
+    # The hand-over heading is the one a caller may name (RC_HANDOVER); unset or empty it
+    # stays the heading asked for before.
+    if [ "$h" = "## Hand-over to phase 28" ]; then h=${RC_HANDOVER:-$h}; fi
     if ! grep -qxF -- "$h" "$r"; then
       echo "RECORD-CHECK BAD: the heading '$h' is missing"
       bad=$((bad + 1))
@@ -943,6 +947,22 @@ selftest_record() {
 
   # A record that does not exist.
   st_rc_case "missing record" "does not exist" "$t/none.md" "$t/out"
+
+  # RC_HANDOVER: the hand-over heading as a knob. Unset, or set to nothing, it is the
+  # heading asked for before; set to a line it is that line and no longer the old one.
+  sed 's|^## Hand-over to phase 28$|## Hand-over to docs/beta.md|' "$t/rec.md" > "$t/handover.md"
+  st_eq "RC_HANDOVER: the fixture carries the default heading once" 1 "$(grep -cx '## Hand-over to phase 28' "$t/rec.md")"
+  st_eq "RC_HANDOVER: the other record carries the new heading once" 1 "$(grep -cx '## Hand-over to docs/beta.md' "$t/handover.md")"
+  out=$(RC_HANDOVER='' record_check "$t/rec.md" "$t/out" "amd64-t24-src" 2>&1) || true
+  st_eq "RC_HANDOVER: set to nothing asks for the default heading" "RECORD-CHECK OK 1 blocks" "$out"
+  st_rc_case "a record with another hand-over heading, RC_HANDOVER unset" "the heading '## Hand-over to phase 28' is missing" "$t/handover.md" "$t/out"
+  out=$(RC_HANDOVER='## Hand-over to docs/beta.md' record_check "$t/handover.md" "$t/out" "amd64-t24-src" 2>&1) || true
+  st_eq "RC_HANDOVER: names the heading of the other record, which then passes" "RECORD-CHECK OK 1 blocks" "$out"
+  rc=0
+  out=$(RC_HANDOVER='## Hand-over to docs/beta.md' record_check "$t/rec.md" "$t/out" "amd64-t24-src" 2>&1) || rc=$?
+  st_eq "RC_HANDOVER: a record with the old heading fails when the variable names the new one" 1 "$rc"
+  st_eq "RC_HANDOVER: and the output names the heading asked for" 1 "$(printf '%s\n' "$out" | grep -cF -- "the heading '## Hand-over to docs/beta.md' is missing")"
+  st_eq "RC_HANDOVER: and no longer asks for the old one" 0 "$(printf '%s\n' "$out" | grep -cF -- "the heading '## Hand-over to phase 28' is missing")"
   rm -rf "${t:?}"
 }
 
@@ -6287,13 +6307,14 @@ selftest_con() {
     for c in adds deletes; do
       printf 'CONSIST-RUNS-STAGE-%s: 40\nRESTORED-RUNS-STAGE-%s: 40\nUPLOADS-IN-WINDOW-STAGE-%s: 90\nPAGES-IN-WINDOW-STAGE-%s: 20\nDELETES-IN-WINDOW-STAGE-%s: 3\n' "$c" "$c" "$c" "$c" "$c"
       printf 'BACKUP-RC-HISTOGRAM-STAGE-%s: 0=39 24=1\nOUTCOME-STAGE-%s: ORPHAN-ONLY-NAMED\n' "$c" "$c"
+      printf 'RETRIED-RUNS-STAGE-%s: 3\nRETRY-COMPLETED-RUNS-STAGE-%s: 2\nABORTED-24-RUNS-STAGE-%s: 1\nMANIFEST-LESS-DIRS-STAGE-%s: 0\n' "$c" "$c" "$c" "$c"
       printf 'CONSIST-SUMMARY-STAGE-%s: RUNS=40 RESTORED=40 AGREE=10 ORPHAN-ONLY=29 OUTCOME=ORPHAN-ONLY-NAMED\n' "$c"
     done
     printf 'CONSIST OK\n'
   } > "$t/s/src/consist.txt"
   printf 'RUN 1 adds CLASS=AGREE X=1\nRUN 2 adds CLASS=ORPHAN-ONLY X=1\n' > "$t/s/src/consist-runs.txt"
   printf 'CONTROL C0 ACTION=none HOLD-REACHED=yes HOLD-RELEASED-IN-S=0 MISSING=0 ORPHAN=0 CLASS=AGREE EXPECTED=AGREE\nCONTROL C1 ACTION=upload HOLD-REACHED=yes HOLD-RELEASED-IN-S=1 MISSING=0 ORPHAN=3 CLASS=ORPHAN-ONLY EXPECTED=ORPHAN-ONLY\nCONTROL C2 ACTION=delete HOLD-REACHED=yes HOLD-RELEASED-IN-S=1 MISSING=3 ORPHAN=0 CLASS=ROW-WITHOUT-FILE EXPECTED=ROW-WITHOUT-FILE\nWINDOW OK\n' > "$t/s/src/window.txt"
-  printf 'FLOOR-MB: 1024\nDATA-MB: 1170 (what a backup has to write)\nFS-SIZE-MB: 1064\nFREE-AT-GUARD-MB: 1064 (df -Pm)\nCONTROL-CLASS: COMPLETE\nHAND-CLASS: FAILED-PARTIAL-DIR-LEFT\nAGAIN-CLASS: GUARD-REFUSED\nUNIT-CLASS: FAILED-PARTIAL-DIR-LEFT\nUNIT-RESULT: exit-code\nUNIT-EXECMAINSTATUS: 11\nRESTORE-PARTIAL-EXIT: 1\nCAPFULL OK\n' > "$t/s/src/capfull.txt"
+  printf 'FLOOR-MB: 1024\nDATA-MB: 1170 (what a backup has to write)\nFS-SIZE-MB: 1064\nFREE-AT-GUARD-MB: 1064 (df -Pm)\nCONTROL-CLASS: COMPLETE\nHAND-CLASS: FAILED-PARTIAL-DIR-LEFT\nAGAIN-CLASS: GUARD-REFUSED\nUNIT-CLASS: FAILED-PARTIAL-DIR-LEFT\nUNIT-RESULT: exit-code\nUNIT-EXECMAINSTATUS: 11\nRESTORE-PARTIAL-EXIT: 1\nHAND-ROBUST: PASS\nAGAIN-NEXT-NIGHT: PASS\nUNIT-ROBUST: PASS\nCAPFULL OK\n' > "$t/s/src/capfull.txt"
   printf 'COMPAT-TAG: v0.1.0 (4d238b9)\nSTATE-SOURCE: LEVEL: 60 PAGES-COUNT: 8 USERS-COUNT: 2 \nSTATE-RESTORED: LEVEL: 60 PAGES-COUNT: 8 USERS-COUNT: 2 \nLEVEL-BEFORE: 60\nLEVEL-AFTER: 60\nLOGIN-ADMIN: HTTP 303 /admin/\nLOGIN-EDITOR: HTTP 303 /admin/\nMEDIA-SERVED-EQUAL: 4 of 4\nCHECK: 17 of 17\nCOMPAT OK\n' > "$t/s/old/compat.txt"
   printf 'details\n' > "$t/s/old/compat-binary.txt"
   printf 'STEP 01 rc=0 a\nSTEP 02 rc=1 b\n' > "$t/s/src/steps.txt"
@@ -6310,7 +6331,10 @@ selftest_con() {
   st_eq "con_summarize DEVIATIONS" 1 "$(printf '%s\n' "$out" | grep -c '^DEVIATIONS: churn fs hold$')"
   st_eq "con_summarize WINDOW" 1 "$(printf '%s\n' "$out" | grep -c '^WINDOW: C0 (nothing written) AGREE, C1 (upload in the window) ORPHAN-ONLY, C2 (delete in the window) ROW-WITHOUT-FILE$')"
   st_eq "con_summarize COMPAT" 1 "$(printf '%s\n' "$out" | grep -c '^COMPAT: TAG=v0.1.0 (4d238b9) LEVEL-BEFORE=60 LEVEL-AFTER=60 LOGIN-ADMIN=HTTP 303 /admin/ LOGIN-EDITOR=HTTP 303 /admin/ PAGES-SOURCE=8 PAGES-RESTORED=8 MEDIA-SERVED=4 of 4 CHECK=17 of 17$')"
-  st_eq "con_summarize CAPFULL" 1 "$(printf '%s\n' "$out" | grep -c '^CAPFULL: FLOOR-MB=1024 FREE-AT-GUARD-MB=1064 DATA-MB=1170 FS-SIZE-MB=1064 CONTROL-CLASS=COMPLETE HAND-CLASS=FAILED-PARTIAL-DIR-LEFT AGAIN-CLASS=GUARD-REFUSED UNIT-CLASS=FAILED-PARTIAL-DIR-LEFT UNIT-RESULT=exit-code UNIT-EXECMAINSTATUS=11 RESTORE-PARTIAL-EXIT=1$')"
+  st_eq "con_summarize CAPFULL" 1 "$(printf '%s\n' "$out" | grep -c '^CAPFULL: FLOOR-MB=1024 FREE-AT-GUARD-MB=1064 DATA-MB=1170 FS-SIZE-MB=1064 CONTROL-CLASS=COMPLETE HAND-CLASS=FAILED-PARTIAL-DIR-LEFT AGAIN-CLASS=GUARD-REFUSED UNIT-CLASS=FAILED-PARTIAL-DIR-LEFT UNIT-RESULT=exit-code UNIT-EXECMAINSTATUS=11 RESTORE-PARTIAL-EXIT=1 HAND-ROBUST=PASS AGAIN-NEXT-NIGHT=PASS UNIT-ROBUST=PASS$')"
+  st_eq "con_summarize retries of stage adds" 1 "$(printf '%s\n' "$out" | grep -c '^CONSIST: stage adds retries: repeated 3, completed after the repeat 2, ended with status 24 1, directories without a MANIFEST left 0$')"
+  st_eq "con_summarize retries of stage deletes" 1 "$(printf '%s\n' "$out" | grep -c '^CONSIST: stage deletes retries: repeated 3, completed after the repeat 2, ended with status 24 1, directories without a MANIFEST left 0$')"
+  st_eq "con_summarize keeps the line before the retries line" 1 "$(printf '%s\n' "$out" | grep -c '^CONSIST: stage adds window writes: uploads 90, page saves 20, deletes 3; backup status histogram 0=39 24=1$')"
   st_eq "con_summarize CLASSIFY lines" 1 "$(printf '%s\n' "$out" | grep -c '^CLASSIFY: consist stage adds: 1 run(s) with CLASS=ORPHAN-ONLY (runs 2)$')"
   st_eq "con_summarize CLASSIFY capfull" 1 "$(printf '%s\n' "$out" | grep -c '^CLASSIFY: capfull HAND-CLASS is FAILED-PARTIAL-DIR-LEFT')"
   st_eq "con_summarize no failures" "FAILS=0" "$(printf '%s\n' "$out" | tail -n 1)"
@@ -6404,12 +6428,13 @@ con_summarize() {
     for st in adds deletes; do
       echo "CONSIST: stage $st $(kvq "$OUT_DIR/consist.txt" "CONSIST-SUMMARY-STAGE-$st")"
       echo "CONSIST: stage $st window writes: uploads $(kvq "$OUT_DIR/consist.txt" "UPLOADS-IN-WINDOW-STAGE-$st"), page saves $(kvq "$OUT_DIR/consist.txt" "PAGES-IN-WINDOW-STAGE-$st"), deletes $(kvq "$OUT_DIR/consist.txt" "DELETES-IN-WINDOW-STAGE-$st"); backup status histogram $(kvq "$OUT_DIR/consist.txt" "BACKUP-RC-HISTOGRAM-STAGE-$st")"
+      echo "CONSIST: stage $st retries: repeated $(kvq "$OUT_DIR/consist.txt" "RETRIED-RUNS-STAGE-$st"), completed after the repeat $(kvq "$OUT_DIR/consist.txt" "RETRY-COMPLETED-RUNS-STAGE-$st"), ended with status 24 $(kvq "$OUT_DIR/consist.txt" "ABORTED-24-RUNS-STAGE-$st"), directories without a MANIFEST left $(kvq "$OUT_DIR/consist.txt" "MANIFEST-LESS-DIRS-STAGE-$st")"
     done
     echo "CONSIST: MIN-RUNS $(kvq "$OUT_DIR/consist.txt" MIN-RUNS), restored-run floor $(kvq "$OUT_DIR/consist.txt" RESTORED-RUNS-FLOOR)"
     echo "WINDOW: C0 (nothing written) $(con_class "$OUT_DIR/window.txt" C0), C1 (upload in the window) $(con_class "$OUT_DIR/window.txt" C1), C2 (delete in the window) $(con_class "$OUT_DIR/window.txt" C2)"
     echo "COMPAT: TAG=$(kvq "$OLD_OUT_DIR/compat.txt" COMPAT-TAG) LEVEL-BEFORE=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-BEFORE) LEVEL-AFTER=$(kvq "$OLD_OUT_DIR/compat.txt" LEVEL-AFTER) LOGIN-ADMIN=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-ADMIN) LOGIN-EDITOR=$(kvq "$OLD_OUT_DIR/compat.txt" LOGIN-EDITOR) PAGES-SOURCE=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-SOURCE)" PAGES-COUNT) PAGES-RESTORED=$(con_field "$(kvq "$OLD_OUT_DIR/compat.txt" STATE-RESTORED)" PAGES-COUNT) MEDIA-SERVED=$(kvq "$OLD_OUT_DIR/compat.txt" MEDIA-SERVED-EQUAL) CHECK=$(kvq "$OLD_OUT_DIR/compat.txt" CHECK)"
     v=$(kvq "$OUT_DIR/capfull.txt" FREE-AT-GUARD-MB)
-    echo "CAPFULL: FLOOR-MB=$(kvq "$OUT_DIR/capfull.txt" FLOOR-MB) FREE-AT-GUARD-MB=${v%% *} DATA-MB=$(kvq "$OUT_DIR/capfull.txt" DATA-MB | cut -d' ' -f1) FS-SIZE-MB=$(kvq "$OUT_DIR/capfull.txt" FS-SIZE-MB) CONTROL-CLASS=$(kvq "$OUT_DIR/capfull.txt" CONTROL-CLASS) HAND-CLASS=$(kvq "$OUT_DIR/capfull.txt" HAND-CLASS) AGAIN-CLASS=$(kvq "$OUT_DIR/capfull.txt" AGAIN-CLASS) UNIT-CLASS=$(kvq "$OUT_DIR/capfull.txt" UNIT-CLASS) UNIT-RESULT=$(kvq "$OUT_DIR/capfull.txt" UNIT-RESULT) UNIT-EXECMAINSTATUS=$(kvq "$OUT_DIR/capfull.txt" UNIT-EXECMAINSTATUS) RESTORE-PARTIAL-EXIT=$(kvq "$OUT_DIR/capfull.txt" RESTORE-PARTIAL-EXIT)"
+    echo "CAPFULL: FLOOR-MB=$(kvq "$OUT_DIR/capfull.txt" FLOOR-MB) FREE-AT-GUARD-MB=${v%% *} DATA-MB=$(kvq "$OUT_DIR/capfull.txt" DATA-MB | cut -d' ' -f1) FS-SIZE-MB=$(kvq "$OUT_DIR/capfull.txt" FS-SIZE-MB) CONTROL-CLASS=$(kvq "$OUT_DIR/capfull.txt" CONTROL-CLASS) HAND-CLASS=$(kvq "$OUT_DIR/capfull.txt" HAND-CLASS) AGAIN-CLASS=$(kvq "$OUT_DIR/capfull.txt" AGAIN-CLASS) UNIT-CLASS=$(kvq "$OUT_DIR/capfull.txt" UNIT-CLASS) UNIT-RESULT=$(kvq "$OUT_DIR/capfull.txt" UNIT-RESULT) UNIT-EXECMAINSTATUS=$(kvq "$OUT_DIR/capfull.txt" UNIT-EXECMAINSTATUS) RESTORE-PARTIAL-EXIT=$(kvq "$OUT_DIR/capfull.txt" RESTORE-PARTIAL-EXIT) HAND-ROBUST=$(kvq "$OUT_DIR/capfull.txt" HAND-ROBUST) AGAIN-NEXT-NIGHT=$(kvq "$OUT_DIR/capfull.txt" AGAIN-NEXT-NIGHT) UNIT-ROBUST=$(kvq "$OUT_DIR/capfull.txt" UNIT-ROBUST)"
     echo "$fut"
     if [ -n "$cl" ]; then printf '%s\n' "$cl"; else echo "CLASSIFY: none"; fi
     echo "STEPS: $sp played, $sf failed"
