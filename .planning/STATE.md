@@ -2,19 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v0.1.1
 milestone_name: Beta belegt
-current_phase: 28
-status: completed
-stopped_at: context exhaustion at 75% (2026-10-26)
-last_updated: "2026-10-26T20:09:52.260Z"
-last_activity: 2026-10-26
-last_activity_desc: Phase 28 complete
-state_head: 26dae2a0b11efa5e906d8251dbb37fcf4f166add
+current_phase: 29
+current_phase_name: Sicherung robust
+status: executing
+stopped_at: Completed 29-01-PLAN.md
+last_updated: "2026-10-27T07:23:18.009Z"
+last_activity: 2026-10-27
+last_activity_desc: Phase 29 execution started
+state_head: c27c3e2eff12ae8235e13e65344f74a8235ff035
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
-  total_plans: 17
-  completed_plans: 17
-  percent: 100
+  total_plans: 25
+  completed_plans: 18
+  percent: 72
 ---
 
 ## Where we are (2026-10-26)
@@ -85,6 +86,7 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 26 P03 | 4min | 2 tasks | 3 files |
+| Phase 29 P01 | 12min | 3 tasks | 3 files |
 
 ### Blockers
 
@@ -200,18 +202,19 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 - [Phase 23]: Upgrade note for 0.0.25 operators lives in the CHANGELOG 0.1.0 entry only (release page body); README notice mirrors docs/beta.md
 - [Phase 23]: 23-03: release is Keep; backfill-releases and tagfix are Review first (push-triggered workflows with contents: write, owner decides); seven other remote branches Safe to delete by patch-equivalence in main
 - [Phase 23]: Phase 23-04: git push origin main precedes git push origin main:release; the owner file contains no tag command and records four veto points with the cost of overriding each
+- [Phase 29]: 29-01: backup cleanup decides by the absence of MANIFEST, never by $?, and never calls exit; run_rsync repeats status 24 exactly once
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-10-26 — Phase 28 complete
+Phase: 29 (Sicherung robust) — EXECUTING
+Plan: 2 of 8
+Status: Ready to execute
+Last activity: 2026-10-27 — Phase 29 execution started
 
 ## Session Continuity
 
-**Last session:** 2026-10-26T20:09:51.934Z
-**Stopped at:** context exhaustion at 75% (2026-10-26)
+**Last session:** 2026-10-27T07:23:17.850Z
+**Stopped at:** Completed 29-01-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps
