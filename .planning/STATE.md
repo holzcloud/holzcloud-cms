@@ -5,17 +5,17 @@ milestone_name: Beta belegt
 current_phase: 29
 current_phase_name: Sicherung robust
 status: executing
-stopped_at: Completed 29-01-PLAN.md
-last_updated: "2026-10-27T07:23:18.009Z"
+stopped_at: Completed 29-02-PLAN.md
+last_updated: "2026-10-27T07:38:04.131Z"
 last_activity: 2026-10-27
 last_activity_desc: Phase 29 execution started
-state_head: c27c3e2eff12ae8235e13e65344f74a8235ff035
+state_head: d4f809993a64b3ee8b30acbdb03cd2888f47438b
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 25
-  completed_plans: 18
-  percent: 72
+  completed_plans: 19
+  percent: 76
 ---
 
 ## Where we are (2026-10-26)
@@ -87,6 +87,7 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 |------|----------|-------|-------|
 | Phase 26 P03 | 4min | 2 tasks | 3 files |
 | Phase 29 P01 | 12min | 3 tasks | 3 files |
+| Phase 29 P02 | 40min | 3 tasks | 2 files |
 
 ### Blockers
 
@@ -203,18 +204,20 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 - [Phase 23]: 23-03: release is Keep; backfill-releases and tagfix are Review first (push-triggered workflows with contents: write, owner decides); seven other remote branches Safe to delete by patch-equivalence in main
 - [Phase 23]: Phase 23-04: git push origin main precedes git push origin main:release; the owner file contains no tag command and records four veto points with the cost of overriding each
 - [Phase 29]: 29-01: backup cleanup decides by the absence of MANIFEST, never by $?, and never calls exit; run_rsync repeats status 24 exactly once
+- [Phase 29]: A failed night that leaves a directory is a BAD line in capfull; the verdicts are pure functions with one selftest case per way to break (plan 29-02)
+- [Phase 29]: RUN-line tokens RETRIES= and LEFT= sit between RSYNC-STATUS= and DIR= so DIR= stays last; RC_HANDOVER defaults to the old heading (plan 29-02)
 
 ## Current Position
 
 Phase: 29 (Sicherung robust) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-10-27 — Phase 29 execution started
 
 ## Session Continuity
 
-**Last session:** 2026-10-27T07:23:17.850Z
-**Stopped at:** Completed 29-01-PLAN.md
+**Last session:** 2026-10-27T07:38:03.782Z
+**Stopped at:** Completed 29-02-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps
