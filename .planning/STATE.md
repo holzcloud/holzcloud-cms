@@ -234,3 +234,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 | deferred_items | 09/deferred-items.md: "1 Zeilen" survives in the three file-header sentences | acknowledged | 2026-09-10 | v1.6 |
 
 Quittiert unter dem Arbeitsnamen v1.6; der Meilenstein heisst seit dem Release (2026-09-11) v1.10.
+
+### Roadmap Evolution
+
+- Phase 29 added: Sicherung robust (backup.sh: rsync status 24 retried once, failed night cleans its MANIFEST-less directory; new evidence set; docs/beta.md quotations; 28-check.sh `frozen` gate)

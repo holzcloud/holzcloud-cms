@@ -550,6 +550,16 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 | 27. Repository tidy | v0.1.1 | 5/5 | Complete    | 2026-10-26 |
 | 28. The promise in writing | v0.1.1 | 3/3 | Complete    | 2026-10-26 |
 
+### Phase 29: Sicherung robust
+
+**Goal:** `backup.sh` repeats an rsync exit status 24 once and aborts loudly if it recurs; a failed night removes its own directory when it has no MANIFEST (trap), so a half-written directory can no longer block later nights on a nearly full filesystem. Then a new evidence set (con-chain/nightly), new quotations in `docs/beta.md`, and the `frozen` gate of `28-check.sh` re-pinned or replaced.
+**Requirements**: TBD
+**Depends on:** Phase 28
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 29 to break down)
+
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
 summaries, v2.0 kept in full. The v1.10 roadmap as it stood at the close is
