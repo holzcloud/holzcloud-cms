@@ -1040,6 +1040,24 @@ selftest_vanish() {
   st_fail "vanish: too few arguments" vanish_verdict once COMPLETE 0 1
   st_fail "vanish: too many arguments" vanish_verdict once COMPLETE 0 1 0 extra
   st_eq "vanish: a refusal prints nothing" "" "$(vanish_verdict thrice COMPLETE 0 1 0 || true)"
+  st_eq "vanish unit once: the pass" PASS "$(vanish_unit_verdict once success 0 inactive)"
+  st_eq "vanish unit once: the unit failed on a night that completed" "FAIL the unit failed on a night that completed" "$(vanish_unit_verdict once exit-code 24 failed)"
+  st_eq "vanish unit once: another Result" "FAIL the unit's Result is timeout, not success" "$(vanish_unit_verdict once timeout 0 failed)"
+  st_eq "vanish unit once: a main status that is not 0" "FAIL the unit's main status is 3, not 0" "$(vanish_unit_verdict once success 3 inactive)"
+  st_eq "vanish unit once: still activating" "FAIL the unit is activating, not inactive" "$(vanish_unit_verdict once success 0 activating)"
+  st_eq "vanish unit twice: the pass" PASS "$(vanish_unit_verdict twice exit-code 24 failed)"
+  st_eq "vanish unit twice: success on a recurrence" "FAIL the unit did not fail on a status 24 that recurred" "$(vanish_unit_verdict twice success 0 inactive)"
+  st_eq "vanish unit twice: another Result" "FAIL the unit's Result is signal, not exit-code" "$(vanish_unit_verdict twice signal 24 failed)"
+  st_eq "vanish unit twice: main status 11" "FAIL the unit's main status is 11, not 24" "$(vanish_unit_verdict twice exit-code 11 failed)"
+  st_eq "vanish unit twice: main status 0 with Result exit-code" "FAIL the unit's main status is 0, not 24" "$(vanish_unit_verdict twice exit-code 0 failed)"
+  st_eq "vanish unit twice: not failed" "FAIL the unit is inactive, not failed" "$(vanish_unit_verdict twice exit-code 24 inactive)"
+  st_fail "vanish unit: an unknown scenario word" vanish_unit_verdict thrice success 0 inactive
+  st_fail "vanish unit: an empty Result" vanish_unit_verdict once "" 0 inactive
+  st_fail "vanish unit: a Result with a space" vanish_unit_verdict once "exit code" 0 inactive
+  st_fail "vanish unit: a status that is not a number" vanish_unit_verdict twice exit-code x failed
+  st_fail "vanish unit: an empty state" vanish_unit_verdict twice exit-code 24 ""
+  st_fail "vanish unit: too few arguments" vanish_unit_verdict twice exit-code 24
+  st_eq "vanish unit: a refusal prints nothing" "" "$(vanish_unit_verdict thrice success 0 inactive || true)"
 }
 
 cmd_selftest() {
@@ -5857,6 +5875,40 @@ vanish_verdict() {
   echo PASS
 }
 
+# vanish_unit_verdict KIND RESULT EXECMAINSTATUS ACTIVESTATE: whether the shipped unit ended
+# the way a night that met a status 24 ends. RESULT, EXECMAINSTATUS and ACTIVESTATE are the
+# words systemctl show prints. PASS only for
+#   once    success, 0, inactive      (the repeat succeeded, the night completed)
+#   twice   exit-code, 24, failed     (the repeat met 24 again, the night ended with 24)
+# and FAIL followed by the first broken property for every other combination, both with
+# status 0. A KIND, a status or a word it cannot read makes it print nothing and return 1.
+vanish_unit_verdict() {
+  [ "$#" -eq 4 ] || return 1
+  local k=$1 r=$2 s=$3 a=$4
+  case "$k" in once | twice) ;; *) return 1 ;; esac
+  case "$r" in "" | *[!a-z-]*) return 1 ;; esac
+  case "$a" in "" | *[!a-z-]*) return 1 ;; esac
+  is_num "$s" || return 1
+  if [ "$k" = once ]; then
+    case "$r" in
+      success) ;;
+      exit-code) echo "FAIL the unit failed on a night that completed"; return 0 ;;
+      *) echo "FAIL the unit's Result is $r, not success"; return 0 ;;
+    esac
+    if [ "$s" -ne 0 ]; then echo "FAIL the unit's main status is $s, not 0"; return 0; fi
+    if [ "$a" != inactive ]; then echo "FAIL the unit is $a, not inactive"; return 0; fi
+  else
+    case "$r" in
+      exit-code) ;;
+      success) echo "FAIL the unit did not fail on a status 24 that recurred"; return 0 ;;
+      *) echo "FAIL the unit's Result is $r, not exit-code"; return 0 ;;
+    esac
+    if [ "$s" -ne 24 ]; then echo "FAIL the unit's main status is $s, not 24"; return 0; fi
+    if [ "$a" != failed ]; then echo "FAIL the unit is $a, not failed"; return 0; fi
+  fi
+  echo PASS
+}
+
 # The stand-in, written into the container by the harness and nowhere else. It runs the
 # real rsync with all its arguments first; a failure of that is passed on untouched.
 # Only a call whose last argument ends in /media/ (the copy of the media directory,
@@ -5935,13 +5987,59 @@ vanish_count() {
   echo "$n"
 }
 
+# cf_run_unit LABEL TRANSCRIPT: one start of the shipped unit, the way stage (5) of
+# capfull_run plays it (its logic and bounds are copied here, stage (5) keeps its own inline
+# code): the previous invocation id, reset-failed, start --no-block, a new invocation id
+# (bounded 30 s), a poll of ActiveState until inactive or failed (bounded 180 times 5 s),
+# then Result, ExecMainStatus and TriggeredBy, and the journal of the invocation in
+# TRANSCRIPT. Sets CF_UNIT_STATE CF_UNIT_RESULT CF_UNIT_STATUS and writes LABEL-... KEY lines.
+cf_run_unit() {
+  local label=$1 out=$2 inv0 inv i state res em trig
+  inv0=$(show_v holzcloud-backup.service InvocationID)
+  dx systemctl reset-failed holzcloud-backup.service || true
+  dx systemctl start --no-block holzcloud-backup.service || die "systemctl start holzcloud-backup.service failed"
+  i=0
+  inv=$inv0
+  while [ "$i" -lt 30 ] && [ "$inv" = "$inv0" ]; do
+    sleep 1
+    inv=$(show_v holzcloud-backup.service InvocationID)
+    i=$((i + 1))
+  done
+  i=0
+  state=activating
+  while [ "$i" -lt 180 ]; do
+    state=$(show_v holzcloud-backup.service ActiveState)
+    case "$state" in inactive | failed) break ;; esac
+    sleep 5
+    i=$((i + 1))
+  done
+  res=$(show_v holzcloud-backup.service Result)
+  em=$(show_v holzcloud-backup.service ExecMainStatus)
+  trig=$(show_v holzcloud-backup.service TriggeredBy)
+  dxo journalctl "_SYSTEMD_INVOCATION_ID=$inv" --no-pager -o short-iso > "$out" 2>&1 || true
+  key_line "$label-INVOCATION: $inv (started by systemctl start, previous invocation '${inv0:-none}')"
+  key_line "$label-ACTIVE-STATE: $state"
+  key_line "$label-RESULT: $res"
+  key_line "$label-EXECMAINSTATUS: $em"
+  key_line "$label-TRIGGEREDBY: '${trig}'"
+  key_line "$label-JOURNAL-LINES: $(grep -c . "$out" || true)"
+  case "$state" in inactive | failed) ;; *) check_bad "$label: the unit was still '$state' after the bounded poll" ;; esac
+  CF_UNIT_STATE=$state
+  CF_UNIT_RESULT=$res
+  CF_UNIT_STATUS=$em
+}
+
 # vanish_scenario LABEL KIND MODE BACKUP_LINE: one night of the shipped script against the
 # stand-in on a fresh roomy filesystem with its own sentinel. KIND is once (the stand-in
 # ends the first rsync of the media with 24) or twice (the repeat too). MODE is hand (the
-# document's manual line). The facts go out as the KEY lines of LABEL and the verdicts as
-# LABEL-VERDICT; a verdict that is not PASS is a BAD line.
+# document's manual line) or unit (the shipped holzcloud-backup.service, through
+# cf_run_unit; the counter file is then the unit's private /tmp, new for every start, so
+# only the configuration is written). The facts go out as the KEY lines of LABEL and the
+# verdicts as LABEL-VERDICT (under the unit the first of vanish_verdict and
+# vanish_unit_verdict that is not PASS, with LABEL-UNIT-STATE-CHECK for the second);
+# a verdict that is not PASS is a BAD line.
 vanish_scenario() {
-  local label=$1 kind=$2 mode=$3 bl=$4 fails t before rrc rep giv v
+  local label=$1 kind=$2 mode=$3 bl=$4 fails t before rrc rep giv v uv
   case "$kind" in once) fails=1 ;; twice) fails=2 ;; *) die "vanish_scenario: unknown kind '$kind'" ;; esac
   t=$OUT_DIR/capfull-$(printf '%s' "$label" | tr 'A-Z' 'a-z').txt
   cf_mount "$CF_CTL_MB"
@@ -5950,13 +6048,17 @@ vanish_scenario() {
   cf_df "$label before ($CF_CTL_MB MB)"
   before=$(cf_ls)
   vanish_install "$fails"
-  dx rm -f /tmp/.hc-vanish-count
+  if [ "$mode" = hand ]; then dx rm -f /tmp/.hc-vanish-count; fi
   key_line "$label-STAND-IN: /usr/local/bin/rsync, the first $fails call(s) that copy the media directory end with 24 (mode $mode)"
   case "$mode" in
     hand)
       docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$bl" > "$t" 2>&1 || true
       rrc=$(sed -n 's/^RC //p' "$t" | tail -n 1)
       rrc=${rrc:-255}
+      ;;
+    unit)
+      cf_run_unit "$label" "$t"
+      rrc=${CF_UNIT_STATUS:-255}
       ;;
     *) die "vanish_scenario: unknown mode '$mode'" ;;
   esac
@@ -5967,6 +6069,11 @@ vanish_scenario() {
   key_line "$label-REPEAT-LINES: $rep"
   key_line "$label-GIVEUP-LINES: $giv"
   v=$(vanish_verdict "$kind" "$CF_CLASS" "$CF_RC" "$rep" "$giv") || v="FAIL the verdict refused the recorded words (class $CF_CLASS, status $CF_RC, repeat lines $rep, giving-up lines $giv)"
+  if [ "$mode" = unit ]; then
+    uv=$(vanish_unit_verdict "$kind" "$CF_UNIT_RESULT" "$CF_UNIT_STATUS" "$CF_UNIT_STATE") || uv="FAIL the verdict refused the recorded words (Result $CF_UNIT_RESULT, main status $CF_UNIT_STATUS, state $CF_UNIT_STATE)"
+    key_line "$label-UNIT-STATE-CHECK: $uv"
+    if [ "$v" = PASS ]; then v=$uv; fi
+  fi
   key_line "$label-VERDICT: $v"
   if [ "$v" = PASS ]; then
     check_pass "$label: the shipped script met a status 24 ($kind) and ended $CF_CLASS with status $CF_RC, $rep repeat line(s), $giv giving-up line(s)"
@@ -6183,6 +6290,9 @@ capfull_run() {
   CF_CTL_MB=$ctl_mb
   VANISH_GONE=yes
   vanish_scenario VANISH-ONCE once hand "$bl"
+  vanish_scenario VANISH-TWICE twice hand "$bl"
+  vanish_scenario VANISH-ONCE-UNIT once unit "$bl"
+  vanish_scenario VANISH-TWICE-UNIT twice unit "$bl"
   key_line "VANISH-SHIM-REMOVED: $VANISH_GONE"
 
   # (6) What the script did to the order of things, read and not assumed.
