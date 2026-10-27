@@ -946,6 +946,45 @@ selftest_record() {
   rm -rf "${t:?}"
 }
 
+# ROB-02: capfull_robust_verdict CLASS DIR_MADE REMOVAL_LINE SENTINEL_INTACT and
+# capfull_next_night_verdict GUARD CLASS. One case for the pass, one for each way a
+# property can break, one for each kind of word that is refused.
+selftest_capfull_robust() {
+  local d=20261027-031500
+  st_eq "robust: a clean removal passes" PASS "$(capfull_robust_verdict FAILED-NO-DIR none yes yes)"
+  st_eq "robust: a directory left is named" "FAIL the night left a directory" "$(capfull_robust_verdict FAILED-PARTIAL-DIR-LEFT "$d" no yes)"
+  st_eq "robust: a directory left, even with the removal line" "FAIL the night left a directory" "$(capfull_robust_verdict FAILED-PARTIAL-DIR-LEFT "$d" yes yes)"
+  st_eq "robust: a night that completed" "FAIL the night completed where it should have failed" "$(capfull_robust_verdict COMPLETE "$d" no yes)"
+  st_eq "robust: a night that completed falsely" "FAIL the night completed where it should have failed" "$(capfull_robust_verdict FALSE-COMPLETE "$d" no yes)"
+  st_eq "robust: a guard that refused" "FAIL the guard refused, so the night under test never ran" "$(capfull_robust_verdict GUARD-REFUSED none no yes)"
+  st_eq "robust: no class but a directory still named" "FAIL the night made the directory $d and it is still there" "$(capfull_robust_verdict FAILED-NO-DIR "$d" yes yes)"
+  st_eq "robust: no removal line" "FAIL the transcript has no line naming the removal of the directory" "$(capfull_robust_verdict FAILED-NO-DIR none no yes)"
+  st_eq "robust: the sentinel was touched" "FAIL the backup of the earlier night was touched" "$(capfull_robust_verdict FAILED-NO-DIR none yes no)"
+  st_eq "robust: no sentinel was planted" "FAIL no backup of an earlier night was planted, so nothing says it was left alone" "$(capfull_robust_verdict FAILED-NO-DIR none yes none-planted)"
+  st_eq "robust: the first broken property wins, the directory before the line" "FAIL the night made the directory $d and it is still there" "$(capfull_robust_verdict FAILED-NO-DIR "$d" no no)"
+  st_eq "robust: the removal line before the sentinel" "FAIL the transcript has no line naming the removal of the directory" "$(capfull_robust_verdict FAILED-NO-DIR none no no)"
+  st_fail "robust: an unknown class" capfull_robust_verdict UNCLASSIFIED none yes yes
+  st_fail "robust: an empty class" capfull_robust_verdict "" none yes yes
+  st_fail "robust: an empty directory name" capfull_robust_verdict FAILED-NO-DIR "" yes yes
+  st_fail "robust: a directory name with a space" capfull_robust_verdict FAILED-NO-DIR "a b" yes yes
+  st_fail "robust: a removal answer that is not yes or no" capfull_robust_verdict FAILED-NO-DIR none maybe yes
+  st_fail "robust: a sentinel answer that is not a word" capfull_robust_verdict FAILED-NO-DIR none yes maybe
+  st_fail "robust: too few arguments" capfull_robust_verdict FAILED-NO-DIR none yes
+  st_fail "robust: too many arguments" capfull_robust_verdict FAILED-NO-DIR none yes yes extra
+  st_eq "robust: a refusal prints nothing" "" "$(capfull_robust_verdict UNCLASSIFIED none yes yes || true)"
+  st_eq "next night: passed and failed without a directory" PASS "$(capfull_next_night_verdict passed FAILED-NO-DIR)"
+  st_eq "next night: the guard refused" "FAIL the guard refused the next night: something still holds the space" "$(capfull_next_night_verdict refused GUARD-REFUSED)"
+  st_eq "next night: refused with any class is still a refusal" "FAIL the guard refused the next night: something still holds the space" "$(capfull_next_night_verdict refused FAILED-NO-DIR)"
+  st_eq "next night: passed and left a directory" "FAIL the next night passed the guard and left a directory" "$(capfull_next_night_verdict passed FAILED-PARTIAL-DIR-LEFT)"
+  st_eq "next night: passed and completed" "FAIL the next night completed where it should have failed" "$(capfull_next_night_verdict passed COMPLETE)"
+  st_eq "next night: passed and completed falsely" "FAIL the next night completed where it should have failed" "$(capfull_next_night_verdict passed FALSE-COMPLETE)"
+  st_eq "next night: passed but classed as refused" "FAIL the next night was classed as refused although the guard passed" "$(capfull_next_night_verdict passed GUARD-REFUSED)"
+  st_fail "next night: an unknown guard" capfull_next_night_verdict maybe FAILED-NO-DIR
+  st_fail "next night: an unknown class" capfull_next_night_verdict passed UNCLASSIFIED
+  st_fail "next night: too few arguments" capfull_next_night_verdict passed
+  st_eq "next night: a refusal prints nothing" "" "$(capfull_next_night_verdict passed UNCLASSIFIED || true)"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -964,6 +1003,7 @@ cmd_selftest() {
   selftest_hold
   selftest_compat
   selftest_con
+  selftest_capfull_robust
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -5443,6 +5483,68 @@ capfull_classify() {
   if [ "$p" = yes ]; then echo FAILED-PARTIAL-DIR-LEFT; else echo FAILED-NO-DIR; fi
 }
 
+# capfull_robust_verdict CLASS DIR_MADE REMOVAL_LINE SENTINEL_INTACT: whether one failed
+# night kept the promise of backup.sh (ROB-02): it left no directory of its own, said so
+# on stderr, and did not touch the backup of an earlier night. The words each argument
+# may take:
+#   CLASS            COMPLETE, FALSE-COMPLETE, GUARD-REFUSED, FAILED-PARTIAL-DIR-LEFT or
+#                    FAILED-NO-DIR (what capfull_classify printed)
+#   DIR_MADE         none, or the name of the directory this run made (letters, digits,
+#                    dot, dash, underscore)
+#   REMOVAL_LINE     yes or no: the transcript holds the line "removed ..., which had no
+#                    MANIFEST" (contract C-2 of plan 29-01)
+#   SENTINEL_INTACT  yes, no or none-planted (the sentinel of the earlier night)
+# Prints PASS, or FAIL followed by the first broken property, and returns 0 for both. It
+# refuses (status 1, nothing printed) every argument that is not one of these words.
+capfull_robust_verdict() {
+  [ "$#" -eq 4 ] || return 1
+  local c=$1 d=$2 r=$3 s=$4
+  case "$c" in COMPLETE | FALSE-COMPLETE | GUARD-REFUSED | FAILED-PARTIAL-DIR-LEFT | FAILED-NO-DIR) ;; *) return 1 ;; esac
+  case "$d" in none) ;; "" | *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$r" in yes | no) ;; *) return 1 ;; esac
+  case "$s" in yes | no | none-planted) ;; *) return 1 ;; esac
+  case "$c" in
+    FAILED-PARTIAL-DIR-LEFT) echo "FAIL the night left a directory"; return 0 ;;
+    COMPLETE | FALSE-COMPLETE) echo "FAIL the night completed where it should have failed"; return 0 ;;
+    GUARD-REFUSED) echo "FAIL the guard refused, so the night under test never ran"; return 0 ;;
+  esac
+  if [ "$d" != none ]; then
+    echo "FAIL the night made the directory $d and it is still there"
+    return 0
+  fi
+  if [ "$r" != yes ]; then
+    echo "FAIL the transcript has no line naming the removal of the directory"
+    return 0
+  fi
+  case "$s" in
+    no) echo "FAIL the backup of the earlier night was touched"; return 0 ;;
+    none-planted) echo "FAIL no backup of an earlier night was planted, so nothing says it was left alone"; return 0 ;;
+  esac
+  echo PASS
+}
+
+# capfull_next_night_verdict GUARD CLASS: whether the night after a failed one was let
+# through the free-space guard and failed again by itself, which is the case only when
+# the failed night gave the space back. GUARD is passed or refused, CLASS a word of
+# capfull_robust_verdict. PASS for passed and FAILED-NO-DIR; FAIL with a reason for
+# every other combination; status 1 and nothing printed for a word outside the lists.
+capfull_next_night_verdict() {
+  [ "$#" -eq 2 ] || return 1
+  local g=$1 c=$2
+  case "$g" in passed | refused) ;; *) return 1 ;; esac
+  case "$c" in COMPLETE | FALSE-COMPLETE | GUARD-REFUSED | FAILED-PARTIAL-DIR-LEFT | FAILED-NO-DIR) ;; *) return 1 ;; esac
+  if [ "$g" = refused ]; then
+    echo "FAIL the guard refused the next night: something still holds the space"
+    return 0
+  fi
+  case "$c" in
+    FAILED-NO-DIR) echo PASS ;;
+    FAILED-PARTIAL-DIR-LEFT) echo "FAIL the next night passed the guard and left a directory" ;;
+    GUARD-REFUSED) echo "FAIL the next night was classed as refused although the guard passed" ;;
+    *) echo "FAIL the next night completed where it should have failed" ;;
+  esac
+}
+
 CF_ROOT=/opt/holzcloud/backups
 
 # cf_free: the free megabytes at the backup root, read the way backup.sh reads them.
@@ -5510,9 +5612,9 @@ cf_dbcheck() {
 # cf_judge LABEL TRANSCRIPT RC BEFORE_LIST: what one run left. Reads the guard from the
 # script's own message in TRANSCRIPT, the directory this run made from the listing before
 # and after, and sets CF_GUARD CF_RC CF_NEW CF_MAN CF_PART CF_COMPLETE CF_DIRBYTES
-# CF_DIRFILES CF_DB CF_RSYNC CF_CLASS; the facts go to the file as KEY lines of LABEL.
+# CF_DIRFILES CF_DB CF_RSYNC CF_CLASS CF_SENT_NOW CF_REMOVAL; the facts go to the file as KEY lines of LABEL.
 cf_judge() {
-  local label=$1 f=$2 rc=$3 before=$4 after nd d st sb sf
+  local label=$1 f=$2 rc=$3 before=$4 after nd d st sb sf n
   after=$(cf_ls)
   nd=$(comm -13 <(printf '%s\n' "$before" | LC_ALL=C sort) <(printf '%s\n' "$after" | LC_ALL=C sort) | head -n 1)
   if grep -q 'ERROR: only' "$f"; then CF_GUARD=refused; else CF_GUARD=passed; fi
@@ -5549,12 +5651,34 @@ cf_judge() {
   key_line "$label-DIRECTORY-FILES: $CF_DIRFILES"
   key_line "$label-MANIFEST: $CF_MAN"
   key_line "$label-DATABASE-SNAPSHOT: $CF_DB (present, holzcloud check status, integrity_check)"
-  key_line "$label-SENTINEL-INTACT: $(cf_sentinel_intact)"
+  CF_SENT_NOW=$(cf_sentinel_intact)
+  key_line "$label-SENTINEL-INTACT: $CF_SENT_NOW"
+  # The line backup.sh prints when it removes the directory of a night that failed before
+  # its MANIFEST (contract C-2 of plan 29-01). A number from grep -c, so that a file that
+  # cannot be read counts as no line.
+  n=$(grep -c 'removed .*, which had no MANIFEST' "$f" 2> /dev/null || true)
+  case "$n" in '' | *[!0-9]*) n=0 ;; esac
+  if [ "$n" -gt 0 ]; then CF_REMOVAL=yes; else CF_REMOVAL=no; fi
+  key_line "$label-REMOVAL-LINE: $CF_REMOVAL"
   key_line "$label-CLASS: $CF_CLASS"
   if [ "$CF_CLASS" = UNCLASSIFIED ]; then
     check_bad "$label: capfull_classify refused the recorded numbers (guard $CF_GUARD, status $rc, MANIFEST $CF_MAN, directory $CF_PART, complete $CF_COMPLETE)"
   fi
   tail -n 10 "$f" | sed "s/^/$label-LAST-LINES: /" | tee -a "$CHECK_OUT" > /dev/null
+}
+
+# capfull_report_robust LABEL: the verdict of capfull_robust_verdict on the facts cf_judge
+# has just set, as the KEY line LABEL-ROBUST and a PASS or BAD line. A refusal of the
+# words (which cf_judge's own UNCLASSIFIED would cause) is a BAD line, never a pass.
+capfull_report_robust() {
+  local v
+  v=$(capfull_robust_verdict "$CF_CLASS" "$CF_NEW" "$CF_REMOVAL" "$CF_SENT_NOW") || v="FAIL the verdict refused the recorded words (class $CF_CLASS, directory $CF_NEW, removal line $CF_REMOVAL, sentinel $CF_SENT_NOW)"
+  key_line "$1-ROBUST: $v"
+  if [ "$v" = PASS ]; then
+    check_pass "$1: the failed night ($CF_CLASS) left no directory, named the removal on stderr and left the sentinel of the earlier night intact ($CF_SENT_NOW)"
+  else
+    check_bad "$1: ${v#FAIL }"
+  fi
 }
 
 cmd_capfull() { (
@@ -5667,8 +5791,10 @@ capfull_run() {
   case "$CF_HAND_CLASS" in
     COMPLETE) check_bad "the backup completed on the nearly full filesystem: the stage did not provoke the failure it is built for" ;;
     FALSE-COMPLETE) check_info "FALSE-COMPLETE: backup.sh ended 0 with a MANIFEST and less than the source; this is a defect candidate for plan 03 (class 4)" ;;
-    *) check_info "backup.sh on the nearly full filesystem: $CF_HAND_CLASS (a measured property of the shipped script)" ;;
+    FAILED-PARTIAL-DIR-LEFT) check_bad "backup.sh on the nearly full filesystem left the directory $CF_HAND_DIR without a MANIFEST: the property under test (a failed night removes its own directory) is broken" ;;
+    *) check_info "backup.sh on the nearly full filesystem: $CF_HAND_CLASS" ;;
   esac
+  capfull_report_robust HAND
 
   # (3) The next night on the same filesystem, unchanged.
   cf_df "again before"
@@ -5679,6 +5805,14 @@ capfull_run() {
   rrc=$(sed -n 's/^RC //p' "$OUT_DIR/capfull-again.txt" | tail -n 1)
   cf_judge AGAIN "$OUT_DIR/capfull-again.txt" "${rrc:-255}" "$before"
   key_line "AGAIN-CLASS: $CF_CLASS"
+  st=$(capfull_next_night_verdict "$CF_GUARD" "$CF_CLASS") || st="FAIL the verdict refused the recorded words (guard $CF_GUARD, class $CF_CLASS)"
+  key_line "AGAIN-NEXT-NIGHT: $st"
+  if [ "$st" = PASS ]; then
+    check_pass "the next night was not refused by the guard and failed the same way without leaving a directory"
+  else
+    check_bad "the next night: ${st#FAIL }"
+  fi
+  capfull_report_robust AGAIN
 
   # (4) restore.sh pointed at the partial directory, with no on stdin.
   if [ "$CF_HAND_DIR" != none ]; then
@@ -5739,6 +5873,7 @@ capfull_run() {
   key_line "UNIT-JOURNAL-LINES: $(grep -c . "$OUT_DIR/capfull-unit.txt" || true)"
   cf_judge UNIT "$OUT_DIR/capfull-unit.txt" "${em:-255}" "$before"
   key_line "UNIT-CLASS: $CF_CLASS"
+  capfull_report_robust UNIT
   case "$state" in inactive | failed) ;; *) check_bad "the unit was still '$state' after the bounded poll" ;; esac
   cf_umount
 
