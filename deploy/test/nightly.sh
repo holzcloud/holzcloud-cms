@@ -3476,7 +3476,7 @@ consist_run() {
   rm -rf "$w"
   mkdir -p "$w"
   tag=$stage$n
-  R_CLASS=? R_BRC=? R_RRC=- R_MISSING=? R_ORPHAN=? R_WU=? R_WP=? R_WD=? R_U=? R_P=? R_D=? R_BS=? R_DIR=? R_RESTORED=$restore R_RSYNC=- R_BADRUN=no R_NAMED=- R_WNAME=- R_RS=0
+  R_CLASS=? R_BRC=? R_RRC=- R_MISSING=? R_ORPHAN=? R_WU=? R_WP=? R_WD=? R_U=? R_P=? R_D=? R_BS=? R_DIR=? R_RESTORED=$restore R_RSYNC=- R_BADRUN=no R_NAMED=- R_WNAME=- R_RS=0 R_RETRIES=0 R_LEFT=0
   keep_out=$CHECK_OUT
 
   if [ -n "${P25_HOLD:-}" ]; then
@@ -3522,6 +3522,25 @@ consist_run() {
   R_BS=$(awk '$1 == "WALL" { printf "%.1f", ($3 - $2) / 1000 }' "$w/backup.txt")
   rsync_st=$(sed -n -E 's/.*rsync (error|warning): .*\(code ([0-9]+)\).*/\2/p' "$w/backup.txt" | head -n 1)
   R_RSYNC=${rsync_st:--}
+  # How often this night repeated an rsync that ended with status 24 (the warning line
+  # of backup.sh, contract C-2 of plan 29-01), and how many directories below the backup
+  # root have no MANIFEST now that the night is over. Both are numbers.
+  R_RETRIES=$(grep -c 'WARNING: rsync exited 24' "$w/backup.txt" 2> /dev/null || true)
+  case "$R_RETRIES" in '' | *[!0-9]*) R_RETRIES=0 ;; esac
+  if R_LEFT=$(dxo bash -c 'find "$1" -mindepth 1 -maxdepth 1 -type d ! -exec test -f {}/MANIFEST \; -print | wc -l' _ /opt/holzcloud/backups); then
+    R_LEFT=$(printf '%s' "$R_LEFT" | tr -d ' \r\n')
+  else
+    R_LEFT=""
+  fi
+  case "$R_LEFT" in
+    '' | *[!0-9]*)
+      R_LEFT=0
+      check_bad "run $stage $n: the directories without a MANIFEST below /opt/holzcloud/backups could not be counted"
+      ;;
+  esac
+  if [ "$R_LEFT" -gt 0 ]; then
+    check_bad "run $stage $n: $R_LEFT director(ies) without a MANIFEST below /opt/holzcloud/backups after the night (backup.sh removes the directory of a night that fails before its MANIFEST)"
+  fi
 
   # (3) The window: events of the churn log held against the backup's own lines.
   span=$(step_span "$w/backup.txt" "Backing up database...") || span=""
@@ -3689,8 +3708,8 @@ consist_run() {
 # CONSIST_KEEP_RAW=1), and the cleanup of the backup directories of the others.
 consist_finish() {
   local stage=$1 n=$2 w=$3 pfx=$4 keep=no f
-  printf 'RUN %s %s CLASS=%s BACKUP-RC=%s RESTORE-RC=%s MISSING=%s ORPHAN=%s WINDOW-UPLOADS=%s WINDOW-PAGES=%s WINDOW-DELETES=%s UPLOADS=%s PAGES=%s DELETES=%s BACKUP-S=%s RESTORED=%s NAMED=%s WINDOW-NAME=%s RSYNC-STATUS=%s DIR=%s\n' \
-    "$n" "$stage" "$R_CLASS" "$R_BRC" "$R_RRC" "$R_MISSING" "$R_ORPHAN" "$R_WU" "$R_WP" "$R_WD" "$R_U" "$R_P" "$R_D" "$R_BS" "$R_RESTORED" "$R_NAMED" "$R_WNAME" "$R_RSYNC" "$R_DIR" >> "${P25_RUNS_FILE:-$OUT_DIR/consist-runs.txt}"
+  printf 'RUN %s %s CLASS=%s BACKUP-RC=%s RESTORE-RC=%s MISSING=%s ORPHAN=%s WINDOW-UPLOADS=%s WINDOW-PAGES=%s WINDOW-DELETES=%s UPLOADS=%s PAGES=%s DELETES=%s BACKUP-S=%s RESTORED=%s NAMED=%s WINDOW-NAME=%s RSYNC-STATUS=%s RETRIES=%s LEFT=%s DIR=%s\n' \
+    "$n" "$stage" "$R_CLASS" "$R_BRC" "$R_RRC" "$R_MISSING" "$R_ORPHAN" "$R_WU" "$R_WP" "$R_WD" "$R_U" "$R_P" "$R_D" "$R_BS" "$R_RESTORED" "$R_NAMED" "$R_WNAME" "$R_RSYNC" "$R_RETRIES" "$R_LEFT" "$R_DIR" >> "${P25_RUNS_FILE:-$OUT_DIR/consist-runs.txt}"
   if [ -s "$w/names.txt" ]; then cat "$w/names.txt" >> "$OUT_DIR/consist-names.txt"; fi
   if [ "$n" = 1 ] || [ "$R_CLASS" != AGREE ] || [ "$R_BADRUN" = yes ]; then keep=yes; fi
   if [ -n "${P25_HOLD:-}" ]; then keep=yes; fi
@@ -3967,6 +3986,24 @@ selftest_outcome() {
   st_eq "counts of stage adds" "5 1 1 1 1 1 3 3 2 4 2 2" "$(consist_stage_counts "$t/runs.txt" adds)"
   st_eq "counts of stage deletes" "1 1 0 0 0 0 1 0 1 7 0 0" "$(consist_stage_counts "$t/runs.txt" deletes)"
   st_eq "counts of a stage that has no runs" "0 0 0 0 0 0 0 0 0 0 0 0" "$(consist_stage_counts "$t/runs.txt" nothing)"
+  printf '%s\n' \
+    'RUN 1 adds CLASS=AGREE BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=0 WINDOW-UPLOADS=2 WINDOW-PAGES=1 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=yes NAMED=- RSYNC-STATUS=- RETRIES=0 LEFT=0 DIR=/x' \
+    'RUN 2 adds CLASS=AGREE BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=0 WINDOW-UPLOADS=0 WINDOW-PAGES=0 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=2.1 RESTORED=no NAMED=- RSYNC-STATUS=24 RETRIES=1 LEFT=0 DIR=/x' \
+    'RUN 3 adds CLASS=BACKUP-REFUSED BACKUP-RC=24 RESTORE-RC=- MISSING=? ORPHAN=? WINDOW-UPLOADS=? WINDOW-PAGES=? WINDOW-DELETES=? UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=2.4 RESTORED=no NAMED=yes RSYNC-STATUS=24 RETRIES=1 LEFT=0 DIR=/x' \
+    'RUN 4 adds CLASS=BACKUP-REFUSED BACKUP-RC=1 RESTORE-RC=- MISSING=? ORPHAN=? WINDOW-UPLOADS=? WINDOW-PAGES=? WINDOW-DELETES=? UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.0 RESTORED=no NAMED=- RSYNC-STATUS=- RETRIES=0 LEFT=2 DIR=/x' \
+    'RUN 5 adds CLASS=BACKUP-REFUSED BACKUP-RC=24 RESTORE-RC=- MISSING=? ORPHAN=? WINDOW-UPLOADS=? WINDOW-PAGES=? WINDOW-DELETES=? UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.0 RESTORED=no NAMED=yes RSYNC-STATUS=24 DIR=/x' \
+    'RUN 6 adds CLASS=HARNESS-FAILED BACKUP-RC=? RESTORE-RC=-' \
+    'RUN 7 adds CLASS=AGREE BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=0 WINDOW-UPLOADS=0 WINDOW-PAGES=0 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=no NAMED=- RSYNC-STATUS=- RETRIES=x LEFT=y DIR=/x' \
+    'RUN 1 deletes CLASS=AGREE BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=0 WINDOW-UPLOADS=0 WINDOW-PAGES=0 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=yes NAMED=- RSYNC-STATUS=24 RETRIES=1 LEFT=1 DIR=/x' \
+    > "$t/retry.txt"
+  st_eq "retry counts of stage adds: two repeated, one completed, two ended with 24, two directories left" "2 1 2 2" "$(consist_retry_counts "$t/retry.txt" adds)"
+  st_eq "retry counts of stage deletes" "1 1 0 1" "$(consist_retry_counts "$t/retry.txt" deletes)"
+  st_eq "retry counts of a stage that has no runs" "0 0 0 0" "$(consist_retry_counts "$t/retry.txt" nothing)"
+  st_eq "retry counts of an older file without the tokens" "0 0 1 0" "$(consist_retry_counts "$t/runs.txt" adds)"
+  st_eq "retry counts of a file without a night that repeated" "0 0 0 0" "$(consist_retry_counts "$t/runs.txt" deletes)"
+  st_eq "retry counts keep the stages apart" "1 1 0 0" "$(printf '%s\n' 'RUN 1 x CLASS=AGREE BACKUP-RC=0 RETRIES=2 LEFT=0 DIR=/x' 'RUN 2 y CLASS=AGREE BACKUP-RC=0 RETRIES=1 LEFT=0 DIR=/x' > "$t/two.txt"; consist_retry_counts "$t/two.txt" x)"
+  st_eq "the new RUN line leaves the twelve numbers of consist_stage_counts as they were" "$(consist_stage_counts "$t/runs.txt" deletes)" "$(printf '%s\n' 'RUN 1 deletes CLASS=AGREE BACKUP-RC=0 RESTORE-RC=0 MISSING=0 ORPHAN=0 WINDOW-UPLOADS=7 WINDOW-PAGES=0 WINDOW-DELETES=0 UPLOADS=9 PAGES=3 DELETES=0 BACKUP-S=1.3 RESTORED=yes NAMED=- RSYNC-STATUS=- RETRIES=1 LEFT=3 DIR=/x' > "$t/new.txt"; consist_stage_counts "$t/new.txt" deletes)"
+  st_eq "the new RUN lines through consist_stage_counts: stage adds" "7 3 0 0 3 0 1 2 1 2 1 0" "$(consist_stage_counts "$t/retry.txt" adds)"
   st_eq "restored run numbers of stage adds" "1 2" "$(consist_restored_numbers "$t/runs.txt" adds)"
   st_eq "backup status histogram of stage adds" "0=4 24=1" "$(consist_rc_histogram "$t/runs.txt" adds)"
 
@@ -4166,6 +4203,26 @@ consist_stage_counts() {
     END { printf "%d %d %d %d %d %d %d %d %d %d %d %d\n", n, a, o, m, r, x, e, nm, rs, up, pg, dl }' "$1"
 }
 
+# consist_retry_counts RUNSFILE STAGE: "RETRIED RETRY-COMPLETED ABORTED-24 LEFT" from the
+# RUN lines of one stage: the runs whose RETRIES token is above 0, those of them whose
+# BACKUP-RC is 0, the runs whose BACKUP-RC is 24 (a night that ended with status 24 after
+# the repeat) and the sum of the LEFT tokens (directories without a MANIFEST that a night
+# left). A line without the tokens, an older file or a CLASS=HARNESS-FAILED line, counts
+# as 0 for RETRIES and for LEFT; a token that is not a number does too.
+consist_retry_counts() {
+  awk -v st="$2" '
+    $1 == "RUN" && $3 == st {
+      split("", v)
+      for (i = 4; i <= NF; i++) { k = index($i, "="); if (k > 0) v[substr($i, 1, k - 1)] = substr($i, k + 1) }
+      r = (v["RETRIES"] ~ /^[0-9]+$/) ? v["RETRIES"] + 0 : 0
+      l = (v["LEFT"] ~ /^[0-9]+$/) ? v["LEFT"] + 0 : 0
+      left += l
+      if (r > 0) { retried++; if (v["BACKUP-RC"] == "0") done++ }
+      if (v["BACKUP-RC"] == "24") ab++
+    }
+    END { printf "%d %d %d %d\n", retried, done, ab, left }' "$1"
+}
+
 # consist_restored_numbers RUNSFILE STAGE: the numbers of the runs counted as restored.
 consist_restored_numbers() {
   awk -v st="$2" '
@@ -4270,8 +4327,9 @@ consist_pick_every() {
 # outcome, from the RUN lines alone, with a BAD line per cause when the stage is no
 # verdict. Returns the outcome in STAGE_OUTCOME.
 consist_stage_report() {
-  local stage=$1 f=$2 min=$3 n a o m r x e nm rs up pg dl out why rt
+  local stage=$1 f=$2 min=$3 n a o m r x e nm rs up pg dl out why rt rt_n rt_c rt_a rt_l
   read -r n a o m r x e nm rs up pg dl <<< "$(consist_stage_counts "$f" "$stage")"
+  read -r rt_n rt_c rt_a rt_l <<< "$(consist_retry_counts "$f" "$stage")"
   out=$(con01_outcome "$a" "$o" "$m" "$r" "$x" "$n" "$min" "$e" "$nm") || out=INCOMPLETE
   STAGE_OUTCOME=$out
   key_line "CONSIST-RUNS-STAGE-$stage: $n"
@@ -4287,6 +4345,10 @@ consist_stage_report() {
   key_line "PAGES-IN-WINDOW-STAGE-$stage: $pg"
   key_line "DELETES-IN-WINDOW-STAGE-$stage: $dl"
   key_line "BACKUP-RC-HISTOGRAM-STAGE-$stage: $(consist_rc_histogram "$f" "$stage")"
+  key_line "RETRIED-RUNS-STAGE-$stage: $rt_n"
+  key_line "RETRY-COMPLETED-RUNS-STAGE-$stage: $rt_c"
+  key_line "ABORTED-24-RUNS-STAGE-$stage: $rt_a"
+  key_line "MANIFEST-LESS-DIRS-STAGE-$stage: $rt_l"
   key_line "OUTCOME-STAGE-$stage: $out"
   key_line "CONSIST-SUMMARY-STAGE-$stage: RUNS=$n RESTORED=$rs AGREE=$a ORPHAN-ONLY=$o ROW-WITHOUT-FILE=$m BACKUP-REFUSED=$r RESTORE-FAILED=$x EXPOSED=$e UPLOADS-IN-WINDOW=$up OUTCOME=$out"
   if [ "$out" = AGREE-ALL ]; then
@@ -4298,6 +4360,9 @@ consist_stage_report() {
     check_bad "stage $stage: $n runs are fewer than the floor of $min (CONSIST_MIN_RUNS)"
   fi
   why=$(restore_floor_ok "$n" "$rs" "$min" "$r") || check_bad "stage $stage: $why"
+  if [ "$rt_l" -gt 0 ]; then
+    check_bad "stage $stage: $rt_l director(ies) without a MANIFEST were left behind by the nights of the stage; backup.sh removes the directory of a night that fails before its MANIFEST"
+  fi
   case "$out" in
     INCONCLUSIVE)
       why=$(exposure_ok "$n" "$min" "$e") || true
@@ -4473,7 +4538,7 @@ src_line() {
 
 # window_mechanisms: what the code says, as INFO lines with the line they were read from.
 window_mechanisms() {
-  local a b c
+  local a b c d
   a=$(src_line internal/media/intake.go 'StoreFile(source, destPath, in.limit)')
   b=$(src_line internal/media/intake.go 'store.Create(ctx, websiteID, in.Filename')
   if [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]; then
@@ -4503,12 +4568,13 @@ window_mechanisms() {
     check_bad "the snapshot is no longer taken by 'holzcloud backup' through VACUUM INTO (lines '$a' '$b'); the reading of the mechanism is out of date"
   fi
   a=$(src_line deploy/backup.sh 'set -euo pipefail')
-  b=$(src_line deploy/backup.sh 'rsync -a "${DATA_DIR}/${name}/"')
+  b=$(src_line deploy/backup.sh 'run_rsync "${name}" -a "${DATA_DIR}/${name}/"')
+  d=$(src_line deploy/backup.sh 'run_rsync()')
   c=$(src_line deploy/backup.sh 'echo "timestamp=${TIMESTAMP}"')
-  if [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ]; then
-    check_info "MECHANISM (read from the code, not measured): backup.sh runs with set -e (deploy/backup.sh:$a) and copies the media with rsync -a (deploy/backup.sh:$b); an rsync status of 24, a file vanished during the copy, ends the script before the MANIFEST is written (deploy/backup.sh:$c), and restore.sh refuses a directory without one"
+  if [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ -n "$d" ]; then
+    check_info "MECHANISM (read from the code, not measured): backup.sh runs with set -e (deploy/backup.sh:$a) and copies the media through run_rsync (deploy/backup.sh:$b, defined at deploy/backup.sh:$d), which repeats an rsync that ended with status 24, a file vanished during the copy, once; a second status 24 ends the script before the MANIFEST is written (deploy/backup.sh:$c), the cleanup then removes the directory of the night, and restore.sh refuses a directory without a MANIFEST"
   else
-    check_bad "deploy/backup.sh no longer has set -e, rsync -a and the MANIFEST as read (lines '$a' '$b' '$c'); the reading of the mechanism is out of date"
+    check_bad "deploy/backup.sh no longer has set -e, run_rsync and the MANIFEST as read (lines '$a' '$b' '$d' '$c'); the reading of the mechanism is out of date"
   fi
 }
 
