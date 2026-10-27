@@ -48,6 +48,34 @@ RETENTION_DAYS="${RETENTION_DAYS:-30}"
 MIN_FREE_MB="${MIN_FREE_MB:-1024}"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 BACKUP_DIR="${BACKUP_ROOT}/${TIMESTAMP}"
+# Empty until this run's own mkdir of BACKUP_DIR has succeeded; the cleanup acts
+# on this path and on no other.
+OWN_DIR=""
+
+# Runs on every way out of the script. A night that ends before its MANIFEST
+# exists leaves a directory restore.sh refuses and that holds disk space, so
+# the next night's guard would refuse too. The rule is the absence of MANIFEST,
+# never $?: inside an EXIT trap that runs because of SIGTERM bash reports $? as
+# 0. The function does not call exit, so bash keeps the status that brought it
+# here, and nothing in it may end early under set -e.
+cleanup_failed_night() {
+    if [ -z "${OWN_DIR}" ]; then
+        return 0
+    fi
+    if [ -f "${OWN_DIR}/MANIFEST" ]; then
+        return 0
+    fi
+    case "${OWN_DIR}" in
+        "${BACKUP_ROOT}"/?*) ;;
+        *) return 0 ;;
+    esac
+    if rm -rf -- "${OWN_DIR}"; then
+        echo "ERROR: backup did not finish; removed ${OWN_DIR}, which had no MANIFEST" >&2 || true
+    else
+        echo "ERROR: backup did not finish and ${OWN_DIR} could not be removed; it has no MANIFEST and restore.sh refuses it, remove it by hand" >&2 || true
+    fi
+    return 0
+}
 
 echo "=== holzcloud-CMS backup: ${TIMESTAMP} ==="
 
@@ -61,7 +89,18 @@ if [ "${free_mb}" -lt "${MIN_FREE_MB}" ]; then
     exit 1
 fi
 
-mkdir -p "${BACKUP_DIR}"
+# A directory under the name of this run was not made by this run. Nothing of
+# it is touched, now or by the cleanup.
+if [ -e "${BACKUP_DIR}" ]; then
+    echo "ERROR: ${BACKUP_DIR} exists already; refusing to start so that no earlier backup is touched" >&2
+    exit 1
+fi
+
+# A plain mkdir: it fails rather than reuse a directory that appeared since the
+# test above.
+mkdir "${BACKUP_DIR}"
+OWN_DIR="${BACKUP_DIR}"
+trap cleanup_failed_night EXIT
 chmod 700 "${BACKUP_DIR}"
 
 # 1. Database — snapshot and integrity check in one step, non-zero on failure.
@@ -86,13 +125,15 @@ done
 
 # 4. A manifest, so a restore can tell what it is looking at. It is written
 #    last: a restore takes its presence as the proof that every step before it
-#    finished.
+#    finished. It is written under another name and renamed, so it is never
+#    there half written.
 {
     echo "timestamp=${TIMESTAMP}"
     echo "version=$(HOLZCLOUD_DATA_DIR=${DATA_DIR} ${HOLZCLOUD_BIN} version 2>/dev/null || echo unknown)"
     echo "data_dir=${DATA_DIR}"
     echo "host=$(hostname)"
-} > "${BACKUP_DIR}/MANIFEST"
+} > "${BACKUP_DIR}/MANIFEST.partial"
+mv "${BACKUP_DIR}/MANIFEST.partial" "${BACKUP_DIR}/MANIFEST"
 
 # 5. Retention. Without this the disk fills up and takes the site with it.
 if [ "${RETENTION_DAYS}" -gt 0 ]; then
