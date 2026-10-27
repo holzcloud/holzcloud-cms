@@ -1005,6 +1005,43 @@ selftest_capfull_robust() {
   st_eq "next night: a refusal prints nothing" "" "$(capfull_next_night_verdict passed UNCLASSIFIED || true)"
 }
 
+# ROB-01: vanish_verdict KIND CLASS RC REPEAT_LINES GIVEUP_LINES. One case for each
+# pass and one for each way the verdict can fail.
+selftest_vanish() {
+  st_eq "vanish once: the pass" PASS "$(vanish_verdict once COMPLETE 0 1 0)"
+  st_eq "vanish once: the night did not complete" "FAIL the night did not complete after the repeat (class FAILED-NO-DIR)" "$(vanish_verdict once FAILED-NO-DIR 24 1 1)"
+  st_eq "vanish once: a directory left" "FAIL the night did not complete after the repeat (class FAILED-PARTIAL-DIR-LEFT)" "$(vanish_verdict once FAILED-PARTIAL-DIR-LEFT 24 1 1)"
+  st_eq "vanish once: the guard refused" "FAIL the night did not complete after the repeat (class GUARD-REFUSED)" "$(vanish_verdict once GUARD-REFUSED 1 0 0)"
+  st_eq "vanish once: less than the source" "FAIL the night ended with a MANIFEST and less than the source" "$(vanish_verdict once FALSE-COMPLETE 0 1 0)"
+  st_eq "vanish once: a status that is not 0" "FAIL the night did not end with status 0 (status 3)" "$(vanish_verdict once COMPLETE 3 1 0)"
+  st_eq "vanish once: no repeat line" "FAIL no repeat line: the script did not repeat" "$(vanish_verdict once COMPLETE 0 0 0)"
+  st_eq "vanish once: two repeat lines" "FAIL 2 repeat lines: it repeated more than once" "$(vanish_verdict once COMPLETE 0 2 0)"
+  st_eq "vanish once: a giving-up line" "FAIL a giving-up line on a night that completed" "$(vanish_verdict once COMPLETE 0 1 1)"
+  st_eq "vanish once: the first broken property wins" "FAIL the night did not complete after the repeat (class FAILED-NO-DIR)" "$(vanish_verdict once FAILED-NO-DIR 0 0 5)"
+  st_eq "vanish twice: the pass" PASS "$(vanish_verdict twice FAILED-NO-DIR 24 1 1)"
+  st_eq "vanish twice: a directory left" "FAIL the night left a directory" "$(vanish_verdict twice FAILED-PARTIAL-DIR-LEFT 24 1 1)"
+  st_eq "vanish twice: the night completed" "FAIL the night completed although the repeat met a status 24 again" "$(vanish_verdict twice COMPLETE 0 1 0)"
+  st_eq "vanish twice: the night completed with less" "FAIL the night completed although the repeat met a status 24 again" "$(vanish_verdict twice FALSE-COMPLETE 0 1 0)"
+  st_eq "vanish twice: the guard refused" "FAIL the guard refused, so the night under test never ran" "$(vanish_verdict twice GUARD-REFUSED 1 0 0)"
+  st_eq "vanish twice: status 11 is not rsync's own 24" "FAIL the status was not rsync's own 24 (status 11)" "$(vanish_verdict twice FAILED-NO-DIR 11 1 1)"
+  st_eq "vanish twice: status 0 with no directory" "FAIL the status was not rsync's own 24 (status 0)" "$(vanish_verdict twice FAILED-NO-DIR 0 1 1)"
+  st_eq "vanish twice: no repeat line" "FAIL no repeat line: the script did not repeat" "$(vanish_verdict twice FAILED-NO-DIR 24 0 1)"
+  st_eq "vanish twice: two repeat lines" "FAIL 2 repeat lines: it repeated more than once" "$(vanish_verdict twice FAILED-NO-DIR 24 2 1)"
+  st_eq "vanish twice: no giving-up line" "FAIL no giving-up line: the script did not name the second 24" "$(vanish_verdict twice FAILED-NO-DIR 24 1 0)"
+  st_eq "vanish twice: two giving-up lines" "FAIL 2 giving-up lines: it gave up more than once" "$(vanish_verdict twice FAILED-NO-DIR 24 1 2)"
+  st_eq "vanish twice: a directory left wins over the status" "FAIL the night left a directory" "$(vanish_verdict twice FAILED-PARTIAL-DIR-LEFT 11 0 0)"
+  st_fail "vanish: an unknown scenario word" vanish_verdict thrice COMPLETE 0 1 0
+  st_fail "vanish: an empty scenario word" vanish_verdict "" COMPLETE 0 1 0
+  st_fail "vanish: an unknown class" vanish_verdict once UNCLASSIFIED 0 1 0
+  st_fail "vanish: an empty class" vanish_verdict twice "" 24 1 1
+  st_fail "vanish: a status that is not a number" vanish_verdict once COMPLETE x 1 0
+  st_fail "vanish: a repeat count that is not a number" vanish_verdict once COMPLETE 0 "" 0
+  st_fail "vanish: a giving-up count that is not a number" vanish_verdict twice FAILED-NO-DIR 24 1 -1
+  st_fail "vanish: too few arguments" vanish_verdict once COMPLETE 0 1
+  st_fail "vanish: too many arguments" vanish_verdict once COMPLETE 0 1 0 extra
+  st_eq "vanish: a refusal prints nothing" "" "$(vanish_verdict thrice COMPLETE 0 1 0 || true)"
+}
+
 cmd_selftest() {
   ST_N=0
   ST_BAD=0
@@ -1024,6 +1061,7 @@ cmd_selftest() {
   selftest_compat
   selftest_con
   selftest_capfull_robust
+  selftest_vanish
   if [ "$ST_BAD" -ne 0 ]; then
     say "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
@@ -5659,6 +5697,7 @@ cf_umount() {
 # capfull_cleanup: on every exit path.
 capfull_cleanup() {
   docker exec "$NAME" bash -c 'if grep -q " /opt/holzcloud/backups tmpfs " /proc/mounts; then umount /opt/holzcloud/backups || umount -l /opt/holzcloud/backups; fi; rm -rf /root/cf-db-check' > /dev/null 2>&1 || true
+  vanish_remove
 }
 # cf_stats DIR: "BYTES FILES" of the five directories a backup carries below DIR.
 cf_stats() {
@@ -5765,6 +5804,180 @@ capfull_report_robust() {
   else
     check_bad "$1: ${v#FAIL }"
   fi
+}
+
+# ---------------------------------------------------------------------------
+# Phase 29, plan 03: ROB-01. A file cannot be made to vanish at the instant rsync reads
+# the tree, so the status 24 is delivered by a stand-in for rsync in the throwaway
+# container (vanish_install). What is played is what the shipped script and the shipped
+# unit do with a status 24, not rsync's detection of a vanished file.
+# ---------------------------------------------------------------------------
+
+# vanish_verdict KIND CLASS RC REPEAT_LINES GIVEUP_LINES: whether one night that met a
+# status 24 did what backup.sh promises (ROB-01). KIND is once (the first rsync of the
+# media ended with 24 and the repeat succeeded) or twice (the repeat ended with 24 too).
+# CLASS is a word of capfull_classify, RC the exit status of the night, REPEAT_LINES and
+# GIVEUP_LINES the number of lines "WARNING: rsync exited 24" and "ERROR: rsync exited 24
+# again" in the transcript. PASS only for
+#   once    COMPLETE, 0, one repeat line, no giving-up line
+#   twice   FAILED-NO-DIR, 24, one repeat line, one giving-up line
+# and FAIL followed by the first broken property for every other combination, both with
+# status 0. A scenario word, a class word or a number it does not know makes it print
+# nothing and return 1.
+vanish_verdict() {
+  [ "$#" -eq 5 ] || return 1
+  local k=$1 c=$2 rc=$3 rep=$4 giv=$5
+  case "$k" in once | twice) ;; *) return 1 ;; esac
+  case "$c" in COMPLETE | FALSE-COMPLETE | GUARD-REFUSED | FAILED-PARTIAL-DIR-LEFT | FAILED-NO-DIR) ;; *) return 1 ;; esac
+  is_num "$rc" "$rep" "$giv" || return 1
+  if [ "$k" = once ]; then
+    case "$c" in
+      COMPLETE) ;;
+      FALSE-COMPLETE) echo "FAIL the night ended with a MANIFEST and less than the source"; return 0 ;;
+      *) echo "FAIL the night did not complete after the repeat (class $c)"; return 0 ;;
+    esac
+    if [ "$rc" -ne 0 ]; then echo "FAIL the night did not end with status 0 (status $rc)"; return 0; fi
+  else
+    case "$c" in
+      FAILED-NO-DIR) ;;
+      FAILED-PARTIAL-DIR-LEFT) echo "FAIL the night left a directory"; return 0 ;;
+      GUARD-REFUSED) echo "FAIL the guard refused, so the night under test never ran"; return 0 ;;
+      *) echo "FAIL the night completed although the repeat met a status 24 again"; return 0 ;;
+    esac
+    if [ "$rc" -ne 24 ]; then echo "FAIL the status was not rsync's own 24 (status $rc)"; return 0; fi
+  fi
+  if [ "$rep" -eq 0 ]; then echo "FAIL no repeat line: the script did not repeat"; return 0; fi
+  if [ "$rep" -gt 1 ]; then echo "FAIL $rep repeat lines: it repeated more than once"; return 0; fi
+  if [ "$k" = once ]; then
+    if [ "$giv" -ne 0 ]; then echo "FAIL a giving-up line on a night that completed"; return 0; fi
+  else
+    if [ "$giv" -eq 0 ]; then echo "FAIL no giving-up line: the script did not name the second 24"; return 0; fi
+    if [ "$giv" -gt 1 ]; then echo "FAIL $giv giving-up lines: it gave up more than once"; return 0; fi
+  fi
+  echo PASS
+}
+
+# The stand-in, written into the container by the harness and nowhere else. It runs the
+# real rsync with all its arguments first; a failure of that is passed on untouched.
+# Only a call whose last argument ends in /media/ (the copy of the media directory,
+# step 3 of backup.sh) is then given the status 24, for the first FAILS calls (the number
+# in /usr/local/etc/hc-vanish-fails; the calls so far are the lines of the counter file).
+# Every other call ends 0, as the real rsync did.
+read -r -d '' VANISH_SHIM_SH <<'SHIM_EOF' || true
+#!/bin/bash
+# hc-vanish stand-in for rsync: written by deploy/test/nightly.sh into a throwaway
+# container, never part of deploy/, removed by the harness.
+/usr/bin/rsync "$@"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  exit "$rc"
+fi
+last=""
+for a in "$@"; do last=$a; done
+case "$last" in
+  */media/)
+    cnt=/tmp/.hc-vanish-count
+    fails=$(cat /usr/local/etc/hc-vanish-fails 2> /dev/null || echo 0)
+    n=0
+    if [ -f "$cnt" ]; then n=$(wc -l < "$cnt"); fi
+    if [ "$n" -lt "$fails" ]; then
+      echo x >> "$cnt"
+      echo "rsync warning: some files vanished before they could be transferred (code 24) at main.c(1338) [sender=3.2.7]" >&2
+      exit 24
+    fi
+    ;;
+esac
+exit 0
+SHIM_EOF
+
+# vanish_install FAILS: the stand-in at /usr/local/bin/rsync (ahead of /usr/bin on the PATH
+# of sudo and of systemd) and the number FAILS in /usr/local/etc/hc-vanish-fails. It
+# refuses to overwrite a file it did not write.
+vanish_install() {
+  is_num "$1" || die "vanish_install: FAILS '$1' is not a number"
+  if dx test -e /usr/local/bin/rsync; then
+    die "vanish_install: /usr/local/bin/rsync exists in $NAME; the stand-in would hide it"
+  fi
+  printf '%s\n' "$VANISH_SHIM_SH" | docker exec -i "$NAME" bash -c 'mkdir -p /usr/local/bin /usr/local/etc && cat > /usr/local/bin/rsync && chmod 755 /usr/local/bin/rsync' \
+    || die "vanish_install: could not write the stand-in into $NAME"
+  dx bash -c 'echo "$1" > /usr/local/etc/hc-vanish-fails && chmod 644 /usr/local/etc/hc-vanish-fails' _ "$1" \
+    || die "vanish_install: could not write the configuration into $NAME"
+}
+
+# vanish_remove: delete the stand-in (only a file that carries its marker), the
+# configuration and the counter file. Safe to call when none of them exists.
+vanish_remove() {
+  docker exec "$NAME" bash -c 'if grep -q "hc-vanish stand-in" /usr/local/bin/rsync 2> /dev/null; then rm -f /usr/local/bin/rsync; fi; rm -f /usr/local/etc/hc-vanish-fails /tmp/.hc-vanish-count' > /dev/null 2>&1 || true
+}
+
+# vanish_gone LABEL: remove the stand-in and confirm with test ! -e that none of the three
+# files is left; a file left is a BAD line and VANISH_GONE becomes no.
+vanish_gone() {
+  local f ok=yes
+  vanish_remove
+  for f in /usr/local/bin/rsync /usr/local/etc/hc-vanish-fails /tmp/.hc-vanish-count; do
+    if ! docker exec "$NAME" test ! -e "$f"; then ok=no; fi
+  done
+  if [ "$ok" = yes ]; then
+    check_pass "$1: the stand-in, its configuration and its counter are gone from the container"
+  else
+    VANISH_GONE=no
+    check_bad "$1: the stand-in, its configuration or its counter is still in the container"
+  fi
+}
+
+# vanish_count PATTERN FILE: the number of lines of FILE that match PATTERN, 0 when the
+# file cannot be read (which the verdicts then fail on).
+vanish_count() {
+  local n
+  n=$(grep -c -- "$1" "$2" 2> /dev/null || true)
+  case "$n" in '' | *[!0-9]*) n=0 ;; esac
+  echo "$n"
+}
+
+# vanish_scenario LABEL KIND MODE BACKUP_LINE: one night of the shipped script against the
+# stand-in on a fresh roomy filesystem with its own sentinel. KIND is once (the stand-in
+# ends the first rsync of the media with 24) or twice (the repeat too). MODE is hand (the
+# document's manual line). The facts go out as the KEY lines of LABEL and the verdicts as
+# LABEL-VERDICT; a verdict that is not PASS is a BAD line.
+vanish_scenario() {
+  local label=$1 kind=$2 mode=$3 bl=$4 fails t before rrc rep giv v
+  case "$kind" in once) fails=1 ;; twice) fails=2 ;; *) die "vanish_scenario: unknown kind '$kind'" ;; esac
+  t=$OUT_DIR/capfull-$(printf '%s' "$label" | tr 'A-Z' 'a-z').txt
+  cf_mount "$CF_CTL_MB"
+  cf_sentinel
+  key_line "$label-SENTINEL: $CF_SENT sha256 $CF_SENT_SHA"
+  cf_df "$label before ($CF_CTL_MB MB)"
+  before=$(cf_ls)
+  vanish_install "$fails"
+  dx rm -f /tmp/.hc-vanish-count
+  key_line "$label-STAND-IN: /usr/local/bin/rsync, the first $fails call(s) that copy the media directory end with 24 (mode $mode)"
+  case "$mode" in
+    hand)
+      docker exec "$NAME" bash -c "$P25_STAMP_SH" _ "$bl" > "$t" 2>&1 || true
+      rrc=$(sed -n 's/^RC //p' "$t" | tail -n 1)
+      rrc=${rrc:-255}
+      ;;
+    *) die "vanish_scenario: unknown mode '$mode'" ;;
+  esac
+  cf_df "$label after"
+  cf_judge "$label" "$t" "$rrc" "$before"
+  rep=$(vanish_count 'WARNING: rsync exited 24' "$t")
+  giv=$(vanish_count 'ERROR: rsync exited 24 again' "$t")
+  key_line "$label-REPEAT-LINES: $rep"
+  key_line "$label-GIVEUP-LINES: $giv"
+  v=$(vanish_verdict "$kind" "$CF_CLASS" "$CF_RC" "$rep" "$giv") || v="FAIL the verdict refused the recorded words (class $CF_CLASS, status $CF_RC, repeat lines $rep, giving-up lines $giv)"
+  key_line "$label-VERDICT: $v"
+  if [ "$v" = PASS ]; then
+    check_pass "$label: the shipped script met a status 24 ($kind) and ended $CF_CLASS with status $CF_RC, $rep repeat line(s), $giv giving-up line(s)"
+  else
+    check_bad "$label: ${v#FAIL }"
+  fi
+  if [ "$kind" = twice ]; then
+    capfull_report_robust "$label"
+  fi
+  vanish_gone "$label"
+  cf_umount
 }
 
 cmd_capfull() { (
@@ -5962,6 +6175,15 @@ capfull_run() {
   capfull_report_robust UNIT
   case "$state" in inactive | failed) ;; *) check_bad "the unit was still '$state' after the bounded poll" ;; esac
   cf_umount
+
+  # (5b) ROB-01: the shipped script meets a status 24. A file cannot be made to vanish at the
+  # instant rsync reads the tree, so a stand-in for rsync delivers the status; the script's
+  # and the unit's handling of it is what is played.
+  deviation "DEVIATION[vanish-shim]: a file cannot be made to vanish at the instant rsync reads the tree, so the status 24 is delivered by a stand-in at /usr/local/bin/rsync (ahead of /usr/bin on the PATH of sudo and of systemd). It runs the real rsync first and then replaces its status by 24 for the first FAILS calls that copy the media directory. What is played is the script's handling of the status 24 (the repeat, the recurrence, the exit status, the removal of the directory) and the unit's, not rsync's detection of a vanished file. The stand-in exists only in this throwaway container and is removed by the harness on every exit path"
+  CF_CTL_MB=$ctl_mb
+  VANISH_GONE=yes
+  vanish_scenario VANISH-ONCE once hand "$bl"
+  key_line "VANISH-SHIM-REMOVED: $VANISH_GONE"
 
   # (6) What the script did to the order of things, read and not assumed.
   check_info "backup.sh runs set -e and its retention step (find -mtime +RETENTION_DAYS) comes after the copies, so a run that ends in the copy never reaches it; that is a reading of the script. What is on disk is in the lines above: the sentinel of an earlier night, which is inside the retention window, shows nothing about deletion"
