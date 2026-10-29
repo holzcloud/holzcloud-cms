@@ -34,7 +34,7 @@
 # says `recorded` this check fails on purpose: the page is stale, and the line moves by
 # the hand-over rule of that record.
 #
-# Every check reads. The only commands that run are the git commands listed in
+# Every check reads. The only commands that run are the seven git commands listed in
 # EVIDENCE_CMDS below (the page must show them; this file runs its own copy), the lines
 # that release.yml itself holds for the version and the notes, and, in `regression` and
 # `changelog go`, the earlier checkers and `go test`.
@@ -75,16 +75,28 @@ ok() { echo "ok: $*"; }
 mktmp() { mktemp -d "$TMPROOT/d.XXXXXX"; }
 need() { [ -f "$1" ] || { echo "missing file: $1" >&2; exit 2; }; }
 
-# The git commands the evidence section must show, and that this file runs itself. The two
-# program-identity commands are pinned to 85fa486, the head of main when phase 28 began, so
-# that they stay true whatever is merged later; the other three name HEAD on purpose, because
-# their claim is that nobody has touched the bound files.
+# E29 is the evidence commit of deploy/BACKUP-ROBUST-RUN.md (phase 29). It is a literal on
+# purpose, and check_beta_evidence proves it equal to the `Evidence commit:` line of the
+# record. CHECK_E29 exists only so that the selftest can show that proof fail; a value other
+# than the record's makes the check fail, it never makes it pass.
+E29=${CHECK_E29:-dd077e4}
+
+# The seven git commands the evidence section must show, and that this file runs itself.
+# The earlier sets (bf74496, b501b1b, e86d490) no longer bind deploy/backup.sh and
+# deploy/test/nightly.sh: phase 29 changed them, and the set of $E29 binds the new ones. The
+# two program-identity commands of phase 28 are pinned to 85fa486, the head of main when
+# phase 28 began, and the one of the new set to 7d51436, the head of main when phase 29
+# began, so that they stay true whatever is merged later. The first of the new commands
+# names HEAD on purpose, because its claim is that nobody has touched a bound file; the
+# three before it name HEAD for the same reason.
 EVIDENCE_CMDS=(
-  "git diff --quiet bf74496 HEAD -- deploy/backup.sh deploy/restore.sh deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh"
-  "git diff --quiet b501b1b HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh"
-  "git diff --quiet e86d490 HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh"
+  "git diff --quiet bf74496 HEAD -- deploy/restore.sh deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh"
+  "git diff --quiet b501b1b HEAD -- deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh"
+  "git diff --quiet e86d490 HEAD -- deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh"
   "git diff --quiet b501b1b 85fa486 -- . ':!.planning' ':!docs' ':!deploy' ':!.github'"
   "git diff --quiet e86d490 85fa486 -- . ':!.planning' ':!docs' ':!deploy' ':!.github'"
+  "git diff --quiet $E29 HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh"
+  "git diff --quiet 7d51436 $E29 -- . ':!.planning' ':!docs' ':!deploy' ':!.github' ':!CHANGELOG.md'"
 )
 
 # ------------------------------------------------------------- helpers ----
@@ -298,7 +310,7 @@ check_beta_quotes() {
 check_beta_coverage() {
   need "$BETA"; beta_parts
   local n0=$NFAIL r w p
-  for r in BKP-01 BKP-02 BKP-03 BKP-04 BKP-05 CON-01 CON-02 CON-03; do
+  for r in BKP-01 BKP-02 BKP-03 BKP-04 BKP-05 CON-01 CON-02 CON-03 ROB-01 ROB-02; do
     grep -qF "$r" "$PS/s" || fail "the promises section does not mention $r"
   done
   for w in 'window' 'overlaps-snapshot-step'; do grep -qF -- "$w" "$PS/s" || fail "the promises section lacks the word '$w' (CON-01 names the window and the run)"; done
@@ -307,7 +319,7 @@ check_beta_coverage() {
     [ "${p#P-}" -gt 10 ] || continue
     grep -qw -- "$p" "$LS/c3" || fail "$p is not named by any ledger row: a moved line must say which 0.1.0 limit it answers"
   done
-  [ "$NFAIL" = "$n0" ] && ok "coverage: BKP-01 to BKP-05 and CON-01 to CON-03 are in the promises, the window is named, every moved row is in the ledger"
+  [ "$NFAIL" = "$n0" ] && ok "coverage: BKP-01 to BKP-05, CON-01 to CON-03 and ROB-01, ROB-02 are in the promises, the window is named, every moved row is in the ledger"
 }
 
 check_beta_nonpromise() {
@@ -379,9 +391,9 @@ check_beta_srv() {
 
 check_beta_evidence() {
   need "$BETA"; beta_parts
-  local n0=$NFAIL row c n=0 sha ns
+  local n0=$NFAIL row c n=0 sha ns rs rl ra rr
   grep -qF 'made again' "$ES/s" || fail "the evidence section lost the rule words 'made again'"
-  for sha in f1428d2 2a11eeb bf74496 b501b1b e86d490 85fa486; do grep -qF "$sha" "$ES/s" || fail "the evidence section does not name $sha"; done
+  for sha in f1428d2 2a11eeb bf74496 b501b1b e86d490 85fa486 7d51436 "$E29"; do grep -qF "$sha" "$ES/s" || fail "the evidence section does not name $sha"; done
   grep -qF 'bausteine.css' "$ES/s" || fail "the evidence section does not name cmd/holzcloud/assets/bausteine.css, a program file that PR 47 changes after the evidence builds"
   grep -qF 'PR 47' "$ES/s" || fail "the evidence section does not say 'PR 47'"
   while IFS= read -r row; do n=$((n + 1)); row_check "$row" E; done < <(grep -E '^\| E-[0-9]+ \|' "$ES/s")
@@ -390,6 +402,10 @@ check_beta_evidence() {
   grep -E '^\| E-4 \|' "$ES/s" | grep -qF "$TIMER_REC" || fail "E-4 does not name $TIMER_REC"
   grep -E '^\| E-5 \|' "$ES/s" | grep -qF 'Evidence commit: e86d490' || fail "E-5 does not cite 'Evidence commit: e86d490'"
   grep -E '^\| E-5 \|' "$ES/s" | grep -qF "$CON_REC" || fail "E-5 does not name $CON_REC"
+  rs=$(sed -n 's/^Evidence commit: //p' "$ROB_REC" | head -n 1)
+  [ "$rs" = "$E29" ] || fail "the record $ROB_REC says 'Evidence commit: $rs' and E29 of this file is '$E29': the two must be the same string"
+  grep -E '^\| E-6 \|' "$ES/s" | grep -qF "Evidence commit: $E29" || fail "E-6 does not cite 'Evidence commit: $E29'"
+  grep -E '^\| E-6 \|' "$ES/s" | grep -qF "$ROB_REC" || fail "E-6 does not name $ROB_REC"
   for c in "${EVIDENCE_CMDS[@]}"; do
     grep -Fxq -- "$c" "$ES/s" || { fail "the evidence section does not show the command: $c"; continue; }
     ( eval "$c" ) || fail "the command exits non-zero: $c"
@@ -400,7 +416,14 @@ check_beta_evidence() {
   else
     fail "deploy/DEPLOY.md against bf74496 is '$ns' now: the page's statement about it has to be re-made, and this check with it"
   fi
-  [ "$NFAIL" = "$n0" ] && ok "evidence: E-1 to E-$n, ${#EVIDENCE_CMDS[@]} commands shown and exit 0, the DEPLOY.md difference stated"
+  rl=$(git diff --numstat e86d490 "$E29" -- deploy/backup.sh | awk '{ print $1 " " $2 }')
+  ra=${rl% *}; rr=${rl#* }
+  if [ -z "$rl" ]; then
+    fail "deploy/backup.sh does not differ between e86d490 and $E29: the page's statement about it has to be re-made, and this check with it"
+  else
+    grep -qF "\`deploy/backup.sh\` has $ra added lines and $rr removed lines against e86d490" "$ES/s" || fail "deploy/backup.sh has $ra added lines and $rr removed lines against e86d490 and the evidence section does not say '\`deploy/backup.sh\` has $ra added lines and $rr removed lines against e86d490'"
+  fi
+  [ "$NFAIL" = "$n0" ] && ok "evidence: E-1 to E-$n, ${#EVIDENCE_CMDS[@]} commands shown and exit 0, the DEPLOY.md difference stated, the added and removed lines of deploy/backup.sh stated, E-6 bound to $E29"
 }
 
 check_beta() {
@@ -712,7 +735,7 @@ Beta is not feature-frozen and the schema is not promised stable.
 |----|---------|--------|-------------|
 | P-1 | The unit starts. | `deploy/SECURITY-SCORE.md` | `UNIT-01: the unit starts and the site answers` |
 EOF
-    echo "| P-11 | BKP-01 BKP-02 BKP-03 BKP-04 BKP-05 CON-01 CON-02 CON-03: the shipped entry fires the shipped service. The window and the run: overlaps-snapshot-step. | \`$TIMER_REC\` | \"$q1\", \`TRIGGERED-BY: holzcloud-backup.timer\` |"
+    echo "| P-11 | BKP-01 BKP-02 BKP-03 BKP-04 BKP-05 CON-01 CON-02 CON-03 ROB-01 ROB-02: the shipped entry fires the shipped service. The window and the run: overlaps-snapshot-step. | \`$TIMER_REC\` | \"$q1\", \`TRIGGERED-BY: holzcloud-backup.timer\` |"
     cat <<'EOF'
 
 ## What 0.1.1 does not promise
@@ -753,8 +776,11 @@ These are the limits.
 EOF
     echo "| E-4 | Timer. | \`$TIMER_REC\` | \`Evidence commit: b501b1b\` |"
     echo "| E-5 | Consistency. | \`$CON_REC\` | \`Evidence commit: e86d490\` |"
+    echo "| E-6 | Robust. | \`$ROB_REC\` | \`Evidence commit: $E29\` |"
     echo
     echo "A set is made again when a bound file changes (2a11eeb, bf74496). DEPLOY.md has 39 added lines against bf74496. The program is pinned at 85fa486; PR 47 changes cmd/holzcloud/assets/bausteine.css after it."
+    echo
+    echo "\`deploy/backup.sh\` has $(git diff --numstat e86d490 "$E29" -- deploy/backup.sh | awk '{ print $1 " added lines and " $2 " removed lines" }') against e86d490."
     echo
     echo '```text'
     for c in "${EVIDENCE_CMDS[@]}"; do echo "$c"; done
@@ -931,7 +957,7 @@ selftest() {
   neg 'a promise cites the native record while it is pending' quotes 'while a requirement there is pending owner' -- t_sub '| `deploy/BACKUP-TIMER-RUN.md` | "' '| `deploy/NATIVE-AMD64-RUN.md` | "'
   neg 'a pending requirement named among the promises' quotes 'appears in the promises section' -- t_sub 'BKP-01 BKP-02' 'SRV-02 BKP-01 BKP-02'
   neg 'a promise row without a whole sentence' quotes 'cites no whole sentence' -- t_sub '"The shipped entry fires the shipped, hardened service without a person, a drop-in or a manual start, and the backup it leaves is whole.", ' ''
-  neg 'a requirement missing from the promises' coverage 'does not mention CON-03' -- t_sub 'CON-03: ' ''
+  neg 'a requirement missing from the promises' coverage 'does not mention CON-03' -- t_sub 'CON-03 ' ''
   neg 'the window not named' coverage 'lacks the word '\''overlaps-snapshot-step'\''' -- t_sub 'The window and the run: overlaps-snapshot-step.' ''
   neg 'a baseline limit dropped' baseline 'neither kept nor in the ledger' -- t_del 'Bit rot in a complete backup is not caught.'
   neg 'a baseline limit rewritten' baseline 'neither kept nor in the ledger' -- t_sub 'Bit rot in a complete backup is not caught.' 'Bit rot is rare.'
@@ -945,6 +971,15 @@ selftest() {
   neg 'a ledger row that quotes what 0.1.0 did not say' ledger 'quotes something the baseline does not say' -- t_sub '| The real 03:15 window was not exercised' '| The real 03:15 window was not tried'
   neg 'a ledger row that names a promise that does not exist' ledger 'names P-12' -- t_sub 'shipped service. | P-11 |' 'shipped service. | P-12 |'
   neg 'an evidence command missing' evidence 'does not show the command' -- t_del 'git diff --quiet e86d490 85fa486'
+  neg 'a command of the new set missing: the bound files of the new set' evidence 'does not show the command' -- t_del "git diff --quiet $E29 HEAD"
+  neg 'a command of the new set missing: the program identity of the new set' evidence 'does not show the command' -- t_del 'git diff --quiet 7d51436'
+  neg 'E-6 loses its commit' evidence 'E-6 does not cite '\''Evidence commit: dd077e4'\''' -- t_sub "Evidence commit: $E29" 'Evidence commit: 0000000'
+  neg 'E-6 loses the record name' evidence 'E-6 does not name deploy/BACKUP-ROBUST-RUN.md' -- t_sub '| E-6 | Robust. | `deploy/BACKUP-ROBUST-RUN.md`' '| E-6 | Robust. | `deploy/BACKUP-CONSISTENCY-RUN.md`'
+  neg 'the lines of backup.sh stated with other numbers' evidence 'the evidence section does not say' -- t_sub 'has 89 added lines and 5 removed lines' 'has 88 added lines and 5 removed lines'
+  neg 'the lines of backup.sh not stated' evidence 'the evidence section does not say' -- t_del 'removed lines against e86d490'
+  st_fails 'the sha of the checker differs from the record' "the record $ROB_REC says 'Evidence commit: dd077e4' and E29 of this file is '0000000'" env "$B" CHECK_E29=0000000 BETA="$T/good.md" OWNER_STEPS="$T/os-good.md" bash "$ME" beta evidence
+  neg 'a promise section without ROB-01' coverage 'does not mention ROB-01' -- t_sub ' ROB-01' ''
+  neg 'a promise section without ROB-02' coverage 'does not mention ROB-02' -- t_sub ' ROB-02' ''
   neg 'E-4 loses its commit' evidence 'E-4 does not cite '\''Evidence commit: b501b1b'\''' -- t_sub 'Evidence commit: b501b1b' 'Evidence commit: 0000000'
   neg 'the version heading differs' structure 'the level-two headings are not' -- t_sub '## What 0.1.1 promises' '## What 0.1.2 promises'
   sed 's/^Status: pending owner$/Status: recorded/' "$NATIVE_PATH" > "$T/native-recorded.md"
