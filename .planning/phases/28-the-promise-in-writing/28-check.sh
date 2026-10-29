@@ -81,6 +81,20 @@ need() { [ -f "$1" ] || { echo "missing file: $1" >&2; exit 2; }; }
 # than the record's makes the check fail, it never makes it pass.
 E29=${CHECK_E29:-dd077e4}
 
+# FROZEN_END is the last commit that changed the program or the docs of phase 29: after it
+# nothing outside .planning, docs and CHANGELOG.md counts, so a later phase or quick task can
+# move the program on without turning `frozen` red. It is a literal on purpose (rule E and F
+# of frozen_in read the phase between 7d51436 and this commit and nowhere else).
+FROZEN_END=e54c111
+# The exact list of files phase 29 changed outside .planning, docs and CHANGELOG.md, sorted
+# the way `git diff --name-only | sort` prints them (LC_ALL=C), one per line. Rule E of
+# frozen_in compares the real change between 7d51436 and FROZEN_END with it, name for name.
+FROZEN_PHASE29_FILES="deploy/BACKUP-ROBUST-RUN.md
+deploy/backup.sh
+deploy/test/README.md
+deploy/test/backup-robust.sh
+deploy/test/nightly.sh"
+
 # The seven git commands the evidence section must show, and that this file runs itself.
 # The earlier sets (bf74496, b501b1b, e86d490) no longer bind deploy/backup.sh and
 # deploy/test/nightly.sh: phase 29 changed them, and the set of $E29 binds the new ones. The
@@ -644,14 +658,41 @@ check_changelog() {
 
 # --------------------------------------------------------------- frozen ----
 
-# Phase 28 edits docs/beta.md, CHANGELOG.md, its own files and nothing else. Everything the earlier evidence binds stays.
+# Phase 29 changed deploy/backup.sh and deploy/test/nightly.sh on purpose, added a record and
+# a test, and edited docs/beta.md and CHANGELOG.md. What the evidence binds stays, and the
+# gate is pinned to commits so that the program can move on without it going red.
+#
+#   frozen_in DIR R1 R2 BASE END EVC FILES
+#
+# DIR is the repository (every git command is `git -C "$DIR"`), R1 the commit the earlier
+# evidence was made at (05fc076), R2 the one of the phase 26 instrument (7d20710), BASE the
+# commit phase 29 began on (7d51436), END the last commit that changed the program or the
+# docs of the phase ($FROZEN_END), EVC the evidence commit of the new set ($E29) and FILES the
+# files the phase changed outside .planning, docs and CHANGELOG.md, newline separated and
+# sorted. Rules A, B and D name HEAD of DIR on purpose; C, E and F name fixed pairs.
+#
+# Rule D is the same claim as the E-6 command of docs/beta.md over the seven bound files
+# (`git diff --quiet $E29 HEAD -- ...`): a change to one of them means the set is made again.
+frozen_in() {
+  local d=$1 r1=$2 r2=$3 base=$4 end=$5 evc=$6 files=$7 n0=$NFAIL got t
+  git -C "$d" diff --quiet "$r1" HEAD -- deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud.service deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/SECURITY-SCORE.md deploy/DEPLOY-RUN.md deploy/BACKUP-RUN.md deploy/BACKUP-TIMER-RUN.md deploy/BACKUP-CONSISTENCY-RUN.md || fail "Rule A: a file this phase leaves alone (restore.sh, DEPLOY.md, a unit, run.sh or an earlier record) changed after $r1: undo the change, or make the evidence of the earlier set again"
+  git -C "$d" diff --quiet "$r2" HEAD -- deploy/test/native-amd64.sh deploy/NATIVE-AMD64-RUN.md .github/workflows/native-amd64.yml .github/workflows/release.yml || fail "Rule B: a file of the phase 26 instrument or release.yml changed after $r2: undo the change, or make the native evidence again"
+  git -C "$d" diff --quiet "$r1" "$base" -- deploy/backup.sh deploy/test/nightly.sh || fail "Rule C: deploy/backup.sh or deploy/test/nightly.sh differ between $r1 and $base, the commit the phase began on: the earlier evidence no longer describes them, so the phase pin $base is wrong"
+  git -C "$d" diff --quiet "$evc" HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh || fail "Rule D: a file the evidence of $evc binds changed after it: a change to one of them means the set is made again (record, evidence commit and the E-6 row of docs/beta.md)"
+  t=$(mktmp)
+  printf '%s\n' "$files" > "$t/want"
+  git -C "$d" diff --name-only "$base" "$end" -- . ':!.planning' ':!docs' ':!CHANGELOG.md' 2> /dev/null | sort > "$t/got"
+  if ! cmp -s "$t/want" "$t/got"; then
+    got=$(diff "$t/want" "$t/got" | tr '\n' '|')
+    fail "Rule E: the files this phase changed outside .planning, docs and CHANGELOG.md between $base and $end are not the list of the phase (< listed only, > changed only): $got: a stray change is a finding, a file that belongs is added to FROZEN_PHASE29_FILES with its reason"
+  fi
+  git -C "$d" diff --quiet "$base" "$end" -- docs ':!docs/beta.md' || fail "Rule F: a page of docs other than beta.md changed between $base and $end: this phase edits docs/beta.md only"
+  [ "$NFAIL" = "$n0" ] && ok "frozen: the files that bind the new evidence ($evc), the earlier records, restore.sh, the units, run.sh, release.yml and the phase 26 instrument are as they were, and between $base and $end exactly the listed files changed and no page of docs but beta.md"
+  [ "$NFAIL" = "$n0" ]
+}
+
 check_frozen() {
-  local n0=$NFAIL
-  git diff --quiet 05fc076 HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud.service deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh deploy/SECURITY-SCORE.md deploy/DEPLOY-RUN.md deploy/BACKUP-RUN.md deploy/BACKUP-TIMER-RUN.md deploy/BACKUP-CONSISTENCY-RUN.md || fail "a bound file or an earlier record changed after 05fc076"
-  git diff --quiet 7d20710 HEAD -- deploy/test/native-amd64.sh deploy/NATIVE-AMD64-RUN.md .github/workflows/native-amd64.yml .github/workflows/release.yml || fail "a phase 26 file or release.yml changed after 7d20710"
-  git diff --quiet 85fa486 HEAD -- . ':!.planning' ':!docs' ':!CHANGELOG.md' || fail "something outside .planning, docs and CHANGELOG.md changed after 85fa486"
-  git diff --quiet 85fa486 HEAD -- docs ':!docs/beta.md' || fail "a page of docs other than beta.md changed after 85fa486"
-  [ "$NFAIL" = "$n0" ] && ok "frozen: the bound files, the earlier records, release.yml, the phase 26 instrument and the whole program are as they were"
+  frozen_in "$ROOT" 05fc076 7d20710 7d51436 "$FROZEN_END" "$E29" "$FROZEN_PHASE29_FILES"
 }
 
 # ----------------------------------------------------------- regression ----
