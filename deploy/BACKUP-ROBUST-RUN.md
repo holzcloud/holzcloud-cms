@@ -1,70 +1,318 @@
 # A backup that repeats a vanished file and removes a failed night, measured: results
 
-This document is the permanent record of phase 29. It records what the changed `deploy/backup.sh` does: the repeat of a media copy that ended with `rsync` status 24, the removal of the directory of a night that failed, and, as in `deploy/BACKUP-CONSISTENCY-RUN.md`, the consistency of the pair of database and media, the restore of a backup made by 0.1.0 and the nearly full disk. This version of the record is the first draft, made to prove the pipeline of the appendix; every sentence in it is true, and it is not yet complete.
+This document is the permanent record of phase 29. It records what the changed `deploy/backup.sh` does, played on the harness of phases 22, 24 and 25 with the script exactly as committed: that a media copy which ended with `rsync` status 24 is repeated once and the night completes if the repeat succeeds (ROB-01), that a night which fails before its `MANIFEST` removes the directory it made and leaves every earlier backup alone (ROB-02), and, as in `deploy/BACKUP-CONSISTENCY-RUN.md`, what a backup holds when pages are saved and media is uploaded while it is taken (CON-01), whether this release restores a backup made by 0.1.0 (CON-02) and what the shipped backup does on a filesystem that is nearly full but still above `MIN_FREE_MB` (CON-03). The earlier record describes a `backup.sh` that no longer ships; this one describes the script that does.
+
+The record rests on one evidence set: a single `nightly.sh con-chain` run from fresh containers, made once against the committed text of every bound file (see *How this was run*). Its raw output is the Appendix, pasted unchanged, and `bash deploy/test/nightly.sh record-check-con` proves every block against its scratch file. Every number in this document is a line of that set and cites its file in backticks as `DIRECTORY/FILE`, with `DIRECTORY` one of the four scratch directories `amd64-t29-src` (the source), `amd64-t29-tgt` (the second host that the restores of CON-01 ran on), `amd64-t29-old` (the previous release) and `amd64-t29-new` (the fresh box this release restored onto). A file that is not pasted is named as `FILE in DIRECTORY`.
+
+The record says what was done, how many times, and what was seen. It does not say that backups are consistent, atomic or safe, because the measurements say the opposite of the first two for the pair of database and media, and a container cannot say the third. What the container cannot show is a named deviation or a line of *Not tested*, never a gap in the table.
 
 ## Summary
 
 | Requirement | Result | Platform | Date, commit |
 |-------------|--------|----------|--------------|
-| CON-01 | PASS: `amd64-t29-src/summary.txt` carries the line `CON-01 PASS`. | linux/amd64 container on an aarch64 host (`amd64-t29-src/versions.txt`) | 2026-10-27, dd077e4 |
-| CON-02 | PASS: `amd64-t29-src/summary.txt` carries the line `CON-02 PASS`. | same | 2026-10-27, dd077e4 |
-| CON-03 | PASS: `amd64-t29-src/summary.txt` carries the line `CON-03 PASS`. | same | 2026-10-27, dd077e4 |
-| ROB-01 | The line `VANISH: ONCE=PASS TWICE=PASS ONCE-UNIT=PASS TWICE-UNIT=PASS UNIT-TWICE-RESULT=exit-code SHIM-REMOVED=yes` is in `amd64-t29-src/summary.txt`. | same | 2026-10-27, dd077e4 |
-| ROB-02 | The line beginning `CAPFULL:` of `amd64-t29-src/summary.txt` carries `HAND-CLASS=FAILED-NO-DIR`. | same | 2026-10-27, dd077e4 |
+| CON-01 | PASS: `CON-01 PASS` stands in `amd64-t29-src/summary.txt`. The shipped `backup.sh` was run 40 times per stage while an editor's session saved pages and uploaded pictures and, in the second stage, deleted them, and each backup was restored by the shipped `restore.sh` on a second container and compared in both directions. Stage adds gave 16 AGREE and 24 ORPHAN-ONLY, stage deletes gave 10 AGREE, 14 ORPHAN-ONLY and 16 ROW-WITHOUT-FILE, and no backup was refused (the `CONSIST:` lines of `amd64-t29-src/summary.txt`). Three controls on a paused `backup.sh` make each case happen on purpose: C0 AGREE, C1 ORPHAN-ONLY, C2 ROW-WITHOUT-FILE (the `WINDOW:` line of `amd64-t29-src/summary.txt`). FUT-02: not needed. | linux/amd64, x86_64 container under emulation on an aarch64 Docker Desktop host (`amd64-t29-src/versions.txt`) | 2026-10-27, dd077e4 |
+| CON-02 | PASS: `CON-02 PASS` stands in `amd64-t29-src/summary.txt`. A backup made by `v0.1.0` (4d238b9) with the tag's own `backup.sh` restored with this release's `restore.sh` onto a fresh box: 8 pages equal, both accounts log in (`HTTP 303 /admin/`), 4 of 4 media originals served with the source's sha256, migration level 60 before and 60 after, `run.sh check` 17 of 17 (the `COMPAT:` line of `amd64-t29-src/summary.txt`). Unlike in the earlier set, the `backup.sh` of the tag and the `backup.sh` of this release are not the same file (`SCRIPTS-IDENTICAL: deploy/backup.sh no` in `amd64-t29-old/compat.txt`). | same | 2026-10-27, dd077e4 |
+| CON-03 | PASS, in the sense that the outcome is recorded, not that it is harmless: `CON-03 PASS` stands in `amd64-t29-src/summary.txt`. On a filesystem of 1064 MB under a floor of 1024 MB the guard passed (`FREE-AT-GUARD-MB: 1064`), `rsync` ran out of space, `backup.sh` ended 11 and left no directory (`HAND-CLASS: FAILED-NO-DIR`); the shipped unit did the same (`UNIT-RESULT: exit-code`, `UNIT-EXECMAINSTATUS: 11`); the next night passed the guard again and failed the same way (`AGAIN-CLASS: FAILED-NO-DIR`), all in `amd64-t29-src/capfull.txt`. | same, on a tmpfs, not a disk | 2026-10-27, dd077e4 |
+| ROB-01 | PASS: the line `VANISH: ONCE=PASS TWICE=PASS ONCE-UNIT=PASS TWICE-UNIT=PASS UNIT-TWICE-RESULT=exit-code SHIM-REMOVED=yes` stands in `amd64-t29-src/summary.txt`. A first media copy that ended with status 24 and a repeat that succeeded completed with a `MANIFEST`, by hand and under the shipped unit (`Result=success`); a status 24 that recurred ended the night with status 24, by hand and under the unit (`Result=exit-code`, `ExecMainStatus=24`). The status 24 of these four scenarios is delivered by a stand-in for `rsync` (`DEVIATION[vanish-shim]`); in the consist stage 8 nights met a real one (`RETRIED-RUNS-STAGE-deletes: 8` in `amd64-t29-src/consist.txt`). | same | 2026-10-27, dd077e4 |
+| ROB-02 | PASS: the `CAPFULL:` line of `amd64-t29-src/summary.txt` carries `HAND-ROBUST=PASS`, `AGAIN-NEXT-NIGHT=PASS` and `UNIT-ROBUST=PASS`. The failed nights of CON-03 and the recurring status 24 left no directory, named the removal on stderr (`ERROR: backup did not finish; removed ...`) and left the sentinel of an earlier night unchanged; the 60 earlier backups beneath the mount are back after the unmount (`EARLIER-BACKUPS-AFTER` in `amd64-t29-src/capfull.txt`). | same | 2026-10-27, dd077e4 |
 
 Evidence commit: dd077e4
 
+The binary under test is the one built from `NEW_REF` (pinned by `con-chain` to `dd077e4`, read from `deploy/test/out/amd64-t29-evidence-commit.txt`) with the Build line of `deploy/DEPLOY.md`: `BINARY: holzcloud v0.1.0-123-gdd077e4 (dd077e4)` in `amd64-t29-src/consist.txt`. The totals of the set are in `amd64-t29-src/summary.txt`: `CON-01 PASS`, `CON-02 PASS`, `CON-03 PASS`, `STEPS: 96 played, 0 failed` and `LEAK-CHECK OK`; the stage statuses are in `amd64-t29-src/chain-statuses.txt`. No stage result file (`prep.txt`, `consist.txt`, `window.txt`, `capfull.txt`, `compat.txt`) holds a line that begins with `BAD`; the only file of the directory that does is `compare-selftest.txt` in `amd64-t29-src`, the output of the comparator on four deliberately tampered states, which is meant to print them and is not cited. `CLASSIFY: none` does not occur: six lines of the summary needed a decision, and the decisions are in *Findings*.
+
 ## How this was run
 
-The set was made once, from fresh containers, against the committed text of `dd077e4`.
+`deploy/test/nightly.sh` is a sibling of `deploy/test/run.sh` (which is not edited: `docs/beta.md` binds it to its evidence commit) and reaches the harness through `run.sh`'s public subcommands only. `con-chain` refuses to start unless `TARGET=systemd-base`, unless the four container names and the four evidence directories are distinct and safe, unless none of the four containers exists and none of the four directories holds anything, pins `NEW_REF` to one sha so that every container of this release gets the byte-identical binary, and plays source, second host, `prep`, `consist`, `window`, `capfull` (which now includes the four vanish scenarios), `compat-source` and `compat` as child processes with their statuses kept. The verdict of each requirement is computed from the files the stages wrote, so a trace can never pass for the set.
+
+The set was made once, from fresh containers (`holzcloud-t29-src`, `holzcloud-t29-tgt`, `holzcloud-t29-old`, `holzcloud-t29-new`), against the committed text of `dd077e4`, started 2026-10-27T07:52:12Z and ended 08:32:05Z on the host clock (39 minutes 53 seconds), exit status 0 (`deploy/test/out/amd64-t29-pass1.started`, `deploy/test/out/amd64-t29-pass1.finished` and `deploy/test/out/amd64-t29-pass1.status`). No second set was made, and no other set is cited. The command was:
+
+```text
+PLATFORM=linux/amd64 TARGET=systemd-base NEW_REF=dd077e4 KEEP=1 CONSIST_RUNS=40 CONSIST_MIN_RUNS=30 CONSIST_RESTORE_EVERY=1 NAME=holzcloud-t29-src OUT_DIR=deploy/test/out/amd64-t29-src TGT_NAME=holzcloud-t29-tgt TGT_OUT_DIR=deploy/test/out/amd64-t29-tgt OLD_NAME=holzcloud-t29-old OLD_OUT_DIR=deploy/test/out/amd64-t29-old NEW_NAME=holzcloud-t29-new NEW_OUT_DIR=deploy/test/out/amd64-t29-new bash deploy/test/nightly.sh con-chain
+```
+
+The knobs that were not set on that line had their defaults: `BULK_MB=100` (100 MB of synthetic media in the source, so that the copy of the media takes long enough to be met by the load), `CHURN_WORKERS=4` (four uploaders, one page saver, in the second stage one deleter), `CHURN_PAUSE=0.05`, `CAPFULL_FLOOR_MB=1024`, `CAPFULL_MARGIN_MB=40`, `CAPFULL_DATA_MB=1150`, `COMPAT_TAG=v0.1.0` (`amd64-t29-src/consist.txt`, `amd64-t29-src/capfull.txt`, `amd64-t29-old/compat.txt`). The stage durations are from the unpasted log of the run (`deploy/test/out/amd64-t29-pass1.log`, host clock): source 1 m 46 s, second host 27 s, `prep` 7 s, `consist` 32 m 59 s (`WALL-MINUTES: 32` in `amd64-t29-src/consist.txt`), `window` 1 m 10 s, `capfull` 59 s, `compat-source` 54 s, `compat` with the leak check and the summary 1 m 31 s.
+
+No bound file changed after the evidence commit. The bound files for this set are `deploy/backup.sh`, `deploy/restore.sh`, `deploy/DEPLOY.md`, `deploy/holzcloud-backup.service`, `deploy/holzcloud-backup.timer`, `deploy/test/run.sh` and `deploy/test/nightly.sh`; this command exited 0 when the record was written:
+
+```text
+git diff --quiet dd077e4 HEAD -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/test/nightly.sh
+```
+
+Against the evidence commit `e86d490` of the earlier set the same list differs in two files, as `git diff --numstat e86d490 dd077e4 -- deploy/backup.sh deploy/test/nightly.sh deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh` shows: `deploy/backup.sh` has 89 insertions and 5 deletions, and `deploy/test/nightly.sh` has 577 insertions and 16 deletions. `deploy/restore.sh`, `deploy/DEPLOY.md`, `deploy/holzcloud-backup.service`, `deploy/holzcloud-backup.timer` and `deploy/test/run.sh` are unchanged since `e86d490`. The earlier set therefore bound a `backup.sh` that this release no longer ships, and the evidence of that set says nothing about the script of this one.
+
+`deploy/test/backup-robust.sh`, the hermetic test of the changed script (it needs no Docker and builds a fake `rsync`, a fake binary and a fake `date`), is not part of the set, is not a bound file and its output is not pasted. When this record was written it ended `BACKUP-ROBUST OK (94 cases)`, and `bash deploy/test/nightly.sh selftest` ended `SELFTEST OK (646 cases)`.
 
 ## Deviations named
 
-The kinds of deviation of the set are listed in the line `DEVIATIONS:` of `amd64-t29-src/summary.txt`.
+Everything here precedes every result: it is what the container does differently from a real server and what the harness did that the document does not contain. The first column is the name written to the `deviations.txt` files; the kinds in the final summary are `churn dropin editor-session emulation fixture fs hold mount scp start-limit transfer vanish-shim` (the `DEVIATIONS:` line of `amd64-t29-src/summary.txt`). The four sets of lines are in `amd64-t29-src/deviations.txt`, `amd64-t29-tgt/deviations.txt`, `amd64-t29-old/deviations.txt` and `amd64-t29-new/deviations.txt`.
+
+| Name | Why | What a real server does instead |
+|------|-----|---------------------------------|
+| DEVIATION[vanish-shim] | A file cannot be made to vanish at the instant `rsync` reads the tree, so the status 24 of the four VANISH scenarios is delivered by a stand-in at `/usr/local/bin/rsync`, ahead of `/usr/bin` on the `PATH` of `sudo` and of systemd. It runs the real `rsync` first and then replaces its status by 24 for the first calls (one or two) that copy the media directory. What those scenarios prove is the script's and the unit's handling of a status 24, not `rsync`'s detection of a vanished file. The stand-in exists only in the throwaway container and is removed on every exit path (`VANISH-SHIM-REMOVED: yes` in `amd64-t29-src/capfull.txt`) | A file that a person deletes while `rsync` reads the directory; the nights of the consist stage met this for real (F-5) |
+| DEVIATION[editor-session] | The load is an editor's session. `auth.MustHaveSecondFactor` is true for an administrator, so every admin URL answers an admin session with a redirect to the compulsory two-factor setup and no admin session reaches a page form (`ADMIN-SESSION: HTTP 303 /admin/2fa/einrichten` in `amd64-t29-src/prep.txt`). The account `churn@example.test`, role editor, was made with the baseline login password; no new secret exists | People edit with their own accounts, administrators with a second factor |
+| DEVIATION[churn] | The load is `curl` inside the container against `127.0.0.1:8080` with the CSRF token of each form, four uploaders, one page saver and a deleter, pausing `CHURN_PAUSE` (0.05 s) plus a jitter between requests | Browsers and people, at a much lower rate on a small site. The rate here is chosen to meet the window often, not to model a site |
+| DEVIATION[hold] | The controls of `window` pause the shipped `backup.sh` between its database snapshot and its copy of the media through `HOLZCLOUD_BIN`, the variable the script documents. `/opt/holzcloud/hc-hold-bin` is a root-owned stand-in for the binary: the real binary with the same arguments and status, and after a successful `backup` it creates a flag and waits (at most 90 s) until the driver removes it. `backup.sh` is untouched | No pause; the window is as long as the copy of the media |
+| DEVIATION[fs] | The nearly full filesystem is a tmpfs mounted over the backup root: no blocks reserved for root, no fragmentation, no journal, memory-backed, and the data directory is on another filesystem than the backup root. The errno `rsync` gets is the same (`ENOSPC`, `No space left on device`) | The backup root and the data directory usually share one disk, a full disk stops the site's own writes as well, and root-reserved blocks change the arithmetic |
+| DEVIATION[emulation] | The container is linux/amd64 emulated on an arm64 host (`host architecture: aarch64`, `container uname: ... x86_64` in `amd64-t29-src/versions.txt`); copy times say nothing about a server | A native server's CPU and disk |
+| DEVIATION[start-limit] | The shipped `holzcloud.service` allows 5 starts within 300 s and `restore.sh` stops and starts it, so `systemctl reset-failed holzcloud` is run on the restoring container before every restore. The unit is not changed and no sandbox directive is touched | Restores are rare |
+| DEVIATION[transfer] | A backup travels from one container to the other as a tar stream through the host (`docker cp` into `docker cp`); the proof of a lossless transfer is the sha256 of every file on both sides (`amd64-t29-new/deviations.txt`, `amd64-t29-new/transfer.txt`) | `rsync` or `scp` between two machines, or a copy back from the off-site target |
+| DEVIATION[fixture] | The test image, the login accounts, a language file, a logo and, with `BULK_MB` above zero, 100 MB of synthetic media under `data/media/WEBSITE/bulk` stand in for operator work; the comparator excludes `*/bulk/` because those files have no rows by design | The operator's own content |
+| DEVIATION[scp], DEVIATION[dropin], DEVIATION[mount] | Inherited from phases 21 and 22: the two `scp` lines of the document played as `docker cp`; the container-only drop-in `ProcSubset=all` on `holzcloud.service` (the shipped backup units have no drop-in, `UNIT-DROPINS: ''` in `amd64-t29-src/capfull.txt`); the unit's `RequiresMountsFor` names a plain directory | `scp`; the unit as shipped; a data directory on its own mount |
 
 ## Findings
 
-No finding is written in this draft.
+Each finding has the class of the plan's rule: (1) a bug of the harness, fixed in `nightly.sh`; (2) a limit of the container, a named deviation or a *Not tested* line; (3) a measured property of a shipped file that matches what it and its document say, recorded and not edited; (4) a defect, a shipped file doing less than it or its document says, with a fix in a commit of its own. No finding is class 1 or class 4 and no shipped file was edited after the evidence commit.
+
+How the classes were decided. The test for class 4 was whether a result contradicts something `deploy/backup.sh`, `deploy/restore.sh` or `deploy/DEPLOY.md` says, or leaves the operator worse off than they say. The header of `backup.sh` as committed at `dd077e4` says that a file which vanishes while it is copied is repeated once, that a second status 24 ends the night with status 24 and a message that names what was being copied, that a night which fails before its `MANIFEST` removes the directory it made, and that an earlier backup is never touched. F-1 to F-4 are those sentences observed, with numbers, and nothing observed contradicts one of them: the earlier backups were intact in every run (`EARLIER-BACKUPS-AFTER` equals `EARLIER-BACKUPS-BEFORE` in `amd64-t29-src/capfull.txt`) and the sentinel directory planted as an earlier night was unchanged in every run. `DEPLOY.md` says the same about the pair as the script does, and F-5 and F-6 are that sentence observed again.
+
+Every `CLASSIFY` line of `amd64-t29-src/summary.txt` and what was decided:
+
+| Summary line | Finding | Class |
+|--------------|---------|-------|
+| consist stage adds: 24 runs with CLASS=ORPHAN-ONLY | F-6 | 3 |
+| consist stage deletes: 14 runs with CLASS=ORPHAN-ONLY | F-6 | 3 |
+| consist stage deletes: 16 runs with CLASS=ROW-WITHOUT-FILE | F-5, F-6 | 3 |
+| capfull HAND-CLASS is FAILED-NO-DIR | F-3 | 3 |
+| capfull AGAIN-CLASS is FAILED-NO-DIR | F-4 | 3 |
+| capfull UNIT-CLASS is FAILED-NO-DIR | F-3 | 3 |
+
+The four VANISH scenarios carry no `CLASSIFY` line, because their verdict is a pass; they are F-1 and F-2, and the stand-in that delivers their status is F-9. There was no `BAD` line in any stage file and no `FALSE-COMPLETE` (nothing exited 0 with a `MANIFEST` and less than the source; `CONTROL-CLASS: COMPLETE`).
+
+**F-1 (class 3): A night whose first copy of the media ended with status 24 and whose repeat succeeded completed with a MANIFEST, by hand and under the shipped unit.** By hand the night ended with status 0, one repeat line and no giving-up line, and left the directory `20261027-082911` with 1284455154 bytes in 4499 files, the same figures as the control night that met no status 24 (`VANISH-ONCE-BACKUP-RC`, `VANISH-ONCE-REPEAT-LINES`, `VANISH-ONCE-GIVEUP-LINES`, `VANISH-ONCE-DIRECTORY-BYTES`, `VANISH-ONCE-DIRECTORY-FILES`, `CONTROL-DIRECTORY-BYTES` and `CONTROL-DIRECTORY-FILES` in `amd64-t29-src/capfull.txt`). Under the shipped unit the invocation ended with `Result=success` and `ExecMainStatus=0`, and the journal of that invocation holds the repeat line once (`VANISH-ONCE-UNIT-RESULT`, `VANISH-ONCE-UNIT-EXECMAINSTATUS` and `VANISH-ONCE-UNIT-REPEAT-LINES` in `amd64-t29-src/capfull.txt`). The lines by hand (`amd64-t29-src/capfull-vanish-once.txt`):
+
+```text
+1793089753703 rsync warning: some files vanished before they could be transferred (code 24) at main.c(1338) [sender=3.2.7]
+1793089753724 WARNING: rsync exited 24 (files vanished) while copying media; repeating it once
+1793089753885 Backing up plugins...
+1793089754464 === Backup complete: /opt/holzcloud/backups/20261027-082911 ===
+RC 0
+```
+
+The status 24 of these two scenarios comes from the stand-in of F-9, and the nights of F-5 show the same path with a real one.
+
+**F-2 (class 3): A status 24 that recurred ended the night with status 24 and the message that names the copy, left no directory and left the sentinel of the earlier night unchanged, by hand and under the shipped unit, whose Result was `exit-code` and whose main status was 24.** By hand the script ended with status 24, one repeat line and one giving-up line, `VANISH-TWICE-DIRECTORY-MADE` was `none` and `VANISH-TWICE-SENTINEL-INTACT` was `yes` (`amd64-t29-src/capfull.txt`). Under the unit `VANISH-TWICE-UNIT-ACTIVE-STATE` was `failed`, `VANISH-TWICE-UNIT-RESULT` was `exit-code`, `VANISH-TWICE-UNIT-EXECMAINSTATUS` was 24, no directory was made and the sentinel was intact (`amd64-t29-src/capfull.txt`). The lines by hand (`amd64-t29-src/capfull-vanish-twice.txt`):
+
+```text
+1793089759494 rsync warning: some files vanished before they could be transferred (code 24) at main.c(1338) [sender=3.2.7]
+1793089759510 WARNING: rsync exited 24 (files vanished) while copying media; repeating it once
+1793089759675 rsync warning: some files vanished before they could be transferred (code 24) at main.c(1338) [sender=3.2.7]
+1793089759692 ERROR: rsync exited 24 again while copying media; giving up
+1793089759748 ERROR: backup did not finish; removed /opt/holzcloud/backups/20261027-082917, which had no MANIFEST
+WALL 1793089757511 1793089759769
+RC 24
+```
+
+The unit's journal for that invocation carries the same two ERROR lines (`amd64-t29-src/capfull-vanish-twice-unit.txt`). The first of them names the copy, `media`, and the second names the directory that was removed.
+
+**F-3 (class 3): On a filesystem of 1064 MB, above the floor of 1024 MB and below the 1225 MB a backup has to write, the night failed with rsync status 11, by hand and under the shipped unit, and left no directory.** The guard passed with 1064 MB free (`FREE-AT-GUARD-MB: 1064` and `FLOOR-MB: 1024` in `amd64-t29-src/capfull.txt`), `rsync` ran out of space, and the script removed the directory of the night (`HAND-BACKUP-RC: 11`, `HAND-DIRECTORY-MADE: none`, `HAND-REMOVAL-LINE: yes`, `HAND-CLASS: FAILED-NO-DIR`, `DATA-MB: 1225` and `FS-SIZE-MB: 1064` in `amd64-t29-src/capfull.txt`). Under the shipped unit the invocation ended `UNIT-ACTIVE-STATE: failed`, `UNIT-RESULT: exit-code` and `UNIT-EXECMAINSTATUS: 11`, with the class `FAILED-NO-DIR` (`amd64-t29-src/capfull.txt`). The lines by hand (`amd64-t29-src/capfull-hand.txt`):
+
+```text
+1793089738178 rsync: [receiver] write failed on "/opt/holzcloud/backups/20261027-082856/media/1/bulk/bulk-71.bin": No space left on device (28)
+1793089738194 rsync error: error in file IO (code 11) at receiver.c(401) [receiver=3.2.7]
+1793089738289 rsync: [sender] write error: Broken pipe (32)
+1793089738355 ERROR: backup did not finish; removed /opt/holzcloud/backups/20261027-082856, which had no MANIFEST
+WALL 1793089736372 1793089738376
+RC 11
+```
+
+The status is the one `rsync` gave and not a 24, so the repeat did not play: the repeat lines are absent from these three nights. `RESTORE-PARTIAL-EXIT` is `not-run` in `amd64-t29-src/capfull.txt`, because the run by hand left no directory to point `restore.sh` at.
+
+**F-4 (class 3): The next night on the same filesystem passed the guard and failed for the same reason without leaving a directory; the guard refusal of the earlier set (`GUARD-REFUSED`, in `deploy/BACKUP-CONSISTENCY-RUN.md`) no longer occurs.** The next run found 1064 MB free again, passed the guard, ended 11 and left no directory (`AGAIN-FREE-AT-GUARD-MB: 1064`, `AGAIN-GUARD: passed`, `AGAIN-BACKUP-RC: 11`, `AGAIN-DIRECTORY-MADE: none`, `AGAIN-CLASS: FAILED-NO-DIR`, `AGAIN-NEXT-NIGHT: PASS` in `amd64-t29-src/capfull.txt`), and the string `GUARD-REFUSED` occurs nowhere in `amd64-t29-src/capfull.txt`. The earlier record names 5 MB free at this point, because the left directory held the space. The retention step still comes after the copies, so a night that ends in the copy does not reach it, which is a reading of the script that the `INFO` line of `amd64-t29-src/capfull.txt` states, and no run of this set shows retention skipped.
+
+**F-5 (class 3): Under the load of CON-01, 8 of the 40 nights of stage deletes met a real status 24, repeated the copy once and completed with a MANIFEST; no night ended with status 24 and no directory without a MANIFEST was left.** The counters are `RETRIED-RUNS-STAGE-adds: 0`, `RETRY-COMPLETED-RUNS-STAGE-adds: 0`, `ABORTED-24-RUNS-STAGE-adds: 0` and `MANIFEST-LESS-DIRS-STAGE-adds: 0`, and `RETRIED-RUNS-STAGE-deletes: 8`, `RETRY-COMPLETED-RUNS-STAGE-deletes: 8`, `ABORTED-24-RUNS-STAGE-deletes: 0` and `MANIFEST-LESS-DIRS-STAGE-deletes: 0` (`amd64-t29-src/consist.txt`), and the histogram of backup statuses is `0=40` in both stages (`BACKUP-RC-HISTOGRAM-STAGE-adds` and `BACKUP-RC-HISTOGRAM-STAGE-deletes` in the same file). The eight nights are runs 5, 11, 16, 19, 23, 27, 39 and 40 (`RSYNC-STATUS=24 RETRIES=1` in `amd64-t29-src/consist-runs.txt`). The earlier record, `deploy/BACKUP-CONSISTENCY-RUN.md`, counts eight backups of the same stage that `rsync` status 24 refused and that left no `MANIFEST`; here the same number of nights repeated and completed. Raw, the first of them (`amd64-t29-src/consist-deletes-run-5-backup.txt`):
+
+```text
+1793088752488 Backing up media...
+1793088752622 file has vanished: "/opt/holzcloud/data/media/1/fadef39d412922d7a866e3f970bf571d-medium.jpg"
+1793088752640 file has vanished: "/opt/holzcloud/data/media/1/fadef39d412922d7a866e3f970bf571d-thumb.jpg"
+1793088752657 file has vanished: "/opt/holzcloud/data/media/1/fadef39d412922d7a866e3f970bf571d.jpg"
+1793088752878 rsync warning: some files vanished before they could be transferred (code 24) at main.c(1347) [sender=3.2.7]
+1793088752913 WARNING: rsync exited 24 (files vanished) while copying media; repeating it once
+1793088753011 Backing up plugins...
+```
+
+All eight repeated nights restored with rows whose file the backup lacks (`MISSING=3` and `CLASS=ROW-WITHOUT-FILE` on each of the eight lines of `amd64-t29-src/consist-runs.txt`). In run 5 the three files that `rsync` reported as vanished are the three files that the comparison lists as `KEY MISSING-FILE` (`amd64-t29-src/consist-deletes-run-5-compare.txt`), so the repeat completed the copy and the row of the deleted picture stayed in the snapshot.
+
+**F-6 (class 3): The pair is still not atomic, and a restore still does not report a row whose file the backup lacks: stage adds ended 16 AGREE and 24 ORPHAN-ONLY, stage deletes 10 AGREE, 14 ORPHAN-ONLY and 16 ROW-WITHOUT-FILE.** The lines are `CLASS-COUNTS-STAGE-adds: AGREE=16 ORPHAN-ONLY=24 ROW-WITHOUT-FILE=0 BACKUP-REFUSED=0` and `CLASS-COUNTS-STAGE-deletes: AGREE=10 ORPHAN-ONLY=14 ROW-WITHOUT-FILE=16 BACKUP-REFUSED=0` in `amd64-t29-src/consist.txt`, with `RESTORED-RUNS-STAGE-adds: 40`, `RESTORED-RUNS-STAGE-deletes: 40` and no restore that failed. The harmful direction restores without a word: in run 5 of stage deletes `restore.sh` ended `RC 0` after `=== Restore complete ===` with `MISSING: 3` in the comparison (`amd64-t29-src/consist-deletes-run-5-restore.txt`, `amd64-t29-src/consist-deletes-run-5-compare.txt`), and control C2 shows the consequence: the media route for the missing file answers `HTTP 404` with a body of 19 bytes, `restore.sh` ended 0 with `"status":"ok"`, `holzcloud check` on a copy ended 0 with `integrity: ok`, the editor logs in, `PAGE-REFS-DANGLING: 0` (the `C2-CONSEQUENCE` lines of `amd64-t29-src/window.txt`). The only symptom is the 404; no tool of the release reports the row. The pair is as `backup.sh` and `DEPLOY.md` say it is, and a night that is repeated after a status 24 completes with the row of the vanished file in the snapshot (F-5).
+
+**F-7 (class 3): The backup of the CON-02 pair was made by a `backup.sh` that is not the one this release ships.** The tag's script has the sha256 `d9f807d806a61ef3a9920890394247b3ecd475a17b92de4929ad517e2c17eba2` and this release's has `ac02fac9096d3ed1665794c87a1624f8c896bb980ae615d80be0d4bab7d8de96` (`BACKUP-SH-SHA256-TAG` and `BACKUP-SH-SHA256-NEW-REF` in `amd64-t29-old/compat.txt`), so the harness replaced the installed script with the tag's before the backup (`BACKUP-SH: replaced`, `BACKUP-SH-TAG-EQUALS-NEW-REF: no`) and the `MANIFEST` of the backup names the tag (`version=holzcloud v0.1.0 (4d238b9)`). `restore.sh`, `holzcloud-backup.service` and `holzcloud-backup.timer` are byte-identical at the tag and now (`SCRIPTS-IDENTICAL: ... yes` three times in `amd64-t29-old/compat.txt`), and `SCRIPTS-IDENTICAL: deploy/backup.sh no` is the fourth line. So the compatibility shown is that of a backup by the old script and the old binary restored by the new `restore.sh`; a backup made by the new `backup.sh` and restored by the new `restore.sh` is the pair of CON-01. The release differs from the tag in 24 files (the `COMPAT-DIFF` lines of `amd64-t29-old/compat.txt`) and not in `internal/db`; both carry migrations up to level 60 (`MIGRATIONS-HIGHEST-AT-TAG: 60`, `MIGRATIONS-HIGHEST-AT-NEW-REF: 60`), so no migration separates them.
+
+**F-8 (class 3): The windows of the disagreements are named, and two names that the earlier record does not list occur: 238 are `overlaps-snapshot-step`, 28 are `after-snapshot` and 3 are `straddles-media-end`.** The count is of the `WINDOW-NAME` lines of `amd64-t29-src/consist.txt`, 269 in all, none `UNRESOLVED`; 82 name an upload in stage adds, 139 an upload and 48 a delete in stage deletes. The definition of each name is in the comment of `window_name` in `deploy/test/nightly.sh`: an event that overlaps the database step cannot be ordered against the snapshot, and the other two lie after it. Every disagreement was named, so FUT-02 is not made necessary (the `FUT-02:` line of `amd64-t29-src/summary.txt`).
+
+**F-9 (class 2): The status 24 of the four VANISH scenarios is delivered by a stand-in for rsync.** The stand-in runs the real `rsync` first and then replaces its status (`DEVIATION[vanish-shim]` in `amd64-t29-src/deviations.txt`), which is why the scenarios prove the script's and the unit's handling of a status 24 and not `rsync`'s detection of a vanished file. The real detection is in F-5, by hand and under the load. The unit with a real vanished file was not played (*Not tested*).
 
 ## CON-01: a backup taken while pages are saved and media is uploaded
 
-The result of the stage is the line `CON-01 PASS` of `amd64-t29-src/summary.txt`.
+**What was done.** `prep` made the editor account and recorded that an administrator session never reaches a page form (`ADMIN-SESSION`, `DEVIATION[editor-session]`): `PREP OK`, both write paths proven (`amd64-t29-src/prep.txt`). `consist` then played two stages of 40 runs. In each run a churn generator (four uploaders, one page saver, and in stage deletes one deleter that removes uploaded pictures) was started on the source, and a random fraction of a second later the document's manual backup line (`deploy/DEPLOY.md:657`, `sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups`) ran with a millisecond stamp on every line of its output. The backup directory was shipped to the second container and restored there with the document's restore line (`deploy/DEPLOY.md:971`, the sample timestamp replaced, `yes` on stdin), and the restored site was compared with the backup: media rows against media files in both directions (the comparator was first shown to fail on four tampered lists: `COMPARATOR-SELFTEST`), `holzcloud check` on a copy, `PRAGMA integrity_check`, `PRAGMA foreign_key_check`, the pages' media references and the sha256 list of the restored tree against that of the backup directory. The window of every disagreement was named from the churn log and the backup's own stamps (`WINDOW-NAME` lines). `window` then paused the shipped `backup.sh` between its two copies and made one write in the pause, three times.
+
+**Observed** (`amd64-t29-src/consist.txt`): `MIN-RUNS: 30`, `CONSIST-RUNS: 40`, `CONSIST-RESTORE-EVERY: 1`, `RESTORED-RUNS-FLOOR: 15 per stage`; `RESTORED-RUNS-STAGE-adds: 40`, `RESTORED-RUNS-STAGE-deletes: 40`, `CLASS-RESTORE-FAILED-STAGE-adds: 0` and `CLASS-RESTORE-FAILED-STAGE-deletes: 0`, and
+
+```text
+CONSIST-SUMMARY-STAGE-adds: RUNS=40 RESTORED=40 AGREE=16 ORPHAN-ONLY=24 ROW-WITHOUT-FILE=0 BACKUP-REFUSED=0 RESTORE-FAILED=0 EXPOSED=36 UPLOADS-IN-WINDOW=65 OUTCOME=ORPHAN-ONLY-NAMED
+CONSIST-SUMMARY-STAGE-deletes: RUNS=40 RESTORED=40 AGREE=10 ORPHAN-ONLY=14 ROW-WITHOUT-FILE=16 BACKUP-REFUSED=0 RESTORE-FAILED=0 EXPOSED=38 UPLOADS-IN-WINDOW=91 OUTCOME=ROW-WITHOUT-FILE-NAMED
+```
+
+The writes counted inside the window (from the end of the database step to the end of the media step, in the runs that were measured): stage adds 65 uploads and 24 page saves; stage deletes 91 uploads, 29 page saves and 27 deletes (`UPLOADS-IN-WINDOW-STAGE-*`, `PAGES-IN-WINDOW-STAGE-*`, `DELETES-IN-WINDOW-STAGE-*`); 36 and 38 of the 40 runs had at least one upload inside it (`EXPOSED-RUNS-STAGE-*`), so the exposure guard (half of the runs) held. The counters of the repeat are in F-5. The outcomes are `OUTCOME-STAGE-adds: ORPHAN-ONLY-NAMED` and `OUTCOME-STAGE-deletes: ROW-WITHOUT-FILE-NAMED`, and the file ends `CONSIST OK`.
+
+The three controls (`amd64-t29-src/window.txt`, ends `WINDOW OK`):
+
+```text
+CONTROL C0 ACTION=none HOLD-REACHED=yes HOLD-RELEASED-IN-S=0 MISSING=0 ORPHAN=0 CLASS=AGREE EXPECTED=AGREE
+CONTROL C1 ACTION=upload HOLD-REACHED=yes HOLD-RELEASED-IN-S=1 MISSING=0 ORPHAN=3 CLASS=ORPHAN-ONLY EXPECTED=ORPHAN-ONLY
+CONTROL C2 ACTION=delete HOLD-REACHED=yes HOLD-RELEASED-IN-S=1 MISSING=3 ORPHAN=0 CLASS=ROW-WITHOUT-FILE EXPECTED=ROW-WITHOUT-FILE
+```
+
+**The mechanism, from reading `backup.sh` and the media code (a reading, not a measurement; the `INFO MECHANISM` lines of `amd64-t29-src/window.txt` carry the file and line):** the database snapshot is `VACUUM INTO` run by the command line process `holzcloud backup`, not by the service, and it is a consistent database file at one instant, taken before the media are copied. `backup.sh` then copies the media through `run_rsync`, so the copy takes whatever the site has written by then. An upload writes the file before it inserts the row, and creates the file straight under its final name, with no temporary name and no rename. A delete removes the variant files, then the row, then the original. So an upload whose file `rsync` finds and whose row is newer than the snapshot gives a file without a row (harmless), a delete whose row is in the snapshot and whose files are gone before `rsync` reads them gives a row without a file (harmful), and a file that disappears while `rsync` is reading the directory gives status 24, which `run_rsync` now repeats once.
+
+**Ranges.** Every stage had disagreements, so no rule-of-three bound was computed (`NO-DISAGREEMENT-STAGE-*` and `RULE-OF-THREE-STAGE-*` do not occur in `amd64-t29-src/consist.txt`). N is 40 runs per stage; the backup itself took 1.3 to 2.7 s in stage adds and 1.3 to 1.7 s in stage deletes (`BACKUP-S=` in `amd64-t29-src/consist-runs.txt`).
+
+What it shows. Under a load of four uploaders, a page saver and, in the second stage, a deleter, the shipped `backup.sh` followed by the shipped `restore.sh` gave a site whose database and media did not always agree: stage adds ended 24 ORPHAN-ONLY of 40, stage deletes ended 14 ORPHAN-ONLY and 16 ROW-WITHOUT-FILE of 40 (`CLASS-COUNTS-STAGE-adds` and `CLASS-COUNTS-STAGE-deletes` in `amd64-t29-src/consist.txt`). Each disagreement was named, each case was reproduced on purpose by a pause between the two copies (C1, C2) with the clean case as the control (C0), and no backup was refused and no night ended with status 24 in the 80 runs.
+
+**What it does not show.** How often it happens on a real site: the load is a `curl` generator at a rate chosen to meet the window, not the traffic of a site at 03:15, and the counts in the window are an upper bound on exposure, not an estimate of it. Nothing about a media tree of production size, where the copy takes longer and the window is wider. Nothing about the symptom of a dangling reference inside a page (the deleted pictures were not used by a page). Nothing about an atomic snapshot, because none exists to compare.
+
+**FUT-02** (`amd64-t29-src/summary.txt`): `FUT-02: not needed (adds ORPHAN-ONLY-NAMED, deletes ROW-WITHOUT-FILE-NAMED: every disagreement that occurred was reproduced and its window named)`. It says only that FUT-02 is not made necessary by an unnameable window; it does not say that the window is harmless, and F-5 and F-6 show it is not.
 
 ## CON-02: a backup made by 0.1.0 restores with this release
 
-The result of the stage is the line `CON-02 PASS` of `amd64-t29-src/summary.txt`.
+**What was done.** `compat-source` built the previous release from the tag `v0.1.0` with the Build line of `deploy/DEPLOY.md` (`COMPAT-TAG: v0.1.0 (4d238b97d104296469a480e3b701d7a1f8a1c712)`, `describe: v0.1.0`, `commit: 4d238b9`, `sha256: 83d5ba08ad2bde11b65c02271a13a867082c0071c81cd7b69bdf213f384ae2d3` in `amd64-t29-old/compat-binary.txt`), installed it into a fresh container out of the document, and `version_is_tag` confirmed the running binary is exactly the tag (`PASS version_is_tag: the source container runs exactly the tag v0.1.0` in `amd64-t29-old/compat.txt`). A site was staged through the previous release's own admin forms: three pages with non-ASCII Markdown, a link and a picture, one more upload, an editor, so that the source held 8 pages, 2 users and 4 media rows. `compat` then replaced the installed `backup.sh` with the tag's own (F-7), ran the document's manual backup line (`BACKUP-RC: 0`, `MANIFEST: ... version=holzcloud v0.1.0 (4d238b9)`), carried the directory to a fresh box that runs this release (`NEW-BINARY: holzcloud v0.1.0-123-gdd077e4 (dd077e4)`), played the document's restore line there with `yes` on stdin (`RESTORE-RC: 0`, `RESTORE-WALL-S: 10.8`), and compared.
+
+**Observed** (`amd64-t29-old/compat.txt`, ends `COMPAT OK`):
+
+```text
+STATE-SOURCE: LEVEL: 60 GOOSE-ROWS: 61 PAGES-COUNT: 8 USERS-COUNT: 2 MEDIA-ROWS: 4 UPLOADED-MEDIA: 3 
+STATE-RESTORED: LEVEL: 60 GOOSE-ROWS: 61 PAGES-COUNT: 8 USERS-COUNT: 2 MEDIA-ROWS: 4 UPLOADED-MEDIA: 3 
+LOGIN-ADMIN: HTTP 303 /admin/
+LOGIN-EDITOR: HTTP 303 /admin/
+MEDIA-SERVED-EQUAL: 4 of 4
+LEVEL-BEFORE: 60
+LEVEL-AFTER: 60
+MIGRATION-SENTENCE: No migration separates the two releases: the backup is at level 60, the restored database is at level 60, the restore ran none.
+CHECK: 17 of 17
+```
+
+Pages (8 lines), users (2), media (12 lines with file hashes), the row counts of 47 tables outside a named volatile list of seven (with their reasons) and the goose rows (61) are equal source against restored and backup against restored; the comparison was shown to fail on a changed page hash and a changed user role (`TAMPER-CONTROL`); the restored media rows and files agree in both directions (`RESTORED-MEDIA: rows 12 files 12 rows-without-file 0 files-without-row 0 class AGREE`); the restored data directory (25 files) equals the backup directory by sha256; `holzcloud check`, `integrity_check` and `foreign_key_check` are clean; the setup form answered 200 before the restore on the fresh box and 404 after; the box was fresh (`SET-ASIDE ... users 0`); `PRE-UPGRADE-SNAPSHOT-AFTER: 0`. The backup travelled as 27 files with equal sha256 on both sides (`FILES: 27`, `TRANSFER: equal` in `amd64-t29-new/transfer.txt`). The raw difference between the releases, as the harness wrote it, is 24 files changed, 3626 insertions and 79 deletions in `go.mod`, `go.sum`, `internal/media` and `cmd` and nothing in `internal/db` (the `COMPAT-DIFF` lines).
+
+What it shows. A backup that the previous release's `backup.sh` made restores with this release's `restore.sh` into a fresh box with the same pages, the same users, the same media and the same logins, at the same migration level, and the site passes the 17 assertions of `run.sh check`. The script that made this backup is not the script this release ships, and the compatibility shown is that of the old script and the old binary against the new `restore.sh`.
+
+**What it does not show.** A restore that crosses a migration: both releases are at level 60, and how a restore handles a pending migration is covered only by the pure function `migration_ok` and its table in selftest, and by nothing that was played. A tag older than 0.1.0. A real upgrade of a production site. A backup made by this release's `backup.sh` and restored by the previous release's `restore.sh`.
 
 ## CON-03: a disk nearly full but above `MIN_FREE_MB`
 
-The result of the stage is the line `CON-03 PASS` of `amd64-t29-src/summary.txt`.
+**What was done.** `capfull` read the shipped floor from the installed script (`SHIPPED-MIN-FREE-MB: 1024`, no `MIN_FREE_MB` in the environment or the unit, `UNIT-DROPINS: ''`), wrote 1150 MB of synthetic media so that a backup has to write more than the filesystem will hold (`DATA-MB: 1225`: the five trees, the database file and `csrf.key`, not the pre-upgrade snapshots), and mounted a tmpfs over `/opt/holzcloud/backups` of the floor plus a margin of 40 MB (`FS-SIZE-MB: 1064`). `capfull_data_ok` held: the filesystem is at least the floor and smaller than the data. Four runs followed: a control on a roomy tmpfs (`CONTROL-FS-SIZE-MB: 2649`), `backup.sh` by hand on the 1064 MB one, the next run on the same filesystem, and the shipped `holzcloud-backup.service` (`systemctl start`, so `UNIT-TRIGGEREDBY` shows the timer that can trigger the unit, not a timer that fired). `restore.sh` was to be pointed at the directory the hand run left; the hand run left none.
+
+**Observed** (`amd64-t29-src/capfull.txt`, ends `CAPFULL OK`):
+
+| Run | Free at the guard | Guard | Exit | Directory left | `MANIFEST` | Class |
+|-----|-------------------|-------|------|----------------|------------|-------|
+| control, roomy tmpfs | 2649 MB | passed | 0 | 1284455154 bytes, 4499 files, all of the source | yes | COMPLETE |
+| by hand, 1064 MB | 1064 MB | passed | 11 | none | no | FAILED-NO-DIR |
+| the next run, same filesystem | 1064 MB | passed | 11 | none | no | FAILED-NO-DIR |
+| shipped unit, 1064 MB | 1064 MB | passed | 11 | none | no | FAILED-NO-DIR |
+
+The raw lines are in F-3 and F-4. The sentinel directory planted as an earlier night is intact in every run (`SENTINEL-INTACT: yes`, `HAND-SENTINEL-INTACT: yes`, `AGAIN-SENTINEL-INTACT: yes`, `UNIT-SENTINEL-INTACT: yes`); the earlier backups beneath the mount (60 directories) are back after the unmount (`EARLIER-BACKUPS-AFTER: 60`, the same names as `EARLIER-BACKUPS-BEFORE: 60`). The unit: `UNIT-ACTIVE-STATE: failed`, `UNIT-RESULT: exit-code`, `UNIT-EXECMAINSTATUS: 11`, 12 journal lines of that invocation (`amd64-t29-src/capfull-unit.txt`). The free space of every step is in `amd64-t29-src/capfull-df.txt`. The class is from `capfull_classify`: passed, non-zero, no `MANIFEST`, no directory left.
+
+What it shows. At the floor the guard cannot see the data: a backup larger than the free space starts, fails when the space is gone, exits non-zero (11, by hand and by the unit) and, with the changed script, removes the directory it made. The next night is not refused by the guard, it runs and fails the same way, and nothing exited 0 on a truncated copy (`FALSE-COMPLETE` did not occur).
+
+**What it does not show.** A real disk: root-reserved blocks (a real filesystem's free space for the service user is less than `df` shows), fragmentation, a backup root that shares a filesystem with the data directory (so that a full disk also stops the site's own writes), and a tmpfs that is memory-backed (a tmpfs is not a disk; the errno is the same). A different `MIN_FREE_MB`. The off-site copy of a failed night (`REMOTE_TARGET` unset here). What the night does after the operator freed space.
 
 ## ROB-01: a vanished file is repeated once
 
-The result of the four vanish scenarios is the line beginning `VANISH:` of `amd64-t29-src/summary.txt`.
+**What was done.** Two kinds of nights met a status 24. In the consist stage the load of CON-01 deleted pictures while the document's manual backup line copied the media, and `rsync` reported real vanished files (F-5). In the `capfull` stage four scenarios were played against a stand-in for `rsync` (`DEVIATION[vanish-shim]`) that ends the first call (ONCE) or the first two calls (TWICE) that copy the media directory with status 24 after the real `rsync` ran: ONCE and TWICE by hand with the document's backup line, ONCE-UNIT and TWICE-UNIT under the shipped `holzcloud-backup.service` started with `systemctl start`. Each scenario started with a sentinel directory of an earlier night and ended with a check that the stand-in, its configuration and its counter were gone from the container.
+
+**Observed** (`amd64-t29-src/capfull.txt`, `amd64-t29-src/summary.txt`):
+
+```text
+VANISH: ONCE=PASS TWICE=PASS ONCE-UNIT=PASS TWICE-UNIT=PASS UNIT-TWICE-RESULT=exit-code SHIM-REMOVED=yes
+```
+
+ONCE ended `VANISH-ONCE-BACKUP-RC: 0` with `VANISH-ONCE-CLASS: COMPLETE`, one repeat line and no giving-up line; TWICE ended `VANISH-TWICE-BACKUP-RC: 24` with `VANISH-TWICE-CLASS: FAILED-NO-DIR`, one repeat line and one giving-up line; ONCE-UNIT ended `VANISH-ONCE-UNIT-RESULT: success` with `VANISH-ONCE-UNIT-EXECMAINSTATUS: 0`; TWICE-UNIT ended `VANISH-TWICE-UNIT-RESULT: exit-code` with `VANISH-TWICE-UNIT-EXECMAINSTATUS: 24` and `VANISH-TWICE-UNIT-ACTIVE-STATE: failed` (`amd64-t29-src/capfull.txt`). The raw lines are in F-1 and F-2, and the transcripts of the four scenarios are `amd64-t29-src/capfull-vanish-once.txt`, `amd64-t29-src/capfull-vanish-twice.txt`, `amd64-t29-src/capfull-vanish-once-unit.txt` and `amd64-t29-src/capfull-vanish-twice-unit.txt`. In the consist stage 8 of 40 nights of stage deletes repeated and completed and none ended with status 24 (F-5).
+
+What it shows. A first media copy that ended with status 24 was repeated once and the night completed with a MANIFEST when the repeat succeeded, by hand and under the shipped unit, and a status 24 that recurred ended the night with status 24, by hand and under the unit with `Result=exit-code`. In the consist stage 8 of 40 nights of stage deletes met a real vanished file, repeated the copy and completed.
+
+**What it does not show.** A real vanished file under the shipped unit: the unit scenarios use the stand-in (F-9). A status 24 in the other copies of the script (the plugins, the language files, the logo and the off-site copy), which share the function but were not provoked. That the repeated copy is consistent with the database: it is not, because the row of a deleted file stays in the snapshot (F-5).
 
 ## ROB-02: a failed night removes its own directory
 
-The result of the nearly full disk is the line beginning `CAPFULL:` of `amd64-t29-src/summary.txt`.
+**What was done.** The nights that failed were the three of CON-03 (by hand, the next night, under the unit) and the two nights of TWICE (by hand, under the unit). Each started with a sentinel directory made to look like an earlier night, and each was classified from the files it left: whether the guard passed, the exit status, whether a directory was made and left, whether it held a `MANIFEST`, whether the sentinel was intact and whether the removal was named on stderr (`capfull_classify`, `capfull_robust_verdict`).
+
+**Observed** (`amd64-t29-src/capfull.txt`, the `CAPFULL:` line of `amd64-t29-src/summary.txt`):
+
+```text
+CAPFULL: FLOOR-MB=1024 FREE-AT-GUARD-MB=1064 DATA-MB=1225 FS-SIZE-MB=1064 CONTROL-CLASS=COMPLETE HAND-CLASS=FAILED-NO-DIR AGAIN-CLASS=FAILED-NO-DIR UNIT-CLASS=FAILED-NO-DIR UNIT-RESULT=exit-code UNIT-EXECMAINSTATUS=11 RESTORE-PARTIAL-EXIT=not-run (the run by hand left no directory) HAND-ROBUST=PASS AGAIN-NEXT-NIGHT=PASS UNIT-ROBUST=PASS
+```
+
+For the five failed nights `DIRECTORY-MADE` is `none`, `DIRECTORY-BYTES` is 0, `REMOVAL-LINE` is `yes` and `SENTINEL-INTACT` is `yes`; `VANISH-TWICE-ROBUST: PASS` and `VANISH-TWICE-UNIT-ROBUST: PASS` stand beside `HAND-ROBUST: PASS`, `AGAIN-ROBUST: PASS` and `UNIT-ROBUST: PASS` (`amd64-t29-src/capfull.txt`). The removal is named on stderr in every one of them (`ERROR: backup did not finish; removed ..., which had no MANIFEST`, F-2 and F-3). The earlier backups beneath the mount are the same 60 directories before and after (`EARLIER-BACKUPS-BEFORE`, `EARLIER-BACKUPS-AFTER`). No directory without a `MANIFEST` was left by any of the 80 nights of the consist stage (F-5).
+
+What it shows. A night that failed before its MANIFEST removed the directory it made, named the removal on stderr and left the sentinel of an earlier night unchanged, by hand and under the shipped unit, for a full filesystem and for a recurring status 24. The failed night kept the exit status of the failure, 11 for a full filesystem and 24 for a recurring vanished file.
+
+**What it does not show.** A night that is ended by SIGKILL, by the kernel's out-of-memory kill or by a power loss, which cannot be trapped. A directory that an earlier night of the old script left. A failure after the MANIFEST (retention, the off-site copy), where the directory is kept by design and was not played here. A real disk.
 
 ## Measurements
 
-The stage durations are in `deploy/test/out/amd64-t29-pass1.log`, which is not pasted.
+The figures the harness wrote. Every one is an emulation figure on an aarch64 host (`amd64-t29-src/versions.txt`); none is a promise of speed.
+
+| Figure | Value | Where |
+|--------|-------|-------|
+| Runs per stage; restored runs | 40 and 40 (adds), 40 and 40 (deletes) | `CONSIST-RUNS-STAGE-*`, `RESTORED-RUNS-STAGE-*` in `amd64-t29-src/consist.txt` |
+| One run, backup plus transfer plus restore plus comparison | 26 s of which the restore 13 s | `RUN-1-SECONDS`, `RUN-1-RESTORE-SECONDS` in `amd64-t29-src/consist.txt` |
+| The consist stage, 80 runs | 32 minutes | `WALL-MINUTES` in `amd64-t29-src/consist.txt` |
+| A backup of the source with 100 MB of bulk under load | 1.3 to 2.7 s (adds), 1.3 to 1.7 s (deletes) | `BACKUP-S` in `amd64-t29-src/consist-runs.txt` |
+| Churn per stage | writes counted inside the window: 65 uploads, 24 page saves (adds); 91 uploads, 29 page saves and 27 deletes (deletes) | `UPLOADS-IN-WINDOW-STAGE-*`, `PAGES-IN-WINDOW-STAGE-*`, `DELETES-IN-WINDOW-STAGE-*` in `amd64-t29-src/consist.txt` |
+| Nights that repeated the media copy after a status 24 | 0 (adds), 8 (deletes), all 8 completed | `RETRIED-RUNS-STAGE-*`, `RETRY-COMPLETED-RUNS-STAGE-*` in `amd64-t29-src/consist.txt` |
+| Directories left without a MANIFEST | 0 (adds), 0 (deletes) | `MANIFEST-LESS-DIRS-STAGE-*` in `amd64-t29-src/consist.txt` |
+| Restore of the 0.1.0 backup on a fresh box | 10.8 s wall | `RESTORE-WALL-S` in `amd64-t29-old/compat.txt` |
+| Files carried to the fresh box | 27 files, sha256 equal on both sides | `TRANSFER`, `FILES` in `amd64-t29-new/transfer.txt` |
+| Data a backup has to write in CON-03 | 1225 MB; the filesystem 1064 MB; the control 2649 MB | `DATA-MB`, `FS-SIZE-MB`, `CONTROL-FS-SIZE-MB` in `amd64-t29-src/capfull.txt` |
+| The directory a failed night leaves | 0 bytes, 0 files | `HAND-DIRECTORY-BYTES`, `HAND-DIRECTORY-FILES` in `amd64-t29-src/capfull.txt` |
+| The directory of the control night | 1284455154 bytes, 4499 files | `CONTROL-DIRECTORY-BYTES`, `CONTROL-DIRECTORY-FILES` in `amd64-t29-src/capfull.txt` |
+| Journal lines of the unit invocations | 12 (full disk), 16 (ONCE-UNIT), 13 (TWICE-UNIT) | `UNIT-JOURNAL-LINES`, `VANISH-ONCE-UNIT-JOURNAL-LINES`, `VANISH-TWICE-UNIT-JOURNAL-LINES` in `amd64-t29-src/capfull.txt` |
 
 ## Container vs. server
 
-The set ran in a linux/amd64 container on an aarch64 host (`amd64-t29-src/versions.txt`).
+| Aspect | In the container | On a real server | Measured or assumed |
+|--------|------------------|------------------|---------------------|
+| The load | `curl` as an editor, four uploaders, a page saver, a deleter, a pause of 0.05 s plus jitter | People in browsers, much fewer writes in a given second | Measured here; the real pattern is assumed to be lighter |
+| The account | An editor, because an administrator is walled off by the two-factor setup | Administrators with a second factor, editors | Measured (`ADMIN-SESSION`) |
+| The window | The copy of 100 MB of bulk plus the site's media, a second or two | As long as the copy of the real media tree | Measured here; the real width is assumed to grow with the tree |
+| The pause of the controls | A stand-in binary behind `HOLZCLOUD_BIN`, up to 90 s | None | Measured; the shipped script is untouched |
+| The status 24 of the VANISH scenarios | A stand-in for `rsync` that replaces the status after the real `rsync` ran | A file that vanishes while `rsync` reads the directory | Measured for the script's and the unit's handling; the detection is assumed, and was seen only in the consist stage |
+| The nearly full filesystem | A tmpfs over the backup root | A shared disk with root-reserved blocks, the data directory on the same disk | Measured for the errno and the script's reaction; the arithmetic of a real disk is assumed |
+| Speed and timing | amd64 emulated on aarch64 | A native server | Not measured natively |
+| The restore | `restore.sh` on a second container, the counter of the start limit reset between runs | One restore, by hand | Measured here |
+| The previous release | Built from the tag by the document's Build line, installed out of the document, with the tag's own `backup.sh` | The operator's own 0.1.0 install | Measured |
 
 ## Not tested
 
-- A real server was not part of this set.
+- The signals that cannot be trapped were not played: SIGKILL, the kernel's out-of-memory kill and a power loss can still leave a directory without a MANIFEST, and the termination signal was played only by the hermetic test `deploy/test/backup-robust.sh`, which is not part of this set.
+- The timer chain on the changed script was not played: the firing at 03:15, the catch-up, the random delay, the retention step and the off-site copy were played with the earlier `backup.sh`, and the repeat of an off-site copy that ends with status 24 was played by the hermetic test only.
+- A status 24 made by a file that really vanishes was not played under the shipped unit, because the unit scenarios use the stand-in of `DEVIATION[vanish-shim]` and the real vanished files of the consist stage were met by the document's manual backup line only.
+- A real server and a real disk were not part of this set: root-reserved blocks, a backup root on the data directory's own filesystem, a different `MIN_FREE_MB` and the speed of a native CPU.
+- The directories without a MANIFEST that an earlier night of the old script left were not part of this set, because the new script removes only the directory it makes itself and `restore.sh` still refuses them.
+- `deploy/DEPLOY.md`, which this set binds and which was not edited, does not say that a vanished file is repeated once and ends the night if it recurs, that a failed night removes its own directory, or that a restore does not report a missing file.
+- Whether the retention step should run before the guard and the copy was not decided and not played, because the order of the steps of the script is as it was: the guard, the copies, the `MANIFEST`, the retention.
+- A restore of the directory a failed night leaves was not played, because the failed nights of this set left none (`RESTORE-PARTIAL-EXIT: not-run` in `amd64-t29-src/capfull.txt`).
+- An atomic snapshot of database and media was not played, because no such snapshot exists, and the real traffic pattern of a site at the hour the timer fires was not part of the load.
+- A media tree of production size was not part of this set, so the copy that takes longer and the wider window were not seen.
+- A page that references a picture deleted in the window, and what such a page shows after a restore, was not played.
+- A restore that crosses a migration was not played, because both releases of CON-02 are at level 60, and neither was a tag older than 0.1.0 or a different CPU architecture.
+- Native amd64 timing was not measured.
 
 ## Owner steps
 
-1. Run `sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups; echo "exit $?"` on the server and expect the last two lines to be `=== Backup complete: ... ===` and a line `exit 0`; any other last line means the night did not finish.
+Each step is for the real server, one command per line, with the output to expect and what a different output means.
+
+1. The first night after the update, by hand: run `sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups; echo "exit $?"` and then `for d in /opt/holzcloud/backups/*/; do [ -f "$d/MANIFEST" ] || echo "no MANIFEST: $d"; done`; expect the header line `=== holzcloud-CMS backup: TIMESTAMP ===`, the lines `Backing up ...`, the line `Pruning backups older than 30 days...`, the line `=== Backup complete: ... ===`, then `exit 0`, and no `no MANIFEST:` line for the new directory; a line `WARNING: rsync exited 24 (files vanished) while copying media; repeating it once` means a file vanished and the copy was repeated, which is the script working (the night still ends `exit 0` if the repeat succeeded), a line `ERROR: rsync exited 24 again while copying media; giving up` means it recurred and the night failed with `exit 24` and no directory, and a `no MANIFEST:` line names a directory of an earlier night of the old script, which `restore.sh` refuses and the new script does not remove, so remove that one directory by hand.
+2. The morning after the first timer night: run `journalctl -u holzcloud-backup.service --since yesterday --no-pager | grep -E 'rsync exited 24|backup did not finish'` and expect no output on a quiet night; a line `WARNING: rsync exited 24 ... repeating it once` without a line `ERROR:` after it means a file vanished and the repeat completed, a line `ERROR: rsync exited 24 again ... giving up` or `ERROR: backup did not finish; removed ...` means the night failed and removed its own directory, so read `systemctl status holzcloud-backup.service`, look at the lines above it in the journal for the cause (a full disk shows as `No space left on device`) and run `sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups` once by hand in a quiet moment.
 
 ## Hand-over to docs/beta.md
 
-Nothing in this record is a promise until `docs/beta.md` cites it byte for byte.
+The bound files of the evidence commit `dd077e4` differ from the earlier set in two files: `deploy/backup.sh` (89 insertions, 5 deletions) and `deploy/test/nightly.sh` (577 insertions, 16 deletions) against `e86d490`, with `deploy/restore.sh`, `deploy/DEPLOY.md`, `deploy/holzcloud-backup.service`, `deploy/holzcloud-backup.timer` and `deploy/test/run.sh` unchanged. Against `b501b1b`, the evidence commit of phase 24, `git diff --numstat b501b1b dd077e4` over the same seven files shows `deploy/backup.sh` with 89 insertions and 5 deletions and `deploy/test/nightly.sh` with 4225 insertions and 3 deletions, and nothing else. The evidence of the earlier sets therefore binds a `backup.sh` that is no longer the shipped one, and `docs/beta.md` was not edited by this phase.
+
+The sentences of this record that the page may quote, by requirement, named by place and not copied here, so that each stays in exactly one place: ROB-01, the title sentences of F-1 and F-2 and the sentence after *What it shows.* in *ROB-01*; ROB-02, the title sentences of F-3 and F-4 and the sentence after *What it shows.* in *ROB-02*; CON-01, the title sentences of F-5 and F-6 and the sentence after *What it shows.* in *CON-01*; CON-02, the title sentence of F-7 and the sentence after *What it shows.* in *CON-02*; CON-03, the table in *CON-03* and the sentence after *What it shows.* in *CON-03*; the limits, the bullets of *Not tested*; and the steps for the owner, the two numbered lines of *Owner steps*.
+
+The lines of the page that this record makes untrue or answers, named by their first words: the promise row P-16 (it names the window as `overlaps-snapshot-step` only, and this set names two more windows, F-8); the promise row P-17 (it holds for a backup that the tag's `backup.sh` made, and the tag's `backup.sh` is no longer the shipped one, F-7); the promise row P-18 (it says that a backup which outgrew the free space left a directory without a `MANIFEST` that `restore.sh` refused, and the shipped script now removes that directory, F-3); the limit that begins "A file that vanishes during the media copy ends the night" (the copy is now repeated once and a recurrence ends the night, played by hand and under the unit with a stand-in, F-1, F-2, F-9); the limit that begins "A failed night leaves its directory" (the changed script removes it, and the guard did not refuse the following night in the case observed, F-3, F-4); the limit that begins "Three gaps of `deploy/DEPLOY.md` are stated on this page" (the document is still not edited and does not describe the changed script); and the limit that begins "What a fix of these findings would change was not decided" (the first two of its three questions were decided by the changed script, and the third, the order of the retention step, is left, *Not tested*).
+
+Nothing in this record is a promise until the page cites it byte for byte. A change to a bound file after the evidence commit means the set is made again before the record is cited for the changed text. `deploy/DEPLOY.md` was not edited.
 
 ## Appendix: raw output
 
