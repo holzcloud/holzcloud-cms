@@ -4,17 +4,17 @@ milestone: v0.1.1
 milestone_name: Beta belegt
 current_phase: 29
 current_phase_name: Sicherung robust
-status: executing
-stopped_at: Completed 29-07-PLAN.md
-last_updated: "2026-10-29T03:42:56.036Z"
+status: verifying
+stopped_at: Completed 29-08-PLAN.md
+last_updated: "2026-10-29T03:56:54.338Z"
 last_activity: 2026-10-27
 last_activity_desc: Phase 29 execution started
-state_head: d84c0be2f70a1f303cefd9c216d4296fbf48d907
+state_head: 97f473e1c7021aae3b352c3c2c552736b3a9b1bc
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 25
-  completed_plans: 24
+  completed_plans: 25
   percent: 71
 ---
 
@@ -93,6 +93,7 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 | Phase 29 P05 | 1h | 3 tasks | 1 files |
 | Phase 29 P06 | 45min | 3 tasks | 3 files |
 | Phase 29 P07 | 75 min | 3 tasks | 2 files |
+| Phase 29 P08 | about 1 h | 3 tasks | 2 files |
 
 ### Blockers
 
@@ -216,18 +217,20 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 - [Phase 29]: 29-06: the list gets one owner step per numbered item of BACKUP-ROBUST-RUN.md (OS-20, OS-21), both Needs: nothing; ROB-04 left open for the page (plan 29-07)
 - [Phase 29]: 29-07: title sentences stand inside bold markers and cannot pass the sentence boundary of beta quotes, so the rows quote the sentences after 'What it shows.' and the bullets of Not tested
 - [Phase 29]: 29-07: CHECK_E29 (default the literal dd077e4) lets the selftest show the E29-equals-record proof fail; any other value can only fail the check
+- [Phase 29]: FROZEN_END is the literal e54c111; the frozen gate holds the bound set (rule D) against HEAD and everything else between pinned commits
+- [Phase 29]: The nightly.sh selftest pin compares its last two lines, because the last line is the bare word SELFTEST OK
 
 ## Current Position
 
 Phase: 29 (Sicherung robust) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-27 — Phase 29 execution started
 
 ## Session Continuity
 
-**Last session:** 2026-10-29T03:42:55.853Z
-**Stopped at:** Completed 29-07-PLAN.md
+**Last session:** 2026-10-29T03:56:54.145Z
+**Stopped at:** Completed 29-08-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps
