@@ -969,6 +969,8 @@ selftest() {
   osneg 'a record step left out' complete 'no owner step has '\''Source: deploy/BACKUP-TIMER-RUN.md O-5'\''' -- t_sub 'Source: deploy/BACKUP-TIMER-RUN.md O-5' 'Source: deploy/BACKUP-TIMER-RUN.md O-9'
   osneg 'the index lists another set' complete 'the index table at the top lists a different set' -- t_del '| OS-19 |'
   osneg 'a step of the robust record left out' complete 'no owner step has '\''Source: deploy/BACKUP-ROBUST-RUN.md item 1'\''' -- t_sub 'Source: deploy/BACKUP-ROBUST-RUN.md item 1' 'Source: deploy/BACKUP-ROBUST-RUN.md item 9'
+  osneg 'the second step of the robust record left out' complete 'no owner step has '\''Source: deploy/BACKUP-ROBUST-RUN.md item 2'\''' -- t_sub 'Source: deploy/BACKUP-ROBUST-RUN.md item 2' 'Source: deploy/BACKUP-ROBUST-RUN.md item 9'
+  osneg 'the index lacks OS-20' complete 'the index table at the top lists a different set' -- t_del '| OS-20 |'
 
   st_expect 'changelog extract: the good fixture' 0 env CHANGELOG_FILE="$T/cl-good.md" BETA="$T/good.md" bash "$ME" changelog extract
   clneg() { # DESC MESSAGE -- TRANSFORM ARGS...

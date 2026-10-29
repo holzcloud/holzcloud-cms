@@ -9,6 +9,7 @@ The order in which the steps are taken:
 - **OS-6 to OS-14** whenever the server runs the units that this release ships. They need no GitHub step, and none of them needs another in a particular order except where a Needs line says so.
 - **OS-15 to OS-18 only after the milestone has been completed.** The number, the date and the tag belong to that step; the number 0.1.1 and the date 2026-10-26 that stand in `CHANGELOG.md` are drafts. The release is not made by the author of this file, and no step of it has been taken: there is no tag `v0.1.1`.
 - **OS-19** at any time.
+- **OS-20 and OS-21** after the server runs the `backup.sh` that this release ships, which is after the update. They need no GitHub step and neither needs the other: OS-20 is the first night by hand, OS-21 the morning after the first night of the timer.
 
 The real-server steps assume a server installed by `deploy/DEPLOY.md`: the program and the units under `/opt/holzcloud`, the units enabled, a service user. They give what the records give, and nothing more is promised for another layout.
 
@@ -724,6 +725,6 @@ These are the decisions the plans of this phase made for the owner. Each can be 
 
 **The reworded native amd64 line.** The 0.1.0 limit "none is planned (a user decision)" is no longer true since the button exists; `docs/beta.md` says that no run was made yet and that one is planned. To keep the old wording instead, keep the baseline bullet and add a `Why:` that corrects it; the checker accepts both.
 
-**`deploy/DEPLOY.md` is not edited.** Three gaps are written in `docs/beta.md` and in these steps instead: a vanished file ends the night, a failed night's directory blocks the following nights, and a restore does not report a row whose file is missing. An edit of `deploy/DEPLOY.md` would stale the evidence bound to it and force the runs to be made again; whether to pay that is the owner's.
+**`deploy/DEPLOY.md` is not edited.** Three statements are written in `docs/beta.md` and in these steps instead: a vanished file is repeated once, a failed night removes its own directory, and a restore does not report a row whose file is missing. An edit of `deploy/DEPLOY.md` would stale the evidence bound to it and force the runs to be made again; whether to pay that is the owner's.
 
 **Two small product features ride in this release.** The block Bild und Text has a position for the picture, and an upload of a large raster asks whether to shrink it. They predate the evidence builds and were already in the program the records measured, but new CMS functions are out of scope for this milestone; the entry states them as what they are.
