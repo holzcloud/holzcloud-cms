@@ -246,3 +246,4 @@ Quittiert unter dem Arbeitsnamen v1.6; der Meilenstein heisst seit dem Release (
 ### Roadmap Evolution
 
 - Phase 29 added: Sicherung robust (backup.sh: rsync status 24 retried once, failed night cleans its MANIFEST-less directory; new evidence set; docs/beta.md quotations; 28-check.sh `frozen` gate)
+- Phase 30 added: Datenschutz ohne Banner (DSGVO-konform ohne Cookie-Banner: IP im Log kürzen, Datenschutz-/Impressum-Vorlage pro Website, Test auf kein Set-Cookie ohne Interaktion)

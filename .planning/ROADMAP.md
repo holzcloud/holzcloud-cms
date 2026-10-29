@@ -567,6 +567,22 @@ Plans:
 - [ ] 29-07-PLAN.md — docs/beta.md: new quotations P-16..P-22, rewritten limits, evidence row E-6, evidence commands re-pinned (wave 7)
 - [ ] 29-08-PLAN.md — frozen gate re-pinned and played in the selftest, regression pins, phase closure (wave 8)
 
+### Phase 30: Datenschutz ohne Banner
+
+**Goal:** Das CMS ist DSGVO-konform, ohne dass ein Cookie-Banner nötig ist. Die öffentliche Seite setzt ohne Zutun des Besuchers kein Cookie; was gesetzt wird, ist notwendig oder vom Besucher ausgelöst und steht in der Erklärung. Keine Rechtsberatung: Texte sind als Vorlage gekennzeichnet.
+**Audit (2026-10-29):**
+1. Cookies: Warenkorb, Seitenschutz-Unlock und Ansicht-Wahl (365 Tage, Laufzeit prüfen) sind notwendig oder nutzerinitiiert; kein Tracking, keine Drittanbieter (CSP `default-src 'self'`).
+2. `internal/web/logging.go` schreibt die Client-IP in jedes Request-Log ohne Kürzung und ohne Aufbewahrungsgrenze: kürzen oder anonymisieren, Frist dokumentieren.
+3. EXIF wird beim Upload bereits entfernt (`internal/media/intake.go`): nur durch Test sichern.
+4. Keine Datenschutz- und Impressum-Vorlage in den acht Themes, keine Pflege pro Website: Vorlage und Seitentyp ergänzen, dazu eine Cookie- und Auftragsverarbeiter-Liste (Zahlungsanbieter) pro Website.
+5. Ein Test erzwingt, dass die öffentliche Seite ohne Interaktion kein `Set-Cookie` sendet.
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 30 to break down)
+
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
 summaries, v2.0 kept in full. The v1.10 roadmap as it stood at the close is
