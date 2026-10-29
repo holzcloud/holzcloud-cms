@@ -555,7 +555,7 @@ visitor was asked in German. That became 14-05 rather than a carried-over note.
 **Goal:** `backup.sh` repeats an rsync exit status 24 once and aborts loudly if it recurs; a failed night removes its own directory when it has no MANIFEST (trap), so a half-written directory can no longer block later nights on a nearly full filesystem. Then a new evidence set (con-chain/nightly), new quotations in `docs/beta.md`, and the `frozen` gate of `28-check.sh` re-pinned or replaced.
 **Requirements**: ROB-01, ROB-02, ROB-03, ROB-04, ROB-05
 **Depends on:** Phase 28
-**Plans:** 8/8 plans executed
+**Plans:** 8/8 plans complete
 
 Plans:
 - [x] 29-01-PLAN.md — backup.sh: one repeat of rsync status 24, loud abort when it recurs, a failed night removes its own MANIFEST-less directory (trap); hermetic test deploy/test/backup-robust.sh (wave 1)
