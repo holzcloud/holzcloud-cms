@@ -5,16 +5,16 @@ milestone_name: Beta belegt
 current_phase: 29
 current_phase_name: Sicherung robust
 status: executing
-stopped_at: Completed 29-06-PLAN.md
-last_updated: "2026-10-29T03:31:40.731Z"
+stopped_at: Completed 29-07-PLAN.md
+last_updated: "2026-10-29T03:42:56.036Z"
 last_activity: 2026-10-27
 last_activity_desc: Phase 29 execution started
-state_head: a3b58173df28b406b987fe1e7731a787d5ba5345
+state_head: d84c0be2f70a1f303cefd9c216d4296fbf48d907
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
   percent: 71
 ---
 
@@ -92,6 +92,7 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 | Phase 29 P04 | 40min | 3 tasks | 0 files |
 | Phase 29 P05 | 1h | 3 tasks | 1 files |
 | Phase 29 P06 | 45min | 3 tasks | 3 files |
+| Phase 29 P07 | 75 min | 3 tasks | 2 files |
 
 ### Blockers
 
@@ -213,18 +214,20 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 - [Phase 29]: 29-03: the vanish stand-in runs the real rsync first and replaces the status afterwards; harness asserts it absent after every scenario; unit verdict reported as LABEL-UNIT-STATE-CHECK so exactly four keys end in -VERDICT
 - [Phase 29]: 29-05: the record BACKUP-ROBUST-RUN.md names evidence commit dd077e4; its appendix of 30 blocks is assembled by a program from the scratch files and proved by record-check-con
 - [Phase 29]: 29-06: the list gets one owner step per numbered item of BACKUP-ROBUST-RUN.md (OS-20, OS-21), both Needs: nothing; ROB-04 left open for the page (plan 29-07)
+- [Phase 29]: 29-07: title sentences stand inside bold markers and cannot pass the sentence boundary of beta quotes, so the rows quote the sentences after 'What it shows.' and the bullets of Not tested
+- [Phase 29]: 29-07: CHECK_E29 (default the literal dd077e4) lets the selftest show the E29-equals-record proof fail; any other value can only fail the check
 
 ## Current Position
 
 Phase: 29 (Sicherung robust) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-10-27 — Phase 29 execution started
 
 ## Session Continuity
 
-**Last session:** 2026-10-29T03:31:40.572Z
-**Stopped at:** Completed 29-06-PLAN.md
+**Last session:** 2026-10-29T03:42:55.853Z
+**Stopped at:** Completed 29-07-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps
