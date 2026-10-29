@@ -12,7 +12,7 @@
 #
 # `extract` prints the text of one step of a record exactly as the owner-steps check
 # compares it (REF is O-1, O-2 ... for the timer and native records, "item 1" for the
-# consistency record, "step 2" for the archived 0.1.0 owner steps), so that a verbatim
+# consistency and the robust record, "step 2" for the archived 0.1.0 owner steps), so that a verbatim
 # region is copied by a program and not retyped.
 #
 # `beta`, `owner-steps` and `changelog` with no second word run every sub-check of theirs.
@@ -60,6 +60,7 @@ ARCHIVE23=${ARCHIVE23:-.planning/milestones/v0.1.0-phases/23-repository-tidy-and
 OWNER27=${OWNER27:-.planning/phases/27-repository-tidy/27-OWNER-STEPS.md}
 TIMER_REC=deploy/BACKUP-TIMER-RUN.md
 CON_REC=deploy/BACKUP-CONSISTENCY-RUN.md
+ROB_REC=deploy/BACKUP-ROBUST-RUN.md
 NATIVE_PATH=deploy/NATIVE-AMD64-RUN.md
 RECORDS="deploy/SECURITY-SCORE.md deploy/DEPLOY-RUN.md deploy/BACKUP-RUN.md $TIMER_REC $CON_REC"
 FAIL=0
@@ -432,7 +433,7 @@ rec_extract() {
         on && (/^\*\*O-[0-9]+\. / || /^\*\*Recording a result\.\*\*/ || /^## /) { exit }
         !on && $0 ~ ("^\\*\\*O-" n "\\. ") { on = 1 }
         on { print }' "$p" | trim_blank ;;
-    */BACKUP-CONSISTENCY-RUN.md)
+    */BACKUP-CONSISTENCY-RUN.md|*/BACKUP-ROBUST-RUN.md)
       n=${ref#item }
       awk -v n="$n" '/^## Owner steps$/ { on = 1; next } on && /^## / { exit } on && index($0, n ". ") == 1 { print; exit }' "$p" ;;
     */23-OWNER-STEPS.md)
@@ -513,12 +514,13 @@ check_owner_steps_steps() {
 }
 
 check_owner_steps_complete() {
-  need "$OWNER"; need "$TIMER_REC"; need "$NATIVE_PATH"; need "$CON_REC"
+  need "$OWNER"; need "$TIMER_REC"; need "$NATIVE_PATH"; need "$CON_REC"; need "$ROB_REC"
   local n0=$NFAIL T ref k lit idx
   T=$(mktmp); os_split "$OWNER" "$T"
   for k in $(grep -oE '^\*\*O-[0-9]+\.' "$TIMER_REC" | tr -dc '0-9\n'); do echo "$TIMER_REC O-$k"; done > "$T/refs"
   for k in $(grep -oE '^\*\*O-[0-9]+\.' "$NATIVE_PATH" | tr -dc '0-9\n'); do echo "$NATIVE_PATH O-$k"; done >> "$T/refs"
   for k in $(awk '/^## Owner steps$/ { on = 1; next } on && /^## / { exit } on && /^[0-9]+\. / { sub(/\..*/, ""); print }' "$CON_REC"); do echo "$CON_REC item $k"; done >> "$T/refs"
+  for k in $(awk '/^## Owner steps$/ { on = 1; next } on && /^## / { exit } on && /^[0-9]+\. / { sub(/\..*/, ""); print }' "$ROB_REC"); do echo "$ROB_REC item $k"; done >> "$T/refs"
   while IFS= read -r ref; do
     grep -lx "Source: $ref" "$T"/OS-*.txt > /dev/null 2>&1 || fail "no owner step has 'Source: $ref'"
   done < "$T/refs"
@@ -527,8 +529,8 @@ check_owner_steps_complete() {
   done
   idx=$(grep -E '^\| OS-[0-9]+ \|' "$OWNER" | awk -F'|' '{ x = $2; gsub(/ /, "", x); print x }')
   [ "$idx" = "$(cat "$T/ids")" ] || fail "the index table at the top lists a different set of steps than the headings"
-  [ "$(grep -c . "$T/ids")" -ge 19 ] || fail "fewer than 19 owner steps"
-  [ "$NFAIL" = "$n0" ] && ok "owner steps complete: every step of the three records, the push of main, the button, the release and the bundle are here, and the index equals the headings"
+  [ "$(grep -c . "$T/ids")" -ge 21 ] || fail "fewer than 21 owner steps"
+  [ "$NFAIL" = "$n0" ] && ok "owner steps complete: every step of the four records, the push of main, the button, the release and the bundle are here, and the index equals the headings"
 }
 
 check_owner_steps() {
@@ -771,7 +773,7 @@ fx_owner() { # OUTFILE : an owner-steps file for the real records, steps cut fro
   {
     echo "# fixture"; echo
     echo "| Step | Where | Needs | Source |"; echo "|---|---|---|---|"
-    for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do echo "| OS-$n | real server | nothing | x |"; done
+    for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21; do echo "| OS-$n | real server | nothing | x |"; done
     echo
   } > "$out"
   step_new() { # id title command
@@ -835,6 +837,8 @@ EOF
   step_new 17 'check' 'git ls-remote --tags origin v0.1.1; gh release view v0.1.1'
   step_new 18 'afterwards' 'git push origin main:release'
   step_new 19 'bundle' 'git bundle verify X; shasum -a 256 X; Actions'
+  step_rec 20 'r1' "$ROB_REC" 'item 1'
+  step_rec 21 'r2' "$ROB_REC" 'item 2'
 }
 
 fx_changelog() { # OUTFILE : the real changelog with a small 0.1.1 entry on top
@@ -898,6 +902,7 @@ selftest() {
   # the extractors, on the real records
   st_true 'the extractor finds O-1 of the timer record' starts_with "$(rec_extract "$TIMER_REC" O-1 | head -n 1)" '**O-1. The shipped timer at its real 03:15.'
   st_true 'the extractor finds item 2 of the consistency record' test "$(rec_extract "$CON_REC" 'item 2' | cut -c1-30)" = '2. Look for a directory withou'
+  st_true 'the extractor finds item 1 of the robust record' test "$(rec_extract "$ROB_REC" 'item 1' | cut -c1-30)" = '1. The first night after the u'
   st_true 'the extractor stops O-3 of the native record before Recording a result' test "$(rec_extract "$NATIVE_PATH" O-3 | tail -n 1 | cut -c1-30)" = 'Paste the output of the last `'
   st_true 'the extractor finds step 2 of the 0.1.0 owner steps' test "$(rec_extract "$ARCHIVE23" 'step 2' | sed -n 2p)" = 'git push origin main:release'
   # sentence_ok: a whole sentence yes, the end of one no, the start of one no
@@ -963,6 +968,7 @@ selftest() {
   osneg 'a secret' steps 'looks like it holds a secret' -- t_append 'ghp_0123456789abcdef'
   osneg 'a record step left out' complete 'no owner step has '\''Source: deploy/BACKUP-TIMER-RUN.md O-5'\''' -- t_sub 'Source: deploy/BACKUP-TIMER-RUN.md O-5' 'Source: deploy/BACKUP-TIMER-RUN.md O-9'
   osneg 'the index lists another set' complete 'the index table at the top lists a different set' -- t_del '| OS-19 |'
+  osneg 'a step of the robust record left out' complete 'no owner step has '\''Source: deploy/BACKUP-ROBUST-RUN.md item 1'\''' -- t_sub 'Source: deploy/BACKUP-ROBUST-RUN.md item 1' 'Source: deploy/BACKUP-ROBUST-RUN.md item 9'
 
   st_expect 'changelog extract: the good fixture' 0 env CHANGELOG_FILE="$T/cl-good.md" BETA="$T/good.md" bash "$ME" changelog extract
   clneg() { # DESC MESSAGE -- TRANSFORM ARGS...

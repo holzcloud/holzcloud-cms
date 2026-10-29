@@ -33,6 +33,8 @@ The real-server steps assume a server installed by `deploy/DEPLOY.md`: the progr
 | OS-17 | development machine | OS-16 | .planning/milestones/v0.1.0-phases/23-repository-tidy-and-beta-criteria/23-OWNER-STEPS.md step 3 |
 | OS-18 | development machine | OS-17 | .planning/milestones/v0.1.0-phases/23-repository-tidy-and-beta-criteria/23-OWNER-STEPS.md step 4 |
 | OS-19 | development machine | nothing | new |
+| OS-20 | real server | nothing | deploy/BACKUP-ROBUST-RUN.md item 1 |
+| OS-21 | real server | nothing | deploy/BACKUP-ROBUST-RUN.md item 2 |
 
 ### OS-1: Look at GitHub from here
 
@@ -673,6 +675,44 @@ git fetch /Users/holz/holzcloud-cms-lokal-vor-origin-abgleich-ef4873ad07.bundle 
 The old lineage is never merged into `main`: single features are ported, not the branch.
 
 This step answers no line of `docs/beta.md`; it keeps what the repository no longer holds.
+
+### OS-20: The first night of the changed backup.sh
+
+Source: deploy/BACKUP-ROBUST-RUN.md item 1
+Where: real server
+Needs: nothing
+Expect begins at: "expect the header line"
+A different output is explained at: "means a file vanished and the copy was repeated"
+
+```bash
+sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups; echo "exit $?"
+for d in /opt/holzcloud/backups/*/; do [ -f "$d/MANIFEST" ] || echo "no MANIFEST: $d"; done
+```
+
+<!-- verbatim: deploy/BACKUP-ROBUST-RUN.md item 1 -->
+1. The first night after the update, by hand: run `sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups; echo "exit $?"` and then `for d in /opt/holzcloud/backups/*/; do [ -f "$d/MANIFEST" ] || echo "no MANIFEST: $d"; done`; expect the header line `=== holzcloud-CMS backup: TIMESTAMP ===`, the lines `Backing up ...`, the line `Pruning backups older than 30 days...`, the line `=== Backup complete: ... ===`, then `exit 0`, and no `no MANIFEST:` line for the new directory; a line `WARNING: rsync exited 24 (files vanished) while copying media; repeating it once` means a file vanished and the copy was repeated, which is the script working (the night still ends `exit 0` if the repeat succeeded), a line `ERROR: rsync exited 24 again while copying media; giving up` means it recurred and the night failed with `exit 24` and no directory, and a `no MANIFEST:` line names a directory of an earlier night of the old script, which `restore.sh` refuses and the new script does not remove, so remove that one directory by hand.
+<!-- end verbatim -->
+
+This step answers the limit of `docs/beta.md` that the changed `backup.sh` was played in a container and not on a real server: it is the first night of the script that this release ships, taken by hand. OS-12 still serves for a directory without a `MANIFEST` that a night of the old script left behind.
+
+### OS-21: The morning after the first timer night
+
+Source: deploy/BACKUP-ROBUST-RUN.md item 2
+Where: real server
+Needs: nothing
+Expect begins at: "expect no output on a quiet night"
+A different output is explained at: "means the night failed and removed its own directory"
+
+```bash
+journalctl -u holzcloud-backup.service --since yesterday --no-pager | grep -E 'rsync exited 24|backup did not finish'
+systemctl status holzcloud-backup.service
+```
+
+<!-- verbatim: deploy/BACKUP-ROBUST-RUN.md item 2 -->
+2. The morning after the first timer night: run `journalctl -u holzcloud-backup.service --since yesterday --no-pager | grep -E 'rsync exited 24|backup did not finish'` and expect no output on a quiet night; a line `WARNING: rsync exited 24 ... repeating it once` without a line `ERROR:` after it means a file vanished and the repeat completed, a line `ERROR: rsync exited 24 again ... giving up` or `ERROR: backup did not finish; removed ...` means the night failed and removed its own directory, so read `systemctl status holzcloud-backup.service`, look at the lines above it in the journal for the cause (a full disk shows as `No space left on device`) and run `sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups` once by hand in a quiet moment.
+<!-- end verbatim -->
+
+This step answers the limit of `docs/beta.md` that a status 24 and a failed night were provoked in a container (with a stand-in for `rsync` in the first case) and not seen under the real timer of a real server. OS-12 still serves for a directory without a `MANIFEST` that a night of the old script left behind.
 
 ## Veto points
 
