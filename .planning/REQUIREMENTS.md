@@ -53,8 +53,8 @@ Added on 2026-10-27 for phase 29, from the owner's decision of 2026-10-26 (see t
 - [x] **ROB-01**: `deploy/backup.sh` repeats an `rsync` that ends with status 24 (files vanished) once, and ends the night loudly with status 24 if it recurs. Every other `rsync` status is not repeated.
 - [x] **ROB-02**: A night that fails before its `MANIFEST` is written removes the directory it made, so no directory without a `MANIFEST` is left to hold space on a nearly full filesystem and the guard of the next night is not blocked by it. A directory that holds a `MANIFEST`, and any earlier backup, is never removed by this.
 - [x] **ROB-03**: A new evidence set made on the changed script (`nightly.sh con-chain` on a clean tree, an evidence commit named in a new record, `deploy/BACKUP-ROBUST-RUN.md`) shows both behaviours and keeps CON-01 to CON-03 green; `nightly.sh record-check-con` proves the record byte for byte.
-- [ ] **ROB-04**: `docs/beta.md` quotes the new record byte for byte for what the changed script now promises, drops the sentences of the old record that are no longer true, keeps what the new record does not show as a named limit, and the 0.1.1 entry of `CHANGELOG.md` says the same in German.
-- [ ] **ROB-05**: The `frozen` gate and the evidence commands of `28-check.sh` are re-pinned to the new evidence commit, and its other checks still pass; each rule that is changed has a case in the checker's selftest that fails when the rule is broken.
+- [x] **ROB-04**: `docs/beta.md` quotes the new record byte for byte for what the changed script now promises, drops the sentences of the old record that are no longer true, keeps what the new record does not show as a named limit, and the 0.1.1 entry of `CHANGELOG.md` says the same in German.
+- [x] **ROB-05**: The `frozen` gate and the evidence commands of `28-check.sh` are re-pinned to the new evidence commit, and its other checks still pass; each rule that is changed has a case in the checker's selftest that fails when the rule is broken.
 
 ---
 
@@ -104,8 +104,8 @@ The owner also decided on 2026-10-26 to change the shipped `backup.sh`: retry rs
 | ROB-01 | Phase 29 | Complete |
 | ROB-02 | Phase 29 | Complete |
 | ROB-03 | Phase 29 | Complete |
-| ROB-04 | Phase 29 | Pending |
-| ROB-05 | Phase 29 | Pending |
+| ROB-04 | Phase 29 | Complete |
+| ROB-05 | Phase 29 | Complete |
 
 `Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
 
@@ -118,4 +118,4 @@ TIDY-01 and TIDY-04 read `Pending owner` for a different reason than SRV-01 to S
 
 ---
 *Requirements defined: 2026-10-20*
-*Last updated: 2026-10-27 after phase 29 was planned, ROB-01 to ROB-05 added*
+*Last updated: 2026-10-29 after phase 29 was executed and verified by the checker (28-check.sh all, selftest and frozen green), ROB-01 to ROB-05 Complete*
