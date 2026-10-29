@@ -697,17 +697,28 @@ check_frozen() {
 
 # ----------------------------------------------------------- regression ----
 
+# reg_pin LABEL EXPECTED ACTUAL : the pinned line and the line the command printed are the same string.
+# The message holds both, so that a pin that is out of date is read off the failure.
+reg_pin() { [ "$3" = "$2" ] || fail "$1: expected '$2', got '$3'"; }
+
+# The pins are what the commands print on the tree of phase 29: nightly.sh selftest 646
+# cases (plans 29-02 and 29-03 took it from 542 over 594 to 646; its last line is the bare
+# word, so the two last lines are compared), record-check 29 and record-check-con 27 for the
+# earlier set, record-check-con 30 blocks for the set of $E29 (the four t29 names and the
+# hand-over heading of the record), backup-robust.sh 94 cases, and the native checks as before.
 check_regression() {
   local n0=$NFAIL out
-  out=$(bash deploy/test/nightly.sh selftest 2>&1 | tail -n 3); printf '%s\n' "$out" | grep -qF 'SELFTEST OK (542 cases)' || fail "nightly.sh selftest: $out"
-  out=$(bash deploy/test/nightly.sh record-check 2>&1 | tail -n 1); [ "$out" = 'RECORD-CHECK OK 29 blocks' ] || fail "nightly.sh record-check: $out"
-  out=$(E="$ROOT/deploy/test/out" bash deploy/test/nightly.sh record-check-con 2>&1 | tail -n 1); [ "$out" = 'RECORD-CHECK OK 27 blocks' ] || fail "nightly.sh record-check-con: $out"
+  out=$(bash deploy/test/nightly.sh selftest 2>&1 | tail -n 2); reg_pin 'nightly.sh selftest' "$(printf 'SELFTEST OK (646 cases)\nSELFTEST OK')" "$out"
+  out=$(bash deploy/test/nightly.sh record-check 2>&1 | tail -n 1); reg_pin 'nightly.sh record-check' 'RECORD-CHECK OK 29 blocks' "$out"
+  out=$(E="$ROOT/deploy/test/out" bash deploy/test/nightly.sh record-check-con 2>&1 | tail -n 1); reg_pin 'nightly.sh record-check-con (the earlier set)' 'RECORD-CHECK OK 27 blocks' "$out"
+  out=$(R="$ROB_REC" E="$ROOT/deploy/test/out" RC_HANDOVER='## Hand-over to docs/beta.md' OUT_DIR=deploy/test/out/amd64-t29-src TGT_OUT_DIR=deploy/test/out/amd64-t29-tgt OLD_OUT_DIR=deploy/test/out/amd64-t29-old NEW_OUT_DIR=deploy/test/out/amd64-t29-new bash deploy/test/nightly.sh record-check-con 2>&1 | tail -n 1); reg_pin 'nightly.sh record-check-con (the set of the robust record)' 'RECORD-CHECK OK 30 blocks' "$out"
+  out=$(bash deploy/test/backup-robust.sh 2>&1 | tail -n 1); reg_pin 'backup-robust.sh' 'BACKUP-ROBUST OK (94 cases)' "$out"
   out=$(bash deploy/test/native-amd64.sh status-check 2>&1 | tail -n 1); case "$out" in 'STATUS-CHECK OK'*) ;; *) fail "native-amd64.sh status-check: $out" ;; esac
-  out=$(bash deploy/test/native-amd64.sh record-check 2>&1 | tail -n 1); case "$out" in 'RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03') ;; *) fail "native-amd64.sh record-check: $out" ;; esac
+  out=$(bash deploy/test/native-amd64.sh record-check 2>&1 | tail -n 1); reg_pin 'native-amd64.sh record-check' 'RECORD-CHECK OK 0 blocks; recorded: none; pending owner: SRV-01 SRV-02 SRV-03' "$out"
   if [ "${NATIVE_SELFTEST:-1}" = 1 ]; then
-    out=$(bash deploy/test/native-amd64.sh selftest 2>&1 | tail -n 1); [ "$out" = 'SELFTEST OK (862 cases)' ] || fail "native-amd64.sh selftest: $out"
+    out=$(bash deploy/test/native-amd64.sh selftest 2>&1 | tail -n 1); reg_pin 'native-amd64.sh selftest' 'SELFTEST OK (862 cases)' "$out"
   fi
-  [ "$NFAIL" = "$n0" ] && ok "regression: nightly.sh selftest 542, record-check 29, record-check-con 27, native-amd64.sh status-check and record-check$( [ "${NATIVE_SELFTEST:-1}" = 1 ] && echo ', selftest 862')"
+  [ "$NFAIL" = "$n0" ] && ok "regression: nightly.sh selftest 646, record-check 29, record-check-con 27 (earlier set) and 30 (the robust record), backup-robust.sh 94, native-amd64.sh status-check and record-check$( [ "${NATIVE_SELFTEST:-1}" = 1 ] && echo ', selftest 862')"
 }
 
 # ------------------------------------------------------------- selftest ----
@@ -961,6 +972,74 @@ st_false() { # DESC COMMAND... : the command fails
   if "$@" > /dev/null 2>&1; then echo "SELFTEST FAIL: $desc" >&2; SELF_FAIL=$((SELF_FAIL + 1)); else SELF_OK=$((SELF_OK + 1)); fi
 }
 
+# --------------------------------------------- fixtures of the frozen rules ----
+# A throwaway repository with the shape of the real history: R1 (the earlier evidence), R2
+# (the phase 26 instrument), BASE (phase 29 began), EVC (the evidence commit: it changes
+# backup.sh and nightly.sh and adds the record) and END (docs/beta.md and CHANGELOG.md).
+# VARIANT is good (HEAD is END), moved (a commit on top changes a program file, CHANGELOG.md
+# and docs/beta.md), a (a unit on top), a-restore (restore.sh on top), b (release.yml on top),
+# c (nightly.sh changes between R2 and BASE), d (backup.sh on top), e-prog (the evidence
+# commit also changes a program file) or f (the end commit also changes docs/other.md).
+# The five revisions are written to DIR/revs, in the order R1 R2 BASE END EVC.
+FZ_FILES="deploy/restore.sh deploy/DEPLOY.md deploy/holzcloud.service deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh deploy/SECURITY-SCORE.md deploy/DEPLOY-RUN.md deploy/BACKUP-RUN.md deploy/BACKUP-TIMER-RUN.md deploy/BACKUP-CONSISTENCY-RUN.md deploy/test/native-amd64.sh deploy/NATIVE-AMD64-RUN.md .github/workflows/native-amd64.yml .github/workflows/release.yml deploy/backup.sh deploy/test/nightly.sh internal/x.go docs/beta.md docs/other.md CHANGELOG.md .planning/x.md"
+FZ_LIST="deploy/BACKUP-ROBUST-RUN.md
+deploy/backup.sh
+deploy/test/nightly.sh"
+fz_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$FZ_DIR" -c user.name=x -c user.email=x@x -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
+fz_touch() { local f; for f in "$@"; do mkdir -p "$FZ_DIR/$(dirname "$f")"; printf 'change %s\n' "$RANDOM$RANDOM" >> "$FZ_DIR/$f"; done; }
+fz_commit() { fz_git add -A > /dev/null && fz_git commit -q -m "$1" > /dev/null; }
+fx_frozen() { # DIR VARIANT
+  FZ_DIR=$1
+  local v=$2 f r1 r2 base evc end
+  fz_git init -q 2> /dev/null || return 1
+  for f in $FZ_FILES; do fz_touch "$f"; done
+  fz_commit r1; r1=$(fz_git rev-parse --short HEAD)
+  fz_touch deploy/test/native-amd64.sh deploy/NATIVE-AMD64-RUN.md .github/workflows/native-amd64.yml .github/workflows/release.yml
+  fz_commit r2; r2=$(fz_git rev-parse --short HEAD)
+  if [ "$v" = c ]; then fz_touch deploy/test/nightly.sh; fz_commit between; fi
+  fz_touch internal/x.go; fz_commit base; base=$(fz_git rev-parse --short HEAD)
+  fz_touch deploy/backup.sh deploy/test/nightly.sh deploy/BACKUP-ROBUST-RUN.md
+  if [ "$v" = e-prog ]; then fz_touch internal/x.go; fi
+  fz_commit evidence; evc=$(fz_git rev-parse --short HEAD)
+  fz_touch docs/beta.md CHANGELOG.md .planning/x.md
+  if [ "$v" = f ]; then fz_touch docs/other.md; fi
+  fz_commit end; end=$(fz_git rev-parse --short HEAD)
+  case "$v" in
+    moved) fz_touch internal/x.go CHANGELOG.md docs/beta.md; fz_commit top ;;
+    a) fz_touch deploy/holzcloud.service; fz_commit top ;;
+    a-restore) fz_touch deploy/restore.sh; fz_commit top ;;
+    b) fz_touch .github/workflows/release.yml; fz_commit top ;;
+    d) fz_touch deploy/backup.sh; fz_commit top ;;
+  esac
+  printf '%s %s %s %s %s\n' "$r1" "$r2" "$base" "$end" "$evc" > "$FZ_DIR/revs"
+}
+# fx_frozen_run VARIANT FILES [R1] : frozen_in on a fresh fixture; FZ_OUT holds what it printed, FZ_RC its status
+fx_frozen_run() {
+  local d r1 r2 base end evc
+  d=$(mktmp); fx_frozen "$d" "$1" || { FZ_OUT="the fixture could not be made"; FZ_RC=2; return; }
+  read -r r1 r2 base end evc < "$d/revs"
+  FZ_OUT=$( ( FAIL=0; frozen_in "$d" "${3:-$r1}" "$r2" "$base" "$end" "$evc" "$2"; exit "$FAIL" ) 2>&1 ); FZ_RC=$?
+}
+# fz_pass DESC VARIANT : the rules pass and the success line is printed
+fz_pass() {
+  fx_frozen_run "$2" "$FZ_LIST"
+  if [ "$FZ_RC" = 0 ] && printf '%s\n' "$FZ_OUT" | grep -q '^ok: frozen: '; then SELF_OK=$((SELF_OK + 1)); else echo "SELFTEST FAIL: $1 (exit $FZ_RC: $(printf '%s' "$FZ_OUT" | head -n 3 | tr '\n' '|' | cut -c1-300))" >&2; SELF_FAIL=$((SELF_FAIL + 1)); fi
+}
+# fz_only DESC RULE VARIANT FILES [R1] : it fails, with the message of that rule and of no other rule
+fz_only() {
+  local labels
+  fx_frozen_run "$3" "$4" "${5:-}"
+  labels=$(printf '%s\n' "$FZ_OUT" | sed -n 's/^FAIL: Rule \([A-F]\):.*/\1/p' | sort -u | tr -d '\n')
+  if [ "$FZ_RC" = 1 ] && [ "$labels" = "$2" ]; then SELF_OK=$((SELF_OK + 1)); else echo "SELFTEST FAIL: $1 (exit $FZ_RC, rules that failed: '$labels', wanted '$2')" >&2; SELF_FAIL=$((SELF_FAIL + 1)); fi
+}
+# fz_has DESC RULE VARIANT FILES [R1] : it fails, with the message of that rule among others
+fz_has() {
+  fx_frozen_run "$3" "$4" "${5:-}"
+  if [ "$FZ_RC" = 1 ] && printf '%s\n' "$FZ_OUT" | grep -q "^FAIL: Rule $2:"; then SELF_OK=$((SELF_OK + 1)); else echo "SELFTEST FAIL: $1 (exit $FZ_RC, no message of Rule $2)" >&2; SELF_FAIL=$((SELF_FAIL + 1)); fi
+}
+
+fz_msg() { printf '%s\n' "$FZ_OUT" | grep -q -- "$1"; }
+
 selftest() {
   SELF_OK=0; SELF_FAIL=0
   local T ME="$HERE/28-check.sh" P
@@ -1059,6 +1138,26 @@ selftest() {
   clneg 'a level-two heading inside the entry' 'the heading after the new entry is not' -- t_sub '**Zweiter Absatz.**' '## Zweiter Absatz'
   clneg 'the link to the page gone' 'does not link docs/beta.md' -- t_sub 'blob/main/docs/beta.md' 'blob/main/docs/other.md'
   clneg 'the version differs from the page' 'the page says' -- t_sub '## 0.1.1 — 2026-10-26' '## 0.1.2 — 2026-10-26'
+
+  # the frozen rules, on throwaway repositories (rules A to F, the pin, and the pin helper)
+  fz_pass 'frozen: the repository as phase 29 leaves it' good
+  fz_pass 'frozen: a later commit that changes a program file, CHANGELOG.md and docs/beta.md is allowed (the pin lets the program move on)' moved
+  fz_only 'frozen: a unit changed after the earlier evidence' A a "$FZ_LIST"
+  fz_has 'frozen: restore.sh changed after the earlier evidence' A a-restore "$FZ_LIST"
+  fz_only 'frozen: release.yml changed after the phase 26 instrument' B b "$FZ_LIST"
+  fz_only 'frozen: nightly.sh differs between the earlier evidence and the phase base' C c "$FZ_LIST"
+  fz_only 'frozen: backup.sh changed after the evidence commit' D d "$FZ_LIST"
+  fz_only 'frozen: the evidence commit also changes a program file' E e-prog "$FZ_LIST"
+  fz_only 'frozen: a name in the list of the phase that was not changed' E good "$(printf '%s\ndeploy/x.sh' "$FZ_LIST")"
+  fz_only 'frozen: a changed file that the list of the phase lacks' E good "$(printf '%s\n' "$FZ_LIST" | sed '$d')"
+  fz_only 'frozen: the end commit also changes a page of docs other than beta.md' F f "$FZ_LIST"
+  fz_has 'frozen: an earlier revision that does not exist fails closed' A good "$FZ_LIST" nosuchrevision
+  fx_frozen_run d "$FZ_LIST"; st_true 'frozen: rule D says that the set is made again' fz_msg 'Rule D:.*the set is made again'
+  fx_frozen_run good "$(printf '%s\ndeploy/x.sh' "$FZ_LIST")"; st_true 'frozen: rule E prints the difference with the name that is listed only' fz_msg 'Rule E:.*< deploy/x.sh'
+  rp_run() { ( FAIL=0; reg_pin "$@"; exit "$FAIL" ); }
+  st_expect 'reg_pin: the same string passes' 0 rp_run 'nightly.sh selftest' 'SELFTEST OK (646 cases)' 'SELFTEST OK (646 cases)'
+  st_fails 'reg_pin: another string fails with the label, the pin and the actual line' "nightly.sh selftest: expected 'SELFTEST OK (646 cases)', got 'SELFTEST OK (647 cases)'" rp_run 'nightly.sh selftest' 'SELFTEST OK (646 cases)' 'SELFTEST OK (647 cases)'
+  st_fails 'reg_pin: an empty actual line fails' "got ''" rp_run 'backup-robust.sh' 'BACKUP-ROBUST OK (94 cases)' ''
 
   [ -z "${SELFTEST_KEEP:-}" ] || cp -R "$T/." "$SELFTEST_KEEP/"
   if [ "$SELF_FAIL" = 0 ]; then echo "SELFTEST OK ($SELF_OK cases)"; else echo "SELFTEST FAILED ($SELF_FAIL of $((SELF_OK + SELF_FAIL)) cases)" >&2; FAIL=1; fi
