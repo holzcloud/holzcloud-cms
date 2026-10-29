@@ -5,16 +5,16 @@ milestone_name: Beta belegt
 current_phase: 29
 current_phase_name: Sicherung robust
 status: executing
-stopped_at: Completed 29-05-PLAN.md
-last_updated: "2026-10-29T03:23:25.289Z"
+stopped_at: Completed 29-06-PLAN.md
+last_updated: "2026-10-29T03:31:40.731Z"
 last_activity: 2026-10-27
 last_activity_desc: Phase 29 execution started
-state_head: ce290b32df61bce73a6522a55650d3d26c056507
+state_head: a3b58173df28b406b987fe1e7731a787d5ba5345
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 25
-  completed_plans: 22
+  completed_plans: 23
   percent: 71
 ---
 
@@ -91,6 +91,7 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 | Phase 29 P03 | 45min | 3 tasks | 2 files |
 | Phase 29 P04 | 40min | 3 tasks | 0 files |
 | Phase 29 P05 | 1h | 3 tasks | 1 files |
+| Phase 29 P06 | 45min | 3 tasks | 3 files |
 
 ### Blockers
 
@@ -211,18 +212,19 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 - [Phase 29]: RUN-line tokens RETRIES= and LEFT= sit between RSYNC-STATUS= and DIR= so DIR= stays last; RC_HANDOVER defaults to the old heading (plan 29-02)
 - [Phase 29]: 29-03: the vanish stand-in runs the real rsync first and replaces the status afterwards; harness asserts it absent after every scenario; unit verdict reported as LABEL-UNIT-STATE-CHECK so exactly four keys end in -VERDICT
 - [Phase 29]: 29-05: the record BACKUP-ROBUST-RUN.md names evidence commit dd077e4; its appendix of 30 blocks is assembled by a program from the scratch files and proved by record-check-con
+- [Phase 29]: 29-06: the list gets one owner step per numbered item of BACKUP-ROBUST-RUN.md (OS-20, OS-21), both Needs: nothing; ROB-04 left open for the page (plan 29-07)
 
 ## Current Position
 
 Phase: 29 (Sicherung robust) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-10-27 — Phase 29 execution started
 
 ## Session Continuity
 
-**Last session:** 2026-10-29T03:23:25.132Z
-**Stopped at:** Completed 29-05-PLAN.md
+**Last session:** 2026-10-29T03:31:40.572Z
+**Stopped at:** Completed 29-06-PLAN.md
 **Resume file:** None
 
 ## Operator Next Steps
