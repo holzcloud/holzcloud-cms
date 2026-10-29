@@ -56,6 +56,18 @@ Added on 2026-10-27 for phase 29, from the owner's decision of 2026-10-26 (see t
 - [x] **ROB-04**: `docs/beta.md` quotes the new record byte for byte for what the changed script now promises, drops the sentences of the old record that are no longer true, keeps what the new record does not show as a named limit, and the 0.1.1 entry of `CHANGELOG.md` says the same in German.
 - [x] **ROB-05**: The `frozen` gate and the evidence commands of `28-check.sh` are re-pinned to the new evidence commit, and its other checks still pass; each rule that is changed has a case in the checker's selftest that fails when the rule is broken.
 
+### Privacy without a banner (DSV)
+
+Added on 2026-10-29 for phase 30, from the audit of that date (see the note under Out of Scope). Decisions D-01 to D-10 of `.planning/phases/30-datenschutz-ohne-banner/30-CONTEXT.md` bind them.
+
+- [ ] **DSV-01**: The request log writes the client address truncated to /24 (IPv4) and /48 (IPv6) in its `ip` field, and a value that is not an IP address as `unknown`. The rate limit keeps the full address in memory only, and `internal/activity` is not touched.
+- [ ] **DSV-02**: `deploy/` ships a journald drop-in that enforces `MaxRetentionSec=14d`, and tests hold the drop-in, the retention constant in the code and the sentence of the privacy text together.
+- [ ] **DSV-03**: A test fails when a public GET without interaction sends `Set-Cookie`. It runs through the real router over all eight shipped themes with sample data: start page, page, archive, search, 404, shop list and product, cart, and the gate in front of a protected page.
+- [ ] **DSV-04**: The price-view cookie lasts 30 days instead of 365, carries the `Secure` flag behind a TLS-terminating proxy as the basket cookie does, and is listed in the cookie table as triggered by the visitor.
+- [ ] **DSV-05**: A regression test through `Intake.Keep` shows that an upload carrying GPS and camera EXIF is stored without those tags and keeps its orientation, and a source test holds that no other code stores an upload.
+- [ ] **DSV-06**: The starter `datenschutz` page is composed from building blocks for the functions the website uses (basket cookie, page protection, payment provider, forms), with a table of cookies (name, purpose, lifetime, legal basis) and one of processors, and stays marked as a template that replaces no legal advice.
+- [ ] **DSV-07**: An existing privacy page is never changed. The website settings screen shows a hint about it and offers the current template as a new draft.
+
 ---
 
 ## Future Requirements
@@ -79,6 +91,8 @@ Added on 2026-10-27 for phase 29, from the owner's decision of 2026-10-26 (see t
 the image position option of the "Bild und Text" block (Bildlage); the scale-down question for pictures over 2560 px on upload (quick tasks 261026-bon, 261026-rrh for EXIF orientation and ICC profile on scale-down, 261026-sxy for the orientation stub kept by `StripMetadata`); and the layout fixes of PR 47.
 
 The owner also decided on 2026-10-26 to change the shipped `backup.sh`: retry rsync status 24 once, then fail loudly; a failed night removes its own directory, so none is left without a MANIFEST. This touches the row about changing the shipped `backup.sh` and will be a new phase with a new evidence set. The row stands as the milestone's default; this decision is the recorded exception.
+
+**Note, 2026-10-29.** Phase 30 is a second exception to the row "New CMS functions": after the privacy audit of that date the owner asked for the five audit points of the roadmap (DSV-01 to DSV-07). The shipped units, `deploy/DEPLOY.md` and `deploy/backup.sh` stay as the evidence of phase 29 binds them, so the new `deploy/` file is added beside them and not written into them. The product changes are named in the CHANGELOG 0.1.1 entry.
 
 ## Traceability
 
@@ -106,16 +120,23 @@ The owner also decided on 2026-10-26 to change the shipped `backup.sh`: retry rs
 | ROB-03 | Phase 29 | Complete |
 | ROB-04 | Phase 29 | Complete |
 | ROB-05 | Phase 29 | Complete |
+| DSV-01 | Phase 30 | Pending |
+| DSV-02 | Phase 30 | Pending |
+| DSV-03 | Phase 30 | Pending |
+| DSV-04 | Phase 30 | Pending |
+| DSV-05 | Phase 30 | Pending |
+| DSV-06 | Phase 30 | Pending |
+| DSV-07 | Phase 30 | Pending |
 
 `Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
 
 TIDY-01 and TIDY-04 read `Pending owner` for a different reason than SRV-01 to SRV-03: what is left is the deletion of remote branches and of the old local branch, which needs the owner's credentials and explicit go at that moment (plans 27-04 and 27-05; the steps are in `.planning/phases/27-repository-tidy/27-OWNER-STEPS.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the deletions. `bash .planning/phases/27-repository-tidy/27-check.sh requirements` holds the file to `docs/branches.md` and to git. TIDY-01 became `Complete` on 2026-10-26, when the nine remote branches of the Decisions table were deleted with the owner's go (plan 27-04); TIDY-04 became `Complete` on 2026-10-26, when the two local branches were retired with the owner's go (plan 27-05; the old lineage lives on only in the verified bundle recorded in the owner steps).
 
 **Coverage:**
-- v0.1.1 requirements: 22 total
-- Mapped to phases: 22
+- v0.1.1 requirements: 29 total
+- Mapped to phases: 29
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-20*
-*Last updated: 2026-10-29 after phase 29 was executed and verified by the checker (28-check.sh all, selftest and frozen green), ROB-01 to ROB-05 Complete*
+*Last updated: 2026-10-29 after phase 29 was executed and verified by the checker (28-check.sh all, selftest and frozen green), ROB-01 to ROB-05 Complete; DSV-01 to DSV-07 added and planned for phase 30*

@@ -577,12 +577,24 @@ Plans:
 4. Keine Datenschutz- und Impressum-Vorlage in den acht Themes, keine Pflege pro Website: Vorlage und Seitentyp ergänzen, dazu eine Cookie- und Auftragsverarbeiter-Liste (Zahlungsanbieter) pro Website.
 5. Ein Test erzwingt, dass die öffentliche Seite ohne Interaktion kein `Set-Cookie` sendet.
 
-**Requirements**: TBD
+**Requirements**: DSV-01, DSV-02, DSV-03, DSV-04, DSV-05, DSV-06, DSV-07
 **Depends on:** Phase 29
-**Plans:** 0 plans
+**Plans:** 6 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 30 to break down)
+**Wave 1**
+- [ ] 30-01-PLAN.md — request log keeps the client address truncated to /24 and /48, journald drop-in with MaxRetentionSec=14d in deploy/ (wave 1)
+- [ ] 30-02-PLAN.md — price-view cookie 30 days and Secure, test that no public GET sends Set-Cookie across the eight shipped themes (wave 1)
+- [ ] 30-03-PLAN.md — regression test that an upload with GPS and camera EXIF is stored without them and keeps its orientation (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 30-04-PLAN.md — internal/privacy: the privacy template composed from building blocks, cookie and processor tables, tied to the code and the drop-in by tests (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 30-05-PLAN.md — which functions a website uses, and the starter datenschutz page composed from them (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 30-06-PLAN.md — hint and offer on the website settings screen, catalogue entries, docs/security.md and CHANGELOG (wave 4)
 
 ---
 *Reorganized at the v1.10 close, 2026-09-10: v1.0 and v1.10 collapsed to their
