@@ -514,6 +514,18 @@ cmd_run() {
   rm -rf "${EVIDENCE_DIR:?}" "$(d_self)"
   mkdir -p "$EVIDENCE_DIR" "$(d_self)"
 
+  # run.sh plays the scp lines with a bsdtar flag (--no-mac-metadata) that GNU
+  # tar on the runner refuses (rc 64, found by the first run, 41197606780). The
+  # harness is not edited (D-02); a tar in front of PATH drops that one flag.
+  mkdir -p "$(d_self)/shim"
+  REAL_TAR=$(command -v tar) || die "tar is not installed"
+  {
+    printf '#!/bin/sh\n'
+    printf 'for a in "$@"; do shift; [ "$a" = --no-mac-metadata ] || set -- "$@" "$a"; done\n'
+    printf 'exec %s "$@"\n' "$REAL_TAR"
+  } > "$(d_self)/shim/tar"
+  chmod 755 "$(d_self)/shim/tar"
+
   # The ref both containers are built from, pinned so a commit landing mid-run
   # changes nothing.
   NEW_REF=$(git rev-parse --short "${NEW_REF}^{commit}") || die "NEW_REF '$NEW_REF' is not a commit of this repository"
@@ -530,7 +542,7 @@ cmd_run() {
   fi
   if stage_wanted timing; then
     rc=0
-    env PLATFORM="$PLATFORM" TARGET=systemd-base NAME="holzcloud-$NATIVE_PREFIX-bak-src" OUT_DIR="$(d_src)" \
+    env PATH="$(d_self)/shim:$PATH" PLATFORM="$PLATFORM" TARGET=systemd-base NAME="holzcloud-$NATIVE_PREFIX-bak-src" OUT_DIR="$(d_src)" \
       TGT_NAME="holzcloud-$NATIVE_PREFIX-bak-tgt" TGT_OUT_DIR="$(d_tgt)" BULK_MB="$BULK_MB" NEW_REF="$NEW_REF" \
       DOCKER_RUN_ARGS="$DOCKER_RUN_ARGS" bash "$ROOT/deploy/test/run.sh" backup-chain || rc=$?
     timing_rc=$rc
