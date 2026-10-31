@@ -137,9 +137,29 @@ jobs:
         # or to the changelog text, reaches the release page. That run moves
         # nothing and builds nothing; it only rewrites the page's text from
         # the CHANGELOG. A dispatch or a named tag still refuses.
+        #
+        # One more case is not an offence: a tag that is on the remote at exactly
+        # the commit being released, with no release page behind it. Nothing is
+        # published under that tag and nothing moves, so the run may finish what
+        # the tag push could not (a tag pushed by hand whose own run failed, and
+        # which the repository rules do not let anybody delete).
         existing=no
         if [ "$minting" = yes ] && gh api "repos/$REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
-          if [ "${GITHUB_EVENT_NAME}" = push ] && [ -z "${INPUT_TAG:-}" ]; then
+          tagged=$(git rev-parse "refs/tags/$tag^{commit}" 2>/dev/null || true)
+          if [ -z "$tagged" ]; then
+            git fetch -q origin "refs/tags/$tag:refs/tags/$tag" || true
+            tagged=$(git rev-parse "refs/tags/$tag^{commit}" 2>/dev/null || true)
+          fi
+          if [ -n "${INPUT_TAG:-}" ] || [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ]; then
+            if [ "$tagged" = "$(git rev-parse "$commit^{commit}" 2>/dev/null || echo none)" ] \
+               && ! gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+              echo "::notice::$tag is on the remote at $commit and has no release page yet; finishing that release."
+              existing=no
+            else
+              echo "::error::$tag is already released. A published tag is never moved."
+              exit 1
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = push ] && [ -z "${INPUT_TAG:-}" ]; then
             existing=yes
             echo "::notice::$tag is already released; only its notes are refreshed from the CHANGELOG."
           else
@@ -169,7 +189,7 @@ jobs:
     # would want a committer identity configured for a tag nobody will ever see.
     - name: Name the tag locally, for the version in the binary
       if: steps.what.outputs.existing != 'yes'
-      run: git tag "${{ steps.what.outputs.tag }}"
+      run: git rev-parse -q --verify "refs/tags/${{ steps.what.outputs.tag }}" >/dev/null || git tag "${{ steps.what.outputs.tag }}"
 
     - name: Set up Go
       if: steps.what.outputs.existing != 'yes'
