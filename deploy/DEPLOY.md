@@ -662,6 +662,45 @@ Retention defaults to 30 days (`RETENTION_DAYS`). Set `REMOTE_TARGET` in
 on the same disk does not survive the disk failure it exists for, and a backup
 that has never left the machine is not yet a backup.
 
+**Where the credentials for `REMOTE_TARGET` live.** The copy is `rsync` over
+`ssh`, run by the unit with no terminal, so it needs an ssh client
+(`openssh-client`; the `rsync` package only suggests it) and a key that works
+without a passphrase and a `known_hosts` entry for the remote host. The service
+user `holzcloud` has no home directory, and `ProtectHome=true` hides `/home`
+from the service even if you create one: a key in `/home/holzcloud/.ssh` works
+from your shell and fails in the unit with `Host key verification failed` and
+exit status 255. Keep the files outside `/home` and name them in the system-wide
+ssh configuration; the unit stays as it is. Measured with the shipped unit and
+`REMOTE_TARGET=offsite@nas:/backups/holzcloud`:
+
+```bash
+sudo install -d -o holzcloud -g holzcloud -m 700 /opt/holzcloud/offsite-ssh
+sudo -u holzcloud ssh-keygen -q -t ed25519 -N '' -C holzcloud-backup -f /opt/holzcloud/offsite-ssh/id_ed25519
+# Add id_ed25519.pub to ~/.ssh/authorized_keys of the account on the remote host,
+# then record its host key and compare the fingerprint with the remote host's by hand:
+sudo -u holzcloud sh -c 'ssh-keyscan -t ed25519 nas > /opt/holzcloud/offsite-ssh/known_hosts'
+ssh-keygen -lf /opt/holzcloud/offsite-ssh/known_hosts
+```
+
+and in `/etc/ssh/ssh_config.d/holzcloud-backup.conf` (Debian and Ubuntu read that
+directory; `Host` is the host name exactly as `REMOTE_TARGET` spells it):
+
+```
+Host nas
+    User offsite
+    IdentityFile /opt/holzcloud/offsite-ssh/id_ed25519
+    UserKnownHostsFile /opt/holzcloud/offsite-ssh/known_hosts
+    IdentitiesOnly yes
+    StrictHostKeyChecking yes
+    BatchMode yes
+```
+
+A copy that fails ends the run with a non-zero status (255 when ssh fails;
+`systemctl show holzcloud-backup.service -p Result` says `exit-code`) and no
+`=== Backup complete` line in the journal, but the new backup directory is
+already on the box. The copy mirrors the whole backup root with `rsync --delete`: what the
+box prunes or loses, the remote copy loses at the next run.
+
 Keep the journal bounded while you are here:
 
 ```

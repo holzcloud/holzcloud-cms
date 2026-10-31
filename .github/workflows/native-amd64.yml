@@ -1,0 +1,106 @@
+name: native-amd64
+
+# SRV-01: the five plugins under MemoryDenyWriteExecute=true, and the timing of
+# backup.sh and restore.sh, on native amd64.
+#
+# Nothing fires by itself. This workflow has one trigger, a person pressing the
+# button (Actions, native-amd64, Run workflow), because the question it answers
+# was open until now: deploy/SECURITY-SCORE.md settled the directive on native
+# arm64 and left amd64 an assumption, and every backup and restore figure so far
+# is an emulation figure. A GitHub-hosted ubuntu-latest runner is a native
+# x86_64 machine; the maintainer's development machine is not, and the emulation
+# on it does not enforce seccomp (Seccomp: 0).
+#
+# What runs is the existing harness, not a second one: deploy/test/native-amd64.sh
+# calls deploy/test/run.sh `mdwe` and `backup-chain` (BULK_MB=300, the recipe of
+# deploy/BACKUP-RUN.md, so native and emulation figures compare line by line)
+# inside privileged throwaway containers on the runner's Docker. The container
+# path was chosen over the runner's own systemd because it is the recipe already
+# proven on native arm64 and because a host-level run cannot be tried from here.
+# The Docker base images and the apt packages are fetched at image build time, as
+# the harness always did; nothing else is fetched.
+#
+# What the verdicts mean (native-amd64.sh decides, the job is red for all but PASS):
+#   PASS        the Docker host and the container are x86_64, seccomp is enforced
+#               (the canary), the five plugins ran on the interpreter fallback
+#               under the shipped unit, and the chain timings are all there. Exit 0.
+#   VOID        the canary says seccomp is not enforced here, so the plugin run
+#               proves nothing about the directive. Exit 3.
+#   NOT-NATIVE  the host or the container is not x86_64. Exit 3.
+#   FAIL        the plugins do not load under the shipped unit, the verdict is
+#               inconsistent or missing, or a timing requirement did not pass. Exit 1.
+#   NOT-RUN     a stage was not played. Exit 1.
+#
+# What the owner does: press the button, read the job summary page, and download
+# the artifact native-amd64-evidence (kept 90 days). The result is the file
+# native-summary.txt in it. If systemd does not boot in the containers with the
+# default, run again with the input below. Recording a PASS in
+# deploy/NATIVE-AMD64-RUN.md is a separate, deliberate commit.
+#
+# No secret is read, no token is written: contents is read-only and that is the
+# whole of the permissions. The one input reaches the script through an
+# environment variable and is never interpolated into a command line.
+on:
+  workflow_dispatch:
+    inputs:
+      docker_run_args:
+        description: >-
+          Extra flags for the systemd containers, for example
+          --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw
+          when systemd does not boot with the default
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# One run at a time, and a started run is never cancelled by a second press: a
+# half-finished run leaves privileged containers behind on a runner that is
+# thrown away anyway, but its files are the evidence.
+concurrency:
+  group: native-amd64
+  cancel-in-progress: false
+
+jobs:
+  native:
+    name: Native amd64 run
+    runs-on: ubuntu-latest
+    # The run builds two images and plays an install, an update, a backup, a
+    # restore and a 300 MB second point; no native run has been timed yet, so the
+    # ceiling is a guess that leaves room, and it keeps a hung container from
+    # using up runner minutes.
+    timeout-minutes: 90
+
+    steps:
+    # Pinned exactly as in ci.yml: a commit, not a tag, because a tag can be moved
+    # to point at different code and a commit cannot. No other action is used.
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # The harness builds the old release from a clone of this checkout and
+        # needs the history and the tags; the default shallow clone has neither.
+        fetch-depth: 0
+
+    # The host toolchain the harness's `bins` step builds the binaries with.
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Native amd64 run
+      env:
+        # An environment variable, never ${{ }} inside the script line below.
+        DOCKER_RUN_ARGS: ${{ inputs.docker_run_args }}
+      run: bash deploy/test/native-amd64.sh run
+
+    # always(): a red run hands over its files too. If the bundle was refused
+    # (a key-shaped string), it does not exist and this step fails on purpose.
+    - name: Upload the evidence
+      if: ${{ always() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: native-amd64-evidence
+        path: deploy/test/out/native-evidence
+        if-no-files-found: error
+        retention-days: 90

@@ -28,6 +28,22 @@ set -euo pipefail
 # leave a row whose file the backup lacks. Back up when the site is quiet if
 # that matters.
 #
+# A file that vanishes while it is copied ends rsync with status 24. The copy is
+# repeated once; a second 24 ends the night with status 24 and a message that
+# names what was being copied. Any other rsync status is never repeated.
+#
+# A night that fails before its MANIFEST exists removes the directory it made,
+# so a half-written directory does not sit on the disk and make the free-space
+# guard refuse every later night. An earlier backup is never touched: the
+# script refuses to start when the directory of this run exists already, and
+# the cleanup removes only the directory this run made itself. A directory that
+# holds a MANIFEST is never removed, whatever fails afterwards (retention, the
+# off-site copy). The MANIFEST is written under another name and renamed, so it
+# is never there half written and "no MANIFEST" means "the night did not
+# finish". Limit: SIGKILL (including the kernel's out-of-memory kill) and a
+# power loss cannot be trapped, so a directory without MANIFEST can still
+# remain after them; restore.sh still refuses it.
+#
 # Another directory joining the data directory has to be added to the list in
 # step 3, here and in restore.sh.
 #
@@ -48,6 +64,61 @@ RETENTION_DAYS="${RETENTION_DAYS:-30}"
 MIN_FREE_MB="${MIN_FREE_MB:-1024}"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 BACKUP_DIR="${BACKUP_ROOT}/${TIMESTAMP}"
+# Empty until this run's own mkdir of BACKUP_DIR has succeeded; the cleanup acts
+# on this path and on no other.
+OWN_DIR=""
+
+# Runs on every way out of the script. A night that ends before its MANIFEST
+# exists leaves a directory restore.sh refuses and that holds disk space, so
+# the next night's guard would refuse too. The rule is the absence of MANIFEST,
+# never $?: inside an EXIT trap that runs because of SIGTERM bash reports $? as
+# 0. The function does not call exit, so bash keeps the status that brought it
+# here, and nothing in it may end early under set -e.
+cleanup_failed_night() {
+    if [ -z "${OWN_DIR}" ]; then
+        return 0
+    fi
+    if [ -f "${OWN_DIR}/MANIFEST" ]; then
+        return 0
+    fi
+    case "${OWN_DIR}" in
+        "${BACKUP_ROOT}"/?*) ;;
+        *) return 0 ;;
+    esac
+    if rm -rf -- "${OWN_DIR}"; then
+        echo "ERROR: backup did not finish; removed ${OWN_DIR}, which had no MANIFEST" >&2 || true
+    else
+        echo "ERROR: backup did not finish and ${OWN_DIR} could not be removed; it has no MANIFEST and restore.sh refuses it, remove it by hand" >&2 || true
+    fi
+    return 0
+}
+
+# run_rsync WHAT RSYNC_ARGS...: the only place that starts rsync. A file that
+# vanishes during the copy ends rsync with status 24; that is repeated once.
+# A second 24 ends the night with status 24, any other status ends it with that
+# status and is never repeated. WHAT names the copy in the messages.
+run_rsync() {
+    local what="$1"
+    local rc=0
+    shift
+    rsync "$@" || rc=$?
+    if [ "${rc}" -eq 0 ]; then
+        return 0
+    fi
+    if [ "${rc}" -ne 24 ]; then
+        exit "${rc}"
+    fi
+    echo "WARNING: rsync exited 24 (files vanished) while copying ${what}; repeating it once" >&2
+    rc=0
+    rsync "$@" || rc=$?
+    if [ "${rc}" -eq 0 ]; then
+        return 0
+    fi
+    if [ "${rc}" -eq 24 ]; then
+        echo "ERROR: rsync exited 24 again while copying ${what}; giving up" >&2
+    fi
+    exit "${rc}"
+}
 
 echo "=== holzcloud-CMS backup: ${TIMESTAMP} ==="
 
@@ -61,7 +132,18 @@ if [ "${free_mb}" -lt "${MIN_FREE_MB}" ]; then
     exit 1
 fi
 
-mkdir -p "${BACKUP_DIR}"
+# A directory under the name of this run was not made by this run. Nothing of
+# it is touched, now or by the cleanup.
+if [ -e "${BACKUP_DIR}" ]; then
+    echo "ERROR: ${BACKUP_DIR} exists already; refusing to start so that no earlier backup is touched" >&2
+    exit 1
+fi
+
+# A plain mkdir: it fails rather than reuse a directory that appeared since the
+# test above.
+mkdir "${BACKUP_DIR}"
+OWN_DIR="${BACKUP_DIR}"
+trap cleanup_failed_night EXIT
 chmod 700 "${BACKUP_DIR}"
 
 # 1. Database — snapshot and integrity check in one step, non-zero on failure.
@@ -80,19 +162,21 @@ fi
 for name in media templates plugins sprachen marke; do
     if [ -d "${DATA_DIR}/${name}" ]; then
         echo "Backing up ${name}..."
-        rsync -a "${DATA_DIR}/${name}/" "${BACKUP_DIR}/${name}/"
+        run_rsync "${name}" -a "${DATA_DIR}/${name}/" "${BACKUP_DIR}/${name}/"
     fi
 done
 
 # 4. A manifest, so a restore can tell what it is looking at. It is written
 #    last: a restore takes its presence as the proof that every step before it
-#    finished.
+#    finished. It is written under another name and renamed, so it is never
+#    there half written.
 {
     echo "timestamp=${TIMESTAMP}"
     echo "version=$(HOLZCLOUD_DATA_DIR=${DATA_DIR} ${HOLZCLOUD_BIN} version 2>/dev/null || echo unknown)"
     echo "data_dir=${DATA_DIR}"
     echo "host=$(hostname)"
-} > "${BACKUP_DIR}/MANIFEST"
+} > "${BACKUP_DIR}/MANIFEST.partial"
+mv "${BACKUP_DIR}/MANIFEST.partial" "${BACKUP_DIR}/MANIFEST"
 
 # 5. Retention. Without this the disk fills up and takes the site with it.
 if [ "${RETENTION_DAYS}" -gt 0 ]; then
@@ -105,7 +189,7 @@ fi
 #    meant to protect against — which DEPLOY.md itself calls likely.
 if [ -n "${REMOTE_TARGET:-}" ]; then
     echo "Copying to ${REMOTE_TARGET}..."
-    rsync -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/"
+    run_rsync "the off-site copy" -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/"
 fi
 
 echo "=== Backup complete: ${BACKUP_DIR} ==="
