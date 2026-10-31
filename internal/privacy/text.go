@@ -109,6 +109,19 @@ func Compose(f Features) string {
 
 	writeLog(&b)
 	writeCookiesAndProcessors(&b, f)
+	// Fixed order: orders, payment, protected pages, forms.
+	if f.Shop {
+		writeOrders(&b)
+	}
+	if f.Payment {
+		writePayment(&b)
+	}
+	if f.ProtectedPages {
+		writeProtectedPages(&b)
+	}
+	if f.Forms {
+		writeForms(&b)
+	}
 
 	b.WriteString("## " + headingRights + "\n\n")
 	b.WriteString("Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), ")
@@ -168,7 +181,55 @@ func writeCookiesAndProcessors(b *strings.Builder, f Features) {
 	b.WriteString(processorHeaderRow + "\n| --- | --- | --- | --- |\n")
 	b.WriteString("| Hosting-Anbieter " + Fillin + " | Betrieb des Servers | Verbindungsdaten wie im Abschnitt " + headingLog +
 		" | Vertrag über die Auftragsverarbeitung nach Art. 28 DSGVO, wo der Server bei einem Dritten steht |\n")
+	if f.Payment {
+		b.WriteString("| Zahlungsanbieter Payrexx, Name und Anschrift " + Fillin + " | Abwicklung der Online-Zahlung | Betrag, Währung, Bestellnummer mit dem Namen der Website, " +
+			"Name, E-Mail-Adresse, Straße, Postleitzahl, Ort und Land | Vertrag über die Auftragsverarbeitung nach Art. 28 DSGVO nötig, Vertragsdatum " + Fillin + " |\n")
+	}
 	b.WriteString("\nErgänze jeden weiteren Empfänger, an den Daten dieser Website gehen " + Fillin + ".\n\n")
+}
+
+// writeOrders writes the block for a website with a shop.
+func writeOrders(b *strings.Builder) {
+	b.WriteString("## " + headingOrders + "\n\n")
+	b.WriteString("Wenn du im Shop bestellst, erfasst die Kasse deinen Namen, gegebenenfalls Firma, Umsatzsteuer-Identifikationsnummer und Telefonnummer, ")
+	b.WriteString("deine Anschrift, deine E-Mail-Adresse, eine Anmerkung, die bestellten Artikel sowie deine Wahl von Lieferung und Zahlung. ")
+	b.WriteString("Die Bestellung wird in der Datenbank dieser Website gespeichert und im Verwaltungsbereich angezeigt. ")
+	b.WriteString("Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Das Cookie für deinen Warenkorb steht in der Tabelle oben. ")
+	b.WriteString("Eine Bestätigung der Bestellung geht per E-Mail über das Postfach, das der Betreiber dafür eingerichtet hat.\n\n")
+	b.WriteString("Bestellungen werden " + Fillin + " aufbewahrt. Für Buchungsbelege können gesetzliche Aufbewahrungspflichten gelten.\n\n")
+}
+
+// writePayment writes the block for a shop with a payment provider. What it
+// lists is what startPayment in internal/public/payment.go sends.
+func writePayment(b *strings.Builder) {
+	b.WriteString("## " + headingPayment + "\n\n")
+	b.WriteString("Bezahlst du online, leitet dich die Website zur Zahlungsseite des Anbieters Payrexx weiter. ")
+	b.WriteString("Payrexx erhält den Betrag, die Währung und die Bestellnummer mit dem Namen der Website als Verwendungszweck ")
+	b.WriteString("sowie die Kundendaten deiner Bestellung: Name, E-Mail-Adresse, Straße, Postleitzahl, Ort und Land. ")
+	b.WriteString("Auf der Zahlungsseite gilt die Datenschutzerklärung des Anbieters. Nenne hier, wo du sie verlinkst " + Fillin + ".")
+	b.WriteString("Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.\n\n")
+	b.WriteString("Mit Payrexx brauchst du einen Vertrag über die Auftragsverarbeitung nach Art. 28 DSGVO. ")
+	b.WriteString("Name und Anschrift des Anbieters " + Fillin + ", Datum des Vertrags " + Fillin + ".\n\n")
+}
+
+// writeProtectedPages writes the block for a website with password-protected pages.
+func writeProtectedPages(b *strings.Builder) {
+	b.WriteString("## " + headingProtect + "\n\n")
+	b.WriteString("Einzelne Seiten dieser Website sind durch ein Passwort geschützt. Gibst du das Passwort ein, setzt die Website das Cookie für geschützte Seiten aus der Tabelle oben. ")
+	b.WriteString("Es enthält eine signierte Seitennummer und eine Ablaufzeit, aber keine persönlichen Daten. ")
+	b.WriteString("Außer dem Eintrag im Server-Protokoll wird nicht gespeichert, wer das Passwort eingegeben hat.\n\n")
+}
+
+// writeForms writes the block for a website with forms.
+func writeForms(b *strings.Builder) {
+	b.WriteString("## " + headingForms + "\n\n")
+	b.WriteString("Was du in ein Formular dieser Website schreibst (Name, E-Mail-Adresse, Betreff, Nachricht und die Felder, die der Betreiber ergänzt hat), ")
+	b.WriteString("wird in der Datenbank der Website gespeichert und im Verwaltungsbereich angezeigt. ")
+	b.WriteString("Deine IP-Adresse und die Kennung deines Browsers werden dabei nicht mitgespeichert. ")
+	b.WriteString("Der Spam-Schutz arbeitet mit einem versteckten Feld, einem signierten Zeitstempel und einer Grenze für Nachrichten pro Stunde und setzt kein Cookie. ")
+	b.WriteString("Ist ein Mailserver eingerichtet, geht eine Benachrichtigung per E-Mail an den Betreiber. ")
+	b.WriteString("Rechtsgrundlage ist Art. 6 Abs. 1 lit. b und f DSGVO.\n\n")
+	b.WriteString("Anfragen werden " + Fillin + " aufbewahrt.\n\n")
 }
 
 // purpose is the Zweck cell of a cookie. It begins with what the visitor does

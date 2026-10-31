@@ -206,3 +206,90 @@ func TestRetentionComesFromTheDropIn(t *testing.T) {
 		t.Errorf("the drop-in keeps %s days but the composed text does not say %s Tage: the text moved away from the host", m[1], m[1])
 	}
 }
+
+func TestBlocksAppearWithTheirFeature(t *testing.T) {
+	headings := []struct {
+		h  string
+		on func(Features) bool
+	}{
+		{headingOrders, func(f Features) bool { return f.Shop }},
+		{headingPayment, func(f Features) bool { return f.Shop && f.Payment }},
+		{headingProtect, func(f Features) bool { return f.ProtectedPages }},
+		{headingForms, func(f Features) bool { return f.Forms }},
+	}
+	for _, f := range combos() {
+		text := Compose(f)
+		last := -1
+		for _, h := range headings {
+			line := "\n## " + h.h + "\n"
+			n := strings.Count(text, line)
+			want := 0
+			if h.on(f) {
+				want = 1
+			}
+			if n != want {
+				t.Errorf("%+v: heading %q occurs %d times, want %d", f, h.h, n, want)
+				continue
+			}
+			if n == 1 {
+				i := strings.Index(text, line)
+				if i < last {
+					t.Errorf("%+v: heading %q is out of order", f, h.h)
+				}
+				last = i
+				// Blocks sit between the cookies section and the rights.
+				if i < strings.Index(text, "\n## "+HeadingCookies+"\n") || i > strings.Index(text, "\n## "+headingRights+"\n") {
+					t.Errorf("%+v: heading %q is outside the space between cookies and rights", f, h.h)
+				}
+			}
+		}
+	}
+}
+
+func TestPaymentBlockNamesWhatIsSent(t *testing.T) {
+	on := Compose(Features{Shop: true, Payment: true})
+	for _, want := range []string{"Payrexx", "Art. 28", "Name, E-Mail-Adresse, Straße, Postleitzahl, Ort und Land",
+		"Betrag", "Währung", "Bestellnummer", "Verwendungszweck", "Zahlungsseite"} {
+		if !strings.Contains(on, want) {
+			t.Errorf("payment text lacks %q", want)
+		}
+	}
+	// The fill-in marker stands in the block and in the provider row.
+	block := on[strings.Index(on, "## "+headingPayment):]
+	block = block[:strings.Index(block, "## "+headingRights)]
+	if !strings.Contains(block, "Datum des Vertrags "+Fillin) {
+		t.Error("the payment block has no fill-in marker for the contract date")
+	}
+	var row string
+	for _, l := range strings.Split(on, "\n") {
+		if strings.HasPrefix(l, "| Zahlungsanbieter Payrexx") {
+			row = l
+		}
+	}
+	if row == "" {
+		t.Fatal("no provider row in the processor table")
+	}
+	if !strings.Contains(row, Fillin) || !strings.Contains(row, "Art. 28") {
+		t.Errorf("provider row lacks the fill-in marker or the contract hint: %s", row)
+	}
+	// The hosting row names Art. 28 as well, so that article is not a mark of
+	// the provider; the provider's name and its page are.
+	off := Compose(Features{Shop: true})
+	for _, no := range []string{"Payrexx", "Zahlungsanbieter", "Zahlungsseite", headingPayment} {
+		if strings.Contains(off, no) {
+			t.Errorf("without payment the text still contains %q", no)
+		}
+	}
+}
+
+func TestInconsistentFeaturesAreNormalised(t *testing.T) {
+	zero := Compose(Features{})
+	for _, f := range []Features{{Payment: true}, {PriceChoice: true}, {Payment: true, PriceChoice: true}} {
+		if Compose(f) != zero {
+			t.Errorf("%+v without a shop does not give the text of the zero features", f)
+		}
+	}
+	if Compose(Features{Forms: true, Payment: true}) != Compose(Features{Forms: true}) {
+		t.Error("payment without a shop changes the text of a website with forms")
+	}
+}
