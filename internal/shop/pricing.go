@@ -26,11 +26,20 @@ const (
 	DisplayBoth     = "both"
 )
 
-// audienceCookie remembers a visitor's choice.
+// AudienceCookieName is the cookie that remembers a visitor's choice.
 //
 // A cookie rather than a session: the choice is not personal data, it survives
-// a restart, and a visitor who never touches it costs no storage at all.
-const audienceCookie = "hc_preise"
+// a restart, and a visitor who never touches it costs no storage at all. It is
+// written only by the visitor's own POST to /preise, never by a plain GET.
+const AudienceCookieName = "hc_preise"
+
+// AudienceLifetime is how long the choice is remembered.
+//
+// The choice is a convenience the visitor made on a shop that shows two price
+// modes. A month is long enough for a returning customer and short enough not
+// to outlive the memory of having chosen. It is the number the cookie table of
+// the privacy text prints, and the only source of the cookie's MaxAge.
+const AudienceLifetime = 30 * 24 * time.Hour
 
 // Settings are a website's shop configuration, resolved once per request.
 type Settings struct {
@@ -77,7 +86,7 @@ func (s Settings) AudienceFor(r *http.Request) Audience {
 	case DisplayBusiness:
 		return Business
 	case DisplayBoth:
-		if c, err := r.Cookie(audienceCookie); err == nil && c.Value == string(Business) {
+		if c, err := r.Cookie(AudienceCookieName); err == nil && c.Value == string(Business) {
 			return Business
 		}
 	}
@@ -87,10 +96,10 @@ func (s Settings) AudienceFor(r *http.Request) Audience {
 // SetAudienceCookie remembers the visitor's choice.
 func SetAudienceCookie(w http.ResponseWriter, secure bool, a Audience) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     audienceCookie,
+		Name:     AudienceCookieName,
 		Value:    string(a),
 		Path:     "/",
-		MaxAge:   int((365 * 24 * time.Hour).Seconds()),
+		MaxAge:   int(AudienceLifetime.Seconds()),
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,

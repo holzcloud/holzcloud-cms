@@ -4524,3 +4524,21 @@ body.is-fullscreen .editor {
         }
     }
 }
+
+/* Die Rückfrage nach dem Hochladen eines sehr grossen Bildes: eine Liste der
+   Bilder und darunter die beiden Antwortknöpfe, auf dem Telefon umbrechend. */
+@layer components {
+    .scale-files {
+        display: grid;
+        gap: var(--space-1);
+        margin-block: var(--space-3);
+        padding-inline-start: var(--space-3);
+    }
+
+    .scale-question .form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        margin-block: var(--space-3);
+    }
+}

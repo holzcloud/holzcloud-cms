@@ -127,6 +127,10 @@ func AccessLog(resolver *ClientIPResolver) func(http.Handler) http.Handler {
 			if rec.status == 0 {
 				rec.status = http.StatusOK
 			}
+			// The whole address lives in this variable and nowhere else: the
+			// record below gets TruncateIP of it, the network and not the
+			// household (D-01). Rate limiting keys on the whole address in
+			// memory through ClientIP and never reads the log (D-02).
 			ip := r.RemoteAddr
 			if resolver != nil {
 				ip = resolver.ClientIP(r)
@@ -147,7 +151,7 @@ func AccessLog(resolver *ClientIPResolver) func(http.Handler) http.Handler {
 				slog.Int64("bytes", rec.bytes),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 				slog.String("host", r.Host),
-				slog.String("ip", ip),
+				slog.String("ip", TruncateIP(ip)),
 				slog.String("request_id", RequestIDFromContext(r.Context())),
 			)
 		})

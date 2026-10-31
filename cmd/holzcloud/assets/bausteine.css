@@ -89,6 +89,10 @@
     gap: var(--hc-luft);
 }
 
+/* Steht das Bild UNTEN, kommt es auch auf dem Telefon nach dem Text. Das gilt
+ * ohne Media-Query, damit „unten" auf jeder Breite unten heisst. */
+.hc-bildtext--unten .hc-bildtext__bild { order: 2; }
+
 @media (min-width: 45em) {
     .hc-bildtext {
         grid-template-columns: 1fr 1fr;
@@ -97,9 +101,19 @@
         align-items: start;
     }
     /* Die Reihenfolge im Quelltext bleibt Bild, dann Text — auch wenn das Bild
-     * rechts steht. Das ist die Reihenfolge, in der ein Vorleseprogramm liest,
-     * und die soll nicht von einer Layout-Einstellung abhängen. */
+     * rechts oder unten steht. Das ist die Reihenfolge, in der ein
+     * Vorleseprogramm liest, und die soll nicht von einer Layout-Einstellung
+     * abhängen. Das gilt für alle vier Lagen: links ist die Quellreihenfolge
+     * selbst, rechts und unten stellen das Bild per order hinter den Text,
+     * oben lässt es, wo es steht. */
     .hc-bildtext--rechts .hc-bildtext__bild { order: 2; }
+    /* Oben und unten sind eine Spalte statt zwei: Bild und Text untereinander,
+     * nicht nebeneinander. */
+    .hc-bildtext--oben,
+    .hc-bildtext--unten {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
+    }
 }
 
 .hc-bildtext__bild img {

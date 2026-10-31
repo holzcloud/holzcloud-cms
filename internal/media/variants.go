@@ -56,19 +56,22 @@ type Variant struct {
 	SizeBytes int64
 }
 
-// Dimensions reads an image's size without decoding its pixels.
+// Dimensions is the size a stored picture has when it is looked at: the size of
+// its bitmap, with width and height swapped when its orientation tag turns it by
+// a quarter. It decodes no pixels, but it does read the whole file, because the
+// EXIF chunk of a PNG or a WebP may follow the pixel data and only the whole
+// file can say whether there is a tag.
+//
+// The callers record the number (the media row, the srcset, the crop preview)
+// or compare it with the megapixel budget, which a quarter turn does not
+// change. None of them runs per request.
 func Dimensions(path string) (width, height int, err error) {
-	f, err := os.Open(path)
+	w, h, o, err := look(path)
 	if err != nil {
-		return 0, 0, fmt.Errorf("open image: %w", err)
+		return 0, 0, err
 	}
-	defer f.Close()
-
-	cfg, _, err := image.DecodeConfig(f)
-	if err != nil {
-		return 0, 0, fmt.Errorf("read image header: %w", err)
-	}
-	return cfg.Width, cfg.Height, nil
+	width, height = uprightOf(w, h, o)
+	return width, height, nil
 }
 
 // CanMakeVariants reports whether a MIME type is one the pipeline handles.
@@ -125,13 +128,18 @@ func MakeVariants(sourcePath, destDir, baseName, mimeType string, maxMegapixels 
 		maxMegapixels = DefaultMaxMegapixels
 	}
 
-	width, height, err := Dimensions(sourcePath)
+	width, height, o, err := look(sourcePath)
 	if err != nil {
 		return nil, err
 	}
 	if width <= 0 || height <= 0 {
 		return nil, fmt.Errorf("image reports %dx%d", width, height)
 	}
+	// What the picture looks like once it stands upright. A phone photo is a
+	// landscape bitmap with a tag; the copies below are made from the upright
+	// picture and carry no tag, so they stand the same way as the original does
+	// in a browser, and the numbers recorded next to them agree.
+	uw, uh := uprightOf(width, height, o)
 	// The budget is checked on the header, before a single pixel is allocated.
 	if width*height > maxMegapixels*1_000_000 {
 		return nil, fmt.Errorf("%w: %dx%d exceeds %d megapixels",
@@ -158,22 +166,29 @@ func MakeVariants(sourcePath, destDir, baseName, mimeType string, maxMegapixels 
 	transparent := hasTransparency(src)
 	var out []Variant
 	for _, spec := range variantSpecs {
-		if spec.Width >= width {
+		if spec.Width >= uw {
 			continue
 		}
-		targetHeight := height * spec.Width / width
+		targetHeight := uh * spec.Width / uw
 		if targetHeight < 1 {
 			targetHeight = 1
 		}
 
-		dst := image.NewRGBA(image.Rect(0, 0, spec.Width, targetHeight))
+		// The same technique as Intake.Scaled: the bitmap is scaled in the
+		// geometry it was stored in, so the work is done on the small result
+		// and not on the full picture, and the small result is then turned.
+		sw, sh := uprightOf(spec.Width, targetHeight, o)
+		dst := image.NewRGBA(image.Rect(0, 0, sw, sh))
 		// CatmullRom is the sharpest of the kernels in x/image and costs about
 		// twice ApproxBiLinear; on a photo that difference is visible and the
 		// resize happens once per upload, not per request.
 		draw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
+		// orientRGBA returns dst itself for orientation 1, so an untagged
+		// picture takes exactly the path it took before.
+		upright := orientRGBA(dst, o)
 
 		name := variantFilename(baseName, spec.Label, transparent)
-		size, err := encodeVariant(filepath.Join(destDir, name), dst, transparent)
+		size, err := encodeVariant(filepath.Join(destDir, name), upright, transparent)
 		if err != nil {
 			// Clean up what was already written, so a failure does not leave
 			// half a set of variants that the templates would then reference.

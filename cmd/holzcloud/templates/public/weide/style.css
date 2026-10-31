@@ -989,7 +989,10 @@ main:focus { outline: none; }
  *
  * Unterhalb des Masses ändert das nichts: die zweite Rasterspalte ist dort
  * null breit, breit und schmal sind dasselbe. */
-.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext, .hc-video,
+/* Ein bildtext mit dem Bild OBEN oder UNTEN ist eine Spalte und kein Paar:
+ * er bleibt in der Textspalte, denn ein Absatz über 1178 px Breite liest
+ * niemand. :where(:not(…)) lässt die Spezifität der Regel unverändert. */
+.page-content > :is(.hc-galerie, .hc-karten, .hc-bildtext:where(:not(.hc-bildtext--oben, .hc-bildtext--unten)), .hc-video,
                     .hc-bild--breit, .hc-bild--voll) {
   grid-column: text-start / breit-ende;
 }
