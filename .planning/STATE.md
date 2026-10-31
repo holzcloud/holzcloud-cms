@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v0.1.1
-milestone_name: Beta belegt
 status: Awaiting next milestone
-stopped_at: Phase 30 complete — all phases complete
-last_updated: "2026-10-31T15:10:40.856Z"
+stopped_at: context exhaustion at 75% (2026-10-31)
+last_updated: "2026-10-31T17:41:11.202Z"
 last_activity: 2026-10-31
 last_activity_desc: Milestone v0.1.1 completed and archived
-state_head: d587030214aa3fd2a8fa13c55c1e2b54f45f3722
+state_head: 3a66b3b318884af45f3f875ad70507b4381716fe
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 31
+  total_plans: 0
   completed_plans: 31
   percent: 71
+milestone_name: Beta belegt
 current_phase: 30
 ---
 
@@ -77,6 +77,7 @@ current_phase: 30
 | 261011-ls7 | Menüs als eigener Hauptmenüpunkt, Name in der Liste änderbar, Protokoll (0.0.24) | 2026-10-11 | 6de6cdd | — | [261011-ls7-men-s-eigener-hauptmen-punkt-und-titel-b](./quick/261011-ls7-men-s-eigener-hauptmen-punkt-und-titel-b/) |
 | 261011-o5v | Menüeinträge bearbeiten, Handy-Layout der Eintragsliste (0.0.25) | 2026-10-11 | b543b8b | — | [261011-o5v-men-eintr-ge-bearbeiten-und-handy-layout](./quick/261011-o5v-men-eintr-ge-bearbeiten-und-handy-layout/) |
 | 261026-bon | Block Bild und Text: Bildlage; Upload: Rückfrage Verkleinern über 2560 px | 2026-10-26 | 165966e | — | [261026-bon-block-bild-und-text-bildlage-links-recht](./quick/261026-bon-block-bild-und-text-bildlage-links-recht/) |
+| 261031-pqo | Plugin screen marks own rail entry; contact-form label shortened to Messages | 2026-10-31 | 3a66b3b | — | [261031-pqo-plugin-bildschirm-markiert-in-der-leiste](./quick/261031-pqo-plugin-bildschirm-markiert-in-der-leiste/) |
 
 ### Performance Metrics
 
@@ -228,8 +229,8 @@ Last activity: 2026-10-31 — Milestone v0.1.1 completed and archived
 
 ## Session Continuity
 
-**Last session:** 2026-10-29T06:42:22.319Z
-**Stopped at:** Phase 30 complete — all phases complete
+**Last session:** 2026-10-31T17:10:43.156Z
+**Stopped at:** context exhaustion at 75% (2026-10-31)
 **Resume file:** .planning/phases/30-datenschutz-ohne-banner/30-CONTEXT.md
 
 ## Operator Next Steps
