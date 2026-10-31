@@ -825,13 +825,14 @@ func pluginNavLinks(m *plugin.Manager) func(context.Context, int64) []web.NavLin
 		lang := i18n.Lang(ctx)
 		var out []web.NavLink
 		for _, l := range m.AdminLinks() {
-			url := "/admin/plugins/" + l.PluginID + "/bildschirm"
-			if l.PerWebsite {
-				if websiteID == 0 {
-					continue
-				}
-				url = fmt.Sprintf("/admin/websites/%d/plugins/%s", websiteID, l.PluginID)
+			if l.PerWebsite && websiteID == 0 {
+				continue
 			}
+			var under int64 // 0: beside the websites, not under one
+			if l.PerWebsite {
+				under = websiteID
+			}
+			url := web.PluginScreenURL(l.PluginID, under)
 			out = append(out, web.NavLink{Label: l.LabelIn(lang), URL: url, AdminOnly: l.AdminOnly})
 		}
 		return out
