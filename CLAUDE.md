@@ -205,3 +205,7 @@ Use these entry points:
 - `/gsd-execute-phase` for planned phase work
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+
+## Working Style
+
+Do everything yourself wherever possible: push, open the pull request, wait for CI, merge it yourself once CI is green, dispatch workflows. Do not hand a merge or a dispatch back to the owner. The owner asked for this explicitly ("ich will, dass du selber mergst. immer."). Never use `--admin` or bypass branch protection. What stays with the owner is what cannot be done from here: steps on the real server, a reboot.
