@@ -205,3 +205,14 @@ Use these entry points:
 - `/gsd-execute-phase` for planned phase work
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+
+## Working Style
+
+Do everything yourself wherever possible: push, open the pull request, wait for CI, merge it yourself once CI is green, dispatch workflows. Do not hand a merge or a dispatch back to the owner. The owner asked for this explicitly ("ich will, dass du selber mergst. immer."). Never use `--admin` or bypass branch protection. What stays with the owner is what cannot be done from here: steps on the real server, a reboot.
+
+### After every release
+
+Do this on your own after each new release, without being asked:
+
+- Take fresh screenshots and write fresh texts for the GitHub repository (README, docs) and for the website, and update both so they show the released state.
+- Check that the version shown in the app itself, in the admin web UI, is right: the correct version number and the correct stability level (`alpha`, `beta`, or nothing for a stable release). Fix it before the release counts as done.
