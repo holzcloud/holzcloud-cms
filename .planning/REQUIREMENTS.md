@@ -60,13 +60,13 @@ Added on 2026-10-27 for phase 29, from the owner's decision of 2026-10-26 (see t
 
 Added on 2026-10-29 for phase 30, from the audit of that date (see the note under Out of Scope). Decisions D-01 to D-10 of `.planning/phases/30-datenschutz-ohne-banner/30-CONTEXT.md` bind them.
 
-- [ ] **DSV-01**: The request log writes the client address truncated to /24 (IPv4) and /48 (IPv6) in its `ip` field, and a value that is not an IP address as `unknown`. The rate limit keeps the full address in memory only, and `internal/activity` is not touched.
-- [ ] **DSV-02**: `deploy/` ships a journald drop-in that enforces `MaxRetentionSec=14d`, and tests hold the drop-in, the retention constant in the code and the sentence of the privacy text together.
-- [ ] **DSV-03**: A test fails when a public GET without interaction sends `Set-Cookie`. It runs through the real router over all eight shipped themes with sample data: start page, page, archive, search, 404, shop list and product, cart, and the gate in front of a protected page.
-- [ ] **DSV-04**: The price-view cookie lasts 30 days instead of 365, carries the `Secure` flag behind a TLS-terminating proxy as the basket cookie does, and is listed in the cookie table as triggered by the visitor.
-- [ ] **DSV-05**: A regression test through `Intake.Keep` shows that an upload carrying GPS and camera EXIF is stored without those tags and keeps its orientation, and a source test holds that no other code stores an upload.
-- [ ] **DSV-06**: The starter `datenschutz` page is composed from building blocks for the functions the website uses (basket cookie, page protection, payment provider, forms), with a table of cookies (name, purpose, lifetime, legal basis) and one of processors, and stays marked as a template that replaces no legal advice.
-- [ ] **DSV-07**: An existing privacy page is never changed. The website settings screen shows a hint about it and offers the current template as a new draft.
+- [x] **DSV-01**: The request log writes the client address truncated to /24 (IPv4) and /48 (IPv6) in its `ip` field, and a value that is not an IP address as `unknown`. The rate limit keeps the full address in memory only, and `internal/activity` is not touched.
+- [x] **DSV-02**: `deploy/` ships a journald drop-in that enforces `MaxRetentionSec=14d`, and tests hold the drop-in, the retention constant in the code and the sentence of the privacy text together.
+- [x] **DSV-03**: A test fails when a public GET without interaction sends `Set-Cookie`. It runs through the real router over all eight shipped themes with sample data: start page, page, archive, search, 404, shop list and product, cart, and the gate in front of a protected page.
+- [x] **DSV-04**: The price-view cookie lasts 30 days instead of 365, carries the `Secure` flag behind a TLS-terminating proxy as the basket cookie does, and is listed in the cookie table as triggered by the visitor.
+- [x] **DSV-05**: A regression test through `Intake.Keep` shows that an upload carrying GPS and camera EXIF is stored without those tags and keeps its orientation, and a source test holds that no other code stores an upload.
+- [x] **DSV-06**: The starter `datenschutz` page is composed from building blocks for the functions the website uses (basket cookie, page protection, payment provider, forms), with a table of cookies (name, purpose, lifetime, legal basis) and one of processors, and stays marked as a template that replaces no legal advice.
+- [x] **DSV-07**: An existing privacy page is never changed. The website settings screen shows a hint about it and offers the current template as a new draft.
 
 ---
 
@@ -120,13 +120,13 @@ The owner also decided on 2026-10-26 to change the shipped `backup.sh`: retry rs
 | ROB-03 | Phase 29 | Complete |
 | ROB-04 | Phase 29 | Complete |
 | ROB-05 | Phase 29 | Complete |
-| DSV-01 | Phase 30 | Pending |
-| DSV-02 | Phase 30 | Pending |
-| DSV-03 | Phase 30 | Pending |
-| DSV-04 | Phase 30 | Pending |
-| DSV-05 | Phase 30 | Pending |
-| DSV-06 | Phase 30 | Pending |
-| DSV-07 | Phase 30 | Pending |
+| DSV-01 | Phase 30 | Complete |
+| DSV-02 | Phase 30 | Complete |
+| DSV-03 | Phase 30 | Complete |
+| DSV-04 | Phase 30 | Complete |
+| DSV-05 | Phase 30 | Complete |
+| DSV-06 | Phase 30 | Complete |
+| DSV-07 | Phase 30 | Complete |
 
 `Pending owner` means the instrument and the owner steps exist and the owner's results are not recorded (phase 26, `deploy/NATIVE-AMD64-RUN.md`). The cell becomes `Complete` and the box `[x]` only in the commit that records the result and sets that requirement's `Status: recorded` in the record. `bash deploy/test/native-amd64.sh status-check` fails if the two files disagree. The value `Pending owner` is deliberate: it is not one that the workflow tools mark complete by themselves (phase 26, D-06).
 
