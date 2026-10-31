@@ -262,6 +262,27 @@
 </div>
 {{end}}
 
+{{if and .IsEdit .PrivacyHint.State}}
+<div class="card" style="margin-top: var(--space-3);">
+    <h2>{{t "Privacy statement"}}</h2>
+    {{if eq .PrivacyHint.State "none"}}
+    <p class="text-muted">{{t "This website has no privacy page yet. The template lists the cookies and recipients that the functions of this website call for."}}</p>
+    {{else}}
+    <p class="text-muted">{{if .PrivacyHint.Published}}{{t "Your privacy page is published and is left exactly as it is."}}{{else}}{{t "Your privacy page is a draft and is left exactly as it is."}}{{end}}</p>
+    {{if eq .PrivacyHint.State "template"}}
+    <p class="text-muted"><strong>{{t "That page still carries the notice that it is an unfilled template. Do not publish it before it is filled in."}}</strong></p>
+    {{end}}
+    <p class="text-muted">{{t "The current template lists the cookies and recipients that the functions of this website call for. Create it as a new draft to compare it with your page."}}</p>
+    <p><a href="/admin/websites/{{.Website.ID}}/pages/{{.PrivacyHint.PageID}}/edit">{{t "Open the page"}}</a></p>
+    {{end}}
+    <p class="text-muted">{{t "The template is a draft to complete and replaces no legal advice."}}</p>
+    <form method="POST" action="/admin/websites/{{.Website.ID}}/datenschutz-vorlage">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <button type="submit" class="btn" hx-disabled-elt="this">{{t "Create the template as a draft"}}</button>
+    </form>
+</div>
+{{end}}
+
 {{if .IsEdit}}
 <div class="card" style="margin-top: var(--space-3);">
     <h2>{{t "Domains"}}</h2>

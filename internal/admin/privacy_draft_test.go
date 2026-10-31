@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strconv"
@@ -250,4 +251,108 @@ func TestPrivacyDraftOnlyCreatesAPage(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("privacy_draft.go calls %v on the page store, want exactly %v", got, want)
 	}
+}
+
+func TestWebsiteSettingsShowThePrivacyCard(t *testing.T) {
+	const (
+		noPage    = "This website has no privacy page yet."
+		published = "Your privacy page is published and is left exactly as it is."
+		isDraft   = "Your privacy page is a draft and is left exactly as it is."
+		notice    = "That page still carries the notice that it is an unfilled template."
+		offer     = "Create it as a new draft to compare it with your page."
+	)
+
+	tests := []struct {
+		name    string
+		slug    string // empty: no privacy page
+		body    string
+		status  string
+		want    []string
+		wantNot []string
+	}{
+		{
+			name:    "no privacy page",
+			want:    []string{noPage},
+			wantNot: []string{published, isDraft, notice, offer},
+		},
+		{
+			name: "published page", slug: "datenschutz", body: "BODY-MARKER", status: "published",
+			want:    []string{published, offer},
+			wantNot: []string{noPage, isDraft, notice},
+		},
+		{
+			name: "draft page", slug: "datenschutz", body: "BODY-MARKER", status: "draft",
+			want:    []string{isDraft, offer},
+			wantNot: []string{noPage, published, notice},
+		},
+		{
+			name: "unfilled template", slug: "datenschutz", body: "BODY-MARKER\n\n" + privacy.TemplateNotice, status: "draft",
+			want:    []string{isDraft, notice, offer},
+			wantNot: []string{noPage, published},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sm, database, ws := newTestAdmin(t)
+			var seeded *page.Page
+			if tc.slug != "" {
+				seeded = seedPage(t, database, ws.ID, "TITLE-MARKER", tc.slug, tc.body, tc.status)
+			}
+
+			rec := websiteGet(t, h, sm, h.HandleWebsiteEdit, ws.ID)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status %d, want 200", rec.Code)
+			}
+			body := rec.Body.String()
+
+			action := `action="/admin/websites/` + idOf(ws.ID) + `/datenschutz-vorlage"`
+			i := strings.Index(body, action)
+			if i < 0 {
+				t.Fatalf("no form with %s", action)
+			}
+			end := strings.Index(body[i:], "</form>")
+			if end < 0 || !strings.Contains(body[i:i+end], `name="gorilla.csrf.Token"`) {
+				t.Errorf("the draft form has no CSRF field")
+			}
+			if strings.Contains(body, "hx-post=\"/admin/websites/"+idOf(ws.ID)+"/datenschutz-vorlage\"") {
+				t.Errorf("the draft form posts through hx-post; it must work without script")
+			}
+			for _, s := range tc.want {
+				if !strings.Contains(body, s) {
+					t.Errorf("missing %q", s)
+				}
+			}
+			for _, s := range tc.wantNot {
+				if strings.Contains(body, s) {
+					t.Errorf("unexpected %q", s)
+				}
+			}
+			// The stored title and text belong to the editors; the card never
+			// prints them.
+			for _, marker := range []string{"TITLE-MARKER", "BODY-MARKER"} {
+				if strings.Contains(body, marker) {
+					t.Errorf("the settings screen prints the stored %s", marker)
+				}
+			}
+			edit := `href="/admin/websites/` + idOf(ws.ID) + `/pages/`
+			if seeded != nil {
+				if !strings.Contains(body, edit+idOf(seeded.ID)+`/edit"`) {
+					t.Errorf("no link to the edit page of the privacy page")
+				}
+			}
+		})
+	}
+
+	t.Run("new website screen has no card", func(t *testing.T) {
+		h, sm, _, _ := newTestAdmin(t)
+		req := httptest.NewRequest(http.MethodGet, "/admin/websites/new", nil)
+		rec := serve(t, h, sm, h.HandleWebsiteCreate, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d, want 200", rec.Code)
+		}
+		if strings.Contains(rec.Body.String(), "datenschutz-vorlage") {
+			t.Errorf("the new-website screen shows the privacy card")
+		}
+	})
 }
