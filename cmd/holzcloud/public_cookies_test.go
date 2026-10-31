@@ -336,3 +336,84 @@ func TestEveryShippedThemeIsInTheMatrix(t *testing.T) {
 		t.Errorf("the matrix ran %v, the program ships %v", ran, listed)
 	}
 }
+
+// postForm sends a form to the router the way a visitor's browser would.
+func postForm(handler http.Handler, host, path string, form url.Values) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+	req.Host = host
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
+// cookieNames lists the names in a set of Set-Cookie header values.
+func cookieNames(headers []string) []string {
+	var names []string
+	for _, h := range headers {
+		name, _, _ := strings.Cut(h, "=")
+		names = append(names, name)
+	}
+	return names
+}
+
+// The matrix above is green because there is nothing to see, not because the
+// detector cannot see: the three cookies a visitor can trigger show up in the
+// same detector, on the same router and the same websites.
+func TestVisitorTriggeredCookiesAreVisibleToTheDetector(t *testing.T) {
+	handler, _, _ := testRouterWith(t, routerTweaks{
+		shop: true, secure: true, searchPlugin: true, seed: seedThemeSites,
+	})
+	const host = "default.test"
+
+	t.Run("price view", func(t *testing.T) {
+		rec := postForm(handler, host, "/preise", url.Values{"ansicht": {"business"}, "zurueck": {"/shop"}})
+		got := cookieFindings(rec)
+		if rec.Code != http.StatusSeeOther || len(got) != 1 || cookieNames(got)[0] != shop.AudienceCookieName {
+			t.Errorf("POST /preise: status %d, cookies %q, want 303 and exactly %s", rec.Code, got, shop.AudienceCookieName)
+		}
+	})
+
+	t.Run("basket", func(t *testing.T) {
+		rec := postForm(handler, host, "/warenkorb/hinzufuegen",
+			url.Values{"artikel": {cookieTestProductSlug}, "menge": {"1"}})
+		got := cookieFindings(rec)
+		if rec.Code != http.StatusSeeOther || len(got) != 1 || cookieNames(got)[0] != shop.CartCookieName {
+			t.Errorf("POST /warenkorb/hinzufuegen: status %d, cookies %q, want 303 and exactly %s",
+				rec.Code, got, shop.CartCookieName)
+		}
+	})
+
+	t.Run("unlock", func(t *testing.T) {
+		rec := postForm(handler, host, "/freischalten",
+			url.Values{"seite": {"geheim"}, "passwort": {cookieTestPagePassword}})
+		got := cookieFindings(rec)
+		if rec.Code != http.StatusSeeOther || len(got) != 1 || !strings.HasPrefix(cookieNames(got)[0], "hc_frei_") {
+			t.Errorf("POST /freischalten: status %d, cookies %q, want 303 and exactly one hc_frei_ cookie", rec.Code, got)
+		}
+	})
+}
+
+// The detector itself: it flags a handler that sets a cookie on a GET, and
+// does not flag one that sets none.
+func TestCookieDetectorFlagsASetCookieOnAGet(t *testing.T) {
+	run := func(h http.HandlerFunc) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		return rec
+	}
+
+	setting := run(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "tracker", Value: "1"})
+	})
+	if got := cookieFindings(setting); len(got) == 0 {
+		t.Error("the detector did not flag a GET that sets a cookie")
+	}
+
+	quiet := run(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	if got := cookieFindings(quiet); len(got) != 0 {
+		t.Errorf("the detector flagged a GET that sets nothing: %q", got)
+	}
+}
