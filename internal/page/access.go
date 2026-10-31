@@ -103,6 +103,25 @@ func CheckPagePassword(p *Page, submitted string) bool {
 	return err == nil && match
 }
 
+// HasProtected reports whether a website has at least one live page behind a
+// password.
+//
+// The status of the page is deliberately not part of the question. A protected
+// draft sets the unlock cookie the day it is published, and the privacy text
+// that is written before that day has to name the cookie already: over-
+// disclosing in a draft is the safe error, a text that is wrong on the day the
+// page goes live is not. A page in the wastebasket does not count.
+func (s *Store) HasProtected(ctx context.Context, websiteID int64) (bool, error) {
+	var found bool
+	err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM pages WHERE website_id = $1 AND access = 'password'`+LivePredicate+`)`,
+		websiteID).Scan(&found)
+	if err != nil {
+		return false, fmt.Errorf("look for protected pages: %w", err)
+	}
+	return found, nil
+}
+
 // GetForPreview returns a page regardless of its status, for a share link.
 //
 // The public path never calls this: it is reached only after a signed token has
