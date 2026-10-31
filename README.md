@@ -23,9 +23,9 @@ Switzerland, free software under the AGPL-3.0.
 > template contract and the AI tools can still change from one release to the
 > next, and the database schema is not promised stable. Back up the data
 > directory before every update and read the [changelog](CHANGELOG.md). What
-> 0.1.0 promises and what it does not is written in
-> [docs/beta.md](docs/beta.md); the admin screen still labels every 0.x build
-> alpha until 1.0.
+> 0.1.1 promises and what it does not is written in
+> [docs/beta.md](docs/beta.md); the admin screen names the stage of the
+> running version (alpha below 0.1, beta from 0.1, nothing from 1.0).
 
 ![The page editor: Markdown with elements between the text, the live preview beside it](docs/screenshots/editor.png)
 
@@ -102,7 +102,7 @@ Caddyfile for automatic HTTPS and a WAL-safe backup script are in
 ## Documentation
 
 - [Deploying](deploy/DEPLOY.md): systemd, Caddy, backups, single sign-on
-- [Beta criteria](docs/beta.md): what 0.1.0 promises and what it does not
+- [Beta criteria](docs/beta.md): what 0.1.1 promises and what it does not
 - [Configuration](docs/configuration.md): every environment variable, e-mail
 - [Content model](docs/content-model.md): fields, content kinds, block kinds
 - [Publishing](docs/publishing.md): pages, menus, media, templates, design, SEO, plugins
