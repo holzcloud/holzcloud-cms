@@ -1,0 +1,319 @@
+{
+  "items": [
+    {
+      "requirement_id": "IMP-01",
+      "category": "adjacency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A column is addressed by its INDEX, never by its header name. Two columns headed 'Titel' both appear in the mapping list, distinguished by position, and each may be pointed at a different target. The second is not silently dropped and does not overwrite the first.",
+      "reason": null,
+      "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
+    },
+    {
+      "requirement_id": "IMP-01",
+      "category": "empty",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "Three degenerate files, each with its own message on screen 1: zero bytes; a header row with no data rows; a header cell that is empty (the column is offered as 'Spalte 3' and is mappable by hand).",
+      "reason": null,
+      "probe": "What is the result for empty, single-element, or null input?"
+    },
+    {
+      "requirement_id": "IMP-01",
+      "category": "ordering",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "The mapping list is in the file's column order, always. It is the order the operator sees in their spreadsheet, and any other order makes the sample row unreadable beside it.",
+      "reason": null,
+      "probe": "When elements compare equal, is output order specified and stable?"
+    },
+    {
+      "requirement_id": "IMP-01",
+      "category": "concurrency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A staging token belongs to the user who created it and is checked on every screen. Two admins importing at once hold two tokens and two staged files; neither can see or resume the other's.",
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-02",
+      "category": "idempotency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "Importing the same file twice is NOT a no-op and must not pretend to be. On the create path the second run's slugs collide and page.CreatePage renames them -2, -3 (store.go:469-489); every rename is reported (D-23). On the update path the second run matches by slug and rewrites the mapped fields to the same values, which IS idempotent. The report says which path ran for each row.",
+      "reason": null,
+      "probe": "What happens if this runs twice on the same input?"
+    },
+    {
+      "requirement_id": "IMP-02",
+      "category": "concurrency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "Two imports writing into one website cannot produce two pages with one slug: pages carries an inline UNIQUE(website_id, slug) and CreatePage's retry loop turns the violation into a rename rather than an error (store.go:481-484). The DB is the arbiter, not a pre-check in the importer.",
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-03",
+      "category": "boundary",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "THE OFF-BY-ONE THAT MAKES EVERY MESSAGE WRONG: rows are numbered as the operator's spreadsheet numbers them — the header is row 1 and the first data row is row 2. Not the csv.Reader's record index, not the line number (a quoted cell may span lines and blank lines are skipped, so line != row). One helper mints the number, and the dry run and the report use the same one.",
+      "reason": null,
+      "probe": "What happens exactly at each min/max/threshold — and one step either side?"
+    },
+    {
+      "requirement_id": "IMP-03",
+      "category": "precision",
+      "status": "dismissed",
+      "verification": null,
+      "resolution": null,
+      "reason": "Every count in the report is bounded by MaxRows = 5000 and is an int; no precision loss or overflow is reachable.",
+      "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
+    },
+    {
+      "requirement_id": "IMP-03",
+      "category": "concurrency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "The report is built in one pass over the staged bytes, in row order, and is rendered from that one pass. Nothing else writes to it.",
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-04",
+      "category": "adjacency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A row whose slug exactly equals an existing page's slug is the collision the update-or-skip choice on screen 1 exists for. 'Aktualisieren' rewrites the mapped fields and leaves every unmapped one alone; 'Übergehen' skips the row and names it. There is no third, silent behaviour.",
+      "reason": null,
+      "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
+    },
+    {
+      "requirement_id": "IMP-04",
+      "category": "empty",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "An existing website with zero pages behaves like a new one. An existing website with zero field definitions still offers the four fixed targets (Titel, Adresse, Text, Zustand) plus Schlagwörter — the mapping screen is never empty, and it says so rather than looking broken.",
+      "reason": null,
+      "probe": "What is the result for empty, single-element, or null input?"
+    },
+    {
+      "requirement_id": "IMP-04",
+      "category": "ordering",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "Rows are written in file order. A file whose row 40 is a duplicate of row 4 gets the rename or the update in that order, so the report reads the same way the file does.",
+      "reason": null,
+      "probe": "When elements compare equal, is output order specified and stable?"
+    },
+    {
+      "requirement_id": "IMP-04",
+      "category": "idempotency",
+      "status": "dismissed",
+      "verification": null,
+      "resolution": null,
+      "reason": "Covered by IMP-02's idempotency resolution, which states both paths.",
+      "probe": "What happens if this runs twice on the same input?"
+    },
+    {
+      "requirement_id": "IMP-04",
+      "category": "concurrency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "THE STALE-TARGET EDGE: the target website, and every field definition the mapping names, may be deleted or changed between screen 1 and screen 4. Both are re-read and re-checked at the start of the dry run AND at the start of the write. A mapping that names a field which no longer exists is reported and its column falls back to unmapped; a target website that is gone ends the wizard with a message instead of a nil dereference.",
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-05",
+      "category": "concurrency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "The dry run and the write read the SAME staged bytes, so the report cannot describe a different file than the one that is written. This is a property D-01's server-side staging buys and the overridden 're-submit the file' design could not have: under re-submission the operator could pick a different file at the commit step and the dry run would have described the wrong one.",
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-06",
+      "category": "adjacency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "Two headers that fold to the same key: the FIRST one wins the automatic match, the second is left unmapped, and the mapping screen says why in place rather than leaving it looking like an oversight. A field is matched at most once automatically.",
+      "reason": null,
+      "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
+    },
+    {
+      "requirement_id": "IMP-06",
+      "category": "empty",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A header that folds to the empty string (blank, or only punctuation) matches nothing automatically and is still mappable by hand.",
+      "reason": null,
+      "probe": "What is the result for empty, single-element, or null input?"
+    },
+    {
+      "requirement_id": "IMP-06",
+      "category": "encoding",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "THE NFD EDGE: field.SlugifyKey matches the single rune 'ü' (U+00FC). A header written on macOS or exported from some tools arrives DECOMPOSED as 'u' + U+0308, which SlugifyKey does not fold — 'Grösse' would silently fail to match its own field. The importer strips combining marks (unicode.Mn) from the header before folding. Three lines, unicode only, no golang.org/x/text (D-17 stands). Equality is therefore over the folded key, and the fold is documented as: strip Mn, then field.SlugifyKey.",
+      "reason": null,
+      "probe": "Whose definition of length/equality applies — bytes, code points, grapheme clusters, or normalized form?"
+    },
+    {
+      "requirement_id": "IMP-06",
+      "category": "ordering",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "When two fields could match one header, the first in definition order wins — field.List returns definitions ordered by position (store.go:65), which is the order the operator sees on the field screen.",
+      "reason": null,
+      "probe": "When elements compare equal, is output order specified and stable?"
+    },
+    {
+      "requirement_id": "IMP-07",
+      "category": "concurrency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "The example CSV is a snapshot of the field definitions at the moment it is downloaded. If a field is added or renamed afterwards, the stale example's columns simply arrive unmapped, which the mapping screen shows — the example is never treated as authoritative about what the website currently has.",
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-08",
+      "category": "adjacency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "Stepping is clamped at both ends: at the first row the 'previous' control is absent, at the last the 'next' control is absent. An out-of-range ?zeile= in the URL is clamped, not an error — it is a hand-typed number, not an attack.",
+      "reason": null,
+      "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
+    },
+    {
+      "requirement_id": "IMP-08",
+      "category": "empty",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A file with a header and no data rows shows no sample row and says so in a sentence, rather than rendering an empty table that looks like a bug. The defaults per field are still settable — they are what an empty file's later sibling will need.",
+      "reason": null,
+      "probe": "What is the result for empty, single-element, or null input?"
+    },
+    {
+      "requirement_id": "IMP-08",
+      "category": "ordering",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "The sample row index is the file's row order, and it uses the SAME row-number helper as the report (IMP-03), so 'Zeile 2' on the mapping screen and 'Zeile 2' in the report are the same row.",
+      "reason": null,
+      "probe": "When elements compare equal, is output order specified and stable?"
+    },
+    {
+      "requirement_id": "IMP-08",
+      "category": "concurrency",
+      "status": "dismissed",
+      "verification": null,
+      "resolution": null,
+      "reason": "The staged bytes are written once and never mutated, so stepping through rows cannot observe a changing file.",
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-09",
+      "category": "boundary",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "Every cap is tested at the boundary and one step either side: exactly 10 MB accepted / 10 MB + 1 refused; exactly MaxRows read / MaxRows + 1 reported as truncated (never silently applied, following wxr.Export.Truncated at wxr.go:63); a cell of exactly 100000 bytes accepted / 100001 refused with its row number.",
+      "reason": null,
+      "probe": "What happens exactly at each min/max/threshold — and one step either side?"
+    },
+    {
+      "requirement_id": "IMP-09",
+      "category": "adjacency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A quoted field containing the delimiter stays one cell; a quoted field spanning lines stays one cell and does not increment the row number. Both are legal RFC 4180 and both are tested, because both are what makes line != row.",
+      "reason": null,
+      "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
+    },
+    {
+      "requirement_id": "IMP-09",
+      "category": "empty",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A zero-byte file, and a file that is nothing but a BOM, are both refused on screen 1 with a message naming what was wrong — not staged, not carried into the wizard.",
+      "reason": null,
+      "probe": "What is the result for empty, single-element, or null input?"
+    },
+    {
+      "requirement_id": "IMP-09",
+      "category": "ordering",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "A short row's missing cells are empty IN POSITION, not shifted: FieldsPerRecord = -1 means the reader hands back fewer cells, and the mapping reads by index, so cell 5 of a 3-cell row is empty rather than being cell 3's value.",
+      "reason": null,
+      "probe": "When elements compare equal, is output order specified and stable?"
+    },
+    {
+      "requirement_id": "IMP-09",
+      "category": "precision",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "The cell cap is 100000 BYTES, not runes, and is documented as bytes. len() on the string, so one emoji costs four. A rune cap would be a second definition of size beside http.MaxBytesReader's.",
+      "reason": null,
+      "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
+    },
+    {
+      "requirement_id": "IMP-09",
+      "category": "concurrency",
+      "status": "dismissed",
+      "verification": null,
+      "resolution": null,
+      "reason": "internal/csv is pure: it takes an io.Reader and holds no shared state. There is nothing to interleave.",
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "IMP-10",
+      "category": "adjacency",
+      "status": "dismissed",
+      "verification": null,
+      "resolution": null,
+      "reason": "Two rows written back to back do not touch: each row's statements complete before the next row's begin, which is the requirement itself.",
+      "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
+    },
+    {
+      "requirement_id": "IMP-10",
+      "category": "empty",
+      "status": "dismissed",
+      "verification": null,
+      "resolution": null,
+      "reason": "A file with no writable rows opens no transaction at all, which is the degenerate case behaving correctly by construction.",
+      "probe": "What is the result for empty, single-element, or null input?"
+    },
+    {
+      "requirement_id": "IMP-10",
+      "category": "ordering",
+      "status": "dismissed",
+      "verification": null,
+      "resolution": null,
+      "reason": "Covered by IMP-04's ordering resolution: rows are written in file order.",
+      "probe": "When elements compare equal, is output order specified and stable?"
+    },
+    {
+      "requirement_id": "IMP-10",
+      "category": "concurrency",
+      "status": "resolved",
+      "verification": "explicit",
+      "resolution": "THE EDGE THIS REQUIREMENT EXISTS FOR: the write pool admits ONE connection (SetMaxOpenConns(1), db.go:28, _txlock=immediate). Because no transaction spans more than one row, other requests — admin and public — interleave BETWEEN rows. The gate is mechanical and belongs in the plan: grep the importer for BeginTx and expect zero, and assert that no call the row function makes holds a transaction across two rows.",
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    }
+  ],
+  "coverage": {
+    "applicable": 34,
+    "resolved": 34,
+    "unresolved": 0,
+    "byVerification": {
+      "explicit": 27,
+      "backstop": 0
+    }
+  }
+}
