@@ -2075,5 +2075,9 @@
 "… and %d more": "… y %d más",
 "…is answered with": "…está respondido con",
 "↑ up": "↑ arriba",
-"↓ down": "↓ abajo"
+"↓ down": "↓ abajo",
+"beta": "beta",
+"Beta software: usable, but an update can still change things.": "Software en fase beta: utilizable, pero una actualización aún puede cambiar cosas.",
+"holzcloud-CMS is beta software.": "holzcloud-CMS es software en fase beta.",
+"It is usable, but until 1.0 an update can still change features, settings and the template contract.": "Es utilizable, pero hasta la 1.0 una actualización aún puede cambiar funciones, ajustes y el contrato de las plantillas."
 }

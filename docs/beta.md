@@ -143,8 +143,6 @@ The first three exit 0 only while nobody changes a bound file that they still na
 
 `main` is to carry PR 47, three commits that are on GitHub and not yet here. They change `cmd/holzcloud/assets/bausteine.css` and `cmd/holzcloud/templates/public/weide/style.css` after the evidence builds. No record measured those two files, and a backup does not read them.
 
-## Where the word alpha still appears
+## Where the stage is shown
 
-The admin screen still labels every 0.x build alpha: a tag in the sidebar, a line on the login page and a notice on the dashboard. The label is derived from the version number, not written by hand: `web.IsAlpha` in `internal/web/layoutdata.go` is true for every build below 1.0, and it goes away with 1.0. The *Updating* section of `deploy/DEPLOY.md` also still calls the software alpha software.
-
-Neither was reworded for 0.1.1. Changing the label would orphan catalogue keys in four languages, and an edit of `deploy/DEPLOY.md` belongs to the evidence set and would force it to be made again. The substance of both sentences, that an update may change or remove features, settings and the template contract, is what beta means on this page, so only the label differs.
+The admin screen names the stage of the build it runs: a tag in the sidebar, a line on the login page and a notice on the dashboard. The label is derived from the version number, not written by hand: `web.StageOf` in `internal/web/layoutdata.go` gives *alpha* for 0.0.x and for anything that is not a version number, *beta* for every 0.y.z with y of 1 or more, and nothing from 1.0 on. A `-alpha` or `-beta` suffix on the tag wins over the number. The *Updating* section of `deploy/DEPLOY.md` still calls the software alpha software; it belongs to the evidence set and was not reworded, and the substance of that sentence (an update may change or remove features, settings and the template contract) is what beta means on this page.

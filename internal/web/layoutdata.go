@@ -61,10 +61,11 @@ type LayoutData struct {
 	// a web application.
 	Version   string
 	SourceURL string
-	// Alpha says this build is not yet a 1.0: the sidebar, the sign-in form
-	// and the start page say so, because an update may still break things.
-	// It follows the version number, so it goes away by itself at 1.0.
-	Alpha bool
+	// Stage is the maturity of this build: "alpha", "beta" or "" for a stable
+	// release. The sidebar, the sign-in form and the start page say so,
+	// because an update may still break things. It follows the version
+	// number (see StageOf), so it goes away by itself at 1.0.
+	Stage string
 
 	// Counts are the badges on the bar. Only filled for a whole page: an htmx
 	// answer replaces a piece of the page and never the bar.
@@ -153,22 +154,45 @@ func NewLayoutData(r *http.Request, sm *scs.SessionManager, title string) Layout
 		Brand:      branding.Current(),
 		Version:    buildVersion,
 		SourceURL:  buildSource,
-		Alpha:      IsAlpha(buildVersion),
+		Stage:      StageOf(buildVersion),
 	}
 }
 
-// IsAlpha reports whether a build is still before 1.0.
-//
-// A version whose major number is 0 is, and so is anything that is not a
+// Stage names the maturity of a build.
+const (
+	StageAlpha = "alpha"
+	StageBeta  = "beta"
+)
+
+// StageOf derives the stage from the version number: 0.0.x is alpha, 0.y.z
+// with y >= 1 is beta, 1.0 and later is stable (""). Anything that is not a
 // version number at all — "dev", or the bare commit hash git describe falls
-// back to without a tag. Only a build that can prove it is 1.0 or later goes
-// without the notice.
-func IsAlpha(version string) bool {
+// back to without a tag — counts as alpha: only a build that can prove its
+// number goes without the strict notice. An explicit "-alpha" or "-beta"
+// suffix wins over the number.
+func StageOf(version string) string {
 	v := strings.TrimPrefix(strings.TrimSpace(version), "v")
-	major, _, _ := strings.Cut(v, ".")
-	n, err := strconv.Atoi(major)
-	if err != nil || !strings.Contains(v, ".") {
-		return true
+	core, pre, _ := strings.Cut(v, "-")
+	switch {
+	case strings.HasPrefix(pre, "alpha"):
+		return StageAlpha
+	case strings.HasPrefix(pre, "beta"):
+		return StageBeta
 	}
-	return n < 1
+	parts := strings.Split(core, ".")
+	if len(parts) < 2 {
+		return StageAlpha
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return StageAlpha
+	}
+	if major >= 1 {
+		return ""
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil || minor < 1 {
+		return StageAlpha
+	}
+	return StageBeta
 }
