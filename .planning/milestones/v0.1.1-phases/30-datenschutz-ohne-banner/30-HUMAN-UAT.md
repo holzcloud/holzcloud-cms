@@ -1,6 +1,10 @@
 ---
 phase: 30-datenschutz-ohne-banner
 status: deferred
+audit_acknowledged:
+  milestone: v0.1.1
+  at: 2026-10-31
+  gap_snapshot: "deferred::scenarios=0"
 ---
 
 # Phase 30 - offene Pruefung auf einem echten Server

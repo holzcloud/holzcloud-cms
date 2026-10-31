@@ -4,6 +4,10 @@ phase: 30-datenschutz-ohne-banner
 source: 30-06-SUMMARY.md, 30-HUMAN-UAT.md
 started: 2026-10-31T11:05:00+01:00
 updated: 2026-10-31T11:12:00+01:00
+audit_acknowledged:
+  milestone: v0.1.1
+  at: 2026-10-31
+  gap_snapshot: "partial::scenarios=0"
 ---
 
 ## Current Test

@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v0.1.1
 milestone_name: Beta belegt
-current_phase: 30
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 30 complete — all phases complete
-last_updated: "2026-10-31T10:51:49.600Z"
+last_updated: "2026-10-31T15:10:40.856Z"
 last_activity: 2026-10-31
-last_activity_desc: Phase 30 complete
-state_head: d6b989d6897d456a7dc8f7aacc13193316204115
+last_activity_desc: Milestone v0.1.1 completed and archived
+state_head: d587030214aa3fd2a8fa13c55c1e2b54f45f3722
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 31
   completed_plans: 31
   percent: 71
+current_phase: 30
 ---
 
 ## Where we are (2026-10-26)
@@ -221,10 +221,10 @@ The rows of closed milestones are in `.planning/milestones/STATE-HISTORY.md`. Th
 
 ## Current Position
 
-Phase: 30
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-10-31 — Phase 30 complete
+Phase: Milestone v0.1.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-10-31 — Milestone v0.1.1 completed and archived
 
 ## Session Continuity
 
@@ -234,10 +234,9 @@ Last activity: 2026-10-31 — Phase 30 complete
 
 ## Operator Next Steps
 
-- **Native amd64 (SRV-01 to SRV-03):** the steps O-1 to O-3 are in `deploy/NATIVE-AMD64-RUN.md`. They need a native amd64 machine and are the owner's.
-- **Branch deletions (TIDY-01) and the local branches (TIDY-04):** the commands, with their expected output, are in `.planning/phases/27-repository-tidy/27-OWNER-STEPS.md`. They need the owner's credentials and say-so at the moment they are run. Whether they are done is what the TIDY-01 and TIDY-04 cells in `.planning/REQUIREMENTS.md` say.
-- **Push state, measured 2026-10-26:** `git rev-list --left-right --count origin/main...main` read `3 59`: local `main` was 59 commits ahead of `origin/main` and 3 behind. Measure it again before acting on it.
-- **Pushing `main`** and the branch deletions are the owner's steps; nothing in this phase pushes.
+
+- Start the next milestone with /gsd-new-milestone
+
 
 ## Deferred Items
 

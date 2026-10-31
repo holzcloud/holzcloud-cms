@@ -11,7 +11,7 @@
 - ✅ **v2.4 — What Has Accumulated** — Phases 17–18 (closed 2026-09-17)
 - ✅ **v2.5 — On the Phone** — Phase 19 (closed 2026-09-17, released as 2.5)
 - ✅ **v0.1.0 — Betrieb härten** — Phases 20–23 (opened 2026-10-12, released 2026-10-18 as 0.1.0, the first beta; archived in [`milestones/v0.1.0-ROADMAP.md`](milestones/v0.1.0-ROADMAP.md))
-- 🚧 **v0.1.1 — Beta belegt** — Phases 24–28 (opened 2026-10-20, closes as release 0.1.1)
+- ✅ **v0.1.1 — Beta belegt** — Phases 24–30 (opened 2026-10-20, released 2026-10-31 as 0.1.1; archived in [`milestones/v0.1.1-ROADMAP.md`](milestones/v0.1.1-ROADMAP.md))
 - 🔁 **Since 0.0.1 (2026-09-26):** The count started again at 0.0.1 and the software calls itself alpha. Work since then runs as quick tasks (`.planning/quick/`), releases 0.0.1–0.0.25, last on 2026-10-11. v0.1.0 is the first milestone under the restarted count.
 
 **Milestone and release carry one number, from v1.10 on** (decided 2026-09-11). The
@@ -387,7 +387,7 @@ first rather than being left half-measured.
 
 ---
 
-### 🚧 v0.1.1 — Beta belegt (opened 2026-10-20)
+### ✅ v0.1.1 — Beta belegt (opened 2026-10-20, shipped 2026-10-31; SRV-02/SRV-03 pending owner)
 
 **Goal**: What `docs/beta.md` lists under *What 0.1.0 does not promise* is played and measured where it can be; what only a real server can show is handed over as numbered owner steps; the repository is tidied. A line moves to *promises* only together with its record. No feature is built. Numbering continues from 24.
 

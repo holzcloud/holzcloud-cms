@@ -1,5 +1,29 @@
 # Milestones
 
+## v0.1.1 Beta belegt (Shipped: 2026-10-31)
+
+**Phases completed:** 7 phases, 31 plans, 0 tasks
+
+**Key accomplishments:**
+- `deploy/test/nightly.sh` plays the shipped `holzcloud-backup.timer` (no drop-in) through its own 03:15 entry, its 300 second random window and a catch-up after a missed window, all three green, plus 120 selftest cases.
+- `deploy/test/nightly.sh` now plays the shipped `holzcloud-backup.service` through retention pruning (BKP-05) and through an rsync copy to a second host (BKP-04), and restores the site from that copy with the document's own restore line. All three green, reproduced in a second run from fresh containers. One finding for plan 03: the document names no credential path, and the obvious one (a key in the service user's home) does not work under the shipped sandbox.
+- `nightly.sh chain` plays the whole phase 24 proof from fresh containers in about 13 minutes and writes `summary.txt` with BKP-01 to BKP-05 all PASS, `STEPS: 56 played, 0 failed` and `LEAK-CHECK OK`; `deploy/BACKUP-TIMER-RUN.md` records it with the owner steps, and `record-check` proves its 29 appendix blocks byte for byte. Two harness problems and one documentation defect were found by the first chain and repaired.
+- `nightly.sh prep | consist | window` runs the shipped `backup.sh` under an editor's page saves, uploads and deletes, restores each directory with the shipped `restore.sh` on a second container and compares media rows against media files in both directions; a six-run trace per stage already reproduces files without a row, a row without a file and a refused backup (rsync 24), and three controls make each case happen on purpose.
+- `nightly.sh compat-source | compat | capfull` builds v0.1.0 from its tag, lets its own `backup.sh` make a backup, restores it with this release on a fresh box and compares pages, users, media, counts and logins (COMPAT OK, 31 PASS, 0 BAD, run.sh `check` 17 of 17, no migration crossed); and it fills a tmpfs over the backup root to just above `MIN_FREE_MB` and records what `backup.sh`, the shipped unit, the next night and `restore.sh` make of it (the guard passes, rsync fails with ENOSPC, status 11, a partial directory without MANIFEST is left, the next run is refused by the guard).
+- The 03:15 line of 0.1.0 now runs end to end: P-11 quotes one whole sentence of the timer record, the ledger holds the old limit, OS-6 is the record's O-1 copied by a program, and the CHANGELOG heading is read by release.yml's own lines.
+- All 19 real-server and GitHub-UI steps of the milestone are in `28-OWNER-STEPS.md` (14 of them carrying a record's own text, copied by a program), and `CHANGELOG.md` has a complete German 0.1.1 entry that release.yml's own lines read as 7715 bytes of notes.
+- docs/beta.md now promises P-1 to P-18, each new row quoting a whole sentence of its record that 28-check.sh finds byte for byte, states 43 limits each with its reason, keeps SRV-01 to SRV-03 pending the owner, and shows five git commands that exit 0.
+- deploy/backup.sh repeats an rsync that ends with status 24 once, ends the night loudly with 24 if that recurs, and removes the directory of a night that failed before its MANIFEST; a hermetic test with fakes proves both in 94 assertions under bash 3.2.57 and bash 5.3.20, with no Docker and no root.
+- nightly.sh now fails a set in which a failed night leaves a directory, the next night is refused by the guard, or the sentinel of an earlier night is touched; consist counts repeats after rsync status 24, nights that still ended 24 and directories without a MANIFEST; the selftest ends SELFTEST OK (594 cases).
+- capfull now plays the shipped backup.sh, by hand and under holzcloud-backup.service, against a stand-in for rsync that delivers status 24 once (the night completes after the repeat) and twice (status 24, the copy named, no directory, Result=exit-code); the selftest ends SELFTEST OK (646 cases).
+- One `nightly.sh con-chain` from fresh containers, binary pinned to evidence commit dd077e4, ended with chain exit status 0, CON-01 PASS, CON-02 PASS, CON-03 PASS, LEAK-CHECK OK, `STEPS: 96 played, 0 failed` and the four VANISH verdicts PASS.
+- `deploy/BACKUP-ROBUST-RUN.md` records the set t29 against evidence commit `dd077e4`, and `nightly.sh record-check-con` with the four t29 names ends `RECORD-CHECK OK 30 blocks`.
+- OS-20 and OS-21 are byte-for-byte copies of the two owner steps of `deploy/BACKUP-ROBUST-RUN.md`, `28-check.sh` demands them, and the 0.1.1 entry of the CHANGELOG no longer describes the old `backup.sh`.
+- `docs/beta.md` promises the changed nightly backup only with sentences of `deploy/BACKUP-ROBUST-RUN.md`, binds them to evidence commit dd077e4 with seven commands that exit 0, and `28-check.sh` holds all of it: `beta` passes in all eight sub-checks and the selftest ends `SELFTEST OK (72 cases)`.
+- `28-check.sh all` exits 0 on the tree of phase 29 with `frozen` pinned to commits (six rules, each played on a throwaway repository and shown to fail on a temporary break), `regression` pinned to the numbers the phase produced, the selftest at `SELFTEST OK (89 cases)`, and ROB-01 to ROB-05 Complete.
+
+---
+
 ## v2.3 Every Word on a Page Belongs to Whoever Reads It (Shipped: 2026-09-15)
 
 **Delivered:** The last room of a house three milestones had been building. Five
