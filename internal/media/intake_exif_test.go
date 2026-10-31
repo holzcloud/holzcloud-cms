@@ -16,7 +16,7 @@ import (
 // A photograph taken at home must not publish the home address.
 //
 // The strip itself is held by strip_test.go and orient_keep_test.go, which call
-// StripMetadata. What those cannot show is that the strip still stands in the
+// the strip function directly. What those cannot show is that the strip still stands in the
 // way of a byte reaching the disk: that is Check followed by Keep, the two
 // calls the administration's upload, a form's attachment and the assistant's
 // upload link all make. Everything here goes in through those two and reads
