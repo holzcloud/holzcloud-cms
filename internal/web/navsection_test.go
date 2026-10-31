@@ -14,3 +14,21 @@ func TestMenusHaveTheirOwnPlaceInTheBar(t *testing.T) {
 		}
 	}
 }
+
+// A plugin's screen lights the plugin's own entry in the bar. It used to name
+// itself "plugins", which folds into settings: the installation list opened with
+// "Plugins" marked whoever had clicked "Messages".
+func TestAPluginScreenMarksItsOwnEntryNotSettings(t *testing.T) {
+	for _, websiteID := range []int64{0, 7} {
+		url := PluginScreenURL("kontaktformular", websiteID)
+		if got := (LayoutData{ActiveNav: PluginNav(url)}).NavSection(); got != "plugin" {
+			t.Errorf("website %d: NavSection = %q, want plugin", websiteID, got)
+		}
+	}
+	if got := PluginScreenURL("kontaktformular", 7); got != "/admin/websites/7/plugins/kontaktformular" {
+		t.Errorf("per-website address = %q", got)
+	}
+	if got := PluginScreenURL("kontaktformular", 0); got != "/admin/plugins/kontaktformular/bildschirm" {
+		t.Errorf("global address = %q", got)
+	}
+}

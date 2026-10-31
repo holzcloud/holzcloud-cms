@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -63,3 +64,18 @@ var navCounter func(ctx context.Context, websiteID int64) NavCounts
 func SetNavCounter(f func(ctx context.Context, websiteID int64) NavCounts) {
 	navCounter = f
 }
+
+// PluginScreenURL is the address of a plugin's own admin screen. The bar's link
+// and the handler that answers it both take it from here: they used to spell it
+// twice, and the handler's copy drifted into marking the wrong place.
+// websiteID 0 is a screen beside the websites, not under one.
+func PluginScreenURL(pluginID string, websiteID int64) string {
+	if websiteID > 0 {
+		return fmt.Sprintf("/admin/websites/%d/plugins/%s", websiteID, pluginID)
+	}
+	return "/admin/plugins/" + pluginID + "/bildschirm"
+}
+
+// PluginNav is the ActiveNav of the screen at url. base.html compares it with
+// "plugin:" plus the link's address to light the plugin's own entry.
+func PluginNav(url string) string { return "plugin:" + url }

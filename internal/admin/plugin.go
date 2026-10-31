@@ -230,11 +230,10 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 	}
 
 	var websiteID int64
-	action := "/admin/plugins/" + id + "/bildschirm"
 	if raw := r.PathValue("websiteID"); raw != "" {
 		websiteID, _ = strconv.ParseInt(raw, 10, 64)
-		action = fmt.Sprintf("/admin/websites/%d/plugins/%s", websiteID, id)
 	}
+	action := web.PluginScreenURL(id, websiteID)
 
 	in := plugin.AdminIn{
 		WebsiteID: websiteID, Method: r.Method,
@@ -305,7 +304,11 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 		Screen: web.WithCSRFToken(web.SanitizeAdminHTML(out.HTML), web.CSRFTokenFromRequest(r)),
 		Action: action,
 	}
-	data.ActiveNav = "plugins"
+	// The rail marks the plugin's own entry, not the settings list: "plugin:"
+	// plus the address of the rail link, which is exactly `action`. With
+	// "plugins" here NavSection folded the screen into Settings and opened the
+	// installation list with "Plugins" highlighted.
+	data.ActiveNav = web.PluginNav(action)
 	if websiteID > 0 {
 		if ws, err := h.domains.GetWebsite(r.Context(), websiteID); err == nil && ws != nil {
 			data.CurrentWebsite = ws
