@@ -3,9 +3,24 @@ package page
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 )
+
+// UnlockCookiePrefix names the cookie that remembers a page was unlocked.
+//
+// One cookie per page, scoped to that page's path, so unlocking the trade price
+// list does not quietly open the other protected page next to it. The privacy
+// text lists it under this prefix.
+const UnlockCookiePrefix = "hc_frei_"
+
+// UnlockLifetime is how long an unlocked page stays open.
+//
+// A session cookie would be cleared when the browser closes, which is the right
+// default, but a customer comparing two price lists over an afternoon should
+// not have to retype. Twelve hours splits the difference.
+const UnlockLifetime = 12 * time.Hour
 
 // AccessUpdate is what the editor's protection settings amount to.
 type AccessUpdate struct {

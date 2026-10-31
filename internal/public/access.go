@@ -13,18 +13,13 @@ import (
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 )
 
-// unlockCookiePrefix names the cookie that remembers a page was unlocked.
-//
-// One cookie per page, scoped to that page's path, so unlocking the trade price
-// list does not quietly open the other protected page next to it.
-const unlockCookiePrefix = "hc_frei_"
-
-// unlockLifetime is how long an unlocked page stays open.
-//
-// A session cookie would be cleared when the browser closes, which is the right
-// default, but a customer comparing two price lists over an afternoon should
-// not have to retype. Twelve hours splits the difference.
-const unlockLifetime = 12 * time.Hour
+// unlockCookiePrefix and unlockLifetime are the exported constants of package
+// page under their local names. The reasons stand with them, because the
+// privacy register reads them from there.
+const (
+	unlockCookiePrefix = page.UnlockCookiePrefix
+	unlockLifetime     = page.UnlockLifetime
+)
 
 // unlockCookieName is the cookie for one page.
 func unlockCookieName(pageID int64) string {
