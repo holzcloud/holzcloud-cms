@@ -286,6 +286,16 @@ Link it **before** your own `/t/style.css`. Both are ordinary stylesheets and
 the later one wins, so that order is what lets your theme override every rule
 in it — and every rule in it is one class deep, so overriding is cheap.
 
+The image-and-text block (`hc-bildtext`) can place its image in four ways. The
+wrapper carries one modifier for it: none when the image sits on the left,
+`hc-bildtext--rechts`, `hc-bildtext--oben` (above) or `hc-bildtext--unten`
+(below). The markup order is always the image first, then the text, so a
+screen reader does not depend on the layout; the core stylesheet moves the
+image with `order`, and it already stacks `--oben` and `--unten` in one
+column. If your theme gives `.hc-bildtext` a layout of its own, give these two
+modifiers a single column as well, and keep them out of any wide slot you give
+the side-by-side layout.
+
 `/assets/` is this server's own origin, so linking it is not fetching anything
 from a third party: the rule that nothing loads from elsewhere at runtime is
 untouched.

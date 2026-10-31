@@ -58,13 +58,15 @@ website can have of its own; their passwords are stored encrypted under
 
 ## Why a holzcloud-CMS site needs no cookie banner
 
-This follows from the rule above and is worth stating plainly. A site without a
-shop or a protected page sets **no cookies at all** on the public side: the
-session manager is only ever touched by admin handlers, and the CSRF cookie is
-scoped to `Path("/admin")`. The two exceptions are described below, and neither
-needs consent. The site also loads
-nothing from a third party, so there is no embedded service that could set one on
-your behalf and nothing to obtain consent for under § 25 TDDDG.
+This follows from the rule above and is worth stating plainly. The public side
+of a website never sets a cookie because somebody opened a page: the session
+manager is only ever touched by admin handlers, and the CSRF cookie is scoped to
+`Path("/admin")`. A site without a shop or a protected page sets **no cookies at
+all** on the public side. A site with either sets up to three cookies, each only
+as the result of something the visitor does, and none of them needs consent. They
+are listed below. The site also loads nothing from a third party, so there is no
+embedded service that could set one on your behalf and nothing to obtain consent
+for under § 25 TDDDG.
 
 Consent is about storing or reading information on the visitor's device and about
 passing data to third parties. A holzcloud-CMS site does neither, so the banner has
@@ -98,20 +100,67 @@ Delete answered enquiries when you no longer need them; nothing expires them
 automatically, because how long an enquiry stays relevant is a decision only the
 operator can make.
 
-**A password-protected page sets one cookie**, and only that page does. It
-remembers that the visitor entered the password, is scoped to that page's path,
-lasts twelve hours and contains a signed token rather than anything about the
-person. It is strictly necessary for a service the visitor explicitly asked for —
-seeing the page they just unlocked — and therefore consent-exempt under
-§ 25(2) TDDDG.
+### The three public cookies
 
-**A shop sets one cookie too**, `hc_warenkorb`, and only once a visitor puts
-something in the basket. It holds a random token that points to the basket in the
-site's own database, is `HttpOnly` and `SameSite=Lax`, is valid for the whole
-site, lasts 30 days and is deleted when the order is placed. The basket cannot
-work without it, so it is strictly necessary for what the visitor asked for and
-consent-exempt under § 25(2) TDDDG. Browsing the shop without adding anything
-sets no cookie. A site with no shop and no protected page sets none at all.
+All three are `HttpOnly` and `SameSite=Lax`, and `Secure` on an installation
+served over TLS. None is set by opening a page, and none is a tracking cookie.
+
+| Cookie | Holds | Lifetime | Set when |
+|--------|-------|----------|----------|
+| `hc_warenkorb` | a random token that points to the basket in the site's own database | 30 days; deleted when the order is placed | the visitor puts an item in the basket |
+| `hc_preise` | the choice between private and business prices | 30 days (it was a year until 0.1.1) | the visitor switches the view, on shops that show both |
+| `hc_frei_N` | a signed token that unlocks the protected page with the number N, and nothing about the person | 12 hours, scoped to that page's path | the visitor enters the right password |
+
+The basket cannot work without its cookie and a page cannot stay unlocked without
+its own, so both are strictly necessary for what the visitor asked for and
+consent-exempt under § 25(2) TDDDG. The price view is set only by the visitor's
+own switch and remembers nothing but that choice; the privacy text lists it with
+the other two.
+
+Two tests hold this. `TestNoPublicGetSetsACookie` drives all eight shipped themes
+through the real router, over nineteen public addresses (home page, archive,
+search, 404, shop lists, basket, feeds and more), and fails if a plain GET sets a
+cookie. A source test fails when a file that writes a cookie appears that the
+privacy text does not list, so a fourth cookie cannot go out unmentioned.
+
+### The request log
+
+The program writes one line per request to the journal. The visitor's address in
+it is cut to the first 24 bits (IPv4) or 48 bits (IPv6) before it is written; an
+address that cannot be read is written as `unknown`. Three limits belong with
+that:
+
+- The rate limit holds the whole address, in memory only, and forgets it.
+- The journal itself is kept for 14 days by `deploy/journald-holzcloud.conf`. That
+  file is a journald drop-in; it is system-wide, because journald has no
+  per-unit retention, it is installed by hand (the command is in the file), and
+  it was not confirmed on a real host at the time of writing. The check command
+  in the file is the confirmation.
+- Failed sign-ins and refused single sign-on attempts at the admin still write the
+  whole address, under the same retention.
+
+### Pictures
+
+On upload the EXIF, XMP and IPTC data and the comments of a picture are removed.
+Only the orientation is kept, so a photograph taken sideways still stands
+upright. A test sends a photograph with a GPS position and camera data through
+the real upload path and checks the stored file, and a source test keeps that
+path the only one by which an upload is stored.
+
+### The privacy text
+
+The privacy text is a template and replaces no legal advice. A new website gets it
+as a draft, composed from the functions that website uses: a shop, the price
+view, online payment, protected pages, a form. It carries a table of the cookies
+and one of the recipients, and the things only the operator knows (the
+responsible body, the hosting provider, the payment provider) are marked as
+fill-in places. A draft that still carries the notice that it is an unfilled
+template must not be published.
+
+A website created before this release keeps the privacy page it has; nothing in
+holzcloud-CMS changes, publishes or deletes an existing page. Its settings screen
+shows a hint and offers the current text as a new draft next to the old one, to
+compare and to copy from.
 
 ## Two-factor authentication
 

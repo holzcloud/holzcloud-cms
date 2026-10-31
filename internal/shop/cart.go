@@ -14,8 +14,9 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 )
 
-// cartCookie carries the basket's token.
-const cartCookie = "hc_warenkorb"
+// CartCookieName carries the basket's token. Exported so the privacy text lists
+// the cookie under the name the program really sets.
+const CartCookieName = "hc_warenkorb"
 
 // CartLifetime is how long an untouched basket survives the sweep.
 //
@@ -150,7 +151,7 @@ func newToken() (string, error) {
 
 // TokenFrom reads the basket token out of a request, or "" when there is none.
 func TokenFrom(r *http.Request) string {
-	c, err := r.Cookie(cartCookie)
+	c, err := r.Cookie(CartCookieName)
 	if err != nil {
 		return ""
 	}
@@ -160,7 +161,7 @@ func TokenFrom(r *http.Request) string {
 // SetCartCookie remembers the basket.
 func SetCartCookie(w http.ResponseWriter, secure bool, token string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     cartCookie,
+		Name:     CartCookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   int(CartLifetime.Seconds()),
@@ -173,7 +174,7 @@ func SetCartCookie(w http.ResponseWriter, secure bool, token string) {
 // ClearCartCookie drops the basket, after an order has been placed.
 func ClearCartCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     cartCookie,
+		Name:     CartCookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,

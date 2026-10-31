@@ -99,6 +99,10 @@ type websiteFormData struct {
 	// MailConfigured says whether this installation can send at all, so the
 	// notification field can admit that filling it in would do nothing.
 	MailConfigured bool
+	// PrivacyHint says what the website's privacy page is, for the card that
+	// offers the current template as a draft. Its zero value has no State and
+	// the card is then not drawn.
+	PrivacyHint privacyHint
 }
 
 // orgTypeChoice is one entry of the business-type dropdown.
@@ -246,6 +250,11 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
+	hint, err := h.privacyHint(r.Context(), ws)
+	if err != nil {
+		return err
+	}
+
 	data := websiteFormData{
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Settings – %s", ws.Name)),
 		FormState:  web.NewFormState(),
@@ -259,6 +268,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 		Checks:     h.siteChecks(r.Context(), ws, domains),
 
 		MailConfigured: h.mail.EnabledFor(r.Context(), ws.ID),
+		PrivacyHint:    hint,
 	}
 	if h.mediaStore != nil {
 		// Only images make sense as a favicon or logo, and the list is short

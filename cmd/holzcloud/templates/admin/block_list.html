@@ -106,13 +106,15 @@
                       class="form-input form-textarea">{{.Block.Markdown}}</textarea>
         </div>
         <div class="form-group">
-            <label class="form-label" for="{{.ID}}-variante">{{t "Image sits"}}</label>
+            <label class="form-label" for="{{.ID}}-variante">{{t "Image position"}}</label>
             <select id="{{.ID}}-variante" name="{{.Prefix}}.variante" class="form-input form-select">
-                <option value=""{{if ne .Block.Variant "rechts"}} selected{{end}}>{{t "left"}}</option>
+                <option value=""{{if and (ne .Block.Variant "rechts") (ne .Block.Variant "oben") (ne .Block.Variant "unten")}} selected{{end}}>{{t "left"}}</option>
                 <option value="rechts"{{if eq .Block.Variant "rechts"}} selected{{end}}>{{t "right"}}</option>
+                <option value="oben"{{if eq .Block.Variant "oben"}} selected{{end}}>{{t "above"}}</option>
+                <option value="unten"{{if eq .Block.Variant "unten"}} selected{{end}}>{{t "below"}}</option>
             </select>
             <p class="form-hint text-muted">
-                {{t "On a narrow screen the image always sits above the text."}}
+                {{t "On a narrow screen an image on the left or right sits above the text."}}
             </p>
         </div>
 

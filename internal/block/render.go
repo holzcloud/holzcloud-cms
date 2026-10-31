@@ -155,8 +155,8 @@ func renderOne(b *strings.Builder, at int, blk Block, s Set, look Lookup, md Mar
 			return
 		}
 		class := "hc-block hc-bildtext"
-		if blk.Variant == "rechts" {
-			class += " hc-bildtext--rechts"
+		if pos := blk.ImagePositionClass(); pos != "" {
+			class += " " + pos
 		}
 		fmt.Fprintf(b, `<div class="%s">`, class)
 		if hasImg {

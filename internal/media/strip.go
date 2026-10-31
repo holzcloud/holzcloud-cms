@@ -19,6 +19,16 @@ import (
 // for. Segments are dropped or copied verbatim, so the pixel data comes out
 // bit-identical.
 //
+// It keeps exactly one thing out of the EXIF block: the orientation number, when
+// it is 2 to 8, written fresh into a 26-byte block of its own (see
+// orientationTIFF). A phone stores a portrait photo as a landscape bitmap and
+// says in that number how to turn it; a stored file that lost the number is
+// shown on its side by every browser. The stub is built from the integer alone,
+// no byte of the source block is copied, so GPS, device, time, thumbnail and
+// maker note stay out. The scaled copy (Intake.Scaled) is turned in its pixels
+// and written by encoders that write no EXIF, so there is nothing here for the
+// strip to turn into a stub: it never carries a tag, and is never turned twice.
+//
 // An unknown or unhandled format is returned unchanged rather than refused —
 // stripping is a safeguard, and failing an upload over it would be worse than
 // the metadata.
@@ -62,6 +72,7 @@ func stripJPEG(data []byte) ([]byte, error) {
 	out.Write(data[:2])
 
 	i := 2
+	exifSeen := false
 	for i+3 < len(data) {
 		if data[i] != markerPrefix {
 			// Fill bytes are legal between segments; skip them.
@@ -90,6 +101,16 @@ func stripJPEG(data []byte) ([]byte, error) {
 		}
 		segment := data[i : i+2+length]
 		payload := segment[4:]
+
+		// The first Exif segment is the one the reader reads, so it is the one
+		// that is claimed, whatever it says. Its place is taken by the stub
+		// when it says the picture has to be turned; it is dropped either way.
+		if marker == markerAPP1 && !exifSeen && bytes.HasPrefix(payload, exifHeader) {
+			exifSeen = true
+			if o := tiffOrientation(payload[len(exifHeader):]); o >= 2 && o <= 8 {
+				out.Write(orientationAPP1(o))
+			}
+		}
 
 		if keepJPEGSegment(marker, payload) {
 			out.Write(segment)
@@ -144,7 +165,9 @@ var pngDropChunks = map[string]bool{
 
 var pngSignature = []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'}
 
-// stripPNG copies the chunk stream, dropping the metadata chunks.
+// stripPNG copies the chunk stream, dropping the metadata chunks. The first
+// eXIf chunk is replaced by the orientation stub when it names an orientation
+// of 2 to 8; nothing else of it survives.
 func stripPNG(data []byte) ([]byte, error) {
 	if !bytes.HasPrefix(data, pngSignature) {
 		return nil, errors.New("not a PNG")
@@ -154,6 +177,7 @@ func stripPNG(data []byte) ([]byte, error) {
 	out.Write(pngSignature)
 
 	i := len(pngSignature)
+	exifSeen := false
 	for i+8 <= len(data) {
 		length := int(binary.BigEndian.Uint32(data[i : i+4]))
 		if length < 0 || i+12+length > len(data) {
@@ -163,6 +187,15 @@ func stripPNG(data []byte) ([]byte, error) {
 		// 4 length + 4 type + payload + 4 CRC
 		chunk := data[i : i+12+length]
 
+		if chunkType == "eXIf" && !exifSeen {
+			// The first eXIf chunk is the one the reader reads. The stub stands
+			// in its place when it says the picture has to be turned; the chunk
+			// itself is dropped either way, as are any later ones.
+			exifSeen = true
+			if o := tiffOrientation(chunk[8 : 8+length]); o >= 2 && o <= 8 {
+				out.Write(orientationChunkPNG(o))
+			}
+		}
 		if !pngDropChunks[chunkType] {
 			out.Write(chunk)
 		}
@@ -176,13 +209,22 @@ func stripPNG(data []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// stripWebP drops the EXIF and XMP RIFF chunks.
+// stripWebP drops the EXIF and XMP RIFF chunks. The first EXIF chunk is replaced
+// by the orientation stub when it names an orientation of 2 to 8 and the
+// container is the extended one: an EXIF chunk is legal only behind a VP8X
+// chunk that announces it, so the stub is written only when VP8X comes first,
+// and the EXIF flag of that chunk is then set. In a simple container a stub
+// would make the file invalid, so there the chunk is simply dropped.
 func stripWebP(data []byte) ([]byte, error) {
 	if len(data) < 12 || !bytes.HasPrefix(data, []byte("RIFF")) || !bytes.Equal(data[8:12], []byte("WEBP")) {
 		return nil, errors.New("not a WebP")
 	}
 
+	const exifFlag = 0x08
 	body := bytes.NewBuffer(make([]byte, 0, len(data)))
+	flagsAt := -1 // offset of the VP8X flags byte inside body, once known
+	exifSeen := false
+	stub := false
 	i := 12
 	for i+8 <= len(data) {
 		size := int(binary.LittleEndian.Uint32(data[i+4 : i+8]))
@@ -192,10 +234,24 @@ func stripWebP(data []byte) ([]byte, error) {
 			return nil, fmt.Errorf("malformed WebP chunk at offset %d", i)
 		}
 		chunkType := string(data[i : i+4])
+		if chunkType == "VP8X" && i == 12 && size >= 10 {
+			flagsAt = body.Len() + 8
+		}
+		if chunkType == "EXIF" && !exifSeen {
+			exifSeen = true
+			payload := bytes.TrimPrefix(data[i+8:i+8+size], exifHeader)
+			if o := tiffOrientation(payload); o >= 2 && o <= 8 && flagsAt >= 0 {
+				body.Write(orientationChunkWebP(o))
+				stub = true
+			}
+		}
 		if chunkType != "EXIF" && chunkType != "XMP " {
 			body.Write(data[i : i+8+padded])
 		}
 		i += 8 + padded
+	}
+	if stub {
+		body.Bytes()[flagsAt] |= exifFlag
 	}
 
 	out := bytes.NewBuffer(make([]byte, 0, body.Len()+12))

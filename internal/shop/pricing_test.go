@@ -44,7 +44,7 @@ func TestTheOperatorsSettingWinsOverTheVisitorsCookie(t *testing.T) {
 	for _, c := range cases {
 		r := httptest.NewRequest(http.MethodGet, "/shop", nil)
 		if c.cookie != "" {
-			r.AddCookie(&http.Cookie{Name: audienceCookie, Value: c.cookie})
+			r.AddCookie(&http.Cookie{Name: AudienceCookieName, Value: c.cookie})
 		}
 		if got := chfSettings(c.display).AudienceFor(r); got != c.want {
 			t.Errorf("display=%s cookie=%q: got %s, want %s", c.display, c.cookie, got, c.want)
@@ -151,5 +151,31 @@ func TestShopIsOffUntilAPathIsSet(t *testing.T) {
 	}
 	if !chfSettings(DisplayPrivate).Enabled() {
 		t.Error("a website with a shop path reported no shop")
+	}
+}
+
+// The price-view cookie is a convenience, not a record: it lives a month, not
+// a year, and the number comes from AudienceLifetime alone.
+func TestAudienceCookieLastsThirtyDays(t *testing.T) {
+	for _, secure := range []bool{true, false} {
+		rec := httptest.NewRecorder()
+		SetAudienceCookie(rec, secure, Business)
+		cookies := rec.Result().Cookies()
+		if len(cookies) != 1 {
+			t.Fatalf("secure=%v: want one cookie, got %d", secure, len(cookies))
+		}
+		c := cookies[0]
+		if c.Name != AudienceCookieName || c.Value != string(Business) {
+			t.Errorf("secure=%v: cookie = %s=%s, want %s=business", secure, c.Name, c.Value, AudienceCookieName)
+		}
+		if c.MaxAge != 2592000 {
+			t.Errorf("secure=%v: MaxAge = %d, want 2592000 (30 days)", secure, c.MaxAge)
+		}
+		if c.Path != "/" || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode {
+			t.Errorf("secure=%v: path=%q httpOnly=%v sameSite=%v, want / true Lax", secure, c.Path, c.HttpOnly, c.SameSite)
+		}
+		if c.Secure != secure {
+			t.Errorf("Secure = %v, want %v", c.Secure, secure)
+		}
 	}
 }

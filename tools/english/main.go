@@ -165,6 +165,11 @@ var germanVoice = map[string]bool{
 	// and they are multi-line raw strings, which a per-line waiver cannot mark
 	// without writing the marker into the page itself.
 	"internal/admin/starter.go": true,
+	// The privacy template composed from the functions a website uses. Like the
+	// starter pages above it is CONTENT an operator opens, completes and
+	// rewrites, and its German is the page itself, in raw sentences that a
+	// per-line waiver cannot mark.
+	"internal/privacy/text.go": true,
 }
 
 // aboutGerman are the files whose COMMENTS are about German and cannot be

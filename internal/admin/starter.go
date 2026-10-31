@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/privacy"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -15,6 +16,9 @@ type starterPage struct {
 	slug     string
 	status   string
 	markdown string
+	// compose, when set, writes the Markdown from what the website uses at the
+	// moment it is created, and markdown stays empty.
+	compose func(privacy.Features) string
 }
 
 // starterPages are what a brand-new website starts with.
@@ -23,6 +27,12 @@ type starterPage struct {
 // which is the first thing the owner sees after pointing DNS at it. The two
 // legal pages are drafts: they are scaffolding to fill in, and publishing an
 // empty imprint would be worse than having none.
+//
+// The privacy page is composed when the website is created, from the functions
+// the website uses (internal/privacy), so it never says the site sets no
+// cookies while a shop on it does. It is a draft for the reason above: the
+// responsible body and the processors are fill-in markers. The page types
+// are the ones that always existed; only this page's content is new.
 var starterPages = []starterPage{
 	{
 		title:  "Startseite",
@@ -76,38 +86,10 @@ verpflichtend sind, hängt von Rechtsform und Tätigkeit ab.
 `,
 	},
 	{
-		title:  "Datenschutzerklärung",
-		slug:   "datenschutz",
-		status: "draft",
-		markdown: `## Datenschutz auf einen Blick
-
-**Diese Seite ist eine Vorlage und noch nicht ausgefüllt.** Prüfe die Angaben
-und veröffentliche die Seite erst danach.
-
-## Verantwortliche Stelle
-
-Name, Anschrift und Kontaktdaten der verantwortlichen Stelle im Sinne von
-Art. 4 Abs. 7 DSGVO.
-
-## Welche Daten beim Besuch dieser Website anfallen
-
-Diese Website setzt keine Cookies, bindet nichts von fremden Servern ein und
-verwendet keine Analysewerkzeuge. Beim Aufruf einer Seite verarbeitet der
-Server die technisch notwendigen Verbindungsdaten (IP-Adresse, Zeitpunkt,
-aufgerufene Adresse) — trage hier ein, wie lange diese Protokolle aufbewahrt
-werden.
-
-## Deine Rechte
-
-Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17),
-Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und
-Widerspruch (Art. 21). Außerdem besteht ein Beschwerderecht bei einer
-Datenschutz-Aufsichtsbehörde.
-
----
-
-Diese Vorlage ersetzt keine Rechtsberatung.
-`,
+		title:   "Datenschutzerklärung",
+		slug:    "datenschutz",
+		status:  "draft",
+		compose: privacy.Compose,
 	},
 }
 
@@ -120,8 +102,22 @@ Diese Vorlage ersetzt keine Rechtsberatung.
 func (h *Handler) createStarterContent(ctx context.Context, websiteID int64, userID *int64) {
 	created := make(map[string]int64, len(starterPages))
 
+	// A brand-new website uses none of the functions, so the zero value is the
+	// true answer when it cannot be read; the log says it could not.
+	var features privacy.Features
+	if ws, err := h.domains.GetWebsite(ctx, websiteID); err != nil || ws == nil {
+		slog.Error("read website for starter privacy page", "err", err, "website", websiteID)
+	} else if features, err = h.privacyFeatures(ctx, ws); err != nil {
+		slog.Error("detect website functions for starter privacy page", "err", err, "website", websiteID)
+		features = privacy.Features{}
+	}
+
 	for _, sp := range starterPages {
-		html, err := page.RenderMarkdown(sp.markdown)
+		markdown := sp.markdown
+		if sp.compose != nil {
+			markdown = sp.compose(features)
+		}
+		html, err := page.RenderMarkdown(markdown)
 		if err != nil {
 			slog.Error("render starter page", "err", err, "slug", sp.slug)
 			continue
@@ -130,10 +126,10 @@ func (h *Handler) createStarterContent(ctx context.Context, websiteID int64, use
 			WebsiteID: websiteID,
 			Title:     sp.title,
 			Slug:      sp.slug,
-			Markdown:  sp.markdown,
+			Markdown:  markdown,
 			HTML:      html,
 			Status:    sp.status,
-			Meta:      page.PageMeta{Excerpt: page.Excerpt(sp.markdown)},
+			Meta:      page.PageMeta{Excerpt: page.Excerpt(markdown)},
 			UserID:    userID,
 		})
 		if err != nil {

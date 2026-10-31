@@ -120,6 +120,66 @@ func TestUnprotectingClearsTheSecret(t *testing.T) {
 	}
 }
 
+func TestHasProtected(t *testing.T) {
+	s, ws := newTestStore(t)
+	ctx := context.Background()
+
+	res, err := s.DB.Write.Exec(`INSERT INTO websites (name, description) VALUES ('Other', '')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _ := res.LastInsertId()
+
+	has := func(id int64) bool {
+		t.Helper()
+		got, err := s.HasProtected(ctx, id)
+		if err != nil {
+			t.Fatalf("HasProtected: %v", err)
+		}
+		return got
+	}
+
+	if has(ws) {
+		t.Fatal("a website with no protected page reports one")
+	}
+
+	p := seed(t, s, ws, "Preisliste", "preisliste", "x", "draft")
+	if has(ws) {
+		t.Fatal("an unprotected page counts as protected")
+	}
+
+	if err := s.SetAccess(ctx, p.ID, AccessUpdate{Protected: true, Password: "holz2026"}, cheapParams); err != nil {
+		t.Fatal(err)
+	}
+	if !has(ws) {
+		t.Error("a protected draft does not count (the text must name the cookie before the page goes live)")
+	}
+	if has(other) {
+		t.Error("the protected page of one website counts for another")
+	}
+
+	if err := s.TrashPage(ctx, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if has(ws) {
+		t.Error("a protected page in the wastebasket still counts")
+	}
+
+	q := seed(t, s, ws, "Intern", "intern", "x", "published")
+	if err := s.SetAccess(ctx, q.ID, AccessUpdate{Protected: true, Password: "holz2026"}, cheapParams); err != nil {
+		t.Fatal(err)
+	}
+	if !has(ws) {
+		t.Fatal("a protected published page does not count")
+	}
+	if err := s.SetAccess(ctx, q.ID, AccessUpdate{Protected: false}, cheapParams); err != nil {
+		t.Fatal(err)
+	}
+	if has(ws) {
+		t.Error("a page whose protection was switched off still counts")
+	}
+}
+
 func TestAProtectedPageIsServedButNeverListed(t *testing.T) {
 	s, ws := newTestStore(t)
 	ctx := context.Background()

@@ -421,3 +421,41 @@ func TestAMultipleChoiceInAnOwnBlockKindSurvivesSaving(t *testing.T) {
 		t.Errorf("gespeichert wurde %q, wollte %q", got, will)
 	}
 }
+
+// The image position of an image-text block, the whole way: the form posts it,
+// the page stores and renders it, the reopened editor offers all four and has
+// the chosen one selected.
+func TestImagePositionIsStoredRenderedAndOfferedAgain(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+
+	req := postForm("/admin/websites/1/pages/new", blockForm(ws.ID, url.Values{
+		"b0.typ":      {"bildtext"},
+		"b0.markdown": {"Neben dem Bild."},
+		"b0.variante": {"oben"},
+	}), map[string]string{"id": strconv.FormatInt(ws.ID, 10)})
+	serve(t, h, sm, h.HandlePageCreate, req)
+
+	p, err := page.NewStore(database).GetPageBySlug(context.Background(), ws.ID, "start")
+	if err != nil || p == nil {
+		t.Fatalf("the page was not created: %v", err)
+	}
+	if !strings.Contains(p.ContentHTML, `hc-bildtext hc-bildtext--oben`) {
+		t.Errorf("the position did not reach the markup:\n%s", p.ContentHTML)
+	}
+
+	get := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
+	get.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	get.SetPathValue("pageID", strconv.FormatInt(p.ID, 10))
+	body := serve(t, h, sm, h.HandlePageEdit, get).Body.String()
+
+	for _, want := range []string{
+		`<option value=""`, `<option value="rechts"`, `<option value="oben" selected`, `<option value="unten"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("%q is missing from the reopened editor", want)
+		}
+	}
+	if strings.Contains(body, `<option value="" selected`) {
+		t.Error("left is selected although the page stores above")
+	}
+}

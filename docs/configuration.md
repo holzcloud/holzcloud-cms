@@ -16,7 +16,7 @@ no configuration file: a process with the right environment is the whole setup.
 | `HOLZCLOUD_MAX_TEMPLATE_SIZE` | `10485760` | Largest template archive, in bytes (10 MB) |
 | `HOLZCLOUD_MAX_MEDIA_SIZE` | `5242880` | Largest media file, in bytes (5 MB) |
 | `HOLZCLOUD_MAX_VIDEO_SIZE` | `67108864` | Largest video file, in bytes (64 MB) |
-| `HOLZCLOUD_MAX_MEGAPIXELS` | `24` | Largest image area decoded for scaled-down versions |
+| `HOLZCLOUD_MAX_MEGAPIXELS` | `24` | Largest image area decoded for scaled-down versions; the "scale down to 2560 px?" question is only offered for images within it |
 | `HOLZCLOUD_ARGON2_MEMORY` | `65536` | Argon2id memory cost in KB (64 MB) |
 | `HOLZCLOUD_ARGON2_ITERATIONS` | `1` | Argon2id time cost |
 | `HOLZCLOUD_ARGON2_PARALLELISM` | `2` | Argon2id parallelism |
@@ -123,6 +123,8 @@ data/
   holzcloud.sqlite-wal      the write-ahead log
   csrf.key                  CSRF encryption key (32 bytes, generated on first run)
   media/{website_id}/       uploaded media
+  media-staging/{website_id}/  images waiting for the "scale down?" question;
+                            cleared after an hour, not part of the backup
   templates/{slug}/         uploaded template archives, extracted
   plugins/{name}/           installed plugin modules (plugin.json, plugin.wasm)
   sprachen/                 admin translations added at runtime (optional)

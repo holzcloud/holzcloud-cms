@@ -1,0 +1,41 @@
+{{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/media" class="btn">{{t "Back to the media library"}}</a>{{end}}
+
+{{define "content"}}
+{{template "media_scale-content" .}}
+{{end}}
+
+{{define "media_scale-content"}}
+<!-- Ein gewöhnliches Formular, ohne hx-post: Die Seite hat damit einen einzigen
+     Weg, mit und ohne Skript, und die Antwort ist in beiden dieselbe Anfrage. -->
+<form method="POST" action="/admin/websites/{{.WebsiteID}}/media/scale" class="card scale-question">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    <input type="hidden" name="token" value="{{.Token}}">
+
+    <h2>{{tf "Scale down to fit within %d px?" .MaxSide}}</h2>
+    <p>
+        {{tf "These images are larger than %d px on their longest side. Scaled down to fit, they load faster and take up less space; the proportions stay the same." .MaxSide}}
+    </p>
+
+    <ul class="scale-files">
+        {{range .Files}}
+        <li>
+            <strong>{{.Name}}</strong>
+            <span class="text-muted">{{tf "%d × %d px, becomes %d × %d px" .Width .Height .ScaledWidth .ScaledHigh}}</span>
+        </li>
+        {{end}}
+    </ul>
+
+    <div class="form-actions">
+        <button type="submit" name="decision" value="scale" class="btn btn--primary" hx-disabled-elt="this">
+            {{t "Yes, scale down"}}
+        </button>
+        <button type="submit" name="decision" value="keep" class="btn" hx-disabled-elt="this">
+            {{t "No, keep the originals"}}
+        </button>
+    </div>
+
+    <p class="form-hint text-muted">
+        {{t "The choice applies to every image on this page. A scaled image is saved anew; the original is not kept."}}
+    </p>
+</form>
+{{end}}
