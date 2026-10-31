@@ -30,7 +30,7 @@ only together with the record that proves it. No feature is built.
 
 ### Real server (SRV)
 
-- [ ] **SRV-01**: The five plugins run under `MemoryDenyWriteExecute=true` on **native amd64** (a GitHub-hosted runner counts), and native backup and restore timings replace the emulation figures.
+- [x] **SRV-01**: The five plugins run under `MemoryDenyWriteExecute=true` on **native amd64** (a GitHub-hosted runner counts), and native backup and restore timings replace the emulation figures.
 - [ ] **SRV-02**: A restore on a real server, from a backup made there, to a different path, is handed over as owner steps and the result is recorded when the owner has made it.
 - [ ] **SRV-03**: A reboot with the service and timer units enabled brings the site back; same hand-over and recording as SRV-02.
 
@@ -106,7 +106,7 @@ The owner also decided on 2026-10-26 to change the shipped `backup.sh`: retry rs
 | CON-01 | Phase 25 | Complete |
 | CON-02 | Phase 25 | Complete |
 | CON-03 | Phase 25 | Complete |
-| SRV-01 | Phase 26 | Pending owner |
+| SRV-01 | Phase 26 | Complete |
 | SRV-02 | Phase 26 | Pending owner |
 | SRV-03 | Phase 26 | Pending owner |
 | TIDY-01 | Phase 27 | Complete |

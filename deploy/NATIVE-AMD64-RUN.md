@@ -12,11 +12,11 @@ Every requirement is in one of two states, `pending owner` or `recorded`. `bash 
 
 | Requirement | Result | Platform | Date, commit |
 |-------------|--------|----------|--------------|
-| SRV-01 | PENDING OWNER. The button and the verdict rules exist and were exercised as far as an arm64 machine allows: the guard that keeps an arm64 run from reading as amd64 evidence ended `SRV-01 NOT-NATIVE` with exit 3 in the rehearsal of this plan. No native amd64 run has been made, no native figure replaces the emulation figures, and the plugins have not been seen under `MemoryDenyWriteExecute=true` on amd64. Outstanding: the owner presses the button (O-1) and the result is recorded | GitHub-hosted runner, linux/amd64, a privileged container with systemd 252 (not yet run) | not run |
+| SRV-01 | PASS. The five plugins ran under `MemoryDenyWriteExecute=true` on native amd64 (canary `enforced`, `MDWE-WORD: SETTLED`, 17 of 17 assertions, control on the compiler). Backup and restore were timed natively: seed point `BACKUP-WALL-S=0.258`, `RESTORE-WALL-S=3.338`, `START-READY-S=3.049`; bulk point `BACKUP-WALL-S=0.507`, `RESTORE-WALL-S=3.571`, `START-READY-S=3.049` (emulation: 0.692 / 8.126 / 7.397 and 1.015 / 8.296 / 7.379). A first run (41197606780) failed in the harness (`tar: unrecognized option '--no-mac-metadata'`, GNU tar) and is not evidence; the tar shim fixed it | GitHub-hosted runner, linux/amd64 (Linux 7.0.0-1017-azure), a privileged container with systemd | 2026-10-31, 3a29a1c |
 | SRV-02 | PENDING OWNER. Owner step O-2 exists, with its expected output observed once in a container rehearsal. No restore has been made on a real server. Outstanding: the owner runs O-2 and the result is recorded | The owner's server (not yet run) | not run |
 | SRV-03 | PENDING OWNER. Owner step O-3 exists, with its expected output observed once in a container rehearsal, where a container restart stood in for the reboot. No real server has been rebooted. Outstanding: the owner runs O-3 and the result is recorded | The owner's server (not yet run) | not run |
 
-Evidence commit: none (pending owner)
+Evidence commit: 3a29a1c7c7a15be89a75a71ac39e8504c45d38fe
 
 The line above is the only one of its kind outside the appendix. It becomes the sha of the run's commit (the `COMMIT:` line of the pasted summary) in the commit that records SRV-01 as `recorded`, and in no other.
 
@@ -53,11 +53,40 @@ POINT bulk: BACKUP-BYTES=335125851 BACKUP-WALL-S=1.015 RESTORE-WALL-S=8.296 VERI
 
 The verdict rule, as the script applies it and as `record-check` recomputes it from the lines of the pasted summary: PASS only when the Docker host and the container are x86_64, `run.sh`'s own word is SETTLED (the canary says the directive is enforced, all assertions hold under the shipped unit, and the control with the directive off runs on the compiler), and the chain summary has `BAK-01`, `BAK-02`, `BAK-03` and `RESTORE-NEGATIVE` as PASS, `LEAK-CHECK OK` and numeric `POINT seed:` and `POINT bulk:` lines. A PASS says that the five plugins run on wazero's interpreter fallback under the shipped unit, which is what the unit's comment says. The other words: VOID (the canary reports `Seccomp: 0`, so the plugin run proves nothing about the directive, and the requirement stays open; exit 3), NOT-NATIVE (the Docker host or the container is not x86_64, decided first so that an arm64 SETTLED never reads as amd64 evidence; exit 3), FAIL (the plugins do not load under the shipped unit, or a chain line is missing; exit 1) and NOT-RUN (a stage was not played; exit 1). Only PASS can be recorded.
 
-Status: pending owner
-Result (owner): pending
+Status: recorded
+Result (owner): recorded
 
 ```text
-(nothing pasted yet)
+---- native amd64 summary ----
+COMMIT: 3a29a1c7c7a15be89a75a71ac39e8504c45d38fe
+RUN: https://github.com/holzcloud/holzcloud-cms/actions/runs/41200578718 attempt 1
+RUNNER-ENVIRONMENT: github-hosted
+RUNNER-KERNEL: Linux 7.0.0-1017-azure
+HOST-ARCH: x86_64
+CONTAINER-ARCH: x86_64
+CANARY: enforced
+SECCOMP-SHIPPED: 2
+ENGINE-SHIPPED: interpreter
+ENGINE-CONTROL: compiler
+ASSERTIONS-SHIPPED: 17
+ASSERTIONS-CONTROL: 17
+MDWE-WORD: SETTLED
+MDWE-STATUS: 0
+TIMING-STATUS: 0
+BAK-01 PASS
+BAK-02 PASS
+BAK-03 PASS
+RESTORE-NEGATIVE PASS
+POINT seed: BACKUP-BYTES=20548954 BACKUP-WALL-S=0.258 RESTORE-WALL-S=3.338 VERIFY-S=0.013 STOP-MOVE-COPY-S=0.254 START-READY-S=3.049
+POINT bulk: BACKUP-BYTES=335125850 BACKUP-WALL-S=0.507 RESTORE-WALL-S=3.571 VERIFY-S=0.013 STOP-MOVE-COPY-S=0.487 START-READY-S=3.049
+TIMER: TRIGGERED-BY=holzcloud-backup.timer RESULT=success
+STEPS: 78 played, 0 failed
+DEVIATIONS: backup-name fixture mount scp timer transfer
+LEAK-CHECK OK
+SRV-01-MDWE PASS
+SRV-01-TIMING PASS
+SRV-01 PASS
+NATIVE-AMD64 DONE
 ```
 
 ## SRV-02: a restore on a real server, from a backup made there, to a different path
@@ -369,3 +398,347 @@ The rule is the same for all five: a line moves only when the matching `Status:`
 ## Appendix: raw output
 
 This appendix is empty until SRV-01 is recorded. It is assembled with `bash deploy/test/native-amd64.sh appendix`: a fixed list of thirteen files, each as a level-four heading `DIRECTORY/FILE` and a text block that holds the file unchanged, taken from the evidence artifact unpacked under `deploy/test/out`. It is pasted below this paragraph in the commit that records SRV-01. `record-check` then compares every block with its file byte for byte (a missing final newline is normalised) and the block of `amd64-native/native-summary.txt` with the `Result (owner)` block of SRV-01. The files that are never pasted are `step-NN.txt`, `seed.txt`, logs, cookie jars and key files; the evidence bundle drops them before the artifact is made.
+
+#### amd64-native/native-summary.txt
+
+```text
+---- native amd64 summary ----
+COMMIT: 3a29a1c7c7a15be89a75a71ac39e8504c45d38fe
+RUN: https://github.com/holzcloud/holzcloud-cms/actions/runs/41200578718 attempt 1
+RUNNER-ENVIRONMENT: github-hosted
+RUNNER-KERNEL: Linux 7.0.0-1017-azure
+HOST-ARCH: x86_64
+CONTAINER-ARCH: x86_64
+CANARY: enforced
+SECCOMP-SHIPPED: 2
+ENGINE-SHIPPED: interpreter
+ENGINE-CONTROL: compiler
+ASSERTIONS-SHIPPED: 17
+ASSERTIONS-CONTROL: 17
+MDWE-WORD: SETTLED
+MDWE-STATUS: 0
+TIMING-STATUS: 0
+BAK-01 PASS
+BAK-02 PASS
+BAK-03 PASS
+RESTORE-NEGATIVE PASS
+POINT seed: BACKUP-BYTES=20548954 BACKUP-WALL-S=0.258 RESTORE-WALL-S=3.338 VERIFY-S=0.013 STOP-MOVE-COPY-S=0.254 START-READY-S=3.049
+POINT bulk: BACKUP-BYTES=335125850 BACKUP-WALL-S=0.507 RESTORE-WALL-S=3.571 VERIFY-S=0.013 STOP-MOVE-COPY-S=0.487 START-READY-S=3.049
+TIMER: TRIGGERED-BY=holzcloud-backup.timer RESULT=success
+STEPS: 78 played, 0 failed
+DEVIATIONS: backup-name fixture mount scp timer transfer
+LEAK-CHECK OK
+SRV-01-MDWE PASS
+SRV-01-TIMING PASS
+SRV-01 PASS
+NATIVE-AMD64 DONE
+```
+
+#### amd64-native/runner.txt
+
+```text
+UNAME: Linux 7.0.0-1017-azure x86_64
+CPU: AMD EPYC 7763 64-Core Processor
+DOCKER: 29.4.2 x86_64
+RUNNER_ENVIRONMENT: github-hosted
+RUNNER_OS: Linux
+RUNNER_ARCH: X64
+ImageOS: ubuntu26
+ImageVersion: 20261026.180.1
+GITHUB_REPOSITORY: holzcloud/holzcloud-cms
+GITHUB_SHA: 3a29a1c7c7a15be89a75a71ac39e8504c45d38fe
+GITHUB_RUN_ID: 41200578718
+GITHUB_RUN_ATTEMPT: 1
+GITHUB_WORKFLOW: native-amd64
+```
+
+#### amd64-native-mdwe/versions.txt
+
+```text
+host architecture:     x86_64
+host operating system: Ubuntu 26.04.1 LTS
+host kernel:           7.0.0-1017-azure
+container uname:       Linux 7.0.0-1017-azure x86_64
+container systemd:     systemd 252 (252.39-1~deb12u2)
+container os:          PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+```
+
+#### amd64-native-mdwe/canary.txt
+
+```text
+== MemoryDenyWriteExecute=yes ==
+mmap RW                ALLOWED
+mprotect RW->RX        denied (operation not permitted)
+mmap RWX               denied (operation not permitted)
+socket AF_NETLINK      denied (address family not supported by protocol)
+socket AF_INET         ALLOWED
+stat /proc/sys         denied (no such file or directory)
+stat /dev/kmsg         denied (no such file or directory)
+write /etc             denied (read-only file system)
+Seccomp:	2
+Seccomp_filters:	17
+
+== MemoryDenyWriteExecute=no (control) ==
+mmap RW                ALLOWED
+mprotect RW->RX        ALLOWED
+mmap RWX               ALLOWED
+socket AF_NETLINK      denied (address family not supported by protocol)
+socket AF_INET         ALLOWED
+stat /proc/sys         denied (no such file or directory)
+stat /dev/kmsg         denied (no such file or directory)
+write /etc             denied (read-only file system)
+Seccomp:	2
+Seccomp_filters:	14
+```
+
+#### amd64-native-mdwe/check.txt
+
+```text
+PASS loaded bestellung
+PASS loaded jahreszahl
+PASS loaded kontaktformular
+PASS loaded nicht-gefunden
+PASS loaded suche
+PASS no-load-failures
+PASS running bestellung
+PASS running jahreszahl
+PASS running kontaktformular
+PASS running nicht-gefunden
+PASS running suche
+PASS invoke jahreszahl
+PASS invoke kontaktformular
+PASS invoke bestellung
+PASS invoke suche
+PASS invoke nicht-gefunden
+PASS stable
+engine: interpreter (0 anonymous executable mappings)
+# hook budget CallTimeout is 2 s (internal/plugin/runtime.go); the medians are of ten requests
+LATENCY /plugintest median_s=0.031715 n=10
+LATENCY /suche?q=Plugintest median_s=0.019108 n=10
+LATENCY /formular median_s=0.002383 n=10
+LATENCY /bestellung median_s=0.002035 n=10
+Seccomp:	2
+Seccomp_filters:	34
+NRestarts=0
+Result=success
+{"time":"2026-10-31T12:21:04.821170579Z","level":"INFO","msg":"plugin loaded","plugin":"kontaktformular","version":"1.5.0"}
+{"time":"2026-10-31T12:21:05.125326044Z","level":"INFO","msg":"plugin loaded","plugin":"bestellung","version":"1.0.0"}
+{"time":"2026-10-31T12:21:05.271429721Z","level":"INFO","msg":"plugin loaded","plugin":"nicht-gefunden","version":"1.0.0"}
+{"time":"2026-10-31T12:21:05.430209907Z","level":"INFO","msg":"plugin loaded","plugin":"suche","version":"1.0.0"}
+{"time":"2026-10-31T12:21:05.569609619Z","level":"INFO","msg":"plugin loaded","plugin":"jahreszahl","version":"1.0.0"}
+```
+
+#### amd64-native-mdwe/mdwe-control.txt
+
+```text
+PASS loaded bestellung
+PASS loaded jahreszahl
+PASS loaded kontaktformular
+PASS loaded nicht-gefunden
+PASS loaded suche
+PASS no-load-failures
+PASS running bestellung
+PASS running jahreszahl
+PASS running kontaktformular
+PASS running nicht-gefunden
+PASS running suche
+PASS invoke jahreszahl
+PASS invoke kontaktformular
+PASS invoke bestellung
+PASS invoke suche
+PASS invoke nicht-gefunden
+PASS stable
+engine: compiler (9 anonymous executable mappings)
+# hook budget CallTimeout is 2 s (internal/plugin/runtime.go); the medians are of ten requests
+LATENCY /plugintest median_s=0.006850 n=10
+LATENCY /suche?q=Plugintest median_s=0.004787 n=10
+LATENCY /formular median_s=0.000585 n=10
+LATENCY /bestellung median_s=0.000528 n=10
+Seccomp:	2
+Seccomp_filters:	31
+NRestarts=0
+Result=success
+{"time":"2026-10-31T12:21:12.430567532Z","level":"INFO","msg":"plugin loaded","plugin":"kontaktformular","version":"1.5.0"}
+{"time":"2026-10-31T12:21:14.074582381Z","level":"INFO","msg":"plugin loaded","plugin":"bestellung","version":"1.0.0"}
+{"time":"2026-10-31T12:21:15.337853312Z","level":"INFO","msg":"plugin loaded","plugin":"nicht-gefunden","version":"1.0.0"}
+{"time":"2026-10-31T12:21:16.61104391Z","level":"INFO","msg":"plugin loaded","plugin":"suche","version":"1.0.0"}
+{"time":"2026-10-31T12:21:17.781315905Z","level":"INFO","msg":"plugin loaded","plugin":"jahreszahl","version":"1.0.0"}
+```
+
+#### amd64-native-mdwe/verdict.txt
+
+```text
+MDWE VERDICT: SETTLED - MemoryDenyWriteExecute=true is enforced here (canary: enforced), all five plugins loaded and ran on wazero's interpreter fallback (17/17 assertions), the control with the directive off ran on the compiler engine (17/17), and the unit stays unchanged
+```
+
+#### amd64-native-bak-src/summary.txt
+
+```text
+---- summary (linux/amd64) ----
+BAK-01 PASS
+BAK-02 PASS
+BAK-03 PASS
+RESTORE-NEGATIVE PASS
+POINT seed: BACKUP-BYTES=20548954 BACKUP-WALL-S=0.258 RESTORE-WALL-S=3.338 VERIFY-S=0.013 STOP-MOVE-COPY-S=0.254 START-READY-S=3.049
+POINT bulk: BACKUP-BYTES=335125850 BACKUP-WALL-S=0.507 RESTORE-WALL-S=3.571 VERIFY-S=0.013 STOP-MOVE-COPY-S=0.487 START-READY-S=3.049
+TIMER: TRIGGERED-BY=holzcloud-backup.timer RESULT=success
+STEPS: 78 played, 0 failed
+DEVIATIONS: backup-name fixture mount scp timer transfer
+LEAK-CHECK OK
+```
+
+#### amd64-native-bak-src/backup.txt
+
+```text
+DIR: /opt/holzcloud/backups/20261031-122230
+WALL-S: 0.258
+FREE-MB: 84038
+DIR-OWNER-MODE: holzcloud 700
+BYTES: 20548954
+SIZE: 20M
+DB-BYTES: 663552
+MEDIA-BYTES: 39983
+FILES: 18
+MEDIA-FILES: 3
+HOST-ARCH: x86_64
+CONTAINER-ARCH: x86_64
+MEDIA-SERVED: HTTP 200 925d26e12cb8ed51e272c6cadba3f6fb5d32f4af8bf06d1d2123ddbf8a176577
+```
+
+#### amd64-native-bak-src/versions.txt
+
+```text
+host architecture:     x86_64
+host operating system: Ubuntu 26.04.1 LTS
+host kernel:           7.0.0-1017-azure
+container uname:       Linux 7.0.0-1017-azure x86_64
+container systemd:     systemd 252 (252.39-1~deb12u2)
+container os:          PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+```
+
+#### amd64-native-bak-tgt/restore.txt
+
+```text
+DIR: /opt/holzcloud/backups/20261031-122332
+SETUP-BEFORE: HTTP 200 -
+PASS setup form open before the restore (the empty database of the first start)
+PASS restore: the document's restore block ran without a failing step
+READYZ: {"status":"ok","version":"v0.1.0-20-g3a29a1c","commit":"3a29a1c","integrity":"ok"}
+PASS readyz status ok, integrity ok
+LOGIN: HTTP 303 /admin/
+PASS login with the password the user had before: 303 to /admin/
+SETUP-AFTER: HTTP 404 -
+PASS setup form closed after the restore (the restored database has users)
+VERIFY-S: 0.013
+STOP-MOVE-COPY-S: 0.254
+START-READY-S: 3.049
+WALL-S: 3.338
+INFO the readiness loop of restore.sh polls once a second, so START-READY-S has a resolution of about one second; the times come from the amd64 emulation named in HOST-ARCH and CONTAINER-ARCH, not from a real server
+DATA-BYTES: 20618714
+DB-BYTES: 663552
+MEDIA-BYTES: 39983
+FILES: 19
+MEDIA-FILES: 3
+HOST-ARCH: x86_64
+CONTAINER-ARCH: x86_64
+BACKUP-BYTES: 20548954
+PASS set-aside: exactly one /opt/holzcloud/data.before-restore-20261031-122337
+PASS set-aside database is the empty one of the first start (users: 0)
+INFO restore.sh moves the whole data directory aside, so the -wal and -shm files of the replaced database went with it; none can reach the restored file, and the proof is that the restored database passes the row comparison and the integrity verdict
+PASS owner and mode of /opt/holzcloud/data: holzcloud:holzcloud 700
+PASS owner and mode of /opt/holzcloud/data/holzcloud.sqlite: holzcloud:holzcloud 600
+PASS owner and mode of /opt/holzcloud/data/csrf.key: holzcloud:holzcloud 600
+PASS owner and mode of /opt/holzcloud/data/media/1/5dc4634de209a6fe1f9cc412246b05ec-medium.jpg: holzcloud:holzcloud 600
+INFO EXCLUDED holzcloud.sqlite*: the SQLite family: the database is compared by integrity and by row counts, because a snapshot is a different file from the live one by design, and the -wal and -shm files are working files of the live one
+INFO EXCLUDED pre-upgrade-*.sqlite*: old-schema copies the service writes before a migration, deliberately not part of a backup
+INFO EXCLUDED MANIFEST: only a backup has one; it names the version and the host that made it
+PASS tree src-restored: 16 files equal
+PASS tree backup-restored: 16 files equal
+MEDIA-SERVED: HTTP 200 925d26e12cb8ed51e272c6cadba3f6fb5d32f4af8bf06d1d2123ddbf8a176577
+PASS media served over HTTP: same status and sha256 as in the source (HTTP 200 925d26e12cb8ed51e272c6cadba3f6fb5d32f4af8bf06d1d2123ddbf8a176577)
+PASS marker page: GET /after-update answers 200 with its sentence
+PASS state comparison source against target: 53 pass, 0 bad (compare-src-tgt.txt)
+INFO owner and mode of holzcloud.sqlite: source 'holzcloud 600', restored 'holzcloud 600' (the data directory is 700)
+COMES-BACK: csrf.key holzcloud.sqlite marke media plugins sprachen (the top-level entries of the backup directory that are in the restored data directory)
+INFO in the restored data directory and not from the backup, made by the service's own start: holzcloud.sqlite-shm holzcloud.sqlite-wal
+HAND-REBUILT: the unit file /etc/systemd/system/holzcloud.service (written by the install, no backup holds it)
+HAND-REBUILT: no drop-ins on the unit
+HAND-REBUILT: no environment file is configured on this unit; on a real server HOLZCLOUD_SECRET_KEY and payment or mail credentials live in one, never in the data directory, so no backup holds them
+HAND-REBUILT: /root/.hc-login-pass (a test fixture carried from the source by exec-pipe; it stands in for what the operator remembers, no backup holds it)
+HAND-REBUILT: /root/.hc-key (a test fixture carried from the source by exec-pipe; it stands in for what the operator remembers, no backup holds it)
+HAND-REBUILT: /tmp/hc-upload.jpg (a test fixture carried from the source by exec-pipe; it stands in for what the operator remembers, no backup holds it)
+PASS check: 17 of 17 assertions passed (check.txt)
+```
+
+#### amd64-native-bak-src-bulk/backup.txt
+
+```text
+DIR: /opt/holzcloud/backups/20261031-122356
+WALL-S: 0.507
+FREE-MB: 83661
+DIR-OWNER-MODE: holzcloud 700
+BYTES: 335125850
+SIZE: 320M
+DB-BYTES: 663552
+MEDIA-BYTES: 314612783
+FILES: 78
+MEDIA-FILES: 63
+HOST-ARCH: x86_64
+CONTAINER-ARCH: x86_64
+MEDIA-SERVED: HTTP 200 925d26e12cb8ed51e272c6cadba3f6fb5d32f4af8bf06d1d2123ddbf8a176577
+```
+
+#### amd64-native-bak-tgt-bulk/restore.txt
+
+```text
+DIR: /opt/holzcloud/backups/20261031-122356
+SETUP-BEFORE: HTTP 200 -
+PASS setup form open before the restore (the empty database of the first start)
+PASS restore: the document's restore block ran without a failing step
+READYZ: {"status":"ok","version":"v0.1.0-20-g3a29a1c","commit":"3a29a1c","integrity":"ok"}
+PASS readyz status ok, integrity ok
+LOGIN: HTTP 303 /admin/
+PASS login with the password the user had before: 303 to /admin/
+SETUP-AFTER: HTTP 404 -
+PASS setup form closed after the restore (the restored database has users)
+VERIFY-S: 0.013
+STOP-MOVE-COPY-S: 0.487
+START-READY-S: 3.049
+WALL-S: 3.571
+INFO the readiness loop of restore.sh polls once a second, so START-READY-S has a resolution of about one second; the times come from the amd64 emulation named in HOST-ARCH and CONTAINER-ARCH, not from a real server
+DATA-BYTES: 335195610
+DB-BYTES: 663552
+MEDIA-BYTES: 314612783
+FILES: 79
+MEDIA-FILES: 63
+HOST-ARCH: x86_64
+CONTAINER-ARCH: x86_64
+BACKUP-BYTES: 335125850
+PASS set-aside: exactly one /opt/holzcloud/data.before-restore-20261031-122417
+PASS set-aside database is the empty one of the first start (users: 0)
+INFO restore.sh moves the whole data directory aside, so the -wal and -shm files of the replaced database went with it; none can reach the restored file, and the proof is that the restored database passes the row comparison and the integrity verdict
+PASS owner and mode of /opt/holzcloud/data: holzcloud:holzcloud 700
+PASS owner and mode of /opt/holzcloud/data/holzcloud.sqlite: holzcloud:holzcloud 600
+PASS owner and mode of /opt/holzcloud/data/csrf.key: holzcloud:holzcloud 600
+PASS owner and mode of /opt/holzcloud/data/media/1/5dc4634de209a6fe1f9cc412246b05ec-medium.jpg: holzcloud:holzcloud 600
+INFO EXCLUDED holzcloud.sqlite*: the SQLite family: the database is compared by integrity and by row counts, because a snapshot is a different file from the live one by design, and the -wal and -shm files are working files of the live one
+INFO EXCLUDED pre-upgrade-*.sqlite*: old-schema copies the service writes before a migration, deliberately not part of a backup
+INFO EXCLUDED MANIFEST: only a backup has one; it names the version and the host that made it
+PASS tree src-restored: 76 files equal
+PASS tree backup-restored: 76 files equal
+MEDIA-SERVED: HTTP 200 925d26e12cb8ed51e272c6cadba3f6fb5d32f4af8bf06d1d2123ddbf8a176577
+PASS media served over HTTP: same status and sha256 as in the source (HTTP 200 925d26e12cb8ed51e272c6cadba3f6fb5d32f4af8bf06d1d2123ddbf8a176577)
+PASS marker page: GET /after-update answers 200 with its sentence
+PASS state comparison source against target: 53 pass, 0 bad (compare-src-tgt.txt)
+INFO owner and mode of holzcloud.sqlite: source 'holzcloud 600', restored 'holzcloud 600' (the data directory is 700)
+COMES-BACK: csrf.key holzcloud.sqlite marke media plugins sprachen (the top-level entries of the backup directory that are in the restored data directory)
+INFO in the restored data directory and not from the backup, made by the service's own start: holzcloud.sqlite-shm holzcloud.sqlite-wal
+HAND-REBUILT: the unit file /etc/systemd/system/holzcloud.service (written by the install, no backup holds it)
+HAND-REBUILT: no drop-ins on the unit
+HAND-REBUILT: no environment file is configured on this unit; on a real server HOLZCLOUD_SECRET_KEY and payment or mail credentials live in one, never in the data directory, so no backup holds them
+HAND-REBUILT: /root/.hc-login-pass (a test fixture carried from the source by exec-pipe; it stands in for what the operator remembers, no backup holds it)
+HAND-REBUILT: /root/.hc-key (a test fixture carried from the source by exec-pipe; it stands in for what the operator remembers, no backup holds it)
+HAND-REBUILT: /tmp/hc-upload.jpg (a test fixture carried from the source by exec-pipe; it stands in for what the operator remembers, no backup holds it)
+PASS check: 17 of 17 assertions passed (check.txt)
+```
+
