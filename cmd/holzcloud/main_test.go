@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -28,6 +29,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/plugin"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
@@ -69,6 +71,14 @@ type routerTweaks struct {
 	// TLS behind a proxy has it. The requests of a test stay plain HTTP, which
 	// is exactly what such a proxy passes on.
 	secure bool
+	// seed is called right after the migrations and before any handler is
+	// built, so the content exists when the router starts.
+	seed func(t *testing.T, database *db.DB, dataDir string)
+	// searchPlugin installs the shipped search plugin for every website that
+	// exists after the seed ran and wires its runtime and manager into the
+	// router, as main does. A missing module fails the test: a skipped search
+	// address would be a silent hole in a test that counts on it.
+	searchPlugin bool
 }
 
 func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionManager, *db.DB) {
@@ -82,6 +92,10 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	t.Cleanup(database.Close)
 	if err := db.RunMigrations(database.Write); err != nil {
 		t.Fatalf("migrations: %v", err)
+	}
+
+	if tw.seed != nil {
+		tw.seed(t, database, dir)
 	}
 
 	adminTemplatesFS, err := fs.Sub(staticFS, "templates/admin")
@@ -155,6 +169,12 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	if guard == nil {
 		guard = passthrough
 	}
+	var pluginManager *plugin.Manager
+	var pluginRT *plugin.Runtime
+	if tw.searchPlugin {
+		pluginRT, pluginManager = installSearchPlugin(t, database, dir, domainStore)
+		adminHandler.SetPlugins(pluginManager)
+	}
 	var productStore *shop.Store
 	var cartStore *shop.CartStore
 	var orderStore *shop.OrderStore
@@ -167,6 +187,8 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 		productStore:    productStore,
 		cartStore:       cartStore,
 		orderStore:      orderStore,
+		plugins:         pluginManager,
+		pluginRT:        pluginRT,
 		cfg:             cfg,
 		database:        database,
 		sm:              sm,
@@ -191,6 +213,79 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 		t.Fatalf("newRouter: %v", err)
 	}
 	return handler, sm, database
+}
+
+// installSearchPlugin installs the shipped search plugin, enables it for every
+// website in the database and returns the runtime and manager the router wants.
+//
+// It follows the plugin block of main and loadPlugin in internal/public: the
+// module is written below <dataDir>/plugins/<id>/ because the manager reads it
+// from disk, exactly as in the server.
+func installSearchPlugin(t *testing.T, database *db.DB, dataDir string, domainStore *domain.Store) (*plugin.Runtime, *plugin.Manager) {
+	t.Helper()
+	ctx := context.Background()
+
+	raw, err := os.ReadFile("../../plugins/suche/plugin.json")
+	if err != nil {
+		t.Fatalf("the search plugin's manifest is missing: %v", err)
+	}
+	manifest, err := plugin.ParseManifest(raw)
+	if err != nil {
+		t.Fatalf("the shipped manifest is invalid: %v", err)
+	}
+	module, err := os.ReadFile("../../plugins/suche/plugin.wasm")
+	if err != nil {
+		t.Fatalf("the search plugin's module is missing (build it with: go run ./tools/wasm): %v", err)
+	}
+
+	rows, err := database.Read.QueryContext(ctx, `SELECT id FROM websites ORDER BY id`)
+	if err != nil {
+		t.Fatalf("list websites: %v", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	store := plugin.NewStore(database)
+	if err := store.Install(ctx, &plugin.Package{
+		Manifest: manifest, Module: module, SHA256: strings.Repeat("c", 64),
+	}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	if err := store.SetEnabled(ctx, manifest.ID, true); err != nil {
+		t.Fatalf("SetEnabled: %v", err)
+	}
+	if err := store.SetWebsites(ctx, manifest.ID, ids); err != nil {
+		t.Fatalf("SetWebsites: %v", err)
+	}
+	pluginDir := filepath.Join(dataDir, "plugins", manifest.ID)
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, plugin.ModuleName), module, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := plugin.NewRuntime(ctx, store, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("NewRuntime: %v", err)
+	}
+	t.Cleanup(func() { rt.Close(context.Background()) })
+	rt.WithSettings(pluginSettings(domainStore))
+	manager, err := plugin.NewManager(ctx, store, rt, dataDir, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	return rt, manager
 }
 
 // seedUser inserts a user and returns a session cookie for them.
