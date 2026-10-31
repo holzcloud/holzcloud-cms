@@ -319,6 +319,7 @@
 "Background": "Sfondo",
 "Backup": "Backup",
 "Best week %s: %s": "Settimana migliore %s: %s",
+"Beta software: usable, but an update can still change things.": "Software in versione beta: utilizzabile, ma un aggiornamento può ancora cambiare delle cose.",
 "Between “pick one of the built-in templates” and “maintain a template of your own” sits exactly this: a handful of values every template picks up. None of them has to be set — empty means the template decides.": "Tra «scegliere uno dei temi inclusi» e «curare un tema proprio» sta esattamente questo: alcuni valori che ogni tema riprende. Nessuno di essi è obbligatorio — vuoto significa che decide il tema.",
 "Blank line": "Riga vuota",
 "Block kind changed.": "Tipo di blocco modificato.",
@@ -694,6 +695,7 @@
 "Issued keys": "Chiavi rilasciate",
 "It is a snapshot of the fields as they are now. A field created afterwards is missing from it and would simply arrive unmapped at the next import — which is what this list here would then show.": "È un'istantanea dei campi di adesso. Un campo creato dopo non c'è dentro e alla prossima importazione arriverebbe semplicemente non assegnato — cosa che allora mostrerebbe questo elenco.",
 "It is still being developed heavily. An update can change or remove features, settings and the template contract without a transition period.": "È ancora in forte sviluppo. Un aggiornamento può cambiare o rimuovere funzioni, impostazioni e il contratto dei modelli senza periodo di transizione.",
+"It is usable, but until 1.0 an update can still change features, settings and the template contract.": "È utilizzabile, ma fino alla 1.0 un aggiornamento può ancora modificare funzioni, impostazioni e il contratto dei template.",
 "Italian": "italiano",
 "Item": "Articolo",
 "Item number": "Codice articolo",
@@ -1863,6 +1865,7 @@
 "awaiting review": "in attesa di revisione",
 "belongs to another website": "appartiene a un altro sito web",
 "below": "in basso",
+"beta": "beta",
 "block kind %q could not be created: %v": "Non è stato possibile creare il tipo di blocco %q: %v",
 "built in": "fornito",
 "built-from-the-title": "ricavato-dal-titolo",
@@ -1910,6 +1913,7 @@
 "furniture, oak, workshop": "mobili, rovere, laboratorio",
 "given up": "abbandonato",
 "holzcloud-CMS is alpha software.": "holzcloud-CMS è software in versione alfa.",
+"holzcloud-CMS is beta software.": "holzcloud-CMS è un software in versione beta.",
 "holzcloud-CMS sends email only when a mail server is set up. This is the one place where this server dials out of its own accord — to exactly the server you entered and to no other. What visitors load in their browser still comes from here and nowhere else.": "holzcloud-CMS invia e-mail solo se è configurato un server di posta. È l'unico punto in cui questo server compone verso l'esterno di propria iniziativa — verso esattamente il server che hai indicato e nessun altro. Ciò che i visitatori caricano nel browser continua a venire esclusivamente da qui.",
 "https://...": "https://...",
 "images without a description": "immagini senza descrizione",
@@ -2075,9 +2079,5 @@
 "… and %d more": "… e altri %d",
 "…is answered with": "…è compilato con",
 "↑ up": "↑ su",
-"↓ down": "↓ giù",
-"beta": "beta",
-"Beta software: usable, but an update can still change things.": "Software in versione beta: utilizzabile, ma un aggiornamento può ancora cambiare delle cose.",
-"holzcloud-CMS is beta software.": "holzcloud-CMS è un software in versione beta.",
-"It is usable, but until 1.0 an update can still change features, settings and the template contract.": "È utilizzabile, ma fino alla 1.0 un aggiornamento può ancora modificare funzioni, impostazioni e il contratto dei template."
+"↓ down": "↓ giù"
 }

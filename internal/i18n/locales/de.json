@@ -319,6 +319,7 @@
 "Background": "Hintergrund",
 "Backup": "Sicherung",
 "Best week %s: %s": "Beste Woche %s: %s",
+"Beta software: usable, but an update can still change things.": "Beta-Software: nutzbar, aber ein Update kann noch etwas ändern.",
 "Between “pick one of the built-in templates” and “maintain a template of your own” sits exactly this: a handful of values every template picks up. None of them has to be set — empty means the template decides.": "Zwischen „eine der mitgelieferten Vorlagen aussuchen“ und „eine eigene Vorlage pflegen“ liegt genau das hier: ein paar Werte, die jede Vorlage übernimmt. Nichts davon muss gesetzt werden – leer heißt, die Vorlage entscheidet.",
 "Blank line": "Leerzeile",
 "Block kind changed.": "Bausteinart geändert.",
@@ -694,6 +695,7 @@
 "Issued keys": "Ausgestellte Schlüssel",
 "It is a snapshot of the fields as they are now. A field created afterwards is missing from it and would simply arrive unmapped at the next import — which is what this list here would then show.": "Sie ist eine Momentaufnahme der Felder von jetzt. Ein Feld, das danach angelegt wird, fehlt darin und käme beim nächsten Einlesen einfach unzugeordnet an – was diese Liste hier dann zeigt.",
 "It is still being developed heavily. An update can change or remove features, settings and the template contract without a transition period.": "Es wird noch stark weiterentwickelt. Ein Update kann Funktionen, Einstellungen und die Schnittstelle für Vorlagen ohne Übergangsfrist ändern oder entfernen.",
+"It is usable, but until 1.0 an update can still change features, settings and the template contract.": "Sie ist nutzbar, aber bis 1.0 kann ein Update noch Funktionen, Einstellungen und den Template-Vertrag ändern.",
 "Italian": "Italienisch",
 "Item": "Artikel",
 "Item number": "Artikelnummer",
@@ -1863,6 +1865,7 @@
 "awaiting review": "zur Prüfung",
 "belongs to another website": "gehört zu einer anderen Website",
 "below": "unten",
+"beta": "Beta",
 "block kind %q could not be created: %v": "Bausteinart %q konnte nicht angelegt werden: %v",
 "built in": "mitgeliefert",
 "built-from-the-title": "wird-aus-dem-titel-erzeugt",
@@ -1910,6 +1913,7 @@
 "furniture, oak, workshop": "Möbel, Eiche, Werkstatt",
 "given up": "aufgegeben",
 "holzcloud-CMS is alpha software.": "holzcloud-CMS ist Alpha-Software.",
+"holzcloud-CMS is beta software.": "holzcloud-CMS ist Beta-Software.",
 "holzcloud-CMS sends email only when a mail server is set up. This is the one place where this server dials out of its own accord — to exactly the server you entered and to no other. What visitors load in their browser still comes from here and nowhere else.": "holzcloud-CMS verschickt E-Mails nur, wenn ein Mailserver eingerichtet ist. Das ist die einzige Stelle, an der dieser Server von sich aus nach außen wählt – zu genau dem Server, den du eingetragen hast, und zu keinem anderen. Was Besucher im Browser laden, kommt weiterhin ausschließlich von hier.",
 "https://...": "https://...",
 "images without a description": "Bilder ohne Beschreibung",
@@ -2075,9 +2079,5 @@
 "… and %d more": "… und %d weitere",
 "…is answered with": "…beantwortet ist mit",
 "↑ up": "↑ nach oben",
-"↓ down": "↓ nach unten",
-"beta": "Beta",
-"Beta software: usable, but an update can still change things.": "Beta-Software: nutzbar, aber ein Update kann noch etwas ändern.",
-"holzcloud-CMS is beta software.": "holzcloud-CMS ist Beta-Software.",
-"It is usable, but until 1.0 an update can still change features, settings and the template contract.": "Sie ist nutzbar, aber bis 1.0 kann ein Update noch Funktionen, Einstellungen und den Template-Vertrag ändern."
+"↓ down": "↓ nach unten"
 }
