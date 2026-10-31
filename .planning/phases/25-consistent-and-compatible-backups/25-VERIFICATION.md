@@ -1,8 +1,8 @@
 ---
 phase: 25-consistent-and-compatible-backups
-verified: 2026-10-26T16:30:00Z
+verified: 2026-10-31T12:30:00Z
 status: passed
-score: 7/7 must-haves verified
+score: 6/6 must-haves verified
 covered_files:
   - .planning/phases/25-consistent-and-compatible-backups/25-01-PLAN.md
   - .planning/phases/25-consistent-and-compatible-backups/25-01-SUMMARY.md
@@ -11,34 +11,53 @@ covered_files:
   - .planning/phases/25-consistent-and-compatible-backups/25-03-PLAN.md
   - .planning/phases/25-consistent-and-compatible-backups/25-03-SUMMARY.md
   - deploy/BACKUP-CONSISTENCY-RUN.md
+  - deploy/backup.sh
+  - deploy/restore.sh
   - deploy/test/README.md
   - deploy/test/nightly.sh
-covered_digest: "v3:sha256:7f8d63ad8e66e504ad9d99c69353374c056ba0333a756c9f78c8e6a6d8100dfc"
+covered_digest: "v4:sha256:f0a15247544c724084cf471c92013537eaa1919bf98d6c8017862646bb281b25"
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: passed
+  previous_score: 7/7
+  gaps_closed: []
+  gaps_remaining: []
+  regressions: []
+  note: "Regenerated because phase 29 changed deploy/backup.sh, deploy/test/nightly.sh and deploy/test/README.md after the first report. Truth 4 and truth 5 of the first report were point-in-time guards; they are restated below as 'did phase 25 edit a shipped file' (still true) and 'what changed since' (phase 29, deliberate)."
 advisory:
-  - finding: "F-3 and F-5 are labelled class 3 ('matches what the file and its document say') although the record itself says DEPLOY.md is silent on both"
+  - finding: "WR-05 (open in 25-REVIEW-DISPOSITION.md): deploy/BACKUP-CONSISTENCY-RUN.md and deploy/test/README.md still state bound-file facts that phase 29 made false, and neither carries a pointer to deploy/BACKUP-ROBUST-RUN.md"
     category: other
-    reason: "The label is stretched; the record states the documentation gap openly and hands it to phase 28, so nothing is hidden. Whether either is a class-4 defect (retention never runs on a failed night; a vanished file ends the night) is an owner decision the record already lists."
-    evidence_status: "judgment, not a failed check"
-  - finding: "F-6 (sixth restore within 5 minutes hits the start limit) rests on traces that no longer exist in deploy/test/out"
+    reason: "Record line 'No bound file changed after the evidence commit' and its git diff --quiet command: at HEAD that command exits 1 (backup.sh +89/-5, nightly.sh +577/-16). The record's F-3, F-4, F-5 and 'Left to the owner' paragraph describe backup.sh as it was at e86d490; at HEAD a first status 24 is repeated once and a failed night removes its own directory. README lines 365, 369, 409, 411 and 447 say 'exits 0', 'grew by additions' and 'SELFTEST OK (542 cases)'; the current selftest ends 646 cases. docs/beta.md (E-5, line 123) and deploy/BACKUP-ROBUST-RUN.md (line 3: 'The earlier record describes a backup.sh that no longer ships') do say it, so the supersession is documented elsewhere, but a reader who follows the phase 25 record's own command gets a failure with no hint why. Fix: a dated 'superseded by BACKUP-ROBUST-RUN.md for the script that ships' note at the top of the record and a 'at least 542' wording in the README."
+    evidence_status: "reproduced: git diff --quiet e86d490 HEAD -- <bound files> exits 1; selftest prints 646"
+  - finding: "The phase 25 outcome for CON-03 and F-3/F-5 describes behaviour the shipped script no longer has"
     category: other
-    reason: "The record says outright that the traces are not part of the set and not cited, and shows only the unit values (StartLimitIntervalSec=300, StartLimitBurst=5, present in deploy/holzcloud.service). It is a reading of the unit, not a measurement of this set."
-    evidence_status: "unit text confirmed; trace dir amd64-t25-trace-startlimit absent"
-  - finding: "The F-3 excerpt (consist-deletes-run-9-backup.txt) is not contiguous: the raw file has three 'file has vanished' lines, the record's quote shows one, with no ellipsis"
+    reason: "Not a defect of phase 25. F-3 (status 24 ends the night) and F-5 (a left directory makes the guard refuse later nights) were handed to the owner; phase 29 closed both in backup.sh (run_rsync repeats status 24 once; cleanup_failed_night removes the night's own directory) and re-ran CON-01 to CON-03 on the changed script at dd077e4 (CON-01 PASS, CON-02 PASS, CON-03 PASS, 96 steps played, 0 failed, in deploy/BACKUP-ROBUST-RUN.md). backup.sh and restore.sh are byte-identical between dd077e4 and HEAD."
+    evidence_status: "git diff --quiet dd077e4 HEAD -- deploy/backup.sh deploy/restore.sh exits 0"
+  - finding: "Open code-review warnings WR-01 to WR-04 and WR-06 (and IN-01 to IN-05) concern the harness, not the claims"
     category: other
-    reason: "Cosmetic. The full transcript is in the byte-proven appendix and the RC 24 / no later line claim holds."
-    evidence_status: "raw file read"
+    reason: "Per 25-REVIEW.md none turns a failure into a PASS: the verdict functions are conservative. They make the harness fail too often or lose evidence (WR-01 drops raw files for an AGREE run that leaves a MANIFEST-less directory, WR-02 runs consist_run with set -e off, WR-03 never checks that a new unit invocation started, WR-04 reads mechanism lines from the working tree not NEW_REF, WR-06 lacks a NAME != TGT_NAME guard before an rm -rf). None touches a number the record cites; the recorded runs have 0 BAD lines. They bear on the next evidence set, not on this one."
+    evidence_status: "review read; headline numbers recomputed below, all agree"
+behavior_unverified_items: []
 ---
 
 # Phase 25: Consistent and compatible backups, Verification Report
 
 **Phase Goal:** A backup made while the site is being written is either consistent or its window is named; a backup of the previous release restores.
-**Verified:** 2026-10-26
+**Verified:** 2026-10-31
 **Status:** passed
-**Re-verification:** No, initial verification
+**Re-verification:** Yes. The report of 2026-10-26 was regenerated against HEAD because phase 29 changed `deploy/backup.sh`, `deploy/test/nightly.sh` and `deploy/test/README.md` after it. All raw evidence was read again; no SUMMARY claim was used as evidence. Docker and the 35-minute chain were not run: the evidence set in `deploy/test/out/amd64-t25-*` is still on disk and was re-read.
 
-All checks were run by the verifier against the working tree and `deploy/test/out/amd64-t25-*`. The multi-hour chain and Docker were not run. The SUMMARY claims were not used as evidence.
+## What phase 29 changed in what phase 25 describes
+
+| Subject | Phase 25 record says | HEAD | Effect on the phase 25 goal |
+|---|---|---|---|
+| `deploy/backup.sh` | Unchanged; bound to `e86d490` | Changed: `run_rsync` repeats status 24 once; `cleanup_failed_night` removes a failed night's own directory; MANIFEST written as `MANIFEST.partial` then renamed; refuses to start if its directory exists (`git diff --numstat e86d490 HEAD`: 89 added, 5 removed) | None on the goal. The measurements are of the script at `e86d490`; they are re-made on the changed script by phase 29 (below). |
+| `deploy/restore.sh`, `DEPLOY.md`, `holzcloud.service`, both backup units, `run.sh` | Unchanged | Unchanged (`git diff --quiet e86d490 HEAD` exits 0 for each) | None |
+| `deploy/test/nightly.sh` | 3664 added, 3 removed against `b501b1b`; selftest 542 cases | 4225 added, 3 removed against `b501b1b` (the tripwire `grep -c '^-[^-]'` still prints 3, limit 6); selftest ends `SELFTEST OK (646 cases)` | Record's selftest count and "bound file unchanged" are stale; the additions-only tripwire still holds |
+| `deploy/test/README.md` | Phase 25 section with "exits 0" and "542 cases" | One line removed, 143 added; the Phase 29 section now exists | Stale statements, see WR-05 |
+| F-3 (status 24 ends the night) and F-5 (left directory makes the guard refuse later nights) | Class 3, handed to the owner | Closed by phase 29: `backup.sh` repeats status 24 once and removes its own failed directory (`deploy/BACKUP-ROBUST-RUN.md`: `HAND-CLASS: FAILED-NO-DIR`, `AGAIN-CLASS: FAILED-NO-DIR`, 8 of 40 nights of stage deletes repeated and completed) | The behaviour the phase 25 record names no longer ships; the record's description is historical |
+| `docs/beta.md` | "not edited here (phase 28)" | Edited by phases 28 and 29. Line 9 and P-16 to P-22 rest on `BACKUP-ROBUST-RUN.md`; E-5 (line 123) states that the `e86d490` set "no longer" binds P-16 to P-18 | The CON-01 half "docs/beta.md names the window" is now met (P-16 names `overlaps-snapshot-step`, `after-snapshot`, `straddles-media-end` and the run) |
 
 ## Goal Achievement
 
@@ -46,48 +65,81 @@ All checks were run by the verifier against the working tree and `deploy/test/ou
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | SC1: a backup taken while pages are saved and media is uploaded is restored; database and media agree, or the disagreement is reproduced and its window written down | VERIFIED | `consist.txt` ends `CONSIST OK`, `MIN-RUNS: 30`, 40 runs per stage. I recomputed from `consist-runs.txt`: adds 40 runs, 12 AGREE, 28 ORPHAN-ONLY, 40 restored, BACKUP-RC 0=40; deletes 40 runs, 8 AGREE, 13 ORPHAN-ONLY, 11 ROW-WITHOUT-FILE (MISSING=3 each, runs 3 7 8 11 12 21 24 30 32 35 38), 8 BACKUP-REFUSED (RC 24, no restore), 32 restored. Window-write sums match the record (84 uploads and 24 saves; 96, 27, 30 deletes). `WINDOW-NAME` lines: 220 (95 adds, 125 deletes; 163 upload and 57 delete), all `overlaps-snapshot-step`, 0 UNRESOLVED, 0 `BAD`. Controls in `window.txt`: C0 AGREE, C1 ORPHAN-ONLY, C2 ROW-WITHOUT-FILE, ends `WINDOW OK`. C2 consequence (404, 19 bytes; restore.sh exit 0; integrity ok; PAGE-REFS-DANGLING 0) is raw in `window.txt`. Branch two of the sentence (reproduced and named) is met, both directions seen. |
-| 2 | SC2: a 0.1.0 backup restored by this release gives the same pages, same login, and the migration level the record states | VERIFIED | `amd64-t25-old/compat.txt` ends `COMPAT OK`: tag commit 4d238b9 equals `git rev-parse v0.1.0^{commit}`; `version_is_tag` PASS; backup RC 0 and the MANIFEST names v0.1.0; `RESTORE-RC: 0`; pages 8=8, users 2=2, media 12 lines equal, 47 tables equal; both logins `HTTP 303 /admin/`; `MEDIA-SERVED-EQUAL: 4 of 4`; LEVEL-BEFORE 60, LEVEL-AFTER 60; `CHECK: 17 of 17`; the tamper control proves the comparison can fail. I confirmed independently with git: 60 migrations at v0.1.0 and at e86d490, no diff under `internal/db`, and `backup.sh`, `restore.sh`, both units byte-identical between the tag and e86d490. F-7 honestly states that no migration was crossed. |
-| 3 | SC3: a nearly full disk above `MIN_FREE_MB` produces a recorded outcome | VERIFIED | `capfull.txt` ends `CAPFULL OK`: floor 1024 read from the installed script, fs 1064 MB, data 1222 MB, free at guard 1064 (guard passed), rsync code 11 `No space left on device (28)`, RC 11, directory 1098915817 bytes / 4221 files, no MANIFEST. Next run: 5 MB free, `ERROR: only 5 MB free ... need 1024 MB`, RC 1. Shipped unit: `UNIT-ACTIVE-STATE: failed`, `UNIT-RESULT: exit-code`, `UNIT-EXECMAINSTATUS: 11`, 11 journal lines. `restore.sh` on the left directory: exit 1, `MANIFEST not found`, service still active, `DATA-BEFORE-RESTORE-DIRECTORIES: 0`. Control on a roomy tmpfs: COMPLETE. Sentinel intact; 66 earlier backups before and after. All numbers in the record match. |
-| 4 | Bound files are unchanged since the evidence commit | VERIFIED | `git diff --quiet e86d490 HEAD -- <7 bound files>` exits 0. Files changed since e86d490 are only `25-03-SUMMARY.md`, `deploy/BACKUP-CONSISTENCY-RUN.md` and `deploy/test/README.md`. `deploy/test/out/amd64-t25-evidence-commit.txt` holds `e86d490`; `con-chain` pinned the binary to it (`BINARY: holzcloud v0.1.0-46-ge86d490`). |
-| 5 | `docs/beta.md` not edited | VERIFIED | `git diff --quiet f1ba5a2 -- docs/beta.md` exits 0. |
-| 6 | `nightly.sh` is additions only (removed lines vs b501b1b at most 6) | VERIFIED | `git diff --numstat b501b1b HEAD -- deploy/test/nightly.sh` gives 3664 added, 3 removed; a count of `^-` lines in the diff also gives 3. `backup.sh`, `restore.sh`, `DEPLOY.md`, both units and `run.sh` show no diff against b501b1b. No shipped file was edited (consistent with the all class 3 claim). |
-| 7 | The record claims no more than was measured, and the proofs reproduce | VERIFIED | Run by me: `record-check-con` gives `RECORD-CHECK OK 27 blocks`; `record-check` gives `RECORD-CHECK OK 29 blocks`; `selftest` gives `SELFTEST OK (542 cases)`. Run counts, outcomes, restored runs (40 and 32), CON-02 60 to 60, CON-03 exit 11 and next-night refusal, durations and the pass1 start/finish stamps (13:18:54Z to 13:54:28Z) all match the raw files. The ranges, "does not show" and "Not tested" sections are conservative: they say the load is not real traffic, the tmpfs is not a disk, the unit's status-24 result was not played, and no migration was crossed. See the advisories for three small points. |
+| 1 | SC1: a backup taken while pages are saved and media is uploaded is restored with database and media in agreement, or the disagreement is reproduced and its window named | VERIFIED | Re-read from `deploy/test/out/amd64-t25-src/consist.txt`: `CONSIST OK`, `MIN-RUNS: 30`, `BINARY: holzcloud v0.1.0-46-ge86d490`. Stage adds `RUNS=40 RESTORED=40 AGREE=12 ORPHAN-ONLY=28 ROW-WITHOUT-FILE=0 BACKUP-REFUSED=0 RESTORE-FAILED=0 UPLOADS-IN-WINDOW=84`. Stage deletes `RUNS=40 RESTORED=32 AGREE=8 ORPHAN-ONLY=13 ROW-WITHOUT-FILE=11 BACKUP-REFUSED=8 RESTORE-FAILED=0 UPLOADS-IN-WINDOW=96`. 220 `WINDOW-NAME` lines (the review recomputed the same), 0 `BAD` lines in `prep.txt`, `consist.txt`, `window.txt`, `capfull.txt`, `compat.txt`. `window.txt` ends `WINDOW OK` with controls C0 AGREE, C1 ORPHAN-ONLY, C2 ROW-WITHOUT-FILE. `summary.txt`: `CON-01 PASS`, `STEPS: 96 played, 0 failed`, `LEAK-CHECK OK`; `chain-statuses.txt`: all six stages 0. The roadmap's second branch (reproduced and named) is met, both directions seen. Still true at HEAD: phase 29 re-ran the same stage on the changed script (`CON-01 PASS`, stage adds 16 AGREE / 24 ORPHAN-ONLY, stage deletes 10 / 14 / 16, `BACKUP-ROBUST-RUN.md` line 13) and `docs/beta.md` P-16 and limit line 48 name the window. |
+| 2 | SC2: a 0.1.0 backup restored by this release gives the same pages, the same login and the migration level the record states | VERIFIED | `amd64-t25-old/compat.txt` ends `COMPAT OK`: `RESTORE-RC: 0`; `STATE-SOURCE` and `STATE-RESTORED` both `LEVEL: 60 ... PAGES-COUNT: 8 USERS-COUNT: 2 MEDIA-ROWS: 4`; `MEDIA-SERVED-EQUAL: 4 of 4` with matching sha256; setup form 404 after restore; `LEVEL-BEFORE: 60`, `LEVEL-AFTER: 60`; `PASS run.sh check ... 17 of 17`; `SCRIPTS-IDENTICAL` yes for `backup.sh` (`d9f807d8...`) and `restore.sh` (`9a411d72...`) at the tag and at `e86d490`. `deploy/restore.sh` is byte-identical at HEAD, so the restore half of this claim is unchanged. Phase 29 re-made the pair at `dd077e4` (`CON-02 PASS`); there `backup.sh` of the tag and of the release differ (F-7 of `BACKUP-ROBUST-RUN.md`), and the compatibility shown is old script and old binary against the new `restore.sh`. No migration separates the releases (both level 60); stated as not tested in the record and in `docs/beta.md` line 51. |
+| 3 | SC3: a nearly full disk above `MIN_FREE_MB` produces a recorded outcome | VERIFIED | `capfull.txt` ends `CAPFULL OK`: `FREE-AT-GUARD-MB: 1064` against floor 1024, `HAND-GUARD: passed`, `HAND-BACKUP-RC: 11`, `HAND-RSYNC-STATUS: 11`, `HAND-NO-SPACE-LINES: 1`, `HAND-DIRECTORY-BYTES: 1098915817`, `HAND-DIRECTORY-FILES: 4221`; `EARLIER-BACKUPS-AFTER` is 66 directories and "the same directories as before". The outcome is recorded, as the criterion asks; it is not claimed harmless. At HEAD the outcome differs (the failed night now removes its directory and the next night is not refused): phase 29 re-played this at `dd077e4` (`CON-03 PASS`, `HAND-CLASS: FAILED-NO-DIR`, `UNIT-EXECMAINSTATUS: 11`; `BACKUP-ROBUST-RUN.md` line 15). The two sets are consistent with the two scripts they were made on. |
+| 4 | Phase 25 edited no shipped file (`backup.sh`, `restore.sh`, `DEPLOY.md`, both units, `run.sh`) and not `docs/beta.md` | VERIFIED | `git log b501b1b..c4fb8cd -- deploy/backup.sh deploy/restore.sh deploy/DEPLOY.md docs/beta.md deploy/holzcloud-backup.service deploy/holzcloud-backup.timer deploy/test/run.sh` prints nothing (0 commits): across the phase 25 commits none of these files changed. The first report's wording "unchanged since the evidence commit" is NOT true at HEAD (`git diff --quiet e86d490 HEAD` exits 1 for `backup.sh`, `nightly.sh`; the cause is phase 29, table above). That is a statement about the files after phase 25, and is carried as advisory WR-05, not as a gap in the phase goal. |
+| 5 | `nightly.sh` carries phase 25 as additions only | VERIFIED | `git diff --numstat b501b1b e86d490 -- deploy/test/nightly.sh` gives 3664 / 3; at HEAD against `b501b1b` it gives 4225 / 3 and `git diff -U0 b501b1b -- deploy/test/nightly.sh | grep -c '^-[^-]'` prints 3 (limit 6). Phase 24's code is not changed by either later phase. |
+| 6 | The record claims no more than was measured, and its proofs reproduce | VERIFIED | Run now: `bash deploy/test/nightly.sh record-check-con` ends `RECORD-CHECK OK 27 blocks`; `record-check` ends `RECORD-CHECK OK 29 blocks`; `selftest` ends `SELFTEST OK (646 cases)` (the record says 542; the count only grew, see WR-05); `bash -n deploy/test/nightly.sh` passes. Every number I re-read from the raw files above equals the number in the record's Summary table. The "Not tested" and "Deviations named" sections remain conservative (tmpfs not a disk, emulation, not real traffic, no migration crossed, status 24 under the unit not played). |
 
-**Score:** 7/7 truths verified, 0 behavior-unverified.
+**Score:** 6/6 truths verified, 0 behavior-unverified. The truths are about recorded runs, which are the behavioral evidence: each runs the shipped script against a real load, restores it with the shipped `restore.sh` and compares both directions, so no invariant here rests on symbol presence.
 
-### Classification of F-3 and F-5 against the shipped text
+### Required Artifacts
 
-I read `deploy/backup.sh` (header lines 25-29, 56-62, set -e on line 2, mkdir on line 64, retention on line 98) and `deploy/DEPLOY.md` (lines 621-623, 633-642).
+| Artifact | Expected | Status | Details |
+|----------|----------|--------|---------|
+| `deploy/BACKUP-CONSISTENCY-RUN.md` | The record with a byte-proven appendix and the hand-over | VERIFIED | Exists, 1373 lines; `record-check-con` proves 27 blocks. No `TBD`/`FIXME`/`XXX`. Stale on the bound-file statements (WR-05). |
+| `deploy/test/nightly.sh` | `consist`, `window`, `capfull`, `compat-source`, `compat`, `con-chain`, `record-check-con` | VERIFIED | Present and syntactically valid; `selftest` 646 cases OK; the evidence set it produced is intact on disk. |
+| `deploy/test/README.md` | Phase 25 section | VERIFIED, stale in places | Section present; "542 cases", "exits 0" and "grew by additions" were true when written (WR-05). |
+| `deploy/test/out/amd64-t25-{src,tgt,old,new}`, `amd64-t25-evidence-commit.txt` | Raw evidence set | VERIFIED | All present; evidence commit file holds `e86d490`. |
 
-- `DEPLOY.md` does say: the pair is not atomic and a deleted file can leave a row without a file (F-1, F-2); a directory without a MANIFEST is an interrupted backup that `restore.sh` refuses (F-4 refusal); the floor does not grow with the data and "a backup can run out of space halfway" (F-4).
-- `DEPLOY.md` does not say: that a vanished file (rsync 24) ends the night (F-3), or that a failed night leaves a directory which then makes the guard refuse the following nights (F-5). The record admits both ("with a documentation gap") and does not claim that the documents already cover them. So the class 3 label is correct for F-1, F-2 and F-4, and for F-3 and F-5 only in the narrower sense that no measurement contradicts a sentence in the documents. The two gaps are named in the hand-over for phase 28 and in two Owner steps; nothing is hidden or overclaimed. Whether F-3 and F-5 are defects is a design call (status 24 as success would turn a refusal into a silent missing file; pruning before the guard changes what retention is for). The record lists these as owner decisions and I find that reasonable for a verification phase. Recorded as an advisory, not a gap.
+### Key Link Verification
+
+| From | To | Via | Status | Details |
+|------|----|-----|--------|---------|
+| `con-chain` | `summary.txt` verdicts | stage files and statuses | WIRED | `CON-01 PASS`, `CON-02 PASS`, `CON-03 PASS` in `summary.txt`; `chain-statuses.txt`: `prep=0 consist=0 window=0 capfull=0 compat-source=0 compat=0`. |
+| Record blocks | scratch files | `record-check-con` | WIRED | 27 blocks proven byte for byte, run now. |
+| Record | `docs/beta.md` | hand-over to phase 28 | WIRED | beta.md P-16 to P-18 and limit lines 48 to 55 cite the records; E-5 marks the phase 25 set as the earlier one. |
+
+### Data-Flow Trace (Level 4)
+
+Not applicable: the phase produces a harness and a record, not rendered dynamic data. The record's numbers trace to scratch files, which `record-check-con` proves.
+
+### Behavioral Spot-Checks
+
+| Behavior | Command | Result | Status |
+|----------|---------|--------|--------|
+| Record equals its scratch files | `bash deploy/test/nightly.sh record-check-con` | `RECORD-CHECK OK 27 blocks` | PASS |
+| Phase 24 record still proven | `bash deploy/test/nightly.sh record-check` | `RECORD-CHECK OK 29 blocks` | PASS |
+| Harness self-test | `bash deploy/test/nightly.sh selftest` | `SELFTEST OK (646 cases)` | PASS |
+| Harness parses | `bash -n deploy/test/nightly.sh` | exit 0 | PASS |
+| Verdicts and statuses in the set | read `summary.txt`, `chain-statuses.txt` | CON-01/02/03 PASS, 0 failed, all stages 0 | PASS |
+| Regression gate (given by the orchestrator) | `go test ./...` | 56 packages ok | PASS (not re-run) |
+
+### Probe Execution
+
+SKIPPED: phase 25 declares no `scripts/*/tests/probe-*.sh`. Its proofs are `record-check-con`, `record-check` and `selftest`, run above.
 
 ### Requirements Coverage
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| CON-01 | SATISFIED | Truth 1. The "docs/beta.md names the window" half is deferred to phase 28 by the CONTEXT decision; the window is named in the record and handed over. |
-| CON-02 | SATISFIED | Truth 2. |
-| CON-03 | SATISFIED | Truth 3. |
+| Requirement | Source Plan | Description | Status | Evidence |
+|-------------|-------------|-------------|--------|----------|
+| CON-01 | 25-01, 25-03 | Backup under writes: agree, or the window is named with the run that provoked it | SATISFIED | Truth 1. The `docs/beta.md` half, deferred to phase 28 by the CONTEXT decision, is now met (P-16, limit line 48). |
+| CON-02 | 25-02, 25-03 | A 0.1.0 backup restores with this release; pages, login, migration level recorded | SATISFIED | Truth 2. |
+| CON-03 | 25-02, 25-03 | Nearly full disk above `MIN_FREE_MB` provoked, outcome recorded | SATISFIED | Truth 3. |
 
-FUT-02 stays a future item: all 220 disagreements have a named window, so the condition for promoting it is not met.
-
-Bookkeeping, not a gap: `REQUIREMENTS.md` still shows CON-01..03 as `Pending` and `ROADMAP.md` still shows the three plans unchecked. The orchestrator should update both.
+All three IDs appear in PLAN frontmatter (25-01: CON-01; 25-02: CON-02, CON-03; 25-03: CON-01 to CON-03) and in `REQUIREMENTS.md` lines 27 to 29 (`[x]`) and 106 to 108 (`Complete`). No requirement is mapped to phase 25 without a plan; no orphans. FUT-02 stays a future item: all 220 disagreements have a named window.
 
 ### Anti-Patterns Found
 
-No `TBD`, `FIXME` or `XXX` in `deploy/BACKUP-CONSISTENCY-RUN.md`. Zero lines starting `BAD` in `consist.txt`, `prep.txt`, `window.txt`, `capfull.txt` or `compat.txt`.
+| File | Line | Pattern | Severity | Impact |
+|------|------|---------|----------|--------|
+| `deploy/BACKUP-CONSISTENCY-RUN.md` | 33 to 37, 41 to 43, 265, 267 | Statement made false by a later phase, no pointer to the successor | Warning (WR-05) | A reader following the record's own `git diff --quiet e86d490 HEAD` gets exit 1 and cannot tell evidence from HEAD |
+| `deploy/test/README.md` | 365, 369, 409, 411, 447 | "exits 0", "grew by additions", "542 cases" | Warning (WR-05) | Same |
+| `deploy/test/nightly.sh` | 3606 to 3796, 3905, 5983 to 6010, 6233 to 6258, 4616 to 4652, 3661 | WR-01 to WR-04, WR-06 of the review | Warning | Harness robustness for the next set; no cited number depends on them |
+| `deploy/test/nightly.sh` | 174, 71, 6213 to 6229, 3596, 3794 | IN-01 to IN-05 | Info | Dead code, stale header, a step that is `not-run`, duplicated sequence, cleanup path |
+
+No `TBD`, `FIXME` or `XXX` in the record. 0 blockers. The review found 0 critical issues; 6 warnings and 5 infos remain `open` in `25-REVIEW-DISPOSITION.md`.
 
 ### Human Verification Required
 
-None. The remaining open items (real disk with reserved blocks, production-sized media, a restore that crosses a migration, native timing, the unit result for status 24) are in the record's *Not tested* list and are not claimed. They belong to phases 26 and 28.
+None. What a container cannot show (real disk with reserved blocks, production-sized media, a restore that crosses a migration, native timing, status 24 under the unit by a real vanished file) is in the record's *Not tested* list and in `docs/beta.md`'s limits (lines 49 to 55, 63, 64) with owner steps. It is not claimed and is not an unverified truth of this phase.
 
 ### Gaps Summary
 
-No gaps. The three roadmap success criteria are met by evidence I recomputed from the raw files, the bound-file and `docs/beta.md` guards hold, and the three proof commands reproduce. The three advisories above are precision points and do not change the verdict.
+No gaps. The three roadmap success criteria hold on the evidence set made at `e86d490`, whose raw files I re-read and whose record still proves byte for byte. They hold at HEAD as well: phase 29 changed the script and re-made all three on it, and `restore.sh` is untouched. The one live defect against the phase 25 deliverables is documentary (WR-05): the record and the README do not say that they describe `backup.sh` as of `e86d490` and that its F-3 and F-5 are closed by phase 29. It corrupts no measurement and `docs/beta.md` E-5 and `BACKUP-ROBUST-RUN.md` line 3 already state the supersession, so it is an advisory, not a BLOCKER. It is recommended to close it with a note at the top of the record and a "542 or more" wording in the README (a documentation edit that touches no bound file; the record and README are not bound files).
 
 ---
 
-_Verified: 2026-10-26_
+_Verified: 2026-10-31_
 _Verifier: Claude (gsd-verifier)_
