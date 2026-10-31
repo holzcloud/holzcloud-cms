@@ -65,6 +65,22 @@ wrote before it migrated.
 | `backup.sh`, `restore.sh` | WAL-safe SQLite backup plus an rsync of the data directories (media, templates, plugins, language files, logo), and the way back; installed to `/opt/holzcloud/deploy` |
 | `holzcloud-backup.{service,timer}` | the unit and the daily timer that run `backup.sh` |
 | `DEPLOY.md` | step-by-step setup for a Debian/Ubuntu amd64 server |
+| `journald-holzcloud.conf` | journald drop-in that keeps the journal for 14 days; installed to `/etc/systemd/journald.conf.d/` |
+
+**Log retention.** The request log holds each visitor's address cut to /24
+(IPv4) or /48 (IPv6), never the whole address. `journald-holzcloud.conf` limits
+how long the journal keeps it. Install and check it:
+
+```
+sudo install -D -m 0644 deploy/journald-holzcloud.conf /etc/systemd/journald.conf.d/holzcloud.conf
+sudo systemctl restart systemd-journald
+systemd-analyze cat-config systemd/journald.conf
+```
+
+The last command must list `MaxRetentionSec=14d` and `MaxFileSec=1d`. Two limits:
+the setting is system-wide, because journald has no per-unit retention, so it
+applies to the logs of every unit on the host; and it was not yet confirmed on a
+real host, so the check command is the confirmation.
 
 The unit also limits socket families, system calls and capabilities and sets
 `UMask=0077`. `ReadWritePaths` lists `/opt/holzcloud/data`; a data directory
