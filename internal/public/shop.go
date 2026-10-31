@@ -296,7 +296,11 @@ func (h *Handler) HandlePriceSwitch(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	shop.SetAudienceCookie(w, r.TLS != nil, shop.ParseAudience(r.FormValue("ansicht")))
+	// The installation's own setting, not the request's TLS state: the server is
+	// reached through a proxy that ends TLS and speaks plain HTTP to it, so the
+	// request never carries TLS state. HandleCartAdd uses the field for the
+	// same reason.
+	shop.SetAudienceCookie(w, h.secure, shop.ParseAudience(r.FormValue("ansicht")))
 
 	back := r.FormValue("zurueck")
 	// Only a path on this site. An open redirect out of a shop is how a

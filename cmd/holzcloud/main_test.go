@@ -29,6 +29,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
+	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
@@ -61,6 +62,13 @@ type routerTweaks struct {
 	// mcp wires /ai and its upload links as main does, with the admin handler
 	// behind the tools.
 	mcp bool
+	// shop wires the catalogue, basket and order stores into the router as main
+	// does, so the shop addresses exist.
+	shop bool
+	// secure sets Secure in the configuration, as an installation served over
+	// TLS behind a proxy has it. The requests of a test stay plain HTTP, which
+	// is exactly what such a proxy passes on.
+	secure bool
 }
 
 func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionManager, *db.DB) {
@@ -100,6 +108,7 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	cfg := config.Config{
 		DataDir: dir, MaxMediaSize: 1 << 20, MaxTemplateSize: 1 << 20,
 		SSOEnabled: tw.ssoEnabled, SSOSecret: tw.ssoSecret,
+		Secure: tw.secure,
 	}
 	domainStore := domain.NewStore(database)
 	tmplStore := tmplmgr.NewStore(database, dir)
@@ -146,7 +155,18 @@ func testRouterWith(t *testing.T, tw routerTweaks) (http.Handler, *scs.SessionMa
 	if guard == nil {
 		guard = passthrough
 	}
+	var productStore *shop.Store
+	var cartStore *shop.CartStore
+	var orderStore *shop.OrderStore
+	if tw.shop {
+		productStore = shop.NewStore(database)
+		cartStore = shop.NewCartStore(productStore)
+		orderStore = shop.NewOrderStore(cartStore)
+	}
 	handler, err := newRouter(routerDeps{
+		productStore:    productStore,
+		cartStore:       cartStore,
+		orderStore:      orderStore,
 		cfg:             cfg,
 		database:        database,
 		sm:              sm,
