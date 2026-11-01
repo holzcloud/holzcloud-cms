@@ -1,0 +1,22 @@
+<!doctype html><meta charset=utf-8><link rel=stylesheet href=common.css>
+<style>
+body{width:1600px;height:400px}
+.stage{width:1600px;height:400px}
+.left{position:absolute;left:50px;top:36px;width:960px}
+.brand{display:flex;align-items:center;gap:26px}
+.brand img{width:104px}
+h1{font-size:92px;white-space:nowrap}
+.lead{font-size:26px;margin:22px 0 24px;width:900px}
+.shot{position:absolute;right:-40px;top:40px;width:560px;border-radius:12px;border:1px solid #2c4a40;transform:perspective(1600px) rotateY(-14deg) rotateX(3deg) rotate(-1deg);box-shadow:0 30px 80px #000c}
+.chat{position:absolute;right:60px;bottom:26px;width:400px;font-size:17px}
+.chip{font-size:19px;padding:8px 17px}
+</style>
+<div class=stage>
+<div class=left>
+ <div class=brand><img src="../holzcloud-mark.svg" alt=""><h1>holzcloud-CMS</h1></div>
+ <p class=lead>A self-hosted CMS with no JavaScript and nothing from third parties — <b>run by Claude or ChatGPT over MCP.</b></p>
+ <div class=chips style="gap:10px"><span class="chip ai">✦ AI over MCP · 140 tools</span><span class="chip js">Zero JavaScript</span><span class=chip>No external dependencies</span><span class=chip>Single binary</span></div>
+</div>
+<img class=shot src="../../screenshots/editor.png" alt="">
+<div class=chat><div class=who>Claude · MCP</div><div class=you>“Translate the workshop page into French and keep it a draft.”</div><div class=tool>create_translation <i>→</i> draft saved</div></div>
+</div>

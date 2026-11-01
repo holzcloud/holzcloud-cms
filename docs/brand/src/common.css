@@ -1,0 +1,16 @@
+@font-face{font-family:Manrope;src:url(../../../cmd/holzcloud/templates/public/holzcloud/fonts/manrope-latin.woff2) format("woff2");font-weight:200 800}
+*{box-sizing:border-box;margin:0}
+html,body{background:#0b1411;font-family:Manrope,sans-serif;color:#f6f2ea}
+.stage{position:relative;overflow:hidden;background:radial-gradient(900px 500px at 8% 0,#17382f 0,#0b1411 60%),#0b1411}
+h1{font-weight:800;letter-spacing:-.03em;line-height:1}
+.lead{font-weight:300;color:#d8d4cb;line-height:1.3}
+.lead b{font-weight:700;color:#8fd0ba}
+.chips{display:flex;flex-wrap:wrap;gap:12px}
+.chip{border:1.5px solid #2c4a40;border-radius:99px;padding:9px 22px;color:#8fd0ba;font-weight:500;font-size:22px}
+.chip.ai{background:#8fd0ba;border-color:#8fd0ba;color:#0b1411;font-weight:800}
+.chip.js{color:#f6f2ea;font-weight:700}
+.chat{background:#122019;border:1.5px solid #2c4a40;border-radius:18px;padding:18px 22px;font-size:19px;line-height:1.35;box-shadow:0 24px 60px #000a}
+.chat .who{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#8fd0ba;margin-bottom:6px}
+.chat .you{color:#f6f2ea;font-weight:500}
+.chat .tool{margin-top:12px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:15px;color:#8fd0ba}
+.chat .tool i{font-style:normal;color:#e3a36b}

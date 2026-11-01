@@ -11,7 +11,7 @@ of the name in one figure, standing on the plank that ties it to its siblings
 | `holzcloud-mark.svg` | the standalone mark, mint cloud on the plank, for a dark ground: README, project page, anywhere it stands on its own |
 | `holzcloud-mark-indigo.svg` | the same mark with the cloud in indigo and the rings in paper, from before the admin took the mint; kept for material that already uses it |
 | `holzcloud-tile.svg` | the mark inside a rounded square on ink: app icons, avatars |
-| `banner.png` | the banner at the top of the repository's README, 3200×800: mark, name, the row of what it is, and the editor on a slightly turned screen |
+| `banner.png` | the banner at the top of the repository's README, 3200×800: mark, name, the row of what it is with *AI over MCP* first and filled, the editor on a slightly turned screen and a Claude request over it |
 | `holzcloud-social.png` | the card GitHub shows when the repository is shared (Settings → Social preview), 2560×1280 |
 
 The admin's own tab icon is `cmd/holzcloud/assets/favicon.svg`, which is the
@@ -42,7 +42,8 @@ the tokens in `admin.css`.
 - **The banner and the social card are the mark on ink**, the name in Manrope,
   the typeface the shipped themes carry, and a row of what the program is. The
   same arrangement as the holzkube-manager's, in this program's colours, so the
-  repositories read as one family. Both are rendered from HTML with the
+  repositories read as one family. Both are rendered from the HTML in `src/` (`banner.html`, `social.html`, shared
+  `common.css`) with the
   theme's own `manrope-latin.woff2` embedded and screenshotted at twice the
   size GitHub shows them; they are pictures in the repository, never something
   the program loads.
