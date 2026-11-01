@@ -56,6 +56,7 @@
     {{if .IsAdmin}}
         <a href="/admin/users" class="settings-nav__item{{if eq .ActiveNav "users"}} is-active{{end}}"{{if eq .ActiveNav "users"}} aria-current="page"{{end}}>{{template "icon-users"}}<span>{{t "Users"}}</span></a>
     {{end}}
+        <a href="/admin/ueber" class="settings-nav__item{{if eq .ActiveNav "about"}} is-active{{end}}"{{if eq .ActiveNav "about"}} aria-current="page"{{end}}>{{template "icon-info"}}<span>{{t "About"}}</span></a>
 </nav>
 {{end}}
 

@@ -598,6 +598,9 @@ var editorOpenRoutes = []route{
 	// editor is the one who will notice that a screen behaves differently.
 	{pattern: "GET /admin/neuerungen"},
 	{pattern: "GET /admin/neuerungen/{version}"},
+	// Which program runs here is no site-level secret either; the About screen
+	// is where What's new can always be opened again.
+	{pattern: "GET /admin/ueber"},
 	{pattern: "GET /admin/websites"},
 	{pattern: "GET /admin/websites/{id}"},
 	{pattern: "POST /admin/websites/{id}"},

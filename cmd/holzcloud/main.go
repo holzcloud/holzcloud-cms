@@ -101,6 +101,7 @@ func main() {
 	// web.SetBuild: for a modified version running as a service the AGPL
 	// requires that its users can get at the source.
 	web.SetBuild(Version, os.Getenv("HOLZCLOUD_SOURCE_URL"))
+	web.SetCommit(Commit)
 	slog.Info("configuration loaded", "config", cfg)
 
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
@@ -990,6 +991,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// notice the difference.
 	adminProtectedMux.HandleFunc("GET /admin/neuerungen", adminHandler.ErrHandler(adminHandler.HandleChangelog))
 	adminProtectedMux.HandleFunc("GET /admin/neuerungen/{version}", adminHandler.ErrHandler(adminHandler.HandleChangelog))
+	adminProtectedMux.HandleFunc("GET /admin/ueber", adminHandler.ErrHandler(adminHandler.HandleAbout))
 
 	// Website routes
 	adminProtectedMux.HandleFunc("GET /admin/websites", adminHandler.ErrHandler(adminHandler.HandleWebsiteList))

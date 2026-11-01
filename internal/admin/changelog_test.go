@@ -115,7 +115,7 @@ func TestChangelogContinueLinkStaysInsideTheAdmin(t *testing.T) {
 	for weiter, want := range cases {
 		target := "/admin/neuerungen?seit=" + older + "&weiter=" + url.QueryEscape(weiter)
 		rec := serve(t, h, sm, h.HandleChangelog, httptest.NewRequest(http.MethodGet, target, nil))
-		if !strings.Contains(rec.Body.String(), `class="btn btn-primary" `+want) {
+		if !strings.Contains(rec.Body.String(), `class="btn btn--primary" `+want) {
 			t.Errorf("weiter=%q: Continue link %s missing", weiter, want)
 		}
 		if strings.Contains(rec.Body.String(), "evil.example") {
@@ -125,7 +125,7 @@ func TestChangelogContinueLinkStaysInsideTheAdmin(t *testing.T) {
 
 	rec := serve(t, h, sm, h.HandleChangelog,
 		httptest.NewRequest(http.MethodGet, "/admin/neuerungen", nil))
-	if strings.Contains(rec.Body.String(), `class="btn btn-primary"`) {
+	if strings.Contains(rec.Body.String(), `class="btn btn--primary"`) {
 		t.Error("a Continue link is rendered without seit")
 	}
 }

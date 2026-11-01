@@ -80,6 +80,25 @@ var (
 	buildSource  = "https://github.com/holzcloud/holzcloud-cms"
 )
 
+// buildCommit is the commit this binary was built from, empty when the build
+// was not stamped. Shown on the About screen only.
+var buildCommit = ""
+
+// SetCommit records the commit this binary was built from. "" and "unknown"
+// (the value main.go carries when the build was not stamped) are ignored, so
+// BuildCommit stays empty and the About screen says it was not recorded rather
+// than printing a word that looks like a hash.
+func SetCommit(commit string) {
+	if commit == "" || commit == "unknown" {
+		buildCommit = ""
+		return
+	}
+	buildCommit = commit
+}
+
+// BuildCommit is the commit this binary was built from, or "" if not recorded.
+func BuildCommit() string { return buildCommit }
+
 // SetBuild records what this binary is, for the sidebar.
 func SetBuild(version, sourceURL string) {
 	if version != "" {
