@@ -1,5 +1,12 @@
 # AI access
 
+> **This is the headline feature.** holzcloud-CMS is built to be run by an AI
+> assistant. About 140 MCP tools cover what the admin does: pages and blocks,
+> translations, media, menus, design, SEO and the shop. In Claude or ChatGPT you
+> enter the address `https://your-site/ai` and agree once (OAuth); nothing else
+> to install. New pages are always drafts and every change is kept as a version,
+> so an assistant can be handed a website without being handed the last word.
+
 An operator can connect their own AI assistant to the running CMS and write
 content with it. The direction matters: **this server never calls an AI.** There
 is no provider credential here, nothing is fetched at runtime, and the rule that

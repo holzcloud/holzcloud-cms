@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/brand/banner.png" alt="holzcloud-CMS: a self-hosted CMS that needs no JavaScript and loads nothing from anywhere else">
+  <img src="docs/brand/banner.png" alt="holzcloud-CMS: a self-hosted CMS with no JavaScript and nothing from third parties, run by Claude or ChatGPT over MCP">
 </p>
 
 <p align="center">
@@ -10,9 +10,11 @@
 </p>
 
 **holzcloud-CMS** is a self-hosted CMS written in Go that runs many websites
-from one binary and one SQLite file. Its sites ship no JavaScript and load
-nothing from third parties, so they are fast and need no cookie banner. Made in
-Switzerland, free software under the AGPL-3.0.
+from one binary and one SQLite file, and **it is built to be run by an AI
+assistant**: Claude, ChatGPT or any MCP client can write, translate and publish
+through a built-in MCP server with about 140 tools. Its sites ship no JavaScript
+and load nothing from third parties, so they are fast and need no cookie banner.
+Made in Switzerland, free software under the AGPL-3.0.
 
 [Project page](https://holzcloud.ch/holzcloud-cms) ·
 [Releases](https://github.com/holzcloud/holzcloud-cms/releases) ·
@@ -31,6 +33,12 @@ Switzerland, free software under the AGPL-3.0.
 
 ## Why
 
+- **Run it with your own AI assistant.** The headline feature: a built-in
+  [MCP server](docs/ai-access.md) with about 140 tools lets Claude, ChatGPT or
+  any MCP client do everything the admin can: write and translate pages, upload
+  images, arrange menus, run the shop. Connecting takes an address and one
+  consent (OAuth). New pages stay drafts until you publish them, every change is
+  kept as a version, and the server never calls an AI itself.
 - **No JavaScript on the websites.** The eight built-in templates ship none, and
   an uploaded template with a script, an `onclick` or a `javascript:` link is
   refused. Visitors get HTML and CSS.
@@ -45,9 +53,6 @@ Switzerland, free software under the AGPL-3.0.
 - **Many websites, many domains.** Requests are routed by `Host`. Sites can be
   multilingual, with `hreflang` and a language picker; the admin comes in German,
   English, French, Italian and Spanish.
-- **Edit with your own AI assistant.** A built-in [MCP server](docs/ai-access.md)
-  with about 140 tools lets Claude, ChatGPT or any MCP client do what the admin
-  can. New pages stay drafts until you publish them.
 - **A shop for Switzerland.** Products with stock, orders by invoice or payment
   in advance (Payrexx optional), prices in CHF, with or without VAT.
 - **No lock-in.** A whole website exports as one readable archive, there is a
