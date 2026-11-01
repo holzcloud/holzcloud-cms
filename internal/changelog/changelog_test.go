@@ -89,3 +89,13 @@ func TestMajorIsTheFirstNumber(t *testing.T) {
 		}
 	}
 }
+
+func TestSeries(t *testing.T) {
+	for in, want := range map[string]string{
+		"0.1.2": "0.1", "0.0.25": "0.0", "2.9.1": "2", "1.10": "1", "2": "2", "0.1": "0.1",
+	} {
+		if got := (Release{Version: in}).Series(); got != want {
+			t.Errorf("Series(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

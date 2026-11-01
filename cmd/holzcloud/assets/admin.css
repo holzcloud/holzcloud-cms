@@ -2298,6 +2298,7 @@
         scroll-behavior: auto !important;
     }
 
+    ::view-transition-group(*),
     ::view-transition-old(*),
     ::view-transition-new(*) {
         animation: none !important;
@@ -2982,18 +2983,196 @@ body.is-fullscreen .content-body {
         text-underline-offset: 2px;
     }
 
-    /* Die Liste der Fassungen. Umbricht, weil sie mit jeder Ausgabe länger
-       wird: zehn Einträge passen in eine Zeile, dreissig nicht, und eine Leiste
-       mit waagerechtem Rollbalken versteckt genau die alten Einträge, die
-       jemand sucht. */
-    .changelog-versions {
+    /* ── Neuerungen ──────────────────────────────────────────────────────
+       Der Willkommenskopf nach einer Aktualisierung: eine Karte mit einem
+       Hauch Akzentfarbe, nicht mehr. Der Farbverlauf ist color-mix aus
+       bestehenden Tokens, damit er im dunklen Modus von selbst mitgeht. */
+    .whatsnew-hero {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-1);
-        margin-block: var(--space-3);
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        margin-block-end: var(--space-3);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: linear-gradient(
+            135deg,
+            color-mix(in oklch, var(--color-accent-subtle) 80%, transparent),
+            transparent 70%);
+        box-shadow: var(--shadow-sm);
     }
 
-    .changelog-version {
+    .whatsnew-hero__text {
+        flex: 1 1 24rem;
+    }
+
+    .whatsnew-hero__text > * + * {
+        margin-block-start: var(--space-1);
+    }
+
+    .whatsnew-hero__eyebrow {
+        color: var(--color-accent);
+        font-size: var(--text-xs);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    /* Der Knopf rechts; sobald die Zeile umbricht, steht er unter dem Text. */
+    .whatsnew-hero .btn {
+        margin-inline-start: auto;
+    }
+
+    /* Die Reiter. Verweise auf echte Adressen, in einer Zeile auf einer
+       dünnen Linie. Umbricht, weil die Zeile sonst auf dem Telefon einen
+       waagerechten Rollbalken bekäme, der genau die älteren Einträge
+       versteckt. */
+    .whatsnew-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1) var(--space-3);
+        margin-block: var(--space-3) var(--space-2);
+        border-block-end: 1px solid var(--color-border);
+    }
+
+    .whatsnew-tab {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: var(--space-1) var(--space-1) var(--space-2);
+        color: var(--color-text-muted);
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    .whatsnew-tab:hover {
+        color: var(--color-text);
+    }
+
+    .whatsnew-tab.is-active {
+        color: var(--color-text);
+        font-weight: 600;
+    }
+
+    .whatsnew-tab__number {
+        font-variant-numeric: tabular-nums;
+    }
+
+    .whatsnew-tab__date {
+        font-size: var(--text-xs);
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+        color: var(--color-text-muted);
+    }
+
+    /* "Neu": ein Punkt, kein Wort. Die Vorlesesoftware bekommt das Wort aus
+       dem sr-only-Text darin. */
+    .whatsnew-tab__new {
+        position: absolute;
+        inset-block-start: var(--space-1);
+        inset-inline-end: -2px;
+        inline-size: 6px;
+        block-size: 6px;
+        border-radius: 50%;
+        background: var(--color-accent);
+    }
+
+    .whatsnew-archive__link .whatsnew-tab__new {
+        position: static;
+        display: inline-block;
+        margin-inline-start: 2px;
+        vertical-align: middle;
+    }
+
+    /* Der Balken unter dem aktiven Reiter. Nur dieser eine Reiter zeichnet ihn,
+       also ist der view-transition-name eindeutig, und der Balken gleitet beim
+       Seitenübergang von einem Reiter zum nächsten. */
+    .whatsnew-tab__indicator {
+        position: absolute;
+        inset-inline: 0;
+        inset-block-end: -1px;
+        block-size: 2px;
+        border-radius: 1px;
+        background: var(--color-accent);
+        view-transition-name: whatsnew-indicator;
+    }
+
+    .whatsnew-tab:focus-visible,
+    .whatsnew-archive__link:focus-visible,
+    .whatsnew-archive summary:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
+        border-radius: var(--radius-sm);
+    }
+
+    /* Ältere Fassungen: eine leise Schaltfläche aus Text, die sich mit einem
+       Pfeil öffnet. Native <details>, kein Skript. */
+    .whatsnew-archive {
+        margin-block-end: var(--space-3);
+    }
+
+    .whatsnew-archive summary {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-1);
+        color: var(--color-text-muted);
+        cursor: pointer;
+        list-style: none;
+    }
+
+    .whatsnew-archive summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .whatsnew-archive summary::before {
+        content: "";
+        inline-size: 0.5em;
+        block-size: 0.5em;
+        border-inline-end: 1.5px solid currentColor;
+        border-block-end: 1.5px solid currentColor;
+        transform: rotate(-45deg);
+        transition: transform 0.15s ease;
+    }
+
+    .whatsnew-archive[open] > summary::before {
+        transform: rotate(45deg);
+    }
+
+    .whatsnew-archive summary:hover {
+        color: var(--color-text);
+    }
+
+    .whatsnew-archive__group {
+        margin-block-start: var(--space-2);
+    }
+
+    .whatsnew-archive__group h3 {
+        margin-block-end: var(--space-1);
+        font-size: var(--text-xs);
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+    }
+
+    /* Auf dem Telefon eine Spalte, darüber ein Raster kleiner Kapseln. Die
+       Breite fragt den Container, nicht das Fenster: die Seite steht neben
+       einer Seitenleiste, die Fensterbreite sagt nichts über den Platz. */
+    .whatsnew-archive__list {
+        display: grid;
+        gap: var(--space-1);
+        grid-template-columns: 1fr;
+    }
+
+    @container (min-width: 600px) {
+        .whatsnew-archive__list {
+            grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+        }
+    }
+
+    .whatsnew-archive__link {
+        position: relative;
         padding: 0.25rem var(--space-2);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-sm);
@@ -3003,22 +3182,26 @@ body.is-fullscreen .content-body {
         white-space: nowrap;
     }
 
-    .changelog-version:hover {
+    .whatsnew-archive__link:hover {
         border-color: var(--color-accent);
         color: var(--color-text);
     }
 
-    /* Die gezeigte Fassung. Nicht nur farbig: aria-current sagt es der
-       Vorlesesoftware, und der kräftigere Rahmen sagt es allen anderen, auch
-       denen, die den Farbunterschied nicht sehen. */
-    .changelog-version.is-active {
+    /* Die gezeigte Fassung: nicht nur farbig, auch der kräftigere Rahmen
+       sagt es, und aria-current der Vorlesesoftware. */
+    .whatsnew-archive__link.is-active {
         border-color: var(--color-accent);
         background: var(--color-accent-subtle);
         color: var(--color-accent);
         font-weight: 600;
     }
 
-    .changelog-entry__head {
+    /* Der Eintrag blendet kurz ein, wenn die Seite wechselt. */
+    .whatsnew-entry {
+        view-transition-name: whatsnew-entry;
+    }
+
+    .whatsnew-entry__head {
         display: flex;
         flex-wrap: wrap;
         align-items: baseline;
@@ -3027,12 +3210,12 @@ body.is-fullscreen .content-body {
         border-block-end: 1px solid var(--color-border);
     }
 
-    .changelog-entry__date {
+    .whatsnew-entry__date {
         color: var(--color-text-muted);
         font-variant-numeric: tabular-nums;
     }
 
-    .changelog-entry__running {
+    .whatsnew-entry__running {
         padding: 0.1rem var(--space-1);
         border-radius: var(--radius-sm);
         background: var(--color-accent);
@@ -3043,9 +3226,120 @@ body.is-fullscreen .content-body {
     /* Der Eintrag selbst liest sich wie ein Text und nicht wie eine Tabelle:
        eine Zeilenlänge, die das Auge zurückfindet. Die Sätze im Changelog sind
        absichtlich ganze Sätze. */
-    .changelog-entry__body {
+    .whatsnew-entry__body {
         max-width: 68ch;
         margin-block-start: var(--space-3);
+    }
+}
+
+@keyframes whatsnew-entry-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+
+::view-transition-new(whatsnew-entry) {
+    animation: whatsnew-entry-in 180ms ease-out;
+}
+
+/* ── Über (Einstellungen) ─────────────────────────────────────────────── */
+@layer components {
+    /* Der Kopf: Programmname klein, die Fassung gross in Tabellenziffern, die
+       Reife als Marke daneben. Ruhig, kein Plakat. */
+    .about-hero {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: var(--space-2) var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        margin-block-end: var(--space-3);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: linear-gradient(
+            135deg,
+            color-mix(in oklch, var(--color-accent-subtle) 80%, transparent),
+            transparent 70%);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .about-hero__name {
+        flex-basis: 100%;
+        color: var(--color-text-muted);
+        font-size: var(--text-xs);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .about-version {
+        font-size: 2rem;
+        font-weight: 600;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Eine stabile Fassung bekommt dieselbe Marke ohne Warnfarbe. */
+    .alpha-tag.is-stable {
+        background: var(--color-accent-subtle);
+        color: var(--color-accent);
+    }
+
+    /* Die Angaben als zweispaltige Definitionsliste; schmal untereinander. Die
+       Breite fragt den Container, nicht das Fenster, weil die Seite neben der
+       Leiste und der Einstellungsliste steht. */
+    .about-facts {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--space-1) var(--space-3);
+        margin-block-end: var(--space-3);
+    }
+
+    .about-facts dt {
+        color: var(--color-text-muted);
+        font-size: var(--text-xs);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .about-facts dd {
+        margin: 0 0 var(--space-2);
+        overflow-wrap: anywhere;
+    }
+
+    .about-facts__note {
+        color: var(--color-text-muted);
+    }
+
+    @container (min-width: 600px) {
+        .about-facts {
+            grid-template-columns: max-content 1fr;
+        }
+
+        .about-facts dt {
+            padding-block-start: 0.2em;
+        }
+
+        .about-facts dd {
+            margin: 0;
+        }
+    }
+
+    /* Die Karte zu den Neuerungen: dieselbe Haltung wie der Willkommenskopf. */
+    .about-cta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2) var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: linear-gradient(
+            135deg,
+            color-mix(in oklch, var(--color-accent-subtle) 80%, transparent),
+            transparent 70%);
+        box-shadow: var(--shadow-sm);
     }
 }
 

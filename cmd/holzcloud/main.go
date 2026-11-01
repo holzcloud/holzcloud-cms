@@ -101,6 +101,7 @@ func main() {
 	// web.SetBuild: for a modified version running as a service the AGPL
 	// requires that its users can get at the source.
 	web.SetBuild(Version, os.Getenv("HOLZCLOUD_SOURCE_URL"))
+	web.SetCommit(Commit)
 	slog.Info("configuration loaded", "config", cfg)
 
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
@@ -990,6 +991,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// notice the difference.
 	adminProtectedMux.HandleFunc("GET /admin/neuerungen", adminHandler.ErrHandler(adminHandler.HandleChangelog))
 	adminProtectedMux.HandleFunc("GET /admin/neuerungen/{version}", adminHandler.ErrHandler(adminHandler.HandleChangelog))
+	adminProtectedMux.HandleFunc("GET /admin/ueber", adminHandler.ErrHandler(adminHandler.HandleAbout))
 
 	// Website routes
 	adminProtectedMux.HandleFunc("GET /admin/websites", adminHandler.ErrHandler(adminHandler.HandleWebsiteList))
@@ -1287,7 +1289,10 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// should see their own admin.
 	withLang := i18n.Middleware(admin.NewLanguageLookup(sm, database))
 
-	// Protected admin: headers -> CSRF -> setupGuard -> forward auth -> requireAuth -> language -> website access -> nav -> handler
+	// Protected admin: headers -> CSRF -> setupGuard -> forward auth -> requireAuth -> language -> website access -> nav -> what's new -> handler
+	//
+	// What's new sits innermost on purpose: after second-factor enforcement and the
+	// access checks, so only a page view that was fully admitted is ever redirected.
 	//
 	// Forward auth signs a session in and authorises nothing. Its position is
 	// the whole design: outside requireAuth, so the session already carries the
@@ -1297,7 +1302,7 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// RequireAuth, RequireSecondFactor, RequireWebsiteAccess — runs exactly as
 	// it did before it existed, and removing this one call is how the whole
 	// feature is switched off in an emergency.
-	mux.Handle("/admin/", web.AdminHeaders(csrfMiddleware(setupGuard(adminHandler.OIDCGuard(adminHandler.ForwardAuthSignIn(requireAuth(requireSecondFactor(withLang(requireWebsite(withNav(adminProtectedMux)))))))))))
+	mux.Handle("/admin/", web.AdminHeaders(csrfMiddleware(setupGuard(adminHandler.OIDCGuard(adminHandler.ForwardAuthSignIn(requireAuth(requireSecondFactor(withLang(requireWebsite(withNav(adminHandler.WhatsNewOnUpdate(Version)(adminProtectedMux))))))))))))
 
 	// The installation's logo. Public like the assets: it stands on the sign-in
 	// screen too, and whoever sees that may see the picture on it.

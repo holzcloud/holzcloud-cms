@@ -1,0 +1,47 @@
+{{define "content"}}
+<!-- Der Programmname steht wörtlich da und nicht als .Brand.Name: die Lizenz
+     meint das Programm, nicht die Marke der Installation (base.html sagt,
+     warum). -->
+<section class="about-hero">
+    <p class="about-hero__name">holzcloud-CMS</p>
+    <p class="about-version">{{.Version}}</p>
+    {{if eq .Stage "alpha"}}<span class="alpha-tag" title="{{t "Alpha software: updates can still bring breaking changes."}}">{{t "alpha"}}</span>
+    {{else if eq .Stage "beta"}}<span class="alpha-tag is-beta" title="{{t "Beta software: usable, but an update can still change things."}}">{{t "beta"}}</span>
+    {{else}}<span class="alpha-tag is-stable">{{t "stable"}}</span>{{end}}
+</section>
+
+<dl class="about-facts">
+    <dt>{{t "Version"}}</dt>
+    <dd>{{.Version}}</dd>
+
+    <dt>{{t "Stage"}}</dt>
+    <dd>{{if eq .Stage "alpha"}}{{t "alpha"}}{{else if eq .Stage "beta"}}{{t "beta"}}{{else}}{{t "stable"}}{{end}}</dd>
+
+    {{if and .IsRelease .Release.Date}}
+    <dt>{{t "Released"}}</dt>
+    <dd>{{.Release.Date}}</dd>
+    {{end}}
+
+    <dt>{{t "Commit"}}</dt>
+    <dd>{{if .Commit}}<code>{{.Commit}}</code>{{else}}{{t "Not recorded in this build."}}{{end}}</dd>
+
+    <dt>{{t "Licence"}}</dt>
+    <dd>AGPL-3.0 <span class="about-facts__note">{{t "Free software under the AGPL-3.0."}}</span></dd>
+
+    <dt>{{t "Source code"}}</dt>
+    <!-- Ein ausgehender Verweis ist Inhalt und kein Unterbestandteil der Seite;
+         er wird erst beim Anklicken geladen. -->
+    <dd><a href="{{.SourceURL}}" target="_blank" rel="noopener">{{.SourceURL}}</a></dd>
+</dl>
+
+<!-- Der Weg zu den Neuerungen, jederzeit. Das Programm fragt dafür nie das
+     Netz, ob es eine neuere Fassung gibt, und sagt deshalb dazu nichts. -->
+<section class="about-cta">
+    {{if .IsRelease}}
+    <a class="btn btn--primary" href="/admin/neuerungen/{{.Release.Version}}">{{tf "What is new in version %s" .Release.Version}}</a>
+    {{else}}
+    <p>{{t "This build is not a release, so no version entry belongs to it."}}</p>
+    <a class="btn" href="/admin/neuerungen">{{t "All versions"}}</a>
+    {{end}}
+</section>
+{{end}}

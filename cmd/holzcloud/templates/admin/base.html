@@ -125,7 +125,11 @@
                  wie die Installation sich nennt, die Lizenz meint das
                  Programm. In der schmalen Leiste bleibt davon die Fassung,
                  die zu den Neuerungen führt; Lizenz und Quelle stehen im Titel
-                 des Verweises und ausgeschrieben in der Einstellungsliste. -->
+                 des Verweises und ausgeschrieben auf dem Bildschirm
+                 Einstellungen → Über. Die Neuerungen selbst zeigt das
+                 Programm nach einer Aktualisierung einmal von sich aus
+                 (WhatsNewOnUpdate); über diesen Verweis und über „Über“
+                 sind sie jederzeit wieder da. -->
             <p class="sidebar-build">
                 <a href="/admin/neuerungen" class="sidebar-build__version" title="holzcloud-CMS {{.Version}}">{{.Version}}</a>
                 {{if eq .Stage "alpha"}}<span class="alpha-tag" title="{{t "Alpha software: updates can still bring breaking changes."}}">{{t "alpha"}}</span>{{else if eq .Stage "beta"}}<span class="alpha-tag is-beta" title="{{t "Beta software: usable, but an update can still change things."}}">{{t "beta"}}</span>{{end}}

@@ -218,6 +218,31 @@ func (s *Store) Locale(ctx context.Context, id int64) string {
 	return locale
 }
 
+// SeenVersion is the newest release whose What's-new screen this person has
+// been shown, and "" when nothing is recorded yet (a new account).
+//
+// A query of its own, on the read pool, for the same reason as Locale: the
+// middleware that asks runs on page loads and has no use for the rest of the
+// row.
+func (s *Store) SeenVersion(ctx context.Context, id int64) (string, error) {
+	var v string
+	if err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT seen_version FROM users WHERE id = $1`, id).Scan(&v); err != nil {
+		return "", fmt.Errorf("get seen version: %w", err)
+	}
+	return v, nil
+}
+
+// SetSeenVersion records the release whose What's-new screen this person has
+// now been shown. Written on the write pool, once per person per release.
+func (s *Store) SetSeenVersion(ctx context.Context, id int64, version string) error {
+	if _, err := s.DB.Write.ExecContext(ctx,
+		`UPDATE users SET seen_version = $1 WHERE id = $2`, version, id); err != nil {
+		return fmt.Errorf("set seen version: %w", err)
+	}
+	return nil
+}
+
 // Role returns the current role of a user, and whether the user still exists.
 // It is the lookup the auth middleware uses to re-validate a session.
 func (s *Store) Role(ctx context.Context, id int64) (string, bool, error) {

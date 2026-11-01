@@ -291,3 +291,22 @@ func TestBuildStampNeverEmpty(t *testing.T) {
 		t.Errorf("SetBuild(\"\", \"\") deleted the default: buildVersion=%q buildSource=%q", buildVersion, buildSource)
 	}
 }
+
+// An unstamped build has no commit, and says so by being empty.
+func TestSetCommitIgnoresTheUnstampedValues(t *testing.T) {
+	prev := buildCommit
+	t.Cleanup(func() { buildCommit = prev })
+
+	SetCommit("")
+	if BuildCommit() != "" {
+		t.Errorf(`SetCommit("") left %q`, BuildCommit())
+	}
+	SetCommit("unknown")
+	if BuildCommit() != "" {
+		t.Errorf(`SetCommit("unknown") left %q`, BuildCommit())
+	}
+	SetCommit("abc1234")
+	if BuildCommit() != "abc1234" {
+		t.Errorf("BuildCommit() = %q, want abc1234", BuildCommit())
+	}
+}
