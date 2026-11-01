@@ -9,12 +9,18 @@
 // went looking for the repository. The version in the sidebar is where they
 // would ask, so that is where the answer is.
 //
-// # What it is not
+// # When it is shown
 //
-// Not a feed, not a notification, not a badge that nags. It is a page, reached
-// by following a link, and nothing about it changes because a release happened.
-// A program that interrupts an operator to tell them about itself is a program
-// that will be told to stop.
+// Owner decision of 2026-11-01, replacing the earlier rule that nothing
+// announces this screen: after an update, each person is shown the new
+// version's entry once, on their next full page load in the administration.
+// "Once" is remembered per account and per version in the database (see Decide),
+// so a second browser or a new sign-in does not repeat it.
+//
+// It is never shown on a fresh installation or to a newly created account,
+// which have nothing to catch up on, and never for a build that is not a
+// release in CHANGELOG.md, which has no entry. It is always reachable again
+// from Settings, About and from the version in the sidebar.
 //
 // # The language
 //

@@ -3,6 +3,11 @@
 {{end}}
 
 {{define "changelog-content"}}
+{{if .Welcome}}
+<section class="whatsnew-hero" aria-labelledby="whatsnew-hero-title">
+    <a class="btn btn-primary" href="{{.Continue}}">{{t "Continue"}}</a>
+</section>
+{{end}}
 <p class="hint">
     {{t "Every version of this program and what changed in it, written by whoever made the change. The newest is on top."}}
 </p>

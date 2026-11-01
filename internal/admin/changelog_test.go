@@ -3,6 +3,7 @@ package admin
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -92,5 +93,37 @@ func TestTheSidebarVersionLinksToTheChangelog(t *testing.T) {
 
 	if !strings.Contains(rec.Body.String(), `href="/admin/neuerungen"`) {
 		t.Error("the sidebar no longer links the version number to this screen")
+	}
+}
+
+// After an update the screen carries a Continue link back to the page that was
+// interrupted, and that link only ever points inside /admin.
+func TestChangelogContinueLinkStaysInsideTheAdmin(t *testing.T) {
+	h, sm, _, _ := newTestAdmin(t)
+	all := changelog.All()
+	if len(all) < 2 {
+		t.Skip("needs two releases")
+	}
+	older := all[1].Version
+
+	cases := map[string]string{
+		"/admin/websites": `href="/admin/websites"`,
+		"//evil.example":  `href="/admin/"`,
+	}
+	for weiter, want := range cases {
+		target := "/admin/neuerungen?seit=" + older + "&weiter=" + url.QueryEscape(weiter)
+		rec := serve(t, h, sm, h.HandleChangelog, httptest.NewRequest(http.MethodGet, target, nil))
+		if !strings.Contains(rec.Body.String(), `class="btn btn-primary" `+want) {
+			t.Errorf("weiter=%q: Continue link %s missing", weiter, want)
+		}
+		if strings.Contains(rec.Body.String(), "evil.example") {
+			t.Errorf("weiter=%q leaked into the page", weiter)
+		}
+	}
+
+	rec := serve(t, h, sm, h.HandleChangelog,
+		httptest.NewRequest(http.MethodGet, "/admin/neuerungen", nil))
+	if strings.Contains(rec.Body.String(), `class="btn btn-primary"`) {
+		t.Error("a Continue link is rendered without seit")
 	}
 }

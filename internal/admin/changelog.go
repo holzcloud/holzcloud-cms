@@ -21,14 +21,23 @@ type changelogData struct {
 	// exists": a build from a branch, or a `dev` build, matches nothing here
 	// and then nothing is marked.
 	Running bool
+	// Welcome is set when the person was sent here by an update (the request
+	// carries "seit"), which turns on the welcome header and its Continue link.
+	Welcome bool
+	// Since is the version the person was on before, zero when unknown.
+	Since changelog.Release
+	// Continue is where Continue leads: the page that was interrupted, and only
+	// ever a path inside /admin.
+	Continue string
 }
 
 // HandleChangelog shows what changed, by version.
 //
-// Reached by following the version number in the sidebar, which is where an
-// operator asks the question. Nothing announces it and nothing marks it unread:
-// a self-hosted program that interrupts the person running it to talk about
-// itself is one they learn to click past.
+// Reached three ways: once after an update, when WhatsNewOnUpdate sends the
+// person here with the version they were on ("seit") and the page they were
+// heading for ("weiter"); by following the version number in the sidebar; and
+// from Settings, About. Only the first carries the welcome header and the
+// Continue link.
 //
 // No website is involved and no right is needed beyond being signed in. What
 // this program changed between two versions is not a secret from an editor —
@@ -46,11 +55,16 @@ func (h *Handler) HandleChangelog(w http.ResponseWriter, r *http.Request) error 
 		shown, ok = changelog.Latest()
 	}
 
+	q := r.URL.Query()
 	data := changelogData{
 		LayoutData: web.NewLayoutData(r, h.sm, "What is new"),
 		Releases:   releases,
 		Shown:      shown,
+		Welcome:    q.Has("seit"),
+		Continue:   continueTarget(q.Get("weiter")),
 	}
+	data.Since, _ = changelog.Find(q.Get("seit"))
+	data.ActiveNav = "about"
 	if ok {
 		// The sidebar prints whatever the build stamped, which is a tag name
 		// ("v2.2"), a `git describe` ("v2.2-3-gabc1234") or "dev". Find strips
