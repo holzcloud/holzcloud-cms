@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexedwards/scs/v2"
+
 	"github.com/holzcloud/holzcloud-cms/internal/changelog"
 )
 
@@ -126,4 +128,138 @@ func TestChangelogContinueLinkStaysInsideTheAdmin(t *testing.T) {
 	if strings.Contains(rec.Body.String(), `class="btn btn-primary"`) {
 		t.Error("a Continue link is rendered without seit")
 	}
+}
+
+func changelogPage(t *testing.T, h *Handler, sm *scs.SessionManager, version, query string) string {
+	t.Helper()
+	target := "/admin/neuerungen"
+	if version != "" {
+		target += "/" + version
+	}
+	req := httptest.NewRequest(http.MethodGet, target+query, nil)
+	req.SetPathValue("version", version)
+	rec := serve(t, h, sm, h.HandleChangelog, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	return rec.Body.String()
+}
+
+func needReleases(t *testing.T, n int) []changelog.Release {
+	t.Helper()
+	all := changelog.All()
+	if len(all) <= n {
+		t.Skipf("needs more than %d releases", n)
+	}
+	return all
+}
+
+// The newest versions are tabs, the rest sits in the archive, and exactly one
+// entry anywhere is current.
+func TestChangelogTabsAndArchive(t *testing.T) {
+	h, sm, _, _ := newTestAdmin(t)
+	all := needReleases(t, recentTabs)
+
+	body := changelogPage(t, h, sm, "", "")
+	// The rail and the settings list carry their own aria-current; count only
+	// what the screen itself renders.
+	body = body[strings.Index(body, `<nav class="whatsnew-tabs"`):]
+	tabs, archive, ok := strings.Cut(body, `<details class="whatsnew-archive"`)
+	if !ok {
+		t.Fatal("no archive disclosure")
+	}
+	for _, rel := range all[:recentTabs] {
+		if !strings.Contains(tabs, `href="/admin/neuerungen/`+rel.Version+`"`) {
+			t.Errorf("tab for %s missing", rel.Version)
+		}
+	}
+	for _, rel := range all[recentTabs:] {
+		if strings.Contains(tabs, `href="/admin/neuerungen/`+rel.Version+`"`) {
+			t.Errorf("%s is a tab, should be archived", rel.Version)
+		}
+		if !strings.Contains(archive, `href="/admin/neuerungen/`+rel.Version+`"`) {
+			t.Errorf("%s missing from the archive", rel.Version)
+		}
+	}
+	if !strings.Contains(archive, "<h3>"+all[recentTabs].Series()+".x</h3>") {
+		t.Error("archive is not grouped by series")
+	}
+	if n := strings.Count(body, `aria-current="page"`); n != 1 {
+		t.Errorf("aria-current count = %d, want 1", n)
+	}
+	if strings.Contains(strings.SplitN(archive, ">", 2)[0], " open") {
+		t.Error("archive is open although the newest is shown")
+	}
+}
+
+func TestChangelogOpensTheArchiveForAnOldVersion(t *testing.T) {
+	h, sm, _, _ := newTestAdmin(t)
+	all := needReleases(t, recentTabs)
+	oldest := all[len(all)-1].Version
+
+	body := changelogPage(t, h, sm, oldest, "")
+	body = body[strings.Index(body, `<nav class="whatsnew-tabs"`):]
+	if !strings.Contains(body, `<details class="whatsnew-archive" open>`) {
+		t.Error("archive is closed although the shown version lives in it")
+	}
+	tabs, _, _ := strings.Cut(body, `<details class="whatsnew-archive"`)
+	if strings.Contains(tabs, `aria-current="page"`) {
+		t.Error("a tab is current although the shown version is archived")
+	}
+	if n := strings.Count(body, `aria-current="page"`); n != 1 {
+		t.Errorf("aria-current count = %d, want 1", n)
+	}
+}
+
+func TestChangelogMarksOnlyNewerVersionsAsNew(t *testing.T) {
+	h, sm, _, _ := newTestAdmin(t)
+	all := needReleases(t, recentTabs)
+	since := all[2].Version
+
+	body := changelogPage(t, h, sm, "", "?seit="+since+"&weiter=%2Fadmin%2Fwebsites")
+	if n := strings.Count(body, `class="whatsnew-tab__new"`); n != 2 {
+		t.Errorf("new marks = %d, want 2", n)
+	}
+	// Both newer tabs carry one; the third does not.
+	for i, rel := range all[:3] {
+		tab := tabSlice(body, `href="/admin/neuerungen/`+rel.Version, `</a>`)
+		if got := strings.Contains(tab, "whatsnew-tab__new"); got != (i < 2) {
+			t.Errorf("%s: new mark = %v", rel.Version, got)
+		}
+		if !strings.Contains(tab, "seit="+since) || !strings.Contains(tab, "weiter=%2Fadmin%2Fwebsites") {
+			t.Errorf("%s: link lost seit/weiter: %s", rel.Version, tab)
+		}
+	}
+	if !strings.Contains(body, all[0].Version) || !strings.Contains(body, since) {
+		t.Error("welcome header does not name both versions")
+	}
+}
+
+func TestChangelogWelcomeWithAnUnknownPreviousVersion(t *testing.T) {
+	h, sm, _, _ := newTestAdmin(t)
+	needReleases(t, recentTabs)
+
+	body := changelogPage(t, h, sm, "", "?seit=weird")
+	if !strings.Contains(body, "whatsnew-hero") {
+		t.Error("no welcome header")
+	}
+	if strings.Contains(body, "You were on version") {
+		t.Error("previous-version sentence rendered for an unknown version")
+	}
+	if strings.Contains(body, "whatsnew-tab__new") {
+		t.Error("new marks rendered for an unknown previous version")
+	}
+}
+
+// tabSlice returns the text from the first occurrence of start to the next end.
+func tabSlice(s, start, end string) string {
+	i := strings.Index(s, start)
+	if i < 0 {
+		return ""
+	}
+	rest := s[i:]
+	if j := strings.Index(rest, end); j >= 0 {
+		return rest[:j]
+	}
+	return rest
 }

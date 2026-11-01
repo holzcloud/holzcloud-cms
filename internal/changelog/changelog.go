@@ -69,6 +69,20 @@ func (r Release) Major() string {
 	return r.Version
 }
 
+// Series is the label a long list is grouped under: "0.1" for 0.1.2, "0.0" for
+// 0.0.25, "2" for 2.9.1 and "1" for 1.10.
+//
+// The two counts move in different places. While the major is 0 the count
+// moves in the minor number (0.0.x and 0.1.x are different generations of the
+// program); the legacy 1.x and 2.x count moves in the major.
+func (r Release) Series() string {
+	parts := strings.Split(r.Version, ".")
+	if parts[0] == "0" && len(parts) > 1 {
+		return parts[0] + "." + parts[1]
+	}
+	return parts[0]
+}
+
 // once guards the parse. The file is 44 KB of Markdown and the result never
 // changes while the process runs, so it is done on the first request and not at
 // startup: a program that does not serve this page should not pay for it.

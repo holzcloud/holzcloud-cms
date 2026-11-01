@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/holzcloud/holzcloud-cms/internal/changelog"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -29,6 +30,33 @@ type changelogData struct {
 	// Continue is where Continue leads: the page that was interrupted, and only
 	// ever a path inside /admin.
 	Continue string
+	// Tabs are the newest recentTabs versions, shown as the tab strip.
+	Tabs []versionTab
+	// Archive is every older version, grouped by series, inside a native
+	// disclosure.
+	Archive []versionGroup
+	// ArchiveOpen opens the disclosure when the shown version lives in it, so
+	// the current entry is never hidden behind a closed summary.
+	ArchiveOpen bool
+}
+
+// recentTabs is how many versions get a tab of their own. More would wrap into
+// a wall; the rest are one click away in the archive.
+const recentTabs = 6
+
+// versionTab is one version as a link: to its own address, marked current when
+// it is the one on the screen and new when it came after the version the person
+// was on before.
+type versionTab struct {
+	Release     changelog.Release
+	Href        string
+	Active, New bool
+}
+
+// versionGroup is one series of the archive.
+type versionGroup struct {
+	Series string
+	Tabs   []versionTab
 }
 
 // HandleChangelog shows what changed, by version.
@@ -66,6 +94,9 @@ func (h *Handler) HandleChangelog(w http.ResponseWriter, r *http.Request) error 
 	data.Since, _ = changelog.Find(q.Get("seit"))
 	data.ActiveNav = "about"
 	if ok {
+		buildTabs(&data, r.URL.Query())
+	}
+	if ok {
 		// The sidebar prints whatever the build stamped, which is a tag name
 		// ("v2.2"), a `git describe` ("v2.2-3-gabc1234") or "dev". Find strips
 		// the v and matches the first; the other two match nothing, which is
@@ -75,4 +106,58 @@ func (h *Handler) HandleChangelog(w http.ResponseWriter, r *http.Request) error 
 		}
 	}
 	return web.RenderAdmin(w, h.templates, r, "changelog", data)
+}
+
+// buildTabs fills the tab strip and the archive. Done in Go and not in the
+// template: which version is new, current or in the archive is a decision, and
+// a template should print decisions, not make them.
+//
+// seit and weiter are carried into every link, so the welcome state survives
+// flipping between tabs; without them the links are bare addresses.
+func buildTabs(data *changelogData, q url.Values) {
+	keep := url.Values{}
+	if q.Has("seit") {
+		keep.Set("seit", q.Get("seit"))
+	}
+	if q.Has("weiter") {
+		// The guarded value, not the raw one: a link should never carry
+		// something the Continue button would refuse.
+		keep.Set("weiter", data.Continue)
+	}
+	suffix := ""
+	if len(keep) > 0 {
+		suffix = "?" + keep.Encode()
+	}
+
+	sinceIdx := -1
+	all := data.Releases
+	if data.Since.Version != "" {
+		for i, rel := range all {
+			if rel.Version == data.Since.Version {
+				sinceIdx = i
+			}
+		}
+	}
+
+	for i, rel := range all {
+		t := versionTab{
+			Release: rel,
+			Href:    "/admin/neuerungen/" + url.PathEscape(rel.Version) + suffix,
+			Active:  rel.Version == data.Shown.Version,
+			New:     sinceIdx >= 0 && i < sinceIdx,
+		}
+		if i < recentTabs {
+			data.Tabs = append(data.Tabs, t)
+			continue
+		}
+		if t.Active {
+			data.ArchiveOpen = true
+		}
+		series := rel.Series()
+		if n := len(data.Archive); n > 0 && data.Archive[n-1].Series == series {
+			data.Archive[n-1].Tabs = append(data.Archive[n-1].Tabs, t)
+			continue
+		}
+		data.Archive = append(data.Archive, versionGroup{Series: series, Tabs: []versionTab{t}})
+	}
 }

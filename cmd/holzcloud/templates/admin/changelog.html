@@ -4,42 +4,81 @@
 
 {{define "changelog-content"}}
 {{if .Welcome}}
+<!-- Nur nach einer Aktualisierung (die Anfrage trägt "seit"): was sich
+     geändert hat, seit die Person zuletzt hier war, und der Weg zurück zu
+     der Seite, die unterbrochen wurde. -->
 <section class="whatsnew-hero" aria-labelledby="whatsnew-hero-title">
+    <div class="whatsnew-hero__text">
+        <p class="whatsnew-hero__eyebrow">{{tf "Updated to version %s" .Shown.Version}}</p>
+        <h2 id="whatsnew-hero-title">{{t "Here is what changed since you were last here."}}</h2>
+        {{if .Since.Version}}<p>{{tf "You were on version %s before." .Since.Version}}</p>{{end}}
+        <p class="hint">{{t "You can open this page again at any time under Settings, About."}}</p>
+    </div>
     <a class="btn btn-primary" href="{{.Continue}}">{{t "Continue"}}</a>
 </section>
-{{end}}
+{{else}}
 <p class="hint">
     {{t "Every version of this program and what changed in it, written by whoever made the change. The newest is on top."}}
 </p>
+{{end}}
 
 {{if not .Releases}}
 <p class="empty">{{t "This build carries no version history."}}</p>
 {{else}}
 
-<!-- Die Fassungen als gewöhnliche Verweise, nicht als Reiter aus Javascript:
-     jede hat eine eigene Adresse, die man kopieren und jemandem schicken kann,
-     der noch auf der älteren Fassung sitzt, und ohne Skript funktioniert die
-     Seite genauso. -->
-<nav class="changelog-versions" aria-label="{{t "Versions"}}">
-    {{range .Releases}}
-    <a href="/admin/neuerungen/{{.Version}}"
-       class="changelog-version{{if eq .Version $.Shown.Version}} is-active{{end}}"
-       {{if eq .Version $.Shown.Version}}aria-current="page"{{end}}>{{.Version}}</a>
+<!-- Die Fassungen als gewöhnliche Verweise, nicht als ARIA-Reiter: eine
+     tablist verspricht Pfeiltasten-Bedienung, die nur Skript liefern kann.
+     Verweise funktionieren ohne Javascript, und jede Fassung behält eine
+     eigene Adresse, die man jemandem schicken kann, der noch auf der älteren
+     sitzt. Die Seite wechselt als Ganzes; der Balken unter dem aktiven Reiter
+     gleitet über den Seitenübergang (View Transition) von einem zum nächsten. -->
+<nav class="whatsnew-tabs" aria-label="{{t "Versions"}}">
+    {{range .Tabs}}
+    <a class="whatsnew-tab{{if .Active}} is-active{{end}}" href="{{.Href}}"
+       {{if .Active}}aria-current="page"{{end}}>
+        <span class="whatsnew-tab__number">{{.Release.Version}}</span>
+        {{if .Release.Date}}<span class="whatsnew-tab__date">{{.Release.Date}}</span>{{end}}
+        {{if .New}}<span class="whatsnew-tab__new"><span class="sr-only">{{t "new"}}</span></span>{{end}}
+        {{if .Active}}<span class="whatsnew-tab__indicator" aria-hidden="true"></span>{{end}}
+    </a>
     {{end}}
 </nav>
 
-<article class="changelog-entry">
-    <header class="changelog-entry__head">
+{{if .Archive}}
+<!-- Ältere Fassungen in einem <details>: ohne Skript auf- und zuklappbar, und
+     offen, wenn die gezeigte Fassung darin liegt, damit der aktuelle Eintrag
+     nie hinter einer geschlossenen Zusammenfassung verschwindet. -->
+<details class="whatsnew-archive"{{if .ArchiveOpen}} open{{end}}>
+    <summary>{{t "Older versions"}}</summary>
+    {{range .Archive}}
+    <section class="whatsnew-archive__group">
+        <h3>{{.Series}}.x</h3>
+        <div class="whatsnew-archive__list">
+            {{range .Tabs}}
+            <a class="whatsnew-archive__link{{if .Active}} is-active{{end}}" href="{{.Href}}"
+               {{if .Active}}aria-current="page"{{end}}>
+                {{.Release.Version}}
+                {{if .New}}<span class="whatsnew-tab__new"><span class="sr-only">{{t "new"}}</span></span>{{end}}
+            </a>
+            {{end}}
+        </div>
+    </section>
+    {{end}}
+</details>
+{{end}}
+
+<article class="whatsnew-entry">
+    <header class="whatsnew-entry__head">
         <h2>{{tf "Version %s" .Shown.Version}}</h2>
-        {{if .Shown.Date}}<p class="changelog-entry__date">{{.Shown.Date}}</p>{{end}}
+        {{if .Shown.Date}}<p class="whatsnew-entry__date">{{.Shown.Date}}</p>{{end}}
         {{if .Running}}
-        <p class="changelog-entry__running">{{t "This is the version running here."}}</p>
+        <p class="whatsnew-entry__running">{{t "This is the version running here."}}</p>
         {{end}}
     </header>
     <!-- Durch goldmark und bluemonday gegangen, wie jeder andere Markdown-Text
          in diesem Programm; internal/changelog sagt, warum es keinen zweiten
          Weg dorthin gibt. -->
-    <div class="changelog-entry__body prose">{{.Shown.HTML}}</div>
+    <div class="whatsnew-entry__body prose">{{.Shown.HTML}}</div>
 </article>
 {{end}}
 {{end}}
