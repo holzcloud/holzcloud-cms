@@ -3,11 +3,18 @@
 This file records what changed between two versions for somebody who runs this
 software. It follows the shape of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) — newest release at the
-top, one heading per version with a number and a date, groups below it — but
-writes the entries in whole sentences rather than in bullet fragments. That is
-deliberate: every other document in this project explains the why as well, and a
-list of clipped half-sentences would read as though somebody else had written it.
+top, one heading per version with a number and a date, groups below it.
 Whoever writes the next entry, please join in.
+
+Under a version heading the entry is cut into groups with a third-level
+heading: `### Neu` for what is new, `### Verbessert` for what works better,
+`### Behoben` for what was broken and is not any more, and `### Gut zu wissen`
+for what an operator has to do or watch out for. The screen shows them in that
+order, new things first, whatever order the file has them in.
+
+Keep new entries short: one sentence per change, a handful per group, no
+history of how it was found. The reasons belong in the commit and in docs/.
+Entries from before this rule are longer and are shown whole.
 
 The numbers are the same as the tags in the repository, from 0.0.1 on. The
 entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
@@ -16,96 +23,52 @@ entries stay here because they are still the history of this code.
 
 ## 0.1.2 — 2026-10-31
 
-**Was sich ändert.** Dieses Release behebt einen Fehler in der Navigation der Verwaltung. Der Bildschirm eines Plugins, etwa der des Kontaktformulars, meldete sich als „Plugins“; die Leiste ordnete ihn deshalb den Einstellungen zu, klappte die Einstellungsliste auf und markierte dort „Plugins“, obwohl der Eintrag des Plugins angeklickt worden war. Jetzt leuchtet der Eintrag des Plugins selbst, und die Einstellungsliste bleibt zu. Die Adresse eines Plugin-Bildschirms wird dafür an einer einzigen Stelle gebildet; die Leiste und die Seite, die ihn ausliefert, lesen sie beide von dort, und ein Test hält fest, dass sie sich nicht wieder auseinanderentwickeln.
+### Verbessert
 
-**Ein kürzerer Name.** Der Eintrag des Kontaktformulars in der schmalen Leiste hieß „Formulare & Nachrichten“ und brach in zwei Zeilen um. Er heißt jetzt „Nachrichten“ (englisch „Messages“, spanisch „Mensajes“, französisch „Messages“, italienisch „Messaggi“). Das Plugin trägt dafür die Version 1.5.1; sonst ist an ihm nichts geändert.
+- Der Eintrag des Kontaktformulars in der schmalen Leiste heißt jetzt „Nachrichten“ und bricht nicht mehr um (Plugin-Version 1.5.1).
 
-**Was gleich bleibt.** Es gibt keine neue Migration; die höchste ist weiter 00060. `backup.sh`, `restore.sh` und beide Units sind unverändert gegenüber 0.1.1, ebenso die Beta-Zusagen und ihre Grenzen auf der Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md); die dortigen Belegläufe betreffen diese Skripte und sind von der Änderung nicht berührt. Neu gemessen wurde nichts: Das Release ist durch die Testsuite und die CI geprüft, nicht durch einen Lauf auf einem Server.
+### Behoben
+
+- Der Bildschirm eines Plugins ließ in der Navigation den falschen Eintrag leuchten und klappte die Einstellungen auf. Jetzt leuchtet der Eintrag des Plugins selbst.
+
+### Gut zu wissen
+
+- Keine neue Migration, `backup.sh`, `restore.sh` und die Units sind unverändert gegenüber 0.1.1.
 
 ## 0.1.1 — 2026-10-26
 
-**Was 0.1.1 zeigt.** Dieses Release belegt einen Teil dessen, was 0.1.0 als nicht gezeigt aufführte, in einem Container mit systemd als PID 1 und nicht auf einem echten Server. Der mitgelieferte Timer `holzcloud-backup.timer` startet den mitgelieferten, gehärteten Dienst `holzcloud-backup.service` mit seinem eigenen Eintrag um 03:15, ohne Drop-in und ohne dass jemand etwas anstößt; gezeigt wurde das in einem Container, dessen Zeitzone so verschoben war, dass 03:15 innerhalb von zwei Minuten kam. Er wartet dabei eine zufällige Zeit von bis zu 300 Sekunden. Mit `Persistent=true` holt er einen Lauf nach, wenn der Rechner den Zeitpunkt verpasst hat; gespielt wurde ein Halt, der über den Zeitpunkt hinweg dauerte. Das Aufräumen folgt der eingestellten Aufbewahrungsregel. Die Kopie des ganzen Sicherungsordners an einen zweiten Rechner über `REMOTE_TARGET` gelingt, und aus dieser Kopie lässt sich eine Website wiederherstellen. Eine Sicherung von 0.1.0 lässt sich mit diesem Release zurückspielen. Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) führt jede dieser Zusagen mit einem Satz aus ihrer Aufzeichnung auf; die Aufzeichnungen selbst liegen unter `deploy/`.
+### Neu
 
-**Was die Läufe über den Betrieb lehren.** Ein Schlüssel und eine Datei `known_hosts` im Home-Verzeichnis des Dienstbenutzers funktionieren in der mitgelieferten Unit nicht: `ProtectHome=true` macht das Home unlesbar, und die Kopie scheitert mit `Host key verification failed`. Beides gehört nach `/opt/holzcloud/offsite-ssh`; [deploy/DEPLOY.md](https://github.com/holzcloud/holzcloud-cms/blob/main/deploy/DEPLOY.md) sagt im Kapitel „Backups“ jetzt, wo, und beschreibt den Fehler. Die Kopie ist ein Spiegel: `rsync -a --delete` macht den zweiten Rechner dem Sicherungsordner gleich, und was die Box verliert oder aufräumt, verliert die Kopie beim nächsten Lauf. Scheitert die Kopie, bleibt die neue Sicherung trotzdem auf der Box; der Fehler zeigt sich als fehlgeschlagene Unit und nicht als fehlende Sicherung. Das Aufräumen kann ein Verzeichnis bis zu einen Tag länger behalten, als Tage eingestellt sind, weil `find -mtime +30` ganze Tage abrundet: Ein Verzeichnis von 30 Tagen und 12 Stunden blieb stehen, eines von 31 Tagen und einer Stunde wurde entfernt.
+- Der Baustein „Bild und Text“ hat eine Lage für das Bild: links, rechts, oben oder unten. Bestehende Blöcke bleiben unverändert.
 
-**Die Sicherung ist nicht atomar.** Datenbank und Dateien werden nacheinander gesichert, während die Website läuft. Unter Last (vier gleichzeitige Uploads, ein Speichern von Seiten und in der zweiten Stufe ein Löschen von Bildern) stellte `restore.sh` in 38 von 80 Läufen Dateien wieder her, zu denen es keine Zeile in der Datenbank gibt (24 von 40 in der ersten Stufe, 14 von 40 in der zweiten), und in 16 von 40 Läufen der zweiten Stufe Zeilen, deren Datei in der Sicherung fehlt. Datenbank und Dateien stimmten nur in 26 von 80 Läufen überein, und keine Sicherung wurde abgelehnt. Das Zeitfenster ist im Kern das, das `backup.sh` in seinem eigenen Kommentar nennt (238 der 269 benannten Fälle); zwei weitere Fenster kamen vor, 28 Fälle nach dem Abzug der Datenbank und 3 am Ende des Kopierens der Medien. Jeder Fall wurde einem Fenster zugeordnet und mit einer Pause zwischen beiden Schritten auch absichtlich erzeugt. Wie oft das auf einer echten Website vorkommt, zeigt das nicht, denn die Last war so gewählt, dass sie das Fenster trifft. Eine Wiederholung nach Status 24 ändert daran nichts: In 8 von 40 Nächten der zweiten Stufe verschwand wirklich eine Datei, die Nacht wiederholte das Kopieren und endete vollständig, und in allen acht fehlte danach die Datei zu einer Zeile. Eine Wiederherstellung meldet eine Zeile ohne Datei nicht: `restore.sh` endet mit 0, die Prüfungen bleiben sauber, und das einzige Zeichen ist eine 404 auf die Datei.
+### Verbessert
 
-**Ein volles Laufwerk und eine verschwundene Datei.** Ist eine Sicherung größer als der freie Platz über `MIN_FREE_MB`, geht der Platz mitten im Kopieren aus: Auf einem Dateisystem von 1064 MB bei einer Grenze von 1024 MB und 1225 MB zu schreibenden Daten endete `rsync` mit Status 11, `backup.sh` ebenfalls, und die Unit stand auf fehlgeschlagen (`Result exit-code`). Das geänderte `backup.sh` entfernt in einem solchen Fall das Verzeichnis, das es für diese Nacht angelegt hat, und sagt es auf stderr; es blieb keines zurück, und die Nacht danach wurde vom Schutz nicht abgelehnt, sondern lief durch und scheiterte auf dieselbe Weise. Eine frühere Sicherung rührt es nicht an: Es beginnt nicht, wenn das Verzeichnis dieser Nacht schon da ist, und löscht nur, was es selbst angelegt hat. Das `MANIFEST` wird unter einem anderen Namen geschrieben und umbenannt, sodass nie ein halbes `MANIFEST` dasteht. Verschwindet während des Kopierens der Medien eine Datei, endet `rsync` mit Status 24; das Skript wiederholt dieses Kopieren einmal, und die Nacht endet vollständig, wenn die Wiederholung gelingt (von Hand und unter der Unit gespielt, dort mit `Result=success`). Endet auch die Wiederholung mit 24, endet die Nacht mit Status 24 und einer Meldung, die das Kopierte nennt, ohne Verzeichnis (unter der Unit `Result exit-code`). Der Status 24 dieser vier Fälle wurde mit einem Ersatz für `rsync` geliefert, der den Status ersetzt; wie oft ein echter vorkommt, zeigt die Stufe unter Last: 8 von 40 Nächten der zweiten Stufe trafen einen. Eine echte verschwundene Datei unter der Unit und eine Wiederholung bei der Kopie an einen zweiten Rechner (dort spielte sie nur der Test ohne Docker) wurden nicht gespielt. Was sich nicht abfangen lässt, bleibt: SIGKILL, der Abbruch durch den Speichermangel des Kernels und ein Stromausfall können weiter ein Verzeichnis ohne `MANIFEST` hinterlassen, das `restore.sh` ablehnt und das das neue Skript nicht entfernt. Das Aufräumen alter Sicherungen läuft weiter erst nach dem Kopieren, eine Nacht, die im Kopieren endet, erreicht es nicht (aus dem Skript gelesen, nicht gemessen). Zwei Prüfungen kann jeder Betreiber heute machen: `du` des Datenverzeichnisses mit `df` des Sicherungsverzeichnisses vergleichen und `MIN_FREE_MB` über die erste Zahl setzen, und die Verzeichnisse auflisten, in denen `MANIFEST` fehlt, das zweite für Verzeichnisse, die Nächte des alten Skripts zurückgelassen haben. Die Befehle stehen in den Schritten für den Betreiber.
+- Die öffentliche Seite setzt kein Cookie, solange der Besucher nichts tut. Ein Test über alle acht Themes hält das fest.
+- Sicherung per Timer, Nachholen verpasster Läufe, Aufräumen und die Kopie auf einen zweiten Rechner sind in einem Container durchgespielt. Die Belege stehen in [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md).
 
-**Was die Dokumente noch nicht sagen.** [deploy/DEPLOY.md](https://github.com/holzcloud/holzcloud-cms/blob/main/deploy/DEPLOY.md) sagt weder, dass eine verschwundene Datei einmal wiederholt wird und eine Wiederholung die Nacht beendet, noch dass eine gescheiterte Nacht ihr eigenes Verzeichnis entfernt, noch dass eine Wiederherstellung eine Zeile ohne Datei nicht meldet. Diese Aussagen stehen deshalb auf der Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md). Das Dokument selbst ist durch die Belege gebunden, zuletzt durch den Satz von dd077e4: Eine Änderung daran machte die Läufe ungültig, auf die sich die Aussagen stützen, und sie müssten wiederholt werden. Ob das geschehen soll, entscheidet der Betreiber des Projekts, nicht dieses Release.
+### Gut zu wissen
 
-**Was nicht gezeigt wurde und Sache des Betreibers ist.** Nativ auf amd64, eine Wiederherstellung auf einem echten Server und ein Neustart mit eingeschalteten Units haben noch kein Ergebnis (SRV-01 bis SRV-03). Für den ersten gibt es einen Knopf, den Workflow `native-amd64`, den es auf GitHub erst gibt, wenn `main` dort veröffentlicht ist; die Schritte für alle drei stehen in der Liste des Betreibers. Ebenso offen sind das echte 03:15 in der Zeitzone und mit der Uhr eines echten Servers, ein echter Stromausfall, das Netz zwischen zwei echten Rechnern mit eigenen Zugangsdaten und dem Fingerabdruck des Hostschlüssels, das Aufräumen auf echter Zeit und ein fast volles echtes Laufwerk. Alle Läufe fanden in Containern statt, unter Emulation von amd64 auf einem Rechner mit aarch64. Die Läufe für den Timer, das Nachholen, die zufällige Wartezeit, das Aufräumen und die Kopie an einen zweiten Rechner wurden mit dem `backup.sh` von 0.1.0 gemacht; mit dem geänderten Skript wurden nur die Läufe der neuen Aufzeichnung gemacht. Die ganze Liste mit Grund und Beleg steht auf der Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md).
-
-**Was sich am Programm seit 0.1.0 geändert hat.** Der Baustein „Bild und Text“ hat eine Lage für das Bild (`Bildlage`: links, rechts, oben oder unten); bestehende Blöcke bleiben unverändert. Wer ein Rasterbild hochlädt, das länger als 2560 px ist, wird gefragt „Passend verkleinern auf höchstens 2560 px?“, mit den Antworten „Ja, verkleinern“ und „Nein, Originale behalten“; die Wahl gilt für alle Bilder der Seite, ein verkleinertes Bild wird neu gespeichert, und das Original bleibt nicht erhalten. Der Pull Request 47 hat vier Befunde in den Bausteinen behoben, im Kern statt je Vorlage: Kleine Bilder werden nicht mehr hochgerechnet, der Aufruf zentriert nur noch einen einzelnen Satz, `--breit` lässt sich per Eigenschaft ans Raster anpassen, und der Bildtext richtet oben aus. Dazu kommen Aktualisierungen von Abhängigkeiten (goose 3.29.0, x/image 0.47.0, x/crypto 0.58.0, x/net 0.61.0). Es gibt keine neue Migration; die höchste ist weiter 00060, und eine Datenbank von 0.1.0 braucht keine. `restore.sh` und beide Units sind Byte für Byte die von 0.1.0. `backup.sh` hat sich auf die drei oben beschriebenen Weisen geändert (eine verschwundene Datei wird einmal wiederholt, eine gescheiterte Nacht entfernt ihr Verzeichnis, das `MANIFEST` wird unter anderem Namen geschrieben und umbenannt); seine übrigen Zeilen sind unverändert.
-
-**Datenschutz ohne Banner.** Die öffentliche Seite setzt kein Cookie, solange der Besucher nichts tut; ein Test über alle acht Themes hält das fest. Das Cookie der Preisansicht (`hc_preise`) gilt jetzt 30 statt 365 Tage und ist hinter einem Proxy, der TLS beendet, mit `Secure` versehen. Das Anfrageprotokoll schreibt die Adresse des Besuchers auf /24 (IPv4) oder /48 (IPv6) gekürzt; die neue Datei `deploy/journald-holzcloud.conf` begrenzt das Journal auf 14 Tage. Das Drop-in gilt für den ganzen Rechner, wird von Hand installiert und wurde auf einem echten Rechner nicht erprobt; `deploy/DEPLOY.md`, beide Units, `backup.sh` und `restore.sh` sind unverändert. Fehlgeschlagene Anmeldungen und abgelehnte Single-Sign-on-Versuche an der Verwaltung schreiben weiterhin die ganze Adresse. Ein Test hält fest, dass beim Hochladen die Metadaten eines Bildes entfernt werden. Jede neue Website bekommt einen Datenschutz-Entwurf, der aus ihren Funktionen zusammengesetzt ist, mit einer Tabelle der Cookies und einer der Empfänger; bestehenden Websites wird der Text in den Einstellungen als neuer Entwurf angeboten, ihre Seiten bleiben, wie sie sind. Der Text ist eine Vorlage und ersetzt keine Rechtsberatung. Es gibt keine neue Migration.
-
-**Was die Belege nicht mehr decken.** Es gibt zwei Sätze von Belegläufen. Der frühere wurde mit dem Programm von 85fa486 gemacht, der neue (`deploy/BACKUP-ROBUST-RUN.md`) mit dem von dd077e4, das gegenüber 85fa486 spätere Änderungen enthält: `git diff --stat 85fa486 dd077e4 -- cmd internal go.mod go.sum` zeigt 11 Dateien mit 2856 Einfügungen und 36 Löschungen, alle in `internal/admin` und `internal/media` (die Ausrichtung hochgeladener Bilder nach EXIF und das Farbprofil beim Verkleinern, mit ihren Tests). Beide unterscheiden sich von diesem Release in `cmd/holzcloud/assets/bausteine.css` und dem Stylesheet des Themes weide, beide durch den Pull Request 47 geändert; der frühere zusätzlich in den elf Dateien. Die beiden Neuerungen davor, die Bildlage und die Frage nach dem Verkleinern, waren schon in dem Programm, das beide Sätze gemessen haben. Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) hält die Verbindung zwischen Beleg und Programm fest. Seit Phase 30 unterscheiden sich beide Sätze von diesem Release außerdem in den Paketen, die der Absatz „Datenschutz ohne Banner“ nennt, und kein Skript der Sicherung liest sie.
+- Schlüssel und `known_hosts` für die Kopie gehören nach `/opt/holzcloud/offsite-ssh`, nicht ins Home des Dienstbenutzers (siehe [deploy/DEPLOY.md](https://github.com/holzcloud/holzcloud-cms/blob/main/deploy/DEPLOY.md)).
+- Die Kopie ist ein Spiegel: Was die Box verliert, verliert sie beim nächsten Lauf auch.
+- Die Sicherung ist nicht atomar und das Aufräumen kann ein Verzeichnis bis zu einen Tag länger behalten.
 
 ## 0.1.0 — 2026-10-14
 
-Dieses Release bringt keine neue Funktion, sondern Belege und Reparaturen für den Betrieb: Dienst, Aktualisieren, Zurückrollen, Sichern und Wiederherstellen sind durchgespielt, und die Beta-Kriterien stehen schriftlich.
+### Behoben
 
-**Was 0.1.0 verspricht und was nicht.** Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) hält schriftlich fest, was dieses Release zusagt, mit dem Beleg zu jeder Zusage, und was es ausdrücklich nicht zusagt. Beta heißt hier: mit Sicherungen betreibbar, aber der Funktionsumfang ist nicht eingefroren.
+- `backup.sh` sicherte nur einen Teil. Jetzt gehören auch `plugins`, `sprachen` und `marke` dazu.
+- `restore.sh` verweigert ein Verzeichnis ohne `MANIFEST` und setzt auf der Datenbank den Modus 600.
+- Zehn Fehler in `deploy/DEPLOY.md` sind behoben, das Zurückrollen ist neu beschrieben.
 
-**Das Programm selbst ist unverändert.** Gegenüber 0.0.25 hat sich am Programm
-nichts geändert: kein Go-Code, keine Vorlage, keine Migration. Die Datenbank steht
-weiter bei Migration 60. Die Programmdatei auszutauschen ändert kein Verhalten und
-migriert nichts; es stellt nur die Versionsnummer richtig.
+### Verbessert
 
-**Was nach dem Aktualisieren von 0.0.25 zu tun ist.** Die Skripte und Units liegen
-nicht im Programm, sondern auf dem Server unter `/opt/holzcloud/deploy`. Das
-Installationskapitel von 0.0.25 hat nur `backup.sh` kopiert, nach
-`/opt/holzcloud/backup.sh`, während die Backup-Unit
-`/opt/holzcloud/deploy/backup.sh` aufruft, und `restore.sh` wurde nie installiert.
-Kopieren Sie deshalb das ganze Verzeichnis `deploy` dieses Releases nach
-`/opt/holzcloud/deploy`, machen Sie `backup.sh` und `restore.sh` ausführbar und
-stellen Sie sicher, dass `rsync` installiert ist, denn beide Skripte rufen es auf.
-Die genauen Befehle stehen in
-[deploy/DEPLOY.md](https://github.com/holzcloud/holzcloud-cms/blob/main/deploy/DEPLOY.md),
-im Kapitel „Install“ und im Kapitel „Backups“; sie werden hier nicht noch einmal
-abgetippt. Machen Sie danach einmal von Hand eine Sicherung und spielen Sie sie
-einmal an einer anderen Stelle als in der Produktion zurück.
+- Dienst, Aktualisieren, Zurückrollen, Sichern und Wiederherstellen sind unter echtem systemd durchgespielt. Das Programm selbst ist gegenüber 0.0.25 unverändert.
 
-**Der Dienst läuft unter echtem systemd.** Die gehärtete Unit wurde unter systemd 252
-gestartet, und die Website antwortete; auf der emulierten amd64-Plattform brauchte
-der erste Start ein Drop-in, das es nur im Container gibt. `MemoryDenyWriteExecute=true`
-bleibt in der Unit: Die fünf Plugins laufen darunter auf dem Interpreter von wazero,
-gemessen allerdings nur auf nativem arm64 und nicht auf amd64. Die Unit hat sieben
-Kommentarzeilen mehr und keine geänderte Anweisung.
+### Gut zu wissen
 
-**Installieren, Aktualisieren und Zurückrollen sind durchgespielt.** `deploy/DEPLOY.md`
-wurde Befehl für Befehl in einem systemd-Container gespielt (Debian 12, amd64
-emuliert): eine frische Installation, ein Update über zwei Migrationen und das
-Zurückrollen mit und ohne Sicherung der Datenbank. Dabei wurden zehn Fehler im
-Dokument gefunden, und alle sind behoben. Das Zurückrollen ist neu beschrieben,
-und seine Grenze steht am Anfang des Abschnitts: Ein älteres Programm darf nicht
-gegen eine Datenbank gestartet werden, die schon migriert wurde.
-
-**Sichern und Wiederherstellen sind gemessen, und die Skripte sind repariert.** Eine
-Sicherung, die der Dienst des nächtlichen Timers angelegt hatte, wurde mit
-`restore.sh` in einen anderen, leeren Container zurückgespielt: Seiten, Medien,
-Anmeldung und Plugins waren wieder da. Das Spiel zeigte, dass die Sicherung
-unvollständig gewesen war: `backup.sh` aus 0.0.25 kopierte nur die Datenbank, den
-CSRF-Schlüssel, `media` und `templates`; jetzt gehören auch `plugins`, `sprachen`
-und `marke` dazu. `restore.sh` verweigert ein Verzeichnis ohne `MANIFEST` und setzt
-auf der zurückgespielten Datenbank den Modus 600. Die Zeiten (etwa eine Sekunde zum
-Sichern, etwa acht Sekunden zum Wiederherstellen) stammen aus der Emulation und sind
-kein Versprechen für einen Server. Was keine Sicherung enthält, das Sie von Hand
-wieder aufbauen müssen, steht in
-[docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md):
-die Unit-Datei mit ihren Drop-ins, die Umgebungsdateien, `HOLZCLOUD_SECRET_KEY` mit
-den Zugangsdaten für Zahlung und Mail, die Proxy-Konfiguration samt Zertifikatsstand
-und die Sicherungen vor dem Update im Datenverzeichnis.
-
-**Was nicht gezeigt wurde.** Nicht gezeigt wurden das echte Zeitfenster um 03:15,
-`Persistent=true` mit der zufälligen Verzögerung, die Kopie an ein anderes Ziel
-über `REMOTE_TARGET`, das Aufräumen alter Sicherungen, ein gleichzeitig
-gezogener, stimmiger Stand von Datenbank und Dateien, eine Wiederherstellung auf
-einem echten Server, Zeiten auf nativem amd64, eine Sicherung eines älteren
-Programms, die von einem neueren zurückgespielt wird, und der Schutz vor
-Bitfäulnis in einer vollständigen Sicherung. Die ganze Liste steht auf der Seite
-[docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md).
+- Zum Aktualisieren von 0.0.25 das ganze Verzeichnis `deploy` nach `/opt/holzcloud/deploy` kopieren, `backup.sh` und `restore.sh` ausführbar machen und `rsync` installieren.
+- Ein älteres Programm darf nicht gegen eine schon migrierte Datenbank gestartet werden.
+- Was dieses Release zusagt und was nicht, steht in [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md).
 
 ## 0.0.25 — 2026-10-11
 

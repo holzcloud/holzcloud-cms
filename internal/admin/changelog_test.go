@@ -35,8 +35,10 @@ func TestChangelogScreenShowsTheNewestVersion(t *testing.T) {
 	if !strings.Contains(body, newest.Version) {
 		t.Errorf("the newest version %q is not on the page", newest.Version)
 	}
-	if !strings.Contains(body, string(newest.HTML)) {
-		t.Error("the newest entry's text is not on the page")
+	for _, part := range entryParts(newest) {
+		if !strings.Contains(body, part) {
+			t.Error("the newest entry's text is not on the page")
+		}
 	}
 }
 
@@ -55,8 +57,10 @@ func TestChangelogScreenShowsTheVersionAsked(t *testing.T) {
 	req.SetPathValue("version", older.Version)
 	rec := serve(t, h, sm, h.HandleChangelog, req)
 
-	if !strings.Contains(rec.Body.String(), string(older.HTML)) {
-		t.Errorf("the entry for %q is not on the page", older.Version)
+	for _, part := range entryParts(older) {
+		if !strings.Contains(rec.Body.String(), part) {
+			t.Errorf("the entry for %q is not on the page", older.Version)
+		}
 	}
 }
 
@@ -78,8 +82,10 @@ func TestAnUnknownVersionFallsBackToTheNewest(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("%q: status = %d, want 200", asked, rec.Code)
 		}
-		if !strings.Contains(rec.Body.String(), string(newest.HTML)) {
-			t.Errorf("%q: did not fall back to the newest entry", asked)
+		for _, part := range entryParts(newest) {
+			if !strings.Contains(rec.Body.String(), part) {
+				t.Errorf("%q: did not fall back to the newest entry", asked)
+			}
 		}
 	}
 }
@@ -154,81 +160,145 @@ func needReleases(t *testing.T, n int) []changelog.Release {
 	return all
 }
 
-// The newest versions are tabs, the rest sits in the archive, and exactly one
-// entry anywhere is current.
-func TestChangelogTabsAndArchive(t *testing.T) {
+// entryParts is what an entry puts on the screen: its opening and each group.
+// Not Release.HTML, which is the whole body in file order, because the screen
+// shows the groups in its own order.
+func entryParts(rel changelog.Release) []string {
+	var parts []string
+	if rel.Lead != "" {
+		parts = append(parts, string(rel.Lead))
+	}
+	for _, g := range rel.Groups {
+		parts = append(parts, string(g.HTML))
+	}
+	return parts
+}
+
+// One tab per main version, newest first, and exactly one of them is current.
+func TestChangelogHasOneTabPerMainVersion(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
-	all := needReleases(t, recentTabs)
+	all := needReleases(t, 1)
 
 	body := changelogPage(t, h, sm, "", "")
-	// The rail and the settings list carry their own aria-current; count only
-	// what the screen itself renders.
 	body = body[strings.Index(body, `<nav class="whatsnew-tabs"`):]
-	tabs, archive, ok := strings.Cut(body, `<details class="whatsnew-archive"`)
-	if !ok {
-		t.Fatal("no archive disclosure")
-	}
-	for _, rel := range all[:recentTabs] {
-		if !strings.Contains(tabs, `href="/admin/neuerungen/`+rel.Version+`"`) {
-			t.Errorf("tab for %s missing", rel.Version)
+	nav, _, _ := strings.Cut(body, "</nav>")
+
+	var want []string
+	seen := map[string]bool{}
+	for _, rel := range all {
+		if !seen[rel.Series()] {
+			seen[rel.Series()] = true
+			want = append(want, changelog.SeriesLabel(rel.Series()))
 		}
 	}
-	for _, rel := range all[recentTabs:] {
-		if strings.Contains(tabs, `href="/admin/neuerungen/`+rel.Version+`"`) {
-			t.Errorf("%s is a tab, should be archived", rel.Version)
+	var got []string
+	for _, part := range strings.Split(nav, `class="whatsnew-tab__number">`)[1:] {
+		got = append(got, strings.SplitN(part, "<", 2)[0])
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("tabs = %v, want one per main version %v", got, want)
+	}
+	if n := strings.Count(nav, `aria-current="page"`); n != 1 {
+		t.Errorf("current tabs = %d, want 1", n)
+	}
+	// A tab is a series, never a single version.
+	for _, rel := range all {
+		if strings.Contains(nav, ">"+rel.Version+"<") && rel.Version != changelog.SeriesLabel(rel.Series()) {
+			t.Errorf("version %s has a tab of its own", rel.Version)
 		}
-		if !strings.Contains(archive, `href="/admin/neuerungen/`+rel.Version+`"`) {
-			t.Errorf("%s missing from the archive", rel.Version)
-		}
-	}
-	if !strings.Contains(archive, "<h3>"+all[recentTabs].Series()+".x</h3>") {
-		t.Error("archive is not grouped by series")
-	}
-	if n := strings.Count(body, `aria-current="page"`); n != 1 {
-		t.Errorf("aria-current count = %d, want 1", n)
-	}
-	if strings.Contains(strings.SplitN(archive, ">", 2)[0], " open") {
-		t.Error("archive is open although the newest is shown")
 	}
 }
 
-func TestChangelogOpensTheArchiveForAnOldVersion(t *testing.T) {
+// The versions of the shown series are a list of cards below the tabs, and only
+// the newest is open when nothing was asked for.
+func TestChangelogListsTheVersionsOfTheShownSeries(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
-	all := needReleases(t, recentTabs)
-	oldest := all[len(all)-1].Version
+	all := needReleases(t, 1)
+	newest := all[0]
 
-	body := changelogPage(t, h, sm, oldest, "")
-	body = body[strings.Index(body, `<nav class="whatsnew-tabs"`):]
-	if !strings.Contains(body, `<details class="whatsnew-archive" open>`) {
-		t.Error("archive is closed although the shown version lives in it")
+	body := changelogPage(t, h, sm, "", "")
+	for _, rel := range all {
+		inSeries := rel.Series() == newest.Series()
+		has := strings.Contains(body, `id="v`+rel.Version+`"`)
+		if has != inSeries {
+			t.Errorf("version %s: card on the page = %v, want %v", rel.Version, has, inSeries)
+		}
 	}
-	tabs, _, _ := strings.Cut(body, `<details class="whatsnew-archive"`)
-	if strings.Contains(tabs, `aria-current="page"`) {
-		t.Error("a tab is current although the shown version is archived")
+	if n := strings.Count(body, `class="whatsnew-card`); n == 0 {
+		t.Fatal("no cards")
 	}
-	if n := strings.Count(body, `aria-current="page"`); n != 1 {
-		t.Errorf("aria-current count = %d, want 1", n)
+	if !strings.Contains(body, `id="v`+newest.Version+`" open`) {
+		t.Error("the newest version is not open")
+	}
+	if n := strings.Count(body, `" open>`); n != 1 {
+		t.Errorf("open cards = %d, want 1", n)
+	}
+}
+
+// Asking for an old version shows its series and opens its card.
+func TestChangelogOpensTheVersionAskedInItsOwnSeries(t *testing.T) {
+	h, sm, _, _ := newTestAdmin(t)
+	all := needReleases(t, 1)
+	oldest := all[len(all)-1]
+
+	body := changelogPage(t, h, sm, oldest.Version, "")
+	if !strings.Contains(body, `id="v`+oldest.Version+`" open`) {
+		t.Errorf("the card of %s is not open", oldest.Version)
+	}
+	if strings.Contains(body, `id="v`+all[0].Version+`"`) && all[0].Series() != oldest.Series() {
+		t.Error("a version of another series is on the page")
+	}
+	tab := tabSlice(body, `<a class="whatsnew-tab is-active"`, `</a>`)
+	if !strings.Contains(tab, changelog.SeriesLabel(oldest.Series())) {
+		t.Errorf("the current tab is not the series of %s: %s", oldest.Version, tab)
+	}
+}
+
+// New things come first, then what was improved, then what was fixed.
+func TestChangelogShowsNewBeforeImprovedBeforeFixed(t *testing.T) {
+	h, sm, _, _ := newTestAdmin(t)
+	for _, rel := range changelog.All() {
+		rank := map[changelog.Kind]int{}
+		for i, g := range rel.Groups {
+			if _, ok := rank[g.Kind]; !ok {
+				rank[g.Kind] = i
+			}
+		}
+		n, okN := rank[changelog.KindNew]
+		f, okF := rank[changelog.KindFixed]
+		if okN && okF && n > f {
+			t.Errorf("%s: the changelog puts fixed before new", rel.Version)
+		}
+	}
+	body := changelogPage(t, h, sm, "0.1.2", "")
+	card := body[strings.Index(body, `id="v0.1.2"`):]
+	card, _, _ = strings.Cut(card, "</details>")
+	improved, fixed := strings.Index(card, "whatsnew-group--improved"), strings.Index(card, "whatsnew-group--fixed")
+	if improved < 0 || fixed < 0 || improved > fixed {
+		t.Errorf("0.1.2: improved at %d, fixed at %d; want improved first", improved, fixed)
 	}
 }
 
 func TestChangelogMarksOnlyNewerVersionsAsNew(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
-	all := needReleases(t, recentTabs)
+	all := needReleases(t, 2)
 	since := all[2].Version
+	if all[0].Series() != all[2].Series() {
+		t.Skip("the three newest are not in one series")
+	}
 
 	body := changelogPage(t, h, sm, "", "?seit="+since+"&weiter=%2Fadmin%2Fwebsites")
-	if n := strings.Count(body, `class="whatsnew-tab__new"`); n != 2 {
-		t.Errorf("new marks = %d, want 2", n)
+	// The two newer cards carry the chip, the one the person was on does not.
+	if n := strings.Count(body, "whatsnew-chip--new"); n != 2 {
+		t.Errorf("new chips = %d, want 2", n)
 	}
-	// Both newer tabs carry one; the third does not.
-	for i, rel := range all[:3] {
-		tab := tabSlice(body, `href="/admin/neuerungen/`+rel.Version, `</a>`)
-		if got := strings.Contains(tab, "whatsnew-tab__new"); got != (i < 2) {
-			t.Errorf("%s: new mark = %v", rel.Version, got)
-		}
-		if !strings.Contains(tab, "seit="+since) || !strings.Contains(tab, "weiter=%2Fadmin%2Fwebsites") {
-			t.Errorf("%s: link lost seit/weiter: %s", rel.Version, tab)
-		}
+	// The series tab carries a dot, and keeps the welcome state in its link.
+	tab := tabSlice(body, `<a class="whatsnew-tab is-active"`, `</a>`)
+	if !strings.Contains(tab, "whatsnew-tab__new") {
+		t.Error("the tab of a series with news has no mark")
+	}
+	if !strings.Contains(tab, "seit="+since) || !strings.Contains(tab, "weiter=%2Fadmin%2Fwebsites") {
+		t.Errorf("the tab lost seit/weiter: %s", tab)
 	}
 	if !strings.Contains(body, all[0].Version) || !strings.Contains(body, since) {
 		t.Error("welcome header does not name both versions")
@@ -237,7 +307,7 @@ func TestChangelogMarksOnlyNewerVersionsAsNew(t *testing.T) {
 
 func TestChangelogWelcomeWithAnUnknownPreviousVersion(t *testing.T) {
 	h, sm, _, _ := newTestAdmin(t)
-	needReleases(t, recentTabs)
+	needReleases(t, 1)
 
 	body := changelogPage(t, h, sm, "", "?seit=weird")
 	if !strings.Contains(body, "whatsnew-hero") {

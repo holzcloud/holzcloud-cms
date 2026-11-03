@@ -56,7 +56,54 @@ type Release struct {
 	// takes. The rule this project states as "never cast unsanitised goldmark
 	// output" is kept by not having a second renderer here.
 	HTML template.HTML
+	// Lead is what stands before the first "### " heading of the entry: the
+	// sentence that says what the release is. For an entry written before the
+	// groups existed it is the whole entry.
+	Lead template.HTML
+	// Groups are the "### " parts, in the order the screen shows them and not
+	// the order the file has them: new things first, then what was improved,
+	// then what was fixed, then everything else.
+	Groups []Group
 }
+
+// Kind is what a group is about. The screen turns it into a word, a colour and
+// an order; the file only ever says it by its heading.
+type Kind string
+
+const (
+	KindNew      Kind = "new"
+	KindImproved Kind = "improved"
+	KindFixed    Kind = "fixed"
+	// KindNote is every other heading (for example a "good to know" part): it
+	// keeps the heading it was written with.
+	KindNote Kind = "note"
+)
+
+// Group is one "### " part of an entry.
+type Group struct {
+	Kind Kind
+	// Title is the heading as written, and the only thing a KindNote group has
+	// to say what it is; the other kinds are named by the screen.
+	Title string
+	HTML  template.HTML
+}
+
+// KindOf reads a heading. The three headings the file's opening promises are
+// matched without regard to case; anything else is a note.
+func KindOf(heading string) Kind {
+	switch strings.ToLower(strings.TrimSpace(heading)) {
+	case "neu":
+		return KindNew
+	case "verbessert", "geändert":
+		return KindImproved
+	case "behoben":
+		return KindFixed
+	}
+	return KindNote
+}
+
+// kindOrder is the order of the groups on the screen.
+var kindOrder = []Kind{KindNew, KindImproved, KindFixed, KindNote}
 
 // Major is the first number of the version, for grouping a long list.
 //
@@ -142,15 +189,19 @@ func parse() {
 		if !open {
 			return
 		}
-		html, err := page.RenderMarkdown(strings.Join(body, "\n"))
-		if err != nil {
-			// A release whose Markdown will not render is shown as nothing
-			// rather than as raw source, and the ones around it are unaffected.
-			// The same rule the block renderer follows: a failure costs its own
-			// entry and never the page.
-			html = ""
+		render := func(lines []string) template.HTML {
+			html, err := page.RenderMarkdown(strings.Join(lines, "\n"))
+			if err != nil {
+				// A release whose Markdown will not render is shown as nothing
+				// rather than as raw source, and the ones around it are
+				// unaffected. The same rule the block renderer follows: a
+				// failure costs its own entry and never the page.
+				return ""
+			}
+			return template.HTML(html)
 		}
-		current.HTML = template.HTML(html)
+		current.HTML = render(body)
+		current.Lead, current.Groups = splitGroups(body, render)
 		releases = append(releases, current)
 		byNumber[current.Version] = current
 		body = nil
@@ -186,4 +237,68 @@ func splitHeading(s string) (version, date string) {
 		}
 	}
 	return s, ""
+}
+
+// splitGroups cuts an entry's body on its "### " headings.
+//
+// A split on a line prefix, for the reason parse is one: the shape is fixed by
+// the file, and each part is rendered on its own through the sanitising path.
+// A "### " inside a fenced code block would be taken for a heading; the file
+// has none, and an entry that did would only be cut early, never rendered
+// unsafely.
+func splitGroups(body []string, render func([]string) template.HTML) (template.HTML, []Group) {
+	var (
+		leadLines []string
+		groups    []Group
+		cur       *Group
+		curLines  []string
+	)
+	closeGroup := func() {
+		if cur == nil {
+			return
+		}
+		cur.HTML = render(curLines)
+		groups = append(groups, *cur)
+		cur, curLines = nil, nil
+	}
+	for _, line := range body {
+		if rest, ok := strings.CutPrefix(line, "### "); ok {
+			closeGroup()
+			title := strings.TrimSpace(rest)
+			cur = &Group{Kind: KindOf(title), Title: title}
+			continue
+		}
+		if cur == nil {
+			leadLines = append(leadLines, line)
+		} else {
+			curLines = append(curLines, line)
+		}
+	}
+	closeGroup()
+
+	ordered := make([]Group, 0, len(groups))
+	for _, k := range kindOrder {
+		for _, g := range groups {
+			if g.Kind == k {
+				ordered = append(ordered, g)
+			}
+		}
+	}
+	return render(leadLines), ordered
+}
+
+// SeriesLabel is the name a series has on its tab: "0.1.0" for the series
+// 0.1, "0.0.x" for the one before it, and "2.x" for the legacy counts.
+//
+// While the major number is 0 a series is one minor number, and its first
+// release is the number the operator knows it by. The legacy 1.x and 2.x have
+// no such first release (the series starts at 2.0 and 1.4), so they say "x".
+func SeriesLabel(series string) string {
+	if strings.HasPrefix(series, "0.") {
+		if series == "0.0" {
+			return series + ".x"
+		}
+		return series + ".0"
+	}
+	return series + ".x"
 }

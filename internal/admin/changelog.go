@@ -30,33 +30,37 @@ type changelogData struct {
 	// Continue is where Continue leads: the page that was interrupted, and only
 	// ever a path inside /admin.
 	Continue string
-	// Tabs are the newest recentTabs versions, shown as the tab strip.
-	Tabs []versionTab
-	// Archive is every older version, grouped by series, inside a native
-	// disclosure.
-	Archive []versionGroup
-	// ArchiveOpen opens the disclosure when the shown version lives in it, so
-	// the current entry is never hidden behind a closed summary.
-	ArchiveOpen bool
+	// Series are the tabs: one per main version (0.1.0, 0.0.x, 2.x ...), newest
+	// first. A tab leads to the newest version of its series.
+	Series []seriesTab
+	// Cards are the versions of the series on the screen, newest first. Every
+	// one of them is a card, so the whole series reads as one list.
+	Cards []versionCard
 }
 
-// recentTabs is how many versions get a tab of their own. More would wrap into
-// a wall; the rest are one click away in the archive.
-const recentTabs = 6
-
-// versionTab is one version as a link: to its own address, marked current when
-// it is the one on the screen and new when it came after the version the person
-// was on before.
-type versionTab struct {
-	Release     changelog.Release
-	Href        string
-	Active, New bool
+// seriesTab is one main version as a link: to the newest version it holds,
+// marked current when the shown version belongs to it and new when it holds
+// something the person has not seen yet.
+type seriesTab struct {
+	Label  string
+	Href   string
+	Count  int
+	Active bool
+	New    bool
+	// label is the series as the changelog names it, which the tab's own Label
+	// is a spelling of.
+	label string
 }
 
-// versionGroup is one series of the archive.
-type versionGroup struct {
-	Series string
-	Tabs   []versionTab
+// versionCard is one version of the shown series. Open is the one the person
+// asked for, or the newest when they asked for none; the others are closed
+// disclosures a click away, so a long series stays one screen long.
+type versionCard struct {
+	Release changelog.Release
+	Href    string
+	Open    bool
+	New     bool
+	Running bool
 }
 
 // HandleChangelog shows what changed, by version.
@@ -108,9 +112,9 @@ func (h *Handler) HandleChangelog(w http.ResponseWriter, r *http.Request) error 
 	return web.RenderAdmin(w, h.templates, r, "changelog", data)
 }
 
-// buildTabs fills the tab strip and the archive. Done in Go and not in the
-// template: which version is new, current or in the archive is a decision, and
-// a template should print decisions, not make them.
+// buildTabs fills the tabs and the cards. Done in Go and not in the template:
+// which version is new, current or open is a decision, and a template should
+// print decisions, not make them.
 //
 // seit and weiter are carried into every link, so the welcome state survives
 // flipping between tabs; without them the links are bare addresses.
@@ -128,36 +132,52 @@ func buildTabs(data *changelogData, q url.Values) {
 	if len(keep) > 0 {
 		suffix = "?" + keep.Encode()
 	}
+	href := func(version string) string {
+		return "/admin/neuerungen/" + url.PathEscape(version) + suffix
+	}
 
 	sinceIdx := -1
-	all := data.Releases
 	if data.Since.Version != "" {
-		for i, rel := range all {
+		for i, rel := range data.Releases {
 			if rel.Version == data.Since.Version {
 				sinceIdx = i
 			}
 		}
 	}
 
-	for i, rel := range all {
-		t := versionTab{
-			Release: rel,
-			Href:    "/admin/neuerungen/" + url.PathEscape(rel.Version) + suffix,
-			Active:  rel.Version == data.Shown.Version,
-			New:     sinceIdx >= 0 && i < sinceIdx,
-		}
-		if i < recentTabs {
-			data.Tabs = append(data.Tabs, t)
-			continue
-		}
-		if t.Active {
-			data.ArchiveOpen = true
-		}
+	var running string
+	if rel, found := changelog.Find(data.LayoutData.Version); found {
+		running = rel.Version
+	}
+
+	shownSeries := data.Shown.Series()
+	for i, rel := range data.Releases {
+		isNew := sinceIdx >= 0 && i < sinceIdx
 		series := rel.Series()
-		if n := len(data.Archive); n > 0 && data.Archive[n-1].Series == series {
-			data.Archive[n-1].Tabs = append(data.Archive[n-1].Tabs, t)
+
+		// The releases come newest first, so the first one of a series is the
+		// one its tab leads to, and a series is a run.
+		if n := len(data.Series); n == 0 || data.Series[n-1].label != series {
+			data.Series = append(data.Series, seriesTab{
+				Label:  changelog.SeriesLabel(series),
+				Href:   href(rel.Version),
+				Active: series == shownSeries,
+				label:  series,
+			})
+		}
+		tab := &data.Series[len(data.Series)-1]
+		tab.Count++
+		tab.New = tab.New || isNew
+
+		if series != shownSeries {
 			continue
 		}
-		data.Archive = append(data.Archive, versionGroup{Series: series, Tabs: []versionTab{t}})
+		data.Cards = append(data.Cards, versionCard{
+			Release: rel,
+			Href:    href(rel.Version),
+			Open:    rel.Version == data.Shown.Version,
+			New:     isNew,
+			Running: rel.Version == running,
+		})
 	}
 }

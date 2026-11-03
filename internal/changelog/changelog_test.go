@@ -1,6 +1,7 @@
 package changelog
 
 import (
+	"html/template"
 	"strings"
 	"testing"
 )
@@ -96,6 +97,54 @@ func TestSeries(t *testing.T) {
 	} {
 		if got := (Release{Version: in}).Series(); got != want {
 			t.Errorf("Series(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSeriesLabel(t *testing.T) {
+	for in, want := range map[string]string{
+		"0.1": "0.1.0", "0.2": "0.2.0", "0.0": "0.0.x", "2": "2.x", "1": "1.x",
+	} {
+		if got := SeriesLabel(in); got != want {
+			t.Errorf("SeriesLabel(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The groups come out in the screen's order whatever the file's was, and what
+// stands before the first heading is the opening.
+func TestGroupsAreOrderedNewImprovedFixedNote(t *testing.T) {
+	body := strings.Split("Opening.\n\n### Behoben\n\nA fix.\n\n### Gut zu wissen\n\nA note.\n\n### Neu\n\nA feature.\n\n### Verbessert\n\nBetter.", "\n")
+	lead, groups := splitGroups(body, func(lines []string) template.HTML {
+		return template.HTML(strings.TrimSpace(strings.Join(lines, "\n")))
+	})
+	if lead != "Opening." {
+		t.Errorf("lead = %q", lead)
+	}
+	var kinds []Kind
+	for _, g := range groups {
+		kinds = append(kinds, g.Kind)
+	}
+	want := []Kind{KindNew, KindImproved, KindFixed, KindNote}
+	if len(kinds) != len(want) {
+		t.Fatalf("kinds = %v, want %v", kinds, want)
+	}
+	for i := range want {
+		if kinds[i] != want[i] {
+			t.Errorf("kinds = %v, want %v", kinds, want)
+			break
+		}
+	}
+	if groups[3].Title != "Gut zu wissen" {
+		t.Errorf("a note lost its heading: %q", groups[3].Title)
+	}
+}
+
+// An entry with no groups is its opening and nothing else, and still renders.
+func TestAnEntryWithoutGroupsIsShownWhole(t *testing.T) {
+	for _, rel := range All() {
+		if len(rel.Groups) == 0 && rel.Lead == "" {
+			t.Errorf("%s has neither an opening nor groups", rel.Version)
 		}
 	}
 }

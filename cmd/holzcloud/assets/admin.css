@@ -3107,129 +3107,160 @@ body.is-fullscreen .content-body {
         border-radius: var(--radius-sm);
     }
 
-    /* Ältere Fassungen: eine leise Schaltfläche aus Text, die sich mit einem
-       Pfeil öffnet. Native <details>, kein Skript. */
-    .whatsnew-archive {
-        margin-block-end: var(--space-3);
+    /* Die Fassungen einer Hauptversion als Liste von Karten. Die gewünschte
+       ist offen, die anderen eine Zeile hoch: eine lange Reihe bleibt so eine
+       Seite lang. */
+    .whatsnew-list {
+        display: grid;
+        gap: var(--space-2);
+        view-transition-name: whatsnew-entry;
     }
 
-    .whatsnew-archive summary {
-        display: inline-flex;
+    .whatsnew-card {
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        background: var(--color-surface);
+        overflow: clip;
+    }
+
+    .whatsnew-card[open] {
+        border-color: var(--color-border-strong);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .whatsnew-card.is-new {
+        border-color: var(--color-accent);
+    }
+
+    .whatsnew-card__head {
+        display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: var(--space-1);
-        color: var(--color-text-muted);
+        gap: var(--space-1) var(--space-2);
+        padding: var(--space-2) var(--space-3);
         cursor: pointer;
         list-style: none;
     }
 
-    .whatsnew-archive summary::-webkit-details-marker {
+    .whatsnew-card__head::-webkit-details-marker {
         display: none;
     }
 
-    .whatsnew-archive summary::before {
+    .whatsnew-card__head::after {
         content: "";
+        order: 99;
         inline-size: 0.5em;
         block-size: 0.5em;
-        border-inline-end: 1.5px solid currentColor;
-        border-block-end: 1.5px solid currentColor;
+        margin-inline-start: auto;
+        border-inline-end: 1.5px solid var(--color-text-muted);
+        border-block-end: 1.5px solid var(--color-text-muted);
         transform: rotate(-45deg);
         transition: transform 0.15s ease;
     }
 
-    .whatsnew-archive[open] > summary::before {
+    .whatsnew-card[open] > .whatsnew-card__head::after {
         transform: rotate(45deg);
     }
 
-    .whatsnew-archive summary:hover {
-        color: var(--color-text);
+    .whatsnew-card__head:hover {
+        background: var(--color-hover);
     }
 
-    .whatsnew-archive__group {
-        margin-block-start: var(--space-2);
+    .whatsnew-card__head:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: -2px;
     }
 
-    .whatsnew-archive__group h3 {
-        margin-block-end: var(--space-1);
+    .whatsnew-card__version {
+        font-size: var(--text-lg);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .whatsnew-card__date {
+        color: var(--color-text-muted);
+        font-size: var(--text-sm);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .whatsnew-chip {
+        padding: 0.1rem var(--space-1);
+        border-radius: 100px;
         font-size: var(--text-xs);
         font-weight: 600;
-        letter-spacing: 0.04em;
-        color: var(--color-text-muted);
     }
 
-    /* Auf dem Telefon eine Spalte, darüber ein Raster kleiner Kapseln. Die
-       Breite fragt den Container, nicht das Fenster: die Seite steht neben
-       einer Seitenleiste, die Fensterbreite sagt nichts über den Platz. */
-    .whatsnew-archive__list {
-        display: grid;
-        gap: var(--space-1);
-        grid-template-columns: 1fr;
-    }
-
-    @container (min-width: 600px) {
-        .whatsnew-archive__list {
-            grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
-        }
-    }
-
-    .whatsnew-archive__link {
-        position: relative;
-        padding: 0.25rem var(--space-2);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-sm);
-        font-variant-numeric: tabular-nums;
-        color: var(--color-text-muted);
-        text-decoration: none;
-        white-space: nowrap;
-    }
-
-    .whatsnew-archive__link:hover {
-        border-color: var(--color-accent);
-        color: var(--color-text);
-    }
-
-    /* Die gezeigte Fassung: nicht nur farbig, auch der kräftigere Rahmen
-       sagt es, und aria-current der Vorlesesoftware. */
-    .whatsnew-archive__link.is-active {
-        border-color: var(--color-accent);
+    .whatsnew-chip--running {
         background: var(--color-accent-subtle);
         color: var(--color-accent);
-        font-weight: 600;
     }
 
-    /* Der Eintrag blendet kurz ein, wenn die Seite wechselt. */
-    .whatsnew-entry {
-        view-transition-name: whatsnew-entry;
-    }
-
-    .whatsnew-entry__head {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: var(--space-2);
-        padding-block-end: var(--space-2);
-        border-block-end: 1px solid var(--color-border);
-    }
-
-    .whatsnew-entry__date {
-        color: var(--color-text-muted);
-        font-variant-numeric: tabular-nums;
-    }
-
-    .whatsnew-entry__running {
-        padding: 0.1rem var(--space-1);
-        border-radius: var(--radius-sm);
+    .whatsnew-chip--new {
         background: var(--color-accent);
         color: var(--color-on-accent);
-        font-size: var(--text-xs);
     }
 
-    /* Der Eintrag selbst liest sich wie ein Text und nicht wie eine Tabelle:
-       eine Zeilenlänge, die das Auge zurückfindet. Die Sätze im Changelog sind
-       absichtlich ganze Sätze. */
-    .whatsnew-entry__body {
-        max-width: 68ch;
-        margin-block-start: var(--space-3);
+    /* Drei Punkte in der Kopfzeile sagen, was darin steht, bevor man sie
+       aufklappt: grün neu, blau verbessert, orange behoben. */
+    .whatsnew-card__kinds {
+        display: inline-flex;
+        gap: 0.3rem;
     }
+
+    .whatsnew-dot {
+        inline-size: 0.5rem;
+        block-size: 0.5rem;
+        border-radius: 50%;
+        background: var(--color-text-muted);
+    }
+
+    .whatsnew-dot--new { background: var(--color-success); }
+    .whatsnew-dot--improved { background: var(--color-accent); }
+    .whatsnew-dot--fixed { background: var(--color-warning); }
+
+    .whatsnew-card__body {
+        display: grid;
+        gap: var(--space-3);
+        padding: var(--space-1) var(--space-3) var(--space-3);
+        border-block-start: 1px solid var(--color-border);
+    }
+
+    /* Der Eintrag liest sich wie ein Text und nicht wie eine Tabelle: eine
+       Zeilenlänge, die das Auge zurückfindet. Die Sätze im Changelog sind
+       absichtlich ganze Sätze. */
+    .whatsnew-lead,
+    .whatsnew-group > .prose {
+        max-inline-size: 68ch;
+    }
+
+    .whatsnew-lead {
+        margin-block-start: var(--space-2);
+        color: var(--color-text-muted);
+    }
+
+    .whatsnew-group {
+        display: grid;
+        gap: var(--space-1);
+        padding-inline-start: var(--space-2);
+        border-inline-start: 3px solid var(--color-border-strong);
+    }
+
+    .whatsnew-group--new { border-inline-start-color: var(--color-success); }
+    .whatsnew-group--improved { border-inline-start-color: var(--color-accent); }
+    .whatsnew-group--fixed { border-inline-start-color: var(--color-warning); }
+
+    .whatsnew-group__title {
+        margin: 0;
+        font-size: var(--text-sm);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--color-text-muted);
+    }
+
+    .whatsnew-group--new .whatsnew-group__title { color: var(--color-success); }
+    .whatsnew-group--improved .whatsnew-group__title { color: var(--color-accent); }
+    .whatsnew-group--fixed .whatsnew-group__title { color: var(--color-warning); }
 }
 
 @keyframes whatsnew-entry-in {
