@@ -61,10 +61,6 @@ type userFormData struct {
 	// Sites are the websites with a tick each, so the form shows the whole
 	// answer and what comes back is complete.
 	Sites []siteTick
-	// NothingTickedMeansNone is the form's answer to what no tick means, for an
-	// editor limited to no website at all. Without it such an editor is shown
-	// exactly like one nobody limited, and saving the form unchanged widens them.
-	NothingTickedMeansNone bool
 	// RightsComeFromTheDirectory says the ticks below are re-derived from the
 	// identity provider's groups on this account's next sign-in.
 	//
@@ -314,13 +310,11 @@ func (h *Handler) HandleUserEdit(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	data := userFormData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Edit user"),
-		User:       user,
-		IsEdit:     true,
-		MayPublish: rights.MayPublish,
-		Sites:      h.siteTicks(r, rights),
-		// Limited with no website left: the one state the ticks cannot show.
-		NothingTickedMeansNone:     rights.Limited() && len(rights.Websites) == 0,
+		LayoutData:                 web.NewLayoutData(r, h.sm, "Edit user"),
+		User:                       user,
+		IsEdit:                     true,
+		MayPublish:                 rights.MayPublish,
+		Sites:                      h.siteTicks(r, rights),
 		RightsComeFromTheDirectory: h.rightsComeFromTheDirectory(r, user.ID),
 		// With forward authentication the groups are re-read on every request;
 		// through OpenID Connect only at a sign-in, and the hint has to say
