@@ -21,6 +21,9 @@ type pluginListData struct {
 	web.LayoutData
 	Plugins  []pluginRow
 	Websites []domain.Website
+	// Counts for the line above the list: how many are installed, how many
+	// actually run, and how many the operator switched on that did not come up.
+	Installed, Running, NeedAttention int
 }
 
 // pluginRow is one plugin with the websites it acts on resolved.
@@ -42,6 +45,8 @@ type pluginRow struct {
 	DisplayName        string
 	DisplayDescription string
 	DisplayLabel       string
+	// Initial is the first letter of the name, for the tile beside it.
+	Initial string
 }
 
 // pluginScreenData wraps a plugin's own admin screen.
@@ -82,13 +87,31 @@ func (h *Handler) HandlePluginList(w http.ResponseWriter, r *http.Request) error
 			row.DisplayDescription = p.Manifest.DescriptionIn(lang)
 			row.DisplayLabel = p.Manifest.AdminLabelIn(lang)
 		}
+		row.Initial = "?"
+		for _, c := range row.DisplayName {
+			row.Initial = string(c)
+			break
+		}
 		rows = append(rows, row)
 	}
 
+	var running, attention int
+	for _, row := range rows {
+		switch {
+		case row.Enabled && row.Running:
+			running++
+		case row.Enabled:
+			attention++
+		}
+	}
+
 	data := pluginListData{
-		LayoutData: web.NewLayoutData(r, h.sm, "Plugins"),
-		Plugins:    rows,
-		Websites:   websites,
+		Installed:     len(rows),
+		Running:       running,
+		NeedAttention: attention,
+		LayoutData:    web.NewLayoutData(r, h.sm, "Plugins"),
+		Plugins:       rows,
+		Websites:      websites,
 	}
 	data.ActiveNav = "plugins"
 	return web.RenderAdmin(w, h.templates, r, "plugin_list", data)
