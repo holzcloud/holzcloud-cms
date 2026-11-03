@@ -42,8 +42,7 @@ func TestSavingTheUserFormUnchangedKeepsWhatAnEditorMayReach(t *testing.T) {
 	if err := domains.DeleteWebsite(ctx, siteA.ID); err != nil {
 		t.Fatalf("delete %q: %v", siteA.Name, err)
 	}
-	// The control. A fix that answers this by limiting everybody who is saved
-	// through the form would lock this editor out, and that is not a fix.
+	// The control: somebody nobody ever limited, whose form carries no ticks.
 	unlimited := seedAccount(t, database, "offen@example.com", user.RoleEditor)
 
 	lookup := NewWebsiteAccessLookup(database)
@@ -66,7 +65,11 @@ func TestSavingTheUserFormUnchangedKeepsWhatAnEditorMayReach(t *testing.T) {
 		wantB bool
 	}{
 		{"an editor limited to no website stays limited to none", limited, false},
-		{"an editor nobody limited stays unlimited", unlimited, true},
+		// The ticks are the whole answer since the two "nothing ticked"
+		// buttons were taken away: an editor nobody limited is shown without
+		// ticks, and saving that unchanged means no website. Fail-closed, and
+		// chosen on purpose — the operator ticks the websites to give access.
+		{"an editor nobody limited is shown without ticks and saved as none", unlimited, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := "/admin/users/" + strconv.FormatInt(tc.id, 10) + "/edit"
@@ -148,8 +151,8 @@ func formAsShown(t *testing.T, body string) url.Values {
 // to two websites. The obvious form of this control — "every website / only
 // the ticked ones" — would have granted everything in exactly that case.
 func TestATickAlwaysLimitsWhateverNothingTickedMeans(t *testing.T) {
-	for _, leer := range []string{"alle", "keine", ""} {
-		t.Run("leer_heisst="+leer, func(t *testing.T) {
+	{
+		t.Run("one website ticked", func(t *testing.T) {
 			h, sm, database, siteA := newTestAdmin(t)
 			ctx := context.Background()
 			siteB, err := domain.NewStore(database).CreateWebsite(ctx, "Seite B", "")
@@ -161,9 +164,6 @@ func TestATickAlwaysLimitsWhateverNothingTickedMeans(t *testing.T) {
 			form := url.Values{
 				"name": {"Ada"}, "email": {"ada@example.com"}, "role": {"editor"},
 				"websites": {strconv.FormatInt(siteA.ID, 10)},
-			}
-			if leer != "" {
-				form.Set("leer_heisst", leer)
 			}
 			mux := http.NewServeMux()
 			mux.HandleFunc("POST /admin/users/{id}/edit", h.ErrHandler(h.HandleUserEdit))
@@ -181,8 +181,8 @@ func TestATickAlwaysLimitsWhateverNothingTickedMeans(t *testing.T) {
 				t.Errorf("the editor cannot reach the website that was ticked")
 			}
 			if lookup(ctx, id, siteB.ID) {
-				t.Errorf("with one website ticked and leer_heisst=%q the editor reaches an unticked website — "+
-					"a tick has to limit whatever an empty selection would have meant", leer)
+				t.Errorf("with one website ticked the editor reaches an unticked website — " +
+					"a tick has to limit")
 			}
 		})
 	}

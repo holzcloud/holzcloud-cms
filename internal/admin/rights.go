@@ -105,13 +105,11 @@ func (h *Handler) siteTicks(r *http.Request, rights user.Rights) []siteTick {
 // rightsFromForm reads what the user form says about somebody's limits.
 //
 // An administrator has none: the role is the right to run the installation, so
-// the two controls are hidden for that role and ignored here. Everything else
-// comes back complete. A tick always limits. What no tick at all means is the
-// form's own question, leer_heisst: "alle" is every website, as it always was,
-// and "keine" is no website — the state an editor is in whose only website was
-// deleted, which the form could not show and therefore undid when it was saved.
-// A form that sends no answer is read as "alle", which is what it meant before
-// the question existed.
+// the websites are hidden for that role and ignored here. Everything else
+// comes back complete, and the ticks are the whole answer: the websites that
+// are ticked are the ones this person may enter, and none ticked means none.
+// There is no way through this form that widens anybody's access by a button
+// that was left alone.
 func rightsFromForm(r *http.Request, role string) user.Rights {
 	if role == user.RoleAdmin {
 		return user.Everything()
@@ -122,7 +120,7 @@ func rightsFromForm(r *http.Request, role string) user.Rights {
 			rights.Websites = append(rights.Websites, id)
 		}
 	}
-	if len(rights.Websites) == 0 && r.FormValue("leer_heisst") == "keine" {
+	if len(rights.Websites) == 0 {
 		nothing := user.Nothing()
 		nothing.MayPublish = rights.MayPublish
 		return nothing
