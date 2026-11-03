@@ -21,6 +21,21 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.1.3 — 2026-11-03
+
+### Neu
+
+- Die Neuerungen haben einen Reiter je Hauptversion; darunter stehen die Versionen als aufklappbare Karten, in jeder zuerst Neues, dann Verbessertes und Behobenes.
+- Die Plugin-Seite zeigt eine Zeile je Plugin mit Status, Websites und Rechten. Ein Schalter und die Auswahl der Websites speichern sofort.
+
+### Verbessert
+
+- Im Benutzer-Formular wählt man nur noch die Websites aus. Die beiden Optionen „Ohne Häkchen“ sind entfallen.
+
+### Gut zu wissen
+
+- Ist bei einem Redakteur keine Website angekreuzt, darf er keine betreten. Ein bisher unbeschränkter Redakteur erscheint im Formular ohne Häkchen und verliert beim unveränderten Speichern den Zugriff. Vorher die gewünschten Websites ankreuzen.
+
 ## 0.1.2 — 2026-10-31
 
 ### Verbessert
