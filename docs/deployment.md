@@ -184,7 +184,7 @@ Authentik without a second factor is a holzcloud-CMS without one.
 holzcloud-CMS is in **beta** from 0.1.0, and the tags count from **`v0.0.1`**.
 Until 1.0 a release may break what the one before it did: back up before every
 update and read the changelog first.
-Every 0.x release is published as a pre-release. What 0.1.1 promises and what it
+Every 0.x release is published as a pre-release. What 0.1.x promises and what it
 does not is written in [beta.md](beta.md). The admin screen names the stage of
 the running version: alpha below 0.1, beta from 0.1, nothing from 1.0.
 
