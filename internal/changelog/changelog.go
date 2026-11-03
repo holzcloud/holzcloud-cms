@@ -74,7 +74,7 @@ const (
 	KindNew      Kind = "new"
 	KindImproved Kind = "improved"
 	KindFixed    Kind = "fixed"
-	// KindNote is every other heading ("Gut zu wissen", "Was zu tun ist"): it
+	// KindNote is every other heading (for example a "good to know" part): it
 	// keeps the heading it was written with.
 	KindNote Kind = "note"
 )
@@ -88,9 +88,9 @@ type Group struct {
 	HTML  template.HTML
 }
 
-// kindOf reads a heading. The three headings the file's opening promises are
+// KindOf reads a heading. The three headings the file's opening promises are
 // matched without regard to case; anything else is a note.
-func kindOf(heading string) Kind {
+func KindOf(heading string) Kind {
 	switch strings.ToLower(strings.TrimSpace(heading)) {
 	case "neu":
 		return KindNew
@@ -265,7 +265,7 @@ func splitGroups(body []string, render func([]string) template.HTML) (template.H
 		if rest, ok := strings.CutPrefix(line, "### "); ok {
 			closeGroup()
 			title := strings.TrimSpace(rest)
-			cur = &Group{Kind: kindOf(title), Title: title}
+			cur = &Group{Kind: KindOf(title), Title: title}
 			continue
 		}
 		if cur == nil {
