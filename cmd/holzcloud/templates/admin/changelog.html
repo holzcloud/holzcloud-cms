@@ -26,59 +26,55 @@
 <p class="empty">{{t "This build carries no version history."}}</p>
 {{else}}
 
-<!-- Die Fassungen als gewöhnliche Verweise, nicht als ARIA-Reiter: eine
-     tablist verspricht Pfeiltasten-Bedienung, die nur Skript liefern kann.
-     Verweise funktionieren ohne Javascript, und jede Fassung behält eine
-     eigene Adresse, die man jemandem schicken kann, der noch auf der älteren
-     sitzt. Die Seite wechselt als Ganzes; der Balken unter dem aktiven Reiter
-     gleitet über den Seitenübergang (View Transition) von einem zum nächsten. -->
+<!-- Je Hauptversion ein Reiter, als gewöhnlicher Verweis und nicht als
+     ARIA-Reiter: eine tablist verspricht Pfeiltasten-Bedienung, die nur Skript
+     liefern kann. Verweise funktionieren ohne Javascript, und jede Fassung
+     behält eine eigene Adresse, die man jemandem schicken kann, der noch auf
+     der älteren sitzt. Der Balken unter dem aktiven Reiter gleitet über den
+     Seitenübergang (View Transition) von einem zum nächsten. -->
 <nav class="whatsnew-tabs" aria-label="{{t "Versions"}}">
-    {{range .Tabs}}
+    {{range .Series}}
     <a class="whatsnew-tab{{if .Active}} is-active{{end}}" href="{{.Href}}"
        {{if .Active}}aria-current="page"{{end}}>
-        <span class="whatsnew-tab__number">{{.Release.Version}}</span>
-        {{if .Release.Date}}<span class="whatsnew-tab__date">{{.Release.Date}}</span>{{end}}
+        <span class="whatsnew-tab__number">{{.Label}}</span>
+        <span class="whatsnew-tab__date">{{tf "%d versions" .Count}}</span>
         {{if .New}}<span class="whatsnew-tab__new"><span class="sr-only">{{t "new"}}</span></span>{{end}}
         {{if .Active}}<span class="whatsnew-tab__indicator" aria-hidden="true"></span>{{end}}
     </a>
     {{end}}
 </nav>
 
-{{if .Archive}}
-<!-- Ältere Fassungen in einem <details>: ohne Skript auf- und zuklappbar, und
-     offen, wenn die gezeigte Fassung darin liegt, damit der aktuelle Eintrag
-     nie hinter einer geschlossenen Zusammenfassung verschwindet. -->
-<details class="whatsnew-archive"{{if .ArchiveOpen}} open{{end}}>
-    <summary>{{t "Older versions"}}</summary>
-    {{range .Archive}}
-    <section class="whatsnew-archive__group">
-        <h3>{{.Series}}.x</h3>
-        <div class="whatsnew-archive__list">
-            {{range .Tabs}}
-            <a class="whatsnew-archive__link{{if .Active}} is-active{{end}}" href="{{.Href}}"
-               {{if .Active}}aria-current="page"{{end}}>
-                {{.Release.Version}}
-                {{if .New}}<span class="whatsnew-tab__new"><span class="sr-only">{{t "new"}}</span></span>{{end}}
-            </a>
+<!-- Die Fassungen der Reihe als Liste von Karten. Aufklappbar mit <details>,
+     ohne Skript; offen ist die gewünschte, sonst die neueste. -->
+<div class="whatsnew-list">
+    {{range .Cards}}
+    <details class="whatsnew-card{{if .New}} is-new{{end}}" id="v{{.Release.Version}}"{{if .Open}} open{{end}}>
+        <summary class="whatsnew-card__head">
+            <span class="whatsnew-card__version">{{tf "Version %s" .Release.Version}}</span>
+            {{if .Release.Date}}<time class="whatsnew-card__date">{{.Release.Date}}</time>{{end}}
+            {{if .Running}}<span class="whatsnew-chip whatsnew-chip--running">{{t "This is the version running here."}}</span>{{end}}
+            {{if .New}}<span class="whatsnew-chip whatsnew-chip--new">{{t "new"}}</span>{{end}}
+            <span class="whatsnew-card__kinds">
+                {{range .Release.Groups}}{{if eq (printf "%s" .Kind) "new"}}<span class="whatsnew-dot whatsnew-dot--new" title="{{t "New"}}"></span>{{else if eq (printf "%s" .Kind) "improved"}}<span class="whatsnew-dot whatsnew-dot--improved" title="{{t "Improved"}}"></span>{{else if eq (printf "%s" .Kind) "fixed"}}<span class="whatsnew-dot whatsnew-dot--fixed" title="{{t "Fixed"}}"></span>{{end}}{{end}}
+            </span>
+        </summary>
+
+        <!-- Durch goldmark und bluemonday gegangen, wie jeder andere Markdown-Text
+             in diesem Programm; internal/changelog sagt, warum es keinen zweiten
+             Weg dorthin gibt. -->
+        <div class="whatsnew-card__body">
+            {{if .Release.Lead}}<div class="whatsnew-lead prose">{{.Release.Lead}}</div>{{end}}
+            {{range .Release.Groups}}
+            <section class="whatsnew-group whatsnew-group--{{.Kind}}">
+                <h3 class="whatsnew-group__title">
+                    {{if eq (printf "%s" .Kind) "new"}}{{t "New"}}{{else if eq (printf "%s" .Kind) "improved"}}{{t "Improved"}}{{else if eq (printf "%s" .Kind) "fixed"}}{{t "Fixed"}}{{else}}{{.Title}}{{end}}
+                </h3>
+                <div class="prose">{{.HTML}}</div>
+            </section>
             {{end}}
         </div>
-    </section>
+    </details>
     {{end}}
-</details>
-{{end}}
-
-<article class="whatsnew-entry">
-    <header class="whatsnew-entry__head">
-        <h2>{{tf "Version %s" .Shown.Version}}</h2>
-        {{if .Shown.Date}}<p class="whatsnew-entry__date">{{.Shown.Date}}</p>{{end}}
-        {{if .Running}}
-        <p class="whatsnew-entry__running">{{t "This is the version running here."}}</p>
-        {{end}}
-    </header>
-    <!-- Durch goldmark und bluemonday gegangen, wie jeder andere Markdown-Text
-         in diesem Programm; internal/changelog sagt, warum es keinen zweiten
-         Weg dorthin gibt. -->
-    <div class="whatsnew-entry__body prose">{{.Shown.HTML}}</div>
-</article>
+</div>
 {{end}}
 {{end}}

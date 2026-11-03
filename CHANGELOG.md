@@ -9,6 +9,14 @@ deliberate: every other document in this project explains the why as well, and a
 list of clipped half-sentences would read as though somebody else had written it.
 Whoever writes the next entry, please join in.
 
+Under a version heading the entry can be cut into groups with a third-level
+heading: `### Neu` for what is new, `### Verbessert` for what works better,
+`### Behoben` for what was broken and is not any more, and any other heading
+(`### Gut zu wissen`) for the rest. The screen shows them in that order, new
+things first, whatever order the file has them in. Text before the first
+heading is the entry's opening sentence. An entry without groups still works;
+it is shown whole.
+
 The numbers are the same as the tags in the repository, from 0.0.1 on. The
 entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
@@ -16,15 +24,25 @@ entries stay here because they are still the history of this code.
 
 ## 0.1.2 — 2026-10-31
 
+### Behoben
+
 **Was sich ändert.** Dieses Release behebt einen Fehler in der Navigation der Verwaltung. Der Bildschirm eines Plugins, etwa der des Kontaktformulars, meldete sich als „Plugins“; die Leiste ordnete ihn deshalb den Einstellungen zu, klappte die Einstellungsliste auf und markierte dort „Plugins“, obwohl der Eintrag des Plugins angeklickt worden war. Jetzt leuchtet der Eintrag des Plugins selbst, und die Einstellungsliste bleibt zu. Die Adresse eines Plugin-Bildschirms wird dafür an einer einzigen Stelle gebildet; die Leiste und die Seite, die ihn ausliefert, lesen sie beide von dort, und ein Test hält fest, dass sie sich nicht wieder auseinanderentwickeln.
 
+### Verbessert
+
 **Ein kürzerer Name.** Der Eintrag des Kontaktformulars in der schmalen Leiste hieß „Formulare & Nachrichten“ und brach in zwei Zeilen um. Er heißt jetzt „Nachrichten“ (englisch „Messages“, spanisch „Mensajes“, französisch „Messages“, italienisch „Messaggi“). Das Plugin trägt dafür die Version 1.5.1; sonst ist an ihm nichts geändert.
+
+### Gut zu wissen
 
 **Was gleich bleibt.** Es gibt keine neue Migration; die höchste ist weiter 00060. `backup.sh`, `restore.sh` und beide Units sind unverändert gegenüber 0.1.1, ebenso die Beta-Zusagen und ihre Grenzen auf der Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md); die dortigen Belegläufe betreffen diese Skripte und sind von der Änderung nicht berührt. Neu gemessen wurde nichts: Das Release ist durch die Testsuite und die CI geprüft, nicht durch einen Lauf auf einem Server.
 
 ## 0.1.1 — 2026-10-26
 
+### Verbessert
+
 **Was 0.1.1 zeigt.** Dieses Release belegt einen Teil dessen, was 0.1.0 als nicht gezeigt aufführte, in einem Container mit systemd als PID 1 und nicht auf einem echten Server. Der mitgelieferte Timer `holzcloud-backup.timer` startet den mitgelieferten, gehärteten Dienst `holzcloud-backup.service` mit seinem eigenen Eintrag um 03:15, ohne Drop-in und ohne dass jemand etwas anstößt; gezeigt wurde das in einem Container, dessen Zeitzone so verschoben war, dass 03:15 innerhalb von zwei Minuten kam. Er wartet dabei eine zufällige Zeit von bis zu 300 Sekunden. Mit `Persistent=true` holt er einen Lauf nach, wenn der Rechner den Zeitpunkt verpasst hat; gespielt wurde ein Halt, der über den Zeitpunkt hinweg dauerte. Das Aufräumen folgt der eingestellten Aufbewahrungsregel. Die Kopie des ganzen Sicherungsordners an einen zweiten Rechner über `REMOTE_TARGET` gelingt, und aus dieser Kopie lässt sich eine Website wiederherstellen. Eine Sicherung von 0.1.0 lässt sich mit diesem Release zurückspielen. Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) führt jede dieser Zusagen mit einem Satz aus ihrer Aufzeichnung auf; die Aufzeichnungen selbst liegen unter `deploy/`.
+
+### Gut zu wissen
 
 **Was die Läufe über den Betrieb lehren.** Ein Schlüssel und eine Datei `known_hosts` im Home-Verzeichnis des Dienstbenutzers funktionieren in der mitgelieferten Unit nicht: `ProtectHome=true` macht das Home unlesbar, und die Kopie scheitert mit `Host key verification failed`. Beides gehört nach `/opt/holzcloud/offsite-ssh`; [deploy/DEPLOY.md](https://github.com/holzcloud/holzcloud-cms/blob/main/deploy/DEPLOY.md) sagt im Kapitel „Backups“ jetzt, wo, und beschreibt den Fehler. Die Kopie ist ein Spiegel: `rsync -a --delete` macht den zweiten Rechner dem Sicherungsordner gleich, und was die Box verliert oder aufräumt, verliert die Kopie beim nächsten Lauf. Scheitert die Kopie, bleibt die neue Sicherung trotzdem auf der Box; der Fehler zeigt sich als fehlgeschlagene Unit und nicht als fehlende Sicherung. Das Aufräumen kann ein Verzeichnis bis zu einen Tag länger behalten, als Tage eingestellt sind, weil `find -mtime +30` ganze Tage abrundet: Ein Verzeichnis von 30 Tagen und 12 Stunden blieb stehen, eines von 31 Tagen und einer Stunde wurde entfernt.
 
@@ -36,15 +54,23 @@ entries stay here because they are still the history of this code.
 
 **Was nicht gezeigt wurde und Sache des Betreibers ist.** Nativ auf amd64, eine Wiederherstellung auf einem echten Server und ein Neustart mit eingeschalteten Units haben noch kein Ergebnis (SRV-01 bis SRV-03). Für den ersten gibt es einen Knopf, den Workflow `native-amd64`, den es auf GitHub erst gibt, wenn `main` dort veröffentlicht ist; die Schritte für alle drei stehen in der Liste des Betreibers. Ebenso offen sind das echte 03:15 in der Zeitzone und mit der Uhr eines echten Servers, ein echter Stromausfall, das Netz zwischen zwei echten Rechnern mit eigenen Zugangsdaten und dem Fingerabdruck des Hostschlüssels, das Aufräumen auf echter Zeit und ein fast volles echtes Laufwerk. Alle Läufe fanden in Containern statt, unter Emulation von amd64 auf einem Rechner mit aarch64. Die Läufe für den Timer, das Nachholen, die zufällige Wartezeit, das Aufräumen und die Kopie an einen zweiten Rechner wurden mit dem `backup.sh` von 0.1.0 gemacht; mit dem geänderten Skript wurden nur die Läufe der neuen Aufzeichnung gemacht. Die ganze Liste mit Grund und Beleg steht auf der Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md).
 
+### Neu
+
 **Was sich am Programm seit 0.1.0 geändert hat.** Der Baustein „Bild und Text“ hat eine Lage für das Bild (`Bildlage`: links, rechts, oben oder unten); bestehende Blöcke bleiben unverändert. Wer ein Rasterbild hochlädt, das länger als 2560 px ist, wird gefragt „Passend verkleinern auf höchstens 2560 px?“, mit den Antworten „Ja, verkleinern“ und „Nein, Originale behalten“; die Wahl gilt für alle Bilder der Seite, ein verkleinertes Bild wird neu gespeichert, und das Original bleibt nicht erhalten. Der Pull Request 47 hat vier Befunde in den Bausteinen behoben, im Kern statt je Vorlage: Kleine Bilder werden nicht mehr hochgerechnet, der Aufruf zentriert nur noch einen einzelnen Satz, `--breit` lässt sich per Eigenschaft ans Raster anpassen, und der Bildtext richtet oben aus. Dazu kommen Aktualisierungen von Abhängigkeiten (goose 3.29.0, x/image 0.47.0, x/crypto 0.58.0, x/net 0.61.0). Es gibt keine neue Migration; die höchste ist weiter 00060, und eine Datenbank von 0.1.0 braucht keine. `restore.sh` und beide Units sind Byte für Byte die von 0.1.0. `backup.sh` hat sich auf die drei oben beschriebenen Weisen geändert (eine verschwundene Datei wird einmal wiederholt, eine gescheiterte Nacht entfernt ihr Verzeichnis, das `MANIFEST` wird unter anderem Namen geschrieben und umbenannt); seine übrigen Zeilen sind unverändert.
 
+### Verbessert
+
 **Datenschutz ohne Banner.** Die öffentliche Seite setzt kein Cookie, solange der Besucher nichts tut; ein Test über alle acht Themes hält das fest. Das Cookie der Preisansicht (`hc_preise`) gilt jetzt 30 statt 365 Tage und ist hinter einem Proxy, der TLS beendet, mit `Secure` versehen. Das Anfrageprotokoll schreibt die Adresse des Besuchers auf /24 (IPv4) oder /48 (IPv6) gekürzt; die neue Datei `deploy/journald-holzcloud.conf` begrenzt das Journal auf 14 Tage. Das Drop-in gilt für den ganzen Rechner, wird von Hand installiert und wurde auf einem echten Rechner nicht erprobt; `deploy/DEPLOY.md`, beide Units, `backup.sh` und `restore.sh` sind unverändert. Fehlgeschlagene Anmeldungen und abgelehnte Single-Sign-on-Versuche an der Verwaltung schreiben weiterhin die ganze Adresse. Ein Test hält fest, dass beim Hochladen die Metadaten eines Bildes entfernt werden. Jede neue Website bekommt einen Datenschutz-Entwurf, der aus ihren Funktionen zusammengesetzt ist, mit einer Tabelle der Cookies und einer der Empfänger; bestehenden Websites wird der Text in den Einstellungen als neuer Entwurf angeboten, ihre Seiten bleiben, wie sie sind. Der Text ist eine Vorlage und ersetzt keine Rechtsberatung. Es gibt keine neue Migration.
+
+### Was offen bleibt
 
 **Was die Belege nicht mehr decken.** Es gibt zwei Sätze von Belegläufen. Der frühere wurde mit dem Programm von 85fa486 gemacht, der neue (`deploy/BACKUP-ROBUST-RUN.md`) mit dem von dd077e4, das gegenüber 85fa486 spätere Änderungen enthält: `git diff --stat 85fa486 dd077e4 -- cmd internal go.mod go.sum` zeigt 11 Dateien mit 2856 Einfügungen und 36 Löschungen, alle in `internal/admin` und `internal/media` (die Ausrichtung hochgeladener Bilder nach EXIF und das Farbprofil beim Verkleinern, mit ihren Tests). Beide unterscheiden sich von diesem Release in `cmd/holzcloud/assets/bausteine.css` und dem Stylesheet des Themes weide, beide durch den Pull Request 47 geändert; der frühere zusätzlich in den elf Dateien. Die beiden Neuerungen davor, die Bildlage und die Frage nach dem Verkleinern, waren schon in dem Programm, das beide Sätze gemessen haben. Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) hält die Verbindung zwischen Beleg und Programm fest. Seit Phase 30 unterscheiden sich beide Sätze von diesem Release außerdem in den Paketen, die der Absatz „Datenschutz ohne Banner“ nennt, und kein Skript der Sicherung liest sie.
 
 ## 0.1.0 — 2026-10-14
 
 Dieses Release bringt keine neue Funktion, sondern Belege und Reparaturen für den Betrieb: Dienst, Aktualisieren, Zurückrollen, Sichern und Wiederherstellen sind durchgespielt, und die Beta-Kriterien stehen schriftlich.
+
+### Gut zu wissen
 
 **Was 0.1.0 verspricht und was nicht.** Die Seite [docs/beta.md](https://github.com/holzcloud/holzcloud-cms/blob/main/docs/beta.md) hält schriftlich fest, was dieses Release zusagt, mit dem Beleg zu jeder Zusage, und was es ausdrücklich nicht zusagt. Beta heißt hier: mit Sicherungen betreibbar, aber der Funktionsumfang ist nicht eingefroren.
 
@@ -67,6 +93,8 @@ im Kapitel „Install“ und im Kapitel „Backups“; sie werden hier nicht noc
 abgetippt. Machen Sie danach einmal von Hand eine Sicherung und spielen Sie sie
 einmal an einer anderen Stelle als in der Produktion zurück.
 
+### Verbessert
+
 **Der Dienst läuft unter echtem systemd.** Die gehärtete Unit wurde unter systemd 252
 gestartet, und die Website antwortete; auf der emulierten amd64-Plattform brauchte
 der erste Start ein Drop-in, das es nur im Container gibt. `MemoryDenyWriteExecute=true`
@@ -81,6 +109,8 @@ Zurückrollen mit und ohne Sicherung der Datenbank. Dabei wurden zehn Fehler im
 Dokument gefunden, und alle sind behoben. Das Zurückrollen ist neu beschrieben,
 und seine Grenze steht am Anfang des Abschnitts: Ein älteres Programm darf nicht
 gegen eine Datenbank gestartet werden, die schon migriert wurde.
+
+### Behoben
 
 **Sichern und Wiederherstellen sind gemessen, und die Skripte sind repariert.** Eine
 Sicherung, die der Dienst des nächtlichen Timers angelegt hatte, wurde mit
@@ -97,6 +127,8 @@ wieder aufbauen müssen, steht in
 die Unit-Datei mit ihren Drop-ins, die Umgebungsdateien, `HOLZCLOUD_SECRET_KEY` mit
 den Zugangsdaten für Zahlung und Mail, die Proxy-Konfiguration samt Zertifikatsstand
 und die Sicherungen vor dem Update im Datenverzeichnis.
+
+### Was offen bleibt
 
 **Was nicht gezeigt wurde.** Nicht gezeigt wurden das echte Zeitfenster um 03:15,
 `Persistent=true` mit der zufälligen Verzögerung, die Kopie an ein anderes Ziel
