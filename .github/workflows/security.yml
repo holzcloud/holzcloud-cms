@@ -16,9 +16,13 @@ env:
   # tree.
   HOLZCLOUD_TEST_REQUIRE_WASM: "1"
 
+# Three jobs, none of which waits on another. Every scheduled run from
+# 2026-09-13 to 2026-11-08 was red, because the race step died in one slow
+# package and the vulnerability scan, the last step of the same job, never ran.
+# Separate jobs mean each part reports on its own.
 jobs:
-  audit:
-    name: Module and race audit
+  module:
+    name: Modules and vet
     runs-on: ubuntu-latest
 
     steps:
@@ -37,21 +41,105 @@ jobs:
     - name: Report available dependency updates
       run: go list -m -u all
 
-    # The race detector needs cgo, so this job is the one place it is enabled.
-    # The explicit timeout is deliberate, not paranoia: on 2026-08-23 this step
-    # was killed by Go's 10-minute default at
-    # "FAIL github.com/holzcloud/cms/internal/plugin 600.060s". Measured on
-    # 2026-09-03, `go test -race ./internal/plugin/` alone takes 297 s on a
-    # developer machine, and a hosted runner is slower than that. The wazero
-    # plugin host really is that expensive under -race. Lowering this back below
-    # ten minutes restores a value that is already proven to fail.
-    - name: Test with race detector
-      env:
-        CGO_ENABLED: "1"
-      run: go test -race -timeout 30m ./...
-
     - name: Vet
       run: go vet ./...
+
+  race:
+    name: Race detector (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    # timeout-minutes bounds the whole job, while go test's -timeout applies
+    # per package test binary. The job limit sits above -timeout in every shard
+    # so that Go's own panic, which names the test that was running, fires
+    # before GitHub cancels the job without saying anything useful.
+    timeout-minutes: ${{ matrix.minutes }}
+    strategy:
+      # Without this, one red shard cancels the other two and the run hides
+      # exactly what it exists to show.
+      fail-fast: false
+      matrix:
+        include:
+        # internal/admin: the whole-tree run with -timeout 30m ended on
+        # 2026-11-08 with "panic: test timed out after 30m0s" in internal/admin,
+        # at forwardauth_test.go. By then it had finished about 130 of its 442
+        # top-level tests, at roughly 15 s each: every test opens a fresh SQLite
+        # database and applies all migrations, and under -race that is slow.
+        # That adds up to about 100 minutes for the package. None of its tests
+        # calls t.Parallel, so it runs serially in one test binary: a job of its
+        # own and 150 minutes is the lever here, not more parallelism.
+        - shard: admin
+          go-timeout: 150m
+          minutes: 170
+        # internal/plugin: the explicit timeout is deliberate, not paranoia. On
+        # 2026-08-23 this step was killed by Go's 10-minute default at
+        # "FAIL github.com/holzcloud/cms/internal/plugin 600.060s". Measured on
+        # 2026-09-03, `go test -race ./internal/plugin/` alone takes 297 s on a
+        # developer machine, and a hosted runner is slower than that: it took
+        # 755 s in the shared run of 2026-11-08. The wazero plugin host really
+        # is that expensive under -race. Lowering this back below ten minutes
+        # restores a value that is already proven to fail. The shard also takes
+        # internal/plugin/wasmtest, which has no test files but is a package.
+        - shard: plugin
+          go-timeout: 30m
+          minutes: 45
+        # Everything else. In the shared run of 2026-11-08 the slowest of these
+        # was internal/public at 902 s, then internal/ai at 663 s and
+        # internal/media at 627 s, so none came near 30 minutes.
+        - shard: rest
+          go-timeout: 30m
+          minutes: 60
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    # The race detector needs cgo, so this job is the one place it is enabled.
+    #
+    # The rest shard excludes exactly the other shards, with an anchored
+    # pattern: internal/plugin/wasmtest goes with plugin, and nothing is
+    # counted twice or dropped. A new shard has to be added to the matrix and
+    # to that pattern together. An empty selection is an error, because
+    # `go test` with no package arguments tests the current directory and
+    # reports green. The shell is bash so that it runs with -eo pipefail, and a
+    # failing `go list` inside the pipeline fails the step. Matrix values reach
+    # the script only through env, never as expressions inside `run:`.
+    - name: Test with race detector
+      shell: bash
+      env:
+        CGO_ENABLED: "1"
+        SHARD: ${{ matrix.shard }}
+        GO_TIMEOUT: ${{ matrix.go-timeout }}
+      run: |
+        if [ "$SHARD" = rest ]; then
+          pkgs=$(go list ./... | grep -vE '/internal/(admin|plugin)(/|$)')
+        else
+          pkgs=$(go list "./internal/$SHARD/...")
+        fi
+        if [ -z "$pkgs" ]; then
+          echo "no packages selected for shard $SHARD" >&2
+          exit 1
+        fi
+        echo "Shard $SHARD:"
+        echo "$pkgs"
+        # shellcheck disable=SC2086 # splitting into package arguments is the point
+        go test -race -timeout "$GO_TIMEOUT" $pkgs
+
+  vulncheck:
+    name: Known vulnerabilities
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
 
     # This step may fail the job, and that is the point. On 2026-09-03
     # govulncheck found eight standard library vulnerabilities on paths this
@@ -59,12 +147,14 @@ jobs:
     # importer, the outbound payment client — and nothing in this repository
     # had noticed any of them; they were found by hand. A scan whose failure is
     # swallowed reports to nobody, so there is deliberately no
-    # continue-on-error here. It runs last so that an upstream advisory cannot
-    # mask a genuine test regression: one run still gives the whole picture. If
-    # it goes red for a dependency rather than the standard library, that is
-    # the step working, and it earns a fix rather than a suppression. The
-    # scanner is a CI tool installed outside the module, so @latest never
-    # touches go.mod or go.sum and nothing about it reaches the shipped binary.
+    # continue-on-error here. It is a job of its own with no needs:, so neither
+    # side can hide the other: an advisory cannot mask a test regression, and a
+    # test timeout can no longer keep the scan from running, which is what
+    # happened every week from 2026-09-13 to 2026-11-08. If it goes red for a
+    # dependency rather than the standard library, that is the step working,
+    # and it earns a fix rather than a suppression. The scanner is a CI tool
+    # installed outside the module, so @latest never touches go.mod or go.sum
+    # and nothing about it reaches the shipped binary.
     - name: Scan for known vulnerabilities
       run: |
         go install golang.org/x/vuln/cmd/govulncheck@latest
