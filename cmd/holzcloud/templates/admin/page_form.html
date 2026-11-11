@@ -440,7 +440,7 @@
     </aside>
 </form>
 
-{{if .IsEdit}}
+{{if and .IsEdit (not .Values.UsesBlocks)}}
 <!-- A <details>, not a <dialog>: opening a dialog needs showModal(), which from
      a template means an inline handler, which means loosening script-src away
      from 'self'. <details> opens with no script at all, and htmx loads the
