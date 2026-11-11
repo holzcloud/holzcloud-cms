@@ -11,7 +11,7 @@
 # The root .dockerignore excludes deploy/ and *.md, which this build needs;
 # deploy/test/Dockerfile.dockerignore takes precedence over it for this file.
 
-ARG GO_VERSION=1.26.8
+ARG GO_VERSION=1.26.11
 ARG BASE_IMAGE=debian:bookworm-slim
 
 # Stage build: cross-compiled on the native builder, so an amd64 image on an

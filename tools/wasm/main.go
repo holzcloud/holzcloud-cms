@@ -95,11 +95,11 @@ import (
 // refuses to load a module declaring a higher minimum than the running
 // toolchain, and internal/plugin/testdata/echo lives in the root module, so
 // this must be greater than or equal to the `go` directive in ./go.mod
-// (go 1.26.8 today). bodenPruefen enforces that at startup.
+// (go 1.26.11 today). bodenPruefen enforces that at startup.
 //
-// Bare, never "go1.26.8+auto" — the +auto form selects a newer toolchain when
+// Bare, never "go1.26.11+auto" — the +auto form selects a newer toolchain when
 // one is needed, which is the pin defeating itself.
-const goToolchain = "go1.26.8"
+const goToolchain = "go1.26.11"
 
 // ziel is one committed guest module: where it is built and where the built
 // file belongs in the repository.
