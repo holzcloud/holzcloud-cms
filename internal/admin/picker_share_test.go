@@ -10,8 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alexedwards/scs/v2"
+
+	"github.com/holzcloud/holzcloud-cms/internal/block"
+	"github.com/holzcloud/holzcloud-cms/internal/db"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/field"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/sharelink"
 )
 
@@ -122,6 +128,164 @@ func TestInsertingAPictureAppendsAndKeepsWhatWasThere(t *testing.T) {
 	}
 	if !strings.Contains(after.ContentHTML, "<img") {
 		t.Errorf("the HTML was not re-rendered: %q", after.ContentHTML)
+	}
+}
+
+// pickerFields is a stored value of a website's own fields, the column the
+// picker's save used to empty.
+func pickerFields(t *testing.T) string {
+	t.Helper()
+	raw, err := field.Encode(field.Data{Values: field.Values{"holzart": "Lärche"}})
+	if err != nil || raw == "" {
+		t.Fatalf("field.Encode: %q %v", raw, err)
+	}
+	return raw
+}
+
+// pickerPicture uploads one picture to the website and returns it.
+func pickerPicture(t *testing.T, h *Handler, sm *scs.SessionManager, database *db.DB, websiteID int64) media.Media {
+	t.Helper()
+	serve(t, h, sm, h.HandleMediaUpload, mediaUploadRequest(t, websiteID, "werkstatt.png", onePixelPNG))
+	items, _, err := media.NewStore(database).List(context.Background(), websiteID, media.Filter{}, 1, 10)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("%d files: %v", len(items), err)
+	}
+	return items[0]
+}
+
+// The insert is a save, and a save writes every column of the page. Built by
+// hand it left out the page's own fields, which emptied them — for good,
+// because a revision holds the blocks and not the fields.
+func TestInsertingAPictureKeepsThePagesOwnFields(t *testing.T) {
+	h, sm, database, ws := mediaAdmin(t)
+	ctx := context.Background()
+	m := pickerPicture(t, h, sm, database, ws.ID)
+
+	const typed = "Ein langer Absatz, den niemand zweimal schreiben möchte."
+	p := seedPage(t, database, ws.ID, "Über uns", "ueber-uns", typed, "draft")
+	fields := pickerFields(t)
+	if err := page.NewStore(database).SetFields(ctx, p.ID, fields); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := serve(t, h, sm, h.HandlePageInsertMedia, postForm("/admin/websites/1/pages/1/bild",
+		url.Values{"media_id": {strconv.FormatInt(m.ID, 10)}},
+		websiteRoute(ws.ID, "pageID", strconv.FormatInt(p.ID, 10))))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status %d", rec.Code)
+	}
+
+	after, err := h.pages.GetPage(ctx, p.ID)
+	if err != nil || after == nil {
+		t.Fatal(err)
+	}
+	if after.Fields != fields {
+		t.Errorf("the page's own fields were changed by the insert: %q, want %q", after.Fields, fields)
+	}
+	if !strings.Contains(after.ContentMarkdown, typed) {
+		t.Errorf("what was typed is gone: %q", after.ContentMarkdown)
+	}
+	if !strings.Contains(after.ContentMarkdown, m.Filename) {
+		t.Errorf("the picture was not inserted: %q", after.ContentMarkdown)
+	}
+}
+
+// blockPageForPicker is a page built from one quote block that also carries
+// own fields, reloaded as it stands in the database.
+func blockPageForPicker(t *testing.T, h *Handler, database *db.DB, websiteID int64) *page.Page {
+	t.Helper()
+	ctx := context.Background()
+	p := seedPage(t, database, websiteID, "Zitat", "zitat", "", "draft")
+	if _, err := h.OpSetPageBlocks(ctx, websiteID, p.ID, 0, []block.Block{
+		{Type: block.TypeQuote, Text: "Gutes Holz", Source: "Oma"},
+	}); err != nil {
+		t.Fatalf("OpSetPageBlocks: %v", err)
+	}
+	if err := page.NewStore(database).SetFields(ctx, p.ID, pickerFields(t)); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := h.pages.GetPage(ctx, p.ID)
+	if err != nil || stored == nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if stored.Blocks == "" || !strings.Contains(stored.ContentHTML, "hc-zitat") {
+		t.Fatalf("not a block page: blocks %q, HTML %q", stored.Blocks, stored.ContentHTML)
+	}
+	return stored
+}
+
+// A page built from blocks derives both content columns from its blocks, so a
+// reference appended to the Markdown has nowhere to live: saved as text it
+// would replace the blocks, and saved beside them it would vanish with the
+// next save in the editor. The insert is refused instead, and says so.
+func TestInsertingIntoABlockPageIsRefusedAndChangesNothing(t *testing.T) {
+	h, sm, database, ws := mediaAdmin(t)
+	ctx := context.Background()
+	m := pickerPicture(t, h, sm, database, ws.ID)
+	before := blockPageForPicker(t, h, database, ws.ID)
+
+	rec, bad, good := albumFlash(t, h, sm, h.HandlePageInsertMedia,
+		postForm("/admin/websites/1/pages/1/bild",
+			url.Values{"media_id": {strconv.FormatInt(m.ID, 10)}},
+			websiteRoute(ws.ID, "pageID", strconv.FormatInt(before.ID, 10))))
+
+	after, err := h.pages.GetPage(ctx, before.ID)
+	if err != nil || after == nil {
+		t.Fatal(err)
+	}
+	if after.Blocks != before.Blocks {
+		t.Errorf("the blocks were changed: %q, want %q", after.Blocks, before.Blocks)
+	}
+	if after.Fields != before.Fields {
+		t.Errorf("the own fields were changed: %q, want %q", after.Fields, before.Fields)
+	}
+	if after.ContentMarkdown != before.ContentMarkdown {
+		t.Errorf("the text was changed: %q, want %q", after.ContentMarkdown, before.ContentMarkdown)
+	}
+	if after.ContentHTML != before.ContentHTML || !strings.Contains(after.ContentHTML, "hc-zitat") {
+		t.Errorf("the rendered blocks were changed: %q", after.ContentHTML)
+	}
+	if after.Version != before.Version {
+		t.Errorf("the page was written: version %d, was %d", after.Version, before.Version)
+	}
+
+	want := "/admin/websites/" + id64(ws.ID) + "/pages/" + id64(before.ID) + "/edit"
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != want {
+		t.Errorf("status %d to %q, want 303 to %q", rec.Code, rec.Header().Get("Location"), want)
+	}
+	if bad == "" {
+		t.Error("the editor is not told why nothing was inserted")
+	}
+	if good != "" {
+		t.Errorf("a refused insert reports success: %q", good)
+	}
+}
+
+// The handler is the authority; the form merely does not offer a control whose
+// only answer is the refusal.
+func TestTheBlockEditorDoesNotOfferThePicker(t *testing.T) {
+	h, sm, database, ws := mediaAdmin(t)
+	blocks := blockPageForPicker(t, h, database, ws.ID)
+	text := seedPage(t, database, ws.ID, "Über uns", "ueber-uns", "Ein Absatz.", "draft")
+
+	form := func(pageID int64) string {
+		req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/pages/1/edit", nil)
+		for k, v := range websiteRoute(ws.ID, "pageID", strconv.FormatInt(pageID, 10)) {
+			req.SetPathValue(k, v)
+		}
+		rec := serve(t, h, sm, h.HandlePageEdit, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("page %d: status %d", pageID, rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	const panel = `class="card media-picker"`
+	if strings.Contains(form(blocks.ID), panel) {
+		t.Error("the block editor offers the picker, which can only refuse")
+	}
+	if !strings.Contains(form(text.ID), panel) {
+		t.Error("the text editor no longer offers the picker")
 	}
 }
 

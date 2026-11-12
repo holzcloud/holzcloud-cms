@@ -381,6 +381,23 @@ func (v pageValues) access() page.AccessUpdate {
 	}
 }
 
+// checkAccess refuses protection that would end up without a usable password,
+// before anything is stored: the store's two rules, and no third. stored says
+// whether the page already has a password; it comes from the database row and
+// never from the form's has_password field, which a hand-built request can set.
+// An empty field over a stored password keeps that password and adds nothing.
+func (v pageValues) checkAccess(r *http.Request, errs web.FormErrors, stored bool) {
+	if !v.Protected {
+		return
+	}
+	switch {
+	case v.PagePassword == "" && !stored:
+		errs.Add("page_password", "Please set a password, or switch the protection off.")
+	case v.PagePassword != "" && len(v.PagePassword) < page.MinPagePasswordLength:
+		errs.Add("page_password", tr(r, "A page password needs at least %d characters.", page.MinPagePasswordLength))
+	}
+}
+
 // IsPost reports whether the form is editing an archive entry.
 func (v pageValues) IsPost() bool { return v.Kind == page.KindPost }
 
