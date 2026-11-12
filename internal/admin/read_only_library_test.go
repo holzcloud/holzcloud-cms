@@ -394,3 +394,69 @@ func TestTheAlbumScreensOfferNoChangeWithoutPublishing(t *testing.T) {
 		t.Error("album: a person who may publish finds the fields disabled")
 	}
 }
+
+// Putting files into an album from the media library is the eighth door of an
+// album, and the one that stands on another screen. Uploading stays open
+// (D-06): a file in the library is on no page until somebody puts it there.
+func TestAnEditorWithoutPublishingCannotPutFilesIntoAnAlbum(t *testing.T) {
+	f := newAlbumFixture(t)
+	h, sm, ws, a := f.h, f.sm, f.siteA, f.albumA
+	editor := editorWithoutPublishing(t, f.db, ws.ID)
+	library := fmt.Sprintf("/admin/websites/%d/media", ws.ID)
+	target := library + "/in-album"
+	values := url.Values{"album_id": {id64(a.ID)}, "media_id": {id64(f.mediaA)}}
+	route := websiteRoute(ws.ID)
+
+	rec, flash := serveAs(t, h, sm, editor, h.HandleMediaToAlbum, postForm(target, values, route))
+	wantRefused(t, "into album", rec, flash, library)
+	rec, flash = serveAs(t, h, sm, editor, h.HandleMediaToAlbum, htmx(postForm(target, values, route)))
+	wantRefusedHtmx(t, "into album", rec, flash, library)
+	if n := len(f.pictures(t, a.ID)); n != 0 {
+		t.Errorf("%d pictures in the album, want none", n)
+	}
+
+	// The control: somebody who may publish puts the file into the album.
+	publisher := editorWhoMayPublish(t, f.db, ws.ID)
+	rec, flash = serveAs(t, h, sm, publisher, h.HandleMediaToAlbum, postForm(target, values, route))
+	if rec.Code != http.StatusSeeOther || flash != "" {
+		t.Errorf("publisher: status %d (%q), want 303", rec.Code, flash)
+	}
+	if n := len(f.pictures(t, a.ID)); n != 1 {
+		t.Errorf("publisher: %d pictures in the album, want 1", n)
+	}
+}
+
+func TestTheLibraryOffersNoAlbumControlsWithoutPublishing(t *testing.T) {
+	f := newAlbumFixture(t)
+	h, sm, ws := f.h, f.sm, f.siteA
+	editor := editorWithoutPublishing(t, f.db, ws.ID)
+	publisher := editorWhoMayPublish(t, f.db, ws.ID)
+	library := fmt.Sprintf("/admin/websites/%d/media", ws.ID)
+	route := websiteRoute(ws.ID)
+	// The "+ New album" link is found by its class: html/template writes the plus
+	// as &#43;, so its text would never match and the test would hold nothing.
+	newAlbum := "library-nav__item--add"
+	controls := []string{`form="library-bulk"`, `id="library-bulk"`, newAlbum}
+
+	body := getAs(t, sm, putUser(sm, editor), h.HandleMediaList, library, route)
+	for _, c := range controls {
+		if strings.Contains(body, c) {
+			t.Errorf("media library offers %s", c)
+		}
+	}
+	body = getAs(t, sm, putUser(sm, editor), h.HandleAlbumList, albumListAddress(ws.ID), route)
+	if strings.Contains(body, newAlbum) {
+		t.Error("album list offers + New album")
+	}
+
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleMediaList, library, route)
+	for _, c := range controls {
+		if !strings.Contains(body, c) {
+			t.Errorf("media library: a person who may publish is not offered %s", c)
+		}
+	}
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleAlbumList, albumListAddress(ws.ID), route)
+	if !strings.Contains(body, newAlbum) {
+		t.Error("album list: a person who may publish is not offered + New album")
+	}
+}

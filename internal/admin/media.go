@@ -30,6 +30,10 @@ type mediaListData struct {
 	MissingAltText int
 	// Library is the collection list on the left.
 	Library libraryNav
+	// ReadOnly is somebody without the publishing right. It decides the album
+	// controls alone — the tick boxes and the form that puts files into an
+	// album; uploading stays open (D-06). Plan 03 adds which files are in use.
+	ReadOnly bool
 }
 
 // mediaFilterFromRequest reads the list controls.
@@ -88,7 +92,9 @@ func (h *Handler) HandleMediaList(w http.ResponseWriter, r *http.Request) error 
 		Filter:         filter,
 		MissingAltText: missing,
 		Library:        h.libraryNavFor(r.Context(), websiteID, activeCollection(filter)),
+		ReadOnly:       h.readOnly(r),
 	}
+	data.Library.ReadOnly = data.ReadOnly
 	data.ActiveNav = "media"
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "media_list", data)

@@ -24,6 +24,6 @@
     {{$key := printf "album:%d" .ID}}
     <a href="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}" class="library-nav__item{{if eq $active $key}} is-active{{end}}"{{if eq $active $key}} aria-current="page"{{end}}><span>{{.Name}}</span><span class="library-nav__count">{{.Count}}</span></a>
     {{end}}
-    <a href="/admin/websites/{{.WebsiteID}}/albums" class="library-nav__item library-nav__item--add"><span>{{t "+ New album"}}</span></a>
+    {{if not .ReadOnly}}<a href="/admin/websites/{{.WebsiteID}}/albums" class="library-nav__item library-nav__item--add"><span>{{t "+ New album"}}</span></a>{{end}}
 </nav>
 {{end}}

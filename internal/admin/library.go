@@ -94,6 +94,11 @@ func (h *Handler) HandleMediaToAlbum(w http.ResponseWriter, r *http.Request) err
 		http.NotFound(w, r)
 		return nil
 	}
+	// Before the loop, so not one file goes in: a gallery shows the album as
+	// soon as a picture is stored.
+	if h.refuseReadOnly(w, r, back) {
+		return nil
+	}
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
