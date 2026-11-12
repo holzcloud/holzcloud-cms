@@ -365,65 +365,47 @@ func (h *Handler) HandleMenuItemCreate(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
-	if title == "" {
-		web.SetFlashError(h.sm, r.Context(), "Please give the entry a title")
-		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
-		return nil
-	}
-
-	itemType := r.FormValue("item_type")
-	// Validate item_type (T-04-09)
-	if itemType != "page" && itemType != "url" && itemType != "custom" {
-		web.SetFlashError(h.sm, r.Context(), "Invalid kind of menu entry")
-		http.Redirect(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID), http.StatusSeeOther)
-		return nil
-	}
-
-	url := strings.TrimSpace(r.FormValue("url"))
-	var pageID *int64
-	if itemType == "page" {
-		if pid := r.FormValue("page_id"); pid != "" {
-			p, err := strconv.ParseInt(pid, 10, 64)
-			if err == nil {
-				pageID = &p
-			}
+	back := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
+	leave := func() {
+		if r.Header.Get("HX-Request") == "true" {
+			w.Header().Set("HX-Redirect", back)
+			return
 		}
+		http.Redirect(w, r, back, http.StatusSeeOther)
 	}
 
-	var parentID *int64
-	if pid := r.FormValue("parent_id"); pid != "" {
-		p, err := strconv.ParseInt(pid, 10, 64)
-		if err == nil && p > 0 {
-			parentID = &p
-		}
-	}
-
-	// Get next sort order
+	// The same check the edit form runs. A new entry is handed in empty: it has
+	// no page that could count as unchanged, and id zero is nobody's ancestor.
 	items, err := h.menuStore.ListItems(r.Context(), menuID)
 	if err != nil {
 		return err
 	}
+	in, err := h.checkMenuItem(r.Context(), websiteID, m, &menu.MenuItem{}, items, r.FormValue)
+	if err != nil {
+		if isRefusal(err) {
+			web.SetFlashError(h.sm, r.Context(), err.Error())
+			leave()
+			return nil
+		}
+		return err
+	}
+
+	// A new entry goes to the end of its group.
 	sortOrder := 0
 	for _, item := range items {
-		if (parentID == nil && item.ParentID == nil) || (parentID != nil && item.ParentID != nil && *parentID == *item.ParentID) {
+		if (in.ParentID == nil && item.ParentID == nil) || (in.ParentID != nil && item.ParentID != nil && *in.ParentID == *item.ParentID) {
 			if item.SortOrder >= sortOrder {
 				sortOrder = item.SortOrder + 1
 			}
 		}
 	}
 
-	if _, err := h.menuStore.CreateItem(r.Context(), menuID, parentID, title, itemType, url, pageID, sortOrder); err != nil {
+	if _, err := h.menuStore.CreateItem(r.Context(), menuID, in.ParentID, in.Title, in.ItemType, in.URL, in.PageID, sortOrder); err != nil {
 		return err
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Entry added")
-	redirect := fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", redirect)
-		return nil
-	}
-	http.Redirect(w, r, redirect, http.StatusSeeOther)
+	leave()
 	return nil
 }
 
@@ -479,8 +461,8 @@ type menuItemInput struct {
 	ParentID *int64
 }
 
-// checkMenuItem validates one edited entry against the menu it lives in and
-// returns the cleaned values. A turned-down input comes back as a refusal whose
+// checkMenuItem validates one entry, new or edited, against the menu it lives
+// in and returns the cleaned values. A new entry is handed in empty. A turned-down input comes back as a refusal whose
 // message is a catalogue key.
 func (h *Handler) checkMenuItem(ctx context.Context, websiteID int64, m *menu.Menu, item *menu.MenuItem, items []menu.MenuItem, form func(string) string) (menuItemInput, error) {
 	in := menuItemInput{

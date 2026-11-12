@@ -2,8 +2,10 @@ package user
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // What a person may do, beyond their role.
@@ -127,15 +129,6 @@ func (s *Store) Assignment(ctx context.Context, id int64) (Rights, error) {
 // website with a tick, so what comes back is the complete answer, and a
 // difference calculation could only get it wrong.
 func (s *Store) SetRights(ctx context.Context, id int64, rights Rights) error {
-	publish := 0
-	if rights.MayPublish {
-		publish = 1
-	}
-	limited := 0
-	if rights.Limited() {
-		limited = 1
-	}
-
 	// One transaction. These statements used to run without one, and a failure
 	// between the DELETE and the INSERTs left the person with no rows and a
 	// publishing right already changed — half of a change nobody asked for,
@@ -148,6 +141,72 @@ func (s *Store) SetRights(ctx context.Context, id int64, rights Rights) error {
 		return fmt.Errorf("begin rights: %w", err)
 	}
 	defer tx.Rollback()
+
+	if err := writeRights(ctx, tx, id, rights); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit rights: %w", err)
+	}
+	return nil
+}
+
+// UpdateWithRights stores a person's record and what they may do, together.
+//
+// The user form sends both at once, so both are stored at once: one
+// transaction, and a refusal of either half leaves the other unwritten. Stored
+// one after the other, an address somebody else already has left the new rights
+// standing behind a save the form reported as failed, and the other order
+// would leave a new role standing beside the old websites.
+//
+// A taken address is ErrDuplicateEmail and somebody who is not there is
+// ErrNotFound. Left to the caller, which is the form handler and checks all
+// three before it calls: that an address is given, that the role is a known
+// one, and that the last administrator keeps the role.
+func (s *Store) UpdateWithRights(ctx context.Context, id int64, name, email, role string, rights Rights) error {
+	// Every statement runs on tx. The write pool has a single connection, and a
+	// statement sent to the pool while the transaction is open waits for ever.
+	tx, err := s.DB.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin user update: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx,
+		`UPDATE users SET name = $1, email = $2, role = $3 WHERE id = $4`,
+		strings.TrimSpace(name), strings.TrimSpace(email), role, id)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrDuplicateEmail
+		}
+		return fmt.Errorf("update user: %w", err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("update user: %w", err)
+	} else if n == 0 {
+		return ErrNotFound
+	}
+
+	if err := writeRights(ctx, tx, id, rights); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit user update: %w", err)
+	}
+	return nil
+}
+
+// writeRights replaces a person's limits inside the caller's transaction: the
+// publishing right and the limit on the account, then the assignment, wholesale.
+func writeRights(ctx context.Context, tx *sql.Tx, id int64, rights Rights) error {
+	publish := 0
+	if rights.MayPublish {
+		publish = 1
+	}
+	limited := 0
+	if rights.Limited() {
+		limited = 1
+	}
 
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE users SET may_publish = $1, websites_limited = $2 WHERE id = $3`,
@@ -171,9 +230,6 @@ func (s *Store) SetRights(ctx context.Context, id int64, rights Rights) error {
 			`INSERT INTO user_websites (user_id, website_id) VALUES ($1, $2)`, id, websiteID); err != nil {
 			return fmt.Errorf("assign website: %w", err)
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit rights: %w", err)
 	}
 	return nil
 }

@@ -187,3 +187,77 @@ func TestATickAlwaysLimitsWhateverNothingTickedMeans(t *testing.T) {
 		})
 	}
 }
+
+// A save the form reports as refused must not have changed anything.
+//
+// The edit used to store the rights first, in a transaction of their own, and
+// the record second. An address somebody else already has failed the second
+// step, the form said so — and the rights of the first step stood: an editor
+// limited to one website and without the publishing right came out of a
+// "failed" save with both limits gone.
+func TestARefusedUserEditChangesNoRights(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		form func(siteB int64) url.Values
+	}{
+		{"promoted to administrator", func(int64) url.Values {
+			return url.Values{"name": {"Neu"}, "email": {"vergeben@example.com"}, "role": {"admin"}}
+		}},
+		{"another website and the publishing right ticked", func(siteB int64) url.Values {
+			return url.Values{
+				"name": {"Neu"}, "email": {"vergeben@example.com"}, "role": {"editor"},
+				"websites": {strconv.FormatInt(siteB, 10)}, "darf_veroeffentlichen": {"1"},
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sm, database, siteA := newTestAdmin(t)
+			ctx := context.Background()
+			siteB, err := domain.NewStore(database).CreateWebsite(ctx, "Seite B", "")
+			if err != nil {
+				t.Fatalf("create Seite B: %v", err)
+			}
+			seedAccount(t, database, "vergeben@example.com", user.RoleEditor)
+			id := seedAccount(t, database, "begrenzt@example.com", user.RoleEditor)
+			if err := h.users.SetRights(ctx, id, user.Rights{Websites: []int64{siteA.ID}}); err != nil {
+				t.Fatalf("limit the editor to %q: %v", siteA.Name, err)
+			}
+
+			path := "/admin/users/" + strconv.FormatInt(id, 10) + "/edit"
+			rec, bad, good := albumFlash(t, h, sm, h.HandleUserEdit,
+				postForm(path, tc.form(siteB.ID), map[string]string{"id": strconv.FormatInt(id, 10)}))
+			if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != path {
+				t.Fatalf("status %d to %q, want 303 back to %q", rec.Code, rec.Header().Get("Location"), path)
+			}
+			if bad == "" || good != "" {
+				t.Fatalf("the taken address was not refused: error %q, success %q", bad, good)
+			}
+
+			stored, err := h.users.GetByID(ctx, id)
+			if err != nil || stored == nil {
+				t.Fatalf("GetByID: %v", err)
+			}
+			if stored.Role != user.RoleEditor {
+				t.Errorf("a refused save changed the role to %q", stored.Role)
+			}
+			if stored.Email != "begrenzt@example.com" {
+				t.Errorf("a refused save changed the address to %q", stored.Email)
+			}
+
+			rights, err := h.users.Assignment(ctx, id)
+			if err != nil {
+				t.Fatalf("Assignment: %v", err)
+			}
+			if rights.MayPublish {
+				t.Error("a refused save granted the publishing right")
+			}
+			if !rights.Limited() || len(rights.Websites) != 1 || rights.Websites[0] != siteA.ID {
+				t.Errorf("a refused save changed the website assignment: limited %v, websites %v, want only %d",
+					rights.Limited(), rights.Websites, siteA.ID)
+			}
+			if NewWebsiteAccessLookup(database)(ctx, id, siteB.ID) {
+				t.Error("after a refused save the editor reaches Seite B, which was never theirs")
+			}
+		})
+	}
+}

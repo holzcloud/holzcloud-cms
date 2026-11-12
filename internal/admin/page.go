@@ -461,6 +461,7 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 
 	slug := values.validateOn(r, data.Errors, ws.BlogBase, ws.Locales())
 	schedule := values.schedule(data.Errors)
+	values.checkAccess(r, data.Errors, false)
 	defs := h.fieldDefs(r.Context(), websiteID)
 	fieldErrs := reasonTexts(r.Context(), checkFields(defs, values.KindValue(), values.Fields))
 	if len(fieldErrs) > 0 {
@@ -634,6 +635,7 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 
 	slug := values.validateOn(r, data.Errors, ws.BlogBase, ws.Locales())
 	schedule := values.schedule(data.Errors)
+	values.checkAccess(r, data.Errors, existing.AccessPassword != "")
 	defs := h.fieldDefs(r.Context(), existing.WebsiteID)
 	fieldErrs := reasonTexts(r.Context(), checkFields(defs, values.KindValue(), values.Fields))
 	if len(fieldErrs) > 0 {
@@ -936,9 +938,10 @@ func (h *Handler) recordTerms(r *http.Request, websiteID, pageID int64, raw stri
 // recordAccess stores the page's protection and reports a problem in words the
 // editor can act on.
 //
-// A failure is a flash rather than a rejected save: the text is already stored,
-// and losing an article because a password was four characters long would be a
-// far worse outcome than a page that is briefly still public.
+// The form refuses a missing or too short password before saving (checkAccess),
+// so what remains here is the net for a refusal the store itself still raises.
+// That one is a flash rather than a rejected save, because the text is already
+// stored by then.
 func (h *Handler) recordAccess(r *http.Request, pageID int64, values pageValues) string {
 	err := h.pages.SetAccess(r.Context(), pageID, values.access(), h.argon2Params)
 	switch {

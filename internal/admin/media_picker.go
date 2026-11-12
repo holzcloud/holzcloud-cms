@@ -65,6 +65,17 @@ func (h *Handler) HandleMediaPicker(w http.ResponseWriter, r *http.Request) erro
 // wire that from a template would be an inline handler, which means loosening
 // script-src away from 'self'. Appending needs no new JavaScript at all, works
 // from the keyboard, and still beats copying a URL across two screens.
+//
+// The save starts from keepUpdate, the save that changes nothing, and changes
+// only the text: UpdatePage writes every column on every save, so a column left
+// out of a hand-built update is a column emptied. That is how this handler used
+// to wipe a page's own fields, which no revision brings back.
+//
+// A page built from blocks is refused, and nothing is written. Both content
+// columns are derived from the blocks there, so a reference appended to the
+// Markdown would vanish with the next save in the block editor — and until
+// then the public page would show the plain text instead of the blocks. The
+// block editor has image fields of its own.
 func (h *Handler) HandlePageInsertMedia(w http.ResponseWriter, r *http.Request) error {
 	websiteID, pageID, ok := pageIDs(r)
 	if !ok {
@@ -98,6 +109,16 @@ func (h *Handler) HandlePageInsertMedia(w http.ResponseWriter, r *http.Request) 
 		return nil
 	}
 
+	editAddress := fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID)
+
+	// The raw column and not the decoded list: whatever stands in it is
+	// something a Markdown save would destroy.
+	if strings.TrimSpace(p.Blocks) != "" {
+		web.SetFlashError(h.sm, r.Context(),
+			"This page is built from blocks. Add the image in a block of the editor instead.")
+		return h.redirect(w, r, editAddress)
+	}
+
 	markdown := strings.TrimRight(p.ContentMarkdown, "\n") + "\n\n" + m.MarkdownRef() + "\n"
 	html, err := page.RenderMarkdown(markdown)
 	if err != nil {
@@ -106,18 +127,11 @@ func (h *Handler) HandlePageInsertMedia(w http.ResponseWriter, r *http.Request) 
 
 	// Saving through the normal path keeps the version, the revision and the
 	// media bookkeeping consistent with an ordinary edit.
-	err = h.pages.UpdatePage(r.Context(), pageID, page.PageUpdate{
-		Title:           p.Title,
-		Slug:            p.Slug,
-		Markdown:        markdown,
-		HTML:            html,
-		Status:          p.Status,
-		Meta:            page.PageMeta{Excerpt: p.Excerpt, MetaDescription: p.MetaDescription, FeaturedMediaID: p.FeaturedMediaID, NoIndex: p.NoIndex},
-		Schedule:        page.PageSchedule{PublishAt: p.PublishAt, UnpublishAt: p.UnpublishAt},
-		ExpectedVersion: p.Version,
-		UserID:          h.currentUserID(r),
-	})
-	if err != nil {
+	update := keepUpdate(p)
+	update.Markdown = markdown
+	update.HTML = html
+	update.UserID = h.currentUserID(r)
+	if err := h.pages.UpdatePage(r.Context(), pageID, update); err != nil {
 		return err
 	}
 	h.recordMediaUsage(r, websiteID, pageID, html)
@@ -128,5 +142,5 @@ func (h *Handler) HandlePageInsertMedia(w http.ResponseWriter, r *http.Request) 
 	} else {
 		web.SetFlashSuccess(h.sm, r.Context(), "Image inserted")
 	}
-	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID))
+	return h.redirect(w, r, editAddress)
 }
