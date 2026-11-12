@@ -1609,6 +1609,7 @@
 "This address already belongs to another overview": "Esta dirección ya pertenece a otro resumen general",
 "This address already belongs to the archive of posts": "Esta dirección ya pertenece al archivo de las entradas",
 "This address belongs to the language %s and would not be reachable.": "Esta dirección pertenece al idioma %s y no sería accesible.",
+"This address cannot be linked. Please start it with https://, or with / for a page of this website.": "Esta dirección no se puede enlazar. Empiézala con https://, o con / para una página de este sitio.",
 "This album is full. Create a second one for further images.": "Este álbum está lleno. Crea un segundo para más imágenes.",
 "This block has no fields yet. Without fields it prints nothing on the page.": "Este bloque todavía no tiene campos. Sin campos no muestra nada en la página.",
 "This build carries no version history.": "Esta compilación no trae un historial de versiones.",

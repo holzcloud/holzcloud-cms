@@ -189,7 +189,11 @@ func (h *Handler) OpSetMenuItems(ctx context.Context, websiteID, menuID int64, i
 				if it.URL == "" {
 					return fmt.Errorf("the entry %q links to an address but names none", it.Title)
 				}
-				it.PageID = nil
+				address, ok := menuAddress(it.URL)
+				if !ok {
+					return fmt.Errorf("the entry %q has an address the menu cannot link: use https://, http://, mailto:, tel: or a path of this website", it.Title)
+				}
+				it.URL, it.PageID = address, nil
 			case "custom":
 				it.URL, it.PageID = "", nil
 			default:
