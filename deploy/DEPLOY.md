@@ -28,7 +28,7 @@ sudo apt install -y ca-certificates curl jq sqlite3 rsync psmisc gnupg openssl
 
 On your **development machine**, you need:
 
-- Go 1.26.8 or later (the `go` line of `go.mod` names the version)
+- Go 1.26.11 or later (the `go` line of `go.mod` names the version)
 - `git` and the holzcloud-CMS source code as a git checkout, because the build takes the version from it
 
 **Note:** Go is NOT needed on the server. The binary is built on the development machine and is fully self-contained — all templates, assets, and migrations are embedded.

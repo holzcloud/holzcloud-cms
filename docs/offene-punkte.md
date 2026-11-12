@@ -199,10 +199,15 @@ So that it does not come round again:
   be below the `go` directive in the root `go.mod`. The test guest
   `internal/plugin/testdata/echo` lives in the root module and cannot carry a
   `toolchain` line of its own, and the go command refuses to load a module
-  demanding a newer version than the running chain. Raising from `go 1.26.8`
+  demanding a newer version than the running chain. Raising from `go 1.26.11`
   therefore means: raise the pin as well, rebuild all six guests — and the rebuild
   belongs in a commit of its own containing nothing but the build artefacts,
   otherwise it buries the actual change and `git log -S` no longer finds it.
+  The pin covers the modules, not the archives: the five `.zip` files are deflated
+  by the toolchain that *runs* `go run ./tools/wasm`, not by the pinned one. So run
+  both the rebuild and `-check` with `GOTOOLCHAIN=go<pin>` set — a newer local
+  default toolchain produces different archive bytes, and CI, which runs the tool
+  under the `go.mod` version, rejects them.
   Without this paragraph, the person who notices is whoever merges the next bump
   and watches all six targets go red at once.
 - **Checking happens in the browser.** This week's bugs — a post that became a page

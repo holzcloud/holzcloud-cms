@@ -1,6 +1,6 @@
 module github.com/holzcloud/holzcloud-cms
 
-go 1.26.8
+go 1.26.11
 
 require (
 	github.com/alexedwards/scs/v2 v2.9.0
