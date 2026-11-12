@@ -55,6 +55,9 @@
     {{if .Media}}
     <div class="media-grid">
         {{range .Media}}
+        {{/* A file in use, for somebody without the publishing right: every
+             change to it would be refused, so none is offered (D-06). */}}
+        {{$locked := and $.ReadOnly (index $.InUse .ID)}}
         <div class="media-card">
             {{if and .IsImage $.Library.Albums (not $.ReadOnly)}}
             <label class="media-card__pick">
@@ -77,8 +80,13 @@
                 <span class="text-muted">{{.MimeType}}</span>
                 <span class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</span>
                 {{if .NeedsAltText}}<span class="badge badge--draft">{{t "without a description"}}</span>{{end}}
+                {{if $locked}}<span class="badge media-card__in-use">{{t "In use"}}</span>{{end}}
             </div>
 
+            {{if $locked}}
+            {{if .AltText}}<p class="media-card__alt">{{.AltText}}</p>{{end}}
+            {{if .Caption}}<p class="text-muted">{{.Caption}}</p>{{end}}
+            {{else}}
             <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/meta" class="media-card__meta-form">
                 <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                 <label class="sr-only" for="alt-{{.ID}}">{{tf "Image description for %s" .OriginalName}}</label>
@@ -89,15 +97,17 @@
                        placeholder="{{t "Caption (optional)"}}" maxlength="300">
                 <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Save description"}}</button>
             </form>
+            {{end}}
 
             <div class="media-card__actions">
-                {{if .IsImage}}
+                {{if and .IsImage (not $locked)}}
                 <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/zuschnitt">
                     {{t "Crop area"}}{{if .IsCropped}} ✓{{end}}
                 </a>
                 {{end}}
                 <label class="sr-only" for="url-{{.ID}}">{{tf "Public address of %s" .OriginalName}}</label>
                 <input class="media-url" type="text" id="url-{{.ID}}" readonly value="{{.MarkdownRef}}">
+                {{if not $locked}}
                 <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete" hx-post="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete"
                       style="display:inline" hx-confirm="{{t "Delete this file?"}}">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
@@ -110,6 +120,7 @@
                     <input type="hidden" name="force" value="1">
                     <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete anyway"}}</button>
                 </form>
+                {{end}}
             </div>
         </div>
         {{end}}

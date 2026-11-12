@@ -5,7 +5,22 @@
 {{end}}
 
 {{define "media_crop-content"}}
-{{if not .Croppable}}
+{{if .Locked}}
+{{/* A file in use, for somebody without the publishing right: the picture
+     stays visible, the forms go, because their save would be refused. The
+     sentence is the same literal as mediaInUseSentence in
+     internal/admin/rights.go, so the two are one catalogue key. */}}
+<div class="alert alert--warning" role="status">
+    <p>{{t "This file is in use on the website. Changing or deleting it is not part of your account – ask somebody who may publish."}}</p>
+</div>
+<div class="card">
+    <img src="{{.Media.URL}}" width="{{.PreviewWidth}}" alt="{{if .Media.AltText}}{{.Media.AltText}}{{else}}{{.Media.OriginalName}}{{end}}">
+    <dl class="facts">
+        <dt>{{t "Now"}}</dt><dd>{{tf "%d × %d pixels" .Media.Width .Media.Height}}</dd>
+        {{if .Cropped}}<dt>{{t "State"}}</dt><dd><span class="badge">{{t "cropped"}}</span></dd>{{end}}
+    </dl>
+</div>
+{{else if not .Croppable}}
 <div class="card">
     <p>
         <strong>{{.Media.OriginalName}}</strong> {{t "cannot be cropped — that works for JPEG, PNG and WebP images only."}}
