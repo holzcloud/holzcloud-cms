@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
+	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
 // What the signed-in person may do, where the screens need to know.
@@ -24,7 +26,8 @@ import (
 
 // rightsOf is what this request's person may do. Anything unknown counts as
 // unlimited: this decides what is *shown*, and the middleware decides what is
-// allowed.
+// allowed. Whether a write happens is not decided here: since phase 31
+// mayPublish has its own strict path, on which a failed lookup refuses (D-08).
 func (h *Handler) rightsOf(r *http.Request) user.Rights {
 	if h.users == nil {
 		return user.Everything()
@@ -45,7 +48,66 @@ func (h *Handler) rightsOf(r *http.Request) user.Rights {
 // The counterpart is the review workflow that already exists: somebody who may
 // not publish saves a draft and submits it, and the button says so instead of
 // disappearing without explanation.
-func (h *Handler) mayPublish(r *http.Request) bool { return h.rightsOf(r).MayPublish }
+//
+// It does not go through rightsOf, because it decides whether a write happens,
+// and a lookup that fails must not count as every right there is (D-08). The
+// role is read from the session first, so a failing user store never stops an
+// administrator.
+func (h *Handler) mayPublish(r *http.Request) bool {
+	if h.isAdmin(r) {
+		return true
+	}
+	if h.users == nil {
+		return true
+	}
+	id := h.sm.GetInt64(r.Context(), auth.SessionKeyUserID)
+	if id == 0 {
+		// RequireAuth stands in front of every admin handler, so only an
+		// unsigned test request reaches this line.
+		return true
+	}
+	rights, err := h.users.Rights(r.Context(), id)
+	if err != nil {
+		slog.Error("rights lookup failed; the publishing right is refused", "user_id", id, "err", err)
+		return false
+	}
+	return rights.MayPublish
+}
+
+// readOnly reports whether this person may look at but not change what the
+// public sees at once. The rule of phase 31 (D-01): everything that is online
+// the moment it is stored — a menu, a label, a redirect, and the rest — is
+// read-only without the publishing right. One predicate, no switch per area.
+func (h *Handler) readOnly(r *http.Request) bool { return !h.mayPublish(r) }
+
+// readOnlySentence is the refusal every read-only door answers with, and the
+// notice its screen shows. A function and not a constant for the reason
+// liveLockedSentence gives. liveLockedSentence itself is not reused: it names
+// a page and a duplicate as the way forward, and neither exists here.
+func readOnlySentence() string {
+	return i18n.N("What is changed here is online at once. Changing it is not part of your account – ask somebody who may publish.")
+}
+
+// refuseReadOnly refuses a write of somebody without the publishing right and
+// reports whether it did; the caller returns nil when it reports true.
+//
+// The answer is the sentence as a flash and h.redirect back to the area's own
+// screen — HX-Redirect for htmx, Vary: HX-Request either way — and never a
+// 403: the route classification test holds these routes open to editors, and
+// a bare refusal tells nobody whom to ask (D-02).
+//
+// It is asked inside each HTTP handler, after the scope check, so a foreign
+// id still answers 404, and before the first write (D-03). Never from
+// createMenu, updateMenu or any other helper the MCP tools share: an AI key
+// belongs to no person, and its tools answer as before (D-11).
+func (h *Handler) refuseReadOnly(w http.ResponseWriter, r *http.Request, back string) bool {
+	if !h.readOnly(r) {
+		return false
+	}
+	web.SetFlashError(h.sm, r.Context(), readOnlySentence())
+	_ = h.redirect(w, r, back)
+	return true
+}
 
 // liveLocked reports whether this person may not change this page at all,
 // because it is online and they may not publish.

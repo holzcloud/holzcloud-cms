@@ -27,6 +27,9 @@ type menuListData struct {
 	// Website is kept for LanguageName, which has to know the main language to
 	// give the empty tag a name.
 	Website *domain.Website
+	// ReadOnly is true for somebody without the publishing right: the screen
+	// opens but offers no change (D-05).
+	ReadOnly bool
 }
 
 // LanguageName is the name of a menu's language, for the listing.
@@ -130,6 +133,7 @@ func (h *Handler) HandleMenuList(w http.ResponseWriter, r *http.Request) error {
 		Menus:      menus,
 		Languages:  languageChoices(ws, ""),
 		Website:    ws,
+		ReadOnly:   h.readOnly(r),
 	}
 	data.ActiveNav = "menus"
 	data.CurrentWebsite = ws
@@ -315,6 +319,9 @@ func (h *Handler) HandleMenuDelete(w http.ResponseWriter, r *http.Request) error
 	}
 	if m == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID)) {
 		return nil
 	}
 

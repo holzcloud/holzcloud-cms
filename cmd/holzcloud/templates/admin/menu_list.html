@@ -5,6 +5,7 @@
 {{end}}
 
 {{define "menu_list-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{else}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <h2 style="margin-bottom:var(--space-2)">{{t "Create menu"}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
@@ -31,6 +32,7 @@
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Create"}}</button>
     </form>
 </div>
+{{end}}
 
 <div class="card">
     {{if .Menus}}
@@ -48,12 +50,14 @@
             {{range .Menus}}
             <tr>
                 <td>
+                    {{if $.ReadOnly}}{{.Name}}{{else}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{.ID}}/update" style="display:flex;gap:var(--space-1);align-items:center">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <input type="hidden" name="back" value="list">
                         <input type="text" name="name" class="form-input" value="{{.Name}}" required aria-label="{{t "Name"}}: {{.Name}}" style="min-width:140px">
                         <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Rename"}}</button>
                     </form>
+                    {{end}}
                 </td>
                 <td>
                     <code style="font-size:var(--text-xs);background:var(--color-bg);padding:2px 6px;border-radius:var(--radius-sm)">{{.LocationKey}}</code>
@@ -61,12 +65,14 @@
                 {{if $.Languages}}<td class="text-muted">{{t ($.LanguageName .Locale)}}</td>{{end}}
                 <td class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</td>
                 <td class="table-actions">
-                    <a href="/admin/websites/{{$.WebsiteID}}/menus/{{.ID}}" class="btn btn--sm">{{t "Edit"}}</a>
+                    <a href="/admin/websites/{{$.WebsiteID}}/menus/{{.ID}}" class="btn btn--sm">{{if $.ReadOnly}}{{t "View"}}{{else}}{{t "Edit"}}{{end}}</a>
+                    {{if not $.ReadOnly}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{.ID}}/delete" hx-post="/admin/websites/{{$.WebsiteID}}/menus/{{.ID}}/delete" style="display:inline"
                           hx-confirm="{{t "Delete this menu with all its entries?"}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                     </form>
+                    {{end}}
                 </td>
             </tr>
             {{end}}
