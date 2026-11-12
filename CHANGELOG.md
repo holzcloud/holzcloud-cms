@@ -21,6 +21,27 @@ entries below 0.0.1 carry the numbers of the earlier count (1.4 to 2.9.1); those
 releases and their tags were deleted when the count started again, and the
 entries stay here because they are still the history of this code.
 
+## 0.1.4 — 2026-11-12
+
+### Verbessert
+
+- Wer nicht veröffentlichen darf, kann eine veröffentlichte Seite nicht mehr ändern, umbenennen, verschieben oder löschen. Der Editor sagt das oben und nennt den Weg: Seite duplizieren und die Kopie zur Prüfung einreichen.
+- Benutzer anlegen, Zugangslinks ausstellen, fremde Passwörter setzen, Sitzungen anderer beenden und einen bestätigten zweiten Faktor ersetzen fragen zuerst nach dem Passwort.
+- Eine Menü-Adresse wie `holzverband.example` bekommt `https://` vorangestellt. Adressen, die das Menü nicht verlinken kann, werden beim Speichern abgelehnt.
+- Go 1.26.11 schliesst bekannte Lücken der Standardbibliothek; SQLite-Treiber, Markdown und Netzwerkbibliothek sind aktualisiert.
+
+### Behoben
+
+- Ein Bild aus der Mediathek einzufügen löscht nicht mehr die eigenen Felder der Seite. Seiten aus Blöcken lehnen das Einfügen ab.
+- Ein Benutzer-Formular, das wegen einer vergebenen E-Mail-Adresse abgelehnt wird, ändert keine Rechte mehr.
+- Ein neuer Menüeintrag wird geprüft wie ein bearbeiteter: keine Entwürfe, keine Seiten oder Einträge anderer Websites.
+- Seitenschutz ohne Passwort oder mit zu kurzem Passwort speichert die Seite nicht mehr ungeschützt, sondern zeigt den Fehler am Passwortfeld.
+- Sieben Löschknöpfe fragen wieder nach, bevor sie löschen. Beide Löschknöpfe passen in die Medienkarte.
+
+### Gut zu wissen
+
+- Ein Konto, das nur über Single Sign-on hereinkommt, kann die Passwort-Rückfrage nicht beantworten und damit auch keine Benutzer mehr anlegen oder ändern. Abhilfe: `holzcloud user passwd`.
+
 ## 0.1.3 — 2026-11-03
 
 ### Neu
