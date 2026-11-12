@@ -39,6 +39,11 @@ or a plugin belongs to the installation and not to one site. Keys may expire.
 When a key was last used is shown in the list; that is the trace by which you
 notice a key being used you did not expect.
 
+A key is not bound by any person's publishing right
+([rights per person](security.md#rights-per-person)): it belongs to no person,
+and only an administrator can issue one — on the command line, under *AI access*
+or by saying yes on the OAuth consent screen. A `content` key may publish.
+
 ### Without the web interface
 
 Everything can be done without ever signing in to the admin. On the server:

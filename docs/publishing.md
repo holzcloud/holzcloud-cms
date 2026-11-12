@@ -59,6 +59,17 @@ picks up, set beside a live preview that switches between desktop and phone.
 
 **The shop** opens on what is to be done, not on a list of orders.
 
+**Without the publishing right.** An editor who may not publish writes drafts and
+submits them for review, as before — products too: a product such a person saves
+stays a draft until somebody who may publish puts it online. Everything a visitor
+sees the moment it is stored opens read-only for them, with one sentence at the
+top that says so and whom to ask: published pages, menus, text snippets, albums,
+labels, redirects, files in use, the website's settings, theme and wording,
+published products, and plugin screens that change the website. Uploading files
+stays open, and so does describing, cropping and deleting a file nothing on the
+website uses. The right is set per person under *Users → Edit*; it does not
+apply to AI keys, which only an administrator issues.
+
 ## Websites and domains
 
 1. **Websites** in the sidebar → create a website (name and description)

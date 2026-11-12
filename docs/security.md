@@ -296,7 +296,26 @@ two limits *inside* the one — both under *Users → Edit*:
 | Right | Meaning |
 |---|---|
 | **Websites** | Nothing ticked: all of them. Otherwise exactly these — everywhere, including through a hand-typed address. |
-| **May publish** | Without this right, work is written and submitted for review; somebody else puts it online. |
+| **May publish** | Without this right, drafts are written and submitted for review; somebody else puts them online. Everything a visitor sees the moment it is stored opens read-only: published pages, menus, text snippets, albums, labels, redirects, files in use, the website's settings, theme and wording, published products, and plugin screens that change the website. A refused change says whom to ask — somebody who may publish — and does not park the change for later. |
+
+What that covers in the corners, since version 0.1.5:
+
+- **Products** follow the page rule. A draft product can be created, changed and
+  deleted, and whatever such a person saves stays a draft. A published product —
+  its text, price, stock and pictures — is read-only.
+- **Media**: uploading stays open. A file nobody uses can still be described,
+  cropped and deleted; a file something on the website shows — a page, an album,
+  a text snippet, a product, the logo — cannot.
+- **When the rights cannot be read**, the change is refused rather than allowed,
+  and the error is logged. The same holds when the question "is this file in
+  use?" fails: the file counts as in use. An administrator is not affected.
+- **Plugin screens**: a plugin that declares `respects_read_only` in its manifest
+  is told and refuses its own changes to the website, so orders, messages and
+  the not-found log stay workable. Any other plugin's screen opens read-only, and
+  the server refuses every change made on it by such a person.
+- **AI keys are not limited by this right.** An AI key belongs to no person, and
+  only an administrator can issue one, so there is nobody's publishing right to
+  apply to it. The MCP tools answer exactly as they did before.
 
 ### How "including through a hand-typed address" is actually kept
 
