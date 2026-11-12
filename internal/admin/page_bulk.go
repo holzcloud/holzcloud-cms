@@ -46,8 +46,12 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	userID := h.currentUserID(r)
+	mayPublish := h.mayPublish(r)
 	var done int
 	var skipped []string
+	// liveLeft counts the pages left alone because they are online and this
+	// person may not publish (rights.go, liveLocked).
+	var liveLeft int
 
 	for _, id := range ids {
 		p, err := h.pages.GetPage(r.Context(), id)
@@ -67,6 +71,13 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 		case "unpublish":
 			err = h.pages.SetPageStatus(r.Context(), id, "draft", userID)
 		case "trash":
+			// A live page is not this person's to remove — the same rule as
+			// the delete button, or the selection list would be its back door.
+			if !mayPublish && p.Status == "published" {
+				skipped = append(skipped, p.Title)
+				liveLeft++
+				continue
+			}
 			// The delete button's path, plugin event included: a page that
 			// leaves through the bulk menu is just as gone for an index.
 			err = h.trashPage(r.Context(), websiteID, p)
@@ -92,6 +103,10 @@ func (h *Handler) HandlePageBulk(w http.ResponseWriter, r *http.Request) error {
 		message += web.Titlef(r, ", %d skipped", len(skipped))
 	}
 	web.SetFlashSuccess(h.sm, r.Context(), message)
+	if liveLeft > 0 {
+		web.SetFlashError(h.sm, r.Context(),
+			"Pages that are online were left alone: moving them to the wastebasket is not part of your account.")
+	}
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 }
 

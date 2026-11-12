@@ -94,6 +94,12 @@ func (h *Handler) HandlePageInsertMedia(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return nil
 	}
+	// A picture in a live page is a change to the live page (rights.go,
+	// liveLocked).
+	if h.liveLocked(r, p) {
+		web.SetFlashError(h.sm, r.Context(), liveLockedSentence())
+		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/edit", websiteID, pageID))
+	}
 
 	mediaID, err := strconv.ParseInt(r.FormValue("media_id"), 10, 64)
 	if err != nil {

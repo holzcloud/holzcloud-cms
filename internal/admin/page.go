@@ -115,6 +115,10 @@ type pageFormData struct {
 	// MayPublish is false for somebody who writes and submits. Then the status
 	// chooser is a plain label and the form says who puts it online.
 	MayPublish bool
+	// LockedNotice is set when this page is online and this person may not
+	// publish: the form says so at the top and its save buttons are disabled,
+	// on the GET and on a refused POST alike. Empty otherwise.
+	LockedNotice string
 
 	// SEO is the check of the page as it is SAVED, shown in the editor's SEO
 	// tab. Nil on a new page, and when the check could not be made.
@@ -424,6 +428,10 @@ func (h *Handler) handlePageCreatePost(w http.ResponseWriter, r *http.Request, w
 	if !h.mayPublish(r) {
 		// New and without the right to publish: a draft somebody is looking at.
 		values.Status = "draft"
+		// And without a schedule: when a page appears is a publishing decision,
+		// and on a draft it would take effect unseen the moment a publisher
+		// uses the list toggle.
+		values.PublishAt, values.UnpublishAt = "", ""
 	}
 	// A structural change in the block editor is not a save: apply it and draw
 	// the form again, with everything the editor has typed so far still in it.
@@ -576,6 +584,9 @@ func (h *Handler) editFormData(r *http.Request, websiteName string, p *page.Page
 	data.BlockAction = fmt.Sprintf("/admin/websites/%d/pages/%d/edit", p.WebsiteID, p.ID)
 	data.PublishedAt = p.PublishedAt
 	data.ReviewPending = p.ReviewState == "pending"
+	if h.liveLocked(r, p) {
+		data.LockedNotice = web.T(r, liveLockedSentence())
+	}
 
 	revisions, err := h.pages.ListRevisions(r.Context(), p.ID)
 	if err != nil {
@@ -598,8 +609,16 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 	// Whoever may not publish does not change the status — neither up nor down.
 	// A silent demotion would be worse than a refused button: a live page would
 	// vanish while somebody corrected a typo.
-	if !h.mayPublish(r) {
+	//
+	// The schedule is pinned to the stored one for the same reason, on every
+	// page: when a page appears is a publishing decision. Shown as stored, so
+	// the re-rendered form tells the truth and no posted date can raise a
+	// validation error the person could not act on.
+	mayPublish := h.mayPublish(r)
+	if !mayPublish {
 		values.Status = existing.Status
+		values.PublishAt = formatLocalInput(existing.PublishAt)
+		values.UnpublishAt = formatLocalInput(existing.UnpublishAt)
 	}
 
 	// Re-rendering the form needs the website for the sidebar, and the stored
@@ -632,9 +651,22 @@ func (h *Handler) handlePageEditPost(w http.ResponseWriter, r *http.Request, web
 		data.CurrentWebsite = ws
 		return web.RenderAdmin(w, h.templates, r, "page_form", data)
 	}
+	// A live page is not this person's to change (rights.go, liveLocked). The
+	// two branches above only redraw the form and write nothing; from here on
+	// everything writes — the page, then its labels, protection and language —
+	// so the refusal stands before all of it, with the typed text handed back
+	// and the notice editFormData already put at the top of the form.
+	if h.liveLocked(r, existing) {
+		return rerender(data)
+	}
 
 	slug := values.validateOn(r, data.Errors, ws.BlogBase, ws.Locales())
 	schedule := values.schedule(data.Errors)
+	if !mayPublish {
+		// The stored pointers and not a parse of the formatted text above,
+		// which has no seconds.
+		schedule = page.PageSchedule{PublishAt: existing.PublishAt, UnpublishAt: existing.UnpublishAt}
+	}
 	values.checkAccess(r, data.Errors, existing.AccessPassword != "")
 	defs := h.fieldDefs(r.Context(), existing.WebsiteID)
 	fieldErrs := reasonTexts(r.Context(), checkFields(defs, values.KindValue(), values.Fields))
@@ -733,6 +765,10 @@ func (h *Handler) HandlePageDelete(w http.ResponseWriter, r *http.Request) error
 	if existing == nil || existing.WebsiteID != websiteID {
 		http.NotFound(w, r)
 		return nil
+	}
+	if h.liveLocked(r, existing) {
+		web.SetFlashError(h.sm, r.Context(), liveLockedSentence())
+		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages", websiteID))
 	}
 
 	if err := h.trashPage(r.Context(), websiteID, existing); err != nil {
@@ -837,6 +873,13 @@ func (h *Handler) HandlePageInlineEditTitle(w http.ResponseWriter, r *http.Reque
 		return nil
 	}
 
+	// A live page is not this person's to rename. 204 is the answer htmx does
+	// not swap, so a click on the title of such a row changes nothing.
+	if h.liveLocked(r, p) {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+
 	data := pageRowData{
 		MayPublish: h.mayPublish(r),
 		WebsiteID:  websiteID,
@@ -863,6 +906,13 @@ func (h *Handler) HandlePageInlineEditSave(w http.ResponseWriter, r *http.Reques
 	if p == nil || p.WebsiteID != websiteID || p.InTrash() {
 		http.NotFound(w, r)
 		return nil
+	}
+
+	// Refused with the unchanged row, so the open input closes, and with the
+	// reason in a flash.
+	if h.liveLocked(r, p) {
+		web.SetFlashError(h.sm, r.Context(), liveLockedSentence())
+		return h.renderPageRow(w, r, websiteID, *p)
 	}
 
 	if err := r.ParseForm(); err != nil {

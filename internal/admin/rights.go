@@ -9,6 +9,8 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 )
 
@@ -44,6 +46,32 @@ func (h *Handler) rightsOf(r *http.Request) user.Rights {
 // not publish saves a draft and submits it, and the button says so instead of
 // disappearing without explanation.
 func (h *Handler) mayPublish(r *http.Request) bool { return h.rightsOf(r).MayPublish }
+
+// liveLocked reports whether this person may not change this page at all,
+// because it is online and they may not publish.
+//
+// The user form promises exactly that — "without this right one writes and
+// submits for review; somebody else puts it online" — and a live page that an
+// editor can rewrite, rename, move to the wastebasket or fill with a picture is
+// put online by that editor, whatever its status column says. So every handler
+// that writes a page asks this before its first write.
+//
+// The status alone decides, not the schedule: a published page with a start
+// time in the future goes live on its own, so its text is already a
+// publisher's business. There is nothing to park the change in either —
+// page_revisions holds pre-images and review_state is a flag on a draft — so
+// the answer is a refusal that names the way forward: duplicate the page,
+// which always makes a draft, and submit the copy for review.
+func (h *Handler) liveLocked(r *http.Request, p *page.Page) bool {
+	return p != nil && p.Status == "published" && !h.mayPublish(r)
+}
+
+// liveLockedSentence is the refusal every locked door answers with. A function
+// and not a constant, because a constant is invisible to tools/i18n: the
+// i18n.N call is what makes the sentence a catalogue key, once.
+func liveLockedSentence() string {
+	return i18n.N("This page is online. Changing or removing it is not part of your account – ask somebody who may publish, or duplicate the page and submit the copy for review.")
+}
 
 // isAdmin reports whether this person administers the installation.
 func (h *Handler) isAdmin(r *http.Request) bool {
