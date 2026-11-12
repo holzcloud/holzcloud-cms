@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -154,13 +155,6 @@ func (h *Handler) createUser(ctx context.Context, name, email, hash, role string
 		return 0, err
 	}
 	return res.LastInsertId()
-}
-
-func (h *Handler) updateUser(ctx context.Context, id int64, name, email, role string) error {
-	_, err := h.db.Write.ExecContext(ctx,
-		`UPDATE users SET name = $1, email = $2, role = $3 WHERE id = $4`,
-		name, email, role, id)
-	return err
 }
 
 func (h *Handler) updatePassword(ctx context.Context, id int64, hash string) error {
@@ -365,16 +359,16 @@ func (h *Handler) handleUserEditPost(w http.ResponseWriter, r *http.Request, id 
 		}
 	}
 
-	// Die Rechte kommen aus demselben Formular — siehe rightsFromForm.
-	if err := h.users.SetRights(r.Context(), id, rightsFromForm(r, role)); err != nil {
-		return err
+	// Record and rights come from the same form (see rightsFromForm) and are
+	// stored by one call, in one transaction. They used to be two steps, the
+	// rights first through SetRights, and an address somebody else already has
+	// refused the second step with the first one written.
+	err = h.users.UpdateWithRights(r.Context(), id, name, email, role, rightsFromForm(r, role))
+	if errors.Is(err, usr.ErrDuplicateEmail) {
+		web.SetFlashError(h.sm, r.Context(), "A user with that email address already exists")
+		return h.redirectBack(w, r, redirect)
 	}
-
-	if err := h.updateUser(r.Context(), id, name, email, role); err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			web.SetFlashError(h.sm, r.Context(), "A user with that email address already exists")
-			return h.redirectBack(w, r, redirect)
-		}
+	if err != nil {
 		return err
 	}
 

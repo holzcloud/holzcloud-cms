@@ -145,7 +145,7 @@
         </div>
     </div>
 
-    {{$settingsFirst := or .Errors.slug .Errors.publish_at .Errors.unpublish_at}}
+    {{$settingsFirst := or .Errors.slug .Errors.publish_at .Errors.unpublish_at .Errors.page_password}}
     <aside class="editor-side" aria-label="{{t "About this page"}}">
         <div class="editor-tabs">
             <input type="radio" name="panel" id="panel-preview" form="editor-panels" class="sr-only"{{if not $settingsFirst}} checked{{end}}>
@@ -324,7 +324,9 @@
                 <label class="form-label" for="page_password">{{t "Password"}}</label>
                 <input type="password" id="page_password" name="page_password" class="form-input"
                        autocomplete="new-password"
-                       placeholder="{{if .Values.HasPassword}}{{t "leave unchanged"}}{{else}}{{t "at least 6 characters"}}{{end}}">
+                       placeholder="{{if .Values.HasPassword}}{{t "leave unchanged"}}{{else}}{{t "at least 6 characters"}}{{end}}"
+                       {{with .Errors.page_password}}aria-invalid="true" aria-describedby="page-password-error"{{end}}>
+                {{with .Errors.page_password}}<p class="form-error" id="page-password-error">{{t .}}</p>{{end}}
                 {{if .Values.HasPassword}}
                 <input type="hidden" name="has_password" value="1">
                 <p class="form-hint text-muted">
@@ -440,7 +442,7 @@
     </aside>
 </form>
 
-{{if .IsEdit}}
+{{if and .IsEdit (not .Values.UsesBlocks)}}
 <!-- A <details>, not a <dialog>: opening a dialog needs showModal(), which from
      a template means an inline handler, which means loosening script-src away
      from 'self'. <details> opens with no script at all, and htmx loads the
