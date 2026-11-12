@@ -199,3 +199,74 @@ func TestTheSettingsAndDesignScreensOfferNoChangeWithoutPublishing(t *testing.T)
 		t.Error("design: a person who may publish cannot activate a theme")
 	}
 }
+
+func wordingAddress(websiteID int64) string {
+	return fmt.Sprintf("/admin/websites/%d/wording", websiteID)
+}
+
+func TestAnEditorWithoutPublishingCannotChangeTheWording(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	route := websiteRoute(ws.ID)
+
+	keys, _ := h.themeVocabulary(ctx, ws)
+	if len(keys) == 0 {
+		t.Fatal("the shipped theme asks for no words")
+	}
+	form := url.Values{"w:" + ws.Locale + ":" + keys[0]: {"Mein Wort"}}
+	stored := func(t *testing.T) int {
+		t.Helper()
+		all, err := h.wording.All(ctx, ws.ID)
+		if err != nil {
+			t.Fatalf("wording.All: %v", err)
+		}
+		return len(all)
+	}
+
+	rec, flash := serveAs(t, h, sm, editor, h.HandleWebsiteWordingSave, postForm(wordingAddress(ws.ID), form, route))
+	wantRefused(t, "wording save", rec, flash, wordingAddress(ws.ID))
+	rec, flash = serveAs(t, h, sm, editor, h.HandleWebsiteWordingSave, htmx(postForm(wordingAddress(ws.ID), form, route)))
+	wantRefusedHtmx(t, "wording save", rec, flash, wordingAddress(ws.ID))
+	if n := stored(t); n != 0 {
+		t.Errorf("%d words stored for the website, want none", n)
+	}
+
+	// The control: somebody who may publish saves the word.
+	publisher := editorWhoMayPublish(t, database, ws.ID)
+	rec, flash = serveAs(t, h, sm, publisher, h.HandleWebsiteWordingSave, postForm(wordingAddress(ws.ID), form, route))
+	if rec.Code != http.StatusSeeOther || flash != "" {
+		t.Errorf("publisher: status %d, flash %q", rec.Code, flash)
+	}
+	if n := stored(t); n != 1 {
+		t.Errorf("a person who may publish saved %d words, want one", n)
+	}
+}
+
+func TestTheWordingScreenOffersNoChangeWithoutPublishing(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	publisher := editorWhoMayPublish(t, database, ws.ID)
+	route := websiteRoute(ws.ID)
+
+	const (
+		wordInput  = `name="w:`
+		saveButton = "Save wording"
+	)
+
+	body := getAs(t, sm, putUser(sm, editor), h.HandleWebsiteWording, wordingAddress(ws.ID), route)
+	if n := strings.Count(body, readOnlyText); n != 1 {
+		t.Errorf("wording: the sentence stands %d times, want once", n)
+	}
+	if !insideDisabledFieldset(body, wordInput) {
+		t.Error("wording: the words are not in a disabled fieldset")
+	}
+	if strings.Contains(body, saveButton) {
+		t.Error("wording: Save wording is offered")
+	}
+
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleWebsiteWording, wordingAddress(ws.ID), route)
+	if strings.Contains(body, readOnlyText) || insideDisabledFieldset(body, wordInput) || !strings.Contains(body, saveButton) {
+		t.Error("wording: a person who may publish cannot save it")
+	}
+}

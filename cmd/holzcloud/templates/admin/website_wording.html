@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "website_wording-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <h2>{{t "What this website calls things"}}</h2>
     <p class="text-muted">
@@ -14,6 +15,7 @@
     <form method="POST" action="/admin/websites/{{.Website.ID}}/wording">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
 
+        <fieldset class="read-only-fields"{{if .ReadOnly}} disabled{{end}}>
         {{range .Languages}}
         <section style="margin-bottom: var(--space-4);">
             <h3>{{.Name}} <span class="text-muted">({{.Locale}})</span></h3>
@@ -62,11 +64,14 @@
             </div>
         </section>
         {{end}}
+        </fieldset>
 
         <p class="text-muted">{{tf "%d of at most %d words of your own are in use." .Used .Limit}}</p>
+        {{if not .ReadOnly}}
         <p>
             <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save wording"}}</button>
         </p>
+        {{end}}
     </form>
     {{end}}
 </div>
