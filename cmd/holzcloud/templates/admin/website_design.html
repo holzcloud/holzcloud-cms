@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "website_design-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <!-- Links die Werte, rechts die Website. „In der Vorschau zeigen“ schickt das
      Formular an die Vorschau statt ans Speichern, in den Rahmen daneben — ohne
      eine Zeile Skript, und mit genau den Werten, die Speichern ablegen würde. -->
@@ -124,7 +125,7 @@
             <div class="template-card__actions">
                 {{if and $.ActiveTemplate (eq $.ActiveTemplate.ID .ID)}}
                 <span class="template-card__active-label">{{t "Active"}}</span>
-                {{else}}
+                {{else if not $.ReadOnly}}
                 <form method="POST" action="/admin/websites/{{$.Website.ID}}/design/activate">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                     <input type="hidden" name="template_id" value="{{.ID}}">

@@ -31,6 +31,10 @@ type websiteDesignData struct {
 	// in force. Empty when the template's own colours apply: those are the
 	// theme author's to answer for, and the page cannot know them.
 	TextContrast, LinkContrast contrastView
+	// ReadOnly is set for somebody without the publishing right: a theme is
+	// the look of every page the moment it is activated, so the screen shows
+	// which one is active and offers no Activate (D-05).
+	ReadOnly bool
 }
 
 // contrastView is one contrast ratio as the design screen shows it.
@@ -103,6 +107,12 @@ type websiteFormData struct {
 	// offers the current template as a draft. Its zero value has no State and
 	// the card is then not drawn.
 	PrivacyHint privacyHint
+	// ReadOnly is set on the edit screen for somebody without the publishing
+	// right: the settings are online the moment they are saved, so the values
+	// stand in a disabled fieldset and there is no Save (D-05). The privacy
+	// card stays, because it only makes a draft. The create screen is the
+	// administrator's and never sets it.
+	ReadOnly bool
 }
 
 // orgTypeChoice is one entry of the business-type dropdown.
@@ -269,6 +279,7 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 
 		MailConfigured: h.mail.EnabledFor(r.Context(), ws.ID),
 		PrivacyHint:    hint,
+		ReadOnly:       h.readOnly(r),
 	}
 	if h.mediaStore != nil {
 		// Only images make sense as a favicon or logo, and the list is short
@@ -285,6 +296,11 @@ func (h *Handler) HandleWebsiteEdit(w http.ResponseWriter, r *http.Request) erro
 }
 
 func (h *Handler) handleWebsiteEditPost(w http.ResponseWriter, r *http.Request, id int64) error {
+	// Asked here and not in saveWebsite, which the MCP settings tool shares
+	// (D-03, D-11).
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d", id)) {
+		return nil
+	}
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
@@ -491,6 +507,7 @@ func (h *Handler) HandleWebsiteDesign(w http.ResponseWriter, r *http.Request) er
 		ActiveTemplate: activeTmpl,
 		Fonts:          fontChoices(),
 		TokenDefaults:  design.Tokens{Ink: "#1a1a1a", Paper: "#fafafa", Brand: "#1a6dd4"},
+		ReadOnly:       h.readOnly(r),
 	}
 	if ws.TokenInk != "" && ws.TokenPaper != "" {
 		data.TextContrast = contrastOf(ws.TokenInk, ws.TokenPaper)
@@ -506,6 +523,12 @@ func (h *Handler) HandleWebsiteDesignActivate(w http.ResponseWriter, r *http.Req
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
+		return nil
+	}
+
+	// Asked here and not in activateTemplate, which the MCP design tool
+	// shares (D-03, D-11).
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/design", id)) {
 		return nil
 	}
 
