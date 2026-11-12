@@ -469,3 +469,165 @@ func TestTheMenuEditorOffersNoChangeWithoutPublishing(t *testing.T) {
 		t.Error("entry: a person who may publish cannot save it")
 	}
 }
+
+// labelsAndRedirects is a website with one label in use, one redirect and one
+// internal link that leads nowhere.
+type labelsAndRedirects struct {
+	h        *Handler
+	sm       *scs.SessionManager
+	database *db.DB
+	ws       int64
+	editor   int64
+	label    int64
+	redirect int64
+}
+
+func seedLabelsAndRedirects(t *testing.T) labelsAndRedirects {
+	t.Helper()
+	ctx := context.Background()
+	h, sm, database, ws := newTestAdmin(t)
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	p := seedPage(t, database, ws.ID, "Start", "start", "Siehe [alt](/alte-seite).", "published")
+	if err := h.terms.SetForPage(ctx, ws.ID, p.ID, []string{"Möbel"}); err != nil {
+		t.Fatalf("SetForPage: %v", err)
+	}
+	labels, err := h.terms.ListAll(ctx, ws.ID)
+	if err != nil || len(labels) != 1 {
+		t.Fatalf("ListAll: %v %v", labels, err)
+	}
+	if err := h.pages.AddRedirect(ctx, ws.ID, "/frueher", "/start", 301); err != nil {
+		t.Fatalf("AddRedirect: %v", err)
+	}
+	redirects, err := h.pages.ListRedirects(ctx, ws.ID)
+	if err != nil || len(redirects) != 1 {
+		t.Fatalf("ListRedirects: %v %v", redirects, err)
+	}
+	return labelsAndRedirects{h, sm, database, ws.ID, editor, labels[0].ID, redirects[0].ID}
+}
+
+func (f labelsAndRedirects) labelNames(t *testing.T) []string {
+	t.Helper()
+	labels, err := f.h.terms.ListAll(context.Background(), f.ws)
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	var names []string
+	for _, l := range labels {
+		names = append(names, l.Name)
+	}
+	return names
+}
+
+func (f labelsAndRedirects) redirectSources(t *testing.T) []string {
+	t.Helper()
+	list, err := f.h.pages.ListRedirects(context.Background(), f.ws)
+	if err != nil {
+		t.Fatalf("ListRedirects: %v", err)
+	}
+	var from []string
+	for _, r := range list {
+		from = append(from, r.FromPath)
+	}
+	return from
+}
+
+func TestAnEditorWithoutPublishingCannotChangeLabelsOrRedirects(t *testing.T) {
+	labelList := func(ws int64) string { return fmt.Sprintf("/admin/websites/%d/tags", ws) }
+	redirectList := func(ws int64) string { return fmt.Sprintf("/admin/websites/%d/redirects", ws) }
+
+	t.Run("label rename", func(t *testing.T) {
+		f := seedLabelsAndRedirects(t)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleTermRename,
+			postForm(fmt.Sprintf("%s/%d/rename", labelList(f.ws), f.label), url.Values{"name": {"Möbelstücke"}},
+				websiteRoute(f.ws, "termID", strconv.FormatInt(f.label, 10))))
+		wantRefused(t, "label rename", rec, flash, labelList(f.ws))
+		if got := f.labelNames(t); len(got) != 1 || got[0] != "Möbel" {
+			t.Errorf("labels after the refusal: %q", got)
+		}
+	})
+
+	t.Run("label delete", func(t *testing.T) {
+		f := seedLabelsAndRedirects(t)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleTermDelete,
+			postForm(fmt.Sprintf("%s/%d/delete", labelList(f.ws), f.label), nil,
+				websiteRoute(f.ws, "termID", strconv.FormatInt(f.label, 10))))
+		wantRefused(t, "label delete", rec, flash, labelList(f.ws))
+		if got := f.labelNames(t); len(got) != 1 {
+			t.Errorf("labels after the refusal: %q", got)
+		}
+	})
+
+	t.Run("redirect add", func(t *testing.T) {
+		f := seedLabelsAndRedirects(t)
+		form := url.Values{"from_path": {"/alte-seite"}, "to_path": {"/start"}, "code": {"301"}}
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleRedirectList,
+			postForm(redirectList(f.ws), form, websiteRoute(f.ws)))
+		wantRefused(t, "redirect add", rec, flash, redirectList(f.ws))
+		rec, flash = serveAs(t, f.h, f.sm, f.editor, f.h.HandleRedirectList,
+			htmx(postForm(redirectList(f.ws), form, websiteRoute(f.ws))))
+		wantRefusedHtmx(t, "redirect add", rec, flash, redirectList(f.ws))
+		if got := f.redirectSources(t); len(got) != 1 || got[0] != "/frueher" {
+			t.Errorf("redirects after the refusal: %q", got)
+		}
+	})
+
+	t.Run("redirect delete", func(t *testing.T) {
+		f := seedLabelsAndRedirects(t)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleRedirectDelete,
+			postForm(fmt.Sprintf("%s/%d/delete", redirectList(f.ws), f.redirect), nil,
+				websiteRoute(f.ws, "redirectID", strconv.FormatInt(f.redirect, 10))))
+		wantRefused(t, "redirect delete", rec, flash, redirectList(f.ws))
+		if got := f.redirectSources(t); len(got) != 1 {
+			t.Errorf("redirects after the refusal: %q", got)
+		}
+	})
+}
+
+func TestTheLabelAndRedirectScreensOfferNoChangeWithoutPublishing(t *testing.T) {
+	f := seedLabelsAndRedirects(t)
+	publisher := editorWhoMayPublish(t, f.database, f.ws)
+	route := websiteRoute(f.ws)
+	labels := fmt.Sprintf("/admin/websites/%d/tags", f.ws)
+	redirects := fmt.Sprintf("/admin/websites/%d/redirects", f.ws)
+	addAction := fmt.Sprintf(`action="%s"`, redirects)
+
+	body := getAs(t, f.sm, putUser(f.sm, f.editor), f.h.HandleTermList, labels, route)
+	if strings.Count(body, readOnlyText) != 1 {
+		t.Errorf("labels: the sentence stands %d times, want once", strings.Count(body, readOnlyText))
+	}
+	for _, mark := range []string{`/rename"`, `/delete"`} {
+		if strings.Contains(body, mark) {
+			t.Errorf("labels: offers %s", mark)
+		}
+	}
+	if !strings.Contains(body, "Möbel") {
+		t.Error("labels: the label's name is no longer shown")
+	}
+
+	body = getAs(t, f.sm, putUser(f.sm, f.editor), f.h.HandleRedirectList, redirects, route)
+	if strings.Count(body, readOnlyText) != 1 {
+		t.Errorf("redirects: the sentence stands %d times, want once", strings.Count(body, readOnlyText))
+	}
+	for _, mark := range []string{addAction, `/delete"`, `redirects?from=`} {
+		if strings.Contains(body, mark) {
+			t.Errorf("redirects: offers %s", mark)
+		}
+	}
+	if !strings.Contains(body, "/frueher") || !strings.Contains(body, "/alte-seite") {
+		t.Error("redirects: the redirect or the broken link is no longer listed")
+	}
+
+	body = getAs(t, f.sm, putUser(f.sm, publisher), f.h.HandleTermList, labels, route)
+	if strings.Contains(body, readOnlyText) || !strings.Contains(body, `/rename"`) || !strings.Contains(body, `/delete"`) {
+		t.Error("labels: a person who may publish is not offered rename and delete, or reads the sentence")
+	}
+	body = getAs(t, f.sm, putUser(f.sm, publisher), f.h.HandleRedirectList, redirects, route)
+	if strings.Contains(body, readOnlyText) {
+		t.Error("redirects: a person who may publish reads the sentence")
+	}
+	for _, mark := range []string{addAction, `/delete"`, `redirects?from=`} {
+		if !strings.Contains(body, mark) {
+			t.Errorf("redirects: a person who may publish is not offered %s", mark)
+		}
+	}
+}

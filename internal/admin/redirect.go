@@ -23,6 +23,10 @@ type redirectListData struct {
 	Broken []brokenLink
 	From   string
 	To     string
+	// ReadOnly is true for somebody without the publishing right: the list
+	// opens but offers no change (D-05). Set where the data is built, so the
+	// list and the re-render of a refused add agree.
+	ReadOnly bool
 }
 
 // HandleRedirectList shows the redirects of a website and the form to add one.
@@ -45,6 +49,11 @@ func (h *Handler) HandleRedirectList(w http.ResponseWriter, r *http.Request) err
 	}
 
 	if r.Method == http.MethodPost {
+		// Asked before handleRedirectAdd, which builds the list data before it
+		// writes: the refusal stands in front of all of it.
+		if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/redirects", websiteID)) {
+			return nil
+		}
 		return h.handleRedirectAdd(w, r, websiteID, ws.Name)
 	}
 
@@ -65,6 +74,7 @@ func (h *Handler) redirectListData(r *http.Request, websiteID int64, websiteName
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Redirects – %s", websiteName)),
 		FormState:  web.NewFormState(),
 		WebsiteID:  websiteID,
+		ReadOnly:   h.readOnly(r),
 	}
 	data.ActiveNav = "redirects"
 
@@ -182,6 +192,9 @@ func (h *Handler) HandleRedirectDelete(w http.ResponseWriter, r *http.Request) e
 	id, err := strconv.ParseInt(r.PathValue("redirectID"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/redirects", websiteID)) {
 		return nil
 	}
 

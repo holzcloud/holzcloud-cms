@@ -1,6 +1,7 @@
 {{define "actions"}}<a href="/admin/websites/{{.WebsiteID}}/pages" class="btn">{{t "Back to the pages"}}</a>{{end}}
 
 {{define "content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="text-muted">
         {{th "Terms gather content across the menu. Each has its own overview page under <code>/tag/…</code>. They are assigned while editing a page or a post."}}
@@ -22,20 +23,24 @@
             {{range .Terms}}
             <tr>
                 <td>
+                    {{if $.ReadOnly}}{{.Name}}{{else}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/tags/{{.ID}}/rename" class="inline-form">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <label class="sr-only" for="name-{{.ID}}">{{tf "Name of %s" .Name}}</label>
                         <input type="text" id="name-{{.ID}}" name="name" class="form-input" value="{{.Name}}">
                         <button type="submit" class="btn btn-sm" hx-disabled-elt="this">{{t "Rename"}}</button>
                     </form>
+                    {{end}}
                 </td>
                 <td><a href="/tag/{{.Slug}}"><code>/tag/{{.Slug}}</code></a></td>
                 <td>{{.Count}}</td>
                 <td class="table-actions">
+                    {{if not $.ReadOnly}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/tags/{{.ID}}/delete">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn-sm btn-danger" hx-disabled-elt="this">{{t "Delete"}}</button>
                     </form>
+                    {{end}}
                 </td>
             </tr>
             {{end}}

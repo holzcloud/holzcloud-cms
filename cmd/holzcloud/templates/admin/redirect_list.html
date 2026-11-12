@@ -5,12 +5,14 @@
 {{end}}
 
 {{define "redirect_list-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="text-muted">
         {{t "Redirects keep old addresses alive. Renaming a page creates one automatically. You can also enter the addresses of an old website here so its links keep working."}}
     </p>
 </div>
 
+{{if not .ReadOnly}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <h2>{{t "Add a redirect"}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/redirects">
@@ -41,6 +43,7 @@
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Add"}}</button>
     </form>
 </div>
+{{end}}
 
 <div class="card">
     {{if .Redirects}}
@@ -64,12 +67,14 @@
                 <td>{{.Hits}}</td>
                 <td class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</td>
                 <td class="table-actions">
+                    {{if not $.ReadOnly}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/redirects/{{.ID}}/delete"
                           hx-post="/admin/websites/{{$.WebsiteID}}/redirects/{{.ID}}/delete"
                           hx-confirm="{{t "Delete this redirect?"}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                     </form>
+                    {{end}}
                 </td>
             </tr>
             {{end}}
@@ -101,7 +106,7 @@
                 <td><code>{{.Target}}</code></td>
                 <td class="table-actions">
                     <a href="/admin/websites/{{$.WebsiteID}}/pages/{{.OnPageID}}/edit" class="btn btn--sm">{{t "Edit page"}}</a>
-                    <a href="/admin/websites/{{$.WebsiteID}}/redirects?from={{.Target}}#from_path" class="btn btn--sm">{{t "Redirect"}}</a>
+                    {{if not $.ReadOnly}}<a href="/admin/websites/{{$.WebsiteID}}/redirects?from={{.Target}}#from_path" class="btn btn--sm">{{t "Redirect"}}</a>{{end}}
                 </td>
             </tr>
             {{end}}

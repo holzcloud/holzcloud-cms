@@ -16,6 +16,9 @@ type termListData struct {
 	web.LayoutData
 	WebsiteID int64
 	Terms     []term.Term
+	// ReadOnly is true for somebody without the publishing right: the list
+	// opens but offers no change (D-05).
+	ReadOnly bool
 }
 
 // HandleTermList shows every label of a website with how often it is used.
@@ -38,6 +41,7 @@ func (h *Handler) HandleTermList(w http.ResponseWriter, r *http.Request) error {
 		LayoutData: web.NewLayoutData(r, h.sm, web.Titlef(r, "Terms – %s", ws.Name)),
 		WebsiteID:  websiteID,
 		Terms:      terms,
+		ReadOnly:   h.readOnly(r),
 	}
 	data.ActiveNav = "terms"
 	data.CurrentWebsite = ws
@@ -49,6 +53,9 @@ func (h *Handler) HandleTermRename(w http.ResponseWriter, r *http.Request) error
 	websiteID, termID, ok, err := h.lookupTerm(w, r)
 	if err != nil || !ok {
 		return err
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/tags", websiteID)) {
+		return nil
 	}
 	if err := r.ParseForm(); err != nil {
 		return err
@@ -77,6 +84,9 @@ func (h *Handler) HandleTermDelete(w http.ResponseWriter, r *http.Request) error
 	websiteID, termID, ok, err := h.lookupTerm(w, r)
 	if err != nil || !ok {
 		return err
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/tags", websiteID)) {
+		return nil
 	}
 	if err := h.terms.Delete(r.Context(), websiteID, termID); err != nil {
 		return err
