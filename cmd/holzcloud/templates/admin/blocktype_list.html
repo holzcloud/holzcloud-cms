@@ -57,7 +57,7 @@
                     </form>
                     <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/felder?baustein={{.ID}}">{{t "Fields"}}</a>
                     <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/bausteinarten?aendern={{.ID}}">{{t "Change"}}</a>
-                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/loeschen" style="display:inline"
+                    <form method="POST" action="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/loeschen" hx-post="/admin/websites/{{$.WebsiteID}}/bausteinarten/{{.ID}}/loeschen" style="display:inline"
                           hx-confirm="{{tf "Remove the block kind “%s”? Blocks of this kind disappear from the pages the next time each one is saved." .Name}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>

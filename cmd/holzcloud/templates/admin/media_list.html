@@ -103,7 +103,7 @@
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                     <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                 </form>
-                <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete?force=1"
+                <form method="POST" action="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete?force=1" hx-post="/admin/websites/{{$.WebsiteID}}/media/{{.ID}}/delete?force=1"
                       style="display:inline"
                       hx-confirm="{{t "Delete it even though it is in use? The pages concerned will then show a broken image."}}">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">

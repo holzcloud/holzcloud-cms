@@ -12,11 +12,15 @@
              row can keep its own per-page forms. -->
         <input type="checkbox" id="select-{{.Page.ID}}" name="page_ids" value="{{.Page.ID}}" form="bulk-form">
     </td>
-    <td class="page-title-cell"
+    {{/* Umbenennen und Papierkorb nur, wo diese Person die Seite ändern darf:
+         eine veröffentlichte Seite gehört ohne Veröffentlichungsrecht nicht
+         dazu (rights.go, liveLocked). */}}
+    {{$mayChange := or .MayPublish (ne .Page.Status "published")}}
+    <td class="page-title-cell"{{if $mayChange}}
         hx-get="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/edit-title"
         hx-trigger="click"
         hx-swap="innerHTML"
-        hx-target="this">
+        hx-target="this"{{end}}>
         <span class="page-title">{{.Page.Title}}</span>
         <span class="page-slug text-muted">/{{.Page.Slug}}</span>
         {{if .Snippet}}<span class="page-snippet text-muted">{{.Snippet}}</span>{{end}}
@@ -78,12 +82,14 @@
                     <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
                     <button type="submit" class="rowmenu-item" hx-disabled-elt="this">{{t "Duplicate"}}</button>
                 </form>
+                {{if $mayChange}}
                 <form method="POST" action="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/delete"
                       hx-post="/admin/websites/{{.WebsiteID}}/pages/{{.Page.ID}}/delete"
                       hx-confirm="{{t "Move this page to the wastebasket?"}}">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
                     <button type="submit" class="rowmenu-item rowmenu-item--danger" hx-disabled-elt="this">{{t "To the wastebasket"}}</button>
                 </form>
+                {{end}}
             </div>
         </details>
     </td>

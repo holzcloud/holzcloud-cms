@@ -458,6 +458,12 @@ func (h *Handler) HandlePasswordChange(w http.ResponseWriter, r *http.Request) e
 	}
 
 	if r.Method == http.MethodPost {
+		// Setting somebody else's password takes their account over, so it
+		// asks for the password again. One's own needs no second question:
+		// the form already asks for the current one.
+		if !isSelf && !auth.EnsureFreshPassword(h.sm, w, r) {
+			return nil
+		}
 		return h.handlePasswordChangePost(w, r, user, isSelf)
 	}
 
@@ -526,6 +532,11 @@ func (h *Handler) handlePasswordChangePost(w http.ResponseWriter, r *http.Reques
 	}
 
 	web.SetFlashSuccess(h.sm, r.Context(), "Password changed")
+	// One's own password leads back to one's own account page. The user list
+	// is an administrator's screen, and an editor sent there read "Forbidden".
+	if isSelf {
+		return h.redirectBack(w, r, "/admin/konto")
+	}
 	return h.redirectBack(w, r, "/admin/users")
 }
 

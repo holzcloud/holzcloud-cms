@@ -73,8 +73,10 @@
                                        placeholder="{{t "e.g. before the rebuild"}}">
                                 <button type="submit" form="label-form-{{.ID}}" class="btn btn--sm"
                                         hx-disabled-elt="this">{{t "Save label"}}</button>
+                                {{if not $.Locked}}
                                 <button type="submit" form="restore-form-{{.ID}}" class="btn btn--sm"
                                         hx-disabled-elt="this">{{t "Restore"}}</button>
+                                {{end}}
                             </div>
 
                             <pre class="revision-source">{{.ContentMarkdown}}</pre>

@@ -84,7 +84,7 @@
                             {{template "icon-more"}}<span class="sr-only">{{tf "More actions for %s" .Label}}</span>
                         </summary>
                         <div class="rowmenu-menu">
-                            <form method="POST" action="/admin/websites/{{$d.WebsiteID}}/felder/{{.ID}}/loeschen"
+                            <form method="POST" action="/admin/websites/{{$d.WebsiteID}}/felder/{{.ID}}/loeschen" hx-post="/admin/websites/{{$d.WebsiteID}}/felder/{{.ID}}/loeschen"
                                   hx-confirm="{{tf "Remove the field “%s”? What was filled in stays on the pages." .Label}}">
                                 <input type="hidden" name="gorilla.csrf.Token" value="{{$d.CSRFToken}}">
                                 <button type="submit" class="rowmenu-item rowmenu-item--danger" hx-disabled-elt="this">{{t "Remove field"}}</button>

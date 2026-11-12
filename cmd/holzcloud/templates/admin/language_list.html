@@ -50,7 +50,7 @@
                     <a class="btn btn--sm" href="/admin/sprachen/{{.Code}}/datei">{{t "Download"}}</a>
                     {{end}}
                     {{if .OnDisk}}
-                    <form method="POST" action="/admin/sprachen/{{.Code}}/loeschen" style="display:inline"
+                    <form method="POST" action="/admin/sprachen/{{.Code}}/loeschen" hx-post="/admin/sprachen/{{.Code}}/loeschen" style="display:inline"
                           hx-confirm="{{t "Remove this language file? Anyone who had chosen it will see their browser's language again."}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>

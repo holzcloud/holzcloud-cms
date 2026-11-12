@@ -17,6 +17,10 @@ type pageRevisionsData struct {
 	WebsiteID int64
 	Page      *page.Page
 	Revisions []page.Revision
+	// Locked is set when the page is online and this person may not publish:
+	// restoring a version would change the live page, so the button is not
+	// offered (rights.go, liveLocked).
+	Locked bool
 }
 
 // HandlePageRevisions lists the stored history of a page.
@@ -50,6 +54,7 @@ func (h *Handler) HandlePageRevisions(w http.ResponseWriter, r *http.Request) er
 		WebsiteID:  websiteID,
 		Page:       p,
 		Revisions:  revisions,
+		Locked:     h.liveLocked(r, p),
 	}
 	data.ActiveNav = "pages"
 	data.CurrentWebsite = ws
@@ -80,6 +85,10 @@ func (h *Handler) HandlePageRevisionRestore(w http.ResponseWriter, r *http.Reque
 	if p == nil || p.WebsiteID != websiteID || p.InTrash() {
 		http.NotFound(w, r)
 		return nil
+	}
+	if h.liveLocked(r, p) {
+		web.SetFlashError(h.sm, r.Context(), liveLockedSentence())
+		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/pages/%d/revisions", websiteID, pageID))
 	}
 
 	rev, err := h.pages.GetRevision(r.Context(), revID)
@@ -121,6 +130,10 @@ type trashData struct {
 	// RetentionDays is shown to the editor so the automatic purge is not a
 	// surprise.
 	RetentionDays int
+	// MayPublish is false for somebody who writes and submits. Then a page that
+	// was online when it was deleted offers no restore, because restoring it
+	// would put it back online.
+	MayPublish bool
 }
 
 // HandleTrash renders the trash of a website.
@@ -150,6 +163,7 @@ func (h *Handler) HandleTrash(w http.ResponseWriter, r *http.Request) error {
 		WebsiteID:     websiteID,
 		Pages:         pages,
 		RetentionDays: int(page.TrashRetention.Hours() / 24),
+		MayPublish:    h.mayPublish(r),
 	}
 	data.ActiveNav = "trash"
 	data.CurrentWebsite = ws
@@ -171,6 +185,13 @@ func (h *Handler) HandleTrashRestore(w http.ResponseWriter, r *http.Request) err
 	if p == nil || p.WebsiteID != websiteID {
 		http.NotFound(w, r)
 		return nil
+	}
+	// The wastebasket keeps the status, so a page that was online comes back
+	// online. That is a publishing decision (rights.go, liveLocked).
+	if h.liveLocked(r, p) {
+		web.SetFlashError(h.sm, r.Context(),
+			"This page was online when it was deleted, and restoring it would put it back online. That is not part of your account – ask somebody who may publish.")
+		return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/trash", websiteID))
 	}
 
 	if err := h.pages.RestorePage(r.Context(), pageID); err != nil {

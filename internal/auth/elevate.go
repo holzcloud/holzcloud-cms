@@ -64,8 +64,13 @@ const ConfirmPath = "/admin/bestaetigen"
 // delete a user, mint an AI key, remove a plugin, prune the protocol, and since
 // 0.0.21 also switch a second factor off or renew recovery codes, upload or
 // enable a plugin or template, change a user, import a website — are out of
-// reach for it. deploy/DEPLOY.md names this under "Three things single
-// sign-on does not do yet" and gives the way round: `holzcloud user passwd`.
+// reach for it. Since the audit of 2026-11-10 the list is longer by the
+// actions that hand an account to somebody else: create a user, issue an access
+// link, end somebody's sessions, set somebody else's password, and replace a
+// confirmed second factor (the last two asked inside their handler, through
+// EnsureFreshPassword, because only the handler knows whether the question
+// applies). deploy/DEPLOY.md names this under "Three things single sign-on
+// does not do yet" and gives the way round: `holzcloud user passwd`.
 //
 // The cure is not a smaller version of this one. What should happen is a fresh
 // authentication AT THE IDENTITY PROVIDER — the equivalent of authentik's
@@ -81,13 +86,45 @@ const ConfirmPath = "/admin/bestaetigen"
 func RequireFreshPassword(sm *scs.SessionManager) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if Elevated(sm, r.Context()) {
+			if EnsureFreshPassword(sm, w, r) {
 				next.ServeHTTP(w, r)
-				return
 			}
-			http.Redirect(w, r, ConfirmPath+"?weiter="+url.QueryEscape(backTo(r)), http.StatusSeeOther)
 		})
 	}
+}
+
+// hxRequestHeader is named rather than written out where it is added to Vary.
+// tools/i18n collects the second argument of every method called Add as a
+// sentence an operator reads, so a literal there would become the catalogue
+// key "HX-Request" and open the gate on every catalogue.
+const hxRequestHeader = "HX-Request"
+
+// EnsureFreshPassword reports whether the password was confirmed recently
+// enough. When it was not, it has already answered — the caller returns
+// without writing anything more.
+//
+// The answer goes to the confirmation screen with the way back attached. A
+// button that posts through htmx would have a 303 followed inside the request
+// and the confirmation screen swapped into the list it came from, so htmx gets
+// HX-Redirect with a 200, which it follows as a navigation. Both answers depend
+// on the header, so Vary says so.
+//
+// The middleware above is this function in front of a handler; a handler that
+// only sometimes needs the question — replacing a CONFIRMED second factor,
+// setting somebody ELSE's password — calls it itself, where it knows.
+func EnsureFreshPassword(sm *scs.SessionManager, w http.ResponseWriter, r *http.Request) bool {
+	if Elevated(sm, r.Context()) {
+		return true
+	}
+	to := ConfirmPath + "?weiter=" + url.QueryEscape(backTo(r))
+	w.Header().Add("Vary", hxRequestHeader)
+	if r.Header.Get(hxRequestHeader) == "true" {
+		w.Header().Set("HX-Redirect", to)
+		w.WriteHeader(http.StatusOK)
+		return false
+	}
+	http.Redirect(w, r, to, http.StatusSeeOther)
+	return false
 }
 
 // backTo is the screen to return to: the one the button was on.

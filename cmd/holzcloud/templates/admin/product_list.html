@@ -50,7 +50,7 @@
                     {{if and (eq .Status "published") $.ShopBase}}
                     <a href="/{{$.ShopBase}}/{{.Slug}}" class="btn btn--sm">{{t "View"}}</a>
                     {{end}}
-                    <form method="POST" action="/admin/websites/{{$.CurrentWebsite.ID}}/produkte/{{.ID}}/delete"
+                    <form method="POST" action="/admin/websites/{{$.CurrentWebsite.ID}}/produkte/{{.ID}}/delete" hx-post="/admin/websites/{{$.CurrentWebsite.ID}}/produkte/{{.ID}}/delete"
                           style="display:inline" hx-confirm="{{t "Delete this product?"}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>

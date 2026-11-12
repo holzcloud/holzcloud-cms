@@ -27,12 +27,16 @@
                 <td class="text-muted">/{{.Slug}}</td>
                 <td>{{if .DeletedAt}}{{.DeletedAt.Format "02.01.2006 15:04"}}{{end}}</td>
                 <td class="table-actions">
+                    {{/* Eine Seite, die beim Löschen online war, käme online
+                         zurück — ohne Veröffentlichungsrecht kein Knopf dafür. */}}
+                    {{if or $.MayPublish (ne .Status "published")}}
                     <form method="POST"
                           action="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/restore"
                           hx-post="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/restore">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Restore"}}</button>
                     </form>
+                    {{end}}
                     <form method="POST"
                           action="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/purge"
                           hx-post="/admin/websites/{{$.WebsiteID}}/trash/{{.ID}}/purge"
