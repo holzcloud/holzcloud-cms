@@ -158,6 +158,11 @@ func (h *Handler) HandleTwoFactorSetup(w http.ResponseWriter, r *http.Request) e
 	}
 
 	if r.Method == http.MethodPost {
+		// Activating a new device over a confirmed one hands the account to
+		// whoever holds that device, so it asks for the password first.
+		if !h.secondFactorChangeAllowed(w, r, *userID) {
+			return nil
+		}
 		return h.confirmTwoFactor(w, r, *userID, role, email)
 	}
 
@@ -216,6 +221,25 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 	return h.showRecoveryCodes(w, r, codes, true)
 }
 
+// secondFactorChangeAllowed asks for the password again before a confirmed
+// second factor is replaced, and reports whether the caller may go on. When it
+// returns false the answer is already written.
+//
+// Only a CONFIRMED factor: an account without one is setting up its first —
+// the forced setup of a new administrator among them — and a question there
+// would stand between that person and the only screen they are let onto.
+// Replacing a confirmed one is the other case entirely: from an unattended
+// session it moves the account to somebody else's phone.
+func (h *Handler) secondFactorChangeAllowed(w http.ResponseWriter, r *http.Request, userID int64) bool {
+	tf, err := h.users.GetTwoFactor(r.Context(), userID)
+	if err != nil || tf == nil || !tf.Enabled() {
+		// A lookup that fails tells nothing about a confirmed factor; the
+		// write that follows meets the same database and reports it there.
+		return true
+	}
+	return auth.EnsureFreshPassword(h.sm, w, r)
+}
+
 // HandleTwoFactorRestart begins enrolling a new device.
 //
 // A POST rather than a link, because it writes: the pending secret is replaced,
@@ -229,6 +253,9 @@ func (h *Handler) HandleTwoFactorRestart(w http.ResponseWriter, r *http.Request)
 	// This is the one path that throws the old enrolment away, so a device that
 	// was set up half-way — or a QR code shown on a screen someone else can
 	// still see — can be replaced deliberately rather than by accident.
+	if !h.secondFactorChangeAllowed(w, r, *userID) {
+		return nil
+	}
 	if _, err := h.users.BeginTwoFactor(r.Context(), *userID); err != nil {
 		return err
 	}

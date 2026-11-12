@@ -404,11 +404,15 @@ installation to be signed straight back in on the next click. A third entry is
 new here, because it was recorded only in the project's own ledger before.
 
 **An account that came in only through single sign-on has no password it knows.**
-Provisioning stores the hash of a random value nobody learns. Five actions ask
-for the password again before they run — deleting a website, deleting a user,
-creating an AI key, removing a plugin and clearing the activity log — and such
-an account cannot answer. If every administrator came in that way, set a password
-for one of them from the server:
+Provisioning stores the hash of a random value nobody learns. These actions ask
+for the password again before they run, and such an account cannot answer:
+deleting or importing a website; creating, changing or deleting a user, issuing
+somebody an access link, setting somebody else's password and ending somebody's
+sessions; creating an AI key or connecting an assistant; uploading, enabling or
+removing a plugin; uploading a template; clearing the activity log; and, for the
+account's own second factor, switching it off, renewing the recovery codes or
+replacing a confirmed one with a new device. If every administrator came in that
+way, set a password for one of them from the server:
 
 ```bash
 echo -n 'a new password' | sudo -u holzcloud HOLZCLOUD_DATA_DIR=/opt/holzcloud/data \

@@ -1325,6 +1325,11 @@ func TestSensitiveRoutesAskForThePasswordAgain(t *testing.T) {
 		"POST /admin/plugins/upload", "POST /admin/plugins/{id}/enable",
 		"POST /admin/templates/upload", "POST /admin/users/{id}/edit",
 		"POST /admin/websites/import",
+		// Audit of 2026-11-10, Part 1, item 12: creating an account, issuing
+		// somebody an access link and ending their sessions are account
+		// takeovers from an unattended laptop.
+		"POST /admin/users/new", "POST /admin/users/{id}/link",
+		"POST /admin/users/{id}/sessions/revoke",
 	} {
 		found := false
 		for _, l := range lines {
