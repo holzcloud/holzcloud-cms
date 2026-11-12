@@ -13,6 +13,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
@@ -170,6 +171,20 @@ func (h *Handler) refuseMediaLocked(w http.ResponseWriter, r *http.Request, m *m
 // which always makes a draft, and submit the copy for review.
 func (h *Handler) liveLocked(r *http.Request, p *page.Page) bool {
 	return p != nil && p.Status == "published" && !h.mayPublish(r)
+}
+
+// productLocked is liveLocked for products (D-14): this person may not change
+// or delete this product, because it is online and they may not publish.
+//
+// The same rule as for pages. A published product is in the shop the moment it
+// is stored, so its text, price, stock and picture, and its removal, are a
+// publisher's business; a draft is preparation, and somebody without the right
+// creates and changes drafts as they do draft pages — handleProductSave keeps
+// whatever they store a draft. The refusal is readOnlySentence, because a
+// published product is online at once; liveLockedSentence proposes duplicating
+// a page, and products have no such way forward.
+func (h *Handler) productLocked(r *http.Request, p *shop.Product) bool {
+	return p != nil && p.Status == shop.StatusPublished && !h.mayPublish(r)
 }
 
 // liveLockedSentence is the refusal every locked door answers with. A function

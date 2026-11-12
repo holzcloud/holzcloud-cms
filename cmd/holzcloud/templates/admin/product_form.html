@@ -3,9 +3,11 @@
 {{end}}
 
 {{define "product_form-content"}}
+{{if .Locked}}{{template "read_only_notice" .}}{{end}}
 <form method="POST" class="card" style="max-width:720px">
     <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
 
+    <fieldset class="read-only-fields"{{if .Locked}} disabled{{end}}>
     <div class="form-group">
         <label class="form-label" for="title">{{t "Title"}}</label>
         <input type="text" id="title" name="title" class="form-input" required
@@ -105,6 +107,10 @@
         <p class="form-hint">{{t "Markdown, as on pages."}}</p>
     </div>
 
+    {{/* Without the publishing right there is no status to choose: what such
+         a person saves is stored as a draft (handleProductSave). A published
+         product they open keeps its status shown, disabled with the rest. */}}
+    {{if or .MayPublish .Locked}}
     <div class="form-group">
         <label class="form-label" for="status">{{t "Status"}}</label>
         <select id="status" name="status" class="form-input form-select">
@@ -112,8 +118,14 @@
             <option value="published" {{if eq .Values.Status "published"}}selected{{end}}>{{t "Published"}}</option>
         </select>
     </div>
+    {{else}}
+    <p class="form-hint text-muted">{{t "Publishing is not part of your account: the product stays a draft until somebody who may publish puts it online."}}</p>
+    {{end}}
+    </fieldset>
 
+    {{if not .Locked}}
     <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+    {{end}}
     <a href="/admin/websites/{{.CurrentWebsite.ID}}/produkte" class="btn" style="margin-left:var(--space-1)">{{t "Cancel"}}</a>
 </form>
 {{end}}
