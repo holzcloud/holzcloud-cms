@@ -175,6 +175,12 @@ type AdminEntry struct {
 	// AdminOnly keeps editors out. A plugin that touches settings rather than
 	// content says so here.
 	AdminOnly bool `json:"admin_only,omitempty"`
+	// RespectsReadOnly is the plugin's promise to read AdminIn.ReadOnly and
+	// refuse its own public-changing writes to somebody without the publishing
+	// right. Without it the host refuses every POST of such a person to the
+	// screen and disables the screen's controls: the host cannot tell a write
+	// that changes the public site from one that does not, so it fails closed.
+	RespectsReadOnly bool `json:"respects_read_only,omitempty"`
 }
 
 // Hooks the host dispatches. A plugin declares the ones it wants.

@@ -16,8 +16,13 @@
      dem Server des Betreibers und ist damit schon viel anvertraut — nur nicht
      dessen Anmeldung: ein Skript an dieser Stelle liefe in der Herkunft, die
      das Sitzungsplätzchen hält. -->
+<!-- Locked: ein Plugin, das nicht erklaert hat, die Leseregel selbst
+     einzuhalten, fuer jemanden ohne Veroeffentlichungsrecht. Der Host weist
+     jeden POST dieser Person ab; das deaktivierte fieldset sagt es vor dem
+     Klick. Links darin bleiben benutzbar. -->
+{{if .Locked}}{{template "read_only_notice" .}}{{end}}
 <div class="plugin-screen">
-    {{.Screen}}
+    {{if .Locked}}<fieldset class="read-only-fields" disabled>{{.Screen}}</fieldset>{{else}}{{.Screen}}{{end}}
 </div>
 
 <p class="hint">

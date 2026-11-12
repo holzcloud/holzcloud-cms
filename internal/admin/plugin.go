@@ -56,6 +56,11 @@ type pluginScreenData struct {
 	PluginName string
 	Screen     web.SafeHTML
 	Action     string
+	// Locked is a screen of a plugin that has not declared respects_read_only,
+	// shown to somebody without the publishing right: the read-only notice
+	// above it, and every control of the plugin disabled. The host refuses
+	// that person's POSTs to it; a disabled control says so before the click.
+	Locked bool
 }
 
 // HandlePluginList renders the plugin screen.
@@ -258,9 +263,29 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 	}
 	action := web.PluginScreenURL(id, websiteID)
 
+	// Without the publishing right, nothing that is online at once may change
+	// (D-01) — and a plugin screen is where the host cannot see what a POST
+	// does: the same address takes a setting that shapes the public form and a
+	// tick beside a private order. Only the plugin knows, so the plugin decides
+	// (D-13), but only one that declared it will.
+	readOnly := h.readOnly(r)
+	locked := readOnly && !st.Manifest.Admin.RespectsReadOnly
+	if locked && r.Method == http.MethodPost {
+		// Undeclared: fail closed. Refused before the form is read and before
+		// the plugin is called, so a plugin that never heard of the rule
+		// cannot be the way around it (D-02, D-03).
+		if h.refuseReadOnly(w, r, action) {
+			return nil
+		}
+	}
+
 	in := plugin.AdminIn{
 		WebsiteID: websiteID, Method: r.Method,
 		Path: r.URL.Path, Query: r.URL.RawQuery,
+		// Declared: the plugin is told on every call and refuses its public
+		// writes itself. An undeclared plugin is told as well, and only ever
+		// on a GET, which it draws inside the disabled fieldset below.
+		ReadOnly: readOnly,
 	}
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
@@ -326,6 +351,7 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 		// without the plugin ever seeing it.
 		Screen: web.WithCSRFToken(web.SanitizeAdminHTML(out.HTML), web.CSRFTokenFromRequest(r)),
 		Action: action,
+		Locked: locked,
 	}
 	// The rail marks the plugin's own entry, not the settings list: "plugin:"
 	// plus the address of the rail link, which is exactly `action`. With

@@ -485,6 +485,13 @@ type AdminIn struct {
 	// same, so "edit this one" would have to be a button, and a list of ten
 	// things would be ten buttons that all say "edit".
 	Query string `json:"query,omitempty"`
+	// ReadOnly is true when the person on the screen may not change what the
+	// public sees at once: they lack the publishing right. A plugin that
+	// declares respects_read_only in its manifest refuses such writes itself
+	// and draws no control for them; the host cannot tell which of a plugin's
+	// writes reach the public site, only the plugin can. Omitted when false,
+	// so an older guest sees nothing new.
+	ReadOnly bool `json:"read_only,omitempty"`
 }
 
 // AdminOut is the plugin's screen.
