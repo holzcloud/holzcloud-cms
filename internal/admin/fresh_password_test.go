@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
@@ -21,7 +22,8 @@ import (
 // guarded where they are registered (main.go: a new user, an access link,
 // ending somebody's sessions) and three inside their handler, because only the
 // handler knows whether the question applies: replacing a CONFIRMED second
-// factor (restart and confirm), and setting somebody ELSE's password.
+// factor (restart and confirm, and since phase 31 opening the setup screen),
+// and setting somebody ELSE's password.
 //
 // The other half is just as important and tested here as well: first-time and
 // forced second-factor setup ask for nothing, or a new administrator who is
@@ -67,8 +69,10 @@ func TestReplacingAConfirmedSecondFactorAsksForThePasswordFirst(t *testing.T) {
 	}
 
 	// Confirming a new device from an unattended session. The pending secret is
-	// what the setup screen's GET leaves behind, and that GET is not guarded:
-	// the question stands in front of the activation.
+	// written here through BeginTwoFactor, as if it had been left behind
+	// earlier; the setup screen's GET asks for the password too (see
+	// TestTheSetupScreenOfAConfirmedFactorAsksForThePasswordFirst), and the
+	// question stands in front of the activation as well.
 	pending, err := h.users.BeginTwoFactor(ctx, id)
 	if err != nil {
 		t.Fatalf("BeginTwoFactor: %v", err)
@@ -119,6 +123,105 @@ func TestFirstTimeSecondFactorSetupAsksForNoPassword(t *testing.T) {
 	}
 	if !secondFactorEnabled(t, database, id) {
 		t.Errorf("first-time setup did not switch the second factor on: status %d", rec.Code)
+	}
+}
+
+// openSetupScreen is a GET of the two-factor setup screen, the way somebody
+// typing its address or following the account page's link sends it.
+func openSetupScreen() *http.Request {
+	req := httptest.NewRequest(http.MethodGet, auth.SetupPath, nil)
+	req.Host = "admin.test"
+	return req
+}
+
+// showsASecret reports whether the setup screen drew a secret to type in.
+func showsASecret(body string) bool {
+	return strings.Contains(body, `class="totp-secret"`)
+}
+
+// pendingSecretOf is the pending secret the account's row holds.
+func pendingSecretOf(t *testing.T, h *Handler, id int64) string {
+	t.Helper()
+	tf, err := h.users.GetTwoFactor(context.Background(), id)
+	if err != nil {
+		t.Fatalf("GetTwoFactor: %v", err)
+	}
+	if tf == nil {
+		return ""
+	}
+	return tf.PendingSecret
+}
+
+// The setup screen's GET writes a pending secret and shows it. Over a confirmed
+// factor that is the first half of moving the account to another phone, so
+// from an unattended session it shows nothing and writes nothing; after the
+// password the way back is the setup screen itself (RGT-07, D-09).
+func TestTheSetupScreenOfAConfirmedFactorAsksForThePasswordFirst(t *testing.T) {
+	h, sm, database := newSecondFactorAdmin(t)
+	id := seedSecondFactorAccount(t, h, "admin@test.local", user.RoleAdmin)
+	enableSecondFactor(t, database, id)
+
+	rec := serveSignedIn(t, h, sm, h.HandleTwoFactorSetup, openSetupScreen(), id, false)
+	loc := rec.Header().Get("Location")
+	asksForThePassword(t, "the setup screen of a confirmed factor", rec.Code, loc)
+	if !strings.Contains(loc, "weiter=%2Fadmin%2F2fa%2Feinrichten") {
+		t.Errorf("the way back after the password is %q; want the setup screen itself", loc)
+	}
+	if showsASecret(rec.Body.String()) {
+		t.Error("the setup screen showed a secret before the password was confirmed")
+	}
+	if p := pendingSecretOf(t, h, id); p != "" {
+		t.Errorf("the setup screen wrote a pending secret before the password was confirmed: %q", p)
+	}
+
+	rec = serveSignedIn(t, h, sm, fresh(sm, h.HandleTwoFactorSetup), openSetupScreen(), id, false)
+	if rec.Code != http.StatusOK || !showsASecret(rec.Body.String()) {
+		t.Errorf("with a fresh confirmation: status %d, secret shown %v; want 200 and a secret",
+			rec.Code, showsASecret(rec.Body.String()))
+	}
+	if p := pendingSecretOf(t, h, id); p == "" || !strings.Contains(rec.Body.String(), totp.FormatSecret(p)) {
+		t.Errorf("with a fresh confirmation the screen does not show the pending secret %q", p)
+	}
+}
+
+// First enrolment and the forced enrolment of a new administrator have no
+// confirmed factor, and a question there would stand between that person and
+// the only screen they are let onto. The secret is shown at once.
+func TestTheFirstAndTheForcedSetupShowTheSecretWithoutAsking(t *testing.T) {
+	for _, tc := range []struct {
+		name, email, role string
+	}{
+		{"first enrolment of an editor", "red@test.local", user.RoleEditor},
+		{"forced enrolment of a new administrator", "neu@test.local", user.RoleAdmin},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, sm, _ := newSecondFactorAdmin(t)
+			id := seedSecondFactorAccount(t, h, tc.email, tc.role)
+
+			rec := serveSignedIn(t, h, sm, h.HandleTwoFactorSetup, openSetupScreen(), id, false)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status %d to %q; want 200 without a question", rec.Code, rec.Header().Get("Location"))
+			}
+			p := pendingSecretOf(t, h, id)
+			if p == "" || !showsASecret(rec.Body.String()) || !strings.Contains(rec.Body.String(), totp.FormatSecret(p)) {
+				t.Errorf("the setup screen did not show the pending secret %q", p)
+			}
+		})
+	}
+}
+
+// A single sign-on account has no password it knows, and exempting it would
+// remove the one question for exactly the accounts an operator did not create
+// by hand (elevate.go, "What must NOT be done"). It is asked like any other.
+func TestASingleSignOnSessionIsNotExemptFromTheSetupQuestion(t *testing.T) {
+	h, sm, database := newSecondFactorAdmin(t)
+	id := seedSecondFactorAccount(t, h, "sso@test.local", user.RoleEditor)
+	enableSecondFactor(t, database, id)
+
+	rec := serveSignedIn(t, h, sm, h.HandleTwoFactorSetup, openSetupScreen(), id, true)
+	asksForThePassword(t, "the setup screen in a single sign-on session", rec.Code, rec.Header().Get("Location"))
+	if p := pendingSecretOf(t, h, id); p != "" {
+		t.Errorf("a single sign-on session wrote a pending secret without a question: %q", p)
 	}
 }
 

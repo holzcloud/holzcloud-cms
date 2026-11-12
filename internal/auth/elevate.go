@@ -69,8 +69,12 @@ const ConfirmPath = "/admin/bestaetigen"
 // link, end somebody's sessions, set somebody else's password, and replace a
 // confirmed second factor (the last two asked inside their handler, through
 // EnsureFreshPassword, because only the handler knows whether the question
-// applies). deploy/DEPLOY.md names this under "Three things single sign-on
-// does not do yet" and gives the way round: `holzcloud user passwd`.
+// applies). Since phase 31 (2026-11-12) it also covers opening the setup
+// screen while a confirmed second factor exists: that screen writes and shows
+// a new device's secret, the first half of moving the account to another
+// phone, so it is asked inside its handler as well. deploy/DEPLOY.md names
+// this under "Three things single sign-on does not do yet" and gives the way
+// round: `holzcloud user passwd`.
 //
 // The cure is not a smaller version of this one. What should happen is a fresh
 // authentication AT THE IDENTITY PROVIDER — the equivalent of authentik's
@@ -116,7 +120,15 @@ func EnsureFreshPassword(sm *scs.SessionManager, w http.ResponseWriter, r *http.
 	if Elevated(sm, r.Context()) {
 		return true
 	}
-	to := ConfirmPath + "?weiter=" + url.QueryEscape(backTo(r))
+	// A screen asked for by a GET is the screen to come back to: a typed
+	// address has no Referer, and the screen that asked is the one the person
+	// wanted. A POST cannot be repeated from its address, so it goes back to the
+	// page its button was on. Either way only a path inside the administration.
+	back := backTo(r)
+	if r.Method == http.MethodGet {
+		back = SafeReturn(r.URL.RequestURI())
+	}
+	to := ConfirmPath + "?weiter=" + url.QueryEscape(back)
 	w.Header().Add("Vary", hxRequestHeader)
 	if r.Header.Get(hxRequestHeader) == "true" {
 		w.Header().Set("HX-Redirect", to)

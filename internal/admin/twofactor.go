@@ -166,6 +166,14 @@ func (h *Handler) HandleTwoFactorSetup(w http.ResponseWriter, r *http.Request) e
 		return h.confirmTwoFactor(w, r, *userID, role, email)
 	}
 
+	// Showing a new device's secret over a confirmed one is the first half of
+	// moving the account to another phone, so it asks for the password before
+	// anything is written or shown. First and forced setup have no confirmed
+	// factor and pass without a question.
+	if !h.secondFactorChangeAllowed(w, r, *userID) {
+		return nil
+	}
+
 	// The same secret across reloads and mistyped codes. A new one per visit
 	// would invalidate the QR code that was already scanned and then reject the
 	// app's correct answer, with nothing on screen to say why.
