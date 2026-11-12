@@ -16,17 +16,19 @@
 {{end}}
 
 {{define "album_edit-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <h2 style="margin-bottom:var(--space-2)">{{t "Name of the album"}}</h2>
-    <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums/{{.Album.ID}}/update"
-          style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums/{{.Album.ID}}/update">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <fieldset class="read-only-fields" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap"{{if .ReadOnly}} disabled{{end}}>
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
             <label class="form-label" for="album-name">{{t "Name"}}</label>
             <input type="text" id="album-name" name="name" class="form-input"
                    value="{{.Album.Name}}" required maxlength="60">
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+        {{if not .ReadOnly}}<button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>{{end}}
+        </fieldset>
     </form>
     <p class="form-hint text-muted" style="margin-top:var(--space-1)">
         {{t "The album’s address stays"}} <code>{{.Album.Slug}}</code>{{t ". Pages carrying it do not lose it when it is renamed."}}
@@ -37,8 +39,9 @@
     <h2 style="margin-bottom:var(--space-2)">{{t "Images"}}</h2>
     {{if .Pictures}}
     {{range .Pictures}}
-    <fieldset class="album-picture">
+    <fieldset class="album-picture"{{if $.ReadOnly}} disabled{{end}}>
         <legend>{{t "Image"}} {{.Number}}</legend>
+        {{if not $.ReadOnly}}
         <div class="album-picture__order">
             <form method="POST" action="{{.Up}}" style="display:inline">
                 <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
@@ -58,10 +61,11 @@
                 <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Remove"}}</button>
             </form>
         </div>
+        {{end}}
         <form method="POST" action="{{.Update}}">
             <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
             {{template "block_bild" .Image}}
-            <button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Save image"}}</button>
+            {{if not $.ReadOnly}}<button type="submit" class="btn btn--sm" hx-disabled-elt="this">{{t "Save image"}}</button>{{end}}
         </form>
     </fieldset>
     {{end}}
@@ -70,6 +74,7 @@
     {{end}}
 </div>
 
+{{if not .ReadOnly}}
 <div class="card">
     <h2 style="margin-bottom:var(--space-2)">{{t "Add image"}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/albums/{{.Album.ID}}/pictures">
@@ -78,4 +83,5 @@
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this" style="margin-top:var(--space-1)">{{t "Add image"}}</button>
     </form>
 </div>
+{{end}}
 {{end}}

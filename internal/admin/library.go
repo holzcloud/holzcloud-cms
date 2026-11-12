@@ -24,6 +24,10 @@ type libraryNav struct {
 	// Active names the collection being shown: all, images, videos,
 	// documents, unused, noalt — or album:<id>, or albums for the list.
 	Active string
+	// ReadOnly leaves out the way to a new album for somebody without the
+	// publishing right. libraryNavFor takes no request, so each caller sets it
+	// from h.readOnly.
+	ReadOnly bool
 }
 
 type libraryAlbum struct {
