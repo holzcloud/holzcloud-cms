@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -280,5 +281,191 @@ func TestTheMenuListOffersNoChangeWithoutPublishing(t *testing.T) {
 	}
 	if !strings.Contains(body, deleteAction) || !strings.Contains(body, createAction) {
 		t.Error("a person who may publish is not offered create and delete")
+	}
+}
+
+func menuEditorAddress(websiteID, menuID int64) string {
+	return fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)
+}
+
+func TestAnEditorWithoutPublishingCannotChangeMenus(t *testing.T) {
+	type fixture struct {
+		h      *Handler
+		sm     *scs.SessionManager
+		ws     int64
+		editor int64
+		m      *menu.Menu
+		first  *menu.MenuItem
+		second *menu.MenuItem
+	}
+	setup := func(t *testing.T) fixture {
+		h, sm, database, ws := newTestAdmin(t)
+		editor := editorWithoutPublishing(t, database, ws.ID)
+		m, first, second := seedMenu(t, h.menuStore, ws.ID, "Hauptmenü", "haupt")
+		return fixture{h, sm, ws.ID, editor, m, first, second}
+	}
+	itemRoute := func(f fixture, item *menu.MenuItem) map[string]string {
+		return websiteRoute(f.ws, "menuID", strconv.FormatInt(f.m.ID, 10), "itemID", strconv.FormatInt(item.ID, 10))
+	}
+	items := func(t *testing.T, f fixture) []menu.MenuItem {
+		t.Helper()
+		got, err := f.h.menuStore.ListItems(context.Background(), f.m.ID)
+		if err != nil {
+			t.Fatalf("ListItems: %v", err)
+		}
+		return got
+	}
+
+	t.Run("create", func(t *testing.T) {
+		f := setup(t)
+		form := url.Values{"name": {"Fussmenü"}, "location_key": {"fuss"}}
+		target := menuListAddress(f.ws)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuCreate, postForm(target, form, websiteRoute(f.ws)))
+		wantRefused(t, "menu create", rec, flash, menuListAddress(f.ws))
+		rec, flash = serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuCreate, htmx(postForm(target, form, websiteRoute(f.ws))))
+		wantRefusedHtmx(t, "menu create", rec, flash, menuListAddress(f.ws))
+		menus, err := f.h.menuStore.ListMenus(context.Background(), f.ws)
+		if err != nil {
+			t.Fatalf("ListMenus: %v", err)
+		}
+		if len(menus) != 1 {
+			t.Errorf("%d menus stored, want the one seeded", len(menus))
+		}
+	})
+
+	t.Run("update", func(t *testing.T) {
+		f := setup(t)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuUpdate,
+			postForm(menuEditorAddress(f.ws, f.m.ID)+"/update",
+				url.Values{"name": {"Umbenannt"}, "location_key": {"anders"}},
+				websiteRoute(f.ws, "menuID", strconv.FormatInt(f.m.ID, 10))))
+		wantRefused(t, "menu update", rec, flash, menuListAddress(f.ws))
+		after, err := f.h.menuStore.GetMenu(context.Background(), f.m.ID)
+		if err != nil || after == nil {
+			t.Fatalf("GetMenu: %v", err)
+		}
+		if after.Name != f.m.Name || after.LocationKey != f.m.LocationKey {
+			t.Errorf("the menu was changed: %q %q", after.Name, after.LocationKey)
+		}
+	})
+
+	t.Run("item create", func(t *testing.T) {
+		f := setup(t)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuItemCreate,
+			postForm(menuEditorAddress(f.ws, f.m.ID)+"/items",
+				url.Values{"title": {"Neu"}, "item_type": {"url"}, "url": {"https://example.org/neu"}},
+				websiteRoute(f.ws, "menuID", strconv.FormatInt(f.m.ID, 10))))
+		wantRefused(t, "entry create", rec, flash, menuEditorAddress(f.ws, f.m.ID))
+		if n := len(items(t, f)); n != 2 {
+			t.Errorf("%d entries, want the two seeded", n)
+		}
+	})
+
+	t.Run("item update", func(t *testing.T) {
+		f := setup(t)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuItemUpdate,
+			postForm(fmt.Sprintf("%s/items/%d/update", menuEditorAddress(f.ws, f.m.ID), f.first.ID),
+				url.Values{"title": {"Umbenannt"}, "item_type": {"url"}, "url": {f.first.URL}},
+				itemRoute(f, f.first)))
+		wantRefused(t, "entry update", rec, flash, menuEditorAddress(f.ws, f.m.ID))
+		after, err := f.h.menuStore.GetItem(context.Background(), f.first.ID)
+		if err != nil || after == nil {
+			t.Fatalf("GetItem: %v", err)
+		}
+		if after.Title != f.first.Title {
+			t.Errorf("the entry was renamed to %q", after.Title)
+		}
+	})
+
+	t.Run("item delete", func(t *testing.T) {
+		f := setup(t)
+		target := fmt.Sprintf("%s/items/%d/delete", menuEditorAddress(f.ws, f.m.ID), f.first.ID)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuItemDelete, postForm(target, nil, itemRoute(f, f.first)))
+		wantRefused(t, "entry delete", rec, flash, menuEditorAddress(f.ws, f.m.ID))
+		rec, flash = serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuItemDelete, htmx(postForm(target, nil, itemRoute(f, f.first))))
+		wantRefusedHtmx(t, "entry delete", rec, flash, menuEditorAddress(f.ws, f.m.ID))
+		if n := len(items(t, f)); n != 2 {
+			t.Errorf("%d entries, want the two seeded", n)
+		}
+	})
+
+	t.Run("item reorder", func(t *testing.T) {
+		f := setup(t)
+		rec, flash := serveAs(t, f.h, f.sm, f.editor, f.h.HandleMenuItemReorder,
+			postForm(fmt.Sprintf("%s/items/%d/reorder?direction=up", menuEditorAddress(f.ws, f.m.ID), f.second.ID),
+				nil, itemRoute(f, f.second)))
+		wantRefused(t, "entry reorder", rec, flash, menuEditorAddress(f.ws, f.m.ID))
+		for _, it := range items(t, f) {
+			want := f.first.SortOrder
+			if it.ID == f.second.ID {
+				want = f.second.SortOrder
+			}
+			if it.SortOrder != want {
+				t.Errorf("entry %q moved to %d, want %d", it.Title, it.SortOrder, want)
+			}
+		}
+	})
+}
+
+// disabledFieldset is a fieldset carrying the disabled attribute; a bare
+// substring would match hx-disabled-elt on every button.
+var disabledFieldset = regexp.MustCompile(`<fieldset[^>]*\sdisabled[\s>=]`)
+
+func TestTheMenuEditorOffersNoChangeWithoutPublishing(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	publisher := editorWhoMayPublish(t, database, ws.ID)
+	m, first, _ := seedMenu(t, h.menuStore, ws.ID, "Hauptmenü", "haupt")
+	menuRoute := websiteRoute(ws.ID, "menuID", strconv.FormatInt(m.ID, 10))
+	itemRoute := websiteRoute(ws.ID, "menuID", strconv.FormatInt(m.ID, 10), "itemID", strconv.FormatInt(first.ID, 10))
+	itemAddress := fmt.Sprintf("%s/items/%d/edit", menuEditorAddress(ws.ID, m.ID), first.ID)
+	saveButton := `hx-disabled-elt="this">Save</button>`
+
+	controls := map[string]string{
+		"delete":  `/delete"`,
+		"add":     `/items"`,
+		"reorder": `/reorder`,
+		"save":    saveButton,
+	}
+
+	body := getAs(t, sm, putUser(sm, editor), h.HandleMenuEdit, menuEditorAddress(ws.ID, m.ID), menuRoute)
+	if strings.Count(body, readOnlyText) != 1 {
+		t.Errorf("menu editor: the sentence stands %d times, want once", strings.Count(body, readOnlyText))
+	}
+	for name, mark := range controls {
+		if strings.Contains(body, mark) {
+			t.Errorf("menu editor offers %s (%s)", name, mark)
+		}
+	}
+	if !strings.Contains(body, itemAddress) {
+		t.Error("menu editor: the entry no longer opens")
+	}
+
+	body = getAs(t, sm, putUser(sm, editor), h.HandleMenuItemEditForm, itemAddress, itemRoute)
+	if strings.Count(body, readOnlyText) != 1 {
+		t.Errorf("entry: the sentence stands %d times, want once", strings.Count(body, readOnlyText))
+	}
+	if !disabledFieldset.MatchString(body) {
+		t.Error("entry: the fields are not in a disabled fieldset")
+	}
+	if strings.Contains(body, saveButton) {
+		t.Error("entry: a save button is offered")
+	}
+	if !strings.Contains(body, first.Title) {
+		t.Error("entry: its values are not shown")
+	}
+
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleMenuEdit, menuEditorAddress(ws.ID, m.ID), menuRoute)
+	if strings.Contains(body, readOnlyText) {
+		t.Error("menu editor: a person who may publish reads the read-only sentence")
+	}
+	for name, mark := range controls {
+		if !strings.Contains(body, mark) {
+			t.Errorf("menu editor: a person who may publish is not offered %s", name)
+		}
+	}
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleMenuItemEditForm, itemAddress, itemRoute)
+	if strings.Contains(body, readOnlyText) || disabledFieldset.MatchString(body) || !strings.Contains(body, saveButton) {
+		t.Error("entry: a person who may publish cannot save it")
 	}
 }

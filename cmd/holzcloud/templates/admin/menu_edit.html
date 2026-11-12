@@ -5,10 +5,12 @@
 {{end}}
 
 {{define "menu_edit-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <h2 style="margin-bottom:var(--space-2)">{{t "Menu settings"}}</h2>
-    <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}/update" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap">
+    <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}/update">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <fieldset class="read-only-fields" style="display:flex;gap:var(--space-1);align-items:flex-end;flex-wrap:wrap"{{if .ReadOnly}} disabled{{end}}>
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
             <label class="form-label" for="menu-name">{{t "Name"}}</label>
             <input type="text" id="menu-name" name="name" class="form-input" value="{{.Menu.Name}}" required>
@@ -17,7 +19,8 @@
             <label class="form-label" for="menu-loc">{{t "Key"}}</label>
             <input type="text" id="menu-loc" name="location_key" class="form-input" value="{{.Menu.LocationKey}}" required>
         </div>
-        <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
+        {{if not .ReadOnly}}<button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>{{end}}
+        </fieldset>
     </form>
 </div>
 
@@ -37,7 +40,8 @@
                 {{end}}
             </div>
             <div class="menu-item-actions">
-                <a href="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/edit" class="btn btn--sm">{{t "Edit"}}</a>
+                <a href="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/edit" class="btn btn--sm">{{if $.ReadOnly}}{{t "View"}}{{else}}{{t "Edit"}}{{end}}</a>
+                {{if not $.ReadOnly}}
                 <form method="POST" action="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=up" style="display:inline">
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                     <button type="submit" class="reorder-btn" hx-post="/admin/websites/{{$.WebsiteID}}/menus/{{$.Menu.ID}}/items/{{.ID}}/reorder?direction=up" hx-disabled-elt="this"><span aria-hidden="true">&#8593;</span><span class="sr-only">{{t "Move up"}}</span></button>
@@ -51,6 +55,7 @@
                     <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                     <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                 </form>
+                {{end}}
             </div>
         </div>
         {{end}}
@@ -60,6 +65,7 @@
     {{end}}
 </div>
 
+{{if not .ReadOnly}}
 <div class="card">
     <h2 style="margin-bottom:var(--space-2)">{{t "Add entry"}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}/items">
@@ -105,4 +111,5 @@
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this" style="margin-top:var(--space-1)">{{t "Add entry"}}</button>
     </form>
 </div>
+{{end}}
 {{end}}
