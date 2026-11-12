@@ -127,11 +127,18 @@ func farmShopSettings(t *testing.T, database *db.DB, websiteID int64) (string, b
 // screen — after it.
 func lockedScreen(body, mark string) bool {
 	loc := disabledFieldset.FindStringIndex(body)
-	if loc == nil {
+	if loc == nil || !hostLocked(body) {
 		return false
 	}
 	return strings.Contains(body[loc[1]:], mark)
 }
+
+// hostLockMark is the host's own fieldset around a plugin's screen.
+const hostLockMark = `<fieldset class="read-only-fields" disabled>`
+
+// hostLocked reports whether the host itself disabled the screen — its own
+// fieldset, not one the plugin drew around fields it leaves read-only.
+func hostLocked(body string) bool { return strings.Contains(body, hostLockMark) }
 
 func TestAPluginScreenThatDoesNotKnowTheRightIsReadOnly(t *testing.T) {
 	h, sm, database, ws := newTestAdmin(t)
@@ -173,7 +180,7 @@ func TestAPluginScreenThatDoesNotKnowTheRightIsReadOnly(t *testing.T) {
 	// The control: somebody who may publish sees the screen as before and
 	// saves the settings.
 	body = getAs(t, sm, putUser(sm, publisher), h.HandlePluginScreen, address+"?ansicht=einstellungen", route)
-	if strings.Contains(body, readOnlyText) || disabledFieldset.MatchString(body) {
+	if strings.Contains(body, readOnlyText) || hostLocked(body) {
 		t.Error("a person who may publish was shown the read-only screen")
 	}
 	rec, bad, good = pluginFlashAs(t, h, sm, publisher, h.HandlePluginScreen, postForm(address, settings, route))
@@ -183,4 +190,261 @@ func TestAPluginScreenThatDoesNotKnowTheRightIsReadOnly(t *testing.T) {
 	if raw, ok := farmShopSettings(t, database, ws.ID); !ok || !strings.Contains(raw, `"Preis"`) {
 		t.Errorf("a person who may publish could not save the settings: %q (%v)", raw, ok)
 	}
+}
+
+// shippedPluginAdmin is a handler with one shipped plugin installed exactly as
+// it is shipped — manifest unchanged — and the two kinds of editor.
+func shippedPluginAdmin(t *testing.T, id string) (h *Handler, sm *scs.SessionManager, database *db.DB, websiteID, editor, publisher int64) {
+	t.Helper()
+	h, sm, database, ws := newTestAdmin(t)
+	h.SetPlugins(installShippedPlugin(t, database, t.TempDir(), id, []int64{ws.ID}, nil))
+	return h, sm, database, ws.ID, editorWithoutPublishing(t, database, ws.ID), editorWhoMayPublish(t, database, ws.ID)
+}
+
+// pluginStored reads one key a plugin stored on this website.
+func pluginStored(t *testing.T, database *db.DB, id string, websiteID int64, key string) (string, bool) {
+	t.Helper()
+	raw, ok, err := plugin.NewStore(database).StoreGet(context.Background(), id, websiteID, key)
+	if err != nil {
+		t.Fatalf("StoreGet %s %s: %v", id, key, err)
+	}
+	return raw, ok
+}
+
+// pluginStore puts a record into a plugin's storage, the way a visitor's
+// submission would have.
+func pluginStore(t *testing.T, database *db.DB, id string, websiteID int64, key, value string) {
+	t.Helper()
+	if err := plugin.NewStore(database).StoreSet(context.Background(), id, websiteID, key, value); err != nil {
+		t.Fatalf("StoreSet %s %s: %v", id, key, err)
+	}
+}
+
+// wantPluginRefused is the refusal of a plugin that declared the rule: its own
+// answer, so the redirect goes back to the view the request came from, with
+// the sentence as an error flash.
+func wantPluginRefused(t *testing.T, what string, rec *httptest.ResponseRecorder, bad, good, to string) {
+	t.Helper()
+	wantRefused(t, what, rec, bad, to)
+	if good != "" {
+		t.Errorf("%s: a success was reported as well: %q", what, good)
+	}
+}
+
+func TestTheShippedPluginsRefuseWhatChangesTheWebsite(t *testing.T) {
+	t.Run("farm shop settings", func(t *testing.T) {
+		h, sm, database, wsID, editor, publisher := shippedPluginAdmin(t, "bestellung")
+		address := pluginScreenAddress(wsID, "bestellung")
+		route := pluginRoute(wsID, "bestellung")
+
+		rec, bad, good := pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(address, url.Values{"aktion": {"einstellungen"}, "preis_feld": {"Preis"}}, route))
+		wantPluginRefused(t, "settings", rec, bad, good, address+"?ansicht=einstellungen")
+		if raw, ok := pluginStored(t, database, "bestellung", wsID, "einstellungen"); ok {
+			t.Fatalf("the settings were stored: %s", raw)
+		}
+
+		body := getAs(t, sm, putUser(sm, editor), h.HandlePluginScreen, address+"?ansicht=einstellungen", route)
+		if n := strings.Count(body, readOnlyText); n != 1 {
+			t.Errorf("settings: the sentence stands %d times, want once", n)
+		}
+		if strings.Contains(body, `value="einstellungen"`) {
+			t.Error("settings: the screen still offers to save")
+		}
+		if hostLocked(body) {
+			t.Error("settings: the host locked a screen whose plugin declared the rule")
+		}
+
+		// The publisher keeps the save button.
+		body = getAs(t, sm, putUser(sm, publisher), h.HandlePluginScreen, address+"?ansicht=einstellungen", route)
+		if !strings.Contains(body, `value="einstellungen"`) || strings.Contains(body, readOnlyText) {
+			t.Error("settings: a person who may publish lost the save button or was shown the sentence")
+		}
+	})
+
+	t.Run("contact form editor", func(t *testing.T) {
+		h, sm, database, wsID, editor, publisher := shippedPluginAdmin(t, "kontaktformular")
+		address := pluginScreenAddress(wsID, "kontaktformular")
+		route := pluginRoute(wsID, "kontaktformular")
+		forms := address + "?ansicht=formulare"
+
+		rec, bad, good := pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(forms, url.Values{"neues_formular": {"Hoffest"}}, route))
+		wantPluginRefused(t, "new form", rec, bad, good, forms)
+		if raw, ok := pluginStored(t, database, "kontaktformular", wsID, "formular:hoffest"); ok {
+			t.Fatalf("the form was created: %s", raw)
+		}
+		if body := getAs(t, sm, putUser(sm, publisher), h.HandlePluginScreen, forms, route); strings.Contains(body, "Hoffest") {
+			t.Error("the form list shows the form the editor was refused")
+		}
+
+		// A form the publisher made: the editor may neither delete nor change it.
+		_, bad, _ = pluginFlashAs(t, h, sm, publisher, h.HandlePluginScreen,
+			postForm(forms, url.Values{"neues_formular": {"Sommerfest"}}, route))
+		if bad != "" {
+			t.Fatalf("publisher could not create a form: %q", bad)
+		}
+		before, ok := pluginStored(t, database, "kontaktformular", wsID, "formular:sommerfest")
+		if !ok {
+			t.Fatal("the publisher's form was not stored")
+		}
+
+		rec, bad, good = pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(forms, url.Values{"loeschen_formular": {"sommerfest"}}, route))
+		wantPluginRefused(t, "delete form", rec, bad, good, forms)
+
+		editorAddress := address + "?ansicht=formular&kennung=sommerfest"
+		for name, values := range map[string]url.Values{
+			"save form":    {"kennung": {"sommerfest"}, "name": {"Winterfest"}, "sichern": {"1"}},
+			"field action": {"kennung": {"sommerfest"}, "name": {"Sommerfest"}, "feldaktion": {"neu"}},
+		} {
+			rec, bad, good = pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen, postForm(editorAddress, values, route))
+			wantPluginRefused(t, name, rec, bad, good, editorAddress)
+		}
+		if after, _ := pluginStored(t, database, "kontaktformular", wsID, "formular:sommerfest"); after != before {
+			t.Errorf("the form was changed by somebody without the publishing right:\n%s\n%s", before, after)
+		}
+
+		body := getAs(t, sm, putUser(sm, editor), h.HandlePluginScreen, forms, route)
+		if n := strings.Count(body, readOnlyText); n != 1 {
+			t.Errorf("form list: the sentence stands %d times, want once", n)
+		}
+		for _, control := range []string{`name="neues_formular"`, `name="loeschen_formular"`} {
+			if strings.Contains(body, control) {
+				t.Errorf("form list offers %s", control)
+			}
+		}
+		if !strings.Contains(body, "Sommerfest") {
+			t.Error("form list: the editor no longer sees the forms")
+		}
+		body = getAs(t, sm, putUser(sm, editor), h.HandlePluginScreen, editorAddress, route)
+		for _, control := range []string{`name="sichern"`, `name="feldaktion"`} {
+			if strings.Contains(body, control) {
+				t.Errorf("form editor offers %s", control)
+			}
+		}
+		if strings.Count(body, readOnlyText) != 1 {
+			t.Error("form editor: the sentence is missing")
+		}
+
+		// The publisher keeps every control.
+		body = getAs(t, sm, putUser(sm, publisher), h.HandlePluginScreen, forms, route)
+		for _, control := range []string{`name="neues_formular"`, `name="loeschen_formular"`} {
+			if !strings.Contains(body, control) {
+				t.Errorf("a person who may publish lost %s", control)
+			}
+		}
+	})
+
+	t.Run("contact form attachments and consent", func(t *testing.T) {
+		h, sm, database, wsID, editor, publisher := shippedPluginAdmin(t, "kontaktformular")
+		address := pluginScreenAddress(wsID, "kontaktformular")
+		route := pluginRoute(wsID, "kontaktformular")
+		consent := address + "?ansicht=einwilligung"
+
+		for name, values := range map[string]url.Values{
+			"attachments": {"anhang_sichern": {"1"}, "anhang": {"1"}},
+			"consent":     {"einwilligung_sichern": {"1"}, "einwilligungstext": {"Ich bin einverstanden."}},
+		} {
+			rec, bad, good := pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen, postForm(consent, values, route))
+			wantPluginRefused(t, name, rec, bad, good, consent)
+		}
+		for _, key := range []string{"anhang", "einwilligungstext"} {
+			if raw, ok := pluginStored(t, database, "kontaktformular", wsID, key); ok {
+				t.Errorf("%s was stored by somebody without the publishing right: %q", key, raw)
+			}
+		}
+
+		body := getAs(t, sm, putUser(sm, editor), h.HandlePluginScreen, consent, route)
+		if strings.Count(body, readOnlyText) != 1 {
+			t.Error("consent: the sentence is missing")
+		}
+		for _, control := range []string{`name="einwilligung_sichern"`, `name="anhang_sichern"`} {
+			if strings.Contains(body, control) {
+				t.Errorf("consent screen offers %s", control)
+			}
+		}
+		body = getAs(t, sm, putUser(sm, publisher), h.HandlePluginScreen, consent, route)
+		for _, control := range []string{`name="einwilligung_sichern"`, `name="anhang_sichern"`} {
+			if !strings.Contains(body, control) {
+				t.Errorf("a person who may publish lost %s", control)
+			}
+		}
+	})
+}
+
+func TestTheShippedPluginsStillLetAnEditorHandleOrdersAndMessages(t *testing.T) {
+	t.Run("farm shop orders", func(t *testing.T) {
+		h, sm, database, wsID, editor, _ := shippedPluginAdmin(t, "bestellung")
+		address := pluginScreenAddress(wsID, "bestellung")
+		route := pluginRoute(wsID, "bestellung")
+		pluginStore(t, database, "bestellung", wsID, "bestellung:b1",
+			`{"id":"b1","eingegangen":"2026-11-12T10:00:00Z","name":"Anna","email":"anna@example.com","posten":[]}`)
+
+		rec, bad, good := pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(address, url.Values{"aktion": {"erledigt"}, "id": {"b1"}}, route))
+		if rec.Code != http.StatusSeeOther || bad != "" || good != "Order ticked off." {
+			t.Errorf("tick off: status %d, bad %q, good %q", rec.Code, bad, good)
+		}
+		if raw, _ := pluginStored(t, database, "bestellung", wsID, "bestellung:b1"); !strings.Contains(raw, `"erledigt":true`) {
+			t.Errorf("the order was not ticked off: %s", raw)
+		}
+
+		rec, bad, good = pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(address, url.Values{"aktion": {"loeschen"}, "id": {"b1"}}, route))
+		if rec.Code != http.StatusSeeOther || bad != "" || good != "Order deleted." {
+			t.Errorf("delete: status %d, bad %q, good %q", rec.Code, bad, good)
+		}
+		if _, ok := pluginStored(t, database, "bestellung", wsID, "bestellung:b1"); ok {
+			t.Error("the order is still there")
+		}
+	})
+
+	t.Run("contact form messages", func(t *testing.T) {
+		h, sm, database, wsID, editor, _ := shippedPluginAdmin(t, "kontaktformular")
+		address := pluginScreenAddress(wsID, "kontaktformular")
+		route := pluginRoute(wsID, "kontaktformular")
+		turnedAway := address + "?ansicht=abgewiesen"
+		spam := func(key string) {
+			pluginStore(t, database, "kontaktformular", wsID, "abgewiesen:"+key,
+				`{"kennung":"`+key+`","name":"Bot","email":"bot@example.com","text":"Buy now","zeit":"2026-11-12T10:00:00Z"}`)
+		}
+		spam("q1")
+		spam("q2")
+
+		body := getAs(t, sm, putUser(sm, editor), h.HandlePluginScreen, turnedAway, route)
+		if !strings.Contains(body, `name="verwerfen"`) || !strings.Contains(body, `name="freigeben"`) {
+			t.Error("the turned-away screen offers the editor no way to discard or release")
+		}
+		if strings.Contains(body, readOnlyText) || hostLocked(body) {
+			t.Error("the turned-away screen is read-only for the editor")
+		}
+
+		rec, bad, good := pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(turnedAway, url.Values{"verwerfen": {"q1"}}, route))
+		if rec.Code != http.StatusSeeOther || bad != "" || good != "Discarded." {
+			t.Errorf("discard: status %d, bad %q, good %q", rec.Code, bad, good)
+		}
+		if _, ok := pluginStored(t, database, "kontaktformular", wsID, "abgewiesen:q1"); ok {
+			t.Error("the discarded submission is still there")
+		}
+
+		rec, bad, good = pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(turnedAway, url.Values{"freigeben": {"q2"}}, route))
+		if rec.Code != http.StatusSeeOther || bad != "" || good != "Moved into the messages." {
+			t.Errorf("release: status %d, bad %q, good %q", rec.Code, bad, good)
+		}
+	})
+
+	t.Run("not-found log", func(t *testing.T) {
+		h, sm, _, wsID, editor, _ := shippedPluginAdmin(t, "nicht-gefunden")
+		address := pluginScreenAddress(wsID, "nicht-gefunden")
+		route := pluginRoute(wsID, "nicht-gefunden")
+
+		rec, bad, good := pluginFlashAs(t, h, sm, editor, h.HandlePluginScreen,
+			postForm(address, url.Values{"alles_loeschen": {"1"}}, route))
+		if rec.Code != http.StatusSeeOther || bad != "" || good != "List emptied." {
+			t.Errorf("clear: status %d, bad %q, good %q", rec.Code, bad, good)
+		}
+	})
 }

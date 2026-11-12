@@ -282,10 +282,12 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 	in := plugin.AdminIn{
 		WebsiteID: websiteID, Method: r.Method,
 		Path: r.URL.Path, Query: r.URL.RawQuery,
-		// Declared: the plugin is told on every call and refuses its public
-		// writes itself. An undeclared plugin is told as well, and only ever
-		// on a GET, which it draws inside the disabled fieldset below.
-		ReadOnly: readOnly,
+		// Declared: the plugin is told on every call, GET and POST, and
+		// refuses its public writes itself. Undeclared: it is told nothing and
+		// gets the payload it always got — the host has already refused its
+		// POSTs and draws its screen inside the disabled fieldset, and a
+		// plugin that also drew its own notice would say the sentence twice.
+		ReadOnly: readOnly && st.Manifest.Admin.RespectsReadOnly,
 	}
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
