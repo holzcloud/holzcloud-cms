@@ -12,6 +12,9 @@ var (
 	formTagPattern   = regexp.MustCompile(`(?is)<form\b[^>]*>`)
 	buttonTagPattern = regexp.MustCompile(`(?is)<(button|a)\b[^>]*>`)
 	attrPattern      = regexp.MustCompile(`(?is)\b([a-z-]+)\s*=\s*"([^"]*)"`)
+	// confirmTagPattern is the opening tag of any element that carries
+	// hx-confirm, whatever the element.
+	confirmTagPattern = regexp.MustCompile(`(?is)<[a-z][a-z0-9-]*\b[^>]*\bhx-confirm\b[^>]*>`)
 )
 
 func attrs(tag string) map[string]string {
@@ -86,8 +89,19 @@ func TestEveryHxPostFormAlsoSubmitsWithoutJS(t *testing.T) {
 // control was given a confirmation that exists only with JavaScript, and that
 // is worth one deliberate look at whether the action deserves a real
 // confirmation page instead.
+//
+// The second half of the rule: an hx-confirm is only ever asked by htmx, and
+// htmx only handles an element that issues a request itself. On a form without
+// an htmx verb the browser submits natively and the question never appears —
+// with the script loaded and working. Seven controls were in that state until
+// the audit of 2026-11-10 (Part 1, item 11): the media list's "Delete anyway",
+// the delete buttons of products, block kinds, content kinds, fields and
+// language files, and forgetting a saved view of the page list.
+// TestEveryHxConfirmSitsOnTheElementThatIssuesTheRequest holds it.
+const knownHxConfirms = 22
+
 func TestHxConfirmIsTheKnownDegradation(t *testing.T) {
-	const expected = 22
+	const expected = knownHxConfirms
 
 	found := map[string]int{}
 	total := 0
@@ -103,6 +117,63 @@ func TestHxConfirmIsTheKnownDegradation(t *testing.T) {
 			"control whose confirmation disappears with the script. If the new one "+
 			"deserves a confirmation that works without JavaScript, give it a page; "+
 			"if it does not, raise the number here.", total, expected, found)
+	}
+}
+
+// An hx-confirm on an element that issues no request is a question nobody is
+// ever asked: htmx does not handle the element, the browser submits it, and the
+// destructive action happens on the first click. See knownHxConfirms.
+//
+// The number of tags looked at is held to the known count, so a pattern that
+// stops matching cannot turn this green; and an hx-confirm the tag pattern does
+// not see at all — in a comment, in an attribute value with a ">" in it — is
+// reported by the per-file comparison.
+func TestEveryHxConfirmSitsOnTheElementThatIssuesTheRequest(t *testing.T) {
+	verbs := []string{"hx-post", "hx-put", "hx-delete", "hx-patch", "hx-get"}
+	inspected := 0
+	for name, content := range adminTemplateFiles(t) {
+		tags := confirmTagPattern.FindAllString(content, -1)
+		if n := strings.Count(content, "hx-confirm"); n != len(tags) {
+			t.Errorf("%s: hx-confirm appears %d times, but %d tags carrying it were found — "+
+				"one sits where this test cannot see whether it is asked", name, n, len(tags))
+		}
+		for _, tag := range tags {
+			inspected++
+			a := attrs(tag)
+			issues := false
+			for _, verb := range verbs {
+				if _, ok := a[verb]; ok {
+					issues = true
+					break
+				}
+			}
+			if !issues {
+				t.Errorf("%s: hx-confirm on an element without an htmx verb — the browser "+
+					"submits it natively and the question never appears:\n  %s",
+					name, strings.TrimSpace(tag))
+			}
+		}
+	}
+	if inspected != knownHxConfirms {
+		t.Errorf("inspected %d tags carrying hx-confirm, want %d", inspected, knownHxConfirms)
+	}
+}
+
+// The media card is a grid column of at least 220px with overflow: hidden. Its
+// action row holds the address field, the crop link and two delete buttons; in
+// one line the second delete button was cut off by the card's edge. The row
+// has to wrap.
+func TestTheMediaCardActionsWrap(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "cmd", "holzcloud", "assets", "admin.css"))
+	if err != nil {
+		t.Fatalf("read admin.css: %v", err)
+	}
+	rule := regexp.MustCompile(`(?s)\.media-card__actions\s*\{([^}]*)\}`).FindStringSubmatch(string(raw))
+	if rule == nil {
+		t.Fatal("no .media-card__actions rule in admin.css")
+	}
+	if !regexp.MustCompile(`(?m)^\s*flex-wrap:\s*wrap\s*;`).MatchString(rule[1]) {
+		t.Errorf(".media-card__actions does not wrap, so a control is cut off at 220px:\n%s", rule[1])
 	}
 }
 

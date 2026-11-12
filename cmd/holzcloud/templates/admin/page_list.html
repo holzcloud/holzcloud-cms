@@ -69,7 +69,7 @@
     {{range .Views}}
     <span class="view-chip{{if .Active}} is-active{{end}}">
         <a href="{{.URL $.WebsiteID}}">{{.Name}}</a>
-        <form method="POST" action="/admin/websites/{{$.WebsiteID}}/ansichten/{{.ID}}/loeschen"
+        <form method="POST" action="/admin/websites/{{$.WebsiteID}}/ansichten/{{.ID}}/loeschen" hx-post="/admin/websites/{{$.WebsiteID}}/ansichten/{{.ID}}/loeschen"
               hx-confirm="{{tf "Forget the view “%s”?" .Name}}">
             <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
             <button type="submit" class="view-chip__x" hx-disabled-elt="this"
