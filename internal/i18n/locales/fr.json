@@ -1620,6 +1620,7 @@
 "This connection request cannot be answered": "Cette demande de connexion ne peut pas aboutir",
 "This content kind already exists": "Ce type de contenu existe déjà",
 "This file already exists as “%s” – nothing was uploaded.": "Ce fichier existe déjà sous « %s » – rien n'a été téléversé.",
+"This file is in use on the website. Changing or deleting it is not part of your account – ask somebody who may publish.": "Ce fichier est utilisé sur le site. Le modifier ou le supprimer ne fait pas partie de votre accès – demandez à quelqu'un qui peut publier.",
 "This form no longer exists. Please reload the page.": "Ce formulaire n'existe plus. Merci de recharger la page.",
 "This format cannot be cropped.": "Ce format ne peut pas être recadré.",
 "This group has no fields yet. Without fields there is nothing to fill in.": "Ce groupe n'a pas encore de champs. Sans champs il n'y a rien à remplir.",

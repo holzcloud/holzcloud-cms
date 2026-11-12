@@ -11,6 +11,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/i18n"
+	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
@@ -105,6 +106,49 @@ func (h *Handler) refuseReadOnly(w http.ResponseWriter, r *http.Request, back st
 		return false
 	}
 	web.SetFlashError(h.sm, r.Context(), readOnlySentence())
+	_ = h.redirect(w, r, back)
+	return true
+}
+
+// mediaInUseSentence is the refusal at a file in use, and the notice of its
+// crop screen. readOnlySentence does not fit: a file is not online the moment
+// it is stored — uploading stays open (D-06) — it is online because something
+// shows it.
+func mediaInUseSentence() string {
+	return i18n.N("This file is in use on the website. Changing or deleting it is not part of your account – ask somebody who may publish.")
+}
+
+// mediaLocked reports whether this person may not delete, describe, crop or
+// put back the original of this file: they may not publish, and something of
+// the website shows the file (D-06, D-07).
+//
+// Nothing is asked for a person who may publish. For everybody else an error
+// of the usage question counts as "in use": the question decides whether a
+// picture disappears from a live page, and a lookup that fails must not be
+// read as "nobody uses it" (D-08).
+func (h *Handler) mediaLocked(r *http.Request, m *media.Media) bool {
+	if !h.readOnly(r) {
+		return false
+	}
+	used, err := h.mediaStore.InUse(r.Context(), m)
+	if err != nil {
+		slog.Error("media usage lookup failed; the file counts as in use", "media_id", m.ID, "err", err)
+		return true
+	}
+	return used
+}
+
+// refuseMediaLocked refuses a change to a file in use by somebody without the
+// publishing right and reports whether it did; the caller returns nil when it
+// reports true. The contract is refuseReadOnly's (D-02): the sentence as a
+// flash, h.redirect back, never a 403. Asked in the HTTP handlers only, after
+// lookupMedia and before the first write — never in cropMedia,
+// restoreOriginal, keepUpload or Store.Delete, which the MCP tools share (D-11).
+func (h *Handler) refuseMediaLocked(w http.ResponseWriter, r *http.Request, m *media.Media, back string) bool {
+	if !h.mediaLocked(r, m) {
+		return false
+	}
+	web.SetFlashError(h.sm, r.Context(), mediaInUseSentence())
 	_ = h.redirect(w, r, back)
 	return true
 }

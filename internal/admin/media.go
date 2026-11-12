@@ -423,11 +423,16 @@ func (h *Handler) HandleMediaMeta(w http.ResponseWriter, r *http.Request) error 
 
 // HandleMediaDelete deletes a media file.
 func (h *Handler) HandleMediaDelete(w http.ResponseWriter, r *http.Request) error {
-	websiteID, mediaID, _, ok, err := h.lookupMedia(w, r)
+	websiteID, mediaID, m, ok, err := h.lookupMedia(w, r)
 	if err != nil || !ok {
 		return err
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/media", websiteID)
+	// Asked before the force flag is read: ?force=1 is a publisher's "yes,
+	// break those pages", and it cannot answer this question (D-06).
+	if h.refuseMediaLocked(w, r, m, redirect) {
+		return nil
+	}
 
 	force := r.URL.Query().Get("force") == "1" || r.FormValue("force") == "1"
 	err = h.mediaStore.Delete(r.Context(), mediaID, h.cfg.DataDir, force)
