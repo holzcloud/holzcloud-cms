@@ -139,26 +139,107 @@ func TestCreatingAMenuEntryIsCheckedLikeEditingOne(t *testing.T) {
 		}
 	})
 
-	// The two paths treat an address without a scheme the same way. This
-	// asserts equality, not a policy: what that address should be is open.
-	t.Run("an address without a scheme is treated alike", func(t *testing.T) {
-		v := url.Values{"title": {"Verband"}, "item_type": {"url"}, "url": {"holzverband.example"}}
-		before := items()
-		post(v)
-		created := newest(before)
+	// A domain typed without a scheme used to be stored verbatim and rendered
+	// as a relative link, which sent the visitor to a 404 on this website. It
+	// now gets https:// in front, on both paths; what is already a link of
+	// this website or carries an allowed scheme stays as typed.
+	for _, c := range []struct{ typed, stored string }{
+		{"holzverband.example", "https://holzverband.example"},
+		{"www.holzverband.example/mitglieder?x=1", "https://www.holzverband.example/mitglieder?x=1"},
+		{"holzverband.example:8443/a", "https://holzverband.example:8443/a"},
+		{"HTTPS://Example.org/", "HTTPS://Example.org/"},
+		{"http://example.org", "http://example.org"},
+		{"//cdn.example.org/x", "//cdn.example.org/x"},
+		{"/kontakt", "/kontakt"},
+		{"#anfahrt", "#anfahrt"},
+		{"?seite=2", "?seite=2"},
+		{"kontakt", "kontakt"},
+		{"impressum.html", "impressum.html"},
+		{"mailto:info@example.org", "mailto:info@example.org"},
+		{"tel:+41441234567", "tel:+41441234567"},
+	} {
+		t.Run("address "+c.typed, func(t *testing.T) {
+			v := url.Values{"title": {"Verband"}, "item_type": {"url"}, "url": {c.typed}}
+			before := items()
+			post(v)
+			created := newest(before)
 
-		existing, err := store.CreateItem(ctx, m.ID, nil, "Alt", "url", "https://example.org/alt", nil, 9)
-		if err != nil {
-			t.Fatal(err)
-		}
-		albumFlash(t, h, sm, h.HandleMenuItemUpdate,
-			postForm("/x", v, websiteRoute(ws.ID, "menuID", id(m.ID), "itemID", id(existing.ID))))
-		updated, err := store.GetItem(ctx, existing.ID)
-		if err != nil || updated == nil {
-			t.Fatalf("GetItem: %v", err)
-		}
-		if created.URL != updated.URL {
-			t.Errorf("create stored %q, update stored %q", created.URL, updated.URL)
-		}
-	})
+			existing, err := store.CreateItem(ctx, m.ID, nil, "Alt", "url", "https://example.org/alt", nil, 9)
+			if err != nil {
+				t.Fatal(err)
+			}
+			albumFlash(t, h, sm, h.HandleMenuItemUpdate,
+				postForm("/x", v, websiteRoute(ws.ID, "menuID", id(m.ID), "itemID", id(existing.ID))))
+			updated, err := store.GetItem(ctx, existing.ID)
+			if err != nil || updated == nil {
+				t.Fatalf("GetItem: %v", err)
+			}
+			if created.URL != c.stored || updated.URL != c.stored {
+				t.Errorf("create stored %q, update stored %q, want %q", created.URL, updated.URL, c.stored)
+			}
+		})
+	}
+
+	// A scheme the public menu would never link — it showed such an entry as
+	// plain text, silently — is refused when it is typed, on both paths.
+	for _, typed := range []string{"javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,x", "ftp://example.org"} {
+		t.Run("refused scheme "+typed, func(t *testing.T) {
+			before := len(items())
+			code, loc, bad, good := post(url.Values{"title": {"X"}, "item_type": {"url"}, "url": {typed}})
+			if code != http.StatusSeeOther || loc != menuURL || bad == "" || good != "" {
+				t.Errorf("create: status %d to %q, error %q, success %q", code, loc, bad, good)
+			}
+			if n := len(items()); n != before {
+				t.Errorf("create stored it: %d entries, want %d", n, before)
+			}
+			_, bad, good = albumFlash(t, h, sm, h.HandleMenuItemUpdate,
+				postForm("/x", url.Values{"title": {"Oben"}, "item_type": {"url"}, "url": {typed}},
+					websiteRoute(ws.ID, "menuID", id(m.ID), "itemID", id(top.ID))))
+			if bad == "" || good != "" {
+				t.Errorf("update: error %q, success %q", bad, good)
+			}
+			if got, _ := store.GetItem(ctx, top.ID); got == nil || got.ItemType != "custom" {
+				t.Errorf("update changed the entry: %+v", got)
+			}
+		})
+	}
+}
+
+// The assistant's way of writing a menu applies the same address rule as the
+// two forms, so the three cannot come to store different things.
+func TestAnAssistantsMenuFollowsTheSameAddressRule(t *testing.T) {
+	h, _, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	store := menu.NewStore(database)
+	m, err := store.CreateMenu(ctx, ws.ID, "Hauptmenü", "haupt", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := h.OpSetMenuItems(ctx, ws.ID, m.ID, []menu.ItemInput{
+		{Title: "Verband", ItemType: "url", URL: "holzverband.example"},
+		{Title: "Kontakt", ItemType: "url", URL: "/kontakt"},
+	}); err != nil {
+		t.Fatalf("OpSetMenuItems: %v", err)
+	}
+	list, err := store.ListItems(ctx, m.ID)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("ListItems: %v, %d entries", err, len(list))
+	}
+	got := map[string]string{}
+	for _, it := range list {
+		got[it.Title] = it.URL
+	}
+	if got["Verband"] != "https://holzverband.example" || got["Kontakt"] != "/kontakt" {
+		t.Errorf("stored %v", got)
+	}
+
+	if err := h.OpSetMenuItems(ctx, ws.ID, m.ID, []menu.ItemInput{
+		{Title: "Böse", ItemType: "url", URL: "javascript:alert(1)"},
+	}); err == nil {
+		t.Error("a javascript: address was accepted")
+	}
+	if list, _ := store.ListItems(ctx, m.ID); len(list) != 2 {
+		t.Errorf("a refused call replaced the menu: %d entries", len(list))
+	}
 }

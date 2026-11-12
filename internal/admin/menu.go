@@ -500,6 +500,11 @@ func (h *Handler) checkMenuItem(ctx context.Context, websiteID int64, m *menu.Me
 		if in.URL == "" {
 			return in, refuse(i18n.N("Please give the address for the entry"))
 		}
+		address, ok := menuAddress(in.URL)
+		if !ok {
+			return in, refuse(i18n.N("This address cannot be linked. Please start it with https://, or with / for a page of this website."))
+		}
+		in.URL = address
 	case "custom":
 		in.URL = ""
 	default:
@@ -878,6 +883,68 @@ func isValidLocationKey(s string) bool {
 		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
 			return false
 		}
+	}
+	return true
+}
+
+// menuAddress is what a menu entry of kind url stores for what was typed, and
+// whether it may be stored at all.
+//
+// The public menu links only http, https, mailto and tel and addresses of this
+// website (menu.safeLinkURL); anything else it shows as plain text. Such an
+// address is refused here, where somebody can still correct it, instead of
+// disappearing from the menu unnoticed. A domain typed without a scheme
+// ("holzverband.example") would be a relative link to a page that does not
+// exist, so it gets https:// in front. Paths, anchors, queries and a bare
+// word ("kontakt") stay as they are: those are links within the website.
+func menuAddress(typed string) (string, bool) {
+	lower := strings.ToLower(typed)
+	for _, scheme := range []string{"https://", "http://", "mailto:", "tel:"} {
+		if strings.HasPrefix(lower, scheme) {
+			return typed, true
+		}
+	}
+	end := strings.IndexAny(typed, "/?#")
+	if end == 0 {
+		return typed, true
+	}
+	first := typed
+	if end > 0 {
+		first = typed[:end]
+	}
+	host, port, hasPort := strings.Cut(first, ":")
+	if hasPort && !looksLikeDomain(host) {
+		return "", false // a scheme: javascript:, data:, ftp: ...
+	}
+	if hasPort && strings.Trim(port, "0123456789") != "" {
+		return "", false
+	}
+	if looksLikeDomain(host) {
+		return "https://" + typed, true
+	}
+	return typed, true
+}
+
+// looksLikeDomain reports whether host reads as a domain name: labels of
+// letters, digits and hyphens with a dot between them, ending in a label of
+// letters only. A file name such as "impressum.html" is not one.
+func looksLikeDomain(host string) bool {
+	labels := strings.Split(strings.ToLower(host), ".")
+	if len(labels) < 2 {
+		return false
+	}
+	for _, l := range labels {
+		if l == "" || strings.Trim(l, "abcdefghijklmnopqrstuvwxyz0123456789-") != "" {
+			return false
+		}
+	}
+	tld := labels[len(labels)-1]
+	if len(tld) < 2 || strings.Trim(tld, "abcdefghijklmnopqrstuvwxyz") != "" {
+		return false
+	}
+	switch tld {
+	case "html", "htm", "php", "pdf", "xml", "txt", "jpg", "jpeg", "png", "gif", "webp", "svg", "zip":
+		return false
 	}
 	return true
 }
