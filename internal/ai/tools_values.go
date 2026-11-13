@@ -3,6 +3,8 @@ package ai
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/activity"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
@@ -181,6 +183,92 @@ func setValue(d Deps) Tool {
 			return map[string]any{
 				"key": v.Key, "value": v.Text, "marker": value.Marker(v.Key), "created": created,
 			}, nil
+		},
+	}
+}
+
+// noValue is the answer for a key the website does not define — also when
+// another website does, which is the same answer on purpose.
+func noValue(key string) error {
+	return fmt.Errorf("there is no value with the key %q on this website", key)
+}
+
+func getValue(d Deps) Tool {
+	return Tool{
+		Name: "get_value",
+		Description: "Fetches one value of a website by its key, with its marker, the pages and " +
+			"snippets that name it, and when it last changed. " + valuesAbout,
+		InputSchema: Schema{Type: "object",
+			Properties: map[string]Property{
+				"website": structWebsiteProp,
+				"key":     valueKeyProp,
+			}, Required: []string{"website", "key"}},
+		Run: func(c Call) (any, error) {
+			var a struct {
+				Website int64  `json:"website"`
+				Key     string `json:"key"`
+			}
+			if err := withWebsite(c, &a, &a.Website); err != nil {
+				return nil, err
+			}
+			ops, err := structOps[valueOps](d)
+			if err != nil {
+				return nil, err
+			}
+			v, rep, err := ops.OpValue(c.Ctx, a.Website, a.Key)
+			if err != nil {
+				return nil, err
+			}
+			if v == nil {
+				return nil, noValue(a.Key)
+			}
+			return valueOut(*v, rep), nil
+		},
+	}
+}
+
+func deleteValue(d Deps) Tool {
+	return Tool{
+		Name:   "delete_value",
+		Writes: true,
+		Description: "Deletes a value of a website. A value a page or snippet still names is " +
+			"refused, with those named: remove the placeholders from them first. " +
+			"Requires confirm: true.",
+		InputSchema: Schema{Type: "object",
+			Properties: map[string]Property{
+				"website": structWebsiteProp,
+				"key":     valueKeyProp,
+				"confirm": confirmProp,
+			}, Required: []string{"website", "key", "confirm"}},
+		Run: func(c Call) (any, error) {
+			var a struct {
+				Website int64  `json:"website"`
+				Key     string `json:"key"`
+				Confirm bool   `json:"confirm"`
+			}
+			if err := withWebsite(c, &a, &a.Website); err != nil {
+				return nil, err
+			}
+			if err := needConfirm(a.Confirm, "a value"); err != nil {
+				return nil, err
+			}
+			ops, err := structOps[valueOps](d)
+			if err != nil {
+				return nil, err
+			}
+			err = ops.OpDeleteValue(c.Ctx, a.Website, a.Key)
+			var inUse *value.InUseError
+			switch {
+			case errors.As(err, &inUse):
+				return nil, fmt.Errorf("the value is still used on these pages: %s. Remove the "+
+					"placeholders from them first", strings.Join(inUse.Users, ", "))
+			case errors.Is(err, value.ErrNotFound):
+				return nil, noValue(a.Key)
+			case err != nil:
+				return nil, valueRefusal(err)
+			}
+			changed(d, c, a.Website, activity.Entry{Action: actValueDelete, EntityType: "value"})
+			return map[string]any{"deleted": a.Key}, nil
 		},
 	}
 }

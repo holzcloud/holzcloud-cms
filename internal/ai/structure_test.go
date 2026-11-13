@@ -29,12 +29,14 @@ func TestStructureToolsFollowTheScreensPermissionSplit(t *testing.T) {
 	}
 	reads := map[string]bool{
 		"list_menus": true, "get_menu": true, "list_terms": true, "list_snippets": true,
-		"get_snippet": true, "list_redirects": true, "check_links": true, "list_values": true,
+		"get_snippet": true, "list_redirects": true, "check_links": true, "list_values": true, "get_value": true,
 		"list_kinds": true, "manage_block_kinds": true,
 	}
 	seen := 0
+	registered := map[string]bool{}
 	for _, tool := range structureTools(Deps{}) {
 		seen++
+		registered[tool.Name] = true
 		if tool.Admin != admin[tool.Name] {
 			t.Errorf("%s: Admin = %v, want %v", tool.Name, tool.Admin, admin[tool.Name])
 		}
@@ -57,6 +59,15 @@ func TestStructureToolsFollowTheScreensPermissionSplit(t *testing.T) {
 	if seen == 0 {
 		t.Fatal("no structure tools")
 	}
+	// A name in the maps above that no tool carries would hold nothing; the two
+	// writing value tools are named here because the maps list no writes.
+	for _, names := range []map[string]bool{admin, reads, {"set_value": true, "delete_value": true}} {
+		for name := range names {
+			if !registered[name] {
+				t.Errorf("%s is not a structure tool", name)
+			}
+		}
+	}
 }
 
 func TestAReadOnlyKeyCannotChangeTheStructure(t *testing.T) {
@@ -66,6 +77,8 @@ func TestAReadOnlyKeyCannotChangeTheStructure(t *testing.T) {
 		"create_snippet":  {"website": wsID, "key": "k", "name": "K"},
 		"create_redirect": {"website": wsID, "from": "/a", "to": "/b"},
 		"rename_term":     {"website": wsID, "term": 1, "name": "x"},
+		"set_value":       {"website": wsID, "key": "k", "value": "1"},
+		"delete_value":    {"website": wsID, "key": "k", "confirm": true},
 	} {
 		answer, failed := callTool(t, ts, lesen, name, args)
 		if !failed {
