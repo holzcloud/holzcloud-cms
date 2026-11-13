@@ -22,7 +22,7 @@ set -u
 
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 T=$(mktemp -d "${TMPDIR:-/tmp}/backup-robust.XXXXXX") || exit 2
-trap 'rm -rf "$T"' EXIT
+trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT
 
 N=0
 K=0
@@ -162,9 +162,10 @@ if ! command -v sha256sum >/dev/null 2>&1; then
     chmod +x "$T/bin/sha256sum"
 fi
 
-# A fake mv that refuses the rename of the MANIFEST (Test 13), and a fake find
-# that fails (Test 16). They sit in their own directories and are put in front
-# of PATH only for those runs.
+# A fake mv that refuses the rename of the MANIFEST (Test 13), a fake find that
+# fails the retention listing (Test 17) and, as root only, a fake rm (Test 16).
+# They sit in their own directories and are put in front of PATH only for those
+# runs.
 cat > "$T/fake-mv/mv" <<'FAKE'
 #!/bin/bash
 echo "$*" >> "$FAKE_MV_LOG"
@@ -188,6 +189,22 @@ done
 exec "$REAL_FIND" "\$@"
 FAKE
 chmod +x "$T/fake-find/find"
+
+# The fake rm refuses exactly the directory in FAKE_RM_REFUSE and hands every
+# other call to the real rm. Test 16 uses it only when it runs as root.
+REAL_RM=$(command -v rm)
+mkdir -p "$T/fake-rm"
+cat > "$T/fake-rm/rm" <<FAKE
+#!/bin/bash
+for a in "\$@"; do
+    if [ -n "\${FAKE_RM_REFUSE:-}" ] && [ "\$a" = "\$FAKE_RM_REFUSE" ]; then
+        echo "rm: cannot remove '\$a': Operation not permitted" >&2
+        exit 1
+    fi
+done
+exec "$REAL_RM" "\$@"
+FAKE
+chmod +x "$T/fake-rm/rm"
 
 # A sha256sum that fails (Test 19), in its own directory.
 cat > "$T/fake-sha/sha256sum" <<'FAKE'
@@ -484,12 +501,49 @@ for lit in \
 done
 
 # ---------------------------------------------------------------------------
-section "Test 16: retention cannot fail the night"
+# Phase 29 pinned the opposite here (retention never changed the status, and
+# its errors went nowhere). D-01 of phase 32: a directory retention cannot
+# remove is named in the journal, the off-site copy still runs, and the night
+# ends with status 40 of its own.
+OLD_LOCKED="$T/root/20200101-031500"
+OLD_FREE="$T/root/20200102-031500"
+reset_case
+mkdir -p "$OLD_LOCKED/locked" "$OLD_FREE"
+echo "old" > "$OLD_LOCKED/MANIFEST"
+echo "kept" > "$OLD_LOCKED/locked/file"
+echo "old" > "$OLD_FREE/MANIFEST"
+touch -t 202001010000 "$OLD_LOCKED" "$OLD_FREE"
+if [ "$(id -u)" = "0" ]; then
+    # chmod 500 does not stop root, so a fake rm refuses exactly that directory.
+    TITLE16="Test 16 (as root, with a fake rm): a failed retention removal ends the night with status 40 after the copy"
+    PREFIX16="$T/fake-rm:"
+else
+    TITLE16="Test 16: a failed retention removal ends the night with status 40 after the copy"
+    PREFIX16=""
+    chmod 500 "$OLD_LOCKED/locked"
+fi
+section "$TITLE16"
+PATH_PREFIX="$PREFIX16" run_backup REMOTE_TARGET="$T/remote" FAKE_RM_REFUSE="$OLD_LOCKED"
+bt_eq "16 exit status 40" 40 "$RC"
+bt_has "16 the directory is named on stderr" "$T/err" "ERROR: retention could not remove $OLD_LOCKED; it may be partly removed, remove it by hand"
+bt_has "16 the closing line is on stderr" "$T/err" "ERROR: the backup is complete, but retention failed (see above); ending with status 40"
+bt_has "16 the complete line is printed" "$T/out" "=== Backup complete: $NIGHT ==="
+bt_eq "16 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_eq "16 the second old directory is gone" no "$(exists "$OLD_FREE")"
+bt_eq "16 the off-site copy ran" 1 "$(calls_to /remote/)"
+bt_eq "16 the earlier night is intact" yes "$(earlier_intact)"
+bt_not "16 no cleanup line" "$T/err" "backup did not finish"
+chmod -R u+w "$T/root" "$T/remote" 2>/dev/null
+
+# ---------------------------------------------------------------------------
+section "Test 17: a failed listing of old backups"
 reset_case
 PATH_PREFIX="$T/fake-find:" run_backup
-bt_eq "16 exit status 0 although find fails" 0 "$RC"
-bt_eq "16 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
-bt_has "16 the complete line is printed" "$T/out" "=== Backup complete: $NIGHT ==="
+bt_eq "17 exit status 40" 40 "$RC"
+bt_has "17 the listing failure is on stderr" "$T/err" "ERROR: retention could not list $T/root; old backups were not pruned"
+bt_has "17 the closing line is on stderr" "$T/err" "ERROR: the backup is complete, but retention failed (see above); ending with status 40"
+bt_eq "17 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_eq "17 the earlier night is intact" yes "$(earlier_intact)"
 
 # ---------------------------------------------------------------------------
 section "Test 18: the checksum file"

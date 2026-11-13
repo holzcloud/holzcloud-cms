@@ -40,6 +40,17 @@ set -euo pipefail
 # repeated once; a second 24 ends the night with status 24 and a message that
 # names what was being copied. Any other rsync status is never repeated.
 #
+# Retention removes old backup directories one by one. One it cannot remove,
+# or a listing of the backup root that fails, is named in an ERROR line on
+# stderr; the night still makes its off-site copy, prints its complete line and
+# ends with status 40, so the timer unit shows the failure instead of a full
+# disk weeks later. A failed off-site copy ends the night first, with rsync's
+# status.
+#
+# Exit status: 0 complete; 40 complete, but retention could not list or remove
+# old backups; any other non-zero status: the night failed (rsync's own status
+# for a copy).
+#
 # A night that fails before its MANIFEST exists removes the directory it made,
 # so a half-written directory does not sit on the disk and make the free-space
 # guard refuse every later night. An earlier backup is never touched: the
@@ -207,11 +218,40 @@ mv "${BACKUP_DIR}/SHA256SUMS.partial" "${BACKUP_DIR}/SHA256SUMS"
 } > "${BACKUP_DIR}/MANIFEST.partial"
 mv "${BACKUP_DIR}/MANIFEST.partial" "${BACKUP_DIR}/MANIFEST"
 
-# 6. Retention. Without this the disk fills up and takes the site with it.
+# 6. Retention. Without this the disk fills up and takes the site with it, so
+#    a failure here is never silent: the directories are listed first and
+#    removed one by one, and each one that cannot be removed is named on stderr
+#    (the journal of holzcloud-backup.service), next to rm's own lines. The
+#    night still goes on to the off-site copy and ends with status 40 below.
+#    Only direct children of the backup root are touched, never the directory
+#    of this night.
+RETENTION_FAILED=""
 if [ "${RETENTION_DAYS}" -gt 0 ]; then
     echo "Pruning backups older than ${RETENTION_DAYS} days..."
-    find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" \
-        -exec rm -rf {} + 2>/dev/null || true
+    prune_root="${BACKUP_ROOT%/}"
+    if old_list=$(mktemp) \
+        && find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" -print0 > "${old_list}"; then
+        while IFS= read -r -d '' old; do
+            case "${old}" in
+                "${prune_root}"/*/*) continue ;;
+                "${prune_root}"/?*) ;;
+                *) continue ;;
+            esac
+            if [ "${old}" = "${prune_root}/${TIMESTAMP}" ]; then
+                continue
+            fi
+            if ! rm -rf -- "${old}"; then
+                echo "ERROR: retention could not remove ${old}; it may be partly removed, remove it by hand" >&2
+                RETENTION_FAILED=yes
+            fi
+        done < "${old_list}"
+    else
+        echo "ERROR: retention could not list ${BACKUP_ROOT}; old backups were not pruned" >&2
+        RETENTION_FAILED=yes
+    fi
+    if [ -n "${old_list:-}" ]; then
+        rm -f "${old_list}"
+    fi
 fi
 
 # 7. Off-box copy. A backup on the same disk does not survive the failure it is
@@ -223,3 +263,14 @@ fi
 
 echo "=== Backup complete: ${BACKUP_DIR} ==="
 du -sh "${BACKUP_DIR}"
+
+# A retention failure ends the night with status 40, a status of its own:
+# rsync's statuses end at 35, and the script already ends with rsync's own
+# status elsewhere (24, 11, 255, ...). The backup itself is whole, its MANIFEST
+# exists, so the trap removes nothing. A failed off-site copy ends the night
+# before this line with its own status; the retention ERROR line is in the
+# journal either way.
+if [ -n "${RETENTION_FAILED}" ]; then
+    echo "ERROR: the backup is complete, but retention failed (see above); ending with status 40" >&2
+    exit 40
+fi
