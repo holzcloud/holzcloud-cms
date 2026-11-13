@@ -84,9 +84,16 @@ The image is built for linux/amd64 only. `docker run --rm -v holzcloud:/data -p
 ## Transfer to the server
 
 ```bash
-scp holzcloud user@your-server:/tmp/holzcloud
-scp -r deploy/ user@your-server:/tmp/deploy/
+scp holzcloud user@your-server:
+scp -r deploy/ user@your-server:
 ```
+
+Both land in your home directory on the server (`~/holzcloud` and `~/deploy`),
+which only you can write. Root installs from there in the next steps, so do not
+use a fixed name under `/tmp` instead: any account on the server can create
+that name first and have its own files installed. If `~/deploy` is there from
+an earlier attempt, remove it first; `scp -r` puts the copy inside an existing
+directory of the same name.
 
 ## Install
 
@@ -101,11 +108,11 @@ sudo mkdir -p /opt/holzcloud/data
 sudo mkdir -p /opt/holzcloud/backups
 
 # Copy binary
-sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
+sudo cp ~/holzcloud /opt/holzcloud/holzcloud
 sudo chmod 755 /opt/holzcloud/holzcloud
 
 # Copy the whole deploy directory (scripts, units, Caddyfile example)
-sudo cp -r /tmp/deploy /opt/holzcloud/deploy
+sudo cp -r ~/deploy /opt/holzcloud/deploy
 sudo chmod 755 /opt/holzcloud/deploy/backup.sh /opt/holzcloud/deploy/restore.sh
 
 # Set ownership: the service writes the data directory, and the backup unit,
@@ -121,7 +128,7 @@ and restore scripts, the backup unit and timer, and `Caddyfile.example`.
 
 ```bash
 # Install service file
-sudo cp /tmp/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
+sudo cp ~/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
 
 # Reload systemd, enable and start
 sudo systemctl daemon-reload
@@ -139,7 +146,7 @@ Beyond that the unit now also restricts the process to IPv4, IPv6 and local sock
 An existing installation picks this up only with the new unit file:
 
 ```bash
-sudo cp /tmp/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
+sudo cp ~/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
 sudo systemctl daemon-reload && sudo systemctl restart holzcloud
 journalctl -u holzcloud -n 50      # a blocked call shows up here as a start failure
 systemd-analyze security holzcloud # the exposure score should have dropped
@@ -195,7 +202,7 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo 
 sudo apt update && sudo apt install -y caddy
 
 # Configure
-sudo cp /tmp/deploy/Caddyfile.example /etc/caddy/Caddyfile
+sudo cp ~/deploy/Caddyfile.example /etc/caddy/Caddyfile
 # Edit /etc/caddy/Caddyfile — replace example.com with your domain
 
 sudo systemctl reload caddy
@@ -773,20 +780,21 @@ your development machine, the last four on the server:
 
 ```bash
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" ./cmd/holzcloud
-scp holzcloud user@your-server:/tmp/holzcloud
-scp -r deploy/ user@your-server:/tmp/deploy/
+scp holzcloud user@your-server:
+scp deploy/backup.sh deploy/restore.sh user@your-server:
 sudo systemctl stop holzcloud
-sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
-sudo install -m 755 /tmp/deploy/backup.sh /tmp/deploy/restore.sh /opt/holzcloud/deploy/
+sudo cp ~/holzcloud /opt/holzcloud/holzcloud
+sudo install -m 755 -o root -g root ~/backup.sh ~/restore.sh /opt/holzcloud/deploy/
 sudo systemctl start holzcloud
 ```
 
 *Install* copied `backup.sh` and `restore.sh` once, and an update without the
 `install` line keeps the old ones, which write no checksum file and stay silent
-about a failed retention. If `/tmp/deploy` is still on the server from the install
-or an earlier update, remove it there first (`sudo rm -rf /tmp/deploy`): `scp -r`
-puts a directory into an existing one of the same name, as `/tmp/deploy/deploy`,
-and the `install` line would then copy the old scripts again.
+about a failed retention. The files travel through your home directory on the
+server, as at *Transfer to the server*, and never through a fixed name under
+`/tmp`: `restore.sh` runs as root, and any account on the server could create
+such a name first and have its own script installed. Each `scp` overwrites the
+file of the last update.
 
 **3. Check.** The first line waits for the start by itself and shows the version
 and commit that now run; the second reads the journal since that start:

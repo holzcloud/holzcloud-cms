@@ -98,6 +98,7 @@ deploy/test/README.md
 deploy/test/backup-robust.sh
 deploy/test/backup-verify.sh
 deploy/test/restore-robust.sh
+deploy/test/run.sh
 docs/beta.md
 internal/db/db.go
 internal/db/schema_guard.go

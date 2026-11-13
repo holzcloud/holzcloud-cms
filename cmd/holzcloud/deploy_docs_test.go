@@ -260,12 +260,14 @@ func bashBlocks(section string) []string {
 // once, so an update that replaces only the binary keeps scripts that write no
 // checksum file and say nothing about retention. The two lines are played by
 // deploy/test/run.sh as they stand, which refuses an angle-bracket placeholder
-// (threat T-32-14).
+// (threat T-32-14). They go through the operator's home directory: restore.sh
+// runs as root, and a fixed name under /tmp could be prepared by any local
+// account (code review 32, WR-05).
 func TestDeployUpdatingCopiesTheScripts(t *testing.T) {
 	lines := bashBlocks(deploySection(t, readDeploy(t, "DEPLOY.md"), "## Updating"))
 	for _, want := range []string{
-		"scp -r deploy/ user@your-server:/tmp/deploy/",
-		"sudo install -m 755 /tmp/deploy/backup.sh /tmp/deploy/restore.sh /opt/holzcloud/deploy/",
+		"scp deploy/backup.sh deploy/restore.sh user@your-server:",
+		"sudo install -m 755 -o root -g root ~/backup.sh ~/restore.sh /opt/holzcloud/deploy/",
 	} {
 		found := false
 		for _, line := range lines {
@@ -281,6 +283,20 @@ func TestDeployUpdatingCopiesTheScripts(t *testing.T) {
 	for _, line := range lines {
 		if placeholder.MatchString(line) {
 			t.Errorf("a bash block of Updating holds a placeholder: %q", line)
+		}
+	}
+}
+
+// TestDeployInstallsNothingFromAFixedTmpPath: whatever root installs comes
+// from the operator's home directory, never from a fixed name in the
+// world-writable /tmp, where another account can create it first and have its
+// own files installed (code review 32, WR-05).
+func TestDeployInstallsNothingFromAFixedTmpPath(t *testing.T) {
+	for i, line := range strings.Split(readDeploy(t, "DEPLOY.md"), "\n") {
+		for _, fixed := range []string{"/tmp/deploy", "/tmp/holzcloud"} {
+			if strings.Contains(line, fixed) {
+				t.Errorf("deploy/DEPLOY.md:%d names %s: %q", i+1, fixed, line)
+			}
 		}
 	}
 }
