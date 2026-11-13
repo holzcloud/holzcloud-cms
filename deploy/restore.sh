@@ -92,12 +92,16 @@ cat "${BACKUP_DIR}/MANIFEST"
 # Temporary files of the checks below, removed on every way out.
 VERIFY_DIR=""
 ACTUAL_SUMS=""
+ACTUAL_ERR=""
 remove_temporaries() {
     if [ -n "${VERIFY_DIR}" ]; then
         rm -rf "${VERIFY_DIR}"
     fi
     if [ -n "${ACTUAL_SUMS}" ]; then
         rm -f "${ACTUAL_SUMS}"
+    fi
+    if [ -n "${ACTUAL_ERR}" ]; then
+        rm -f "${ACTUAL_ERR}"
     fi
 }
 trap remove_temporaries EXIT
@@ -148,12 +152,28 @@ if grep -qx 'checksums=SHA256SUMS' "${BACKUP_DIR}/MANIFEST" || [ -f "${BACKUP_DI
         echo "ERROR: SHA256SUMS does not list ./holzcloud.sqlite — the backup is damaged, do not restore it" >&2
         exit 1
     fi
+    if ! command -v sha256sum > /dev/null 2>&1; then
+        echo "ERROR: sha256sum is not on PATH (coreutils), so the backup cannot be verified; nothing was stopped" >&2
+        exit 1
+    fi
     ACTUAL_SUMS=$(mktemp)
-    (
-        cd "${BACKUP_DIR}"
+    ACTUAL_ERR=$(mktemp)
+    # Every path hashed here was found by find a moment before, so a failure is
+    # a file that cannot be read (permissions, an I/O error on a failing disk),
+    # never a missing file: it is reported as what it is, with the error. The
+    # subshell is the condition of an if, where set -e does not hold, so a cd
+    # that fails ends it explicitly instead of reading another directory.
+    if (
+        cd "${BACKUP_DIR}" || exit 97
         find . -type f ! -path ./SHA256SUMS ! -path ./MANIFEST -print0 \
             | LC_ALL=C sort -z | xargs -0 -r sha256sum
-    ) > "${ACTUAL_SUMS}" 2>/dev/null || true
+    ) > "${ACTUAL_SUMS}" 2> "${ACTUAL_ERR}"; then
+        :
+    else
+        read_error=$(grep -v '^$' "${ACTUAL_ERR}" | head -n 1 || true)
+        echo "ERROR: a file of ${BACKUP_DIR} cannot be read, so the backup was not verified: ${read_error:-reading it failed} — check the permissions (run the restore as root) and the disk; nothing was stopped" >&2
+        exit 1
+    fi
     # name(l) is the path as the line writes it; key(l) marks an escaped one,
     # so it never meets a plain name of the same spelling; hash(l) the hex.
     # SUMS_FILE goes through the environment: awk -v would expand backslashes.

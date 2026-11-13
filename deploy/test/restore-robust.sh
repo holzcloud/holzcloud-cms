@@ -112,6 +112,22 @@ exec "$REAL_SHA" "\$@"
 FAKE
 chmod +x "$T/count/sha256sum"
 
+# A sha256sum that cannot read one file (a failing disk: EIO, which root meets
+# as well) and hashes everything else, in its own directory.
+mkdir -p "$T/eio"
+cat > "$T/eio/sha256sum" <<FAKE
+#!/bin/bash
+rc=0
+for a in "\$@"; do
+    case "\$a" in
+        */b.jpg) echo "sha256sum: \$a: Input/output error" >&2; rc=1 ;;
+        *) "$REAL_SHA" "\$a" || rc=\$? ;;
+    esac
+done
+exit \$rc
+FAKE
+chmod +x "$T/eio/sha256sum"
+
 # The fake rsync: copies the source into the destination (the last two
 # arguments), for backup.sh and for restore.sh alike.
 cat > "$T/bin/rsync" <<'FAKE'
@@ -545,6 +561,18 @@ bt_eq "listed-missing: exit status 1" 1 "$RC"
 bt_has "listed-missing: the file is named" "$T/err" "ERROR: ./media/a.jpg is listed in SHA256SUMS and missing — $DAMAGED"
 bt_eq "listed-missing: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 bt_eq "listed-missing: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case unreadable: a file that cannot be read is not called missing"
+reset_case
+PATH_PREFIX="$T/eio:" run_restore
+bt_eq "unreadable: exit status 1" 1 "$RC"
+bt_has "unreadable: it says the file cannot be read" "$T/err" "ERROR: a file of $B cannot be read, so the backup was not verified: sha256sum: ./media/b.jpg: Input/output error"
+bt_not "unreadable: it does not call the file missing" "$T/err" "and missing"
+bt_not "unreadable: it does not call the backup damaged" "$T/err" "$DAMAGED"
+bt_not "unreadable: nothing claims to be verified" "$T/out" "files verified"
+bt_eq "unreadable: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "unreadable: the live data is untouched" yes "$(live_untouched)"
 
 # ---------------------------------------------------------------------------
 MISS1='MISSING media/1/gone.jpg (media row 4, website 1, "Sommerfest.jpg")'
