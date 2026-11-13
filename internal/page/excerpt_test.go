@@ -159,12 +159,3 @@ func TestExcerptNeverCutsAValueMarkerInHalf(t *testing.T) {
 		}
 	}
 }
-
-// A product's description is not page text: values are not resolved in it
-// (D-11), so its excerpt keeps dropping every marker the way it always did.
-func TestExcerptWithoutValuesDropsValueMarkers(t *testing.T) {
-	got := ExcerptWithoutValues("Alpha [[wert:v]] neu [[snippet:fuss]] Ende.")
-	if got != "Alpha neu Ende." {
-		t.Errorf("ExcerptWithoutValues = %q, want %q", got, "Alpha neu Ende.")
-	}
-}

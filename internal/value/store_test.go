@@ -367,6 +367,49 @@ func TestTheScanSeesWhatDeliveryResolves(t *testing.T) {
 	}
 }
 
+// TestAProductKeepsAValueAlive is the other half of WR-03 of the phase 33
+// review: the shop resolves values in a product's description, so a product
+// that names a key keeps it from being deleted, counts as a user, and an
+// unknown key in it is reported — drafts included, like a page.
+func TestAProductKeepsAValueAlive(t *testing.T) {
+	ctx := context.Background()
+	s, database := newTestStore(t)
+	ws := website(t, database, "A")
+	other := website(t, database, "B")
+	mustCreate(t, s, ws, "telefon", "044 123 45 67")
+	insert := func(websiteID int64, slug, title, status, markdown, html string) {
+		t.Helper()
+		if _, err := database.Write.Exec(
+			`INSERT INTO products (website_id, slug, title, status, description_markdown, description_html, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+			websiteID, slug, title, status, markdown, html); err != nil {
+			t.Fatalf("insert product: %v", err)
+		}
+	}
+	insert(ws, "tisch", "Tisch", "draft", "Fragen? [[wert:telefon]] [[wert:fehlt]]", "")
+	insert(ws, "stuhl", "Stuhl", "published", "", `<p>[[wert:telefon]]</p>`)
+	// Another website's product names the same key and is nobody's user here.
+	insert(other, "bank", "Bank", "published", "[[wert:telefon]]", "")
+
+	var inUse *InUseError
+	if err := s.Delete(ctx, ws, "telefon"); !errors.As(err, &inUse) {
+		t.Fatalf("Delete = %v; a product names the value", err)
+	}
+	if want := []string{"Stuhl", "Tisch"}; !reflect.DeepEqual(inUse.Users, want) {
+		t.Errorf("Users = %q; want %q", inUse.Users, want)
+	}
+	rep, err := s.Report(ctx, ws)
+	if err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	if len(rep.Used["telefon"]) != 2 || rep.Used["telefon"][0].Kind != "product" {
+		t.Errorf("Used[telefon] = %+v; want the two products", rep.Used["telefon"])
+	}
+	if !reflect.DeepEqual(rep.Undefined, []string{"fehlt"}) {
+		t.Errorf("Undefined = %q; want [fehlt]", rep.Undefined)
+	}
+}
+
 // TestADeleteRefusalAlwaysNamesSomebody is IN-03 of the phase 33 review. The
 // refusal and the list of users are two reads; when the last page naming the
 // key is edited in between, the list was empty and the flash read "still used

@@ -384,7 +384,9 @@ the text in, escaped, before your template sees the body, inside sentences,
 headings, lists and link addresses alike. A theme does nothing for them.
 The summary derived from that text carries the value too: `.Page.Excerpt`,
 `.Excerpt` of an archive entry, and `.Meta.Description` when it is that
-summary. `.Page.Title`, a description the operator typed for search engines
+summary. A product's description is the same kind of text:
+`.Product.DescriptionHTML`, the `.Excerpt` of a `ProductEntry` and the
+product page's `.Meta.Description` carry the value as well. `.Page.Title`, a description the operator typed for search engines
 and the labels in `.Menus` are printed as the operator wrote them: a
 placeholder there is not replaced, and the Values screen tells the operator so.
 
@@ -512,7 +514,7 @@ empty) `.Price` `.PriceNote` `.Available` `.SoldOutLabel` `.Terms`
 | `.Product.Title` | string | |
 | `.Product.Subtitle` | string | "Eiche massiv, geölt" — may be empty |
 | `.Product.Slug` | string | Goes into the buy form |
-| `.Product.DescriptionHTML` | HTML | Already sanitised |
+| `.Product.DescriptionHTML` | HTML | Already sanitised; values (`[[wert:key]]`) already replaced |
 | `.Product.SKU` | string | Artikelnummer, may be empty |
 | `.Product.Price` | string | |
 | `.Product.PriceNote` | string | |

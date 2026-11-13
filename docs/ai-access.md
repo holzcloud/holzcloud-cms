@@ -143,10 +143,12 @@ top:
 \* admin key only — the same split as the admin, where these screens are for
 administrators.
 
-Values are one line of plain text per website, named in page text as
-`[[wert:key]]` and resolved at delivery, so `set_value` reaches every page that
-names the key without saving it. `delete_value` refuses a value a page or
-snippet still names, and says which.
+Values are one line of plain text per website, named in page text and in a
+product's description as `[[wert:key]]` and resolved at delivery, so
+`set_value` reaches every page and product that names the key without saving
+it. `delete_value` refuses a value a page, product or snippet still names, and
+says which; `list_values` and `get_value` list the products apart from the
+pages, under `products`.
 
 `create_ai_key` issues `read` and `content` keys only; `revoke_ai_key` refuses
 the key that calls it, so an assistant cannot cut its own connection halfway

@@ -261,7 +261,9 @@ exists, because every sentence naming the old key would go empty.
 
 **Where it works.** In the text of a page: prose, headings, list items, inline
 code, link addresses (percent-encoded there, and unable to change the address's
-scheme or host), raw HTML in blocks, and inside a snippet that the page places.
+scheme or host), raw HTML in blocks, inside a snippet that the page places, and
+in the description of a shop product (and the product's summary in the
+catalogue).
 The summary built from that text when the excerpt is left empty keeps the
 placeholder, so the value shows in it too — in listings, the feed and, when no
 description for search engines was typed, in the page's description — and
@@ -281,7 +283,7 @@ it in its card "Used but not defined" with the pages that name it, linked to
 their editor; the SEO check reports it as well.
 
 **Deleting.** A value that any page (draft or published, any language, not the
-wastebasket) or snippet still names is not deleted. The refusal names them;
+wastebasket), product or snippet still names is not deleted. The refusal names them;
 remove the placeholders first, then delete.
 
 **Who may change it.** Creating, changing and deleting a value needs the

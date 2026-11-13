@@ -14,6 +14,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // productsPerPage is how many articles one catalogue page shows.
@@ -167,7 +168,7 @@ func (h *Handler) HandleShop(w http.ResponseWriter, r *http.Request, website *do
 		Shop:  h.shopData(r, website),
 		Cart:  h.cartData(r, website, set),
 		Catalogue: tmpl.CatalogueData{
-			Products:   h.productEntries(website, set, audience, products),
+			Products:   h.productEntries(r.Context(), website, set, audience, products),
 			Page:       page,
 			TotalPages: totalPages,
 			Total:      total,
@@ -232,9 +233,27 @@ func (h *Handler) HandleProduct(w http.ResponseWriter, r *http.Request, website 
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
 
+	// The website's values, as on a page (WR-03 of the phase 33 review). The
+	// description is the body text of the product page, rendered and sanitised
+	// by the same pipeline as a page's, so a value in it is the value and not
+	// the marker — the rule a page follows, and the one that keeps the shop
+	// from printing [[wert:…]] to a visitor. The summary keeps its marker for
+	// this moment (page.Excerpt) and gets the value here too; it reaches the
+	// description for search engines and the JSON-LD through meta. The title
+	// and the subtitle are a product's title, and stay as typed (D-11).
+	//
+	// No Last-Modified to move: the shop answers with a validator built from
+	// the content, which changes with the value.
+	sum := h.summaries(r.Context(), website.ID)
+	description := p.DescriptionHTML
+	if value.Has(description) {
+		sum.load()
+		description = value.Resolve(description, sum.texts)
+	}
+
 	productURL := website.ShopURL() + "/" + p.Slug
 	meta := metaData(site, nil, productURL)
-	meta.Description = firstNonEmpty(p.Excerpt, p.Subtitle, site.MetaDescription)
+	meta.Description = firstNonEmpty(sum.resolve(p.Excerpt), p.Subtitle, site.MetaDescription)
 
 	imageURL := h.mediaURL(r.Context(), website.ID, p.FeaturedMediaID)
 	gallery := h.galleryURLs(r, website.ID, p.ID)
@@ -252,7 +271,7 @@ func (h *Handler) HandleProduct(w http.ResponseWriter, r *http.Request, website 
 			Title:           p.Title,
 			Subtitle:        p.Subtitle,
 			Slug:            p.Slug,
-			DescriptionHTML: template.HTML(p.DescriptionHTML),
+			DescriptionHTML: template.HTML(description),
 			SKU:             p.SKU,
 			Price:           price.Main,
 			PriceNote:       price.Note,
@@ -313,9 +332,14 @@ func (h *Handler) HandlePriceSwitch(w http.ResponseWriter, r *http.Request) erro
 }
 
 // productEntries maps products onto what a listing renders.
-func (h *Handler) productEntries(website *domain.Website, set shop.Settings,
+//
+// A product's summary keeps its value markers for delivery, like a page's,
+// and gets the values here; they are loaded once, and only when a summary
+// names one.
+func (h *Handler) productEntries(ctx context.Context, website *domain.Website, set shop.Settings,
 	audience shop.Audience, products []*shop.Product) []tmpl.ProductEntry {
 
+	sum := h.summaries(ctx, website.ID)
 	out := make([]tmpl.ProductEntry, 0, len(products))
 	for _, p := range products {
 		price := set.PriceFor(p.PriceGross, p.TaxRate, audience)
@@ -323,7 +347,7 @@ func (h *Handler) productEntries(website *domain.Website, set shop.Settings,
 			Title:     p.Title,
 			Subtitle:  p.Subtitle,
 			URL:       website.ShopURL() + "/" + p.Slug,
-			Excerpt:   p.Excerpt,
+			Excerpt:   sum.resolve(p.Excerpt),
 			Price:     price.Main,
 			PriceNote: price.Note,
 			Available: p.Orderable(),

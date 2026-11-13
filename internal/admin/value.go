@@ -56,10 +56,11 @@ type screenValueUndefined struct {
 // screenValueRow is one value with how often it is named.
 type screenValueRow struct {
 	value.Value
-	// Pages and Snippets count the pages (any language, drafts included, not
-	// the wastebasket) and the snippets that name the key — the same reading
-	// the delete refusal makes.
+	// Pages, Products and Snippets count the pages (any language, drafts
+	// included, not the wastebasket), the products and the snippets that name
+	// the key — the same reading the delete refusal makes.
 	Pages    int
+	Products int
 	Snippets int
 }
 
@@ -222,9 +223,12 @@ func (h *Handler) screenValueListData(r *http.Request, websiteID int64, websiteN
 	for _, v := range list {
 		row := screenValueRow{Value: v}
 		for _, u := range report.Used[v.Key] {
-			if u.Kind == "snippet" {
+			switch u.Kind {
+			case "snippet":
 				row.Snippets++
-			} else {
+			case "product":
+				row.Products++
+			default:
 				row.Pages++
 			}
 		}

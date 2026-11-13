@@ -87,17 +87,18 @@ var (
 	ErrChangedMeanwhile = errors.New("the pages changed while the value was being deleted; try again")
 )
 
-// InUseError refuses to delete a value that a page or a snippet still names.
+// InUseError refuses to delete a value that a page, a product or a snippet
+// still names.
 //
-// Users are the names of those pages and snippets, ready to show, in the order
-// Report gives them. The shape is media.InUseError's, so the screen and the
+// Users are the names of those pages, products and snippets, ready to show, in
+// the order Report gives them. The shape is media.InUseError's, so the screen and the
 // assistant answer a value in use the way they answer a picture in use (D-02).
 type InUseError struct {
 	Users []string
 }
 
 func (e *InUseError) Error() string {
-	return fmt.Sprintf("value is used by %d page(s) or snippet(s)", len(e.Users))
+	return fmt.Sprintf("value is used by %d page(s), product(s) or snippet(s)", len(e.Users))
 }
 
 // Marker is what a page writes for a value.

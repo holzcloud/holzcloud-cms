@@ -40,7 +40,7 @@ type valueOps interface {
 // four descriptions cannot contradict each other.
 const valuesAbout = "A value is one line of plain text (at most 400 bytes, no line break, no [ or ]), " +
 	"the same in every language of the website. Its marker [[wert:key]] is replaced in page " +
-	"text — prose, headings, lists, link addresses — at delivery, so a change reaches every " +
+	"text — prose, headings, lists, link addresses — and in a product description at delivery, so a change reaches every " +
 	"page without saving it. Titles, descriptions and menu labels do not replace it. A marker " +
 	"whose key the website does not define shows nothing."
 
@@ -70,13 +70,26 @@ func valueRefusal(err error) error {
 }
 
 // valueUsers splits who names a key into the pages, described the way brief
-// describes a page, and the keys of the snippets.
-func valueUsers(uses []value.Use) ([]map[string]any, []string) {
-	pages := make([]map[string]any, 0, len(uses))
-	snippets := make([]string, 0)
+// describes a page, the products, and the keys of the snippets.
+//
+// The products are their own list (WR-03 of the phase 33 review): the shop
+// resolves values in a product's description, so a product keeps a value in
+// use, and an assistant that read it as a page would open the wrong thing.
+func valueUsers(uses []value.Use) (pages, products []map[string]any, snippets []string) {
+	pages = make([]map[string]any, 0, len(uses))
+	products = make([]map[string]any, 0)
+	snippets = make([]string, 0)
 	for _, u := range uses {
-		if u.Kind == "snippet" {
+		switch u.Kind {
+		case "snippet":
 			snippets = append(snippets, u.Slug)
+			continue
+		case "product":
+			// The shop's own vocabulary, draft or published, as get_product
+			// says it.
+			products = append(products, map[string]any{
+				"id": u.ID, "title": u.Title, "slug": u.Slug, "status": u.Status,
+			})
 			continue
 		}
 		p := map[string]any{"id": u.ID, "title": u.Title, "slug": u.Slug, "status": wireStatus(u.Status)}
@@ -86,18 +99,19 @@ func valueUsers(uses []value.Use) ([]map[string]any, []string) {
 		}
 		pages = append(pages, p)
 	}
-	return pages, snippets
+	return pages, products, snippets
 }
 
-// valueOut is one value with the pages and snippets that name it.
+// valueOut is one value with the pages, products and snippets that name it.
 func valueOut(v value.Value, rep value.Report) map[string]any {
-	pages, snippets := valueUsers(rep.Used[v.Key])
+	pages, products, snippets := valueUsers(rep.Used[v.Key])
 	return map[string]any{
 		"key": v.Key, "value": v.Text,
 		// The marker is what goes into a page's text; an assistant told the key
 		// alone has to guess the brackets.
 		"marker":   value.Marker(v.Key),
 		"used_on":  pages,
+		"products": products,
 		"snippets": snippets,
 		"updated":  v.UpdatedAt.UTC().Format(timeLayout),
 	}
@@ -106,8 +120,8 @@ func valueOut(v value.Value, rep value.Report) map[string]any {
 func listValues(d Deps) Tool {
 	return Tool{
 		Name: "list_values",
-		Description: "Lists the values of a website, each with its marker, the pages and snippets " +
-			"that name it, and when it last changed. Beside them: undefined, every key a page or " +
+		Description: "Lists the values of a website, each with its marker, the pages, products and snippets " +
+			"that name it, and when it last changed. Beside them: undefined, every key a page, product or " +
 			"snippet names that the website does not define, and outside_text, every marker in a " +
 			"title, description or menu entry, where it is printed as written. " + valuesAbout,
 		InputSchema: Schema{Type: "object",
@@ -133,9 +147,10 @@ func listValues(d Deps) Tool {
 			}
 			undefined := make([]map[string]any, 0, len(rep.Undefined))
 			for _, key := range rep.Undefined {
-				pages, snippets := valueUsers(rep.Used[key])
+				pages, products, snippets := valueUsers(rep.Used[key])
 				undefined = append(undefined, map[string]any{
-					"key": key, "marker": value.Marker(key), "used_on": pages, "snippets": snippets,
+					"key": key, "marker": value.Marker(key), "used_on": pages,
+					"products": products, "snippets": snippets,
 				})
 			}
 			outside := make([]map[string]any, 0, len(rep.Outside))
@@ -198,7 +213,7 @@ func noValue(key string) error {
 func getValue(d Deps) Tool {
 	return Tool{
 		Name: "get_value",
-		Description: "Fetches one value of a website by its key, with its marker, the pages and " +
+		Description: "Fetches one value of a website by its key, with its marker, the pages, products and " +
 			"snippets that name it, and when it last changed. " + valuesAbout,
 		InputSchema: Schema{Type: "object",
 			Properties: map[string]Property{
@@ -233,7 +248,7 @@ func deleteValue(d Deps) Tool {
 	return Tool{
 		Name:   "delete_value",
 		Writes: true,
-		Description: "Deletes a value of a website. A value a page or snippet still names is " +
+		Description: "Deletes a value of a website. A value a page, product or snippet still names is " +
 			"refused, with those named: remove the placeholders from them first. " +
 			"Requires confirm: true.",
 		InputSchema: Schema{Type: "object",

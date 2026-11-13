@@ -62,31 +62,19 @@ var (
 // (value.ResolveSummary), not here: a text frozen at save would keep the old
 // version after the value changed (VAL-04). Only a marker in prose survives —
 // one in a link address or in a picture goes with the address or the picture.
+//
+// A product's description is summarised the same way: the shop resolves
+// values in it like a page (WR-03 of the phase 33 review).
 func Excerpt(markdown string) string {
-	return excerpt(markdown, true)
-}
-
-// ExcerptWithoutValues is Excerpt for a text in which values are never
-// resolved, and so drops a value marker like every other: a product's
-// description. Values work in page text only (D-11 of phase 33), and the shop
-// serves a product's text as it was stored.
-func ExcerptWithoutValues(markdown string) string {
-	return excerpt(markdown, false)
-}
-
-func excerpt(markdown string, keepValues bool) string {
 	if strings.TrimSpace(markdown) == "" {
 		return ""
 	}
 
 	var held []string
-	text := markdown
-	if keepValues {
-		text = valueMarker.ReplaceAllStringFunc(text, func(m string) string {
-			held = append(held, m)
-			return "\x01" + strconv.Itoa(len(held)-1) + "\x01"
-		})
-	}
+	text := valueMarker.ReplaceAllStringFunc(markdown, func(m string) string {
+		held = append(held, m)
+		return "\x01" + strconv.Itoa(len(held)-1) + "\x01"
+	})
 	// Fenced code goes first: otherwise its contents get mistaken for prose and
 	// the summary is made of source code.
 	text = cmsMarker.ReplaceAllString(text, " ")

@@ -82,7 +82,10 @@
                 <td class="text-muted">
                     {{- if .Pages}}{{if eq .Pages 1}}{{t "on one page"}}{{else}}{{tf "on %d pages" .Pages}}{{end}}
                     {{- if .Snippets}} {{if eq .Snippets 1}}{{t "and in one snippet"}}{{else}}{{tf "and in %d snippets" .Snippets}}{{end}}{{end}}
+                    {{- if .Products}} {{if eq .Products 1}}{{t "and in one product"}}{{else}}{{tf "and in %d products" .Products}}{{end}}{{end}}
                     {{- else if .Snippets}}{{if eq .Snippets 1}}{{t "in one snippet"}}{{else}}{{tf "in %d snippets" .Snippets}}{{end}}
+                    {{- if .Products}} {{if eq .Products 1}}{{t "and in one product"}}{{else}}{{tf "and in %d products" .Products}}{{end}}{{end}}
+                    {{- else if .Products}}{{if eq .Products 1}}{{t "in one product"}}{{else}}{{tf "in %d products" .Products}}{{end}}
                     {{- else}}{{t "nowhere"}}{{end -}}
                 </td>
                 <td class="text-muted">{{.UpdatedAt.Format "02.01.2006 15:04"}}</td>
@@ -126,6 +129,7 @@
                 <td>
                     {{- range $i, $u := .Users}}{{if $i}}, {{end}}
                     {{- if eq $u.Kind "snippet"}}<a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{$u.ID}}">{{$u.Name}}</a>
+                    {{- else if eq $u.Kind "product"}}<a href="/admin/websites/{{$.WebsiteID}}/produkte/{{$u.ID}}">{{$u.Name}}</a>
                     {{- else}}<a href="/admin/websites/{{$.WebsiteID}}/pages/{{$u.ID}}/edit">{{$u.Name}}</a>{{end}}
                     {{- end -}}
                 </td>

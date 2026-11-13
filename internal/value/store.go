@@ -149,17 +149,19 @@ func (s *Store) UpdateText(ctx context.Context, websiteID, id int64, text string
 
 // Delete removes a value nobody names any more.
 //
-// A value a page or a snippet still names is refused with an *InUseError that
-// names them (D-02): deleting it would empty every sentence that says it, and
-// the editor would learn of it from a visitor. Drafts and every language count;
-// a page in the wastebasket does not, the rule media follows. There is no force
-// flag — the editor removes the placeholders first.
+// A value a page, a snippet or a product still names is refused with an
+// *InUseError that names them (D-02): deleting it would empty every sentence
+// that says it, and the editor would learn of it from a visitor. Drafts and
+// every language count; a page in the wastebasket does not, the rule media
+// follows. There is no force flag — the editor removes the placeholders first.
 //
 // "Names" means what delivery resolves, column for column with usage: the
-// page's source (Markdown, blocks), its stored HTML and its excerpt, and a
-// snippet's source and HTML. The source alone missed a typed excerpt and a
-// marker the Markdown wrote with escaped brackets, both of which a visitor
-// reads as the value (WR-02 of the phase 33 review).
+// page's source (Markdown, blocks), its stored HTML and its excerpt, a
+// snippet's source and HTML, and a product's description and excerpt. The
+// source alone missed a typed excerpt and a marker the Markdown wrote with
+// escaped brackets, both of which a visitor reads as the value (WR-02 of the
+// phase 33 review); the products were missed altogether until the shop
+// resolved values in them (WR-03).
 //
 // The check and the delete are one statement, so a page saved between a check
 // and a delete cannot slip through. The search is instr, never a pattern match:
@@ -189,7 +191,12 @@ func (s *Store) Delete(ctx context.Context, websiteID int64, key string) error {
 			   AND NOT EXISTS (SELECT 1 FROM snippets
 			         WHERE website_id = $1
 			           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
-			                OR instr(content_html, '[[wert:' || $2 || ']]') > 0))`,
+			                OR instr(content_html, '[[wert:' || $2 || ']]') > 0))
+			   AND NOT EXISTS (SELECT 1 FROM products
+			         WHERE website_id = $1
+			           AND (instr(description_markdown, '[[wert:' || $2 || ']]') > 0
+			                OR instr(description_html, '[[wert:' || $2 || ']]') > 0
+			                OR instr(excerpt, '[[wert:' || $2 || ']]') > 0))`,
 			websiteID, key)
 		if err != nil {
 			return fmt.Errorf("delete value: %w", err)
@@ -228,25 +235,26 @@ func (s *Store) Delete(ctx context.Context, websiteID int64, key string) error {
 // room for a second one without looping on a busy website.
 const deleteAttempts = 3
 
-// Use is one page or snippet that names a value.
+// Use is one page, snippet or product that names a value.
 type Use struct {
-	// Kind is "page" or "snippet".
+	// Kind is "page", "snippet" or "product".
 	Kind string
 	ID   int64
-	// Title is the page's title or the snippet's name.
+	// Title is the page's or product's title or the snippet's name.
 	Title string
-	// Slug is the page's slug or the snippet's key.
+	// Slug is the page's or product's slug or the snippet's key.
 	Slug string
-	// Locale is the page's language, empty for the main language and for a
-	// snippet.
+	// Locale is the page's language, empty for the main language, for a
+	// snippet and for a product.
 	Locale string
-	// Status is the page's status, empty for a snippet.
+	// Status is the page's or product's status, empty for a snippet.
 	Status string
 }
 
 // Name is how a refusal and a report call the user: a page by its title, with
-// its language in brackets when it is not the main one, and a snippet by its
-// name and the marker that places it, which is what an editor searches for.
+// its language in brackets when it is not the main one, a product by its
+// title, and a snippet by its name and the marker that places it, which is
+// what an editor searches for.
 func (u Use) Name() string {
 	if u.Kind == "snippet" {
 		return u.Title + " [[snippet:" + u.Slug + "]]"
@@ -275,7 +283,7 @@ type Outside struct {
 // Report is what a website does with its values.
 type Report struct {
 	// Used lists, per key, every page and snippet that names it — defined
-	// keys and undefined ones alike. Pages come first, then snippets.
+	// keys and undefined ones alike. Pages come first, then products, then snippets.
 	Used map[string][]Use
 	// Undefined are the keys named somewhere and defined nowhere, sorted.
 	Undefined []string
@@ -307,8 +315,8 @@ func (s *Store) Report(ctx context.Context, websiteID int64) (Report, error) {
 	return rep, nil
 }
 
-// usage maps every key a website's pages and snippets name to the pages and
-// snippets naming it.
+// usage maps every key a website's pages, products and snippets name to the
+// pages, products and snippets naming it.
 //
 // "Name" means what delivery resolves (WR-02 of the phase 33 review), so four
 // columns of a page are read and two of a snippet:
@@ -327,7 +335,8 @@ func (s *Store) Report(ctx context.Context, websiteID int64) (Report, error) {
 // prefix and the keys taken out in Go, so no SQL wildcard ever meets a key.
 //
 // Pages are ordered by language — the main language first — then by title;
-// snippets by name. That is the order a refusal names them in.
+// products by title; snippets by name. Pages come first, then products, then
+// snippets. That is the order a refusal names them in.
 func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, error) {
 	used := map[string][]Use{}
 	rows, err := s.DB.Read.QueryContext(ctx,
@@ -353,6 +362,32 @@ func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, e
 		}
 	}
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Products after the pages: the shop resolves values in a product's
+	// description and summary (WR-03), drafts included, as for a page.
+	prows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT id, title, slug, status, description_markdown, description_html, excerpt FROM products
+		  WHERE website_id = $1
+		    AND (instr(description_markdown, '[[wert:') > 0 OR instr(description_html, '[[wert:') > 0
+		         OR instr(excerpt, '[[wert:') > 0)
+		  ORDER BY title, id`, websiteID)
+	if err != nil {
+		return nil, fmt.Errorf("value usage in products: %w", err)
+	}
+	defer prows.Close()
+	for prows.Next() {
+		u := Use{Kind: "product"}
+		var markdown, html, excerpt string
+		if err := prows.Scan(&u.ID, &u.Title, &u.Slug, &u.Status, &markdown, &html, &excerpt); err != nil {
+			return nil, fmt.Errorf("scan product: %w", err)
+		}
+		for _, key := range Keys(markdown + "\n" + html + "\n" + excerpt) {
+			used[key] = append(used[key], u)
+		}
+	}
+	if err := prows.Err(); err != nil {
 		return nil, err
 	}
 

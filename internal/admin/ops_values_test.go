@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/ai"
+	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/shop"
 )
 
 // The value tools of the assistant connection, run against this handler as
@@ -272,6 +274,49 @@ func TestListValuesReportsUndefinedAndOutside(t *testing.T) {
 	}
 	if !title || !menuEntry {
 		t.Fatalf("outside_text = %v (title %v, menu %v)", list["outside_text"], title, menuEntry)
+	}
+}
+
+// A product's description resolves values in the shop (WR-03 of the phase 33
+// review), so the assistant is told about a product that names a key, the way
+// it is told about a page or a snippet.
+func TestListValuesNamesTheProducts(t *testing.T) {
+	r := newStructureRig(t)
+	ctx := context.Background()
+	md := "Fragen? [[wert:telefon]] [[wert:fehlt]]"
+	html, err := page.RenderMarkdown(md)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := shop.NewStore(r.h.valueStore.DB).Create(ctx, &shop.Product{
+		WebsiteID: r.site, Slug: "tisch", Title: "Tisch", Status: "draft",
+		DescriptionMarkdown: md, DescriptionHTML: html, TaxRate: money.RateStandard,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.must(r.content, "set_value", map[string]any{"website": r.site, "key": "telefon", "value": "044 123 45 67"})
+
+	list := r.must(r.content, "list_values", map[string]any{"website": r.site})
+	for _, e := range []map[string]any{
+		mcpValueEntry(t, list["values"], "telefon"),
+		mcpValueEntry(t, list["undefined"], "fehlt"),
+	} {
+		products, _ := e["products"].([]any)
+		if len(products) != 1 {
+			t.Fatalf("%v: products = %v; want the one product", e["key"], e["products"])
+		}
+		p := products[0].(map[string]any)
+		if numID(p["id"]) != id || p["title"] != "Tisch" || p["slug"] != "tisch" || p["status"] != "draft" {
+			t.Errorf("%v: product = %v", e["key"], p)
+		}
+		if used, _ := e["used_on"].([]any); len(used) != 0 {
+			t.Errorf("%v: the product is listed as a page: %v", e["key"], used)
+		}
+	}
+	got := r.must(r.content, "get_value", map[string]any{"website": r.site, "key": "telefon"})
+	if products, _ := got["products"].([]any); len(products) != 1 {
+		t.Errorf("get_value products = %v; want the one product", got["products"])
 	}
 }
 

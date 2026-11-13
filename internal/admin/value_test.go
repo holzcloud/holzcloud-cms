@@ -14,7 +14,9 @@ import (
 
 	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/menu"
+	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
+	"github.com/holzcloud/holzcloud-cms/internal/shop"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
@@ -374,6 +376,26 @@ func TestTheScreenShowsUseUndefinedAndNotReplaced(t *testing.T) {
 	row := screenValueRowOf(t, body, "v")
 	if !strings.Contains(row, "on one page") {
 		t.Errorf("the in-use column of v does not read on one page: %s", row)
+	}
+
+	// A product counts as a user, and an undefined key in it links to the
+	// product's editor (WR-03 of the phase 33 review).
+	md := "Fragen? [[wert:v]] [[wert:fehlt]]"
+	html, _ := page.RenderMarkdown(md)
+	productID, err := shop.NewStore(database).Create(ctx, &shop.Product{
+		WebsiteID: ws.ID, Slug: "tisch", Title: "Tisch", Status: "draft",
+		DescriptionMarkdown: md, DescriptionHTML: html, TaxRate: money.RateStandard,
+	})
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleValueList, list, route)
+	if row := screenValueRowOf(t, body, "v"); !strings.Contains(row, "on one page and in one product") {
+		t.Errorf("the in-use column of v does not count the product: %s", row)
+	}
+	undefined = screenValueCard(t, body, "Used but not defined")
+	if !strings.Contains(undefined, fmt.Sprintf(`href="/admin/websites/%d/produkte/%d">Tisch</a>`, ws.ID, productID)) {
+		t.Errorf("the product naming the undefined key is not linked to its editor:\n%s", undefined)
 	}
 }
 
