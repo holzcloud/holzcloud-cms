@@ -37,8 +37,9 @@ set -euo pipefail
 #
 # Exit status:
 #   0  restored (checksums verified, or a backup made before 0.1.5, with a notice)
-#   1  refused or failed: nothing stopped when the backup was refused; when a
-#      step failed after the stop, the service stays stopped and the last line
+#   1  refused or failed: nothing stopped when the backup was refused; nothing
+#      changed when the stop itself failed; when a step failed after the stop,
+#      whatever it returned, the service stays stopped and the last line
 #      names where the previous data is and the commands that put it back;
 #      when the site did not report ready after the restore, see the journal
 #   3  restored, but files that database rows name are missing from the backup;
@@ -329,14 +330,29 @@ way_back() {
     esac
     return 0
 }
+# Whatever failed after the stop, the status is 1, as documented above: under
+# set -e the script would otherwise end with the failing command's own status,
+# and rsync's 3 would read as "restored, but files are missing" while the site
+# is down. exit inside the EXIT trap replaces the status.
 on_exit() {
+    local rc=$?
     remove_temporaries
     way_back
+    case "${STAGE}" in
+        stopped | moving | moved | fresh)
+            if [ "${rc}" -ne 0 ]; then
+                exit 1
+            fi
+            ;;
+    esac
 }
 trap on_exit EXIT
 
 echo "Stopping ${SERVICE}..."
-systemctl stop "${SERVICE}"
+if ! systemctl stop "${SERVICE}"; then
+    echo "ERROR: could not stop ${SERVICE} (see above); ${DATA_DIR} was not changed — check: systemctl status ${SERVICE}" >&2
+    exit 1
+fi
 STAGE=stopped
 
 # Move aside, never delete.

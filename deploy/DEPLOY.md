@@ -1083,8 +1083,10 @@ check media rows and says so in a `NOTICE` line. How the script ends:
 
 - `0`: restored, every file the database names was in the backup;
 - `1`: refused, aborted at the question, or failed. When it refuses or you abort,
-  nothing was stopped or replaced. When something fails after the service was stopped
-  (a full disk while copying, a failed `chown`), the service stays stopped and
+  nothing was stopped or replaced. When the service cannot be stopped, an `ERROR`
+  line says so and the data directory is not changed. When something fails after the service was stopped
+  (a full disk while copying, a failed `chown`), the status is `1` whatever the
+  failing command returned, the service stays stopped and
   the data directory is half written; the last line, an `ERROR` line, names
   where the previous data is and, after `to go back:`,
   the commands that put the previous data back and start the service, to run as

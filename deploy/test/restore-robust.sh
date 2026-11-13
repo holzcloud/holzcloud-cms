@@ -138,6 +138,12 @@ for a in "$@"; do
     src="$dst"
     dst="$a"
 done
+# FAKE_RSYNC_RC: fail with that status instead (11 a full disk, 3 an error
+# selecting files), as rsync does after it has written part of the copy.
+if [ -n "${FAKE_RSYNC_RC:-}" ]; then
+    echo "rsync: write failed: No space left on device (28)" >&2
+    exit "$FAKE_RSYNC_RC"
+fi
 mkdir -p "$dst"
 cp -R "$src". "$dst"
 FAKE
@@ -209,6 +215,11 @@ chmod +x "$T/bin/date"
 cat > "$T/bin/systemctl" <<'FAKE'
 #!/bin/bash
 echo "$*" >> "$FAKE_SYSTEMCTL_LOG"
+# FAKE_STOP_RC: `systemctl stop` fails with that status (5: no such unit).
+if [ "${1:-}" = "stop" ] && [ -n "${FAKE_STOP_RC:-}" ]; then
+    echo "Failed to stop $2.service: Unit $2.service not loaded." >&2
+    exit "$FAKE_STOP_RC"
+fi
 exit 0
 FAKE
 chmod +x "$T/bin/systemctl"
@@ -711,6 +722,32 @@ bt_eq "mount-fails: the way back runs" ok "$(play_way_back)"
 bt_eq "mount-fails: after it the live data is the old site" yes "$(live_untouched)"
 bt_eq "mount-fails: after it the restored database is gone" no "$(exists "$LIVE/holzcloud.sqlite")"
 bt_eq "mount-fails: after it no set-aside directory is left" 0 "$(ls -d "$LIVE"/.before-restore-* 2>/dev/null | wc -l | tr -d ' ')"
+
+# ---------------------------------------------------------------------------
+# After the stop, every failure ends with status 1, whatever the failing
+# command returned: rsync's 3 would otherwise read as "restored, files
+# missing" while the site is down (code review 32, second pass, WR-01).
+for rsync_rc in 3 11; do
+    section "Case rsync-$rsync_rc: rsync failing with $rsync_rc after the stop ends with status 1"
+    reset_case
+    run_restore FAKE_RSYNC_RC=$rsync_rc
+    bt_eq "rsync-$rsync_rc: exit status 1" 1 "$RC"
+    bt_has "rsync-$rsync_rc: the stopped line" "$T/err" "$STOPPED_LINE"
+    bt_eq "rsync-$rsync_rc: the service was stopped, not started" "stop holzcloud," "$(tr '\n' ',' < "$T/systemctl.log")"
+    bt_eq "rsync-$rsync_rc: the way back runs" ok "$(play_way_back)"
+    bt_eq "rsync-$rsync_rc: after it the live data is the old site" yes "$(live_untouched)"
+done
+
+# ---------------------------------------------------------------------------
+section "Case stop-fails: a failed stop is named, nothing is changed, status 1"
+reset_case
+run_restore FAKE_STOP_RC=5
+bt_eq "stop-fails: exit status 1" 1 "$RC"
+bt_has "stop-fails: the stop is named" "$T/err" "ERROR: could not stop holzcloud (see above); $LIVE was not changed"
+bt_not "stop-fails: no way back for a restore that never began" "$T/err" "$STOPPED_LINE"
+bt_eq "stop-fails: nothing was started" "stop holzcloud," "$(tr '\n' ',' < "$T/systemctl.log")"
+bt_eq "stop-fails: the live data is untouched" yes "$(live_untouched)"
+bt_eq "stop-fails: nothing was set aside" 0 "$(ls -d "$LIVE".before-restore-* 2>/dev/null | wc -l | tr -d ' ')"
 
 # ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
