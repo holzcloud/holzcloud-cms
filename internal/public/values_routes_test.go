@@ -224,6 +224,80 @@ func TestNoPublicRouteLeaksAValueMarker(t *testing.T) {
 		}
 		mustShowTheValue(t, rec.Body.String(), "<p>Alpha 0.1.5: neu</p>", footer)
 	})
+
+	t.Run("the search page", func(t *testing.T) {
+		rec, err := request(f.h.HandleSearch, f.ws, "GET", "/suche?q=neu")
+		if err != nil {
+			t.Fatalf("HandleSearch: %v", err)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, `class="treffer"`) {
+			t.Fatalf("the search found nothing, so nothing here is proved:\n%s", body)
+		}
+		mustShowTheValue(t, body, "Alpha 0.1.5: <mark>neu</mark>", footer)
+	})
+
+	t.Run("a plugin's search", func(t *testing.T) {
+		got, err := f.h.PagesForPlugin(context.Background(), f.ws.ID, plugin.PagesQuery{
+			Op: plugin.OpPagesSearch, Query: "neu", Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("pages.search: %v", err)
+		}
+		if len(got.Pages) != 1 {
+			t.Fatalf("pages.search returned %d pages, want 1", len(got.Pages))
+		}
+		mustShowTheValue(t, got.Pages[0].Snippet, "Alpha 0.1.5: <mark>neu</mark>")
+	})
+}
+
+// A search passage is cut at a token boundary, and the boundary can fall inside
+// a marker. What is left of it must not reach the reader either: neither the
+// opening half at the end of the passage nor the closing half at its start.
+func TestASearchPassageCutInsideAMarkerShowsNoPieceOfIt(t *testing.T) {
+	// The passage is twenty tokens. The marker is four of them — wert, version,
+	// holzcloud, cms — so seventeen words after "Gamma" put its first token
+	// inside the passage and its last outside, and sixteen words before
+	// "Epsilon" do the same from the other end. The precondition below says so
+	// rather than trusting the arithmetic.
+	f := newValueRoutesFixture(t, "Gamma "+strings.Repeat("Wort ", 17)+
+		"[[wert:version-holzcloud-cms]] Delta "+strings.Repeat("Wort ", 16)+"Epsilon")
+	setValue(t, f.values, f.ws.ID, "version-holzcloud-cms", "0.1.5")
+
+	for _, tc := range []struct{ name, query, cut string }{
+		{"the opening half at the end", "Gamma", "[["},
+		{"the closing half at the start", "Epsilon", "]]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hits, err := page.NewStore(f.database).SearchPages(context.Background(), f.ws.ID, tc.query, false, 10)
+			if err != nil || len(hits) != 1 {
+				t.Fatalf("SearchPages(%q) = %d hits, %v; want 1", tc.query, len(hits), err)
+			}
+			raw := hits[0].Raw
+			if !strings.Contains(raw, tc.cut) || strings.Contains(raw, "[[wert:version-holzcloud-cms]]") {
+				t.Fatalf("the passage is not cut inside the marker, so nothing here is proved: %q", raw)
+			}
+
+			rec, err := request(f.h.HandleSearch, f.ws, "GET", "/suche?q="+tc.query)
+			if err != nil {
+				t.Fatalf("HandleSearch: %v", err)
+			}
+			body := rec.Body.String()
+			start := strings.Index(body, `class="treffer"`)
+			if start < 0 {
+				t.Fatalf("the search found nothing:\n%s", body)
+			}
+			hit := body[start:]
+			if end := strings.Index(hit, "</p>"); end >= 0 {
+				hit = hit[:end]
+			}
+			for _, piece := range []string{"[[", "]]", "wert:", "holzcloud-cms"} {
+				if strings.Contains(hit, piece) {
+					t.Errorf("the hit shows %q, a piece of the marker:\n%s", piece, hit)
+				}
+			}
+		})
+	}
 }
 
 // TestChangingAValueMovesTheFeed is VAL-04 on the feed's two dates, in the

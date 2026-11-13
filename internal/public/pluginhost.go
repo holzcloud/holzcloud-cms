@@ -164,12 +164,32 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 			return plugin.PagesResult{}, err
 		}
 		out := plugin.PagesResult{Pages: make([]plugin.PageInfo, 0, len(results))}
+		// The values go into the passage the way HandleSearch puts them in, and
+		// for its reason: the passage is Markdown source, and a marker in it,
+		// whole or cut in half, is this program's syntax and not text. No
+		// request is needed for that, only the website.
+		var texts map[string]string
+		textsLoaded := false
 		for _, res := range results {
 			info := pageInfo(res.Page)
 			// The snippet is built from escaped text in internal/page, with
 			// <mark> around the terms. It is passed on as it is; what the
 			// plugin does with it goes through the sanitiser on the way back.
 			info.Snippet = string(res.Snippet)
+			if strings.Contains(res.Raw, "[[") || strings.Contains(res.Raw, "]]") {
+				if !textsLoaded {
+					textsLoaded = true
+					if h.valueStore != nil {
+						if texts, _, err = h.valueStore.Texts(ctx, websiteID); err != nil {
+							slog.Error("load values for a plugin's search", "err", err, "website", websiteID)
+							texts = nil
+						}
+					}
+				}
+				// Resolved first and escaped after, by the same function that
+				// built res.Snippet.
+				info.Snippet = string(page.Highlight(value.ResolvePlain(res.Raw, texts)))
+			}
 			out.Pages = append(out.Pages, info)
 		}
 		out.Total = len(out.Pages)

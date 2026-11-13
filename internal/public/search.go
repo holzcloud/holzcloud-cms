@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // searchLimit bounds a result page. There is no pagination: on a site with a
@@ -35,11 +37,33 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) error {
 	h.fillSnippets(r, &site, website.ID, snippets)
 
 	list := tmpl.SearchData{Query: query, Submitted: query != ""}
+	// The passages come from the Markdown source, so a value stands in them as
+	// the marker the editor wrote, whole or cut in half by the passage's edge.
+	// value.ResolvePlain puts the text in, or removes the half, and only then
+	// does page.Highlight escape the passage and mark the terms — never the
+	// other way round, which would print the value's text unescaped.
+	//
+	// The texts are loaded once per request and only when a passage holds a
+	// bracket pair's half; a search that meets no marker asks nothing.
+	//
+	// Said out loud: the index holds the Markdown and not the value's text, so
+	// searching for "0.1.5" does not find the page that shows it. That is a
+	// limit, stated where values are documented, and not a fault of this loop.
+	var texts map[string]string
+	textsLoaded := false
 	for _, res := range results {
+		snippet := res.Snippet
+		if strings.Contains(res.Raw, "[[") || strings.Contains(res.Raw, "]]") {
+			if !textsLoaded {
+				texts, _ = h.valueTexts(r.Context(), website.ID)
+				textsLoaded = true
+			}
+			snippet = page.Highlight(value.ResolvePlain(res.Raw, texts))
+		}
 		list.Results = append(list.Results, tmpl.SearchHit{
 			Title:   res.Page.Title,
 			URL:     "/" + res.Page.Slug,
-			Snippet: res.Snippet,
+			Snippet: snippet,
 		})
 	}
 
