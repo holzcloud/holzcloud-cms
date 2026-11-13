@@ -99,7 +99,10 @@ func runCLI(args []string) (handled bool, err error) {
 
 // openForCLI loads the configuration and opens the database with migrations
 // applied, which is what every subcommand needs and nothing more — no HTTP
-// server, no session manager.
+// server, no session manager. Before it migrates it writes the same
+// pre-upgrade snapshot the service writes, so a new binary that first meets
+// the database through a subcommand leaves the way back that a refusal of a
+// newer schema names.
 func openForCLI() (config.Config, *db.DB, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -117,8 +120,16 @@ func openForCLI() (config.Config, *db.DB, error) {
 		database.Close()
 		return cfg, nil, err
 	}
+	snapshot, err := snapshotBeforeMigrating(cfg, database)
+	if err != nil {
+		database.Close()
+		return cfg, nil, fmt.Errorf("pre-upgrade snapshot: %w", err)
+	}
 	if err := db.RunMigrations(database.Write); err != nil {
 		database.Close()
+		if snapshot != "" {
+			return cfg, nil, fmt.Errorf("migrations: %w (the database before them is in %s)", err, snapshot)
+		}
 		return cfg, nil, fmt.Errorf("migrations: %w", err)
 	}
 	return cfg, database, nil

@@ -773,9 +773,11 @@ sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups
 ```
 
 The order matters. Every `holzcloud` subcommand that opens the database (`user list`,
-`check`, `backup`, `migrate status`) applies pending migrations on the way and takes
-no snapshot, so a backup made by the new binary is made after the schema has
-already changed.
+`check`, `backup`, `migrate status`) applies pending migrations on the way, so a
+backup made by the new binary is made after the schema has already changed. From
+0.1.5 such a subcommand first writes the same pre-upgrade snapshot as the service
+(see below), and prints the line `pre-upgrade snapshot written` on your terminal
+instead of the journal; a binary from before 0.1.5 writes none.
 
 **2. Replace: build, transfer, stop, copy, start.** The first three lines run on
 your development machine, the last four on the server:
@@ -884,6 +886,7 @@ can break in another place.
 
 Which of the two blocks below to use depends on whether **this** update wrote a
 snapshot. The sign is the journal line `pre-upgrade snapshot written` at the update
+(the terminal shows it instead when a subcommand of the new binary migrated first)
 and a file named `pre-upgrade-VERSION-TIMESTAMP.sqlite` in the data directory, with
 the version you updated to in its name and the time of that journal line. Run the
 first line of the first block on its own and read it before you go on: if it lists

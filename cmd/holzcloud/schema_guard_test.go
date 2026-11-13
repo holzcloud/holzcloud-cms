@@ -134,6 +134,35 @@ func TestTheServerRefusesANewerDatabaseBeforeItSnapshots(t *testing.T) {
 	}
 }
 
+// The refusal of a newer schema names "the pre-upgrade snapshot that the newer
+// binary wrote before it migrated" as the way back. A subcommand migrates as
+// well, so it writes that snapshot as the service does; otherwise a new binary
+// that first touched the database through `user list` or `backup` would leave
+// no snapshot to go back to (code review 32, IN-05).
+func TestASubcommandSnapshotsBeforeItMigrates(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("HOLZCLOUD_DATA_DIR", dataDir)
+
+	if err := cmdCheck(nil); err != nil {
+		t.Fatalf("check on an empty data directory: %v", err)
+	}
+	got := snapshotsIn(t, dataDir)
+	if len(got) != 1 {
+		t.Fatalf("after a subcommand migrated: %d pre-upgrade snapshots, want 1: %v", len(got), got)
+	}
+	if v := levelIn(t, dataDir); v == 0 {
+		t.Fatal("the subcommand did not migrate")
+	}
+
+	// Nothing pending now: no further snapshot.
+	if err := cmdCheck(nil); err != nil {
+		t.Fatalf("second check: %v", err)
+	}
+	if again := snapshotsIn(t, dataDir); len(again) != 1 {
+		t.Errorf("after a subcommand with nothing pending: %d pre-upgrade snapshots, want 1: %v", len(again), again)
+	}
+}
+
 // A database one level below, with rows in it, is covered by
 // TestTheGuardLetsAnOlderDatabasePassAndItMigrates in internal/db: package main
 // cannot reach the unexported migration provider that migrates part-way, and no

@@ -239,6 +239,16 @@ func TestDeployRestoreNamesTheWayBackAfterAFailure(t *testing.T) {
 		"is a mount point")
 }
 
+// TestDeploySaysSubcommandsSnapshotBeforeTheyMigrate: from 0.1.5 a subcommand
+// that migrates writes the pre-upgrade snapshot too, and Updating said the
+// opposite (code review 32, IN-05).
+func TestDeploySaysSubcommandsSnapshotBeforeTheyMigrate(t *testing.T) {
+	sectionContains(t, "## Updating", "writes the same pre-upgrade snapshot as the service")
+	if strings.Contains(readDeploy(t, "DEPLOY.md"), "and takes\nno snapshot") {
+		t.Error("deploy/DEPLOY.md still says a subcommand takes no snapshot")
+	}
+}
+
 // bashBlocks returns the lines inside the ```bash fences of section.
 func bashBlocks(section string) []string {
 	var out []string

@@ -697,22 +697,10 @@ func openDatabase(cfg config.Config) (*db.DB, error) {
 
 	// Snapshot before migrating, so a half-applied migration is a two-command
 	// recovery instead of a restore from last night's backup.
-	var preUpgradeSnapshot string
-	if pending, err := db.HasPendingMigrations(database.Write); err != nil {
-		slog.Warn("cannot determine pending migrations", "err", err)
-	} else if pending {
-		name := fmt.Sprintf("pre-upgrade-%s-%s.sqlite", Version, time.Now().UTC().Format("20060102-150405"))
-		snapshot, err := db.Backup(context.Background(), database, filepath.Join(cfg.DataDir, name))
-		if err != nil {
-			slog.Error("cannot snapshot before migrating", "err", err)
-			database.Close()
-			return nil, err
-		}
-		preUpgradeSnapshot = snapshot
-		slog.Info("pre-upgrade snapshot written", "path", snapshot)
-		if err := db.PruneSnapshots(cfg.DataDir, 5); err != nil {
-			slog.Warn("cannot prune old snapshots", "err", err)
-		}
+	preUpgradeSnapshot, err := snapshotBeforeMigrating(cfg, database)
+	if err != nil {
+		database.Close()
+		return nil, err
 	}
 
 	if err := db.RunMigrations(database.Write); err != nil {
@@ -725,6 +713,34 @@ func openDatabase(cfg config.Config) (*db.DB, error) {
 		return nil, err
 	}
 	return database, nil
+}
+
+// snapshotBeforeMigrating writes the pre-upgrade snapshot into the data
+// directory when migrations are pending, keeps the newest five, and returns
+// its path; "" when nothing was pending (or that could not be told, which is
+// logged). The service and every subcommand that opens the database call it
+// before they migrate, so the way back that NewerSchemaError names exists
+// whichever of them first meets a database below its level.
+func snapshotBeforeMigrating(cfg config.Config, database *db.DB) (string, error) {
+	pending, err := db.HasPendingMigrations(database.Write)
+	if err != nil {
+		slog.Warn("cannot determine pending migrations", "err", err)
+		return "", nil
+	}
+	if !pending {
+		return "", nil
+	}
+	name := fmt.Sprintf("pre-upgrade-%s-%s.sqlite", Version, time.Now().UTC().Format("20060102-150405"))
+	snapshot, err := db.Backup(context.Background(), database, filepath.Join(cfg.DataDir, name))
+	if err != nil {
+		slog.Error("cannot snapshot before migrating", "err", err)
+		return "", err
+	}
+	slog.Info("pre-upgrade snapshot written", "path", snapshot)
+	if err := db.PruneSnapshots(cfg.DataDir, 5); err != nil {
+		slog.Warn("cannot prune old snapshots", "err", err)
+	}
+	return snapshot, nil
 }
 
 // pluginSettings answers a plugin that may read a website's settings. Handed in
