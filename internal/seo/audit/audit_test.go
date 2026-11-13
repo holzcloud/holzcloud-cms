@@ -123,3 +123,36 @@ func TestAuditFindsValuesOutsideTextAndBeforeAParen(t *testing.T) {
 		}
 	}
 }
+
+// IN-06 of the phase 33 review: in [Release](v[[wert:k]]) the colon of
+// "wert:" stands in the first segment of a relative address, url.Parse reads
+// it as a scheme, and the sanitiser drops the address. The audit names the key;
+// an address that starts with "/", ".", "#", "?" or a scheme, or that puts a
+// folder first, keeps it.
+func TestAuditFindsAValueThatStartsARelativeLink(t *testing.T) {
+	ctx := context.Background()
+	s := Source{}
+	c := s.context(ctx, &domain.Website{ID: 7}, nil)
+	for _, tc := range []struct{ markdown, blocks, want string }{
+		{"[Release](v[[wert:k]])", "", "k"},
+		{"[Release]([[wert:k]])", "", "k"},
+		{"![Logo](logo-[[wert:k]].png)", "", "k"},
+		{"[A](v[[wert:k]]?x=1) [B](w[[wert:j]]#top) [C](v[[wert:k]])", "", "k,j"},
+		{"", `[{"type":"text","markdown":"[R](v[[wert:b]])"}]`, "b"},
+		{"[Release](releases/v[[wert:k]])", "", ""},
+		{"[Release](/r/v[[wert:k]])", "", ""},
+		{"[Release](./v[[wert:k]])", "", ""},
+		{"[Release](https://x.ch/v[[wert:k]])", "", ""},
+		{"[Mail](mailto:info@[[wert:k]])", "", ""},
+		{"[Release](#v[[wert:k]])", "", ""},
+		{"[Release](?v=[[wert:k]])", "", ""},
+		{"Alpha [[wert:k]] (beta)", "", ""},
+	} {
+		p := valuePage()
+		p.ContentMarkdown, p.Blocks = tc.markdown, tc.blocks
+		got := strings.Join(s.input(ctx, c, p).ValuesStartingLink, ",")
+		if got != tc.want {
+			t.Errorf("%q %q: ValuesStartingLink = %q, want %q", tc.markdown, tc.blocks, got, tc.want)
+		}
+	}
+}

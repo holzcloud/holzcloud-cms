@@ -300,6 +300,13 @@ stored page as well as its source, so they count it too — and a typed excerpt
 as well. The percent-encoded spelling `%5B%5Bwert:key%5D%5D` is a placeholder
 only inside a link address; in prose it stays the text you typed.
 
+**A placeholder at the start of a link address.** Start a relative address
+with `/` or a folder: `[Release](/releases/v[[wert:v]])` or
+`[Release](releases/v[[wert:v]])` work, `[Release](v[[wert:v]])` does not. The
+colon in `wert:` would stand in the first part of the address, where it reads
+as the start of a scheme like `https:`, and the link is saved without an
+address. The SEO check reports it ("Value at the start of a link address").
+
 **A bracket after a placeholder.** `[[wert:v]](beta)` is read as a Markdown
 link. Put a space after the placeholder when a bracket follows it:
 `[[wert:v]] (beta)`. The page editor says so under "Insert a value".

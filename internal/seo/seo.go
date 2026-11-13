@@ -75,6 +75,11 @@ const (
 	// reads that as a link whose text is [wert:key], so the value is lost.
 	// Detail is the key.
 	CodeValueBeforeParen = "value-followed-by-paren"
+	// CodeValueStartsLink: a relative link address whose first segment holds a
+	// [[wert:key]], such as v[[wert:k]]. The colon of "wert:" makes that
+	// segment read as a scheme, and the link loses its whole address at save.
+	// Detail is the key.
+	CodeValueStartsLink = "value-starts-link"
 )
 
 // Codes is every code Analyze can return, in a stable order. The report
@@ -88,7 +93,7 @@ func Codes() []string {
 		CodeH1InBody, CodeHeadingSkip, CodeImagesNoAlt, CodeThinText, CodeNoInternalLinks,
 		CodeSlugLong, CodeSlugNoise,
 		CodeNoIndex, CodeProtected, CodeDraft, CodeNoFeaturedImage,
-		CodeUnknownValue, CodeValueOutsideText, CodeValueBeforeParen,
+		CodeUnknownValue, CodeValueOutsideText, CodeValueBeforeParen, CodeValueStartsLink,
 	}
 }
 
@@ -192,8 +197,11 @@ type Input struct {
 	// ValuesOutsideText are the keys named in the title or the description,
 	// where values are not replaced. ValuesBeforeParen are the keys whose
 	// placeholder is directly followed by an opening bracket in the text.
-	ValuesOutsideText []string
-	ValuesBeforeParen []string
+	// ValuesStartingLink are the keys whose placeholder stands in the first
+	// segment of a relative link address, where it costs the link its address.
+	ValuesOutsideText  []string
+	ValuesBeforeParen  []string
+	ValuesStartingLink []string
 }
 
 var (
@@ -413,6 +421,11 @@ func Analyze(in Input) []Finding {
 	// is gone before any value could be put in its place.
 	for _, k := range in.ValuesBeforeParen {
 		add(CodeValueBeforeParen, SeverityWarn, 0, k)
+	}
+	// "[Release](v[[wert:k]])": the colon of "wert:" in the first segment of a
+	// relative address reads as a scheme, and the sanitiser drops the address.
+	for _, k := range in.ValuesStartingLink {
+		add(CodeValueStartsLink, SeverityWarn, 0, k)
 	}
 
 	sort.SliceStable(out, func(i, j int) bool {

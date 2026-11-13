@@ -149,9 +149,10 @@ func (s Source) input(ctx context.Context, c siteContext, p page.Page) seo.Input
 		// (WR-02 of the phase 33 review; value.Store's usage reads the same).
 		UsedValues: value.Keys(p.ContentMarkdown + "\n" + p.Blocks + "\n" +
 			p.ContentHTML + "\n" + p.Excerpt),
-		KnownValues:       c.values,
-		ValuesOutsideText: value.Keys(p.Title + "\n" + p.MetaDescription),
-		ValuesBeforeParen: keysBeforeParen(p.ContentMarkdown + "\n" + p.Blocks),
+		KnownValues:        c.values,
+		ValuesOutsideText:  value.Keys(p.Title + "\n" + p.MetaDescription),
+		ValuesBeforeParen:  keysBeforeParen(p.ContentMarkdown + "\n" + p.Blocks),
+		ValuesStartingLink: keysStartingLink(p.ContentMarkdown + "\n" + p.Blocks),
 	}
 	if strings.TrimSpace(p.Blocks) != "" {
 		if blocks, err := block.Decode(p.Blocks, c.set); err == nil {
@@ -246,6 +247,50 @@ func keysBeforeParen(s string) []string {
 		if !seen[m[1]] {
 			seen[m[1]] = true
 			out = append(out, m[1])
+		}
+	}
+	return out
+}
+
+// linkDestination is the address of a Markdown link or picture, up to the
+// closing bracket or the first space (a title may follow it).
+var linkDestination = regexp.MustCompile(`\]\(([^)\s]*)`)
+
+// keysStartingLink lists, once each and in order, the keys whose placeholder
+// stands in the first segment of a relative link address (IN-06 of the phase
+// 33 review).
+//
+// In [Release](v[[wert:k]]) the colon of "wert:" is in the first segment,
+// before any "/", "?" or "#". url.Parse then reads "v[[wert" as a scheme, the
+// sanitiser refuses the address, and the link is stored without one — the
+// editor sees plain text and is told nothing. An address that starts with
+// "/", ".", "#" or "?", that puts a folder first (releases/v[[wert:k]]), or
+// that has a scheme of its own before the placeholder (https://…, mailto:…)
+// keeps its address.
+func keysStartingLink(s string) []string {
+	if !value.Has(s) {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range linkDestination.FindAllStringSubmatch(s, -1) {
+		dest := m[1]
+		if dest == "" || strings.ContainsAny(dest[:1], "/.#?") {
+			continue
+		}
+		first := dest
+		if i := strings.IndexAny(dest, "/?#"); i >= 0 {
+			first = dest[:i]
+		}
+		at := strings.Index(first, value.Prefix)
+		if at < 0 || strings.Contains(first[:at], ":") {
+			continue
+		}
+		for _, key := range value.Keys(first) {
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, key)
+			}
 		}
 	}
 	return out

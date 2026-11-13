@@ -34,8 +34,10 @@ func seoReport(d Deps) Tool {
 			"page alone. Each finding has a code (e.g. title-short), a severity (error, warn, info) " +
 			"and sometimes a count or a detail. Value placeholders are checked too: unknown-value " +
 			"(the website has no value with that key), value-outside-text (in the title or the " +
-			"description, where values are not replaced) and value-followed-by-paren (Markdown makes " +
-			"it a link); their detail is the key. The pages are checked as they are saved. Changes nothing.",
+			"description, where values are not replaced), value-followed-by-paren (Markdown makes " +
+			"it a link) and value-starts-link (a relative link address whose first segment holds the " +
+			"placeholder, so the link loses its address); their detail is the key. The pages are checked " +
+			"as they are saved. Changes nothing.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{

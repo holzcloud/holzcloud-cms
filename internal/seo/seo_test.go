@@ -423,10 +423,17 @@ func TestAnalyzeReportsValuesOutsideTextAndBeforeAParen(t *testing.T) {
 	if f, ok := has(fs, CodeValueBeforeParen); !ok || f.Severity != SeverityWarn || f.Detail != "w" {
 		t.Errorf("value-followed-by-paren = %+v (found %v), want warn naming w", f, ok)
 	}
-	for _, c := range []string{"value-outside-text", "value-followed-by-paren"} {
+	for _, c := range []string{"value-outside-text", "value-followed-by-paren", "value-starts-link"} {
 		if !Known(c) {
 			t.Errorf("%s is not a known code", c)
 		}
+	}
+	// IN-06: a relative link address whose first segment holds a value loses
+	// the whole address, and the editor is told.
+	in = good()
+	in.ValuesStartingLink = []string{"k"}
+	if f, ok := has(Analyze(in), CodeValueStartsLink); !ok || f.Severity != SeverityWarn || f.Detail != "k" {
+		t.Errorf("value-starts-link = %+v (found %v), want warn naming k", f, ok)
 	}
 	if fs := Analyze(good()); len(fs) != 0 {
 		t.Errorf("a page without markers has findings: %+v", fs)
