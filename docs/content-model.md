@@ -249,7 +249,9 @@ Alpha [[wert:version-holzcloud-cms]]: what is new
 
 **What a value is.** A key — lower-case letters, digits, `-` and `_`, at most
 60 bytes, not starting or ending with `-` or `_` — and one line of plain text,
-at most 400 bytes. The text is never Markdown and never HTML: it is escaped
+at most 400 bytes, without a square bracket (`[` or `]`: a bracket in a value
+could complete a placeholder with the brackets beside it, and the visitor would
+read it raw). The text is never Markdown and never HTML: it is escaped
 wherever it is put, so an angle bracket stays an angle bracket. It is the same
 in every language of the website; words that differ by language belong in the
 page text or in the wording catalogue. A key cannot be renamed once the value

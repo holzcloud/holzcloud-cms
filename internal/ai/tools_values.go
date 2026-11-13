@@ -38,7 +38,7 @@ type valueOps interface {
 
 // valuesAbout is what every value tool tells an assistant about values, so the
 // four descriptions cannot contradict each other.
-const valuesAbout = "A value is one line of plain text (at most 400 bytes, no line break, no [[), " +
+const valuesAbout = "A value is one line of plain text (at most 400 bytes, no line break, no [ or ]), " +
 	"the same in every language of the website. Its marker [[wert:key]] is replaced in page " +
 	"text — prose, headings, lists, link addresses — at delivery, so a change reaches every " +
 	"page without saving it. Titles, descriptions and menu labels do not replace it. A marker " +
@@ -62,7 +62,8 @@ func valueRefusal(err error) error {
 		return errors.New("the value must be one line of valid UTF-8 text, without a line " +
 			"break, a tab or another control character")
 	case errors.Is(err, value.ErrTextMarker):
-		return errors.New("the value must not contain [[: a value cannot carry a placeholder")
+		return errors.New("the value must not contain [ or ]: a value cannot carry a placeholder " +
+			"or complete one with the brackets beside it")
 	}
 	return err
 }

@@ -300,7 +300,8 @@ func TestAnInvalidValueShowsTheErrorAtTheField(t *testing.T) {
 		{"empty text", "leer", "   ", "text", "Please enter a text."},
 		{"too long", "lang", strings.Repeat("a", value.MaxTextBytes+1), "text", "The text is longer than 400 bytes."},
 		{"line break", "zeile", "eins\nzwei", "text", "The text must be one line, without line breaks or control characters."},
-		{"marker", "marke", "a [[b", "text", "A value cannot contain [[."},
+		{"marker", "marke", "a [[b", "text", "A value cannot contain [ or ]."},
+		{"one bracket", "klammer", "wert:x]]", "text", "A value cannot contain [ or ]."},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec, bad, _ := screenValueServe(t, h, sm, publisher, h.HandleValueList, postForm(screenValueList(ws.ID),

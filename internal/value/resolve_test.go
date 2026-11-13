@@ -244,6 +244,25 @@ func TestTheNoMarkerPathAllocatesNothing(t *testing.T) {
 	}
 }
 
+// TestNoAcceptedTextCompletesAMarker is WR-01 of the phase 33 review: a value
+// that may hold a bracket can complete a marker with the brackets around it —
+// the page's own "[[" before a marker, or a neighbouring value — and the public
+// page then prints a raw [[wert:…]]. The texts below are the ones that did it;
+// CleanText refuses every one, so no stored value can.
+func TestNoAcceptedTextCompletesAMarker(t *testing.T) {
+	for _, text := range []string{"[", "[wert:x]]", "wert:x]]", "a]]b", "a]b"} {
+		if _, err := CleanText(text); err == nil {
+			t.Errorf("CleanText(%q) accepted a bracket", text)
+		}
+	}
+	// ResolvePlain's cut runs after substitution, so a text holding "]]" lost
+	// what stood before it. With the bracket refused, a text arrives whole.
+	texts := map[string]string{"a": "0.1.5"}
+	if got := ResolvePlain("[[wert:a]] more", texts); got != "0.1.5 more" {
+		t.Errorf("ResolvePlain = %q; want the whole text", got)
+	}
+}
+
 func BenchmarkResolveWithoutAMarker(b *testing.B) {
 	for _, size := range []int{4 << 10, 23 << 10, 100 << 10} {
 		body := markerFreeBody(size)

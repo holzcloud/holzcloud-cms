@@ -79,7 +79,7 @@ var (
 	ErrTextEmpty   = errors.New("value text is empty")
 	ErrTextTooLong = errors.New("value text is longer than 400 bytes")
 	ErrTextInvalid = errors.New("value text must be one line of valid UTF-8 without control characters")
-	ErrTextMarker  = errors.New("value text must not contain [[")
+	ErrTextMarker  = errors.New("value text must not contain [ or ]")
 	ErrKeyTaken    = errors.New("another value already uses that key")
 	ErrNotFound    = errors.New("value not found")
 )
@@ -141,8 +141,16 @@ func CheckKey(key string) error {
 // CleanText trims a text and refuses one a value may not hold.
 //
 // No line break and no tab, because a value stands inside a sentence and a
-// link address, and neither has room for one. No "[[", so a value can never
-// carry marker syntax of its own and the public page can never print one.
+// link address, and neither has room for one.
+//
+// No square bracket at all, opening or closing. Refusing only "[[" was not
+// enough: a value of "[" before a value of "[wert:x]]", or a page's own "[["
+// before a value of "wert:x]]", joined up into a marker after substitution and
+// the visitor read it raw (WR-01 of the phase 33 review). With neither bracket
+// in any text, every bracket in a resolved page is one the editor wrote, so no
+// marker can be formed across a boundary and the public page can never print
+// one that a value made. A version number or a phone number never needs a
+// bracket.
 func CleanText(text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -159,7 +167,7 @@ func CleanText(text string) (string, error) {
 			return "", ErrTextInvalid
 		}
 	}
-	if strings.Contains(text, "[[") {
+	if strings.ContainsAny(text, "[]") {
 		return "", ErrTextMarker
 	}
 	return text, nil

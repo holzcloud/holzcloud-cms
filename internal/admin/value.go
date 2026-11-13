@@ -192,7 +192,7 @@ func (h *Handler) screenValueSave(w http.ResponseWriter, r *http.Request, websit
 	case errors.Is(err, value.ErrTextInvalid):
 		data.Errors.Add("text", "The text must be one line, without line breaks or control characters.")
 	case errors.Is(err, value.ErrTextMarker):
-		data.Errors.Add("text", "A value cannot contain [[.")
+		data.Errors.Add("text", "A value cannot contain [ or ].")
 	default:
 		return err
 	}

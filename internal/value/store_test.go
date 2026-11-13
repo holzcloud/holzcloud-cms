@@ -146,6 +146,14 @@ func TestTheStoreRefusesWhatTheScreenWouldRefuse(t *testing.T) {
 		{"a\xffb", ErrTextInvalid},
 		{"x [[wert:y]]", ErrTextMarker},
 		{"a [[b", ErrTextMarker},
+		// A single bracket either way: a value that holds one can complete a
+		// marker with the bracket beside it in the page or in the next value
+		// (WR-01), so neither half is allowed.
+		{"[", ErrTextMarker},
+		{"[wert:x]]", ErrTextMarker},
+		{"wert:x]]", ErrTextMarker},
+		{"a]]b", ErrTextMarker},
+		{"a]b", ErrTextMarker},
 	}
 	for i, c := range texts {
 		key := "k" + string(rune('a'+i))
