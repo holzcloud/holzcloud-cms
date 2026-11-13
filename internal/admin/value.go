@@ -282,6 +282,9 @@ func (h *Handler) HandleValueDelete(w http.ResponseWriter, r *http.Request) erro
 			"The value is still used on: %s. Remove the placeholders from those pages first.",
 			strings.Join(inUse.Users, ", ")))
 		return h.redirect(w, r, back)
+	case errors.Is(err, value.ErrChangedMeanwhile):
+		web.SetFlashError(h.sm, r.Context(), "The pages changed while the value was being deleted. Please try again.")
+		return h.redirect(w, r, back)
 	case errors.Is(err, value.ErrNotFound):
 		http.NotFound(w, r)
 		return nil

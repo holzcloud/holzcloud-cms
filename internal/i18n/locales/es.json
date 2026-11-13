@@ -1555,6 +1555,7 @@
 "The page stays publicly reachable but does not show up in search.": "La página sigue siendo accesible al público pero no aparece en las búsquedas.",
 "The page was saved but not protected: a page password needs at least %d characters.": "La página se ha guardado pero no está protegida: una contraseña de página necesita al menos %d caracteres.",
 "The page was saved but not protected: please set a password as well.": "La página se ha guardado pero no está protegida: falta asignar una contraseña.",
+"The pages changed while the value was being deleted. Please try again.": "Las páginas cambiaron mientras se eliminaba el valor. Vuelve a intentarlo.",
 "The password is in our letter.": "La contraseña está en nuestra carta.",
 "The password must be at least 8 characters long.": "La contraseña debe tener al menos 8 caracteres.",
 "The passwords do not match": "Las contraseñas no coinciden",

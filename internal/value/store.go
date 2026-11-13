@@ -32,6 +32,10 @@ type Value struct {
 // id, so no method can read or write another website's value (D-03).
 type Store struct {
 	DB *db.DB
+
+	// afterRefusal, when set, runs between a refused delete and the read of
+	// who refused it. Only tests set it, to edit a page in that gap.
+	afterRefusal func()
 }
 
 // NewStore creates a value store.
@@ -161,46 +165,68 @@ func (s *Store) UpdateText(ctx context.Context, websiteID, id int64, text string
 // and a delete cannot slip through. The search is instr, never a pattern match:
 // an underscore in a key is a wildcard to LIKE, and a_b would be kept alive by
 // a page that names axb.
+//
+// Who refused is a second read, after the statement. If the last page naming
+// the key was edited in that gap, the read finds nobody, and a refusal naming
+// nobody read "still used on: ." (IN-03 of the phase 33 review). So a refusal
+// with nobody behind it is not returned: the delete is tried again, because
+// nobody naming the key is exactly when it may go. After deleteAttempts the
+// pages are still changing under it, and ErrChangedMeanwhile asks the caller
+// to try again rather than claim a user it cannot name.
 func (s *Store) Delete(ctx context.Context, websiteID int64, key string) error {
 	if err := CheckKey(key); err != nil {
 		return err
 	}
-	res, err := s.DB.Write.ExecContext(ctx,
-		`DELETE FROM site_values WHERE website_id = $1 AND key = $2
-		   AND NOT EXISTS (SELECT 1 FROM pages
-		         WHERE website_id = $1 AND deleted_at IS NULL
-		           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
-		                OR instr(COALESCE(blocks, ''), '[[wert:' || $2 || ']]') > 0
-		                OR instr(content_html, '[[wert:' || $2 || ']]') > 0
-		                OR instr(excerpt, '[[wert:' || $2 || ']]') > 0))
-		   AND NOT EXISTS (SELECT 1 FROM snippets
-		         WHERE website_id = $1
-		           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
-		                OR instr(content_html, '[[wert:' || $2 || ']]') > 0))`,
-		websiteID, key)
-	if err != nil {
-		return fmt.Errorf("delete value: %w", err)
+	for attempt := 0; attempt < deleteAttempts; attempt++ {
+		res, err := s.DB.Write.ExecContext(ctx,
+			`DELETE FROM site_values WHERE website_id = $1 AND key = $2
+			   AND NOT EXISTS (SELECT 1 FROM pages
+			         WHERE website_id = $1 AND deleted_at IS NULL
+			           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
+			                OR instr(COALESCE(blocks, ''), '[[wert:' || $2 || ']]') > 0
+			                OR instr(content_html, '[[wert:' || $2 || ']]') > 0
+			                OR instr(excerpt, '[[wert:' || $2 || ']]') > 0))
+			   AND NOT EXISTS (SELECT 1 FROM snippets
+			         WHERE website_id = $1
+			           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
+			                OR instr(content_html, '[[wert:' || $2 || ']]') > 0))`,
+			websiteID, key)
+		if err != nil {
+			return fmt.Errorf("delete value: %w", err)
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			return nil
+		}
+		if s.afterRefusal != nil {
+			s.afterRefusal()
+		}
+		existing, err := s.GetByKey(ctx, websiteID, key)
+		if err != nil {
+			return err
+		}
+		if existing == nil {
+			return ErrNotFound
+		}
+		used, err := s.usage(ctx, websiteID)
+		if err != nil {
+			return err
+		}
+		if len(used[key]) == 0 {
+			continue
+		}
+		inUse := &InUseError{}
+		for _, u := range used[key] {
+			inUse.Users = append(inUse.Users, u.Name())
+		}
+		return inUse
 	}
-	if n, _ := res.RowsAffected(); n > 0 {
-		return nil
-	}
-	existing, err := s.GetByKey(ctx, websiteID, key)
-	if err != nil {
-		return err
-	}
-	if existing == nil {
-		return ErrNotFound
-	}
-	used, err := s.usage(ctx, websiteID)
-	if err != nil {
-		return err
-	}
-	inUse := &InUseError{}
-	for _, u := range used[key] {
-		inUse.Users = append(inUse.Users, u.Name())
-	}
-	return inUse
+	return ErrChangedMeanwhile
 }
+
+// deleteAttempts is how often Delete tries before it gives up on pages that
+// keep changing under it. Two would do for one edit in the gap; three leaves
+// room for a second one without looping on a busy website.
+const deleteAttempts = 3
 
 // Use is one page or snippet that names a value.
 type Use struct {

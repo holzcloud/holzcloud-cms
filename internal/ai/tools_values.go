@@ -264,6 +264,9 @@ func deleteValue(d Deps) Tool {
 			case errors.As(err, &inUse):
 				return nil, fmt.Errorf("the value is still used on these pages: %s. Remove the "+
 					"placeholders from them first", strings.Join(inUse.Users, ", "))
+			case errors.Is(err, value.ErrChangedMeanwhile):
+				return nil, errors.New("the pages changed while the value was being deleted: " +
+					"call delete_value again")
 			case errors.Is(err, value.ErrNotFound):
 				return nil, noValue(a.Key)
 			case err != nil:

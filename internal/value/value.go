@@ -82,6 +82,9 @@ var (
 	ErrTextMarker  = errors.New("value text must not contain [ or ]")
 	ErrKeyTaken    = errors.New("another value already uses that key")
 	ErrNotFound    = errors.New("value not found")
+	// ErrChangedMeanwhile is a delete that was refused and, read again, has
+	// nobody naming the key: the pages changed while it ran (Store.Delete).
+	ErrChangedMeanwhile = errors.New("the pages changed while the value was being deleted; try again")
 )
 
 // InUseError refuses to delete a value that a page or a snippet still names.

@@ -367,6 +367,35 @@ func TestTheScanSeesWhatDeliveryResolves(t *testing.T) {
 	}
 }
 
+// TestADeleteRefusalAlwaysNamesSomebody is IN-03 of the phase 33 review. The
+// refusal and the list of users are two reads; when the last page naming the
+// key is edited in between, the list was empty and the flash read "still used
+// on: .". Delete now tries again, and the value goes.
+func TestADeleteRefusalAlwaysNamesSomebody(t *testing.T) {
+	ctx := context.Background()
+	s, database := newTestStore(t)
+	ws := website(t, database, "A")
+	mustCreate(t, s, ws, "v", "0.1.5")
+	id := pageWith(t, database, ws, "Seite", "seite", "", "published", "Version [[wert:v]]", "")
+	calls := 0
+	s.afterRefusal = func() {
+		calls++
+		// The editor removes the placeholder between the two reads.
+		if _, err := database.Write.Exec(`UPDATE pages SET content_markdown = 'Version' WHERE id = $1`, id); err != nil {
+			t.Fatalf("edit page: %v", err)
+		}
+	}
+	if err := s.Delete(ctx, ws, "v"); err != nil {
+		t.Fatalf("Delete = %v; nobody names the value any more, so it goes", err)
+	}
+	if calls != 1 {
+		t.Errorf("the refusal was read %d times; want 1", calls)
+	}
+	if got, _ := s.GetByKey(ctx, ws, "v"); got != nil {
+		t.Error("the value is still there")
+	}
+}
+
 func TestDeleteSeesAMarkerInABlockLink(t *testing.T) {
 	ctx := context.Background()
 	s, database := newTestStore(t)
