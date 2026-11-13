@@ -471,6 +471,57 @@ bt_not "manifest-lost-line: no notice of an old backup" "$T/out" "made before 0.
 bt_eq "manifest-lost-line: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 
 # ---------------------------------------------------------------------------
+ODD="is a symbolic link or not a regular file; backup.sh makes neither — do not restore it"
+
+section "Case link-dir: a directory replaced by a link out of the backup is refused unread"
+reset_case
+mkdir -p "$T/outside/1"
+echo "outside" > "$T/outside/1/f"
+mkdir -p "$B/media"
+ln -s "$T/outside/1" "$B/media/1"
+echo "$(sha "$T/outside/1/f")  ./media/1/f" >> "$B/SHA256SUMS"
+PATH_PREFIX="$T/count:" run_restore
+bt_eq "link-dir: exit status 1" 1 "$RC"
+bt_has "link-dir: the link is named" "$T/err" "ERROR: ./media/1 in $B $ODD"
+bt_not "link-dir: nothing claims to be verified" "$T/out" "files verified"
+bt_eq "link-dir: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')"
+bt_eq "link-dir: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "link-dir: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case link-file: a link to a device is refused unread"
+reset_case
+ln -s /dev/zero "$B/media/zero.jpg"
+PATH_PREFIX="$T/count:" run_restore
+bt_eq "link-file: exit status 1" 1 "$RC"
+bt_has "link-file: the link is named" "$T/err" "ERROR: ./media/zero.jpg in $B $ODD"
+bt_eq "link-file: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')"
+bt_eq "link-file: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case fifo: a FIFO is refused instead of hanging the check"
+reset_case
+mkfifo "$B/media/pipe.jpg"
+PATH_PREFIX="$T/count:" run_restore
+bt_eq "fifo: exit status 1" 1 "$RC"
+bt_has "fifo: the FIFO is named" "$T/err" "ERROR: ./media/pipe.jpg in $B $ODD"
+bt_eq "fifo: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "fifo: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case link-old: a backup made before 0.1.5 with a link is refused too"
+reset_case
+grep -vx 'checksums=SHA256SUMS' "$B/MANIFEST" > "$T/manifest.old"
+cp "$T/manifest.old" "$B/MANIFEST"
+rm -f "$B/SHA256SUMS"
+mkdir -p "$T/outside"
+ln -s "$T/outside" "$B/templates/elsewhere"
+run_restore
+bt_eq "link-old: exit status 1" 1 "$RC"
+bt_has "link-old: the link is named" "$T/err" "ERROR: ./templates/elsewhere in $B $ODD"
+bt_eq "link-old: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
 section "Case listed-missing: a listed file that is gone is refused by name"
 reset_case
 rm -f "$B/media/a.jpg"

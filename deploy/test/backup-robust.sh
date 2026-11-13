@@ -630,6 +630,21 @@ bt_eq "20 the directory is flushed after the MANIFEST rename" yes "$(if [ "$MV_M
 bt_eq "20 the night has its SHA256SUMS" yes "$(exists "$NIGHT/SHA256SUMS")"
 
 # ---------------------------------------------------------------------------
+# restore.sh refuses a backup that holds a link or a special file, so a night
+# that copied one fails here, by name, instead of leaving a backup that no
+# restore takes.
+section "Test 21: a link in the data directory ends the night by name"
+reset_case
+ln -s a.jpg "$T/data/media/link.jpg"
+run_backup
+bt_eq "21 exit status 1" 1 "$RC"
+bt_has "21 the link is named" "$T/err" "ERROR: ./media/link.jpg in the backup is a symbolic link or not a regular file, and restore.sh refuses such a backup; replace $T/data/media/link.jpg with a regular file"
+bt_eq "21 the directory of this run does not exist" no "$(exists "$NIGHT")"
+bt_has "21 the cleanup line is printed" "$T/err" "$CLEANUP_LINE"
+bt_eq "21 the earlier night is intact" yes "$(earlier_intact)"
+rm -f "$T/data/media/link.jpg"
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "BACKUP-ROBUST OK ($N cases)"
     exit 0

@@ -23,10 +23,10 @@ set -euo pipefail
 # drop-ins, environment files, the secret key (HOLZCLOUD_SECRET_KEY) and the
 # proxy configuration. Those are rebuilt by hand.
 #
-# Order, which a refused backup depends on: verify the checksums of SHA256SUMS,
-# verify a copy of the snapshot, ask, stop the service, move the data aside,
-# copy, chown, chmod, start, wait for /readyz. Nothing is stopped or moved
-# before both checks have passed.
+# Order, which a refused backup depends on: refuse links and special files,
+# verify the checksums of SHA256SUMS, verify a copy of the snapshot, ask, stop
+# the service, move the data aside, copy, chown, chmod, start, wait for
+# /readyz. Nothing is stopped or moved before every check has passed.
 #
 # Another directory joining the data directory has to be added to the list
 # below, here and in backup.sh.
@@ -57,6 +57,19 @@ if [ -z "${BACKUP_DIR}" ] || [ ! -d "${BACKUP_DIR}" ]; then
     echo "usage: $0 <backup-directory>" >&2
     echo "available:" >&2
     ls -1 "$(dirname "${DATA_DIR}")/backups" 2>/dev/null >&2 || true
+    exit 1
+fi
+# A symbolic link or a special file has no place in a backup: backup.sh makes
+# neither. A link would be put back into the live data directory by rsync
+# without its target ever being checked, and a FIFO or a device would hang the
+# checks below forever, as root, before anything is stopped. So nothing of the
+# backup is read before this search, which follows no link.
+if ! odd=$(cd "${BACKUP_DIR}" && find . \( -type l -o \( ! -type f ! -type d \) \) -print -quit); then
+    echo "ERROR: could not search ${BACKUP_DIR} for links and special files (see above); nothing was stopped" >&2
+    exit 1
+fi
+if [ -n "${odd}" ]; then
+    echo "ERROR: ${odd} in ${BACKUP_DIR} is a symbolic link or not a regular file; backup.sh makes neither — do not restore it" >&2
     exit 1
 fi
 if [ ! -f "${BACKUP_DIR}/holzcloud.sqlite" ]; then

@@ -206,6 +206,15 @@ done
 #    that fails ends the night here, before the MANIFEST, and the trap removes
 #    the directory.
 echo "Writing checksums..."
+# SHA256SUMS lists regular files only, and restore.sh refuses a backup that
+# holds a symbolic link or a special file: rsync -a copies a link as a link,
+# and a restore would put it back into the live data directory unverified. Such
+# a night fails here, by name, before its MANIFEST, so the trap removes it.
+odd=$(cd "${BACKUP_DIR}" && find . \( -type l -o \( ! -type f ! -type d \) \) -print -quit)
+if [ -n "${odd}" ]; then
+    echo "ERROR: ${odd} in the backup is a symbolic link or not a regular file, and restore.sh refuses such a backup; replace ${DATA_DIR}/${odd#./} with a regular file" >&2
+    exit 1
+fi
 (
     cd "${BACKUP_DIR}"
     find . -type f \
