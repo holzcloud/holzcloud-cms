@@ -40,6 +40,11 @@ func (h *Handler) rightsOf(r *http.Request) user.Rights {
 	}
 	rights, err := h.users.Rights(r.Context(), id)
 	if err != nil {
+		// Logged, because the screen and the doors now disagree: the screen
+		// offers every control, and mayPublish refuses each of them with
+		// "ask somebody who may publish" — even to a publisher. Without this
+		// line the operator saw those refusals with no cause beside them.
+		slog.Warn("rights lookup failed; the screen shows every control", "user_id", id, "err", err)
 		return user.Everything()
 	}
 	return rights

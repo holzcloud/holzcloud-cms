@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,7 +30,9 @@ func TestAProductRequestAsksForThePublishingRightOnce(t *testing.T) {
 	live := seedShopProduct(t, h, products, ws.ID, "online", shop.StatusPublished)
 	id := strconv.FormatInt(live.ID, 10)
 
-	questions := func() int { return strings.Count(logged.String(), "rights lookup failed") }
+	questions := func() int {
+		return strings.Count(logged.String(), "rights lookup failed; the publishing right is refused")
+	}
 
 	t.Run("saving", func(t *testing.T) {
 		logged.Reset()
@@ -45,6 +48,22 @@ func TestAProductRequestAsksForThePublishingRightOnce(t *testing.T) {
 		getAs(t, sm, putUser(sm, nobody), h.HandleProductForm, productAddress(ws.ID, live.ID), productRoute(ws.ID, id))
 		if n := questions(); n != 1 {
 			t.Errorf("the form asked for the publishing right %d times, want once", n)
+		}
+	})
+
+	// The screens are drawn from rightsOf, which counts a failed lookup as
+	// every right there is — right for what a screen shows, but then the
+	// doors refuse with "ask somebody who may publish" and the operator finds
+	// no cause in the log. The failure is logged there too (IN-04).
+	t.Run("the screen's own lookup is logged", func(t *testing.T) {
+		logged.Reset()
+		getAs(t, sm, putUser(sm, nobody), func(w http.ResponseWriter, r *http.Request) error {
+			h.rightsOf(r)
+			return nil
+		}, "/admin", nil)
+		out := logged.String()
+		if !strings.Contains(out, "level=WARN") || !strings.Contains(out, "rights lookup failed; the screen shows every control") {
+			t.Errorf("a failed rights lookup for a screen left no line in the log:\n%s", out)
 		}
 	})
 
