@@ -37,6 +37,7 @@ import (
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // Report says what an import did, in the words the operator needs.
@@ -906,15 +907,27 @@ func importPages(ctx context.Context, s Stores, websiteID int64, m *Manifest,
 // key and the text are checked, the same checks the Values screen and the MCP
 // tools run. Only the new website is written to; the import created it a
 // moment ago.
+//
+// What the store refuses is named in the report with the store's reason, and
+// the import goes on, as it does for a snippet. A key the bundle names twice
+// keeps its first text: Set would quietly replace it with the second, and an
+// archive is read by hand often enough for that to be a mistake rather than
+// an intention.
 func importValues(ctx context.Context, s Stores, websiteID int64, m *Manifest, report *Report) {
 	if s.Values == nil {
 		return
 	}
+	seen := map[string]bool{}
 	for _, v := range m.Values {
-		_, created, err := s.Values.Set(ctx, websiteID, v.Key, v.Value)
+		created, err := false, error(value.ErrKeyTaken)
+		if !seen[v.Key] {
+			_, created, err = s.Values.Set(ctx, websiteID, v.Key, v.Value)
+		}
 		if err != nil {
+			report.warnf(i18n.N("value %q could not be created: %v"), v.Key, err)
 			continue
 		}
+		seen[v.Key] = true
 		if created {
 			report.Values++
 		}

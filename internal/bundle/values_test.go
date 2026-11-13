@@ -141,6 +141,91 @@ func TestABundleWithoutValuesImportsAsBefore(t *testing.T) {
 	}
 }
 
+// A bundle is a file anyone can edit, so its values are exactly as untrusted
+// as a form field. Each refused entry is named in the report, and the rest of
+// the import goes on.
+func TestAnImportNamesTheValuesItRefused(t *testing.T) {
+	s := newValueStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Von Hand"},
+		Pages: []Page{{
+			Title: "Start", Slug: "start", Status: "published", Markdown: "Preis [[wert:preis]].",
+		}},
+		Values: []SiteValue{
+			{Key: "Version", Value: "0.1.5"},
+			{Key: "leer", Value: ""},
+			{Key: "zeile", Value: "a\nb"},
+			{Key: "marke", Value: "x [[y"},
+			{Key: "lang", Value: strings.Repeat("x", 401)},
+			{Key: "preis", Value: "CHF 12.–"},
+		},
+	})
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Values != 1 {
+		t.Errorf("report.Values = %d, want 1", report.Values)
+	}
+	if report.Pages != 1 {
+		t.Errorf("report.Pages = %d, want 1: a refused value must not stop the pages", report.Pages)
+	}
+	list, err := s.Values.List(ctx, report.WebsiteID)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(list) != 1 || list[0].Key != "preis" || list[0].Text != "CHF 12.–" {
+		t.Errorf("stored values = %+v, want only preis", list)
+	}
+	for _, key := range []string{"Version", "leer", "zeile", "marke", "lang"} {
+		n := 0
+		for _, w := range report.Warnings {
+			if strings.Contains(w, `"`+key+`"`) {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Errorf("%d warnings name %q, want one; warnings: %v", n, key, report.Warnings)
+		}
+	}
+	if warned(report, `"preis"`) {
+		t.Errorf("the stored value was warned about: %v", report.Warnings)
+	}
+}
+
+// A hand-edited bundle may name one key twice. The first text is kept and the
+// second is named, rather than one silently replacing the other.
+func TestADuplicateValueKeyIsNamedNotOverwritten(t *testing.T) {
+	s := newValueStores(t)
+	ctx := context.Background()
+
+	archive := archiveWith(t, Manifest{
+		Version: Version,
+		Site:    Site{Name: "Doppelt"},
+		Values: []SiteValue{
+			{Key: "preis", Value: "CHF 12.–"},
+			{Key: "preis", Value: "CHF 99.–"},
+		},
+	})
+	report, err := Import(ctx, s, bytes.NewReader(archive), int64(len(archive)), "")
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if report.Values != 1 {
+		t.Errorf("report.Values = %d, want 1", report.Values)
+	}
+	list, _ := s.Values.List(ctx, report.WebsiteID)
+	if len(list) != 1 || list[0].Text != "CHF 12.–" {
+		t.Errorf("stored values = %+v, want the first text", list)
+	}
+	if len(report.Warnings) != 1 || !warned(report, `"preis"`) {
+		t.Errorf("warnings = %v, want one naming preis", report.Warnings)
+	}
+}
+
 // A build without the value store exports and imports as before: the values
 // of a manifest are not stored and nothing breaks.
 func TestWithoutAValueStoreTheValuesStayBehind(t *testing.T) {
