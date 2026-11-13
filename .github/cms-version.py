@@ -45,7 +45,11 @@ The token is a holzcloud-CMS AI key of level "content", limited to the
 website (made in the CMS admin under "KI-Zugang"). --website defaults to the
 environment variable CMS_WEBSITE, else 1. Without CMS_TOKEN the script
 prints a notice and exits 0, so a release keeps working until the secret
-exists. Exit codes: 0 done or skipped, 1 refused or failed.
+exists. Exit codes: 0 done or skipped, 1 refused or failed. A failure is one
+GitHub ::error:: line, never a traceback: a connection that is refused,
+reset, dropped or cut off is tried three times, and an answer that is not
+the JSON-RPC object the CMS sends (a proxy's or a maintenance page's HTML,
+say) is named as such.
 
 The endpoint is the CMS's MCP address: JSON-RPC 2.0, POST, bearer key,
 stateless - one tools/call per request. Python standard library only.
@@ -53,6 +57,7 @@ stateless - one tools/call per request. Python standard library only.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import re
@@ -130,11 +135,17 @@ class CMS:
             "Accept": "application/json",
             "User-Agent": "holzcloud-cms-version/2",
         })
+        # Retried: a 5xx, and every way the connection can fail on the way -
+        # refused, reset, dropped before the answer (RemoteDisconnected), cut
+        # off in the middle of the body (IncompleteRead), timed out. The first
+        # three are OSError (URLError is one too), the last two are
+        # http.client's own. Not retried: an answer that arrived whole and is
+        # wrong, below - asking again gets the same proxy page.
         last = None
         for attempt in range(3):
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as res:
-                    answer = json.load(res)
+                    raw = res.read()
                 break
             except urllib.error.HTTPError as e:
                 if e.code in (401, 403):
@@ -143,23 +154,51 @@ class CMS:
                 last = e
                 if e.code < 500:
                     raise Refused(f"the CMS answered HTTP {e.code} to {tool}")
-            except (urllib.error.URLError, TimeoutError) as e:
+            except (OSError, http.client.HTTPException) as e:
                 last = e
             time.sleep(2 * (attempt + 1))
         else:
-            raise Refused(f"the CMS could not be reached for {tool}: {last}")
+            raise Refused(f"the CMS could not be reached for {tool}: "
+                          f"{type(last).__name__}: {last}")
+        return decode(tool, raw)
 
-        error = answer.get("error")
-        if error:
-            raise RpcError(tool, error.get("code"), error.get("message") or "error without a message")
-        result = answer.get("result") or {}
-        text = "".join(c.get("text", "") for c in result.get("content", []))
-        if result.get("isError"):
-            raise ToolError(tool, text)
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            raise Refused(f"{tool} answered something that is not JSON: {text[:200]}")
+
+def decode(tool: str, raw: bytes) -> dict:
+    """The tool's answer out of one JSON-RPC response body.
+
+    Every shape the CMS does not answer is a Refused that says what came
+    instead: a maintenance or proxy page is HTML with status 200, and a body
+    that is JSON but not the object JSON-RPC defines would otherwise end the
+    run in an AttributeError.
+    """
+    try:
+        answer = json.loads(raw)
+    except ValueError:  # not JSON, or bytes that are not text
+        head = raw[:200].decode("utf-8", "replace")
+        raise Refused(f"{tool}: the CMS answered something that is not JSON "
+                      f"(a proxy or maintenance page?): {head}")
+    if not isinstance(answer, dict):
+        raise Refused(f"{tool}: the CMS answered JSON that is not an object")
+    error = answer.get("error")
+    if error:
+        if not isinstance(error, dict):
+            raise Refused(f"{tool}: the CMS answered an error it did not describe: {str(error)[:200]}")
+        raise RpcError(tool, error.get("code"), error.get("message") or "error without a message")
+    result = answer.get("result") or {}
+    content = result.get("content") if isinstance(result, dict) else None
+    if not isinstance(result, dict) or not isinstance(content or [], list):
+        raise Refused(f"{tool}: the CMS answered a result of an unexpected shape")
+    text = "".join(c["text"] for c in content or []
+                   if isinstance(c, dict) and isinstance(c.get("text"), str))
+    if result.get("isError"):
+        raise ToolError(tool, text)
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        raise Refused(f"{tool} answered something that is not JSON: {text[:200]}")
+    if not isinstance(payload, dict):
+        raise Refused(f"{tool} answered JSON that is not an object: {text[:200]}")
+    return payload
 
 
 # ------------------------------------------------------------------ helpers
@@ -184,10 +223,19 @@ def place(endpoint: str) -> str:
 
 def find(listed: dict, key: str):
     """The entry of key in a list_values answer, or None."""
-    for entry in listed.get("values") or []:
-        if entry.get("key") == key:
+    values = listed.get("values") or []
+    if not isinstance(values, list):
+        raise Refused("list_values answered values that are not a list")
+    for entry in values:
+        if isinstance(entry, dict) and entry.get("key") == key:
             return entry
     return None
+
+
+def text_of(entry) -> str | None:
+    """An entry's text, or None when there is no entry or no text."""
+    value = entry.get("value") if entry else None
+    return None if value is None else str(value)
 
 
 def public_path(page: dict) -> str:
@@ -229,7 +277,7 @@ def run(args) -> int:
         return 0
 
     entry = find(listed, key)
-    current = entry.get("value") if entry else None
+    current = text_of(entry)
     if current is None:
         print(f"{key} does not exist on website {website} yet; it is created with {version}.")
     elif not PLAIN.fullmatch(current):
@@ -254,10 +302,11 @@ def run(args) -> int:
     # right thing; this is the check that it does.
     listed = cms.call("list_values", {"website": website})
     entry = find(listed, key)
-    got = entry.get("value") if entry else None
+    got = text_of(entry)
     if got != version:
         raise Refused(f"{key} reads {got or 'nothing'} after it was set to {version}")
     pages = entry.get("used_on") or []
+    pages = [p for p in pages if isinstance(p, dict)] if isinstance(pages, list) else []
     print(f"Read back: {key} = {version} on website {website}, named by {len(pages)} page(s).")
 
     if args.site:
@@ -267,7 +316,7 @@ def run(args) -> int:
 
 def check_public(site: str, key: str, pages: list, version: str):
     """What a visitor gets. A warning only: a cache may lag behind."""
-    published = [p for p in pages if p.get("status") == "published"]
+    published = [p for p in pages if p.get("status") == "published" and isinstance(p.get("slug"), str)]
     if not published:
         notice(f"no published page names [[wert:{key}]] yet, so no page shows {version}.")
         return
@@ -312,9 +361,15 @@ def main(argv=None) -> int:
     try:
         return run(args)
     except Refused as e:
-        msg = f"{place(args.endpoint)} was not updated: {e}"
-        print(f"::error::{msg}" if os.environ.get("GITHUB_ACTIONS") else f"error: {msg}", file=sys.stderr)
+        error(f"{place(args.endpoint)} was not updated: {e}")
         return 1
+    except Exception as e:  # noqa: BLE001 - a run ends in one line, never a traceback
+        error(f"{place(args.endpoint)} was not updated: unexpected {type(e).__name__}: {e}")
+        return 1
+
+
+def error(msg: str):
+    print(f"::error::{msg}" if os.environ.get("GITHUB_ACTIONS") else f"error: {msg}", file=sys.stderr)
 
 
 if __name__ == "__main__":
