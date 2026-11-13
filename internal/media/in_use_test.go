@@ -127,6 +127,11 @@ func TestInUseSeesEveryPlaceAFileIsShown(t *testing.T) {
 			product := seedProduct(t, s, ws, "stuhl")
 			mustExec(t, s, `INSERT INTO product_media (product_id, media_id, position) VALUES ($1, $2, 0)`, product, m.ID)
 		}},
+		{"a product's description", func(t *testing.T, s *Store, ws int64, m *Media) {
+			product := seedProduct(t, s, ws, "bank")
+			mustExec(t, s, `UPDATE products SET description_html = $1 WHERE id = $2`,
+				`<p><img src="`+path(ws)+`" alt="Bank"></p>`, product)
+		}},
 	}
 
 	for _, arm := range arms {

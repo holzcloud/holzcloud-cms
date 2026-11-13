@@ -17,7 +17,9 @@ import (
 // media_usage alone is not the answer: it is filled only by pages saved
 // through the editor, so it misses an imported or restored page, a page's
 // preview image, image fields, block pictures, text snippets, albums, the
-// website's logo and favicon, and products. An album picture is the sharp
+// website's logo and favicon, and products (their main picture, their gallery
+// and the pictures of their description, which goes through the same Markdown
+// pipeline as a page). An album picture is the sharp
 // case, because album_items cascades away when its file is deleted, so a live
 // gallery would lose a picture without a word. Every one of those places is an
 // EXISTS arm of the one statement below.
@@ -66,7 +68,8 @@ func (s *Store) InUse(ctx context.Context, m *Media) (bool, error) {
 		    OR EXISTS (SELECT 1 FROM websites w
 		                WHERE w.id = $2 AND (w.logo_media_id = $1 OR w.favicon_media_id = $1))
 		    OR EXISTS (SELECT 1 FROM products pr
-		                WHERE pr.website_id = $2 AND pr.featured_media_id = $1)
+		                WHERE pr.website_id = $2
+		                  AND (pr.featured_media_id = $1 OR instr(pr.description_html, $3) > 0))
 		    OR EXISTS (SELECT 1 FROM product_media pm JOIN products pr ON pr.id = pm.product_id
 		                WHERE pr.website_id = $2 AND pm.media_id = $1)`,
 		m.ID, m.WebsiteID, path, idText).Scan(&used)
