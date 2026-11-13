@@ -645,6 +645,31 @@ bt_eq "21 the earlier night is intact" yes "$(earlier_intact)"
 rm -f "$T/data/media/link.jpg"
 
 # ---------------------------------------------------------------------------
+# Retention removes only what backup.sh makes: a directory named by its
+# timestamp. A lost+found of a mounted backup disk (root's, mode 700) or a copy
+# the operator keeps there on purpose is old too, and is never touched.
+section "Test 22: retention removes only directories named like a night"
+reset_case
+OLD_NIGHT="$T/root/20200103-031500"
+mkdir -p "$OLD_NIGHT" "$T/root/lost+found/inner" "$T/root/keep-me" "$T/root/20200104-0315" "$T/root/x20200105-031500"
+echo "old" > "$OLD_NIGHT/MANIFEST"
+echo "mine" > "$T/root/keep-me/file"
+touch -t 202001010000 "$OLD_NIGHT" "$T/root/lost+found" "$T/root/keep-me" "$T/root/20200104-0315" "$T/root/x20200105-031500"
+if [ "$(id -u)" != "0" ]; then
+    chmod 500 "$T/root/lost+found"
+fi
+run_backup
+chmod -R u+w "$T/root" 2>/dev/null
+bt_eq "22 exit status 0" 0 "$RC"
+bt_not "22 no retention error" "$T/err" "retention could not"
+bt_eq "22 the old night is gone" no "$(exists "$OLD_NIGHT")"
+bt_eq "22 lost+found is kept" yes "$(exists "$T/root/lost+found/inner")"
+bt_eq "22 the operator's directory is kept" yes "$(exists "$T/root/keep-me/file")"
+bt_eq "22 a name with a short time is kept" yes "$(exists "$T/root/20200104-0315")"
+bt_eq "22 a name with a prefix is kept" yes "$(exists "$T/root/x20200105-031500")"
+bt_eq "22 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "BACKUP-ROBUST OK ($N cases)"
     exit 0

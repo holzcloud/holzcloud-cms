@@ -685,7 +685,9 @@ systemctl list-timers holzcloud-backup.timer
 sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups
 ```
 
-Retention defaults to 30 days (`RETENTION_DAYS`). Set `REMOTE_TARGET` in
+Retention defaults to 30 days (`RETENTION_DAYS`). It removes only directories named like a backup
+(`YYYYMMDD-HHMMSS`); anything else in the backup root, such as the `lost+found`
+of a backup disk, is left alone. Set `REMOTE_TARGET` in
 `holzcloud-backup.service` to rsync the whole backup root off the box — a backup
 on the same disk does not survive the disk failure it exists for, and a backup
 that has never left the machine is not yet a backup.

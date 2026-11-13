@@ -43,7 +43,9 @@ set -euo pipefail
 # repeated once; a second 24 ends the night with status 24 and a message that
 # names what was being copied. Any other rsync status is never repeated.
 #
-# Retention removes old backup directories one by one. One it cannot remove,
+# Retention removes old backup directories one by one, and only directories
+# named like a night (YYYYMMDD-HHMMSS): a lost+found of the backup disk or a
+# copy kept there on purpose is never touched. One it cannot remove,
 # or a listing of the backup root that fails, is named in an ERROR line on
 # stderr; the night still makes its off-site copy, prints its complete line and
 # ends with status 40, so the timer unit shows the failure instead of a full
@@ -247,8 +249,8 @@ flush "${BACKUP_DIR}"
 #    removed one by one, and each one that cannot be removed is named on stderr
 #    (the journal of holzcloud-backup.service), next to rm's own lines. The
 #    night still goes on to the off-site copy and ends with status 40 below.
-#    Only direct children of the backup root are touched, never the directory
-#    of this night.
+#    Only direct children of the backup root named like a night
+#    (YYYYMMDD-HHMMSS) are touched, never the directory of this night.
 RETENTION_FAILED=""
 if [ "${RETENTION_DAYS}" -gt 0 ]; then
     echo "Pruning backups older than ${RETENTION_DAYS} days..."
@@ -256,9 +258,12 @@ if [ "${RETENTION_DAYS}" -gt 0 ]; then
     if old_list=$(mktemp) \
         && find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" -print0 > "${old_list}"; then
         while IFS= read -r -d '' old; do
+            # Only a directory this script makes, named by its timestamp, is
+            # removed. Anything else in the backup root (a lost+found of the
+            # backup disk, a copy kept on purpose) is never touched.
             case "${old}" in
                 "${prune_root}"/*/*) continue ;;
-                "${prune_root}"/?*) ;;
+                "${prune_root}"/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
                 *) continue ;;
             esac
             if [ "${old}" = "${prune_root}/${TIMESTAMP}" ]; then
