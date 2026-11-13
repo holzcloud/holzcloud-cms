@@ -51,6 +51,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/term"
 	"github.com/holzcloud/holzcloud-cms/internal/tmplmgr"
 	"github.com/holzcloud/holzcloud-cms/internal/user"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 	"github.com/holzcloud/holzcloud-cms/internal/wording"
 )
@@ -225,6 +226,7 @@ func main() {
 	wordingStore := wording.NewStore(database)
 	mediaStore := media.NewStore(database)
 	snippetStore := snippet.NewStore(database)
+	valueStore := value.NewStore(database)
 	termStore := term.NewStore(database)
 	productStore := shop.NewStore(database)
 	cartStore := shop.NewCartStore(productStore)
@@ -437,6 +439,7 @@ func main() {
 		albumStore:      albumStore,
 		mediaStore:      mediaStore,
 		snippetStore:    snippetStore,
+		valueStore:      valueStore,
 		termStore:       termStore,
 		productStore:    productStore,
 		cartStore:       cartStore,
@@ -845,9 +848,11 @@ type routerDeps struct {
 	// albumStore is read twice: the album routes reach it through adminHandler,
 	// and the public handler expands a page's album markers with it at request
 	// time (plan 11-05).
-	albumStore      *album.Store
-	mediaStore      *media.Store
-	snippetStore    *snippet.Store
+	albumStore   *album.Store
+	mediaStore   *media.Store
+	snippetStore *snippet.Store
+	// valueStore resolves the [[wert:key]] markers of a page at request time.
+	valueStore      *value.Store
 	termStore       *term.Store
 	productStore    *shop.Store
 	cartStore       *shop.CartStore
@@ -1411,6 +1416,8 @@ func newRouter(d routerDeps) (http.Handler, error) {
 	// on every page expands to nothing, and the tests in internal/public still
 	// pass because they wire their own.
 	publicHandler.SetAlbumStore(d.albumStore)
+	// Without this every [[wert:key]] on every page renders as nothing.
+	publicHandler.SetValueStore(d.valueStore)
 	publicHandler.SetFieldStore(field.NewStore(database))
 	publicHandler.SetKindStore(kind.NewStore(database))
 	publicHandler.SetProductStore(productStore)

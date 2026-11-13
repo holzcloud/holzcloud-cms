@@ -26,6 +26,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 	"github.com/holzcloud/holzcloud-cms/internal/web"
 )
 
@@ -39,6 +40,10 @@ type Handler struct {
 	// means no album expansion happens and a page's body passes through
 	// untouched, which is what a build without the feature looks like.
 	albumStore *album.Store
+	// valueStore supplies the website's values, which a page names as
+	// [[wert:key]]. Nil means every value marker renders as nothing — never as
+	// the marker itself.
+	valueStore *value.Store
 	// termStore supplies the labels. It may be nil, in which case /tag/ 404s
 	// and no labels are rendered.
 	termStore *term.Store
@@ -118,6 +123,11 @@ func (h *Handler) SetTermStore(s *term.Store) { h.termStore = s }
 // SetAlbumStore attaches the album store, so a gallery block naming an album
 // resolves its pictures at request time.
 func (h *Handler) SetAlbumStore(s *album.Store) { h.albumStore = s }
+
+// SetValueStore attaches the value store, so a [[wert:key]] in a page's body
+// reads the website's text at request time. Without it every value marker
+// renders as nothing, which is what a page shows for a key nobody defined.
+func (h *Handler) SetValueStore(s *value.Store) { h.valueStore = s }
 
 // SetFieldStore supplies the website's own page fields.
 func (h *Handler) SetFieldStore(s *field.Store) { h.fieldStore = s }

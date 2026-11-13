@@ -19,10 +19,11 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/snippet"
 	tmpl "github.com/holzcloud/holzcloud-cms/internal/template"
 	"github.com/holzcloud/holzcloud-cms/internal/term"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // pageContent maps a stored page onto what a theme sees, and returns beside it
-// when the albums that page names last changed.
+// when the albums and the values that page names last changed.
 //
 // Snippet markers are expanded here, at render time. Baking the expansion into
 // content_html on save would freeze a copy of the opening hours into every
@@ -75,6 +76,26 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// LocaleMiddleware put it there, and its comment says why: "the language
 	// belongs to the page, not to whoever is reading it".
 	body = block.ResolveWords(body, pageWords(r.Context()))
+	// The website's values, and again where this stands is the decision.
+	//
+	// AFTER the snippets and the albums, so a [[wert:…]] a snippet carries —
+	// the footer that names the version — is resolved with the page's own.
+	//
+	// BEFORE the plugins and the responsive rewrite, for the reason both give:
+	// a filter sees the page as a visitor would, and media.MakeResponsive must
+	// see the final address of a picture, not a marker standing in it.
+	//
+	// HERE, at delivery, and never at save: VAL-04 is that changing a value
+	// changes every page that names it without touching any of them, and a
+	// text frozen into content_html would wait for the next save of each.
+	//
+	// And its time comes back beside the albums', because a browser that holds
+	// only a date would otherwise be told 304 about a page whose value moved —
+	// contentModTime's own comment tells that story for the albums.
+	body, valuesAt := h.resolveValues(r, websiteID, body)
+	if valuesAt.After(albumsAt) {
+		albumsAt = valuesAt
+	}
 	// Plugins last: they see the page as a visitor would, with the snippets
 	// already in place and the form already drawn. A filter that ran earlier
 	// would be filtering markers instead of text.
@@ -93,6 +114,33 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 		Fields:        fields,
 		FieldList:     liste,
 	}, albumsAt
+}
+
+// resolveValues puts the website's values into a body that names them, and
+// returns the newest updated_at among them as a caching validator.
+//
+// A body without the prefix costs one strings.Contains: no query, no
+// allocation, the zero time. That is every page that does not use a value, and
+// it is why the texts are loaded here and not before.
+//
+// Without a store, or when the texts cannot be read, every marker renders as
+// nothing — the outcome a key nobody defined has. Serving the body as stored
+// would print [[wert:…]] to every visitor until somebody noticed.
+func (h *Handler) resolveValues(r *http.Request, websiteID int64, body string) (string, time.Time) {
+	if !value.Has(body) {
+		return body, time.Time{}
+	}
+	var texts map[string]string
+	var latest time.Time
+	if h.valueStore != nil {
+		var err error
+		texts, latest, err = h.valueStore.Texts(r.Context(), websiteID)
+		if err != nil {
+			slog.Error("load values", "err", err, "website", websiteID)
+			texts, latest = nil, time.Time{}
+		}
+	}
+	return value.Resolve(body, texts), latest
 }
 
 // ownFields resolves the website's own fields for a theme.
