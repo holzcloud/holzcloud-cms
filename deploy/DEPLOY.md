@@ -84,9 +84,16 @@ The image is built for linux/amd64 only. `docker run --rm -v holzcloud:/data -p
 ## Transfer to the server
 
 ```bash
-scp holzcloud user@your-server:/tmp/holzcloud
-scp -r deploy/ user@your-server:/tmp/deploy/
+scp holzcloud user@your-server:
+scp -r deploy/ user@your-server:
 ```
+
+Both land in your home directory on the server (`~/holzcloud` and `~/deploy`),
+which only you can write. Root installs from there in the next steps, so do not
+use a fixed name under `/tmp` instead: any account on the server can create
+that name first and have its own files installed. If `~/deploy` is there from
+an earlier attempt, remove it first; `scp -r` puts the copy inside an existing
+directory of the same name.
 
 ## Install
 
@@ -101,11 +108,11 @@ sudo mkdir -p /opt/holzcloud/data
 sudo mkdir -p /opt/holzcloud/backups
 
 # Copy binary
-sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
+sudo cp ~/holzcloud /opt/holzcloud/holzcloud
 sudo chmod 755 /opt/holzcloud/holzcloud
 
 # Copy the whole deploy directory (scripts, units, Caddyfile example)
-sudo cp -r /tmp/deploy /opt/holzcloud/deploy
+sudo cp -r ~/deploy /opt/holzcloud/deploy
 sudo chmod 755 /opt/holzcloud/deploy/backup.sh /opt/holzcloud/deploy/restore.sh
 
 # Set ownership: the service writes the data directory, and the backup unit,
@@ -121,7 +128,7 @@ and restore scripts, the backup unit and timer, and `Caddyfile.example`.
 
 ```bash
 # Install service file
-sudo cp /tmp/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
+sudo cp ~/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
 
 # Reload systemd, enable and start
 sudo systemctl daemon-reload
@@ -139,7 +146,7 @@ Beyond that the unit now also restricts the process to IPv4, IPv6 and local sock
 An existing installation picks this up only with the new unit file:
 
 ```bash
-sudo cp /tmp/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
+sudo cp ~/deploy/holzcloud.service /etc/systemd/system/holzcloud.service
 sudo systemctl daemon-reload && sudo systemctl restart holzcloud
 journalctl -u holzcloud -n 50      # a blocked call shows up here as a start failure
 systemd-analyze security holzcloud # the exposure score should have dropped
@@ -195,7 +202,7 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo 
 sudo apt update && sudo apt install -y caddy
 
 # Configure
-sudo cp /tmp/deploy/Caddyfile.example /etc/caddy/Caddyfile
+sudo cp ~/deploy/Caddyfile.example /etc/caddy/Caddyfile
 # Edit /etc/caddy/Caddyfile — replace example.com with your domain
 
 sudo systemctl reload caddy
@@ -623,6 +630,12 @@ before you rely on it.
   enabled and not running);
 - `sprachen`, the language files you added;
 - `marke`, the logo;
+- `SHA256SUMS`, the SHA-256 checksum of every other regular file of the backup
+  (the database snapshot, `csrf.key` and every file of the five directories). It
+  is written before the `MANIFEST`, which names it in the line
+  `checksums=SHA256SUMS`, and `restore.sh` checks it before it touches anything.
+  A checksum catches rot and accidental damage, not tampering: whoever can write
+  the backup directory can rewrite the files and their checksums alike;
 - a `MANIFEST` naming the version and the host it came from. It is written
   last, so a directory without one is a backup that was interrupted, and
   `restore.sh` refuses it.
@@ -639,15 +652,36 @@ and the proxy's certificate state.
 are copied afterwards, with the site running. A file uploaded in between is in
 the backup although the database does not know it yet, which is harmless. A file
 deleted in between can leave a database row whose file the backup lacks. Back up
-when the site is quiet if that matters.
+when the site is quiet if that matters. `restore.sh` reports such a row: it names
+every file the database expects and the backup lacks (see *Restore from a backup*).
+
+**A night that goes wrong.** A file that vanishes while it is copied (deleted
+in the admin at that moment) is copied once more; if it vanishes again, the night
+ends with status 24 and leaves no backup. A night that fails before its `MANIFEST`
+is written removes the directory it made, and nothing else; if even that fails,
+the journal says so and names the directory to remove by hand. When the retention
+step cannot remove an old directory, the journal of `holzcloud-backup.service`
+shows `ERROR: retention could not remove` with the directory (or
+`ERROR: retention could not list` the backup root). The new backup is complete
+then and has already been copied off the box (the off-site copy runs before
+retention), and the night ends with status 40:
+`systemctl show holzcloud-backup.service -p Result -p ExecMainStatus` gives
+`exit-code` and `40`. Remove the old directory by hand. A failed off-site copy
+does not skip retention; the night then ends with the status of the copy and the
+line `ERROR: the off-site copy to … failed`, and a retention line, if any, is in
+the journal as well.
 
 `backup.sh` refuses to start when less than `MIN_FREE_MB` (default 1024) is free
 at the backup directory. That floor does not grow with your data: set
 `MIN_FREE_MB` to more than the data directory holds, or a backup can run out of
-space halfway.
+space halfway. `MIN_FREE_MB` and `RETENTION_DAYS` take a whole number (megabytes,
+days); any other value (`30d`, `1G`, a trailing space) ends the night at once with
+status 2 and an `ERROR` line that names the setting, instead of skipping the step.
 
 The timer's hardened service has been run through its timer; what that does and
-does not show is in the record `deploy/BACKUP-RUN.md`.
+does not show is in the record `deploy/BACKUP-RUN.md`. The checksum file, the
+report of a missing file and the retention message are recorded in
+`deploy/BACKUP-VERIFY-RUN.md`.
 
 Enable the timer instead of a cron entry, so `systemctl list-timers` shows
 whether backups are actually running:
@@ -662,7 +696,9 @@ systemctl list-timers holzcloud-backup.timer
 sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups
 ```
 
-Retention defaults to 30 days (`RETENTION_DAYS`). Set `REMOTE_TARGET` in
+Retention defaults to 30 days (`RETENTION_DAYS`). It removes only directories named like a backup
+(`YYYYMMDD-HHMMSS`); anything else in the backup root, such as the `lost+found`
+of a backup disk, is left alone. Set `REMOTE_TARGET` in
 `holzcloud-backup.service` to rsync the whole backup root off the box — a backup
 on the same disk does not survive the disk failure it exists for, and a backup
 that has never left the machine is not yet a backup.
@@ -737,20 +773,32 @@ sudo -u holzcloud /opt/holzcloud/deploy/backup.sh /opt/holzcloud/backups
 ```
 
 The order matters. Every `holzcloud` subcommand that opens the database (`user list`,
-`check`, `backup`, `migrate status`) applies pending migrations on the way and takes
-no snapshot, so a backup made by the new binary is made after the schema has
-already changed.
+`check`, `backup`, `migrate status`) applies pending migrations on the way, so a
+backup made by the new binary is made after the schema has already changed. From
+0.1.5 such a subcommand first writes the same pre-upgrade snapshot as the service
+(see below), and prints the line `pre-upgrade snapshot written` on your terminal
+instead of the journal; a binary from before 0.1.5 writes none.
 
-**2. Replace: build, transfer, stop, copy, start.** The first two lines run on
-your development machine, the last three on the server:
+**2. Replace: build, transfer, stop, copy, start.** The first three lines run on
+your development machine, the last four on the server:
 
 ```bash
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.Version=$(git describe --tags --always) -X main.Commit=$(git rev-parse --short HEAD)" ./cmd/holzcloud
-scp holzcloud user@your-server:/tmp/holzcloud
+scp holzcloud user@your-server:
+scp deploy/backup.sh deploy/restore.sh user@your-server:
 sudo systemctl stop holzcloud
-sudo cp /tmp/holzcloud /opt/holzcloud/holzcloud
+sudo cp ~/holzcloud /opt/holzcloud/holzcloud
+sudo install -m 755 -o root -g root ~/backup.sh ~/restore.sh /opt/holzcloud/deploy/
 sudo systemctl start holzcloud
 ```
+
+*Install* copied `backup.sh` and `restore.sh` once, and an update without the
+`install` line keeps the old ones, which write no checksum file and stay silent
+about a failed retention. The files travel through your home directory on the
+server, as at *Transfer to the server*, and never through a fixed name under
+`/tmp`: `restore.sh` runs as root, and any account on the server could create
+such a name first and have its own script installed. Each `scp` overwrites the
+file of the last update.
 
 **3. Check.** The first line waits for the start by itself and shows the version
 and commit that now run; the second reads the journal since that start:
@@ -807,20 +855,38 @@ snapshot the service took before it migrated, binary and data together, and
 **losing everything written since the update**: edits, new pages, orders, form
 messages, and every change to users, sessions and API keys.
 
-Nothing in the program enforces that. It was played once, with the older binary
-(v0.0.10) started against the database of an update that had applied the migrations
-59 and 60, and it does not refuse a newer schema. It started, `/healthz` and
-`/readyz` answered `ok` with `integrity` `ok`, the journal said nothing about the
-schema, and the schema stayed at 60. It fails later, at the first write that it does
-not know about: the older code stores an order without naming the column `token`,
-which migration 60 added with a unique index. The first such order is stored with an
-empty token, the second is refused with `UNIQUE constraint failed: orders.token`
-(played as a direct insert in the statement shape of the older code, not through
-the shop). Nothing shows that beforehand, so the limit is yours to keep. Another
-pair of versions can break in another place.
+From 0.1.5 the binary keeps that rule itself. Before it does anything else with the
+database it reads the migration level, and it refuses a database that a newer binary
+migrated: it writes no snapshot, applies nothing and serves nothing. The journal of
+`holzcloud.service` then shows the line
+`refusing to start: the database schema is newer than this binary`, with the level of
+the database (`db_level`) and the highest level the binary knows (`binary_level`), and
+the process ends with status 1. systemd restarts it every five seconds, so the line
+appears about five times, and then the unit stops trying (`StartLimitBurst`, five
+starts in 300 seconds) and stays failed. Every subcommand that opens the database
+(`check`, `backup`, `migrate status`, `user …`) refuses the same way, with
+`error: the database is at migration level …` and status 1, so a backup taken by an
+older binary against a newer database fails loudly instead of copying a schema the
+binary does not know. The way out is one of the two below: the newer binary again,
+or the older binary together with the snapshot. Both blocks run
+`sudo systemctl reset-failed holzcloud` before the start, because a unit that hit its
+start limit refuses `systemctl start`.
+
+Binaries released before 0.1.5 do not carry this refusal. Such a binary was played
+once (v0.0.10) against the database of an update that had applied the migrations 59
+and 60. It started, `/healthz` and `/readyz` answered `ok` with `integrity` `ok`, the
+journal said nothing about the schema, and the schema stayed at 60. It failed later,
+at the first write that it did not know about: the older code stores an order without
+naming the column `token`, which migration 60 added with a unique index. The first
+such order is stored with an empty token, the second is refused with
+`UNIQUE constraint failed: orders.token` (played as a direct insert in the statement
+shape of the older code, not through the shop). Nothing shows that beforehand, so
+with a binary from before 0.1.5 the limit is yours to keep. Another pair of versions
+can break in another place.
 
 Which of the two blocks below to use depends on whether **this** update wrote a
 snapshot. The sign is the journal line `pre-upgrade snapshot written` at the update
+(the terminal shows it instead when a subcommand of the new binary migrated first)
 and a file named `pre-upgrade-VERSION-TIMESTAMP.sqlite` in the data directory, with
 the version you updated to in its name and the time of that journal line. Run the
 first line of the first block on its own and read it before you go on: if it lists
@@ -901,9 +967,10 @@ What a rollback by snapshot does, as played:
   update that migrates. If more updates may happen before you roll back, copy the
   snapshot out of the data directory first.
 
-For developers: every migration file carries a goose `Down` section (60 of 60), but
+For developers: every migration file carries a goose `Down` section, but
 `holzcloud migrate` offers only `status` and `up`, no command runs them, and they
-are not a rollback route.
+are not a rollback route. `internal/db/migrations_down_test.go` plays some of them
+down and up again; nothing holds the others.
 
 ## Troubleshooting
 
@@ -979,18 +1046,54 @@ sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/20260802-031500
 The first line lists the backups; the sample name in the second is one of them.
 In order, the script:
 
-1. verifies a copy of the snapshot's integrity **before** it touches anything,
-   and refuses a directory without a `holzcloud.sqlite` or a `MANIFEST`, or whose
-   snapshot fails its check, before it stops anything;
+1. checks the backup **before** it touches anything, and before it stops
+   anything. It refuses a directory without a `holzcloud.sqlite` or a `MANIFEST`.
+   It checks the backup against `SHA256SUMS` both ways. Every listed file must
+   be in the backup with that checksum, and
+   every file of the backup must be listed there, the database snapshot included
+   (only `SHA256SUMS` and the `MANIFEST` are not). It refuses the backup, naming
+   the first file that differs from its checksum, is missing or is not listed,
+   and it refuses an empty `SHA256SUMS`. A backup that has a `SHA256SUMS` is
+   checked even when its `MANIFEST` does not name it. A backup made before 0.1.5
+   has neither; it is restored with the notice
+   `has no checksum file (made before 0.1.5); its files were not verified`. Then
+   it verifies a copy of the snapshot's integrity and refuses a snapshot that
+   fails, and, through `holzcloud check -files`, lists every media row whose file
+   the backup lacks (the line `files: N rows checked, M missing` and one `MISSING`
+   line per file);
 2. asks `Stop holzcloud and replace /opt/holzcloud/data? [yes/NO]` and goes on
    only if you type `yes`; anything else prints `aborted` and exits 1;
 3. stops the service;
 4. moves the current data directory aside as `data.before-restore-` and a
-   timestamp, never deleting it;
+   timestamp, never deleting it. When the data directory is a mount point (a
+   data disk), it cannot be renamed; the script moves its contents into
+   `.before-restore-` and a timestamp inside it instead, on the same disk. The
+   disk's `lost+found` stays where it is and keeps its owner;
 5. restores the database, `csrf.key` and the five directories (`media`,
    `templates`, `plugins`, `sprachen`, `marke`; a directory the backup lacks is
    skipped), sets owner and mode, starts the service and waits up to 30 seconds
    for `/readyz`.
+
+Files that a database row names and the backup lacks are listed before the
+question and again after the restore, under
+`WARNING: restored, but M files that the database names are missing from the backup:`.
+They do not stop the restore: a backup taken while files were being deleted is
+normal and stays restorable, and you decide about the files. The script then
+ends with status 3. With an installed `holzcloud` older than 0.1.5 it cannot
+check media rows and says so in a `NOTICE` line. How the script ends:
+
+- `0`: restored, every file the database names was in the backup;
+- `1`: refused, aborted at the question, or failed. When it refuses or you abort,
+  nothing was stopped or replaced. When the service cannot be stopped, an `ERROR`
+  line says so and the data directory is not changed. When something fails after the service was stopped
+  (a full disk while copying, a failed `chown`), the status is `1` whatever the
+  failing command returned, the service stays stopped and
+  the data directory is half written; the last line, an `ERROR` line, names
+  where the previous data is and, after `to go back:`,
+  the commands that put the previous data back and start the service, to run as
+  root. When the service does not report ready within 30 seconds after the
+  restore, the script says so and names the journal;
+- `3`: restored, and the files listed above are missing.
 
 The set-aside directory is never removed. It holds the replaced site, media
 included, so two restores leave two more copies of it. Delete it by hand, once

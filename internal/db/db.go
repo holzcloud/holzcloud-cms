@@ -79,6 +79,11 @@ func migrationProvider(db *sql.DB) (*goose.Provider, error) {
 }
 
 func RunMigrations(db *sql.DB) error {
+	// Defence in depth: every caller that reaches the migrations asks the
+	// guard first, so none of them runs against a schema a newer binary wrote.
+	if err := RefuseNewerSchema(context.Background(), db); err != nil {
+		return err
+	}
 	provider, err := migrationProvider(db)
 	if err != nil {
 		return err

@@ -195,7 +195,7 @@ func TestPruneSnapshotsKeepsTheNewest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := db.PruneSnapshots(dir, 2); err != nil {
+	if err := db.PruneSnapshots(dir, 2, ""); err != nil {
 		t.Fatalf("PruneSnapshots: %v", err)
 	}
 
@@ -211,5 +211,71 @@ func TestPruneSnapshotsKeepsTheNewest(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "holzcloud.sqlite")); err != nil {
 		t.Error("the live database was removed")
+	}
+}
+
+// The version stands before the timestamp in a snapshot's name, so the order
+// of the names is the order of the version strings: v0.1.10 before v0.1.5,
+// v0.1.4-65-g… before v0.1.4-9-g…, dev before v…. Pruning has to go by the
+// timestamp, or the snapshot just written is the first to go.
+func TestPruneSnapshotsOrdersByTimeNotByVersion(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{
+		"pre-upgrade-v0.1.5-20261201-000000.sqlite",
+		"pre-upgrade-v0.1.6-20270101-000000.sqlite",
+		"pre-upgrade-v0.1.7-20270201-000000.sqlite",
+		"pre-upgrade-v0.1.8-20270301-000000.sqlite",
+		"pre-upgrade-v0.1.9-20270401-000000.sqlite",
+		"pre-upgrade-v0.1.10-20270501-000000.sqlite",
+	}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.PruneSnapshots(dir, 5, ""); err != nil {
+		t.Fatalf("PruneSnapshots: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, names[0])); err == nil {
+		t.Errorf("%s is the oldest and should have been pruned", names[0])
+	}
+	for _, kept := range names[1:] {
+		if _, err := os.Stat(filepath.Join(dir, kept)); err != nil {
+			t.Errorf("%s should have been kept: %v", kept, err)
+		}
+	}
+}
+
+// The snapshot just written is the one the way back names, so it survives
+// even when its timestamp is not the newest: a clock set back, or a name that
+// cannot be read as a time.
+func TestPruneSnapshotsNeverRemovesTheOneJustWritten(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{
+		"pre-upgrade-dev-20200101-000000.sqlite", // just written, clock set back
+		"pre-upgrade-v0.1.4-65-gabc1234-20270101-000000.sqlite",
+		"pre-upgrade-v0.1.4-9-gdef5678-20270201-000000.sqlite",
+		"pre-upgrade-v0.1.5-20270301-000000.sqlite",
+	}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	justWritten := filepath.Join(dir, names[0])
+	if err := db.PruneSnapshots(dir, 2, justWritten); err != nil {
+		t.Fatalf("PruneSnapshots: %v", err)
+	}
+	if _, err := os.Stat(justWritten); err != nil {
+		t.Errorf("the snapshot just written was pruned: %v", err)
+	}
+	// Two in all: the one just written and the newest of the rest.
+	if _, err := os.Stat(filepath.Join(dir, names[3])); err != nil {
+		t.Errorf("%s is the newest of the rest and should have been kept: %v", names[3], err)
+	}
+	for _, gone := range names[1:3] {
+		if _, err := os.Stat(filepath.Join(dir, gone)); err == nil {
+			t.Errorf("%s should have been pruned", gone)
+		}
 	}
 }

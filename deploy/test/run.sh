@@ -309,26 +309,57 @@ doc_cmd() {
       # has ended, so the answer has to come from somewhere else.
       case "$line" in *" -y"*) kind=run ;; *) kind=prompt ;; esac
       ;;
-    *"/restore.sh "*) kind=restore ;;
+    # Only a line that runs restore.sh is the restore: restore.sh is its command
+    # (after sudo). The Updating line that installs the script names it as an
+    # argument of install and is an ordinary line.
+    "sudo /"*"/restore.sh "* | "/"*"/restore.sh "*) kind=restore ;;
     *) kind=run ;;
   esac
 
   say ">>> step $nn: $line"
   case "$kind" in
     scp)
-      local dest parent
+      local dest parent f last files
+      # A target with nothing after the colon is the login's home directory, as
+      # scp has it. The document's lines run as root here, so `~` on the next
+      # lines is root's home, and that is where such a line delivers.
+      local scp_home=/root
       set -f
       # shellcheck disable=SC2086
       set -- $line
       set +f
+      for last in "$@"; do :; done
       if [ "$#" -eq 3 ] && [ "$2" = holzcloud ] && [ "${3#*:}" != "$3" ]; then
         [ -f "$STAGE_BIN" ] || die "STAGE_BIN '$STAGE_BIN' is not a file: nothing to put where the scp line sends the binary"
         dest=${3#*:}
+        [ -n "$dest" ] || dest="$scp_home/holzcloud"
         deviation "DEVIATION[scp]: '$line' was played as docker cp of $STAGE_BIN to $dest in the container (there is no ssh and no second machine here)"
         docker cp "$STAGE_BIN" "$NAME:$dest" > "$outf.tmp" 2>&1 || rc=$?
+      elif [ "$#" -ge 3 ] && [ "$2" != -r ] && [ "${last#*:}" != "$last" ]; then
+        # scp deploy/a deploy/b user@host:[dir]: single files of the deploy
+        # directory, each copied as it is in the working tree.
+        dest=${last#*:}
+        [ -n "$dest" ] || dest="$scp_home"
+        files=""
+        shift
+        while [ "$#" -gt 1 ]; do
+          case "$1" in
+            deploy/*/* | deploy/) die "no translation for this scp line: only files directly in deploy/ are translated: $line" ;;
+            deploy/?*) [ -f "$ROOT/$1" ] || die "no translation for this scp line: $ROOT/$1 is not a file: $line" ;;
+            *) die "no translation for this scp line: $1 is not a file of deploy/: $line" ;;
+          esac
+          files="$files $1"
+          shift
+        done
+        deviation "DEVIATION[scp]: '$line' was played as docker cp of the working tree's$files to $dest/ in the container (there is no ssh and no second machine here)"
+        : > "$outf.tmp"
+        for f in $files; do
+          docker cp "$ROOT/$f" "$NAME:$dest/" >> "$outf.tmp" 2>&1 || rc=$?
+        done
       elif [ "$#" -eq 4 ] && [ "$2" = -r ] && [ "$3" = deploy/ ] && [ "${4#*:}" != "$4" ]; then
         dest=${4#*:}
         dest=${dest%/}
+        [ -n "$dest" ] || dest="$scp_home/deploy"
         parent=$(dirname "$dest")
         [ "$(basename "$dest")" = deploy ] \
           || die "no translation for this scp line: the target directory must be named deploy: $line"

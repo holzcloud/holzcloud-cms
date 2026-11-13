@@ -246,20 +246,43 @@ func escapeSQLiteString(s string) string {
 
 // PruneSnapshots keeps the newest keep pre-upgrade snapshots in dir and removes
 // the rest, so a long-lived installation does not accumulate a copy of the
-// database for every upgrade it has ever seen.
-func PruneSnapshots(dir string, keep int) error {
+// database for every upgrade it has ever seen. justWritten, when not empty, is
+// the snapshot the caller has just written and is about to cite as the way
+// back: it is never removed and counts as one of the keep.
+func PruneSnapshots(dir string, keep int, justWritten string) error {
 	matches, err := filepath.Glob(filepath.Join(dir, "pre-upgrade-*.sqlite"))
 	if err != nil {
 		return fmt.Errorf("list snapshots: %w", err)
 	}
-	if len(matches) <= keep {
+
+	room := keep
+	others := make([]string, 0, len(matches))
+	for _, path := range matches {
+		if justWritten != "" && filepath.Clean(path) == filepath.Clean(justWritten) {
+			room--
+			continue
+		}
+		others = append(others, path)
+	}
+	if room < 0 {
+		room = 0
+	}
+	if len(others) <= room {
 		return nil
 	}
 
-	// The filenames carry a sortable UTC timestamp, so lexical order is
-	// chronological order.
-	sort.Strings(matches)
-	for _, path := range matches[:len(matches)-keep] {
+	// A name is pre-upgrade-<version>-<YYYYMMDD-HHMMSS>.sqlite. The version
+	// comes first, so the order of the whole names is the order of the version
+	// strings (v0.1.10 before v0.1.5, dev before v…), not of time: the order
+	// is taken from the timestamp at the end alone.
+	sort.SliceStable(others, func(i, j int) bool {
+		si, sj := snapshotStamp(others[i]), snapshotStamp(others[j])
+		if si != sj {
+			return si < sj
+		}
+		return others[i] < others[j]
+	})
+	for _, path := range others[:len(others)-room] {
 		if err := os.Remove(path); err != nil {
 			slog.Warn("cannot remove old snapshot", "path", path, "err", err)
 			continue
@@ -267,4 +290,20 @@ func PruneSnapshots(dir string, keep int) error {
 		slog.Info("removed old pre-upgrade snapshot", "path", path)
 	}
 	return nil
+}
+
+// snapshotStamp returns the UTC timestamp at the end of a snapshot's name, or
+// "" when the name carries none, which sorts such a file as the oldest.
+func snapshotStamp(path string) string {
+	const layout = "20060102-150405"
+	base := filepath.Base(path)
+	base = base[:len(base)-len(filepath.Ext(base))]
+	if len(base) < len(layout) {
+		return ""
+	}
+	stamp := base[len(base)-len(layout):]
+	if _, err := time.Parse(layout, stamp); err != nil {
+		return ""
+	}
+	return stamp
 }

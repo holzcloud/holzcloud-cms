@@ -37,7 +37,9 @@ Usage:
   holzcloud compact                 rebuild the database file (VACUUM)
   holzcloud rerender                re-render every page from its Markdown
   holzcloud thumbnails [-force]     generate the scaled copies of older images; -force rebuilds them for every image
-  holzcloud check                   run an integrity check
+  holzcloud check [-copy] [-files DIR]
+                                    integrity check; with -files, also every media row whose file DIR lacks (exit 3);
+                                    -copy: the database is a throwaway copy, migrated without a pre-upgrade snapshot
   holzcloud template check <path>   check a template directory or .zip
   holzcloud template spec           print the template authoring specification
   holzcloud ai key create           create a key for an AI assistant (-name, -level read|content|admin)
@@ -99,8 +101,18 @@ func runCLI(args []string) (handled bool, err error) {
 
 // openForCLI loads the configuration and opens the database with migrations
 // applied, which is what every subcommand needs and nothing more — no HTTP
-// server, no session manager.
+// server, no session manager. Before it migrates it writes the same
+// pre-upgrade snapshot the service writes, so a new binary that first meets
+// the database through a subcommand leaves the way back that a refusal of a
+// newer schema names.
 func openForCLI() (config.Config, *db.DB, error) {
+	return openForCLISnapshot(true)
+}
+
+// openForCLISnapshot is openForCLI, with the pre-upgrade snapshot left out when
+// snapshotFirst is false: for `check -copy`, which migrates a throwaway copy
+// that needs no way back.
+func openForCLISnapshot(snapshotFirst bool) (config.Config, *db.DB, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return cfg, nil, err
@@ -109,8 +121,27 @@ func openForCLI() (config.Config, *db.DB, error) {
 	if err != nil {
 		return cfg, nil, fmt.Errorf("open database at %s: %w", cfg.DBPath, err)
 	}
+	// Every subcommand that opens the database refuses here, backup included,
+	// so an older backup script with this binary fails loudly rather than
+	// snapshotting a schema it does not know. The error is returned unwrapped:
+	// the operator reads "error: the database is at migration level …".
+	if err := db.RefuseNewerSchema(context.Background(), database.Write); err != nil {
+		database.Close()
+		return cfg, nil, err
+	}
+	snapshot := ""
+	if snapshotFirst {
+		snapshot, err = snapshotBeforeMigrating(cfg, database)
+		if err != nil {
+			database.Close()
+			return cfg, nil, fmt.Errorf("pre-upgrade snapshot: %w", err)
+		}
+	}
 	if err := db.RunMigrations(database.Write); err != nil {
 		database.Close()
+		if snapshot != "" {
+			return cfg, nil, fmt.Errorf("migrations: %w (the database before them is in %s)", err, snapshot)
+		}
 		return cfg, nil, fmt.Errorf("migrations: %w", err)
 	}
 	return cfg, database, nil
@@ -288,21 +319,130 @@ func cmdBackup(args []string) error {
 }
 
 func cmdCheck(args []string) error {
-	_, database, err := openForCLI()
+	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+	files := fs.String("files", "",
+		"also list every media row whose file `DIR` (a data directory or a backup of one) lacks")
+	onCopy := fs.Bool("copy", false,
+		"the database is a throwaway copy: migrate it without writing a pre-upgrade snapshot")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() > 0 {
+		return errors.New("usage: holzcloud check [-copy] [-files DIR]")
+	}
+	given := false
+	fs.Visit(func(f *flag.Flag) { given = given || f.Name == "files" })
+	if given && *files == "" {
+		return errors.New("check -files: needs a directory")
+	}
+	return runCheck(os.Stdout, *files, *onCopy)
+}
+
+// runCheck is `holzcloud check`, writing its report to w. With files set it
+// also checks that every media row's file is below that directory.
+//
+// With onCopy set (`-copy`) the database is a throwaway copy, which restore.sh
+// makes of the backup in a temporary directory: an older one is migrated
+// without the pre-upgrade snapshot every other subcommand writes first. That
+// snapshot would be a second full copy of the database in the same temporary
+// directory, on a /tmp that may be a small tmpfs, and a way back for a copy
+// that is deleted a moment later. A binary older than 0.1.5 ignores its
+// arguments, so the flag costs restore.sh nothing with one.
+//
+// The lines are a contract with deploy/restore.sh, which runs this on the
+// copy of a backup it is about to restore:
+//
+//	integrity: <result>
+//	files: <N> rows checked, <M> missing
+//	MISSING media/<website_id>/<filename> (media row <id>, website <website_id>, original name <quoted>)
+//	MISSING media/<website_id>/<filename> (media_variants row <id>, label <quoted>, of media row <media_id>)
+//	MISSING in media/<website_id>: file name <quoted> (media row <id>, website <website_id>, original name <quoted>)
+//	MISSING (media row <id>, website <website_id>): file name <quoted> is not a plain file name
+//
+// Originals come before variants. A name that names one file but holds a
+// character that is not printed raw (an NBSP or a zero-width space kept from
+// an upload's extension, a control character, a bidi override) is looked up
+// like any other — a file that is there is not missing — and, when absent,
+// gets the third shape. A name that does not name one file inside the website
+// directory ("..", a "/") is never followed and gets the fourth. Both take the
+// variant's own parenthesis for a variant. When a variant is among the missing, a closing line names
+// `holzcloud thumbnails`, which rebuilds it from its original.
+//
+// The "files:" line is printed whenever the files were checked, nothing
+// missing included, because an older binary ignores -files and restore.sh has
+// to tell "nothing missing" from "not looked". Every string that comes from the
+// database is printed quoted, with one exception: the file name inside the path
+// of a MISSING line, which is printed as it is, and only after media's
+// plainName has found it to be printable characters without a separator (no
+// control character, no bidi override, no invisible space). So none can start a
+// line of its own or show the operator another name than the stored one. A missing
+// file ends with status 3 and an empty message: the report is already out, and
+// 3 is not 1, a check that failed.
+func runCheck(w io.Writer, files string, onCopy bool) error {
+	if files != "" {
+		if info, err := os.Stat(files); err != nil || !info.IsDir() {
+			return fmt.Errorf("check -files: %s is not a directory", files)
+		}
+	}
+
+	_, database, err := openForCLISnapshot(!onCopy)
 	if err != nil {
 		return err
 	}
 	defer database.Close()
 
-	result, err := db.QuickCheck(context.Background(), database.Read)
+	ctx := context.Background()
+	result, err := db.QuickCheck(ctx, database.Read)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("integrity: %s\n", result)
+	fmt.Fprintf(w, "integrity: %s\n", result)
 	if result != "ok" {
 		return errors.New("database reports corruption — restore from a backup")
 	}
+	if files == "" {
+		return nil
+	}
+
+	checked, missing, err := media.NewStore(database).MissingFiles(ctx, files)
+	if err != nil {
+		return fmt.Errorf("check -files: %w", err)
+	}
+	fmt.Fprintf(w, "files: %d rows checked, %d missing\n", checked, len(missing))
+	variantMissing := false
+	for _, m := range missing {
+		row := fmt.Sprintf("media row %d, website %d", m.RowID, m.WebsiteID)
+		if m.Table == "media_variants" {
+			variantMissing = true
+			row = fmt.Sprintf("media_variants row %d, label %q, of media row %d", m.RowID, m.Label, m.MediaID)
+		}
+		switch {
+		case m.Unsafe:
+			fmt.Fprintf(w, "MISSING (%s): file name %q is not a plain file name\n", row, m.Filename)
+		case m.Quoted && m.Table == "media_variants":
+			fmt.Fprintf(w, "MISSING in %s: file name %q (%s)\n", websiteDirRel(m.WebsiteID), m.Filename, row)
+		case m.Quoted:
+			fmt.Fprintf(w, "MISSING in %s: file name %q (%s, original name %q)\n",
+				websiteDirRel(m.WebsiteID), m.Filename, row, m.OriginalName)
+		case m.Table == "media_variants":
+			fmt.Fprintf(w, "MISSING %s (%s)\n", m.Rel, row)
+		default:
+			fmt.Fprintf(w, "MISSING %s (%s, original name %q)\n", m.Rel, row, m.OriginalName)
+		}
+	}
+	if variantMissing {
+		fmt.Fprintln(w, "a missing variant can be rebuilt with: holzcloud thumbnails")
+	}
+	if len(missing) > 0 {
+		return &exitError{code: 3}
+	}
 	return nil
+}
+
+// websiteDirRel is a website's media directory below a data directory, with
+// forward slashes, taken from media.Path so the layout is spelled once.
+func websiteDirRel(websiteID int64) string {
+	return filepath.ToSlash(filepath.Dir(media.Path("", websiteID, "f")))
 }
 
 func cmdCompact(args []string) error {

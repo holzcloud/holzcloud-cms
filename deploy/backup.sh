@@ -14,7 +14,18 @@ set -euo pipefail
 # the data directory: media, templates, plugins (the installed plugin modules;
 # the database keeps only the manifest and the hash of a plugin, the module
 # files are here), sprachen (the operator's language files) and marke (the
-# logo), plus a MANIFEST that is written last.
+# logo), plus SHA256SUMS and a MANIFEST that is written last.
+#
+# SHA256SUMS holds one line per regular file of the backup directory except
+# itself and the MANIFEST at the top, in sha256sum's own format ("<hex>  ./path",
+# C order). It is written before the MANIFEST, so "MANIFEST present" still means
+# "the night finished, checksums included", and the MANIFEST says so with the
+# line checksums=SHA256SUMS. Both are flushed to the disk before they are
+# renamed into place. Before anything is stopped, restore.sh refuses the backup
+# when SHA256SUMS is empty or lacks ./holzcloud.sqlite, when a listed file is
+# missing or differs, and when a file of the backup is not listed. SHA-256 here
+# detects rot and accidental damage, not tampering: whoever can write the
+# backup can rewrite a file and its line alike.
 #
 # What it deliberately does not hold: the pre-upgrade snapshots the service
 # keeps in the data directory (old-schema copies, they would not open under the
@@ -31,6 +42,20 @@ set -euo pipefail
 # A file that vanishes while it is copied ends rsync with status 24. The copy is
 # repeated once; a second 24 ends the night with status 24 and a message that
 # names what was being copied. Any other rsync status is never repeated.
+#
+# Retention removes old backup directories one by one, and only directories
+# named like a night (YYYYMMDD-HHMMSS): a lost+found of the backup disk or a
+# copy kept there on purpose is never touched. It runs after the off-site copy
+# (D-01). One directory it cannot remove, or a listing of the backup root that
+# fails, is named in an ERROR line on stderr; the night prints its complete
+# line and ends with status 40, so the timer unit shows the failure instead of
+# a full disk weeks later. A failed off-site copy does not skip retention; the
+# night then ends with rsync's status of the copy instead.
+#
+# Exit status: 0 complete; 40 complete, but retention could not list or remove
+# old backups; any other non-zero status: the night failed (rsync's own status
+# for a copy). RETENTION_DAYS or MIN_FREE_MB that is not a whole number ends the
+# script with status 2 before it does anything.
 #
 # A night that fails before its MANIFEST exists removes the directory it made,
 # so a half-written directory does not sit on the disk and make the free-space
@@ -64,6 +89,21 @@ RETENTION_DAYS="${RETENTION_DAYS:-30}"
 MIN_FREE_MB="${MIN_FREE_MB:-1024}"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 BACKUP_DIR="${BACKUP_ROOT}/${TIMESTAMP}"
+# Both numbers are checked before anything else. In an if, a value test(1)
+# cannot compare ("30d", "30 ") is just false: the step it guards would be
+# skipped without a word and the night would end 0 until the disk is full.
+case "${RETENTION_DAYS}" in
+    '' | *[!0-9]*)
+        echo "ERROR: RETENTION_DAYS must be a whole number of days, got '${RETENTION_DAYS}'" >&2
+        exit 2
+        ;;
+esac
+case "${MIN_FREE_MB}" in
+    '' | *[!0-9]*)
+        echo "ERROR: MIN_FREE_MB must be a whole number of megabytes, got '${MIN_FREE_MB}'" >&2
+        exit 2
+        ;;
+esac
 # Empty until this run's own mkdir of BACKUP_DIR has succeeded; the cleanup acts
 # on this path and on no other.
 OWN_DIR=""
@@ -91,6 +131,15 @@ cleanup_failed_night() {
         echo "ERROR: backup did not finish and ${OWN_DIR} could not be removed; it has no MANIFEST and restore.sh refuses it, remove it by hand" >&2 || true
     fi
     return 0
+}
+
+# flush PATH: write PATH (a file or a directory) through to the disk. A rename
+# can reach the disk before the data of the file it names, and after a power
+# loss the file is then there with length zero: a zero-length SHA256SUMS beside
+# a complete MANIFEST. GNU sync takes the path; where sync takes no path, the
+# whole system is flushed instead.
+flush() {
+    sync -- "$1" 2>/dev/null || sync
 }
 
 # run_rsync WHAT RSYNC_ARGS...: the only place that starts rsync. A file that
@@ -166,31 +215,125 @@ for name in media templates plugins sprachen marke; do
     fi
 done
 
-# 4. A manifest, so a restore can tell what it is looking at. It is written
+# 4. Checksums. One SHA256SUMS line per regular file of the night, in the
+#    format sha256sum writes ("<hex>  ./path"), sorted in C order, so that
+#    restore.sh can tell a damaged file by name before anything is stopped.
+#    The four top-level names are excluded by anchored -path, never by -name:
+#    a template may well carry its own MANIFEST.json, and that is listed. Every
+#    path begins with ./, so no option can be mistaken for a file name. A hash
+#    that fails ends the night here, before the MANIFEST, and the trap removes
+#    the directory.
+echo "Writing checksums..."
+# SHA256SUMS lists regular files only, and restore.sh refuses a backup that
+# holds a symbolic link or a special file: rsync -a copies a link as a link,
+# and a restore would put it back into the live data directory unverified. Such
+# a night fails here, by name, before its MANIFEST, so the trap removes it.
+odd=$(cd "${BACKUP_DIR}" && find . \( -type l -o \( ! -type f ! -type d \) \) -print -quit)
+if [ -n "${odd}" ]; then
+    echo "ERROR: ${odd} in the backup is a symbolic link or not a regular file, and restore.sh refuses such a backup; replace ${DATA_DIR}/${odd#./} with a regular file" >&2
+    exit 1
+fi
+(
+    cd "${BACKUP_DIR}"
+    find . -type f \
+        ! -path ./SHA256SUMS ! -path ./SHA256SUMS.partial \
+        ! -path ./MANIFEST ! -path ./MANIFEST.partial -print0 \
+        | LC_ALL=C sort -z | xargs -0 -r sha256sum
+) > "${BACKUP_DIR}/SHA256SUMS.partial"
+flush "${BACKUP_DIR}/SHA256SUMS.partial"
+mv "${BACKUP_DIR}/SHA256SUMS.partial" "${BACKUP_DIR}/SHA256SUMS"
+
+# 5. A manifest, so a restore can tell what it is looking at. It is written
 #    last: a restore takes its presence as the proof that every step before it
-#    finished. It is written under another name and renamed, so it is never
-#    there half written.
+#    finished, the checksums included. It is written under another name and
+#    renamed, so it is never there half written. The checksums line is what
+#    tells restore.sh that SHA256SUMS belongs to this backup: a backup without
+#    it was made before 0.1.5, one with it and without the file is damaged.
 {
     echo "timestamp=${TIMESTAMP}"
     echo "version=$(HOLZCLOUD_DATA_DIR=${DATA_DIR} ${HOLZCLOUD_BIN} version 2>/dev/null || echo unknown)"
     echo "data_dir=${DATA_DIR}"
     echo "host=$(hostname)"
+    echo "checksums=SHA256SUMS"
 } > "${BACKUP_DIR}/MANIFEST.partial"
+flush "${BACKUP_DIR}/MANIFEST.partial"
 mv "${BACKUP_DIR}/MANIFEST.partial" "${BACKUP_DIR}/MANIFEST"
-
-# 5. Retention. Without this the disk fills up and takes the site with it.
-if [ "${RETENTION_DAYS}" -gt 0 ]; then
-    echo "Pruning backups older than ${RETENTION_DAYS} days..."
-    find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" \
-        -exec rm -rf {} + 2>/dev/null || true
-fi
+flush "${BACKUP_DIR}"
 
 # 6. Off-box copy. A backup on the same disk does not survive the failure it is
-#    meant to protect against — which DEPLOY.md itself calls likely.
+#    meant to protect against — which DEPLOY.md itself calls likely. It runs
+#    before retention (D-01): it mirrors the root as the night left it, so a
+#    directory that rm -rf left half removed is not mirrored off the box that
+#    night. A failed copy is remembered rather than ending the night here:
+#    retention still runs, so a copy that fails night after night does not
+#    also fill the disk, and the night ends with the copy's status below.
+OFFSITE_RC=0
 if [ -n "${REMOTE_TARGET:-}" ]; then
     echo "Copying to ${REMOTE_TARGET}..."
-    run_rsync "the off-site copy" -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/"
+    # run_rsync ends the shell it runs in; the subshell keeps that to the copy.
+    ( run_rsync "the off-site copy" -a --delete "${BACKUP_ROOT}/" "${REMOTE_TARGET}/" ) || OFFSITE_RC=$?
+fi
+
+# 7. Retention. Without this the disk fills up and takes the site with it, so
+#    a failure here is never silent: the directories are listed first and
+#    removed one by one, and each one that cannot be removed is named on stderr
+#    (the journal of holzcloud-backup.service), next to rm's own lines. The
+#    night then ends with status 40 below.
+#    Only direct children of the backup root named like a night
+#    (YYYYMMDD-HHMMSS) are touched, never the directory of this night.
+RETENTION_FAILED=""
+if [ "${RETENTION_DAYS}" -gt 0 ]; then
+    echo "Pruning backups older than ${RETENTION_DAYS} days..."
+    prune_root="${BACKUP_ROOT%/}"
+    # The temporary file and the listing fail for different reasons (a full
+    # /tmp, an unreadable backup root), so each failure names its own.
+    old_list=""
+    if ! old_list=$(mktemp); then
+        old_list=""
+        echo "ERROR: retention could not make a temporary file (mktemp failed); old backups were not pruned" >&2
+        RETENTION_FAILED=yes
+    elif ! find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" -print0 > "${old_list}"; then
+        echo "ERROR: retention could not list ${BACKUP_ROOT}; old backups were not pruned" >&2
+        RETENTION_FAILED=yes
+    else
+        while IFS= read -r -d '' old; do
+            # Only a directory this script makes, named by its timestamp, is
+            # removed. Anything else in the backup root (a lost+found of the
+            # backup disk, a copy kept on purpose) is never touched.
+            case "${old}" in
+                "${prune_root}"/*/*) continue ;;
+                "${prune_root}"/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+                *) continue ;;
+            esac
+            if [ "${old}" = "${prune_root}/${TIMESTAMP}" ]; then
+                continue
+            fi
+            if ! rm -rf -- "${old}"; then
+                echo "ERROR: retention could not remove ${old}; it may be partly removed, remove it by hand" >&2
+                RETENTION_FAILED=yes
+            fi
+        done < "${old_list}"
+    fi
+    if [ -n "${old_list}" ]; then
+        rm -f "${old_list}"
+    fi
+fi
+
+# A failed off-site copy ends the night with rsync's own status, which takes
+# precedence over 40; a retention ERROR line is in the journal either way. The
+# backup itself is whole, its MANIFEST exists, so the trap removes nothing.
+if [ "${OFFSITE_RC}" -ne 0 ]; then
+    echo "ERROR: the off-site copy to ${REMOTE_TARGET} failed with status ${OFFSITE_RC}; the backup itself is complete at ${BACKUP_DIR}" >&2
+    exit "${OFFSITE_RC}"
 fi
 
 echo "=== Backup complete: ${BACKUP_DIR} ==="
 du -sh "${BACKUP_DIR}"
+
+# A retention failure ends the night with status 40, a status of its own:
+# rsync's statuses end at 35, and the script already ends with rsync's own
+# status elsewhere (24, 11, 255, ...).
+if [ -n "${RETENTION_FAILED}" ]; then
+    echo "ERROR: the backup is complete, but retention failed (see above); ending with status 40" >&2
+    exit 40
+fi

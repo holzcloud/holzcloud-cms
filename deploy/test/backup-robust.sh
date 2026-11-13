@@ -22,7 +22,7 @@ set -u
 
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 T=$(mktemp -d "${TMPDIR:-/tmp}/backup-robust.XXXXXX") || exit 2
-trap 'rm -rf "$T"' EXIT
+trap 'chmod -R u+w "$T" 2>/dev/null; rm -rf "$T"' EXIT
 
 N=0
 K=0
@@ -80,7 +80,7 @@ EARLIER=20251231-030000
 NIGHT="$T/root/$STAMP"
 EARLIER_DIR="$T/root/$EARLIER"
 
-mkdir -p "$T/data/media" "$T/data/templates" "$T/bin" "$T/root" "$T/fake-mv" "$T/fake-find"
+mkdir -p "$T/data/media" "$T/data/templates" "$T/bin" "$T/root" "$T/fake-mv" "$T/fake-find" "$T/fake-sha"
 echo "picture" > "$T/data/media/a.jpg"
 echo "template" > "$T/data/templates/t.html"
 echo "key" > "$T/data/csrf.key"
@@ -155,9 +155,17 @@ exec /bin/date "$@"
 FAKE
 chmod +x "$T/bin/date"
 
-# A fake mv that refuses the rename of the MANIFEST (Test 13), and a fake find
-# that fails (Test 16). They sit in their own directories and are put in front
-# of PATH only for those runs.
+# backup.sh hashes with sha256sum. Where the system has none (an older macOS),
+# a shim to `shasum -a 256`, which writes the same "<hex>  ./path" lines.
+if ! command -v sha256sum >/dev/null 2>&1; then
+    printf '#!/bin/bash\nexec shasum -a 256 "$@"\n' > "$T/bin/sha256sum"
+    chmod +x "$T/bin/sha256sum"
+fi
+
+# A fake mv that refuses the rename of the MANIFEST (Test 13), a fake find that
+# fails the retention listing (Test 17) and, as root only, a fake rm (Test 16).
+# They sit in their own directories and are put in front of PATH only for those
+# runs.
 cat > "$T/fake-mv/mv" <<'FAKE'
 #!/bin/bash
 echo "$*" >> "$FAKE_MV_LOG"
@@ -168,11 +176,60 @@ exec /bin/mv "$@"
 FAKE
 chmod +x "$T/fake-mv/mv"
 
-cat > "$T/fake-find/find" <<'FAKE'
+# The fake find fails only for the retention listing (the call with -mtime);
+# the checksum step's find runs the real one.
+REAL_FIND=$(command -v find)
+cat > "$T/fake-find/find" <<FAKE
 #!/bin/bash
-exit 1
+for a in "\$@"; do
+    if [ "\$a" = "-mtime" ]; then
+        exit 1
+    fi
+done
+exec "$REAL_FIND" "\$@"
 FAKE
 chmod +x "$T/fake-find/find"
+
+# The fake rm refuses exactly the directory in FAKE_RM_REFUSE and hands every
+# other call to the real rm. Test 16 uses it only when it runs as root.
+REAL_RM=$(command -v rm)
+mkdir -p "$T/fake-rm"
+cat > "$T/fake-rm/rm" <<FAKE
+#!/bin/bash
+for a in "\$@"; do
+    if [ -n "\${FAKE_RM_REFUSE:-}" ] && [ "\$a" = "\$FAKE_RM_REFUSE" ]; then
+        echo "rm: cannot remove '\$a': Operation not permitted" >&2
+        exit 1
+    fi
+done
+exec "$REAL_RM" "\$@"
+FAKE
+chmod +x "$T/fake-rm/rm"
+
+# A sync and an mv that both record their arguments in FAKE_ORDER_LOG and then
+# do what the real ones do (Test 20), in their own directory.
+REAL_MV=$(command -v mv)
+REAL_SYNC=$(command -v sync)
+mkdir -p "$T/fake-order"
+cat > "$T/fake-order/sync" <<FAKE
+#!/bin/bash
+echo "sync \$*" >> "\$FAKE_ORDER_LOG"
+exec "$REAL_SYNC" "\$@"
+FAKE
+cat > "$T/fake-order/mv" <<FAKE
+#!/bin/bash
+echo "mv \$*" >> "\$FAKE_ORDER_LOG"
+exec "$REAL_MV" "\$@"
+FAKE
+chmod +x "$T/fake-order/sync" "$T/fake-order/mv"
+
+# A sha256sum that fails (Test 19), in its own directory.
+cat > "$T/fake-sha/sha256sum" <<'FAKE'
+#!/bin/bash
+echo "sha256sum: cannot read" >&2
+exit 1
+FAKE
+chmod +x "$T/fake-sha/sha256sum"
 
 # ---------------------------------------------------------------------------
 # Running the script under test.
@@ -240,11 +297,12 @@ EXPECTED_OUT=$(printf '%s\n' \
     "Backing up CSRF key..." \
     "Backing up media..." \
     "Backing up templates..." \
+    "Writing checksums..." \
     "Pruning backups older than 30 days..." \
     "=== Backup complete: $NIGHT ===")
 bt_eq "1 stdout lines (without the du line)" "$EXPECTED_OUT" "$(sed '$d' "$T/out")"
 bt_eq "1 stderr is empty" "0" "$(wc -c < "$T/err" | tr -d ' ')"
-bt_eq "1 MANIFEST keys in order" "timestamp,version,data_dir,host," "$(cut -d= -f1 "$NIGHT/MANIFEST" | tr '\n' ',')"
+bt_eq "1 MANIFEST keys in order" "timestamp,version,data_dir,host,checksums," "$(cut -d= -f1 "$NIGHT/MANIFEST" | tr '\n' ',')"
 bt_eq "1 no MANIFEST.partial is left" no "$(exists "$NIGHT/MANIFEST.partial")"
 bt_eq "1 the directory mode is 700" "drwx------" "$(ls -ld "$NIGHT" | cut -c1-10)"
 bt_eq "1 the copy holds the media file" yes "$(exists "$NIGHT/media/a.jpg")"
@@ -460,12 +518,226 @@ for lit in \
 done
 
 # ---------------------------------------------------------------------------
-section "Test 16: retention cannot fail the night"
+# Phase 29 pinned the opposite here (retention never changed the status, and
+# its errors went nowhere). D-01 of phase 32: a directory retention cannot
+# remove is named in the journal, the off-site copy still runs, and the night
+# ends with status 40 of its own.
+OLD_LOCKED="$T/root/20200101-031500"
+OLD_FREE="$T/root/20200102-031500"
+reset_case
+mkdir -p "$OLD_LOCKED/locked" "$OLD_FREE"
+echo "old" > "$OLD_LOCKED/MANIFEST"
+echo "kept" > "$OLD_LOCKED/locked/file"
+echo "old" > "$OLD_FREE/MANIFEST"
+touch -t 202001010000 "$OLD_LOCKED" "$OLD_FREE"
+if [ "$(id -u)" = "0" ]; then
+    # chmod 500 does not stop root, so a fake rm refuses exactly that directory.
+    TITLE16="Test 16 (as root, with a fake rm): a failed retention removal ends the night with status 40 after the copy"
+    PREFIX16="$T/fake-rm:"
+else
+    TITLE16="Test 16: a failed retention removal ends the night with status 40 after the copy"
+    PREFIX16=""
+    chmod 500 "$OLD_LOCKED/locked"
+fi
+section "$TITLE16"
+PATH_PREFIX="$PREFIX16" run_backup REMOTE_TARGET="$T/remote" FAKE_RM_REFUSE="$OLD_LOCKED"
+bt_eq "16 exit status 40" 40 "$RC"
+bt_has "16 the directory is named on stderr" "$T/err" "ERROR: retention could not remove $OLD_LOCKED; it may be partly removed, remove it by hand"
+bt_has "16 the closing line is on stderr" "$T/err" "ERROR: the backup is complete, but retention failed (see above); ending with status 40"
+bt_has "16 the complete line is printed" "$T/out" "=== Backup complete: $NIGHT ==="
+bt_eq "16 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_eq "16 the second old directory is gone" no "$(exists "$OLD_FREE")"
+bt_eq "16 the off-site copy ran" 1 "$(calls_to /remote/)"
+bt_eq "16 the earlier night is intact" yes "$(earlier_intact)"
+bt_not "16 no cleanup line" "$T/err" "backup did not finish"
+chmod -R u+w "$T/root" "$T/remote" 2>/dev/null
+
+# ---------------------------------------------------------------------------
+section "Test 17: a failed listing of old backups"
 reset_case
 PATH_PREFIX="$T/fake-find:" run_backup
-bt_eq "16 exit status 0 although find fails" 0 "$RC"
-bt_eq "16 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
-bt_has "16 the complete line is printed" "$T/out" "=== Backup complete: $NIGHT ==="
+bt_eq "17 exit status 40" 40 "$RC"
+bt_has "17 the listing failure is on stderr" "$T/err" "ERROR: retention could not list $T/root; old backups were not pruned"
+bt_has "17 the closing line is on stderr" "$T/err" "ERROR: the backup is complete, but retention failed (see above); ending with status 40"
+bt_eq "17 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_eq "17 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+section "Test 18: the checksum file"
+reset_case
+mkdir -p "$T/data/templates/sub"
+echo "a template manifest" > "$T/data/templates/MANIFEST.json"
+echo "nested" > "$T/data/templates/sub/MANIFEST"
+run_backup
+bt_eq "18 exit status 0" 0 "$RC"
+bt_eq "18 SHA256SUMS exists" yes "$(exists "$NIGHT/SHA256SUMS")"
+bt_eq "18 no SHA256SUMS.partial is left" no "$(exists "$NIGHT/SHA256SUMS.partial")"
+EXPECTED_PATHS=$(cd "$NIGHT" && find . -type f ! -path ./SHA256SUMS ! -path ./MANIFEST -print0 | LC_ALL=C sort -z | tr '\0' '\n')
+bt_eq "18 the paths are every file but SHA256SUMS and MANIFEST, in C order" "$EXPECTED_PATHS" "$(cut -c67- "$NIGHT/SHA256SUMS" 2>/dev/null)"
+bt_eq "18 every line is <64 hex>, two spaces, ./path" 0 "$(grep -cvE '^[0-9a-f]{64}  \./' "$NIGHT/SHA256SUMS" 2>/dev/null || true)"
+BAD_SUMS=0
+if [ -f "$NIGHT/SHA256SUMS" ]; then
+    while IFS= read -r line; do
+        if [ "$(sha "$NIGHT/${line#*  }")" != "${line%% *}" ]; then
+            BAD_SUMS=$((BAD_SUMS + 1))
+        fi
+    done < "$NIGHT/SHA256SUMS"
+else
+    BAD_SUMS=missing
+fi
+bt_eq "18 every hash is the hash of its file" 0 "$BAD_SUMS"
+for p in ./holzcloud.sqlite ./csrf.key ./media/a.jpg ./templates/t.html ./templates/MANIFEST.json ./templates/sub/MANIFEST; do
+    bt_eq "18 listed: $p" 1 "$(cut -c67- "$NIGHT/SHA256SUMS" 2>/dev/null | grep -cxF -- "$p")"
+done
+bt_eq "18 the top-level MANIFEST is not listed" 0 "$(cut -c67- "$NIGHT/SHA256SUMS" 2>/dev/null | grep -cxF -- ./MANIFEST)"
+bt_eq "18 the MANIFEST holds checksums=SHA256SUMS" 1 "$(grep -cx 'checksums=SHA256SUMS' "$NIGHT/MANIFEST")"
+reset_case
+PATH_PREFIX="$T/fake-mv:" run_backup
+bt_eq "18 SHA256SUMS.partial is renamed before MANIFEST.partial" yes \
+    "$(awk '/SHA256SUMS\.partial/ && !s { s = NR } /MANIFEST\.partial/ && !m { m = NR } END { print (s && m && s < m) ? "yes" : "no" }' "$T/mv.log")"
+rm -rf "$T/data/templates/sub" "$T/data/templates/MANIFEST.json"
+
+# ---------------------------------------------------------------------------
+section "Test 19: a failed checksum step ends the night without a backup"
+reset_case
+PATH_PREFIX="$T/fake-sha:" run_backup
+bt_eq "19 exit status is not 0" yes "$(if [ "$RC" -ne 0 ]; then echo yes; else echo no; fi)"
+bt_eq "19 the directory of this run does not exist" no "$(exists "$NIGHT")"
+bt_has "19 stderr names the removal" "$T/err" "backup did not finish"
+bt_eq "19 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+# A rename can reach the disk before the data it names: after a power loss the
+# file is there with length zero. SHA256SUMS and the MANIFEST are flushed before
+# they are renamed, and the directory after the MANIFEST is.
+section "Test 20: SHA256SUMS and the MANIFEST are flushed before their rename"
+reset_case
+: > "$T/order.log"
+PATH_PREFIX="$T/fake-order:" run_backup FAKE_ORDER_LOG="$T/order.log"
+bt_eq "20 exit status 0" 0 "$RC"
+first_line() {
+    # first_line PREFIX: the number of the first line of order.log that begins with PREFIX, 0 if none
+    awk -v p="$1" 'index($0, p) == 1 { print NR; f = 1; exit } END { if (!f) print 0 }' "$T/order.log"
+}
+SYNC_SUMS=$(first_line "sync -- $NIGHT/SHA256SUMS.partial")
+MV_SUMS=$(first_line "mv $NIGHT/SHA256SUMS.partial")
+SYNC_MAN=$(first_line "sync -- $NIGHT/MANIFEST.partial")
+MV_MAN=$(first_line "mv $NIGHT/MANIFEST.partial")
+bt_eq "20 SHA256SUMS.partial is flushed" yes "$(if [ "$SYNC_SUMS" -gt 0 ]; then echo yes; else echo no; fi)"
+bt_eq "20 ... before it is renamed" yes "$(if [ "$SYNC_SUMS" -gt 0 ] && [ "$SYNC_SUMS" -lt "$MV_SUMS" ]; then echo yes; else echo no; fi)"
+bt_eq "20 MANIFEST.partial is flushed before it is renamed" yes "$(if [ "$SYNC_MAN" -gt 0 ] && [ "$SYNC_MAN" -lt "$MV_MAN" ]; then echo yes; else echo no; fi)"
+bt_eq "20 the directory is flushed after the MANIFEST rename" yes "$(if [ "$MV_MAN" -gt 0 ] && [ "$(awk -v p="sync -- $NIGHT" -v m="$MV_MAN" 'NR > m && $0 == p { print "yes"; exit }' "$T/order.log")" = yes ]; then echo yes; else echo no; fi)"
+bt_eq "20 the night has its SHA256SUMS" yes "$(exists "$NIGHT/SHA256SUMS")"
+
+# ---------------------------------------------------------------------------
+# restore.sh refuses a backup that holds a link or a special file, so a night
+# that copied one fails here, by name, instead of leaving a backup that no
+# restore takes.
+section "Test 21: a link in the data directory ends the night by name"
+reset_case
+ln -s a.jpg "$T/data/media/link.jpg"
+run_backup
+bt_eq "21 exit status 1" 1 "$RC"
+bt_has "21 the link is named" "$T/err" "ERROR: ./media/link.jpg in the backup is a symbolic link or not a regular file, and restore.sh refuses such a backup; replace $T/data/media/link.jpg with a regular file"
+bt_eq "21 the directory of this run does not exist" no "$(exists "$NIGHT")"
+bt_has "21 the cleanup line is printed" "$T/err" "$CLEANUP_LINE"
+bt_eq "21 the earlier night is intact" yes "$(earlier_intact)"
+rm -f "$T/data/media/link.jpg"
+
+# ---------------------------------------------------------------------------
+# Retention removes only what backup.sh makes: a directory named by its
+# timestamp. A lost+found of a mounted backup disk (root's, mode 700) or a copy
+# the operator keeps there on purpose is old too, and is never touched.
+section "Test 22: retention removes only directories named like a night"
+reset_case
+OLD_NIGHT="$T/root/20200103-031500"
+mkdir -p "$OLD_NIGHT" "$T/root/lost+found/inner" "$T/root/keep-me" "$T/root/20200104-0315" "$T/root/x20200105-031500"
+echo "old" > "$OLD_NIGHT/MANIFEST"
+echo "mine" > "$T/root/keep-me/file"
+touch -t 202001010000 "$OLD_NIGHT" "$T/root/lost+found" "$T/root/keep-me" "$T/root/20200104-0315" "$T/root/x20200105-031500"
+if [ "$(id -u)" != "0" ]; then
+    chmod 500 "$T/root/lost+found"
+fi
+run_backup
+chmod -R u+w "$T/root" 2>/dev/null
+bt_eq "22 exit status 0" 0 "$RC"
+bt_not "22 no retention error" "$T/err" "retention could not"
+bt_eq "22 the old night is gone" no "$(exists "$OLD_NIGHT")"
+bt_eq "22 lost+found is kept" yes "$(exists "$T/root/lost+found/inner")"
+bt_eq "22 the operator's directory is kept" yes "$(exists "$T/root/keep-me/file")"
+bt_eq "22 a name with a short time is kept" yes "$(exists "$T/root/20200104-0315")"
+bt_eq "22 a name with a prefix is kept" yes "$(exists "$T/root/x20200105-031500")"
+bt_eq "22 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+# A value test(1) cannot compare made the step silently skip itself: no pruning
+# (or no free-space guard), no ERROR, status 0 until the disk fills.
+section "Test 23: a RETENTION_DAYS or MIN_FREE_MB that is not a whole number ends the night with 2"
+for bad in 30d "30 " -1 " "; do
+    reset_case
+    run_backup RETENTION_DAYS="$bad"
+    bt_eq "23 RETENTION_DAYS='$bad': exit status 2" 2 "$RC"
+    bt_has "23 RETENTION_DAYS='$bad': the message" "$T/err" "ERROR: RETENTION_DAYS must be a whole number of days, got '$bad'"
+    bt_eq "23 RETENTION_DAYS='$bad': no directory was made" no "$(exists "$NIGHT")"
+done
+for bad in 1G "1 " x; do
+    reset_case
+    run_backup MIN_FREE_MB="$bad"
+    bt_eq "23 MIN_FREE_MB='$bad': exit status 2" 2 "$RC"
+    bt_has "23 MIN_FREE_MB='$bad': the message" "$T/err" "ERROR: MIN_FREE_MB must be a whole number of megabytes, got '$bad'"
+    bt_eq "23 MIN_FREE_MB='$bad': no directory was made" no "$(exists "$NIGHT")"
+done
+bt_eq "23 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+# D-01: the backup and the off-site copy run first, retention after them. So
+# the copy sees the root before anything was pruned, and a directory rm -rf
+# left half removed is not mirrored off the box the same night.
+section "Test 24: the off-site copy runs before retention"
+reset_case
+OLD_PRUNE="$T/root/20200106-031500"
+mkdir -p "$OLD_PRUNE"
+echo "old" > "$OLD_PRUNE/MANIFEST"
+touch -t 202001010000 "$OLD_PRUNE"
+run_backup REMOTE_TARGET="$T/remote"
+bt_eq "24 exit status 0" 0 "$RC"
+bt_eq "24 the old night was pruned here" no "$(exists "$OLD_PRUNE")"
+bt_eq "24 the copy was made before the pruning" yes "$(exists "$T/remote/20200106-031500/MANIFEST")"
+COPY_AT=$(awk '/^Copying to / { print NR; exit }' "$T/out")
+PRUNE_AT=$(awk '/^Pruning backups older than / { print NR; exit }' "$T/out")
+bt_eq "24 the copy line comes before the pruning line" yes \
+    "$(if [ -n "$COPY_AT" ] && [ -n "$PRUNE_AT" ] && [ "$COPY_AT" -lt "$PRUNE_AT" ]; then echo yes; else echo no; fi)"
+
+# ---------------------------------------------------------------------------
+section "Test 25: a failed off-site copy does not skip retention, and its status wins"
+reset_case
+OLD_PRUNE="$T/root/20200107-031500"
+mkdir -p "$OLD_PRUNE"
+echo "old" > "$OLD_PRUNE/MANIFEST"
+touch -t 202001010000 "$OLD_PRUNE"
+write_plan 0 0 23
+run_backup REMOTE_TARGET="$T/remote"
+bt_eq "25 exit status is the copy's, 23" 23 "$RC"
+bt_has "25 the copy's failure is named" "$T/err" "ERROR: the off-site copy to $T/remote failed with status 23; the backup itself is complete at $NIGHT"
+bt_eq "25 retention still ran" no "$(exists "$OLD_PRUNE")"
+bt_eq "25 the night keeps its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+bt_not "25 no cleanup line" "$T/err" "backup did not finish"
+
+# ---------------------------------------------------------------------------
+section "Test 26: a mktemp that fails is named, not taken for a failed listing"
+reset_case
+mkdir -p "$T/fake-mktemp"
+cat > "$T/fake-mktemp/mktemp" <<'FAKE'
+#!/bin/bash
+echo "mktemp: mkstemp failed on /tmp/tmp.XXXXXXXXXX: No space left on device" >&2
+exit 1
+FAKE
+chmod +x "$T/fake-mktemp/mktemp"
+PATH_PREFIX="$T/fake-mktemp:" run_backup
+bt_eq "26 exit status 40" 40 "$RC"
+bt_has "26 mktemp is named" "$T/err" "ERROR: retention could not make a temporary file (mktemp failed); old backups were not pruned"
+bt_not "26 the backup root is not blamed" "$T/err" "could not list"
+bt_eq "26 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
 
 # ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then

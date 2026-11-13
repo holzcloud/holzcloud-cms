@@ -12,6 +12,7 @@ Files:
 - `deploy/test/run.sh`: the driver.
 - `deploy/test/nightly.sh`: the phase 24 driver, a sibling that leaves `run.sh` untouched and reaches it only through its public subcommands (see Phase 24: the nightly run as shipped).
 - `deploy/test/native-amd64.sh`: the phase 26 driver, a sibling that edits neither `run.sh` nor `nightly.sh` and reaches `run.sh` through its public subcommands only; and the workflow `.github/workflows/native-amd64.yml` that presses it on a GitHub-hosted runner (see Phase 26: native amd64 and the real server).
+- `deploy/test/backup-verify.sh`: the phase 32 driver, a sibling that edits neither `run.sh` nor `nightly.sh` and reaches `run.sh` through its public subcommands only (see backup-verify.sh: the record of phase 32).
 - `deploy/test/Dockerfile`, `deploy/test/Dockerfile.dockerignore`: the image and its build-context filter.
 - `deploy/test/canary/`: a stdlib-only probe, its own Go module, that asks whether this platform enforces seccomp.
 - `deploy/test/out/`: scratch output, gitignored. The committed records are `deploy/SECURITY-SCORE.md` (phase 20), `deploy/DEPLOY-RUN.md` (phase 21), `deploy/BACKUP-RUN.md` (phase 22) and `deploy/BACKUP-TIMER-RUN.md` (phase 24), which paste these files unchanged.
@@ -504,6 +505,29 @@ Each scenario ends with `LABEL-VERDICT: PASS` or `FAIL` and the first broken pro
 The stand-in is never in `deploy/` and never shipped. The harness removes it (and its configuration and counter) after every scenario and in `capfull_cleanup` on every exit path, then asserts with `test ! -e` that all three are gone (`VANISH-SHIM-REMOVED: yes`, or a BAD line). It refuses to overwrite a `/usr/local/bin/rsync` it did not write. It is named in `deviations.txt` as `DEVIATION[vanish-shim]`.
 
 **What this proves and what it does not.** It proves what the shipped script and the shipped unit do with a status 24: the repeat, the recurrence, the exit status, the sandbox allowing the repeat, the removal of the directory. It does not prove that `rsync` itself ends with 24 when a file vanishes during the copy. That was seen naturally in 8 of 40 runs in phase 25 and is counted again, under load, by the `consist` counters of plan 29-02 (`RETRIED-RUNS-STAGE-x` and the others).
+
+## backup-verify.sh: the record of phase 32
+
+`deploy/test/backup-verify.sh` makes the one evidence set of phase 32 and proves its record, `deploy/BACKUP-VERIFY-RUN.md`. It is a narrow sibling of `run.sh` and `nightly.sh` in the shape of `native-amd64.sh`: it edits neither of them and reaches `run.sh` through its public subcommands only (`build up install postinstall`, then `seed backup-fixture`, with `NAME=holzcloud-t32`, `OUT_DIR=deploy/test/out/amd64-t32-src` and `KEEP=1`). Before `seed` it copies the five plugin archives into the container itself, the step `run.sh` takes only inside `baseline` (`DEVIATION[fixture]`).
+
+What it plays, in one fresh `systemd-base` container (amd64 under emulation on an arm64 host, `DEVIATION[emulation]`):
+
+- **BAK-01** (`bak01.txt`): the document's manual backup line, taken from `deploy/DEPLOY.md` by exact text, leaves a `SHA256SUMS` that names exactly the files of the directory and that `sha256sum -c` accepts in the container. Four damaged copies below `/root/t32` (one flipped media byte; one flipped byte inside a database page that `holzcloud check` still calls `integrity: ok`; a listed file deleted; `SHA256SUMS` deleted while the MANIFEST names it) are each refused by `restore.sh`, naming the file, with the inode of the live database, the service's `InvocationID`, its active state and the hash of the data tree unchanged. A backup made by the `backup.sh` of `v0.1.4` restores with the made-before-0.1.5 notice (`DEVIATION[old-script]`: with this release's binary), and the untouched new backup restores with `Checksums: N files verified`.
+- **BAK-02** (`bak02.txt`, `bak02-restore.out`): an original and its variant are removed from the live data directory before a backup (`DEVIATION[lost-file]`); `restore.sh` names both before its question and again after `=== Restore complete ===`, and ends with status 3.
+- **BAK-03** (`bak03.txt`, `bak03-journal.txt`): the shipped `holzcloud-backup.service`, with no drop-in, meets an old backup directory holding a root-owned subdirectory. The journal names the directory, `systemctl show` gives `Result=exit-code` and `ExecMainStatus=40`, the night keeps its MANIFEST and the removable old directory is gone.
+
+Every restore is preceded by `systemctl reset-failed holzcloud` (`DEVIATION[start-limit]`).
+
+The command, from a clean tree:
+
+```bash
+PLATFORM=linux/amd64 TARGET=systemd-base bash deploy/test/backup-verify.sh run
+bash deploy/test/backup-verify.sh down
+```
+
+- **The bound files** are `deploy/backup.sh`, `deploy/restore.sh`, `deploy/DEPLOY.md`, `deploy/holzcloud-backup.service`, `deploy/holzcloud-backup.timer`, `deploy/test/run.sh`, `deploy/test/Dockerfile` and `deploy/test/backup-verify.sh`, together with the binary built from the evidence commit. `run` refuses to start while one of them differs from `HEAD` or is untracked, refuses when `holzcloud-t32` exists, and pins `NEW_REF` to the short sha of `HEAD`, which it writes to `deploy/test/out/amd64-t32-evidence-commit.txt`. `REHEARSAL=1` lets a rehearsal start on a changed tree; its `summary.txt` then carries a `REHEARSAL:` line, and `record-check` refuses such a summary.
+- **The out directory** is `deploy/test/out/amd64-t32-src` (gitignored, reset by `run.sh up`): `summary.txt`, `versions.txt`, `deviations.txt`, `bak01.txt` and the `bak01-*.out` transcripts, `bak02.txt`, `bak02-restore.out`, `bak03.txt`, `bak03-journal.txt` and `measurements.txt`. Beside it are the run files `amd64-t32-pass1.started`, `.finished`, `.status` and `.log`. Restore transcripts carry the container's clock on every line, the technique of `run.sh`'s `RESTORE_RUN_SH`.
+- **The subcommands:** `selftest` (the pure functions, a table of cases, no Docker; the last line is `SELFTEST OK (N cases)`), `run` (`STAGES`, default `bak01 bak02 bak03`; a subset is a rehearsal and the stages left out read `NOT-RUN`, so it can never read all PASS), `down` (removes `holzcloud-t32`, nothing else), `appendix` (the blocks of a fixed paste list, never a glob, refusing a file with a line that begins with three backticks, `#### ` or `## `) and `record-check` (`R`, default `deploy/BACKUP-VERIFY-RUN.md`, and `E`, default `deploy/test/out`: every `#### NAME` block equals `E/NAME` byte for byte, every file of the paste list has a block, every cited `amd64-t32-…/FILE` token has one, exactly one `Evidence commit:` line that resolves, equals the pinned commit and has no bound file and nothing under `cmd`, `internal`, `go.mod` or `go.sum` changed since, and no private-key marker; the last line is `RECORD-CHECK OK (N checks)` or `RECORD-CHECK FAILED (K of N)`). In a git worktree `E=<main checkout>/deploy/test/out` points it at the scratch files.
 
 ## Pitfalls
 

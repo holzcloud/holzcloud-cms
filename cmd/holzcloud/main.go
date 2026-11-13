@@ -68,6 +68,29 @@ var (
 	Commit  = "unknown"
 )
 
+// exitError is a subcommand error that carries its own exit status. Its
+// message may be empty: `check -files` has already printed its report and only
+// needs status 3, which restore.sh tells apart from 1, a check that failed.
+type exitError struct {
+	code int
+	msg  string
+}
+
+func (e *exitError) Error() string { return e.msg }
+
+// exitStatus is the process exit status for a subcommand's error: 0 for none,
+// the carried code for an exitError, 1 for every other error.
+func exitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	var e *exitError
+	if errors.As(err, &e) {
+		return e.code
+	}
+	return 1
+}
+
 func main() {
 	// Subcommands run without an HTTP server. This is the recovery path: a
 	// locked-out operator has no way back through the web interface, because
@@ -80,7 +103,7 @@ func main() {
 			if err.Error() != "" {
 				fmt.Fprintln(os.Stderr, "error:", err)
 			}
-			os.Exit(1)
+			os.Exit(exitStatus(err))
 		}
 		return
 	}
@@ -109,40 +132,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	database, err := db.Open(cfg.DBPath)
+	database, err := openDatabase(cfg)
 	if err != nil {
-		slog.Error("cannot open database", "err", err, "path", cfg.DBPath)
+		// openDatabase has logged its own lines.
 		os.Exit(1)
 	}
 	defer database.Close()
-
-	// Snapshot before migrating, so a half-applied migration is a two-command
-	// recovery instead of a restore from last night's backup.
-	var preUpgradeSnapshot string
-	if pending, err := db.HasPendingMigrations(database.Write); err != nil {
-		slog.Warn("cannot determine pending migrations", "err", err)
-	} else if pending {
-		name := fmt.Sprintf("pre-upgrade-%s-%s.sqlite", Version, time.Now().UTC().Format("20060102-150405"))
-		snapshot, err := db.Backup(context.Background(), database, filepath.Join(cfg.DataDir, name))
-		if err != nil {
-			slog.Error("cannot snapshot before migrating", "err", err)
-			os.Exit(1)
-		}
-		preUpgradeSnapshot = snapshot
-		slog.Info("pre-upgrade snapshot written", "path", snapshot)
-		if err := db.PruneSnapshots(cfg.DataDir, 5); err != nil {
-			slog.Warn("cannot prune old snapshots", "err", err)
-		}
-	}
-
-	if err := db.RunMigrations(database.Write); err != nil {
-		slog.Error("migrations failed", "err", err)
-		if preUpgradeSnapshot != "" {
-			slog.Error("restore with: systemctl stop holzcloud && cp " +
-				preUpgradeSnapshot + " " + cfg.DBPath + " && systemctl start holzcloud")
-		}
-		os.Exit(1)
-	}
 
 	// Report corruption without refusing to start: a partly readable database is
 	// still serviceable while the operator restores it, and /readyz carries the
@@ -673,6 +668,79 @@ func main() {
 		slog.Error("shutdown error", "err", err)
 	}
 	slog.Info("shutdown complete")
+}
+
+// openDatabase opens the database for the server, refuses one a newer binary
+// has migrated, snapshots it when a migration is pending and migrates it. It
+// logs its own lines; main only exits.
+func openDatabase(cfg config.Config) (*db.DB, error) {
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		slog.Error("cannot open database", "err", err, "path", cfg.DBPath)
+		return nil, err
+	}
+
+	// The guard runs before the snapshot and before the pruning, so a refused
+	// database gets neither: no snapshot of a schema this binary does not
+	// know, and no older snapshot pruned to make room for it.
+	if err := db.RefuseNewerSchema(context.Background(), database.Write); err != nil {
+		var newer *db.NewerSchemaError
+		if errors.As(err, &newer) {
+			slog.Error("refusing to start: the database schema is newer than this binary",
+				"db_level", newer.DBLevel, "binary_level", newer.BinaryLevel, "err", err)
+		} else {
+			slog.Error("cannot determine the schema level", "err", err)
+		}
+		database.Close()
+		return nil, err
+	}
+
+	// Snapshot before migrating, so a half-applied migration is a two-command
+	// recovery instead of a restore from last night's backup.
+	preUpgradeSnapshot, err := snapshotBeforeMigrating(cfg, database)
+	if err != nil {
+		database.Close()
+		return nil, err
+	}
+
+	if err := db.RunMigrations(database.Write); err != nil {
+		slog.Error("migrations failed", "err", err)
+		if preUpgradeSnapshot != "" {
+			slog.Error("restore with: systemctl stop holzcloud && cp " +
+				preUpgradeSnapshot + " " + cfg.DBPath + " && systemctl start holzcloud")
+		}
+		database.Close()
+		return nil, err
+	}
+	return database, nil
+}
+
+// snapshotBeforeMigrating writes the pre-upgrade snapshot into the data
+// directory when migrations are pending, keeps the newest five, and returns
+// its path; "" when nothing was pending (or that could not be told, which is
+// logged). The service and every subcommand that opens the database call it
+// before they migrate, so the way back that NewerSchemaError names exists
+// whichever of them first meets a database below its level.
+func snapshotBeforeMigrating(cfg config.Config, database *db.DB) (string, error) {
+	pending, err := db.HasPendingMigrations(database.Write)
+	if err != nil {
+		slog.Warn("cannot determine pending migrations", "err", err)
+		return "", nil
+	}
+	if !pending {
+		return "", nil
+	}
+	name := fmt.Sprintf("pre-upgrade-%s-%s.sqlite", Version, time.Now().UTC().Format("20060102-150405"))
+	snapshot, err := db.Backup(context.Background(), database, filepath.Join(cfg.DataDir, name))
+	if err != nil {
+		slog.Error("cannot snapshot before migrating", "err", err)
+		return "", err
+	}
+	slog.Info("pre-upgrade snapshot written", "path", snapshot)
+	if err := db.PruneSnapshots(cfg.DataDir, 5, snapshot); err != nil {
+		slog.Warn("cannot prune old snapshots", "err", err)
+	}
+	return snapshot, nil
 }
 
 // pluginSettings answers a plugin that may read a website's settings. Handed in
