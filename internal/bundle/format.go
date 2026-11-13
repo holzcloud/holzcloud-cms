@@ -52,6 +52,25 @@ type Manifest struct {
 	Fields []Field `json:"fields,omitempty"`
 	// BlockTypes are the website's own block kinds, with their fields.
 	BlockTypes []BlockType `json:"block_types,omitempty"`
+	// Values are the website's named texts. A page's sentence names one by
+	// key, [[wert:key]], and the text is filled in when the page is read:
+	// without the values an imported website would show nothing where they
+	// stood, and nothing on it would say why.
+	//
+	// omitempty, for the reason spelled out at Field: a website without values
+	// writes a manifest byte for byte like one from before them, and an older
+	// version reading a newer bundle ignores the key it does not know.
+	Values []SiteValue `json:"values,omitempty"`
+}
+
+// SiteValue is one named text of the website: the key a page writes between
+// [[wert: and ]], and the one line that stands in its place.
+//
+// Named SiteValue and not Value because Snippet.Values already means something
+// else in this file: the answers to a snippet's own fields.
+type SiteValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 // Field is one of the website's own page fields.
