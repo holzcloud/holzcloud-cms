@@ -172,6 +172,27 @@ func TestAValueCannotChangeALinksSchemeOrHost(t *testing.T) {
 	}
 }
 
+// IN-01 of the phase 33 review. A value in a query string must stay one
+// parameter's value — "1&admin=1" added a parameter — and an editor's own
+// %5C in the address must not cost the value its place: the backslash check is
+// on what the value brings, not on the decoded address.
+func TestAValueStaysInsideItsPartOfTheAddress(t *testing.T) {
+	for _, c := range []struct{ name, href, text, want string }{
+		{"query parameter", "https://x.ch/?q=[[wert:k]]", "1&admin=1", "https://x.ch/?q=1%26admin%3D1"},
+		{"plus", "https://x.ch/?q=[[wert:k]]", "a+b", "https://x.ch/?q=a%2Bb"},
+		{"editor's own %5C", "/%5Cfoo/[[wert:k]]", "0.1.5", "/%5Cfoo/0.1.5"},
+		{"a value's backslash", "/x/[[wert:k]]", `a\b`, "/x/"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out := Resolve(`<a href="`+c.href+`">L</a>`, map[string]string{"k": c.text})
+			links := hrefsOf(t, out)
+			if len(links) != 1 || len(links[0]) != 1 || links[0][0] != c.want {
+				t.Errorf("href = %v; want %q", links, c.want)
+			}
+		})
+	}
+}
+
 func TestResolveInATextAttribute(t *testing.T) {
 	texts := map[string]string{"k": `Version "1" & <2>`}
 	for _, attr := range []string{"aria-label", "alt", "title"} {

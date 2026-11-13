@@ -164,16 +164,28 @@ func resolveTag(tok xhtml.Token, texts map[string]string) string {
 // would cost a parse and a render of the whole body (33-RESEARCH.md,
 // alternatives). When the invariant fails the markers are replaced with nothing:
 // the link stays, the value is dropped.
+//
+// A value with a backslash is dropped. A browser treats a backslash as a slash
+// in an http(s) address, so /\host is //host to it; pctEncode writes it as %5C,
+// which no browser decodes back into a separator, but a value carrying one is
+// dropped rather than argued about. The check is on the value's own text and
+// not on the decoded address: decoding the whole address also decoded a %5C
+// the editor wrote, and such a link always lost its value (IN-01 of the phase
+// 33 review).
 func resolveURL(val string, texts map[string]string) string {
 	neutral := pattern.ReplaceAllString(val, "x")
+	refused := false
 	out := pattern.ReplaceAllStringFunc(val, func(m string) string {
 		text, ok := texts[keyOf(m)]
 		if !ok {
 			return ""
 		}
+		if strings.Contains(text, `\`) {
+			refused = true
+		}
 		return pctEncode(text)
 	})
-	if !sameOrigin(neutral, out) {
+	if refused || !sameOrigin(neutral, out) {
 		return pattern.ReplaceAllString(val, "")
 	}
 	return out
@@ -181,11 +193,6 @@ func resolveURL(val string, texts map[string]string) string {
 
 // sameOrigin reports whether out keeps the scheme and host of want, and is not
 // an address a browser would read as protocol-relative.
-//
-// A browser treats a backslash as a slash in an http(s) address, so /\host is
-// //host to it. pctEncode writes a value's backslash as %5C, which no browser
-// decodes back into a separator — the decoded spelling is checked anyway, so
-// that a value carrying one is dropped rather than argued about.
 func sameOrigin(want, out string) bool {
 	w, err := url.Parse(want)
 	if err != nil {
@@ -198,23 +205,20 @@ func sameOrigin(want, out string) bool {
 	if !strings.EqualFold(g.Scheme, w.Scheme) || g.Host != w.Host {
 		return false
 	}
-	decoded, err := url.PathUnescape(out)
-	if err != nil {
-		return false
-	}
-	for _, s := range []string{out, decoded} {
-		if strings.HasPrefix(s, "//") || strings.Contains(s, `\`) {
-			return false
-		}
-	}
-	return true
+	return !strings.HasPrefix(out, "//") && !strings.Contains(out, `\`)
 }
 
 // pctEncode writes a text for an address: every byte that is not an RFC 3986
-// unreserved character and not one of ! $ & ' ( ) * + , ; = : @ / becomes %XX
-// in upper-case hex. Space, quote, angle brackets, backslash, percent, question
+// unreserved character and not one of ! $ ' ( ) * , ; : @ / becomes %XX in
+// upper-case hex. Space, quote, angle brackets, backslash, percent, question
 // mark, hash, square brackets, control and non-ASCII bytes are all encoded, so
 // a value can neither end the attribute nor start a query or a fragment.
+//
+// & = and + are encoded too, wherever the marker stands. In a query string
+// they would let a value add a parameter — ?q=[[wert:a]] with "1&admin=1" was
+// ?q=1&admin=1 — or turn into a space; encoded, the value stays the one
+// parameter's value (IN-01 of the phase 33 review). In a path the encoded
+// spelling means the same as the bare one, so nothing is lost there.
 func pctEncode(s string) string {
 	const hex = "0123456789ABCDEF"
 	var b strings.Builder
@@ -237,7 +241,7 @@ func keepInAddress(c byte) bool {
 	case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9':
 		return true
 	}
-	return strings.IndexByte("-._~!$&'()*+,;=:@/", c) >= 0
+	return strings.IndexByte("-._~!$'()*,;:@/", c) >= 0
 }
 
 // keyOf takes the key out of a complete marker.
