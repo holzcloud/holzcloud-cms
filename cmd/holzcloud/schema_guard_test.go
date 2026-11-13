@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -205,5 +206,55 @@ func TestTheServerStartsOnADatabaseAtOrBelowItsLevel(t *testing.T) {
 	}
 	if v := levelIn(t, dataDir); v != highest {
 		t.Fatalf("level after the second start: %d, want %d", v, highest)
+	}
+}
+
+// The path snapshotBeforeMigrating returns is the one the way back cites —
+// the migration-failure log line, openForCLI's error, the refusal of a newer
+// schema. It has to exist when the pruning is done, also for the first
+// two-digit release after five earlier snapshots, whose version string sorts
+// before theirs (code review 32, second pass, CR-01).
+func TestTheSnapshotJustWrittenSurvivesThePruning(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("HOLZCLOUD_DATA_DIR", dataDir)
+	for _, n := range []string{
+		"pre-upgrade-v0.1.5-20200101-000000.sqlite",
+		"pre-upgrade-v0.1.6-20200201-000000.sqlite",
+		"pre-upgrade-v0.1.7-20200301-000000.sqlite",
+		"pre-upgrade-v0.1.8-20200401-000000.sqlite",
+		"pre-upgrade-v0.1.9-20200501-000000.sqlite",
+	} {
+		if err := os.WriteFile(filepath.Join(dataDir, n), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved := Version
+	Version = "v0.1.10"
+	t.Cleanup(func() { Version = saved })
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer database.Close()
+	snapshot, err := snapshotBeforeMigrating(cfg, database)
+	if err != nil {
+		t.Fatalf("snapshotBeforeMigrating: %v", err)
+	}
+	if snapshot == "" {
+		t.Fatal("no snapshot written for an empty database")
+	}
+	if _, err := os.Stat(snapshot); err != nil {
+		t.Errorf("the snapshot the way back names is gone: %v", err)
+	}
+	if got := snapshotsIn(t, dataDir); len(got) != 5 {
+		t.Errorf("%d snapshots kept, want 5: %v", len(got), got)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "pre-upgrade-v0.1.5-20200101-000000.sqlite")); err == nil {
+		t.Error("the oldest snapshot was kept instead of the one just written")
 	}
 }

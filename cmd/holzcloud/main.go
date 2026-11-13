@@ -737,7 +737,7 @@ func snapshotBeforeMigrating(cfg config.Config, database *db.DB) (string, error)
 		return "", err
 	}
 	slog.Info("pre-upgrade snapshot written", "path", snapshot)
-	if err := db.PruneSnapshots(cfg.DataDir, 5); err != nil {
+	if err := db.PruneSnapshots(cfg.DataDir, 5, snapshot); err != nil {
 		slog.Warn("cannot prune old snapshots", "err", err)
 	}
 	return snapshot, nil
