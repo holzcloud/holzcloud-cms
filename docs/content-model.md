@@ -251,7 +251,9 @@ Alpha [[wert:version-holzcloud-cms]]: what is new
 60 bytes, not starting or ending with `-` or `_` — and one line of plain text,
 at most 400 bytes, without a square bracket (`[` or `]`: a bracket in a value
 could complete a placeholder with the brackets beside it, and the visitor would
-read it raw). The text is never Markdown and never HTML: it is escaped
+read it raw) and without an invisible character — no line or paragraph
+separator, no right-to-left override or other bidi control, no zero-width
+space or joiner, no byte order mark. The text is never Markdown and never HTML: it is escaped
 wherever it is put, so an angle bracket stays an angle bracket. It is the same
 in every language of the website; words that differ by language belong in the
 page text or in the wording catalogue. A key cannot be renamed once the value

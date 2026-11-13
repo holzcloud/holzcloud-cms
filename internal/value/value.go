@@ -78,7 +78,7 @@ var (
 	ErrBadKey      = errors.New("value key must be a-z, 0-9, - and _ (not first or last), at most 60 bytes")
 	ErrTextEmpty   = errors.New("value text is empty")
 	ErrTextTooLong = errors.New("value text is longer than 400 bytes")
-	ErrTextInvalid = errors.New("value text must be one line of valid UTF-8 without control characters")
+	ErrTextInvalid = errors.New("value text must be one line of valid UTF-8 without control or invisible format characters")
 	ErrTextMarker  = errors.New("value text must not contain [ or ]")
 	ErrKeyTaken    = errors.New("another value already uses that key")
 	ErrNotFound    = errors.New("value not found")
@@ -141,7 +141,8 @@ func CheckKey(key string) error {
 // CleanText trims a text and refuses one a value may not hold.
 //
 // No line break and no tab, because a value stands inside a sentence and a
-// link address, and neither has room for one.
+// link address, and neither has room for one. allowedRune says which
+// characters that covers — more than unicode.IsControl does.
 //
 // No square bracket at all, opening or closing. Refusing only "[[" was not
 // enough: a value of "[" before a value of "[wert:x]]", or a page's own "[["
@@ -163,7 +164,7 @@ func CleanText(text string) (string, error) {
 		return "", ErrTextInvalid
 	}
 	for _, r := range text {
-		if unicode.IsControl(r) {
+		if !allowedRune(r) {
 			return "", ErrTextInvalid
 		}
 	}
@@ -171,4 +172,27 @@ func CleanText(text string) (string, error) {
 		return "", ErrTextMarker
 	}
 	return text, nil
+}
+
+// allowedRune reports whether a value's text may hold r.
+//
+// unicode.IsControl covers C0 and C1 only, and D-05's "one line" needs more
+// than that (WR-04 of the phase 33 review):
+//
+//   - Zl and Zp, the line and paragraph separators U+2028 and U+2029, are line
+//     breaks by another name.
+//   - Cf, the format characters, are invisible and act on the text around
+//     them. An unbalanced right-to-left override (U+202E) in a value reverses
+//     the rest of every paragraph that names it, and html.EscapeString does not
+//     touch it; the isolates U+2066–U+2069 do the same in a gentler way. A
+//     zero-width space, joiner or word joiner (U+200B–U+200D, U+2060) or a byte
+//     order mark (U+FEFF) makes "0.1.5" look right and compare wrong — against
+//     the release script's read-back and against search.
+//
+// The whole Cf category and not a list of the cases above, so a format
+// character nobody thought of is refused too. The price is that an emoji built
+// with a zero-width joiner cannot stand in a value, which a version number or a
+// phone number never needed.
+func allowedRune(r rune) bool {
+	return !unicode.IsControl(r) && !unicode.In(r, unicode.Zl, unicode.Zp, unicode.Cf)
 }

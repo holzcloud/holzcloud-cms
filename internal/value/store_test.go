@@ -144,6 +144,20 @@ func TestTheStoreRefusesWhatTheScreenWouldRefuse(t *testing.T) {
 		{"a\rb", ErrTextInvalid},
 		{"a\tb", ErrTextInvalid},
 		{"a\xffb", ErrTextInvalid},
+		// Line and paragraph separators are line breaks; bidi controls,
+		// zero-width characters and the BOM are invisible and change how the
+		// sentence around the value reads or compares (WR-04).
+		{"a\u2028b", ErrTextInvalid},
+		{"a\u2029b", ErrTextInvalid},
+		{"0.1.5\u202e", ErrTextInvalid},
+		{"\u202ax", ErrTextInvalid},
+		{"x\u2066y", ErrTextInvalid},
+		{"x\u2069", ErrTextInvalid},
+		{"x\u200by", ErrTextInvalid},
+		{"x\u200cy", ErrTextInvalid},
+		{"x\u200dy", ErrTextInvalid},
+		{"x\u2060y", ErrTextInvalid},
+		{"\ufeff1", ErrTextInvalid},
 		{"x [[wert:y]]", ErrTextMarker},
 		{"a [[b", ErrTextMarker},
 		// A single bracket either way: a value that holds one can complete a
@@ -156,7 +170,7 @@ func TestTheStoreRefusesWhatTheScreenWouldRefuse(t *testing.T) {
 		{"a]b", ErrTextMarker},
 	}
 	for i, c := range texts {
-		key := "k" + string(rune('a'+i))
+		key := "k" + string(rune('a'+i/26)) + string(rune('a'+i%26))
 		if _, err := s.Create(ctx, ws, key, c.text); !errors.Is(err, c.want) {
 			t.Errorf("Create(text %q) = %v; want %v", c.text, err, c.want)
 		}

@@ -1597,7 +1597,7 @@
 "The text contains a heading of level 1. The theme already uses the title as the page heading; start the text with level 2.": "El texto contiene un encabezado de nivel 1. El tema ya usa el título como encabezado de la página; empieza el texto con el nivel 2.",
 "The text is longer than 400 bytes.": "El texto ocupa más de 400 bytes.",
 "The text links to none of your own pages. A link to a related page helps visitors and search engines find it.": "El texto no enlaza a ninguna de tus propias páginas. Un enlace a una página relacionada ayuda a visitantes y buscadores a encontrarla.",
-"The text must be one line, without line breaks or control characters.": "El texto debe ser una sola línea, sin saltos de línea ni caracteres de control.",
+"The text must be one line, without line breaks, control characters or invisible characters.": "El texto debe ser una sola línea, sin saltos de línea, caracteres de control ni caracteres invisibles.",
 "The text of this row could not be converted: %s": "El texto de esta fila no se pudo convertir: %s",
 "The text uses the value “%s”, which this website does not have. Visitors see nothing in its place. Create it under Values, or correct the key.": "El texto usa el valor «%s», que este sitio web no tiene. Los visitantes no ven nada en su lugar. Créalo en Valores o corrige el identificador.",
 "The tick box is switched off.": "La casilla está desactivada.",

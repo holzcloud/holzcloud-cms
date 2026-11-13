@@ -60,7 +60,8 @@ func valueRefusal(err error) error {
 		return errors.New("the value is longer than 400 bytes: shorten it")
 	case errors.Is(err, value.ErrTextInvalid):
 		return errors.New("the value must be one line of valid UTF-8 text, without a line " +
-			"break, a tab or another control character")
+			"break (U+2028 and U+2029 included), a tab, another control character or an " +
+			"invisible format character such as a bidi override, a zero-width space or a BOM")
 	case errors.Is(err, value.ErrTextMarker):
 		return errors.New("the value must not contain [ or ]: a value cannot carry a placeholder " +
 			"or complete one with the brackets beside it")
