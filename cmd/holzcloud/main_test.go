@@ -639,6 +639,10 @@ var editorOpenRoutes = []route{
 	{pattern: "GET /admin/websites/{id}/snippets"},
 	{pattern: "POST /admin/websites/{id}/snippets"},
 	{pattern: "POST /admin/websites/{id}/snippets/{snippetID}/delete"},
+	// A value is changed only with the publishing right, and the handler says
+	// so with a sentence rather than a 403 (phase 33, D-01), like a snippet.
+	{pattern: "GET /admin/websites/{id}/werte"},
+	{pattern: "POST /admin/websites/{id}/werte"},
 	{pattern: "GET /admin/websites/{id}/redirects"},
 	{pattern: "POST /admin/websites/{id}/redirects"},
 	{pattern: "POST /admin/websites/{id}/redirects/{redirectID}/delete"},
