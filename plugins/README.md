@@ -127,8 +127,14 @@ decides — if it says it will:
   delete orders, release and discard messages, and clear the not-found log.
 - **Without it** the plugin is never told. The host refuses every POST of such a
   person to the screen with its own sentence, before the plugin is called, and
-  draws the screen with every control disabled. A plugin that has never heard of
-  the rule cannot be the way around it.
+  draws the screen with every control disabled. A GET still reaches the plugin,
+  because reading stays open — but the call runs read-only: `plugin.Set`,
+  `plugin.Delete` and keeping uploaded files answer with an error instead of
+  writing. A GET that tried to write and carried a query (a "delete" link,
+  `?aktion=…`) is answered with the host's sentence and leads back to the plain
+  screen; the plain screen itself is still shown, with nothing written. A
+  plugin that has never heard of the rule cannot be the way around it, neither
+  by a form nor by a link.
 
 The declaration is a promise, and the administrator who installs a plugin
 decides whether to trust it. Both fields are optional and leave the interface

@@ -169,8 +169,8 @@ type AdminIn struct {
 	// that declaration is the promise to read it. Refuse every write that
 	// changes the public site (answer with a sentence through T) and draw no
 	// control for it; private work, such as ticking off an order, stays open.
-	// A plugin without the declaration never sees it: the host refuses every
-	// POST of such a person before the plugin is called.
+	// A plugin without it never sees it: the host refuses such a person's POST
+	// before the call and runs their GET read-only (Set and Delete then fail).
 	ReadOnly bool `json:"read_only,omitempty"`
 }
 

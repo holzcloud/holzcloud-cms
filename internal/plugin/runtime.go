@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -103,6 +104,30 @@ type FileKeeper interface {
 }
 
 type callCtxKey struct{}
+
+// readOnlyCall marks a call during which the host refuses the plugin's
+// writes, and remembers whether the plugin tried one.
+type readOnlyCall struct{ refused atomic.Bool }
+
+type readOnlyCallKey struct{}
+
+// ReadOnly returns a context for a call during which the plugin may read its
+// storage but not change it: store.set, store.delete and files.keep answer
+// StatusDenied. The function it returns reports afterwards whether the plugin
+// tried such a write.
+//
+// It is how the host keeps the promise of a plugin that did not declare
+// respects_read_only (D-13) on a GET as well: the host refuses that plugin's
+// POSTs for somebody without the publishing right before calling it, but a
+// GET reaches the plugin — reading stays open — and a simple screen's
+// "delete" link is a GET.
+func ReadOnly(ctx context.Context) (context.Context, func() bool) {
+	rc := &readOnlyCall{}
+	return context.WithValue(ctx, readOnlyCallKey{}, rc), rc.refused.Load
+}
+
+// writeOps are the operations a read-only call refuses.
+var writeOps = map[string]bool{OpStoreSet: true, OpStoreDelete: true, OpKeepFiles: true}
 
 // NewRuntime prepares the engine. Nothing is loaded yet.
 func NewRuntime(ctx context.Context, store *Store, log *slog.Logger) (*Runtime, error) {
@@ -417,6 +442,11 @@ func (r *Runtime) hostCall(ctx context.Context, m api.Module,
 	if perm != PermNone && !cc.manifest.Allows(perm) {
 		return r.answer(m, outPtr, outCap, StatusDenied,
 			[]byte(fmt.Sprintf("the plugin does not have the permission %q", perm)))
+	}
+	if rc, _ := ctx.Value(readOnlyCallKey{}).(*readOnlyCall); rc != nil && writeOps[op] {
+		rc.refused.Store(true)
+		return r.answer(m, outPtr, outCap, StatusDenied,
+			[]byte("read only: the person on this screen may not change what the public sees"))
 	}
 
 	arg, ok := readBytes(m, argPtr, argLen)

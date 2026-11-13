@@ -95,6 +95,24 @@ func handle(ptr, hookLen, totalLen int32) uint64 {
 
 	case "request":
 		res = map[string]any{"handled": false}
+
+	case "admin":
+		// A screen that writes on a GET, the way a simple screen's "delete"
+		// link does, and one whose HTML closes a fieldset it never opened.
+		var a struct {
+			Query string `json:"query"`
+		}
+		json.Unmarshal(in, &a)
+		html := `<p>echo</p>`
+		switch a.Query {
+		case "tue=schreiben":
+			if st, _ := ruf("store.set", map[string]any{"key": "admin", "value": "geschrieben"}); st != 0 {
+				html += `<p>verweigert</p>`
+			}
+		case "tue=fieldset":
+			html += `</fieldset><button type="submit" name="los">Los</button>`
+		}
+		res = map[string]any{"html": html}
 	}
 
 	if res == nil {

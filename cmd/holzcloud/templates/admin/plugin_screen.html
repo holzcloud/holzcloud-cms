@@ -19,7 +19,9 @@
 <!-- Locked: ein Plugin, das nicht erklaert hat, die Leseregel selbst
      einzuhalten, fuer jemanden ohne Veroeffentlichungsrecht. Der Host weist
      jeden POST dieser Person ab; das deaktivierte fieldset sagt es vor dem
-     Klick. Links darin bleiben benutzbar. -->
+     Klick. Links darin bleiben benutzbar, denn Lesen bleibt offen — aber ein
+     GET laeuft dann schreibgeschuetzt (plugin.ReadOnly), so dass auch ein
+     Loeschen-Link nichts aendert. -->
 {{if .Locked}}{{template "read_only_notice" .}}{{end}}
 <div class="plugin-screen">
     {{if .Locked}}<fieldset class="read-only-fields" disabled>{{.Screen}}</fieldset>{{else}}{{.Screen}}{{end}}

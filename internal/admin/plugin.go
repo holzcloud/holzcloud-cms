@@ -303,7 +303,27 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 		}
 	}
 
-	out, err := h.plugins.Admin(r.Context(), id, in)
+	// Undeclared, and a GET: the call reaches the plugin, because reading
+	// stays open (D-05), but against a host that refuses its writes — a
+	// simple screen's "delete" link is a GET, and the refused POST alone would
+	// leave it working. An action refused that way answers with the
+	// read-only sentence and goes back to the plain screen. The plain screen
+	// itself is shown even if it tried to write: nothing was written, its
+	// notice already says why, and sending it to itself would never end.
+	callCtx := r.Context()
+	var triedToWrite func() bool
+	if locked {
+		callCtx, triedToWrite = plugin.ReadOnly(callCtx)
+	}
+	out, err := h.plugins.Admin(callCtx, id, in)
+	if triedToWrite != nil && triedToWrite() && (r.URL.RawQuery != "" || err != nil) {
+		back := action
+		if r.URL.RawQuery == "" {
+			back = "/admin/plugins"
+		}
+		web.SetFlashError(h.sm, r.Context(), readOnlySentence())
+		return h.redirect(w, r, back)
+	}
 	if err != nil {
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The plugin reported an error: %s", err))
 		return h.redirect(w, r, "/admin/plugins")
