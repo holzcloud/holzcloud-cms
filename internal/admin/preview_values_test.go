@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
+	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
@@ -63,5 +64,42 @@ func TestThePreviewShowsTheValue(t *testing.T) {
 	}
 	if !strings.Contains(body, "Fremd .") {
 		t.Errorf("a key only another website defines must show as nothing:\n%s", body)
+	}
+}
+
+// The preview's head says what the public head will say: the summary derived
+// from the page's text carries the value there too, and the marker it keeps
+// for delivery is not shown.
+func TestThePreviewSummaryShowsTheValue(t *testing.T) {
+	h, _, database, ws := newTestAdmin(t)
+	ctx := context.Background()
+	if _, _, err := value.NewStore(database).Set(ctx, ws.ID, "v", "0.1.5"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	const markdown = "Alpha [[wert:v]]: neu\n\nMehr Text."
+	html, err := page.RenderMarkdown(markdown)
+	if err != nil {
+		t.Fatalf("RenderMarkdown: %v", err)
+	}
+	if _, err := page.NewStore(database).CreatePage(ctx, page.PageCreate{
+		WebsiteID: ws.ID, Title: "Entwurf", Slug: "entwurf", Markdown: markdown, HTML: html,
+		Status: "draft", Meta: page.PageMeta{Excerpt: page.Excerpt(markdown)},
+	}); err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/admin/websites/%d/preview/entwurf", ws.ID), nil)
+	req.SetPathValue("id", id64(ws.ID))
+	req.SetPathValue("slug", "entwurf")
+	rec := httptest.NewRecorder()
+	if err := h.HandlePreviewPage(rec, req); err != nil {
+		t.Fatalf("HandlePreviewPage: %v", err)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "[[wert:") {
+		t.Errorf("the preview shows the internal syntax where the value belongs:\n%s", body)
+	}
+	if !strings.Contains(body, `<meta name="description" content="Alpha 0.1.5: neu Mehr Text.">`) {
+		t.Errorf("the preview's meta description lacks the value:\n%.2000s", body)
 	}
 }
