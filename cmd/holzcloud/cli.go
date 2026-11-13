@@ -322,6 +322,13 @@ func cmdCheck(args []string) error {
 //	integrity: <result>
 //	files: <N> rows checked, <M> missing
 //	MISSING media/<website_id>/<filename> (media row <id>, website <website_id>, original name <quoted>)
+//	MISSING media/<website_id>/<filename> (media_variants row <id>, label <quoted>, of media row <media_id>)
+//	MISSING (media row <id>, website <website_id>): file name <quoted> is not a plain file name
+//
+// Originals come before variants. A name that is not a plain file name is
+// never followed and gets the third shape, with the variant's own parenthesis
+// for a variant. When a variant is among the missing, a closing line names
+// `holzcloud thumbnails`, which rebuilds it from its original.
 //
 // The "files:" line is printed whenever the files were checked, nothing
 // missing included, because an older binary ignores -files and restore.sh has
@@ -360,9 +367,24 @@ func runCheck(w io.Writer, files string) error {
 		return fmt.Errorf("check -files: %w", err)
 	}
 	fmt.Fprintf(w, "files: %d rows checked, %d missing\n", checked, len(missing))
+	variantMissing := false
 	for _, m := range missing {
-		fmt.Fprintf(w, "MISSING %s (media row %d, website %d, original name %q)\n",
-			m.Rel, m.RowID, m.WebsiteID, m.OriginalName)
+		row := fmt.Sprintf("media row %d, website %d", m.RowID, m.WebsiteID)
+		if m.Table == "media_variants" {
+			variantMissing = true
+			row = fmt.Sprintf("media_variants row %d, label %q, of media row %d", m.RowID, m.Label, m.MediaID)
+		}
+		switch {
+		case m.Unsafe:
+			fmt.Fprintf(w, "MISSING (%s): file name %q is not a plain file name\n", row, m.Filename)
+		case m.Table == "media_variants":
+			fmt.Fprintf(w, "MISSING %s (%s)\n", m.Rel, row)
+		default:
+			fmt.Fprintf(w, "MISSING %s (%s, original name %q)\n", m.Rel, row, m.OriginalName)
+		}
+	}
+	if variantMissing {
+		fmt.Fprintln(w, "a missing variant can be rebuilt with: holzcloud thumbnails")
 	}
 	if len(missing) > 0 {
 		return &exitError{code: 3}

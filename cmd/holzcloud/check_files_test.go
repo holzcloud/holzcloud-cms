@@ -93,6 +93,39 @@ func TestCheckFilesPrintsTheMarkerAndEveryMissingFile(t *testing.T) {
 		})
 	})
 
+	t.Run("a missing variant after the originals", func(t *testing.T) {
+		database, ws, backup := checkFilesCase(t)
+		store := media.NewStore(database)
+		ctx := context.Background()
+		a, err := store.Create(ctx, ws, "a.jpg", "Urlaub.jpg", "image/jpeg", 1, "hash-a")
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		gone, err := store.Create(ctx, ws, "b.jpg", "Hochzeit.jpg", "image/jpeg", 1, "hash-b")
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		res, err := database.Write.Exec(`INSERT INTO media_variants (media_id, label, filename, width, height, size_bytes)
+			VALUES ($1, 'medium', 'a-medium.jpg', 1, 1, 1)`, a.ID)
+		if err != nil {
+			t.Fatalf("insert variant: %v", err)
+		}
+		variant, _ := res.LastInsertId()
+		putBackupFile(t, backup, ws, "a.jpg")
+
+		lines, err := runCheckLines(t, backup)
+		if exitStatus(err) != 3 {
+			t.Errorf("exit status %d (%v); want 3", exitStatus(err), err)
+		}
+		sameLines(t, lines, []string{
+			"integrity: ok",
+			"files: 3 rows checked, 2 missing",
+			fmt.Sprintf(`MISSING media/%d/b.jpg (media row %d, website %d, original name "Hochzeit.jpg")`, ws, gone.ID, ws),
+			fmt.Sprintf(`MISSING media/%d/a-medium.jpg (media_variants row %d, label "medium", of media row %d)`, ws, variant, a.ID),
+			"a missing variant can be rebuilt with: holzcloud thumbnails",
+		})
+	})
+
 	t.Run("a website without media", func(t *testing.T) {
 		_, _, backup := checkFilesCase(t)
 		lines, err := runCheckLines(t, backup)
@@ -136,6 +169,84 @@ func TestCheckFilesEndsWithStatusThreeWhenAFileIsMissing(t *testing.T) {
 	}
 	if got := exitStatus(fmt.Errorf("wrapped: %w", &exitError{code: 3})); got != 3 {
 		t.Errorf("exitStatus(wrapped) = %d; want 3", got)
+	}
+}
+
+// restore.sh decides on the line that starts with "files: ". A name stored in
+// the database — an upload name, a variant label, a crafted file name — must
+// not be able to put a second such line into the report.
+func TestCheckFilesQuotesANameSoItCannotStartALine(t *testing.T) {
+	database, ws, backup := checkFilesCase(t)
+	const fake = "files: 0 rows checked, 0 missing"
+	store := media.NewStore(database)
+	ctx := context.Background()
+	orig, err := store.Create(ctx, ws, "a.jpg", "x\n"+fake, "image/jpeg", 1, "hash-a")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	res, err := database.Write.Exec(`INSERT INTO media_variants (media_id, label, filename, width, height, size_bytes)
+		VALUES ($1, $2, 'a-thumb.jpg', 1, 1, 1)`, orig.ID, "t\n"+fake)
+	if err != nil {
+		t.Fatalf("insert variant: %v", err)
+	}
+	variant, _ := res.LastInsertId()
+	res, err = database.Write.Exec(`INSERT INTO media (website_id, filename, original_name, mime_type, size_bytes, content_hash)
+		VALUES ($1, $2, 'y', 'image/jpeg', 1, 'hash-c')`, ws, "c\n"+fake)
+	if err != nil {
+		t.Fatalf("insert media: %v", err)
+	}
+	crafted, _ := res.LastInsertId()
+
+	lines, err := runCheckLines(t, backup)
+	if exitStatus(err) != 3 {
+		t.Errorf("exit status %d (%v); want 3", exitStatus(err), err)
+	}
+	marker := 0
+	for _, l := range lines {
+		if strings.HasPrefix(l, "files: ") {
+			marker++
+		}
+	}
+	if marker != 1 {
+		t.Errorf("%d lines start with %q; want 1:\n%s", marker, "files: ", strings.Join(lines, "\n"))
+	}
+	sameLines(t, lines, []string{
+		"integrity: ok",
+		"files: 3 rows checked, 3 missing",
+		fmt.Sprintf(`MISSING media/%d/a.jpg (media row %d, website %d, original name "x\nfiles: 0 rows checked, 0 missing")`, ws, orig.ID, ws),
+		fmt.Sprintf(`MISSING (media row %d, website %d): file name "c\nfiles: 0 rows checked, 0 missing" is not a plain file name`, crafted, ws),
+		fmt.Sprintf(`MISSING media/%d/a-thumb.jpg (media_variants row %d, label "t\nfiles: 0 rows checked, 0 missing", of media row %d)`, ws, variant, orig.ID),
+		"a missing variant can be rebuilt with: holzcloud thumbnails",
+	})
+}
+
+func TestCheckFilesRefusesADirectoryThatDoesNotExist(t *testing.T) {
+	checkFilesCase(t)
+	nowhere := filepath.Join(t.TempDir(), "nowhere")
+	aFile := filepath.Join(t.TempDir(), "a-file")
+	if err := os.WriteFile(aFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	for _, dir := range []string{nowhere, aFile} {
+		lines, err := runCheckLines(t, dir)
+		if err == nil {
+			t.Errorf("-files %s: no error", dir)
+			continue
+		}
+		if want := "check -files: " + dir + " is not a directory"; err.Error() != want {
+			t.Errorf("error %q; want %q", err.Error(), want)
+		}
+		if got := exitStatus(err); got != 1 {
+			t.Errorf("exit status %d; want 1", got)
+		}
+		for _, l := range lines {
+			if strings.HasPrefix(l, "files: ") {
+				t.Errorf("a marker was printed for a directory that is not there: %q", l)
+			}
+		}
+	}
+	if err := cmdCheck([]string{"-files", ""}); exitStatus(err) != 1 {
+		t.Errorf("-files with an empty value: %v; want an error with status 1", err)
 	}
 }
 

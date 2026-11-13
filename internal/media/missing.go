@@ -35,12 +35,18 @@ type MissingFile struct {
 	Unsafe bool
 }
 
-// MissingFiles reads every row of media and returns how many it checked and
-// those whose file is absent below root, which has the data directory's
-// layout — the data directory itself or a backup of it. Rows come in id order.
+// MissingFiles reads every row of media and of media_variants and returns how
+// many it checked and those whose file is absent below root, which has the
+// data directory's layout — the data directory itself or a backup of it.
+// Originals come first, then variants, each in id order. A variant lives in
+// the directory of its media row's website.
 //
 // The layout is spelled once, in Path; the file's place in the report is Path
 // below an empty root, so both cannot drift apart.
+//
+// A row whose file name is not a plain file name (see plainName) is reported
+// as missing and Unsafe without any path being built from it: the database
+// may come from a damaged or crafted backup, and restore.sh runs this as root.
 //
 // Only an absent file counts as missing. Any other error from looking at it —
 // a permission problem, an I/O error — is returned, because "cannot tell" is
@@ -50,8 +56,17 @@ func (s *Store) MissingFiles(ctx context.Context, root string) (checked int, mis
 	if err != nil {
 		return 0, nil, err
 	}
-	for _, m := range originals {
+	variants, err := s.variantRows(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	for _, m := range append(originals, variants...) {
 		checked++
+		if !plainName(m.Filename) {
+			m.Unsafe = true
+			missing = append(missing, m)
+			continue
+		}
 		gone, err := absent(root, m.WebsiteID, m.Filename)
 		if err != nil {
 			return 0, nil, err
@@ -62,6 +77,46 @@ func (s *Store) MissingFiles(ctx context.Context, root string) (checked int, mis
 		}
 	}
 	return checked, missing, nil
+}
+
+// plainName reports whether a stored file name names a file directly inside
+// its website directory: not empty, not "." or "..", no separator of either
+// kind, no control character. Only such a name is ever joined into a path.
+func plainName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if c == '/' || c == '\\' || c < 0x20 || c == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+// variantRows reads the media_variants table as MissingFile candidates, in id
+// order, each with the website of its media row.
+func (s *Store) variantRows(ctx context.Context) ([]MissingFile, error) {
+	rows, err := s.DB.Read.QueryContext(ctx,
+		`SELECT v.id, v.media_id, v.label, v.filename, m.website_id
+		 FROM media_variants v JOIN media m ON m.id = v.media_id ORDER BY v.id`)
+	if err != nil {
+		return nil, fmt.Errorf("list media_variants: %w", err)
+	}
+	defer rows.Close()
+	var out []MissingFile
+	for rows.Next() {
+		m := MissingFile{Table: "media_variants"}
+		if err := rows.Scan(&m.RowID, &m.MediaID, &m.Label, &m.Filename, &m.WebsiteID); err != nil {
+			return nil, fmt.Errorf("scan media_variants: %w", err)
+		}
+		out = append(out, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list media_variants: %w", err)
+	}
+	return out, nil
 }
 
 // originalRows reads the media table as MissingFile candidates, in id order.
