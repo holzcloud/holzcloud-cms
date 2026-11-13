@@ -286,6 +286,9 @@ func previewSiteData(ws *domain.Website) tmpl.SiteData {
 // It also does not run the plugin filter or the responsive rewrite, for the
 // same reason internal/public/pagedata.go's expandForFeed does not: neither
 // leaves anything unreadable behind.
+//
+// ws is never nil: both callers, HandlePreview and HandlePreviewPage, have
+// read ws.ID before they get here, and what this calls relies on that.
 func (h *Handler) previewPageContent(r *http.Request, ws *domain.Website, pg *page.Page) tmpl.PageContent {
 	updated := pg.UpdatedAt
 	body := block.ResolveWords(album.Expand(pg.ContentHTML, h.previewAlbums(r, ws, pg.ContentHTML)), previewWords(ws, pg))
@@ -364,7 +367,7 @@ func (h *Handler) previewAlbums(r *http.Request, ws *domain.Website, html string
 // the same case, so the preview does not promise a text the visitor would not
 // get. Not shared with internal/public for the reason previewAlbums gives.
 func (h *Handler) previewValueTexts(r *http.Request, ws *domain.Website, docs ...string) map[string]string {
-	if h.valueStore == nil || ws == nil || !slices.ContainsFunc(docs, value.Has) {
+	if h.valueStore == nil || !slices.ContainsFunc(docs, value.Has) {
 		return nil
 	}
 	texts, _, err := h.valueStore.Texts(r.Context(), ws.ID)
