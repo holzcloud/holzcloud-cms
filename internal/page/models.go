@@ -14,6 +14,11 @@ type SitemapEntry struct {
 	// falling back to the excerpt.
 	Title       string
 	Description string
+	// FromExcerpt says the Description is the excerpt, the page's text in
+	// short, which keeps a value marker for delivery to resolve (Excerpt). An
+	// editor's typed meta description is not resolved (D-11 of phase 33), so
+	// whoever hands Description out has to know which of the two it holds.
+	FromExcerpt bool
 	// FeaturedMediaID, Blocks and ContentHTML are what the image sitemap reads
 	// to find the pictures a page shows.
 	FeaturedMediaID *int64

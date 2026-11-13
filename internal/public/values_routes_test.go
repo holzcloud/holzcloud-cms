@@ -33,13 +33,20 @@ import (
 func valueRoutesFS() fstest.MapFS {
 	return fstest.MapFS{
 		"layout.html": &fstest.MapFile{Data: []byte(
-			`<html><head><title>{{.Page.Title}}</title></head>` +
+			`<html><head><title>{{.Page.Title}}</title>` +
+				`<meta name="description" content="{{.Meta.Description}}">` +
+				`<meta property="og:description" content="{{.Meta.Description}}">` +
+				`{{if .Meta.StructuredData}}<script type="application/ld+json">{{.Meta.StructuredData}}</script>{{end}}` +
+				`</head>` +
 				`<body>{{template "content" .}}` +
 				`<footer class="fuss">{{index .Site.Snippets "fuss"}}</footer></body></html>`)},
 		"home.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<main class="home">{{.Page.ContentHTML}}</main>{{end}}`)},
 		"page.html": &fstest.MapFile{Data: []byte(
-			`{{define "content"}}<article>{{.Page.ContentHTML}}</article>{{end}}`)},
+			`{{define "content"}}<article><p class="kurz">{{.Page.Excerpt}}</p>{{.Page.ContentHTML}}</article>{{end}}`)},
+		"list.html": &fstest.MapFile{Data: []byte(
+			`{{define "content"}}<section class="liste">{{range .Archive.Entries}}` +
+				`<p class="auszug">{{.Excerpt}}</p>{{end}}</section>{{end}}`)},
 		"404.html": &fstest.MapFile{Data: []byte(
 			`{{define "content"}}<p class="notfound">nichts gefunden</p>{{end}}`)},
 		"maintenance.html": &fstest.MapFile{Data: []byte(

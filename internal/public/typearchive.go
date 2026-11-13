@@ -63,6 +63,7 @@ func (h *Handler) HandleTypeArchive(w http.ResponseWriter, r *http.Request,
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
+	valuesAt := h.resolveSummaries(r.Context(), website.ID, entries)
 
 	base := h.localePath(r, website, "/"+t.Archive)
 	path := base
@@ -91,7 +92,7 @@ func (h *Handler) HandleTypeArchive(w http.ResponseWriter, r *http.Request,
 		return fmt.Errorf("render %s: %w", t.Key, err)
 	}
 
-	h.serveCached(w, r, content, archiveModTime(entries, snippets))
+	h.serveCached(w, r, content, archiveModTime(entries, snippets, valuesAt))
 	return nil
 }
 

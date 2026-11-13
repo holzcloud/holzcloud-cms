@@ -316,6 +316,9 @@ func (h *Handler) saveProduct(ctx context.Context, websiteID int64, values *prod
 		return 0, err
 	}
 
+	// The excerpt without values: a product's text is not page text (D-11),
+	// the shop never resolves a value marker, and a kept one would reach the
+	// catalogue and the product's meta description as it stands.
 	p := &shop.Product{
 		ID:                  values.ID,
 		WebsiteID:           websiteID,
@@ -324,7 +327,7 @@ func (h *Handler) saveProduct(ctx context.Context, websiteID int64, values *prod
 		Subtitle:            values.Subtitle,
 		DescriptionMarkdown: values.Markdown,
 		DescriptionHTML:     html,
-		Excerpt:             page.Excerpt(values.Markdown),
+		Excerpt:             page.ExcerptWithoutValues(values.Markdown),
 		SKU:                 values.SKU,
 		PriceGross:          values.price,
 		TaxRate:             money.TaxRate(values.TaxBP),

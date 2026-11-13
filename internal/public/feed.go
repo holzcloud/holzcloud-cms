@@ -97,7 +97,9 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 	// resolved by loadSnippets, so what is looked for here is the pages'.
 	var texts map[string]string
 	var valuesAt time.Time
-	if value.Has(scan.String()) {
+	// An entry's <summary> is its excerpt, which keeps a value marker for
+	// delivery (page.Excerpt), so a summary that names a value asks too.
+	if value.Has(scan.String()) || anySummaryNamesAValue(pages) {
 		texts, valuesAt = h.valueTexts(r.Context(), website.ID)
 	}
 
@@ -121,7 +123,7 @@ func (h *Handler) HandleFeed(w http.ResponseWriter, r *http.Request) error {
 			ID:      url,
 			Updated: p.UpdatedAt.UTC().Format(time.RFC3339),
 			Links:   []atomLink{{Rel: "alternate", Type: "text/html", Href: url}},
-			Summary: p.Excerpt,
+			Summary: value.ResolveSummary(p.Excerpt, texts),
 			// content_html is already sanitised; encoding/xml escapes it into
 			// the element, which is what type="html" means.
 			Content: atomContent{Type: "html", Body: expandForFeed(p.ContentHTML, snippets, albums, pageWords(r.Context()), texts)},

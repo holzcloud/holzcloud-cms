@@ -2,6 +2,7 @@ package page
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -36,6 +37,15 @@ var (
 	// package reads the pages table, so depending on it from here would point
 	// the layering the wrong way for one regexp.
 	cmsMarker = regexp.MustCompile(`\[\[[a-z0-9][a-z0-9_:-]*\]\]`)
+	// valueMarker is the one marker the excerpt keeps: [[wert:key]], a website's
+	// value. Its shape is internal/value's, duplicated for the reason cmsMarker
+	// gives.
+	valueMarker = regexp.MustCompile(`\[\[wert:[a-z0-9][a-z0-9_-]*\]\]`)
+	// heldValue is what a kept value marker stands as while the Markdown is
+	// taken apart: a control byte no pass touches around the marker's index.
+	// The marker itself cannot stand there — its brackets break the link and
+	// image patterns, and the emphasis pass eats the underscore of a key.
+	heldValue = regexp.MustCompile("\x01([0-9]+)\x01")
 )
 
 // Excerpt derives a plain-text summary from Markdown.
@@ -43,14 +53,43 @@ var (
 // It exists so a page always has something for a listing and for
 // <meta name="description">; an editor who wants control fills the field in and
 // this is never consulted.
+//
+// A value marker, [[wert:key]], is kept as it stands, and it is the only
+// marker that is. The summary is the page's text in short, and in that text the
+// value is part of the sentence: "Alpha [[wert:v]]: neu" reads "Alpha 0.1.5:
+// neu" on the page, and a summary without the marker read "Alpha : neu" in
+// every search result. The value is put in where the summary is handed out
+// (value.ResolveSummary), not here: a text frozen at save would keep the old
+// version after the value changed (VAL-04). Only a marker in prose survives —
+// one in a link address or in a picture goes with the address or the picture.
 func Excerpt(markdown string) string {
+	return excerpt(markdown, true)
+}
+
+// ExcerptWithoutValues is Excerpt for a text in which values are never
+// resolved, and so drops a value marker like every other: a product's
+// description. Values work in page text only (D-11 of phase 33), and the shop
+// serves a product's text as it was stored.
+func ExcerptWithoutValues(markdown string) string {
+	return excerpt(markdown, false)
+}
+
+func excerpt(markdown string, keepValues bool) string {
 	if strings.TrimSpace(markdown) == "" {
 		return ""
 	}
 
+	var held []string
+	text := markdown
+	if keepValues {
+		text = valueMarker.ReplaceAllStringFunc(text, func(m string) string {
+			held = append(held, m)
+			return "\x01" + strconv.Itoa(len(held)-1) + "\x01"
+		})
+	}
 	// Fenced code goes first: otherwise its contents get mistaken for prose and
 	// the summary is made of source code.
-	text := cmsMarker.ReplaceAllString(markdown, " ")
+	text = cmsMarker.ReplaceAllString(text, " ")
 	text = fencedCode.ReplaceAllString(text, " ")
 	text = image.ReplaceAllString(text, " ")
 	text = link.ReplaceAllString(text, "$1")
@@ -71,7 +110,37 @@ func Excerpt(markdown string) string {
 
 	text = emphasis.ReplaceAllString(strings.Join(lines, " "), "")
 	text = strings.Join(strings.Fields(text), " ")
-	return truncateWords(text, MaxExcerptLength)
+	if len(held) > 0 {
+		text = heldValue.ReplaceAllStringFunc(text, func(m string) string {
+			i, err := strconv.Atoi(m[1 : len(m)-1])
+			if err != nil || i >= len(held) {
+				return ""
+			}
+			return held[i]
+		})
+	}
+	return withoutCutMarker(truncateWords(text, MaxExcerptLength))
+}
+
+// withoutCutMarker removes what the cut left of a value marker at the end.
+//
+// truncateWords cuts at a space and a marker holds none, so a marker is either
+// kept whole or left out — except when the first MaxExcerptLength characters
+// hold no space at all and the cut falls mid-word. Half a marker is neither
+// text nor anything delivery can resolve.
+func withoutCutMarker(s string) string {
+	i := strings.LastIndex(s, "[[")
+	if i < 0 || !strings.HasSuffix(s, "…") {
+		return s
+	}
+	rest := strings.TrimSuffix(s[i+2:], "…")
+	// "wert:" cut anywhere, or "wert:" and part of a key. Anything else is
+	// somebody's two brackets and stays.
+	if !strings.HasPrefix("wert:", rest) &&
+		!(strings.HasPrefix(rest, "wert:") && !strings.ContainsAny(rest, " ]")) {
+		return s
+	}
+	return strings.TrimRight(s[:i], " ,;:.-") + "…"
 }
 
 // truncateWords cuts at the last word boundary that fits, so a summary never

@@ -93,7 +93,22 @@ func (h *Handler) pageContent(r *http.Request, websiteID int64, pg *page.Page, s
 	// And its time comes back beside the albums', because a browser that holds
 	// only a date would otherwise be told 304 about a page whose value moved —
 	// contentModTime's own comment tells that story for the albums.
-	body, valuesAt := h.resolveValues(r, websiteID, body)
+	//
+	// The page's summary in the same pass and from the same load: the excerpt
+	// is the page's text in short and keeps its markers for this moment
+	// (page.Excerpt). It is written back onto pg, which is this request's own
+	// row and nobody else's, because everything after this reads it there —
+	// the meta description, og:description and the JSON-LD through metaData,
+	// the share-link preview's description. One resolution reaches them all,
+	// and none of them can be the one that forgot. MetaDescription is not
+	// touched: an editor's typed description stays as typed (D-11).
+	sum := h.summaries(r.Context(), websiteID)
+	if value.Has(body) {
+		sum.load()
+		body = value.Resolve(body, sum.texts)
+	}
+	pg.Excerpt = sum.resolve(pg.Excerpt)
+	valuesAt := sum.at
 	if valuesAt.After(albumsAt) {
 		albumsAt = valuesAt
 	}
@@ -133,6 +148,70 @@ func (h *Handler) resolveValues(r *http.Request, websiteID int64, body string) (
 	}
 	texts, latest := h.valueTexts(r.Context(), websiteID)
 	return value.Resolve(body, texts), latest
+}
+
+// summaryValues puts one website's values into page summaries, loading the
+// values at most once and only when a summary names one.
+//
+// A summary is a page's excerpt: derived from its text at save, it keeps a
+// value marker as it stands (page.Excerpt), and every place that hands an
+// excerpt out — the page's head, an archive, the feed, a plugin, llms.txt —
+// asks this to put the value in. A list of twenty excerpts without a marker
+// costs twenty strings.Contains and no query.
+//
+// at is the newest stamp among the values once they were loaded, and the zero
+// time when they were not: a caller that caches folds it into its validator,
+// because a summary that names a value changes when the value does.
+type summaryValues struct {
+	h         *Handler
+	ctx       context.Context
+	websiteID int64
+	loaded    bool
+	texts     map[string]string
+	at        time.Time
+}
+
+func (h *Handler) summaries(ctx context.Context, websiteID int64) *summaryValues {
+	return &summaryValues{h: h, ctx: ctx, websiteID: websiteID}
+}
+
+func (s *summaryValues) load() {
+	if s.loaded {
+		return
+	}
+	s.loaded = true
+	s.texts, s.at = s.h.valueTexts(s.ctx, s.websiteID)
+}
+
+// resolve is the summary with its values in, as plain text for the caller's
+// template or encoder to escape. A key the website does not have is nothing.
+func (s *summaryValues) resolve(excerpt string) string {
+	if !value.Has(excerpt) {
+		return excerpt
+	}
+	s.load()
+	return value.ResolveSummary(excerpt, s.texts)
+}
+
+// resolveSummaries resolves the excerpt of every page in the list in place and
+// returns the values' stamp for the list's validator.
+func (h *Handler) resolveSummaries(ctx context.Context, websiteID int64, pages []page.Page) time.Time {
+	sum := h.summaries(ctx, websiteID)
+	for i := range pages {
+		pages[i].Excerpt = sum.resolve(pages[i].Excerpt)
+	}
+	return sum.at
+}
+
+// anySummaryNamesAValue reports whether the excerpt of any page in the list
+// carries a value marker — for a caller that loads the values itself.
+func anySummaryNamesAValue(pages []page.Page) bool {
+	for i := range pages {
+		if value.Has(pages[i].Excerpt) {
+			return true
+		}
+	}
+	return false
 }
 
 // ownFields resolves the website's own fields for a theme.

@@ -47,6 +47,9 @@ func (h *Handler) HandleArchive(w http.ResponseWriter, r *http.Request, website 
 	site := h.siteData(r, website)
 	snippets := h.loadSnippets(r, website.ID)
 	h.fillSnippets(r, &site, website.ID, snippets)
+	// Each entry's summary with its values in, before the list is drawn; the
+	// stamp comes back for the validator, as a snippet's does.
+	valuesAt := h.resolveSummaries(r.Context(), website.ID, posts)
 
 	title := "Aktuelles"
 	if website.Locale == "en" {
@@ -76,7 +79,7 @@ func (h *Handler) HandleArchive(w http.ResponseWriter, r *http.Request, website 
 		return fmt.Errorf("render archive: %w", err)
 	}
 
-	h.serveCached(w, r, content, archiveModTime(posts, snippets))
+	h.serveCached(w, r, content, archiveModTime(posts, snippets, valuesAt))
 	return nil
 }
 
@@ -158,9 +161,13 @@ func archivePage(r *http.Request) int {
 // archiveModTime is the newest thing on the page, for conditional requests.
 //
 // The snippets count too: an archive layout may place one, and a browser
-// holding an If-Modified-Since would otherwise keep the old text.
-func archiveModTime(posts []page.Page, snippets snippet.Rendered) time.Time {
+// holding an If-Modified-Since would otherwise keep the old text. So do the
+// values an entry's summary names (resolveSummaries), for the same reason.
+func archiveModTime(posts []page.Page, snippets snippet.Rendered, values time.Time) time.Time {
 	newest := snippets.LatestUpdate
+	if values.After(newest) {
+		newest = values
+	}
 	for _, p := range posts {
 		if p.UpdatedAt.After(newest) {
 			newest = p.UpdatedAt

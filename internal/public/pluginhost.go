@@ -125,6 +125,11 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 		return plugin.PagesResult{}, errors.New("the pages are not available")
 	}
 
+	// A page's summary is its excerpt, which keeps a value marker for
+	// delivery (page.Excerpt). A plugin is a reader like the feed, and gets
+	// the value, not the marker; the values are loaded once, and only when a
+	// summary names one.
+	sum := h.summaries(ctx, websiteID)
 	switch q.Op {
 	case plugin.OpPagesGet:
 		p, err := h.pageStore.GetPublishedPage(ctx, websiteID, strings.TrimPrefix(q.Slug, "/"))
@@ -140,6 +145,7 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 			return plugin.PagesResult{}, nil
 		}
 		info := pageInfo(*p)
+		info.Excerpt = sum.resolve(info.Excerpt)
 		// Expanded, not handed over as it stands. `content_html` is the
 		// FROZEN body and not what a visitor is served: a snippet marker has
 		// survived into it since Phase 8 and an album marker since Phase 11,
@@ -172,6 +178,7 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 		textsLoaded := false
 		for _, res := range results {
 			info := pageInfo(res.Page)
+			info.Excerpt = sum.resolve(info.Excerpt)
 			// The snippet is built from escaped text in internal/page, with
 			// <mark> around the terms. It is passed on as it is; what the
 			// plugin does with it goes through the sanitiser on the way back.
@@ -207,6 +214,7 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 		out := plugin.PagesResult{Pages: make([]plugin.PageInfo, 0, len(pages)), Total: total}
 		for _, p := range pages {
 			info := pageInfo(p)
+			info.Excerpt = sum.resolve(info.Excerpt)
 			h.addFields(&info, p, q.WithFields)
 			out.Pages = append(out.Pages, info)
 		}
