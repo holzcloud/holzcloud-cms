@@ -51,6 +51,12 @@ reset, dropped or cut off is tried three times, and an answer that is not
 the JSON-RPC object the CMS sends (a proxy's or a maintenance page's HTML,
 say) is named as such.
 
+The downgrade guard is read, compare, set: three requests, not one atomic
+step. Two release runs of the same project that overlap could still let the
+older one set its number last. Releases are tagged one after the other and
+each run takes seconds, so this is accepted rather than locked against; a
+wrong number is put right by the next release or by --allow-older.
+
 The endpoint is the CMS's MCP address: JSON-RPC 2.0, POST, bearer key,
 stateless - one tools/call per request. Python standard library only.
 """
@@ -238,6 +244,17 @@ def text_of(entry) -> str | None:
     return None if value is None else str(value)
 
 
+def shows(version: str, html: str) -> bool:
+    """Whether html shows version as a number of its own.
+
+    Not a substring test: "0.1.5" is inside "0.1.50" and "10.1.5". The
+    version may not be preceded by a digit or a digit and a dot, nor followed
+    by a digit or a dot and a digit - so "Version 0.1.5." at the end of a
+    sentence and ".../tag/v0.1.5" both count.
+    """
+    return re.search(rf"(?<!\d)(?<!\d\.){re.escape(version)}(?!\.?\d)", html) is not None
+
+
 def public_path(page: dict) -> str:
     """A page's public address; "language" is only given outside the main language."""
     lang = page.get("language")
@@ -329,7 +346,7 @@ def check_public(site: str, key: str, pages: list, version: str):
         except Exception as e:  # noqa: BLE001 - reported, not fatal
             warn(f"{url} could not be fetched: {e}")
             continue
-        if version in html:
+        if shows(version, html):
             print(f"public {url}: shows {version}")
         else:
             warn(f"{url} does not show {version} yet")
