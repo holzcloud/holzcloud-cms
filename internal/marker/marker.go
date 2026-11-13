@@ -76,15 +76,46 @@ var encodedValueMarker = regexp.MustCompile(`%5[Bb]%5[Bb]wert:([a-z0-9][a-z0-9_-
 // need no escaping in an attribute value, and the resolver percent-encodes what
 // it puts in their place.
 //
+// Only a link address is touched: the value of an href or a src attribute in a
+// tag, which is where goldmark puts the encoded spelling. The same spelling in
+// prose, in code or in any other attribute is what the editor typed and stays
+// as typed. Restoring it over the whole document turned the sentence
+// "Literal %5B%5Bwert:k%5D%5D" into a live marker that the visitor read as the
+// value and that no scan of the page's source could see (WR-02 of the phase 33
+// review).
+//
 // Nothing else is touched — a snippet or album marker in a link is not a value
 // and stays as goldmark wrote it, and a document without "wert:" comes back as
-// it came.
-func RestoreEncodedValueMarkers(html string) string {
-	if !strings.Contains(html, "wert:") {
-		return html
+// it came. The input is the sanitiser's output, which writes every attribute
+// value in double quotes; a tag is changed only inside those quotes, and
+// everything else is written back as its raw bytes.
+func RestoreEncodedValueMarkers(doc string) string {
+	if !strings.Contains(doc, "wert:") || !encodedValueMarker.MatchString(doc) {
+		return doc
 	}
-	return encodedValueMarker.ReplaceAllString(html, "[[wert:$1]]")
+	z := html.NewTokenizer(strings.NewReader(doc))
+	var out strings.Builder
+	out.Grow(len(doc))
+	for {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			// io.EOF: the end of the document (OnlyInText says why).
+			break
+		}
+		raw := string(z.Raw())
+		if (tt == html.StartTagToken || tt == html.SelfClosingTagToken) && encodedValueMarker.MatchString(raw) {
+			raw = addressAttribute.ReplaceAllStringFunc(raw, func(attr string) string {
+				return encodedValueMarker.ReplaceAllString(attr, "[[wert:$1]]")
+			})
+		}
+		out.WriteString(raw)
+	}
+	return out.String()
 }
+
+// addressAttribute is an href or a src attribute with its double-quoted value,
+// standing in a tag after whitespace.
+var addressAttribute = regexp.MustCompile(`(?i)\s(?:href|src)="[^"]*"`)
 
 // rawTextElements are the elements whose content the browser does not read as
 // character data, so a marker inside one is not in text however much it looks

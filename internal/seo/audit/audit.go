@@ -142,8 +142,13 @@ func (s Source) input(ctx context.Context, c siteContext, p page.Page) seo.Input
 		NoIndex:  p.NoIndex, Protected: p.Protected(), HasFeatured: p.FeaturedMediaID != nil,
 		Host: c.host, SiteDescription: c.siteDescription, Others: c.others,
 		// The blocks are read as stored: a key is a-z, 0-9, - and _, which
-		// JSON leaves as it is, so a marker in any block field is found.
-		UsedValues:        value.Keys(p.ContentMarkdown + "\n" + p.Blocks),
+		// JSON leaves as it is, so a marker in any block field is found. The
+		// stored HTML and the excerpt are read too, because delivery resolves
+		// both: a typed excerpt need not repeat the text, and a marker the
+		// Markdown wrote with escaped brackets is literal only in the HTML
+		// (WR-02 of the phase 33 review; value.Store's usage reads the same).
+		UsedValues: value.Keys(p.ContentMarkdown + "\n" + p.Blocks + "\n" +
+			p.ContentHTML + "\n" + p.Excerpt),
 		KnownValues:       c.values,
 		ValuesOutsideText: value.Keys(p.Title + "\n" + p.MetaDescription),
 		ValuesBeforeParen: keysBeforeParen(p.ContentMarkdown + "\n" + p.Blocks),

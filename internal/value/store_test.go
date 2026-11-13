@@ -311,6 +311,62 @@ func TestAKeyWithAnUnderscoreIsNotAWildcard(t *testing.T) {
 	}
 }
 
+// TestTheScanSeesWhatDeliveryResolves is WR-02 of the phase 33 review. Delivery
+// resolves the stored HTML and the page's excerpt; the scan read only the
+// Markdown and the blocks. A typed excerpt, and a marker the Markdown wrote
+// with escaped brackets (\[\[wert:k\]\], literal in the HTML), are both
+// resolved for the visitor, so both keep a value alive and both are reported.
+func TestTheScanSeesWhatDeliveryResolves(t *testing.T) {
+	ctx := context.Background()
+	s, database := newTestStore(t)
+	ws := website(t, database, "A")
+	for _, key := range []string{"im-auszug", "im-html", "im-baustein"} {
+		mustCreate(t, s, ws, key, "0.1.5")
+	}
+	insert := func(title, slug, markdown, html, excerpt string) {
+		t.Helper()
+		if _, err := database.Write.Exec(
+			`INSERT INTO pages (website_id, title, slug, locale, status, content_markdown, content_html, excerpt)
+			 VALUES ($1, $2, $3, '', 'published', $4, $5, $6)`,
+			ws, title, slug, markdown, html, excerpt); err != nil {
+			t.Fatalf("insert page %q: %v", title, err)
+		}
+	}
+	insert("Auszug", "auszug", "Kein Wert im Text.", "<p>Kein Wert im Text.</p>", "Version [[wert:im-auszug]] und [[wert:fehlt-auszug]]")
+	insert("Maskiert", "maskiert", `Version \[\[wert:im-html\]\]`, "<p>Version [[wert:im-html]] [[wert:fehlt-html]]</p>", "")
+	if _, err := database.Write.Exec(
+		`INSERT INTO snippets (website_id, key, name, content_markdown, content_html) VALUES ($1, 'fuss', 'Fuss', $2, $3)`,
+		ws, `Stand \[\[wert:im-baustein\]\]`, "<p>Stand [[wert:im-baustein]]</p>"); err != nil {
+		t.Fatalf("insert snippet: %v", err)
+	}
+
+	for key, user := range map[string]string{
+		"im-auszug": "Auszug", "im-html": "Maskiert", "im-baustein": "Fuss [[snippet:fuss]]",
+	} {
+		var inUse *InUseError
+		if err := s.Delete(ctx, ws, key); !errors.As(err, &inUse) {
+			t.Errorf("Delete(%s) = %v; delivery resolves it, so it is in use", key, err)
+			continue
+		}
+		if !reflect.DeepEqual(inUse.Users, []string{user}) {
+			t.Errorf("Delete(%s) names %q; want [%s]", key, inUse.Users, user)
+		}
+	}
+	rep, err := s.Report(ctx, ws)
+	if err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	if want := []string{"fehlt-auszug", "fehlt-html"}; !reflect.DeepEqual(rep.Undefined, want) {
+		t.Errorf("Undefined = %q; want %q", rep.Undefined, want)
+	}
+	// Each page once per key, although the key stands in two of its columns.
+	insert("Doppelt", "doppelt", "[[wert:im-html]]", "<p>[[wert:im-html]]</p>", "[[wert:im-html]]")
+	rep, _ = s.Report(ctx, ws)
+	if n := len(rep.Used["im-html"]); n != 2 {
+		t.Errorf("Used[im-html] has %d entries; want 2 (each page once)", n)
+	}
+}
+
 func TestDeleteSeesAMarkerInABlockLink(t *testing.T) {
 	ctx := context.Background()
 	s, database := newTestStore(t)

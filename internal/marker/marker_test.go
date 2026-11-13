@@ -135,9 +135,26 @@ func TestRestoreEncodedValueMarkers(t *testing.T) {
 			t.Errorf("RestoreEncodedValueMarkers(%q) = %q; want %q", c.in, got, c.want)
 		}
 	}
+	// Only a link address is restored (WR-02 of the phase 33 review). The
+	// encoded spelling written in prose, or in an attribute that is not an
+	// address, is what the editor typed and stays text: restoring it made a
+	// live marker no scan of the source could see.
+	for _, c := range []struct{ in, want string }{
+		{`<p><img src="/media/%5B%5Bwert:k%5D%5D.jpg" alt="%5B%5Bwert:k%5D%5D"></p>`,
+			`<p><img src="/media/[[wert:k]].jpg" alt="%5B%5Bwert:k%5D%5D"></p>`},
+		{`<p>Literal %5B%5Bwert:k%5D%5D <a href="/v%5B%5Bwert:k%5D%5D" title="%5B%5Bwert:k%5D%5D">in prose</a></p>`,
+			`<p>Literal %5B%5Bwert:k%5D%5D <a href="/v[[wert:k]]" title="%5B%5Bwert:k%5D%5D">in prose</a></p>`},
+	} {
+		if got := RestoreEncodedValueMarkers(c.in); got != c.want {
+			t.Errorf("RestoreEncodedValueMarkers(%q) = %q; want %q", c.in, got, c.want)
+		}
+	}
 	for _, doc := range []string{
 		`<p>Kein Wert hier, nur <a href="/a%20b">ein Link</a>.</p>`,
 		`<a href="https://x/%5B%5Bsnippet:x%5D%5D">s</a>`,
+		`<p>Literal %5B%5Bwert:k%5D%5D in prose</p>`,
+		`<pre><code>href="%5B%5Bwert:k%5D%5D"</code></pre>`,
+		`<p data-x="%5B%5Bwert:k%5D%5D">x</p>`,
 	} {
 		if got := RestoreEncodedValueMarkers(doc); got != doc {
 			t.Errorf("RestoreEncodedValueMarkers changed %q into %q", doc, got)

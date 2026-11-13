@@ -40,3 +40,15 @@ func TestAValueMarkerInALinkIsStoredLiterally(t *testing.T) {
 		t.Errorf("prose with a marker changed: %q", prose)
 	}
 }
+
+// The encoded spelling in prose is text the editor typed, not a marker: only
+// a link address is restored (WR-02 of the phase 33 review).
+func TestTheEncodedSpellingInProseStaysText(t *testing.T) {
+	got, err := RenderMarkdown("Literal %5B%5Bwert:k%5D%5D in prose, `%5B%5Bwert:k%5D%5D` in code.")
+	if err != nil {
+		t.Fatalf("RenderMarkdown: %v", err)
+	}
+	if strings.Contains(got, "[[wert:") {
+		t.Errorf("the encoded spelling in prose became a live marker:\n%s", got)
+	}
+}

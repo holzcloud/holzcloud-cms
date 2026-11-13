@@ -151,6 +151,12 @@ func (s *Store) UpdateText(ctx context.Context, websiteID, id int64, text string
 // a page in the wastebasket does not, the rule media follows. There is no force
 // flag — the editor removes the placeholders first.
 //
+// "Names" means what delivery resolves, column for column with usage: the
+// page's source (Markdown, blocks), its stored HTML and its excerpt, and a
+// snippet's source and HTML. The source alone missed a typed excerpt and a
+// marker the Markdown wrote with escaped brackets, both of which a visitor
+// reads as the value (WR-02 of the phase 33 review).
+//
 // The check and the delete are one statement, so a page saved between a check
 // and a delete cannot slip through. The search is instr, never a pattern match:
 // an underscore in a key is a wildcard to LIKE, and a_b would be kept alive by
@@ -164,10 +170,13 @@ func (s *Store) Delete(ctx context.Context, websiteID int64, key string) error {
 		   AND NOT EXISTS (SELECT 1 FROM pages
 		         WHERE website_id = $1 AND deleted_at IS NULL
 		           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
-		                OR instr(COALESCE(blocks, ''), '[[wert:' || $2 || ']]') > 0))
+		                OR instr(COALESCE(blocks, ''), '[[wert:' || $2 || ']]') > 0
+		                OR instr(content_html, '[[wert:' || $2 || ']]') > 0
+		                OR instr(excerpt, '[[wert:' || $2 || ']]') > 0))
 		   AND NOT EXISTS (SELECT 1 FROM snippets
 		         WHERE website_id = $1
-		           AND instr(content_markdown, '[[wert:' || $2 || ']]') > 0)`,
+		           AND (instr(content_markdown, '[[wert:' || $2 || ']]') > 0
+		                OR instr(content_html, '[[wert:' || $2 || ']]') > 0))`,
 		websiteID, key)
 	if err != nil {
 		return fmt.Errorf("delete value: %w", err)
@@ -272,23 +281,35 @@ func (s *Store) Report(ctx context.Context, websiteID int64) (Report, error) {
 	return rep, nil
 }
 
-// usage maps every key named in a website's page sources and snippets to the
-// pages and snippets naming it.
+// usage maps every key a website's pages and snippets name to the pages and
+// snippets naming it.
 //
-// The page source is read and not the stored HTML: content_markdown and the
-// blocks document both carry the literal marker (JSON does not escape a
-// bracket), where the HTML of a Markdown link carried the encoded one before
-// RenderMarkdown restored it. The rows are narrowed with instr on the prefix
-// and the keys taken out in Go by Keys, so no SQL wildcard ever meets a key.
+// "Name" means what delivery resolves (WR-02 of the phase 33 review), so four
+// columns of a page are read and two of a snippet:
+//
+//   - content_markdown and blocks, the source. JSON does not escape a bracket,
+//     so a marker in any block field stands there literally.
+//   - content_html, what delivery actually resolves. A marker the Markdown
+//     wrote with escaped brackets, \[\[wert:k\]\], is not in the source in its
+//     literal spelling, but it is in the HTML — and the visitor reads the value
+//     there. Reading the HTML is also what catches it in a snippet.
+//   - excerpt, which delivery resolves whether it was derived or typed. A
+//     typed one need not repeat anything the text says.
+//
+// Keys takes the distinct keys of all of them at once, so a page that names a
+// key in three columns is one user. The rows are narrowed with instr on the
+// prefix and the keys taken out in Go, so no SQL wildcard ever meets a key.
 //
 // Pages are ordered by language — the main language first — then by title;
 // snippets by name. That is the order a refusal names them in.
 func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, error) {
 	used := map[string][]Use{}
 	rows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, title, slug, locale, status, content_markdown, COALESCE(blocks, '') FROM pages
+		`SELECT id, title, slug, locale, status, content_markdown, COALESCE(blocks, ''), content_html, excerpt
+		   FROM pages
 		  WHERE website_id = $1 AND deleted_at IS NULL
-		    AND (instr(content_markdown, '[[wert:') > 0 OR instr(COALESCE(blocks, ''), '[[wert:') > 0)
+		    AND (instr(content_markdown, '[[wert:') > 0 OR instr(COALESCE(blocks, ''), '[[wert:') > 0
+		         OR instr(content_html, '[[wert:') > 0 OR instr(excerpt, '[[wert:') > 0)
 		  ORDER BY locale, title, id`, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("value usage in pages: %w", err)
@@ -296,12 +317,12 @@ func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, e
 	defer rows.Close()
 	for rows.Next() {
 		var u Use
-		var markdown, blocks string
-		if err := rows.Scan(&u.ID, &u.Title, &u.Slug, &u.Locale, &u.Status, &markdown, &blocks); err != nil {
+		var markdown, blocks, html, excerpt string
+		if err := rows.Scan(&u.ID, &u.Title, &u.Slug, &u.Locale, &u.Status, &markdown, &blocks, &html, &excerpt); err != nil {
 			return nil, fmt.Errorf("scan page: %w", err)
 		}
 		u.Kind = "page"
-		for _, key := range Keys(markdown + "\n" + blocks) {
+		for _, key := range Keys(markdown + "\n" + blocks + "\n" + html + "\n" + excerpt) {
 			used[key] = append(used[key], u)
 		}
 	}
@@ -310,8 +331,9 @@ func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, e
 	}
 
 	srows, err := s.DB.Read.QueryContext(ctx,
-		`SELECT id, name, key, content_markdown FROM snippets
-		  WHERE website_id = $1 AND instr(content_markdown, '[[wert:') > 0
+		`SELECT id, name, key, content_markdown, content_html FROM snippets
+		  WHERE website_id = $1
+		    AND (instr(content_markdown, '[[wert:') > 0 OR instr(content_html, '[[wert:') > 0)
 		  ORDER BY name, id`, websiteID)
 	if err != nil {
 		return nil, fmt.Errorf("value usage in snippets: %w", err)
@@ -319,11 +341,11 @@ func (s *Store) usage(ctx context.Context, websiteID int64) (map[string][]Use, e
 	defer srows.Close()
 	for srows.Next() {
 		u := Use{Kind: "snippet"}
-		var markdown string
-		if err := srows.Scan(&u.ID, &u.Title, &u.Slug, &markdown); err != nil {
+		var markdown, html string
+		if err := srows.Scan(&u.ID, &u.Title, &u.Slug, &markdown, &html); err != nil {
 			return nil, fmt.Errorf("scan snippet: %w", err)
 		}
-		for _, key := range Keys(markdown) {
+		for _, key := range Keys(markdown + "\n" + html) {
 			used[key] = append(used[key], u)
 		}
 	}

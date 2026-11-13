@@ -56,6 +56,17 @@ func TestAuditReadsTheValuesAPageUses(t *testing.T) {
 	if strings.Join(in.UsedValues, ",") != "a,b" {
 		t.Errorf("UsedValues = %v, want a and b", in.UsedValues)
 	}
+	// A typed excerpt and the stored HTML are resolved at delivery too, so a
+	// key named only there is a key the page uses (WR-02): the HTML carries a
+	// marker the Markdown wrote with escaped brackets.
+	withMore := p
+	withMore.Excerpt = "Kurz: [[wert:c]]"
+	withMore.ContentHTML = "<p>Die Version ist [[wert:a]] [[wert:d]].</p>"
+	in = s.input(ctx, s.context(ctx, ws, nil), withMore)
+	if strings.Join(in.UsedValues, ",") != "a,b,d,c" {
+		t.Errorf("UsedValues = %v, want a, b, d and c", in.UsedValues)
+	}
+	asked = asked[:1]
 	if len(asked) != 1 || asked[0] != 7 {
 		t.Errorf("Values was asked for %v, want the page's website 7 once", asked)
 	}

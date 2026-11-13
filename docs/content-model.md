@@ -290,6 +290,14 @@ it the Values screen is read-only. Over the assistant connection the tools
 `list_values`, `get_value`, `set_value` and `delete_value` follow the key's
 level, as the snippet tools do.
 
+**Escaped brackets are still a placeholder.** What counts is the page as it is
+delivered, not how the Markdown spells it: `\[\[wert:key\]\]` or
+`&#91;&#91;wert:key]]` renders as `[[wert:key]]` and is replaced like any other
+placeholder. The Values screen, the delete refusal and the SEO check read the
+stored page as well as its source, so they count it too — and a typed excerpt
+as well. The percent-encoded spelling `%5B%5Bwert:key%5D%5D` is a placeholder
+only inside a link address; in prose it stays the text you typed.
+
 **A bracket after a placeholder.** `[[wert:v]](beta)` is read as a Markdown
 link. Put a space after the placeholder when a bracket follows it:
 `[[wert:v]] (beta)`. The page editor says so under "Insert a value".
