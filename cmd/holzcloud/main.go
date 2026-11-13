@@ -68,6 +68,29 @@ var (
 	Commit  = "unknown"
 )
 
+// exitError is a subcommand error that carries its own exit status. Its
+// message may be empty: `check -files` has already printed its report and only
+// needs status 3, which restore.sh tells apart from 1, a check that failed.
+type exitError struct {
+	code int
+	msg  string
+}
+
+func (e *exitError) Error() string { return e.msg }
+
+// exitStatus is the process exit status for a subcommand's error: 0 for none,
+// the carried code for an exitError, 1 for every other error.
+func exitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	var e *exitError
+	if errors.As(err, &e) {
+		return e.code
+	}
+	return 1
+}
+
 func main() {
 	// Subcommands run without an HTTP server. This is the recovery path: a
 	// locked-out operator has no way back through the web interface, because
@@ -80,7 +103,7 @@ func main() {
 			if err.Error() != "" {
 				fmt.Fprintln(os.Stderr, "error:", err)
 			}
-			os.Exit(1)
+			os.Exit(exitStatus(err))
 		}
 		return
 	}

@@ -37,7 +37,7 @@ Usage:
   holzcloud compact                 rebuild the database file (VACUUM)
   holzcloud rerender                re-render every page from its Markdown
   holzcloud thumbnails [-force]     generate the scaled copies of older images; -force rebuilds them for every image
-  holzcloud check                   run an integrity check
+  holzcloud check [-files DIR]      integrity check; with -files, also every media row whose file DIR lacks (exit 3)
   holzcloud template check <path>   check a template directory or .zip
   holzcloud template spec           print the template authoring specification
   holzcloud ai key create           create a key for an AI assistant (-name, -level read|content|admin)
@@ -296,19 +296,76 @@ func cmdBackup(args []string) error {
 }
 
 func cmdCheck(args []string) error {
+	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+	files := fs.String("files", "",
+		"also list every media row whose file `DIR` (a data directory or a backup of one) lacks")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() > 0 {
+		return errors.New("usage: holzcloud check [-files DIR]")
+	}
+	given := false
+	fs.Visit(func(f *flag.Flag) { given = given || f.Name == "files" })
+	if given && *files == "" {
+		return fmt.Errorf("check -files: %s is not a directory", *files)
+	}
+	return runCheck(os.Stdout, *files)
+}
+
+// runCheck is `holzcloud check`, writing its report to w. With files set it
+// also checks that every media row's file is below that directory.
+//
+// The lines are a contract with deploy/restore.sh, which runs this on the
+// copy of a backup it is about to restore:
+//
+//	integrity: <result>
+//	files: <N> rows checked, <M> missing
+//	MISSING media/<website_id>/<filename> (media row <id>, website <website_id>, original name <quoted>)
+//
+// The "files:" line is printed whenever the files were checked, nothing
+// missing included, because an older binary ignores -files and restore.sh has
+// to tell "nothing missing" from "not looked". Every string that comes from the
+// database is printed quoted, so none can start a line of its own. A missing
+// file ends with status 3 and an empty message: the report is already out, and
+// 3 is not 1, a check that failed.
+func runCheck(w io.Writer, files string) error {
+	if files != "" {
+		if info, err := os.Stat(files); err != nil || !info.IsDir() {
+			return fmt.Errorf("check -files: %s is not a directory", files)
+		}
+	}
+
 	_, database, err := openForCLI()
 	if err != nil {
 		return err
 	}
 	defer database.Close()
 
-	result, err := db.QuickCheck(context.Background(), database.Read)
+	ctx := context.Background()
+	result, err := db.QuickCheck(ctx, database.Read)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("integrity: %s\n", result)
+	fmt.Fprintf(w, "integrity: %s\n", result)
 	if result != "ok" {
 		return errors.New("database reports corruption — restore from a backup")
+	}
+	if files == "" {
+		return nil
+	}
+
+	checked, missing, err := media.NewStore(database).MissingFiles(ctx, files)
+	if err != nil {
+		return fmt.Errorf("check -files: %w", err)
+	}
+	fmt.Fprintf(w, "files: %d rows checked, %d missing\n", checked, len(missing))
+	for _, m := range missing {
+		fmt.Fprintf(w, "MISSING %s (media row %d, website %d, original name %q)\n",
+			m.Rel, m.RowID, m.WebsiteID, m.OriginalName)
+	}
+	if len(missing) > 0 {
+		return &exitError{code: 3}
 	}
 	return nil
 }
