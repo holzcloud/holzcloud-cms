@@ -109,6 +109,14 @@ func openForCLI() (config.Config, *db.DB, error) {
 	if err != nil {
 		return cfg, nil, fmt.Errorf("open database at %s: %w", cfg.DBPath, err)
 	}
+	// Every subcommand that opens the database refuses here, backup included,
+	// so an older backup script with this binary fails loudly rather than
+	// snapshotting a schema it does not know. The error is returned unwrapped:
+	// the operator reads "error: the database is at migration level …".
+	if err := db.RefuseNewerSchema(context.Background(), database.Write); err != nil {
+		database.Close()
+		return cfg, nil, err
+	}
 	if err := db.RunMigrations(database.Write); err != nil {
 		database.Close()
 		return cfg, nil, fmt.Errorf("migrations: %w", err)
