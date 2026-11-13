@@ -234,6 +234,9 @@ FAKE
 chmod +x "$T/bin/mountpoint"
 cat > "$T/bin/curl" <<'FAKE'
 #!/bin/bash
+if [ "${FAKE_CURL_FAIL:-0}" = "1" ]; then
+    exit 7
+fi
 echo '{"status":"ready"}'
 exit 0
 FAKE
@@ -599,6 +602,20 @@ bt_eq "missing-media: the first MISSING line again after the warning" yes \
     "$(if [ "$(line_of "$T/err" "$MISS1")" -gt "$WARNAT" ]; then echo yes; else echo no; fi)"
 bt_eq "missing-media: the second MISSING line again after the warning" yes \
     "$(if [ "$(line_of "$T/err" "$MISS2")" -gt "$WARNAT" ]; then echo yes; else echo no; fi)"
+
+# ---------------------------------------------------------------------------
+section "Case missing-not-ready: the list comes again when the site does not report ready"
+reset_case
+run_restore FAKE_CHECK_MODE=missing FAKE_CURL_FAIL=1 READY_SECONDS=1
+bt_eq "missing-not-ready: exit status 1" 1 "$RC"
+bt_has "missing-not-ready: the readiness warning" "$T/err" "WARNING: /readyz did not report ready within 1s"
+bt_has "missing-not-ready: the missing files are counted" "$T/err" "WARNING: 2 files that the database names are missing from the backup:"
+NRAT=$(line_of "$T/err" "WARNING: 2 files that the database names")
+bt_eq "missing-not-ready: the first MISSING line after it" yes \
+    "$(if [ "$(line_of "$T/err" "$MISS1")" -gt "$NRAT" ]; then echo yes; else echo no; fi)"
+bt_eq "missing-not-ready: the second MISSING line after it" yes \
+    "$(if [ "$(line_of "$T/err" "$MISS2")" -gt "$NRAT" ]; then echo yes; else echo no; fi)"
+bt_not "missing-not-ready: no way back, the restore itself went through" "$T/err" "was stopped, and"
 
 # ---------------------------------------------------------------------------
 section "Case old-binary: a binary without the files marker gets a notice"

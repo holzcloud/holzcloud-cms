@@ -49,12 +49,20 @@ set -euo pipefail
 #   SERVICE        default holzcloud
 #   OWNER          default holzcloud:holzcloud
 #   HOLZCLOUD_BIN  default /opt/holzcloud/holzcloud
+#   READY_SECONDS  default 30 — how long to wait for /readyz after the start
 
 BACKUP_DIR="${1:-}"
 DATA_DIR="${DATA_DIR:-/opt/holzcloud/data}"
 SERVICE="${SERVICE:-holzcloud}"
 OWNER="${OWNER:-holzcloud:holzcloud}"
 HOLZCLOUD_BIN="${HOLZCLOUD_BIN:-/opt/holzcloud/holzcloud}"
+READY_SECONDS="${READY_SECONDS:-30}"
+case "${READY_SECONDS}" in
+    '' | 0 | *[!0-9]*)
+        echo "ERROR: READY_SECONDS must be a whole number of seconds above 0, got '${READY_SECONDS}'" >&2
+        exit 1
+        ;;
+esac
 
 if [ -z "${BACKUP_DIR}" ] || [ ! -d "${BACKUP_DIR}" ]; then
     echo "usage: $0 <backup-directory>" >&2
@@ -362,7 +370,7 @@ systemctl start "${SERVICE}"
 STAGE=started
 
 echo "Waiting for readiness..."
-for _ in $(seq 1 30); do
+for _ in $(seq 1 "${READY_SECONDS}"); do
     if curl -fsS http://127.0.0.1:8080/readyz >/dev/null 2>&1; then
         echo "=== Restore complete ==="
         curl -fsS http://127.0.0.1:8080/readyz
@@ -377,5 +385,11 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 
-echo "WARNING: /readyz did not report ready within 30s — check: journalctl -u ${SERVICE} -n 50" >&2
+echo "WARNING: /readyz did not report ready within ${READY_SECONDS}s — check: journalctl -u ${SERVICE} -n 50" >&2
+# The data is restored all the same, so the list promised "again at the end"
+# is given here too; the status stays 1, the site is not known to be up.
+if [ "${MISSING_COUNT}" -gt 0 ]; then
+    echo "WARNING: ${MISSING_COUNT} files that the database names are missing from the backup:" >&2
+    printf '%s\n' "${MISSING_LINES}" >&2
+fi
 exit 1
