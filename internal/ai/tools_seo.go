@@ -16,6 +16,12 @@ import (
 // answer; the summary still counts every page, and "truncated" says so.
 const seoReportLimit = 200
 
+// seoValueOps is the set of value keys a website defines, which seo_report
+// checks a page's placeholders against. Without it the keys go unchecked.
+type seoValueOps interface {
+	OpKnownValues(ctx context.Context, websiteID int64) (map[string]bool, error)
+}
+
 // seoReport is the SEO report of the admin as JSON. It asks internal/seo/audit,
 // the same code the editor's SEO tab and the report screen ask, so an assistant
 // and a person are told the same things about the same page.
@@ -26,7 +32,10 @@ func seoReport(d Deps) Tool {
 			"duplicates, headings, images without a description, thin text, links, the address. " +
 			"Give a website to get every page that has findings, worst first, or a page to get that " +
 			"page alone. Each finding has a code (e.g. title-short), a severity (error, warn, info) " +
-			"and sometimes a count. The pages are checked as they are saved. Changes nothing.",
+			"and sometimes a count or a detail. Value placeholders are checked too: unknown-value " +
+			"(the website has no value with that key), value-outside-text (in the title or the " +
+			"description, where values are not replaced) and value-followed-by-paren (Markdown makes " +
+			"it a link); their detail is the key. The pages are checked as they are saved. Changes nothing.",
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -68,6 +77,12 @@ func seoReport(d Deps) Tool {
 				src.BlockSet = ops.OpBlockSet
 			} else {
 				src.BlockSet = func(_ context.Context, _ int64) block.Set { return block.Builtin }
+			}
+			// The admin builds its own audit.Source for the editor tab and the
+			// report screen. Every function it sets has to be set here too, or
+			// an assistant is told less than a person about the same page.
+			if ops, ok := d.Ops.(seoValueOps); ok {
+				src.Values = ops.OpKnownValues
 			}
 			reports, err := src.Site(c.Ctx, ws)
 			if err != nil {

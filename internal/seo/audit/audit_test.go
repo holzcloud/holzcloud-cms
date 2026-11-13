@@ -77,3 +77,38 @@ func TestAuditReadsTheValuesAPageUses(t *testing.T) {
 		t.Errorf("no Values gives KnownValues %v, want nil (not checked)", in.KnownValues)
 	}
 }
+
+func TestAuditFindsValuesOutsideTextAndBeforeAParen(t *testing.T) {
+	ctx := context.Background()
+	ws := &domain.Website{ID: 7, Name: "Eins"}
+	s := Source{}
+	c := s.context(ctx, ws, nil)
+
+	p := valuePage()
+	p.Title = "Version [[wert:v]]"
+	p.MetaDescription = "Jetzt [[wert:w]] laden."
+	in := s.input(ctx, c, p)
+	if strings.Join(in.ValuesOutsideText, ",") != "v,w" {
+		t.Errorf("ValuesOutsideText = %v, want v and w", in.ValuesOutsideText)
+	}
+	if len(in.ValuesBeforeParen) != 0 {
+		t.Errorf("ValuesBeforeParen = %v, want none", in.ValuesBeforeParen)
+	}
+
+	for _, tc := range []struct {
+		markdown, blocks, want string
+	}{
+		{"Version [[wert:v]](beta)", "", "v"},
+		{"Version [[wert:v]] (beta)", "", ""},
+		{"Version [[wert:v]](beta) und [[wert:v]](rc)", "", "v"},
+		{"", `[{"type":"text","markdown":"Neu [[wert:b]](heute)"}]`, "b"},
+		{"[Download [[wert:v]]](/laden)", "", ""},
+	} {
+		p := valuePage()
+		p.ContentMarkdown, p.Blocks = tc.markdown, tc.blocks
+		got := strings.Join(s.input(ctx, c, p).ValuesBeforeParen, ",")
+		if got != tc.want {
+			t.Errorf("%q %q: ValuesBeforeParen = %q, want %q", tc.markdown, tc.blocks, got, tc.want)
+		}
+	}
+}

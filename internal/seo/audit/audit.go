@@ -7,6 +7,7 @@ package audit
 import (
 	"context"
 	"errors"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -142,8 +143,10 @@ func (s Source) input(ctx context.Context, c siteContext, p page.Page) seo.Input
 		Host: c.host, SiteDescription: c.siteDescription, Others: c.others,
 		// The blocks are read as stored: a key is a-z, 0-9, - and _, which
 		// JSON leaves as it is, so a marker in any block field is found.
-		UsedValues:  value.Keys(p.ContentMarkdown + "\n" + p.Blocks),
-		KnownValues: c.values,
+		UsedValues:        value.Keys(p.ContentMarkdown + "\n" + p.Blocks),
+		KnownValues:       c.values,
+		ValuesOutsideText: value.Keys(p.Title + "\n" + p.MetaDescription),
+		ValuesBeforeParen: keysBeforeParen(p.ContentMarkdown + "\n" + p.Blocks),
 	}
 	if strings.TrimSpace(p.Blocks) != "" {
 		if blocks, err := block.Decode(p.Blocks, c.set); err == nil {
@@ -220,6 +223,27 @@ func (s Source) blocksWithoutAlt(ctx context.Context, websiteID int64, blocks []
 		}
 	}
 	return n
+}
+
+// beforeParen is a value placeholder directly followed by an opening bracket.
+// The key alphabet is the one internal/value matches.
+var beforeParen = regexp.MustCompile(`\[\[wert:([a-z0-9][a-z0-9_-]*)\]\]\(`)
+
+// keysBeforeParen lists, once each and in order, the keys whose placeholder
+// Markdown would read as the text of a link.
+func keysBeforeParen(s string) []string {
+	if !value.Has(s) {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range beforeParen.FindAllStringSubmatch(s, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			out = append(out, m[1])
+		}
+	}
+	return out
 }
 
 func firstNonEmpty(ss ...string) string {

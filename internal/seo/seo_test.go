@@ -409,3 +409,26 @@ func TestAnalyzeReportsUnknownValues(t *testing.T) {
 		t.Errorf("a defined key is reported: %+v", f)
 	}
 }
+
+func TestAnalyzeReportsValuesOutsideTextAndBeforeAParen(t *testing.T) {
+	// Neither depends on the defined set: a defined value is not replaced in
+	// a title either, and one before a bracket is lost either way.
+	in := good()
+	in.ValuesOutsideText = []string{"v"}
+	in.ValuesBeforeParen = []string{"w"}
+	fs := Analyze(in)
+	if f, ok := has(fs, CodeValueOutsideText); !ok || f.Severity != SeverityWarn || f.Detail != "v" {
+		t.Errorf("value-outside-text = %+v (found %v), want warn naming v", f, ok)
+	}
+	if f, ok := has(fs, CodeValueBeforeParen); !ok || f.Severity != SeverityWarn || f.Detail != "w" {
+		t.Errorf("value-followed-by-paren = %+v (found %v), want warn naming w", f, ok)
+	}
+	for _, c := range []string{"value-outside-text", "value-followed-by-paren"} {
+		if !Known(c) {
+			t.Errorf("%s is not a known code", c)
+		}
+	}
+	if fs := Analyze(good()); len(fs) != 0 {
+		t.Errorf("a page without markers has findings: %+v", fs)
+	}
+}
