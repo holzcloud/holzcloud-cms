@@ -96,14 +96,7 @@ func (h *Handler) expandForPlugin(ctx context.Context, websiteID int64, body str
 		if !value.Has(body) {
 			return body
 		}
-		var texts map[string]string
-		if h.valueStore != nil {
-			var err error
-			if texts, _, err = h.valueStore.Texts(ctx, websiteID); err != nil {
-				slog.Error("load values for a plugin", "err", err, "website", websiteID)
-				texts = nil
-			}
-		}
+		texts, _ := h.valueTexts(ctx, websiteID)
 		return value.Resolve(body, texts)
 	}
 	body = snippet.Expand(body, h.loadSnippets(r, websiteID).HTML)
@@ -186,12 +179,7 @@ func (h *Handler) PagesForPlugin(ctx context.Context, websiteID int64, q plugin.
 			if strings.Contains(res.Raw, "[[") || strings.Contains(res.Raw, "]]") {
 				if !textsLoaded {
 					textsLoaded = true
-					if h.valueStore != nil {
-						if texts, _, err = h.valueStore.Texts(ctx, websiteID); err != nil {
-							slog.Error("load values for a plugin's search", "err", err, "website", websiteID)
-							texts = nil
-						}
-					}
+					texts, _ = h.valueTexts(ctx, websiteID)
 				}
 				// Resolved first and escaped after, by the same function that
 				// built res.Snippet.
