@@ -50,6 +50,9 @@ type albumListData struct {
 	WebsiteID int64
 	Albums    []albumRow
 	Library   libraryNav
+	// ReadOnly is somebody without the publishing right: a gallery shows an
+	// album as soon as it is stored, so they may look and not change.
+	ReadOnly bool
 }
 
 // albumRow is one album in the list, with how many pictures are in it.
@@ -68,6 +71,8 @@ type albumEditData struct {
 	// is the same imageFieldView every row carries, with an empty selection.
 	NewPicture imageFieldView
 	Library    libraryNav
+	// ReadOnly: see albumListData.
+	ReadOnly bool
 }
 
 // albumItemView is one picture row as the editor draws it.
@@ -234,7 +239,9 @@ func (h *Handler) HandleAlbumList(w http.ResponseWriter, r *http.Request) error 
 		WebsiteID:  ws.ID,
 		Albums:     rows,
 		Library:    h.libraryNavFor(r.Context(), ws.ID, "albums"),
+		ReadOnly:   h.readOnly(r),
 	}
+	data.Library.ReadOnly = data.ReadOnly
 	data.ActiveNav = "albums"
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "album_list", data)
@@ -246,10 +253,15 @@ func (h *Handler) HandleAlbumCreate(w http.ResponseWriter, r *http.Request) erro
 	if err != nil || ws == nil {
 		return err
 	}
+	redirect := fmt.Sprintf("/admin/websites/%d/albums", ws.ID)
+	// Asked here and not in the album store: the MCP album tools share it
+	// (D-11). The same holds for every writer below.
+	if h.refuseReadOnly(w, r, redirect) {
+		return nil
+	}
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
-	redirect := fmt.Sprintf("/admin/websites/%d/albums", ws.ID)
 
 	// The name is not trimmed or bounded here. normalizeName in the store does
 	// both, and a second normalisation in the handler is a second spelling of
@@ -317,8 +329,10 @@ func (h *Handler) HandleAlbumEdit(w http.ResponseWriter, r *http.Request) error 
 		NewPicture: imageFieldView{
 			Prefix: "bild", ID: "neues-bild", Media: images, WebsiteID: ws.ID,
 		},
-		Library: h.libraryNavFor(r.Context(), ws.ID, "album:"+strconv.FormatInt(a.ID, 10)),
+		Library:  h.libraryNavFor(r.Context(), ws.ID, "album:"+strconv.FormatInt(a.ID, 10)),
+		ReadOnly: h.readOnly(r),
 	}
+	data.Library.ReadOnly = data.ReadOnly
 	data.ActiveNav = "albums"
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "album_edit", data)
@@ -331,6 +345,9 @@ func (h *Handler) HandleAlbumUpdate(w http.ResponseWriter, r *http.Request) erro
 	ws, a, err := h.albumFromPath(w, r)
 	if err != nil || a == nil {
 		return err
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/albums", ws.ID)) {
+		return nil
 	}
 	if err := r.ParseForm(); err != nil {
 		return err
@@ -363,6 +380,9 @@ func (h *Handler) HandleAlbumDelete(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/albums", ws.ID)
+	if h.refuseReadOnly(w, r, redirect) {
+		return nil
+	}
 
 	err = h.albumStore.Delete(r.Context(), ws.ID, a.ID)
 	switch {
@@ -422,10 +442,13 @@ func (h *Handler) HandleAlbumItemCreate(w http.ResponseWriter, r *http.Request) 
 	if err != nil || a == nil {
 		return err
 	}
+	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
+	if h.refuseReadOnly(w, r, redirect) {
+		return nil
+	}
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
-	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
 
 	mediaID, alt, caption := albumPicture(r)
 	if refused := h.requireOwnPicture(r.Context(), ws.ID, mediaID); refused != "" {
@@ -462,10 +485,13 @@ func (h *Handler) HandleAlbumItemUpdate(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return nil
 	}
+	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
+	if h.refuseReadOnly(w, r, redirect) {
+		return nil
+	}
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
-	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
 
 	mediaID, alt, caption := albumPicture(r)
 	if refused := h.requireOwnPicture(r.Context(), ws.ID, mediaID); refused != "" {
@@ -503,6 +529,9 @@ func (h *Handler) HandleAlbumItemDelete(w http.ResponseWriter, r *http.Request) 
 		return nil
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
+	if h.refuseReadOnly(w, r, redirect) {
+		return nil
+	}
 
 	err = h.albumStore.DeleteItem(r.Context(), ws.ID, a.ID, itemID)
 	switch {
@@ -541,6 +570,10 @@ func (h *Handler) HandleAlbumItemReorder(w http.ResponseWriter, r *http.Request)
 		return nil
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/albums/%d", ws.ID, a.ID)
+	// Before moveAlbumPicture, which an AI key reaches as well (D-11).
+	if h.refuseReadOnly(w, r, redirect) {
+		return nil
+	}
 
 	moved, err := h.moveAlbumPicture(r.Context(), ws.ID, a.ID, itemID, r.URL.Query().Get("direction"))
 	switch {

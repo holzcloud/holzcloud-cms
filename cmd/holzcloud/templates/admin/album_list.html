@@ -17,6 +17,8 @@
 {{end}}
 
 {{define "album_list-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
+{{if not .ReadOnly}}
 <div class="card" style="margin-bottom:var(--space-3)">
     <h2 style="margin-bottom:var(--space-2)">{{t "Create album"}}</h2>
     <p class="text-muted" style="margin-bottom:var(--space-2)">
@@ -32,6 +34,7 @@
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Create"}}</button>
     </form>
 </div>
+{{end}}
 
 <div class="card">
     {{if .Albums}}
@@ -53,13 +56,15 @@
                 <td class="text-muted">{{.Pictures}}</td>
                 <td class="text-muted">{{.CreatedAt.Format "02.01.2006"}}</td>
                 <td class="table-actions">
-                    <a href="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}" class="btn btn--sm">{{t "Edit"}}</a>
+                    <a href="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}" class="btn btn--sm">{{if $.ReadOnly}}{{t "View"}}{{else}}{{t "Edit"}}{{end}}</a>
+                    {{if not $.ReadOnly}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}/delete"
                           hx-post="/admin/websites/{{$.WebsiteID}}/albums/{{.ID}}/delete" style="display:inline"
                           hx-confirm="{{t "Delete this album with all its images? The files stay in the media library."}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                     </form>
+                    {{end}}
                 </td>
             </tr>
             {{end}}

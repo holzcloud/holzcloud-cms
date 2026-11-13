@@ -95,6 +95,51 @@ becomes `application/octet-stream`. No `text/html` — a plugin able to serve a 
 under the admin's address could put a page there that looks like the admin and is
 not. The file name is cut back to a plain name, and the size is capped at 8 MB.
 
+## The admin screen and the publishing right
+
+A plugin's screen is declared in the manifest's `admin` entry:
+
+```json
+"admin": {
+  "label": "Orders",
+  "per_website": true,
+  "admin_only": false,
+  "respects_read_only": true
+}
+```
+
+`label` is what the sidebar says, `per_website` puts the screen under a website,
+`admin_only` keeps editors out. `respects_read_only` is about the editors who
+are let in but may not publish.
+
+Without the publishing right, nobody changes what visitors see at once. The
+host cannot tell which of a plugin's POSTs does that: the farm shop's settings
+shape the public order form, ticking off an order changes nothing a visitor
+sees, and both arrive at the same address. Only the plugin knows, so the plugin
+decides — if it says it will:
+
+- **With `"respects_read_only": true`** the host passes `read_only` in
+  `AdminIn` (`in.ReadOnly` in the SDK) on every call, GET and POST, whenever the
+  person on the screen may not publish. The plugin then refuses every write that
+  changes the public site — answering with a sentence through `plugin.T` and
+  `FlashError`, before anything is stored — and draws no control for it. Private
+  work stays open: the shipped plugins still let such a person tick off and
+  delete orders, release and discard messages, and clear the not-found log.
+- **Without it** the plugin is never told. The host refuses every POST of such a
+  person to the screen with its own sentence, before the plugin is called, and
+  draws the screen with every control disabled. A GET still reaches the plugin,
+  because reading stays open — but the call runs read-only: `plugin.Set`,
+  `plugin.Delete` and keeping uploaded files answer with an error instead of
+  writing. A GET that tried to write and carried a query (a "delete" link,
+  `?aktion=…`) is answered with the host's sentence and leads back to the plain
+  screen; the plain screen itself is still shown, with nothing written. A
+  plugin that has never heard of the rule cannot be the way around it, neither
+  by a form nor by a link.
+
+The declaration is a promise, and the administrator who installs a plugin
+decides whether to trust it. Both fields are optional and leave the interface
+version at 1: a plugin built before them installs and runs as before.
+
 ## What a plugin may do
 
 Only what is in the manifest. A hook that is not named is never called; a

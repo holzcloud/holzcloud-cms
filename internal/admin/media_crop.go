@@ -43,6 +43,10 @@ type cropData struct {
 	// PreviewWidth is that fixed width, so the template and the handler cannot
 	// disagree about it.
 	PreviewWidth int
+	// Locked is a file in use, looked at by somebody without the publishing
+	// right: the screen shows the picture and the sentence, and no form,
+	// because the save would be refused (D-06).
+	Locked bool
 }
 
 // previewWidth is how wide the crop screen draws the picture.
@@ -76,6 +80,7 @@ func (h *Handler) HandleMediaCrop(w http.ResponseWriter, r *http.Request) error 
 		Ratios:     media.Ratios,
 		Croppable:  media.CanMakeVariants(m.MimeType),
 		Cropped:    h.hasOriginal(websiteID, m.Filename),
+		Locked:     h.mediaLocked(r, m),
 	}
 	data.PreviewWidth = previewWidth
 	if m.Width > 0 && m.Height > 0 {
@@ -92,10 +97,16 @@ func (h *Handler) HandleMediaCropSave(w http.ResponseWriter, r *http.Request) er
 	if err != nil || !ok {
 		return err
 	}
+	back := fmt.Sprintf("/admin/websites/%d/media/%d/zuschnitt", websiteID, mediaID)
+	// Crop, focus click and "put the original back" all arrive here, so one
+	// question in front of the form covers the three (D-06). Not in cropMedia
+	// or restoreOriginal: the MCP tools share those and answer as before (D-11).
+	if h.refuseMediaLocked(w, r, m, back) {
+		return nil
+	}
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
-	back := fmt.Sprintf("/admin/websites/%d/media/%d/zuschnitt", websiteID, mediaID)
 
 	if r.FormValue("zuruecksetzen") != "" {
 		return h.restoreMedia(w, r, websiteID, mediaID, m, back)

@@ -152,6 +152,30 @@ func TestWithoutAHostTheErrorIsAClearOne(t *testing.T) {
 	}
 }
 
+// The host tells the screen whether the person on it may change what the
+// public sees at once (phase 31). A plugin that declared respects_read_only in
+// its manifest reads it here; it arrives on every call, GET and POST.
+func TestTheAdminScreenLearnsReadOnly(t *testing.T) {
+	reset()
+	var seen AdminIn
+	OnAdmin(func(in AdminIn) (AdminOut, error) { seen = in; return AdminOut{HTML: "ok"}, nil })
+
+	if _, err := Dispatch("admin", []byte(`{"method":"POST","path":"/x","read_only":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	if !seen.ReadOnly {
+		t.Error("read_only: true reached the screen as false")
+	}
+
+	// An older host sends no such field; the screen then sees false.
+	if _, err := Dispatch("admin", []byte(`{"method":"GET","path":"/x"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if seen.ReadOnly {
+		t.Error("without read_only the screen was told it is read-only")
+	}
+}
+
 func TestTheEventHookGetsTheData(t *testing.T) {
 	reset()
 	var seen EventIn

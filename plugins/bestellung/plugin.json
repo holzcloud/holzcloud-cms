@@ -23,7 +23,8 @@
   ],
   "admin": {
     "label": "Orders",
-    "per_website": true
+    "per_website": true,
+    "respects_read_only": true
   },
   "lang": {
     "de": {

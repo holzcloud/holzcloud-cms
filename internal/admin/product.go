@@ -41,6 +41,10 @@ type productListData struct {
 	Products []*shop.Product
 	Currency money.Currency
 	ShopBase string
+	// MayPublish decides, per row, whether Delete is offered: somebody
+	// without the publishing right deletes drafts and not published
+	// products (D-14), as page_row.html does for pages.
+	MayPublish bool
 }
 
 // productFormData backs the create/edit screen.
@@ -55,6 +59,14 @@ type productFormData struct {
 		Label string
 	}
 	Website *domain.Website
+	// MayPublish offers the status choice. Without it the form says instead
+	// that the product stays a draft, because handleProductSave stores
+	// nothing else for such a person (D-14).
+	MayPublish bool
+	// Locked is a published product opened by somebody without the
+	// publishing right: its values stand in a disabled fieldset under the
+	// read-only notice, and there is no Save (D-05, D-14).
+	Locked bool
 }
 
 func (v *productValues) validate(errs web.FormErrors) {
@@ -127,6 +139,7 @@ func (h *Handler) HandleProductList(w http.ResponseWriter, r *http.Request) erro
 		Products:   products,
 		Currency:   money.CurrencyFor(ws.Currency),
 		ShopBase:   ws.ShopBase,
+		MayPublish: h.mayPublish(r),
 	}
 	data.ActiveNav = "products"
 	data.CurrentWebsite = ws
@@ -166,11 +179,11 @@ func (h *Handler) HandleProductForm(w http.ResponseWriter, r *http.Request) erro
 		isEdit = true
 	}
 
-	return h.renderProductForm(w, r, ws, values, isEdit, web.NewFormState())
+	return h.renderProductForm(w, r, ws, values, isEdit, h.mayPublish(r), web.NewFormState())
 }
 
 func (h *Handler) renderProductForm(w http.ResponseWriter, r *http.Request,
-	ws *domain.Website, values productValues, isEdit bool, state web.FormState) error {
+	ws *domain.Website, values productValues, isEdit, mayPublish bool, state web.FormState) error {
 
 	// Only images: a PDF cannot be a product picture, and offering one in the
 	// dropdown is an invitation to a broken page.
@@ -203,13 +216,40 @@ func (h *Handler) renderProductForm(w http.ResponseWriter, r *http.Request,
 		Media:      items,
 		Rates:      rates,
 		Website:    ws,
+		MayPublish: mayPublish,
 	}
+	// The screen answers with the doors' own predicate and the request's one
+	// answer, so the two cannot disagree. On a GET values.Status is the stored
+	// status; a POST that would change a published product is refused before
+	// it could reach this re-render.
+	data.Locked = isEdit && productLockedFor(mayPublish, &shop.Product{ID: values.ID, Status: values.Status})
 	data.ActiveNav = "products"
 	data.CurrentWebsite = ws
 	return web.RenderAdmin(w, h.templates, r, "product_form", data)
 }
 
 func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *domain.Website) error {
+	// The page rule, for products (D-14). Somebody without the publishing
+	// right may not touch a published product. Asked here, before
+	// saveProduct, so neither the product nor its categories are written —
+	// and not in saveProduct, which OpSaveProduct shares (D-03, D-11).
+	mayPublish := h.mayPublish(r)
+	if raw := r.PathValue("productID"); !mayPublish && raw != "" && raw != "neu" {
+		id, _ := strconv.ParseInt(raw, 10, 64)
+		p, err := h.products.Get(r.Context(), id)
+		if err != nil {
+			return err
+		}
+		if p == nil || p.WebsiteID != ws.ID {
+			http.NotFound(w, r)
+			return nil
+		}
+		if productLockedFor(mayPublish, p) {
+			web.SetFlashError(h.sm, r.Context(), readOnlySentence())
+			return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/produkte/"+strconv.FormatInt(p.ID, 10))
+		}
+	}
+
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
@@ -232,11 +272,17 @@ func (h *Handler) handleProductSave(w http.ResponseWriter, r *http.Request, ws *
 	if raw := r.PathValue("productID"); raw != "" && raw != "neu" {
 		values.ID, _ = strconv.ParseInt(raw, 10, 64)
 	}
+	// Whatever status was posted, what such a person saves is a draft — the
+	// counterpart of handlePageCreatePost and handlePageEditPost. Without
+	// this a posted status=published put a new product or a draft online.
+	if !mayPublish {
+		values.Status = shop.StatusDraft
+	}
 
 	state := web.NewFormState()
 	_, err := h.saveProduct(r.Context(), ws.ID, &values, state.Errors)
 	if state.Errors.Any() {
-		return h.renderProductForm(w, r, ws, values, values.ID != 0, state)
+		return h.renderProductForm(w, r, ws, values, values.ID != 0, mayPublish, state)
 	}
 	// The address named this website and the product id named another one. The
 	// same answer the edit screen already gives for the same disagreement.
@@ -338,6 +384,12 @@ func (h *Handler) HandleProductDelete(w http.ResponseWriter, r *http.Request) er
 	if p == nil || p.WebsiteID != ws.ID {
 		http.NotFound(w, r)
 		return nil
+	}
+	// A published product is a publisher's to remove; a draft is deleted as
+	// a draft page is moved to the wastebasket (D-14).
+	if productLockedFor(h.mayPublish(r), p) {
+		web.SetFlashError(h.sm, r.Context(), readOnlySentence())
+		return h.redirect(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/produkte")
 	}
 	if err := h.products.Delete(r.Context(), ws.ID, id); err != nil {
 		return err

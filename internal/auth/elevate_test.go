@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -120,6 +121,29 @@ func TestRueckwegBleibtImHaus(t *testing.T) {
 	}
 }
 
+// The way back keeps the address as it was written. Rebuilt from the decoded
+// path, a %3F in a segment came back as the start of a query and a %2F as a
+// separator: another address than the one that asked. And a path that only
+// decodes to the administration is not inside it.
+func TestTheWayBackKeepsTheEscapedPath(t *testing.T) {
+	for raw, want := range map[string]string{
+		"/admin/medien/a%3Fb?x=1":       "/admin/medien/a%3Fb?x=1",
+		"/admin/seiten/a%2Fb":           "/admin/seiten/a%2Fb",
+		"/%61dmin/websites":             "/admin/",
+		"/admin/websites/2/pages?q=a b": "/admin/websites/2/pages?q=a b",
+	} {
+		if got := SafeReturn(raw); got != want {
+			t.Errorf("SafeReturn(%q) = %q; want %q", raw, got, want)
+		}
+	}
+	req := httptest.NewRequest("POST", "/admin/websites/1/delete", nil)
+	req.Host = "example.com"
+	req.Header.Set("Referer", "http://example.com/admin/seiten/a%2Fb")
+	if got := backTo(req); got != "/admin/seiten/a%2Fb" {
+		t.Errorf("backTo = %q; want the escaped path", got)
+	}
+}
+
 // A referer from elsewhere must not become the target either.
 func TestBackToTakesOnlyItsOwnAddresses(t *testing.T) {
 	req := httptest.NewRequest("POST", "/admin/websites/1/delete", nil)
@@ -127,5 +151,48 @@ func TestBackToTakesOnlyItsOwnAddresses(t *testing.T) {
 	req.Header.Set("Referer", "https://boese.example/admin/websites/1")
 	if got := backTo(req); got != "/admin/" {
 		t.Errorf("backTo = %q; erwartet /admin/", got)
+	}
+}
+
+// A screen opened by its address has no Referer to go back to, and the screen
+// that asked is the one the person wanted: a confirmation asked on a GET leads
+// back to that screen. A POST cannot be repeated from its address, so it keeps
+// going back to the page its button was on.
+func TestAConfirmationAskedOnAGetLeadsBackToThatScreen(t *testing.T) {
+	sm := testSessionManager()
+	ask := func(method string, htmx bool) *httptest.ResponseRecorder {
+		t.Helper()
+		var reached bool
+		handler := sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			reached = EnsureFreshPassword(sm, w, r)
+		}))
+		req := httptest.NewRequest(method, SetupPath, nil)
+		req.Host = "example.com"
+		req.Header.Set("Referer", "http://example.com/admin/konto")
+		if htmx {
+			req.Header.Set("HX-Request", "true")
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if reached {
+			t.Errorf("%s: went through without a confirmation", method)
+		}
+		return rec
+	}
+	toSetup := ConfirmPath + "?weiter=" + url.QueryEscape("/admin/2fa/einrichten")
+
+	rec := ask(http.MethodGet, false)
+	if got := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || got != toSetup {
+		t.Errorf("GET: got %d to %q; want 303 to %q", rec.Code, got, toSetup)
+	}
+
+	rec = ask(http.MethodGet, true)
+	if got := rec.Header().Get("HX-Redirect"); rec.Code != http.StatusOK || got != toSetup {
+		t.Errorf("GET through htmx: got %d, HX-Redirect %q; want 200 and %q", rec.Code, got, toSetup)
+	}
+
+	rec = ask(http.MethodPost, false)
+	if got := rec.Header().Get("Location"); got != ConfirmPath+"?weiter=%2Fadmin%2Fkonto" {
+		t.Errorf("POST: Location = %q; want the Referer's path", got)
 	}
 }

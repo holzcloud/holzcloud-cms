@@ -25,6 +25,10 @@ type snippetListData struct {
 	// a save is rejected.
 	Values snippetValues
 	IsEdit bool
+	// ReadOnly is somebody without the publishing right: a snippet is put
+	// into every page carrying its marker when the page is delivered, so
+	// changing one changes the live site. They may open it, not change it.
+	ReadOnly bool
 
 	// FieldViews are the own fields of this snippet, as the model of the form.
 	// Built like those of the page, by the same function, for the same reason:
@@ -132,6 +136,12 @@ func (h *Handler) HandleSnippetList(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	if r.Method == http.MethodPost {
+		// Before handleSnippetSave and so before its group-action re-render
+		// too: a read-only person has no form to add a row to. storeSnippet
+		// is not where this is asked — the MCP snippet tool shares it (D-11).
+		if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/snippets", websiteID)) {
+			return nil
+		}
 		return h.handleSnippetSave(w, r, websiteID, ws.Name)
 	}
 
@@ -191,6 +201,7 @@ func (h *Handler) snippetListData(r *http.Request, websiteID int64, websiteName 
 		FormState:  web.NewFormState(),
 		WebsiteID:  websiteID,
 		Values:     values,
+		ReadOnly:   h.readOnly(r),
 	}
 	data.ActiveNav = "snippets"
 
@@ -316,6 +327,9 @@ func (h *Handler) HandleSnippetDelete(w http.ResponseWriter, r *http.Request) er
 	}
 	if sn == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/snippets", websiteID)) {
 		return nil
 	}
 

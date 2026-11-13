@@ -1,0 +1,8 @@
+{{/* The one notice every read-only screen shows to somebody without the
+     publishing right. The sentence is the same literal as readOnlySentence in
+     internal/admin/rights.go, so the two are one catalogue key. */}}
+{{define "read_only_notice"}}
+<div class="alert alert--warning" role="status">
+    <p>{{t "What is changed here is online at once. Changing it is not part of your account – ask somebody who may publish."}}</p>
+</div>
+{{end}}

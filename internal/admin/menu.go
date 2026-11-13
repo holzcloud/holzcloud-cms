@@ -27,6 +27,9 @@ type menuListData struct {
 	// Website is kept for LanguageName, which has to know the main language to
 	// give the empty tag a name.
 	Website *domain.Website
+	// ReadOnly is true for somebody without the publishing right: the screen
+	// opens but offers no change (D-05).
+	ReadOnly bool
 }
 
 // LanguageName is the name of a menu's language, for the listing.
@@ -44,6 +47,9 @@ type menuEditData struct {
 	Menu      *menu.Menu
 	Items     []menuItemNode
 	Pages     []page.Page
+	// ReadOnly is true for somebody without the publishing right: the editor
+	// opens but offers no change (D-05).
+	ReadOnly bool
 }
 
 // menuItemNode is a flat representation of a menu item with depth for indentation.
@@ -130,6 +136,7 @@ func (h *Handler) HandleMenuList(w http.ResponseWriter, r *http.Request) error {
 		Menus:      menus,
 		Languages:  languageChoices(ws, ""),
 		Website:    ws,
+		ReadOnly:   h.readOnly(r),
 	}
 	data.ActiveNav = "menus"
 	data.CurrentWebsite = ws
@@ -141,6 +148,9 @@ func (h *Handler) HandleMenuCreate(w http.ResponseWriter, r *http.Request) error
 	websiteID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID)) {
 		return nil
 	}
 
@@ -226,6 +236,7 @@ func (h *Handler) HandleMenuEdit(w http.ResponseWriter, r *http.Request) error {
 		Menu:       m,
 		Items:      flat,
 		Pages:      pages,
+		ReadOnly:   h.readOnly(r),
 	}
 	data.ActiveNav = "menus"
 	data.CurrentWebsite = ws
@@ -251,6 +262,9 @@ func (h *Handler) HandleMenuUpdate(w http.ResponseWriter, r *http.Request) error
 	}
 	if m == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID)) {
 		return nil
 	}
 
@@ -317,6 +331,9 @@ func (h *Handler) HandleMenuDelete(w http.ResponseWriter, r *http.Request) error
 		http.NotFound(w, r)
 		return nil
 	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus", websiteID)) {
+		return nil
+	}
 
 	if err := h.menuStore.DeleteMenu(r.Context(), menuID); err != nil {
 		return err
@@ -358,6 +375,9 @@ func (h *Handler) HandleMenuItemCreate(w http.ResponseWriter, r *http.Request) e
 	}
 	if m == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)) {
 		return nil
 	}
 
@@ -421,6 +441,9 @@ type menuItemEditData struct {
 	Parents []menuParentChoice
 	// SelectedPage and SelectedParent are the ids to mark as chosen, 0 for none.
 	SelectedPage, SelectedParent int64
+	// ReadOnly is true for somebody without the publishing right: the entry
+	// opens with its values in disabled fields and no save (D-05).
+	ReadOnly bool
 }
 
 // menuParentChoice is one line of the parent dropdown, indented by depth.
@@ -619,6 +642,7 @@ func (h *Handler) HandleMenuItemEditForm(w http.ResponseWriter, r *http.Request)
 		Item:       item,
 		Pages:      pages,
 		Parents:    parents,
+		ReadOnly:   h.readOnly(r),
 	}
 	if item.PageID != nil {
 		data.SelectedPage = *item.PageID
@@ -664,6 +688,9 @@ func (h *Handler) HandleMenuItemUpdate(w http.ResponseWriter, r *http.Request) e
 	}
 	if m == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)) {
 		return nil
 	}
 
@@ -753,6 +780,9 @@ func (h *Handler) HandleMenuItemDelete(w http.ResponseWriter, r *http.Request) e
 		http.NotFound(w, r)
 		return nil
 	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)) {
+		return nil
+	}
 
 	if err := h.menuStore.DeleteItem(r.Context(), itemID); err != nil {
 		return err
@@ -800,6 +830,9 @@ func (h *Handler) HandleMenuItemReorder(w http.ResponseWriter, r *http.Request) 
 	}
 	if item == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/menus/%d", websiteID, menuID)) {
 		return nil
 	}
 

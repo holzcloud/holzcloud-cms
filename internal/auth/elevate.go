@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -69,8 +70,12 @@ const ConfirmPath = "/admin/bestaetigen"
 // link, end somebody's sessions, set somebody else's password, and replace a
 // confirmed second factor (the last two asked inside their handler, through
 // EnsureFreshPassword, because only the handler knows whether the question
-// applies). deploy/DEPLOY.md names this under "Three things single sign-on
-// does not do yet" and gives the way round: `holzcloud user passwd`.
+// applies). Since phase 31 (2026-11-12) it also covers opening the setup
+// screen while a confirmed second factor exists: that screen writes and shows
+// a new device's secret, the first half of moving the account to another
+// phone, so it is asked inside its handler as well. deploy/DEPLOY.md names
+// this under "Three things single sign-on does not do yet" and gives the way
+// round: `holzcloud user passwd`.
 //
 // The cure is not a smaller version of this one. What should happen is a fresh
 // authentication AT THE IDENTITY PROVIDER — the equivalent of authentik's
@@ -116,7 +121,15 @@ func EnsureFreshPassword(sm *scs.SessionManager, w http.ResponseWriter, r *http.
 	if Elevated(sm, r.Context()) {
 		return true
 	}
-	to := ConfirmPath + "?weiter=" + url.QueryEscape(backTo(r))
+	// A screen asked for by a GET is the screen to come back to: a typed
+	// address has no Referer, and the screen that asked is the one the person
+	// wanted. A POST cannot be repeated from its address, so it goes back to the
+	// page its button was on. Either way only a path inside the administration.
+	back := backTo(r)
+	if r.Method == http.MethodGet {
+		back = SafeReturn(r.URL.RequestURI())
+	}
+	to := ConfirmPath + "?weiter=" + url.QueryEscape(back)
 	w.Header().Add("Vary", hxRequestHeader)
 	if r.Header.Get(hxRequestHeader) == "true" {
 		w.Header().Set("HX-Redirect", to)
@@ -141,7 +154,7 @@ func backTo(r *http.Request) string {
 	if err != nil || u.Path == "" || u.Host != r.Host {
 		return "/admin/"
 	}
-	back := u.Path
+	back := u.EscapedPath()
 	if u.RawQuery != "" {
 		back += "?" + u.RawQuery
 	}
@@ -158,10 +171,16 @@ func SafeReturn(raw string) string {
 	// Absolute, protocol-relative, or anywhere outside the administration: back
 	// to the start page. There is nothing else a stranger's address could be
 	// good for here.
-	if err != nil || u.IsAbs() || u.Host != "" || len(u.Path) < 7 || u.Path[:7] != "/admin/" {
+	//
+	// The address goes back as it was written: the escaped path, not the
+	// decoded one, in which a %3F would become the start of a query and a %2F
+	// a separator. Both forms must lie inside the administration — a path that
+	// only decodes to /admin/ is not an address of it.
+	if err != nil || u.IsAbs() || u.Host != "" || !strings.HasPrefix(u.Path, "/admin/") ||
+		!strings.HasPrefix(u.EscapedPath(), "/admin/") {
 		return "/admin/"
 	}
-	out := u.Path
+	out := u.EscapedPath()
 	if u.RawQuery != "" {
 		out += "?" + u.RawQuery
 	}

@@ -61,6 +61,10 @@ type wordingData struct {
 	Stray []wording.Entry
 	Limit int
 	Used  int
+	// ReadOnly is set for somebody without the publishing right: a word is
+	// what a visitor reads the moment it is saved, so the words stand in a
+	// disabled fieldset and there is no Save (D-05).
+	ReadOnly bool
 }
 
 // HandleWebsiteWording renders the wording screen.
@@ -85,6 +89,7 @@ func (h *Handler) HandleWebsiteWording(w http.ResponseWriter, r *http.Request) e
 		Stray:      stray,
 		Limit:      wording.MaxKeys,
 		Used:       used,
+		ReadOnly:   h.readOnly(r),
 	}
 
 	data.ActiveNav = "website-design"
@@ -159,6 +164,11 @@ func (h *Handler) HandleWebsiteWordingSave(w http.ResponseWriter, r *http.Reques
 	}
 	if ws == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	// Asked here and not in saveWords, which the MCP wording tool shares
+	// (D-03, D-11).
+	if h.refuseReadOnly(w, r, "/admin/websites/"+strconv.FormatInt(ws.ID, 10)+"/wording") {
 		return nil
 	}
 	if err := r.ParseForm(); err != nil {

@@ -163,6 +163,15 @@ type AdminIn struct {
 	// Query is the address's query string, so a plugin screen can have more
 	// than one view and link between them.
 	Query string `json:"query,omitempty"`
+	// ReadOnly says the person on the screen may not publish, so nothing they
+	// do here may change what visitors see at once. It is only set for a plugin
+	// whose manifest declares "respects_read_only": true in its admin entry —
+	// that declaration is the promise to read it. Refuse every write that
+	// changes the public site (answer with a sentence through T) and draw no
+	// control for it; private work, such as ticking off an order, stays open.
+	// A plugin without it never sees it: the host refuses such a person's POST
+	// before the call and runs their GET read-only (Set and Delete then fail).
+	ReadOnly bool `json:"read_only,omitempty"`
 }
 
 // AdminOut is the screen. The HTML is sanitised by the host before it is

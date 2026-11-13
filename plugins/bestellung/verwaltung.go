@@ -41,6 +41,13 @@ func action(in plugin.AdminIn, q url.Values) (plugin.AdminOut, error) {
 
 	switch form.Get("aktion") {
 	case "einstellungen":
+		// The settings shape the public order form, so they are a publisher's
+		// business. Orders are not: ticking one off or deleting it changes
+		// nothing a visitor sees, and stays with whoever handles them.
+		if in.ReadOnly {
+			return plugin.AdminOut{Redirect: "?ansicht=einstellungen",
+				Flash: readOnlySentence(), FlashError: true}, nil
+		}
 		e := settings{
 			PriceField:   strings.TrimSpace(form.Get("preis_feld")),
 			UnitField:    strings.TrimSpace(form.Get("einheit_feld")),
@@ -226,7 +233,14 @@ func settingsScreen(in plugin.AdminIn) (plugin.AdminOut, error) {
 		b.WriteString(html.EscapeString(strings.Join(namen, ", ")) + `.</p>`)
 	}
 
-	b.WriteString(`<form method="POST"><input type="hidden" name="aktion" value="einstellungen">`)
+	// Without the publishing right the fields stay readable and nothing can be
+	// sent: no form, no save button, and the sentence saying whom to ask.
+	if in.ReadOnly {
+		b.WriteString(`<p><strong>` + html.EscapeString(readOnlySentence()) + `</strong></p>`)
+		b.WriteString(`<fieldset disabled>`)
+	} else {
+		b.WriteString(`<form method="POST"><input type="hidden" name="aktion" value="einstellungen">`)
+	}
 	eingabe := func(name, label, value, hilfe string) {
 		b.WriteString(`<p><label for="e_` + name + `">` + html.EscapeString(label) + `</label>`)
 		b.WriteString(`<input type="text" id="e_` + name + `" name="` + name + `" value="` +
@@ -251,8 +265,20 @@ func settingsScreen(in plugin.AdminIn) (plugin.AdminOut, error) {
 		html.EscapeString(e.Hint) + `</textarea>`)
 	b.WriteString(`<span>How it is delivered and how it is paid for belongs here — both happen outside this program.</span></p>`)
 
-	b.WriteString(`<p><button type="submit">` + html.EscapeString(plugin.T("Save")) + `</button></p></form>`)
+	if in.ReadOnly {
+		b.WriteString(`</fieldset>`)
+	} else {
+		b.WriteString(`<p><button type="submit">` + html.EscapeString(plugin.T("Save")) + `</button></p></form>`)
+	}
 	return plugin.AdminOut{Title: plugin.T("Set up the farm shop"), HTML: b.String()}, nil
+}
+
+// readOnlySentence is the host's own refusal, word for word, so it is one
+// catalogue key and reads the same here as on every other read-only screen.
+// It answers somebody without the publishing right who reaches for the
+// settings: they shape the public order form, which is online at once.
+func readOnlySentence() string {
+	return plugin.T("What is changed here is online at once. Changing it is not part of your account – ask somebody who may publish.")
 }
 
 // --- Kleinkram --------------------------------------------------------------

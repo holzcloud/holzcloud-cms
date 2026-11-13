@@ -3,6 +3,7 @@
 {{end}}
 
 {{define "website_form-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 {{if .Checks}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <h2>{{t "Ready to launch?"}}</h2>
@@ -25,6 +26,7 @@
     <form method="POST" action="{{if .IsEdit}}/admin/websites/{{.Website.ID}}{{else}}/admin/websites/new{{end}}">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
 
+        <fieldset class="read-only-fields"{{if .ReadOnly}} disabled{{end}}>
         <div class="form-group">
             <label class="form-label" for="name">{{t "Name"}}</label>
             <input type="text" id="name" name="name" class="form-input" required
@@ -247,10 +249,13 @@
                       placeholder="{{t "We are back on Monday."}}">{{.Website.OfflineMessage}}</textarea>
         </div>
         {{end}}
+        </fieldset>
 
+        {{if not .ReadOnly}}
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">
             {{if .IsEdit}}{{t "Save changes"}}{{else}}{{t "Create website"}}{{end}}
         </button>
+        {{end}}
     </form>
 </div>
 

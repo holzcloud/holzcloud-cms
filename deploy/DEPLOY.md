@@ -410,8 +410,9 @@ deleting or importing a website; creating, changing or deleting a user, issuing
 somebody an access link, setting somebody else's password and ending somebody's
 sessions; creating an AI key or connecting an assistant; uploading, enabling or
 removing a plugin; uploading a template; clearing the activity log; and, for the
-account's own second factor, switching it off, renewing the recovery codes or
-replacing a confirmed one with a new device. If every administrator came in that
+account's own second factor, switching it off, renewing the recovery codes,
+opening the setup screen while a confirmed factor exists, or replacing a
+confirmed one with a new device. If every administrator came in that
 way, set a password for one of them from the server:
 
 ```bash

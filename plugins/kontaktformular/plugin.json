@@ -24,7 +24,8 @@
   ],
   "admin": {
     "label": "Messages",
-    "per_website": true
+    "per_website": true,
+    "respects_read_only": true
   },
   "lang": {
     "de": {

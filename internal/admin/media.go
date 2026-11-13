@@ -30,6 +30,15 @@ type mediaListData struct {
 	MissingAltText int
 	// Library is the collection list on the left.
 	Library libraryNav
+	// ReadOnly is somebody without the publishing right. It decides the album
+	// controls — the tick boxes and the form that puts files into an album;
+	// uploading stays open (D-06).
+	ReadOnly bool
+	// InUse says, for such a person, which of the listed files something of
+	// the website shows: their cards offer no description form, no crop link
+	// and no delete, because each would be refused. Only filled for a person
+	// who may not publish; nil otherwise, and a nil map answers false.
+	InUse map[int64]bool
 }
 
 // mediaFilterFromRequest reads the list controls.
@@ -88,6 +97,21 @@ func (h *Handler) HandleMediaList(w http.ResponseWriter, r *http.Request) error 
 		Filter:         filter,
 		MissingAltText: missing,
 		Library:        h.libraryNavFor(r.Context(), websiteID, activeCollection(filter)),
+		ReadOnly:       h.readOnly(r),
+	}
+	data.Library.ReadOnly = data.ReadOnly
+	if data.ReadOnly {
+		inUse, err := h.mediaStore.InUseAmong(r.Context(), items)
+		if err != nil {
+			// Fail closed, as the doors do: a card that offers a delete the
+			// handler would refuse is a promise the next click breaks.
+			slog.Error("media usage lookup failed; every listed file counts as in use", "website_id", websiteID, "err", err)
+			inUse = make(map[int64]bool, len(items))
+			for _, it := range items {
+				inUse[it.ID] = true
+			}
+		}
+		data.InUse = inUse
 	}
 	data.ActiveNav = "media"
 	data.CurrentWebsite = ws
@@ -400,7 +424,9 @@ func (h *Handler) HandleMediaMeta(w http.ResponseWriter, r *http.Request) error 
 	if err != nil || !ok {
 		return err
 	}
-	_ = m
+	if h.refuseMediaLocked(w, r, m, fmt.Sprintf("/admin/websites/%d/media", websiteID)) {
+		return nil
+	}
 
 	if err := r.ParseForm(); err != nil {
 		return err
@@ -417,11 +443,16 @@ func (h *Handler) HandleMediaMeta(w http.ResponseWriter, r *http.Request) error 
 
 // HandleMediaDelete deletes a media file.
 func (h *Handler) HandleMediaDelete(w http.ResponseWriter, r *http.Request) error {
-	websiteID, mediaID, _, ok, err := h.lookupMedia(w, r)
+	websiteID, mediaID, m, ok, err := h.lookupMedia(w, r)
 	if err != nil || !ok {
 		return err
 	}
 	redirect := fmt.Sprintf("/admin/websites/%d/media", websiteID)
+	// Asked before the force flag is read: ?force=1 is a publisher's "yes,
+	// break those pages", and it cannot answer this question (D-06).
+	if h.refuseMediaLocked(w, r, m, redirect) {
+		return nil
+	}
 
 	force := r.URL.Query().Get("force") == "1" || r.FormValue("force") == "1"
 	err = h.mediaStore.Delete(r.Context(), mediaID, h.cfg.DataDir, force)

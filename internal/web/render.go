@@ -48,6 +48,8 @@ var partialFiles = []string{
 	"brand_mark.html",
 	// What the findings of the SEO check say, for the editor tab and the report.
 	"seo_hints.html",
+	// The sentence a read-only screen shows somebody without the publishing right.
+	"read_only_notice.html",
 }
 
 // standalonePages are full HTML documents with no base layout: they are what a

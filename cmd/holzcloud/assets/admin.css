@@ -529,6 +529,15 @@
         height: 14px;
     }
 
+    /* Ein Fieldset, das nur da ist, um disabled zu tragen — für jemanden ohne
+       Veröffentlichungsrecht —, darf keinen Rahmen zeichnen. */
+    .read-only-fields {
+        border: 0;
+        padding: 0;
+        margin: 0;
+        min-inline-size: 0;
+    }
+
     /* Nav items */
     .nav-group {
         padding: var(--space-2) var(--space-2) 4px;

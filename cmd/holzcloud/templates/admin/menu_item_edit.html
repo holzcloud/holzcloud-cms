@@ -5,10 +5,12 @@
 {{end}}
 
 {{define "menu_item_edit-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card">
     <h2 style="margin-bottom:var(--space-2)">{{t "Edit entry"}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}/items/{{.Item.ID}}/update">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <fieldset class="read-only-fields"{{if .ReadOnly}} disabled{{end}}>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-2)">
             <div class="form-group">
                 <label class="form-label" for="item-title">{{t "Title"}}</label>
@@ -45,9 +47,10 @@
                 </select>
             </div>
         </div>
+        </fieldset>
         <div style="display:flex;gap:var(--space-1);flex-wrap:wrap;margin-top:var(--space-1)">
-            <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
-            <a href="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}" class="btn">{{t "Cancel"}}</a>
+            {{if not .ReadOnly}}<button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>{{end}}
+            <a href="/admin/websites/{{.WebsiteID}}/menus/{{.Menu.ID}}" class="btn">{{if .ReadOnly}}{{t "Back to the menu"}}{{else}}{{t "Cancel"}}{{end}}</a>
         </div>
     </form>
 </div>

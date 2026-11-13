@@ -279,6 +279,18 @@ func (s *Store) ListAll(ctx context.Context, websiteID int64) ([]Term, error) {
 	return terms, rows.Err()
 }
 
+// Exists reports whether id is a label of this website. The scope check a
+// handler asks before anything else, so another website's label answers 404.
+func (s *Store) Exists(ctx context.Context, websiteID, id int64) (bool, error) {
+	var found bool
+	err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM terms WHERE id = $1 AND website_id = $2)`, id, websiteID).Scan(&found)
+	if err != nil {
+		return false, fmt.Errorf("term exists: %w", err)
+	}
+	return found, nil
+}
+
 // Delete removes a label. The rows in page_terms go with it through the
 // cascade; the content itself is untouched.
 func (s *Store) Delete(ctx context.Context, websiteID, id int64) error {

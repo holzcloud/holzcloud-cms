@@ -56,6 +56,11 @@ type pluginScreenData struct {
 	PluginName string
 	Screen     web.SafeHTML
 	Action     string
+	// Locked is a screen of a plugin that has not declared respects_read_only,
+	// shown to somebody without the publishing right: the read-only notice
+	// above it, and every control of the plugin disabled. The host refuses
+	// that person's POSTs to it; a disabled control says so before the click.
+	Locked bool
 }
 
 // HandlePluginList renders the plugin screen.
@@ -258,9 +263,31 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 	}
 	action := web.PluginScreenURL(id, websiteID)
 
+	// Without the publishing right, nothing that is online at once may change
+	// (D-01) — and a plugin screen is where the host cannot see what a POST
+	// does: the same address takes a setting that shapes the public form and a
+	// tick beside a private order. Only the plugin knows, so the plugin decides
+	// (D-13), but only one that declared it will.
+	readOnly := h.readOnly(r)
+	locked := readOnly && !st.Manifest.Admin.RespectsReadOnly
+	if locked && r.Method == http.MethodPost {
+		// Undeclared: fail closed. Refused before the form is read and before
+		// the plugin is called, so a plugin that never heard of the rule
+		// cannot be the way around it (D-02, D-03).
+		if h.refuseReadOnly(w, r, action) {
+			return nil
+		}
+	}
+
 	in := plugin.AdminIn{
 		WebsiteID: websiteID, Method: r.Method,
 		Path: r.URL.Path, Query: r.URL.RawQuery,
+		// Declared: the plugin is told on every call, GET and POST, and
+		// refuses its public writes itself. Undeclared: it is told nothing and
+		// gets the payload it always got — the host has already refused its
+		// POSTs and draws its screen inside the disabled fieldset, and a
+		// plugin that also drew its own notice would say the sentence twice.
+		ReadOnly: readOnly && st.Manifest.Admin.RespectsReadOnly,
 	}
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
@@ -276,7 +303,27 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 		}
 	}
 
-	out, err := h.plugins.Admin(r.Context(), id, in)
+	// Undeclared, and a GET: the call reaches the plugin, because reading
+	// stays open (D-05), but against a host that refuses its writes — a
+	// simple screen's "delete" link is a GET, and the refused POST alone would
+	// leave it working. An action refused that way answers with the
+	// read-only sentence and goes back to the plain screen. The plain screen
+	// itself is shown even if it tried to write: nothing was written, its
+	// notice already says why, and sending it to itself would never end.
+	callCtx := r.Context()
+	var triedToWrite func() bool
+	if locked {
+		callCtx, triedToWrite = plugin.ReadOnly(callCtx)
+	}
+	out, err := h.plugins.Admin(callCtx, id, in)
+	if triedToWrite != nil && triedToWrite() && (r.URL.RawQuery != "" || err != nil) {
+		back := action
+		if r.URL.RawQuery == "" {
+			back = "/admin/plugins"
+		}
+		web.SetFlashError(h.sm, r.Context(), readOnlySentence())
+		return h.redirect(w, r, back)
+	}
 	if err != nil {
 		web.SetFlashError(h.sm, r.Context(), web.Titlef(r, "The plugin reported an error: %s", err))
 		return h.redirect(w, r, "/admin/plugins")
@@ -326,6 +373,7 @@ func (h *Handler) HandlePluginScreen(w http.ResponseWriter, r *http.Request) err
 		// without the plugin ever seeing it.
 		Screen: web.WithCSRFToken(web.SanitizeAdminHTML(out.HTML), web.CSRFTokenFromRequest(r)),
 		Action: action,
+		Locked: locked,
 	}
 	// The rail marks the plugin's own entry, not the settings list: "plugin:"
 	// plus the address of the rail link, which is exactly `action`. With

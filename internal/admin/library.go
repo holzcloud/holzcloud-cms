@@ -24,6 +24,10 @@ type libraryNav struct {
 	// Active names the collection being shown: all, images, videos,
 	// documents, unused, noalt — or album:<id>, or albums for the list.
 	Active string
+	// ReadOnly leaves out the way to a new album for somebody without the
+	// publishing right. libraryNavFor takes no request, so each caller sets it
+	// from h.readOnly.
+	ReadOnly bool
 }
 
 type libraryAlbum struct {
@@ -88,6 +92,11 @@ func (h *Handler) HandleMediaToAlbum(w http.ResponseWriter, r *http.Request) err
 	back := fmt.Sprintf("/admin/websites/%d/media", websiteID)
 	if h.albumStore == nil {
 		http.NotFound(w, r)
+		return nil
+	}
+	// Before the loop, so not one file goes in: a gallery shows the album as
+	// soon as a picture is stored.
+	if h.refuseReadOnly(w, r, back) {
 		return nil
 	}
 	if err := r.ParseForm(); err != nil {

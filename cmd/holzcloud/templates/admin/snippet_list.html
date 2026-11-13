@@ -5,17 +5,22 @@
 {{end}}
 
 {{define "snippet_list-content"}}
+{{if .ReadOnly}}{{template "read_only_notice" .}}{{end}}
 <div class="card" style="margin-bottom: var(--space-3);">
     <p class="text-muted">
         {{th "Snippets are content that appears on several pages — an address, opening hours, a contact block. Write <code>[[snippet:key]]</code> into a page and the snippet is put in there when the page is shown. You then only have to change it once."}}
     </p>
 </div>
 
+{{/* Without the publishing right the form is there only for a snippet opened
+     to look at: its values in a disabled fieldset and nothing to send. */}}
+{{if or (not .ReadOnly) .IsEdit}}
 <div class="card" style="margin-bottom: var(--space-3);">
-    <h2>{{if .IsEdit}}{{t "Edit snippet"}}{{else}}{{t "New snippet"}}{{end}}</h2>
+    <h2>{{if .ReadOnly}}{{.Values.Name}}{{else if .IsEdit}}{{t "Edit snippet"}}{{else}}{{t "New snippet"}}{{end}}</h2>
     <form method="POST" action="/admin/websites/{{.WebsiteID}}/snippets">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         {{if .IsEdit}}<input type="hidden" name="id" value="{{.Values.ID}}">{{end}}
+        <fieldset class="read-only-fields"{{if .ReadOnly}} disabled{{end}}>
 
         <div class="form-row">
             <div class="form-group">
@@ -68,11 +73,17 @@
             {{end}}
         </fieldset>
         {{end}}
+        </fieldset>
 
+        {{if .ReadOnly}}
+        <a href="/admin/websites/{{.WebsiteID}}/snippets" class="btn">{{th "&#8592; All snippets"}}</a>
+        {{else}}
         <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save"}}</button>
         {{if .IsEdit}}<a href="/admin/websites/{{.WebsiteID}}/snippets" class="btn">{{t "Cancel"}}</a>{{end}}
+        {{end}}
     </form>
 </div>
+{{end}}
 
 <div class="card">
     {{if .Snippets}}
@@ -94,14 +105,16 @@
                 <td class="text-muted">{{if .UsedOn}}{{if eq .UsedOn 1}}{{t "on one page"}}{{else}}{{tf "on %d pages" .UsedOn}}{{end}}{{else}}{{t "nowhere"}}{{end}}</td>
                 <td class="text-muted">{{.UpdatedAt.Format "02.01.2006 15:04"}}</td>
                 <td class="table-actions">
-                    <a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{.ID}}" class="btn btn--sm">{{t "Edit"}}</a>
+                    <a href="/admin/websites/{{$.WebsiteID}}/snippets?edit={{.ID}}" class="btn btn--sm">{{if $.ReadOnly}}{{t "View"}}{{else}}{{t "Edit"}}{{end}}</a>
                     <a class="btn btn--sm" href="/admin/websites/{{$.WebsiteID}}/felder?textbaustein={{.ID}}">{{t "Fields"}}</a>
+                    {{if not $.ReadOnly}}
                     <form method="POST" action="/admin/websites/{{$.WebsiteID}}/snippets/{{.ID}}/delete"
                           hx-post="/admin/websites/{{$.WebsiteID}}/snippets/{{.ID}}/delete"
                           hx-confirm="{{t "Delete this snippet? Pages using it will then show nothing there."}}">
                         <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                         <button type="submit" class="btn btn--danger btn--sm" hx-disabled-elt="this">{{t "Delete"}}</button>
                     </form>
+                    {{end}}
                 </td>
             </tr>
             {{end}}

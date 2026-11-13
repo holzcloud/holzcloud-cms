@@ -36,6 +36,9 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 	q, _ := url.ParseQuery(in.Query)
 
 	if in.Method == "POST" {
+		if in.ReadOnly && changesTheWebsite(in.Form) {
+			return refuseReadOnly(in), nil
+		}
 		if out, behandelt, err := formAction(in, q); behandelt {
 			return out, err
 		}
@@ -59,16 +62,60 @@ func verwaltung(in plugin.AdminIn) (plugin.AdminOut, error) {
 
 	switch q.Get("ansicht") {
 	case ansichtFormulare:
-		return formularliste()
+		return formularliste(in.ReadOnly)
 	case ansichtFormular:
 		return formulareditor(in, q.Get("kennung"))
 	case ansichtAbgewiesen:
 		return quarantineScreen()
 	case ansichtEinwilligung:
-		return consentScreen()
+		return consentScreen(in.ReadOnly)
 	default:
 		return screen(in)
 	}
+}
+
+// --- ohne Veroeffentlichungsrecht -------------------------------------------
+
+// publicSubmissions are the buttons whose result a visitor sees: a form is
+// created, deleted or changed, the file field or the consent tick box is
+// switched. Somebody without the publishing right may not press them (the
+// manifest declares respects_read_only, so the host leaves this to us).
+// Releasing and discarding what the spam traps caught, and everything done to
+// a message, stays theirs: none of it reaches the public site.
+var publicSubmissions = []string{
+	"neues_formular", "loeschen_formular", "feldaktion", "sichern",
+	"anhang_sichern", "einwilligung_sichern",
+}
+
+// changesTheWebsite reports whether a POST is one of publicSubmissions.
+func changesTheWebsite(form map[string][]string) bool {
+	for _, name := range publicSubmissions {
+		if len(form[name]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// refuseReadOnly answers such a POST: the sentence as an error, and back to
+// the view the button stood on, before anything is stored.
+func refuseReadOnly(in plugin.AdminIn) plugin.AdminOut {
+	back := "."
+	if in.Query != "" {
+		back = "?" + in.Query
+	}
+	return plugin.AdminOut{Redirect: back, Flash: readOnlySentence(), FlashError: true}
+}
+
+// readOnlySentence is the host's own refusal, word for word, so it is one
+// catalogue key and reads the same here as on every other read-only screen.
+func readOnlySentence() string {
+	return plugin.T("What is changed here is online at once. Changing it is not part of your account – ask somebody who may publish.")
+}
+
+// readOnlyNotice is the sentence above a view whose controls are left out.
+func readOnlyNotice() string {
+	return `<p><strong>` + html.EscapeString(readOnlySentence()) + `</strong></p>`
 }
 
 // navigation is the row that switches between the views.
@@ -94,9 +141,12 @@ func navigation(aktuell string) string {
 
 // --- Liste ------------------------------------------------------------------
 
-func formularliste() (plugin.AdminOut, error) {
+func formularliste(readOnly bool) (plugin.AdminOut, error) {
 	var b strings.Builder
 	b.WriteString(navigation(ansichtFormulare))
+	if readOnly {
+		b.WriteString(readOnlyNotice())
+	}
 	fmt.Fprintf(&b, `<p>%s</p>`, plugin.T("A form of your own asks exactly what you want to know. "+
 		"Put it into a page with its marker, the way you would a snippet."))
 
@@ -112,17 +162,28 @@ func formularliste() (plugin.AdminOut, error) {
 		for _, f := range liste {
 			fmt.Fprintf(&b, `<tr><td>%s</td><td>%d</td><td><code>%s</code></td><td class="table-actions">`,
 				html.EscapeString(f.Name), len(f.Fields), html.EscapeString(markerFor(f.Key)))
+			// Without the publishing right the editor opens to look, and
+			// the link says so; there is nothing to delete.
+			open := plugin.T("Edit")
+			if readOnly {
+				open = plugin.T("View")
+			}
 			fmt.Fprintf(&b, `<a class="btn btn--sm" href="?ansicht=formular&amp;kennung=%s">%s</a>`,
-				html.EscapeString(f.Key), html.EscapeString(plugin.T("Edit")))
-			fmt.Fprintf(&b, `<form method="POST" class="inline-form">`+
-				`<input type="hidden" name="loeschen_formular" value="%s">`+
-				`<button type="submit" class="btn btn--sm btn--danger">%s</button></form>`,
-				html.EscapeString(f.Key), html.EscapeString(plugin.T("Delete")))
+				html.EscapeString(f.Key), html.EscapeString(open))
+			if !readOnly {
+				fmt.Fprintf(&b, `<form method="POST" class="inline-form">`+
+					`<input type="hidden" name="loeschen_formular" value="%s">`+
+					`<button type="submit" class="btn btn--sm btn--danger">%s</button></form>`,
+					html.EscapeString(f.Key), html.EscapeString(plugin.T("Delete")))
+			}
 			b.WriteString(`</td></tr>`)
 		}
 		b.WriteString(`</tbody></table>`)
 	}
 
+	if readOnly {
+		return plugin.AdminOut{Title: plugin.T("Forms"), HTML: b.String()}, nil
+	}
 	e := html.EscapeString
 	fmt.Fprintf(&b, `<form method="POST" class="stack">`+
 		`<fieldset><legend>%s</legend>`+
@@ -151,7 +212,15 @@ func formulareditor(in plugin.AdminIn, key string) (plugin.AdminOut, error) {
 	b.WriteString(navigation(ansichtFormulare))
 	fmt.Fprintf(&b, `<p>%s</p>`, plugin.Tf("Place it in the page with <code>%s</code>.", e(markerFor(f.Key))))
 
-	b.WriteString(`<form method="POST" class="stack">`)
+	// Without the publishing right the form is shown as it stands: every
+	// field disabled, and none of the buttons that would store it.
+	readOnly := in.ReadOnly
+	if readOnly {
+		b.WriteString(readOnlyNotice())
+		b.WriteString(`<fieldset disabled class="stack">`)
+	} else {
+		b.WriteString(`<form method="POST" class="stack">`)
+	}
 	fmt.Fprintf(&b, `<input type="hidden" name="kennung" value="%s">`, e(f.Key))
 
 	fmt.Fprintf(&b, `<fieldset><legend>%s</legend>`, e(plugin.T("Form")))
@@ -235,23 +304,30 @@ func formulareditor(in plugin.AdminIn, key string) (plugin.AdminOut, error) {
 					"For a tick box the value is “ja”.")))
 		}
 
-		b.WriteString(`<p class="table-actions">`)
-		actionButton(&b, "feldaktion", "hoch:"+strconv.Itoa(i), plugin.T("↑ up"), "")
-		actionButton(&b, "feldaktion", "runter:"+strconv.Itoa(i), plugin.T("↓ down"), "")
-		actionButton(&b, "feldaktion", "weg:"+strconv.Itoa(i), plugin.T("Remove field"), "btn--danger")
-		b.WriteString(`</p></fieldset>`)
+		if !readOnly {
+			b.WriteString(`<p class="table-actions">`)
+			actionButton(&b, "feldaktion", "hoch:"+strconv.Itoa(i), plugin.T("↑ up"), "")
+			actionButton(&b, "feldaktion", "runter:"+strconv.Itoa(i), plugin.T("↓ down"), "")
+			actionButton(&b, "feldaktion", "weg:"+strconv.Itoa(i), plugin.T("Remove field"), "btn--danger")
+			b.WriteString(`</p>`)
+		}
+		b.WriteString(`</fieldset>`)
 	}
 
 	if len(f.Fields) == 0 {
 		fmt.Fprintf(&b, `<p class="empty">%s</p>`, e(plugin.T("No field yet. A form with no fields is not shown.")))
 	}
 
-	b.WriteString(`<p class="table-actions">`)
-	actionButton(&b, "feldaktion", "neu", plugin.T("Add field"), "")
-	b.WriteString(`</p>`)
-	fmt.Fprintf(&b, `<p><button type="submit" name="sichern" value="1" class="btn btn--primary">`+
-		`%s</button></p>`, e(plugin.T("Save form")))
-	b.WriteString(`</form>`)
+	if readOnly {
+		b.WriteString(`</fieldset>`)
+	} else {
+		b.WriteString(`<p class="table-actions">`)
+		actionButton(&b, "feldaktion", "neu", plugin.T("Add field"), "")
+		b.WriteString(`</p>`)
+		fmt.Fprintf(&b, `<p><button type="submit" name="sichern" value="1" class="btn btn--primary">`+
+			`%s</button></p>`, e(plugin.T("Save form")))
+		b.WriteString(`</form>`)
+	}
 
 	if _, hat := f.ersteArt(ArtEmail); !hat && len(f.Fields) > 0 {
 		fmt.Fprintf(&b, `<p class="text-muted">%s</p>`, e(plugin.T("No field for an e-mail address: "+
@@ -502,10 +578,30 @@ func quarantineScreen() (plugin.AdminOut, error) {
 
 // --- die Einwilligung -------------------------------------------------------
 
-func consentScreen() (plugin.AdminOut, error) {
+func consentScreen(readOnly bool) (plugin.AdminOut, error) {
 	e := html.EscapeString
 	var b strings.Builder
 	b.WriteString(navigation(ansichtEinwilligung))
+	// The tick box and the file field are part of every public form, so
+	// without the publishing right both are shown and neither can be saved.
+	if readOnly {
+		b.WriteString(readOnlyNotice())
+	}
+	// formOpen and saveButton are the two places the read-only view differs: a
+	// disabled fieldset instead of a form, and no button.
+	formOpen := `<form method="POST" class="stack">`
+	formClose := `</form>`
+	if readOnly {
+		formOpen = `<fieldset disabled class="stack">`
+		formClose = `</fieldset>`
+	}
+	saveButton := func(name string) string {
+		if readOnly {
+			return ""
+		}
+		return `<p><button type="submit" name="` + name + `" value="1" class="btn btn--primary">` +
+			e(plugin.T("Save")) + `</button></p>`
+	}
 
 	fmt.Fprintf(&b, `<p>%s</p>`, plugin.T(
 		"A tick box above the send button, with your own sentence beside it. Leave the "+
@@ -531,7 +627,7 @@ func consentScreen() (plugin.AdminOut, error) {
 		current = consentTextExact(sprachen[0].Tag)
 	}
 
-	b.WriteString(`<form method="POST" class="stack">`)
+	b.WriteString(formOpen)
 	for i, l := range sprachen {
 		wort := l.Name
 		if wort == "" {
@@ -562,14 +658,12 @@ func consentScreen() (plugin.AdminOut, error) {
 					"in a language they may not read.", wort)))
 		}
 	}
-	fmt.Fprintf(&b, `<p class="text-muted">%s</p>`+
-		`<p><button type="submit" name="einwilligung_sichern" value="1" class="btn btn--primary">%s</button></p>`+
-		`</form>`,
+	fmt.Fprintf(&b, `<p class="text-muted">%s</p>%s%s`,
 		plugin.T("A link may stand inside it, written as HTML: "+
 			`&lt;a href="/datenschutz"&gt;Privacy&lt;/a&gt;. `+
 			"Whoever has to follow a link to find out what they are agreeing to has not "+
 			"agreed to it, so the sentence itself has to say it."),
-		e(plugin.T("Save")))
+		saveButton("einwilligung_sichern"), formClose)
 
 	if current != "" {
 		fmt.Fprintf(&b, `<div class="card"><p class="text-muted">%s</p><p>%s</p></div>`,
@@ -583,18 +677,17 @@ func consentScreen() (plugin.AdminOut, error) {
 	if attachWanted() {
 		an = " checked"
 	}
-	fmt.Fprintf(&b, `<form method="POST" class="stack"><fieldset><legend>%s</legend>`+
+	fmt.Fprintf(&b, `%s<fieldset><legend>%s</legend>`+
 		`<label><input type="checkbox" name="anhang" value="1"%s> %s</label>`+
 		`<p class="text-muted">%s</p>`+
-		`<p><button type="submit" name="anhang_sichern" value="1" class="btn btn--primary">%s</button></p>`+
-		`</fieldset></form>`,
-		e(plugin.T("Attachment")), an,
+		`%s</fieldset>%s`,
+		formOpen, e(plugin.T("Attachment")), an,
 		e(plugin.T("Let people attach files")),
 		e(plugin.Tf("At most %d files per message, and only the kinds the media library already takes — "+
 			"checked by their content and not by what the browser claims. They land in this "+
 			"website's media, where you can see and delete them. Off to begin with: switching it "+
 			"on means strangers may put files on this server.", maxAttachments)),
-		e(plugin.T("Save")))
+		saveButton("anhang_sichern"), formClose)
 
 	return plugin.AdminOut{Title: plugin.T("Consent"), HTML: b.String()}, nil
 }
