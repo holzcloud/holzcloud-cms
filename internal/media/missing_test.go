@@ -130,10 +130,16 @@ func TestMissingFilesNeverFollowsANameThatIsNotAPlainFileName(t *testing.T) {
 	// and ".." lead to directories that exist once anything is planted.
 	plant(filepath.Join(root, "media", "escape.jpg"))
 	plant(filepath.Join(root, "media", "v.jpg"))
-	names := []string{"../escape.jpg", "a/b.jpg", "", "..", ".", `c\d.jpg`, "e\nf.jpg", "g\x7fh.jpg", "i\tj.jpg"}
+	// The last four are printed raw inside the report's path unless they are
+	// refused here: a C1 control (NEL), a bidi override that reverses what the
+	// operator's terminal shows, a zero-width space, and bytes that are not
+	// UTF-8 (code review 32, IN-04). The last cannot be planted on every file
+	// system (APFS refuses it), and need not be: it is never joined.
+	names := []string{"../escape.jpg", "a/b.jpg", "", "..", ".", `c\d.jpg`, "e\nf.jpg", "g\x7fh.jpg", "i\tj.jpg",
+		"k\u0085l.jpg", "m\u202egpj.exe", "q\u200br.jpg", "s\xfft.jpg"}
 	for _, name := range names {
 		switch name {
-		case "", ".", "..", "../escape.jpg":
+		case "", ".", "..", "../escape.jpg", "s\xfft.jpg":
 		default:
 			plant(Path(root, ws, name))
 		}

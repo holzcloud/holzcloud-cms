@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"unicode"
+	"unicode/utf8"
 )
 
 // MissingFile is a database row whose file is absent below the directory
@@ -81,14 +83,22 @@ func (s *Store) MissingFiles(ctx context.Context, root string) (checked int, mis
 
 // plainName reports whether a stored file name names a file directly inside
 // its website directory: not empty, not "." or "..", no separator of either
-// kind, no control character. Only such a name is ever joined into a path.
+// kind, valid UTF-8 and nothing but printable characters. Only such a name is
+// ever joined into a path.
+//
+// "Printable" is unicode.IsPrint: it leaves out every control character (C0,
+// DEL and C1 such as NEL), the format characters (the bidi overrides, the
+// zero-width space) and every space but U+0020. Such a name is printed unquoted
+// inside the path of the report, and a bidi override in it would make the
+// operator's terminal show another name than the one stored; refused here, it
+// gets the quoted shape instead. A name GenerateFilename makes is hex and an
+// extension and passes.
 func plainName(name string) bool {
-	if name == "" || name == "." || name == ".." {
+	if name == "" || name == "." || name == ".." || !utf8.ValidString(name) {
 		return false
 	}
-	for i := 0; i < len(name); i++ {
-		c := name[i]
-		if c == '/' || c == '\\' || c < 0x20 || c == 0x7f {
+	for _, r := range name {
+		if r == '/' || r == '\\' || !unicode.IsPrint(r) {
 			return false
 		}
 	}

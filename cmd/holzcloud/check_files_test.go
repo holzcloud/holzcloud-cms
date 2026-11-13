@@ -220,6 +220,46 @@ func TestCheckFilesQuotesANameSoItCannotStartALine(t *testing.T) {
 	})
 }
 
+// The path of a MISSING line carries the stored file name unquoted. A bidi
+// override or a C1 control in it would make the operator's terminal show
+// another name than the one stored, so such a name gets the quoted shape
+// instead (code review 32, IN-04).
+func TestCheckFilesPrintsNoInvisibleCharacterRaw(t *testing.T) {
+	database, ws, backup := checkFilesCase(t)
+	res, err := database.Write.Exec(`INSERT INTO media (website_id, filename, original_name, mime_type, size_bytes, content_hash)
+		VALUES ($1, $2, 'y', 'image/jpeg', 1, 'hash-bidi')`, ws, "m\u202egpj.exe")
+	if err != nil {
+		t.Fatalf("insert media: %v", err)
+	}
+	row, _ := res.LastInsertId()
+	if _, err := database.Write.Exec(`INSERT INTO media (website_id, filename, original_name, mime_type, size_bytes, content_hash)
+		VALUES ($1, $2, 'z', 'image/jpeg', 1, 'hash-nel')`, ws, "k\u0085l.jpg"); err != nil {
+		t.Fatalf("insert media: %v", err)
+	}
+
+	lines, err := runCheckLines(t, backup)
+	if exitStatus(err) != 3 {
+		t.Errorf("exit status %d (%v); want 3", exitStatus(err), err)
+	}
+	for _, l := range lines {
+		for _, r := range l {
+			if r == '\u202e' || r == '\u0085' {
+				t.Errorf("a line holds %U raw: %q", r, l)
+			}
+		}
+	}
+	want := fmt.Sprintf(`MISSING (media row %d, website %d): file name "m\u202egpj.exe" is not a plain file name`, row, ws)
+	found := false
+	for _, l := range lines {
+		if l == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no line %q in:\n%s", want, strings.Join(lines, "\n"))
+	}
+}
+
 func TestCheckFilesRefusesADirectoryThatDoesNotExist(t *testing.T) {
 	checkFilesCase(t)
 	nowhere := filepath.Join(t.TempDir(), "nowhere")

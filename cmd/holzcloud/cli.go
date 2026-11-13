@@ -333,7 +333,11 @@ func cmdCheck(args []string) error {
 // The "files:" line is printed whenever the files were checked, nothing
 // missing included, because an older binary ignores -files and restore.sh has
 // to tell "nothing missing" from "not looked". Every string that comes from the
-// database is printed quoted, so none can start a line of its own. A missing
+// database is printed quoted, with one exception: the file name inside the path
+// of a MISSING line, which is printed as it is, and only after media's
+// plainName has found it to be printable characters without a separator (no
+// control character, no bidi override, no invisible space). So none can start a
+// line of its own or show the operator another name than the stored one. A missing
 // file ends with status 3 and an empty message: the report is already out, and
 // 3 is not 1, a check that failed.
 func runCheck(w io.Writer, files string) error {
