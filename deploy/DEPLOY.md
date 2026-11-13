@@ -1052,7 +1052,9 @@ In order, the script:
    only if you type `yes`; anything else prints `aborted` and exits 1;
 3. stops the service;
 4. moves the current data directory aside as `data.before-restore-` and a
-   timestamp, never deleting it;
+   timestamp, never deleting it. When the data directory is a mount point (a
+   data disk), it cannot be renamed; the script moves its contents into
+   `.before-restore-` and a timestamp inside it instead, on the same disk;
 5. restores the database, `csrf.key` and the five directories (`media`,
    `templates`, `plugins`, `sprachen`, `marke`; a directory the backup lacks is
    skipped), sets owner and mode, starts the service and waits up to 30 seconds
@@ -1068,8 +1070,13 @@ check media rows and says so in a `NOTICE` line. How the script ends:
 
 - `0`: restored, every file the database names was in the backup;
 - `1`: refused, aborted at the question, or failed. When it refuses or you abort,
-  nothing was stopped or replaced; when the service does not report ready within
-  30 seconds after the restore, the script says so and names the journal;
+  nothing was stopped or replaced. When something fails after the service was stopped
+  (a full disk while copying, a failed `chown`), the service stays stopped and
+  the data directory is half written; the last line, an `ERROR` line, names
+  where the previous data is and, after `to go back:`,
+  the commands that put the previous data back and start the service, to run as
+  root. When the service does not report ready within 30 seconds after the
+  restore, the script says so and names the journal;
 - `3`: restored, and the files listed above are missing.
 
 The set-aside directory is never removed. It holds the replaced site, media

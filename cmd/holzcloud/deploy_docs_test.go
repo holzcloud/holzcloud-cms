@@ -228,6 +228,17 @@ func TestDeployRestoreChecksTheListBothWays(t *testing.T) {
 		"refuses an empty `SHA256SUMS`")
 }
 
+// TestDeployRestoreNamesTheWayBackAfterAFailure: a restore that fails after
+// the stop leaves the site down; status 1 then has a third meaning, and the
+// script prints the way back. A data directory that is a mount point has its
+// contents moved instead (code review 32, WR-04).
+func TestDeployRestoreNamesTheWayBackAfterAFailure(t *testing.T) {
+	sectionContains(t, "### Restore from a backup",
+		"fails after the service was stopped",
+		"the commands that put the previous data back and start the service",
+		"is a mount point")
+}
+
 // bashBlocks returns the lines inside the ```bash fences of section.
 func bashBlocks(section string) []string {
 	var out []string

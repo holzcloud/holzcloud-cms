@@ -6,10 +6,11 @@ set -euo pipefail
 # The counterpart that was missing: DEPLOY.md had a backup section and no
 # restore section, so the backups had never been proven to be restorable.
 #
-# The live data directory is moved aside rather than deleted. If the restore
-# turns out to be the wrong snapshot, the previous state is still on disk. The
-# directory is never removed by this script; it holds the media of the replaced
-# site and is deleted by hand once the restored site is accepted.
+# The live data directory is moved aside rather than deleted (its contents,
+# when it is a mount point). If the restore turns out to be the wrong snapshot,
+# the previous state is still on disk. The directory is never removed by this
+# script; it holds the media of the replaced site and is deleted by hand once
+# the restored site is accepted.
 #
 # What a restore brings back: the database, csrf.key and the five directories
 # media, templates, plugins, sprachen and marke, each only if the backup has it
@@ -36,8 +37,10 @@ set -euo pipefail
 #
 # Exit status:
 #   0  restored (checksums verified, or a backup made before 0.1.5, with a notice)
-#   1  refused or failed: nothing stopped when the backup was refused; when the
-#      site did not report ready after the restore, see the journal
+#   1  refused or failed: nothing stopped when the backup was refused; when a
+#      step failed after the stop, the service stays stopped and the last line
+#      names where the previous data is and the commands that put it back;
+#      when the site did not report ready after the restore, see the journal
 #   3  restored, but files that database rows name are missing from the backup;
 #      they are listed before the question and again at the end
 #
@@ -237,14 +240,82 @@ fi
 read -r -p "Stop ${SERVICE} and replace ${DATA_DIR}? [yes/NO] " confirm
 [ "${confirm}" = "yes" ] || { echo "aborted"; exit 1; }
 
+# Where the current data goes. A data directory that is a mount point (a data
+# disk; holzcloud.service names it in RequiresMountsFor) cannot be renamed:
+# mv fails with "Device or resource busy". Its contents are moved instead,
+# into a directory on the same disk, so the move is a rename and needs no
+# space. Earlier set-aside directories stay where they are.
+is_mount_point() {
+    if command -v mountpoint > /dev/null 2>&1; then
+        mountpoint -q -- "$1"
+    else
+        [ "$(df -P -- "$1" 2> /dev/null | awk 'NR == 2 { print $6 }')" = "$1" ]
+    fi
+}
+ASIDE_STAMP=$(date +%Y%m%d-%H%M%S)
+DATA_IS_MOUNT=""
+if [ -d "${DATA_DIR}" ] && is_mount_point "${DATA_DIR}"; then
+    DATA_IS_MOUNT=yes
+    ASIDE="${DATA_DIR}/.before-restore-${ASIDE_STAMP}"
+else
+    ASIDE="${DATA_DIR}.before-restore-${ASIDE_STAMP}"
+fi
+
+# From the stop until the start, a failure leaves the site down and the data
+# directory half written; set -e would end the script without a word about
+# the way back. STAGE says how far the restore got, and the trap prints the
+# commands that put the previous data back and start the service.
+STAGE=""
+way_back() {
+    local d a s mv_back
+    d=$(printf '%q' "${DATA_DIR}")
+    a=$(printf '%q' "${ASIDE}")
+    s=$(printf '%q' "${SERVICE}")
+    mv_back="find ${a} -mindepth 1 -maxdepth 1 -exec sh -c 'mv -- \"\$@\" \"\$0\"' ${d} {} + && rmdir ${a}"
+    case "${STAGE}" in
+        stopped)
+            echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; ${DATA_DIR} was not changed. To go back: systemctl start ${s}" >&2
+            ;;
+        moving)
+            echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; some of the previous data is in ${ASIDE}, the rest still in ${DATA_DIR}. As root, to go back: ${mv_back} && systemctl start ${s}" >&2
+            ;;
+        moved)
+            if [ -n "${DATA_IS_MOUNT}" ]; then
+                echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; ${DATA_DIR} is half written and the previous data is in ${ASIDE}. As root, to go back: find ${d} -mindepth 1 -maxdepth 1 ! -name '.before-restore-*' -exec rm -rf -- {} + && ${mv_back} && systemctl start ${s}" >&2
+            else
+                echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; ${DATA_DIR} is half written and the previous data is in ${ASIDE}. As root, to go back: rm -rf -- ${d} && mv -- ${a} ${d} && systemctl start ${s}" >&2
+            fi
+            ;;
+        fresh)
+            echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; there was no ${DATA_DIR} before, so there is nothing to go back to. Fix the cause (see above) and run the restore again" >&2
+            ;;
+    esac
+    return 0
+}
+on_exit() {
+    remove_temporaries
+    way_back
+}
+trap on_exit EXIT
+
 echo "Stopping ${SERVICE}..."
 systemctl stop "${SERVICE}"
+STAGE=stopped
 
 # Move aside, never delete.
-if [ -d "${DATA_DIR}" ]; then
-    ASIDE="${DATA_DIR}.before-restore-$(date +%Y%m%d-%H%M%S)"
+if [ -n "${DATA_IS_MOUNT}" ]; then
+    echo "${DATA_DIR} is a mount point; moving its contents to ${ASIDE}"
+    mkdir "${ASIDE}"
+    STAGE=moving
+    find "${DATA_DIR}" -mindepth 1 -maxdepth 1 ! -name '.before-restore-*' \
+        -exec sh -c 'mv -- "$@" "$0"' "${ASIDE}" {} +
+    STAGE=moved
+elif [ -d "${DATA_DIR}" ]; then
     echo "Moving current data to ${ASIDE}"
     mv "${DATA_DIR}" "${ASIDE}"
+    STAGE=moved
+else
+    STAGE=fresh
 fi
 mkdir -p "${DATA_DIR}"
 
@@ -268,6 +339,7 @@ chmod 700 "${DATA_DIR}"
 
 echo "Starting ${SERVICE}..."
 systemctl start "${SERVICE}"
+STAGE=started
 
 echo "Waiting for readiness..."
 for _ in $(seq 1 30); do

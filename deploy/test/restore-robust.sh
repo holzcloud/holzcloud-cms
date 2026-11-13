@@ -198,9 +198,24 @@ FAKE
 chmod +x "$T/bin/systemctl"
 cat > "$T/bin/chown" <<'FAKE'
 #!/bin/bash
+if [ "${FAKE_CHOWN_FAIL:-0}" = "1" ]; then
+    echo "chown: changing ownership: Operation not permitted" >&2
+    exit 1
+fi
 exit 0
 FAKE
 chmod +x "$T/bin/chown"
+# mountpoint answers yes for exactly the path in FAKE_MOUNT (a data directory
+# that is a mounted disk), no for everything else.
+cat > "$T/bin/mountpoint" <<'FAKE'
+#!/bin/bash
+last=""
+for a in "$@"; do
+    last="$a"
+done
+[ -n "${FAKE_MOUNT:-}" ] && [ "$last" = "$FAKE_MOUNT" ]
+FAKE
+chmod +x "$T/bin/mountpoint"
 cat > "$T/bin/curl" <<'FAKE'
 #!/bin/bash
 echo '{"status":"ready"}'
@@ -585,6 +600,60 @@ bt_has "binary-refuses: the neutral sentence" "$T/err" "ERROR: the installed hol
 bt_not "binary-refuses: not the integrity sentence" "$T/err" "fails its integrity check"
 bt_eq "binary-refuses: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 bt_eq "binary-refuses: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+# The way back a failed restore prints is played as it stands, with the fakes
+# on PATH: what follows "to go back: " on the ERROR line.
+play_way_back() {
+    sed -n 's/^.*[Tt]o go back: //p' "$T/err" | head -n 1 > "$T/way-back.sh"
+    if [ ! -s "$T/way-back.sh" ]; then
+        echo "no way back"
+        return
+    fi
+    if env PATH="$T/bin:$PATH" FAKE_SYSTEMCTL_LOG="$T/systemctl.log" "$BASH" "$T/way-back.sh" > "$T/way-back.out" 2>&1; then
+        echo ok
+    else
+        echo "failed: $(cat "$T/way-back.out")"
+    fi
+}
+STOPPED_LINE="ERROR: the restore failed after holzcloud was stopped, and holzcloud is not running"
+
+section "Case fails-after-stop: a failure after the stop prints the way back, which works"
+reset_case
+run_restore FAKE_CHOWN_FAIL=1
+bt_eq "fails-after-stop: exit status 1" 1 "$RC"
+bt_has "fails-after-stop: the stopped line" "$T/err" "$STOPPED_LINE"
+bt_has "fails-after-stop: the set-aside directory is named" "$T/err" "the previous data is in $LIVE.before-restore-"
+bt_eq "fails-after-stop: the service was stopped, not started" "stop holzcloud," "$(tr '\n' ',' < "$T/systemctl.log")"
+bt_eq "fails-after-stop: the set-aside directory holds the old site" yes \
+    "$(if [ -f "$(ls -d "$LIVE".before-restore-* 2>/dev/null | head -n 1)/sentinel.txt" ]; then echo yes; else echo no; fi)"
+bt_eq "fails-after-stop: the way back runs" ok "$(play_way_back)"
+bt_eq "fails-after-stop: after it the live data is the old site" yes "$(live_untouched)"
+bt_eq "fails-after-stop: after it no set-aside directory is left" 0 "$(ls -d "$LIVE".before-restore-* 2>/dev/null | wc -l | tr -d ' ')"
+bt_eq "fails-after-stop: the way back starts the service" "stop holzcloud,start holzcloud," "$(tr '\n' ',' < "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case mount: a data directory that is a mount point keeps its place, its contents go aside"
+reset_case
+run_restore FAKE_MOUNT="$LIVE"
+bt_eq "mount: exit status 0" 0 "$RC"
+bt_eq "mount: the data directory is the backup's" yes "$(restored)"
+bt_eq "mount: the old site is in a directory on the same disk" yes \
+    "$(if [ -f "$(ls -d "$LIVE"/.before-restore-* 2>/dev/null | head -n 1)/sentinel.txt" ]; then echo yes; else echo no; fi)"
+bt_eq "mount: nothing was set aside beside it" 0 "$(ls -d "$LIVE".before-restore-* 2>/dev/null | wc -l | tr -d ' ')"
+bt_has "mount: it says where the old site went" "$T/out" "is a mount point; moving its contents to $LIVE/.before-restore-"
+
+# ---------------------------------------------------------------------------
+section "Case mount-fails: a mount point and a failure after the stop: the way back works"
+reset_case
+run_restore FAKE_MOUNT="$LIVE" FAKE_CHOWN_FAIL=1
+bt_eq "mount-fails: exit status 1" 1 "$RC"
+bt_has "mount-fails: the stopped line" "$T/err" "$STOPPED_LINE"
+bt_has "mount-fails: the set-aside directory is named" "$T/err" "the previous data is in $LIVE/.before-restore-"
+bt_eq "mount-fails: the way back runs" ok "$(play_way_back)"
+bt_eq "mount-fails: after it the live data is the old site" yes "$(live_untouched)"
+bt_eq "mount-fails: after it the restored database is gone" no "$(exists "$LIVE/holzcloud.sqlite")"
+bt_eq "mount-fails: after it no set-aside directory is left" 0 "$(ls -d "$LIVE"/.before-restore-* 2>/dev/null | wc -l | tr -d ' ')"
 
 # ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
