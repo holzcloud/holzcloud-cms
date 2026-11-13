@@ -24,6 +24,11 @@ import (
 // gallery would lose a picture without a word. Every one of those places is an
 // EXISTS arm of the one statement below.
 //
+// A file is also shown by its address where no HTML is stored: a menu entry
+// linking "Speisekarte.pdf", a redirect whose target is the file, a link field
+// of a page or snippet, a block's Markdown. Those are text that contains the
+// address, and each has an arm or a clause of its own.
+//
 // Stored HTML is searched with instr and never with a pattern match: "_" and
 // "%" occur in file names, and a wildcard would make a_b.jpg in use because a
 // page shows axb.jpg.
@@ -52,17 +57,19 @@ func (s *Store) InUse(ctx context.Context, m *Media) (bool, error) {
 		    OR EXISTS (SELECT 1 FROM pages p,
 		                json_tree(CASE WHEN json_valid(p.fields) THEN p.fields ELSE '{}' END) j
 		                WHERE p.website_id = $2 AND p.deleted_at IS NULL
-		                  AND j.type = 'text' AND j.atom = $4)
+		                  AND j.type = 'text' AND (j.atom = $4 OR instr(j.atom, $3) > 0))
 		    OR EXISTS (SELECT 1 FROM pages p,
 		                json_tree(CASE WHEN json_valid(p.blocks) THEN p.blocks ELSE '[]' END) j
 		                WHERE p.website_id = $2 AND p.deleted_at IS NULL
 		                  AND ((j.key IN ('medium', 'vorschaubild') AND j.type = 'integer' AND j.atom = $1)
-		                    OR (j.type = 'text' AND j.atom = $4 AND j.path GLOB '*.felder')))
+		                    OR (j.type = 'text' AND j.atom = $4 AND j.path GLOB '*.felder')
+		                    OR (j.type = 'text' AND instr(j.atom, $3) > 0)))
 		    OR EXISTS (SELECT 1 FROM snippets sn
 		                WHERE sn.website_id = $2 AND instr(sn.content_html, $3) > 0)
 		    OR EXISTS (SELECT 1 FROM snippets sn,
 		                json_tree(CASE WHEN json_valid(sn.fields) THEN sn.fields ELSE '{}' END) j
-		                WHERE sn.website_id = $2 AND j.type = 'text' AND j.atom = $4)
+		                WHERE sn.website_id = $2 AND j.type = 'text'
+		                  AND (j.atom = $4 OR instr(j.atom, $3) > 0))
 		    OR EXISTS (SELECT 1 FROM album_items ai JOIN albums a ON a.id = ai.album_id
 		                WHERE a.website_id = $2 AND ai.media_id = $1)
 		    OR EXISTS (SELECT 1 FROM websites w
@@ -71,7 +78,11 @@ func (s *Store) InUse(ctx context.Context, m *Media) (bool, error) {
 		                WHERE pr.website_id = $2
 		                  AND (pr.featured_media_id = $1 OR instr(pr.description_html, $3) > 0))
 		    OR EXISTS (SELECT 1 FROM product_media pm JOIN products pr ON pr.id = pm.product_id
-		                WHERE pr.website_id = $2 AND pm.media_id = $1)`,
+		                WHERE pr.website_id = $2 AND pm.media_id = $1)
+		    OR EXISTS (SELECT 1 FROM menu_items mi JOIN menus mn ON mn.id = mi.menu_id
+		                WHERE mn.website_id = $2 AND instr(mi.url, $3) > 0)
+		    OR EXISTS (SELECT 1 FROM redirects rd
+		                WHERE rd.website_id = $2 AND instr(rd.to_path, $3) > 0)`,
 		m.ID, m.WebsiteID, path, idText).Scan(&used)
 	if err != nil {
 		return true, fmt.Errorf("media in use: %w", err)

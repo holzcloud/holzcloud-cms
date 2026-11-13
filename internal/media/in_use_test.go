@@ -132,6 +132,29 @@ func TestInUseSeesEveryPlaceAFileIsShown(t *testing.T) {
 			mustExec(t, s, `UPDATE products SET description_html = $1 WHERE id = $2`,
 				`<p><img src="`+path(ws)+`" alt="Bank"></p>`, product)
 		}},
+		{"a menu entry linking the file", func(t *testing.T, s *Store, ws int64, m *Media) {
+			menu := mustExec(t, s, `INSERT INTO menus (website_id, name, location_key) VALUES ($1, 'Haupt', 'main')`, ws)
+			mustExec(t, s, `INSERT INTO menu_items (menu_id, title, item_type, url) VALUES ($1, 'Speisekarte', 'custom', $2)`,
+				menu, path(ws))
+		}},
+		{"a redirect to the file", func(t *testing.T, s *Store, ws int64, m *Media) {
+			mustExec(t, s, `INSERT INTO redirects (website_id, from_path, to_path, source) VALUES ($1, '/karte', $2, 'manual')`,
+				ws, path(ws))
+		}},
+		{"a page's link field holding the address", func(t *testing.T, s *Store, ws int64, m *Media) {
+			page := seedPage(t, s, ws, "Link", "link")
+			mustExec(t, s, `UPDATE pages SET fields = $1 WHERE id = $2`,
+				`{"werte":{"download":"`+path(ws)+`"}}`, page)
+		}},
+		{"a block's text naming the address", func(t *testing.T, s *Store, ws int64, m *Media) {
+			page := seedPage(t, s, ws, "Blocktext", "blocktext")
+			mustExec(t, s, `UPDATE pages SET blocks = $1 WHERE id = $2`,
+				`[{"typ":"text","markdown":"[Karte](`+path(ws)+`)"}]`, page)
+		}},
+		{"a text snippet's link field holding the address", func(t *testing.T, s *Store, ws int64, m *Media) {
+			mustExec(t, s, `INSERT INTO snippets (website_id, key, name, fields) VALUES ($1, 'karte', 'Karte', $2)`,
+				ws, `{"werte":{"datei":"`+path(ws)+`"}}`)
+		}},
 	}
 
 	for _, arm := range arms {
