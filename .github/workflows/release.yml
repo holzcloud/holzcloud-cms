@@ -328,6 +328,11 @@ jobs:
     name: Show the version on holzcloud.ch
     needs: release
     runs-on: ubuntu-latest
+    # A ceiling of its own: the script times out every request (three
+    # attempts of 30 s with back-off, then 30 s per published page read back),
+    # so ten minutes is far more than a healthy run takes and stops a hung
+    # runner from holding the job for the default six hours.
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
