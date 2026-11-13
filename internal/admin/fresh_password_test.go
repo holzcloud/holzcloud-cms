@@ -184,6 +184,47 @@ func TestTheSetupScreenOfAConfirmedFactorAsksForThePasswordFirst(t *testing.T) {
 	}
 }
 
+// A lookup of the factor that fails says nothing about whether one is
+// confirmed, and a failure there does not mean the write behind it fails too:
+// the recovery codes live in a table of their own, and the pending secret is
+// written to the users row. The question fails closed (D-08), as the rights
+// lookup does — otherwise a transient error showed a new secret over a
+// confirmed factor without the password, the exposure RGT-07 closes.
+func TestAConfirmedFactorThatCannotBeReadAsksForThePasswordFirst(t *testing.T) {
+	h, sm, database := newSecondFactorAdmin(t)
+	id := seedSecondFactorAccount(t, h, "admin@test.local", user.RoleAdmin)
+	enableSecondFactor(t, database, id)
+	if _, err := database.Write.Exec(`ALTER TABLE user_recovery_codes RENAME TO user_recovery_codes_away`); err != nil {
+		t.Fatalf("break the factor lookup: %v", err)
+	}
+	if _, err := h.users.GetTwoFactor(context.Background(), id); err == nil {
+		t.Fatal("the factor lookup still works; the test breaks nothing")
+	}
+	pending := func() string {
+		t.Helper()
+		var p string
+		if err := database.Read.QueryRow(`SELECT totp_pending_secret FROM users WHERE id = $1`, id).Scan(&p); err != nil {
+			t.Fatalf("read pending secret: %v", err)
+		}
+		return p
+	}
+
+	rec := serveSignedIn(t, h, sm, h.HandleTwoFactorSetup, openSetupScreen(), id, false)
+	asksForThePassword(t, "the setup screen with a failing lookup", rec.Code, rec.Header().Get("Location"))
+	if showsASecret(rec.Body.String()) {
+		t.Error("the setup screen showed a secret with a failing lookup")
+	}
+	if p := pending(); p != "" {
+		t.Errorf("the setup screen wrote a pending secret with a failing lookup: %q", p)
+	}
+
+	rec = serveSignedIn(t, h, sm, h.HandleTwoFactorRestart, postForm("/admin/2fa/einrichten/neu", nil, nil), id, false)
+	asksForThePassword(t, "restart with a failing lookup", rec.Code, rec.Header().Get("Location"))
+	if p := pending(); p != "" {
+		t.Errorf("restart wrote a pending secret with a failing lookup: %q", p)
+	}
+}
+
 // First enrolment and the forced enrolment of a new administrator have no
 // confirmed factor, and a question there would stand between that person and
 // the only screen they are let onto. The secret is shown at once.

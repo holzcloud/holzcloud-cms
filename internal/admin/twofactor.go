@@ -240,9 +240,17 @@ func (h *Handler) confirmTwoFactor(w http.ResponseWriter, r *http.Request, userI
 // session it moves the account to somebody else's phone.
 func (h *Handler) secondFactorChangeAllowed(w http.ResponseWriter, r *http.Request, userID int64) bool {
 	tf, err := h.users.GetTwoFactor(r.Context(), userID)
-	if err != nil || tf == nil || !tf.Enabled() {
-		// A lookup that fails tells nothing about a confirmed factor; the
-		// write that follows meets the same database and reports it there.
+	if err != nil {
+		// A lookup that fails tells nothing about a confirmed factor, and the
+		// write that follows need not fail with it: the recovery codes the
+		// lookup counts live in another table than the pending secret. So it
+		// fails closed, as the rights lookup does (D-08) — the password is
+		// asked for, which costs a person with no confirmed factor one
+		// question and keeps a confirmed one from moving unasked.
+		slog.Error("two-factor lookup failed; asking for the password", "user_id", userID, "err", err)
+		return auth.EnsureFreshPassword(h.sm, w, r)
+	}
+	if tf == nil || !tf.Enabled() {
 		return true
 	}
 	return auth.EnsureFreshPassword(h.sm, w, r)
