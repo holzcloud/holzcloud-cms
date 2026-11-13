@@ -71,8 +71,8 @@ if [ -z "${BACKUP_DIR}" ] || [ ! -d "${BACKUP_DIR}" ]; then
     ls -1 "$(dirname "${DATA_DIR}")/backups" 2>/dev/null >&2 || true
     exit 1
 fi
-# A symbolic link or a special file has no place in a backup: backup.sh makes
-# neither. A link would be put back into the live data directory by rsync
+# A symbolic link or a special file has no place in a backup: backup.sh has
+# made neither since 0.1.5. A link would be put back into the live data directory by rsync
 # without its target ever being checked, and a FIFO or a device would hang the
 # checks below forever, as root, before anything is stopped. So nothing of the
 # backup is read before this search, which follows no link.
@@ -80,8 +80,17 @@ if ! odd=$(cd "${BACKUP_DIR}" && find . \( -type l -o \( ! -type f ! -type d \) 
     echo "ERROR: could not search ${BACKUP_DIR} for links and special files (see above); nothing was stopped" >&2
     exit 1
 fi
+# backup.sh refuses a link in the data directory since 0.1.5, the release
+# that added SHA256SUMS; an older backup.sh copied links as they were. So a
+# backup with a regular SHA256SUMS got its link after the night, and an older
+# one may hold a link the night copied: it is refused all the same, with the
+# way forward through a copy of it.
 if [ -n "${odd}" ]; then
-    echo "ERROR: ${odd} in ${BACKUP_DIR} is a symbolic link or not a regular file; backup.sh makes neither — do not restore it" >&2
+    if [ -f "${BACKUP_DIR}/SHA256SUMS" ] && [ ! -h "${BACKUP_DIR}/SHA256SUMS" ]; then
+        echo "ERROR: ${odd} in ${BACKUP_DIR} is a symbolic link or not a regular file; backup.sh has made neither since 0.1.5, so it was put there after the night — do not restore this backup, restore another one" >&2
+    else
+        echo "ERROR: ${odd} in ${BACKUP_DIR} is a symbolic link or not a regular file; this backup has no checksum file, so it was made before 0.1.5, whose backup.sh copied links as they were. It is not restored as it stands: to restore it, copy it with cp -a, in the copy replace ${odd#./} with the file it points to or remove it (ls -l ${BACKUP_DIR}/${odd#./} shows where it points), and restore the copy; or restore another backup" >&2
+    fi
     exit 1
 fi
 if [ ! -f "${BACKUP_DIR}/holzcloud.sqlite" ]; then

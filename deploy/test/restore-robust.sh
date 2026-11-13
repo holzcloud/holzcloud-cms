@@ -530,7 +530,8 @@ bt_not "manifest-lost-line: no notice of an old backup" "$T/out" "made before 0.
 bt_eq "manifest-lost-line: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 
 # ---------------------------------------------------------------------------
-ODD="is a symbolic link or not a regular file; backup.sh makes neither — do not restore it"
+ODD="is a symbolic link or not a regular file; backup.sh has made neither since 0.1.5, so it was put there after the night — do not restore this backup, restore another one"
+ODD_OLD="is a symbolic link or not a regular file; this backup has no checksum file, so it was made before 0.1.5, whose backup.sh copied links as they were"
 
 section "Case link-dir: a directory replaced by a link out of the backup is refused unread"
 reset_case
@@ -577,7 +578,13 @@ mkdir -p "$T/outside"
 ln -s "$T/outside" "$B/templates/elsewhere"
 run_restore
 bt_eq "link-old: exit status 1" 1 "$RC"
-bt_has "link-old: the link is named" "$T/err" "ERROR: ./templates/elsewhere in $B $ODD"
+# A backup.sh before 0.1.5 copied links as they were, so such a backup is not
+# called something backup.sh never makes, and the refusal names a way forward
+# (code review 32, second pass, IN-04).
+bt_has "link-old: the link is named, as made before 0.1.5" "$T/err" "ERROR: ./templates/elsewhere in $B $ODD_OLD"
+bt_has "link-old: the way forward" "$T/err" "to restore it, copy it with cp -a, in the copy replace templates/elsewhere with the file it points to or remove it (ls -l $B/templates/elsewhere shows where it points), and restore the copy; or restore another backup"
+bt_not "link-old: it does not say backup.sh never made one" "$T/err" "neither"
+bt_not "link-old: it does not send the operator away from the backup" "$T/err" "do not restore"
 bt_eq "link-old: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 
 # ---------------------------------------------------------------------------
