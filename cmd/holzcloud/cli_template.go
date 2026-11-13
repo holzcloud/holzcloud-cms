@@ -104,15 +104,20 @@ func runTemplateCheck(args []string, stdout, stderr io.Writer) error {
 	// would be worse than the thing being reported. So they are printed on
 	// their own, above, whether or not anything else is wrong.
 	notes := untranslatedWords(dir)
-	for _, n := range notes {
-		fmt.Fprintf(stderr, "  note: %s\n\n", strings.ReplaceAll(n, "\n    ", "\n        "))
-	}
 
 	// Which contract this check reads the theme against, and which one the
 	// theme says it was written for. Stated, not judged: a theme declaring
-	// nothing is fine, and what a difference means is not decided here.
+	// nothing is fine, a different version is a note beside the others, and
+	// what a difference means is not decided here.
+	line, versionNote := contractLine(target, dir)
+	if versionNote != "" {
+		notes = append(notes, versionNote)
+	}
+	for _, n := range notes {
+		fmt.Fprintf(stderr, "  note: %s\n\n", strings.ReplaceAll(n, "\n    ", "\n        "))
+	}
 	if !*quiet {
-		fmt.Fprintln(stdout, contractLine(target, dir))
+		fmt.Fprintln(stdout, line)
 	}
 
 	if len(problems) == 0 {
@@ -208,15 +213,22 @@ func untranslatedWords(dir string) []string {
 //
 // A theme.json that cannot be read leaves the declared half out; the checks
 // report that file as a problem of its own.
-func contractLine(target, dir string) string {
+//
+// note is set when the theme declares a version other than the current one. It
+// says that the two differ and nothing about what that means.
+func contractLine(target, dir string) (line, note string) {
 	version, declared, err := tmpl.DeclaredContract(os.DirFS(dir))
 	switch {
 	case err != nil:
-		return "template contract " + tmpl.ContractVersion
+		return "template contract " + tmpl.ContractVersion, ""
 	case !declared:
 		return fmt.Sprintf("template contract %s; %s declares no contract version (%s)",
-			tmpl.ContractVersion, target, tmpl.ManifestName)
-	default:
-		return fmt.Sprintf("template contract %s; %s declares %s", tmpl.ContractVersion, target, version)
+			tmpl.ContractVersion, target, tmpl.ManifestName), ""
 	}
+	line = fmt.Sprintf("template contract %s; %s declares %s", tmpl.ContractVersion, target, version)
+	if version != tmpl.ContractVersion {
+		note = fmt.Sprintf("%s was written for template contract %s; this check reads template contract %s",
+			target, version, tmpl.ContractVersion)
+	}
+	return line, note
 }

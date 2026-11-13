@@ -43,6 +43,7 @@ and each picks its own template.
       checkout.html    optional — the order form
       order.html       optional — the confirmation of a placed order
       style.css        optional, but every real template has one
+      theme.json       optional — {"contract": "1.0"}, the contract this theme was written for
       fonts/…          optional, bundled font files
       *.svg *.png …    optional, bundled images
 
@@ -121,8 +122,20 @@ Allowed: `.html` `.css` `.svg` `.png` `.jpg` `.jpeg` `.gif` `.webp` `.ico`
 `.woff` `.woff2` `.ttf` `.json`. At most 500 files, 10 MB uncompressed by
 default.
 
-`.json` is for `lang/<tag>.json`, your theme's own catalogue (§2.5). It is read
-by the server and never served to a browser.
+`.json` is for `lang/<tag>.json`, your theme's own catalogue (§2.5), and for
+`theme.json`. The server reads both and a page never needs either, so put
+nothing in them you would mind a visitor reading.
+
+`theme.json` at the root of the archive may say which template contract the
+theme was written for, as major.minor:
+
+    {"contract": "1.0"}
+
+Nothing else in the file is read, so other keys are ignored. Without the file,
+`holzcloud template check` reports that the theme declares no contract version.
+A different well-formed version is reported, and never refused. A `theme.json`
+that is not a JSON object, or whose `contract` is not a string of the form
+major.minor, is refused, and the message names `theme.json`.
 
 ### 2.5 A theme carries its own words, in its own catalogue
 
@@ -1098,3 +1111,4 @@ mechanically, and its messages name the file, the line, and the fix.
 - [ ] `@media print` exists
 - [ ] Empty archive, empty search, no menu — all render sensibly
 - [ ] Zipped with `layout.html` at the root
+- [ ] `theme.json` declares the contract you wrote against (`holzcloud template check` prints both)

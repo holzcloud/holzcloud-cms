@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -829,7 +831,9 @@ func uploadTemplate(d Deps) Tool {
 		Description: "Installs a template from a .zip archive, after the same checks as the admin's upload: " +
 			"layout.html and page.html present, no external subresources, no JavaScript, and a render of " +
 			"a full and of an empty page. A refused archive answers with what the checks found. " +
-			"get_template_spec is the contract a template must meet. Installing does not activate it.",
+			"get_template_spec is the contract a template must meet. Installing does not activate it. " +
+			"A theme.json at the archive root may declare the contract version it was written for, " +
+			`as {"contract": "` + tmpl.ContractVersion + `"}; the answer reports it beside the current one.`,
 		InputSchema: Schema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -864,10 +868,30 @@ func uploadTemplate(d Deps) Tool {
 			})
 			return map[string]any{
 				"id": t.ID, "name": t.Name, "slug": t.Slug,
-				"note": "Installed. activate_template switches a website to it.",
+				"contract": tmpl.ContractVersion,
+				"declares": declaredContract(d, t.Slug),
+				"note": "Installed. activate_template switches a website to it. contract is the template " +
+					"contract this installation documents; declares is what the theme's theme.json says, " +
+					"and empty when it declares none.",
 			}, nil
 		},
 	}
+}
+
+// declaredContract is the contract version an installed template declares in
+// its theme.json, read from the files the upload actually put on disk. Empty
+// when it declares none, and when this server was given no data directory to
+// read it from. A malformed theme.json never gets this far: the upload refuses
+// it.
+func declaredContract(d Deps, slug string) string {
+	if d.Limits.DataDir == "" {
+		return ""
+	}
+	version, _, err := tmpl.DeclaredContract(os.DirFS(filepath.Join(d.Limits.DataDir, "templates", slug)))
+	if err != nil {
+		return ""
+	}
+	return version
 }
 
 func deleteTemplate(d Deps) Tool {
