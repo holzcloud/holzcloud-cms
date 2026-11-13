@@ -247,10 +247,13 @@ cp "${BACKUP_DIR}/holzcloud.sqlite" "${VERIFY_DIR}/holzcloud.sqlite"
 # refusal. A missing file is reported, never refused: the database is restored
 # and the operator decides about the files (status 3 at the end). A binary
 # older than 0.1.5 ignores the flag and prints no files line, so the line is
-# required before "nothing missing" is believed.
+# required before "nothing missing" is believed. -copy tells the binary the
+# database is this throwaway copy: an older backup is migrated without a
+# pre-upgrade snapshot, which would be a second full copy in the temporary
+# directory (a binary older than 0.1.5 ignores it with the rest).
 MISSING_COUNT=0
 MISSING_LINES=""
-if check_out=$(HOLZCLOUD_DATA_DIR="${VERIFY_DIR}" "${HOLZCLOUD_BIN}" check -files "${BACKUP_DIR}" 2>&1); then
+if check_out=$(HOLZCLOUD_DATA_DIR="${VERIFY_DIR}" "${HOLZCLOUD_BIN}" check -copy -files "${BACKUP_DIR}" 2>&1); then
     check_rc=0
 else
     check_rc=$?

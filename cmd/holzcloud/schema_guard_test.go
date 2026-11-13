@@ -164,6 +164,26 @@ func TestASubcommandSnapshotsBeforeItMigrates(t *testing.T) {
 	}
 }
 
+// restore.sh runs `check -copy -files` on a throwaway copy of the backup in a
+// temporary directory. Migrating that copy needs no way back, and a full
+// pre-upgrade snapshot beside it would double the temporary space the restore
+// of an older backup needs, on a /tmp that may be a small tmpfs (code review
+// 32, second pass, IN-02). Without -copy, check snapshots as before.
+func TestCheckOnACopyMigratesWithoutASnapshot(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("HOLZCLOUD_DATA_DIR", dataDir)
+
+	if err := cmdCheck([]string{"-copy", "-files", t.TempDir()}); err != nil {
+		t.Fatalf("check -copy -files on an empty data directory: %v", err)
+	}
+	if got := snapshotsIn(t, dataDir); len(got) != 0 {
+		t.Errorf("check -copy wrote a pre-upgrade snapshot: %v", got)
+	}
+	if v := levelIn(t, dataDir); v == 0 {
+		t.Fatal("check -copy did not migrate the copy")
+	}
+}
+
 // A database one level below, with rows in it, is covered by
 // TestTheGuardLetsAnOlderDatabasePassAndItMigrates in internal/db: package main
 // cannot reach the unexported migration provider that migrates part-way, and no

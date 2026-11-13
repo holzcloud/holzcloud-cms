@@ -37,7 +37,9 @@ Usage:
   holzcloud compact                 rebuild the database file (VACUUM)
   holzcloud rerender                re-render every page from its Markdown
   holzcloud thumbnails [-force]     generate the scaled copies of older images; -force rebuilds them for every image
-  holzcloud check [-files DIR]      integrity check; with -files, also every media row whose file DIR lacks (exit 3)
+  holzcloud check [-copy] [-files DIR]
+                                    integrity check; with -files, also every media row whose file DIR lacks (exit 3);
+                                    -copy: the database is a throwaway copy, migrated without a pre-upgrade snapshot
   holzcloud template check <path>   check a template directory or .zip
   holzcloud template spec           print the template authoring specification
   holzcloud ai key create           create a key for an AI assistant (-name, -level read|content|admin)
@@ -104,6 +106,13 @@ func runCLI(args []string) (handled bool, err error) {
 // the database through a subcommand leaves the way back that a refusal of a
 // newer schema names.
 func openForCLI() (config.Config, *db.DB, error) {
+	return openForCLISnapshot(true)
+}
+
+// openForCLISnapshot is openForCLI, with the pre-upgrade snapshot left out when
+// snapshotFirst is false: for `check -copy`, which migrates a throwaway copy
+// that needs no way back.
+func openForCLISnapshot(snapshotFirst bool) (config.Config, *db.DB, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return cfg, nil, err
@@ -120,10 +129,13 @@ func openForCLI() (config.Config, *db.DB, error) {
 		database.Close()
 		return cfg, nil, err
 	}
-	snapshot, err := snapshotBeforeMigrating(cfg, database)
-	if err != nil {
-		database.Close()
-		return cfg, nil, fmt.Errorf("pre-upgrade snapshot: %w", err)
+	snapshot := ""
+	if snapshotFirst {
+		snapshot, err = snapshotBeforeMigrating(cfg, database)
+		if err != nil {
+			database.Close()
+			return cfg, nil, fmt.Errorf("pre-upgrade snapshot: %w", err)
+		}
 	}
 	if err := db.RunMigrations(database.Write); err != nil {
 		database.Close()
@@ -310,22 +322,32 @@ func cmdCheck(args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	files := fs.String("files", "",
 		"also list every media row whose file `DIR` (a data directory or a backup of one) lacks")
+	onCopy := fs.Bool("copy", false,
+		"the database is a throwaway copy: migrate it without writing a pre-upgrade snapshot")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() > 0 {
-		return errors.New("usage: holzcloud check [-files DIR]")
+		return errors.New("usage: holzcloud check [-copy] [-files DIR]")
 	}
 	given := false
 	fs.Visit(func(f *flag.Flag) { given = given || f.Name == "files" })
 	if given && *files == "" {
 		return errors.New("check -files: needs a directory")
 	}
-	return runCheck(os.Stdout, *files)
+	return runCheck(os.Stdout, *files, *onCopy)
 }
 
 // runCheck is `holzcloud check`, writing its report to w. With files set it
 // also checks that every media row's file is below that directory.
+//
+// With onCopy set (`-copy`) the database is a throwaway copy, which restore.sh
+// makes of the backup in a temporary directory: an older one is migrated
+// without the pre-upgrade snapshot every other subcommand writes first. That
+// snapshot would be a second full copy of the database in the same temporary
+// directory, on a /tmp that may be a small tmpfs, and a way back for a copy
+// that is deleted a moment later. A binary older than 0.1.5 ignores its
+// arguments, so the flag costs restore.sh nothing with one.
 //
 // The lines are a contract with deploy/restore.sh, which runs this on the
 // copy of a backup it is about to restore:
@@ -356,14 +378,14 @@ func cmdCheck(args []string) error {
 // line of its own or show the operator another name than the stored one. A missing
 // file ends with status 3 and an empty message: the report is already out, and
 // 3 is not 1, a check that failed.
-func runCheck(w io.Writer, files string) error {
+func runCheck(w io.Writer, files string, onCopy bool) error {
 	if files != "" {
 		if info, err := os.Stat(files); err != nil || !info.IsDir() {
 			return fmt.Errorf("check -files: %s is not a directory", files)
 		}
 	}
 
-	_, database, err := openForCLI()
+	_, database, err := openForCLISnapshot(!onCopy)
 	if err != nil {
 		return err
 	}

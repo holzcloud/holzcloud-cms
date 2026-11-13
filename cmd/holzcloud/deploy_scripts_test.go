@@ -122,7 +122,7 @@ func TestRestoreReadsWhatCheckFilesPrints(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	runErr := runCheck(&out, backup)
+	runErr := runCheck(&out, backup, true)
 	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
 
 	markers, missing := 0, 0

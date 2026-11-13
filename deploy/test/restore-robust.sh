@@ -608,7 +608,7 @@ section "Case missing-media: rows without a file are reported, restored anyway, 
 reset_case
 run_restore FAKE_CHECK_MODE=missing
 bt_eq "missing-media: exit status 3" 3 "$RC"
-bt_eq "missing-media: the binary was asked with -files and the backup" 1 "$(grep -cxF "check check -files $B" "$T/hc.log")"
+bt_eq "missing-media: the binary was asked with -copy, -files and the backup" 1 "$(grep -cxF "check check -copy -files $B" "$T/hc.log")"
 # The question is read from a pipe here, so bash does not print it; the first
 # line after it is "Stopping holzcloud...".
 STOPPING=$(line_of "$T/out" "Stopping holzcloud...")

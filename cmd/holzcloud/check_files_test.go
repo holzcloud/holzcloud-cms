@@ -57,7 +57,7 @@ func putBackupFile(t *testing.T, backup string, websiteID int64, filename string
 func runCheckLines(t *testing.T, files string) ([]string, error) {
 	t.Helper()
 	var out bytes.Buffer
-	err := runCheck(&out, files)
+	err := runCheck(&out, files, false)
 	return strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n"), err
 }
 
