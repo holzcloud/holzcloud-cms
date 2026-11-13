@@ -225,6 +225,7 @@ FAKE
 chmod +x "$T/bin/systemctl"
 cat > "$T/bin/chown" <<'FAKE'
 #!/bin/bash
+echo "$*" >> "${FAKE_CHOWN_LOG:-/dev/null}"
 if [ "${FAKE_CHOWN_FAIL:-0}" = "1" ]; then
     echo "chown: changing ownership: Operation not permitted" >&2
     exit 1
@@ -289,6 +290,7 @@ reset_case() {
     : > "$T/systemctl.log"
     : > "$T/hc.log"
     : > "$T/sha.log"
+    : > "$T/chown.log"
 }
 
 run_restore() {
@@ -300,7 +302,7 @@ run_restore() {
             DATA_DIR="$LIVE" HOLZCLOUD_BIN="$T/bin/holzcloud" OWNER=nobody:nobody \
             SERVICE=holzcloud \
             FAKE_SYSTEMCTL_LOG="$T/systemctl.log" FAKE_HC_LOG="$T/hc.log" \
-            FAKE_SHA_LOG="$T/sha.log" \
+            FAKE_SHA_LOG="$T/sha.log" FAKE_CHOWN_LOG="$T/chown.log" \
             "$@" "$BASH" "$REPO/deploy/restore.sh" "$B"
     ) > "$T/out" 2> "$T/err"
     RC=$?
@@ -722,6 +724,36 @@ bt_eq "mount-fails: the way back runs" ok "$(play_way_back)"
 bt_eq "mount-fails: after it the live data is the old site" yes "$(live_untouched)"
 bt_eq "mount-fails: after it the restored database is gone" no "$(exists "$LIVE/holzcloud.sqlite")"
 bt_eq "mount-fails: after it no set-aside directory is left" 0 "$(ls -d "$LIVE"/.before-restore-* 2>/dev/null | wc -l | tr -d ' ')"
+
+# ---------------------------------------------------------------------------
+# A data disk has lost+found at its root. It belongs to the file system, not to
+# the site: it is neither moved aside nor handed to holzcloud, so deleting the
+# set-aside directory by hand later does not take it from the disk (code
+# review 32, second pass, IN-03).
+section "Case mount-lost-found: lost+found stays at the root of the disk, untouched"
+reset_case
+mkdir -p "$LIVE/lost+found"
+echo "fsck" > "$LIVE/lost+found/#1234"
+run_restore FAKE_MOUNT="$LIVE"
+bt_eq "mount-lost-found: exit status 0" 0 "$RC"
+bt_eq "mount-lost-found: the data directory is the backup's" yes "$(restored)"
+bt_eq "mount-lost-found: lost+found is where it was" yes "$(exists "$LIVE/lost+found/#1234")"
+bt_eq "mount-lost-found: lost+found was not moved aside" 0 \
+    "$(ls -d "$LIVE"/.before-restore-*/lost+found 2>/dev/null | wc -l | tr -d ' ')"
+bt_not "mount-lost-found: lost+found was not chowned" "$T/chown.log" "lost+found"
+bt_eq "mount-lost-found: no recursive chown of the whole disk" 0 "$(grep -cxF -- "-R nobody:nobody $LIVE" "$T/chown.log")"
+bt_has "mount-lost-found: the restored media were chowned" "$T/chown.log" "$LIVE/media"
+
+section "Case mount-fails-lost-found: the way back leaves lost+found alone"
+reset_case
+mkdir -p "$LIVE/lost+found"
+echo "fsck" > "$LIVE/lost+found/#1234"
+run_restore FAKE_MOUNT="$LIVE" FAKE_CHOWN_FAIL=1
+bt_eq "mount-fails-lost-found: exit status 1" 1 "$RC"
+bt_eq "mount-fails-lost-found: the way back runs" ok "$(play_way_back)"
+bt_eq "mount-fails-lost-found: after it the live data is the old site" yes "$(live_untouched)"
+bt_eq "mount-fails-lost-found: after it lost+found is where it was" yes "$(exists "$LIVE/lost+found/#1234")"
+bt_eq "mount-fails-lost-found: after it no set-aside directory is left" 0 "$(ls -d "$LIVE"/.before-restore-* 2>/dev/null | wc -l | tr -d ' ')"
 
 # ---------------------------------------------------------------------------
 # After the stop, every failure ends with status 1, whatever the failing

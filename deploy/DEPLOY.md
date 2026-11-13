@@ -1067,7 +1067,8 @@ In order, the script:
 4. moves the current data directory aside as `data.before-restore-` and a
    timestamp, never deleting it. When the data directory is a mount point (a
    data disk), it cannot be renamed; the script moves its contents into
-   `.before-restore-` and a timestamp inside it instead, on the same disk;
+   `.before-restore-` and a timestamp inside it instead, on the same disk. The
+   disk's `lost+found` stays where it is and keeps its owner;
 5. restores the database, `csrf.key` and the five directories (`media`,
    `templates`, `plugins`, `sprachen`, `marke`; a directory the backup lacks is
    skipped), sets owner and mode, starts the service and waits up to 30 seconds

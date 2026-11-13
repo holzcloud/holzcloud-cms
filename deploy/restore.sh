@@ -322,7 +322,7 @@ way_back() {
             ;;
         moved)
             if [ -n "${DATA_IS_MOUNT}" ]; then
-                echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; ${DATA_DIR} is half written and the previous data is in ${ASIDE}. As root, to go back: find ${d} -mindepth 1 -maxdepth 1 ! -name '.before-restore-*' -exec rm -rf -- {} + && ${mv_back} && systemctl start ${s}" >&2
+                echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; ${DATA_DIR} is half written and the previous data is in ${ASIDE}. As root, to go back: find ${d} -mindepth 1 -maxdepth 1 ! -name '.before-restore-*' ! -name lost+found -exec rm -rf -- {} + && ${mv_back} && systemctl start ${s}" >&2
             else
                 echo "ERROR: the restore failed after ${SERVICE} was stopped, and ${SERVICE} is not running; ${DATA_DIR} is half written and the previous data is in ${ASIDE}. As root, to go back: rm -rf -- ${d} && mv -- ${a} ${d} && systemctl start ${s}" >&2
             fi
@@ -363,7 +363,7 @@ if [ -n "${DATA_IS_MOUNT}" ]; then
     echo "${DATA_DIR} is a mount point; moving its contents to ${ASIDE}"
     mkdir "${ASIDE}"
     STAGE=moving
-    find "${DATA_DIR}" -mindepth 1 -maxdepth 1 ! -name '.before-restore-*' \
+    find "${DATA_DIR}" -mindepth 1 -maxdepth 1 ! -name '.before-restore-*' ! -name lost+found \
         -exec sh -c 'mv -- "$@" "$0"' "${ASIDE}" {} +
     STAGE=moved
 elif [ -d "${DATA_DIR}" ]; then
@@ -390,7 +390,16 @@ for name in media templates plugins sprachen marke; do
     fi
 done
 
-chown -R "${OWNER}" "${DATA_DIR}"
+# The lost+found of a data disk belongs to the file system: it stays root's,
+# at the root of the disk, and is never moved aside, so deleting the set-aside
+# directory later does not take it away.
+if [ -n "${DATA_IS_MOUNT}" ]; then
+    chown "${OWNER}" "${DATA_DIR}"
+    find "${DATA_DIR}" -mindepth 1 -maxdepth 1 ! -name lost+found \
+        -exec chown -R "${OWNER}" {} +
+else
+    chown -R "${OWNER}" "${DATA_DIR}"
+fi
 chmod 700 "${DATA_DIR}"
 
 echo "Starting ${SERVICE}..."
