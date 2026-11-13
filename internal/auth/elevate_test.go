@@ -121,6 +121,29 @@ func TestRueckwegBleibtImHaus(t *testing.T) {
 	}
 }
 
+// The way back keeps the address as it was written. Rebuilt from the decoded
+// path, a %3F in a segment came back as the start of a query and a %2F as a
+// separator: another address than the one that asked. And a path that only
+// decodes to the administration is not inside it.
+func TestTheWayBackKeepsTheEscapedPath(t *testing.T) {
+	for raw, want := range map[string]string{
+		"/admin/medien/a%3Fb?x=1":       "/admin/medien/a%3Fb?x=1",
+		"/admin/seiten/a%2Fb":           "/admin/seiten/a%2Fb",
+		"/%61dmin/websites":             "/admin/",
+		"/admin/websites/2/pages?q=a b": "/admin/websites/2/pages?q=a b",
+	} {
+		if got := SafeReturn(raw); got != want {
+			t.Errorf("SafeReturn(%q) = %q; want %q", raw, got, want)
+		}
+	}
+	req := httptest.NewRequest("POST", "/admin/websites/1/delete", nil)
+	req.Host = "example.com"
+	req.Header.Set("Referer", "http://example.com/admin/seiten/a%2Fb")
+	if got := backTo(req); got != "/admin/seiten/a%2Fb" {
+		t.Errorf("backTo = %q; want the escaped path", got)
+	}
+}
+
 // A referer from elsewhere must not become the target either.
 func TestBackToTakesOnlyItsOwnAddresses(t *testing.T) {
 	req := httptest.NewRequest("POST", "/admin/websites/1/delete", nil)

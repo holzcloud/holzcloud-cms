@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -153,7 +154,7 @@ func backTo(r *http.Request) string {
 	if err != nil || u.Path == "" || u.Host != r.Host {
 		return "/admin/"
 	}
-	back := u.Path
+	back := u.EscapedPath()
 	if u.RawQuery != "" {
 		back += "?" + u.RawQuery
 	}
@@ -170,10 +171,16 @@ func SafeReturn(raw string) string {
 	// Absolute, protocol-relative, or anywhere outside the administration: back
 	// to the start page. There is nothing else a stranger's address could be
 	// good for here.
-	if err != nil || u.IsAbs() || u.Host != "" || len(u.Path) < 7 || u.Path[:7] != "/admin/" {
+	//
+	// The address goes back as it was written: the escaped path, not the
+	// decoded one, in which a %3F would become the start of a query and a %2F
+	// a separator. Both forms must lie inside the administration — a path that
+	// only decodes to /admin/ is not an address of it.
+	if err != nil || u.IsAbs() || u.Host != "" || !strings.HasPrefix(u.Path, "/admin/") ||
+		!strings.HasPrefix(u.EscapedPath(), "/admin/") {
 		return "/admin/"
 	}
-	out := u.Path
+	out := u.EscapedPath()
 	if u.RawQuery != "" {
 		out += "?" + u.RawQuery
 	}
