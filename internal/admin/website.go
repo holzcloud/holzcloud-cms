@@ -33,8 +33,14 @@ type websiteDesignData struct {
 	TextContrast, LinkContrast contrastView
 	// ReadOnly is set for somebody without the publishing right: a theme is
 	// the look of every page the moment it is activated, so the screen shows
-	// which one is active and offers no Activate (D-05).
+	// which one is active and offers no Activate (D-05). The colour and
+	// typeface fields then stand in a disabled fieldset.
 	ReadOnly bool
+	// MayStyle offers "Save design" and "Reset to the template". Their route
+	// is an administrator's (requireAdmin in main.go), for a publisher too,
+	// so a button offered to anybody else would always answer 403 (D-02).
+	// "Show in the preview" is a GET and stays offered to everybody.
+	MayStyle bool
 }
 
 // contrastView is one contrast ratio as the design screen shows it.
@@ -508,6 +514,7 @@ func (h *Handler) HandleWebsiteDesign(w http.ResponseWriter, r *http.Request) er
 		Fonts:          fontChoices(),
 		TokenDefaults:  design.Tokens{Ink: "#1a1a1a", Paper: "#fafafa", Brand: "#1a6dd4"},
 		ReadOnly:       h.readOnly(r),
+		MayStyle:       h.isAdmin(r),
 	}
 	if ws.TokenInk != "" && ws.TokenPaper != "" {
 		data.TextContrast = contrastOf(ws.TokenInk, ws.TokenPaper)

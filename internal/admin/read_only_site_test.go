@@ -9,9 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/holzcloud/holzcloud-cms/internal/auth"
 	"github.com/holzcloud/holzcloud-cms/internal/domain"
 	"github.com/holzcloud/holzcloud-cms/internal/money"
 	"github.com/holzcloud/holzcloud-cms/internal/shop"
+	"github.com/holzcloud/holzcloud-cms/internal/user"
 )
 
 // The rule of read_only_test.go, applied to the rest of what a website shows
@@ -205,6 +207,53 @@ func TestTheSettingsAndDesignScreensOfferNoChangeWithoutPublishing(t *testing.T)
 	body = getAs(t, sm, putUser(sm, publisher), h.HandleWebsiteDesign, websiteDesignAddress(ws.ID), route)
 	if strings.Contains(body, readOnlyText) || !strings.Contains(body, activate) {
 		t.Error("design: a person who may publish cannot activate a theme")
+	}
+}
+
+// Saving the colours and the typeface is an administrator's route
+// (requireAdmin in main.go), for a publisher too. A button that always
+// answers 403 is no control at all, so only an administrator is offered
+// "Save design" and "Reset to the template"; somebody without the publishing
+// right finds the values in a disabled fieldset, and anybody may still try
+// them in the preview, which is a GET.
+func TestTheDesignTokensAreOfferedOnlyToWhomMaySaveThem(t *testing.T) {
+	h, sm, database, ws := newTestAdmin(t)
+	route := websiteRoute(ws.ID)
+	const (
+		save    = "Save design"
+		reset   = "Reset to the template"
+		preview = "Show in the preview"
+		ink     = `id="token_ink"`
+	)
+
+	editor := editorWithoutPublishing(t, database, ws.ID)
+	body := getAs(t, sm, putUser(sm, editor), h.HandleWebsiteDesign, websiteDesignAddress(ws.ID), route)
+	if strings.Contains(body, save) || strings.Contains(body, reset) {
+		t.Error("without publishing: the design can be saved or reset")
+	}
+	if !insideDisabledFieldset(body, ink) {
+		t.Error("without publishing: the colours are not in a disabled fieldset")
+	}
+	if !strings.Contains(body, preview) {
+		t.Error("without publishing: the preview is no longer offered")
+	}
+
+	publisher := editorWhoMayPublish(t, database, ws.ID)
+	body = getAs(t, sm, putUser(sm, publisher), h.HandleWebsiteDesign, websiteDesignAddress(ws.ID), route)
+	if strings.Contains(body, save) || strings.Contains(body, reset) {
+		t.Error("a publisher who is no administrator is offered the administrator's save")
+	}
+	if insideDisabledFieldset(body, ink) || !strings.Contains(body, preview) {
+		t.Error("a publisher cannot try colours in the preview")
+	}
+
+	admin := func(r *http.Request) {
+		sm.Put(r.Context(), auth.SessionKeyUserID, int64(1))
+		sm.Put(r.Context(), auth.SessionKeyUserRole, user.RoleAdmin)
+	}
+	body = getAs(t, sm, admin, h.HandleWebsiteDesign, websiteDesignAddress(ws.ID), route)
+	if !strings.Contains(body, save) || !strings.Contains(body, reset) || insideDisabledFieldset(body, ink) {
+		t.Error("an administrator cannot save or reset the design")
 	}
 }
 

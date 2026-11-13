@@ -26,6 +26,11 @@
     <form method="POST" action="/admin/websites/{{.Website.ID}}/design/tokens" class="design-form">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
 
+        {{/* Read-only (D-05): the values are shown and cannot be changed.
+             Saving and resetting are an administrator's route, so those two
+             buttons are rendered only for an administrator (MayStyle); the
+             preview is a GET and stays. */}}
+        <fieldset class="read-only-fields"{{if .ReadOnly}} disabled{{end}}>
         <div class="form-group">
             <label class="form-check">
                 <input type="checkbox" name="use_colours" {{if .Website.TokenInk}}checked{{end}}>
@@ -80,14 +85,17 @@
                 <p class="form-hint text-muted">{{t "In pixels. 0 means deliberately square."}}</p>
             </div>
         </div>
+        </fieldset>
 
         <div class="form-actions">
             <button type="submit" class="btn" name="probe" value="1"
                     formaction="/admin/websites/{{.Website.ID}}/preview" formmethod="get"
                     formtarget="design-preview" formnovalidate>{{t "Show in the preview"}}</button>
+            {{if .MayStyle}}
             <button type="submit" class="btn btn--primary" hx-disabled-elt="this">{{t "Save design"}}</button>
             <button type="submit" name="reset" value="1" class="btn" formnovalidate
                     hx-disabled-elt="this">{{t "Reset to the template"}}</button>
+            {{end}}
         </div>
     </form>
 </section>
