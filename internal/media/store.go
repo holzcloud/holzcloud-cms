@@ -153,8 +153,9 @@ type Filter struct {
 	Query string
 	// MimePrefix is "image/" or "application/", or empty for everything.
 	MimePrefix string
-	// Unused restricts the list to files no live page refers to — the view that
-	// actually reclaims space on the card.
+	// Unused restricts the list to files nothing of the website shows — the
+	// view that actually reclaims space. "Shows" is InUse's definition, the
+	// same statement, so the list never offers a file whose card says "In use".
 	Unused bool
 	// NoAlt restricts the list to images without a description — the ones
 	// that are invisible to a screen reader and to a search engine.
@@ -187,8 +188,10 @@ func (s *Store) List(ctx context.Context, websiteID int64, f Filter, page, perPa
 		args = append(args, f.MimePrefix+"%")
 		where += fmt.Sprintf(` AND m.mime_type LIKE $%d`, len(args))
 	}
+	with := ""
 	if f.Unused {
-		where += ` AND NOT EXISTS (SELECT 1 FROM media_usage u WHERE u.media_id = m.id)`
+		with = `WITH ` + usedCTEs(libraryIDs) + ` `
+		where += ` AND m.id NOT IN (SELECT id FROM used)`
 	}
 	if f.NoAlt {
 		where += ` AND m.alt_text = '' AND m.mime_type LIKE 'image/%'`
@@ -196,11 +199,11 @@ func (s *Store) List(ctx context.Context, websiteID int64, f Filter, page, perPa
 
 	var total int
 	if err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM media m`+where, args...).Scan(&total); err != nil {
+		with+`SELECT COUNT(*) FROM media m`+where, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count media: %w", err)
 	}
 
-	query := `SELECT ` + projection("m") + ` FROM media m` + where +
+	query := with + `SELECT ` + projection("m") + ` FROM media m` + where +
 		fmt.Sprintf(` ORDER BY m.created_at DESC, m.id DESC LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
 	args = append(args, perPage, offset)
 
@@ -274,15 +277,16 @@ type LibraryCounts struct {
 }
 
 // Counts reports how many files of one website fall into each collection, in
-// one pass over the table.
+// one statement. Unused is counted with InUse's definition, as the filter is.
 func (s *Store) Counts(ctx context.Context, websiteID int64) (LibraryCounts, error) {
 	var c LibraryCounts
 	err := s.DB.Read.QueryRowContext(ctx,
-		`SELECT COUNT(*),
+		`WITH `+usedCTEs(libraryIDs)+`
+		 SELECT COUNT(*),
 		        COALESCE(SUM(m.mime_type LIKE 'image/%'), 0),
 		        COALESCE(SUM(m.mime_type LIKE 'video/%'), 0),
 		        COALESCE(SUM(m.mime_type LIKE 'application/%'), 0),
-		        COALESCE(SUM(NOT EXISTS (SELECT 1 FROM media_usage u WHERE u.media_id = m.id)), 0),
+		        COALESCE(SUM(m.id NOT IN (SELECT id FROM used)), 0),
 		        COALESCE(SUM(m.alt_text = '' AND m.mime_type LIKE 'image/%'), 0)
 		   FROM media m WHERE m.website_id = $1`,
 		websiteID).Scan(&c.All, &c.Images, &c.Videos, &c.Documents, &c.Unused, &c.NoAlt)
