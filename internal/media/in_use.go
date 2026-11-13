@@ -116,8 +116,37 @@ func (s *Store) usedAmong(ctx context.Context, websiteID int64, files []Media) (
 			"/media/"+strconv.FormatInt(websiteID, 10)+"/"+m.Filename,
 			strconv.FormatInt(m.ID, 10))
 	}
-	query := `
-		WITH ids(id, path, idtext) AS (VALUES ` + strings.Join(values, ", ") + `),
+	query := `WITH ` + usedCTEs(`VALUES `+strings.Join(values, ", ")) + ` SELECT id FROM used`
+	rows, err := s.DB.Read.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("media in use: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("media in use: %w", err)
+		}
+		used[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("media in use: %w", err)
+	}
+	return used, nil
+}
+
+// usedCTEs is the one definition of "in use", as the WITH list of a
+// statement. ids is the body of the CTE ids(id, path, idtext) — the files the
+// statement asks about, each with its address and its id as text — and $1 must
+// be their website. The list ends in used(id), the ids that something of the
+// website shows.
+//
+// usedAmong asks it for a list of files given as VALUES; the library's
+// "Unused" filter and its count ask it for every file of the website
+// (libraryIDs), so that the sidebar cannot call a file unused whose card says
+// "In use".
+func usedCTEs(ids string) string {
+	return `ids(id, path, idtext) AS (` + ids + `),
 		imagekeys(k) AS MATERIALIZED (
 		    SELECT key FROM page_field_defs WHERE website_id = $1 AND kind = 'bild'
 		),
@@ -169,25 +198,15 @@ func (s *Store) usedAmong(ctx context.Context, websiteID int64, files []Media) (
 		     WHERE mn.website_id = $1
 		    UNION ALL
 		    SELECT rd.to_path, 0 FROM redirects rd WHERE rd.website_id = $1
-		)
-		SELECT ids.id FROM ids
-		 WHERE ids.id IN (SELECT n FROM nums WHERE n IS NOT NULL)
-		    OR EXISTS (SELECT 1 FROM texts t
-		                WHERE (t.idok AND t.atom = ids.idtext) OR instr(t.atom, ids.path) > 0)`
-	rows, err := s.DB.Read.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("media in use: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("media in use: %w", err)
-		}
-		used[id] = true
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("media in use: %w", err)
-	}
-	return used, nil
+		),
+		used(id) AS (
+		    SELECT ids.id FROM ids
+		     WHERE ids.id IN (SELECT n FROM nums WHERE n IS NOT NULL)
+		        OR EXISTS (SELECT 1 FROM texts t
+		                    WHERE (t.idok AND t.atom = ids.idtext) OR instr(t.atom, ids.path) > 0)
+		)`
 }
+
+// libraryIDs is the ids of usedCTEs for every file of the website $1.
+const libraryIDs = `SELECT m.id, '/media/' || m.website_id || '/' || m.filename, CAST(m.id AS TEXT)
+		    FROM media m WHERE m.website_id = $1`

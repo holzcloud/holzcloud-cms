@@ -480,3 +480,79 @@ func TestTheGridShowsTheThumbnailThatExists(t *testing.T) {
 		}
 	}
 }
+
+// "Unused" in the library means what "In use" on a card means. The filter and
+// its count once read media_usage alone, which knows only pages saved in the
+// editor, so a file shown as a page's preview image, in a snippet or in an
+// album was listed and counted as unused while its card said "In use" — and
+// the view meant to reclaim space offered exactly the files the website shows.
+func TestTheUnusedFilterMeansWhatInUseMeans(t *testing.T) {
+	h, sm, database, ws := mediaAdmin(t)
+	ctx := context.Background()
+	store := media.NewStore(database)
+
+	create := func(name string) *media.Media {
+		t.Helper()
+		m, err := store.Create(ctx, ws.ID, name, name, "image/jpeg", 10, "hash-"+name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	exec := func(query string, args ...any) int64 {
+		t.Helper()
+		res, err := database.Write.Exec(query, args...)
+		if err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+		id, _ := res.LastInsertId()
+		return id
+	}
+
+	preview := create("vorschaubild.jpg")
+	snippet := create("fussbild.jpg")
+	album := create("albumbild.jpg")
+	create("verwaist.jpg")
+
+	page := exec(`INSERT INTO pages (website_id, title, slug, content_markdown, content_html, status)
+		 VALUES ($1, 'Seite', 'seite', '', '', 'published')`, ws.ID)
+	exec(`UPDATE pages SET featured_media_id = $1 WHERE id = $2`, preview.ID, page)
+	exec(`INSERT INTO snippets (website_id, key, name, content_html) VALUES ($1, 'fuss', 'Fuss', $2)`,
+		ws.ID, fmt.Sprintf(`<img src="/media/%d/%s" alt="">`, ws.ID, snippet.Filename))
+	a := exec(`INSERT INTO albums (website_id, slug, name) VALUES ($1, 'werkstatt', 'Werkstatt')`, ws.ID)
+	exec(`INSERT INTO album_items (album_id, media_id) VALUES ($1, $2)`, a, album.ID)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/websites/1/media?unused=1", nil)
+	req.SetPathValue("id", strconv.FormatInt(ws.ID, 10))
+	rec := serve(t, h, sm, h.HandleMediaList, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "verwaist.jpg") {
+		t.Error("the unused filter left out the file nobody uses")
+	}
+	for _, used := range []string{"vorschaubild.jpg", "fussbild.jpg", "albumbild.jpg"} {
+		if strings.Contains(body, used) {
+			t.Errorf("the unused filter lists %s, which the website shows", used)
+		}
+	}
+	if !strings.Contains(body, `<span>Unused</span><span class="library-nav__count">1</span>`) {
+		t.Error("the sidebar does not count exactly one unused file")
+	}
+
+	counts, err := store.Counts(ctx, ws.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counts.Unused != 1 {
+		t.Errorf("Counts.Unused = %d, want 1", counts.Unused)
+	}
+	_, total, err := store.List(ctx, ws.ID, media.Filter{Unused: true}, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 {
+		t.Errorf("List total with the unused filter = %d, want 1", total)
+	}
+}
