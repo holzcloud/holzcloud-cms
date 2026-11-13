@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -19,7 +20,7 @@ import (
 // rebuild from its original, an original (media) is gone for good.
 type MissingFile struct {
 	// Rel is the file's place below the directory, media/<website_id>/<filename>,
-	// with forward slashes. Empty when Unsafe.
+	// with forward slashes. Empty when Unsafe or Quoted.
 	Rel string
 	// Table is "media" or "media_variants".
 	Table string
@@ -32,9 +33,14 @@ type MissingFile struct {
 	Label, OriginalName string
 	// Filename is the name the row stores.
 	Filename string
-	// Unsafe marks a row whose file name is not a plain file name. Such a name
-	// is never joined into a path, so it is reported as missing unseen.
+	// Unsafe marks a row whose file name does not name a file inside its
+	// website directory (see oneFileName). Such a name is never joined into a
+	// path, so it is reported as missing unseen.
 	Unsafe bool
+	// Quoted marks a row whose file was looked up and is absent, but whose
+	// name holds characters that are not printed raw (see plainName): it is
+	// reported with the name quoted and Rel left empty.
+	Quoted bool
 }
 
 // MissingFiles reads every row of media and of media_variants and returns how
@@ -46,9 +52,14 @@ type MissingFile struct {
 // The layout is spelled once, in Path; the file's place in the report is Path
 // below an empty root, so both cannot drift apart.
 //
-// A row whose file name is not a plain file name (see plainName) is reported
-// as missing and Unsafe without any path being built from it: the database
-// may come from a damaged or crafted backup, and restore.sh runs this as root.
+// A row whose file name does not name one file inside its website directory
+// (see oneFileName) is reported as missing and Unsafe without any path being
+// built from it: the database may come from a damaged or crafted backup, and
+// restore.sh runs this as root. Every other name is looked up. One that
+// holds characters the report must not print raw (see plainName) — an NBSP
+// or a zero-width space kept from an upload's extension, a control
+// character, a bidi override — is still found when it is there; only when it
+// is absent does it differ, reported Quoted instead of with Rel.
 //
 // Only an absent file counts as missing. Any other error from looking at it —
 // a permission problem, an I/O error — is returned, because "cannot tell" is
@@ -64,7 +75,7 @@ func (s *Store) MissingFiles(ctx context.Context, root string) (checked int, mis
 	}
 	for _, m := range append(originals, variants...) {
 		checked++
-		if !plainName(m.Filename) {
+		if !oneFileName(m.Filename) {
 			m.Unsafe = true
 			missing = append(missing, m)
 			continue
@@ -73,28 +84,47 @@ func (s *Store) MissingFiles(ctx context.Context, root string) (checked int, mis
 		if err != nil {
 			return 0, nil, err
 		}
-		if gone {
-			m.Rel = filepath.ToSlash(Path("", m.WebsiteID, m.Filename))
-			missing = append(missing, m)
+		if !gone {
+			continue
 		}
+		if plainName(m.Filename) {
+			m.Rel = filepath.ToSlash(Path("", m.WebsiteID, m.Filename))
+		} else {
+			m.Quoted = true
+		}
+		missing = append(missing, m)
 	}
 	return checked, missing, nil
 }
 
-// plainName reports whether a stored file name names a file directly inside
-// its website directory: not empty, not "." or "..", no separator of either
-// kind, valid UTF-8 and nothing but printable characters. Only such a name is
-// ever joined into a path.
+// oneFileName reports whether a stored file name names one file directly
+// inside its website directory: not empty, not "." or "..", no "/", no
+// separator of the system (a backslash on Windows; elsewhere it is part of a
+// name), and no NUL, which cannot be part of a path. Only such a name is ever
+// joined into a path. Whatever else it holds — bytes that are not UTF-8, an
+// invisible character — is part of one name in one directory.
+func oneFileName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	return !strings.ContainsRune(name, '/') && !strings.ContainsRune(name, filepath.Separator) &&
+		!strings.ContainsRune(name, 0)
+}
+
+// plainName reports whether a file name may be printed as it is inside the
+// path of the report: valid UTF-8, nothing but printable characters, no
+// backslash (which reads as a separator or an escape), and none of the
+// characters oneFileName refuses.
 //
 // "Printable" is unicode.IsPrint: it leaves out every control character (C0,
 // DEL and C1 such as NEL), the format characters (the bidi overrides, the
-// zero-width space) and every space but U+0020. Such a name is printed unquoted
-// inside the path of the report, and a bidi override in it would make the
-// operator's terminal show another name than the one stored; refused here, it
-// gets the quoted shape instead. A name GenerateFilename makes is hex and an
-// extension and passes.
+// zero-width space) and every space but U+0020. A bidi override printed raw
+// would make the operator's terminal show another name than the one stored,
+// and a newline would start a line of its own; such a name gets the quoted
+// shape instead. A name GenerateFilename makes from an ordinary upload is hex
+// and an extension and passes.
 func plainName(name string) bool {
-	if name == "" || name == "." || name == ".." || !utf8.ValidString(name) {
+	if !oneFileName(name) || !utf8.ValidString(name) {
 		return false
 	}
 	for _, r := range name {

@@ -334,11 +334,16 @@ func cmdCheck(args []string) error {
 //	files: <N> rows checked, <M> missing
 //	MISSING media/<website_id>/<filename> (media row <id>, website <website_id>, original name <quoted>)
 //	MISSING media/<website_id>/<filename> (media_variants row <id>, label <quoted>, of media row <media_id>)
+//	MISSING in media/<website_id>: file name <quoted> (media row <id>, website <website_id>, original name <quoted>)
 //	MISSING (media row <id>, website <website_id>): file name <quoted> is not a plain file name
 //
-// Originals come before variants. A name that is not a plain file name is
-// never followed and gets the third shape, with the variant's own parenthesis
-// for a variant. When a variant is among the missing, a closing line names
+// Originals come before variants. A name that names one file but holds a
+// character that is not printed raw (an NBSP or a zero-width space kept from
+// an upload's extension, a control character, a bidi override) is looked up
+// like any other — a file that is there is not missing — and, when absent,
+// gets the third shape. A name that does not name one file inside the website
+// directory ("..", a "/") is never followed and gets the fourth. Both take the
+// variant's own parenthesis for a variant. When a variant is among the missing, a closing line names
 // `holzcloud thumbnails`, which rebuilds it from its original.
 //
 // The "files:" line is printed whenever the files were checked, nothing
@@ -392,6 +397,11 @@ func runCheck(w io.Writer, files string) error {
 		switch {
 		case m.Unsafe:
 			fmt.Fprintf(w, "MISSING (%s): file name %q is not a plain file name\n", row, m.Filename)
+		case m.Quoted && m.Table == "media_variants":
+			fmt.Fprintf(w, "MISSING in %s: file name %q (%s)\n", websiteDirRel(m.WebsiteID), m.Filename, row)
+		case m.Quoted:
+			fmt.Fprintf(w, "MISSING in %s: file name %q (%s, original name %q)\n",
+				websiteDirRel(m.WebsiteID), m.Filename, row, m.OriginalName)
 		case m.Table == "media_variants":
 			fmt.Fprintf(w, "MISSING %s (%s)\n", m.Rel, row)
 		default:
@@ -405,6 +415,12 @@ func runCheck(w io.Writer, files string) error {
 		return &exitError{code: 3}
 	}
 	return nil
+}
+
+// websiteDirRel is a website's media directory below a data directory, with
+// forward slashes, taken from media.Path so the layout is spelled once.
+func websiteDirRel(websiteID int64) string {
+	return filepath.ToSlash(filepath.Dir(media.Path("", websiteID, "f")))
 }
 
 func cmdCompact(args []string) error {

@@ -214,7 +214,7 @@ func TestCheckFilesQuotesANameSoItCannotStartALine(t *testing.T) {
 		"integrity: ok",
 		"files: 3 rows checked, 3 missing",
 		fmt.Sprintf(`MISSING media/%d/a.jpg (media row %d, website %d, original name "x\nfiles: 0 rows checked, 0 missing")`, ws, orig.ID, ws),
-		fmt.Sprintf(`MISSING (media row %d, website %d): file name "c\nfiles: 0 rows checked, 0 missing" is not a plain file name`, crafted, ws),
+		fmt.Sprintf(`MISSING in media/%d: file name "c\nfiles: 0 rows checked, 0 missing" (media row %d, website %d, original name "y")`, ws, crafted, ws),
 		fmt.Sprintf(`MISSING media/%d/a-thumb.jpg (media_variants row %d, label "t\nfiles: 0 rows checked, 0 missing", of media row %d)`, ws, variant, orig.ID),
 		"a missing variant can be rebuilt with: holzcloud thumbnails",
 	})
@@ -248,7 +248,7 @@ func TestCheckFilesPrintsNoInvisibleCharacterRaw(t *testing.T) {
 			}
 		}
 	}
-	want := fmt.Sprintf(`MISSING (media row %d, website %d): file name "m\u202egpj.exe" is not a plain file name`, row, ws)
+	want := fmt.Sprintf(`MISSING in media/%d: file name "m\u202egpj.exe" (media row %d, website %d, original name "y")`, ws, row, ws)
 	found := false
 	for _, l := range lines {
 		if l == want {
@@ -258,6 +258,31 @@ func TestCheckFilesPrintsNoInvisibleCharacterRaw(t *testing.T) {
 	if !found {
 		t.Errorf("no line %q in:\n%s", want, strings.Join(lines, "\n"))
 	}
+}
+
+// A file that is there is not reported missing because its stored name holds
+// a character that is not printed raw \u2014 an NBSP or a zero-width space after
+// the dot, which GenerateFilename keeps from the upload name. restore.sh
+// would otherwise end with 3 for a backup that has every file (code review
+// 32, second pass, IN-01).
+func TestCheckFilesFindsAFileWithAnInvisibleCharacterInItsName(t *testing.T) {
+	database, ws, backup := checkFilesCase(t)
+	for i, name := range []string{"a.jpg\u00a0", "b.j\u200bpg"} {
+		if _, err := database.Write.Exec(`INSERT INTO media (website_id, filename, original_name, mime_type, size_bytes, content_hash)
+			VALUES ($1, $2, 'y', 'image/jpeg', 1, $3)`, ws, name, fmt.Sprintf("hash-odd%d", i)); err != nil {
+			t.Fatalf("insert media: %v", err)
+		}
+		putBackupFile(t, backup, ws, name)
+	}
+
+	lines, err := runCheckLines(t, backup)
+	if err != nil {
+		t.Errorf("check -files on a backup with every file: %v", err)
+	}
+	sameLines(t, lines, []string{
+		"integrity: ok",
+		"files: 2 rows checked, 0 missing",
+	})
 }
 
 func TestCheckFilesRefusesADirectoryThatDoesNotExist(t *testing.T) {
