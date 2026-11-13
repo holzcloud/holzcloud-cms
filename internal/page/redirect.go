@@ -138,6 +138,19 @@ func (s *Store) AddRedirect(ctx context.Context, websiteID int64, from, to strin
 	return nil
 }
 
+// RedirectExists reports whether id is a redirect of this website. The scope
+// check a handler asks before anything else, so another website's redirect
+// answers 404.
+func (s *Store) RedirectExists(ctx context.Context, websiteID, id int64) (bool, error) {
+	var found bool
+	err := s.DB.Read.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM redirects WHERE id = $1 AND website_id = $2)`, id, websiteID).Scan(&found)
+	if err != nil {
+		return false, fmt.Errorf("redirect exists: %w", err)
+	}
+	return found, nil
+}
+
 // DeleteRedirect removes one redirect.
 func (s *Store) DeleteRedirect(ctx context.Context, websiteID, id int64) error {
 	res, err := s.DB.Write.ExecContext(ctx,

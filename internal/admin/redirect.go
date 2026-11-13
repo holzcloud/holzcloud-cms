@@ -194,6 +194,16 @@ func (h *Handler) HandleRedirectDelete(w http.ResponseWriter, r *http.Request) e
 		http.NotFound(w, r)
 		return nil
 	}
+	// The scope check before the read-only guard: another website's redirect,
+	// or one that does not exist, answers 404 for everybody.
+	found, err := h.pages.RedirectExists(r.Context(), websiteID, id)
+	if err != nil {
+		return err
+	}
+	if !found {
+		http.NotFound(w, r)
+		return nil
+	}
 	if h.refuseReadOnly(w, r, fmt.Sprintf("/admin/websites/%d/redirects", websiteID)) {
 		return nil
 	}

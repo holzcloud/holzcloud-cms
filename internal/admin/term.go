@@ -95,15 +95,15 @@ func (h *Handler) HandleTermDelete(w http.ResponseWriter, r *http.Request) error
 	return h.redirect(w, r, fmt.Sprintf("/admin/websites/%d/tags", websiteID))
 }
 
-// lookupTerm resolves the route values.
+// lookupTerm resolves the route values and checks that the label belongs to
+// the website, answering 404 otherwise.
 //
-// It does NOT check that the label belongs to the website — it used to say that
-// it did, and that was simply untrue. The check is real and it is one layer
-// down: every statement in internal/term carries website_id, so a rename or a
-// delete aimed at another website's label affects no rows. The behaviour is
-// held by TestOneSitesLabelRouteChangesNothingOfAnothers, which asserts the
-// outcome rather than the mechanism, so moving the check up here stays possible
-// and losing it does not.
+// The check is here, before the read-only guard, so that another website's
+// label answers 404 for somebody without the publishing right as for anybody
+// — refuseReadOnly's contract. It stays one layer down as well: every
+// statement in internal/term carries website_id, so a rename or a delete
+// aimed at another website's label affects no rows even if a caller forgets
+// this. TestOneSitesLabelRouteChangesNothingOfAnothers holds the outcome.
 func (h *Handler) lookupTerm(w http.ResponseWriter, r *http.Request) (websiteID, termID int64, ok bool, err error) {
 	websiteID, _, ok, err = h.lookupWebsite(w, r)
 	if err != nil || !ok {
@@ -111,6 +111,14 @@ func (h *Handler) lookupTerm(w http.ResponseWriter, r *http.Request) (websiteID,
 	}
 	termID, err = strconv.ParseInt(r.PathValue("termID"), 10, 64)
 	if err != nil {
+		http.NotFound(w, r)
+		return 0, 0, false, nil
+	}
+	found, err := h.terms.Exists(r.Context(), websiteID, termID)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if !found {
 		http.NotFound(w, r)
 		return 0, 0, false, nil
 	}
