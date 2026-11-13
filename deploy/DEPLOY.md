@@ -665,7 +665,9 @@ journal either way.
 `backup.sh` refuses to start when less than `MIN_FREE_MB` (default 1024) is free
 at the backup directory. That floor does not grow with your data: set
 `MIN_FREE_MB` to more than the data directory holds, or a backup can run out of
-space halfway.
+space halfway. `MIN_FREE_MB` and `RETENTION_DAYS` take a whole number (megabytes,
+days); any other value (`30d`, `1G`, a trailing space) ends the night at once with
+status 2 and an `ERROR` line that names the setting, instead of skipping the step.
 
 The timer's hardened service has been run through its timer; what that does and
 does not show is in the record `deploy/BACKUP-RUN.md`. The checksum file, the

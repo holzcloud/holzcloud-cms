@@ -670,6 +670,26 @@ bt_eq "22 a name with a prefix is kept" yes "$(exists "$T/root/x20200105-031500"
 bt_eq "22 the earlier night is intact" yes "$(earlier_intact)"
 
 # ---------------------------------------------------------------------------
+# A value test(1) cannot compare made the step silently skip itself: no pruning
+# (or no free-space guard), no ERROR, status 0 until the disk fills.
+section "Test 23: a RETENTION_DAYS or MIN_FREE_MB that is not a whole number ends the night with 2"
+for bad in 30d "30 " -1 " "; do
+    reset_case
+    run_backup RETENTION_DAYS="$bad"
+    bt_eq "23 RETENTION_DAYS='$bad': exit status 2" 2 "$RC"
+    bt_has "23 RETENTION_DAYS='$bad': the message" "$T/err" "ERROR: RETENTION_DAYS must be a whole number of days, got '$bad'"
+    bt_eq "23 RETENTION_DAYS='$bad': no directory was made" no "$(exists "$NIGHT")"
+done
+for bad in 1G "1 " x; do
+    reset_case
+    run_backup MIN_FREE_MB="$bad"
+    bt_eq "23 MIN_FREE_MB='$bad': exit status 2" 2 "$RC"
+    bt_has "23 MIN_FREE_MB='$bad': the message" "$T/err" "ERROR: MIN_FREE_MB must be a whole number of megabytes, got '$bad'"
+    bt_eq "23 MIN_FREE_MB='$bad': no directory was made" no "$(exists "$NIGHT")"
+done
+bt_eq "23 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "BACKUP-ROBUST OK ($N cases)"
     exit 0

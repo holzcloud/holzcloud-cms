@@ -54,7 +54,8 @@ set -euo pipefail
 #
 # Exit status: 0 complete; 40 complete, but retention could not list or remove
 # old backups; any other non-zero status: the night failed (rsync's own status
-# for a copy).
+# for a copy). RETENTION_DAYS or MIN_FREE_MB that is not a whole number ends the
+# script with status 2 before it does anything.
 #
 # A night that fails before its MANIFEST exists removes the directory it made,
 # so a half-written directory does not sit on the disk and make the free-space
@@ -88,6 +89,21 @@ RETENTION_DAYS="${RETENTION_DAYS:-30}"
 MIN_FREE_MB="${MIN_FREE_MB:-1024}"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 BACKUP_DIR="${BACKUP_ROOT}/${TIMESTAMP}"
+# Both numbers are checked before anything else. In an if, a value test(1)
+# cannot compare ("30d", "30 ") is just false: the step it guards would be
+# skipped without a word and the night would end 0 until the disk is full.
+case "${RETENTION_DAYS}" in
+    '' | *[!0-9]*)
+        echo "ERROR: RETENTION_DAYS must be a whole number of days, got '${RETENTION_DAYS}'" >&2
+        exit 2
+        ;;
+esac
+case "${MIN_FREE_MB}" in
+    '' | *[!0-9]*)
+        echo "ERROR: MIN_FREE_MB must be a whole number of megabytes, got '${MIN_FREE_MB}'" >&2
+        exit 2
+        ;;
+esac
 # Empty until this run's own mkdir of BACKUP_DIR has succeeded; the cleanup acts
 # on this path and on no other.
 OWN_DIR=""
