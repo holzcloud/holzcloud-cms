@@ -431,6 +431,18 @@ bt_eq "escaped-rot: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')"
 bt_eq "escaped-rot: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 
 # ---------------------------------------------------------------------------
+section "Case binary-mode: a binary-mode line is named as such, not as rot or traversal"
+reset_case
+{ head -n 1 "$B/SHA256SUMS" | sed 's/^\([0-9a-f]\{64\}\)  /\1 */'; tail -n +2 "$B/SHA256SUMS"; } > "$T/sums.new"
+cp "$T/sums.new" "$B/SHA256SUMS"
+PATH_PREFIX="$T/count:" run_restore
+bt_eq "binary-mode: exit status 1" 1 "$RC"
+bt_has "binary-mode: the line is named as binary mode" "$T/err" "ERROR: line 1 of SHA256SUMS is a binary-mode line (\"<hex> *./path\", as sha256sum -b writes it); backup.sh writes text mode (\"<hex>  ./path\") — this SHA256SUMS was not written by backup.sh, do not restore it"
+bt_not "binary-mode: not the rot-or-traversal sentence" "$T/err" "names a path outside the backup"
+bt_eq "binary-mode: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')"
+bt_eq "binary-mode: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
 section "Case backslash-name: a real file with a backslash in its name is verified"
 reset_case
 flip "$B/media/odd\\name.jpg"

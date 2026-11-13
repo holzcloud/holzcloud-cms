@@ -142,15 +142,24 @@ if grep -qx 'checksums=SHA256SUMS' "${BACKUP_DIR}/MANIFEST" || [ -f "${BACKUP_DI
         exit 1
     fi
     echo "Verifying checksums..."
-    # o is where the hex starts: 2 after the backslash of an escaped line.
+    # o is where the hex starts: 2 after the backslash of an escaped line. A
+    # binary-mode line ("<hex> *./path", sha256sum -b) is told apart, because
+    # it is no sign of rot or of a path outside the backup.
     bad_line=$(LC_ALL=C awk '
         { o = (substr($0, 1, 1) == "\\") ? 2 : 1 }
+        length($0) >= 68 + o && substr($0, o, 64) ~ /^[0-9a-f]+$/ && substr($0, o + 64, 4) == " *./" { print "binary " NR; exit }
         length($0) < 68 + o || substr($0, o, 64) !~ /^[0-9a-f]+$/ || substr($0, o + 64, 4) != "  ./" { print NR; exit }
         substr($0, o + 66) ~ /(^|\/)\.\.(\/|$)/ { print NR; exit }' "${BACKUP_DIR}/SHA256SUMS")
-    if [ -n "${bad_line}" ]; then
-        echo "ERROR: line ${bad_line} of SHA256SUMS is not in the format backup.sh writes or names a path outside the backup — do not restore it" >&2
-        exit 1
-    fi
+    case "${bad_line}" in
+        "binary "*)
+            echo "ERROR: line ${bad_line#binary } of SHA256SUMS is a binary-mode line (\"<hex> *./path\", as sha256sum -b writes it); backup.sh writes text mode (\"<hex>  ./path\") — this SHA256SUMS was not written by backup.sh, do not restore it" >&2
+            exit 1
+            ;;
+        ?*)
+            echo "ERROR: line ${bad_line} of SHA256SUMS is not in the format backup.sh writes or names a path outside the backup — do not restore it" >&2
+            exit 1
+            ;;
+    esac
     listed=$(LC_ALL=C awk 'END { print NR }' "${BACKUP_DIR}/SHA256SUMS")
     if [ "${listed}" -eq 0 ]; then
         echo "ERROR: ${BACKUP_DIR}/SHA256SUMS is empty — the backup is damaged, do not restore it" >&2
