@@ -75,6 +75,7 @@
 "The quantity for “%s” is too large. Please get in touch with us directly.": "Die Menge bei «%s» ist zu gross. Bitte melde dich direkt bei uns.",
 "The required field “%s” is a group.": "Das Pflichtfeld «%s» ist eine Gruppe.",
 "The rows go into the existing website “%s”.": "Die Zeilen kommen in die bestehende Website «%s».",
+"The text uses the value “%s”, which this website does not have. Visitors see nothing in its place. Create it under Values, or correct the key.": "Der Text verwendet den Wert «%s», den diese Website nicht hat. Besucher sehen an dieser Stelle nichts. Lege ihn unter Werte an oder korrigiere die Kennung.",
 "The visitor sees a Continue button and the field appears after it. For a tick box the value is “ja”.": "Der Besucher sieht einen Weiter-Knopf, danach erscheint das Feld. Bei einem Ankreuzfeld ist der Wert «ja».",
 "There is no description for search engines, and the website has none to fall back on. Write one of 70 to 160 characters under “Description for search engines” in the settings.": "Es gibt keine Beschreibung für Suchmaschinen, und die Website hat keine, auf die zurückgegriffen werden kann. Schreibe eine mit 70 bis 160 Zeichen unter «Beschreibung für Suchmaschinen» in den Einstellungen.",
 "These images are larger than %d px on their longest side. Scaled down to fit, they load faster and take up less space; the proportions stay the same.": "Diese Bilder sind auf der längsten Seite grösser als %d px. Passend verkleinert laden sie schneller und brauchen weniger Platz; das Seitenverhältnis bleibt gleich.",

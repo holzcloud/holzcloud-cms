@@ -64,6 +64,9 @@ const (
 	CodeProtected           = "protected"
 	CodeDraft               = "draft"
 	CodeNoFeaturedImage     = "no-featured-image"
+	// CodeUnknownValue: the text names [[wert:key]] and the website has no
+	// value with that key. Detail is the key.
+	CodeUnknownValue = "unknown-value"
 )
 
 // Codes is every code Analyze can return, in a stable order. The report
@@ -77,6 +80,7 @@ func Codes() []string {
 		CodeH1InBody, CodeHeadingSkip, CodeImagesNoAlt, CodeThinText, CodeNoInternalLinks,
 		CodeSlugLong, CodeSlugNoise,
 		CodeNoIndex, CodeProtected, CodeDraft, CodeNoFeaturedImage,
+		CodeUnknownValue,
 	}
 }
 
@@ -170,6 +174,13 @@ type Input struct {
 	Host            string
 	SiteDescription string
 	Others          []Other
+
+	// UsedValues are the keys the page's text names as [[wert:key]], each
+	// once, in the order they first appear. KnownValues are the keys its
+	// website defines; nil means the set could not be read and nothing is
+	// claimed about UsedValues.
+	UsedValues  []string
+	KnownValues map[string]bool
 }
 
 var (
@@ -368,6 +379,17 @@ func Analyze(in Input) []Finding {
 	}
 	if !in.HasFeatured {
 		add(CodeNoFeaturedImage, SeverityInfo, 0, "")
+	}
+
+	// A key the website does not define shows as nothing on the public page,
+	// never as the raw placeholder, so a visitor cannot tell anything is
+	// missing. The editor is told here instead.
+	if in.KnownValues != nil {
+		for _, k := range in.UsedValues {
+			if !in.KnownValues[k] {
+				add(CodeUnknownValue, SeverityWarn, 0, k)
+			}
+		}
 	}
 
 	sort.SliceStable(out, func(i, j int) bool {

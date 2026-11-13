@@ -375,3 +375,37 @@ func TestCodesAreKnownAndAnalyzeOnlyReturnsKnown(t *testing.T) {
 		t.Error("nonsense is not a code")
 	}
 }
+
+func TestAnalyzeReportsUnknownValues(t *testing.T) {
+	// Not checked: the defined set could not be loaded, so nothing is claimed
+	// about the keys the page names.
+	in := good()
+	in.UsedValues = []string{"v", "nope", "other"}
+	if f, ok := has(Analyze(in), CodeUnknownValue); ok {
+		t.Fatalf("an unchecked set reports %+v", f)
+	}
+
+	in.KnownValues = map[string]bool{"v": true}
+	var got []Finding
+	for _, f := range Analyze(in) {
+		if f.Code == CodeUnknownValue {
+			got = append(got, f)
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("unknown-value findings = %+v, want two", got)
+	}
+	for i, want := range []string{"nope", "other"} {
+		if got[i].Severity != SeverityWarn || got[i].Detail != want {
+			t.Errorf("finding %d = %+v, want warn with detail %q", i, got[i], want)
+		}
+	}
+	if !Known("unknown-value") {
+		t.Error("unknown-value is not a known code")
+	}
+
+	in.KnownValues = map[string]bool{"v": true, "nope": true, "other": true}
+	if f, ok := has(Analyze(in), CodeUnknownValue); ok {
+		t.Errorf("a defined key is reported: %+v", f)
+	}
+}

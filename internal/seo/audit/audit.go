@@ -15,6 +15,7 @@ import (
 	"github.com/holzcloud/holzcloud-cms/internal/media"
 	"github.com/holzcloud/holzcloud-cms/internal/page"
 	"github.com/holzcloud/holzcloud-cms/internal/seo"
+	"github.com/holzcloud/holzcloud-cms/internal/value"
 )
 
 // Source is what an audit reads from.
@@ -26,6 +27,10 @@ type Source struct {
 	// ones, which is enough for everything this package reads: an own kind's
 	// fields are text and are taken as they stand.
 	BlockSet func(ctx context.Context, websiteID int64) block.Set
+	// Values says which value keys a website defines. Nil, or an error, means
+	// not checked: a page's [[wert:key]] is then not reported as unknown,
+	// because nothing is known about the keys.
+	Values func(ctx context.Context, websiteID int64) (map[string]bool, error)
 }
 
 // PageReport is one page and what is wrong with it.
@@ -87,12 +92,21 @@ type siteContext struct {
 	host, siteDescription string
 	others                []seo.Other
 	set                   block.Set
+	// values is the set of keys the website defines, nil when not checked.
+	values map[string]bool
 }
 
 func (s Source) context(ctx context.Context, ws *domain.Website, all []page.Page) siteContext {
 	c := siteContext{siteDescription: firstNonEmpty(ws.MetaDescription, ws.Description), set: block.Builtin}
 	if s.BlockSet != nil {
 		c.set = s.BlockSet(ctx, ws.ID)
+	}
+	if s.Values != nil {
+		// An error is not a finding about any page: the map stays nil and the
+		// keys go unchecked.
+		if known, err := s.Values(ctx, ws.ID); err == nil {
+			c.values = known
+		}
 	}
 	if s.Domains != nil {
 		if ds, err := s.Domains.ListDomains(ctx, ws.ID); err == nil {
@@ -126,6 +140,10 @@ func (s Source) input(ctx context.Context, c siteContext, p page.Page) seo.Input
 		Markdown: p.ContentMarkdown,
 		NoIndex:  p.NoIndex, Protected: p.Protected(), HasFeatured: p.FeaturedMediaID != nil,
 		Host: c.host, SiteDescription: c.siteDescription, Others: c.others,
+		// The blocks are read as stored: a key is a-z, 0-9, - and _, which
+		// JSON leaves as it is, so a marker in any block field is found.
+		UsedValues:  value.Keys(p.ContentMarkdown + "\n" + p.Blocks),
+		KnownValues: c.values,
 	}
 	if strings.TrimSpace(p.Blocks) != "" {
 		if blocks, err := block.Decode(p.Blocks, c.set); err == nil {
