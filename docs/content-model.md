@@ -258,9 +258,13 @@ exists, because every sentence naming the old key would go empty.
 **Where it works.** In the text of a page: prose, headings, list items, inline
 code, link addresses (percent-encoded there, and unable to change the address's
 scheme or host), raw HTML in blocks, and inside a snippet that the page places.
+The summary built from that text when the excerpt is left empty keeps the
+placeholder, so the value shows in it too — in listings, the feed and, when no
+description for search engines was typed, in the page's description — and
+follows a change like the page does.
 
-**Where it does not.** Page titles, descriptions for search engines and menu
-entries show the placeholder as it is written. The Values screen lists every
+**Where it does not.** Page titles, a description for search engines that you
+type yourself, and menu entries show the placeholder as it is written. The Values screen lists every
 such place in its card "Not replaced here", and the SEO check reports it.
 
 **When it changes.** The text is put in when the page is delivered, not when

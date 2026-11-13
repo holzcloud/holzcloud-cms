@@ -382,9 +382,11 @@ operator keeps short texts per website — a version number, a phone number —
 and writes them into the text of a page as `[[wert:key]]`; the program puts
 the text in, escaped, before your template sees the body, inside sentences,
 headings, lists and link addresses alike. A theme does nothing for them.
-`.Page.Title`, `.Meta.Description` and the labels in `.Menus` are printed as
-the operator wrote them: a placeholder there is not replaced, and the Values
-screen tells the operator so.
+The summary derived from that text carries the value too: `.Page.Excerpt`,
+`.Excerpt` of an archive entry, and `.Meta.Description` when it is that
+summary. `.Page.Title`, a description the operator typed for search engines
+and the labels in `.Menus` are printed as the operator wrote them: a
+placeholder there is not replaced, and the Values screen tells the operator so.
 
 ### `.Meta` — for `<head>`
 
