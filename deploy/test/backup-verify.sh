@@ -24,7 +24,15 @@
 # Stages (STAGES, default "bak01 bak02 bak03"; a subset is a rehearsal, and the
 # stage left out reads NOT-RUN, so a subset can never read all PASS):
 #   bak01   the document's manual backup line; SHA256SUMS against the directory and
-#           sha256sum -c in the container
+#           sha256sum -c in the container; four damaged copies below /root/t32 (a
+#           flipped media byte, a flipped byte inside a database page that still
+#           passes `holzcloud check`, a deleted listed file, no SHA256SUMS), each
+#           refused with the live service and data unchanged; a backup made by
+#           the backup.sh of v0.1.4 and the untouched new one, both restored
+#   bak02   an original and a variant that rows name are removed before a backup;
+#           restore.sh names both before its question and at the end, status 3
+#   bak03   the shipped holzcloud-backup.service, no drop-in, meets an old backup
+#           it cannot remove: the journal names it, the unit ends with status 40
 #
 # Environment:
 #   PLATFORM    must be linux/amd64 (on this arm64 Mac it runs under emulation, D-08)
@@ -71,7 +79,7 @@ die() {
   exit 1
 }
 usage() {
-  sed -n '2,44p' "${BASH_SOURCE[0]}" >&2
+  awk 'NR > 1 && /^$/ { exit } NR > 1 { print }' "${BASH_SOURCE[0]}" >&2
   exit 2
 }
 
@@ -155,12 +163,82 @@ verdict_bak01() {
     echo NOT-RUN
     return 0
   fi
-  if kv_is "$f" MANUAL-RC 0 && kv_is "$f" SUMS-EQUALS-FIND yes && kv_is "$f" SUMS-CHECK-RC 0 \
-    && kv_is "$f" SUMS-HAS-SQLITE yes && kv_positive "$f" SUMS-MEDIA-LINES \
-    && kv_is "$f" MANIFEST-CHECKSUMS-LINE yes; then
+  if kv_is "$f" MANUAL-RC 0 && kv_positive "$f" SUMS-LINES && kv_is "$f" SUMS-EQUALS-FIND yes \
+    && kv_is "$f" SUMS-CHECK-RC 0 && kv_is "$f" SUMS-HAS-SQLITE yes && kv_positive "$f" SUMS-MEDIA-LINES \
+    && kv_is "$f" MANIFEST-CHECKSUMS-LINE yes \
+    && kv_media "$f" FLIP-MEDIA-FILE && kv_is "$f" FLIP-MEDIA-RC 1 \
+    && kv_is "$f" FLIP-MEDIA-NAMED "$(kv "$f" FLIP-MEDIA-FILE)" && kv_is "$f" INVARIANTS-AFTER-FLIP-MEDIA same \
+    && kv_is "$f" BITROT-CHECK "integrity: ok" && kv_is "$f" BITROT-RESTORE-RC 1 \
+    && kv_is "$f" BITROT-NAMED ./holzcloud.sqlite && kv_is "$f" INVARIANTS-AFTER-BITROT same \
+    && kv_media "$f" DELETED-FILE && kv_is "$f" DELETED-RC 1 \
+    && kv_is "$f" DELETED-NAMED "$(kv "$f" DELETED-FILE)" && kv_is "$f" INVARIANTS-AFTER-DELETED same \
+    && kv_is "$f" NOSUMS-RC 1 && kv_is "$f" NOSUMS-NAMED yes && kv_is "$f" INVARIANTS-AFTER-NOSUMS same \
+    && [ "$(kv_count "$f" OLD-BACKUP-SCRIPT)" = 1 ] \
+    && printf '%s\n' "$(kv "$f" OLD-BACKUP-SCRIPT)" | grep -Eqx 'v0\.1\.4 sha256 [0-9a-f]{64}' \
+    && kv_is "$f" OLD-BACKUP-RC 0 && kv_is "$f" OLD-RESTORE-RC 0 && kv_is "$f" OLD-NOTICE yes \
+    && kv_is "$f" NEW-RESTORE-RC 0 \
+    && kv_is "$f" NEW-VERIFIED-LINE "Checksums: $(kv "$f" SUMS-LINES) files verified"; then
     echo PASS
   else
     echo FAIL
+  fi
+}
+
+# kv_media FILE KEY: the key occurs once and names a file below ./media/.
+kv_media() {
+  [ "$(kv_count "$1" "$2")" = 1 ] || return 1
+  case "$(kv "$1" "$2")" in
+    ./media/?*) return 0 ;;
+  esac
+  return 1
+}
+
+# verdict_bak02 FILE: PASS when an original and a variant were lost, the backup
+# ran, did not list them, and restore.sh named every one of them before its
+# question and again at the end, ending with status 3 and a ready service.
+verdict_bak02() {
+  local f=${1:-} n
+  if [ ! -f "$f" ]; then
+    echo NOT-RUN
+    return 0
+  fi
+  n=$(grep -c '^LOST: ' "$f" || true)
+  if grep -q '^LOST: media row ' "$f" && grep -q '^LOST: media_variants row ' "$f" \
+    && kv_is "$f" BACKUP-RC 0 && kv_is "$f" SUMS-LISTS-LOST no && kv_is "$f" RESTORE-RC 3 \
+    && kv_is "$f" MISSING-BEFORE-QUESTION "$n" && kv_is "$f" MISSING-AT-END "$n" && kv_is "$f" READYZ ok; then
+    echo PASS
+  else
+    echo FAIL
+  fi
+}
+
+# verdict_bak03 FILE: PASS when the shipped unit, without a drop-in, failed the
+# night with status 40, named the directory, kept the night and pruned the rest.
+verdict_bak03() {
+  local f=${1:-}
+  if [ ! -f "$f" ]; then
+    echo NOT-RUN
+    return 0
+  fi
+  if kv_is "$f" UNIT-DROPINS "''" && kv_is "$f" RESULT exit-code && kv_is "$f" EXEC-MAIN-STATUS 40 \
+    && kv_is "$f" JOURNAL-NAMES-DIR yes && kv_is "$f" LOCKED-STILL-THERE yes && kv_is "$f" REMOVABLE-GONE yes \
+    && kv_is "$f" NIGHT-HAS-MANIFEST yes; then
+    echo PASS
+  else
+    echo FAIL
+  fi
+}
+
+# invariants_same A B: same when both files hold an inode, an invocation, the
+# active state and a tree hash, and are byte for byte equal; changed otherwise.
+invariants_same() {
+  local a=${1:-} b=${2:-}
+  if [ -s "$a" ] && [ -s "$b" ] && cmp -s "$a" "$b" \
+    && grep -Eq '^inode [0-9]+$' "$a" && grep -Eq '^invocation [0-9a-f]+$' "$a" \
+    && grep -Eq '^active [a-z]+$' "$a" && grep -Eq '^tree [0-9a-f]{64}$' "$a"; then
+    echo same
+  else
+    echo changed
   fi
 }
 
@@ -271,7 +349,296 @@ stage_bak01() {
   else
     put "$f" MANIFEST-CHECKSUMS-LINE no
   fi
+  bak01_refusals "$f"
+  bak01_old "$f"
+  bak01_new "$f"
   printf 'BAK-01 %s\n' "$(verdict_bak01 "$f")" >> "$f"
+}
+
+# Run INSIDE the container. STAMP_SH: $1 is the line to play, stdin the answer.
+# Every output line is prefixed with the container's clock (run.sh's
+# RESTORE_RUN_SH technique), a last line "WALL t0 t1", and the exit status is the
+# line's own (PIPESTATUS), not that of the loop.
+STAMP_SH='set -o pipefail
+t0=$(date +%s.%N)
+bash -c "$1" 2>&1 | while IFS= read -r l; do printf "%s %s\n" "$(date +%s.%N)" "$l"; done
+rc=${PIPESTATUS[0]}
+t1=$(date +%s.%N)
+echo "WALL $t0 $t1"
+exit "$rc"'
+
+# Run INSIDE the container. FLIP_SH FILE OFFSET: the byte at OFFSET becomes the
+# next byte value (mod 256), written in place.
+FLIP_SH='f=$1; off=$2
+b=$(od -An -tu1 -N1 -j "$off" "$f" | tr -d " ")
+[ -n "$b" ] || exit 1
+nb=$(( (b + 1) % 256 ))
+printf "\\$(printf %03o "$nb")" | dd of="$f" bs=1 seek="$off" count=1 conv=notrunc status=none'
+
+# Run INSIDE the container. INV_SH: the invariants of the live installation that a
+# refused restore must not touch (run.sh's restore-negative takes the same):
+# the inode of the database, the service's invocation and state, and the tree
+# hash of the data directory without the holzcloud.sqlite family.
+INV_SH='d=/opt/holzcloud/data
+echo "inode $(stat -c %i "$d/holzcloud.sqlite")"
+echo "invocation $(systemctl show -p InvocationID --value holzcloud)"
+echo "active $(systemctl is-active holzcloud)"
+echo "tree $(cd "$d" && find . -type f ! -name "holzcloud.sqlite*" -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d" " -f1)"'
+
+# restore_line DIR: the document's restore line with DIR in place of its example.
+restore_line() {
+  local l
+  l=$(grep -E '^sudo /opt/holzcloud/deploy/restore\.sh /opt/holzcloud/backups/[0-9]{8}-[0-9]{6}$' "$DEPLOY_DOC" | head -n 1) || l=""
+  [ -n "$l" ] || die "the document and this file have drifted apart: $DEPLOY_DOC has no restore line of the shape 'sudo /opt/holzcloud/deploy/restore.sh /opt/holzcloud/backups/TIMESTAMP'"
+  printf '%s %s\n' "${l% *}" "$1"
+}
+
+# play_restore OUT DIR: the restore line for DIR, `yes` on stdin, every line
+# stamped into OUT; returns restore.sh's status. Preceded by reset-failed
+# (DEVIATION[start-limit]): several restores in a row restart the service more
+# often than its start limit allows, which a server never meets.
+play_restore() {
+  local out=$1 line rc=0
+  line=$(restore_line "$2")
+  dx systemctl reset-failed holzcloud > /dev/null 2>&1 || true
+  say "restore: $line"
+  printf 'yes\n' | docker exec -i "$T32_NAME" bash -c "$STAMP_SH" _ "$line" > "$out" 2>&1 || rc=$?
+  return "$rc"
+}
+
+# unstamped FILE: the lines of a stamped file without the clock.
+unstamped() { sed 's/^[0-9][0-9.]* //' "$1"; }
+
+# inv_take FILE: the invariants, now.
+inv_take() { dx bash -c "$INV_SH" | tr -d '\r' > "$1"; }
+
+# copy_case NAME: a copy of the manual backup below /root/t32, never inside
+# /opt/holzcloud/backups; its path on stdout.
+copy_case() {
+  dx bash -c 'mkdir -p /root/t32 && rm -rf "/root/t32/$1" && cp -a "$2" "/root/t32/$1"' _ "$1" "$BAK01_DIR" \
+    || die "could not copy $BAK01_DIR to /root/t32/$1"
+  printf '/root/t32/%s\n' "$1"
+}
+
+# refusal FILE CASE OUT COPY RCKEY: restore the damaged copy with the invariants
+# taken before and after; RCKEY and INVARIANTS-AFTER-CASE go to FILE.
+refusal() {
+  local f=$1 key=$2 out=$3 copy=$4 rc=0 b a
+  b=$T32_OUT/inv-$key-before.lst
+  a=$T32_OUT/inv-$key-after.lst
+  inv_take "$b"
+  play_restore "$out" "$copy" || rc=$?
+  inv_take "$a"
+  put "$f" "$5" "$rc"
+  put "$f" "INVARIANTS-AFTER-$key" "$(invariants_same "$b" "$a")"
+  dx rm -rf "$copy"
+}
+
+# named_differs OUT: the path of the first "differs from its checksum" line.
+named_differs() { unstamped "$1" | sed -n 's/^ERROR: \(.*\) differs from its checksum in SHA256SUMS .*/\1/p' | head -n 1; }
+named_missing() { unstamped "$1" | sed -n 's/^ERROR: \(.*\) is listed in SHA256SUMS and missing .*/\1/p' | head -n 1; }
+
+# bak01_refusals: four damaged copies, each refused before anything is stopped.
+bak01_refusals() {
+  local f=$1 copy rel size offs off line got
+  # FLIP-MEDIA: one byte of the first ./media/ file in SHA256SUMS order.
+  rel=$(grep -E '^[0-9a-f]{64}  \./media/' "$T32_OUT/bak01-sums.lst" | head -n 1 | sed 's/^[0-9a-f]\{64\}  //') || rel=""
+  [ -n "$rel" ] || die "bak01: SHA256SUMS lists no media file"
+  copy=$(copy_case flip-media)
+  size=$(dx stat -c %s "$copy/$rel" | tr -d '\r')
+  dx bash -c "$FLIP_SH" _ "$copy/$rel" "$((size / 2))" || die "bak01: could not flip a byte of $copy/$rel"
+  put "$f" FLIP-MEDIA-FILE "$rel"
+  refusal "$f" FLIP-MEDIA "$T32_OUT/bak01-flip-media.out" "$copy" FLIP-MEDIA-RC
+  put "$f" FLIP-MEDIA-NAMED "$(named_differs "$T32_OUT/bak01-flip-media.out")"
+
+  # BITROT: one character of a text the seed wrote ("Plugintest page", the first
+  # line of the page's markdown), inside a data page, so that the integrity check
+  # still passes; the first occurrence whose flip leaves `integrity: ok` is used.
+  copy=$(copy_case bitrot)
+  offs=$(dx bash -c 'grep -obUa "Plugintest page" "$1" | cut -d: -f1 | head -n 8' _ "$copy/holzcloud.sqlite" | tr -d '\r') || offs=""
+  [ -n "$offs" ] || die "bak01: the snapshot holds no 'Plugintest page'"
+  got=""
+  : > "$T32_OUT/bak01-bitrot-check.out"
+  for off in $offs; do
+    dx bash -c 'rm -rf /root/t32/bitrot-check && mkdir -p /root/t32/bitrot-check && cp "$1" /root/t32/bitrot-check/holzcloud.sqlite' _ "$copy/holzcloud.sqlite"
+    dx bash -c "$FLIP_SH" _ /root/t32/bitrot-check/holzcloud.sqlite "$off" || die "bak01: could not flip a byte of the check copy"
+    line=$(dx bash -c 'HOLZCLOUD_DATA_DIR=/root/t32/bitrot-check /opt/holzcloud/holzcloud check 2>&1; echo "status $?"' | tr -d '\r') || line=""
+    printf 'offset %s\n%s\n' "$off" "$line" >> "$T32_OUT/bak01-bitrot-check.out"
+    got=$(printf '%s\n' "$line" | grep '^integrity: ' | head -n 1) || got=""
+    if [ "$got" = "integrity: ok" ]; then
+      dx bash -c "$FLIP_SH" _ "$copy/holzcloud.sqlite" "$off" || die "bak01: could not flip a byte of $copy/holzcloud.sqlite"
+      put "$f" BITROT-OFFSET "$off"
+      break
+    fi
+  done
+  dx rm -rf /root/t32/bitrot-check
+  put "$f" BITROT-CHECK "${got:-?}"
+  refusal "$f" BITROT "$T32_OUT/bak01-bitrot.out" "$copy" BITROT-RESTORE-RC
+  put "$f" BITROT-NAMED "$(named_differs "$T32_OUT/bak01-bitrot.out")"
+
+  # DELETED: the last ./media/ file of SHA256SUMS removed from the copy.
+  rel=$(grep -E '^[0-9a-f]{64}  \./media/' "$T32_OUT/bak01-sums.lst" | tail -n 1 | sed 's/^[0-9a-f]\{64\}  //')
+  copy=$(copy_case deleted)
+  dx rm -f "$copy/$rel" || die "bak01: could not remove $copy/$rel"
+  put "$f" DELETED-FILE "$rel"
+  refusal "$f" DELETED "$T32_OUT/bak01-deleted.out" "$copy" DELETED-RC
+  put "$f" DELETED-NAMED "$(named_missing "$T32_OUT/bak01-deleted.out")"
+
+  # NOSUMS: SHA256SUMS removed, the MANIFEST that names it kept.
+  copy=$(copy_case nosums)
+  dx rm -f "$copy/SHA256SUMS" || die "bak01: could not remove $copy/SHA256SUMS"
+  refusal "$f" NOSUMS "$T32_OUT/bak01-nosums.out" "$copy" NOSUMS-RC
+  if unstamped "$T32_OUT/bak01-nosums.out" | grep -q '^ERROR: .*/MANIFEST names SHA256SUMS but the file is missing'; then
+    put "$f" NOSUMS-NAMED yes
+  else
+    put "$f" NOSUMS-NAMED no
+  fi
+}
+
+# bak01_old: a backup made by the backup.sh of v0.1.4, restored by this release.
+bak01_old() {
+  local f=$1 rc=0 sha dir
+  git show v0.1.4:deploy/backup.sh > "$T32_OUT/v014-backup.sh" || die "git show v0.1.4:deploy/backup.sh failed"
+  dx mkdir -p /opt/holzcloud/deploy-v014
+  docker cp "$T32_OUT/v014-backup.sh" "$T32_NAME:/opt/holzcloud/deploy-v014/backup.sh" > /dev/null || die "docker cp of the v0.1.4 backup.sh failed"
+  dx bash -c 'chown root:root /opt/holzcloud/deploy-v014/backup.sh && chmod 755 /opt/holzcloud/deploy-v014/backup.sh
+install -d -o holzcloud -g holzcloud -m 700 /opt/holzcloud/backups-v014' || die "could not prepare the v0.1.4 script"
+  sha=$(dx sha256sum /opt/holzcloud/deploy-v014/backup.sh | cut -d' ' -f1 | tr -d '\r')
+  put "$f" OLD-BACKUP-SCRIPT "v0.1.4 sha256 $sha"
+  deviation "DEVIATION[old-script]: the backup.sh of v0.1.4 ran with this release's binary (as /opt/holzcloud/deploy-v014/backup.sh, with DATA_DIR and HOLZCLOUD_BIN as the unit sets them, into /opt/holzcloud/backups-v014); a server that kept the old script would run it with the binary of its own release"
+  dx bash -c 'sudo -u holzcloud env DATA_DIR=/opt/holzcloud/data HOLZCLOUD_BIN=/opt/holzcloud/holzcloud /opt/holzcloud/deploy-v014/backup.sh /opt/holzcloud/backups-v014' \
+    > "$T32_OUT/bak01-old-backup.out" 2>&1 || rc=$?
+  put "$f" OLD-BACKUP-RC "$rc"
+  dir=$(dx bash -c 'ls -1 /opt/holzcloud/backups-v014 | grep -E "^[0-9]{8}-[0-9]{6}$" | tail -n 1' | tr -d '\r') || dir=""
+  [ -n "$dir" ] || die "bak01: the v0.1.4 script left no backup directory"
+  rc=0
+  play_restore "$T32_OUT/bak01-old-restore.out" "/opt/holzcloud/backups-v014/$dir" || rc=$?
+  put "$f" OLD-RESTORE-RC "$rc"
+  if unstamped "$T32_OUT/bak01-old-restore.out" | grep -q '^NOTICE: .* has no checksum file (made before 0\.1\.5); its files were not verified$'; then
+    put "$f" OLD-NOTICE yes
+  else
+    put "$f" OLD-NOTICE no
+  fi
+}
+
+# bak01_new: the untouched manual backup restores with every file verified.
+bak01_new() {
+  local f=$1 rc=0
+  play_restore "$T32_OUT/bak01-new-restore.out" "$BAK01_DIR" || rc=$?
+  put "$f" NEW-RESTORE-RC "$rc"
+  put "$f" NEW-VERIFIED-LINE "$(unstamped "$T32_OUT/bak01-new-restore.out" | grep -E '^Checksums: [0-9]+ files verified$' | head -n 1)"
+}
+
+# new_backup_dir ROOT BEFORE: the timestamp directory of ROOT not in the list BEFORE.
+new_backup_dir() {
+  local now
+  now=$(dx bash -c 'ls -1 "$1"' _ "$1" | tr -d '\r' | grep -E '^[0-9]{8}-[0-9]{6}$') || now=""
+  if [ -n "$2" ]; then
+    printf '%s\n' "$now" | grep -Fxv -- "$2" | tail -n 1 || true
+  else
+    printf '%s\n' "$now" | tail -n 1
+  fi
+}
+
+# stage_bak02: an original and a variant that database rows name are gone before
+# the backup; restore.sh names both before its question and again at the end.
+stage_bak02() {
+  local f=$T32_OUT/bak02.txt row vid label vfile mid wid mfile before dir rc=0 nb na code
+  : > "$f"
+  dx bash -c 'rm -rf /root/t32/q && mkdir -p /root/t32/q && cp /opt/holzcloud/data/holzcloud.sqlite /root/t32/q/ && if [ -e /opt/holzcloud/data/holzcloud.sqlite-wal ]; then cp /opt/holzcloud/data/holzcloud.sqlite-wal /root/t32/q/; fi' \
+    || die "bak02: could not copy the live database"
+  row=$(dx sqlite3 -readonly /root/t32/q/holzcloud.sqlite \
+    "SELECT v.id, v.label, v.filename, m.id, m.website_id, m.filename FROM media_variants v JOIN media m ON m.id = v.media_id ORDER BY m.id, v.id LIMIT 1" | tr -d '\r') || row=""
+  dx rm -rf /root/t32/q
+  [ -n "$row" ] || die "bak02: the database has no media row with a variant"
+  IFS='|' read -r vid label vfile mid wid mfile <<< "$row"
+  dx rm -f "/opt/holzcloud/data/media/$wid/$mfile" "/opt/holzcloud/data/media/$wid/$vfile" || die "bak02: could not remove the two files"
+  deviation "DEVIATION[lost-file]: the two files are removed from the live data directory before the backup, standing in for a file deleted between the snapshot and the copy (phase 29 measured that as ROW-WITHOUT-FILE; it is not provoked again here)"
+  put "$f" LOST "media row $mid website $wid file $mfile"
+  put "$f" LOST "media_variants row $vid label $label file $vfile"
+  before=$(dx bash -c 'ls -1 /opt/holzcloud/backups' | tr -d '\r') || before=""
+  dx bash -c "$MANUAL_LINE" > "$T32_OUT/bak02-backup.out" 2>&1 || rc=$?
+  put "$f" BACKUP-RC "$rc"
+  dir=$(new_backup_dir /opt/holzcloud/backups "$before")
+  [ -n "$dir" ] || die "bak02: the backup left no new directory"
+  if dx grep -Eq "  \./media/$wid/($mfile|$vfile)\$" "/opt/holzcloud/backups/$dir/SHA256SUMS"; then
+    put "$f" SUMS-LISTS-LOST yes
+  else
+    put "$f" SUMS-LISTS-LOST no
+  fi
+  rc=0
+  play_restore "$T32_OUT/bak02-restore.out" "/opt/holzcloud/backups/$dir" || rc=$?
+  put "$f" RESTORE-RC "$rc"
+  nb=$(unstamped "$T32_OUT/bak02-restore.out" | awk '/^Stopping holzcloud\.\.\.$/ { exit } /^MISSING / { n++ } END { print n + 0 }')
+  na=$(unstamped "$T32_OUT/bak02-restore.out" | awk 'seen && /^MISSING / { n++ } /^=== Restore complete ===$/ { seen = 1 } END { print n + 0 }')
+  put "$f" MISSING-BEFORE-QUESTION "$nb"
+  put "$f" MISSING-AT-END "$na"
+  code=$(dx curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/readyz | tr -d '\r') || code="?"
+  if [ "$code" = 200 ]; then put "$f" READYZ ok; else put "$f" READYZ "$code"; fi
+  printf 'BAK-02 %s\n' "$(verdict_bak02 "$f")" >> "$f"
+}
+
+# stage_bak03: the shipped unit, with no drop-in, meets an old backup it cannot remove.
+stage_bak03() {
+  local f=$T32_OUT/bak03.txt b=/opt/holzcloud/backups cur before dir rc=0 v
+  : > "$f"
+  dx bash -c 'set -e; b=/opt/holzcloud/backups
+mkdir -p "$b/20200101-031500/locked" "$b/20200102-031500"
+echo planted > "$b/20200101-031500/MANIFEST"
+echo planted > "$b/20200101-031500/locked/keep"
+echo planted > "$b/20200102-031500/MANIFEST"
+chown holzcloud:holzcloud "$b/20200101-031500" "$b/20200101-031500/MANIFEST"
+chown -R root:root "$b/20200101-031500/locked"
+chmod 755 "$b/20200101-031500/locked"
+chown -R holzcloud:holzcloud "$b/20200102-031500"
+touch -d "45 days ago" "$b/20200101-031500" "$b/20200102-031500"' || die "bak03: could not plant the old backups"
+  put "$f" PLANTED "$b/20200101-031500 (locked: root-owned)"
+  put "$f" PLANTED "$b/20200102-031500"
+  v=$(dx systemctl show -p DropInPaths --value holzcloud-backup.service | tr -d '\r')
+  put "$f" UNIT-DROPINS "'$v'"
+  before=$(dx bash -c 'ls -1 /opt/holzcloud/backups' | tr -d '\r') || before=""
+  cur=$(dx journalctl -n 0 --show-cursor --no-pager 2> /dev/null | sed -n 's/^-- cursor: //p' | tr -d '\r') || cur=""
+  [ -n "$cur" ] || die "bak03: journalctl gave no cursor"
+  dx systemctl start holzcloud-backup.service || rc=$?
+  put "$f" START-RC "$rc"
+  sleep 2
+  dx journalctl -u holzcloud-backup.service --after-cursor "$cur" -o cat --no-pager | tr -d '\r' > "$T32_OUT/bak03-journal.txt" || true
+  put "$f" RESULT "$(dx systemctl show -p Result --value holzcloud-backup.service | tr -d '\r')"
+  put "$f" EXEC-MAIN-STATUS "$(dx systemctl show -p ExecMainStatus --value holzcloud-backup.service | tr -d '\r')"
+  if grep -Fq "ERROR: retention could not remove $b/20200101-031500" "$T32_OUT/bak03-journal.txt"; then
+    put "$f" JOURNAL-NAMES-DIR yes
+  else
+    put "$f" JOURNAL-NAMES-DIR no
+  fi
+  if dx test -d "$b/20200101-031500"; then put "$f" LOCKED-STILL-THERE yes; else put "$f" LOCKED-STILL-THERE no; fi
+  if dx test -e "$b/20200102-031500"; then put "$f" REMOVABLE-GONE no; else put "$f" REMOVABLE-GONE yes; fi
+  dir=$(new_backup_dir "$b" "$before")
+  if [ -n "$dir" ] && dx test -s "$b/$dir/MANIFEST"; then
+    put "$f" NIGHT-HAS-MANIFEST yes
+  else
+    put "$f" NIGHT-HAS-MANIFEST no
+  fi
+  dx systemctl reset-failed holzcloud-backup.service > /dev/null 2>&1 || true
+  printf 'BAK-03 %s\n' "$(verdict_bak03 "$f")" >> "$f"
+}
+
+# write_measurements: size and timings of the manual backup and its checks.
+write_measurements() {
+  local f=$T32_OUT/measurements.txt step
+  {
+    echo "BULK-MB: $BULK_MB"
+    if [ -n "${BAK01_DIR:-}" ]; then
+      echo "BACKUP-MB: $(dx du -sm "$BAK01_DIR" | cut -f1 | tr -d '\r')"
+      echo "BACKUP-FILES: $(dx bash -c 'find "$1" -type f | wc -l' _ "$BAK01_DIR" | tr -d '\r ')"
+      echo "MANUAL-BACKUP-WALL-S: $(cwall "$T32_OUT/bak01-manual.wall")"
+      echo "SHA256SUM-C-WALL-S: $(cwall "$T32_OUT/bak01-sumcheck.wall")"
+    fi
+    if [ -f "$T32_OUT/bak01-new-restore.out" ]; then
+      step=$(awk '/^WALL / { t0 = $2 } / Checksums: [0-9]+ files verified$/ { c = $1 } END { if (t0 != "" && c != "") printf "%.1f\n", c - t0; else print "?" }' "$T32_OUT/bak01-new-restore.out")
+      echo "RESTORE-CHECKSUM-STEP-S: $step"
+    fi
+  } > "$f"
+  cat "$f" >&2
 }
 
 # write_versions: run.sh's versions.txt (written by `up`), then the tools of this set.
@@ -320,6 +687,8 @@ write_summary() {
   {
     echo "---- summary ($PLATFORM) ----"
     echo "BAK-01 $(verdict_bak01 "$T32_OUT/bak01.txt")"
+    echo "BAK-02 $(verdict_bak02 "$T32_OUT/bak02.txt")"
+    echo "BAK-03 $(verdict_bak03 "$T32_OUT/bak03.txt")"
     echo "STAGES: $STAGES"
     echo "DEVIATIONS: ${kinds:-none}"
     echo "BINARY: $bin"
@@ -338,7 +707,13 @@ run_body() {
   run_sh seed backup-fixture
   write_versions
   write_deviations
+  if stage_wanted bak01 || stage_wanted bak02; then
+    deviation "DEVIATION[start-limit]: systemctl reset-failed holzcloud runs before each restore; several restores in a row restart the service more often than its start limit allows, which one restore on a server never meets"
+  fi
   if stage_wanted bak01; then stage_bak01; fi
+  if stage_wanted bak02; then stage_bak02; fi
+  if stage_wanted bak03; then stage_bak03; fi
+  write_measurements
   write_summary
   grep -Eq '^BAK-0[0-9] (FAIL|NOT-RUN)$' "$T32_OUT/summary.txt" && return 1
   return 0
@@ -483,10 +858,17 @@ selftest_sums() {
   st_ans "sums_equal_find: a line that is no checksum line" no sums_equal_find "$s" "$f"
 }
 
-# fx_bak01_t1 FILE [KEY VALUE]: the keys of the first part of bak01, all good; with
-# KEY and VALUE, that one line replaced.
-fx_bak01_t1() {
-  local f=$1 k=${2:-} v=${3:-}
+# fx_set FILE KEY VALUE: the line "KEY: ..." of FILE replaced by "KEY: VALUE"; with
+# VALUE "-" the line is removed.
+fx_set() {
+  awk -v k="$2" -v v="$3" 'index($0, k ": ") == 1 { if (v != "-") print k ": " v; next } { print }' "$1" > "$1.x"
+  mv "$1.x" "$1"
+}
+
+# fx_bak01 FILE [KEY VALUE]: every key of bak01.txt, all good; with KEY and VALUE,
+# that one line replaced (or removed for "-").
+fx_bak01() {
+  local f=$1
   {
     echo "MANUAL-RC: 0"
     echo "SUMS-LINES: 31"
@@ -495,38 +877,148 @@ fx_bak01_t1() {
     echo "SUMS-HAS-SQLITE: yes"
     echo "SUMS-MEDIA-LINES: 27"
     echo "MANIFEST-CHECKSUMS-LINE: yes"
+    echo "FLIP-MEDIA-FILE: ./media/1/a.jpg"
+    echo "FLIP-MEDIA-RC: 1"
+    echo "FLIP-MEDIA-NAMED: ./media/1/a.jpg"
+    echo "INVARIANTS-AFTER-FLIP-MEDIA: same"
+    echo "BITROT-CHECK: integrity: ok"
+    echo "BITROT-RESTORE-RC: 1"
+    echo "BITROT-NAMED: ./holzcloud.sqlite"
+    echo "INVARIANTS-AFTER-BITROT: same"
+    echo "DELETED-FILE: ./media/1/z.bin"
+    echo "DELETED-RC: 1"
+    echo "DELETED-NAMED: ./media/1/z.bin"
+    echo "INVARIANTS-AFTER-DELETED: same"
+    echo "NOSUMS-RC: 1"
+    echo "NOSUMS-NAMED: yes"
+    echo "INVARIANTS-AFTER-NOSUMS: same"
+    echo "OLD-BACKUP-SCRIPT: v0.1.4 sha256 $H64"
+    echo "OLD-BACKUP-RC: 0"
+    echo "OLD-RESTORE-RC: 0"
+    echo "OLD-NOTICE: yes"
+    echo "NEW-RESTORE-RC: 0"
+    echo "NEW-VERIFIED-LINE: Checksums: 31 files verified"
+    echo "BAK-01 PASS"
   } > "$f"
-  if [ -n "$k" ]; then
-    awk -v k="$k" -v v="$v" 'index($0, k ": ") == 1 { print k ": " v; next } { print }' "$f" > "$f.x"
-    mv "$f.x" "$f"
-  fi
+  if [ -n "${2:-}" ]; then fx_set "$f" "$2" "${3:-}"; fi
 }
 
-selftest_verdict_bak01_t1() {
-  local f=$ST_TMP/bak01.txt
+selftest_verdict_bak01() {
+  local f=$ST_TMP/bak01.txt kv
   st_ans "verdict_bak01: no file" NOT-RUN verdict_bak01 "$ST_TMP/absent.txt"
-  fx_bak01_t1 "$f"
+  fx_bak01 "$f"
   st_ans "verdict_bak01: every key good" PASS verdict_bak01 "$f"
-  fx_bak01_t1 "$f" MANUAL-RC 1
-  st_ans "verdict_bak01: the backup line failed" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f" SUMS-EQUALS-FIND no
-  st_ans "verdict_bak01: SHA256SUMS is not the directory" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f" SUMS-CHECK-RC 1
-  st_ans "verdict_bak01: sha256sum -c failed" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f" SUMS-HAS-SQLITE no
-  st_ans "verdict_bak01: the snapshot is not listed" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f" SUMS-MEDIA-LINES 0
-  st_ans "verdict_bak01: no media line" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f" SUMS-MEDIA-LINES x
-  st_ans "verdict_bak01: a media count that is no number" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f" MANIFEST-CHECKSUMS-LINE no
-  st_ans "verdict_bak01: no checksums line in the MANIFEST" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f"
-  grep -v '^MANUAL-RC: ' "$f" > "$f.x" && mv "$f.x" "$f"
-  st_ans "verdict_bak01: a key is absent" FAIL verdict_bak01 "$f"
-  fx_bak01_t1 "$f"
+  # One wrong (or absent, "-") value per case; each must give FAIL.
+  for kv in "MANUAL-RC|1" "SUMS-LINES|0" "SUMS-EQUALS-FIND|no" "SUMS-CHECK-RC|1" "SUMS-HAS-SQLITE|no" \
+    "SUMS-MEDIA-LINES|0" "SUMS-MEDIA-LINES|x" "MANIFEST-CHECKSUMS-LINE|no" \
+    "FLIP-MEDIA-FILE|./media/1/b.jpg" "FLIP-MEDIA-RC|0" "FLIP-MEDIA-NAMED|./media/1/b.jpg" "FLIP-MEDIA-NAMED|" \
+    "INVARIANTS-AFTER-FLIP-MEDIA|changed" "BITROT-CHECK|integrity: database disk image is malformed" \
+    "BITROT-RESTORE-RC|0" "BITROT-NAMED|./media/1/a.jpg" "INVARIANTS-AFTER-BITROT|changed" \
+    "DELETED-FILE|./holzcloud.sqlite" "DELETED-RC|0" "DELETED-NAMED|./media/1/a.jpg" "INVARIANTS-AFTER-DELETED|changed" \
+    "NOSUMS-RC|0" "NOSUMS-NAMED|no" "INVARIANTS-AFTER-NOSUMS|changed" \
+    "OLD-BACKUP-SCRIPT|v0.1.3 sha256 $H64" "OLD-BACKUP-SCRIPT|v0.1.4 sha256 x" "OLD-BACKUP-RC|1" \
+    "OLD-RESTORE-RC|1" "OLD-NOTICE|no" "NEW-RESTORE-RC|3" \
+    "NEW-VERIFIED-LINE|Checksums: 30 files verified" "NEW-VERIFIED-LINE|" \
+    "MANUAL-RC|-" "NEW-VERIFIED-LINE|-" "INVARIANTS-AFTER-NOSUMS|-"; do
+    fx_bak01 "$f" "${kv%%|*}" "${kv#*|}"
+    st_ans "verdict_bak01: ${kv%%|*} '${kv#*|}'" FAIL verdict_bak01 "$f"
+  done
+  fx_bak01 "$f"
   echo "MANUAL-RC: 0" >> "$f"
   st_ans "verdict_bak01: a key twice" FAIL verdict_bak01 "$f"
+}
+
+fx_bak02() {
+  local f=$1
+  {
+    echo "LOST: media row 1 website 1 file 1a2b.jpg"
+    echo "LOST: media_variants row 3 label thumb file 1a2b-thumb.webp"
+    echo "BACKUP-RC: 0"
+    echo "SUMS-LISTS-LOST: no"
+    echo "RESTORE-RC: 3"
+    echo "MISSING-BEFORE-QUESTION: 2"
+    echo "MISSING-AT-END: 2"
+    echo "READYZ: ok"
+    echo "BAK-02 PASS"
+  } > "$f"
+  if [ -n "${2:-}" ]; then fx_set "$f" "$2" "${3:-}"; fi
+}
+
+selftest_verdict_bak02() {
+  local f=$ST_TMP/bak02.txt kv
+  st_ans "verdict_bak02: no file" NOT-RUN verdict_bak02 "$ST_TMP/absent.txt"
+  fx_bak02 "$f"
+  st_ans "verdict_bak02: every key good" PASS verdict_bak02 "$f"
+  for kv in "BACKUP-RC|1" "SUMS-LISTS-LOST|yes" "RESTORE-RC|0" "RESTORE-RC|1" "MISSING-BEFORE-QUESTION|1" \
+    "MISSING-AT-END|3" "MISSING-AT-END|0" "READYZ|503" "READYZ|-" "RESTORE-RC|-"; do
+    fx_bak02 "$f" "${kv%%|*}" "${kv#*|}"
+    st_ans "verdict_bak02: ${kv%%|*} '${kv#*|}'" FAIL verdict_bak02 "$f"
+  done
+  fx_bak02 "$f"
+  grep -v '^LOST: media_variants' "$f" > "$f.x" && mv "$f.x" "$f"
+  st_ans "verdict_bak02: no variant lost" FAIL verdict_bak02 "$f"
+  fx_bak02 "$f"
+  grep -v '^LOST: media row' "$f" > "$f.x" && mv "$f.x" "$f"
+  st_ans "verdict_bak02: no original lost" FAIL verdict_bak02 "$f"
+  fx_bak02 "$f" MISSING-BEFORE-QUESTION 1
+  fx_set "$f" MISSING-AT-END 1
+  st_ans "verdict_bak02: one MISSING line for two lost files" FAIL verdict_bak02 "$f"
+}
+
+fx_bak03() {
+  local f=$1
+  {
+    echo "PLANTED: /opt/holzcloud/backups/20200101-031500 (locked: root-owned)"
+    echo "PLANTED: /opt/holzcloud/backups/20200102-031500"
+    echo "UNIT-DROPINS: ''"
+    echo "START-RC: 1"
+    echo "RESULT: exit-code"
+    echo "EXEC-MAIN-STATUS: 40"
+    echo "JOURNAL-NAMES-DIR: yes"
+    echo "LOCKED-STILL-THERE: yes"
+    echo "REMOVABLE-GONE: yes"
+    echo "NIGHT-HAS-MANIFEST: yes"
+    echo "BAK-03 PASS"
+  } > "$f"
+  if [ -n "${2:-}" ]; then fx_set "$f" "$2" "${3:-}"; fi
+}
+
+selftest_verdict_bak03() {
+  local f=$ST_TMP/bak03.txt kv
+  st_ans "verdict_bak03: no file" NOT-RUN verdict_bak03 "$ST_TMP/absent.txt"
+  fx_bak03 "$f"
+  st_ans "verdict_bak03: every key good" PASS verdict_bak03 "$f"
+  for kv in "UNIT-DROPINS|'/etc/systemd/system/holzcloud-backup.service.d/x.conf'" "UNIT-DROPINS|" \
+    "RESULT|success" "EXEC-MAIN-STATUS|0" "EXEC-MAIN-STATUS|4" "JOURNAL-NAMES-DIR|no" "LOCKED-STILL-THERE|no" \
+    "REMOVABLE-GONE|no" "NIGHT-HAS-MANIFEST|no" "RESULT|-" "EXEC-MAIN-STATUS|-"; do
+    fx_bak03 "$f" "${kv%%|*}" "${kv#*|}"
+    st_ans "verdict_bak03: ${kv%%|*} '${kv#*|}'" FAIL verdict_bak03 "$f"
+  done
+}
+
+selftest_invariants() {
+  local a=$ST_TMP/inv-a b=$ST_TMP/inv-b
+  printf 'inode 12\ninvocation abc\nactive active\ntree %s\n' "$H64" > "$a"
+  cp "$a" "$b"
+  st_ans "invariants_same: equal" same invariants_same "$a" "$b"
+  printf 'inode 13\ninvocation abc\nactive active\ntree %s\n' "$H64" > "$b"
+  st_ans "invariants_same: another inode" changed invariants_same "$a" "$b"
+  printf 'inode 12\ninvocation abd\nactive active\ntree %s\n' "$H64" > "$b"
+  st_ans "invariants_same: another invocation" changed invariants_same "$a" "$b"
+  printf 'inode 12\ninvocation abc\nactive inactive\ntree %s\n' "$H64" > "$b"
+  st_ans "invariants_same: no longer active" changed invariants_same "$a" "$b"
+  printf 'inode 12\ninvocation abc\nactive active\ntree 0%s\n' "$H64" > "$b"
+  st_ans "invariants_same: another tree" changed invariants_same "$a" "$b"
+  st_ans "invariants_same: no second file" changed invariants_same "$a" "$ST_TMP/absent"
+  : > "$a"
+  : > "$b"
+  st_ans "invariants_same: two empty files" changed invariants_same "$a" "$b"
+  printf 'inode \ninvocation \nactive inactive\ntree %s\n' "$H64" > "$a"
+  cp "$a" "$b"
+  st_ans "invariants_same: equal, but without an inode" changed invariants_same "$a" "$b"
+  printf 'inode 12\ninvocation abc\nactive active\n' > "$a"
+  cp "$a" "$b"
+  st_ans "invariants_same: equal, but without a tree" changed invariants_same "$a" "$b"
 }
 
 cmd_selftest() {
@@ -536,7 +1028,10 @@ cmd_selftest() {
   trap 'rm -rf "${ST_TMP:?}"' EXIT
   selftest_names
   selftest_sums
-  selftest_verdict_bak01_t1
+  selftest_verdict_bak01
+  selftest_verdict_bak02
+  selftest_verdict_bak03
+  selftest_invariants
   if [ "$ST_BAD" -ne 0 ]; then
     echo "SELFTEST FAILED: $ST_BAD of $ST_N cases"
     exit 1
