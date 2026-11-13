@@ -281,3 +281,71 @@ func TestInUseAmongMatchesInUse(t *testing.T) {
 		t.Error("empty list: a nil map, want an empty one")
 	}
 }
+
+// One statement answers a whole media list. It must give, file by file, the
+// same answer as the question for one file, for every kind of use at once on
+// one website, and a list longer than one statement holds must come back
+// whole.
+func TestInUseAmongAnswersAWholeListLikeInUse(t *testing.T) {
+	s, ws := newTestStore(t)
+	ctx := context.Background()
+	names := []string{"block.jpg", "feld.jpg", "menu.pdf", "produkt.jpg", "logo.png", "frei1.jpg", "frei2.jpg"}
+	var files []Media
+	for _, name := range names {
+		m, err := s.Create(ctx, ws, name, name, "image/jpeg", 10, "hash-"+name)
+		if err != nil {
+			t.Fatalf("Create %s: %v", name, err)
+		}
+		files = append(files, *m)
+	}
+	page := seedPage(t, s, ws, "Alles", "alles")
+	mustExec(t, s, `UPDATE pages SET blocks = $1, fields = $2 WHERE id = $3`,
+		fmt.Sprintf(`[{"typ":"bild","medium":%d}]`, files[0].ID),
+		fmt.Sprintf(`{"werte":{"ansicht":"%d"}}`, files[1].ID), page)
+	menu := mustExec(t, s, `INSERT INTO menus (website_id, name, location_key) VALUES ($1, 'Haupt', 'main')`, ws)
+	mustExec(t, s, `INSERT INTO menu_items (menu_id, title, item_type, url) VALUES ($1, 'Karte', 'custom', $2)`,
+		menu, fmt.Sprintf("/media/%d/menu.pdf", ws))
+	product := seedProduct(t, s, ws, "bank")
+	mustExec(t, s, `UPDATE products SET description_html = $1 WHERE id = $2`,
+		fmt.Sprintf(`<img src="/media/%d/produkt.jpg">`, ws), product)
+	mustExec(t, s, `UPDATE websites SET logo_media_id = $1 WHERE id = $2`, files[4].ID, ws)
+
+	got, err := s.InUseAmong(ctx, files)
+	if err != nil {
+		t.Fatalf("InUseAmong: %v", err)
+	}
+	for i := range files {
+		want := i < 5
+		if got[files[i].ID] != want {
+			t.Errorf("%s: in use %v, want %v", files[i].Filename, got[files[i].ID], want)
+		}
+		if single := inUse(t, s, &files[i]); single != got[files[i].ID] {
+			t.Errorf("%s: InUseAmong %v, InUse %v", files[i].Filename, got[files[i].ID], single)
+		}
+	}
+
+	var many []Media
+	for i := range 2*inUseChunk + 5 {
+		name := fmt.Sprintf("viele-%d.jpg", i)
+		m, err := s.Create(ctx, ws, name, name, "image/jpeg", 10, "hash-"+name)
+		if err != nil {
+			t.Fatalf("Create %s: %v", name, err)
+		}
+		many = append(many, *m)
+	}
+	last := many[len(many)-1]
+	mustExec(t, s, `INSERT INTO snippets (website_id, key, name, content_html) VALUES ($1, 'fuss', 'Fuss', $2)`,
+		ws, fmt.Sprintf(`<img src="/media/%d/%s">`, ws, last.Filename))
+	got, err = s.InUseAmong(ctx, many)
+	if err != nil {
+		t.Fatalf("InUseAmong, a long list: %v", err)
+	}
+	if len(got) != len(many) {
+		t.Fatalf("a long list: %d answers for %d files", len(got), len(many))
+	}
+	for _, m := range many {
+		if got[m.ID] != (m.ID == last.ID) {
+			t.Errorf("a long list, %s: in use %v", m.Filename, got[m.ID])
+		}
+	}
+}
