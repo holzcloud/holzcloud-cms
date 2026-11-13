@@ -807,17 +807,34 @@ snapshot the service took before it migrated, binary and data together, and
 **losing everything written since the update**: edits, new pages, orders, form
 messages, and every change to users, sessions and API keys.
 
-Nothing in the program enforces that. It was played once, with the older binary
-(v0.0.10) started against the database of an update that had applied the migrations
-59 and 60, and it does not refuse a newer schema. It started, `/healthz` and
-`/readyz` answered `ok` with `integrity` `ok`, the journal said nothing about the
-schema, and the schema stayed at 60. It fails later, at the first write that it does
-not know about: the older code stores an order without naming the column `token`,
-which migration 60 added with a unique index. The first such order is stored with an
-empty token, the second is refused with `UNIQUE constraint failed: orders.token`
-(played as a direct insert in the statement shape of the older code, not through
-the shop). Nothing shows that beforehand, so the limit is yours to keep. Another
-pair of versions can break in another place.
+From 0.1.5 the binary keeps that rule itself. Before it does anything else with the
+database it reads the migration level, and it refuses a database that a newer binary
+migrated: it writes no snapshot, applies nothing and serves nothing. The journal of
+`holzcloud.service` then shows the line
+`refusing to start: the database schema is newer than this binary`, with the level of
+the database (`db_level`) and the highest level the binary knows (`binary_level`), and
+the process ends with status 1. systemd restarts it every five seconds, so the line
+appears about five times, and then the unit stops trying (`StartLimitBurst`, five
+starts in 300 seconds) and stays failed. Every subcommand that opens the database
+(`check`, `backup`, `migrate status`, `user …`) refuses the same way, with
+`error: the database is at migration level …` and status 1, so a backup taken by an
+older binary against a newer database fails loudly instead of copying a schema the
+binary does not know. The way out is one of the two below: the newer binary again,
+or the older binary together with the snapshot. Both blocks run
+`sudo systemctl reset-failed holzcloud` before the start, because a unit that hit its
+start limit refuses `systemctl start`.
+
+Binaries released before 0.1.5 do not carry this refusal. Such a binary was played
+once (v0.0.10) against the database of an update that had applied the migrations 59
+and 60. It started, `/healthz` and `/readyz` answered `ok` with `integrity` `ok`, the
+journal said nothing about the schema, and the schema stayed at 60. It failed later,
+at the first write that it did not know about: the older code stores an order without
+naming the column `token`, which migration 60 added with a unique index. The first
+such order is stored with an empty token, the second is refused with
+`UNIQUE constraint failed: orders.token` (played as a direct insert in the statement
+shape of the older code, not through the shop). Nothing shows that beforehand, so
+with a binary from before 0.1.5 the limit is yours to keep. Another pair of versions
+can break in another place.
 
 Which of the two blocks below to use depends on whether **this** update wrote a
 snapshot. The sign is the journal line `pre-upgrade snapshot written` at the update
@@ -901,9 +918,10 @@ What a rollback by snapshot does, as played:
   update that migrates. If more updates may happen before you roll back, copy the
   snapshot out of the data directory first.
 
-For developers: every migration file carries a goose `Down` section (60 of 60), but
+For developers: every migration file carries a goose `Down` section, but
 `holzcloud migrate` offers only `status` and `up`, no command runs them, and they
-are not a rollback route.
+are not a rollback route. `internal/db/migrations_down_test.go` plays some of them
+down and up again; nothing holds the others.
 
 ## Troubleshooting
 

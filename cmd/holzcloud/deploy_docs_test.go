@@ -121,3 +121,66 @@ func TestNoDeployDocumentCallsAForwardingProxyHarmless(t *testing.T) {
 		}
 	}
 }
+
+// deploySection returns the part of doc from the heading line to the next
+// heading of the same or a higher level, so a sentence pinned to a section
+// cannot pass by standing somewhere else in the document. Lines inside a code
+// fence are not headings: a shell comment starts with "#" too.
+func deploySection(t *testing.T, doc, heading string) string {
+	t.Helper()
+	level := strings.IndexFunc(heading, func(r rune) bool { return r != '#' })
+	if level <= 0 {
+		t.Fatalf("deploySection: %q is not a heading", heading)
+	}
+	lines := strings.Split(doc, "\n")
+	start := -1
+	for i, line := range lines {
+		if line == heading {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("deploy/DEPLOY.md has no heading %q", heading)
+	}
+	inFence := false
+	end := len(lines)
+	for i := start + 1; i < len(lines); i++ {
+		line := lines[i]
+		if strings.HasPrefix(line, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence || !strings.HasPrefix(line, "#") {
+			continue
+		}
+		n := strings.IndexFunc(line, func(r rune) bool { return r != '#' })
+		if n > 0 && n <= level && line[n] == ' ' {
+			end = i
+			break
+		}
+	}
+	return strings.Join(lines[start:end], "\n")
+}
+
+// TestDeploySaysOlderBinariesLackTheSchemaRefusal: from 0.1.5 the binary
+// refuses a database a newer binary migrated (STB-03). Rolling back said until
+// then that nothing in the program enforced it; an operator who goes back to a
+// binary from before 0.1.5 must still read that such a binary does not refuse.
+func TestDeploySaysOlderBinariesLackTheSchemaRefusal(t *testing.T) {
+	doc := readDeploy(t, "DEPLOY.md")
+	section := deploySection(t, doc, "## Rolling back")
+	for _, want := range []string{
+		"Binaries released before 0.1.5 do not carry this refusal",
+		"refusing to start: the database schema is newer than this binary",
+	} {
+		if !strings.Contains(section, want) {
+			t.Errorf("Rolling back does not say %q", want)
+		}
+	}
+	for _, stale := range []string{"Nothing in the program enforces", "60 of 60"} {
+		if strings.Contains(doc, stale) {
+			t.Errorf("deploy/DEPLOY.md still says %q", stale)
+		}
+	}
+}
