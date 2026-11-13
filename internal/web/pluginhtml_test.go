@@ -42,6 +42,22 @@ func TestAPluginScreenKeepsItsForms(t *testing.T) {
 	}
 }
 
+// A plugin's screen stands inside the host's markup — inside a disabled
+// fieldset when it is read-only — so its tags must balance: an end tag it never
+// opened is dropped, one it left open is closed.
+func TestAPluginScreenCannotCloseTheHostsMarkup(t *testing.T) {
+	out := string(SanitizeAdminHTML(`<p>a</p></fieldset></div><button name="los">Los</button><fieldset><p>offen`))
+	if strings.Count(out, "</fieldset>") != strings.Count(out, "<fieldset") {
+		t.Errorf("unbalanced fieldsets: %s", out)
+	}
+	if strings.Contains(out, "</div>") {
+		t.Errorf("a stray </div> survived: %s", out)
+	}
+	if !strings.Contains(out, `<button name="los">Los</button>`) || !strings.Contains(out, "<p>offen</p>") {
+		t.Errorf("the plugin's own markup is gone: %s", out)
+	}
+}
+
 // The session key is put in by the host, into every form.
 //
 // Without it every button on every plugin screen answers 403: a plugin's form

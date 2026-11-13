@@ -102,6 +102,14 @@ func TestAnUndeclaredPluginCannotWriteOnAGetWithoutPublishing(t *testing.T) {
 		t.Error("the plain screen of an undeclared plugin no longer opens")
 	}
 
+	// A plugin's HTML that closes a fieldset it never opened must not close
+	// the host's disabled one: its later controls would stand enabled on a
+	// screen whose every POST is refused (IN-03).
+	body = getAs(t, sm, putUser(sm, editor), h.HandlePluginScreen, address+"?tue=fieldset", route)
+	if !insideDisabledFieldset(body, `name="los"`) {
+		t.Error("a stray </fieldset> in the plugin's HTML closed the host's disabled fieldset")
+	}
+
 	// The control: somebody who may publish triggers the write.
 	rec, bad, _ = pluginFlashAs(t, h, sm, publisher, h.HandlePluginScreen, getRequest(address+"?tue=schreiben", route))
 	if bad != "" || !written() {

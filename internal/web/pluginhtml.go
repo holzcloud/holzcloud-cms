@@ -3,8 +3,11 @@ package web
 import (
 	"html/template"
 	"regexp"
+	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
+	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 // SafeHTML is markup that has been through the sanitiser and may be placed in
@@ -68,12 +71,37 @@ var adminPolicy = func() *bluemonday.Policy {
 // this refuses is a plugin asking for a capability the sandbox exists to
 // withhold, and the answer is to extend the policy here after thinking about
 // it — not to give one plugin a way around it.
+//
+// The sanitiser filters tags and does not balance them, so what it returns is
+// parsed once more as the fragment it will stand in and written out again: an
+// end tag the plugin never opened is dropped, and one it left open is closed.
+// Without that a stray </fieldset> ended the host's own disabled fieldset
+// around a read-only screen early, and the plugin's later controls stood
+// enabled on a screen whose every POST is refused.
 func SanitizeAdminHTML(html string) SafeHTML {
 	const max = 1 << 20
 	if len(html) > max {
 		html = html[:max]
 	}
-	return SafeHTML(adminPolicy.Sanitize(html))
+	return SafeHTML(balance(adminPolicy.Sanitize(html)))
+}
+
+// balance re-serialises a fragment as it would be parsed inside a <div>. On a
+// parse error it returns the empty string rather than the unbalanced input:
+// a screen that shows nothing is better than one that breaks out of its frame.
+func balance(fragment string) string {
+	context := &xhtml.Node{Type: xhtml.ElementNode, Data: "div", DataAtom: atom.Div}
+	nodes, err := xhtml.ParseFragment(strings.NewReader(fragment), context)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, n := range nodes {
+		if err := xhtml.Render(&b, n); err != nil {
+			return ""
+		}
+	}
+	return b.String()
 }
 
 // formOpen matches the opening tag of a form in already-sanitised markup.
