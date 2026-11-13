@@ -724,6 +724,22 @@ bt_eq "25 the night keeps its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
 bt_not "25 no cleanup line" "$T/err" "backup did not finish"
 
 # ---------------------------------------------------------------------------
+section "Test 26: a mktemp that fails is named, not taken for a failed listing"
+reset_case
+mkdir -p "$T/fake-mktemp"
+cat > "$T/fake-mktemp/mktemp" <<'FAKE'
+#!/bin/bash
+echo "mktemp: mkstemp failed on /tmp/tmp.XXXXXXXXXX: No space left on device" >&2
+exit 1
+FAKE
+chmod +x "$T/fake-mktemp/mktemp"
+PATH_PREFIX="$T/fake-mktemp:" run_backup
+bt_eq "26 exit status 40" 40 "$RC"
+bt_has "26 mktemp is named" "$T/err" "ERROR: retention could not make a temporary file (mktemp failed); old backups were not pruned"
+bt_not "26 the backup root is not blamed" "$T/err" "could not list"
+bt_eq "26 the night has its MANIFEST" yes "$(exists "$NIGHT/MANIFEST")"
+
+# ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then
     echo "BACKUP-ROBUST OK ($N cases)"
     exit 0

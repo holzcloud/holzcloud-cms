@@ -285,8 +285,17 @@ RETENTION_FAILED=""
 if [ "${RETENTION_DAYS}" -gt 0 ]; then
     echo "Pruning backups older than ${RETENTION_DAYS} days..."
     prune_root="${BACKUP_ROOT%/}"
-    if old_list=$(mktemp) \
-        && find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" -print0 > "${old_list}"; then
+    # The temporary file and the listing fail for different reasons (a full
+    # /tmp, an unreadable backup root), so each failure names its own.
+    old_list=""
+    if ! old_list=$(mktemp); then
+        old_list=""
+        echo "ERROR: retention could not make a temporary file (mktemp failed); old backups were not pruned" >&2
+        RETENTION_FAILED=yes
+    elif ! find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" -print0 > "${old_list}"; then
+        echo "ERROR: retention could not list ${BACKUP_ROOT}; old backups were not pruned" >&2
+        RETENTION_FAILED=yes
+    else
         while IFS= read -r -d '' old; do
             # Only a directory this script makes, named by its timestamp, is
             # removed. Anything else in the backup root (a lost+found of the
@@ -304,11 +313,8 @@ if [ "${RETENTION_DAYS}" -gt 0 ]; then
                 RETENTION_FAILED=yes
             fi
         done < "${old_list}"
-    else
-        echo "ERROR: retention could not list ${BACKUP_ROOT}; old backups were not pruned" >&2
-        RETENTION_FAILED=yes
     fi
-    if [ -n "${old_list:-}" ]; then
+    if [ -n "${old_list}" ]; then
         rm -f "${old_list}"
     fi
 fi
