@@ -108,8 +108,10 @@
     </div>
 
     {{/* Without the publishing right there is no status to choose: what such
-         a person saves is stored as a draft (handleProductSave). A published
-         product they open keeps its status shown, disabled with the rest. */}}
+         a person saves is stored as a draft (handleProductSave), and the form
+         posts exactly that, so form and handler agree without the server's
+         override. A published product they open keeps its status shown,
+         disabled with the rest. */}}
     {{if or .MayPublish .Locked}}
     <div class="form-group">
         <label class="form-label" for="status">{{t "Status"}}</label>
@@ -119,6 +121,7 @@
         </select>
     </div>
     {{else}}
+    <input type="hidden" name="status" value="draft">
     <p class="form-hint text-muted">{{t "Publishing is not part of your account: the product stays a draft until somebody who may publish puts it online."}}</p>
     {{end}}
     </fieldset>

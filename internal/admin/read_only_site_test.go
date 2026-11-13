@@ -422,8 +422,13 @@ func TestAnEditorWithoutPublishingWorksOnDraftProducts(t *testing.T) {
 			if !strings.Contains(body, productSaveButton) {
 				t.Errorf("%s: no Save", target)
 			}
-			if strings.Contains(body, `name="status"`) {
+			if strings.Contains(body, `<select id="status"`) {
 				t.Errorf("%s: the status choice is offered", target)
+			}
+			// The form says what the handler does: it posts a draft. Without
+			// the field only the server's override kept the form valid.
+			if !strings.Contains(body, `<input type="hidden" name="status" value="draft">`) {
+				t.Errorf("%s: the form does not post the draft status", target)
 			}
 			if !strings.Contains(body, draftHint) {
 				t.Errorf("%s: the draft hint is missing", target)
