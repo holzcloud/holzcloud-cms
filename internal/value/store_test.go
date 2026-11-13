@@ -410,6 +410,51 @@ func TestAProductKeepsAValueAlive(t *testing.T) {
 	}
 }
 
+// TestTheTableRefusesWhatTheStoreRefuses is IN-04 of the phase 33 review: the
+// table holds the shape of a key and the length and the brackets of a text
+// itself, so a writer that does not go through the store cannot store what
+// the store refuses.
+func TestTheTableRefusesWhatTheStoreRefuses(t *testing.T) {
+	_, database := newTestStore(t)
+	ws := website(t, database, "A")
+	insert := func(key, text string) error {
+		_, err := database.Write.Exec(`INSERT INTO site_values (website_id, key, value) VALUES ($1, $2, $3)`, ws, key, text)
+		return err
+	}
+	for _, c := range []struct{ key, text string }{
+		{"", "x"},
+		{strings.Repeat("k", MaxKeyBytes+1), "x"},
+		{"Gross", "x"},
+		{"-x", "x"},
+		{"x-", "x"},
+		{"x_", "x"},
+		{"a b", "x"},
+		// A key of its own for every text, so that UNIQUE is never the
+		// reason an insert fails.
+		{"t1", ""},
+		{"t2", strings.Repeat("ä", MaxTextBytes/2+1)},
+		{"t3", "a[b"},
+		{"t4", "a]b"},
+		{"t5", "a\nb"},
+		{"t6", "a\rb"},
+		{"t7", "a\tb"},
+	} {
+		if err := insert(c.key, c.text); err == nil {
+			t.Errorf("INSERT (%q, %q) was accepted", c.key, c.text)
+		}
+	}
+	for i, c := range []struct{ key, text string }{
+		{"version-holzcloud-cms", "0.1.5"},
+		{"a_b", strings.Repeat("ä", MaxTextBytes/2)},
+		{strings.Repeat("k", MaxKeyBytes), "x"},
+		{"7", "Grüezi"},
+	} {
+		if err := insert(c.key, c.text); err != nil {
+			t.Errorf("INSERT %d (%q) refused: %v", i, c.key, err)
+		}
+	}
+}
+
 // TestADeleteRefusalAlwaysNamesSomebody is IN-03 of the phase 33 review. The
 // refusal and the list of users are two reads; when the last page naming the
 // key is edited in between, the list was empty and the flash read "still used
