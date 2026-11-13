@@ -86,54 +86,79 @@ remove_temporaries() {
 }
 trap remove_temporaries EXIT
 
-# Verify the checksums BEFORE touching the live data. The MANIFEST decides,
-# never the presence of the file: backup.sh writes the line
-# checksums=SHA256SUMS since 0.1.5, so a backup with the line and without the
-# file is damaged, and one without the line was made earlier and is restored
-# unverified, with a notice.
+# Verify the checksums BEFORE touching the live data. backup.sh writes
+# SHA256SUMS and the MANIFEST line checksums=SHA256SUMS since 0.1.5. A backup
+# with the line and without the file is damaged. A backup that has the file is
+# verified whatever its MANIFEST says, so a MANIFEST that lost its line cannot
+# wave a damaged backup through. Only a backup with neither, which an older
+# release made, is restored unverified, with a notice.
+#
+# The check goes both ways. Every line of SHA256SUMS must name a file of the
+# backup with that checksum, and every regular file of the backup except
+# SHA256SUMS and the MANIFEST must be listed, ./holzcloud.sqlite included. An
+# empty or truncated SHA256SUMS is refused, never counted as "0 files verified".
 #
 # SHA256SUMS is input from the backup to a script that runs as root. Every line
-# is checked before any file is read: "<64 hex>  ./path" with no .. segment, or
-# a line beginning with a backslash, which sha256sum writes for a name holding
-# a backslash or a newline; such a line is counted and never followed. Then the
-# listed paths are hashed from inside the backup directory and compared in the
-# order of SHA256SUMS, so the first file that is missing or differs is named.
-# The output of sha256sum -c is not used: GNU and Darwin word and order it
-# differently, and a missing file goes to stderr.
-if grep -qx 'checksums=SHA256SUMS' "${BACKUP_DIR}/MANIFEST"; then
+# is checked before any file is read: "<64 hex>  ./path" with no .. segment. A
+# line beginning with a backslash, which GNU sha256sum writes for a name holding
+# a backslash or a newline, is the same line after that backslash and is checked
+# the same way. No path of SHA256SUMS is ever opened: the files are found with
+# find, hashed the way backup.sh hashed them, and the two lists are compared by
+# name, in the order of SHA256SUMS, so the first file that is missing or differs
+# is named, then the first file that is not listed. The output of sha256sum -c
+# is not used: GNU and Darwin word and order it differently, and a missing file
+# goes to stderr.
+if grep -qx 'checksums=SHA256SUMS' "${BACKUP_DIR}/MANIFEST" || [ -f "${BACKUP_DIR}/SHA256SUMS" ]; then
     if [ ! -f "${BACKUP_DIR}/SHA256SUMS" ]; then
         echo "ERROR: ${BACKUP_DIR}/MANIFEST names SHA256SUMS but the file is missing — do not restore it" >&2
         exit 1
     fi
     echo "Verifying checksums..."
+    # o is where the hex starts: 2 after the backslash of an escaped line.
     bad_line=$(LC_ALL=C awk '
-        substr($0, 1, 1) == "\\" { next }
-        length($0) < 69 || substr($0, 1, 64) !~ /^[0-9a-f]+$/ || substr($0, 65, 4) != "  ./" { print NR; exit }
-        substr($0, 67) ~ /(^|\/)\.\.(\/|$)/ { print NR; exit }' "${BACKUP_DIR}/SHA256SUMS")
+        { o = (substr($0, 1, 1) == "\\") ? 2 : 1 }
+        length($0) < 68 + o || substr($0, o, 64) !~ /^[0-9a-f]+$/ || substr($0, o + 64, 4) != "  ./" { print NR; exit }
+        substr($0, o + 66) ~ /(^|\/)\.\.(\/|$)/ { print NR; exit }' "${BACKUP_DIR}/SHA256SUMS")
     if [ -n "${bad_line}" ]; then
         echo "ERROR: line ${bad_line} of SHA256SUMS is not in the format backup.sh writes or names a path outside the backup — do not restore it" >&2
         exit 1
     fi
-    escaped=$(LC_ALL=C awk 'substr($0, 1, 1) == "\\" { n++ } END { print n + 0 }' "${BACKUP_DIR}/SHA256SUMS")
-    listed=$(LC_ALL=C awk 'substr($0, 1, 1) != "\\" { n++ } END { print n + 0 }' "${BACKUP_DIR}/SHA256SUMS")
+    listed=$(LC_ALL=C awk 'END { print NR }' "${BACKUP_DIR}/SHA256SUMS")
+    if [ "${listed}" -eq 0 ]; then
+        echo "ERROR: ${BACKUP_DIR}/SHA256SUMS is empty — the backup is damaged, do not restore it" >&2
+        exit 1
+    fi
+    if ! LC_ALL=C grep -q '^[0-9a-f]\{64\}  \./holzcloud\.sqlite$' "${BACKUP_DIR}/SHA256SUMS"; then
+        echo "ERROR: SHA256SUMS does not list ./holzcloud.sqlite — the backup is damaged, do not restore it" >&2
+        exit 1
+    fi
     ACTUAL_SUMS=$(mktemp)
-    # A missing file makes sha256sum end 1; the comparison below decides. A
-    # checked line holds no newline in its path, so newline-separated paths
-    # are exact here.
     (
         cd "${BACKUP_DIR}"
-        LC_ALL=C awk 'substr($0, 1, 1) != "\\" { print substr($0, 67) }' SHA256SUMS \
-            | tr '\n' '\0' | xargs -0 -r sha256sum
+        find . -type f ! -path ./SHA256SUMS ! -path ./MANIFEST -print0 \
+            | LC_ALL=C sort -z | xargs -0 -r sha256sum
     ) > "${ACTUAL_SUMS}" 2>/dev/null || true
-    first=$(LC_ALL=C awk -v fa="${ACTUAL_SUMS}" '
-        FILENAME == fa { A[substr($0, 67)] = substr($0, 1, 64); next }
-        substr($0, 1, 1) == "\\" { next }
+    # name(l) is the path as the line writes it; key(l) marks an escaped one,
+    # so it never meets a plain name of the same spelling; hash(l) the hex.
+    # SUMS_FILE goes through the environment: awk -v would expand backslashes.
+    first=$(SUMS_FILE="${BACKUP_DIR}/SHA256SUMS" LC_ALL=C awk '
+        function esc(l) { return substr(l, 1, 1) == "\\" }
+        function name(l) { return esc(l) ? substr(l, 68) : substr(l, 67) }
+        function key(l) { return (esc(l) ? "\\" : "/") name(l) }
+        function hash(l) { return esc(l) ? substr(l, 2, 64) : substr(l, 1, 64) }
+        FILENAME != ENVIRON["SUMS_FILE"] { A[key($0)] = hash($0); next }
         {
-            p = substr($0, 67)
-            if (!(p in A)) { print "missing " p; exit }
-            if (A[p] != substr($0, 1, 64)) { print "differs " p; exit }
+            k = key($0)
+            if (k in L) { print "twice " name($0); exit }
+            L[k] = 1
+            if (!(k in A)) { print "missing " name($0); exit }
+            if (A[k] != hash($0)) { print "differs " name($0); exit }
         }' "${ACTUAL_SUMS}" "${BACKUP_DIR}/SHA256SUMS")
     case "${first}" in
+        "twice "*)
+            echo "ERROR: ${first#twice } is listed twice in SHA256SUMS — the backup is damaged, do not restore it" >&2
+            exit 1
+            ;;
         "missing "*)
             echo "ERROR: ${first#missing } is listed in SHA256SUMS and missing — the backup is damaged, do not restore it" >&2
             exit 1
@@ -143,10 +168,17 @@ if grep -qx 'checksums=SHA256SUMS' "${BACKUP_DIR}/MANIFEST"; then
             exit 1
             ;;
     esac
-    echo "Checksums: ${listed} files verified"
-    if [ "${escaped}" -gt 0 ]; then
-        echo "NOTICE: ${escaped} lines of SHA256SUMS name a file with a backslash or a newline in its name; those files were not verified"
+    unlisted=$(SUMS_FILE="${BACKUP_DIR}/SHA256SUMS" LC_ALL=C awk '
+        function esc(l) { return substr(l, 1, 1) == "\\" }
+        function name(l) { return esc(l) ? substr(l, 68) : substr(l, 67) }
+        function key(l) { return (esc(l) ? "\\" : "/") name(l) }
+        FILENAME == ENVIRON["SUMS_FILE"] { L[key($0)] = 1; next }
+        !(key($0) in L) { print name($0); exit }' "${BACKUP_DIR}/SHA256SUMS" "${ACTUAL_SUMS}")
+    if [ -n "${unlisted}" ]; then
+        echo "ERROR: ${unlisted} is in the backup but not listed in SHA256SUMS — the backup is damaged, do not restore it" >&2
+        exit 1
     fi
+    echo "Checksums: ${listed} files verified"
 else
     echo "NOTICE: ${BACKUP_DIR} has no checksum file (made before 0.1.5); its files were not verified"
 fi

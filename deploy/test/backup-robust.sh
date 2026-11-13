@@ -206,6 +206,23 @@ exec "$REAL_RM" "\$@"
 FAKE
 chmod +x "$T/fake-rm/rm"
 
+# A sync and an mv that both record their arguments in FAKE_ORDER_LOG and then
+# do what the real ones do (Test 20), in their own directory.
+REAL_MV=$(command -v mv)
+REAL_SYNC=$(command -v sync)
+mkdir -p "$T/fake-order"
+cat > "$T/fake-order/sync" <<FAKE
+#!/bin/bash
+echo "sync \$*" >> "\$FAKE_ORDER_LOG"
+exec "$REAL_SYNC" "\$@"
+FAKE
+cat > "$T/fake-order/mv" <<FAKE
+#!/bin/bash
+echo "mv \$*" >> "\$FAKE_ORDER_LOG"
+exec "$REAL_MV" "\$@"
+FAKE
+chmod +x "$T/fake-order/sync" "$T/fake-order/mv"
+
 # A sha256sum that fails (Test 19), in its own directory.
 cat > "$T/fake-sha/sha256sum" <<'FAKE'
 #!/bin/bash
@@ -588,6 +605,29 @@ bt_eq "19 exit status is not 0" yes "$(if [ "$RC" -ne 0 ]; then echo yes; else e
 bt_eq "19 the directory of this run does not exist" no "$(exists "$NIGHT")"
 bt_has "19 stderr names the removal" "$T/err" "backup did not finish"
 bt_eq "19 the earlier night is intact" yes "$(earlier_intact)"
+
+# ---------------------------------------------------------------------------
+# A rename can reach the disk before the data it names: after a power loss the
+# file is there with length zero. SHA256SUMS and the MANIFEST are flushed before
+# they are renamed, and the directory after the MANIFEST is.
+section "Test 20: SHA256SUMS and the MANIFEST are flushed before their rename"
+reset_case
+: > "$T/order.log"
+PATH_PREFIX="$T/fake-order:" run_backup FAKE_ORDER_LOG="$T/order.log"
+bt_eq "20 exit status 0" 0 "$RC"
+first_line() {
+    # first_line PREFIX: the number of the first line of order.log that begins with PREFIX, 0 if none
+    awk -v p="$1" 'index($0, p) == 1 { print NR; f = 1; exit } END { if (!f) print 0 }' "$T/order.log"
+}
+SYNC_SUMS=$(first_line "sync -- $NIGHT/SHA256SUMS.partial")
+MV_SUMS=$(first_line "mv $NIGHT/SHA256SUMS.partial")
+SYNC_MAN=$(first_line "sync -- $NIGHT/MANIFEST.partial")
+MV_MAN=$(first_line "mv $NIGHT/MANIFEST.partial")
+bt_eq "20 SHA256SUMS.partial is flushed" yes "$(if [ "$SYNC_SUMS" -gt 0 ]; then echo yes; else echo no; fi)"
+bt_eq "20 ... before it is renamed" yes "$(if [ "$SYNC_SUMS" -gt 0 ] && [ "$SYNC_SUMS" -lt "$MV_SUMS" ]; then echo yes; else echo no; fi)"
+bt_eq "20 MANIFEST.partial is flushed before it is renamed" yes "$(if [ "$SYNC_MAN" -gt 0 ] && [ "$SYNC_MAN" -lt "$MV_MAN" ]; then echo yes; else echo no; fi)"
+bt_eq "20 the directory is flushed after the MANIFEST rename" yes "$(if [ "$MV_MAN" -gt 0 ] && [ "$(awk -v p="sync -- $NIGHT" -v m="$MV_MAN" 'NR > m && $0 == p { print "yes"; exit }' "$T/order.log")" = yes ]; then echo yes; else echo no; fi)"
+bt_eq "20 the night has its SHA256SUMS" yes "$(exists "$NIGHT/SHA256SUMS")"
 
 # ---------------------------------------------------------------------------
 if [ "$K" -eq 0 ]; then

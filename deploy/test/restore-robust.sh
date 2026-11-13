@@ -86,6 +86,10 @@ STAMP=20260101-030000
 mkdir -p "$T/src/media" "$T/src/templates" "$T/bin" "$T/count" "$T/backups"
 echo "picture" > "$T/src/media/a.jpg"
 echo "second picture" > "$T/src/media/b.jpg"
+# A name with a backslash. GNU sha256sum writes its line escaped (a leading
+# backslash, the name with the backslash doubled), Darwin's writes it as it is;
+# either way it is listed and verified like any other file.
+echo "odd picture" > "$T/src/media/odd\\name.jpg"
 echo "template" > "$T/src/templates/t.html"
 echo "key" > "$T/src/csrf.key"
 
@@ -371,15 +375,100 @@ bt_eq "not-dot-slash: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')
 bt_eq "not-dot-slash: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 
 # ---------------------------------------------------------------------------
-section "Case escaped-line: a backslash line is counted, not followed"
+section "Case escaped-line: a backslash line is verified like any other, a missing file refused"
 reset_case
-LISTED=$(wc -l < "$B/SHA256SUMS" | tr -d ' ')
-printf '\\%s  ./media/odd\\\\name.jpg\n' "$HEX" >> "$B/SHA256SUMS"
+printf '\\%s  ./media/gone\\\\name.jpg\n' "$HEX" >> "$B/SHA256SUMS"
 run_restore
-bt_eq "escaped-line: exit status 0" 0 "$RC"
-bt_has "escaped-line: the other lines are verified" "$T/out" "Checksums: $LISTED files verified"
-bt_has "escaped-line: the notice counts one line" "$T/out" "NOTICE: 1 lines of SHA256SUMS name a file with a backslash or a newline in its name; those files were not verified"
-bt_eq "escaped-line: the data directory is the backup's" yes "$(restored)"
+bt_eq "escaped-line: exit status 1" 1 "$RC"
+bt_has "escaped-line: the file is named" "$T/err" "ERROR: ./media/gone\\\\name.jpg is listed in SHA256SUMS and missing — $DAMAGED"
+bt_not "escaped-line: no notice waves it through" "$T/out" "NOTICE"
+bt_eq "escaped-line: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "escaped-line: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case escaped-rot: a first byte rotted into a backslash is a malformed line"
+reset_case
+{ printf '\\'; head -n 1 "$B/SHA256SUMS" | cut -c2-; tail -n +2 "$B/SHA256SUMS"; } > "$T/sums.new"
+cp "$T/sums.new" "$B/SHA256SUMS"
+PATH_PREFIX="$T/count:" run_restore
+bt_eq "escaped-rot: exit status 1" 1 "$RC"
+bt_has "escaped-rot: line 1 is named" "$T/err" "ERROR: line 1 of SHA256SUMS is not in the format backup.sh writes or names a path outside the backup — do not restore it"
+bt_eq "escaped-rot: nothing was hashed" 0 "$(wc -l < "$T/sha.log" | tr -d ' ')"
+bt_eq "escaped-rot: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case backslash-name: a real file with a backslash in its name is verified"
+reset_case
+flip "$B/media/odd\\name.jpg"
+run_restore
+bt_eq "backslash-name: exit status 1" 1 "$RC"
+bt_has "backslash-name: the file is named as differing" "$T/err" "name.jpg differs from its checksum in SHA256SUMS — $DAMAGED"
+bt_has "backslash-name: it is the odd file" "$T/err" "ERROR: ./media/odd"
+bt_eq "backslash-name: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case empty-sums: a zero-length SHA256SUMS is refused, not 0 files verified"
+reset_case
+: > "$B/SHA256SUMS"
+run_restore
+bt_eq "empty-sums: exit status 1" 1 "$RC"
+bt_has "empty-sums: the message" "$T/err" "ERROR: $B/SHA256SUMS is empty — $DAMAGED"
+bt_not "empty-sums: nothing claims to be verified" "$T/out" "files verified"
+bt_eq "empty-sums: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "empty-sums: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case no-db-line: SHA256SUMS without ./holzcloud.sqlite is refused"
+reset_case
+grep -v '  \./holzcloud\.sqlite$' "$B/SHA256SUMS" > "$T/sums.new"
+cp "$T/sums.new" "$B/SHA256SUMS"
+run_restore
+bt_eq "no-db-line: exit status 1" 1 "$RC"
+bt_has "no-db-line: the message" "$T/err" "ERROR: SHA256SUMS does not list ./holzcloud.sqlite — $DAMAGED"
+bt_not "no-db-line: nothing claims to be verified" "$T/out" "files verified"
+bt_eq "no-db-line: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case truncated: a SHA256SUMS cut at a line boundary names the unlisted file"
+reset_case
+sed '$d' "$B/SHA256SUMS" > "$T/sums.new"
+cp "$T/sums.new" "$B/SHA256SUMS"
+run_restore
+bt_eq "truncated: exit status 1" 1 "$RC"
+bt_has "truncated: the dropped file is named" "$T/err" "ERROR: ./templates/t.html is in the backup but not listed in SHA256SUMS — $DAMAGED"
+bt_not "truncated: nothing claims to be verified" "$T/out" "files verified"
+bt_eq "truncated: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+bt_eq "truncated: the live data is untouched" yes "$(live_untouched)"
+
+# ---------------------------------------------------------------------------
+section "Case added-file: a file added after the night is refused by name"
+reset_case
+echo "added later" > "$B/media/added.jpg"
+run_restore
+bt_eq "added-file: exit status 1" 1 "$RC"
+bt_has "added-file: the file is named" "$T/err" "ERROR: ./media/added.jpg is in the backup but not listed in SHA256SUMS — $DAMAGED"
+bt_eq "added-file: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case twice: a line listed twice is refused"
+reset_case
+head -n 1 "$B/SHA256SUMS" >> "$B/SHA256SUMS"
+run_restore
+bt_eq "twice: exit status 1" 1 "$RC"
+bt_has "twice: the file is named" "$T/err" "ERROR: ./csrf.key is listed twice in SHA256SUMS — $DAMAGED"
+bt_eq "twice: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
+
+# ---------------------------------------------------------------------------
+section "Case manifest-lost-line: a SHA256SUMS beside a MANIFEST without the line is still verified"
+reset_case
+grep -vx 'checksums=SHA256SUMS' "$B/MANIFEST" > "$T/manifest.old"
+cp "$T/manifest.old" "$B/MANIFEST"
+flip "$B/media/a.jpg"
+run_restore
+bt_eq "manifest-lost-line: exit status 1" 1 "$RC"
+bt_has "manifest-lost-line: the file is named" "$T/err" "ERROR: ./media/a.jpg differs from its checksum in SHA256SUMS — $DAMAGED"
+bt_not "manifest-lost-line: no notice of an old backup" "$T/out" "made before 0.1.5"
+bt_eq "manifest-lost-line: the service was not stopped" 0 "$(grep -c stop "$T/systemctl.log")"
 
 # ---------------------------------------------------------------------------
 section "Case listed-missing: a listed file that is gone is refused by name"

@@ -1031,9 +1031,14 @@ In order, the script:
 
 1. checks the backup **before** it touches anything, and before it stops
    anything. It refuses a directory without a `holzcloud.sqlite` or a `MANIFEST`.
-   It checks every file against `SHA256SUMS` and refuses the backup, naming the
-   first file that differs from its checksum or is missing. A backup made before
-   0.1.5 has no checksum file; it is restored with the notice
+   It checks the backup against `SHA256SUMS` both ways. Every listed file must
+   be in the backup with that checksum, and
+   every file of the backup must be listed there, the database snapshot included
+   (only `SHA256SUMS` and the `MANIFEST` are not). It refuses the backup, naming
+   the first file that differs from its checksum, is missing or is not listed,
+   and it refuses an empty `SHA256SUMS`. A backup that has a `SHA256SUMS` is
+   checked even when its `MANIFEST` does not name it. A backup made before 0.1.5
+   has neither; it is restored with the notice
    `has no checksum file (made before 0.1.5); its files were not verified`. Then
    it verifies a copy of the snapshot's integrity and refuses a snapshot that
    fails, and, through `holzcloud check -files`, lists every media row whose file

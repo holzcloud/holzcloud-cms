@@ -20,9 +20,12 @@ set -euo pipefail
 # itself and the MANIFEST at the top, in sha256sum's own format ("<hex>  ./path",
 # C order). It is written before the MANIFEST, so "MANIFEST present" still means
 # "the night finished, checksums included", and the MANIFEST says so with the
-# line checksums=SHA256SUMS. restore.sh verifies every file against it before
-# anything is stopped. SHA-256 here detects rot and accidental damage, not
-# tampering: whoever can write the backup can rewrite a file and its line alike.
+# line checksums=SHA256SUMS. Both are flushed to the disk before they are
+# renamed into place. Before anything is stopped, restore.sh refuses the backup
+# when SHA256SUMS is empty or lacks ./holzcloud.sqlite, when a listed file is
+# missing or differs, and when a file of the backup is not listed. SHA-256 here
+# detects rot and accidental damage, not tampering: whoever can write the
+# backup can rewrite a file and its line alike.
 #
 # What it deliberately does not hold: the pre-upgrade snapshots the service
 # keeps in the data directory (old-schema copies, they would not open under the
@@ -110,6 +113,15 @@ cleanup_failed_night() {
         echo "ERROR: backup did not finish and ${OWN_DIR} could not be removed; it has no MANIFEST and restore.sh refuses it, remove it by hand" >&2 || true
     fi
     return 0
+}
+
+# flush PATH: write PATH (a file or a directory) through to the disk. A rename
+# can reach the disk before the data of the file it names, and after a power
+# loss the file is then there with length zero: a zero-length SHA256SUMS beside
+# a complete MANIFEST. GNU sync takes the path; where sync takes no path, the
+# whole system is flushed instead.
+flush() {
+    sync -- "$1" 2>/dev/null || sync
 }
 
 # run_rsync WHAT RSYNC_ARGS...: the only place that starts rsync. A file that
@@ -201,6 +213,7 @@ echo "Writing checksums..."
         ! -path ./MANIFEST ! -path ./MANIFEST.partial -print0 \
         | LC_ALL=C sort -z | xargs -0 -r sha256sum
 ) > "${BACKUP_DIR}/SHA256SUMS.partial"
+flush "${BACKUP_DIR}/SHA256SUMS.partial"
 mv "${BACKUP_DIR}/SHA256SUMS.partial" "${BACKUP_DIR}/SHA256SUMS"
 
 # 5. A manifest, so a restore can tell what it is looking at. It is written
@@ -216,7 +229,9 @@ mv "${BACKUP_DIR}/SHA256SUMS.partial" "${BACKUP_DIR}/SHA256SUMS"
     echo "host=$(hostname)"
     echo "checksums=SHA256SUMS"
 } > "${BACKUP_DIR}/MANIFEST.partial"
+flush "${BACKUP_DIR}/MANIFEST.partial"
 mv "${BACKUP_DIR}/MANIFEST.partial" "${BACKUP_DIR}/MANIFEST"
+flush "${BACKUP_DIR}"
 
 # 6. Retention. Without this the disk fills up and takes the site with it, so
 #    a failure here is never silent: the directories are listed first and

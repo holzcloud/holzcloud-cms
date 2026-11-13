@@ -218,6 +218,16 @@ func TestDeployStatesWhatRestoreEndsWith(t *testing.T) {
 	sectionContains(t, "### Restore from a backup", "made before 0.1.5", "check -files", "ends with status 3")
 }
 
+// TestDeployRestoreChecksTheListBothWays: restore.sh refuses a backup whose
+// SHA256SUMS is empty or leaves a file out, the snapshot included, and the
+// document says so instead of "it checks every file" (code review 32, CR-01).
+func TestDeployRestoreChecksTheListBothWays(t *testing.T) {
+	sectionContains(t, "### Restore from a backup",
+		"every file of the backup must be listed there, the database snapshot included",
+		"is not listed",
+		"refuses an empty `SHA256SUMS`")
+}
+
 // bashBlocks returns the lines inside the ```bash fences of section.
 func bashBlocks(section string) []string {
 	var out []string
